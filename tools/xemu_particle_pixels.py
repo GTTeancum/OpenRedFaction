@@ -132,6 +132,19 @@ dvd_path = '{root.as_posix()}/build/xbox/redfaction-diagnostic.iso'
   errors=[abs(a-b) for rgb,ref in zip(corona_rgb,corona_pc) for a,b in zip(rgb,ref)]
   report['corona']=dict(actual_rgb=corona_rgb,pc_rgb=corona_pc,max_channel_error=max(errors))
   assert max(errors)<=2,report['corona']
+  animation_address=int(re.search(r'\s_rf_corona_animation_diagnostic\s+([0-9a-fA-F]+)',mapping)[1],16)
+  animation=words(monitor,animation_address,2064)
+  lines=subprocess.check_output([str(root/'build/pc/Release/rf_particle_pixel_probe.exe'),'--corona-animation',str(root/'Installed_Game/maps4.vpp')],text=True).splitlines()
+  frames=[int(lines[i*257]) for i in range(8)]
+  pc=[tuple(map(int,lines[i*257+1+j].split())) for i in range(8) for j in range(256)]
+  actual=[((p>>16)&255,(p>>8)&255,p&255) for p in animation[16:]]
+  assert animation[:5]==[0x52464341,2,5,15,82040] and animation[8:16]==frames==[0,0,1,2,3,4,0,0],animation[:16]
+  assert animation[5]>animation[6] and animation[7]>=animation[5],animation[:8]
+  errors=[abs(a-b) for rgb,ref in zip(actual,pc) for a,b in zip(rgb,ref)]
+  assert len(actual)==len(pc)==2048 and max(errors)<=2,max(errors)
+  assert actual[:256]==actual[256:512]==actual[1536:1792]==actual[1792:]
+  assert len({tuple(actual[i*256:(i+1)*256]) for i in (0,2,3,4,5)})==5
+  report['corona_animation']=dict(state=animation[:16],max_channel_error=max(errors),pixels=len(actual),actual_rgb=actual,pc_rgb=pc)
   report['result']='PASS'
 finally:
  if monitor:

@@ -188,6 +188,13 @@ int main(int argc,char **argv)
         }
         return ferror(stdin)?2:0;
     }
+    if(argc==2 && !strcmp(argv[1],"--bitmap-animation-frame")) {
+        uint32_t in[5];struct {int32_t status,frame;} out;
+        _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
+        while(fread(in,sizeof(in),1,stdin)==1){out.frame=0x12345678;
+            out.status=rf_bitmap_animation_frame(in[0],in[1],in[2],in[3],in[4],&out.frame);fwrite(&out,sizeof(out),1,stdout);}
+        return ferror(stdin)?2:0;
+    }
     if(argc==2 && !strcmp(argv[1],"--corona-oriented")) {
         float in[13];struct {int32_t status;uint32_t kind;rf_particle_billboard_vertex vertices[4];} out;
         _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);

@@ -6695,8 +6695,13 @@ static int scene_corona_geometry(scene_corona_context *c,const float first[3],co
     const rf_image *image;rf_particle_screen_polygon polygon={0};rf_particle_billboard_vertex world[4];
     rf_particle_draw_vertex vertices[12];rf_particle_vertex_environment e={0};
     rf_particle_render_environment re={1,1,0,2};rf_particle_render_states states={0};uint32_t kind,i;int status;
-    /* Animated bitmap clock ownership is still unresolved; do not freeze it silently. */
-    if(animation->count!=1)return RF_NOT_FOUND;image=animation->images;
+    if(!animation->count)return RF_FORMAT;
+    {int32_t frame=0;
+        if(animation->count>1){status=rf_bitmap_animation_frame((uint32_t)((uint64_t)c->stream->particle_frame*1000/60),
+            0,animation->rate,animation->count,1,&frame);if(status)return status;}
+        if(frame<0 || (uint32_t)frame>=animation->count)return RF_RANGE;
+        image=animation->images+frame;
+    }
     if(second){status=rf_corona_oriented_build(c->stream->particle_camera.view.origin,
         c->stream->particle_camera.projection.matrix+6,first,second,size,world,&kind);if(status)return status;
         if(!kind)return RF_OK;

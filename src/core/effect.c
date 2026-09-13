@@ -43,6 +43,21 @@ int rf_particle_cone_oriented(const float axis[3],float cosine_min,
     for(i=0;i<3;i++)direction[i]=value[i];*random=next;return RF_OK;
 }
 
+int rf_bitmap_animation_frame(uint32_t now,uint32_t started,uint32_t fps,
+    uint32_t count,uint32_t loop,int32_t *frame)
+{
+    float rate;double phase;uint32_t selected;
+    if(!frame || !count || count>255 || fps>INT32_MAX)return RF_RANGE;
+    rate=(float)((double)fps*(double).001f);
+    phase=(double)(uint32_t)(now-started)*rate;
+    if(!isfinite(phase) || phase>=2147483648.0)return RF_RANGE;
+    selected=(uint32_t)phase;
+    if(selected>=count) {
+        if(!loop){*frame=-1;return RF_OK;}
+        selected%=count;if(loop==2 && (selected&1u))selected=count-selected-1;
+    }
+    *frame=(int32_t)selected;return RF_OK;
+}
 uint32_t rf_particle_render_mode(uint32_t flags,uint32_t normal_mode,uint32_t glow_mode)
 {
     uint32_t mode=(flags&2u)?glow_mode:normal_mode;

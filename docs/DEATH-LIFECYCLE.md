@@ -8942,3 +8942,37 @@ queue eligibility is preserved for marker semantics, but volume geometry
 is not submitted; reflections remain disabled. Full transparent queue
 interleaving, moving-parent4881a0/487630 propagation and authored animated
 bitmap clocks remain open. Do not claim complete glare/PS2 visual parity.
+
+## Automatic animated corona bitmap selection (2026-09-12)
+
+Original50d060 only publishes bitmap handles; downstream551900 calls
+550850/55cad0, which resolves normal animation handles through50f440.
+Type1 bitmap owners call50f500 with start0, stored rate and loop1.
+Loader50f9cd converts signed integer FPS times float0.001 into a stored
+float frames/ms value.50f500 multiplies that rate by unsigned wrapping
+(now1754610-start), truncates, returns base+1+frame, or-1 on nonlooping
+completion. Mode2 reverses odd remainders, not alternating loop quotients;
+the reconstruction deliberately preserves that observed behavior.
+
+rf_bitmap_animation_frame exposes zero-based frames with explicit clock,
+start,FPS,count and loop inputs. Count1..255, nonnegative signed FPS and
+signed-int32 phase are supported; outside-domain errors preserve output.
+verify_bitmap_animation_frame.py executes unhooked rate conversion and
+full50f500 for2774 cases, including timestamp wrap, plus350 actual normal
+50f440 automatic bindings and4 guards. PC and compiled NXDK match exactly.
+
+Scene corona drawing now chooses retained animation frames with that helper
+instead of rejecting multi-frame textures. It maps the current replay/game
+level frame to milliseconds and uses normal automatic start0/loop1. Global
+clock continuity across future level transitions and separately instantiated
+bit30 animation handles remain open; neither is claimed by this mapping.
+
+Native particle-pixels-20260912-230245 passes on67108864 bytes with no
+plugged memory. Authored maps4.vpp thruster02_cor.vbm retains all5 frames
+at15FPS/82040 bytes after archive closure. At0,66,67,134,200,267,334,667ms
+both backends choose0,0,1,2,3,4,0,0. All5 sampled images differ; repeated
+and looped frame0 samples match.2048 GPU samples differ from PC by at most
+one channel value. Available pages14042->14022->14042 prove recovery.
+Both builds, original clock comparisons, existing native pixel regressions
+and22CTest pass. This is clock/owned-texture GPU validation; no authored
+thruster placement or moving-parent campaign scene is claimed yet.

@@ -199,6 +199,12 @@ int rf_particle_project(const rf_particle_projection *projection,rf_particle_pro
  * may supply runtime mode replacements; flag 0x2000 clears only depth mode. */
 #define RF_PARTICLE_NORMAL_MODE 0x00118c42u
 #define RF_PARTICLE_GLOW_MODE 0x06110c42u
+/* Original50f9cd rate conversion and50f500 frame clock. Unsigned millisecond
+ * subtraction wraps; output is zero-based, -1 for finished nonlooping playback.
+ * Count1..255, nonnegative signed fps domain and int32 phase required. Mode2
+ * preserves the original odd-remainder reversal. Errors preserve output. */
+int rf_bitmap_animation_frame(uint32_t now,uint32_t started,uint32_t fps,
+    uint32_t count,uint32_t loop,int32_t *frame);
 uint32_t rf_particle_render_mode(uint32_t flags,uint32_t normal_mode,uint32_t glow_mode);
 typedef struct rf_particle_texture_states {
     uint32_t count;
