@@ -21,14 +21,13 @@ typedef struct render_dispatch_fixture {uint32_t wire[6],trace[8],count;} render
 static int render_dispatch_record(render_dispatch_fixture *f,uint32_t code)
 {f->trace[f->count++]=code;return f->wire[5]==f->count?RF_IO:RF_OK;}
 static int render_dispatch_white(void *c){return render_dispatch_record(c,1);}
-static int render_dispatch_skip(void *c,uint32_t *out){render_dispatch_fixture *f=c;*out=f->wire[4];return render_dispatch_record(f,2);}
 static int render_dispatch_kind(void *c,uint32_t model,uint32_t *out){render_dispatch_fixture *f=c;(void)model;*out=f->wire[3];return render_dispatch_record(f,3);}
 static int render_dispatch_prepare(void *c,uint32_t model){(void)model;return render_dispatch_record(c,4);}
 static int render_dispatch_render(void *c,uint32_t kind){return render_dispatch_record(c,5+kind);}
 int main(int argc,char **argv)
 {
     if(argc==2 && !strcmp(argv[1],"--object-render-dispatch")) {
-        render_dispatch_fixture f;rf_object_render_backend b={render_dispatch_white,render_dispatch_skip,render_dispatch_kind,render_dispatch_prepare,render_dispatch_render,&f};
+        render_dispatch_fixture f;rf_object_render_backend b={render_dispatch_white,render_dispatch_kind,render_dispatch_prepare,render_dispatch_render,&f};
         _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
         while(fread(f.wire,sizeof(f.wire),1,stdin)==1) {
             int status;f.count=0;memset(f.trace,0,sizeof(f.trace));

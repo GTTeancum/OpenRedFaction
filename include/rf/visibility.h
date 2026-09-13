@@ -5,14 +5,14 @@
 #include "rf/geometry.h"
 typedef struct rf_object_render_backend {
     int (*white)(void *);
-    int (*skip)(void *,uint32_t *);
     int (*model_kind)(void *,uint32_t,uint32_t *);
     int (*prepare)(void *,uint32_t);
     int (*render)(void *,uint32_t);
     void *context;
 } rf_object_render_backend;
-/*488b20 dispatch: hidden bit2 skips all services; model skip low byte1
- * returns before rendering. Model kind3 prepares before family rendering.
+/*488b20 dispatch: hidden bit2 skips all services; with a model, object
+ * flag0x4000 (40a110) skips after white setup. Model kind3 prepares before
+ * family rendering.
  * Successful render publishes flag0x10 using the current flags (callbacks
  * may mutate them). Errors preserve earlier callback progress, omit marker.
  * Caller supplies actual graphics/model/family services and their ownership.

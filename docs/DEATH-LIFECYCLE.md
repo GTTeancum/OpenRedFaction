@@ -8404,3 +8404,22 @@ must not be used as an object-frame clear.4d2f80 clears room+160 eligibility,
 also distinct. Do not synthesize per-frame object0x10 clearing until its
 producer/lifetime is established. Actual family draw binding, room ordering
 and full glare scheduling remain open; no new native/rendered-scene claim.
+
+
+Correction: render skip is object flag4000, not LOD (2026-09-12)
+--------------------------------------------------------------
+The earlier LOD description of40a110 was incorrect. Actual40a110 returns
+one exactly when a nonnull object has flags7c bit0x4000. The dispatcher
+now reads that flag directly after white setup when a model exists; no
+opaque skip service remains. Model absence bypasses this predicate, as in
+488b20. The remaining callbacks supply white setup, model kind/preparation
+and actual family rendering. Genuine LOD selection remains separate work.
+
+verify_object_render_dispatch.py now executes original40a110 unchanged
+within full488b20 instead of supplying arbitrary predicate returns.352
+cases cover11 families,8 flag patterns,model absence/presence and2 model
+kinds.176 rendered and176 skipped cases match PC/compiled NXDK callback
+order and final flags.4 remaining callback-error cases pass. Both builds
+and21 CTests pass. This supersedes the prior704-case supplied-predicate
+coverage as the current integrated predicate evidence; it does not establish
+marker clearing or native rendering phase integration.

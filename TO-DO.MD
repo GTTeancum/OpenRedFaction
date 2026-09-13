@@ -163,8 +163,8 @@ NPC visibility views/model callback match38 native owners and31 direct
 hits; bind original488b20 post-render flag0x10 publication/clearing and
 room/owner callbacks before enabling full glare visibility scheduling.
 
-Shared object render dispatch matches704 original PC/NXDK cases and5
-callback failures; bind real family rendering and LOD services, then verify
+Shared object render dispatch matches352 original PC/NXDK cases and4
+callback failures with actual flag4000 skip; bind family rendering, then verify
 object flag0x10 lifetime and glare scheduling without an assumed frame clear.
 
 Immediate open items:

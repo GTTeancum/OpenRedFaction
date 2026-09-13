@@ -14,7 +14,7 @@ def machine(path):
 u=machine(exe);x=machine(root/'build/xbox/main.exe')
 entry=int(re.search(r'\s_rf_object_render_dispatch\s+([0-9a-fA-F]+)',(root/'build/xbox/main.map').read_text())[1],16)
 renders=[0x421850,0x458f80,0x4c72c0,0x412d90,0x4103d0,0x4c05a0,0x4bd7e0,0x417080,0x46a9c0,0x46b2b0,0x4141a0]
-original={0x50cf80:1,0x40a110:2,0x502b00:3,0x503360:4,**{a:5+i for i,a in enumerate(renders)}}
+original={0x50cf80:1,0x502b00:3,0x503360:4,**{a:5+i for i,a in enumerate(renders)}}
 trace={u:[],x:[]};case=None
 r=lambda cpu,a:struct.unpack('<I',cpu.mem_read(a,4))[0]
 def hook(cpu,address,size,ctx):
@@ -22,18 +22,17 @@ def hook(cpu,address,size,ctx):
   if address not in original:return
   code=original[address]
  else:
-  if address not in range(CB,CB+80,16):return
-  code=(address-CB)//16+1
-  if code==5:code+=case[0]
+  callbacks={CB:1,CB+16:3,CB+32:4,CB+48:5+case[0]}
+  if address not in callbacks:return
+  code=callbacks[address]
  trace[cpu].append(code);sp=cpu.reg_read(UC_X86_REG_ESP);arg=lambda i:r(cpu,sp+4+i*4)
  if cpu is u:
   if code>=5:
    assert arg(0)==(B-4 if case[0]==6 else B)
    assert r(cpu,B+0x7c)==case[1]
-  value=case[4] if code==2 else case[3] if code==3 else 0
+  value=case[3] if code==3 else 0
  else:
   assert arg(0)==77
-  if code==2:cpu.mem_write(arg(1),w(case[4]))
   if code==3:assert arg(1)==case[2];cpu.mem_write(arg(2),w(case[3]))
   if code==4:assert arg(1)==case[2]
   if code>=5:assert arg(1)==case[0]
@@ -42,21 +41,21 @@ def hook(cpu,address,size,ctx):
 u.hook_add(UC_HOOK_CODE,hook);x.hook_add(UC_HOOK_CODE,hook)
 def run(cpu,address,args):
  cpu.mem_write(S,w(STOP,*args));cpu.reg_write(UC_X86_REG_ESP,S);cpu.emu_start(address,STOP,count=100000);assert cpu.reg_read(UC_X86_REG_EIP)==STOP;return cpu.reg_read(UC_X86_REG_EAX)
-cases=[(*c,0) for c in itertools.product(range(11),(0,2,16,0x100),(0,1),(1,3),(0,1,2,257))]
-base=len(cases);cases += [(0,0,1,3,0,i) for i in range(1,6)]
+cases=[(*c,0,0) for c in itertools.product(range(11),(0,2,16,0x100,0x4000,0x4010,0x4002,0xffffffff),(0,1),(1,3))]
+base=len(cases);cases += [(0,0,1,3,0,i) for i in range(1,5)]
 actual=subprocess.check_output([str(root/'build/pc/Release/rf_effect_probe.exe'),'--object-render-dispatch'],input=b''.join(w(*c) for c in cases));assert len(actual)==44*len(cases)
 rendered=skipped=0
 for n,case in enumerate(cases):
- typ,flags,model,kind,lod,error=case;trace[u]=[];trace[x]=[]
+ typ,flags,model,kind,reserved,error=case;trace[u]=[];trace[x]=[]
  if n<base:
   u.mem_write(B,bytes(768));u.mem_write(B+0x24,w(typ));u.mem_write(B+0x7c,w(flags,model));run(u,0x488b20,(B,))
   want_flags=r(u,B+0x7c);want_trace=trace[u];status=0
-  skip=bool(flags&2 or model and (lod&255)==1);assert want_flags==(flags if skip else flags|16)
+  skip=bool(flags&2 or model and flags&0x4000);assert want_flags==(flags if skip else flags|16)
   assert [v for v in want_trace if v>=5]==([] if skip else [5+typ]);rendered+=not skip;skipped+=skip
- else:want_flags=flags;want_trace=list(range(1,error+1));status=0xffffffff
- x.mem_write(B,w(flags));x.mem_write(BE,w(*range(CB,CB+80,16),77))
+ else:want_flags=flags;want_trace=[1,3,4,5][:error];status=0xffffffff
+ x.mem_write(B,w(flags));x.mem_write(BE,w(*range(CB,CB+64,16),77))
  got=run(x,entry,(B,typ,model,BE));assert got==status and r(x,B)==want_flags and trace[x]==want_trace,(n,case,trace[x],want_trace)
  want=w(status,want_flags,len(want_trace),*want_trace,*([0]*(8-len(want_trace))))
  assert actual[n*44:(n+1)*44]==want,(n,case,'PC')
-report={'result':'PASS','original_cases':base,'callback_error_cases':len(cases)-base,'rendered':rendered,'skipped':skipped,'original_sha256':sha,'scope':'Full original488b20 dispatcher, graphics/LOD/model/family callbacks supplied; exact order and post-render marker versus PC/NXDK. Callback errors are port guards. No live renderer, marker clearing or room scheduling claim.'}
+report={'result':'PASS','original_cases':base,'callback_error_cases':len(cases)-base,'rendered':rendered,'skipped':skipped,'original_sha256':sha,'scope':'Full original488b20 dispatcher, actual40a110 predicate executes; graphics/model/family callbacks supplied; exact order and post-render marker versus PC/NXDK. Callback errors are port guards. No live renderer, marker clearing or room scheduling claim.'}
 (root/'artifacts/object-render-dispatch.json').write_text(json.dumps(report,indent=2));print(report)
