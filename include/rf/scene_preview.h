@@ -518,6 +518,8 @@ int rf_scene_geometry_texture_query_preferred(uint32_t solid,const rf_geometry_w
     uint32_t flags,const float start[3],const float delta[3],float radius,float limit,
     rf_geometry_world_sweep_hit *result,uint32_t *matched);
 extern uint32_t rf_scene_geometry_textures[13];
+/* Query-only alpha callback counts: total, transparent, opaque, errors. */
+extern uint32_t rf_scene_geometry_alpha_contacts[4];
 /* Borrow a retained world for diagnostic camera following; NULL disables.
  * Owner and source world must outlive the body stream. Fixed .7Y/2.4Z offset,
  * no camera collision or original first-person policy. */

@@ -8293,3 +8293,25 @@ faces72..76 in room3 with flags200. Use authored L1S2 geometry for upcoming
 native alpha-contact validation; flags alone do not prove transparent pixels
 or query rejection. This audit excludes mover geometry. No live glare draw
 or campaign visibility scheduling is established by these fixtures.
+
+
+Native authored alpha-contact coverage (2026-09-12)
+------------------------------------------------
+The scene fixture now visits every authored alpha-test collision face plus
+each binding endpoint. Face flags remain unchanged. Query-only counters
+exclude direct centroid sampling and record total,transparent,opaque,error
+callbacks. The native replay requires both alpha outcomes on L1S2 with
+actor-pair fixtures enabled, and exact PC/Xbox counters/contact hashes.
+
+L1S2 native replay-20260912-201642 passes180 frames with stock64MiB and
+zero plugged memory. Geometry telemetry is141,32,6773,33640,16,2754184093,
+687,393,664,0,3893908690,2584395527,1. The141 room/32 mover bindings
+retain33640 bytes;687 queries produce664 hits, with393 total samples
+including direct fixture samples. Query-only alpha callbacks are38 total:
+6 below128 (transparent),32 at least128 (opaque),zero errors. The existing
+original-verified sweep gate rejects transparent candidate contacts; an
+overall world query can still hit another face. Do not interpret6 as six
+whole-query misses. These are authored fixture contacts, not live glare
+scheduling. Initial bitmap selection only; runtime replacements remain open.
+PC/NXDK builds and21 CTests pass. The earlier expanded-coverage replay
+20260912-201331 also passed before query-only counters were introduced.

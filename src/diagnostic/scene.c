@@ -1869,7 +1869,8 @@ static uint32_t npc_hash_bytes(uint32_t hash,const void *data,uint32_t bytes)
     const unsigned char *p=data;while(bytes--)hash=(hash^*p++)*16777619u;return hash;
 }
 /* Retained alpha-query bindings borrow the scene's geometry and images. */
-uint32_t rf_scene_geometry_textures[13];
+uint32_t rf_scene_geometry_textures[13],rf_scene_geometry_alpha_contacts[4];
+static uint32_t campaign_alpha_query_active;
 static void *campaign_alpha_storage;
 static rf_geometry_material_collision *campaign_alpha_views;
 static rf_collision_indexed_texture_backend *campaign_alpha_backends;
@@ -1889,7 +1890,12 @@ static int campaign_alpha_sample(void *context,uint32_t index,const rf_collision
 {
     rf_geometry_material_collision *view=context;int status;uint32_t record[6];
     ++rf_scene_geometry_textures[7];
-    status=rf_geometry_material_collision_sample(context,index,face,bitmap,point,color);if(status)return status;
+    status=rf_geometry_material_collision_sample(context,index,face,bitmap,point,color);
+    if(campaign_alpha_query_active) {
+        ++rf_scene_geometry_alpha_contacts[0];
+        ++rf_scene_geometry_alpha_contacts[status?3:(*color>>24)<128?1:2];
+    }
+    if(status)return status;
     record[0]=view->geometry_index;record[1]=view->source_indices?view->source_indices[index]:index;
     memcpy(record+2,point,12);record[5]=*color;
     rf_scene_geometry_textures[10]=npc_hash_bytes(rf_scene_geometry_textures[10],record,sizeof(record));return RF_OK;
@@ -1917,6 +1923,7 @@ static int campaign_alpha_open(const rf_geometry_collision_world *world,const rf
     campaign_alpha_mapping.count=actor_follow_world->geometry_count;campaign_alpha_mapping.textures=*materials;
     campaign_alpha_mapping.textures.count=actor_follow_world->material_count;
     memset(rf_scene_geometry_textures,0,sizeof(rf_scene_geometry_textures));
+    memset(rf_scene_geometry_alpha_contacts,0,sizeof(rf_scene_geometry_alpha_contacts));
     rf_scene_geometry_textures[0]=world->room_count;rf_scene_geometry_textures[1]=campaign_movers.count;
     rf_scene_geometry_textures[2]=(uint32_t)refs;rf_scene_geometry_textures[3]=(uint32_t)bytes;rf_scene_geometry_textures[4]=maximum;
     rf_scene_geometry_textures[5]=rf_scene_geometry_textures[10]=rf_scene_geometry_textures[11]=2166136261u;
@@ -1981,7 +1988,9 @@ int rf_scene_geometry_texture_query_preferred(uint32_t solid,const rf_geometry_w
         texture.preferred_bitmap=context.backend->bitmaps[index];texture.preferred=&sampler;
     }
     ++rf_scene_geometry_textures[6];
+    campaign_alpha_query_active=1;
     status=rf_collision_solid_preferred_textured(view,cached?&preferred:NULL,flags,start,delta,radius,limit,&texture,&hit,&found);
+    campaign_alpha_query_active=0;
     if(status){++rf_scene_geometry_textures[9];return status;}
     if(found) {
         rf_geometry_world_sweep_hit value;value.hit=hit.tree.hit;value.room=hit.room;value.hits=hit.tree.hits;value.edge=hit.tree.edge;
@@ -2005,9 +2014,11 @@ static int campaign_alpha_check(uint32_t frame)
     for(i=0;i<n;++i) {
         const rf_collision_face *faces=i<campaign_alpha_world->room_count?campaign_alpha_world->rooms[i].tree.faces:campaign_movers.owned[i-campaign_alpha_world->room_count].faces;
         uint32_t count=campaign_alpha_views[i].face_count;
-        for(j=0;j<count && j<2;++j) {
-            uint32_t index=j?count-1:0,color,found,record[3];float point[3]={0},start[3],delta[3];rf_geometry_world_sweep_hit hit={0};
+        for(j=0;j<count;++j) {
+            uint32_t index=j,color,found,record[3];float point[3]={0},start[3],delta[3];rf_geometry_world_sweep_hit hit={0};
             const rf_collision_face *face=faces+index;
+            /* Preserve endpoint coverage and include every authored alpha-test face. */
+            if(j && j+1<count && !(face->filter.face_flags&0xc0))continue;
             for(k=0;k<face->count;++k){uint32_t axis;for(axis=0;axis<3;++axis){volatile float sum=point[axis]+face->vertices[k][axis];point[axis]=sum;}}
             for(k=0;k<3;++k){volatile float center=point[k]/face->count;point[k]=center;start[k]=point[k]+face->plane[k];delta[k]=-2*face->plane[k];}
             if(campaign_alpha_backends[i].bitmaps[index]>=0) {

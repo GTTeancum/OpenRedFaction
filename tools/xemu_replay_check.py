@@ -295,6 +295,11 @@ dvd_path = '{root.as_posix()}/build/xbox/redfaction-diagnostic.iso'
      assert geometry_textures[3]<=128*1024 and geometry_textures[9]==0 and geometry_textures[12]==1,geometry_textures
      if args.actor_pairs:assert geometry_textures[6]>0 and geometry_textures[7]>0,geometry_textures
      report['geometry_textures']=geometry_textures
+     alpha_contacts=words(monitor,symbol('rf_scene_geometry_alpha_contacts'),4)
+     assert alpha_contacts==expected('GEOMETRY_ALPHA_CONTACTS'),alpha_contacts
+     assert alpha_contacts[0]==sum(alpha_contacts[1:]) and alpha_contacts[3]==0,alpha_contacts
+     if args.actor_pairs and report['level'].lower()=='l1s2.rfl':assert alpha_contacts[1]>0 and alpha_contacts[2]>0,alpha_contacts
+     report['geometry_alpha_contacts']=alpha_contacts
      glare_instances=words(monitor,symbol('rf_scene_glare_instances'),10)
      assert glare_instances==expected('GLARE_INSTANCES') and glare_instances[3]==glare_instances[8] and glare_instances[9]==0,glare_instances
      assert glare_instances[5]<=glare_instances[6]<=256*1024,glare_instances
