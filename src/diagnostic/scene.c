@@ -1868,6 +1868,125 @@ static uint32_t npc_hash_bytes(uint32_t hash,const void *data,uint32_t bytes)
 {
     const unsigned char *p=data;while(bytes--)hash=(hash^*p++)*16777619u;return hash;
 }
+/* Retained alpha-query bindings borrow the scene's geometry and images. */
+uint32_t rf_scene_geometry_textures[13];
+static void *campaign_alpha_storage;
+static rf_geometry_material_collision *campaign_alpha_views;
+static rf_collision_indexed_texture_backend *campaign_alpha_backends;
+static rf_geometry_materials campaign_alpha_mapping;
+static rf_geometry_texture_workspace campaign_alpha_work;
+static const rf_geometry_collision_world *campaign_alpha_world;
+static const rf_materials *campaign_alpha_materials;
+static void campaign_alpha_close(void)
+{
+    if(campaign_alpha_storage)++rf_scene_geometry_textures[12];
+    free(campaign_alpha_storage);campaign_alpha_storage=NULL;campaign_alpha_views=NULL;campaign_alpha_backends=NULL;
+    campaign_alpha_world=NULL;campaign_alpha_materials=NULL;
+    memset(&campaign_alpha_mapping,0,sizeof(campaign_alpha_mapping));memset(&campaign_alpha_work,0,sizeof(campaign_alpha_work));
+}
+static int campaign_alpha_sample(void *context,uint32_t index,const rf_collision_face *face,
+    int32_t bitmap,const float point[3],uint32_t *color)
+{
+    rf_geometry_material_collision *view=context;int status;uint32_t record[6];
+    ++rf_scene_geometry_textures[7];
+    status=rf_geometry_material_collision_sample(context,index,face,bitmap,point,color);if(status)return status;
+    record[0]=view->geometry_index;record[1]=view->source_indices?view->source_indices[index]:index;
+    memcpy(record+2,point,12);record[5]=*color;
+    rf_scene_geometry_textures[10]=npc_hash_bytes(rf_scene_geometry_textures[10],record,sizeof(record));return RF_OK;
+}
+static int campaign_alpha_open(const rf_geometry_collision_world *world,const rf_materials *materials)
+{
+    uint64_t refs=0,bytes;uint32_t n,i,j,maximum=3;unsigned char *cursor;int32_t *bitmaps;int status;
+    if(campaign_alpha_storage || !world || !materials || !actor_follow_world || !campaign_surface_sources ||
+        materials->count<actor_follow_world->material_count)return RF_RANGE;
+    n=world->room_count+campaign_movers.count;
+    for(i=0;i<n;++i) {
+        const rf_collision_face *faces=i<world->room_count?world->rooms[i].tree.faces:campaign_movers.owned[i-world->room_count].faces;
+        uint32_t count=i<world->room_count?world->rooms[i].tree.face_count:campaign_movers.owned[i-world->room_count].count;
+        refs+=count;for(j=0;j<count;++j)if(faces[j].count>maximum)maximum=faces[j].count;
+    }
+    bytes=(uint64_t)n*(sizeof(*campaign_alpha_views)+sizeof(*campaign_alpha_backends))+refs*4+(uint64_t)maximum*20;
+    if(bytes>128*1024 || maximum>65536)return RF_RANGE;
+    cursor=calloc(1,(size_t)bytes);if(!cursor)return RF_RANGE;campaign_alpha_storage=cursor;
+    campaign_alpha_views=(rf_geometry_material_collision *)cursor;cursor+=n*sizeof(*campaign_alpha_views);
+    campaign_alpha_backends=(rf_collision_indexed_texture_backend *)cursor;cursor+=n*sizeof(*campaign_alpha_backends);
+    bitmaps=(int32_t *)cursor;cursor+=(size_t)refs*4;
+    campaign_alpha_work.vertices=(float (*)[3])cursor;cursor+=maximum*12;
+    campaign_alpha_work.coordinates=(float (*)[2])cursor;campaign_alpha_work.capacity=maximum;
+    campaign_alpha_mapping.offsets=actor_follow_world->offsets;campaign_alpha_mapping.slots=actor_follow_world->slots;
+    campaign_alpha_mapping.count=actor_follow_world->geometry_count;campaign_alpha_mapping.textures=*materials;
+    campaign_alpha_mapping.textures.count=actor_follow_world->material_count;
+    memset(rf_scene_geometry_textures,0,sizeof(rf_scene_geometry_textures));
+    rf_scene_geometry_textures[0]=world->room_count;rf_scene_geometry_textures[1]=campaign_movers.count;
+    rf_scene_geometry_textures[2]=(uint32_t)refs;rf_scene_geometry_textures[3]=(uint32_t)bytes;rf_scene_geometry_textures[4]=maximum;
+    rf_scene_geometry_textures[5]=rf_scene_geometry_textures[10]=rf_scene_geometry_textures[11]=2166136261u;
+    for(i=0;i<n;++i) {
+        rf_geometry_material_collision *view=campaign_alpha_views+i;
+        view->materials=&campaign_alpha_mapping;view->work=&campaign_alpha_work;
+        view->geometry_index=i<world->room_count?0:i-world->room_count+1;
+        view->geometry=campaign_surface_sources[view->geometry_index];
+        if(i<world->room_count){view->source_indices=world->rooms[i].tree.source_indices;view->face_count=world->rooms[i].tree.face_count;}
+        else view->face_count=campaign_movers.owned[i-world->room_count].count;
+        status=rf_geometry_material_collision_bind(view,bitmaps,view->face_count,campaign_alpha_backends+i);
+        if(status){campaign_alpha_close();return status;}
+        campaign_alpha_backends[i].sample=campaign_alpha_sample;
+        rf_scene_geometry_textures[5]=npc_hash_bytes(rf_scene_geometry_textures[5],bitmaps,view->face_count*4);bitmaps+=view->face_count;
+    }
+    campaign_alpha_world=world;campaign_alpha_materials=materials;return RF_OK;
+}
+int rf_scene_geometry_texture_query(uint32_t solid,uint32_t flags,const float start[3],const float delta[3],
+    float radius,float limit,rf_geometry_world_sweep_hit *result,uint32_t *matched)
+{
+    rf_collision_solid_view world={0};const rf_collision_solid_view *view;
+    rf_collision_solid_texture_backend texture={0};rf_collision_sweep_room_hit hit;uint32_t found;int status;
+    if(!campaign_alpha_world || !campaign_alpha_materials || !result || !matched ||
+        (solid!=UINT32_MAX && solid>=campaign_movers.count))return RF_RANGE;
+    /* NPC material append may replace items; refresh this borrowed view per query. */
+    campaign_alpha_mapping.textures=*campaign_alpha_materials;campaign_alpha_mapping.textures.count=actor_follow_world->material_count;
+    if(solid==UINT32_MAX) {
+        world.rooms=campaign_alpha_world->views;world.room_count=campaign_alpha_world->room_count;
+        world.primary=campaign_alpha_world->primary;world.primary_count=campaign_alpha_world->primary_count;
+        world.children=campaign_alpha_world->children;world.child_count=campaign_alpha_world->child_count;
+        view=&world;flags|=4;texture.rooms=campaign_alpha_backends;
+    } else {view=campaign_movers.views+solid;texture.flat=campaign_alpha_backends+campaign_alpha_world->room_count+solid;}
+    texture.preferred_bitmap=-1;++rf_scene_geometry_textures[6];
+    status=rf_collision_solid_preferred_textured(view,NULL,flags,start,delta,radius,limit,&texture,&hit,&found);
+    if(status){++rf_scene_geometry_textures[9];return status;}
+    if(found) {
+        rf_geometry_world_sweep_hit value;value.hit=hit.tree.hit;value.room=hit.room;value.hits=hit.tree.hits;value.edge=hit.tree.edge;
+        value.face=solid==UINT32_MAX?campaign_alpha_world->rooms[hit.room].tree.source_indices[hit.tree.face_index]:hit.tree.face_index;
+        *result=value;++rf_scene_geometry_textures[8];
+    }
+    *matched=found;return RF_OK;
+}
+static int campaign_alpha_check(uint32_t frame)
+{
+    uint32_t i,j,k,n;int status;
+    if(frame || !rf_scene_actor_pair_test_enabled)return RF_OK;
+    if(!campaign_alpha_world)return RF_RANGE;
+    campaign_alpha_mapping.textures=*campaign_alpha_materials;campaign_alpha_mapping.textures.count=actor_follow_world->material_count;
+    n=campaign_alpha_world->room_count+campaign_movers.count;
+    for(i=0;i<n;++i) {
+        const rf_collision_face *faces=i<campaign_alpha_world->room_count?campaign_alpha_world->rooms[i].tree.faces:campaign_movers.owned[i-campaign_alpha_world->room_count].faces;
+        uint32_t count=campaign_alpha_views[i].face_count;
+        for(j=0;j<count && j<2;++j) {
+            uint32_t index=j?count-1:0,color,found,record[3];float point[3]={0},start[3],delta[3];rf_geometry_world_sweep_hit hit={0};
+            const rf_collision_face *face=faces+index;
+            for(k=0;k<face->count;++k){uint32_t axis;for(axis=0;axis<3;++axis){volatile float sum=point[axis]+face->vertices[k][axis];point[axis]=sum;}}
+            for(k=0;k<3;++k){volatile float center=point[k]/face->count;point[k]=center;start[k]=point[k]+face->plane[k];delta[k]=-2*face->plane[k];}
+            if(campaign_alpha_backends[i].bitmaps[index]>=0) {
+                status=campaign_alpha_backends[i].sample(campaign_alpha_backends[i].context,index,face,campaign_alpha_backends[i].bitmaps[index],point,&color);
+                if(status){++rf_scene_geometry_textures[9];return status;}
+            }
+            status=rf_scene_geometry_texture_query(i<campaign_alpha_world->room_count?UINT32_MAX:i-campaign_alpha_world->room_count,
+                0x184,start,delta,0,1,&hit,&found);if(status)return status;
+            record[0]=i;record[1]=index;record[2]=found;
+            rf_scene_geometry_textures[11]=npc_hash_bytes(rf_scene_geometry_textures[11],record,sizeof(record));
+            if(found)rf_scene_geometry_textures[11]=npc_hash_bytes(rf_scene_geometry_textures[11],&hit,sizeof(hit));
+        }
+    }
+    return RF_OK;
+}
 static int campaign_clutter_bodies_close(void)
 {
     uint32_t i;int status;
@@ -2752,6 +2871,7 @@ done:
 }
 static void campaign_close_movers(void)
 {
+    campaign_alpha_close();
     if(campaign_glare_instances_close())return;
     rf_glare_materials_close(&campaign_glare_materials);
     rf_glare_classes_close(&campaign_glare_classes);
@@ -6191,7 +6311,7 @@ static int scene_frame(void *context,uint32_t frame,rf_preview_mesh *actor)
             }
             if(campaign_spawn){status=campaign_npc_playback_tick(stream,scene_step_seconds);if(status)return status;}
         }
-        if(campaign_spawn && stream->collision) {int status=campaign_collision_views_check(frame);if(status)return status;}
+        if(campaign_spawn && stream->collision) {int status=campaign_collision_views_check(frame);if(status)return status;status=campaign_alpha_check(frame);if(status)return status;}
         profile_mark(7);
         return RF_OK;
     }
@@ -6311,6 +6431,7 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
             if(!campaign_sweep_scratch || !campaign_surface_sources){status=RF_RANGE;goto done;}
             campaign_surface_sources[0]=geometry;
             for(i=0;i<campaign_movers.count;i++)campaign_surface_sources[i+1]=&actor_follow_world->movers.items[i].geometry;
+            status=campaign_alpha_open(collision,materials);if(status)goto done;
             campaign_controller_requests=calloc(campaign_group_runtime.count?campaign_group_runtime.count:1,sizeof(*campaign_controller_requests));
             if(!campaign_controller_requests){status=RF_RANGE;goto done;}
             status=campaign_audio_open(tables_path,level->entry.name,binding.entity.class_name);if(status)goto done;

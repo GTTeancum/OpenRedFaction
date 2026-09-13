@@ -8241,3 +8241,29 @@ and mapping guards. The direct7418-face sampler regression,21 CTests and
 both builds pass. The adapter is ready for scene lifetime management, but
 scene-owned bitmap scratch/views and native live query validation are not
 yet connected. No live alpha collision or animation-selection claim.
+
+
+Scene-owned world/mover texture-query binding (2026-09-12)
+-------------------------------------------------------
+The campaign retains indexed sampler views and bitmap tables for54 world
+rooms and5 movers, covering7512 collision-face references. A single32492-
+byte allocation includes shared UV scratch for16 corners. Views borrow
+authored source-face maps and existing images; query-time material refresh
+handles item-array relocation when NPC materials append. Cleanup releases
+bindings before their borrowed campaign owners. Queries allocate nothing.
+World contacts preserve world coordinates; mover contacts remain local.
+Returned faces use authored indices. Preferred caches, runtime bitmap
+replacement and animation selection are not provided by this adapter.
+
+Native replay-20260912-200257 passes180 frames with stock67108864-byte
+base memory and zero plugged memory. PC/Xbox telemetry matches exactly:
+54,5,7512,32492,16,1772047059,118,118,112,0,2229218138,127829201,1.
+The fixture queries first/last faces in each binding and separately samples
+their centroids:118 queries,118 direct samples,112 hits,zero errors and
+one storage retirement. No additional alpha-filter callback was exercised
+by these contacts. This validates native scene ownership, material access
+and geometric query agreement, not transparent-contact rejection in the
+live scene. Targeted native alpha contacts and live glare scheduling remain
+open. Five sampled x87 control words are0x027f;7903 pages are available
+at completion (not a peak-memory guarantee). PC/NXDK builds and21 CTests
+pass. No new rendered effect or gameplay scheduling claim.

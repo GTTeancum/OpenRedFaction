@@ -290,6 +290,11 @@ dvd_path = '{root.as_posix()}/build/xbox/redfaction-diagnostic.iso'
      assert glare_reference['result']=='PASS' and glare_resources==expected('GLARE_RESOURCES')==glare_reference['expected'],glare_resources
      assert glare_resources[3]<=glare_resources[4]<=2*1024*1024,glare_resources
      report['glare_resources']=glare_resources
+     geometry_textures=words(monitor,symbol('rf_scene_geometry_textures'),13)
+     assert geometry_textures==expected('GEOMETRY_TEXTURES'),geometry_textures
+     assert geometry_textures[3]<=128*1024 and geometry_textures[9]==0 and geometry_textures[12]==1,geometry_textures
+     if args.actor_pairs:assert geometry_textures[6]>0 and geometry_textures[7]>0,geometry_textures
+     report['geometry_textures']=geometry_textures
      glare_instances=words(monitor,symbol('rf_scene_glare_instances'),10)
      assert glare_instances==expected('GLARE_INSTANCES') and glare_instances[3]==glare_instances[8] and glare_instances[9]==0,glare_instances
      assert glare_instances[5]<=glare_instances[6]<=256*1024,glare_instances

@@ -312,6 +312,7 @@ int main(int argc,char **argv)
             printf("CLUTTER_COLLISION");for(i=0;i<9;++i)printf(" %u",rf_scene_clutter_collision[i]);printf("\n");
             printf("CLUTTER_TAGS");for(i=0;i<4;++i)printf(" %u",rf_scene_clutter_tags[i]);printf("\n");
             printf("GLARE_RESOURCES");for(i=0;i<9;++i)printf(" %u",rf_scene_glare_resources[i]);printf("\n");
+            printf("GEOMETRY_TEXTURES");for(i=0;i<13;++i)printf(" %u",rf_scene_geometry_textures[i]);printf("\n");
             printf("GLARE_INSTANCES");for(i=0;i<10;++i)printf(" %u",rf_scene_glare_instances[i]);printf("\n");
             printf("CLUTTER_TAG_QUERIES");for(i=0;i<5;++i)printf(" %u",rf_scene_clutter_tag_queries[i]);printf("\n");
             printf("NPC_SLOW_TEST");for(i=0;i<4;++i)printf(" %u",rf_scene_npc_slow_test[i]);printf("\n");

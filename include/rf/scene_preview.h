@@ -504,6 +504,13 @@ int rf_scene_stream_miner_body(const rf_level *level,int32_t uid,const char *mes
 /* Diagnostic process-local input; no host input or gameplay controller.
  * Profile 0: passive; 1: +X .25 frames 24..47; 2: -X 1 frames 24..62. */
 void rf_scene_actor_drive(int profile);
+/* Scene-owned initial world/mover alpha query. UINT32_MAX selects world;
+ * mover IDs are retained indices. Contacts remain solid-local; face is an
+ * authored source index. No preferred cache/runtime texture overrides yet.
+ * Serialized UV/tree scratch, no query allocation; errors preserve output. */
+int rf_scene_geometry_texture_query(uint32_t solid,uint32_t flags,const float start[3],const float delta[3],
+    float radius,float limit,rf_geometry_world_sweep_hit *result,uint32_t *matched);
+extern uint32_t rf_scene_geometry_textures[13];
 /* Borrow a retained world for diagnostic camera following; NULL disables.
  * Owner and source world must outlive the body stream. Fixed .7Y/2.4Z offset,
  * no camera collision or original first-person policy. */
