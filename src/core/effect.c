@@ -2027,3 +2027,27 @@ int rf_vfx_material_color(const rf_vfx_material_view *view,const unsigned char l
     }
     memcpy(out,color,3);return RF_OK;
 }
+
+int rf_vfx_point_light(const float position[3],const float normal[3],const float light[3],
+    float radius,uint32_t soften,float out[2])
+{
+    float direction[3],basis[3],result[2];double length,reciprocal,value;uint32_t i;
+    if(!position || !normal || !light || !out || soften>1 || !isfinite(radius) || radius<0)return RF_RANGE;
+    for(i=0;i<3;++i) {
+        if(!isfinite(position[i]) || !isfinite(normal[i]) || !isfinite(light[i]))return RF_RANGE;
+        direction[i]=light[i]-position[i];if(!isfinite(direction[i]))return RF_RANGE;
+    }
+    length=sqrt(((double)direction[0]*direction[0]+(double)direction[1]*direction[1])+(double)direction[2]*direction[2]);
+    if(length==0){direction[0]=1;direction[1]=direction[2]=0;length=1;}
+    else {reciprocal=1.0/length;for(i=0;i<3;++i)direction[i]=(float)(direction[i]*reciprocal);}
+    result[1]=(float)length;if(!isfinite(result[1]))return RF_RANGE;result[0]=0;
+    if(length<radius) {
+        for(i=0;i<3;++i) {
+            basis[i]=normal[i];
+            if(soften){float doubled=direction[i]*2.0f;basis[i]=doubled+normal[i];basis[i]*=0.3333333432674408f;}
+        }
+        value=((double)basis[0]*direction[0]+(double)basis[1]*direction[1])+(double)basis[2]*direction[2];
+        result[0]=(float)value;if(!isfinite(result[0]))return RF_RANGE;
+    }
+    memcpy(out,result,8);return RF_OK;
+}

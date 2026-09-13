@@ -311,3 +311,16 @@ and falloff dispatch, then reproduce4daff0 conversion before the already
 verified material minimum/tint. Keep specular/glare as authored extra passes.
 Do not replace this with the existing three-light model approximation or an
 unlit texture preview and label it faithful VFX lighting.
+
+rf_vfx_point_light reconstructs4dae50 using float-stored light minus position,
+normalization and an unrounded distance/radius comparison. Coincident points
+use the original4fabd0 fallback direction(1,0,0) and distance1. Rejected lights
+return angular0 plus distance. Ordinary VFX calls use the normal/direction dot;
+the optional zero-byte argument instead dots direction with (2*direction+normal)
+scaled by float1/3, preserving intermediate stores. The returned angular factor
+is not clamped; the light accumulator tests its sign before applying falloff.
+
+2048 original/PC/NXDK cases execute complete4dae50 and actual math helpers
+without hooks, covering both optional branches, coincident points and radius
+rejections.3 invalid-input guards preserve output. This is geometry only;
+cone/falloff dispatch, active-light list ownership and RGB accumulation remain.

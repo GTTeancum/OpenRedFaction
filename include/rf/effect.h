@@ -69,6 +69,13 @@ int rf_vfx_material_track(const float *samples,uint32_t count,int32_t rate,float
 /* Bitmap loader50f9cd and query50f380 rate rounding. Count1 ignores rate;
  * animated counts2..255 and signed-positive VBM rates required. */
 int rf_vfx_texture_duration(uint32_t count,uint32_t rate,float *out);
+/*4dae50 point-light direction/radius test. soften selects the original
+ * optional zero-byte branch; VFX's null argument selects0. Output is angular
+ * factor then distance. Coincident points use direction(1,0,0), distance1.
+ * Finite inputs and nonnegative radius required; errors preserve output. */
+int rf_vfx_point_light(const float position[3],const float normal[3],const float light[3],
+    float radius,uint32_t soften,float out[2]);
+
 /*553ee0 edge color after light query: brightness sets a rounded minimum,
  * mesh flag10 forces white, material type2 multiplies by authored RGB. The
  * lighting input is supplied by the caller; specular/glare passes are separate.
