@@ -220,6 +220,13 @@ int main(int argc,char **argv)
             out.status=rf_attachment_local_pose(in,in+12,in+15,in+24,out.pose);fwrite(&out,sizeof(out),1,stdout);}
         return ferror(stdin)?2:0;
     }
+    if(argc==2 && !strcmp(argv[1],"--volume-beam")) {
+        float in[10];struct {int32_t status;rf_particle_billboard_vertex vertices[4];} out;
+        _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
+        while(fread(in,sizeof(in),1,stdin)==1){memset(&out,0xa5,sizeof(out));
+            out.status=rf_volume_beam_build(in,in+3,in+6,in[9],out.vertices);fwrite(&out,sizeof(out),1,stdout);}
+        return ferror(stdin)?2:0;
+    }
     if(argc==2 && !strcmp(argv[1],"--glare-volume-opacity")) {
         uint32_t in[3];double angle;float cone;struct {int32_t status;float opacity;uint32_t draw;} out;
         _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);

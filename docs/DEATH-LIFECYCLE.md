@@ -9218,3 +9218,20 @@ Volume draw path and angular opacity (2026-09-13)
  verify_glare_volume_opacity.py PASS2048 original/PC/compiled NXDK cases,
  including cutoff neighborhoods, plus4 nonfinite guards. Actual clamp runs
  unchanged. Both builds and22 CTest checks PASS. No native visual change.
+
+
+Volume beam world geometry (2026-09-13)
+--------------------------------------
+ 515c00 dispatches to555b80 when render backend17c7bcc is66. New shared
+ rf_volume_beam_build reconstructs its world vertices: normalized end-start,
+ float midpoint=(float(end+start))*.5, normalized camera1818690-midpoint,
+ normalized axis cross view.4fab70 zero-length vectors become +X. Width
+ halves as float; side offsets round before endpoint addition/subtraction.
+ Output order end+,start+,start-,end- with UV00,01,11,10.
+ verify_volume_beam.py PASS1024 original/PC/NXDK cases and10 nonfinite
+ guards. Original vector helpers unchanged;518360 world-to-view transform
+ and5159a0 submission are explicit capture boundaries. Degenerate/collinear
+ beams and zero/negative width tested. Both builds and22 CTest checks PASS.
+ Original initializer50be40 calls411e00 with [2,2,3,2,1,3], setting1775b30
+ to06110c42; executed and asserted in the harness. No native volume drawing
+ yet. Projection/clipping, sorted queue integration and actor gates remain.

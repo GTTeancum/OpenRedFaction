@@ -4,6 +4,35 @@
 #include "rf/image.h"
 #include <math.h>
 #include <float.h>
+static void volume_beam_normalize(float v[3])
+{
+    double length=sqrt(((double)v[0]*v[0]+(double)v[1]*v[1])+(double)v[2]*v[2]);unsigned i;
+    if(!(length>0)){v[0]=1;v[1]=v[2]=0;return;}
+    length=1.0/length;for(i=0;i<3;++i)v[i]=(float)(length*v[i]);
+}
+int rf_volume_beam_build(const float camera[3],const float end[3],const float start[3],
+    float width,rf_particle_billboard_vertex vertices[4])
+{
+    float axis[3],view[3],side[3],half;rf_particle_billboard_vertex value[4];unsigned i,j;
+    if(!camera || !end || !start || !vertices)return RF_RANGE;
+    if(!isfinite(width))return RF_FORMAT;
+    for(i=0;i<3;++i) {
+        float sum,mid;if(!isfinite(camera[i]) || !isfinite(end[i]) || !isfinite(start[i]))return RF_FORMAT;
+        axis[i]=(float)((double)end[i]-start[i]);sum=(float)((double)end[i]+start[i]);mid=(float)((double)sum*.5);
+        view[i]=(float)((double)camera[i]-mid);if(!isfinite(axis[i]) || !isfinite(view[i]))return RF_FORMAT;
+    }
+    volume_beam_normalize(axis);volume_beam_normalize(view);
+    for(i=0;i<3;++i){j=(i+1)%3;side[i]=(float)((double)axis[j]*view[(i+2)%3]-(double)axis[(i+2)%3]*view[j]);}
+    volume_beam_normalize(side);half=(float)((double)width*.5);
+    for(i=0;i<3;++i) {
+        float offset=(float)((double)side[i]*half);
+        value[0].position[i]=(float)((double)end[i]+offset);value[1].position[i]=(float)((double)start[i]+offset);
+        value[2].position[i]=(float)((double)start[i]-offset);value[3].position[i]=(float)((double)end[i]-offset);
+    }
+    for(i=0;i<4;++i){value[i].uv[0]=i>=2?1:0;value[i].uv[1]=(i==1 || i==2)?1:0;
+        for(j=0;j<3;++j)if(!isfinite(value[i].position[j]))return RF_FORMAT;}
+    memcpy(vertices,value,sizeof(value));return RF_OK;
+}
 int rf_particle_cone_sample(float cosine_min,rf_random_state *random,float direction[3])
 {
     rf_random_state next;uint32_t draw;float z,radial,value[3];double angle;

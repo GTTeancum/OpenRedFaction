@@ -117,6 +117,12 @@ int rf_particle_initialize(const rf_particle_spawn *spawn,uint32_t pool,
 int rf_particle_frame_index(const rf_particle *particle,uint32_t *frame);
 
 typedef struct rf_particle_billboard_vertex {float position[3],uv[2];} rf_particle_billboard_vertex;
+/*555b80 world beam quad before518360 transform and5159a0 submission.
+ * Camera-facing side from normalized axis cross normalized camera-midpoint.
+ * Original zero-length normalization falls back to +X. Finite inputs/output;
+ * errors preserve vertices. No projection, clipping or graphics state. */
+int rf_volume_beam_build(const float camera[3],const float end[3],const float start[3],
+    float width,rf_particle_billboard_vertex vertices[4]);
 /* Original5590f0 world quad before558d40. kind:0 rejected,1 billboard
  * fallback,2 quad. Camera/forward are original world camera and third view
  * row. Only kind2 writes vertices. Finite inputs required; errors preserve outputs. */
