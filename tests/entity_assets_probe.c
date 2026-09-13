@@ -235,6 +235,14 @@ int main(int argc,char **argv)
             for(i=0;i<4;++i) {
                 status=rf_vfx_instance_update(instance,times[i]);fwrite(&status,4,1,stdout);
                 fwrite(instance->center,28,1,stdout);fwrite(instance->vertices,12,mesh->prefix.vertices,stdout);fwrite(instance->uv,24,mesh->prefix.faces,stdout);
+                {
+                    rf_visibility_camera camera={0};rf_vfx_face_output faces[256];rf_vfx_sort_record order[256];uint32_t count=0;
+                    if(mesh->prefix.faces>256)return 5;memset(faces,0,sizeof(faces));memset(order,0,sizeof(order));
+                    camera.projection.matrix[0]=camera.projection.matrix[4]=camera.projection.matrix[8]=1;
+                    camera.projection.origin[2]=8;camera.projection.perspective=1;camera.projection.flat_depth=.98f;
+                    status=rf_vfx_instance_faces(&camera,instance,faces,order,mesh->prefix.faces,&count);
+                    fwrite(&status,4,1,stdout);fwrite(&count,4,1,stdout);fwrite(faces,20,mesh->prefix.faces,stdout);fwrite(order,16,mesh->prefix.faces,stdout);
+                }
             }
             rf_vfx_instance_close(&instance);rf_vfx_instance_close(&instance);rf_vfx_mesh_close(&mesh);
         }

@@ -133,3 +133,21 @@ The key-evaluation optimization retains all112 PC/NXDK instance-update
 outputs and2048 original geometry-dispatch comparisons. Read-only instruction
 observers assert at most3 key-query calls per update, independently of vertex
 count. No native frame-time improvement is claimed from this harness result.
+
+## Instance face-list composition
+
+rf_vfx_instance_faces reads authored face indices/material IDs from the owned
+mesh and gathers the current persistent positions. It composes world-face
+preparation and original sorting. Caller-owned face outputs and order records
+need36 bytes per face. Secondary sort keys are retained; initialize them before
+first use. On failure count is0, though output buffers may be partial. Inactive
+instances return an empty list. This stage performs no allocations or draws.
+
+112 PC/NXDK list comparisons across14 installed meshes match complete face
+outputs and sorted records, including372 visible records. Short capacities
+reject active meshes without publishing a count. The existing2048 original
+world-face comparisons still pass. This verifies composition of the recovered
+primitives, not complete553ee0 behavior. Per-face decoding/projection is still
+repeated; retain decoded face metadata and shared projected vertices when
+binding the renderer. Parent poses, lighting, clipping to screen polygons,
+material passes and native XEMU submission remain open.

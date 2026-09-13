@@ -14,6 +14,11 @@ Shortlist:
 
 Progress reporting: include overall percent estimates at meaningful milestones and revisit remaining 24-hour workdays when measured throughput supports a forecast; current rough estimate40% (35-45%), no defensible +/-48-hour completion forecast before end-to-end gameplay.
 
+Persistent VFX geometry now produces sorted authored face lists;112
+PC/NXDK list comparisons across14 meshes include372 visible face records.
+Capacity guards,2048 original world-face cases and24 tests pass; bind
+parent poses, projected-vertex caches, lighting and texture draw passes next.
+
 VFX instance updates now select frames once and resolve keyed tracks once
 per mesh;112 PC/NXDK updates retain identical buffers with at most3 key
 queries each.2048 original dispatch cases and24 tests still pass.

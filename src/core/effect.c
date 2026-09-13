@@ -1853,3 +1853,28 @@ int rf_vfx_instance_update(rf_vfx_instance *instance,float effect_frame)
     }
     instance->active=1;return RF_OK;
 }
+
+int rf_vfx_instance_faces(const rf_visibility_camera *camera,const rf_vfx_instance *instance,rf_vfx_face_output *faces,rf_vfx_sort_record *order,uint32_t capacity,uint32_t *count)
+{
+    const rf_vfx_mesh *mesh;rf_vfx_face face;float vertices[9];uint32_t i,j,n=0,stride;uint64_t at;int status;int32_t material;
+    if(!count)return RF_RANGE;*count=0;
+    if(!camera || !instance || !instance->mesh)return RF_RANGE;
+    if(!instance->active)return RF_OK;
+    mesh=instance->mesh;
+    if(!mesh->data || !instance->vertices || capacity<mesh->prefix.faces || ((!faces || !order) && mesh->prefix.faces))return RF_RANGE;
+    stride=mesh->version<0x3000d?120:96;
+    for(i=0;i<mesh->prefix.faces;++i) {
+        at=(uint64_t)mesh->prefix.face_offset+(uint64_t)i*stride;
+        if(at+stride>mesh->bytes)return RF_FORMAT;
+        status=rf_vfx_face_read(mesh->data+(size_t)at,stride,mesh->version,&face);if(status)return status;
+        for(j=0;j<3;++j) {
+            if(face.indices[j]>=mesh->prefix.vertices)return RF_FORMAT;
+            memcpy(vertices+j*3,instance->vertices+(size_t)face.indices[j]*3,12);
+        }
+        memcpy(&material,&face.material,4);
+        status=rf_vfx_world_face(camera,vertices,material,faces+i);if(status)return status;
+        if(faces[i].visible){order[n].key[0]=faces[i].depth;order[n].item=i;++n;}
+    }
+    status=rf_vfx_sort(order,n,1);if(status)return status;
+    *count=n;return RF_OK;
+}

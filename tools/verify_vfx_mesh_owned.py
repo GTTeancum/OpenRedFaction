@@ -49,7 +49,7 @@ key_calls=[0]
 def observe_keys(u,a,size,data):key_calls[0]+=1
 for name in ('rf_vfx_mesh_vector_key','rf_vfx_mesh_rotation_key'):
  x.hook_add(UC_HOOK_CODE,observe_keys,begin=sym(name),end=sym(name))
-vertex_checks=0;uv_checks=0;morph_checks=0;vector_key_checks=0;rotation_key_checks=0;transform_checks=0;keyed_checks=0;instance_checks=0;instance_sizes=[]
+vertex_checks=0;uv_checks=0;morph_checks=0;vector_key_checks=0;rotation_key_checks=0;transform_checks=0;keyed_checks=0;instance_checks=0;instance_sizes=[];draw_counts=[]
 def shared(v,global_count,budget,data,fail=False):
  global fail_alloc,vertex_checks,uv_checks,morph_checks,vector_key_checks,rotation_key_checks,transform_checks,keyed_checks,instance_checks
  fail_alloc=fail;calls.clear();assert not live;x.mem_write(B,data or b'\0');x.mem_write(PTR,f(0,0,0,0,0,0,1));x.mem_write(OUT,w(0))
@@ -129,6 +129,13 @@ def shared(v,global_count,budget,data,fail=False):
    status=call('rf_vfx_instance_update',[instance,struct.unpack('<I',f(time))[0]]);assert status==0
    assert key_calls[0]<=3,(vertices,time,key_calls[0])
    instance_result+=w(status)+bytes(x.mem_read(instance+12,28))+bytes(x.mem_read(positions,vertices*12))+bytes(x.mem_read(uv,faces*24))
+   camera=bytearray(328);struct.pack_into('<f',camera,240,8);struct.pack_into('<9f',camera,244,1,0,0,0,1,0,0,0,1);struct.pack_into('<fI',camera,280,.98,1)
+   x.mem_write(OWNER,bytes(camera));x.mem_write(FACE,bytes(faces*20));x.mem_write(PTR,bytes(faces*16));x.mem_write(B+0x700,w(999))
+   draw_status=call('rf_vfx_instance_faces',[OWNER,instance,FACE,PTR,faces,B+0x700]);assert draw_status==0,(v,time,draw_status)
+   draw_count=read(x,B+0x700);assert draw_count<=faces;draw_counts.append(draw_count)
+   instance_result+=w(draw_status,draw_count)+bytes(x.mem_read(FACE,faces*20))+bytes(x.mem_read(PTR,faces*16))
+   if read(x,instance+32) and faces:
+    x.mem_write(B+0x700,w(999));assert call('rf_vfx_instance_faces',[OWNER,instance,FACE,PTR,faces-1,B+0x700])!=0 and read(x,B+0x700)==0
    if read(x,instance+32):
     for vertex in range(vertices):
      assert call('rf_vfx_mesh_sample',[pointer,struct.unpack('<I',f(time))[0],vertex,SAMPLE])==0
@@ -170,5 +177,6 @@ for case,(v,g,b,d) in enumerate(inputs):
 for v,g,b,d in invalid:
  got=shared(v,g,b,d);assert got[:4]!=w(0);responses.append(got)
 pc=subprocess.check_output([probe,'--vfx-mesh-owned'],input=b''.join(w(v,g,b,len(d))+f(0,0,0,0,0,0,1)+d for v,g,b,d in inputs+invalid));assert pc==b''.join(responses)
-report=dict(result='PASS',authored_pc_nxdk_meshes=len(inputs),failure_cases=len(invalid),allocation_failures=len(inputs),exact_budget_cases=len(inputs),owned_bytes=footprints,authored_vertex_checks=vertex_checks,authored_uv_checks=uv_checks,authored_morph_checks=morph_checks,authored_vector_key_checks=vector_key_checks,authored_rotation_key_checks=rotation_key_checks,authored_transform_checks=transform_checks,authored_keyed_checks=keyed_checks,instance_ownership_checks=instance_checks,instance_update_checks=instance_checks*4,instance_bytes=instance_sizes,scope='Composed previously original-verified decoders; all14 authored payloads, owned source independence, PC/NXDK header/frame/payload equality, exact/short budgets, malloc failure and rollback, repeat close. Original vertex expansion and UV branch comparisons included; morph and keyed geometry accessor composition included; persistent local geometry/UV buffers match PC/NXDK with exact/short budgets, failed allocation and repeat close; no parent/bitmap/full playback/native XEMU.')
+assert sum(draw_counts)>0
+report=dict(result='PASS',authored_pc_nxdk_meshes=len(inputs),failure_cases=len(invalid),allocation_failures=len(inputs),exact_budget_cases=len(inputs),owned_bytes=footprints,authored_vertex_checks=vertex_checks,authored_uv_checks=uv_checks,authored_morph_checks=morph_checks,authored_vector_key_checks=vector_key_checks,authored_rotation_key_checks=rotation_key_checks,authored_transform_checks=transform_checks,authored_keyed_checks=keyed_checks,instance_ownership_checks=instance_checks,instance_update_checks=instance_checks*4,instance_bytes=instance_sizes,face_list_checks=len(draw_counts),visible_face_total=sum(draw_counts),scope='Composed previously original-verified decoders; all14 authored payloads, owned source independence, PC/NXDK header/frame/payload equality, exact/short budgets, malloc failure and rollback, repeat close. Original vertex expansion and UV branch comparisons included; morph and keyed geometry accessor composition included; persistent local geometry/UV buffers match PC/NXDK with exact/short budgets, failed allocation and repeat close; no parent/bitmap/full playback/native XEMU.')
 (root/'artifacts/vfx-mesh-owned.json').write_text(json.dumps(report,indent=2));print(report)

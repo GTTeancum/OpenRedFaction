@@ -117,6 +117,11 @@ typedef struct rf_visibility_camera {
 /*554a80 with518360 camera transform and clip codes. Cached storage remains
  * caller-owned; no material submission or projection to screen pixels. */
 int rf_vfx_world_face(const rf_visibility_camera *,const float vertices[9],int32_t material,rf_vfx_face_output *out);
+/* Prepare authored faces from active persistent geometry and sort visible IDs.
+ * Caller owns capacity face outputs and sort records (36 bytes/face total).
+ * Initialize secondary sort fields before first use. No allocation. On errors
+ * count becomes0; buffers may be partial. No parent/lighting/material draw. */
+int rf_vfx_instance_faces(const rf_visibility_camera *,const rf_vfx_instance *,rf_vfx_face_output *faces,rf_vfx_sort_record *order,uint32_t capacity,uint32_t *count);
 /* Shared composition of verified 547150/546a40 math. Keeps an unscaled camera
  * basis and scales a copy's rows for 518bf0. Caller supplies clip/clamp/depth
  * state not assigned by 547150. No rendering globals, allocation or graphics
