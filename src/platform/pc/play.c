@@ -44,6 +44,7 @@ extern int rf_scene_npc_backlink_row(uint32_t index,uint32_t row[3]);
 extern uint32_t rf_scene_campaign_event_links[4],rf_scene_campaign_groups[5],rf_scene_campaign_movers[3],rf_scene_campaign_memberships[5];
 extern uint32_t rf_scene_campaign_forces[3],rf_scene_force_state[3];
 extern uint32_t rf_scene_ambient_records[3],rf_scene_ambient_instances[4];
+extern uint32_t rf_scene_light_owner[8],rf_scene_light_fields[34];
 extern uint32_t rf_scene_sound_metadata[8];
 extern uint32_t rf_scene_ambient_audio[8];
 extern uint32_t rf_scene_ambient_schedule[6];
@@ -487,6 +488,8 @@ int main(int argc,char **argv)
             printf("CAMPAIGN_EVENT_TICKS");for(uint32_t tick_word=0;tick_word<12;++tick_word)printf(" %u",rf_scene_event_ticks[tick_word]);puts("");
             printf("CAMPAIGN_TRIGGERS %u %u\n",rf_scene_campaign_triggers[0],rf_scene_campaign_triggers[1]);
             printf("SWITCH_STATE %u %u %u\n",rf_scene_switch_state[0],rf_scene_switch_state[1],rf_scene_switch_state[2]);
+            printf("LIGHT_FIELDS");for(i=0;i<34;++i)printf(" %u",rf_scene_light_fields[i]);printf("\n");
+            printf("LIGHT_OWNER");for(i=0;i<8;++i)printf(" %u",rf_scene_light_owner[i]);printf("\n");
             printf("AMBIENT_RECORDS %u %u %u\n",rf_scene_ambient_records[0],rf_scene_ambient_records[1],rf_scene_ambient_records[2]);
             printf("AMBIENT_INSTANCES %u %u %u %u\n",rf_scene_ambient_instances[0],rf_scene_ambient_instances[1],rf_scene_ambient_instances[2],rf_scene_ambient_instances[3]);
             printf("SOUND_METADATA %u %u %u %u %u %u %u %u\n",rf_scene_sound_metadata[0],rf_scene_sound_metadata[1],rf_scene_sound_metadata[2],rf_scene_sound_metadata[3],rf_scene_sound_metadata[4],rf_scene_sound_metadata[5],rf_scene_sound_metadata[6],rf_scene_sound_metadata[7]);

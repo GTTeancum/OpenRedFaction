@@ -357,9 +357,12 @@ typedef struct scene_stream {
     const rf_geometry *geometry;unsigned char *surface_indices;float actor_spawn[3];uint32_t eye_flags;
     rf_level_visibility visibility;
     rf_level_particles particles;rf_level_particle_tick_result particle_first;
+    rf_level_owned_lights *lights;
     rf_visibility_camera particle_camera;scene_particle_workspace *particle_workspace;uint32_t particle_frame;
 } scene_stream;
 static scene_stream *particle_draw_stream;
+uint32_t rf_scene_light_fields[34];
+uint32_t rf_scene_light_owner[8]; /* count,bytes,live,generation,source hash,runtime hash,RNG before/after */
 uint32_t rf_scene_particle_draw_summary[7],rf_scene_particle_draw_frames[64][6];
 static int scene_particle_draw_one(scene_stream *stream,uint32_t index,rf_scene_particle_sink sink,void *context,uint32_t row[6])
 {
@@ -8624,6 +8627,8 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
     if(actor_follow_world && (!sink || !collision || actor_follow_world->world!=geometry ||
         actor_follow_world->material_count!=materials->count))return RF_RANGE;
     stream.world=mesh->count;stream.base=materials->count;stream.geometry=geometry;
+    memset(rf_scene_light_owner,0,sizeof(rf_scene_light_owner));
+    memset(rf_scene_light_fields,0,sizeof(rf_scene_light_fields));
     if(sink && (uint64_t)mesh->bytes+1024*1024>mesh_budget)return RF_RANGE;
     status=rf_vpp_open(&archive,meshes_path);if(status)return status;
     if(campaign_spawn) {
@@ -8932,6 +8937,30 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
         if(actor_follow_world) {
             status=rf_level_visibility_open(geometry,64*1024,&stream.visibility);if(status)goto done;
             status=rf_level_particles_open(&stream.particles,level,collision,maps,map_count,1,0,512*1024);if(status)goto done;
+            if(campaign_spawn) {
+                rf_random_state *rng=stream.particles.state?&stream.particles.state->random:NULL;
+                rf_scene_light_owner[6]=rng?rng->value:0;
+                status=rf_level_owned_lights_open(level,256*1024,1,1,rng,&stream.lights);
+                if(status==RF_NOT_FOUND)status=RF_OK;if(status)goto done;
+                rf_scene_light_owner[7]=rng?rng->value:0;
+                if(stream.lights) {
+                    rf_scene_light_owner[0]=stream.lights->count;rf_scene_light_owner[1]=stream.lights->allocated_bytes;
+                    rf_scene_light_owner[2]=stream.lights->pool.count;rf_scene_light_owner[3]=stream.lights->pool.generation;
+                    rf_scene_light_owner[4]=rf_scene_light_owner[5]=2166136261u;
+                    {uint32_t field,row,byte;
+                    for(field=0;field<34;++field) {
+                        rf_scene_light_fields[field]=2166136261u;
+                        for(row=0;row<stream.lights->count;++row)for(byte=0;byte<4;++byte)
+                            rf_scene_light_fields[field]=(rf_scene_light_fields[field]^((unsigned char *)(stream.lights->items+row))[field*4+byte])*16777619u;
+                    }}
+
+                    for(i=0;i<stream.lights->pool.capacity*sizeof(*stream.lights->pool.sources);++i)
+                        rf_scene_light_owner[4]=(rf_scene_light_owner[4]^((unsigned char *)stream.lights->pool.sources)[i])*16777619u;
+                    for(i=0;i<stream.lights->count*sizeof(*stream.lights->items);++i)
+                        rf_scene_light_owner[5]=(rf_scene_light_owner[5]^((unsigned char *)stream.lights->items)[i])*16777619u;
+                }
+            }
+
             stream.particle_workspace=calloc(1,sizeof(*stream.particle_workspace));if(!stream.particle_workspace){status=RF_IO;goto done;}
             memset(rf_scene_particle_draw_summary,0,sizeof(rf_scene_particle_draw_summary));
             memset(rf_scene_particle_draw_frames,0,sizeof(rf_scene_particle_draw_frames));
@@ -8965,6 +8994,7 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
 done:
     free(stream.npc_memory);free(stream.npc_indices);free(stream.npc_pool);
     rf_level_visibility_close(&stream.visibility);
+    rf_level_owned_lights_close(&stream.lights);
     rf_level_particles_close(&stream.particles);
     free(stream.particle_workspace);particle_draw_stream=NULL;
     campaign_close_movers();

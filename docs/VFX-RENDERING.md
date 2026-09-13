@@ -680,3 +680,32 @@ storage. The harness supplies archive reads and heap services only; original
 component verification is recorded above. An initially ambiguous free-symbol
 lookup in the harness was corrected to require an exact linker symbol match.
 Both builds and24 CTests pass. Native scene installation/rendering remains.
+
+## Native campaign scene ownership
+
+The shared campaign scene now opens rf_level_owned_lights after particle/RNG
+state is available, using a256KiB owner budget, world routing1 and the default
+loader class override. It passes the scene's existing RNG stream and closes
+the light owner on every scene cleanup path. Snapshot telemetry records count,
+bytes, live count, generation, source/runtime hashes, per-field hashes and RNG
+before/after. This installs real retained level lights in the running scene;
+model/VFX drawing still needs to consume them. Original startup RNG ordering
+for randomized light cycles remains to be bound with the retained timer work.
+
+Native replay initially exposed a mismatch hidden by the instruction-only
+owner checks: the first L1S1 source's retained base RGB was one float step
+below PC in all three channels, although intensity-scaled source RGB matched.
+Per-field hashes and native raw-value readback localized it. Forcing the
+original x87-style byte*float-reciprocal conversion through a double
+intermediate removed the mismatch; the broad startup SSE environment was not
+independently diagnosed. Temporary full color readback storage was removed;
+compact field hashes remain in the harness.
+
+artifacts/xemu/replay-20260913-163906 passes180 frames in stock64MiB XEMU.
+All231 L1S1 lights load in137072 bytes, with generation462, source hash
+2326735975, runtime hash98195217 and every retained field hash matching PC.
+RNG3357800067 remains unchanged for these authored records. Normal disc flags
+are restored by the replay harness. All22293 activation comparisons plus512
+randomized cases still pass, as do both builds and24 CTests. No screenshot was
+captured because rendering is unchanged. Timers, visibility callbacks and
+native light-driven drawing remain open.

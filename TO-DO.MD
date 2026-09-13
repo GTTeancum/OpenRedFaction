@@ -14,6 +14,11 @@ Shortlist:
 
 Progress reporting: include overall percent estimates at meaningful milestones and revisit remaining 24-hour workdays when measured throughput supports a forecast; current rough estimate40% (35-45%), no defensible +/-48-hour completion forecast before end-to-end gameplay.
 
+Native campaign scene now owns231 L1S1 lights in137072 bytes;180-frame
+stock64MiB XEMU run matches PC source/runtime/field hashes and RNG. Fixed
+first-light base-color rounding; both builds and24 tests pass. Bind retained
+timers, visibility updates and rendering; visuals are not yet light-driven.
+
 Retained authored-light ownership now loads all22293 sources in93 levels
 identically on PC/NXDK, with exact/short budgets and archive-independent data.
 Peak232680 bytes; both builds and24 tests pass. Install in the native scene,

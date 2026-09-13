@@ -1640,7 +1640,9 @@ int rf_level_light_activate(const rf_level_light *record,uint32_t loader_default
     d->radius=record->radius;d->intensity=record->cycle[cycle==1 || cycle==3?3:0];
     value.enabled=(record->flags>>3)&1;value.phase=cycle==2 || cycle==4;
     value.visibility=record->flags&0x2000?2:(record->flags&4?1:0);
-    for(j=0;j<3;++j){d->position[j]=record->position[j];d->color[j]=record->color[j]*0.003921568859368563f;}
+    /*45f260 stores x87 byte*reciprocal results; keep the intermediate in
+     * double so NXDK does not substitute scalar SSE rounding here. */
+    for(j=0;j<3;++j){d->position[j]=record->position[j];d->color[j]=(float)((double)record->color[j]*(double)0.003921568859368563f);}
     if(shape==2) {
         d->inner_angle=record->inner_angle*0.01745329238474369f;
         d->outer_angle=(float)(((double)record->inner_angle+record->outer_delta)*0.01745329238474369f);
