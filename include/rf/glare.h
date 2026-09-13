@@ -96,6 +96,12 @@ int rf_glare_volume_camera_opacity(const float position[3],const float forward[3
  * caller-owned. Outputs and RNG must not alias. */
 int rf_glare_volume_actor_dimensions(double aim_dot,float class_length,float class_width,
     rf_random_state *random,float dimensions[2],uint32_t *draw);
+/*4143b7..414406 from resolved actor714 vector and parent public pose.
+ * Vectors no longer than float0.0001 return eligible0/dot0. Transform retains
+ * the original float world-position addition/subtraction before normalization.
+ * Finite, nondegenerate transformed vectors required; errors preserve output. */
+int rf_glare_volume_actor_aim(const float local[3],const float position[3],
+    const float basis[9],double *dot,uint32_t *eligible);
 typedef struct rf_glare_volume_frame {
     float camera[3];int32_t bitmap;uint32_t mode;
 } rf_glare_volume_frame;

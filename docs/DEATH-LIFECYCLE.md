@@ -9349,3 +9349,16 @@ Six shared invalid-input guards preserve outputs/state; these are policy,
 not claims about invalid original inputs. Both builds and22 CTest checks pass.
 Actor lookup, aim geometry and branch eligibility remain unbound. No new
 native gameplay or visual parity claim follows from this arithmetic audit.
+
+
+Actor volume aim (2026-09-13): rf_glare_volume_actor_aim reconstructs
+4143b7..414406 from the resolved actor714 local vector and parent public pose.
+Length no greater than float0.0001 suppresses eligibility. Actual4fb9d0
+transforms with matrix columns, adds world position through float storage,
+then416150 subtracts it; retain this cancellation before4fa930 normalization
+and the forward dot. verify_volume_actor_aim.py executes all those original
+helpers unchanged and compares1018 exact PC/NXDK double dots/eligibility
+outputs, including9 short-vector rejections. Seventeen shared invalid-input
+guards cover nonfinite arguments and degenerate/cancelled world vectors.
+Both builds and22 CTest checks pass. Actor714 source selection, branch gates
+and live actor service binding remain open; no native visual claim.

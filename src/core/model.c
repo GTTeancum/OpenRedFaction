@@ -108,6 +108,26 @@ int rf_glare_volume_camera_opacity(const float position[3],const float forward[3
     if(dot<-1 || dot>1 || !isfinite(dot))return RF_FORMAT;
     return rf_glare_volume_opacity(acos(dot),cone_degrees,opacity,draw);
 }
+int rf_glare_volume_actor_aim(const float local[3],const float position[3],
+    const float basis[9],double *dot,uint32_t *eligible)
+{
+    float vector[3],direction[3];double length,inverse,value;unsigned i;
+    if(!local || !position || !basis || !dot || !eligible)return RF_RANGE;
+    for(i=0;i<3;++i)if(!isfinite(local[i]) || !isfinite(position[i]))return RF_FORMAT;
+    for(i=0;i<9;++i)if(!isfinite(basis[i]))return RF_FORMAT;
+    length=sqrt(((double)local[0]*local[0]+(double)local[1]*local[1])+(double)local[2]*local[2]);
+    if(length<=(double).0001f){*dot=0;*eligible=0;return RF_OK;}
+    for(i=0;i<3;++i) {
+        float rotated=(float)(((double)basis[6+i]*local[2]+(double)basis[3+i]*local[1])+(double)basis[i]*local[0]);
+        float world=(float)((double)rotated+position[i]);vector[i]=(float)((double)world-position[i]);
+        if(!isfinite(vector[i]))return RF_FORMAT;
+    }
+    length=sqrt(((double)vector[0]*vector[0]+(double)vector[1]*vector[1])+(double)vector[2]*vector[2]);
+    if(!(length>0) || !isfinite(length))return RF_FORMAT;inverse=1.0/length;
+    for(i=0;i<3;++i)direction[i]=(float)(inverse*vector[i]);
+    value=((double)direction[2]*basis[8]+(double)direction[1]*basis[7])+(double)direction[0]*basis[6];
+    if(!isfinite(value))return RF_FORMAT;*dot=value;*eligible=1;return RF_OK;
+}
 int rf_glare_volume_actor_dimensions(double aim_dot,float class_length,float class_width,
     rf_random_state *random,float dimensions[2],uint32_t *draw)
 {

@@ -81,6 +81,15 @@ static int attachment_probe_publish(void *context,rf_attachment_node *node,rf_at
 }
 int main(int argc,char **argv)
 {
+    if(argc==2 && !strcmp(argv[1],"--volume-actor-aim")) {
+        float in[15];double dot;uint32_t eligible;int32_t status;
+        _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
+        while(fread(in,sizeof(in),1,stdin)==1) {
+            memset(&dot,0xa5,8);eligible=0xa5a5a5a5;status=rf_glare_volume_actor_aim(in,in+3,in+6,&dot,&eligible);
+            fwrite(&status,4,1,stdout);fwrite(&dot,8,1,stdout);fwrite(&eligible,4,1,stdout);
+        }
+        return ferror(stdin)?2:0;
+    }
     if(argc==2 && !strcmp(argv[1],"--volume-actor-dimensions")) {
         uint32_t in[6];double dot;float length,width;rf_random_state random;struct {int32_t status;uint32_t random;float dimensions[2];uint32_t draw;} out;
         _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
