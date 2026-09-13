@@ -373,16 +373,38 @@ int rf_lightmap_accumulate_samples(const rf_lightmap_sample_lighting *view)
     return RF_OK;
 }
 
+static int lightmap_ambient_values(const float global[3],const unsigned char room[4],float values[3])
+{
+    uint32_t c;
+    for(c=0;c<3;c++) {
+        if(room && room[0]==1)values[c]=(float)((double)room[c+1]*0.0039215688593685626983642578125);
+        else {if(!global || !isfinite(global[c]))return RF_RANGE;values[c]=global[c];}
+    }
+    return RF_OK;
+}
+int rf_lightmap_fill_ambient(unsigned char *rgb,uint32_t bytes,uint32_t pitch,uint32_t width,uint32_t height,
+    const float global[3],const unsigned char room[4],unsigned char *dirty)
+{
+    float values[3];unsigned char color[3];uint32_t c,x,y;int status;
+    if(!rgb || !dirty || !width || !height || (uint64_t)width*3>pitch ||
+       (uint64_t)(height-1)*pitch+(uint64_t)width*3>bytes)return RF_RANGE;
+    status=lightmap_ambient_values(global,room,values);if(status)return status;
+    for(c=0;c<3;c++) {
+        double scaled=(double)values[c]*128;
+        if(!isfinite(scaled) || scaled<INT32_MIN || scaled>INT32_MAX)return RF_RANGE;
+        color[c]=(unsigned char)(int32_t)scaled;
+    }
+    for(y=0;y<height;y++)for(x=0;x<width;x++)memcpy(rgb+(uint64_t)y*pitch+x*3,color,3);
+    *dirty|=8;return RF_OK;
+}
+
 int rf_lightmap_seed_ambient(const rf_lightmap_sample_lighting *view,const float global[3],const unsigned char room[4])
 {
     float values[3];uint32_t i,c,count;
     if(!view || !view->width || !view->height || !view->channels[0] || !view->channels[1] ||
        !view->channels[2] || (uint64_t)view->width*view->height>view->capacity)return RF_RANGE;
-    for(c=0;c<3;c++) {
-        if(room && room[0]==1)values[c]=(float)((double)room[c+1]*0.0039215688593685626983642578125);
-        else {if(!global || !isfinite(global[c]))return RF_RANGE;values[c]=global[c];}
-        values[c]=(float)((double)values[c]*.5);
-    }
+    {int status=lightmap_ambient_values(global,room,values);if(status)return status;}
+    for(c=0;c<3;c++)values[c]=(float)((double)values[c]*.5);
     count=view->width*view->height;
     for(c=0;c<3;c++)for(i=0;i<count;i++)view->channels[c][i]=values[c];
     return RF_OK;

@@ -124,6 +124,12 @@ int rf_lightmap_accumulate_samples(const rf_lightmap_sample_lighting *);
  * multiplication before halving. Only channel/dimension/capacity view fields
  * are consumed; binding/numeric errors preserve planes. No allocation. */
 int rf_lightmap_seed_ambient(const rf_lightmap_sample_lighting *,const float global[3],const unsigned char room[4]);
+/* Zero selected lights,4f2719..4f2c74: select ambient as above, truncate
+ * 128*ambient and write low bytes (no clamp) to a caller-offset RGB rectangle.
+ * Successful fill ORs dirty8. Positive dimensions, explicit byte pitch/size;
+ * finite scaled ambient must fit signed32. Errors preserve pixels and dirty. */
+int rf_lightmap_fill_ambient(unsigned char *rgb,uint32_t bytes,uint32_t pitch,uint32_t width,uint32_t height,
+    const float global[3],const unsigned char room[4],unsigned char *dirty);
 
 /* Special4f3390 grid: caller supplies selected polygons with smoothed normals,
  * sources/masks and initial RGB planes. Uses only image dimensions/origin from

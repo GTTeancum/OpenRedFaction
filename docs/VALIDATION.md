@@ -865,3 +865,8 @@ Ambient accumulation initialization:
 - `rf_lightmap_seed_ambient` reconstructs4f2841..4f2972. A room flag equal to1 selects its RGB bytes, multiplied by stored binary32(1/255), then each stored float is halved. Other flags or no room use global float RGB, also halved. No allocation; invalid binding/numeric inputs preserve planes.
 - `python tools/verify_lightmap_seed_ambient.py` runs the original selection and fill instructions with actual room-array access and4d8d10, no hooks. All512 original/PC/compiled-NXDK grids match at x87 0x027f, covering every1..16 dimension pair twice, room absence/flags0..3, signed finite global colors and untouched tails. Four NXDK binding guards pass.
 - Both builds and24 CTests pass. Retained ambient ownership, zero-light direct RGB fill, source/mask generation and native rendered updates remain open.
+
+Zero-light ambient RGB fill:
+- `rf_lightmap_fill_ambient` reconstructs4f2719..4f2c74: shared room/global selection, multiply by128, truncate to signed integer, keep the low byte without clamping, fill the caller-offset RGB rectangle and OR dirty8. Invalid spans or out-of-range/nonfinite conversions preserve all output.
+- `python tools/verify_lightmap_fill_ambient.py` compares512 original/PC/compiled-NXDK rectangles using actual array/global/ftol helpers, no hooks, x87 0x027f. Room flags0..3, signed/wrapping colors, dimensions1..8, offsets and padding match; three NXDK span guards pass.
+- Shared ambient selection was factored out; the512 original/PC/NXDK accumulation-seed grids still pass. Both builds and24 CTests pass. Light selection, resource ownership, update dispatch and native rendered uploads remain open.

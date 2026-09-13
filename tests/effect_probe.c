@@ -258,6 +258,17 @@ int main(int argc,char **argv)
         }
         return 0;
     }
+    if(argc==2 && !strcmp(argv[1],"--lightmap-fill-ambient")) {
+        struct {uint32_t width,height,pitch,offset,dirty;float global[3];unsigned char room[4];} input;
+        unsigned char rgb[1024],dirty;uint32_t status;
+        _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
+        while(fread(&input,sizeof(input),1,stdin)==1) {
+            memset(rgb,0xa5,sizeof(rgb));dirty=(unsigned char)input.dirty;
+            status=input.offset>sizeof(rgb)?RF_RANGE:rf_lightmap_fill_ambient(rgb+input.offset,sizeof(rgb)-input.offset,input.pitch,input.width,input.height,input.global,input.room,&dirty);
+            fwrite(&status,4,1,stdout);fwrite(&dirty,1,1,stdout);fwrite(rgb,sizeof(rgb),1,stdout);
+        }
+        return 0;
+    }
     if(argc==2 && !strcmp(argv[1],"--lightmap-edge-crossing")) {
         float input[8];uint32_t status,hit;
         _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
