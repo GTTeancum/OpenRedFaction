@@ -706,13 +706,13 @@ int rf_scene_corpse_bind_model(void *context,rf_corpse_create_source *source,rf_
 }
 /* A live actor selection survives model transfer until corpse creation ends.
  * Class-only callers without a registered NPC use the retained base records. */
-static const rf_entity_motion_selection *campaign_corpse_selection(uint32_t model);
+static const rf_entity_motion_selection *campaign_model_motion_selection(uint32_t model);
 int32_t rf_scene_corpse_motion(void *context,rf_corpse_create_source *source,const char *name)
 {
     uint32_t cls;const rf_entity_motion_selection *selected;(void)context;if(!source)return -2;
     if(!source->model || source->model_kind!=2 || !name)return -1;
     cls=source->class_index;
-    selected=campaign_corpse_selection(source->model);
+    selected=campaign_model_motion_selection(source->model);
     if(selected) {
         if(selected->mapping.class_index!=cls)return -2;
         return rf_entity_declared_action_lookup(selected->action_declarations,source->model,source->model_kind,name);
@@ -731,7 +731,7 @@ int rf_scene_corpse_class_source(uint32_t cls,rf_corpse_create_source *source)
        !campaign_motion_catalog.mappings || cls>=campaign_motion_catalog.class_count)return RF_RANGE;
     definition=campaign_seeds.classes+cls;mapping=campaign_motion_catalog.mappings+cls;
     if(source->model) {
-        const rf_entity_motion_selection *selected=campaign_corpse_selection(source->model);
+        const rf_entity_motion_selection *selected=campaign_model_motion_selection(source->model);
         if(selected) {
             if(selected->mapping.class_index!=cls)return RF_RANGE;
             mapping=&selected->mapping;
@@ -1094,7 +1094,10 @@ static int campaign_npc_pose_residency(uint32_t actor)
                 int32_t state=which==0?pose->controller.current:which==1?pose->controller.next:
                     pose->controller.override_enabled?pose->controller.override_state:-1;
                 if(state<0)continue;if(state>=23)return RF_RANGE;
-                selected=campaign_motion_catalog.mappings[campaign_seeds.items[actor].class_index].states[state];
+                {
+                    const rf_entity_motion_selection *selection=campaign_model_motion_selection(actor+1);
+                    selected=(selection?&selection->mapping:campaign_motion_catalog.mappings+campaign_seeds.items[actor].class_index)->states[state];
+                }
             }
             if(selected<0)continue;id=(uint32_t)selected;
             status=campaign_npc_motion_require(pose->skeleton,id);if(status)return status;
@@ -2882,6 +2885,7 @@ typedef struct campaign_npc_body {
     rf_movement_settings movement;rf_entity_view view;rf_registered_entity_view registration;
 } campaign_npc_body;
 static campaign_npc_body *campaign_npc_bodies;
+uint32_t rf_scene_npc_startup_weapons[4]; /* primary,secondary,owned slots,selection hash */
 uint32_t rf_scene_npc_inventory_owners[4]; /* owners,bytes,inventory hash,mapping/declarations hash */
 static rf_movement_config *campaign_npc_movement_configs;
 static rf_physics_stance_cache *campaign_npc_stances;
@@ -2890,7 +2894,7 @@ static campaign_npc_eye_class *campaign_npc_eyes;
 uint32_t rf_scene_npc_unholster[4]; /* classes,nonzero,bytes,hash */
 uint32_t rf_scene_npc_eyes[4]; /* refreshed actors, retained bytes, class hash, position hash */
 static uint32_t campaign_npc_body_count;
-static const rf_entity_motion_selection *campaign_corpse_selection(uint32_t model)
+static const rf_entity_motion_selection *campaign_model_motion_selection(uint32_t model)
 {
     uint32_t slot=model-1;
     if(!model || !campaign_npc_bodies || slot>=campaign_npc_body_count ||
@@ -2969,6 +2973,7 @@ static int campaign_npc_bodies_open(const char *tables_path,const rf_geometry_co
     rf_scene_npc_eyes[1]=campaign_poses.count*12+campaign_seeds.class_count*sizeof(*campaign_npc_eyes);
     campaign_npc_body_count=campaign_poses.count;memset(rf_scene_npc_bodies,0,sizeof(rf_scene_npc_bodies));
     memset(rf_scene_npc_inventory_owners,0,sizeof(rf_scene_npc_inventory_owners));
+    memset(rf_scene_npc_startup_weapons,0,sizeof(rf_scene_npc_startup_weapons));rf_scene_npc_startup_weapons[3]=2166136261u;
     rf_scene_npc_inventory_owners[1]=campaign_npc_body_count*(sizeof(rf_weapon_inventory)+sizeof(rf_entity_motion_selection)+sizeof(rf_weapon_reset_state));
     rf_scene_npc_inventory_owners[2]=rf_scene_npc_inventory_owners[3]=2166136261u;
     memset(rf_scene_npc_visibility_rooms,0,sizeof(rf_scene_npc_visibility_rooms));
@@ -3113,10 +3118,6 @@ static int campaign_npc_bodies_open(const char *tables_path,const rf_geometry_co
         status=rf_entity_motion_selection_base(&campaign_motion_catalog,&campaign_base_motions,
             campaign_seeds.items[actor].class_index,&owner->selection);if(status)goto done;
         ++rf_scene_npc_inventory_owners[0];
-        rf_scene_npc_inventory_owners[2]=npc_hash_bytes(rf_scene_npc_inventory_owners[2],&owner->inventory,sizeof(owner->inventory));
-        rf_scene_npc_inventory_owners[2]=npc_hash_bytes(rf_scene_npc_inventory_owners[2],&owner->firing,sizeof(owner->firing));
-        rf_scene_npc_inventory_owners[3]=npc_hash_bytes(rf_scene_npc_inventory_owners[3],&owner->selection.mapping,sizeof(owner->selection.mapping));
-        rf_scene_npc_inventory_owners[3]=npc_hash_bytes(rf_scene_npc_inventory_owners[3],owner->selection.action_declarations,sizeof(owner->selection.action_declarations));
         /*423367..423385, constructor40e380 timer, and SP423af2. */
         owner->death.item_82c=owner->death.requested_83c=owner->death.action_824=-1;
         owner->death.linked_146c=owner->death.deadline_4b8=-1;owner->death.model_148c=0;
@@ -3133,8 +3134,21 @@ static int campaign_npc_bodies_open(const char *tables_path,const rf_geometry_co
         view->handle=-1;view->type=0;view->class_type=(int32_t)definition->physics.use_kind;
         view->flags_7c=owner->object_flags;view->linked_handle=-1;
         view->weapons[0]=view->weapons[1]=-1;view->base_speed=campaign_npc_movement_configs[campaign_seeds.items[actor].class_index].base_speed;
-        /* Action/810/7d0 start clear; weapon/attachment owners remain absent in
-         * this existing unarmed, unlinked startup projection. */
+        {
+            const rf_entity_default_weapons *defaults=&campaign_base_motions.classes[campaign_seeds.items[actor].class_index].default_weapons;
+            int32_t grants[3]={defaults->primary,defaults->secondary,defaults->melee};
+            rf_weapon_startup_state weapons={-1,-1};uint32_t k;
+            status=rf_entity_startup_weapon_bindings_sp(&owner->inventory,&weapons,grants,&campaign_weapon_supply,
+                &campaign_motion_catalog,&campaign_base_motions,campaign_seeds.items[actor].class_index,&owner->selection);if(status)goto done;
+            view->weapons[0]=weapons.primary;view->weapons[1]=weapons.secondary;
+            rf_scene_npc_startup_weapons[0]+=weapons.primary>=0;rf_scene_npc_startup_weapons[1]+=weapons.secondary>=0;
+            for(k=0;k<64;++k)rf_scene_npc_startup_weapons[2]+=owner->inventory.owned[k]!=0;
+            rf_scene_npc_startup_weapons[3]=npc_hash_bytes(rf_scene_npc_startup_weapons[3],view->weapons,sizeof(view->weapons));
+        }
+        rf_scene_npc_inventory_owners[2]=npc_hash_bytes(rf_scene_npc_inventory_owners[2],&owner->inventory,sizeof(owner->inventory));
+        rf_scene_npc_inventory_owners[2]=npc_hash_bytes(rf_scene_npc_inventory_owners[2],&owner->firing,sizeof(owner->firing));
+        rf_scene_npc_inventory_owners[3]=npc_hash_bytes(rf_scene_npc_inventory_owners[3],&owner->selection.mapping,sizeof(owner->selection.mapping));
+        rf_scene_npc_inventory_owners[3]=npc_hash_bytes(rf_scene_npc_inventory_owners[3],owner->selection.action_declarations,sizeof(owner->selection.action_declarations));
         status=rf_entity_view_register(&campaign_registry,&campaign_entities,view,&owner->registration);if(status)goto done;
         owner->damage.effects.handle=owner->registration.handle;
         if(!rf_scene_npc_registration[0])rf_scene_npc_registration[3]=owner->registration.handle;
@@ -4456,6 +4470,17 @@ int rf_scene_npc_death_sound(void *context,uint32_t handle,const char *name)
     rf_scene_npc_action_audio[6]=input->random->value;
     if(audio.status)++rf_scene_npc_action_audio[7];return audio.status;
 }
+static int campaign_pain_reset_retained(void *context,uint32_t handle,int32_t weapon)
+{
+    rf_weapon_reset_context reset={0,campaign_weapon_reset.names.count};(void)context;
+    if(!reset.weapon_count)return RF_NOT_FOUND;
+    return rf_scene_npc_weapon_reset(handle,weapon,campaign_weapon_reset.definitions,&reset,NULL,NULL);
+}
+int rf_scene_npc_pain_retained(uint32_t handle,int32_t now,rf_random_state *random)
+{
+    rf_scene_death_selection_context context={0};rf_scene_npc_pain_ops ops={campaign_pain_reset_retained,rf_scene_npc_death_sound,&context};
+    context.random=random;return rf_scene_npc_pain(handle,now,random,&ops);
+}
 uint32_t rf_scene_npc_impact_audio[12]; /* common audio counters + requested body position */
 int rf_scene_npc_impact_sound(uint32_t handle,rf_random_state *random)
 {
@@ -4656,7 +4681,7 @@ static float campaign_damage_test_random(void *c,float low,float high)
 static void campaign_damage_test_notify(void *c,uint32_t kind,uint32_t target,float value,uint32_t source)
 {
     (void)value;(void)source;
-    if(kind==RF_DAMAGE_PAIN_ANIMATION && rf_scene_npc_pain(target,1000,c,NULL))rf_scene_npc_damage_test_words[63]++;
+    if(kind==RF_DAMAGE_PAIN_ANIMATION && rf_scene_npc_pain_retained(target,1000,c))rf_scene_npc_damage_test_words[63]++;
     if(kind==RF_DAMAGE_PAIN_SOUND && rf_scene_npc_pain_sound(target,value,1000,c))rf_scene_npc_damage_test_words[63]++;
     if(kind==RF_DAMAGE_AI_REACTION && rf_scene_npc_damage_ai(target,source))rf_scene_npc_damage_test_words[63]++;
     if(kind!=RF_DAMAGE_PAIN_ANIMATION && kind!=RF_DAMAGE_PAIN_SOUND && kind!=RF_DAMAGE_AI_REACTION)rf_scene_npc_damage_test_words[63]++;
@@ -7247,14 +7272,14 @@ static int campaign_npc_unholster_fixture(uint32_t frame)
         rf_motion_playback_state kept,started;int32_t motion,refs,deadline,delay;double seconds;
         campaign_unholster_fixture_sound sound;
         status=campaign_npc_motion_owner(campaign_npc_bodies[i].registration.handle,&owner,&cls,&pose);if(status)break;
-        motion=campaign_motion_catalog.mappings[cls].actions[40];model=campaign_playback_resources.models+pose->skeleton;
-        if(motion<0 || (uint32_t)motion>=model->count || campaign_motion_catalog.mappings[cls].weapon!=-1 || owner->view.weapons[0]!=-1)continue;
+        motion=owner->selection.mapping.actions[40];model=campaign_playback_resources.models+pose->skeleton;
+        if(motion<0 || (uint32_t)motion>=model->count)continue;
         status=campaign_npc_motion_require(pose->skeleton,(uint32_t)motion);if(status)break;
         seconds=rf_motion_duration(model->resources[motion].comparison.start_tick,model->resources[motion].comparison.end_tick);
         if(seconds<=0 || model->resources[motion].looping==1)continue;
         /* Keep newly loaded cache residency, but restore all playback references and actor state. */
         saved=*owner;kept=pose->playback;refs=model->resources[motion].references;
-        sound.handle=owner->registration.handle;sound.calls=0;sound.name=campaign_base_motions.classes[cls].action_sounds[40];
+        sound.handle=owner->registration.handle;sound.calls=0;sound.name=owner->selection.action_sounds[40];
         owner->view.flags_7d0|=0x100;owner->view.flags_810&=~1u;owner->damage.effects.flags_810&=~1u;
         owner->view.action_520=3;owner->pain.ai_timer=0;owner->unholster.deadline_518=17;
         deadline=1000+(int32_t)(seconds*1000.0);delay=1000+(int32_t)((double)campaign_seeds.classes[cls].unholster_delay*1000.0);
@@ -7289,7 +7314,7 @@ static int campaign_npc_ai_reset_fixture(uint32_t frame)
         status=campaign_npc_motion_owner(campaign_npc_bodies[i].registration.handle,&owner,&cls,&pose);if(status)break;
         model=campaign_playback_resources.models+pose->skeleton;
         for(action=0;action<45;++action) {
-            motion=campaign_motion_catalog.mappings[cls].actions[action];
+            motion=owner->selection.mapping.actions[action];
             if(motion>=0 && (uint32_t)motion<model->count && model->resources[motion].comparison.end_tick>0)break;
         }
         if(action==45)continue;saved=*owner;kept=pose->playback;
@@ -7303,7 +7328,10 @@ static int campaign_npc_ai_reset_fixture(uint32_t frame)
             owner->ai_override.action_1364=(int32_t)action;owner->ai_override.motion_1368=motion;owner->ai_override.word_834=123;
             owner->view.flags_810=owner->damage.effects.flags_810=0x02000400u;
             wanted=pose->playback;
-            if(active && model->resources[motion].looping==0)wanted.completion.active.slots[0].weight=0;
+            if(active) {
+                wanted.completion.active.freeze_slot=-1;wanted.completion.frozen=0;wanted.completion.active.primary_slot=-1;
+                if(model->resources[motion].looping==0)wanted.completion.active.slots[0].weight=0;
+            }
             if(rf_scene_npc_reset_ai_animation(owner->registration.handle^0x10000,secondary)!=RF_NOT_FOUND ||
                rf_scene_npc_reset_ai_animation(owner->registration.handle,2)!=RF_RANGE){status=RF_FORMAT;break;}
             status=rf_scene_npc_reset_ai_animation(owner->registration.handle,secondary);if(status)break;
@@ -7343,7 +7371,7 @@ static int campaign_npc_motion_request_fixture(uint32_t frame)
             ++rf_scene_npc_motion_request_test[1];rf_scene_npc_motion_request_test[3]=npc_hash_bytes(rf_scene_npc_motion_request_test[3],&owner->movement,sizeof(owner->movement));
         }
         for(j=0;j<4 && !status;++j) {
-            wanted=pose->controller;status=rf_motion_request_state(&wanted,campaign_motion_catalog.mappings[cls].states,motions[j],.25f);if(status)break;
+            wanted=pose->controller;status=rf_motion_request_state(&wanted,owner->selection.mapping.states,motions[j],.25f);if(status)break;
             status=rf_scene_npc_request_motion(owner->registration.handle,motions[j],.25f);if(status)break;
             if(memcmp(&wanted,&pose->controller,sizeof(wanted))){status=RF_FORMAT;break;}
             ++rf_scene_npc_motion_request_test[2];rf_scene_npc_motion_request_test[3]=npc_hash_bytes(rf_scene_npc_motion_request_test[3],&pose->controller,sizeof(pose->controller));

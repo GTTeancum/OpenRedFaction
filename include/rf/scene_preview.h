@@ -62,6 +62,9 @@ typedef struct rf_scene_npc_pain_ops {
  * Callbacks keep the actor and catalog alive and must not replace its mappings.
  * Missing target returns NOT_FOUND. Errors retain preceding effects. */
 int rf_scene_npc_pain(uint32_t handle,int32_t now,rf_random_state *random,const rf_scene_npc_pain_ops *ops);
+/* Retained reset catalog and action sounds. Active reset resource services
+ * remain unbound and fail if reached; fresh idle firing state is supported. */
+int rf_scene_npc_pain_retained(uint32_t handle,int32_t now,rf_random_state *random);
 /* Retained nonlethal NPC sound adapter; registered NPCs have no player owner.
  * Uses the caller's shared RNG, cached eye and pain groups, and bounded lazy
  * waveform residency. Death/player override owners remain unsupported.
@@ -418,6 +421,7 @@ extern uint32_t rf_scene_contact_splash_assets[8];
 extern uint32_t rf_scene_weapon_supply[4];
 extern uint32_t rf_scene_weapon_reset_catalog[4];
 extern uint32_t rf_scene_npc_inventory_owners[4];
+extern uint32_t rf_scene_npc_startup_weapons[4];
 /* Prepared retained contact: caller supplies effect services and owns eligibility. */
 int rf_scene_npc_contact_dispatch(uint32_t handle,const rf_entity_contact_dispatch_backend *backend,uint32_t *decision);
 extern uint32_t rf_scene_contact_dispatch_test[4];

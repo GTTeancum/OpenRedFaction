@@ -82,8 +82,8 @@ SP pickup completion order/timer matches1024 original/PC/NXDK cases and6 callbac
 Normal-SP acquisition4030d0 matches2048 original/PC/NXDK cases with actual401470 no-op notification; bind inventory creation, equip/reset and full pickup grants.
 Startup grants now compose with concrete42ab20 animation selection (220 loaded PC cases); connect retained inventories/selections to live scene consumers.
 All63 class defaults now retain optional melee (four authored classes); include it when creating startup inventories.
-NPCs retain inventories, selected animation records and firing state; bind authored reset descriptors/resource services into pain dispatch, then enable startup grants.
-Original static constructors confirm zero fresh flag seeds; the scene now retains44 reset descriptors after Foley loading, with7 resolved stop sounds; connect pain dispatch and startup grants.
+Authored NPC primary/secondary/melee startup grants now populate retained inventories and selected animations; complete active firing resource services, weapon models and combat scheduling.
+Retained pain dispatch now uses44 reset descriptors and selected action audio; verify representative armed pain paths and finish active sound/effect reset services.
 Armed and unarmed death/recovery scene fixtures pass; animation consumers validate retained skeletons without rejecting equipped weapons.
 All78 inventory/selection/firing owners match PC in180-frame stock64MiB XEMU; retained storage78936 bytes, body subsystem peak538012 bytes within640KiB.
 Reserve addition428d90 matches2048 original/PC/NXDK cases; bind reload query/service and full ammo pickup acceptance.
