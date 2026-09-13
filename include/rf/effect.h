@@ -57,6 +57,18 @@ typedef struct rf_vfx_material_view {uint32_t words[50],bytes,bitmap_requests;} 
 int rf_vfx_material_read(const void *,uint32_t bytes,uint32_t version,rf_vfx_material_view *);
 /* track0=clamped blend floats,1=raw color words,2=raw alpha words. */
 int rf_vfx_material_sample(const void *,uint32_t bytes,const rf_vfx_material_view *,uint32_t track,uint32_t index,uint32_t *);
+typedef struct rf_vfx_embedded_material_view {
+    rf_vfx_material_view material;uint32_t color_word;
+} rf_vfx_embedded_material_view;
+/* Pre40000 embedded mesh material (53d5d1..53d98e), with inherited packed
+ * mesh flags/rate and sample count. Unlike standalone records, original-map
+ * strings are ordinary bitmap requests. Color word defaults0 before30011;
+ * opacity samples are reserved here and supplied later by mesh frame data.
+ * words47/49 are UINT32_MAX (not serialized input spans). Blend track remains
+ * input-backed and is read through rf_vfx_material_sample(track0).
+ * No bitmap/array allocation; errors preserve output. */
+int rf_vfx_embedded_material_read(const void *,uint32_t bytes,uint32_t version,
+    uint32_t mesh_flags,uint32_t samples,rf_vfx_embedded_material_view *);
 typedef struct rf_vfx_chunk {uint32_t type,offset,bytes;} rf_vfx_chunk;
 typedef struct rf_vfx_directory {
     rf_vpp *archive;rf_vpp_entry entry;rf_vfx_header header;

@@ -38,6 +38,22 @@ int main(int argc,char **argv)
         }
         rf_vpp_close(&meshes);return ferror(stdin)?8:0;
     }
+    if(argc==2 && !strcmp(argv[1],"--vfx-embedded-material")) {
+        uint32_t input[4];unsigned char *data;int32_t status;
+        _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
+        while(fread(input,16,1,stdin)==1) {
+            rf_vfx_embedded_material_view view;uint32_t i,value;
+            if(input[3]>1048576)return 2;data=malloc(input[3]?input[3]:1);if(!data)return 2;
+            if(fread(data,1,input[3],stdin)!=input[3])return 2;memset(&view,0xa5,sizeof(view));
+            status=rf_vfx_embedded_material_read(data,input[3],input[0],input[1],input[2],&view);
+            fwrite(&status,4,1,stdout);fwrite(&view,sizeof(view),1,stdout);
+            if(!status)for(i=0;i<view.material.words[31];++i) {
+                if(rf_vfx_material_sample(data,input[3],&view.material,0,i,&value))return 3;fwrite(&value,4,1,stdout);
+            }
+            free(data);
+        }
+        return ferror(stdin)?1:0;
+    }
     if(argc==2 && !strcmp(argv[1],"--vfx-material")) {
         uint32_t input[2];unsigned char *data;int32_t status;
         _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);

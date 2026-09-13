@@ -400,3 +400,27 @@ Both builds and24 CTests pass. Evidence: artifacts/vfx-material.json.
 Remaining: embedded materials, bounded input/bitmap ownership, mesh edges,
 vertex/transform tracks, particle/warp records and effect playback. No bitmap
 resources, native XEMU scene run or new visual are claimed.
+
+## Embedded VFX mesh materials (2026-09-13)
+
+rf_vfx_embedded_material_read reconstructs original53d5d1..53d98e for
+pre40000 SFXO materials. It inherits packed mesh rate and sample count,
+retains version-gated texture parameters and clamped blend spans, and
+returns the single color word separately. Opacity count is retained but
+its samples must come from subsequent mesh frame decoding. Color/opacity
+pointer words are UINT32_MAX sentinels, never input offsets. Original-map
+strings are ordinary bitmap requests in this older format. No allocation
+or bitmap binding occurs; errors preserve the caller output.
+
+verify_vfx_embedded_material.py executes the original material loop with
+actual file/version/string/math helpers and supplied file/bitmap services.
+All represented fields, bitmap request order, blend samples, color word,
+consumed bytes and reserved counts match PC and compiled NXDK across1034
+cases:1024 synthetic and10 authored DrillMissile01/spikeprojectile records.
+Original pointer values are normalized; unfilled alpha values are not
+compared.1886 invalid/truncated cases preserve output. Both builds and24
+CTests pass. Evidence: artifacts/vfx-embedded-material.json.
+
+Remaining: bounded input/bitmap ownership, mesh edges, vertex/UV/transform
+tracks, frame opacity, particle/warp decoding and effect playback. This
+is decoder verification, not a native XEMU run or working combat.

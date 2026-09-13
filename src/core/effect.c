@@ -1173,3 +1173,41 @@ int rf_vfx_material_sample(const void *data,uint32_t bytes,const rf_vfx_material
     }
     *out=word;return RF_OK;
 }
+
+int rf_vfx_embedded_material_read(const void *data,uint32_t bytes,uint32_t version,
+    uint32_t mesh_flags,uint32_t samples,rf_vfx_embedded_material_view *out)
+{
+    rf_vfx_embedded_material_view v={0};rf_vfx_material_view *m=&v.material;
+    vfx_material_cursor c={data,bytes,0,0};uint32_t i,type;char *name;
+    if(!data || !out || samples>0x7fffffffu)return RF_RANGE;
+    if(version<0x30000 || version>=0x40000)return RF_FORMAT;
+    m->words[4]=m->words[17]=m->words[45]=UINT32_MAX;m->words[30]=(mesh_flags&0xffffu)>>2;
+    type=m->words[0]=vfx_material_word(&c);
+    if(type==2) {
+        unsigned char *color=(unsigned char *)m->words+9;
+        for(i=0;i<3;++i)color[i]=(unsigned char)vfx_material_word(&c);color[3]=255;
+    } else {
+        if(version>=0x30003)((unsigned char *)(m->words+2))[0]=(unsigned char)(vfx_material_byte(&c)!=0);
+        name=(char *)(m->words+5);vfx_material_string(&c,name);m->bitmap_requests|=1;
+        if(version>=0x30012)for(i=14;i<17;++i)m->words[i]=vfx_material_word(&c);
+        else m->words[15]=0x3f800000;
+        if(type==1) {
+            name=(char *)(m->words+18);vfx_material_string(&c,name);if(*name)m->bitmap_requests|=2;
+            if(version>=0x30012)for(i=27;i<30;++i)m->words[i]=vfx_material_word(&c);
+            else m->words[28]=0x3f800000;
+        } else m->words[28]=0x3f800000;
+        if(version<0x30012) {
+            m->words[14]=m->words[27]=vfx_material_word(&c);
+            m->words[16]=m->words[29]=vfx_material_word(&c);
+        }
+        if(version>=0x30007) {
+            for(i=33;i<36;++i)m->words[i]=vfx_material_word(&c);
+            name=(char *)(m->words+36);vfx_material_string(&c,name);if(*name)m->bitmap_requests|=4;
+        }
+        if(type==1){m->words[31]=samples;if(samples)vfx_material_array(&c,samples,m->words+32);}
+    }
+    m->words[46]=1;m->words[47]=UINT32_MAX;
+    if(version>=0x30011)v.color_word=vfx_material_word(&c);
+    m->words[48]=samples;m->words[49]=UINT32_MAX;
+    if(c.failed)return RF_FORMAT;m->bytes=c.at;*out=v;return RF_OK;
+}
