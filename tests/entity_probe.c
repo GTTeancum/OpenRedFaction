@@ -424,6 +424,16 @@ int main(int argc,char **argv)
         }
         return ferror(stdin)?3:0;
     }
+    if(argc==2 && !strcmp(argv[1],"--ai-weapon-limit")) {
+        uint32_t in[70],out[2];int32_t weapons[2];float override_value,scalars[64],result;
+        _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
+        while(fread(in,sizeof(in),1,stdin)==1) {
+            memcpy(weapons,in,8);memcpy(&override_value,in+3,4);memcpy(scalars,in+6,256);out[1]=0x12345678;memcpy(&result,out+1,4);
+            out[0]=(uint32_t)rf_entity_ai_weapon_limit(weapons,in[2],override_value,in[4],scalars,in[5],&result);memcpy(out+1,&result,4);
+            if(fwrite(out,sizeof(out),1,stdout)!=1)return 3;
+        }
+        return ferror(stdin)?3:0;
+    }
     if(argc==2 && !strcmp(argv[1],"--ai-destination"))return ai_destination_probe();
     if(argc==2 && !strcmp(argv[1],"--ai-arbitration"))return ai_arbitration_probe();
     if(argc==2 && !strcmp(argv[1],"--ai-recovery"))return ai_recovery_probe();

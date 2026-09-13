@@ -89,6 +89,14 @@ typedef struct rf_entity_ai_arbitration_backend {
 int rf_entity_ai_arbitrate(rf_entity_ai_arbitration_actor *inventory,
     const rf_entity_ai_arbitration_frame *frame,const rf_entity_ai_arbitration_backend *backend,uint32_t *result);
 
+/*401cc0: inventory4/8 are primary/secondary IDs; only IDs>0 index the
+ * original85d21c table with stride550. Override byte528 exactly1 bypasses
+ * selection and copies52c. Mode low byte0 selects secondary; otherwise primary.
+ * Caller supplies the indexed scalar column, including unused slot0.
+ * Float bits (including quiet NaNs) are retained; errors preserve output. */
+int rf_entity_ai_weapon_limit(const int32_t weapons[2],uint32_t override_flag,float override_value,
+    uint32_t mode,const float *scalars,uint32_t scalar_count,float *result);
+
 typedef struct rf_entity_ai_motion_state {
     uint32_t model,flags_810,word_834;int32_t action_1364,motion_1368;
 } rf_entity_ai_motion_state;

@@ -53,6 +53,16 @@ int rf_entity_ai_arbitrate(rf_entity_ai_arbitration_actor *s,const rf_entity_ai_
 #undef ARB_NO
 #undef ARB_CALL
 }
+int rf_entity_ai_weapon_limit(const int32_t weapons[2],uint32_t override_flag,float override_value,
+    uint32_t mode,const float *scalars,uint32_t scalar_count,float *result)
+{
+    int32_t weapon;float value=.5f;
+    if(!weapons || !result)return RF_RANGE;
+    if((override_flag&255u)==1){memcpy(result,&override_value,4);return RF_OK;}
+    weapon=weapons[(mode&255u)?0:1];
+    if(weapon>0){if(!scalars || (uint32_t)weapon>=scalar_count)return RF_RANGE;memcpy(&value,scalars+weapon,4);}
+    memcpy(result,&value,4);return RF_OK;
+}
 int rf_entity_ai_reset_motion(rf_entity_ai_motion_state **owner,uint32_t secondary,
     const rf_entity_ai_motion_backend *b)
 {

@@ -9851,3 +9851,33 @@ builds and all22 CTest checks pass. The original oracle now retains raw
 vector bits and query fields, avoiding NaN payload loss through JSON floats.
 Live scene route ownership, navigation preparation/limits, direct route
 and search services remain external; no native XEMU or new visual claim.
+
+
+AI navigation preparation/limit dependencies (2026-09-13)
+
+40aae0 copies actor7c0/7c4 into query5af630/634, saves408dc0 low byte
+at639, and selects ground mode638=1 unless42a060 or42a0a0 is nonzero.
+These predicates read movement descriptor858+4:42a060 matches12,15,13,
+11,9 and42a0a0 matches4,7. Actor5e4 receives the inverse mode. Begin5a4
+and next5b0 copy position3c. Query650 points at actor58c;618 at5a4;
+61c/620 copy actor69c/6a0;640/644 clear;63c receives global6460e8.
+This evidence identifies additional retained fields needed for live binding;
+preparation is not yet implemented by the destination adapter.
+
+Full401cc0 is now rf_entity_ai_weapon_limit. Override inventory528 low
+byte exactly1 copies float52c; otherwise mode low byte0 selects secondary
+inventory8, nonzero selects primary4. IDs<=0 return0.5; positive IDs read
+float85d21c plus ID*550. Caller supplies that scalar column without an
+unverified authored-field name. Bounds errors preserve output. Quiet NaN,
+infinity and signed-zero bits are retained. verify_ai_weapon_limit.py runs
+unhooked401cc0 against PC and compiled NXDK for2048 cases (841 overrides,
+620 defaults), plus5 added bounds/bypass cases. Both builds and22 CTest
+checks pass. No authored table retention or native scene claim.
+
+Surrounding4077a0 first asks408dc0; if its low byte is0 and owner class
+base speed is zero (40a2a0 low byte1),427da0/426fc0 advances to an occupant
+inventory and repeats. Missing lookup stops at the previous inventory.
+It evaluates401cc0 mode0 then mode1, stores each to binary32, then actual
+40a4a0 returns the maximum with original unordered/equality operand
+selection. The first stack operand is mode1, second mode0. Occupant-chain
+composition and scalar-column resource retention remain open.
