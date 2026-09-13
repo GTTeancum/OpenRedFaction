@@ -609,6 +609,9 @@ dvd_path = '{root.as_posix()}/build/xbox/redfaction-diagnostic.iso'
      weapon_supply=words(monitor,symbol('rf_scene_weapon_supply'),4)
      assert weapon_supply==expected('WEAPON_SUPPLY') and weapon_supply[:3]==[44,40,4872],weapon_supply
      report['weapon_supply']=weapon_supply
+     weapon_reset=words(monitor,symbol('rf_scene_weapon_reset_catalog'),4)
+     assert weapon_reset==expected('WEAPON_RESET_CATALOG') and weapon_reset==[44,7,4872,3940996059],weapon_reset
+     report['weapon_reset_catalog']=weapon_reset
      contact_splashes=words(monitor,symbol('rf_scene_contact_splash_assets'),8)
      assert contact_splashes==expected('CONTACT_SPLASH_ASSETS'),contact_splashes
      assert contact_splashes[:2]==[43,44] and contact_splashes[4]==1016 and contact_splashes[6:]==[1,1],contact_splashes

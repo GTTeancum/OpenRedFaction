@@ -1176,6 +1176,8 @@ static rf_clutter_catalogs campaign_clutter_catalogs;
 static int32_t campaign_riot_shield_class=-1;
 uint32_t rf_scene_clutter_contact_test[8];
 static rf_weapon_supply_catalog campaign_weapon_supply;
+static rf_weapon_reset_catalog campaign_weapon_reset;
+uint32_t rf_scene_weapon_reset_catalog[4]; /* weapons,resolved stop sounds,bytes,hash */
 uint32_t rf_scene_weapon_supply[4]; /* count,primary count,retained bytes,catalog hash */
 static struct {rf_vclip_definition definitions[2];int32_t effects[2],foley[2];} campaign_contact_splashes;
 uint32_t rf_scene_contact_splash_assets[8]; /* IDs2,Foley2,owned bytes,metadata hash,flags2 */
@@ -1522,6 +1524,16 @@ static int campaign_audio_open(const char *tables_path,const char *level_name,co
     if(global_hash!=rf_scene_foley[6]){status=RF_FORMAT;goto audio_done;}
     rf_scene_foley[7]=npc_hash_bytes(2166136261u,campaign_foley.samples,campaign_foley.sample_count*4);
     free(foley_text);foley_text=NULL;
+    {
+        const uint32_t initial_flags[64]={0}; /* Original4c2990 fresh global array. */
+        memset(&campaign_weapon_reset,0,sizeof(campaign_weapon_reset));
+        memset(rf_scene_weapon_reset_catalog,0,sizeof(rf_scene_weapon_reset_catalog));
+        status=rf_weapon_reset_catalog_load(&tables,128*1024,initial_flags,&campaign_foley,&campaign_weapon_reset);if(status)goto audio_done;
+        rf_scene_weapon_reset_catalog[0]=campaign_weapon_reset.names.count;
+        for(i=0;i<campaign_weapon_reset.names.count;++i)rf_scene_weapon_reset_catalog[1]+=campaign_weapon_reset.definitions[i].release_sound_class>=0;
+        rf_scene_weapon_reset_catalog[2]=sizeof(campaign_weapon_reset);
+        rf_scene_weapon_reset_catalog[3]=npc_hash_bytes(2166136261u,&campaign_weapon_reset,sizeof(campaign_weapon_reset));
+    }
     if(campaign_seeds.class_count || player_class) {
         if(campaign_seeds.class_count>640){status=RF_RANGE;goto audio_done;}
         if(campaign_seeds.class_count) {
@@ -3216,6 +3228,7 @@ static void campaign_close_movers(void)
     memset(campaign_spatial_voices,0,sizeof(campaign_spatial_voices));
     if(campaign_audio_events.reset)campaign_audio_events.reset(campaign_audio_events_context);
     rf_audio_mixer_init(&campaign_audio_mixer);
+    memset(&campaign_weapon_reset,0,sizeof(campaign_weapon_reset));
     free(campaign_footstep_groups);campaign_footstep_groups=NULL;rf_foley_close(&campaign_foley);
     free(campaign_pain_groups);campaign_pain_groups=NULL;
     free(campaign_impact_groups);campaign_impact_groups=NULL;

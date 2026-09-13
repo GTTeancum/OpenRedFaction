@@ -416,6 +416,7 @@ int rf_scene_npc_driller_feedback(uint32_t handle,int32_t now);
 extern uint32_t rf_scene_driller_feedback_test[8];
 extern uint32_t rf_scene_contact_splash_assets[8];
 extern uint32_t rf_scene_weapon_supply[4];
+extern uint32_t rf_scene_weapon_reset_catalog[4];
 extern uint32_t rf_scene_npc_inventory_owners[4];
 /* Prepared retained contact: caller supplies effect services and owns eligibility. */
 int rf_scene_npc_contact_dispatch(uint32_t handle,const rf_entity_contact_dispatch_backend *backend,uint32_t *decision);
