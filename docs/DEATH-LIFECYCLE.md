@@ -9520,3 +9520,32 @@ Existing408dc0 weapon presence and408d90 weapon classification are already
 shared and should be reused. Full408ac0 selection,4087a0 event arbitration,
 retained transition ownership and special-class landing remain open. No
 native XEMU run or new visuals claimed for this core-only change.
+
+
+Full AI selection408ac0 oracle (2026-09-13):
+verify_ai_select_original.py executes the complete original routine over2048
+cases and105 distinct ordered paths, retaining actual407e20/407e80 setters,
+4fa3b0 random timer and RNG, vector construction,4faed0 distance and __ftol.
+Actor/target lookup and external AI decisions/effects are explicit supplied
+boundaries.4065d0 mutates the retained state in the fixture so its subsequent
+state11 early return is exercised. Callback semantics are not inferred: callback
+names remain source addresses until their complete behavior is reconstructed.
+The adapter checks exact actor writes, stack restoration, query ordering,
+RNG advancement and peer filtering;202 peer notifications occur. Trace and
+initial/final compact fields are retained in artifacts/ai-select-original.json.
+This is original-code evidence, not PC/NXDK dispatcher equivalence.
+Assembly resolves Ghidra's omitted timer receiver:4fa3b0(2000,4000) writes
+inventory234, actor4d4. It consumes one CRT draw even when later gates stop
+state selection. Existing timer helper verification covers exact deadline
+math separately; this oracle checks its range and records the exact value.
+Peer traversal tests group1f8, excludes self, accepts peer action520=2/4,
+but calls40a110 on the initiating actor, not the peer, before ORing peer
+flags7d0 with20000. Either network byte suppresses the traversal. Low-byte
+comparisons alternate between exactly1 and any nonzero; preserve each site.
+Action11 clears actor810 bit02000000 then sets state9 and exits before the
+timer. Full path clears actor834 to-1 and actor810 bit8 after reset callbacks.
+Target distance is stored as float before comparing401cc0's x87 result.
+Next implement shared408ac0 around these verified effects, reusing weapon
+predicates and setters; complete callback implementations and retained owner
+binding are still required before live landing/AI scheduling. No new build
+or native replay is claimed for this original-only harness change.
