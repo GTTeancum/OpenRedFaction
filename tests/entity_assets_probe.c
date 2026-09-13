@@ -116,6 +116,16 @@ int main(int argc,char **argv)
         }
         return ferror(stdin)?1:0;
     }
+    if(argc==2 && !strcmp(argv[1],"--vfx-bone-parent")) {
+        uint32_t header[2];float pose[256][12];rf_vfx_morph_sample sample,out;int32_t status,index;
+        _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
+        while(fread(header,8,1,stdin)==1) {
+            if(header[0]>256 || fread(&sample,32,1,stdin)!=1 || fread(pose,48,header[0],stdin)!=header[0])return 2;
+            memcpy(&index,header+1,4);memset(&out,0xa5,sizeof(out));status=rf_vfx_bone_parent_sample(&sample,pose,header[0],index,&out);
+            fwrite(&status,4,1,stdout);fwrite(&out,sizeof(out),1,stdout);
+        }
+        return ferror(stdin)?1:0;
+    }
     if(argc==2 && !strcmp(argv[1],"--vfx-morph")) {
         unsigned char input[84];
         _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);

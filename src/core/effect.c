@@ -1685,3 +1685,21 @@ int rf_vfx_parent_sample(const rf_vfx_morph_sample *sample,const float parent[12
     }
     *out=value;return RF_OK;
 }
+
+int rf_vfx_bone_parent_sample(const rf_vfx_morph_sample *sample,const float (*pose)[12],uint32_t count,int32_t index,rf_vfx_morph_sample *out)
+{
+    rf_model_bone_query query;rf_vfx_morph_sample value;const float *point,*m;float *target;unsigned i,j;int status;
+    if(!sample || !out)return RF_RANGE;
+    status=rf_model_query_bone(pose,count,index,&query);if(status)return status;
+    if(!isfinite(sample->extra[0]) || !isfinite(sample->extra[1]))return RF_FORMAT;
+    value=*sample;m=query.basis;
+    for(j=0;j<2;++j) {
+        point=j?sample->vertex:sample->center;target=j?value.vertex:value.center;
+        for(i=0;i<3;++i)if(!isfinite(point[i]))return RF_FORMAT;
+        /*4ff020: X accumulates Y,Z,X; Y/Z accumulate Y,X,Z. */
+        target[0]=(float)((((double)m[3]*point[1]+(double)m[6]*point[2])+(double)m[0]*point[0])+query.position[0]);
+        for(i=1;i<3;++i)target[i]=(float)((((double)m[3+i]*point[1]+(double)m[i]*point[0])+(double)m[6+i]*point[2])+query.position[i]);
+        for(i=0;i<3;++i)if(!isfinite(target[i]))return RF_RANGE;
+    }
+    *out=value;return RF_OK;
+}

@@ -201,6 +201,9 @@ int rf_vfx_mesh_sample(const rf_vfx_mesh *,float effect_frame,uint32_t vertex,rf
  * Transform center/vertex, preserve extra bounds; no tag pose resolution.
  * Supports in-place output; errors preserve output. */
 int rf_vfx_parent_sample(const rf_vfx_morph_sample *,const float parent[12],rf_vfx_morph_sample *out);
+/*540365 skeletal tag branch with already evaluated bone matrices.
+ * Reuses503230 bone query; virtual tags/lazy pose advancement are external. */
+int rf_vfx_bone_parent_sample(const rf_vfx_morph_sample *,const float (*pose)[12],uint32_t count,int32_t index,rf_vfx_morph_sample *out);
 typedef struct rf_vfx_chunk {uint32_t type,offset,bytes;} rf_vfx_chunk;
 typedef struct rf_vfx_directory {
     rf_vpp *archive;rf_vpp_entry entry;rf_vfx_header header;
