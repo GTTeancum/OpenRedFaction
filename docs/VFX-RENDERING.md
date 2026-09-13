@@ -337,3 +337,18 @@ helpers, no hooks;3 invalid-input guards pass. Cone-axis inputs are finite
 but not forcibly normalized, matching the original caller contract. This
 remains a geometry component; light owner/order, attenuation and accumulation
 must still be connected before claiming rendered scene lighting.
+
+rf_vfx_light_add combines the four original falloff profiles with supplied
+angular gain and weighted RGB, then adds to accumulated RGB at the original
+float channel stores. It does not round falloff to float before accumulation.
+Cosine uses the original float pi/2 constant and preserves the subtraction
+order1-((radius-distance)/radius); no artificial clamp is inserted. Caller
+acceptance handles radius/angular rejection before this stage. Output may
+alias the accumulated input and errors preserve it.
+
+4096 PC/NXDK comparisons match actual4da0b0/c0/e0/100 plus4dadb4 channel
+addition, joined by an explicit angular-gain multiply; no hooks.4096 in-place
+cases and3 invalid-profile/radius guards pass. This establishes point-style
+float angular input composition. Cone-boundary attenuation still needs its
+original higher-precision multiplication ordering when integrated, along with
+segment lights, weighted color construction, active ownership and conversion.

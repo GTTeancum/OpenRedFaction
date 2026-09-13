@@ -2073,3 +2073,21 @@ int rf_vfx_cone_light(const float position[3],const float normal[3],const float 
     }
     memcpy(out,result,12);return RF_OK;
 }
+
+int rf_vfx_light_add(uint32_t profile,float distance,float radius,float gain,
+    const float color[3],const float accumulated[3],float out[3])
+{
+    double value;float result[3];uint32_t i;
+    if(!color || !accumulated || !out || profile>3 || !isfinite(distance) || !isfinite(radius) ||
+        !isfinite(gain) || distance<0 || radius<=0 || distance>radius)return RF_RANGE;
+    value=((double)radius-distance)/radius;
+    if(profile==1)value*=value;
+    else if(profile==2)value=cos((1.0-value)*(double)1.5707963705062866f);
+    else if(profile==3)value=sqrt(value);
+    value*=gain;
+    for(i=0;i<3;++i) {
+        if(!isfinite(color[i]) || !isfinite(accumulated[i]))return RF_RANGE;
+        result[i]=(float)(value*color[i]+accumulated[i]);if(!isfinite(result[i]))return RF_RANGE;
+    }
+    memcpy(out,result,12);return RF_OK;
+}

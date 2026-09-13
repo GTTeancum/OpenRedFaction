@@ -69,6 +69,13 @@ int rf_vfx_material_track(const float *samples,uint32_t count,int32_t rate,float
 /* Bitmap loader50f9cd and query50f380 rate rounding. Count1 ignores rate;
  * animated counts2..255 and signed-positive VBM rates required. */
 int rf_vfx_texture_duration(uint32_t count,uint32_t rate,float *out);
+/* Original falloff table4da0b0/c0/e0/100 and4dadb4 RGB addition. Caller has
+ * accepted the light and supplies its angular gain/weighted color. Profiles
+ * 0 linear,1 squared,2 cosine,3 square root. No intermediate float falloff
+ * store; output may alias accumulated. Finite0<=distance<=radius, radius>0. */
+int rf_vfx_light_add(uint32_t profile,float distance,float radius,float gain,
+    const float color[3],const float accumulated[3],float out[3]);
+
 /*4dae50 point-light direction/radius test. soften selects the original
  * optional zero-byte branch; VFX's null argument selects0. Output is angular
  * factor then distance. Coincident points use direction(1,0,0), distance1.

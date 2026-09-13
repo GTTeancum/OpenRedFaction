@@ -14,6 +14,10 @@ Shortlist:
 
 Progress reporting: include overall percent estimates at meaningful milestones and revisit remaining 24-hour workdays when measured throughput supports a forecast; current rough estimate40% (35-45%), no defensible +/-48-hour completion forecast before end-to-end gameplay.
 
+VFX four-profile falloff plus RGB addition matches4096 original/PC/NXDK
+cases,4096 in-place checks and3 guards. Connect accepted point lights, retain
+cone-boundary precision, and complete active-light ownership/conversion next.
+
 VFX cone-light geometry4daf30 now matches2048 original/PC/NXDK cases and
 3 guards, including softened normals and cone-axis terms. Complete falloff,
 cone-boundary attenuation and active-light accumulation before native drawing.

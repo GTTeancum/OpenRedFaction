@@ -230,6 +230,15 @@ int main(int argc,char **argv)
         }
         return ferror(stdin)?1:0;
     }
+    if(argc==2 && !strcmp(argv[1],"--vfx-light-add")) {
+        uint32_t profile;float v[9],out[3];int32_t status;
+        _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
+        while(fread(&profile,4,1,stdin)==1) {
+            if(fread(v,sizeof(v),1,stdin)!=1)return 2;memset(out,0xa5,12);
+            status=rf_vfx_light_add(profile,v[0],v[1],v[2],v+3,v+6,out);fwrite(&status,4,1,stdout);fwrite(out,12,1,stdout);
+        }
+        return ferror(stdin)?1:0;
+    }
     if(argc==2 && !strcmp(argv[1],"--vfx-texture-frame")) {
         uint32_t h[7],out;float duration,speed,time;int32_t start,status;
         _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
