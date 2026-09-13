@@ -96,6 +96,17 @@ int rf_vfx_lights_sphere(const rf_vfx_light_candidate *,uint32_t count,
 int rf_vfx_lights_box(const rf_vfx_light_candidate *,uint32_t count,
     const float minimum[3],const float maximum[3],uint32_t include_class,uint32_t include_other,
     uint32_t *indices,uint32_t capacity,uint32_t *selected);
+/*4d96c0/4d9870 room/object candidate cache with caller-owned index storage.
+ * Initialize count/valid to0 and provide capacity for the complete source list.
+ * On generation change, refresh geometric membership without enabled/color/
+ * class filtering. Equal generation preserves cached membership and skips inputs.
+ * Caller must invalidate on source reorder/removal or bounds changes. No heap;
+ * errors preserve cache and indices. Global/null-room cache is separate. */
+typedef struct rf_vfx_light_cache {
+    uint32_t generation,count,capacity;uint32_t *indices;uint32_t valid;
+} rf_vfx_light_cache;
+int rf_vfx_light_cache_refresh(rf_vfx_light_cache *,uint32_t generation,
+    const rf_vfx_light_candidate *,uint32_t count,const float minimum[3],const float maximum[3]);
 /*4d8480 transform: directions rotate only; positions/endpoints subtract
  * origin first. Basis rows use original Z/Y/X dot order. Preserves non-vector
  * fields and unused vectors. In-place supported; errors preserve output. */

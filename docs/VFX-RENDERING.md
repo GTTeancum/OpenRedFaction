@@ -473,3 +473,32 @@ all original geometry and collection accessors execute without hooks. Three
 invalid-input guards pass, as do spherical-filter regression, both builds and
 24 CTests. No native XEMU visual claim: cache generation/rebuilds, live source
 ownership, global active-list state and VFX edge-light integration remain.
+
+## Room/object cache refresh
+
+rf_vfx_light_cache_refresh reconstructs the non-null room4d96c0 and object
+4d9870 cache generation/membership behavior. A caller-owned20-byte descriptor
+holds generation, count, capacity, index pointer and explicit validity. On an
+unchanged valid generation it skips source/bounds reads and preserves the
+cached indices. On invalidation it rebuilds geometric membership in supplied
+source traversal order, without the enabled/color/class filters used during
+active selection. The shared box implementation now separates these filters
+from membership geometry. Type0 and unknown types do not enter bounded caches.
+
+Unlike original dynamic arrays, the caller reserves space for the complete
+source list before refreshing. No per-query allocation occurs; invalid input
+or insufficient capacity preserves the old cache and indices. Source reorder,
+removal and bounds changes require caller invalidation. The original generation
+is stored before rebuilding; the port commits it after a successful bounded
+refresh so a failed refresh remains retryable. Global/null-room behavior and
+source lifetime/invalidation dispatch are not implemented by this API.
+
+2048 rebuild cases per original path match PC/NXDK indices/counts/generations.
+The original linked lists, collection clear/append, box/segment geometry and
+both source-list gates execute; preallocated collection capacity avoids heap
+growth, with no hooked functions. Another2048 sequences compare original and
+NXDK cache hits after source mutation, followed by generation changes that
+remove all sources. Two capacity/bounds guards preserve state. Both builds,
+box/sphere regressions and24 CTests pass. PC rebuilding is checked directly;
+the mutation sequences use original/NXDK instruction emulation. No live XEMU
+lighting or scene ownership claim follows from these harness results.

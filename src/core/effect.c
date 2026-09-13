@@ -2285,9 +2285,9 @@ int rf_vfx_lights_sphere(const rf_vfx_light_candidate *lights,uint32_t count,
     *selected=n;return RF_OK;
 }
 
-int rf_vfx_lights_box(const rf_vfx_light_candidate *lights,uint32_t count,
+static int vfx_lights_box(const rf_vfx_light_candidate *lights,uint32_t count,
     const float minimum[3],const float maximum[3],uint32_t include_class,uint32_t include_other,
-    uint32_t *indices,uint32_t capacity,uint32_t *selected)
+    uint32_t *indices,uint32_t capacity,uint32_t *selected,uint32_t filter)
 {
     uint32_t i,j,n=0;
     if(!minimum || !maximum || !selected || (count && (!lights || !indices)) || capacity<count ||
@@ -2303,8 +2303,8 @@ int rf_vfx_lights_box(const rf_vfx_light_candidate *lights,uint32_t count,
     for(i=0;i<count;++i) {
         const rf_vfx_light_candidate *c=lights+i;const rf_vfx_light_source *l=&c->source;
         float lo[3],hi[3],scratch[3];uint32_t hit=1;
-        if(!c->enabled || !(l->color[0]!=0 || l->color[1]!=0 || l->color[2]!=0) ||
-            (!include_class && c->light_class) || (!include_other && !c->light_class))continue;
+        if(filter && (!c->enabled || !(l->color[0]!=0 || l->color[1]!=0 || l->color[2]!=0) ||
+            (!include_class && c->light_class) || (!include_other && !c->light_class)))continue;
         if(l->type==1){indices[n++]=i;continue;}
         if(l->type<2 || l->type>4)continue;
         for(j=0;j<3;++j){lo[j]=minimum[j]-l->radius;hi[j]=maximum[j]+l->radius;}
@@ -2313,4 +2313,22 @@ int rf_vfx_lights_box(const rf_vfx_light_candidate *lights,uint32_t count,
         if(hit)indices[n++]=i;
     }
     *selected=n;return RF_OK;
+}
+
+int rf_vfx_lights_box(const rf_vfx_light_candidate *lights,uint32_t count,
+    const float minimum[3],const float maximum[3],uint32_t include_class,uint32_t include_other,
+    uint32_t *indices,uint32_t capacity,uint32_t *selected)
+{
+    return vfx_lights_box(lights,count,minimum,maximum,include_class,include_other,indices,capacity,selected,1);
+}
+int rf_vfx_light_cache_refresh(rf_vfx_light_cache *cache,uint32_t generation,
+    const rf_vfx_light_candidate *lights,uint32_t count,const float minimum[3],const float maximum[3])
+{
+    uint32_t selected;int status;
+    if(!cache || cache->valid>1 || cache->count>cache->capacity ||
+        (cache->capacity && !cache->indices))return RF_RANGE;
+    if(cache->valid && cache->generation==generation)return RF_OK;
+    status=vfx_lights_box(lights,count,minimum,maximum,1,1,cache->indices,cache->capacity,&selected,0);
+    if(status)return status;
+    cache->generation=generation;cache->count=selected;cache->valid=1;return RF_OK;
 }
