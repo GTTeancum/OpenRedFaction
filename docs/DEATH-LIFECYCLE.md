@@ -10149,3 +10149,24 @@ PC fixture uses the same shared solid binding and owned tree scratch;
 NXDK verification uses the existing7f51500 build, unchanged production
 code. PC probe rebuild passes. No preferred/cache-face or live scene
 routing coverage is claimed; combined route ownership remains open.
+
+
+Retained search output4cebb0 (2026-09-13)
+
+Original4cebb0 stores only the first four node pointers; later appends
+are silently discarded while recursive4ceb50 still computes full-path
+cumulative cost. rf_entity_navigation_retained_route owns four borrowed
+node slots and count, with rf_entity_navigation_route_append directly
+usable as the search output callback. It allocates nothing and does not
+copy positions. Request owners must reset count and preserve node lifetime
+through movement. This is separate from the older route-reset prefix type.
+
+The original search oracle now executes actual4cebb0 instead of replacing
+it, asserting count, retained pointer slots and preserved query fields.
+verify_ai_retained_route.py compares2048 full original/PC/NXDK searches
+with shared bounded output, including five paths longer than four nodes.
+Stored prefixes, complete path cost, node mutations and predicate order
+match. Both builds and22 CTest checks pass. Visibility and scratch-list
+allocation boundaries remain supplied in this search verifier. Combined
+4cebd0 request ownership and live NPC movement remain open; no native
+XEMU claim for this change.

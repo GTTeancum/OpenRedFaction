@@ -48,7 +48,7 @@ Event arbitration4087a0 matches2048 original/PC/NXDK cases; bind event/destinati
 Shared destination40ac90 matches2048 original/PC/NXDK cases; bind route services and retained scene ownership.
 Navigation preparation40aae0 matches2048 original/PC/NXDK cases; compose it with retained movement/query owners.
 Direct-route40b0d0 matches2048 original/PC/NXDK cases; bind global navigation references and reconstruct searched routes.
-Shared path search4ce8c0 matches2048 original/PC/NXDK graphs with4 bytes/node scratch; bind endpoints, visibility and route output.
+Shared path search4ce8c0 and four-pointer retained output match2048 original/PC/NXDK graphs; compose endpoints and visibility with live route ownership.
 Bounded endpoint insertion/cleanup matches1536 and nearest selection2048 original/PC/NXDK cases; bind visibility and search wrapper.
 Node preparation and alternate-edge geometry each match2048 unhooked original/PC/NXDK cases; compose them into route services.
 Visibility query4ce740, concrete flat-solid collision and room hierarchy each match2048 original/PC/NXDK cases; bind combined route ownership.

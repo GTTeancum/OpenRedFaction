@@ -2065,3 +2065,11 @@ int rf_entity_navigation_visible_solid(const rf_collision_solid_view *solid,
     return rf_entity_navigation_visible(solid?1:0,node,point,radius,height,
         navigation_solid_collision,(void *)solid,result);
 }
+
+int rf_entity_navigation_route_append(void *context,rf_entity_navigation_candidate *node)
+{
+    rf_entity_navigation_retained_route *route=context;
+    if(!route)return RF_RANGE;
+    if(route->count<4)route->nodes[route->count++]=node;
+    return RF_OK;
+}

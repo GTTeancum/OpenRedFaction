@@ -1240,6 +1240,15 @@ int rf_entity_navigation_disconnect_goal(rf_entity_navigation_token_list *global
 typedef struct rf_entity_navigation_search_query {
     uint32_t start,goal,alternate;float limit,height,edge_parameter,cost;
 } rf_entity_navigation_search_query;
+/*4cebb0 retained route: first four borrowed node pointers, no copies or
+ * allocation. Longer searches still compute full cost but discard later
+ * appends. Reset count before a new request; nodes must outlive movement. */
+typedef struct rf_entity_navigation_retained_route {
+    rf_entity_navigation_candidate *nodes[4];uint32_t count;
+} rf_entity_navigation_retained_route;
+/* Directly usable as search_backend.append with route as context. */
+int rf_entity_navigation_route_append(void *context,rf_entity_navigation_candidate *node);
+
 typedef struct rf_entity_navigation_search_backend {
     /*4ce740: goal node order_key in ordinary mode, alternate token otherwise. */
     int (*visible)(void *,rf_entity_navigation_candidate *,uint32_t,float,float,uint32_t *);

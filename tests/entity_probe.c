@@ -468,7 +468,8 @@ int main(int argc,char **argv)
     }
     if(argc==2 && !strcmp(argv[1],"--ai-nearest"))return ai_nearest_probe();
     if(argc==2 && !strcmp(argv[1],"--ai-endpoint"))return ai_endpoint_probe();
-    if(argc==2 && !strcmp(argv[1],"--ai-search"))return ai_search_probe();
+    if(argc==2 && !strcmp(argv[1],"--ai-route"))return ai_search_probe(1);
+    if(argc==2 && !strcmp(argv[1],"--ai-search"))return ai_search_probe(0);
     if(argc==2 && !strcmp(argv[1],"--ai-direct"))return ai_direct_probe();
     if(argc==2 && !strcmp(argv[1],"--ai-prepare"))return ai_prepare_probe();
     if(argc==2 && !strcmp(argv[1],"--ai-route-limit"))return ai_route_limit_probe();

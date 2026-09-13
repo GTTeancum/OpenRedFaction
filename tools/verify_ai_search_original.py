@@ -1,5 +1,5 @@
 """Original4ce8c0 graph search with real scoring/list removal/path recursion.
-Only scratch allocation/append/free, visibility and route-output append are supplied.
+Only scratch allocation/append/free, visibility are supplied; route-output append executes unchanged.
 """
 import hashlib,json,random,struct,sys
 from pathlib import Path
@@ -34,7 +34,7 @@ def hook(cpu,address,size,context):
  elif address==0x4ce6c0:
   assert arg(0)==ALT;i=nodes.index(arg(1)-12);j=nodes.index(arg(2)-12);value=cfg['edges'][i][j];trace.append(['edge',i,j,value]);ret(value)
  elif address==0x4cebb0:
-  assert arg(0)==Q;path.append(nodes.index(arg(1)));ret()
+  assert arg(0)==Q;path.append(nodes.index(arg(1))) # Actual four-slot append executes.
 u.hook_add(UC_HOOK_CODE,hook);rng=random.Random(0x4ce8c0);records=[];successes=0;alternate=0;near=0
 for case in range(2048):
  count=1+case%8;cfg=dict(count=count,goal=rng.randrange(count),alternate=bool(case&1),limit=5.0 if case%3==0 else 0.0)
@@ -45,6 +45,7 @@ for case in range(2048):
   adj=list(range(count));rng.shuffle(adj);adj=adj[:rng.randrange(count+1)];cfg['neighbors'].append(adj)
   node=bytearray(rng.randbytes(68));node[:24]=f(*cfg['positions'][i],*cfg['positions'][i]);node[40:52]=w(len(adj),8,ARRAY+0x100+i*0x40);node[53]=cfg['rejected'][i];u.mem_write(nodes[i],bytes(node));u.mem_write(ARRAY+0x100+i*0x40,w(*[nodes[j] for j in adj]));seed_nodes.append(bytes(node))
  u.mem_write(LIST,w(count,8,ARRAY));u.mem_write(ARRAY,w(*nodes[:count]));u.mem_write(Q,bytes(64));u.mem_write(Q,w(nodes[0],0,0,nodes[cfg['goal']]));u.mem_write(Q+28,f(1));u.mem_write(Q+36,w(0x1234));u.mem_write(Q+40,f(cfg['limit'],0));u.mem_write(Q+48,w(0x12345678));u.mem_write(0,w(0xabcdef01))
+ u.mem_write(Q+56,w(B+0x7000));u.mem_write(B+0x7000,bytes(16))
  query_before=bytes(u.mem_read(Q,64))
  u.mem_write(STACK,w(STOP,Q,ALT if cfg['alternate'] else 0));u.reg_write(UC_X86_REG_ESP,STACK);u.reg_write(UC_X86_REG_ECX,LIST);u.reg_write(UC_X86_REG_FPCW,0x27f);trace=[];path=[];u.emu_start(0x4ce8c0,STOP,count=200000)
  assert u.reg_read(UC_X86_REG_EIP)==STOP and r(0)==0xabcdef01
@@ -90,8 +91,9 @@ for case in range(2048):
   assert r(Q+48)==struct.unpack('<I',f(total))[0]
  else:assert r(Q+48)==0x12345678
  assert path==expected_path,(case,path,expected_path)
- query_after=bytearray(u.mem_read(Q,64));query_after[48:52]=query_before[48:52];assert query_after==query_before
+ query_after=bytearray(u.mem_read(Q,64));assert r(Q+52)==min(4,len(path)) and bytes(u.mem_read(B+0x7000,16))==w(*[nodes[i] for i in path[:4]],*([0]*(4-min(4,len(path)))))
+ query_after[48:56]=query_before[48:56];assert query_after==query_before
  successes+=result;alternate+=int(result and cfg['alternate']);near+=int(result and not cfg['alternate'] and goal!=cfg['goal'])
  records.append(dict(case=case,input=cfg,initial_node_words=[list(struct.unpack('<17I',v)) for v in seed_nodes],result=result,path=path,trace=trace,cost_bits=r(Q+48),node_words=[list(struct.unpack('<17I',u.mem_read(nodes[i],68))) for i in range(count)]))
-report=dict(result='PASS',cases=len(records),successes=successes,alternate_successes=alternate,near_goal_successes=near,scope='Full original4ce8c0, actual score math, list traversal/removal, SEH restoration and recursive4ceb50 cost/path walk. Scratch-list allocation/append/free, visibility and4cebb0 route-output append supplied. Independent graph model matches exact node state and ordered operations. Not shared code or route storage ownership.',records=records)
+report=dict(result='PASS',cases=len(records),successes=successes,alternate_successes=alternate,near_goal_successes=near,scope='Full original4ce8c0, actual score math, list traversal/removal, SEH restoration and recursive4ceb50 cost/path walk. Scratch-list allocation/append/free, visibility supplied; actual4cebb0 first-four route storage verified. Independent graph model matches exact node state and ordered operations. Not shared code or route storage ownership.',records=records)
 (root/'artifacts/ai-search-original.json').write_text(json.dumps(report,indent=2));print({k:v for k,v in report.items() if k!='records'})
