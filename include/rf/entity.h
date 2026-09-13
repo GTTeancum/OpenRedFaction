@@ -1081,6 +1081,38 @@ int rf_entity_navigation_pair(const float position[3],float radius,
     const rf_entity_navigation_candidate *first,const rf_entity_navigation_candidate *second,
     float *squared_distance,uint32_t *classification);
 
+/*40ac90 retained actor destination/route fields, separate from route allocation. */
+typedef struct rf_entity_ai_destination_actor {
+    uint32_t handle;int32_t action_520,state_554;uint32_t target_560;float radius_7c0,height_7c4;
+    float position_3c[3],vector_7d4[3],requested_620[3],adjusted_62c[3];
+    float begin_5a4[3],next_5b0[3],previous_6d4[3];
+    int32_t count_588;float *first_58c,*last_590;uint32_t word_59c,word_5a0,word_660;int32_t timer_6bc;
+} rf_entity_ai_destination_actor;
+typedef struct rf_entity_ai_destination_query {
+    rf_entity_ai_destination_actor *destination_owner; /*5af624 points at its requested620*/
+    rf_entity_navigation_candidate *first,*second; /*5af628/62c*/
+    float offset_634;uint32_t mode_638,search_63a;float limit_640;int32_t count_64c;
+} rf_entity_ai_destination_query;
+typedef struct rf_entity_ai_destination_backend {
+    int (*lookup)(void *,uint32_t,rf_entity_ai_destination_actor **); /*426fc0*/
+    int (*reset)(void *,rf_entity_ai_destination_actor *); /*409210*/
+    int (*prepare)(void *,rf_entity_ai_destination_actor *,rf_entity_ai_destination_query *); /*40aae0*/
+    int (*limit)(void *,rf_entity_ai_destination_actor *,double *); /*4077a0*/
+    int (*select)(void *,const float[3],float,float,rf_entity_ai_destination_query *,uint32_t *); /*40c2c0,allow_far0*/
+    int (*clear)(void *,rf_entity_ai_destination_actor *); /*40cb40*/
+    int (*add)(void *,rf_entity_ai_destination_actor *,rf_entity_navigation_candidate *); /*45ec40*/
+    int (*direct)(void *,rf_entity_ai_destination_actor *,rf_entity_ai_destination_actor *,uint32_t *); /*40b0d0(next5b0,actor,requested620,target)*/
+    int (*search)(void *,rf_entity_ai_destination_query *,uint32_t *); /*4cebd0*/
+    void *context;
+} rf_entity_ai_destination_backend;
+/* Borrowed actor/node/query storage survives callbacks, which may mutate it.
+ * Concrete geometry, timers and publication; routing services remain external.
+ * Finite representable geometry required; zero horizontal normalization rejects.
+ * Errors and false results retain preceding writes. Result unchanged on error.
+ * No route allocation or global query ownership is created by this function. */
+int rf_entity_ai_destination(uint32_t handle,const float point[3],int32_t now_ms,
+    rf_entity_ai_destination_query *query,const rf_entity_ai_destination_backend *backend,uint32_t *result);
+
 typedef struct rf_entity_navigation_reference {
     rf_entity_navigation_candidate *candidate;uint32_t order_key;
     const uint32_t *neighbors;uint32_t neighbor_count;

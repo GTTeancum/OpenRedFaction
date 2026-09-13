@@ -1620,6 +1620,81 @@ int rf_entity_navigation_closest_point(const float point[3],const float start[3]
     memcpy(closest,value,12);*distance_along=along;return RF_OK;
 }
 
+static double ai_destination_distance(const float a[3],const float b[3])
+{
+    float d[3];uint32_t i;for(i=0;i<3;++i)d[i]=(float)((double)a[i]-b[i]);
+    return sqrt(((double)d[0]*d[0]+(double)d[1]*d[1])+(double)d[2]*d[2]);
+}
+static int ai_destination_finish(rf_entity_ai_destination_actor *a,int32_t now,const float previous[3],uint32_t *result)
+{
+    int status;a->word_59c=0;a->word_5a0=1;
+    status=rf_timer_set(&a->timer_6bc,now,0);if(status)return status;
+    memcpy(a->previous_6d4,previous,12);*result=1;return RF_OK;
+}
+int rf_entity_ai_destination(uint32_t handle,const float point[3],int32_t now,
+    rf_entity_ai_destination_query *q,const rf_entity_ai_destination_backend *b,uint32_t *result)
+{
+    rf_entity_ai_destination_actor *a,*target=NULL;double limit,length,ratio,inverse;float stored_limit,along,closest[3],d[3],scaled,radius,h1,h2;
+    uint32_t value,i;int status;
+    if(!point || !q || !b || !result || !b->lookup || !b->reset || !b->prepare || !b->limit || !b->select ||
+       !b->clear || !b->add || !b->direct || !b->search || now<0 || now>RF_TIMER_PERIOD)return RF_RANGE;
+#define DEST_CALL(expr) do {status=(expr);if(status)return status;} while(0)
+    DEST_CALL(b->lookup(b->context,handle,&a));if(!a){*result=0;return RF_OK;}
+    DEST_CALL(b->reset(b->context,a));
+    for(i=0;i<3;++i)if(!isfinite(point[i]))return RF_FORMAT;
+    memmove(a->requested_620,point,12);memmove(a->adjusted_62c,point,12);q->destination_owner=a;
+    if(a->action_520==3 && a->state_554==3) {
+        a->count_588=2;a->first_58c=a->begin_5a4;a->last_590=a->requested_620;
+        memcpy(a->begin_5a4,a->position_3c,12);memcpy(a->next_5b0,a->position_3c,12);
+        return ai_destination_finish(a,now,a->position_3c,result);
+    }
+    DEST_CALL(b->prepare(b->context,a,q));if(!q->destination_owner)return RF_FORMAT;
+    q->destination_owner->word_660=(q->mode_638&255u)!=1;
+    DEST_CALL(b->limit(b->context,a,&limit));stored_limit=(float)limit;
+    DEST_CALL(b->select(b->context,point,a->radius_7c0,a->height_7c4,q,&value));
+    if((q->mode_638&255u)==1 && q->first) {
+        if((value&255u)==1) {
+            if(q->second) {
+                length=ai_destination_distance(q->first->query_point,q->second->query_point);
+                if(!isfinite(length))return RF_FORMAT;
+                if(length>0) {
+                    h1=(float)((double)q->first->query_point[1]-(double)q->first->height*.5);
+                    h2=(float)((double)q->second->query_point[1]-(double)q->second->height*.5);
+                    DEST_CALL(rf_entity_navigation_closest_point(a->position_3c,q->first->query_point,q->second->query_point,closest,&along));
+                    ratio=(double)along/(float)length;a->adjusted_62c[1]=(float)(ratio*h1+(1.0-ratio)*h2+q->offset_634);
+                }
+            } else a->adjusted_62c[1]=(float)(((double)q->first->position[1]-(double)q->first->height*.5)+q->offset_634);
+        } else {
+            for(i=0;i<3;++i)d[i]=(float)((double)a->requested_620[i]-q->first->query_point[i]);d[1]=0;
+            length=sqrt(((double)d[0]*d[0]+(double)d[1]*d[1])+(double)d[2]*d[2]);
+            if(!(length>0) || !isfinite(length))return RF_FORMAT;inverse=1.0/length;
+            for(i=0;i<3;++i)d[i]=(float)(inverse*d[i]);radius=(float)((double)q->first->radius-a->radius_7c0);
+            for(i=0;i<3;++i){scaled=(float)((double)d[i]*radius);a->adjusted_62c[i]=(float)((double)q->first->query_point[i]+scaled);}
+        }
+    }
+    for(i=0;i<3;++i)if(!isfinite(a->adjusted_62c[i]))return RF_FORMAT;
+    if(a->action_520!=2 && a->action_520!=16) {
+        length=ai_destination_distance(a->adjusted_62c,a->requested_620);if(!isfinite(length))return RF_FORMAT;
+        if(length>stored_limit){*result=0;return RF_OK;}
+    }
+    DEST_CALL(b->clear(b->context,a));
+    if(q->first)DEST_CALL(b->add(b->context,a,q->first));
+    if(q->second)DEST_CALL(b->add(b->context,a,q->second));
+    if(a->action_520==3)DEST_CALL(b->lookup(b->context,a->target_560,&target));
+    DEST_CALL(b->direct(b->context,a,target,&value));
+    if((value&255u)==1) {
+        a->count_588=2;a->first_58c=a->begin_5a4;a->last_590=a->requested_620;
+        return ai_destination_finish(a,now,a->vector_7d4,result);
+    }
+    q->search_63a=1;
+    if(a->action_520==3){DEST_CALL(b->limit(b->context,a,&limit));q->limit_640=(float)limit;}
+    else q->limit_640=0;
+    DEST_CALL(b->search(b->context,q,&value));
+    if(value&255u){a->count_588=q->count_64c;if(a->count_588>=2)return ai_destination_finish(a,now,a->vector_7d4,result);}
+    *result=0;return RF_OK;
+#undef DEST_CALL
+}
+
 int rf_entity_navigation_basis(const float direction[3],float matrix[3][3])
 {
     float value[3][3]={{0}};double length,inverse;uint32_t i;

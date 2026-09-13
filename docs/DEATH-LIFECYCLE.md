@@ -9818,3 +9818,36 @@ Initial retained words/vector bits and resulting state are saved locally
 in artifacts/ai-destination-original.json for shared comparison. This is
 an original oracle only; shared destination implementation, full route
 services and live AI integration remain unfinished. No new Xbox run.
+
+
+Shared destination40ac90 (2026-09-13)
+
+rf_entity_ai_destination now composes the complete audited routine with
+borrowed compact actor/query state and explicit lookup/reset/preparation/
+limit/node-selection/list/direct/search callbacks. It implements all
+destination copies, two-point shortcuts, node-height interpolation,
+horizontal normalized radius adjustment, distance rejection, query flags,
+route field publication and concrete timer6bc using rf_timer_set. Segment
+projection reuses rf_entity_navigation_closest_point. Binary32 stores are
+preserved before ratio/scaling/coordinate addition; no simplified routing
+or fabricated navigation success. The query tracks the destination owner
+corresponding to global5af624, permitting preparation to redirect it.
+Failed routes and callback errors preserve preceding writes; output result
+is only set on a successful API return. Geometry supports finite values;
+degenerate horizontal normalization returns RF_FORMAT after prior writes
+instead of synthesizing original NaNs. The routine allocates nothing.
+
+verify_ai_destination_shared.py refreshes the full original oracle and
+compares2048 PC/NXDK executions byte-exactly for22 retained actor words,
+eight query fields, result and ordered service trace. Original route
+pointers are normalized to compact array identities for comparison.
+Random initial storage and branch inputs cover representative fixed node
+geometry, coincident nodes, shortcuts, accepted/rejected routes and timer
+publication. This is not randomized coverage of all possible coordinates.
+Twelve callback-failure and three clock/degenerate-geometry guards pass.
+An initial guard assertion used the wrong numeric RF_FORMAT code; corrected
+the test to the public enum(-2), with no production change. Both platform
+builds and all22 CTest checks pass. The original oracle now retains raw
+vector bits and query fields, avoiding NaN payload loss through JSON floats.
+Live scene route ownership, navigation preparation/limits, direct route
+and search services remain external; no native XEMU or new visual claim.
