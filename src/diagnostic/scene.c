@@ -804,10 +804,10 @@ int rf_scene_corpse_file_tag(uint32_t model,const char *name,uint32_t fallback,i
     }
     return RF_NOT_FOUND;
 }
-int rf_scene_corpse_file_tag_point(const rf_corpse_surface_source *source,int32_t index,float point[3])
+static int campaign_file_tag_pose(const rf_corpse_surface_source *source,int32_t index,float transform[12])
 {
     rf_entity_pose *pose;rf_model_attachment attachment;float local[12],tag[12],placed[12];int status;
-    if(!source || !source->model || !point || index<0)return RF_RANGE;
+    if(!source || !source->model || !transform || index<0)return RF_RANGE;
     status=campaign_model_pose(source->model-1,&pose);if(status)return status;if(!pose)return RF_NOT_FOUND;
     if(!pose->matrices || pose->skeleton>=campaign_render_models.count)return RF_RANGE;
     if((uint32_t)index<pose->bone_count)memcpy(tag,pose->matrices[index],48);
@@ -819,7 +819,12 @@ int rf_scene_corpse_file_tag_point(const rf_corpse_surface_source *source,int32_
         status=rf_model_compose_transform(local,pose->matrices[attachment.parent],tag);if(status)return status;
     }
     status=rf_model_place_tag(tag,source->basis,source->position,placed);
-    if(!status)memcpy(point,placed+9,12);return status;
+    if(!status)memcpy(transform,placed,48);return status;
+}
+int rf_scene_corpse_file_tag_point(const rf_corpse_surface_source *source,int32_t index,float point[3])
+{
+    float transform[12];int status;if(!point)return RF_RANGE;
+    status=campaign_file_tag_pose(source,index,transform);if(!status)memcpy(point,transform+9,12);return status;
 }
 /* File-tag source binding: installed eye/spine selections match the original
  * with local index translation; live death dispatch remains separate work. All geometry, lightmaps and model poses are borrowed;
@@ -2937,6 +2942,61 @@ uint32_t rf_scene_npc_registration[6]; /* registered, view/wrapper bytes, hash, 
 uint32_t rf_scene_npc_bodies[6]; /* actors, bodies, spheres, resident, peak, content hash */
 static rf_weapon_model_owner campaign_weapon_models;
 uint32_t rf_scene_weapon_models[8]; /* models, weapon IDs, bytes, peak, tags, hash, selection mask */
+uint32_t rf_scene_weapon_placement[4]; /* actors, placements, absent hands, pose hash */
+typedef struct campaign_weapon_pose_context {uint32_t transforms;} campaign_weapon_pose_context;
+static int campaign_weapon_tag(void *context,uint32_t model,const char *name,int32_t *tag)
+{
+    rf_model_name query;int status;(void)context;
+    if(!model || model>campaign_weapon_models.count)return RF_RANGE;
+    query.data=name;query.length=strlen(name);
+    status=rf_static_model_tags_find(&campaign_weapon_models.items[model-1].tags,query,tag);
+    if(status==RF_NOT_FOUND){*tag=-1;return RF_OK;}return status;
+}
+static int campaign_weapon_transform(void *context,uint32_t model,int32_t tag,const float basis[9],const float position[3],float out_basis[9],float out_position[3])
+{
+    campaign_weapon_pose_context *c=context;float transform[12];int status;
+    if(c->transforms++==0) {
+        rf_corpse_surface_source source={0};source.model=model;
+        memcpy(source.basis,basis,36);memcpy(source.position,position,12);
+        status=campaign_file_tag_pose(&source,tag,transform);
+    } else {
+        if(!model || model>campaign_weapon_models.count)return RF_RANGE;
+        status=rf_static_model_tag_place(&campaign_weapon_models.items[model-1].tags,tag,basis,position,transform);
+    }
+    if(!status){memcpy(out_basis,transform,36);memcpy(out_position,transform+9,12);}return status;
+}
+int rf_scene_npc_weapon_placement(uint32_t handle,int32_t hand,rf_weapon_hand_placement *result)
+{
+    rf_weapon_hand_source source={0};rf_weapon_hand_ops ops={campaign_weapon_tag,campaign_weapon_transform};
+    campaign_weapon_pose_context context={0};uint32_t i,k;int status;
+    if(!result || hand<0 || hand>=2)return RF_RANGE;
+    for(i=0;i<campaign_npc_body_count;++i)if(campaign_npc_bodies[i].registration.view && campaign_npc_bodies[i].registration.handle==handle)break;
+    if(i==campaign_npc_body_count || i>=campaign_model_owner_count)return RF_NOT_FOUND;
+    if(rf_entity_lookup(&campaign_entities,(int32_t)handle)!=&campaign_npc_bodies[i].view)return RF_NOT_FOUND;
+    source.actor_model=i+1;source.weapon=campaign_npc_bodies[i].view.weapons[0];
+    memcpy(source.position,campaign_model_owners[i].position,12);memcpy(source.basis,campaign_model_owners[i].basis,36);
+    for(k=0;k<2;++k) {
+        char name[24];snprintf(name,sizeof(name),"primary_weapon_%u",k+1);
+        status=rf_scene_corpse_file_tag(source.actor_model,name,0,&source.hands[k]);
+        if(status==RF_NOT_FOUND)break;if(status)return status;++source.hand_count;
+    }
+    return rf_weapon_place_in_hand(&source,hand,campaign_weapon_models.weapons,&ops,&context,result);
+}
+static int campaign_weapon_placement_probe(void)
+{
+    uint32_t i,k;int status;rf_weapon_hand_placement value;
+    memset(rf_scene_weapon_placement,0,sizeof(rf_scene_weapon_placement));rf_scene_weapon_placement[3]=2166136261u;
+    for(i=0;i<campaign_npc_body_count;++i)if(campaign_npc_bodies[i].registration.view &&
+        rf_weapon_world_model_token(campaign_weapon_models.weapons,campaign_npc_bodies[i].view.weapons[0])) {
+        ++rf_scene_weapon_placement[0];
+        for(k=0;k<2;++k) {
+            status=rf_scene_npc_weapon_placement(campaign_npc_bodies[i].registration.handle,(int32_t)k,&value);
+            if(status==RF_NOT_FOUND){++rf_scene_weapon_placement[2];continue;}if(status)return status;
+            ++rf_scene_weapon_placement[1];rf_scene_weapon_placement[3]=npc_hash_bytes(rf_scene_weapon_placement[3],&value,sizeof(value));
+        }
+    }
+    return RF_OK;
+}
 static int campaign_weapon_models_open(const char *tables_path,rf_vpp *meshes)
 {
     rf_weapon_model_names *names;rf_vpp tables;uint32_t selected[2]={0},i,j,k,hash=2166136261u;int status;
@@ -8513,6 +8573,7 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
             /* This diagnostic begins the simulation clock at zero. */
             status=campaign_npc_bodies_open(tables_path,collision,0);if(status)goto done;
             status=campaign_weapon_models_open(tables_path,&archive);if(status)goto done;
+            status=campaign_weapon_placement_probe();if(status)goto done;
             status=campaign_glare_instances_open(tables_path);if(status)goto done;
             status=campaign_resolve_trigger_links();if(status)goto done;
             status=campaign_npc_motion_residency();if(status)goto done;

@@ -354,6 +354,7 @@ int main(int argc,char **argv)
             printf("NPC_CONTACT_SOUND_TEST");for(i=0;i<4;++i)printf(" %u",rf_scene_npc_contact_sound_test[i]);printf("\n");
             printf("DRILLER_FEEDBACK_TEST");for(i=0;i<8;++i)printf(" %u",rf_scene_driller_feedback_test[i]);printf("\n");
             printf("NPC_INVENTORY_OWNERS");for(i=0;i<4;++i)printf(" %u",rf_scene_npc_inventory_owners[i]);printf("\n");
+            printf("WEAPON_PLACEMENT");for(i=0;i<4;++i)printf(" %u",rf_scene_weapon_placement[i]);printf("\n");
             printf("WEAPON_MODELS");for(i=0;i<8;++i)printf(" %u",rf_scene_weapon_models[i]);printf("\n");
             printf("NPC_STARTUP_WEAPONS");for(i=0;i<4;++i)printf(" %u",rf_scene_npc_startup_weapons[i]);printf("\n");
             printf("WEAPON_SUPPLY");for(i=0;i<4;++i)printf(" %u",rf_scene_weapon_supply[i]);printf("\n");

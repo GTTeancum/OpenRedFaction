@@ -54,7 +54,7 @@ for archive in json.loads((root/'artifacts/inventory.json').read_text())['files'
   u.mem_write(b+0x6410,w(b+0x7000,len(attachments)));u.mem_write(b+0x7000,b''.join(attachments) or b'\0')
   names=bones+[r[:24].split(b'\0')[0] for r in spheres]+[r[:68].split(b'\0')[0] for r in attachments]
   results={}
-  for query in list(dict.fromkeys(names+[b'eye',b'spine',b'__missing_tag__'])):
+  for query in list(dict.fromkeys(names+[b'eye',b'spine',b'__missing_tag__',b'primary_weapon_1',b'primary_weapon_2',b'primary_weapon_3'])):
    u.mem_write(b+0x9000,query+b'\0');u.mem_write(stack,w(stop,b+0x9000));u.mem_write(0x20852f4,w(0))
    u.reg_write(UC_X86_REG_ESP,stack);u.reg_write(UC_X86_REG_ECX,b)
    u.emu_start(0x51d5b0,stop,count=100000);assert u.reg_read(UC_X86_REG_EIP)==stop
@@ -79,7 +79,16 @@ for archive in json.loads((root/'artifacts/inventory.json').read_text())['files'
    else:normalized=original-len(spheres) if original>=len(bones)+len(spheres) else original
    assert selected==normalized,(entry['name'],query,original,selected)
    corpse_tags[query.decode()]=dict(original_index=original,file_view_index=selected)
-  records.append(dict(model=entry['name'],bones=len(bones),cached_spheres=len(spheres),lod0_attachments=len(attachments),lookups=results,corpse_tags=corpse_tags))
-report=dict(result='PASS',original_sha256=digest,models=len(records),cached_spheres=sum(r['cached_spheres'] for r in records),lookup_cases=queries,corpse_query_cases=2*len(records),
- scope='Original cached-tag initialization slice with supplied asset-derived submesh arrays, unchanged getters/matrix helpers and original lookup/comparator. Header legacy attachment count zero in all installed95 models. Cached group gets CSPH names and center-only local transforms; parent words remain supplied sentinels. The190 eye/spine exact-plus-bone-substring queries select the same records when cached tags are omitted and indices are translated. Does not establish full loader or later parent binding, cached tag pose, shared C/NXDK equivalence or live death integration.',records=records)
+  weapon_tags={}
+  for query in (b'primary_weapon_1',b'primary_weapon_2',b'primary_weapon_3'):
+   assert not any(raw[:24].split(b'\0')[0].lower()==query for raw in spheres)
+   original=results[query.decode()]
+   file_names=bones+[raw[:68].split(b'\0')[0] for raw in attachments]
+   selected=next((i for i,name in enumerate(file_names) if name.lower()==query),-1)
+   normalized=original-len(spheres) if original>=len(bones)+len(spheres) else original
+   assert selected==normalized,(entry['name'],query,original,selected)
+   weapon_tags[query.decode()]=dict(original_index=original,file_view_index=selected)
+  records.append(dict(model=entry['name'],bones=len(bones),cached_spheres=len(spheres),lod0_attachments=len(attachments),lookups=results,corpse_tags=corpse_tags,weapon_tags=weapon_tags))
+report=dict(result='PASS',original_sha256=digest,models=len(records),cached_spheres=sum(r['cached_spheres'] for r in records),lookup_cases=queries,corpse_query_cases=2*len(records),weapon_query_cases=3*len(records),
+ scope='Original cached-tag initialization slice with supplied asset-derived submesh arrays, unchanged getters/matrix helpers and original lookup/comparator. Header legacy attachment count zero in all installed95 models. Cached group gets CSPH names and center-only local transforms; parent words remain supplied sentinels. The190 eye/spine exact-plus-bone-substring queries select the same records when cached tags are omitted and indices are translated. The285 primary_weapon_1..3 queries also preserve exact selection after file-view index translation; no cached CSPH names shadow them. Does not establish full loader or later parent binding, cached tag pose, shared C/NXDK equivalence or live death integration.',records=records)
 (root/'artifacts/model-cached-tags.json').write_text(json.dumps(report,indent=2)+'\n');print({k:v for k,v in report.items() if k!='records'})
