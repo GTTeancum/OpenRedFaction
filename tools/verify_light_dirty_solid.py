@@ -33,6 +33,17 @@ for i in range(2048):
  x.mem_write(B,data);assert call('rf_visibility_light_volume',[B,OUT])==0
  x.mem_write(B+0x7000,w(0,1));x.mem_write(PTR,solid_bounds+w(B+120,2,B+0x7000,path,B+0x7004,1,B+192,3,B+312,3,B+420,4,B+0x7010,4,B+0x7030,4))
  assert call('rf_visibility_light_solid',[OUT,PTR,mode,update])==0;got=bytes(x.mem_read(B+312,112));responses.append(w(0)+got)
+ # Retained-world adapter: split the same forest into two room-local trees.
+ x.mem_write(B,data);x.mem_write(B+272+24,w(0))
+ world=B+0x8000;wr=B+0x8100;views=B+0x8200;owner=B+0x8300;scratch=B+0x8400
+ for j in range(2):
+  tree=w(0,B+192+(80 if j else 0),0,0,B+0x7030,1 if j else 2,1 if j else 2,4,0,0)
+  x.mem_write(wr+j*80,tree+w(0)+rooms[j][:24]+w(j,0,0))
+  x.mem_write(views+j*40,rooms[j][:24]+w(0,0,1-j,wr+j*80))
+ x.mem_write(world,w(0,wr,views,B+0x7000,B+0x7004,2,path,1,0,0)+solid_bounds)
+ x.mem_write(owner,w(B+312,B+420,3,4,0));x.mem_write(scratch,w(B+0x8500,B+0x8580,B+0x7010,2,4))
+ assert call('rf_visibility_light_world',[OUT,world,owner,mode,update,scratch])==0
+ assert bytes(x.mem_read(B+312,112))==got,('world',i)
  o.mem_write(B,data);o.mem_write(P,bytes(268));o.mem_write(0xc96768,w(0xc96768,0xc96768));o.mem_write(0xc4e6b8,w(0xc4e6b8,0xc4e6b8));o.mem_write(0xc96880,w(0));o.mem_write(0x879af8,b'\0');o.mem_write(0xc96874,w(0));o.mem_write(0xc96878,w(0));o.mem_write(0x1818b84,w(0))
  color=[read(o,B+a) for a in (68,52,56,60)];tail=[0,0,0]
  if kind==2:address=0x4d8ed0;args=[B+16,read(o,B+64),*color,*tail]
@@ -53,6 +64,18 @@ for i in range(2048):
  expected=b''.join(face[:24]+bytes(o.mem_read(FACES+j*96+0x28,4))+face[28:] for j,face in enumerate(faces))+bytes(o.mem_read(GROUP+j*16+8,1)[0] for j in range(4))
  assert got==expected,(i,kind,mode,update,path,got.hex(),expected.hex())
  changed+=got!=b''.join(faces)+dirty
+# Fail before changing dirty metadata for invalid bindings or short scratch.
+x.mem_write(OUT,w(2)+f(0,0,0,0,0,0,10000)+bytes(120))
+for address,value in [(scratch+12,1),(scratch+16,0),(owner,0),(owner+4,0),(owner+8,2),(owner+8,4)]:
+ saved=bytes(x.mem_read(address,4));before=bytes(x.mem_read(B+312,112));x.mem_write(address,w(value))
+ x.mem_write(world+24,w(1))
+ assert call('rf_visibility_light_world',[OUT,world,owner,1,1,scratch])!=0
+ assert bytes(x.mem_read(B+312,112))==before
+ x.mem_write(address,saved)
+# Empty room trees contribute no faces; traversal keeps valid mapped storage.
+x.mem_write(wr+80+20,w(0,0));x.mem_write(owner+8,w(2))
+assert call('rf_visibility_light_world',[OUT,world,owner,1,1,scratch])==0
 assert subprocess.check_output([str(root/'build/pc/Release/rf_effect_probe.exe'),'--light-dirty-solid'],input=b''.join(inputs))==b''.join(responses)
-report=dict(result='PASS',original_pc_nxdk_cases=2048,changed_cases=changed,scope='Actual source constructors plus complete4d86d0 world-space updates without hooks. Point/cone/segment shapes, flat-solid and primary/detail trees, real geometry and face/shared state match PC/NXDK. Native ownership, alternate views and frame scheduling excluded.')
+assert subprocess.check_output([str(root/'build/pc/Release/rf_effect_probe.exe'),'--light-dirty-world'],input=b''.join(inputs))==b''.join(responses)
+report=dict(result='PASS',world_adapter_pc_nxdk_cases=2048,nxdk_binding_guards=6,empty_tree_cases=1,original_pc_nxdk_cases=2048,changed_cases=changed,scope='Actual source constructors plus complete4d86d0 world-space updates without hooks. Point/cone/segment shapes, flat-solid and primary/detail trees, real geometry and face/shared state match PC/NXDK. Native ownership, alternate views and frame scheduling excluded.')
 (root/'artifacts/light-dirty-solid.json').write_text(json.dumps(report,indent=2));print(report)

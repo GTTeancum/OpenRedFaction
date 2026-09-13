@@ -14,6 +14,11 @@ Shortlist:
 
 Progress reporting: include an overall percent estimate in every turn report (USER preference) and revisit remaining 24-hour workdays when measured throughput supports a forecast; current rough estimate40% (35-45%), no defensible +/-48-hour completion forecast before end-to-end gameplay.
 
+Retained-world lighting traversal now reuses per-room trees and their stacks,
+matching2048 original/PC/NXDK cases (504 state-changing). Six invalid-binding
+checks and an empty-tree case pass; both builds and24 tests pass. Allocate
+persistent room/root scratch, bind scene light updates and rendered dirty state.
+
 Retained lighting metadata is installed in the campaign scene: L1S1 owns
 7418 faces and5851 shared mapping bytes in272919 bytes. A180-frame stock64MiB
 XEMU replay matches PC counts and full metadata hashes; both builds and24

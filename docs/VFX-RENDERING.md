@@ -1047,3 +1047,28 @@ using20+36*faces+mappings; the largest estimate is362553 bytes (L15S2).
 That inventory calculation is not native execution coverage of all levels.
 Binding solid/root/tree views, live light timers and dirty-state rendering
 remains; this change does not produce a new visual result.
+
+
+### Retained-world dirty traversal adapter (2026-09-13)
+
+rf_visibility_light_world adapts retained collision rooms to the reconstructed
+4d86d0 update. It collects room IDs in original primary/child order and walks
+them in reverse, using each room's local nodes, stack and corresponding range
+in the shared face metadata owner. No node or vertex copy and no per-update
+allocation is required. Caller supplies36 bytes per room for root views,
+4 bytes per room for face offsets, and4 bytes per selected root capacity.
+The world and storage must retain the same face order and lifetime. Calls
+must serialize with collision users of the same tree stacks.
+
+The existing complete original4d86d0 verifier now compares this adapter too:
+2048 PC/NXDK fixtures,504 state-changing, all three volume shapes, primary/
+detail trees and flat fallback. Six NXDK invalid-binding/short-scratch cases
+preserve metadata; an empty retained-tree case succeeds with no faces there.
+The empty-tree case is adapter coverage, not original null-root evidence.
+Original code dereferences gathered root pointers; retained empty trees can
+be omitted because they contain neither faces nor child nodes to update.
+
+Both builds and all24 CTests pass. This adapter has not yet been called by
+live scene scheduling or validated with real-level native dirty updates.
+Persistent scratch, light timer/activation dispatch, alternate-view solid
+ownership and consuming dirty bytes/face flags in rendering remain.

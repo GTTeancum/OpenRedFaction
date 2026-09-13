@@ -163,7 +163,7 @@ int main(int argc,char **argv)
         }
         return 0;
     }
-    if(argc==2 && !strcmp(argv[1],"--light-dirty-solid")) {
+    if(argc==2 && (!strcmp(argv[1],"--light-dirty-solid") || !strcmp(argv[1],"--light-dirty-world"))) {
         struct {rf_vfx_light_definition definition;uint32_t mode,update,path;float bounds[6];rf_light_dirty_room rooms[2];rf_collision_node nodes[3];rf_light_dirty_face faces[3];unsigned char dirty[4];} input;
         uint32_t status,primary[1]={0},children[1]={1},roots[4],stack[4];rf_light_dirty_solid solid;rf_light_visibility_volume volume;
         _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
@@ -171,7 +171,19 @@ int main(int argc,char **argv)
             memset(&solid,0,sizeof(solid));memcpy(solid.minimum,input.bounds,24);solid.rooms=input.rooms;solid.room_count=2;
             solid.primary=primary;solid.primary_count=input.path;solid.children=children;solid.child_count=1;solid.nodes=input.nodes;solid.node_count=3;
             solid.faces=input.faces;solid.face_count=3;solid.dirty=input.dirty;solid.dirty_count=4;solid.roots=roots;solid.root_capacity=4;solid.stack=stack;solid.stack_capacity=4;
-            status=rf_visibility_light_volume(&input.definition,&volume);if(!status)status=rf_visibility_light_solid(&volume,&solid,input.mode,input.update);
+            status=rf_visibility_light_volume(&input.definition,&volume);
+            if(!status && !strcmp(argv[1],"--light-dirty-world")) {
+                rf_geometry_collision_world world={0};rf_geometry_collision_room rooms[2]={0};rf_collision_room_view views[2]={0};
+                rf_light_dirty_storage storage={0};rf_light_dirty_room selected[2];uint32_t offsets[2],j;
+                rf_light_world_scratch scratch={selected,offsets,roots,2,4};
+                memcpy(world.minimum,input.bounds,24);world.rooms=rooms;world.views=views;world.room_count=2;
+                world.primary=primary;world.primary_count=input.path;world.children=children;world.child_count=1;
+                for(j=0;j<2;j++) {memcpy(rooms[j].minimum,input.rooms[j].minimum,24);views[j].first_child=input.rooms[j].first_child;views[j].child_count=input.rooms[j].child_count;
+                    rooms[j].tree.nodes=input.nodes+(j?2:0);rooms[j].tree.node_count=j?1:2;rooms[j].tree.face_count=j?1:2;rooms[j].tree.stack=stack;rooms[j].tree.node_capacity=4;}
+                input.nodes[2].first_face=0;
+                storage.faces=input.faces;storage.face_count=3;storage.dirty=input.dirty;storage.dirty_count=4;
+                status=rf_visibility_light_world(&volume,&world,&storage,input.mode,input.update,&scratch);
+            } else if(!status)status=rf_visibility_light_solid(&volume,&solid,input.mode,input.update);
             fwrite(&status,4,1,stdout);fwrite(input.faces,sizeof(input.faces),1,stdout);fwrite(input.dirty,4,1,stdout);
         }
         return 0;

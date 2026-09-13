@@ -194,6 +194,44 @@ int rf_visibility_light_solid(const rf_light_visibility_volume *volume,rf_light_
     return rf_visibility_light_tree(solid->nodes,solid->node_count,solid->roots,count,solid->faces,solid->face_count,
         solid->dirty,solid->dirty_count,mode,update,solid->stack,solid->stack_capacity,rf_visibility_light_bounds,(void *)volume);
 }
+int rf_visibility_light_world(const rf_light_visibility_volume *volume,const rf_geometry_collision_world *world,
+    rf_light_dirty_storage *storage,uint32_t mode,uint32_t update,rf_light_world_scratch *scratch)
+{
+    uint32_t i,count,hit;uint64_t at=0;int status;
+    if(!volume || !world || !storage || !scratch)return RF_RANGE;
+    if(volume->type==1)return RF_OK;
+    if(volume->type<2 || volume->type>4 || (storage->face_count && !storage->faces) ||
+        (storage->dirty_count && !storage->dirty) || world->room_count>scratch->room_capacity ||
+        (world->room_count && (!world->rooms || !world->views || !scratch->rooms || !scratch->face_offsets)))return RF_RANGE;
+    for(i=0;i<world->room_count;i++) {
+        const rf_geometry_collision_room *room=world->rooms+i;
+        rf_light_dirty_room *target=scratch->rooms+i;
+        if(at>storage->face_count || room->tree.face_count>storage->face_count-at)return RF_RANGE;
+        scratch->face_offsets[i]=(uint32_t)at;at+=room->tree.face_count;
+        memcpy(target->minimum,room->minimum,24);target->root=i;
+        target->first_child=world->views[i].first_child;target->child_count=world->views[i].child_count;
+    }
+    if(at!=storage->face_count)return RF_RANGE;
+    if(!world->primary_count) {
+        status=rf_visibility_light_bounds((void *)volume,world->minimum,world->maximum,&hit);if(status || !hit)return status;
+        return rf_visibility_light_faces(storage->faces,storage->face_count,storage->dirty,storage->dirty_count,
+            mode,update,rf_visibility_light_bounds,(void *)volume);
+    }
+    status=rf_visibility_light_roots(scratch->rooms,world->room_count,world->primary,world->primary_count,
+        world->children,world->child_count,scratch->roots,scratch->root_capacity,&count,rf_visibility_light_bounds,(void *)volume);
+    if(status)return status;
+    while(count) {
+        uint32_t room=scratch->roots[--count],root=0;const rf_collision_tree *tree=&world->rooms[room].tree;
+        /* Empty retained trees have no faces or children to visit. */
+        if(!tree->node_count){if(tree->face_count)return RF_RANGE;continue;}
+        status=rf_visibility_light_tree(tree->nodes,tree->node_count,&root,1,
+            tree->face_count?storage->faces+scratch->face_offsets[room]:NULL,tree->face_count,
+            storage->dirty,storage->dirty_count,mode,update,tree->stack,tree->node_capacity,
+            rf_visibility_light_bounds,(void *)volume);
+        if(status)return status;
+    }
+    return RF_OK;
+}
 static int visibility_light_volume_space(const rf_vfx_light_definition *definition,const float *origin,const float *basis,rf_light_visibility_volume *out)
 {
     rf_vfx_light_candidate source;rf_light_visibility_volume value;int status;

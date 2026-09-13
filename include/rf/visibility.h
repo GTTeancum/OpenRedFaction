@@ -155,6 +155,17 @@ typedef struct rf_light_dirty_solid {
  * all state/scratch. No allocation; errors retain prior dirty-state progress.
  * Alternate-view transforms and lifecycle registration are separate. */
 int rf_visibility_light_solid(const rf_light_visibility_volume *,rf_light_dirty_solid *,uint32_t mode,uint32_t update);
+typedef struct rf_light_world_scratch {
+    rf_light_dirty_room *rooms;uint32_t *face_offsets,*roots;
+    uint32_t room_capacity,root_capacity;
+} rf_light_world_scratch;
+/* Adapt retained per-room trees without copying geometry/nodes. Storage must
+ * come from this world's storage_open and retain its concatenated face order.
+ * Borrows tree stacks and scratch: calls must be serialized with collision.
+ * No allocation. Prior dirty-state progress is retained on traversal errors. */
+int rf_visibility_light_world(const rf_light_visibility_volume *,const rf_geometry_collision_world *,
+    rf_light_dirty_storage *,uint32_t mode,uint32_t update,rf_light_world_scratch *);
+
 /* Resolve authored point/cone/segment geometry, including segment radius bias.
  * Bounds callback plugs directly into root/tree/face passes; it applies no
  * enabled/color/class filter. Cone planes use the authored outer angle.
