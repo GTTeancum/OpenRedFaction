@@ -778,3 +778,31 @@ Validation: both builds and all24 CTests pass. Native stock64MiB XEMU
 telemetry comparisons with the larger allocation (142620 bytes for231
 L1S1 lights). Clock contents are covered by the PC/NXDK ownership harness;
 native replay does not yet expose clock hashes. Normal disc flags restored.
+
+### Original light registry dispatch (2026-09-13)
+
+verify_level_light_order.py executes original45ec40 append with reserved
+capacity and original43332b..433363 dispatch, including actual40a480 and
+40a490 accessors. All384 cases /131106 visits pass. The supplied timer
+body observes owner/seconds and changes registry count after the first
+visit in growth/shrink cases. This confirms ascending order, count re-read
+on every iteration, exact seconds forwarding and balanced stack. It does
+not replace the separate original/PC/NXDK timer arithmetic comparisons.
+
+Loader461ef0 reads records in file order;461f90 checks owner byte92, then
+461f99 pushes the owner,461f9a selects registry646098 and461f9f appends
+through45ec40. This loader ordering is static instruction evidence.
+The append verifier reserves1100 slots; allocation growth is excluded.
+
+Frame scheduling is after487a40, a substantial actor/physics update with
+multiple callees, and before4e6150. Therefore inserting timer stepping at
+the beginning of the diagnostic frame would not establish shared RNG
+fidelity. Gate436320 returns byte637086;433260 skips simulation when it
+equals1, with a further conditional gate involving64ecb9/64ecba,434200
+and player state. These gates and surrounding-system RNG ordering are
+still static evidence, not ported/verified full-frame behavior.
+
+Discard requested-address exports45d583 and45e373: Ghidra created entries
+inside instructions, producing invalid decompilation. They are not evidence
+for light removal or lookup semantics; recover proper function boundaries
+before using those sites.

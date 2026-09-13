@@ -14,6 +14,11 @@ Shortlist:
 
 Progress reporting: include overall percent estimates at meaningful milestones and revisit remaining 24-hour workdays when measured throughput supports a forecast; current rough estimate40% (35-45%), no defensible +/-48-hour completion forecast before end-to-end gameplay.
 
+Original light registry append/dispatch passes384 executable cases with
+131106 visits, including count changes during iteration. File-order loading
+is confirmed statically; timers follow actor/physics update487a40. Bind
+that ordering and frame gates before claiming shared RNG/frame fidelity.
+
 Retained light clocks now initialize identically for all22293 lights in93
 levels on PC/NXDK; peak owner255100 bytes remains below256KiB. Both builds
 and24 tests pass. Original433260 timer loop uses registry646098 in index
