@@ -956,3 +956,19 @@ bytes;504 cases change state. Covers all three shapes, flat-solid fallback,
 primary/detail roots, tree faces/children, mode/update combinations and
 shared records. Both builds and24 CTests pass. Alternate-view wrapper
 4d8660, retained native dirty-state ownership and frame binding remain.
+
+### Alternate-view light volumes (2026-09-13)
+
+rf_visibility_light_volume_view composes verified source initialization,
+4d8480 resolved-view transformation and volume preparation. Position and
+segment endpoint are translated/rotated; cone axis is rotated. Radius and
+cone width receive no matrix-scale adjustment. Shared internal preparation
+keeps segment radius bias applied once. The caller supplies resolved origin
+and basis; this does not reconstruct517f00/517f20 stack ownership.
+
+verify_light_volume_view.py executes actual constructors,4d8480, cone plane
+preparation and all three bounds predicates without hooks. All4096 original/
+PC/NXDK cases match152 volume bytes and bounds decisions, including nonunit
+matrices. Three invalid-definition cases preserve output. The2048 complete
+world-solid comparisons still pass; both builds and24 CTests pass. Wrapper
+4d8660 gating, main-then-view dispatch and native state binding remain.

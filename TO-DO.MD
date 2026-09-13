@@ -14,6 +14,11 @@ Shortlist:
 
 Progress reporting: include overall percent estimates at meaningful milestones and revisit remaining 24-hour workdays when measured throughput supports a forecast; current rough estimate40% (35-45%), no defensible +/-48-hour completion forecast before end-to-end gameplay.
 
+Alternate-view light volumes match4096 original/PC/NXDK cases, with
+unchanged radii and transformed positions/axes/endpoints. Both builds and
+24 tests pass. Finish main-then-view dispatch and view-stack ownership,
+then bind retained native dirty state and live timers.
+
 Complete world-space solid lighting updates match2048 original/PC/NXDK
 cases without substituted callbacks;504 change state. Both builds and24
 tests pass. Reconstruct alternate-view dispatch and bind retained native

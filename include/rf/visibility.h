@@ -116,6 +116,10 @@ int rf_visibility_light_solid(const rf_light_visibility_volume *,rf_light_dirty_
  * enabled/color/class filter. Cone planes use the authored outer angle.
  * No allocation; errors preserve output. */
 int rf_visibility_light_volume(const rf_vfx_light_definition *,rf_light_visibility_volume *);
+/*4d8480 resolved view transform followed by the same volume preparation.
+ * Transform position/end as points, axis as a direction; no radius scaling. */
+int rf_visibility_light_volume_view(const rf_vfx_light_definition *,const float origin[3],
+    const float basis[9],rf_light_visibility_volume *);
 int rf_visibility_light_bounds(void *volume,const float minimum[3],const float maximum[3],uint32_t *hit);
 /*4d86d0 spotlight preparation: resolved position/axis and stored radius/half-width.
  * Six planes in original order; no room traversal or allocation. Errors preserve out. */

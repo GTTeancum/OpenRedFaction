@@ -83,10 +83,11 @@ int rf_visibility_light_solid(const rf_light_visibility_volume *volume,rf_light_
     return rf_visibility_light_tree(solid->nodes,solid->node_count,solid->roots,count,solid->faces,solid->face_count,
         solid->dirty,solid->dirty_count,mode,update,solid->stack,solid->stack_capacity,rf_visibility_light_bounds,(void *)volume);
 }
-int rf_visibility_light_volume(const rf_vfx_light_definition *definition,rf_light_visibility_volume *out)
+static int visibility_light_volume_space(const rf_vfx_light_definition *definition,const float *origin,const float *basis,rf_light_visibility_volume *out)
 {
     rf_vfx_light_candidate source;rf_light_visibility_volume value;int status;
     if(!out)return RF_RANGE;status=rf_vfx_light_create(definition,&source);if(status)return status;
+    if(origin){status=rf_vfx_light_transform(&source.source,origin,basis,&source.source);if(status)return status;}
     memset(&value,0,sizeof(value));value.type=source.source.type;value.radius=source.source.radius;
     memcpy(value.position,source.source.position,12);memcpy(value.end,source.source.end,12);
     if(value.type==3) {
@@ -94,6 +95,14 @@ int rf_visibility_light_volume(const rf_vfx_light_definition *definition,rf_ligh
         if(status)return status;
     }
     *out=value;return RF_OK;
+}
+int rf_visibility_light_volume(const rf_vfx_light_definition *definition,rf_light_visibility_volume *out)
+{return visibility_light_volume_space(definition,NULL,NULL,out);}
+int rf_visibility_light_volume_view(const rf_vfx_light_definition *definition,const float origin[3],
+    const float basis[9],rf_light_visibility_volume *out)
+{
+    if(!origin || !basis)return RF_RANGE;
+    return visibility_light_volume_space(definition,origin,basis,out);
 }
 int rf_visibility_light_bounds(void *context,const float minimum[3],const float maximum[3],uint32_t *hit)
 {
