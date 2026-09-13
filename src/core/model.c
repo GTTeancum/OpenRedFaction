@@ -369,9 +369,9 @@ int rf_glare_visibility_search(rf_glare_base_owner *glare,const float camera[3],
 {
     const rf_glare_visibility_object *object=NULL,*associated=NULL;rf_glare_solid_query query;
     rf_collision_solid_response_hit hit={0};rf_collision_visibility_backend collision;
-    uint32_t blocked,i,room,other_room,value,excluded=selected?selected->geometry.token:0;int status;
+    uint32_t blocked,i,selected_word0,candidate_word0,value,excluded=selected?selected->geometry.token:0;int status;
     if(!glare || !camera || !movers || !actors || !visible || !backend || !backend->lookup ||
-       !backend->solid_owner || !backend->room || !backend->state || !backend->associated ||
+       !backend->solid_owner || !backend->object_word0 || !backend->state || !backend->associated ||
        !backend->solid_query || !backend->model || (movers->count && !movers->items) ||
        (actors->count && !actors->items))return RF_RANGE;
     for(i=0;i<3;++i)if(!isfinite(camera[i]) || !isfinite(glare->position[i]))return RF_FORMAT;
@@ -406,10 +406,10 @@ int rf_glare_visibility_search(rf_glare_base_owner *glare,const float camera[3],
         if(blocked){glare->state.cached_solid=object->geometry.token;*visible=0;return RF_OK;}
     }
     if(selected) {
-        status=backend->room(backend->context,selected,&room);if(status)return status;
+        status=backend->object_word0(backend->context,selected,&selected_word0);if(status)return status;
         for(i=0;i<actors->count;++i) {
             object=actors->items+i;
-            status=backend->room(backend->context,object,&other_room);if(status)return status;if(room!=other_room)continue;
+            status=backend->object_word0(backend->context,object,&candidate_word0);if(status)return status;if(selected_word0!=candidate_word0)continue;
             status=backend->state(backend->context,object,&value);if(status)return status;if(value&255)continue;
             status=backend->state(backend->context,selected,&value);if(status)return status;
             if((value&255)==1) {

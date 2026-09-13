@@ -21,7 +21,7 @@ static int glare_search_solid_owner(void *context,uint32_t token,const rf_glare_
     glare_search_fixture *f=context;int status=glare_search_record(f,1,token,NULL,0);if(status)return status;
     *out=token==GLARE_TEST_BASE+0x2000?&f->movers[0]:token==GLARE_TEST_BASE+0x3000?&f->movers[1]:NULL;return RF_OK;
 }
-static int glare_search_room(void *context,const rf_glare_visibility_object *object,uint32_t *out)
+static int glare_search_object_word0(void *context,const rf_glare_visibility_object *object,uint32_t *out)
 {
     glare_search_fixture *f=context;int status=glare_search_record(f,2,object->geometry.token,NULL,0);if(status)return status;
     *out=object==&f->selected?7:f->words[15+(object->handle==42)];return RF_OK;
@@ -54,7 +54,7 @@ static int glare_search_probe(void)
     static glare_search_fixture fixture;rf_glare_base_owner glare;const float camera[3]={0,0,-4};
     const float bases[3][9]={{1,0,0,0,1,0,0,0,1},{0,0,1,0,1,0,-1,0,0},{.36f,.48f,.8f,-.8f,.6f,0,-.48f,-.64f,.6f}};uint32_t i,j,visible;int status;
     rf_glare_visibility_list movers={fixture.movers,0},actors={fixture.actors,0};
-    rf_glare_visibility_backend backend={glare_search_lookup,glare_search_solid_owner,glare_search_room,glare_search_state,
+    rf_glare_visibility_backend backend={glare_search_lookup,glare_search_solid_owner,glare_search_object_word0,glare_search_state,
         glare_search_associated,glare_search_solid,glare_search_model,&fixture};
     _Static_assert(sizeof(rf_glare_visibility_object)==96,"visibility object wire");
     _Static_assert(sizeof(rf_glare_solid_query)==84,"solid query wire");

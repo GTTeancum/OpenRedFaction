@@ -8451,3 +8451,28 @@ candidates invoke model collision in addition to38 direct fixture calls.
 The fixture observes flags after mesh submission. Full glare search, actor
 room/owner callbacks, marker lifetime and original distance/LOD/lighting
 policies remain incomplete. PC/NXDK builds and21 CTests pass.
+
+
+Glare object-word equality contract (2026-09-12)
+---------------------------------------------
+The callback previously named room is now object_word0. Original414e00
+loads the selected object directly into ECX at41517b and calls40a490 at
+415189; it repeats with the candidate object at4151a2/4151a4.40a490 is
+mov eax,[ecx]; ret. Therefore the comparison consumes each object first
+word. Its ownership/meaning must be recovered before binding the callback;
+prior descriptions as same-room equality are not established. Do not use
+campaign_model_owner.room merely because it is a convenient cached index.
+
+verify_glare_search_shared.py now initializes those original words and lets
+40a490 execute unchanged while recording the callback boundary. All1537
+original/PC/compiled NXDK cases pass, including161 callback failures across
+all7 operations,1748 solid queries and192 model queries. Cached-query
+uninitialized-field correction remains explicit and separate. Both builds
+and21 CTests pass. No scene behavior change is claimed by this contract
+correction; remaining owner callbacks and full scheduling are still open.
+
+Actor state4290d0 resolves object200 through426fc0, which uses40a0e0 and
+requires object kind0; it then checks486c90 return==1. The latter reads
+actor class294+1b4 for kind0. Existing registered entity linked_handle and
+class_type are candidate bindings, already used by trigger resolution;
+complete original-execution composition coverage before scene publication.

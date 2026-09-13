@@ -35,6 +35,7 @@ def hook(cpu,address,size,context):
  if not shared and op==4:assert token==73;token=PLAYER
  traces[cpu].append(w(op,token)+payload)
  if not shared:snapshots.append(bytes(cpu.mem_read(G+0x290,12)))
+ if not shared and op==2:return # Execute real40a490: return object word0.
  fail=shared and cfg[23]==len(traces[cpu])
  if shared:assert arg(0)==77
  if not fail:
@@ -75,12 +76,12 @@ for case in range(1537):
  shared=bytearray(528);shared[12:24]=w(*cfg[2:5]);shared[128:132]=w(cfg[21]);shared[152:164]=f(0,0,4);x.mem_write(G,bytes(shared));before={u:{},x:{}}
  for i in range(4):
   n=i%2;flags=cfg[(10 if i<2 else 24)+n];outside=cfg[(12 if i<2 else 26)+n];model=cfg[28+n] if i>=2 else 0;token=B+0x2000+i*0x1000;bounds=(20,20,20,30,30,30) if outside else (-10,-10,-10,10,10,10)
-  data=bytearray(b'\xa5'*768);data[0x2c:0x30]=w(41+n);data[0x3c:0x48]=f(1,2,3);data[0x48:0x6c]=f(*basis);data[0x7c:0x84]=w(flags,model);data[0x190:0x1a8]=f(*bounds)
+  data=bytearray(b'\xa5'*768);data[:4]=w(cfg[15+n] if i>=2 else 0);data[0x2c:0x30]=w(41+n);data[0x3c:0x48]=f(1,2,3);data[0x48:0x6c]=f(*basis);data[0x7c:0x84]=w(flags,model);data[0x190:0x1a8]=f(*bounds)
   data[0x28c:0x290]=w(token+0x1000 if n+1<cfg[0 if i<2 else 1] else (0x64e6e0 if i<2 else 0x5cb060));data[0x294:0x298]=w(101+n);u.mem_write(token,bytes(data));before[u][token]=data
   obj=w(token,flags)+f(0)+w(model)+f(1,2,3,*basis,*bounds)+w(41+n,101+n);a=(M if i<2 else A)+n*96;x.mem_write(a,obj);before[x][a]=obj
  for cpu in (u,x):cpu.mem_write(CAM,f(0,0,-4))
  x.mem_write(PLAYER,w(PLAYER)+bytes(92));x.mem_write(LIST,w(M,cfg[0],A,cfg[1]));x.mem_write(BE,w(*callbacks,77));x.mem_write(OUT,w(0xa5a5a5a5))
- u.mem_write(PLAYER+0x200,w(73));u.mem_write(0x5cb054,w(PLAYER if cfg[14] else 0));u.mem_write(0x64e96c,w(M if cfg[0] else 0x64e6e0));u.mem_write(0x5cb2ec,w(A if cfg[1] else 0x5cb060));u.mem_write(0x6460e8,w(99));u.mem_write(0x5cab9d,bytes([cfg[22]&255]))
+ u.mem_write(PLAYER,w(7));u.mem_write(PLAYER+0x200,w(73));u.mem_write(0x5cb054,w(PLAYER if cfg[14] else 0));u.mem_write(0x64e96c,w(M if cfg[0] else 0x64e6e0));u.mem_write(0x5cb2ec,w(A if cfg[1] else 0x5cb060));u.mem_write(0x6460e8,w(99));u.mem_write(0x5cab9d,bytes([cfg[22]&255]))
  original_visible=run(u,0x414e00,(G,CAM))&255;status=run(x,entry,(G,CAM,LIST,LIST+8,PLAYER if cfg[14] else 0,99,cfg[22],BE,OUT));visible=r(x,OUT)
  failed=cfg[23] and cfg[23]<=len(traces[u]);expected_trace=traces[u][:cfg[23]] if failed else traces[u]
  assert traces[x]==expected_trace,(case,[(struct.unpack('<2I',t[:8]),t[8:].hex()) for t in traces[x]],[(struct.unpack('<2I',t[:8]),t[8:].hex()) for t in expected_trace])
@@ -97,5 +98,5 @@ for case in range(1537):
 pc=subprocess.check_output([str(root/'build/pc/Release/rf_model_probe.exe'),'--glare-search'],input=commands);assert pc==answers,'PC/NXDK mismatch'
 assert errors and corrections and all(query_counts) and all(visible_counts)
 assert error_operations==set(range(7)),error_operations
-report=dict(result='PASS',cases=1537,callback_errors=errors,error_operations=sorted(error_operations),cached_query_corrections=corrections,original_outcomes=visible_counts,solid_model_queries=query_counts,original_sha256=sha,scope='Full original414e00 plus actual415280/AABB/math/constructors versus PC and compiled NXDK. Only lookup/room/state/association/solid-query/model backends supplied. Ordered callback query bytes, cache updates, all other owner bytes; failure prefixes preserve output and completed cache invalidations. Cached-solid original uninitialized origin/basis/radius/flags normalized to explicit local-ray defaults in comparison; that deliberate correction is checked separately from untouched query bytes. No native scene/render binding claim.')
+report=dict(result='PASS',cases=1537,callback_errors=errors,error_operations=sorted(error_operations),cached_query_corrections=corrections,original_outcomes=visible_counts,solid_model_queries=query_counts,original_sha256=sha,scope='Full original414e00 plus actual40a490/415280/AABB/math/constructors versus PC and compiled NXDK. Only lookup/state/association/solid-query/model backends supplied; original word0 equality executes unchanged. Ordered callback query bytes, cache updates, all other owner bytes; failure prefixes preserve output and completed cache invalidations. Cached-solid original uninitialized origin/basis/radius/flags normalized to explicit local-ray defaults in comparison; that deliberate correction is checked separately from untouched query bytes. No native scene/render binding claim.')
 (root/'artifacts/glare-search-shared.json').write_text(json.dumps(report,indent=2));print(report)

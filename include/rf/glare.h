@@ -141,7 +141,8 @@ typedef struct rf_glare_solid_query {
 typedef struct rf_glare_visibility_backend {
     int (*lookup)(void *,uint32_t,const rf_glare_visibility_object **);
     int (*solid_owner)(void *,uint32_t,const rf_glare_visibility_object **);
-    int (*room)(void *,const rf_glare_visibility_object *,uint32_t *);
+    /* Original40a490 reads object word0; do not substitute a cached room index. */
+    int (*object_word0)(void *,const rf_glare_visibility_object *,uint32_t *);
     int (*state)(void *,const rf_glare_visibility_object *,uint32_t *);
     int (*associated)(void *,const rf_glare_visibility_object *,const rf_glare_visibility_object **);
     int (*solid_query)(void *,uint32_t,const rf_glare_solid_query *,rf_collision_solid_response_hit *,uint32_t);
