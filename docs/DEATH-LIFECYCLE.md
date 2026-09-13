@@ -9003,3 +9003,21 @@ getter: kind0 reads class294+1b4, kind4 reads class294+44, kind2 returns8,
 kind5 returns7, others0. Thus the alternate orientation must not be applied
 to every prop. Negative tags instead use local208/214 and parent physics
 poses. Resolve these services/order before binding the new publication API.
+
+
+Attachment dispatch executable audit (2026-09-12)
+------------------------------------------------
+ tools/verify_attachment_dispatch.py executes unmodified4881a0 recursion
+ across1000 randomized acyclic16-object forests with shuffled visitation,
+ previsited flags, dirty/clean parents and missing handles. Exact lookup/pose
+ service order and final flags match the independently specified traversal.
+ Lookup40a0e0 and pose487630 are explicit intercepted boundaries in this test.
+ A separate54-case run executes487630 positive-tag prefix and real486c90,
+ capturing5034f0 arguments. Only kind0/class+1b4==4 or kind4/class+44==4
+ select parent+7e0; all other tested types/categories select parent+48.
+ Model+80, tag+204 and position+3c arguments are verified.
+ Evidence: artifacts/attachment-dispatch.json, PASS. No shared runtime
+ changes or native replay in this audit. Negative-tag math, cyclic graphs,
+ alternate-matrix lifetime and live parent integration remain unverified.
+ Next: reconstruct negative-tag transform and bind actual parent ownership
+ before composing the verified publication helper with this traversal.

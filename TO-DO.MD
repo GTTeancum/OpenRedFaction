@@ -12,6 +12,10 @@ Shortlist:
 - USER: Review PS2 visual parity and test hardware after representative XEMU gameplay is stable.
 - USER: Review the interactive PC movement and audio items listed below.
 
+Attachment ordering audit: original4881a0 passes1000 randomized16-object
+forests; positive-tag dispatch passes54 original cases including real486c90.
+Bind shared parent ordering after negative-tag poses and use-kind4 ownership.
+
 The stationary startup-NPC animation gate matches PC/stock64MiB XEMU;
 footstep selection and support-material helpers are verified but not live.
 Detailed source evidence and test scope are recorded in docs/NPC-MARKERS.md.
