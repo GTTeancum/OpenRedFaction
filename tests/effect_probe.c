@@ -122,6 +122,21 @@ static int light_dispatch_transform(void *c,uint32_t a){(void)c;return light_dis
 static int light_dispatch_leave(void *c){(void)c;return light_dispatch_record(4,0,0,0);}
 int main(int argc,char **argv)
 {
+    if(argc==2 && !strcmp(argv[1],"--light-storage")) {
+        struct {uint32_t mappings[8],order[8];rf_collision_face faces[8];} input;
+        unsigned char records[8][56];uint32_t offsets[8],i,status,budget;rf_geometry geometry;rf_light_dirty_storage *owner=NULL;
+        _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
+        while(fread(&input,sizeof(input),1,stdin)==1) {
+            memset(&geometry,0,sizeof(geometry));memset(records,0,sizeof(records));geometry.data=records[0];geometry.faces=8;geometry.mappings=16;geometry.face_offsets=offsets;
+            for(i=0;i<8;i++){offsets[i]=i*56;memcpy(records[i]+20,input.mappings+i,4);}
+            budget=sizeof(*owner)+8*sizeof(*owner->faces)+16;
+            status=rf_visibility_light_storage_open(&geometry,input.faces,input.order,8,budget-1,&owner);if(!status || owner)return 9;
+            status=rf_visibility_light_storage_open(&geometry,input.faces,input.order,8,budget,&owner);fwrite(&status,4,1,stdout);
+            if(!status){memset(&geometry,0xa5,sizeof(geometry));memset(records,0xa5,sizeof(records));memset(&input,0xa5,sizeof(input));fwrite(&owner->face_count,12,1,stdout);fwrite(owner->faces,36,8,stdout);fwrite(owner->dirty,16,1,stdout);}
+            rf_visibility_light_storage_close(&owner);rf_visibility_light_storage_close(&owner);
+        }
+        return 0;
+    }
     if(argc==2 && !strcmp(argv[1],"--view-stack")) {
         struct {rf_visibility_view_state state;float poses[3][12];} input;
         rf_visibility_view_state saved[3];rf_visibility_view_stack stack;uint32_t i,status;

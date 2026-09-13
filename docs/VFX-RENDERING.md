@@ -1008,3 +1008,22 @@ pushes/pops, every saved slot and color marker. Three NXDK guards preserve
 current/saved state on underflow, overflow and nonfinite pose. Both builds
 and24 CTests pass. Renderer-mode66 wrappers and binding these services to
 retained native lighting owners remain; no new rendered/native evidence.
+
+### Retained native lighting metadata owner (2026-09-13)
+
+rf_visibility_light_storage_open binds retained collision bounds/flags/
+property34 to authored face mapping indices in supplied source-index order.
+Original4dfbd0 copies24 attribute bytes to face+28; loader4ed520 supplies
+the mapping as the signed low16-bit field at+36. Original4ee210 loads the
+96-byte file mappings into124-byte runtime records and finishes each by
+assigning dirty byte+8 to1 (constructor4e3e90 initially writes0). Thus the
+retained dirty array starts at1, not calloc zero. These are static loader
+instruction/decompilation observations, not a full loader execution test.
+
+Owner storage is20 +36*retained_face_count +mapping_count bytes on32-bit
+PC/Xbox, one budgeted allocation. Vertex/image data are not copied. Source
+geometry/collision data may close after success; dirty metadata is owned.
+verify_light_storage.py compares512 PC/NXDK fixtures /4096 reordered faces
+with exact/short budgets, source destruction, repeated close, allocation
+failure and late invalid-index rollback. Both builds and24 CTests pass.
+Actual level-wide ownership/budget validation and scene installation remain.

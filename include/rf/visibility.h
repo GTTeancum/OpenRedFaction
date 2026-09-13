@@ -67,6 +67,18 @@ typedef struct rf_visibility_view_stack {
 int rf_visibility_view_push(rf_visibility_view_stack *,const float position[3],const float basis[9]);
 int rf_visibility_view_pop(rf_visibility_view_stack *);
 
+typedef struct rf_light_dirty_storage {
+    rf_light_dirty_face *faces;unsigned char *dirty;uint32_t face_count,dirty_count,allocated_bytes;
+} rf_light_dirty_storage;
+/* Bind retained collision bounds/flags/property34 to authored mapping indices
+ * (signed low16 bits, original face+36). One budgeted allocation, dirty bytes
+ * start at1 as4ee210 finishes each mapping. No vertex/image duplication.
+ * source_indices maps retained face order to file order; NULL means identity.
+ * Copies all required data; failure preserves a NULL output. */
+int rf_visibility_light_storage_open(const rf_geometry *,const rf_collision_face *,const uint32_t *source_indices,
+    uint32_t count,uint32_t budget,rf_light_dirty_storage **);
+void rf_visibility_light_storage_close(rf_light_dirty_storage **);
+
 typedef struct rf_object_render_backend {
     int (*white)(void *);
     int (*model_kind)(void *,uint32_t,uint32_t *);

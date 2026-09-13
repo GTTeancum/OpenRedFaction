@@ -40,6 +40,35 @@ int rf_visibility_view_pop(rf_visibility_view_stack *stack)
     if(!stack || !stack->saved || !stack->depth || stack->depth>stack->capacity)return RF_RANGE;
     stack->current=stack->saved[--stack->depth];return RF_OK;
 }
+int rf_visibility_light_storage_open(const rf_geometry *geometry,const rf_collision_face *faces,const uint32_t *source_indices,
+    uint32_t count,uint32_t budget,rf_light_dirty_storage **out)
+{
+    rf_light_dirty_storage *value;uint64_t bytes;uint32_t i,j;int status;
+    if(!geometry || !geometry->data || !out || *out || (count && !faces))return RF_RANGE;
+    bytes=sizeof(*value)+(uint64_t)count*sizeof(*value->faces)+geometry->mappings;
+    if(bytes>budget || bytes>SIZE_MAX || bytes>UINT32_MAX)return RF_RANGE;
+    value=malloc((size_t)bytes);if(!value)return RF_IO;
+    value->faces=(rf_light_dirty_face *)(value+1);value->dirty=(unsigned char *)(value->faces+count);
+    value->face_count=count;value->dirty_count=geometry->mappings;value->allocated_bytes=(uint32_t)bytes;
+    memset(value->dirty,1,value->dirty_count);
+    for(i=0;i<count;i++) {
+        rf_geometry_face authored;rf_light_dirty_face *face=value->faces+i;uint32_t mapping;
+        status=rf_geometry_get_face(geometry,source_indices?source_indices[i]:i,&authored);if(status)goto failed;
+        mapping=authored.lightmap_mapping&65535u;face->lighting_index=mapping>=32768?(int32_t)mapping-65536:(int32_t)mapping;
+        if(face->lighting_index>=0 && (uint32_t)face->lighting_index>=value->dirty_count){status=RF_RANGE;goto failed;}
+        if(faces[i].filter.property_34 < -32768 || faces[i].filter.property_34>32767){status=RF_RANGE;goto failed;}
+        for(j=0;j<3;j++) {
+            if(!isfinite(faces[i].minimum[j]) || !isfinite(faces[i].maximum[j]) || faces[i].minimum[j]>faces[i].maximum[j]){status=RF_RANGE;goto failed;}
+            face->minimum[j]=faces[i].minimum[j];face->maximum[j]=faces[i].maximum[j];
+        }
+        face->flags=faces[i].filter.face_flags;face->property_34=faces[i].filter.property_34;
+    }
+    *out=value;return RF_OK;
+failed:
+    free(value);return status;
+}
+void rf_visibility_light_storage_close(rf_light_dirty_storage **owner)
+{if(owner && *owner){free(*owner);*owner=NULL;}}
 int rf_visibility_light_dispatch(uint32_t mode,uint32_t source,uint32_t main_solid,uint32_t update,
     rf_light_update_view **views,uint32_t capacity,const rf_light_update_backend *backend)
 {
