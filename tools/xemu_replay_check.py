@@ -361,6 +361,10 @@ dvd_path = '{root.as_posix()}/build/xbox/redfaction-diagnostic.iso'
      if args.volume_test:
       assert volume_test[:5]==[frames-90]*5 and volume[2]>=frames-90 and volume[3]>=frames-90,volume_test
      report['volume_test']=volume_test
+     volume_npc=words(monitor,symbol('rf_scene_volume_npc_test'),8)
+     assert volume_npc==expected('VOLUME_NPC_TEST') and volume_npc[6]==0,volume_npc
+     if args.volume_test:assert volume_npc[:5]==[6,9,3,2,1],volume_npc
+     report['volume_npc_test']=volume_npc
      glare_instances=words(monitor,symbol('rf_scene_glare_instances'),10)
      assert glare_instances==expected('GLARE_INSTANCES') and glare_instances[3]==glare_instances[8] and glare_instances[9]==0,glare_instances
      assert glare_instances[5]<=glare_instances[6]<=256*1024,glare_instances

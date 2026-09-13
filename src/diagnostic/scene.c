@@ -6829,6 +6829,7 @@ typedef struct scene_corona_context {
 } scene_corona_context;
 uint32_t rf_scene_volume_draw[8]; /* frames, routines, submitted, polygons, vertices, hash, reserved, errors */
 uint32_t rf_scene_volume_test_enabled,rf_scene_volume_test[8];
+uint32_t rf_scene_volume_npc_test[8];
 uint32_t rf_scene_corona_draw[8]; /* frames, marked, routines, polygons, vertices, hash, snapshot bytes, errors */
 static int scene_corona_color(void *context,uint32_t r,uint32_t g,uint32_t b,uint32_t a)
 {scene_corona_context *c=context;c->color=(r&255u)|((g&255u)<<8)|((b&255u)<<16)|((a&255u)<<24);return RF_OK;}
@@ -6932,6 +6933,42 @@ static int scene_volume_actor(void *context,rf_glare_base_owner *owner,float *le
 }
 static int scene_volume_beam(void *context,const float end[3],const float start[3],float width,uint32_t mode)
 {++rf_scene_volume_draw[2];return scene_corona_geometry(context,end,start,0,width,mode,1);}
+static int scene_volume_npc_fixture(scene_corona_context *c)
+{
+    campaign_npc_body *actors[2]={NULL,NULL};uint32_t i,n=0,cls,saved_flags,hashes[2],draw,sample,record[4];
+    float commands[2][3],length,width;const int32_t *saved_occupants;uint32_t saved_count;
+    int32_t occupants[3];rf_random_state saved_random,expected;rf_glare_base_owner glare={0};int status=RF_OK;
+    if(!rf_scene_volume_test_enabled || c->stream->particle_frame!=90)return RF_OK;
+    memset(rf_scene_volume_npc_test,0,sizeof(rf_scene_volume_npc_test));rf_scene_volume_npc_test[5]=2166136261u;
+    if(!c->stream->particles.state)return RF_NOT_FOUND;
+    for(i=0;i<campaign_npc_body_count && n<2;++i)if(!(campaign_npc_bodies[i].object_flags&8) &&
+        rf_entity_lookup(&campaign_entities,campaign_npc_bodies[i].view.handle)==&campaign_npc_bodies[i].view)actors[n++]=campaign_npc_bodies+i;
+    if(n!=2)return RF_NOT_FOUND;
+    cls=campaign_seeds.items[actors[0]-campaign_npc_bodies].class_index;
+    if(cls>=campaign_seeds.class_count)return RF_RANGE;
+    saved_flags=campaign_seeds.classes[cls].physics.flags;saved_random=c->stream->particles.state->random;
+    saved_occupants=actors[0]->view.occupants;saved_count=actors[0]->view.occupant_count;
+    for(i=0;i<2;++i){memcpy(commands[i],actors[i]->command_714,12);hashes[i]=npc_hash_bytes(2166136261u,actors[i],sizeof(*actors[i]));}
+    campaign_seeds.classes[cls].physics.flags|=0x800u;glare.parent_handle=(uint32_t)actors[0]->view.handle;
+    for(n=0;n<6;++n) {
+        actors[0]->command_714[0]=actors[0]->command_714[1]=0;actors[0]->command_714[2]=1;
+        actors[1]->command_714[0]=actors[1]->command_714[1]=0;actors[1]->command_714[2]=n==2?0:n==3?-1:1;
+        occupants[0]=-1;occupants[1]=n==4?(actors[1]->view.handle^0x10000):actors[1]->view.handle;occupants[2]=actors[1]->view.handle;
+        actors[0]->view.occupants=occupants;actors[0]->view.occupant_count=n==0?0:3;
+        glare.state.flags=n==5?2:0;length=2;width=1;draw=1;expected=c->stream->particles.state->random;
+        if(n==0 || n==1 || n==4){rf_random_next(&expected,&sample);++rf_scene_volume_npc_test[2];}
+        status=scene_volume_actor(c,&glare,&length,&width,&draw);if(status)break;
+        ++rf_scene_volume_npc_test[0];rf_scene_volume_npc_test[1]+=c->volume_actor_count;rf_scene_volume_npc_test[3]+=!draw;
+        if(draw!=(uint32_t)(n!=2 && n!=3) || expected.value!=c->stream->particles.state->random.value){status=RF_FORMAT;break;}
+        memcpy(record,&length,4);memcpy(record+1,&width,4);record[2]=draw;record[3]=expected.value;
+        rf_scene_volume_npc_test[5]=npc_hash_bytes(rf_scene_volume_npc_test[5],record,sizeof(record));
+    }
+    for(i=0;i<2;++i)memcpy(actors[i]->command_714,commands[i],12);
+    actors[0]->view.occupants=saved_occupants;actors[0]->view.occupant_count=saved_count;
+    campaign_seeds.classes[cls].physics.flags=saved_flags;c->stream->particles.state->random=saved_random;
+    for(i=0;i<2;++i)if(npc_hash_bytes(2166136261u,actors[i],sizeof(*actors[i]))!=hashes[i])status=RF_FORMAT;
+    if(status)++rf_scene_volume_npc_test[6];else ++rf_scene_volume_npc_test[4];return status;
+}
 static int scene_volume_render(scene_corona_context *c,rf_glare_base_owner *owner)
 {
     uint32_t cls=owner->state.class_index,bitmap;int status;rf_glare_volume_frame frame={0};
@@ -6954,8 +6991,9 @@ int rf_scene_draw_particles(rf_scene_particle_sink sink,void *context)
     c.stream=stream;c.sink=sink;c.context=context;
     if(!stream->particle_frame){memset(rf_scene_corona_draw,0,sizeof(rf_scene_corona_draw));rf_scene_corona_draw[5]=2166136261u;
         memset(rf_scene_volume_draw,0,sizeof(rf_scene_volume_draw));rf_scene_volume_draw[5]=2166136261u;}
-    if(!stream->particle_frame)memset(rf_scene_volume_test,0,sizeof(rf_scene_volume_test));
+    if(!stream->particle_frame){memset(rf_scene_volume_test,0,sizeof(rf_scene_volume_test));memset(rf_scene_volume_npc_test,0,sizeof(rf_scene_volume_npc_test));}
     if(campaign_spawn && campaign_glare_rooms){status=scene_glare_snapshot(&c.snapshot,&selected,&bytes);if(status)goto done;}
+    status=scene_volume_npc_fixture(&c);if(status)goto done;
     ++rf_scene_volume_draw[0];
     workspace=stream->particle_workspace;row[0]=stream->particle_frame;
     for(room=0;room<stream->visibility.state.visible_count;room++) {

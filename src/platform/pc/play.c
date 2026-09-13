@@ -329,6 +329,7 @@ int main(int argc,char **argv)
             printf("CORONA_DRAW");for(i=0;i<8;++i)printf(" %u",rf_scene_corona_draw[i]);printf("\n");
             printf("VOLUME_DRAW");for(i=0;i<8;++i)printf(" %u",rf_scene_volume_draw[i]);printf("\n");
             printf("VOLUME_TEST");for(i=0;i<8;++i)printf(" %u",rf_scene_volume_test[i]);printf("\n");
+            printf("VOLUME_NPC_TEST");for(i=0;i<8;++i)printf(" %u",rf_scene_volume_npc_test[i]);printf("\n");
             printf("GLARE_SEARCH");for(i=0;i<8;++i)printf(" %u",rf_scene_glare_search[i]);printf("\n");
             printf("NPC_ROOM_REFRESH");for(i=0;i<8;++i)printf(" %u",rf_scene_npc_room_refresh[i]);printf("\n");
             printf("NPC_VISIBILITY_ROOMS");for(i=0;i<6;++i)printf(" %u",rf_scene_npc_visibility_rooms[i]);printf("\n");

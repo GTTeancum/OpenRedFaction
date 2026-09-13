@@ -9398,3 +9398,20 @@ checks pass. Native replay-20260913-010230 PASS180 stock64MiB with volume-test:
 the prop-owned90-beam fixture still matches PC and preserves its source. This
 is a regression check, not direct positive coverage of the NPC adapter. Add
 a controlled NPC-owned beam case before claiming that native branch covered.
+
+
+Native NPC volume service fixture (2026-09-13): existing --volume-test now
+invokes six scene_volume_actor cases at frame90 using two actually registered
+NPC owners. Temporarily enables class800 and supplies command/occupant fields
+for parent command, occupant command, zero command, reverse command, stale
+first occupant before a valid later entry, and glare flag2. The fixture
+checks expected draw suppression and exact one-draw/no-draw RNG advancement,
+hashes dimensions/draw/RNG, then restores command vectors, occupant pointer/
+count, class flags and the scene RNG. Whole-owner hashes verify restoration.
+Native replay-20260913-010840 PASS180 stock64MiB, exact PC
+VOLUME_NPC_TEST=[6,9,3,2,1,2208258668,0,0]. Nine projected actor views, three
+RNG advances, two suppressions and one complete restoration. Existing90
+animated prop-owned beam queue/render comparison also passes. Both builds
+and22 CTest checks pass. These are controlled service tests, not authored
+NPC-mounted beam geometry or complete vehicle runtime. Player1430 ownership,
+authored placement and mixed transparent ordering remain open.
