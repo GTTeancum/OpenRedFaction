@@ -1659,3 +1659,37 @@ int rf_level_light_activate(const rf_level_light *record,uint32_t loader_default
     }
     status=rf_vfx_light_create(d,&check);if(status)return status;*out=value;return RF_OK;
 }
+
+int rf_level_owned_lights_open(const rf_level *level,uint32_t budget,uint32_t world,uint32_t loader_default,
+    rf_random_state *random,rf_level_owned_lights **out)
+{
+    rf_level_light_reader reader;rf_level_light record;rf_level_owned_lights *value;
+    rf_random_state rng={0};rf_vfx_light_candidate *sources;rf_vfx_light_link *links;
+    uint64_t bytes;uint32_t i,draw,cycle;int status;
+    if(!out || *out || world>1 || loader_default>1)return RF_RANGE;
+    status=rf_level_lights_begin(level,&reader);if(status)return status;if(reader.count>1100)return RF_RANGE;
+    bytes=sizeof(*value)+(uint64_t)reader.count*sizeof(*value->items)+1100u*(sizeof(*sources)+sizeof(*links));
+    if(bytes>budget || bytes>SIZE_MAX || bytes>UINT32_MAX)return RF_RANGE;
+    value=malloc((size_t)bytes);if(!value)return RF_IO;memset(value,0,sizeof(*value));
+    value->count=reader.count;value->allocated_bytes=(uint32_t)bytes;value->items=(rf_level_light_runtime *)(value+1);
+    sources=(rf_vfx_light_candidate *)(value->items+value->count);links=(rf_vfx_light_link *)(sources+1100);
+    status=rf_vfx_light_pool_init(&value->pool,sources,links,1100);if(status)goto failed;
+    if(random)rng=*random;
+    for(i=0;i<value->count;++i) {
+        rf_level_light_runtime *item=value->items+i;
+        status=rf_level_light_next(&reader,&record);if(status)goto failed;
+        draw=0;cycle=(record.flags>>8)&15;
+        if(cycle==3 || cycle==4){if(!random){status=RF_RANGE;goto failed;}status=rf_random_next(&rng,&draw);if(status)goto failed;}
+        status=rf_level_light_activate(&record,loader_default,draw,&item->activation);if(status)goto failed;
+        status=rf_vfx_light_pool_create(&value->pool,&item->activation.definition,world,&item->id);if(status)goto failed;
+        status=rf_vfx_light_pool_enable(&value->pool,item->id,(unsigned char)item->activation.enabled);if(status)goto failed;
+        item->uid=record.uid;item->flags=record.flags;memcpy(item->cycle,record.cycle,sizeof(item->cycle));
+    }
+    if(random)*random=rng;*out=value;return RF_OK;
+failed:
+    free(value);return status;
+}
+void rf_level_owned_lights_close(rf_level_owned_lights **owner)
+{
+    if(owner && *owner){free(*owner);*owner=NULL;}
+}

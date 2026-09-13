@@ -14,6 +14,11 @@ Shortlist:
 
 Progress reporting: include overall percent estimates at meaningful milestones and revisit remaining 24-hour workdays when measured throughput supports a forecast; current rough estimate40% (35-45%), no defensible +/-48-hour completion forecast before end-to-end gameplay.
 
+Retained authored-light ownership now loads all22293 sources in93 levels
+identically on PC/NXDK, with exact/short budgets and archive-independent data.
+Peak232680 bytes; both builds and24 tests pass. Install in the native scene,
+step retained timers/RNG, perform visibility updates and bind edge rendering.
+
 Authored light activation matches all22293 original/PC/NXDK records plus512
 randomized cycle cases; fixed rejection of authored zero-width cone angles.
 Both builds,2048 shading cases and24 tests pass. Bind retained activation,

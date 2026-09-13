@@ -652,3 +652,31 @@ field and phase/delay/visibility value. PC matches all100 activation bytes and
 visibility effects remain separate.2048 mixed-shading cases now include equal
 cone boundaries and still match original/PC/NXDK. Both builds and24 CTests
 pass. Retained light owners/timing, pool activation and native drawing remain.
+
+## Retained authored-light owner
+
+rf_level_owned_lights_open composes the bounded reader, activation conversion,
+pool creation and enable operation into one budgeted allocation. It reserves
+the original1100 source/link slots and retains136 bytes per authored light:
+UID, pool ID, raw flags/cycle parameters and activation state. The56-byte owner
+plus pool arrays and retained records reaches232680 bytes for the largest
+installed level. Names/scripts/disk-only fields are not retained by this
+runtime owner; required constructor/timing data is copied. No archive pointers
+are retained. Repeated close frees at most one allocation and clears the owner.
+
+Capacity/count/budget checks precede allocation. Partial failures free the
+private owner and preserve the caller output and RNG state. Cycles3/4 consume
+shared-stream draws through a local RNG copy, committing on successful load;
+other cycles do not advance it. The caller controls world routing and the
+original default-loader class override. This owner does not register lights
+with the live scene, step timers or perform4d8660 visibility updates.
+
+All93 installed levels (22293 sources) match the complete retained activation,
+pool source/link and state payloads on PC/NXDK. Every level passes exact-budget
+loading and rejects a one-byte-short budget. Archives/source contexts close
+before retained-state checks, and repeated close is verified. NXDK heap-failure
+and late-conversion-failure tests preserve output/RNG and release private
+storage. The harness supplies archive reads and heap services only; original
+component verification is recorded above. An initially ambiguous free-symbol
+lookup in the harness was corrected to require an exact linker symbol match.
+Both builds and24 CTests pass. Native scene installation/rendering remains.

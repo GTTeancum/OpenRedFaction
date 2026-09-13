@@ -316,6 +316,19 @@ int main(int argc,char **argv)
         }
         return ferror(stdin)?2:0;
     }
+    if(argc==4 && !strcmp(argv[1],"--level-owned-lights")) {
+        rf_vpp archive;rf_level level;rf_level_owned_lights *owner=NULL;rf_random_state rng={123};uint32_t budget;int status;
+        if(rf_vpp_open(&archive,argv[2]) || rf_level_open(&level,&archive,argv[3]))return 3;
+        status=rf_level_owned_lights_open(&level,1024u*1024u,1,1,&rng,&owner);if(status)return 4;
+        budget=owner->allocated_bytes;rf_level_owned_lights_close(&owner);
+        if(!rf_level_owned_lights_open(&level,budget-1,1,1,&rng,&owner) || owner)return 5;
+        status=rf_level_owned_lights_open(&level,budget,1,1,&rng,&owner);if(status)return 6;
+        rf_vpp_close(&archive);memset(&level,0xa5,sizeof(level));
+        fwrite(owner,8,1,stdout);fwrite(&owner->pool,36,1,stdout);fwrite(&rng,4,1,stdout);
+        fwrite(owner->items,sizeof(*owner->items),owner->count,stdout);
+        fwrite(owner->pool.sources,sizeof(*owner->pool.sources),1100,stdout);fwrite(owner->pool.links,sizeof(*owner->pool.links),1100,stdout);
+        rf_level_owned_lights_close(&owner);rf_level_owned_lights_close(&owner);return owner?7:0;
+    }
     if(argc==2 && !strcmp(argv[1],"--level-light-activate")) {
         rf_level_light light;rf_level_light_activation result;rf_vfx_light_candidate candidate;uint32_t h[2];int32_t status;
         while(fread(h,4,2,stdin)==2) {

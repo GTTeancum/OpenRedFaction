@@ -183,6 +183,19 @@ typedef struct rf_level_light_activation {
  * Cycles3/4 require one caller-supplied original15-bit RNG draw; other cycles
  * do not use it. No registration/replacement/timer stepping; errors preserve out. */
 int rf_level_light_activate(const rf_level_light *,uint32_t loader_default,uint32_t random_draw,rf_level_light_activation *);
+typedef struct rf_level_light_runtime {
+    uint32_t uid,id,flags;float cycle[6];rf_level_light_activation activation;
+} rf_level_light_runtime;
+typedef struct rf_level_owned_lights {
+    uint32_t count,allocated_bytes;rf_vfx_light_pool pool;rf_level_light_runtime *items;
+} rf_level_owned_lights;
+/* One budgeted allocation:1100 pool slots plus retained authored activation
+ * records. Copies required data; level/archive may close after success. RNG
+ * is required only for cycle3/4 and commits only on success. No live timer
+ * stepping, scene visibility callbacks, external registry or draw submission. */
+int rf_level_owned_lights_open(const rf_level *,uint32_t budget,uint32_t world,uint32_t loader_default,
+    rf_random_state *,rf_level_owned_lights **);
+void rf_level_owned_lights_close(rf_level_owned_lights **);
 /* v180 section300, original45f260 field sequence. Raw disk orientation,
  * degrees, flags and high/on-time/variance/low/off-time/variance cycle values.
  * No allocation or runtime creation; errors preserve reader and output. */
