@@ -11038,3 +11038,31 @@ player/clutter targets; the prior original arithmetic probe covers lock
 branch behavior at its explicit predicate boundary. No new visual change.
 Connect muzzle origin and firing consumers; retain broader target owners
 and secondary hand-class ownership before claiming complete combat.
+
+## Scene muzzle composition (2026-09-13)
+
+rf_scene_npc_muzzle connects retained world models, model tag lookup, actor
+pose/static muzzle transforms and rf_scene_npc_target_aim. The caller supplies
+weapon, selected hand and target handle; this API does not advance original
+510/50c burst state. Source primary limit comes from retained weapon catalog.
+Eye origin/basis and model position/basis come from live NPC owners.
+
+Startup hand discovery now retains secondary_weapon_N separately (12 extra
+bytes per NPC). Current startup actors use one base/pose class. Original
+422360 assigns294=base and29c=base unless a replacement class is provided;
+replacement/morph paths must retain distinct lists when implemented. Both
+lists obey4246e0 skip flag20000000 and sequential two-slot discovery.
+L1S1 currently has zero secondary tags; no live secondary-weapon coverage is
+claimed by this scene fixture. Original composed muzzle probe covers its
+secondary branch with independent supplied class lists.
+
+Native artifacts/xemu/replay-20260913-113135 completed180 frames, PASS,
+normal-image restoration and exit0. WEAPON_MUZZLE=[60,60,0,1337363891]
+matches PC (armed actors, poses, secondary tags, pose hash). Stock memory
+base67108864, plugged0. Both builds and all22 CTests pass. The startup probe
+restores any selected-action side effects after computing poses. No new
+visual capture: no projectile or muzzle-flash emission was added.
+
+Remaining: automatic firing/burst hand selection, target ownership beyond
+NPCs, replacement-class tags, projectile creation, ammunition/timing and
+active sound/effect lifecycle.

@@ -428,6 +428,10 @@ extern uint32_t rf_scene_weapon_materials[8];
  * Reads live playback and eye state, retiring stale828 locks. Other live target
  * owner types return NOT_FOUND. No automatic target choice or firing. */
 int rf_scene_npc_target_aim(uint32_t handle,int32_t target,const float muzzle[3],float basis[9]);
+/* Explicit hand/target selected by caller; uses retained startup class tags,
+ * weapon resources and live NPC aim. Does not advance burst state or fire. */
+int rf_scene_npc_muzzle(uint32_t handle,int32_t weapon,int32_t hand,int32_t target,float position[3],float basis[9]);
+extern uint32_t rf_scene_weapon_muzzle[4];
 extern uint32_t rf_scene_weapon_aim[4];
 extern uint32_t rf_scene_weapon_hands[4];
 extern uint32_t rf_scene_weapon_draw[6];

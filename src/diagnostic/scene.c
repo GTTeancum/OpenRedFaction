@@ -2897,6 +2897,7 @@ typedef struct campaign_npc_body {
     float command_714[3]; /* Constructor422eaf..422ed3 clears this movement vector. */
     const rf_player_movement_region *previous_region_13ec; /* Constructor clears; borrowed campaign region. */
     uint32_t weapon_hand_count;int32_t weapon_hands[2]; /* Retained primary_weapon_N tags from4246e0. */
+    uint32_t secondary_hand_count;int32_t secondary_hands[2]; /* Base-class secondary_weapon_N. */
     int32_t attachment_75c; /* Embedded AI initializer402e96: -1; later attachment lifecycle pending. */
     uint32_t stance_clock_7b4; /* Raw6460f0 bits, published after crouch ground refresh. */
     float model_radius_78; /* Original489fe0 model-origin radius. */
@@ -3031,6 +3032,7 @@ static int campaign_weapon_hands_open(void)
     for(i=0;i<campaign_npc_body_count;++i) {
         campaign_npc_body *body=campaign_npc_bodies+i;uint32_t cls=campaign_seeds.items[i].class_index;
         body->weapon_hand_count=0;body->weapon_hands[0]=body->weapon_hands[1]=-1;
+        body->secondary_hand_count=0;body->secondary_hands[0]=body->secondary_hands[1]=-1;
         if(!body->registration.view || i>=campaign_model_owner_count)continue;
         if(cls>=campaign_seeds.class_count)return RF_RANGE;
         /* Original4246e0 bypasses all tag initialization for this class flag. */
@@ -3038,6 +3040,13 @@ static int campaign_weapon_hands_open(void)
             char name[24];snprintf(name,sizeof(name),"primary_weapon_%u",k+1);
             status=rf_scene_corpse_file_tag(i+1,name,0,&body->weapon_hands[k]);
             if(status==RF_NOT_FOUND)break;if(status)return status;++body->weapon_hand_count;
+        }
+        /* Startup owners use the same base/pose class (422360 with no
+         * replacement class). Morph/replacement owners need separate refresh. */
+        if(!(campaign_seeds.classes[cls].physics.flags&0x20000000u))for(k=0;k<2;++k) {
+            char name[24];snprintf(name,sizeof(name),"secondary_weapon_%u",k+1);
+            status=rf_scene_corpse_file_tag(i+1,name,0,&body->secondary_hands[k]);
+            if(status==RF_NOT_FOUND)break;if(status)return status;++body->secondary_hand_count;
         }
         ++rf_scene_weapon_hands[0];rf_scene_weapon_hands[1]+=body->weapon_hand_count;
         rf_scene_weapon_hands[2]+=body->weapon_hand_count==0;
@@ -4341,6 +4350,47 @@ int rf_scene_npc_target_aim(uint32_t handle,int32_t target,const float muzzle[3]
         }
     }
     return rf_weapon_target_aim(&source,muzzle,basis);
+}
+typedef struct campaign_muzzle_context {
+    campaign_weapon_pose_context pose;uint32_t handle;int32_t target;
+} campaign_muzzle_context;
+static int campaign_muzzle_aim(void *context,const float position[3],float basis[9])
+{
+    campaign_muzzle_context *c=context;return rf_scene_npc_target_aim(c->handle,c->target,position,basis);
+}
+int rf_scene_npc_muzzle(uint32_t handle,int32_t weapon,int32_t hand,int32_t target,float position[3],float basis[9])
+{
+    campaign_npc_body *owner;rf_entity_pose *pose;rf_weapon_muzzle_source source={0};
+    campaign_muzzle_context context={{0},handle,target};rf_weapon_hand_ops ops={campaign_weapon_tag,campaign_weapon_transform};
+    uint32_t cls,slot;int status;
+    if(!position || !basis || hand<0 || hand>=2)return RF_RANGE;
+    status=campaign_npc_motion_owner(handle,&owner,&cls,&pose);if(status)return status;
+    slot=(uint32_t)(owner-campaign_npc_bodies);if(slot>=campaign_model_owner_count)return RF_RANGE;
+    source.actor_model=slot+1;source.weapon=weapon;source.primary_limit=(int32_t)campaign_weapon_supply.names.primary_count;
+    source.primary_index=source.secondary_index=hand;source.primary_count=owner->weapon_hand_count;
+    memcpy(source.primary_tags,owner->weapon_hands,8);memcpy(source.secondary_tags,owner->secondary_hands,8);
+    memcpy(source.position,campaign_model_owners[slot].position,12);memcpy(source.basis,campaign_model_owners[slot].basis,36);
+    memcpy(source.eye,owner->eye_position,12);memcpy(source.eye_basis,owner->look.orientation,36);
+    return rf_weapon_muzzle_pose(&source,campaign_weapon_models.weapons,&ops,campaign_muzzle_aim,&context,position,basis);
+}
+uint32_t rf_scene_weapon_muzzle[4]; /* actors, poses, secondary tags, pose hash */
+static int campaign_weapon_muzzle_probe(void)
+{
+    uint32_t i,k;int status;float position[3],basis[9];int32_t saved;
+    memset(rf_scene_weapon_muzzle,0,sizeof(rf_scene_weapon_muzzle));rf_scene_weapon_muzzle[3]=2166136261u;
+    for(i=0;i<campaign_npc_body_count;++i)if(campaign_npc_bodies[i].registration.view) {
+        campaign_npc_body *owner=campaign_npc_bodies+i;
+        rf_scene_weapon_muzzle[2]+=owner->secondary_hand_count;
+        if(owner->view.weapons[0]<0)continue;++rf_scene_weapon_muzzle[0];saved=owner->pain.selected_action;
+        for(k=0;k<owner->weapon_hand_count;++k) {
+            status=rf_scene_npc_muzzle(owner->registration.handle,owner->view.weapons[0],(int32_t)k,-1,position,basis);
+            if(status){owner->pain.selected_action=saved;return status;}
+            ++rf_scene_weapon_muzzle[1];rf_scene_weapon_muzzle[3]=npc_hash_bytes(rf_scene_weapon_muzzle[3],position,12);
+            rf_scene_weapon_muzzle[3]=npc_hash_bytes(rf_scene_weapon_muzzle[3],basis,36);
+        }
+        owner->pain.selected_action=saved;
+    }
+    return RF_OK;
 }
 uint32_t rf_scene_weapon_aim[4]; /* actors, cases, stale-lock clears, pose hash */
 static int campaign_weapon_aim_probe(void)
@@ -8777,6 +8827,7 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
             status=campaign_weapon_hands_open();if(status)goto done;
             status=campaign_weapon_placement_probe();if(status)goto done;
             status=campaign_weapon_aim_probe();if(status)goto done;
+            status=campaign_weapon_muzzle_probe();if(status)goto done;
             status=campaign_glare_instances_open(tables_path);if(status)goto done;
             status=campaign_resolve_trigger_links();if(status)goto done;
             status=campaign_npc_motion_residency();if(status)goto done;
