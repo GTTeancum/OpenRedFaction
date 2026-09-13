@@ -61,6 +61,12 @@ int rf_vfx_material_sample(const void *,uint32_t bytes,const rf_vfx_material_vie
  * Caller selects track/default. Nonnegative rate, nonempty finite samples and
  * nonnegative time required; outputs clamped0..1, no allocation. */
 int rf_vfx_material_track(const float *samples,uint32_t count,int32_t rate,float effect_frame,float *out);
+/* Evaluate borrowed serialized tracks (0 blend,1 brightness,2 opacity).
+ * Blend samples clamp before interpolation, matching the original loader.
+ * Empty tracks return NOT_FOUND; invalid spans (including embedded sentinel
+ * offsets) fail without changing output. No allocation or invented defaults. */
+int rf_vfx_material_evaluate(const void *,uint32_t bytes,const rf_vfx_material_view *,
+    uint32_t track,float effect_frame,float *out);
 typedef struct rf_vfx_embedded_material_view {
     rf_vfx_material_view material;uint32_t color_word;
 } rf_vfx_embedded_material_view;

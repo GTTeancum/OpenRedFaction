@@ -14,6 +14,11 @@ Shortlist:
 
 Progress reporting: include overall percent estimates at meaningful milestones and revisit remaining 24-hour workdays when measured throughput supports a forecast; current rough estimate40% (35-45%), no defensible +/-48-hour completion forecast before end-to-end gameplay.
 
+Borrowed VFX material views now evaluate blend/brightness/opacity without
+allocation, including unaligned arrays and original pre-interpolation blend
+clamps;2048 original/PC/NXDK cases and7 guards pass. Both builds and24 tests
+pass. Bind older embedded frame opacity and retained renderer materials next.
+
 VFX material scalar timing/interpolation matches2048 original/PC/NXDK
 cases each for54a930/54a9e0/54aa80, including zero rate;3 guards pass.
 Bind retained material tracks, lighting and texture passes to face lists;

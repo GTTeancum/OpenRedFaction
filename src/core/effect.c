@@ -1879,16 +1879,36 @@ int rf_vfx_instance_faces(const rf_visibility_camera *camera,const rf_vfx_instan
     *count=n;return RF_OK;
 }
 
-int rf_vfx_material_track(const float *samples,uint32_t count,int32_t rate,float effect_frame,float *out)
+static float vfx_material_scalar(const unsigned char *samples,uint32_t index,int clamp)
+{
+    float value;memcpy(&value,samples+(size_t)index*4,4);
+    if(clamp){if(value<=0)value=0;if(value>1)value=1;}return value;
+}
+static int vfx_material_track_bytes(const unsigned char *samples,uint32_t count,int32_t rate,
+    float effect_frame,int clamp,float *out)
 {
     double position,fraction,value;float stored,result;uint32_t index,i;
-    if(!samples || !count || count>INT32_MAX || rate<0 || !out || !isfinite(effect_frame) || effect_frame<0)return RF_RANGE;
-    for(i=0;i<count;++i)if(!isfinite(samples[i]))return RF_FORMAT;
+    if(!samples || !count || count>INT32_MAX || count>SIZE_MAX/4 || rate<0 || !out || !isfinite(effect_frame) || effect_frame<0)return RF_RANGE;
+    for(i=0;i<count;++i)if(!isfinite(vfx_material_scalar(samples,i,0)))return RF_FORMAT;
     position=((double)rate*effect_frame)*(double)0.06666667014360428f;stored=(float)position;
     if(!isfinite(stored) || position>=2147483646.0)return RF_RANGE;
     index=(uint32_t)floor(position);fraction=(double)stored-index;
-    value=index+1<count?((1.0-fraction)*samples[index]+fraction*samples[index+1]):samples[count-1];
+    value=index+1<count?((1.0-fraction)*vfx_material_scalar(samples,index,clamp)+fraction*vfx_material_scalar(samples,index+1,clamp)):vfx_material_scalar(samples,count-1,clamp);
     result=(float)value;if(!isfinite(result))return RF_RANGE;
     if(result>1)result=1;if(!(result>0))result=0;
     *out=result;return RF_OK;
+}
+int rf_vfx_material_track(const float *samples,uint32_t count,int32_t rate,float effect_frame,float *out)
+{return vfx_material_track_bytes((const unsigned char *)samples,count,rate,effect_frame,0,out);}
+
+int rf_vfx_material_evaluate(const void *data,uint32_t bytes,const rf_vfx_material_view *view,
+    uint32_t track,float effect_frame,float *out)
+{
+    static const uint32_t counts[3]={31,46,48},offsets[3]={32,47,49};uint32_t count,at;int32_t rate;
+    if(!data || !view || !out || track>2)return RF_RANGE;
+    count=view->words[counts[track]];at=view->words[offsets[track]];
+    if(!count)return RF_NOT_FOUND;
+    if(at>bytes || (uint64_t)count*4>bytes-at)return RF_RANGE;
+    memcpy(&rate,view->words+30,4);
+    return vfx_material_track_bytes((const unsigned char *)data+at,count,rate,effect_frame,track==0,out);
 }

@@ -165,3 +165,18 @@ empty/nonfinite/negative-time inputs preserve output.
 helpers and no hooks; three failure guards pass. Retained material ownership,
 track selection and texture/light/draw integration remain open. The sampler
 alone does not prove complete material appearance or native playback.
+
+rf_vfx_material_evaluate connects borrowed MATL array offsets and rate to
+the scalar sampler without an allocation or aligned float-pointer cast.
+Blend samples clamp before interpolation as54ab20 does while loading;
+brightness/opacity retain raw finite values until the final clamp. Missing
+tracks return NOT_FOUND; invalid spans, embedded sentinel offsets and invalid
+numeric inputs preserve output. No caller defaults are invented.
+
+2048 original/PC/NXDK comparisons cover all three tracks, unaligned starts,
+zero/high rates and terminal sampling;7 guards cover empty/truncated/sentinel
+spans, negative rate/time, invalid track and NaN. Original runtime executes
+without hooks; loader blend clamping is supplied as normalized original input
+(the separate material parser verifier checks that loader behavior). Existing
+6144 scalar comparisons and24 tests still pass. Embedded mesh frame opacity,
+retained renderer material ownership and native drawing remain open.
