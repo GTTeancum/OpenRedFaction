@@ -14,6 +14,10 @@ Shortlist:
 
 Progress reporting: include overall percent estimates at meaningful milestones and revisit remaining 24-hour workdays when measured throughput supports a forecast; current rough estimate40% (35-45%), no defensible +/-48-hour completion forecast before end-to-end gameplay.
 
+VFX final light RGB conversion matches4096 original/PC/NXDK cases and3
+guards; fixed an x87 blue-channel precision mismatch in the negative-gain
+branch. Bind active-light accumulation to conversion and material colors next.
+
 VFX four-profile falloff plus RGB addition matches4096 original/PC/NXDK
 cases,4096 in-place checks and3 guards. Connect accepted point lights, retain
 cone-boundary precision, and complete active-light ownership/conversion next.

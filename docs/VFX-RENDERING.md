@@ -352,3 +352,17 @@ cases and3 invalid-profile/radius guards pass. This establishes point-style
 float angular input composition. Cone-boundary attenuation still needs its
 original higher-precision multiplication ordering when integrated, along with
 segment lights, weighted color construction, active ownership and conversion.
+
+rf_vfx_light_rgb reconstructs4daff0 after accumulation: overbright maximum
+normalization, gain (negative bypasses gain), ambient floor for gain0..1,
+upper clamp for gain>1, then truncated byte conversion. VFX passes gain2.
+The original blue normalization product stays extended until multiplication
+by255 on the negative-gain path. Initial double-only C differed by one byte
+on some overbright cases. A bounded x87 helper now preserves that sequence
+on the supported Win32/NXDK x86 builds, restoring the caller control word;
+other architectures use long double and are not covered by these results.
+
+4096 PC/NXDK cases match original4db065..4db1a7 with real min/max/ftol
+helpers, no hooks.3 invalid-input guards preserve output. Inputs supply
+post-accumulation RGB, so this does not prove4da8b0 active-list processing
+or scene-light initialization. Native lighting integration remains open.

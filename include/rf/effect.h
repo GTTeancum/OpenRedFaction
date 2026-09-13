@@ -69,6 +69,11 @@ int rf_vfx_material_track(const float *samples,uint32_t count,int32_t rate,float
 /* Bitmap loader50f9cd and query50f380 rate rounding. Count1 ignores rate;
  * animated counts2..255 and signed-positive VBM rates required. */
 int rf_vfx_texture_duration(uint32_t count,uint32_t rate,float *out);
+/*4daff0 after scene-light accumulation: normalize overbright RGB, apply
+ * gain (negative skips it), then truncate to bytes. VFX uses gain2. Ambient
+ * supplies the floor for gain0..1. Finite nonnegative RGB, ambient0..1. */
+int rf_vfx_light_rgb(const float accumulated[3],const float ambient[3],float gain,unsigned char out[3]);
+
 /* Original falloff table4da0b0/c0/e0/100 and4dadb4 RGB addition. Caller has
  * accepted the light and supplies its angular gain/weighted color. Profiles
  * 0 linear,1 squared,2 cosine,3 square root. No intermediate float falloff

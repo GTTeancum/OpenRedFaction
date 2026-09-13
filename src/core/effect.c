@@ -2091,3 +2091,54 @@ int rf_vfx_light_add(uint32_t profile,float distance,float radius,float gain,
     }
     memcpy(out,result,12);return RF_OK;
 }
+
+/* Preserve the original unspilled blue reciprocal/product at the byte boundary. */
+static uint32_t vfx_blue_byte(float blue,float peak)
+{
+    uint32_t result;float multiplier=255.0f;
+#if defined(_MSC_VER) && defined(_M_IX86)
+    unsigned short saved,nearest,truncation;
+    __asm { fnstcw saved }
+    nearest=(unsigned short)((saved&~0x0f00u)|0x0300u);truncation=(unsigned short)(nearest|0x0c00u);
+    __asm {
+        fldcw nearest
+        fld1
+        fdiv peak
+        fmul blue
+        fmul multiplier
+        fldcw truncation
+        fistp result
+        fldcw saved
+    }
+#elif defined(__i386__) && (defined(__GNUC__) || defined(__clang__))
+    unsigned short saved,nearest,truncation;
+    __asm__ volatile("fnstcw %0":"=m"(saved));
+    nearest=(unsigned short)((saved&~0x0f00u)|0x0300u);truncation=(unsigned short)(nearest|0x0c00u);
+    __asm__ volatile("fldcw %1; fld1; fdivs %2; fmuls %3; fmuls %4; fldcw %5; fistpl %0; fldcw %6"
+        :"=m"(result):"m"(nearest),"m"(peak),"m"(blue),"m"(multiplier),"m"(truncation),"m"(saved):"st");
+#else
+    result=(uint32_t)((1.0L/peak)*blue*255.0L);
+#endif
+    return result;
+}
+int rf_vfx_light_rgb(const float accumulated[3],const float ambient[3],float gain,unsigned char out[3])
+{
+    double value[3],peak,scale;unsigned char result[3];uint32_t i;
+    if(!accumulated || !ambient || !out || !isfinite(gain))return RF_RANGE;
+    for(i=0;i<3;++i) {
+        if(!isfinite(accumulated[i]) || accumulated[i]<0 || !isfinite(ambient[i]) || ambient[i]<0 || ambient[i]>1)return RF_RANGE;
+        value[i]=accumulated[i];
+    }
+    peak=value[0]>value[1]?value[0]:value[1];if(value[2]>peak)peak=value[2];
+    if(peak>1) {
+        scale=1.0/peak;value[0]=(float)(value[0]*scale);value[1]=(float)(value[1]*scale);value[2]*=scale;
+    }
+    if(gain>=0)for(i=0;i<3;++i) {
+        value[i]=(float)(value[i]*gain);
+        if(gain>1){if(value[i]>1)value[i]=1;}
+        else if(value[i]<ambient[i])value[i]=ambient[i];
+    }
+    for(i=0;i<3;++i)result[i]=(unsigned char)(uint32_t)(value[i]*255.0);
+    if(gain<0 && peak>1)result[2]=(unsigned char)vfx_blue_byte(accumulated[2],(float)peak);
+    memcpy(out,result,3);return RF_OK;
+}
