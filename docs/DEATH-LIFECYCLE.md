@@ -10644,3 +10644,12 @@ rf_scene_npc_contact_dispatch validates the registered NPC/model owner, reads it
 The damage fixture publishes contact packets through rf_scene_npc_collision_publish, then checks stale-source rejection, special-contact precedence with a failing timed service preserving response, object target forwarding, and Driller route selection from material/velocity/normal. These service callbacks are diagnostic boundaries, not substitutes installed as gameplay effects. Actor and class data are restored. PC/XEMU telemetry is compared below after native completion.
 
 replay-20260913-074137 passes180 frames on base67108864/plugged0 with exact PC contact-dispatch record [4,3,305419896,0]. Both builds and22 CTest checks pass; normal Xbox image restored/rebuilt. Concrete effect/object service adapters and the continuous physics caller remain open.
+
+
+### Registered object-contact backend (2026-09-13)
+
+rf_scene_npc_object_contact validates the source NPC and feeds the verified object branch from real registry ownership. Missing generations return an absent target. Registered NPC/player wrappers, mover wrappers and clutter state owners are identified by pointer/handle identity, not an assumed shared memory prefix (glare and other registry layouts differ). NPC actor contacts call the retained41a000 damage/squash service. Explicit extension services own current-clutter identity, player-target behavior, pickup and other live families; a missing required service is an error, not a successful ignored contact. No allocation.
+
+The existing restored-state destruction fixture now routes its stationary and destructive NPC cases through object lookup and the core response mapping. New checks cover stale source rejection and absent target response2; stationary and destructive NPC cases return1. Expected health and positional squash audio comparisons remain in place, with only one actual squash playback. This remains a prepared object-route service; continuous scheduling and unimplemented target families remain open.
+
+replay-20260913-074702 passes180 frames on stock64MiB, exact PC object-contact record [4,2,1,0] and unchanged destruction health/audio checks. Both builds and22 CTest checks pass; normal Xbox image restored/rebuilt.

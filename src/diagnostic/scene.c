@@ -4536,6 +4536,38 @@ static uint32_t campaign_damage_test_playing(void *c,uint32_t voice)
 {(void)c;(void)voice;rf_scene_npc_damage_test_words[63]++;return 0;}
 static uint32_t campaign_damage_test_play(void *c,uint32_t target)
 {(void)c;(void)target;rf_scene_npc_damage_test_words[63]++;return UINT32_MAX;}
+uint32_t rf_scene_object_contact_test[4];
+typedef struct scene_object_contact_context {const rf_scene_npc_contact_destroy_services *services;const rf_entity_contact_object_backend *extra;rf_entity_contact_object_view object;} scene_object_contact_context;
+static int scene_object_contact_lookup(void *context,uint32_t handle,const rf_entity_contact_object_view **out)
+{
+    scene_object_contact_context *c=context;void *registered=rf_object_registry_lookup(&campaign_registry,handle);uint32_t i;
+    *out=NULL;if(!registered)return RF_OK;c->object.handle=handle;
+    if(registered==&campaign_player_object && campaign_player_object.handle==handle){c->object.type=0;*out=&c->object;return RF_OK;}
+    for(i=0;i<campaign_npc_body_count;++i)if(registered==&campaign_npc_bodies[i].registration && campaign_npc_bodies[i].registration.handle==handle){c->object.type=0;*out=&c->object;return RF_OK;}
+    for(i=0;i<campaign_mover_count;++i)if(registered==campaign_mover_wrappers+i && campaign_mover_wrappers[i].handle==handle){c->object.type=9;*out=&c->object;return RF_OK;}
+    for(i=0;i<campaign_clutter_records.count;++i)if(campaign_clutter_bodies && campaign_clutter_bodies[i] && registered==&campaign_clutter_bodies[i]->state && campaign_clutter_bodies[i]->state.handle==handle){c->object.type=4;*out=&c->object;return RF_OK;}
+    return c->extra && c->extra->lookup?c->extra->lookup(c->extra->context,handle,out):RF_NOT_FOUND;
+}
+static int scene_object_contact_current(void *context,uint32_t handle,uint32_t *match)
+{scene_object_contact_context *c=context;return c->extra && c->extra->current_clutter?c->extra->current_clutter(c->extra->context,handle,match):RF_NOT_FOUND;}
+static int scene_object_contact_actor(void *context,uint32_t source,uint32_t target,uint32_t *respond)
+{
+    scene_object_contact_context *c=context;
+    if(target==(uint32_t)campaign_player_view.handle)return c->extra && c->extra->actor?c->extra->actor(c->extra->context,source,target,respond):RF_NOT_FOUND;
+    return rf_scene_npc_actor_contact(source,target,c->services,respond);
+}
+static int scene_object_contact_pickup(void *context,uint32_t target,uint32_t source,uint32_t a,uint32_t b)
+{scene_object_contact_context *c=context;return c->extra && c->extra->pickup?c->extra->pickup(c->extra->context,target,source,a,b):RF_NOT_FOUND;}
+int rf_scene_npc_object_contact(uint32_t source,uint32_t target,const rf_scene_npc_contact_destroy_services *services,
+    const rf_entity_contact_object_backend *extra,uint32_t *decision)
+{
+    campaign_npc_body *owner;rf_entity_pose *pose;uint32_t cls;int status;
+    scene_object_contact_context context={services,extra,{0}};
+    rf_entity_contact_object_backend backend={&context,scene_object_contact_lookup,scene_object_contact_current,scene_object_contact_actor,scene_object_contact_pickup};
+    if(!decision)return RF_RANGE;
+    status=campaign_npc_motion_owner(source,&owner,&cls,&pose);if(status)return status;
+    return rf_entity_contact_object_dispatch(&owner->view,target,&backend,decision);
+}
 static void campaign_contact_destroy_fixture_notify(void *context,uint32_t kind,uint32_t target,float value,uint32_t source)
 {(void)context;(void)kind;(void)target;(void)value;(void)source;}
 static int campaign_contact_destroy_fixture(campaign_npc_body *owner,const rf_damage_effect_backend *effects)
@@ -4560,17 +4592,26 @@ static int campaign_contact_destroy_fixture(campaign_npc_body *owner,const rf_da
     campaign_seeds.classes[source_class].physics.use_kind=1;
     owner->damage.effects.health=2000000;owner->body.state.mass=1;owner->damage.effects.armor=0;initial=*owner;
     memset(source->body.state.velocity,0,12);memset(source->body.state.vector_c8,0,12);
-    status=rf_scene_npc_actor_contact(source->registration.handle,owner->registration.handle,NULL,&respond);
-    if(!status && (respond || memcmp(owner,&initial,sizeof(initial)) || random.value!=1 || rf_scene_npc_contact_destroy_audio[0]))status=RF_FORMAT;
+    memset(rf_scene_object_contact_test,0,sizeof(rf_scene_object_contact_test));respond=99;
+    status=rf_scene_npc_object_contact(source->registration.handle^0x10000,owner->registration.handle,NULL,NULL,&respond);
+    if(status!=RF_NOT_FOUND || respond!=99)return RF_FORMAT;
+    ++rf_scene_object_contact_test[0];
+    status=rf_scene_npc_object_contact(source->registration.handle,owner->registration.handle^0x10000,NULL,NULL,&respond);
+    if(status || respond!=2)return RF_FORMAT;
+    ++rf_scene_object_contact_test[0];rf_scene_object_contact_test[1]=respond;
+    status=rf_scene_npc_object_contact(source->registration.handle,owner->registration.handle,NULL,NULL,&respond);
+    if(!status && (respond!=1 || memcmp(owner,&initial,sizeof(initial)) || random.value!=1 || rf_scene_npc_contact_destroy_audio[0]))status=RF_FORMAT;
     if(!status)++rf_scene_npc_contact_destroy_test[0];
+    if(!status)++rf_scene_object_contact_test[0];
     source->body.state.velocity[0]=1;
     if(!status)status=rf_scene_npc_damage(owner->registration.handle,&request,1,0x3f800000,&backend,&amount);
     expected=*owner;*owner=initial;
     if(!status && !(expected.damage.effects.health<initial.damage.effects.health && expected.damage.effects.health>0))status=RF_FORMAT;
-    if(!status)status=rf_scene_npc_actor_contact(source->registration.handle,owner->registration.handle,&services,&respond);
-    if(!status && (respond || memcmp(owner,&expected,sizeof(expected)) || memcmp(rf_scene_npc_contact_destroy_audio+9,owner->published,12)))status=RF_FORMAT;
+    if(!status)status=rf_scene_npc_object_contact(source->registration.handle,owner->registration.handle,&services,NULL,&respond);
+    if(!status && (respond!=1 || memcmp(owner,&expected,sizeof(expected)) || memcmp(rf_scene_npc_contact_destroy_audio+9,owner->published,12)))status=RF_FORMAT;
     if(!status){++rf_scene_npc_contact_destroy_test[0];memcpy(rf_scene_npc_contact_destroy_test+1,&initial.damage.effects.health,4);
         memcpy(rf_scene_npc_contact_destroy_test+2,&owner->damage.effects.health,4);}else ++rf_scene_npc_contact_destroy_test[3];
+    if(!status)++rf_scene_object_contact_test[0];else ++rf_scene_object_contact_test[3];rf_scene_object_contact_test[2]=respond;
     *owner=saved;*source=source_saved;campaign_seeds.classes[source_class].physics.use_kind=saved_kind;return status;
 }
 

@@ -355,6 +355,7 @@ int main(int argc,char **argv)
             printf("DRILLER_FEEDBACK_TEST");for(i=0;i<8;++i)printf(" %u",rf_scene_driller_feedback_test[i]);printf("\n");
             printf("CONTACT_SPLASH_ASSETS");for(i=0;i<8;++i)printf(" %u",rf_scene_contact_splash_assets[i]);printf("\n");
             printf("CONTACT_DISPATCH_TEST");for(i=0;i<4;++i)printf(" %u",rf_scene_contact_dispatch_test[i]);printf("\n");
+            printf("OBJECT_CONTACT_TEST");for(i=0;i<4;++i)printf(" %u",rf_scene_object_contact_test[i]);printf("\n");
             printf("NPC_CONTACT_DESTROY_TEST");for(i=0;i<4;++i)printf(" %u",rf_scene_npc_contact_destroy_test[i]);printf("\n");
             printf("NPC_IMPACT_GROUPS %u %u %u\n",rf_scene_npc_impact_groups[0],rf_scene_npc_impact_groups[1],rf_scene_npc_impact_groups[2]);
             printf("NPC_FALL %u %u %u %u %u %u\n",rf_scene_npc_fall_test[0],rf_scene_npc_fall_test[1],rf_scene_npc_fall_test[2],rf_scene_npc_fall_test[3],rf_scene_npc_fall_test[4],rf_scene_npc_fall_test[5]);
