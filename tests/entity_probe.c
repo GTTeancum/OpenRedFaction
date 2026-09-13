@@ -420,6 +420,16 @@ int main(int argc,char **argv)
         }
         return ferror(stdin)?3:0;
     }
+    if(argc==2 && !strcmp(argv[1],"--ai-transition")) {
+        _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
+        struct {rf_entity_ai_transition_state state;uint32_t operation;int32_t requested;uint32_t a,b;float clock;uint32_t network_a,network_b;} input;
+        while(fread(&input,sizeof(input),1,stdin)==1) {
+            int32_t status=input.operation?rf_entity_ai_set_state(&input.state,input.requested,input.clock):
+                rf_entity_ai_set_action(&input.state,input.requested,input.a,input.b,input.clock,input.network_a,input.network_b);
+            if(fwrite(&status,4,1,stdout)!=1 || fwrite(&input.state,sizeof(input.state),1,stdout)!=1)return 3;
+        }
+        return ferror(stdin)?3:0;
+    }
     if(argc==2 && !strcmp(argv[1],"--navigation-reset")) {
         struct {rf_entity_navigation_route route;int32_t now;} wire;int32_t result;
         _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);

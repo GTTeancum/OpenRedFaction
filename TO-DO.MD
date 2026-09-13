@@ -43,6 +43,9 @@ Extracted rod factory stage passes80 compiled checks and512 original/PC/NXDK fac
 All431 installed clutter definitions disable rod glare; defer live binding until an authored caller requires it.
 Verify authored NPC/vehicle beams, bind player state and complete transparent scene ordering.
 
+AI action/state setters407e20/407e80 match2048 original/PC/NXDK cases.
+Reconstruct408ac0 selection and bind retained state before live special landing.
+
 The stationary startup-NPC animation gate matches PC/stock64MiB XEMU;
 footstep selection and support-material helpers are verified but not live.
 Detailed source evidence and test scope are recorded in docs/NPC-MARKERS.md.

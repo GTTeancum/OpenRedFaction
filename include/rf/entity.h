@@ -47,6 +47,19 @@ void rf_entity_position_snapshot(uint32_t *flags,float previous[3],const float p
 int rf_entity_impact_damage(float impact_speed,uint32_t falling,int32_t contact_material,
     uint32_t kind_one,uint32_t object_flags,float *amount,uint32_t *eligible);
 
+/* Inventory-relative407e20/407e80 fields; actor offsets are these plus2a0.
+ * Unknown intervening storage remains owned by the caller. */
+typedef struct rf_entity_ai_transition_state {
+    int32_t action_280,clock_288;uint32_t argument_28c,argument_290;
+    int32_t state_2b4,clock_2bc;uint32_t flags_530;
+} rf_entity_ai_transition_state;
+/*6460f0 is truncated toward zero, without scaling. Clock must be finite and
+ * representable as signed32. Errors preserve state. Network flags use low
+ * bytes; either nonzero maps action2 to3 and clears flag mask0f800000. */
+int rf_entity_ai_set_action(rf_entity_ai_transition_state *state,int32_t action,
+    uint32_t argument_a,uint32_t argument_b,float clock,uint32_t network_a,uint32_t network_b);
+int rf_entity_ai_set_state(rf_entity_ai_transition_state *state,int32_t requested,float clock);
+
 typedef struct rf_entity_landing_state {
     uint32_t actor_flags,class_flags,body_flags;int32_t action;
 } rf_entity_landing_state;

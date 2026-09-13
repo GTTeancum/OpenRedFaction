@@ -9496,3 +9496,27 @@ The only textual Rod Glare declaration belongs to Tube Light and is
 commented out. artifacts/clutter-rod-inventory.json records this local audit.
 Live rod binding is therefore deferred pending an authored caller; this
 does not prove absence of runtime-generated rods or complete volume support.
+
+
+AI transition setters (2026-09-13): rf_entity_ai_set_action and
+rf_entity_ai_set_state reconstruct full407e20 and407e80. Offsets in the
+compact adapter are relative to inventory actor2a0: action280, clock288,
+arguments28c/290, state2b4, clock2bc and flags530. Both read6460f0 as float
+and truncate through original573528 __ftol without scaling. The action
+setter reads low-byte globals6fc4d8/64ecb9; either nonzero changes requested
+action2 to3 and clears0f800000. It otherwise preserves flags. The state
+setter changes only2b4/2bc. Shared clock domain is finite signed32; invalid
+clock/null state rejects before any write. No action-range restriction is
+inferred from call sites. Unknown intervening actor bytes remain unmodeled.
+verify_ai_transition.py executes unhooked original routines including __ftol
+and compares2048 complete footprints with PC and compiled NXDK. It covers
+fractional/negative/signed32-edge clocks, low-byte network inputs, arbitrary
+argument bits and action2 remapping; ten invalid-clock and two null-state
+guards pass. Both builds and22 CTests pass. The first PC probe comparison
+exposed missing binary stdin/stdout setup in the new test branch; fixed
+without altering shared code, then the full comparison passed.
+These setters are dependencies of408ac0, not a reconstructed AI scheduler.
+Existing408dc0 weapon presence and408d90 weapon classification are already
+shared and should be reused. Full408ac0 selection,4087a0 event arbitration,
+retained transition ownership and special-class landing remain open. No
+native XEMU run or new visuals claimed for this core-only change.

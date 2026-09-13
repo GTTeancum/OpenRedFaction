@@ -6,6 +6,22 @@
 #include <string.h>
 #include <stddef.h>
 #include <stdlib.h>
+int rf_entity_ai_set_action(rf_entity_ai_transition_state *s,int32_t action,
+    uint32_t a,uint32_t b,float clock,uint32_t network_a,uint32_t network_b)
+{
+    if(!s || !isfinite(clock) || (double)clock < -2147483648.0 || (double)clock >= 2147483648.0)return RF_RANGE;
+    if((network_a|network_b)&255u) {
+        if(action==2)action=3;
+        s->flags_530&=0xf07fffffu;
+    }
+    s->action_280=action;s->clock_288=(int32_t)clock;s->argument_28c=a;s->argument_290=b;
+    return RF_OK;
+}
+int rf_entity_ai_set_state(rf_entity_ai_transition_state *s,int32_t requested,float clock)
+{
+    if(!s || !isfinite(clock) || (double)clock < -2147483648.0 || (double)clock >= 2147483648.0)return RF_RANGE;
+    s->state_2b4=requested;s->clock_2bc=(int32_t)clock;return RF_OK;
+}
 rf_entity_loader_created *rf_entity_loader_create(const rf_entity_loader_creation *input,
     rf_entity_loader_created *(*create)(void *,const rf_entity_loader_create_request *),void *context)
 {
