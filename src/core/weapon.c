@@ -22,6 +22,19 @@ int rf_weapon_world_tag(rf_weapon_world_model models[64],int32_t weapon,uint32_t
     *tag=*cached;return RF_OK;
 }
 
+int rf_weapon_world_visibility(rf_weapon_world_view *view,const rf_weapon_world_model models[64],uint32_t *model)
+{
+    if(!view || !models || !model)return RF_RANGE;
+    view->flags_810&=~0x200u;*model=0;
+    if((view->flags_810&1) || view->weapon==-1 || !(view->class_flags_724&8) ||
+       (view->inventory_flags_7d0&0x200) || view->attachment_75c!=-1 ||
+       (view->linked_kind!=4 && (view->flags_810&0x800)) || view->linked_kind==1)return RF_OK;
+    if(view->weapon==view->special_weapon && view->player_present && !(view->player_1044&255))return RF_OK;
+    *model=rf_weapon_world_model_token(models,view->weapon);
+    if(view->player_present && (view->player_103c&255))*model=view->override_model;
+    return RF_OK;
+}
+
 int rf_weapon_place_in_hand(const rf_weapon_hand_source *source,int32_t hand,
     rf_weapon_world_model models[64],const rf_weapon_hand_ops *ops,void *context,rf_weapon_hand_placement *result)
 {

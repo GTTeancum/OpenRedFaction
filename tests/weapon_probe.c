@@ -18,6 +18,15 @@ int main(int argc,char **argv)
     int32_t status; unsigned i;
     _Static_assert(sizeof(input)==2284,"Weapon reset wire layout");
     _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
+    if(argc==2 && !strcmp(argv[1],"--world-visibility")) {
+        struct {rf_weapon_world_view view;rf_weapon_world_model models[64];} in;
+        struct {int32_t status;rf_weapon_world_view view;uint32_t model;} out;
+        while(fread(&in,sizeof(in),1,stdin)==1) {
+            out.model=0xdeadbeef;out.status=rf_weapon_world_visibility(&in.view,in.models,&out.model);out.view=in.view;
+            if(fwrite(&out,sizeof(out),1,stdout)!=1)return 1;
+        }
+        return ferror(stdin)?1:0;
+    }
     if(argc==2 && !strcmp(argv[1],"--world-tags"))return weapon_world_probe();
     if(argc==2 && !strcmp(argv[1],"--hand-placement"))return weapon_hand_probe();
     if(argc==2 && !strcmp(argv[1],"--player-slots"))return weapon_slots_probe();

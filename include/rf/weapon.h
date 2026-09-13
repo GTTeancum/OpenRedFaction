@@ -15,6 +15,18 @@ uint32_t rf_weapon_world_model_token(const rf_weapon_world_model models[64],int3
 int rf_weapon_world_tag(rf_weapon_world_model models[64],int32_t weapon,uint32_t kind,
     int (*lookup)(void *,uint32_t,const char *,int32_t *),void *context,int32_t *tag);
 
+typedef struct rf_weapon_world_view {
+    uint32_t flags_810,class_flags_724,inventory_flags_7d0;
+    int32_t weapon,attachment_75c,linked_kind;
+    uint32_t player_present,player_1044,player_103c;
+    int32_t special_weapon;uint32_t override_model;
+} rf_weapon_world_view;
+/*421c40..421d47: clear810 bit200, visibility gates, select loaded model.
+ * linked_kind is the stable resolved486c90 class (or0 for absent).
+ * Player byte fields use their low byte. No draw/hand loop or final bit200 set. */
+int rf_weapon_world_visibility(rf_weapon_world_view *view,
+    const rf_weapon_world_model models[64],uint32_t *model);
+
 typedef struct rf_weapon_hand_source {
     uint32_t actor_model;int32_t weapon;uint32_t hand_count;int32_t hands[2];
     float position[3],basis[9];
