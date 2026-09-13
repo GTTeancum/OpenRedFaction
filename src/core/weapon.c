@@ -87,6 +87,33 @@ int rf_weapon_place_in_hand(const rf_weapon_hand_source *source,int32_t hand,
     return RF_OK;
 }
 
+int rf_weapon_muzzle_pose(const rf_weapon_muzzle_source *source,rf_weapon_world_model models[64],
+    const rf_weapon_hand_ops *ops,int (*aim)(void *,const float position[3],float basis[9]),
+    void *context,float position[3],float basis[9])
+{
+    int32_t index,tag,hand;uint32_t model,i;int status;
+    float hand_basis[9]={0},hand_point[3]={0},muzzle_basis[9]={0},muzzle_point[3]={0};
+    if(!source || !models || !position || !basis || source->primary_count>2)return RF_RANGE;
+    index=source->weapon<source->primary_limit?source->primary_index:source->secondary_index;
+    status=rf_weapon_world_tag(models,source->weapon,1,ops?ops->tag:NULL,context,&tag);if(status)return status;
+    model=rf_weapon_world_model_token(models,source->weapon);
+    if(tag!=-1 && model && source->primary_count) {
+        if(index<0 || index>=2)return RF_RANGE;
+        hand=source->weapon<source->primary_limit?source->primary_tags[index]:source->secondary_tags[index];
+        if(!ops || !ops->transform)return RF_NOT_FOUND;
+        status=ops->transform(context,source->actor_model,hand,source->basis,source->position,hand_basis,hand_point);if(status)return status;
+        status=ops->transform(context,model,tag,hand_basis,hand_point,muzzle_basis,muzzle_point);if(status)return status;
+        memcpy(position,muzzle_point,12);memcpy(basis,hand_basis,36);
+        if(!aim)return RF_NOT_FOUND;return aim(context,position,basis);
+    }
+    memcpy(basis,source->eye_basis,36);
+    for(i=0;i<3;++i) {
+        float offset=(float)((double)source->eye_basis[6+i]*0.300000011920928955078125);
+        position[i]=(float)((double)source->eye[i]+offset);
+    }
+    return RF_OK;
+}
+
 int rf_weapon_world_draw_run(rf_weapon_world_draw *draw,const rf_weapon_world_model models[64],
     uint32_t scratch[20],const rf_weapon_world_draw_ops *ops,void *context)
 {

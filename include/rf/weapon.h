@@ -56,6 +56,20 @@ typedef struct rf_weapon_hand_ops {
 int rf_weapon_place_in_hand(const rf_weapon_hand_source *source,int32_t hand,
     rf_weapon_world_model models[64],const rf_weapon_hand_ops *ops,void *context,rf_weapon_hand_placement *result);
 
+typedef struct rf_weapon_muzzle_source {
+    uint32_t actor_model;int32_t weapon,primary_limit,primary_index,secondary_index;
+    uint32_t primary_count;int32_t primary_tags[2],secondary_tags[2];
+    float position[3],basis[9],eye[3],eye_basis[9];
+} rf_weapon_muzzle_source;
+/*41b5a0: primary count gates both weapon families; secondary tag lookup uses
+ * the separate original actor294 owner. Inputs remain stable across callbacks.
+ * Muzzle origin uses the hand pose directly (no grip correction). Aim is the
+ * explicit41b4c0 service, reached only after both transforms. Missing model/tag
+ * or primary hands uses eye + 0.3f*eye forward. Errors preserve completed work. */
+int rf_weapon_muzzle_pose(const rf_weapon_muzzle_source *,rf_weapon_world_model models[64],
+    const rf_weapon_hand_ops *,int (*aim)(void *,const float position[3],float basis[9]),
+    void *,float position[3],float basis[9]);
+
 typedef struct rf_weapon_world_draw {
     rf_weapon_world_view view;uint32_t hand_count;float recoil;uint32_t special_view,tint;
 } rf_weapon_world_draw;

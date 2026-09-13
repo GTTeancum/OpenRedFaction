@@ -82,6 +82,7 @@ SP pickup completion order/timer matches1024 original/PC/NXDK cases and6 callbac
 Normal-SP acquisition4030d0 matches2048 original/PC/NXDK cases with actual401470 no-op notification; bind inventory creation, equip/reset and full pickup grants.
 Startup grants now compose with concrete42ab20 animation selection (220 loaded PC cases); connect retained inventories/selections to live scene consumers.
 All63 class defaults now retain optional melee (four authored classes); include it when creating startup inventories.
+Muzzle-origin41b5a0 now matches2048 original/PC/NXDK cases plus7 NXDK failure guards; bind target-aim41b4c0, secondary tag ownership and firing dispatch.
 Authored NPC primary/secondary/melee startup grants now populate retained inventories and selected animations; complete active firing resource services, weapon models and combat scheduling.
 Third-person model/tag accessors and full418e60 hand/grip placement each match2048 original/PC/NXDK cases; reconstruct421c40 visibility/draw dispatch and bind actual transforms/model loading.
 Third-person model residency now follows NPC inventories and matches180-frame stock64MiB XEMU (8200 bytes in L1S1); complete textures and draw dispatch.

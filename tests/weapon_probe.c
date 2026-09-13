@@ -10,6 +10,7 @@
 #include "weapon_startup_probe.h"
 #include "weapon_world_probe.h"
 #include "weapon_hand_probe.h"
+#include "weapon_muzzle_probe.h"
 #include "weapon_world_draw_probe.h"
 int main(int argc,char **argv)
 {
@@ -46,6 +47,7 @@ int main(int argc,char **argv)
         return ferror(stdin)?1:0;
     }
     if(argc==2 && !strcmp(argv[1],"--world-tags"))return weapon_world_probe();
+    if(argc==2 && !strcmp(argv[1],"--muzzle"))return weapon_muzzle_probe();
     if(argc==2 && !strcmp(argv[1],"--hand-placement"))return weapon_hand_probe();
     if(argc==2 && !strcmp(argv[1],"--player-slots"))return weapon_slots_probe();
     if(argc==2 && !strcmp(argv[1],"--pickup-amount")) {

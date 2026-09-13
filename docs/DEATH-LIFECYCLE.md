@@ -10966,3 +10966,26 @@ WEAPON_DRAW=[180,7,7,648,5022660,3343659839] is unchanged from the preceding
 renderer capture. Both builds and all22 CTests pass. No new screenshot: this
 changes attachment ownership, not the visible scene. Lighting, LOD, player
 overrides and active firing/recoil remain open.
+
+## Weapon muzzle origin41b5a0 (2026-09-13)
+
+rf_weapon_muzzle_pose reconstructs the complete muzzle-origin orchestration.
+The original captures primary510 or secondary50c hand index before looking up
+muzzle_1. It gates both families on class29c primary count1d4, then selects
+primary tags from29c+1d4 or secondary tags from294+1e0. The second class owner
+must not be silently replaced by the primary owner. Both transforms use the
+raw hand pose, without418e60 grip correction. Output basis initially copies
+the hand basis, not the muzzle-tag basis, before41b4c0 target aiming. Missing
+model/tag or zero primary count copies eye basis and eye+0.3f*eye forward.
+The C API requires stable source inputs during callbacks and checks local
+capacity/index bounds. Target aiming remains an explicit service.
+
+verify_weapon_muzzle.py runs original41b5a0 and real model/tag/list/arithmetic
+callees. Only503220 lookup,5034f0 transforms and41b4c0 aim are supplied, with
+arguments and ordering checked. All2048 cases match PC and compiled NXDK
+bytes at x87 control027f:1799 fallback,102 tag lookups,498 transforms,249 aim
+calls. Seven NXDK callback-failure/null-output guards preserve documented
+output prefixes and cache behavior. Evidence: artifacts/weapon-muzzle.json.
+Both builds and all22 CTests pass. This adds no live scene firing or new
+XEMU replay; replay111110 remains the latest native scene evidence. Bind
+real aiming, secondary owners and firing consumers next.
