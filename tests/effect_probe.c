@@ -1,4 +1,5 @@
 #include "rf/effect.h"
+#include "rf/glare.h"
 #include "rf/particle_pool.h"
 #include "rf/visibility.h"
 #include "rf/level_particles.h"
@@ -24,8 +25,24 @@ static int render_dispatch_white(void *c){return render_dispatch_record(c,1);}
 static int render_dispatch_kind(void *c,uint32_t model,uint32_t *out){render_dispatch_fixture *f=c;(void)model;*out=f->wire[3];return render_dispatch_record(f,3);}
 static int render_dispatch_prepare(void *c,uint32_t model){(void)model;return render_dispatch_record(c,4);}
 static int render_dispatch_render(void *c,uint32_t kind){return render_dispatch_record(c,5+kind);}
+static uint32_t glare_refresh_value,glare_refresh_calls;static int glare_refresh_error;
+static int glare_refresh_search(void *context,rf_glare_base_owner *owner,const float camera[3],uint32_t *result)
+{(void)context;(void)owner;(void)camera;++glare_refresh_calls;*result=glare_refresh_value;return glare_refresh_error;}
 int main(int argc,char **argv)
 {
+    if(argc==2 && !strcmp(argv[1],"--glare-refresh")) {
+        uint32_t wire[7];_setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
+        while(fread(wire,4,7,stdin)==7) {
+            rf_glare_base_owner owner={0};float camera[3]={0};uint32_t visible=0x12345678,output[5];int status;
+            owner.handle=wire[0];owner.state.active=1;owner.state.cached_face=wire[3];owner.state.reserved[0]=(uint8_t)wire[4];
+            glare_refresh_value=wire[5];glare_refresh_error=(int)wire[6];glare_refresh_calls=0;
+            status=rf_glare_refresh_visibility(&owner,camera,wire[1],(int32_t)wire[2],glare_refresh_search,NULL,&visible);
+            output[0]=(uint32_t)status;output[1]=owner.state.cached_face;output[2]=owner.state.reserved[0];output[3]=glare_refresh_calls;output[4]=visible;
+            if(fwrite(output,4,5,stdout)!=5)return 3;
+        }
+        return 0;
+    }
+
     if(argc==2 && !strcmp(argv[1],"--object-render-dispatch")) {
         render_dispatch_fixture f;rf_object_render_backend b={render_dispatch_white,render_dispatch_kind,render_dispatch_prepare,render_dispatch_render,&f};
         _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);

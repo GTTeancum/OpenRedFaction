@@ -318,6 +318,20 @@ uint32_t rf_clutter_material_index(const char *name)
     for(i=0;i<10;++i)if(clutter_skin_name_equal(names[i],name))return i;
     return 0;
 }
+int rf_glare_refresh_visibility(rf_glare_base_owner *owner,const float camera[3],
+    uint32_t frame,int32_t face_cache_state,
+    int (*search)(void *,rf_glare_base_owner *,const float[3],uint32_t *),void *context,uint32_t *visible)
+{
+    uint32_t result;int status;
+    if(!owner || !camera || !search || !visible)return RF_RANGE;
+    if(!owner->state.active || owner->state.word_2cc)return RF_RANGE;
+    if(face_cache_state>=0)owner->state.cached_face=0;
+    if(!((owner->handle^frame)&1)) {
+        status=search(context,owner,camera,&result);if(status)return status;
+        owner->state.reserved[0]=(uint8_t)result;
+    }
+    *visible=owner->state.reserved[0]!=0;return RF_OK;
+}
 int rf_glare_occluder_test(const rf_collision_visibility_object *candidate,
     uint32_t candidate_handle,uint32_t excluded,const rf_glare_base_owner *glare,
     const float camera[3],const rf_collision_visibility_backend *backend,uint32_t *blocked)

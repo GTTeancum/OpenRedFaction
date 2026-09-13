@@ -77,6 +77,15 @@ int rf_glare_base_open(const rf_glare_create_descriptor *descriptor,
  * Then release body/global link/heap and recycle the handle. NULL repeats OK;
  * linked glare state rejects close. External effects must already be retired. */
 int rf_glare_base_close(rf_glare_base_owner **owner,rf_object_registry *registry,rf_object_list *objects);
+/*414a25..414a73 standard corona visibility refresh. Caller has already checked
+ * active28c and word2cc==0 and the parent/corona gates. face_cache_state is the
+ * signed global5a3a34 read by actual4dbc40: nonnegative clears cached face.
+ * Search runs when (handle XOR frame)&1 is zero; low byte replaces reserved[0]
+ * (original28d). Otherwise reuse that byte. Error preserves visible output,
+ * but completed cache invalidation and callback effects remain. */
+int rf_glare_refresh_visibility(rf_glare_base_owner *owner,const float camera[3],
+    uint32_t frame,int32_t face_cache_state,
+    int (*search)(void *,rf_glare_base_owner *,const float[3],uint32_t *),void *context,uint32_t *visible);
 typedef struct rf_glare_services {
     int (*tag_pose)(void *,uint32_t,int32_t,float[12]);void *context;
 } rf_glare_services;

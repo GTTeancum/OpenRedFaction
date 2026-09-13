@@ -8687,3 +8687,23 @@ The harness now checks two snapshots and query count against actual glare
 creation. Stock64MiB XEMU replay-20260912-213732 passes180frames with
 GLARE_SEARCH [1,220,5,220,3675683277,34344,315,0], exact PC parity:5 visible,
 215 blocked,220 agreeing repeats. No new visual or complete campaign claim.
+
+
+## Corona alternating visibility refresh (2026-09-12)
+
+rf_glare_refresh_visibility reconstructs414a25..414a73/414c69 within414860.
+It requires the caller to have passed corona/parent gates, active28c and
+word2cc==0. Actual4dbc40 returns signed(global5a3a34)>=0; that state clears
+cached face298 before parity testing. The global meaning is not inferred.
+Search runs iff (handle2c XOR frame175460c)&1==0; its low byte replaces28d
+(state.reserved[0] without changing layout). Opposite parity retains the byte.
+Output visibility normalizes nonzero. Callback error preserves visible output
+and previous byte but retains completed face invalidation/callback effects.
+
+verify_glare_refresh.py executes actual original block and4dbc40 with only
+414e00 supplied.1152 original cases and4 port callback-error cases match PC
+and compiled NXDK across signed states, handle/frame parity, cached faces,
+noncanonical visibility bytes and low-byte search results. Builds and21CTest
+pass. No new native replay is claimed: this helper is not yet in the full
+corona schedule. Parent-room gates, special word2cc path, attenuation, sample
+smoothing and actual corona geometry remain to be reconstructed/bound.
