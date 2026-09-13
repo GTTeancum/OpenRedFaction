@@ -108,6 +108,23 @@ int rf_glare_volume_camera_opacity(const float position[3],const float forward[3
     if(dot<-1 || dot>1 || !isfinite(dot))return RF_FORMAT;
     return rf_glare_volume_opacity(acos(dot),cone_degrees,opacity,draw);
 }
+int rf_glare_volume_actor_dimensions(double aim_dot,float class_length,float class_width,
+    rf_random_state *random,float dimensions[2],uint32_t *draw)
+{
+    rf_random_state next;uint32_t sample;float length,width;double scaled,jitter,sum;
+    if(!random || !dimensions || !draw)return RF_RANGE;
+    if(!isfinite(aim_dot) || !isfinite(class_length) || !isfinite(class_width))return RF_FORMAT;
+    if(aim_dot<0){dimensions[0]=class_length;dimensions[1]=class_width;*draw=0;return RF_OK;}
+    if(class_length==0)return RF_FORMAT;
+    scaled=aim_dot*(double)class_length;length=(float)scaled;
+    if(scaled<(double).3f)length=.3f;
+    next=*random;rf_random_next(&next,&sample);
+    jitter=((double).05f-(double)-.05f)*((double)sample/32768.0)+(double)-.05f;
+    sum=jitter+(double)length;length=(float)sum;
+    width=(float)(((double)class_width-(double).3f)*(sum/(double)class_length)+(double).3f);
+    if(!isfinite(length) || !isfinite(width))return RF_FORMAT;
+    dimensions[0]=length;dimensions[1]=width;*random=next;return RF_OK;
+}
 int rf_glare_volume_render(rf_glare_base_owner *owner,const rf_glare_definition *definition,
     const rf_glare_volume_frame *frame,const rf_glare_volume_services *services)
 {

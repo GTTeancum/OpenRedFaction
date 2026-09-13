@@ -31,6 +31,7 @@ Composed nonactor volume routine matches256 original/PC/NXDK cases plus7 failure
 Volume records now share ordinary particle sorting;180-frame stock64MiB replay passes.
 Opt-in scene-volume fixture passes90 animated beams/360 vertices on stock64MiB XEMU.
 Verify authored volume placement and mixed transparent-object ordering.
+Actor volume sizing/RNG matches2210 original/PC/NXDK cases plus6 guards.
 Connect actor gates and complete ordering with other transparent scene objects.
 
 The stationary startup-NPC animation gate matches PC/stock64MiB XEMU;

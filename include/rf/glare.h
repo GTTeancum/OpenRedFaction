@@ -3,6 +3,7 @@
 #include "rf/visibility.h"
 #include "rf/object_registry.h"
 #include "rf/physics.h"
+#include "rf/random.h"
 typedef struct rf_glare_definition {
     char name[64],corona[64],volumetric[64],reflection[64];uint32_t color[3];
     float cone_degrees,intensity,radius_distance,radius_scale,diminish,height,length;
@@ -86,6 +87,15 @@ int rf_glare_volume_opacity(double angle_radians,float cone_degrees,float *opaci
  * with outputs preserved. No parent gates, actor modulation or publication. */
 int rf_glare_volume_camera_opacity(const float position[3],const float forward[3],
     const float camera[3],float cone_degrees,float *opacity,uint32_t *draw);
+/*414406..41441e /4144bd: resolved actor aim dot modulates beam dimensions.
+ * Negative dot suppresses draw without consuming RNG or changing dimensions.
+ * Otherwise one CRT draw follows the0.3 minimum length; the unrounded jitter
+ * sum feeds width scaling. Does not re-enable an already suppressed draw.
+ * Finite inputs/nonzero positive-branch class length required. Errors preserve
+ * outputs and RNG. Actor lookup, aim-vector calculation and branch gates remain
+ * caller-owned. Outputs and RNG must not alias. */
+int rf_glare_volume_actor_dimensions(double aim_dot,float class_length,float class_width,
+    rf_random_state *random,float dimensions[2],uint32_t *draw);
 typedef struct rf_glare_volume_frame {
     float camera[3];int32_t bitmap;uint32_t mode;
 } rf_glare_volume_frame;

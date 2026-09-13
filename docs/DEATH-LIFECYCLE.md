@@ -9333,3 +9333,19 @@ VOLUME_TEST=[90,90,90,90,90,463319277,0,43], exact PC/NXDK agreement.
 Both builds and22 CTest checks pass. Authored volume placement, special-owner
 and actor aim/RNG services, and mixed transparent scene ordering remain open.
 This fixture does not establish PS2 visual parity or a new gameplay scene.
+
+
+Actor volume sizing (2026-09-13): rf_glare_volume_actor_dimensions implements
+414406 negative-dot suppression and4144bd..41450c resolved aim modulation.
+Negative dot preserves class dimensions and RNG, clears draw. Nonnegative
+dot multiplies class length, stores float but compares the unrounded product
+to float0.3, consumes one actual CRT-equivalent random sample for[-0.05,0.05),
+and uses the unrounded jitter sum for width interpolation. Existing draw0
+stays suppressed even while positive modulation consumes RNG. Explicit RNG
+owner is copied until finite outputs succeed. verify_volume_actor_dimensions.py
+executes original504e40/504db0/57312d unchanged and matches2210 PC/NXDK
+dimensions/draw/RNG records, including minimum boundaries and disabled draws.
+Six shared invalid-input guards preserve outputs/state; these are policy,
+not claims about invalid original inputs. Both builds and22 CTest checks pass.
+Actor lookup, aim geometry and branch eligibility remain unbound. No new
+native gameplay or visual parity claim follows from this arithmetic audit.
