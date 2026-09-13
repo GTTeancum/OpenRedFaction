@@ -50,6 +50,23 @@ int rf_level_owned_navigation_open(const rf_level *level,uint32_t budget,
     rf_level_owned_navigation *result);
 void rf_level_owned_navigation_close(rf_level_owned_navigation *navigation);
 
+/* One reusable routing workspace borrows authored node candidates. It owns
+ * mutable adjacency copies (+2 slots/global), two endpoint reference slots,
+ * and count+2 search scratch words. Keys become1..count+2, preserving order
+ * while reserving zero for absent predecessors. Endpoint candidates are NULL
+ * until the request owner binds persistent goal/start nodes. Serialized use;
+ * borrowers and source must outlive requests and retained movement routes. */
+typedef struct rf_level_navigation_workspace {
+    void *storage;rf_entity_navigation_reference *references;
+    rf_entity_navigation_token_list *adjacency;uint32_t *scratch;
+    uint32_t count,allocated_bytes;
+} rf_level_navigation_workspace;
+/* Empty destination; budget includes owner/allocation but not source or
+ * allocator overhead. Failure preserves destination. Close clears workspace. */
+int rf_level_navigation_workspace_open(const rf_level_owned_navigation *source,uint32_t budget,
+    rf_level_navigation_workspace *result);
+void rf_level_navigation_workspace_close(rf_level_navigation_workspace *workspace);
+
 typedef struct rf_level_clutter {
     uint32_t uid;float position[3],matrix[3][3];
     const char *class_name,*name,*resource_name; /* resource_name is the410d30 skin variant. */

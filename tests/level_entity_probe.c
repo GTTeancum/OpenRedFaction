@@ -40,6 +40,24 @@ int main(int argc,char **argv)
         fprintf(stderr,"%u\n",bytes);rf_level_owned_clutter_close(&owned);rf_level_owned_clutter_close(&owned);
         return memcmp(&owned,&zero,sizeof(owned))?4:0;
     }
+    if(argc==4 && !strcmp(argv[3],"--navigation-workspace")) {
+        rf_level_owned_navigation source={0};rf_level_navigation_workspace workspace={0},small={0},zero={0};uint32_t i,j,bytes,edges=0;
+        if(rf_vpp_open(&archive,argv[1]) || rf_level_open(&level,&archive,argv[2]) || rf_level_owned_navigation_open(&level,1024*1024,&source))return 2;
+        if(rf_level_navigation_workspace_open(&source,1024*1024,&workspace))return 4;bytes=workspace.allocated_bytes;
+        if(rf_level_navigation_workspace_open(&source,bytes-1,&small)!=RF_RANGE || memcmp(&small,&zero,sizeof(small)) || rf_level_navigation_workspace_open(&source,bytes,&workspace)!=RF_RANGE)return 4;
+        rf_level_navigation_workspace_close(&workspace);if(rf_level_navigation_workspace_open(&source,bytes,&workspace))return 4;
+        for(i=0;i<source.count+2;++i){
+            rf_entity_navigation_reference *ref=workspace.references+i;rf_entity_navigation_token_list *list=workspace.adjacency+i;
+            if(ref->order_key!=i+1 || ref->neighbors!=list->items || ref->neighbor_count!=list->count)return 4;
+            if(i<source.count){if(ref->candidate!=source.references[i].candidate || list->capacity!=list->count+2 || list->count!=source.references[i].neighbor_count)return 4;
+                for(j=0;j<list->count;++j)if(list->items[j]!=source.references[i].neighbors[j])return 4;
+                edges+=list->count;list->items[list->count]=source.count;list->items[list->count+1]=source.count;
+            }else if(ref->candidate || list->count || list->capacity!=(i==source.count+1?2u:0u))return 4;
+        }
+        printf("%u %u %u\n",source.count,edges,bytes);
+        rf_level_navigation_workspace_close(&workspace);rf_level_navigation_workspace_close(&workspace);if(memcmp(&workspace,&zero,sizeof(zero)))return 4;
+        rf_level_owned_navigation_close(&source);rf_vpp_close(&archive);return 0;
+    }
     if(argc==4 && !strcmp(argv[3],"--navigation")) {
         rf_level_owned_navigation owned={0},small={0},zero={0};uint32_t i,bytes;
         _setmode(_fileno(stdout),_O_BINARY);

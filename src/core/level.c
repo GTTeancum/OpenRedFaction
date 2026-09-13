@@ -418,6 +418,39 @@ int rf_level_owned_navigation_open(const rf_level *level,uint32_t budget,
     }
     *result=next;return RF_OK;
 }
+void rf_level_navigation_workspace_close(rf_level_navigation_workspace *workspace)
+{if(workspace){free(workspace->storage);memset(workspace,0,sizeof(*workspace));}}
+int rf_level_navigation_workspace_open(const rf_level_owned_navigation *source,uint32_t budget,
+    rf_level_navigation_workspace *result)
+{
+    rf_level_navigation_workspace next={0};uint64_t words=2,bytes;uint32_t i,j,n,*pool;
+    if(!source || !result || result->storage || result->references || result->adjacency || result->scratch ||
+       result->count || result->allocated_bytes || source->count>65534 || (source->count && !source->references))return RF_RANGE;
+    n=source->count+2;
+    for(i=0;i<source->count;++i){
+        const rf_entity_navigation_reference *ref=source->references+i;
+        if(!ref->candidate || (ref->neighbor_count && !ref->neighbors))return RF_RANGE;
+        for(j=0;j<ref->neighbor_count;++j)if(ref->neighbors[j]>=source->count)return RF_FORMAT;
+        words+=(uint64_t)ref->neighbor_count+2;
+    }
+    bytes=sizeof(next)+(uint64_t)n*(sizeof(*next.references)+sizeof(*next.adjacency)+sizeof(*next.scratch))+words*4;
+    if(bytes>budget)return RF_RANGE;
+    next.storage=calloc(1,(size_t)(bytes-sizeof(next)));if(!next.storage)return RF_RANGE;
+    next.references=next.storage;next.adjacency=(rf_entity_navigation_token_list *)(next.references+n);
+    next.scratch=(uint32_t *)(next.adjacency+n);pool=next.scratch+n;
+    next.count=source->count;next.allocated_bytes=(uint32_t)bytes;
+    for(i=0;i<n;++i){
+        uint32_t count=i<source->count?source->references[i].neighbor_count:0;
+        uint32_t capacity=i<source->count?count+2:(i==source->count+1?2:0);
+        next.references[i].candidate=i<source->count?source->references[i].candidate:NULL;
+        next.references[i].order_key=i+1;
+        next.adjacency[i]=(rf_entity_navigation_token_list){pool,count,capacity};
+        next.references[i].neighbors=pool;next.references[i].neighbor_count=count;
+        if(count)memcpy(pool,source->references[i].neighbors,count*4);
+        pool+=capacity;
+    }
+    *result=next;return RF_OK;
+}
 static int clutter_string(rf_level_group_reader *r,char **names,uint32_t *remaining,const char **value)
 {
     unsigned char raw[2];uint32_t length;int status=group_read(r,raw,2);if(status)return status;

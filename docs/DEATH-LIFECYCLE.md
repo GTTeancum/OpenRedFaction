@@ -10281,3 +10281,27 @@ verification. Live scene binding still requires writable bounded adjacency
 capacity, reserved endpoints and scratch around campaign_navigation, plus
 NPC-owned retained route lifetime. Existing authored navigation is loaded
 by campaign_navigation_open. No fresh native XEMU or live routing claim.
+
+
+Owned routing workspace for authored navigation (2026-09-13)
+
+rf_level_navigation_workspace_open creates one bounded allocation for
+mutable adjacency copies, references, two endpoint slots and search scratch.
+Each authored adjacency gets two spare links; goal gets no outgoing storage
+and start gets two slots. Candidates borrow the authored navigation owner.
+Endpoint candidates remain NULL until persistent request owners bind them.
+Ordering keys map to1..count+2, preserving authored order while reserving0
+for absent search predecessors. Existing loader keys remain unchanged.
+
+Budget includes owner plus allocation, excluding allocator overhead/source.
+Range/budget failures preserve destination; close frees and clears it. The
+workspace is intended for serialized reuse rather than a graph per NPC.
+Source and endpoint lifetimes must cover retained movement routes.
+
+verify_navigation_workspace.py checks all94 installed navigation sections
+(4752 nodes) through the PC authored loader and compiled NXDK workspace.
+Maximum additional workspace is16456 bytes. Exact/insufficient budgets,
+allocation failure, nonempty destination, candidate borrowing, nonzero keys,
+ordered adjacency, spare-slot writes, scratch isolation and repeated close
+pass. Both builds and22 CTest checks pass. NXDK allocation is supplied in
+the verifier; scene lifetime binding and native XEMU validation remain open.
