@@ -21,7 +21,7 @@ static int death_play_binding_check(campaign_npc_body *owner,rf_entity_state_set
  rf_entity_pose *pose=campaign_model_owners[0].pose;rf_motion_playback_state saved;death_play_fixture f={owner,0,0};
  uint32_t handle=owner->registration.handle;int32_t refs,freeze_slot;
  campaign_motion_catalog.mapping_count=1;campaign_motion_catalog.mappings[0].weapon=-1;
- campaign_motion_catalog.mappings[0].actions[14]=2;owner->death.action_824=-1;
+ owner->selection.mapping.actions[14]=2;owner->death.action_824=-1;
  saved=pose->playback;
  CHECK(rf_scene_npc_death_play(handle^0x10000,14,1,NULL,NULL)==RF_NOT_FOUND && owner->death.action_824==-1 && !memcmp(&saved,&pose->playback,sizeof(saved)));
  CHECK(rf_scene_npc_death_play(handle,15,1,NULL,NULL)==RF_NOT_FOUND && owner->death.action_824==-1);
@@ -50,8 +50,8 @@ static int death_play_binding_check(campaign_npc_body *owner,rf_entity_state_set
   cls.model_kind=2;cls.physics.flags=0x20000;campaign_seeds.classes=&cls;campaign_seeds.class_count=1;
   {
    campaign_npc_body kept=*owner;rf_motion_playback_state kept_pose=pose->playback,started;
-   int32_t old40=campaign_motion_catalog.mappings[0].actions[40];
-   campaign_motion_catalog.mappings[0].actions[40]=2;cls.unholster_delay=.33f;owner->view.flags_810=0;owner->view.flags_7d0=0x100;
+   int32_t old40=owner->selection.mapping.actions[40];
+   owner->selection.mapping.actions[40]=2;cls.unholster_delay=.33f;owner->view.flags_810=0;owner->view.flags_7d0=0x100;
    owner->view.action_520=3;owner->pain.ai_timer=0;owner->unholster.deadline_518=17;
    CHECK(rf_scene_npc_recover_unholster(handle^0x10000,1000,NULL,NULL)==RF_NOT_FOUND);
    CHECK(rf_scene_npc_recover_unholster(handle,-1,NULL,NULL)==RF_RANGE);
@@ -60,13 +60,13 @@ static int death_play_binding_check(campaign_npc_body *owner,rf_entity_state_set
    started=pose->playback;CHECK(rf_scene_npc_recover_unholster(handle,1000,NULL,NULL)==RF_OK && !memcmp(&started,&pose->playback,sizeof(started)));
    owner->view.action_520=13;owner->view.linked_handle=(int32_t)handle;owner->damage.effects.health=1;owner->unholster.stance_7bc=1;owner->pain.ai_timer=0;
    CHECK(rf_scene_npc_recover_unholster(handle,1000,NULL,NULL)==RF_OK && owner->unholster.stance_7bc==1 && owner->pain.ai_timer==0);
-   owner->damage.effects.health=0;campaign_motion_catalog.mappings[0].actions[40]=-1;
+   owner->damage.effects.health=0;owner->selection.mapping.actions[40]=-1;
    CHECK(rf_scene_npc_recover_unholster(handle,1000,NULL,NULL)==RF_OK && owner->unholster.stance_7bc==0 && owner->pain.ai_timer==0);
-   campaign_motion_catalog.mappings[0].actions[40]=2;owner->view.action_520=3;strcpy(bindings->action_sounds[40],"unholster-test");
+   owner->selection.mapping.actions[40]=2;owner->view.action_520=3;strcpy(bindings->action_sounds[40],"unholster-test");
    owner->unholster.deadline_518=17;
    CHECK(rf_scene_npc_recover_unholster(handle,1000,unholster_test_sound,owner)==RF_IO);
    CHECK(owner->death.action_824==40 && owner->pain.ai_timer==0 && owner->unholster.deadline_518==17 && (owner->view.flags_810&0x200));
-   bindings->action_sounds[40][0]=0;campaign_motion_catalog.mappings[0].actions[40]=old40;*owner=kept;pose->playback=kept_pose;
+   bindings->action_sounds[40][0]=0;owner->selection.mapping.actions[40]=old40;*owner=kept;pose->playback=kept_pose;
   }
 
   pose->bone_count=1;skeleton.bones=bones;skeleton.count=pose->bone_count;strcpy(bones[0].name,"spinehead");bones[0].parent=-1;
@@ -98,7 +98,7 @@ static int death_play_binding_check(campaign_npc_body *owner,rf_entity_state_set
   {
    rf_geometry_collision_world world={0};rf_random_state rng={7},reference=rng;uint32_t draw,old_spawn=campaign_spawn;
    rf_scene_death_selection_context selection={&world,NULL,0,&rng};int32_t selected=-99;static const int32_t choices[3]={5,14,15};
-   campaign_motion_catalog.mappings[0].actions[5]=campaign_motion_catalog.mappings[0].actions[15]=campaign_motion_catalog.mappings[0].actions[16]=2;
+   owner->selection.mapping.actions[5]=owner->selection.mapping.actions[15]=owner->selection.mapping.actions[16]=2;
    owner->view.flags_810=0;owner->death.action_824=-1;pose->controller.current=0;pose->controller.next=-1;
    rf_random_next(&reference,&draw);
    CHECK(rf_scene_npc_death_select(&selection,handle,&selected)==RF_OK && selected==choices[draw%3] && rng.value==reference.value && owner->death.action_824==-1);

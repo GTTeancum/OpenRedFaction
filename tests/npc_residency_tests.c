@@ -553,6 +553,11 @@ static int pain_binding_check(void)
     owner.pain.selected_action=-1;
     for(i=0;i<45;++i)campaign_motion_catalog.mappings[0].actions[i]=-1;
     campaign_motion_catalog.mappings[0].actions[22]=2;
+    campaign_motion_catalog.mappings[0].weapon=-1;
+    owner.selection.mapping=campaign_motion_catalog.mappings[0];
+    for(i=0;i<45;++i)owner.selection.action_sounds[i]=bindings->action_sounds[i];
+    /* Different class mapping proves pain uses the retained actor selection. */
+    campaign_motion_catalog.mappings[0].actions[22]=-1;
     campaign_playback_resources.models[0].resources=campaign_playback_resources.resources;
     memset(campaign_playback_resources.resources,0,3*sizeof(*campaign_playback_resources.resources));
     campaign_playback_resources.resources[2].comparison.end_tick=2400;

@@ -271,7 +271,7 @@ dvd_path = '{root.as_posix()}/build/xbox/redfaction-diagnostic.iso'
      report['npc_gate']=npc_gate
      npc_bodies=words(monitor,symbol('rf_scene_npc_bodies'),6)
      assert npc_bodies==expected('NPC_BODIES') and npc_bodies[1]==startup[0],npc_bodies
-     assert 0<npc_bodies[3]<=npc_bodies[4]<=512*1024,npc_bodies
+     assert 0<npc_bodies[3]<=npc_bodies[4]<=640*1024,npc_bodies
      report['npc_bodies']=npc_bodies
      navigation=words(monitor,symbol('rf_scene_navigation'),6)
      assert navigation==expected('NAVIGATION') and navigation[4]<=65536,navigation
@@ -603,6 +603,9 @@ dvd_path = '{root.as_posix()}/build/xbox/redfaction-diagnostic.iso'
      assert driller_feedback==expected('DRILLER_FEEDBACK_TEST') and driller_feedback[7]==0,driller_feedback
      if args.damage_uid==8456:assert driller_feedback==[4,3,2,2,2,122880,600,0],driller_feedback
      report['driller_feedback']=driller_feedback
+     inventory_owners=words(monitor,symbol('rf_scene_npc_inventory_owners'),4)
+     assert inventory_owners==expected('NPC_INVENTORY_OWNERS') and inventory_owners[0]>0,inventory_owners
+     report['npc_inventory_owners']=inventory_owners
      weapon_supply=words(monitor,symbol('rf_scene_weapon_supply'),4)
      assert weapon_supply==expected('WEAPON_SUPPLY') and weapon_supply[:3]==[44,40,4872],weapon_supply
      report['weapon_supply']=weapon_supply
