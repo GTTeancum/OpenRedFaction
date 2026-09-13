@@ -428,6 +428,21 @@ typedef struct rf_damage_object {uint32_t type,flags;float health;} rf_damage_ob
 typedef struct rf_damage_request {
     float amount;uint32_t source;int32_t kind;uint32_t argument6,auxiliary_uid,force;
 } rf_damage_request;
+typedef struct rf_entity_contact_object_view {uint32_t handle,type;} rf_entity_contact_object_view;
+typedef struct rf_entity_contact_object_backend {
+    void *context;
+    int (*lookup)(void *,uint32_t,const rf_entity_contact_object_view **);
+    /*410c70 lookup and class298 identity comparison with current5afb78. */
+    int (*current_clutter)(void *,uint32_t,uint32_t *);
+    int (*actor)(void *,uint32_t,uint32_t,uint32_t *);
+    int (*pickup)(void *,uint32_t,uint32_t,uint32_t,uint32_t);
+} rf_entity_contact_object_backend;
+/*427550 branch with1ec zero and contact1d4 nonzero. Missing object ->2;
+ * matching current clutter ->1 before player check; actor calls41a000;
+ * item calls459560(target,source,1,0). Stable borrowed views, no allocation.
+ * Callbacks execute only on reached paths; errors preserve output decision. */
+int rf_entity_contact_object_dispatch(const rf_entity_view *source,uint32_t target,
+    const rf_entity_contact_object_backend *backend,uint32_t *decision);
 typedef struct rf_entity_contact_destroy_actor {uint32_t handle;int32_t sound;float position[3];} rf_entity_contact_destroy_actor;
 typedef struct rf_entity_contact_destroy_backend {
     void *context;

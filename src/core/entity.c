@@ -2328,3 +2328,31 @@ int rf_entity_contact_destroy(rf_entity_contact_destroy_actor *actor,const rf_en
     status=backend->select(backend->context,actor->sound,&sample);if(status)return status;
     return backend->play(backend->context,sample,actor->position);
 }
+
+int rf_entity_contact_object_dispatch(const rf_entity_view *source,uint32_t target,
+    const rf_entity_contact_object_backend *backend,uint32_t *decision)
+{
+    const rf_entity_contact_object_view *object=NULL;uint32_t value=1,match,response;int status;
+    if(!source || !backend || !backend->lookup || !decision)return RF_RANGE;
+    status=backend->lookup(backend->context,target,&object);if(status)return status;
+    if(!object){*decision=2;return RF_OK;}
+    if(object->type==4){
+        if(!backend->current_clutter)return RF_RANGE;
+        status=backend->current_clutter(backend->context,object->handle,&match);if(status)return status;
+        if(match){*decision=1;return RF_OK;}
+    }
+    if(source->flags_7c&8u){*decision=2;return RF_OK;}
+    switch(object->type){
+    case 0:
+        if(!backend->actor)return RF_RANGE;
+        status=backend->actor(backend->context,(uint32_t)source->handle,object->handle,&response);if(status)return status;
+        value=1+!!(response&255u);break;
+    case 1:
+        if(!backend->pickup)return RF_RANGE;
+        status=backend->pickup(backend->context,object->handle,(uint32_t)source->handle,1,0);if(status)return status;
+        break;
+    case 3:case 4:case 7:case 9:value=2;break;
+    default:break;
+    }
+    *decision=value;return RF_OK;
+}
