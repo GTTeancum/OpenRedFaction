@@ -8379,3 +8379,28 @@ Graphics/LOD/model/family render callbacks are supplied; callback entry
 sees unchanged initial flags. This is dispatch/marker evidence, not render
 fidelity. Recover marker clearing and bind actual phase ordering before
 claiming live NPC glare occlusion.
+
+
+Shared object render dispatch and marker publication (2026-09-12)
+----------------------------------------------------------------
+rf_object_render_dispatch reconstructs488b20 orchestration with explicit
+graphics-white, object-LOD skip, model-kind, model-prepare and family-render
+callbacks. Hidden bit2 skips all services; model skip low byte1 exits before
+kind lookup/render. Kind3 prepares; successful family render publishes0x10
+against current flags. Port callback errors stop without marker publication
+while preserving prior callback effects. Unsupported family kinds return a
+range error instead of the original assertion loop. No allocation.
+
+verify_object_render_dispatch.py executes full original488b20 and compares
+exact callback order and final flags against PC and compiled NXDK for704
+cases:11 families,4 flags,model absence/presence,2 model kinds,4 LOD returns
+including257.396 render paths and308 skips match;5 port callback-failure
+cases preserve flags and stop at the correct service. Graphics and family
+implementations remain supplied. Both builds and21 CTests pass.
+
+Marker clearing remains unproven. Binary inspection of4d7940 found a clear
+at4d795e through structure+50, but this is not evidence for object+7c and
+must not be used as an object-frame clear.4d2f80 clears room+160 eligibility,
+also distinct. Do not synthesize per-frame object0x10 clearing until its
+producer/lifetime is established. Actual family draw binding, room ordering
+and full glare scheduling remain open; no new native/rendered-scene claim.

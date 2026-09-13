@@ -17,8 +17,26 @@ static int queue_parent_lookup(void *context,uint32_t handle,rf_level_particle_o
 static uint32_t move_trace[9],move_room;static int move_status;
 static int move_locate(void *ctx,uint32_t old,const float from[3],const float to[3],uint32_t flags,uint32_t *room)
 {(void)ctx;move_trace[0]++;move_trace[1]=old;memcpy(move_trace+2,from,12);memcpy(move_trace+5,to,12);move_trace[8]=flags;*room=move_room;return move_status;}
+typedef struct render_dispatch_fixture {uint32_t wire[6],trace[8],count;} render_dispatch_fixture;
+static int render_dispatch_record(render_dispatch_fixture *f,uint32_t code)
+{f->trace[f->count++]=code;return f->wire[5]==f->count?RF_IO:RF_OK;}
+static int render_dispatch_white(void *c){return render_dispatch_record(c,1);}
+static int render_dispatch_skip(void *c,uint32_t *out){render_dispatch_fixture *f=c;*out=f->wire[4];return render_dispatch_record(f,2);}
+static int render_dispatch_kind(void *c,uint32_t model,uint32_t *out){render_dispatch_fixture *f=c;(void)model;*out=f->wire[3];return render_dispatch_record(f,3);}
+static int render_dispatch_prepare(void *c,uint32_t model){(void)model;return render_dispatch_record(c,4);}
+static int render_dispatch_render(void *c,uint32_t kind){return render_dispatch_record(c,5+kind);}
 int main(int argc,char **argv)
 {
+    if(argc==2 && !strcmp(argv[1],"--object-render-dispatch")) {
+        render_dispatch_fixture f;rf_object_render_backend b={render_dispatch_white,render_dispatch_skip,render_dispatch_kind,render_dispatch_prepare,render_dispatch_render,&f};
+        _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
+        while(fread(f.wire,sizeof(f.wire),1,stdin)==1) {
+            int status;f.count=0;memset(f.trace,0,sizeof(f.trace));
+            status=rf_object_render_dispatch(f.wire+1,f.wire[0],f.wire[2],&b);
+            fwrite(&status,4,1,stdout);fwrite(f.wire+1,4,1,stdout);fwrite(&f.count,4,1,stdout);fwrite(f.trace,4,8,stdout);
+        }
+        return ferror(stdin)?2:0;
+    }
     if(argc==2 && !strcmp(argv[1],"--emitter-move")) {
         uint32_t wire[15];rf_particle_emitter emitter;float position[3],direction[3];int status;
         _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);

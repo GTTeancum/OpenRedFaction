@@ -3,6 +3,23 @@
 #include "rf/vpp.h"
 #include "rf/effect.h"
 #include "rf/geometry.h"
+typedef struct rf_object_render_backend {
+    int (*white)(void *);
+    int (*skip)(void *,uint32_t *);
+    int (*model_kind)(void *,uint32_t,uint32_t *);
+    int (*prepare)(void *,uint32_t);
+    int (*render)(void *,uint32_t);
+    void *context;
+} rf_object_render_backend;
+/*488b20 dispatch: hidden bit2 skips all services; model skip low byte1
+ * returns before rendering. Model kind3 prepares before family rendering.
+ * Successful render publishes flag0x10 using the current flags (callbacks
+ * may mutate them). Errors preserve earlier callback progress, omit marker.
+ * Caller supplies actual graphics/model/family services and their ownership.
+ * No marker clearing, room ordering, draw implementation or allocation. */
+int rf_object_render_dispatch(uint32_t *flags,uint32_t kind,uint32_t model,
+    const rf_object_render_backend *backend);
+
 typedef struct rf_visibility_projection {
     float origin[3],matrix[9],flat_depth;uint32_t perspective;
     rf_particle_clip_environment clip;

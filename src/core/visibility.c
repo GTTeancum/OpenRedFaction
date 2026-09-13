@@ -3,6 +3,25 @@
 #include <string.h>
 #include <stdlib.h>
 #include <float.h>
+int rf_object_render_dispatch(uint32_t *flags,uint32_t kind,uint32_t model,
+    const rf_object_render_backend *backend)
+{
+    uint32_t value;int status;
+    if(!flags || !backend || !backend->white || !backend->skip || !backend->model_kind ||
+        !backend->prepare || !backend->render)return RF_RANGE;
+    if(*flags&2)return RF_OK;
+    status=backend->white(backend->context);if(status)return status;
+    if(model) {
+        status=backend->skip(backend->context,&value);if(status)return status;
+        if((value&255)==1)return RF_OK;
+        status=backend->model_kind(backend->context,model,&value);if(status)return status;
+        if(value==3){status=backend->prepare(backend->context,model);if(status)return status;}
+    }
+    if(kind>10)return RF_RANGE;
+    status=backend->render(backend->context,kind);if(status)return status;
+    *flags|=0x10;return RF_OK;
+}
+
 int rf_visibility_sphere_reject(const rf_visibility_frustum *frustum,const float position[3],
     float radius,uint32_t *rejected)
 {
