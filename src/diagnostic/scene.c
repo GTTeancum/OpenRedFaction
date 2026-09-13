@@ -358,11 +358,55 @@ typedef struct scene_stream {
     rf_level_visibility visibility;
     rf_level_particles particles;rf_level_particle_tick_result particle_first;
     rf_level_owned_lights *lights;rf_light_dirty_storage *light_storage;
+    void *light_scratch_memory;rf_light_world_scratch light_scratch;
     rf_visibility_camera particle_camera;scene_particle_workspace *particle_workspace;uint32_t particle_frame;
 } scene_stream;
 static scene_stream *particle_draw_stream;
+uint32_t rf_scene_light_ticks[8]; /* frames,visits,changes,world updates,clock hash,generation,scratch bytes,status */
 uint32_t rf_scene_light_storage[5]; /* faces,mappings,bytes,face hash,dirty hash */
 uint32_t rf_scene_light_fields[34];
+static int scene_lights_scratch_open(scene_stream *stream,const rf_geometry_collision_world *world)
+{
+    uint64_t roots=world->primary_count,bytes;uint32_t i;
+    for(i=0;i<world->primary_count;i++) {
+        uint32_t room=world->primary[i];if(room>=world->room_count)return RF_RANGE;
+        roots+=world->views[room].child_count;
+    }
+    bytes=(uint64_t)world->room_count*(sizeof(rf_light_dirty_room)+4)+roots*4;
+    if(roots>UINT32_MAX || bytes>64*1024)return RF_RANGE;
+    if(!bytes)return RF_OK;
+    stream->light_scratch_memory=malloc((size_t)bytes);if(!stream->light_scratch_memory)return RF_IO;
+    stream->light_scratch.rooms=stream->light_scratch_memory;
+    stream->light_scratch.face_offsets=(uint32_t *)(stream->light_scratch.rooms+world->room_count);
+    stream->light_scratch.roots=stream->light_scratch.face_offsets+world->room_count;
+    stream->light_scratch.room_capacity=world->room_count;stream->light_scratch.root_capacity=(uint32_t)roots;
+    rf_scene_light_ticks[6]=(uint32_t)bytes;return RF_OK;
+}
+static int scene_lights_tick(scene_stream *stream,float seconds)
+{
+    rf_level_owned_lights *owner=stream->lights;uint32_t i,j,visibility,hash=2166136261u;int status;
+    if(!owner)return RF_OK;
+    for(i=0;i<owner->count;i++) {
+        const rf_level_light_runtime *item=owner->items+i;
+        status=rf_level_light_tick(item,owner->clocks+i,&owner->pool,seconds,
+            stream->particles.state?&stream->particles.state->random:NULL,&visibility);
+        rf_scene_light_ticks[7]=(uint32_t)status;if(status)return status;
+        ++rf_scene_light_ticks[1];rf_scene_light_ticks[2]+=owner->clocks[i].changed;
+        if(visibility) {
+            rf_light_visibility_volume volume;
+            /* Authored stationary light geometry; moving/replaced sources and
+             * alternate-view solids still need their lifecycle bindings. */
+            status=rf_visibility_light_volume(&item->activation.definition,&volume);
+            if(!status)status=rf_visibility_light_world(&volume,stream->collision,stream->light_storage,1,0,&stream->light_scratch);
+            rf_scene_light_ticks[7]=(uint32_t)status;if(status)return status;
+            ++rf_scene_light_ticks[3];
+        }
+    }
+    for(j=0;j<owner->count*sizeof(*owner->clocks);j++)hash=(hash^((unsigned char *)owner->clocks)[j])*16777619u;
+    ++rf_scene_light_ticks[0];rf_scene_light_ticks[4]=hash;rf_scene_light_ticks[5]=owner->pool.generation;
+    return RF_OK;
+}
+
 uint32_t rf_scene_light_owner[8]; /* count,bytes,live,generation,source hash,runtime hash,RNG before/after */
 uint32_t rf_scene_particle_draw_summary[7],rf_scene_particle_draw_frames[64][6];
 static int scene_particle_draw_one(scene_stream *stream,uint32_t index,rf_scene_particle_sink sink,void *context,uint32_t row[6])
@@ -8568,6 +8612,9 @@ static int scene_frame(void *context,uint32_t frame,rf_preview_mesh *actor)
             memcpy(next.position,rf_scene_actor_pose.position,12);memcpy(next.next_position,rf_scene_actor_pose.pending,12);
             memcpy(next.bounds.minimum,rf_scene_actor_pose.minimum,12);memcpy(next.bounds.maximum,rf_scene_actor_pose.maximum,12);
             scene_actor_body.state=next;
+            /* 433260 dispatches authored light timers after physics, before events.
+             * Owned replay timing; complete original frame gates/RNG order remain. */
+            if(campaign_spawn){status=scene_lights_tick(stream,scene_step_seconds);if(status)return status;}
             if(campaign_spawn) {
                 rf_startup_events_report tick_report;uint32_t pending,j,words[9];
                 uint64_t elapsed=((uint64_t)frame+1)*1000/60;
@@ -8631,6 +8678,7 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
     memset(rf_scene_light_owner,0,sizeof(rf_scene_light_owner));
     memset(rf_scene_light_fields,0,sizeof(rf_scene_light_fields));
     memset(rf_scene_light_storage,0,sizeof(rf_scene_light_storage));
+    memset(rf_scene_light_ticks,0,sizeof(rf_scene_light_ticks));
     if(sink && (uint64_t)mesh->bytes+1024*1024>mesh_budget)return RF_RANGE;
     status=rf_vpp_open(&archive,meshes_path);if(status)return status;
     if(campaign_spawn) {
@@ -8942,6 +8990,7 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
             if(campaign_spawn) {
                 rf_random_state *rng=stream.particles.state?&stream.particles.state->random:NULL;
                 status=rf_visibility_light_world_storage_open(geometry,collision,512*1024,&stream.light_storage);if(status)goto done;
+                status=scene_lights_scratch_open(&stream,collision);if(status)goto done;
                 rf_scene_light_storage[0]=stream.light_storage->face_count;rf_scene_light_storage[1]=stream.light_storage->dirty_count;rf_scene_light_storage[2]=stream.light_storage->allocated_bytes;
                 rf_scene_light_storage[3]=rf_scene_light_storage[4]=2166136261u;
                 for(i=0;i<stream.light_storage->face_count*sizeof(*stream.light_storage->faces);i++)rf_scene_light_storage[3]=(rf_scene_light_storage[3]^((unsigned char *)stream.light_storage->faces)[i])*16777619u;
@@ -9001,6 +9050,7 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
 done:
     free(stream.npc_memory);free(stream.npc_indices);free(stream.npc_pool);
     rf_level_visibility_close(&stream.visibility);
+    free(stream.light_scratch_memory);
     rf_visibility_light_storage_close(&stream.light_storage);
     rf_level_owned_lights_close(&stream.lights);
     rf_level_particles_close(&stream.particles);

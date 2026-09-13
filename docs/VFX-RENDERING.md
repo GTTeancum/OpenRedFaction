@@ -1072,3 +1072,33 @@ Both builds and all24 CTests pass. This adapter has not yet been called by
 live scene scheduling or validated with real-level native dirty updates.
 Persistent scratch, light timer/activation dispatch, alternate-view solid
 ownership and consuming dirty bytes/face flags in rendering remain.
+
+
+### Live authored light timer scheduling (2026-09-13)
+
+Campaign replay now calls rf_level_light_tick in retained authored order
+following physics and before events. Original433260 dispatches this registry
+at43332b..433363 after487a40, with timer45fa30. Owned replay60-Hz timing and
+its available player/physics path are used; complete original frame gates,
+registry mutation and all shared-RNG consumers/order remain unverified.
+
+scene_lights_scratch_open retains bounded room views, face offsets and roots
+in one allocation capped64KiB. Root capacity includes repeated primary and
+child entries. Color changes requesting visibility invoke the retained world
+adapter with mode1/update0, as original4d93d0 calls4d8660(source,0) for a
+nonzero class byte. This current binding is limited to stationary authored
+geometry and the main solid; replacement/movement and alternate solids remain.
+Class0 color changes invalidate pool generation through the existing setter.
+
+PC/Xbox builds and24 CTests pass. The existing4096 original/PC/NXDK timer
+cases and2048 world adapter cases also pass. Native stock64MiB XEMU replay
+replay-20260913-180916 matches PC:180 rendered frames,179 timer updates,
+41349 visits (231 lights), zero changes/visibility requests, clock hash
+2814054991, pool generation462, scratch2412 bytes, status0. Memory reports
+67108864 base bytes and no plugged memory. L1S1 authored steady clocks do
+not exercise the changing/classed-light branch or establish new visual fidelity.
+
+LIGHT_TICKS telemetry compares counters, clock hash, generation and memory;
+the harness also checks expected frame/visit counts independently. Remaining:
+changing-light native fixture, rendered dirty-state consumption, dynamic source
+and alternate-solid ownership, and complete frame/RNG scheduling evidence.

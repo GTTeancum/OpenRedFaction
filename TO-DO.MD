@@ -14,6 +14,11 @@ Shortlist:
 
 Progress reporting: include an overall percent estimate in every turn report (USER preference) and revisit remaining 24-hour workdays when measured throughput supports a forecast; current rough estimate40% (35-45%), no defensible +/-48-hour completion forecast before end-to-end gameplay.
 
+Authored light timers now run after physics in the campaign replay: stock64MiB
+XEMU matches PC across179 updates/41349 visits, clock hash and2412 bytes of
+persistent traversal scratch. Both builds and24 tests pass. L1S1 lights stay
+steady; exercise changing/classed lights, alternate solids and rendered effects.
+
 Retained-world lighting traversal now reuses per-room trees and their stacks,
 matching2048 original/PC/NXDK cases (504 state-changing). Six invalid-binding
 checks and an empty-tree case pass; both builds and24 tests pass. Allocate
