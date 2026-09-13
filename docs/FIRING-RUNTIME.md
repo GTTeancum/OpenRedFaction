@@ -80,3 +80,22 @@ single-bit mutation; actual cleanup scheduling must still be connected.
 
 Outstanding scope also includes live player/clutter targeting, replacement-class
 hand lists, all campaign weapons and continuous projectile simulation.
+
+## Creation descriptor verified (2026-09-13)
+
+rf_projectile_descriptor_prepare now builds the full152-byte descriptor and
+boost decision at486da0. It preserves name-length>4 selection, model token,
+raw descriptorbc/ac fields, position/basis, scaled forward velocity, special
+spin and flags. Important boundaries: factory accepts weapon==weapon_count,
+but4c90f0 spin predicate excludes it; special-weapon spin still applies.
+Speed<50 tests the original unscaled speed, even when boost changes velocity.
+The scale product is stored as float before multiplying forward components.
+
+verify_projectile_descriptor.py executes original4c77a0 to the486da0 call
+with real string/vector/spin/4c90f0 code. Only owner lookup and player/powerup
+predicates are supplied, with arguments/order checked.2048 cases match all
+152 bytes plus boost on PC and compiled NXDK at027f:250 boosted,1264 spinning.
+Five PC/NXDK invalid/nonfinite guards and two NXDK null guards pass. Both
+builds and22 CTests pass. Evidence artifacts/projectile-descriptor.json.
+This does not allocate a projectile; generic kind2 ownership and all factory
+post-allocation effects remain open. No new native scene replay or visual.

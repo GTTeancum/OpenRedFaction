@@ -2,6 +2,34 @@
 #include "rf/timer.h"
 #include <string.h>
 #include <math.h>
+int rf_projectile_descriptor_prepare(const rf_projectile_descriptor_input *in,rf_projectile_creation_descriptor *out)
+{
+    rf_projectile_creation_descriptor d={{0},0};float velocity[3],angular[3],speed,spin;uint32_t i;
+    if(!in || !out)return RF_RANGE;
+    if(in->weapon<0 || in->weapon>in->weapon_count)return RF_NOT_FOUND;
+    if(!isfinite(in->speed) || !isfinite(in->speed_scale))return RF_RANGE;
+    for(i=0;i<3;++i)if(!isfinite(in->position[i]))return RF_RANGE;
+    for(i=0;i<9;++i)if(!isfinite(in->basis[i]))return RF_RANGE;
+    if(in->name_length>4){d.words[0]=in->name_token;d.words[1]=in->model_token;}
+    d.boosted=!(in->multiplayer&255) && (!(in->flags_264&0x400) || !(in->player_controlled&255)) &&
+        (in->flags_264&0x40000000u) && (in->powerup&255)==1;
+    memcpy(d.words+5,&in->field_bc,4);memcpy(d.words+33,&in->field_ac,4);
+    memcpy(d.words+15,in->position,12);memcpy(d.words+18,in->basis,36);
+    speed=d.boosted?(float)((double)in->speed_scale*in->speed):in->speed;
+    for(i=0;i<3;++i){velocity[i]=(float)((double)in->basis[6+i]*speed);if(!isfinite(velocity[i]))return RF_RANGE;}
+    memcpy(d.words+27,velocity,12);d.words[37]=0x80000870u;
+    if(in->weapon==in->special_weapon || (in->weapon<in->weapon_count && (in->flags_268&0x40))) {
+        spin=in->weapon==in->special_weapon?10.0f:20.0f;
+        for(i=0;i<3;++i)angular[i]=(float)(((double)0.0f*in->basis[6+i]+(double)0.0f*in->basis[3+i])+(double)spin*in->basis[i]);
+        memcpy(d.words+30,angular,12);d.words[4]=2;
+    }
+    if(in->flags_264&0x1000)d.words[37]|=1;
+    if(in->flags_264&0x80000000u)d.words[37]|=0x200;
+    if(in->speed<50.0f)d.words[37]|=8;
+    if(in->flags_268&0x10)d.words[37]&=~0x10u;
+    *out=d;return RF_OK;
+}
+
 uint32_t rf_weapon_world_model_token(const rf_weapon_world_model models[64],int32_t weapon)
 {
     if(!models || weapon<0 || weapon>=64 || !models[weapon].name_nonempty)return 0;

@@ -3,6 +3,19 @@
 #include "rf/motion.h"
 #include "rf/entity.h"
 
+typedef struct rf_projectile_descriptor_input {
+    uint32_t name_length,name_token,model_token,flags_264,flags_268;
+    float field_bc,field_ac,speed,speed_scale;
+    uint32_t multiplayer,player_controlled,powerup;
+    int32_t weapon,weapon_count,special_weapon;float position[3],basis[9];
+} rf_projectile_descriptor_input;
+typedef struct rf_projectile_creation_descriptor {uint32_t words[38];uint32_t boosted;} rf_projectile_creation_descriptor;
+/*4c77a0 prefix through486da0: zeroed152-byte descriptor plus boost decision.
+ * Tokens are caller-owned32-bit references; predicate values use original low
+ * bytes. Does not allocate objects or resources. Finite geometry required;
+ * invalid factory weapon range returns NOT_FOUND without output mutation. */
+int rf_projectile_descriptor_prepare(const rf_projectile_descriptor_input *,rf_projectile_creation_descriptor *);
+
 typedef struct rf_weapon_world_model {
     uint32_t name_nonempty,model;int32_t muzzle,grip;
 } rf_weapon_world_model;

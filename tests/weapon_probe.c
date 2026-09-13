@@ -47,6 +47,14 @@ int main(int argc,char **argv)
         return ferror(stdin)?1:0;
     }
     if(argc==2 && !strcmp(argv[1],"--world-tags"))return weapon_world_probe();
+    if(argc==2 && !strcmp(argv[1],"--projectile-descriptor")) {
+        rf_projectile_descriptor_input in;struct {int32_t status;rf_projectile_creation_descriptor descriptor;} out;
+        while(fread(&in,sizeof(in),1,stdin)==1) {
+            memset(&out,0xa5,sizeof(out));out.status=rf_projectile_descriptor_prepare(&in,&out.descriptor);
+            if(fwrite(&out,sizeof(out),1,stdout)!=1)return 1;
+        }
+        return ferror(stdin)?1:0;
+    }
     if(argc==2 && !strcmp(argv[1],"--consume-shot")) {
         struct {rf_weapon_inventory inventory;rf_weapon_acquire_definition definitions[64];uint32_t count;int32_t weapon;} in;
         struct {int32_t status;rf_weapon_inventory inventory;} out;
