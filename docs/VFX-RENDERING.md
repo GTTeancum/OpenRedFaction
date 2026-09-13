@@ -67,3 +67,10 @@ PC/NXDK through the actual4fb050 and4faaf0 helpers. Two guards reject
 nonfinite/degenerate geometry with output preserved; the original degenerate
 case generates NaN. Persistent normal caching, projection, facing, depth
 sorting, material passes and native submission remain unimplemented here.
+
+Facing518460 dispatches to5478f0 for renderer66. Perspective uses float-rounded
+(origin-point) dotted with the normal and accepts strictly positive values.
+Flat projection uses forward vector18186e0 and accepts nonpositive values.
+rf_vfx_face_facing passes2048 original/PC/NXDK cases and2 guards.
+554a80 depth bias constant589668 is61.0f; verify its arithmetic and sorting
+before replacing the original depth-list mechanism.

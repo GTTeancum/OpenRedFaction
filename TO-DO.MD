@@ -14,6 +14,11 @@ Shortlist:
 
 Progress reporting: include overall percent estimates at meaningful milestones and revisit remaining 24-hour workdays when measured throughput supports a forecast; current rough estimate40% (35-45%), no defensible +/-48-hour completion forecast before end-to-end gameplay.
 
+VFX facing test5478f0 matches2048 original/PC/NXDK cases and2 guards,
+including distinct perspective/flat zero-dot behavior; both builds/24 tests pass.
+Compose projected clip masks, normals and facing with material-biased depth
+ordering before render submission; no new native VFX rendering evidence.
+
 Animated VFX face normals match2048 original/PC/NXDK cases and2 guards;
 renderer callbacks resolve to553ee0/554bf0/555080 and extra texture110.
 Complete554a80 projection/facing/depth list and material passes; both builds

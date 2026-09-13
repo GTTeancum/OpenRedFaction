@@ -134,6 +134,15 @@ int main(int argc,char **argv)
         }
         return ferror(stdin)?1:0;
     }
+    if(argc==2 && !strcmp(argv[1],"--vfx-facing")) {
+        uint32_t input[13],out;float vectors[12];int32_t status;
+        _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
+        while(fread(input,sizeof(input),1,stdin)==1) {
+            memcpy(vectors,input,48);out=0x12345678;status=rf_vfx_face_facing(vectors,vectors+3,vectors+6,vectors+9,input[12],&out);
+            fwrite(&status,4,1,stdout);fwrite(&out,4,1,stdout);
+        }
+        return ferror(stdin)?1:0;
+    }
     if(argc==2 && !strcmp(argv[1],"--vfx-morph")) {
         unsigned char input[84];
         _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);

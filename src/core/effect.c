@@ -1716,3 +1716,16 @@ int rf_vfx_face_normal(const float vertices[9],float out[3])
     length=1.0/length;for(i=0;i<3;++i)normal[i]=(float)((double)normal[i]*length);
     memcpy(out,normal,sizeof(normal));return RF_OK;
 }
+
+int rf_vfx_face_facing(const float normal[3],const float point[3],const float origin[3],const float forward[3],uint32_t perspective,uint32_t *out)
+{
+    float delta[3];double dot;unsigned i;
+    if(!normal || !point || !origin || !forward || !out || perspective>1)return RF_RANGE;
+    for(i=0;i<3;++i) {
+        if(!isfinite(normal[i]) || !isfinite(point[i]) || !isfinite(origin[i]) || !isfinite(forward[i]))return RF_FORMAT;
+        delta[i]=perspective?(float)((double)origin[i]-point[i]):forward[i];
+        if(!isfinite(delta[i]))return RF_RANGE;
+    }
+    dot=((double)delta[0]*normal[0]+(double)delta[1]*normal[1])+(double)delta[2]*normal[2];
+    *out=perspective?(dot>0):(dot<=0);return RF_OK;
+}

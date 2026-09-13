@@ -200,6 +200,9 @@ int rf_vfx_mesh_sample(const rf_vfx_mesh *,float effect_frame,uint32_t vertex,rf
 /*559f50 uncached face normal: (b-a) cross (c-b), then4faaf0.
  * Reject degenerate/nonfinite geometry without changing output. */
 int rf_vfx_face_normal(const float vertices[9],float out[3]);
+/*5478f0 facing: perspective dot(origin-point,normal)>0; flat
+ * dot(forward,normal)<=0. Finite inputs required, output preserved on error. */
+int rf_vfx_face_facing(const float normal[3],const float point[3],const float origin[3],const float forward[3],uint32_t perspective,uint32_t *out);
 /*5402fa direct-parent branch: row-major basis9 then translation3.
  * Transform center/vertex, preserve extra bounds; no tag pose resolution.
  * Supports in-place output; errors preserve output. */
