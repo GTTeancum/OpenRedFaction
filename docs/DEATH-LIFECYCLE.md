@@ -8611,3 +8611,24 @@ PC/NXDK builds and21CTest pass. Stock64MiB180-frame XEMU
 replay-20260912-212154 passes with MOVER_VISIBILITY [5728,799111036,0]:
 32 movers across179 commits, exact PC parity. This verifies scene ownership
 and synchronized views, not full glare search or mover render dispatch.
+
+
+## Original mover family render gates (2026-09-12)
+
+verify_mover_render_original.py executes actual488b20/type9 and the entire
+46b2b0 against RF.exe, supplying only50cf80 white setup and516df0 graphics.
+All36 cases pass (six flags x three disabled-byte values x two solid states).
+46b2b0 skips516df0 if global64e6dc is nonzero or object294 solid is null.
+Otherwise516df0 receives solid, object3c position, object48 matrix, zero.
+The outer488b20 still publishes flag10 after either skipped family draw.
+Hidden flag2 skips white/family/marker; flag4000 does not skip when the model
+wrapper at80 is null. Four cases call516df0. Artifact records every case in
+artifacts/analysis/mover-render-original.json (generated, not tracked).
+
+Integration consequence: current preview world_mesh in src/core/preview.c
+combines world and mover generation in transactional count/emission passes.
+Do not set markers merely from emitted triangles, and do not dispatch during
+the counting pass or a failed staging attempt. A per-solid submission boundary
+with successful publication is needed; global draw suppression and null-solid
+behavior must remain distinct from the outer render marker. No new runtime
+render behavior or Xbox validation is claimed by this original-only audit.
