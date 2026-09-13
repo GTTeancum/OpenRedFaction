@@ -130,6 +130,9 @@ int rf_scene_npc_prepare_angular(uint32_t handle,float dt);
  * and the model's live orientation. Object-position publication and room/eye
  * position refresh remain the subsequent movement-publication stage. */
 int rf_scene_npc_commit_ordinary(uint32_t handle,float dt);
+/* Prepared487962 publication after all physics substeps finish. Marks room
+ * state dirty; the existing later room/eye passes perform their refresh. */
+int rf_scene_npc_publish_position(uint32_t handle);
 /* Prepared route request; scene owns endpoints/output and reuses its workspace.
  * Geometry/dimension/selection parameters are supplied, not inferred from AI.
  * Caller state must be stable; stale handles preserve result. */
