@@ -795,3 +795,9 @@ replay/device output, not host audibility, full campaign or live NPC behavior.
 The harness restored the normal disc flags and rebuilt the ISO successfully.
 All nine CTests also passed. No new visual capture was warranted.
 Test XBE SHA256: 54b8b6d022addf7aa1551f9aee6bc0874475ea5c7af4235bad6192469ad646cb
+
+Special lightmap edge crossing (508f70):
+- `python tools/verify_lightmap_edge_crossing.py` replays the full original routine without hooks against the PC probe and compiled NXDK code in Unicorn, with x87 control word 0x027f.
+- 8234 finite cases match, including 3436 crossings, shared endpoints, parallel/collinear edges, tiny determinants and large ranges. Three invalid-input guards preserve output.
+- Preserve float first-segment directions and offsets; the first parameter uses the retained determinant and the second reloads its float store. Endpoints are inclusive; there is no epsilon.
+- PC and Xbox builds and all24 CTests pass. This is arithmetic validation, not a native rendered special-lightmap test. Polygon coverage orchestration, sample interpolation and live resources remain open.

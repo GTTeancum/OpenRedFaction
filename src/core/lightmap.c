@@ -158,6 +158,23 @@ int rf_lightmap_pack_1555(unsigned char *rgb,uint32_t rgb_bytes,uint32_t width,u
     return RF_OK;
 }
 
+int rf_lightmap_edge_crossing(const float a[2],const float b[2],const float c[2],const float d[2],uint32_t *hit)
+{
+    float ax,ay,ox,oy,stored;double bx,by,denominator,t;uint32_t i;
+    if(!a || !b || !c || !d || !hit)return RF_RANGE;
+    for(i=0;i<2;i++)if(!isfinite(a[i]) || !isfinite(b[i]) || !isfinite(c[i]) || !isfinite(d[i]))return RF_RANGE;
+    ax=(float)((double)b[0]-a[0]);ay=(float)((double)b[1]-a[1]);
+    if(!isfinite(ax) || !isfinite(ay))return RF_RANGE;
+    bx=(double)d[0]-c[0];by=(double)d[1]-c[1];denominator=by*ax-bx*ay;
+    if(denominator==0){*hit=0;return RF_OK;}stored=(float)denominator;
+    ox=(float)((double)a[0]-c[0]);oy=(float)((double)a[1]-c[1]);
+    if(!isfinite(ox) || !isfinite(oy))return RF_RANGE;
+    t=((double)oy*bx-(double)ox*by)/denominator;
+    if(t<0 || t>1 || stored==0){*hit=0;return RF_OK;}
+    t=((double)oy*ax-(double)ox*ay)/stored;
+    *hit=t>=0 && t<=1;return RF_OK;
+}
+
 int rf_lightmap_corner_normal(const rf_lightmap_normal_face *base,const rf_lightmap_normal_face *adjacent,
     uint32_t count,float out[3])
 {

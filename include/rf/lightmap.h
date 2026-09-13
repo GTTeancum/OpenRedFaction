@@ -37,6 +37,12 @@ int rf_lightmap_pack_1555(unsigned char *rgb,uint32_t rgb_bytes,uint32_t width,u
  * input preserves output. No allocation; input/output may alias. */
 int rf_lightmap_accumulated_rgb(const float channels[3],unsigned char rgb[3]);
 
+/*508f70 segment crossing used by special texel coverage. Includes endpoints;
+ * parallel/collinear edges do not cross. Preserve original float direction/
+ * offset stores and the distinct denominator precision for the two tests.
+ * Finite endpoints/direction stores required; errors preserve hit. */
+int rf_lightmap_edge_crossing(const float a[2],const float b[2],const float c[2],const float d[2],uint32_t *hit);
+
 typedef struct rf_lightmap_normal_face {float normal[3];uint32_t id,vertex_count;} rf_lightmap_normal_face;
 /*4f4192..4f4222 special-sampling corner normal: include adjacent nonempty
  * faces other than self only when their normal has positive dot with base.

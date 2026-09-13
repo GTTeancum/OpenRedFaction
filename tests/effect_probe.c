@@ -164,6 +164,15 @@ int main(int argc,char **argv)
         }
         return 0;
     }
+    if(argc==2 && !strcmp(argv[1],"--lightmap-edge-crossing")) {
+        float input[8];uint32_t status,hit;
+        _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
+        while(fread(input,sizeof(input),1,stdin)==1) {
+            hit=0xa5a5a5a5u;status=rf_lightmap_edge_crossing(input,input+2,input+4,input+6,&hit);
+            fwrite(&status,4,1,stdout);fwrite(&hit,4,1,stdout);
+        }
+        return 0;
+    }
     if(argc==2 && !strcmp(argv[1],"--lightmap-corner-normal")) {
         struct {rf_lightmap_normal_face base,adjacent[8];uint32_t count;} input;float output[3];uint32_t status;
         _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
