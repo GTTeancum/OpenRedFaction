@@ -45,6 +45,10 @@ def allocator(u,a,size,data):
   if arg:assert arg in live;del live[arg]
  u.reg_write(UC_X86_REG_EAX,ret);u.reg_write(UC_X86_REG_ESP,sp+4);u.reg_write(UC_X86_REG_EIP,read(u,sp))
 for name in ('malloc','free'):x.hook_add(UC_HOOK_CODE,allocator,begin=sym(name),end=sym(name))
+key_calls=[0]
+def observe_keys(u,a,size,data):key_calls[0]+=1
+for name in ('rf_vfx_mesh_vector_key','rf_vfx_mesh_rotation_key'):
+ x.hook_add(UC_HOOK_CODE,observe_keys,begin=sym(name),end=sym(name))
 vertex_checks=0;uv_checks=0;morph_checks=0;vector_key_checks=0;rotation_key_checks=0;transform_checks=0;keyed_checks=0;instance_checks=0;instance_sizes=[]
 def shared(v,global_count,budget,data,fail=False):
  global fail_alloc,vertex_checks,uv_checks,morph_checks,vector_key_checks,rotation_key_checks,transform_checks,keyed_checks,instance_checks
@@ -121,7 +125,9 @@ def shared(v,global_count,budget,data,fail=False):
   assert call('rf_vfx_instance_open',[pointer,instance_bytes,instance_slot])==0;instance=read(x,instance_slot);assert read(x,instance+36)==instance_bytes and len(live)==2
   positions,uv=struct.unpack('<II',x.mem_read(instance+4,8));instance_result=w(instance_bytes)
   for time in (0,.5,2,10000):
+   key_calls[0]=0
    status=call('rf_vfx_instance_update',[instance,struct.unpack('<I',f(time))[0]]);assert status==0
+   assert key_calls[0]<=3,(vertices,time,key_calls[0])
    instance_result+=w(status)+bytes(x.mem_read(instance+12,28))+bytes(x.mem_read(positions,vertices*12))+bytes(x.mem_read(uv,faces*24))
    if read(x,instance+32):
     for vertex in range(vertices):

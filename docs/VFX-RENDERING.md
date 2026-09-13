@@ -124,7 +124,12 @@ active. Repeated close frees only instance storage, leaving its mesh alive.
 Instance storage ranges136-1156 bytes for these assets, excluding the borrowed
 mesh, textures, future projection/list storage and allocator overhead.
 
-The current update resamples shared keys per vertex; hoist pose evaluation
-before native playback. Empty-vertex definitions remain unsupported by this
+Updates now select frames and resolve key tracks once per mesh. Remaining
+per-vertex matrix/center recomputation should be hoisted before native playback. Empty-vertex definitions remain unsupported by this
 owner and require a separate center-only update path. These are explicit open
 items, not claims of complete effect-instance behavior or native rendering.
+
+The key-evaluation optimization retains all112 PC/NXDK instance-update
+outputs and2048 original geometry-dispatch comparisons. Read-only instruction
+observers assert at most3 key-query calls per update, independently of vertex
+count. No native frame-time improvement is claimed from this harness result.

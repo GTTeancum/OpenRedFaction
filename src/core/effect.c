@@ -1634,6 +1634,17 @@ int rf_vfx_key_time(float effect_frame,float start_seconds,int32_t *out)
     *out=(int32_t)difference;return RF_OK;
 }
 
+static int vfx_mesh_key_pose(const rf_vfx_mesh *mesh,int32_t time,float key[10])
+{
+    const rf_vfx_frame_view *frame=mesh->frames;int status;
+    if(mesh->keys.counts[0]){status=rf_vfx_mesh_vector_key(mesh,0,time,key);if(status)return status;}
+    else {if(!(frame->present&16))return RF_FORMAT;memcpy(key,frame->transform,12);}
+    if(mesh->keys.counts[1]){status=rf_vfx_mesh_rotation_key(mesh,time,key+3);if(status)return status;}
+    else {if(!(frame->present&16))return RF_FORMAT;memcpy(key+3,frame->transform+3,16);}
+    if(mesh->keys.counts[2]){status=rf_vfx_mesh_vector_key(mesh,2,time,key+7);if(status)return status;}
+    else {if(!(frame->present&16))return RF_FORMAT;memcpy(key+7,frame->transform+7,12);}
+    return RF_OK;
+}
 int rf_vfx_mesh_keyed(const rf_vfx_mesh *mesh,int32_t time,uint32_t vertex,rf_vfx_morph_sample *out)
 {
     const rf_vfx_frame_view *frame;float key[10]={0,0,0,0,0,0,1,1,1,1},vectors[8];uint64_t at;int status;
@@ -1642,12 +1653,7 @@ int rf_vfx_mesh_keyed(const rf_vfx_mesh *mesh,int32_t time,uint32_t vertex,rf_vf
     frame=mesh->frames;
     if(!(frame->present&1) || (uint64_t)vertex*6+6>frame->vertex_bytes)return RF_FORMAT;
     at=(uint64_t)frame->vertex_offset+(uint64_t)vertex*6;if(at+6>mesh->bytes)return RF_FORMAT;
-    if(mesh->keys.counts[0]){status=rf_vfx_mesh_vector_key(mesh,0,time,key);if(status)return status;}
-    else {if(!(frame->present&16))return RF_FORMAT;memcpy(key,frame->transform,12);}
-    if(mesh->keys.counts[1]){status=rf_vfx_mesh_rotation_key(mesh,time,key+3);if(status)return status;}
-    else {if(!(frame->present&16))return RF_FORMAT;memcpy(key+3,frame->transform+3,16);}
-    if(mesh->keys.counts[2]){status=rf_vfx_mesh_vector_key(mesh,2,time,key+7);if(status)return status;}
-    else {if(!(frame->present&16))return RF_FORMAT;memcpy(key+7,frame->transform+7,12);}
+    status=vfx_mesh_key_pose(mesh,time,key);if(status)return status;
     memcpy(vectors,frame->vectors,24);memcpy(vectors+6,frame->extra,8);
     return rf_vfx_keyed_sample(vectors,mesh->data+(size_t)at,mesh->keys.base,key,mesh->edges.flags,out);
 }
@@ -1819,15 +1825,26 @@ void rf_vfx_instance_close(rf_vfx_instance **instance)
 int rf_vfx_instance_update(rf_vfx_instance *instance,float effect_frame)
 {
     const rf_vfx_mesh *mesh;rf_vfx_mesh_timing timing;rf_vfx_frame_cursor cursor;rf_vfx_morph_sample sample;
-    uint32_t i;int status;
+    uint32_t i,keyed;int status;int32_t time;float key[10],vectors[8];const rf_vfx_frame_view *frame;
     if(!instance)return RF_RANGE;
     instance->active=0;mesh=instance->mesh;
-    if(!mesh || !instance->vertices || !instance->uv)return RF_RANGE;
+    if(!mesh || !mesh->data || !mesh->frames || !instance->vertices || !instance->uv)return RF_RANGE;
     timing=mesh->prefix.timing;timing.flags=mesh->edges.mesh_flags;
     status=rf_vfx_frame_select(&timing,mesh->edges.flags,effect_frame,&cursor);if(status)return status;
     if(!cursor.active)return RF_OK;
+    keyed=!(mesh->edges.flags&4) && (mesh->edges.mesh_flags&2);frame=mesh->frames;
+    if(keyed) {
+        uint64_t bytes=(uint64_t)mesh->prefix.vertices*6;
+        if(!(frame->present&1) || bytes>frame->vertex_bytes || (uint64_t)frame->vertex_offset+bytes>mesh->bytes)return RF_FORMAT;
+        status=rf_vfx_key_time(effect_frame,timing.start,&time);if(status)return status;
+        status=vfx_mesh_key_pose(mesh,time,key);if(status)return status;
+        memcpy(vectors,frame->vectors,24);memcpy(vectors+6,frame->extra,8);
+    }
     for(i=0;i<mesh->prefix.vertices;++i) {
-        status=rf_vfx_mesh_sample(mesh,effect_frame,i,&sample);if(status)return status;
+        if(keyed)status=rf_vfx_keyed_sample(vectors,mesh->data+frame->vertex_offset+(size_t)i*6,mesh->keys.base,key,mesh->edges.flags,&sample);
+        else if(mesh->edges.flags&4)status=rf_vfx_mesh_morph(mesh,&cursor,i,&sample);
+        else status=rf_vfx_mesh_transform(mesh,&cursor,i,&sample);
+        if(status)return status;
         memcpy(instance->vertices+(size_t)i*3,sample.vertex,12);
         if(!i){memcpy(instance->center,sample.center,12);memcpy(instance->extra,sample.extra,8);}
     }
