@@ -615,6 +615,10 @@ int main(int argc,char **argv)
                 seeds.records.items[seeds.classes[i].record_index].record.class_name,
                 lod->count,lod->distances[0],lod->distances[1],lod->distances[2],lod->distances[3]);
         }
+        for(i=0;i<classes;++i) {
+            uint32_t bits;memcpy(&bits,&seeds.classes[i].unholster_delay,4);
+            printf("SEED_UNHOLSTER\t%s\t%u\n",seeds.records.items[seeds.classes[i].record_index].record.class_name,bits);
+        }
         printf("SEEDS %u %u %u %u\n",count,classes,seeds.resident_bytes,peak);
         rf_entity_seeds_close(&seeds);return 0;
     }

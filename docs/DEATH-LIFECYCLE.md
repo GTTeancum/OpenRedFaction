@@ -9690,3 +9690,21 @@ Retain this authored scalar in class ownership and bind it to the shared
 unholster service next; the reader alone does not enable live weapon/AI
 transitions. Existing recovery tests prove timing, not semantic playback
 completion across the campaign.
+
+
+Retained unholster class timing (2026-09-13): rf_entity_seed_class now owns
+unholster_delay, loaded with the existing entity.tbl scratch buffer. Existing
+sizeof-based budget accounting includes four additional bytes per class;
+errors still close partial owners. The scalar survives archive closure.
+verify_unholster_retained.py compares retained values with independently
+parsed installed declarations and runs existing exact/undersized seed-budget
+checks. L1S1 retains5 classes/20 extra bytes, L1S2 3/12, L1S3 6/24; each
+has one nonzero delay. Hashes3152473483/1857761291/437551259 respectively.
+Scene telemetry hashes all values in class order. Stock64MiB native
+replay-20260913-022348 passes180 L1S2 frames with NPC_UNHOLSTER
+[3,1,12,1857761291], identical to PC; NPC_AI_RESET remains
+[38,304,152,3354343829,0]. Base memory67108864, plugged0. Both builds and
+22 CTests pass; native harness completed flag restoration/rebuild.
+This retains authored data in live class owners; it does not yet call
+unholster recovery on NPCs or implement autonomous weapon/AI transitions.
+No visual change or screenshot is claimed.

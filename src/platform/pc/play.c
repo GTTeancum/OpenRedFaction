@@ -26,7 +26,7 @@ extern uint32_t rf_scene_startup_gravity[4];
 extern uint32_t rf_scene_switch_state[3],rf_scene_campaign_events[3],rf_scene_campaign_triggers[2],rf_scene_campaign_links[4];
 extern uint32_t rf_scene_npc_models[4];
 extern uint32_t rf_scene_npc_collision_cache[6];
-extern uint32_t rf_scene_npc_ai_reset_test[5];
+extern uint32_t rf_scene_npc_ai_reset_test[5],rf_scene_npc_unholster[4];
 extern uint32_t rf_scene_npc_support_refresh[6],rf_scene_npc_motion_request_test[5],rf_scene_npc_ground_query_test[6],rf_scene_npc_fall_test[6],rf_scene_npc_impact_groups[3];
 extern uint32_t rf_scene_npc_model_queries[7],rf_scene_npc_pose_demand[5],rf_scene_npc_body_sweep_test[5];
 extern uint32_t rf_scene_actor_model_test[6];
@@ -347,6 +347,7 @@ int main(int argc,char **argv)
             printf("NPC_IMPACT_GROUPS %u %u %u\n",rf_scene_npc_impact_groups[0],rf_scene_npc_impact_groups[1],rf_scene_npc_impact_groups[2]);
             printf("NPC_FALL %u %u %u %u %u %u\n",rf_scene_npc_fall_test[0],rf_scene_npc_fall_test[1],rf_scene_npc_fall_test[2],rf_scene_npc_fall_test[3],rf_scene_npc_fall_test[4],rf_scene_npc_fall_test[5]);
             printf("NPC_GROUND_QUERY %u %u %u %u %u %u\n",rf_scene_npc_ground_query_test[0],rf_scene_npc_ground_query_test[1],rf_scene_npc_ground_query_test[2],rf_scene_npc_ground_query_test[3],rf_scene_npc_ground_query_test[4],rf_scene_npc_ground_query_test[5]);
+            printf("NPC_UNHOLSTER %u %u %u %u\n",rf_scene_npc_unholster[0],rf_scene_npc_unholster[1],rf_scene_npc_unholster[2],rf_scene_npc_unholster[3]);
             printf("NPC_AI_RESET %u %u %u %u %u\n",rf_scene_npc_ai_reset_test[0],rf_scene_npc_ai_reset_test[1],rf_scene_npc_ai_reset_test[2],rf_scene_npc_ai_reset_test[3],rf_scene_npc_ai_reset_test[4]);
             printf("NPC_MOTION_REQUEST %u %u %u %u %u\n",rf_scene_npc_motion_request_test[0],rf_scene_npc_motion_request_test[1],rf_scene_npc_motion_request_test[2],rf_scene_npc_motion_request_test[3],rf_scene_npc_motion_request_test[4]);
             printf("NPC_SUPPORT_REFRESH %u %u %u %u %u %u\n",rf_scene_npc_support_refresh[0],rf_scene_npc_support_refresh[1],rf_scene_npc_support_refresh[2],rf_scene_npc_support_refresh[3],rf_scene_npc_support_refresh[4],rf_scene_npc_support_refresh[5]);

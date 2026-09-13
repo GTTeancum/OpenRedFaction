@@ -2788,6 +2788,7 @@ static rf_movement_config *campaign_npc_movement_configs;
 static rf_physics_stance_cache *campaign_npc_stances;
 typedef struct campaign_npc_eye_class {int32_t tag,parent;float local[12],offsets[6];} campaign_npc_eye_class;
 static campaign_npc_eye_class *campaign_npc_eyes;
+uint32_t rf_scene_npc_unholster[4]; /* classes,nonzero,bytes,hash */
 uint32_t rf_scene_npc_eyes[4]; /* refreshed actors, retained bytes, class hash, position hash */
 static uint32_t campaign_npc_body_count;
 uint32_t rf_scene_npc_visibility_rooms[6];
@@ -2857,6 +2858,7 @@ static int campaign_npc_bodies_open(const char *tables_path,const rf_geometry_co
     campaign_npc_eyes=calloc(campaign_seeds.class_count,sizeof(*campaign_npc_eyes));
     if(campaign_seeds.class_count && !campaign_npc_eyes){status=RF_RANGE;goto done;}
     memset(rf_scene_npc_eyes,0,sizeof(rf_scene_npc_eyes));
+    memset(rf_scene_npc_unholster,0,sizeof(rf_scene_npc_unholster));rf_scene_npc_unholster[3]=2166136261u;
     rf_scene_npc_eyes[1]=campaign_poses.count*12+campaign_seeds.class_count*sizeof(*campaign_npc_eyes);
     campaign_npc_body_count=campaign_poses.count;memset(rf_scene_npc_bodies,0,sizeof(rf_scene_npc_bodies));
     memset(rf_scene_npc_visibility_rooms,0,sizeof(rf_scene_npc_visibility_rooms));
@@ -2868,6 +2870,9 @@ static int campaign_npc_bodies_open(const char *tables_path,const rf_geometry_co
     rf_scene_npc_support[9]=rf_scene_npc_support[10]=UINT32_MAX;
     rf_scene_npc_bodies[0]=campaign_poses.count;rf_scene_npc_bodies[3]=(uint32_t)bytes;
     for(cls=0;cls<campaign_seeds.class_count;++cls) {
+        ++rf_scene_npc_unholster[0];rf_scene_npc_unholster[1]+=campaign_seeds.classes[cls].unholster_delay!=0;
+        rf_scene_npc_unholster[2]+=4;
+        rf_scene_npc_unholster[3]=npc_hash_bytes(rf_scene_npc_unholster[3],&campaign_seeds.classes[cls].unholster_delay,4);
         campaign_npc_eye_class *eye_class=campaign_npc_eyes+cls;rf_model_attachment eye={0};uint32_t tag_index;
         rf_entity_physics_config config;rf_physics_sphere spheres[8];uint32_t count=0;
         float model_sphere[4],model_radius;

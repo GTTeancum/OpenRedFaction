@@ -224,6 +224,7 @@ typedef struct rf_entity_seed_class {
     float damage_factors[11];
     rf_entity_eye_limits eye_limits;
     rf_entity_corpse_config corpse;
+    float unholster_delay; /* Original classf78, seconds; owned scalar. */
 } rf_entity_seed_class;
 typedef struct rf_entity_seed {
     uint32_t class_index;
