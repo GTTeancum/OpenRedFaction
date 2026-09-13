@@ -14,6 +14,11 @@ Shortlist:
 
 Progress reporting: include an overall percent estimate in every turn report (USER preference) and revisit remaining 24-hour workdays when measured throughput supports a forecast; current rough estimate40% (35-45%), no defensible +/-48-hour completion forecast before end-to-end gameplay.
 
+Retained corner binding now matches28356 L1S1 original/PC/NXDK lightmapped
+corners (UV, position, smoothed normal); both builds and24 tests pass. Group
+selected mapping polygons with bounded scratch, bind live RGB/mask resources,
+and verify native residency/updates after loader face acceptance is resolved.
+
 Bounded adjacency ownership now matches1922603 ordered links across94 PC
 levels; L1S1 uses143096 bytes. Subset/duplicate-corner/budget checks, both builds
 and24 tests pass. Bind loader-surviving faces and corner-normal sampling, then

@@ -26,6 +26,15 @@ int rf_geometry_vertex_faces_open(const rf_geometry *,const uint32_t *face_ids,u
     uint32_t budget,rf_geometry_vertex_faces *result);
 void rf_geometry_vertex_faces_close(rf_geometry_vertex_faces *owner);
 
+/* Bind one retained corner to special sampling: lightmap UV, position and
+ * original smoothed normal using explicit surviving adjacency. Work is caller
+ * scratch sized to this vertex's degree; no allocation. Errors preserve output
+ * but may alter work. Geometry/adjacency must describe the same static snapshot.
+ * Serialized face normals are used; loader plane repair remains external. */
+int rf_geometry_lightmap_vertex(const rf_geometry *,const rf_geometry_vertex_faces *,
+    uint32_t face,uint32_t corner,rf_lightmap_normal_face *work,uint32_t capacity,
+    rf_lightmap_sample_vertex *result);
+
 typedef struct rf_geometry_lightmap_context {
     const rf_geometry *geometry;const rf_packed_lightmaps *maps;
 } rf_geometry_lightmap_context;

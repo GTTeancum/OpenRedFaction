@@ -3,6 +3,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <fcntl.h>
+#include <io.h>
 int main(int argc, char **argv)
 {
     rf_vpp archive;
@@ -29,13 +31,31 @@ int main(int argc, char **argv)
         for(i=0;i<=4;i++)if(graph.offsets[i])return 15;
         rf_geometry_vertex_faces_close(&graph);rf_geometry_vertex_faces_close(&graph);puts("PASS adjacency subset, duplicate corners, empty selection, budget/index guards and close");return 0;
     }
-    if (argc != 3 && argc != 4 && !(argc==5 && (!strcmp(argv[3],"--portal-graph") || !strcmp(argv[3],"--visibility") || !strcmp(argv[3],"--adjacency")))) return 2;
+    if (argc != 3 && argc != 4 && !(argc==5 && (!strcmp(argv[3],"--portal-graph") || !strcmp(argv[3],"--visibility") || !strcmp(argv[3],"--adjacency") || !strcmp(argv[3],"--lightmap-vertices")))) return 2;
     if (argc == 4 && !flags_mode && !links_mode && !primary_mode && strcmp(argv[3],"--portals")) budget = (uint32_t)strtoul(argv[3], NULL, 10);
     result = rf_vpp_open(&archive, argv[1]);
     if (result != RF_OK) return 3;
     result = rf_level_open(&level, &archive, argv[2]);
     if (result == RF_OK) result = rf_geometry_open(&geometry, &level, budget);
     if (result == RF_OK) {
+        if(argc==5 && !strcmp(argv[3],"--lightmap-vertices")) {
+            rf_geometry_vertex_faces graph={0};rf_lightmap_normal_face *work;uint32_t i,j,max=0,*ids=(uint32_t *)malloc((geometry.faces+1)*4);
+            if(!ids)return 6;for(i=0;i<geometry.faces;i++)ids[i]=i;
+            result=rf_geometry_vertex_faces_open(&geometry,ids,geometry.faces,(uint32_t)strtoul(argv[4],NULL,10),&graph);free(ids);if(result)return 7;
+            for(i=0;i<graph.vertices;i++)if(graph.offsets[i+1]-graph.offsets[i]>max)max=graph.offsets[i+1]-graph.offsets[i];
+            work=(rf_lightmap_normal_face *)malloc((max+1)*sizeof(*work));if(!work)return 8;
+            _setmode(_fileno(stdout),_O_BINARY);
+            for(i=0;i<geometry.faces;i++) {
+                rf_geometry_face face;if(rf_geometry_get_face(&geometry,i,&face))return 9;
+                if(face.lightmap_mapping==UINT32_MAX)continue;
+                for(j=0;j<face.corners;j++) {
+                    rf_lightmap_sample_vertex vertex;uint32_t header[3]={i,j,0};memset(&vertex,0xa5,sizeof(vertex));
+                    header[2]=rf_geometry_lightmap_vertex(&geometry,&graph,i,j,work,max,&vertex);
+                    fwrite(header,sizeof(header),1,stdout);fwrite(&vertex,sizeof(vertex),1,stdout);
+                }
+            }
+            free(work);rf_geometry_vertex_faces_close(&graph);rf_geometry_close(&geometry);rf_vpp_close(&archive);return 0;
+        }
         if(argc==5 && !strcmp(argv[3],"--adjacency")) {
             rf_geometry_vertex_faces graph={0},empty={0};uint32_t i,j,*ids=(uint32_t *)malloc((geometry.faces+1)*4);
             int status;if(!ids)return 6;for(i=0;i<geometry.faces;i++)ids[i]=i;

@@ -384,6 +384,32 @@ failed:
     rf_geometry_vertex_faces_close(&value);return status;
 }
 
+int rf_geometry_lightmap_vertex(const rf_geometry *g,const rf_geometry_vertex_faces *adjacency,
+    uint32_t face_index,uint32_t corner_index,rf_lightmap_normal_face *work,uint32_t capacity,
+    rf_lightmap_sample_vertex *result)
+{
+    rf_geometry_face face;rf_geometry_corner corner;rf_lightmap_normal_face base;
+    rf_lightmap_sample_vertex value;uint32_t first,end,i,found=0;int status;
+    if(!g || !adjacency || !adjacency->offsets || !adjacency->faces || !result || adjacency->vertices!=g->vertices)return RF_RANGE;
+    status=rf_geometry_get_face(g,face_index,&face);if(status)return status;
+    if(face.lightmap_mapping==UINT32_MAX)return RF_NOT_FOUND;
+    memcpy(base.normal,face.plane,12);base.id=face_index;base.vertex_count=face.corners;
+    status=rf_geometry_get_corner(g,face_index,corner_index,&corner);if(status)return status;
+    if(corner.vertex>=adjacency->vertices)return RF_RANGE;
+    first=adjacency->offsets[corner.vertex];end=adjacency->offsets[corner.vertex+1];
+    if(first>end || end>adjacency->links || end-first>capacity || (end>first && !work))return RF_RANGE;
+    for(i=first;i<end;i++) {
+        rf_lightmap_normal_face *target=work+i-first;uint32_t index=adjacency->faces[i];
+        status=rf_geometry_get_face(g,index,&face);if(status)return status;
+        memcpy(target->normal,face.plane,12);target->id=index;target->vertex_count=face.corners;
+        if(index==face_index)found=1;
+    }
+    if(!found)return RF_NOT_FOUND;
+    memcpy(value.uv,corner.lightmap_uv,8);status=rf_geometry_vertex(g,corner.vertex,value.position);if(status)return status;
+    status=rf_lightmap_corner_normal(&base,work,end-first,value.normal);if(status)return status;
+    *result=value;return RF_OK;
+}
+
 int rf_geometry_texture_coordinates(const rf_geometry *geometry,uint32_t index,
     const float point[3],rf_geometry_texture_workspace *work,float uv[2],uint32_t *matched)
 {
