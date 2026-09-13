@@ -3,6 +3,26 @@
 #include <string.h>
 #include <stdlib.h>
 #include <float.h>
+int rf_visibility_light_faces(rf_light_dirty_face *faces,uint32_t count,
+    unsigned char *dirty,uint32_t dirty_count,uint32_t mode,uint32_t update,
+    rf_light_bounds_test test,void *context)
+{
+    uint32_t i,hit;int status;unsigned char mask=(update&255u)?2:1;
+    if((count && !faces) || (dirty_count && !dirty))return RF_RANGE;
+    for(i=0;i<count;i++) {
+        rf_light_dirty_face *face=faces+i;
+        if(face->property_34 < -32768 || face->property_34>32767 || face->lighting_index < -32768 || face->lighting_index>32767)return RF_RANGE;
+        if(face->property_34>0)continue;
+        if(!(mode&255u)){face->flags|=0x40000u;continue;}
+        if(face->lighting_index<0)continue;
+        if((uint32_t)face->lighting_index>=dirty_count)return RF_RANGE;
+        if(dirty[face->lighting_index]&mask)continue;
+        if(!test)return RF_RANGE;
+        status=test(context,face->minimum,face->maximum,&hit);if(status)return status;
+        if(hit)dirty[face->lighting_index]=(update&255u)?3:1;
+    }
+    return RF_OK;
+}
 int rf_visibility_light_cone_planes(const float position[3],const float axis[3],
     float radius,float half_width,rf_visibility_plane planes[6])
 {

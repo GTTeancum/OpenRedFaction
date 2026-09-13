@@ -862,3 +862,22 @@ match;577 combined cases have negative width. Three input-error guards
 preserve output. Existing2048 plane and2048 composed box comparisons,
 both builds and24 CTests pass. Native scene/room traversal is not yet bound;
 this arithmetic has instruction-level NXDK evidence, not new XEMU evidence.
+
+### Face lighting dirty-state pass (2026-09-13)
+
+rf_visibility_light_faces reconstructs the accepted-node/solid face loop in
+4d86d0. Original49cc80 receives face+28, so its signed-word predicate is
+face+34 (not face+c). Positive values skip; zero/negative values proceed.
+With low-byte mode zero, flags+28 gain40000 without a per-face box test.
+Otherwise negative signed lighting indices at+36 skip, and shared lighting
+records are indexed through solid+c0. Update low byte selects dirty bit1
+or2 for early skip; a geometry hit assigns1 or3 to the entire dirty byte.
+Supplied faces retain original linked-list order and shared indices.
+
+verify_light_dirty_faces.py executes full original4d86d0 flat-solid path
+with only the bounds predicate supplied; parent bounds pass, per-face
+predicate results/call order are checked. All2048 original/PC/NXDK cases
+match face flags and shared bytes. A PC/NXDK callback-failure case confirms
+earlier updates remain committed. Both builds and24 CTests pass. Tree root
+selection, right-before-left traversal and native state binding are next;
+this face pass does not claim whole-room visibility or rendered lighting.

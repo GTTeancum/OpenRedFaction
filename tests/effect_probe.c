@@ -105,8 +105,27 @@ static int segment_create_allocate(void *context,const rf_glare_create_descripto
     segment_create_fixture *c=context;++c->count;c->descriptor=*d;
     if(c->count==c->error)return RF_IO;*out=c->null_owner?NULL:&c->owner;return RF_OK;
 }
+static uint32_t light_dirty_trace[18],light_dirty_fail;
+static int light_dirty_bounds(void *context,const float minimum[3],const float maximum[3],uint32_t *hit)
+{
+    uint32_t id=(uint32_t)minimum[0];(void)context;(void)maximum;
+    light_dirty_trace[1+light_dirty_trace[0]++]=id;
+    if(light_dirty_fail==light_dirty_trace[0])return RF_IO;
+    *hit=(uint32_t)minimum[1];return RF_OK;
+}
 int main(int argc,char **argv)
 {
+    if(argc==2 && !strcmp(argv[1],"--light-dirty-faces")) {
+        struct {uint32_t mode,update,fail;rf_light_dirty_face faces[16];unsigned char dirty[8];} input;
+        uint32_t status;
+        _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
+        while(fread(&input,sizeof(input),1,stdin)==1) {
+            memset(light_dirty_trace,0,sizeof(light_dirty_trace));light_dirty_fail=input.fail;
+            status=rf_visibility_light_faces(input.faces,16,input.dirty,8,input.mode,input.update,light_dirty_bounds,NULL);
+            fwrite(&status,4,1,stdout);fwrite(input.faces,sizeof(input.faces),1,stdout);fwrite(input.dirty,8,1,stdout);fwrite(light_dirty_trace,sizeof(light_dirty_trace),1,stdout);
+        }
+        return 0;
+    }
     if(argc==2 && (!strcmp(argv[1],"--light-cone-planes") || !strcmp(argv[1],"--light-cone-prepare"))) {
         float input[8];struct {uint32_t status;rf_visibility_plane planes[6];} output;
         _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);

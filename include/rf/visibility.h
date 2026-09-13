@@ -3,6 +3,19 @@
 #include "rf/vpp.h"
 #include "rf/effect.h"
 #include "rf/geometry.h"
+typedef struct rf_light_dirty_face {
+    float minimum[3],maximum[3];uint32_t flags;int32_t property_34,lighting_index;
+} rf_light_dirty_face;
+typedef int (*rf_light_bounds_test)(void *,const float minimum[3],const float maximum[3],uint32_t *hit);
+/*4d86d0 accepted-node/solid face pass, in supplied linked-list order.
+ * mode0 ORs face flag40000 without a per-face bounds test. Other modes use
+ * the low-byte update flag to select shared dirty bit1/2, then assign1/3 on
+ * a bounds hit. Positive signed-word property34 skips; negative light index
+ * skips shared state. Callback errors retain earlier progress. No allocation. */
+int rf_visibility_light_faces(rf_light_dirty_face *faces,uint32_t count,
+    unsigned char *dirty,uint32_t dirty_count,uint32_t mode,uint32_t update,
+    rf_light_bounds_test test,void *context);
+
 typedef struct rf_object_render_backend {
     int (*white)(void *);
     int (*model_kind)(void *,uint32_t,uint32_t *);
