@@ -1,5 +1,14 @@
 #include "rf/movement.h"
 #include <math.h>
+#include <string.h>
+int rf_movement_body_rotation(const uint32_t reference[3],const float input[3],float output[3])
+{
+    uint32_t values[3],axis;
+    if(!reference || !input || !output)return RF_RANGE;
+    memcpy(values,input,sizeof(values));
+    for(axis=0;axis<3;++axis)if(reference[axis]==0 || reference[axis]==1)values[axis]=0;
+    memcpy(output,values,sizeof(values));return RF_OK;
+}
 int rf_movement_acceleration(const uint32_t reference[3],const float input[3],float acceleration,
     const float eye[9],const float body[9],const float parent[9],float output[3])
 {

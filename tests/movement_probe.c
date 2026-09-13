@@ -11,6 +11,14 @@ int main(int argc,char **argv)
     int32_t status;
     _Static_assert(sizeof(input)==56,"Movement settings wire layout");
     _setmode(_fileno(stdin),_O_BINARY); _setmode(_fileno(stdout),_O_BINARY);
+    if(argc==2 && !strcmp(argv[1],"--body-rotation")) {
+        struct {uint32_t reference[3];float input[3];} v;
+        while(fread(&v,sizeof(v),1,stdin)==1) {
+            if(rf_movement_body_rotation(v.reference,v.input,v.input))return 3;
+            if(fwrite(v.input,sizeof(v.input),1,stdout)!=1)return 1;
+        }
+        return ferror(stdin)?1:0;
+    }
     if(argc==2 && !strcmp(argv[1],"--start")) {
         struct {rf_movement_descriptor descriptors[16];int32_t requested;uint32_t flags;} v;uint32_t slot;
         while(fread(&v,sizeof(v),1,stdin)==1) {

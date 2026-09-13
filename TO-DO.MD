@@ -56,6 +56,7 @@ Concrete request4cebd0 matches2048 clear and2048 obstructed original/PC/NXDK cas
 Persistent NPC route endpoints and prepared-request service pass38 ownership checks in stock64MiB XEMU; bind AI destination preparation and route following.
 Waypoint advance40c2a0 and full steering40cb50 each match2048 original/PC/NXDK cases; reconstruct arrival/re-pathing40bb70 and follower dispatch40b6d0.
 Authored rotation limits/acceleration are retained for all63 classes;84 PC/NXDK reader cases and three PC level budgets pass; bind steering/physics consumers.
+Body rotation filter433c80 matches2048 original/PC/NXDK cases; bind NPC eye orientation and complete angular integration before live steering.
 AI scalar401cc0 and occupant-chain4077a0 each match2048 original/PC/NXDK cases; retain scalar/override sources.
 Shared408ac0 selection matches2048 original/PC/NXDK cases across107 paths plus21 failure checks.
 AI animation resets4091d0/409210 match2048 original/PC/NXDK cases plus4 failure checks.
