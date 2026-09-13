@@ -9708,3 +9708,29 @@ replay-20260913-022348 passes180 L1S2 frames with NPC_UNHOLSTER
 This retains authored data in live class owners; it does not yet call
 unholster recovery on NPCs or implement autonomous weapon/AI transitions.
 No visual change or screenshot is claimed.
+
+
+Scene unholster recovery binding (2026-09-13):
+rf_scene_npc_recover_unholster resolves a registered NPC and current base
+mapping, binds shared408f20 to existing model-stop/action-playback/duration
+services, and uses retained class unholster_delay. The existing pain.ai_timer
+is actor514; a new deadline_518 and stance_7bc retain the other writes.
+Constructor audit corrected their initialization:402cb3/4fa360 starts514
+expired, but402cbe/4fa3e0 initializes518 to-1, not an expired timestamp.
+Actor7bc starts0. Eight retained bytes per NPC enter existing sizeof-based
+body accounting. This turn does not claim a new native memory measurement.
+Attachment health resolves registered NPC/clutter/glare/player owners.
+Missing handles return absent; other live object families return an explicit
+error instead of fabricated zero health. Action playback reuses the existing
+general428c90 service currently named rf_scene_npc_death_play, including
+action40 sound dispatch. Publish/reload preserves callback-visible flags,
+playback and timer writes, including errors after starting the action.
+PC npc_residency_tests now exercises the bound path with prepared retained
+model resources: successful action40 gives deadlines1500/1330 at now1000,
+repeat pending call preserves playback, positive parent health blocks action13
+clear, missing animation still preserves earlier clear, and sound failure
+retains playback/flag effects but does not set timers. Stale handle and invalid
+clock guards pass. Both builds and all22 CTests pass. Core recovery remains
+exact over2048 original/PC/NXDK cases plus5 callback and8 duration guards.
+Positive native scene recovery, ordinary AI callers and armed mappings remain
+open; no new XEMU run or screenshot claimed for this scene-binding turn.

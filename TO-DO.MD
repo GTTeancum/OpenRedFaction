@@ -49,7 +49,7 @@ AI animation resets4091d0/409210 match2048 original/PC/NXDK cases plus4 failure 
 Scene AI reset service passes304 restored-state cases across38 NPCs on stock64MiB XEMU.
 Shared recovery408f20 matches2048 original/PC/NXDK cases plus5 callback and8 duration guards.
 Authored unholster delays are retained; three PC levels and180-frame stock64MiB XEMU pass.
-Bind retained unholster timing to live recovery playback.
+Scene unholster service is bound and PC-tested; add positive native XEMU coverage.
 Implement remaining AI services and bind retained override/state fields before live special landing.
 
 The stationary startup-NPC animation gate matches PC/stock64MiB XEMU;

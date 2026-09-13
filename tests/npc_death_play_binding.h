@@ -1,3 +1,9 @@
+static int unholster_test_sound(void *context,uint32_t handle,const char *name)
+{
+ campaign_npc_body *owner=context;
+ if(handle!=owner->registration.handle || strcmp(name,"unholster-test") || owner->death.action_824!=40)return RF_FORMAT;
+ owner->view.flags_810|=0x200;return RF_IO;
+}
 typedef struct death_play_fixture {campaign_npc_body *owner;uint32_t calls;int failure;} death_play_fixture;
 static int death_play_sound(void *context,uint32_t handle,const char *name)
 {
@@ -42,6 +48,27 @@ static int death_play_binding_check(campaign_npc_body *owner,rf_entity_state_set
   rf_model_bone bones[50]={{0}};rf_model_bone_override overrides[50],*old_overrides=pose->overrides;
   rf_scene_death_motion_ops ops={0};rf_motion_playback_state before;uint32_t bits=0x12345678;
   cls.model_kind=2;cls.physics.flags=0x20000;campaign_seeds.classes=&cls;campaign_seeds.class_count=1;
+  {
+   campaign_npc_body kept=*owner;rf_motion_playback_state kept_pose=pose->playback,started;
+   int32_t old40=campaign_motion_catalog.mappings[0].actions[40];
+   campaign_motion_catalog.mappings[0].actions[40]=2;cls.unholster_delay=.33f;owner->view.flags_810=0;owner->view.flags_7d0=0x100;
+   owner->view.action_520=3;owner->pain.ai_timer=0;owner->unholster.deadline_518=17;
+   CHECK(rf_scene_npc_recover_unholster(handle^0x10000,1000,NULL,NULL)==RF_NOT_FOUND);
+   CHECK(rf_scene_npc_recover_unholster(handle,-1,NULL,NULL)==RF_RANGE);
+   CHECK(rf_scene_npc_recover_unholster(handle,1000,NULL,NULL)==RF_OK);
+   CHECK(owner->death.action_824==40 && owner->pain.ai_timer==1500 && owner->unholster.deadline_518==1330);
+   started=pose->playback;CHECK(rf_scene_npc_recover_unholster(handle,1000,NULL,NULL)==RF_OK && !memcmp(&started,&pose->playback,sizeof(started)));
+   owner->view.action_520=13;owner->view.linked_handle=(int32_t)handle;owner->damage.effects.health=1;owner->unholster.stance_7bc=1;owner->pain.ai_timer=0;
+   CHECK(rf_scene_npc_recover_unholster(handle,1000,NULL,NULL)==RF_OK && owner->unholster.stance_7bc==1 && owner->pain.ai_timer==0);
+   owner->damage.effects.health=0;campaign_motion_catalog.mappings[0].actions[40]=-1;
+   CHECK(rf_scene_npc_recover_unholster(handle,1000,NULL,NULL)==RF_OK && owner->unholster.stance_7bc==0 && owner->pain.ai_timer==0);
+   campaign_motion_catalog.mappings[0].actions[40]=2;owner->view.action_520=3;strcpy(bindings->action_sounds[40],"unholster-test");
+   owner->unholster.deadline_518=17;
+   CHECK(rf_scene_npc_recover_unholster(handle,1000,unholster_test_sound,owner)==RF_IO);
+   CHECK(owner->death.action_824==40 && owner->pain.ai_timer==0 && owner->unholster.deadline_518==17 && (owner->view.flags_810&0x200));
+   bindings->action_sounds[40][0]=0;campaign_motion_catalog.mappings[0].actions[40]=old40;*owner=kept;pose->playback=kept_pose;
+  }
+
   pose->bone_count=1;skeleton.bones=bones;skeleton.count=pose->bone_count;strcpy(bones[0].name,"spinehead");bones[0].parent=-1;
   campaign_skeletons.items=&skeleton;campaign_skeletons.count=campaign_skeletons.class_count=1;campaign_skeletons.class_indices=&index;
   memset(overrides,0x5a,sizeof(overrides));pose->overrides=overrides;

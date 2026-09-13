@@ -242,6 +242,11 @@ int rf_scene_actor_model_response(uint32_t first,uint32_t target,uint32_t *chang
  * Pair flags and active-body gates retain original meaning; hits counts calls
  * returning nonzero and is preserved on error. Lists remain actor-only. */
 int rf_scene_actor_pairs_process(rf_collision_pair_list *pairs,uint32_t *hits);
+/*408f20 unholster using retained class delay, NPC timers, registered parent
+ * health and current playback. Sound failure preserves prior playback effects;
+ * unimplemented mapping/object families return errors. Does not schedule AI. */
+int rf_scene_npc_recover_unholster(uint32_t handle,int32_t now_ms,
+    int (*sound)(void *,uint32_t,const char *),void *context);
 /* Retained NPC4091d0/409210 reset with actual action mapping, remaining-time
  * queries and shared nonlooping stop; stale handles reject before mutation. */
 int rf_scene_npc_reset_ai_animation(uint32_t handle,uint32_t secondary);

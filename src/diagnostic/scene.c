@@ -2769,6 +2769,7 @@ typedef struct campaign_npc_body {
     rf_entity_room_state room; /* Original word0 and query-position cache4. */
     struct {int32_t item_82c,requested_83c,action_824,linked_146c,deadline_4b8;uint32_t model_148c;} death;
     struct {int32_t action_1364,motion_1368,word_834;} ai_override;
+    struct {int32_t deadline_518,stance_7bc;} unholster;
     uint32_t death_bone_words[2]; /* actor1464/1468 */
     float command_714[3]; /* Constructor422eaf..422ed3 clears this movement vector. */
     const rf_player_movement_region *previous_region_13ec; /* Constructor clears; borrowed campaign region. */
@@ -2990,6 +2991,7 @@ static int campaign_npc_bodies_open(const char *tables_path,const rf_geometry_co
         /* Original402c33..402d68 and423318..4233a8: expired at creation,
          * not disabled. Later AI/pain code owns changes to these deadlines. */
         status=rf_timer_set(&owner->pain.ai_timer,now,0);if(status)goto done;
+        owner->unholster.deadline_518=-1;owner->unholster.stance_7bc=0; /*402cbe/4fa3e0;422360*/
         status=rf_timer_set(&owner->pain.animation_lock,now,0);if(status)goto done;
         status=rf_timer_set(&owner->pain.cooldown,now,0);if(status)goto done;
         owner->pain.selected_action=-1;
@@ -3880,6 +3882,61 @@ int rf_scene_npc_death_play(uint32_t handle,int32_t action,uint32_t freeze,
     if(status)return status;
     if(sound>=0)return play_sound?play_sound(context,handle,bindings->action_sounds[sound]):RF_NOT_FOUND;
     return RF_OK;
+}
+
+typedef struct campaign_unholster_context {
+    campaign_npc_body *owner;uint32_t handle,slot,cls;rf_entity_pose *pose;rf_entity_ai_recovery state;
+    int (*sound)(void *,uint32_t,const char *);void *sound_context;
+} campaign_unholster_context;
+static void campaign_unholster_reload(campaign_unholster_context *c)
+{
+    rf_entity_ai_recovery *s=&c->state;campaign_npc_body *o=c->owner;
+    s->owner=s;s->handle=c->handle;s->parent=(uint32_t)o->view.linked_handle;s->action=o->view.action_520;
+    s->flags_7d0=o->view.flags_7d0;s->flags_810=o->view.flags_810;s->model=c->slot;
+    s->motion_cd4=campaign_motion_catalog.mappings[c->cls].actions[40];s->word_7bc=(uint32_t)o->unholster.stance_7bc;
+    s->timer_514=o->pain.ai_timer;s->timer_518=o->unholster.deadline_518;s->class_seconds_f78=campaign_seeds.classes[c->cls].unholster_delay;
+}
+static void campaign_unholster_publish(campaign_unholster_context *c)
+{c->owner->pain.ai_timer=c->state.timer_514;c->owner->unholster.deadline_518=c->state.timer_518;c->owner->unholster.stance_7bc=(int32_t)c->state.word_7bc;}
+static int campaign_unholster_actor(void *context,uint32_t handle,rf_entity_ai_recovery **out)
+{campaign_unholster_context *c=context;if(handle!=c->handle)return RF_RANGE;*out=&c->state;return RF_OK;}
+static int campaign_unholster_health(void *context,uint32_t handle,uint32_t *found,float *health)
+{
+    uint32_t i;(void)context;*found=0;*health=0;
+    if(!rf_object_registry_lookup(&campaign_registry,handle))return RF_OK;
+    for(i=0;i<campaign_npc_body_count;++i)if(campaign_npc_bodies[i].registration.view && campaign_npc_bodies[i].registration.handle==handle)
+        {*found=1;*health=campaign_npc_bodies[i].damage.effects.health;return RF_OK;}
+    for(i=0;i<campaign_clutter_records.count;++i)if(campaign_clutter_bodies[i] && campaign_clutter_bodies[i]->state.handle==handle)
+        {*found=1;*health=campaign_clutter_bodies[i]->state.health;return RF_OK;}
+    for(i=0;i<campaign_glare_instance_count;++i)if(campaign_glare_instances[i] && campaign_glare_instances[i]->handle==handle)
+        {*found=1;*health=campaign_glare_instances[i]->health;return RF_OK;}
+    if(campaign_player_object.view && campaign_player_object.handle==handle)
+        {*found=1;*health=campaign_player_damage.state.effects.health;return RF_OK;}
+    return RF_NOT_FOUND;
+}
+static int campaign_unholster_playback(void *context,rf_entity_ai_recovery *actor,uint32_t op,double *seconds)
+{
+    campaign_unholster_context *c=context;rf_entity_playback_model *model;int status=RF_OK;
+    if(actor!=&c->state)return RF_RANGE;campaign_unholster_publish(c);
+    if(op==RF_AI_RECOVERY_STOP)status=rf_scene_model_stop_nonlooping(c->slot);
+    else if(op==RF_AI_RECOVERY_START)status=rf_scene_npc_death_play(c->handle,40,0,c->sound,c->sound_context);
+    else if(op==RF_AI_RECOVERY_DURATION) {
+        model=campaign_playback_resources.models+c->pose->skeleton;
+        if(actor->motion_cd4<0 || (uint32_t)actor->motion_cd4>=model->count)return RF_RANGE;
+        *seconds=rf_motion_duration(model->resources[actor->motion_cd4].comparison.start_tick,model->resources[actor->motion_cd4].comparison.end_tick);
+    } else return RF_RANGE;
+    campaign_unholster_reload(c);return status;
+}
+int rf_scene_npc_recover_unholster(uint32_t handle,int32_t now,int (*sound)(void *,uint32_t,const char *),void *context)
+{
+    campaign_unholster_context c={0};int status;rf_entity_ai_recovery_backend b={campaign_unholster_actor,campaign_unholster_health,campaign_unholster_playback,&c};
+    if(now<0 || now>RF_TIMER_PERIOD)return RF_RANGE;
+    status=campaign_npc_motion_owner(handle,&c.owner,&c.cls,&c.pose);if(status)return status;
+    if(!campaign_seeds.classes || !campaign_playback_resources.models || c.pose->skeleton>=campaign_playback_resources.model_count ||
+       campaign_motion_catalog.mappings[c.cls].weapon!=-1 || c.owner->view.weapons[0]!=-1 ||
+       campaign_motion_catalog.mappings[c.cls].skeleton!=c.pose->skeleton)return RF_NOT_FOUND;
+    c.handle=handle;c.slot=(uint32_t)(c.owner-campaign_npc_bodies);c.sound=sound;c.sound_context=context;campaign_unholster_reload(&c);
+    status=rf_entity_ai_recover(&c.state,now,&b);campaign_unholster_publish(&c);return status;
 }
 
 typedef struct campaign_death_motion_context {
