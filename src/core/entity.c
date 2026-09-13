@@ -2073,3 +2073,35 @@ int rf_entity_navigation_route_append(void *context,rf_entity_navigation_candida
     if(route->count<4)route->nodes[route->count++]=node;
     return RF_OK;
 }
+
+int rf_entity_navigation_request_run(rf_entity_navigation_request *q,
+    const rf_entity_navigation_request_backend *b,uint32_t *result)
+{
+    uint32_t value=0;int status,cleanup;
+    if(!q || !q->route || !b || !result)return RF_RANGE;
+    q->route->count=0;
+    if(!b->clear_start)return RF_RANGE;
+    status=b->clear_start(b->context);if(status)return status;
+    if(!b->prepare)return RF_RANGE;
+    status=b->prepare(b->context);if(status)return status;
+    if(!b->connect_start)return RF_RANGE;
+    status=b->connect_start(b->context,&value);if(status)return status;
+    if(!(value&255u)){*result=0;return RF_OK;}
+    if((q->search_mode&255u)==1) {
+        if(!b->connect_goal || !b->disconnect_goal || !b->search)return RF_RANGE;
+        status=b->connect_goal(b->context,&value);if(status)return status;
+        if((value&255u)!=1){q->route->count=0;*result=0;return RF_OK;}
+        status=b->search(b->context,&value);
+        cleanup=b->disconnect_goal(b->context);
+        if(status)return status;if(cleanup)return cleanup;
+        value&=255u;
+        if(value){if(!q->goal)return RF_RANGE;memcpy(q->goal->position,q->goal->query_point,12);}
+        else q->route->count=0;
+    } else {
+        if(!q->goal)return RF_RANGE;q->goal->rejected_035=0;
+        if(q->first_start)q->first_start->rejected_035=0;
+        if(!b->search)return RF_RANGE;
+        status=b->search(b->context,&value);if(status)return status;value&=255u;
+    }
+    *result=value;return RF_OK;
+}

@@ -151,6 +151,7 @@ static int ai_visibility_collision(void *context,uint32_t world,const float star
     memcpy(words+3,start,12);memcpy(words+6,delta,12);memcpy(words+9,&radius,4);
     *contacts=words[0];return (int32_t)words[1];
 }
+#include "ai_request_probe.h"
 int main(int argc,char **argv)
 {
     if(argc==3 && !strcmp(argv[1],"--action-name"))return action_name_probe(argv[2]);
@@ -468,6 +469,7 @@ int main(int argc,char **argv)
     }
     if(argc==2 && !strcmp(argv[1],"--ai-nearest"))return ai_nearest_probe();
     if(argc==2 && !strcmp(argv[1],"--ai-endpoint"))return ai_endpoint_probe();
+    if(argc==2 && !strcmp(argv[1],"--ai-request"))return ai_request_probe();
     if(argc==2 && !strcmp(argv[1],"--ai-route"))return ai_search_probe(1);
     if(argc==2 && !strcmp(argv[1],"--ai-search"))return ai_search_probe(0);
     if(argc==2 && !strcmp(argv[1],"--ai-direct"))return ai_direct_probe();

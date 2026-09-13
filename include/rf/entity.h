@@ -1270,4 +1270,29 @@ int rf_entity_navigation_search(rf_entity_navigation_reference *references,uint3
     rf_entity_navigation_search_query *query,uint32_t *scratch,uint32_t capacity,
     const rf_entity_navigation_search_backend *backend,uint32_t *result);
 
+/*4cebd0 request orchestration. Borrowed state must survive each stage.
+ * Stages may update goal/query coordinates and route output. Successful goal
+ * insertion must be reversible by disconnect, including after search errors. */
+typedef struct rf_entity_navigation_request {
+    rf_entity_navigation_candidate *goal,*first_start;
+    rf_entity_navigation_retained_route *route;uint32_t search_mode;
+} rf_entity_navigation_request;
+typedef struct rf_entity_navigation_request_backend {
+    int (*clear_start)(void *);
+    int (*prepare)(void *);
+    int (*connect_start)(void *,uint32_t *);
+    int (*connect_goal)(void *,uint32_t *);
+    int (*search)(void *,uint32_t *);
+    int (*disconnect_goal)(void *);
+    void *context;
+} rf_entity_navigation_request_backend;
+/* Reset output count before clearing start adjacency. Mode low byte exactly1
+ * inserts a temporary goal and always removes it after search. Success copies
+ * current goal.query_point to goal.position; false clears route count. Other
+ * modes clear goal/first-start rejection before search and retain its count.
+ * Return byte is preserved, not normalized. Errors preserve result and earlier
+ * effects; a search error still invokes disconnect, with search error primary. */
+int rf_entity_navigation_request_run(rf_entity_navigation_request *request,
+    const rf_entity_navigation_request_backend *backend,uint32_t *result);
+
 #endif

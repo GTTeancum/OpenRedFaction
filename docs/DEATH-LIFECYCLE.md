@@ -10170,3 +10170,28 @@ match. Both builds and22 CTest checks pass. Visibility and scratch-list
 allocation boundaries remain supplied in this search verifier. Combined
 4cebd0 request ownership and live NPC movement remain open; no native
 XEMU claim for this change.
+
+
+Shared route-request orchestration4cebd0 (2026-09-13)
+
+rf_entity_navigation_request_run resets route count, clears start adjacency,
+prepares nodes and connects start. Start requires nonzero low byte. Search
+mode low byte exactly1 connects a temporary goal, requiring result byte1,
+searches, then disconnects. Successful search copies current goal query
+coordinates to goal position after cleanup; failure clears route count.
+Other modes clear goal and optional first-start rejection before search
+and retain its output count. Search result byte is not normalized.
+
+Shared errors preserve result and earlier effects. After successful goal
+insertion, search errors still invoke disconnect; the search error takes
+precedence over a cleanup error. Stage callbacks must preserve borrowed
+state lifetime and support cleanup of the successfully inserted links.
+
+verify_ai_request.py compares2048 full original/PC/NXDK wrapper cases,
+with original list reset/count/removal and vector copy executing unchanged.
+Prepare/connect/search services are supplied. Exact byte branches, route
+counts, rejection bytes, goal position/query values, final link counts and
+stage visitation match. Six callback failures agree PC/NXDK; search failure
+removes temporary links. Both builds and22 CTest checks pass. Concrete
+graph-stage composition and retained scene adapters remain open; this
+verifier does not prove live NPC navigation or native XEMU execution.
