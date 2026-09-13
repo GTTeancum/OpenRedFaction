@@ -82,6 +82,7 @@ SP pickup completion order/timer matches1024 original/PC/NXDK cases and6 callbac
 Normal-SP acquisition4030d0 matches2048 original/PC/NXDK cases with actual401470 no-op notification; bind inventory creation, equip/reset and full pickup grants.
 Startup grants now compose with concrete42ab20 animation selection (220 loaded PC cases); connect retained inventories/selections to live scene consumers.
 All63 class defaults now retain optional melee (four authored classes); include it when creating startup inventories.
+Implement projectile kind2 creation and full4c77a0 lifecycle before composing425830 firing; see docs/FIRING-RUNTIME.md for audited boundaries and deferred-retirement requirements.
 Shot ammo consumption4257c0 matches2048 original/PC/NXDK cases; bind it to successful-shot dispatch with timing and projectile ownership.
 Muzzle-origin41b5a0 now matches2048 original/PC/NXDK cases plus7 NXDK failure guards; target-aim math41b4c0 matches2048 original/PC/NXDK cases; retained NPC target/lock service passes156 checks in stock64MiB XEMU; composed live muzzle service matches60 armed NPC poses in XEMU; bind other target types, replacement-class hand ownership and firing dispatch.
 Authored NPC primary/secondary/melee startup grants now populate retained inventories and selected animations; complete active firing resource services, weapon models and combat scheduling.
