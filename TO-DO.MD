@@ -14,6 +14,11 @@ Shortlist:
 
 Progress reporting: include overall percent estimates at meaningful milestones and revisit remaining 24-hour workdays when measured throughput supports a forecast; current rough estimate40% (35-45%), no defensible +/-48-hour completion forecast before end-to-end gameplay.
 
+VFX spherical candidate filtering now matches2048 original/PC/NXDK cases,
+including ordered indices, tangencies/adjacent floats and segment projection;
+3 guards, both builds and24 tests pass. Bind room/object cache rebuilding,
+box filters, global gate state and edge-light caches before native use.
+
 VFX source transforms plus mixed shading match2048 complete original/PC/NXDK
 cases, including every transformed source field. Bind live active-list
 selection and mesh edge-light caching before native renderer integration.

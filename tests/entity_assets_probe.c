@@ -256,6 +256,16 @@ int main(int argc,char **argv)
         }
         return ferror(stdin)?1:0;
     }
+    if(argc==2 && !strcmp(argv[1],"--vfx-lights-sphere")) {
+        uint32_t count,flags[2],indices[32],selected;float query[4];rf_vfx_light_candidate lights[32];int32_t status;
+        _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
+        while(fread(&count,4,1,stdin)==1) {
+            if(count>32 || fread(query,4,4,stdin)!=4 || fread(flags,4,2,stdin)!=2 || fread(lights,sizeof(*lights),count,stdin)!=count)return 2;
+            memset(indices,0xa5,sizeof(indices));selected=0xa5a5a5a5u;
+            status=rf_vfx_lights_sphere(lights,count,query,query[3],flags[0],flags[1],indices,32,&selected);
+            fwrite(&status,4,1,stdout);fwrite(&selected,4,1,stdout);fwrite(indices,4,count,stdout);
+        }return 0;
+    }
     if(argc==2 && (!strcmp(argv[1],"--vfx-lighting") || !strcmp(argv[1],"--vfx-transformed-lighting"))) {
         uint32_t count,i;float v[10],transform[12];rf_vfx_light_source lights[32];unsigned char out[3];int32_t status;
         _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);

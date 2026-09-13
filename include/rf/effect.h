@@ -78,6 +78,18 @@ typedef struct rf_vfx_light_source {
     uint32_t type,profile;float position[3],end[3],axis[3],color[3];
     float radius,cone_scale,inner,outer;uint32_t squared;
 } rf_vfx_light_source;
+/*4d99c0 spherical filtering of an already-cached candidate list. The two
+ * bytes retain original4c(enabled)/4d(class); reserved bytes must be zero.
+ * include_class/include_other are booleans after the caller's global gate.
+ * Finite, bounded coordinates and nonnegative radii; nonzero segments must
+ * have normal float lengths. Stable indices, storage >=count; errors preserve outputs.
+ * Does not refresh room caches or mutate original active-list globals. */
+typedef struct rf_vfx_light_candidate {
+    rf_vfx_light_source source;unsigned char enabled,light_class,reserved[2];
+} rf_vfx_light_candidate;
+int rf_vfx_lights_sphere(const rf_vfx_light_candidate *,uint32_t count,
+    const float center[3],float radius,uint32_t include_class,uint32_t include_other,
+    uint32_t *indices,uint32_t capacity,uint32_t *selected);
 /*4d8480 transform: directions rotate only; positions/endpoints subtract
  * origin first. Basis rows use original Z/Y/X dot order. Preserves non-vector
  * fields and unused vectors. In-place supported; errors preserve output. */

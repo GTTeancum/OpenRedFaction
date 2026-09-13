@@ -2234,3 +2234,52 @@ int rf_vfx_light_transform(const rf_vfx_light_source *light,const float origin[3
     }
     *out=result;return RF_OK;
 }
+
+int rf_vfx_lights_sphere(const rf_vfx_light_candidate *lights,uint32_t count,
+    const float center[3],float radius,uint32_t include_class,uint32_t include_other,
+    uint32_t *indices,uint32_t capacity,uint32_t *selected)
+{
+    uint32_t i,j,n=0;
+    if(!center || !selected || (count && (!lights || !indices)) || capacity<count ||
+        count>SIZE_MAX/sizeof(*lights) || !isfinite(radius) || radius<0 || include_class>1 || include_other>1)return RF_RANGE;
+    for(j=0;j<3;++j)if(!isfinite(center[j]))return RF_RANGE;
+    /* Validate before writing caller storage. Bound coordinate differences to
+     * finite floats; all subsequent squared arithmetic is in double. */
+    for(i=0;i<count;++i) {
+        const rf_vfx_light_candidate *c=lights+i;const rf_vfx_light_source *l=&c->source;
+        double extent=0;
+        if(c->reserved[0] || c->reserved[1] || !isfinite(l->radius) || l->radius<0)return RF_RANGE;
+        for(j=0;j<3;++j)if(!isfinite(l->color[j]) || !isfinite(l->position[j]) ||
+            !isfinite((float)(l->position[j]-center[j])) || (l->type==4 &&
+            (!isfinite(l->end[j]) || !isfinite((float)(l->end[j]-l->position[j])))))return RF_RANGE;
+        for(j=0;j<3;++j) {
+            if(fabs((double)l->position[j])+fabs((double)center[j])>FLT_MAX/8.0)return RF_RANGE;
+            if(l->type==4){double d=(float)(l->end[j]-l->position[j]);extent+=d*d;}
+        }
+        if(l->type==4 && (extent>(FLT_MAX/8.0)*(FLT_MAX/8.0) || (extent!=0 && extent<(double)FLT_MIN*FLT_MIN)))return RF_RANGE;
+    }
+    for(i=0;i<count;++i) {
+        const rf_vfx_light_candidate *c=lights+i;const rf_vfx_light_source *l=&c->source;
+        float delta[3];double squared,sum;
+        if(!c->enabled || !(l->color[0]!=0 || l->color[1]!=0 || l->color[2]!=0) ||
+            (!include_class && c->light_class) || (!include_other && !c->light_class))continue;
+        if(l->type==1){indices[n++]=i;continue;}
+        if(l->type<2 || l->type>4)continue;
+        for(j=0;j<3;++j)delta[j]=l->position[j]-center[j];
+        if(l->type==4) {
+            float d[3],length,reciprocal,projection,closest;
+            for(j=0;j<3;++j)d[j]=l->end[j]-l->position[j];
+            length=(float)sqrt(((double)d[0]*d[0]+(double)d[1]*d[1])+(double)d[2]*d[2]);
+            if(length!=0) {
+                reciprocal=1.0f/length;
+                for(j=0;j<3;++j)d[j]*=reciprocal;
+                projection=(float)(-(((double)d[0]*delta[0]+(double)d[1]*delta[1])+(double)d[2]*delta[2]));
+                if(projection<0)projection=0;if(projection>length)projection=length;
+                for(j=0;j<3;++j){float offset=d[j]*projection;closest=l->position[j]+offset;delta[j]=closest-center[j];}
+            }
+        }
+        squared=((double)delta[0]*delta[0]+(double)delta[1]*delta[1])+(double)delta[2]*delta[2];
+        sum=(double)radius+l->radius;if(squared<sum*sum)indices[n++]=i;
+    }
+    *selected=n;return RF_OK;
+}

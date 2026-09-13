@@ -422,3 +422,33 @@ point-only regression also passes. Live list selection remains separate.
 Static references locate list reset/append paths around4d9a06/4d9bb6,
 4d9c49/4d9d8b and4d9e17/4d9f5c, plus reset4d9fc7. Resolve their containing
 functions and caller selection rules before binding the scene-owned list.
+
+## Spherical candidate filtering
+
+rf_vfx_lights_sphere reconstructs4d99c0 over an explicitly supplied candidate
+array, returning stable indices without allocation. It retains enabled byte4c
+and class byte4d, rejects black sources, applies both class switches, accepts
+type1 and skips unknown types. Types2/3 compare squared center distance with
+(radius+source radius)^2 using a strict inequality. Type4 first uses509100's
+segment projection, including zero-length handling, stored float length and
+reciprocal, float projection/clamping, and stored offset/closest coordinates.
+This projection differs from the segment shading path and is kept distinct.
+Invalid inputs/capacity preserve caller output. Extreme coordinates/segments
+outside safe float intermediates are rejected rather than propagated.
+
+2048 complete original4d99c0 cases match PC/NXDK selected counts and ordered
+indices (0-32 candidates), including exact tangencies and adjacent floats,
+degenerate segments, unknown types and class/color/enabled filtering. Three
+invalid-input guards preserve outputs. The fixture uses4d96c0's real cached
+room fast path with matching generation at room+1c8 and candidate array at
+room+1bc; no original functions are hooked. Both builds and24 CTests pass.
+This is instruction emulation evidence, not a native XEMU rendering check.
+
+Static evidence:4d96c0 refreshes room candidate lists when generation c96874
+changes, filtering linked sources against room bounds+8/+14. Null room uses
+a separate global cache only when879af8 is enabled.4d9870 instead caches at
+object+360/+36c using bounds+48/+54.4d9c00 and4d9dd0 perform box filtering.
+These cache rebuilds/box filters, ownership and global gates remain open.
+4d99c0's disabled global gate preserves the previous active list; an enabled
+query resets it even when candidate lookup fails. Callers must preserve that
+state distinction when integrating the stateless spherical helper.
