@@ -8,6 +8,7 @@
 #include "rf/model_file.h"
 #include "rf/movement.h"
 #include "rf/effect.h"
+#include "rf/weapon.h"
 typedef struct rf_weapon_names {
     char names[64][64];uint32_t count,primary_count;
 } rf_weapon_names;
@@ -16,6 +17,18 @@ typedef struct rf_weapon_names {
  * Port name limit63, capacity64; output unchanged on errors. */
 int rf_weapon_names_read(const void *text,uint32_t bytes,rf_weapon_names *result);
 int rf_weapon_names_load(rf_vpp *tables,uint32_t scratch_budget,rf_weapon_names *result);
+typedef struct rf_weapon_supply_catalog {
+    rf_weapon_names names;
+    rf_weapon_acquire_definition definitions[64];
+} rf_weapon_supply_catalog;
+/* Bounded authored ammo/weapon supply subset:32 ammo names,64 weapons.
+ * SP first Max Ammo/Clip Size values; missing clip=0 and unknown ammo=-1.
+ * Output commits only after both complete tables validate. Read allocates none. */
+int rf_weapon_supply_read(const void *ammo,uint32_t ammo_bytes,
+    const void *weapons,uint32_t weapon_bytes,rf_weapon_supply_catalog *result);
+/* Temporary archive storage is bounded by scratch_budget and released. */
+int rf_weapon_supply_load(rf_vpp *tables,uint32_t scratch_budget,rf_weapon_supply_catalog *result);
+
 /* 4c81f0 lookup over stable loaded names: first ASCII-insensitive match or-1.
  * NULL query behaves as empty. Table must be valid; no allocation. */
 int32_t rf_weapon_name_find(const rf_weapon_names *table,const char *name);

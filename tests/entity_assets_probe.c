@@ -14,6 +14,14 @@
 #include "clutter_base_probe.h"
 int main(int argc,char **argv)
 {
+    if(argc==4 && !strcmp(argv[1],"--weapon-supply-load")) {
+        rf_vpp a;rf_weapon_supply_catalog out;int32_t code;memset(&out,0xa5,sizeof(out));code=rf_vpp_open(&a,argv[2]);if(!code){code=rf_weapon_supply_load(&a,(uint32_t)strtoul(argv[3],NULL,10),&out);rf_vpp_close(&a);}_setmode(_fileno(stdout),_O_BINARY);fwrite(&code,4,1,stdout);fwrite(&out,sizeof(out),1,stdout);return 0;
+    }
+    if(argc==2 && !strcmp(argv[1],"--weapon-supply")) {
+        uint32_t sizes[2];rf_weapon_supply_catalog out;int32_t code;void *a,*w;
+        _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
+        while(fread(sizes,8,1,stdin)==1){if(sizes[0]>1048576 || sizes[1]>1048576)return 2;a=malloc(sizes[0]);w=malloc(sizes[1]);if(!a || !w)return 2;if(fread(a,1,sizes[0],stdin)!=sizes[0] || fread(w,1,sizes[1],stdin)!=sizes[1])return 2;memset(&out,0xa5,sizeof(out));code=rf_weapon_supply_read(a,sizes[0],w,sizes[1],&out);free(a);free(w);fwrite(&code,4,1,stdout);fwrite(&out,sizeof(out),1,stdout);}return ferror(stdin)?1:0;
+    }
     if(argc==2 && !strcmp(argv[1],"--clutter-base"))return clutter_base_probe();
     if(argc==2 && !strcmp(argv[1],"--model-attach"))return model_attach_probe();
     if(argc==2 && !strcmp(argv[1],"--owned-pose"))return owned_pose_probe();

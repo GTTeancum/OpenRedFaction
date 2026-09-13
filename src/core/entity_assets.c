@@ -417,6 +417,74 @@ static int metadata_integer(lexer *l,uint32_t *result)
     }
     if(!digits)return RF_FORMAT;*result=negative?0u-(uint32_t)number:(uint32_t)number;return RF_OK;
 }
+int rf_weapon_supply_read(const void *ammo,uint32_t ammo_bytes,
+    const void *weapons,uint32_t weapon_bytes,rf_weapon_supply_catalog *result)
+{
+    rf_weapon_supply_catalog v={0};char ammo_names[32][64]={{0}},t[256],name[64];
+    uint32_t count=0,index=0,j,mask=0,first,second;int q,status,section=0,active=0;
+    lexer l={(const unsigned char*)ammo,ammo_bytes,0};
+    if(!ammo || !weapons || !result)return RF_RANGE;
+    while((status=token(&l,t,&q))==RF_OK) {
+        if(q)continue;
+        if(same(t,"#Ammo")){if(section)return RF_FORMAT;section=1;}
+        else if(same(t,"#End")){if(section!=1)return RF_FORMAT;section=2;}
+        else if(same(t,"$Name:")) {
+            if(section!=1)return RF_FORMAT;if(count==32)return RF_RANGE;
+            status=metadata_string(&l,ammo_names[count],64);if(status)return status;++count;
+        }
+    }
+    if(status!=RF_NOT_FOUND)return status;if(section!=2)return RF_FORMAT;
+    status=rf_weapon_names_read(weapons,weapon_bytes,&v.names);if(status)return status;
+    l.text=weapons;l.size=weapon_bytes;l.at=0;
+    while((status=token(&l,t,&q))==RF_OK) {
+        if(q)continue;
+        if(same(t,"$Name:")) {
+            if(active && (mask&3)!=3)return RF_FORMAT;
+            if(index>=v.names.count)return RF_FORMAT;
+            status=metadata_string(&l,name,64);if(status)return status;
+            if(!same(name,v.names.names[index]))return RF_FORMAT;
+            v.definitions[index].ammo_type=-1;++index;active=1;mask=0;
+        } else if(same(t,"#End")) {
+            if(active && (mask&3)!=3)return RF_FORMAT;active=0;
+        } else if(active && same(t,"$Max")) {
+            if(token(&l,t,&q) || q)return RF_FORMAT;
+            if(!same(t,"Ammo:"))continue;
+            if(mask&1)return RF_FORMAT;
+            if(metadata_integer(&l,&first) || metadata_integer(&l,&second))return RF_FORMAT;
+            memcpy(&v.definitions[index-1].capacity,&first,4);mask|=1;
+        } else if(active && same(t,"$Ammo")) {
+            if(token(&l,t,&q) || q)return RF_FORMAT;
+            if(!same(t,"Type:"))continue;
+            if(mask&2)return RF_FORMAT;
+            status=metadata_string(&l,name,64);if(status)return status;
+            for(j=0;j<count;++j)if(same(ammo_names[j],name)){v.definitions[index-1].ammo_type=(int32_t)j;break;}
+            mask|=2;
+        } else if(active && same(t,"$Clip")) {
+            if(token(&l,t,&q) || q)return RF_FORMAT;
+            if(!same(t,"Size:"))continue;
+            if(mask&4)return RF_FORMAT;
+            if(metadata_integer(&l,&first) || metadata_integer(&l,&second))return RF_FORMAT;
+            memcpy(&v.definitions[index-1].magazine,&first,4);mask|=4;
+        }
+    }
+    if(status!=RF_NOT_FOUND)return status;
+    if(index!=v.names.count || (active && (mask&3)!=3))return RF_FORMAT;
+    *result=v;return RF_OK;
+}
+int rf_weapon_supply_load(rf_vpp *tables,uint32_t budget,rf_weapon_supply_catalog *result)
+{
+    rf_vpp_entry ammo,weapons;unsigned char *text;int status;
+    if(!tables || !result)return RF_RANGE;
+    status=rf_vpp_find(tables,"ammo.tbl",&ammo);if(status)return status;
+    status=rf_vpp_find(tables,"weapons.tbl",&weapons);if(status)return status;
+    if(!ammo.size || !weapons.size || ammo.size>budget || weapons.size>budget-ammo.size)return RF_RANGE;
+    text=malloc(ammo.size+weapons.size);if(!text)return RF_RANGE;
+    status=rf_vpp_read(tables,&ammo,0,text,ammo.size);
+    if(!status)status=rf_vpp_read(tables,&weapons,0,text+ammo.size,weapons.size);
+    if(!status)status=rf_weapon_supply_read(text,ammo.size,text+ammo.size,weapons.size,result);
+    free(text);return status;
+}
+
 static int metadata_pass(const void *text,uint32_t bytes,rf_sound_metadata *rows,uint32_t *count)
 {
     lexer l={text,bytes,0};char trailing[256];int quoted;uint32_t n=0,value;
