@@ -60,6 +60,23 @@ int rf_entity_ai_set_action(rf_entity_ai_transition_state *state,int32_t action,
     uint32_t argument_a,uint32_t argument_b,float clock,uint32_t network_a,uint32_t network_b);
 int rf_entity_ai_set_state(rf_entity_ai_transition_state *state,int32_t requested,float clock);
 
+typedef struct rf_entity_ai_motion_state {
+    uint32_t model,flags_810,word_834;int32_t motion_1364,motion_1368;
+} rf_entity_ai_motion_state;
+typedef struct rf_entity_ai_motion_backend {
+    int (*active)(void *,rf_entity_ai_motion_state *,int32_t,uint32_t *); /*428d10*/
+    int (*weight)(void *,uint32_t,int32_t,double *); /*5033d0*/
+    int (*stop)(void *,uint32_t); /*503400*/
+    void *context;
+} rf_entity_ai_motion_backend;
+/*4091d0 when secondary=0;409210 (including409190 and trailing4091d0)
+ * when secondary=1. Owner is reloaded after effect callbacks. Callbacks may
+ * rebind it to live storage and mutate retained fields. Active tests low byte exactly1;
+ * secondary weight accepts nonzero ordered values. Errors keep prior effects.
+ * Model playback services and their lifetimes remain caller-owned. */
+int rf_entity_ai_reset_motion(rf_entity_ai_motion_state **owner,uint32_t secondary,
+    const rf_entity_ai_motion_backend *backend);
+
 typedef struct rf_entity_ai_actor {
     rf_entity_ai_transition_state transition;
     struct rf_entity_ai_actor *owner; /* inventory back pointer; usually self */

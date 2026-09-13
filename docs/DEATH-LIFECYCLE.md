@@ -9575,3 +9575,25 @@ NXDK testing, not native XEMU integration. No scene schedules these actors
 yet. Remaining work includes4087a0 event arbitration, reset/weapon/target
 services, retained inventory fields, callback mutation/lifetime coverage and
 live special-class landing. No new visuals claimed.
+
+
+AI animation resets (2026-09-13): rf_entity_ai_reset_motion reconstructs
+4091d0 and409210 with409190's weight gate. The primary reset reads actor1364,
+queries428d10, and only low-byte1 stops model playback503400 and clears1364.
+The secondary reset queries5033d0(model,1368); nonzero ordered weights stop
+playback and clear1368. Original409190 tests x87 C3, so zero and NaN both
+reject; signed infinities and negative nonzero weights qualify. It then
+clears actor810 bit02000000, writes834=-1, and executes the primary reset.
+An owner-pointer adapter preserves rereads after callbacks. Query/stop may
+redirect the inventory owner to other retained storage; writes use that
+current owner, not a snapshot. Errors retain preceding completed effects.
+verify_ai_motion_reset.py compares2048 full original calls (including actual
+409190) with PC and linked NXDK. Only playback active/weight/stop boundaries
+are supplied. Both complete original actor footprints and compact shared
+fields, trace order and owner changes match; four callback failures stop
+without undoing completed secondary resets. Both builds, all22 CTests and
+the2048-case full AI dispatcher regression pass. No native XEMU run claimed.
+Existing scene503400 nonlooping-stop service can serve later binding; actor
+1364/1368 ownership and query services still need integration.408f20 remains
+a separate blocked-animation recovery path with timers, action40 playback,
+linked-object action13 checks and duration queries; it is not a flag clear.

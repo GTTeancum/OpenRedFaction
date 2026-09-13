@@ -22,6 +22,34 @@ int rf_entity_ai_set_state(rf_entity_ai_transition_state *s,int32_t requested,fl
     if(!s || !isfinite(clock) || (double)clock < -2147483648.0 || (double)clock >= 2147483648.0)return RF_RANGE;
     s->state_2b4=requested;s->clock_2bc=(int32_t)clock;return RF_OK;
 }
+int rf_entity_ai_reset_motion(rf_entity_ai_motion_state **owner,uint32_t secondary,
+    const rf_entity_ai_motion_backend *b)
+{
+    int status;uint32_t active;double weight;int32_t motion;
+    if(!owner || !*owner || !b || !b->active || !b->stop || secondary>1 || (secondary && !b->weight))return RF_RANGE;
+    if(secondary) {
+        motion=(*owner)->motion_1368;
+        if(motion!=-1) {
+            status=b->weight(b->context,(*owner)->model,motion,&weight);if(status)return status;
+            if(!*owner)return RF_FORMAT;
+            if(!isnan(weight) && weight!=0) {
+                status=b->stop(b->context,(*owner)->model);if(status)return status;
+                if(!*owner)return RF_FORMAT;(*owner)->motion_1368=-1;
+            }
+        }
+        (*owner)->flags_810&=0xfdffffffu;(*owner)->word_834=UINT32_MAX;
+    }
+    motion=(*owner)->motion_1364;
+    if(motion!=-1) {
+        status=b->active(b->context,*owner,motion,&active);if(status)return status;
+        if(!*owner)return RF_FORMAT;
+        if((active&255u)==1) {
+            status=b->stop(b->context,(*owner)->model);if(status)return status;
+            if(!*owner)return RF_FORMAT;(*owner)->motion_1364=-1;
+        }
+    }
+    return RF_OK;
+}
 int rf_entity_ai_select(rf_entity_ai_actor *s,const rf_entity_ai_select_frame *f,const rf_entity_ai_select_backend *b)
 {
     rf_entity_ai_actor *actor,*target;uint32_t value,i;int status;int32_t next=2;

@@ -46,3 +46,25 @@ static int ai_select_probe(void)
     return ferror(stdin)?3:0;
 }
 
+
+typedef struct ai_reset_fixture {rf_entity_ai_motion_state states[2],*owner;uint32_t config[5],trace[24],count;} ai_reset_fixture;
+static void ai_reset_trace(ai_reset_fixture *c,uint32_t op,uint32_t a,uint32_t b)
+{if(c->count<8){c->trace[c->count*3]=op;c->trace[c->count*3+1]=a;c->trace[c->count*3+2]=b;}++c->count;}
+static int ai_reset_active(void *context,rf_entity_ai_motion_state *owner,int32_t motion,uint32_t *active)
+{ai_reset_fixture *c=context;ai_reset_trace(c,0,(uint32_t)(owner-c->states),motion);*active=c->config[1];if(c->config[3])c->owner=c->states+1;return RF_OK;}
+static int ai_reset_weight(void *context,uint32_t model,int32_t motion,double *weight)
+{ai_reset_fixture *c=context;float f;ai_reset_trace(c,1,model,motion);memcpy(&f,c->config+2,4);*weight=f;if(c->config[3])c->owner=c->states+1;return RF_OK;}
+static int ai_reset_stop(void *context,uint32_t model)
+{ai_reset_fixture *c=context;ai_reset_trace(c,2,model,0);if(c->config[4])c->owner=c->states+1;return RF_OK;}
+static int ai_reset_probe(void)
+{
+ uint32_t wire[15];_setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
+ while(fread(wire,sizeof(wire),1,stdin)==1) {
+  ai_reset_fixture c;uint32_t out[37]={0};rf_entity_ai_motion_backend backend={ai_reset_active,ai_reset_weight,ai_reset_stop,&c};
+  memset(&c,0,sizeof(c));memcpy(c.states,wire,40);memcpy(c.config,wire+10,20);c.owner=c.states;
+  out[0]=(uint32_t)rf_entity_ai_reset_motion(&c.owner,c.config[0],&backend);out[1]=(uint32_t)(c.owner-c.states);
+  memcpy(out+2,c.states,40);out[12]=c.count;memcpy(out+13,c.trace,96);
+  if(c.count>8 || fwrite(out,sizeof(out),1,stdout)!=1)return 3;
+ }
+ return ferror(stdin)?3:0;
+}

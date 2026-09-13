@@ -421,6 +421,7 @@ int main(int argc,char **argv)
         }
         return ferror(stdin)?3:0;
     }
+    if(argc==2 && !strcmp(argv[1],"--ai-reset"))return ai_reset_probe();
     if(argc==2 && !strcmp(argv[1],"--ai-select"))return ai_select_probe();
     if(argc==2 && !strcmp(argv[1],"--ai-transition")) {
         _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
