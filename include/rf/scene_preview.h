@@ -146,6 +146,9 @@ extern uint32_t rf_scene_mover_visibility[3];
 /* Scene-owned glare cache search, current diagnostic owner order; no drawing. */
 int rf_scene_glare_visibility_pass(const float camera[3]);
 extern uint32_t rf_scene_glare_search[8];
+extern uint32_t rf_scene_glare_rooms[8];
+/* Registered glare room token: zero absent, otherwise authored room index+1. */
+int rf_scene_glare_room(uint32_t handle,uint32_t *room);
 /*428030: blocked standing still selects slow mode; forced crouch sets only the flag.
  * Required standing services only when attempting to stand; borrowed owners must survive callbacks. */
 int rf_scene_npc_slow(const rf_geometry_collision_world *world,uint32_t handle,

@@ -8878,3 +8878,27 @@ preserve NXDK outputs and return RF_RANGE on both builds. Both builds and
 22CTest pass. Kind0/1 only publish kind; kind2 publishes the quad.
 No final quad clipping, native GPU geometry or campaign scheduling is
 claimed here; connect the shared quad/billboard paths and scene services next.
+
+## Retained campaign glare rooms (2026-09-12)
+
+Original48847e calls40a490 on the glare itself: its word0 room must match
+the current room before collection. A parent-room substitute would be wrong.
+Original487a40 tail applies48a190 to generic objects when flag04000000 is
+set and10000000 is clear, including type10 initial flags6030000. No ordinary
+factory room-binding flag400000 is required by this later refresh.
+
+Scene glares now retain20-byte rf_entity_room_state entries in a separate
+zeroed allocation (maximum64KiB, released with instances). The post-update
+pass uses the original flags and existing shared48a190/actor_room_locate
+service on each glare position, publishes room/query position/flags and
+clears04000000 as original. Registered rf_scene_glare_room exposes nullable
+index+1 room tokens. Constructor footprint/hash evidence remains separate;
+new room allocation bytes are explicitly reported in GLARE_ROOMS.
+
+Original room-refresh384 PC/NXDK cases and22CTest pass. Native stock64MiB
+replay-20260912-223831 passes180 frames with identical PC/XEMU room telemetry:
+179 passes,39380 candidates,220 refreshes,179 located,41 misses,4400 bytes,
+hash2260451728,zero errors. Misses retain null room per original; they are
+not force-assigned to parent rooms. All five native x87 words remain027f.
+Dynamic parent attachment propagation4881a0/487630, room-visible collection,
+scene corona callbacks and full original draw scheduling remain open.

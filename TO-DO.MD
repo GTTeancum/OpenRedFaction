@@ -1,7 +1,7 @@
 # Red Faction Xbox / PC - open work
 
 Shortlist:
-- Connect verified ordinary/oriented corona geometry to scene services and original glare scheduling.
+- Connect retained glare rooms and verified corona geometry to visibility collection and original draw scheduling.
 - Complete the single-player actor, AI, damage and mission runtime.
 - Connect retained NPC speed/body/stance owners to support queries, contact/fall/landing dispatch and physics stepping, then timed footsteps.
 - Complete moving NPC animation, room membership, LOD selection and lighting.

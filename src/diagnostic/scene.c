@@ -1194,6 +1194,7 @@ static rf_clutter_classes campaign_clutter_classes;
 static rf_glare_classes campaign_glare_classes;
 static rf_glare_materials campaign_glare_materials;
 static rf_glare_base_owner **campaign_glare_instances;
+static rf_entity_room_state *campaign_glare_rooms;
 static uint32_t campaign_glare_instance_count,campaign_glare_instance_capacity;
 static rf_object_list campaign_glare_list;
 uint32_t rf_scene_glare_instances[10]; /* parents, tag queries, requests, created, skin changes, retained, peak, hash, retired, errors */
@@ -2204,6 +2205,7 @@ static int campaign_glare_instances_close(void)
         ++rf_scene_glare_instances[8];
     }
     if(campaign_glare_list.count){++rf_scene_glare_instances[9];return RF_FORMAT;}
+    free(campaign_glare_rooms);campaign_glare_rooms=NULL;
     free(campaign_glare_instances);campaign_glare_instances=NULL;campaign_glare_instance_count=campaign_glare_instance_capacity=0;return RF_OK;
 }
 typedef struct campaign_glare_context {rf_clutter_base_owner *parent;uint32_t scratch;} campaign_glare_context;
@@ -5944,6 +5946,41 @@ int rf_scene_npc_refresh_room(uint32_t handle)
     record[0]=handle;record[1]=state.room;record[2]=state.flags;memcpy(record+3,state.query_position,12);record[6]=context.called;
     rf_scene_npc_room_refresh[6]=npc_hash_bytes(rf_scene_npc_room_refresh[6],record,sizeof(record));return RF_OK;
 }
+uint32_t rf_scene_glare_rooms[8]; /* passes, candidates, refreshes, located, misses, bytes, hash, errors */
+static int campaign_glare_rooms_pass(uint32_t frame)
+{
+    uint32_t i;int status;
+    if(!frame){memset(rf_scene_glare_rooms,0,sizeof(rf_scene_glare_rooms));rf_scene_glare_rooms[6]=2166136261u;}
+    if(!campaign_glare_rooms && campaign_glare_instance_count) {
+        if(campaign_glare_instance_count>65536/sizeof(*campaign_glare_rooms))return RF_RANGE;
+        campaign_glare_rooms=calloc(campaign_glare_instance_count,sizeof(*campaign_glare_rooms));
+        if(!campaign_glare_rooms)return RF_IO;
+    }
+    rf_scene_glare_rooms[5]=campaign_glare_instance_count*sizeof(*campaign_glare_rooms);++rf_scene_glare_rooms[0];
+    for(i=0;i<campaign_glare_instance_count;++i)if(campaign_glare_instances[i]) {
+        rf_glare_base_owner *owner=campaign_glare_instances[i];rf_entity_room_state state;uint32_t record[7];
+        actor_room_context context={campaign_alpha_world,0,UINT32_MAX,0};++rf_scene_glare_rooms[1];
+        if(!(owner->flags&0x04000000u) || (owner->flags&0x10000000u))continue;
+        if(rf_object_registry_lookup(&campaign_registry,owner->handle)!=&owner->state){++rf_scene_glare_rooms[7];return RF_NOT_FOUND;}
+        state=campaign_glare_rooms[i];state.flags=owner->flags;
+        status=rf_entity_room_refresh(&state,owner->position,0,actor_room_locate,NULL,&context);
+        if(status){++rf_scene_glare_rooms[7];return status;}
+        campaign_glare_rooms[i]=state;owner->flags=state.flags;++rf_scene_glare_rooms[2];
+        rf_scene_glare_rooms[3]+=context.called && state.room!=0;rf_scene_glare_rooms[4]+=context.called && context.face==UINT32_MAX;
+        record[0]=owner->handle;record[1]=state.room;record[2]=state.flags;memcpy(record+3,state.query_position,12);record[6]=context.called;
+        rf_scene_glare_rooms[6]=npc_hash_bytes(rf_scene_glare_rooms[6],record,sizeof(record));
+    }
+    return RF_OK;
+}
+int rf_scene_glare_room(uint32_t handle,uint32_t *room)
+{
+    uint32_t i;if(!room)return RF_RANGE;
+    for(i=0;i<campaign_glare_instance_count;++i)if(campaign_glare_instances[i] && campaign_glare_instances[i]->handle==handle) {
+        if(rf_object_registry_lookup(&campaign_registry,handle)!=&campaign_glare_instances[i]->state)return RF_NOT_FOUND;
+        *room=campaign_glare_rooms?campaign_glare_rooms[i].room:0;return RF_OK;
+    }
+    return RF_NOT_FOUND;
+}
 static int campaign_npc_rooms_pass(uint32_t frame)
 {
     uint32_t i,j;int status;
@@ -6822,7 +6859,7 @@ static int scene_frame(void *context,uint32_t frame,rf_preview_mesh *actor)
                 ++summary[0];summary[3]+=record[1]+record[4];summary[4]+=record[3];
                 summary[5]=record[7];summary[6]=record[8];summary[7]=record[9];
             }
-            if(campaign_spawn){status=campaign_npc_playback_tick(stream,scene_step_seconds);if(status)return status;status=campaign_npc_rooms_pass(frame);if(status)return status;}
+            if(campaign_spawn){status=campaign_npc_playback_tick(stream,scene_step_seconds);if(status)return status;status=campaign_npc_rooms_pass(frame);if(status)return status;status=campaign_glare_rooms_pass(frame);if(status)return status;}
         }
         if(campaign_spawn && stream->collision) {int status=campaign_collision_views_check(frame);if(status)return status;status=campaign_alpha_check(frame);if(status)return status;
             if(!frame){memset(rf_scene_glare_search,0,sizeof(rf_scene_glare_search));rf_scene_glare_search[4]=2166136261u;
