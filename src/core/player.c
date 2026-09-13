@@ -243,3 +243,21 @@ uint32_t rf_player_mode_active(const rf_player_mode_state *state)
 {return state->field_f94;}
 void rf_player_mode_stop(rf_player_mode_state *state)
 {state->field_f94=state->field_f95=0;state->field_f98=0;}
+
+int rf_player_contact_direction(const float normal[3],const float orientation[9],uint32_t *direction)
+{
+    float x,z;uint32_t value;
+    if(!normal || !direction)return RF_RANGE;
+    if(!orientation){*direction=0;return RF_OK;}
+    if(!isfinite(normal[0]) || !isfinite(normal[2]))return RF_RANGE;
+    if(normal[0]==0 && normal[2]==0){*direction=15;return RF_OK;}
+    if(!isfinite(normal[1]))return RF_RANGE;
+    for(uint32_t i=0;i<9;++i)if(!isfinite(orientation[i]))return RF_RANGE;
+    x=(float)(((long double)normal[2]*orientation[2]+(long double)normal[1]*orientation[1])+(long double)normal[0]*orientation[0]);
+    z=(float)(((long double)normal[2]*orientation[8]+(long double)normal[1]*orientation[7])+(long double)normal[0]*orientation[6]);
+    if(!isfinite(x) || !isfinite(z))return RF_RANGE;
+    value=fabsf(x)<fabsf(z)?(z>0?4u:1u):(x>0?2u:8u);
+    *direction=value;return RF_OK;
+}
+void rf_player_contact_mark(uint32_t *flags,uint32_t direction)
+{if(flags)*flags|=(direction&15u)<<13;}

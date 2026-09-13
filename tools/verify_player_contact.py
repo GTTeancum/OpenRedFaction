@@ -1,86 +1,37 @@
-"""Compare shared player-contact response with original instruction fixtures."""
-import hashlib
-import json
+"""Original427550 surface-route gates, with real numeric and class callees."""
+import hashlib,json,random,re,struct,subprocess,sys
 from pathlib import Path
-import re
-import struct
-import subprocess
-import sys
-
+root=Path(__file__).resolve().parents[1];sys.path.insert(0,str(root/'local/python'))
 import pefile
-
-root = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(root/'local/python'))
-from unicorn import Uc, UC_ARCH_X86, UC_MODE_32
-from unicorn.x86_const import UC_X86_REG_ESP, UC_X86_REG_EIP, UC_X86_REG_FPCW, UC_X86_REG_EAX
-
-subprocess.run([sys.executable, str(root/'tools/inspect_player_contact.py')], cwd=root, check=True, stdout=subprocess.DEVNULL)
-reference = json.loads((root/'artifacts/player-contact-reference.json').read_text())
-assert reference['result'] == 'PASS'
-cases = reference['records']
-pack = lambda values: struct.pack('<'+'I'*len(values), *values)
-commands = b''.join(pack(c['input_words']+[c['mode'], int(c['mode'] in (3, 8))]) for c in cases)
-probe = root/'build/pc/Release/rf_physics_probe.exe'
-actual = subprocess.check_output([str(probe), '--player-contact'], input=commands)
-assert actual == b''.join(pack(c['output_words']) for c in cases), 'PC player contact mismatch'
-binary = root/'build/xbox/main.exe'
-pe = pefile.PE(str(binary))
-image = pe.get_memory_mapped_image()
-origin = pe.OPTIONAL_HEADER.ImageBase
-u = Uc(UC_ARCH_X86, UC_MODE_32)
-u.mem_map(origin, (len(image)+4095)//4096*4096)
-u.mem_write(origin, image)
-base, stack, stop = 0x30000000, 0x3000e000, 0x3000f000
-u.mem_map(base, 65536)
-entry = int(re.search(r'_rf_physics_player_contact\s+([0-9a-fA-F]+)', (root/'build/xbox/main.map').read_text())[1], 16)
-failures = []
-for index, case in enumerate(cases):
-    command = pack(case['input_words'])
-    state = bytearray([0xa5]*308)
-    state[112:148] = command[72:108]
-    state[184:208] = command[:24]
-    state[272:276] = pack([0x80])
-    u.mem_write(base, bytes(state))
-    u.mem_write(base+0x2000, command[24:72])
-    u.mem_write(base+0x3000, bytes([0xa5]*4))
-    u.mem_write(stack, pack([stop, base, base+0x2000, base+0x200c, base+0x2018, base+0x2024,
-                             case['mode'], int(case['mode'] in (3, 8)), base+0x3000]))
-    u.reg_write(UC_X86_REG_ESP, stack)
-    u.reg_write(UC_X86_REG_FPCW, 0x27f)
-    u.emu_start(entry, stop, count=100000)
-    assert u.reg_read(UC_X86_REG_EIP) == stop and u.reg_read(UC_X86_REG_EAX) == 0
-    assert u.reg_read(UC_X86_REG_FPCW) == 0x27f
-    state[184:196] = pack(case['output_words'][:3])
-    if bytes(u.mem_read(base, 308)) != state or bytes(u.mem_read(base+0x3000, 4)) != pack(case['output_words'][6:]):
-        failures.append(index)
-guards = 0
-valid_state = bytes(state)
-valid_parameters = bytes(u.mem_read(base+0x2000, 48))
-for location in [('flag', 272), ('predicate', 0)] + [('state', o) for o in list(range(112,148,4))+list(range(184,196,4))] + [('parameter', o) for o in range(0,48,4)]:
-    for bad in (0x7fc00000, 0x7f800000):
-        guarded = bytearray(valid_state)
-        parameters = bytearray(valid_parameters)
-        predicate = 0
-        kind, offset = location
-        if kind == 'state': guarded[offset:offset+4] = pack([bad])
-        elif kind == 'parameter': parameters[offset:offset+4] = pack([bad])
-        elif kind == 'flag': guarded[272:276] = pack([0])
-        else: predicate = 2
-        u.mem_write(base, bytes(guarded))
-        u.mem_write(base+0x2000, bytes(parameters))
-        u.mem_write(base+0x3000, pack([0xa5a5a5a5]))
-        u.mem_write(stack, pack([stop,base,base+0x2000,base+0x200c,base+0x2018,base+0x2024,1,predicate,base+0x3000]))
-        u.reg_write(UC_X86_REG_ESP, stack)
-        u.reg_write(UC_X86_REG_FPCW, 0x27f)
-        u.emu_start(entry, stop, count=100000)
-        assert u.reg_read(UC_X86_REG_EIP) == stop and u.reg_read(UC_X86_REG_EAX) == 0xfffffffc
-        assert bytes(u.mem_read(base,308)) == guarded and bytes(u.mem_read(base+0x3000,4)) == pack([0xa5a5a5a5])
-        assert u.reg_read(UC_X86_REG_FPCW) == 0x27f
-        guards += 1
-report = dict(result='FAIL' if failures else 'PASS', pc_cases=len(cases), nxdk_cases=len(cases), nxdk_guard_cases=guards,
-              failures=failures, original_sha256=reference['original_sha256'],
-              pc_sha256=hashlib.sha256(probe.read_bytes()).hexdigest(), nxdk_sha256=hashlib.sha256(binary.read_bytes()).hexdigest(),
-              scope=reference['scope'].replace('No shared C comparison or full player physics claim.', 'Full player physics is outside this check.')+' Shared PC/NXDK response comparison; NXDK checks complete body preservation outside velocity and incoming FPCW 027f restoration.')
-(root/'artifacts/player-contact-verification.json').write_text(json.dumps(report, indent=2)+'\n')
-print(json.dumps(report, indent=2))
-assert not failures
+from unicorn import Uc,UC_ARCH_X86,UC_MODE_32,UC_HOOK_CODE
+from unicorn.x86_const import UC_X86_REG_ESP,UC_X86_REG_EIP,UC_X86_REG_EAX,UC_X86_REG_ECX,UC_X86_REG_FPCW
+B=0x30000000;STACK=B+0xe000;STOP=B+0xf000
+w=lambda *v:struct.pack('<'+'I'*len(v),*v)
+f=lambda *v:struct.pack('<'+'f'*len(v),*v)
+def load(path):
+ p=pefile.PE(str(path));im=p.get_memory_mapped_image();u=Uc(UC_ARCH_X86,UC_MODE_32);u.mem_map(p.OPTIONAL_HEADER.ImageBase,(len(im)+4095)//4096*4096);u.mem_write(p.OPTIONAL_HEADER.ImageBase,im);u.mem_map(B,0x10000);return u
+exe=root/'Installed_Game/RF.exe';assert hashlib.sha256(exe.read_bytes()).hexdigest()=='b8fb9ab4c9bfc6f2868c30839d6cfc69f84b8c25d7e54eee1325f5b633c9b836'
+u=load(exe);x=load(root/'build/xbox/main.exe')
+maps=(root/'build/xbox/main.map').read_text()
+entry=int(re.search(r'\s_rf_player_contact_direction\s+([0-9a-fA-F]+)',maps)[1],16)
+mark_entry=int(re.search(r'\s_rf_player_contact_mark\s+([0-9a-fA-F]+)',maps)[1],16)
+word=lambda cpu,a:struct.unpack('<I',bytes(cpu.mem_read(a,4)))[0]
+def lookup(cpu,at,size,data):
+ sp=cpu.reg_read(UC_X86_REG_ESP);cpu.reg_write(UC_X86_REG_EAX,B+0x2000);cpu.reg_write(UC_X86_REG_EIP,word(cpu,sp));cpu.reg_write(UC_X86_REG_ESP,sp+4)
+u.hook_add(UC_HOOK_CODE,lookup,begin=0x426fc0,end=0x426fc0)
+def call(cpu,address,args):
+ cpu.mem_write(STACK,w(STOP,*args));cpu.reg_write(UC_X86_REG_ESP,STACK);cpu.reg_write(UC_X86_REG_FPCW,0x37f);cpu.emu_start(address,STOP,count=10000);assert cpu.reg_read(UC_X86_REG_EIP)==STOP;return cpu.reg_read(UC_X86_REG_EAX)
+def compiled(blob):
+ present,flags,mark=struct.unpack('<III',blob[48:]);x.mem_write(B,blob[:48]);x.mem_write(B+0x100,w(0xa5a5a5a5,flags));status=call(x,entry,[B,B+12 if present else 0,B+0x100]);call(x,mark_entry,[B+0x104 if present else 0,mark]);return w(status)+bytes(x.mem_read(B+0x100,8))
+rng=random.Random(0x4a5a20);commands=[];expected=[];directions={}
+for n in range(2048):
+ normal=[rng.uniform(-10,10) for _ in range(3)];basis=[rng.uniform(-1,1) for _ in range(9)]
+ if n%8==0:normal=[0,1,0]
+ if n%8==1:normal=[1,0,1];basis=[1,0,0,0,1,0,0,0,1]
+ present=int(n%7!=0);flags=rng.getrandbits(32);mark=rng.getrandbits(32);blob=f(*normal,*basis)+w(present,flags,mark)
+ u.mem_write(B,blob[:12]);u.mem_write(B+0x1000,bytes(32));u.mem_write(B+0x1010,w(flags));u.mem_write(B+0x2048,blob[12:48]);direction=call(u,0x4a5a20,[B+0x1000 if present else 0,B]);call(u,0x4a5af0,[B+0x1000 if present else 0,mark]);result=w(0,direction,word(u,B+0x1010));assert compiled(blob)==result,(n,blob.hex(),result.hex(),compiled(blob).hex());commands.append(blob);expected.append(result);directions[direction]=directions.get(direction,0)+1
+for offset in (0,4,12):
+ blob=bytearray(commands[2]);blob[offset:offset+4]=w(0x7fc00000);blob=bytes(blob);result=compiled(blob);assert result[:8]==w(0xfffffffc,0xa5a5a5a5);commands.append(blob);expected.append(result)
+pc=subprocess.check_output([str(root/'build/pc/Release/rf_entity_probe.exe'),'--player-contact'],input=b''.join(commands));assert pc==b''.join(expected)
+report=dict(result='PASS',original_pc_nxdk_cases=2048,finite_guards=3,directions=directions,scope='Full original4a5a20 and4a5af0 with real vector copy/4fac60 transform; actor lookup supplied. Exact direction and arbitrary low-nibble flag accumulation on PC/NXDK, missing player, vertical normal and equal-axis tie cases. Scene player-loop binding excluded.')
+(root/'artifacts/player-contact.json').write_text(json.dumps(report,indent=2));print(report)

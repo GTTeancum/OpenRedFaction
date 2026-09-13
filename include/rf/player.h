@@ -5,6 +5,13 @@
 #include "rf/physics.h"
 #include "rf/entity.h"
 
+/* Resolved4a5a20: NULL orientation means missing player/actor ->0.
+ * Otherwise choose direction from contact normal in actor orientation48;
+ * vertical world normal ->15 before transform. Finite reached inputs only. */
+int rf_player_contact_direction(const float normal[3],const float orientation[9],uint32_t *direction);
+/*4a5af0 ORs low four direction bits into player10 bits13..16. NULL no-op. */
+void rf_player_contact_mark(uint32_t *flags,uint32_t direction);
+
 typedef struct rf_player_mode_state {uint8_t field_f94,field_f95,reserved[2];uint32_t field_f98;} rf_player_mode_state;
 /*4ace90 returns bytef94;4ad8a0 clears only f94/f95/f98. Requires a live
  * player-mode owner. This does not infer a camera mode or change bytefb0. */
