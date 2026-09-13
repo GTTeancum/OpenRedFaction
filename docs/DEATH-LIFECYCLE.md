@@ -9141,3 +9141,23 @@ Glare orphan marking (2026-09-12)
  emitter chain497d80, string reset4ffa80, and4867b0 slot/base retirement.
  This decompiler-level map needs call-order/ownership verification before
  using rf_glare_owned_close as the complete live generic deletion path.
+
+
+Full original glare deletion audit (2026-09-12)
+---------------------------------------------
+ Expanded verify_glare_base_original.py beyond isolated4153b0/4867b0.
+ After checking standalone family unlink, restore the owner/list links and
+ execute full486670 on32 freshly allocated type10 owners, varying preceding
+ list members and active collision pairs. Real48c9f0 moves either-endpoint
+ matches to the available list in reverse removal order; survivors preserve
+ order and both counts match. Real4153b0 unlinks the glare,49f1d0 reaches
+ 4bf580 and clears empty physics storage,489fc0 skips absent model, then
+ empty emitter traversal and4867b0 retire registry/object links and free.
+ Heap, string assignment and parent services remain explicit boundaries.
+ Artifacts/glare-base-original.json PASS32. Collision retirement was already
+ reconstructed; verify_collision_retire.py rerun PASS4096 original/PC/NXDK
+ cases,43750 nodes retired. No new C code or native replay in this audit.
+ Current glare owners have no model, emitters or allocated physics spheres;
+ the observed deletion resource path matches that scope. Nonempty resource
+ ownership remains outside this audit. Next bind orphan preupdate and owned
+ retirement before attachment traversal, with scene pointer invalidation.

@@ -64,11 +64,28 @@ for case in range(32):
  put(actor+0x2b8,nxt);put(actor+0x2bc,prev);put(prev+0x2b8,actor);put(nxt+0x2bc,actor)
  saved=bytes(u.mem_read(actor,748));call(0x4153b0,(actor,));after=bytearray(saved);after[0x2b8:0x2c0]=bytes(8)
  assert bytes(u.mem_read(actor,748))==after and read(prev+0x2b8)==nxt and read(nxt+0x2bc)==prev
- # Slot retirement executes original generic deletion, after family unlink.
- call(0x4867b0,(slot,))
+ # Restore the family links and execute the complete generic deletion path.
+ u.mem_write(actor,saved);put(prev+0x2b8,actor);put(nxt+0x2bc,actor)
+ pairs=[b+0xc000+j*32 for j in range(case%5)];removed=[];kept=[]
+ for j,pair in enumerate(pairs):
+  first=actor if j%3==0 else parent;second=actor if j%3==1 else model
+  u.mem_write(pair,w(pairs[j+1] if j+1<len(pairs) else 0,first,second))
+  (removed if actor in (first,second) else kept).append(pair)
+ free_pair=b+0xd000;u.mem_write(free_pair,w(0,parent,model))
+ u.mem_write(0x73db28,w(pairs[0] if pairs else 0,len(pairs)));u.mem_write(0x75db30,w(free_pair,1))
+ assert read(actor+0x18c)==0 and read(actor+0x268)==0
+ call(0x486670,(actor,))
+ def chain(head):
+  out=[]
+  while head:
+   assert head not in out;out.append(head);head=read(head)
+  return out
+ assert chain(read(0x73db28))==kept and read(0x73db2c)==len(kept)
+ assert chain(read(0x75db30))==list(reversed(removed))+[free_pair] and read(0x75db34)==len(removed)+1
+ assert read(prev+0x2b8)==nxt and read(nxt+0x2bc)==prev
  assert freed==[actor] and read(0x7394cc+slot*4)==0 and read(0x73a850)==case%2
  assert read(previous+0x10)==0x73d880 and read(0x73d894)==previous
  records.append(dict(radius=radius,parent=has_parent,bytes=748,base=saved.hex()))
-report=dict(result='PASS',cases=len(records),records=records,scope='Actual original486da0 type10 generic construction with supplied heap/string/parent services, model absent and flags30000. Real registry/body initialization; allocationflags20000 suppress ordinary room binding,4153b0 family unlink preserving other bytes, then4867b0 generic slot retirement/free. No full486670 dispatch or shared C owner/native Xbox claim.')
+report=dict(result='PASS',cases=len(records),records=records,scope='Actual original486da0 type10 generic construction with supplied heap/string/parent services, model absent and flags30000. Real registry/body initialization; allocationflags20000 suppress ordinary room binding,4153b0 family unlink preserving other bytes, then complete486670 with real48c9f0 active/free collision-pair recycling,4153b0 family unlink,49f1d0 empty physics storage,489fc0 absent-model gate, empty emitter chain and4867b0 slot retirement/free. Nonempty physics/model/emitter resources and shared/native full deletion remain excluded.')
 (root/'artifacts/glare-base-original.json').write_text(json.dumps(report,indent=2));print({k:v for k,v in report.items() if k!='records'})
 
