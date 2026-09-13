@@ -20,12 +20,23 @@ int rf_visibility_light_faces(rf_light_dirty_face *faces,uint32_t count,
 /*4d86d0 after root collection: reverse root order, node faces before children,
  * right child before left; a bounds miss prunes the whole subtree. Nodes use
  * collision-tree layout but face ranges address the supplied dirty views.
- * Requires a disjoint acyclic forest. Caller supplies bounded stack; errors
- * preserve earlier updates, scratch may change. No allocation or root gathering. */
+ * Each root must describe an acyclic tree; repeated roots are retained. Errors
+ * preserve earlier updates; caller supplies bounded stack. No allocation or root gathering. */
 int rf_visibility_light_tree(const rf_collision_node *nodes,uint32_t node_count,
     const uint32_t *roots,uint32_t root_count,rf_light_dirty_face *faces,uint32_t face_count,
     unsigned char *dirty,uint32_t dirty_count,uint32_t mode,uint32_t update,
     uint32_t *stack,uint32_t capacity,rf_light_bounds_test test,void *context);
+
+typedef struct rf_light_dirty_room {
+    float minimum[3],maximum[3];uint32_t root,first_child,child_count;
+} rf_light_dirty_room;
+/*4d86d0 root collection: ordered primary rooms, then each accepted parent's
+ * ordered immediate detail children. No recursive detail descent or skip-byte
+ * gate. Root tokens are copied unchanged; tree traversal resolves them.
+ * Errors preserve selected, scratch/callback progress may remain. No allocation. */
+int rf_visibility_light_roots(const rf_light_dirty_room *rooms,uint32_t room_count,
+    const uint32_t *primary,uint32_t primary_count,const uint32_t *children,uint32_t child_count,
+    uint32_t *roots,uint32_t capacity,uint32_t *selected,rf_light_bounds_test test,void *context);
 
 typedef struct rf_object_render_backend {
     int (*white)(void *);

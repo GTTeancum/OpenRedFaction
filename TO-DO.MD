@@ -14,6 +14,11 @@ Shortlist:
 
 Progress reporting: include overall percent estimates at meaningful milestones and revisit remaining 24-hour workdays when measured throughput supports a forecast; current rough estimate40% (35-45%), no defensible +/-48-hour completion forecast before end-to-end gameplay.
 
+Lighting root/detail collection and repeated-root traversal match1024
+original/PC/NXDK cases each; both builds and24 tests pass. Compose whole-
+solid fallback and alternate-view dispatch, then bind actual light-volume
+predicates and native dirty-state ownership.
+
 Geometry-tree lighting updates match1024 original/PC/NXDK traversal cases,
 including pruning and shared face state; both builds and24 tests pass.
 Finish root/detail-room collection and alternate-view dispatch, then bind

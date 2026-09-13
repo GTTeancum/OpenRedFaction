@@ -35,22 +35,22 @@ def new_bounds(cpu,address,size,context):
 o.hook_add(UC_HOOK_CODE,old_bounds,begin=0x4d8130,end=0x4d8130);x.hook_add(UC_HOOK_CODE,new_bounds,begin=CALLBACK,end=CALLBACK)
 NODES=B+0x6000;ROOTS=B+0x7000
 rng=random.Random(0x4d8af8);commands=[];expected=[]
-children={0:(1,2),1:(3,4),2:(5,6),7:(8,9),8:(10,11),9:(12,13),13:(14,0xffffffff)}
+children={i:(i*2+1,i*2+2) for i in range(7)}
 for case in range(1024):
  mode=[0,1,255,256][case%4];update=[0,1,255,256][case//4%4];dirty=bytes(rng.randrange(4) for _ in range(8));faces=[];nodes=[]
  o.mem_write(ROOM,bytes(512));o.mem_write(OWNER,bytes(268));o.mem_write(OWNER+8,w(2));o.mem_write(ROOM+0x9c,w(2,2,ROOTS));o.mem_write(ROOTS,w(B+0x7100,B+0x7200))
- for at,root_index in [(B+0x7100,0),(B+0x7200,7)]:o.mem_write(at,bytes(128));o.mem_write(at+0x3c,w(NODES+root_index*48))
+ for at,root_index in [(B+0x7100,0),(B+0x7200,0 if case%2 else 7)]:o.mem_write(at,bytes(128));o.mem_write(at+0x3c,w(NODES+root_index*48))
  o.mem_write(ROOM+0xc0,w(8,8,TABLE));o.mem_write(TABLE,w(*(GROUP+i*16 for i in range(8))))
  for i in range(8):o.mem_write(GROUP+i*16,bytes(8)+dirty[i:i+1]+bytes(7))
  for i in range(15):
   bounds=f(i,rng.randrange(2),0,i+1,2,1);flags=rng.randrange(1<<24);prop=rng.choice([-1,0,1]);index=rng.choice([-1,*range(8)])
   faces.append(bounds+w(flags,prop&0xffffffff,index&0xffffffff));at=FACES+i*96;o.mem_write(at,bytes(96));o.mem_write(at+0x10,bounds);o.mem_write(at+0x28,w(flags));o.mem_write(at+0x34,struct.pack('<hh',prop,index))
-  nbounds=f(100+i,1 if case%4==0 else rng.randrange(2),0,101+i,2,1);left,right=children.get(i,(0xffffffff,0xffffffff));nodes.append(nbounds+w(i,1,left,right));at=NODES+i*48
+  nbounds=f(100+i,1 if case%4 in (0,1) else rng.randrange(2),0,101+i,2,1);left,right=children.get(i,(0xffffffff,0xffffffff));nodes.append(nbounds+w(i,1,left,right));at=NODES+i*48
   o.mem_write(at,bytes(48));o.mem_write(at,nbounds);o.mem_write(at+0x18,w(FACES+i*96));o.mem_write(at+0x20,w(0 if left==0xffffffff else NODES+left*48,0 if right==0xffffffff else NODES+right*48))
- data=w(mode,update)+b''.join(nodes)+b''.join(faces)+dirty;commands.append(data);o.mem_write(0x879af8,bytes([mode&255]));trace.clear();call(o,0x4d86d0,[OWNER,ROOM,update])
+ data=w(mode,update)+b''.join(nodes)+b''.join(faces)+dirty+w(0,0 if case%2 else 7);commands.append(data);o.mem_write(0x879af8,bytes([mode&255]));trace.clear();call(o,0x4d86d0,[OWNER,ROOM,update])
  outfaces=b''.join(face[:24]+bytes(o.mem_read(FACES+i*96+0x28,4))+face[28:] for i,face in enumerate(faces));outdirty=bytes(o.mem_read(GROUP+i*16+8,1)[0] for i in range(8))
  expected.append(w(0)+outfaces+outdirty+w(len(trace),*trace,*([0]*(65-len(trace)))))
- x.mem_write(B,data);x.mem_write(ROOM,w(0,7));xtrace.clear()
+ x.mem_write(B,data);x.mem_write(ROOM,w(0,0 if case%2 else 7));xtrace.clear()
  assert call(x,entry,[B+8,15,ROOM,2,B+608,15,B+1148,8,mode,update,ROOM+32,15,CALLBACK,0])==0
  assert bytes(x.mem_read(B+608,548))==outfaces+outdirty and xtrace==trace,(case,trace,xtrace)
 assert subprocess.check_output([str(root/'build/pc/Release/rf_effect_probe.exe'),'--light-dirty-tree'],input=b''.join(commands))==b''.join(expected)

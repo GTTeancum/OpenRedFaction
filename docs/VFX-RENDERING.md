@@ -900,3 +900,23 @@ guards cover insufficient initial scratch and invalid accepted-node child.
 Existing2048 face-pass comparisons, both builds and24 CTests pass. Root
 collection/detail-room selection, native lighting-state ownership and
 alternate-view dispatch remain before scene integration.
+
+### Lighting room-root collection (2026-09-13)
+
+rf_visibility_light_roots reconstructs4d86d0 primary/detail root collection.
+Primary rooms are tested in order; a hit appends its root then tests its
+immediate detail children in order. No recursive detail descent, room skip
+byte gate or duplicate suppression occurs. Bounds-missed parents do not
+inspect child ranges. Root tokens remain unchanged until traversal. Output
+count commits only on success; scratch and callback progress may remain.
+
+verify_light_dirty_roots.py executes original4d86d0 through4d8ae9 with real
+array accessors and supplied bounds predicates. All1024 original/PC/NXDK
+cases match root order and callback order, including shared child refs.
+Two NXDK guards cover insufficient capacity and skipped invalid children
+under a rejected parent. Tree traversal now bounds visits by node_count
+times root_count, allowing repeated/overlapping root trees. Its1024-case
+suite now includes full15-node trees visited twice, matching the original
+without deduplication. This supersedes the earlier disjoint-forest restriction.
+Both builds and24 CTests pass. Whole-solid fallback, alternate-view dispatch
+and native lighting-state binding still need composition/integration.

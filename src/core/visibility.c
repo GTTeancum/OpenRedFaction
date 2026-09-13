@@ -28,13 +28,13 @@ int rf_visibility_light_tree(const rf_collision_node *nodes,uint32_t node_count,
     unsigned char *dirty,uint32_t dirty_count,uint32_t mode,uint32_t update,
     uint32_t *stack,uint32_t capacity,rf_light_bounds_test test,void *context)
 {
-    uint32_t count=0,visited=0,i,hit;int status;
+    uint32_t count=0,i,hit;uint64_t visited=0;int status;
     if((node_count && !nodes) || (root_count && (!roots || !stack || !test)) ||
         (face_count && !faces) || (dirty_count && !dirty) || root_count>capacity)return RF_RANGE;
     for(i=0;i<root_count;i++){if(roots[i]>=node_count)return RF_RANGE;stack[count++]=roots[i];}
     while(count) {
         const rf_collision_node *node;uint32_t index=stack[--count];
-        if(index>=node_count || ++visited>node_count)return RF_RANGE;node=nodes+index;
+        if(index>=node_count || ++visited>(uint64_t)node_count*root_count)return RF_RANGE;node=nodes+index;
         status=test(context,node->minimum,node->maximum,&hit);if(status)return status;if(!hit)continue;
         if(node->first_face>face_count || node->face_count>face_count-node->first_face)return RF_RANGE;
         if(node->left!=UINT32_MAX){if(count>=capacity || node->left>=node_count)return RF_RANGE;stack[count++]=node->left;}
@@ -43,6 +43,28 @@ int rf_visibility_light_tree(const rf_collision_node *nodes,uint32_t node_count,
             dirty,dirty_count,mode,update,test,context);if(status)return status;
     }
     return RF_OK;
+}
+int rf_visibility_light_roots(const rf_light_dirty_room *rooms,uint32_t room_count,
+    const uint32_t *primary,uint32_t primary_count,const uint32_t *children,uint32_t child_count,
+    uint32_t *roots,uint32_t capacity,uint32_t *selected,rf_light_bounds_test test,void *context)
+{
+    uint32_t i,j,count=0,hit,index;int status;
+    if(!selected || (room_count && !rooms) || (primary_count && (!primary || !test)) ||
+        (child_count && !children) || (capacity && !roots))return RF_RANGE;
+    for(i=0;i<primary_count;i++) {
+        const rf_light_dirty_room *room;
+        index=primary[i];if(index>=room_count)return RF_RANGE;room=rooms+index;
+        status=test(context,room->minimum,room->maximum,&hit);if(status)return status;if(!hit)continue;
+        if(count>=capacity)return RF_RANGE;roots[count++]=room->root;
+        if(room->first_child>child_count || room->child_count>child_count-room->first_child)return RF_RANGE;
+        for(j=0;j<room->child_count;j++) {
+            const rf_light_dirty_room *child;
+            index=children[room->first_child+j];if(index>=room_count)return RF_RANGE;child=rooms+index;
+            status=test(context,child->minimum,child->maximum,&hit);if(status)return status;if(!hit)continue;
+            if(count>=capacity)return RF_RANGE;roots[count++]=child->root;
+        }
+    }
+    *selected=count;return RF_OK;
 }
 int rf_visibility_light_cone_planes(const float position[3],const float axis[3],
     float radius,float half_width,rf_visibility_plane planes[6])

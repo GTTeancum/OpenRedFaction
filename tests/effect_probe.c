@@ -115,13 +115,24 @@ static int light_dirty_bounds(void *context,const float minimum[3],const float m
 }
 int main(int argc,char **argv)
 {
+    if(argc==2 && !strcmp(argv[1],"--light-dirty-roots")) {
+        struct {rf_light_dirty_room rooms[8];uint32_t primary[3],children[6];} input;
+        uint32_t output[11];
+        _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
+        while(fread(&input,sizeof(input),1,stdin)==1) {
+            memset(output,0xa5,sizeof(output));memset(light_dirty_trace,0,sizeof(light_dirty_trace));light_dirty_fail=0;
+            output[0]=rf_visibility_light_roots(input.rooms,8,input.primary,3,input.children,6,output+2,9,output+1,light_dirty_bounds,NULL);
+            fwrite(output,sizeof(output),1,stdout);fwrite(light_dirty_trace,sizeof(light_dirty_trace),1,stdout);
+        }
+        return 0;
+    }
     if(argc==2 && !strcmp(argv[1],"--light-dirty-tree")) {
-        struct {uint32_t mode,update;rf_collision_node nodes[15];rf_light_dirty_face faces[15];unsigned char dirty[8];} input;
-        uint32_t status,roots[2]={0,7},stack[15];
+        struct {uint32_t mode,update;rf_collision_node nodes[15];rf_light_dirty_face faces[15];unsigned char dirty[8];uint32_t roots[2];} input;
+        uint32_t status,stack[15];
         _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
         while(fread(&input,sizeof(input),1,stdin)==1) {
             memset(light_dirty_trace,0,sizeof(light_dirty_trace));light_dirty_fail=0;
-            status=rf_visibility_light_tree(input.nodes,15,roots,2,input.faces,15,input.dirty,8,input.mode,input.update,stack,15,light_dirty_bounds,NULL);
+            status=rf_visibility_light_tree(input.nodes,15,input.roots,2,input.faces,15,input.dirty,8,input.mode,input.update,stack,15,light_dirty_bounds,NULL);
             fwrite(&status,4,1,stdout);fwrite(input.faces,sizeof(input.faces),1,stdout);fwrite(input.dirty,8,1,stdout);fwrite(light_dirty_trace,sizeof(light_dirty_trace),1,stdout);
         }
         return 0;
