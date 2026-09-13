@@ -144,6 +144,7 @@ static int loader_creation_probe(void)
 #include "ai_direct_probe.h"
 #include "ai_search_probe.h"
 #include "ai_endpoint_probe.h"
+#include "ai_nearest_probe.h"
 int main(int argc,char **argv)
 {
     if(argc==3 && !strcmp(argv[1],"--action-name"))return action_name_probe(argv[2]);
@@ -429,6 +430,7 @@ int main(int argc,char **argv)
         }
         return ferror(stdin)?3:0;
     }
+    if(argc==2 && !strcmp(argv[1],"--ai-nearest"))return ai_nearest_probe();
     if(argc==2 && !strcmp(argv[1],"--ai-endpoint"))return ai_endpoint_probe();
     if(argc==2 && !strcmp(argv[1],"--ai-search"))return ai_search_probe();
     if(argc==2 && !strcmp(argv[1],"--ai-direct"))return ai_direct_probe();

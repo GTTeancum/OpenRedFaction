@@ -10045,3 +10045,26 @@ cleanup tails/counts without partial list mutation. Both builds and22
 CTest checks pass. Nearest selector4ce570, node eligibility, full4cebd0
 composition, real visibility and scene ownership remain open. No native
 XEMU or new visual claim for these shared storage primitives.
+
+
+Shared nearest-node selection4ce570 (2026-09-13)
+
+rf_entity_navigation_nearest implements the full ordered selector with
+existing squared-distance arithmetic. Every candidate flag34 clears; only
+rejected35 exactly1 skips scoring and becomes excluded. Squared distance
+stores to float38, but the2500 cutoff uses the unrounded result. Scans
+choose the first minimum among flag34==0 entries. Alternate4ce6c0 requires
+nonzero low byte;4ce740 visibility requires low byte exactly1. Failed
+predicates mark the candidate and continue. No selection writes token0;
+callback errors retain preceding score/flag writes and preserve output.
+
+verify_ai_nearest.py executes full4ce570 with actual lists and distance,
+only edge/visibility supplied.2048 original/PC/NXDK cases match all node
+bytes, token and callback order:796 selected,2634 predicate calls.256
+cases distinguish squared distance2500 from2500.000001 despite identical
+float score bits; exact-boundary node remains eligible and the other is
+excluded. Rejected bytes0/1/2/255, low-byte predicate values, ties,0..8
+nodes and random finite geometry are covered. Two callback failures pass.
+Both builds and all22 CTest checks pass. Actual4ce740 collision/visibility,
+4ce6c0 edge semantics, eligibility preparation and wrapper integration
+remain open; no native XEMU or live NPC route claim.

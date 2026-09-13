@@ -1172,6 +1172,21 @@ int rf_entity_navigation_select(rf_entity_navigation_reference *references,uint3
     int (*visibility)(void *,const float[3],const float[3],float,uint32_t *),void *context,
     rf_entity_navigation_selection *selection);
 
+typedef struct rf_entity_navigation_nearest_backend {
+    int (*edge)(void *,uint32_t,const float[3],const float[3],float,uint32_t *); /*4ce6c0*/
+    int (*visible)(void *,rf_entity_navigation_candidate *,const float[3],float,float,uint32_t *); /*4ce740*/
+    void *context;
+} rf_entity_navigation_nearest_backend;
+/*4ce570: ordered minimum squared distance, cutoff2500 before float rounding.
+ * Only rejected byte exactly1 skips scoring. Alternate edge uses nonzero low
+ * byte; visibility must return low byte exactly1. Updates flag34/scores even
+ * when no candidate is found. Stable nonzero order_key tokens and collection,
+ * readonly callbacks, finite reached geometry. Errors preserve output token;
+ * success with no candidate writes0. No scene visibility implementation. */
+int rf_entity_navigation_nearest(rf_entity_navigation_reference *references,uint32_t count,
+    const float point[3],float radius,float height,uint32_t alternate,float edge_parameter,
+    const rf_entity_navigation_nearest_backend *backend,uint32_t *token);
+
 typedef struct rf_entity_navigation_token_list {uint32_t *items,count,capacity;} rf_entity_navigation_token_list;
 /*4ce800 start links. Zero first invokes4ce570 through nearest, using the
  * start query point and alternate token; second alone is ignored. Tokens

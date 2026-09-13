@@ -1977,3 +1977,33 @@ int rf_entity_navigation_disconnect_goal(rf_entity_navigation_token_list *global
        (first==second && first->items[first->count-2]!=goal) || (second && second->items[second->count-1]!=goal))return RF_FORMAT;
     --global->count;--first->count;if(second)--second->count;return RF_OK;
 }
+
+int rf_entity_navigation_nearest(rf_entity_navigation_reference *refs,uint32_t count,const float point[3],
+    float radius,float height,uint32_t alternate,float edge_parameter,const rf_entity_navigation_nearest_backend *b,uint32_t *token)
+{
+    uint32_t i,k,remaining=count,best,value;double distance;int status;rf_entity_navigation_candidate *node;
+    if((count && !refs) || count>65536 || !point || !b || !b->visible || (alternate && !b->edge) || !token)return RF_RANGE;
+    for(k=0;k<3;++k)if(!isfinite(point[k]))return RF_FORMAT;
+    for(i=0;i<count;++i)if(!refs[i].candidate || !refs[i].order_key)return RF_RANGE;
+    for(i=0;i<count;++i) {
+        node=refs[i].candidate;node->flag_034=0;
+        if(node->rejected_035==1){node->flag_034=1;--remaining;continue;}
+        for(k=0;k<3;++k)if(!isfinite(node->query_point[k]))return RF_FORMAT;
+        distance=navigation_distance_squared(point,node->query_point);if(!isfinite(distance))return RF_FORMAT;
+        node->distance_squared=(float)distance;if(distance>2500){node->flag_034=1;--remaining;}
+    }
+    while(remaining) {
+        best=UINT32_MAX;
+        for(i=0;i<count;++i)if(!refs[i].candidate->flag_034 &&
+            (best==UINT32_MAX || refs[i].candidate->distance_squared<refs[best].candidate->distance_squared))best=i;
+        if(best==UINT32_MAX)break;node=refs[best].candidate;
+        if(alternate) {
+            status=b->edge(b->context,alternate,point,node->query_point,edge_parameter,&value);if(status)return status;
+            if(!(value&255u)){node->flag_034=1;--remaining;continue;}
+        }
+        status=b->visible(b->context,node,point,radius,height,&value);if(status)return status;
+        if((value&255u)==1){*token=refs[best].order_key;return RF_OK;}
+        node->flag_034=1;--remaining;
+    }
+    *token=0;return RF_OK;
+}
