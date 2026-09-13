@@ -38,6 +38,16 @@ int main(int argc,char **argv)
         }
         rf_vpp_close(&meshes);return ferror(stdin)?8:0;
     }
+    if(argc==2 && !strcmp(argv[1],"--vfx-face")) {
+        uint32_t input[2];unsigned char data[128];rf_vfx_face out;int32_t status;
+        _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
+        while(fread(input,8,1,stdin)==1) {
+            if(input[1]>sizeof(data) || fread(data,1,input[1],stdin)!=input[1])return 2;
+            memset(&out,0xa5,sizeof(out));status=rf_vfx_face_read(data,input[1],input[0],&out);
+            fwrite(&status,4,1,stdout);fwrite(&out,sizeof(out),1,stdout);
+        }
+        return ferror(stdin)?1:0;
+    }
     if(argc==4 && !strcmp(argv[1],"--vfx-directory")) {
         rf_vpp archive;rf_vfx_directory out={0},zero={0};uint32_t budget=65536,i;int status;
         if(rf_vpp_open(&archive,argv[2]))return 1;

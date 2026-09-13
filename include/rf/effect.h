@@ -12,6 +12,19 @@ typedef struct rf_vfx_header {uint32_t version,bytes,values[30];} rf_vfx_header;
  * Truncated/invalid inputs preserve output. No allocation. */
 int rf_vfx_header_read(const void *data,uint32_t bytes,rf_vfx_header *result);
 #include "rf/vpp.h"
+/*53d277..53d474 SFXO face. Original offsets14/18/1c are indices,
+ * 54..5c are nine color bytes,60/6c vectors,78 scalar,20 material,80..8c
+ * four opaque words. Pre3000d UVs are deinterleaved into u[3],v[3]. */
+typedef struct rf_vfx_face {
+    uint32_t indices[3];float legacy_uv[6];unsigned char colors[12];
+    float vector_60[3],vector_6c[3],scalar_78;uint32_t material,words_80[4],bytes;
+} rf_vfx_face;
+/* Complete serialized face,96 bytes or120 before3000d. Colors multiply by255
+ * before truncating and retaining the low byte; padding is zero. Pre40000
+ * material is decremented with unsigned wrap. Finite geometry/colors required;
+ * scaled colors must fit signed32. No vertex lookup or material resolution.
+ * Errors preserve output; trailing input is permitted for the next face. */
+int rf_vfx_face_read(const void *,uint32_t bytes,uint32_t version,rf_vfx_face *);
 typedef struct rf_vfx_chunk {uint32_t type,offset,bytes;} rf_vfx_chunk;
 typedef struct rf_vfx_directory {
     rf_vpp *archive;rf_vpp_entry entry;rf_vfx_header header;

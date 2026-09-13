@@ -82,6 +82,7 @@ SP pickup completion order/timer matches1024 original/PC/NXDK cases and6 callbac
 Normal-SP acquisition4030d0 matches2048 original/PC/NXDK cases with actual401470 no-op notification; bind inventory creation, equip/reset and full pickup grants.
 Startup grants now compose with concrete42ab20 animation selection (220 loaded PC cases); connect retained inventories/selections to live scene consumers.
 All63 class defaults now retain optional melee (four authored classes); include it when creating startup inventories.
+VFX mesh-face decoding matches2190 original/PC/NXDK cases including all142 authored projectile faces; complete mesh object framing, vertex tracks and material resolution.
 VFX header matches1031 original/PC/NXDK cases; bounded archive directories index29 records across7 projectile assets with42 NXDK failure checks; reconstruct object/track decoding and playback.
 Projectile model catalog retains all44 authored entries (5 static,11 VFX,28 model-less), passing16 PC/NXDK reader cases and51 original filename classifications; bind both static and VFX model backends under a shared budget.
 Moving creation physics matches640 original/PC/NXDK cases; projectile model/sphere/physics ownership now passes12 PC/NXDK integration cases and2 allocation failures; bind bounded scene model services, room ownership and remaining firing/impact effects.

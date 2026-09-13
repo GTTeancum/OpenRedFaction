@@ -1030,3 +1030,27 @@ int rf_vfx_chunk_read(const rf_vfx_directory *owner,uint32_t index,uint32_t offs
     if(offset>chunk->bytes || bytes>chunk->bytes-offset)return RF_RANGE;
     return rf_vpp_read(owner->archive,&owner->entry,chunk->offset+offset,out,bytes);
 }
+
+int rf_vfx_face_read(const void *data,uint32_t bytes,uint32_t version,rf_vfx_face *out)
+{
+    const unsigned char *p=data;rf_vfx_face v={0};uint32_t at=0,i,j;float color;double scaled;
+    if(!data || !out)return RF_RANGE;
+    if(version<0x30000 || version>0x7fffffffu || (version>=0x40000 && version<0x40005))return RF_FORMAT;
+    v.bytes=version<0x3000d?120:96;if(bytes<v.bytes)return RF_FORMAT;
+    for(i=0;i<3;++i){v.indices[i]=vfx_word(p+at);at+=4;}
+    if(version<0x3000d)for(i=0;i<3;++i)for(j=0;j<2;++j) {
+        uint32_t word=vfx_word(p+at);at+=4;memcpy(v.legacy_uv+j*3+i,&word,4);
+        if(!isfinite(v.legacy_uv[j*3+i]))return RF_RANGE;
+    }
+    for(i=0;i<3;++i)for(j=0;j<3;++j) {
+        uint32_t word=vfx_word(p+at);at+=4;memcpy(&color,&word,4);scaled=(double)color*255.0;
+        if(!isfinite(scaled) || scaled< -2147483648.0 || scaled>=2147483648.0)return RF_RANGE;
+        v.colors[j*3+i]=(unsigned char)(int32_t)scaled;
+    }
+    for(i=0;i<3;++i){uint32_t word=vfx_word(p+at);at+=4;memcpy(v.vector_60+i,&word,4);if(!isfinite(v.vector_60[i]))return RF_RANGE;}
+    for(i=0;i<3;++i){uint32_t word=vfx_word(p+at);at+=4;memcpy(v.vector_6c+i,&word,4);if(!isfinite(v.vector_6c[i]))return RF_RANGE;}
+    {uint32_t word=vfx_word(p+at);at+=4;memcpy(&v.scalar_78,&word,4);if(!isfinite(v.scalar_78))return RF_RANGE;}
+    v.material=vfx_word(p+at);at+=4;if(version<0x40000)--v.material;
+    for(i=0;i<4;++i){v.words_80[i]=vfx_word(p+at);at+=4;}
+    *out=v;return RF_OK;
+}

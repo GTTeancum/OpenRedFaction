@@ -311,3 +311,30 @@ both builds succeed. Evidence: artifacts/vfx-directory.json.
 Next: bounded mesh/particle/material/warp object decoders, track storage,
 instance playback and actual projectile backend. No native XEMU scene run
 or new visual; this is structural archive access, not complete VFX loading.
+
+## Complete SFXO face records (2026-09-13)
+
+rf_vfx_face_read reconstructs53d277..53d474. A record consumes96 bytes,
+or120 before3000d where six interleaved UV floats become u[3]/v[3].
+The100-byte port view retains triangle indices, nine color bytes, two
+vectors, a scalar, material and four trailing opaque words; padding and
+absent legacy UVs are zero. Pre40000 material indices decrement with unsigned
+wrap. Colors use double-precision255 multiplication, truncation and low-byte
+retention. Disassembly exposes the multiplier that raw Ghidra output omitted.
+Finite geometry and signed32-range scaled colors are required by the port;
+errors preserve output. Vertex/material references are resolved later.
+
+verify_vfx_face.py executes the original complete face loop with actual
+integer/float/vector/version readers and original ftol, supplying only file
+read/error primitives. The missing-material diagnostic is suppressed;
+represented fields still include negative/wrapped material IDs.2190 cases
+match original/PC/compiled NXDK:2048 generated faces across six versions and
+all142 mesh faces from the projectile assets (128 DrillMissile,4 ShellTest,
+4 NanoAttackMissile,4 laser01,2 spikeprojectile).238 invalid/truncated cases
+preserve PC/NXDK output. Both builds and24 CTests pass.
+Evidence: artifacts/vfx-face.json.
+
+Next: mesh object framing, animated vertices, timing and materials, then
+particle/warp records and effect playback. The test extracts authored face
+spans independently; it is not a complete production mesh loader. No native
+XEMU scene run or new visual is claimed.
