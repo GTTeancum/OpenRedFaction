@@ -9597,3 +9597,29 @@ Existing scene503400 nonlooping-stop service can serve later binding; actor
 1364/1368 ownership and query services still need integration.408f20 remains
 a separate blocked-animation recovery path with timers, action40 playback,
 linked-object action13 checks and duration queries; it is not a flag clear.
+
+
+Full blocked-animation recovery408f20 audit (2026-09-13):
+verify_ai_recovery_original.py executes2048 original calls,285 accepted
+playback starts, with actual408ef0 flag query,408ec0 pending timer,427020
+dead predicate, __ftol conversion and4fa360 timer writes. Only actor/object
+lookup and503400/428c90/5033e0 playback services are supplied. Complete actor
+footprints match expected writes. Actor lookup occurs first. Action13 looks
+up attachment200; a live object with health34 strictly above zero returns.
+Missing/nonpositive/unordered health instead clears actor7bc before testing
+blocked flag7d0 bit100, pending inventory274, dead flag and mapped action40
+at actorcd4. No interpretation of7bc beyond this observed write is implied.
+Accepted order: stop current model, start action40 with parameters1.0/0/1,
+then reread actor80/cd4 for the duration query. The fixture mutates those
+fields during start, proving the subsequent query sees the new values.
+Duration times1000 truncates toward zero and sets inventory274 (actor514).
+The next duration is class294+f78, independently multiplied by1000 and
+truncated, then sets inventory278 (actor518). No rounding0.5 or extra250
+is present. Current class pointer is read after the first timer completes.
+Tests include clock wrapping, disabled/pending/expired timers, negative and
+fractional durations, absent animation mapping, zero/negative/NaN linked
+health and rejection after the action13 movement-field clear. Exact float
+input bits and traces are in artifacts/ai-recovery-original.json. This is
+original-code evidence only; shared recovery service, retained classf78 and
+actor fields, playback callbacks and live AI integration remain open. No
+new build, native XEMU execution or screenshot claimed for this audit.

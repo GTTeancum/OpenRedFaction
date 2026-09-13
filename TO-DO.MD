@@ -46,6 +46,7 @@ Verify authored NPC/vehicle beams, bind player state and complete transparent sc
 AI action/state setters407e20/407e80 match2048 original/PC/NXDK cases.
 Shared408ac0 selection matches2048 original/PC/NXDK cases across107 paths plus21 failure checks.
 AI animation resets4091d0/409210 match2048 original/PC/NXDK cases plus4 failure checks.
+Original recovery408f20 passes2048 cases with285 playback starts; reconstruct its shared service.
 Implement remaining AI services and bind retained override/state fields before live special landing.
 
 The stationary startup-NPC animation gate matches PC/stock64MiB XEMU;
