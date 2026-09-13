@@ -525,3 +525,33 @@ CTests pass. This is composed instruction-emulation coverage, not native VFX
 rendering. Existing diagnostic scene model lighting still uses fixed ambient;
 source construction/lifetime/invalidation, global disabled-state behavior,
 edge caches and native VFX draw submission remain required integration work.
+
+## Point/cone/segment initialization
+
+rf_vfx_light_create accepts explicit constructor arguments in an84-byte
+rf_vfx_light_definition and initializes the80-byte candidate used by the
+cache/selection/shading pipeline. Original4d8ed0,4d8f80 and4d9050 initialize
+point2,cone3 andsegment4. RGB is multiplied by intensity with float stores;
+enabled starts1 and class retains its low byte. Segment radius is first
+reduced by float0.1, with float0.1 substituted if the result is nonpositive.
+Cone4d9520 converts full angles in radians to negative half-angle cosines;
+cone scale and low-byte squaring mode are retained. Unused fields are zero
+for this fresh-source initializer, not inherited from a reused original slot.
+Finite nonnegative radius/intensity/color, supported profiles and ordered
+cone angles in0..2pi are required; invalid input preserves output.
+
+2048 complete original constructor executions match all80 represented bytes
+on PC/NXDK, with3 invalid-input guards. Original pool-slot insertion and cone
+angle helper execute without hooks; an empty scene visibility owner prevents
+external geometry updates. Both builds and24 CTests pass. This API does not
+register a source, update generation, retain visibility metadata/reference
+counts/radius-squared auxiliaries, or replace the native scene lighting.
+
+Static owner evidence:4d8e10 scans1100 slots (268 original bytes each) and
+appends a free slot to c4e6b8 when class is nonzero and879af8 is zero, otherwise
+to c96768. It increments live countc96878 and clears active selection via
+4d9fc0. Creation increments generationc96874 (cone through4d9520).4d9130
+reduces references at+58; when the result is below1 it increments generation,
+unlinks/clears type and decrements live count, then resets active selection.
+4d8660 updates scene geometry only when879af8 andc96880 permit. Reconstruct
+these lifetime/registration/visibility effects before binding authored lights.

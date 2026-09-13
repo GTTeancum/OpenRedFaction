@@ -14,6 +14,11 @@ Shortlist:
 
 Progress reporting: include overall percent estimates at meaningful milestones and revisit remaining 24-hour workdays when measured throughput supports a forecast; current rough estimate40% (35-45%), no defensible +/-48-hour completion forecast before end-to-end gameplay.
 
+VFX point/cone/segment source initialization matches2048 original/PC/NXDK
+cases and3 guards; both builds and24 tests pass. Bind original pool lifetime,
+registration/generation/visibility effects and authored light loading before
+native scene use; directional creation and edge-light integration remain.
+
 VFX cache-to-selection-to-transform-to-RGB composition matches1024 complete
 original/PC/NXDK cases; all prepared source fields also match NXDK/original.
 Both builds and24 tests pass. Bind live light sources/invalidation, global

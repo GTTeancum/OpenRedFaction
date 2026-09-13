@@ -2357,3 +2357,27 @@ int rf_vfx_lights_prepare(const rf_vfx_light_candidate *sources,uint32_t source_
     }
     *selected=n;return RF_OK;
 }
+
+int rf_vfx_light_create(const rf_vfx_light_definition *definition,rf_vfx_light_candidate *out)
+{
+    rf_vfx_light_candidate value;rf_vfx_light_source *l=&value.source;uint32_t j;
+    if(!definition || !out || definition->type<2 || definition->type>4 || definition->profile>3 ||
+        !isfinite(definition->radius) || definition->radius<0 || !isfinite(definition->intensity) || definition->intensity<0)return RF_RANGE;
+    memset(&value,0,sizeof(value));l->type=definition->type;l->profile=definition->profile;
+    value.enabled=1;value.light_class=(unsigned char)definition->light_class;l->radius=definition->radius;
+    for(j=0;j<3;++j) {
+        if(!isfinite(definition->position[j]) || !isfinite(definition->color[j]) || definition->color[j]<0)return RF_RANGE;
+        l->position[j]=definition->position[j];l->color[j]=definition->intensity*definition->color[j];if(!isfinite(l->color[j]))return RF_RANGE;
+        if(l->type==3){if(!isfinite(definition->axis[j]))return RF_RANGE;l->axis[j]=definition->axis[j];}
+        if(l->type==4){if(!isfinite(definition->end[j]))return RF_RANGE;l->end[j]=definition->end[j];}
+    }
+    if(l->type==4){l->radius-=0.1f;if(l->radius<=0)l->radius=0.1f;}
+    if(l->type==3) {
+        if(!isfinite(definition->inner_angle) || !isfinite(definition->outer_angle) ||
+            definition->inner_angle<0 || definition->inner_angle>=definition->outer_angle || definition->outer_angle>6.283185307179586 ||
+            !isfinite(definition->cone_scale) || definition->cone_scale<0 || definition->cone_scale>1)return RF_RANGE;
+        l->inner=(float)-cos((double)definition->inner_angle*0.5);l->outer=(float)-cos((double)definition->outer_angle*0.5);
+        if(l->inner>=l->outer)return RF_RANGE;l->cone_scale=definition->cone_scale;l->squared=definition->squared&255u;
+    }
+    *out=value;return RF_OK;
+}

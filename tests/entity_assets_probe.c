@@ -256,6 +256,14 @@ int main(int argc,char **argv)
         }
         return ferror(stdin)?1:0;
     }
+    if(argc==2 && !strcmp(argv[1],"--vfx-light-create")) {
+        rf_vfx_light_definition definition;rf_vfx_light_candidate result;int32_t status;
+        _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
+        while(fread(&definition,sizeof(definition),1,stdin)==1) {
+            memset(&result,0xa5,sizeof(result));status=rf_vfx_light_create(&definition,&result);
+            fwrite(&status,4,1,stdout);fwrite(&result,sizeof(result),1,stdout);
+        }return ferror(stdin)?1:0;
+    }
     if(argc==2 && !strcmp(argv[1],"--vfx-cached-lighting")) {
         uint32_t count,indices[32],selected;float bounds[6],v[10];rf_vfx_light_query query;
         rf_vfx_light_candidate candidates[32];rf_vfx_light_source lights[32];rf_vfx_light_cache cache;unsigned char rgb[3];int32_t status;
