@@ -972,3 +972,21 @@ PC/NXDK cases match152 volume bytes and bounds decisions, including nonunit
 matrices. Three invalid-definition cases preserve output. The2048 complete
 world-solid comparisons still pass; both builds and24 CTests pass. Wrapper
 4d8660 gating, main-then-view dispatch and native state binding remain.
+
+### Main/alternate-view lighting dispatch (2026-09-13)
+
+rf_visibility_light_dispatch reconstructs4d8660 scheduling around caller
+services: low-byte mode/main-solid gate, main dirty update, then linked
+view enter, source transform, local dirty update and leave. Null-terminated
+and head-circular lists are supported with a caller capacity bound. The
+head is read after main update and after view callbacks. Failures preserve
+earlier dirty updates; successful enter always gets leave, with first error
+retained. Services own actual pose/solid token resolution and view state.
+
+verify_light_dispatch.py executes actual4d8660 with its four services
+supplied to record calls. All512 original/PC/NXDK cases match gates/order/
+arguments;21 PC/NXDK service-failure positions verify cleanup. Both builds
+and24 CTests pass. This is scheduling evidence; solid updates and volume
+transforms have separate unhooked evidence.517f00/517f20 gate5473f0/547540
+on renderer mode66. Those save/restore both render and lighting transforms;
+their internal matrix/stack state and native lifecycle binding remain.

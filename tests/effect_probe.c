@@ -113,8 +113,28 @@ static int light_dirty_bounds(void *context,const float minimum[3],const float m
     if(light_dirty_fail==light_dirty_trace[0])return RF_IO;
     *hit=(uint32_t)minimum[1];return RF_OK;
 }
+static uint32_t light_dispatch_trace[85],light_dispatch_fail;
+static int light_dispatch_record(uint32_t code,uint32_t a,uint32_t b,uint32_t c)
+{uint32_t n=light_dispatch_trace[0]++;light_dispatch_trace[1+n*4]=code;light_dispatch_trace[2+n*4]=a;light_dispatch_trace[3+n*4]=b;light_dispatch_trace[4+n*4]=c;return light_dispatch_fail==n+1?RF_IO:RF_OK;}
+static int light_dispatch_dirty(void *c,uint32_t a,uint32_t b,uint32_t d){(void)c;return light_dispatch_record(1,a,b,d);}
+static int light_dispatch_enter(void *c,uint32_t a,uint32_t b){(void)c;return light_dispatch_record(2,a,b,0);}
+static int light_dispatch_transform(void *c,uint32_t a){(void)c;return light_dispatch_record(3,a,0,0);}
+static int light_dispatch_leave(void *c){(void)c;return light_dispatch_record(4,0,0,0);}
 int main(int argc,char **argv)
 {
+    if(argc==2 && !strcmp(argv[1],"--light-dispatch")) {
+        uint32_t input[6],status,i;rf_light_update_view views[5],*head;
+        rf_light_update_backend backend={light_dispatch_dirty,light_dispatch_enter,light_dispatch_transform,light_dispatch_leave,NULL};
+        _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
+        while(fread(input,sizeof(input),1,stdin)==1) {
+            if(input[3]>5)return 9;
+            for(i=0;i<input[3];i++){views[i].solid=20+i;views[i].position=30+i;views[i].matrix=40+i;views[i].next=i+1<input[3]?views+i+1:input[4]?views:NULL;}
+            head=input[3]?views:NULL;memset(light_dispatch_trace,0,sizeof(light_dispatch_trace));light_dispatch_fail=input[5];
+            status=rf_visibility_light_dispatch(input[0],7,input[1],input[2],&head,5,&backend);
+            fwrite(&status,4,1,stdout);fwrite(light_dispatch_trace,sizeof(light_dispatch_trace),1,stdout);
+        }
+        return 0;
+    }
     if(argc==2 && !strcmp(argv[1],"--light-dirty-solid")) {
         struct {rf_vfx_light_definition definition;uint32_t mode,update,path;float bounds[6];rf_light_dirty_room rooms[2];rf_collision_node nodes[3];rf_light_dirty_face faces[3];unsigned char dirty[4];} input;
         uint32_t status,primary[1]={0},children[1]={1},roots[4],stack[4];rf_light_dirty_solid solid;rf_light_visibility_volume volume;

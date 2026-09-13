@@ -38,6 +38,22 @@ int rf_visibility_light_roots(const rf_light_dirty_room *rooms,uint32_t room_cou
     const uint32_t *primary,uint32_t primary_count,const uint32_t *children,uint32_t child_count,
     uint32_t *roots,uint32_t capacity,uint32_t *selected,rf_light_bounds_test test,void *context);
 
+typedef struct rf_light_update_view {
+    struct rf_light_update_view *next;uint32_t solid,position,matrix;
+} rf_light_update_view;
+typedef struct rf_light_update_backend {
+    int (*dirty)(void *,uint32_t source,uint32_t solid,uint32_t update);
+    int (*enter)(void *,uint32_t position,uint32_t matrix);
+    int (*transform)(void *,uint32_t source);
+    int (*leave)(void *);void *context;
+} rf_light_update_backend;
+/*4d8660: low-byte mode/main gate, main update, then each linked view in order.
+ * Accepts null-terminated or head-circular lists; head is re-read after calls.
+ * Successful enter is paired with leave even on later callback failure; first
+ * error wins. Earlier updates remain. Caller supplies bounded list/service state. */
+int rf_visibility_light_dispatch(uint32_t mode,uint32_t source,uint32_t main_solid,uint32_t update,
+    rf_light_update_view **views,uint32_t capacity,const rf_light_update_backend *backend);
+
 typedef struct rf_object_render_backend {
     int (*white)(void *);
     int (*model_kind)(void *,uint32_t,uint32_t *);

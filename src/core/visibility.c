@@ -3,6 +3,24 @@
 #include <string.h>
 #include <stdlib.h>
 #include <float.h>
+int rf_visibility_light_dispatch(uint32_t mode,uint32_t source,uint32_t main_solid,uint32_t update,
+    rf_light_update_view **views,uint32_t capacity,const rf_light_update_backend *backend)
+{
+    rf_light_update_view *view;uint32_t visited=0;int status,cleanup;
+    if(!(mode&255u) || !main_solid)return RF_OK;
+    if(!backend || !backend->dirty)return RF_RANGE;
+    status=backend->dirty(backend->context,source,main_solid,update);if(status)return status;
+    if(!views)return RF_OK;view=*views;
+    while(view) {
+        if(++visited>capacity || !backend->enter || !backend->transform || !backend->leave)return RF_RANGE;
+        status=backend->enter(backend->context,view->position,view->matrix);if(status)return status;
+        status=backend->transform(backend->context,source);
+        if(!status)status=backend->dirty(backend->context,source,view->solid,update);
+        cleanup=backend->leave(backend->context);if(status)return status;if(cleanup)return cleanup;
+        view=view->next;if(view==*views)break;
+    }
+    return RF_OK;
+}
 int rf_visibility_light_faces(rf_light_dirty_face *faces,uint32_t count,
     unsigned char *dirty,uint32_t dirty_count,uint32_t mode,uint32_t update,
     rf_light_bounds_test test,void *context)

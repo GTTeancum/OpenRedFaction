@@ -14,6 +14,11 @@ Shortlist:
 
 Progress reporting: include overall percent estimates at meaningful milestones and revisit remaining 24-hour workdays when measured throughput supports a forecast; current rough estimate40% (35-45%), no defensible +/-48-hour completion forecast before end-to-end gameplay.
 
+Main/alternate-view lighting dispatch matches512 original/PC/NXDK cases;
+all21 callback failure positions restore entered views. Both builds and24
+tests pass. Reconstruct view-stack state and bind services to retained
+native solids/dirty ownership, then connect live light timers.
+
 Alternate-view light volumes match4096 original/PC/NXDK cases, with
 unchanged radii and transformed positions/axes/endpoints. Both builds and
 24 tests pass. Finish main-then-view dispatch and view-stack ownership,
