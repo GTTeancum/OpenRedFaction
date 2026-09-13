@@ -2172,17 +2172,20 @@ static double vfx_falloff(uint32_t profile,float distance,float radius)
     if(profile==2)return cos((1.0-value)*(double)1.5707963705062866f);
     if(profile==3)return sqrt(value);return value;
 }
-int rf_vfx_lighting(const float position[3],const float normal[3],const float ambient[3],
-    float directional_scale,const rf_vfx_light_source *lights,uint32_t count,unsigned char out[3])
+int rf_vfx_light_accumulate(const float position[3],const float normal[3],const float initial[3],
+    float directional_scale,const rf_vfx_light_source *lights,uint32_t count,const unsigned char *weights,float out[3])
 {
     float rgb[3],g[3];uint32_t i,j;int status;
-    if(!position || !normal || !ambient || !out || (!lights && count) || count>SIZE_MAX/sizeof(*lights) ||
+    if(!position || !normal || !initial || !out || (!lights && count) || count>SIZE_MAX/sizeof(*lights) ||
         !isfinite(directional_scale))return RF_RANGE;
-    for(j=0;j<3;++j){if(!isfinite(position[j]) || !isfinite(normal[j]) || !isfinite(ambient[j]) || ambient[j]<0 || ambient[j]>1)return RF_RANGE;rgb[j]=ambient[j];}
+    for(j=0;j<3;++j){if(!isfinite(position[j]) || !isfinite(normal[j]) || !isfinite(initial[j]))return RF_RANGE;rgb[j]=initial[j];}
     for(i=0;i<count;++i) {
-        const rf_vfx_light_source *l=lights+i;double gain=0;
+        const rf_vfx_light_source *l=lights+i;double gain=0,weight;float color[3];
+        if(weights && !weights[i])continue;
+        weight=(double)(weights?weights[i]:255)*0.0039215688593685626983642578125;
         if(l->type<1 || l->type>4 || l->profile>3)return RF_RANGE;
         for(j=0;j<3;++j)if(!isfinite(l->position[j]) || !isfinite(l->end[j]) || !isfinite(l->axis[j]) || !isfinite(l->color[j]) || l->color[j]<0)return RF_RANGE;
+        for(j=0;j<3;j++)color[j]=(float)((double)weight*l->color[j]);
         if(!isfinite(l->radius) || l->radius<0)return RF_RANGE;
         if(l->type==1) {
             gain=(((double)normal[0]*l->position[0]+(double)normal[1]*l->position[1])+(double)normal[2]*l->position[2])*directional_scale;
@@ -2214,8 +2217,18 @@ int rf_vfx_lighting(const float position[3],const float normal[3],const float am
             length=sqrt(((double)v[0]*v[0]+(double)v[1]*v[1])+(double)v[2]*v[2]);distance=(float)length;
             if(!(length<l->radius))continue;gain=vfx_falloff(l->profile,distance,l->radius);
         }
-        for(j=0;j<3;++j){rgb[j]=(float)(gain*l->color[j]+rgb[j]);if(!isfinite(rgb[j]))return RF_RANGE;}
+        for(j=0;j<3;++j){rgb[j]=(float)(gain*color[j]+rgb[j]);if(!isfinite(rgb[j]))return RF_RANGE;}
     }
+    memcpy(out,rgb,sizeof(rgb));return RF_OK;
+}
+
+int rf_vfx_lighting(const float position[3],const float normal[3],const float ambient[3],
+    float directional_scale,const rf_vfx_light_source *lights,uint32_t count,unsigned char out[3])
+{
+    float rgb[3];uint32_t j;int status;
+    if(!ambient || !out)return RF_RANGE;
+    for(j=0;j<3;j++)if(!isfinite(ambient[j]) || ambient[j]<0 || ambient[j]>1)return RF_RANGE;
+    status=rf_vfx_light_accumulate(position,normal,ambient,directional_scale,lights,count,NULL,rgb);if(status)return status;
     return rf_vfx_light_rgb(rgb,ambient,2,out);
 }
 

@@ -14,6 +14,11 @@ Shortlist:
 
 Progress reporting: include an overall percent estimate in every turn report (USER preference) and revisit remaining 24-hour workdays when measured throughput supports a forecast; current rough estimate40% (35-45%), no defensible +/-48-hour completion forecast before end-to-end gameplay.
 
+Raw mixed-light accumulation with visibility weights matches4096 original/
+PC/NXDK cases; a recovered weight-rounding detail also fixes shared VFX math.
+Both builds and24 tests pass. Bind mapping sample positions, softening/masks,
+source accumulation and retained RGB/renderer updates.
+
 Complete lightmap RGB resolve matches512 original/PC/NXDK mappings and36992
 pixels, including the unfiltered rim and pitched output; both builds and24 tests
 pass. Reconstruct source accumulation and bind retained RGB/renderer updates.

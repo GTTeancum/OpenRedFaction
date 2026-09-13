@@ -159,6 +159,14 @@ int rf_vfx_light_pool_cache(const rf_vfx_light_pool *,uint32_t world,
  * fields and unused vectors. In-place supported; errors preserve output. */
 int rf_vfx_light_transform(const rf_vfx_light_source *,const float origin[3],const float basis[9],rf_vfx_light_source *out);
 
+/*4da8b0 raw ordered accumulation with supplied normal and lighting enabled.
+ * Optional per-light byte weights select one pixel from the original mask
+ * planes; NULL means255. Zero weight skips the source. Weighted colors store
+ * to float before geometry/falloff addition. No final RGB/gain/ambient pass.
+ * Unsoftened geometry only; selection, mask ownership and frame gates separate.
+ * No allocation; output may alias initial; errors preserve output. */
+int rf_vfx_light_accumulate(const float position[3],const float normal[3],const float initial[3],
+    float directional_scale,const rf_vfx_light_source *,uint32_t count,const unsigned char *weights,float out[3]);
 /* Ambient enabled, gain2, no per-light visibility weights (VFX caller).
  * Caller owns selection/order/transforms. No allocations; errors preserve out. */
 int rf_vfx_lighting(const float position[3],const float normal[3],const float ambient[3],

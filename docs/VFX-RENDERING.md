@@ -1206,3 +1206,32 @@ matching the selection rule. Two NXDK short-output/pitch guards preserve data.
 Explicit x87 precision027f matches the native replay setting. Both builds and
 24 CTests pass. Source accumulation4f3390, retained RGB ownership and native
 bitmap/renderer updates remain; no new visual result is claimed.
+
+
+### Raw mixed-light accumulation and visibility weights (2026-09-13)
+
+rf_vfx_light_accumulate exposes4da8b0 accumulation before final byte/gain
+conversion. It accepts initial float RGB and ordered, selected sources with
+supplied normals; optional byte weights represent a selected pixel from each
+original mask plane. NULL selects255; zero skips the source entirely. The
+existing rf_vfx_lighting now calls it then applies the unchanged gain2 RGB
+conversion. No allocations, output may alias initial, errors preserve output.
+This scope uses lighting enabled and unsoftened geometry with a supplied
+normal; null-normal behavior, disabled gates and softening remain separate.
+
+Original4da979..4da99a computes weight*binary32(1/255) without spilling that
+factor, multiplies each source color, then stores weighted channels to float.
+Even weight255 has a factor slightly above1 before that store. Prior VFX math
+omitted this factor, a difference masked by final byte quantization in existing
+fixtures. Raw float comparison exposed it; preserving the factor through the
+color multiplication fixes the one-bit channel difference. Do not round the
+weight factor to float before multiplying the source color.
+
+verify_light_accumulate.py executes complete4da8b0 and all actual geometry/
+falloff helpers with original active pointers, masks, initial values and normals
+supplied. All4096 PC/NXDK raw RGB results match at explicit x87 control027f,
+including2048 weighted cases and4096 NXDK in-place cases. Invalid source state
+preserves output, while a zero-weight invalid source is skipped. The previous
+2048 complete VFX byte-color cases and24 CTests still pass; both builds pass.
+Mapping coordinates, mask generation, softening and native renderer binding
+remain; no new visual result is claimed.

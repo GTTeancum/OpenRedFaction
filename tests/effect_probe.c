@@ -164,6 +164,16 @@ int main(int argc,char **argv)
         }
         return 0;
     }
+    if(argc==2 && !strcmp(argv[1],"--light-accumulate")) {
+        struct {uint32_t count,weighted;float position[3],normal[3],initial[3],directional;rf_vfx_light_source lights[16];unsigned char weights[16];} input;
+        float output[3];uint32_t status;
+        _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
+        while(fread(&input,sizeof(input),1,stdin)==1) {
+            memset(output,0xa5,sizeof(output));status=input.count>16?RF_RANGE:rf_vfx_light_accumulate(input.position,input.normal,input.initial,input.directional,input.lights,input.count,input.weighted?input.weights:NULL,output);
+            fwrite(&status,4,1,stdout);fwrite(output,sizeof(output),1,stdout);
+        }
+        return 0;
+    }
     if(argc==2 && !strcmp(argv[1],"--lightmap-resolve-rgb")) {
         struct {uint32_t width,height,pitch,offset,dirty;float channels[3][256];} input;
         unsigned char output[1536],dirty;uint32_t status;rf_lightmap_accumulation view;
