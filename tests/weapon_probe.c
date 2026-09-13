@@ -9,6 +9,7 @@
 #include "weapon_ammo_probe.h"
 #include "weapon_startup_probe.h"
 #include "weapon_world_probe.h"
+#include "projectile_store_probe.h"
 #include "weapon_hand_probe.h"
 #include "weapon_muzzle_probe.h"
 #include "weapon_world_draw_probe.h"
@@ -47,6 +48,7 @@ int main(int argc,char **argv)
         return ferror(stdin)?1:0;
     }
     if(argc==2 && !strcmp(argv[1],"--world-tags"))return weapon_world_probe();
+    if(argc==2 && !strcmp(argv[1],"--projectile-store"))return projectile_store_probe();
     if(argc==2 && !strcmp(argv[1],"--projectile-pool")) {
         static rf_projectile_pool pool;uint32_t command[2],i;
         struct {int32_t status;uint32_t slot,head,free_count,live_count,peak,links[50];} out;

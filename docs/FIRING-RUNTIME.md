@@ -124,3 +124,32 @@ slots, free/live/peak counts and all untouched payload bytes:2034 allocations,
 preserve pool bytes. Both builds and22 CTests pass. Evidence:
 artifacts/projectile-pool.json. Generic486da0 initialization/registration,
 model/physics ownership and complete factory effects remain open.
+
+## Projectile registration owner adapter (2026-09-13)
+
+rf_projectile_store combines the fixed pool with50 stable type2 owner
+wrappers (40824 bytes on32-bit PC/Xbox). It appends the object list, inserts
+the generation-checked registry handle, consumes the UID, and invokes an
+explicit initialization service. Successful initialization publishes the
+generic400000 flag. It does not zero the reusable original-sized payload.
+
+Failure invokes cleanup after list detachment while registry identity is
+still available, then releases handle and pool slot. UID/generation changes
+are retained across failed initialization. Flag2 marking does not invoke
+close. Close takes a handle, so stale generations cannot close reused slots.
+The initialize/cleanup callbacks must preserve identity and list links; no
+reentry or registry/list mutation is supported. Cleanup must release partial
+resources and cannot fail. The eventual factory must supply those services.
+
+verify_projectile_store.py and the PC projectile_owned_lifetime CTest cover
+52 initialization/cleanup cycles, full pool/registry exhaustion, stale handles,
+mark-without-removal, and failed initialization after acquiring a resource.
+Compiled NXDK callbacks verify visibility and cleanup order. Both builds and
+all23 CTests pass. Evidence artifacts/projectile-store.json. The first
+Unicorn run exceeded its100000-instruction observation cap in the ordinary
+registry memset; raising that test cap to1000000 completed successfully.
+
+This is a port ownership adapter using independently verified pool/list/
+registry components, not a claim that full486da0 is reconstructed. Room,
+model, sphere and physics initialization and complete4c77a0 resource/hit
+services remain required before live projectiles. No new native scene run.

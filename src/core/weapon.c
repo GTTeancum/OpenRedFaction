@@ -28,6 +28,47 @@ int rf_projectile_pool_release(rf_projectile_pool *pool,uint32_t slot)
     ++pool->free_count;--pool->live_count;return RF_OK;
 }
 
+void rf_projectile_store_init(rf_projectile_store *store)
+{
+    if(!store)return;rf_projectile_pool_init(&store->pool);memset(store->owners,0,sizeof(store->owners));
+}
+int rf_projectile_store_close(rf_projectile_store *store,rf_object_registry *registry,rf_object_list *objects,
+    uint32_t handle,const rf_projectile_owner_ops *ops,void *context)
+{
+    rf_projectile_owner *owner;uint32_t i;int status;
+    if(!store || !registry || !objects || !ops || !ops->cleanup)return RF_RANGE;
+    owner=rf_object_registry_lookup(registry,handle);if(!owner)return RF_NOT_FOUND;
+    for(i=0;i<50;++i)if(owner==store->owners+i)break;
+    if(i==50 || owner->slot!=i || owner->handle!=handle || owner->object_kind!=2 ||
+       !(store->pool.live_bits[i/32]&(1u<<(i%32))) || !owner->object_link.next || !owner->object_link.previous)return RF_RANGE;
+    rf_object_list_remove(objects,&owner->object_link);
+    ops->cleanup(context,owner,store->pool.records[i]);
+    status=rf_object_registry_remove(registry,handle);if(status)return status;
+    status=rf_projectile_pool_release(&store->pool,i);if(status)return status;
+    memset(owner,0,sizeof(*owner));return RF_OK;
+}
+int rf_projectile_store_open(rf_projectile_store *store,rf_object_registry *registry,rf_object_list *objects,
+    uint32_t *uid_cursor,const rf_projectile_creation_descriptor *descriptor,const rf_projectile_owner_ops *ops,
+    void *context,rf_projectile_owner **out)
+{
+    rf_projectile_owner *owner;uint32_t slot;int status,cleanup;
+    if(!store || !registry || !objects || !uid_cursor || !descriptor || !ops || !ops->initialize || !ops->cleanup ||
+       !out || *out || !objects->sentinel.next || !objects->sentinel.previous ||
+       objects->sentinel.next->previous!=&objects->sentinel || objects->sentinel.previous->next!=&objects->sentinel)return RF_RANGE;
+    if(!registry->count)return RF_NOT_FOUND;
+    status=rf_projectile_pool_acquire(&store->pool,&slot);if(status)return status;
+    owner=store->owners+slot;memset(owner,0,sizeof(*owner));owner->object_kind=2;owner->slot=slot;
+    rf_object_list_append(objects,&owner->object_link);
+    status=rf_object_registry_insert(registry,owner,&owner->handle);
+    if(status){rf_object_list_remove(objects,&owner->object_link);(void)rf_projectile_pool_release(&store->pool,slot);memset(owner,0,sizeof(*owner));return status;}
+    owner->uid=(*uid_cursor)--;owner->flags=0x06100000u; /*486da0 allocation flags100000 +6000000. */
+    status=ops->initialize(context,owner,store->pool.records[slot],descriptor);
+    if(status) {
+        cleanup=rf_projectile_store_close(store,registry,objects,owner->handle,ops,context);return cleanup?cleanup:status;
+    }
+    owner->flags|=0x400000u;*out=owner;return RF_OK;
+}
+
 int rf_projectile_descriptor_prepare(const rf_projectile_descriptor_input *in,rf_projectile_creation_descriptor *out)
 {
     rf_projectile_creation_descriptor d={{0},0};float velocity[3],angular[3],speed,spin;uint32_t i;

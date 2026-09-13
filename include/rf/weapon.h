@@ -19,6 +19,27 @@ void rf_projectile_pool_init(rf_projectile_pool *);
 int rf_projectile_pool_acquire(rf_projectile_pool *,uint32_t *slot);
 int rf_projectile_pool_release(rf_projectile_pool *,uint32_t slot);
 
+typedef struct rf_projectile_owner {
+    uint32_t object_kind,handle,uid,slot,flags;rf_object_link object_link;
+} rf_projectile_owner;
+typedef struct rf_projectile_store {rf_projectile_pool pool;rf_projectile_owner owners[50];} rf_projectile_store;
+struct rf_projectile_creation_descriptor;
+typedef struct rf_projectile_owner_ops {
+    int (*initialize)(void *,rf_projectile_owner *,uint32_t record[197],const struct rf_projectile_creation_descriptor *);
+    void (*cleanup)(void *,rf_projectile_owner *,uint32_t record[197]);
+} rf_projectile_owner_ops;
+/* Port owner adapter for the verified fixed pool, generic object list and
+ * handle registry. Fresh stores only; no heap allocation. Init/cleanup borrow
+ * all owners; no reentry or registry/list mutation in callbacks. Cleanup must
+ * release partial resources and cannot fail. Marking flags bit2 does not close. */
+void rf_projectile_store_init(rf_projectile_store *);
+int rf_projectile_store_open(rf_projectile_store *,rf_object_registry *,rf_object_list *,uint32_t *uid_cursor,
+    const struct rf_projectile_creation_descriptor *,const rf_projectile_owner_ops *,void *,rf_projectile_owner **);
+/* Detach list before cleanup, retain registry identity during cleanup, then
+ * release handle and pool slot. Stale handles do not close reused slots. */
+int rf_projectile_store_close(rf_projectile_store *,rf_object_registry *,rf_object_list *,uint32_t handle,
+    const rf_projectile_owner_ops *,void *);
+
 typedef struct rf_projectile_descriptor_input {
     uint32_t name_length,name_token,model_token,flags_264,flags_268;
     float field_bc,field_ac,speed,speed_scale;
