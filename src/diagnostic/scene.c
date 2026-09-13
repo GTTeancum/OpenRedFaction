@@ -2941,6 +2941,44 @@ uint32_t rf_scene_npc_pain_sound_owners[4]; /* registered, added bytes, initial 
 uint32_t rf_scene_npc_registration[6]; /* registered, view/wrapper bytes, hash, first/last handle, validated */
 uint32_t rf_scene_npc_bodies[6]; /* actors, bodies, spheres, resident, peak, content hash */
 static rf_weapon_model_owner campaign_weapon_models;
+static rf_model_materials campaign_weapon_materials;
+static uint32_t campaign_weapon_material_offsets[64];
+uint32_t rf_scene_weapon_materials[8]; /* models, materials, textures, resident, peak, pixels, material hash, pixel hash */
+static int campaign_weapon_materials_open(rf_vpp *maps,uint32_t map_count)
+{
+    const uint32_t budget=512*1024;uint8_t (*records)[84]=NULL;uint32_t i,j,k=0,count=0,x,y,h=2166136261u,p=2166136261u;uint64_t scratch;int status;
+    if(campaign_weapon_materials.items || campaign_weapon_models.count>64)return RF_RANGE;
+    memset(campaign_weapon_material_offsets,0,sizeof(campaign_weapon_material_offsets));memset(rf_scene_weapon_materials,0,sizeof(rf_scene_weapon_materials));
+    for(i=0;i<campaign_weapon_models.count;++i) {
+        uint32_t n=campaign_weapon_models.items[i].render.material_count;
+        if(n>UINT32_MAX-count)return RF_RANGE;campaign_weapon_material_offsets[i]=count;count+=n;
+    }
+    scratch=(uint64_t)count*84;if(scratch+sizeof(campaign_weapon_material_offsets)>=budget)return RF_RANGE;
+    if(count){records=malloc((size_t)scratch);if(!records)return RF_IO;}
+    for(i=0;i<campaign_weapon_models.count;++i) {
+        const rf_static_render_resource *r=&campaign_weapon_models.items[i].render;
+        if(r->material_count)memcpy(records+k,r->materials,r->material_count*84);k+=r->material_count;
+    }
+    status=rf_model_materials_open_records(&campaign_weapon_materials,records,count,maps,map_count,(uint32_t)(budget-scratch-sizeof(campaign_weapon_material_offsets)));
+    free(records);if(status)return status;
+    rf_scene_weapon_materials[0]=campaign_weapon_models.count;rf_scene_weapon_materials[1]=campaign_weapon_materials.count;
+    rf_scene_weapon_materials[2]=campaign_weapon_materials.textures.count;
+    rf_scene_weapon_materials[3]=campaign_weapon_materials.resident_bytes+sizeof(campaign_weapon_material_offsets);
+    rf_scene_weapon_materials[4]=(uint32_t)(campaign_weapon_materials.peak_bytes+scratch+sizeof(campaign_weapon_material_offsets));
+    h=npc_hash_bytes(h,campaign_weapon_material_offsets,sizeof(campaign_weapon_material_offsets));
+    for(i=0;i<campaign_weapon_materials.count;++i) {
+        const rf_model_material_instance *m=campaign_weapon_materials.items+i;h=npc_hash_bytes(h,m->record.bytes,200);
+        for(j=0;j<3;++j)h=npc_hash_bytes(h,m->arrays[j],m->counts[j]*4);
+    }
+    for(i=0;i<campaign_weapon_materials.textures.count;++i) {
+        const rf_image *image=&campaign_weapon_materials.textures.items[i].image;
+        p=npc_hash_bytes(p,&image->width,4);p=npc_hash_bytes(p,&image->height,4);p=npc_hash_bytes(p,&image->source_format,4);
+        for(y=0;y<image->height;++y)for(x=0;x<image->width;++x)p=npc_hash_bytes(p,rf_image_pixel(image,x,y),4);
+        rf_scene_weapon_materials[5]+=image->bytes;
+    }
+    rf_scene_weapon_materials[6]=h;rf_scene_weapon_materials[7]=p;return RF_OK;
+}
+
 uint32_t rf_scene_weapon_models[8]; /* models, weapon IDs, bytes, peak, tags, hash, selection mask */
 uint32_t rf_scene_weapon_placement[4]; /* actors, placements, absent hands, pose hash */
 typedef struct campaign_weapon_pose_context {uint32_t transforms;} campaign_weapon_pose_context;
@@ -3032,6 +3070,7 @@ static int campaign_weapon_models_open(const char *tables_path,rf_vpp *meshes)
 }
 static void campaign_npc_bodies_close(void)
 {
+    rf_model_materials_close(&campaign_weapon_materials);
     rf_weapon_models_close(&campaign_weapon_models);
     uint32_t i;for(i=0;i<campaign_npc_body_count;++i) {
         if(campaign_npc_bodies[i].registration.view)
@@ -8573,6 +8612,7 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
             /* This diagnostic begins the simulation clock at zero. */
             status=campaign_npc_bodies_open(tables_path,collision,0);if(status)goto done;
             status=campaign_weapon_models_open(tables_path,&archive);if(status)goto done;
+            status=campaign_weapon_materials_open(maps,map_count);if(status)goto done;
             status=campaign_weapon_placement_probe();if(status)goto done;
             status=campaign_glare_instances_open(tables_path);if(status)goto done;
             status=campaign_resolve_trigger_links();if(status)goto done;

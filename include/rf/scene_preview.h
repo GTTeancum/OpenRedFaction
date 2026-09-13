@@ -423,6 +423,7 @@ extern uint32_t rf_scene_weapon_reset_catalog[4];
 extern uint32_t rf_scene_npc_inventory_owners[4];
 extern uint32_t rf_scene_npc_startup_weapons[4];
 extern uint32_t rf_scene_weapon_models[8];
+extern uint32_t rf_scene_weapon_materials[8];
 extern uint32_t rf_scene_weapon_placement[4];
 /* Evaluated NPC pose and loaded weapon grip; no animation advancement or draw. */
 int rf_scene_npc_weapon_placement(uint32_t handle,int32_t hand,rf_weapon_hand_placement *result);

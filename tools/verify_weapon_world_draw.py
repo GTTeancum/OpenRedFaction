@@ -45,6 +45,9 @@ def callback(c,at,size,port):
   records.append(w(model)+pose+scratch);code=0
   if counts[1]==1 and state['missing']&512:
    c.mem_write(B+44 if port else C+0x1d4,w(2));addr=B if port else E+0x810;c.mem_write(addr,w(get(c,addr)^256))
+ if port:
+  failure=(4096 if counts[0]==1 else 16384) if at==PLACE else (8192 if counts[1]==1 else 32768)
+  if state['missing']&failure:code=-1
  c.reg_write(UC_X86_REG_EAX,code&0xffffffff);c.reg_write(UC_X86_REG_EIP,get(c,sp));c.reg_write(UC_X86_REG_ESP,sp+4)
 for addr in (0x418e60,0x503100):u.hook_add(UC_HOOK_CODE,callback,False,begin=addr,end=addr)
 for addr in (PLACE,DRAW):x.hook_add(UC_HOOK_CODE,callback,True,begin=addr,end=addr)
@@ -66,5 +69,18 @@ for k in range(1024):
  got=w(x.reg_read(UC_X86_REG_EAX))+bytes(x.mem_read(B,60))+bytes(x.mem_read(O,80))+w(*counts)+b''.join(records).ljust(288,b'\0');assert got==expected,(k,next((i for i,(a,b) in enumerate(zip(got,expected)) if a!=b),None))
  inputs.append(draw+models+b''.join(poses)+w(missing)+scratch);outputs.append(expected)
 assert subprocess.check_output([str(root/'build/pc/Release/rf_weapon_probe.exe'),'--world-draw'],input=b''.join(inputs))==b''.join(outputs)
-report=dict(result='PASS',cases=1024,placements=totals[0],submissions=totals[1],scope='Full original421c40 with original predicates, recoil, state initialization and final flags; only linked handle lookup, placement and submission supplied. Exact PC/NXDK state, callback records, missing hands, empty lists, player overrides and preserved scratch. Callback count shrink/growth and flag mutation are exercised; renderer execution remains separate.')
+# Port-only callback failures and absent services: keep the completed prefix.
+guards=[(4096,2,-1,1,0),(8192,2,-1,1,1),(16384,2,-1,2,1),(32768,2,-1,2,2),(65536,2,-3,0,0),(131072,2,-3,1,0),(196608,0,0,0,0),(0,3,-4,0,0),(8192|512,2,-1,1,1),(4096|256,2,-1,1,0)]
+guard_inputs=[];guard_outputs=[]
+for missing,count,status,placed,submitted in guards:
+ draw=w(512,8,0,3,-1,0,0,0,0,3,0,count)+struct.pack('<f',0)+w(0,0x12345678)
+ state.update(kind=0,poses=poses,missing=missing);counts[:]=[0,0];records.clear()
+ x.mem_write(B,draw);x.mem_write(M,models);x.mem_write(O,scratch);x.mem_write(OPS,w(0 if missing&65536 else PLACE,0 if missing&131072 else DRAW));x.mem_write(S,w(STOP,B,M,O,OPS,0));x.reg_write(UC_X86_REG_ESP,S);x.emu_start(entry,STOP,count=100000)
+ assert x.reg_read(UC_X86_REG_EIP)==STOP and x.reg_read(UC_X86_REG_EAX)==status&0xffffffff
+ assert counts==[placed,submitted] and get(x,B)==(512 if status==0 else 256 if missing&512 else 0)
+ if not submitted and not missing&131072:assert bytes(x.mem_read(O,80))==scratch
+ got=w(status)+bytes(x.mem_read(B,60))+bytes(x.mem_read(O,80))+w(*counts)+b''.join(records).ljust(288,b'\0')
+ guard_inputs.append(draw+models+b''.join(poses)+w(missing)+scratch);guard_outputs.append(got)
+assert subprocess.check_output([str(root/'build/pc/Release/rf_weapon_probe.exe'),'--world-draw'],input=b''.join(guard_inputs))==b''.join(guard_outputs)
+report=dict(result='PASS',cases=1024,port_failure_cases=10,placements=totals[0],submissions=totals[1],scope='Full original421c40 with original predicates, recoil, state initialization and final flags; only linked handle lookup, placement and submission supplied. Exact PC/NXDK state, callback records, missing hands, empty lists, player overrides and preserved scratch. Callback count shrink/growth and flag mutation are exercised; renderer execution remains separate.')
 (root/'artifacts/weapon-world-draw.json').write_text(json.dumps(report,indent=2));print(report)
