@@ -392,6 +392,9 @@ int rf_scene_npc_actor_contact(uint32_t source,uint32_t target,
     const rf_scene_npc_contact_destroy_services *services,uint32_t *respond);
 
 extern uint32_t rf_scene_npc_contact_destroy_audio[12],rf_scene_npc_contact_destroy_test[4];
+/* Prepared4278e0 call: caller selects kind1 surface route and supplies contact position. */
+int rf_scene_npc_contact_sound(uint32_t handle,const float position[3],rf_random_state *random);
+extern uint32_t rf_scene_npc_contact_sound_audio[12],rf_scene_npc_contact_sound_test[4];
 extern uint32_t rf_scene_npc_impact_dispatch[6]; /* calls,suppressed,damage,sound,player lookup,errors */
 extern uint32_t rf_scene_npc_impact_test[4]; /* cases,health before/after,errors */
 

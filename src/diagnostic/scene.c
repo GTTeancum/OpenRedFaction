@@ -1195,6 +1195,7 @@ uint32_t rf_scene_clutter_bodies[10]; /* created, physics-enabled, spheres, reta
 static int32_t (*campaign_footstep_groups)[10];
 static int32_t (*campaign_pain_groups)[2];
 static int32_t *campaign_impact_groups,*campaign_squash_groups;
+static int32_t campaign_contact_sound_group=-1;
 uint32_t rf_scene_npc_impact_groups[3]; /* classes,owned bytes,binding hash */
 uint32_t rf_scene_npc_pain_groups[3]; /* classes, resident bytes, binding hash */
 uint32_t rf_scene_foley[10]; /* groups,samples,missing,resident,peak,bank count,global hash,ID hash,classes,class hash */
@@ -1490,6 +1491,7 @@ static int campaign_audio_open(const char *tables_path,const char *level_name,co
     foley_bank_bytes=campaign_audio_bank.bytes;
     status=rf_foley_open(foley_text,foley_entry.size,256*1024,campaign_foley_register,&foley_registration,&campaign_foley);
     if(!status)status=foley_registration.error;if(status)goto audio_done;
+    status=rf_foley_find(&campaign_foley,"Sub Hit",&campaign_contact_sound_group);if(status)goto audio_done;
     if(campaign_audio_bank.bytes!=foley_bank_bytes){status=RF_FORMAT;goto audio_done;}
     rf_scene_foley[0]=campaign_foley.group_count;rf_scene_foley[1]=campaign_foley.sample_count;
     rf_scene_foley[2]=foley_registration.missing;rf_scene_foley[3]=campaign_foley.resident_bytes;
@@ -2810,6 +2812,7 @@ typedef struct campaign_npc_body {
     const float *movement_orientation; /* Original actor85c, borrowed stable matrix. */
     uint32_t trigger_handle; /* Original entity+838; initialized by422360. */
     struct {int32_t ai_timer,animation_lock,cooldown,selected_action;} pain; /*514/744/830/828*/
+    int32_t contact_sound_voice; /* original1478 */
     struct {int32_t deadline,voice;} pain_sound; /*1458/808; separate from damage.effects.voice(854)*/
     float eye_position[3]; /* Original entity+7d4. */
     rf_movement_settings movement;rf_entity_view view;rf_registered_entity_view registration;
@@ -3037,7 +3040,7 @@ static int campaign_npc_bodies_open(const char *tables_path,const rf_geometry_co
         owner->pain.selected_action=-1;
         owner->ai_override.action_1364=owner->ai_override.motion_1368=owner->ai_override.word_834=-1; /*422360*/
         status=rf_timer_set(&owner->pain_sound.deadline,now,0);if(status)goto done;
-        owner->pain_sound.voice=-1;
+        owner->pain_sound.voice=-1;owner->contact_sound_voice=-1;
         view->handle=-1;view->type=0;view->class_type=(int32_t)definition->physics.use_kind;
         view->flags_7c=owner->object_flags;view->linked_handle=-1;
         view->weapons[0]=view->weapons[1]=-1;view->base_speed=campaign_npc_movement_configs[campaign_seeds.items[actor].class_index].base_speed;
@@ -4144,33 +4147,58 @@ static int32_t campaign_pain_audio_playing(void *context,int32_t voice)
     uint32_t source;(void)context;
     return rf_audio_voice_ids_resolve(&campaign_device_voice_ids,&campaign_audio_mixer,voice,&source)==RF_OK;
 }
-static void campaign_pain_audio_play(void *context,const float position[3],int32_t sample)
+static int32_t campaign_pain_audio_play_voice(void *context,const float position[3],int32_t sample)
 {
-    campaign_pain_audio_context *c=context;
-    if(c->status)return;
-    if(sample==-1)return; /* Original playback rejects the absent sample without a voice. */
-    if(sample<0 || (uint32_t)sample>=campaign_audio_bank.count){c->status=RF_RANGE;return;}
+    campaign_pain_audio_context *c=context;int32_t voice=-1;
+    if(c->status)return -1;
+    if(sample==-1)return -1; /* Original playback rejects the absent sample without a voice. */
+    if(sample<0 || (uint32_t)sample>=campaign_audio_bank.count){c->status=RF_RANGE;return -1;}
     {const unsigned char *name=(const unsigned char *)campaign_audio_bank.samples[sample].name;
      uint32_t hash=2166136261u;for(;*name;++name) {
         uint32_t ch=*name;if(ch>='A' && ch<='Z')ch+='a'-'A';hash=(hash^ch)*16777619u;
      }c->telemetry[8]=hash;}
     if(!rf_audio_bank_sample(&campaign_audio_bank,(uint32_t)sample)) {
-        c->status=campaign_ambient_reload((uint32_t)sample);if(c->status)return;
+        c->status=campaign_ambient_reload((uint32_t)sample);if(c->status)return -1;
         if((uint32_t)sample<sizeof(campaign_audio_evictable))campaign_audio_evictable[sample]=1;
         ++rf_scene_sound_bank[1];rf_scene_sound_bank[2]+=campaign_audio_bank.samples[sample].bytes;
         rf_scene_live_audio[1]=campaign_audio_bank.bytes;
         ++c->telemetry[3];c->telemetry[4]+=campaign_audio_bank.samples[sample].bytes;
     }
     if(c->player) {
-        rf_player_sound_input input={0};rf_player_sound_request request;int32_t voice;
+        rf_player_sound_input input={0};rf_player_sound_request request;
         input.owner_present=1;input.sound_id=sample;input.volume=1;
         memcpy(input.position,position,12);
         c->status=rf_player_sound_route(&input,&request);
         if(!c->status)c->status=rf_scene_sound_play_request(&request,&voice);
-        if(c->status)return;
-    } else if(campaign_sound_play(NULL,sample,position,1,0)<0){c->status=RF_IO;return;}
+        if(c->status)return -1;
+    } else if((voice=campaign_sound_play(NULL,sample,position,1,0))<0){c->status=RF_IO;return -1;}
     ++c->telemetry[2];
-    /* Original48a9c0 does not store the returned voice in entity+808. */
+    return voice;
+}
+static void campaign_pain_audio_play(void *context,const float position[3],int32_t sample)
+{(void)campaign_pain_audio_play_voice(context,position,sample);}
+uint32_t rf_scene_npc_contact_sound_audio[12],rf_scene_npc_contact_sound_test[4];
+static int campaign_contact_sound_playing(void *context,int32_t voice,uint32_t *active)
+{*active=(uint32_t)campaign_pain_audio_playing(context,voice);return RF_OK;}
+static int campaign_contact_sound_select(void *context,int32_t group,int32_t *sample)
+{campaign_pain_audio_context *c=context;*sample=campaign_pain_audio_resolve(context,group);return c->status;}
+static int campaign_contact_sound_play(void *context,int32_t sample,const float *position,int32_t *voice)
+{
+    campaign_pain_audio_context *c=context;memcpy(rf_scene_npc_contact_sound_audio+9,position,12);
+    *voice=campaign_pain_audio_play_voice(context,position,sample);return c->status;
+}
+int rf_scene_npc_contact_sound(uint32_t handle,const float position[3],rf_random_state *random)
+{
+    campaign_npc_body *owner;rf_entity_pose *pose;uint32_t cls,slot;rf_entity_contact_sound_state state;int status;
+    campaign_pain_audio_context context={random,0,rf_scene_npc_contact_sound_audio,0};
+    rf_entity_contact_sound_backend backend={&context,&campaign_contact_sound_group,campaign_contact_sound_playing,campaign_contact_sound_select,campaign_contact_sound_play};
+    if(!random || !position)return RF_RANGE;
+    status=campaign_npc_motion_owner(handle,&owner,&cls,&pose);if(status)return status;slot=(uint32_t)(owner-campaign_npc_bodies);
+    state.speed=owner->movement.speed;state.voice=owner->contact_sound_voice;memcpy(state.velocity,owner->body.state.velocity,12);
+    memcpy(state.forward,campaign_model_owners[slot].basis+6,12);memcpy(state.normal,owner->body.state.vector_138,12);
+    ++rf_scene_npc_contact_sound_audio[0];status=rf_entity_contact_sound(&state,position,&backend);
+    if(!status)owner->contact_sound_voice=state.voice;else ++rf_scene_npc_contact_sound_audio[7];
+    rf_scene_npc_contact_sound_audio[6]=random->value;return status;
 }
 uint32_t rf_scene_npc_action_audio[9];
 int rf_scene_npc_death_sound(void *context,uint32_t handle,const char *name)
@@ -4427,6 +4455,27 @@ static int campaign_contact_destroy_fixture(campaign_npc_body *owner,const rf_da
     *owner=saved;*source=source_saved;campaign_seeds.classes[source_class].physics.use_kind=saved_kind;return status;
 }
 
+static int campaign_contact_sound_fixture(campaign_npc_body *owner)
+{
+    campaign_npc_body saved=*owner;rf_random_state random={1};uint32_t slot=(uint32_t)(owner-campaign_npc_bodies),before;int status;int32_t voice;
+    memset(rf_scene_npc_contact_sound_audio,0,sizeof(rf_scene_npc_contact_sound_audio));rf_scene_npc_contact_sound_audio[5]=UINT32_MAX;
+    memset(rf_scene_npc_contact_sound_test,0,sizeof(rf_scene_npc_contact_sound_test));
+    status=rf_scene_npc_contact_sound(owner->registration.handle^0x10000,owner->published,&random);
+    if(status!=RF_NOT_FOUND || random.value!=1 || memcmp(owner,&saved,sizeof(saved)))return RF_FORMAT;
+    ++rf_scene_npc_contact_sound_test[0];owner->contact_sound_voice=-1;owner->movement.speed=10;memset(owner->body.state.velocity,0,12);
+    status=rf_scene_npc_contact_sound(owner->registration.handle,owner->published,&random);
+    if(!status && (random.value!=1 || owner->contact_sound_voice!=-1 || rf_scene_npc_contact_sound_audio[2]))status=RF_FORMAT;
+    if(!status)++rf_scene_npc_contact_sound_test[0];owner->movement.speed=1;owner->body.state.velocity[0]=2;
+    for(uint32_t i=0;i<3;++i)owner->body.state.vector_138[i]=-campaign_model_owners[slot].basis[6+i];
+    if(!status)status=rf_scene_npc_contact_sound(owner->registration.handle,owner->published,&random);
+    voice=owner->contact_sound_voice;before=random.value;
+    if(!status && (voice<0 || rf_scene_npc_contact_sound_audio[2]!=1 || memcmp(rf_scene_npc_contact_sound_audio+9,owner->published,12)))status=RF_FORMAT;
+    if(!status)++rf_scene_npc_contact_sound_test[0];
+    if(!status)status=rf_scene_npc_contact_sound(owner->registration.handle,owner->published,&random);
+    if(!status && (owner->contact_sound_voice!=voice || random.value!=before || rf_scene_npc_contact_sound_audio[2]!=1))status=RF_FORMAT;
+    if(!status)++rf_scene_npc_contact_sound_test[0];else ++rf_scene_npc_contact_sound_test[3];
+    rf_scene_npc_contact_sound_test[1]=(uint32_t)voice;rf_scene_npc_contact_sound_test[2]=random.value;*owner=saved;return status;
+}
 static int campaign_npc_damage_fixture(void)
 {
     uint32_t i,pass;campaign_npc_body *owner;const rf_entity_seed_class *definition;rf_random_state random={1};
@@ -4517,6 +4566,7 @@ static int campaign_npc_damage_fixture(void)
         if(!status)++rf_scene_npc_impact_test[0];else ++rf_scene_npc_impact_test[3];
     }
     if(!status)status=campaign_contact_destroy_fixture(owner,&effects);
+    if(!status)status=campaign_contact_sound_fixture(owner);
     return status?status:rf_scene_npc_damage_test_words[63]?RF_FORMAT:RF_OK;
 }
 
