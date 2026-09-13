@@ -1,9 +1,11 @@
 #include "rf/event.h"
 #include "rf/resource_budget.h"
-/* Port-owned Windows frontend. Reads only messages addressed to its window.
+/* Port-owned Windows frontend. Window keyboard messages and focused XInput polling.
  * The headless replay calls the shared provider directly; no OS input injection. */
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
+#include <Xinput.h>
+#include <math.h>
 #include "rf/scene_preview.h"
 #include "rf/physics.h"
 #include "rf/frame_clock.h"
@@ -63,7 +65,7 @@ typedef struct player {
     LARGE_INTEGER frequency;
     uint32_t frames,headless;
     rf_scene_input *replay;uint32_t replay_count;
-    int quit;
+    int quit,focused;
 } player;
 
 static uint32_t milliseconds(const player *p)
@@ -98,7 +100,8 @@ static LRESULT CALLBACK window_proc(HWND window,UINT message,WPARAM key,LPARAM d
         if(key==VK_ESCAPE)p->quit=1;
         return 0;
     case WM_KEYUP:if(key<256)p->keys[key]=0;return 0;
-    case WM_KILLFOCUS:memset(p->keys,0,sizeof(p->keys));return 0;
+    case WM_SETFOCUS:p->focused=1;return 0;
+    case WM_KILLFOCUS:p->focused=0;memset(p->keys,0,sizeof(p->keys));return 0;
     case WM_CLOSE:p->quit=1;return 0;
     case WM_PAINT: {
         PAINTSTRUCT ps;HDC dc=BeginPaint(window,&ps);paint(p,dc);EndPaint(window,&ps);return 0;
@@ -106,6 +109,31 @@ static LRESULT CALLBACK window_proc(HWND window,UINT message,WPARAM key,LPARAM d
     case WM_ERASEBKGND:return 1;
     }
     return DefWindowProcW(window,message,key,data);
+}
+
+static void controller_stick(SHORT rx,SHORT ry,float *x,float *y)
+{
+    float a=rx/(rx<0?32768.0f:32767.0f),b=ry/(ry<0?32768.0f:32767.0f);
+    float length=sqrtf(a*a+b*b),scale;
+    if(length<=.18f){*x=*y=0;return;}
+    scale=(fminf(length,1)-.18f)/(.82f*length);*x=a*scale;*y=b*scale;
+}
+static int controller_input(rf_scene_input *out)
+{
+    XINPUT_STATE state;DWORD slot;float x,y;
+    for(slot=0;slot<XUSER_MAX_COUNT;++slot) {
+        if(XInputGetState(slot,&state)!=ERROR_SUCCESS)continue;
+        if((state.Gamepad.wButtons&(XINPUT_GAMEPAD_BACK|XINPUT_GAMEPAD_START))==(XINPUT_GAMEPAD_BACK|XINPUT_GAMEPAD_START))return RF_NOT_FOUND;
+        controller_stick(state.Gamepad.sThumbLX,state.Gamepad.sThumbLY,&x,&y);
+        if(x || y){out->move[0]=x;out->move[2]=y;}
+        controller_stick(state.Gamepad.sThumbRX,state.Gamepad.sThumbRY,&x,&y);
+        if(x || y){out->look[0]=y;out->look[1]=x;}
+        out->jump|=(state.Gamepad.wButtons&XINPUT_GAMEPAD_A)!=0;
+        out->use|=(state.Gamepad.wButtons&XINPUT_GAMEPAD_X)!=0;
+        out->crouch|=(state.Gamepad.wButtons&XINPUT_GAMEPAD_B)!=0;
+        break;
+    }
+    return RF_OK;
 }
 
 static int input(void *context,uint32_t frame,rf_scene_input *out)
@@ -139,7 +167,7 @@ static int input(void *context,uint32_t frame,rf_scene_input *out)
     if(out->move[0] && out->move[2]) {out->move[0]*=.7071067811865475f;out->move[2]*=.7071067811865475f;}
     out->look[0]=(float)p->keys[VK_UP]-(float)p->keys[VK_DOWN];
     out->look[1]=(float)p->keys[VK_RIGHT]-(float)p->keys[VK_LEFT];
-    out->use=p->keys['E'];out->jump=p->keys[VK_SPACE];out->crouch=p->keys[VK_CONTROL];return RF_OK;
+    out->use=p->keys['E'];out->jump=p->keys[VK_SPACE];out->crouch=p->keys[VK_CONTROL];return p->focused?controller_input(out):RF_OK;
 }
 
 static int particle_present(void *context,const rf_particle_draw_vertex *vertices,uint32_t count,const rf_image *image,uint32_t mode)

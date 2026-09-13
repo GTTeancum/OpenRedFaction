@@ -252,3 +252,19 @@ For changed diagnostic disc flags, use tools/build-xbox.sh --repack. Do not
 use make -W default.xbe: it can suppress XBE regeneration after an EXE rebuild
 and leave emulator code inconsistent with the current symbol map. --repack
 removes only the generated ISO and runs normal build dependencies.
+
+## Windows XInput controller support
+
+The interactive PC frontend now links the Windows xinput9_1_0 API and polls
+the first connected controller while its own window has keyboard focus. No
+controller input is generated. Left stick moves, right stick looks, A jumps,
+X uses, B crouches and Back+Start exits. Stick normalization/deadzone matches
+the Xbox adapter (18% radial deadzone, unit diagonal cap); XInput Y is positive
+up. Non-neutral sticks override keyboard axes; buttons combine with keyboard.
+Disconnect leaves keyboard control available, and scanning permits reconnect.
+Headless replay never polls XInput. Focus loss clears keys and suspends polling.
+
+Launch: build/pc/Release/rf_pc_play.exe --campaign Installed_Game
+
+The Release executable builds and the live process remains responsive without
+logged startup errors. Physical controller behavior awaits user verification.
