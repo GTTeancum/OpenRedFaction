@@ -622,6 +622,9 @@ dvd_path = '{root.as_posix()}/build/xbox/redfaction-diagnostic.iso'
      assert weapon_materials==expected('WEAPON_MATERIALS'),weapon_materials
      assert weapon_materials[0]==weapon_models[0] and weapon_materials[2]>0 and weapon_materials[3]<=weapon_materials[4]<=512*1024,weapon_materials
      report['weapon_materials']=weapon_materials
+     weapon_hands=words(monitor,symbol('rf_scene_weapon_hands'),4)
+     assert weapon_hands==expected('WEAPON_HANDS'),weapon_hands
+     report['weapon_hands']=weapon_hands
      weapon_draw=words(monitor,symbol('rf_scene_weapon_draw'),6)
      assert weapon_draw==expected('WEAPON_DRAW'),weapon_draw
      if args.actor_uid is not None:assert weapon_draw[3]>0,weapon_draw

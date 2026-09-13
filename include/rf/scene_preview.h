@@ -424,6 +424,7 @@ extern uint32_t rf_scene_npc_inventory_owners[4];
 extern uint32_t rf_scene_npc_startup_weapons[4];
 extern uint32_t rf_scene_weapon_models[8];
 extern uint32_t rf_scene_weapon_materials[8];
+extern uint32_t rf_scene_weapon_hands[4];
 extern uint32_t rf_scene_weapon_draw[6];
 extern uint32_t rf_scene_weapon_placement[4];
 /* Evaluated NPC pose and loaded weapon grip; no animation advancement or draw. */

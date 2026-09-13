@@ -2896,6 +2896,7 @@ typedef struct campaign_npc_body {
     uint32_t death_bone_words[2]; /* actor1464/1468 */
     float command_714[3]; /* Constructor422eaf..422ed3 clears this movement vector. */
     const rf_player_movement_region *previous_region_13ec; /* Constructor clears; borrowed campaign region. */
+    uint32_t weapon_hand_count;int32_t weapon_hands[2]; /* Retained primary_weapon_N tags from4246e0. */
     int32_t attachment_75c; /* Embedded AI initializer402e96: -1; later attachment lifecycle pending. */
     uint32_t stance_clock_7b4; /* Raw6460f0 bits, published after crouch ground refresh. */
     float model_radius_78; /* Original489fe0 model-origin radius. */
@@ -3022,21 +3023,41 @@ static int campaign_weapon_transform(void *context,uint32_t model,int32_t tag,co
     }
     if(!status){memcpy(out_basis,transform,36);memcpy(out_position,transform+9,12);}return status;
 }
+uint32_t rf_scene_weapon_hands[4]; /* actors, hands, absent actors, tag hash */
+static int campaign_weapon_hands_open(void)
+{
+    uint32_t i,k;int status;
+    memset(rf_scene_weapon_hands,0,sizeof(rf_scene_weapon_hands));rf_scene_weapon_hands[3]=2166136261u;
+    for(i=0;i<campaign_npc_body_count;++i) {
+        campaign_npc_body *body=campaign_npc_bodies+i;uint32_t cls=campaign_seeds.items[i].class_index;
+        body->weapon_hand_count=0;body->weapon_hands[0]=body->weapon_hands[1]=-1;
+        if(!body->registration.view || i>=campaign_model_owner_count)continue;
+        if(cls>=campaign_seeds.class_count)return RF_RANGE;
+        /* Original4246e0 bypasses all tag initialization for this class flag. */
+        if(!(campaign_seeds.classes[cls].physics.flags&0x20000000u))for(k=0;k<2;++k) {
+            char name[24];snprintf(name,sizeof(name),"primary_weapon_%u",k+1);
+            status=rf_scene_corpse_file_tag(i+1,name,0,&body->weapon_hands[k]);
+            if(status==RF_NOT_FOUND)break;if(status)return status;++body->weapon_hand_count;
+        }
+        ++rf_scene_weapon_hands[0];rf_scene_weapon_hands[1]+=body->weapon_hand_count;
+        rf_scene_weapon_hands[2]+=body->weapon_hand_count==0;
+        rf_scene_weapon_hands[3]=npc_hash_bytes(rf_scene_weapon_hands[3],&body->weapon_hand_count,4);
+        rf_scene_weapon_hands[3]=npc_hash_bytes(rf_scene_weapon_hands[3],body->weapon_hands,8);
+    }
+    return RF_OK;
+}
 int rf_scene_npc_weapon_placement(uint32_t handle,int32_t hand,rf_weapon_hand_placement *result)
 {
     rf_weapon_hand_source source={0};rf_weapon_hand_ops ops={campaign_weapon_tag,campaign_weapon_transform};
-    campaign_weapon_pose_context context={0};uint32_t i,k;int status;
+    campaign_weapon_pose_context context={0};uint32_t i;
     if(!result || hand<0 || hand>=2)return RF_RANGE;
     for(i=0;i<campaign_npc_body_count;++i)if(campaign_npc_bodies[i].registration.view && campaign_npc_bodies[i].registration.handle==handle)break;
     if(i==campaign_npc_body_count || i>=campaign_model_owner_count)return RF_NOT_FOUND;
     if(rf_entity_lookup(&campaign_entities,(int32_t)handle)!=&campaign_npc_bodies[i].view)return RF_NOT_FOUND;
     source.actor_model=i+1;source.weapon=campaign_npc_bodies[i].view.weapons[0];
     memcpy(source.position,campaign_model_owners[i].position,12);memcpy(source.basis,campaign_model_owners[i].basis,36);
-    for(k=0;k<2;++k) {
-        char name[24];snprintf(name,sizeof(name),"primary_weapon_%u",k+1);
-        status=rf_scene_corpse_file_tag(source.actor_model,name,0,&source.hands[k]);
-        if(status==RF_NOT_FOUND)break;if(status)return status;++source.hand_count;
-    }
+    source.hand_count=campaign_npc_bodies[i].weapon_hand_count;
+    memcpy(source.hands,campaign_npc_bodies[i].weapon_hands,sizeof(source.hands));
     return rf_weapon_place_in_hand(&source,hand,campaign_weapon_models.weapons,&ops,&context,result);
 }
 static int campaign_weapon_placement_probe(void)
@@ -7914,7 +7935,7 @@ static int scene_weapon_draw(scene_stream *stream,uint32_t frame)
         draw.view.flags_810=body->view.flags_810;draw.view.class_flags_724=campaign_seeds.classes[cls].physics.flags;
         draw.view.inventory_flags_7d0=body->view.flags_7d0;draw.view.weapon=body->view.weapons[0];draw.view.attachment_75c=body->attachment_75c;
         linked=rf_entity_lookup(&campaign_entities,body->view.linked_handle);draw.view.linked_kind=linked?linked->class_type:0;
-        draw.view.special_weapon=-1;draw.hand_count=2;draw.tint=0xffffffffu;
+        draw.view.special_weapon=-1;draw.hand_count=body->weapon_hand_count;draw.tint=0xffffffffu;
         /* No active firing/player override yet; use fresh zero recoil and the
          * same diagnostic lighting as the NPC body. Missing authored hands skip. */
         c.actor=i;++rf_scene_weapon_draw[1];status=rf_weapon_world_draw_run(&draw,campaign_weapon_models.weapons,scratch,&ops,&c);
@@ -8700,6 +8721,7 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
             status=campaign_npc_bodies_open(tables_path,collision,0);if(status)goto done;
             status=campaign_weapon_models_open(tables_path,&archive);if(status)goto done;
             status=campaign_weapon_materials_open(maps,map_count);if(status)goto done;
+            status=campaign_weapon_hands_open();if(status)goto done;
             status=campaign_weapon_placement_probe();if(status)goto done;
             status=campaign_glare_instances_open(tables_path);if(status)goto done;
             status=campaign_resolve_trigger_links();if(status)goto done;

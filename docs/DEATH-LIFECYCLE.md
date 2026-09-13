@@ -10949,3 +10949,20 @@ rendering. Original tint/special-view material state, actual authored hand count
 overrides remain open. This is rendering integration, not complete combat or
 visual parity. The new native check compares submitted geometry and flags; it
 does not prove correctness for every NPC, weapon, level or lighting condition.
+
+## Retained primary hand tags (2026-09-13)
+
+Scene creation now resolves and retains sequential primary_weapon_N tags once
+per registered actor. Both hand placement and the live world-draw loop use the
+same retained count and indices. This replaces repeated tag lookup and the
+fixed two-iteration scene draw count. The original4246e0 class724 bit20000000
+early return skips discovery; original42d930 has capacity2 as previously tested.
+Retained storage adds12 bytes per actor; existing subsystem budgets still apply.
+Future model replacement must refresh this list with the replacement model.
+
+Stock64MiB replay artifacts/xemu/replay-20260913-111110 completed180 frames,
+PASS and restoration exit0. WEAPON_HANDS=[78,60,18,79530261] matches PC;
+WEAPON_DRAW=[180,7,7,648,5022660,3343659839] is unchanged from the preceding
+renderer capture. Both builds and all22 CTests pass. No new screenshot: this
+changes attachment ownership, not the visible scene. Lighting, LOD, player
+overrides and active firing/recoil remain open.

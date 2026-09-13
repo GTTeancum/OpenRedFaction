@@ -361,6 +361,7 @@ int main(int argc,char **argv)
             printf("NPC_INVENTORY_OWNERS");for(i=0;i<4;++i)printf(" %u",rf_scene_npc_inventory_owners[i]);printf("\n");
             printf("WEAPON_PLACEMENT");for(i=0;i<4;++i)printf(" %u",rf_scene_weapon_placement[i]);printf("\n");
             printf("WEAPON_MATERIALS");for(i=0;i<8;++i)printf(" %u",rf_scene_weapon_materials[i]);printf("\n");
+            printf("WEAPON_HANDS");for(i=0;i<4;++i)printf(" %u",rf_scene_weapon_hands[i]);printf("\n");
             printf("WEAPON_DRAW");for(i=0;i<6;++i)printf(" %u",rf_scene_weapon_draw[i]);printf("\n");
             printf("WEAPON_MODELS");for(i=0;i<8;++i)printf(" %u",rf_scene_weapon_models[i]);printf("\n");
             printf("NPC_STARTUP_WEAPONS");for(i=0;i<4;++i)printf(" %u",rf_scene_npc_startup_weapons[i]);printf("\n");
