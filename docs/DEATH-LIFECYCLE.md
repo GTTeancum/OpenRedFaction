@@ -10015,3 +10015,33 @@ cost stay unchanged on error. Both builds and all22 CTest checks pass.
 Endpoint insertion/eligibility, real scene visibility, route-output storage
 and4cebd0 wrapper remain external; this is not live NPC route execution or
 a native XEMU integration claim.
+
+
+Bounded endpoint connections and cleanup (2026-09-13)
+
+rf_entity_navigation_connect_start implements4ce800: first start node
+and optional second append to the start-node28 list. If first is absent,
+4ce570 nearest selection receives the start query point and alternate
+token; a second-only reference is ignored. No nearest candidate returns
+false. rf_entity_navigation_connect_goal implements4ce860: append goal
+to first end-node adjacency, optional second adjacency, then global list.
+Absent first returns false. Alias first/second appends twice. Explicit
+caller capacities are checked before any write; no allocation or growth.
+List storage must be disjoint except exact first/second list aliases.
+
+rf_entity_navigation_disconnect_goal matches4cec31..4cec77 tail removal
+in global/first/second order using actual4ce390 semantics: decrement count
+without clearing retained backing slots. Added guards require matching
+goal tails and sufficient counts before any mutation. Distinct temporary
+ownership can therefore be released without leaving live adjacency links.
+
+verify_ai_endpoint.py compares1536 original/PC/NXDK cases, including384
+start successes,512 goal insertions and256 insertion/cleanup cycles.
+Original4ce800/860 execute with explicit append and nearest boundaries;
+cleanup calls actual4ce390 in the disassembled wrapper order. Exact counts,
+all backing slots, return values and nearest-call counts agree. Eight
+compiled guards cover capacity, alias capacity, callback error and invalid
+cleanup tails/counts without partial list mutation. Both builds and22
+CTest checks pass. Nearest selector4ce570, node eligibility, full4cebd0
+composition, real visibility and scene ownership remain open. No native
+XEMU or new visual claim for these shared storage primitives.

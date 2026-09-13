@@ -1937,3 +1937,43 @@ int rf_entity_navigation_search(rf_entity_navigation_reference *refs,uint32_t co
     }
     *result=0;return RF_OK;
 }
+
+static int navigation_list_room(const rf_entity_navigation_token_list *list,uint32_t extra)
+{
+    return list && list->count<=list->capacity && extra<=list->capacity-list->count &&
+        (!list->capacity || list->items);
+}
+int rf_entity_navigation_connect_start(rf_entity_navigation_token_list *list,uint32_t first,uint32_t second,
+    const float point[3],uint32_t alternate,int (*nearest)(void *,const float[3],uint32_t,uint32_t *),void *context,uint32_t *result)
+{
+    uint32_t extra=second?2u:1u;int status;
+    if(!result || !navigation_list_room(list,0))return RF_RANGE;
+    if(!first) {
+        if(!point || !nearest)return RF_RANGE;
+        status=nearest(context,point,alternate,&first);if(status)return status;
+        if(!first){*result=0;return RF_OK;}extra=1;second=0;
+    }
+    if(!navigation_list_room(list,extra))return RF_RANGE;
+    list->items[list->count++]=first;if(second)list->items[list->count++]=second;*result=1;return RF_OK;
+}
+int rf_entity_navigation_connect_goal(rf_entity_navigation_token_list *global,
+    rf_entity_navigation_token_list *first,rf_entity_navigation_token_list *second,uint32_t goal,uint32_t *result)
+{
+    if(!result)return RF_RANGE;if(!first){*result=0;return RF_OK;}
+    if(!goal || global==first || global==second || !navigation_list_room(global,1) ||
+       !navigation_list_room(first,first==second?2u:1u) || (second && !navigation_list_room(second,1)))return RF_RANGE;
+    first->items[first->count++]=goal;if(second)second->items[second->count++]=goal;
+    global->items[global->count++]=goal;*result=1;return RF_OK;
+}
+
+int rf_entity_navigation_disconnect_goal(rf_entity_navigation_token_list *global,
+    rf_entity_navigation_token_list *first,rf_entity_navigation_token_list *second,uint32_t goal)
+{
+    uint32_t needed=first==second?2u:1u;
+    if(!goal || !first || global==first || global==second || !navigation_list_room(global,0) ||
+       !navigation_list_room(first,0) || (second && !navigation_list_room(second,0)))return RF_RANGE;
+    if(!global->count || first->count<needed || (second && !second->count))return RF_RANGE;
+    if(global->items[global->count-1]!=goal || first->items[first->count-1]!=goal ||
+       (first==second && first->items[first->count-2]!=goal) || (second && second->items[second->count-1]!=goal))return RF_FORMAT;
+    --global->count;--first->count;if(second)--second->count;return RF_OK;
+}

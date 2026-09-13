@@ -1172,6 +1172,27 @@ int rf_entity_navigation_select(rf_entity_navigation_reference *references,uint3
     int (*visibility)(void *,const float[3],const float[3],float,uint32_t *),void *context,
     rf_entity_navigation_selection *selection);
 
+typedef struct rf_entity_navigation_token_list {uint32_t *items,count,capacity;} rf_entity_navigation_token_list;
+/*4ce800 start links. Zero first invokes4ce570 through nearest, using the
+ * start query point and alternate token; second alone is ignored. Tokens
+ * are nonzero node identities. Caller owns bounded list storage. Callback
+ * errors preserve result; capacity errors preserve the list. */
+int rf_entity_navigation_connect_start(rf_entity_navigation_token_list *list,uint32_t first,uint32_t second,
+    const float point[3],uint32_t alternate,int (*nearest)(void *,const float[3],uint32_t,uint32_t *),void *context,uint32_t *result);
+/*4ce860 destination insertion: first adjacency, optional second adjacency,
+ * then global list. NULL first means unavailable and returns false. Aliased
+ * first/second adjacency appends twice. All capacities preflight before any
+ * write; global list must be distinct. No allocation or implicit growth. */
+int rf_entity_navigation_connect_goal(rf_entity_navigation_token_list *global,
+    rf_entity_navigation_token_list *first,rf_entity_navigation_token_list *second,uint32_t goal,uint32_t *result);
+
+/*4cec31..4cec77 removes the appended goal from global, first, then second.
+ * Counts change but backing slots retain their bytes, as in4ce390. Requires
+ * the matching goal at every tail; errors preserve all counts. Distinct list
+ * storage except an exact first/second alias is required for both operations. */
+int rf_entity_navigation_disconnect_goal(rf_entity_navigation_token_list *global,
+    rf_entity_navigation_token_list *first,rf_entity_navigation_token_list *second,uint32_t goal);
+
 typedef struct rf_entity_navigation_search_query {
     uint32_t start,goal,alternate;float limit,height,edge_parameter,cost;
 } rf_entity_navigation_search_query;
