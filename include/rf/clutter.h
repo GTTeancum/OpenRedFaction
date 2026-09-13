@@ -222,6 +222,12 @@ typedef struct rf_clutter_create_backend {
  * caller owns retirement. No skin override, rod, light, or family setup. */
 int rf_clutter_create_glares(rf_clutter_class *definition,rf_clutter_state *state,
     const rf_clutter_create_backend *backend);
+/*4104a0 two-tag rod stage: query corona_rod1, then corona_rod2 if present,
+ * even when the rod class is disabled. A missing second tag is RF_FORMAT.
+ * A nonnegative rod class dispatches ROD(parent,class,first,second,-1).
+ * Only TAG/ROD callbacks are used; caller owns any created effect. */
+int rf_clutter_create_rods(rf_clutter_class *definition,rf_clutter_state *state,
+    const rf_clutter_create_backend *backend);
 /* Full4104a0 control flow with caller-owned class/name/resource storage.
  * allocate supplies generic type4 object with handle-1 and final0, including
  * world position/model/flags and an unlinked link. NULL success means no object.

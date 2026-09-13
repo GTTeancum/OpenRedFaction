@@ -9477,3 +9477,22 @@ constructor, lists, registry and physics with only tag/heap boundaries:
 budget, invalid classes, empty registry, preserved zeroed allocator fields,
 midpoint/endpoints, repeat close and no leaks. Both builds and22 CTest checks
 pass. Authored creation/update and native two-tag rendering remain open.
+
+
+Two-tag clutter factory stage (2026-09-13): rf_clutter_create_rods now
+shares the existing4104a0 rod block with future scene callers. Original
+41094c dispatches413f20 after corona_rod1/corona_rod2 lookup. Both tags
+are queried before testing the rod class; missing second tag retains the
+shared RF_FORMAT boundary. Full factory reuses the stage without changing
+ordered effects or class/object writes. verify_clutter_factory.py --shared
+passes512 original/PC/NXDK cases and10 compiled failure guards. New
+verify_clutter_rod_stage.py passes80 compiled cases covering zero and absent
+tag/class indices, disabled class, every callback failure and unchanged
+class/state footprints. Existing corona-stage251 cases and all22 CTest
+checks pass; PC and NXDK builds succeed. No new native scene claim.
+Installed clutter.tbl audit through rf_entity_assets_probe --clutter-definition
+resolves all431 class blocks with no rod name or rod resource-field bit.
+The only textual Rod Glare declaration belongs to Tube Light and is
+commented out. artifacts/clutter-rod-inventory.json records this local audit.
+Live rod binding is therefore deferred pending an authored caller; this
+does not prove absence of runtime-generated rods or complete volume support.

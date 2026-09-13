@@ -943,13 +943,29 @@ int rf_clutter_create_glares(rf_clutter_class *c,rf_clutter_state *s,const rf_cl
 #undef CLUTTER_CALL
     return RF_OK;
 }
+int rf_clutter_create_rods(rf_clutter_class *c,rf_clutter_state *s,const rf_clutter_create_backend *backend)
+{
+    rf_clutter_create_request q={0};int status;int32_t value,tag,rod;
+    if(!c || !s || !backend || !backend->call)return RF_RANGE;
+#define CLUTTER_CALL(op) do {status=backend->call(backend->context,s,(op),&q,&value);if(status)return status;} while(0)
+    q=(rf_clutter_create_request){{s->model},"corona_rod1",NULL};CLUTTER_CALL(RF_CLUTTER_TAG);tag=value;
+    if(tag>=0) {
+        q.text="corona_rod2";CLUTTER_CALL(RF_CLUTTER_TAG);rod=value;if(rod<0)return RF_FORMAT;
+        if(c->rod>=0) {
+            q=(rf_clutter_create_request){{s->handle,(uint32_t)c->rod,(uint32_t)tag,(uint32_t)rod,UINT32_MAX},NULL,NULL};
+            CLUTTER_CALL(RF_CLUTTER_ROD);
+        }
+    }
+#undef CLUTTER_CALL
+    return RF_OK;
+}
 int rf_clutter_create(rf_clutter_class *classes,uint32_t count,int32_t index,
     int32_t shield_class,const char *name,int32_t identifier,const float position[3],
     const float matrix[9],uint32_t persistent,int32_t now_ms,int32_t *next_slot,
     rf_object_list *list,const rf_clutter_create_backend *backend,rf_clutter_state **out)
 {
     rf_clutter_class *c;rf_clutter_state *s=NULL;rf_clutter_create_descriptor d={0};
-    rf_clutter_create_request q={0};int status;int32_t value,tag,rod,deadline=-1;uint32_t i;
+    rf_clutter_create_request q={0};int status;int32_t value,deadline=-1;uint32_t i;
     double milliseconds;
     if(!classes || count>INT_MAX || index<0 || (uint32_t)index>=count || !name ||
        !position || !matrix || !next_slot || *next_slot<0 || !list || !out ||
@@ -996,14 +1012,7 @@ int rf_clutter_create(rf_clutter_class *classes,uint32_t count,int32_t index,
     }
     s->timer_b0=deadline;c->timer=now_ms;s->timer_b4=-1;s->word_b8=0;s->skin=-1;s->sound_d0=-1;
     status=rf_clutter_create_glares(c,s,backend);if(status)return status;
-    q=(rf_clutter_create_request){{s->model},"corona_rod1",NULL};CLUTTER_CALL(RF_CLUTTER_TAG);tag=value;
-    if(tag>=0) {
-        q.text="corona_rod2";CLUTTER_CALL(RF_CLUTTER_TAG);rod=value;if(rod<0)return RF_FORMAT;
-        if(c->rod>=0) {
-            q=(rf_clutter_create_request){{s->handle,(uint32_t)c->rod,(uint32_t)tag,(uint32_t)rod,UINT32_MAX},NULL,NULL};
-            CLUTTER_CALL(RF_CLUTTER_ROD);
-        }
-    }
+    status=rf_clutter_create_rods(c,s,backend);if(status)return status;
     if((c->flags&0x10) && !(c->flags&0x800)) {
         q=(rf_clutter_create_request){{s->model},"light_prop",NULL};CLUTTER_CALL(RF_CLUTTER_TAG);
         c->light_tag=value;c->flags|=0x800;
