@@ -2332,3 +2332,28 @@ int rf_vfx_light_cache_refresh(rf_vfx_light_cache *cache,uint32_t generation,
     if(status)return status;
     cache->generation=generation;cache->count=selected;cache->valid=1;return RF_OK;
 }
+
+int rf_vfx_lights_prepare(const rf_vfx_light_candidate *sources,uint32_t source_count,
+    const rf_vfx_light_cache *cache,const rf_vfx_light_query *query,rf_vfx_light_source *out,
+    uint32_t capacity,uint32_t *selected)
+{
+    uint32_t i,n=0,index,accepted;int status;
+    if(!selected)return RF_RANGE;*selected=0;
+    if(!cache || !query || cache->valid!=1 || cache->count>cache->capacity ||
+        capacity<cache->count || (cache->count && (!cache->indices || !out || !sources)) ||
+        source_count>SIZE_MAX/sizeof(*sources) || query->mode>1 || query->transformed>1)return RF_RANGE;
+    /* Validate the query even for an empty cache. */
+    if(query->mode==0)status=rf_vfx_lights_sphere(NULL,0,query->center,query->radius,query->include_class,query->include_other,NULL,0,&accepted);
+    else status=rf_vfx_lights_box(NULL,0,query->center,query->maximum,query->include_class,query->include_other,NULL,0,&accepted);
+    if(status)return status;
+    for(i=0;i<cache->count;++i) {
+        uint32_t source=cache->indices[i];if(source>=source_count)return RF_RANGE;
+        if(query->mode==0)status=rf_vfx_lights_sphere(sources+source,1,query->center,query->radius,query->include_class,query->include_other,&index,1,&accepted);
+        else status=rf_vfx_lights_box(sources+source,1,query->center,query->maximum,query->include_class,query->include_other,&index,1,&accepted);
+        if(status)return status;if(!accepted)continue;
+        if(query->transformed) {status=rf_vfx_light_transform(&sources[source].source,query->origin,query->basis,out+n);if(status)return status;}
+        else out[n]=sources[source].source;
+        ++n;
+    }
+    *selected=n;return RF_OK;
+}

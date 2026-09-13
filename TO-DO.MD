@@ -14,6 +14,11 @@ Shortlist:
 
 Progress reporting: include overall percent estimates at meaningful milestones and revisit remaining 24-hour workdays when measured throughput supports a forecast; current rough estimate40% (35-45%), no defensible +/-48-hour completion forecast before end-to-end gameplay.
 
+VFX cache-to-selection-to-transform-to-RGB composition matches1024 complete
+original/PC/NXDK cases; all prepared source fields also match NXDK/original.
+Both builds and24 tests pass. Bind live light sources/invalidation, global
+state, edge caches and native VFX draws; scene still uses diagnostic lighting.
+
 VFX room/object cache rebuilds match2048 cases per original path on PC/NXDK;
 2048 original/NXDK mutation sequences confirm cache hits/invalidation. Both
 builds, box/sphere regressions and24 tests pass. Bind source lifetime and

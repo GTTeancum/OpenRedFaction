@@ -256,6 +256,20 @@ int main(int argc,char **argv)
         }
         return ferror(stdin)?1:0;
     }
+    if(argc==2 && !strcmp(argv[1],"--vfx-cached-lighting")) {
+        uint32_t count,indices[32],selected;float bounds[6],v[10];rf_vfx_light_query query;
+        rf_vfx_light_candidate candidates[32];rf_vfx_light_source lights[32];rf_vfx_light_cache cache;unsigned char rgb[3];int32_t status;
+        _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
+        while(fread(&count,4,1,stdin)==1) {
+            if(count>32 || fread(bounds,sizeof(bounds),1,stdin)!=1 || fread(&query,sizeof(query),1,stdin)!=1 ||
+                fread(v,sizeof(v),1,stdin)!=1 || fread(candidates,sizeof(*candidates),count,stdin)!=count)return 2;
+            memset(&cache,0,sizeof(cache));cache.capacity=32;cache.indices=indices;selected=0;memset(rgb,0xa5,3);
+            status=rf_vfx_light_cache_refresh(&cache,1,candidates,count,bounds,bounds+3);
+            if(!status)status=rf_vfx_lights_prepare(candidates,count,&cache,&query,lights,32,&selected);
+            if(!status)status=rf_vfx_lighting(v,v+3,v+6,v[9],lights,selected,rgb);
+            fwrite(&status,4,1,stdout);fwrite(&selected,4,1,stdout);fwrite(rgb,3,1,stdout);
+        }return ferror(stdin)?1:0;
+    }
     if(argc==2 && !strcmp(argv[1],"--vfx-light-cache")) {
         uint32_t h[5],indices[32];float bounds[6];rf_vfx_light_candidate lights[32];rf_vfx_light_cache cache;int32_t status;
         _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);

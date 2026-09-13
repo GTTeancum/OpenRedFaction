@@ -502,3 +502,26 @@ remove all sources. Two capacity/bounds guards preserve state. Both builds,
 box/sphere regressions and24 CTests pass. PC rebuilding is checked directly;
 the mutation sequences use original/NXDK instruction emulation. No live XEMU
 lighting or scene ownership claim follows from these harness results.
+
+## Cached selection through final shading
+
+rf_vfx_lights_prepare bridges cached source indices to the contiguous active
+source array consumed by rf_vfx_lighting. A92-byte query selects spherical or
+box filtering, class switches and optional source transform. It preserves
+cached traversal order, reads current source flags/colors, applies the shared
+filter and copies/transforms accepted sources into caller scratch. No heap is
+used; scratch capacity must cover the cache count. An invalid query, stale
+index or transform failure leaves selected count zero, although scratch may
+be partially written. Callers must not shade failed output or alias inputs.
+
+1024 complete original pipelines now run4d96c0 cache rebuild,4d99c0/4d9c00
+active selection,4d9fd0 source transforms and4daff0/4da8b0 final mixed shading.
+PC/NXDK agree on selected count and RGB, and NXDK additionally compares every
+prepared source field with the original selected/transformed source. No hooks
+replace original functions; the fixture supplies ordered linked sources,
+room bounds, ambient and preallocated original cache capacity. Three NXDK
+bad-query/index/capacity guards leave selected count zero. Both builds and24
+CTests pass. This is composed instruction-emulation coverage, not native VFX
+rendering. Existing diagnostic scene model lighting still uses fixed ambient;
+source construction/lifetime/invalidation, global disabled-state behavior,
+edge caches and native VFX draw submission remain required integration work.

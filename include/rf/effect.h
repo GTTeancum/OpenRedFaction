@@ -107,6 +107,19 @@ typedef struct rf_vfx_light_cache {
 } rf_vfx_light_cache;
 int rf_vfx_light_cache_refresh(rf_vfx_light_cache *,uint32_t generation,
     const rf_vfx_light_candidate *,uint32_t count,const float minimum[3],const float maximum[3]);
+/* Query in source/world space: mode0 sphere(center,radius),1 box(center,
+ * maximum). Optional transform moves selected sources into shading space. */
+typedef struct rf_vfx_light_query {
+    uint32_t mode,include_class,include_other,transformed;
+    float center[3],maximum[3],radius,origin[3],basis[9];
+} rf_vfx_light_query;
+/* Join a valid candidate cache to filtering and source transforms. Storage
+ * >=cache.count; stable order, no heap. selected becomes0 on failure; scratch
+ * output may be partially written. Source/cache/query/output must not alias.
+ * Global lighting gates and source-owner invalidation remain caller-owned. */
+int rf_vfx_lights_prepare(const rf_vfx_light_candidate *,uint32_t source_count,
+    const rf_vfx_light_cache *,const rf_vfx_light_query *,rf_vfx_light_source *out,
+    uint32_t capacity,uint32_t *selected);
 /*4d8480 transform: directions rotate only; positions/endpoints subtract
  * origin first. Basis rows use original Z/Y/X dot order. Preserves non-vector
  * fields and unused vectors. In-place supported; errors preserve output. */
