@@ -2,6 +2,32 @@
 #include "rf/timer.h"
 #include <string.h>
 #include <math.h>
+void rf_projectile_pool_init(rf_projectile_pool *pool)
+{
+    uint32_t i;if(!pool)return;
+    for(i=0;i<RF_PROJECTILE_CAPACITY;++i)pool->records[i][0]=i+1<RF_PROJECTILE_CAPACITY?i+2:0;
+    pool->head=1;pool->free_count=RF_PROJECTILE_CAPACITY;pool->live_count=pool->peak=0;
+    pool->live_bits[0]=pool->live_bits[1]=0;
+}
+int rf_projectile_pool_acquire(rf_projectile_pool *pool,uint32_t *slot)
+{
+    uint32_t i,mask,next;if(!pool || !slot)return RF_RANGE;
+    if(!pool->free_count)return RF_NOT_FOUND;
+    if(!pool->head || pool->head>RF_PROJECTILE_CAPACITY || pool->live_count>=RF_PROJECTILE_CAPACITY)return RF_RANGE;
+    i=pool->head-1;mask=1u<<(i%32);next=pool->records[i][0];
+    if((pool->live_bits[i/32]&mask) || next>RF_PROJECTILE_CAPACITY)return RF_RANGE;
+    pool->head=next;--pool->free_count;++pool->live_count;pool->live_bits[i/32]|=mask;
+    if(pool->peak<pool->live_count)pool->peak=pool->live_count;*slot=i;return RF_OK;
+}
+int rf_projectile_pool_release(rf_projectile_pool *pool,uint32_t slot)
+{
+    uint32_t mask;if(!pool || slot>=RF_PROJECTILE_CAPACITY)return RF_RANGE;
+    mask=1u<<(slot%32);if(!(pool->live_bits[slot/32]&mask))return RF_NOT_FOUND;
+    if(!pool->live_count || pool->free_count>=RF_PROJECTILE_CAPACITY)return RF_RANGE;
+    pool->records[slot][0]=pool->head;pool->head=slot+1;pool->live_bits[slot/32]&=~mask;
+    ++pool->free_count;--pool->live_count;return RF_OK;
+}
+
 int rf_projectile_descriptor_prepare(const rf_projectile_descriptor_input *in,rf_projectile_creation_descriptor *out)
 {
     rf_projectile_creation_descriptor d={{0},0};float velocity[3],angular[3],speed,spin;uint32_t i;

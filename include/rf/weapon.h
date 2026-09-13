@@ -3,6 +3,22 @@
 #include "rf/motion.h"
 #include "rf/entity.h"
 
+#define RF_PROJECTILE_CAPACITY 50u
+#define RF_PROJECTILE_RECORD_WORDS 197u
+/* Original48b4d0/48b590/48b610 fixed storage; raw record fields are populated
+ * by the pending object factory. Free links use slot+1 tokens instead of host
+ * pointers. No heap fallback on stock Xbox. Never reset a pool with live owners. */
+typedef struct rf_projectile_pool {
+    uint32_t records[RF_PROJECTILE_CAPACITY][RF_PROJECTILE_RECORD_WORDS];
+    uint32_t head,free_count,live_count,peak,live_bits[2];
+} rf_projectile_pool;
+void rf_projectile_pool_init(rf_projectile_pool *);
+/* Exhaustion returns NOT_FOUND without modifying slot. Acquired payload is
+ * retained, not zeroed. Release overwrites only its free-link word. Registry,
+ * model, effects and physics must be retired separately before release. */
+int rf_projectile_pool_acquire(rf_projectile_pool *,uint32_t *slot);
+int rf_projectile_pool_release(rf_projectile_pool *,uint32_t slot);
+
 typedef struct rf_projectile_descriptor_input {
     uint32_t name_length,name_token,model_token,flags_264,flags_268;
     float field_bc,field_ac,speed,speed_scale;

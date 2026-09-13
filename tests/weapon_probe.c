@@ -47,6 +47,19 @@ int main(int argc,char **argv)
         return ferror(stdin)?1:0;
     }
     if(argc==2 && !strcmp(argv[1],"--world-tags"))return weapon_world_probe();
+    if(argc==2 && !strcmp(argv[1],"--projectile-pool")) {
+        static rf_projectile_pool pool;uint32_t command[2],i;
+        struct {int32_t status;uint32_t slot,head,free_count,live_count,peak,links[50];} out;
+        memset(&pool,0xa5,sizeof(pool));rf_projectile_pool_init(&pool);
+        while(fread(command,sizeof(command),1,stdin)==1) {
+            out.slot=UINT32_MAX;
+            out.status=command[0]?rf_projectile_pool_release(&pool,command[1]):rf_projectile_pool_acquire(&pool,&out.slot);
+            out.head=pool.head;out.free_count=pool.free_count;out.live_count=pool.live_count;out.peak=pool.peak;
+            for(i=0;i<50;++i)out.links[i]=pool.records[i][0];
+            if(fwrite(&out,sizeof(out),1,stdout)!=1)return 1;
+        }
+        return ferror(stdin)?1:0;
+    }
     if(argc==2 && !strcmp(argv[1],"--projectile-descriptor")) {
         rf_projectile_descriptor_input in;struct {int32_t status;rf_projectile_creation_descriptor descriptor;} out;
         while(fread(&in,sizeof(in),1,stdin)==1) {

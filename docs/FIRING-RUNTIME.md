@@ -99,3 +99,28 @@ Five PC/NXDK invalid/nonfinite guards and two NXDK null guards pass. Both
 builds and22 CTests pass. Evidence artifacts/projectile-descriptor.json.
 This does not allocate a projectile; generic kind2 ownership and all factory
 post-allocation effects remain open. No new native scene replay or visual.
+
+## Fixed projectile pool verified (2026-09-13)
+
+Original487100 kind2 checks the50-object cap and calls48b590. The underlying
+48b4d0 pool contains50 records of314h (788) bytes. Initialization links them
+in increasing slot order;48b610 releases to the head, so reuse is LIFO.
+Allocation does not clear payload. The optional original heap fallback is
+disabled in the stock-Xbox port pool.
+
+rf_projectile_pool owns39424 bytes:39400 record bytes plus24 bookkeeping
+bytes, including live-slot guards. Free links are slot+1 tokens rather than
+raw pointers. Acquire/release preserve all payload except the free-link word,
+which release overwrites. Raw record storage is reserved for the pending
+reconstructed object initialization; it is not yet a complete projectile type
+or an allocation in the running scene. Callers must clean resources and
+remove registrations before returning a slot. Marking flag2 alone does not
+authorize immediate release.
+
+verify_projectile_pool.py runs48b4d0/48b590/48b610 unhooked with heap fallback
+off.4096 PC/NXDK operations match original normalized free links, selected
+slots, free/live/peak counts and all untouched payload bytes:2034 allocations,
+2006 releases,56 exhaustion returns. Four NXDK invalid-release/null guards
+preserve pool bytes. Both builds and22 CTests pass. Evidence:
+artifacts/projectile-pool.json. Generic486da0 initialization/registration,
+model/physics ownership and complete factory effects remain open.
