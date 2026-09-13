@@ -1800,3 +1800,39 @@ int rf_vfx_world_face(const rf_visibility_camera *camera,const float vertices[9]
     }
     return rf_vfx_face_prepare(&input,out);
 }
+
+int rf_vfx_instance_open(const rf_vfx_mesh *mesh,uint32_t budget,rf_vfx_instance **out)
+{
+    uint64_t bytes;rf_vfx_instance *value;
+    if(!mesh || !mesh->data || !mesh->frames || !out || *out || !mesh->prefix.vertices || !mesh->prefix.timing.samples)return RF_RANGE;
+    bytes=sizeof(*value)+(uint64_t)mesh->prefix.vertices*12+(uint64_t)mesh->prefix.faces*24;
+    if(bytes>budget || bytes>UINT32_MAX || bytes>SIZE_MAX)return RF_RANGE;
+    value=malloc((size_t)bytes);if(!value)return RF_IO;
+    memset(value,0,(size_t)bytes);value->mesh=mesh;value->vertices=(float *)(value+1);
+    value->uv=value->vertices+(size_t)mesh->prefix.vertices*3;value->allocated_bytes=(uint32_t)bytes;
+    *out=value;return RF_OK;
+}
+void rf_vfx_instance_close(rf_vfx_instance **instance)
+{
+    if(instance && *instance){free(*instance);*instance=NULL;}
+}
+int rf_vfx_instance_update(rf_vfx_instance *instance,float effect_frame)
+{
+    const rf_vfx_mesh *mesh;rf_vfx_mesh_timing timing;rf_vfx_frame_cursor cursor;rf_vfx_morph_sample sample;
+    uint32_t i;int status;
+    if(!instance)return RF_RANGE;
+    instance->active=0;mesh=instance->mesh;
+    if(!mesh || !instance->vertices || !instance->uv)return RF_RANGE;
+    timing=mesh->prefix.timing;timing.flags=mesh->edges.mesh_flags;
+    status=rf_vfx_frame_select(&timing,mesh->edges.flags,effect_frame,&cursor);if(status)return status;
+    if(!cursor.active)return RF_OK;
+    for(i=0;i<mesh->prefix.vertices;++i) {
+        status=rf_vfx_mesh_sample(mesh,effect_frame,i,&sample);if(status)return status;
+        memcpy(instance->vertices+(size_t)i*3,sample.vertex,12);
+        if(!i){memcpy(instance->center,sample.center,12);memcpy(instance->extra,sample.extra,8);}
+    }
+    for(i=0;i<mesh->prefix.faces;++i) {
+        status=rf_vfx_mesh_uv(mesh,&cursor,i,instance->uv+(size_t)i*6);if(status)return status;
+    }
+    instance->active=1;return RF_OK;
+}

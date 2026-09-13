@@ -197,6 +197,14 @@ int rf_vfx_mesh_keyed(const rf_vfx_mesh *,int32_t time,uint32_t vertex,rf_vfx_mo
 /*53f060 geometry dispatch before UV/parent stages. Inactive returns
  * NOT_FOUND; all failures preserve output. No allocation or persistent state. */
 int rf_vfx_mesh_sample(const rf_vfx_mesh *,float effect_frame,uint32_t vertex,rf_vfx_morph_sample *out);
+typedef struct rf_vfx_instance {const rf_vfx_mesh *mesh;float *vertices,*uv;float center[3],extra[2];uint32_t active,allocated_bytes;} rf_vfx_instance;
+/* Persistent53cde0 geometry/UV ownership, single allocation under budget.
+ * Nonempty vertex mesh is borrowed and must outlive instance. Empty output required. */
+int rf_vfx_instance_open(const rf_vfx_mesh *,uint32_t budget,rf_vfx_instance **);
+void rf_vfx_instance_close(rf_vfx_instance **);
+/* Local geometry only: no parent/material/draw. On failure/inactivity active
+ * becomes0; buffers may contain partial work and must not be rendered. */
+int rf_vfx_instance_update(rf_vfx_instance *,float effect_frame);
 /*559f50 uncached face normal: (b-a) cross (c-b), then4faaf0.
  * Reject degenerate/nonfinite geometry without changing output. */
 int rf_vfx_face_normal(const float vertices[9],float out[3]);

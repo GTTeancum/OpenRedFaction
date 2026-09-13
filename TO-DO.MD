@@ -14,6 +14,12 @@ Shortlist:
 
 Progress reporting: include overall percent estimates at meaningful milestones and revisit remaining 24-hour workdays when measured throughput supports a forecast; current rough estimate40% (35-45%), no defensible +/-48-hour completion forecast before end-to-end gameplay.
 
+Persistent VFX local vertex/UV ownership passes28 PC/NXDK budget/lifetime
+cases and112 updates over14 installed meshes; buffers cost136-1156 bytes
+per mesh beyond the borrowed definition. Both builds and24 tests pass.
+Bind parent poses, projection caches, face lists and material submission;
+optimize shared key evaluation and support empty meshes before full playback.
+
 World-space VFX face preparation matches2048 original/PC/NXDK cases
 with real projection/clip code generation:1232 rejected,816 visible.
 Bind persistent geometry/cache/list ownership and lighting/material draws;

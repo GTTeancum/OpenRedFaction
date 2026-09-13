@@ -106,3 +106,25 @@ hooks:1232 rejected,816 visible. Camera origins/matrices, perspective/flat,
 clipping and far-plane modes vary. Flat-facing direction comes from the
 scaled projection matrix third row, matching global18186e0. The helper does
 not yet retain projected vertices for sharing across faces or submit draws.
+
+## Persistent local geometry owner
+
+rf_vfx_instance now borrows a decoded nonempty mesh and owns one allocation
+for its40-byte owner, vertices*12 positions and faces*24 UVs. Open checks the
+budget before allocating; close is repeatable. Update fills local geometry
+and UVs and publishes active only after success. Inactive time returns success
+with active0; errors also clear active and may leave partial buffers, which
+must not be drawn. Parent poses and render/material state are not yet bound.
+
+28 PC/NXDK ownership cases cover14 installed meshes at normal/exact mesh
+budgets, with short instance budgets and injected allocation failures.112
+updates compare complete metadata/vertex/UV buffers across builds; successful
+vertex updates also match the verified mesh sampler. Invalid time clears
+active. Repeated close frees only instance storage, leaving its mesh alive.
+Instance storage ranges136-1156 bytes for these assets, excluding the borrowed
+mesh, textures, future projection/list storage and allocator overhead.
+
+The current update resamples shared keys per vertex; hoist pose evaluation
+before native playback. Empty-vertex definitions remain unsupported by this
+owner and require a separate center-only update path. These are explicit open
+items, not claims of complete effect-instance behavior or native rendering.

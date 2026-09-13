@@ -37,15 +37,17 @@ def allocator(u,a,size,data):
  sp=u.reg_read(UC_X86_REG_ESP);arg=read(u,sp+4);ret=0
  if a==sym('malloc'):
   calls.append(('malloc',arg))
-  if not fail_alloc:assert not live and arg<=0x400000;live[HEAP]=arg;ret=HEAP;u.mem_write(HEAP,b'\xcc'*arg)
+  if not fail_alloc:
+   ret=HEAP if not live else (max(a+n for a,n in live.items())+15)&~15
+   assert ret+arg<=HEAP+0x400000;live[ret]=arg;u.mem_write(ret,b'\xcc'*arg)
  else:
   calls.append(('free',arg))
   if arg:assert arg in live;del live[arg]
  u.reg_write(UC_X86_REG_EAX,ret);u.reg_write(UC_X86_REG_ESP,sp+4);u.reg_write(UC_X86_REG_EIP,read(u,sp))
 for name in ('malloc','free'):x.hook_add(UC_HOOK_CODE,allocator,begin=sym(name),end=sym(name))
-vertex_checks=0;uv_checks=0;morph_checks=0;vector_key_checks=0;rotation_key_checks=0;transform_checks=0;keyed_checks=0
+vertex_checks=0;uv_checks=0;morph_checks=0;vector_key_checks=0;rotation_key_checks=0;transform_checks=0;keyed_checks=0;instance_checks=0;instance_sizes=[]
 def shared(v,global_count,budget,data,fail=False):
- global fail_alloc,vertex_checks,uv_checks,morph_checks,vector_key_checks,rotation_key_checks,transform_checks,keyed_checks
+ global fail_alloc,vertex_checks,uv_checks,morph_checks,vector_key_checks,rotation_key_checks,transform_checks,keyed_checks,instance_checks
  fail_alloc=fail;calls.clear();assert not live;x.mem_write(B,data or b'\0');x.mem_write(PTR,f(0,0,0,0,0,0,1));x.mem_write(OUT,w(0))
  status=call('rf_vfx_mesh_open',[B,len(data),v,global_count,PTR,budget,OUT]);result=w(status);pointer=read(x,OUT)
  if not status:
@@ -113,6 +115,23 @@ def shared(v,global_count,budget,data,fail=False):
   x.mem_write(B+0x100,bytes(20));x.mem_write(SAMPLE,b'\xa5'*24);assert call('rf_vfx_mesh_uv',[pointer,B+0x100,0,SAMPLE])==0xfffffffd and bytes(x.mem_read(SAMPLE,24))==b'\xa5'*24
 
 
+  instance_slot=B+0x600;faces=struct.unpack_from('<I',header,136)[0];instance_bytes=40+vertices*12+faces*24;x.mem_write(instance_slot,w(0))
+  assert call('rf_vfx_instance_open',[pointer,instance_bytes-1,instance_slot])!=0 and read(x,instance_slot)==0 and len(live)==1
+  fail_alloc=True;assert call('rf_vfx_instance_open',[pointer,instance_bytes,instance_slot])!=0 and read(x,instance_slot)==0 and len(live)==1;fail_alloc=False
+  assert call('rf_vfx_instance_open',[pointer,instance_bytes,instance_slot])==0;instance=read(x,instance_slot);assert read(x,instance+36)==instance_bytes and len(live)==2
+  positions,uv=struct.unpack('<II',x.mem_read(instance+4,8));instance_result=w(instance_bytes)
+  for time in (0,.5,2,10000):
+   status=call('rf_vfx_instance_update',[instance,struct.unpack('<I',f(time))[0]]);assert status==0
+   instance_result+=w(status)+bytes(x.mem_read(instance+12,28))+bytes(x.mem_read(positions,vertices*12))+bytes(x.mem_read(uv,faces*24))
+   if read(x,instance+32):
+    for vertex in range(vertices):
+     assert call('rf_vfx_mesh_sample',[pointer,struct.unpack('<I',f(time))[0],vertex,SAMPLE])==0
+     assert bytes(x.mem_read(SAMPLE+20,12))==bytes(x.mem_read(positions+vertex*12,12))
+  assert call('rf_vfx_instance_update',[instance,0x7fc00000])!=0 and read(x,instance+32)==0
+  call('rf_vfx_instance_close',[instance_slot]);call('rf_vfx_instance_close',[instance_slot]);assert read(x,instance_slot)==0 and len(live)==1
+  wire=w(v,global_count,budget,len(data))+f(0,0,0,0,0,0,1)+data
+  assert subprocess.check_output([str(root/'build/pc/Release/rf_entity_assets_probe.exe'),'--vfx-instance'],input=wire)==instance_result
+  instance_checks+=1;instance_sizes.append(instance_bytes)
  else:assert pointer==0 and not live
  call('rf_vfx_mesh_close',[OUT]);call('rf_vfx_mesh_close',[OUT]);assert read(x,OUT)==0 and not live
  return result
@@ -145,5 +164,5 @@ for case,(v,g,b,d) in enumerate(inputs):
 for v,g,b,d in invalid:
  got=shared(v,g,b,d);assert got[:4]!=w(0);responses.append(got)
 pc=subprocess.check_output([probe,'--vfx-mesh-owned'],input=b''.join(w(v,g,b,len(d))+f(0,0,0,0,0,0,1)+d for v,g,b,d in inputs+invalid));assert pc==b''.join(responses)
-report=dict(result='PASS',authored_pc_nxdk_meshes=len(inputs),failure_cases=len(invalid),allocation_failures=len(inputs),exact_budget_cases=len(inputs),owned_bytes=footprints,authored_vertex_checks=vertex_checks,authored_uv_checks=uv_checks,authored_morph_checks=morph_checks,authored_vector_key_checks=vector_key_checks,authored_rotation_key_checks=rotation_key_checks,authored_transform_checks=transform_checks,authored_keyed_checks=keyed_checks,scope='Composed previously original-verified decoders; all14 authored payloads, owned source independence, PC/NXDK header/frame/payload equality, exact/short budgets, malloc failure and rollback, repeat close. Original vertex expansion and UV branch comparisons included; morph and keyed geometry accessor composition included; no bitmap binding/full playback/native XEMU.')
+report=dict(result='PASS',authored_pc_nxdk_meshes=len(inputs),failure_cases=len(invalid),allocation_failures=len(inputs),exact_budget_cases=len(inputs),owned_bytes=footprints,authored_vertex_checks=vertex_checks,authored_uv_checks=uv_checks,authored_morph_checks=morph_checks,authored_vector_key_checks=vector_key_checks,authored_rotation_key_checks=rotation_key_checks,authored_transform_checks=transform_checks,authored_keyed_checks=keyed_checks,instance_ownership_checks=instance_checks,instance_update_checks=instance_checks*4,instance_bytes=instance_sizes,scope='Composed previously original-verified decoders; all14 authored payloads, owned source independence, PC/NXDK header/frame/payload equality, exact/short budgets, malloc failure and rollback, repeat close. Original vertex expansion and UV branch comparisons included; morph and keyed geometry accessor composition included; persistent local geometry/UV buffers match PC/NXDK with exact/short budgets, failed allocation and repeat close; no parent/bitmap/full playback/native XEMU.')
 (root/'artifacts/vfx-mesh-owned.json').write_text(json.dumps(report,indent=2));print(report)
