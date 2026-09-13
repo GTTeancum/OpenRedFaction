@@ -2783,6 +2783,7 @@ typedef struct campaign_npc_route {
 typedef struct campaign_npc_body {
     rf_physics_body body;rf_physics_support_contact support;
     campaign_npc_route navigation;
+    struct {rf_eye_angle_state angles;float body_angles[3],orientation[9],command_708[3];uint32_t clock_7b0;} look;
     rf_collision_contact_extra collision_contact;
     uint32_t collision_material; /* Original object1fc, factory parameter+10. */
     float support_velocity[3]; /* Original422f35..422f3b clears actor8a0. */
@@ -2982,6 +2983,15 @@ static int campaign_npc_bodies_open(const char *tables_path,const rf_geometry_co
                 owner->damage.burn_source=UINT32_MAX; /* Absent burn; source unused until installed. */
                 owner->movement_slot=rf_movement_start(campaign_modes,(int32_t)config.authored.movement_index,&body->state.flags);
                 owner->movement_orientation=campaign_identity[0]; /* Constructor422360 installs original73a858. */
+                {
+                    rf_spawn_look_angles angles;
+                    status=rf_look_spawn_angles(record->orientation[0],body->state.orientation,
+                        campaign_modes[owner->movement_slot].rotation,&angles);if(status)goto done;
+                    memcpy(owner->look.body_angles,angles.body,12);memcpy(owner->look.angles.angles_87c,angles.eye,12);
+                    memcpy(owner->look.angles.minimum_1434,definition->eye_limits.minimum,12);
+                    memcpy(owner->look.angles.maximum_1440,definition->eye_limits.maximum,12);
+                    memcpy(owner->look.orientation,record->orientation,36); /*42325d..423267*/
+                }
                 owner->previous_region_13ec=NULL;owner->attachment_75c=-1;owner->stance_clock_7b4=0; /* Original402c20 embedded AI initialization. */
                 owner->movement.response=body->state.coefficients[1];
                 /* Constructor422e19 requests normal speed via427450. */
@@ -3448,6 +3458,30 @@ int rf_scene_npc_route_request(uint32_t handle,const rf_entity_navigation_candid
     request.scratch=campaign_navigation_workspace.scratch;request.scratch_capacity=n+2;
     status=rf_entity_navigation_graph_request_run(&request,result);
     owner->navigation.cost=request.cost;return status;
+}
+int rf_scene_npc_eye_angles_step(uint32_t handle,float dt)
+{
+    campaign_npc_body *owner;rf_entity_pose *pose;uint32_t cls;int status;rf_eye_angle_state angles;float matrix[9];
+    status=campaign_npc_motion_owner(handle,&owner,&cls,&pose);if(status)return status;
+    angles=owner->look.angles;
+    status=rf_eye_angles_step(&angles,campaign_seeds.classes[cls].physics.flags,dt);if(status)return status;
+    status=rf_eye_physics_orientation(owner->body.state.orientation,&angles,matrix);if(status)return status;
+    owner->look.angles=angles;memcpy(owner->look.orientation,matrix,36);return RF_OK;
+}
+int rf_scene_npc_steer(uint32_t handle,const float target[3],float dt,uint32_t clock,float *result)
+{
+    campaign_npc_body *owner;rf_entity_pose *pose;uint32_t cls;int status;rf_entity_navigation_steering state;
+    if(!target || !result)return RF_RANGE;
+    status=campaign_npc_motion_owner(handle,&owner,&cls,&pose);if(status)return status;
+    if(owner->movement_slot>=16)return RF_RANGE;
+    state.rate_limit=campaign_seeds.classes[cls].rotation.maximum_velocity;
+    memcpy(state.position_e4,owner->body.state.position,12);memcpy(state.eye_7d4,owner->eye_position,12);
+    memcpy(state.basis_7e0,owner->look.orientation,12);memcpy(state.basis_7f8,owner->look.orientation+6,12);
+    state.mode_14=(int32_t)campaign_modes[owner->movement_slot].rotation[0];state.mode_18=(int32_t)campaign_modes[owner->movement_slot].rotation[1];
+    state.flags_724=campaign_seeds.classes[cls].physics.flags;
+    memcpy(state.angular_150,owner->body.state.vector_c8,12);memcpy(state.command_708,owner->look.command_708,12);state.turn_clock_7b0=owner->look.clock_7b0;
+    status=rf_entity_navigation_steer(&state,target,dt,clock,result);if(status)return status;
+    memcpy(owner->body.state.vector_c8,state.angular_150,12);memcpy(owner->look.command_708,state.command_708,12);owner->look.clock_7b0=state.turn_clock_7b0;return RF_OK;
 }
 
 typedef struct campaign_ai_reset_context {
@@ -6513,6 +6547,37 @@ static int campaign_npc_ground_query_fixture(const rf_geometry_collision_world *
     if(status)++rf_scene_npc_ground_query_test[4];return status;
 }
 uint32_t rf_scene_npc_route_test[6]; /* requests, successes, retained checks, hash, owner bytes, errors */
+uint32_t rf_scene_npc_look_test[6]; /* owners, eye updates, steers, hash, bytes, errors */
+static int campaign_npc_look_fixture(uint32_t frame)
+{
+    uint32_t i;int status=RF_OK;
+    if(frame)return RF_OK;memset(rf_scene_npc_look_test,0,sizeof(rf_scene_npc_look_test));
+    if(!rf_scene_actor_pair_test_enabled)return RF_OK;
+    rf_scene_npc_look_test[3]=2166136261u;rf_scene_npc_look_test[4]=campaign_npc_body_count*sizeof(campaign_npc_bodies[0].look);
+    for(i=0;i<campaign_npc_body_count && !status;++i)if(campaign_npc_bodies[i].registration.view){
+        campaign_npc_body *o=campaign_npc_bodies+i,saved=*o;uint32_t cls=campaign_seeds.items[i].class_index;
+        rf_eye_angle_state expected=o->look.angles;float matrix[9],target[3],result=99;uint32_t j;
+        ++rf_scene_npc_look_test[0];
+        for(j=0;j<3;++j)o->look.angles.delta_888[j]=expected.delta_888[j]=(float)(j+1)*.01f;
+        status=rf_eye_angles_step(&expected,campaign_seeds.classes[cls].physics.flags,1.0f/60.0f);
+        if(!status)status=rf_eye_physics_orientation(o->body.state.orientation,&expected,matrix);
+        if(!status)status=rf_scene_npc_eye_angles_step(o->registration.handle,1.0f/60.0f);
+        if(!status && (memcmp(&expected,&o->look.angles,sizeof(expected)) || memcmp(matrix,o->look.orientation,36)))status=RF_FORMAT;
+        if(!status){
+            ++rf_scene_npc_look_test[1];
+            for(j=0;j<3;++j)target[j]=o->eye_position[j]+(float)(j+1);
+            status=rf_scene_npc_steer(o->registration.handle,target,1.0f/60.0f,0x12345678,&result);
+            if(!status && (!isfinite(result) || result<0))status=RF_FORMAT;
+            if(!status){++rf_scene_npc_look_test[2];rf_scene_npc_look_test[3]=npc_hash_bytes(rf_scene_npc_look_test[3],&o->look,sizeof(o->look));
+                rf_scene_npc_look_test[3]=npc_hash_bytes(rf_scene_npc_look_test[3],o->body.state.vector_c8,12);}
+            result=99;
+            if(!status && (rf_scene_npc_steer(o->registration.handle^0x10000,target,1.0f/60.0f,0,&result)!=RF_NOT_FOUND || result!=99 ||
+                rf_scene_npc_eye_angles_step(o->registration.handle^0x10000,1.0f/60.0f)!=RF_NOT_FOUND))status=RF_FORMAT;
+        }
+        *o=saved;
+    }
+    if(status)++rf_scene_npc_look_test[5];return status;
+}
 static int campaign_npc_route_fixture(uint32_t frame)
 {
     rf_level_navigation_workspace *w=&campaign_navigation_workspace;uint32_t i,j,chosen=UINT32_MAX,n=w->count;
@@ -6797,6 +6862,7 @@ static int campaign_npc_playback_tick(scene_stream *stream,float elapsed)
     status=campaign_npc_ground_query_fixture(stream->collision,rf_scene_npc_playback[0]);if(status)return status;
     status=campaign_npc_ai_reset_fixture(rf_scene_npc_playback[0]);if(status)return status;
     status=campaign_npc_route_fixture(rf_scene_npc_playback[0]);if(status)return status;
+    status=campaign_npc_look_fixture(rf_scene_npc_playback[0]);if(status)return status;
     status=campaign_npc_unholster_fixture(rf_scene_npc_playback[0]);if(status)return status;
     status=campaign_npc_motion_request_fixture(rf_scene_npc_playback[0]);if(status)return status;
     status=campaign_npc_body_sweep_fixture(stream->collision,rf_scene_npc_playback[0]);if(status)return status;
