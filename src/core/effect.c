@@ -2051,3 +2051,25 @@ int rf_vfx_point_light(const float position[3],const float normal[3],const float
     }
     memcpy(out,result,8);return RF_OK;
 }
+
+int rf_vfx_cone_light(const float position[3],const float normal[3],const float light[3],
+    const float axis[3],float radius,uint32_t soften,float out[3])
+{
+    float direction[3],basis[3],result[3]={0,0,0};double length,reciprocal;uint32_t i;
+    if(!position || !normal || !light || !axis || !out || soften>1 || !isfinite(radius) || radius<0)return RF_RANGE;
+    for(i=0;i<3;++i) {
+        if(!isfinite(position[i]) || !isfinite(normal[i]) || !isfinite(light[i]) || !isfinite(axis[i]))return RF_RANGE;
+        direction[i]=light[i]-position[i];if(!isfinite(direction[i]))return RF_RANGE;
+    }
+    length=sqrt(((double)direction[0]*direction[0]+(double)direction[1]*direction[1])+(double)direction[2]*direction[2]);
+    if(length==0){direction[0]=1;direction[1]=direction[2]=0;length=1;}
+    else {reciprocal=1.0/length;for(i=0;i<3;++i)direction[i]=(float)(direction[i]*reciprocal);}
+    result[2]=(float)length;if(!isfinite(result[2]))return RF_RANGE;
+    if(length<radius) {
+        for(i=0;i<3;++i){basis[i]=normal[i];if(soften){basis[i]=direction[i]+normal[i];basis[i]*=.5f;}}
+        result[0]=(float)(((double)basis[0]*direction[0]+(double)basis[1]*direction[1])+(double)basis[2]*direction[2]);
+        result[1]=(float)(((double)direction[0]*axis[0]+(double)direction[1]*axis[1])+(double)direction[2]*axis[2]);
+        if(!isfinite(result[0]) || !isfinite(result[1]))return RF_RANGE;
+    }
+    memcpy(out,result,12);return RF_OK;
+}

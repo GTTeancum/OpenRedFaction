@@ -324,3 +324,16 @@ is not clamped; the light accumulator tests its sign before applying falloff.
 without hooks, covering both optional branches, coincident points and radius
 rejections.3 invalid-input guards preserve output. This is geometry only;
 cone/falloff dispatch, active-light list ownership and RGB accumulation remain.
+
+rf_vfx_cone_light reconstructs complete4daf30. It shares the point-light
+normalized direction and distance fallback, but its optional softened basis
+is (direction+normal)*0.5, with float stores before the dot. Within radius,
+it returns the angular factor and direction/axis dot; outside radius both
+terms are zero while distance is still returned. No cone bounds or falloff
+are imposed in this routine:4da8b0 applies those after the geometry call.
+
+2048 original/PC/NXDK cases match all three outputs using actual vector
+helpers, no hooks;3 invalid-input guards pass. Cone-axis inputs are finite
+but not forcibly normalized, matching the original caller contract. This
+remains a geometry component; light owner/order, attenuation and accumulation
+must still be connected before claiming rendered scene lighting.

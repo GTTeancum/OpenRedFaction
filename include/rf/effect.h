@@ -75,6 +75,12 @@ int rf_vfx_texture_duration(uint32_t count,uint32_t rate,float *out);
  * Finite inputs and nonnegative radius required; errors preserve output. */
 int rf_vfx_point_light(const float position[3],const float normal[3],const float light[3],
     float radius,uint32_t soften,float out[2]);
+/*4daf30 cone geometry; output angular factor, cone-axis dot, distance.
+ * Same radius/fallback rules as point lights, but softened normal is
+ * (direction+normal)/2. Cone bounds and falloff are applied by the caller. */
+int rf_vfx_cone_light(const float position[3],const float normal[3],const float light[3],
+    const float axis[3],float radius,uint32_t soften,float out[3]);
+
 
 /*553ee0 edge color after light query: brightness sets a rounded minimum,
  * mesh flag10 forces white, material type2 multiplies by authored RGB. The
