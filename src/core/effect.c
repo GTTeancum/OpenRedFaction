@@ -1666,3 +1666,22 @@ int rf_vfx_mesh_sample(const rf_vfx_mesh *mesh,float effect_frame,uint32_t verte
     }
     return rf_vfx_mesh_transform(mesh,&cursor,vertex,out);
 }
+
+int rf_vfx_parent_sample(const rf_vfx_morph_sample *sample,const float parent[12],rf_vfx_morph_sample *out)
+{
+    rf_vfx_morph_sample value;const float *point;float *target,rotated;unsigned i,j;
+    if(!sample || !parent || !out)return RF_RANGE;
+    for(i=0;i<12;++i)if(!isfinite(parent[i]))return RF_FORMAT;
+    if(!isfinite(sample->extra[0]) || !isfinite(sample->extra[1]))return RF_FORMAT;
+    value=*sample;
+    for(j=0;j<2;++j) {
+        point=j?sample->vertex:sample->center;target=j?value.vertex:value.center;
+        for(i=0;i<3;++i)if(!isfinite(point[i]))return RF_FORMAT;
+        for(i=0;i<3;++i) {
+            rotated=(float)(((double)point[2]*parent[i+6]+(double)point[1]*parent[i+3])+(double)point[0]*parent[i]);
+            target[i]=(float)((double)rotated+parent[i+9]);
+            if(!isfinite(target[i]))return RF_RANGE;
+        }
+    }
+    *out=value;return RF_OK;
+}

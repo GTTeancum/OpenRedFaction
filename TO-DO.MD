@@ -14,6 +14,11 @@ Shortlist:
 
 Progress reporting: include overall percent estimates at meaningful milestones and revisit remaining 24-hour workdays when measured throughput supports a forecast; current rough estimate40% (35-45%), no defensible +/-48-hour completion forecast before end-to-end gameplay.
 
+Direct-parent VFX geometry matches2048 original/PC/NXDK cases,2048
+in-place checks and5 guards; center/vertex change, extra bounds stay unchanged.
+Reconstruct tag-based parent503230/4fe710/4ff020 branch, then connect
+UV/material submission and native playback; both builds and24 tests pass.
+
 Combined VFX geometry dispatch matches2048 original/PC/NXDK cases from
 53f060 entry to54010a, with3 inactive/invalid guards; all24 tests pass.
 Integration exposed/fixed absent rotation keys: use stored frame0 quaternion,
