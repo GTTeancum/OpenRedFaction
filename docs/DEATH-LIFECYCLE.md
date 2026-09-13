@@ -8724,3 +8724,23 @@ neighbors, negative values, signed zero, infinity and quiet NaN agree exactly;
 479 cases continue drawing. One invalid-view port guard preserves outputs.
 Both builds and21CTest pass. Visible attenuation/common tail and draw binding
 remain open; this shared helper has no new native scene replay claim.
+
+
+## Corona common draw tail (2026-09-12)
+
+rf_glare_corona_submit reconstructs414cef..414dfa for finite resolved upstream
+values, intensity0..1 and view0/1. It truncates intensity*255 to alpha, publishes
+the selected intensity/size samples and max(size,old radius), computes rounded
+(1-angular)*0.5 with sign from supplied side-dot, then issues blend
+[1,2,3,2,0,3], white/alpha, texture(bitmap,-1), and billboard515b40 or oriented
+515bd0 according to byte2d0. The latter borrows vectors2d4/2e0; billboard borrows
+position3c. Callback errors stop with completed state/callback effects retained.
+Draw disabled leaves owner unchanged. Geometry remains an explicit backend.
+
+verify_corona_tail.py executes the original tail with actual CRT ftol,40a4a0
+max and40a0b0 dot, supplying only graphics services.400 original cases and8
+callback failures match PC/compiled NXDK exactly: alpha, samples, radius,
+angle sign, command ordering and geometry arguments. The shared side-dot is
+supplied upstream; original test uses an equivalent axial-vector dot. Both
+builds and21CTest pass. No native drawing claim: visible attenuation, original
+parent-room gates and actual billboard/oriented geometry remain open.

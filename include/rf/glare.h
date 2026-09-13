@@ -93,6 +93,24 @@ int rf_glare_refresh_visibility(rf_glare_base_owner *owner,const float camera[3]
  * publishing faded samples: the common corona tail owns that publication.
  * Invalid arguments preserve state/outputs. */
 int rf_glare_fade_samples(rf_glare_state *state,uint32_t view,float values[2],uint32_t *draw);
+typedef struct rf_glare_corona_tail {
+    float intensity,size,angular,distance,side_dot;uint32_t bitmap,view,draw;
+} rf_glare_corona_tail;
+typedef struct rf_glare_corona_backend {
+    int (*blend)(void *,const uint32_t[6]);
+    int (*color)(void *,uint32_t,uint32_t,uint32_t,uint32_t);
+    int (*texture)(void *,uint32_t,int32_t);
+    int (*billboard)(void *,const float[3],float,float,float);
+    int (*oriented)(void *,const float[3],const float[3],float,float);
+    void *context;
+} rf_glare_corona_backend;
+/*414cef..414dfa common corona tail. Inputs are resolved upstream values;
+ * side_dot is the camera-side vector dot product. Finite inputs, intensity0..1,
+ * view0/1 required. Publishes samples/radius before ordered graphics callbacks;
+ * callback errors retain completed effects. No draw leaves state unchanged.
+ * No geometry generation, bitmap lookup, attenuation or scheduling here. */
+int rf_glare_corona_submit(rf_glare_base_owner *owner,const rf_glare_corona_tail *tail,
+    const rf_glare_corona_backend *backend);
 typedef struct rf_glare_services {
     int (*tag_pose)(void *,uint32_t,int32_t,float[12]);void *context;
 } rf_glare_services;
