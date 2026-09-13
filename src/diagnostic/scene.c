@@ -1177,6 +1177,7 @@ uint32_t rf_scene_clutter[8]; /* classes, records, unmatched, class bytes, recor
 uint32_t rf_scene_clutter_render[8]; /* models, bindings, unmatched, nonstatic, retained, peak, materials, hash */
 typedef struct campaign_clutter_model {char name[64];rf_static_render_resource resource;rf_model_collision_resource collision;rf_static_model_tags tags;} campaign_clutter_model;
 uint32_t rf_scene_clutter_tags[4]; /* models, attachments, owner bytes, hash */
+uint32_t rf_scene_clutter_visibility[2];
 uint32_t rf_scene_clutter_collision[9]; /* models, parts, LODs, collision bytes, queries, hits, resource hash, query hash, errors */
 uint32_t rf_scene_clutter_materials[8]; /* models, rows, textures, retained, peak, material hash, image bytes, pixel hash */
 static rf_model_materials campaign_clutter_materials;
@@ -2370,8 +2371,9 @@ static int campaign_clutter_query_probe(void)
             status=rf_scene_clutter_visibility_model(NULL,&wrong,&query,&hit,1,&rejected);
             if(status!=RF_RANGE || rejected!=0x12345678 || memcmp(&hit,&before,sizeof(hit)))return RF_FORMAT;
         }
-        rf_scene_clutter_collision[7]=npc_hash_bytes(rf_scene_clutter_collision[7],&object.geometry.token,12);
-        rf_scene_clutter_collision[7]=npc_hash_bytes(rf_scene_clutter_collision[7],object.geometry.position,72);
+        ++rf_scene_clutter_visibility[0];
+        rf_scene_clutter_visibility[1]=npc_hash_bytes(rf_scene_clutter_visibility[1],&object.geometry.token,12);
+        rf_scene_clutter_visibility[1]=npc_hash_bytes(rf_scene_clutter_visibility[1],object.geometry.position,72);
         for(axis=0;axis<3;++axis)for(side=0;side<2;++side) {
             rf_collision_model_part_query query={0};rf_collision_model_response_hit hit={0};
             memcpy(query.input.start,owner->state.position,12);memcpy(query.input.origin,owner->state.position,12);
@@ -2460,6 +2462,7 @@ static int campaign_clutter_render_open(rf_vpp *archive)
     memset(rf_scene_clutter_collision,0,sizeof(rf_scene_clutter_collision));
     memset(rf_scene_clutter_tags,0,sizeof(rf_scene_clutter_tags));rf_scene_clutter_tags[3]=2166136261u;
     rf_scene_clutter_collision[6]=rf_scene_clutter_collision[7]=2166136261u;
+    rf_scene_clutter_visibility[0]=0;rf_scene_clutter_visibility[1]=2166136261u;
     bytes=(uint64_t)campaign_clutter_records.count*(sizeof(*campaign_clutter_models)+sizeof(*campaign_clutter_model_slots));
     if(bytes+sizeof(*file)>budget)return RF_RANGE;
     if(campaign_clutter_records.count) {
@@ -4251,6 +4254,42 @@ int rf_scene_npc_impact(uint32_t handle,float speed,const rf_scene_npc_impact_se
     ++rf_scene_npc_impact_dispatch[0];status=rf_entity_impact_process_sp(&actor,speed,&backend);
     if(status)++rf_scene_npc_impact_dispatch[5];return status;
 }
+uint32_t rf_scene_npc_contact_destroy_audio[12],rf_scene_npc_contact_destroy_test[4];
+typedef struct campaign_contact_destroy_context {
+    const rf_scene_npc_contact_destroy_services *services;campaign_pain_audio_context audio;
+} campaign_contact_destroy_context;
+static int campaign_contact_destroy_load(uint32_t handle,rf_entity_contact_destroy_actor *a)
+{
+    campaign_npc_body *owner;rf_entity_pose *pose;uint32_t cls;int status;
+    status=campaign_npc_motion_owner(handle,&owner,&cls,&pose);if(status)return status;
+    if(!campaign_squash_groups)return RF_RANGE;
+    a->handle=handle;a->sound=campaign_squash_groups[cls];memcpy(a->position,owner->published,12);return RF_OK;
+}
+static int campaign_contact_destroy_damage(void *context,rf_entity_contact_destroy_actor *a,const rf_damage_request *request)
+{
+    campaign_contact_destroy_context *c=context;uint32_t handle=a->handle;float amount;int status;
+    status=rf_scene_npc_damage(handle,request,c->services->difficulty,c->services->clock_bits,c->services->effects,&amount);
+    if(status)return status;return campaign_contact_destroy_load(handle,a);
+}
+static int campaign_contact_destroy_select(void *context,int32_t group,uint32_t *sample)
+{
+    campaign_contact_destroy_context *c=context;*sample=(uint32_t)campaign_pain_audio_resolve(&c->audio,group);return c->audio.status;
+}
+static int campaign_contact_destroy_play(void *context,uint32_t sample,const float *position)
+{
+    campaign_contact_destroy_context *c=context;memcpy(rf_scene_npc_contact_destroy_audio+9,position,12);
+    campaign_pain_audio_play(&c->audio,position,(int32_t)sample);return c->audio.status;
+}
+int rf_scene_npc_contact_destroy(uint32_t handle,const rf_scene_npc_contact_destroy_services *services)
+{
+    rf_entity_contact_destroy_actor actor;campaign_contact_destroy_context context;int status;
+    rf_entity_contact_destroy_backend backend={&context,campaign_contact_destroy_damage,campaign_contact_destroy_select,campaign_contact_destroy_play};
+    if(!services || !services->effects || !services->random || !isfinite(services->difficulty))return RF_RANGE;
+    status=campaign_contact_destroy_load(handle,&actor);if(status)return status;
+    context.services=services;context.audio=(campaign_pain_audio_context){services->random,0,rf_scene_npc_contact_destroy_audio,0};
+    ++rf_scene_npc_contact_destroy_audio[0];status=rf_entity_contact_destroy(&actor,&backend);
+    rf_scene_npc_contact_destroy_audio[6]=services->random->value;if(status)++rf_scene_npc_contact_destroy_audio[7];return status;
+}
 int rf_scene_npc_pain_sound(uint32_t handle,float fraction,int32_t now,rf_random_state *random)
 {
     uint32_t i,cls;int status;campaign_npc_body *owner;
@@ -4331,6 +4370,27 @@ static uint32_t campaign_damage_test_playing(void *c,uint32_t voice)
 {(void)c;(void)voice;rf_scene_npc_damage_test_words[63]++;return 0;}
 static uint32_t campaign_damage_test_play(void *c,uint32_t target)
 {(void)c;(void)target;rf_scene_npc_damage_test_words[63]++;return UINT32_MAX;}
+static void campaign_contact_destroy_fixture_notify(void *context,uint32_t kind,uint32_t target,float value,uint32_t source)
+{(void)context;(void)kind;(void)target;(void)value;(void)source;}
+static int campaign_contact_destroy_fixture(campaign_npc_body *owner,const rf_damage_effect_backend *effects)
+{
+    campaign_npc_body saved=*owner,initial,expected;rf_damage_effect_backend backend=*effects;
+    rf_random_state random={1};rf_scene_npc_contact_destroy_services services={&backend,&random,1,0x3f800000};
+    rf_damage_request request={1000000,UINT32_MAX,9,0,UINT32_MAX,0};float amount;int status;
+    backend.notify=campaign_contact_destroy_fixture_notify;
+    memset(rf_scene_npc_contact_destroy_audio,0,sizeof(rf_scene_npc_contact_destroy_audio));rf_scene_npc_contact_destroy_audio[5]=UINT32_MAX;
+    memset(rf_scene_npc_contact_destroy_test,0,sizeof(rf_scene_npc_contact_destroy_test));
+    status=rf_scene_npc_contact_destroy(owner->registration.handle^0x10000,&services);
+    if(status!=RF_NOT_FOUND || random.value!=1 || memcmp(owner,&saved,sizeof(saved)))return RF_FORMAT;
+    ++rf_scene_npc_contact_destroy_test[0];owner->damage.effects.health=2000000;initial=*owner;
+    status=rf_scene_npc_damage(owner->registration.handle,&request,1,0x3f800000,&backend,&amount);expected=*owner;*owner=initial;
+    if(!status && !(expected.damage.effects.health<initial.damage.effects.health && expected.damage.effects.health>0))status=RF_FORMAT;
+    if(!status)status=rf_scene_npc_contact_destroy(owner->registration.handle,&services);
+    if(!status && (memcmp(owner,&expected,sizeof(expected)) || memcmp(rf_scene_npc_contact_destroy_audio+9,owner->published,12)))status=RF_FORMAT;
+    if(!status){++rf_scene_npc_contact_destroy_test[0];memcpy(rf_scene_npc_contact_destroy_test+1,&initial.damage.effects.health,4);
+        memcpy(rf_scene_npc_contact_destroy_test+2,&owner->damage.effects.health,4);}else ++rf_scene_npc_contact_destroy_test[3];
+    *owner=saved;return status;
+}
 static int campaign_npc_damage_fixture(void)
 {
     uint32_t i,pass;campaign_npc_body *owner;const rf_entity_seed_class *definition;rf_random_state random={1};
@@ -4420,6 +4480,7 @@ static int campaign_npc_damage_fixture(void)
         if(!status && !(owner->damage.effects.health<saved.damage.effects.health && owner->damage.effects.health>0))status=RF_FORMAT;
         if(!status)++rf_scene_npc_impact_test[0];else ++rf_scene_npc_impact_test[3];
     }
+    if(!status)status=campaign_contact_destroy_fixture(owner,&effects);
     return status?status:rf_scene_npc_damage_test_words[63]?RF_FORMAT:RF_OK;
 }
 

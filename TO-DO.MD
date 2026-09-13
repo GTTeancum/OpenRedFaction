@@ -74,6 +74,7 @@ Complete ordinary49fe40 orchestration matches2048 original/NXDK cases at explici
 Actor contact41a000 decisions match2048 original/PC/NXDK cases; bind429790 destruction effects and remaining427550 surface/item/vehicle dispatch.
 Contact destruction429790 ordering matches1024 original/PC/NXDK cases; retain class174 sound and bind live damage/selection/playback services.
 Authored squash-sound groups are retained per class and pass180-frame stock64MiB XEMU; bind contact destruction to damage and positional playback.
+Retained contact destruction damage and squash playback pass restored-state L1S1 stock64MiB XEMU; complete427550 dispatch and live collision scheduling.
 AI scalar401cc0 and occupant-chain4077a0 each match2048 original/PC/NXDK cases; retain scalar/override sources.
 Shared408ac0 selection matches2048 original/PC/NXDK cases across107 paths plus21 failure checks.
 AI animation resets4091d0/409210 match2048 original/PC/NXDK cases plus4 failure checks.

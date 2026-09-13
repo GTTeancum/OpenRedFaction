@@ -459,6 +459,9 @@ dvd_path = '{root.as_posix()}/build/xbox/redfaction-diagnostic.iso'
       collision_reference=json.loads((root/'artifacts/clutter-scene-collision.json').read_text())
       assert collision_reference['result']=='PASS' and clutter_collision==collision_reference['expected'],clutter_collision
      report['clutter_collision']=clutter_collision
+     clutter_visibility=words(monitor,symbol('rf_scene_clutter_visibility'),2)
+     assert clutter_visibility==expected('CLUTTER_VISIBILITY') and clutter_visibility[0]==clutter_bodies[0],clutter_visibility
+     report['clutter_visibility']=clutter_visibility
      npc_models=words(monitor,symbol('rf_scene_npc_models'),4)
      assert npc_models==expected('NPC_MODELS'),npc_models
      assert npc_models==[npc_bodies[1],npc_bodies[0]*80,npc_bodies[1],0],npc_models
@@ -584,6 +587,13 @@ dvd_path = '{root.as_posix()}/build/xbox/redfaction-diagnostic.iso'
      assert impact_audio==expected('NPC_IMPACT_AUDIO') and impact_audio[7]==0,impact_audio
      if args.damage_uid==8456:assert impact_audio[:4]==[1,1,1,1] and impact_audio[4]>0,impact_audio
      report['npc_impact_audio']=impact_audio
+     destroy_audio=words(monitor,symbol('rf_scene_npc_contact_destroy_audio'),12)
+     destroy_test=words(monitor,symbol('rf_scene_npc_contact_destroy_test'),4)
+     assert destroy_audio==expected('NPC_CONTACT_DESTROY_AUDIO') and destroy_audio[7]==0,destroy_audio
+     assert destroy_test==expected('NPC_CONTACT_DESTROY_TEST') and destroy_test[3]==0,destroy_test
+     if args.damage_uid==8456:assert destroy_test[0]==2 and destroy_audio[:3]==[1,1,1],(destroy_test,destroy_audio)
+     report['npc_contact_destroy_audio']=destroy_audio;report['npc_contact_destroy_test']=destroy_test
+
      assert death_animation==expected('DEATH_ANIMATION_TEST'),death_animation
      assert action_audio==expected('NPC_ACTION_AUDIO'),action_audio
      if args.death_animation:assert death_animation[0]==120 and death_animation[6]==0 and action_audio[7]==0,(death_animation,action_audio)
@@ -696,7 +706,7 @@ dvd_path = '{root.as_posix()}/build/xbox/redfaction-diagnostic.iso'
      report['npc_pain_groups']=pain_groups
      bank=words(monitor,symbol('rf_scene_sound_bank'),4)
      assert bank==expected('SOUND_BANK') and bank[2]+bank[3]==audio[1],bank
-     if args.door:assert bank[0]==88 and bank[1]>=4 and bank[2]==111904+ambient_audio[5]+pain_audio[4]+player_pain_audio[4]+action_audio[4] and audio[0]==foley[5]+12,bank
+     if args.door:assert bank[0]==88 and bank[1]>=4 and bank[2]==111904+ambient_audio[5]+pain_audio[4]+player_pain_audio[4]+action_audio[4]+impact_audio[4]+destroy_audio[4] and audio[0]==foley[5]+12,bank
      report['sound_bank']=bank
      switch_audio=words(monitor,symbol('rf_scene_switch_audio'),4)
      assert switch_audio==expected('SWITCH_AUDIO') and switch_audio[0]==switches[0],switch_audio

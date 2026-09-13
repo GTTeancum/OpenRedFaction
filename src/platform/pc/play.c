@@ -319,6 +319,7 @@ int main(int argc,char **argv)
             printf("CLUTTER_DRAW");for(i=0;i<6;++i)printf(" %u",rf_scene_clutter_draw[i]);printf("\n");
             printf("CLUTTER_SKINS");for(i=0;i<6;++i)printf(" %u",rf_scene_clutter_skins[i]);printf("\n");
             printf("CLUTTER_BODIES");for(i=0;i<10;++i)printf(" %u",rf_scene_clutter_bodies[i]);printf("\n");
+            printf("CLUTTER_VISIBILITY");for(i=0;i<2;++i)printf(" %u",rf_scene_clutter_visibility[i]);printf("\n");
             printf("CLUTTER_COLLISION");for(i=0;i<9;++i)printf(" %u",rf_scene_clutter_collision[i]);printf("\n");
             printf("CLUTTER_TAGS");for(i=0;i<4;++i)printf(" %u",rf_scene_clutter_tags[i]);printf("\n");
             printf("GLARE_RESOURCES");for(i=0;i<9;++i)printf(" %u",rf_scene_glare_resources[i]);printf("\n");
@@ -348,6 +349,8 @@ int main(int argc,char **argv)
             printf("NPC_IMPACT_DISPATCH");for(i=0;i<6;++i)printf(" %u",rf_scene_npc_impact_dispatch[i]);printf("\n");
             printf("NPC_IMPACT_TEST");for(i=0;i<4;++i)printf(" %u",rf_scene_npc_impact_test[i]);printf("\n");
             printf("NPC_IMPACT_AUDIO");for(i=0;i<12;++i)printf(" %u",rf_scene_npc_impact_audio[i]);printf("\n");
+            printf("NPC_CONTACT_DESTROY_AUDIO");for(i=0;i<12;++i)printf(" %u",rf_scene_npc_contact_destroy_audio[i]);printf("\n");
+            printf("NPC_CONTACT_DESTROY_TEST");for(i=0;i<4;++i)printf(" %u",rf_scene_npc_contact_destroy_test[i]);printf("\n");
             printf("NPC_IMPACT_GROUPS %u %u %u\n",rf_scene_npc_impact_groups[0],rf_scene_npc_impact_groups[1],rf_scene_npc_impact_groups[2]);
             printf("NPC_FALL %u %u %u %u %u %u\n",rf_scene_npc_fall_test[0],rf_scene_npc_fall_test[1],rf_scene_npc_fall_test[2],rf_scene_npc_fall_test[3],rf_scene_npc_fall_test[4],rf_scene_npc_fall_test[5]);
             printf("NPC_GROUND_QUERY %u %u %u %u %u %u\n",rf_scene_npc_ground_query_test[0],rf_scene_npc_ground_query_test[1],rf_scene_npc_ground_query_test[2],rf_scene_npc_ground_query_test[3],rf_scene_npc_ground_query_test[4],rf_scene_npc_ground_query_test[5]);

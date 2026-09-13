@@ -145,6 +145,7 @@ extern uint32_t rf_scene_clutter_materials[8];
 extern uint32_t rf_scene_clutter_skins[6];
 extern uint32_t rf_scene_clutter_bodies[10];
 extern uint32_t rf_scene_clutter_collision[9];
+extern uint32_t rf_scene_clutter_visibility[2]; /* object count, placement hash */
 extern uint32_t rf_scene_clutter_tags[4];
 extern uint32_t rf_scene_clutter_tag_queries[5];
 extern uint32_t rf_scene_glare_resources[9];
@@ -378,6 +379,13 @@ typedef struct rf_scene_npc_impact_services {
  * feedback requires its callback; unassociated NPCs have no such effect.
  * Errors stop after already-applied effects. Does not schedule collisions. */
 int rf_scene_npc_impact(uint32_t handle,float speed,const rf_scene_npc_impact_services *services);
+typedef struct rf_scene_npc_contact_destroy_services {
+    const rf_damage_effect_backend *effects;rf_random_state *random;float difficulty;uint32_t clock_bits;
+} rf_scene_npc_contact_destroy_services;
+/*429790 scene binding. Effects must retain actor lifetime and publish changes
+ * synchronously; sound selection and published position are reread afterward. */
+int rf_scene_npc_contact_destroy(uint32_t handle,const rf_scene_npc_contact_destroy_services *services);
+extern uint32_t rf_scene_npc_contact_destroy_audio[12],rf_scene_npc_contact_destroy_test[4];
 extern uint32_t rf_scene_npc_impact_dispatch[6]; /* calls,suppressed,damage,sound,player lookup,errors */
 extern uint32_t rf_scene_npc_impact_test[4]; /* cases,health before/after,errors */
 
