@@ -73,6 +73,14 @@ int rf_vfx_texture_duration(uint32_t count,uint32_t rate,float *out);
  * gain (negative skips it), then truncate to bytes. VFX uses gain2. Ambient
  * supplies the floor for gain0..1. Finite nonnegative RGB, ambient0..1. */
 int rf_vfx_light_rgb(const float accumulated[3],const float ambient[3],float gain,unsigned char out[3]);
+typedef struct rf_vfx_point_source {float position[3],color[3],radius;uint32_t profile;} rf_vfx_point_source;
+/* Ordered, already-selected point sources in the same space as position/normal.
+ * Composes4da8b0 type2 with4daff0 ambient enabled/gain2. No allocation.
+ * This is not a mixed-type scene-light owner; callers must not discard other
+ * light types to use it. Errors preserve output; count0 permits a null list. */
+int rf_vfx_point_lighting(const float position[3],const float normal[3],const float ambient[3],
+    const rf_vfx_point_source *,uint32_t count,unsigned char out[3]);
+
 
 /* Original falloff table4da0b0/c0/e0/100 and4dadb4 RGB addition. Caller has
  * accepted the light and supplies its angular gain/weighted color. Profiles

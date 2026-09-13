@@ -366,3 +366,20 @@ other architectures use long double and are not covered by these results.
 helpers, no hooks.3 invalid-input guards preserve output. Inputs supply
 post-accumulation RGB, so this does not prove4da8b0 active-list processing
 or scene-light initialization. Native lighting integration remains open.
+
+## Composed point-light shading
+
+rf_vfx_point_lighting takes ordered, already-selected point sources in the
+surface coordinate space, starts with ambient, applies4dae50 acceptance,
+falloff/angle/color accumulation and4daff0 gain2 RGB conversion. It allocates
+nothing and preserves output on error. Point-source descriptors carry position,
+RGB, radius and falloff profile; they are not original mixed light records.
+Callers must not silently omit non-point sources to use this function.
+
+1024 PC/NXDK cases match complete original4daff0 calling4da8b0 and actual
+geometry, all four falloff functions and final byte conversion, without hooks.
+The harness supplies the original active pointer table and ambient, varying
+0-16 point lights, ordered colors, radii, normals and positions.2 invalid
+ambient/profile guards preserve output. This validates composed point shading
+beyond the earlier isolated helper tests; mixed source accumulation, active
+scene-light creation/filtering/transforms and VFX rendering remain open.

@@ -2142,3 +2142,24 @@ int rf_vfx_light_rgb(const float accumulated[3],const float ambient[3],float gai
     if(gain<0 && peak>1)result[2]=(unsigned char)vfx_blue_byte(accumulated[2],(float)peak);
     memcpy(out,result,3);return RF_OK;
 }
+
+int rf_vfx_point_lighting(const float position[3],const float normal[3],const float ambient[3],
+    const rf_vfx_point_source *lights,uint32_t count,unsigned char out[3])
+{
+    float accumulated[3],geometry[2];uint32_t i,j;int status;
+    if(!position || !normal || !ambient || !out || (!lights && count) || count>SIZE_MAX/sizeof(*lights))return RF_RANGE;
+    for(j=0;j<3;++j) {
+        if(!isfinite(position[j]) || !isfinite(normal[j]) || !isfinite(ambient[j]) || ambient[j]<0 || ambient[j]>1)return RF_RANGE;
+        accumulated[j]=ambient[j];
+    }
+    for(i=0;i<count;++i) {
+        const rf_vfx_point_source *light=lights+i;
+        if(light->profile>3)return RF_RANGE;
+        for(j=0;j<3;++j)if(!isfinite(light->color[j]) || light->color[j]<0)return RF_RANGE;
+        status=rf_vfx_point_light(position,normal,light->position,light->radius,0,geometry);if(status)return status;
+        if(geometry[0]>0 && geometry[1]<light->radius) {
+            status=rf_vfx_light_add(light->profile,geometry[1],light->radius,geometry[0],light->color,accumulated,accumulated);if(status)return status;
+        }
+    }
+    return rf_vfx_light_rgb(accumulated,ambient,2,out);
+}

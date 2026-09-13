@@ -14,6 +14,10 @@ Shortlist:
 
 Progress reporting: include overall percent estimates at meaningful milestones and revisit remaining 24-hour workdays when measured throughput supports a forecast; current rough estimate40% (35-45%), no defensible +/-48-hour completion forecast before end-to-end gameplay.
 
+Composed VFX point-light shading now matches1024 complete original/PC/NXDK
+4daff0/4da8b0 cases with0-16 ordered lights and2 guards. Join directional,
+cone and segment sources plus active scene ownership before native use.
+
 VFX final light RGB conversion matches4096 original/PC/NXDK cases and3
 guards; fixed an x87 blue-channel precision mismatch in the negative-gain
 branch. Bind active-light accumulation to conversion and material colors next.
