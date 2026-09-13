@@ -1064,6 +1064,11 @@ typedef struct rf_entity_navigation_route {
  * timer writes. Invalid state/clock leaves storage unchanged. Does not select
  * navigation references, allocate routes or reselect AI. */
 int rf_entity_navigation_reset(rf_entity_navigation_route *route,int32_t now_ms);
+/*40c2a0: signed current-index comparison against count-1 using x86 word
+ * arithmetic. Returns0 after previous=current/current++, or-1 unchanged at
+ * the end. No pointer dereference, arrival decision or movement dispatch. */
+int rf_entity_navigation_advance(rf_entity_navigation_route *route);
+
 
 /*40c570 low-byte navigation eligibility. Equality and unordered comparisons pass the size gates;
  * original x87 test uses C0|C3. Only mode low byte exactly1 checks node word40. No mutation. */

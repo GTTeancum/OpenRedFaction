@@ -2235,3 +2235,12 @@ int rf_entity_navigation_graph_request_run(rf_entity_navigation_graph_request *q
     request.route=q->route;request.search_mode=q->search_mode;
     return rf_entity_navigation_request_run(&request,&b,result);
 }
+
+int rf_entity_navigation_advance(rf_entity_navigation_route *route)
+{
+    uint32_t bits;int32_t last;
+    if(!route)return RF_RANGE;
+    bits=route->word_000-1u;memcpy(&last,&bits,4);
+    if(route->word_018>=last)return -1;
+    route->word_014=route->word_018;++route->word_018;return 0;
+}

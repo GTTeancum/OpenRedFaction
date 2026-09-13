@@ -10351,3 +10351,23 @@ count for requests. An initial harness assertion used registered count for
 bytes and was corrected before the successful full rerun. Workspace stays
 [114,5752,274,910786009]. Both builds,22 CTest checks and normal-image
 restoration pass. Bind AI destination preparation and route following next.
+
+
+Route following entry points and waypoint advance (2026-09-13)
+
+Instruction tracing identifies40b6d0 as the route-following dispatcher,
+calling40bb70 for arrival/re-pathing and40cb50 for steering. Their exported
+Ghidra candidates require further instruction-level verification before
+shared implementation.40bb70 calls40c2a0 to advance retained indices.
+
+rf_entity_navigation_advance reconstructs full40c2a0 using the existing
+372-byte route prefix: signed current018 compares against the32-bit word
+count000 minus1. If no later point exists, returns-1 without mutation;
+otherwise previous014=current018, then current018 increments, returning0.
+No route pointer is dereferenced and no arrival condition is inferred.
+
+verify_navigation_advance.py matches2048 unhooked original/PC/NXDK cases,
+including883 advances, all372 retained bytes and exact returns. Tests
+cover0..4 counts, final-point boundaries, signed extremes and count-word
+wrap. Both builds and22 CTest checks pass. Arrival/re-pathing, steering
+and live movement dispatch remain open; no new native XEMU/visual claim.

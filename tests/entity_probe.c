@@ -469,6 +469,14 @@ int main(int argc,char **argv)
     }
     if(argc==2 && !strcmp(argv[1],"--ai-nearest"))return ai_nearest_probe();
     if(argc==2 && !strcmp(argv[1],"--ai-endpoint"))return ai_endpoint_probe();
+    if(argc==2 && !strcmp(argv[1],"--route-advance")) {
+        rf_entity_navigation_route route;int32_t status;
+        _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
+        while(fread(&route,sizeof(route),1,stdin)==1){
+            status=rf_entity_navigation_advance(&route);
+            if(fwrite(&status,4,1,stdout)!=1 || fwrite(&route,sizeof(route),1,stdout)!=1)return 3;
+        }return ferror(stdin)?3:0;
+    }
     if(argc==2 && !strcmp(argv[1],"--ai-request"))return ai_request_probe();
     if(argc==2 && !strcmp(argv[1],"--ai-search-temporary-start"))return ai_search_probe(3);
     if(argc==2 && !strcmp(argv[1],"--ai-graph-request"))return ai_search_probe(4);
