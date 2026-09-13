@@ -9623,3 +9623,23 @@ input bits and traces are in artifacts/ai-recovery-original.json. This is
 original-code evidence only; shared recovery service, retained classf78 and
 actor fields, playback callbacks and live AI integration remain open. No
 new build, native XEMU execution or screenshot claimed for this audit.
+
+
+Shared blocked-animation recovery (2026-09-13): rf_entity_ai_recover
+implements full408f20 around explicit actor/object and playback services.
+Concrete flag7d0 bit100, pending timer and dead bit predicates retain
+original precedence. Action13 clears resolved actor7bc before later gates
+when the attachment is missing or not strictly positive-health. Accepted
+playback stop/start precedes the duration query; current model/motion/class
+fields remain callback-visible. Timers use rf_timer_set with trunc(seconds
+*1000), first inventory514 and then518 from resolved classf78. Numeric
+errors preserve previous effects; malformed second duration does not undo
+the first timer. The stable frame clock and live borrowed owners are explicit
+contracts. Actor lookup may resolve a different owner from the inventory.
+verify_ai_recovery_shared.py refreshes the original oracle and compares2048
+cases (285 playback starts) with PC and linked NXDK. Exact compact actor
+fields, external traces and both timers match. Five callback failures and
+eight invalid-duration checks pass; the latter distinguish first versus
+second timer preservation. Both builds and22 CTests pass. This verifies
+compiled NXDK code, not live native Xbox NPC recovery. Retained actor/class
+fields, animation playback service binding and AI scheduling remain open.

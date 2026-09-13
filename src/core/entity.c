@@ -50,6 +50,32 @@ int rf_entity_ai_reset_motion(rf_entity_ai_motion_state **owner,uint32_t seconda
     }
     return RF_OK;
 }
+static int ai_recovery_timer(int32_t *timer,int32_t now,double seconds)
+{
+    double milliseconds=seconds*1000.0;
+    if(!isfinite(milliseconds) || milliseconds < -2147483648.0 || milliseconds>=2147483648.0)return RF_RANGE;
+    return rf_timer_set(timer,now,(int32_t)milliseconds);
+}
+int rf_entity_ai_recover(rf_entity_ai_recovery *s,int32_t now,const rf_entity_ai_recovery_backend *b)
+{
+    rf_entity_ai_recovery *actor=NULL;uint32_t found;float health;double seconds=0;int status,pending;
+    if(!s || !s->owner || !b || !b->actor || !b->object_health || !b->playback || now<0 || now>RF_TIMER_PERIOD)return RF_RANGE;
+    status=b->actor(b->context,s->owner->handle,&actor);if(status)return status;if(!actor)return RF_OK;
+    if(s->action==13) {
+        if(!s->owner)return RF_FORMAT;
+        status=b->object_health(b->context,s->owner->parent,&found,&health);if(status)return status;
+        if(found && health>0)return RF_OK;
+        actor->word_7bc=0;
+    }
+    if(!(s->flags_7d0&0x100u))return RF_OK;
+    status=rf_timer_pending(s->timer_514,now,&pending);if(status)return status;
+    if(pending || (actor->flags_810&1u) || actor->motion_cd4==-1)return RF_OK;
+    status=b->playback(b->context,actor,RF_AI_RECOVERY_STOP,&seconds);if(status)return status;
+    status=b->playback(b->context,actor,RF_AI_RECOVERY_START,&seconds);if(status)return status;
+    status=b->playback(b->context,actor,RF_AI_RECOVERY_DURATION,&seconds);if(status)return status;
+    status=ai_recovery_timer(&s->timer_514,now,seconds);if(status)return status;
+    return ai_recovery_timer(&s->timer_518,now,(double)actor->class_seconds_f78);
+}
 int rf_entity_ai_select(rf_entity_ai_actor *s,const rf_entity_ai_select_frame *f,const rf_entity_ai_select_backend *b)
 {
     rf_entity_ai_actor *actor,*target;uint32_t value,i;int status;int32_t next=2;

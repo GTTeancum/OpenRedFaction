@@ -77,6 +77,29 @@ typedef struct rf_entity_ai_motion_backend {
 int rf_entity_ai_reset_motion(rf_entity_ai_motion_state **owner,uint32_t secondary,
     const rf_entity_ai_motion_backend *backend);
 
+typedef struct rf_entity_ai_recovery {
+    struct rf_entity_ai_recovery *owner;
+    uint32_t handle,parent;int32_t action;
+    uint32_t flags_7d0,flags_810,model;int32_t motion_cd4;
+    uint32_t word_7bc;int32_t timer_514,timer_518;float class_seconds_f78;
+} rf_entity_ai_recovery;
+enum {RF_AI_RECOVERY_STOP=0,RF_AI_RECOVERY_START=1,RF_AI_RECOVERY_DURATION=2};
+typedef struct rf_entity_ai_recovery_backend {
+    int (*actor)(void *,uint32_t,rf_entity_ai_recovery **);
+    int (*object_health)(void *,uint32_t,uint32_t *,float *);
+    /* START is428c90(actor,40,1.0,0,1). STOP uses current model; DURATION
+     * reads current model/motion_cd4 and writes seconds. Playback may mutate
+     * retained actor fields; the dispatcher rereads after each callback. */
+    int (*playback)(void *,rf_entity_ai_recovery *,uint32_t,double *);
+    void *context;
+} rf_entity_ai_recovery_backend;
+/* Full408f20 gates and ordering, concrete pending timer/dead/blocked queries
+ * and two timers. Borrowed owner/resolved actor stays alive; now is frame-
+ * stable. Duration*1000 truncates toward zero into the supported timer range.
+ * Errors retain prior effects, including movement clear and first timer. */
+int rf_entity_ai_recover(rf_entity_ai_recovery *inventory,int32_t now_ms,
+    const rf_entity_ai_recovery_backend *backend);
+
 typedef struct rf_entity_ai_actor {
     rf_entity_ai_transition_state transition;
     struct rf_entity_ai_actor *owner; /* inventory back pointer; usually self */

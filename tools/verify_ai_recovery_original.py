@@ -62,6 +62,7 @@ for case in range(2048):
  paths.add(tuple(t[0] for t in trace))
  # Store float bits as well, so NaN input remains an exact reproducible value.
  for name in ('health','duration','delay'):cfg[name+'_bits']=struct.unpack('<I',f(cfg.pop(name)))[0]
- records.append(dict(case=case,input=cfg,trace=trace,timers=[r(inv+0x274),r(inv+0x278)],word_7bc=r(b+0x7bc)))
+ offsets=(0x2c,0x200,0x520,0x7d0,0x810,0x80,0xcd4,0x7bc,0x514,0x518)
+ records.append(dict(case=case,input=cfg,initial=[struct.unpack_from('<I',seed,o)[0] for o in offsets]+[cfg['delay_bits']],final=[r(b+o) for o in offsets]+[cfg['delay_bits']],trace=trace,timers=[r(inv+0x274),r(inv+0x278)],word_7bc=r(b+0x7bc)))
 report=dict(result='PASS',cases=len(records),accepted=accepted,paths=len(paths),scope='Full original408f20 with actual408ef0/408ec0/427020, __ftol and4fa360. Only actor/object lookup and playback stop/start/duration supplied. Exact actor footprint, gate/timer semantics, callback-modified model/motion rereads. Not shared C or native XEMU.',records=records)
 (root/'artifacts/ai-recovery-original.json').write_text(json.dumps(report,indent=2));print({k:v for k,v in report.items() if k!='records'})
