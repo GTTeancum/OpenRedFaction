@@ -9989,3 +9989,29 @@ Initial/final raw node words are retained for subsequent shared comparison.
 This is original-executable evidence only: shared search, bounded route
 storage, full visibility and live integration remain open. No new build
 or native XEMU result is claimed for this audit-only change.
+
+
+Shared bounded search4ce8c0 (2026-09-13)
+
+rf_entity_navigation_search implements the audited loop and iterative
+4ceb50 predecessor walk. Caller supplies count uint32 scratch entries;
+the4*count bytes serve first as the stable open list and then reverse-path
+storage. No recursive stack growth or internal allocation. Stable nonzero
+unique order keys identify predecessors in retained_03c; node flags34/36
+now have explicit fields without changing the68-byte candidate layout.
+Only nonrejected nodes reset, start34 alone is set, first equal-cost open
+entry wins, edge order is preserved, and costs use squared distances with
+float stores. Exact-goal, near-goal and alternate visibility gates retain
+original low-byte semantics. Route append is start-to-goal and costs sum
+cumulative predecessor scores. Query cost stays unchanged for failures or
+a start-node success. Finite geometry, valid graph indexes and consistent
+predecessors define the supported domain; malformed inputs reject.
+
+verify_ai_search_shared.py refreshes the original oracle and compares2048
+PC/NXDK results, node bytes, emitted paths, cost bits and visibility/edge
+callback order.44 callback failures,6 explicitly targeted append failures
+and3 preflight guards pass. Partial appends remain visible while result/
+cost stay unchanged on error. Both builds and all22 CTest checks pass.
+Endpoint insertion/eligibility, real scene visibility, route-output storage
+and4cebd0 wrapper remain external; this is not live NPC route execution or
+a native XEMU integration claim.

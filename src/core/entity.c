@@ -1879,3 +1879,61 @@ int rf_entity_navigation_select(rf_entity_navigation_reference *references,uint3
         references[best].candidate->rejected_035=1;
     }
 }
+
+int rf_entity_navigation_search(rf_entity_navigation_reference *refs,uint32_t count,
+    rf_entity_navigation_search_query *q,uint32_t *scratch,uint32_t capacity,
+    const rf_entity_navigation_search_backend *b,uint32_t *result)
+{
+    uint32_t i,j,k,n,best,current,value,found,depth,parent;float cost_sum=0;double cost,distance;int status;
+    rf_entity_navigation_candidate *node,*next;
+    if(!refs || !q || !scratch || !b || !b->visible || !b->append || (q->alternate && !b->edge) || !result ||
+       !count || count>65536 || capacity<count || q->start>=count || q->goal>=count)return RF_RANGE;
+    for(i=0;i<count;++i) {
+        if(!refs[i].candidate || !refs[i].order_key || (refs[i].neighbor_count && !refs[i].neighbors))return RF_RANGE;
+        for(j=0;j<i;++j)if(refs[j].order_key==refs[i].order_key || refs[j].candidate==refs[i].candidate)return RF_FORMAT;
+        for(k=0;k<refs[i].neighbor_count;++k)if(refs[i].neighbors[k]>=count)return RF_RANGE;
+        for(k=0;k<3;++k)if(!isfinite(refs[i].candidate->query_point[k]))return RF_FORMAT;
+    }
+    for(k=0;k<3;++k)if(!isfinite(refs[q->goal].candidate->position[k]))return RF_FORMAT;
+    for(i=0;i<count;++i) {
+        node=refs[i].candidate;if(!node->rejected_035){node->distance_squared=FLT_MAX;node->retained_03c=0;node->flag_034=0;node->flag_036=0;}
+    }
+    node=refs[q->start].candidate;node->distance_squared=0;node->flag_034=1;scratch[0]=q->start;n=1;
+    while(n) {
+        best=0;for(i=1;i<n;++i)if(refs[scratch[i]].candidate->distance_squared<refs[scratch[best]].candidate->distance_squared)best=i;
+        current=scratch[best];node=refs[current].candidate;--n;if(best<n)memmove(scratch+best,scratch+best+1,(n-best)*sizeof(*scratch));found=0;
+        if(!q->alternate) {
+            if(q->limit>0) {
+                distance=ai_destination_distance(node->query_point,refs[q->goal].candidate->position);if(!isfinite(distance))return RF_FORMAT;
+                if(distance<q->limit){status=b->visible(b->context,node,refs[q->goal].order_key,.1f,q->height,&value);if(status)return status;found=(value&255u)==1;}
+            }
+            if(current==q->goal)found=1;
+        } else if(current!=q->start) {
+            status=b->visible(b->context,node,q->alternate,0,q->height,&value);if(status)return status;found=!(value&255u);
+        }
+        if(found) {
+            if(current==q->start){*result=1;return RF_OK;}
+            depth=0;i=current;
+            while(i!=q->start) {
+                if(depth>=count)return RF_FORMAT;scratch[depth++]=i;parent=refs[i].candidate->retained_03c;
+                for(j=0;j<count && refs[j].order_key!=parent;++j){}if(j==count)return RF_FORMAT;i=j;
+            }
+            if(depth>=count)return RF_FORMAT;scratch[depth++]=q->start;
+            while(depth) {
+                i=scratch[--depth];status=b->append(b->context,refs[i].candidate);if(status)return status;
+                if(i!=q->start)cost_sum=(float)((double)cost_sum+refs[i].candidate->distance_squared);
+            }
+            q->cost=cost_sum;*result=1;return RF_OK;
+        }
+        for(k=0;k<refs[current].neighbor_count;++k) {
+            j=refs[current].neighbors[k];next=refs[j].candidate;
+            if(q->alternate){status=b->edge(b->context,q->alternate,node->query_point,next->query_point,q->edge_parameter,&value);if(status)return status;if(!(value&255u))continue;}
+            if(next->rejected_035 || next->flag_034)continue;
+            if(!next->flag_036){if(n>=capacity)return RF_RANGE;next->flag_036=1;scratch[n++]=j;}
+            cost=navigation_distance_squared(next->query_point,node->query_point)+(double)node->distance_squared;
+            if(!isfinite(cost))return RF_FORMAT;
+            if(cost<next->distance_squared){next->distance_squared=(float)cost;next->retained_03c=refs[current].order_key;}
+        }
+    }
+    *result=0;return RF_OK;
+}

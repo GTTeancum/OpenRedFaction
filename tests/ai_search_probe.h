@@ -1,0 +1,33 @@
+typedef struct search_wire {
+ uint32_t count,goal,alternate;float limit;rf_entity_navigation_candidate nodes[8];
+ uint32_t neighbor_count[8],neighbors[8][8],visible[8],edges[8][8];
+} search_wire;
+typedef struct search_fixture {search_wire *wire;uint32_t path[8],count,hash;} search_fixture;
+static void search_hash(search_fixture *c,uint32_t value){c->hash=(c->hash^value)*16777619u;}
+static int search_visible(void *context,rf_entity_navigation_candidate *node,uint32_t target,float inset,float height,uint32_t *value)
+{
+ search_fixture *c=context;uint32_t i=(uint32_t)(node-c->wire->nodes);
+ if(i>=c->wire->count || target!=(c->wire->alternate?0x30006000:0x30000000+c->wire->goal*0x100) || inset!=(c->wire->alternate?0:.1f) || height!=1)return RF_FORMAT;
+ *value=c->wire->visible[i];search_hash(c,1);search_hash(c,i);search_hash(c,*value);return RF_OK;
+}
+static int search_edge(void *context,uint32_t target,const float from[3],const float to[3],float parameter,uint32_t *value)
+{
+ search_fixture *c=context;uint32_t i,j;for(i=0;i<c->wire->count && from!=c->wire->nodes[i].query_point;++i){}for(j=0;j<c->wire->count && to!=c->wire->nodes[j].query_point;++j){}
+ if(i==c->wire->count || j==c->wire->count || target!=0x30006000 || parameter!=0)return RF_FORMAT;
+ *value=c->wire->edges[i][j];search_hash(c,2);search_hash(c,i);search_hash(c,j);search_hash(c,*value);return RF_OK;
+}
+static int search_append(void *context,rf_entity_navigation_candidate *node)
+{search_fixture *c=context;uint32_t i=(uint32_t)(node-c->wire->nodes);if(i>=c->wire->count || c->count==8)return RF_RANGE;c->path[c->count++]=i;return RF_OK;}
+static int ai_search_probe(void)
+{
+ search_wire wire;_Static_assert(sizeof(wire)==1136,"search wire");_setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
+ while(fread(&wire,sizeof(wire),1,stdin)==1) {
+  search_fixture c={0};rf_entity_navigation_reference refs[8];uint32_t scratch[8],i,out[13]={0};
+  rf_entity_navigation_search_query q={0};rf_entity_navigation_search_backend b={search_visible,search_edge,search_append,&c};
+  if(wire.count>8)return 3;c.wire=&wire;c.hash=2166136261u;q.goal=wire.goal;q.alternate=wire.alternate?0x30006000:0;q.limit=wire.limit;q.height=1;out[2]=0x12345678;memcpy(&q.cost,out+2,4);
+  for(i=0;i<wire.count;++i){refs[i].candidate=wire.nodes+i;refs[i].order_key=0x30000000+i*0x100;refs[i].neighbors=wire.neighbors[i];refs[i].neighbor_count=wire.neighbor_count[i];if(wire.neighbor_count[i]>8)return 3;}
+  out[1]=99;out[0]=(uint32_t)rf_entity_navigation_search(refs,wire.count,&q,scratch,8,&b,out+1);memcpy(out+2,&q.cost,4);out[3]=c.count;memcpy(out+4,c.path,32);out[12]=c.hash;
+  if(fwrite(out,sizeof(out),1,stdout)!=1 || fwrite(wire.nodes,sizeof(wire.nodes),1,stdout)!=1)return 3;
+ }
+ return ferror(stdin)?3:0;
+}

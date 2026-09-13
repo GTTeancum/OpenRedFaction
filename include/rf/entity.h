@@ -1072,7 +1072,7 @@ uint32_t rf_entity_navigation_candidate_allowed(float radius,float height,uint32
 
 typedef struct rf_entity_navigation_candidate {
     float position[3],query_point[3];uint32_t retained_018;
-    float radius,height;uint8_t retained_024[0x11],rejected_035,retained_036[2];float distance_squared;
+    float radius,height;uint8_t retained_024[0x10],flag_034,rejected_035,flag_036,retained_037;float distance_squared;
     uint32_t retained_03c,word_040;
 } rf_entity_navigation_candidate;
 /*40b2e0: publishes query point and squared distance even on rejection.
@@ -1171,5 +1171,29 @@ int rf_entity_navigation_select(rf_entity_navigation_reference *references,uint3
     const float position[3],float radius,float height,uint32_t mode,uint32_t allow_far,
     int (*visibility)(void *,const float[3],const float[3],float,uint32_t *),void *context,
     rf_entity_navigation_selection *selection);
+
+typedef struct rf_entity_navigation_search_query {
+    uint32_t start,goal,alternate;float limit,height,edge_parameter,cost;
+} rf_entity_navigation_search_query;
+typedef struct rf_entity_navigation_search_backend {
+    /*4ce740: goal node order_key in ordinary mode, alternate token otherwise. */
+    int (*visible)(void *,rf_entity_navigation_candidate *,uint32_t,float,float,uint32_t *);
+    /*4ce6c0: alternate token, current/neighbor query positions, query2c. */
+    int (*edge)(void *,uint32_t,const float[3],const float[3],float,uint32_t *);
+    /*4cebb0 output boundary, start-to-goal order; no graph mutation allowed. */
+    int (*append)(void *,rf_entity_navigation_candidate *);
+    void *context;
+} rf_entity_navigation_search_backend;
+/*4ce8c0 plus iterative4ceb50 predecessor reconstruction. Caller provides at
+ * least count uint32 scratch entries (4*count bytes), reused for path reversal.
+ * No allocations. Graph/order keys and callbacks remain stable; nonzero unique
+ * keys identify predecessors in retained_03c. Finite query geometry required.
+ * Preserves strict score ordering, squared-edge costs, one-time enqueue flags
+ * and cumulative-score path sum. Errors retain node/output callback effects;
+ * result and query cost remain unchanged on error. False leaves cost unchanged.
+ * Does not build temporary endpoint nodes, allocate route output or resolve visibility. */
+int rf_entity_navigation_search(rf_entity_navigation_reference *references,uint32_t count,
+    rf_entity_navigation_search_query *query,uint32_t *scratch,uint32_t capacity,
+    const rf_entity_navigation_search_backend *backend,uint32_t *result);
 
 #endif
