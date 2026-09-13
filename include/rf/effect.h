@@ -128,6 +128,20 @@ typedef struct rf_vfx_mesh {
 int rf_vfx_mesh_open(const void *,uint32_t bytes,uint32_t version,
     uint32_t global_materials,const float *legacy_base7,uint32_t budget,rf_vfx_mesh **);
 void rf_vfx_mesh_close(rf_vfx_mesh **);
+typedef struct rf_vfx_frame_cursor {
+    float position,fraction;uint32_t first,second,active;
+} rf_vfx_frame_cursor;
+/*53f060..53f12f. effect_frame uses original15Hz time units; mesh rate is
+ * timing.flags>>2. Inclusive end gate; safe indices clamp terminal samples
+ * to the last frame. Flag2 suppresses interpolation fraction. Zero samples
+ * and nonfinite/overflowing inputs fail without modifying output. */
+int rf_vfx_frame_select(const rf_vfx_mesh_timing *,uint32_t flags,float effect_frame,rf_vfx_frame_cursor *);
+/*53cca0: signed16 components multiply scales, round to float, then add
+ * origin. vectors stores origin[3],scale[3]. No pose/parent transform. */
+int rf_vfx_vertex_decode(const void *,uint32_t bytes,const float vectors[6],float out[3]);
+/* Read a dequantized vertex from owned mesh data, selecting shared frame0
+ * unless mesh flag4 enables per-frame vertices. No interpolation/transform. */
+int rf_vfx_mesh_vertex(const rf_vfx_mesh *,uint32_t frame,uint32_t vertex,float out[3]);
 typedef struct rf_vfx_chunk {uint32_t type,offset,bytes;} rf_vfx_chunk;
 typedef struct rf_vfx_directory {
     rf_vpp *archive;rf_vpp_entry entry;rf_vfx_header header;

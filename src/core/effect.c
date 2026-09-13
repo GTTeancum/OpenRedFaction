@@ -1358,3 +1358,37 @@ int rf_vfx_mesh_open(const void *data,uint32_t bytes,uint32_t version,
 failed:
     free(v);return status;
 }
+
+int rf_vfx_frame_select(const rf_vfx_mesh_timing *timing,uint32_t flags,float effect_frame,rf_vfx_frame_cursor *out)
+{
+    rf_vfx_frame_cursor v={0};float seconds;double position;uint32_t first;
+    if(!timing || !out || !timing->samples || timing->samples>0x7ffffffeu || !isfinite(effect_frame) || !isfinite(timing->start))return RF_RANGE;
+    seconds=(float)((double)effect_frame*(double)0.06666667014360428f);
+    position=((double)seconds-(double)timing->start)*((timing->flags&0xffffu)>>2);v.position=(float)position;
+    if(!isfinite(v.position))return RF_RANGE;
+    if(position<0 || (double)timing->samples<(double)v.position){*out=v;return RF_OK;}
+    if(v.position>=2147483647.0)return RF_RANGE;
+    first=(uint32_t)floor((double)v.position);v.fraction=(flags&2)?0:(float)((double)v.position-first);
+    v.first=first<timing->samples?first:timing->samples-1;
+    v.second=first+1<timing->samples?first+1:timing->samples-1;v.active=1;*out=v;return RF_OK;
+}
+int rf_vfx_vertex_decode(const void *data,uint32_t bytes,const float vectors[6],float out[3])
+{
+    const unsigned char *p=data;float v[3],product;uint32_t i;int16_t component;
+    if(!data || !vectors || !out || bytes<6)return RF_RANGE;
+    for(i=0;i<3;++i) {
+        if(!isfinite(vectors[i]) || !isfinite(vectors[i+3]))return RF_RANGE;
+        memcpy(&component,p+i*2,2);product=(float)((double)component*vectors[i+3]);v[i]=(float)((double)product+vectors[i]);
+        if(!isfinite(v[i]))return RF_RANGE;
+    }
+    memcpy(out,v,sizeof(v));return RF_OK;
+}
+int rf_vfx_mesh_vertex(const rf_vfx_mesh *mesh,uint32_t frame,uint32_t vertex,float out[3])
+{
+    const rf_vfx_frame_view *view;uint64_t at;
+    if(!mesh || !mesh->data || !mesh->frames || !out || frame>=mesh->prefix.timing.samples || vertex>=mesh->prefix.vertices)return RF_RANGE;
+    view=mesh->frames+((mesh->edges.flags&4)?frame:0);
+    if(!(view->present&1) || (uint64_t)vertex*6+6>view->vertex_bytes)return RF_FORMAT;
+    at=(uint64_t)view->vertex_offset+(uint64_t)vertex*6;if(at+6>mesh->bytes)return RF_FORMAT;
+    return rf_vfx_vertex_decode(mesh->data+(size_t)at,6,view->vectors,out);
+}

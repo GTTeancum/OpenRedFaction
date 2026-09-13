@@ -43,14 +43,24 @@ def allocator(u,a,size,data):
   if arg:assert arg in live;del live[arg]
  u.reg_write(UC_X86_REG_EAX,ret);u.reg_write(UC_X86_REG_ESP,sp+4);u.reg_write(UC_X86_REG_EIP,read(u,sp))
 for name in ('malloc','free'):x.hook_add(UC_HOOK_CODE,allocator,begin=sym(name),end=sym(name))
+vertex_checks=0
 def shared(v,global_count,budget,data,fail=False):
- global fail_alloc
+ global fail_alloc,vertex_checks
  fail_alloc=fail;calls.clear();assert not live;x.mem_write(B,data or b'\0');x.mem_write(PTR,f(0,0,0,0,0,0,1));x.mem_write(OUT,w(0))
  status=call('rf_vfx_mesh_open',[B,len(data),v,global_count,PTR,budget,OUT]);result=w(status);pointer=read(x,OUT)
  if not status:
   assert pointer==HEAP and live;header=bytes(x.mem_read(pointer,300));n=struct.unpack_from('<I',header,148)[0];size,allocated=struct.unpack_from('<II',header,292);frames,owned=struct.unpack('<II',x.mem_read(pointer+300,8))
   assert allocated==308+n*112+size==live[HEAP] and allocated<=budget and size==len(data)
   x.mem_write(B,b'\xa5'*len(data));result+=header+bytes(x.mem_read(frames,n*112))+bytes(x.mem_read(owned,size));assert result[-size:]==data
+  vertices=struct.unpack_from('<I',header,132)[0];flags=struct.unpack_from('<I',header,184)[0]
+  for frame in range(n):
+   source=frames+(frame if flags&4 else 0)*112;offset=read(x,source+32);vectors=bytes(x.mem_read(source,24))
+   for vertex in range(vertices):
+    assert call('rf_vfx_mesh_vertex',[pointer,frame,vertex,SAMPLE])==0;actual=bytes(x.mem_read(SAMPLE,12));raw=bytes(x.mem_read(owned+offset+vertex*6,6))
+    o.mem_write(B,raw);o.mem_write(STACK,w(STOP,OUT,B)+vectors);o.reg_write(UC_X86_REG_ESP,STACK);o.reg_write(UC_X86_REG_FPCW,0x37f);o.emu_start(0x53cca0,STOP,count=100000);assert o.reg_read(UC_X86_REG_EIP)==STOP
+    assert actual==bytes(o.mem_read(OUT,12));vertex_checks+=1
+  x.mem_write(SAMPLE,b'\xa5'*12);assert call('rf_vfx_mesh_vertex',[pointer,n,0,SAMPLE])!=0 and bytes(x.mem_read(SAMPLE,12))==b'\xa5'*12
+
  else:assert pointer==0 and not live
  call('rf_vfx_mesh_close',[OUT]);call('rf_vfx_mesh_close',[OUT]);assert read(x,OUT)==0 and not live
  return result
@@ -83,5 +93,5 @@ for case,(v,g,b,d) in enumerate(inputs):
 for v,g,b,d in invalid:
  got=shared(v,g,b,d);assert got[:4]!=w(0);responses.append(got)
 pc=subprocess.check_output([probe,'--vfx-mesh-owned'],input=b''.join(w(v,g,b,len(d))+f(0,0,0,0,0,0,1)+d for v,g,b,d in inputs+invalid));assert pc==b''.join(responses)
-report=dict(result='PASS',authored_pc_nxdk_meshes=len(inputs),failure_cases=len(invalid),allocation_failures=len(inputs),exact_budget_cases=len(inputs),owned_bytes=footprints,scope='Composed previously original-verified decoders; all14 authored payloads, owned source independence, PC/NXDK header/frame/payload equality, exact/short budgets, malloc failure and rollback, repeat close. No bitmap binding/interpolation/native XEMU.')
+report=dict(result='PASS',authored_pc_nxdk_meshes=len(inputs),failure_cases=len(invalid),allocation_failures=len(inputs),exact_budget_cases=len(inputs),owned_bytes=footprints,authored_vertex_checks=vertex_checks,scope='Composed previously original-verified decoders; all14 authored payloads, owned source independence, PC/NXDK header/frame/payload equality, exact/short budgets, malloc failure and rollback, repeat close. No bitmap binding/interpolation/native XEMU.')
 (root/'artifacts/vfx-mesh-owned.json').write_text(json.dumps(report,indent=2));print(report)

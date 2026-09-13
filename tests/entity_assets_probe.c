@@ -38,6 +38,25 @@ int main(int argc,char **argv)
         }
         rf_vpp_close(&meshes);return ferror(stdin)?8:0;
     }
+    if(argc==2 && !strcmp(argv[1],"--vfx-frame-select")) {
+        uint32_t words[7];
+        _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
+        while(fread(words,28,1,stdin)==1) {
+            rf_vfx_mesh_timing timing;rf_vfx_frame_cursor out;float time;int32_t status;
+            memcpy(&timing,words,20);memcpy(&time,words+6,4);memset(&out,0xa5,sizeof(out));
+            status=rf_vfx_frame_select(&timing,words[5],time,&out);fwrite(&status,4,1,stdout);fwrite(&out,sizeof(out),1,stdout);
+        }
+        return ferror(stdin)?1:0;
+    }
+    if(argc==2 && !strcmp(argv[1],"--vfx-vertex")) {
+        unsigned char data[30];
+        _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
+        while(fread(data,30,1,stdin)==1) {
+            float vectors[6],out[3];int32_t status;memcpy(vectors,data+6,24);memset(out,0xa5,sizeof(out));
+            status=rf_vfx_vertex_decode(data,6,vectors,out);fwrite(&status,4,1,stdout);fwrite(out,12,1,stdout);
+        }
+        return ferror(stdin)?1:0;
+    }
     if(argc==2 && !strcmp(argv[1],"--vfx-mesh-owned")) {
         uint32_t input[4];float legacy[7];unsigned char *data;int32_t status;
         _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);

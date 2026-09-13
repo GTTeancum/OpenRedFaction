@@ -566,3 +566,37 @@ artifacts/vfx-textures-nxdk.json.
 Next: compose definition/material/mesh lifetimes, normalize direction, bind
 frame/key interpolation and renderer submission, then native XEMU evidence.
 Particles/warp objects remain necessary for complete projectile effects.
+
+## VFX frame selection and vertex expansion (2026-09-13)
+
+Playback trace: wrapper501ab0 routes kind3 to54cce0. It advances instance
+seconds, converts them to15Hz effect-frame units, handles pause/loop/stop,
+and calls53f050 ->53f060 for meshes.54cf70 starts particle retirement rather
+than immediately removing all effects. Full effect lifecycle remains open.
+
+rf_vfx_frame_select reconstructs53f060..53f12f. The original float constant
+58a268 is0.06666667014360428 (1/15), with an explicit float store before
+subtracting mesh start time and multiplying its packed rate. It preserves
+the inclusive endpoint gate and flag2's zero interpolation fraction. Safe
+returned indices clamp the final interval to the last sample; original raw
+floor/next values are normalized only for that representation. Zero samples,
+nonfinite inputs and unsafe integer ranges fail without changing output.
+
+rf_vfx_vertex_decode reconstructs complete53cca0. Serialized uint16 storage
+is interpreted as signed16 coordinates, multiplied by per-axis scales with
+float rounding before origin addition. It produces object-local geometry;
+it does not apply animation or parent transforms. rf_vfx_mesh_vertex binds
+this to retained data and selects shared frame0 unless flag4 enables separate
+vertex frames, with index/span guards and unchanged outputs on failure.
+
+verify_vfx_sampling.py matches2048 original/PC/compiled NXDK frame cases and
+2048 vertex cases with real original math helpers. Two invalid frame cases
+preserve outputs. Extended verify_vfx_mesh_owned.py checks3128 authored
+vertex expansions against original53cca0 (1564 each at normal/exact budgets),
+plus invalid frame access, alongside existing ownership/rollback tests.
+Both builds and24 CTests pass. Reports: artifacts/vfx-sampling.json and
+artifacts/vfx-mesh-owned.json. No interpolation or native XEMU visual claimed.
+
+Remaining mesh update53f060 branches: transform matrices, key evaluation
+569f70/56a250/56a3f0, vertex/UV interpolation, active visibility and parent
+attachment transforms. These must compose before normal effect rendering.
