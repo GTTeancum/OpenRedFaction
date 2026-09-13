@@ -84,7 +84,7 @@ Startup grants now compose with concrete42ab20 animation selection (220 loaded P
 All63 class defaults now retain optional melee (four authored classes); include it when creating startup inventories.
 Authored NPC primary/secondary/melee startup grants now populate retained inventories and selected animations; complete active firing resource services, weapon models and combat scheduling.
 Third-person model/tag accessors and full418e60 hand/grip placement each match2048 original/PC/NXDK cases; reconstruct421c40 visibility/draw dispatch and bind actual transforms/model loading.
-Third-person filename reader passes10 PC/NXDK cases and three archive budgets;20 weapon entries resolve to18 installed compiled models; bind budgeted model ownership and authored hand tags.
+Third-person filename reader passes10 PC/NXDK cases; shared static model ownership passes48 PC selections and96 budget boundaries; bind level residency, authored hand tags, textures and draw dispatch.
 Retained pain dispatch now uses44 reset descriptors and selected action audio; verify representative armed pain paths and finish active sound/effect reset services.
 Armed and unarmed death/recovery scene fixtures pass; animation consumers validate retained skeletons without rejecting equipped weapons.
 All78 inventory/selection/firing owners match PC in180-frame stock64MiB XEMU; retained storage78936 bytes, body subsystem peak538012 bytes within640KiB.

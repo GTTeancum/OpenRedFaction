@@ -30,6 +30,22 @@ typedef struct rf_weapon_model_names {char files[64][64];uint32_t count;} rf_wea
 int rf_weapon_model_names_read(const void *text,uint32_t bytes,rf_weapon_model_names *result);
 int rf_weapon_model_names_load(rf_vpp *tables,uint32_t scratch_budget,rf_weapon_model_names *result);
 
+typedef struct rf_weapon_static_model {
+    char filename[64];rf_static_render_resource render;rf_static_model_tags tags;
+} rf_weapon_static_model;
+typedef struct rf_weapon_model_owner {
+    rf_weapon_world_model weapons[64];rf_weapon_static_model *items;
+    uint32_t count,allocated_bytes,peak_bytes;
+} rf_weapon_model_owner;
+/* Load selected weapon IDs (two mask words), sharing case-insensitive compiled
+ * filenames. Tokens are owner-local item index+1. Retains all static LODs and
+ * first-submesh tags, no textures. Budget includes owner, item capacity, retained
+ * arrays and temporary file directory; excludes stack/archive/allocator overhead.
+ * Empty owner required; failure rolls back. No archive borrowing after success. */
+int rf_weapon_models_open(rf_vpp *meshes,const rf_weapon_model_names *names,
+    const uint32_t selected[2],uint32_t budget,rf_weapon_model_owner *owner);
+void rf_weapon_models_close(rf_weapon_model_owner *owner);
+
 typedef struct rf_weapon_supply_catalog {
     rf_weapon_names names;
     rf_weapon_acquire_definition definitions[64];

@@ -14,6 +14,30 @@
 #include "clutter_base_probe.h"
 int main(int argc,char **argv)
 {
+    if(argc==5 && !strcmp(argv[1],"--weapon-models")) {
+        rf_vpp tables,meshes;rf_weapon_model_names names;rf_weapon_model_owner owner={0},zero={0};
+        uint32_t masks[2];int32_t code;uint32_t i;
+        if(rf_vpp_open(&tables,argv[2]))return 2;
+        code=rf_weapon_model_names_load(&tables,131072,&names);rf_vpp_close(&tables);if(code)return 3;
+        if(rf_vpp_open(&meshes,argv[3]))return 4;
+        _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
+        while(fread(masks,8,1,stdin)==1) {
+            code=rf_weapon_models_open(&meshes,&names,masks,(uint32_t)strtoul(argv[4],NULL,10),&owner);
+            if(fwrite(&code,4,1,stdout)!=1)return 5;
+            if(!code) {
+                uint32_t stats[4]={owner.count,owner.allocated_bytes,owner.peak_bytes,0};
+                for(i=0;i<owner.count;++i)stats[3]+=owner.items[i].tags.count;
+                if(fwrite(stats,16,1,stdout)!=1 || fwrite(owner.weapons,1024,1,stdout)!=1)return 5;
+                for(i=0;i<owner.count;++i) {
+                    rf_weapon_static_model *item=owner.items+i;
+                    if(fwrite(item->filename,64,1,stdout)!=1)return 5;
+                }
+            } else if(memcmp(&owner,&zero,sizeof(owner)))return 6;
+            rf_weapon_models_close(&owner);rf_weapon_models_close(&owner);
+            if(memcmp(&owner,&zero,sizeof(owner)))return 7;
+        }
+        rf_vpp_close(&meshes);return ferror(stdin)?8:0;
+    }
     if(argc==2 && !strcmp(argv[1],"--weapon-model-names")) {
         uint32_t size;rf_weapon_model_names out;void *text;int32_t code;
         _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);

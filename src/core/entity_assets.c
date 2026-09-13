@@ -471,6 +471,55 @@ int rf_weapon_supply_read(const void *ammo,uint32_t ammo_bytes,
     if(index!=v.names.count || (active && (mask&3)!=3))return RF_FORMAT;
     *result=v;return RF_OK;
 }
+void rf_weapon_models_close(rf_weapon_model_owner *owner)
+{
+    uint32_t i;if(!owner)return;
+    for(i=0;i<owner->count;++i) {
+        rf_static_render_resource_close(&owner->items[i].render);
+        rf_static_model_tags_close(&owner->items[i].tags);
+    }
+    free(owner->items);memset(owner,0,sizeof(*owner));
+}
+int rf_weapon_models_open(rf_vpp *meshes,const rf_weapon_model_names *names,
+    const uint32_t selected[2],uint32_t budget,rf_weapon_model_owner *owner)
+{
+    rf_weapon_model_owner v={0},empty={0};rf_model_file *file=NULL;
+    uint64_t bytes;uint32_t i,j,capacity=0;int status=RF_OK;
+    if(!meshes || !names || !selected || !owner || names->count>64 || memcmp(owner,&empty,sizeof(empty)))return RF_RANGE;
+    for(i=0;i<64;++i) {
+        v.weapons[i].muzzle=v.weapons[i].grip=-1;
+        if(i<names->count) {
+            if(!memchr(names->files[i],0,64))return RF_RANGE;
+            v.weapons[i].name_nonempty=names->files[i][0]!=0;
+            if((selected[i/32]&(1u<<(i%32))) && names->files[i][0])++capacity;
+        }
+    }
+    bytes=sizeof(v)+(uint64_t)capacity*sizeof(*v.items);
+    if(bytes+(capacity?sizeof(*file):0)>budget)return RF_RANGE;
+    if(capacity) {
+        v.items=calloc(capacity,sizeof(*v.items));file=malloc(sizeof(*file));
+        if(!v.items || !file){status=RF_IO;goto done;}
+    }
+    for(i=0;i<names->count;++i)if((selected[i/32]&(1u<<(i%32))) && names->files[i][0]) {
+        char filename[64];rf_weapon_static_model *item;
+        status=rf_model_compiled_filename(names->files[i],filename,".v3m");if(status)goto done;
+        for(j=0;j<v.count;++j)if(same(filename,v.items[j].filename))break;
+        if(j==v.count) {
+            item=v.items+j;++v.count;memcpy(item->filename,filename,strlen(filename)+1);
+            status=rf_model_file_open(file,meshes,filename);if(status)goto done;
+            status=rf_static_render_resource_open(file,(uint32_t)(budget-bytes-sizeof(*file)+sizeof(item->render)),&item->render);if(status)goto done;
+            bytes+=item->render.allocated_bytes-sizeof(item->render);
+            status=rf_static_model_tags_open(file,(uint32_t)(budget-bytes-sizeof(*file)+sizeof(item->tags)),&item->tags);if(status)goto done;
+            bytes+=item->tags.allocated_bytes-sizeof(item->tags);
+        }
+        v.weapons[i].model=j+1;
+    }
+    v.allocated_bytes=(uint32_t)bytes;v.peak_bytes=(uint32_t)(bytes+(capacity?sizeof(*file):0));
+    *owner=v;memset(&v,0,sizeof(v));
+done:
+    free(file);rf_weapon_models_close(&v);return status;
+}
+
 int rf_weapon_model_names_read(const void *text,uint32_t bytes,rf_weapon_model_names *result)
 {
     rf_weapon_model_names v={0};rf_weapon_names names;lexer l={text,bytes,0};
