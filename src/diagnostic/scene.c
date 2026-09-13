@@ -374,40 +374,6 @@ static int scene_particle_draw_one(scene_stream *stream,uint32_t index,rf_scene_
     if(sink){status=sink(context,vertices,polygon.count,image,mode);if(status)return status;}
     ++row[3];row[4]+=polygon.count;return RF_OK;
 }
-int rf_scene_draw_particles(rf_scene_particle_sink sink,void *context)
-{
-    scene_stream *stream=particle_draw_stream;scene_particle_workspace *workspace;
-    uint32_t row[6]={0,0,0,0,0,2166136261u},room,i,j;int status;
-    if(!stream || !stream->particle_workspace)return RF_OK;
-    workspace=stream->particle_workspace;row[0]=stream->particle_frame;
-    for(room=0;room<stream->visibility.state.visible_count;room++) {
-        uint32_t count=0;
-        status=rf_level_particles_queue_room(&stream->particles,stream->visibility.state.order[room]+1,
-            &stream->particle_camera.frustum,NULL,NULL,workspace->records,2048,&count);if(status)return status;
-        row[1]+=count;
-        for(i=0;i<count;i++) {
-            memcpy(workspace->spheres[i].position,workspace->records[i].position,12);
-            workspace->spheres[i].radius=workspace->records[i].radius;workspace->spheres[i].sorted=workspace->records[i].sorted;
-        }
-        status=rf_render_sphere_order(workspace->spheres,count,stream->particle_camera.view.origin,workspace->order,workspace->distances);if(status)return status;
-        for(i=0;i<count;i++) {
-            const rf_render_queue_record *entry=workspace->records+workspace->order[i];
-            if(entry->callback==RF_LEVEL_PARTICLE_DRAW_SINGLE) {
-                status=scene_particle_draw_one(stream,entry->object,sink,context,row);if(status)return status;
-            } else if(entry->callback==RF_LEVEL_PARTICLE_DRAW_EMITTER) {
-                uint32_t list=RF_PARTICLE_BASE_LISTS+entry->object,visited=0;
-                if(entry->object>=RF_PARTICLE_EMITTER_CAPACITY)return RF_RANGE;
-                for(j=stream->particles.state->lists[list].next;j!=RF_PARTICLE_CAPACITY+list;j=stream->particles.state->records[j].next) {
-                    if(j>=RF_PARTICLE_CAPACITY || ++visited>RF_PARTICLE_CAPACITY)return RF_RANGE;
-                    status=scene_particle_draw_one(stream,j,sink,context,row);if(status)return status;
-                }
-            } else return RF_RANGE;
-        }
-    }
-    memcpy(rf_scene_particle_draw_frames[row[0]%64],row,sizeof(row));
-    ++rf_scene_particle_draw_summary[0];for(i=1;i<5;i++)rf_scene_particle_draw_summary[i]+=row[i];
-    rf_scene_particle_draw_summary[5]=(rf_scene_particle_draw_summary[5]^row[5])*16777619u;return RF_OK;
-}
 uint32_t rf_scene_visibility_summary[6],rf_scene_visibility_frames[64][17];
 uint32_t rf_scene_particles_summary[8],rf_scene_particles_frames[64][12];
 uint32_t rf_scene_particle_view_enabled;
@@ -6860,13 +6826,15 @@ typedef struct scene_corona_context {
     scene_glare_search_context snapshot;scene_stream *stream;rf_scene_particle_sink sink;void *context;
     uint32_t selected,color,bitmap;
 } scene_corona_context;
+uint32_t rf_scene_volume_draw[8]; /* frames, routines, submitted, polygons, vertices, hash, reserved, errors */
 uint32_t rf_scene_corona_draw[8]; /* frames, marked, routines, polygons, vertices, hash, snapshot bytes, errors */
 static int scene_corona_color(void *context,uint32_t r,uint32_t g,uint32_t b,uint32_t a)
 {scene_corona_context *c=context;c->color=(r&255u)|((g&255u)<<8)|((b&255u)<<16)|((a&255u)<<24);return RF_OK;}
 static int scene_corona_texture(void *context,uint32_t bitmap,int32_t second)
 {scene_corona_context *c=context;if(second!=-1 || bitmap>=campaign_glare_materials.texture_count)return RF_RANGE;c->bitmap=bitmap;return RF_OK;}
-static int scene_corona_geometry(scene_corona_context *c,const float first[3],const float *second,float angle,float size,uint32_t mode)
+static int scene_corona_geometry(scene_corona_context *c,const float first[3],const float *second,float angle,float size,uint32_t mode,uint32_t volume)
 {
+    uint32_t *row=volume?rf_scene_volume_draw:rf_scene_corona_draw;
     const rf_particle_animation *animation=&campaign_glare_materials.textures[c->bitmap].animation;
     const rf_image *image;rf_particle_screen_polygon polygon={0};rf_particle_billboard_vertex world[4];
     rf_particle_draw_vertex vertices[12];rf_particle_vertex_environment e={0};
@@ -6878,7 +6846,8 @@ static int scene_corona_geometry(scene_corona_context *c,const float first[3],co
         if(frame<0 || (uint32_t)frame>=animation->count)return RF_RANGE;
         image=animation->images+frame;
     }
-    if(second){status=rf_corona_oriented_build(c->stream->particle_camera.view.origin,
+    if(volume)status=rf_volume_beam_project(&c->stream->particle_camera,first,second,size,&polygon);
+    else if(second){status=rf_corona_oriented_build(c->stream->particle_camera.view.origin,
         c->stream->particle_camera.projection.matrix+6,first,second,size,world,&kind);if(status)return status;
         if(!kind)return RF_OK;
         if(kind==2)status=rf_particle_world_quad(&c->stream->particle_camera,world,&polygon);
@@ -6890,14 +6859,14 @@ static int scene_corona_geometry(scene_corona_context *c,const float first[3],co
     e.depth_scale=e.reciprocal_scale=c->stream->particle_camera.view.scale[2];e.uv_scale[0]=e.uv_scale[1]=1;
     for(i=0;i<polygon.count;++i){status=rf_particle_vertex_encode(&e,polygon.vertices+i,vertices+i);if(status)return status;}
     if(c->sink){status=c->sink(c->context,vertices,polygon.count,image,mode);if(status)return status;}
-    ++rf_scene_corona_draw[3];rf_scene_corona_draw[4]+=polygon.count;
-    rf_scene_corona_draw[5]=npc_hash_bytes(rf_scene_corona_draw[5],vertices,polygon.count*sizeof(*vertices));
-    rf_scene_corona_draw[5]=npc_hash_bytes(rf_scene_corona_draw[5],&c->bitmap,4);return RF_OK;
+    ++row[3];row[4]+=polygon.count;
+    row[5]=npc_hash_bytes(row[5],vertices,polygon.count*sizeof(*vertices));
+    row[5]=npc_hash_bytes(row[5],&c->bitmap,4);return RF_OK;
 }
 static int scene_corona_billboard(void *c,const float p[3],float angle,float size,uint32_t mode)
-{return scene_corona_geometry(c,p,NULL,angle,size,mode);}
+{return scene_corona_geometry(c,p,NULL,angle,size,mode,0);}
 static int scene_corona_oriented(void *c,const float p[3],const float q[3],float size,uint32_t mode)
-{return scene_corona_geometry(c,p,q,0,size,mode);}
+{return scene_corona_geometry(c,p,q,0,size,mode,0);}
 static int scene_corona_parent(void *context,uint32_t handle,uint32_t *visible)
 {
     scene_corona_context *c=context;const rf_glare_visibility_object *parent;uint32_t room;int status;
@@ -6933,32 +6902,96 @@ static int scene_corona_render(void *context,rf_glare_base_owner *owner,uint32_t
     f.field_of_view=90;f.intensity_scale=f.size_scale=.5f;f.frame=c->stream->particle_frame;f.view=view;f.face_cache_state=-1;
     ++rf_scene_corona_draw[2];return rf_glare_corona_render(owner,campaign_glare_classes.definitions+cls,&f,&services);
 }
+static int scene_volume_special(void *c,rf_glare_base_owner *o,uint32_t *allowed)
+{(void)c;(void)o;(void)allowed;return RF_NOT_FOUND;}
+static int scene_volume_actor(void *context,rf_glare_base_owner *owner,float *length,float *width,uint32_t *draw)
+{
+    scene_corona_context *c=context;uint32_t i;(void)length;(void)width;(void)draw;
+    for(i=c->snapshot.movers;i<c->snapshot.movers+c->snapshot.actors;++i)
+        if(c->snapshot.objects[i].handle==owner->parent_handle)return RF_NOT_FOUND;
+    return RF_OK;
+}
+static int scene_volume_beam(void *context,const float end[3],const float start[3],float width,uint32_t mode)
+{++rf_scene_volume_draw[2];return scene_corona_geometry(context,end,start,0,width,mode,1);}
+static int scene_volume_render(scene_corona_context *c,rf_glare_base_owner *owner)
+{
+    uint32_t cls=owner->state.class_index,bitmap;int status;rf_glare_volume_frame frame={0};
+    rf_glare_volume_services services={scene_volume_special,scene_corona_parent,scene_volume_actor,scene_corona_enable,
+        scene_corona_color,scene_corona_texture,scene_volume_beam,c};
+    if(owner->flags&2)return RF_OK;
+    if(cls>=campaign_glare_classes.count || cls>=campaign_glare_materials.count)return RF_RANGE;
+    bitmap=campaign_glare_materials.bindings[cls][1];frame.bitmap=bitmap==UINT32_MAX?-1:(int32_t)bitmap;
+    frame.mode=RF_PARTICLE_GLOW_MODE;memcpy(frame.camera,c->stream->particle_camera.view.origin,12);
+    ++rf_scene_volume_draw[1];status=rf_glare_volume_render(owner,campaign_glare_classes.definitions+cls,&frame,&services);
+    if(!status)owner->flags|=0x10;return status;
+}
+int rf_scene_draw_particles(rf_scene_particle_sink sink,void *context)
+{
+    scene_stream *stream=particle_draw_stream;scene_particle_workspace *workspace;
+    scene_corona_context c={0};uint32_t selected,bytes;
+    uint32_t row[6]={0,0,0,0,0,2166136261u},room,i,j;int status;
+    if(!stream || !stream->particle_workspace)return RF_OK;
+    c.stream=stream;c.sink=sink;c.context=context;
+    if(!stream->particle_frame){memset(rf_scene_corona_draw,0,sizeof(rf_scene_corona_draw));rf_scene_corona_draw[5]=2166136261u;
+        memset(rf_scene_volume_draw,0,sizeof(rf_scene_volume_draw));rf_scene_volume_draw[5]=2166136261u;}
+    if(campaign_spawn && campaign_glare_rooms){status=scene_glare_snapshot(&c.snapshot,&selected,&bytes);if(status)goto done;}
+    ++rf_scene_volume_draw[0];
+    workspace=stream->particle_workspace;row[0]=stream->particle_frame;
+    for(room=0;room<stream->visibility.state.visible_count;room++) {
+        uint32_t count=0;
+        status=rf_level_particles_queue_room(&stream->particles,stream->visibility.state.order[room]+1,
+            &stream->particle_camera.frustum,NULL,NULL,workspace->records,2048,&count);if(status)goto done;
+        row[1]+=count;
+        if(campaign_spawn && campaign_glare_rooms)for(i=0;i<campaign_glare_instance_count;++i)if(campaign_glare_instances[i]) {
+            rf_glare_base_owner *owner=campaign_glare_instances[i];uint32_t cls=owner->state.class_index,token,volume,accepted;
+            status=rf_scene_glare_room(owner->handle,&token);if(status)goto done;
+            if(cls>=campaign_glare_materials.count){status=RF_RANGE;goto done;}
+            volume=campaign_glare_materials.bindings[cls][1];
+            status=rf_glare_collect(owner,token,stream->visibility.state.order[room]+1,volume==UINT32_MAX?-1:(int32_t)volume+1,
+                0x488b00,&stream->particle_camera.frustum,owner->position,workspace->records,2048,&count,&accepted);
+            if(status)goto done;rf_scene_corona_draw[1]+=accepted;
+        }
+        for(i=0;i<count;i++) {
+            memcpy(workspace->spheres[i].position,workspace->records[i].position,12);
+            workspace->spheres[i].radius=workspace->records[i].radius;workspace->spheres[i].sorted=workspace->records[i].sorted;
+        }
+        status=rf_render_sphere_order(workspace->spheres,count,stream->particle_camera.view.origin,workspace->order,workspace->distances);if(status)goto done;
+        for(i=0;i<count;i++) {
+            const rf_render_queue_record *entry=workspace->records+workspace->order[i];
+            if(entry->callback==RF_LEVEL_PARTICLE_DRAW_SINGLE) {
+                status=scene_particle_draw_one(stream,entry->object,sink,context,row);if(status)goto done;
+            } else if(entry->callback==RF_LEVEL_PARTICLE_DRAW_EMITTER) {
+                uint32_t list=RF_PARTICLE_BASE_LISTS+entry->object,visited=0;
+                if(entry->object>=RF_PARTICLE_EMITTER_CAPACITY){status=RF_RANGE;goto done;}
+                for(j=stream->particles.state->lists[list].next;j!=RF_PARTICLE_CAPACITY+list;j=stream->particles.state->records[j].next) {
+                    if(j>=RF_PARTICLE_CAPACITY || ++visited>RF_PARTICLE_CAPACITY){status=RF_RANGE;goto done;}
+                    status=scene_particle_draw_one(stream,j,sink,context,row);if(status)goto done;
+                }
+            } else if(entry->callback==0x488b00) {
+                rf_glare_base_owner *owner=rf_object_registry_lookup(&campaign_registry,entry->object);
+                if(!owner || owner->kind!=10){status=RF_RANGE;goto done;}
+                status=scene_volume_render(&c,owner);if(status)goto done;
+            } else {status=RF_RANGE;goto done;}
+        }
+    }
+    memcpy(rf_scene_particle_draw_frames[row[0]%64],row,sizeof(row));
+    ++rf_scene_particle_draw_summary[0];for(i=1;i<5;i++)rf_scene_particle_draw_summary[i]+=row[i];
+    rf_scene_particle_draw_summary[5]=(rf_scene_particle_draw_summary[5]^row[5])*16777619u;status=RF_OK;
+done:
+    free(c.snapshot.objects);if(status)++rf_scene_volume_draw[7];return status;
+}
 int rf_scene_draw_coronas(rf_scene_particle_sink sink,void *context)
 {
-    scene_stream *stream=particle_draw_stream;scene_corona_context c={0};uint32_t room,i,count=0,accepted,bytes;int status;
+    scene_stream *stream=particle_draw_stream;scene_corona_context c={0};uint32_t bytes;int status;
     const void *views[1];rf_glare_render_backend backend={scene_corona_enable,scene_corona_render,scene_corona_reflection,&c};
     if(!stream || !campaign_spawn || !stream->particle_workspace)return RF_OK;
-    if(!stream->particle_frame){memset(rf_scene_corona_draw,0,sizeof(rf_scene_corona_draw));rf_scene_corona_draw[5]=2166136261u;}
     /* Fresh owners have no room or samples before the first room refresh. */
     if(!campaign_glare_rooms){++rf_scene_corona_draw[0];return RF_OK;}
     c.stream=stream;c.sink=sink;c.context=context;
     status=scene_glare_snapshot(&c.snapshot,&c.selected,&bytes);if(status)return status;
     ++rf_scene_corona_draw[0];rf_scene_corona_draw[6]=bytes;
-    for(room=0;room<stream->visibility.state.visible_count;++room) {
-      count=0;
-      for(i=0;i<campaign_glare_instance_count;++i)if(campaign_glare_instances[i]) {
-        rf_glare_base_owner *owner=campaign_glare_instances[i];uint32_t cls=owner->state.class_index,token,volume;
-        status=rf_scene_glare_room(owner->handle,&token);if(status)goto done;
-        if(cls>=campaign_glare_materials.count){status=RF_RANGE;goto done;}
-        volume=campaign_glare_materials.bindings[cls][1];
-        status=rf_glare_collect(owner,token,stream->visibility.state.order[room]+1,volume==UINT32_MAX?-1:(int32_t)volume+1,
-            0x488b00,&stream->particle_camera.frustum,owner->position,stream->particle_workspace->records,2048,&count,&accepted);
-        if(status)goto done;rf_scene_corona_draw[1]+=accepted;
-      }
-    }
     views[0]=&stream->particle_camera;
     status=rf_glare_render_pass(&campaign_glare_list,views,1,views[0],0,&backend);
-done:
     free(c.snapshot.objects);if(status)++rf_scene_corona_draw[7];return status;
 }
 static int scene_frame(void *context,uint32_t frame,rf_preview_mesh *actor)

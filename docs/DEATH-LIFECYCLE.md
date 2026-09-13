@@ -9293,3 +9293,23 @@ disable after successful enable; this error policy is not original behavior.
 Both builds and22 CTest checks pass. Special-owner checks and actor aim/RNG
 modulation remain explicit service boundaries; generic488b20 flags and sorted
 scene dispatch remain caller work. No native scene integration claim.
+
+
+Scene volume queue (2026-09-13): rf_scene_draw_particles now collects glare
+records alongside particles before ordinary per-room distance sorting, then
+resolves retained type10 owners and dispatches rf_glare_volume_render. Reuses
+retained animated glare images, projected beam geometry, vertex encoding and
+platform sinks. Generic flag2 skip and successful flag10 publication are bound.
+Coronas consume the collector marks afterward. PC replay now performs particle
+calculations on non-rasterized ticks too. Special owners and actor parents
+return explicit unbound-service errors; no approximate actor behavior added.
+Native replay-20260913-003531 PASS180 frames stock64MiB, all PC comparisons
+and22 CTest checks pass. VOLUME_DRAW=[180,0,0,0,0,2166136261,0,0]: this view
+has no accepted volume resources, so positive live beam coverage remains
+required. CORONA_DRAW remains [180,3796,3796,900,3609,1684003471,34344,0].
+The first run003226 reached completion but failed an obsolete visibility
+snapshot-count assertion. Two initial fixtures plus two live snapshots per
+post-refresh frame now yield360 snapshots,13680 NPC candidates; exact PC
+equality was retained. Peak snapshot ownership remains sequential; reducing
+duplicate snapshot work and ordering other transparent scene families remain
+open. No new campaign screenshot published from this zero-beam view.

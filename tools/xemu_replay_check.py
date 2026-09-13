@@ -312,7 +312,9 @@ dvd_path = '{root.as_posix()}/build/xbox/redfaction-diagnostic.iso'
      report['glare_solids']=glare_solids
      npc_visibility=words(monitor,symbol('rf_scene_npc_visibility'),7)
      assert npc_visibility==expected('NPC_VISIBILITY') and npc_visibility[6]==0,npc_visibility
-     if args.actor_pairs:assert npc_visibility[0]>0 and npc_visibility[1]>0 and (frames+1)*npc_visibility[3]==npc_visibility[0],npc_visibility
+     # Two initial fixture snapshots, then volume and corona snapshots after
+     # each completed room refresh (frame zero has neither live snapshot).
+     if args.actor_pairs:assert npc_visibility[0]>0 and npc_visibility[1]>0 and (2+2*(frames-1))*npc_visibility[3]==npc_visibility[0],npc_visibility
      report['npc_visibility']=npc_visibility
      npc_rooms=words(monitor,symbol('rf_scene_npc_visibility_rooms'),6)
      assert npc_rooms==expected('NPC_VISIBILITY_ROOMS'),npc_rooms
@@ -344,6 +346,10 @@ dvd_path = '{root.as_posix()}/build/xbox/redfaction-diagnostic.iso'
      assert corona[1]==corona[2] and corona[3]<=corona[2] and corona[4]>=3*corona[3],corona
      assert corona[6]<=128*1024,corona
      report['corona_draw']=corona
+     volume=words(monitor,symbol('rf_scene_volume_draw'),8)
+     assert volume==expected('VOLUME_DRAW') and volume[0]==frames and volume[7]==0,volume
+     assert volume[3]<=volume[2]<=volume[1] and volume[4]>=3*volume[3],volume
+     report['volume_draw']=volume
      glare_instances=words(monitor,symbol('rf_scene_glare_instances'),10)
      assert glare_instances==expected('GLARE_INSTANCES') and glare_instances[3]==glare_instances[8] and glare_instances[9]==0,glare_instances
      assert glare_instances[5]<=glare_instances[6]<=256*1024,glare_instances

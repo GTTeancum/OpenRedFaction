@@ -28,7 +28,9 @@ Volume projection/clipping matches1024 original/PC/NXDK polygons.
 Projected animated volume beam passes2048 PC/XEMU pixel checks;84 pages recover.
 Camera-to-volume opacity matches2024 original/PC/NXDK cases, with12 input guards.
 Composed nonactor volume routine matches256 original/PC/NXDK cases plus7 failure checks.
-Connect actor gates and sorted-queue volume drawing.
+Volume records now share ordinary particle sorting;180-frame stock64MiB replay passes.
+Replay view submits zero beams: add positive native scene-volume coverage.
+Connect actor gates and complete ordering with other transparent scene objects.
 
 The stationary startup-NPC animation gate matches PC/stock64MiB XEMU;
 footstep selection and support-material helpers are verified but not live.

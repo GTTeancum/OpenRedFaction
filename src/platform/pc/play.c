@@ -153,7 +153,8 @@ static int present(void *context,uint32_t frame,const rf_preview_mesh *mesh,
     player *p=context;uint32_t i;int status;
     if(frame!=p->frames || mesh->bytes>RF_SCENE_FOLLOW_CAPACITY)return RF_RANGE;
     /* Recorded-input diagnosis projects every tick, rasterizes only the last. */
-    if(p->replay && frame+1<p->replay_count){status=rf_scene_draw_coronas(NULL,NULL);if(status)return status;
+    if(p->replay && frame+1<p->replay_count){status=rf_scene_draw_particles(NULL,NULL);if(status)return status;
+        status=rf_scene_draw_coronas(NULL,NULL);if(status)return status;
         status=rf_scene_draw_player_flash(NULL,NULL);if(status)return status;++p->frames;return RF_OK;}
     if(!p->headless && !rf_frame_clock_present(&p->clock,milliseconds(p))){++p->frames;return RF_OK;}
     status=rf_pc_raster_frame(&p->raster,mesh,materials,&p->lightmaps,world);
@@ -325,6 +326,7 @@ int main(int argc,char **argv)
             printf("ATTACHMENTS");for(i=0;i<8;++i)printf(" %u",rf_scene_attachments[i]);printf("\n");
             printf("GLARE_ROOMS");for(i=0;i<8;++i)printf(" %u",rf_scene_glare_rooms[i]);printf("\n");
             printf("CORONA_DRAW");for(i=0;i<8;++i)printf(" %u",rf_scene_corona_draw[i]);printf("\n");
+            printf("VOLUME_DRAW");for(i=0;i<8;++i)printf(" %u",rf_scene_volume_draw[i]);printf("\n");
             printf("GLARE_SEARCH");for(i=0;i<8;++i)printf(" %u",rf_scene_glare_search[i]);printf("\n");
             printf("NPC_ROOM_REFRESH");for(i=0;i<8;++i)printf(" %u",rf_scene_npc_room_refresh[i]);printf("\n");
             printf("NPC_VISIBILITY_ROOMS");for(i=0;i<6;++i)printf(" %u",rf_scene_npc_visibility_rooms[i]);printf("\n");
