@@ -471,6 +471,41 @@ int rf_weapon_supply_read(const void *ammo,uint32_t ammo_bytes,
     if(index!=v.names.count || (active && (mask&3)!=3))return RF_FORMAT;
     *result=v;return RF_OK;
 }
+int rf_weapon_model_names_read(const void *text,uint32_t bytes,rf_weapon_model_names *result)
+{
+    rf_weapon_model_names v={0};rf_weapon_names names;lexer l={text,bytes,0};
+    char t[256];uint32_t index=0;int q,status,active=0,seen=0;
+    if(!text || !result)return RF_RANGE;
+    status=rf_weapon_names_read(text,bytes,&names);if(status)return status;
+    v.count=names.count;
+    while((status=token(&l,t,&q))==RF_OK) {
+        if(q)continue;
+        if(same(t,"$Name:")) {
+            if(index>=v.count)return RF_FORMAT;
+            ++index;active=1;seen=0;
+        } else if(same(t,"#End"))active=0;
+        else if(active && same(t,"$3rd")) {
+            if(token(&l,t,&q) || q || !same(t,"Person"))return RF_FORMAT;
+            if(token(&l,t,&q) || q)return RF_FORMAT;if(!same(t,"V3D:"))continue;
+            if(seen)return RF_FORMAT;seen=1;
+            status=metadata_string(&l,v.files[index-1],64);if(status)return status;
+        }
+    }
+    if(status!=RF_NOT_FOUND)return status;
+    if(index!=v.count)return RF_FORMAT;*result=v;return RF_OK;
+}
+int rf_weapon_model_names_load(rf_vpp *tables,uint32_t budget,rf_weapon_model_names *result)
+{
+    rf_vpp_entry entry;void *text;int status;
+    if(!tables || !result)return RF_RANGE;
+    status=rf_vpp_find(tables,"weapons.tbl",&entry);if(status)return status;
+    if(!entry.size || entry.size>budget)return RF_RANGE;
+    text=malloc(entry.size);if(!text)return RF_IO;
+    status=rf_vpp_read(tables,&entry,0,text,entry.size);
+    if(!status)status=rf_weapon_model_names_read(text,entry.size,result);
+    free(text);return status;
+}
+
 int rf_weapon_reset_catalog_read(const void *text,uint32_t bytes,
     const uint32_t initial_flags[64],const rf_foley_owner *sounds,rf_weapon_reset_catalog *result)
 {

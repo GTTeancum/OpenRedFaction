@@ -23,6 +23,13 @@ int rf_weapon_names_load(rf_vpp *tables,uint32_t scratch_budget,rf_weapon_names 
 int rf_weapon_flags_read(const void *text,uint32_t bytes,uint32_t secondary,
     uint32_t *flags,uint32_t *consumed);
 
+typedef struct rf_weapon_model_names {char files[64][64];uint32_t count;} rf_weapon_model_names;
+/* Optional4c2c80 third-person filenames in stable primary/secondary ID order.
+ * Missing and explicitly empty names stay empty; duplicate fields are rejected.
+ * No model loading. Errors preserve output; archive scratch is budgeted/freed. */
+int rf_weapon_model_names_read(const void *text,uint32_t bytes,rf_weapon_model_names *result);
+int rf_weapon_model_names_load(rf_vpp *tables,uint32_t scratch_budget,rf_weapon_model_names *result);
+
 typedef struct rf_weapon_supply_catalog {
     rf_weapon_names names;
     rf_weapon_acquire_definition definitions[64];
