@@ -86,6 +86,16 @@ int rf_eye_angles_step(rf_eye_angle_state *state,uint32_t class_flags,float dt);
  * Angles include offset894+87c and offset89c+884; yaw is not applied here.
  * Finite nondegenerate axes required. Errors preserve output; alias allowed. */
 int rf_eye_physics_orientation(const float body[9],const rf_eye_angle_state *state,float output[9]);
+typedef struct rf_angular_prediction {
+    float body_delta[3],next_angles[3],orientation[9],next_orientation[9],eye_delta[3];
+} rf_angular_prediction;
+/*49f566..49f634 after angular velocity preparation, for the ordinary branch.
+ * Splits scaled velocity by descriptor refs, clamps pitch and wraps yaw/roll
+ * once via49f2a0, then constructs both4a0d70 matrices. Does not commit angles,
+ * change velocity or dispatch other49f3c0 branches. Positive/zero dt; current
+ * angles must satisfy rf_look_orientation's domain. Errors preserve output. */
+int rf_angular_predict(const float angles[3],const float velocity[3],float dt,
+    const uint32_t rotation[3],rf_angular_prediction *result);
 /* 422e2c..422e82: original matrix angle extraction, yaw-only body, and
  * physics-frame projection filtered by rotation reference == 1. No command
  * clearing, pose construction or factory ownership. Finite inputs required;

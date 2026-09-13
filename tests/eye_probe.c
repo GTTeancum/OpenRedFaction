@@ -4,6 +4,16 @@
 #include <string.h>
 int main(int argc,char **argv)
 {
+    if(argc==2 && !strcmp(argv[1],"--angular-predict")) {
+        struct {float angles[3],velocity[3],dt;uint32_t rotation[3];} in;
+        struct {int32_t status;rf_angular_prediction value;} out;
+        _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
+        while(fread(&in,sizeof(in),1,stdin)==1) {
+            memset(&out,0xa5,sizeof(out));out.status=rf_angular_predict(in.angles,in.velocity,in.dt,in.rotation,&out.value);
+            if(fwrite(&out,sizeof(out),1,stdout)!=1)return 2;
+        }
+        return ferror(stdin)?1:0;
+    }
     if(argc==2 && !strcmp(argv[1],"--physics-orientation")) {
         struct {float body[9];rf_eye_angle_state state;} in;int32_t status;
         _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);

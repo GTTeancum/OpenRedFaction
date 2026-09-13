@@ -1,5 +1,6 @@
 #include "rf/eye.h"
 #include "rf/timer.h"
+#include "rf/movement.h"
 #include <math.h>
 #include <string.h>
 static int crouched(int32_t state) { return state >= 8 && state <= 10; }
@@ -518,6 +519,28 @@ int rf_look_orientation(const float angles[3],float orientation[9])
     memcpy(out+3,basis+3,12);camera_normalize(out+3);
     look_cross(out+3,out+6,out);look_cross(out+6,out,out+3);
     memcpy(orientation,out,sizeof(out));return RF_OK;
+}
+int rf_angular_predict(const float angles[3],const float velocity[3],float dt,
+    const uint32_t rotation[3],rf_angular_prediction *result)
+{
+    rf_angular_prediction v;float delta[3];uint32_t i;int status;
+    const float half_pi=1.5707963705062866f,turn=6.2831854820251465f;
+    if(!angles || !velocity || !rotation || !result || !isfinite(dt) || dt<0)return RF_RANGE;
+    for(i=0;i<3;++i){
+        if(!isfinite(angles[i]) || !isfinite(velocity[i]))return RF_RANGE;
+        delta[i]=(float)((double)velocity[i]*dt);if(!isfinite(delta[i]))return RF_RANGE;
+        v.eye_delta[i]=rotation[i]==1?delta[i]:0;
+    }
+    status=rf_movement_body_rotation(rotation,delta,v.body_delta);if(status)return status;
+    for(i=0;i<3;++i){
+        float a=(float)((double)angles[i]+v.body_delta[i]);if(!isfinite(a))return RF_RANGE;
+        if(!i){if(a>half_pi)a=half_pi;else if(a<-half_pi)a=-half_pi;}
+        else{if(a>turn)a=(float)((double)a-turn);else if(a<-turn)a=(float)((double)a+turn);}
+        v.next_angles[i]=a;
+    }
+    status=rf_look_orientation(angles,v.orientation);if(status)return status;
+    status=rf_look_orientation(v.next_angles,v.next_orientation);if(status)return status;
+    *result=v;return RF_OK;
 }
 
 static int eye_rotate_axis(const float input[3],const float axis[3],float angle,float output[3])
