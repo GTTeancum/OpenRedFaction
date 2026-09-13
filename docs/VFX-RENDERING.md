@@ -594,3 +594,30 @@ removing slot17. Two invalid-operation guards preserve state. Both builds and
 24 CTests pass. Full-capacity initialization needed a larger instruction limit
 in the harness; no runtime code change was required. Scene visibility owner
 was empty, so authored loading, visibility updates and native rendering remain.
+
+## Authored level-light records
+
+rf_level_lights_begin/rf_level_light_next read version180 section300 using
+45f260's field sequence: UID/name, position/disk orientation, script/header
+byte, packed flags/RGBA, radius, inner angle/outer delta, cone scale, profile,
+segment length and six intensity/timing values. The632-byte output preserves
+raw degrees, disk matrix order and all flags. The minimum113-byte disk record
+bounds the declared count; strings are bounded, floats finite, and the final
+record must exhaust its section. Errors preserve both reader and output.
+No allocations, constructor calls or older-version compatibility are implied.
+
+Independent inventory finds22293 records in93 installed levels:12936 point,
+2411 cone and6946 segment shapes. Maximum934 lights (ctf06.rfl) fits the1100
+slot pool. All22293 records match byte-for-byte in PC and compiled NXDK,
+and truncating the final byte of every record rejects without mutation on
+both builds. NXDK supplies only archive reads; the shared section/bounds/
+field decoder executes. This checks the static original field sequence,
+not execution of the original loader. Both builds and24 CTests pass.
+
+45fbc0 decodes shape=(flags>>4)&15, cycle=(flags>>8)&15; flags1/2/4/8/2000
+map to original bytes86/87/84/91/85.45f740 chooses initial intensity by cycle,
+constructs segment endpoints around the center along matrix axis18, converts
+cone degrees with float0.01745329238474369, creates the source and applies
+enabled byte91. Cycles3/4 consume original RNG for timers.45f260's param3==0
+path forces class86 to0 and marks byte92. Runtime conversion, original reader
+execution, retained authored owners/timing and scene activation remain open.

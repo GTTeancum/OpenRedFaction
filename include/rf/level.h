@@ -169,6 +169,17 @@ int rf_level_ambient_next(rf_level_ambient_reader *reader,rf_level_ambient_sound
  * successful owner outlives the archive; missing section returns RF_NOT_FOUND. */
 int rf_level_owned_ambient_open(const rf_level *level,uint32_t budget,rf_level_owned_ambient *result);
 void rf_level_owned_ambient_close(rf_level_owned_ambient *sounds);
+typedef rf_level_group_reader rf_level_light_reader;
+typedef struct rf_level_light {
+    uint32_t offset,bytes,uid;char name[256],script[256];
+    float position[3],orientation_disk[9];uint32_t header_byte,flags;uint8_t color[4];
+    float radius,inner_angle,outer_delta,cone_scale;uint32_t profile;float length,cycle[6];
+} rf_level_light;
+/* v180 section300, original45f260 field sequence. Raw disk orientation,
+ * degrees, flags and high/on-time/variance/low/off-time/variance cycle values.
+ * No allocation or runtime creation; errors preserve reader and output. */
+int rf_level_lights_begin(const rf_level *,rf_level_light_reader *);
+int rf_level_light_next(rf_level_light_reader *,rf_level_light *);
 typedef rf_level_group_reader rf_level_emitter_reader;
 typedef struct rf_level_emitter {
     uint32_t offset,bytes,uid;

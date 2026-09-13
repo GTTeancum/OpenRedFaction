@@ -14,6 +14,11 @@ Shortlist:
 
 Progress reporting: include overall percent estimates at meaningful milestones and revisit remaining 24-hour workdays when measured throughput supports a forecast; current rough estimate40% (35-45%), no defensible +/-48-hour completion forecast before end-to-end gameplay.
 
+Authored v180 light reader now matches all22293 records across93 levels on
+PC/NXDK; every record also passes truncation guards. Both builds and24 tests
+pass. Convert authored matrices/degrees/flags/cycles, bind pool creation and
+retained timers, then verify original loader and native scene activation.
+
 VFX pool ownership matches1024 original/PC/NXDK operation sequences plus2048
 original/NXDK cache checks;1100-slot capacity/exhaustion/reuse checked onNXDK.
 Both builds and24 tests pass. Bind authored light loading, visibility callbacks,

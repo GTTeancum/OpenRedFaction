@@ -316,6 +316,19 @@ int main(int argc,char **argv)
         }
         return ferror(stdin)?2:0;
     }
+    if(argc==4 && !strcmp(argv[1],"--level-lights")) {
+        rf_vpp archive;rf_level level;rf_level_light_reader reader;rf_level_light emitter;int status;
+        if(rf_vpp_open(&archive,argv[2]) || rf_level_open(&level,&archive,argv[3]))return 3;
+        status=rf_level_lights_begin(&level,&reader);if(status)return 4;
+        while((status=rf_level_light_next(&reader,&emitter))==RF_OK) {
+            rf_level_light_reader truncated=reader,saved;rf_level_light guard,original;
+            truncated.cursor=emitter.offset;truncated.index--;truncated.section.size=emitter.offset+emitter.bytes-1;saved=truncated;
+            memset(&guard,0xa5,sizeof(guard));original=guard;
+            if(rf_level_light_next(&truncated,&guard)!=RF_FORMAT || memcmp(&truncated,&saved,sizeof(saved)) || memcmp(&guard,&original,sizeof(guard)))return 5;
+            if(fwrite(&emitter,sizeof(emitter),1,stdout)!=1)return 6;
+        }
+        rf_vpp_close(&archive);return status==RF_NOT_FOUND?0:7;
+    }
     if(argc==4 && !strcmp(argv[1],"--level-emitters")) {
         rf_vpp archive;rf_level level;rf_level_emitter_reader reader;rf_level_emitter emitter;int status;
         if(rf_vpp_open(&archive,argv[2]) || rf_level_open(&level,&archive,argv[3]))return 3;
