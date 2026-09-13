@@ -66,6 +66,33 @@ int rf_visibility_light_roots(const rf_light_dirty_room *rooms,uint32_t room_cou
     }
     *selected=count;return RF_OK;
 }
+int rf_visibility_light_volume(const rf_vfx_light_definition *definition,rf_light_visibility_volume *out)
+{
+    rf_vfx_light_candidate source;rf_light_visibility_volume value;int status;
+    if(!out)return RF_RANGE;status=rf_vfx_light_create(definition,&source);if(status)return status;
+    memset(&value,0,sizeof(value));value.type=source.source.type;value.radius=source.source.radius;
+    memcpy(value.position,source.source.position,12);memcpy(value.end,source.source.end,12);
+    if(value.type==3) {
+        status=rf_visibility_light_cone_prepare(value.position,source.source.axis,value.radius,definition->outer_angle,value.planes);
+        if(status)return status;
+    }
+    *out=value;return RF_OK;
+}
+int rf_visibility_light_bounds(void *context,const float minimum[3],const float maximum[3],uint32_t *hit)
+{
+    const rf_light_visibility_volume *volume=context;float lo[3],hi[3],scratch[3];uint32_t i,value=1;
+    if(!volume || !minimum || !maximum || !hit || volume->type<2 || volume->type>4)return RF_RANGE;
+    if(volume->type==3)return rf_visibility_light_cone_box(volume->planes,minimum,maximum,hit);
+    if(!isfinite(volume->radius) || volume->radius<0)return RF_RANGE;
+    for(i=0;i<3;i++) {
+        if(!isfinite(minimum[i]) || !isfinite(maximum[i]) || minimum[i]>maximum[i] || !isfinite(volume->position[i]))return RF_RANGE;
+        lo[i]=minimum[i]-volume->radius;hi[i]=maximum[i]+volume->radius;
+        if(!isfinite(lo[i]) || !isfinite(hi[i]))return RF_RANGE;
+    }
+    if(volume->type==4)return rf_collision_segment_box(lo,hi,volume->position,volume->end,scratch,hit);
+    for(i=0;i<3;i++)if(volume->position[i]<lo[i] || volume->position[i]>hi[i])value=0;
+    *hit=value;return RF_OK;
+}
 int rf_visibility_light_cone_planes(const float position[3],const float axis[3],
     float radius,float half_width,rf_visibility_plane planes[6])
 {

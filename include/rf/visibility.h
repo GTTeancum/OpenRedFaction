@@ -93,6 +93,15 @@ typedef struct rf_visibility_portal {
     float rectangle[4];
 } rf_visibility_portal;
 typedef struct rf_visibility_plane {float normal[3],distance;uint32_t corner;} rf_visibility_plane;
+typedef struct rf_light_visibility_volume {
+    uint32_t type;float position[3],end[3],radius;rf_visibility_plane planes[6];
+} rf_light_visibility_volume;
+/* Resolve authored point/cone/segment geometry, including segment radius bias.
+ * Bounds callback plugs directly into root/tree/face passes; it applies no
+ * enabled/color/class filter. Cone planes use the authored outer angle.
+ * No allocation; errors preserve output. */
+int rf_visibility_light_volume(const rf_vfx_light_definition *,rf_light_visibility_volume *);
+int rf_visibility_light_bounds(void *volume,const float minimum[3],const float maximum[3],uint32_t *hit);
 /*4d86d0 spotlight preparation: resolved position/axis and stored radius/half-width.
  * Six planes in original order; no room traversal or allocation. Errors preserve out. */
 int rf_visibility_light_cone_planes(const float position[3],const float axis[3],

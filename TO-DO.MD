@@ -14,6 +14,11 @@ Shortlist:
 
 Progress reporting: include overall percent estimates at meaningful milestones and revisit remaining 24-hour workdays when measured throughput supports a forecast; current rough estimate40% (35-45%), no defensible +/-48-hour completion forecast before end-to-end gameplay.
 
+Real point/cone/segment volume callbacks match4096 original/PC/NXDK
+preparation and bounds cases; both builds and24 tests pass. Compose with
+whole-solid/root/tree updates and alternate views, then bind native dirty
+state and timer-driven lighting.
+
 Lighting root/detail collection and repeated-root traversal match1024
 original/PC/NXDK cases each; both builds and24 tests pass. Compose whole-
 solid fallback and alternate-view dispatch, then bind actual light-volume

@@ -920,3 +920,21 @@ suite now includes full15-node trees visited twice, matching the original
 without deduplication. This supersedes the earlier disjoint-forest restriction.
 Both builds and24 CTests pass. Whole-solid fallback, alternate-view dispatch
 and native lighting-state binding still need composition/integration.
+
+### Shared real light-volume callback (2026-09-13)
+
+rf_visibility_light_volume prepares a152-byte caller-owned volume from
+the authored definition via verified source initialization, including the
+segment radius bias and spotlight angle-to-plane preparation. The matching
+rf_visibility_light_bounds callback is directly compatible with root, tree
+and face passes. Point geometry uses inclusive radius-expanded boxes;
+segment geometry uses508b70; spotlight geometry uses six-plane4d81d0.
+No enabled/color/class filtering occurs in these visibility predicates.
+
+verify_light_volume.py executes original constructors, spotlight preparation
+and each shape predicate without hooks. All4096 original/PC/NXDK cases
+match every prepared volume byte and bounds decision; hit counts are617
+point,567 spotlight and953 segment. Three input-error cases preserve output
+on PC/NXDK. Both builds and24 CTests pass. This provides the real geometry
+callback; whole-solid orchestration, alternate-view context and native
+lighting-state ownership remain unbound. No new native/render evidence.
