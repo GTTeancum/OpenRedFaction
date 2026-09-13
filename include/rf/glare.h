@@ -123,6 +123,13 @@ typedef struct rf_glare_corona_values {float intensity,size,angular,flash;} rf_g
 int rf_glare_corona_attenuate(const rf_glare_state *state,uint32_t view,
     const rf_glare_definition *definition,const rf_glare_corona_environment *environment,
     double view_angle_radians,rf_glare_corona_values *result);
+/* Resolve414860 camera math from current poses. values contains normalized
+ * camera-to-glare direction[3], glare-axis angle in degrees, distance, and
+ * camera-right dot sign. view_angle preserves the double acos result.
+ * Finite nondegenerate inputs/domain required; no acos clamping is invented.
+ * Errors preserve both outputs; caller keeps arrays disjoint. */
+int rf_glare_corona_camera_setup(const rf_glare_base_owner *owner,const float camera[3],
+    const float basis[9],float values[6],double *view_angle);
 typedef struct rf_glare_services {
     int (*tag_pose)(void *,uint32_t,int32_t,float[12]);void *context;
 } rf_glare_services;

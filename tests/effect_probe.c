@@ -45,6 +45,17 @@ static int corona_oriented(void *context,const float first[3],const float second
  memcpy(record+2,&size,4);memcpy(record+3,&distance,4);return corona_record(c,record);}
 int main(int argc,char **argv)
 {
+    if(argc==2 && !strcmp(argv[1],"--corona-camera")) {
+        float wire[24];_setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
+        while(fread(wire,4,24,stdin)==24) {
+            rf_glare_base_owner owner={0};float values[6];double angle;uint32_t output[9];int status;
+            memcpy(owner.position,wire,12);memcpy(owner.matrix,wire+3,36);memset(values,0xa5,sizeof(values));memset(&angle,0xa5,8);
+            status=rf_glare_corona_camera_setup(&owner,wire+12,wire+15,values,&angle);
+            output[0]=(uint32_t)status;memcpy(output+1,values,24);memcpy(output+7,&angle,8);if(fwrite(output,4,9,stdout)!=9)return 3;
+        }
+        return 0;
+    }
+
     if(argc==2 && !strcmp(argv[1],"--corona-attenuation")) {
         uint32_t wire[17];_setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
         while(fread(wire,4,17,stdin)==17) {

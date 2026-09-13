@@ -318,6 +318,31 @@ uint32_t rf_clutter_material_index(const char *name)
     for(i=0;i<10;++i)if(clutter_skin_name_equal(names[i],name))return i;
     return 0;
 }
+static double corona_dot(const float first[3],const float second[3])
+{
+    return ((double)first[2]*second[2]+(double)first[1]*second[1])+(double)first[0]*second[0];
+}
+int rf_glare_corona_camera_setup(const rf_glare_base_owner *owner,const float camera[3],
+    const float basis[9],float values[6],double *view_angle)
+{
+    float delta[3],direction[3],reverse[3],out[6];double length,reciprocal,dot,angle,side;uint32_t i;
+    if(!owner || !camera || !basis || !values || !view_angle)return RF_RANGE;
+    for(i=0;i<3;++i) {
+        volatile float component=owner->position[i]-camera[i];
+        if(!isfinite(owner->position[i]) || !isfinite(camera[i]) || !isfinite(component))return RF_FORMAT;
+        delta[i]=component;
+    }
+    for(i=0;i<9;++i)if(!isfinite(basis[i]) || !isfinite(owner->matrix[i]))return RF_FORMAT;
+    length=sqrt(((double)delta[0]*delta[0]+(double)delta[1]*delta[1])+(double)delta[2]*delta[2]);
+    if(!isfinite(length) || length<=0)return RF_FORMAT;reciprocal=1.0/length;
+    for(i=0;i<3;++i){direction[i]=(float)(reciprocal*(double)delta[i]);reverse[i]=-direction[i];out[i]=direction[i];}
+    dot=corona_dot(owner->matrix+6,reverse);if(dot < -1 || dot > 1)return RF_FORMAT;
+    out[3]=(float)(acos(dot)*(double)57.2957763671875f);out[4]=(float)length;
+    dot=corona_dot(basis+6,direction);if(dot < -1 || dot > 1)return RF_FORMAT;angle=acos(dot);
+    side=corona_dot(basis,direction);out[5]=side<0?-1.0f:side>0?1.0f:0;
+    if(!isfinite(out[3]) || !isfinite(out[4]) || !isfinite(angle))return RF_FORMAT;
+    memcpy(values,out,sizeof(out));*view_angle=angle;return RF_OK;
+}
 int rf_glare_corona_attenuate(const rf_glare_state *state,uint32_t view,
     const rf_glare_definition *definition,const rf_glare_corona_environment *environment,
     double view_angle_radians,rf_glare_corona_values *result)

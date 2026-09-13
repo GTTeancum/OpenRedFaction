@@ -8763,3 +8763,22 @@ and acos573630 results supplied. Actual dot/clamp/max/sqrt/x87 arithmetic runs.
 cone edges and distance12 flash cutoff. Both builds and21CTest pass. This
 does not verify upstream vector/acos setup, flash alpha/submission, parent
 gates, full frame scheduling or native corona geometry; those remain open.
+
+
+## Corona camera vector and angle setup (2026-09-12)
+
+rf_glare_corona_camera_setup resolves stored camera-to-glare delta, reciprocal
+length normalization, reverse-direction dot with glare forward, degree angle,
+distance, camera-forward acos and camera-right dot sign. No acos clamp is
+invented. Finite, nondegenerate geometry and valid dot domains are required;
+failures preserve both outputs. The double camera angle feeds attenuation
+without an intermediate float cast; side sign feeds the common draw tail.
+
+verify_corona_camera.py executes original4148f1..414948 and414a73..414aa8
+with actual subtraction,4faaf0 normalization,4faed0 distance,40a0b0 dot and
+CRT573630 acos, no hooks.517 cases plus2 guards pass PC/compiled NXDK.
+Direction, float degree angle, distance and side sign are bit exact.841 of
+1034 double-angle comparisons are exact; maximum absolute difference is
+4.440892098500626e-16 radians (acceptance1e-14). Both builds and21CTest pass.
+Parent gates, scene camera binding, full coroutine/frame order, flash and
+geometry services remain open; no native draw claim is made here.
