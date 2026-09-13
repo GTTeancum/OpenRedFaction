@@ -15,6 +15,24 @@ uint32_t rf_weapon_world_model_token(const rf_weapon_world_model models[64],int3
 int rf_weapon_world_tag(rf_weapon_world_model models[64],int32_t weapon,uint32_t kind,
     int (*lookup)(void *,uint32_t,const char *,int32_t *),void *context,int32_t *tag);
 
+typedef struct rf_weapon_hand_source {
+    uint32_t actor_model;int32_t weapon;uint32_t hand_count;int32_t hands[8];
+    float position[3],basis[9];
+} rf_weapon_hand_source;
+typedef struct rf_weapon_hand_placement {float hand[3],position[3],basis[9];} rf_weapon_hand_placement;
+typedef struct rf_weapon_hand_ops {
+    int (*tag)(void *,uint32_t,const char *,int32_t *);
+    int (*transform)(void *,uint32_t,int32_t,const float basis[9],const float position[3],float out_basis[9],float out_position[3]);
+} rf_weapon_hand_ops;
+/*418e60: hand transform, copied output pose, then grip offset correction.
+ * Missing hand/model returns NOT_FOUND without output writes. Callbacks retain
+ * source/models and may change source.weapon; grip lookup rereads that weapon,
+ * while the second transform uses the initially captured weapon model. Errors
+ * preserve earlier output writes. Successful transforms must write the complete
+ * output pose. Full model transform is a supplied service. */
+int rf_weapon_place_in_hand(const rf_weapon_hand_source *source,int32_t hand,
+    rf_weapon_world_model models[64],const rf_weapon_hand_ops *ops,void *context,rf_weapon_hand_placement *result);
+
 typedef struct rf_weapon_presentation_state {
     uint32_t model,auxiliary; /* Player +34/+38; opaque 32-bit model tokens. */
     int32_t current,pending,deadline; /* +1080/+f80/+f84 (not queue timer +b8). */

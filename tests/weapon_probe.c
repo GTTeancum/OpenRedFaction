@@ -9,6 +9,7 @@
 #include "weapon_ammo_probe.h"
 #include "weapon_startup_probe.h"
 #include "weapon_world_probe.h"
+#include "weapon_hand_probe.h"
 int main(int argc,char **argv)
 {
     struct { int32_t weapon; rf_weapon_reset_state state; rf_weapon_descriptor descriptors[64];
@@ -18,6 +19,7 @@ int main(int argc,char **argv)
     _Static_assert(sizeof(input)==2284,"Weapon reset wire layout");
     _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
     if(argc==2 && !strcmp(argv[1],"--world-tags"))return weapon_world_probe();
+    if(argc==2 && !strcmp(argv[1],"--hand-placement"))return weapon_hand_probe();
     if(argc==2 && !strcmp(argv[1],"--player-slots"))return weapon_slots_probe();
     if(argc==2 && !strcmp(argv[1],"--pickup-amount")) {
         uint32_t in[6];int32_t out[3];

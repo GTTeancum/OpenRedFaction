@@ -22,6 +22,28 @@ int rf_weapon_world_tag(rf_weapon_world_model models[64],int32_t weapon,uint32_t
     *tag=*cached;return RF_OK;
 }
 
+int rf_weapon_place_in_hand(const rf_weapon_hand_source *source,int32_t hand,
+    rf_weapon_world_model models[64],const rf_weapon_hand_ops *ops,void *context,rf_weapon_hand_placement *result)
+{
+    uint32_t model,i;int32_t grip;int status;float basis[9]={1,0,0,0,1,0,0,0,1};
+    float unused_basis[9]={1,0,0,0,1,0,0,0,1},point[3]={0};
+    if(!source || !models || !result || hand<0 || source->hand_count>8)return RF_RANGE;
+    if((uint32_t)hand>=source->hand_count)return RF_NOT_FOUND;
+    model=rf_weapon_world_model_token(models,source->weapon);if(!model)return RF_NOT_FOUND;
+    if(!ops || !ops->transform)return RF_NOT_FOUND;
+    status=ops->transform(context,source->actor_model,source->hands[hand],source->basis,source->position,basis,result->hand);if(status)return status;
+    memcpy(result->position,result->hand,12);memcpy(result->basis,basis,36);
+    status=rf_weapon_world_tag(models,source->weapon,0,ops->tag,context,&grip);if(status)return status;
+    if(grip!=-1) {
+        status=ops->transform(context,model,grip,basis,result->hand,unused_basis,point);if(status)return status;
+        for(i=0;i<3;++i) {
+            float offset=(float)((double)point[i]-result->hand[i]);
+            result->position[i]=(float)((double)result->position[i]-offset);
+        }
+    }
+    return RF_OK;
+}
+
 int rf_weapon_update_presentation(rf_weapon_presentation_state *state,int32_t weapon,
     const rf_weapon_model_descriptor descriptors[64],const rf_weapon_model_cache cache[32],
     const rf_weapon_presentation_context *context,const rf_weapon_presentation_ops *ops,
