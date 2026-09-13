@@ -1430,3 +1430,39 @@ int rf_vfx_mesh_uv(const rf_vfx_mesh *mesh,const rf_vfx_frame_cursor *cursor,uin
     if(a!=b){status=vfx_owned_uv(mesh,b,face,second);if(status)return status;}
     return rf_vfx_uv_sample(first,a!=b?second:NULL,cursor->fraction,a!=b,out);
 }
+
+int rf_vfx_morph_read(const float first[8],const void *first_vertex,
+    const float second[8],const void *second_vertex,float fraction,int interpolate,rf_vfx_morph_sample *out)
+{
+    rf_vfx_morph_sample v={0};float a[3],b[3],inverse,left,right;uint32_t i;int status;
+    if(!first || !first_vertex || !out || (interpolate && (!second || !second_vertex)) || !isfinite(fraction) || fraction<0 || fraction>1)return RF_RANGE;
+    status=rf_vfx_vertex_decode(first_vertex,6,first,a);if(status)return status;
+    if(interpolate){status=rf_vfx_vertex_decode(second_vertex,6,second,b);if(status)return status;}
+    inverse=(float)(1.0-(double)fraction);
+    for(i=0;i<3;++i) {
+        if(interpolate) {
+            left=(float)((double)first[i]*inverse);right=(float)((double)second[i]*fraction);v.center[i]=(float)((double)left+right);
+            left=(float)((double)a[i]*inverse);right=(float)((double)b[i]*fraction);v.vertex[i]=(float)((double)left+right);
+        } else {v.center[i]=first[i];v.vertex[i]=a[i];}
+        if(!isfinite(v.center[i]) || !isfinite(v.vertex[i]))return RF_RANGE;
+    }
+    for(i=0;i<2;++i) {
+        if(!isfinite(first[i+6]) || (interpolate && !isfinite(second[i+6])))return RF_RANGE;
+        v.extra[i]=interpolate?(float)((double)first[i+6]*inverse+(double)second[i+6]*fraction):first[i+6];
+        if(!isfinite(v.extra[i]))return RF_RANGE;
+    }
+    *out=v;return RF_OK;
+}
+int rf_vfx_mesh_morph(const rf_vfx_mesh *mesh,const rf_vfx_frame_cursor *cursor,uint32_t vertex,rf_vfx_morph_sample *out)
+{
+    const rf_vfx_frame_view *a,*b;uint64_t first,second;float av[8],bv[8];
+    if(!mesh || !cursor || !out || !mesh->data || !mesh->frames || vertex>=mesh->prefix.vertices)return RF_RANGE;
+    if(!cursor->active || !(mesh->edges.flags&4))return RF_NOT_FOUND;
+    if(cursor->first>=mesh->prefix.timing.samples || cursor->second>=mesh->prefix.timing.samples)return RF_RANGE;
+    a=mesh->frames+cursor->first;b=mesh->frames+cursor->second;
+    if(!(a->present&1) || !(b->present&1) || (uint64_t)vertex*6+6>a->vertex_bytes || (uint64_t)vertex*6+6>b->vertex_bytes)return RF_FORMAT;
+    first=(uint64_t)a->vertex_offset+(uint64_t)vertex*6;second=(uint64_t)b->vertex_offset+(uint64_t)vertex*6;
+    if(first+6>mesh->bytes || second+6>mesh->bytes)return RF_FORMAT;
+    memcpy(av,a->vectors,24);memcpy(av+6,a->extra,8);memcpy(bv,b->vectors,24);memcpy(bv+6,b->extra,8);
+    return rf_vfx_morph_read(av,mesh->data+(size_t)first,bv,mesh->data+(size_t)second,cursor->fraction,cursor->first!=cursor->second,out);
+}

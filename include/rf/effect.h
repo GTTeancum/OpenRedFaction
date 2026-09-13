@@ -151,6 +151,16 @@ int rf_vfx_uv_sample(const float first[6],const float second[6],float fraction,
  * from owned input. Inactive cursor returns NOT_FOUND without changing out.
  * Cursor must come from this mesh's timing; no material UV transform here. */
 int rf_vfx_mesh_uv(const rf_vfx_mesh *,const rf_vfx_frame_cursor *,uint32_t face,float out[6]);
+typedef struct rf_vfx_morph_sample {float center[3],extra[2],vertex[3];} rf_vfx_morph_sample;
+/* Flag4 vertex-animation branch53f7c3..53f9ab and terminal53f13d..53f23d.
+ * Frame arrays contain origin[3],scale[3],extra[2]; vertex records are6 bytes.
+ * Position vector products round before addition; extras round after sum.
+ * No transformation/key animation or parent pose; errors preserve output. */
+int rf_vfx_morph_read(const float first[8],const void *first_vertex,
+    const float second[8],const void *second_vertex,float fraction,int interpolate,rf_vfx_morph_sample *);
+/* Only vertex-animated meshes; non-flag4 or inactive cursors return NOT_FOUND.
+ * Resolve owned frame spans and terminal copy without allocation. */
+int rf_vfx_mesh_morph(const rf_vfx_mesh *,const rf_vfx_frame_cursor *,uint32_t vertex,rf_vfx_morph_sample *);
 typedef struct rf_vfx_chunk {uint32_t type,offset,bytes;} rf_vfx_chunk;
 typedef struct rf_vfx_directory {
     rf_vpp *archive;rf_vpp_entry entry;rf_vfx_header header;

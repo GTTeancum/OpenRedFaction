@@ -625,3 +625,31 @@ verifier report record the evidence. No native XEMU visual is claimed.
 
 Remaining: vertex/transform/key interpolation, effect lifecycle and material
 state, parent composition, renderer submission, and particle/warp playback.
+
+## VFX vertex animation sampling (2026-09-13)
+
+rf_vfx_morph_read reconstructs the flag4 vertex-animation branch of53f060,
+including interpolated and terminal frames. It returns center, two extra
+values and a dequantized animated vertex. The complementary weight rounds
+to float. Center/vertex weighted terms each round before addition, following
+40a070/40a030; extra values round after their weighted sum. Terminal data
+copies directly. This differs from UV interpolation's higher precision
+complement and must not be replaced with one generic blend formula.
+
+rf_vfx_mesh_morph resolves retained frame and vertex spans without allocation.
+Non-vertex-animated meshes and inactive cursors return NOT_FOUND; they require
+the separate transform-based path. Invalid indices/spans preserve output.
+This result precedes parent/object transform composition and rendering.
+
+verify_vfx_morph.py executes the original vertex-animation/terminal branches
+through54010a using actual vector/dequantization helpers and no service hooks.
+2048 original/PC/compiled NXDK center/extra/vertex cases match;2 invalid cases
+preserve output. Extended owned-mesh verification adds1664 morph accessor
+checks (832 each at normal/exact budgets) against the original-verified raw
+sampler and checks rejection for non-flag4 meshes. Existing ownership, vertex
+and UV checks remain green. Both builds and24 CTests pass. Evidence:
+artifacts/vfx-morph.json and artifacts/vfx-mesh-owned.json. No native XEMU
+run or new rendered visual is claimed.
+
+Next: transform/key motion, including569f70 translation,56a250 rotation and
+56a3f0 scale; then compose playback, material state and renderer submission.
