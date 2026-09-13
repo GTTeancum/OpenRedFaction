@@ -10136,3 +10136,16 @@ CTest checks pass. This verifies actual flat geometry composition, not
 room hierarchy, cache/preferred behavior, loaded scene ownership or native
 XEMU execution. Room hierarchy coverage and combined route binding remain
 open before claiming live NPC navigation.
+
+
+Navigation visibility through room hierarchy (2026-09-13)
+
+verify_ai_visibility_rooms.py executes full unhooked4ce740 and4df1c0
+through four actual single-face room trees.2048 cases match PC and NXDK
+rf_entity_navigation_visible_solid:712 blocked and1336 clear. Ordered
+primary and child lists, skip bytes0/1/255, room bounds overlap, zero
+motion, thin/swept radii and polygon edge approaches are included. The
+PC fixture uses the same shared solid binding and owned tree scratch;
+NXDK verification uses the existing7f51500 build, unchanged production
+code. PC probe rebuild passes. No preferred/cache-face or live scene
+routing coverage is claimed; combined route ownership remains open.

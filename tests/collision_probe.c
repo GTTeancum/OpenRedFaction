@@ -1505,7 +1505,7 @@ int main(int argc,char **argv)
         printf("%u %u %u %u %u %u %u %u %u %u %u\n",world.room_count,faces,world.primary_count,world.child_count,world.allocated_bytes,world.peak_bytes,queries,hits,errors,hashes[0],edge_hits);
         free(poison);rf_geometry_collision_world_close(&world);rf_vpp_close(&archive);return 0;
     }
-    if(argc==2 && (!strcmp(argv[1],"--transformed-rooms") || !strcmp(argv[1],"--transformed-rooms-textured") || (!strcmp(argv[1],"--preferred-rooms") || !strcmp(argv[1],"--preferred-rooms-textured")))) {
+    if(argc==2 && (!strcmp(argv[1],"--ai-visible-rooms") || !strcmp(argv[1],"--transformed-rooms") || !strcmp(argv[1],"--transformed-rooms-textured") || (!strcmp(argv[1],"--preferred-rooms") || !strcmp(argv[1],"--preferred-rooms-textured")))) {
         uint32_t preferred_mode=(!strcmp(argv[1],"--preferred-rooms") || !strcmp(argv[1],"--preferred-rooms-textured")),preferred_index;
         struct {struct {float bounds[6],z;uint32_t skip,first,count;} rooms[4];uint32_t primary[2],children[4];float start[3],delta[3],limit;uint32_t flags;float radius,origin[3],matrix[3][3];} in;
         while(fread(&in,sizeof(in),1,stdin)==1) {
@@ -1522,6 +1522,13 @@ int main(int argc,char **argv)
                 for(j=0;j<4;j++) {vertices[i][j][0]=(j==0 || j==3)?-2:2;vertices[i][j][1]=j<2?-2:2;vertices[i][j][2]=z;}
             }
             memset(&out,0xa5,sizeof(out));
+            if(!strcmp(argv[1],"--ai-visible-rooms")) {
+                rf_collision_solid_view solid={0};rf_entity_navigation_candidate node={0};uint32_t answer[2]={0,99};
+                solid.rooms=rooms;solid.room_count=4;solid.primary=in.primary;solid.primary_count=2;
+                solid.children=in.children;solid.child_count=4;memcpy(node.query_point,in.start,12);
+                answer[0]=rf_entity_navigation_visible_solid(&solid,&node,in.delta,in.radius,in.limit,answer+1);
+                if(fwrite(answer,sizeof(answer),1,stdout)!=1)return 3;continue;
+            }
             if(!strcmp(argv[1],"--transformed-rooms-textured")) {
                 int32_t bitmaps[4]={0,1,2,3};collision_room_texture_fixture fixture;
                 rf_collision_indexed_texture_backend backends[4];
