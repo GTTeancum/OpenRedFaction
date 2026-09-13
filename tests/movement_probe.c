@@ -11,6 +11,14 @@ int main(int argc,char **argv)
     int32_t status;
     _Static_assert(sizeof(input)==56,"Movement settings wire layout");
     _setmode(_fileno(stdin),_O_BINARY); _setmode(_fileno(stdout),_O_BINARY);
+    if(argc==2 && !strcmp(argv[1],"--angular-route")) {
+        uint32_t in[4],out;
+        while(fread(in,sizeof(in),1,stdin)==1) {
+            out=(uint32_t)rf_movement_angular_route(in[0],in[1],in[2],in[3]);
+            if(fwrite(&out,4,1,stdout)!=1)return 1;
+        }
+        return ferror(stdin)?1:0;
+    }
     if(argc==2 && !strcmp(argv[1],"--body-rotation")) {
         struct {uint32_t reference[3];float input[3];} v;
         while(fread(&v,sizeof(v),1,stdin)==1) {

@@ -4,6 +4,16 @@
 typedef struct rf_movement_descriptor {
     uint32_t enabled,index,translation[3],rotation[3];
 } rf_movement_descriptor;
+typedef enum rf_angular_route {
+    RF_ANGULAR_ORDINARY=0,RF_ANGULAR_EXTERNAL,RF_ANGULAR_PHYSICS,
+    RF_ANGULAR_MODE15,RF_ANGULAR_PLAYER_LOOK,RF_ANGULAR_SKIP
+} rf_angular_route;
+/*49f3e4..49f446/49f636: ordered angular dispatch only. primary means actual
+ * pointer identity with5cb054; control uses byte720. ORDINARY still requires
+ * drive selection and flag1000000 preparation bypass; prediction remains due.
+ * SKIP bypasses angular work but not49f3c0's subsequent translation work. */
+rf_angular_route rf_movement_angular_route(uint32_t body_flags,uint32_t mode,
+    uint32_t control,uint32_t primary);
 /* Original4339d0 selection plus422dfa creation flag adjustment. Disabled
  * low-byte enabled or out-of-range requested index selects slot0 (even when
  * slot0 is disabled). Descriptor mode10 clears body flag10. Returns slot;

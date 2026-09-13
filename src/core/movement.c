@@ -1,6 +1,14 @@
 #include "rf/movement.h"
 #include <math.h>
 #include <string.h>
+rf_angular_route rf_movement_angular_route(uint32_t flags,uint32_t mode,uint32_t control,uint32_t primary)
+{
+    if((flags&0x8000u) && !primary)return RF_ANGULAR_EXTERNAL;
+    if(flags&0x4000u)return RF_ANGULAR_PHYSICS;
+    if(mode==15)return RF_ANGULAR_MODE15;
+    if((control&255u) || (flags&0x80u))return (flags&0x1000000u)?RF_ANGULAR_SKIP:RF_ANGULAR_PLAYER_LOOK;
+    return RF_ANGULAR_ORDINARY;
+}
 int rf_movement_body_rotation(const uint32_t reference[3],const float input[3],float output[3])
 {
     uint32_t values[3],axis;

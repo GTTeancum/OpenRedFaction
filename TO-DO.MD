@@ -62,6 +62,7 @@ Physics eye-matrix composition matches2048 original/PC/NXDK cases plus3 guards; 
 Retained NPC look/steering services pass38 restored-state PC/stock64MiB XEMU cases; bind AI follower and angular delta/physics scheduling.
 Composed angular prediction49f566 passes2048 original/NXDK cases with bounded PC matrix residuals; bind angular preparation, collision prediction and commit.
 Ordinary angular velocity preparation matches2048 original/PC/NXDK cases plus7 guards; bind drive predicates, special-mode dispatch and prediction.
+Angular dispatch precedence matches800 original/PC/NXDK cases; bind SP player/control references and remaining special rotation services.
 AI scalar401cc0 and occupant-chain4077a0 each match2048 original/PC/NXDK cases; retain scalar/override sources.
 Shared408ac0 selection matches2048 original/PC/NXDK cases across107 paths plus21 failure checks.
 AI animation resets4091d0/409210 match2048 original/PC/NXDK cases plus4 failure checks.
