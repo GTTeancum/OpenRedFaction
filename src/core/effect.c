@@ -1242,3 +1242,38 @@ int rf_vfx_mesh_edges_read(const void *data,uint32_t bytes,uint32_t version,
     v.mesh_flags=((mesh_flags&0xfffdu)|(word<<1))&0xffffu;
     if(c.failed)return RF_FORMAT;v.bytes=c.at;*out=v;return RF_OK;
 }
+
+static void vfx_frame_floats(vfx_material_cursor *c,float *out,uint32_t count)
+{
+    uint32_t i,word;for(i=0;i<count;++i){word=vfx_material_word(c);memcpy(out+i,&word,4);if(!isfinite(out[i]))c->failed=1;}
+}
+int rf_vfx_frame_read(const void *data,uint32_t bytes,const rf_vfx_frame_config *cfg,rf_vfx_frame_view *out)
+{
+    rf_vfx_frame_view v={0};vfx_material_cursor c={data,bytes,0,0};uint64_t span;uint32_t i;float value;
+    if(!data || !cfg || !out)return RF_RANGE;
+    if(cfg->version<0x30000 || cfg->version>0x7fffffffu || (cfg->version>=0x40000 && cfg->version<0x40005))return RF_FORMAT;
+    if((cfg->flags&4) || cfg->index==0) {
+        v.present|=1;vfx_frame_floats(&c,v.vectors,6);v.vertex_offset=c.at;span=(uint64_t)cfg->vertices*6;
+        if(c.failed || span>bytes-c.at)return RF_FORMAT;v.vertex_bytes=(uint32_t)span;c.at+=(uint32_t)span;
+        if(cfg->flags&0x801) {
+            v.present|=2;
+            if(cfg->version>=0x3000b)vfx_frame_floats(&c,v.extra,2);
+            else {v.extra[0]=cfg->legacy[0];v.extra[1]=cfg->legacy[1];if(!isfinite(v.extra[0]) || !isfinite(v.extra[1]))return RF_FORMAT;}
+            if((cfg->flags&0x800) && cfg->index==0){v.present|=4;if(cfg->version>=0x40001)vfx_frame_floats(&c,v.direction,3);}
+        }
+    }
+    if(cfg->version>=0x3000d && ((cfg->flags&0x100) || cfg->index==0)) {
+        v.present|=8;v.uv_offset=c.at;span=(uint64_t)cfg->faces*24;
+        if(c.failed || span>bytes-c.at)return RF_FORMAT;v.uv_bytes=(uint32_t)span;
+        for(i=0;i<v.uv_bytes/4;++i)vfx_frame_floats(&c,&value,1);
+    }
+    if(!(cfg->flags&4) && (!(cfg->mesh_flags&2) || (cfg->version<0x3000e && cfg->index==0))) {
+        v.present|=16;vfx_frame_floats(&c,v.transform,10);
+    }
+    if(cfg->version<0x30009)(void)vfx_material_byte(&c);
+    if(cfg->version<0x40005) {
+        v.present|=32;vfx_frame_floats(&c,&v.opacity,1);
+        if(v.opacity<=0)v.opacity=0;if(v.opacity>1)v.opacity=1;
+    }
+    if(c.failed)return RF_FORMAT;v.bytes=c.at;*out=v;return RF_OK;
+}

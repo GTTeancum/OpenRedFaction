@@ -84,6 +84,21 @@ int rf_vfx_edge_read(const void *,uint32_t bytes,uint32_t faces,rf_vfx_edge_view
  * later owned mesh binding must validate and resolve them. */
 int rf_vfx_mesh_edges_read(const void *,uint32_t bytes,uint32_t version,
     uint32_t initial_flags,uint32_t mesh_flags,uint32_t faces,rf_vfx_mesh_edges *);
+typedef struct rf_vfx_frame_config {
+    uint32_t version,flags,mesh_flags,vertices,faces,index;float legacy[2];
+} rf_vfx_frame_config;
+typedef struct rf_vfx_frame_view {
+    float vectors[6],extra[2];uint32_t vertex_offset,vertex_bytes,uv_offset,uv_bytes;
+    float transform[10],opacity,direction[3];uint32_t present,bytes;
+} rf_vfx_frame_view;
+/* Serialized frame branch53ddb8..53e05d. Presence bits:1 vertex block,
+ * 2 extra floats,4 raw direction,8 UVs,16 transform,32 opacity.
+ * Input-backed vertex uint16 triples and interleaved UV floats stay borrowed.
+ * Absent fields zero; later frames without data inherit shared owner data.
+ * Direction is serialized, BEFORE original4fab70 normalization; normalize
+ * when creating its owner. Does not parse following key tracks or allocate.
+ * Finite floats and bounded spans required; errors preserve output. */
+int rf_vfx_frame_read(const void *,uint32_t bytes,const rf_vfx_frame_config *,rf_vfx_frame_view *);
 typedef struct rf_vfx_chunk {uint32_t type,offset,bytes;} rf_vfx_chunk;
 typedef struct rf_vfx_directory {
     rf_vpp *archive;rf_vpp_entry entry;rf_vfx_header header;

@@ -450,3 +450,27 @@ the result. No native XEMU run or new rendered effect is claimed.
 
 Next: quantized vertex frames, UV/transform tracks and frame opacity, then
 bounded resource ownership, particles/warps and playback.
+
+## Serialized VFX animation frames (2026-09-13)
+
+rf_vfx_frame_read reconstructs53ddb8..53e05d for one frame, using explicit
+version, mesh flags, vertex/face counts, frame index and legacy defaults.
+It locates input-backed uint16 vertex triples and interleaved UV spans,
+retains quantization vectors/extra floats and per-frame transforms, and
+clamps legacy material opacity. Presence bits distinguish supplied blocks
+from shared data inherited from earlier frames. Unassigned fields zero.
+The first directional vector remains serialized, before4fab70 normalization;
+owned resource construction must normalize it. No allocation occurs.
+
+verify_vfx_frame.py runs the original frame branch and real helpers, supplying
+file read/error/seek services. It observes direction before normalization
+while allowing the real normalizer to run.1255 original/PC/compiled NXDK
+cases match represented fields, vertex bytes, deinterleaved UVs, transforms,
+opacity and consumed bytes:231 authored frames across all14 meshes plus1024
+synthetic cases.4447 invalid/truncated inputs preserve output. Both builds
+and24 CTests pass. Evidence: artifacts/vfx-frame.json.
+
+These views do not allocate or attach resources, interpolate animation,
+parse the subsequent key tracks, or dispatch effects in the scene. Direction
+normalization, shared-frame ownership, key tracks and playback remain open.
+No native XEMU run, working firing or new screenshot is claimed.

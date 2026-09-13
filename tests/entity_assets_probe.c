@@ -38,6 +38,19 @@ int main(int argc,char **argv)
         }
         rf_vpp_close(&meshes);return ferror(stdin)?8:0;
     }
+    if(argc==2 && !strcmp(argv[1],"--vfx-frame")) {
+        rf_vfx_frame_config cfg;uint32_t bytes;unsigned char *data;int32_t status;
+        _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
+        while(fread(&cfg,sizeof(cfg),1,stdin)==1) {
+            rf_vfx_frame_view view;
+            if(fread(&bytes,4,1,stdin)!=1 || bytes>1048576)return 2;
+            data=malloc(bytes?bytes:1);if(!data)return 2;
+            if(fread(data,1,bytes,stdin)!=bytes){free(data);return 2;}
+            memset(&view,0xa5,sizeof(view));status=rf_vfx_frame_read(data,bytes,&cfg,&view);
+            fwrite(&status,4,1,stdout);fwrite(&view,sizeof(view),1,stdout);free(data);
+        }
+        return ferror(stdin)?1:0;
+    }
     if(argc==2 && !strcmp(argv[1],"--vfx-mesh-edges")) {
         uint32_t input[5];unsigned char *data;int32_t status;
         _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
