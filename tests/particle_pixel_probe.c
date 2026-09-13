@@ -1,3 +1,4 @@
+#include "corona_pixel_fixture.h"
 #include "particle_stretch_fixture.h"
 #include "pc_raster.h"
 #include <stdio.h>
@@ -114,12 +115,34 @@ static int flash_test(void)
     }
     rf_pc_raster_close(&r);return 0;
 }
+static int corona_test(void)
+{
+    rf_pc_raster r={0};rf_image image={2,2,16,0,(unsigned char *)corona_texels};
+    rf_particle_draw_vertex v[4];uint32_t i,j,k;
+    if(rf_pc_raster_open(&r,1))return 1;
+    for(i=0;i<36;++i){
+        for(j=0;j<r.pixels;++j){r.rgb[j*3]=32;r.rgb[j*3+1]=64;r.rgb[j*3+2]=96;r.depth[j]=0;}
+        corona_pixel_fixture(i,v);
+        if(rf_pc_raster_particle(&r,v,4,&image,0x06010c41u,1,0,1,0xff00))return 2;
+        j=(88*r.width+72)*3;
+        /* UV endpoints 0/1 mix both texels; +/-quarter offsets hit centers. */
+        {float x=(i%6==1 || i%6==4)?.5f:(i%6==0 || i%6==3)?1:0;
+         float y=(i/6==1 || i/6==4)?.5f:(i/6==0 || i/6==3)?1:0;
+         float colors[3]={128*((1-x)*(1-y)+x*y),128*x,128*y};
+         for(k=0;k<3;++k){int expected=(int)(32+32*k+colors[k]*128*128/(255*255)+.5f);
+             if((int)r.rgb[j+k]!=expected)return 3;}}
+        for(k=0;k<r.pixels;++k)if(r.depth[k]!=0)return 4;
+        printf("%u %u %u\n",r.rgb[j],r.rgb[j+1],r.rgb[j+2]);
+    }
+    rf_pc_raster_close(&r);return 0;
+}
 int main(int argc,char **argv)
 {
     if(argc==3 && !strcmp(argv[1],"--corpse-pixels"))return corpse_texture_test(argv[2],1);
     if(argc==3 && !strcmp(argv[1],"--corpse-texture"))return corpse_texture_test(argv[2],0);
     if(argc==2 && !strcmp(argv[1],"--packed-lightmap-samples"))return packed_lightmap_test(1);
     if(argc==2 && !strcmp(argv[1],"--packed-lightmap"))return packed_lightmap_test(0);
+    if(argc==2 && !strcmp(argv[1],"--corona"))return corona_test();
     if(argc==2 && !strcmp(argv[1],"--flash"))return flash_test();
     if(argc==2 && !strcmp(argv[1],"--stretch"))return stretch_test();
     if(argc==3 && !strcmp(argv[1],"--textures"))return texture_test(argv[2]);

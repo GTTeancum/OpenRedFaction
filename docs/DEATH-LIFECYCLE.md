@@ -8839,3 +8839,21 @@ commands and CPU geometry, not native GPU output. Actual PC/Xbox backends
 still reject corona mode; wrapping/additive rendering, oriented5590f0
 geometry and original scene scheduling remain open. Oriented5590f0 must
 not be substituted with particle stretch558e30.
+
+## Native corona rendering mode (2026-09-12)
+
+PC raster and Xbox particle backends now accept exact corona mode0x06010c41.
+Both modulate texture/color and alpha, use source-alpha additive blending,
+disable fog/depth test/writes, and wrap U/V. Xbox texture address is0x30101
+(W remains clamped); PC uses existing wrapped bilinear sampling.
+
+The shared2x2 fixture tests36 coordinate pairs including negative values,
+0/1 seams and repeated texel centers, with texture and vertex alpha128.
+PC checks independent analytical colors and unchanged depth. Xbox seeds
+near depth, proves a normal particle is rejected, then draws far coronas
+with fog requested. Native particle-pixels-20260912-222612 passes on
+67108864 bytes with zero plugged memory; all36 corona RGB values match PC
+exactly. Existing native particle/texture/stretch/blood/flash/lightmap
+checks also pass. PC and Xbox builds pass, with22CTest passing.
+This is backend GPU coverage, not authored campaign glare integration;
+oriented5590f0 geometry, scene services and scheduling remain open.

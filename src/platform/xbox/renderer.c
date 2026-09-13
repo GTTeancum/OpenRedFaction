@@ -1,3 +1,4 @@
+#include "../../../tests/corona_pixel_fixture.h"
 #include "../../../tests/particle_stretch_fixture.h"
 #include "rf/resource_budget.h"
 #include "renderer.h"
@@ -255,12 +256,12 @@ int rf_xbox_particle_draw(const rf_particle_draw_vertex *vertices,uint32_t count
 #include "particle_vertex.inl"
     };
     gpu_texture texture={0};uint32_t *p,i,j,base_mode=mode&~(31u<<20);
-    uint32_t depth_mode=(mode>>20)&31u,glow,solid=mode==0x18000u;int status;
+    uint32_t depth_mode=(mode>>20)&31u,glow,corona=mode==0x06010c41u,solid=mode==0x18000u;int status;
     if(!vertices || (!solid && (!image || !image->rgba)) || count<3 || count>12 ||
        !isfinite(depth_scale) || !isfinite(depth_bias))return RF_RANGE;
     if((base_mode!=(RF_PARTICLE_NORMAL_MODE&~(31u<<20)) &&
-        base_mode!=(RF_PARTICLE_GLOW_MODE&~(31u<<20)) && !solid) || depth_mode>1)return RF_NOT_FOUND;
-    glow=base_mode==(RF_PARTICLE_GLOW_MODE&~(31u<<20));
+        base_mode!=(RF_PARTICLE_GLOW_MODE&~(31u<<20)) && !solid && !corona) || depth_mode>1)return RF_NOT_FOUND;
+    glow=corona || base_mode==(RF_PARTICLE_GLOW_MODE&~(31u<<20));
     if(solid && (fog_enabled&255u))return RF_NOT_FOUND;
     /* Avoid submitting invalid values to the GPU; original infinity behavior
      * stays in the reconstructed core, outside this finite backend domain. */
@@ -305,7 +306,7 @@ int rf_xbox_particle_draw(const rf_particle_draw_vertex *vertices,uint32_t count
         p=pb_push1(p,NV097_SET_TEXTURE_OFFSET,(uint32_t)texture.pixels&0x03ffffff);
         p=pb_push1(p,NV097_SET_TEXTURE_FORMAT,texture.format);
     }
-    p=pb_push1(p,NV097_SET_TEXTURE_ADDRESS,0x00030303);
+    p=pb_push1(p,NV097_SET_TEXTURE_ADDRESS,corona?0x00030101:0x00030303);
     p=pb_push1(p,NV097_SET_TEXTURE_CONTROL0,solid?0:NV097_SET_TEXTURE_CONTROL0_ENABLE);
     p=pb_push1(p,NV097_SET_TEXTURE_FILTER,0x02020000);
     for(i=1;i<4;i++)p=pb_push1(p,NV097_SET_TEXTURE_CONTROL0+i*0x40,0);
@@ -451,6 +452,36 @@ static int flash_pixel_test(void)
     }
     rf_flash_pixel_diagnostic[1]=2;return RF_OK;
 }
+uint32_t rf_corona_pixel_diagnostic[38];
+static int corona_pixel_test(void)
+{
+    rf_image image={2,2,16,0,NULL};rf_particle_draw_vertex v[4];uint32_t i,j,*p;int status=RF_OK;
+    unsigned char *pixels=MmAllocateContiguousMemoryEx(16,0,0x03ffb000,0,PAGE_READWRITE|PAGE_WRITECOMBINE);
+    if(!pixels)return RF_IO;
+    memcpy(pixels,corona_texels,16);image.rgba=pixels;__asm__ volatile("sfence" ::: "memory");
+    rf_corona_pixel_diagnostic[0]=0x52464352;
+    for(i=0;i<36;++i){
+        pb_fill(0,0,640,480,0xff204060);while(pb_busy()) {}
+        corona_pixel_fixture(i,v);
+        if(i==0) {
+            status=rf_xbox_particle_draw(v,4,&image,0x06010c41u,1,0,1,0xff00);if(status)break;
+            /* Seed near depth using the prepared pipeline; restore only color. */
+            p=pb_begin();p=pb_push1(p,NV097_SET_DEPTH_TEST_ENABLE,1);p=pb_push1(p,NV097_SET_DEPTH_MASK,1);
+            p=pb_push1(p,NV097_SET_BLEND_ENABLE,0);
+            p=pb_push1(p,NV097_SET_BEGIN_END,NV097_SET_BEGIN_END_OP_TRIANGLE_FAN);
+            for(j=0;j<4;++j)p=pb_push4f(p,NV097_SET_VERTEX_DATA4F_M,v[j].screen[0],v[j].screen[1],0,1);
+            p=pb_push1(p,NV097_SET_BEGIN_END,NV097_SET_BEGIN_END_OP_END);pb_end(p);while(pb_busy()) {}
+            pb_fill(0,0,640,480,0xff204060);while(pb_busy()) {}
+            status=rf_xbox_particle_draw(v,4,&image,RF_PARTICLE_NORMAL_MODE,1,0,0,0);if(status)break;
+            if((*(volatile uint32_t *)((unsigned char *)pb_back_buffer()+88*pb_back_buffer_pitch()+72*4)&0xffffffu)!=0x204060u) {
+                status=RF_FORMAT;break;
+            }
+        }
+        status=rf_xbox_particle_draw(v,4,&image,0x06010c41u,1,0,1,0xff00);if(status)break;
+        rf_corona_pixel_diagnostic[2+i]=*(volatile uint32_t *)((unsigned char *)pb_back_buffer()+88*pb_back_buffer_pitch()+72*4);
+    }
+    MmFreeContiguousMemory(pixels);rf_corona_pixel_diagnostic[1]=status?1:2;return status;
+}
 void rf_xbox_particle_pixel_test(void)
 {
     uint32_t *pixels,*p,i,j;rf_image image={1,1,4,0,NULL};
@@ -514,6 +545,7 @@ failed:
     if(!status)status=packed_lightmap_test();
     if(!status)status=corpse_pixel_test();
     if(!status)status=flash_pixel_test();
+    if(!status)status=corona_pixel_test();
     rf_particle_pixel_diagnostic[1]=status?0x80000000u|(uint32_t)(-status):2;
 
 }

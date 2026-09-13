@@ -124,6 +124,14 @@ dvd_path = '{root.as_posix()}/build/xbox/redfaction-diagnostic.iso'
   expected.extend([0xfffffffc,0x12345678])
   assert samples==pc_samples==expected
   report['packed_cpu_samples']=dict(cases=66,result='PASS',scope='Shared renderer-owned image, all64 texels plus u1 row crossing and final overread guard; exact CPU channel*8 values, ignoring alpha bit, PC linear vs Xbox swizzled.')
+  corona_address=int(re.search(r'\s_rf_corona_pixel_diagnostic\s+([0-9a-fA-F]+)',mapping)[1],16)
+  corona=words(monitor,corona_address,38)
+  corona_pc=[tuple(map(int,line.split())) for line in subprocess.check_output([str(root/'build/pc/Release/rf_particle_pixel_probe.exe'),'--corona'],text=True).splitlines()]
+  corona_rgb=[((p>>16)&255,(p>>8)&255,p&255) for p in corona[2:]]
+  assert corona[:2]==[0x52464352,2] and len(corona_pc)==36
+  errors=[abs(a-b) for rgb,ref in zip(corona_rgb,corona_pc) for a,b in zip(rgb,ref)]
+  report['corona']=dict(actual_rgb=corona_rgb,pc_rgb=corona_pc,max_channel_error=max(errors))
+  assert max(errors)<=2,report['corona']
   report['result']='PASS'
 finally:
  if monitor:
