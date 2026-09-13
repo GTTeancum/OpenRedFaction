@@ -76,7 +76,7 @@ Contact destruction429790 ordering matches1024 original/PC/NXDK cases; retain cl
 Authored squash-sound groups are retained per class and pass180-frame stock64MiB XEMU; bind contact destruction to damage and positional playback.
 Retained contact destruction damage and squash playback pass restored-state L1S1 stock64MiB XEMU; complete427550 dispatch and live collision scheduling.
 Registered NPC-to-NPC41a000 dispatch reaches damage/squash playback in four restored-state XEMU checks; add player/object branches and full427550 scheduling.
-Object-contact lookup reaches registered NPC damage/squash playback in four PC/stock64MiB XEMU cases; complete current-clutter identity, player-target/pickup services and continuous scheduling.
+Object-contact lookup reaches NPC and local-player damage in PC/stock64MiB XEMU; complete current-clutter identity, pickup services, lethal lifecycle and continuous scheduling.
 Retained collision voice1478 and global Sub Hit playback pass four restored-state PC/stock64MiB XEMU checks; bind full surface dispatch and continuous scheduling.
 Surface route gates match4170 original/PC/NXDK cases; reconstruct APC debris/damage, Driller damage/player feedback and timed-contact effects before full dispatch.
 APC bumper placement/geometry/damage ordering matches1024 original/PC/NXDK cases; bind actual asset/geometry services and complete timed-contact dispatch.

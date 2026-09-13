@@ -399,6 +399,7 @@ uint32_t rf_scene_navigation[6]; /* nodes, edges, tags, oriented, bytes, content
 static rf_physics_force_collection campaign_forces;
 static uint32_t campaign_force_class_flags,campaign_force_class_kind;
 static float campaign_force_air_limit;
+rf_group_attached_pose rf_scene_actor_pose;
 static rf_camera_effect_state campaign_camera_effect;
 static rf_screen_flash campaign_player_flash;
 static uint32_t campaign_player_contact_flags; /* Owned player10 bits13..16. */
@@ -409,6 +410,7 @@ typedef struct campaign_player_damage_owner {
 static campaign_player_damage_owner campaign_player_damage;
 static struct {rf_entity_eye_limits eye_limits;float model_radius;} campaign_player_geometry;
 static struct {int32_t groups[3],deadline,voice;} campaign_player_pain_sound;
+static int32_t campaign_player_squash_group=-1;
 uint32_t rf_scene_player_pain_audio[9]; /* same fields as NPC pain audio */
 uint32_t rf_scene_player_vitals[6]; /* health/armor/class health/class armor bits, owner bytes, factor hash */
 static int campaign_player_damage_open(rf_vpp *tables,const char *name,const rf_entity_class_physics *physics)
@@ -1533,6 +1535,7 @@ static int campaign_audio_open(const char *tables_path,const char *level_name,co
             if(status)goto audio_done;
         }
         if(player_class) {
+            status=rf_entity_squash_sound_group_read(entity_text,entity_entry.size,player_class,&campaign_foley,&campaign_player_squash_group);if(status)goto audio_done;
             status=rf_entity_damage_sound_groups_read(entity_text,entity_entry.size,player_class,&campaign_foley,campaign_player_pain_sound.groups);
             if(status)goto audio_done;
         }
@@ -4402,12 +4405,16 @@ int rf_scene_npc_impact(uint32_t handle,float speed,const rf_scene_npc_impact_se
     if(status)++rf_scene_npc_impact_dispatch[5];return status;
 }
 uint32_t rf_scene_npc_contact_destroy_audio[12],rf_scene_npc_contact_destroy_test[4];
+uint32_t rf_scene_player_contact_audio[12],rf_scene_player_contact_test[4];
 typedef struct campaign_contact_destroy_context {
     const rf_scene_npc_contact_destroy_services *services;campaign_pain_audio_context audio;
 } campaign_contact_destroy_context;
 static int campaign_contact_destroy_load(uint32_t handle,rf_entity_contact_destroy_actor *a)
 {
     campaign_npc_body *owner;rf_entity_pose *pose;uint32_t cls;int status;
+    if(handle==(uint32_t)campaign_player_view.handle && rf_entity_lookup(&campaign_entities,(int32_t)handle)==&campaign_player_view) {
+        a->handle=handle;a->sound=campaign_player_squash_group;memcpy(a->position,rf_scene_actor_pose.public_position,12);return RF_OK;
+    }
     status=campaign_npc_motion_owner(handle,&owner,&cls,&pose);if(status)return status;
     if(!campaign_squash_groups)return RF_RANGE;
     a->handle=handle;a->sound=campaign_squash_groups[cls];memcpy(a->position,owner->published,12);return RF_OK;
@@ -4415,7 +4422,8 @@ static int campaign_contact_destroy_load(uint32_t handle,rf_entity_contact_destr
 static int campaign_contact_destroy_damage(void *context,rf_entity_contact_destroy_actor *a,const rf_damage_request *request)
 {
     campaign_contact_destroy_context *c=context;uint32_t handle=a->handle;float amount;int status;
-    status=rf_scene_npc_damage(handle,request,c->services->difficulty,c->services->clock_bits,c->services->effects,&amount);
+    status=handle==(uint32_t)campaign_player_view.handle?rf_scene_player_damage(handle,request,c->services->difficulty,c->services->clock_bits,c->services->effects,&amount):
+        rf_scene_npc_damage(handle,request,c->services->difficulty,c->services->clock_bits,c->services->effects,&amount);
     if(status)return status;return campaign_contact_destroy_load(handle,a);
 }
 static int campaign_contact_destroy_select(void *context,int32_t group,uint32_t *sample)
@@ -4424,7 +4432,7 @@ static int campaign_contact_destroy_select(void *context,int32_t group,uint32_t 
 }
 static int campaign_contact_destroy_play(void *context,uint32_t sample,const float *position)
 {
-    campaign_contact_destroy_context *c=context;memcpy(rf_scene_npc_contact_destroy_audio+9,position,12);
+    campaign_contact_destroy_context *c=context;memcpy(c->audio.telemetry+9,position,12);
     campaign_pain_audio_play(&c->audio,position,(int32_t)sample);return c->audio.status;
 }
 int rf_scene_npc_contact_destroy(uint32_t handle,const rf_scene_npc_contact_destroy_services *services)
@@ -4433,9 +4441,9 @@ int rf_scene_npc_contact_destroy(uint32_t handle,const rf_scene_npc_contact_dest
     rf_entity_contact_destroy_backend backend={&context,campaign_contact_destroy_damage,campaign_contact_destroy_select,campaign_contact_destroy_play};
     if(!services || !services->effects || !services->random || !isfinite(services->difficulty))return RF_RANGE;
     status=campaign_contact_destroy_load(handle,&actor);if(status)return status;
-    context.services=services;context.audio=(campaign_pain_audio_context){services->random,0,rf_scene_npc_contact_destroy_audio,0};
-    ++rf_scene_npc_contact_destroy_audio[0];status=rf_entity_contact_destroy(&actor,&backend);
-    rf_scene_npc_contact_destroy_audio[6]=services->random->value;if(status)++rf_scene_npc_contact_destroy_audio[7];return status;
+    context.services=services;context.audio=(campaign_pain_audio_context){services->random,0,handle==(uint32_t)campaign_player_view.handle?rf_scene_player_contact_audio:rf_scene_npc_contact_destroy_audio,0};
+    ++context.audio.telemetry[0];status=rf_entity_contact_destroy(&actor,&backend);
+    context.audio.telemetry[6]=services->random->value;if(status)++context.audio.telemetry[7];return status;
 }
 int rf_scene_npc_actor_contact(uint32_t source,uint32_t target,
     const rf_scene_npc_contact_destroy_services *services,uint32_t *respond)
@@ -4443,15 +4451,21 @@ int rf_scene_npc_actor_contact(uint32_t source,uint32_t target,
     campaign_npc_body *a,*b;rf_entity_pose *pose;rf_entity_actor_contact input;uint32_t ac,bc,value,destroy;int status;
     if(!respond)return RF_RANGE;
     status=campaign_npc_motion_owner(source,&a,&ac,&pose);if(status)return status;
-    status=campaign_npc_motion_owner(target,&b,&bc,&pose);if(status)return status;
+    b=NULL;if(target!=(uint32_t)campaign_player_view.handle){status=campaign_npc_motion_owner(target,&b,&bc,&pose);if(status)return status;}
+    else if(rf_entity_lookup(&campaign_entities,(int32_t)target)!=&campaign_player_view)return RF_NOT_FOUND;
     input.use_kind=campaign_seeds.classes[ac].physics.use_kind;input.class_flags=campaign_seeds.classes[ac].physics.flags;
     input.contact_kind=(uint32_t)a->collision_contact.material;
     /*42a130(actor,-1) takes the direct flag810 bit16 branch. */
     input.occupant_predicate=(a->view.flags_810>>16)&1u;
     memcpy(input.velocity,a->body.state.velocity,12);memcpy(input.angular_velocity,a->body.state.vector_c8,12);
+    if(!b){input.target_mass=scene_actor_body.state.mass;input.target_armor=campaign_player_damage.state.effects.armor;
+        input.target_class_flags=campaign_player_damage.class_flags;input.target_flags_814=campaign_player_damage.state.effects.flags_814;
+        input.target_object_flags=campaign_player_view.flags_7c;
+    } else {
     input.target_mass=b->body.state.mass;input.target_armor=b->damage.effects.armor;
     input.target_class_flags=campaign_seeds.classes[bc].physics.flags;input.target_flags_814=b->damage.effects.flags_814;
     input.target_object_flags=b->object_flags;
+    }
     status=rf_entity_actor_contact_decide(&input,&value,&destroy);if(status)return status;
     if(destroy){status=rf_scene_npc_contact_destroy(target,services);if(status)return status;}
     *respond=value;return RF_OK;
@@ -4553,7 +4567,7 @@ static int scene_object_contact_current(void *context,uint32_t handle,uint32_t *
 static int scene_object_contact_actor(void *context,uint32_t source,uint32_t target,uint32_t *respond)
 {
     scene_object_contact_context *c=context;
-    if(target==(uint32_t)campaign_player_view.handle)return c->extra && c->extra->actor?c->extra->actor(c->extra->context,source,target,respond):RF_NOT_FOUND;
+
     return rf_scene_npc_actor_contact(source,target,c->services,respond);
 }
 static int scene_object_contact_pickup(void *context,uint32_t target,uint32_t source,uint32_t a,uint32_t b)
@@ -4570,6 +4584,30 @@ int rf_scene_npc_object_contact(uint32_t source,uint32_t target,const rf_scene_n
 }
 static void campaign_contact_destroy_fixture_notify(void *context,uint32_t kind,uint32_t target,float value,uint32_t source)
 {(void)context;(void)kind;(void)target;(void)value;(void)source;}
+static int campaign_player_contact_fixture(campaign_npc_body *source,const rf_damage_effect_backend *effects)
+{
+    campaign_npc_body saved=*source;campaign_player_damage_owner player_saved=campaign_player_damage,initial,expected;
+    rf_entity_view view_saved=campaign_player_view,expected_view;rf_screen_flash flash=campaign_player_flash;
+    uint32_t cls=campaign_seeds.items[(uint32_t)(source-campaign_npc_bodies)].class_index,flags=campaign_seeds.classes[cls].physics.flags,kind=campaign_seeds.classes[cls].physics.use_kind,respond;
+    rf_damage_effect_backend backend=*effects;rf_random_state random={1};rf_scene_npc_contact_destroy_services services={&backend,&random,1,0x3f800000};
+    rf_damage_request request={1000000,UINT32_MAX,9,0,UINT32_MAX,0};float amount;int status;
+    backend.notify=campaign_contact_destroy_fixture_notify;memset(rf_scene_player_contact_audio,0,sizeof(rf_scene_player_contact_audio));memset(rf_scene_player_contact_test,0,sizeof(rf_scene_player_contact_test));
+    campaign_seeds.classes[cls].physics.flags=0x8000;campaign_seeds.classes[cls].physics.use_kind=0;source->collision_contact.material=3;
+    memset(source->body.state.velocity,0,12);memset(source->body.state.vector_c8,0,12);
+    status=rf_scene_npc_object_contact(source->registration.handle,(uint32_t)campaign_player_view.handle,NULL,NULL,&respond);
+    if(!status && (respond!=1 || memcmp(&player_saved,&campaign_player_damage,sizeof(player_saved))))status=RF_FORMAT;
+    if(!status)++rf_scene_player_contact_test[0];
+    campaign_player_damage.state.effects.health=2000000;campaign_player_damage.state.effects.armor=0;initial=campaign_player_damage;
+    source->body.state.velocity[0]=1;
+    if(!status)status=rf_scene_player_damage((uint32_t)campaign_player_view.handle,&request,1,0x3f800000,&backend,&amount);
+    expected=campaign_player_damage;expected_view=campaign_player_view;campaign_player_damage=initial;campaign_player_view=view_saved;
+    if(!status && !(expected.state.effects.health<initial.state.effects.health && expected.state.effects.health>0))status=RF_FORMAT;
+    if(!status)status=rf_scene_npc_object_contact(source->registration.handle,(uint32_t)campaign_player_view.handle,&services,NULL,&respond);
+    if(!status && (respond!=1 || memcmp(&expected,&campaign_player_damage,sizeof(expected)) || memcmp(&expected_view,&campaign_player_view,sizeof(expected_view))))status=RF_FORMAT;
+    if(!status)++rf_scene_player_contact_test[0];else ++rf_scene_player_contact_test[3];
+    memcpy(rf_scene_player_contact_test+1,&initial.state.effects.health,4);memcpy(rf_scene_player_contact_test+2,&campaign_player_damage.state.effects.health,4);
+    *source=saved;campaign_player_damage=player_saved;campaign_player_view=view_saved;campaign_player_flash=flash;campaign_seeds.classes[cls].physics.flags=flags;campaign_seeds.classes[cls].physics.use_kind=kind;return status;
+}
 static int campaign_contact_destroy_fixture(campaign_npc_body *owner,const rf_damage_effect_backend *effects)
 {
     campaign_npc_body saved=*owner,initial,expected,*source=NULL,source_saved;rf_damage_effect_backend backend=*effects;
@@ -4726,6 +4764,7 @@ static int campaign_npc_damage_fixture(void)
         if(!status)++rf_scene_npc_impact_test[0];else ++rf_scene_npc_impact_test[3];
     }
     if(!status)status=campaign_contact_destroy_fixture(owner,&effects);
+    if(!status)status=campaign_player_contact_fixture(owner,&effects);
     if(!status)status=campaign_contact_sound_fixture(owner);
     if(!status)status=campaign_driller_feedback_fixture(owner);
     if(!status)status=campaign_contact_dispatch_fixture(owner);
@@ -4804,7 +4843,7 @@ actor_sweep_record rf_scene_actor_sweep_records[48];
 rf_physics_body_state rf_scene_actor_fall_state;
 rf_physics_body_state rf_scene_actor_initial_state;
 uint32_t rf_scene_actor_tick_stats[8]; /* magic, frames, passes, contacts, capped frames, max passes, last remaining bits, status */
-rf_group_attached_pose rf_scene_actor_pose;
+
 int rf_scene_death_clearance(const rf_geometry_collision_world *world,uint32_t handle,uint32_t direction,
     rf_entity_death_obstacle *scratch,uint32_t capacity,uint32_t *allowed)
 {
@@ -8177,7 +8216,7 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
             campaign_player_damage.state.effects.handle=campaign_player_object.handle;
             rf_scene_campaign_player[0]=campaign_player_object.handle;rf_scene_campaign_player[1]=campaign_player_object.object_kind;
             rf_scene_campaign_player[2]=campaign_player_view.flags_7c;
-            rf_scene_campaign_player[3]=sizeof(campaign_entities)+sizeof(campaign_player_view)+sizeof(campaign_player_object)+sizeof(campaign_player_flash)+sizeof(campaign_player_damage)+sizeof(campaign_player_pain_sound)+sizeof(campaign_player_geometry)+sizeof(campaign_player_contact_flags);
+            rf_scene_campaign_player[3]=sizeof(campaign_entities)+sizeof(campaign_player_view)+sizeof(campaign_player_object)+sizeof(campaign_player_flash)+sizeof(campaign_player_damage)+sizeof(campaign_player_pain_sound)+sizeof(campaign_player_geometry)+sizeof(campaign_player_contact_flags)+sizeof(campaign_player_squash_group);
             memset(rf_scene_actor_body_sweeps,0,sizeof(rf_scene_actor_body_sweeps));
             memset(rf_scene_actor_ground_queries,0,sizeof(rf_scene_actor_ground_queries));
             memset(rf_scene_actor_ground_contacts,0,sizeof(rf_scene_actor_ground_contacts));

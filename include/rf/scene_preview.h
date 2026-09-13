@@ -385,18 +385,19 @@ typedef struct rf_scene_npc_contact_destroy_services {
 /*429790 scene binding. Effects must retain actor lifetime and publish changes
  * synchronously; sound selection and published position are reread afterward. */
 int rf_scene_npc_contact_destroy(uint32_t handle,const rf_scene_npc_contact_destroy_services *services);
-/*41a000 between registered NPCs. Destruction executes before publishing the
+/*41a000 from registered NPCs to NPCs or the local player. Destruction executes before publishing the
  * boolean response; services may be NULL when no destruction is requested.
- * Player/other object families are handled by separate dispatch branches. */
+ * Other object families are handled by separate dispatch branches. */
 int rf_scene_npc_actor_contact(uint32_t source,uint32_t target,
     const rf_scene_npc_contact_destroy_services *services,uint32_t *respond);
 
 extern uint32_t rf_scene_npc_contact_destroy_audio[12],rf_scene_npc_contact_destroy_test[4];
 /* Prepared object route: registered NPC contact/damage; extra services own
- * current-clutter identity, player-target contact, pickup and other families. */
+ * current-clutter identity, pickup and other families. */
 int rf_scene_npc_object_contact(uint32_t source,uint32_t target,const rf_scene_npc_contact_destroy_services *services,
     const rf_entity_contact_object_backend *extra,uint32_t *decision);
 extern uint32_t rf_scene_object_contact_test[4];
+extern uint32_t rf_scene_player_contact_audio[12],rf_scene_player_contact_test[4];
 /* Prepared4278e0 call: caller selects kind1 surface route and supplies contact position. */
 int rf_scene_npc_contact_sound(uint32_t handle,const float position[3],rf_random_state *random);
 extern uint32_t rf_scene_npc_contact_sound_audio[12],rf_scene_npc_contact_sound_test[4];

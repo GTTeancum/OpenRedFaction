@@ -10653,3 +10653,12 @@ rf_scene_npc_object_contact validates the source NPC and feeds the verified obje
 The existing restored-state destruction fixture now routes its stationary and destructive NPC cases through object lookup and the core response mapping. New checks cover stale source rejection and absent target response2; stationary and destructive NPC cases return1. Expected health and positional squash audio comparisons remain in place, with only one actual squash playback. This remains a prepared object-route service; continuous scheduling and unimplemented target families remain open.
 
 replay-20260913-074702 passes180 frames on stock64MiB, exact PC object-contact record [4,2,1,0] and unchanged destruction health/audio checks. Both builds and22 CTest checks pass; normal Xbox image restored/rebuilt.
+
+
+### Player target for actor contacts (2026-09-13)
+
+The registered NPC actor-contact adapter now resolves the local player target using its retained body mass, armor, class/814/object flags. Requested destruction uses the existing player damage wrapper, then rereads the retained player squash group and published position. The four-byte group owner is loaded from the player class and counted in player storage. The installed player class has no squash group: no selection/playback and unchanged RNG is the correct result. Separate player-contact audio telemetry avoids mixing NPC and player resource counts. Object lookup now reaches this implementation directly instead of requiring a player-target extension callback.
+
+The restored-state fixture tests stationary contact and a moving class8000/material3 destruction route against direct player damage. High health keeps the fixture nonlethal; full player-death behavior is not claimed. It restores source/class, player damage/view and flash state. PC records two cases with health2000000 reduced by the actual player damage wrapper, one contact-destruction call, zero audio selections/plays and unchanged RNG1. Native result follows after replay completion.
+
+replay-20260913-075235 passes180 frames on stock64MiB with exact PC player-contact record [2,1240736768,1232348160,0] and audio [1,0,0,0,0,0,1,0,0,0,0,0]. Both builds and22 CTest checks pass; normal Xbox image restored/rebuilt. Pickup/current-clutter services, full lethal player lifecycle and continuous collision scheduling remain open.
