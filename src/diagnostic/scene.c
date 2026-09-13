@@ -1159,6 +1159,8 @@ static campaign_controller_effects *campaign_controller_requests;
 static rf_audio_bank campaign_audio_bank;
 static rf_foley_owner campaign_foley;
 static rf_clutter_catalogs campaign_clutter_catalogs;
+static struct {rf_vclip_definition definitions[2];int32_t effects[2],foley[2];} campaign_contact_splashes;
+uint32_t rf_scene_contact_splash_assets[8]; /* IDs2,Foley2,owned bytes,metadata hash,flags2 */
 static rf_clutter_classes campaign_clutter_classes;
 static rf_glare_classes campaign_glare_classes;
 static rf_glare_materials campaign_glare_materials;
@@ -2667,6 +2669,22 @@ static int campaign_clutter_open(const char *tables_path,const rf_level *level)
     memset(rf_scene_clutter,0,sizeof(rf_scene_clutter));
     status=rf_vpp_open(&tables,tables_path);if(status)return status;
     status=rf_clutter_catalogs_open(&tables,&campaign_foley,65536,&campaign_clutter_catalogs);
+    memset(&campaign_contact_splashes,0,sizeof(campaign_contact_splashes));
+    memset(rf_scene_contact_splash_assets,0,sizeof(rf_scene_contact_splash_assets));
+    for(i=0;!status && i<2;++i) {
+        const char *name=i?"water_splash_huge":"water_splash_large";
+        rf_vclip_definition *definition=campaign_contact_splashes.definitions+i;
+        campaign_contact_splashes.effects[i]=rf_vclip_name_lookup(campaign_clutter_catalogs.names.vclips,name);
+        if(campaign_contact_splashes.effects[i]<0){status=RF_NOT_FOUND;break;}
+        status=rf_vclip_definition_load(&tables,name,65536,definition);if(status)break;
+        campaign_contact_splashes.foley[i]=-1;
+        if(definition->has_foley)status=rf_foley_find(&campaign_foley,definition->foley,campaign_contact_splashes.foley+i);
+        rf_scene_contact_splash_assets[i]=(uint32_t)campaign_contact_splashes.effects[i];
+        rf_scene_contact_splash_assets[2+i]=(uint32_t)campaign_contact_splashes.foley[i];
+        rf_scene_contact_splash_assets[6+i]=definition->flags;
+    }
+    rf_scene_contact_splash_assets[4]=sizeof(campaign_contact_splashes);
+    rf_scene_contact_splash_assets[5]=npc_hash_bytes(2166136261u,campaign_contact_splashes.definitions,sizeof(campaign_contact_splashes.definitions));
     if(!status)status=rf_clutter_classes_load(&tables,&campaign_clutter_catalogs.names,
         256*1024-campaign_clutter_catalogs.allocated_bytes,&campaign_clutter_classes,&peak);
     rf_vpp_close(&tables);if(status)return status;

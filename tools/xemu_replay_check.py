@@ -603,6 +603,10 @@ dvd_path = '{root.as_posix()}/build/xbox/redfaction-diagnostic.iso'
      assert driller_feedback==expected('DRILLER_FEEDBACK_TEST') and driller_feedback[7]==0,driller_feedback
      if args.damage_uid==8456:assert driller_feedback==[4,3,2,2,2,122880,600,0],driller_feedback
      report['driller_feedback']=driller_feedback
+     contact_splashes=words(monitor,symbol('rf_scene_contact_splash_assets'),8)
+     assert contact_splashes==expected('CONTACT_SPLASH_ASSETS'),contact_splashes
+     assert contact_splashes[:2]==[43,44] and contact_splashes[4]==1016 and contact_splashes[6:]==[1,1],contact_splashes
+     report['contact_splash_assets']=contact_splashes
 
 
      assert death_animation==expected('DEATH_ANIMATION_TEST'),death_animation
