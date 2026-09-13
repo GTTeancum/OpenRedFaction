@@ -14,9 +14,15 @@ Shortlist:
 
 Progress reporting: include overall percent estimates at meaningful milestones and revisit remaining 24-hour workdays when measured throughput supports a forecast; current rough estimate40% (35-45%), no defensible +/-48-hour completion forecast before end-to-end gameplay.
 
+Combined VFX geometry dispatch matches2048 original/PC/NXDK cases from
+53f060 entry to54010a, with3 inactive/invalid guards; all24 tests pass.
+Integration exposed/fixed absent rotation keys: use stored frame0 quaternion,
+not identity.14 authored ownership cases still pass; bind parent transforms
+and UV/render submission next, then validate native stock64MiB playback.
+
 VFX key-time conversion matches2048 original/PC/NXDK cases and4 guards;
 owned keyed geometry passes328 authored vertex/time/budget checks.
-Old keyed files use frame0 fallback position/scale; absent fallback rejects
+Old keyed files use frame0 fallback position/rotation/scale; absent fallback rejects
 instead of inventing values. Verify complete53f060 dispatch/parent composition
 and bind rendering; both builds and24 tests pass, no new native XEMU claim.
 

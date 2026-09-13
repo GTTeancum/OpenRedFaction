@@ -97,6 +97,16 @@ int main(int argc,char **argv)
         }
         return ferror(stdin)?1:0;
     }
+    if(argc==2 && !strcmp(argv[1],"--vfx-mesh-sample")) {
+        unsigned char header[300],payload[76];rf_vfx_frame_view frames[2];rf_vfx_mesh mesh;float time;int32_t status;rf_vfx_morph_sample out;
+        _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
+        while(fread(header,300,1,stdin)==1) {
+            if(fread(frames,sizeof(frames),1,stdin)!=1 || fread(payload,76,1,stdin)!=1 || fread(&time,4,1,stdin)!=1)return 2;
+            memset(&mesh,0,sizeof(mesh));memcpy(&mesh,header,300);mesh.frames=frames;mesh.data=payload;memset(&out,0xa5,sizeof(out));
+            status=rf_vfx_mesh_sample(&mesh,time,0,&out);fwrite(&status,4,1,stdout);fwrite(&out,sizeof(out),1,stdout);
+        }
+        return ferror(stdin)?1:0;
+    }
     if(argc==2 && !strcmp(argv[1],"--vfx-morph")) {
         unsigned char input[84];
         _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);

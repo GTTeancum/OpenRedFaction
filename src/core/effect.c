@@ -1644,9 +1644,25 @@ int rf_vfx_mesh_keyed(const rf_vfx_mesh *mesh,int32_t time,uint32_t vertex,rf_vf
     at=(uint64_t)frame->vertex_offset+(uint64_t)vertex*6;if(at+6>mesh->bytes)return RF_FORMAT;
     if(mesh->keys.counts[0]){status=rf_vfx_mesh_vector_key(mesh,0,time,key);if(status)return status;}
     else {if(!(frame->present&16))return RF_FORMAT;memcpy(key,frame->transform,12);}
-    status=rf_vfx_mesh_rotation_key(mesh,time,key+3);if(status)return status;
+    if(mesh->keys.counts[1]){status=rf_vfx_mesh_rotation_key(mesh,time,key+3);if(status)return status;}
+    else {if(!(frame->present&16))return RF_FORMAT;memcpy(key+3,frame->transform+3,16);}
     if(mesh->keys.counts[2]){status=rf_vfx_mesh_vector_key(mesh,2,time,key+7);if(status)return status;}
     else {if(!(frame->present&16))return RF_FORMAT;memcpy(key+7,frame->transform+7,12);}
     memcpy(vectors,frame->vectors,24);memcpy(vectors+6,frame->extra,8);
     return rf_vfx_keyed_sample(vectors,mesh->data+(size_t)at,mesh->keys.base,key,mesh->edges.flags,out);
+}
+
+int rf_vfx_mesh_sample(const rf_vfx_mesh *mesh,float effect_frame,uint32_t vertex,rf_vfx_morph_sample *out)
+{
+    rf_vfx_mesh_timing timing;rf_vfx_frame_cursor cursor;int status;int32_t time;
+    if(!mesh || !out)return RF_RANGE;
+    timing=mesh->prefix.timing;timing.flags=mesh->edges.mesh_flags;
+    status=rf_vfx_frame_select(&timing,mesh->edges.flags,effect_frame,&cursor);if(status)return status;
+    if(!cursor.active)return RF_NOT_FOUND;
+    if(mesh->edges.flags&4)return rf_vfx_mesh_morph(mesh,&cursor,vertex,out);
+    if(mesh->edges.mesh_flags&2) {
+        status=rf_vfx_key_time(effect_frame,timing.start,&time);if(status)return status;
+        return rf_vfx_mesh_keyed(mesh,time,vertex,out);
+    }
+    return rf_vfx_mesh_transform(mesh,&cursor,vertex,out);
 }

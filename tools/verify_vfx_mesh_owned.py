@@ -96,7 +96,8 @@ def shared(v,global_count,budget,data,fail=False):
      count=struct.unpack_from('<I',header,252+track*4)[0]
      if count:assert call('rf_vfx_mesh_vector_key',[pointer,track,time&0xffffffff,target])==0
      else:x.mem_write(target,bytes(x.mem_read(frames+48+(0 if track==0 else 28),12)))
-    assert call('rf_vfx_mesh_rotation_key',[pointer,time&0xffffffff,key+12])==0
+    if struct.unpack_from('<I',header,256)[0]:assert call('rf_vfx_mesh_rotation_key',[pointer,time&0xffffffff,key+12])==0
+    else:x.mem_write(key+12,bytes(x.mem_read(frames+60,16)))
     av=owned+read(x,frames+32)+vertex*6
     assert call('rf_vfx_keyed_sample',[frames,av,pointer+212,key,flags,SAMPLE+64])==0
     assert actual==bytes(x.mem_read(SAMPLE+64,32));keyed_checks+=1
