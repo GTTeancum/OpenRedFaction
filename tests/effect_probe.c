@@ -279,6 +279,22 @@ int main(int argc,char **argv)
         }
         return 0;
     }
+    if(argc==2 && !strcmp(argv[1],"--lightmap-live-rectangle")) {
+        struct {rf_lightmap_sample_plane sample;uint32_t width,height,count,pitch,dirty;rf_vfx_light_source sources[4];unsigned char rgb[768];} input;
+        rf_lightmap_sample_lighting lighting;rf_lightmap_rgb_upload view;unsigned char packed[768],dirty;uint32_t status;
+        _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
+        while(fread(&input,sizeof(input),1,stdin)==1) {
+            memset(&lighting,0,sizeof(lighting));lighting.sample=input.sample;lighting.width=input.width;lighting.height=input.height;
+            lighting.lights=input.sources;lighting.light_count=input.count;lighting.directional_scale=.25f;
+            memset(&view,0,sizeof(view));view.rgb=input.rgb;view.rgb_bytes=sizeof(input.rgb);view.rgb_pitch=input.sample.image_width*3;
+            view.packed=packed;view.packed_bytes=sizeof(packed);view.packed_pitch=input.pitch;
+            view.x=input.sample.x;view.y=input.sample.y;view.width=input.width;view.height=input.height;
+            dirty=(unsigned char)input.dirty;memset(packed,0xa5,sizeof(packed));
+            status=input.count>4?RF_RANGE:rf_lightmap_live_rectangle(&lighting,&view,&dirty);
+            fwrite(&status,4,1,stdout);fwrite(&dirty,1,1,stdout);fwrite(packed,sizeof(packed),1,stdout);
+        }
+        return 0;
+    }
     if(argc==2 && !strcmp(argv[1],"--lightmap-edge-crossing")) {
         float input[8];uint32_t status,hit;
         _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);

@@ -474,6 +474,28 @@ int rf_lightmap_live_pixel(const unsigned char base[3],const float position[3],c
     *packed=(uint16_t)(0x8000u|(value[0]<<10)|(value[1]<<5)|value[2]);return RF_OK;
 }
 
+int rf_lightmap_live_rectangle(const rf_lightmap_sample_lighting *lighting,const rf_lightmap_rgb_upload *view,unsigned char *dirty)
+{
+    uint32_t x,y;uint64_t right,bottom;int status;
+    if(!lighting || !view || !dirty || !view->rgb || !view->packed || !view->width || !view->height ||
+       lighting->width!=view->width || lighting->height!=view->height || lighting->sample.x!=view->x ||
+       lighting->sample.y!=view->y || (view->packed_pitch&1))return RF_RANGE;
+    right=(uint64_t)view->x+view->width;bottom=(uint64_t)view->y+view->height;
+    if(bottom>UINT32_MAX || right*3>view->rgb_pitch || right*2>view->packed_pitch ||
+       (bottom-1)*view->rgb_pitch+right*3>view->rgb_bytes ||
+       (bottom-1)*view->packed_pitch+right*2>view->packed_bytes)return RF_RANGE;
+    for(y=0;y<view->height;y++)for(x=0;x<view->width;x++) {
+        float point[3];uint16_t pixel;
+        const unsigned char *base=view->rgb+(uint64_t)(view->y+y)*view->rgb_pitch+(view->x+x)*3;
+        unsigned char *out=view->packed+(uint64_t)(view->y+y)*view->packed_pitch+(view->x+x)*2;
+        status=rf_lightmap_sample_position(&lighting->sample,x,y,point);if(status)return status;
+        status=rf_lightmap_live_pixel(base,point,lighting->sample.plane,lighting->directional_scale,
+            lighting->lights,lighting->light_count,&pixel);if(status)return status;
+        out[0]=(unsigned char)pixel;out[1]=(unsigned char)(pixel>>8);
+    }
+    *dirty&=(unsigned char)~8u;return RF_OK;
+}
+
 static int lightmap_scaled_rgb(const double scaled[3],unsigned char rgb[3])
 {
     int32_t value[3],peak=0;unsigned char result[3];uint32_t i;

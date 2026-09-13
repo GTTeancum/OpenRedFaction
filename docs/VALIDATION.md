@@ -876,3 +876,8 @@ Class-light contribution to packed lightmaps:
 - `rf_lightmap_live_pixel` composes raw zero-ambient/unsoftened accumulation, negative-gain RGB conversion, addition to retained base RGB, saturation of each shifted5-bit channel and1555 alpha. It does not modify the retained base RGB.
 - `python tools/verify_lightmap_live_pixel.py` checks2048 original/PC/compiled-NXDK pixels at x87 0x027f. Full original4daff0 with actual4da8b0 and the original4f2e23..4f2ea6 packing slice run unhooked, covering0..4 mixed sources and saturated sums. Both builds and24 CTests pass.
 - Selected sources and sampled positions/normals are supplied. Full-grid second-pass dispatch, texture locks, dirty-state transitions and native rendered updates remain open.
+
+Complete locked class-light rectangle:
+- `rf_lightmap_live_rectangle` composes ordinary plane sampling with the verified class-light pixel calculation and pitched1555 output. It uses ordinary coordinates even for special mappings, preserves retained base RGB, and clears dirty8 only after completing the rectangle. Bounds guards precede writes; later sampling errors retain completed pixels.
+- `python tools/verify_lightmap_live_rectangle.py` compares256 original/PC/compiled-NXDK rectangles and5184 pixels against unhooked4f2cfe..4f2ef0, including actual plane routines and4daff0/4da8b0. All axis orders, special flag0/1,1..4 mixed sources, row padding, base preservation and dirty updates match at x87 0x027f. Four NXDK binding guards pass.
+- Both builds and24 CTests pass. Input buffers model a successful linear texture lock. Source selection, lock/unlock, Xbox swizzling, full dirty reset and native rendered integration remain external.

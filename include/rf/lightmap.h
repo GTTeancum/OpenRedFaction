@@ -177,6 +177,13 @@ int rf_lightmap_upload_rgb_1555(const rf_lightmap_rgb_upload *,unsigned char *di
 int rf_lightmap_live_pixel(const unsigned char base[3],const float position[3],const float normal[3],
     float directional_scale,const rf_vfx_light_source *sources,uint32_t count,uint16_t *packed);
 
+/*4f2cfe..4f2ef0 locked class-light rectangle. Plane samples are ordinary
+ * even for a special mapping. Borrow disjoint base RGB and linear packed
+ * buffers with explicit pitches, matching origin/extents in both views.
+ * Success clears dirty8; errors retain completed pixels and do not clear it.
+ * No allocation; light selection, lock/unlock and final dirty reset external. */
+int rf_lightmap_live_rectangle(const rf_lightmap_sample_lighting *,const rf_lightmap_rgb_upload *,unsigned char *dirty);
+
 typedef struct rf_lightmap_1555_view {
     const unsigned char *pixels;uint32_t width,height,pitch,bytes;
 } rf_lightmap_1555_view;
