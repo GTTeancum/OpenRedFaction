@@ -113,6 +113,21 @@ typedef struct rf_vfx_key {uint32_t words[10];} rf_vfx_key;
 int rf_vfx_key_tracks_read(const void *,uint32_t bytes,uint32_t version,
     const float *legacy_base7,rf_vfx_key_tracks *);
 int rf_vfx_key_read(const void *,uint32_t bytes,uint32_t track,rf_vfx_key *);
+typedef struct rf_vfx_mesh {
+    rf_vfx_mesh_prefix prefix;rf_vfx_mesh_edges edges;rf_vfx_key_tracks keys;
+    uint32_t version,materials,material_offset,bytes,allocated_bytes;
+    rf_vfx_frame_view *frames;unsigned char *data;
+} rf_vfx_mesh;
+/* Own one complete SFXO payload plus frame views in a single allocation.
+ * Budget includes owner, views and retained payload; excludes caller input,
+ * stack/allocator overhead and future bitmaps. out must point to NULL.
+ * Validate local material/edge references and external material IDs against
+ * global_materials. Frames and key spans become offsets into owned data.
+ * Source may be released on success. No bitmap, normalization or playback.
+ * Failed opens leave out NULL; close is repeatable. */
+int rf_vfx_mesh_open(const void *,uint32_t bytes,uint32_t version,
+    uint32_t global_materials,const float *legacy_base7,uint32_t budget,rf_vfx_mesh **);
+void rf_vfx_mesh_close(rf_vfx_mesh **);
 typedef struct rf_vfx_chunk {uint32_t type,offset,bytes;} rf_vfx_chunk;
 typedef struct rf_vfx_directory {
     rf_vpp *archive;rf_vpp_entry entry;rf_vfx_header header;

@@ -1311,3 +1311,50 @@ int rf_vfx_key_tracks_read(const void *data,uint32_t bytes,uint32_t version,
     }
     if(c.failed)return RF_FORMAT;v.bytes=c.at;*out=v;return RF_OK;
 }
+
+void rf_vfx_mesh_close(rf_vfx_mesh **out)
+{if(out){free(*out);*out=NULL;}}
+int rf_vfx_mesh_open(const void *data,uint32_t bytes,uint32_t version,
+    uint32_t global_materials,const float *legacy_base7,uint32_t budget,rf_vfx_mesh **out)
+{
+    rf_vfx_mesh_prefix prefix;rf_vfx_mesh *v;rf_vfx_face face;rf_vfx_embedded_material_view material;
+    rf_vfx_frame_config cfg={0};uint64_t total;uint32_t at,i,j,face_bytes;int status;
+    if(!data || !out || *out)return RF_RANGE;
+    status=rf_vfx_mesh_prefix_read(data,bytes,version,&prefix);if(status)return status;
+    total=sizeof(*v)+(uint64_t)prefix.timing.samples*sizeof(*v->frames)+bytes;
+    if(total>budget)return RF_RANGE;
+    v=malloc((size_t)total);if(!v)return RF_IO;memset(v,0,sizeof(*v));v->prefix=prefix;v->version=version;v->bytes=bytes;v->allocated_bytes=(uint32_t)total;
+    v->frames=(rf_vfx_frame_view *)(v+1);v->data=(unsigned char *)(v->frames+prefix.timing.samples);memcpy(v->data,data,bytes);
+    at=prefix.bytes;if(at>bytes || bytes-at<4){status=RF_FORMAT;goto failed;}
+    v->materials=vfx_word(v->data+at);at+=4;v->material_offset=at;
+    if(v->materials>0x7fffffffu || (uint64_t)v->materials*4>bytes-at){status=RF_FORMAT;goto failed;}
+    for(i=0;i<v->materials;++i) {
+        if(version<0x40000) {
+            status=rf_vfx_embedded_material_read(v->data+at,bytes-at,version,prefix.timing.flags,prefix.timing.samples,&material);
+            if(status)goto failed;at+=material.material.bytes;
+        } else {if(vfx_word(v->data+at)>=global_materials){status=RF_FORMAT;goto failed;}at+=4;}
+    }
+    status=rf_vfx_mesh_edges_read(v->data+at,bytes-at,version,0,prefix.timing.flags,prefix.faces,&v->edges);if(status)goto failed;
+    v->edges.edge_offset+=at;at+=v->edges.bytes;
+    face_bytes=version<0x3000d?120:96;
+    for(i=0;i<prefix.faces;++i) {
+        uint32_t pos=prefix.face_offset+i*face_bytes;
+        status=rf_vfx_face_read(v->data+pos,bytes-pos,version,&face);if(status)goto failed;
+        if(face.material>=v->materials){status=RF_FORMAT;goto failed;}
+        for(j=1;j<4;++j)if(face.words_80[j]>=v->edges.count){status=RF_FORMAT;goto failed;}
+    }
+    cfg.version=version;cfg.flags=v->edges.flags;cfg.mesh_flags=v->edges.mesh_flags;cfg.vertices=prefix.vertices;cfg.faces=prefix.faces;
+    cfg.legacy[0]=v->edges.legacy[0];cfg.legacy[1]=v->edges.legacy[1];
+    for(i=0;i<prefix.timing.samples;++i) {
+        rf_vfx_frame_view *frame=v->frames+i;cfg.index=i;
+        status=rf_vfx_frame_read(v->data+at,bytes-at,&cfg,frame);if(status)goto failed;
+        if(frame->present&1)frame->vertex_offset+=at;if(frame->present&8)frame->uv_offset+=at;at+=frame->bytes;
+    }
+    if(v->edges.mesh_flags&2) {
+        status=rf_vfx_key_tracks_read(v->data+at,bytes-at,version,legacy_base7,&v->keys);if(status)goto failed;
+        for(i=0;i<3;++i)v->keys.offsets[i]+=at;at+=v->keys.bytes;
+    }
+    if(at!=bytes){status=RF_FORMAT;goto failed;}*out=v;return RF_OK;
+failed:
+    free(v);return status;
+}

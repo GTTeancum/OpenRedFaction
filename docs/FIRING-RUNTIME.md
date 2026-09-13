@@ -501,3 +501,35 @@ CTests pass. Evidence: artifacts/vfx-keys.json. Combined verified decoders
 consume each of the14 authored mesh payloads exactly, including the optional
 key section; they still require a composed bounded owner and resource binding.
 No native XEMU run or new scene visual is claimed.
+
+## Bounded owned VFX meshes (2026-09-13)
+
+rf_vfx_mesh_open composes the verified prefix, material, edge, frame and
+key readers into one owned SFXO resource. One allocation contains the owner,
+frame views and a private payload copy. The source can be released after
+success. Frame/key spans and edge-directory offsets refer to owned data;
+serialized subordinate material/edge records retain their local span rules.
+All local face materials, both directions of face/edge references, and
+external material indices are range checked. Trailing data is rejected.
+External material validation still depends on the caller supplying the real
+definition-wide material count. The owner starts mesh runtime flags at zero.
+
+The budget includes the308-byte32-bit owner,112 bytes per sample and retained
+payload, excluding caller input, stack, allocator overhead and future bitmap
+resources. The sample count is checked against the budget before allocation
+or frame iteration. Failed parsing frees the allocation without publishing
+an owner; repeated close is safe. Frames without serialized blocks remain
+explicitly absent for later shared-frame resolution.
+
+verify_vfx_mesh_owned.py compares PC and compiled NXDK header/frame/payload
+bytes for all14 authored meshes after overwriting/releasing source input.
+Resident sizes range1290..10650 bytes.14 exact budgets succeed;132 failures
+cover short budgets, truncation, trailing data, local materials, edge links
+and external materials, with no leaked/published owners.14 injected malloc
+failures also preserve empty output. Repeat close passes. This composes
+previously original-verified decoders; it is not an original allocator match.
+Both builds and24 CTests pass. Evidence: artifacts/vfx-mesh-owned.json.
+
+Next: material/bitmap binding, normalized directional state, shared vertex/UV
+selection, interpolation and rendering; particles and warp objects remain
+required for complete VFX effects. No native XEMU run or new visual claimed.

@@ -38,6 +38,23 @@ int main(int argc,char **argv)
         }
         rf_vpp_close(&meshes);return ferror(stdin)?8:0;
     }
+    if(argc==2 && !strcmp(argv[1],"--vfx-mesh-owned")) {
+        uint32_t input[4];float legacy[7];unsigned char *data;int32_t status;
+        _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
+        while(fread(input,16,1,stdin)==1) {
+            rf_vfx_mesh *mesh=NULL;
+            if(fread(legacy,28,1,stdin)!=1 || input[3]>1048576)return 2;
+            data=malloc(input[3]?input[3]:1);if(!data)return 2;
+            if(fread(data,1,input[3],stdin)!=input[3]){free(data);return 2;}
+            status=rf_vfx_mesh_open(data,input[3],input[0],input[1],legacy,input[2],&mesh);
+            memset(data,0xa5,input[3]);free(data);fwrite(&status,4,1,stdout);
+            if(!status) {
+                fwrite(mesh,300,1,stdout);fwrite(mesh->frames,sizeof(*mesh->frames),mesh->prefix.timing.samples,stdout);fwrite(mesh->data,1,mesh->bytes,stdout);
+            }
+            rf_vfx_mesh_close(&mesh);rf_vfx_mesh_close(&mesh);if(mesh)return 3;
+        }
+        return ferror(stdin)?1:0;
+    }
     if(argc==2 && !strcmp(argv[1],"--vfx-keys")) {
         uint32_t input[2];float legacy[7];unsigned char *data;int32_t status;
         _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);

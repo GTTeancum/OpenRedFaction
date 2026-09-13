@@ -84,6 +84,7 @@ SP pickup completion order/timer matches1024 original/PC/NXDK cases and6 callbac
 Normal-SP acquisition4030d0 matches2048 original/PC/NXDK cases with actual401470 no-op notification; bind inventory creation, equip/reset and full pickup grants.
 Startup grants now compose with concrete42ab20 animation selection (220 loaded PC cases); connect retained inventories/selections to live scene consumers.
 All63 class defaults now retain optional melee (four authored classes); include it when creating startup inventories.
+Owned VFX meshes load all14 authored payloads within explicit budgets with132 failure checks; bind bitmap ownership, normalized direction and animation playback.
 VFX transform keys match1031 original/PC/NXDK cases including7 authored meshes; compose bounded owned meshes and connect animation interpolation/playback.
 VFX frame decoding matches1255 original/PC/NXDK cases including231 authored frames; normalize owned direction and bind bounded resources/playback.
 VFX mesh bounds/edges match1038 original/PC/NXDK cases including14 authored meshes and8113 failure guards; decode animation frames and bind validated face-to-edge references.
