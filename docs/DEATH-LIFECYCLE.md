@@ -8315,3 +8315,34 @@ whole-query misses. These are authored fixture contacts, not live glare
 scheduling. Initial bitmap selection only; runtime replacements remain open.
 PC/NXDK builds and21 CTests pass. The earlier expanded-coverage replay
 20260912-201331 also passed before query-only counters were introduced.
+
+
+Glare scene solid-query callback (2026-09-12)
+------------------------------------------
+rf_scene_glare_solid_query implements the solid callback shape consumed by
+full414e00 search. Scene solid token1 selects world;2+i selects mover i.
+Reset1 and solid-local flag4 are required, matching the reconstructed glare
+caller. The callback borrows retained geometry/materials and uses verified
+preferred-first textured traversal. No per-query allocation or image copy.
+Face tokens pack binding+1 in the high16 bits and collision index+1 in the
+low16 bits. Opening rejects unrepresentable bindings/counts. Tokens expire
+with scene storage; they are not pointers or permanent authored IDs.
+
+The original search can carry a cached world face into later mover queries.
+The adapter therefore resolves the preferred face across all scene bindings,
+not only the queried solid. Its independent preferred sampler preserves the
+face material identity. Result tokens preserve that binding on a shortcut,
+and use actual room/flat ownership on fallback. Reset output is normalized
+(zero on miss, reserved word zero); errors preserve caller output. These
+normalized unused bytes are a port convention, not a binary-memory claim.
+
+Native L1S2 replay-20260912-202201 passes180 frames at stock64MiB with
+zero plugged memory. GLARE_SOLIDS matches PC:932 calls,600 cached calls,
+932 hits,0 query errors,result hash2600687542. The fixture repeats prior
+world/mover hits using returned tokens and passes cached world faces into
+a mover query, requiring exact normalized contact/token agreement. The
+combined scene query alpha counters match80 samples:6 transparent,74 opaque,
+0 errors. This fixture covers successful adapter/cache paths; it does not
+establish full glare search integration or live actor/mover list callbacks.
+PC/NXDK builds and21 CTests pass. Bind registered visibility owners, cached
+owner lookup, room/state/associated services and scheduling next.

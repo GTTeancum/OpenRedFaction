@@ -8,6 +8,7 @@
 #include "rf/eye.h"
 #include "rf/player.h"
 #include "rf/collision.h"
+#include "rf/glare.h"
 
 /* Play a resolved48a9c0 request from an already resident campaign sample.
  * Flat pan is the original float bit pattern retained in request.pan; values
@@ -520,6 +521,14 @@ int rf_scene_geometry_texture_query_preferred(uint32_t solid,const rf_geometry_w
 extern uint32_t rf_scene_geometry_textures[13];
 /* Query-only alpha callback counts: total, transparent, opaque, errors. */
 extern uint32_t rf_scene_geometry_alpha_contacts[4];
+/* Glare backend solid callback: token1 world, token2+i mover. Reset1 and
+ * solid-local flag4 required. Face tokens span all current scene bindings;
+ * a preferred face may belong to another solid. Tokens expire at scene close.
+ * Normalized reset output is zero on miss, untouched on error. No allocation. */
+int rf_scene_glare_solid_query(void *context,uint32_t solid,const rf_glare_solid_query *query,
+    rf_collision_solid_response_hit *out,uint32_t reset);
+/* Calls, cached calls, hits, query errors, normalized-result hash. */
+extern uint32_t rf_scene_glare_solids[5];
 /* Borrow a retained world for diagnostic camera following; NULL disables.
  * Owner and source world must outlive the body stream. Fixed .7Y/2.4Z offset,
  * no camera collision or original first-person policy. */
