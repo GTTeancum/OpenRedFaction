@@ -31,13 +31,40 @@ int main(int argc, char **argv)
         for(i=0;i<=4;i++)if(graph.offsets[i])return 15;
         rf_geometry_vertex_faces_close(&graph);rf_geometry_vertex_faces_close(&graph);puts("PASS adjacency subset, duplicate corners, empty selection, budget/index guards and close");return 0;
     }
-    if (argc != 3 && argc != 4 && !(argc==5 && (!strcmp(argv[3],"--portal-graph") || !strcmp(argv[3],"--visibility") || !strcmp(argv[3],"--adjacency") || !strcmp(argv[3],"--lightmap-vertices")))) return 2;
+    if (argc != 3 && argc != 4 && !(argc==5 && (!strcmp(argv[3],"--portal-graph") || !strcmp(argv[3],"--visibility") || !strcmp(argv[3],"--adjacency") || !strcmp(argv[3],"--lightmap-vertices") || !strcmp(argv[3],"--lightmap-polygons")))) return 2;
     if (argc == 4 && !flags_mode && !links_mode && !primary_mode && strcmp(argv[3],"--portals")) budget = (uint32_t)strtoul(argv[3], NULL, 10);
     result = rf_vpp_open(&archive, argv[1]);
     if (result != RF_OK) return 3;
     result = rf_level_open(&level, &archive, argv[2]);
     if (result == RF_OK) result = rf_geometry_open(&geometry, &level, budget);
     if (result == RF_OK) {
+        if(argc==5 && !strcmp(argv[3],"--lightmap-polygons")) {
+            rf_geometry_vertex_faces graph={0};rf_geometry_lightmap_work work={0};uint32_t i,j,max=0,*ids=(uint32_t *)malloc((geometry.faces+1)*4);
+            if(!ids)return 6;for(i=0;i<geometry.faces;i++)ids[i]=i;
+            if(rf_geometry_vertex_faces_open(&geometry,ids,geometry.faces,262144,&graph))return 7;
+            for(i=0;i<graph.vertices;i++)if(graph.offsets[i+1]-graph.offsets[i]>max)max=graph.offsets[i+1]-graph.offsets[i];
+            work.normal_capacity=max;work.normals=malloc((max+1)*sizeof(*work.normals));if(!work.normals)return 8;
+            _setmode(_fileno(stdout),_O_BINARY);
+            for(i=0;i<geometry.mappings;i++) {
+                rf_lightmap_mapping mapping;uint32_t counts[2],header[3],guard[2]={UINT32_MAX,UINT32_MAX};
+                if(rf_geometry_get_lightmap_mapping(&geometry,i,1,&mapping))return 9;
+                if(rf_geometry_lightmap_polygons(&geometry,NULL,ids,geometry.faces,i,mapping.room,NULL,counts,counts+1))return 10;
+                if((uint64_t)counts[0]*sizeof(*work.polygons)+(uint64_t)counts[1]*sizeof(*work.vertices)>strtoul(argv[4],NULL,10))return 11;
+                work.polygon_capacity=counts[0];work.vertex_capacity=counts[1];
+                work.polygons=malloc((counts[0]+1)*sizeof(*work.polygons));work.vertices=malloc((counts[1]+1)*sizeof(*work.vertices));if(!work.polygons || !work.vertices)return 12;
+                if(counts[1]) {
+                    --work.vertex_capacity;
+                    if(!rf_geometry_lightmap_polygons(&geometry,&graph,ids,geometry.faces,i,mapping.room,&work,guard,guard+1) || guard[0]!=UINT32_MAX || guard[1]!=UINT32_MAX)return 13;
+                    ++work.vertex_capacity;
+                }
+                header[0]=i;header[1]=counts[0];header[2]=counts[1];
+                if(rf_geometry_lightmap_polygons(&geometry,&graph,ids,geometry.faces,i,mapping.room,&work,counts,counts+1))return 14;
+                fwrite(header,sizeof(header),1,stdout);
+                for(j=0;j<counts[0];j++){fwrite(&work.polygons[j].count,4,1,stdout);fwrite(work.polygons[j].vertices,sizeof(*work.vertices),work.polygons[j].count,stdout);}
+                free(work.polygons);free(work.vertices);
+            }
+            free(work.normals);free(ids);rf_geometry_vertex_faces_close(&graph);rf_geometry_close(&geometry);rf_vpp_close(&archive);return 0;
+        }
         if(argc==5 && !strcmp(argv[3],"--lightmap-vertices")) {
             rf_geometry_vertex_faces graph={0};rf_lightmap_normal_face *work;uint32_t i,j,max=0,*ids=(uint32_t *)malloc((geometry.faces+1)*4);
             if(!ids)return 6;for(i=0;i<geometry.faces;i++)ids[i]=i;

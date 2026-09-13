@@ -14,6 +14,11 @@ Shortlist:
 
 Progress reporting: include an overall percent estimate in every turn report (USER preference) and revisit remaining 24-hour workdays when measured throughput supports a forecast; current rough estimate40% (35-45%), no defensible +/-48-hour completion forecast before end-to-end gameplay.
 
+Mapping polygon grouping now matches5851 L1S1 PC groups and35 compiled-NXDK
+groups, with4736 bytes peak polygon/vertex scratch plus normal work. Both builds
+and24 tests pass. Bind initial RGB/mask/source ownership and verify native
+lighting residency/updates after loader survival/plane repair is resolved.
+
 Retained corner binding now matches28356 L1S1 original/PC/NXDK lightmapped
 corners (UV, position, smoothed normal); both builds and24 tests pass. Group
 selected mapping polygons with bounded scratch, bind live RGB/mask resources,

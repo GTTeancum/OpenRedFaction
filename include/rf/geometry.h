@@ -35,6 +35,19 @@ int rf_geometry_lightmap_vertex(const rf_geometry *,const rf_geometry_vertex_fac
     uint32_t face,uint32_t corner,rf_lightmap_normal_face *work,uint32_t capacity,
     rf_lightmap_sample_vertex *result);
 
+typedef struct rf_geometry_lightmap_work {
+    rf_lightmap_sample_polygon *polygons;rf_lightmap_sample_vertex *vertices;
+    rf_lightmap_normal_face *normals;uint32_t polygon_capacity,vertex_capacity,normal_capacity;
+} rf_geometry_lightmap_work;
+/*4f3390 selected-face grouping: surviving file-order IDs, mapping match and
+ * optional room filter (-1 means whole solid). NULL work queries polygon and
+ * vertex counts without adjacency. Otherwise fills caller scratch using the
+ * retained corner binding. No allocation. Count outputs change only on success;
+ * scratch may change on a later numeric/binding error. */
+int rf_geometry_lightmap_polygons(const rf_geometry *,const rf_geometry_vertex_faces *,
+    const uint32_t *face_ids,uint32_t face_count,uint32_t mapping,int32_t room,
+    rf_geometry_lightmap_work *work,uint32_t *polygon_count,uint32_t *vertex_count);
+
 typedef struct rf_geometry_lightmap_context {
     const rf_geometry *geometry;const rf_packed_lightmaps *maps;
 } rf_geometry_lightmap_context;

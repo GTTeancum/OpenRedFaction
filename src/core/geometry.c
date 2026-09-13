@@ -410,6 +410,37 @@ int rf_geometry_lightmap_vertex(const rf_geometry *g,const rf_geometry_vertex_fa
     *result=value;return RF_OK;
 }
 
+int rf_geometry_lightmap_polygons(const rf_geometry *g,const rf_geometry_vertex_faces *adjacency,
+    const uint32_t *face_ids,uint32_t face_count,uint32_t mapping,int32_t room,
+    rf_geometry_lightmap_work *work,uint32_t *polygon_count,uint32_t *vertex_count)
+{
+    uint32_t i,j,pass,np=0,nv=0;int status;
+    if(!g || !g->data || !polygon_count || !vertex_count || (face_count && !face_ids) ||
+       mapping>=g->mappings || room< -1 || (room>=0 && (uint32_t)room>=g->rooms))return RF_RANGE;
+    for(i=0;i<face_count;i++)if(face_ids[i]>=g->faces || (i && face_ids[i]<=face_ids[i-1]))return RF_RANGE;
+    for(pass=0;pass<(work?2u:1u);pass++) {
+        np=nv=0;
+        for(i=0;i<face_count;i++) {
+            rf_geometry_face face;uint32_t saved;
+            status=rf_geometry_get_face(g,face_ids[i],&face);if(status)return status;
+            saved=face.lightmap_mapping&65535u;
+            if(saved>=32768 || saved!=mapping || (room>=0 && face.room!=(uint32_t)room))continue;
+            if(face.corners>UINT32_MAX-nv || np==UINT32_MAX)return RF_RANGE;
+            if(pass) {
+                work->polygons[np].vertices=work->vertices+nv;work->polygons[np].count=face.corners;
+                for(j=0;j<face.corners;j++) {
+                    status=rf_geometry_lightmap_vertex(g,adjacency,face_ids[i],j,work->normals,work->normal_capacity,work->vertices+nv+j);
+                    if(status)return status;
+                }
+            }
+            ++np;nv+=face.corners;
+        }
+        if(work && !pass && (np>work->polygon_capacity || nv>work->vertex_capacity ||
+           (np && !work->polygons) || (nv && !work->vertices)))return RF_RANGE;
+    }
+    *polygon_count=np;*vertex_count=nv;return RF_OK;
+}
+
 int rf_geometry_texture_coordinates(const rf_geometry *geometry,uint32_t index,
     const float point[3],rf_geometry_texture_workspace *work,float uv[2],uint32_t *matched)
 {
