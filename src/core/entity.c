@@ -2422,3 +2422,25 @@ int rf_entity_contact_driller_effects(rf_entity_contact_driller_state *state,
     damage.argument6=0;damage.auxiliary_uid=UINT32_MAX;damage.force=0;
     return backend->damage(backend->context,state,&damage);
 }
+
+int rf_entity_contact_driller_feedback(const rf_entity_contact_driller_state *state,
+    const rf_entity_contact_feedback_backend *backend)
+{
+    uint32_t index=0,direction;const rf_entity_contact_player_actor *actor;int status;
+    if(!state || !backend || !backend->count)return RF_RANGE;
+    while(*backend->count>0 && index<(uint32_t)*backend->count) {
+        if((uint32_t)*backend->count>backend->capacity || !backend->players ||
+           !backend->players[index] || !backend->lookup)return RF_RANGE;
+        actor=NULL;status=backend->lookup(backend->context,backend->players[index]->entity_handle,&actor);if(status)return status;
+        if(actor && actor->linked_handle==state->handle) {
+            if(!backend->shake)return RF_RANGE;
+            status=backend->shake(backend->context,actor->camera,.9950000047683716f,.5f);if(status)return status;
+            if(!backend->direction || !backend->players[index])return RF_RANGE;
+            status=backend->direction(backend->context,backend->players[index],state->normal,&direction);if(status)return status;
+            if(!backend->mark || !backend->players[index])return RF_RANGE;
+            status=backend->mark(backend->context,backend->players[index],direction);if(status)return status;
+        }
+        ++index;
+    }
+    return RF_OK;
+}

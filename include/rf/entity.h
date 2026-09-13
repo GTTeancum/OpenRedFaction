@@ -486,6 +486,22 @@ typedef struct rf_entity_contact_driller_backend {
 int rf_entity_contact_driller_effects(rf_entity_contact_driller_state *state,
     const rf_entity_contact_driller_backend *backend);
 
+typedef struct rf_entity_contact_player {uint32_t token,entity_handle;} rf_entity_contact_player;
+typedef struct rf_entity_contact_player_actor {uint32_t linked_handle,camera;} rf_entity_contact_player_actor;
+typedef struct rf_entity_contact_feedback_backend {
+    void *context;const int32_t *count;uint32_t capacity;
+    const rf_entity_contact_player *const *players;
+    int (*lookup)(void *,uint32_t,const rf_entity_contact_player_actor **);
+    int (*shake)(void *,uint32_t,float,float);
+    int (*direction)(void *,const rf_entity_contact_player *,const float *,uint32_t *);
+    int (*mark)(void *,const rf_entity_contact_player *,uint32_t);
+} rf_entity_contact_feedback_backend;
+/*42776a..4277e0 after Driller damage. Borrowed owners/list remain alive;
+ * list slots/count and source fields may change during callbacks and are reread.
+ * Errors stop at the reached stage without rolling back earlier effects. */
+int rf_entity_contact_driller_feedback(const rf_entity_contact_driller_state *state,
+    const rf_entity_contact_feedback_backend *backend);
+
 typedef struct rf_entity_contact_destroy_actor {uint32_t handle;int32_t sound;float position[3];} rf_entity_contact_destroy_actor;
 typedef struct rf_entity_contact_destroy_backend {
     void *context;
