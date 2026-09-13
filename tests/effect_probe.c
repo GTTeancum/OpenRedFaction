@@ -201,6 +201,17 @@ int main(int argc,char **argv)
         }
         return 0;
     }
+    if(argc==2 && !strcmp(argv[1],"--lightmap-special-border")) {
+        struct {uint32_t width,height,capacity;float planes[3][256];} input;
+        float *channels[3];uint32_t status,i;
+        _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
+        while(fread(&input,sizeof(input),1,stdin)==1) {
+            for(i=0;i<3;i++)channels[i]=input.planes[i];
+            status=input.capacity>256?RF_RANGE:rf_lightmap_copy_special_border(channels,input.width,input.height,input.capacity);
+            fwrite(&status,4,1,stdout);fwrite(input.planes,sizeof(input.planes),1,stdout);
+        }
+        return 0;
+    }
     if(argc==2 && !strcmp(argv[1],"--lightmap-edge-crossing")) {
         float input[8];uint32_t status,hit;
         _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);

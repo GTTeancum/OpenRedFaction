@@ -275,6 +275,25 @@ int rf_lightmap_select_sample(const rf_lightmap_sample_polygon *polygons,uint32_
     *kind=0;return RF_OK;
 }
 
+int rf_lightmap_copy_special_border(float *channels[3],uint32_t width,uint32_t height,uint32_t capacity)
+{
+    uint32_t x,y,c,at;
+    if(!channels || !channels[0] || !channels[1] || !channels[2] || width<2 || height<2 ||
+       (uint64_t)width*height>capacity)return RF_RANGE;
+    for(y=0;y<height;y++) {
+        at=y*width;
+        for(c=0;c<3;c++) {
+            memcpy(channels[c]+at,channels[c]+at+1,4);
+            memcpy(channels[c]+at+width-1,channels[c]+at+width-2,4);
+        }
+    }
+    for(x=0;x<width;x++)for(c=0;c<3;c++) {
+        memcpy(channels[c]+x,channels[c]+width+x,4);
+        memcpy(channels[c]+(height-1)*width+x,channels[c]+(height-2)*width+x,4);
+    }
+    return RF_OK;
+}
+
 int rf_lightmap_corner_normal(const rf_lightmap_normal_face *base,const rf_lightmap_normal_face *adjacent,
     uint32_t count,float out[3])
 {

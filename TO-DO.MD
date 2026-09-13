@@ -14,6 +14,11 @@ Shortlist:
 
 Progress reporting: include an overall percent estimate in every turn report (USER preference) and revisit remaining 24-hour workdays when measured throughput supports a forecast; current rough estimate40% (35-45%), no defensible +/-48-hour completion forecast before end-to-end gameplay.
 
+Special-grid border replication matches450 original/PC/NXDK grids across
+all2..16 dimension pairs, including sequential two-texel behavior. Four guards,
+both builds and24 tests pass. Compose coverage, selection, accumulation and
+RGB fallbacks into the complete grid before retained-resource integration.
+
 Special sample selection plus interpolation matches2048 original/PC/NXDK
 cases across every tolerance pass, including334 first-in-range vertex fallbacks
 and578 exhausted searches. Three guards, both builds and24 tests pass; compose

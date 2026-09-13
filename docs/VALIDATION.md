@@ -819,3 +819,8 @@ Special sample selection and interpolation (4f3720..4f3d24):
 - 2048 samples match:1136 edge samples,334 first-in-range vertex fallbacks,578 exhausted searches. Fixtures cover each pass0..10, empty faces, null/circular lists and multiple eligible vertices. Three invalid-input guards preserve outputs on both targets.
 - Initial stored tolerance0.0001 doubles each pass. Eligible edges have absolute V difference strictly greater than double0.001; the first two in face/edge order win. Only pass0 may fall back to the first vertex within radius, not the closest. Selection on pass10 still fails, as original.
 - Both builds and24 CTests pass. The API returns exhausted/vertex/edge kind and preserves the sample when exhausted. Caller owns coverage, radius, smoothed normals and topology. Full special-grid fallback RGB writes, border copying and live resources remain unfinished.
+
+Special-grid border replication (4f3e5d..4f3f4a):
+- `python tools/verify_lightmap_special_border.py` compares450 original/PC/compiled-NXDK grids using the unhooked original copy instructions in Unicorn. Every width/height pair2..16 runs twice; arbitrary float words and untouched tails match exactly.
+- Left copies column1, then right copies column(width-2), per row. Top then copies row1 and bottom copies row(height-2), per column. Two-texel dimensions intentionally observe preceding writes. Four invalid dimension/capacity guards preserve all planes on both targets.
+- Both builds and24 CTests pass. Dimensions below2 are rejected because the original assumes accessible adjacent rows/columns. Cleanup, complete special-grid sampling and native rendering are outside this check.
