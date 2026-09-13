@@ -1749,3 +1749,17 @@ int rf_vfx_sort(rf_vfx_sort_record *records,uint32_t count,uint32_t extended)
     }
     return RF_OK;
 }
+
+int rf_vfx_face_append(const float depth[3],int32_t material,uint32_t item,rf_vfx_sort_record *records,uint32_t capacity,uint32_t *count)
+{
+    double bias,a,b,c,ab,bc,selected;float key;unsigned i;
+    if(!depth || !records || !count || *count>=capacity || capacity>SIZE_MAX/sizeof(*records))return RF_RANGE;
+    for(i=0;i<3;++i)if(!isfinite(depth[i]))return RF_FORMAT;
+    bias=(double)material*61.0;
+    /* First two biased depths spill to binary32; third remains extended. */
+    a=(float)(bias+depth[0]);b=(float)(bias+depth[1]);c=bias+depth[2];
+    ab=a>b?a:b;bc=b>c?b:c;
+    selected=ab>bc?(a>b?a:b):(b>c?b:c);key=(float)selected;
+    if(!isfinite(key))return RF_RANGE;
+    records[*count].key[0]=key;records[*count].item=item;++*count;return RF_OK;
+}

@@ -152,6 +152,17 @@ int main(int argc,char **argv)
         }
         return ferror(stdin)?1:0;
     }
+    if(argc==2 && !strcmp(argv[1],"--vfx-face-append")) {
+        uint32_t header[6];float depths[3];rf_vfx_sort_record records[8];int32_t material,status;
+        _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
+        while(fread(header,24,1,stdin)==1) {
+            if(fread(records,128,1,stdin)!=1 || header[1]>8)return 2;
+            memcpy(&material,header+2,4);memcpy(depths,header+3,12);
+            status=rf_vfx_face_append(depths,material,0x30002000,records,header[1],header);
+            fwrite(&status,4,1,stdout);fwrite(header,4,1,stdout);fwrite(records,128,1,stdout);
+        }
+        return ferror(stdin)?1:0;
+    }
     if(argc==2 && !strcmp(argv[1],"--vfx-morph")) {
         unsigned char input[84];
         _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);

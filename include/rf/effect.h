@@ -205,6 +205,10 @@ typedef struct rf_vfx_sort_record {float key[3];uint32_t item;} rf_vfx_sort_reco
  * fields with original epsilon before falling back to key0. In-place, no
  * allocation; validates finite keys before mutation. Equal order not stable. */
 int rf_vfx_sort(rf_vfx_sort_record *,uint32_t count,uint32_t extended);
+/*554b0f depth-list append after culling: material*61 plus farthest depth.
+ * Preserve destination key1/key2 as original; caller initializes list storage.
+ * Finite depths required. Full/invalid list leaves records/count unchanged. */
+int rf_vfx_face_append(const float depth[3],int32_t material,uint32_t item,rf_vfx_sort_record *records,uint32_t capacity,uint32_t *count);
 /*5478f0 facing: perspective dot(origin-point,normal)>0; flat
  * dot(forward,normal)<=0. Finite inputs required, output preserved on error. */
 int rf_vfx_face_facing(const float normal[3],const float point[3],const float origin[3],const float forward[3],uint32_t perspective,uint32_t *out);

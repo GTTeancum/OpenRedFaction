@@ -14,6 +14,11 @@ Shortlist:
 
 Progress reporting: include overall percent estimates at meaningful milestones and revisit remaining 24-hour workdays when measured throughput supports a forecast; current rough estimate40% (35-45%), no defensible +/-48-hour completion forecast before end-to-end gameplay.
 
+VFX material-biased depth/list append matches2048 original/PC/NXDK cases
+and3 capacity/input guards; secondary sort fields remain caller-owned.
+Compose projection/culling and bounded persistent lists before material draw
+submission; both builds and24 tests pass, no native VFX visuals yet.
+
 VFX gap sort53c840/53c950 matches2048 original/PC/NXDK lists and2 guards,
 including equal/epsilon-adjacent keys; both builds and24 tests pass.
 Generate original depth keys and compose bounded face-list ownership next;

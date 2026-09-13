@@ -82,3 +82,12 @@ falls back to key0 ordering. This is not ordinary lexicographic ordering.
 2048 complete original/PC/NXDK lists match, including ties and epsilon cases;
 two invalid-input guards preserve the list. Depth-key generation and live
 list ownership still need integration; no rendering claim follows from sorting.
+
+rf_vfx_face_append matches554b0f..554be7 for2048 original/PC/NXDK cases.
+The signed material index is multiplied by61 without an early float cast;
+biased depth0/depth1 spill to float while depth2 stays extended during max
+selection. Only key0 and item are written; key1/key2 retain their prior values.
+The caller must initialize list storage deliberately. Three guards verify
+full/invalid counts and nonfinite depths do not mutate the list or count.
+Preceding culling, edge-cache resets and persistent list ownership remain
+separate; this test is not a renderer/native playback test.
