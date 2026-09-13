@@ -169,6 +169,13 @@ static uint32_t particle_clip_code(const rf_particle_clip_environment *clip,cons
     }
     return code;
 }
+int rf_volume_beam_project(const rf_visibility_camera *camera,const float end[3],const float start[3],
+    float width,rf_particle_screen_polygon *out)
+{
+    rf_particle_billboard_vertex vertices[4];int status;if(!camera || !out)return RF_RANGE;
+    status=rf_volume_beam_build(camera->projection.origin,end,start,width,vertices);if(status)return status;
+    return rf_particle_world_quad(camera,vertices,out);
+}
 int rf_particle_world_quad(const rf_visibility_camera *camera,const rf_particle_billboard_vertex vertices[4],
     rf_particle_screen_polygon *out)
 {

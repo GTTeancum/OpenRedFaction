@@ -24,7 +24,8 @@ Forced-loss stock64MiB XEMU retires3 owners and clears all scene/registry refere
 Bind authored dynamic parenting and turret ownership; extend retirement with future resources.
 
 Volume opacity/beam geometry match original/PC/NXDK; original mode is06110c42.
-Connect volume projection, actor gates and sorted-queue drawing.
+Volume projection/clipping matches1024 original/PC/NXDK polygons.
+Connect GPU state, actor gates and sorted-queue drawing.
 
 The stationary startup-NPC animation gate matches PC/stock64MiB XEMU;
 footstep selection and support-material helpers are verified but not live.

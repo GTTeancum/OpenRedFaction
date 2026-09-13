@@ -220,6 +220,14 @@ int main(int argc,char **argv)
             out.status=rf_attachment_local_pose(in,in+12,in+15,in+24,out.pose);fwrite(&out,sizeof(out),1,stdout);}
         return ferror(stdin)?2:0;
     }
+    if(argc==2 && !strcmp(argv[1],"--volume-beam-project")) {
+        struct {rf_visibility_camera camera;float end[3],start[3],width;} in;
+        struct {int32_t status;rf_particle_screen_polygon polygon;} out;
+        _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
+        while(fread(&in,sizeof(in),1,stdin)==1){memset(&out,0,sizeof(out));
+            out.status=rf_volume_beam_project(&in.camera,in.end,in.start,in.width,&out.polygon);fwrite(&out,sizeof(out),1,stdout);}
+        return ferror(stdin)?2:0;
+    }
     if(argc==2 && !strcmp(argv[1],"--volume-beam")) {
         float in[10];struct {int32_t status;rf_particle_billboard_vertex vertices[4];} out;
         _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);

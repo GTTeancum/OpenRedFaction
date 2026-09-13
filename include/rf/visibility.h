@@ -130,6 +130,9 @@ int rf_particle_world_billboard(const rf_visibility_camera *camera,const float p
 /* Original558d40 four-vertex world transform, clipping and projection.
  * Shared by stretched particles and corpse surface quads. No depth override,
  * color conversion, texture binding or allocation. Errors preserve output. */
+/* Compose555b80 beam geometry with shared world projection/clipping. */
+int rf_volume_beam_project(const rf_visibility_camera *camera,const float end[3],const float start[3],
+    float width,rf_particle_screen_polygon *out);
 int rf_particle_world_quad(const rf_visibility_camera *camera,const rf_particle_billboard_vertex vertices[4],
     rf_particle_screen_polygon *polygon);
 /* Full 558e30/558d40 stretched particle, including zero-motion billboard

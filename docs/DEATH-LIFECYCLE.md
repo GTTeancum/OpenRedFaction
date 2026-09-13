@@ -9235,3 +9235,17 @@ Volume beam world geometry (2026-09-13)
  Original initializer50be40 calls411e00 with [2,2,3,2,1,3], setting1775b30
  to06110c42; executed and asserted in the harness. No native volume drawing
  yet. Projection/clipping, sorted queue integration and actor gates remain.
+
+
+Full beam projection/clipping (2026-09-13)
+-----------------------------------------
+ rf_volume_beam_project composes the verified beam world builder with
+ rf_particle_world_quad, using camera.projection.origin. No new clipping
+ implementation: original full515c00/555b80 confirms the shared path.
+ verify_volume_beam_project.py executes original math,518360 world transform,
+ 5159a0 dispatch and clipping/projection; only final551900 submission is
+ intercepted.1024 cases match PC and compiled NXDK screen polygon bytes:
+ 522 rejected,493 quads,5 five-vertex polygons,4 triangles. Rotated cameras,
+ degenerate beams, flat/perspective projection and near/far/clamp settings
+ covered. Both builds and22 CTest checks PASS. GPU mode06110c42, actor
+ gates and sorted scene integration remain open; no native visual claim.
