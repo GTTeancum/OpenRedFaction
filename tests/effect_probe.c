@@ -87,8 +87,20 @@ static int volume_actor_lookup(void *context,uint32_t handle,const rf_glare_volu
     volume_actor_fixture *c=context;if(c->count>=2)return RF_RANGE;c->trace[c->count++]=handle;
     *out=handle==32 && c->parent_present?&c->parent:handle==64 && c->target_present?&c->target:NULL;return RF_OK;
 }
+static int volume_special_actor_flags(void *context,uint32_t handle,uint32_t *present,uint32_t *flags)
+{uint32_t *v=context;if(handle!=32)return RF_RANGE;++v[2];*present=v[0];*flags=v[1];return v[3]?RF_IO:RF_OK;}
 int main(int argc,char **argv)
 {
+    if(argc==2 && !strcmp(argv[1],"--volume-special-gate")) {
+        uint32_t in[6],out[3],context[4];rf_glare_base_owner owner;
+        _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
+        while(fread(in,sizeof(in),1,stdin)==1) {
+            memset(&owner,0,sizeof(owner));owner.state.word_2cc=in[0];owner.flags=in[2];context[0]=in[3];context[1]=in[4];context[2]=0;context[3]=in[5];
+            out[1]=0xa5a5a5a5;out[0]=(uint32_t)rf_glare_volume_special_allowed(&owner,1,in[1],32,volume_special_actor_flags,context,out+1);
+            out[2]=context[2];fwrite(out,sizeof(out),1,stdout);
+        }
+        return ferror(stdin)?2:0;
+    }
     if(argc==2 && !strcmp(argv[1],"--volume-actor-update")) {
         uint32_t in[31],out[8];float sizes[2],length,width;rf_random_state random;volume_actor_fixture c;
         _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);

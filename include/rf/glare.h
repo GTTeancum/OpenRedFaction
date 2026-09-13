@@ -114,6 +114,14 @@ typedef struct rf_glare_volume_actor {
 int rf_glare_volume_actor_update(uint32_t parent,uint32_t glare_flags,float length,float width,
     int (*lookup)(void *,uint32_t,const rf_glare_volume_actor **),void *context,
     rf_random_state *random,float dimensions[2],uint32_t *draw);
+/*4141a0..414200 special view-owner gate. Zero word2cc skips this gate;
+ * otherwise it must match current_view, camera kind must be zero, base flag2
+ * must be clear, and view_actor must resolve without actor810 bit1.
+ * Caller supplies the view/camera ownership and426fc0 actor flags service.
+ * Lookup is skipped on earlier rejection; callback errors preserve allowed. */
+int rf_glare_volume_special_allowed(const rf_glare_base_owner *owner,uint32_t current_view,
+    uint32_t camera_kind,uint32_t view_actor,
+    int (*actor_flags)(void *,uint32_t,uint32_t *present,uint32_t *flags),void *context,uint32_t *allowed);
 typedef struct rf_glare_volume_frame {
     float camera[3];int32_t bitmap;uint32_t mode;
 } rf_glare_volume_frame;

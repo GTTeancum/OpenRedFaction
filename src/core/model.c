@@ -165,6 +165,17 @@ int rf_glare_volume_actor_update(uint32_t parent,uint32_t glare_flags,float leng
     }
     memcpy(dimensions,sizes,sizeof(sizes));*draw=allowed;*random=next;return RF_OK;
 }
+int rf_glare_volume_special_allowed(const rf_glare_base_owner *owner,uint32_t current_view,
+    uint32_t camera_kind,uint32_t view_actor,
+    int (*actor_flags)(void *,uint32_t,uint32_t *,uint32_t *),void *context,uint32_t *allowed)
+{
+    uint32_t present,flags;int status;
+    if(!owner || !actor_flags || !allowed)return RF_RANGE;
+    if(!owner->state.word_2cc){*allowed=1;return RF_OK;}
+    if(owner->state.word_2cc!=current_view || camera_kind || (owner->flags&2)){*allowed=0;return RF_OK;}
+    status=actor_flags(context,view_actor,&present,&flags);if(status)return status;
+    *allowed=present && !(flags&1);return RF_OK;
+}
 int rf_glare_volume_render(rf_glare_base_owner *owner,const rf_glare_definition *definition,
     const rf_glare_volume_frame *frame,const rf_glare_volume_services *services)
 {

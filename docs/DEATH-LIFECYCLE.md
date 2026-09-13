@@ -9415,3 +9415,16 @@ animated prop-owned beam queue/render comparison also passes. Both builds
 and22 CTest checks pass. These are controlled service tests, not authored
 NPC-mounted beam geometry or complete vehicle runtime. Player1430 ownership,
 authored placement and mixed transparent ordering remain open.
+
+
+Special volume-owner gate (2026-09-13): rf_glare_volume_special_allowed
+reconstructs4141a0..414200. Zero word2cc bypasses this internal gate; otherwise
+require identity with current7c763c, camera object+c4 -> camera+8 kind zero,
+clear base flag2, and a resolved426fc0 view actor at owner+14 with actor810
+mask1 clear. Missing actor rejects through actual427020. Earlier rejection
+skips actor lookup. Generic488b20 still owns unconditional base flag2 gating.
+verify_volume_special_gate.py executes original40d740 and427020 and compares
+162 exact PC/NXDK allow/lookup-count cases with only actor lookup supplied.
+Six callback failures preserve output. Both builds and22 CTest checks pass.
+The helper exposes view/camera ownership rather than inventing those values;
+scene special-owner binding and player ownership remain open.
