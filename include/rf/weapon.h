@@ -16,7 +16,7 @@ int rf_weapon_world_tag(rf_weapon_world_model models[64],int32_t weapon,uint32_t
     int (*lookup)(void *,uint32_t,const char *,int32_t *),void *context,int32_t *tag);
 
 typedef struct rf_weapon_hand_source {
-    uint32_t actor_model;int32_t weapon;uint32_t hand_count;int32_t hands[8];
+    uint32_t actor_model;int32_t weapon;uint32_t hand_count;int32_t hands[2];
     float position[3],basis[9];
 } rf_weapon_hand_source;
 typedef struct rf_weapon_hand_placement {float hand[3],position[3],basis[9];} rf_weapon_hand_placement;

@@ -23,6 +23,7 @@ static int hand_probe_transform(void *context,uint32_t model,int32_t tag,const f
 }
 static int weapon_hand_probe(void)
 {
+ _Static_assert(sizeof(rf_weapon_hand_source)==68,"Two primary weapon hand tags");
  hand_probe_input in;rf_weapon_hand_ops ops={hand_probe_tag,hand_probe_transform};
  struct {int32_t status;rf_weapon_hand_placement placement;rf_weapon_world_model models[64];rf_weapon_hand_source source;uint32_t calls[3];} out;
  while(fread(&in,sizeof(in),1,stdin)==1) {

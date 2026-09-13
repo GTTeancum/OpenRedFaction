@@ -27,7 +27,7 @@ int rf_weapon_place_in_hand(const rf_weapon_hand_source *source,int32_t hand,
 {
     uint32_t model,i;int32_t grip;int status;float basis[9]={1,0,0,0,1,0,0,0,1};
     float unused_basis[9]={1,0,0,0,1,0,0,0,1},point[3]={0};
-    if(!source || !models || !result || hand<0 || source->hand_count>8)return RF_RANGE;
+    if(!source || !models || !result || hand<0 || source->hand_count>2)return RF_RANGE;
     if((uint32_t)hand>=source->hand_count)return RF_NOT_FOUND;
     model=rf_weapon_world_model_token(models,source->weapon);if(!model)return RF_NOT_FOUND;
     if(!ops || !ops->transform)return RF_NOT_FOUND;

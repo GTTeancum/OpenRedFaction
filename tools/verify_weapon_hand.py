@@ -47,13 +47,20 @@ def run(c,addr,args):
 def port(source,raw,hand,ops=True):
  calls[:]=[0,0,0];x.mem_write(SRC,source);x.mem_write(MODELS,raw);x.mem_write(OUT,b'\xa5'*60);x.mem_write(OPS,w(TAG,TRANS))
  status=run(x,entry,[SRC,hand,MODELS,OPS if ops else 0,0,OUT])
- return w(status)+bytes(x.mem_read(OUT,60))+bytes(x.mem_read(MODELS,1024))+bytes(x.mem_read(SRC,92))+w(*calls)
+ return w(status)+bytes(x.mem_read(OUT,60))+bytes(x.mem_read(MODELS,1024))+bytes(x.mem_read(SRC,68))+w(*calls)
+# Class4246e0 appends primary_weapon_N through42d930, whose actual capacity is2.
+for count in range(3):
+ for value in range(32):
+  initial=w(count,71,83,0xdeadbeef);u.mem_write(CLASS,initial);u.reg_write(UC_X86_REG_ECX,CLASS)
+  code=run(u,0x42d930,[value]);expected=bytearray(initial)
+  if count<2:expected[:4]=w(count+1);expected[4+count*4:8+count*4]=w(value)
+  assert code==(count if count<2 else -1) and bytes(u.mem_read(CLASS,16))==bytes(expected)
 rng=random.Random(0x418e60);inputs=[];outputs=[];total=[0,0,0]
 for k in range(2048):
  rows=[[rng.choice([0,1,1]),rng.choice([0,0x1234,0x5678]),-1,rng.choice([-2,-1,-1,0,19])] for _ in range(64)]
- weapon=rng.choice([-1,64,rng.randrange(64)]);nxt=rng.choice([-1,64,rng.randrange(64),weapon]);count=rng.randrange(9);hand=rng.randrange(9);hands=[rng.randrange(-2,90) for _ in range(8)]
+ weapon=rng.choice([-1,64,rng.randrange(64)]);nxt=rng.choice([-1,64,rng.randrange(64),weapon]);count=rng.randrange(3);hand=rng.randrange(3);hands=[rng.randrange(-2,90) for _ in range(2)]
  if k%4:
-  weapon=k%64;nxt=(weapon+1)%64;count=8;hand=k%8
+  weapon=k%64;nxt=(weapon+1)%64;count=2;hand=k%2
   rows[weapon][0:2]=[1,0x1234];rows[nxt][0:2]=[1,0x5678]
  floats=lambda n:f([rng.uniform(-100,100)*rng.choice([1,1,1,1e12,1e-12]) for _ in range(n)])
  pos=floats(3);src_basis=floats(9);basis=floats(9);point=floats(3);grip_point=floats(3);grip=rng.choice([-2,-1,0,12]);actor=0x123456
@@ -74,7 +81,7 @@ for k in range(2048):
 # Port safety and service error prefixes; original transform service has no status return.
 rows=[[0,0,-1,-1] for _ in range(64)];rows[3]=[1,0x1234,-1,-1];rows[4]=[1,0x5678,-1,-1];raw=b''.join(w(*r) for r in rows)
 state.update(rows=rows,next=4,model=0x1234,grip=12,resolved_grip=12,hand=0)
-for fail,hand,count in [(1,0,1),(2,0,1),(3,0,1),(0,-1,1),(0,0,9)]:
+for fail,hand,count in [(1,0,1),(2,0,1),(3,0,1),(0,-1,1),(0,0,3)]:
  state['fail']=fail;source=w(actor,3,count,*hands)+pos+src_basis
  got=port(source,raw,hand);status=signed(struct.unpack_from('<I',got)[0]);assert status==(-1 if fail else -4)
  expected_placement=point+b'\xa5'*48 if fail==1 else point+point+basis if fail else b'\xa5'*60
@@ -88,6 +95,6 @@ for fail,hand,count in [(1,0,1),(2,0,1),(3,0,1),(0,-1,1),(0,0,9)]:
 state['fail']=0;source=w(actor,3,1,*hands)+pos+src_basis
 assert port(source,raw,0,False)==w(-3)+b'\xa5'*60+raw+source+w(0,0,0)
 actual=subprocess.check_output([str(root/'build/pc/Release/rf_weapon_probe.exe'),'--hand-placement'],input=b''.join(inputs))
-expected=b''.join(outputs);assert actual==expected,next((i//1192 for i,(a,b) in enumerate(zip(actual,expected)) if a!=b),('length',len(actual),len(expected)))
-report=dict(result='PASS',original_cases=2048,service_calls=total,port_guards=6,original_sha256=digest,scope='Full original418e60 with actual list, vector, model and grip-cache helpers; only5034f0 transform and503220 tag services supplied with arguments checked. Exact PC/NXDK outputs, caches, source mutation, captured model versus reread weapon, two float stores, and port error prefixes. Model transforms/loading and scene rendering excluded.')
+expected=b''.join(outputs);assert actual==expected,next((i//1168 for i,(a,b) in enumerate(zip(actual,expected)) if a!=b),('length',len(actual),len(expected)))
+report=dict(result='PASS',original_cases=2048,original_hand_capacity_cases=96,service_calls=total,port_guards=6,original_sha256=digest,scope='Full original418e60 with actual list, vector, model and grip-cache helpers; only5034f0 transform and503220 tag services supplied with arguments checked. Exact PC/NXDK outputs, caches, source mutation, captured model versus reread weapon, two float stores, and port error prefixes. Model transforms/loading and scene rendering excluded.')
 (root/'artifacts/weapon-hand.json').write_text(json.dumps(report,indent=2));print(report)

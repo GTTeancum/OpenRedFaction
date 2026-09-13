@@ -10842,7 +10842,7 @@ Attachment trace identifies418e60 (called by421c40): obtain hand count40a490, re
 
 ### Hand-to-grip weapon placement (2026-09-13)
 
-rf_weapon_place_in_hand reconstructs full418e60: reject unavailable hand/model, capture the original world model, transform the actor hand, publish hand/weapon position and basis, reread the selected weapon for grip lookup, and transform that grip using the initially captured model. Weapon position subtracts the transformed grip offset with two separate float stores, matching409fa0 then416150. Hand tags are bounded to the original eight-entry class list; negative indices are rejected safely by the port.
+rf_weapon_place_in_hand reconstructs full418e60: reject unavailable hand/model, capture the original world model, transform the actor hand, publish hand/weapon position and basis, reread the selected weapon for grip lookup, and transform that grip using the initially captured model. Weapon position subtracts the transformed grip offset with two separate float stores, matching409fa0 then416150. The initial eight-entry bound was incorrect and is superseded by the two-entry correction below; negative indices are rejected safely by the port.
 
 verify_weapon_hand.py executes original418e60 and actual list/vector/model/cache helpers, supplying only5034f0 and503220 with checked arguments.2048 original/PC/compiled-NXDK cases pass with2968 transform and619 tag callbacks, including callback weapon mutation, absent hands/models, cached/missing grips, and widely scaled finite coordinates. Six port guards cover negative indices, oversized lists, absent services and three callback failure prefixes. Both builds and22 CTests pass.
 
@@ -10870,3 +10870,10 @@ After startup inventory grants, the level now collects owned weapon IDs and load
 Native replay-20260913-102005 passes180 frames with door, damage UID8456, actor-pair fixtures and death animation. QMP confirms67108864 base bytes and0 plugged memory; normal-image restoration completed and the driver exited0. Weapon telemetry exactly matches PC: [1,1,8200,135172,2,3661868426,8,0]. This represents one shared pistol model, one loaded weapon ID,8200 resident bytes and two tags. Hashing covers descriptor caches, compiled names, tags, materials, vertices and triangles. Both builds and22 CTests pass. No held-weapon drawing or new visual result is claimed.
 
 Further original trace locates class hand-list creation inside4246e0: sequential primary_weapon_1, primary_weapon_2, etc. queries via503220, stopping at the first missing result.4247fc/424802 append resolved tags to class+1d4 using42d930. This is a trace for the next binding, not yet independently verified; avoid treating generic hand bones as equivalent attachment names.
+
+
+### Correct primary hand-list capacity (2026-09-13)
+
+Instruction-level tracing of4246e0 shows4247fc passing class+1d4 to42d930. This helper has capacity2;42d980, used by other lists, has capacity8 and was incorrectly used to infer the hand-list bound earlier. The port hand source now owns two tag entries (68 bytes), and placement rejects hand_count>2. The original placement accessor itself assumes a valid class list; the port retains explicit safety guards.
+
+verify_weapon_hand.py now directly executes42d930 in96 cases for initial counts0,1,2 and distinct appended values, checking count, slots, return and adjacent canary. Full418e60 placement still matches2048 original/PC/compiled-NXDK cases with2955 transform and603 tag callbacks, plus six port guards. PC fixture wire layout follows the smaller source. Both builds and22 CTests pass. No scene/runtime behavior changed because hand placement is not bound to rendering yet; the prior native model-residency replay remains the latest native evidence.
