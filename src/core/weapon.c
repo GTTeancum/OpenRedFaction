@@ -436,3 +436,39 @@ static int weapon_sp_acquire_notice(void *context,rf_weapon_inventory *inventory
 int rf_weapon_acquire_sp(rf_weapon_inventory *inventory,const rf_weapon_acquire_definition *definition,
     int32_t weapon,int32_t quantity)
 {return rf_weapon_acquire(inventory,definition,weapon,quantity,weapon_sp_acquire_notice,NULL);}
+
+static int weapon_startup_fill(rf_weapon_inventory *inventory,
+    const rf_weapon_acquire_definition definitions[64],int32_t weapon)
+{
+    int32_t ammo;if(weapon<0 || weapon>=64)return RF_RANGE;
+    ammo=definitions[weapon].ammo_type;if(ammo<0)return RF_OK;if(ammo>=32)return RF_RANGE;
+    inventory->reserve[ammo]=definitions[weapon].capacity;return RF_OK;
+}
+int rf_weapon_startup_grant_sp(rf_weapon_inventory *inventory,rf_weapon_startup_state *state,
+    const int32_t defaults[3],const rf_weapon_acquire_definition definitions[64],
+    int (*equip)(void *,int32_t),void *context)
+{
+    int32_t weapon;int status;
+    if(!inventory || !state || !defaults || !definitions)return RF_RANGE;
+    weapon=defaults[0];
+    if(weapon!=-1) {
+        if(weapon<0 || weapon>=64)return RF_RANGE;
+        status=rf_weapon_acquire_sp(inventory,definitions+weapon,weapon,-1);if(status)return status;
+        state->primary=defaults[0];if(!equip)return RF_RANGE;
+        status=equip(context,state->primary);if(status)return status;
+        status=weapon_startup_fill(inventory,definitions,defaults[0]);if(status)return status;
+    }
+    weapon=defaults[1];
+    if(weapon!=-1) {
+        if(weapon<0 || weapon>=64)return RF_RANGE;
+        status=rf_weapon_acquire_sp(inventory,definitions+weapon,weapon,-1);if(status)return status;
+        state->secondary=defaults[1];
+        status=weapon_startup_fill(inventory,definitions,state->secondary);if(status)return status;
+    }
+    weapon=defaults[2];
+    if(weapon!=-1) {
+        if(weapon<0 || weapon>=64)return RF_RANGE;
+        status=rf_weapon_acquire_sp(inventory,definitions+weapon,weapon,-1);if(status)return status;
+    }
+    return RF_OK;
+}

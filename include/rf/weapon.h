@@ -92,6 +92,15 @@ int rf_weapon_acquire(rf_weapon_inventory *,const rf_weapon_acquire_definition *
 int rf_weapon_acquire_sp(rf_weapon_inventory *,const rf_weapon_acquire_definition *,
     int32_t weapon,int32_t quantity);
 
+typedef struct rf_weapon_startup_state {int32_t primary,secondary;} rf_weapon_startup_state;
+/*422cf5..422dbd after inventory construction, normal SP. Grant primary,
+ * publish it, equip, reread class primary and fill its reserve; then secondary
+ * grant/publication/refill and extra grant. Borrowed defaults/definitions may
+ * change during equip. Errors preserve completed grants and publications. */
+int rf_weapon_startup_grant_sp(rf_weapon_inventory *,rf_weapon_startup_state *,
+    const int32_t defaults[3],const rf_weapon_acquire_definition definitions[64],
+    int (*equip)(void *,int32_t),void *context);
+
 typedef struct rf_weapon_ammo_state {int32_t current,pending,weapon_count;} rf_weapon_ammo_state;
 typedef struct rf_weapon_ammo_backend {
     void *context;
