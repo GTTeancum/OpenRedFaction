@@ -520,6 +520,38 @@ int rf_look_orientation(const float angles[3],float orientation[9])
     memcpy(orientation,out,sizeof(out));return RF_OK;
 }
 
+static int eye_rotate_axis(const float input[3],const float axis[3],float angle,float output[3])
+{
+    float basis[9]={0},rotation[9]={0},local[3],rotated[3],seed[9]={0},angles[3]={0,angle,0};
+    float s,c;uint32_t i;
+    if(!camera_nonzero(axis) || !isfinite(angle))return RF_RANGE;
+    memcpy(basis+6,axis,12);camera_normalize(basis+6);
+    if(basis[6]<.0001f && basis[6]>-.0001f && basis[8]<.0001f && basis[8]>-.0001f){
+        basis[0]=1;basis[6]=basis[8]=0;basis[7]=basis[7]<0?-1.0f:1.0f;basis[5]=-basis[7];
+    }else{basis[0]=basis[8];basis[2]=-basis[6];camera_normalize(basis);look_cross(basis+6,basis,basis+3);}
+    /*4fbdd0(0,angle,0): rotation about the aligned Z axis. */
+    look_basis_seed(angles,seed);s=-seed[2];c=seed[0];
+    rotation[0]=c;rotation[1]=s;rotation[3]=-s;rotation[4]=c;rotation[7]=-0.0f;rotation[8]=1;
+    for(i=0;i<3;++i)local[i]=(float)(((double)input[2]*basis[i*3+2]+(double)input[1]*basis[i*3+1])+(double)input[0]*basis[i*3]);
+    for(i=0;i<3;++i)rotated[i]=(float)(((double)local[2]*rotation[i*3+2]+(double)local[1]*rotation[i*3+1])+(double)local[0]*rotation[i*3]);
+    for(i=0;i<3;++i)output[i]=(float)(((double)rotated[2]*basis[6+i]+(double)rotated[1]*basis[3+i])+(double)rotated[0]*basis[i]);
+    return RF_OK;
+}
+int rf_eye_physics_orientation(const float body[9],const rf_eye_angle_state *state,float output[9])
+{
+    float v[9],up[3],pitch,roll;uint32_t i;int status;
+    if(!body || !state || !output)return RF_RANGE;
+    for(i=0;i<9;++i)if(!isfinite(body[i]))return RF_RANGE;
+    pitch=(float)((double)state->offset_894[0]+state->angles_87c[0]);
+    roll=(float)((double)state->offset_894[2]+state->angles_87c[2]);
+    memcpy(v,body,sizeof(v));status=eye_rotate_axis(v+3,v,pitch,up);if(status)return status;
+    memcpy(v+3,up,12);look_cross(v,v+3,v+6);
+    status=eye_rotate_axis(v+3,v+6,roll,up);if(status)return status;
+    memcpy(v+3,up,12);look_cross(v+3,v+6,v);
+    for(i=0;i<9;++i)if(!isfinite(v[i]))return RF_RANGE;
+    memcpy(output,v,sizeof(v));return RF_OK;
+}
+
 int rf_screen_flash_reset(rf_screen_flash *state)
 {
     if(!state)return RF_RANGE;

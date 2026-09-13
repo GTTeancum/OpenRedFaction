@@ -58,6 +58,7 @@ Waypoint advance40c2a0 and full steering40cb50 each match2048 original/PC/NXDK c
 Authored rotation limits/acceleration are retained for all63 classes;84 PC/NXDK reader cases and three PC level budgets pass; bind steering/physics consumers.
 Body rotation filter433c80 matches2048 original/PC/NXDK cases; bind NPC eye orientation and complete angular integration before live steering.
 Eye-angle update49cf40 matches2048 original/PC/NXDK cases plus6 guards; bind retained NPC angles and eye matrix reconstruction.
+Physics eye-matrix composition matches2048 original/PC/NXDK cases plus3 guards; bind NPC angle/matrix owners and per-frame physics scheduling.
 AI scalar401cc0 and occupant-chain4077a0 each match2048 original/PC/NXDK cases; retain scalar/override sources.
 Shared408ac0 selection matches2048 original/PC/NXDK cases across107 paths plus21 failure checks.
 AI animation resets4091d0/409210 match2048 original/PC/NXDK cases plus4 failure checks.

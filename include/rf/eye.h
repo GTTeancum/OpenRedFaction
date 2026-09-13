@@ -81,6 +81,11 @@ typedef struct rf_eye_angle_state {
  * original ordered comparisons. Finite reached inputs; dt nonnegative when
  * decay is active. Errors preserve state. No matrix rebuild or allocation. */
 int rf_eye_angles_step(rf_eye_angle_state *state,uint32_t class_flags,float dt);
+/*49fe7a..49feb3: copy physics orientation, rotate up about right by pitch,
+ * rebuild forward, then rotate up about forward by roll and rebuild right.
+ * Angles include offset894+87c and offset89c+884; yaw is not applied here.
+ * Finite nondegenerate axes required. Errors preserve output; alias allowed. */
+int rf_eye_physics_orientation(const float body[9],const rf_eye_angle_state *state,float output[9]);
 /* 422e2c..422e82: original matrix angle extraction, yaw-only body, and
  * physics-frame projection filtered by rotation reference == 1. No command
  * clearing, pose construction or factory ownership. Finite inputs required;
