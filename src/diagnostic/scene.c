@@ -1163,6 +1163,8 @@ static rf_foley_owner campaign_foley;
 static rf_clutter_catalogs campaign_clutter_catalogs;
 static int32_t campaign_riot_shield_class=-1;
 uint32_t rf_scene_clutter_contact_test[8];
+static rf_weapon_supply_catalog campaign_weapon_supply;
+uint32_t rf_scene_weapon_supply[4]; /* count,primary count,retained bytes,catalog hash */
 static struct {rf_vclip_definition definitions[2];int32_t effects[2],foley[2];} campaign_contact_splashes;
 uint32_t rf_scene_contact_splash_assets[8]; /* IDs2,Foley2,owned bytes,metadata hash,flags2 */
 static rf_clutter_classes campaign_clutter_classes;
@@ -2674,7 +2676,16 @@ static int campaign_clutter_open(const char *tables_path,const rf_level *level)
     rf_vpp tables;uint32_t i,j,peak=0,hash=2166136261u;int status;
     memset(rf_scene_clutter,0,sizeof(rf_scene_clutter));
     status=rf_vpp_open(&tables,tables_path);if(status)return status;
-    status=rf_clutter_catalogs_open(&tables,&campaign_foley,65536,&campaign_clutter_catalogs);
+    memset(&campaign_weapon_supply,0,sizeof(campaign_weapon_supply));
+    memset(rf_scene_weapon_supply,0,sizeof(rf_scene_weapon_supply));
+    status=rf_weapon_supply_load(&tables,128*1024,&campaign_weapon_supply);
+    if(!status) {
+        rf_scene_weapon_supply[0]=campaign_weapon_supply.names.count;
+        rf_scene_weapon_supply[1]=campaign_weapon_supply.names.primary_count;
+        rf_scene_weapon_supply[2]=sizeof(campaign_weapon_supply);
+        rf_scene_weapon_supply[3]=npc_hash_bytes(2166136261u,&campaign_weapon_supply,sizeof(campaign_weapon_supply));
+    }
+    if(!status)status=rf_clutter_catalogs_open(&tables,&campaign_foley,65536,&campaign_clutter_catalogs);
     memset(&campaign_contact_splashes,0,sizeof(campaign_contact_splashes));
     memset(rf_scene_contact_splash_assets,0,sizeof(rf_scene_contact_splash_assets));
     for(i=0;!status && i<2;++i) {
