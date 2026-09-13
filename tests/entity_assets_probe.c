@@ -38,6 +38,25 @@ int main(int argc,char **argv)
         }
         rf_vpp_close(&meshes);return ferror(stdin)?8:0;
     }
+    if(argc==4 && !strcmp(argv[1],"--vfx-directory")) {
+        rf_vpp archive;rf_vfx_directory out={0},zero={0};uint32_t budget=65536,i;int status;
+        if(rf_vpp_open(&archive,argv[2]))return 1;
+        status=rf_vfx_directory_open(&archive,argv[3],budget,&out);if(status)return 2;
+        budget=out.allocated_bytes;
+        _setmode(_fileno(stdout),_O_BINARY);fwrite(&out.header,sizeof(out.header),1,stdout);
+        fwrite(&out.count,4,1,stdout);fwrite(&out.allocated_bytes,4,1,stdout);fwrite(out.chunks,sizeof(*out.chunks),out.count,stdout);
+        for(i=0;i<out.count;++i) {
+            unsigned char value=0xa5;
+            if(rf_vfx_chunk_read(&out,i,out.chunks[i].bytes,&value,1)!=RF_RANGE || value!=0xa5)return 3;
+            if(out.chunks[i].bytes && rf_vfx_chunk_read(&out,i,0,&value,1))return 4;
+        }
+        if(rf_vfx_directory_open(&archive,argv[3],budget,&out)!=RF_RANGE)return 5;
+        rf_vfx_directory_close(&out);rf_vfx_directory_close(&out);
+        if(memcmp(&out,&zero,sizeof(out)))return 6;
+        if(rf_vfx_directory_open(&archive,argv[3],budget-1,&out)!=RF_RANGE || memcmp(&out,&zero,sizeof(out)))return 7;
+        if(rf_vfx_directory_open(&archive,argv[3],budget,&out))return 8;
+        rf_vfx_directory_close(&out);rf_vpp_close(&archive);return 0;
+    }
     if(argc==2 && !strcmp(argv[1],"--vfx-header")) {
         uint32_t size;void *text;rf_vfx_header out;int32_t code;
         _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);

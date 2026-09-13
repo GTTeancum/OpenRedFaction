@@ -277,3 +277,37 @@ Both builds and24 CTests pass. Evidence: artifacts/vfx-header.json.
 Remaining: object chunks, animation tracks, textures, shared definition and
 instance allocation budgets, bounds, playback and backend integration. No
 full original file load, native XEMU scene run or new visual is claimed.
+
+## Bounded streamed VFX directory (2026-09-13)
+
+rf_vfx_directory_open streams header and record headers from meshes.vpp in
+two bounded passes, retaining only header/entry metadata and12-byte record
+ranges. Physical stored length includes its size word but excludes the type;
+payload is length-4 bytes. All seven projectile assets consume their exact
+file lengths with that interpretation. A naive type+size+length advance
+overshoots the next record by4 bytes.
+
+The directory preserves all types for later decoders and does not emulate
+the original unknown-record skip branch. It checks structural boundaries,
+not object semantics or header-count agreement. The archive remains borrowed
+and must stay open/unchanged. rf_vfx_chunk_read restricts reads to one payload.
+Output commits only after both passes; allocation/read failures roll back.
+Budgets include the216-byte owner and retained records, excluding archive,
+stack and allocator overhead. No whole-file copy or per-read allocation.
+
+All seven files contain29 records and use228..300 bytes per directory.
+NanoAttackMissile includes WARP in addition to mesh/particle/material data;
+that record must be decoded for fidelity. Original54b5b0 dispatch leads to
+53d0c0 SFXO,5420f0 PART,54ab20 MATL and56a9c0 WARP. The first three are now
+exported for reconstruction; no object/track decoder has been implemented yet.
+
+verify_vfx_directory.py compares PC actual-archive output and compiled NXDK
+with supplied archive/heap services against an independent record walk.
+42 NXDK failures cover short budgets, allocation, second-pass I/O, truncation
+and invalid lengths. Reopening, repeated close and every payload boundary
+also pass. Header1031-case comparison/857 guards and24 CTests still pass;
+both builds succeed. Evidence: artifacts/vfx-directory.json.
+
+Next: bounded mesh/particle/material/warp object decoders, track storage,
+instance playback and actual projectile backend. No native XEMU scene run
+or new visual; this is structural archive access, not complete VFX loading.

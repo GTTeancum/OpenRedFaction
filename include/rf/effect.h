@@ -11,6 +11,24 @@ typedef struct rf_vfx_header {uint32_t version,bytes,values[30];} rf_vfx_header;
 /* Signed-positive versions>=30000 except40000..40004 (incompatible range).
  * Truncated/invalid inputs preserve output. No allocation. */
 int rf_vfx_header_read(const void *data,uint32_t bytes,rf_vfx_header *result);
+#include "rf/vpp.h"
+typedef struct rf_vfx_chunk {uint32_t type,offset,bytes;} rf_vfx_chunk;
+typedef struct rf_vfx_directory {
+    rf_vpp *archive;rf_vpp_entry entry;rf_vfx_header header;
+    rf_vfx_chunk *chunks;uint32_t count,allocated_bytes;
+} rf_vfx_directory;
+/* Stream a bounded directory: record size includes its four-byte size word,
+ * excludes type. Stored ranges identify payload only. Keeps all record types
+ * for later semantic decoding, including unknown types; does not emulate the
+ * original unknown-record skip path. Header counts are not yet reconciled
+ * with decoded objects. Archive is borrowed and must remain open/unchanged.
+ * Budget includes owner+directory, excludes stack/archive/allocator overhead.
+ * Empty owner required; two read-only passes; errors preserve output. */
+int rf_vfx_directory_open(rf_vpp *,const char *name,uint32_t budget,rf_vfx_directory *);
+/* Read within a single indexed payload; no reads into neighboring records. */
+int rf_vfx_chunk_read(const rf_vfx_directory *,uint32_t index,uint32_t offset,void *,uint32_t bytes);
+void rf_vfx_directory_close(rf_vfx_directory *);
+
 
 /* Original 4c1d00 scans all 64 vclip name slots; for ASCII names, returns
  * the first match. Empty/unknown names return -1. Names are NUL-terminated;

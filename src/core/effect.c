@@ -1,4 +1,5 @@
 #include <string.h>
+#include <stdlib.h>
 #include "rf/effect.h"
 #include "rf/visibility.h"
 #include "rf/image.h"
@@ -982,4 +983,50 @@ int rf_vfx_header_read(const void *data,uint32_t bytes,rf_vfx_header *result)
     if(v.version<0x40003)v.values[11]=v.values[9];
     if(v.version<0x40005)v.values[12]=v.values[9]*(v.values[1]+(v.version<0x3000c?1u:0u));
     v.bytes=at;*result=v;return RF_OK;
+}
+
+static uint32_t vfx_word(const unsigned char *p)
+{return (uint32_t)p[0]|((uint32_t)p[1]<<8)|((uint32_t)p[2]<<16)|((uint32_t)p[3]<<24);}
+void rf_vfx_directory_close(rf_vfx_directory *owner)
+{if(owner){free(owner->chunks);memset(owner,0,sizeof(*owner));}}
+int rf_vfx_directory_open(rf_vpp *archive,const char *name,uint32_t budget,rf_vfx_directory *out)
+{
+    rf_vfx_directory v={0},empty={0};unsigned char raw[128];uint32_t size,at,pass,i;int status;
+    if(!archive || !name || !out || memcmp(out,&empty,sizeof(empty)) || budget<sizeof(v))return RF_RANGE;
+    status=rf_vpp_find(archive,name,&v.entry);if(status)return status;
+    size=v.entry.size<sizeof(raw)?v.entry.size:sizeof(raw);
+    status=rf_vpp_read(archive,&v.entry,0,raw,size);if(status)return status;
+    status=rf_vfx_header_read(raw,size,&v.header);if(status)return status;
+    v.archive=archive;
+    for(pass=0;pass<2;++pass) {
+        at=v.header.bytes;i=0;
+        while(at<v.entry.size) {
+            uint32_t length;
+            if(v.entry.size-at<8){status=RF_FORMAT;goto failed;}
+            status=rf_vpp_read(archive,&v.entry,at,raw,8);if(status)goto failed;
+            length=vfx_word(raw+4);
+            if(length<4 || length>v.entry.size-at-4){status=RF_FORMAT;goto failed;}
+            if(sizeof(v)+(uint64_t)(i+1)*sizeof(*v.chunks)>budget){status=RF_RANGE;goto failed;}
+            if(pass) {
+                if(i>=v.count){status=RF_FORMAT;goto failed;}
+                v.chunks[i].type=vfx_word(raw);v.chunks[i].offset=at+8;v.chunks[i].bytes=length-4;
+            }
+            ++i;at+=4+length;
+        }
+        if(!pass) {
+            v.count=i;
+            if(i){v.chunks=malloc((size_t)i*sizeof(*v.chunks));if(!v.chunks){status=RF_IO;goto failed;}}
+        } else if(i!=v.count){status=RF_FORMAT;goto failed;}
+    }
+    v.allocated_bytes=(uint32_t)(sizeof(v)+(uint64_t)v.count*sizeof(*v.chunks));*out=v;return RF_OK;
+failed:
+    rf_vfx_directory_close(&v);return status;
+}
+int rf_vfx_chunk_read(const rf_vfx_directory *owner,uint32_t index,uint32_t offset,void *out,uint32_t bytes)
+{
+    const rf_vfx_chunk *chunk;
+    if(!owner || !owner->archive || !owner->chunks || !out)return RF_RANGE;
+    if(index>=owner->count)return RF_NOT_FOUND;chunk=owner->chunks+index;
+    if(offset>chunk->bytes || bytes>chunk->bytes-offset)return RF_RANGE;
+    return rf_vpp_read(owner->archive,&owner->entry,chunk->offset+offset,out,bytes);
 }
