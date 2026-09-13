@@ -481,6 +481,10 @@ dvd_path = '{root.as_posix()}/build/xbox/redfaction-diagnostic.iso'
      unholster=words(monitor,symbol('rf_scene_npc_unholster'),4)
      assert unholster==expected('NPC_UNHOLSTER') and unholster[2]==4*unholster[0] and unholster[1]<=unholster[0],unholster
      report['npc_unholster']=unholster
+     unholster_test=words(monitor,symbol('rf_scene_npc_unholster_test'),5)
+     assert unholster_test==expected('NPC_UNHOLSTER_TEST') and unholster_test[4]==0,unholster_test
+     if args.actor_pairs:assert unholster_test[0]>0 and unholster_test[1]==unholster_test[0],unholster_test
+     report['npc_unholster_test']=unholster_test
      ai_reset=words(monitor,symbol('rf_scene_npc_ai_reset_test'),5)
      assert ai_reset==expected('NPC_AI_RESET') and ai_reset[4]==0,ai_reset
      if args.actor_pairs:assert ai_reset[0]>0 and ai_reset[1]==8*ai_reset[0] and ai_reset[2]==4*ai_reset[0],ai_reset

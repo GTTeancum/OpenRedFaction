@@ -6472,6 +6472,55 @@ static int campaign_npc_ground_query_fixture(const rf_geometry_collision_world *
     }
     if(status)++rf_scene_npc_ground_query_test[4];return status;
 }
+uint32_t rf_scene_npc_unholster_test[5]; /* starts,pending checks,sounds,hash,errors */
+typedef struct campaign_unholster_fixture_sound {uint32_t handle,calls;const char *name;} campaign_unholster_fixture_sound;
+static int campaign_unholster_fixture_audio(void *context,uint32_t handle,const char *name)
+{
+    campaign_unholster_fixture_sound *f=context;
+    if(handle!=f->handle || strcmp(name,f->name))return RF_FORMAT;
+    ++f->calls;return RF_OK; /* Validate the authored request; do not submit fixture audio. */
+}
+static int campaign_npc_unholster_fixture(uint32_t frame)
+{
+    uint32_t i,cls,j;int status=RF_OK;
+    if(frame)return RF_OK;memset(rf_scene_npc_unholster_test,0,sizeof(rf_scene_npc_unholster_test));
+    if(!rf_scene_actor_pair_test_enabled)return RF_OK;rf_scene_npc_unholster_test[3]=2166136261u;
+    for(i=0;i<campaign_npc_body_count && !status;++i)if(campaign_npc_bodies[i].registration.view) {
+        campaign_npc_body *owner,saved;rf_entity_pose *pose;rf_entity_playback_model *model;
+        rf_motion_playback_state kept,started;int32_t motion,refs,deadline,delay;double seconds;
+        campaign_unholster_fixture_sound sound;
+        status=campaign_npc_motion_owner(campaign_npc_bodies[i].registration.handle,&owner,&cls,&pose);if(status)break;
+        motion=campaign_motion_catalog.mappings[cls].actions[40];model=campaign_playback_resources.models+pose->skeleton;
+        if(motion<0 || (uint32_t)motion>=model->count || campaign_motion_catalog.mappings[cls].weapon!=-1 || owner->view.weapons[0]!=-1)continue;
+        status=campaign_npc_motion_require(pose->skeleton,(uint32_t)motion);if(status)break;
+        seconds=rf_motion_duration(model->resources[motion].comparison.start_tick,model->resources[motion].comparison.end_tick);
+        if(seconds<=0 || model->resources[motion].looping==1)continue;
+        /* Keep newly loaded cache residency, but restore all playback references and actor state. */
+        saved=*owner;kept=pose->playback;refs=model->resources[motion].references;
+        sound.handle=owner->registration.handle;sound.calls=0;sound.name=campaign_base_motions.classes[cls].action_sounds[40];
+        owner->view.flags_7d0|=0x100;owner->view.flags_810&=~1u;owner->damage.effects.flags_810&=~1u;
+        owner->view.action_520=3;owner->pain.ai_timer=0;owner->unholster.deadline_518=17;
+        deadline=1000+(int32_t)(seconds*1000.0);delay=1000+(int32_t)((double)campaign_seeds.classes[cls].unholster_delay*1000.0);
+        status=rf_scene_npc_recover_unholster(sound.handle,1000,campaign_unholster_fixture_audio,&sound);
+        if(!status && (owner->death.action_824!=40 || owner->pain.ai_timer!=deadline || owner->unholster.deadline_518!=delay || sound.calls!=(sound.name[0]?1u:0u)))status=RF_FORMAT;
+        for(j=0;j<pose->playback.completion.active.count;++j)if(pose->playback.completion.active.slots[j].motion==motion)break;
+        if(!status && (j==pose->playback.completion.active.count || pose->playback.completion.active.slots[j].weight!=1 ||
+            pose->playback.completion.active.slots[j].tick!=model->resources[motion].comparison.start_tick))status=RF_FORMAT;
+        if(!status) {
+            ++rf_scene_npc_unholster_test[0];started=pose->playback;
+            status=rf_scene_npc_recover_unholster(sound.handle,1000,campaign_unholster_fixture_audio,&sound);
+            if(!status && (memcmp(&started,&pose->playback,sizeof(started)) || owner->pain.ai_timer!=deadline || owner->unholster.deadline_518!=delay ||
+                sound.calls!=(sound.name[0]?1u:0u) || rf_scene_npc_recover_unholster(sound.handle^0x10000,1000,NULL,NULL)!=RF_NOT_FOUND))status=RF_FORMAT;
+            if(!status)++rf_scene_npc_unholster_test[1];
+            rf_scene_npc_unholster_test[2]+=sound.calls;
+            rf_scene_npc_unholster_test[3]=npc_hash_bytes(rf_scene_npc_unholster_test[3],&owner->pain.ai_timer,sizeof(owner->pain.ai_timer));
+            rf_scene_npc_unholster_test[3]=npc_hash_bytes(rf_scene_npc_unholster_test[3],&owner->unholster,sizeof(owner->unholster));
+            rf_scene_npc_unholster_test[3]=npc_hash_bytes(rf_scene_npc_unholster_test[3],&started,sizeof(started));
+        }
+        *owner=saved;pose->playback=kept;model->resources[motion].references=refs;
+    }
+    if(status)++rf_scene_npc_unholster_test[4];return status;
+}
 uint32_t rf_scene_npc_ai_reset_test[5]; /* owners,cases,active cases,hash,errors */
 static int campaign_npc_ai_reset_fixture(uint32_t frame)
 {
@@ -6668,6 +6717,7 @@ static int campaign_npc_playback_tick(scene_stream *stream,float elapsed)
     status=campaign_npc_fall_fixture(rf_scene_npc_playback[0]);if(status)return status;
     status=campaign_npc_ground_query_fixture(stream->collision,rf_scene_npc_playback[0]);if(status)return status;
     status=campaign_npc_ai_reset_fixture(rf_scene_npc_playback[0]);if(status)return status;
+    status=campaign_npc_unholster_fixture(rf_scene_npc_playback[0]);if(status)return status;
     status=campaign_npc_motion_request_fixture(rf_scene_npc_playback[0]);if(status)return status;
     status=campaign_npc_body_sweep_fixture(stream->collision,rf_scene_npc_playback[0]);if(status)return status;
     status=campaign_model_query_fixture(rf_scene_npc_playback[0]);if(status)return status;

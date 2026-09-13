@@ -9734,3 +9734,23 @@ clock guards pass. Both builds and all22 CTests pass. Core recovery remains
 exact over2048 original/PC/NXDK cases plus5 callback and8 duration guards.
 Positive native scene recovery, ordinary AI callers and armed mappings remain
 open; no new XEMU run or screenshot claimed for this scene-binding turn.
+
+
+Scene unholster native integration (2026-09-13)
+
+The actor-pair fixture now calls rf_scene_npc_recover_unholster on each eligible
+registered unarmed NPC using its unchanged authored action40 mapping and class
+delay. It requires the real motion resource, checks action824, initial clip tick
+and weight, both deadlines, pending-call playback/timer stability, stale-handle
+rejection and the authored sound request. Sound is counted at the callback
+boundary, not submitted to the audio device. Actor/playback state and the
+selected resource reference count are restored even on failure. Newly loaded
+cache residency remains real and budgeted; no fixture screenshot is presented.
+
+PC and stock64MiB XEMU replay-20260913-023922 match over180 frames: telemetry
+NPC_UNHOLSTER_TEST=[38,38,38,3113061183,0] (starts,pending checks,sound requests,
+hash,errors). Guest base-memory67108864, plugged-memory0. Existing AI reset
+telemetry remains [38,304,152,3354343829,0]. Both platform builds and all22
+CTest tests pass; the harness restored the ordinary Xbox image afterward.
+This proves the service against live retained scene resources, not autonomous
+AI scheduling, combat behavior or audible action-sound playback.
