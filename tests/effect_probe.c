@@ -188,6 +188,15 @@ int main(int argc,char **argv)
         }
         return ferror(stdin)?2:0;
     }
+    if(argc==2 && !strcmp(argv[1],"--corona-oriented")) {
+        float in[13];struct {int32_t status;uint32_t kind;rf_particle_billboard_vertex vertices[4];} out;
+        _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
+        while(fread(in,sizeof(in),1,stdin)==1) {
+            memset(&out,0,sizeof(out));out.status=rf_corona_oriented_build(in,in+3,in+6,in+9,in[12],out.vertices,&out.kind);
+            fwrite(&out,sizeof(out),1,stdout);
+        }
+        return ferror(stdin)?2:0;
+    }
     if(argc==2 && !strcmp(argv[1],"--particle-world-stretch")) {
         struct {rf_visibility_camera camera;float position[3],previous[3],radius;uint32_t width,height;} in;
         struct {int32_t status;rf_particle_screen_polygon polygon;} out;

@@ -117,6 +117,12 @@ int rf_particle_initialize(const rf_particle_spawn *spawn,uint32_t pool,
 int rf_particle_frame_index(const rf_particle *particle,uint32_t *frame);
 
 typedef struct rf_particle_billboard_vertex {float position[3],uv[2];} rf_particle_billboard_vertex;
+/* Original5590f0 world quad before558d40. kind:0 rejected,1 billboard
+ * fallback,2 quad. Camera/forward are original world camera and third view
+ * row. Only kind2 writes vertices. Finite inputs required; errors preserve outputs. */
+int rf_corona_oriented_build(const float camera[3],const float forward[3],
+    const float first[3],const float second[3],float size,
+    rf_particle_billboard_vertex vertices[4],uint32_t *kind);
 /* 558e30 world-space stretched diamond, before 558d40 transform/submission.
  * forward is the original view matrix third row. Previous-current displacement
  * squared below 0.001 requests the ordinary zero-angle billboard fallback.

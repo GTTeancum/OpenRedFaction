@@ -8857,3 +8857,24 @@ exactly. Existing native particle/texture/stretch/blood/flash/lightmap
 checks also pass. PC and Xbox builds pass, with22CTest passing.
 This is backend GPU coverage, not authored campaign glare integration;
 oriented5590f0 geometry, scene services and scheduling remain open.
+
+## Oriented corona world geometry5590f0 (2026-09-12)
+
+rf_corona_oriented_build reconstructs the original quad construction,
+not particle stretch558e30. Squared endpoint distance below double0.001
+requests the ordinary first-point billboard at angle0. Both depths below
+float0.16 reject; a single near endpoint is interpolated using the original
+absolute-depth denominator. Ties choose the second endpoint as nearer.
+The farther endpoint ray intersects the camera-facing plane through the
+nearer endpoint. The normalized projected direction (x-axis fallback at
+zero length) and its cross with negative view-forward expand each end by
+half size, preserving original winding and0/1 UVs.
+
+verify_corona_oriented.py runs full original5590f0, intercepting only
+final558d40 and billboard515b40.1040 cases match PC/compiled NXDK exactly:
+714 quads,68 fallbacks,258 rejections, including near-plane/distance float
+neighbors, translated cameras and four forward vectors.13 NaN-field guards
+preserve NXDK outputs and return RF_RANGE on both builds. Both builds and
+22CTest pass. Kind0/1 only publish kind; kind2 publishes the quad.
+No final quad clipping, native GPU geometry or campaign scheduling is
+claimed here; connect the shared quad/billboard paths and scene services next.

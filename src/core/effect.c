@@ -173,6 +173,50 @@ int rf_particle_world_quad(const rf_visibility_camera *camera,const rf_particle_
     }
     value.count=clipped.count;*out=value;return RF_OK;
 }
+static double corona_dot(const float a[3],const float b[3])
+{return ((double)a[0]*b[0]+(double)a[1]*b[1])+(double)a[2]*b[2];}
+int rf_corona_oriented_build(const float camera[3],const float forward[3],
+    const float first[3],const float second[3],float size,
+    rf_particle_billboard_vertex vertices[4],uint32_t *kind)
+{
+    static const float uv[4][2]={{0,0},{1,0},{1,1},{0,1}};
+    float delta[3],a[3],b[3],da[3],db[3],z1,z2,n[3],ray[3],projected[3],axis[3],side[3];
+    const float *near;float extent;double inv,t,den;uint32_t i,j;
+    rf_particle_billboard_vertex result[4]={0};
+    if(!camera || !forward || !first || !second || !vertices || !kind || !isfinite(size))return RF_RANGE;
+    for(i=0;i<3;++i){if(!isfinite(camera[i]) || !isfinite(forward[i]) || !isfinite(first[i]) || !isfinite(second[i]))return RF_RANGE;
+        delta[i]=(float)((double)second[i]-first[i]);da[i]=(float)((double)first[i]-camera[i]);db[i]=(float)((double)second[i]-camera[i]);}
+    if(corona_dot(delta,delta)<.001){*kind=1;return RF_OK;}
+    z1=(float)corona_dot(da,forward);z2=(float)corona_dot(db,forward);
+    if(z1<.16f && z2<.16f){*kind=0;return RF_OK;}
+    memcpy(a,first,12);memcpy(b,second,12);
+    if(z1<.16f){float factor=(float)(((double).16f-z1)/(fabs((double)z1)+fabs((double)z2)));
+        for(i=0;i<3;++i)a[i]=(float)((double)first[i]+(float)((double)factor*delta[i]));z1=.16f;}
+    if(z2<.16f){float factor=(float)(((double).16f-z2)/(fabs((double)z1)+fabs((double)z2)));
+        for(i=0;i<3;++i)b[i]=(float)((double)second[i]-(float)((double)factor*delta[i]));z2=.16f;}
+    near=z1<z2?a:b;
+    for(i=0;i<3;++i){n[i]=-forward[i];ray[i]=(float)((double)(z1<z2?b[i]:a[i])-camera[i]);}
+    inv=1.0/sqrt(corona_dot(ray,ray));if(!isfinite(inv))return RF_RANGE;
+    for(i=0;i<3;++i)ray[i]=(float)((double)ray[i]*inv);
+    den=corona_dot(ray,n);if(den==0){*kind=0;return RF_OK;}
+    {float offset=(float)-corona_dot(n,near);const float *far=z1<z2?b:a;
+        t=(float)(-(corona_dot(n,far)+offset)/(float)den);
+        for(i=0;i<3;++i)projected[i]=(float)((double)far[i]+(float)(t*ray[i]));}
+    for(i=0;i<3;++i)axis[i]=(float)((double)projected[i]-near[i]);
+    t=sqrt(corona_dot(axis,axis));
+    if(t<=0){axis[0]=1;axis[1]=axis[2]=0;}else{inv=1.0/t;for(i=0;i<3;++i)axis[i]=(float)((double)axis[i]*inv);}
+    side[0]=(float)((double)n[1]*axis[2]-(double)n[2]*axis[1]);
+    side[1]=(float)((double)n[2]*axis[0]-(double)n[0]*axis[2]);
+    side[2]=(float)((double)n[0]*axis[1]-(double)n[1]*axis[0]);
+    extent=(float)((double)size*.5f);
+    for(i=0;i<3;++i){axis[i]=(float)((double)axis[i]*extent);side[i]=(float)((double)side[i]*extent);
+        result[0].position[i]=(float)((double)(float)((double)near[i]-axis[i])-side[i]);
+        result[1].position[i]=(float)((double)(float)((double)near[i]-axis[i])+side[i]);
+        result[2].position[i]=(float)((double)(float)((double)projected[i]+axis[i])+side[i]);
+        result[3].position[i]=(float)((double)(float)((double)projected[i]+axis[i])-side[i]);}
+    for(i=0;i<4;++i){for(j=0;j<3;++j)if(!isfinite(result[i].position[j]))return RF_RANGE;memcpy(result[i].uv,uv[i],8);}
+    memcpy(vertices,result,sizeof(result));*kind=2;return RF_OK;
+}
 int rf_particle_world_stretch(const rf_visibility_camera *camera,const float position[3],
     const float previous[3],float radius,uint32_t width,uint32_t height,rf_particle_screen_polygon *out)
 {
