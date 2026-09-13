@@ -316,6 +316,15 @@ int main(int argc,char **argv)
         }
         return ferror(stdin)?2:0;
     }
+    if(argc==2 && !strcmp(argv[1],"--level-light-activate")) {
+        rf_level_light light;rf_level_light_activation result;rf_vfx_light_candidate candidate;uint32_t h[2];int32_t status;
+        while(fread(h,4,2,stdin)==2) {
+            if(fread(&light,sizeof(light),1,stdin)!=1)return 2;memset(&result,0xa5,sizeof(result));memset(&candidate,0xa5,sizeof(candidate));
+            status=rf_level_light_activate(&light,h[0],h[1],&result);
+            if(!status){status=rf_vfx_light_create(&result.definition,&candidate);candidate.enabled=(unsigned char)result.enabled;}
+            fwrite(&status,4,1,stdout);fwrite(&result,sizeof(result),1,stdout);fwrite(&candidate,sizeof(candidate),1,stdout);
+        }return ferror(stdin)?1:0;
+    }
     if(argc==4 && !strcmp(argv[1],"--level-lights")) {
         rf_vpp archive;rf_level level;rf_level_light_reader reader;rf_level_light emitter;int status;
         if(rf_vpp_open(&archive,argv[2]) || rf_level_open(&level,&archive,argv[3]))return 3;

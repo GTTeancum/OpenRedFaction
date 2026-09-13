@@ -1629,3 +1629,33 @@ int rf_level_owned_events_open(const rf_level *level,uint32_t budget,rf_level_ow
  failed:
     rf_level_owned_events_close(&value);return status;
 }
+
+int rf_level_light_activate(const rf_level_light *record,uint32_t loader_default,uint32_t random_draw,rf_level_light_activation *out)
+{
+    rf_level_light_activation value;rf_vfx_light_definition *d=&value.definition;rf_vfx_light_candidate check;
+    uint32_t shape,cycle,j;int status;
+    if(!record || !out || loader_default>1)return RF_RANGE;
+    shape=(record->flags>>4)&15;cycle=(record->flags>>8)&15;if(shape<1 || shape>3 || cycle<1 || cycle>4)return RF_RANGE;
+    memset(&value,0,sizeof(value));d->type=shape+1;d->profile=record->profile;d->light_class=loader_default?0:record->flags&1;
+    d->radius=record->radius;d->intensity=record->cycle[cycle==1 || cycle==3?3:0];
+    value.enabled=(record->flags>>3)&1;value.phase=cycle==2 || cycle==4;
+    value.visibility=record->flags&0x2000?2:(record->flags&4?1:0);
+    for(j=0;j<3;++j){d->position[j]=record->position[j];d->color[j]=record->color[j]*0.003921568859368563f;}
+    if(shape==2) {
+        d->inner_angle=record->inner_angle*0.01745329238474369f;
+        d->outer_angle=(float)(((double)record->inner_angle+record->outer_delta)*0.01745329238474369f);
+        d->cone_scale=record->cone_scale;for(j=0;j<3;++j)d->axis[j]=record->orientation_disk[j];
+    }
+    if(shape==3) {
+        float half=record->length*0.5f;
+        if(!isfinite(half))return RF_RANGE;
+        for(j=0;j<3;++j){float offset=record->orientation_disk[j+3]*half;d->position[j]=record->position[j]+offset;d->end[j]=record->position[j]-offset;}
+    }
+    if(cycle>=3) {
+        uint32_t at=cycle==3?4:1;double r,t;
+        if(random_draw>32767 || !isfinite(record->cycle[at]) || !isfinite(record->cycle[at+1]))return RF_RANGE;
+        r=(random_draw*0.000030517578125)*record->cycle[at+1];t=((double)record->cycle[at]-record->cycle[at+1])+r+r;
+        value.delay=t<0.1f?0.1f:(float)t;if(!isfinite(value.delay))return RF_RANGE;
+    }
+    status=rf_vfx_light_create(d,&check);if(status)return status;*out=value;return RF_OK;
+}

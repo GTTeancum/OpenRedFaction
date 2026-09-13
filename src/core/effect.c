@@ -2193,7 +2193,7 @@ int rf_vfx_lighting(const float position[3],const float normal[3],const float am
             gain=vfx_falloff(l->profile,g[1],l->radius)*g[0];
         } else if(l->type==3) {
             float distance;double cone;
-            if(!isfinite(l->cone_scale) || l->cone_scale<0 || l->cone_scale>1 || !isfinite(l->inner) || !isfinite(l->outer) || l->inner>=l->outer)return RF_RANGE;
+            if(!isfinite(l->cone_scale) || l->cone_scale<0 || l->cone_scale>1 || !isfinite(l->inner) || !isfinite(l->outer) || l->inner>l->outer)return RF_RANGE;
             status=rf_vfx_cone_light(position,normal,l->position,l->axis,l->radius,0,g);if(status)return status;
             if(!(g[0]>0 && g[2]<l->radius && g[1]<l->outer))continue;
             distance=(float)((1.0-l->cone_scale)*g[2]);cone=1;
@@ -2374,10 +2374,10 @@ int rf_vfx_light_create(const rf_vfx_light_definition *definition,rf_vfx_light_c
     if(l->type==4){l->radius-=0.1f;if(l->radius<=0)l->radius=0.1f;}
     if(l->type==3) {
         if(!isfinite(definition->inner_angle) || !isfinite(definition->outer_angle) ||
-            definition->inner_angle<0 || definition->inner_angle>=definition->outer_angle || definition->outer_angle>6.283185307179586 ||
+            definition->inner_angle<0 || definition->inner_angle>definition->outer_angle || definition->outer_angle>6.283185307179586 ||
             !isfinite(definition->cone_scale) || definition->cone_scale<0 || definition->cone_scale>1)return RF_RANGE;
         l->inner=(float)-cos((double)definition->inner_angle*0.5);l->outer=(float)-cos((double)definition->outer_angle*0.5);
-        if(l->inner>=l->outer)return RF_RANGE;l->cone_scale=definition->cone_scale;l->squared=definition->squared&255u;
+        if(l->inner>l->outer)return RF_RANGE;l->cone_scale=definition->cone_scale;l->squared=definition->squared&255u;
     }
     *out=value;return RF_OK;
 }

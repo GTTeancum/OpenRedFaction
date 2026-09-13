@@ -175,6 +175,14 @@ typedef struct rf_level_light {
     float position[3],orientation_disk[9];uint32_t header_byte,flags;uint8_t color[4];
     float radius,inner_angle,outer_delta,cone_scale;uint32_t profile;float length,cycle[6];
 } rf_level_light;
+#include "rf/effect.h"
+typedef struct rf_level_light_activation {
+    rf_vfx_light_definition definition;uint32_t enabled,phase;float delay;uint32_t visibility;
+} rf_level_light_activation;
+/*45fbc0/45f740 activation arguments. loader_default forces class0 as45f260.
+ * Cycles3/4 require one caller-supplied original15-bit RNG draw; other cycles
+ * do not use it. No registration/replacement/timer stepping; errors preserve out. */
+int rf_level_light_activate(const rf_level_light *,uint32_t loader_default,uint32_t random_draw,rf_level_light_activation *);
 /* v180 section300, original45f260 field sequence. Raw disk orientation,
  * degrees, flags and high/on-time/variance/low/off-time/variance cycle values.
  * No allocation or runtime creation; errors preserve reader and output. */

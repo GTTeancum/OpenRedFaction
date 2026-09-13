@@ -621,3 +621,34 @@ cone degrees with float0.01745329238474369, creates the source and applies
 enabled byte91. Cycles3/4 consume original RNG for timers.45f260's param3==0
 path forces class86 to0 and marks byte92. Runtime conversion, original reader
 execution, retained authored owners/timing and scene activation remain open.
+
+## Authored activation conversion
+
+rf_level_light_activate converts the retained v180 record into constructor
+arguments plus enabled/phase/delay/visibility state.45fbc0 flag decoding selects
+shape/cycle, class and visibility.45f740 selects high or low intensity; segment
+endpoints use center +/- stored half-length times disk matrix row1, while cone
+axis uses disk row0 (matching52cac0's matrix reordering). Cone inner and outer
+angles convert degrees to radians with the original float constant and outer
+sum precision. Colors multiply bytes by the original float1/255. A caller flag
+models45f260's default load path forcing class0.
+
+Cycles3/4 use a supplied15-bit original RNG draw times1/32768 for timer
+variance, preserving arithmetic order and the0.1 minimum. Cycles1/2 do not
+consume a draw. The caller still owns shared RNG order, live timer state and
+source replacement; this conversion does not execute those side effects.
+
+The installed records exposed zero-width cone boundaries (outer delta0).
+The source initializer and mixed shader now accept equal inner/outer values.
+The original outer rejection ensures accepted points are strictly below the
+shared boundary, so this does not enter a zero-denominator interpolation.
+The old strict-order guard incorrectly rejected these authored sources.
+
+All22293 authored records plus512 synthetic cycle3/4 cases match actual
+45fbc0/45f740 and constructors/enable on original/NXDK for every80-byte source
+field and phase/delay/visibility value. PC matches all100 activation bytes and
+80 candidate bytes. The fixture supplies original owner fields and only hooks
+15-bit RNG for synthetic cycles; the original reader, replacement and live
+visibility effects remain separate.2048 mixed-shading cases now include equal
+cone boundaries and still match original/PC/NXDK. Both builds and24 CTests
+pass. Retained light owners/timing, pool activation and native drawing remain.

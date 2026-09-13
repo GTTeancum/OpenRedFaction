@@ -26,7 +26,7 @@ for i in range(2048):
  count=i%17;position=[rng.uniform(-5,5) for _ in range(3)];normal=[rng.uniform(-1,1) for _ in range(3)];ambient=[rng.random()*.1 for _ in range(3)];directional=.25;sources=[]
  for j in range(count):
   kind=1+(i+j)%4;profile=j%4;pos=[rng.uniform(-10,10) for _ in range(3)];end=[rng.uniform(-10,10) for _ in range(3)];axis=[rng.uniform(-1,1) for _ in range(3)];color=[rng.random()*.5 for _ in range(3)]
-  sources.append(w(kind,profile)+f(*pos,*end,*axis,*color,rng.choice([0,1,5,20]),rng.random(),-.5,.75)+w(j%2))
+  sources.append(w(kind,profile)+f(*pos,*end,*axis,*color,rng.choice([0,1,5,20]),rng.random(),(.75 if i%7==0 else -.5),.75)+w(j%2))
  data=w(count)+f(*position,*normal,*ambient,directional)+b''.join(sources);inputs.append(data);x.mem_write(B,data);x.mem_write(OUT,b'\xa5'*3);assert call('rf_vfx_lighting',[B+4,B+16,B+28,struct.unpack_from('<I',data,40)[0],B+44,count,OUT])==0;got=bytes(x.mem_read(OUT,3));responses.append(w(0)+got)
  o.mem_write(B,data);o.mem_write(0x5a38d4,data[28:40]);o.mem_write(0x5a38e0,data[40:44]);o.mem_write(0xc9687c,w(count))
  for j,s in enumerate(sources):

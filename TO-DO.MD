@@ -14,6 +14,11 @@ Shortlist:
 
 Progress reporting: include overall percent estimates at meaningful milestones and revisit remaining 24-hour workdays when measured throughput supports a forecast; current rough estimate40% (35-45%), no defensible +/-48-hour completion forecast before end-to-end gameplay.
 
+Authored light activation matches all22293 original/PC/NXDK records plus512
+randomized cycle cases; fixed rejection of authored zero-width cone angles.
+Both builds,2048 shading cases and24 tests pass. Bind retained activation,
+shared RNG/timers, pool replacement/visibility effects and native rendering.
+
 Authored v180 light reader now matches all22293 records across93 levels on
 PC/NXDK; every record also passes truncation guards. Both builds and24 tests
 pass. Convert authored matrices/degrees/flags/cycles, bind pool creation and
