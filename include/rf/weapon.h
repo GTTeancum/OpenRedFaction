@@ -87,6 +87,19 @@ int rf_weapon_acquire(rf_weapon_inventory *,const rf_weapon_acquire_definition *
     int32_t weapon,int32_t quantity,int (*notify)(void *,rf_weapon_inventory *,uint32_t),
     void *context);
 
+typedef struct rf_weapon_ammo_state {int32_t current,pending,weapon_count;} rf_weapon_ammo_state;
+typedef struct rf_weapon_ammo_backend {
+    void *context;
+    int (*is_reloading)(void *,uint32_t *);
+    int (*reload)(void *,uint32_t,uint32_t);
+} rf_weapon_ammo_backend;
+/*428d90: negative reserve is zeroed before wrapping addition; pending reload
+ * quantity receives the full addition before reserve is capped. Query425250
+ * and reload425280(actor,0,0) are services. Errors retain preceding changes. */
+int rf_weapon_add_ammo(rf_weapon_inventory *,rf_weapon_ammo_state *,
+    const rf_weapon_acquire_definition *,int32_t weapon,int32_t quantity,
+    const rf_weapon_ammo_backend *);
+
 typedef struct rf_weapon_supply {
     int32_t ammo_type,capacity; /* Descriptor +24 and +260. */
     uint32_t flags_268;

@@ -355,3 +355,25 @@ int rf_weapon_acquire(rf_weapon_inventory *inventory,const rf_weapon_acquire_def
     inventory->owned[weapon]=1;
     return notify(context,inventory,1);
 }
+
+int rf_weapon_add_ammo(rf_weapon_inventory *inventory,rf_weapon_ammo_state *state,
+    const rf_weapon_acquire_definition *definition,int32_t weapon,int32_t quantity,
+    const rf_weapon_ammo_backend *backend)
+{
+    int32_t ammo;uint32_t reloading;int status;
+    if(!inventory || !state || !definition || weapon<0 || weapon>=64)return RF_RANGE;
+    ammo=definition->ammo_type;if(ammo<0)return RF_OK;
+    if(ammo>=32 || !backend || !backend->is_reloading)return RF_RANGE;
+    if(inventory->reserve[ammo]<0)inventory->reserve[ammo]=0;
+    inventory->reserve[ammo]=acquire_wrap_add(inventory->reserve[ammo],quantity);
+    status=backend->is_reloading(backend->context,&reloading);if(status)return status;
+    if((reloading&255u) && state->current==weapon)
+        state->pending=acquire_wrap_add(state->pending,quantity);
+    if(inventory->reserve[ammo]>definition->capacity)inventory->reserve[ammo]=definition->capacity;
+    if(weapon<state->weapon_count && definition->magazine>0 &&
+        inventory->loaded[weapon]<1 && state->current==weapon) {
+        if(!backend->reload)return RF_RANGE;
+        return backend->reload(backend->context,0,0);
+    }
+    return RF_OK;
+}
