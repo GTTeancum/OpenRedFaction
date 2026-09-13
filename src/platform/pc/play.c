@@ -318,6 +318,7 @@ int main(int argc,char **argv)
             printf("NPC_RENDER_DISPATCH");for(i=0;i<6;++i)printf(" %u",rf_scene_npc_render_dispatch[i]);printf("\n");
             printf("CLUTTER_RENDER_DISPATCH");for(i=0;i<6;++i)printf(" %u",rf_scene_clutter_render_dispatch[i]);printf("\n");
             printf("MOVER_VISIBILITY");for(i=0;i<3;++i)printf(" %u",rf_scene_mover_visibility[i]);printf("\n");
+            printf("ATTACHMENT_MOTION");for(i=0;i<8;++i)printf(" %u",rf_scene_attachment_motion[i]);printf("\n");
             printf("ATTACHMENTS");for(i=0;i<8;++i)printf(" %u",rf_scene_attachments[i]);printf("\n");
             printf("GLARE_ROOMS");for(i=0;i<8;++i)printf(" %u",rf_scene_glare_rooms[i]);printf("\n");
             printf("CORONA_DRAW");for(i=0;i<8;++i)printf(" %u",rf_scene_corona_draw[i]);printf("\n");

@@ -9105,3 +9105,23 @@ Live static-prop/glare attachment pass (2026-09-12)
  to the prior scene geometry hash. This replay exercises startup attachment
  publication, not moving-parent or full-frame pixel parity. No new screenshot
  was requested because no new visual behavior was demonstrated.
+
+
+Native attachment motion fixture (2026-09-12)
+-------------------------------------------
+ campaign_attachment_motion_fixture runs once at frame1 when the existing
+ actor-pair diagnostic switch is enabled. It exercises all220 retained glares
+ through the live registered lookup, parent-first traversal and pose callback.
+ Four scenarios per owner: translation, quarter-turn plus translation, locked
+ orientation100, and clean parent (no publication). Each verifies public and
+ physics positions, current/pending orientations, dirty/visited flags and
+ duplicate-visit suppression. Pose/bounds hash is compared PC versus XEMU.
+ Full parent/glare value snapshots and live attachment telemetry are restored
+ on success or failure; no host input or extra heap allocation is used.
+ Native replay-20260912-233503 PASS180,67108864 base memory,0 plugged.
+ ATTACHMENT_MOTION [880,660,220,880,220,457707289,0,0] exactly matches PC.
+ Normal ATTACHMENTS, GLARE_ROOMS and CORONA_DRAW arrays exactly match the
+ preceding replay233006, verifying no fixture leakage into those results.
+ Both builds and22 CTest checks PASS. This is controlled process-local motion
+ through live services, not authored gameplay parenting or rendered motion.
+ Dynamic parenting, orphan lifecycle and turret alternate poses remain open.
