@@ -536,6 +536,11 @@ int rf_scene_npc_visibility_view(uint32_t handle,rf_glare_visibility_object *res
 int rf_scene_npc_visibility_model(void *context,const rf_collision_visibility_object *object,
     rf_collision_model_part_query *query,rf_collision_model_response_hit *hit,uint32_t reset,uint32_t *accepted);
 extern uint32_t rf_scene_npc_visibility[7];
+/* Registered actor's retained room token (word0), linked class1 predicate,
+ * and linked actor handle (UINT32_MAX when absent). Initial room binding uses
+ * authored position; moving-room refresh remains separate. Errors preserve output. */
+int rf_scene_npc_visibility_facts(uint32_t handle,uint32_t result[3]);
+extern uint32_t rf_scene_npc_visibility_rooms[6];
 /* Frames, dispatches, completed families, flag skips, owner/flag hash, errors. */
 extern uint32_t rf_scene_npc_render_dispatch[6];
 /* Borrow a retained world for diagnostic camera following; NULL disables.

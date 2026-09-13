@@ -8476,3 +8476,36 @@ requires object kind0; it then checks486c90 return==1. The latter reads
 actor class294+1b4 for kind0. Existing registered entity linked_handle and
 class_type are candidate bindings, already used by trigger resolution;
 complete original-execution composition coverage before scene publication.
+
+
+NPC retained room identity and linked actor facts (2026-09-12)
+------------------------------------------------------------
+Object word0 ownership is resolved:48a160 stores the supplied room token
+at object0 and copies object3c into query-position cache4.486da0 supplies
+its resolved containing-room token there. Earlier retained-room evidence
+in this document and unchanged-constructor verifiers already establish this;
+40a490 therefore compares room identity in414e00. The port representation
+is zero for absent and room index+1 for a retained world room.
+
+Each campaign NPC now owns rf_entity_room_state independently of model
+placement. Initialization uses the existing authored-position containing-room
+query, records the token and authored query position, and captures flags.
+Model-to-corpse handoff cannot overwrite this actor state. Moving refresh
+must later synchronize flags and use the verified48a190 service; it is not
+enabled by this change.39 L1S2 slots retain780 bytes inside the existing
+budgeted body allocation, with38 registered actors.
+
+rf_scene_npc_visibility_facts validates registered actor identity, returns
+room token, linked class_type==1 predicate and resolved linked actor handle
+(UINT32_MAX when absent). It uses the existing typed entity registry for
+426fc0/4290d0 semantics. The existing2048-case trigger actor audit executes
+all original predicate/lookup callees unchanged and passes again, covering
+stale generations, wrong kinds/classes and linked actor chains.
+
+Native L1S2 replay-20260912-205621 passes180 frames at stock64MiB.
+NPC_VISIBILITY_ROOMS matches PC:38 calls,38 nonnull rooms,0 associations,
+0 linked-class1 results,hash2932110508,780 owned bytes. Native scope is
+initial stationary room ownership and currently unlinked actors; nonempty
+associations are covered by the separate original registry audit. Both
+builds and21 CTests pass. Complete moving-room scheduling and persistent
+full-search object views before enabling complete glare visibility.

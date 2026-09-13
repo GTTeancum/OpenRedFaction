@@ -2704,6 +2704,7 @@ typedef struct campaign_npc_body {
     uint32_t collision_material; /* Original object1fc, factory parameter+10. */
     float support_velocity[3]; /* Original422f35..422f3b clears actor8a0. */
     rf_entity_damage_state damage;uint32_t object_flags,field_840;
+    rf_entity_room_state room; /* Original word0 and query-position cache4. */
     struct {int32_t item_82c,requested_83c,action_824,linked_146c,deadline_4b8;uint32_t model_148c;} death;
     uint32_t death_bone_words[2]; /* actor1464/1468 */
     float command_714[3]; /* Constructor422eaf..422ed3 clears this movement vector. */
@@ -2726,6 +2727,7 @@ typedef struct campaign_npc_eye_class {int32_t tag,parent;float local[12],offset
 static campaign_npc_eye_class *campaign_npc_eyes;
 uint32_t rf_scene_npc_eyes[4]; /* refreshed actors, retained bytes, class hash, position hash */
 static uint32_t campaign_npc_body_count;
+uint32_t rf_scene_npc_visibility_rooms[6];
 static int campaign_npc_eye_update(uint32_t actor)
 {
     rf_eye_input input={0};float tag[12],placed[12];int status;
@@ -2794,6 +2796,8 @@ static int campaign_npc_bodies_open(const char *tables_path,const rf_geometry_co
     memset(rf_scene_npc_eyes,0,sizeof(rf_scene_npc_eyes));
     rf_scene_npc_eyes[1]=campaign_poses.count*12+campaign_seeds.class_count*sizeof(*campaign_npc_eyes);
     campaign_npc_body_count=campaign_poses.count;memset(rf_scene_npc_bodies,0,sizeof(rf_scene_npc_bodies));
+    memset(rf_scene_npc_visibility_rooms,0,sizeof(rf_scene_npc_visibility_rooms));
+    rf_scene_npc_visibility_rooms[4]=2166136261u;rf_scene_npc_visibility_rooms[5]=campaign_poses.count*sizeof(rf_entity_room_state);
     memset(rf_scene_npc_support_deep,0,sizeof(rf_scene_npc_support_deep));rf_scene_npc_support_deep[6]=2166136261u;
     memset(rf_scene_npc_support_deep_first,0,sizeof(rf_scene_npc_support_deep_first));
     memset(rf_scene_npc_support_first_miss,0,sizeof(rf_scene_npc_support_first_miss));
@@ -3378,6 +3382,23 @@ int rf_scene_npc_collision_view(uint32_t handle,rf_collision_pair_actor_state *r
 }
 
 uint32_t rf_scene_npc_visibility[7];
+int rf_scene_npc_visibility_facts(uint32_t handle,uint32_t result[3])
+{
+    campaign_npc_body *owner;const rf_entity_view *linked;uint32_t slot,values[3],record[7];
+    if(!result)return RF_RANGE;
+    for(slot=0;slot<campaign_npc_body_count;++slot)if(campaign_npc_bodies[slot].registration.view && campaign_npc_bodies[slot].registration.handle==handle)break;
+    if(slot==campaign_npc_body_count)return RF_NOT_FOUND;owner=campaign_npc_bodies+slot;
+    if(rf_entity_lookup(&campaign_entities,(int32_t)handle)!=&owner->view)return RF_NOT_FOUND;
+    linked=rf_entity_lookup(&campaign_entities,owner->view.linked_handle);
+    values[0]=owner->room.room;values[1]=linked && linked->class_type==1;
+    values[2]=linked?(uint32_t)linked->handle:UINT32_MAX;
+    ++rf_scene_npc_visibility_rooms[0];rf_scene_npc_visibility_rooms[1]+=values[0]!=0;
+    rf_scene_npc_visibility_rooms[2]+=linked!=NULL;rf_scene_npc_visibility_rooms[3]+=values[1];
+    record[0]=handle;memcpy(record+1,values,12);memcpy(record+4,owner->room.query_position,12);
+    rf_scene_npc_visibility_rooms[4]=npc_hash_bytes(rf_scene_npc_visibility_rooms[4],record,sizeof(record));
+    memcpy(result,values,sizeof(values));return RF_OK;
+}
+
 int rf_scene_npc_visibility_view(uint32_t handle,rf_glare_visibility_object *result)
 {
     rf_collision_pair_actor_state actor;rf_glare_visibility_object value={0};campaign_npc_body *owner;uint32_t slot;int status;
@@ -3420,6 +3441,10 @@ static int campaign_npc_visibility_check(uint32_t frame)
     for(slot=0;slot<campaign_npc_body_count;++slot)if(campaign_npc_bodies[slot].registration.view) {
         rf_glare_visibility_object object;rf_glare_base_owner glare={0};float camera[3];
         status=rf_scene_npc_visibility_view(campaign_npc_bodies[slot].registration.handle,&object);if(status)return status;
+        {
+            uint32_t facts[3];status=rf_scene_npc_visibility_facts(object.handle,facts);if(status)return status;
+            rf_scene_npc_visibility[5]=npc_hash_bytes(rf_scene_npc_visibility[5],facts,sizeof(facts));
+        }
         glare.parent_handle=UINT32_MAX;
         for(k=0;k<3;++k)camera[k]=glare.position[k]=(object.geometry.minimum[k]+object.geometry.maximum[k])*.5f;
         camera[0]=object.geometry.minimum[0]-1;glare.position[0]=object.geometry.maximum[0]+1;
@@ -6836,6 +6861,9 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
         for(i=0;i<campaign_poses.count;++i) {
             rf_collision_room_location location;
             status=rf_geometry_collision_world_locate(collision,campaign_seeds.records.items[i].record.position,&location);if(status)goto done;
+            campaign_npc_bodies[i].room.room=location.room==UINT32_MAX?0:location.room+1;
+            campaign_npc_bodies[i].room.flags=campaign_npc_bodies[i].object_flags;
+            memcpy(campaign_npc_bodies[i].room.query_position,campaign_seeds.records.items[i].record.position,12);
             status=campaign_model_place(i,campaign_npc_bodies[i].published,campaign_seeds.records.items[i].record.orientation[0],
                 campaign_appearances.actor_indices[i],location.room);if(status)goto done;
         }
