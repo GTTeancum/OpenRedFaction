@@ -2843,6 +2843,7 @@ typedef struct campaign_npc_route {
 typedef struct campaign_npc_body {
     rf_physics_body body;rf_physics_support_contact support;
     rf_weapon_inventory inventory;rf_entity_motion_selection selection;
+    rf_weapon_reset_state firing;
     campaign_npc_route navigation;
     struct {rf_eye_angle_state angles;float body_angles[3],orientation[9],command_708[3];uint32_t clock_7b0;} look;
     rf_collision_contact_extra collision_contact;
@@ -2956,7 +2957,7 @@ static int campaign_npc_bodies_open(const char *tables_path,const rf_geometry_co
     rf_scene_npc_eyes[1]=campaign_poses.count*12+campaign_seeds.class_count*sizeof(*campaign_npc_eyes);
     campaign_npc_body_count=campaign_poses.count;memset(rf_scene_npc_bodies,0,sizeof(rf_scene_npc_bodies));
     memset(rf_scene_npc_inventory_owners,0,sizeof(rf_scene_npc_inventory_owners));
-    rf_scene_npc_inventory_owners[1]=campaign_npc_body_count*(sizeof(rf_weapon_inventory)+sizeof(rf_entity_motion_selection));
+    rf_scene_npc_inventory_owners[1]=campaign_npc_body_count*(sizeof(rf_weapon_inventory)+sizeof(rf_entity_motion_selection)+sizeof(rf_weapon_reset_state));
     rf_scene_npc_inventory_owners[2]=rf_scene_npc_inventory_owners[3]=2166136261u;
     memset(rf_scene_npc_visibility_rooms,0,sizeof(rf_scene_npc_visibility_rooms));
     rf_scene_npc_visibility_rooms[4]=2166136261u;rf_scene_npc_visibility_rooms[5]=campaign_poses.count*sizeof(rf_entity_room_state);
@@ -3093,10 +3094,15 @@ static int campaign_npc_bodies_open(const char *tables_path,const rf_geometry_co
         owner->trigger_handle=UINT32_MAX;
         /*402c20 clears inventory; retain base selection before startup grants. */
         memset(&owner->inventory,0,sizeof(owner->inventory));
+        /*402c20 active bytes;422360 sound/effect sentinels. */
+        memset(&owner->firing,0,sizeof(owner->firing));
+        owner->firing.sound_81c=owner->firing.sound_820=owner->firing.effect_13d4=-1;
+        owner->firing.character_present=1;
         status=rf_entity_motion_selection_base(&campaign_motion_catalog,&campaign_base_motions,
             campaign_seeds.items[actor].class_index,&owner->selection);if(status)goto done;
         ++rf_scene_npc_inventory_owners[0];
         rf_scene_npc_inventory_owners[2]=npc_hash_bytes(rf_scene_npc_inventory_owners[2],&owner->inventory,sizeof(owner->inventory));
+        rf_scene_npc_inventory_owners[2]=npc_hash_bytes(rf_scene_npc_inventory_owners[2],&owner->firing,sizeof(owner->firing));
         rf_scene_npc_inventory_owners[3]=npc_hash_bytes(rf_scene_npc_inventory_owners[3],&owner->selection.mapping,sizeof(owner->selection.mapping));
         rf_scene_npc_inventory_owners[3]=npc_hash_bytes(rf_scene_npc_inventory_owners[3],owner->selection.action_declarations,sizeof(owner->selection.action_declarations));
         /*423367..423385, constructor40e380 timer, and SP423af2. */
@@ -3977,6 +3983,56 @@ int rf_scene_event_damage_bind(rf_scene_event_damage_services *services,rf_event
 int rf_scene_npc_event_damage_bind(rf_scene_npc_event_damage_services *services,rf_event_damage_backend *backend)
 {return rf_scene_event_damage_bind(services,backend);}
 uint32_t rf_scene_npc_pain_test_words[10]; /* Two post-hit pain records plus RNG state. */
+typedef struct campaign_weapon_reset_call {
+    campaign_npc_body *owner;const rf_weapon_reset_ops *ops;void *user;
+} campaign_weapon_reset_call;
+static void campaign_weapon_reset_publish(campaign_weapon_reset_call *c)
+{
+    c->owner->view.flags_7d0=c->owner->firing.flags_7d0;
+    c->owner->view.flags_810=c->owner->damage.effects.flags_810=c->owner->firing.flags_810;
+}
+static void campaign_weapon_reset_reload(campaign_weapon_reset_call *c)
+{
+    c->owner->firing.flags_7d0=c->owner->view.flags_7d0;
+    c->owner->firing.flags_810=c->owner->view.flags_810;
+}
+static int campaign_weapon_reset_stop_sound(void *context,int32_t handle)
+{
+    campaign_weapon_reset_call *c=context;int status;
+    campaign_weapon_reset_publish(c);
+    status=c->ops && c->ops->stop_sound?c->ops->stop_sound(c->user,handle):RF_NOT_FOUND;
+    campaign_weapon_reset_reload(c);return status;
+}
+static int campaign_weapon_reset_release_sound(void *context,int32_t cls,int32_t *handle)
+{
+    campaign_weapon_reset_call *c=context;int status;
+    campaign_weapon_reset_publish(c);
+    status=c->ops && c->ops->release_sound?c->ops->release_sound(c->user,cls,handle):RF_NOT_FOUND;
+    campaign_weapon_reset_reload(c);return status;
+}
+static int campaign_weapon_reset_stop_effect(void *context,int32_t handle)
+{
+    campaign_weapon_reset_call *c=context;int status;
+    campaign_weapon_reset_publish(c);
+    status=c->ops && c->ops->stop_effect?c->ops->stop_effect(c->user,handle):RF_NOT_FOUND;
+    campaign_weapon_reset_reload(c);return status;
+}
+int rf_scene_npc_weapon_reset(uint32_t handle,int32_t weapon,
+    const rf_weapon_descriptor descriptors[64],const rf_weapon_reset_context *context,
+    const rf_weapon_reset_ops *ops,void *user)
+{
+    campaign_weapon_reset_call c={0};rf_entity_pose *pose;rf_entity_playback_model *model;
+    uint32_t cls;int status;
+    rf_weapon_reset_ops bridge={campaign_weapon_reset_stop_sound,campaign_weapon_reset_release_sound,campaign_weapon_reset_stop_effect,NULL};
+    status=campaign_npc_motion_owner(handle,&c.owner,&cls,&pose);if(status)return status;
+    if(!campaign_playback_resources.models || pose->skeleton>=campaign_playback_resources.model_count)return RF_RANGE;
+    model=campaign_playback_resources.models+pose->skeleton;c.ops=ops;c.user=user;
+    campaign_weapon_reset_reload(&c);c.owner->firing.character_present=1;c.owner->firing.player_present=0;
+    status=rf_weapon_reset(&c.owner->firing,weapon,descriptors,context,&pose->playback,
+        model->resources,model->count,&bridge,&c);
+    campaign_weapon_reset_publish(&c);return status;
+}
+
 typedef struct campaign_pain_context {
     campaign_npc_body *owner;rf_entity_pose *pose;rf_entity_pain_state state;
     const char *const *sounds;rf_entity_playback_model *model;

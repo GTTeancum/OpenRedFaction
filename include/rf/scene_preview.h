@@ -9,6 +9,7 @@
 #include "rf/player.h"
 #include "rf/collision.h"
 #include "rf/glare.h"
+#include "rf/weapon.h"
 
 /* Play a resolved48a9c0 request from an already resident campaign sample.
  * Flat pan is the original float bit pattern retained in request.pan; values
@@ -41,13 +42,21 @@ typedef struct rf_scene_event_damage_services {
 typedef rf_scene_event_damage_services rf_scene_npc_event_damage_services;
 int rf_scene_event_damage_bind(rf_scene_event_damage_services *services,rf_event_damage_backend *backend);
 int rf_scene_npc_event_damage_bind(rf_scene_npc_event_damage_services *services,rf_event_damage_backend *backend);
+/* Full41ae70 reset on a registered NPC's retained firing state. Descriptor IDs
+ * and resource services are caller-owned; missing reached operations fail.
+ * Callbacks may change actor flags, but must keep actor/model owners alive.
+ * No player owner is attached to these NPCs. Earlier effects survive failure. */
+int rf_scene_npc_weapon_reset(uint32_t handle,int32_t weapon,
+    const rf_weapon_descriptor descriptors[64],const rf_weapon_reset_context *context,
+    const rf_weapon_reset_ops *ops,void *user);
+
 typedef struct rf_scene_npc_pain_ops {
     int (*reset_weapon)(void *context,uint32_t handle,int32_t weapon);
     int (*play_sound)(void *context,uint32_t handle,const char *class_name);
     void *context;
 } rf_scene_npc_pain_ops;
 /* Registered startup NPC pain binding; caller owns clock/RNG invocation order.
- * Uses retained timers, base action mappings and live playback. Current NPC
+ * Uses retained timers, selected action mappings and live playback. Current NPC
  * views have no associated player/attachment owners. Reached weapon/sound
  * operations require callbacks; NULL is allowed only when neither is reached.
  * Callbacks keep the actor and catalog alive and must not replace its mappings.

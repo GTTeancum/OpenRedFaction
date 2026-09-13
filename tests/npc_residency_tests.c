@@ -8,6 +8,7 @@
 #include "npc_death_tail_binding.h"
 #include "model_death_reset_binding.h"
 #include "npc_death_play_binding.h"
+#include "npc_weapon_reset_binding.h"
 static uint32_t event_damage_notifications;
 static uint32_t player_notifications[6];
 static uint32_t sound_starts,sound_updates,sound_fail;
@@ -563,6 +564,7 @@ static int pain_binding_check(void)
     campaign_playback_resources.resources[2].comparison.end_tick=2400;
     campaign_playback_resources.resources[2].comparison.weight=1;
     rf_motion_playback_initialize(&campaign_poses.items[0].playback);
+    CHECK(npc_weapon_reset_binding_check(&owner)==0);
     CHECK(rf_scene_npc_pain(owner.registration.handle^0x10000,1000,&random,NULL)==RF_NOT_FOUND && random.value==1);
     CHECK(rf_scene_npc_pain(owner.registration.handle,1000,&random,NULL)==RF_OK);
     CHECK(owner.pain.selected_action==22 && owner.pain.cooldown==2041 && random.value==2745024);
