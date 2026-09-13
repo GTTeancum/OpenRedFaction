@@ -279,3 +279,35 @@ with the actual brightness sampler, byte converter and ftol helpers, no hooks.
 2048 in-place checks and3 invalid-brightness guards pass. This does not
 reconstruct4daff0 scene lighting, edge-normal/cache ownership,4db1b0 specular
 or4db760 glare coordinates, nor full material passes or native drawing.
+
+## Scene-light integration boundary
+
+Static analysis of4daff0/4da8b0 establishes that rf_model_lighting_setup is
+not a replacement for this VFX path: the model setup selects a local light,
+whereas4da8b0 iterates the active pointer list c4d588/count c9687c. The VFX
+call supplies ambient enabled, position, averaged edge normal, no visibility
+weight array and gain2.4daff0 starts with ambient5a38d4..dc, accumulates,
+normalizes RGB if its maximum exceeds1, applies gain and converts to bytes.
+Its exact intermediate stores still require an execution oracle.
+
+4da8b0 gates on5a38c4==0 and5a38cc!=0; the opposite branch writes white,
+not ambient-only. With the VFX null weight array, each active light gets255
+weight. Light record fields observed: type8; vectors c/18/24 with transformed
+copies5c/68/74 selected by1818b84; radius3c; RGB40/44/48; falloff index54.
+Type1 uses a directional dot and5a38e0. Type2 calls4dae50 for normal/distance
+terms; type3 calls4daf30 and uses cone bounds84/88, factor38 and flag4e.
+Type4 evaluates distance from a segment. These type meanings are inferred
+from math and must be verified against authored light creation/updates.
+
+The executable falloff table5a38e4 contains4da0b0,4da0c0,4da0e0,4da100:
+linear remaining-radius fraction, its square, cosine profile and square root.
+Raw Ghidra exports are under artifacts/analysis/rf_b8fb9ab4c9bf.4db1b0 has a
+separate specular accumulation with light flags4c/4d;4db760 computes reflection
+coordinates. None of these raw exports alone prove reconstructed semantics.
+
+Next integration requirements: retain the original active light ordering and
+transformed vectors, reconstruct/verify point and cone geometry4dae50/4daf30
+and falloff dispatch, then reproduce4daff0 conversion before the already
+verified material minimum/tint. Keep specular/glare as authored extra passes.
+Do not replace this with the existing three-light model approximation or an
+unlit texture preview and label it faithful VFX lighting.

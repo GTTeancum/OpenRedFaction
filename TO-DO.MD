@@ -14,6 +14,11 @@ Shortlist:
 
 Progress reporting: include overall percent estimates at meaningful milestones and revisit remaining 24-hour workdays when measured throughput supports a forecast; current rough estimate40% (35-45%), no defensible +/-48-hour completion forecast before end-to-end gameplay.
 
+VFX scene-light boundary mapped:4da8b0 active-light accumulation differs from
+model lighting; reconstruct point/cone geometry, falloff dispatch and active
+light ownership before4daff0 RGB conversion. Static evidence only, no new
+rendering claim; see docs/VFX-RENDERING.md scene-light integration boundary.
+
 VFX edge color preparation now matches2048 original/PC/NXDK cases, including
 brightness minimum, unlit white and type2 tint, plus2048 in-place checks and
 3 guards. Connect scene lighting, edge caches and renderer passes next.
