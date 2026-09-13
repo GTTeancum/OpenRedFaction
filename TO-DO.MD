@@ -14,6 +14,11 @@ Shortlist:
 
 Progress reporting: include overall percent estimates at meaningful milestones and revisit remaining 24-hour workdays when measured throughput supports a forecast; current rough estimate40% (35-45%), no defensible +/-48-hour completion forecast before end-to-end gameplay.
 
+Spotlight plane construction and composed box testing match2048 original/
+PC/NXDK cases each; both builds and24 tests pass. Finish stored cone-width
+calculation, alternate-view dispatch and room/tree dirty-state traversal
+before connecting timer-driven visibility to native lighting.
+
 Spotlight visibility box rejection matches4096 original/PC/NXDK cases,
 including the double -0.001 plane boundary; both builds and24 tests pass.
 Construct spotlight planes, traverse room geometry and apply dirty-state

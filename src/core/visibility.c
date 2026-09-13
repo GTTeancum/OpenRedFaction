@@ -3,6 +3,36 @@
 #include <string.h>
 #include <stdlib.h>
 #include <float.h>
+int rf_visibility_light_cone_planes(const float position[3],const float axis[3],
+    float radius,float half_width,rf_visibility_plane planes[6])
+{
+    rf_visibility_plane value[6];float basis[9]={0},center[3],up[3],right[3],corners[4][3],negative[3];
+    double inverse;uint32_t i;int status;
+    if(!position || !axis || !planes || !isfinite(radius) || radius<=0 || !isfinite(half_width) || half_width<=0)return RF_RANGE;
+    for(i=0;i<3;i++)if(!isfinite(position[i]) || !isfinite(axis[i]))return RF_RANGE;
+    memcpy(basis+6,axis,12);
+    if(axis[0]<.0001f && axis[0]>-.0001f && axis[2]<.0001f && axis[2]>-.0001f) {
+        basis[0]=1;basis[6]=basis[8]=0;basis[7]=axis[1]<0?-1.0f:1.0f;basis[5]=-basis[7];
+    } else {
+        basis[0]=axis[2];basis[2]=-axis[0];
+        inverse=1.0/sqrt(((double)basis[0]*basis[0]+(double)basis[1]*basis[1])+(double)basis[2]*basis[2]);
+        for(i=0;i<3;i++)basis[i]=(float)((double)basis[i]*inverse);
+        for(i=0;i<3;i++)basis[3+i]=(float)((double)axis[(i+1)%3]*basis[(i+2)%3]-(double)axis[(i+2)%3]*basis[(i+1)%3]);
+    }
+    for(i=0;i<3;i++) {
+        float offset=(float)((double)axis[i]*radius);center[i]=position[i]+offset;
+        up[i]=(float)((double)basis[3+i]*half_width);right[i]=(float)((double)basis[i]*half_width);
+        corners[0][i]=(center[i]+up[i])+right[i];corners[1][i]=(center[i]+up[i])-right[i];
+        corners[2][i]=(center[i]-up[i])-right[i];corners[3][i]=(center[i]-up[i])+right[i];negative[i]=-axis[i];
+    }
+    status=rf_visibility_plane_normal(negative,position,value);if(status)return status;
+    status=rf_visibility_plane_normal(axis,center,value+1);if(status)return status;
+    status=rf_visibility_plane_points(corners[1],corners[0],position,value+2);if(status)return status;
+    status=rf_visibility_plane_points(corners[2],corners[1],position,value+3);if(status)return status;
+    status=rf_visibility_plane_points(position,corners[3],corners[2],value+4);if(status)return status;
+    status=rf_visibility_plane_points(corners[0],corners[3],position,value+5);if(status)return status;
+    memcpy(planes,value,sizeof(value));return RF_OK;
+}
 int rf_visibility_light_cone_box(const rf_visibility_plane planes[6],
     const float minimum[3],const float maximum[3],uint32_t *visible)
 {

@@ -58,6 +58,10 @@ typedef struct rf_visibility_portal {
     float rectangle[4];
 } rf_visibility_portal;
 typedef struct rf_visibility_plane {float normal[3],distance;uint32_t corner;} rf_visibility_plane;
+/*4d86d0 spotlight preparation: resolved position/axis and stored radius/half-width.
+ * Six planes in original order; no room traversal or allocation. Errors preserve out. */
+int rf_visibility_light_cone_planes(const float position[3],const float axis[3],
+    float radius,float half_width,rf_visibility_plane planes[6]);
 /*4d81d0: six prepared spotlight planes; reject when the selected minimum
  * box-corner signed distance is greater than double -0.001. Plane construction
  * and room traversal are separate. Finite inputs required; errors preserve out. */

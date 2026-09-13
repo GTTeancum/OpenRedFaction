@@ -824,3 +824,23 @@ Three invalid-input guards preserve output on PC/NXDK. Both builds and
 all24 CTests pass. Full4d86d0 also constructs spotlight planes, walks room
 geometry trees and marks dirty state. Those operations and4d8660 alternate
 view dispatch remain unbound; this change alone does not alter rendering.
+
+### Spotlight plane construction (2026-09-13)
+
+rf_visibility_light_cone_planes reconstructs4d86d0 preparation through
+4d89f8, before geometry traversal. Inputs are resolved position/axis,
+radius and stored half-width (original source+8c); the width calculation
+in4d9520 is not included. The original4fcfa0 basis retains the axis
+magnitude except its strict near-vertical branch. Far center uses the
+original axis times radius, with a float product store before addition.
+Four far corners use separately stored up/right offsets and ordered adds.
+Near/far planes precede four side planes, using existing verified normal
+and three-point constructors. Errors preserve all120 output bytes.
+
+verify_light_cone_planes.py executes the original preparation entry and all
+math callees unchanged, stopping at4d89f8. All2048 original/PC/NXDK plane
+and selector arrays match, including nonunit and near-vertical directions.
+Another2048 composed generated-plane/box decisions match all three builds;
+three invalid-input guards preserve output. Both builds and24 CTests pass.
+Width generation, alternate-view transformation and room/tree dirty-state
+traversal still need integration; rendering is unchanged.
