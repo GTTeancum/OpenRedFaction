@@ -145,6 +145,26 @@ int rf_glare_volume_actor_dimensions(double aim_dot,float class_length,float cla
     if(!isfinite(length) || !isfinite(width))return RF_FORMAT;
     dimensions[0]=length;dimensions[1]=width;*random=next;return RF_OK;
 }
+int rf_glare_volume_actor_update(uint32_t parent,uint32_t glare_flags,float length,float width,
+    int (*lookup)(void *,uint32_t,const rf_glare_volume_actor **),void *context,
+    rf_random_state *random,float dimensions[2],uint32_t *draw)
+{
+    const rf_glare_volume_actor *actor,*target=NULL;const float *aim;uint32_t handle=UINT32_MAX,i,eligible,allowed;
+    rf_random_state next;float sizes[2]={length,width};double dot;int status;
+    if(!lookup || !random || !dimensions || !draw)return RF_RANGE;
+    if(!isfinite(length) || !isfinite(width))return RF_FORMAT;
+    next=*random;allowed=*draw;status=lookup(context,parent,&actor);if(status)return status;
+    if(actor && (actor->class_flags&0x800u) && !(glare_flags&2)) {
+        if(actor->target_count>4096 || (actor->target_count && !actor->targets))return RF_RANGE;
+        for(i=0;i<actor->target_count;++i)if(actor->targets[i]!=UINT32_MAX){handle=actor->targets[i];break;}
+        status=lookup(context,handle,&target);if(status)return status;
+        aim=target && !((target->flags&8) && target->player_present)?target->aim:actor->aim;
+        status=rf_glare_volume_actor_aim(aim,actor->position,actor->basis,&dot,&eligible);if(status)return status;
+        if(!eligible)allowed=0;
+        else {status=rf_glare_volume_actor_dimensions(dot,length,width,&next,sizes,&allowed);if(status)return status;}
+    }
+    memcpy(dimensions,sizes,sizeof(sizes));*draw=allowed;*random=next;return RF_OK;
+}
 int rf_glare_volume_render(rf_glare_base_owner *owner,const rf_glare_definition *definition,
     const rf_glare_volume_frame *frame,const rf_glare_volume_services *services)
 {

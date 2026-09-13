@@ -79,8 +79,29 @@ static int attachment_probe_publish(void *context,rf_attachment_node *node,rf_at
     attachment_probe_context *c=context;uint32_t *e=c->events+c->count++*3;
     e[0]=1;e[1]=(uint32_t)(node-c->nodes);e[2]=(uint32_t)(parent-c->nodes);return RF_OK;
 }
+typedef struct volume_actor_fixture {
+    rf_glare_volume_actor parent,target;uint32_t parent_present,target_present,count,trace[2];
+} volume_actor_fixture;
+static int volume_actor_lookup(void *context,uint32_t handle,const rf_glare_volume_actor **out)
+{
+    volume_actor_fixture *c=context;if(c->count>=2)return RF_RANGE;c->trace[c->count++]=handle;
+    *out=handle==32 && c->parent_present?&c->parent:handle==64 && c->target_present?&c->target:NULL;return RF_OK;
+}
 int main(int argc,char **argv)
 {
+    if(argc==2 && !strcmp(argv[1],"--volume-actor-update")) {
+        uint32_t in[31],out[8];float sizes[2],length,width;rf_random_state random;volume_actor_fixture c;
+        _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
+        while(fread(in,sizeof(in),1,stdin)==1) {
+            memset(&c,0,sizeof(c));c.parent_present=in[0];c.parent.class_flags=in[1];c.parent.targets=in+3;c.parent.target_count=3;
+            c.target_present=in[6];c.target.flags=in[7];c.target.player_present=in[8];
+            memcpy(c.parent.aim,in+9,12);memcpy(c.target.aim,in+12,12);memcpy(c.parent.position,in+15,12);memcpy(c.parent.basis,in+18,36);
+            memcpy(&length,in+27,4);memcpy(&width,in+28,4);random.value=in[30];out[4]=in[29];memset(sizes,0xa5,8);
+            out[0]=(uint32_t)rf_glare_volume_actor_update(32,in[2],length,width,volume_actor_lookup,&c,&random,sizes,out+4);
+            out[1]=random.value;memcpy(out+2,sizes,8);out[5]=c.count;memcpy(out+6,c.trace,8);fwrite(out,sizeof(out),1,stdout);
+        }
+        return ferror(stdin)?2:0;
+    }
     if(argc==2 && !strcmp(argv[1],"--volume-actor-aim")) {
         float in[15];double dot;uint32_t eligible;int32_t status;
         _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);

@@ -9362,3 +9362,19 @@ outputs, including9 short-vector rejections. Seventeen shared invalid-input
 guards cover nonfinite arguments and degenerate/cancelled world vectors.
 Both builds and22 CTest checks pass. Actor714 source selection, branch gates
 and live actor service binding remain open; no native visual claim.
+
+
+Composed actor volume branch (2026-09-13): rf_glare_volume_actor_update
+implements414307..41441e with a borrowed actor view and426fc0 lookup service.
+Class724 bit800 enables modulation; glare2b4 bit2 suppresses it.427da0 chooses
+the first target-array entry whose handle is notFFFFFFFF, even if it will
+fail to resolve; no search for a later valid actor.42a8e0 excludes targets
+with object flag8 and nonzero1430, selecting parent714 instead. Parent public
+pose always transforms the selected aim vector. Compose verified aim and
+dimension/RNG helpers; skipped branches preserve draw and RNG.
+verify_volume_actor_update.py executes original predicates, actual427da0
+array traversal and full math/RNG with only actor lookup supplied, comparing
+512 exact PC/NXDK lookup traces, dimensions, draw and RNG state. Four compiled
+NXDK callback/invalid-array guards preserve outputs and RNG. Both builds and
+22 CTest checks pass. Retained actor714 aim and8cc target-list ownership,
+special-owner gate and live scene service binding remain open.

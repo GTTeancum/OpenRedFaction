@@ -33,7 +33,8 @@ Opt-in scene-volume fixture passes90 animated beams/360 vertices on stock64MiB X
 Verify authored volume placement and mixed transparent-object ordering.
 Actor volume sizing/RNG matches2210 original/PC/NXDK cases plus6 guards.
 Actor volume aim geometry matches1018 original/PC/NXDK cases plus17 guards.
-Connect actor gates and complete ordering with other transparent scene objects.
+Composed actor volume branch matches512 original/PC/NXDK cases and4 NXDK failure guards.
+Bind retained actor aim/target state and complete ordering with other transparent scene objects.
 
 The stationary startup-NPC animation gate matches PC/stock64MiB XEMU;
 footstep selection and support-material helpers are verified but not live.
