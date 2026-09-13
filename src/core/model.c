@@ -36,6 +36,22 @@ int rf_glare_create(const rf_glare_class *classes,uint32_t count,int32_t index,
     state->byte_2d0=0;memset(state->vectors,0,sizeof(state->vectors));return RF_OK;
 }
 
+int rf_glare_publish_tag_pose(rf_glare_base_owner *owner,const float pose[12])
+{
+    rf_group_attached_pose position={0};uint32_t i;int status;
+    if(!owner || !pose)return RF_RANGE;
+    for(i=0;i<12;++i)if(!isfinite(pose[i]))return RF_FORMAT;
+    position.flags=owner->flags;position.radius=owner->body.state.bounds.radius;
+    status=rf_group_pose_set_position(&position,pose+9);if(status)return status;
+    memcpy(owner->position,position.public_position,12);
+    memcpy(owner->body.state.position,position.position,12);memcpy(owner->body.state.next_position,position.pending,12);
+    memcpy(owner->body.state.bounds.minimum,position.minimum,12);memcpy(owner->body.state.bounds.maximum,position.maximum,12);
+    owner->flags=position.flags;
+    if(!(owner->flags&0x100u)) {
+        memcpy(owner->matrix,pose,36);memcpy(owner->body.state.orientation,pose,36);memcpy(owner->body.state.next_orientation,pose,36);
+    }
+    return RF_OK;
+}
 int rf_glare_base_close(rf_glare_base_owner **owner,rf_object_registry *registry,rf_object_list *objects)
 {
     rf_glare_base_owner *v;uint32_t handle;

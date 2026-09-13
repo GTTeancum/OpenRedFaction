@@ -149,6 +149,11 @@ typedef struct rf_glare_corona_services {
  * state/callback effects remain on error; no heap or frame scheduling. */
 int rf_glare_corona_render(rf_glare_base_owner *owner,const rf_glare_definition *definition,
     const rf_glare_corona_frame *frame,const rf_glare_corona_services *services);
+/*48770f..487750 for a resolved type10 tag pose (matrix9,position3).
+ * Publishes public/current/pending positions and radius-based physics bounds;
+ * flag100 preserves all three orientations. Marks room refresh04000000.
+ * No parent lookup/order, negative-tag transform or heap. Errors preserve owner. */
+int rf_glare_publish_tag_pose(rf_glare_base_owner *owner,const float pose[12]);
 typedef struct rf_glare_services {
     int (*tag_pose)(void *,uint32_t,int32_t,float[12]);void *context;
 } rf_glare_services;

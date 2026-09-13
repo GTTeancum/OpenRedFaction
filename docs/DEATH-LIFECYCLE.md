@@ -8976,3 +8976,30 @@ one channel value. Available pages14042->14022->14042 prove recovery.
 Both builds, original clock comparisons, existing native pixel regressions
 and22CTest pass. This is clock/owned-texture GPU validation; no authored
 thruster placement or moving-parent campaign scene is claimed yet.
+
+## Resolved attached-glare pose publication (2026-09-12)
+
+rf_glare_publish_tag_pose reconstructs48770f..487750 after5034f0 has
+resolved the tag matrix and position. Existing48a230/group position logic
+updates public position, both physics positions and bounds using the
+physics radius180 (not render radius78), then sets04000000 for room refresh.
+Unless flag100 is set, all three public/current/pending orientation matrices
+are copied. It leaves physics flags, rendering samples and caches untouched.
+Resolved finite pose and finite representable bounds are required; errors
+preserve the owner. No heap, parent lookup or traversal is introduced.
+
+verify_glare_tag_publish.py executes the original span with unhooked48a230,
+vector and matrix copies.1024 original cases match compiled NXDK full owner
+preservation and PC published fields, with12 nonfinite-pose guards on both.
+Negative/zero/positive physics radii and randomized orientation-lock flags
+are covered. Both builds and22CTest pass; no native scene integration yet.
+
+Parent audit:413d20 writes attachment handle200/tag204, represented by
+state.parent/tag.4881a0 recursively resolves200, propagates04000000 from
+parent, calls487630 and sets visited01000000.487a40 clears that visited bit
+each frame. For nonnegative tags,487630 chooses parent7e0 only when486c90
+returns use-kind4; otherwise it uses parent48.486c90 is not an object-kind
+getter: kind0 reads class294+1b4, kind4 reads class294+44, kind2 returns8,
+kind5 returns7, others0. Thus the alternate orientation must not be applied
+to every prop. Negative tags instead use local208/214 and parent physics
+poses. Resolve these services/order before binding the new publication API.

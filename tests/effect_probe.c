@@ -188,6 +188,18 @@ int main(int argc,char **argv)
         }
         return ferror(stdin)?2:0;
     }
+    if(argc==2 && !strcmp(argv[1],"--glare-tag-publish")) {
+        struct {uint32_t flags;float radius,pose[12];} in;rf_glare_base_owner owner;
+        struct {int32_t status;uint32_t flags;float positions[9],bounds[6],matrices[27];} out;
+        _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
+        while(fread(&in,sizeof(in),1,stdin)==1){memset(&owner,0xa5,sizeof(owner));owner.flags=in.flags;owner.body.state.bounds.radius=in.radius;
+            memset(&out,0,sizeof(out));out.status=rf_glare_publish_tag_pose(&owner,in.pose);out.flags=owner.flags;
+            memcpy(out.positions,owner.position,12);memcpy(out.positions+3,owner.body.state.position,12);memcpy(out.positions+6,owner.body.state.next_position,12);
+            memcpy(out.bounds,owner.body.state.bounds.minimum,24);memcpy(out.matrices,owner.matrix,36);
+            memcpy(out.matrices+9,owner.body.state.orientation,36);memcpy(out.matrices+18,owner.body.state.next_orientation,36);
+            fwrite(&out,sizeof(out),1,stdout);}
+        return ferror(stdin)?2:0;
+    }
     if(argc==2 && !strcmp(argv[1],"--bitmap-animation-frame")) {
         uint32_t in[5];struct {int32_t status,frame;} out;
         _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
