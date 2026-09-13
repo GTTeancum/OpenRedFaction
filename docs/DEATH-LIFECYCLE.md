@@ -9754,3 +9754,33 @@ telemetry remains [38,304,152,3354343829,0]. Both platform builds and all22
 CTest tests pass; the harness restored the ordinary Xbox image afterward.
 This proves the service against live retained scene resources, not autonomous
 AI scheduling, combat behavior or audible action-sound playback.
+
+
+AI event arbitration4087a0 (2026-09-13)
+
+rf_entity_ai_arbitrate reconstructs the full dispatcher through4088ef.
+Original actor8c0 must be strictly positive: zero, negative and unordered
+values reject; positive infinity passes. Global4b05f0 rejects low byte1
+exactly. Event4b6800 uses inventory4cc (actor76c), then requires event290
+type46. Owner handle lookup426fc0 precedes the ordered global actor scan.
+Each peer first calls40a110; only low byte0 and a different handle reaches
+427020. Its low byte must differ from1, the event handle must match and
+peer action520 must equal16 to suppress the request. No group filter.
+Otherwise40ac90(resolved actor handle,event40) must return nonzero low byte.
+4280b0 runs before actual409f40 vector copy into resolved actor6ec; the
+event position is read after that callback. Actual407e20 sets action16
+and arguments-1,-1;407e80 sets state1; inventory530 then clears00200000.
+The shared implementation reuses both verified transition setters and
+keeps boundary effects on error. Borrowed actors/event survive callbacks,
+ordered peer membership and frame clock/network inputs stay stable.
+
+verify_ai_arbitration_original.py executes original4087a0 plus unhooked
+vector copy/setters for2048 cases (780 accepted,659 distinct traces). Only
+global/event/actor lookups, peer predicates, destination and stance are
+supplied. Entire actor and peer footprints are checked, including mutated
+event position from the stance callback. verify_ai_arbitration_shared.py
+compares exact retained words and ordered traces on PC and compiled NXDK
+for all2048 cases;8 callback failures and4 invalid-clock guards pass.
+Both builds and all22 CTest checks pass. No native XEMU scene integration
+or autonomous AI behavior is claimed: event lookup/navigation/stance
+implementations and the retained live scheduler remain open.

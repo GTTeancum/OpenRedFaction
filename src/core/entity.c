@@ -22,6 +22,37 @@ int rf_entity_ai_set_state(rf_entity_ai_transition_state *s,int32_t requested,fl
     if(!s || !isfinite(clock) || (double)clock < -2147483648.0 || (double)clock >= 2147483648.0)return RF_RANGE;
     s->state_2b4=requested;s->clock_2bc=(int32_t)clock;return RF_OK;
 }
+int rf_entity_ai_arbitrate(rf_entity_ai_arbitration_actor *s,const rf_entity_ai_arbitration_frame *f,
+    const rf_entity_ai_arbitration_backend *b,uint32_t *result)
+{
+    rf_entity_ai_arbitration_actor *actor;rf_entity_ai_arbitration_event *event;uint32_t value,i;int status;
+    if(!s || !s->owner || !f || !b || !result || !b->global_gate || !b->event || !b->actor || !b->predicate ||
+       !b->destination || !b->stance || (f->peer_count && !f->peers) || f->peer_count>65536 ||
+       !isfinite(f->clock) || (double)f->clock < -2147483648.0 || (double)f->clock>=2147483648.0)return RF_RANGE;
+    for(i=0;i<f->peer_count;++i)if(!f->peers[i])return RF_RANGE;
+#define ARB_CALL(expr) do {status=(expr);if(status)return status;if(!s->owner)return RF_FORMAT;} while(0)
+#define ARB_NO() do {*result=0;return RF_OK;} while(0)
+    if(!(s->owner->scalar_8c0>0))ARB_NO();
+    ARB_CALL(b->global_gate(b->context,&value));if((value&255u)==1)ARB_NO();
+    ARB_CALL(b->event(b->context,s->event_76c,&event));if(!event || event->type_290!=46)ARB_NO();
+    ARB_CALL(b->actor(b->context,s->owner->handle,&actor));if(!actor)ARB_NO();
+    for(i=0;i<f->peer_count;++i) {
+        rf_entity_ai_arbitration_actor *peer=f->peers[i];
+        ARB_CALL(b->predicate(b->context,peer,0x40a110,&value));
+        if(!(value&255u) && peer->handle!=s->owner->handle) {
+            ARB_CALL(b->predicate(b->context,peer,0x427020,&value));
+            if((value&255u)!=1 && peer->event_76c==s->event_76c && peer->transition.action_280==16)ARB_NO();
+        }
+    }
+    ARB_CALL(b->destination(b->context,actor->handle,event->position_40,&value));if(!(value&255u))ARB_NO();
+    ARB_CALL(b->stance(b->context,actor));
+    memcpy(actor->destination_6ec,event->position_40,sizeof(actor->destination_6ec));
+    status=rf_entity_ai_set_action(&s->transition,16,UINT32_MAX,UINT32_MAX,f->clock,f->network_a,f->network_b);if(status)return status;
+    status=rf_entity_ai_set_state(&s->transition,1,f->clock);if(status)return status;
+    s->transition.flags_530&=0xffdfffffu;*result=1;return RF_OK;
+#undef ARB_NO
+#undef ARB_CALL
+}
 int rf_entity_ai_reset_motion(rf_entity_ai_motion_state **owner,uint32_t secondary,
     const rf_entity_ai_motion_backend *b)
 {

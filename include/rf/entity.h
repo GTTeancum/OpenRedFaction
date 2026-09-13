@@ -60,6 +60,35 @@ int rf_entity_ai_set_action(rf_entity_ai_transition_state *state,int32_t action,
     uint32_t argument_a,uint32_t argument_b,float clock,uint32_t network_a,uint32_t network_b);
 int rf_entity_ai_set_state(rf_entity_ai_transition_state *state,int32_t requested,float clock);
 
+/* Full4087a0 event arbitration. Offsets name original actor storage. */
+typedef struct rf_entity_ai_arbitration_actor {
+    struct rf_entity_ai_arbitration_actor *owner;
+    rf_entity_ai_transition_state transition;
+    uint32_t handle,event_76c;float scalar_8c0,destination_6ec[3];
+} rf_entity_ai_arbitration_actor;
+typedef struct rf_entity_ai_arbitration_event {int32_t type_290;float position_40[3];} rf_entity_ai_arbitration_event;
+typedef struct rf_entity_ai_arbitration_frame {
+    float clock;uint32_t network_a,network_b;
+    rf_entity_ai_arbitration_actor *const *peers;uint32_t peer_count;
+} rf_entity_ai_arbitration_frame;
+typedef struct rf_entity_ai_arbitration_backend {
+    int (*global_gate)(void *,uint32_t *); /*4b05f0*/
+    int (*event)(void *,uint32_t,rf_entity_ai_arbitration_event **); /*4b6800*/
+    int (*actor)(void *,uint32_t,rf_entity_ai_arbitration_actor **); /*426fc0*/
+    int (*predicate)(void *,rf_entity_ai_arbitration_actor *,uint32_t,uint32_t *); /*40a110/427020*/
+    int (*destination)(void *,uint32_t,const float[3],uint32_t *); /*40ac90*/
+    int (*stance)(void *,rf_entity_ai_arbitration_actor *); /*4280b0*/
+    void *context;
+} rf_entity_ai_arbitration_backend;
+/* Borrowed actors/event and ordered peer list stay alive through callbacks.
+ * Callbacks may mutate retained fields (including event position); owner may
+ * be rebound to valid storage. Frame inputs/list membership stay stable.
+ * Positive scalar gate rejects NaN. Predicates retain exact low-byte tests.
+ * Result is0/1 on success, unchanged on error; prior effects are not rolled back.
+ * External event/navigation/stance services and AI scheduling are not supplied. */
+int rf_entity_ai_arbitrate(rf_entity_ai_arbitration_actor *inventory,
+    const rf_entity_ai_arbitration_frame *frame,const rf_entity_ai_arbitration_backend *backend,uint32_t *result);
+
 typedef struct rf_entity_ai_motion_state {
     uint32_t model,flags_810,word_834;int32_t action_1364,motion_1368;
 } rf_entity_ai_motion_state;

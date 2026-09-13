@@ -137,6 +137,7 @@ static int loader_creation_probe(void)
 }
 #include "ai_select_probe.h"
 #include "ai_recovery_probe.h"
+#include "ai_arbitration_probe.h"
 int main(int argc,char **argv)
 {
     if(argc==3 && !strcmp(argv[1],"--action-name"))return action_name_probe(argv[2]);
@@ -422,6 +423,7 @@ int main(int argc,char **argv)
         }
         return ferror(stdin)?3:0;
     }
+    if(argc==2 && !strcmp(argv[1],"--ai-arbitration"))return ai_arbitration_probe();
     if(argc==2 && !strcmp(argv[1],"--ai-recovery"))return ai_recovery_probe();
     if(argc==2 && !strcmp(argv[1],"--ai-reset"))return ai_reset_probe();
     if(argc==2 && !strcmp(argv[1],"--ai-select"))return ai_select_probe();
