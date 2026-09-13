@@ -38,6 +38,24 @@ int main(int argc,char **argv)
         }
         rf_vpp_close(&meshes);return ferror(stdin)?8:0;
     }
+    if(argc==2 && !strcmp(argv[1],"--vfx-mesh-edges")) {
+        uint32_t input[5];unsigned char *data;int32_t status;
+        _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
+        while(fread(input,20,1,stdin)==1) {
+            rf_vfx_mesh_edges view;uint32_t i,at;
+            if(input[4]>1048576)return 2;data=malloc(input[4]?input[4]:1);if(!data)return 2;
+            if(fread(data,1,input[4],stdin)!=input[4]){free(data);return 2;}memset(&view,0xa5,sizeof(view));
+            status=rf_vfx_mesh_edges_read(data,input[4],input[0],input[1],input[2],input[3],&view);
+            fwrite(&status,4,1,stdout);fwrite(&view,sizeof(view),1,stdout);
+            if(!status)for(i=0,at=view.edge_offset;i<view.count;++i) {
+                rf_vfx_edge_view edge;
+                if(rf_vfx_edge_read(data+at,input[4]-at,input[3],&edge)){free(data);return 3;}
+                fwrite(&edge,sizeof(edge),1,stdout);at+=edge.bytes;
+            }
+            free(data);
+        }
+        return ferror(stdin)?1:0;
+    }
     if(argc==2 && !strcmp(argv[1],"--vfx-embedded-material")) {
         uint32_t input[4];unsigned char *data;int32_t status;
         _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);

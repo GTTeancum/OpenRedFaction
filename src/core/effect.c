@@ -1211,3 +1211,34 @@ int rf_vfx_embedded_material_read(const void *data,uint32_t bytes,uint32_t versi
     m->words[48]=samples;m->words[49]=UINT32_MAX;
     if(c.failed)return RF_FORMAT;m->bytes=c.at;*out=v;return RF_OK;
 }
+
+int rf_vfx_edge_read(const void *data,uint32_t bytes,uint32_t faces,rf_vfx_edge_view *out)
+{
+    rf_vfx_edge_view v={0};vfx_material_cursor c={data,bytes,0,0};uint32_t i;float value;
+    if(!data || !out)return RF_RANGE;
+    v.words[0]=vfx_material_word(&c);v.words[1]=vfx_material_word(&c);
+    for(i=7;i<9;++i){v.words[i]=vfx_material_word(&c);memcpy(&value,v.words+i,4);if(!isfinite(value))return RF_FORMAT;}
+    v.words[9]=vfx_material_word(&c);v.words[10]=c.at;
+    if(c.failed || v.words[9]>0x7fffffffu || (uint64_t)v.words[9]*4>bytes-c.at)return RF_FORMAT;
+    for(i=0;i<v.words[9];++i)if(vfx_material_word(&c)>=faces)return RF_FORMAT;
+    if(c.failed)return RF_FORMAT;v.bytes=c.at;*out=v;return RF_OK;
+}
+int rf_vfx_mesh_edges_read(const void *data,uint32_t bytes,uint32_t version,
+    uint32_t initial_flags,uint32_t mesh_flags,uint32_t faces,rf_vfx_mesh_edges *out)
+{
+    rf_vfx_mesh_edges v={0};vfx_material_cursor c={data,bytes,0,0};uint32_t i,word;rf_vfx_edge_view edge;
+    if(!data || !out)return RF_RANGE;
+    if(version<0x30000 || version>0x7fffffffu || (version>=0x40000 && version<0x40005))return RF_FORMAT;
+    for(i=0;i<3;++i){word=vfx_material_word(&c);memcpy(v.center+i,&word,4);if(!isfinite(v.center[i]))return RF_FORMAT;}
+    word=vfx_material_word(&c);memcpy(&v.radius,&word,4);if(!isfinite(v.radius))return RF_FORMAT;
+    v.flags=initial_flags;
+    if(version<0x30002){word=vfx_material_word(&c);v.flags|=(word&3)<<4;}
+    v.flags|=vfx_material_word(&c);v.legacy[0]=v.legacy[1]=-1;
+    if(version==0x3000a && (v.flags&1))for(i=0;i<2;++i){word=vfx_material_word(&c);memcpy(v.legacy+i,&word,4);if(!isfinite(v.legacy[i]))return RF_FORMAT;}
+    v.count=vfx_material_word(&c);v.edge_offset=c.at;
+    if(c.failed || v.count>0x7fffffffu || (uint64_t)v.count*20>bytes-c.at)return RF_FORMAT;
+    for(i=0;i<v.count;++i){if(rf_vfx_edge_read(c.data+c.at,bytes-c.at,faces,&edge))return RF_FORMAT;c.at+=edge.bytes;}
+    word=version>=0x30009?(vfx_material_byte(&c)!=0):0;
+    v.mesh_flags=((mesh_flags&0xfffdu)|(word<<1))&0xffffu;
+    if(c.failed)return RF_FORMAT;v.bytes=c.at;*out=v;return RF_OK;
+}

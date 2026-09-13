@@ -69,6 +69,21 @@ typedef struct rf_vfx_embedded_material_view {
  * No bitmap/array allocation; errors preserve output. */
 int rf_vfx_embedded_material_read(const void *,uint32_t bytes,uint32_t version,
     uint32_t mesh_flags,uint32_t samples,rf_vfx_embedded_material_view *);
+/* Original53d98e..53dc17 mesh bounds/edges, before frame allocation.
+ * Edges retain original44-byte layout with word10 an input byte offset
+ * to checked face indices instead of pointers. Other untouched words zero.
+ * Views borrow input; no allocation. Errors preserve output. */
+typedef struct rf_vfx_edge_view {uint32_t words[11],bytes;} rf_vfx_edge_view;
+typedef struct rf_vfx_mesh_edges {
+    float center[3],radius;uint32_t flags;float legacy[2];
+    uint32_t count,edge_offset,mesh_flags,bytes;
+} rf_vfx_mesh_edges;
+int rf_vfx_edge_read(const void *,uint32_t bytes,uint32_t faces,rf_vfx_edge_view *);
+/* initial_flags is owner114; mesh_flags is packed owner88 timing flags.
+ * Face-to-edge references remain indices in rf_vfx_face.words_80[1..3];
+ * later owned mesh binding must validate and resolve them. */
+int rf_vfx_mesh_edges_read(const void *,uint32_t bytes,uint32_t version,
+    uint32_t initial_flags,uint32_t mesh_flags,uint32_t faces,rf_vfx_mesh_edges *);
 typedef struct rf_vfx_chunk {uint32_t type,offset,bytes;} rf_vfx_chunk;
 typedef struct rf_vfx_directory {
     rf_vpp *archive;rf_vpp_entry entry;rf_vfx_header header;

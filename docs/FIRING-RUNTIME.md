@@ -424,3 +424,29 @@ CTests pass. Evidence: artifacts/vfx-embedded-material.json.
 Remaining: bounded input/bitmap ownership, mesh edges, vertex/UV/transform
 tracks, frame opacity, particle/warp decoding and effect playback. This
 is decoder verification, not a native XEMU run or working combat.
+
+## VFX mesh bounds and edge records (2026-09-13)
+
+rf_vfx_mesh_edges_read covers original53d98e..53dc17, from bounds through
+keyframed flag selection, before frame allocation. It preserves initial
+owner114 flags, pre30002 compatibility bits, the two3000a optional floats,
+and packed owner88 flags. All14 authored projectile meshes reach the next
+frame section. rf_vfx_edge_read retains original44-byte edge fields with
+zero-initialized untouched storage and a checked input span of face indices
+instead of pointers. Both APIs borrow input and allocate nothing. Finite
+geometry, signed nonnegative counts, checked spans and adjacency bounds
+are required; failed reads leave output unchanged.
+
+verify_vfx_mesh_edges.py compares1038 original/PC/compiled NXDK cases:
+14 authored meshes plus1024 synthetic records,3330 edges total. The harness
+runs actual integer/vector/float/version/boolean helpers, supplies only file
+services, normalizes edge pointers and checks adjacency plus consumed bytes.
+Original reverse face-link conversion is exercised with zero edge indices;
+the port intentionally retains those references in rf_vfx_face.words_80
+until owned mesh construction validates and resolves them. This is not a
+claim of completed pointer binding.8113 invalid/truncated cases preserve
+output. Both builds and24 CTests pass; artifacts/vfx-mesh-edges.json records
+the result. No native XEMU run or new rendered effect is claimed.
+
+Next: quantized vertex frames, UV/transform tracks and frame opacity, then
+bounded resource ownership, particles/warps and playback.
