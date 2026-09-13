@@ -1880,14 +1880,14 @@ int rf_entity_navigation_select(rf_entity_navigation_reference *references,uint3
     }
 }
 
-int rf_entity_navigation_search(rf_entity_navigation_reference *refs,uint32_t count,
+static int navigation_search_members(rf_entity_navigation_reference *refs,uint32_t count,uint32_t first,uint32_t members,
     rf_entity_navigation_search_query *q,uint32_t *scratch,uint32_t capacity,
     const rf_entity_navigation_search_backend *b,uint32_t *result)
 {
     uint32_t i,j,k,n,best,current,value,found,depth,parent;float cost_sum=0;double cost,distance;int status;
     rf_entity_navigation_candidate *node,*next;
     if(!refs || !q || !scratch || !b || !b->visible || !b->append || (q->alternate && !b->edge) || !result ||
-       !count || count>65536 || capacity<count || q->start>=count || q->goal>=count)return RF_RANGE;
+       !count || count>65536 || capacity<count || q->start>=count || q->goal>=count || first>count || members>count-first)return RF_RANGE;
     for(i=0;i<count;++i) {
         if(!refs[i].candidate || !refs[i].order_key || (refs[i].neighbor_count && !refs[i].neighbors))return RF_RANGE;
         for(j=0;j<i;++j)if(refs[j].order_key==refs[i].order_key || refs[j].candidate==refs[i].candidate)return RF_FORMAT;
@@ -1895,7 +1895,7 @@ int rf_entity_navigation_search(rf_entity_navigation_reference *refs,uint32_t co
         for(k=0;k<3;++k)if(!isfinite(refs[i].candidate->query_point[k]))return RF_FORMAT;
     }
     for(k=0;k<3;++k)if(!isfinite(refs[q->goal].candidate->position[k]))return RF_FORMAT;
-    for(i=0;i<count;++i) {
+    for(i=first;i<first+members;++i) {
         node=refs[i].candidate;if(!node->rejected_035){node->distance_squared=FLT_MAX;node->retained_03c=0;node->flag_034=0;node->flag_036=0;}
     }
     node=refs[q->start].candidate;node->distance_squared=0;node->flag_034=1;scratch[0]=q->start;n=1;
@@ -1937,6 +1937,11 @@ int rf_entity_navigation_search(rf_entity_navigation_reference *refs,uint32_t co
     }
     *result=0;return RF_OK;
 }
+
+int rf_entity_navigation_search(rf_entity_navigation_reference *refs,uint32_t count,
+    rf_entity_navigation_search_query *q,uint32_t *scratch,uint32_t capacity,
+    const rf_entity_navigation_search_backend *b,uint32_t *result)
+{return navigation_search_members(refs,count,0,count,q,scratch,capacity,b,result);}
 
 static int navigation_list_room(const rf_entity_navigation_token_list *list,uint32_t extra)
 {
@@ -2124,7 +2129,7 @@ static int navigation_search_edge(void *context,uint32_t alternate,const float s
 }
 static int navigation_search_append(void *context,rf_entity_navigation_candidate *node)
 {return rf_entity_navigation_route_append(((navigation_solid_search_context *)context)->route,node);}
-int rf_entity_navigation_search_solid(rf_entity_navigation_reference *refs,uint32_t count,
+int rf_entity_navigation_search_solid_members(rf_entity_navigation_reference *refs,uint32_t count,uint32_t first,uint32_t members,
     rf_entity_navigation_search_query *q,uint32_t *scratch,uint32_t capacity,
     const rf_collision_solid_view *solid,const float alternate[3],
     rf_entity_navigation_retained_route *route,uint32_t *result)
@@ -2132,5 +2137,11 @@ int rf_entity_navigation_search_solid(rf_entity_navigation_reference *refs,uint3
     navigation_solid_search_context c;rf_entity_navigation_search_backend b={navigation_search_visible,navigation_search_edge,navigation_search_append,&c};
     if(!refs || !q || !route || q->goal>=count || !refs[q->goal].candidate || (q->alternate && !alternate))return RF_RANGE;
     c.solid=solid;c.target=q->alternate?alternate:refs[q->goal].candidate->position;c.alternate=alternate;c.route=route;
-    return rf_entity_navigation_search(refs,count,q,scratch,capacity,&b,result);
+    return navigation_search_members(refs,count,first,members,q,scratch,capacity,&b,result);
 }
+
+int rf_entity_navigation_search_solid(rf_entity_navigation_reference *refs,uint32_t count,
+    rf_entity_navigation_search_query *q,uint32_t *scratch,uint32_t capacity,
+    const rf_collision_solid_view *solid,const float alternate[3],
+    rf_entity_navigation_retained_route *route,uint32_t *result)
+{return rf_entity_navigation_search_solid_members(refs,count,0,count,q,scratch,capacity,solid,alternate,route,result);}

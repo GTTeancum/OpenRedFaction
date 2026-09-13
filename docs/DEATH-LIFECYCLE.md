@@ -10215,3 +10215,26 @@ and near-goal checks. Both builds and22 CTest checks pass. This moves
 geometry predicates out of supplied test results into concrete execution.
 Endpoint preparation/temporary insertion and loaded scene ownership are
 not yet composed with this entry; no live NPC or native XEMU claim.
+
+
+Search initialization membership for temporary endpoints (2026-09-13)
+
+The original4ce8c0 initialization walks the global navigation list, which
+does not necessarily contain the temporary start. The start still gets
+score0 and flag34=1 explicitly, but its other fields must not be reset
+merely because the shared traversal references it.
+
+rf_entity_navigation_search_solid_members supplies a bounded contiguous
+global-member range within the traversal references. Only that range
+receives the initialization pass; all reachable references remain usable
+by search. Existing search entries initialize all references as before.
+Range validation precedes node mutation. No allocation or per-node storage
+is added. This permits endpoint owners to keep temporary nodes outside
+the original global-list initialization semantics.
+
+verify_ai_search_solid.py --temporary-start removes start from the original
+global list and compares2048 original/PC/NXDK searches, including exact
+retained node bytes, route output and cost. All pass with801 successes.
+The2048 all-member regression cases also pass. Both builds and22 CTest
+checks pass. Endpoint setup/cleanup composition and live scene adapters
+remain open; no native XEMU execution claim.

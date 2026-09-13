@@ -1279,6 +1279,15 @@ int rf_entity_navigation_search_solid(rf_entity_navigation_reference *references
     const struct rf_collision_solid_view *solid,const float alternate_point[3],
     rf_entity_navigation_retained_route *route,uint32_t *result);
 
+/* Same concrete search, with only references[first..first+members) reset
+ * by the global-list initialization pass. Other references are reachable
+ * temporary endpoints: start still receives score0/flag34=1, while its other
+ * fields remain untouched until reached by normal search operations. */
+int rf_entity_navigation_search_solid_members(rf_entity_navigation_reference *references,uint32_t count,
+    uint32_t first,uint32_t members,rf_entity_navigation_search_query *query,uint32_t *scratch,uint32_t capacity,
+    const struct rf_collision_solid_view *solid,const float alternate_point[3],
+    rf_entity_navigation_retained_route *route,uint32_t *result);
+
 /*4cebd0 request orchestration. Borrowed state must survive each stage.
  * Stages may update goal/query coordinates and route output. Successful goal
  * insertion must be reversible by disconnect, including after search errors. */

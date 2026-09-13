@@ -27,10 +27,10 @@ static int ai_search_probe(uint32_t retained)
   if(wire.count>8)return 3;c.retained=retained;c.wire=&wire;c.hash=2166136261u;q.goal=wire.goal;q.alternate=wire.alternate?0x30006000:0;q.limit=wire.limit;q.height=1;out[2]=0x12345678;memcpy(&q.cost,out+2,4);
   for(i=0;i<wire.count;++i){refs[i].candidate=wire.nodes+i;refs[i].order_key=0x30000000+i*0x100;refs[i].neighbors=wire.neighbors[i];refs[i].neighbor_count=wire.neighbor_count[i];if(wire.neighbor_count[i]>8)return 3;}
   out[1]=99;
-  if(retained==2){
+  if(retained>=2){
    rf_collision_solid_view solid={0};rf_collision_face face={0};float vertices[4][3]={{-100,-100,0},{100,-100,0},{100,100,0},{-100,100,0}},alternate[3]={0,0,8};
    face.plane[2]=1;face.vertices=vertices;face.count=4;face.minimum[0]=face.minimum[1]=-100.0001f;face.maximum[0]=face.maximum[1]=100.0001f;face.minimum[2]=-.0001f;face.maximum[2]=.0001f;solid.flat_faces=&face;solid.flat_count=wire.visible[0];q.edge_parameter=1;
-   out[0]=rf_entity_navigation_search_solid(refs,wire.count,&q,scratch,8,&solid,alternate,&c.route,out+1);
+   out[0]=rf_entity_navigation_search_solid_members(refs,wire.count,retained==3?1:0,wire.count-(retained==3?1:0),&q,scratch,8,&solid,alternate,&c.route,out+1);
    c.count=c.route.count;for(i=0;i<c.count;++i)c.path[i]=(uint32_t)(c.route.nodes[i]-wire.nodes);
   }else out[0]=(uint32_t)rf_entity_navigation_search(refs,wire.count,&q,scratch,8,&b,out+1);memcpy(out+2,&q.cost,4);out[3]=c.count;memcpy(out+4,c.path,32);out[12]=c.hash;
   if(fwrite(out,sizeof(out),1,stdout)!=1 || fwrite(wire.nodes,sizeof(wire.nodes),1,stdout)!=1)return 3;
