@@ -62,6 +62,10 @@ typedef struct rf_visibility_plane {float normal[3],distance;uint32_t corner;} r
  * Six planes in original order; no room traversal or allocation. Errors preserve out. */
 int rf_visibility_light_cone_planes(const float position[3],const float axis[3],
     float radius,float half_width,rf_visibility_plane planes[6]);
+/*4d9520 stored width followed by4d86d0 planes, using the authored outer angle
+ * in radians. Signed finite nonzero widths are supported, including float pi. */
+int rf_visibility_light_cone_prepare(const float position[3],const float axis[3],
+    float radius,float outer_angle,rf_visibility_plane planes[6]);
 /*4d81d0: six prepared spotlight planes; reject when the selected minimum
  * box-corner signed distance is greater than double -0.001. Plane construction
  * and room traversal are separate. Finite inputs required; errors preserve out. */

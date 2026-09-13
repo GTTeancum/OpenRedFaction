@@ -8,7 +8,7 @@ int rf_visibility_light_cone_planes(const float position[3],const float axis[3],
 {
     rf_visibility_plane value[6];float basis[9]={0},center[3],up[3],right[3],corners[4][3],negative[3];
     double inverse;uint32_t i;int status;
-    if(!position || !axis || !planes || !isfinite(radius) || radius<=0 || !isfinite(half_width) || half_width<=0)return RF_RANGE;
+    if(!position || !axis || !planes || !isfinite(radius) || radius<=0 || !isfinite(half_width) || half_width==0)return RF_RANGE;
     for(i=0;i<3;i++)if(!isfinite(position[i]) || !isfinite(axis[i]))return RF_RANGE;
     memcpy(basis+6,axis,12);
     if(axis[0]<.0001f && axis[0]>-.0001f && axis[2]<.0001f && axis[2]>-.0001f) {
@@ -32,6 +32,14 @@ int rf_visibility_light_cone_planes(const float position[3],const float axis[3],
     status=rf_visibility_plane_points(position,corners[3],corners[2],value+4);if(status)return status;
     status=rf_visibility_plane_points(corners[0],corners[3],position,value+5);if(status)return status;
     memcpy(planes,value,sizeof(value));return RF_OK;
+}
+int rf_visibility_light_cone_prepare(const float position[3],const float axis[3],
+    float radius,float outer_angle,rf_visibility_plane planes[6])
+{
+    float width;
+    if(!isfinite(outer_angle) || outer_angle<=0 || outer_angle>6.283185307179586 || !isfinite(radius) || radius<=0)return RF_RANGE;
+    width=(float)(tan((double)outer_angle*0.5)*(double)radius);
+    return rf_visibility_light_cone_planes(position,axis,radius,width,planes);
 }
 int rf_visibility_light_cone_box(const rf_visibility_plane planes[6],
     const float minimum[3],const float maximum[3],uint32_t *visible)

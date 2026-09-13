@@ -107,11 +107,11 @@ static int segment_create_allocate(void *context,const rf_glare_create_descripto
 }
 int main(int argc,char **argv)
 {
-    if(argc==2 && !strcmp(argv[1],"--light-cone-planes")) {
+    if(argc==2 && (!strcmp(argv[1],"--light-cone-planes") || !strcmp(argv[1],"--light-cone-prepare"))) {
         float input[8];struct {uint32_t status;rf_visibility_plane planes[6];} output;
         _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
         while(fread(input,sizeof(input),1,stdin)==1) {
-            memset(&output,0xa5,sizeof(output));output.status=rf_visibility_light_cone_planes(input,input+3,input[6],input[7],output.planes);
+            memset(&output,0xa5,sizeof(output));output.status=(!strcmp(argv[1],"--light-cone-prepare")?rf_visibility_light_cone_prepare:rf_visibility_light_cone_planes)(input,input+3,input[6],input[7],output.planes);
             fwrite(&output,sizeof(output),1,stdout);
         }
         return 0;

@@ -38,7 +38,7 @@ for case in range(2048):
  hit=call(o,0x4d81d0,[OWNER,B,B+12])&255;box_commands.append(bounds+planes);box_expected.append(w(0,hit))
  x.mem_write(B,bounds);x.mem_write(OUT+120,w(0xa5a5a5a5))
  assert call(x,box_entry,[OUT,B,B+12,OUT+120])==0 and bytes(x.mem_read(OUT+120,4))==w(hit)
-for offset,value in [(0,f(float('nan'))),(24,f(0)),(28,f(-1))]:
+for offset,value in [(0,f(float('nan'))),(24,f(0)),(28,f(0))]:
  bad=bytearray(data);bad[offset:offset+4]=value;commands.append(bytes(bad));x.mem_write(B,bytes(bad));x.mem_write(OUT,b'\xa5'*120)
  status=call(x,entry,[B,B+12,struct.unpack('<I',bad[24:28])[0],struct.unpack('<I',bad[28:32])[0],OUT]);assert status and bytes(x.mem_read(OUT,120))==b'\xa5'*120
  expected.append(w(status)+b'\xa5'*120)

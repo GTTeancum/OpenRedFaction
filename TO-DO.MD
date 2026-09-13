@@ -14,6 +14,11 @@ Shortlist:
 
 Progress reporting: include overall percent estimates at meaningful milestones and revisit remaining 24-hour workdays when measured throughput supports a forecast; current rough estimate40% (35-45%), no defensible +/-48-hour completion forecast before end-to-end gameplay.
 
+Authored spotlight angle-to-plane preparation matches all2411 installed
+lights plus1024 synthetic cases on original/PC/NXDK; fixed negative widths
+for180-degree lights. Both builds and24 tests pass. Apply volumes in room/
+tree traversal and alternate-view dirty-state dispatch, then native lighting.
+
 Spotlight plane construction and composed box testing match2048 original/
 PC/NXDK cases each; both builds and24 tests pass. Finish stored cone-width
 calculation, alternate-view dispatch and room/tree dirty-state traversal

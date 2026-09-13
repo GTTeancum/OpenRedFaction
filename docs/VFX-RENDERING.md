@@ -844,3 +844,21 @@ Another2048 composed generated-plane/box decisions match all three builds;
 three invalid-input guards preserve output. Both builds and24 CTests pass.
 Width generation, alternate-view transformation and room/tree dirty-state
 traversal still need integration; rendering is unchanged.
+
+### Authored spotlight visibility preparation (2026-09-13)
+
+rf_visibility_light_cone_prepare composes4d9520 stored half-width
+(float)(tan((double)outer_angle*0.5)*radius) with the verified six-plane
+construction. Inputs use the authored outer angle in radians. Corrected
+plane construction to accept finite negative half-widths: installed lights
+include180-degree angles, whose binary32 radian conversion exceeds pi and
+yields negative tangent/width. The original retains that sign. Zero width
+and degenerate plane geometry remain guarded.
+
+verify_light_cone_prepare.py compares actual4d9520 and4d86d0 preparation
+without math hooks against PC/NXDK for all2411 installed spotlights plus
+1024 synthetic angle/radius/direction cases. All six planes and selectors
+match;577 combined cases have negative width. Three input-error guards
+preserve output. Existing2048 plane and2048 composed box comparisons,
+both builds and24 CTests pass. Native scene/room traversal is not yet bound;
+this arithmetic has instruction-level NXDK evidence, not new XEMU evidence.
