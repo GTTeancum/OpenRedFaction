@@ -45,6 +45,7 @@ Verify authored NPC/vehicle beams, bind player state and complete transparent sc
 
 AI action/state setters407e20/407e80 match2048 original/PC/NXDK cases.
 Event arbitration4087a0 matches2048 original/PC/NXDK cases; bind event/destination/stance services.
+Destination40ac90 original audit passes2048 cases; reconstruct partial-failure state and route services.
 Shared408ac0 selection matches2048 original/PC/NXDK cases across107 paths plus21 failure checks.
 AI animation resets4091d0/409210 match2048 original/PC/NXDK cases plus4 failure checks.
 Scene AI reset service passes304 restored-state cases across38 NPCs on stock64MiB XEMU.

@@ -9784,3 +9784,37 @@ for all2048 cases;8 callback failures and4 invalid-clock guards pass.
 Both builds and all22 CTest checks pass. No native XEMU scene integration
 or autonomous AI behavior is claimed: event lookup/navigation/stance
 implementations and the retained live scheduler remain open.
+
+
+AI destination40ac90 original audit (2026-09-13)
+
+Event dependency4b05f0 returns global7cabb0 low byte.4b6800 calls40a0e0,
+requires base object24 type6 and returns base pointer-4, consistent with
+existing event owners. Event type46 is Alarm (event name table), not an
+unidentified generic event. Existing rf_scene_npc_normal supplies4280b0.
+
+Destination40ac90 is mutating route orchestration, not a read-only point
+predicate. Lookup426fc0 precedes409210 reset, copies into actor620/62c and
+global5af624 assignment. Action3/state3 uses the two-point shortcut: copies
+current3c into5a4/5b0/6d4, count588=2, pointers58c/590 to5a4/620,59c=0,
+5a0=1 and timer6bc initialized at current time. Disassembly establishes
+the ECX timer receiver missing from Ghidra output. Other paths invoke
+40aae0,4077a0 and40c2c0, then real node-height interpolation/projection
+or horizontal radius adjustment. Action2/16 bypass adjusted-distance
+rejection. Clear40cb40 and ordered node adds45ec40 precede target lookup
+for action3 and direct route40b0d0. Direct low byte exactly1 succeeds;
+otherwise4cebd0 searches. Nonzero search byte publishes count588 even
+when count<2 subsequently rejects. Success copies7d4 into6d4 and sets
+timer6bc/59c/5a0; failure retains prior writes.
+
+verify_ai_destination_original.py executes full40ac90 and actual vector
+copy, distance, projection, normalization and timer across2048 cases.
+Lookup/reset and navigation preparation, node selection, list operations,
+direct route, search and scalar limit are supplied boundaries. Results:
+1143 accepted,777 rejected with partial actor mutation,722 distinct
+traces. Actor write footprint, low-byte branch behavior, node ordering,
+timer receiver, shortcut publication and search-count failure are checked.
+Initial retained words/vector bits and resulting state are saved locally
+in artifacts/ai-destination-original.json for shared comparison. This is
+an original oracle only; shared destination implementation, full route
+services and live AI integration remain unfinished. No new Xbox run.
