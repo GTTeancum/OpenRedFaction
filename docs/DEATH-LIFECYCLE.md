@@ -9199,3 +9199,22 @@ Native forced glare retirement (2026-09-12)
  All PC/XEMU scene telemetry comparisons pass; both builds and22 CTest
  checks pass. The opt-in flag is absent after restoration. Dynamic resource
  ownership and authored parent destruction remain broader runtime work.
+
+
+Volume draw path and angular opacity (2026-09-13)
+------------------------------------------------
+ Collector4884b2 queues488b00; it resolves the handle and invokes488b20,
+ which dispatches type10 to4141a0 and ORs rendered flag10 afterward.
+ Volume rendering belongs in the sorted object queue, distinct from the
+ later corona pass.4141a0 contains special word2cc/current-player gates,
+ ownership-parent room visibility, opacity, actor-specific beam modulation,
+ then radius publication and draw.515c00 receives end=position+forward*length,
+ start=position, width, and mode global1775b30.431950 brackets the draw.
+ Geometry/mode initialization and actor modulation remain to reconstruct.
+ rf_glare_volume_opacity implements4142af..414307 from resolved acos angle:
+ float((angle*57.2957763671875-cone)*float.04), clamp[-1,1], (value+1)*.5,
+ suppress if below float(2/255). Output is opacity and draw gate; finite
+ guards preserve output. No camera or rendering scheduling is implied.
+ verify_glare_volume_opacity.py PASS2048 original/PC/compiled NXDK cases,
+ including cutoff neighborhoods, plus4 nonfinite guards. Actual clamp runs
+ unchanged. Both builds and22 CTest checks PASS. No native visual change.

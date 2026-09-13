@@ -23,6 +23,9 @@ Orphan retirement is bound;180-frame stock64MiB XEMU preserves all220 valid glar
 Forced-loss stock64MiB XEMU retires3 owners and clears all scene/registry references.
 Bind authored dynamic parenting and turret ownership; extend retirement with future resources.
 
+Volume opacity now matches2048 original/PC/NXDK cases; reconstruct515c00 beam geometry
+and sorted-queue draw state before enabling live volumes.
+
 The stationary startup-NPC animation gate matches PC/stock64MiB XEMU;
 footstep selection and support-material helpers are verified but not live.
 Detailed source evidence and test scope are recorded in docs/NPC-MARKERS.md.

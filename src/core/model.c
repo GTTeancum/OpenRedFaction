@@ -80,6 +80,15 @@ int rf_glare_create(const rf_glare_class *classes,uint32_t count,int32_t index,
     state->byte_2d0=0;memset(state->vectors,0,sizeof(state->vectors));return RF_OK;
 }
 
+int rf_glare_volume_opacity(double angle_radians,float cone_degrees,float *opacity,uint32_t *draw)
+{
+    float value;if(!opacity || !draw)return RF_RANGE;
+    if(!isfinite(angle_radians) || !isfinite(cone_degrees))return RF_FORMAT;
+    value=(float)((angle_radians*(double)57.2957763671875f-cone_degrees)*(double).04f);
+    if(value<-1)value=-1;if(value>1)value=1;
+    value=(float)(((double)value+1.0)*.5);
+    *draw=value>=0.007843137718737125f;*opacity=*draw?value:0;return RF_OK;
+}
 int rf_glare_parent_update(rf_glare_base_owner *owner,const rf_object_registry *registry)
 {
     if(!owner || !registry)return RF_RANGE;

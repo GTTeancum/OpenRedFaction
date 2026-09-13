@@ -220,6 +220,13 @@ int main(int argc,char **argv)
             out.status=rf_attachment_local_pose(in,in+12,in+15,in+24,out.pose);fwrite(&out,sizeof(out),1,stdout);}
         return ferror(stdin)?2:0;
     }
+    if(argc==2 && !strcmp(argv[1],"--glare-volume-opacity")) {
+        uint32_t in[3];double angle;float cone;struct {int32_t status;float opacity;uint32_t draw;} out;
+        _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
+        while(fread(in,sizeof(in),1,stdin)==1){memcpy(&angle,in,8);memcpy(&cone,in+2,4);memset(&out,0xa5,sizeof(out));
+            out.status=rf_glare_volume_opacity(angle,cone,&out.opacity,&out.draw);fwrite(&out,sizeof(out),1,stdout);}
+        return ferror(stdin)?2:0;
+    }
     if(argc==2 && !strcmp(argv[1],"--glare-parent")) {
         uint32_t in[5];rf_glare_base_owner owner;rf_object_registry registry;struct {int32_t status;uint32_t flags;} out;
         _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
