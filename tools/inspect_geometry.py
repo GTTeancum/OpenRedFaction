@@ -34,9 +34,10 @@ def inspect(data, allow_unowned=False):
     vertices_offset = cursor
     take(vertices * 12)
     faces = number()
+    adjacency = [set() for _ in range(vertices)]
     corners = 0
     max_face = 0
-    for _ in range(faces):
+    for face_index in range(faces):
         face = take(56)
         texture, lightmap = struct.unpack_from('<II', face, 16)
         room, count = struct.unpack_from('<II', face, 48)
@@ -46,6 +47,7 @@ def inspect(data, allow_unowned=False):
         for _ in range(count):
             vertex = take(stride)
             assert struct.unpack_from('<I', vertex)[0] < vertices
+            adjacency[struct.unpack_from('<I', vertex)[0]].add(face_index)
         max_face = max(count, max_face)
         corners += count
     mappings = number()
@@ -55,6 +57,8 @@ def inspect(data, allow_unowned=False):
     tail_bytes = len(data) - cursor
     return dict(textures=len(textures), rooms=rooms, vertices=vertices, faces=faces,
                 corners=corners, max_face=max_face, mappings=mappings, bytes=len(data),
+                adjacency_links=sum(map(len,adjacency)), max_vertex_faces=max(map(len,adjacency),default=0),
+                adjacency_csr_bytes=4*(vertices+1+sum(map(len,adjacency))),
                 vertices_offset=vertices_offset, mapping_offset=mapping_offset, tail_word=tail_word, tail_bytes=tail_bytes)
 
 def main():

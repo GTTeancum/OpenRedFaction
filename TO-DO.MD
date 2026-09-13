@@ -14,6 +14,11 @@ Shortlist:
 
 Progress reporting: include an overall percent estimate in every turn report (USER preference) and revisit remaining 24-hour workdays when measured throughput supports a forecast; current rough estimate40% (35-45%), no defensible +/-48-hour completion forecast before end-to-end gameplay.
 
+Original vertex adjacency suppresses duplicate faces and preserves first-insertion
+order, verified over66560 insertions. Static inventory estimates143076 bytes
+for L1S1 adjacency; implement the bounded owner, preserving loader rejection/
+removal semantics before binding smoothed corner normals to sampling.
+
 Retained-geometry mapping access now decodes on demand without a duplicate
 table;301871 PC records across94 levels and2048 NXDK/original cases pass.
 Both builds and24 tests pass. Bind selected face/corner-normal ownership and
