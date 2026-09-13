@@ -9461,3 +9461,19 @@ those records with PC/compiled NXDK and verifies all528 NXDK owner bytes,
 plus3 callback failures. Both builds and22 CTest checks pass. Owned allocation
 adapter, authored two-tag creation/update/lifetime and special view-owner
 assignment remain open; no new native scene rendering claim.
+
+
+Owned two-tag lifecycle (2026-09-13): rf_glare_segment_owned_open composes
+413f20 construction with existing concrete type10 registry/list/physics
+allocation. Tag services remain caller-supplied. Generic allocation sees
+parentFFFFFFFF; successful constructor then assigns ownership parent while
+attachment parent remainsFFFFFFFF. Existing rf_glare_owned_close retires
+the family, body, object list, allocation and registry slot.
+PC rf_model_probe --glare-segment-owned passes three concurrent owners,
+callback/budget failures, wrong-list rejection and middle/head/tail retirement.
+verify_glare_segment_owned_nxdk.py executes actual compiled allocation,
+constructor, lists, registry and physics with only tag/heap boundaries:
+16 checks include both tag failures, nonfinite tag data, heap failure, short
+budget, invalid classes, empty registry, preserved zeroed allocator fields,
+midpoint/endpoints, repeat close and no leaks. Both builds and22 CTest checks
+pass. Authored creation/update and native two-tag rendering remain open.

@@ -259,6 +259,14 @@ int rf_glare_owned_open(const rf_glare_class *classes,uint32_t count,int32_t ind
     rf_object_list *objects,rf_object_list *glares,uint32_t *uid_cursor,
     uint32_t parent_byte,uint32_t parent_group,const float material[3],uint32_t budget,
     const rf_glare_services *services,rf_glare_base_owner **out);
+/* Owned413f20 two-tag variant, using the same retirement path. Parent byte/
+ * group describe generic allocation with no parent; ownership parent is set
+ * afterward. Empty output required. No live tag-update scheduling here. */
+int rf_glare_segment_owned_open(const rf_glare_class *classes,uint32_t count,int32_t index,
+    uint32_t parent,int32_t first_tag,int32_t second_tag,rf_object_registry *registry,
+    rf_object_list *objects,rf_object_list *glares,uint32_t *uid_cursor,
+    uint32_t parent_byte,uint32_t parent_group,const float material[3],uint32_t budget,
+    const rf_glare_services *services,rf_glare_base_owner **out);
 /* Valid linked family owner required; unlinks glare state before base close.
  * NULL owner is repeatable. No renderer/resource borrower teardown implied. */
 int rf_glare_owned_close(rf_glare_base_owner **owner,rf_object_registry *registry,

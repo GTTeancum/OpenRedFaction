@@ -83,3 +83,29 @@ static int glare_owned_probe(void)
     if(objects.count || glares.count || registry.count!=1024)return 8;
     puts("GLARE_OWNED PASS 3 owners, callback/budget failures, wrong-list rejection, ordered retirement");return 0;
 }
+
+static int glare_segment_owned_probe(void)
+{
+    rf_glare_base_owner *owners[3]={0},*missing=NULL;rf_object_registry registry;rf_object_list objects,glares,wrong;
+    rf_glare_class definition={.5f,1,(void *)(uintptr_t)0x5c9e98};uint32_t uid=UINT32_MAX,i,handles[3];
+    float material[3]={.25f,.5f,2};glare_probe_context c={0};rf_glare_services services={glare_probe_pose,&c};
+    rf_object_registry_init(&registry);rf_object_list_init(&objects);rf_object_list_init(&glares);rf_object_list_init(&wrong);
+    for(i=0;i<3;++i) {
+        c.trace=0;
+        if(rf_glare_segment_owned_open(&definition,1,0,123,7,7,&registry,&objects,&glares,&uid,7,17,material,528,&services,owners+i))return 2;
+        if(!owners[i] || c.trace!=22 || owners[i]->state.definition!=definition.definition || owners[i]->state.parent!=UINT32_MAX ||
+           owners[i]->state.tag!=-1 || owners[i]->state.flags!=0 || owners[i]->parent_handle!=123 || owners[i]->state.byte_2d0!=1 || owners[i]->body.state.mass!=1 || glares.count!=i+1 || objects.count!=i+1)return 3;
+        handles[i]=owners[i]->handle;
+    }
+    if(rf_glare_owned_close(owners+1,&registry,&objects,&wrong)!=RF_RANGE || !owners[1] || glares.count!=3)return 4;
+    for(i=3;i<5;++i) {
+        c.mode=i==4?0:i;c.trace=0;
+        if(rf_glare_segment_owned_open(&definition,1,0,123,7,7,&registry,&objects,&glares,&uid,7,17,material,i==4?527:528,&services,&missing)==RF_OK || missing || glares.count!=3 || objects.count!=3)return 5;
+    }
+    /* Retire middle, then head, then tail; verify both lists and stale handles. */
+    if(rf_glare_owned_close(owners+1,&registry,&objects,&glares) || rf_glare_owned_close(owners,&registry,&objects,&glares) ||
+       rf_glare_owned_close(owners+2,&registry,&objects,&glares) || rf_glare_owned_close(owners,&registry,&objects,&glares))return 6;
+    for(i=0;i<3;++i)if(rf_object_registry_lookup(&registry,handles[i]))return 7;
+    if(objects.count || glares.count || registry.count!=1024)return 8;
+    puts("GLARE_SEGMENT_OWNED PASS 3 owners, callback/budget failures, wrong-list rejection, ordered retirement");return 0;
+}

@@ -38,7 +38,7 @@ NPC volume adapter now reads retained command/occupant state; stock64MiB prop-be
 Retained NPC volume service passes6 restored-state cases on stock64MiB XEMU.
 Special volume-owner gate matches162 original/PC/NXDK cases plus6 callback failures.
 Two-tag glare constructor matches60 original/PC/NXDK cases plus3 callback failures.
-Bind two-tag owned allocation and authored scene creation.
+Two-tag owned lifecycle passes PC and16 compiled NXDK checks; bind authored scene creation.
 Verify authored NPC/vehicle beams, bind player state and complete transparent scene ordering.
 
 The stationary startup-NPC animation gate matches PC/stock64MiB XEMU;

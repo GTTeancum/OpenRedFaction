@@ -321,6 +321,23 @@ int rf_glare_owned_open(const rf_glare_class *classes,uint32_t count,int32_t ind
     status=rf_glare_create(classes,count,index,parent,tag,flag,glares,&backend,&state);if(status)return status;
     *out=c.owner;return RF_OK;
 }
+static int glare_segment_owned_allocate(void *context,const rf_glare_create_descriptor *d,rf_glare_base_owner **out)
+{
+    glare_owned_context *c=context;return rf_glare_base_open(d,c->registry,c->objects,c->uid,
+        c->parent_byte,c->parent_group,c->material,c->budget,out);
+}
+int rf_glare_segment_owned_open(const rf_glare_class *classes,uint32_t count,int32_t index,
+    uint32_t parent,int32_t first_tag,int32_t second_tag,rf_object_registry *registry,
+    rf_object_list *objects,rf_object_list *glares,uint32_t *uid_cursor,
+    uint32_t parent_byte,uint32_t parent_group,const float material[3],uint32_t budget,
+    const rf_glare_services *services,rf_glare_base_owner **out)
+{
+    glare_owned_context c={registry,objects,uid_cursor,parent_byte,parent_group,budget,material,services,NULL};
+    rf_glare_segment_backend backend={glare_owned_pose,glare_segment_owned_allocate,&c};
+    if(!out || *out || !registry || !objects || !glares || !uid_cursor || !material || !services || !services->tag_pose ||
+       !glares->sentinel.next || !glares->sentinel.previous || glares->sentinel.next->previous!=&glares->sentinel || glares->sentinel.previous->next!=&glares->sentinel)return RF_RANGE;
+    return rf_glare_segment_create(classes,count,index,parent,first_tag,second_tag,glares,&backend,out);
+}
 int rf_glare_owned_close(rf_glare_base_owner **owner,rf_object_registry *registry,
     rf_object_list *objects,rf_object_list *glares)
 {

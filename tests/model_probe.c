@@ -26,6 +26,7 @@ int main(int argc,char **argv)
     _setmode(_fileno(stdin), _O_BINARY); _setmode(_fileno(stdout), _O_BINARY);
     if(argc==2 && !strcmp(argv[1],"--glare-create"))return glare_create_probe();
     if(argc==2 && !strcmp(argv[1],"--glare-base"))return glare_base_probe();
+    if(argc==2 && !strcmp(argv[1],"--glare-segment-owned"))return glare_segment_owned_probe();
     if(argc==2 && !strcmp(argv[1],"--glare-owned"))return glare_owned_probe();
     if(argc==2 && !strcmp(argv[1],"--static-tag-place")) {
         float data[19];struct {int32_t status;float pose[12];} out;
