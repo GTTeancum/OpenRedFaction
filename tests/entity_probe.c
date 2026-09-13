@@ -154,6 +154,18 @@ static int ai_visibility_collision(void *context,uint32_t world,const float star
 #include "ai_request_probe.h"
 int main(int argc,char **argv)
 {
+    if(argc==2 && !strcmp(argv[1],"--player-controls")) {
+        int32_t in[22];rf_entity_registry registry;rf_entity_view views[4];uint32_t i,result;int32_t status;
+        _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
+        while(fread(in,sizeof(in),1,stdin)==1){
+            memset(&registry,0,sizeof(registry));memset(views,0,sizeof(views));
+            for(i=0;i<4;++i){views[i].handle=in[6+i*4];views[i].type=in[7+i*4];views[i].linked_handle=in[8+i*4];
+                if(in[9+i*4])registry.slots[i]=views+i;}
+            result=99;status=rf_entity_player_controls(&registry,in[0]>=0 && in[0]<4?views+in[0]:NULL,in+2,in[1],&result);
+            if(fwrite(&status,4,1,stdout)!=1 || fwrite(&result,4,1,stdout)!=1)return 2;
+        }
+        return ferror(stdin)?1:0;
+    }
     if(argc==3 && !strcmp(argv[1],"--action-name"))return action_name_probe(argv[2]);
     if(argc==2 && !strcmp(argv[1],"--corpse-owned-abort"))return corpse_owned_abort_probe();
     if(argc==2 && !strcmp(argv[1],"--corpse-owned-create"))return corpse_owned_create_probe();

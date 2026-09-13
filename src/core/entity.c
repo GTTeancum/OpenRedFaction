@@ -317,6 +317,18 @@ const rf_entity_view *rf_entity_lookup(const rf_entity_registry *registry, int32
     const rf_entity_view *object=rf_object_lookup(registry,handle);
     return object && object->type==0 ? object : 0;
 }
+int rf_entity_player_controls(const rf_entity_registry *registry,const rf_entity_view *query,
+    const int32_t *players,int32_t count,uint32_t *result)
+{
+    int32_t i;if(!result)return RF_RANGE;
+    if(!query || count<=0){*result=0;return RF_OK;}
+    if(!registry || !players)return RF_RANGE;
+    for(i=0;i<count;++i){
+        const rf_entity_view *player=rf_entity_lookup(registry,players[i]);
+        if(player && (player==query || player->linked_handle==query->handle)){*result=1;return RF_OK;}
+    }
+    *result=0;return RF_OK;
+}
 
 int rf_entity_has_weapon(const rf_entity_registry *registry, const rf_entity_view *entity, int *result)
 {

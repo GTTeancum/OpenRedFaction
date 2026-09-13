@@ -10464,3 +10464,10 @@ rf_scene_npc_prepare_angular connects retained authored rate/acceleration, body 
 Extended NPC_LOOK_TEST restores each actor after verifying all prepared fields and stale-handle rejection. Replay-20260913-052352 passes180 frames on stock64MiB XEMU with matching PC telemetry [38,38,38,2384810794,5304,0]. Existing native assertions and22 CTest checks pass; normal Xbox image restored/rebuilt. No new visible autonomous movement claimed.
 
 Ownership audit correction: entity_view.linked_handle ALREADY represents original actor200, as explicitly mapped by verify_entity_predicates.py and used by shared combat predicates. The earlier concern that this field was missing was incorrect. The next drive lookup can use that verified field plus the registered SP player entity, preserving48aa30 pointer-identity-or-linked-handle semantics. Do not introduce a duplicate field or substitute a different attachment handle.
+
+
+### Original player/control lookup48aa30 (2026-09-13)
+
+rf_entity_player_controls uses the existing compact registry and linked_handle (original actor200). In supplied player+14 handle order, resolve each through426fc0 semantics and accept exact query pointer identity or linked handle equal to query2c. Null query and nonpositive signed count return false without reading list storage. No allocation or additional retained fields. The exposed boolean normalizes the original low-byte result; original EAX upper bits are incidental and not treated as a full-width boolean.
+
+verify_player_controls.py executes complete unhooked48aa30 with actual426fc0 and compares PC/NXDK across2048 cases (129 matches), including null query, nonpositive count, unregistered and stale generations, wrong entity types, direct and linked matches. The original player wrappers are populated independently from compact registry views. Both builds and22 CTest checks pass. Registered SP player-list scene binding and automatic angular drive selection remain next; no live physics scheduling/native replay is claimed for this change.

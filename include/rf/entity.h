@@ -305,6 +305,12 @@ typedef struct rf_entity_view {
 typedef struct rf_entity_registry {
     const rf_entity_view *slots[RF_OBJECT_SLOTS];
 } rf_entity_registry;
+/* Full48aa30 with player+14 handles supplied in original list order. Resolve
+ * each through426fc0 semantics; accept pointer identity or player actor200
+ * (linked_handle) matching queried object2c. Null query/nonpositive signed
+ * count returns false without touching list storage. No allocation. */
+int rf_entity_player_controls(const rf_entity_registry *registry,const rf_entity_view *query,
+    const int32_t *players,int32_t count,uint32_t *result);
 typedef struct rf_registered_entity_view {
     uint32_t object_kind,handle;rf_entity_view *view;
 } rf_registered_entity_view;
