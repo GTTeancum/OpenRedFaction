@@ -14,6 +14,10 @@ Shortlist:
 
 Progress reporting: include a very high-level working area (e.g. Lighting, AI, Weapons, GeoMod or Scripted events) and an overall percent estimate at the end of every turn report (USER preference) and revisit remaining 24-hour workdays when measured throughput supports a forecast; current rough estimate40% (35-45%), no defensible +/-48-hour completion forecast before end-to-end gameplay.
 
+Class-light shading plus base-RGB/1555 addition matches2048 original/PC/NXDK
+pixels; both builds and24 tests pass. Keep the base-RGB and direct packed
+class-light passes distinct when composing source selection and live uploads.
+
 Zero-light ambient RGB fill now matches512 original/PC/NXDK rectangles,
 including128 scaling, byte wrapping and dirty8. Both builds and24 tests pass;
 bind ambient/source/mask/RGB owners and the full update dispatch next.

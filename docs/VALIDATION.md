@@ -870,3 +870,9 @@ Zero-light ambient RGB fill:
 - `rf_lightmap_fill_ambient` reconstructs4f2719..4f2c74: shared room/global selection, multiply by128, truncate to signed integer, keep the low byte without clamping, fill the caller-offset RGB rectangle and OR dirty8. Invalid spans or out-of-range/nonfinite conversions preserve all output.
 - `python tools/verify_lightmap_fill_ambient.py` compares512 original/PC/compiled-NXDK rectangles using actual array/global/ftol helpers, no hooks, x87 0x027f. Room flags0..3, signed/wrapping colors, dimensions1..8, offsets and padding match; three NXDK span guards pass.
 - Shared ambient selection was factored out; the512 original/PC/NXDK accumulation-seed grids still pass. Both builds and24 CTests pass. Light selection, resource ownership, update dispatch and native rendered uploads remain open.
+
+Class-light contribution to packed lightmaps:
+- Original4f26a0 uses separate selections: flags(0,1) for the base-RGB stage, then(1,0) for the dirty-bit1 direct packed stage, with4d9fd0 transformations. Existing cached-light selection already reconstructs these class filters. The second stage samples the ordinary plane coordinates even for special mappings.
+- `rf_lightmap_live_pixel` composes raw zero-ambient/unsoftened accumulation, negative-gain RGB conversion, addition to retained base RGB, saturation of each shifted5-bit channel and1555 alpha. It does not modify the retained base RGB.
+- `python tools/verify_lightmap_live_pixel.py` checks2048 original/PC/compiled-NXDK pixels at x87 0x027f. Full original4daff0 with actual4da8b0 and the original4f2e23..4f2ea6 packing slice run unhooked, covering0..4 mixed sources and saturated sums. Both builds and24 CTests pass.
+- Selected sources and sampled positions/normals are supplied. Full-grid second-pass dispatch, texture locks, dirty-state transitions and native rendered updates remain open.

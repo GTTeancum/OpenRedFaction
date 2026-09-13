@@ -170,6 +170,13 @@ typedef struct rf_lightmap_rgb_upload {
  * Renderer locking/swizzling and preceding lighting stages remain separate. */
 int rf_lightmap_upload_rgb_1555(const rf_lightmap_rgb_upload *,unsigned char *dirty);
 
+/*4f2dff..4f2ea6 class-light pixel: shade with zero ambient and negative
+ * gain, add resulting RGB bytes to retained base RGB, saturate5-bit channels
+ * and set1555 alpha. Sources already selected/transformed. No allocation;
+ * errors preserve output. Geometry sampling, lock and dirty dispatch separate. */
+int rf_lightmap_live_pixel(const unsigned char base[3],const float position[3],const float normal[3],
+    float directional_scale,const rf_vfx_light_source *sources,uint32_t count,uint16_t *packed);
+
 typedef struct rf_lightmap_1555_view {
     const unsigned char *pixels;uint32_t width,height,pitch,bytes;
 } rf_lightmap_1555_view;

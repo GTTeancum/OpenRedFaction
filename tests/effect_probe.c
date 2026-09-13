@@ -269,6 +269,16 @@ int main(int argc,char **argv)
         }
         return 0;
     }
+    if(argc==2 && !strcmp(argv[1],"--lightmap-live-pixel")) {
+        struct {unsigned char base[4];float position[3],normal[3],directional;uint32_t count;rf_vfx_light_source sources[4];} input;
+        uint16_t packed;uint32_t status;
+        _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
+        while(fread(&input,sizeof(input),1,stdin)==1) {
+            packed=0xa5a5;status=input.count>4?RF_RANGE:rf_lightmap_live_pixel(input.base,input.position,input.normal,input.directional,input.sources,input.count,&packed);
+            fwrite(&status,4,1,stdout);fwrite(&packed,2,1,stdout);
+        }
+        return 0;
+    }
     if(argc==2 && !strcmp(argv[1],"--lightmap-edge-crossing")) {
         float input[8];uint32_t status,hit;
         _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);

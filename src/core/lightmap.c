@@ -463,6 +463,17 @@ int rf_lightmap_accumulate_special(const rf_lightmap_sample_lighting *view,
      return rf_lightmap_copy_special_border(channels,view->width,view->height,view->capacity);}
 }
 
+int rf_lightmap_live_pixel(const unsigned char base[3],const float position[3],const float normal[3],
+    float directional_scale,const rf_vfx_light_source *sources,uint32_t count,uint16_t *packed)
+{
+    const float zero[3]={0,0,0};float accumulated[3];unsigned char rgb[3];uint32_t c,value[3];int status;
+    if(!base || !packed)return RF_RANGE;
+    status=rf_vfx_light_accumulate(position,normal,zero,directional_scale,sources,count,NULL,0,accumulated);if(status)return status;
+    status=rf_vfx_light_rgb(accumulated,zero,-1,rgb);if(status)return status;
+    for(c=0;c<3;c++){value[c]=((uint32_t)base[c]+rgb[c])>>3;if(value[c]>31)value[c]=31;}
+    *packed=(uint16_t)(0x8000u|(value[0]<<10)|(value[1]<<5)|value[2]);return RF_OK;
+}
+
 static int lightmap_scaled_rgb(const double scaled[3],unsigned char rgb[3])
 {
     int32_t value[3],peak=0;unsigned char result[3];uint32_t i;
