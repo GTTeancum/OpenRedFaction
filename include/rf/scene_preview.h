@@ -150,6 +150,7 @@ extern uint32_t rf_scene_corona_draw[8];
 extern uint32_t rf_scene_glare_rooms[8];
 extern uint32_t rf_scene_attachments[8];
 extern uint32_t rf_scene_glare_retirement[8];
+extern uint32_t rf_scene_glare_loss_test_enabled,rf_scene_glare_loss_test[8];
 extern uint32_t rf_scene_attachment_motion[8];
 /* Registered glare room token: zero absent, otherwise authored room index+1. */
 int rf_scene_glare_room(uint32_t handle,uint32_t *room);

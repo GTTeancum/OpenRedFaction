@@ -852,6 +852,8 @@ int main(void)
             FILE *damage_file=fopen("D:\\campaign-damage.bin","rb");
             FILE *death_flag=fopen("D:\\campaign-death-animation.flag","rb");
             rf_scene_death_animation_test_enabled=death_flag!=NULL;if(death_flag)fclose(death_flag);
+            FILE *loss_flag=fopen("D:\\campaign-glare-loss.flag","rb");
+            rf_scene_glare_loss_test_enabled=loss_flag!=NULL;if(loss_flag)fclose(loss_flag);
             FILE *pair_flag=fopen("D:\\campaign-actor-pairs.flag","rb");
             rf_scene_actor_pair_test_enabled=pair_flag!=NULL;if(pair_flag)fclose(pair_flag);
             rf_scene_npc_damage_test_uid=UINT32_MAX;

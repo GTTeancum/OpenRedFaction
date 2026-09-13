@@ -5951,6 +5951,35 @@ int rf_scene_npc_refresh_room(uint32_t handle)
     record[0]=handle;record[1]=state.room;record[2]=state.flags;memcpy(record+3,state.query_position,12);record[6]=context.called;
     rf_scene_npc_room_refresh[6]=npc_hash_bytes(rf_scene_npc_room_refresh[6],record,sizeof(record));return RF_OK;
 }
+uint32_t rf_scene_glare_loss_test_enabled,rf_scene_glare_loss_test[8];
+static uint32_t campaign_glare_loss_slots[3],campaign_glare_loss_handles[3];
+static int campaign_glare_loss_inject(uint32_t frame)
+{
+    uint32_t i,n=0;if(frame!=90 || !rf_scene_glare_loss_test_enabled)return RF_OK;
+    memset(rf_scene_glare_loss_test,0,sizeof(rf_scene_glare_loss_test));
+    for(i=0;i<campaign_glare_instance_count && n<3;++i)if(campaign_glare_instances[i]) {
+        rf_glare_base_owner *owner=campaign_glare_instances[i];
+        campaign_glare_loss_slots[n]=i;campaign_glare_loss_handles[n]=owner->handle;
+        if(n==0)owner->parent_handle^=0x10000u; /* Same slot, stale generation. */
+        else if(n==1)owner->parent_handle=0x00000400u; /* Invalid slot. */
+        else owner->flags|=2; /* Already marked by another lifecycle action. */
+        rf_scene_glare_loss_test[5]+=owner->allocated_bytes;++n;
+    }
+    rf_scene_glare_loss_test[0]=n;if(n!=3){++rf_scene_glare_loss_test[6];return RF_FORMAT;}return RF_OK;
+}
+static int campaign_glare_loss_verify(uint32_t frame)
+{
+    uint32_t i;if(frame!=90 || !rf_scene_glare_loss_test_enabled)return RF_OK;
+    for(i=0;i<3;++i) {
+        uint32_t slot=campaign_glare_loss_slots[i];rf_attachment_node zero={0};rf_entity_room_state room={0};
+        rf_scene_glare_loss_test[1]+=campaign_glare_instances[slot]==NULL;
+        rf_scene_glare_loss_test[2]+=campaign_attachment_nodes && !memcmp(campaign_attachment_nodes+campaign_clutter_records.count+slot,&zero,sizeof(zero));
+        rf_scene_glare_loss_test[3]+=campaign_glare_rooms && !memcmp(campaign_glare_rooms+slot,&room,sizeof(room));
+        rf_scene_glare_loss_test[4]+=rf_object_registry_lookup(&campaign_registry,campaign_glare_loss_handles[i])==NULL;
+    }
+    for(i=1;i<5;++i)if(rf_scene_glare_loss_test[i]!=3){++rf_scene_glare_loss_test[6];return RF_FORMAT;}
+    return RF_OK;
+}
 uint32_t rf_scene_glare_retirement[8]; /* passes, checked, marked, retired, bytes freed, hash, live, errors */
 static int campaign_glare_retirement_pass(uint32_t frame)
 {
@@ -5971,7 +6000,7 @@ static int campaign_glare_retirement_pass(uint32_t frame)
         if(rf_object_registry_lookup(&campaign_registry,handle)){status=RF_FORMAT;goto fail;}
         if(campaign_attachment_nodes)memset(campaign_attachment_nodes+campaign_clutter_records.count+i,0,sizeof(*campaign_attachment_nodes));
         if(campaign_glare_rooms)memset(campaign_glare_rooms+i,0,sizeof(*campaign_glare_rooms));
-        ++rf_scene_glare_retirement[3];rf_scene_glare_retirement[4]+=bytes;
+        ++rf_scene_glare_instances[8];++rf_scene_glare_retirement[3];rf_scene_glare_retirement[4]+=bytes;
         record[0]=handle;record[1]=bytes;rf_scene_glare_retirement[5]=npc_hash_bytes(rf_scene_glare_retirement[5],record,sizeof(record));
     }
     return RF_OK;
@@ -7121,7 +7150,7 @@ static int scene_frame(void *context,uint32_t frame,rf_preview_mesh *actor)
                 ++summary[0];summary[3]+=record[1]+record[4];summary[4]+=record[3];
                 summary[5]=record[7];summary[6]=record[8];summary[7]=record[9];
             }
-            if(campaign_spawn){status=campaign_npc_playback_tick(stream,scene_step_seconds);if(status)return status;status=campaign_npc_rooms_pass(frame);if(status)return status;status=campaign_glare_retirement_pass(frame);if(status)return status;status=campaign_attachments_pass();if(status)return status;status=campaign_attachment_motion_fixture(frame);if(status)return status;status=campaign_glare_rooms_pass(frame);if(status)return status;}
+            if(campaign_spawn){status=campaign_npc_playback_tick(stream,scene_step_seconds);if(status)return status;status=campaign_npc_rooms_pass(frame);if(status)return status;status=campaign_glare_loss_inject(frame);if(status)return status;status=campaign_glare_retirement_pass(frame);if(status)return status;status=campaign_glare_loss_verify(frame);if(status)return status;status=campaign_attachments_pass();if(status)return status;status=campaign_attachment_motion_fixture(frame);if(status)return status;status=campaign_glare_rooms_pass(frame);if(status)return status;}
         }
         if(campaign_spawn && stream->collision) {int status=campaign_collision_views_check(frame);if(status)return status;status=campaign_alpha_check(frame);if(status)return status;
             if(!frame){memset(rf_scene_glare_search,0,sizeof(rf_scene_glare_search));rf_scene_glare_search[4]=2166136261u;

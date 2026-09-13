@@ -9179,3 +9179,23 @@ Live glare retirement integration (2026-09-12)
  This validates valid-parent survival and normal scene behavior, not actual
  native orphan destruction. Forced parent loss, stale-node invalidation and
  allocation recovery remain required native test coverage.
+
+
+Native forced glare retirement (2026-09-12)
+-----------------------------------------
+ New --glare-loss opt-in replay switch propagates RF_REPLAY_GLARE_LOSS to
+ PC and campaign-glare-loss.flag to Xbox; the harness restores prior flag
+ state in finally and repacks the normal disc. At frame90 select3 existing
+ glares: stale ownership-parent generation, invalid slot1024, premarked flag2.
+ Attachment parent remains independent. The normal retirement pass performs
+ deletion; the fixture verifies NULL instance slots, cleared attachment nodes
+ and room slots, and removed registry handles. No desktop input/capture.
+ First run found missing live retirement increments in GLARE_INSTANCES[8];
+ fixed so live and shutdown retirement totals reconcile with created owners.
+ Replay-20260912-235638 PASS180 on67108864 base bytes,0 plugged.
+ GLARE_LOSS_TEST [3,3,3,3,3,1584,0,0] matches PC;1584 is summed owner
+ allocation size, not an OS page-reclamation measurement. Retirement marks2
+ newly orphaned owners, retires3 including premarked, and leaves217 live.
+ All PC/XEMU scene telemetry comparisons pass; both builds and22 CTest
+ checks pass. The opt-in flag is absent after restoration. Dynamic resource
+ ownership and authored parent destruction remain broader runtime work.

@@ -238,6 +238,7 @@ int main(int argc,char **argv)
         CHECK(rf_scene_stage_lift(&level));
     }
     rf_scene_death_animation_test_enabled=spawn_profile && p.headless && getenv("RF_REPLAY_DEATH_ANIMATION");
+    rf_scene_glare_loss_test_enabled=getenv("RF_REPLAY_GLARE_LOSS")!=NULL;
     rf_scene_actor_pair_test_enabled=spawn_profile && p.headless && getenv("RF_REPLAY_ACTOR_PAIRS");
     if(spawn_profile && p.headless && getenv("RF_REPLAY_DAMAGE_UID")) {
         char *end;unsigned long uid=strtoul(getenv("RF_REPLAY_DAMAGE_UID"),&end,10);
@@ -319,6 +320,7 @@ int main(int argc,char **argv)
             printf("CLUTTER_RENDER_DISPATCH");for(i=0;i<6;++i)printf(" %u",rf_scene_clutter_render_dispatch[i]);printf("\n");
             printf("MOVER_VISIBILITY");for(i=0;i<3;++i)printf(" %u",rf_scene_mover_visibility[i]);printf("\n");
             printf("ATTACHMENT_MOTION");for(i=0;i<8;++i)printf(" %u",rf_scene_attachment_motion[i]);printf("\n");
+            printf("GLARE_LOSS_TEST");for(i=0;i<8;++i)printf(" %u",rf_scene_glare_loss_test[i]);printf("\n");
             printf("GLARE_RETIREMENT");for(i=0;i<8;++i)printf(" %u",rf_scene_glare_retirement[i]);printf("\n");
             printf("ATTACHMENTS");for(i=0;i<8;++i)printf(" %u",rf_scene_attachments[i]);printf("\n");
             printf("GLARE_ROOMS");for(i=0;i<8;++i)printf(" %u",rf_scene_glare_rooms[i]);printf("\n");

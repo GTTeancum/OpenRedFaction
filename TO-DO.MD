@@ -20,8 +20,8 @@ Installed clutter declares no turret use4; fresh props have attachment parent-1.
 Static-prop/glare ordering is live and matches180-frame stock64MiB XEMU.
 Moving-parent fixture passes880 PC/stock64MiB XEMU cases with full restoration.
 Orphan retirement is bound;180-frame stock64MiB XEMU preserves all220 valid glares.
-Add forced parent-loss coverage for native retirement and pointer invalidation.
-Bind authored dynamic parenting, full orphan retirement and turret ownership.
+Forced-loss stock64MiB XEMU retires3 owners and clears all scene/registry references.
+Bind authored dynamic parenting and turret ownership; extend retirement with future resources.
 
 The stationary startup-NPC animation gate matches PC/stock64MiB XEMU;
 footstep selection and support-material helpers are verified but not live.
