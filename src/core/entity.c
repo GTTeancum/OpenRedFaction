@@ -341,6 +341,28 @@ int rf_entity_has_weapon(const rf_entity_registry *registry, const rf_entity_vie
     *result=0; return RF_OK;
 }
 
+int rf_entity_ai_route_limit(const rf_entity_registry *registry,const rf_entity_view *inventory,
+    const float *scalars,uint32_t scalar_count,
+    int (*override_read)(void *,const rf_entity_view *,uint32_t *,float *),void *context,float *result)
+{
+    const rf_entity_view *current=inventory,*owner,*next;uint32_t depth=0,i,flag;int has,status;int32_t handle;
+    float override_value,primary,secondary;
+    if(!registry || !current || !override_read || !result)return RF_RANGE;
+    for(;;) {
+        status=rf_entity_has_weapon(registry,current,&has);if(status)return status;if(has)break;
+        owner=current->weapon_owner;if(!owner || owner->base_speed!=0)break;
+        if(owner->occupant_count && !owner->occupants)return RF_RANGE;
+        handle=-1;for(i=0;i<owner->occupant_count;++i)if(owner->occupants[i]!=-1){handle=owner->occupants[i];break;}
+        next=rf_entity_lookup(registry,handle);if(!next)break;
+        if(++depth>RF_OBJECT_SLOTS)return RF_FORMAT;current=next;
+    }
+    status=override_read(context,current,&flag,&override_value);if(status)return status;
+    status=rf_entity_ai_weapon_limit(current->weapons,flag,override_value,0,scalars,scalar_count,&secondary);if(status)return status;
+    status=rf_entity_ai_weapon_limit(current->weapons,flag,override_value,1,scalars,scalar_count,&primary);if(status)return status;
+    if(primary>secondary)memcpy(result,&primary,4);else memcpy(result,&secondary,4);
+    return RF_OK;
+}
+
 int rf_entity_combat_predicates(const rf_entity_registry *registry, const rf_entity_view *entity,
     const int32_t *attached, uint32_t attached_count, int *ready, int *eligible)
 {

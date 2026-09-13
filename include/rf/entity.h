@@ -334,6 +334,16 @@ int rf_entity_controller_alert(const rf_entity_registry *registry,int32_t actor,
  * owner. Input views must remain stable during the call. Cycles return
  * RF_FORMAT rather than reproducing unbounded original recursion. */
 int rf_entity_has_weapon(const rf_entity_registry *registry, const rf_entity_view *entity, int *result);
+/*4077a0 with concrete408dc0, zero-speed owner gate, first occupied seat and
+ * typed lookup. Stable views/registry/override source required throughout;
+ * override callback only reads the final inventory528/52c fields.
+ * The two401cc0 results round to float before maximum selection; equality
+ * or unordered comparison returns the secondary value, preserving its bits.
+ * Cycles/malformed views return errors rather than unbounded original walks.
+ * No allocation, actor mutation or authored scalar loading. */
+int rf_entity_ai_route_limit(const rf_entity_registry *registry,const rf_entity_view *inventory,
+    const float *scalars,uint32_t scalar_count,
+    int (*override_read)(void *,const rf_entity_view *,uint32_t *,float *),void *context,float *result);
 /* 0x41f950 and the complete combat gate at 0x41f678..0x41f69c. attached is
  * a stable, ordered snapshot of handles from the original 0x7c75cc list.
  * Output unchanged on malformed views. No allocations or entity mutations. */

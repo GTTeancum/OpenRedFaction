@@ -9881,3 +9881,27 @@ It evaluates401cc0 mode0 then mode1, stores each to binary32, then actual
 40a4a0 returns the maximum with original unordered/equality operand
 selection. The first stack operand is mode1, second mode0. Occupant-chain
 composition and scalar-column resource retention remain open.
+
+
+Shared occupant-chain route limit4077a0 (2026-09-13)
+
+rf_entity_ai_route_limit reuses rf_entity_has_weapon and typed registry
+lookup, traverses zero-speed owners through the first non--1 occupied
+seat, and stops at the current inventory if that handle is missing or
+wrong-type. It reads the final inventory override from a stable source
+callback, composes401cc0 mode0 then mode1, and chooses primary only when
+primary>secondary. Equal/unordered comparisons preserve secondary bits,
+including negative zero and quiet NaNs. Stable views allow existing
+408dc0 duplicate unsuccessful walks to remain collapsed. Registry-sized
+cycle guard rejects instead of repeating the original unbounded recursion.
+
+verify_ai_route_limit.py executes full4077a0 with actual408dc0 recursion,
+40a2a0,427da0 and list helpers,401cc0 and40a4a0. Only426fc0 is supplied.
+2048 original/PC/NXDK cases agree on result bits and final inventory;240
+advance to another inventory. Original makes4716 lookup calls and leaves
+all actor/seat/class storage unchanged. Two compiled error cases verify
+override failure and a self-cycle preserve output. Initial cycle fixture
+inherited a wrong-type actor and was corrected to type0 before confirming
+the cycle guard; production code did not change. Both builds and22 CTests
+pass. No live scene binding: scalar-column and override resource ownership
+remain explicit caller obligations, alongside navigation preparation.
