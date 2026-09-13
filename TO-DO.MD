@@ -14,6 +14,12 @@ Shortlist:
 
 Progress reporting: include overall percent estimates at meaningful milestones and revisit remaining 24-hour workdays when measured throughput supports a forecast; current rough estimate40% (35-45%), no defensible +/-48-hour completion forecast before end-to-end gameplay.
 
+VFX key-time conversion matches2048 original/PC/NXDK cases and4 guards;
+owned keyed geometry passes328 authored vertex/time/budget checks.
+Old keyed files use frame0 fallback position/scale; absent fallback rejects
+instead of inventing values. Verify complete53f060 dispatch/parent composition
+and bind rendering; both builds and24 tests pass, no new native XEMU claim.
+
 Resolved keyed VFX geometry matches2048 original/PC/NXDK cases, including
 base-then-key transforms and scale-dependent bounds; both builds/24 tests pass.
 Bind owned key sampling and verify missing-track defaults/key-time conversion

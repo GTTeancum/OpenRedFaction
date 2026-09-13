@@ -189,6 +189,11 @@ int rf_vfx_mesh_transform(const rf_vfx_mesh *,const rf_vfx_frame_cursor *,uint32
 /* Resolved keyed transform: authored base followed by sampled key pose.
  * Same frame/vertex layout as transform_sample; disabled extras return zero. */
 int rf_vfx_keyed_sample(const float frame[8],const void *vertex,const float base[10],const float key[10],uint32_t flags,rf_vfx_morph_sample *out);
+/*53f9b7: frame/15 rounded to float; truncate each time*30*160 before subtracting. */
+int rf_vfx_key_time(float effect_frame,float start_seconds,int32_t *out);
+/* Owned keyed geometry at an already converted key time; active cursor
+ * selection is the caller responsibility. Missing legacy fallbacks reject. */
+int rf_vfx_mesh_keyed(const rf_vfx_mesh *,int32_t time,uint32_t vertex,rf_vfx_morph_sample *out);
 typedef struct rf_vfx_chunk {uint32_t type,offset,bytes;} rf_vfx_chunk;
 typedef struct rf_vfx_directory {
     rf_vpp *archive;rf_vpp_entry entry;rf_vfx_header header;

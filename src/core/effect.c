@@ -1621,3 +1621,32 @@ int rf_vfx_keyed_sample(const float frame[8],const void *vertex,const float base
     if(!isfinite(value.extra[0]) || !isfinite(value.extra[1]))return RF_RANGE;
     *out=value;return RF_OK;
 }
+
+int rf_vfx_key_time(float effect_frame,float start_seconds,int32_t *out)
+{
+    float seconds;double now,start;int64_t difference;
+    if(!out || !isfinite(effect_frame) || !isfinite(start_seconds))return RF_RANGE;
+    seconds=(float)((double)effect_frame*0.06666667014360428f);
+    now=trunc(((double)seconds*30.0)*160.0);start=trunc(((double)start_seconds*30.0)*160.0);
+    if(!isfinite(now) || now<INT32_MIN || now>INT32_MAX || start<INT32_MIN || start>INT32_MAX)return RF_RANGE;
+    difference=(int64_t)(int32_t)now-(int64_t)(int32_t)start;
+    if(difference<INT32_MIN || difference>INT32_MAX)return RF_RANGE;
+    *out=(int32_t)difference;return RF_OK;
+}
+
+int rf_vfx_mesh_keyed(const rf_vfx_mesh *mesh,int32_t time,uint32_t vertex,rf_vfx_morph_sample *out)
+{
+    const rf_vfx_frame_view *frame;float key[10]={0,0,0,0,0,0,1,1,1,1},vectors[8];uint64_t at;int status;
+    if(!mesh || !mesh->data || !mesh->frames || !out || !mesh->prefix.timing.samples || vertex>=mesh->prefix.vertices)return RF_RANGE;
+    if((mesh->edges.flags&4) || !(mesh->edges.mesh_flags&2))return RF_NOT_FOUND;
+    frame=mesh->frames;
+    if(!(frame->present&1) || (uint64_t)vertex*6+6>frame->vertex_bytes)return RF_FORMAT;
+    at=(uint64_t)frame->vertex_offset+(uint64_t)vertex*6;if(at+6>mesh->bytes)return RF_FORMAT;
+    if(mesh->keys.counts[0]){status=rf_vfx_mesh_vector_key(mesh,0,time,key);if(status)return status;}
+    else {if(!(frame->present&16))return RF_FORMAT;memcpy(key,frame->transform,12);}
+    status=rf_vfx_mesh_rotation_key(mesh,time,key+3);if(status)return status;
+    if(mesh->keys.counts[2]){status=rf_vfx_mesh_vector_key(mesh,2,time,key+7);if(status)return status;}
+    else {if(!(frame->present&16))return RF_FORMAT;memcpy(key+7,frame->transform+7,12);}
+    memcpy(vectors,frame->vectors,24);memcpy(vectors+6,frame->extra,8);
+    return rf_vfx_keyed_sample(vectors,mesh->data+(size_t)at,mesh->keys.base,key,mesh->edges.flags,out);
+}
