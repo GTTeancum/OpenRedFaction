@@ -2297,19 +2297,59 @@ int rf_scene_clutter_collision_query(uint32_t handle,rf_collision_model_part_que
     rf_scene_clutter_collision[7]=npc_hash_bytes(rf_scene_clutter_collision[7],&value,4);
     *accepted=value;return RF_OK;
 }
+/* Borrow scene-owned prop identity/pose for414b80 model visibility queries.
+ * Model pointers expire with scene ownership; never accept a stale replacement. */
+int rf_scene_clutter_visibility_view(uint32_t handle,rf_glare_visibility_object *result)
+{
+    rf_glare_visibility_object value={0};const rf_clutter_base_owner *owner;void *registered;uint32_t i,model;
+    if(!result)return RF_RANGE;
+    registered=rf_object_registry_lookup(&campaign_registry,handle);if(!registered)return RF_NOT_FOUND;
+    for(i=0;i<campaign_clutter_records.count;++i)if(campaign_clutter_bodies && campaign_clutter_bodies[i] &&
+        registered==&campaign_clutter_bodies[i]->state && campaign_clutter_bodies[i]->state.handle==handle)break;
+    if(i==campaign_clutter_records.count)return RF_NOT_FOUND;
+    owner=campaign_clutter_bodies[i];model=campaign_clutter_model_slots[i];
+    if(model>=campaign_clutter_model_count)return RF_FORMAT;
+    if(owner->attachment.model!=(uint32_t)(uintptr_t)(campaign_clutter_shared+model))return RF_FORMAT;
+    value.handle=handle;value.geometry.token=handle;value.geometry.flags=owner->state.flags;
+    value.geometry.extent=owner->attachment.radius;value.geometry.model=campaign_clutter_shared+model;
+    memcpy(value.geometry.position,owner->state.position,12);memcpy(value.geometry.matrix,owner->matrix,36);
+    memcpy(value.geometry.minimum,owner->body.state.bounds.minimum,12);
+    memcpy(value.geometry.maximum,owner->body.state.bounds.maximum,12);
+    *result=value;return RF_OK;
+}
+int rf_scene_clutter_visibility_model(void *unused,const rf_collision_visibility_object *object,
+    rf_collision_model_part_query *query,rf_collision_model_response_hit *hit,uint32_t reset,uint32_t *accepted)
+{
+    rf_glare_visibility_object current;int status;(void)unused;
+    if(!object || !query || !hit || !accepted)return RF_RANGE;
+    status=rf_scene_clutter_visibility_view(object->token,&current);if(status)return status;
+    if(object->model!=current.geometry.model)return RF_RANGE;
+    return rf_scene_clutter_collision_query(object->token,query,hit,reset,accepted);
+}
 static int campaign_clutter_query_probe(void)
 {
     uint32_t i,axis,side,j,accepted;int status;
     for(i=0;i<campaign_clutter_records.count;++i)if(campaign_clutter_bodies[i]) {
         const rf_clutter_base_owner *owner=campaign_clutter_bodies[i];
         float radius=owner->attachment.radius+1;
+        rf_glare_visibility_object object;
+        status=rf_scene_clutter_visibility_view(owner->state.handle,&object);if(status)return status;
+        {
+            rf_collision_visibility_object wrong=object.geometry;
+            rf_collision_model_part_query query={0};rf_collision_model_response_hit hit={0},before;
+            uint32_t rejected=0x12345678;wrong.model=NULL;before=hit;
+            status=rf_scene_clutter_visibility_model(NULL,&wrong,&query,&hit,1,&rejected);
+            if(status!=RF_RANGE || rejected!=0x12345678 || memcmp(&hit,&before,sizeof(hit)))return RF_FORMAT;
+        }
+        rf_scene_clutter_collision[7]=npc_hash_bytes(rf_scene_clutter_collision[7],&object.geometry.token,12);
+        rf_scene_clutter_collision[7]=npc_hash_bytes(rf_scene_clutter_collision[7],object.geometry.position,72);
         for(axis=0;axis<3;++axis)for(side=0;side<2;++side) {
             rf_collision_model_part_query query={0};rf_collision_model_response_hit hit={0};
             memcpy(query.input.start,owner->state.position,12);memcpy(query.input.origin,owner->state.position,12);
             memcpy(query.input.matrix,owner->matrix,36);
             query.input.start[axis]+=side?radius:-radius;query.input.displacement[axis]=side?-2*radius:2*radius;
             for(j=0;j<3;++j)if(!isfinite(query.input.start[j]) || !isfinite(query.input.displacement[j]))return RF_FORMAT;
-            status=rf_scene_clutter_collision_query(owner->state.handle,&query,&hit,1,&accepted);
+            status=rf_scene_clutter_visibility_model(NULL,&object.geometry,&query,&hit,1,&accepted);
             if(status){++rf_scene_clutter_collision[8];return status;}
         }
     }

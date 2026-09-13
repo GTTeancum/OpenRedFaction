@@ -132,6 +132,11 @@ int rf_scene_clutter_tag_place(uint32_t handle,int32_t index,float transform[12]
  * scratch and hit follow the recovered query contract. No physics scheduling. */
 int rf_scene_clutter_collision_query(uint32_t handle,rf_collision_model_part_query *query,
     rf_collision_model_response_hit *hit,uint32_t reset,uint32_t *accepted);
+/* Borrow registered prop geometry for visibility; no allocation or render marker mutation.
+ * Stale handles/model identities fail without publishing an output. */
+int rf_scene_clutter_visibility_view(uint32_t handle,rf_glare_visibility_object *result);
+int rf_scene_clutter_visibility_model(void *context,const rf_collision_visibility_object *object,
+    rf_collision_model_part_query *query,rf_collision_model_response_hit *hit,uint32_t reset,uint32_t *accepted);
 extern uint32_t rf_scene_clutter_draw[6];
 /*428030: blocked standing still selects slow mode; forced crouch sets only the flag.
  * Required standing services only when attempting to stand; borrowed owners must survive callbacks. */

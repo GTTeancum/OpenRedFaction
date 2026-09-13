@@ -8554,3 +8554,22 @@ passes180frames with PC parity. CLUTTER_DRAW remains exactly
 [180,19,3750,3956637847,0,19] versus replay-20260912-210142; the retained
 owner hash changes as expected. No additional storage. Full glare scene
 lookup, visibility scheduling and rendering remain open.
+
+
+## Registered prop visibility geometry adapter (2026-09-12)
+
+rf_scene_clutter_visibility_view borrows registered static prop identity,
+flags, attachment radius/model, current position/matrix and retained body
+bounds for the verified414b80 visibility model-query interface. It validates
+registry identity and model attachment before publishing; model identities
+expire at scene teardown. rf_scene_clutter_visibility_model rejects mismatched
+model pointers then calls the existing5031f0/static collision adapter. No
+allocation, render marker changes or full glare search scheduling are added.
+
+The existing scene prop probe now hashes the normalized geometry fields
+(excluding host pointers), rejects a wrong model without hit/result mutation
+for each retained prop, and runs its six axis queries through this adapter.
+PC/NXDK builds,21CTest and stock64MiB180-frame XEMU replay-20260912-211255
+pass. L1S2 covers244 prop views/rejections and1464 model queries,1388 hits,
+zero collision errors; normalized query/view hash2798896136 matches PC.
+This verifies geometry access, not scene glare visibility or visual parity.
