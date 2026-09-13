@@ -327,6 +327,32 @@ int rf_camera_effect_apply_random(rf_camera_effect_state *state,int32_t now_ms,
     *random=next;return RF_OK;
 }
 
+int rf_eye_angles_step(rf_eye_angle_state *state,uint32_t class_flags,float dt)
+{
+    rf_eye_angle_state v;uint32_t i;const float turn=6.2831854820251465f;
+    if(!state)return RF_RANGE;v=*state;
+    if(class_flags&0x401200u){
+        float decay;if(!isfinite(dt) || dt<0)return RF_RANGE;
+        decay=(float)exp(-3.0*(double)dt);
+        for(i=0;i<3;++i){
+            if(!isfinite(v.offset_894[i]) || !isfinite(v.vector_870[i]))return RF_RANGE;
+            v.offset_894[i]=(float)((double)v.offset_894[i]*decay);
+            v.offset_894[i]=(float)((double)v.offset_894[i]+v.vector_870[i]);
+            if(!isfinite(v.offset_894[i]))return RF_RANGE;
+        }
+        v.offset_894[1]=0;
+    }
+    for(i=0;i<3;++i){
+        float a;
+        if(!isfinite(v.angles_87c[i]) || !isfinite(v.delta_888[i]) ||
+           !isfinite(v.minimum_1434[i]) || !isfinite(v.maximum_1440[i]))return RF_RANGE;
+        a=(float)((double)v.angles_87c[i]+v.delta_888[i]);if(!isfinite(a))return RF_RANGE;
+        if(a<v.minimum_1434[i])a=v.minimum_1434[i];else if(a>v.maximum_1440[i])a=v.maximum_1440[i];
+        if(a>turn)a=(float)((double)a-turn);else if(a<-turn)a=(float)((double)a+turn);
+        v.angles_87c[i]=a;
+    }
+    *state=v;return RF_OK;
+}
 int rf_look_update(rf_look_state *state,float angular_speed,float dt)
 {
     rf_look_state v;float pitch_delta,yaw_delta;double yaw,pitch;unsigned i;

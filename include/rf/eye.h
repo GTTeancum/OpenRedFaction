@@ -71,6 +71,16 @@ typedef struct rf_look_state {
 } rf_look_state;
 int rf_look_update(rf_look_state *state,float angular_speed,float dt);
 typedef struct rf_spawn_look_angles {float body[3],eye[3];} rf_spawn_look_angles;
+typedef struct rf_eye_angle_state {
+    float vector_870[3],angles_87c[3],delta_888[3],offset_894[3];
+    float minimum_1434[3],maximum_1440[3];
+} rf_eye_angle_state;
+/* Full49cf40 with class724 predicate42d7b0. Flags401200 enable exp(-3*dt)
+ * offset decay, vector870 addition and offset Y reset. Always add delta888,
+ * clamp each eye angle, then wrap by at most one turn. Reversed limits retain
+ * original ordered comparisons. Finite reached inputs; dt nonnegative when
+ * decay is active. Errors preserve state. No matrix rebuild or allocation. */
+int rf_eye_angles_step(rf_eye_angle_state *state,uint32_t class_flags,float dt);
 /* 422e2c..422e82: original matrix angle extraction, yaw-only body, and
  * physics-frame projection filtered by rotation reference == 1. No command
  * clearing, pose construction or factory ownership. Finite inputs required;
