@@ -14,6 +14,11 @@ Shortlist:
 
 Progress reporting: include overall percent estimates at meaningful milestones and revisit remaining 24-hour workdays when measured throughput supports a forecast; current rough estimate40% (35-45%), no defensible +/-48-hour completion forecast before end-to-end gameplay.
 
+Located VFX render entry53ee90 and draw targets516f50/516f70/516f90;
+trace material/clip/submission callbacks next (docs/VFX-RENDERING.md).
+Retain active-state and persistent geometry/UV ownership before live drawing;
+render dispatch remains unimplemented and these findings are static evidence.
+
 Skeletal VFX tag-parent branch matches2048 original/PC/NXDK cases,2048
 in-place checks and2 guards using real cached bone lookup without hooks.
 Bind retained parent owners/virtual tags and complete UV/material submission
