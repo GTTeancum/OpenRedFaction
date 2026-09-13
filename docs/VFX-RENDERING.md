@@ -1257,3 +1257,32 @@ explicit native53-bit x87 precision027f. All six axis orders, image/mapping
 origins, signed scales and seven invalid-input guards are covered. Both builds
 and24 CTests pass. This does not cover original mapping-byte9 special polygon
 sampling, softening/mask production, or native rendering/resource ownership.
+
+
+### Composed ordinary lightmap accumulation (2026-09-13)
+
+rf_vfx_light_accumulate now accepts explicit soften0/1. The ordinary mapping
+path passes its zero byte9 to4da8b0, which selects the recovered softened
+point/cone geometry. The VFX wrapper continues to pass0. The4096 raw original/
+PC/NXDK comparisons now cover both softened/unsoftened paths, with optional
+visibility weights and unchanged transaction behavior; they all pass.
+
+rf_lightmap_accumulate_samples composes ordinary4f3390 sample generation,
+per-light mask-plane lookup, actual mixed accumulation and final per-channel
+negative clamp. It borrows mutable initialized RGB planes, mapping/image
+fields and selected lights. At most64 selected lights are accepted, following
+4f26a0's supported accumulation path; excess counts are errors, not silently
+truncated. Masks are optional and their extent is explicit. It uses64 bytes of
+weight scratch and fixed local vectors, no heap allocation. Errors retain
+previously completed pixels. Ambient/initial planes and source selection are
+caller-owned; this does not supply source creation or mask generation.
+
+verify_lightmap_accumulate_grid.py runs complete original4f3390 ordinary path,
+including4da8b0, axis reconstruction and geometry/falloff routines without any
+hooks.512 PC/NXDK grids and10368 samples match every float, including untouched
+plane tails, with0-4 mixed sources, all six axis orders, masks, softening and
+negative clamps. Four malformed-binding/capacity guards preserve planes.
+Original active sources, mapping records, masks and initial planes are supplied;
+explicit precision027f matches native replay. Both builds,24 CTests and the
+2048 existing VFX byte-color cases pass. Retained mapping/RGB ownership, special
+polygon sampling, mask production and native texture updates remain.

@@ -164,6 +164,19 @@ int main(int argc,char **argv)
         }
         return 0;
     }
+    if(argc==2 && !strcmp(argv[1],"--lightmap-accumulate-grid")) {
+        struct {rf_lightmap_sample_plane sample;uint32_t width,height,count,masked;float directional;rf_vfx_light_source lights[4];float channels[3][64];unsigned char masks[4][64];} input;
+        rf_lightmap_sample_lighting view;const unsigned char *masks[4];uint32_t status,i;
+        _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
+        while(fread(&input,sizeof(input),1,stdin)==1) {
+            view.sample=input.sample;view.width=input.width;view.height=input.height;view.lights=input.lights;view.light_count=input.count;
+            for(i=0;i<4;i++)masks[i]=input.masks[i];view.masks=input.masked?masks:NULL;view.mask_bytes=64;view.directional_scale=input.directional;
+            for(i=0;i<3;i++)view.channels[i]=input.channels[i];view.capacity=64;
+            status=input.count>4?RF_RANGE:rf_lightmap_accumulate_samples(&view);
+            fwrite(&status,4,1,stdout);fwrite(input.channels,sizeof(input.channels),1,stdout);
+        }
+        return 0;
+    }
     if(argc==2 && !strcmp(argv[1],"--lightmap-sample-position")) {
         struct {rf_lightmap_sample_plane view;uint32_t x,y;} input;float output[3];uint32_t status;
         _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
@@ -178,7 +191,7 @@ int main(int argc,char **argv)
         float output[3];uint32_t status;
         _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
         while(fread(&input,sizeof(input),1,stdin)==1) {
-            memset(output,0xa5,sizeof(output));status=input.count>16?RF_RANGE:rf_vfx_light_accumulate(input.position,input.normal,input.initial,input.directional,input.lights,input.count,input.weighted?input.weights:NULL,output);
+            memset(output,0xa5,sizeof(output));status=input.count>16?RF_RANGE:rf_vfx_light_accumulate(input.position,input.normal,input.initial,input.directional,input.lights,input.count,(input.weighted&1)?input.weights:NULL,input.weighted>>1,output);
             fwrite(&status,4,1,stdout);fwrite(output,sizeof(output),1,stdout);
         }
         return 0;

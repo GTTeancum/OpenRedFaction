@@ -14,6 +14,11 @@ Shortlist:
 
 Progress reporting: include an overall percent estimate in every turn report (USER preference) and revisit remaining 24-hour workdays when measured throughput supports a forecast; current rough estimate40% (35-45%), no defensible +/-48-hour completion forecast before end-to-end gameplay.
 
+Ordinary lightmap sampling plus softened/masked accumulation now matches512
+complete original/PC/NXDK grids (10368 samples); both builds and24 tests pass.
+Bind retained mapping/RGB owners, mask generation and native texture updates;
+special polygon sampling remains unfinished.
+
 Ordinary lightmap sample positions match7776 original/PC/NXDK points over384
 mapping grids; both builds and24 tests pass. Bind softening/masks and retained
 mapping fields to accumulation, then complete special sampling and rendering.

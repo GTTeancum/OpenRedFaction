@@ -2173,11 +2173,11 @@ static double vfx_falloff(uint32_t profile,float distance,float radius)
     if(profile==3)return sqrt(value);return value;
 }
 int rf_vfx_light_accumulate(const float position[3],const float normal[3],const float initial[3],
-    float directional_scale,const rf_vfx_light_source *lights,uint32_t count,const unsigned char *weights,float out[3])
+    float directional_scale,const rf_vfx_light_source *lights,uint32_t count,const unsigned char *weights,uint32_t soften,float out[3])
 {
     float rgb[3],g[3];uint32_t i,j;int status;
     if(!position || !normal || !initial || !out || (!lights && count) || count>SIZE_MAX/sizeof(*lights) ||
-        !isfinite(directional_scale))return RF_RANGE;
+        !isfinite(directional_scale) || soften>1)return RF_RANGE;
     for(j=0;j<3;++j){if(!isfinite(position[j]) || !isfinite(normal[j]) || !isfinite(initial[j]))return RF_RANGE;rgb[j]=initial[j];}
     for(i=0;i<count;++i) {
         const rf_vfx_light_source *l=lights+i;double gain=0,weight;float color[3];
@@ -2191,13 +2191,13 @@ int rf_vfx_light_accumulate(const float position[3],const float normal[3],const 
             gain=(((double)normal[0]*l->position[0]+(double)normal[1]*l->position[1])+(double)normal[2]*l->position[2])*directional_scale;
             if(!(gain>0))continue;
         } else if(l->type==2) {
-            status=rf_vfx_point_light(position,normal,l->position,l->radius,0,g);if(status)return status;
+            status=rf_vfx_point_light(position,normal,l->position,l->radius,soften,g);if(status)return status;
             if(!(g[0]>0 && g[1]<l->radius))continue;
             gain=vfx_falloff(l->profile,g[1],l->radius)*g[0];
         } else if(l->type==3) {
             float distance;double cone;
             if(!isfinite(l->cone_scale) || l->cone_scale<0 || l->cone_scale>1 || !isfinite(l->inner) || !isfinite(l->outer) || l->inner>l->outer)return RF_RANGE;
-            status=rf_vfx_cone_light(position,normal,l->position,l->axis,l->radius,0,g);if(status)return status;
+            status=rf_vfx_cone_light(position,normal,l->position,l->axis,l->radius,soften,g);if(status)return status;
             if(!(g[0]>0 && g[2]<l->radius && g[1]<l->outer))continue;
             distance=(float)((1.0-l->cone_scale)*g[2]);cone=1;
             if(g[1]>=l->inner){cone=1.0-((double)g[1]-l->inner)/((double)l->outer-l->inner);if(l->squared&255u)cone*=cone;}
@@ -2228,7 +2228,7 @@ int rf_vfx_lighting(const float position[3],const float normal[3],const float am
     float rgb[3];uint32_t j;int status;
     if(!ambient || !out)return RF_RANGE;
     for(j=0;j<3;j++)if(!isfinite(ambient[j]) || ambient[j]<0 || ambient[j]>1)return RF_RANGE;
-    status=rf_vfx_light_accumulate(position,normal,ambient,directional_scale,lights,count,NULL,rgb);if(status)return status;
+    status=rf_vfx_light_accumulate(position,normal,ambient,directional_scale,lights,count,NULL,0,rgb);if(status)return status;
     return rf_vfx_light_rgb(rgb,ambient,2,out);
 }
 

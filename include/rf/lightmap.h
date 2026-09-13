@@ -47,6 +47,19 @@ typedef struct rf_lightmap_sample_plane {
  * No allocation; errors preserve output. Special polygon sampling separate. */
 int rf_lightmap_sample_position(const rf_lightmap_sample_plane *,uint32_t x,uint32_t y,float point[3]);
 
+typedef struct rf_lightmap_sample_lighting {
+    rf_lightmap_sample_plane sample;uint32_t width,height;
+    const rf_vfx_light_source *lights;uint32_t light_count;
+    const unsigned char *const *masks;uint32_t mask_bytes;float directional_scale;
+    float *channels[3];uint32_t capacity;
+} rf_lightmap_sample_lighting;
+/* Ordinary4f3390 traversal with actual softened4da8b0 accumulation. Channels
+ * contain initial values and receive final nonnegative RGB. Optional masks are
+ * per-light byte planes; at most64 selected sources as4f26a0. No allocation.
+ * Caller owns selection/ambient/masks. Errors retain earlier completed pixels.
+ * Special polygon sampling, disabled-light gates and rendering are separate. */
+int rf_lightmap_accumulate_samples(const rf_lightmap_sample_lighting *);
+
 typedef struct rf_lightmap_accumulation {
     const float *channels[3];uint32_t count,width,height;
 } rf_lightmap_accumulation;

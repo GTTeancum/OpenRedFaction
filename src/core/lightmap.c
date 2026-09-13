@@ -181,6 +181,26 @@ int rf_lightmap_sample_position(const rf_lightmap_sample_plane *view,uint32_t x,
     memcpy(point,value,sizeof(value));return RF_OK;
 }
 
+int rf_lightmap_accumulate_samples(const rf_lightmap_sample_lighting *view)
+{
+    unsigned char weights[64];uint32_t x,y,i,at=0;int status;
+    if(!view || !view->width || !view->height || view->light_count>64 ||
+        (view->light_count && !view->lights) || !view->channels[0] || !view->channels[1] || !view->channels[2] ||
+        (uint64_t)view->width*view->height>view->capacity ||
+        (view->masks && (uint64_t)view->width*view->height>view->mask_bytes))return RF_RANGE;
+    if(view->masks)for(i=0;i<view->light_count;i++)if(!view->masks[i])return RF_RANGE;
+    for(y=0;y<view->height;y++)for(x=0;x<view->width;x++,at++) {
+        float point[3],rgb[3];
+        status=rf_lightmap_sample_position(&view->sample,x,y,point);if(status)return status;
+        for(i=0;i<3;i++)rgb[i]=view->channels[i][at];
+        if(view->masks)for(i=0;i<view->light_count;i++)weights[i]=view->masks[i][at];
+        status=rf_vfx_light_accumulate(point,view->sample.plane,rgb,view->directional_scale,view->lights,
+            view->light_count,view->masks?weights:NULL,1,rgb);if(status)return status;
+        for(i=0;i<3;i++)view->channels[i][at]=rgb[i]<0?0:rgb[i];
+    }
+    return RF_OK;
+}
+
 static int lightmap_scaled_rgb(const double scaled[3],unsigned char rgb[3])
 {
     int32_t value[3],peak=0;unsigned char result[3];uint32_t i;
