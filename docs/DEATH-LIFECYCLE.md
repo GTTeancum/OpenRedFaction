@@ -10263,3 +10263,21 @@ Two compiled guards confirm cleanup of both aliased links after reached
 search validation failure and preflight preservation on insufficient
 scratch. Both builds and22 CTest checks pass. Composed obstruction coverage
 and retained scene ownership remain open before live NPC routing claims.
+
+
+Full graph requests with concrete obstructions (2026-09-13)
+
+verify_ai_graph_request.py --solid adds an actual polygon wall to both
+original4cebd0 and shared graph-request execution.4ce740/4df1c0 execute
+without replacement alongside preparation, nearest fallback, endpoints,
+search and cleanup.2048 original/PC/NXDK cases pass, with390 successful
+routes versus460 in the same null-world requests. Exact node state, route
+cost, adjacency counts and retained backing slots agree. The two compiled
+search-error cleanup and insufficient-scratch guards also pass. PC probe
+rebuild passes; NXDK production code is unchanged from9aaaa03.
+
+This closes the separate-obstruction limitation of the composed request
+verification. Live scene binding still requires writable bounded adjacency
+capacity, reserved endpoints and scratch around campaign_navigation, plus
+NPC-owned retained route lifetime. Existing authored navigation is loaded
+by campaign_navigation_open. No fresh native XEMU or live routing claim.

@@ -30,17 +30,23 @@ def hook(cpu,address,size,context):
  elif address==0x4cebb0:
   assert arg(0)==Q;path.append(nodes.index(arg(1))) # Actual four-slot append executes.
 u.hook_add(UC_HOOK_CODE,hook);rng=random.Random(0x4cebd1);records=[];commands=[];expected=[]
+solid_mode='--solid' in sys.argv
+WORLD=B+0x6000;FACE=B+0x6100;VERT=B+0x6200;EDGE=B+0x6300
 for case in range(2048):
  n=case%7;count=n+2;selections=[rng.choice([0xffffffff,*range(n)]) for _ in range(4)];mode=rng.choice((0,1,2,256,257));search_mode=rng.choice((0,1,2,256,257));limit=rng.choice((0,2,5));seeds=[];neighbors=[]
  for i in range(count):
   adj=list(range(n));rng.shuffle(adj);adj=adj[:rng.randrange(n+1)];neighbors.append(adj)
   node=bytearray(rng.randbytes(68));node[:24]=f(*[rng.randrange(-4,5) for _ in range(6)]);node[28:36]=f(2,2);node[40:52]=w(len(adj),8,ARRAY+0x100+i*0x40);node[64:68]=w(0);u.mem_write(nodes[i],bytes(node));u.mem_write(ARRAY+0x100+i*0x40,w(*[nodes[j] for j in adj],*([0]*(8-len(adj)))));seeds.append(bytes(node))
  u.mem_write(LIST,w(n,8,ARRAY));u.mem_write(ARRAY,w(*nodes[:n],*([0]*(8-n))));u.mem_write(Q,bytes(64));u.mem_write(Q,w(nodes[n+1],*[0 if j==0xffffffff else nodes[j] for j in selections[:2]],nodes[n],*[0 if j==0xffffffff else nodes[j] for j in selections[2:]]));u.mem_write(Q+24,f(.5,1));u.mem_write(Q+32,bytes([mode&255,0,search_mode&255]));u.mem_write(Q+40,f(limit,1));u.mem_write(Q+48,w(0x12345678));u.mem_write(Q+52,w(9,B+0x7000));u.mem_write(B+0x7000,bytes(16));u.mem_write(0,w(0xabcdef01))
+ if solid_mode:
+  u.mem_write(WORLD,bytes(256));u.mem_write(WORLD+0x70,w(FACE));u.mem_write(FACE,bytes(128));u.mem_write(FACE,f(0,0,1,0,-100.0001,-100.0001,-.0001,100.0001,100.0001,.0001));u.mem_write(FACE+0x30,w(-1));u.mem_write(FACE+0x40,w(EDGE));u.mem_write(VERT,f(-100,-100,0,100,-100,0,100,100,0,-100,100,0))
+  for j in range(4):u.mem_write(EDGE+j*32,w(VERT+j*12)+bytes(16)+w(EDGE+((j+1)%4)*32,EDGE+((j-1)%4)*32))
+  u.mem_write(0xca06e0,bytes(8));u.mem_write(0xca06b0,w(15));u.mem_write(0x1754525,b'\x03');u.mem_write(0x1754558,bytes(12));u.mem_write(0x1754488,bytes(12));u.mem_write(Q+36,w(WORLD))
  u.mem_write(STACK,w(STOP,Q));u.reg_write(UC_X86_REG_ESP,STACK);u.reg_write(UC_X86_REG_ECX,LIST);u.reg_write(UC_X86_REG_FPCW,0x27f);path=[];trace=[];u.emu_start(0x4cebd0,STOP,count=1000000);assert u.reg_read(UC_X86_REG_EIP)==STOP and r(0)==0xabcdef01 and r(LIST)==n
  result=u.reg_read(UC_X86_REG_EAX)&255;route=[nodes.index(r(B+0x7000+j*4)) for j in range(r(Q+52))];after=[];counts=[];tails=[]
  for i in range(count):
   node=bytearray(u.mem_read(nodes[i],68));node[40:52]=seeds[i][40:52];after.append(bytes(node));counts.append(r(nodes[i]+40));tails.append([0 if r(ARRAY+0x100+i*0x40+j*4)==0 else nodes.index(r(ARRAY+0x100+i*0x40+j*4)) for j in range(8)])
- cmd=w(count,n,0)+f(limit)+b''.join(seeds)+bytes((8-count)*68)+w(*[len(v) for v in neighbors],*([0]*(8-count)))+b''.join(w(*v,*([0]*(8-len(v)))) for v in neighbors)+bytes((8-count)*32)+w(*selections,mode,search_mode,0,0)+bytes(256)
+ cmd=w(count,n,0)+f(limit)+b''.join(seeds)+bytes((8-count)*68)+w(*[len(v) for v in neighbors],*([0]*(8-count)))+b''.join(w(*v,*([0]*(8-len(v)))) for v in neighbors)+bytes((8-count)*32)+w(*selections,mode,search_mode,int(solid_mode),0)+bytes(256)
  assert len(cmd)==1136;commands.append(cmd)
  want=w(0,result,r(Q+48),len(route),*route,*([0]*(8-len(route))),2166136261)+b''.join(after)+bytes((8-count)*68)+w(*counts,*([0]*(8-count)))+b''.join(w(*v) for v in tails)+bytes((8-count)*32);assert len(want)==884;expected.append(want)
  records.append((n,seeds,neighbors,selections,mode,search_mode,limit))
@@ -54,7 +60,9 @@ for i,((n,seeds,neighbors,selections,mode,search_mode,limit),want) in enumerate(
  count=n+2
  for j in range(8):
   x.mem_write(nodes[j],seeds[j] if j<count else bytes(68));adj=neighbors[j] if j<count else [];x.mem_write(ADJ+j*32,w(*adj,*([0]*(8-len(adj)))));x.mem_write(REFS+j*16,w(nodes[j],nodes[j],ADJ+j*32,len(adj)));x.mem_write(LISTS+j*12,w(ADJ+j*32,len(adj),8))
- x.mem_write(XQ,w(REFS,LISTS,n)+f(.5,1)+w(mode,search_mode,*selections)+f(limit,1)+w(0x12345678,ROUTE,0,SCRATCH,8));x.mem_write(ROUTE,bytes(20));x.mem_write(OUT,w(99));x.mem_write(STACK,w(STOP,XQ,OUT));x.reg_write(UC_X86_REG_ESP,STACK);x.reg_write(UC_X86_REG_FPCW,0x27f)
+ if solid_mode:
+  x.mem_write(WORLD,bytes(156));x.mem_write(WORLD+148,w(FACE,1));x.mem_write(FACE,f(0,0,1,0,-100.0001,-100.0001,-.0001,100.0001,100.0001,.0001)+w(VERT,4,0,0,0,0,0,0));x.mem_write(VERT,f(-100,-100,0,100,-100,0,100,100,0,-100,100,0))
+ x.mem_write(XQ,w(REFS,LISTS,n)+f(.5,1)+w(mode,search_mode,*selections)+f(limit,1)+w(0x12345678,ROUTE,WORLD if solid_mode else 0,SCRATCH,8));x.mem_write(ROUTE,bytes(20));x.mem_write(OUT,w(99));x.mem_write(STACK,w(STOP,XQ,OUT));x.reg_write(UC_X86_REG_ESP,STACK);x.reg_write(UC_X86_REG_FPCW,0x27f)
  x.emu_start(entry,STOP,count=1000000);assert x.reg_read(UC_X86_REG_EIP)==STOP
  route=[nodes.index(rx(ROUTE+j*4)) for j in range(rx(ROUTE+16))];got=w(x.reg_read(UC_X86_REG_EAX),rx(OUT),rx(XQ+52),len(route),*route,*([0]*(8-len(route))),2166136261)+b''.join(bytes(x.mem_read(a,68)) for a in nodes)+w(*[rx(LISTS+j*12+4) for j in range(count)],*([0]*(8-count)))+bytes(x.mem_read(ADJ,count*32))+bytes((8-count)*32)
  assert got==want,('NXDK',i,got[:52].hex(),want[:52].hex())
@@ -66,5 +74,5 @@ assert x.reg_read(UC_X86_REG_EIP)==STOP and x.reg_read(UC_X86_REG_EAX)==0xffffff
 # Insufficient caller scratch is rejected before touching graph or retained output.
 x.mem_write(XQ+68,w(0));before=bytes(x.mem_read(B,0xd200));x.mem_write(STACK,w(STOP,XQ,OUT));x.reg_write(UC_X86_REG_ESP,STACK);x.emu_start(entry,STOP,count=1000000)
 assert x.reg_read(UC_X86_REG_EAX)!=0 and bytes(x.mem_read(B,0xd200))==before
-report=dict(result='PASS',original_pc_nxdk_cases=2048,compiled_failure_guards=2,successes=sum(struct.unpack_from('<I',v,4)[0] for v in expected),scope='Full original4cebd0 preparation, nearest fallback, endpoint insertion/search/removal and retained output versus concrete shared graph request. Only bounded list growth and search scratch allocation/free supplied. Null-world original visibility shortcut; exact node state, route/cost, adjacency counts and backing slots.0..6 global nodes, optional/aliased endpoint selections and mode bytes. Solid obstruction covered separately; live scene ownership excluded.')
-(root/'artifacts/ai-graph-request.json').write_text(json.dumps(report,indent=2));print(report)
+report=dict(result='PASS',original_pc_nxdk_cases=2048,solid_mode=solid_mode,compiled_failure_guards=2,successes=sum(struct.unpack_from('<I',v,4)[0] for v in expected),scope='Full original4cebd0 preparation, nearest fallback, endpoint insertion/search/removal and retained output versus concrete shared graph request. Only bounded list growth and search scratch allocation/free supplied. Optional actual plane collision through4ce740/4df1c0; exact node state, route/cost, adjacency counts and backing slots.0..6 global nodes, optional/aliased endpoint selections and mode bytes. Solid mode composes obstruction with endpoint setup and cleanup; live scene ownership excluded.')
+(root/('artifacts/ai-graph-request-solid.json' if solid_mode else 'artifacts/ai-graph-request.json')).write_text(json.dumps(report,indent=2));print(report)
