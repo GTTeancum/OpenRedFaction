@@ -1998,3 +1998,14 @@ int rf_vfx_texture_frame(uint32_t count,float duration,int32_t start,float speed
     if(normalized && index<0){index+=(int32_t)count;if(index<0)index=0;}
     *out=(uint32_t)index;return RF_OK;
 }
+
+int rf_vfx_texture_duration(uint32_t count,uint32_t rate,float *out)
+{
+    float stored,result;
+    if(!out || !count || count>255)return RF_RANGE;
+    if(count==1){*out=1;return RF_OK;}
+    if(!rate || rate>INT32_MAX)return RF_RANGE;
+    stored=(float)((double)rate*(double)0.0010000000474974513f);
+    result=(float)(((double)count/stored)*(double)0.0010000000474974513f);
+    if(!isfinite(result) || result<=0)return RF_RANGE;*out=result;return RF_OK;
+}

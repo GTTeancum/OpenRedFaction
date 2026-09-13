@@ -66,6 +66,9 @@ int rf_vfx_material_track(const float *samples,uint32_t count,int32_t rate,float
  * other modes clamp. One-frame textures return0 before examining the clock.
  * duration is the50f380 metadata value; start is signed authored offset, speed
  * is used only by54a630. Invalid inputs preserve output. */
+/* Bitmap loader50f9cd and query50f380 rate rounding. Count1 ignores rate;
+ * animated counts2..255 and signed-positive VBM rates required. */
+int rf_vfx_texture_duration(uint32_t count,uint32_t rate,float *out);
 int rf_vfx_texture_frame(uint32_t count,float duration,int32_t start,float speed,
     uint32_t mode,float time,uint32_t normalized,uint32_t *out);
 

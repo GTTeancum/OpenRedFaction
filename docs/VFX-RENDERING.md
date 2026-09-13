@@ -246,3 +246,21 @@ from a byte frame count at43 and float field4c, multiplied by float0.001
 loading and units before deriving this value from the retained VBM rate;
 count/rate alone must not be assumed equivalent. Full PC/Xbox builds and
 all24 CTests pass for the clock implementation.
+
+rf_vfx_texture_duration now preserves the50f9cd float(rate*0.001) store
+and50f380 float((count/stored)*0.001) query.50ebd0 reads the VBM rate word
+through its parameter7, returned by50fcb0 to50f6e0 local330. Animated counts
+are bounded to the original byte range; static count1 returns duration1.
+
+rf_vfx_material_texture_sample selects retained primary/secondary images
+through the texture binding table and authored words14..16/27..29. It uses
+the reconstructed metadata and requested clock domain, returning a borrowed
+image pointer with no allocation. Absent/original-map bindings return
+NOT_FOUND; caller override ownership, lighting and drawing remain open.
+
+2048 duration comparisons execute actual50f9cd and complete50f380 without
+hooks, matching PC/NXDK.2048 NXDK image-pointer selections match complete
+original54a630/54a6e0 with real metadata/handle helpers and both slots. The
+image descriptors are supplied fixtures, not decoded pixels or native draws.
+Four numeric guards and three binding guards preserve output. Both builds
+and24 CTests pass; no native appearance claim.

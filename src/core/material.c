@@ -594,3 +594,20 @@ int rf_vfx_material_textures_open(rf_vfx_material_textures *m,const rf_vfx_mater
 failed:
     rf_vfx_material_textures_close(&next);return status;
 }
+
+int rf_vfx_material_texture_sample(const rf_vfx_material_textures *textures,const rf_vfx_material_view *view,
+    uint32_t material,uint32_t slot,float time,uint32_t normalized,const rf_image **out)
+{
+    const rf_particle_animation *animation;uint32_t index,frame,field;int32_t start;float speed,duration;int status;
+    if(!textures || !view || !out || slot>1 || normalized>1)return RF_RANGE;
+    if(material>=textures->count)return RF_NOT_FOUND;
+    if(!textures->bindings)return RF_RANGE;index=textures->bindings[material][slot];
+    if(index==UINT32_MAX)return RF_NOT_FOUND;
+    if(index>=textures->texture_count || !textures->textures)return RF_RANGE;
+    animation=&textures->textures[index].animation;
+    if(!animation->images || !animation->count)return RF_RANGE;
+    status=rf_vfx_texture_duration(animation->count,animation->rate,&duration);if(status)return status;
+    field=slot?27:14;memcpy(&start,view->words+field,4);memcpy(&speed,view->words+field+1,4);
+    status=rf_vfx_texture_frame(animation->count,duration,start,speed,view->words[field+2],time,normalized,&frame);
+    if(status)return status;*out=animation->images+frame;return RF_OK;
+}

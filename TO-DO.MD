@@ -14,6 +14,11 @@ Shortlist:
 
 Progress reporting: include overall percent estimates at meaningful milestones and revisit remaining 24-hour workdays when measured throughput supports a forecast; current rough estimate40% (35-45%), no defensible +/-48-hour completion forecast before end-to-end gameplay.
 
+VFX bitmap metadata and retained primary/secondary image selection now match
+2048 original/PC/NXDK duration cases plus2048 NXDK/original image selections;
+7 guards, both builds and24 tests pass. Bind lighting/draw submission and
+original-map overrides; native VFX appearance remains unverified.
+
 VFX effect-time and normalized texture clocks match4096 original/PC/NXDK
 cases and4 guards; bind retained bitmap metadata and actual draw passes next.
 PC XInput walkthrough exited at frame20232 with RF_RANGE in animation stage5,

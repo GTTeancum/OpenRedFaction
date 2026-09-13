@@ -69,6 +69,13 @@ typedef rf_glare_materials rf_vfx_material_textures;
 int rf_vfx_material_textures_open(rf_vfx_material_textures *,const rf_vfx_material_view *,
     uint32_t count,rf_vpp *archives,uint32_t archive_count,uint32_t budget);
 void rf_vfx_material_textures_close(rf_vfx_material_textures *);
+/* Select retained primary(slot0)/secondary(slot1) image using authored clock
+ * fields and original bitmap metadata rounding. Missing/original-map slots
+ * return NOT_FOUND; caller supplies original-map ownership separately. No
+ * allocation; output is borrowed until textures close, preserved on errors. */
+int rf_vfx_material_texture_sample(const rf_vfx_material_textures *,const rf_vfx_material_view *,
+    uint32_t material,uint32_t slot,float time,uint32_t normalized,const rf_image **out);
+
 typedef struct rf_level_particle_binding {uint32_t uid,texture;} rf_level_particle_binding;
 typedef struct rf_level_particle_materials {
     void *storage;

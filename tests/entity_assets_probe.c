@@ -193,6 +193,15 @@ int main(int argc,char **argv)
         }
         return ferror(stdin)?1:0;
     }
+    if(argc==2 && !strcmp(argv[1],"--vfx-texture-duration")) {
+        uint32_t h[2];float out;int32_t status;
+        _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
+        while(fread(h,sizeof(h),1,stdin)==1) {
+            memset(&out,0xa5,4);status=rf_vfx_texture_duration(h[0],h[1],&out);
+            fwrite(&status,4,1,stdout);fwrite(&out,4,1,stdout);
+        }
+        return ferror(stdin)?1:0;
+    }
     if(argc==2 && !strcmp(argv[1],"--vfx-texture-frame")) {
         uint32_t h[7],out;float duration,speed,time;int32_t start,status;
         _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
