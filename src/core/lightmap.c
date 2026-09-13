@@ -210,6 +210,26 @@ int rf_lightmap_filtered_rgb(const rf_lightmap_accumulation *view,uint32_t x,uin
     return lightmap_scaled_rgb(scaled,rgb);
 }
 
+int rf_lightmap_resolve_rgb(const rf_lightmap_accumulation *view,unsigned char *rgb,
+    uint32_t bytes,uint32_t pitch,unsigned char *dirty)
+{
+    uint32_t x,y;int status;
+    if(!view || !rgb || !dirty || !view->width || !view->height || !view->channels[0] ||
+        !view->channels[1] || !view->channels[2] || (uint64_t)view->width*view->height>view->count ||
+        (uint64_t)view->width*3>pitch || (uint64_t)(view->height-1)*pitch+(uint64_t)view->width*3>bytes)return RF_RANGE;
+    for(y=0;y<view->height;y++)for(x=0;x<view->width;x++) {
+        unsigned char *out=rgb+(uint64_t)y*pitch+x*3;
+        if(view->width>=9 && view->height>=9 && x>=2 && y>=2 && x<=view->width-3 && y<=view->height-3)
+            status=rf_lightmap_filtered_rgb(view,x,y,out);
+        else {
+            uint32_t at=y*view->width+x;float channels[3]={view->channels[0][at],view->channels[1][at],view->channels[2][at]};
+            status=rf_lightmap_accumulated_rgb(channels,out);
+        }
+        if(status)return status;
+    }
+    *dirty|=8u;return RF_OK;
+}
+
 int rf_lightmap_upload_rgb_1555(const rf_lightmap_rgb_upload *view,unsigned char *dirty)
 {
     uint32_t x,y,value;uint64_t right,bottom;

@@ -1185,3 +1185,24 @@ Caller4f26a0 selects direct4f3040 for dimensions below9 or the two-pixel rim;
 otherwise it selects4f3100. That grid selection is static instruction evidence,
 not yet executed as a reconstructed full mapping resolve. Source accumulation,
 full-grid resolve and native texture lifecycle/render updates remain.
+
+
+### Complete mapping RGB resolve (2026-09-13)
+
+rf_lightmap_resolve_rgb combines the verified direct and filtered conversions
+through the original4f2acf..4f2c74 mapping loop. Width or height below9 selects
+direct conversion everywhere. Larger mappings use filtering only at x/y2
+through dimension-3 inclusive; the two-pixel rim remains direct. It writes
+row-major into caller-offset RGB with explicit byte pitch and ORs dirty bit8
+only after all pixels succeed. Buffer guards precede writes; a later numeric
+error retains earlier pixels without setting the dirty bit. No allocation.
+
+verify_lightmap_resolve_rgb.py runs the original caller slice with real
+4f3040/4f3100/CRT callees, supplying accumulated planes and the caller frame.
+512 mappings cover every width/height pair1..16 twice, offsets, padded rows
+and all dirty bits. All36992 PC/NXDK pixels and complete output buffers match;
+non-mutating trace hooks count27744 direct and9248 filtered original calls,
+matching the selection rule. Two NXDK short-output/pitch guards preserve data.
+Explicit x87 precision027f matches the native replay setting. Both builds and
+24 CTests pass. Source accumulation4f3390, retained RGB ownership and native
+bitmap/renderer updates remain; no new visual result is claimed.

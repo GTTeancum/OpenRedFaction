@@ -46,6 +46,14 @@ typedef struct rf_lightmap_accumulation {
  * No allocation. Caller4f26a0 chooses direct conversion for its two-pixel rim. */
 int rf_lightmap_filtered_rgb(const rf_lightmap_accumulation *,uint32_t x,uint32_t y,unsigned char rgb[3]);
 
+/*4f2acf..4f2c74: resolve a complete accumulated mapping to pitched RGB.
+ * Direct conversion for width/height<9 and the two-pixel rim; filtered inside.
+ * Caller offsets RGB to mapping origin. Success ORs dirty bit8. Buffer guards
+ * precede writes; numeric errors may retain earlier pixels, not the dirty bit.
+ * Borrowed disjoint channel/output arrays; no allocation. */
+int rf_lightmap_resolve_rgb(const rf_lightmap_accumulation *,unsigned char *rgb,
+    uint32_t bytes,uint32_t pitch,unsigned char *dirty);
+
 typedef struct rf_lightmap_rgb_upload {
     const unsigned char *rgb;uint32_t rgb_bytes,rgb_pitch;
     unsigned char *packed;uint32_t packed_bytes,packed_pitch;
