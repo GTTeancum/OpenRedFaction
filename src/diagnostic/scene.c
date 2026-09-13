@@ -3483,6 +3483,21 @@ int rf_scene_npc_steer(uint32_t handle,const float target[3],float dt,uint32_t c
     status=rf_entity_navigation_steer(&state,target,dt,clock,result);if(status)return status;
     memcpy(owner->body.state.vector_c8,state.angular_150,12);memcpy(owner->look.command_708,state.command_708,12);owner->look.clock_7b0=state.turn_clock_7b0;return RF_OK;
 }
+int rf_scene_npc_prepare_angular(uint32_t handle,float dt,uint32_t driven)
+{
+    campaign_npc_body *owner;rf_entity_pose *pose;uint32_t cls;int status;
+    rf_angular_velocity_state velocity;rf_angular_prediction prediction;const rf_entity_rotation_values *rotation;
+    status=campaign_npc_motion_owner(handle,&owner,&cls,&pose);if(status)return status;
+    if(owner->movement_slot>=16)return RF_RANGE;rotation=&campaign_seeds.classes[cls].rotation;
+    memcpy(velocity.velocity,owner->body.state.vector_c8,12);memcpy(velocity.force,owner->body.state.vector_ec,12);
+    status=rf_angular_velocity_step(&velocity,owner->look.command_708,rotation->maximum_velocity,rotation->acceleration,
+        owner->body.state.mass,dt,owner->body.state.flags,driven);if(status)return status;
+    status=rf_angular_predict(owner->look.body_angles,velocity.velocity,dt,campaign_modes[owner->movement_slot].rotation,&prediction);if(status)return status;
+    memcpy(owner->body.state.vector_c8,velocity.velocity,12);memcpy(owner->body.state.vector_ec,velocity.force,12);
+    memcpy(owner->body.state.orientation,prediction.orientation,36);memcpy(owner->body.state.next_orientation,prediction.next_orientation,36);
+    memcpy(owner->look.angles.vector_870,prediction.body_delta,12);memcpy(owner->look.angles.delta_888,prediction.eye_delta,12);
+    return RF_OK;
+}
 
 typedef struct campaign_ai_reset_context {
     rf_entity_pose *pose;rf_entity_playback_model *model;const int32_t *actions;uint32_t slot;
@@ -6570,9 +6585,22 @@ static int campaign_npc_look_fixture(uint32_t frame)
             if(!status && (!isfinite(result) || result<0))status=RF_FORMAT;
             if(!status){++rf_scene_npc_look_test[2];rf_scene_npc_look_test[3]=npc_hash_bytes(rf_scene_npc_look_test[3],&o->look,sizeof(o->look));
                 rf_scene_npc_look_test[3]=npc_hash_bytes(rf_scene_npc_look_test[3],o->body.state.vector_c8,12);}
+            if(!status){
+                rf_angular_velocity_state velocity;rf_angular_prediction prediction;const rf_entity_rotation_values *rotation=&campaign_seeds.classes[cls].rotation;
+                memcpy(velocity.velocity,o->body.state.vector_c8,12);memcpy(velocity.force,o->body.state.vector_ec,12);
+                status=rf_angular_velocity_step(&velocity,o->look.command_708,rotation->maximum_velocity,rotation->acceleration,o->body.state.mass,1.0f/60.0f,o->body.state.flags,0);
+                if(!status)status=rf_angular_predict(o->look.body_angles,velocity.velocity,1.0f/60.0f,campaign_modes[o->movement_slot].rotation,&prediction);
+                if(!status)status=rf_scene_npc_prepare_angular(o->registration.handle,1.0f/60.0f,0);
+                if(!status && (memcmp(velocity.velocity,o->body.state.vector_c8,12) || memcmp(velocity.force,o->body.state.vector_ec,12) ||
+                    memcmp(prediction.orientation,o->body.state.orientation,36) || memcmp(prediction.next_orientation,o->body.state.next_orientation,36) ||
+                    memcmp(prediction.body_delta,o->look.angles.vector_870,12) || memcmp(prediction.eye_delta,o->look.angles.delta_888,12)))status=RF_FORMAT;
+                if(!status){rf_scene_npc_look_test[3]=npc_hash_bytes(rf_scene_npc_look_test[3],&prediction,sizeof(prediction));
+                    rf_scene_npc_look_test[3]=npc_hash_bytes(rf_scene_npc_look_test[3],&velocity,sizeof(velocity));}
+            }
             result=99;
             if(!status && (rf_scene_npc_steer(o->registration.handle^0x10000,target,1.0f/60.0f,0,&result)!=RF_NOT_FOUND || result!=99 ||
-                rf_scene_npc_eye_angles_step(o->registration.handle^0x10000,1.0f/60.0f)!=RF_NOT_FOUND))status=RF_FORMAT;
+                rf_scene_npc_eye_angles_step(o->registration.handle^0x10000,1.0f/60.0f)!=RF_NOT_FOUND ||
+                rf_scene_npc_prepare_angular(o->registration.handle^0x10000,1.0f/60.0f,0)!=RF_NOT_FOUND))status=RF_FORMAT;
         }
         *o=saved;
     }

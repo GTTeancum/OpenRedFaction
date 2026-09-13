@@ -10455,3 +10455,12 @@ rf_movement_angular_route preserves49f3e4..49f446/49f636 precedence: body8000 an
 verify_angular_route.py executes original49f3c0 to the first dispatch boundary across800 cases: all16 combinations of four relevant flags, five modes, five control words and both identity outcomes. PC/NXDK selection agrees; route counts ordinary48/external200/physics300/mode15 60/player-look96/skip96. Both builds and22 CTest checks pass. Special routines are not executed by this selector test.
 
 Drive-source audit:48aa30 scans7c75e4 player pointers up to7c7634, resolves each player+14 entity handle through426fc0, and accepts pointer identity or resolved actor200 matching queried object2c.4895d0 tests object7c bit8 in its low-byte result.49f451 uses48aa30 in SP; after a false return it rereads multiplayer64ecb9 before choosing4895d0 or undriven damping. Preserve that ordering if future callbacks can change multiplayer state. Live player/control-reference binding and special angular services remain open; no new scene scheduling/native replay is claimed.
+
+
+### Retained ordinary NPC angular preparation/prediction (2026-09-13)
+
+rf_scene_npc_prepare_angular connects retained authored rate/acceleration, body mass/flags, rotation command708, angular velocity150 and force174 to verified velocity preparation and composed prediction. Successful publication updates existing body vector_c8/vector_ec, current/predicted matrices and look deltas870/888. Body angles are not committed. Caller must select the ordinary branch and resolve the drive predicate; special dispatch, continuous stepping and collision/commit remain outside this service. Local staging preserves owners on errors. No additional scene allocation.
+
+Extended NPC_LOOK_TEST restores each actor after verifying all prepared fields and stale-handle rejection. Replay-20260913-052352 passes180 frames on stock64MiB XEMU with matching PC telemetry [38,38,38,2384810794,5304,0]. Existing native assertions and22 CTest checks pass; normal Xbox image restored/rebuilt. No new visible autonomous movement claimed.
+
+Ownership audit correction: entity_view.linked_handle ALREADY represents original actor200, as explicitly mapped by verify_entity_predicates.py and used by shared combat predicates. The earlier concern that this field was missing was incorrect. The next drive lookup can use that verified field plus the registered SP player entity, preserving48aa30 pointer-identity-or-linked-handle semantics. Do not introduce a duplicate field or substitute a different attachment handle.
