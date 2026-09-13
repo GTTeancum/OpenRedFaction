@@ -183,6 +183,15 @@ typedef struct rf_level_light_activation {
  * Cycles3/4 require one caller-supplied original15-bit RNG draw; other cycles
  * do not use it. No registration/replacement/timer stepping; errors preserve out. */
 int rf_level_light_activate(const rf_level_light *,uint32_t loader_default,uint32_t random_draw,rf_level_light_activation *);
+typedef struct rf_level_light_clock {
+    uint32_t phase;float elapsed,delay,intensity;uint32_t changed,random_used;
+} rf_level_light_clock;
+/*45fa30: at most one phase transition per call; excess elapsed time discarded.
+ * Cycles1/2 and disabled lights hold. Flags2 enables interpolation. Draw is
+ * consumed only on transition; caller applies changed intensity to the pool.
+ * No allocation; in-place supported, invalid inputs preserve output. */
+int rf_level_light_clock_step(uint32_t flags,uint32_t enabled,const float cycle[6],float seconds,
+    uint32_t random_draw,const rf_level_light_clock *,rf_level_light_clock *);
 typedef struct rf_level_light_runtime {
     uint32_t uid,id,flags;float cycle[6];rf_level_light_activation activation;
 } rf_level_light_runtime;

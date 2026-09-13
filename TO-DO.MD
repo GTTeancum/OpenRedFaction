@@ -14,6 +14,11 @@ Shortlist:
 
 Progress reporting: include overall percent estimates at meaningful milestones and revisit remaining 24-hour workdays when measured throughput supports a forecast; current rough estimate40% (35-45%), no defensible +/-48-hour completion forecast before end-to-end gameplay.
 
+Authored light timer stepping matches4096 original/PC/NXDK cases, including
+interpolation, single-transition overshoot and RNG consumption decisions;
+both builds and24 tests pass. Bind retained elapsed state and shared RNG/frame
+scheduling, apply pool intensity updates, then finish light-driven rendering.
+
 Native campaign scene now owns231 L1S1 lights in137072 bytes;180-frame
 stock64MiB XEMU run matches PC source/runtime/field hashes and RNG. Fixed
 first-light base-color rounding; both builds and24 tests pass. Bind retained

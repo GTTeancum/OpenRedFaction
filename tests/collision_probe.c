@@ -316,6 +316,14 @@ int main(int argc,char **argv)
         }
         return ferror(stdin)?2:0;
     }
+    if(argc==2 && !strcmp(argv[1],"--level-light-clock")) {
+        uint32_t h[3];float values[7];rf_level_light_clock state,out;int32_t status;
+        while(fread(h,4,3,stdin)==3) {
+            if(fread(values,sizeof(values),1,stdin)!=1 || fread(&state,sizeof(state),1,stdin)!=1)return 2;
+            memset(&out,0xa5,sizeof(out));status=rf_level_light_clock_step(h[0],h[1],values,values[6],h[2],&state,&out);
+            fwrite(&status,4,1,stdout);fwrite(&out,sizeof(out),1,stdout);
+        }return ferror(stdin)?1:0;
+    }
     if(argc==4 && !strcmp(argv[1],"--level-owned-lights")) {
         rf_vpp archive;rf_level level;rf_level_owned_lights *owner=NULL;rf_random_state rng={123};uint32_t budget;int status;
         if(rf_vpp_open(&archive,argv[2]) || rf_level_open(&level,&archive,argv[3]))return 3;

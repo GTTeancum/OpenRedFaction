@@ -1695,3 +1695,27 @@ void rf_level_owned_lights_close(rf_level_owned_lights **owner)
 {
     if(owner && *owner){free(*owner);*owner=NULL;}
 }
+
+int rf_level_light_clock_step(uint32_t flags,uint32_t enabled,const float cycle[6],float seconds,
+    uint32_t random_draw,const rf_level_light_clock *state,rf_level_light_clock *out)
+{
+    rf_level_light_clock value;uint32_t mode=(flags>>8)&15,j;
+    if(!state || !out || !cycle || state->phase>1 || mode<1 || mode>4)return RF_RANGE;
+    value=*state;value.changed=value.random_used=0;
+    if(mode==1 || mode==2 || !enabled){*out=value;return RF_OK;}
+    if(!isfinite(seconds) || seconds<0 || !isfinite(state->elapsed) || state->elapsed<0 || !isfinite(state->delay) || state->delay<0)return RF_RANGE;
+    for(j=0;j<6;++j)if(!isfinite(cycle[j]))return RF_RANGE;
+    value.elapsed=(float)((double)seconds+state->elapsed);if(!isfinite(value.elapsed))return RF_RANGE;
+    if(value.elapsed>=value.delay) {
+        uint32_t at;double r;
+        if(random_draw>32767)return RF_RANGE;value.elapsed=0;value.phase=!state->phase;at=value.phase?1:4;
+        r=(random_draw*0.000030517578125)*cycle[at+1];value.delay=(float)((r+r)+((double)cycle[at]-cycle[at+1]));
+        if(!isfinite(value.delay))return RF_RANGE;if(value.delay<0.1f)value.delay=0.1f;
+        value.intensity=cycle[value.phase?0:3];value.changed=value.random_used=1;
+    } else if(flags&2) {
+        double ramp=(((double)cycle[0]-cycle[3])*value.elapsed)/value.delay;
+        value.intensity=(float)(value.phase?(double)cycle[0]-ramp:ramp+cycle[3]);
+        if(!isfinite(value.intensity))return RF_RANGE;value.changed=1;
+    }
+    *out=value;return RF_OK;
+}

@@ -709,3 +709,23 @@ are restored by the replay harness. All22293 activation comparisons plus512
 randomized cases still pass, as do both builds and24 CTests. No screenshot was
 captured because rendering is unchanged. Timers, visibility callbacks and
 native light-driven drawing remain open.
+
+## Authored light timer step
+
+rf_level_light_clock_step reconstructs45fa30 using a24-byte clock value.
+Cycles1/2 and disabled lights hold state; active cycles add seconds with a
+float store. At elapsed>=delay the phase toggles once, elapsed resets to0
+(discarding excess time), and one original15-bit draw computes the next delay.
+The timer update doubles the random term before adding center-minus-variance,
+then stores/clamps to float0.1. This differs from the activation expression's
+addition order. Flag2 enables between-transition interpolation; its arithmetic
+stays extended until the final intensity float store. The result reports
+whether intensity changed and whether a draw was consumed. The caller owns
+RNG draw ordering and applying the intensity through pool/visibility updates.
+
+4096 cases match complete original45fa30 and actual4d93d0 on PC/NXDK for
+phase, elapsed, delay, intensity and update/draw flags. Only the RNG integer
+is supplied; the color update's intensity argument is observed without
+replacing that routine.4096 NXDK in-place cases and2 PC/NXDK invalid-input
+guards pass. Both builds and24 CTests pass. This helper does not yet extend
+the scene's retained clock storage or schedule timers in the native frame.
