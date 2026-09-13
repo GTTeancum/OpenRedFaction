@@ -1392,3 +1392,41 @@ int rf_vfx_mesh_vertex(const rf_vfx_mesh *mesh,uint32_t frame,uint32_t vertex,fl
     at=(uint64_t)view->vertex_offset+(uint64_t)vertex*6;if(at+6>mesh->bytes)return RF_FORMAT;
     return rf_vfx_vertex_decode(mesh->data+(size_t)at,6,view->vectors,out);
 }
+
+int rf_vfx_uv_sample(const float first[6],const float second[6],float fraction,
+    int interpolate,float out[6])
+{
+    float v[6];uint32_t i;double inverse;
+    if(!first || !out || (interpolate && !second) || !isfinite(fraction) || fraction<0 || fraction>1)return RF_RANGE;
+    inverse=1.0-(double)fraction;
+    for(i=0;i<6;++i) {
+        if(!isfinite(first[i]) || (interpolate && !isfinite(second[i])))return RF_RANGE;
+        v[i]=interpolate?(float)((double)first[i]*inverse+(double)second[i]*fraction):first[i];
+        if(!isfinite(v[i]))return RF_RANGE;
+    }
+    memcpy(out,v,sizeof(v));return RF_OK;
+}
+static int vfx_owned_uv(const rf_vfx_mesh *mesh,uint32_t frame,uint32_t face,float out[6])
+{
+    const rf_vfx_frame_view *v=mesh->frames+frame;uint64_t at;uint32_t i,j,word;
+    if(!(v->present&8) || (uint64_t)face*24+24>v->uv_bytes)return RF_FORMAT;
+    at=(uint64_t)v->uv_offset+(uint64_t)face*24;if(at+24>mesh->bytes)return RF_FORMAT;
+    for(i=0;i<3;++i)for(j=0;j<2;++j){word=vfx_word(mesh->data+(size_t)at+(i*2+j)*4);memcpy(out+j*3+i,&word,4);}
+    return RF_OK;
+}
+int rf_vfx_mesh_uv(const rf_vfx_mesh *mesh,const rf_vfx_frame_cursor *cursor,uint32_t face,float out[6])
+{
+    float first[6],second[6];uint32_t a,b;rf_vfx_face legacy;int status;
+    if(!mesh || !cursor || !out || !mesh->data || !mesh->frames || face>=mesh->prefix.faces)return RF_RANGE;
+    if(!cursor->active)return RF_NOT_FOUND;
+    if(cursor->first>=mesh->prefix.timing.samples || cursor->second>=mesh->prefix.timing.samples)return RF_RANGE;
+    if(mesh->version<0x3000d) {
+        uint64_t at=(uint64_t)mesh->prefix.face_offset+(uint64_t)face*120;if(at>mesh->bytes)return RF_FORMAT;
+        status=rf_vfx_face_read(mesh->data+(size_t)at,mesh->bytes-(uint32_t)at,mesh->version,&legacy);if(status)return status;
+        return rf_vfx_uv_sample(legacy.legacy_uv,NULL,cursor->fraction,0,out);
+    }
+    a=(mesh->edges.flags&0x100)?cursor->first:0;b=(mesh->edges.flags&0x100)?cursor->second:0;
+    status=vfx_owned_uv(mesh,a,face,first);if(status)return status;
+    if(a!=b){status=vfx_owned_uv(mesh,b,face,second);if(status)return status;}
+    return rf_vfx_uv_sample(first,a!=b?second:NULL,cursor->fraction,a!=b,out);
+}

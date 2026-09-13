@@ -38,6 +38,16 @@ int main(int argc,char **argv)
         }
         rf_vpp_close(&meshes);return ferror(stdin)?8:0;
     }
+    if(argc==2 && !strcmp(argv[1],"--vfx-uv")) {
+        uint32_t input[14];
+        _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
+        while(fread(input,56,1,stdin)==1) {
+            float a[6],b[6],fraction,out[6];int32_t status;
+            memcpy(a,input,24);memcpy(b,input+6,24);memcpy(&fraction,input+12,4);memset(out,0xa5,sizeof(out));
+            status=rf_vfx_uv_sample(a,b,fraction,(int)input[13],out);fwrite(&status,4,1,stdout);fwrite(out,24,1,stdout);
+        }
+        return ferror(stdin)?1:0;
+    }
     if(argc==2 && !strcmp(argv[1],"--vfx-frame-select")) {
         uint32_t words[7];
         _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);

@@ -43,9 +43,9 @@ def allocator(u,a,size,data):
   if arg:assert arg in live;del live[arg]
  u.reg_write(UC_X86_REG_EAX,ret);u.reg_write(UC_X86_REG_ESP,sp+4);u.reg_write(UC_X86_REG_EIP,read(u,sp))
 for name in ('malloc','free'):x.hook_add(UC_HOOK_CODE,allocator,begin=sym(name),end=sym(name))
-vertex_checks=0
+vertex_checks=0;uv_checks=0
 def shared(v,global_count,budget,data,fail=False):
- global fail_alloc,vertex_checks
+ global fail_alloc,vertex_checks,uv_checks
  fail_alloc=fail;calls.clear();assert not live;x.mem_write(B,data or b'\0');x.mem_write(PTR,f(0,0,0,0,0,0,1));x.mem_write(OUT,w(0))
  status=call('rf_vfx_mesh_open',[B,len(data),v,global_count,PTR,budget,OUT]);result=w(status);pointer=read(x,OUT)
  if not status:
@@ -60,6 +60,17 @@ def shared(v,global_count,budget,data,fail=False):
     o.mem_write(B,raw);o.mem_write(STACK,w(STOP,OUT,B)+vectors);o.reg_write(UC_X86_REG_ESP,STACK);o.reg_write(UC_X86_REG_FPCW,0x37f);o.emu_start(0x53cca0,STOP,count=100000);assert o.reg_read(UC_X86_REG_EIP)==STOP
     assert actual==bytes(o.mem_read(OUT,12));vertex_checks+=1
   x.mem_write(SAMPLE,b'\xa5'*12);assert call('rf_vfx_mesh_vertex',[pointer,n,0,SAMPLE])!=0 and bytes(x.mem_read(SAMPLE,12))==b'\xa5'*12
+  faces=struct.unpack_from('<I',header,136)[0]
+  for frame in range(n):
+   last=min(frame+1,n-1);x.mem_write(B+0x100,f(frame,.25)+w(frame,last,1));a=frame if flags&0x100 else 0;b=last if flags&0x100 else 0
+   for face in range(faces):
+    assert call('rf_vfx_mesh_uv',[pointer,B+0x100,face,SAMPLE])==0;actual=bytes(x.mem_read(SAMPLE,24));uv=[]
+    for selected in (a,b):
+     offset=read(x,frames+selected*112+40);words=struct.unpack('<6I',x.mem_read(owned+offset+face*24,24));uv.append(w(words[0],words[2],words[4],words[1],words[3],words[5]))
+    o.mem_write(B,uv[0]+uv[1]);o.mem_write(OWNER,bytes(0x124));o.mem_write(OWNER+0x114,w(0x100 if a!=b else 0));o.mem_write(OWNER+0xa4,w(2));o.mem_write(OWNER+0xb4,w(1));o.mem_write(OWNER+0xd4,w(PTR));o.mem_write(PTR,w(B,B+24));o.mem_write(FACE,bytes(0x98));o.mem_write(FACE+0x84,w(OUT));o.mem_write(STACK,bytes(0x100));o.mem_write(STACK+0x28,f(.25));o.mem_write(STACK+0x6c,w(1));o.reg_write(UC_X86_REG_ESP,STACK);o.reg_write(UC_X86_REG_ECX,OWNER);o.reg_write(UC_X86_REG_ESI,FACE);o.reg_write(UC_X86_REG_EDX,0x80000000);o.reg_write(UC_X86_REG_FPCW,0x37f)
+    o.emu_start(0x54010a,0x5402fa,count=100000);assert o.reg_read(UC_X86_REG_EIP)==0x5402fa;assert actual==bytes(o.mem_read(OUT,24));uv_checks+=1
+  x.mem_write(B+0x100,bytes(20));x.mem_write(SAMPLE,b'\xa5'*24);assert call('rf_vfx_mesh_uv',[pointer,B+0x100,0,SAMPLE])==0xfffffffd and bytes(x.mem_read(SAMPLE,24))==b'\xa5'*24
+
 
  else:assert pointer==0 and not live
  call('rf_vfx_mesh_close',[OUT]);call('rf_vfx_mesh_close',[OUT]);assert read(x,OUT)==0 and not live
@@ -93,5 +104,5 @@ for case,(v,g,b,d) in enumerate(inputs):
 for v,g,b,d in invalid:
  got=shared(v,g,b,d);assert got[:4]!=w(0);responses.append(got)
 pc=subprocess.check_output([probe,'--vfx-mesh-owned'],input=b''.join(w(v,g,b,len(d))+f(0,0,0,0,0,0,1)+d for v,g,b,d in inputs+invalid));assert pc==b''.join(responses)
-report=dict(result='PASS',authored_pc_nxdk_meshes=len(inputs),failure_cases=len(invalid),allocation_failures=len(inputs),exact_budget_cases=len(inputs),owned_bytes=footprints,authored_vertex_checks=vertex_checks,scope='Composed previously original-verified decoders; all14 authored payloads, owned source independence, PC/NXDK header/frame/payload equality, exact/short budgets, malloc failure and rollback, repeat close. No bitmap binding/interpolation/native XEMU.')
+report=dict(result='PASS',authored_pc_nxdk_meshes=len(inputs),failure_cases=len(invalid),allocation_failures=len(inputs),exact_budget_cases=len(inputs),owned_bytes=footprints,authored_vertex_checks=vertex_checks,authored_uv_checks=uv_checks,scope='Composed previously original-verified decoders; all14 authored payloads, owned source independence, PC/NXDK header/frame/payload equality, exact/short budgets, malloc failure and rollback, repeat close. Original vertex expansion and UV branch comparisons included; no bitmap binding/vertex interpolation/native XEMU.')
 (root/'artifacts/vfx-mesh-owned.json').write_text(json.dumps(report,indent=2));print(report)

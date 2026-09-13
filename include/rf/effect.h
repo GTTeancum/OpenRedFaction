@@ -142,6 +142,15 @@ int rf_vfx_vertex_decode(const void *,uint32_t bytes,const float vectors[6],floa
 /* Read a dequantized vertex from owned mesh data, selecting shared frame0
  * unless mesh flag4 enables per-frame vertices. No interpolation/transform. */
 int rf_vfx_mesh_vertex(const rf_vfx_mesh *,uint32_t frame,uint32_t vertex,float out[3]);
+/*54010a..5402fa UV selection arithmetic, one face in u[3],v[3] layout.
+ * Copy first when interpolate0; otherwise blend using the original extended
+ * precision complement/products before final float rounding. */
+int rf_vfx_uv_sample(const float first[6],const float second[6],float fraction,
+    int interpolate,float out[6]);
+/* Resolve legacy face UVs, shared frame0, animated frames or terminal copy
+ * from owned input. Inactive cursor returns NOT_FOUND without changing out.
+ * Cursor must come from this mesh's timing; no material UV transform here. */
+int rf_vfx_mesh_uv(const rf_vfx_mesh *,const rf_vfx_frame_cursor *,uint32_t face,float out[6]);
 typedef struct rf_vfx_chunk {uint32_t type,offset,bytes;} rf_vfx_chunk;
 typedef struct rf_vfx_directory {
     rf_vpp *archive;rf_vpp_entry entry;rf_vfx_header header;

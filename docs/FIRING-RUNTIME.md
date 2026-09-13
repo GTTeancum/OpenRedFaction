@@ -600,3 +600,28 @@ artifacts/vfx-mesh-owned.json. No interpolation or native XEMU visual claimed.
 Remaining mesh update53f060 branches: transform matrices, key evaluation
 569f70/56a250/56a3f0, vertex/UV interpolation, active visibility and parent
 attachment transforms. These must compose before normal effect rendering.
+
+## VFX UV selection and interpolation (2026-09-13)
+
+rf_vfx_uv_sample reconstructs the UV arithmetic at54010a..5402fa for one
+face. Shared/terminal UVs copy directly, preserving signed zero. Animated
+UVs retain the higher precision complement/products before float storage.
+rf_vfx_mesh_uv selects shared frame0, animated frame spans, or terminal
+copies from the owned payload, deinterleaving into u[3],v[3]. Legacy UVs
+come from the face record; that older branch lacks authored installed cases.
+Inactive cursors return NOT_FOUND; bounds and nonfinite values preserve out.
+The cursor must correspond to the mesh timing; material UV transforms remain
+outside this operation. No per-frame allocation occurs.
+
+verify_vfx_uv.py runs original54010a..5402fa without service hooks.2048
+original/PC/compiled NXDK cases cover shared, terminal and animated branches,
+including zero/one fractions and signed zero;3 failure guards pass. Extended
+verify_vfx_mesh_owned.py adds4572 original UV comparisons through owned mesh
+access (2286 each at normal/exact budgets), covering every authored face/frame
+with a quarter-frame fraction and shared/terminal selection. Inactive access
+preserves output. Existing vertex and ownership failure tests still pass.
+Both builds and24 CTests pass; artifacts/vfx-uv.json and the owned-mesh
+verifier report record the evidence. No native XEMU visual is claimed.
+
+Remaining: vertex/transform/key interpolation, effect lifecycle and material
+state, parent composition, renderer submission, and particle/warp playback.
