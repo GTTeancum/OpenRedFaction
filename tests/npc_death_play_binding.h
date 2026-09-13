@@ -16,12 +16,14 @@ static int death_motion_select(void *context,uint32_t handle,int32_t *action)
  death_play_fixture *f=context;if(handle!=f->owner->registration.handle)return RF_FORMAT;
  ++f->calls;f->owner->view.flags_810|=0x200;*action=14;return f->failure;
 }
-static int death_play_binding_check(campaign_npc_body *owner,rf_entity_state_set *bindings)
+static int death_play_binding_check(campaign_npc_body *owner,rf_entity_state_set *bindings,int32_t weapon)
 {
  rf_entity_pose *pose=campaign_model_owners[0].pose;rf_motion_playback_state saved;death_play_fixture f={owner,0,0};
  uint32_t handle=owner->registration.handle;int32_t refs,freeze_slot;
+ owner->view.weapons[0]=weapon;owner->selection.mapping.weapon=weapon;
  campaign_motion_catalog.mapping_count=1;campaign_motion_catalog.mappings[0].weapon=-1;
  owner->selection.mapping.actions[14]=2;owner->death.action_824=-1;
+ owner->selection.mapping.actions[5]=owner->selection.mapping.actions[15]=owner->selection.mapping.actions[16]=-1;
  saved=pose->playback;
  CHECK(rf_scene_npc_death_play(handle^0x10000,14,1,NULL,NULL)==RF_NOT_FOUND && owner->death.action_824==-1 && !memcmp(&saved,&pose->playback,sizeof(saved)));
  CHECK(rf_scene_npc_death_play(handle,15,1,NULL,NULL)==RF_NOT_FOUND && owner->death.action_824==-1);
@@ -39,9 +41,9 @@ static int death_play_binding_check(campaign_npc_body *owner,rf_entity_state_set
  CHECK(rf_scene_npc_death_play(handle,14,1,NULL,NULL)==RF_NOT_FOUND && owner->death.action_824==14);
  f.failure=RF_IO;CHECK(rf_scene_npc_death_play(handle,14,1,death_play_sound,&f)==RF_IO && f.calls==1);
  f.failure=0;CHECK(rf_scene_npc_death_play(handle,14,1,death_play_sound,&f)==RF_OK && f.calls==2);
- owner->view.weapons[0]=2;saved=pose->playback;
+ ++owner->selection.mapping.skeleton;saved=pose->playback;
  CHECK(rf_scene_npc_death_play(handle,14,1,death_play_sound,&f)==RF_NOT_FOUND && f.calls==2 && !memcmp(&saved,&pose->playback,sizeof(saved)));
- owner->view.weapons[0]=-1;bindings->action_sounds[14][0]=0;
+ --owner->selection.mapping.skeleton;bindings->action_sounds[14][0]=0;
  {
   rf_entity_seed_class cls={0};rf_entity_seed_class *saved_classes=campaign_seeds.classes;
   uint32_t saved_count=campaign_seeds.class_count,index=0,saved_bone_count=pose->bone_count;rf_entity_skeleton skeleton={0};rf_entity_skeletons saved_skeletons=campaign_skeletons;
@@ -84,9 +86,9 @@ static int death_play_binding_check(campaign_npc_body *owner,rf_entity_state_set
   cls.physics.flags&=~0x200000u;owner->view.flags_810=0;strcpy(bindings->action_sounds[14],"death-test");
   ops.sound=death_play_sound;ops.context=&f;f.failure=0;
   CHECK(rf_scene_npc_death_motion(handle,&ops)==RF_OK && owner->view.flags_810==0x108 && owner->damage.effects.flags_810==0x108);
-  owner->view.weapons[0]=2;before=pose->playback;
+  ++owner->selection.mapping.skeleton;before=pose->playback;
   CHECK(rf_scene_npc_death_motion(handle,&ops)==RF_NOT_FOUND && !memcmp(&before,&pose->playback,sizeof(before)));
-  owner->view.weapons[0]=-1;owner->death.requested_83c=-1;
+  --owner->selection.mapping.skeleton;owner->death.requested_83c=-1;
   CHECK(rf_scene_npc_death_motion(handle,NULL)==RF_NOT_FOUND && !memcmp(&before,&pose->playback,sizeof(before)));
   CHECK(rf_scene_npc_death_motion(handle^0x10000,&ops)==RF_NOT_FOUND);
   bindings->action_sounds[14][0]=0;ops.select=death_motion_select;owner->view.flags_810=0;
@@ -131,5 +133,6 @@ static int death_play_binding_check(campaign_npc_body *owner,rf_entity_state_set
   bindings->action_sounds[14][0]=0;pose->overrides=old_overrides;pose->bone_count=saved_bone_count;
   campaign_seeds.classes=saved_classes;campaign_seeds.class_count=saved_count;campaign_skeletons=saved_skeletons;
  }
+ owner->view.weapons[0]=-1;owner->selection.mapping.weapon=-1;
  return 0;
 }

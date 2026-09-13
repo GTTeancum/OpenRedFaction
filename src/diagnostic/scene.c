@@ -3613,7 +3613,7 @@ int rf_scene_npc_reset_ai_animation(uint32_t handle,uint32_t secondary)
     if(secondary>1)return RF_RANGE;
     status=campaign_npc_motion_owner(handle,&owner,&cls,&pose);if(status)return status;
     if(!campaign_playback_resources.models || pose->skeleton>=campaign_playback_resources.model_count ||
-       campaign_motion_catalog.mappings[cls].skeleton!=pose->skeleton || campaign_motion_catalog.mappings[cls].weapon!=-1)return RF_NOT_FOUND;
+       owner->selection.mapping.skeleton!=pose->skeleton)return RF_NOT_FOUND;
     c.pose=pose;c.model=campaign_playback_resources.models+pose->skeleton;c.actions=owner->selection.mapping.actions;
     c.slot=(uint32_t)(owner-campaign_npc_bodies);
     state=(rf_entity_ai_motion_state){c.slot,owner->view.flags_810,(uint32_t)owner->ai_override.word_834,
@@ -3643,7 +3643,7 @@ int rf_scene_npc_request_motion(uint32_t handle,int32_t requested,float duration
 {
     campaign_npc_body *owner;rf_entity_pose *pose;uint32_t cls;int status;
     status=campaign_npc_motion_owner(handle,&owner,&cls,&pose);if(status)return status;
-    if(!campaign_motion_catalog.mappings || campaign_motion_catalog.mappings[cls].skeleton!=pose->skeleton)return RF_RANGE;
+    if(!campaign_motion_catalog.mappings || owner->selection.mapping.skeleton!=pose->skeleton)return RF_RANGE;
     return rf_motion_request_state(&pose->controller,owner->selection.mapping.states,requested,duration);
 }
 int rf_scene_npc_collision_view(uint32_t handle,rf_collision_pair_actor_state *result)
@@ -4049,7 +4049,7 @@ int rf_scene_npc_death_play(uint32_t handle,int32_t action,uint32_t freeze,
        cls>=campaign_motion_catalog.class_count || cls>=campaign_motion_catalog.mapping_count ||
        cls>=campaign_base_motions.class_count || pose->skeleton>=campaign_playback_resources.model_count)return RF_RANGE;
     mapping=&owner->selection.mapping;labels=owner->selection.action_sounds;
-    if(mapping->weapon!=-1 || owner->view.weapons[0]!=-1 || mapping->skeleton!=pose->skeleton)return RF_NOT_FOUND;
+    if(mapping->skeleton!=pose->skeleton)return RF_NOT_FOUND;
     if(mapping->actions[action]<0)return RF_NOT_FOUND;
     owner->death.action_824=action;
     status=campaign_npc_motion_require(pose->skeleton,(uint32_t)mapping->actions[action]);if(status)return status;
@@ -4110,8 +4110,7 @@ int rf_scene_npc_recover_unholster(uint32_t handle,int32_t now,int (*sound)(void
     if(now<0 || now>RF_TIMER_PERIOD)return RF_RANGE;
     status=campaign_npc_motion_owner(handle,&c.owner,&c.cls,&c.pose);if(status)return status;
     if(!campaign_seeds.classes || !campaign_playback_resources.models || c.pose->skeleton>=campaign_playback_resources.model_count ||
-       campaign_motion_catalog.mappings[c.cls].weapon!=-1 || c.owner->view.weapons[0]!=-1 ||
-       campaign_motion_catalog.mappings[c.cls].skeleton!=c.pose->skeleton)return RF_NOT_FOUND;
+       c.owner->selection.mapping.skeleton!=c.pose->skeleton)return RF_NOT_FOUND;
     c.handle=handle;c.slot=(uint32_t)(c.owner-campaign_npc_bodies);c.sound=sound;c.sound_context=context;campaign_unholster_reload(&c);
     status=rf_entity_ai_recover(&c.state,now,&b);campaign_unholster_publish(&c);return status;
 }
@@ -4159,13 +4158,12 @@ int rf_scene_npc_death_motion(uint32_t handle,const rf_scene_death_motion_ops *o
     c.owner=campaign_npc_bodies+i;c.slot=i;c.handle=handle;c.ops=ops;
     if(rf_entity_lookup(&campaign_entities,(int32_t)handle)!=&c.owner->view)return RF_NOT_FOUND;
     if(c.owner->view.flags_810&0x80u)return RF_OK;
-    if(c.owner->view.weapons[0]!=-1)return RF_NOT_FOUND;
     if(c.owner->death.requested_83c==-1 && (!ops || !ops->select))return RF_NOT_FOUND;
     status=campaign_actor_pose(i,&pose);if(status)return status;if(!pose)return RF_NOT_FOUND;
     if(!campaign_seeds.items || i>=campaign_seeds.records.count)return RF_RANGE;
     cls=campaign_seeds.items[i].class_index;
     if(!campaign_motion_catalog.mappings || cls>=campaign_motion_catalog.mapping_count)return RF_RANGE;
-    if(campaign_motion_catalog.mappings[cls].weapon!=-1 || campaign_motion_catalog.mappings[cls].skeleton!=pose->skeleton)return RF_NOT_FOUND;
+    if(c.owner->selection.mapping.skeleton!=pose->skeleton)return RF_NOT_FOUND;
     status=rf_entity_class_death_bones(&campaign_seeds,&campaign_skeletons,cls,c.state.base_bones);if(status)return status;
     memcpy(c.state.effective_bones,c.state.base_bones,sizeof(c.state.effective_bones));
     memcpy(c.state.motions,c.owner->selection.mapping.actions,sizeof(c.state.motions));
@@ -4956,11 +4954,11 @@ int rf_scene_npc_death_select(void *context,uint32_t handle,int32_t *action)
     if(!input || !input->world || !input->random || !action)return RF_RANGE;
     for(i=0;i<campaign_npc_body_count;++i)if(campaign_npc_bodies[i].registration.view && campaign_npc_bodies[i].registration.handle==handle)break;
     if(i==campaign_npc_body_count)return RF_NOT_FOUND;owner=campaign_npc_bodies+i;
-    if(rf_entity_lookup(&campaign_entities,(int32_t)handle)!=&owner->view || owner->view.weapons[0]!=-1)return RF_NOT_FOUND;
+    if(rf_entity_lookup(&campaign_entities,(int32_t)handle)!=&owner->view)return RF_NOT_FOUND;
     status=campaign_actor_pose(i,&pose);if(status)return status;if(!pose)return RF_NOT_FOUND;
     if(!campaign_seeds.items || i>=campaign_seeds.records.count)return RF_RANGE;cls=campaign_seeds.items[i].class_index;
     if(!campaign_motion_catalog.mappings || cls>=campaign_motion_catalog.mapping_count)return RF_RANGE;
-    if(campaign_motion_catalog.mappings[cls].weapon!=-1 || campaign_motion_catalog.mappings[cls].skeleton!=pose->skeleton)return RF_NOT_FOUND;
+    if(owner->selection.mapping.skeleton!=pose->skeleton)return RF_NOT_FOUND;
     selection.flags_810=owner->view.flags_810;selection.current_138c=pose->controller.current;selection.next_1390=pose->controller.next;
     selection.action_824=owner->death.action_824;memcpy(selection.motions,owner->selection.mapping.actions,sizeof(selection.motions));
     random=*input->random;status=rf_entity_death_select(&selection,campaign_death_selection_clearance,&query,&random,&result);
@@ -7344,7 +7342,7 @@ static int campaign_npc_playback_tick(scene_stream *stream,float elapsed)
         class_index=campaign_seeds.items[i].class_index;
         if(class_index>=campaign_motion_catalog.class_count || pose->skeleton>=campaign_playback_resources.model_count)return RF_RANGE;
         map=&campaign_npc_bodies[i].selection.mapping;model=campaign_playback_resources.models+pose->skeleton;
-        if(map->skeleton!=pose->skeleton || map->weapon!=-1)return RF_FORMAT;
+        if(map->skeleton!=pose->skeleton)return RF_FORMAT;
         status=rf_motion_apply_controller(&pose->controller,map->states,elapsed,&pose->playback,model->resources,model->count);if(status)return status;
         status=campaign_npc_pose_residency(i);if(status)return status;
         {

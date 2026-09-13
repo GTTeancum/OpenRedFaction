@@ -594,7 +594,8 @@ static int pain_binding_check(void)
      owner.damage.effects.health=0;
      CHECK(rf_scene_npc_pain_sound(owner.registration.handle,.1f,4000,&random)==RF_NOT_FOUND && owner.pain_sound.deadline==4000);
      memset(&campaign_foley,0,sizeof(campaign_foley));campaign_pain_groups=NULL;campaign_seeds.class_count=0;}
-    CHECK(death_play_binding_check(&owner,bindings)==0);
+    CHECK(death_play_binding_check(&owner,bindings,-1)==0);
+    CHECK(death_play_binding_check(&owner,bindings,2)==0);
     CHECK(rf_entity_view_unregister(&campaign_registry,&campaign_entities,&owner.registration)==RF_OK);
     free(bindings);campaign_base_motions.classes=NULL;campaign_npc_bodies=NULL;campaign_npc_body_count=0;
     return 0;
