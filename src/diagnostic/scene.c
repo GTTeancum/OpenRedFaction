@@ -6621,18 +6621,15 @@ static int scene_glare_model(void *context,const rf_collision_visibility_object 
         return rf_scene_npc_visibility_model(NULL,object,query,hit,reset,accepted);
     return rf_scene_clutter_visibility_model(NULL,object,query,hit,reset,accepted);
 }
-int rf_scene_glare_visibility_pass(const float camera[3])
+static int scene_glare_snapshot(scene_glare_search_context *out,uint32_t *selected_out,uint32_t *bytes_out)
 {
-    scene_glare_search_context c={0};rf_glare_visibility_list movers,actors;
-    rf_glare_visibility_backend backend={scene_glare_lookup,scene_glare_solid_owner,scene_glare_room,scene_glare_state,
-        scene_glare_associated,rf_scene_glare_solid_query,scene_glare_model,&c};
+    scene_glare_search_context c={0};
     uint32_t capacity=campaign_mover_count+campaign_npc_body_count+campaign_clutter_records.count+1;
-    uint32_t i,n=0,selected,bytes,visible,again,record[5];const rf_entity_view *linked;void *storage;int status=RF_OK;
-    if(!camera || !campaign_alpha_world || !campaign_player_object.view)return RF_RANGE;
+    uint32_t i,n=0,selected,bytes;const rf_entity_view *linked;void *storage;int status=RF_OK;
+    if(!campaign_alpha_world || !campaign_player_object.view)return RF_RANGE;
     if(capacity>128*1024/(sizeof(*c.objects)+sizeof(*c.facts)))return RF_RANGE;
     bytes=capacity*(sizeof(*c.objects)+sizeof(*c.facts));storage=calloc(1,bytes);if(!storage)return RF_IO;
     c.objects=storage;c.facts=(uint32_t(*)[3])(c.objects+capacity);
-    ++rf_scene_glare_search[0];rf_scene_glare_search[5]=bytes;
     for(i=0;i<campaign_mover_count;++i,++n) {
         status=rf_scene_mover_visibility_view(campaign_mover_wrappers[i].handle,c.objects+n);if(status)goto done;
         c.facts[n][2]=UINT32_MAX;
@@ -6655,7 +6652,20 @@ int rf_scene_glare_visibility_pass(const float camera[3])
     c.facts[selected][0]=rf_scene_actor_room_state.room;
     linked=rf_entity_lookup(&campaign_entities,campaign_player_object.view->linked_handle);
     c.facts[selected][1]=linked && linked->class_type==1;c.facts[selected][2]=linked?(uint32_t)linked->handle:UINT32_MAX;
-    c.count=n;rf_scene_glare_search[6]=n;
+    c.count=n;
+    *out=c;*selected_out=selected;*bytes_out=bytes;return RF_OK;
+done:
+    free(storage);return status;
+}
+int rf_scene_glare_visibility_pass(const float camera[3])
+{
+    scene_glare_search_context c={0};rf_glare_visibility_list movers,actors;
+    rf_glare_visibility_backend backend={scene_glare_lookup,scene_glare_solid_owner,scene_glare_room,scene_glare_state,
+        scene_glare_associated,rf_scene_glare_solid_query,scene_glare_model,&c};
+    uint32_t i,selected,bytes,visible,again,record[5];int status;
+    if(!camera)return RF_RANGE;
+    status=scene_glare_snapshot(&c,&selected,&bytes);if(status)return status;
+    ++rf_scene_glare_search[0];rf_scene_glare_search[5]=bytes;rf_scene_glare_search[6]=c.count;
     movers=(rf_glare_visibility_list){c.objects,c.movers};actors=(rf_glare_visibility_list){c.objects+c.movers,c.actors};
     for(i=0;i<campaign_glare_instance_count;++i)if(campaign_glare_instances[i]) {
         rf_glare_base_owner *glare=campaign_glare_instances[i];
@@ -6668,7 +6678,107 @@ int rf_scene_glare_visibility_pass(const float camera[3])
         if(again!=visible){status=RF_FORMAT;goto done;}++rf_scene_glare_search[3];
     }
 done:
-    free(storage);if(status)++rf_scene_glare_search[7];return status;
+    free(c.objects);if(status)++rf_scene_glare_search[7];return status;
+}
+typedef struct scene_corona_context {
+    scene_glare_search_context snapshot;scene_stream *stream;rf_scene_particle_sink sink;void *context;
+    uint32_t selected,color,bitmap;
+} scene_corona_context;
+uint32_t rf_scene_corona_draw[8]; /* frames, marked, routines, polygons, vertices, hash, snapshot bytes, errors */
+static int scene_corona_color(void *context,uint32_t r,uint32_t g,uint32_t b,uint32_t a)
+{scene_corona_context *c=context;c->color=(r&255u)|((g&255u)<<8)|((b&255u)<<16)|((a&255u)<<24);return RF_OK;}
+static int scene_corona_texture(void *context,uint32_t bitmap,int32_t second)
+{scene_corona_context *c=context;if(second!=-1 || bitmap>=campaign_glare_materials.texture_count)return RF_RANGE;c->bitmap=bitmap;return RF_OK;}
+static int scene_corona_geometry(scene_corona_context *c,const float first[3],const float *second,float angle,float size,uint32_t mode)
+{
+    const rf_particle_animation *animation=&campaign_glare_materials.textures[c->bitmap].animation;
+    const rf_image *image;rf_particle_screen_polygon polygon={0};rf_particle_billboard_vertex world[4];
+    rf_particle_draw_vertex vertices[12];rf_particle_vertex_environment e={0};
+    rf_particle_render_environment re={1,1,0,2};rf_particle_render_states states={0};uint32_t kind,i;int status;
+    /* Animated bitmap clock ownership is still unresolved; do not freeze it silently. */
+    if(animation->count!=1)return RF_NOT_FOUND;image=animation->images;
+    if(second){status=rf_corona_oriented_build(c->stream->particle_camera.view.origin,
+        c->stream->particle_camera.projection.matrix+6,first,second,size,world,&kind);if(status)return status;
+        if(!kind)return RF_OK;
+        if(kind==2)status=rf_particle_world_quad(&c->stream->particle_camera,world,&polygon);
+        else status=rf_particle_world_billboard(&c->stream->particle_camera,first,0,size,image->width,image->height,&polygon);
+    }else status=rf_particle_world_billboard(&c->stream->particle_camera,first,angle,size,image->width,image->height,&polygon);
+    if(status || !polygon.count)return status;
+    status=rf_particle_render_decode(mode,&re,&states);if(status)return status;
+    e.rgba=c->color;e.vertex_color=states.vertex_color;e.vertex_alpha=states.vertex_alpha;
+    e.depth_scale=e.reciprocal_scale=c->stream->particle_camera.view.scale[2];e.uv_scale[0]=e.uv_scale[1]=1;
+    for(i=0;i<polygon.count;++i){status=rf_particle_vertex_encode(&e,polygon.vertices+i,vertices+i);if(status)return status;}
+    if(c->sink){status=c->sink(c->context,vertices,polygon.count,image,mode);if(status)return status;}
+    ++rf_scene_corona_draw[3];rf_scene_corona_draw[4]+=polygon.count;
+    rf_scene_corona_draw[5]=npc_hash_bytes(rf_scene_corona_draw[5],vertices,polygon.count*sizeof(*vertices));
+    rf_scene_corona_draw[5]=npc_hash_bytes(rf_scene_corona_draw[5],&c->bitmap,4);return RF_OK;
+}
+static int scene_corona_billboard(void *c,const float p[3],float angle,float size,uint32_t mode)
+{return scene_corona_geometry(c,p,NULL,angle,size,mode);}
+static int scene_corona_oriented(void *c,const float p[3],const float q[3],float size,uint32_t mode)
+{return scene_corona_geometry(c,p,q,0,size,mode);}
+static int scene_corona_parent(void *context,uint32_t handle,uint32_t *visible)
+{
+    scene_corona_context *c=context;const rf_glare_visibility_object *parent;uint32_t room;int status;
+    status=scene_glare_lookup(&c->snapshot,handle,&parent);if(status)return status;*visible=1;if(!parent)return RF_OK;
+    status=scene_glare_room(&c->snapshot,parent,&room);if(status)return status;
+    if(room){if(room>c->stream->visibility.state.count)return RF_RANGE;*visible=c->stream->visibility.state.rooms[room-1].visible!=0;}
+    return RF_OK;
+}
+static int scene_corona_search(void *context,rf_glare_base_owner *owner,const float camera[3],uint32_t *visible)
+{
+    scene_corona_context *c=context;scene_glare_search_context *s=&c->snapshot;
+    rf_glare_visibility_list movers={s->objects,s->movers},actors={s->objects+s->movers,s->actors};
+    rf_glare_visibility_backend b={scene_glare_lookup,scene_glare_solid_owner,scene_glare_room,scene_glare_state,
+        scene_glare_associated,rf_scene_glare_solid_query,scene_glare_model,s};
+    return rf_glare_visibility_search(owner,camera,&movers,&actors,s->objects+c->selected,1,0,&b,visible);
+}
+static int scene_corona_special(void *c,rf_glare_base_owner *o,const float p[3],uint32_t *v)
+{(void)c;(void)o;(void)p;(void)v;return RF_NOT_FOUND;}
+static int scene_corona_flash(void *c,uint32_t r,uint32_t g,uint32_t b,int32_t a)
+{(void)c;return rf_screen_flash_set(&campaign_player_flash,r,g,b,(uint32_t)a);}
+static int scene_corona_enable(void *c,uint32_t enable)
+{(void)c;(void)enable;return RF_OK;}
+static int scene_corona_reflection(void *c,rf_glare_base_owner *o)
+{(void)c;(void)o;return RF_NOT_FOUND;}
+static int scene_corona_render(void *context,rf_glare_base_owner *owner,uint32_t view)
+{
+    scene_corona_context *c=context;rf_glare_corona_frame f={0};uint32_t cls=owner->state.class_index,bitmap;
+    rf_glare_corona_services services={scene_corona_parent,scene_corona_search,scene_corona_special,scene_corona_flash,c,
+        {scene_corona_color,scene_corona_texture,scene_corona_billboard,scene_corona_oriented,c}};
+    if(cls>=campaign_glare_materials.count || cls>=campaign_glare_classes.count)return RF_RANGE;
+    bitmap=campaign_glare_materials.bindings[cls][0];f.bitmap=bitmap==UINT32_MAX?-1:(int32_t)bitmap;
+    memcpy(f.camera,c->stream->particle_camera.view.origin,12);memcpy(f.basis,c->stream->particle_camera.view.basis,36);
+    f.field_of_view=90;f.intensity_scale=f.size_scale=.5f;f.frame=c->stream->particle_frame;f.view=view;f.face_cache_state=-1;
+    ++rf_scene_corona_draw[2];return rf_glare_corona_render(owner,campaign_glare_classes.definitions+cls,&f,&services);
+}
+int rf_scene_draw_coronas(rf_scene_particle_sink sink,void *context)
+{
+    scene_stream *stream=particle_draw_stream;scene_corona_context c={0};uint32_t room,i,count=0,accepted,bytes;int status;
+    const void *views[1];rf_glare_render_backend backend={scene_corona_enable,scene_corona_render,scene_corona_reflection,&c};
+    if(!stream || !campaign_spawn || !stream->particle_workspace)return RF_OK;
+    if(!stream->particle_frame){memset(rf_scene_corona_draw,0,sizeof(rf_scene_corona_draw));rf_scene_corona_draw[5]=2166136261u;}
+    /* Fresh owners have no room or samples before the first room refresh. */
+    if(!campaign_glare_rooms){++rf_scene_corona_draw[0];return RF_OK;}
+    c.stream=stream;c.sink=sink;c.context=context;
+    status=scene_glare_snapshot(&c.snapshot,&c.selected,&bytes);if(status)return status;
+    ++rf_scene_corona_draw[0];rf_scene_corona_draw[6]=bytes;
+    for(room=0;room<stream->visibility.state.visible_count;++room) {
+      count=0;
+      for(i=0;i<campaign_glare_instance_count;++i)if(campaign_glare_instances[i]) {
+        rf_glare_base_owner *owner=campaign_glare_instances[i];uint32_t cls=owner->state.class_index,token,volume;
+        status=rf_scene_glare_room(owner->handle,&token);if(status)goto done;
+        if(cls>=campaign_glare_materials.count){status=RF_RANGE;goto done;}
+        volume=campaign_glare_materials.bindings[cls][1];
+        status=rf_glare_collect(owner,token,stream->visibility.state.order[room]+1,volume==UINT32_MAX?-1:(int32_t)volume+1,
+            0x488b00,&stream->particle_camera.frustum,owner->position,stream->particle_workspace->records,2048,&count,&accepted);
+        if(status)goto done;rf_scene_corona_draw[1]+=accepted;
+      }
+    }
+    views[0]=&stream->particle_camera;
+    status=rf_glare_render_pass(&campaign_glare_list,views,1,views[0],0,&backend);
+done:
+    free(c.snapshot.objects);if(status)++rf_scene_corona_draw[7];return status;
 }
 static int scene_frame(void *context,uint32_t frame,rf_preview_mesh *actor)
 {

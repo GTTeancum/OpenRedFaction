@@ -146,6 +146,7 @@ extern uint32_t rf_scene_mover_visibility[3];
 /* Scene-owned glare cache search, current diagnostic owner order; no drawing. */
 int rf_scene_glare_visibility_pass(const float camera[3]);
 extern uint32_t rf_scene_glare_search[8];
+extern uint32_t rf_scene_corona_draw[8];
 extern uint32_t rf_scene_glare_rooms[8];
 /* Registered glare room token: zero absent, otherwise authored room index+1. */
 int rf_scene_glare_room(uint32_t handle,uint32_t *room);
@@ -413,6 +414,7 @@ void rf_scene_set_audio_events(const rf_scene_audio_events *events,void *context
  * World/actor mesh is presented first by this diagnostic composition; complete
  * mixed-object/room-surface integration remains separate. No per-frame allocation. */
 int rf_scene_draw_particles(rf_scene_particle_sink sink,void *context);
+int rf_scene_draw_coronas(rf_scene_particle_sink sink,void *context);
 /* Campaign HUD pass after world/particles, inside the frame sink only.
  * NULL sink checks the packet; otherwise callback must preserve player owners.
  * Emits an untextured 640x480 rectangle and commits fade after successful draw.

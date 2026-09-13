@@ -306,7 +306,7 @@ dvd_path = '{root.as_posix()}/build/xbox/redfaction-diagnostic.iso'
      report['glare_solids']=glare_solids
      npc_visibility=words(monitor,symbol('rf_scene_npc_visibility'),7)
      assert npc_visibility==expected('NPC_VISIBILITY') and npc_visibility[6]==0,npc_visibility
-     if args.actor_pairs:assert npc_visibility[0]>0 and npc_visibility[1]>0 and 2*npc_visibility[3]==npc_visibility[0],npc_visibility
+     if args.actor_pairs:assert npc_visibility[0]>0 and npc_visibility[1]>0 and (frames+1)*npc_visibility[3]==npc_visibility[0],npc_visibility
      report['npc_visibility']=npc_visibility
      npc_rooms=words(monitor,symbol('rf_scene_npc_visibility_rooms'),6)
      assert npc_rooms==expected('NPC_VISIBILITY_ROOMS'),npc_rooms
@@ -333,6 +333,11 @@ dvd_path = '{root.as_posix()}/build/xbox/redfaction-diagnostic.iso'
      assert glare_search==expected('GLARE_SEARCH') and glare_search[7]==0,glare_search
      assert glare_search[0]==1 and glare_search[1]==glare_search[3],glare_search
      report['glare_search']=glare_search
+     corona=words(monitor,symbol('rf_scene_corona_draw'),8)
+     assert corona==expected('CORONA_DRAW') and corona[0]==frames and corona[7]==0,corona
+     assert corona[1]==corona[2] and corona[3]<=corona[2] and corona[4]>=3*corona[3],corona
+     assert corona[6]<=128*1024,corona
+     report['corona_draw']=corona
      glare_instances=words(monitor,symbol('rf_scene_glare_instances'),10)
      assert glare_instances==expected('GLARE_INSTANCES') and glare_instances[3]==glare_instances[8] and glare_instances[9]==0,glare_instances
      assert glare_instances[5]<=glare_instances[6]<=256*1024,glare_instances

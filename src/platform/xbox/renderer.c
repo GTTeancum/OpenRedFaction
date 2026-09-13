@@ -207,7 +207,8 @@ static int preview(const rf_preview_mesh *mesh, const rf_materials *materials, c
             pb_end(p); i += count;
         }
         while (pb_busy()) {}
-        if(streaming) {int status=rf_scene_draw_particles(scene_particle_present,NULL);if(status)return status;}
+        if(streaming) {int status=rf_scene_draw_particles(scene_particle_present,NULL);if(status)return status;
+            status=rf_scene_draw_coronas(scene_particle_present,NULL);if(status)return status;}
         if(streaming) {int status=rf_scene_draw_player_flash(scene_particle_present,NULL);if(status)return status;}
         renderer_mark(5,&profile_previous,profiling);
         capture[0] = (uint32_t)pb_back_buffer();

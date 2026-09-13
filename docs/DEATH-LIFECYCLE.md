@@ -8902,3 +8902,43 @@ hash2260451728,zero errors. Misses retain null room per original; they are
 not force-assigned to parent rooms. All five native x87 words remain027f.
 Dynamic parent attachment propagation4881a0/487630, room-visible collection,
 scene corona callbacks and full original draw scheduling remain open.
+
+## Live campaign coronas on PC and Xbox (2026-09-12)
+
+rf_scene_draw_coronas now follows particle rendering in both backends.
+It resolves each registered glare room, collects visible-room spheres through
+shared48847e logic, then consumes markers through shared4154f0 for view0.
+Parent room visibility, full414e00 search, parity/fade/attenuation, screen
+flash416450 and color/texture/geometry callbacks feed composed414860.
+Ordinary sprites use555ac0; oriented sprites use5590f0 and558d40, with
+the verified billboard fallback. Packed mode and vertex encoding reach
+the existing PC and Xbox GPU backends. Samples/radius persist on owners.
+
+The visibility snapshot helper is shared with the diagnostic search pass.
+It uses existing registered NPC/prop/mover collision services and frees its
+bounded128KiB allocation after each draw. The observed snapshot is34344
+bytes; queue storage reuses the existing particle workspace after its draw,
+with a fresh queue count per visible room. No duplicate texture allocation.
+Before initial room refresh, fresh owners have neither rooms nor samples,
+so no snapshot is built. Headless PC replay advances coronas and screen
+flash on every tick even when rasterization is deferred to the final frame.
+
+Native stock64MiB replay-20260912-225117 passes180 frames: CORONA_DRAW is
+[180,3796,3796,900,3609,1684003471,34344,0], exactly matching PC. This
+compares marked objects, routine calls, polygon/vertex counts and encoded
+vertex/bitmap hash, not whole-frame pixel equality. All native x87 words
+are027f. Native guest framebuffer is retained in the ignored run directory.
+Original336 collection cases,259 composed corona cases plus12 callback
+failures, both builds and22CTest pass. Earlier replay comparisons exposed
+headless PC skipping effect updates and obsolete snapshot-count checks;
+both were corrected before the passing run.
+
+Scope: current one-view90-degree preview uses original default intensity/
+size scales0.5 and initial cache-state5a3a34=-1 (verified in the binary).
+Dynamic cache-state ownership is not reconstructed. Animated corona bitmaps
+and word2cc special visibility return RF_NOT_FOUND until their services
+are reconstructed; the tested authored route requires neither. Volume
+queue eligibility is preserved for marker semantics, but volume geometry
+is not submitted; reflections remain disabled. Full transparent queue
+interleaving, moving-parent4881a0/487630 propagation and authored animated
+bitmap clocks remain open. Do not claim complete glare/PS2 visual parity.
