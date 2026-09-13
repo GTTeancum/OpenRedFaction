@@ -175,6 +175,28 @@ int rf_lightmap_edge_crossing(const float a[2],const float b[2],const float c[2]
     *hit=t>=0 && t<=1;return RF_OK;
 }
 
+int rf_lightmap_texel_coverage(const rf_lightmap_uv_polygon *polygons,uint32_t count,
+    const float minimum[2],const float maximum[2],uint32_t *row_seen,uint32_t *crossings)
+{
+    float corners[4][2];uint32_t i,j,k,total=0,hit;int status;
+    static const unsigned char sides[4][2]={{0,1},{2,3},{0,2},{1,3}};
+    if((count && !polygons) || !minimum || !maximum || !row_seen || !crossings)return RF_RANGE;
+    for(i=0;i<2;i++)if(!isfinite(minimum[i]) || !isfinite(maximum[i]) || minimum[i]>maximum[i])return RF_RANGE;
+    for(i=0;i<4;i++){corners[i][0]=(i&1)?maximum[0]:minimum[0];corners[i][1]=(i&2)?maximum[1]:minimum[1];}
+    for(i=0;i<count;i++) {
+        const rf_lightmap_uv_polygon *polygon=polygons+i;
+        if(polygon->count && !polygon->uv)return RF_RANGE;
+        for(j=0;j<polygon->count;j++)for(k=0;k<4;k++) {
+            status=rf_lightmap_edge_crossing(corners[sides[k][0]],corners[sides[k][1]],
+                polygon->uv[j],polygon->uv[j+1==polygon->count?0:j+1],&hit);
+            if(status)return status;
+            if(hit){if(total==INT32_MAX)return RF_RANGE;++total;}
+        }
+    }
+    if(total)*row_seen=1;
+    *crossings=total;return RF_OK;
+}
+
 int rf_lightmap_corner_normal(const rf_lightmap_normal_face *base,const rf_lightmap_normal_face *adjacent,
     uint32_t count,float out[3])
 {

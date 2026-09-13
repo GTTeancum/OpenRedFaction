@@ -801,3 +801,9 @@ Special lightmap edge crossing (508f70):
 - 8234 finite cases match, including 3436 crossings, shared endpoints, parallel/collinear edges, tiny determinants and large ranges. Three invalid-input guards preserve output.
 - Preserve float first-segment directions and offsets; the first parameter uses the retained determinant and the second reloads its float store. Endpoints are inclusive; there is no epsilon.
 - PC and Xbox builds and all24 CTests pass. This is arithmetic validation, not a native rendered special-lightmap test. Polygon coverage orchestration, sample interpolation and live resources remain open.
+
+Special lightmap texel coverage (4f35e9..4f371a):
+- `python tools/verify_lightmap_texel_coverage.py` compares2048 texels with original linked face-edge traversal, actual array helpers and508f70 crossing calls against PC and compiled NXDK code under Unicorn at x87 0x027f.
+- Fixtures use0..4 polygons with0..8 vertices, circular and null-terminated original lists, coincident rectangle corners and both prior row states. All5504 edge hits,485 prefix skips and482 row continuations without hits match. Three NXDK pointer guards preserve outputs.
+- Reconstructed borrowed polygon arrays close each edge loop, count duplicate corner hits and set row_seen only when crossings occur. Caller resets row_seen at each row; its nonzero value permits sample search even without a new crossing. This is not a point-in-polygon classifier.
+- PC/Xbox builds and24 CTests pass. Original observation stops before sample search or fallback RGB writes; texel coordinate generation, sample selection/interpolation, face ownership and native resource binding remain unverified here. No new rendered visual is claimed.

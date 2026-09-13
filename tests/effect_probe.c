@@ -164,6 +164,20 @@ int main(int argc,char **argv)
         }
         return 0;
     }
+    if(argc==2 && !strcmp(argv[1],"--lightmap-texel-coverage")) {
+        struct {float minimum[2],maximum[2];uint32_t seen,count,counts[4];float uv[4][8][2];} input;
+        rf_lightmap_uv_polygon polygons[4];uint32_t status,seen,hits,i;
+        _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
+        while(fread(&input,sizeof(input),1,stdin)==1) {
+            seen=input.seen;hits=0xa5a5a5a5u;
+            for(i=0;i<4;i++){polygons[i].uv=input.uv[i];polygons[i].count=input.counts[i];}
+            status=RF_RANGE;
+            if(input.count<=4 && input.counts[0]<=8 && input.counts[1]<=8 && input.counts[2]<=8 && input.counts[3]<=8)
+                status=rf_lightmap_texel_coverage(polygons,input.count,input.minimum,input.maximum,&seen,&hits);
+            fwrite(&status,4,1,stdout);fwrite(&seen,4,1,stdout);fwrite(&hits,4,1,stdout);
+        }
+        return 0;
+    }
     if(argc==2 && !strcmp(argv[1],"--lightmap-edge-crossing")) {
         float input[8];uint32_t status,hit;
         _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);

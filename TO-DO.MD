@@ -14,6 +14,11 @@ Shortlist:
 
 Progress reporting: include an overall percent estimate in every turn report (USER preference) and revisit remaining 24-hour workdays when measured throughput supports a forecast; current rough estimate40% (35-45%), no defensible +/-48-hour completion forecast before end-to-end gameplay.
 
+Special texel coverage matches2048 original/PC/NXDK cases with5504 edge
+hits,485 row-prefix skips and482 continuations without new crossings. Both
+builds and24 tests pass. Reconstruct two-edge/nearest-vertex sample selection
+and interpolation, then bind special sampling to native lighting resources.
+
 Special lightmap edge crossing matches8234 original/PC/NXDK cases, including
 3436 crossings and endpoint/precision boundaries; three guards, both builds and
 24 tests pass. Complete texel coverage orchestration and edge/vertex sampling;

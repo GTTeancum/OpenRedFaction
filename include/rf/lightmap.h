@@ -43,6 +43,15 @@ int rf_lightmap_accumulated_rgb(const float channels[3],unsigned char rgb[3]);
  * Finite endpoints/direction stores required; errors preserve hit. */
 int rf_lightmap_edge_crossing(const float a[2],const float b[2],const float c[2],const float d[2],uint32_t *hit);
 
+typedef struct rf_lightmap_uv_polygon {const float (*uv)[2];uint32_t count;} rf_lightmap_uv_polygon;
+/*4f35e9..4f371a: count all polygon-edge/texel-side crossings, including
+ * duplicate corner hits and closing edges. minimum/maximum are stored texel
+ * UV corners. row_seen is reset by caller at each row and becomes1 on a hit;
+ * nonzero row_seen permits subsequent sample search even without crossings.
+ * Borrowed ordered polygons, no allocation. Errors preserve both outputs. */
+int rf_lightmap_texel_coverage(const rf_lightmap_uv_polygon *polygons,uint32_t count,
+    const float minimum[2],const float maximum[2],uint32_t *row_seen,uint32_t *crossings);
+
 typedef struct rf_lightmap_normal_face {float normal[3];uint32_t id,vertex_count;} rf_lightmap_normal_face;
 /*4f4192..4f4222 special-sampling corner normal: include adjacent nonempty
  * faces other than self only when their normal has positive dot with base.
