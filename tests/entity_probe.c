@@ -155,10 +155,12 @@ static int ai_visibility_collision(void *context,uint32_t world,const float star
 #include "contact_destroy_probe.h"
 #include "contact_object_probe.h"
 #include "contact_surface_probe.h"
+#include "contact_driller_probe.h"
 #include "contact_sound_probe.h"
 int main(int argc,char **argv)
 {
     if(argc==2 && !strcmp(argv[1],"--contact-sound"))return contact_sound_probe();
+    if(argc==2 && !strcmp(argv[1],"--contact-driller"))return contact_driller_probe();
     if(argc==2 && !strcmp(argv[1],"--contact-surface"))return contact_surface_probe();
     if(argc==2 && !strcmp(argv[1],"--contact-object"))return contact_object_probe();
     if(argc==2 && !strcmp(argv[1],"--contact-destroy"))return contact_destroy_probe();

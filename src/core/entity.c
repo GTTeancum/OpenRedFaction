@@ -2404,3 +2404,21 @@ int rf_entity_contact_surface_route(const rf_entity_contact_surface *state,uint3
     }
     *route=value;return RF_OK;
 }
+
+int rf_entity_contact_driller_effects(rf_entity_contact_driller_state *state,
+    const rf_entity_contact_driller_backend *backend)
+{
+    rf_entity_contact_geometry_request geometry;rf_damage_request damage;int status;
+    if(!state || !backend || !backend->geometry)return RF_RANGE;
+    if(!isfinite(state->radius))return RF_RANGE;
+    geometry.scale=state->radius+state->radius;
+    if(!isfinite(geometry.scale))return RF_RANGE;
+    geometry.handle=state->handle;geometry.room=state->room;
+    memcpy(geometry.position,state->position,12);memcpy(geometry.direction,state->normal,12);
+    geometry.model=0;geometry.flags=0x10;
+    status=backend->geometry(backend->context,&geometry);if(status)return status;
+    if(!backend->damage)return RF_RANGE;
+    damage.amount=100;damage.source=state->handle;damage.kind=0;
+    damage.argument6=0;damage.auxiliary_uid=UINT32_MAX;damage.force=0;
+    return backend->damage(backend->context,state,&damage);
+}

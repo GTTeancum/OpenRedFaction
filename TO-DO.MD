@@ -79,6 +79,7 @@ Registered NPC-to-NPC41a000 dispatch reaches damage/squash playback in four rest
 Object-contact427550 branch matches2048 original/PC/NXDK cases; bind object lookup/current-clutter/pickup and finish surface-contact branches.
 Retained collision voice1478 and global Sub Hit playback pass four restored-state PC/stock64MiB XEMU checks; bind full surface dispatch and continuous scheduling.
 Surface route gates match4170 original/PC/NXDK cases; reconstruct APC debris/damage, Driller damage/player feedback and timed-contact effects before full dispatch.
+Driller geometry/self-damage requests match1024 original/PC/NXDK cases; implement linked-player feedback and bind real geometry ownership.
 AI scalar401cc0 and occupant-chain4077a0 each match2048 original/PC/NXDK cases; retain scalar/override sources.
 Shared408ac0 selection matches2048 original/PC/NXDK cases across107 paths plus21 failure checks.
 AI animation resets4091d0/409210 match2048 original/PC/NXDK cases plus4 failure checks.

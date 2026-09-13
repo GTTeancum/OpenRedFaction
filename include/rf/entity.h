@@ -468,6 +468,24 @@ typedef struct rf_entity_contact_object_backend {
  * Callbacks execute only on reached paths; errors preserve output decision. */
 int rf_entity_contact_object_dispatch(const rf_entity_view *source,uint32_t target,
     const rf_entity_contact_object_backend *backend,uint32_t *decision);
+/* Driller42772b..42776a: prepared after the surface route gates.
+ * Geometry precedes self-damage; linked-player feedback follows elsewhere. */
+typedef struct rf_entity_contact_driller_state {
+    uint32_t handle,room;float radius,position[3],normal[3];
+} rf_entity_contact_driller_state;
+typedef struct rf_entity_contact_geometry_request {
+    float scale;uint32_t handle,room;float position[3],direction[3];uint32_t model,flags;
+} rf_entity_contact_geometry_request;
+typedef struct rf_entity_contact_driller_backend {
+    void *context;
+    int (*geometry)(void *,const rf_entity_contact_geometry_request *);
+    /*4892c0 hit-region=-1, remaining arguments in request. Refresh state
+     * after callbacks; owner remains alive. No rollback of completed effects. */
+    int (*damage)(void *,rf_entity_contact_driller_state *,const rf_damage_request *);
+} rf_entity_contact_driller_backend;
+int rf_entity_contact_driller_effects(rf_entity_contact_driller_state *state,
+    const rf_entity_contact_driller_backend *backend);
+
 typedef struct rf_entity_contact_destroy_actor {uint32_t handle;int32_t sound;float position[3];} rf_entity_contact_destroy_actor;
 typedef struct rf_entity_contact_destroy_backend {
     void *context;
