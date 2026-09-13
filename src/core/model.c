@@ -318,6 +318,19 @@ uint32_t rf_clutter_material_index(const char *name)
     for(i=0;i<10;++i)if(clutter_skin_name_equal(names[i],name))return i;
     return 0;
 }
+int rf_glare_fade_samples(rf_glare_state *state,uint32_t view,float values[2],uint32_t *draw)
+{
+    float first,second;
+    if(!state || view>1 || !values || !draw)return RF_RANGE;
+    first=state->samples[view];second=state->samples[2+view];
+    if(first>0 && second>0) {
+        volatile float intensity=first*.8f,size=second*.6f;
+        values[0]=intensity;values[1]=size;
+        if(intensity>=.05f && size>=.05f){*draw=1;return RF_OK;}
+        state->samples[view]=0;state->samples[2+view]=0;
+    }
+    *draw=0;return RF_OK;
+}
 int rf_glare_refresh_visibility(rf_glare_base_owner *owner,const float camera[3],
     uint32_t frame,int32_t face_cache_state,
     int (*search)(void *,rf_glare_base_owner *,const float[3],uint32_t *),void *context,uint32_t *visible)

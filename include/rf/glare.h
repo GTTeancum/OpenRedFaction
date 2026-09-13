@@ -86,6 +86,13 @@ int rf_glare_base_close(rf_glare_base_owner **owner,rf_object_registry *registry
 int rf_glare_refresh_visibility(rf_glare_base_owner *owner,const float camera[3],
     uint32_t frame,int32_t face_cache_state,
     int (*search)(void *,rf_glare_base_owner *,const float[3],uint32_t *),void *context,uint32_t *visible);
+/*414c69..414cef inactive/occluded sample fade, view0/1. Positive samples
+ * produce intensity*0.8 and size*0.6, rounded to float before cutoff0.05.
+ * Below cutoff clears both retained samples; nonpositive/NaN input skips
+ * without clearing or changing values. Drawing branch returns draw1 without
+ * publishing faded samples: the common corona tail owns that publication.
+ * Invalid arguments preserve state/outputs. */
+int rf_glare_fade_samples(rf_glare_state *state,uint32_t view,float values[2],uint32_t *draw);
 typedef struct rf_glare_services {
     int (*tag_pose)(void *,uint32_t,int32_t,float[12]);void *context;
 } rf_glare_services;

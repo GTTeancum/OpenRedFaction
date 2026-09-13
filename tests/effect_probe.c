@@ -30,6 +30,17 @@ static int glare_refresh_search(void *context,rf_glare_base_owner *owner,const f
 {(void)context;(void)owner;(void)camera;++glare_refresh_calls;*result=glare_refresh_value;return glare_refresh_error;}
 int main(int argc,char **argv)
 {
+    if(argc==2 && !strcmp(argv[1],"--glare-fade")) {
+        uint32_t wire[5];_setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
+        while(fread(wire,4,5,stdin)==5) {
+            rf_glare_state state={0};float values[2]={1,1};uint32_t draw=0x12345678,output[8];int status;
+            memcpy(state.samples,wire+1,16);status=rf_glare_fade_samples(&state,wire[0],values,&draw);
+            output[0]=(uint32_t)status;memcpy(output+1,state.samples,16);memcpy(output+5,values,8);output[7]=draw;
+            if(fwrite(output,4,8,stdout)!=8)return 3;
+        }
+        return 0;
+    }
+
     if(argc==2 && !strcmp(argv[1],"--glare-refresh")) {
         uint32_t wire[7];_setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
         while(fread(wire,4,7,stdin)==7) {

@@ -8707,3 +8707,20 @@ noncanonical visibility bytes and low-byte search results. Builds and21CTest
 pass. No new native replay is claimed: this helper is not yet in the full
 corona schedule. Parent-room gates, special word2cc path, attenuation, sample
 smoothing and actual corona geometry remain to be reconstructed/bound.
+
+
+## Corona inactive/occluded fade (2026-09-12)
+
+rf_glare_fade_samples reconstructs414c69..414cef. For view0/1, strictly
+positive stored samples29c/2a4 produce float-rounded intensity*0.8 and size*0.6.
+Both must be at least float0.05 to continue drawing. Otherwise both retained
+samples clear. If either input is nonpositive or NaN, drawing stops without
+clearing samples or changing caller values. Successful fade values are not
+committed here: original common corona tail performs that publication.
+
+verify_glare_fade.py executes original arithmetic and all branches, without
+callbacks, for962 cases versus PC and compiled NXDK. Both views, exact cutoff
+neighbors, negative values, signed zero, infinity and quiet NaN agree exactly;
+479 cases continue drawing. One invalid-view port guard preserves outputs.
+Both builds and21CTest pass. Visible attenuation/common tail and draw binding
+remain open; this shared helper has no new native scene replay claim.
