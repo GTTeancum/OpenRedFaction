@@ -8573,3 +8573,24 @@ PC/NXDK builds,21CTest and stock64MiB180-frame XEMU replay-20260912-211255
 pass. L1S2 covers244 prop views/rejections and1464 model queries,1388 hits,
 zero collision errors; normalized query/view hash2798896136 matches PC.
 This verifies geometry access, not scene glare visibility or visual parity.
+
+
+## Prop render dispatch and marker publication (2026-09-12)
+
+Scene static prop drawing now runs through verified488b20 dispatch, family4
+(original4103d0), using retained static model kind1. White setup initializes
+the existing output attributes; flags2/4000 skip according to original rules;
+successful family mesh preparation publishes flag0x10 on the prop owner.
+Model-kind lookup validates current registered ownership. The family callback
+retains the existing static mesh/skin/highest-LOD/lighting arithmetic.
+
+This is CPU mesh preparation before the combined sink, not GPU completion.
+No marker clear is invented. Full4103d0 behavior, marker lifetime, dynamic
+lighting, LOD choice and glare lookup/scheduling remain open.
+
+PC/NXDK builds and21CTest pass. verify_object_render_dispatch.py passes352
+original-code cases and4 callback errors on PC/compiled NXDK, covering skip
+flags and ordering. Stock64MiB XEMU replay-20260912-211743 passes180frames:
+CLUTTER_RENDER_DISPATCH [180,5553,5553,0,4173178338,0] matches PC. This
+scene has no skipped props; native skip coverage is not claimed. The final
+prop draw [180,19,3750,3956637847,0,19] remains unchanged.

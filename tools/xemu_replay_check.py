@@ -322,6 +322,10 @@ dvd_path = '{root.as_posix()}/build/xbox/redfaction-diagnostic.iso'
      assert npc_dispatch==expected('NPC_RENDER_DISPATCH') and npc_dispatch[0]==frames and npc_dispatch[5]==0,npc_dispatch
      assert npc_dispatch[1]==npc_dispatch[2]+npc_dispatch[3],npc_dispatch
      report['npc_render_dispatch']=npc_dispatch
+     clutter_dispatch=words(monitor,symbol('rf_scene_clutter_render_dispatch'),6)
+     assert clutter_dispatch==expected('CLUTTER_RENDER_DISPATCH') and clutter_dispatch[0]==frames and clutter_dispatch[5]==0,clutter_dispatch
+     assert clutter_dispatch[1]==clutter_dispatch[2]+clutter_dispatch[3],clutter_dispatch
+     report['clutter_render_dispatch']=clutter_dispatch
      glare_instances=words(monitor,symbol('rf_scene_glare_instances'),10)
      assert glare_instances==expected('GLARE_INSTANCES') and glare_instances[3]==glare_instances[8] and glare_instances[9]==0,glare_instances
      assert glare_instances[5]<=glare_instances[6]<=256*1024,glare_instances
