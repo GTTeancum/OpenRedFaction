@@ -9,6 +9,50 @@
 #include <string.h>
 #include <stdlib.h>
 #include <float.h>
+/*48766a..4876d3: local attachments use the inverse pending orientation,
+ * not its transpose. Preserve the original cofactor stores and dot order. */
+int rf_attachment_local_pose(const float local[12],const float position[3],
+    const float current[9],const float pending[9],float out[12])
+{
+    static const unsigned char order[9][3]={{0,2,1},{2,1,0},{1,0,2},
+        {2,1,0},{2,1,0},{0,1,2},{2,1,0},{2,0,1},{1,0,2}};
+    float inverse[9],value[12],det,minor;double determinant,cofactor[9],terms[3];unsigned i,j,k;
+    if(!local || !position || !current || !pending || !out)return RF_RANGE;
+    for(i=0;i<12;++i)if(!isfinite(local[i]))return RF_FORMAT;
+    for(i=0;i<3;++i)if(!isfinite(position[i]))return RF_FORMAT;
+    for(i=0;i<9;++i)if(!isfinite(current[i]) || !isfinite(pending[i]))return RF_FORMAT;
+    determinant=((double)pending[8]*pending[0])*pending[4];
+    determinant+=((double)pending[3]*pending[2])*pending[7];
+    determinant+=((double)pending[5]*pending[1])*pending[6];
+    determinant-=((double)pending[2]*pending[6])*pending[4];
+    determinant-=((double)pending[5]*pending[0])*pending[7];
+    determinant-=((double)pending[3]*pending[1])*pending[8];
+    det=(float)determinant;memcpy(inverse,pending,36);
+    if(determinant!=0) {
+        cofactor[0]=(double)pending[4]*pending[8]-(double)pending[5]*pending[7];
+        cofactor[1]=-((double)pending[1]*pending[8]-(double)pending[2]*pending[7]);
+        cofactor[2]=(double)pending[1]*pending[5]-(double)pending[2]*pending[4];
+        cofactor[3]=-((double)pending[3]*pending[8]-(double)pending[5]*pending[6]);
+        cofactor[4]=(double)pending[0]*pending[8]-(double)pending[2]*pending[6];
+        cofactor[5]=-((double)pending[0]*pending[5]-(double)pending[2]*pending[3]);
+        cofactor[6]=(double)pending[3]*pending[7]-(double)pending[4]*pending[6];
+        cofactor[7]=-((double)pending[0]*pending[7]-(double)pending[1]*pending[6]);
+        cofactor[8]=(double)pending[0]*pending[4]-(double)pending[1]*pending[3];
+        for(i=0;i<8;++i){minor=(float)cofactor[i];inverse[i]=(float)((double)minor/det);}
+        inverse[8]=(float)(cofactor[8]/det);
+    }
+    for(i=0;i<3;++i) {
+        float rotated=(float)(((double)local[11]*current[i*3+2]+(double)local[10]*current[i*3+1])+(double)local[9]*current[i*3]);
+        value[9+i]=(float)((double)rotated+position[i]);
+        for(j=0;j<3;++j) {
+            const unsigned char *o=order[i*3+j];
+            for(k=0;k<3;++k)terms[k]=(double)local[i*3+k]*inverse[k*3+j];
+            value[i*3+j]=(float)((terms[o[0]]+terms[o[1]])+terms[o[2]]);
+        }
+    }
+    for(i=0;i<12;++i)if(!isfinite(value[i]))return RF_FORMAT;
+    memcpy(out,value,sizeof(value));return RF_OK;
+}
 int rf_glare_create(const rf_glare_class *classes,uint32_t count,int32_t index,
     uint32_t parent,int32_t tag,uint32_t flag,rf_object_list *list,
     const rf_glare_create_backend *backend,rf_glare_state **out)

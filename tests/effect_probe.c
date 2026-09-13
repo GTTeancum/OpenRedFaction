@@ -188,6 +188,13 @@ int main(int argc,char **argv)
         }
         return ferror(stdin)?2:0;
     }
+    if(argc==2 && !strcmp(argv[1],"--attachment-local-pose")) {
+        float in[33];struct {int32_t status;float pose[12];} out;
+        _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
+        while(fread(in,sizeof(in),1,stdin)==1){memset(&out,0xa5,sizeof(out));
+            out.status=rf_attachment_local_pose(in,in+12,in+15,in+24,out.pose);fwrite(&out,sizeof(out),1,stdout);}
+        return ferror(stdin)?2:0;
+    }
     if(argc==2 && !strcmp(argv[1],"--glare-tag-publish")) {
         struct {uint32_t flags;float radius,pose[12];} in;rf_glare_base_owner owner;
         struct {int32_t status;uint32_t flags;float positions[9],bounds[6],matrices[27];} out;

@@ -14,7 +14,8 @@ Shortlist:
 
 Attachment ordering audit: original4881a0 passes1000 randomized16-object
 forests; positive-tag dispatch passes54 original cases including real486c90.
-Bind shared parent ordering after negative-tag poses and use-kind4 ownership.
+Negative-tag poses now match1536 original/PC/NXDK cases (384 singular).
+Bind shared parent ordering and use-kind4 ownership to the scene.
 
 The stationary startup-NPC animation gate matches PC/stock64MiB XEMU;
 footstep selection and support-material helpers are verified but not live.

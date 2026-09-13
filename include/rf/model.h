@@ -1,5 +1,12 @@
 #ifndef RF_MODEL_H
 #define RF_MODEL_H
+
+/* Original48766a negative-tag pose: matrix9/offset3 local, parent pending
+ * position, current/pending physics matrices. Singular inverse retains the
+ * pending matrix as original4fccf0 does. Finite outputs required; errors
+ * preserve out. No lookup, owner publication or heap. */
+int rf_attachment_local_pose(const float local[12],const float position[3],
+    const float current[9],const float pending[9],float out[12]);
 #include "rf/vpp.h"
 #include "rf/motion_file.h"
 #include "rf/motion.h"

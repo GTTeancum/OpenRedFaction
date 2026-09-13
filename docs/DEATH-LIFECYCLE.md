@@ -9021,3 +9021,24 @@ Attachment dispatch executable audit (2026-09-12)
  alternate-matrix lifetime and live parent integration remain unverified.
  Next: reconstruct negative-tag transform and bind actual parent ownership
  before composing the verified publication helper with this traversal.
+
+
+Local attachment pose reconstruction (2026-09-12)
+----------------------------------------------
+ rf_attachment_local_pose reconstructs48766a..4876d3 for negative tags.
+ Position uses local offset208 transformed by current physics matrixfc,
+ rounded to float, then added to pending positionf0. Orientation multiplies
+ local matrix214 by the full inverse of pending physics matrix120.
+ Original4fc930 calls4fccf0 (cofactor inverse), not a transpose. Its zero
+ determinant path retains the supplied matrix. The determinant comparison
+ uses the unrounded result; division uses its stored float. Eight cofactors
+ are stored as float; the ninth remains double through division. Explicit
+ dot-product ordering preserves40ea80 rounding. No heap; finite guards
+ preserve output and all caller inputs.
+ tools/verify_attachment_local_pose.py:1536 full original-prefix cases,
+ including384 singular matrices, exact PC and compiled NXDK48-byte poses,
+ plus33 nonfinite-input guards. All original math callees run unchanged.
+ Evidence artifacts/attachment-local-pose.json PASS; both builds and all
+ 22 CTest checks PASS. Native scene replay was not run for this unbound API.
+ Parent lookup, special-use-kind matrix lifetime and scene scheduling
+ remain open; this does not claim live moving attachments are complete.
