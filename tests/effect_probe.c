@@ -1,4 +1,5 @@
 #include "rf/effect.h"
+#include "rf/lightmap.h"
 #include "rf/glare.h"
 #include "rf/particle_pool.h"
 #include "rf/visibility.h"
@@ -160,6 +161,20 @@ int main(int argc,char **argv)
             head=input[3]?views:NULL;memset(light_dispatch_trace,0,sizeof(light_dispatch_trace));light_dispatch_fail=input[5];
             status=rf_visibility_light_dispatch(input[0],7,input[1],input[2],&head,5,&backend);
             fwrite(&status,4,1,stdout);fwrite(light_dispatch_trace,sizeof(light_dispatch_trace),1,stdout);
+        }
+        return 0;
+    }
+    if(argc==2 && !strcmp(argv[1],"--lightmap-rgb-upload")) {
+        struct {uint32_t x,y,width,height,source_width,pitch,flags,locked;unsigned char rgb[768];} input;
+        uint32_t status;unsigned char dirty,packed[768];rf_lightmap_rgb_upload view;
+        _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
+        while(fread(&input,sizeof(input),1,stdin)==1) {
+            memset(packed,0xa5,sizeof(packed));dirty=(unsigned char)input.flags;
+            view.rgb=input.rgb;view.rgb_bytes=sizeof(input.rgb);view.rgb_pitch=input.source_width*3;
+            view.packed=input.locked?packed:NULL;view.packed_bytes=sizeof(packed);view.packed_pitch=input.pitch;
+            view.x=input.x;view.y=input.y;view.width=input.width;view.height=input.height;
+            status=rf_lightmap_upload_rgb_1555(&view,&dirty);
+            fwrite(&status,4,1,stdout);fwrite(&dirty,1,1,stdout);fwrite(packed,sizeof(packed),1,stdout);
         }
         return 0;
     }

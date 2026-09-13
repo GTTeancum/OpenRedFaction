@@ -31,6 +31,19 @@ int rf_lightmap_project(const rf_lightmap_projection *projection,const float poi
  * Buffer guards run before mutation; no allocation or capability inference. */
 int rf_lightmap_pack_1555(unsigned char *rgb,uint32_t rgb_bytes,uint32_t width,uint32_t height,
     uint32_t double_rgb,unsigned char *packed,uint32_t pitch,uint32_t packed_bytes);
+typedef struct rf_lightmap_rgb_upload {
+    const unsigned char *rgb;uint32_t rgb_bytes,rgb_pitch;
+    unsigned char *packed;uint32_t packed_bytes,packed_pitch;
+    uint32_t x,y,width,height;
+} rf_lightmap_rgb_upload;
+/*4f26a0 final RGB upload branch (4f2f0a..4f302e), after lighting work.
+ * Requires dirty bits0..2 already clear; bit3 requests rectangle upload.
+ * No loader minimum-brightness clamp. Empty extents retain dirty state;
+ * otherwise dirty clears even on unavailable lock (NULL packed), as original.
+ * Disjoint buffers, even packed pitch. Guards precede mutation. No allocation.
+ * Renderer locking/swizzling and preceding lighting stages remain separate. */
+int rf_lightmap_upload_rgb_1555(const rf_lightmap_rgb_upload *,unsigned char *dirty);
+
 typedef struct rf_lightmap_1555_view {
     const unsigned char *pixels;uint32_t width,height,pitch,bytes;
 } rf_lightmap_1555_view;

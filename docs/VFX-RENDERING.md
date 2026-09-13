@@ -1102,3 +1102,33 @@ LIGHT_TICKS telemetry compares counters, clock hash, generation and memory;
 the harness also checks expected frame/visit counts independently. Remaining:
 changing-light native fixture, rendered dirty-state consumption, dynamic source
 and alternate-solid ownership, and complete frame/RNG scheduling evidence.
+
+
+### Runtime lightmap RGB upload (2026-09-13)
+
+Original4f26a0 consumes mapping dirty state. Bits2/4 enter the earlier static
+light work (unless mapping byte10 inhibits it), bit1 enters the later dynamic
+lighting path, and bit8 requests RGB-buffer upload. Empty width/height return
+without clearing state. The final path4f2f0a..4f302e uploads a mapping rectangle
+from image RGB at+0c using image width+4, to the bitmap lock's pitched1555 data.
+It sets bit15 and truncates each channel to five bits without the loader's
+minimum channel value4. It clears the whole dirty byte even when bitmap lock
+fails. Reusing rf_lightmap_pack_1555 would incorrectly brighten dark texels.
+
+rf_lightmap_upload_rgb_1555 reconstructs the RGB-only branch with preceding
+bits0..2 required clear. It accepts explicit rectangle, RGB/packed byte pitch
+and storage extents. NULL packed models unavailable lock. All guards precede
+mutation; buffers must be disjoint. This is a bounded CPU upload primitive,
+not bitmap allocation, locking, swizzling or the preceding lighting stages.
+
+verify_lightmap_rgb_upload.py executes complete original4f26a0 for2048 RGB-only
+cases, with only50e2e0/50e310 bitmap lock/unlock supplied. PC/NXDK match all
+bytes and dirty state;503 cases perform uploads. Tests include black/dark
+texels, rectangle offsets, padded rows, untouched outside bytes, zero extents
+and failed locks. Seven NXDK invalid-buffer/pitch/rectangle guards preserve
+state. Both builds and24 CTests pass; no new native rendered evidence.
+
+4e6150, called after timers, instead updates animated surface coordinates via
+4e6020/4e6080. Do not treat it as the lightmap dirty consumer. Remaining4f26a0
+work includes source selection, accumulation4f3390, RGB conversion4f3040,
+dynamic sample generation and bitmap lifecycle/renderer integration.

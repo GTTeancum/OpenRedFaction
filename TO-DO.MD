@@ -14,6 +14,11 @@ Shortlist:
 
 Progress reporting: include an overall percent estimate in every turn report (USER preference) and revisit remaining 24-hour workdays when measured throughput supports a forecast; current rough estimate40% (35-45%), no defensible +/-48-hour completion forecast before end-to-end gameplay.
 
+Runtime lightmap RGB rectangle upload matches2048 original/PC/NXDK cases,
+including black texels, failed locks and pitch; seven buffer guards pass.
+Both builds and24 tests pass. Reconstruct4f26a0 preceding light accumulation
+and dirty-bit stages, then bind retained RGB resources and renderer uploads.
+
 Authored light timers now run after physics in the campaign replay: stock64MiB
 XEMU matches PC across179 updates/41349 visits, clock hash and2412 bytes of
 persistent traversal scratch. Both builds and24 tests pass. L1S1 lights stay

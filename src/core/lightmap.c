@@ -158,6 +158,26 @@ int rf_lightmap_pack_1555(unsigned char *rgb,uint32_t rgb_bytes,uint32_t width,u
     return RF_OK;
 }
 
+int rf_lightmap_upload_rgb_1555(const rf_lightmap_rgb_upload *view,unsigned char *dirty)
+{
+    uint32_t x,y,value;uint64_t right,bottom;
+    if(!view || !dirty)return RF_RANGE;
+    if(!view->width || !view->height)return RF_OK;
+    if(*dirty&7u)return RF_RANGE;
+    if(!(*dirty&8u) || !view->packed){*dirty=0;return RF_OK;}
+    right=(uint64_t)view->x+view->width;bottom=(uint64_t)view->y+view->height;
+    if(!view->rgb || bottom>UINT32_MAX || (view->packed_pitch&1u) || right*3>view->rgb_pitch || right*2>view->packed_pitch ||
+        (bottom-1)*view->rgb_pitch+right*3>view->rgb_bytes ||
+        (bottom-1)*view->packed_pitch+right*2>view->packed_bytes)return RF_RANGE;
+    for(y=0;y<view->height;y++)for(x=0;x<view->width;x++) {
+        const unsigned char *source=view->rgb+((uint64_t)view->y+y)*view->rgb_pitch+((uint64_t)view->x+x)*3;
+        unsigned char *target=view->packed+((uint64_t)view->y+y)*view->packed_pitch+((uint64_t)view->x+x)*2;
+        value=0x8000u|((uint32_t)(source[0]>>3)<<10)|((uint32_t)(source[1]>>3)<<5)|(source[2]>>3);
+        target[0]=(unsigned char)value;target[1]=(unsigned char)(value>>8);
+    }
+    *dirty=0;return RF_OK;
+}
+
 void rf_packed_lightmaps_close(rf_packed_lightmaps *maps)
 {
     uint32_t i;if(!maps)return;
