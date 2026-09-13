@@ -2768,6 +2768,7 @@ typedef struct campaign_npc_body {
     rf_entity_damage_state damage;uint32_t object_flags,field_840;
     rf_entity_room_state room; /* Original word0 and query-position cache4. */
     struct {int32_t item_82c,requested_83c,action_824,linked_146c,deadline_4b8;uint32_t model_148c;} death;
+    struct {int32_t action_1364,motion_1368,word_834;} ai_override;
     uint32_t death_bone_words[2]; /* actor1464/1468 */
     float command_714[3]; /* Constructor422eaf..422ed3 clears this movement vector. */
     const rf_player_movement_region *previous_region_13ec; /* Constructor clears; borrowed campaign region. */
@@ -2987,6 +2988,7 @@ static int campaign_npc_bodies_open(const char *tables_path,const rf_geometry_co
         status=rf_timer_set(&owner->pain.animation_lock,now,0);if(status)goto done;
         status=rf_timer_set(&owner->pain.cooldown,now,0);if(status)goto done;
         owner->pain.selected_action=-1;
+        owner->ai_override.action_1364=owner->ai_override.motion_1368=owner->ai_override.word_834=-1; /*422360*/
         status=rf_timer_set(&owner->pain_sound.deadline,now,0);if(status)goto done;
         owner->pain_sound.voice=-1;
         view->handle=-1;view->type=0;view->class_type=(int32_t)definition->physics.use_kind;
@@ -3400,6 +3402,41 @@ static int campaign_npc_motion_owner(uint32_t handle,campaign_npc_body **result,
     if(cls>=campaign_seeds.class_count || cls>=campaign_motion_catalog.mapping_count)return RF_RANGE;
     status=campaign_actor_pose(i,pose);if(status)return status;if(!*pose)return RF_NOT_FOUND;
     *result=owner;*class_index=cls;return RF_OK;
+}
+typedef struct campaign_ai_reset_context {
+    rf_entity_pose *pose;rf_entity_playback_model *model;const int32_t *actions;uint32_t slot;
+} campaign_ai_reset_context;
+static int campaign_ai_reset_active(void *context,rf_entity_ai_motion_state *state,int32_t action,uint32_t *active)
+{
+    campaign_ai_reset_context *c=context;int value,status;(void)state;
+    status=rf_motion_action_active(&c->pose->playback,c->model->resources,c->model->count,c->actions,action,&value);
+    if(!status)*active=(uint32_t)value;return status;
+}
+static int campaign_ai_reset_remaining(void *context,uint32_t model,int32_t motion,double *seconds)
+{
+    campaign_ai_reset_context *c=context;float value;int status;if(model!=c->slot)return RF_RANGE;
+    status=rf_motion_remaining(&c->pose->playback,c->model->resources,c->model->count,motion,&value);
+    if(!status)*seconds=(double)value;return status;
+}
+static int campaign_ai_reset_stop(void *context,uint32_t model)
+{campaign_ai_reset_context *c=context;return model==c->slot?rf_scene_model_stop_nonlooping(model):RF_RANGE;}
+int rf_scene_npc_reset_ai_animation(uint32_t handle,uint32_t secondary)
+{
+    campaign_npc_body *owner;rf_entity_pose *pose;uint32_t cls;int status;campaign_ai_reset_context c;
+    rf_entity_ai_motion_state state,*current=&state;
+    rf_entity_ai_motion_backend backend={campaign_ai_reset_active,campaign_ai_reset_remaining,campaign_ai_reset_stop,&c};
+    if(secondary>1)return RF_RANGE;
+    status=campaign_npc_motion_owner(handle,&owner,&cls,&pose);if(status)return status;
+    if(!campaign_playback_resources.models || pose->skeleton>=campaign_playback_resources.model_count ||
+       campaign_motion_catalog.mappings[cls].skeleton!=pose->skeleton || campaign_motion_catalog.mappings[cls].weapon!=-1)return RF_NOT_FOUND;
+    c.pose=pose;c.model=campaign_playback_resources.models+pose->skeleton;c.actions=campaign_motion_catalog.mappings[cls].actions;
+    c.slot=(uint32_t)(owner-campaign_npc_bodies);
+    state=(rf_entity_ai_motion_state){c.slot,owner->view.flags_810,(uint32_t)owner->ai_override.word_834,
+        owner->ai_override.action_1364,owner->ai_override.motion_1368};
+    status=rf_entity_ai_reset_motion(&current,secondary,&backend);
+    owner->view.flags_810=owner->damage.effects.flags_810=state.flags_810;
+    owner->ai_override.word_834=(int32_t)state.word_834;owner->ai_override.action_1364=state.action_1364;owner->ai_override.motion_1368=state.motion_1368;
+    return status;
 }
 int rf_scene_npc_fall(uint32_t handle)
 {
@@ -6373,6 +6410,46 @@ static int campaign_npc_ground_query_fixture(const rf_geometry_collision_world *
     }
     if(status)++rf_scene_npc_ground_query_test[4];return status;
 }
+uint32_t rf_scene_npc_ai_reset_test[5]; /* owners,cases,active cases,hash,errors */
+static int campaign_npc_ai_reset_fixture(uint32_t frame)
+{
+    uint32_t i,j,action,cls;int status=RF_OK;
+    if(frame)return RF_OK;memset(rf_scene_npc_ai_reset_test,0,sizeof(rf_scene_npc_ai_reset_test));
+    if(!rf_scene_actor_pair_test_enabled)return RF_OK;rf_scene_npc_ai_reset_test[3]=2166136261u;
+    for(i=0;i<campaign_npc_body_count && !status;++i)if(campaign_npc_bodies[i].registration.view) {
+        campaign_npc_body *owner,saved;rf_entity_pose *pose;rf_entity_playback_model *model;rf_motion_playback_state kept,wanted;int32_t motion;
+        status=campaign_npc_motion_owner(campaign_npc_bodies[i].registration.handle,&owner,&cls,&pose);if(status)break;
+        model=campaign_playback_resources.models+pose->skeleton;
+        for(action=0;action<45;++action) {
+            motion=campaign_motion_catalog.mappings[cls].actions[action];
+            if(motion>=0 && (uint32_t)motion<model->count && model->resources[motion].comparison.end_tick>0)break;
+        }
+        if(action==45)continue;saved=*owner;kept=pose->playback;
+        for(j=0;j<8 && !status;++j) {
+            uint32_t active=(j>>1)&1u,secondary=j&1u;
+            *owner=saved;pose->playback=kept;
+            pose->playback.completion.active.count=1;
+            pose->playback.completion.active.slots[0].motion=motion;
+            pose->playback.completion.active.slots[0].tick=active?0:model->resources[motion].comparison.end_tick;
+            pose->playback.completion.active.slots[0].weight=(j&4)?1:0;
+            owner->ai_override.action_1364=(int32_t)action;owner->ai_override.motion_1368=motion;owner->ai_override.word_834=123;
+            owner->view.flags_810=owner->damage.effects.flags_810=0x02000400u;
+            wanted=pose->playback;
+            if(active && model->resources[motion].looping==0)wanted.completion.active.slots[0].weight=0;
+            if(rf_scene_npc_reset_ai_animation(owner->registration.handle^0x10000,secondary)!=RF_NOT_FOUND ||
+               rf_scene_npc_reset_ai_animation(owner->registration.handle,2)!=RF_RANGE){status=RF_FORMAT;break;}
+            status=rf_scene_npc_reset_ai_animation(owner->registration.handle,secondary);if(status)break;
+            if(owner->ai_override.action_1364!=(active?-1:(int32_t)action) || owner->ai_override.motion_1368!=((active&&secondary)?-1:motion) ||
+               owner->ai_override.word_834!=(secondary?-1:123) || owner->view.flags_810!=(secondary?0x400u:0x02000400u) ||
+               owner->damage.effects.flags_810!=owner->view.flags_810 || memcmp(&wanted,&pose->playback,sizeof(wanted))){status=RF_FORMAT;break;}
+            ++rf_scene_npc_ai_reset_test[1];rf_scene_npc_ai_reset_test[2]+=active;
+            rf_scene_npc_ai_reset_test[3]=npc_hash_bytes(rf_scene_npc_ai_reset_test[3],&owner->ai_override,sizeof(owner->ai_override));
+            rf_scene_npc_ai_reset_test[3]=npc_hash_bytes(rf_scene_npc_ai_reset_test[3],&pose->playback,sizeof(pose->playback));
+        }
+        *owner=saved;pose->playback=kept;++rf_scene_npc_ai_reset_test[0];
+    }
+    if(status)++rf_scene_npc_ai_reset_test[4];return status;
+}
 uint32_t rf_scene_npc_motion_request_test[5]; /* owners,speed cases,motion cases,hash,errors */
 static int campaign_npc_motion_request_fixture(uint32_t frame)
 {
@@ -6528,6 +6605,7 @@ static int campaign_npc_playback_tick(scene_stream *stream,float elapsed)
     status=campaign_npc_stand_fixture(stream->collision,rf_scene_npc_playback[0]);if(status)return status;
     status=campaign_npc_fall_fixture(rf_scene_npc_playback[0]);if(status)return status;
     status=campaign_npc_ground_query_fixture(stream->collision,rf_scene_npc_playback[0]);if(status)return status;
+    status=campaign_npc_ai_reset_fixture(rf_scene_npc_playback[0]);if(status)return status;
     status=campaign_npc_motion_request_fixture(rf_scene_npc_playback[0]);if(status)return status;
     status=campaign_npc_body_sweep_fixture(stream->collision,rf_scene_npc_playback[0]);if(status)return status;
     status=campaign_model_query_fixture(rf_scene_npc_playback[0]);if(status)return status;

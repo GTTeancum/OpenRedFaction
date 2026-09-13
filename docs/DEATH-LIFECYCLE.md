@@ -9643,3 +9643,29 @@ eight invalid-duration checks pass; the latter distinguish first versus
 second timer preservation. Both builds and22 CTests pass. This verifies
 compiled NXDK code, not live native Xbox NPC recovery. Retained actor/class
 fields, animation playback service binding and AI scheduling remain open.
+
+
+Retained scene AI animation reset (2026-09-13):
+Important semantic correction to the preceding reset notes:5033d0 returns
+remaining playback TIME through501bd0/51c270, not animation weight. The
+zero/nonzero gate was correct, but the backend is now named remaining and
+1364 is named action_1364;428d10 maps that action through the45-entry table.
+1368 is a direct motion index. Existing verify_motion_action.py already
+proved these full type-two queries. No duplicate playback query was added.
+NPC owners now retain action1364/motion1368/word834, all constructor-1
+(422360, including423599 override initialization). The new
+rf_scene_npc_reset_ai_animation validates registered ownership and model
+mapping, then binds rf_entity_ai_reset_motion to rf_motion_action_active,
+rf_motion_remaining and rf_scene_model_stop_nonlooping. It publishes flags
+back to both view and damage state, including effects completed before an
+error. Weapon-specific mappings remain rejected until their owners exist.
+Opt-in actor-pair fixture checks primary/secondary reset, expired/positive
+time and zero/nonzero weight independently. It verifies stale/invalid
+requests and restores complete owner/playback copies after each actor.
+Stock64MiB replay-20260913-021140 passes180 L1S2 frames with actor-pair and
+volume fixtures. NPC_AI_RESET is[38,304,152,3354343829,0] on PC and XEMU.
+Base RAM67108864, plugged0; both builds and22 CTests pass, along with2048
+original/PC/NXDK reset comparisons and4 callback-failure checks. Harness
+flag restoration/rebuild completed. Continuous AI scheduling is still open;
+this makes the scene service callable and tested, not ordinary autonomous
+NPC transitions. No new screenshot because the fixture restores its state.

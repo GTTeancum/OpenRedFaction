@@ -65,5 +65,5 @@ for failure in range(1,5):
  assert read(x,B+16)==(0xffffffff if failure>=3 else 10)
  assert read(x,B+12)==9
 failure=-1
-print(dict(result='PASS',original_pc_nxdk_cases=2048,callback_failure_cases=4,scope='Full4091d0/409210 plus409190, only playback active/weight/stop supplied. Exact complete original state footprints and shared compact fields, callback ordering, owner rebinding, NaN/zero/infinite weights and low-byte active results. No native scene integration.'))
+print(dict(result='PASS',original_pc_nxdk_cases=2048,callback_failure_cases=4,scope='Full4091d0/409210 plus409190, only playback active/remaining-time/stop supplied. Exact complete original state footprints and shared compact fields, callback ordering, owner rebinding, NaN/zero/infinite query results and low-byte active results. No native scene integration.'))
 (root/'artifacts/ai-motion-reset.json').write_text(json.dumps(dict(result='PASS',cases=2048,callback_failures=4),indent=2))
