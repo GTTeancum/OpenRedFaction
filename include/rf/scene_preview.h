@@ -424,6 +424,7 @@ extern uint32_t rf_scene_npc_inventory_owners[4];
 extern uint32_t rf_scene_npc_startup_weapons[4];
 extern uint32_t rf_scene_weapon_models[8];
 extern uint32_t rf_scene_weapon_materials[8];
+extern uint32_t rf_scene_weapon_draw[6];
 extern uint32_t rf_scene_weapon_placement[4];
 /* Evaluated NPC pose and loaded weapon grip; no animation advancement or draw. */
 int rf_scene_npc_weapon_placement(uint32_t handle,int32_t hand,rf_weapon_hand_placement *result);
@@ -438,6 +439,7 @@ extern uint32_t rf_scene_npc_impact_test[4]; /* cases,health before/after,errors
 int rf_scene_stage_climb(rf_level *level,uint32_t mode);
 /* Explicit L1S1 lower-door collision fixture, not an authored spawn. */
 int rf_scene_stage_door(rf_level *level);
+int rf_scene_stage_actor(rf_level *level,uint32_t uid);
 int rf_scene_stage_lift(rf_level *level);
 int rf_scene_stage_force(rf_level *level,uint32_t uid);
 /* Follow fixture: 1 MiB world projection plus 1 MiB actor output. */

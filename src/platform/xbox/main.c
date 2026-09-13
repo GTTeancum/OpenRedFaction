@@ -890,6 +890,15 @@ int main(void)
                     fclose(force_file);
                 }
             }
+            if(result==RF_OK) {
+                FILE *actor_file=fopen("D:\\campaign-actor.bin","rb");
+                if(actor_file) {
+                    uint32_t uid;FILE *force_file=fopen("D:\\campaign-force.bin","rb");
+                    if(staged_door || staged_climb || staged_lift || force_file || fread(&uid,4,1,actor_file)!=1 || fgetc(actor_file)!=EOF)result=RF_FORMAT;
+                    else result=rf_scene_stage_actor(&level,uid);
+                    if(force_file)fclose(force_file);fclose(actor_file);
+                }
+            }
             if (result == RF_OK) {
                 const rf_level_section *geometry = rf_level_find(&level, 0x100);
                 const rf_level_section *lightmaps = rf_level_find(&level, 0x1200);

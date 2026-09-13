@@ -252,6 +252,11 @@ int main(int argc,char **argv)
         if(*end || getenv("RF_REPLAY_REGION_START") || getenv("RF_REPLAY_DOOR_START") || getenv("RF_REPLAY_LIFT_START"))CHECK(RF_RANGE);
         CHECK(rf_scene_stage_force(&level,(uint32_t)uid));
     }
+    if(spawn_profile && p.headless && getenv("RF_REPLAY_ACTOR_UID")) {
+        char *end;unsigned long uid=strtoul(getenv("RF_REPLAY_ACTOR_UID"),&end,10);
+        if(*end || getenv("RF_REPLAY_REGION_START") || getenv("RF_REPLAY_DOOR_START") || getenv("RF_REPLAY_LIFT_START") || getenv("RF_REPLAY_FORCE_UID"))CHECK(RF_RANGE);
+        CHECK(rf_scene_stage_actor(&level,(uint32_t)uid));
+    }
     if(spawn_profile)CHECK(rf_scene_set_campaign_spawn(&level));
     else CHECK(rf_scene_preview_route_camera(&level,9858));
     CHECK(rf_geometry_open(&geometry,&level,8*1024*1024));
@@ -356,6 +361,7 @@ int main(int argc,char **argv)
             printf("NPC_INVENTORY_OWNERS");for(i=0;i<4;++i)printf(" %u",rf_scene_npc_inventory_owners[i]);printf("\n");
             printf("WEAPON_PLACEMENT");for(i=0;i<4;++i)printf(" %u",rf_scene_weapon_placement[i]);printf("\n");
             printf("WEAPON_MATERIALS");for(i=0;i<8;++i)printf(" %u",rf_scene_weapon_materials[i]);printf("\n");
+            printf("WEAPON_DRAW");for(i=0;i<6;++i)printf(" %u",rf_scene_weapon_draw[i]);printf("\n");
             printf("WEAPON_MODELS");for(i=0;i<8;++i)printf(" %u",rf_scene_weapon_models[i]);printf("\n");
             printf("NPC_STARTUP_WEAPONS");for(i=0;i<4;++i)printf(" %u",rf_scene_npc_startup_weapons[i]);printf("\n");
             printf("WEAPON_SUPPLY");for(i=0;i<4;++i)printf(" %u",rf_scene_weapon_supply[i]);printf("\n");

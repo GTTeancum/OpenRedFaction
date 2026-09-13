@@ -4,7 +4,8 @@ from pathlib import Path
 from xemu_smoke import Monitor
 from door_fixture_metrics import measure
 from xemu_guest_snapshot import words,snapshot
-p=argparse.ArgumentParser();p.add_argument('input',type=Path);p.add_argument('--seconds',type=int,default=180);p.add_argument('--require-wide',action='store_true');p.add_argument('--campaign-spawn',action='store_true');p.add_argument('--approach',action='store_true',help='Stage outside the first L1S2 climb region');p.add_argument('--climb',action='store_true',help='Staged L1S2 first-region campaign replay');p.add_argument('--capture',action='store_true',help='Native guest framebuffer for renderer validation');p.add_argument('--door',action='store_true',help='Explicit L1S1 lower-door contact fixture');p.add_argument('--level',help='Authored campaign level, without climb staging');p.add_argument('--archive',default='levels1.vpp',choices=['levels1.vpp','levels2.vpp','levels3.vpp','levelsm.vpp']);p.add_argument('--audio-capture',action='store_true',help='Enable APU events and inspect guest DSP output');p.add_argument('--lift',action='store_true',help='Staged L1S2 lift contact');p.add_argument('--force-uid',type=int,help='Explicit authored force-region staging; requires --level');p.add_argument('--damage-uid',type=int,help='Explicit NPC damage plus player pain-sound fixture');p.add_argument('--death-animation',action='store_true',help='Exercise base NPC death animation at frame 120; requires --damage-uid');p.add_argument('--actor-pairs',action='store_true',help='Restored-state registered actor response publication fixture');p.add_argument('--glare-loss',action='store_true',help='Destroy three glares at frame90 through parent-loss/marked retirement');p.add_argument('--volume-test',action='store_true',help='Copied-owner animated beam through the live sorted queue');args=p.parse_args()
+p=argparse.ArgumentParser();p.add_argument('input',type=Path);p.add_argument('--seconds',type=int,default=180);p.add_argument('--require-wide',action='store_true');p.add_argument('--campaign-spawn',action='store_true');p.add_argument('--approach',action='store_true',help='Stage outside the first L1S2 climb region');p.add_argument('--climb',action='store_true',help='Staged L1S2 first-region campaign replay');p.add_argument('--capture',action='store_true',help='Native guest framebuffer for renderer validation');p.add_argument('--door',action='store_true',help='Explicit L1S1 lower-door contact fixture');p.add_argument('--level',help='Authored campaign level, without climb staging');p.add_argument('--archive',default='levels1.vpp',choices=['levels1.vpp','levels2.vpp','levels3.vpp','levelsm.vpp']);p.add_argument('--audio-capture',action='store_true',help='Enable APU events and inspect guest DSP output');p.add_argument('--lift',action='store_true',help='Staged L1S2 lift contact');p.add_argument('--force-uid',type=int,help='Explicit authored force-region staging; requires --level');p.add_argument('--damage-uid',type=int,help='Explicit NPC damage plus player pain-sound fixture');p.add_argument('--death-animation',action='store_true',help='Exercise base NPC death animation at frame 120; requires --damage-uid');p.add_argument('--actor-pairs',action='store_true',help='Restored-state registered actor response publication fixture');p.add_argument('--glare-loss',action='store_true',help='Destroy three glares at frame90 through parent-loss/marked retirement');p.add_argument('--volume-test',action='store_true',help='Copied-owner animated beam through the live sorted queue');p.add_argument('--actor-uid',type=int,help='Process-local camera facing an authored actor; requires --level');args=p.parse_args()
+if args.actor_uid is not None and (not args.level or args.climb or args.approach or args.door or args.lift or args.force_uid is not None or not 0<=args.actor_uid<0xffffffff):p.error('--actor-uid requires --level and no other staging')
 if args.death_animation and args.damage_uid is None:p.error('--death-animation requires --damage-uid')
 if args.damage_uid is not None and not 0<=args.damage_uid<0xffffffff:p.error('--damage-uid requires an unsigned actor UID')
 if args.force_uid is not None and (not args.level or args.climb or args.door or args.lift or not 0<=args.force_uid<=0xffffffff):p.error('--force-uid requires --level and no other staging')
@@ -22,7 +23,7 @@ if args.level:
  args.campaign_spawn=True
 elif args.archive!='levels1.vpp':p.error('--archive requires --level')
 replay_env=dict(os.environ)
-for key in ('RF_REPLAY_LEVEL','RF_REPLAY_ARCHIVE','RF_REPLAY_REGION_START','RF_REPLAY_DOOR_START','RF_REPLAY_LIFT_START','RF_REPLAY_FORCE_UID','RF_REPLAY_DAMAGE_UID','RF_REPLAY_DEATH_ANIMATION'):replay_env.pop(key,None)
+for key in ('RF_REPLAY_ACTOR_UID','RF_REPLAY_LEVEL','RF_REPLAY_ARCHIVE','RF_REPLAY_REGION_START','RF_REPLAY_DOOR_START','RF_REPLAY_LIFT_START','RF_REPLAY_FORCE_UID','RF_REPLAY_DAMAGE_UID','RF_REPLAY_DEATH_ANIMATION'):replay_env.pop(key,None)
 replay_env.update(RF_REPLAY_LEVEL=args.level or ('L1S2.rfl' if args.climb else 'L1S1.rfl'),RF_REPLAY_ARCHIVE=args.archive)
 if args.damage_uid is not None:replay_env['RF_REPLAY_DAMAGE_UID']=str(args.damage_uid)
 if args.death_animation:replay_env['RF_REPLAY_DEATH_ANIMATION']='1'
@@ -32,6 +33,7 @@ replay_env.pop('RF_REPLAY_GLARE_LOSS',None)
 if args.glare_loss:replay_env['RF_REPLAY_GLARE_LOSS']='1'
 replay_env.pop('RF_REPLAY_ACTOR_PAIRS',None)
 if args.actor_pairs:replay_env['RF_REPLAY_ACTOR_PAIRS']='1'
+if args.actor_uid is not None:replay_env['RF_REPLAY_ACTOR_UID']=str(args.actor_uid)
 if args.force_uid is not None:replay_env['RF_REPLAY_FORCE_UID']=str(args.force_uid)
 if args.lift:replay_env['RF_REPLAY_LIFT_START']='1'
 if args.door:replay_env['RF_REPLAY_DOOR_START']='1'
@@ -51,7 +53,7 @@ source=run/'inputs.bin';source.write_bytes(payload)
 pc=subprocess.run([str(root/'build/pc/Release/rf_pc_play.exe'),'--spawn-replay' if args.campaign_spawn else '--replay',str(root/'Installed_Game'),str(source),str(run/'pc-final.ppm')],capture_output=True,text=True,check=True,env=replay_env)
 (run/'pc-reference.txt').write_text(pc.stdout)
 def expected(label):return list(map(int,next(x for x in pc.stdout.splitlines() if x.startswith(label+' ')).split()[1:]))
-if args.campaign_spawn and not args.climb and not args.door and not args.lift and args.force_uid is None:
+if args.campaign_spawn and not args.climb and not args.door and not args.lift and args.force_uid is None and args.actor_uid is None:
  starts=json.loads((root/'artifacts/player-start-verification.json').read_text())
  look=json.loads((root/'artifacts/player-spawn-look.json').read_text())
  original='b8fb9ab4c9bfc6f2868c30839d6cfc69f84b8c25d7e54eee1325f5b633c9b836'
@@ -70,6 +72,7 @@ lift_flag=root/'build/xbox/disc/campaign-lift.flag';saved_lift=lift_flag.read_by
 door_flag=root/'build/xbox/disc/campaign-door.flag';saved_door=door_flag.read_bytes() if door_flag.exists() else None
 climb_flag=root/'build/xbox/disc/campaign-climb.flag';saved_climb=climb_flag.read_bytes() if climb_flag.exists() else None
 selection_file=root/'build/xbox/disc/campaign-level.bin';saved_selection=selection_file.read_bytes() if selection_file.exists() else None
+actor_file=root/'build/xbox/disc/campaign-actor.bin';saved_actor=actor_file.read_bytes() if actor_file.exists() else None
 force_file=root/'build/xbox/disc/campaign-force.bin';saved_force=force_file.read_bytes() if force_file.exists() else None
 damage_file=root/'build/xbox/disc/campaign-damage.bin';saved_damage=damage_file.read_bytes() if damage_file.exists() else None
 death_flag=root/'build/xbox/disc/campaign-death-animation.flag';saved_death=death_flag.read_bytes() if death_flag.exists() else None
@@ -100,6 +103,8 @@ try:
  else:death_flag.unlink(missing_ok=True)
  if args.damage_uid is None:damage_file.unlink(missing_ok=True)
  else:damage_file.write_bytes(args.damage_uid.to_bytes(4,'little'))
+ if args.actor_uid is not None:actor_file.write_bytes(args.actor_uid.to_bytes(4,'little'))
+ else:actor_file.unlink(missing_ok=True)
  if args.force_uid is not None:force_file.write_bytes(args.force_uid.to_bytes(4,'little'))
  else:force_file.unlink(missing_ok=True)
  if args.climb:climb_flag.write_bytes(b'2' if args.approach else b'')
@@ -617,6 +622,10 @@ dvd_path = '{root.as_posix()}/build/xbox/redfaction-diagnostic.iso'
      assert weapon_materials==expected('WEAPON_MATERIALS'),weapon_materials
      assert weapon_materials[0]==weapon_models[0] and weapon_materials[2]>0 and weapon_materials[3]<=weapon_materials[4]<=512*1024,weapon_materials
      report['weapon_materials']=weapon_materials
+     weapon_draw=words(monitor,symbol('rf_scene_weapon_draw'),6)
+     assert weapon_draw==expected('WEAPON_DRAW'),weapon_draw
+     if args.actor_uid is not None:assert weapon_draw[3]>0,weapon_draw
+     report['weapon_draw']=weapon_draw
      weapon_placement=words(monitor,symbol('rf_scene_weapon_placement'),4)
      assert weapon_placement==expected('WEAPON_PLACEMENT') and weapon_placement[1]>0,weapon_placement
      report['weapon_placement']=weapon_placement
@@ -876,6 +885,8 @@ finally:
   else:death_flag.write_bytes(saved_death)
   if saved_damage is None:damage_file.unlink(missing_ok=True)
   else:damage_file.write_bytes(saved_damage)
+  if saved_actor is None:actor_file.unlink(missing_ok=True)
+  else:actor_file.write_bytes(saved_actor)
   if saved_force is None:force_file.unlink(missing_ok=True)
   else:force_file.write_bytes(saved_force)
   if saved_audio is None:audio_flag.unlink(missing_ok=True)

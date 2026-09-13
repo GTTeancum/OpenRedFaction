@@ -32,6 +32,24 @@ int rf_scene_stage_door(rf_level *level)
     memcpy(level->player_position,position,12);memcpy(level->player_orientation,matrix,36);
     rf_geometry_movers_close(&movers);return RF_OK;
 }
+/* Process-local inspection camera; never changes authored actor placement. */
+int rf_scene_stage_actor(rf_level *level,uint32_t uid)
+{
+    rf_level_entity_reader reader;rf_level_entity actor;uint32_t i;int status;
+    if(!level)return RF_RANGE;
+    status=rf_level_entities_begin(level,&reader);if(status)return status;
+    while((status=rf_level_entity_next(&reader,&actor))==RF_OK)if((uint32_t)actor.uid==uid) {
+        float matrix[3][3]={{0}};
+        for(i=0;i<3;++i) {
+            matrix[2][i]=-actor.orientation[2][i];
+            level->player_position[i]=actor.position[i]+actor.orientation[2][i]*3;
+        }
+        level->player_position[1]+=.625f;
+        matrix[1][1]=1;matrix[0][0]=matrix[2][2];matrix[0][2]=-matrix[2][0];
+        memcpy(level->player_orientation,matrix,36);return RF_OK;
+    }
+    return status;
+}
 int rf_scene_stage_lift(rf_level *level)
 {
     rf_geometry_movers movers={0};uint32_t i;int status;
@@ -333,6 +351,7 @@ typedef struct scene_stream {
     rf_preview_mesh *mesh;rf_materials *materials;const rf_model_materials *bundle;
     uint32_t world,base,capacity,npc_base,npc_textures;rf_scene_frame_sink sink;void *context;
     uint32_t clutter_base,clutter_textures;
+    uint32_t weapon_base,weapon_textures;
     rf_model_projection npc_view;void *npc_memory;uint16_t *npc_indices;rf_model_clip_pool *npc_pool;
     const rf_geometry_collision_world *collision;
     const rf_geometry *geometry;unsigned char *surface_indices;float actor_spawn[3];uint32_t eye_flags;
@@ -7838,6 +7857,73 @@ static int scene_clutter_draw(scene_stream *stream,uint32_t frame)
     rf_scene_clutter_draw[3]=npc_hash_bytes(2166136261u,stream->mesh->vertices+start_all,rf_scene_clutter_draw[2]*sizeof(rf_preview_vertex));
     return RF_OK;
 }
+uint32_t rf_scene_weapon_draw[6]; /* frame, actors, submissions, vertices, vertex hash, flags hash */
+typedef struct scene_weapon_context {
+    scene_stream *stream;uint32_t actor;rf_model_render_buffers buffers;
+    rf_model_lighting lights;rf_model_render_output attributes;
+    rf_model_clip_planes planes;rf_model_clip_projection projection;
+} scene_weapon_context;
+static int scene_weapon_place(void *context,int32_t hand,rf_weapon_hand_placement *pose)
+{
+    scene_weapon_context *c=context;
+    return rf_scene_npc_weapon_placement(campaign_npc_bodies[c->actor].registration.handle,hand,pose);
+}
+static int scene_weapon_submit(void *context,uint32_t model,const rf_weapon_hand_placement *pose,const uint32_t draw_state[20])
+{
+    scene_weapon_context *c=context;scene_stream *stream=c->stream;const rf_static_render_resource *r;
+    rf_model_projection view;uint32_t part,batch,k,first;int status;
+    if(!model || model>campaign_weapon_models.count || !(draw_state[0]&0x80))return RF_RANGE;
+    r=&campaign_weapon_models.items[model-1].render;first=campaign_weapon_material_offsets[model-1];
+    status=rf_model_local_view(&stream->npc_view,pose->position,pose->basis,&view);if(status)return status;
+    ++rf_scene_weapon_draw[2];
+    /* Shared diagnostic lighting/highest LOD policy; original material-state
+     * lighting and distance LOD are still required for final visual parity. */
+    for(part=0;part<r->part_count;++part) {
+        uint32_t li=r->parts[part].first_lod;const rf_static_render_lod *lod;const rf_model_geometry *g;
+        if(li>=r->lod_count)return RF_FORMAT;lod=r->lods+li;g=&lod->geometry;
+        for(batch=0;batch<g->batch_count;++batch) {
+            const rf_model_draw_batch *b=g->batches+batch;uint32_t slot,start=stream->mesh->count,emitted;
+            if(b->material==UINT32_MAX)continue;if(b->material>=r->material_count)return RF_FORMAT;
+            memcpy(&slot,campaign_weapon_materials.items[first+b->material].record.bytes+0x10,4);
+            if(slot>=stream->weapon_textures)return RF_FORMAT;
+            memset(stream->npc_memory,0xa5,4096*96);
+            status=rf_model_geometry_render_static_batch(g,batch,&view,&c->lights,&c->attributes,NULL,&c->buffers);if(status)return status;
+            status=rf_preview_static_model_emit(g,batch,&c->buffers,stream->npc_indices,stream->npc_pool,&view,&c->planes,&c->projection,
+                &c->attributes,stream->mesh,stream->capacity,&emitted,lod->planes+b->first_triangle,NULL);if(status)return status;
+            for(k=start;k<stream->mesh->count;++k)stream->mesh->vertices[k].material=stream->weapon_base+slot;
+        }
+    }
+    return RF_OK;
+}
+static int scene_weapon_draw(scene_stream *stream,uint32_t frame)
+{
+    scene_weapon_context c={0};rf_weapon_world_draw_ops ops={scene_weapon_place,scene_weapon_submit};
+    uint32_t i,start=stream->mesh->count;int status;
+    memset(rf_scene_weapon_draw,0,sizeof(rf_scene_weapon_draw));rf_scene_weapon_draw[0]=frame+1;rf_scene_weapon_draw[5]=2166136261u;
+    if(!stream->npc_memory)return RF_OK;c.stream=stream;
+    c.buffers.cache=stream->npc_memory;c.buffers.clip=(float(*)[3])((uint8_t*)stream->npc_memory+4096*32);
+    c.buffers.vertices=(uint8_t(*)[40])((uint8_t*)stream->npc_memory+4096*56);c.buffers.capacity=4096;
+    c.attributes=(rf_model_render_output){1,{255,255,255},255,1,1};c.lights.ambient[0]=40;c.lights.ambient[1]=50;c.lights.ambient[2]=60;
+    c.planes.near_depth=.1f;c.planes.far_depth=1000;c.projection.scale[0]=320;c.projection.scale[1]=240;c.projection.clamp=1;
+    for(i=0;i<campaign_npc_body_count;++i) {
+        campaign_npc_body *body=campaign_npc_bodies+i;const rf_entity_view *linked;rf_weapon_world_draw draw={0};uint32_t scratch[20]={0},cls;
+        if(!body->registration.view || i>=campaign_model_owner_count)continue;
+        if(body->object_flags&(2|0x4000))continue;
+        if(campaign_model_owners[i].room<stream->visibility.state.count && !stream->visibility.state.rooms[campaign_model_owners[i].room].visible)continue;
+        cls=campaign_seeds.items[i].class_index;if(cls>=campaign_seeds.class_count)return RF_RANGE;
+        draw.view.flags_810=body->view.flags_810;draw.view.class_flags_724=campaign_seeds.classes[cls].physics.flags;
+        draw.view.inventory_flags_7d0=body->view.flags_7d0;draw.view.weapon=body->view.weapons[0];draw.view.attachment_75c=body->attachment_75c;
+        linked=rf_entity_lookup(&campaign_entities,body->view.linked_handle);draw.view.linked_kind=linked?linked->class_type:0;
+        draw.view.special_weapon=-1;draw.hand_count=2;draw.tint=0xffffffffu;
+        /* No active firing/player override yet; use fresh zero recoil and the
+         * same diagnostic lighting as the NPC body. Missing authored hands skip. */
+        c.actor=i;++rf_scene_weapon_draw[1];status=rf_weapon_world_draw_run(&draw,campaign_weapon_models.weapons,scratch,&ops,&c);
+        body->view.flags_810=body->damage.effects.flags_810=draw.view.flags_810;
+        if(status)return status;rf_scene_weapon_draw[5]=npc_hash_bytes(rf_scene_weapon_draw[5],&draw.view.flags_810,4);
+    }
+    rf_scene_weapon_draw[3]=stream->mesh->count-start;
+    rf_scene_weapon_draw[4]=npc_hash_bytes(2166136261u,stream->mesh->vertices+start,rf_scene_weapon_draw[3]*sizeof(rf_preview_vertex));return RF_OK;
+}
 typedef struct scene_glare_search_context {
     rf_glare_visibility_object *objects;uint32_t (*facts)[3];uint32_t count,movers,actors;
 } scene_glare_search_context;
@@ -8281,6 +8367,7 @@ static int scene_frame(void *context,uint32_t frame,rf_preview_mesh *actor)
         int status;profile_mark(5);
         status=scene_npc_draw(stream,frame);if(status)return status;
         status=scene_clutter_draw(stream,frame);if(status)return status;
+        status=scene_weapon_draw(stream,frame);if(status)return status;
         particle_draw_stream=stream;
         status=stream->sink(stream->context,frame,stream->mesh,stream->materials,stream->world);
         particle_draw_stream=NULL;if(status)return status;
@@ -8684,6 +8771,15 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
         free(textures->items);memset(textures,0,sizeof(*textures)); /* Transfer pixels to renderer owner. */
         textures=&campaign_clutter_materials.textures;
         stream.clutter_base=materials->count;stream.clutter_textures=textures->count;
+        if((uint64_t)materials->count+textures->count>256){status=RF_RANGE;goto done;}
+        combined=malloc((materials->count+textures->count)*sizeof(*combined));if(!combined){status=RF_IO;goto done;}
+        memcpy(combined,materials->items,materials->count*sizeof(*combined));
+        memcpy(combined+materials->count,textures->items,textures->count*sizeof(*combined));
+        free(materials->items);materials->items=combined;materials->count+=textures->count;
+        materials->loaded+=textures->loaded;materials->missing+=textures->missing;materials->allocated_bytes+=textures->allocated_bytes;
+        free(textures->items);memset(textures,0,sizeof(*textures));
+        textures=&campaign_weapon_materials.textures;
+        stream.weapon_base=materials->count;stream.weapon_textures=textures->count;
         if((uint64_t)materials->count+textures->count>256){status=RF_RANGE;goto done;}
         combined=malloc((materials->count+textures->count)*sizeof(*combined));if(!combined){status=RF_IO;goto done;}
         memcpy(combined,materials->items,materials->count*sizeof(*combined));

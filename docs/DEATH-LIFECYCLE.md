@@ -10925,3 +10925,27 @@ The composed draw verifier now covers ten port-specific cases: failure at either
 Weapon material residency now collects retained84-byte rows in shared model order, records per-model offsets and uses the existing budgeted model material/texture owner. A512KiB ceiling includes the256-byte offset table and temporary input rows; owner accounting also includes its own conversion scratch. Missing images fail through the existing loader. NPC shutdown closes the material bundle before geometry. No texture or geometry submission is enabled yet.
 
 Native replay-20260913-105034 passes180 door/damage/actor-pair/death-animation frames. Material telemetry exactly matches PC: [1,1,1,66092,66276,65536,3230465862,3964268444]. One model/material/texture retains66092 bytes and peaks at66276; image storage is65536 bytes. Hashes cover converted material records/arrays, dimensions/formats and every decoded pixel. QMP reports67108864 base bytes and0 plugged memory; normal-image restoration completed and driver exited0. Both builds and22 CTests pass. The next required step is actual per-frame held-weapon renderer submission with retained visibility, tint/recoil state and material slot mapping.
+
+## Held-weapon renderer integration (2026-09-13)
+
+The scene now transfers retained weapon textures into the shared material owner
+and submits the verified world-draw poses through the existing static-model
+renderer and clipping buffers. NPC room/object gates apply before submission.
+A process-local actor-facing camera fixture is available on PC through
+RF_REPLAY_ACTOR_UID and on XEMU through --level L1S1.rfl --actor-uid 8456.
+It changes only the inspection camera, never authored actor placement or host input.
+
+Evidence: artifacts/xemu/replay-20260913-110709 completed180 frames and PASS,
+with normal-image restoration and harness exit0. Guest RAM base67108864,
+plugged0. WEAPON_DRAW matches PC exactly: [180,7,7,648,5022660,3343659839].
+Native framebuffer.png was inspected. Both builds and all22 CTest checks pass.
+The prior one-frame replay110535 failed an existing glare-retirement invariant
+before weapon comparisons; the180-frame stationary replay exercises its lifecycle.
+Earlier door-path captures emitted zero weapon vertices because of the view.
+
+Limits: this pass shares diagnostic lighting and highest LOD with NPC/clutter
+rendering. Original tint/special-view material state, actual authored hand count
+(current loop capacity2 skips missing tags), live firing recoil, and player model
+overrides remain open. This is rendering integration, not complete combat or
+visual parity. The new native check compares submitted geometry and flags; it
+does not prove correctness for every NPC, weapon, level or lighting condition.
