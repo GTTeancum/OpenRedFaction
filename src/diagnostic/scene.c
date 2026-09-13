@@ -1934,11 +1934,23 @@ static int campaign_alpha_open(const rf_geometry_collision_world *world,const rf
     }
     campaign_alpha_world=world;campaign_alpha_materials=materials;return RF_OK;
 }
-int rf_scene_geometry_texture_query(uint32_t solid,uint32_t flags,const float start[3],const float delta[3],
+typedef struct campaign_alpha_preferred_context {
+    const rf_collision_indexed_texture_backend *backend;uint32_t index;
+} campaign_alpha_preferred_context;
+static int campaign_alpha_preferred_sample(void *context,const rf_collision_face *face,
+    int32_t bitmap,const float point[3],uint32_t *color)
+{
+    campaign_alpha_preferred_context *c=context;
+    return c->backend->sample(c->backend->context,c->index,face,bitmap,point,color);
+}
+int rf_scene_geometry_texture_query_preferred(uint32_t solid,const rf_geometry_world_sweep_hit *cached,
+    uint32_t flags,const float start[3],const float delta[3],
     float radius,float limit,rf_geometry_world_sweep_hit *result,uint32_t *matched)
 {
     rf_collision_solid_view world={0};const rf_collision_solid_view *view;
     rf_collision_solid_texture_backend texture={0};rf_collision_sweep_room_hit hit;uint32_t found;int status;
+    rf_collision_preferred_face preferred;campaign_alpha_preferred_context context;
+    rf_collision_texture_backend sampler={campaign_alpha_preferred_sample,&context};
     if(!campaign_alpha_world || !campaign_alpha_materials || !result || !matched ||
         (solid!=UINT32_MAX && solid>=campaign_movers.count))return RF_RANGE;
     /* NPC material append may replace items; refresh this borrowed view per query. */
@@ -1949,8 +1961,27 @@ int rf_scene_geometry_texture_query(uint32_t solid,uint32_t flags,const float st
         world.children=campaign_alpha_world->children;world.child_count=campaign_alpha_world->child_count;
         view=&world;flags|=4;texture.rooms=campaign_alpha_backends;
     } else {view=campaign_movers.views+solid;texture.flat=campaign_alpha_backends+campaign_alpha_world->room_count+solid;}
-    texture.preferred_bitmap=-1;++rf_scene_geometry_textures[6];
-    status=rf_collision_solid_preferred_textured(view,NULL,flags,start,delta,radius,limit,&texture,&hit,&found);
+    texture.preferred_bitmap=-1;
+    if(cached) {
+        uint32_t index=cached->face;
+        if(solid==UINT32_MAX) {
+            const rf_collision_tree *tree;
+            if(cached->room>=campaign_alpha_world->room_count)return RF_RANGE;
+            tree=&campaign_alpha_world->rooms[cached->room].tree;
+            for(index=0;index<tree->face_count;++index)if(tree->source_indices[index]==cached->face)break;
+            if(index==tree->face_count)return RF_RANGE;
+            preferred.face=tree->faces+index;preferred.room=cached->room;
+            context.backend=campaign_alpha_backends+cached->room;
+        } else {
+            if(cached->room!=UINT32_MAX || index>=campaign_movers.owned[solid].count)return RF_RANGE;
+            preferred.face=campaign_movers.owned[solid].faces+index;preferred.room=UINT32_MAX;
+            context.backend=texture.flat;
+        }
+        preferred.face_index=index;context.index=index;
+        texture.preferred_bitmap=context.backend->bitmaps[index];texture.preferred=&sampler;
+    }
+    ++rf_scene_geometry_textures[6];
+    status=rf_collision_solid_preferred_textured(view,cached?&preferred:NULL,flags,start,delta,radius,limit,&texture,&hit,&found);
     if(status){++rf_scene_geometry_textures[9];return status;}
     if(found) {
         rf_geometry_world_sweep_hit value;value.hit=hit.tree.hit;value.room=hit.room;value.hits=hit.tree.hits;value.edge=hit.tree.edge;
@@ -1958,6 +1989,11 @@ int rf_scene_geometry_texture_query(uint32_t solid,uint32_t flags,const float st
         *result=value;++rf_scene_geometry_textures[8];
     }
     *matched=found;return RF_OK;
+}
+int rf_scene_geometry_texture_query(uint32_t solid,uint32_t flags,const float start[3],const float delta[3],
+    float radius,float limit,rf_geometry_world_sweep_hit *result,uint32_t *matched)
+{
+    return rf_scene_geometry_texture_query_preferred(solid,NULL,flags,start,delta,radius,limit,result,matched);
 }
 static int campaign_alpha_check(uint32_t frame)
 {
@@ -1982,7 +2018,16 @@ static int campaign_alpha_check(uint32_t frame)
                 0x184,start,delta,0,1,&hit,&found);if(status)return status;
             record[0]=i;record[1]=index;record[2]=found;
             rf_scene_geometry_textures[11]=npc_hash_bytes(rf_scene_geometry_textures[11],record,sizeof(record));
-            if(found)rf_scene_geometry_textures[11]=npc_hash_bytes(rf_scene_geometry_textures[11],&hit,sizeof(hit));
+            if(found) {
+                rf_geometry_world_sweep_hit again={0};uint32_t repeated;
+                rf_scene_geometry_textures[11]=npc_hash_bytes(rf_scene_geometry_textures[11],&hit,sizeof(hit));
+                status=rf_scene_geometry_texture_query_preferred(i<campaign_alpha_world->room_count?UINT32_MAX:i-campaign_alpha_world->room_count,
+                    &hit,0x185,start,delta,0,1,&again,&repeated);if(status)return status;
+                /* Cached-first traversal returns one hit, rather than the full traversal count. */
+                if(!repeated || again.face!=hit.face || again.room!=hit.room || again.edge!=hit.edge ||
+                    memcmp(&again.hit,&hit.hit,sizeof(hit.hit)) || again.hits!=1){++rf_scene_geometry_textures[9];return RF_FORMAT;}
+                rf_scene_geometry_textures[11]=npc_hash_bytes(rf_scene_geometry_textures[11],&again,sizeof(again));
+            }
         }
     }
     return RF_OK;

@@ -506,10 +506,17 @@ int rf_scene_stream_miner_body(const rf_level *level,int32_t uid,const char *mes
 void rf_scene_actor_drive(int profile);
 /* Scene-owned initial world/mover alpha query. UINT32_MAX selects world;
  * mover IDs are retained indices. Contacts remain solid-local; face is an
- * authored source index. No preferred cache/runtime texture overrides yet.
+ * authored source index. No runtime texture overrides yet.
  * Serialized UV/tree scratch, no query allocation; errors preserve output. */
 int rf_scene_geometry_texture_query(uint32_t solid,uint32_t flags,const float start[3],const float delta[3],
     float radius,float limit,rf_geometry_world_sweep_hit *result,uint32_t *matched);
+/* Cached hit must belong to this solid and the current retained scene lifetime.
+ * Resolve its authored face/room; flag1 enables preferred-first testing.
+ * Invalid cached references fail with output preserved; NULL uses full traversal.
+ * World resolution scans only the cached room, without allocating storage. */
+int rf_scene_geometry_texture_query_preferred(uint32_t solid,const rf_geometry_world_sweep_hit *cached,
+    uint32_t flags,const float start[3],const float delta[3],float radius,float limit,
+    rf_geometry_world_sweep_hit *result,uint32_t *matched);
 extern uint32_t rf_scene_geometry_textures[13];
 /* Borrow a retained world for diagnostic camera following; NULL disables.
  * Owner and source world must outlive the body stream. Fixed .7Y/2.4Z offset,

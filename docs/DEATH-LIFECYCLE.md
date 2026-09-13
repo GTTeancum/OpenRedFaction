@@ -8267,3 +8267,29 @@ live scene. Targeted native alpha contacts and live glare scheduling remain
 open. Five sampled x87 control words are0x027f;7903 pages are available
 at completion (not a peak-memory guarantee). PC/NXDK builds and21 CTests
 pass. No new rendered effect or gameplay scheduling claim.
+
+
+Scene preferred-face resolution (2026-09-12)
+------------------------------------------
+rf_scene_geometry_texture_query_preferred accepts a prior authored face/room
+hit for the same solid in the current scene lifetime. World resolution scans
+only that retained room source-index map; mover resolution uses flat source
+order and requires room UINT32_MAX. Invalid references fail before traversal
+with outputs preserved. A stack callback bridge retains the indexed sampler
+identity while the verified preferred-first query tests the cached face.
+Flag1 enables the shortcut; NULL preserves the existing full traversal API.
+No new heap storage. Persistent glare cache token ownership remains open.
+
+Native replay-20260912-201012 passes180 frames with stock64MiB and no
+plugged memory. Each112 baseline hit is resubmitted as preferred with flag1;
+contact bytes, authored face, room and edge agree, with single-hit count.
+PC/Xbox telemetry:54,5,7512,32492,16,1772047059,230,118,224,0,
+2229218138,439543468,1. All21 CTests and PC/NXDK builds pass.
+
+audit_scene_alpha_faces.py reads the existing retained-world dump. L1S1
+has7418 references:6594 flags0,116 flags260 and708 flags8, none with
+alpha bits0xc0. L1S2 has19 alpha-flagged references, including authored
+faces72..76 in room3 with flags200. Use authored L1S2 geometry for upcoming
+native alpha-contact validation; flags alone do not prove transparent pixels
+or query rejection. This audit excludes mover geometry. No live glare draw
+or campaign visibility scheduling is established by these fixtures.
