@@ -8423,3 +8423,31 @@ order and final flags.4 remaining callback-error cases pass. Both builds
 and21 CTests pass. This supersedes the prior704-case supplied-predicate
 coverage as the current integrated predicate evidence; it does not establish
 marker clearing or native rendering phase integration.
+
+
+Live NPC mesh submission through object render dispatch (2026-09-12)
+-----------------------------------------------------------------
+scene_npc_draw now delegates actual skeletal batch preparation/clipping to
+rf_object_render_dispatch family0. The retained skeletal registration maps
+to original model kind2; kind3 preparation is unsupported by this owner.
+White setup initializes the existing vertex-output color/alpha state. The
+family callback retains existing skinning, material selection and clipping.
+Hidden bit2 and model flag4000 now skip that work. Successful family mesh
+preparation publishes0x10 and synchronizes the registered NPC flag view.
+The frame sink submits the combined mesh afterward; this is CPU submission
+completion, not an asynchronous GPU-completion marker. No per-frame clear
+is invented. Markers remain set until existing owner mutation/retirement.
+
+Native L1S2 replay-20260912-204601 passes180 frames with stock64MiB and
+zero plugged memory. NPC_RENDER_DISPATCH matches PC:180,2376,720,1656,
+1162823837,0 (frames,attempts,families,flag skips,hash,errors). Final NPC
+mesh contribution changes from7 actors/8316 vertices to3 actors/3627
+vertices because previously omitted flag gates now apply. This is a real
+rendering behavior change, not a new asset/render effect.
+
+NPC_VISIBILITY now matches38 views,42 model calls,34 hits,38 candidate
+checks,3 blocked candidates,hash2997966964,0 errors. Four eligible
+candidates invoke model collision in addition to38 direct fixture calls.
+The fixture observes flags after mesh submission. Full glare search, actor
+room/owner callbacks, marker lifetime and original distance/LOD/lighting
+policies remain incomplete. PC/NXDK builds and21 CTests pass.

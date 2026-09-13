@@ -6191,17 +6191,75 @@ static int campaign_npc_playback_tick(scene_stream *stream,float elapsed)
     rf_scene_npc_playback[3]=h;rf_scene_npc_playback[4]=p;rf_scene_npc_playback[5]=markers;rf_scene_npc_playback[6]=campaign_npc_motion_bytes;return RF_OK;
 }
 /* Diagnostic submission. Highest-detail LOD per SUBM until the
- * original distance/actor draw gates are connected. Uses portal-room visibility.
+ * original distance/remaining actor draw gates are connected. Uses portal-room visibility.
  * Room membership is cached for these stationary actors. No AI tick. */
 uint32_t rf_scene_npc_draw_detail[6];
 uint32_t rf_scene_npc_draw[5]; /* frame, visible actors, vertices, vertex hash, scratch bytes */
+uint32_t rf_scene_npc_render_dispatch[6];
+typedef struct scene_npc_render_context {
+    scene_stream *stream;uint32_t actor;rf_entity_pose *pose;
+    rf_model_render_buffers *buffers;rf_model_lighting *lights;rf_model_render_output *attributes;
+    rf_model_clip_planes *planes;rf_model_clip_projection *projection;
+} scene_npc_render_context;
+static int scene_npc_render_white(void *context)
+{
+    scene_npc_render_context *c=context;
+    rf_model_render_output white={1,{255,255,255},255,1,1};*c->attributes=white;
+    return RF_OK;
+}
+static int scene_npc_render_kind(void *context,uint32_t model,uint32_t *kind)
+{
+    scene_npc_render_context *c=context;
+    if(model!=c->actor+1 || !campaign_model_owners[c->actor].registration.loaded || !c->pose)return RF_RANGE;
+    /* This retained owner is the existing kind2 skeletal model path. */
+    *kind=2;return RF_OK;
+}
+static int scene_npc_render_prepare(void *context,uint32_t model)
+{(void)context;(void)model;return RF_NOT_FOUND;} /* Kind3 is not a skeletal owner. */
+static int scene_npc_render_family(void *context,uint32_t kind)
+{
+    scene_npc_render_context *c=context;scene_stream *stream=c->stream;uint32_t actor=c->actor;
+    rf_entity_pose *pose=c->pose;const rf_entity_render_model *model;
+    const campaign_model_owner *owner=campaign_model_owners+actor;rf_model_projection view;float prepared[50][12];uint16_t generations[50];
+    uint32_t appearance,first,last,lod,batch,k,start_actor=stream->mesh->count;int status;
+    if(kind!=0)return RF_RANGE;
+    appearance=owner->appearance;if(appearance>=campaign_npc_materials.count)return RF_FORMAT;
+    first=campaign_npc_materials.offsets[appearance];last=campaign_npc_materials.offsets[appearance+1];
+    model=campaign_render_models.items+pose->skeleton;
+    memset(prepared,0,sizeof(prepared));memset(generations,0,sizeof(generations));
+    status=rf_model_prepare_skinning(model->stored,pose->matrices,pose->bone_count,(uint16_t)pose->playback.generation,prepared,generations,50);if(status)return status;
+    status=rf_model_local_view(&stream->npc_view,owner->position,owner->basis,&view);if(status)return status;
+    for(lod=0;lod<model->file.lod_count;++lod) {
+        const rf_model_geometry *geometry=model->lods+lod;uint32_t previous;
+        for(previous=0;previous<lod;++previous)if(model->file.lods[previous].section_index==model->file.lods[lod].section_index)break;
+        if(previous<lod)continue;
+        for(batch=0;batch<geometry->batch_count;++batch) {
+            uint32_t start=stream->mesh->count,emitted,slot,material=geometry->batches[batch].material;
+            if(material==UINT32_MAX)continue;if(material>=last-first)return RF_FORMAT;
+            memcpy(&slot,campaign_npc_materials.materials.items[first+material].record.bytes+0x10,4);
+            if(slot>=stream->npc_textures)return RF_FORMAT;
+            rf_scene_npc_draw_detail[1]=lod;rf_scene_npc_draw_detail[2]=batch;rf_scene_npc_draw_detail[3]=1;
+            rf_scene_npc_draw_detail[4]=stream->mesh->bytes;rf_scene_npc_draw_detail[5]=stream->capacity;
+            memset(stream->npc_memory,0xa5,4096*96);
+            status=rf_model_geometry_render_batch(geometry,batch,prepared,pose->bone_count,&view,c->lights,c->attributes,c->buffers);if(status)return status;
+            rf_scene_npc_draw_detail[3]=2;
+            status=rf_preview_model_emit(geometry,batch,c->buffers,stream->npc_indices,stream->npc_pool,&view,c->planes,c->projection,
+                c->attributes,stream->mesh,stream->capacity,&emitted);if(status)return status;
+            for(k=start;k<stream->mesh->count;++k)stream->mesh->vertices[k].material=stream->npc_base+slot;
+        }
+    }
+    if(stream->mesh->count>start_actor)++rf_scene_npc_draw[1];
+    return RF_OK;
+}
 static int scene_npc_draw(scene_stream *stream,uint32_t frame)
 {
     rf_model_render_buffers buffers;rf_model_lighting lights={0};
     rf_model_render_output attributes={1,{255,255,255},255,1,1};
     rf_model_clip_planes planes={0};rf_model_clip_projection projection={0};
-    uint32_t actor,lod,batch,k,start_all=stream->mesh->count;int status;
+    uint32_t actor,start_all=stream->mesh->count;int status;
     if(!stream->npc_memory)return RF_OK;
+    if(!frame){memset(rf_scene_npc_render_dispatch,0,sizeof(rf_scene_npc_render_dispatch));rf_scene_npc_render_dispatch[4]=2166136261u;}
+    ++rf_scene_npc_render_dispatch[0];
     memset(rf_scene_npc_draw,0,sizeof(rf_scene_npc_draw));rf_scene_npc_draw[0]=frame+1;
     rf_scene_npc_draw[4]=4096*96+24576*sizeof(uint16_t)+sizeof(*stream->npc_pool);
     buffers.cache=stream->npc_memory;buffers.clip=(float(*)[3])((uint8_t*)stream->npc_memory+4096*32);
@@ -6211,39 +6269,22 @@ static int scene_npc_draw(scene_stream *stream,uint32_t frame)
     projection.scale[0]=320;projection.scale[1]=240;projection.clamp=1;
     lights.ambient[0]=40;lights.ambient[1]=50;lights.ambient[2]=60;
     for(actor=0;actor<campaign_poses.count;++actor) {
-        rf_entity_pose *pose;const rf_entity_render_model *model;
-        const campaign_model_owner *owner=campaign_model_owners+actor;rf_model_projection view;float prepared[50][12];uint16_t generations[50];
-        uint32_t appearance,first,last,start_actor=stream->mesh->count;
+        rf_entity_pose *pose;const campaign_model_owner *owner=campaign_model_owners+actor;
+        campaign_npc_body *body;uint32_t before;
+        scene_npc_render_context context={stream,actor,NULL,&buffers,&lights,&attributes,&planes,&projection};
+        rf_object_render_backend backend={scene_npc_render_white,scene_npc_render_kind,scene_npc_render_prepare,scene_npc_render_family,&context};
         rf_scene_npc_draw_detail[0]=actor;
         status=campaign_model_pose(actor,&pose);if(status)return status;if(!pose)continue;
-        if(owner->room<stream->visibility.state.count &&
-            !stream->visibility.state.rooms[owner->room].visible)continue;
-        appearance=owner->appearance;if(appearance>=campaign_npc_materials.count)return RF_FORMAT;
-        first=campaign_npc_materials.offsets[appearance];last=campaign_npc_materials.offsets[appearance+1];
-        model=campaign_render_models.items+pose->skeleton;
-        memset(prepared,0,sizeof(prepared));memset(generations,0,sizeof(generations));
-        status=rf_model_prepare_skinning(model->stored,pose->matrices,pose->bone_count,(uint16_t)pose->playback.generation,prepared,generations,50);if(status)return status;
-        status=rf_model_local_view(&stream->npc_view,owner->position,owner->basis,&view);if(status)return status;
-        for(lod=0;lod<model->file.lod_count;++lod) {
-            const rf_model_geometry *geometry=model->lods+lod;uint32_t previous;
-            for(previous=0;previous<lod;++previous)if(model->file.lods[previous].section_index==model->file.lods[lod].section_index)break;
-            if(previous<lod)continue;
-            for(batch=0;batch<geometry->batch_count;++batch) {
-                uint32_t start=stream->mesh->count,emitted,slot,material=geometry->batches[batch].material;
-                if(material==UINT32_MAX)continue;if(material>=last-first)return RF_FORMAT;
-                memcpy(&slot,campaign_npc_materials.materials.items[first+material].record.bytes+0x10,4);
-                if(slot>=stream->npc_textures)return RF_FORMAT;
-                rf_scene_npc_draw_detail[1]=lod;rf_scene_npc_draw_detail[2]=batch;rf_scene_npc_draw_detail[3]=1;
-                rf_scene_npc_draw_detail[4]=stream->mesh->bytes;rf_scene_npc_draw_detail[5]=stream->capacity;
-                memset(stream->npc_memory,0xa5,4096*96);
-                status=rf_model_geometry_render_batch(geometry,batch,prepared,pose->bone_count,&view,&lights,&attributes,&buffers);if(status)return status;
-                rf_scene_npc_draw_detail[3]=2;
-                status=rf_preview_model_emit(geometry,batch,&buffers,stream->npc_indices,stream->npc_pool,&view,&planes,&projection,
-                    &attributes,stream->mesh,stream->capacity,&emitted);if(status)return status;
-                for(k=start;k<stream->mesh->count;++k)stream->mesh->vertices[k].material=stream->npc_base+slot;
-            }
-        }
-        if(stream->mesh->count>start_actor)++rf_scene_npc_draw[1];
+        if(owner->room<stream->visibility.state.count && !stream->visibility.state.rooms[owner->room].visible)continue;
+        if(actor>=campaign_npc_body_count || !campaign_npc_bodies[actor].registration.view)return RF_RANGE;
+        body=campaign_npc_bodies+actor;context.pose=pose;before=body->object_flags;
+        ++rf_scene_npc_render_dispatch[1];
+        status=rf_object_render_dispatch(&body->object_flags,0,actor+1,&backend);
+        body->view.flags_7c=body->object_flags;
+        if(status){++rf_scene_npc_render_dispatch[5];return status;}
+        if(before&(2|0x4000))++rf_scene_npc_render_dispatch[3];else ++rf_scene_npc_render_dispatch[2];
+        rf_scene_npc_render_dispatch[4]=npc_hash_bytes(rf_scene_npc_render_dispatch[4],&body->registration.handle,4);
+        rf_scene_npc_render_dispatch[4]=npc_hash_bytes(rf_scene_npc_render_dispatch[4],&body->object_flags,4);
     }
     rf_scene_npc_draw[2]=stream->mesh->count-start_all;
     rf_scene_npc_draw[3]=npc_hash_bytes(2166136261u,stream->mesh->vertices+start_all,rf_scene_npc_draw[2]*sizeof(rf_preview_vertex));
