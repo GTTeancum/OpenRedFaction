@@ -57,6 +57,11 @@ typedef struct rf_glare_create_backend {
 int rf_glare_create(const rf_glare_class *classes,uint32_t count,int32_t index,
     uint32_t parent,int32_t tag,uint32_t flag,rf_object_list *list,
     const rf_glare_create_backend *backend,rf_glare_state **out);
+/*413f20 two-tag constructor center,414016..414049: first + (second-first)*0.5,
+ * retaining float subtraction and multiplication stores; (first+second)*0.5
+ * can round differently. Finite inputs/results required; errors preserve
+ * output. Tag lookup and two-tag owner construction remain separate. */
+int rf_glare_segment_center(const float first[3],const float second[3],float center[3]);
 typedef struct rf_glare_base_owner {
     rf_glare_state state;rf_object_link object_link;
     uint32_t handle,uid,flags,kind,parent_handle,parent_byte,parent_group;

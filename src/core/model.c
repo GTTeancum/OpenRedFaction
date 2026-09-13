@@ -176,6 +176,17 @@ int rf_glare_volume_special_allowed(const rf_glare_base_owner *owner,uint32_t cu
     status=actor_flags(context,view_actor,&present,&flags);if(status)return status;
     *allowed=present && !(flags&1);return RF_OK;
 }
+int rf_glare_segment_center(const float first[3],const float second[3],float center[3])
+{
+    float result[3];unsigned i;if(!first || !second || !center)return RF_RANGE;
+    for(i=0;i<3;++i) {
+        float delta,half;
+        if(!isfinite(first[i]) || !isfinite(second[i]))return RF_FORMAT;
+        delta=(float)((double)second[i]-first[i]);half=(float)((double)delta*.5);
+        result[i]=(float)((double)first[i]+half);if(!isfinite(result[i]))return RF_FORMAT;
+    }
+    memcpy(center,result,sizeof(result));return RF_OK;
+}
 int rf_glare_volume_render(rf_glare_base_owner *owner,const rf_glare_definition *definition,
     const rf_glare_volume_frame *frame,const rf_glare_volume_services *services)
 {

@@ -91,6 +91,12 @@ static int volume_special_actor_flags(void *context,uint32_t handle,uint32_t *pr
 {uint32_t *v=context;if(handle!=32)return RF_RANGE;++v[2];*present=v[0];*flags=v[1];return v[3]?RF_IO:RF_OK;}
 int main(int argc,char **argv)
 {
+    if(argc==2 && !strcmp(argv[1],"--glare-segment-center")) {
+        float in[6];struct {int32_t status;float center[3];} out;
+        _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
+        while(fread(in,sizeof(in),1,stdin)==1){memset(&out,0xa5,sizeof(out));out.status=rf_glare_segment_center(in,in+3,out.center);fwrite(&out,sizeof(out),1,stdout);}
+        return ferror(stdin)?2:0;
+    }
     if(argc==2 && !strcmp(argv[1],"--volume-special-gate")) {
         uint32_t in[6],out[3],context[4];rf_glare_base_owner owner;
         _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);

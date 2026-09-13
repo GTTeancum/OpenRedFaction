@@ -9428,3 +9428,19 @@ verify_volume_special_gate.py executes original40d740 and427020 and compares
 Six callback failures preserve output. Both builds and22 CTest checks pass.
 The helper exposes view/camera ownership rather than inventing those values;
 scene special-owner binding and player ownership remain open.
+
+
+Two-tag constructor audit (2026-09-13):413f20 resolves two model tags through
+5034f0, computes first+(second-first)*0.5, allocates type10 with generic
+parentFFFFFFFF, then publishes actual ownership parent30 and both vectors
+2d4/2e0, tag204=FFFFFFFF and oriented byte2d0=1. Full construction is not yet
+ported. Unlike413b60/413d20 clear stores, this audited constructor tail does
+not explicitly write2cc. That is not proof of all possible2cc writers; special
+view-owner assignment remains unresolved and must not be inferred from the
+current scene camera. Raw Ghidra export413f20 and assembly inspected.
+rf_glare_segment_center reconstructs414016..414049 with original float
+subtraction/multiplication/addition stores. verify_glare_segment_center.py
+executes actual helpers unchanged, matching1036 PC/NXDK results;606 differ
+from float(first+second)*0.5. Thirteen shared invalid/overflow guards preserve
+output. Both builds and22 CTest checks pass. This is center arithmetic only,
+not full two-tag allocation, attachment lifecycle or live rendering.

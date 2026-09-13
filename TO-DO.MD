@@ -37,6 +37,7 @@ Composed actor volume branch matches512 original/PC/NXDK cases and4 NXDK failure
 NPC volume adapter now reads retained command/occupant state; stock64MiB prop-beam regression passes.
 Retained NPC volume service passes6 restored-state cases on stock64MiB XEMU.
 Special volume-owner gate matches162 original/PC/NXDK cases plus6 callback failures.
+Two-tag glare center matches1036 original/PC/NXDK cases; reconstruct413f20 ownership/tag services.
 Verify authored NPC/vehicle beams, bind player state and complete transparent scene ordering.
 
 The stationary startup-NPC animation gate matches PC/stock64MiB XEMU;
