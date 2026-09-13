@@ -38,6 +38,21 @@ int main(int argc,char **argv)
         }
         rf_vpp_close(&meshes);return ferror(stdin)?8:0;
     }
+    if(argc==2 && !strcmp(argv[1],"--vfx-material")) {
+        uint32_t input[2];unsigned char *data;int32_t status;
+        _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
+        while(fread(input,8,1,stdin)==1) {
+            rf_vfx_material_view view;uint32_t i,j,value;const uint32_t counts[3]={31,46,48};
+            if(input[1]>1048576)return 2;data=malloc(input[1]?input[1]:1);if(!data)return 2;
+            if(fread(data,1,input[1],stdin)!=input[1])return 2;memset(&view,0xa5,sizeof(view));
+            status=rf_vfx_material_read(data,input[1],input[0],&view);fwrite(&status,4,1,stdout);fwrite(&view,sizeof(view),1,stdout);
+            if(!status)for(i=0;i<3;++i)for(j=0;j<view.words[counts[i]];++j) {
+                if(rf_vfx_material_sample(data,input[1],&view,i,j,&value))return 3;fwrite(&value,4,1,stdout);
+            }
+            free(data);
+        }
+        return ferror(stdin)?1:0;
+    }
     if(argc==2 && (!strcmp(argv[1],"--vfx-timing") || !strcmp(argv[1],"--vfx-mesh-prefix"))) {
         uint32_t input[3];unsigned char *data;int32_t status;int prefix=!strcmp(argv[1],"--vfx-mesh-prefix");
         _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);

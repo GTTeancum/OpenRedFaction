@@ -369,3 +369,34 @@ sampling/transform semantics still require reconstruction.
 
 Next: material sections, edge records, vertex frames, UV/transform tracks
 and instance playback. No native XEMU scene run or new visual is claimed.
+
+## Standalone MATL data decoder (2026-09-13)
+
+rf_vfx_material_read reconstructs standalone54ab20 data in a208-byte view:
+200 represented original field bytes, consumed byte count and deferred
+bitmap-request mask. Bitmap IDs remain-1; the mask preserves which original
+lookups occur, including the primary empty-name lookup. Exact-case
+$original_map/$original_map_rgb markers preserve original-map behavior and
+flags. Nonzero boolean input normalizes to1. Types0/1 handle texture fields;
+type2 retains color bytes; other types consume only type/rate as original.
+
+Three animation arrays remain checked offsets into borrowed input, replacing
+original pointers. rf_vfx_material_sample returns clamped blend samples or
+raw color/alpha words. Blend clamping normalizes negative zero to positive
+zero, matching original math helpers; nonfinite blend sampling is rejected.
+No allocation occurs, so the caller must retain the input or copy its data
+into a bounded owner before freeing source storage. This is the standalone
+MATL format; the older embedded mesh material format remains required.
+
+verify_vfx_material.py executes complete original54ab20 with actual string,
+integer, boolean, float, version and math helpers. File read/error and bitmap
+lookup services are supplied.1034 original/PC/compiled NXDK cases match all
+represented fields, lookup requests, consumed bytes and samples (pointer
+representations normalized):10 authored records plus1024 synthetic cases.
+730 invalid/truncated inputs preserve output. Original comparisons caught
+and corrected boolean normalization and negative-zero blend behavior.
+Both builds and24 CTests pass. Evidence: artifacts/vfx-material.json.
+
+Remaining: embedded materials, bounded input/bitmap ownership, mesh edges,
+vertex/transform tracks, particle/warp records and effect playback. No bitmap
+resources, native XEMU scene run or new visual are claimed.

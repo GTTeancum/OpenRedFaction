@@ -45,6 +45,18 @@ typedef struct rf_vfx_mesh_prefix {
  * No allocation or track/material decoding. bytes locates remaining payload;
  * output unchanged on errors. Frame/sample totals still need allocation bounds. */
 int rf_vfx_mesh_prefix_read(const void *,uint32_t bytes,uint32_t version,rf_vfx_mesh_prefix *);
+/* Decoded standalone MATL fields in original200-byte54ab20 layout. Bitmap
+ * words4/17/45 stay-1 pending binding; bitmap_requests bits0..2 identify the
+ * original lookup calls. Strings start at words5/18/36 (33 bytes each).
+ * Array words32/47/49 are byte offsets into the borrowed input, not pointers;
+ * counts are words31/46/48. Unassigned fields start zero. */
+typedef struct rf_vfx_material_view {uint32_t words[50],bytes,bitmap_requests;} rf_vfx_material_view;
+/* No allocation/resource lookup. Complete standalone MATL layout, not older
+ * embedded mesh materials. Valid nonnegative array counts, bounded strings;
+ * errors preserve output. Input must survive subsequent sample reads. */
+int rf_vfx_material_read(const void *,uint32_t bytes,uint32_t version,rf_vfx_material_view *);
+/* track0=clamped blend floats,1=raw color words,2=raw alpha words. */
+int rf_vfx_material_sample(const void *,uint32_t bytes,const rf_vfx_material_view *,uint32_t track,uint32_t index,uint32_t *);
 typedef struct rf_vfx_chunk {uint32_t type,offset,bytes;} rf_vfx_chunk;
 typedef struct rf_vfx_directory {
     rf_vpp *archive;rf_vpp_entry entry;rf_vfx_header header;

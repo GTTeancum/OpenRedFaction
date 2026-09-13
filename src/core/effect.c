@@ -1102,3 +1102,74 @@ int rf_vfx_mesh_prefix_read(const void *data,uint32_t bytes,uint32_t version,rf_
     status=rf_vfx_mesh_timing_read(p+at,bytes-at,version,enabled,&v.timing);if(status)return status;
     v.bytes=at+v.timing.bytes;*out=v;return RF_OK;
 }
+
+typedef struct vfx_material_cursor {const unsigned char *data;uint32_t bytes,at;int failed;} vfx_material_cursor;
+static uint32_t vfx_material_word(vfx_material_cursor *c)
+{
+    uint32_t v;if(c->failed || c->bytes-c->at<4){c->failed=1;return 0;}
+    v=vfx_word(c->data+c->at);c->at+=4;return v;
+}
+static uint32_t vfx_material_byte(vfx_material_cursor *c)
+{if(c->failed || c->at==c->bytes){c->failed=1;return 0;}return c->data[c->at++];}
+static void vfx_material_string(vfx_material_cursor *c,char *out)
+{
+    const unsigned char *end;uint32_t n;if(c->failed)return;
+    end=memchr(c->data+c->at,0,c->bytes-c->at);
+    if(!end || (n=(uint32_t)(end-(c->data+c->at)))>32){c->failed=1;return;}
+    memcpy(out,c->data+c->at,n+1);c->at+=n+1;
+}
+static void vfx_material_array(vfx_material_cursor *c,uint32_t count,uint32_t *offset)
+{
+    if(c->failed || count>0x7fffffffu || count>(c->bytes-c->at)/4){c->failed=1;return;}
+    *offset=c->at;c->at+=count*4;
+}
+int rf_vfx_material_read(const void *data,uint32_t bytes,uint32_t version,rf_vfx_material_view *out)
+{
+    rf_vfx_material_view v={0};vfx_material_cursor c={data,bytes,0,0};char *name;uint32_t i,type;
+    if(!data || !out)return RF_RANGE;
+    if(version<0x30000 || version>0x7fffffffu || (version>=0x40000 && version<0x40005))return RF_FORMAT;
+    v.words[4]=v.words[17]=v.words[45]=UINT32_MAX;
+    type=v.words[0]=vfx_material_word(&c);v.words[30]=version>=0x40003?vfx_material_word(&c):15;
+    if(type>2)goto done;
+    if(type==2) {
+        unsigned char *color=(unsigned char *)(v.words+2);
+        color[0]=(unsigned char)(version>=0x40006?(vfx_material_byte(&c)!=0):1);
+        for(i=1;i<4;++i)color[i]=(unsigned char)vfx_material_word(&c);
+    } else {
+        ((unsigned char *)(v.words+2))[0]=(unsigned char)(vfx_material_byte(&c)!=0);
+        name=(char *)(v.words+5);vfx_material_string(&c,name);
+        if(!strcmp(name,"$original_map_rgb"))v.words[1]|=2;
+        else if(strcmp(name,"$original_map"))v.bitmap_requests|=1;
+        for(i=14;i<17;++i)v.words[i]=vfx_material_word(&c);
+        if(type==1) {
+            name=(char *)(v.words+18);vfx_material_string(&c,name);
+            if(!strcmp(name,"$original_map_rgb"))v.words[1]|=4;
+            else if(*name && strcmp(name,"$original_map"))v.bitmap_requests|=2;
+            for(i=27;i<30;++i)v.words[i]=vfx_material_word(&c);
+            v.words[31]=vfx_material_word(&c);if(version<0x40003)v.words[30]=vfx_material_word(&c);
+            if(v.words[31])vfx_material_array(&c,v.words[31],v.words+32);
+        } else v.words[28]=0x3f800000;
+        for(i=33;i<36;++i)v.words[i]=vfx_material_word(&c);
+        name=(char *)(v.words+36);vfx_material_string(&c,name);if(*name)v.bitmap_requests|=4;
+    }
+    v.words[46]=version>=0x40003?vfx_material_word(&c):1;
+    vfx_material_array(&c,v.words[46],v.words+47);
+    if(version>=0x40005){v.words[48]=vfx_material_word(&c);vfx_material_array(&c,v.words[48],v.words+49);}
+done:
+    if(c.failed)return RF_FORMAT;v.bytes=c.at;*out=v;return RF_OK;
+}
+int rf_vfx_material_sample(const void *data,uint32_t bytes,const rf_vfx_material_view *view,
+    uint32_t track,uint32_t index,uint32_t *out)
+{
+    static const uint32_t counts[3]={31,46,48},offsets[3]={32,47,49};uint32_t at,word;float value;
+    if(!data || !view || !out || track>2)return RF_RANGE;
+    if(index>=view->words[counts[track]])return RF_NOT_FOUND;
+    at=view->words[offsets[track]];
+    if(at>bytes || (uint64_t)index*4+4>bytes-at)return RF_RANGE;
+    word=vfx_word((const unsigned char *)data+at+index*4);
+    if(!track) {
+        memcpy(&value,&word,4);if(!isfinite(value))return RF_RANGE;
+        if(value<=0)value=0;if(value>1)value=1;memcpy(&word,&value,4);
+    }
+    *out=word;return RF_OK;
+}
