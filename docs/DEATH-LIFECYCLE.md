@@ -9161,3 +9161,21 @@ Full original glare deletion audit (2026-09-12)
  the observed deletion resource path matches that scope. Nonempty resource
  ownership remains outside this audit. Next bind orphan preupdate and owned
  retirement before attachment traversal, with scene pointer invalidation.
+
+
+Live glare retirement integration (2026-09-12)
+--------------------------------------------
+ campaign_glare_retirement_pass now runs before attachment traversal. It
+ checks original ownership parent30, closes flag2 owners through owned
+ glare/base lifetime, checks registry removal, clears the attachment node
+ and room slot, and leaves a NULL slot in the stable instance array.
+ Current glares own no model/emitters and do not enter any retained collision
+ pair list (actor-pair diagnostics own transient actor lists). Extend this
+ boundary if those owners gain additional live resources.
+ Native replay-20260912-234903 PASS180 on67108864 bytes with0 plugged.
+ GLARE_RETIREMENT [179,39380,0,0,0,2166136261,220,0] matches PC exactly.
+ Both builds and22 CTest checks pass. Initial replay caught telemetry reset
+ on frame1 discarding the first frame0 pass; reset corrected before rerun.
+ This validates valid-parent survival and normal scene behavior, not actual
+ native orphan destruction. Forced parent loss, stale-node invalidation and
+ allocation recovery remain required native test coverage.

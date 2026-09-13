@@ -5951,6 +5951,33 @@ int rf_scene_npc_refresh_room(uint32_t handle)
     record[0]=handle;record[1]=state.room;record[2]=state.flags;memcpy(record+3,state.query_position,12);record[6]=context.called;
     rf_scene_npc_room_refresh[6]=npc_hash_bytes(rf_scene_npc_room_refresh[6],record,sizeof(record));return RF_OK;
 }
+uint32_t rf_scene_glare_retirement[8]; /* passes, checked, marked, retired, bytes freed, hash, live, errors */
+static int campaign_glare_retirement_pass(uint32_t frame)
+{
+    uint32_t i;int status;
+    if(!frame){memset(rf_scene_glare_retirement,0,sizeof(rf_scene_glare_retirement));rf_scene_glare_retirement[5]=2166136261u;}
+    ++rf_scene_glare_retirement[0];rf_scene_glare_retirement[6]=0;
+    for(i=0;i<campaign_glare_instance_count;++i)if(campaign_glare_instances[i]) {
+        rf_glare_base_owner *owner=campaign_glare_instances[i];uint32_t flags=owner->flags,handle=owner->handle,bytes=owner->allocated_bytes,record[2];
+        ++rf_scene_glare_retirement[1];
+        status=rf_glare_parent_update(owner,&campaign_registry);if(status)goto fail;
+        rf_scene_glare_retirement[2]+=!(flags&2) && (owner->flags&2);
+        if(!(owner->flags&2)){++rf_scene_glare_retirement[6];continue;}
+        /* Current type10 owners have no model/emitter resources and never enter
+         * retained collision pairs. Pair tests own only transient actor lists.
+         * Extend this boundary when those resources gain live ownership. */
+        status=rf_glare_owned_close(campaign_glare_instances+i,&campaign_registry,&campaign_clutter_objects,&campaign_glare_list);
+        if(status)goto fail;
+        if(rf_object_registry_lookup(&campaign_registry,handle)){status=RF_FORMAT;goto fail;}
+        if(campaign_attachment_nodes)memset(campaign_attachment_nodes+campaign_clutter_records.count+i,0,sizeof(*campaign_attachment_nodes));
+        if(campaign_glare_rooms)memset(campaign_glare_rooms+i,0,sizeof(*campaign_glare_rooms));
+        ++rf_scene_glare_retirement[3];rf_scene_glare_retirement[4]+=bytes;
+        record[0]=handle;record[1]=bytes;rf_scene_glare_retirement[5]=npc_hash_bytes(rf_scene_glare_retirement[5],record,sizeof(record));
+    }
+    return RF_OK;
+fail:
+    ++rf_scene_glare_retirement[7];return status;
+}
 /* Current registered static props are unparented (original allocation200=-1).
  * Their attached type10 glows use positive model tags. Actor/turret and later
  * attachment mutations require their own retained node/pose bindings. */
@@ -7094,7 +7121,7 @@ static int scene_frame(void *context,uint32_t frame,rf_preview_mesh *actor)
                 ++summary[0];summary[3]+=record[1]+record[4];summary[4]+=record[3];
                 summary[5]=record[7];summary[6]=record[8];summary[7]=record[9];
             }
-            if(campaign_spawn){status=campaign_npc_playback_tick(stream,scene_step_seconds);if(status)return status;status=campaign_npc_rooms_pass(frame);if(status)return status;status=campaign_attachments_pass();if(status)return status;status=campaign_attachment_motion_fixture(frame);if(status)return status;status=campaign_glare_rooms_pass(frame);if(status)return status;}
+            if(campaign_spawn){status=campaign_npc_playback_tick(stream,scene_step_seconds);if(status)return status;status=campaign_npc_rooms_pass(frame);if(status)return status;status=campaign_glare_retirement_pass(frame);if(status)return status;status=campaign_attachments_pass();if(status)return status;status=campaign_attachment_motion_fixture(frame);if(status)return status;status=campaign_glare_rooms_pass(frame);if(status)return status;}
         }
         if(campaign_spawn && stream->collision) {int status=campaign_collision_views_check(frame);if(status)return status;status=campaign_alpha_check(frame);if(status)return status;
             if(!frame){memset(rf_scene_glare_search,0,sizeof(rf_scene_glare_search));rf_scene_glare_search[4]=2166136261u;

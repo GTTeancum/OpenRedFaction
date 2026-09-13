@@ -352,6 +352,11 @@ dvd_path = '{root.as_posix()}/build/xbox/redfaction-diagnostic.iso'
       n=glare_instances[3]
       assert attachment_motion[:5]==[4*n,3*n,n,4*n,n],attachment_motion
      report['attachment_motion']=attachment_motion
+     glare_retirement=words(monitor,symbol('rf_scene_glare_retirement'),8)
+     assert glare_retirement==expected('GLARE_RETIREMENT') and glare_retirement[7]==0,glare_retirement
+     assert glare_retirement[0]==frames-1,glare_retirement
+     assert glare_retirement[3]+glare_retirement[6]==glare_instances[3],glare_retirement
+     report['glare_retirement']=glare_retirement
      attachments=words(monitor,symbol('rf_scene_attachments'),8)
      assert attachments==expected('ATTACHMENTS') and attachments[7]==0,attachments
      assert attachments[0]==frames-1 and attachments[5]<=32768,attachments

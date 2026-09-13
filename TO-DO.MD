@@ -19,7 +19,8 @@ Shared bounded parent ordering now matches1000 original/PC/NXDK forests.
 Installed clutter declares no turret use4; fresh props have attachment parent-1.
 Static-prop/glare ordering is live and matches180-frame stock64MiB XEMU.
 Moving-parent fixture passes880 PC/stock64MiB XEMU cases with full restoration.
-Orphan marking and full original type10 deletion now pass; bind live retirement.
+Orphan retirement is bound;180-frame stock64MiB XEMU preserves all220 valid glares.
+Add forced parent-loss coverage for native retirement and pointer invalidation.
 Bind authored dynamic parenting, full orphan retirement and turret ownership.
 
 The stationary startup-NPC animation gate matches PC/stock64MiB XEMU;
