@@ -610,7 +610,12 @@ int main(int argc,char **argv)
                _stricmp(seeds.records.items[i].record.class_name,
                    seeds.records.items[seeds.classes[seeds.items[i].class_index].record_index].record.class_name))return 6;
         }
-        for(i=0;i<count;++i)printf("SEED_FLAGS\t%s\t%u\n",seeds.records.items[i].record.class_name,seeds.items[i].spawn.creation_flags);
+        for(i=0;i<count;++i) {
+            const rf_entity_seed_class *c=seeds.classes+seeds.items[i].class_index;
+            printf("SEED_FLAGS\t%s\t%u\n",seeds.records.items[i].record.class_name,seeds.items[i].spawn.creation_flags);
+            printf("SEED_PHYSICS\t%d\t%s\t%u\t%u\t%u\t%u\t%u\n",seeds.records.items[i].record.uid,
+                seeds.records.items[i].record.class_name,seeds.items[i].spawn.creation_flags,c->physics.flags,c->physics.flags2,c->physics.use_kind,c->physics.movement_index);
+        }
         for(i=0;i<classes;++i) {
             uint32_t eye_words[6];memcpy(eye_words,&seeds.classes[i].eye_limits,24);
             printf("SEED_EYE\t%s\t%u\t%u\t%u\t%u\t%u\t%u\n",
