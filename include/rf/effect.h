@@ -197,6 +197,9 @@ int rf_vfx_mesh_keyed(const rf_vfx_mesh *,int32_t time,uint32_t vertex,rf_vfx_mo
 /*53f060 geometry dispatch before UV/parent stages. Inactive returns
  * NOT_FOUND; all failures preserve output. No allocation or persistent state. */
 int rf_vfx_mesh_sample(const rf_vfx_mesh *,float effect_frame,uint32_t vertex,rf_vfx_morph_sample *out);
+/*559f50 uncached face normal: (b-a) cross (c-b), then4faaf0.
+ * Reject degenerate/nonfinite geometry without changing output. */
+int rf_vfx_face_normal(const float vertices[9],float out[3]);
 /*5402fa direct-parent branch: row-major basis9 then translation3.
  * Transform center/vertex, preserve extra bounds; no tag pose resolution.
  * Supports in-place output; errors preserve output. */

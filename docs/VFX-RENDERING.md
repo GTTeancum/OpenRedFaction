@@ -47,3 +47,23 @@ cached skeletal-parent geometry, and UV sampling. It does not yet provide this
 render entry, persistent effect draw ownership, virtual tag lookup, or native
 XEMU VFX submission. Continue against these exact renderer entry points;
 do not replace authored modes with a generic textured triangle demonstration.
+
+## Renderer callback targets and face preparation
+
+516f50/516f70/516f90 gate on renderer selector017c7bcc==66 and call
+553ee0/554bf0/555080 respectively.555080 binds definition110 as a texture
+and invokes555ac0 using definitiona0; word110 is a texture ID, not a count.
+
+553ee0 copies sampled UVs into face records, resets projected-vertex and edge
+caches, prepares faces through554a80, sorts via53c840, then submits material
+passes through5159a0.554a80 projects missing vertices via518360, ANDs their
+clip codes for trivial rejection, computes the face normal via559f50, and
+checks facing via518460. Surviving faces enter a depth list with a material
+bias. Lighting uses averaged adjacent-face edge normals and4daff0; preserve
+this behavior when connecting materials rather than using flat default color.
+
+rf_vfx_face_normal now matches2048 original uncached559f50 comparisons on
+PC/NXDK through the actual4fb050 and4faaf0 helpers. Two guards reject
+nonfinite/degenerate geometry with output preserved; the original degenerate
+case generates NaN. Persistent normal caching, projection, facing, depth
+sorting, material passes and native submission remain unimplemented here.

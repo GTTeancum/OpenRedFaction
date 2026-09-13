@@ -14,6 +14,11 @@ Shortlist:
 
 Progress reporting: include overall percent estimates at meaningful milestones and revisit remaining 24-hour workdays when measured throughput supports a forecast; current rough estimate40% (35-45%), no defensible +/-48-hour completion forecast before end-to-end gameplay.
 
+Animated VFX face normals match2048 original/PC/NXDK cases and2 guards;
+renderer callbacks resolve to553ee0/554bf0/555080 and extra texture110.
+Complete554a80 projection/facing/depth list and material passes; both builds
+and24 tests pass, but VFX render submission/native playback remain open.
+
 Located VFX render entry53ee90 and draw targets516f50/516f70/516f90;
 trace material/clip/submission callbacks next (docs/VFX-RENDERING.md).
 Retain active-state and persistent geometry/UV ownership before live drawing;

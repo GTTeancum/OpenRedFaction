@@ -1703,3 +1703,16 @@ int rf_vfx_bone_parent_sample(const rf_vfx_morph_sample *sample,const float (*po
     }
     *out=value;return RF_OK;
 }
+
+int rf_vfx_face_normal(const float vertices[9],float out[3])
+{
+    float a[3],b[3],normal[3];double length;unsigned i;
+    if(!vertices || !out)return RF_RANGE;
+    for(i=0;i<9;++i)if(!isfinite(vertices[i]))return RF_FORMAT;
+    for(i=0;i<3;++i){a[i]=(float)((double)vertices[i+3]-vertices[i]);b[i]=(float)((double)vertices[i+6]-vertices[i+3]);}
+    for(i=0;i<3;++i)normal[i]=(float)((double)a[(i+1)%3]*b[(i+2)%3]-(double)a[(i+2)%3]*b[(i+1)%3]);
+    length=sqrt(((double)normal[0]*normal[0]+(double)normal[1]*normal[1])+(double)normal[2]*normal[2]);
+    if(!(length>0) || !isfinite(length))return RF_RANGE;
+    length=1.0/length;for(i=0;i<3;++i)normal[i]=(float)((double)normal[i]*length);
+    memcpy(out,normal,sizeof(normal));return RF_OK;
+}
