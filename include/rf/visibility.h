@@ -96,6 +96,21 @@ typedef struct rf_visibility_plane {float normal[3],distance;uint32_t corner;} r
 typedef struct rf_light_visibility_volume {
     uint32_t type;float position[3],end[3],radius;rf_visibility_plane planes[6];
 } rf_light_visibility_volume;
+typedef struct rf_light_dirty_solid {
+    float minimum[3],maximum[3];
+    const rf_light_dirty_room *rooms;uint32_t room_count;
+    const uint32_t *primary;uint32_t primary_count;
+    const uint32_t *children;uint32_t child_count;
+    const rf_collision_node *nodes;uint32_t node_count;
+    rf_light_dirty_face *faces;uint32_t face_count;
+    unsigned char *dirty;uint32_t dirty_count;
+    uint32_t *roots,root_capacity,*stack,stack_capacity;
+} rf_light_dirty_solid;
+/*4d86d0 world-space composition. With primary rooms, collect roots then walk
+ * trees; otherwise test solid bounds and its ordered flat face list. Borrows
+ * all state/scratch. No allocation; errors retain prior dirty-state progress.
+ * Alternate-view transforms and lifecycle registration are separate. */
+int rf_visibility_light_solid(const rf_light_visibility_volume *,rf_light_dirty_solid *,uint32_t mode,uint32_t update);
 /* Resolve authored point/cone/segment geometry, including segment radius bias.
  * Bounds callback plugs directly into root/tree/face passes; it applies no
  * enabled/color/class filter. Cone planes use the authored outer angle.

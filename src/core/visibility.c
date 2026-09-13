@@ -66,6 +66,23 @@ int rf_visibility_light_roots(const rf_light_dirty_room *rooms,uint32_t room_cou
     }
     *selected=count;return RF_OK;
 }
+int rf_visibility_light_solid(const rf_light_visibility_volume *volume,rf_light_dirty_solid *solid,uint32_t mode,uint32_t update)
+{
+    uint32_t count,hit;int status;
+    if(!volume || !solid)return RF_RANGE;
+    if(volume->type==1)return RF_OK;
+    if(volume->type<2 || volume->type>4)return RF_RANGE;
+    if(!solid->primary_count) {
+        status=rf_visibility_light_bounds((void *)volume,solid->minimum,solid->maximum,&hit);if(status || !hit)return status;
+        return rf_visibility_light_faces(solid->faces,solid->face_count,solid->dirty,solid->dirty_count,
+            mode,update,rf_visibility_light_bounds,(void *)volume);
+    }
+    status=rf_visibility_light_roots(solid->rooms,solid->room_count,solid->primary,solid->primary_count,
+        solid->children,solid->child_count,solid->roots,solid->root_capacity,&count,rf_visibility_light_bounds,(void *)volume);
+    if(status)return status;
+    return rf_visibility_light_tree(solid->nodes,solid->node_count,solid->roots,count,solid->faces,solid->face_count,
+        solid->dirty,solid->dirty_count,mode,update,solid->stack,solid->stack_capacity,rf_visibility_light_bounds,(void *)volume);
+}
 int rf_visibility_light_volume(const rf_vfx_light_definition *definition,rf_light_visibility_volume *out)
 {
     rf_vfx_light_candidate source;rf_light_visibility_volume value;int status;

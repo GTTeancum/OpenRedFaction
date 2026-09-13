@@ -115,6 +115,19 @@ static int light_dirty_bounds(void *context,const float minimum[3],const float m
 }
 int main(int argc,char **argv)
 {
+    if(argc==2 && !strcmp(argv[1],"--light-dirty-solid")) {
+        struct {rf_vfx_light_definition definition;uint32_t mode,update,path;float bounds[6];rf_light_dirty_room rooms[2];rf_collision_node nodes[3];rf_light_dirty_face faces[3];unsigned char dirty[4];} input;
+        uint32_t status,primary[1]={0},children[1]={1},roots[4],stack[4];rf_light_dirty_solid solid;rf_light_visibility_volume volume;
+        _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
+        while(fread(&input,sizeof(input),1,stdin)==1) {
+            memset(&solid,0,sizeof(solid));memcpy(solid.minimum,input.bounds,24);solid.rooms=input.rooms;solid.room_count=2;
+            solid.primary=primary;solid.primary_count=input.path;solid.children=children;solid.child_count=1;solid.nodes=input.nodes;solid.node_count=3;
+            solid.faces=input.faces;solid.face_count=3;solid.dirty=input.dirty;solid.dirty_count=4;solid.roots=roots;solid.root_capacity=4;solid.stack=stack;solid.stack_capacity=4;
+            status=rf_visibility_light_volume(&input.definition,&volume);if(!status)status=rf_visibility_light_solid(&volume,&solid,input.mode,input.update);
+            fwrite(&status,4,1,stdout);fwrite(input.faces,sizeof(input.faces),1,stdout);fwrite(input.dirty,4,1,stdout);
+        }
+        return 0;
+    }
     if(argc==2 && !strcmp(argv[1],"--light-volume")) {
         struct {rf_vfx_light_definition definition;float minimum[3],maximum[3];} input;
         struct {uint32_t status;rf_light_visibility_volume volume;uint32_t hit;} output;

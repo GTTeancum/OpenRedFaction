@@ -938,3 +938,21 @@ point,567 spotlight and953 segment. Three input-error cases preserve output
 on PC/NXDK. Both builds and24 CTests pass. This provides the real geometry
 callback; whole-solid orchestration, alternate-view context and native
 lighting-state ownership remain unbound. No new native/render evidence.
+
+### Complete world-space solid lighting update (2026-09-13)
+
+rf_visibility_light_solid composes real light-volume predicates with root
+collection, geometry-tree traversal and shared face dirty-state updates.
+If primary_count is zero, the original solid bounds gate an ordered flat
+face pass; otherwise all accepted room/detail roots are collected before
+reverse-root tree traversal. Directional type1 does no work as in4d86d0.
+The88-byte32-bit solid view borrows all geometry/state and caller scratch;
+no allocation or lifecycle ownership is introduced.
+
+verify_light_dirty_solid.py executes original constructors and full4d86d0
+without hooks, including actual shape predicates and all math/traversal
+callees. All2048 original/PC/NXDK cases match face flags and shared dirty
+bytes;504 cases change state. Covers all three shapes, flat-solid fallback,
+primary/detail roots, tree faces/children, mode/update combinations and
+shared records. Both builds and24 CTests pass. Alternate-view wrapper
+4d8660, retained native dirty-state ownership and frame binding remain.
