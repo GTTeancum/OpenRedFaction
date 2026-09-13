@@ -555,3 +555,42 @@ reduces references at+58; when the result is below1 it increments generation,
 unlinks/clears type and decrements live count, then resets active selection.
 4d8660 updates scene geometry only when879af8 andc96880 permit. Reconstruct
 these lifetime/registration/visibility effects before binding authored lights.
+
+## Source pool and cache ownership
+
+rf_vfx_light_pool owns first-free slot IDs and two insertion-order lists using
+caller storage. Its44-byte descriptor plus80-byte sources and16-byte links
+uses105644 bytes at the original1100-slot capacity on PC32/NXDK. Initialization
+zeros supplied storage; create/retain/release/move/enable/cache operations do
+not allocate. Callers must keep the arrays alive and mutate managed state only
+through the owner API. IDs retain original slot-reuse semantics; they are not
+stale-handle-safe generation IDs. Capacity exhaustion returns an error while
+preserving state, instead of the original constructor's unchecked-1 lookup.
+
+Creation composes the verified initializer, routes class-nonzero sources to
+list1 when world is0 and all others to list0, appends in original order,
+starts references at0, increments live count/generation and clears active
+selection. Retain increments references without invalidation. Release clears
+active selection on every call and removes the source when decremented refs
+fall below1, advancing generation/live count appropriately. Move and enable
+advance generation without clearing active selection. Fresh reused slots
+initialize unused shading fields to zero; original unused bytes may persist.
+Visibility-geometry callbacks from4d8660 are still excluded.
+
+rf_vfx_light_pool_cache walks list0 for world1 and list1 for world0, returning
+pool-slot indices with geometric membership and generation caching. This
+connects pool ownership to rf_vfx_lights_prepare: pass pool.sources and
+pool.capacity as the source array/count. Class/color/enabled filtering happens
+later. Changing world or bounds still requires caller cache invalidation;
+source lifetime/move/enable mutations advance the pool generation themselves.
+
+1024 mixed operation sequences compare actual original creation, retain,
+release, move and enable functions without hooks. Live source fields, reference
+counts, both linked-list orders and active/generation/count transitions agree;
+PC/NXDK full represented state serialization also agrees.2048 original/NXDK
+room-cache rebuild checks cover both lists. NXDK additionally fills1100 slots,
+checks exhaustion preserves owner/output, and confirms first-free reuse after
+removing slot17. Two invalid-operation guards preserve state. Both builds and
+24 CTests pass. Full-capacity initialization needed a larger instruction limit
+in the harness; no runtime code change was required. Scene visibility owner
+was empty, so authored loading, visibility updates and native rendering remain.

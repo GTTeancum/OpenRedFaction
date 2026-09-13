@@ -14,6 +14,11 @@ Shortlist:
 
 Progress reporting: include overall percent estimates at meaningful milestones and revisit remaining 24-hour workdays when measured throughput supports a forecast; current rough estimate40% (35-45%), no defensible +/-48-hour completion forecast before end-to-end gameplay.
 
+VFX pool ownership matches1024 original/PC/NXDK operation sequences plus2048
+original/NXDK cache checks;1100-slot capacity/exhaustion/reuse checked onNXDK.
+Both builds and24 tests pass. Bind authored light loading, visibility callbacks,
+global/null-room selection and native edge lighting; pool costs105644 bytes.
+
 VFX point/cone/segment source initialization matches2048 original/PC/NXDK
 cases and3 guards; both builds and24 tests pass. Bind original pool lifetime,
 registration/generation/visibility effects and authored light loading before

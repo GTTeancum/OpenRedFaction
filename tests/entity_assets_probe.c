@@ -256,6 +256,23 @@ int main(int argc,char **argv)
         }
         return ferror(stdin)?1:0;
     }
+    if(argc==2 && !strcmp(argv[1],"--vfx-light-pool")) {
+        rf_vfx_light_pool pool;rf_vfx_light_candidate sources[32];rf_vfx_light_link links[32];rf_vfx_light_definition definition;
+        uint32_t h[3],id;float position[3];int32_t status;
+        _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
+        if(rf_vfx_light_pool_init(&pool,sources,links,32))return 2;
+        while(fread(h,4,3,stdin)==3) {
+            if(fread(&definition,sizeof(definition),1,stdin)!=1 || fread(position,4,3,stdin)!=3)return 2;
+            id=h[1];pool.active=1;pool.active_count=7;
+            if(h[0]==0)status=rf_vfx_light_pool_create(&pool,&definition,h[2],&id);
+            else if(h[0]==1)status=rf_vfx_light_pool_retain(&pool,id);
+            else if(h[0]==2)status=rf_vfx_light_pool_release(&pool,id);
+            else if(h[0]==3)status=rf_vfx_light_pool_move(&pool,id,position);
+            else if(h[0]==4)status=rf_vfx_light_pool_enable(&pool,id,(unsigned char)h[2]);
+            else return 2;
+            fwrite(&status,4,1,stdout);fwrite(&id,4,1,stdout);fwrite(&pool,36,1,stdout);fwrite(sources,sizeof(sources),1,stdout);fwrite(links,sizeof(links),1,stdout);
+        }return ferror(stdin)?1:0;
+    }
     if(argc==2 && !strcmp(argv[1],"--vfx-light-create")) {
         rf_vfx_light_definition definition;rf_vfx_light_candidate result;int32_t status;
         _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);

@@ -2381,3 +2381,74 @@ int rf_vfx_light_create(const rf_vfx_light_definition *definition,rf_vfx_light_c
     }
     *out=value;return RF_OK;
 }
+
+int rf_vfx_light_pool_init(rf_vfx_light_pool *pool,rf_vfx_light_candidate *sources,rf_vfx_light_link *links,uint32_t capacity)
+{
+    if(!pool || !sources || !links || !capacity || capacity>1100)return RF_RANGE;
+    memset(pool,0,sizeof(*pool));memset(sources,0,(size_t)capacity*sizeof(*sources));memset(links,0,(size_t)capacity*sizeof(*links));
+    pool->capacity=capacity;pool->sources=sources;pool->links=links;
+    pool->first[0]=pool->first[1]=pool->last[0]=pool->last[1]=UINT32_MAX;return RF_OK;
+}
+static int vfx_light_pool_valid(const rf_vfx_light_pool *p)
+{return p && p->sources && p->links && p->capacity && p->capacity<=1100 && p->count<=p->capacity;}
+static int vfx_light_pool_id(const rf_vfx_light_pool *p,uint32_t id)
+{return vfx_light_pool_valid(p) && id<p->capacity && p->sources[id].source.type!=0;}
+int rf_vfx_light_pool_create(rf_vfx_light_pool *pool,const rf_vfx_light_definition *definition,uint32_t world,uint32_t *id)
+{
+    rf_vfx_light_candidate value;uint32_t i,list,tail;int status;
+    if(!vfx_light_pool_valid(pool) || !id || world>1 || pool->count==pool->capacity)return RF_RANGE;
+    status=rf_vfx_light_create(definition,&value);if(status)return status;
+    for(i=0;i<pool->capacity && pool->sources[i].source.type;++i){}if(i==pool->capacity)return RF_RANGE;
+    list=value.light_class && !world?1:0;tail=pool->last[list];pool->sources[i]=value;
+    pool->links[i].references=0;pool->links[i].previous=tail;pool->links[i].next=UINT32_MAX;pool->links[i].list=list;
+    if(tail==UINT32_MAX)pool->first[list]=i;else pool->links[tail].next=i;
+    pool->last[list]=i;++pool->count;++pool->generation;pool->active=pool->active_count=0;*id=i;return RF_OK;
+}
+int rf_vfx_light_pool_retain(rf_vfx_light_pool *pool,uint32_t id)
+{
+    if(!vfx_light_pool_id(pool,id) || pool->links[id].references==INT32_MAX)return RF_RANGE;
+    ++pool->links[id].references;return RF_OK;
+}
+int rf_vfx_light_pool_release(rf_vfx_light_pool *pool,uint32_t id)
+{
+    rf_vfx_light_link *link;
+    if(!vfx_light_pool_id(pool,id))return RF_RANGE;link=pool->links+id;
+    if(link->references>1)--link->references;
+    else {
+        link->references=-1+(link->references==1?1:0);
+        if(link->previous==UINT32_MAX)pool->first[link->list]=link->next;else pool->links[link->previous].next=link->next;
+        if(link->next==UINT32_MAX)pool->last[link->list]=link->previous;else pool->links[link->next].previous=link->previous;
+        pool->sources[id].source.type=0;link->previous=link->next=UINT32_MAX;--pool->count;++pool->generation;
+    }
+    pool->active=pool->active_count=0;return RF_OK;
+}
+int rf_vfx_light_pool_move(rf_vfx_light_pool *pool,uint32_t id,const float position[3])
+{
+    uint32_t j;if(!vfx_light_pool_id(pool,id) || !position)return RF_RANGE;
+    for(j=0;j<3;++j)if(!isfinite(position[j]))return RF_RANGE;
+    memcpy(pool->sources[id].source.position,position,12);++pool->generation;return RF_OK;
+}
+int rf_vfx_light_pool_enable(rf_vfx_light_pool *pool,uint32_t id,unsigned char enabled)
+{
+    if(!vfx_light_pool_id(pool,id))return RF_RANGE;pool->sources[id].enabled=enabled;++pool->generation;return RF_OK;
+}
+int rf_vfx_light_pool_cache(const rf_vfx_light_pool *pool,uint32_t world,
+    const float minimum[3],const float maximum[3],rf_vfx_light_cache *cache)
+{
+    uint32_t id,n=0,walk=0,index,accepted;int status;
+    if(!vfx_light_pool_valid(pool) || world>1 || !cache || cache->valid>1 || cache->count>cache->capacity ||
+        (cache->capacity && !cache->indices))return RF_RANGE;
+    if(cache->valid && cache->generation==pool->generation)return RF_OK;
+    if(cache->capacity<pool->count)return RF_RANGE;
+    /* Preflight geometry before writing any cache indices. */
+    status=vfx_lights_box(NULL,0,minimum,maximum,1,1,NULL,0,&accepted,0);if(status)return status;
+    for(id=pool->first[world?0:1];id!=UINT32_MAX;id=pool->links[id].next) {
+        if(!vfx_light_pool_id(pool,id) || ++walk>pool->count)return RF_RANGE;
+        status=vfx_lights_box(pool->sources+id,1,minimum,maximum,1,1,&index,1,&accepted,0);if(status)return status;
+    }
+    for(id=pool->first[world?0:1];id!=UINT32_MAX;id=pool->links[id].next) {
+        vfx_lights_box(pool->sources+id,1,minimum,maximum,1,1,&index,1,&accepted,0);
+        if(accepted)cache->indices[n++]=id;
+    }
+    cache->count=n;cache->generation=pool->generation;cache->valid=1;return RF_OK;
+}

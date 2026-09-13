@@ -132,6 +132,25 @@ typedef struct rf_vfx_light_query {
 int rf_vfx_lights_prepare(const rf_vfx_light_candidate *,uint32_t source_count,
     const rf_vfx_light_cache *,const rf_vfx_light_query *,rf_vfx_light_source *out,
     uint32_t capacity,uint32_t *selected);
+/* Caller-owned pool storage: capacity<=1100,80 bytes/source,16 bytes/link.
+ * IDs are slot indices (first free slot reused), not generation-tagged handles.
+ * world selects original879af8 list routing. Scene visibility callbacks remain
+ * outside this owner. Initialization clears supplied arrays; no heap calls. */
+typedef struct rf_vfx_light_link {int32_t references;uint32_t previous,next,list;} rf_vfx_light_link;
+typedef struct rf_vfx_light_pool {
+    uint32_t capacity,count,generation,active,active_count,first[2],last[2];
+    rf_vfx_light_candidate *sources;rf_vfx_light_link *links;
+} rf_vfx_light_pool;
+int rf_vfx_light_pool_init(rf_vfx_light_pool *,rf_vfx_light_candidate *,rf_vfx_light_link *,uint32_t capacity);
+int rf_vfx_light_pool_create(rf_vfx_light_pool *,const rf_vfx_light_definition *,uint32_t world,uint32_t *id);
+int rf_vfx_light_pool_retain(rf_vfx_light_pool *,uint32_t id);
+int rf_vfx_light_pool_release(rf_vfx_light_pool *,uint32_t id);
+int rf_vfx_light_pool_move(rf_vfx_light_pool *,uint32_t id,const float position[3]);
+int rf_vfx_light_pool_enable(rf_vfx_light_pool *,uint32_t id,unsigned char enabled);
+/* Cache indices refer directly to pool slots; traverses original selected list.
+ * Changing world mode requires caller invalidation, as do bounds changes. */
+int rf_vfx_light_pool_cache(const rf_vfx_light_pool *,uint32_t world,
+    const float minimum[3],const float maximum[3],rf_vfx_light_cache *);
 /*4d8480 transform: directions rotate only; positions/endpoints subtract
  * origin first. Basis rows use original Z/Y/X dot order. Preserves non-vector
  * fields and unused vectors. In-place supported; errors preserve output. */
