@@ -139,6 +139,10 @@ int rf_scene_clutter_visibility_model(void *context,const rf_collision_visibilit
     rf_collision_model_part_query *query,rf_collision_model_response_hit *hit,uint32_t reset,uint32_t *accepted);
 extern uint32_t rf_scene_clutter_draw[6];
 extern uint32_t rf_scene_clutter_render_dispatch[6];
+/* Registered moving-solid view; cached owner handle and solid query token differ.
+ * Borrow current public pose; no allocation or render flag fabrication. */
+int rf_scene_mover_visibility_view(uint32_t handle,rf_glare_visibility_object *result);
+extern uint32_t rf_scene_mover_visibility[3];
 /*428030: blocked standing still selects slow mode; forced crouch sets only the flag.
  * Required standing services only when attempting to stand; borrowed owners must survive callbacks. */
 int rf_scene_npc_slow(const rf_geometry_collision_world *world,uint32_t handle,

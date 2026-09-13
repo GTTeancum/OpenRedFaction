@@ -1825,6 +1825,25 @@ static int campaign_controller_tick(int32_t now,rf_level_particles *particles,co
     ++rf_scene_live_motion[1];
     return RF_OK;
 }
+uint32_t rf_scene_mover_visibility[3]; /* views, normalized hash, errors */
+int rf_scene_mover_visibility_view(uint32_t handle,rf_glare_visibility_object *result)
+{
+    rf_glare_visibility_object value={0};const rf_group_registered_mover *owner;const rf_group_attached_pose *pose;
+    uint32_t i;void *registered;
+    if(!result)return RF_RANGE;
+    registered=rf_object_registry_lookup(&campaign_registry,handle);if(!registered)return RF_NOT_FOUND;
+    for(i=0;i<campaign_mover_count;++i)if(registered==campaign_mover_wrappers+i && campaign_mover_wrappers[i].handle==handle)break;
+    if(i==campaign_mover_count)return RF_NOT_FOUND;
+    owner=campaign_mover_wrappers+i;
+    if(i>=campaign_movers.count || owner->object_kind!=9 || owner->pose!=campaign_movers.poses+i ||
+        campaign_movers.views[i].object_id!=handle)return RF_FORMAT;
+    pose=owner->pose;value.handle=handle;value.solid=i+2;
+    /* Cached owner tokens are handles; geometry query tokens are index+2. */
+    value.geometry.token=handle;value.geometry.flags=pose->flags;value.geometry.extent=pose->radius;
+    memcpy(value.geometry.position,pose->public_position,12);memcpy(value.geometry.matrix,pose->input_matrix,36);
+    memcpy(value.geometry.minimum,pose->minimum,12);memcpy(value.geometry.maximum,pose->maximum,12);
+    *result=value;return RF_OK;
+}
 /* 487e00 commits controllers through 46a8f0 before querying actor support.
  * Keep propagated velocity available during physics with old committed origins. */
 static int campaign_controller_commit(void)
@@ -1838,6 +1857,19 @@ static int campaign_controller_commit(void)
     }
     status=rf_geometry_collision_movers_sync(&campaign_movers);if(status)return status;
     for(i=0;i<campaign_movers.count;++i) {
+        rf_glare_visibility_object object;
+        status=rf_scene_mover_visibility_view(campaign_mover_wrappers[i].handle,&object);
+        if(status){++rf_scene_mover_visibility[2];return status;}
+        if(memcmp(object.geometry.position,campaign_movers.views[i].input_origin,12) ||
+            memcmp(object.geometry.matrix,campaign_movers.views[i].input_matrix,36) ||
+            memcmp(object.geometry.minimum,campaign_movers.views[i].minimum,12) ||
+            memcmp(object.geometry.maximum,campaign_movers.views[i].maximum,12)) {
+            ++rf_scene_mover_visibility[2];return RF_FORMAT;
+        }
+        ++rf_scene_mover_visibility[0];
+        rf_scene_mover_visibility[1]=npc_hash_bytes(rf_scene_mover_visibility[1],&object.geometry.token,12);
+        rf_scene_mover_visibility[1]=npc_hash_bytes(rf_scene_mover_visibility[1],object.geometry.position,72);
+        rf_scene_mover_visibility[1]=npc_hash_bytes(rf_scene_mover_visibility[1],&object.solid,4);
         if(campaign_movers.uids[i]==8543)memcpy(rf_scene_live_door_positions,campaign_movers.poses[i].position,12);
         if(campaign_movers.uids[i]==8544)memcpy(rf_scene_live_door_positions+3,campaign_movers.poses[i].position,12);
     }
@@ -3090,6 +3122,7 @@ static int campaign_open_movers(const rf_geometry_movers *source)
 {
     uint32_t i,*handles=NULL;int status=RF_RANGE;
     if(!source || source->count>campaign_registry.count)return RF_RANGE;
+    memset(rf_scene_mover_visibility,0,sizeof(rf_scene_mover_visibility));rf_scene_mover_visibility[1]=2166136261u;
     if(!source->count) {memset(rf_scene_campaign_movers,0,sizeof(rf_scene_campaign_movers));return RF_OK;}
     campaign_mover_wrappers=calloc(source->count,sizeof(*campaign_mover_wrappers));
     campaign_mover_objects=calloc(source->count,sizeof(*campaign_mover_objects));

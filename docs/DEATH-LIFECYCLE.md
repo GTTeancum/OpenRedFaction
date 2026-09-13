@@ -8594,3 +8594,20 @@ flags and ordering. Stock64MiB XEMU replay-20260912-211743 passes180frames:
 CLUTTER_RENDER_DISPATCH [180,5553,5553,0,4173178338,0] matches PC. This
 scene has no skipped props; native skip coverage is not claimed. The final
 prop draw [180,19,3750,3956637847,0,19] remains unchanged.
+
+
+## Moving-solid visibility ownership (2026-09-12)
+
+rf_scene_mover_visibility_view resolves a current registered type9 wrapper,
+validates its pose and collision object handle, then publishes the retained
+public position/input matrix, radius bounds and flags. Cached owner identity
+is the registry handle; solid query identity is index+2, matching the existing
+scene glare solid callback. Model is null for these geometry solids. Output
+is published only after validation. No allocations or invented render flags.
+
+After each controller commit/sync, the scene checks these fields against
+collision input pose/bounds and hashes the normalized view without pointers.
+PC/NXDK builds and21CTest pass. Stock64MiB180-frame XEMU
+replay-20260912-212154 passes with MOVER_VISIBILITY [5728,799111036,0]:
+32 movers across179 commits, exact PC parity. This verifies scene ownership
+and synchronized views, not full glare search or mover render dispatch.
