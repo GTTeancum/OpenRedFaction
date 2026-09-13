@@ -3483,12 +3483,16 @@ int rf_scene_npc_steer(uint32_t handle,const float target[3],float dt,uint32_t c
     status=rf_entity_navigation_steer(&state,target,dt,clock,result);if(status)return status;
     memcpy(owner->body.state.vector_c8,state.angular_150,12);memcpy(owner->look.command_708,state.command_708,12);owner->look.clock_7b0=state.turn_clock_7b0;return RF_OK;
 }
-int rf_scene_npc_prepare_angular(uint32_t handle,float dt,uint32_t driven)
+int rf_scene_npc_prepare_angular(uint32_t handle,float dt)
 {
-    campaign_npc_body *owner;rf_entity_pose *pose;uint32_t cls;int status;
+    campaign_npc_body *owner;rf_entity_pose *pose;uint32_t cls,driven=0;int status;int32_t player,count=0;
     rf_angular_velocity_state velocity;rf_angular_prediction prediction;const rf_entity_rotation_values *rotation;
     status=campaign_npc_motion_owner(handle,&owner,&cls,&pose);if(status)return status;
     if(owner->movement_slot>=16)return RF_RANGE;rotation=&campaign_seeds.classes[cls].rotation;
+    if(!(owner->body.state.flags&0x1000000u)){
+        if(campaign_player_object.view){player=(int32_t)campaign_player_object.handle;count=1;}
+        status=rf_entity_player_controls(&campaign_entities,&owner->view,count?&player:NULL,count,&driven);if(status)return status;
+    }
     memcpy(velocity.velocity,owner->body.state.vector_c8,12);memcpy(velocity.force,owner->body.state.vector_ec,12);
     status=rf_angular_velocity_step(&velocity,owner->look.command_708,rotation->maximum_velocity,rotation->acceleration,
         owner->body.state.mass,dt,owner->body.state.flags,driven);if(status)return status;
@@ -6562,6 +6566,35 @@ static int campaign_npc_ground_query_fixture(const rf_geometry_collision_world *
     if(status)++rf_scene_npc_ground_query_test[4];return status;
 }
 uint32_t rf_scene_npc_route_test[6]; /* requests, successes, retained checks, hash, owner bytes, errors */
+uint32_t rf_scene_npc_drive_test[4]; /* undriven, driven, hash, errors */
+static int campaign_npc_drive_fixture(uint32_t frame)
+{
+    uint32_t i,driven;int status=RF_OK;int32_t saved_link=campaign_player_view.linked_handle;
+    if(frame)return RF_OK;memset(rf_scene_npc_drive_test,0,sizeof(rf_scene_npc_drive_test));
+    if(!rf_scene_actor_pair_test_enabled)return RF_OK;
+    if(!campaign_player_object.view)return RF_NOT_FOUND;
+    rf_scene_npc_drive_test[2]=2166136261u;
+    for(i=0;i<campaign_npc_body_count && !status;++i)if(campaign_npc_bodies[i].registration.view){
+        campaign_npc_body *o=campaign_npc_bodies+i,saved=*o;uint32_t cls=campaign_seeds.items[i].class_index,j;
+        const rf_entity_rotation_values *r=&campaign_seeds.classes[cls].rotation;
+        for(driven=0;driven<2 && !status;++driven){
+            rf_angular_velocity_state expected;rf_angular_prediction prediction;
+            *o=saved;o->body.state.flags&=~0x1000000u;
+            campaign_player_view.linked_handle=driven?o->view.handle:-1;
+            for(j=0;j<3;++j){o->look.command_708[j]=(float)(j+1)*.125f;
+                o->body.state.vector_c8[j]=expected.velocity[j]=(float)(j+1)*.25f;
+                o->body.state.vector_ec[j]=expected.force[j]=(float)(j+1)*.01f;}
+            status=rf_angular_velocity_step(&expected,o->look.command_708,r->maximum_velocity,r->acceleration,o->body.state.mass,1.0f/60.0f,o->body.state.flags,driven);
+            if(!status)status=rf_angular_predict(o->look.body_angles,expected.velocity,1.0f/60.0f,campaign_modes[o->movement_slot].rotation,&prediction);
+            if(!status)status=rf_scene_npc_prepare_angular(o->registration.handle,1.0f/60.0f);
+            if(!status && (memcmp(expected.velocity,o->body.state.vector_c8,12) || memcmp(expected.force,o->body.state.vector_ec,12) ||
+                memcmp(prediction.next_orientation,o->body.state.next_orientation,36) || memcmp(prediction.eye_delta,o->look.angles.delta_888,12)))status=RF_FORMAT;
+            if(!status){++rf_scene_npc_drive_test[driven];rf_scene_npc_drive_test[2]=npc_hash_bytes(rf_scene_npc_drive_test[2],&expected,sizeof(expected));}
+        }
+        *o=saved;
+    }
+    campaign_player_view.linked_handle=saved_link;if(status)++rf_scene_npc_drive_test[3];return status;
+}
 uint32_t rf_scene_npc_look_test[6]; /* owners, eye updates, steers, hash, bytes, errors */
 static int campaign_npc_look_fixture(uint32_t frame)
 {
@@ -6590,7 +6623,7 @@ static int campaign_npc_look_fixture(uint32_t frame)
                 memcpy(velocity.velocity,o->body.state.vector_c8,12);memcpy(velocity.force,o->body.state.vector_ec,12);
                 status=rf_angular_velocity_step(&velocity,o->look.command_708,rotation->maximum_velocity,rotation->acceleration,o->body.state.mass,1.0f/60.0f,o->body.state.flags,0);
                 if(!status)status=rf_angular_predict(o->look.body_angles,velocity.velocity,1.0f/60.0f,campaign_modes[o->movement_slot].rotation,&prediction);
-                if(!status)status=rf_scene_npc_prepare_angular(o->registration.handle,1.0f/60.0f,0);
+                if(!status)status=rf_scene_npc_prepare_angular(o->registration.handle,1.0f/60.0f);
                 if(!status && (memcmp(velocity.velocity,o->body.state.vector_c8,12) || memcmp(velocity.force,o->body.state.vector_ec,12) ||
                     memcmp(prediction.orientation,o->body.state.orientation,36) || memcmp(prediction.next_orientation,o->body.state.next_orientation,36) ||
                     memcmp(prediction.body_delta,o->look.angles.vector_870,12) || memcmp(prediction.eye_delta,o->look.angles.delta_888,12)))status=RF_FORMAT;
@@ -6600,7 +6633,7 @@ static int campaign_npc_look_fixture(uint32_t frame)
             result=99;
             if(!status && (rf_scene_npc_steer(o->registration.handle^0x10000,target,1.0f/60.0f,0,&result)!=RF_NOT_FOUND || result!=99 ||
                 rf_scene_npc_eye_angles_step(o->registration.handle^0x10000,1.0f/60.0f)!=RF_NOT_FOUND ||
-                rf_scene_npc_prepare_angular(o->registration.handle^0x10000,1.0f/60.0f,0)!=RF_NOT_FOUND))status=RF_FORMAT;
+                rf_scene_npc_prepare_angular(o->registration.handle^0x10000,1.0f/60.0f)!=RF_NOT_FOUND))status=RF_FORMAT;
         }
         *o=saved;
     }
@@ -6891,6 +6924,7 @@ static int campaign_npc_playback_tick(scene_stream *stream,float elapsed)
     status=campaign_npc_ai_reset_fixture(rf_scene_npc_playback[0]);if(status)return status;
     status=campaign_npc_route_fixture(rf_scene_npc_playback[0]);if(status)return status;
     status=campaign_npc_look_fixture(rf_scene_npc_playback[0]);if(status)return status;
+    status=campaign_npc_drive_fixture(rf_scene_npc_playback[0]);if(status)return status;
     status=campaign_npc_unholster_fixture(rf_scene_npc_playback[0]);if(status)return status;
     status=campaign_npc_motion_request_fixture(rf_scene_npc_playback[0]);if(status)return status;
     status=campaign_npc_body_sweep_fixture(stream->collision,rf_scene_npc_playback[0]);if(status)return status;

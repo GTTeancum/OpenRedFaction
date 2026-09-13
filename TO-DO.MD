@@ -65,6 +65,7 @@ Ordinary angular velocity preparation matches2048 original/PC/NXDK cases plus7 g
 Angular dispatch precedence matches800 original/PC/NXDK cases; bind SP player/control references and remaining special rotation services.
 Retained ordinary NPC angular preparation/prediction passes38 PC/stock64MiB XEMU cases; connect verified linked_handle player lookup and collision/commit scheduling.
 Player/control lookup48aa30 matches2048 original/PC/NXDK cases; bind registered SP player list to automatic angular drive selection.
+Automatic SP angular drive selection passes38 driven and38 undriven PC/stock64MiB XEMU checks; finish special dispatch, collision and movement commit.
 AI scalar401cc0 and occupant-chain4077a0 each match2048 original/PC/NXDK cases; retain scalar/override sources.
 Shared408ac0 selection matches2048 original/PC/NXDK cases across107 paths plus21 failure checks.
 AI animation resets4091d0/409210 match2048 original/PC/NXDK cases plus4 failure checks.

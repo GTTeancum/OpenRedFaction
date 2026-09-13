@@ -312,6 +312,7 @@ int main(int argc,char **argv)
             printf("NAVIGATION_WORKSPACE");for(i=0;i<4;++i)printf(" %u",rf_scene_navigation_workspace[i]);printf("\n");
             printf("NPC_ROUTE_TEST");for(i=0;i<6;++i)printf(" %u",rf_scene_npc_route_test[i]);printf("\n");
             printf("NPC_LOOK_TEST");for(i=0;i<6;++i)printf(" %u",rf_scene_npc_look_test[i]);printf("\n");
+            printf("NPC_DRIVE_TEST");for(i=0;i<4;++i)printf(" %u",rf_scene_npc_drive_test[i]);printf("\n");
             printf("CLUTTER");for(i=0;i<8;++i)printf(" %u",rf_scene_clutter[i]);printf("\n");
             printf("CLUTTER_RENDER");for(i=0;i<8;++i)printf(" %u",rf_scene_clutter_render[i]);printf("\n");
             printf("CLUTTER_MATERIALS");for(i=0;i<8;++i)printf(" %u",rf_scene_clutter_materials[i]);printf("\n");

@@ -116,14 +116,16 @@ extern uint32_t rf_scene_navigation[6];
 extern uint32_t rf_scene_navigation_workspace[4];
 extern uint32_t rf_scene_npc_route_test[6];
 extern uint32_t rf_scene_npc_look_test[6];
+extern uint32_t rf_scene_npc_drive_test[4];
 /* Retained NPC services; caller schedules after preparing angular deltas/body
  * orientation. These do not advance physics or choose an AI destination. */
 int rf_scene_npc_eye_angles_step(uint32_t handle,float dt);
 int rf_scene_npc_steer(uint32_t handle,const float target[3],float dt,uint32_t clock,float *result);
-/* Caller has selected the ordinary angular branch and resolved48aa30/4895d0.
+/* Caller has selected the ordinary angular branch. SP drive state comes from
+ * the registered player/control lookup48aa30.
  * Prepares velocity/force and predicted matrices/deltas, without committing
  * angles or collision movement. Special branch selection is caller work. */
-int rf_scene_npc_prepare_angular(uint32_t handle,float dt,uint32_t driven);
+int rf_scene_npc_prepare_angular(uint32_t handle,float dt);
 /* Prepared route request; scene owns endpoints/output and reuses its workspace.
  * Geometry/dimension/selection parameters are supplied, not inferred from AI.
  * Caller state must be stable; stale handles preserve result. */

@@ -296,6 +296,10 @@ dvd_path = '{root.as_posix()}/build/xbox/redfaction-diagnostic.iso'
      if args.actor_pairs:
       assert npc_look_test[:3]==[startup[0]]*3 and npc_look_test[4]==npc_bodies[0]*136 and npc_look_test[5]==0,npc_look_test
      report['npc_look_test']=npc_look_test
+     npc_drive_test=words(monitor,symbol('rf_scene_npc_drive_test'),4)
+     assert npc_drive_test==expected('NPC_DRIVE_TEST'),npc_drive_test
+     if args.actor_pairs:assert npc_drive_test[:2]==[startup[0]]*2 and npc_drive_test[3]==0,npc_drive_test
+     report['npc_drive_test']=npc_drive_test
      clutter=words(monitor,symbol('rf_scene_clutter'),8)
      assert clutter==expected('CLUTTER') and clutter[0]==431 and clutter[3]==55610,clutter
      assert clutter[5]<=clutter[6]<=256*1024,clutter
