@@ -216,3 +216,30 @@ services, generic common/parent/room fields, full4c77a0 post-creation effects,
 collision/hit dispatch, deferred retirement and425830 firing scheduling.
 This verifies a port composition of reconstructed components, not the entire
 original generic factory or functional combat.
+
+## Authored projectile model catalog (2026-09-13)
+
+The installed44-weapon table declares5 static projectile models,11 effect
+models and28 model-less entries. Rockets and several enemy attacks use VFX;
+a static-only backend would omit required projectile visuals. Distinct
+filenames are retained by weapon ID, including empty strings and duplicates.
+
+rf_projectile_model_catalog_read/load implements the required $V3D Filename
+field from4c2c80, separately from optional third-person held-weapon models.
+Original filename length below5 sets kind0;5143f0 finds the final dot, then
+5001d0 compares its suffix case-insensitively to .vfx: kind3 if equal, kind1
+otherwise. Thus .vcm selects1 here, unlike the actor classifier. Invalid,
+missing, duplicate or oversized fields preserve output. Resident catalog is
+4356 bytes; archive text scratch is108890 bytes for the installed table.
+
+verify_projectile_model_catalog.py passes16 PC/compiled NXDK reader cases,
+three PC archive budget boundaries and51 filename classifications using the
+original extension/comparison helpers unhooked where the length gate permits.
+An independent comment-aware table scan matches every filename/type, and all
+referenced compiled static/effect assets exist in the installed archives.
+Original full table parser is not executed. Both builds and24 CTests pass.
+Evidence: artifacts/projectile-model-catalog.json.
+
+Next: consume this catalog in bounded retained static/VFX model services,
+then bind those services to the registered projectile initializer. No new
+native scene run, resource rendering or functional firing is claimed here.

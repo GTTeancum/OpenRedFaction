@@ -520,6 +520,42 @@ done:
     free(file);rf_weapon_models_close(&v);return status;
 }
 
+int rf_projectile_model_catalog_read(const void *text,uint32_t bytes,rf_projectile_model_catalog *result)
+{
+    rf_projectile_model_catalog v={0};rf_weapon_names names;lexer l={text,bytes,0};
+    char t[256];uint32_t index=0;int q,status,active=0,seen=0;
+    if(!text || !result)return RF_RANGE;
+    status=rf_weapon_names_read(text,bytes,&names);if(status)return status;v.count=names.count;
+    while((status=token(&l,t,&q))==RF_OK) {
+        if(q)continue;
+        if(same(t,"$Name:")) {
+            if((active && !seen) || index>=v.count)return RF_FORMAT;
+            ++index;active=1;seen=0;
+        } else if(same(t,"#End")) {
+            if(active && !seen)return RF_FORMAT;active=0;
+        } else if(active && same(t,"$V3D")) {
+            char *extension;
+            if(token(&l,t,&q) || q || !same(t,"Filename:") || seen)return RF_FORMAT;
+            status=metadata_string(&l,v.files[index-1],64);if(status)return status;seen=1;
+            extension=strrchr(v.files[index-1],'.');
+            if(strlen(v.files[index-1])>=5)v.kinds[index-1]=extension && same(extension,".vfx")?3:1;
+        }
+    }
+    if(status!=RF_NOT_FOUND)return status;
+    if(index!=v.count || (active && !seen))return RF_FORMAT;*result=v;return RF_OK;
+}
+int rf_projectile_model_catalog_load(rf_vpp *tables,uint32_t budget,rf_projectile_model_catalog *result)
+{
+    rf_vpp_entry entry;void *text;int status;
+    if(!tables || !result)return RF_RANGE;
+    status=rf_vpp_find(tables,"weapons.tbl",&entry);if(status)return status;
+    if(!entry.size || entry.size>budget)return RF_RANGE;
+    text=malloc(entry.size);if(!text)return RF_IO;
+    status=rf_vpp_read(tables,&entry,0,text,entry.size);
+    if(!status)status=rf_projectile_model_catalog_read(text,entry.size,result);
+    free(text);return status;
+}
+
 int rf_weapon_model_names_read(const void *text,uint32_t bytes,rf_weapon_model_names *result)
 {
     rf_weapon_model_names v={0};rf_weapon_names names;lexer l={text,bytes,0};

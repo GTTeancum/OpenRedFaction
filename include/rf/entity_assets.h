@@ -30,6 +30,16 @@ typedef struct rf_weapon_model_names {char files[64][64];uint32_t count;} rf_wea
 int rf_weapon_model_names_read(const void *text,uint32_t bytes,rf_weapon_model_names *result);
 int rf_weapon_model_names_load(rf_vpp *tables,uint32_t scratch_budget,rf_weapon_model_names *result);
 
+typedef struct rf_projectile_model_catalog {
+    char files[64][64];uint32_t kinds[64],count;
+} rf_projectile_model_catalog;
+/* Required $V3D Filename in primary/secondary weapon ID order (4c2c80).
+ * Names shorter than5 have kind0; final .vfx suffix selects3, otherwise1,
+ * case-insensitively. In particular .vcm is not actor model kind2 here.
+ * Empty names are retained. No resource loading; errors preserve output. */
+int rf_projectile_model_catalog_read(const void *text,uint32_t bytes,rf_projectile_model_catalog *);
+int rf_projectile_model_catalog_load(rf_vpp *tables,uint32_t scratch_budget,rf_projectile_model_catalog *);
+
 typedef struct rf_weapon_static_model {
     char filename[64];rf_static_render_resource render;rf_static_model_tags tags;
 } rf_weapon_static_model;
