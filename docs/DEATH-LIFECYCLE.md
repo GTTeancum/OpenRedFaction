@@ -8538,3 +8538,19 @@ and dirty-flag clearing, then restores position, room cache, flags and model
 room even on failure. L1S2 harness now requires a room change in this fixture.
 Existing384 original/PC/NXDK room-refresh cases and21 CTests pass; both
 builds pass. No additional rendered scene or full glare scheduling claim.
+
+
+## Shared scene prop room token correction (2026-09-12)
+
+Original48a160 stores a nullable room identity in object word0. Scene NPC and
+player owners encode this as room index+1, with zero for absent. Prop creation
+previously supplied a raw room index, conflating room0 with absent and making
+cross-family room comparisons inconsistent. Scene prop creation now supplies
+the same nullable token; static rendering decodes back to the room index.
+The shared original-compatible allocator remains unchanged.
+
+PC/NXDK builds and21CTest pass. Stock64MiB XEMU replay-20260912-210916
+passes180frames with PC parity. CLUTTER_DRAW remains exactly
+[180,19,3750,3956637847,0,19] versus replay-20260912-210142; the retained
+owner hash changes as expected. No additional storage. Full glare scene
+lookup, visibility scheduling and rendering remain open.

@@ -2349,7 +2349,7 @@ static int campaign_clutter_bodies_open(const rf_geometry_collision_world *world
          * This registers base owners in diagnostic creation order; full class
          * effects, family lists and original global load scheduling remain open. */
         status=rf_clutter_shared_static_base_open(campaign_clutter_shared+model,&d,&campaign_registry,&campaign_clutter_objects,
-            &campaign_clutter_uid_cursor,room.room,0,1,coefficients,budget-(uint32_t)bytes,campaign_clutter_bodies+i);if(status)goto fail;
+            &campaign_clutter_uid_cursor,room.room==UINT32_MAX?0:room.room+1,0,1,coefficients,budget-(uint32_t)bytes,campaign_clutter_bodies+i);if(status)goto fail;
         owner=campaign_clutter_bodies[i];if(!owner){status=RF_RANGE;goto fail;}
         owner->uid=record->uid;
         if(bytes+owner->peak_bytes>peak)peak=bytes+owner->peak_bytes;bytes+=owner->allocated_bytes;
@@ -6384,7 +6384,8 @@ static int scene_clutter_draw(scene_stream *stream,uint32_t frame)
         const rf_static_render_resource *resource;rf_model_projection view;
         uint32_t model=campaign_clutter_model_slots[i],room,first,last,start_actor=stream->mesh->count;
         if(model==UINT32_MAX)continue;if(model>=campaign_clutter_model_count)return RF_FORMAT;
-        if(!owner)return RF_FORMAT;room=owner->state.first_word;
+        /* Object room tokens reserve zero for no room, like NPC/player owners. */
+        if(!owner)return RF_FORMAT;room=owner->state.first_word?owner->state.first_word-1:UINT32_MAX;
         if(room<stream->visibility.state.count && !stream->visibility.state.rooms[room].visible)continue;
         resource=&campaign_clutter_models[model].resource;
         if(campaign_clutter_appearance_slots[i]>=rf_scene_clutter_skins[0])return RF_FORMAT;
