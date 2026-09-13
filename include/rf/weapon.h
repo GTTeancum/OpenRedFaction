@@ -56,6 +56,21 @@ typedef struct rf_weapon_hand_ops {
 int rf_weapon_place_in_hand(const rf_weapon_hand_source *source,int32_t hand,
     rf_weapon_world_model models[64],const rf_weapon_hand_ops *ops,void *context,rf_weapon_hand_placement *result);
 
+typedef struct rf_weapon_world_draw {
+    rf_weapon_world_view view;uint32_t hand_count;float recoil;uint32_t special_view,tint;
+} rf_weapon_world_draw;
+typedef struct rf_weapon_world_draw_ops {
+    int (*place)(void *,int32_t,rf_weapon_hand_placement *);
+    int (*submit)(void *,uint32_t,const rf_weapon_hand_placement *,const uint32_t state[20]);
+} rf_weapon_world_draw_ops;
+/*421c40 orchestration with explicit placement/submission boundaries. Scratch
+ * supplies constructor-preserved bytes. Callback state must remain alive;
+ * count/recoil/view mode/tint are reread, selected model stays captured.
+ * Missing placement skips a hand. Errors retain completed calls and flag clear.
+ * Successful visible-model path sets810 bit200 even with no submitted hands. */
+int rf_weapon_world_draw_run(rf_weapon_world_draw *draw,const rf_weapon_world_model models[64],
+    uint32_t scratch[20],const rf_weapon_world_draw_ops *ops,void *context);
+
 typedef struct rf_weapon_presentation_state {
     uint32_t model,auxiliary; /* Player +34/+38; opaque 32-bit model tokens. */
     int32_t current,pending,deadline; /* +1080/+f80/+f84 (not queue timer +b8). */

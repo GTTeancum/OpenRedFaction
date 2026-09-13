@@ -87,6 +87,25 @@ int rf_weapon_place_in_hand(const rf_weapon_hand_source *source,int32_t hand,
     return RF_OK;
 }
 
+int rf_weapon_world_draw_run(rf_weapon_world_draw *draw,const rf_weapon_world_model models[64],
+    uint32_t scratch[20],const rf_weapon_world_draw_ops *ops,void *context)
+{
+    uint32_t model,hand=0;int status;rf_weapon_hand_placement pose;
+    if(!draw || !scratch)return RF_RANGE;
+    status=rf_weapon_world_visibility(&draw->view,models,&model);if(status || !model)return status;
+    for(;;) {
+        if(draw->hand_count>2)return RF_RANGE;if(hand>=draw->hand_count)break;
+        if(!ops || !ops->place)return RF_NOT_FOUND;
+        status=ops->place(context,(int32_t)hand,&pose);
+        if(status==RF_NOT_FOUND){++hand;continue;}if(status)return status;
+        status=rf_weapon_recoil_basis(pose.basis,draw->recoil,(int32_t)hand,pose.basis);if(status)return status;
+        status=rf_weapon_draw_state_prepare(scratch,draw->special_view,draw->tint,pose.basis);if(status)return status;
+        if(!ops->submit)return RF_NOT_FOUND;
+        status=ops->submit(context,model,&pose,scratch);if(status)return status;++hand;
+    }
+    draw->view.flags_810|=0x200;return RF_OK;
+}
+
 int rf_weapon_update_presentation(rf_weapon_presentation_state *state,int32_t weapon,
     const rf_weapon_model_descriptor descriptors[64],const rf_weapon_model_cache cache[32],
     const rf_weapon_presentation_context *context,const rf_weapon_presentation_ops *ops,

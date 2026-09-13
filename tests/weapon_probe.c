@@ -10,6 +10,7 @@
 #include "weapon_startup_probe.h"
 #include "weapon_world_probe.h"
 #include "weapon_hand_probe.h"
+#include "weapon_world_draw_probe.h"
 int main(int argc,char **argv)
 {
     struct { int32_t weapon; rf_weapon_reset_state state; rf_weapon_descriptor descriptors[64];
@@ -18,6 +19,7 @@ int main(int argc,char **argv)
     int32_t status; unsigned i;
     _Static_assert(sizeof(input)==2284,"Weapon reset wire layout");
     _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
+    if(argc==2 && !strcmp(argv[1],"--world-draw"))return world_draw_probe();
     if(argc==2 && !strcmp(argv[1],"--recoil-basis")) {
         struct {float basis[9],recoil;int32_t hand;} in;struct {int32_t status;float basis[9];} out;
         while(fread(&in,sizeof(in),1,stdin)==1) {
