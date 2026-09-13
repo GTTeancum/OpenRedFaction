@@ -881,3 +881,22 @@ match face flags and shared bytes. A PC/NXDK callback-failure case confirms
 earlier updates remain committed. Both builds and24 CTests pass. Tree root
 selection, right-before-left traversal and native state binding are next;
 this face pass does not claim whole-room visibility or rendered lighting.
+
+### Geometry-tree lighting updates (2026-09-13)
+
+rf_visibility_light_tree composes accepted-node bounds tests with the
+verified face dirty-state pass. Uses rf_collision_node layout and borrowed
+dirty-face ranges, with caller-supplied stack. Roots pop in reverse order;
+accepted nodes push left then right, process their faces, then visit right
+before left. A bounds miss prunes children and faces. Invalid indices,
+capacity overruns and excess visits are bounded; earlier updates remain
+committed on failure. Requires a disjoint acyclic forest. No allocation.
+
+verify_light_dirty_tree.py executes full original4d86d0 with two accepted
+room roots,15 geometry nodes and actual linked face lists. Only bounds
+predicates are supplied. All1024 original/PC/NXDK cases match node/face
+call order, pruned subtrees, face flags and shared dirty bytes. Two NXDK
+guards cover insufficient initial scratch and invalid accepted-node child.
+Existing2048 face-pass comparisons, both builds and24 CTests pass. Root
+collection/detail-room selection, native lighting-state ownership and
+alternate-view dispatch remain before scene integration.

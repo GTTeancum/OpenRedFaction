@@ -23,6 +23,27 @@ int rf_visibility_light_faces(rf_light_dirty_face *faces,uint32_t count,
     }
     return RF_OK;
 }
+int rf_visibility_light_tree(const rf_collision_node *nodes,uint32_t node_count,
+    const uint32_t *roots,uint32_t root_count,rf_light_dirty_face *faces,uint32_t face_count,
+    unsigned char *dirty,uint32_t dirty_count,uint32_t mode,uint32_t update,
+    uint32_t *stack,uint32_t capacity,rf_light_bounds_test test,void *context)
+{
+    uint32_t count=0,visited=0,i,hit;int status;
+    if((node_count && !nodes) || (root_count && (!roots || !stack || !test)) ||
+        (face_count && !faces) || (dirty_count && !dirty) || root_count>capacity)return RF_RANGE;
+    for(i=0;i<root_count;i++){if(roots[i]>=node_count)return RF_RANGE;stack[count++]=roots[i];}
+    while(count) {
+        const rf_collision_node *node;uint32_t index=stack[--count];
+        if(index>=node_count || ++visited>node_count)return RF_RANGE;node=nodes+index;
+        status=test(context,node->minimum,node->maximum,&hit);if(status)return status;if(!hit)continue;
+        if(node->first_face>face_count || node->face_count>face_count-node->first_face)return RF_RANGE;
+        if(node->left!=UINT32_MAX){if(count>=capacity || node->left>=node_count)return RF_RANGE;stack[count++]=node->left;}
+        if(node->right!=UINT32_MAX){if(count>=capacity || node->right>=node_count)return RF_RANGE;stack[count++]=node->right;}
+        status=rf_visibility_light_faces(node->face_count?faces+node->first_face:NULL,node->face_count,
+            dirty,dirty_count,mode,update,test,context);if(status)return status;
+    }
+    return RF_OK;
+}
 int rf_visibility_light_cone_planes(const float position[3],const float axis[3],
     float radius,float half_width,rf_visibility_plane planes[6])
 {

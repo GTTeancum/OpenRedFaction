@@ -3,6 +3,7 @@
 #include "rf/vpp.h"
 #include "rf/effect.h"
 #include "rf/geometry.h"
+#include "rf/collision.h"
 typedef struct rf_light_dirty_face {
     float minimum[3],maximum[3];uint32_t flags;int32_t property_34,lighting_index;
 } rf_light_dirty_face;
@@ -15,6 +16,16 @@ typedef int (*rf_light_bounds_test)(void *,const float minimum[3],const float ma
 int rf_visibility_light_faces(rf_light_dirty_face *faces,uint32_t count,
     unsigned char *dirty,uint32_t dirty_count,uint32_t mode,uint32_t update,
     rf_light_bounds_test test,void *context);
+
+/*4d86d0 after root collection: reverse root order, node faces before children,
+ * right child before left; a bounds miss prunes the whole subtree. Nodes use
+ * collision-tree layout but face ranges address the supplied dirty views.
+ * Requires a disjoint acyclic forest. Caller supplies bounded stack; errors
+ * preserve earlier updates, scratch may change. No allocation or root gathering. */
+int rf_visibility_light_tree(const rf_collision_node *nodes,uint32_t node_count,
+    const uint32_t *roots,uint32_t root_count,rf_light_dirty_face *faces,uint32_t face_count,
+    unsigned char *dirty,uint32_t dirty_count,uint32_t mode,uint32_t update,
+    uint32_t *stack,uint32_t capacity,rf_light_bounds_test test,void *context);
 
 typedef struct rf_object_render_backend {
     int (*white)(void *);

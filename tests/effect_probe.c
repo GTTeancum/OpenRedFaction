@@ -105,7 +105,7 @@ static int segment_create_allocate(void *context,const rf_glare_create_descripto
     segment_create_fixture *c=context;++c->count;c->descriptor=*d;
     if(c->count==c->error)return RF_IO;*out=c->null_owner?NULL:&c->owner;return RF_OK;
 }
-static uint32_t light_dirty_trace[18],light_dirty_fail;
+static uint32_t light_dirty_trace[66],light_dirty_fail;
 static int light_dirty_bounds(void *context,const float minimum[3],const float maximum[3],uint32_t *hit)
 {
     uint32_t id=(uint32_t)minimum[0];(void)context;(void)maximum;
@@ -115,6 +115,17 @@ static int light_dirty_bounds(void *context,const float minimum[3],const float m
 }
 int main(int argc,char **argv)
 {
+    if(argc==2 && !strcmp(argv[1],"--light-dirty-tree")) {
+        struct {uint32_t mode,update;rf_collision_node nodes[15];rf_light_dirty_face faces[15];unsigned char dirty[8];} input;
+        uint32_t status,roots[2]={0,7},stack[15];
+        _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
+        while(fread(&input,sizeof(input),1,stdin)==1) {
+            memset(light_dirty_trace,0,sizeof(light_dirty_trace));light_dirty_fail=0;
+            status=rf_visibility_light_tree(input.nodes,15,roots,2,input.faces,15,input.dirty,8,input.mode,input.update,stack,15,light_dirty_bounds,NULL);
+            fwrite(&status,4,1,stdout);fwrite(input.faces,sizeof(input.faces),1,stdout);fwrite(input.dirty,8,1,stdout);fwrite(light_dirty_trace,sizeof(light_dirty_trace),1,stdout);
+        }
+        return 0;
+    }
     if(argc==2 && !strcmp(argv[1],"--light-dirty-faces")) {
         struct {uint32_t mode,update,fail;rf_light_dirty_face faces[16];unsigned char dirty[8];} input;
         uint32_t status;
@@ -122,7 +133,7 @@ int main(int argc,char **argv)
         while(fread(&input,sizeof(input),1,stdin)==1) {
             memset(light_dirty_trace,0,sizeof(light_dirty_trace));light_dirty_fail=input.fail;
             status=rf_visibility_light_faces(input.faces,16,input.dirty,8,input.mode,input.update,light_dirty_bounds,NULL);
-            fwrite(&status,4,1,stdout);fwrite(input.faces,sizeof(input.faces),1,stdout);fwrite(input.dirty,8,1,stdout);fwrite(light_dirty_trace,sizeof(light_dirty_trace),1,stdout);
+            fwrite(&status,4,1,stdout);fwrite(input.faces,sizeof(input.faces),1,stdout);fwrite(input.dirty,8,1,stdout);fwrite(light_dirty_trace,18*4,1,stdout);
         }
         return 0;
     }
