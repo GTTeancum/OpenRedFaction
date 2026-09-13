@@ -306,7 +306,7 @@ dvd_path = '{root.as_posix()}/build/xbox/redfaction-diagnostic.iso'
      report['glare_solids']=glare_solids
      npc_visibility=words(monitor,symbol('rf_scene_npc_visibility'),7)
      assert npc_visibility==expected('NPC_VISIBILITY') and npc_visibility[6]==0,npc_visibility
-     if args.actor_pairs:assert npc_visibility[0]>0 and npc_visibility[1]>0 and npc_visibility[3]==npc_visibility[0],npc_visibility
+     if args.actor_pairs:assert npc_visibility[0]>0 and npc_visibility[1]>0 and 2*npc_visibility[3]==npc_visibility[0],npc_visibility
      report['npc_visibility']=npc_visibility
      npc_rooms=words(monitor,symbol('rf_scene_npc_visibility_rooms'),6)
      assert npc_rooms==expected('NPC_VISIBILITY_ROOMS'),npc_rooms
@@ -329,12 +329,17 @@ dvd_path = '{root.as_posix()}/build/xbox/redfaction-diagnostic.iso'
      mover_visibility=words(monitor,symbol('rf_scene_mover_visibility'),3)
      assert mover_visibility==expected('MOVER_VISIBILITY') and mover_visibility[2]==0,mover_visibility
      report['mover_visibility']=mover_visibility
+     glare_search=words(monitor,symbol('rf_scene_glare_search'),8)
+     assert glare_search==expected('GLARE_SEARCH') and glare_search[7]==0,glare_search
+     assert glare_search[0]==1 and glare_search[1]==glare_search[3],glare_search
+     report['glare_search']=glare_search
      glare_instances=words(monitor,symbol('rf_scene_glare_instances'),10)
      assert glare_instances==expected('GLARE_INSTANCES') and glare_instances[3]==glare_instances[8] and glare_instances[9]==0,glare_instances
      assert glare_instances[5]<=glare_instances[6]<=256*1024,glare_instances
      if replay_env['RF_REPLAY_LEVEL'].lower()=='l1s1.rfl':
       glare_instance_reference=json.loads((root/'artifacts/clutter-scene-glares.json').read_text())
       assert glare_instance_reference['result']=='PASS' and glare_instances==glare_instance_reference['expected'],glare_instances
+     assert glare_search[1]==glare_instances[3],(glare_search,glare_instances)
      report['glare_instances']=glare_instances
      clutter_tag_queries=words(monitor,symbol('rf_scene_clutter_tag_queries'),5)
      assert clutter_tag_queries==expected('CLUTTER_TAG_QUERIES') and clutter_tag_queries[4]==0,clutter_tag_queries

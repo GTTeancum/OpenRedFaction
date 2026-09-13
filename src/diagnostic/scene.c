@@ -6546,6 +6546,93 @@ static int scene_clutter_draw(scene_stream *stream,uint32_t frame)
     rf_scene_clutter_draw[3]=npc_hash_bytes(2166136261u,stream->mesh->vertices+start_all,rf_scene_clutter_draw[2]*sizeof(rf_preview_vertex));
     return RF_OK;
 }
+typedef struct scene_glare_search_context {
+    rf_glare_visibility_object *objects;uint32_t (*facts)[3];uint32_t count,movers,actors;
+} scene_glare_search_context;
+uint32_t rf_scene_glare_search[8]; /* passes, queries, visible, cached repeats, hash, bytes, objects, errors */
+static int scene_glare_lookup(void *context,uint32_t handle,const rf_glare_visibility_object **result)
+{
+    scene_glare_search_context *c=context;uint32_t i;*result=NULL;
+    for(i=0;i<c->count;++i)if(c->objects[i].handle==handle){*result=c->objects+i;break;}
+    return RF_OK;
+}
+static int scene_glare_solid_owner(void *context,uint32_t handle,const rf_glare_visibility_object **result)
+{
+    scene_glare_search_context *c=context;uint32_t i;*result=NULL;
+    for(i=0;i<c->movers;++i)if(c->objects[i].geometry.token==handle){*result=c->objects+i;break;}
+    return RF_OK;
+}
+static int scene_glare_fact(scene_glare_search_context *c,const rf_glare_visibility_object *object,uint32_t word,uint32_t *result)
+{
+    uint32_t i;for(i=0;i<c->count;++i)if(object==c->objects+i){*result=c->facts[i][word];return RF_OK;}
+    return RF_NOT_FOUND;
+}
+static int scene_glare_room(void *context,const rf_glare_visibility_object *object,uint32_t *result)
+{return scene_glare_fact(context,object,0,result);}
+static int scene_glare_state(void *context,const rf_glare_visibility_object *object,uint32_t *result)
+{return scene_glare_fact(context,object,1,result);}
+static int scene_glare_associated(void *context,const rf_glare_visibility_object *object,const rf_glare_visibility_object **result)
+{
+    uint32_t handle;int status=scene_glare_fact(context,object,2,&handle);if(status)return status;
+    return scene_glare_lookup(context,handle,result);
+}
+static int scene_glare_model(void *context,const rf_collision_visibility_object *object,
+    rf_collision_model_part_query *query,rf_collision_model_response_hit *hit,uint32_t reset,uint32_t *accepted)
+{
+    scene_glare_search_context *c=context;uint32_t i;
+    for(i=c->movers;i<c->movers+c->actors;++i)if(object==&c->objects[i].geometry)
+        return rf_scene_npc_visibility_model(NULL,object,query,hit,reset,accepted);
+    return rf_scene_clutter_visibility_model(NULL,object,query,hit,reset,accepted);
+}
+int rf_scene_glare_visibility_pass(const float camera[3])
+{
+    scene_glare_search_context c={0};rf_glare_visibility_list movers,actors;
+    rf_glare_visibility_backend backend={scene_glare_lookup,scene_glare_solid_owner,scene_glare_room,scene_glare_state,
+        scene_glare_associated,rf_scene_glare_solid_query,scene_glare_model,&c};
+    uint32_t capacity=campaign_mover_count+campaign_npc_body_count+campaign_clutter_records.count+1;
+    uint32_t i,n=0,selected,bytes,visible,again,record[5];const rf_entity_view *linked;void *storage;int status=RF_OK;
+    if(!camera || !campaign_alpha_world || !campaign_player_object.view)return RF_RANGE;
+    if(capacity>128*1024/(sizeof(*c.objects)+sizeof(*c.facts)))return RF_RANGE;
+    bytes=capacity*(sizeof(*c.objects)+sizeof(*c.facts));storage=calloc(1,bytes);if(!storage)return RF_IO;
+    c.objects=storage;c.facts=(uint32_t(*)[3])(c.objects+capacity);
+    ++rf_scene_glare_search[0];rf_scene_glare_search[5]=bytes;
+    for(i=0;i<campaign_mover_count;++i,++n) {
+        status=rf_scene_mover_visibility_view(campaign_mover_wrappers[i].handle,c.objects+n);if(status)goto done;
+        c.facts[n][2]=UINT32_MAX;
+    }
+    c.movers=n;
+    for(i=0;i<campaign_npc_body_count;++i)if(campaign_npc_bodies[i].registration.view) {
+        status=rf_scene_npc_visibility_view(campaign_npc_bodies[i].registration.handle,c.objects+n);if(status)goto done;
+        status=rf_scene_npc_visibility_facts(c.objects[n].handle,c.facts[n]);if(status)goto done;++n;
+    }
+    c.actors=n-c.movers;
+    for(i=0;i<campaign_clutter_records.count;++i)if(campaign_clutter_bodies[i]) {
+        status=rf_scene_clutter_visibility_view(campaign_clutter_bodies[i]->state.handle,c.objects+n);if(status)goto done;
+        c.facts[n][0]=campaign_clutter_bodies[i]->state.first_word;c.facts[n][2]=UINT32_MAX;++n;
+    }
+    selected=n++;
+    if(rf_entity_lookup(&campaign_entities,(int32_t)campaign_player_object.handle)!=campaign_player_object.view){status=RF_NOT_FOUND;goto done;}
+    /* Selected player participates only in room/association and exclusion;
+     * it is not in the NPC candidate list and has no borrowed model here. */
+    c.objects[selected].handle=c.objects[selected].geometry.token=campaign_player_object.handle;
+    c.facts[selected][0]=rf_scene_actor_room_state.room;
+    linked=rf_entity_lookup(&campaign_entities,campaign_player_object.view->linked_handle);
+    c.facts[selected][1]=linked && linked->class_type==1;c.facts[selected][2]=linked?(uint32_t)linked->handle:UINT32_MAX;
+    c.count=n;rf_scene_glare_search[6]=n;
+    movers=(rf_glare_visibility_list){c.objects,c.movers};actors=(rf_glare_visibility_list){c.objects+c.movers,c.actors};
+    for(i=0;i<campaign_glare_instance_count;++i)if(campaign_glare_instances[i]) {
+        rf_glare_base_owner *glare=campaign_glare_instances[i];
+        status=rf_glare_visibility_search(glare,camera,&movers,&actors,c.objects+selected,1,0,&backend,&visible);if(status)goto done;
+        ++rf_scene_glare_search[1];rf_scene_glare_search[2]+=visible;
+        record[0]=glare->handle;record[1]=visible;record[2]=(uint32_t)glare->state.occluder;
+        record[3]=glare->state.cached_solid;record[4]=glare->state.cached_face;
+        rf_scene_glare_search[4]=npc_hash_bytes(rf_scene_glare_search[4],record,sizeof(record));
+        status=rf_glare_visibility_search(glare,camera,&movers,&actors,c.objects+selected,1,0,&backend,&again);if(status)goto done;
+        if(again!=visible){status=RF_FORMAT;goto done;}++rf_scene_glare_search[3];
+    }
+done:
+    free(storage);if(status)++rf_scene_glare_search[7];return status;
+}
 static int scene_frame(void *context,uint32_t frame,rf_preview_mesh *actor)
 {
     scene_stream *stream=context;uint32_t i,slot;
@@ -6737,7 +6824,9 @@ static int scene_frame(void *context,uint32_t frame,rf_preview_mesh *actor)
             }
             if(campaign_spawn){status=campaign_npc_playback_tick(stream,scene_step_seconds);if(status)return status;status=campaign_npc_rooms_pass(frame);if(status)return status;}
         }
-        if(campaign_spawn && stream->collision) {int status=campaign_collision_views_check(frame);if(status)return status;status=campaign_alpha_check(frame);if(status)return status;}
+        if(campaign_spawn && stream->collision) {int status=campaign_collision_views_check(frame);if(status)return status;status=campaign_alpha_check(frame);if(status)return status;
+            if(!frame){memset(rf_scene_glare_search,0,sizeof(rf_scene_glare_search));rf_scene_glare_search[4]=2166136261u;
+                status=rf_scene_glare_visibility_pass(stream->npc_view.camera);if(status)return status;}}
         profile_mark(7);
         return RF_OK;
     }

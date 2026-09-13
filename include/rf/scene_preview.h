@@ -143,6 +143,9 @@ extern uint32_t rf_scene_clutter_render_dispatch[6];
  * Borrow current public pose; no allocation or render flag fabrication. */
 int rf_scene_mover_visibility_view(uint32_t handle,rf_glare_visibility_object *result);
 extern uint32_t rf_scene_mover_visibility[3];
+/* Scene-owned glare cache search, current diagnostic owner order; no drawing. */
+int rf_scene_glare_visibility_pass(const float camera[3]);
+extern uint32_t rf_scene_glare_search[8];
 /*428030: blocked standing still selects slow mode; forced crouch sets only the flag.
  * Required standing services only when attempting to stand; borrowed owners must survive callbacks. */
 int rf_scene_npc_slow(const rf_geometry_collision_world *world,uint32_t handle,

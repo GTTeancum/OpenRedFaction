@@ -8659,3 +8659,31 @@ world-only meshes, and capacity failure preserving markers. Both builds and
 plus4 callback errors pass. Stock64MiB180-frame XEMU
 replay-20260912-212908 passes with mover visibility [5728,246911100,0],
 matching PC including the newly published flags across179 controller commits.
+
+
+## Scene-bound full glare search (2026-09-12)
+
+rf_scene_glare_visibility_pass builds a bounded temporary snapshot of registered
+movers, NPCs, props and selected player room/association facts. It binds full
+414e00 to existing alpha-aware world/mover solid queries, registered NPC/prop
+model queries, room tokens and typed associations. Mover cached owner handles
+resolve separately from solid query indices. The selected player is excluded
+from NPC candidates and has no borrowed model in this snapshot; its fields
+serve selection/exclusion and room/association only. No full player geometry
+visibility service is claimed.
+
+The diagnostic frame0 pass processes actual owned parented glares and retains
+cache updates, repeating each query to check visible-result agreement. It uses
+current diagnostic creation order, not a claim of recovered original global
+list order. Original corona scheduling, frame ordering, marker clearing and
+drawing are still open. Snapshot is freed after the pass; L1S2 uses34344 bytes
+for315 objects, with an explicit128KiB bound. It is not a per-frame allocation
+policy for the completed renderer.
+
+Both builds and21CTest pass;1537 original/PC/NXDK search cases (including161
+callback errors) pass. Initial native replay-20260912-213450 reached180frames
+and matched NPC data but failed the obsolete one-view-per-NPC harness count.
+The harness now checks two snapshots and query count against actual glare
+creation. Stock64MiB XEMU replay-20260912-213732 passes180frames with
+GLARE_SEARCH [1,220,5,220,3675683277,34344,315,0], exact PC parity:5 visible,
+215 blocked,220 agreeing repeats. No new visual or complete campaign claim.
