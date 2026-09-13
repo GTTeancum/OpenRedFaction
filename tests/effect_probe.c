@@ -93,9 +93,9 @@ int main(int argc,char **argv)
         uint32_t in[31],out[8];float sizes[2],length,width;rf_random_state random;volume_actor_fixture c;
         _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
         while(fread(in,sizeof(in),1,stdin)==1) {
-            memset(&c,0,sizeof(c));c.parent_present=in[0];c.parent.class_flags=in[1];c.parent.targets=in+3;c.parent.target_count=3;
+            memset(&c,0,sizeof(c));c.parent_present=in[0];c.parent.class_flags=in[1];c.parent.occupants=in+3;c.parent.occupant_count=3;
             c.target_present=in[6];c.target.flags=in[7];c.target.player_present=in[8];
-            memcpy(c.parent.aim,in+9,12);memcpy(c.target.aim,in+12,12);memcpy(c.parent.position,in+15,12);memcpy(c.parent.basis,in+18,36);
+            memcpy(c.parent.command,in+9,12);memcpy(c.target.command,in+12,12);memcpy(c.parent.position,in+15,12);memcpy(c.parent.basis,in+18,36);
             memcpy(&length,in+27,4);memcpy(&width,in+28,4);random.value=in[30];out[4]=in[29];memset(sizes,0xa5,8);
             out[0]=(uint32_t)rf_glare_volume_actor_update(32,in[2],length,width,volume_actor_lookup,&c,&random,sizes,out+4);
             out[1]=random.value;memcpy(out+2,sizes,8);out[5]=c.count;memcpy(out+6,c.trace,8);fwrite(out,sizeof(out),1,stdout);

@@ -9378,3 +9378,23 @@ array traversal and full math/RNG with only actor lookup supplied, comparing
 NXDK callback/invalid-array guards preserve outputs and RNG. Both builds and
 22 CTest checks pass. Retained actor714 aim and8cc target-list ownership,
 special-owner gate and live scene service binding remain open.
+
+
+Retained NPC volume adapter (2026-09-13): terminology correction after
+checking existing actor ownership:714 is the movement-command vector, and
+8cc is the occupant array (also used by existing entity predicates), not a
+combat aim/target list. The earlier arithmetic/selection audits remain valid;
+rf_glare_volume_actor fields now say command/occupants/occupant_count.
+scene_volume_actor_lookup resolves the typed entity registry to retained NPC
+owners, projects class physics flags, object flags, published position, the
+current startup rendering orientation, command_714 and view.occupants. Two
+stack views retain parent/occupant lifetime throughout the composed call.
+The scene adapter now calls rf_glare_volume_actor_update using the scene RNG
+owner; prop parents resolve NULL. Player ownership/1430 remains RF_NOT_FOUND,
+not fabricated. Live rotation and vehicle occupant lifecycle remain broader
+NPC/runtime work; this uses the current retained startup representations.
+Both builds,512 original PC/NXDK actor cases with4 failure guards and22 CTest
+checks pass. Native replay-20260913-010230 PASS180 stock64MiB with volume-test:
+the prop-owned90-beam fixture still matches PC and preserves its source. This
+is a regression check, not direct positive coverage of the NPC adapter. Add
+a controlled NPC-owned beam case before claiming that native branch covered.

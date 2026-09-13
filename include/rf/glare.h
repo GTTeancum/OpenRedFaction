@@ -103,13 +103,13 @@ int rf_glare_volume_actor_dimensions(double aim_dot,float class_length,float cla
 int rf_glare_volume_actor_aim(const float local[3],const float position[3],
     const float basis[9],double *dot,uint32_t *eligible);
 typedef struct rf_glare_volume_actor {
-    uint32_t class_flags,flags,player_present;float position[3],basis[9],aim[3];
-    const uint32_t *targets;uint32_t target_count;
+    uint32_t class_flags,flags,player_present;float position[3],basis[9],command[3];
+    const uint32_t *occupants;uint32_t occupant_count;
 } rf_glare_volume_actor;
 /*414307..41441e actor branch. Class724 bit800 enables modulation unless
- * glare2b4 bit2 suppresses it. First non-FFFFFFFF target from actor8cc wins;
- * unresolved targets and player actors (flag8 plus1430) fall back to parent
- * aim714, always transformed through the parent's pose. Lookup resolves only
+ * glare2b4 bit2 suppresses it. First non-FFFFFFFF occupant from actor8cc wins;
+ * unresolved occupants and player actors (flag8 plus1430) fall back to parent
+ * command714, always transformed through the parent's pose. Lookup resolves only
  * actors (426fc0). Borrowed arrays limited4096. Outputs/RNG preserved on error. */
 int rf_glare_volume_actor_update(uint32_t parent,uint32_t glare_flags,float length,float width,
     int (*lookup)(void *,uint32_t,const rf_glare_volume_actor **),void *context,

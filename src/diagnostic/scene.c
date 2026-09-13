@@ -6825,6 +6825,7 @@ done:
 typedef struct scene_corona_context {
     scene_glare_search_context snapshot;scene_stream *stream;rf_scene_particle_sink sink;void *context;
     uint32_t selected,color,bitmap;
+    rf_glare_volume_actor volume_actors[2];uint32_t volume_actor_count;
 } scene_corona_context;
 uint32_t rf_scene_volume_draw[8]; /* frames, routines, submitted, polygons, vertices, hash, reserved, errors */
 uint32_t rf_scene_volume_test_enabled,rf_scene_volume_test[8];
@@ -6905,12 +6906,29 @@ static int scene_corona_render(void *context,rf_glare_base_owner *owner,uint32_t
 }
 static int scene_volume_special(void *c,rf_glare_base_owner *o,uint32_t *allowed)
 {(void)c;(void)o;(void)allowed;return RF_NOT_FOUND;}
+static int scene_volume_actor_lookup(void *context,uint32_t handle,const rf_glare_volume_actor **out)
+{
+    scene_corona_context *c=context;uint32_t i,cls;rf_glare_volume_actor *v;campaign_npc_body *owner;
+    const rf_entity_view *registered=rf_entity_lookup(&campaign_entities,(int32_t)handle);*out=NULL;
+    if(!registered)return RF_OK;
+    for(i=0;i<campaign_npc_body_count;++i)if(registered==&campaign_npc_bodies[i].view)break;
+    /* Player1430 ownership has not been projected into this service yet. */
+    if(i==campaign_npc_body_count || (campaign_npc_bodies[i].object_flags&8))return RF_NOT_FOUND;
+    if(c->volume_actor_count>=2 || i>=campaign_seeds.records.count)return RF_RANGE;
+    cls=campaign_seeds.items[i].class_index;if(cls>=campaign_seeds.class_count)return RF_RANGE;
+    owner=campaign_npc_bodies+i;v=c->volume_actors+c->volume_actor_count++;memset(v,0,sizeof(*v));
+    v->class_flags=campaign_seeds.classes[cls].physics.flags;v->flags=owner->object_flags;
+    memcpy(v->position,owner->published,12);memcpy(v->basis,campaign_seeds.records.items[i].record.orientation,36);
+    memcpy(v->command,owner->command_714,12);v->occupants=(const uint32_t*)owner->view.occupants;v->occupant_count=owner->view.occupant_count;
+    *out=v;return RF_OK;
+}
 static int scene_volume_actor(void *context,rf_glare_base_owner *owner,float *length,float *width,uint32_t *draw)
 {
-    scene_corona_context *c=context;uint32_t i;(void)length;(void)width;(void)draw;
-    for(i=c->snapshot.movers;i<c->snapshot.movers+c->snapshot.actors;++i)
-        if(c->snapshot.objects[i].handle==owner->parent_handle)return RF_NOT_FOUND;
-    return RF_OK;
+    scene_corona_context *c=context;float dimensions[2];int status;
+    if(!c->stream->particles.state)return RF_NOT_FOUND;c->volume_actor_count=0;
+    status=rf_glare_volume_actor_update(owner->parent_handle,owner->state.flags,*length,*width,scene_volume_actor_lookup,c,
+        &c->stream->particles.state->random,dimensions,draw);
+    if(!status){*length=dimensions[0];*width=dimensions[1];}return status;
 }
 static int scene_volume_beam(void *context,const float end[3],const float start[3],float width,uint32_t mode)
 {++rf_scene_volume_draw[2];return scene_corona_geometry(context,end,start,0,width,mode,1);}

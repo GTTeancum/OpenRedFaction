@@ -34,7 +34,8 @@ Verify authored volume placement and mixed transparent-object ordering.
 Actor volume sizing/RNG matches2210 original/PC/NXDK cases plus6 guards.
 Actor volume aim geometry matches1018 original/PC/NXDK cases plus17 guards.
 Composed actor volume branch matches512 original/PC/NXDK cases and4 NXDK failure guards.
-Bind retained actor aim/target state and complete ordering with other transparent scene objects.
+NPC volume adapter now reads retained command/occupant state; stock64MiB prop-beam regression passes.
+Add direct NPC-owned beam coverage, bind player state and complete transparent scene ordering.
 
 The stationary startup-NPC animation gate matches PC/stock64MiB XEMU;
 footstep selection and support-material helpers are verified but not live.
