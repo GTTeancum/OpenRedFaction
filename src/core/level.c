@@ -1719,3 +1719,20 @@ int rf_level_light_clock_step(uint32_t flags,uint32_t enabled,const float cycle[
     }
     *out=value;return RF_OK;
 }
+
+int rf_level_light_tick(const rf_level_light_runtime *record,rf_level_light_clock *clock,rf_vfx_light_pool *pool,
+    float seconds,rf_random_state *random,uint32_t *visibility_update)
+{
+    rf_level_light_clock next;rf_random_state rng={0};uint32_t draw,visibility=0;int status;
+    if(!record || !clock || !pool || !pool->sources || !pool->links || !pool->capacity || pool->capacity>1100 ||
+        pool->count>pool->capacity || record->id>=pool->capacity || !pool->sources[record->id].source.type || !visibility_update)return RF_RANGE;
+    status=rf_level_light_clock_step(record->flags,pool->sources[record->id].enabled,record->cycle,seconds,0,clock,&next);if(status)return status;
+    if(next.random_used) {
+        if(!random)return RF_RANGE;rng=*random;status=rf_random_next(&rng,&draw);if(status)return status;
+        status=rf_level_light_clock_step(record->flags,pool->sources[record->id].enabled,record->cycle,seconds,draw,clock,&next);if(status)return status;
+    }
+    if(next.changed) {
+        status=rf_vfx_light_pool_color(pool,record->id,next.intensity,record->activation.definition.color,&visibility);if(status)return status;
+    }
+    if(next.random_used)*random=rng;*clock=next;*visibility_update=visibility;return RF_OK;
+}

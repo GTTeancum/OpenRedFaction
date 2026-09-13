@@ -195,6 +195,11 @@ int rf_level_light_clock_step(uint32_t flags,uint32_t enabled,const float cycle[
 typedef struct rf_level_light_runtime {
     uint32_t uid,id,flags;float cycle[6];rf_level_light_activation activation;
 } rf_level_light_runtime;
+/* Compose clock stepping, conditional shared RNG draw and pool color update.
+ * Errors preserve clock/RNG/pool; caller dispatches returned visibility work.
+ * Runtime record retains base color; current enabled state comes from pool. */
+int rf_level_light_tick(const rf_level_light_runtime *,rf_level_light_clock *,rf_vfx_light_pool *,
+    float seconds,rf_random_state *,uint32_t *visibility_update);
 typedef struct rf_level_owned_lights {
     uint32_t count,allocated_bytes;rf_vfx_light_pool pool;rf_level_light_runtime *items;
 } rf_level_owned_lights;

@@ -729,3 +729,27 @@ is supplied; the color update's intensity argument is observed without
 replacing that routine.4096 NXDK in-place cases and2 PC/NXDK invalid-input
 guards pass. Both builds and24 CTests pass. This helper does not yet extend
 the scene's retained clock storage or schedule timers in the native frame.
+
+## Timer-to-pool intensity updates
+
+rf_vfx_light_pool_color reconstructs4d93d0's source RGB multiplication and
+conditional invalidation: class0 increments generation, while class-nonzero
+requests4d8660 visibility work without advancing generation. Neither path
+clears active selection. Finite input/result validation precedes all writes.
+The returned request does not execute scene visibility geometry callbacks.
+
+rf_level_light_tick composes clock evaluation, one shared RNG draw only on a
+phase transition, and the color update against the current pool-enabled state.
+It retains authored base color separately from changing intensity. It first
+evaluates whether a draw is needed, then reevaluates with that draw; only the
+final successful result commits clock/RNG. A failed color update preserves
+clock, RNG, pool and visibility output. No heap or live frame scheduling is
+introduced by the bridge; callers still own persistent elapsed clock storage.
+
+4096 original45fa30/4d93d0 comparisons match PC/NXDK clock values, source RGB,
+conditional generation, visibility requests, unchanged active-selection state
+and RNG advancement. The original RNG integer comes from the CRT sequence;
+actual timer/color callees execute. A NXDK late-color-failure test confirms
+transactional state preservation. Both builds and24 CTests pass. Remaining
+work is persistent clock/frame ordering and visibility callback dispatch,
+followed by light-driven native rendering.

@@ -14,6 +14,11 @@ Shortlist:
 
 Progress reporting: include overall percent estimates at meaningful milestones and revisit remaining 24-hour workdays when measured throughput supports a forecast; current rough estimate40% (35-45%), no defensible +/-48-hour completion forecast before end-to-end gameplay.
 
+Timer-to-pool light updates match4096 original/PC/NXDK cases, including RGB,
+class-dependent invalidation and shared RNG; failed updates preserve state.
+Both builds and24 tests pass. Retain elapsed clocks, bind frame scheduling and
+visibility dispatch, and complete light-driven native rendering.
+
 Authored light timer stepping matches4096 original/PC/NXDK cases, including
 interpolation, single-transition overshoot and RNG consumption decisions;
 both builds and24 tests pass. Bind retained elapsed state and shared RNG/frame

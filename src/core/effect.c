@@ -2452,3 +2452,12 @@ int rf_vfx_light_pool_cache(const rf_vfx_light_pool *pool,uint32_t world,
     }
     cache->count=n;cache->generation=pool->generation;cache->valid=1;return RF_OK;
 }
+
+int rf_vfx_light_pool_color(rf_vfx_light_pool *pool,uint32_t id,float intensity,const float color[3],uint32_t *visibility_update)
+{
+    float rgb[3];uint32_t j,visibility;
+    if(!vfx_light_pool_id(pool,id) || !color || !visibility_update || !isfinite(intensity))return RF_RANGE;
+    for(j=0;j<3;++j){if(!isfinite(color[j]))return RF_RANGE;rgb[j]=(float)((double)intensity*color[j]);if(!isfinite(rgb[j]))return RF_RANGE;}
+    visibility=pool->sources[id].light_class!=0;memcpy(pool->sources[id].source.color,rgb,12);
+    if(!visibility)++pool->generation;*visibility_update=visibility;return RF_OK;
+}

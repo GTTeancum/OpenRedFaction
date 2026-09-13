@@ -316,6 +316,18 @@ int main(int argc,char **argv)
         }
         return ferror(stdin)?2:0;
     }
+    if(argc==2 && !strcmp(argv[1],"--level-light-tick")) {
+        uint32_t h[3],visibility;float values[7];rf_level_light_clock state;int32_t status;
+        rf_vfx_light_pool pool;rf_vfx_light_candidate source;rf_vfx_light_link link;rf_level_light_runtime record;rf_random_state rng;
+        while(fread(h,4,3,stdin)==3) {
+            if(fread(values,sizeof(values),1,stdin)!=1 || fread(&state,sizeof(state),1,stdin)!=1)return 2;
+            rf_vfx_light_pool_init(&pool,&source,&link,1);pool.count=1;pool.generation=100;pool.active=1;pool.active_count=7;
+            source.source.type=2;source.enabled=(unsigned char)h[1];source.light_class=(unsigned char)(h[0]&1);
+            memset(&record,0,sizeof(record));record.flags=h[0];memcpy(record.cycle,values,24);record.activation.definition.color[0]=.2f;record.activation.definition.color[1]=.3f;record.activation.definition.color[2]=.4f;
+            rng.value=h[2];visibility=0xa5a5a5a5u;status=rf_level_light_tick(&record,&state,&pool,values[6],&rng,&visibility);
+            fwrite(&status,4,1,stdout);fwrite(&state,24,1,stdout);fwrite(source.source.color,12,1,stdout);fwrite(&pool.generation,4,1,stdout);fwrite(&visibility,4,1,stdout);fwrite(&rng,4,1,stdout);
+        }return ferror(stdin)?1:0;
+    }
     if(argc==2 && !strcmp(argv[1],"--level-light-clock")) {
         uint32_t h[3];float values[7];rf_level_light_clock state,out;int32_t status;
         while(fread(h,4,3,stdin)==3) {

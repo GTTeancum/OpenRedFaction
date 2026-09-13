@@ -146,6 +146,9 @@ int rf_vfx_light_pool_create(rf_vfx_light_pool *,const rf_vfx_light_definition *
 int rf_vfx_light_pool_retain(rf_vfx_light_pool *,uint32_t id);
 int rf_vfx_light_pool_release(rf_vfx_light_pool *,uint32_t id);
 int rf_vfx_light_pool_move(rf_vfx_light_pool *,uint32_t id,const float position[3]);
+/*4d93d0 scales RGB. Class0 advances generation; other classes request a
+ * scene visibility update instead. Does not reset active selection. */
+int rf_vfx_light_pool_color(rf_vfx_light_pool *,uint32_t id,float intensity,const float color[3],uint32_t *visibility_update);
 int rf_vfx_light_pool_enable(rf_vfx_light_pool *,uint32_t id,unsigned char enabled);
 /* Cache indices refer directly to pool slots; traverses original selected list.
  * Changing world mode requires caller invalidation, as do bounds changes. */
