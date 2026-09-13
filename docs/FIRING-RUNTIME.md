@@ -153,3 +153,26 @@ This is a port ownership adapter using independently verified pool/list/
 registry components, not a claim that full486da0 is reconstructed. Room,
 model, sphere and physics initialization and complete4c77a0 resource/hit
 services remain required before live projectiles. No new native scene run.
+
+## Moving creation physics verified (2026-09-13)
+
+rf_physics_creation_body_open_moving carries descriptor6c linear velocity and
+descriptor78 angular vector through the existing49ec90/49f010 preparation.
+The previous static constructor supplies zero vectors through the same path;
+the creation seed layout stays unchanged. Generated/inherited mass, fallback
+spheres, material coefficients and ownership budgets share the existing code.
+
+verify_creation_body.py --moving compares640 complete original constructor
+cases with PC and compiled NXDK, including all308 represented state bytes
+and owned sphere records. Only original heap calls are supplied; the fallback
+opaque word remains normalized because its original value is unspecified.
+Checks cover560 allocation failures,640 short budgets, repeated open/close,
+and14 NXDK null/nonfinite motion failures without allocation or owner changes.
+The unchanged static mode also passes640 cases. Both builds and23 CTests pass.
+Evidence: artifacts/creation-body-moving-verification.json and
+artifacts/creation-body-verification.json. No new native XEMU run or visual.
+
+This completes the shared moving physics entry point, not projectile factory
+integration. Resolve model radius/spheres and map the creation descriptor in
+the registered projectile initializer, then implement remaining factory
+resources, collision/hit effects and deferred retirement before live firing.

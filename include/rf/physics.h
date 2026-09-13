@@ -133,6 +133,12 @@ typedef struct rf_physics_creation_seed {
 int rf_physics_creation_body_open(const rf_physics_creation_seed *seed,
     float elasticity,float friction,float density,uint32_t budget,rf_physics_body *result);
 
+/* Same creation path with descriptor6c linear velocity and descriptor78 angular
+ * vector. Both vectors required and finite; seed layout/static API unchanged. */
+int rf_physics_creation_body_open_moving(const rf_physics_creation_seed *seed,
+    const float velocity[3],const float angular[3],float elasticity,float friction,
+    float density,uint32_t budget,rf_physics_body *result);
+
 /* Class-sphere installation after creation: replace owned records, rebuild
  * bounds and flag 0x2000, preserve all other state including mass/tensors.
  * Budget covers peak body + old records + new records (no allocator overhead).

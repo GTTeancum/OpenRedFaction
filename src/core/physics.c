@@ -10,10 +10,17 @@
 int rf_physics_creation_body_open(const rf_physics_creation_seed *seed,float elasticity,float friction,
     float density,uint32_t budget,rf_physics_body *result)
 {
+    const float zero[3]={0};
+    return rf_physics_creation_body_open_moving(seed,zero,zero,elasticity,friction,density,budget,result);
+}
+int rf_physics_creation_body_open_moving(const rf_physics_creation_seed *seed,
+    const float velocity[3],const float angular[3],float elasticity,float friction,
+    float density,uint32_t budget,rf_physics_body *result)
+{
     rf_physics_body_parameters parameters={0};rf_physics_mass_tensor initial={0},prepared;
     rf_physics_sphere fallback={0};rf_physics_fallback values;
     const rf_physics_sphere *spheres;uint32_t count;int status;
-    if(!seed || !result)return RF_RANGE;
+    if(!seed || !velocity || !angular || !result)return RF_RANGE;
     count=(seed->flags&0x70)?seed->sphere_count:0;
     if(count && !seed->spheres)return RF_RANGE;
     if(result->allocated_bytes || result->spheres.items || result->spheres.count || result->spheres.allocated_bytes ||
@@ -21,6 +28,7 @@ int rf_physics_creation_body_open(const rf_physics_creation_seed *seed,float ela
     memcpy(&parameters.coefficients[1],&seed->word_0c,4);memcpy(&parameters.mass,&seed->word_14,4);
     parameters.coefficients[0]=elasticity;parameters.coefficients[2]=friction;parameters.flags=seed->flags;
     memcpy(parameters.position,seed->position,12);memcpy(parameters.orientation,seed->basis,36);
+    memcpy(parameters.velocity,velocity,12);memcpy(parameters.vector_78,angular,12);
     spheres=count?seed->spheres:NULL;
     if((seed->flags&0x70) && !count) {
         status=rf_physics_fallback_prepare(density,seed->radius,parameters.mass,&values);if(status)return status;
