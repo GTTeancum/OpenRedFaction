@@ -3,6 +3,7 @@
 #include "rf/effect.h"
 #include "rf/visibility.h"
 #include "rf/image.h"
+#include "rf/model.h"
 #include <math.h>
 #include <float.h>
 static void volume_beam_normalize(float v[3])
@@ -1542,4 +1543,24 @@ int rf_vfx_mesh_rotation_key(const rf_vfx_mesh *mesh,int32_t time,float out[4])
     if(!mesh || !mesh->data || !out)return RF_RANGE;if(!(mesh->edges.mesh_flags&2))return RF_NOT_FOUND;
     at=mesh->keys.offsets[1];if(at>mesh->bytes)return RF_FORMAT;
     return rf_vfx_rotation_key_sample(mesh->data+at,mesh->bytes-at,mesh->keys.counts[1],time,out);
+}
+
+int rf_vfx_transform_point(const float transform[10],const float point[3],float out[3])
+{
+    float matrix[12],scaled[3],value[3],rotated;unsigned i;int status;
+    if(!transform || !point || !out)return RF_RANGE;
+    for(i=0;i<10;++i)if(!isfinite(transform[i]))return RF_FORMAT;
+    for(i=0;i<3;++i)if(!isfinite(point[i]))return RF_FORMAT;
+    status=rf_model_attachment_transform(transform+3,transform,matrix);if(status)return status;
+    for(i=0;i<3;++i) {
+        scaled[i]=(float)((double)point[i]*transform[i+7]);
+        if(!isfinite(scaled[i]))return RF_RANGE;
+    }
+    for(i=0;i<3;++i) {
+        /*4facb0 accumulates Z, Y, X; 40a350 adds translation after the spill. */
+        rotated=(float)(((double)scaled[2]*matrix[i+6]+(double)scaled[1]*matrix[i+3])+(double)scaled[0]*matrix[i]);
+        value[i]=(float)((double)rotated+transform[i]);
+        if(!isfinite(value[i]))return RF_RANGE;
+    }
+    memcpy(out,value,sizeof(value));return RF_OK;
 }

@@ -177,6 +177,11 @@ int rf_vfx_mesh_vector_key(const rf_vfx_mesh *,uint32_t track,int32_t time,float
  * times and nonnegative easing required; errors preserve output. */
 int rf_vfx_rotation_key_sample(const void *,uint32_t bytes,uint32_t count,int32_t time,float out[4]);
 int rf_vfx_mesh_rotation_key(const rf_vfx_mesh *,int32_t time,float out[4]);
+/*53f060 transform stages: position[3], quaternion[4], scale[3].
+ * Scale, unnormalized5194c0 rotation, then translation; each stage rounds
+ * separately. No key selection, interpolation or parent transform here.
+ * Input/output may alias; failures preserve output. */
+int rf_vfx_transform_point(const float transform[10],const float point[3],float out[3]);
 typedef struct rf_vfx_chunk {uint32_t type,offset,bytes;} rf_vfx_chunk;
 typedef struct rf_vfx_directory {
     rf_vpp *archive;rf_vpp_entry entry;rf_vfx_header header;

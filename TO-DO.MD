@@ -14,6 +14,11 @@ Shortlist:
 
 Progress reporting: include overall percent estimates at meaningful milestones and revisit remaining 24-hour workdays when measured throughput supports a forecast; current rough estimate40% (35-45%), no defensible +/-48-hour completion forecast before end-to-end gameplay.
 
+VFX scale/rotation/translation stages match2048 original/PC/NXDK cases,
+including2048 in-place checks and4 failure guards; both builds and24 tests pass.
+Compose keyed/base and frame transforms into53f060 playback, then parent poses
+and renderer submission; this helper validation is not native XEMU evidence.
+
 Attachment ordering audit: original4881a0 passes1000 randomized16-object
 forests; positive-tag dispatch passes54 original cases including real486c90.
 Negative-tag poses now match1536 original/PC/NXDK cases (384 singular).
