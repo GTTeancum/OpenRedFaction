@@ -130,6 +130,25 @@ int rf_glare_corona_attenuate(const rf_glare_state *state,uint32_t view,
  * Errors preserve both outputs; caller keeps arrays disjoint. */
 int rf_glare_corona_camera_setup(const rf_glare_base_owner *owner,const float camera[3],
     const float basis[9],float values[6],double *view_angle);
+typedef struct rf_glare_corona_frame {
+    float camera[3],basis[9],field_of_view,intensity_scale,size_scale;
+    uint32_t frame,view;int32_t face_cache_state,bitmap;
+} rf_glare_corona_frame;
+typedef struct rf_glare_corona_services {
+    /* Missing parent or room permits drawing; a resolved hidden room rejects. */
+    int (*parent_visible)(void *,uint32_t,uint32_t *);
+    int (*search)(void *,rf_glare_base_owner *,const float[3],uint32_t *);
+    int (*special_visible)(void *,rf_glare_base_owner *,const float[3],uint32_t *);
+    int (*flash)(void *,uint32_t,uint32_t,uint32_t,int32_t);
+    void *context;rf_glare_corona_backend graphics;
+} rf_glare_corona_services;
+/* Composed414860 corona routine with explicit scene/graphics services.
+ * bitmap-1 denotes absent resource. Special word2cc visibility is supplied;
+ * no original specialized model query is implied by that callback boundary.
+ * Finite camera and numeric domains follow the component APIs. Completed
+ * state/callback effects remain on error; no heap or frame scheduling. */
+int rf_glare_corona_render(rf_glare_base_owner *owner,const rf_glare_definition *definition,
+    const rf_glare_corona_frame *frame,const rf_glare_corona_services *services);
 typedef struct rf_glare_services {
     int (*tag_pose)(void *,uint32_t,int32_t,float[12]);void *context;
 } rf_glare_services;

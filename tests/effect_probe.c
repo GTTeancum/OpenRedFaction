@@ -28,7 +28,7 @@ static int render_dispatch_render(void *c,uint32_t kind){return render_dispatch_
 static uint32_t glare_refresh_value,glare_refresh_calls;static int glare_refresh_error;
 static int glare_refresh_search(void *context,rf_glare_base_owner *owner,const float camera[3],uint32_t *result)
 {(void)context;(void)owner;(void)camera;++glare_refresh_calls;*result=glare_refresh_value;return glare_refresh_error;}
-typedef struct corona_tail_fixture {rf_glare_base_owner *owner;uint32_t count,fail,trace[32];} corona_tail_fixture;
+typedef struct corona_tail_fixture {rf_glare_base_owner *owner;uint32_t count,fail,trace[64];} corona_tail_fixture;
 static int corona_record(corona_tail_fixture *c,uint32_t record[8])
 {memcpy(c->trace+c->count*8,record,32);++c->count;return c->fail==c->count?RF_IO:RF_OK;}
 static int corona_color(void *context,uint32_t r,uint32_t g,uint32_t b,uint32_t a)
@@ -41,8 +41,43 @@ static int corona_billboard(void *context,const float position[3],float angle,fl
 static int corona_oriented(void *context,const float first[3],const float second[3],float size,uint32_t mode)
 {corona_tail_fixture *c=context;uint32_t record[8]={5};if(first!=c->owner->state.vectors[0] || second!=c->owner->state.vectors[1])return RF_RANGE;
  memcpy(record+2,&size,4);record[3]=mode;return corona_record(c,record);}
+typedef struct corona_frame_fixture {corona_tail_fixture graphics;uint32_t parent,visible,special;} corona_frame_fixture;
+static int corona_parent(void *context,uint32_t handle,uint32_t *visible)
+{corona_frame_fixture *c=context;uint32_t record[8]={6,handle};*visible=c->parent!=2;return corona_record(&c->graphics,record);}
+static int corona_search(void *context,rf_glare_base_owner *owner,const float camera[3],uint32_t *visible)
+{corona_frame_fixture *c=context;uint32_t record[8]={7,owner->handle};(void)camera;*visible=c->visible;return corona_record(&c->graphics,record);}
+static int corona_special(void *context,rf_glare_base_owner *owner,const float camera[3],uint32_t *visible)
+{corona_frame_fixture *c=context;uint32_t record[8]={8,1};(void)owner;(void)camera;*visible=c->special==1;return corona_record(&c->graphics,record);}
+static int corona_flash(void *context,uint32_t r,uint32_t g,uint32_t b,int32_t alpha)
+{corona_frame_fixture *c=context;uint32_t record[8]={9,r,g,b,(uint32_t)alpha};return corona_record(&c->graphics,record);}
 int main(int argc,char **argv)
 {
+    if(argc==2 && !strcmp(argv[1],"--corona-frame")) {
+        uint32_t wire[18];_setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
+        while(fread(wire,4,18,stdin)==18) {
+            rf_glare_base_owner owner={0};rf_glare_definition definition={0};rf_glare_corona_frame frame={0};
+            corona_frame_fixture fixture={{&owner,0,wire[17],{0}},wire[8],wire[9],wire[10]};
+            rf_glare_corona_services services={corona_parent,corona_search,corona_special,corona_flash,&fixture,
+                {corona_color,corona_texture,corona_billboard,corona_oriented,&fixture.graphics}};
+            uint32_t output[73];int status;
+            owner.handle=wire[0];owner.parent_handle=32;owner.radius=1;owner.state.active=(uint8_t)wire[2];
+            owner.state.reserved[0]=(uint8_t)wire[3];owner.state.cached_face=wire[4];owner.state.word_2cc=wire[10]?1:0;
+            owner.state.byte_2d0=(uint8_t)wire[11];memcpy(owner.position,wire+14,4);memcpy(owner.position+2,wire+13,4);
+            owner.matrix[0]=owner.matrix[8]=-1;owner.matrix[4]=1;
+            memcpy(owner.state.samples,wire+15,4);owner.state.samples[1]=owner.state.samples[0];
+            memcpy(owner.state.samples+2,wire+16,4);owner.state.samples[3]=owner.state.samples[2];
+            definition.cone_degrees=45;memcpy(&definition.intensity,wire+12,4);definition.radius_distance=definition.radius_scale=1;
+            definition.color[0]=255;definition.color[1]=80;definition.color[2]=40;
+            frame.basis[0]=frame.basis[4]=frame.basis[8]=1;frame.field_of_view=90;frame.intensity_scale=frame.size_scale=.5f;
+            frame.frame=wire[1];frame.view=wire[7];frame.face_cache_state=(int32_t)wire[5];frame.bitmap=(int32_t)wire[6];
+            status=rf_glare_corona_render(&owner,&definition,&frame,&services);output[0]=(uint32_t)status;
+            memcpy(output+1,&owner.radius,4);memcpy(output+2,owner.state.samples,16);output[6]=owner.state.cached_face;
+            output[7]=owner.state.reserved[0];output[8]=fixture.graphics.count;memcpy(output+9,fixture.graphics.trace,256);
+            if(fwrite(output,4,73,stdout)!=73)return 3;
+        }
+        return 0;
+    }
+
     if(argc==2 && !strcmp(argv[1],"--corona-camera")) {
         float wire[24];_setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
         while(fread(wire,4,24,stdin)==24) {

@@ -318,6 +318,39 @@ uint32_t rf_clutter_material_index(const char *name)
     for(i=0;i<10;++i)if(clutter_skin_name_equal(names[i],name))return i;
     return 0;
 }
+int rf_glare_corona_render(rf_glare_base_owner *owner,const rf_glare_definition *definition,
+    const rf_glare_corona_frame *frame,const rf_glare_corona_services *services)
+{
+    rf_glare_corona_tail tail={0};rf_glare_corona_environment environment;rf_glare_corona_values values;
+    float camera_values[6],fade[2]={1,1};double angle,flash_alpha;uint32_t visible,allowed;int status;
+    if(!owner || !definition || !frame || frame->view>1 || !services || !services->parent_visible ||
+        !services->search || !services->special_visible || !services->flash)return RF_RANGE;
+    if(frame->bitmap==-1)return RF_OK;if(frame->bitmap<0)return RF_RANGE;
+    status=services->parent_visible(services->context,owner->parent_handle,&allowed);if(status || !allowed)return status;
+    status=rf_glare_corona_camera_setup(owner,frame->camera,frame->basis,camera_values,&angle);if(status)return status;
+    tail.bitmap=(uint32_t)frame->bitmap;tail.view=frame->view;tail.side_dot=camera_values[5];
+    visible=owner->state.active!=0;
+    if(visible) {
+        if(owner->state.word_2cc)status=services->special_visible(services->context,owner,frame->camera,&visible);
+        else status=rf_glare_refresh_visibility(owner,frame->camera,frame->frame,frame->face_cache_state,services->search,services->context,&visible);
+        if(status)return status;
+    }
+    if(!visible) {
+        status=rf_glare_fade_samples(&owner->state,frame->view,fade,&tail.draw);if(status)return status;
+        tail.intensity=fade[0];tail.size=fade[1];
+    } else {
+        environment=(rf_glare_corona_environment){camera_values[4],camera_values[3],frame->field_of_view,frame->intensity_scale,frame->size_scale};
+        status=rf_glare_corona_attenuate(&owner->state,frame->view,definition,&environment,angle,&values);if(status)return status;
+        tail.intensity=values.intensity;tail.size=values.size;tail.angular=values.angular;tail.draw=1;
+        if(values.flash>0 && (uint8_t)definition->color[0] && !owner->state.word_2cc) {
+            flash_alpha=((double)values.flash*definition->intensity)*64.0;
+            if(!isfinite(flash_alpha) || flash_alpha < -2147483648.0 || flash_alpha>=2147483648.0)return RF_FORMAT;
+            status=services->flash(services->context,(uint8_t)definition->color[0],(uint8_t)definition->color[1],
+                (uint8_t)definition->color[2],(int32_t)flash_alpha);if(status)return status;
+        }
+    }
+    return rf_glare_corona_submit(owner,&tail,&services->graphics);
+}
 static double corona_dot(const float first[3],const float second[3])
 {
     return ((double)first[2]*second[2]+(double)first[1]*second[1])+(double)first[0]*second[0];

@@ -8800,3 +8800,24 @@ original cases plus6 graphics error cases pass PC/compiled NXDK. This
 supersedes the earlier400-case supplied-constructor argument interpretation
 and8-error count. Both builds and21CTest pass. No scene was using this tail
 yet; no native draw validation is claimed. Corona composition remains next.
+
+
+## Composed corona routine414860 (2026-09-12)
+
+rf_glare_corona_render composes the verified stages: missing bitmap exit,
+parent-room eligibility, camera setup, inactive fade or active visibility,
+visible attenuation, screen flash and common draw tail. Normal visibility
+uses handle/frame parity; word2cc delegates the specialized model visibility
+service. Flash requires positive squared factor, nonzero low-byte red and
+no word2cc object, with truncation of factor*class intensity*64. Missing
+parent/room permits drawing; a resolved hidden room rejects before camera
+work. Bitmap-1 is the port absent sentinel so slot0 remains usable.
+
+verify_corona_frame.py executes full original414860 including actual math,
+411e00 packing, room-word read and special model query construction. Only
+parent lookup, camera access, visibility/model results, flash and graphics
+services are supplied.259 whole-function cases plus12 callback failures match
+PC/compiled NXDK exactly for retained owner fields and ordered callbacks.
+Both builds and21CTest pass. No original list/frame scheduling, special model
+geometry backend or native drawing is implied: scene parent/flash/geometry
+services and actual render integration remain open.
