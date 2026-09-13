@@ -14,6 +14,13 @@ Shortlist:
 
 Progress reporting: include overall percent estimates at meaningful milestones and revisit remaining 24-hour workdays when measured throughput supports a forecast; current rough estimate40% (35-45%), no defensible +/-48-hour completion forecast before end-to-end gameplay.
 
+Retained light clocks now initialize identically for all22293 lights in93
+levels on PC/NXDK; peak owner255100 bytes remains below256KiB. Both builds
+and24 tests pass. Original433260 timer loop uses registry646098 in index
+order; verify registry population/frame gates before scheduling live clocks.
+Stock64MiB XEMU replay-20260913-165531 passes180 frames and PC telemetry
+comparison with142620-byte L1S1 owner; native clock hashes remain to add.
+
 Timer-to-pool light updates match4096 original/PC/NXDK cases, including RGB,
 class-dependent invalidation and shared RNG; failed updates preserve state.
 Both builds and24 tests pass. Retain elapsed clocks, bind frame scheduling and

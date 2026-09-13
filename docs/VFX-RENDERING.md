@@ -753,3 +753,28 @@ actual timer/color callees execute. A NXDK late-color-failure test confirms
 transactional state preservation. Both builds and24 CTests pass. Remaining
 work is persistent clock/frame ordering and visibility callback dispatch,
 followed by light-driven native rendering.
+
+### Retained light clocks and frame-order evidence (2026-09-13)
+
+The light owner now retains one 24-byte clock per authored record, initialized
+from the verified activation phase, delay and intensity, with zero elapsed
+time and update flags. The 32-bit owner header is 60 bytes; total storage is
+105660 + 160 * count, peaking at 255100 bytes for 934 lights. Ownership
+verification compares all 22293 PC/NXDK records in 93 installed levels and
+independently checks every initial clock field against activation. Exact and
+short budgets, allocation failure, rollback and repeated close pass.
+
+Original 433260 calls 487a40, then iterates the pointer registry at 646098
+in ascending index order. At 43334f it calls 45fa30 with seconds from 5a4014
+and ECX loaded from the registry slot. Accessors 40a480 and 40a490 return
+the slot address and count; count is re-read each iteration. Next comes
+4e6150 at 43336f. This is static executable evidence, not an end-to-end
+frame replay. Registry insertion/removal order, frame gates, shared RNG
+ordering with surrounding systems and visibility dispatch remain unbound.
+Retained clocks do not yet advance in scene frames or change rendering.
+
+Validation: both builds and all24 CTests pass. Native stock64MiB XEMU
+180-frame replay-20260913-165531 passes PC owner/source/runtime/field
+telemetry comparisons with the larger allocation (142620 bytes for231
+L1S1 lights). Clock contents are covered by the PC/NXDK ownership harness;
+native replay does not yet expose clock hashes. Normal disc flags restored.

@@ -347,6 +347,7 @@ int main(int argc,char **argv)
         fwrite(owner,8,1,stdout);fwrite(&owner->pool,36,1,stdout);fwrite(&rng,4,1,stdout);
         fwrite(owner->items,sizeof(*owner->items),owner->count,stdout);
         fwrite(owner->pool.sources,sizeof(*owner->pool.sources),1100,stdout);fwrite(owner->pool.links,sizeof(*owner->pool.links),1100,stdout);
+        fwrite(owner->clocks,sizeof(*owner->clocks),owner->count,stdout);
         rf_level_owned_lights_close(&owner);rf_level_owned_lights_close(&owner);return owner?7:0;
     }
     if(argc==2 && !strcmp(argv[1],"--level-light-activate")) {

@@ -33,15 +33,20 @@ inventory=json.loads((root/'artifacts/inventory.json').read_text());levels=json.
 for level in report['results']:
  description=next(l for l in levels if l['file']==level['file'] and l['archive']==level['archive']);section=next(s for s in description['sections'] if s['type']=='0x300');archive=next(a for a in inventory['files'] if a['path']==level['archive']);entry=next(e for e in archive['vpp']['entries'] if e['name']==level['file'])
  with (root/'Installed_Game'/level['archive']).open('rb') as stream:stream.seek(entry['offset']+section['offset']+8);data=stream.read(section['size'])
- count=len(level['records']);budget=56+105600+136*count;peak=max(peak,budget)
+ count=len(level['records']);budget=60+105600+160*count;peak=max(peak,budget)
  if sample is None and count>=2:sample=(data,level['records'],budget)
  raw=subprocess.check_output([str(root/'build/pc/Release/rf_collision_probe.exe'),'--level-owned-lights',str(root/'Installed_Game'/level['archive']),level['file']])
  prepare();alloc.clear();freed.clear()
  assert call('rf_level_owned_lights_open',[LEVEL,budget-1,1,1,B+0x2000,OUT])!=0 and not alloc and x.mem_read(OUT,4)==w(0)
  assert call('rf_level_owned_lights_open',[LEVEL,budget,1,1,B+0x2000,OUT])==0 and alloc==[budget]
  assert x.mem_read(OUT,4)==w(HEAP)
- expected=bytes(x.mem_read(HEAP,8))+bytes(x.mem_read(HEAP+8,36))+bytes(x.mem_read(B+0x2000,4))+bytes(x.mem_read(HEAP+56,budget-56))
+ expected=bytes(x.mem_read(HEAP,8))+bytes(x.mem_read(HEAP+8,36))+bytes(x.mem_read(B+0x2000,4))+bytes(x.mem_read(HEAP+60,budget-60))
  assert raw==expected,(level['file'],len(raw),len(expected))
+ # Independently derive initial clocks from activation, checking every field.
+ for j in range(count):
+  item=raw[48+j*136:48+(j+1)*136];activation=item[36:]
+  clock=raw[48+count*136+105600+j*24:48+count*136+105600+(j+1)*24]
+  assert clock==activation[88:92]+w(0)+activation[92:96]+activation[68:72]+w(0,0),(level['file'],j)
  # Source/archive context can be destroyed; all retained storage stays intact.
  saved=bytes(x.mem_read(HEAP,budget));x.mem_write(LEVEL,b'\xa5'*4096);assert bytes(x.mem_read(HEAP,budget))==saved
  call('rf_level_owned_lights_close',[OUT])

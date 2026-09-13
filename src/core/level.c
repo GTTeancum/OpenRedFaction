@@ -1670,11 +1670,11 @@ int rf_level_owned_lights_open(const rf_level *level,uint32_t budget,uint32_t wo
     uint64_t bytes;uint32_t i,draw,cycle;int status;
     if(!out || *out || world>1 || loader_default>1)return RF_RANGE;
     status=rf_level_lights_begin(level,&reader);if(status)return status;if(reader.count>1100)return RF_RANGE;
-    bytes=sizeof(*value)+(uint64_t)reader.count*sizeof(*value->items)+1100u*(sizeof(*sources)+sizeof(*links));
+    bytes=sizeof(*value)+(uint64_t)reader.count*(sizeof(*value->items)+sizeof(*value->clocks))+1100u*(sizeof(*sources)+sizeof(*links));
     if(bytes>budget || bytes>SIZE_MAX || bytes>UINT32_MAX)return RF_RANGE;
     value=malloc((size_t)bytes);if(!value)return RF_IO;memset(value,0,sizeof(*value));
     value->count=reader.count;value->allocated_bytes=(uint32_t)bytes;value->items=(rf_level_light_runtime *)(value+1);
-    sources=(rf_vfx_light_candidate *)(value->items+value->count);links=(rf_vfx_light_link *)(sources+1100);
+    sources=(rf_vfx_light_candidate *)(value->items+value->count);links=(rf_vfx_light_link *)(sources+1100);value->clocks=(rf_level_light_clock *)(links+1100);
     status=rf_vfx_light_pool_init(&value->pool,sources,links,1100);if(status)goto failed;
     if(random)rng=*random;
     for(i=0;i<value->count;++i) {
@@ -1686,6 +1686,9 @@ int rf_level_owned_lights_open(const rf_level *level,uint32_t budget,uint32_t wo
         status=rf_vfx_light_pool_create(&value->pool,&item->activation.definition,world,&item->id);if(status)goto failed;
         status=rf_vfx_light_pool_enable(&value->pool,item->id,(unsigned char)item->activation.enabled);if(status)goto failed;
         item->uid=record.uid;item->flags=record.flags;memcpy(item->cycle,record.cycle,sizeof(item->cycle));
+        memset(value->clocks+i,0,sizeof(*value->clocks));
+        value->clocks[i].phase=item->activation.phase;value->clocks[i].delay=item->activation.delay;
+        value->clocks[i].intensity=item->activation.definition.intensity;
     }
     if(random)*random=rng;*out=value;return RF_OK;
 failed:

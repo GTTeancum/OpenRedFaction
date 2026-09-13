@@ -201,10 +201,10 @@ typedef struct rf_level_light_runtime {
 int rf_level_light_tick(const rf_level_light_runtime *,rf_level_light_clock *,rf_vfx_light_pool *,
     float seconds,rf_random_state *,uint32_t *visibility_update);
 typedef struct rf_level_owned_lights {
-    uint32_t count,allocated_bytes;rf_vfx_light_pool pool;rf_level_light_runtime *items;
+    uint32_t count,allocated_bytes;rf_vfx_light_pool pool;rf_level_light_runtime *items;rf_level_light_clock *clocks;
 } rf_level_owned_lights;
 /* One budgeted allocation:1100 pool slots plus retained authored activation
- * records. Copies required data; level/archive may close after success. RNG
+ * records and initialized per-light clocks. Copies required data; level/archive may close after success. RNG
  * is required only for cycle3/4 and commits only on success. No live timer
  * stepping, scene visibility callbacks, external registry or draw submission. */
 int rf_level_owned_lights_open(const rf_level *,uint32_t budget,uint32_t world,uint32_t loader_default,
