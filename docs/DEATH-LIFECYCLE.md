@@ -8744,3 +8744,22 @@ angle sign, command ordering and geometry arguments. The shared side-dot is
 supplied upstream; original test uses an equivalent axial-vector dot. Both
 builds and21CTest pass. No native drawing claim: visible attenuation, original
 parent-room gates and actual billboard/oriented geometry remain open.
+
+
+## Visible corona attenuation (2026-09-12)
+
+rf_glare_corona_attenuate reconstructs414a73..414c12 after resolved distance
+and camera acos. The camera angle remains double; the glare-axis angle is
+already float degrees. Inputs include original FOV59613c, intensity scale
+5943fc and size scale594400, not fixed preview assumptions. It preserves
+float publication points and extended arithmetic ordering for cone attenuation,
+clamped/smoothed intensity, distance-root size and squared flash factor. It
+does not publish owner samples; the verified common draw tail owns that step.
+Positive finite distance/FOV/cone and view0/1 are required; errors preserve output.
+
+verify_corona_attenuation.py executes original block with only distance4faed0
+and acos573630 results supplied. Actual dot/clamp/max/sqrt/x87 arithmetic runs.
+536 cases plus2 port guards match PC and compiled NXDK exactly, including
+cone edges and distance12 flash cutoff. Both builds and21CTest pass. This
+does not verify upstream vector/acos setup, flash alpha/submission, parent
+gates, full frame scheduling or native corona geometry; those remain open.

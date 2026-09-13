@@ -111,6 +111,18 @@ typedef struct rf_glare_corona_backend {
  * No geometry generation, bitmap lookup, attenuation or scheduling here. */
 int rf_glare_corona_submit(rf_glare_base_owner *owner,const rf_glare_corona_tail *tail,
     const rf_glare_corona_backend *backend);
+typedef struct rf_glare_corona_environment {
+    float distance,glare_angle,field_of_view,intensity_scale,size_scale;
+} rf_glare_corona_environment;
+typedef struct rf_glare_corona_values {float intensity,size,angular,flash;} rf_glare_corona_values;
+/*414a73..414c07 visible attenuation after distance/acos resolution. Camera
+ * angle retains the double acos result; glare_angle is already stored degrees.
+ * Positive distance/FOV/cone, finite inputs and view0/1 required. Computes
+ * smoothed intensity/size and squared flash factor without publishing samples.
+ * Errors preserve output. Flash dispatch/alpha and draw tail remain separate. */
+int rf_glare_corona_attenuate(const rf_glare_state *state,uint32_t view,
+    const rf_glare_definition *definition,const rf_glare_corona_environment *environment,
+    double view_angle_radians,rf_glare_corona_values *result);
 typedef struct rf_glare_services {
     int (*tag_pose)(void *,uint32_t,int32_t,float[12]);void *context;
 } rf_glare_services;

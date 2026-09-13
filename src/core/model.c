@@ -318,6 +318,40 @@ uint32_t rf_clutter_material_index(const char *name)
     for(i=0;i<10;++i)if(clutter_skin_name_equal(names[i],name))return i;
     return 0;
 }
+int rf_glare_corona_attenuate(const rf_glare_state *state,uint32_t view,
+    const rf_glare_definition *definition,const rf_glare_corona_environment *environment,
+    double view_angle_radians,rf_glare_corona_values *result)
+{
+    rf_glare_corona_values value;double angular,factor,size;volatile float half,rounded_factor,intensity,flash,cone_factor;
+    if(!state || view>1 || !definition || !environment || !result)return RF_RANGE;
+    if(!isfinite(view_angle_radians) || !isfinite(environment->distance) || environment->distance<=0 ||
+        !isfinite(environment->glare_angle) || !isfinite(environment->field_of_view) || environment->field_of_view<=0 ||
+        !isfinite(environment->intensity_scale) || !isfinite(environment->size_scale) ||
+        !isfinite(definition->cone_degrees) || definition->cone_degrees<=0 || !isfinite(definition->intensity) ||
+        !isfinite(definition->radius_distance) || !isfinite(definition->radius_scale) || !isfinite(definition->diminish) ||
+        !isfinite(state->samples[view]) || !isfinite(state->samples[2+view]))return RF_FORMAT;
+    half=environment->field_of_view*.5f;
+    angular=((double)half-view_angle_radians*(double)57.2957763671875f)/(double)half;
+    value.angular=(float)angular;factor=angular+1.0;rounded_factor=(float)factor;
+    intensity=(float)((factor*(double)environment->intensity_scale)*(40.0/(double)environment->distance));
+    if(environment->glare_angle>definition->cone_degrees)
+        intensity=(float)((1.0-((double)environment->glare_angle-definition->cone_degrees)*(double).1f)*(double)intensity);
+    intensity=(float)((double)intensity*definition->intensity);
+    if(intensity<0)intensity=0;if(intensity>1)intensity=1;
+    value.intensity=(float)(((double)intensity+state->samples[view])*.5);
+    size=((sqrt((double)environment->distance)*definition->radius_scale-definition->diminish)*definition->radius_distance)*
+        ((double)rounded_factor*environment->size_scale);
+    if(environment->glare_angle>definition->cone_degrees)
+        size*=1.0-((double)environment->glare_angle-definition->cone_degrees)*(double).05f;
+    if(size<0)size=0;value.size=(float)((size+state->samples[2+view])*.5);
+    flash=(float)(((12.0-environment->distance)/environment->distance)*definition->intensity);
+    flash=(float)((double)(value.angular>0?value.angular:0)*(double)flash);
+    cone_factor=(float)(((double)definition->cone_degrees-environment->glare_angle)/definition->cone_degrees);
+    flash=(float)((double)(cone_factor>0?cone_factor:0)*(double)flash);
+    if(flash<0)flash=0;if(flash>1)flash=1;value.flash=(float)((double)flash*(double)flash);
+    if(!isfinite(value.intensity) || !isfinite(value.size) || !isfinite(value.angular) || !isfinite(value.flash))return RF_FORMAT;
+    *result=value;return RF_OK;
+}
 int rf_glare_corona_submit(rf_glare_base_owner *owner,const rf_glare_corona_tail *tail,
     const rf_glare_corona_backend *backend)
 {
