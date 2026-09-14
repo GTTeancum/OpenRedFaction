@@ -5,7 +5,7 @@
 #define CHECK(x) do{if(!(x)){fprintf(stderr,"weapon line %d\n",__LINE__);return 1;}}while(0)
 int main(int argc,char **argv)
 {
-    rf_vpp meshes={0},motions={0},maps[5]={{0}};rf_player_weapon *w=NULL,*other=NULL,*rifle=NULL;
+    rf_vpp meshes={0},motions={0},maps[5]={{0}};rf_player_weapon *w=NULL,*other=NULL,*rifle=NULL,*riot=NULL;
     const char *map_names[5]={"maps1.vpp","maps2.vpp","maps3.vpp","maps4.vpp","maps_en.vpp"};
     char path[1024];uint32_t i,j;rf_motion_sample sample;
     {
@@ -79,6 +79,18 @@ int main(int argc,char **argv)
         CHECK(rf_weapon_trigger_step(&state,&rules,1,0,15,&event)==RF_RANGE && event==999 && !memcmp(&state,&saved,sizeof(state)));
         printf("Trigger PASS burst cadence, partial magazine, cancellation, semi-auto and blocked edges\n");
     }
+    {
+        uint32_t remainder=0,used=0,total=0,tick;int32_t loaded=100;
+        for(tick=0;tick<300;tick++) {
+            CHECK(!rf_weapon_charge_step(&remainder,100,150,tick%2==0,&loaded,&used));total+=used;
+            CHECK(loaded==100-(int32_t)(((tick+2)/2)*100/150));
+        }
+        CHECK(total==100 && loaded==0 && remainder==0);
+        CHECK(!rf_weapon_charge_step(&remainder,100,150,1,&loaded,&used) && !used);
+        used=999;CHECK(rf_weapon_charge_step(&remainder,100,0,1,&loaded,&used)==RF_RANGE && used==999 && remainder==0);
+        loaded=101;CHECK(rf_weapon_charge_step(&remainder,100,150,1,&loaded,&used)==RF_RANGE && loaded==101 && used==999);
+        puts("Charge PASS full drain, intermittent holds, exhausted and malformed inputs");
+    }
     CHECK(argc==2);snprintf(path,sizeof(path),"%s/meshes.vpp",argv[1]);CHECK(rf_vpp_open(&meshes,path)==RF_OK);
     snprintf(path,sizeof(path),"%s/motions.vpp",argv[1]);CHECK(rf_vpp_open(&motions,path)==RF_OK);
     for(i=0;i<5;i++){snprintf(path,sizeof(path),"%s/%s",argv[1],map_names[i]);CHECK(rf_vpp_open(maps+i,path)==RF_OK);}
@@ -111,10 +123,18 @@ int main(int argc,char **argv)
             CHECK(!strcmp(view.mesh,"fp_glock.v3c") && !strcmp(view.clips[1],"fp_glock_fire.rfa"));
             CHECK(rf_weapon_view_load(&tables,"Assault Rifle",128*1024,&view)==RF_OK);
             CHECK(!strcmp(view.mesh,"fp_aslt_rfl.v3c") && !strcmp(view.clips[1],"fp_aslt_rfl_fire_burst.rfa"));
+            view.clips[3][0]=0; /* Rifle alternate mode is not enabled by the scene. */
             CHECK(rf_player_weapon_open_view(&meshes,&motions,maps,5,&view,1024*1024,&rifle)==RF_OK);
             CHECK(rf_player_weapon_open_view(&meshes,&motions,maps,5,&view,rifle->resident_bytes-1,&other)==RF_RANGE && !other);
             memset(view.mesh,'x',64);
             CHECK(rf_player_weapon_open_view(&meshes,&motions,maps,5,&view,2*1024*1024,&other)==RF_RANGE && !other);
+            CHECK(rf_weapon_view_load(&tables,"Riot Stick",128*1024,&view)==RF_OK);
+            CHECK(!strcmp(view.clips[3],"fp_riot_attack_taserB.rfa"));
+            CHECK(!rf_player_weapon_open_view(&meshes,&motions,maps,5,&view,1024*1024,&riot));
+            CHECK(riot->clip_count==4 && riot->peak_bytes<=1024*1024);
+            {rf_weapon_primary_definition baton;
+             CHECK(!rf_weapon_primary_load(&tables,"Riot Stick",128*1024,&baton));
+             CHECK(baton.alt_fire_seconds==.5f && baton.alt_damage==120 && baton.drain_seconds==2.5f && baton.reload_drain_seconds==1.3f && baton.magazine==100);}
         }
         {rf_weapon_primary_definition rifle,saved;
          CHECK(rf_weapon_primary_load(&tables,"Assault Rifle",128*1024,&rifle)==RF_OK);
@@ -136,6 +156,10 @@ int main(int argc,char **argv)
     CHECK(w->bone_count && w->geometry.vertex_count && w->materials.count && w->peak_bytes<=1024*1024);
     CHECK(rf_player_weapon_open(&meshes,&motions,maps,5,w->resident_bytes-1,&other)==RF_RANGE && !other);
     rf_vpp_close(&meshes);rf_vpp_close(&motions);for(i=0;i<5;i++)rf_vpp_close(maps+i);
+    CHECK(!rf_player_weapon_step(riot,3,1.0f/60));
+    for(i=0;i<240;i++)CHECK(!rf_player_weapon_step(riot,-1,1.0f/60) && riot->current==3);
+    CHECK(!rf_player_weapon_step(riot,0,1.0f/60) && riot->current==0 && riot->playback.completion.active.count==1);
+    rf_player_weapon_close(&riot);CHECK(!riot);
     {
         uint32_t ticks;
         CHECK(rf_player_weapon_step(rifle,0,0)==RF_OK);

@@ -24,7 +24,8 @@ def main():
     fields = [('rf_diagnostic', 58), ('rf_player_frame_clock', 8), ('scene_actor_body', 77),
               ('rf_xbox_retained_world', 8), ('rf_xbox_retained_models', 8),
               ('rf_xbox_retained_model_kinds', 6), ('rf_scene_pose_sharing', 4), ('rf_xbox_model_visibility', 8), ('rf_xbox_bounds_poses', 2), ('rf_xbox_command_blocks', 6), ('rf_xbox_world_groups', 2)]
-    profiles = ['rf_scene_profile', 'rf_renderer_profile', 'rf_scene_presentation_profile', 'rf_scene_npc_playback_profile']
+    profiles = ['rf_scene_profile', 'rf_renderer_profile', 'rf_scene_presentation_profile',
+                'rf_scene_world_profile', 'rf_scene_step_profile', 'rf_scene_npc_step_profile', 'rf_scene_npc_playback_profile']
     fields += [(n, 32) for n in profiles]
     addresses = {n: (int(match[1], 16), count) for n, count in fields
                  if (match := re.search('_' + n + r'\s+([0-9a-fA-F]+)', mapping))}

@@ -12,6 +12,13 @@ typedef struct rf_weapon_trigger_state {uint32_t cooldown,remaining,delay,held;}
 int rf_weapon_trigger_step(rf_weapon_trigger_state *,const rf_weapon_trigger_rules *,
     uint32_t trigger,uint32_t blocked,uint32_t loaded,uint32_t *event);
 
+/* Port-owned fixed60Hz continuous charge drain. Preserve the remainder across
+ * release/repress so tapping cannot create free charge. Reset on a new battery.
+ * Exactly capacity units drain over drain_ticks active ticks; output/state and
+ * loaded charge remain unchanged on invalid input. */
+int rf_weapon_charge_step(uint32_t *remainder,uint32_t capacity,uint32_t drain_ticks,
+    uint32_t active,int32_t *loaded,uint32_t *consumed);
+
 #define RF_PROJECTILE_CAPACITY 50u
 #define RF_PROJECTILE_RECORD_WORDS 197u
 /* Original48b4d0/48b590/48b610 fixed storage; raw record fields are populated

@@ -2,6 +2,17 @@
 #include "rf/timer.h"
 #include <string.h>
 #include <math.h>
+int rf_weapon_charge_step(uint32_t *remainder,uint32_t capacity,uint32_t drain_ticks,
+    uint32_t active,int32_t *loaded,uint32_t *consumed)
+{
+    uint32_t units,total;
+    if(!remainder || !loaded || !consumed || !capacity || capacity>256 || !drain_ticks || drain_ticks>3600 ||
+       *remainder>=drain_ticks || active>1 || *loaded<0 || (uint32_t)*loaded>capacity)return RF_RANGE;
+    *consumed=0;if(!active || !*loaded)return RF_OK;
+    total=*remainder+capacity;units=total/drain_ticks;*remainder=total%drain_ticks;
+    if(units>(uint32_t)*loaded)units=(uint32_t)*loaded;
+    *loaded-=(int32_t)units;*consumed=units;return RF_OK;
+}
 int rf_weapon_trigger_step(rf_weapon_trigger_state *state,const rf_weapon_trigger_rules *rules,
     uint32_t trigger,uint32_t blocked,uint32_t loaded,uint32_t *event)
 {

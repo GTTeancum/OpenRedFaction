@@ -6,7 +6,7 @@ of the original PC keyboard/mouse mapping. The user confirmed movement on
 September 9, 2026. Guest RAM also records non-neutral movement and look axes.
 
 Controls: left stick moves, right stick looks, B holds crouch, A jumps, X uses,
-RT fires, Y reloads, D-pad Right cycles owned supported weapons, and Back+Start ends
+RT fires, LT holds Riot Stick alternate fire, Y reloads, D-pad Right cycles owned supported weapons, and Back+Start ends
 the session. Sticks use an 18% radial deadzone with a unit-length diagonal cap;
 disconnect produces neutral input and polling can reconnect a controller.
 Look currently uses one radian/second at full input. Simulation remains fixed
@@ -14,7 +14,7 @@ at 1/60 second per simulation tick; interactive sessions now use shared pacing. 
 is a first-pass hitscan combat loop and partial campaign scripting; the full
 campaign, enemy combat, gun presentation and weapon inventory remain unfinished.
 
-PC campaign controls add F to fire, R to reload and Tab to cycle weapons
+PC campaign controls add F to fire, G for Riot Stick alternate fire, R to reload and Tab to cycle weapons
 (or RT/Y/D-pad Right with XInput). A held cycle button switches only once.
 Launch `rf_pc_play --campaign Installed_Game` for the campaign profile. The
 pistol starts with16 loaded/125 reserve as first-pass policy. Authored assault
@@ -288,3 +288,8 @@ Launch: build/pc/Release/rf_pc_play.exe --campaign Installed_Game
 
 The Release executable builds and the live process remains responsive without
 logged startup errors. Physical controller behavior awaits user verification.
+
+RFI6 replays append uint32 alternate fire to RFI5:48-byte little-endian records
+(five floats, then crouch/jump/use/fire/reload/cycle/alternate uint32 values),
+preceded by RFI6 and uint32 record size48. RFI2/3/4/5 and raw24-byte movement
+replays remain accepted; omitted fields are zero. See RIOT-STICK.md for scope.

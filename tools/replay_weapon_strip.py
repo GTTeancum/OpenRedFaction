@@ -34,7 +34,7 @@ for name, count in [('unarmed', 150), ('rearm', 150), ('late_strip', 150),
     ammo, model, combat, life = map(words, ('PLAYER_AMMO', 'PLAYER_WEAPON', 'COMBAT', 'PLAYER_LIFE'))
     assert ammo[7] == model[6] == combat[7] == life[7] == 0
     if name == 'rearm':
-        assert ammo[:3] == [2, 0, 1] and model[2] > 0 and combat[:2] == [1, 1]
+        assert ammo[:3] == [2, 0, 100] and model[2] > 0 and combat[:2] == [1, 1]
     else:
         assert ammo[:3] == [0xffffffff, 0, 0] and model[2] == 0, (ammo, model)
         assert combat[0] == int(name == 'late_strip'), combat

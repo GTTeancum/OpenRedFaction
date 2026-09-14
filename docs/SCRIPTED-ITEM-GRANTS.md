@@ -1,5 +1,12 @@
 # Scripted item grants
 
+Current correction (September14): Riot Stick weapon Count1 means one battery,
+now100 loaded charge; repeating gives100 reserve. Ammo-only items already use
+charge units. Selection, strip and first-pass melee/alternate fire are connected;
+see RIOT-STICK.md. The one-unit results below describe the earlier build.
+
+## Earlier grant implementation
+
 Give_Item_To_Player now resolves named items.tbl weapon/ammo definitions and
 applies the existing SP pickup grant to the shared inventory. Requests during
 startup wait in a fixed32-entry queue (384 bytes) until starting/imported

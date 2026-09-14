@@ -998,3 +998,7 @@ three shots/hits, one kill,39 loaded and HUD/state match PC;7234 free pages
 (28.3MiB). Native framebuffer inspected. Evidence:
 artifacts/xemu/replay-20260914-031805/report.json. Native rifle reload, ammo-box
 replenishment and exact per-weapon presentation/audio remain follow-up coverage.
+
+Riot Stick now has shared held alternate fire, battery drain/reload and impact
+feedback; see RIOT-STICK.md for authored evidence, practical assumptions and
+focused PC/native checks. Exact retail dispatcher and electrical effects remain open.

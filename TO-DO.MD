@@ -14,13 +14,13 @@ GitHub image policy: retain the current four images; upload no additional
 screenshots until near-retail-quality replacements are available.
 
 Shortlist:
-- ACTIVE: Optimize Xbox frame pacing, shared NPC animation and rendering; measure sustained live performance within64MiB.
+- DEFERRED / TO COMPLETE: Revisit Xbox optimization after gameplay work; current performance is sufficient for basic testing.
 - TO COMPLETE: Extend focused Xbox optimization checks to representative combat, camera movement and level handoffs.
 - ACTIVE: Complete scripted actor animation/look behavior and onward gameplay after the verified opening Riot Stick handoff.
 - TO COMPLETE: Verify retained model clipping/poses, reduce draw overhead and adapt first-person weapons to GPU rendering.
 - TO COMPLETE: Preserve remaining world changes across sections, including actor placement/inventory and dropped items.
 - ACTIVE: Verify enemy firing visually, add muzzle/impact effects, and extend natural-trigger encounter coverage.
-- ACTIVE: Add Riot Stick alternate fire and impact feedback, then expand the remaining weapons.
+- ACTIVE: Expand playable weapons and their world pickups after the first-pass Riot Stick alternate fire/reload; complete electrical effects and precise impacts later.
 - DEFERRED / TO COMPLETE: Restore full NPC/prop texture detail through better residency; verify PS2 parity for reduced textures.
 - Continue campaign traversal/physics coverage beyond the repaired walking route.
 - DEFERRED / TO COMPLETE: Finish lighting lifecycle updates, shadows and visual parity within64MiB; revisit after critical gameplay systems.
@@ -35,9 +35,15 @@ Shortlist:
 - USER: Review PS2 visual parity and test hardware after representative XEMU gameplay is stable.
 - USER: Review the interactive PC movement and audio items listed below.
 
+Gameplay update (September14): Riot Stick held alternate fire, battery drain/reload,
+full-cell scripted grants and held/idle animation are implemented on shared PC/Xbox.
+Focused PC combat cases and stock64MiB180-tick native contact and360-tick battery replacement checks pass;
+see docs/RIOT-STICK.md for evidence and remaining effects, sound ownership,
+material response, fractional handoff charge and natural traversal limitations.
+
 Progress reporting: include a very high-level working area (e.g. Lighting, AI, Weapons, GeoMod or Scripted events) and an overall percent estimate at the end of every turn report (USER preference) and revisit remaining 24-hour workdays when measured throughput supports a forecast; current rough estimate45% (35-45%), no defensible +/-48-hour completion forecast before end-to-end gameplay.
 
-Current USER direction: continue major optimizations. "Give it a spin on Xbox"
+Current USER direction: back to gameplay systems; optimization is shelved. "Give it a spin on Xbox"
 resumed focused native performance/render checking; it is not a request for the
 long campaign suite. Leave manual XEMU sessions running without an automatic
 cutoff. tools/xemu_play.py stages an unlimited controller-driven campaign and

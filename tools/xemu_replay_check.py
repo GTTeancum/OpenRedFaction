@@ -61,7 +61,7 @@ if args.door:replay_env['RF_REPLAY_DOOR_START']='1'
 if args.climb:replay_env['RF_REPLAY_REGION_START']='2' if args.approach else '1'
 
 root=Path(__file__).resolve().parents[1];emulator=Path('C:/Games/Emulators/Xemu');payload=args.input.read_bytes()
-record_size={b'RFI2':28,b'RFI3':32,b'RFI4':40,b'RFI5':44}.get(payload[:4],24)
+record_size={b'RFI2':28,b'RFI3':32,b'RFI4':40,b'RFI5':44,b'RFI6':48}.get(payload[:4],24)
 offset=8 if record_size!=24 else 0
 if offset and payload[4:8]!=record_size.to_bytes(4,'little'):raise ValueError('Invalid replay record size')
 if len(payload)<=offset or (len(payload)-offset)%record_size or (len(payload)-offset)>60000*record_size:raise ValueError('Expected 1..60000 input records')

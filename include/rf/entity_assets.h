@@ -16,13 +16,14 @@
 typedef struct rf_weapon_primary_definition {
     uint32_t magazine,semi_automatic;float reload_seconds,fire_seconds,damage;int32_t damage_kind;
     uint32_t burst_count;float burst_seconds; /* Primary only; one shot unless enabled. */
+    float alt_fire_seconds,alt_damage,drain_seconds,reload_drain_seconds;
 } rf_weapon_primary_definition;
 int rf_weapon_primary_read(const void *text,uint32_t bytes,const char *name,rf_weapon_primary_definition *result);
 int rf_weapon_primary_load(rf_vpp *tables,const char *name,uint32_t scratch_budget,rf_weapon_primary_definition *result);
 
 /* Named first-person resource binding: compiled mesh and idle/fire/reload clips.
  * Owns all names; missing/duplicate required fields preserve the output. */
-typedef struct rf_weapon_view_definition {char mesh[64],clips[3][64];} rf_weapon_view_definition;
+typedef struct rf_weapon_view_definition {char mesh[64],clips[4][64];} rf_weapon_view_definition;
 int rf_weapon_view_read(const void *,uint32_t,const char *,rf_weapon_view_definition *);
 int rf_weapon_view_load(rf_vpp *,const char *,uint32_t,rf_weapon_view_definition *);
 

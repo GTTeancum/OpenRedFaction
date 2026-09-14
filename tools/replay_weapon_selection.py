@@ -19,7 +19,8 @@ for name in [x for x in ('rifle','held_cycle','switch_back','cancel_burst','empt
  if name=='respawn':
   assert words('PLAYER_LIFE')[:2]==[1,1] and selection[:4]==[1,2,8,1] and ammo[:5]==[8,197,42,3,1],(selection,ammo)
   assert combat[0]==3 and audio[0]==4+npc_sounds and audio[2]==4+npc_sounds and pickups[3]==1
- elif name=='unowned':assert selection[:2]==[0,0] and ammo[:3]==[3,125,15] and combat[0]==1
+ # L1S1 strips starting inventory before the staged handgun pickup; no spare ammo survives.
+ elif name=='unowned':assert selection[:2]==[0,0] and ammo[:3]==[3,0,15] and combat[0]==1
  else:
   shots=1 if name=='cancel_burst' else 3
   back=name in ('switch_back','cancel_burst')

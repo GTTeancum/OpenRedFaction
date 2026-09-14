@@ -11,8 +11,8 @@ folder.mkdir(exist_ok=True)
 source = folder / 'inputs.bin'
 source.write_bytes(b'RFI4' + struct.pack('<I', 40) + bytes(90 * 40))
 cases = []
-for name, setup, expected in [('once', '9870', [1, 1, 1, 2, 1, 1, 0, 0]),
-                               ('twice', '9870,9870', [2, 1, 2, 2, 1, 1, 1, 0])]:
+for name, setup, expected in [('once', '9870', [1, 1, 100, 2, 1, 100, 0, 0]),
+                               ('twice', '9870,9870', [2, 1, 200, 2, 1, 100, 100, 0])]:
     env = {k: v for k, v in os.environ.items() if not k.startswith('RF_REPLAY_')}
     env.update(RF_REPLAY_LEVEL='L1S1.rfl', RF_REPLAY_SETUP_UID=setup)
     run = subprocess.run([str(root / 'build/pc/Release/rf_pc_play.exe'),
@@ -28,6 +28,6 @@ for name, setup, expected in [('once', '9870', [1, 1, 1, 2, 1, 1, 0, 0]),
     cases.append(dict(case=name, grants=grant))
 report = dict(result='PASS', cases=cases,
               scope='Explicit Give_Item_To_Player9870 at0 and optional repeat at60. '
-                    'Riot Stick ownership/ammo only; selection, melee and presentation unfinished.')
+                    'Riot Stick ownership/ammo coverage; combat and presentation have separate replays.')
 (folder / 'report.json').write_text(json.dumps(report, indent=2))
 print(report)

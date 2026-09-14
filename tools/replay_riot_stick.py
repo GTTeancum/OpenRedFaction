@@ -29,13 +29,14 @@ for name, direction, end in [('far', -1, 75), ('near', 1, 25)]:
                                  if s.startswith(label + ' ')).split()[1:]))
     combat, ammo, selection, model = [words(s) for s in
                                      ['COMBAT', 'PLAYER_AMMO', 'WEAPON_SELECTION', 'PLAYER_WEAPON']]
-    assert selection[:2] == [2, 1] and ammo[:3] == [2, 0, 1], (selection, ammo)
+    # The opening strip leaves only the granted baton; selection is automatic.
+    assert selection[:2] == [2, 0] and ammo[:3] == [2, 0, 100], (selection, ammo)
     assert combat[0] == 1 and combat[1] == int(name == 'near') and combat[7] == 0, combat
     assert model[2] > 0 and model[6] == 0 and ammo[7] == 0, (model, ammo)
     assert 'Completed 150 frames' in run.stdout
     cases.append(dict(case=name, combat=combat, ammo=ammo, model=model))
 report = dict(result='PASS', cases=cases,
               scope='Authored grant plus process-local actor staging; actual movement, selection and primary strike. '
-                    'Near hit/far miss with unchanged charge. Electrical alternate fire and precise swing impact timing unfinished.')
+                    'Near hit/far miss with unchanged charge. Alternate fire has separate coverage; precise impact timing remains open.')
 (folder / 'report.json').write_text(json.dumps(report, indent=2))
 print(report)

@@ -38,8 +38,8 @@ for case, frames, approach in [('hall', 2400, False), ('before_grant', 1750, Tru
     assert words('PLAYER_LIFE')[0] == 0 and contacts[-1] == 0
     assert f'Completed {frames} frames' in run.stdout
     if case == 'handoff':
-        assert grants == [1, 1, 1, 2, 1, 1, 0, 0], grants
-        assert ammo[:4] == [2, 0, 1, 0], ammo
+        assert grants == [1, 1, 100, 2, 1, 100, 0, 0], grants
+        assert ammo[:4] == [2, 0, 100, 0], ammo
         assert contacts[2] == 9869, contacts
         assert words('SCRIPT_SLAYS')[:2] == [2, 2]
     else:

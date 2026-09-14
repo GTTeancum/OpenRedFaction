@@ -473,7 +473,7 @@ int rf_item_definition_load(rf_vpp *tables,const char *name,uint32_t budget,rf_i
 int rf_weapon_view_read(const void *text,uint32_t bytes,const char *name,rf_weapon_view_definition *result)
 {
     lexer l={text,bytes,0};rf_weapon_view_definition v={0};char t[256],file[64];
-    uint32_t mask=0;int selected=0,found=0,q,status,index;
+    uint32_t mask=0,continuous_alt=0;int selected=0,found=0,q,status,index;
     if(!text || !name || !*name || !result)return RF_RANGE;
     while((status=token(&l,t,&q))==RF_OK) {
         if(q)continue;
@@ -483,7 +483,14 @@ int rf_weapon_view_read(const void *text,uint32_t bytes,const char *name,rf_weap
             selected=same(t,name);found=selected;continue;
         }
         if(!selected)continue;if(same(t,"#End"))break;
-        if(same(t,"$1st")) {
+        if(same(t,"$Flags:")) {
+            if(token(&l,t,&q) || q || strcmp(t,"("))return RF_FORMAT;
+            while(1) {
+                if(token(&l,t,&q))return RF_FORMAT;
+                if(!q && !strcmp(t,")"))break;
+                if(!q)return RF_FORMAT;if(same(t,"alt_continuous_fire"))continuous_alt=1;
+            }
+        } else if(same(t,"$1st")) {
             if(token(&l,t,&q) || q || !same(t,"Person"))return RF_FORMAT;
             if(token(&l,t,&q) || q)return RF_FORMAT;
             if(!same(t,"Mesh:"))continue;
@@ -493,7 +500,7 @@ int rf_weapon_view_read(const void *text,uint32_t bytes,const char *name,rf_weap
         } else if(same(t,"+State:") || same(t,"+Action:")) {
             int action=same(t,"+Action:");
             if(token(&l,t,&q) || !q)return RF_FORMAT;
-            index=!action && same(t,"idle")?0:action && same(t,"fire")?1:action && same(t,"reload")?2:-1;
+            index=!action && same(t,"idle")?0:action && same(t,"fire")?1:action && same(t,"reload")?2:!action && same(t,"loop_fire")?3:-1;
             if(index<0)continue;
             if(mask&(2u<<index))return RF_FORMAT;
             if(metadata_string(&l,file,sizeof(file)))return RF_FORMAT;
@@ -501,7 +508,9 @@ int rf_weapon_view_read(const void *text,uint32_t bytes,const char *name,rf_weap
         }
     }
     if(status!=RF_OK && status!=RF_NOT_FOUND)return status;
-    if(!found)return RF_NOT_FOUND;if(mask!=15)return RF_FORMAT;
+    if(!found)return RF_NOT_FOUND;if((mask&15)!=15)return RF_FORMAT;
+    if(!continuous_alt)memset(v.clips[3],0,64);
+    else if(!(mask&16))return RF_FORMAT;
     *result=v;return RF_OK;
 }
 int rf_weapon_view_load(rf_vpp *tables,const char *name,uint32_t budget,rf_weapon_view_definition *result)
@@ -572,7 +581,31 @@ int rf_weapon_primary_read(const void *text,uint32_t bytes,const char *name,rf_w
                 if(token(&l,t,&q) || q || !same(t,"Time:"))return RF_FORMAT;
                 bit=2;if(mask&bit)return RF_FORMAT;
                 if(sphere_number(&l,&v.reload_seconds))return RF_FORMAT;
+            } else if(same(t,"Drain")) {
+                if(token(&l,t,&q) || q || !same(t,"Time:"))return RF_FORMAT;
+                bit=4096;if(mask&bit)return RF_FORMAT;
+                if(sphere_number(&l,&v.drain_seconds))return RF_FORMAT;
+                if(!(v.drain_seconds>0 && v.drain_seconds<=60))return RF_RANGE;
             }
+        } else if(same(t,"$Alt")) {
+            if(token(&l,t,&q) || q)return RF_FORMAT;
+            if(same(t,"Fire")) {
+                if(token(&l,t,&q) || q || !same(t,"Wait:"))continue;
+                bit=1024;if(mask&bit)return RF_FORMAT;
+                if(sphere_number(&l,&v.alt_fire_seconds))return RF_FORMAT;
+                if(!(v.alt_fire_seconds>0 && v.alt_fire_seconds<=60))return RF_RANGE;
+            } else if(same(t,"Damage:")) {
+                bit=2048;if(mask&bit)return RF_FORMAT;
+                if(sphere_number(&l,&v.alt_damage))return RF_FORMAT;
+                if(!(v.alt_damage>0 && v.alt_damage<=1000000))return RF_RANGE;
+            }
+        } else if(same(t,"$Reload")) {
+            if(token(&l,t,&q) || q)return RF_FORMAT;
+            if(!same(t,"Zero"))continue;
+            if(token(&l,t,&q) || q || !same(t,"Drain:"))return RF_FORMAT;
+            bit=8192;if(mask&bit)return RF_FORMAT;
+            if(sphere_number(&l,&v.reload_drain_seconds))return RF_FORMAT;
+            if(!(v.reload_drain_seconds>0 && v.reload_drain_seconds<=60))return RF_RANGE;
         } else if(same(t,"$Fire")) {
             if(token(&l,t,&q) || q)return RF_FORMAT;
             if(same(t,"Wait:")) {bit=4;if(mask&bit)return RF_FORMAT;if(sphere_number(&l,&v.fire_seconds))return RF_FORMAT;}
@@ -595,6 +628,9 @@ int rf_weapon_primary_read(const void *text,uint32_t bytes,const char *name,rf_w
     if(!(v.reload_seconds>0 && v.reload_seconds<=60 && v.fire_seconds>0 && v.fire_seconds<=60 && v.damage>0 && v.damage<=1000000))return RF_RANGE;
     if(burst_enabled && (mask&384)!=384)return RF_FORMAT;
     if(!burst_enabled || burst_alt){v.burst_count=1;v.burst_seconds=0;}
+    if(!(mask&1024))v.alt_fire_seconds=v.fire_seconds;
+    if(!(mask&2048))v.alt_damage=v.damage;
+    if(v.reload_drain_seconds>v.reload_seconds)return RF_RANGE;
     *result=v;return RF_OK;
 }
 int rf_weapon_primary_load(rf_vpp *tables,const char *name,uint32_t budget,rf_weapon_primary_definition *result)
