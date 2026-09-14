@@ -105,3 +105,32 @@ reserve round and disappears, matching PC state/HUD;6869 available pages.
 Native framebuffer inspected. Both builds and28 CTests pass. Evidence:
 artifacts/xemu/replay-20260914-023510/report.json. The obstruction/moved-panel
 case is a PC integration test, not an authored native through-wall replay.
+
+
+## First-pass health, armor and pistol-ammo pickups
+
+Live collection also supports Medical Kit, Suit Repair and12mm_ammo. The three
+classes retain static models/materials once per level (2MiB per-class load cap)
+and share the existing render scratch. Unsupported classes remain absent.
+Health and armor restore the authored quantity up to a provisional100 cap;
+full values leave the item available and dead players cannot collect. Successful
+collection removes the item once. A blue armor bar now accompanies health.
+The same body-distance and precise solid-occlusion gate applies to every class.
+This is a practical gameplay policy, not a claim of exact original pickup rules.
+
+PC live replays use actual NPC shots to create deficits: Medical Kit9789 restores
+4.8 health; Suit Repair9868 restores15.6 armor. Later enemy damage remains visible.
+A full-health replay stays near the medical kit and leaves it visible/uncollected.
+Integration tests cover full values, partial-to-cap grants, repeated collection,
+dead-player rejection and ammo reserve capping. All28 CTests pass. Evidence:
+artifacts/vital-pickups/report.json; tools/replay_vital_pickups.py reproduces it.
+The12mm_ammo grant is integration-tested; an authored ammo-box render/collection
+replay on a later level remains open. Pickup sounds, mission publication and
+original starting grants remain open.
+
+Stock64MiB XEMU300-frame repair replay PASS:15.6 armor restored once from
+Suit Repair9868; final health71.2/armor84.4 reflect subsequent enemy hits.
+Pickup/vitals state and sampled armor HUD pixels match PC;6837 available pages
+(26.7MiB). Native framebuffer inspected. Evidence:
+artifacts/xemu/replay-20260914-024732/report.json. Native medical-kit and
+later-level ammo-box replays remain separate coverage items.

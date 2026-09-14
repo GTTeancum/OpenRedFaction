@@ -932,6 +932,28 @@ static int combat_shot_geometry_check(void)
         solid.input_origin[0]=20;solid.minimum[0]+=20;solid.maximum[0]+=20;
         CHECK(campaign_pickups_tick(&stream,eye)==RF_OK && taken && rf_scene_pickups[3]==1 && campaign_player_inventory.reserve[0]==116);
         CHECK(campaign_pickups_tick(&stream,eye)==RF_OK && rf_scene_pickups[3]==1 && campaign_player_inventory.reserve[0]==116);
+        {
+            scene_pickup_resource resources[3]={0};float saved_armor=campaign_player_damage.state.effects.armor;
+            uint32_t saved_vitals[4];memcpy(saved_vitals,rf_scene_pickup_vitals,sizeof(saved_vitals));
+            stream.pickup_resources=resources;item.quantity=25;
+            strcpy(item.class_name,"Medical Kit");taken=0;
+            CHECK(campaign_pickups_tick(&stream,eye)==RF_OK && !taken); /* Full health leaves kit. */
+            campaign_player_damage.state.effects.health=90;
+            CHECK(campaign_pickups_tick(&stream,eye)==RF_OK && taken && campaign_player_damage.state.effects.health==100);
+            campaign_player_damage.state.effects.health=75;
+            CHECK(campaign_pickups_tick(&stream,eye)==RF_OK && campaign_player_damage.state.effects.health==75); /* No second grant. */
+            taken=0;campaign_player_damage.state.effects.health=0;
+            CHECK(campaign_pickups_tick(&stream,eye)==RF_OK && !taken); /* Dead players cannot collect. */
+            campaign_player_damage.state.effects.health=100;strcpy(item.class_name,"Suit Repair");
+            campaign_player_damage.state.effects.armor=90;
+            CHECK(campaign_pickups_tick(&stream,eye)==RF_OK && taken && campaign_player_damage.state.effects.armor==100);
+            taken=0;CHECK(campaign_pickups_tick(&stream,eye)==RF_OK && !taken);
+            strcpy(item.class_name,"12mm_ammo");campaign_player_inventory.reserve[0]=120;item.quantity=32;
+            CHECK(campaign_pickups_tick(&stream,eye)==RF_OK && taken && campaign_player_inventory.reserve[0]==125);
+            taken=0;CHECK(campaign_pickups_tick(&stream,eye)==RF_OK && !taken);
+            campaign_player_damage.state.effects.armor=saved_armor;memcpy(rf_scene_pickup_vitals,saved_vitals,sizeof(saved_vitals));
+            stream.pickup_resources=NULL;
+        }
         solid.input_origin[0]=0;solid.minimum[0]-=20;solid.maximum[0]-=20;
         campaign_player_inventory=saved_inventory;campaign_weapon_supply.definitions[3]=saved_definition;campaign_pistol_id=saved_id;
         campaign_player_damage.state.effects.health=saved_health;memcpy(scene_actor_body.state.position,saved_position,12);

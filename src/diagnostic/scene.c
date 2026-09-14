@@ -365,12 +365,19 @@ typedef struct scene_particle_workspace {
     rf_render_queue_record records[2048];rf_render_sphere spheres[2048];
     uint32_t order[2048];float distances[2048];
 } scene_particle_workspace;
+static const char *pickup_classes[4]={"Handgun","Medical Kit","Suit Repair","12mm_ammo"};
+typedef struct scene_pickup_resource {
+    rf_item_definition definition;rf_static_render_resource model;rf_model_materials materials;
+    uint32_t base,textures,resident,peak;
+} scene_pickup_resource;
+static int pickup_class(const char *name)
+{int i;for(i=0;i<4;i++)if(!strcmp(name,pickup_classes[i]))return i;return -1;}
 typedef struct scene_stream {
     rf_preview_mesh *mesh;rf_materials *materials;const rf_model_materials *bundle;
     uint32_t world,base,capacity,npc_base,npc_textures;rf_scene_frame_sink sink;void *context;
     uint32_t clutter_base,clutter_textures;
     uint32_t weapon_base,weapon_textures;
-    rf_level_owned_items pickups;uint8_t *pickup_taken;rf_item_definition handgun_pickup;
+    rf_level_owned_items pickups;uint8_t *pickup_taken;rf_item_definition handgun_pickup;scene_pickup_resource *pickup_resources;
     rf_player_weapon *player_weapon;uint32_t player_weapon_base,player_weapon_textures,player_shots,player_reload;
     rf_model_projection npc_view;void *npc_memory;uint16_t *npc_indices;rf_model_clip_pool *npc_pool;
     const rf_geometry_collision_world *collision;
@@ -7154,21 +7161,33 @@ static int campaign_enemy_tick(scene_stream *stream,uint32_t frame,const float p
     return RF_OK;
 }
 uint32_t rf_scene_pickups[8]; /* supported,checks,blocked,collected,rounds,last UID,draw vertices,status */
+uint32_t rf_scene_pickup_vitals[4]; /* health bits,armor bits,health restored bits,armor restored bits */
+static float pickup_restore(float *value,int32_t quantity)
+{
+    float amount=100-*value;if(amount<=0 || quantity<=0)return 0;
+    if(amount>(float)quantity)amount=(float)quantity;*value+=amount;return amount;
+}
 static int campaign_pickups_tick(scene_stream *stream,const float eye[3])
 {
     uint32_t i;int status;
     if(campaign_player_damage.state.effects.health<=0)return RF_OK;
     for(i=0;i<stream->pickups.count;i++) {
-        const rf_level_item *item=stream->pickups.items+i;float delta[3],distance=0;uint32_t k,blocked=0;rf_weapon_pickup_grant grant;
-        if(stream->pickup_taken[i] || strcmp(item->class_name,"Handgun") || (stream->handgun_pickup.flags&1))continue;
+        const rf_level_item *item=stream->pickups.items+i;float delta[3],distance=0;uint32_t k,blocked=0;rf_weapon_pickup_grant grant={0};int kind=pickup_class(item->class_name);float restored=0;const rf_item_definition *definition;
+        if(stream->pickup_taken[i] || kind<0)continue;
+        definition=kind?&stream->pickup_resources[kind-1].definition:&stream->handgun_pickup;if(definition->flags&1)continue;
         for(k=0;k<3;k++){float d=item->position[k]-scene_actor_body.state.position[k];distance+=d*d;delta[k]=item->position[k]-eye[k];}
         if(distance>4)continue;++rf_scene_pickups[1];
         status=combat_shot_obstructed(stream,eye,delta,1,&blocked);if(status)return status;
         if(blocked){++rf_scene_pickups[2];continue;}
         if(item->quantity<0)return RF_FORMAT;
-        status=rf_weapon_pickup_grant_sp(&campaign_player_inventory,campaign_weapon_supply.definitions+campaign_pistol_id,
-            campaign_pistol_id,item->quantity,stream->handgun_pickup.gives_weapon,&grant);if(status)return status;
-        if(!grant.rounds && !grant.acquired)continue;
+        if(kind==1 || kind==2) {
+            float total;restored=pickup_restore(kind==1?&campaign_player_damage.state.effects.health:&campaign_player_damage.state.effects.armor,item->quantity);
+            if(restored<=0)continue;memcpy(&total,rf_scene_pickup_vitals+kind+1,4);total+=restored;memcpy(rf_scene_pickup_vitals+kind+1,&total,4);
+        } else {
+            status=rf_weapon_pickup_grant_sp(&campaign_player_inventory,campaign_weapon_supply.definitions+campaign_pistol_id,
+                campaign_pistol_id,item->quantity,definition->gives_weapon,&grant);if(status)return status;
+            if(!grant.rounds && !grant.acquired)continue;
+        }
         stream->pickup_taken[i]=1;++rf_scene_pickups[3];rf_scene_pickups[4]+=grant.rounds;rf_scene_pickups[5]=item->uid;
         campaign_ammo_publish();
     }
@@ -7188,6 +7207,7 @@ static int campaign_combat_tick(scene_stream *stream,uint32_t frame,const float 
     fire=player_input.fire && (!campaign_pistol.semi_automatic || !combat_fire_held);combat_fire_held=!!player_input.fire;
     status=campaign_pickups_tick(stream,position);rf_scene_pickups[7]=(uint32_t)status;if(status)return status;
     status=campaign_enemy_tick(stream,frame,position);rf_scene_enemy_combat[7]=(uint32_t)status;if(status)return status;
+    memcpy(rf_scene_pickup_vitals,&campaign_player_damage.state.effects.health,4);memcpy(rf_scene_pickup_vitals+1,&campaign_player_damage.state.effects.armor,4);
     if(rf_scene_enemy_combat[6])return RF_OK;
     if(combat_cooldown)--combat_cooldown;
     if(rf_scene_combat[6]) {
@@ -7276,6 +7296,9 @@ int rf_scene_draw_combat_hud(rf_scene_particle_sink sink,void *context)
      status=combat_hud_rect(sink,context,24,442,132,16,0xff101010);if(status)return status;
      status=combat_hud_rect(sink,context,26,444,128,12,0xff484848);if(status)return status;
      if(health>0){status=combat_hud_rect(sink,context,26,444,128*health,12,health>.25f?0xff60cc80:0xffee4040);if(status)return status;}}
+    {float armor=campaign_player_damage.state.effects.armor/100;if(armor<0)armor=0;if(armor>1)armor=1;
+     status=combat_hud_rect(sink,context,24,460,132,8,0xff101010);if(status)return status;
+     if(armor>0){status=combat_hud_rect(sink,context,26,462,128*armor,4,0xff609cdd);if(status)return status;}}
     status=combat_hud_rect(sink,context,470,436,146,28,0xff101010);if(status)return status;
     for(i=0;i<campaign_pistol.magazine;i++) {
         float step=132.0f/campaign_pistol.magazine;
@@ -8479,7 +8502,7 @@ static int scene_clutter_draw(scene_stream *stream,uint32_t frame)
 }
 uint32_t rf_scene_weapon_draw[6]; /* frame, actors, submissions, vertices, vertex hash, flags hash */
 typedef struct scene_weapon_context {
-    scene_stream *stream;uint32_t actor,pickup;rf_model_render_buffers buffers;
+    scene_stream *stream;uint32_t actor,pickup;rf_model_render_buffers buffers;scene_pickup_resource *resource;
     rf_model_lighting lights;rf_model_render_output attributes;
     rf_model_clip_planes planes;rf_model_clip_projection projection;
 } scene_weapon_context;
@@ -8493,7 +8516,7 @@ static int scene_weapon_submit(void *context,uint32_t model,const rf_weapon_hand
     scene_weapon_context *c=context;scene_stream *stream=c->stream;const rf_static_render_resource *r;
     rf_model_projection view;uint32_t part,batch,k,first;int status;
     if(!model || model>campaign_weapon_models.count || !(draw_state[0]&0x80))return RF_RANGE;
-    r=&campaign_weapon_models.items[model-1].render;first=campaign_weapon_material_offsets[model-1];
+    r=c->resource?&c->resource->model:&campaign_weapon_models.items[model-1].render;first=c->resource?0:campaign_weapon_material_offsets[model-1];
     status=rf_model_local_view(&stream->npc_view,pose->position,pose->basis,&view);if(status)return status;
     if(!c->pickup)++rf_scene_weapon_draw[2];
     /* Shared diagnostic lighting/highest LOD policy; original material-state
@@ -8504,13 +8527,13 @@ static int scene_weapon_submit(void *context,uint32_t model,const rf_weapon_hand
         for(batch=0;batch<g->batch_count;++batch) {
             const rf_model_draw_batch *b=g->batches+batch;uint32_t slot,start=stream->mesh->count,emitted;
             if(b->material==UINT32_MAX)continue;if(b->material>=r->material_count)return RF_FORMAT;
-            memcpy(&slot,campaign_weapon_materials.items[first+b->material].record.bytes+0x10,4);
-            if(slot>=stream->weapon_textures)return RF_FORMAT;
+            memcpy(&slot,(c->resource?c->resource->materials.items:campaign_weapon_materials.items)[first+b->material].record.bytes+0x10,4);
+            if(slot>=(c->resource?c->resource->textures:stream->weapon_textures))return RF_FORMAT;
             memset(stream->npc_memory,0xa5,4096*96);
             status=rf_model_geometry_render_static_batch(g,batch,&view,&c->lights,&c->attributes,NULL,&c->buffers);if(status)return status;
             status=rf_preview_static_model_emit(g,batch,&c->buffers,stream->npc_indices,stream->npc_pool,&view,&c->planes,&c->projection,
                 &c->attributes,stream->mesh,stream->capacity,&emitted,lod->planes+b->first_triangle,NULL);if(status)return status;
-            for(k=start;k<stream->mesh->count;++k)stream->mesh->vertices[k].material=stream->weapon_base+slot;
+            for(k=start;k<stream->mesh->count;++k)stream->mesh->vertices[k].material=(c->resource?c->resource->base:stream->weapon_base)+slot;
         }
     }
     return RF_OK;
@@ -8605,8 +8628,9 @@ static int scene_pickups_draw(scene_stream *stream)
     c.buffers.vertices=(uint8_t(*)[40])((uint8_t*)stream->npc_memory+4096*56);c.buffers.capacity=4096;
     c.attributes=(rf_model_render_output){1,{255,255,255},255,1,1};c.lights.ambient[0]=40;c.lights.ambient[1]=50;c.lights.ambient[2]=60;
     c.planes.near_depth=.1f;c.planes.far_depth=1000;c.projection.scale[0]=320;c.projection.scale[1]=240;c.projection.clamp=1;
-    for(i=0;i<stream->pickups.count;i++)if(!stream->pickup_taken[i] && !strcmp(stream->pickups.items[i].class_name,"Handgun")) {
-        rf_weapon_hand_placement pose={0};memcpy(pose.position,stream->pickups.items[i].position,12);memcpy(pose.basis,stream->pickups.items[i].orientation,36);
+    for(i=0;i<stream->pickups.count;i++)if(!stream->pickup_taken[i]) {
+        int kind=pickup_class(stream->pickups.items[i].class_name);rf_weapon_hand_placement pose={0};
+        if(kind<0)continue;c.resource=kind?stream->pickup_resources+kind-1:NULL;memcpy(pose.position,stream->pickups.items[i].position,12);memcpy(pose.basis,stream->pickups.items[i].orientation,36);
         status=scene_weapon_submit(&c,model,&pose,state);if(status)return status;
     }
     rf_scene_pickups[6]=stream->mesh->count-start;return RF_OK;
@@ -9288,6 +9312,34 @@ static int scene_light_regenerate(scene_stream *s,uint32_t index,const rf_lightm
 done:
     rf_scene_lightmap_regeneration[6]=(uint32_t)status;if(!status)rf_scene_lightmap_regeneration[7]=0;return status;
 }
+static int scene_pickup_resources_open(scene_stream *stream,const char *tables_path,rf_vpp *meshes,rf_vpp *maps,uint32_t map_count,rf_materials *materials)
+{
+    uint32_t kind,i;rf_vpp tables={0};rf_model_file *file=NULL;int status;
+    stream->pickup_resources=calloc(3,sizeof(*stream->pickup_resources));if(!stream->pickup_resources)return RF_IO;
+    status=rf_vpp_open(&tables,tables_path);if(status)return status;
+    file=calloc(1,sizeof(*file));if(!file){status=RF_IO;goto done;}
+    for(kind=1;kind<4;kind++) {
+        scene_pickup_resource *r=stream->pickup_resources+kind-1;char compiled[64];uint32_t count=0,used=sizeof(*r)+sizeof(*file),budget=2*1024*1024;rf_material *combined;rf_materials *textures;
+        for(i=0;i<stream->pickups.count;i++)if(pickup_class(stream->pickups.items[i].class_name)==(int)kind)count++;
+        if(!count)continue;
+        status=rf_item_definition_load(&tables,pickup_classes[kind],128*1024,&r->definition);if(status)goto done;
+        if(r->definition.mesh_kind!=1 || (kind==3 && strcmp(r->definition.weapon,"12mm handgun"))){status=RF_FORMAT;goto done;}
+        status=rf_model_compiled_filename(r->definition.mesh,compiled,".v3m");if(status)goto done;
+        status=rf_model_file_open(file,meshes,compiled);if(status)goto done;
+        status=rf_static_render_resource_open(file,budget-used,&r->model);if(status)goto done;used+=r->model.allocated_bytes;
+        status=rf_model_materials_open_records(&r->materials,r->model.materials,r->model.material_count,maps,map_count,budget-used);if(status)goto done;
+        r->resident=used-sizeof(*file)+r->materials.resident_bytes;r->peak=used+r->materials.peak_bytes;
+        textures=&r->materials.textures;r->base=materials->count;r->textures=textures->count;
+        if((uint64_t)materials->count+textures->count>256){status=RF_RANGE;goto done;}
+        combined=malloc((materials->count+textures->count)*sizeof(*combined));if(!combined){status=RF_IO;goto done;}
+        memcpy(combined,materials->items,materials->count*sizeof(*combined));memcpy(combined+materials->count,textures->items,textures->count*sizeof(*combined));
+        free(materials->items);materials->items=combined;materials->count+=textures->count;materials->loaded+=textures->loaded;materials->missing+=textures->missing;materials->allocated_bytes+=textures->allocated_bytes;
+        free(textures->items);memset(textures,0,sizeof(*textures));
+    }
+    status=RF_OK;
+done:
+    free(file);rf_vpp_close(&tables);return status;
+}
 static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path,
     const char *motions_path,const char *tables_path,rf_vpp *maps,uint32_t map_count,
     rf_preview_mesh *mesh,rf_materials *materials,uint32_t mesh_budget,uint32_t material_budget,
@@ -9413,13 +9465,13 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
             if(!campaign_controller_requests){status=RF_RANGE;goto done;}
             status=campaign_audio_open(tables_path,level->entry.name,binding.entity.class_name);if(status)goto done;
             status=campaign_clutter_open(tables_path,level);if(status)goto done;
-            memset(rf_scene_pickups,0,sizeof(rf_scene_pickups));
+            memset(rf_scene_pickups,0,sizeof(rf_scene_pickups));memset(rf_scene_pickup_vitals,0,sizeof(rf_scene_pickup_vitals));
             status=rf_level_owned_items_open(level,256*1024,&stream.pickups);if(status)goto done;
             stream.pickup_taken=calloc(stream.pickups.count?stream.pickups.count:1,1);if(!stream.pickup_taken){status=RF_IO;goto done;}
             {rf_vpp pickup_tables;status=rf_vpp_open(&pickup_tables,tables_path);if(status)goto done;
              status=rf_item_definition_load(&pickup_tables,"Handgun",128*1024,&stream.handgun_pickup);rf_vpp_close(&pickup_tables);if(status)goto done;
              if(strcmp(stream.handgun_pickup.weapon,"12mm handgun") || strcmp(stream.handgun_pickup.mesh,"weapon_ultorgun.v3d") || stream.handgun_pickup.mesh_kind!=1){status=RF_FORMAT;goto done;}}
-            for(i=0;i<stream.pickups.count;i++)if(!strcmp(stream.pickups.items[i].class_name,"Handgun"))++rf_scene_pickups[0];
+            for(i=0;i<stream.pickups.count;i++)if(pickup_class(stream.pickups.items[i].class_name)>=0)++rf_scene_pickups[0];
 
             status=campaign_clutter_render_open(&archive);if(status)goto done;
             status=campaign_clutter_materials_open(tables_path,maps,map_count);if(status)goto done;
@@ -9620,6 +9672,7 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
         free(materials->items);materials->items=combined;materials->count+=textures->count;
         materials->loaded+=textures->loaded;materials->missing+=textures->missing;materials->allocated_bytes+=textures->allocated_bytes;
         free(textures->items);memset(textures,0,sizeof(*textures));
+        status=scene_pickup_resources_open(&stream,tables_path,&archive,maps,map_count,materials);if(status)goto done;
         stream.npc_memory=malloc(4096*96);stream.npc_indices=malloc(24576*sizeof(uint16_t));stream.npc_pool=calloc(1,sizeof(*stream.npc_pool));
         if(!stream.npc_memory || !stream.npc_indices || !stream.npc_pool){status=RF_IO;goto done;}
         for(i=0;i<campaign_poses.count;++i) {
@@ -9708,6 +9761,7 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
     }
 done:
     rf_player_weapon_close(&stream.player_weapon);
+    if(stream.pickup_resources){for(i=0;i<3;i++){rf_static_render_resource_close(&stream.pickup_resources[i].model);rf_model_materials_close(&stream.pickup_resources[i].materials);}free(stream.pickup_resources);}
     rf_level_owned_items_close(&stream.pickups);free(stream.pickup_taken);
     free(stream.npc_memory);free(stream.npc_indices);free(stream.npc_pool);
     rf_level_visibility_close(&stream.visibility);

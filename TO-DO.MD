@@ -23,6 +23,17 @@ Shortlist:
 
 Progress reporting: include a very high-level working area (e.g. Lighting, AI, Weapons, GeoMod or Scripted events) and an overall percent estimate at the end of every turn report (USER preference) and revisit remaining 24-hour workdays when measured throughput supports a forecast; current rough estimate43% (35-45%), no defensible +/-48-hour completion forecast before end-to-end gameplay.
 
+Health/armor pickup gameplay is connected: Medical Kit and Suit Repair restore
+up to a provisional100 cap; full values leave items available, dead players cannot
+collect, and successful collection removes the item once. Shared static pickup
+resources load once; armor now has a HUD bar. PC replays cover actual enemy damage
+followed by healing/repair and full-health rejection;28 CTests and both builds pass.
+12mm_ammo class/grant handling is connected and integration-tested, with a later-
+level authored ammo-box replay still open. Stock64MiB XEMU300-frame PASS:
+repair pack9868 restores15.6 armor once; health/armor/pickups match PC, armor HUD
+pixels match,6837 pages available. Native capture inspected. Evidence:
+artifacts/xemu/replay-20260914-024732/report.json.
+
 Live authored Handgun pickups now render using the retained pistol world model
 and replenish player reserve. A two-unit body-distance check plus precise world/
 moving-solid occlusion gates collection; full inventory leaves the item in place.

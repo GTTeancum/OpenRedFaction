@@ -882,3 +882,9 @@ Stock64MiB XEMU660-frame PASS:18 shots, one reload transferring16 rounds,
 available at completion. Both builds,27 CTests,six rule/conservation cases
 and player death/respawn checks pass, including reserve reset. Evidence:
 artifacts/xemu/replay-20260914-021130/report.json.
+
+
+First-pass supplies now include live Handgun, Medical Kit, Suit Repair and
+12mm_ammo class handling; see LEVEL-ITEMS.md for verified gameplay and limits.
+Health/armor use a provisional100 cap; the armor HUD reads the same damage owner.
+Mission-specific starting supply, further weapons and selection remain open.
