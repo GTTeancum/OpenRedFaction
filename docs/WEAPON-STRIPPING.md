@@ -29,3 +29,7 @@ Native reproduction:
 ```powershell
 python tools/xemu_replay_check.py artifacts/weapon-strip/return.bin --campaign-spawn --level L1S1.rfl --actor-uid 8456 --setup-uid 8366 --exit-uid 9019 --return-exit-uid 9346 --seconds 300
 ```
+
+On section revisit, immediate startup inventory callbacks now follow the
+first-entry policy in STARTUP-INVENTORY.md. Explicit gameplay strips still
+clear inventory; imported weapons survive repeated initial strip events.

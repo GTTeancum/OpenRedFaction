@@ -82,10 +82,9 @@ unverified. No original asset or level was edited to manufacture a placement.
 
 PC tools/replay_riot_pickups.py passes four focused cases: visible uncollected
 model, initial acquisition, duplicate-weapon ammunition and retired-item revisit.
-The return case deliberately checks retirement separately from player inventory:
-L1S1 currently repeats its startup strip on revisit and removes retained weapons.
-This is a campaign event-persistence bug, recorded in TO-DO.MD, not successful
-inventory preservation. Process-local placement and authored exit dispatch do
+The initial return case exposed repeated startup stripping. The follow-up
+STARTUP-INVENTORY.md policy now preserves the baton and100 charge on return
+while keeping its world item retired. Full mission-state restoration remains open. Process-local placement and authored exit dispatch do
 not prove the walking route or end-to-end campaign.
 
 Stock64MiB native run artifacts/xemu/render-20260914-162114 passes150 ticks

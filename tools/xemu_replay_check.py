@@ -1029,6 +1029,8 @@ dvd_path = '{root.as_posix()}/build/xbox/redfaction-diagnostic.iso'
     assert report['actor_retirement']==expected('ACTOR_RETIREMENT')
     report['script_grants']=words(monitor,symbol('rf_scene_script_grants'),8)
     assert report['script_grants']==expected('SCRIPT_GRANTS')
+    report['startup_inventory']=words(monitor,symbol('rf_scene_startup_inventory'),4)
+    assert report['startup_inventory']==expected('STARTUP_INVENTORY')
     report['actor_revisit']=words(monitor,symbol('rf_scene_actor_revisit'),8)
     assert report['actor_revisit']==expected('ACTOR_REVISIT')
     report['level_transitions']=words(monitor,symbol('rf_xbox_level_transitions'),4)

@@ -17,8 +17,9 @@ Shortlist:
 - DEFERRED / TO COMPLETE: Revisit Xbox optimization after gameplay work; current performance is sufficient for basic testing.
 - TO COMPLETE: Extend focused Xbox optimization checks to representative combat, camera movement and level handoffs.
 - ACTIVE: Complete scripted actor animation/look behavior and onward gameplay after the verified opening Riot Stick handoff.
-- ACTIVE: Preserve mission startup/event state on section revisits; L1S1 currently repeats its opening weapon strip and loses retained inventory.
+- ACTIVE: Preserve remaining mission state on section revisits after the first-entry inventory fix: delayed startup effects, trigger/timer state, movers and local goals.
 - TO COMPLETE: Verify retained model clipping/poses, reduce draw overhead and adapt first-person weapons to GPU rendering.
+- TO COMPLETE: Investigate the PC/native actor-follow renderer-summary mismatch in replay-20260914-162753; its broad parity check failed after both level handoffs.
 - TO COMPLETE: Preserve remaining world changes across sections, including actor placement/inventory and dropped items.
 - ACTIVE: Verify enemy firing visually, add muzzle/impact effects, and extend natural-trigger encounter coverage.
 - ACTIVE: Expand playable weapons and their world pickups after the first-pass Riot Stick alternate fire/reload; complete electrical effects and precise impacts later.
@@ -47,6 +48,12 @@ adds100 reserve when already owned, and stays retired across a section revisit.
 Battery class/model support is connected; no standalone battery placements were
 found in the63 installed SP sections. Battery asset/budget checks pass; natural
 world battery collection remains unverified. See docs/RIOT-STICK.md.
+
+Startup inventory: successful first-entry setup is now tracked per section;
+revisits suppress immediate startup strip/gift callbacks while gameplay events
+remain active. PC and stock64MiB Xbox baton round trips preserve100 charge and item retirement.
+This is practical inventory policy, not full section restoration; delayed and
+non-inventory startup effects remain open. See docs/STARTUP-INVENTORY.md.
 
 Progress reporting: include a very high-level working area (e.g. Lighting, AI, Weapons, GeoMod or Scripted events) and an overall percent estimate at the end of every turn report (USER preference) and revisit remaining 24-hour workdays when measured throughput supports a forecast; current rough estimate45% (35-45%), no defensible +/-48-hour completion forecast before end-to-end gameplay.
 

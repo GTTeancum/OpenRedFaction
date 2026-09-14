@@ -710,6 +710,11 @@ static rf_runtime_triggers campaign_triggers;
 rf_level_transition_request rf_scene_level_transition;
 rf_campaign_goals rf_scene_mission_goals;
 rf_campaign_pickups rf_scene_campaign_pickups;
+/* First-pass first-entry inventory policy; separate from collected world items.
+ * Environment startup still runs. This is not a complete section checkpoint. */
+static rf_campaign_pickups campaign_startup_inventory;
+static uint32_t campaign_startup_inventory_replay;
+uint32_t rf_scene_startup_inventory[4]; /* revisit, skipped strips, skipped gifts, owner bytes */
 rf_campaign_actors rf_scene_defeated_actors;
 uint32_t rf_scene_actor_revisit[8]; /* compared living actors; health/armor/allegiance/flag differences; first UID and health bits */
 uint32_t rf_scene_actor_retirement[4]; /* registered keys, restored, captured deaths, status */
@@ -7680,6 +7685,7 @@ static int campaign_apply_item_grant(const campaign_item_grant *request)
 static int campaign_strip_weapons(void *context)
 {
     const campaign_item_grant request={-1,0,0};(void)context;
+    if(campaign_startup_inventory_replay){++rf_scene_startup_inventory[1];return RF_OK;}
     if(!campaign_inventory_ready) {
         if(campaign_item_pending_count==32)return RF_RANGE;
         campaign_item_pending[campaign_item_pending_count++]=request;return RF_OK;
@@ -7690,6 +7696,7 @@ static int campaign_give_item(void *context,const char *name)
 {
     rf_vpp tables={0};rf_item_definition item;campaign_item_grant request;int status;
     if(!context || !name || !name[0])return RF_NOT_FOUND;
+    if(campaign_startup_inventory_replay){++rf_scene_startup_inventory[2];return RF_OK;}
     status=rf_vpp_open(&tables,(const char *)context);if(status)return status;
     status=rf_item_definition_load(&tables,name,128*1024,&item);rf_vpp_close(&tables);if(status)return status;
     if(!item.weapon[0] || (item.flags&1))return RF_NOT_FOUND;
@@ -10964,8 +10971,17 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
             memset(rf_scene_npc_triggers,0,sizeof(rf_scene_npc_triggers));memset(rf_scene_script_routes,0,sizeof(rf_scene_script_routes));memset(rf_scene_script_actor,0,sizeof(rf_scene_script_actor));memset(rf_scene_script_movement,0,sizeof(rf_scene_script_movement));campaign_triggers.move_npc=campaign_script_move;campaign_triggers.attack_npc=campaign_script_attack;
             /* Original level startup435df0 calls45ade0 before levelstart.vcs. */
             status=campaign_ambient_schedule(0,1);if(status)goto done;
-            status=rf_runtime_startup_events(&campaign_triggers,&scene_gravity,0,0,&stream.particles, &campaign_forces,&rf_scene_startup_events);
-            if(status)goto done;
+            {uint32_t slot;
+             status=rf_campaign_pickup_register(&campaign_startup_inventory,campaign_current_level,0,&slot);if(status)goto done;
+             memset(rf_scene_startup_inventory,0,sizeof(rf_scene_startup_inventory));
+             rf_scene_startup_inventory[0]=campaign_startup_inventory.items[slot].retired;
+             rf_scene_startup_inventory[3]=sizeof(campaign_startup_inventory);
+             campaign_startup_inventory_replay=rf_scene_startup_inventory[0];
+             status=rf_runtime_startup_events(&campaign_triggers,&scene_gravity,0,0,&stream.particles, &campaign_forces,&rf_scene_startup_events);
+             campaign_startup_inventory_replay=0;
+             if(status)goto done;
+             campaign_startup_inventory.items[slot].retired=1;}
+
             campaign_force_snapshot();campaign_switch_snapshot();
             memcpy(rf_scene_startup_gravity,&scene_gravity,sizeof(scene_gravity));
         }

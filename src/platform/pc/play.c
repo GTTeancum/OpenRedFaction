@@ -652,6 +652,7 @@ run_scene:
         printf("WATCH_TEST");for(i=0;i<4;i++)printf(" %u",rf_scene_watch_test[i]);puts("");
         for(i=0;i<rf_scene_death_watches[0];i++)printf("DEATH_WATCH %u %u %u\n",rf_scene_death_watches[1+i*3],rf_scene_death_watches[2+i*3],rf_scene_death_watches[3+i*3]);
         printf("ACTOR_REVISIT");for(i=0;i<8;i++)printf(" %u",rf_scene_actor_revisit[i]);puts("");
+        printf("STARTUP_INVENTORY %u %u %u %u\n",rf_scene_startup_inventory[0],rf_scene_startup_inventory[1],rf_scene_startup_inventory[2],rf_scene_startup_inventory[3]);
         printf("SCRIPT_GRANTS");for(i=0;i<8;i++)printf(" %u",rf_scene_script_grants[i]);puts("");
         printf("ACTOR_RETIREMENT");for(i=0;i<4;i++)printf(" %u",rf_scene_actor_retirement[i]);puts("");
         for(i=0;i<rf_scene_defeated_actors.count;i++)if(rf_scene_defeated_actors.items[i].retired)

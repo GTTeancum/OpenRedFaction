@@ -30,6 +30,8 @@ def main():
     parser.add_argument('--item-uid', type=int, help='Stage near an authored L1S1 pickup instead of an actor')
     parser.add_argument('--input', type=Path, help='Optional process-local replay; its length supplies the frame count')
     parser.add_argument('--setup-uid', type=int, nargs='+', default=[], help='Authored setup event at frame0, optionally another at frame60')
+    parser.add_argument('--exit-uid', type=int, help='Authored exit at frame60')
+    parser.add_argument('--return-exit-uid', type=int, help='Authored return at frame180, restaging the initial pickup')
     parser.add_argument('--visible', action='store_true')
     visibility = parser.add_mutually_exclusive_group()
     visibility.add_argument('--culled', dest='culled', action='store_true', help='Experimental model bounds rejection; default off after negative timing result')
@@ -54,6 +56,8 @@ def main():
         payload = b'RFI5' + struct.pack('<I', 44) + bytes(args.frames * 44)
     if args.item_uid is not None and not 0 < args.item_uid < 0xffffffff:
         parser.error('Require a positive item UID')
+    if any(v is not None and not 0<v<0xffffffff for v in (args.exit_uid,args.return_exit_uid)) or (args.return_exit_uid and not args.exit_uid):
+        parser.error('Require positive exit UIDs and an outbound exit for a return')
     root = Path(__file__).resolve().parents[1]
     emulator = Path('C:/Games/Emulators/Xemu')
     disc = root / 'build/xbox/disc'
@@ -61,7 +65,7 @@ def main():
     run.mkdir(parents=True)
     print('Run:', run, flush=True)
     report = dict(result='FAIL', frames=args.frames, actor=None if args.item_uid else args.actor, item_uid=args.item_uid, model_culling=args.culled, command_batching=not args.unbatched, world_grouping=not args.unsorted,
-        input_sha256=hashlib.sha256(payload).hexdigest(), setup_uids=args.setup_uid,
+        input_sha256=hashlib.sha256(payload).hexdigest(), setup_uids=args.setup_uid, exit_uid=args.exit_uid, return_exit_uid=args.return_exit_uid,
         scope='Staged L1S1 actor or pickup camera, process-local replay/setup commands, native framebuffer, '
               'phase timings and selected PC gameplay-state checks. No full campaign/parity claim.', samples=[])
     (run / 'inputs.bin').write_bytes(payload)
@@ -70,6 +74,10 @@ def main():
     if args.item_uid:
         env.pop('RF_REPLAY_ACTOR_UID')
         env['RF_REPLAY_ITEM_UID']=str(args.item_uid)
+    if args.exit_uid:env['RF_REPLAY_EXIT_UID']=str(args.exit_uid)
+    if args.return_exit_uid:
+        env['RF_REPLAY_RETURN_EXIT_UID']=str(args.return_exit_uid)
+        if args.item_uid:env['RF_REPLAY_RETURN_ITEM_UID']=str(args.item_uid)
     if args.setup_uid:
         env['RF_REPLAY_SETUP_UID']=','.join(map(str,args.setup_uid))
     pc = subprocess.run([str(root / 'build/pc/Release/rf_pc_play.exe'), '--spawn-replay',
@@ -82,7 +90,7 @@ def main():
     for name in ('player-replay.bin', 'player-control-frames.txt', 'audio-output.flag', 'particle-step-fixtures.bin', 'renderer-cull-off.flag', 'renderer-cull-on.flag', 'renderer-batch-off.flag', 'renderer-world-off.flag'):
         p = disc / name
         saved[name] = p.read_bytes() if p.exists() else None
-    for name in ('campaign-spawn.flag', 'campaign-level.bin', 'campaign-actor.bin', 'campaign-setup.bin', 'campaign-item.bin'):
+    for name in ('campaign-spawn.flag', 'campaign-level.bin', 'campaign-actor.bin', 'campaign-setup.bin', 'campaign-item.bin', 'campaign-exit.bin', 'campaign-return.bin'):
         saved.setdefault(name, None)
     process = monitor = None
     mapping = ''
@@ -112,6 +120,8 @@ def main():
         (disc / 'campaign-spawn.flag').write_bytes(b'')
         (disc / 'campaign-level.bin').write_bytes(b'levels1.vpp'.ljust(64, b'\0') + b'L1S1.rfl'.ljust(64, b'\0'))
         (disc / ('campaign-item.bin' if args.item_uid else 'campaign-actor.bin')).write_bytes(struct.pack('<I', args.item_uid or args.actor))
+        if args.exit_uid:(disc/'campaign-exit.bin').write_bytes(struct.pack('<I',args.exit_uid))
+        if args.return_exit_uid:(disc/'campaign-return.bin').write_bytes(struct.pack('<II',args.return_exit_uid,args.item_uid or 0))
         if args.setup_uid:
             (disc / 'campaign-setup.bin').write_bytes(struct.pack('<'+'I'*len(args.setup_uid),*args.setup_uid))
         (disc / 'player-replay.bin').write_bytes(payload)
@@ -216,7 +226,7 @@ dvd_path = '{root.as_posix()}/build/xbox/redfaction-diagnostic.iso'
             for name, label, count in [('scene_actor_body', 'PC_PLAY_BODY', 77),
                     ('rf_scene_player_ammo', 'PLAYER_AMMO', 8), ('rf_scene_combat', 'COMBAT', 8),
                     ('rf_scene_script_movement', 'SCRIPT_MOVE', 8), ('rf_scene_enemy_combat', 'ENEMY_COMBAT', 8),
-                    ('rf_scene_pickups', 'PICKUPS', 8), ('rf_scene_riot', 'RIOT_STICK', 8), ('rf_scene_weapon_selection', 'WEAPON_SELECTION', 8),
+                    ('rf_scene_startup_inventory', 'STARTUP_INVENTORY', 4), ('rf_scene_pickups', 'PICKUPS', 8), ('rf_scene_riot', 'RIOT_STICK', 8), ('rf_scene_weapon_selection', 'WEAPON_SELECTION', 8),
                     ('rf_scene_player_weapon', 'PLAYER_WEAPON', 8), ('rf_scene_weapon_audio', 'WEAPON_AUDIO', 9),
                     ('rf_scene_combat_death', 'COMBAT_DEATH', 8)]:
                 expected = list(map(int, next(line for line in pc.stdout.splitlines() if line.startswith(label + ' ')).split()[1:]))

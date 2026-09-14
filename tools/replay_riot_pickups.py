@@ -20,9 +20,8 @@ for name,frames in [('view',32),('collect',150),('owned',150),('return',240)]:
     assert ammo[7]==pickups[7]==model[6]==0,(ammo,pickups,model)
     if name=='view':assert pickups[3]==0 and pickups[6]>0 and ammo[0]==0xffffffff,(pickups,ammo)
     elif name=='return':
-        # Known campaign issue: L1S1 repeats its opening strip on reentry.
-        # This case proves item retirement only, not preserved player inventory.
-        assert ammo[:3]==[0xffffffff,0,0] and pickups[3]==0,(ammo,pickups)
+        assert ammo[:3]==[2,0,100] and pickups[3]==0,(ammo,pickups)
+        assert words("STARTUP_INVENTORY")[:3]==[1,1,0]
         assert 'TAKEN_PICKUP l1s1.rfl 9463' in run.stdout
         assert run.stdout.count('LEVEL_TRANSITION ')==2
     else:
