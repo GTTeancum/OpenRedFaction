@@ -65,7 +65,7 @@ typedef struct player {
     rf_frame_clock clock;
     LARGE_INTEGER frequency;
     uint32_t frames,headless;
-    rf_scene_input *replay;uint32_t replay_count,scene_start,exit_uid,exit_frame,forced_exit_uid,goal_uid;
+    rf_scene_input *replay;uint32_t replay_count,scene_start,exit_uid,exit_frame,forced_exit_uid,goal_uid,return_exit_uid,return_item_uid,return_place;
     int quit,focused;
 } player;
 
@@ -147,6 +147,10 @@ static int input(void *context,uint32_t frame,rf_scene_input *out)
     if(p->headless && p->goal_uid && p->frames==30) {
         int status=rf_scene_fire_goal_setter(p->goal_uid,(int32_t)((uint64_t)frame*1000/60));
         p->goal_uid=0;if(status)return status;
+    }
+    if(p->headless && p->return_exit_uid && p->frames==180) {
+        int status=rf_scene_fire_level_exit(p->return_exit_uid,(int32_t)((uint64_t)frame*1000/60));
+        p->forced_exit_uid=p->return_exit_uid;p->return_exit_uid=0;p->return_place=1;if(status)return status;
     }
     if(p->headless && p->exit_uid && p->frames==p->exit_frame) {
         int status=rf_scene_fire_level_exit(p->exit_uid,(int32_t)((uint64_t)frame*1000/60));
@@ -368,6 +372,12 @@ int main(int argc,char **argv)
         char *end;unsigned long value=strtoul(getenv("RF_REPLAY_EXIT_UID"),&end,10);if(*end || !value)CHECK(RF_FORMAT);
         p.exit_uid=(uint32_t)value;p.exit_frame=60;
     }
+    if(p.headless && getenv("RF_REPLAY_RETURN_EXIT_UID")) {
+        char *end;unsigned long uid=strtoul(getenv("RF_REPLAY_RETURN_EXIT_UID"),&end,10);
+        if(*end || !uid || !getenv("RF_REPLAY_ITEM_UID") || !p.exit_uid)CHECK(RF_FORMAT);
+        p.return_exit_uid=(uint32_t)uid;uid=strtoul(getenv("RF_REPLAY_ITEM_UID"),&end,10);
+        if(*end || !uid)CHECK(RF_FORMAT);p.return_item_uid=(uint32_t)uid;
+    }
 run_scene:
     p.scene_start=p.frames;
     rf_scene_set_input(input,&p,limit?limit-p.frames:0);
@@ -391,6 +401,7 @@ run_scene:
             if(status!=RF_NOT_FOUND)CHECK(status);else status=RF_OK;
             printf("LEVEL_ARRIVAL %.9g %.9g %.9g\n",level.player_position[0],level.player_position[1],level.player_position[2]);
         }
+        if(p.return_place){CHECK(rf_scene_stage_item(&level,p.return_item_uid));p.return_place=0;}
         p.forced_exit_uid=0;
         CHECK(rf_scene_set_campaign_spawn(&level));
         CHECK(rf_geometry_open(&geometry,&level,8*1024*1024));
@@ -594,6 +605,8 @@ run_scene:
         printf("PLAYER_JUMP");for(i=0;i<4;++i)printf(" %u",rf_scene_player_jump[i]);puts("");
         printf("PLAYER_JUMP_FRAMES");for(i=0;i<1024;++i)printf(" %u",((uint32_t*)rf_scene_player_jump_frames)[i]);puts("");
         printf("ACTOR_PLAYER_INPUT");for(i=0;i<64*7;++i)printf(" %u",((uint32_t*)rf_scene_player_input_frames)[i]);puts("");
+        for(i=0;i<rf_scene_campaign_pickups.count;i++)if(rf_scene_campaign_pickups.items[i].taken)
+            printf("TAKEN_PICKUP %s %u\n",rf_scene_campaign_pickups.levels[rf_scene_campaign_pickups.items[i].level],rf_scene_campaign_pickups.items[i].uid);
         for(i=0;i<rf_scene_mission_goals.count;i++)printf("MISSION_GOAL %s %d %u\n",rf_scene_mission_goals.items[i].name,rf_scene_mission_goals.items[i].value,rf_scene_mission_goals.items[i].persistent);
         printf("PC_PLAY_BODY");for(i=0;i<sizeof(scene_actor_body.state)/4;++i) {
             uint32_t word;memcpy(&word,(const unsigned char*)&scene_actor_body.state+i*4,4);printf(" %u",word);

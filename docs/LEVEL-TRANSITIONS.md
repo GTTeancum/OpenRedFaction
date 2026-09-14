@@ -148,3 +148,21 @@ Evidence: artifacts/roundtrip/report.json and
 artifacts/xemu/replay-20260914-045904/report.json. The harness now saves per-handoff
 memory/stage history instead of only the last handoff. Mission flags, world-state
 persistence, velocity/stance carry and broader route/long-run testing remain open.
+
+
+## Shipped legacy level names
+
+The campaign contains273 Load_Level events.48 retain a development `.d4l`
+suffix; those now resolve to the matching installed `.rfl` basename, including
+L4S5 exit861 and L4S4 return592. Bare names and `.rfl` remain supported. Other
+suffixes, directory traversal and path separators remain rejected.
+The shared C inventory test parses every authored exit and resolves271 target
+records against the installed archives. Two records have no installed target:
+L12S1 event6289 names L11S4; L9S1 event2446 names L9S1A. These are tracked gaps,
+not silently redirected; their reachability and intended destination need work.
+
+The pickup return fixture dispatches authored exits at global frames60 and180.
+For the second return it stages the player outside the original pickup using the
+existing shared staging routine, then replays ordinary movement into collection
+range. This tests persistent state through real scene/resource teardown but does
+not claim the player navigated the intervening route.

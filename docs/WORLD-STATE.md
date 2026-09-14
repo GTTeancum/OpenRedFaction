@@ -36,3 +36,27 @@ Validation:
 A complete rendered out-and-back pickup replay and native XEMU verification of
 pickup retirement remain to complete. Mission-counter handoffs already have
 separate native evidence in MISSION-GOALS.md.
+
+
+## Rendered revisit fixture
+
+`tools/replay_pickup_return.py` runs240 PC input frames: collect L4S5 rifle3415,
+select/fire it, dispatch exit861 to L4S4 at60, dispatch592 back at180, then walk
+into the original pickup location. Final selected rifle has39 rounds and zero
+reserve; the final scene reports zero new grants and the persistent key remains
+`l4s5.rfl / 3415`. The frame boundaries are61 and181. The fixture explicitly
+stages arrival for repeatable contact; it does not bypass the pickup grant logic.
+
+The XEMU harness accepts `--return-exit-uid` with the existing exit/item fixture.
+It sends no host input and compares every taken level/UID key directly from guest
+RAM with the PC record, in addition to the existing inventory and scene checks.
+
+
+Native verification: `artifacts/xemu/replay-20260914-053954/report.json` passes
+240 input frames with two exits at61/181, three scene loads and the exact retained
+key `l4s5.rfl / 3415`. Rifle state remains39 loaded/0 reserve and final pickup
+grants remain zero. The PC final body is1.18 units from the item (within the2-unit
+collection radius), and native state matches. Native framebuffer visually checked;
+7231 free pages (28.25MiB) remain while rendering the returned scene. Both builds
+and all36 CTests pass. This verifies pickup lifetime through controlled scene
+transitions; killed actors and other world changes are still not persisted.

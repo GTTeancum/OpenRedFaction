@@ -360,8 +360,11 @@ int rf_level_transition_enqueue(rf_level_transition_request *request,const rf_le
     while(n<sizeof(event->texts[0]) && event->texts[0][n])n++;
     if(!n || n==sizeof(event->texts[0]) || !memchr(event->texts[1],0,sizeof(event->texts[1])))return RF_FORMAT;
     base=n;
-    if(n>=4 && event->texts[0][n-4]=='.' && (event->texts[0][n-3]|32)=='r' &&
-       (event->texts[0][n-2]|32)=='f' && (event->texts[0][n-1]|32)=='l')base-=4;
+    /* Shipped campaign scripts retain 48 development .d4l names; the matching
+     * archive entries use .rfl. Accept those two suffixes, not arbitrary paths. */
+    if(n>=4 && event->texts[0][n-4]=='.' && (event->texts[0][n-1]|32)=='l' &&
+       (((event->texts[0][n-3]|32)=='r' && (event->texts[0][n-2]|32)=='f') ||
+        ((event->texts[0][n-3]|32)=='d' && event->texts[0][n-2]=='4')))base-=4;
     if(!base || base+4>=sizeof(next.level))return RF_RANGE;
     for(i=0;i<base;i++) {unsigned char c=(unsigned char)event->texts[0][i];
         if(!((c>='A' && c<='Z') || (c>='a' && c<='z') || (c>='0' && c<='9') || c=='_' || c=='-'))return RF_FORMAT;}

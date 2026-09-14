@@ -5,13 +5,27 @@
 #define CHECK(x) do{if(!(x)){fprintf(stderr,"transition line %u\n",(unsigned)__LINE__);return 1;}}while(0)
 static int enqueue(void *context,const rf_level_event *event,uint32_t source,uint32_t actor)
 {return rf_level_transition_enqueue(context,event,source,actor);}
-typedef struct resolver_context {const char *directory;uint32_t count;} resolver_context;
+typedef struct resolver_context {const char *directory;uint32_t count,exits,missing;} resolver_context;
 static int verify_destination(const rf_vpp_entry *entry,void *context)
 {
     resolver_context *c=context;rf_level level={0};rf_vpp archive={0};size_t n=strlen(entry->name);
     if(n<4 || strcmp(entry->name+n-4,".rfl"))return RF_OK;
     CHECK(rf_level_campaign_open(&level,&archive,c->directory,entry->name)==RF_OK);
     CHECK(level.archive==&archive && level.entry.size==entry->size && level.section_count);
+    {rf_level_event_reader reader;rf_level_event event;int rc=rf_level_events_begin(&level,&reader);
+     CHECK(rc==RF_OK || rc==RF_NOT_FOUND);
+     if(rc==RF_OK)while((rc=rf_level_event_next(&reader,&event))==RF_OK)if(!strcmp(event.type,"Load_Level")) {
+        rf_level_transition_request request={0};rf_vpp destination={0};rf_level next;int status;
+        CHECK(rf_level_transition_enqueue(&request,&event,0,0)==RF_OK);
+        status=rf_level_campaign_open(&next,&destination,c->directory,request.level);
+        if(status==RF_NOT_FOUND) {
+            CHECK((!strcmp(entry->name,"L12S1.rfl") && event.uid==6289 && !strcmp(request.level,"L11S4.rfl")) ||
+                  (!strcmp(entry->name,"L9S1.rfl") && event.uid==2446 && !strcmp(request.level,"L9S1A.rfl")));
+            ++c->missing;
+        } else CHECK(status==RF_OK);
+        rf_vpp_close(&destination);++c->exits;
+     }
+     CHECK(rc==RF_NOT_FOUND);}
     rf_vpp_close(&archive);c->count++;return RF_OK;
 }
 int main(int argc,char **argv)
@@ -102,7 +116,8 @@ int main(int argc,char **argv)
         snprintf(path,sizeof(path),"%s/",argv[1]);
         CHECK(rf_level_campaign_open(&level,&archive,path,"l1s1.RFL")==RF_OK);
         rf_vpp_close(&archive);CHECK(context.count>3);
-        printf("PASS %u campaign destinations across three archives, ownership and failure rollback\n",context.count);
+        CHECK(context.exits==273 && context.missing==2);
+        printf("PASS %u campaign destinations, %u authored exits (%u documented missing targets), ownership and failure rollback\n",context.count,context.exits,context.missing);
     }
     CHECK(total>0);printf("PASS %u authored exits, delay, first-request ownership and validation\n",total);return 0;
 }

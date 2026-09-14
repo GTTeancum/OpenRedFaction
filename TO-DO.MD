@@ -6,7 +6,7 @@ and defer visual polish. Focus: movement, combat/damage, AI, mission events,
 then level progression. Fidelity remains a later completion requirement.
 
 Shortlist:
-- ACTIVE: Expand mission-script coverage and preserve world state across campaign sections.
+- ACTIVE: Preserve defeated NPCs and world changes across campaign sections.
 - NEXT: Expand mission scripts and AI until consecutive campaign sections are playable end to end.
 - TO COMPLETE: Expand the working pistol/rifle combat, pickups and first-person feedback to the remaining weapons.
 - DEFERRED / TO COMPLETE: Restore full NPC/prop texture detail through better residency; verify PS2 parity for reduced textures.
@@ -24,6 +24,15 @@ Shortlist:
 - USER: Review the interactive PC movement and audio items listed below.
 
 Progress reporting: include a very high-level working area (e.g. Lighting, AI, Weapons, GeoMod or Scripted events) and an overall percent estimate at the end of every turn report (USER preference) and revisit remaining 24-hour workdays when measured throughput supports a forecast; current rough estimate45% (35-45%), no defensible +/-48-hour completion forecast before end-to-end gameplay.
+
+Pickup revisit now passes a rendered PC and stock64MiB Xbox round trip:
+L4S5 rifle3415 collected/fired, exit861 to L4S4, return592 to the pickup.240
+inputs,39 rounds retained, zero new grants and exact taken-key match; native
+framebuffer verified with7231 free pages (28.25MiB). Both builds and36 tests pass.
+Also resolve48 authored .d4l exits to installed .rfl files;271/273 exit records
+resolve. Missing targets L12S1/6289 -> L11S4 and L9S1/2446 -> L9S1A still need
+reachability/intent checks. Native evidence:
+artifacts/xemu/replay-20260914-053954/report.json; artifacts/pickup-return/report.json.
 
 Pickup retirement now persists in the shared section handoff: owned level+UID
 keys, preallocated grants and restored taken masks prevent repeat collection.
