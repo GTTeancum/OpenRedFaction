@@ -34,6 +34,18 @@ Shortlist:
 
 Progress reporting: include a very high-level working area (e.g. Lighting, AI, Weapons, GeoMod or Scripted events) and an overall percent estimate at the end of every turn report (USER preference) and revisit remaining 24-hour workdays when measured throughput supports a forecast; current rough estimate45% (35-45%), no defensible +/-48-hour completion forecast before end-to-end gameplay.
 
+Step profiling verified in replay-20260914-102028: stock64MiB180-frame
+crossing/state/HUD checks pass, and full native final image matches101543.
+Scene52.404ms (~19FPS-equivalent); instrumentation gives no speedup claim.
+Mean nested step costs: forces/movers/player physics/support1.097ms,
+light timers0.068ms, triggers/events0.806ms, particles0.087ms,
+NPC scripts/animation/rooms/attachments7.375ms, collision checks0.279ms.
+NPC updates dominate this block. First five stages have103 samples; latter
+stages104 because the final frame skips stepping. Both builds and37 tests pass.
+Next: inspect NPC animation/attachment updates for repeated work; retain
+scripted movement and gameplay behavior. Evidence: artifacts/step-profile/
+performance.json and native102028 image comparison.
+
 Corrected VBlank guard verified in replay-20260914-101543: stock64MiB
 180-frame crossing/state/HUD checks pass; full native final image exactly
 matches100657. Scene64.047->52.770ms (~19FPS-equivalent work), platform

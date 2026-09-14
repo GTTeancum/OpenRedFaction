@@ -290,3 +290,23 @@ for this Xbox-only change. Evidence: artifacts/vblank-pacing/performance.json,
 baseline-performance.json and native101543 image comparison.
 TODO: validate high-rate scenes and hardware presentation; profile remaining
 physics/events and world rendering before further gameplay expansion.
+
+Physics/event phase instrumentation added as rf_scene_step_profile[8][4].
+Rows separate early emission, forces/movers/player support, light timers,
+trigger/events, particle simulation/emission/hash, NPC scripts/animation/room
+updates and collision/alpha checks. Nested inside scene phase7; do not add
+these times to the scene total. Same post-warmup clock and section reset.
+PC build and37 tests pass; stock64MiB --capture run active in
+artifacts/step-profile/xemu.log (now completed). No runtime behavior or speedup change claimed.
+
+Step profiling verified in replay-20260914-102028: stock64MiB180-frame
+crossing/state/HUD checks pass, and full native final image matches101543.
+Scene52.404ms (~19FPS-equivalent); instrumentation gives no speedup claim.
+Mean nested step costs: forces/movers/player physics/support1.097ms,
+light timers0.068ms, triggers/events0.806ms, particles0.087ms,
+NPC scripts/animation/rooms/attachments7.375ms, collision checks0.279ms.
+NPC updates dominate this block. First five stages have103 samples; latter
+stages104 because the final frame skips stepping. Both builds and37 tests pass.
+Next: inspect NPC animation/attachment updates for repeated work; retain
+scripted movement and gameplay behavior. Evidence: artifacts/step-profile/
+performance.json and native102028 image comparison.

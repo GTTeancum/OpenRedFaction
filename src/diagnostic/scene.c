@@ -177,7 +177,16 @@ static uint32_t profile_last,profile_active;
 /* View failures101..108: listener, camera effect, ambient, camera setup,
  * room locate, visibility begin/view, world mesh. Success stages stay0..12. */
 uint32_t rf_scene_profile[8][4],rf_scene_profile_stage[2];
-uint32_t rf_scene_presentation_profile[8][4],rf_scene_world_profile[8][4];
+uint32_t rf_scene_presentation_profile[8][4],rf_scene_world_profile[8][4],rf_scene_step_profile[8][4];
+static void step_profile_mark(uint32_t phase,uint32_t *previous)
+{
+    uint32_t now,elapsed,*row;uint64_t total;
+    if(!profile_clock || !profile_active)return;
+    now=profile_clock();elapsed=now-*previous;*previous=now;
+    row=rf_scene_step_profile[phase];total=((uint64_t)row[2]<<32)+row[1]+elapsed;
+    ++row[0];row[1]=(uint32_t)total;row[2]=(uint32_t)(total>>32);
+    if(elapsed>row[3])row[3]=elapsed;
+}
 static void world_profile_mark(uint32_t phase,uint32_t *previous)
 {
     uint32_t now,elapsed,*row;uint64_t total;
@@ -197,7 +206,7 @@ static void presentation_mark(uint32_t phase,uint32_t *previous)
     if(elapsed>row[3])row[3]=elapsed;
 }
 void rf_scene_set_profile(uint32_t (*milliseconds)(void))
-{profile_clock=milliseconds;profile_active=0;memset(rf_scene_profile,0,sizeof(rf_scene_profile));memset(rf_scene_presentation_profile,0,sizeof(rf_scene_presentation_profile));memset(rf_scene_world_profile,0,sizeof(rf_scene_world_profile));}
+{profile_clock=milliseconds;profile_active=0;memset(rf_scene_profile,0,sizeof(rf_scene_profile));memset(rf_scene_presentation_profile,0,sizeof(rf_scene_presentation_profile));memset(rf_scene_world_profile,0,sizeof(rf_scene_world_profile));memset(rf_scene_step_profile,0,sizeof(rf_scene_step_profile));}
 static void profile_mark(uint32_t stage)
 {
     uint32_t now,elapsed,*row;uint64_t total;
@@ -9748,7 +9757,7 @@ static int scene_frame(void *context,uint32_t frame,rf_preview_mesh *actor)
     stream->mesh->count=stream->world+(rf_scene_actor_eye_enabled?0:actor->count);
     stream->mesh->bytes=rf_scene_actor_eye_enabled?stream->world*sizeof(rf_preview_vertex):(uint32_t)bytes;
     {
-        int status;uint32_t presentation_clock=0;profile_mark(5);
+        int status;uint32_t presentation_clock=0,step_clock=0;profile_mark(5);
         if(profile_clock && profile_active)presentation_clock=profile_clock();
         status=scene_npc_draw(stream,frame);presentation_mark(0,&presentation_clock);if(status)return status;
         status=scene_clutter_draw(stream,frame);presentation_mark(1,&presentation_clock);if(status)return status;
@@ -9766,6 +9775,7 @@ static int scene_frame(void *context,uint32_t frame,rf_preview_mesh *actor)
             campaign_export_valid=rf_campaign_player_copy(&campaign_player_export,&state,state.catalog_hash)==RF_OK;
         }
         presentation_mark(6,&presentation_clock);profile_mark(6);
+        if(profile_clock && profile_active)step_clock=profile_clock();
         if(stream->collision && frame+1<rf_scene_actor_frame_count) {
             uint64_t particle_elapsed=((uint64_t)frame+1)*1000/60;
             int32_t particle_now=(int32_t)(particle_elapsed?((particle_elapsed-1)%RF_TIMER_PERIOD)+1:0);
@@ -9779,6 +9789,7 @@ static int scene_frame(void *context,uint32_t frame,rf_preview_mesh *actor)
                 status=rf_level_particles_emit_pass(&stream->particles,&stream->visibility.state,1,scene_step_seconds,
                     particle_now,NULL,NULL,&stream->particle_first);if(status)return status;
             }
+            step_profile_mark(0,&step_clock);
             if(campaign_spawn) {
                 /* 433520 -> 433260: input, physics, then 487e00 support.
                  * The owned local-player fixture has object bit 8 and no parent. */
@@ -9834,9 +9845,11 @@ static int scene_frame(void *context,uint32_t frame,rf_preview_mesh *actor)
             memcpy(next.position,rf_scene_actor_pose.position,12);memcpy(next.next_position,rf_scene_actor_pose.pending,12);
             memcpy(next.bounds.minimum,rf_scene_actor_pose.minimum,12);memcpy(next.bounds.maximum,rf_scene_actor_pose.maximum,12);
             scene_actor_body.state=next;
+            step_profile_mark(1,&step_clock);
             /* 433260 dispatches authored light timers after physics, before events.
              * Owned replay timing; complete original frame gates/RNG order remain. */
             if(campaign_spawn){status=scene_lights_tick(stream,scene_step_seconds);if(status)return status;}
+            step_profile_mark(2,&step_clock);
             if(campaign_spawn) {
                 rf_startup_events_report tick_report;uint32_t pending,j,words[9];
                 uint64_t elapsed=((uint64_t)frame+1)*1000/60;
@@ -9853,6 +9866,7 @@ static int scene_frame(void *context,uint32_t frame,rf_preview_mesh *actor)
                 memcpy(words,&tick_report,sizeof(words));
                 for(j=0;j<9;++j)rf_scene_event_ticks[3+j]+=words[j];
             }
+            step_profile_mark(3,&step_clock);
             if(stream->particles.state) {
                 rf_level_particle_tick_result step,last;uint32_t particle_index,byte_index,hash=2166136261u;
                 uint32_t *record=rf_scene_particles_frames[(frame+1)%64],*summary=rf_scene_particles_summary;
@@ -9871,12 +9885,14 @@ static int scene_frame(void *context,uint32_t frame,rf_preview_mesh *actor)
                 ++summary[0];summary[3]+=record[1]+record[4];summary[4]+=record[3];
                 summary[5]=record[7];summary[6]=record[8];summary[7]=record[9];
             }
+            step_profile_mark(4,&step_clock);
             if(campaign_spawn){status=campaign_script_step(stream,scene_step_seconds);rf_scene_script_movement[7]=(uint32_t)status;if(status)return status;status=campaign_npc_playback_tick(stream,scene_step_seconds);if(status)return status;status=campaign_npc_rooms_pass(frame);if(status)return status;status=campaign_glare_loss_inject(frame);if(status)return status;status=campaign_glare_retirement_pass(frame);if(status)return status;status=campaign_glare_loss_verify(frame);if(status)return status;status=campaign_attachments_pass();if(status)return status;status=campaign_attachment_motion_fixture(frame);if(status)return status;status=campaign_glare_rooms_pass(frame);if(status)return status;}
         }
+        step_profile_mark(5,&step_clock);
         if(campaign_spawn && stream->collision) {int status=campaign_collision_views_check(frame);if(status)return status;status=campaign_alpha_check(frame);if(status)return status;
             if(!frame){memset(rf_scene_glare_search,0,sizeof(rf_scene_glare_search));rf_scene_glare_search[4]=2166136261u;
                 status=rf_scene_glare_visibility_pass(stream->npc_view.camera);if(status)return status;}}
-        profile_mark(7);
+        step_profile_mark(6,&step_clock);profile_mark(7);
         return RF_OK;
     }
 }

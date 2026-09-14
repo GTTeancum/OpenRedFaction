@@ -21,5 +21,7 @@ if "rf_renderer_submission" in symbols:
 if "rf_renderer_vblank" in symbols:
  values=symbols["rf_renderer_vblank"]["words"];assert len(values)==3
  report["section_vblank"]=dict(zip(("explicit_wait_frames","already_crossed_frames","last_start_counter"),values))
+if "rf_scene_step_profile" in symbols:
+ report["step"]=rows("rf_scene_step_profile",["early particle emission","forces/movers/player physics/support","light timers","trigger contacts/events","particle simulation/emission/telemetry","NPC scripts/animation/rooms/attachments","collision/alpha checks","unused"])
 if a.out:a.out.write_text(json.dumps(report,indent=2))
 print(json.dumps(report,indent=2))
