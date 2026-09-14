@@ -122,6 +122,12 @@ int rf_geometry_get_lightmap_mapping(const rf_geometry *geometry,uint32_t mappin
 int rf_geometry_lightmap_projection(const rf_geometry *geometry,uint32_t mapping,rf_lightmap_projection *projection);
 int rf_geometry_lightmap(const rf_geometry *geometry, uint32_t mapping, uint32_t image_count, uint32_t *image);
 int rf_geometry_get_face(const rf_geometry *geometry, uint32_t index, rf_geometry_face *face);
+/* Initial authored shadow face snapshot, using the verified collision-bound
+ * adapter and signed16 metadata. Caller supplies surviving face IDs and vertex
+ * scratch; later runtime mutations/texture classification remain external.
+ * No allocation; errors preserve output, scratch may change. */
+int rf_geometry_shadow_face(const rf_geometry *,uint32_t index,float (*scratch)[3],
+    uint32_t capacity,rf_lightmap_shadow_face *);
 int rf_geometry_get_corner(const rf_geometry *geometry, uint32_t face, uint32_t corner, rf_geometry_corner *result);
 typedef struct rf_geometry_texture_workspace {
     float (*vertices)[3],(*coordinates)[2];uint32_t capacity;

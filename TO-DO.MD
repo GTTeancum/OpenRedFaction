@@ -15,6 +15,14 @@ Shortlist:
 
 Progress reporting: include a very high-level working area (e.g. Lighting, AI, Weapons, GeoMod or Scripted events) and an overall percent estimate at the end of every turn report (USER preference) and revisit remaining 24-hour workdays when measured throughput supports a forecast; current rough estimate40% (35-45%), no defensible +/-48-hour completion forecast before end-to-end gameplay.
 
+Retained shadow face snapshots match all7418 L1S1 original/PC/NXDK faces,
+reusing collision bounds without allocation; largest face scratch192 bytes.
+Original supplied-plane4dfe20 rejected0 L1S1 faces.7418 PC capacity guards,
+2 NXDK guards, both builds and24 tests pass. Caller still supplies surviving
+IDs and later runtime mutations. Next compose source/mapping preparation,
+retained occluder/receiver traversal and bounded mask ownership, then native
+memory/rendered verification.
+
 Retained image format now drives shadow texture exclusion via the existing
 format classifier.4096 original/PC/NXDK face cases pass through actual static
 bitmap lookup/classification (1266 accepted,2830 rejected), without supplying

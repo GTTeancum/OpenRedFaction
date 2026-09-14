@@ -32,12 +32,25 @@ int main(int argc, char **argv)
         rf_geometry_vertex_faces_close(&graph);rf_geometry_vertex_faces_close(&graph);puts("PASS adjacency subset, duplicate corners, empty selection, budget/index guards and close");return 0;
     }
     if (argc != 3 && argc != 4 && !(argc==5 && (!strcmp(argv[3],"--portal-graph") || !strcmp(argv[3],"--visibility") || !strcmp(argv[3],"--adjacency") || !strcmp(argv[3],"--lightmap-vertices") || !strcmp(argv[3],"--lightmap-polygons")))) return 2;
-    if (argc == 4 && !flags_mode && !links_mode && !primary_mode && strcmp(argv[3],"--portals")) budget = (uint32_t)strtoul(argv[3], NULL, 10);
+    int shadow_mode=argc==4 && !strcmp(argv[3],"--shadow-faces");
+    if (argc == 4 && !shadow_mode && !flags_mode && !links_mode && !primary_mode && strcmp(argv[3],"--portals")) budget = (uint32_t)strtoul(argv[3], NULL, 10);
     result = rf_vpp_open(&archive, argv[1]);
     if (result != RF_OK) return 3;
     result = rf_level_open(&level, &archive, argv[2]);
     if (result == RF_OK) result = rf_geometry_open(&geometry, &level, budget);
     if (result == RF_OK) {
+        if(shadow_mode) {
+            float scratch[256][3];rf_lightmap_shadow_face face,guard;uint32_t i,header[2];
+            _setmode(_fileno(stdout),_O_BINARY);
+            for(i=0;i<geometry.faces;i++) {
+                rf_geometry_face source;if(rf_geometry_get_face(&geometry,i,&source))return 6;
+                memset(&guard,0xa5,sizeof(guard));face=guard;
+                if(!rf_geometry_shadow_face(&geometry,i,scratch,source.corners-1,&face) || memcmp(&face,&guard,sizeof(face)))return 7;
+                header[0]=i;header[1]=rf_geometry_shadow_face(&geometry,i,scratch,256,&face);if(header[1])return 8;
+                fwrite(header,sizeof(header),1,stdout);fwrite(&face,sizeof(face),1,stdout);
+            }
+            rf_geometry_close(&geometry);rf_vpp_close(&archive);return 0;
+        }
         if(argc==5 && !strcmp(argv[3],"--lightmap-polygons")) {
             rf_geometry_vertex_faces graph={0};rf_geometry_lightmap_work work={0};uint32_t i,j,max=0,*ids=(uint32_t *)malloc((geometry.faces+1)*4);
             if(!ids)return 6;for(i=0;i<geometry.faces;i++)ids[i]=i;

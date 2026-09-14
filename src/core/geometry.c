@@ -489,6 +489,21 @@ int rf_geometry_collision_face(const rf_geometry *geometry,uint32_t index,
     value.count=source.corners;value.filter=*filter;*face=value;return RF_OK;
 }
 
+int rf_geometry_shadow_face(const rf_geometry *geometry,uint32_t index,float (*scratch)[3],
+    uint32_t capacity,rf_lightmap_shadow_face *out)
+{
+    rf_geometry_face source;rf_collision_face face;rf_collision_face_filter filter={0};
+    rf_lightmap_shadow_face value;uint32_t mapping,portal;int status;
+    if(!out)return RF_RANGE;
+    status=rf_geometry_get_face(geometry,index,&source);if(status)return status;
+    status=rf_geometry_collision_face(geometry,index,&filter,scratch,capacity,&face);if(status)return status;
+    memcpy(value.plane,face.plane,16);memcpy(value.minimum,face.minimum,12);memcpy(value.maximum,face.maximum,12);
+    mapping=source.lightmap_mapping&0xffffu;portal=source.portal&0xffffu;
+    value.mapping=mapping>=0x8000u?(int32_t)mapping-65536:(int32_t)mapping;
+    value.portal=portal>=0x8000u?(int32_t)portal-65536:(int32_t)portal;
+    value.flags=source.flags;value.texture_excluded=0;*out=value;return RF_OK;
+}
+
 int rf_geometry_initial_collision_filter(const rf_geometry *geometry,uint32_t index,
     uint32_t query_flags,rf_collision_face_filter *filter)
 {
