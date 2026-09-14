@@ -335,6 +335,15 @@ int main(int argc,char **argv)
         }
         return 0;
     }
+    if(argc==2 && !strcmp(argv[1],"--lightmap-shadow-area")) {
+        struct {uint32_t count;float vertices[32][2];} input;float area;uint32_t status;
+        _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
+        while(fread(&input,sizeof(input),1,stdin)==1) {
+            memset(&area,0xa5,sizeof(area));status=input.count>32?RF_RANGE:rf_lightmap_shadow_area(input.vertices,input.count,&area);
+            fwrite(&status,4,1,stdout);fwrite(&area,4,1,stdout);
+        }
+        return 0;
+    }
     if(argc==2 && !strcmp(argv[1],"--lightmap-shadow-mapping")) {
         struct {rf_lightmap_sample_plane view;uint32_t width,height;float origin[3];} input;rf_lightmap_shadow_mapping output;uint32_t status;
         _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);

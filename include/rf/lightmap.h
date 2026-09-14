@@ -138,6 +138,10 @@ int rf_lightmap_project_shadow(const rf_lightmap_sample_plane *,uint32_t width,u
 int rf_lightmap_shadow_polygon(const rf_lightmap_sample_plane *,uint32_t width,uint32_t height,
     const float origin[3],const float plane[4],const float (*vertices)[3],uint32_t count,
     float (*output)[2],uint32_t capacity,uint32_t *out_count);
+/* Original4f25a0 triangle-fan area used by projected shadow filtering.
+ * Preserves mixed precision and whole-polygon zero on degenerate radicand.
+ * No allocation; finite inputs required; errors preserve area. */
+int rf_lightmap_shadow_area(const float (*vertices)[2],uint32_t count,float *area);
 /* Original4f2100 projected-polygon scan conversion; byte subtraction wraps.
  * Caller supplies ordered projected polygon and width*(height+1)+1 mask bytes:
  * original inclusive right/bottom writes alias the next row at X==width.

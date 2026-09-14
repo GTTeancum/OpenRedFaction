@@ -478,6 +478,30 @@ int rf_lightmap_shadow_polygon(const rf_lightmap_sample_plane *view,uint32_t wid
     *out_count=n;return RF_OK;
 }
 
+/* 4f25a0 uses a fan and Heron's formula; a nonpositive radicand rejects
+ * the whole area, even after earlier triangles accumulated successfully. */
+int rf_lightmap_shadow_area(const float (*vertices)[2],uint32_t count,float *area)
+{
+    float total=0;uint32_t i,j;
+    if(!area || (count && !vertices) || count>INT32_MAX)return RF_RANGE;
+    for(i=0;i<count;i++)for(j=0;j<2;j++)if(!isfinite(vertices[i][j]))return RF_RANGE;
+    for(i=1;i+1<count;i++) {
+        float ab[2],ac[2],bc[2],a,b;double c,s,r;
+        for(j=0;j<2;j++) {
+            ab[j]=(float)((double)vertices[0][j]-vertices[i][j]);
+            ac[j]=(float)((double)vertices[0][j]-vertices[i+1][j]);
+            bc[j]=(float)((double)vertices[i][j]-vertices[i+1][j]);
+        }
+        a=(float)sqrt((double)ab[0]*ab[0]+(double)ab[1]*ab[1]);
+        b=(float)sqrt((double)ac[0]*ac[0]+(double)ac[1]*ac[1]);
+        c=sqrt((double)bc[0]*bc[0]+(double)bc[1]*bc[1]);s=((c+b)+a)*.5;
+        r=(((s-c)*(s-b))*(s-a))*s;if(!isfinite(r))return RF_RANGE;
+        if(r<=0) {*area=0;return RF_OK;}
+        total=(float)(sqrt(r)+total);if(!isfinite(total))return RF_RANGE;
+    }
+    *area=total;return RF_OK;
+}
+
 /* 4f2100 keeps inclusive X/last-row bounds and wraps subtraction in bytes.
  * The caller must supply the explicitly checked guard row and final byte. */
 int rf_lightmap_raster_shadow(const float (*vertices)[2],uint32_t count,unsigned char *mask,
