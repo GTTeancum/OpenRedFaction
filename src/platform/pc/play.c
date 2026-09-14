@@ -613,6 +613,9 @@ run_scene:
             printf("CAMPAIGN_EVENT_LINKS %u %u %u %u\n",rf_scene_campaign_event_links[0],rf_scene_campaign_event_links[1],rf_scene_campaign_event_links[2],rf_scene_campaign_event_links[3]);
             printf("CAMPAIGN_EVENT_TICKS");for(uint32_t tick_word=0;tick_word<12;++tick_word)printf(" %u",rf_scene_event_ticks[tick_word]);puts("");
             printf("CAMPAIGN_TRIGGERS %u %u\n",rf_scene_campaign_triggers[0],rf_scene_campaign_triggers[1]);
+            printf("SWITCH_HISTORY %u %u %u %u\n",rf_scene_switch_history[0],rf_scene_switch_history[1],rf_scene_switch_history[2],rf_scene_switch_history[3]);
+            printf("SWITCH_RUNTIME");for(i=0;i<8;i++)printf(" %u",rf_scene_switch_runtime[i]);puts("");
+            printf("SWITCH_DETAIL");for(i=0;i<8;i++)printf(" %u",rf_scene_switch_detail[i]);puts("");
             printf("SWITCH_STATE %u %u %u\n",rf_scene_switch_state[0],rf_scene_switch_state[1],rf_scene_switch_state[2]);
             printf("LIGHT_FIELDS");for(i=0;i<34;++i)printf(" %u",rf_scene_light_fields[i]);printf("\n");
             printf("LIGHTMAP_REGEN");for(i=0;i<8;++i)printf(" %u",rf_scene_lightmap_regeneration[i]);printf("\n");

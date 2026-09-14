@@ -17,7 +17,7 @@ Shortlist:
 - DEFERRED / TO COMPLETE: Revisit Xbox optimization after gameplay work; current performance is sufficient for basic testing.
 - TO COMPLETE: Extend focused Xbox optimization checks to representative combat, camera movement and level handoffs.
 - ACTIVE: Complete scripted actor animation/look behavior and onward gameplay after the verified opening Riot Stick handoff.
-- ACTIVE: Preserve remaining mission state on section revisits after the first-entry inventory fix: delayed/startup side effects, event timers, switches, removed objects and movers; extend local-goal coverage beyond the lab round trip.
+- ACTIVE: Preserve remaining mission state on section revisits after the first-entry inventory fix: delayed/startup side effects, event timers, removed objects and movers; extend local-goal coverage beyond the lab round trip.
 - TO COMPLETE: Verify retained model clipping/poses, reduce draw overhead and adapt first-person weapons to GPU rendering.
 - TO COMPLETE: Investigate the PC/native actor-follow renderer-summary mismatch in replay-20260914-162753; its broad parity check failed after both level handoffs.
 - TO COMPLETE: Preserve remaining world changes across sections, including actor placement/inventory and dropped items.
@@ -66,6 +66,12 @@ cooldown/contact deadlines across section absence, using authored UID keys.
 PC and stock64MiB XEMU round trips restore61 L1S1 triggers; one-use eligibility, timer wrap and
 handle ownership unit checks pass. Startup side effects and event/switch/world
 state remain open. See docs/TRIGGER-CHECKPOINTS.md.
+
+Live switches: attached the missing gameplay backend for trigger/event links,
+applied initial linked flags, and added switch-state snapshots on section return.
+Authored9836 delay/one-use PC checks and a stock64MiB Xbox round trip pass; Alarm46 actions and
+controller/sound-object/light/renderable switch targets remain TO COMPLETE.
+See docs/LIVE-SWITCHES.md for explicit coverage and remaining startup side effects.
 
 Progress reporting: include a very high-level working area (e.g. Lighting, AI, Weapons, GeoMod or Scripted events) and an overall percent estimate at the end of every turn report (USER preference) and revisit remaining 24-hour workdays when measured throughput supports a forecast; current rough estimate45% (35-45%), no defensible +/-48-hour completion forecast before end-to-end gameplay.
 

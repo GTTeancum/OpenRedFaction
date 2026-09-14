@@ -694,6 +694,7 @@ static uint32_t campaign_ambient_frame;
 uint32_t rf_scene_ambient_schedule[6]; /* ticks, clock, occupied slots, pending timers, instance/table hashes */
 uint32_t rf_scene_ambient_records[3]; /* authored count, owner bytes, ordered record hash */
 uint32_t rf_scene_ambient_instances[4]; /* registered, rejected, owner bytes, ordered state hash */
+uint32_t rf_scene_switch_runtime[8],rf_scene_switch_detail[8];
 uint32_t rf_scene_switch_state[3]; /* count, enabled count, ordered persistent state hash */
 static void campaign_switch_snapshot(void)
 {
@@ -701,6 +702,16 @@ static void campaign_switch_snapshot(void)
     for(i=0;i<campaign_events.count;++i)if(campaign_events.items[i].switch_state) {
         const rf_switch_state *state=campaign_events.items[i].switch_state;
         ++count;if(!state->disabled)++enabled;
+        if(campaign_events.items[i].authored->record.uid==rf_scene_switch_runtime[6]) {
+            rf_scene_switch_detail[0]=rf_scene_switch_runtime[6];rf_scene_switch_detail[1]=state->disabled;
+            rf_scene_switch_detail[2]=state->activations;rf_scene_switch_detail[3]=(uint32_t)state->limit;rf_scene_switch_detail[4]=(uint32_t)state->mode;
+            if(campaign_events.items[i].authored->record.link_count) {
+                void *linked=rf_object_registry_lookup(&campaign_registry,campaign_events.items[i].links[0].value);uint32_t kind=0;
+                rf_scene_switch_detail[5]=campaign_events.items[i].authored->links[0];if(linked)memcpy(&kind,linked,4);
+                rf_scene_switch_detail[6]=kind;
+                rf_scene_switch_detail[7]=kind==5?((rf_runtime_trigger*)linked)->state.flags:kind==6?((rf_runtime_event*)linked)->state.flags:0;
+            }
+        }
         for(j=0;j<sizeof(*state);++j)hash=(hash^((const unsigned char *)state)[j])*16777619u;
     }
     rf_scene_switch_state[0]=count;rf_scene_switch_state[1]=enabled;rf_scene_switch_state[2]=hash;
@@ -708,6 +719,9 @@ static void campaign_switch_snapshot(void)
 
 static rf_runtime_triggers campaign_triggers;
 static rf_campaign_triggers campaign_trigger_history;
+static rf_campaign_pickups campaign_switch_history;
+static rf_switch_state campaign_switch_saved[RF_CAMPAIGN_PICKUP_SLOTS];
+uint32_t rf_scene_switch_history[4];
 uint32_t rf_scene_trigger_history[4]; /* registered, restored, saved, owner bytes */
 rf_level_transition_request rf_scene_level_transition;
 rf_campaign_goals rf_scene_mission_goals;
@@ -724,6 +738,23 @@ uint32_t rf_scene_actor_retirement[4]; /* registered keys, restored, captured de
 uint32_t rf_scene_campaign_load_stage;
 uint32_t rf_scene_follow_level_exits;
 static char campaign_current_level[64];
+static int campaign_switch_checkpoint(uint32_t save)
+{
+    uint32_t i,slot;int status;
+    for(i=0;i<campaign_events.count;i++) {
+        rf_runtime_event *event=campaign_events.items+i;if(!event->switch_state || event->retired)continue;
+        status=rf_campaign_pickup_register(&campaign_switch_history,campaign_current_level,event->authored->record.uid,&slot);if(status)return status;
+        if(save) {campaign_switch_saved[slot]=*event->switch_state;campaign_switch_history.items[slot].retired=1;++rf_scene_switch_history[2];}
+        else if(campaign_switch_history.items[slot].retired) {
+            *event->switch_state=campaign_switch_saved[slot];
+            status=rf_runtime_switch_initialize(&campaign_triggers,event->handle);if(status)return status;
+            ++rf_scene_switch_history[1];rf_scene_switch_runtime[6]=event->authored->record.uid;
+        }
+    }
+    rf_scene_switch_history[0]=campaign_switch_history.count;
+    rf_scene_switch_history[3]=sizeof(campaign_switch_history)+sizeof(campaign_switch_saved);
+    return RF_OK;
+}
 static int campaign_trigger_checkpoint(uint32_t save,int32_t now)
 {
     uint32_t i,slot;int status;
@@ -767,7 +798,7 @@ int rf_scene_fire_setup_event(uint32_t uid,int32_t now)
 {
     uint32_t i;rf_startup_events_report report;
     for(i=0;i<campaign_events.count;i++)if(campaign_events.items[i].authored->record.uid==uid) {
-        if(campaign_events.items[i].state.type!=48 && campaign_events.items[i].state.type!=2 && campaign_events.items[i].state.type!=1 && campaign_events.items[i].state.type!=15 && campaign_events.items[i].state.type!=24 && campaign_events.items[i].state.type!=30 && campaign_events.items[i].state.type!=13 && campaign_events.items[i].state.type!=14 && campaign_events.items[i].state.type!=19 && campaign_events.items[i].state.type!=56)return RF_FORMAT;
+        if(campaign_events.items[i].state.type!=48 && campaign_events.items[i].state.type!=2 && campaign_events.items[i].state.type!=1 && campaign_events.items[i].state.type!=15 && campaign_events.items[i].state.type!=24 && campaign_events.items[i].state.type!=30 && campaign_events.items[i].state.type!=13 && campaign_events.items[i].state.type!=14 && campaign_events.items[i].state.type!=19 && campaign_events.items[i].state.type!=56 && campaign_events.items[i].state.type!=32)return RF_FORMAT;
         return rf_runtime_event_fire(&campaign_triggers,campaign_events.items[i].handle,UINT32_MAX,UINT32_MAX,now,&scene_gravity,NULL,NULL,&report);
     }
     return RF_NOT_FOUND;
@@ -2073,6 +2104,40 @@ static int32_t campaign_sound_start(int32_t sample,const float position[3],float
 failed:
     ++rf_scene_live_audio[5];return -1;
 }
+/* Live first-pass switch services. Trigger/event effects dispatch in event.c;
+ * unsupported controller/sound-object/light/renderable links remain counted. */
+static int campaign_switch_lookup(void *context,uint32_t family,uint32_t link,rf_switch_target *target)
+{
+    void *object=rf_object_registry_lookup(&campaign_registry,link);uint32_t kind=0;(void)context;
+    if(object)memcpy(&kind,object,4);
+    if((family==RF_SWITCH_TRIGGER && kind==5) || (family==RF_SWITCH_EVENT && kind==6 && !((rf_runtime_event*)object)->retired)) {
+        memset(target,0,sizeof(*target));target->token=link;
+        if(kind==6)target->event_type=((rf_runtime_event*)object)->state.type;
+        ++rf_scene_switch_runtime[kind==5?0:1];return RF_OK;
+    }
+    if(family==RF_SWITCH_OBJECT && kind!=5 && kind!=6)++rf_scene_switch_runtime[2];
+    return RF_NOT_FOUND;
+}
+static int campaign_switch_dispatch(void *context,const rf_switch_request *request)
+{(void)context;(void)request;return RF_NOT_FOUND;}
+static int campaign_switch_sound(void *context,const rf_runtime_event *event,uint32_t effect,int32_t now)
+{
+    const char *name=event->authored->record.texts[0];int32_t sample=-1;uint32_t i,j;(void)context;(void)now;
+    ++rf_scene_switch_runtime[3];rf_scene_switch_runtime[6]=event->authored->record.uid;rf_scene_switch_runtime[7]=effect;
+    if(effect==2)sample=2;
+    else {
+        if(!*name)return RF_OK;
+        for(i=0;i<campaign_audio_bank.count;i++) {
+            const char *candidate=campaign_audio_bank.samples[i].name;
+            for(j=0;j<61;j++) {unsigned char a=name[j],b=candidate[j];if(a>='A' && a<='Z')a+=32;if(b>='A' && b<='Z')b+=32;if(a!=b)break;if(!a){sample=(int32_t)i;break;}}
+            if(sample>=0)break;
+        }
+    }
+    if(sample<0 || campaign_sound_start(sample,event->authored->record.position,1,0,effect!=2,0)<0)++rf_scene_switch_runtime[5];
+    else ++rf_scene_switch_runtime[4];
+    return RF_OK; /* Audio exhaustion does not cancel a gameplay switch. */
+}
+static const rf_runtime_switch_backend campaign_switch_backend={campaign_switch_lookup,campaign_switch_dispatch,campaign_switch_sound,NULL};
 static int32_t campaign_sound_play(void *context,int32_t sample,const float position[3],float volume,uint32_t category)
 {
     (void)context;return campaign_sound_start(sample,position,volume,category,1,0);
@@ -10637,7 +10702,7 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
             if(status)goto done;
             if(rf_scene_follow_level_exits && rf_scene_level_transition.pending)
                 status=rf_campaign_goals_next_section(&rf_scene_mission_goals);
-            else {memset(&campaign_trigger_history,0,sizeof(campaign_trigger_history));memset(&campaign_local_goals,0,sizeof(campaign_local_goals));memset(&campaign_startup_inventory,0,sizeof(campaign_startup_inventory));memset(&rf_scene_mission_goals,0,sizeof(rf_scene_mission_goals));memset(&rf_scene_campaign_pickups,0,sizeof(rf_scene_campaign_pickups));memset(&rf_scene_defeated_actors,0,sizeof(rf_scene_defeated_actors));}
+            else {memset(&campaign_switch_history,0,sizeof(campaign_switch_history));memset(campaign_switch_saved,0,sizeof(campaign_switch_saved));memset(&campaign_trigger_history,0,sizeof(campaign_trigger_history));memset(&campaign_local_goals,0,sizeof(campaign_local_goals));memset(&campaign_startup_inventory,0,sizeof(campaign_startup_inventory));memset(&rf_scene_mission_goals,0,sizeof(rf_scene_mission_goals));memset(&rf_scene_campaign_pickups,0,sizeof(rf_scene_campaign_pickups));memset(&rf_scene_defeated_actors,0,sizeof(rf_scene_defeated_actors));}
             if(!status)status=rf_runtime_goals_initialize(&campaign_events,&rf_scene_mission_goals);
             if(!status)status=rf_campaign_local_goals_restore(&campaign_local_goals,campaign_current_level,&rf_scene_mission_goals);
             if(status)goto done;
@@ -10647,6 +10712,7 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
 
             if(status)goto done;
             campaign_triggers.set_friendliness=campaign_set_friendliness;campaign_triggers.adjust_vitals=campaign_adjust_vitals;campaign_triggers.give_item=campaign_give_item;campaign_triggers.strip_weapons=campaign_strip_weapons;campaign_triggers.give_item_context=(void *)tables_path;
+            campaign_triggers.switch_backend=&campaign_switch_backend;
             campaign_triggers.set_visible=campaign_set_visible;
             campaign_triggers.set_invulnerable=campaign_set_invulnerable;
             campaign_triggers.remove_object=campaign_remove_object;
@@ -10986,11 +11052,17 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
             memset(campaign_ambient_slots,0,sizeof(campaign_ambient_slots));
             for(i=0;i<RF_AMBIENT_SLOTS;i++)campaign_ambient_slots[i].sample=campaign_ambient_slots[i].voice=-1;
             memset(rf_scene_ambient_schedule,0,sizeof(rf_scene_ambient_schedule));campaign_ambient_frame=UINT32_MAX;
+            memset(rf_scene_switch_runtime,0,sizeof(rf_scene_switch_runtime));memset(rf_scene_switch_detail,0,sizeof(rf_scene_switch_detail));
             campaign_inventory_ready=campaign_item_pending_count=0;memset(rf_scene_script_grants,0,sizeof(rf_scene_script_grants));
             status=campaign_actors_restore();if(status)goto done;
             campaign_triggers.death_query=campaign_death_query;
             campaign_triggers.activate_mover=campaign_event_mover;
             memset(rf_scene_npc_triggers,0,sizeof(rf_scene_npc_triggers));memset(rf_scene_script_routes,0,sizeof(rf_scene_script_routes));memset(rf_scene_script_actor,0,sizeof(rf_scene_script_actor));memset(rf_scene_script_movement,0,sizeof(rf_scene_script_movement));campaign_triggers.move_npc=campaign_script_move;campaign_triggers.attack_npc=campaign_script_attack;
+            /* Apply initial linked flags without consuming switch activations. */
+            for(i=0;i<campaign_events.count;i++)if(campaign_events.items[i].switch_state && !campaign_events.items[i].retired) {
+                status=rf_runtime_switch_initialize(&campaign_triggers,campaign_events.items[i].handle);if(status)goto done;
+                rf_scene_switch_runtime[6]=campaign_events.items[i].authored->record.uid;
+            }
             /* Original level startup435df0 calls45ade0 before levelstart.vcs. */
             status=campaign_ambient_schedule(0,1);if(status)goto done;
             {uint32_t slot;
@@ -11004,6 +11076,8 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
              if(status)goto done;
              campaign_startup_inventory.items[slot].retired=1;}
 
+            memset(rf_scene_switch_history,0,sizeof(rf_scene_switch_history));
+            status=campaign_switch_checkpoint(0);if(status)goto done;
             memset(rf_scene_trigger_history,0,sizeof(rf_scene_trigger_history));
             status=campaign_trigger_checkpoint(0,0);if(status)goto done;
             campaign_force_snapshot();campaign_switch_snapshot();
@@ -11017,6 +11091,7 @@ done:
     if(!status && campaign_spawn && collision)campaign_actors_revisit_snapshot();
     if(!status && campaign_spawn && collision && rf_scene_level_transition.pending) {
         status=rf_campaign_local_goals_save(&campaign_local_goals,campaign_current_level,&rf_scene_mission_goals);
+        if(!status)status=campaign_switch_checkpoint(1);
         if(!status)status=campaign_trigger_checkpoint(1,(int32_t)rf_scene_event_ticks[1]);
         if(!status)campaign_actors_capture();
     }
