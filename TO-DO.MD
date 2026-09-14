@@ -1,7 +1,8 @@
 # Red Faction Xbox / PC - open work
 
 Shortlist:
-- Complete live lightmap resources, shadow masks and rendered lighting updates within64MiB.
+- ACTIVE: Fix the repeatable walking failure, then advance campaign traversal and physics.
+- DEFERRED / TO COMPLETE: Finish lighting lifecycle updates, shadows and visual parity within64MiB; revisit after critical gameplay systems.
 - Finish glare volumes/reflections, cross-level bitmap clocks, special visibility and parent ordering/tag resolution.
 - Complete the single-player actor, AI, damage and mission runtime.
 - Connect retained NPC speed/body/stance owners to support queries, contact/fall/landing dispatch and physics stepping, then timed footsteps.
@@ -14,6 +15,17 @@ Shortlist:
 - USER: Review the interactive PC movement and audio items listed below.
 
 Progress reporting: include a very high-level working area (e.g. Lighting, AI, Weapons, GeoMod or Scripted events) and an overall percent estimate at the end of every turn report (USER preference) and revisit remaining 24-hour workdays when measured throughput supports a forecast; current rough estimate40% (35-45%), no defensible +/-48-hour completion forecast before end-to-end gameplay.
+
+USER priority change: shelve further lighting work and return to it later.
+Lighting remains incomplete: lifecycle event routing, alternate/moving solids,
+queued regeneration across visibility changes, directional/ray paths and
+rendered changing-light/PS2 parity validation are open. Preserve current work.
+Immediate focus is the repeatable frame291 walking failure, followed by
+campaign traversal/physics; diagnose its actual origin before assigning blame.
+Reproduced on current1497019 PC build with tools/replay_ambient_walk.py:
+30 frames pass;390-frame forward walk exits at291, RF_RANGE, view stage1.
+Evidence artifacts/ambient-walk-check/pc-390.txt. Failure is in the camera/
+view preparation interval; physics is not yet proven to be the failing owner.
 
 Scene clock visibility now uses live pool source position/end/radius instead
 of reconstructing the authored placement. Shared source-volume preparation
