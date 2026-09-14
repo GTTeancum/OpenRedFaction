@@ -232,6 +232,8 @@ dvd_path = '{root.as_posix()}/build/xbox/redfaction-diagnostic.iso'
      assert report['player_life']==expected('PLAYER_LIFE'),report['player_life']
      report['enemy_awareness']=words(monitor,symbol('rf_scene_enemy_awareness'),8)
      assert report['enemy_awareness']==expected('ENEMY_AWARENESS') and report['enemy_awareness'][7]==0,report['enemy_awareness']
+     report['player_ammo']=words(monitor,symbol('rf_scene_player_ammo'),8)
+     assert report['player_ammo']==expected('PLAYER_AMMO') and report['player_ammo'][7]==0,report['player_ammo']
      report['pistol_rules']=words(monitor,symbol('rf_scene_pistol_rules'),7)
      assert report['pistol_rules']==expected('PISTOL_RULES'),report['pistol_rules']
      report['player_weapon']=words(monitor,symbol('rf_scene_player_weapon'),8)
@@ -899,7 +901,7 @@ dvd_path = '{root.as_posix()}/build/xbox/redfaction-diagnostic.iso'
      report['capture']='Native guest framebuffer for renderer validation'
      if args.campaign_spawn:
       native=Image.open(run/'framebuffer.png');reference=Image.open(run/'pc-final.ppm')
-      points=[(312,240),(30,448),(150,448)]+[(int(479+i*132/report['pistol_rules'][0]),448) for i in range(report['pistol_rules'][0])]
+      points=[(312,240),(30,448),(150,448),(570,418),(578,430),(590,424)]+[(int(479+i*132/report['pistol_rules'][0]),448) for i in range(report['pistol_rules'][0])]
       if report['combat'][6]:points.extend([(480,459),(600,459)])
       report['combat_hud_pixels']=[dict(point=q,xbox=native.getpixel(q),pc=reference.getpixel(q)) for q in points]
       assert all(max(abs(a-b) for a,b in zip(v['xbox'],v['pc']))<=2 for v in report['combat_hud_pixels']),report['combat_hud_pixels']

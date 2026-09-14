@@ -529,6 +529,7 @@ int main(int argc,char **argv)
     printf("PLAYER_LIFE");for(i=0;i<8;++i)printf(" %u",rf_scene_player_life[i]);puts("");
     printf("ENEMY_AWARENESS");for(uint32_t i=0;i<8;i++)printf(" %u",rf_scene_enemy_awareness[i]);printf("\n");
     printf("ENEMY_COMBAT");for(i=0;i<8;++i)printf(" %u",rf_scene_enemy_combat[i]);puts("");
+    printf("PLAYER_AMMO");for(i=0;i<8;++i)printf(" %u",rf_scene_player_ammo[i]);puts("");
     printf("PISTOL_RULES");for(i=0;i<7;++i)printf(" %u",rf_scene_pistol_rules[i]);puts("");
     printf("PLAYER_WEAPON");for(i=0;i<8;++i)printf(" %u",rf_scene_player_weapon[i]);puts("");
     printf("WEAPON_AUDIO");for(i=0;i<9;++i)printf(" %u",rf_scene_weapon_audio[i]);puts("");

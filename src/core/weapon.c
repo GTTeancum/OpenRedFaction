@@ -633,6 +633,18 @@ int rf_weapon_acquire(rf_weapon_inventory *inventory,const rf_weapon_acquire_def
     return notify(context,inventory,1);
 }
 
+int rf_weapon_reload_transfer(rf_weapon_inventory *inventory,const rf_weapon_acquire_definition *definition,int32_t weapon,uint32_t *transferred)
+{
+    int32_t missing,available,amount;
+    if(!inventory || !definition || !transferred || weapon<0 || weapon>=64 || !inventory->owned[weapon] ||
+       definition->ammo_type<0 || definition->ammo_type>=32 || definition->magazine<=0)return RF_RANGE;
+    available=inventory->reserve[definition->ammo_type];
+    if(available<0 || inventory->loaded[weapon]<0 || inventory->loaded[weapon]>definition->magazine)return RF_RANGE;
+    missing=definition->magazine-inventory->loaded[weapon];amount=missing<available?missing:available;
+    inventory->loaded[weapon]+=amount;inventory->reserve[definition->ammo_type]-=amount;
+    *transferred=(uint32_t)amount;return RF_OK;
+}
+
 int rf_weapon_add_ammo(rf_weapon_inventory *inventory,rf_weapon_ammo_state *state,
     const rf_weapon_acquire_definition *definition,int32_t weapon,int32_t quantity,
     const rf_weapon_ammo_backend *backend)

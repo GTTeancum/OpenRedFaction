@@ -6,7 +6,7 @@ and defer visual polish. Focus: movement, combat/damage, AI, mission events,
 then level progression. Fidelity remains a later completion requirement.
 
 Shortlist:
-- ACTIVE: Connect finite ammunition, pickups and weapon selection to campaign combat.
+- ACTIVE: Connect ammunition pickups and weapon selection to campaign combat.
 - ACTIVE: Connect first-person weapon presentation and firing/reload feedback.
 - Continue campaign traversal/physics coverage beyond the repaired walking route.
 - DEFERRED / TO COMPLETE: Finish lighting lifecycle updates, shadows and visual parity within64MiB; revisit after critical gameplay systems.
@@ -23,13 +23,24 @@ Shortlist:
 
 Progress reporting: include a very high-level working area (e.g. Lighting, AI, Weapons, GeoMod or Scripted events) and an overall percent estimate at the end of every turn report (USER preference) and revisit remaining 24-hour workdays when measured throughput supports a forecast; current rough estimate42% (35-45%), no defensible +/-48-hour completion forecast before end-to-end gameplay.
 
+Player combat now owns a448-byte weapon inventory and consumes finite reserve
+on reload. Starting/respawn supply is provisionally a full16-round pistol plus
+the authored125-round reserve capacity. Partial reloads transfer only what is
+available; empty reserve prevents reload/shot audio. Reserve is shown on HUD.
+PC6000-frame exhaustion PASS:141 shots,125 rounds transferred over8 reloads,
+34 later dry-fire presses with no additional audio. Six rule/conservation
+cases and27 CTests pass. Stock64MiB XEMU660-frame PASS:18 shots, one reload,
+14 loaded/109 reserve, matching PC HUD/state;6936 available pages. Both builds
+and player death/respawn checks pass. Evidence:
+artifacts/xemu/replay-20260914-021130/report.json. Pickup replenishment and
+mission-specific starting grants remain open.
+
 Live pistol combat now uses the authored16-round magazine,40 SP base damage,
 66-tick reload and30-tick primary cooldown. Semi-automatic input fires only on
 a fresh press; presses during cooldown/reload are consumed rather than queued.
 Reload completion, respawn ammo and HUD use the same definition. Damage type
 is now authored bullet rather than prototype bash. The24-byte definition uses
-the existing NXDK-safe parser and is loaded once; finite reserve and pickups
-remain open. Six PC rule cases,27 CTests and kill/death regressions pass.
+the existing NXDK-safe parser and is loaded once; pickups remain open. Six PC rule cases,27 CTests and kill/death regressions pass.
 Stock64MiB XEMU127-frame reload-boundary PASS:16 rounds restored, bullet
 damage selected, HUD/state match PC,6936 available pages. Both builds and
 player death/respawn regressions pass. Evidence:

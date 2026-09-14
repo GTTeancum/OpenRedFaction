@@ -15,8 +15,9 @@ for name,frames,fire,reload,shots,ammo,timer in cases:
  run=subprocess.run([str(root/'build/pc/Release/rf_pc_play.exe'),'--spawn-replay',str(root/'Installed_Game'),str(source),str(folder/(name+'.ppm'))],env=env,capture_output=True,text=True)
  (folder/(name+'.txt')).write_text(run.stdout+run.stderr);run.check_returncode()
  def words(key):return list(map(int,next(l for l in run.stdout.splitlines() if l.startswith(key+' ')).split()[1:]))
- rules=words('PISTOL_RULES');combat=words('COMBAT')
+ rules=words('PISTOL_RULES');combat=words('COMBAT');supply=words('PLAYER_AMMO')
  assert rules==[16,66,30,1109393408,1,24,1],rules
  assert combat[0]==shots and combat[5:]==[ammo,timer,0],combat
- rows.append(dict(name=name,rules=rules,combat=combat));print(rows[-1],flush=True)
-(folder/'report.json').write_text(json.dumps(dict(result='PASS',cases=rows,scope='Table-driven16-round pistol,30-tick primary cooldown,66-tick reload and semi-auto edges including held trigger during reload.40SP base damage enters shared damage pipeline; finite reserve/alternate fire excluded.'),indent=2))
+ assert supply[1]+supply[2]+combat[0]==141 and supply[2]==combat[5] and supply[7]==0,supply
+ rows.append(dict(name=name,rules=rules,combat=combat,ammo=supply));print(rows[-1],flush=True)
+(folder/'report.json').write_text(json.dumps(dict(result='PASS',cases=rows,scope='Table-driven16-round pistol,30-tick primary cooldown,66-tick reload and semi-auto edges including held trigger during reload.40SP base damage enters shared damage pipeline; reserve conservation included; pickups/alternate fire excluded.'),indent=2))

@@ -854,3 +854,31 @@ PC-identical rules/combat/HUD and6936 available pages. Native framebuffer
 inspected. Evidence artifacts/xemu/replay-20260914-020444/report.json.
 Clip completion and authored gameplay reload deadline remain separate; exact
 animation-marker synchronization is still open.
+
+## Finite player ammunition
+
+The live pistol now consumes the448-byte rf_weapon_inventory owner through
+rf_weapon_consume_shot. First-pass reload completion transfers only the lesser
+of missing magazine rounds and reserve, without allocation. Full magazine or
+empty reserve transfers zero; invalid ownership/mapping/negative state fails
+without mutation. Reload start is suppressed with zero reserve, and empty
+trigger presses generate neither successful shots nor reload audio.
+
+Starting and in-place respawn supply is explicitly provisional: acquire the
+pistol with a full16-round magazine and fill its mapped reserve to the authored
+125-round capacity. This is not the original campaign's unarmed opening/grant
+sequence. Mission starting grants and pickups remain required. The reserve
+number is displayed above the ammo bars; telemetry mirrors the same owner.
+
+Tests cover partial/full/empty transfer, invalid state rollback, ordinary
+manual/automatic reload and per-frame-end conservation. A6000-frame recorded
+exhaustion run consumes all141 rounds, transfers125 reserve over8 reloads
+(including the partial final magazine), then rejects34 later trigger presses.
+Shot/reload audio remains exactly149 requests. No additional reload is started
+when empty. Evidence: artifacts/ammo-exhaustion/report.json.
+
+Stock64MiB XEMU660-frame PASS:18 shots, one reload transferring16 rounds,
+14 loaded and109 reserve match PC. Native reserve HUD inspected;6936 pages
+available at completion. Both builds,27 CTests,six rule/conservation cases
+and player death/respawn checks pass, including reserve reset. Evidence:
+artifacts/xemu/replay-20260914-021130/report.json.

@@ -19,6 +19,18 @@ int main(int argc,char **argv)
         CHECK(rf_weapon_primary_read(bad,(uint32_t)strlen(bad),"pistol",&d)==RF_RANGE && !memcmp(&d,&saved,sizeof(d)));
         CHECK(rf_weapon_primary_read(valid,(uint32_t)strlen(valid),"missing",&d)==RF_NOT_FOUND && !memcmp(&d,&saved,sizeof(d)));
     }
+    {
+        rf_weapon_inventory inv={0},saved;rf_weapon_acquire_definition d={0,125,16};uint32_t moved=999;
+        inv.owned[3]=1;inv.loaded[3]=10;inv.reserve[0]=3;
+        CHECK(rf_weapon_reload_transfer(&inv,&d,3,&moved)==RF_OK && moved==3 && inv.loaded[3]==13 && inv.reserve[0]==0);
+        CHECK(rf_weapon_reload_transfer(&inv,&d,3,&moved)==RF_OK && moved==0 && inv.loaded[3]==13);
+        inv.reserve[0]=10;CHECK(rf_weapon_reload_transfer(&inv,&d,3,&moved)==RF_OK && moved==3 && inv.loaded[3]==16 && inv.reserve[0]==7);
+        CHECK(rf_weapon_reload_transfer(&inv,&d,3,&moved)==RF_OK && moved==0 && inv.reserve[0]==7);
+        inv.loaded[3]=17;saved=inv;moved=999;
+        CHECK(rf_weapon_reload_transfer(&inv,&d,3,&moved)==RF_RANGE && moved==999 && !memcmp(&saved,&inv,sizeof(inv)));
+        inv.loaded[3]=0;inv.reserve[0]=-1;saved=inv;
+        CHECK(rf_weapon_reload_transfer(&inv,&d,3,&moved)==RF_RANGE && !memcmp(&saved,&inv,sizeof(inv)));
+    }
     CHECK(argc==2);snprintf(path,sizeof(path),"%s/meshes.vpp",argv[1]);CHECK(rf_vpp_open(&meshes,path)==RF_OK);
     snprintf(path,sizeof(path),"%s/motions.vpp",argv[1]);CHECK(rf_vpp_open(&motions,path)==RF_OK);
     for(i=0;i<5;i++){snprintf(path,sizeof(path),"%s/%s",argv[1],map_names[i]);CHECK(rf_vpp_open(maps+i,path)==RF_OK);}
