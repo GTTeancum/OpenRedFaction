@@ -15,6 +15,15 @@ Shortlist:
 
 Progress reporting: include a very high-level working area (e.g. Lighting, AI, Weapons, GeoMod or Scripted events) and an overall percent estimate at the end of every turn report (USER preference) and revisit remaining 24-hour workdays when measured throughput supports a forecast; current rough estimate40% (35-45%), no defensible +/-48-hour completion forecast before end-to-end gameplay.
 
+Combined shadow receiver clipping/area/filter/raster matches1024 original/
+PC/NXDK passes (771 accepted,253 rejected,54219 changed mask bytes). Both
+builds,24 tests and standalone2048 clipping cases pass. Preserve549f10's
+aliased output quirk: original count changes without final vertex copy, so
+area reads retained subject/tail. Harness supplies zero-initialized scratch;
+live scratch ownership must be explicit. Reject empty receiver sets because
+the original path references uninitialized raster vertices. Next bind occluder
+selection and receiver/mask owners, then native rendered verification.
+
 Projected2D polygon clipping matches2048 original/PC/NXDK cases (1521
 clipped,437 unchanged,90 empty), including winding and epsilon boundaries.
 Five shared guards plus one NXDK scratch-capacity guard pass; both builds

@@ -485,7 +485,7 @@ int rf_lightmap_shadow_clip_2d(const float (*boundary)[2],uint32_t boundary_coun
     float (*output)[2],uint32_t capacity,uint32_t *out_count)
 {
     uint32_t i,j,n=subject_count,current=0,flipped=0;const double epsilon=(double).0001f;
-    if(!boundary || boundary_count<3 || !subject || subject_count<3 || !work || !output || !out_count ||
+    if(!boundary || boundary_count<3 || !subject || subject_count<3 || !work || !out_count ||
         !work->polygons[0] || !work->polygons[1] || !work->distances || work->capacity<subject_count ||
         (uint64_t)subject_count*8>SIZE_MAX || (uint64_t)capacity*8>SIZE_MAX)return RF_RANGE;
     for(i=0;i<boundary_count;i++)for(j=0;j<2;j++)if(!isfinite(boundary[i][j]))return RF_RANGE;
@@ -526,7 +526,34 @@ int rf_lightmap_shadow_clip_2d(const float (*boundary)[2],uint32_t boundary_coun
     }
     if(n<3) {*out_count=0;return RF_OK;}
     if(n>capacity)return RF_RANGE;
-    memcpy(output,work->polygons[current],(size_t)n*8);*out_count=n;return RF_OK;
+    if(output)memcpy(output,work->polygons[current],(size_t)n*8);*out_count=n;return RF_OK;
+}
+
+int rf_lightmap_shadow_filter_raster(const float (*polygon)[2],uint32_t count,
+    const rf_lightmap_shadow_filter *filter,unsigned char *mask,uint32_t bytes,
+    uint32_t width,uint32_t height,unsigned char amount,uint32_t *accepted)
+{
+    uint32_t i,n;int status;float area;double threshold;
+    if(!polygon || count<3 || !filter || !filter->receivers || !filter->receiver_count ||
+        !filter->work || !filter->intersection || !mask || !accepted ||
+        !isfinite(filter->threshold[0]) || !isfinite(filter->threshold[1]))return RF_RANGE;
+    threshold=(double)filter->threshold[0]*filter->threshold[1];
+    for(i=0;i<filter->receiver_count;i++) {
+        const rf_lightmap_uv_polygon *receiver=filter->receivers+i;
+        if(!receiver->uv || receiver->count>filter->capacity)return RF_RANGE;
+        /* Original aliases clip output with its subject, so549f10 skips the
+         * final copy. Area uses the new count with this retained subject. */
+        memcpy(filter->intersection,receiver->uv,(size_t)receiver->count*8);
+        status=rf_lightmap_shadow_clip_2d(polygon,count,receiver->uv,receiver->count,
+            filter->work,NULL,filter->capacity,&n);if(status)return status;
+        if(n<3)continue;
+        status=rf_lightmap_shadow_area(filter->intersection,n,&area);if(status)return status;
+        if((double)area>threshold) {
+            status=rf_lightmap_raster_shadow(polygon,count,mask,bytes,width,height,amount);if(status)return status;
+            *accepted=1;return RF_OK;
+        }
+    }
+    *accepted=0;return RF_OK;
 }
 
 /* 4f25a0 uses a fan and Heron's formula; a nonpositive radicand rejects

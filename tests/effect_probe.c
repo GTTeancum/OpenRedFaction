@@ -335,6 +335,24 @@ int main(int argc,char **argv)
         }
         return 0;
     }
+    if(argc==2 && !strcmp(argv[1],"--lightmap-shadow-filter")) {
+        struct {uint32_t count,receivers,width,height,bytes,amount,counts[4];float threshold[2],polygon[8][2],receiver[4][8][2];unsigned char mask[1024];} input;
+        float polygons[2][64][2],distances[64],intersection[64][2];rf_lightmap_shadow_clip_work work;
+        rf_lightmap_uv_polygon receivers[4];rf_lightmap_shadow_filter filter;uint32_t status,accepted,i,valid;
+        work.polygons[0]=polygons[0];work.polygons[1]=polygons[1];work.distances=distances;work.capacity=64;
+        filter.receivers=receivers;filter.work=&work;filter.intersection=intersection;filter.capacity=64;
+
+        _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
+        while(fread(&input,sizeof(input),1,stdin)==1) {
+            memset(intersection,0,sizeof(intersection));
+            accepted=0xa5a5a5a5;valid=input.count<=8 && input.receivers<=4 && input.bytes<=1024;
+            for(i=0;i<4;i++) {receivers[i].uv=input.receiver[i];receivers[i].count=input.counts[i];if(input.counts[i]>8)valid=0;}
+            filter.receiver_count=input.receivers;memcpy(filter.threshold,input.threshold,8);
+            status=valid?rf_lightmap_shadow_filter_raster(input.polygon,input.count,&filter,input.mask,input.bytes,input.width,input.height,(unsigned char)input.amount,&accepted):RF_RANGE;
+            fwrite(&status,4,1,stdout);fwrite(&accepted,4,1,stdout);fwrite(input.mask,sizeof(input.mask),1,stdout);
+        }
+        return 0;
+    }
     if(argc==2 && !strcmp(argv[1],"--lightmap-shadow-clip-2d")) {
         struct {uint32_t boundary_count,subject_count,capacity;float boundary[16][2],subject[16][2];} input;
         float output[64][2],polygons[2][64][2],distances[64];rf_lightmap_shadow_clip_work work;uint32_t status,count;

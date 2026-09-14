@@ -143,10 +143,24 @@ typedef struct rf_lightmap_shadow_clip_work {
 } rf_lightmap_shadow_clip_work;
 /* Original549f10 clipping of a subject polygon by an ordered convex boundary.
  * Disjoint inputs, output and caller scratch. No allocation; errors preserve
- * output/count but may change scratch. Empty results set count=0 only. */
+ * output/count but may change scratch. NULL output requests count only.
+ * Empty results set count=0 only. */
 int rf_lightmap_shadow_clip_2d(const float (*boundary)[2],uint32_t boundary_count,
     const float (*subject)[2],uint32_t subject_count,rf_lightmap_shadow_clip_work *,
     float (*output)[2],uint32_t capacity,uint32_t *out_count);
+typedef struct rf_lightmap_shadow_filter {
+    const rf_lightmap_uv_polygon *receivers;uint32_t receiver_count;float threshold[2];
+    rf_lightmap_shadow_clip_work *work;float (*intersection)[2];uint32_t capacity;
+} rf_lightmap_shadow_filter;
+/* Original4f53bd..4f5515 receiver intersection/area acceptance then mask fill.
+ * Nonempty receiver set required: original empty-set path uses uninitialized
+ * raster vertices. Intersection scratch must be initialized by its owner;
+ * original aliased clipping keeps subject vertices/tail with the clipped count.
+ * Disjoint buffers; no allocation. Errors preserve accepted;
+ * scratch may change, and raster numeric errors may retain completed rows. */
+int rf_lightmap_shadow_filter_raster(const float (*polygon)[2],uint32_t count,
+    const rf_lightmap_shadow_filter *,unsigned char *mask,uint32_t bytes,
+    uint32_t width,uint32_t height,unsigned char amount,uint32_t *accepted);
 /* Original4f25a0 triangle-fan area used by projected shadow filtering.
  * Preserves mixed precision and whole-polygon zero on degenerate radicand.
  * No allocation; finite inputs required; errors preserve area. */
