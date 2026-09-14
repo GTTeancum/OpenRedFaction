@@ -65,6 +65,9 @@ The Windows movement/look prototype can be launched with
 Ctrl crouches and Escape exits. It uses the shared Xbox-oriented runtime at
 640x480. This is a diagnostic scene; campaign play and performance tuning remain
 unfinished. See [input controls and verification](docs/INPUT.md).
+The `--campaign Installed_Game` profile now includes a basic hitscan combat
+prototype: F/RT fires and R/Y reloads. NPC damage/death is connected; full
+weapon presentation, enemy return fire and campaign completion are pending.
 
 ## Xbox diagnostic
 

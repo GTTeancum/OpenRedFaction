@@ -43,7 +43,7 @@ if args.door:replay_env['RF_REPLAY_DOOR_START']='1'
 if args.climb:replay_env['RF_REPLAY_REGION_START']='2' if args.approach else '1'
 
 root=Path(__file__).resolve().parents[1];emulator=Path('C:/Games/Emulators/Xemu');payload=args.input.read_bytes()
-record_size={b'RFI2':28,b'RFI3':32}.get(payload[:4],24)
+record_size={b'RFI2':28,b'RFI3':32,b'RFI4':40}.get(payload[:4],24)
 offset=8 if record_size!=24 else 0
 if offset and payload[4:8]!=record_size.to_bytes(4,'little'):raise ValueError('Invalid replay record size')
 if len(payload)<=offset or (len(payload)-offset)%record_size or (len(payload)-offset)>60000*record_size:raise ValueError('Expected 1..60000 input records')
@@ -228,6 +228,8 @@ dvd_path = '{root.as_posix()}/build/xbox/redfaction-diagnostic.iso'
     for name,label,count in [('rf_scene_actor_follow_summary','ACTOR_FOLLOW_SUMMARY',5),('rf_scene_player_input_frames','ACTOR_PLAYER_INPUT',448),('scene_actor_body','PC_PLAY_BODY',77)]:
      got=words(monitor,symbol(name),count);assert got==expected(label),name;report[name]=got
     if args.campaign_spawn:
+     report['combat']=words(monitor,symbol('rf_scene_combat'),8)
+     assert report['combat']==expected('COMBAT') and report['combat'][7]==0,report['combat']
      forces=words(monitor,symbol('rf_scene_campaign_forces'),3)
      assert forces==expected('CAMPAIGN_FORCES') and forces[1]<=65536,forces
      report['campaign_forces']=forces

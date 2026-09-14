@@ -20,7 +20,24 @@ Shortlist:
 - USER: Review PS2 visual parity and test hardware after representative XEMU gameplay is stable.
 - USER: Review the interactive PC movement and audio items listed below.
 
-Progress reporting: include a very high-level working area (e.g. Lighting, AI, Weapons, GeoMod or Scripted events) and an overall percent estimate at the end of every turn report (USER preference) and revisit remaining 24-hour workdays when measured throughput supports a forecast; current rough estimate40% (35-45%), no defensible +/-48-hour completion forecast before end-to-end gameplay.
+Progress reporting: include a very high-level working area (e.g. Lighting, AI, Weapons, GeoMod or Scripted events) and an overall percent estimate at the end of every turn report (USER preference) and revisit remaining 24-hour workdays when measured throughput supports a forecast; current rough estimate41% (35-45%), no defensible +/-48-hour completion forecast before end-to-end gameplay.
+
+Playable-first combat now connects RT (PC F) and Y reload (PC R) to a shared
+hitscan prototype:12-round clip, unlimited reserve,12-tick cooldown,72-tick
+reload,25 base damage and100-unit range. Static world geometry and conservative
+live mover bounds obstruct shots; nearest living NPC body bounds select hits.
+Uses retained damage dispatch and generic death entry/animation. PC staged
+miner9858:360 frames,22 shots,8 hits,one death; manual reload180 frames gives
+7 shots/7 hits; idle produces none. Both builds and26 tests pass. RFI4 size40
+adds held fire/reload while retaining old24/28/32-byte replay formats.
+Evidence artifacts/combat-first/report.json. Stock64MiB XEMU360 frames PASS:
+artifacts/xemu/replay-20260914-000617/report.json;22 shots/8 hits/1 death/2
+rounds left exactly match PC.7180 available pages at completion is an endpoint,
+not a peak guarantee. Legacy390-frame raw input walk still passes with no shots.
+This is new first-pass policy, not1:1 weapon reconstruction. Weapon inventory/
+tuning, first-person gun/crosshair/ammo presentation, shot/impact audio, precise
+mover/actor hit geometry, clutter obstruction and enemy return fire remain. Damage-side peripheral
+notifications and special effects are not yet bound; bullet health/death is.
 
 Walking failure fixed: actor_follow_view now passes only the retained world
 prefix into world regeneration; the previous frame's appended NPC geometry

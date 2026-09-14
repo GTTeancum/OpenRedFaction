@@ -5,12 +5,19 @@ interface used by PC tests. This is new port input policy, not a reconstruction
 of the original PC keyboard/mouse mapping. The user confirmed movement on
 September 9, 2026. Guest RAM also records non-neutral movement and look axes.
 
-Controls: left stick moves, right stick looks, B holds crouch, Back+Start ends
+Controls: left stick moves, right stick looks, B holds crouch, A jumps, X uses,
+RT fires the prototype weapon, Y reloads, and Back+Start ends
 the session. Sticks use an 18% radial deadzone with a unit-length diagonal cap;
 disconnect produces neutral input and polling can reconnect a controller.
 Look currently uses one radian/second at full input. Simulation remains fixed
 at 1/60 second per simulation tick; interactive sessions now use shared pacing. There
-is no weapon, jumping, combat, or campaign scripting yet.
+is a first-pass hitscan combat loop and partial campaign scripting; the full
+campaign, enemy combat, gun presentation and weapon inventory remain unfinished.
+
+PC campaign controls add F to fire and R to reload (or RT/Y with XInput).
+Launch `rf_pc_play --campaign Installed_Game` for the campaign profile. The
+prototype has12 rounds, automatic/manual reload and unlimited reserve ammo.
+No crosshair or first-person gun is shown yet; these are next presentation work.
 
 The shared provider polls once before stance and animation. Its validated
 movement/look/crouch state is reused by physics and camera; it replaces the

@@ -129,6 +129,8 @@ static int controller_input(rf_scene_input *out)
         if(x || y){out->move[0]=x;out->move[2]=y;}
         controller_stick(state.Gamepad.sThumbRX,state.Gamepad.sThumbRY,&x,&y);
         if(x || y){out->look[0]=y;out->look[1]=x;}
+        out->fire|=state.Gamepad.bRightTrigger>30;
+        out->reload|=(state.Gamepad.wButtons&XINPUT_GAMEPAD_Y)!=0;
         out->jump|=(state.Gamepad.wButtons&XINPUT_GAMEPAD_A)!=0;
         out->use|=(state.Gamepad.wButtons&XINPUT_GAMEPAD_X)!=0;
         out->crouch|=(state.Gamepad.wButtons&XINPUT_GAMEPAD_B)!=0;
@@ -168,7 +170,7 @@ static int input(void *context,uint32_t frame,rf_scene_input *out)
     if(out->move[0] && out->move[2]) {out->move[0]*=.7071067811865475f;out->move[2]*=.7071067811865475f;}
     out->look[0]=(float)p->keys[VK_UP]-(float)p->keys[VK_DOWN];
     out->look[1]=(float)p->keys[VK_RIGHT]-(float)p->keys[VK_LEFT];
-    out->use=p->keys['E'];out->jump=p->keys[VK_SPACE];out->crouch=p->keys[VK_CONTROL];return p->focused?controller_input(out):RF_OK;
+    out->fire=p->keys['F'];out->reload=p->keys['R'];out->use=p->keys['E'];out->jump=p->keys[VK_SPACE];out->crouch=p->keys[VK_CONTROL];return p->focused?controller_input(out):RF_OK;
 }
 
 static int particle_present(void *context,const rf_particle_draw_vertex *vertices,uint32_t count,const rf_image *image,uint32_t mode)
@@ -523,6 +525,7 @@ int main(int argc,char **argv)
             uint32_t word;memcpy(&word,(const unsigned char*)&scene_actor_body.state+i*4,4);printf(" %u",word);
         }puts("");
     }
+    printf("COMBAT");for(i=0;i<8;++i)printf(" %u",rf_scene_combat[i]);puts("");
     printf("Completed %u frames, 640x480 raster, %u byte mesh cap.\n",p.frames,RF_SCENE_FOLLOW_CAPACITY);
 cleanup:
     rf_scene_set_audio_observer(NULL,NULL);rf_scene_set_audio(NULL,NULL);

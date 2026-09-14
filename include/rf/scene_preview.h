@@ -695,11 +695,12 @@ extern uint32_t rf_scene_actor_look_enabled,rf_scene_actor_turn_enabled;
  * Diagnostic placement only; no campaign trigger or NPC behavior claim. */
 extern uint32_t rf_scene_showcase_enabled;
 int rf_scene_showcase_camera(rf_level *level);
-typedef struct rf_scene_input {float move[3],look[2];uint32_t crouch,jump,use;} rf_scene_input;
+typedef struct rf_scene_input {float move[3],look[2];uint32_t crouch,jump,use,fire,reload;} rf_scene_input;
 /* Poll once before stance/animation/physics. RF_NOT_FOUND ends the stream cleanly.
  * Finite axes in [-1,1], crouch/jump/use held states 0/1. Caller owns context until stream ends.
  * Zero frame_limit permits a UINT32_MAX-frame session with bounded rings. */
-/* RFI3 + uint32 size32 includes use; RFI2 size28 omits use; legacy raw
+extern uint32_t rf_scene_combat[8]; /* shots,hits,kills,last target,health bits,clip,reload ticks,status */
+/* RFI4 + size40 adds fire/reload. RFI3 + uint32 size32 includes use; RFI2 size28 omits use; legacy raw
  * size24 omits jump/use. Readers must zero omitted fields before loading. */
 int rf_scene_replay_header(FILE *file,uint32_t *count,uint32_t *record_size);
 extern uint32_t rf_scene_player_jump[4],rf_scene_player_jump_frames[128][8];
