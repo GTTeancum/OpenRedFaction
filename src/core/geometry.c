@@ -595,6 +595,38 @@ int rf_geometry_shadow_traverse(const rf_geometry *g,const uint32_t *ids,uint32_
     *out=result;return RF_OK;
 }
 
+void rf_geometry_shadow_storage_close(rf_geometry_shadow_storage *owner)
+{
+    if(!owner)return;free(owner->storage);memset(owner,0,sizeof(*owner));
+}
+int rf_geometry_shadow_storage_open(rf_geometry_shadow_storage *out,uint32_t polygons,uint32_t receiver_vertices,
+    uint32_t face_vertices,uint32_t clip_vertices,uint32_t width,uint32_t height,uint32_t mask_count,uint32_t budget)
+{
+    rf_geometry_shadow_storage value={0};uint64_t stride,bytes;unsigned char *cursor;
+    if(!out || out->storage || !polygons || receiver_vertices<3 || face_vertices<3 ||
+       (uint64_t)face_vertices*2>clip_vertices || width<2 || height<2 || !mask_count || mask_count>=64)return RF_RANGE;
+    stride=((uint64_t)width*((uint64_t)height+1)+1+3)&~(uint64_t)3;
+    if(stride>UINT32_MAX)return RF_RANGE;
+    bytes=(uint64_t)polygons*sizeof(rf_lightmap_uv_polygon)+(uint64_t)receiver_vertices*8+
+        (uint64_t)face_vertices*12+(uint64_t)clip_vertices*60+stride*mask_count;
+    if(stride>UINT32_MAX || bytes>SIZE_MAX || bytes+sizeof(value)>budget)return RF_RANGE;
+    cursor=calloc(1,(size_t)bytes);if(!cursor)return RF_RANGE;value.storage=cursor;
+    value.receivers.polygons=(rf_lightmap_uv_polygon *)cursor;cursor+=(size_t)polygons*sizeof(rf_lightmap_uv_polygon);
+    value.receivers.vertices=(float (*)[2])cursor;cursor+=(size_t)receiver_vertices*8;
+    value.receivers.polygon_capacity=polygons;value.receivers.vertex_capacity=receiver_vertices;
+    value.work.face_vertices=(float (*)[3])cursor;cursor+=(size_t)face_vertices*12;value.work.face_capacity=face_vertices;
+    value.pass.vertices[0]=(float (*)[3])cursor;cursor+=(size_t)clip_vertices*12;
+    value.pass.vertices[1]=(float (*)[3])cursor;cursor+=(size_t)clip_vertices*12;
+    value.pass.uv=(float (*)[2])cursor;cursor+=(size_t)clip_vertices*8;value.pass.capacity=clip_vertices;
+    value.clip.polygons[0]=(float (*)[2])cursor;cursor+=(size_t)clip_vertices*8;
+    value.clip.polygons[1]=(float (*)[2])cursor;cursor+=(size_t)clip_vertices*8;
+    value.clip.distances=(float *)cursor;cursor+=(size_t)clip_vertices*4;value.clip.capacity=clip_vertices;
+    value.intersection=(float (*)[2])cursor;cursor+=(size_t)clip_vertices*8;
+    value.masks=cursor;value.mask_count=mask_count;value.mask_stride=(uint32_t)stride;
+    memset(cursor,255,(size_t)stride*mask_count);value.resident_bytes=(uint32_t)(bytes+sizeof(value));
+    *out=value;out->work.pass=&out->pass;return RF_OK;
+}
+
 int rf_geometry_shadow_source_mask(const rf_geometry_shadow_job *job,const rf_lightmap_shadow_source *source,
     uint32_t local,unsigned char *mask,uint32_t bytes,rf_geometry_shadow_source_result *out)
 {

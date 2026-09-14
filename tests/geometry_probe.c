@@ -12,6 +12,26 @@ int main(int argc, char **argv)
     rf_geometry geometry;
     uint32_t budget = 8u * 1024u * 1024u;
     int result,flags_mode=argc==4 && !strcmp(argv[3],"--flags"),links_mode=argc==4 && !strcmp(argv[3],"--links"),primary_mode=argc==4 && !strcmp(argv[3],"--primary");
+    if(argc==2 && !strcmp(argv[1],"--shadow-storage")) {
+        uint32_t n,i,bytes;rf_geometry_shadow_storage owner={0},empty={0};
+        for(n=1;n<64;n++) {
+            if(rf_geometry_shadow_storage_open(&owner,3,12,16,128,64,64,n,1024*1024))return 3;
+            bytes=owner.resident_bytes;
+            if(owner.work.pass!=&owner.pass || owner.mask_stride!=4164 || owner.mask_count!=n)return 4;
+            for(i=0;i<128;i++)if(owner.pass.uv[i][0] || owner.intersection[i][1])return 5;
+            for(i=0;i<n*owner.mask_stride;i++)if(owner.masks[i]!=255)return 6;
+            owner.pass.vertices[1][127][2]=17;owner.clip.polygons[1][127][1]=18;owner.intersection[127][1]=19;
+            for(i=0;i<n;i++)owner.masks[i*owner.mask_stride+4160]=(unsigned char)i;
+            for(i=0;i<n;i++)if(owner.masks[i*owner.mask_stride]!=255)return 7;
+            rf_geometry_shadow_storage_close(&owner);rf_geometry_shadow_storage_close(&owner);
+            if(memcmp(&owner,&empty,sizeof(owner)))return 8;
+            if(rf_geometry_shadow_storage_open(&owner,3,12,16,128,64,64,n,bytes-1)!=RF_RANGE || memcmp(&owner,&empty,sizeof(owner)))return 9;
+            if(rf_geometry_shadow_storage_open(&owner,3,12,16,128,64,64,n,bytes))return 10;
+            rf_geometry_shadow_storage_close(&owner);
+        }
+        if(rf_geometry_shadow_storage_open(&owner,3,12,16,128,UINT32_MAX,UINT32_MAX,63,UINT32_MAX)!=RF_RANGE || memcmp(&owner,&empty,sizeof(owner)))return 11;
+        printf("PASS shadow storage63 mask counts, private guard rows, zero scratch, exact/short budgets, overflow and repeated close; max %u bytes\n",bytes);return 0;
+    }
     if(argc==2 && !strcmp(argv[1],"--shadow-source-mask")) {
         struct {rf_lightmap_shadow_cull cull;unsigned char pass[172],raw[1472];uint32_t formats[8];
             float receiver[4][2],threshold[2];unsigned char mask[1024];rf_lightmap_shadow_source source;uint32_t local;} in;
@@ -23,13 +43,18 @@ int main(int argc, char **argv)
             rf_lightmap_uv_polygon receiver={in.receiver,4};
             rf_lightmap_shadow_filter filter={&receiver,1,{in.threshold[0],in.threshold[1]},&clip,intersection,64};
             rf_lightmap_shadow_pass pass;rf_lightmap_shadow_pass_work pass_work={{vertices[0],vertices[1]},uv,64};
-            rf_geometry_shadow_work work={face,4,&pass_work};rf_geometry_shadow_source_result result;rf_lightmap_mapping mapping={0};rf_geometry_shadow_job job;
+            rf_geometry_shadow_work work={face,4,&pass_work};rf_geometry_shadow_storage owned={0};rf_geometry_shadow_source_result result;rf_lightmap_mapping mapping={0};rf_geometry_shadow_job job;
             g.data=in.raw;g.bytes=1472;g.vertices=32;g.faces=8;g.rooms=1;g.textures=8;g.mappings=2;g.face_offsets=offsets;
             for(i=0;i<8;i++){ids[i]=i;offsets[i]=384+i*136;images[i].source_format=in.formats[i];table[i]=in.formats[i]==UINT32_MAX?NULL:images+i;}
             memcpy(&pass,in.pass,172);pass.filter=&filter;memset(&result,0xa5,sizeof(result));
             mapping.width=pass.width;mapping.height=pass.height;memcpy(mapping.minimum,in.cull.mapping_minimum,12);memcpy(mapping.maximum,in.cull.mapping_maximum,12);
             job.geometry=&g;job.faces=ids;job.face_count=8;job.images=table;job.image_count=8;job.mapping=&mapping;job.sample=&pass.sample;job.mapping_index=in.cull.mapping;job.filter=&filter;job.work=&work;
-            status=rf_geometry_shadow_source_mask(&job,&in.source,in.local,in.mask,1024,&result);
+            if(rf_geometry_shadow_storage_open(&owned,1,4,4,64,pass.width,pass.height,1,65536))return 3;
+            memcpy(owned.receivers.vertices,in.receiver,32);owned.receivers.polygons[0].uv=owned.receivers.vertices;owned.receivers.polygons[0].count=4;
+            filter.receivers=owned.receivers.polygons;filter.work=&owned.clip;filter.intersection=owned.intersection;
+            job.work=&owned.work;memcpy(owned.masks,in.mask,owned.mask_stride);
+            status=rf_geometry_shadow_source_mask(&job,&in.source,in.local,owned.masks,owned.mask_stride,&result);
+            memcpy(in.mask,owned.masks,owned.mask_stride);rf_geometry_shadow_storage_close(&owned);
             fwrite(&status,4,1,stdout);fwrite(&result,sizeof(result),1,stdout);fwrite(in.mask,1024,1,stdout);
         }
         return 0;

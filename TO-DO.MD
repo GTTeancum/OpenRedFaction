@@ -15,6 +15,14 @@ Shortlist:
 
 Progress reporting: include a very high-level working area (e.g. Lighting, AI, Weapons, GeoMod or Scripted events) and an overall percent estimate at the end of every turn report (USER preference) and revisit remaining 24-hour workdays when measured throughput supports a forecast; current rough estimate40% (35-45%), no defensible +/-48-hour completion forecast before end-to-end gameplay.
 
+Bounded shadow storage owns receivers, face/clip/UV scratch and1..63 masks
+in one allocation, with zero scratch and255 masks/private guard rows. Exact/
+short budgets, overflow, isolation and repeated close pass; compiled NXDK
+layout peaks270408 bytes for tested63x64x64 masks and128-vertex clip scratch
+(using allocator hooks, not native heap). PC per-source256 comparisons now
+use this owner unchanged. Both builds and25 tests pass. Next bind live
+campaign jobs/dirty source modes and measure native XEMU memory/rendering.
+
 Complete per-source projected shadow operation now matches256 original/
 PC/NXDK compositions:384 endpoint passes,75 back-facing clears,2472 face
 visits,257 accepted occluders and28865 changed mask bytes. Three NXDK guards,

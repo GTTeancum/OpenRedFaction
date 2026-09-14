@@ -170,6 +170,22 @@ int rf_geometry_shadow_traverse(const rf_geometry *,const uint32_t *face_ids,uin
     const rf_image *const *images,uint32_t image_count,const rf_lightmap_shadow_cull *,
     const rf_lightmap_shadow_pass *,rf_geometry_shadow_work *,unsigned char *mask,uint32_t bytes,
     unsigned char amount,rf_geometry_shadow_result *);
+typedef struct rf_geometry_shadow_storage {
+    void *storage;unsigned char *masks;float (*intersection)[2];
+    rf_geometry_shadow_receiver_work receivers;rf_lightmap_shadow_clip_work clip;
+    rf_lightmap_shadow_pass_work pass;rf_geometry_shadow_work work;
+    uint32_t mask_count,mask_stride,resident_bytes;
+} rf_geometry_shadow_storage;
+/* Port ownership for one mapping's masks and reusable receiver/face/clip scratch.
+ * One allocation, budget includes owner and aligned masks; excludes allocator
+ * overhead. Scratch starts zero, masks255 including each private guard row.
+ * Caller supplies capacities; clipping still checks intermediate growth.
+ * mask_count1..63 matches projected-source dispatch below the original64 cap.
+ * Zero-init before first use; close before reopening. Keep owner at a stable
+ * address (work.pass points inside it). Failure preserves output; close repeats. */
+int rf_geometry_shadow_storage_open(rf_geometry_shadow_storage *,uint32_t polygons,uint32_t receiver_vertices,
+    uint32_t face_vertices,uint32_t clip_vertices,uint32_t width,uint32_t height,uint32_t mask_count,uint32_t budget);
+void rf_geometry_shadow_storage_close(rf_geometry_shadow_storage *);
 typedef struct rf_geometry_shadow_job {
     const rf_geometry *geometry;const uint32_t *faces;uint32_t face_count;
     const rf_image *const *images;uint32_t image_count;
