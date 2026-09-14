@@ -48,6 +48,19 @@ int rf_geometry_lightmap_polygons(const rf_geometry *,const rf_geometry_vertex_f
     const uint32_t *face_ids,uint32_t face_count,uint32_t mapping,int32_t room,
     rf_geometry_lightmap_work *work,uint32_t *polygon_count,uint32_t *vertex_count);
 
+typedef struct rf_geometry_shadow_receiver_work {
+    rf_lightmap_uv_polygon *polygons;float (*vertices)[2];
+    uint32_t polygon_capacity,vertex_capacity;
+} rf_geometry_shadow_receiver_work;
+/* Retained receiver grouping for 4f4590: supplied surviving file-order IDs,
+ * signed mapping and optional room selection. NULL work queries counts;
+ * otherwise borrows caller scratch, with no allocation or normal gathering.
+ * Image dimensions/origin must describe this mapping. Counts commit only on
+ * success; numeric failures can modify scratch. Static snapshot only. */
+int rf_geometry_shadow_receivers(const rf_geometry *,const uint32_t *face_ids,
+    uint32_t face_count,uint32_t mapping,int32_t room,const rf_lightmap_sample_plane *,
+    rf_geometry_shadow_receiver_work *,uint32_t *polygon_count,uint32_t *vertex_count);
+
 typedef struct rf_geometry_lightmap_context {
     const rf_geometry *geometry;const rf_packed_lightmaps *maps;
 } rf_geometry_lightmap_context;

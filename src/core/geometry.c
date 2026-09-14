@@ -509,6 +509,33 @@ int rf_geometry_shadow_receiver(const rf_geometry *geometry,uint32_t index,const
     *count=face.corners;return RF_OK;
 }
 
+int rf_geometry_shadow_receivers(const rf_geometry *g,const uint32_t *ids,
+    uint32_t count,uint32_t mapping,int32_t room,const rf_lightmap_sample_plane *view,
+    rf_geometry_shadow_receiver_work *work,uint32_t *polygon_count,uint32_t *vertex_count)
+{
+    uint32_t np,nv,i,p=0,v=0;int status;
+    if(!polygon_count || !vertex_count)return RF_RANGE;
+    status=rf_geometry_lightmap_polygons(g,NULL,ids,count,mapping,room,NULL,&np,&nv);
+    if(status)return status;
+    if(work) {
+        if(!view || !view->image_width || !view->image_height || view->image_width>INT32_MAX ||
+           view->image_height>INT32_MAX || view->x>INT32_MAX || view->y>INT32_MAX ||
+           np>work->polygon_capacity || nv>work->vertex_capacity ||
+           (np && !work->polygons) || (nv && !work->vertices))return RF_RANGE;
+        for(i=0;i<count;i++) {
+            rf_geometry_face face;uint32_t saved,n;
+            status=rf_geometry_get_face(g,ids[i],&face);if(status)return status;
+            saved=face.lightmap_mapping&65535u;
+            if(saved>=32768 || saved!=mapping || (room>=0 && face.room!=(uint32_t)room))continue;
+            status=rf_geometry_shadow_receiver(g,ids[i],view,work->vertices+v,work->vertex_capacity-v,&n);
+            if(status)return status;
+            work->polygons[p].uv=work->vertices+v;work->polygons[p].count=n;
+            ++p;v+=n;
+        }
+    }
+    *polygon_count=np;*vertex_count=nv;return RF_OK;
+}
+
 int rf_geometry_shadow_face(const rf_geometry *geometry,uint32_t index,float (*scratch)[3],
     uint32_t capacity,rf_lightmap_shadow_face *out)
 {

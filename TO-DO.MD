@@ -15,6 +15,14 @@ Shortlist:
 
 Progress reporting: include a very high-level working area (e.g. Lighting, AI, Weapons, GeoMod or Scripted events) and an overall percent estimate at the end of every turn report (USER preference) and revisit remaining 24-hour workdays when measured throughput supports a forecast; current rough estimate40% (35-45%), no defensible +/-48-hour completion forecast before end-to-end gameplay.
 
+Retained receiver grouping passes5851 L1S1 PC mapping groups/28356 UV
+vertices and35 compiled NXDK groups, plus3 NXDK guards and an empty query.
+Peak polygon/UV scratch1352 bytes (32-bit layout); no allocation or normal
+owner needed. Both builds and24 tests pass. Supplied128x128 image metadata,
+static surviving IDs and per-mapping scans remain explicit limitations; this
+is not native rendered verification. Next bind actual image dimensions and
+mask/scratch lifetime, then compose the complete retained shadow pass.
+
 Retained shadow receiver conversion matches7302 L1S1 original/PC/NXDK
 faces and28356 UV vertices, with7302 PC capacity guards and2 NXDK guards.
 No allocation; actual serialized origins/UVs tested with supplied128x128 image
