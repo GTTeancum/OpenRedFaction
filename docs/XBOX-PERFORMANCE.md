@@ -121,7 +121,7 @@ all final pixels and selected world/model/player summaries match. Native
 stock64MiB timing validation completed; measured results follow.
 
 World camera cache verified in replay-20260914-092818: stock64MiB180-frame
-crossing/state/framebuffer checks pass. World rebuild39.587->25.135ms
+crossing/state checks pass. World rebuild39.587->25.135ms
 (36.5% lower); scene total123.634->88.875ms, about11FPS-equivalent work.
 Platform time also falls36.471->27.260ms, indicating host/run variation;
 do not attribute the whole scene gain to the cache or claim hardware FPS.
@@ -130,3 +130,20 @@ comparison pass. Cache uses1024 transient bytes, with no persistent allocation
 or geometry/texture reduction. Evidence: artifacts/world-cache/report.json,
 artifacts/world-cache/performance.json and artifacts/world-cache/xemu.log.
 Next: reduce remaining world projection and render submission costs.
+
+Validation correction: replay-20260914-092055 and092818 omitted --capture;
+their PASS proves state/timing checks, not framebuffer validation. The earlier
+091453 capture is present. Vertex-upload validation now explicitly uses
+--capture and will compare native output with that preserved framebuffer.
+
+Vertex-upload experiment rejected after replay-20260914-093224. Preparing
+colors in a local vertex before writing GPU storage passes stock64MiB replay
+state and selected HUD pixels, but upload time5.144->6.212ms shows no measured
+XEMU gain (scene88.875->88.336ms is effectively unchanged). Restored the
+previous renderer rather than retaining an unproven optimization.
+Full native640x480 framebuffer exactly matches replay-20260914-091453,
+also closing final-image coverage for the intervening world camera cache.
+Evidence: artifacts/vertex-upload/performance.json and native-image-comparison.json
+in artifacts/xemu/replay-20260914-093224. Repeatable tool:
+tools/compare_native_replay_images.py. This verifies one final frame only.
+Next: world projection/clipping remains the measured CPU target (~25ms).
