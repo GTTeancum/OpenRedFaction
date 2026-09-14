@@ -34,6 +34,18 @@ Shortlist:
 
 Progress reporting: include a very high-level working area (e.g. Lighting, AI, Weapons, GeoMod or Scripted events) and an overall percent estimate at the end of every turn report (USER preference) and revisit remaining 24-hour workdays when measured throughput supports a forecast; current rough estimate45% (35-45%), no defensible +/-48-hour completion forecast before end-to-end gameplay.
 
+Motion track reuse rejected pending controlled evidence. Repeat native
+replay-20260914-103040 passes state and exact final-image comparison, but
+scene69.818ms/NPC9.615ms/platform18.308ms again establish no gain against
+the earlier52.404/7.375/12.904ms baseline. Broad renderer slowdown makes
+causality uncertain; nevertheless reverted the candidate rather than
+claiming success. Original parser restored; candidate.patch retained under
+artifacts/motion-track-reuse for later controlled investigation.
+Correctness evidence:37 tests, six strict PC comparisons, two stock64MiB
+native replays and matching final framebuffers. No new FPS gain.
+Next: separate NPC playback from attachment/room updates and use a matched
+baseline or within-run comparison for small timing changes.
+
 Step profiling verified in replay-20260914-102028: stock64MiB180-frame
 crossing/state/HUD checks pass, and full native final image matches101543.
 Scene52.404ms (~19FPS-equivalent); instrumentation gives no speedup claim.

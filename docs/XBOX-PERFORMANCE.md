@@ -310,3 +310,29 @@ stages104 because the final frame skips stepping. Both builds and37 tests pass.
 Next: inspect NPC animation/attachment updates for repeated work; retain
 scripted movement and gameplay behavior. Evidence: artifacts/step-profile/
 performance.json and native102028 image comparison.
+
+Motion track reuse candidate: rf_motion_file_sample parses the descriptor
+once, then private rotation/position readers reuse it for up to four keys.
+Public key readers retain descriptor validation; key bounds/finite-value
+checks and interpolation remain unchanged. No new storage or reduced update
+frequency. PC build and37 tests pass; differential/native timing runs active
+under artifacts/motion-track-reuse. No speedup claimed before measurement.
+
+Motion track reuse passes six strict PC image/state comparisons and native
+replay-20260914-102708 stock64MiB crossing/state/HUD checks; complete final
+native image matches102028. Timing is inconclusive: scene52.404->70.058ms,
+NPC updates7.375->8.923ms, unchanged platform12.904->18.923ms. Broad slowdown
+prevents attributing the result to this change. Same-build confirmation
+run active in artifacts/motion-track-reuse/repeat-xemu.log; no gain claimed.
+
+Motion track reuse rejected pending controlled evidence. Repeat native
+replay-20260914-103040 passes state and exact final-image comparison, but
+scene69.818ms/NPC9.615ms/platform18.308ms again establish no gain against
+the earlier52.404/7.375/12.904ms baseline. Broad renderer slowdown makes
+causality uncertain; nevertheless reverted the candidate rather than
+claiming success. Original parser restored; candidate.patch retained under
+artifacts/motion-track-reuse for later controlled investigation.
+Correctness evidence:37 tests, six strict PC comparisons, two stock64MiB
+native replays and matching final framebuffers. No new FPS gain.
+Next: separate NPC playback from attachment/room updates and use a matched
+baseline or within-run comparison for small timing changes.
