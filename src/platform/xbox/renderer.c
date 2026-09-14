@@ -20,6 +20,9 @@ uint32_t rf_renderer_profile[8][4];
 /* Last frame: draw batches, former methods, submitted methods, state changes. */
 uint32_t rf_renderer_submission[4];
 static uint32_t stream_profile_frames;
+static uint32_t stream_start_vblank,stream_start_valid;
+/* Streaming frame starts: explicit waits, already crossed VBlank, last counter. */
+uint32_t rf_renderer_vblank[3];
 static uint32_t hud_batch_active,hud_batch_ready,hud_batch_draws;
 static void hud_batch_flush(void)
 {
@@ -85,6 +88,7 @@ static int stream_mode,stream_device_ready;static uint32_t stream_capacity,strea
 void rf_xbox_scene_stream_close(void)
 {
     stream_profile_frames=0;memset(rf_renderer_profile,0,sizeof(rf_renderer_profile));
+    stream_start_valid=0;memset(rf_renderer_vblank,0,sizeof(rf_renderer_vblank));
     if(!stream_gpu)return;
     while(pb_busy()) {}
     /* pbkit owns process-lifetime framebuffer/DMA state; only level buffers retire. */
@@ -195,7 +199,19 @@ static int preview(const rf_preview_mesh *mesh, const rf_materials *materials, c
     for (frame = 0; frame < (streaming?1u:3u); ++frame) {
         const gpu_texture *bound_texture=NULL,*bound_lighting=NULL;
         uint32_t bound_blend=UINT32_MAX,draws=0,methods=8,state_changes=0;
-        pb_wait_for_vbl(); pb_reset(); pb_target_back_buffer();
+        /* Allow one frame start per observed VBlank. Slow simulation may
+         * already have crossed it; do not force an additional refresh delay.
+         * pb_finished retains its full-queue check and all GPU waits remain. */
+        {uint32_t vblank=pb_get_vbl_counter();
+         if(!streaming || !stream_start_valid || vblank==stream_start_vblank) {
+            /* A prior skipped wait may leave a signalled event. Consume it
+             * and wait again unless the counter actually advances. */
+            do {vblank=pb_wait_for_vbl();}
+            while(streaming && stream_start_valid && vblank==stream_start_vblank);
+            if(streaming)++rf_renderer_vblank[0];
+         } else ++rf_renderer_vblank[1];
+         if(streaming){stream_start_vblank=vblank;stream_start_valid=1;rf_renderer_vblank[2]=vblank;}}
+        pb_reset(); pb_target_back_buffer();
         pb_erase_depth_stencil_buffer(0, 0, 640, 480);
         pb_fill(0, 0, 640, 480, 0xff101018);
         while (pb_busy()) {}
@@ -273,6 +289,7 @@ static int preview(const rf_preview_mesh *mesh, const rf_materials *materials, c
     /* pb_finished queues the swap and advances the triple-buffer index. The
      * next frame already waits for VBlank before reset/target/clear, matching
      * nxdk samples/triangle. Waiting again here stalls simulation unnecessarily.
+     * Frame-start VBlank checks permit a refresh already crossed in simulation.
      * The draw itself is complete before capture[] is published above. */
     if(!streaming)free(textures);
     renderer_mark(7,&profile_previous,profiling);

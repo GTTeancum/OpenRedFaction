@@ -268,3 +268,25 @@ Evidence: artifacts/hidden-player-memory/memory-report.json, comparison/report.j
 and artifacts/xemu/replay-20260914-100657/native-image-comparison.json.
 Pose/collision geometry remains resident. No new FPS gain claimed.
 Next: presentation pacing and physics/event costs.
+
+VBlank pacing candidate: retain one streaming frame start per observed
+counter value; skip an extra wait when simulation already crossed a refresh.
+Keep pb_finished queue retry and GPU waits. Reset tracking on section close.
+An already-signalled event may return without counter advancement, so the
+corrected wait loop retries until the counter changes. First timing run
+artifacts/vblank-pacing/xemu.log started before that correction; a corrected
+native run is required before accepting this candidate. No speedup claimed.
+
+Corrected VBlank guard verified in replay-20260914-101543: stock64MiB
+180-frame crossing/state/HUD checks pass; full native final image exactly
+matches100657. Scene64.047->52.770ms (~19FPS-equivalent work), platform
+24.221->13.192ms, VBlank/reset/clear10.683->0.490ms. Section counters:
+one explicit wait,119 already-crossed frame starts. GPU completion waits
+and pb_finished full-queue retry remain. Counter is checked after event
+wakeups to reject stale signals; section teardown resets tracking.
+Both native candidate/restoration builds pass. Shared PC gameplay code
+unchanged; current PC/native replay state agrees. No new37-test run needed
+for this Xbox-only change. Evidence: artifacts/vblank-pacing/performance.json,
+baseline-performance.json and native101543 image comparison.
+TODO: validate high-rate scenes and hardware presentation; profile remaining
+physics/events and world rendering before further gameplay expansion.

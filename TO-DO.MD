@@ -34,6 +34,20 @@ Shortlist:
 
 Progress reporting: include a very high-level working area (e.g. Lighting, AI, Weapons, GeoMod or Scripted events) and an overall percent estimate at the end of every turn report (USER preference) and revisit remaining 24-hour workdays when measured throughput supports a forecast; current rough estimate45% (35-45%), no defensible +/-48-hour completion forecast before end-to-end gameplay.
 
+Corrected VBlank guard verified in replay-20260914-101543: stock64MiB
+180-frame crossing/state/HUD checks pass; full native final image exactly
+matches100657. Scene64.047->52.770ms (~19FPS-equivalent work), platform
+24.221->13.192ms, VBlank/reset/clear10.683->0.490ms. Section counters:
+one explicit wait,119 already-crossed frame starts. GPU completion waits
+and pb_finished full-queue retry remain. Counter is checked after event
+wakeups to reject stale signals; section teardown resets tracking.
+Both native candidate/restoration builds pass. Shared PC gameplay code
+unchanged; current PC/native replay state agrees. No new37-test run needed
+for this Xbox-only change. Evidence: artifacts/vblank-pacing/performance.json,
+baseline-performance.json and native101543 image comparison.
+TODO: validate high-rate scenes and hardware presentation; profile remaining
+physics/events and world rendering before further gameplay expansion.
+
 Unused first-person render allocations removed; replay-20260914-100657
 passes180-frame stock64MiB crossing/state/HUD checks and exact full native
 final-image comparison with100127. Counter[1,0,0,1283456] confirms no
