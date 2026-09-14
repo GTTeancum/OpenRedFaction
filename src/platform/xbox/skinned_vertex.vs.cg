@@ -1,0 +1,28 @@
+// NV2A render skinning. Bind positions/weights/UVs are retained once per model.
+struct Input { float3 position : POSITION; float4 weights : BLENDWEIGHT;
+    float2 texture : TEXCOORD0; float4 bones : TEXCOORD1; };
+struct Output { float4 position : POSITION; float4 color : COLOR;
+    float4 texture : TEXCOORD0; float4 lightmap : TEXCOORD1; };
+float3 bone_position(float4 p, float index, uniform float4 rows[84]) {
+    return float3(dot(p, rows[(int)index]), dot(p, rows[(int)index+1]), dot(p, rows[(int)index+2]));
+}
+Output main(Input input, uniform float4 view_x : register(c0),
+    uniform float4 view_y : register(c1), uniform float4 view_z : register(c2),
+    uniform float4 projection : register(c3), uniform float4 depth : register(c4),
+    uniform float4 tint : register(c5), uniform float4 bones[84] : register(c8)) {
+    Output output;
+    float4 p = float4(input.position, depth.z);
+    float3 posed = bone_position(p, input.bones.x, bones) * input.weights.x;
+    posed += bone_position(p, input.bones.y, bones) * input.weights.y;
+    posed += bone_position(p, input.bones.z, bones) * input.weights.z;
+    posed += bone_position(p, input.bones.w, bones) * input.weights.w;
+    p = float4(posed, depth.z);
+    float x = dot(p, view_x), y = dot(p, view_y), z = dot(p, view_z);
+    float q = depth.z / z;
+    output.position = float4(projection.z + x*q*projection.x,
+        projection.w + y*q*projection.y, depth.x*(depth.z-depth.y*q), z);
+    output.color = tint;
+    output.texture = float4(input.texture, depth.w, depth.z);
+    output.lightmap = float4(depth.www, depth.z);
+    return output;
+}

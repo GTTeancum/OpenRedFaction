@@ -394,6 +394,8 @@ int rf_scene_world_update_camera_staged(const rf_scene_world_geometry *geometry,
         geometry->world,&geometry->movers,poses,&mapping,&camera);
 }
 static rf_scene_static_world_backend static_world_backend;
+static rf_scene_model_backend model_backend;
+void rf_scene_set_model_backend(rf_scene_model_backend backend){model_backend=backend;}
 static uint32_t static_world_retained;
 void rf_scene_set_static_world_backend(rf_scene_static_world_backend backend)
 {static_world_backend=backend;static_world_retained=0;}
@@ -9396,7 +9398,7 @@ static int scene_npc_render_family(void *context,uint32_t kind)
     scene_npc_render_context *c=context;scene_stream *stream=c->stream;uint32_t actor=c->actor;
     rf_entity_pose *pose=c->pose;const rf_entity_render_model *model;
     const campaign_model_owner *owner=campaign_model_owners+actor;rf_model_projection view;float prepared[50][12];uint16_t generations[50];
-    uint32_t appearance,first,last,lod,batch,k,start_actor=stream->mesh->count;int status;
+    uint32_t appearance,first,last,lod,batch,k,retained=0,start_actor=stream->mesh->count;int status;
     if(kind!=0)return RF_RANGE;
     appearance=owner->appearance;if(appearance>=campaign_npc_materials.count)return RF_FORMAT;
     first=campaign_npc_materials.offsets[appearance];last=campaign_npc_materials.offsets[appearance+1];
@@ -9413,6 +9415,14 @@ static int scene_npc_render_family(void *context,uint32_t kind)
             if(material==UINT32_MAX)continue;if(material>=last-first)return RF_FORMAT;
             memcpy(&slot,campaign_npc_materials.materials.items[first+material].record.bytes+0x10,4);
             if(slot>=stream->npc_textures)return RF_FORMAT;
+            /* Missing textures keep the CPU ambient-color fallback. */
+            if(model_backend && stream->npc_base+slot<stream->materials->count &&
+               stream->materials->items[stream->npc_base+slot].image.rgba) {
+                status=model_backend(geometry,batch,prepared,pose->bone_count,&view,
+                    stream->npc_base+slot,stream->mesh->count);
+                if(status==RF_OK){retained=1;continue;}
+                if(status!=RF_NOT_FOUND)return status;
+            }
             rf_scene_npc_draw_detail[1]=lod;rf_scene_npc_draw_detail[2]=batch;rf_scene_npc_draw_detail[3]=1;
             rf_scene_npc_draw_detail[4]=stream->mesh->bytes;rf_scene_npc_draw_detail[5]=stream->capacity;
             status=scene_model_scratch_prepare(c->buffers,geometry->batches[batch].vertices);if(status)return status;
@@ -9423,7 +9433,7 @@ static int scene_npc_render_family(void *context,uint32_t kind)
             for(k=start;k<stream->mesh->count;++k)stream->mesh->vertices[k].material=stream->npc_base+slot;
         }
     }
-    if(stream->mesh->count>start_actor)++rf_scene_npc_draw[1];
+    if(retained || stream->mesh->count>start_actor)++rf_scene_npc_draw[1];
     return RF_OK;
 }
 static int scene_npc_draw(scene_stream *stream,uint32_t frame)

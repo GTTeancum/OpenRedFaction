@@ -6,7 +6,7 @@ OUTPUT_DIR = $(PROJECT_ROOT)/build/xbox/disc
 GEN_XISO = redfaction-diagnostic.iso
 SRCS = $(PROJECT_ROOT)/src/core/audio.c $(PROJECT_ROOT)/src/core/vpp.c $(PROJECT_ROOT)/src/core/checksum.c $(PROJECT_ROOT)/src/core/level.c $(PROJECT_ROOT)/src/core/geometry.c $(PROJECT_ROOT)/src/core/preview.c $(PROJECT_ROOT)/src/core/image.c $(PROJECT_ROOT)/src/core/material.c $(PROJECT_ROOT)/src/platform/xbox/main.c $(PROJECT_ROOT)/src/platform/xbox/renderer.c
 SHADER_OBJS = $(PROJECT_ROOT)/src/platform/xbox/particle_vertex.inl $(PROJECT_ROOT)/src/platform/xbox/particle_fragment.inl $(PROJECT_ROOT)/src/platform/xbox/preview_vertex.inl $(PROJECT_ROOT)/src/platform/xbox/preview_fragment.inl
-SHADER_OBJS += $(PROJECT_ROOT)/src/platform/xbox/solid_fragment.inl $(PROJECT_ROOT)/src/platform/xbox/world_vertex.inl
+SHADER_OBJS += $(PROJECT_ROOT)/src/platform/xbox/solid_fragment.inl $(PROJECT_ROOT)/src/platform/xbox/world_vertex.inl $(PROJECT_ROOT)/src/platform/xbox/skinned_vertex.inl
 SRCS += $(PROJECT_ROOT)/src/platform/xbox/input.c
 SRCS += $(PROJECT_ROOT)/src/platform/xbox/audio.c
 APU_BACKEND = $(PROJECT_ROOT)/build/nxaudio
@@ -54,6 +54,6 @@ $(PROJECT_ROOT)/src/platform/xbox/audio.obj: CFLAGS += -std=c23 -I$(APU_BACKEND)
 # objects until dependency paths are normalized throughout the toolchain.
 $(filter %.obj,$(SRCS:.c=.obj)): $(wildcard $(PROJECT_ROOT)/include/rf/*.h) $(PROJECT_ROOT)/src/platform/xbox/renderer.h
 $(filter %.obj,$(SRCS:.c=.obj)): $(PROJECT_ROOT)/platforms/xbox/Makefile
-$(PROJECT_ROOT)/src/platform/xbox/renderer.obj: $(SHADER_OBJS)
+$(PROJECT_ROOT)/src/platform/xbox/renderer.obj: $(SHADER_OBJS) $(PROJECT_ROOT)/src/platform/xbox/retained_models.h
 
 $(PROJECT_ROOT)/src/platform/xbox/main.obj: $(wildcard $(PROJECT_ROOT)/tests/*_fixture.h)

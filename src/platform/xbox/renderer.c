@@ -85,6 +85,10 @@ static gpu_texture *stream_textures;
 static const rf_materials *stream_materials;
 static const rf_lightmaps *stream_lightmaps;
 static int stream_mode,stream_device_ready;static uint32_t stream_capacity,stream_fallback;
+static uint32_t retained_draw_count;
+static int retained_model_prepare(const rf_model_geometry *,uint32_t,const float (*)[12],uint32_t,
+    const rf_model_projection *,uint32_t,uint32_t);
+extern uint32_t rf_xbox_retained_models[8];
 /* Retained static-world geometry: no per-frame CPU projection, clipping,
  * expanded triangle construction or world vertex upload. Four MiB hard cap
  * includes metadata; unsupported/large levels retain the existing CPU path. */
@@ -111,6 +115,7 @@ static int retained_world_prepare(const rf_scene_world_geometry *scene,const flo
     const rf_geometry *g;uint32_t f,count=0,at=0;int status;
     if(!scene){retained_world_close();return RF_OK;}
     g=scene->world;if(!g || !g->data || !position || !orientation)return RF_RANGE;
+    retained_draw_count=0;rf_xbox_retained_models[0]=rf_xbox_retained_models[1]=rf_xbox_retained_models[4]=rf_xbox_retained_models[5]=rf_xbox_retained_models[6]=0;
     if(retained_world.source!=g)retained_world_close();
     if(!retained_world.source) {
         retained_world.source=g;retained_world.ready=-1;
@@ -164,7 +169,7 @@ static int retained_world_prepare(const rf_scene_world_geometry *scene,const flo
     retained_world.visibility=visibility;memcpy(retained_world.position,position,12);
     memcpy(retained_world.orientation,orientation,36);return RF_OK;
 }
-void rf_xbox_enable_retained_world(void){rf_scene_set_static_world_backend(retained_world_prepare);}
+void rf_xbox_enable_retained_world(void){rf_scene_set_static_world_backend(retained_world_prepare);rf_scene_set_model_backend(retained_model_prepare);}
 static void vertex_program(const uint32_t *program,uint32_t words)
 {
     uint32_t i,*p=pb_begin();
@@ -242,8 +247,10 @@ static int retained_world_draw(const rf_materials *materials,const rf_lightmaps 
     }
     rf_xbox_retained_world[4]=visible;rf_xbox_retained_world[5]=faces;rf_xbox_retained_world[6]=draws;return RF_OK;
 }
+#include "retained_models.h"
 void rf_xbox_scene_stream_close(void)
 {
+    retained_models_close();
     retained_world_close();
     stream_profile_frames=0;memset(rf_renderer_profile,0,sizeof(rf_renderer_profile));
     stream_start_valid=0;memset(rf_renderer_vblank,0,sizeof(rf_renderer_vblank));
@@ -357,6 +364,8 @@ static int preview(const rf_preview_mesh *mesh, const rf_materials *materials, c
     for (frame = 0; frame < (streaming?1u:3u); ++frame) {
         const gpu_texture *bound_texture=NULL,*bound_lighting=NULL;
         uint32_t bound_blend=UINT32_MAX,draws=0,methods=8,state_changes=0;
+        uint32_t retained_next=0,retained_total=model==4?retained_draw_count:0;
+        for(i=0;i<retained_total;i++)if(retained_draws[i].at_vertex>mesh->count || retained_draws[i].at_vertex%3)return RF_FORMAT;
         /* Allow one frame start per observed VBlank. Slow simulation may
          * already have crossed it; do not force an additional refresh delay.
          * pb_finished retains its full-queue check and all GPU waits remain. */
@@ -405,11 +414,31 @@ static int preview(const rf_preview_mesh *mesh, const rf_materials *materials, c
         p=pb_push1(p,NV097_SET_TEXTURE_CONTROL0+0x40,NV097_SET_TEXTURE_CONTROL0_ENABLE);
         p=pb_push1(p,NV097_SET_TEXTURE_FILTER+0x40,0x02020000);
         pb_end(p);
-        for (i = 0; i < mesh->count;) {
+        for (i = 0; i < mesh->count || retained_next<retained_total;) {
+            if(retained_next<retained_total && retained_draws[retained_next].at_vertex<i)return RF_FORMAT;
+            if(retained_next<retained_total && retained_draws[retained_next].at_vertex==i) {
+                uint32_t loaded=0,j;
+                do {int status=retained_model_render(retained_next,materials,textures,!loaded);if(status)return status;loaded=1;++retained_next;}
+                while(retained_next<retained_total && retained_draws[retained_next].at_vertex==i);
+                vertex_program(program,sizeof(program)/4);
+                p=pb_begin();p=pb_push1(p,NV097_SET_TRANSFORM_CONSTANT_LOAD,96);
+                p=pb_push4f(p,NV097_SET_TRANSFORM_CONSTANT,1,0,0,0);
+                p=pb_push1(p,NV097_SET_CULL_FACE_ENABLE,0);
+                for(j=0;j<16;j++)p=pb_push1(p,NV097_SET_VERTEX_DATA_ARRAY_FORMAT+j*4,NV097_SET_VERTEX_DATA_ARRAY_FORMAT_TYPE_F);
+                for(j=0;j<4;j++) {
+                    uint32_t attribute=j==0?0:j==1?3:j==2?9:10;
+                    p=pb_push1(p,NV097_SET_VERTEX_DATA_ARRAY_FORMAT+attribute*4,
+                        field(NV097_SET_VERTEX_DATA_ARRAY_FORMAT_TYPE,NV097_SET_VERTEX_DATA_ARRAY_FORMAT_TYPE_F)|
+                        field(NV097_SET_VERTEX_DATA_ARRAY_FORMAT_SIZE,3)|field(NV097_SET_VERTEX_DATA_ARRAY_FORMAT_STRIDE,sizeof(*gpu)));
+                    p=pb_push1(p,NV097_SET_VERTEX_DATA_ARRAY_OFFSET+attribute*4,((uint32_t)gpu+(j==3?40:j*12))&0x03ffffff);
+                }
+                pb_end(p);bound_texture=bound_lighting=NULL;bound_blend=UINT32_MAX;
+                if(i==mesh->count)break;
+            }
             uint32_t count = 3, material = mesh->vertices[i].material, lightmap = mesh->vertices[i].lightmap;
             const gpu_texture *texture;
             const gpu_texture *lighting = lightmap < lightmaps->count ? textures + materials->count + 1 + lightmap : textures + materials->count;
-            while (count < 252 && i+count < mesh->count && mesh->vertices[i+count].material == material && mesh->vertices[i+count].lightmap == lightmap) count += 3;
+            while (count < 252 && i+count < mesh->count && (retained_next==retained_total || i+count<retained_draws[retained_next].at_vertex) && mesh->vertices[i+count].material == material && mesh->vertices[i+count].lightmap == lightmap) count += 3;
             texture = material < materials->count && textures[material].pixels ? textures+material : textures+materials->count;
             p = pb_begin();
             {uint32_t blend=model && (model<3 || i>=world_vertices) && texture->transparent;
@@ -434,6 +463,7 @@ static int preview(const rf_preview_mesh *mesh, const rf_materials *materials, c
             p = pb_push1(p, NV097_SET_BEGIN_END, NV097_SET_BEGIN_END_OP_END);
             pb_end(p); i += count;++draws;methods+=3;
         }
+        if(model==4)retained_draw_count=0;
         rf_renderer_submission[0]=draws;rf_renderer_submission[1]=draws*17;
         rf_renderer_submission[2]=methods;rf_renderer_submission[3]=state_changes;
         while (pb_busy()) {}

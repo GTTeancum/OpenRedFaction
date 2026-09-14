@@ -586,6 +586,12 @@ struct rf_visibility;
 typedef int (*rf_scene_static_world_backend)(const rf_scene_world_geometry *,const float *,
     const float (*)[3],const struct rf_visibility *);
 void rf_scene_set_static_world_backend(rf_scene_static_world_backend backend);
+/* Optional skeletal draw backend: copy stack-owned matrices/view before return.
+ * at_vertex preserves ordering among CPU-stream draws. OK replaces this batch;
+ * NOT_FOUND leaves the CPU path responsible. Geometry lives until stream close. */
+typedef int (*rf_scene_model_backend)(const rf_model_geometry *,uint32_t,
+    const float (*)[12],uint32_t,const rf_model_projection *,uint32_t,uint32_t);
+void rf_scene_set_model_backend(rf_scene_model_backend backend);
 /* Retain mover source geometry and local material mappings for reprojection.
  * Borrows world (must outlive this owner); copies only the preview camera.
  * Archives and the source level may close after success. Output mesh, material
