@@ -4778,7 +4778,7 @@ int rf_scene_npc_collision_publish(uint32_t handle,uint32_t body_flags,const rf_
 
 int rf_scene_npc_death_entry(uint32_t handle,uint32_t *entered)
 {
-    campaign_npc_body *owner;rf_entity_death_entry_state state;uint32_t i,cls,falling;
+    campaign_npc_body *owner;rf_entity_death_entry_state state;uint32_t i,cls,falling;int status;
     if(!entered)return RF_RANGE;
     for(i=0;i<campaign_npc_body_count;++i)if(campaign_npc_bodies[i].registration.view && campaign_npc_bodies[i].registration.handle==handle)break;
     if(i==campaign_npc_body_count)return RF_NOT_FOUND;owner=campaign_npc_bodies+i;
@@ -4792,6 +4792,7 @@ int rf_scene_npc_death_entry(uint32_t handle,uint32_t *entered)
     memcpy(state.vector_714,owner->command_714,12);
     /* Embedded physics starts at actor88: bc/c8 map to actor144/150. */
     memcpy(state.vector_144,owner->body.state.velocity,12);memcpy(state.vector_150,owner->body.state.vector_c8,12);
+    status=campaign_animation_cancel(owner);if(status)return status;
     *entered=rf_entity_death_entry_sp(&state,falling);
     owner->view.flags_810=owner->damage.effects.flags_810=state.flags_810;owner->body.state.flags=state.flags_1a8;
     memcpy(owner->command_714,state.vector_714,12);
@@ -4886,7 +4887,9 @@ int rf_scene_npc_damage(uint32_t handle,const rf_damage_request *request,float d
     c.object=(rf_damage_object){0,c.owner->object_flags,c.owner->damage.effects.health};c.effects=effects;c.clock_bits=clock_bits;
     status=rf_damage_dispatch_sp(handle,request,difficulty,&backend,&value);
     c.owner->damage.effects.health=c.object.health;campaign_damage_flags(&c);
-    if(c.status)return c.status;if(status)return status;*result=value;return RF_OK;
+    if(c.status)return c.status;if(status)return status;
+    if(value>0){status=campaign_animation_cancel(c.owner);if(status)return status;}
+    *result=value;return RF_OK;
 }
 uint32_t rf_scene_npc_damage_test_uid=UINT32_MAX,rf_scene_npc_damage_test_words[64];
 static int campaign_event_damage_lookup(void *context,uint32_t handle,uint32_t stage,rf_event_damage_target *target)
@@ -7710,6 +7713,7 @@ static int campaign_alarm(void *context,const rf_level_event *event,
             status=campaign_set_visible(NULL,links[i].value,1);if(status)return status;
             ++rf_scene_alarm[6];
             if(owner->damage.effects.affiliation==0 && owner->view.weapons[0]>=0) {
+                status=campaign_animation_cancel(owner);if(status)return status;
                 campaign_pursuit_stop(owner);owner->script_move.active=0;
                 owner->combat_scripted=0;owner->combat_target=campaign_player_object.handle;
                 owner->combat_alert=1;owner->combat_due=owner->combat_navigation_due=0;
@@ -8081,6 +8085,7 @@ static int campaign_enemy_tick(scene_stream *stream,uint32_t frame,const float p
             status=combat_obstructed(stream,owner->eye_position,delta,&blocked);
             rf_scene_enemy_awareness[7]=(uint32_t)status;if(status)return status;
             if(blocked){++rf_scene_enemy_awareness[2];continue;}
+            status=campaign_animation_cancel(owner);if(status)return status;
             owner->combat_alert=1;owner->combat_due=frame+30;
             ++rf_scene_enemy_awareness[1];rf_scene_enemy_awareness[6]=owner->registration.handle;
             ++rf_scene_enemy_combat[1];

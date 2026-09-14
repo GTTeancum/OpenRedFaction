@@ -20,6 +20,7 @@ import time
 from PIL import Image
 from xemu_guest_snapshot import words
 from xemu_smoke import Monitor
+from xemu_session_guard import require_no_project_xemu
 
 
 def main():
@@ -68,6 +69,7 @@ def main():
     if args.exit_start_uid is not None and (not args.spawn or not 0<args.exit_start_uid<0xffffffff or args.exit_uid or args.return_exit_uid):
         parser.error('Exit-start requires --spawn, a positive UID and no forced exit options')
     root = Path(__file__).resolve().parents[1]
+    require_no_project_xemu(root)
     emulator = Path('C:/Games/Emulators/Xemu')
     disc = root / 'build/xbox/disc'
     run = root / 'artifacts/xemu' / ('render-' + datetime.datetime.now().strftime('%Y%m%d-%H%M%S'))
@@ -186,6 +188,7 @@ dvd_path = '{root.as_posix()}/build/xbox/redfaction-diagnostic.iso'
             startup.dwFlags |= subprocess.STARTF_USESHOWWINDOW
             startup.wShowWindow = 0
         with (run / 'stdout.log').open('wb') as out, (run / 'stderr.log').open('wb') as err:
+            require_no_project_xemu(root)
             process = subprocess.Popen(command, cwd=run, env=dict(os.environ, SDL_AUDIO_DRIVER='dummy'),
                 stdout=out, stderr=err, startupinfo=startup,
                 creationflags=subprocess.CREATE_NO_WINDOW if os.name == 'nt' else 0)

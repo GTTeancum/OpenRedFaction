@@ -67,3 +67,34 @@ ctest --test-dir build/pc -C Release -R "^script_motion_catalog$" --output-on-fa
 python tools/replay_script_animation.py
 python tools/xemu_render_check.py --input artifacts/script-animation-replay/natural-cower.bin --spawn --level L2S1.rfl --seconds 360
 ```
+
+## Combat/death interruption
+
+The pre-fix L2S1 replay could slay actor7192 at frame60 while its custom cower
+ownership continued for150 active ticks through frame179. The death pipeline
+entered normally, but the script owner remained active. Accepted positive
+NPC damage and death entry now release custom playback; sight acquisition and
+hostile alarm alerting also cancel it before starting combat. Zero/ignored
+hits do not enter the positive-damage cancellation branch. This is practical
+first-pass priority behavior, not a reconstruction of every original AI gate.
+
+`tools/replay_animation_interrupt.py` passes the natural180-frame control
+(150 active ticks, no cancellation) and explicit authored Slay7196 case
+(31 active ticks, one cancellation and one death entry). Stock64MiB XEMU
+render-20260914-184519 completed180 frames and passed all selected checks:
+SCRIPT_ANIMATION=[1,1,1,0,0,7201,7192,31,0,1],
+COMBAT_DEATH=[1,5,126,0,0,0,0,0],5432 free pages (21.219MiB).
+The run had completed before its extra emulator instance was closed.
+
+Two exploratory NPC-versus-NPC Attack fixtures (5668 and8496 targeting5458)
+registered the attack but produced no shots in600 frames. They do not verify
+nonlethal damage interruption. Natural sight/alarm interruption and immunity
+controls also remain required coverage; the code paths are connected, but
+this turn's native evidence proves the death case only.
+
+The focused native harness now refuses to launch while a Red Faction XEMU
+process already references this project, and checks again before process
+creation. It neither closes that session nor blocks another project's emulator.
+On the current machine the guard identified the manual PID34780, ignored the
+Perfect Dark process, and rejected a launch before creating a fixture/build.
+Use PC checks while the manual Red Faction session remains open.

@@ -32,6 +32,7 @@ Final stock64MiB Xbox run182149 passes360 frames and the same exit at frame274,
 with4383 free pages (17.121MiB). Overall estimate remains ~45%.
 
 Shortlist:
+- TO COMPLETE: Verify nonlethal damage, immunity and sight/alarm interruption of scripted poses after the PC/Xbox death-cancellation fix.
 - TO COMPLETE: Finish named state/action animation events, root motion, automatic combat/death interruption and script-animation persistence after the verified custom-clip path.
 - TO COMPLETE: Walk uninterrupted Area2 encounters after the L2S1 Use/airlock interlock fix; isolated boundary checks are not full traversal.
 - TO COMPLETE: Finish airlock pressure equalization, atmosphere/audio, unsupported peer layouts and state restoration on revisits.

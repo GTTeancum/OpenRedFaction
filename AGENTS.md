@@ -16,3 +16,5 @@
 - Do not spawn agents unless the user explicitly requests delegation.
 
 - Keep the four existing GitHub images; upload no additional screenshots until near-retail-quality replacements are available.
+
+- Do not launch a second Red Faction XEMU instance while an existing project session is open; leave the existing session untouched and continue PC-side work.
