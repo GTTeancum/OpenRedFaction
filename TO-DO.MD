@@ -23,6 +23,13 @@ Shortlist:
 
 Progress reporting: include a very high-level working area (e.g. Lighting, AI, Weapons, GeoMod or Scripted events) and an overall percent estimate at the end of every turn report (USER preference) and revisit remaining 24-hour workdays when measured throughput supports a forecast; current rough estimate42% (35-45%), no defensible +/-48-hour completion forecast before end-to-end gameplay.
 
+Item definitions and capped inventory grants are implemented in shared C.
+Handgun gives12mm handgun ownership/16 rounds;12mm_ammo grants32 SP rounds.
+Tests cover ownership, ammo-only, capacity limits, zero-benefit grants, invalid
+state and oversized quantities. Definitions retain model, weapon, SP count and
+no_pickup. Next wire live models, proximity/occlusion, grant and disappearance;
+no in-game pickup collection claim yet. See docs/LEVEL-ITEMS.md.
+
 Authored pickup records now load through a bounded shared C reader/owner.
 All63 campaign levels scan exactly:593 pickups, peak28824 retained bytes.
 Truncation, budget failure, repeat close and source-archive closure checks pass;

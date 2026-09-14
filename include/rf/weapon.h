@@ -250,6 +250,12 @@ int rf_weapon_startup_grant_sp(rf_weapon_inventory *,rf_weapon_startup_state *,
     const int32_t defaults[3],const rf_weapon_acquire_definition definitions[64],
     int (*equip)(void *,int32_t),void *context);
 
+typedef struct rf_weapon_pickup_grant {uint32_t rounds,acquired;} rf_weapon_pickup_grant;
+/* First-pass nonnegative ammo grant. New weapon fills magazine then reserve;
+ * existing weapon/ammo-only item adds capped reserve. Reject invalid state
+ * without mutation. Output distinguishes new ownership from added rounds. */
+int rf_weapon_pickup_grant_sp(rf_weapon_inventory *,const rf_weapon_acquire_definition *,int32_t weapon,int32_t quantity,uint32_t gives_weapon,rf_weapon_pickup_grant *);
+
 /* First-pass reload completion: transfer min(missing magazine,reserve) rounds.
  * Owned magazine weapon only; rejects invalid/negative state without mutation.
  * Scheduling/cancellation are caller-owned; no allocation or notifications. */

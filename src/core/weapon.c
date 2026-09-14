@@ -633,6 +633,25 @@ int rf_weapon_acquire(rf_weapon_inventory *inventory,const rf_weapon_acquire_def
     return notify(context,inventory,1);
 }
 
+int rf_weapon_pickup_grant_sp(rf_weapon_inventory *inventory,const rf_weapon_acquire_definition *d,int32_t weapon,int32_t quantity,uint32_t gives_weapon,rf_weapon_pickup_grant *result)
+{
+    rf_weapon_pickup_grant v={0};int32_t available,added;int status;
+    if(!inventory || !d || !result || weapon<0 || weapon>=64 || quantity<0 || gives_weapon>1 || d->ammo_type<0 || d->ammo_type>=32 || d->capacity<0 || d->magazine<0)return RF_RANGE;
+    available=inventory->reserve[d->ammo_type];
+    if(available<0 || available>d->capacity || inventory->loaded[weapon]<0 || inventory->loaded[weapon]>d->magazine)return RF_RANGE;
+    if(gives_weapon && !inventory->owned[weapon]) {
+        if(inventory->loaded[weapon])return RF_RANGE;
+        int64_t limit=(int64_t)d->magazine+d->capacity-available;
+        if(quantity>limit)quantity=(int32_t)limit;
+        status=rf_weapon_acquire_sp(inventory,d,weapon,quantity);if(status)return status;
+        v.acquired=1;v.rounds=(uint32_t)inventory->loaded[weapon]+(uint32_t)(inventory->reserve[d->ammo_type]-available);
+    } else {
+        added=d->capacity-available;if(added>quantity)added=quantity;
+        inventory->reserve[d->ammo_type]+=added;v.rounds=(uint32_t)added;
+    }
+    *result=v;return RF_OK;
+}
+
 int rf_weapon_reload_transfer(rf_weapon_inventory *inventory,const rf_weapon_acquire_definition *definition,int32_t weapon,uint32_t *transferred)
 {
     int32_t missing,available,amount;

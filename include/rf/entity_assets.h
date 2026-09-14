@@ -19,6 +19,14 @@ typedef struct rf_weapon_primary_definition {
 int rf_weapon_primary_read(const void *text,uint32_t bytes,const char *name,rf_weapon_primary_definition *result);
 int rf_weapon_primary_load(rf_vpp *tables,const char *name,uint32_t scratch_budget,rf_weapon_primary_definition *result);
 
+/* First-pass items.tbl binding; weapon is empty for non-ammunition benefits.
+ * mesh_kind:1 static,3 animated; flags bit0 no_pickup. SP count overrides base. */
+typedef struct rf_item_definition {
+    char mesh[64],weapon[64];int32_t count;uint32_t gives_weapon,mesh_kind,flags;
+} rf_item_definition;
+int rf_item_definition_read(const void *,uint32_t bytes,const char *class_name,rf_item_definition *);
+int rf_item_definition_load(rf_vpp *,const char *class_name,uint32_t budget,rf_item_definition *);
+
 typedef struct rf_weapon_names {
     char names[64][64];uint32_t count,primary_count;
 } rf_weapon_names;

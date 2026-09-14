@@ -31,6 +31,16 @@ int main(int argc,char **argv)
         inv.loaded[3]=0;inv.reserve[0]=-1;saved=inv;
         CHECK(rf_weapon_reload_transfer(&inv,&d,3,&moved)==RF_RANGE && !memcmp(&saved,&inv,sizeof(inv)));
     }
+    {
+        rf_weapon_inventory inv={0},saved;rf_weapon_acquire_definition d={0,125,16};rf_weapon_pickup_grant grant;
+        CHECK(rf_weapon_pickup_grant_sp(&inv,&d,3,16,1,&grant)==RF_OK && grant.acquired==1 && grant.rounds==16 && inv.loaded[3]==16);
+        CHECK(rf_weapon_pickup_grant_sp(&inv,&d,3,32,0,&grant)==RF_OK && !grant.acquired && grant.rounds==32 && inv.reserve[0]==32);
+        inv.reserve[0]=120;CHECK(rf_weapon_pickup_grant_sp(&inv,&d,3,16,1,&grant)==RF_OK && grant.rounds==5 && inv.reserve[0]==125);
+        CHECK(rf_weapon_pickup_grant_sp(&inv,&d,3,16,1,&grant)==RF_OK && !grant.rounds && !grant.acquired);
+        saved=inv;CHECK(rf_weapon_pickup_grant_sp(&inv,&d,3,-1,1,&grant)==RF_RANGE && !memcmp(&saved,&inv,sizeof(inv)));
+        memset(&inv,0,sizeof(inv));inv.reserve[0]=100;
+        CHECK(rf_weapon_pickup_grant_sp(&inv,&d,3,2147483647,1,&grant)==RF_OK && grant.rounds==41 && inv.reserve[0]==125 && inv.loaded[3]==16);
+    }
     CHECK(argc==2);snprintf(path,sizeof(path),"%s/meshes.vpp",argv[1]);CHECK(rf_vpp_open(&meshes,path)==RF_OK);
     snprintf(path,sizeof(path),"%s/motions.vpp",argv[1]);CHECK(rf_vpp_open(&motions,path)==RF_OK);
     for(i=0;i<5;i++){snprintf(path,sizeof(path),"%s/%s",argv[1],map_names[i]);CHECK(rf_vpp_open(maps+i,path)==RF_OK);}
@@ -38,7 +48,18 @@ int main(int argc,char **argv)
     {
         rf_vpp tables={0};rf_weapon_primary_definition d;
         snprintf(path,sizeof(path),"%s/tables.vpp",argv[1]);CHECK(rf_vpp_open(&tables,path)==RF_OK);
-        CHECK(rf_weapon_primary_load(&tables,"12mm handgun",128*1024,&d)==RF_OK);rf_vpp_close(&tables);
+        CHECK(rf_weapon_primary_load(&tables,"12mm handgun",128*1024,&d)==RF_OK);
+        {
+            rf_item_definition item,saved;
+            CHECK(rf_item_definition_load(&tables,"Handgun",128*1024,&item)==RF_OK);
+            CHECK(!strcmp(item.mesh,"weapon_ultorgun.v3d") && !strcmp(item.weapon,"12mm handgun") && item.count==16 && item.gives_weapon==1 && item.mesh_kind==1 && !item.flags);
+            CHECK(rf_item_definition_load(&tables,"12mm_ammo",128*1024,&item)==RF_OK);
+            CHECK(!strcmp(item.weapon,"12mm handgun") && item.count==32 && !item.gives_weapon && item.mesh_kind==1);saved=item;
+            CHECK(rf_item_definition_load(&tables,"missing",128*1024,&item)==RF_NOT_FOUND && !memcmp(&item,&saved,sizeof(item)));
+            {const char *fixture="$Class Name: \"test\" $V3D Filename: \"test.v3d\" $V3D Type: \"static\" $Count Single: 7 $Count: 3 $Count Multi: 99 $Flags: (\"no_pickup\")";
+             CHECK(rf_item_definition_read(fixture,(uint32_t)strlen(fixture),"test",&item)==RF_OK && item.count==7 && item.flags==1);}
+        }
+        rf_vpp_close(&tables);
         CHECK(d.damage_kind==1 && d.magazine==16 && d.semi_automatic==1 && d.damage==40 && d.fire_seconds==.5f && d.reload_seconds==1.1f);
         printf("Primary definition PASS magazine=%u semi=%u damage=%g reload=%g fire=%g\n",d.magazine,d.semi_automatic,d.damage,d.reload_seconds,d.fire_seconds);
     }

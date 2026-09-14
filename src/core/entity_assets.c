@@ -417,6 +417,59 @@ static int metadata_integer(lexer *l,uint32_t *result)
     }
     if(!digits)return RF_FORMAT;*result=negative?0u-(uint32_t)number:(uint32_t)number;return RF_OK;
 }
+int rf_item_definition_read(const void *text,uint32_t bytes,const char *name,rf_item_definition *result)
+{
+    lexer l={text,bytes,0};rf_item_definition v={0};char t[256];
+    uint32_t mask=0,bit,value;int selected=0,found=0,q,status;
+    if(!text || !name || !*name || !result)return RF_RANGE;
+    while((status=token(&l,t,&q))==RF_OK) {
+        if(q)continue;
+        if(same(t,"$Class")) {
+            if(token(&l,t,&q) || q || !same(t,"Name:"))return RF_FORMAT;
+            if(found)break;
+            if(token(&l,t,&q) || !q)return RF_FORMAT;
+            selected=same(t,name);found=selected;continue;
+        }
+        if(!selected)continue;if(same(t,"#End"))break;bit=0;
+        if(same(t,"$V3D")) {
+            if(token(&l,t,&q) || q)return RF_FORMAT;
+            if(same(t,"Filename:")) {bit=1;if(mask&bit)return RF_FORMAT;if(metadata_string(&l,v.mesh,64))return RF_FORMAT;}
+            else if(same(t,"Type:")) {
+                bit=2;if(mask&bit)return RF_FORMAT;if(token(&l,t,&q) || !q)return RF_FORMAT;
+                if(same(t,"static"))v.mesh_kind=1;else if(same(t,"anim"))v.mesh_kind=3;else return RF_FORMAT;
+            }
+        } else if(same(t,"$Count:")) {
+            bit=4;if(mask&bit || metadata_integer(&l,&value))return RF_FORMAT;
+            if(value>INT32_MAX)return RF_RANGE;if(!(mask&8))v.count=(int32_t)value;
+        } else if(same(t,"$Count")) {
+            if(token(&l,t,&q) || q)return RF_FORMAT;
+            if(same(t,"Single:")) {bit=8;if(mask&bit || metadata_integer(&l,&value))return RF_FORMAT;if(value>INT32_MAX)return RF_RANGE;v.count=(int32_t)value;}
+        } else if(same(t,"$Gives") || same(t,"$Ammo")) {
+            int gives=same(t,"$Gives");
+            if(token(&l,t,&q) || q || !same(t,gives?"Weapon:":"For:"))return RF_FORMAT;
+            bit=16;if(mask&bit)return RF_FORMAT;if(metadata_string(&l,v.weapon,64))return RF_FORMAT;v.gives_weapon=(uint32_t)gives;
+        } else if(same(t,"$Flags:")) {
+            bit=32;if(mask&bit)return RF_FORMAT;if(token(&l,t,&q) || q || strcmp(t,"("))return RF_FORMAT;
+            while(1){if(token(&l,t,&q))return RF_FORMAT;if(!q && !strcmp(t,")"))break;if(!q)return RF_FORMAT;if(same(t,"no_pickup"))v.flags|=1;}
+        }
+        mask|=bit;
+    }
+    if(status!=RF_OK && status!=RF_NOT_FOUND)return status;
+    if(!found)return RF_NOT_FOUND;if((mask&3)!=3 || !(mask&12))return RF_FORMAT;
+    *result=v;return RF_OK;
+}
+int rf_item_definition_load(rf_vpp *tables,const char *name,uint32_t budget,rf_item_definition *result)
+{
+    rf_vpp_entry entry;void *text;int status;
+    if(!tables || !name || !*name || !result)return RF_RANGE;
+    status=rf_vpp_find(tables,"items.tbl",&entry);if(status)return status;
+    if(!entry.size || entry.size>budget)return RF_RANGE;
+    text=malloc(entry.size);if(!text)return RF_IO;
+    status=rf_vpp_read(tables,&entry,0,text,entry.size);
+    if(!status)status=rf_item_definition_read(text,entry.size,name,result);
+    free(text);return status;
+}
+
 int rf_weapon_primary_read(const void *text,uint32_t bytes,const char *name,rf_weapon_primary_definition *result)
 {
     lexer l={text,bytes,0};rf_weapon_primary_definition v={0};char t[256];

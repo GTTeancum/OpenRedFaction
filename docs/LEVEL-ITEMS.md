@@ -38,3 +38,33 @@ classes through items.tbl before deciding whether a pickup grants a weapon,
 ammo or another benefit. Next: model/material ownership, retained availability,
 proximity/occlusion checks, inventory grant and item removal. No live pickup
 or XEMU residency validation is claimed yet.
+
+## Item definitions and inventory grants
+
+rf_item_definition_read/load resolves a named items.tbl class into a144-byte
+record: model name/type, associated weapon name, gives-weapon distinction,
+SP count and no_pickup flag. Count Single overrides Count regardless of order;
+Count Multi is ignored. Unknown classes, duplicate modeled fields and invalid
+counts preserve output on failure. Table scratch is bounded and temporary.
+Non-weapon benefit callbacks and original item constructor state are not part
+of this record.
+
+Installed Handgun maps weapon_ultorgun.v3d to12mm handgun, gives ownership and
+has base quantity16.12mm_ammo maps Item_pistol_ammo.V3D to the same weapon,
+grants ammunition only and uses32 SP rounds rather than64 MP rounds. These
+are installed table values; live integration must also honor the level record's
+SP quantity and availability.
+
+rf_weapon_pickup_grant_sp is explicitly first-pass policy: new ownership fills
+the magazine then capped reserve via the existing acquire helper; already-owned
+weapons and ammo-only grants add capped reserve. Its output distinguishes
+new ownership from rounds added, allowing a scene caller to leave an item
+available when both are zero. Negative/malformed state fails without mutation.
+An oversized grant is capped before calling the original wrapping arithmetic
+helper so it cannot wrap and remove reserve ammo.
+
+Tests cover installed handgun/ammo definitions, SP override and no_pickup,
+missing-class output preservation, initial acquisition, ammo-only addition,
+partial capacity, full reserve, invalid quantity and maximal signed quantity.
+Both builds and28 CTests pass. Live rendering, proximity/occlusion, item removal
+and pickup sound/event integration remain open; no XEMU collection is claimed.
