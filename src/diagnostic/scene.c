@@ -687,7 +687,7 @@ int rf_scene_fire_setup_event(uint32_t uid,int32_t now)
 {
     uint32_t i;rf_startup_events_report report;
     for(i=0;i<campaign_events.count;i++)if(campaign_events.items[i].authored->record.uid==uid) {
-        if(campaign_events.items[i].state.type!=48 && campaign_events.items[i].state.type!=2 && campaign_events.items[i].state.type!=1)return RF_FORMAT;
+        if(campaign_events.items[i].state.type!=48 && campaign_events.items[i].state.type!=2 && campaign_events.items[i].state.type!=1 && campaign_events.items[i].state.type!=15)return RF_FORMAT;
         return rf_runtime_event_fire(&campaign_triggers,campaign_events.items[i].handle,UINT32_MAX,UINT32_MAX,now,&scene_gravity,NULL,NULL,&report);
     }
     return RF_NOT_FOUND;
@@ -7242,6 +7242,19 @@ static void combat_sound(const char *name,const float position[3])
 uint32_t rf_scene_combat_death[8]; /* entered,action,motion,status,tick,weight bits,frozen,generation */
 uint32_t rf_scene_combat[8];
 static uint32_t combat_frame,combat_hit_frame;
+static rf_level_message campaign_subtitle;
+static int32_t campaign_subtitle_deadline=-1;
+static uint32_t campaign_subtitle_uid;
+static int campaign_show_message(void *context,const rf_level_event *event,int32_t now,uint32_t on)
+{
+    rf_level_message next;int status;int32_t duration,deadline;
+    if(!on){if(campaign_subtitle_uid==event->uid)campaign_subtitle_deadline=-1;return RF_OK;}
+    status=rf_level_message_read(context,event->words[0],&next);if(status)return status;
+    /* First-pass reading time, independent of missing voice resources. Latest wins. */
+    duration=(int32_t)strlen(next.text)*55;if(duration<4000)duration=4000;if(duration>12000)duration=12000;
+    status=rf_timer_set(&deadline,now,duration);if(status)return status;
+    campaign_subtitle=next;campaign_subtitle_uid=event->uid;campaign_subtitle_deadline=deadline;return RF_OK;
+}
 static rf_weapon_trigger_state combat_trigger;
 uint32_t rf_scene_enemy_awareness[8]; /* checks,acquired,blocked,range,facing,nonhostile,last handle,status */
 uint32_t rf_scene_enemy_combat[8]; /* ticks,alerts,shots,hits,blocked,health bits,down,status */
@@ -7655,9 +7668,20 @@ static int combat_hud_text(rf_scene_particle_sink sink,void *context,float x,flo
         {'S',{15,16,16,14,1,1,30}},{'T',{31,4,4,4,4,4,4}},
         {'U',{17,17,17,17,17,17,14}},{'W',{17,17,17,17,21,21,10}},
         {'X',{17,17,10,4,10,17,17}},{'Y',{17,17,10,4,4,4,4}},
+        {'B',{30,17,17,30,17,17,30}},{'C',{14,17,16,16,16,17,14}},
+        {'F',{31,16,16,30,16,16,16}},{'G',{14,17,16,23,17,17,15}},
+        {'H',{17,17,17,31,17,17,17}},{'J',{7,2,2,2,18,18,12}},
+        {'K',{17,18,20,24,20,18,17}},{'L',{16,16,16,16,16,16,31}},
+        {'M',{17,27,21,21,17,17,17}},{'Q',{14,17,17,17,21,18,13}},
+        {'V',{17,17,17,17,17,10,4}},{'Z',{31,1,2,4,8,16,31}},
+        {'.',{0,0,0,0,0,12,12}},{',',{0,0,0,0,0,4,8}},
+        {'!',{4,4,4,4,4,0,4}},{'?',{14,17,1,2,4,0,4}},
+        {39,{4,4,8,0,0,0,0}},{'"',{10,10,0,0,0,0,0}},
+        {':',{0,4,4,0,4,4,0}},{'-',{0,0,0,31,0,0,0}},
+        {'(',{2,4,8,8,8,4,2}},{')',{8,4,2,2,2,4,8}},
         {'/',{1,2,2,4,8,8,16}}};
     uint32_t n,i,row,col;
-    for(n=0;text[n];n++)for(i=0;i<sizeof(font)/sizeof(font[0]);i++)if(font[i].letter==text[n]) {
+    for(n=0;text[n];n++)for(i=0;i<sizeof(font)/sizeof(font[0]);i++)if(font[i].letter==(text[n]>='a' && text[n]<='z'?text[n]-'a'+'A':text[n])) {
         for(row=0;row<7;row++)for(col=0;col<5;) {
             uint32_t start=col;int status;
             if(!(font[i].rows[row]&(16u>>col))){++col;continue;}
@@ -7668,11 +7692,32 @@ static int combat_hud_text(rf_scene_particle_sink sink,void *context,float x,flo
     }
     return RF_OK;
 }
+static int campaign_draw_subtitle(rf_scene_particle_sink sink,void *context)
+{
+    const char *p=campaign_subtitle.text;uint32_t row=0;int expired,status;
+    uint64_t elapsed=(uint64_t)combat_frame*1000/60;
+    int32_t now=(int32_t)(elapsed?((elapsed-1)%RF_TIMER_PERIOD)+1:0);
+    if(campaign_subtitle_deadline<0 || combat_frame==UINT32_MAX)return RF_OK;
+    status=rf_timer_expired(campaign_subtitle_deadline,now,&expired);if(status)return status;
+    if(expired){campaign_subtitle_deadline=-1;return RF_OK;}
+    while(*p && row<5) {
+        char line[47];uint32_t n=0,last_space=0;
+        while(*p==' ' || *p=='\r' || *p=='\n')++p;
+        while(p[n] && p[n]!='\n' && p[n]!='\r' && n<46){if(p[n]==' ')last_space=n;++n;}
+        if(n==46 && p[n] && p[n]!=' ' && last_space)n=last_space;
+        if(!n)break;memcpy(line,p,n);line[n]=0;p+=n;
+        status=combat_hud_rect(sink,context,38,326+row*18,564,18,0xff101010);if(status)return status;
+        status=combat_hud_text(sink,context,44,328+row*18,line,0xffeeeeee);if(status)return status;
+        ++row;
+    }
+    return RF_OK;
+}
 int rf_scene_draw_combat_hud(rf_scene_particle_sink sink,void *context)
 {
     const float arms[4][4]={{310,239,7,2},{323,239,7,2},{319,230,2,7},{319,243,2,7}};
     uint32_t i,color=0xffeeeeee;int status;
     if(!sink || !particle_draw_stream || !campaign_spawn)return RF_OK;
+    status=campaign_draw_subtitle(sink,context);if(status)return status;
     if(combat_hit_frame!=UINT32_MAX && combat_frame-combat_hit_frame<=8)color=0xff60ff80;
     for(i=0;i<4;i++) {
         status=combat_hud_rect(sink,context,arms[i][0]-1,arms[i][1]-1,arms[i][2]+2,arms[i][3]+2,0xff101010);if(status)return status;
@@ -10021,6 +10066,8 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
             campaign_triggers.set_visible=campaign_set_visible;
             campaign_triggers.set_invulnerable=campaign_set_invulnerable;
             campaign_triggers.remove_object=campaign_remove_object;
+            campaign_triggers.show_message=campaign_show_message;campaign_triggers.message_context=(void*)level;
+            campaign_subtitle_deadline=-1;memset(&campaign_subtitle,0,sizeof(campaign_subtitle));
             campaign_triggers.slay_object=campaign_slay_object;memset(rf_scene_script_slays,0,sizeof(rf_scene_script_slays));
             rf_scene_campaign_triggers[0]=campaign_triggers.count;
             rf_scene_campaign_triggers[1]=campaign_triggers.allocated_bytes;

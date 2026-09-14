@@ -31,6 +31,11 @@ Shortlist:
 
 Progress reporting: include a very high-level working area (e.g. Lighting, AI, Weapons, GeoMod or Scripted events) and an overall percent estimate at the end of every turn report (USER preference) and revisit remaining 24-hour workdays when measured throughput supports a forecast; current rough estimate45% (35-45%), no defensible +/-48-hour completion forecast before end-to-end gameplay.
 
+Live English subtitles now display through the shared scene HUD with bounded
+storage, word wrapping, timed expiry and matching-event cancellation. PC event8356
+captures at120/600 frames confirm appearance/expiry. Both builds and37 tests pass.
+Native XEMU display verification and voice playback remain open.
+
 Message events now deliver authored records through a shared presentation
 callback, including delayed/on/off handling and speaker-link isolation.
 Authored L1S1 callback tests and all37 tests pass; PC/NXDK builds succeed.

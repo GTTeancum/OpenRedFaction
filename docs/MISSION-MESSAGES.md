@@ -36,13 +36,22 @@ missing resources are reported without aborting the event chain, while other
 backend errors propagate. This is a practical first-pass presentation contract,
 not a claim of original queue or interruption behavior.
 
-The contained L1S1 event8356 test reads its real text, verifies one delivery,
-delayed delivery at550ms, off requests, missing/error results and speaker-link
-isolation. All37 tests and PC/NXDK builds pass. The scene has not registered a
-presentation backend yet; live subtitle display and audio remain unimplemented.
+The contained L1S1 event8356 test reads its real text and verifies delivery,
+delay, off requests, missing/error results and speaker-link isolation.
 
-Next implementation: register the scene subtitle owner, draw timed text, and
-connect voice playback through the existing audio owner.
-Queue/interrupt behavior, speaker placement, timing and language handling need
-explicit first-pass decisions and validation. No live message support is claimed
-by the inventory alone.
+The scene now registers a bounded subtitle owner. English text wraps at46
+characters into up to five lines above the combat HUD; lowercase is displayed
+in the existing bitmap font as uppercase. First-pass reading time is55ms per
+character, clamped to4-12 seconds. The latest valid message replaces the current
+one; off requests clear only the matching event. Missing messages preserve the
+current line, and scene loading clears it. Voice playback remains open.
+
+PC process-local event8356 captures at120 and600 frames were individually
+inspected: the guard line appears, then expires. Local evidence lives in
+`artifacts/subtitles/message.png` and `expired.png`. All37 tests and both PC
+and NXDK builds pass. Native XEMU subtitle validation remains open.
+
+Remaining: native validation, voice ownership/playback, longer-text presentation
+coverage, full character/language support, authored queue and interruption
+behavior, speaker placement and timing. The current display is a playable
+first pass, not original presentation parity.
