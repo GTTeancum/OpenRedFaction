@@ -34,6 +34,16 @@ Shortlist:
 
 Progress reporting: include a very high-level working area (e.g. Lighting, AI, Weapons, GeoMod or Scripted events) and an overall percent estimate at the end of every turn report (USER preference) and revisit remaining 24-hour workdays when measured throughput supports a forecast; current rough estimate45% (35-45%), no defensible +/-48-hour completion forecast before end-to-end gameplay.
 
+NPC subphase profiling verified in replay-20260914-103625: stock64MiB
+180-frame crossing/state/HUD checks pass, with an exact final framebuffer
+match against102028; all37 PC tests pass. Scene phase means total54.270ms
+(~18FPS-equivalent, not measured gameplay FPS; loading/input pacing excluded).
+NPC playback/pose/collision cache costs6.136ms, scripted movement1.408ms,
+NPC room refresh0.291ms and attachments0.117ms. These are nested timings,
+not additional frame costs. Next optimization target: NPC pose/playback and
+collision preparation; room and attachment work is not the main cost here.
+Instrumentation alone makes no speedup claim.
+
 Motion track reuse rejected pending controlled evidence. Repeat native
 replay-20260914-103040 passes state and exact final-image comparison, but
 scene69.818ms/NPC9.615ms/platform18.308ms again establish no gain against

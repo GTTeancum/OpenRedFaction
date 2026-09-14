@@ -177,7 +177,16 @@ static uint32_t profile_last,profile_active;
 /* View failures101..108: listener, camera effect, ambient, camera setup,
  * room locate, visibility begin/view, world mesh. Success stages stay0..12. */
 uint32_t rf_scene_profile[8][4],rf_scene_profile_stage[2];
-uint32_t rf_scene_presentation_profile[8][4],rf_scene_world_profile[8][4],rf_scene_step_profile[8][4];
+uint32_t rf_scene_presentation_profile[8][4],rf_scene_world_profile[8][4],rf_scene_step_profile[8][4],rf_scene_npc_step_profile[8][4];
+static void npc_step_profile_mark(uint32_t phase,uint32_t *previous)
+{
+    uint32_t now,elapsed,*row;uint64_t total;
+    if(!profile_clock || !profile_active)return;
+    now=profile_clock();elapsed=now-*previous;*previous=now;
+    row=rf_scene_npc_step_profile[phase];total=((uint64_t)row[2]<<32)+row[1]+elapsed;
+    ++row[0];row[1]=(uint32_t)total;row[2]=(uint32_t)(total>>32);
+    if(elapsed>row[3])row[3]=elapsed;
+}
 static void step_profile_mark(uint32_t phase,uint32_t *previous)
 {
     uint32_t now,elapsed,*row;uint64_t total;
@@ -206,7 +215,7 @@ static void presentation_mark(uint32_t phase,uint32_t *previous)
     if(elapsed>row[3])row[3]=elapsed;
 }
 void rf_scene_set_profile(uint32_t (*milliseconds)(void))
-{profile_clock=milliseconds;profile_active=0;memset(rf_scene_profile,0,sizeof(rf_scene_profile));memset(rf_scene_presentation_profile,0,sizeof(rf_scene_presentation_profile));memset(rf_scene_world_profile,0,sizeof(rf_scene_world_profile));memset(rf_scene_step_profile,0,sizeof(rf_scene_step_profile));}
+{profile_clock=milliseconds;profile_active=0;memset(rf_scene_profile,0,sizeof(rf_scene_profile));memset(rf_scene_presentation_profile,0,sizeof(rf_scene_presentation_profile));memset(rf_scene_world_profile,0,sizeof(rf_scene_world_profile));memset(rf_scene_step_profile,0,sizeof(rf_scene_step_profile));memset(rf_scene_npc_step_profile,0,sizeof(rf_scene_npc_step_profile));}
 static void profile_mark(uint32_t stage)
 {
     uint32_t now,elapsed,*row;uint64_t total;
@@ -9886,7 +9895,26 @@ static int scene_frame(void *context,uint32_t frame,rf_preview_mesh *actor)
                 summary[5]=record[7];summary[6]=record[8];summary[7]=record[9];
             }
             step_profile_mark(4,&step_clock);
-            if(campaign_spawn){status=campaign_script_step(stream,scene_step_seconds);rf_scene_script_movement[7]=(uint32_t)status;if(status)return status;status=campaign_npc_playback_tick(stream,scene_step_seconds);if(status)return status;status=campaign_npc_rooms_pass(frame);if(status)return status;status=campaign_glare_loss_inject(frame);if(status)return status;status=campaign_glare_retirement_pass(frame);if(status)return status;status=campaign_glare_loss_verify(frame);if(status)return status;status=campaign_attachments_pass();if(status)return status;status=campaign_attachment_motion_fixture(frame);if(status)return status;status=campaign_glare_rooms_pass(frame);if(status)return status;}
+            if(campaign_spawn) {
+                uint32_t npc_clock=profile_clock && profile_active?profile_clock():0;
+                status=campaign_script_step(stream,scene_step_seconds);
+                rf_scene_script_movement[7]=(uint32_t)status;if(status)return status;
+                npc_step_profile_mark(0,&npc_clock);
+                status=campaign_npc_playback_tick(stream,scene_step_seconds);if(status)return status;
+                npc_step_profile_mark(1,&npc_clock);
+                status=campaign_npc_rooms_pass(frame);if(status)return status;
+                npc_step_profile_mark(2,&npc_clock);
+                status=campaign_glare_loss_inject(frame);if(status)return status;
+                status=campaign_glare_retirement_pass(frame);if(status)return status;
+                status=campaign_glare_loss_verify(frame);if(status)return status;
+                npc_step_profile_mark(3,&npc_clock);
+                status=campaign_attachments_pass();if(status)return status;
+                npc_step_profile_mark(4,&npc_clock);
+                status=campaign_attachment_motion_fixture(frame);if(status)return status;
+                npc_step_profile_mark(5,&npc_clock);
+                status=campaign_glare_rooms_pass(frame);if(status)return status;
+                npc_step_profile_mark(6,&npc_clock);
+            }
         }
         step_profile_mark(5,&step_clock);
         if(campaign_spawn && stream->collision) {int status=campaign_collision_views_check(frame);if(status)return status;status=campaign_alpha_check(frame);if(status)return status;

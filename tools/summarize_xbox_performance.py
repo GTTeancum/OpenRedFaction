@@ -23,5 +23,7 @@ if "rf_renderer_vblank" in symbols:
  report["section_vblank"]=dict(zip(("explicit_wait_frames","already_crossed_frames","last_start_counter"),values))
 if "rf_scene_step_profile" in symbols:
  report["step"]=rows("rf_scene_step_profile",["early particle emission","forces/movers/player physics/support","light timers","trigger contacts/events","particle simulation/emission/telemetry","NPC scripts/animation/rooms/attachments","collision/alpha checks","unused"])
+if "rf_scene_npc_step_profile" in symbols:
+ report["npc_step"]=rows("rf_scene_npc_step_profile",["scripted movement","NPC playback/pose/collision cache","NPC room refresh","glare retirement and fixtures","attachments","attachment fixture","glare room refresh","unused"])
 if a.out:a.out.write_text(json.dumps(report,indent=2))
 print(json.dumps(report,indent=2))
