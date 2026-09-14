@@ -31,6 +31,11 @@ Shortlist:
 
 Progress reporting: include a very high-level working area (e.g. Lighting, AI, Weapons, GeoMod or Scripted events) and an overall percent estimate at the end of every turn report (USER preference) and revisit remaining 24-hour workdays when measured throughput supports a forecast; current rough estimate45% (35-45%), no defensible +/-48-hour completion forecast before end-to-end gameplay.
 
+Stock64MiB XEMU subtitles pass the120-frame authored message8356 replay;
+the native framebuffer visibly contains the guard line. Evidence:
+artifacts/xemu/replay-20260914-083326/report.json and framebuffer.png.
+Next: voice playback through the existing1MiB sound bank with on-demand loading.
+
 Live English subtitles now display through the shared scene HUD with bounded
 storage, word wrapping, timed expiry and matching-event cancellation. PC event8356
 captures at120/600 frames confirm appearance/expiry. Both builds and37 tests pass.

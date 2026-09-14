@@ -51,6 +51,18 @@ inspected: the guard line appears, then expires. Local evidence lives in
 `artifacts/subtitles/message.png` and `expired.png`. All37 tests and both PC
 and NXDK builds pass. Native XEMU subtitle validation remains open.
 
+Native validation now passes: replay-20260914-083326 runs120 frames with
+67108864 bytes base memory and no added RAM. The native framebuffer was
+inspected and shows the guard subtitle. Native timed expiry and longer messages
+remain separate coverage items.
+
+Audio-path inspection: L1S1_GRD_01.wav exists in audio.vpp, with80126 PCM data
+bytes, mono16-bit22050Hz. The existing bank is capped at1MiB and has explicit
+idle-sample eviction/device release. Dialogue integration must reserve name
+slots, load on demand, stop replaced voices and retain subtitles when audio
+is missing or exceeds the available budget; no new decoder is needed for this
+verified opening clip. Other dialogue formats still need validation.
+
 Remaining: native validation, voice ownership/playback, longer-text presentation
 coverage, full character/language support, authored queue and interruption
 behavior, speaker placement and timing. The current display is a playable
