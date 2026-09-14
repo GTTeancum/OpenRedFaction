@@ -19,7 +19,7 @@ static int visit(const rf_vpp_entry *entry,void *context)
         CHECK(rf_level_items_begin(&level,&r)==RF_OK);r.section.size--;
         do {saved=r;memset(&before,0xa5,sizeof(before));item=before;status=rf_level_item_next(&r,&item);}while(status==RF_OK);
         CHECK(status!=RF_NOT_FOUND && !memcmp(&saved,&r,sizeof(r)) && !memcmp(&before,&item,sizeof(item)));
-        for(i=0;i<items.count;i++)if(!strcmp(entry->name,"L1S1.rfl") || !strcmp(entry->name,"L4S5.rfl") || !strcmp(items.items[i].class_name,"Assault Rifle"))printf("%s item uid=%u class=%s quantity=%d flag=%u position=%g,%g,%g\n",entry->name,items.items[i].uid,items.items[i].class_name,items.items[i].quantity,items.items[i].common_flag,items.items[i].position[0],items.items[i].position[1],items.items[i].position[2]);
+        for(i=0;i<items.count;i++)if(!strcmp(entry->name,"L1S1.rfl") || !strcmp(entry->name,"L4S5.rfl") || !strcmp(items.items[i].class_name,"Assault Rifle") || !strcmp(items.items[i].class_name,"Riot Stick") || !strcmp(items.items[i].class_name,"riot_stick_battery"))printf("%s item uid=%u class=%s quantity=%d flag=%u position=%g,%g,%g\n",entry->name,items.items[i].uid,items.items[i].class_name,items.items[i].quantity,items.items[i].common_flag,items.items[i].position[0],items.items[i].position[1],items.items[i].position[2]);
     }
     rf_level_owned_items_close(&items);rf_level_owned_items_close(&items);CHECK(!items.items && !items.count);
     return RF_OK;

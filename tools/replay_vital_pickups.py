@@ -28,7 +28,7 @@ for name, uid, start, frames, restored_slot in [
         return list(map(int, next(x for x in run.stdout.splitlines() if x.startswith(key + ' ')).split()[1:]))
     pickups, enemy = words('PICKUPS'), words('ENEMY_COMBAT')
     vitals = [struct.unpack('<f', struct.pack('<I', x))[0] for x in words('PICKUP_VITALS')]
-    assert pickups[7] == enemy[7] == 0 and pickups[0] == 7
+    assert pickups[7] == enemy[7] == 0 and pickups[0] == 8
     assert all(0 <= x <= 100 for x in vitals[:2]), vitals
     if restored_slot is None:
         assert pickups[3] == 0 and pickups[1] > 0 and pickups[6] > 0 and vitals == [100, 100, 0, 0]

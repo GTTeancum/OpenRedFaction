@@ -18,6 +18,7 @@ for key in ('frames', 'actor', 'pc_sha256'):
     assert off[key] == on[key], key
 assert (a.reference/'inputs.bin').read_bytes() == (a.optimized/'inputs.bin').read_bytes(), 'Different input commands'
 assert off.get('setup_uids') == on.get('setup_uids'), 'Different setup events'
+assert off.get('item_uid') == on.get('item_uid'), 'Different staged pickup'
 # cxbe stamps the XBE header and certificate on every repack. Compare every
 # other byte, including all loadable code/data, instead of ignoring section data.
 # Offsets: installed nxdk/tools/cxbe/Xbe.h Header and Certificate definitions.

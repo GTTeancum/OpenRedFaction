@@ -106,6 +106,16 @@ int main(int argc,char **argv)
             CHECK(rf_item_definition_load(&tables,"12mm_ammo",128*1024,&item)==RF_OK);
             CHECK(!strcmp(item.weapon,"12mm handgun") && item.count==32 && !item.gives_weapon && item.mesh_kind==1);saved=item;
             CHECK(rf_item_definition_load(&tables,"missing",128*1024,&item)==RF_NOT_FOUND && !memcmp(&item,&saved,sizeof(item)));
+            CHECK(!rf_item_definition_load(&tables,"riot_stick_battery",128*1024,&item));
+            CHECK(item.count==100 && !item.gives_weapon && item.mesh_kind==1);
+            {rf_model_file model;rf_static_render_resource resource={0};rf_model_materials material={0};char compiled[64];
+             CHECK(!rf_model_compiled_filename(item.mesh,compiled,".v3m"));
+             CHECK(!rf_model_file_open(&model,&meshes,compiled));
+             CHECK(!rf_static_render_resource_open(&model,2*1024*1024-sizeof(model)-sizeof(resource),&resource));
+             CHECK(!rf_model_materials_open_records(&material,resource.materials,resource.material_count,maps,5,2*1024*1024-sizeof(model)-sizeof(resource)-resource.allocated_bytes));
+             CHECK(resource.allocated_bytes+material.peak_bytes+sizeof(model)+sizeof(resource)<=2*1024*1024);
+             rf_model_materials_close(&material);rf_static_render_resource_close(&resource);}
+            item=saved;
             {const char *fixture="$Class Name: \"test\" $V3D Filename: \"test.v3d\" $V3D Type: \"static\" $Count Single: 7 $Count: 3 $Count Multi: 99 $Flags: (\"no_pickup\")";
              CHECK(rf_item_definition_read(fixture,(uint32_t)strlen(fixture),"test",&item)==RF_OK && item.count==7 && item.flags==1);}
         }

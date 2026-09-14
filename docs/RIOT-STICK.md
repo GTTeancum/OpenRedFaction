@@ -12,8 +12,8 @@ The authored reload lasts2.7seconds and discards the old charge at1.3seconds.
 
 The weapon item counts batteries: its Count1 now grants100 charge units. A repeat
 grants100 reserve; ammunition-only Count100 items are not multiplied. Scripted
-grants use this correction. General world pickup support beyond the currently
-supported pistol/rifle items remains open. HUD displays charge and spare cells.
+grants use this correction. World baton and battery pickup support now uses the same charge conversion;
+other unsupported weapon pickups remain open. HUD displays charge and spare cells.
 Fresh ammunition reset/respawn and reload clear fractional drain.
 
 This is practical shared gameplay, not a completed retail firing dispatcher.
@@ -63,3 +63,37 @@ Pistol/rifle short checks cover burst fire, held cycling, switching back, burst
 cancellation, no-reserve reload and cycling without rifle ownership. Two old
 expectations were corrected for the already-implemented opening inventory strip:
 automatic baton selection and no surviving125-round starting pistol reserve.
+
+## World pickups
+
+Authored Riot Stick9463 in L1S1 now renders through the existing static-item
+owner, grants100 charge on first collection and100 reserve if already owned.
+It uses the same obstruction, contact distance, inventory capacity and persistent
+retirement logic as the other pickups. The catalog now recognizes eight classes;
+resources are loaded only for classes present in the section, within the existing
+2MiB per-class model/material budget. The battery mesh/material check fits that
+budget. The original items table declares a separate battery count100 in charge
+units; it is not multiplied by100 again.
+
+The63 installed SP sections contain baton placements9463 (L1S1),5707 (L2S2a)
+and21203 (L17S1); no standalone riot_stick_battery placement was found. Its table,
+mesh and materials are verified, but natural world battery collection remains
+unverified. No original asset or level was edited to manufacture a placement.
+
+PC tools/replay_riot_pickups.py passes four focused cases: visible uncollected
+model, initial acquisition, duplicate-weapon ammunition and retired-item revisit.
+The return case deliberately checks retirement separately from player inventory:
+L1S1 currently repeats its startup strip on revisit and removes retained weapons.
+This is a campaign event-persistence bug, recorded in TO-DO.MD, not successful
+inventory preservation. Process-local placement and authored exit dispatch do
+not prove the walking route or end-to-end campaign.
+
+Stock64MiB native run artifacts/xemu/render-20260914-162114 passes150 ticks
+of authored pickup9463 with exact PC pickup, ammo, combat, animation and body
+diagnostics. Native framebuffer inspected;5777 available pages (22.57MiB).
+The manual emulator remains on the previous tested combat build and is untouched.
+
+```powershell
+python tools/replay_riot_pickups.py
+python tools/xemu_render_check.py --input artifacts/riot-pickups/collect.bin --item-uid 9463 --seconds 240
+```

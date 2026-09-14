@@ -443,13 +443,14 @@ typedef struct scene_particle_workspace {
     uint32_t order[2048];float distances[2048];
 } scene_particle_workspace;
 static const char *campaign_weapon_names[3]={"12mm handgun","Assault Rifle","Riot Stick"};
-static const char *pickup_classes[6]={"Handgun","Medical Kit","Suit Repair","12mm_ammo","Assault Rifle","5.56mm_ammo"};
+enum { SCENE_PICKUP_CLASSES=8 };
+static const char *pickup_classes[SCENE_PICKUP_CLASSES]={"Handgun","Medical Kit","Suit Repair","12mm_ammo","Assault Rifle","5.56mm_ammo","Riot Stick","riot_stick_battery"};
 typedef struct scene_pickup_resource {
     rf_item_definition definition;rf_static_render_resource model;rf_model_materials materials;
     uint32_t base,textures,resident,peak;
 } scene_pickup_resource;
 static int pickup_class(const char *name)
-{int i;for(i=0;i<6;i++)if(!strcmp(name,pickup_classes[i]))return i;return -1;}
+{int i;for(i=0;i<SCENE_PICKUP_CLASSES;i++)if(!strcmp(name,pickup_classes[i]))return i;return -1;}
 typedef struct scene_stream {
     rf_preview_mesh *mesh;rf_materials *materials;const rf_model_materials *bundle;
     uint32_t world,base,capacity,npc_base,npc_textures;rf_scene_frame_sink sink;void *context;
@@ -7650,6 +7651,15 @@ static int campaign_slay_object(void *context,uint32_t handle,uint32_t source,in
  * Practical combat backend; exact AI state machine and pursuit remain open. */
 float rf_scene_script_attack_position[9]; /* initial/current attacker position, target position */
 uint32_t rf_scene_script_attack[12]; /* requests,event,attacker UID,target,on,shots,damage,initial/final health,pursuit ticks,sampled,attacker handle */
+/* Both world items and scripted gifts interpret baton weapon counts as cells. */
+static int32_t campaign_item_charge(int32_t weapon,int32_t quantity,uint32_t gives_weapon)
+{
+    if(weapon==campaign_riot_id && gives_weapon && quantity>0) {
+        int64_t units=(int64_t)quantity*campaign_weapon_supply.definitions[weapon].magazine;
+        return units>INT32_MAX?INT32_MAX:(int32_t)units;
+    }
+    return quantity;
+}
 static int campaign_apply_item_grant(const campaign_item_grant *request)
 {
     if(request->weapon==-1) {
@@ -7659,12 +7669,7 @@ static int campaign_apply_item_grant(const campaign_item_grant *request)
         rf_scene_combat[6]=0;campaign_ammo_publish();return RF_OK;
     }
     const rf_weapon_acquire_definition *d=campaign_weapon_supply.definitions+request->weapon;
-    int32_t quantity=request->quantity;
-    /* The weapon item counts batteries, while the separate battery item already
-     * declares100 charge units. Do not scale ammunition-only item grants. */
-    if(request->weapon==campaign_riot_id && request->gives_weapon && quantity>0) {
-        int64_t units=(int64_t)quantity*d->magazine;quantity=units>INT32_MAX?INT32_MAX:(int32_t)units;
-    }
+    int32_t quantity=campaign_item_charge(request->weapon,request->quantity,request->gives_weapon);
     rf_weapon_pickup_grant grant={0};int status=rf_weapon_pickup_grant_sp(&campaign_player_inventory,d,request->weapon,quantity,request->gives_weapon,&grant);
     rf_scene_script_grants[7]=(uint32_t)status;if(status)return status;
     ++rf_scene_script_grants[0];rf_scene_script_grants[1]+=grant.acquired;rf_scene_script_grants[2]+=grant.rounds;
@@ -7886,9 +7891,9 @@ static int campaign_pickups_tick(scene_stream *stream,const float eye[3])
             float total;restored=pickup_restore(kind==1?&campaign_player_damage.state.effects.health:&campaign_player_damage.state.effects.armor,item->quantity);
             if(restored<=0)continue;memcpy(&total,rf_scene_pickup_vitals+kind+1,4);total+=restored;memcpy(rf_scene_pickup_vitals+kind+1,&total,4);
         } else {
-            int32_t id=kind>=4?campaign_rifle_id:campaign_pistol_id;
+            int32_t id=kind>=6?campaign_riot_id:kind>=4?campaign_rifle_id:campaign_pistol_id;
             status=rf_weapon_pickup_grant_sp(&campaign_player_inventory,campaign_weapon_supply.definitions+id,
-                id,item->quantity,definition->gives_weapon,&grant);if(status)return status;
+                id,campaign_item_charge(id,item->quantity,definition->gives_weapon),definition->gives_weapon,&grant);if(status)return status;
             if(!grant.rounds && !grant.acquired)continue;
         }
         stream->pickup_taken[i]=1;rf_scene_campaign_pickups.items[stream->pickup_slots[i]].retired=1;
@@ -10478,15 +10483,15 @@ done:
 static int scene_pickup_resources_open(scene_stream *stream,const char *tables_path,rf_vpp *meshes,rf_vpp *maps,uint32_t map_count,rf_materials *materials)
 {
     uint32_t kind,i;rf_vpp tables={0};rf_model_file *file=NULL;int status;
-    stream->pickup_resources=calloc(5,sizeof(*stream->pickup_resources));if(!stream->pickup_resources)return RF_IO;
+    stream->pickup_resources=calloc(SCENE_PICKUP_CLASSES-1,sizeof(*stream->pickup_resources));if(!stream->pickup_resources)return RF_IO;
     status=rf_vpp_open(&tables,tables_path);if(status)return status;
     file=calloc(1,sizeof(*file));if(!file){status=RF_IO;goto done;}
-    for(kind=1;kind<6;kind++) {
+    for(kind=1;kind<SCENE_PICKUP_CLASSES;kind++) {
         scene_pickup_resource *r=stream->pickup_resources+kind-1;char compiled[64];uint32_t count=0,used=sizeof(*r)+sizeof(*file),budget=2*1024*1024;rf_material *combined;rf_materials *textures;
         for(i=0;i<stream->pickups.count;i++)if(pickup_class(stream->pickups.items[i].class_name)==(int)kind)count++;
         if(!count)continue;
         status=rf_item_definition_load(&tables,pickup_classes[kind],128*1024,&r->definition);if(status)goto done;
-        if(r->definition.mesh_kind!=1 || (kind==3 && strcmp(r->definition.weapon,"12mm handgun")) || (kind>=4 && strcmp(r->definition.weapon,"Assault Rifle"))){status=RF_FORMAT;goto done;}
+        if(r->definition.mesh_kind!=1 || (kind>=3 && (rf_weapon_name_find(&campaign_weapon_supply.names,r->definition.weapon)<0 || rf_weapon_name_find(&campaign_weapon_supply.names,r->definition.weapon)!=rf_weapon_name_find(&campaign_weapon_supply.names,kind>=6?"Riot Stick":kind>=4?"Assault Rifle":"12mm handgun")))){status=RF_FORMAT;goto done;}
         status=rf_model_compiled_filename(r->definition.mesh,compiled,".v3m");if(status)goto done;
         status=rf_model_file_open(file,meshes,compiled);if(status)goto done;
         status=rf_static_render_resource_open(file,budget-used,&r->model);if(status)goto done;used+=r->model.allocated_bytes;
@@ -10972,7 +10977,7 @@ done:
     if(!status && campaign_spawn && collision)campaign_actors_revisit_snapshot();
     if(!status && campaign_spawn && collision && rf_scene_level_transition.pending)campaign_actors_capture();
     for(i=0;i<3;i++)rf_player_weapon_close(&stream.player_weapon[i]);
-    if(stream.pickup_resources){for(i=0;i<5;i++){rf_static_render_resource_close(&stream.pickup_resources[i].model);rf_model_materials_close(&stream.pickup_resources[i].materials);}free(stream.pickup_resources);}
+    if(stream.pickup_resources){for(i=0;i<SCENE_PICKUP_CLASSES-1;i++){rf_static_render_resource_close(&stream.pickup_resources[i].model);rf_model_materials_close(&stream.pickup_resources[i].materials);}free(stream.pickup_resources);}
     rf_level_owned_items_close(&stream.pickups);free(stream.pickup_taken);free(stream.pickup_slots);
     free(stream.npc_memory);free(stream.npc_indices);free(stream.npc_pool);
     rf_level_visibility_close(&stream.visibility);

@@ -17,6 +17,7 @@ Shortlist:
 - DEFERRED / TO COMPLETE: Revisit Xbox optimization after gameplay work; current performance is sufficient for basic testing.
 - TO COMPLETE: Extend focused Xbox optimization checks to representative combat, camera movement and level handoffs.
 - ACTIVE: Complete scripted actor animation/look behavior and onward gameplay after the verified opening Riot Stick handoff.
+- ACTIVE: Preserve mission startup/event state on section revisits; L1S1 currently repeats its opening weapon strip and loses retained inventory.
 - TO COMPLETE: Verify retained model clipping/poses, reduce draw overhead and adapt first-person weapons to GPU rendering.
 - TO COMPLETE: Preserve remaining world changes across sections, including actor placement/inventory and dropped items.
 - ACTIVE: Verify enemy firing visually, add muzzle/impact effects, and extend natural-trigger encounter coverage.
@@ -40,6 +41,12 @@ full-cell scripted grants and held/idle animation are implemented on shared PC/X
 Focused PC combat cases and stock64MiB180-tick native contact and360-tick battery replacement checks pass;
 see docs/RIOT-STICK.md for evidence and remaining effects, sound ownership,
 material response, fractional handoff charge and natural traversal limitations.
+
+Pickup update: authored baton9463 now renders, grants100 charge on contact,
+adds100 reserve when already owned, and stays retired across a section revisit.
+Battery class/model support is connected; no standalone battery placements were
+found in the63 installed SP sections. Battery asset/budget checks pass; natural
+world battery collection remains unverified. See docs/RIOT-STICK.md.
 
 Progress reporting: include a very high-level working area (e.g. Lighting, AI, Weapons, GeoMod or Scripted events) and an overall percent estimate at the end of every turn report (USER preference) and revisit remaining 24-hour workdays when measured throughput supports a forecast; current rough estimate45% (35-45%), no defensible +/-48-hour completion forecast before end-to-end gameplay.
 

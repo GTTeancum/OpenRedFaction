@@ -16,7 +16,7 @@ for name,frames in [('view',1),('full',210),('collect',210),('once',400),('magaz
  (folder/(name+'.txt')).write_text(run.stdout+run.stderr);run.check_returncode()
  def words(key):return list(map(int,next(l for l in run.stdout.splitlines() if l.startswith(key+' ')).split()[1:]))
  pickups=words('PICKUPS');ammo=words('PLAYER_AMMO')
- assert pickups[0]==7 and pickups[7]==ammo[7]==0
+ assert pickups[0]==8 and pickups[7]==ammo[7]==0
  if name in ('view','full'):assert pickups[3:5]==[0,0] and pickups[6]>0 and ammo[1:3]==[125,16],(pickups,ammo)
  else:assert pickups[3]==1 and pickups[4]==(16 if name=='magazine' else 1) and pickups[5]==9427 and pickups[6]==0 and ammo[1:3]==([124,16] if name=='once' else [125,16]),(pickups,ammo)
  Image.open(folder/(name+'.ppm')).save(folder/(name+'.png'))
