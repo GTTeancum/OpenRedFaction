@@ -17,8 +17,8 @@ This is practical first-pass policy, not original saved-section restoration.
 Delayed startup inventory operations are not attributed across the scheduler;
 non-inventory startup side effects, trigger counters, pending timers, movers,
 section-local goal state and full save/load remain open. Repeatable gameplay
-inventory events are not globally marked consumed. A new process starts a new
-campaign ledger, matching the current session-only persistence owners.
+inventory events are not globally marked consumed. Starting a new campaign clears the ledger alongside the other session owners.
+The reset branch was corrected during the local-goal persistence follow-up.
 
 The ledger reuses the tested bounded campaign key owner in a separate namespace:
 128 canonical section names and1024 record slots,20,488 bytes including counters.

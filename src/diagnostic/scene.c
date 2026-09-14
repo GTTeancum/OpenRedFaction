@@ -709,6 +709,7 @@ static void campaign_switch_snapshot(void)
 static rf_runtime_triggers campaign_triggers;
 rf_level_transition_request rf_scene_level_transition;
 rf_campaign_goals rf_scene_mission_goals;
+static rf_campaign_local_goals campaign_local_goals;
 rf_campaign_pickups rf_scene_campaign_pickups;
 /* First-pass first-entry inventory policy; separate from collected world items.
  * Environment startup still runs. This is not a complete section checkpoint. */
@@ -10616,8 +10617,9 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
             if(status)goto done;
             if(rf_scene_follow_level_exits && rf_scene_level_transition.pending)
                 status=rf_campaign_goals_next_section(&rf_scene_mission_goals);
-            else {memset(&rf_scene_mission_goals,0,sizeof(rf_scene_mission_goals));memset(&rf_scene_campaign_pickups,0,sizeof(rf_scene_campaign_pickups));memset(&rf_scene_defeated_actors,0,sizeof(rf_scene_defeated_actors));}
+            else {memset(&campaign_local_goals,0,sizeof(campaign_local_goals));memset(&campaign_startup_inventory,0,sizeof(campaign_startup_inventory));memset(&rf_scene_mission_goals,0,sizeof(rf_scene_mission_goals));memset(&rf_scene_campaign_pickups,0,sizeof(rf_scene_campaign_pickups));memset(&rf_scene_defeated_actors,0,sizeof(rf_scene_defeated_actors));}
             if(!status)status=rf_runtime_goals_initialize(&campaign_events,&rf_scene_mission_goals);
+            if(!status)status=rf_campaign_local_goals_restore(&campaign_local_goals,campaign_current_level,&rf_scene_mission_goals);
             if(status)goto done;
             campaign_triggers.goals=&rf_scene_mission_goals;
             memset(&rf_scene_level_transition,0,sizeof(rf_scene_level_transition));campaign_export_valid=0;
@@ -10991,7 +10993,10 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
     }
 done:
     if(!status && campaign_spawn && collision)campaign_actors_revisit_snapshot();
-    if(!status && campaign_spawn && collision && rf_scene_level_transition.pending)campaign_actors_capture();
+    if(!status && campaign_spawn && collision && rf_scene_level_transition.pending) {
+        status=rf_campaign_local_goals_save(&campaign_local_goals,campaign_current_level,&rf_scene_mission_goals);
+        if(!status)campaign_actors_capture();
+    }
     for(i=0;i<3;i++)rf_player_weapon_close(&stream.player_weapon[i]);
     if(stream.pickup_resources){for(i=0;i<SCENE_PICKUP_CLASSES-1;i++){rf_static_render_resource_close(&stream.pickup_resources[i].model);rf_model_materials_close(&stream.pickup_resources[i].materials);}free(stream.pickup_resources);}
     rf_level_owned_items_close(&stream.pickups);free(stream.pickup_taken);free(stream.pickup_slots);

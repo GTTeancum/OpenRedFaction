@@ -30,6 +30,15 @@ int rf_campaign_goal_adjust(rf_campaign_goals *goals,const char *name,uint32_t o
 int rf_campaign_goal_check(const rf_campaign_goals *goals,const char *name,int32_t threshold,uint32_t *passed);
 /* Drop section-local counters; retained counters survive declarations on revisit. */
 int rf_campaign_goals_next_section(rf_campaign_goals *goals);
+/* Section-local goal snapshots. Preserve values only; declarations are rebuilt
+ * from the destination level before restore. Fixed bound, no runtime handles. */
+#define RF_CAMPAIGN_LOCAL_GOALS_MAX 64
+typedef struct rf_campaign_local_goals {
+    uint32_t count;
+    struct {char level[64],name[256];int32_t value;} items[RF_CAMPAIGN_LOCAL_GOALS_MAX];
+} rf_campaign_local_goals;
+int rf_campaign_local_goals_save(rf_campaign_local_goals *,const char *level,const rf_campaign_goals *);
+int rf_campaign_local_goals_restore(const rf_campaign_local_goals *,const char *level,rf_campaign_goals *);
 /* First-pass campaign item persistence, keyed by owned level name and authored
  * UID. Register before gameplay so taking an item never allocates or can exhaust
  * capacity after granting its reward. Zero the owner for a new campaign. */

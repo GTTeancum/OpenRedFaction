@@ -97,3 +97,59 @@ int rf_campaign_player_copy(rf_campaign_player_state *destination,
     if(source->weapon!=UINT32_MAX && !source->inventory.owned[source->weapon])return RF_FORMAT;
     *destination=*source;return RF_OK;
 }
+
+static int local_goal_level(const char *level,char key[64])
+{
+    uint32_t i;if(!level)return RF_RANGE;
+    memset(key,0,64);
+    for(i=0;i<64 && level[i];i++) {
+        unsigned char c=(unsigned char)level[i];
+        if(!((c>='a' && c<='z') || (c>='A' && c<='Z') || (c>='0' && c<='9') || c=='_' || c=='-' || c=='.'))return RF_FORMAT;
+        key[i]=(char)(c>='A' && c<='Z'?c+32:c);
+    }
+    return !i || i==64?RF_FORMAT:RF_OK;
+}
+static int local_goal_name_equal(const char *a,const char *b)
+{
+    uint32_t i;for(i=0;i<256;i++) {
+        unsigned char x=a[i],y=b[i];
+        if(x>='A' && x<='Z')x+=32;if(y>='A' && y<='Z')y+=32;
+        if(x!=y)return 0;if(!x)return 1;
+    }
+    return 0;
+}
+int rf_campaign_local_goals_save(rf_campaign_local_goals *store,const char *level,const rf_campaign_goals *goals)
+{
+    char key[64];uint32_t i,j,needed=0,slots[RF_CAMPAIGN_GOALS_MAX];int status;
+    if(!store || !goals || store->count>RF_CAMPAIGN_LOCAL_GOALS_MAX || goals->count>RF_CAMPAIGN_GOALS_MAX)return RF_RANGE;
+    status=local_goal_level(level,key);if(status)return status;
+    for(i=0;i<store->count;i++)if(!store->items[i].level[0] || !memchr(store->items[i].level,0,64) ||
+        !store->items[i].name[0] || !memchr(store->items[i].name,0,256))return RF_FORMAT;
+    /* Preflight all writes so exhausted capacity cannot partly update a section. */
+    for(i=0;i<goals->count;i++) {
+        if(goals->items[i].persistent>1 || !goals->items[i].name[0] || !memchr(goals->items[i].name,0,256))return RF_FORMAT;
+        if(goals->items[i].persistent)continue;
+        for(j=0;j<store->count;j++)if(!strcmp(store->items[j].level,key) && local_goal_name_equal(store->items[j].name,goals->items[i].name))break;
+        slots[i]=j==store->count?store->count+needed++:j;
+    }
+    if(needed>RF_CAMPAIGN_LOCAL_GOALS_MAX-store->count)return RF_RANGE;
+    for(i=0;i<goals->count;i++)if(!goals->items[i].persistent) {
+        j=slots[i];memcpy(store->items[j].level,key,64);memcpy(store->items[j].name,goals->items[i].name,256);store->items[j].value=goals->items[i].value;
+    }
+    store->count+=needed;return RF_OK;
+}
+int rf_campaign_local_goals_restore(const rf_campaign_local_goals *store,const char *level,rf_campaign_goals *goals)
+{
+    char key[64];uint32_t i,j;int status;
+    if(!store || !goals || store->count>RF_CAMPAIGN_LOCAL_GOALS_MAX || goals->count>RF_CAMPAIGN_GOALS_MAX)return RF_RANGE;
+    status=local_goal_level(level,key);if(status)return status;
+    for(i=0;i<store->count;i++)if(!store->items[i].level[0] || !memchr(store->items[i].level,0,64) ||
+        !store->items[i].name[0] || !memchr(store->items[i].name,0,256))return RF_FORMAT;
+    for(i=0;i<goals->count;i++)if(goals->items[i].persistent>1 || !goals->items[i].name[0] || !memchr(goals->items[i].name,0,256))return RF_FORMAT;
+    for(i=0;i<goals->count;i++)if(!goals->items[i].persistent) {
+        for(j=0;j<store->count;j++)if(!strcmp(store->items[j].level,key) && local_goal_name_equal(store->items[j].name,goals->items[i].name)) {
+            goals->items[i].value=store->items[j].value;break;
+        }
+    }
+    return RF_OK;
+}

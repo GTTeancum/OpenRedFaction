@@ -92,3 +92,49 @@ goal records match PC; VAT=1 persists. The native framebuffer was visually
 inspected. Destination rendering leaves6910 free pages (26.99MiB). This covers
 controlled event/exit dispatch, not natural interaction with the lab objectives.
 The PC fresh-game control separately retains VAT=0. Both builds and35 CTests pass.
+
+
+## Section-local values on backtracking
+
+The shared scene now snapshots local goal values before a successful section
+handoff and restores them after the destination's authored declarations load.
+Local goals stay absent from other sections' active goal store. A same-named
+counter in another section has a separate value; retained/global counters still
+use the existing campaign owner. A new campaign clears both local snapshots
+and the first-entry inventory ledger (the latter reset was previously omitted).
+
+The snapshot owner has64 records of copied section/name/value,20,740 bytes total,
+no handles or pointers and no gameplay allocation. Save validates capacity before
+any writes, so failure cannot partly overwrite a section. Lookups fold ASCII
+case; updates reuse records. The inspected campaign declares six local goals:
+L5S2 ReadyToBlow; L10S4 mock; L7S2 door1, door2 and vator; L8S1 sample1.
+These are practical session checkpoints, not an original on-disk save format.
+Full trigger/timer state and repeated non-inventory startup side effects remain
+open; a startup script that changes a restored counter still needs that work.
+
+Focused campaign_player_handoff tests pass local section isolation, global goal
+preservation, updated values, capacity failure without partial writes, invalid
+section names and clearing snapshots. The PC authored lab round trip dispatches
+sample1 setter8887, leaves via5625 and returns via5623:sample1 remains1 in L8S1;
+a fresh-process control returns0. VAT remains0 in both cases. This proves local
+counter ownership with process-local event dispatch, not the played lab route.
+Both PC and NXDK builds succeed. Evidence:artifacts/local-goals.
+
+```powershell
+python tools/replay_local_goals.py
+```
+
+The existing VAT setter/fresh controls in tools/replay_mission_goals.py also
+pass: global VAT carries1 or0 into L8S2, while local sample1 is absent there.
+The capacity regression includes an existing-value update plus a new local
+record when storage is full; failure leaves the saved value unchanged.
+
+Stock64MiB XEMU render-20260914-164401 passes240 frames and both lab handoffs.
+The complete active mission-goal list matches PC, including sample1=1 local and
+unchanged VAT/doc/sample3/sample5/sample4 persistent values. Selected body,
+weapon/ammo, combat, pickup, startup-inventory, animation and audio checks also
+match. This is focused runtime evidence, not full mission or rendering parity.
+
+```powershell
+python tools/xemu_render_check.py --input artifacts/local-goals/return.bin --level L8S1.rfl --archive levels2.vpp --spawn --goal-uid 8887 --exit-uid 5625 --return-exit-uid 5623 --seconds 360
+```

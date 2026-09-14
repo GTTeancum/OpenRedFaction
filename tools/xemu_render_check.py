@@ -26,6 +26,10 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--frames', type=int, default=180)
     parser.add_argument('--seconds', type=int, default=180)
+    parser.add_argument('--level', default='L1S1.rfl')
+    parser.add_argument('--archive', choices=['levels1.vpp','levels2.vpp','levels3.vpp'], default='levels1.vpp')
+    parser.add_argument('--spawn', action='store_true', help='Use authored player spawn without actor/item staging')
+    parser.add_argument('--goal-uid', type=int, help='Authored goal setter at frame30')
     parser.add_argument('--actor', type=int, default=9858)
     parser.add_argument('--item-uid', type=int, help='Stage near an authored L1S1 pickup instead of an actor')
     parser.add_argument('--input', type=Path, help='Optional process-local replay; its length supplies the frame count')
@@ -58,19 +62,23 @@ def main():
         parser.error('Require a positive item UID')
     if any(v is not None and not 0<v<0xffffffff for v in (args.exit_uid,args.return_exit_uid)) or (args.return_exit_uid and not args.exit_uid):
         parser.error('Require positive exit UIDs and an outbound exit for a return')
+    if not re.fullmatch(r'[A-Za-z0-9_-]+\.rfl',args.level) or len(args.level)>63 or (args.goal_uid is not None and not 0<args.goal_uid<0xffffffff) or (args.spawn and args.item_uid):
+        parser.error('Require a plain level filename, positive goal UID and one placement mode')
     root = Path(__file__).resolve().parents[1]
     emulator = Path('C:/Games/Emulators/Xemu')
     disc = root / 'build/xbox/disc'
     run = root / 'artifacts/xemu' / ('render-' + datetime.datetime.now().strftime('%Y%m%d-%H%M%S'))
     run.mkdir(parents=True)
     print('Run:', run, flush=True)
-    report = dict(result='FAIL', frames=args.frames, actor=None if args.item_uid else args.actor, item_uid=args.item_uid, model_culling=args.culled, command_batching=not args.unbatched, world_grouping=not args.unsorted,
+    report = dict(result='FAIL', frames=args.frames, actor=None if args.item_uid or args.spawn else args.actor, level=args.level, archive=args.archive, goal_uid=args.goal_uid, item_uid=args.item_uid, model_culling=args.culled, command_batching=not args.unbatched, world_grouping=not args.unsorted,
         input_sha256=hashlib.sha256(payload).hexdigest(), setup_uids=args.setup_uid, exit_uid=args.exit_uid, return_exit_uid=args.return_exit_uid,
-        scope='Staged L1S1 actor or pickup camera, process-local replay/setup commands, native framebuffer, '
+        scope='Authored section, player spawn or staged actor/pickup camera, process-local replay/setup commands, native framebuffer, '
               'phase timings and selected PC gameplay-state checks. No full campaign/parity claim.', samples=[])
     (run / 'inputs.bin').write_bytes(payload)
     env = {k: v for k, v in os.environ.items() if not k.startswith('RF_REPLAY_')}
-    env.update(RF_REPLAY_LEVEL='L1S1.rfl', RF_REPLAY_ARCHIVE='levels1.vpp', RF_REPLAY_ACTOR_UID=str(args.actor))
+    env.update(RF_REPLAY_LEVEL=args.level, RF_REPLAY_ARCHIVE=args.archive)
+    if not args.spawn:env['RF_REPLAY_ACTOR_UID']=str(args.actor)
+    if args.goal_uid:env['RF_REPLAY_GOAL_UID']=str(args.goal_uid)
     if args.item_uid:
         env.pop('RF_REPLAY_ACTOR_UID')
         env['RF_REPLAY_ITEM_UID']=str(args.item_uid)
@@ -90,7 +98,7 @@ def main():
     for name in ('player-replay.bin', 'player-control-frames.txt', 'audio-output.flag', 'particle-step-fixtures.bin', 'renderer-cull-off.flag', 'renderer-cull-on.flag', 'renderer-batch-off.flag', 'renderer-world-off.flag'):
         p = disc / name
         saved[name] = p.read_bytes() if p.exists() else None
-    for name in ('campaign-spawn.flag', 'campaign-level.bin', 'campaign-actor.bin', 'campaign-setup.bin', 'campaign-item.bin', 'campaign-exit.bin', 'campaign-return.bin'):
+    for name in ('campaign-spawn.flag', 'campaign-level.bin', 'campaign-actor.bin', 'campaign-setup.bin', 'campaign-item.bin', 'campaign-exit.bin', 'campaign-return.bin', 'campaign-goal.bin'):
         saved.setdefault(name, None)
     process = monitor = None
     mapping = ''
@@ -118,8 +126,9 @@ def main():
         for name in saved:
             (disc / name).unlink(missing_ok=True)
         (disc / 'campaign-spawn.flag').write_bytes(b'')
-        (disc / 'campaign-level.bin').write_bytes(b'levels1.vpp'.ljust(64, b'\0') + b'L1S1.rfl'.ljust(64, b'\0'))
-        (disc / ('campaign-item.bin' if args.item_uid else 'campaign-actor.bin')).write_bytes(struct.pack('<I', args.item_uid or args.actor))
+        (disc / 'campaign-level.bin').write_bytes(args.archive.encode().ljust(64, b'\0') + args.level.encode().ljust(64, b'\0'))
+        if args.goal_uid:(disc/'campaign-goal.bin').write_bytes(struct.pack('<I',args.goal_uid))
+        if not args.spawn:(disc / ('campaign-item.bin' if args.item_uid else 'campaign-actor.bin')).write_bytes(struct.pack('<I', args.item_uid or args.actor))
         if args.exit_uid:(disc/'campaign-exit.bin').write_bytes(struct.pack('<I',args.exit_uid))
         if args.return_exit_uid:(disc/'campaign-return.bin').write_bytes(struct.pack('<II',args.return_exit_uid,args.item_uid or 0))
         if args.setup_uid:
@@ -223,6 +232,18 @@ dvd_path = '{root.as_posix()}/build/xbox/redfaction-diagnostic.iso'
             snap = dict(symbols={name: dict(words=words(monitor, symbol(name), count)) for name, count in fields})
             (run / 'guest-memory-final.json').write_text(json.dumps(snap, indent=2))
             report['checks'] = {}
+            goal_words=words(monitor,symbol('rf_scene_mission_goals'),4225)
+            assert goal_words[0]<=64
+            raw_goals=struct.pack('<4225I',*goal_words)
+            native_goals=[]
+            for i in range(goal_words[0]):
+                at=4+i*264
+                name=raw_goals[at:at+256].split(b'\0')[0].decode('cp1252')
+                value,persistent=struct.unpack_from('<iI',raw_goals,at+256)
+                native_goals.append(f'MISSION_GOAL {name} {value} {persistent}')
+            pc_goals=[line for line in pc.stdout.splitlines() if line.startswith('MISSION_GOAL ')]
+            report['mission_goals']=dict(xbox=native_goals,pc=pc_goals,equal=native_goals==pc_goals)
+            assert native_goals==pc_goals,'Mission goal mismatch'
             for name, label, count in [('scene_actor_body', 'PC_PLAY_BODY', 77),
                     ('rf_scene_player_ammo', 'PLAYER_AMMO', 8), ('rf_scene_combat', 'COMBAT', 8),
                     ('rf_scene_script_movement', 'SCRIPT_MOVE', 8), ('rf_scene_enemy_combat', 'ENEMY_COMBAT', 8),

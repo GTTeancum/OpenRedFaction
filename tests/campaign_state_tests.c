@@ -6,6 +6,43 @@
 int main(void)
 {
     rf_campaign_goals goals={0},saved_goals;uint32_t passed,i;char name[256];
+    {
+        static rf_campaign_local_goals history,saved;
+        rf_campaign_goals local={0};uint32_t passed,j;char key[64];
+        CHECK(!rf_campaign_goal_declare(&local,"sample1",0));
+        CHECK(!rf_campaign_goal_declare(&local,"VAT",1));
+        CHECK(!rf_campaign_goal_adjust(&local,"sample1",1));
+        CHECK(!rf_campaign_goal_adjust(&local,"VAT",1));
+        CHECK(!rf_campaign_local_goals_save(&history,"L8S1.rfl",&local) && history.count==1);
+        CHECK(!rf_campaign_goals_next_section(&local) && local.count==1);
+        CHECK(!rf_campaign_goal_declare(&local,"sample1",0));
+        CHECK(!rf_campaign_local_goals_restore(&history,"L8S2.rfl",&local));
+        CHECK(!rf_campaign_goal_check(&local,"sample1",1,&passed) && !passed);
+        CHECK(!rf_campaign_local_goals_restore(&history,"l8s1.RFL",&local));
+        CHECK(!rf_campaign_goal_check(&local,"SAMPLE1",1,&passed) && passed);
+        CHECK(!rf_campaign_goal_check(&local,"VAT",1,&passed) && passed);
+        CHECK(!rf_campaign_goal_adjust(&local,"sample1",0));
+        CHECK(!rf_campaign_local_goals_save(&history,"L8S1.rfl",&local) && history.count==1);
+        for(j=1;j<RF_CAMPAIGN_LOCAL_GOALS_MAX;j++) {
+            snprintf(key,sizeof(key),"level%u.rfl",j);
+            CHECK(!rf_campaign_local_goals_save(&history,key,&local));
+        }
+        saved=history;
+        {rf_campaign_goals mixed=local;
+         CHECK(!rf_campaign_goal_adjust(&mixed,"sample1",1));
+         CHECK(!rf_campaign_goal_declare(&mixed,"another_local",0));
+         CHECK(rf_campaign_local_goals_save(&history,"L8S1.rfl",&mixed)==RF_RANGE && !memcmp(&saved,&history,sizeof(saved)));}
+        CHECK(rf_campaign_local_goals_save(&history,"overflow.rfl",&local)==RF_RANGE && !memcmp(&saved,&history,sizeof(saved)));
+        CHECK(rf_campaign_local_goals_save(&history,"../bad",&local)==RF_FORMAT && !memcmp(&saved,&history,sizeof(saved)));
+        CHECK(!rf_campaign_goal_adjust(&local,"sample1",1));
+        CHECK(!rf_campaign_local_goals_restore(&history,"L8S1.rfl",&local));
+        CHECK(!rf_campaign_goal_check(&local,"sample1",1,&passed) && !passed);
+        memset(&history,0,sizeof(history));
+        CHECK(!rf_campaign_goal_adjust(&local,"sample1",1));
+        CHECK(!rf_campaign_local_goals_restore(&history,"L8S1.rfl",&local));
+        CHECK(!rf_campaign_goal_check(&local,"sample1",1,&passed) && passed);
+        puts("Local goals PASS isolated sections, persistent goals, updates, reset and transactional capacity failure");
+    }
     CHECK(rf_campaign_goal_declare(&goals,"ReadyToBlow",0)==RF_OK);
     for(i=0;i<4;i++) {
         CHECK(rf_campaign_goal_check(&goals,"readytoblow",4,&passed)==RF_OK && !passed);
