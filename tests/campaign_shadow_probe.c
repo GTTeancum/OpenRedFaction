@@ -103,9 +103,11 @@ int main(int argc,char **argv)
     rf_geometry_vertex_faces graph={0};rf_geometry_lightmap_storage shading={0};
     rf_geometry_materials materials={0};rf_level_owned_lights *lights=NULL;rf_random_state rng={123};
     rf_geometry_shadow_storage storage={0};const rf_geometry *g=&geometry;const rf_image **images=NULL;
-    rf_lightmap_shadow_face *cached=NULL;float (*scratch)[3]=NULL;int retained=argc>1 && !strcmp(argv[1],"--retained");
+    rf_lightmap_shadow_face *cached=NULL;float (*scratch)[3]=NULL;int retained=0,reuse_shadow=0;
     uint32_t *faces=NULL,selected[1100],modes[63],i,j,n,first,limit,max_face=3,opened=0;int status=RF_OK,archive_open=0;
-    if(retained){argc--;argv++;}
+    while(argc>1 && (!strcmp(argv[1],"--retained") || !strcmp(argv[1],"--reuse-shadow"))) {
+        if(!strcmp(argv[1],"--retained"))retained=1;else reuse_shadow=1;argc--;argv++;
+    }
     if(argc<6 || argc>21){fprintf(stderr,"archive level first_mapping count texture_archives...\n");return 2;}
     first=(uint32_t)strtoul(argv[3],NULL,10);limit=(uint32_t)strtoul(argv[4],NULL,10);
 #define CHECK(call) do { status=(call);if(status){fprintf(stderr,"line %u status %d\n",(unsigned)__LINE__,status);goto done;} }while(0)
@@ -135,6 +137,18 @@ int main(int argc,char **argv)
      }
      CHECK(rf_geometry_lightmap_storage_open(&shading,max_pixels,max_polygons,max_vertices,max_normals,1024u*1024u));}
 
+    if(reuse_shadow) {
+        uint32_t max_polygons=1,max_vertices=3,max_width=2,max_height=2,clip;
+        for(i=0;i<geometry.mappings;i++) {
+            rf_lightmap_mapping mapping;rf_lightmap_sample_plane sample;uint32_t counts[2];
+            CHECK(rf_geometry_lightmap_sample_binding(&geometry,&maps,i,&mapping,&sample));
+            CHECK(rf_geometry_shadow_receivers(&geometry,faces,geometry.faces,i,mapping.room,NULL,NULL,counts,counts+1));
+            if(counts[0]>max_polygons)max_polygons=counts[0];if(counts[1]>max_vertices)max_vertices=counts[1];
+            if(mapping.width>max_width)max_width=mapping.width;if(mapping.height>max_height)max_height=mapping.height;
+        }
+        clip=max_face*64;if(clip<max_vertices*2)clip=max_vertices*2;
+        CHECK(rf_geometry_shadow_storage_open(&storage,max_polygons,max_vertices,max_face,clip,max_width,max_height,63,1024u*1024u));
+    }
     if(retained) {
         cached=malloc(geometry.faces*sizeof(*cached));scratch=malloc(max_face*sizeof(*scratch));
         if(!cached || !scratch){status=RF_IO;goto done;}
@@ -158,7 +172,11 @@ int main(int argc,char **argv)
         CHECK(rf_level_owned_light_shadow_modes(lights,selected,n,modes,63));
         CHECK(rf_geometry_shadow_receivers(&geometry,faces,geometry.faces,i,mapping.room,NULL,NULL,counts,counts+1));
         clip=max_face*64;if(clip<counts[1]*2)clip=counts[1]*2;
-        CHECK(rf_geometry_shadow_storage_open(&storage,counts[0],counts[1],max_face,clip,mapping.width,mapping.height,n,1024u*1024u));
+        if(!reuse_shadow)CHECK(rf_geometry_shadow_storage_open(&storage,counts[0],counts[1],max_face,clip,mapping.width,mapping.height,n,1024u*1024u));
+        else {
+            if(counts[0]>storage.receivers.polygon_capacity || counts[1]>storage.receivers.vertex_capacity || clip>storage.clip.capacity || n>storage.mask_count){status=RF_RANGE;goto done;}
+            CHECK(rf_geometry_shadow_storage_begin(&storage,mapping.width,mapping.height,n));
+        }
         CHECK(rf_geometry_shadow_receivers(&geometry,faces,geometry.faces,i,mapping.room,&sample,&storage.receivers,counts,counts+1));
         filter.receivers=storage.receivers.polygons;filter.receiver_count=counts[0];memcpy(filter.threshold,mapping.density,8);
         filter.work=&storage.clip;filter.intersection=storage.intersection;filter.capacity=clip;
@@ -170,9 +188,12 @@ int main(int argc,char **argv)
         status=rf_lightmap_shadow_dispatch_masks(&dispatch,render_shadow,&context,&changed);
         if(status){fprintf(stderr,"mapping %u (%ux%u), sources %u, receivers %u/%u\n",i,mapping.width,mapping.height,n,counts[0],counts[1]);goto done;}
         CHECK(shade_mapping(&context,&graph,&storage,n,hashes));
-        for(j=0;j<dispatch.bytes;j++){unsigned char b=storage.masks[j];hash=(hash^b)*16777619u;if(b!=255)changed_bytes++;}
+        {uint32_t source,logical_stride=(mapping.width*(mapping.height+1)+4)&~3u;
+         for(source=0;source<n;source++)for(j=0;j<logical_stride;j++) {
+             unsigned char b=storage.masks[source*storage.mask_stride+j];hash=(hash^b)*16777619u;if(b!=255)changed_bytes++;
+         }}
         printf("%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u\n",i,mapping.width,mapping.height,n,context.callbacks,context.passes,context.backfacing,context.visited,context.eligible,context.accepted,changed_bytes,hash,storage.resident_bytes,hashes[0],hashes[1],hashes[2],mapping.special,shading.resident_bytes);
-        rf_geometry_shadow_storage_close(&storage);
+        if(!reuse_shadow)rf_geometry_shadow_storage_close(&storage);
     }
 done:
     rf_geometry_lightmap_storage_close(&shading);rf_geometry_vertex_faces_close(&graph);rf_geometry_shadow_storage_close(&storage);free(images);free(faces);free(cached);free(scratch);rf_geometry_materials_close(&materials);rf_level_owned_lights_close(&lights);

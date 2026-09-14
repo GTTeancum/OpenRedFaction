@@ -44,6 +44,12 @@ int main(int argc, char **argv)
             owner.pass.vertices[1][127][2]=17;owner.clip.polygons[1][127][1]=18;owner.intersection[127][1]=19;
             for(i=0;i<n;i++)owner.masks[i*owner.mask_stride+4160]=(unsigned char)i;
             for(i=0;i<n;i++)if(owner.masks[i*owner.mask_stride]!=255)return 7;
+            if(rf_geometry_shadow_storage_begin(&owner,64,64,1))return 12;
+            if(owner.intersection[127][1]!=19 || owner.pass.vertices[1][127][2]!=17)return 13;
+            for(i=0;i<owner.mask_stride;i++)if(owner.masks[i]!=255)return 14;
+            for(i=1;i<n;i++)if(owner.masks[i*owner.mask_stride+4160]!=(unsigned char)i)return 15;
+            owner.masks[0]=23;
+            if(rf_geometry_shadow_storage_begin(&owner,UINT32_MAX,UINT32_MAX,1)!=RF_RANGE || owner.masks[0]!=23)return 16;
             rf_geometry_shadow_storage_close(&owner);rf_geometry_shadow_storage_close(&owner);
             if(memcmp(&owner,&empty,sizeof(owner)))return 8;
             if(rf_geometry_shadow_storage_open(&owner,3,12,16,128,64,64,n,bytes-1)!=RF_RANGE || memcmp(&owner,&empty,sizeof(owner)))return 9;

@@ -199,6 +199,12 @@ typedef struct rf_geometry_shadow_storage {
 int rf_geometry_shadow_storage_open(rf_geometry_shadow_storage *,uint32_t polygons,uint32_t receiver_vertices,
     uint32_t face_vertices,uint32_t clip_vertices,uint32_t width,uint32_t height,uint32_t mask_count,uint32_t budget);
 void rf_geometry_shadow_storage_close(rf_geometry_shadow_storage *);
+/* Reuse allocated mask planes for a new job. Validates dimensions/source count
+ * against stored capacity, fills active strides255 including guard/padding,
+ * and preserves inactive planes plus all geometry scratch. Original409f90
+ * does not initialize aliased subject scratch; its tail affects filtering.
+ * Allocation is zeroed only on open. No allocation; errors preserve storage. */
+int rf_geometry_shadow_storage_begin(rf_geometry_shadow_storage *,uint32_t width,uint32_t height,uint32_t count);
 typedef struct rf_geometry_shadow_job {
     const rf_geometry *geometry;const uint32_t *faces;uint32_t face_count;
     const rf_image *const *images;uint32_t image_count;

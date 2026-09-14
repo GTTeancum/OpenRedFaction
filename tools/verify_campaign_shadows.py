@@ -20,14 +20,32 @@ assert not repeat.stderr and repeat.stdout.splitlines()==run.stdout.splitlines()
 cached_command=command.copy();cached_command.insert(1,'--retained')
 start=time.perf_counter();cached=subprocess.run(cached_command,capture_output=True,text=True,check=True);cached_seconds=time.perf_counter()-start
 assert not cached.stderr and cached.stdout==run.stdout
+reuse_command=command.copy();reuse_command.insert(1,'--reuse-shadow')
+reuse=subprocess.run(reuse_command,capture_output=True,text=True,check=True)
+assert not reuse.stderr
+reuse_rows=[{k:int(v) for k,v in r.items()} for r in csv.DictReader(io.StringIO(reuse.stdout))]
+assert len(reuse_rows)==5851
+reuse_cached_command=reuse_command.copy();reuse_cached_command.insert(1,'--retained')
+reuse_cached=subprocess.run(reuse_cached_command,capture_output=True,text=True,check=True)
+assert not reuse_cached.stderr and reuse_cached.stdout==reuse.stdout
+reuse_short=reuse_command.copy();reuse_short[5]='64'
+reuse_repeat=subprocess.run(reuse_short,capture_output=True,text=True,check=True)
+assert not reuse_repeat.stderr and reuse_repeat.stdout.splitlines()==reuse.stdout.splitlines()[:65]
+# Original409f90 constructor is a no-op. Retained subject tails can change
+# aliased clipping results; do not assert fresh-allocation masks as an oracle.
+assert all(a['unmasked_packed_hash']==b['unmasked_packed_hash'] for a,b in zip(rows,reuse_rows))
+(root/'artifacts/campaign-shadow-reused-l1s1.csv').write_text(reuse.stdout)
 report=dict(result='PASS',level='L1S1.rfl',mappings=len(rows),mappings_with_shadows=sum(r['callbacks']>0 for r in rows),
     ordinary_lit_mappings=sum(r['sources']>0 and not r['special'] for r in rows),special_lit_mappings=sum(r['sources']>0 and bool(r['special']) for r in rows),
     mappings_with_rgb_change=sum(r['rgb_changed_bytes']>0 for r in rows),mappings_with_packed_change=sum(r['unmasked_packed_hash']!=r['masked_packed_hash'] for r in rows),
     totals={k:sum(r[k] for r in rows) for k in ('sources','callbacks','passes','backfacing','visited','eligible','accepted','changed_bytes','rgb_changed_bytes')},
+    reused_shadow_bytes=max(r['scratch_bytes'] for r in reuse_rows),reused_identical_cached_jobs=len(reuse_rows),
+    reused_vs_fresh_mask_changes=sum(a['mask_hash']!=b['mask_hash'] for a,b in zip(rows,reuse_rows)),
+    reused_vs_fresh_packed_changes=sum(a['masked_packed_hash']!=b['masked_packed_hash'] for a,b in zip(rows,reuse_rows)),
     retained_pc_shading_bytes=max(r['shading_bytes'] for r in rows),
     maximum_sources=max(r['sources'] for r in rows),peak_pc_shadow_scratch_bytes=max(r['scratch_bytes'] for r in rows),
     seconds=seconds,cached_seconds=cached_seconds,cached_identical_jobs=len(rows),cached_face_bytes=7418*56,reopened_identical_jobs=64,
-    scope='PC real world geometry, authored light selection and shadow modes, loaded texture formats, receiver grouping, bounded masks and actual projected callbacks. All initial world faces in file order, mapping-box selection, dirty2 and renderer mode1; caller routing supplied. One budgeted accumulation/polygon/normal workspace is reused across all mappings. All mappings regenerate retained base RGB using the shared worker, compare every atlas texel against the local-buffer route (including untouched neighbors), reject an invalid origin without writes, then upload retained RGB to existing packed images and compare every written texel to linear1555 conversion. Lit mappings execute ordinary/special accumulation and RGB resolve, comparing masked/unmasked contributions with authored level ambient, room overrides and explicit directional scale1. No original full-scene comparison, directional-source level support, movers, removed faces, live room routing, GPU upload/swizzling, native Xbox memory or rendered parity evidence. Scratch budget excludes other owners and allocator overhead.')
+    scope='PC real world geometry, authored light selection and shadow modes, loaded texture formats, receiver grouping, bounded masks and actual projected callbacks. All initial world faces in file order, mapping-box selection, dirty2 and renderer mode1; caller routing supplied. Fresh and retained shadow storage runs are compared separately; retained scratch models the original no-op constructor but not unrelated original stack reuse. One budgeted accumulation/polygon/normal workspace is reused across all mappings. All mappings regenerate retained base RGB using the shared worker, compare every atlas texel against the local-buffer route (including untouched neighbors), reject an invalid origin without writes, then upload retained RGB to existing packed images and compare every written texel to linear1555 conversion. Lit mappings execute ordinary/special accumulation and RGB resolve, comparing masked/unmasked contributions with authored level ambient, room overrides and explicit directional scale1. No original full-scene comparison, directional-source level support, movers, removed faces, live room routing, GPU upload/swizzling, native Xbox memory or rendered parity evidence. Scratch budget excludes other owners and allocator overhead.')
 (root/'artifacts/campaign-shadow-l1s1.csv').write_text(run.stdout)
 (root/'artifacts/campaign-shadow-l1s1.json').write_text(json.dumps(report,indent=2))
 print(json.dumps(report,indent=2))

@@ -29,8 +29,16 @@ for count in range(1,64):
  assert bytes(x.mem_read(masks,count*4164))==bytes([255])*(count*4164);assert bytes(x.mem_read(intersection,1024))==bytes(1024)
  for i in range(count):x.mem_write(masks+i*4164+4160,bytes([i]))
  for i in range(count):assert x.mem_read(masks+i*4164,1)[0]==255
+ x.mem_write(intersection,w(0x41200000,0x41a00000));saved=bytes(x.mem_read(intersection,1024))
+ assert call(symbol('rf_geometry_shadow_storage_begin'),[OWNER,64,64,1])==0
+ assert bytes(x.mem_read(masks,4164))==bytes([255])*4164 and bytes(x.mem_read(intersection,1024))==saved
+ for i in range(1,count):assert x.mem_read(masks+i*4164+4160,1)[0]==i
+ before=bytes(x.mem_read(H,allocations[-1]))
+ for width,height,n in [(65,64,1),(64,64,count+1),(1,64,1),(0xffffffff,0xffffffff,1)]:
+  assert call(symbol('rf_geometry_shadow_storage_begin'),[OWNER,width,height,n])!=0
+  assert bytes(x.mem_read(H,allocations[-1]))==before
  call(close,[OWNER]);assert bytes(x.mem_read(OWNER,84))==bytes(84);call(close,[OWNER])
  before=len(allocations);assert call(entry,[OWNER,3,12,16,128,64,64,count,total-1])!=0 and len(allocations)==before and bytes(x.mem_read(OWNER,84))==bytes(84)
  assert call(entry,[OWNER,3,12,16,128,64,64,count,total])==0;call(close,[OWNER])
-report=dict(result='PASS',nxdk_mask_counts=63,max_resident_bytes=maximum,allocator_calls=len(allocations),scope='Compiled NXDK owner layout, one allocation, mask isolation, zero scratch, exact/short budgets and repeated close with emulated calloc/free hooks. Native allocator and whole-scene memory remain unverified.')
+report=dict(result='PASS',nxdk_mask_counts=63,max_resident_bytes=maximum,allocator_calls=len(allocations),scope='Compiled NXDK owner layout, one allocation, mask isolation, active-plane reset with retained scratch/inactive masks, invalid rebind guards, zero initial scratch, exact/short budgets and repeated close with emulated calloc/free hooks. Native allocator and whole-scene memory remain unverified.')
 (root/'artifacts/geometry-shadow-storage.json').write_text(json.dumps(report,indent=2));print(report)

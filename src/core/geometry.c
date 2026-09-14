@@ -678,6 +678,15 @@ int rf_geometry_shadow_storage_open(rf_geometry_shadow_storage *out,uint32_t pol
     *out=value;out->work.pass=&out->pass;return RF_OK;
 }
 
+int rf_geometry_shadow_storage_begin(rf_geometry_shadow_storage *owner,uint32_t width,uint32_t height,uint32_t count)
+{
+    uint64_t stride;
+    if(!owner || !owner->storage || !owner->masks || width<2 || height<2 || !count || count>=64 || count>owner->mask_count)return RF_RANGE;
+    stride=((uint64_t)width*((uint64_t)height+1)+4)&~(uint64_t)3;
+    if(stride>owner->mask_stride || (uint64_t)owner->mask_stride*count>SIZE_MAX)return RF_RANGE;
+    memset(owner->masks,255,(size_t)owner->mask_stride*count);return RF_OK;
+}
+
 static int shadow_source_mask(const rf_lightmap_shadow_face *cached,const rf_geometry_shadow_job *job,const rf_lightmap_shadow_source *source,
     uint32_t local,unsigned char *mask,uint32_t bytes,rf_geometry_shadow_source_result *out)
 {

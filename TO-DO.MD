@@ -15,6 +15,20 @@ Shortlist:
 
 Progress reporting: include a very high-level working area (e.g. Lighting, AI, Weapons, GeoMod or Scripted events) and an overall percent estimate at the end of every turn report (USER preference) and revisit remaining 24-hour workdays when measured throughput supports a forecast; current rough estimate40% (35-45%), no defensible +/-48-hour completion forecast before end-to-end gameplay.
 
+Shadow workspace now reuses one allocation across jobs, resetting active
+mask strides/guard rows while preserving geometry scratch and inactive masks.
+Live Mines retains141952 PC bytes;5851 cached/uncached jobs and64 reopened
+jobs agree. Retention changes473 mask hashes and66 packed regions versus
+fresh allocation. Investigation confirms original409f90 is MOV EAX,ECX;RET,
+not a clearing constructor:1024 original/PC/NXDK filter passes match with
+nonzero carried scratch, including full scratch contents. Fresh zeroed jobs
+are therefore not an oracle for persistent scheduling. Full-game stack reuse
+and call ordering remain unverified. Compiled NXDK reset/isolation/capacity
+guards, both builds and26 tests pass. Next bind retained shading/shadow jobs
+to scene dirty2/4 dispatch and validate actual changing lighting in XEMU.
+Evidence artifacts/lightmap-shadow-filter-warm.json, geometry-shadow-storage.json
+and campaign-shadow-l1s1.json; no new rendered-parity claim.
+
 Retained shading workspace now keeps three accumulation planes and special
 polygon/vertex/normal scratch in one budgeted allocation. Live Mines reuses
 16196 PC bytes across5851 mappings; all previous mask/RGB/packed hashes and
