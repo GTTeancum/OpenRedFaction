@@ -573,6 +573,14 @@ typedef struct rf_entity_motion_catalog {
 int rf_entity_motion_catalog_open(const rf_entity_skeletons *skeletons,
     const rf_entity_base_motions *bindings,uint32_t budget,rf_entity_motion_catalog *result);
 void rf_entity_motion_catalog_close(rf_entity_motion_catalog *catalog);
+/* Before playback resources/poses are created only: append an authored clip
+ * with stable existing indices, identity+loop deduplication, zero new markers.
+ * Reallocation peak stays within budget; failure preserves catalog and index.
+ * Archive is borrowed; this registers metadata, not resident motion payload. */
+int rf_entity_motion_catalog_find(const rf_entity_motion_catalog *,uint32_t skeleton,
+    const char *name,uint32_t loop,int32_t *index);
+int rf_entity_motion_catalog_append(rf_entity_motion_catalog *,uint32_t skeleton,
+    rf_vpp *,const char *name,uint32_t loop,uint32_t budget,int32_t *index);
 /* Evaluate an actor's existing playback into its owned bone cache. Owners must
  * share stable skeleton indices; motion archives remain open. At most16 active
  * slots are projected into bounded stack scratch, with no heap allocation or

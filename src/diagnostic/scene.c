@@ -807,7 +807,7 @@ int rf_scene_fire_setup_event(uint32_t uid,int32_t now)
 {
     uint32_t i;rf_startup_events_report report;
     for(i=0;i<campaign_events.count;i++)if(campaign_events.items[i].authored->record.uid==uid) {
-        if(campaign_events.items[i].state.type!=48 && campaign_events.items[i].state.type!=2 && campaign_events.items[i].state.type!=1 && campaign_events.items[i].state.type!=15 && campaign_events.items[i].state.type!=24 && campaign_events.items[i].state.type!=30 && campaign_events.items[i].state.type!=13 && campaign_events.items[i].state.type!=14 && campaign_events.items[i].state.type!=19 && campaign_events.items[i].state.type!=56 && campaign_events.items[i].state.type!=32 && campaign_events.items[i].state.type!=46)return RF_FORMAT;
+        if(campaign_events.items[i].state.type!=48 && campaign_events.items[i].state.type!=2 && campaign_events.items[i].state.type!=1 && campaign_events.items[i].state.type!=15 && campaign_events.items[i].state.type!=24 && campaign_events.items[i].state.type!=30 && campaign_events.items[i].state.type!=13 && campaign_events.items[i].state.type!=14 && campaign_events.items[i].state.type!=19 && campaign_events.items[i].state.type!=56 && campaign_events.items[i].state.type!=32 && campaign_events.items[i].state.type!=46 && campaign_events.items[i].state.type!=11 && campaign_events.items[i].state.type!=12)return RF_FORMAT;
         return rf_runtime_event_fire(&campaign_triggers,campaign_events.items[i].handle,UINT32_MAX,UINT32_MAX,now,&scene_gravity,NULL,NULL,&report);
     }
     return RF_NOT_FOUND;
@@ -3393,6 +3393,7 @@ typedef struct campaign_npc_body {
     uint32_t persistence_slot,persistence_registered,controller_handle;
     struct {uint32_t active,event,follow,route_index,retry,stop;float target[3],fall_speed;
         rf_level_waypoint_path path;uint32_t path_index,path_mode,path_reverse;} script_move;
+    struct {uint32_t active,loop,freeze;int32_t motion;} script_animation;
     uint32_t combat_alert,combat_due; /* First-pass retaliation, simulation-frame clock. */
     uint32_t combat_scripted,combat_target,combat_navigation_due; /* Explicit Attack target; normal awareness targets player. */
     campaign_npc_route navigation;
@@ -3689,6 +3690,67 @@ static int campaign_npc_door_occupied(const rf_trigger_volume *volume,uint32_t *
     }
     return RF_OK;
 }
+uint32_t rf_scene_script_animation[10]; /* registrations, starts, loop starts, action starts, skipped, last event, actor UID, active ticks, completions, cancellations */
+static int campaign_animation_catalog(const rf_level *level,rf_vpp *motions)
+{
+    uint32_t i,j,k,uid;int status;int32_t index;
+    memset(rf_scene_script_animation,0,sizeof(rf_scene_script_animation));
+    for(i=0;i<campaign_events.count;i++) {
+        const rf_level_event *event=&campaign_events.items[i].authored->record;
+        if(campaign_events.items[i].state.type!=11 && campaign_events.items[i].state.type!=12)continue;
+        if(!event->texts[1][0])continue;
+        for(j=0;j<event->link_count;j++) {
+            status=rf_level_event_link(level,event,j,&uid);if(status)return status;
+            for(k=0;k<campaign_seeds.records.count;k++)if((uint32_t)campaign_seeds.records.items[k].record.uid==uid) {
+                uint32_t skeleton=campaign_skeletons.class_indices[campaign_seeds.items[k].class_index];
+                if(skeleton==UINT32_MAX)break;
+                status=rf_entity_motion_catalog_append(&campaign_motion_catalog,skeleton,motions,event->texts[1],
+                    event->flags[1]!=1,512*1024,&index);
+                if(status==RF_NOT_FOUND){++rf_scene_script_animation[4];break;}
+                if(status)return status;++rf_scene_script_animation[0];break;
+            }
+        }
+    }
+    return RF_OK;
+}
+static int campaign_animation_cancel(campaign_npc_body *owner)
+{
+    rf_entity_pose *pose;rf_entity_playback_model *model;uint32_t index=(uint32_t)(owner-campaign_npc_bodies);int status;
+    if(!owner->script_animation.active)return RF_OK;
+    status=campaign_actor_pose(index,&pose);if(status)return status;
+    if(pose) {
+        model=campaign_playback_resources.models+pose->skeleton;
+        status=rf_motion_stop_slot(&pose->playback,owner->script_animation.motion);if(status)return status;
+        status=rf_motion_stop_looping(&pose->playback,model->resources,model->count);if(status)return status;
+    }
+    owner->script_animation.active=0;++rf_scene_script_animation[9];return RF_OK;
+}
+static int campaign_play_animation(void *context,uint32_t handle,const rf_level_event *event)
+{
+    uint32_t i,loop=event->flags[1]!=1;int32_t motion;int status;(void)context;
+    for(i=0;i<campaign_npc_body_count;i++) {
+        campaign_npc_body *owner=campaign_npc_bodies+i;rf_entity_pose *pose;rf_entity_playback_model *model;
+        if(!owner->registration.view || owner->registration.handle!=handle)continue;
+        if(owner->damage.effects.health<=0 || !event->texts[1][0])break;
+        status=campaign_actor_pose(i,&pose);if(status)return status;if(!pose)break;
+        status=rf_entity_motion_catalog_find(&campaign_motion_catalog,pose->skeleton,event->texts[1],loop,&motion);
+        if(status==RF_NOT_FOUND)break;if(status)return status;
+        status=campaign_npc_motion_require(pose->skeleton,(uint32_t)motion);if(status)return status;
+        status=campaign_animation_cancel(owner);if(status)return status;
+        model=campaign_playback_resources.models+pose->skeleton;
+        if(loop || event->flags[0]==1){status=rf_motion_stop_looping(&pose->playback,model->resources,model->count);if(status)return status;}
+        if(!loop && event->flags[0]==1){status=rf_motion_stop_nonlooping(&pose->playback,model->resources,model->count);if(status)return status;}
+        status=loop?rf_motion_set_weight(&pose->playback,model->resources,model->count,motion,1):
+            rf_motion_start(&pose->playback,model->resources,model->count,motion,1,event->flags[0]);
+        if(status)return status;
+        owner->script_animation.active=1;owner->script_animation.loop=loop;owner->script_animation.freeze=event->flags[0]==1;owner->script_animation.motion=motion;
+        owner->script_move.active=owner->script_move.stop=owner->combat_alert=owner->combat_scripted=0;
+        owner->navigation.retained.count=0;
+        ++rf_scene_script_animation[1];++rf_scene_script_animation[loop?2:3];rf_scene_script_animation[5]=event->uid;
+        rf_scene_script_animation[6]=campaign_seeds.records.items[i].record.uid;return RF_OK;
+    }
+    ++rf_scene_script_animation[4];return RF_NOT_FOUND;
+}
 uint32_t rf_scene_script_actor[8];
 static int campaign_script_locomotion(uint32_t index,uint32_t moving);
 /* follow2 owns a combat pursuit; follow1 remains authored Goto_Player. */
@@ -3725,7 +3787,7 @@ static int campaign_script_move(void *context,uint32_t handle,const rf_level_eve
         if(!owner->registration.view || owner->registration.handle!=handle)continue;
         if(owner->damage.effects.health<=0)return RF_NOT_FOUND;
         for(j=0;j<3;j++)if(!isfinite(event->position[j]))return RF_FORMAT;
-        if(on){owner->combat_scripted=owner->combat_target=owner->combat_navigation_due=0;owner->combat_alert=0;}
+        if(on){int cancel=campaign_animation_cancel(owner);if(cancel)return cancel;owner->combat_scripted=owner->combat_target=owner->combat_navigation_due=0;owner->combat_alert=0;}
         owner->script_move.stop=0;owner->script_move.active=on;owner->script_move.event=event->uid;
         owner->navigation.retained.count=0;owner->script_move.route_index=1;owner->script_move.retry=0;
         owner->script_move.follow=!strcmp(event->type,"Goto_Player");
@@ -7949,6 +8011,7 @@ static int campaign_script_attack(void *context,const rf_level_event *event,cons
     if(!strcmp(event->name,"player") && campaign_player_object.handle)target=campaign_player_object.handle;
     if(target==UINT32_MAX)return RF_NOT_FOUND;
     memset(rf_scene_script_attack,0,sizeof(rf_scene_script_attack));rf_scene_script_attack[0]=1;rf_scene_script_attack[1]=event->uid;rf_scene_script_attack[2]=event->words[0];rf_scene_script_attack[3]=target;rf_scene_script_attack[4]=1;rf_scene_script_attack[11]=owner->registration.handle;memcpy(rf_scene_script_attack_position,owner->body.state.position,12);
+    {int cancel=campaign_animation_cancel(owner);if(cancel)return cancel;}
     owner->combat_scripted=owner->combat_alert=1;owner->combat_target=target;owner->combat_due=0;
     campaign_pursuit_stop(owner);owner->combat_navigation_due=0;owner->script_move.active=0;return RF_OK;
 }
@@ -9543,7 +9606,16 @@ static int campaign_npc_playback_tick(scene_stream *stream,float elapsed)
         if(class_index>=campaign_motion_catalog.class_count || pose->skeleton>=campaign_playback_resources.model_count)return RF_RANGE;
         map=&campaign_npc_bodies[i].selection.mapping;model=campaign_playback_resources.models+pose->skeleton;
         if(map->skeleton!=pose->skeleton)return RF_FORMAT;
-        if(!(campaign_npc_bodies[i].view.flags_810&1u)) {
+        if(campaign_npc_bodies[i].script_animation.active) {
+            campaign_npc_body *owner=campaign_npc_bodies+i;float remaining;
+            ++rf_scene_script_animation[7];
+            if(!owner->script_animation.loop && !owner->script_animation.freeze) {
+                status=rf_motion_remaining(&pose->playback,model->resources,model->count,owner->script_animation.motion,&remaining);if(status)return status;
+                if(remaining<=0){owner->script_animation.active=0;++rf_scene_script_animation[8];}
+            }
+        }
+        if(!(campaign_npc_bodies[i].view.flags_810&1u) &&
+           !(campaign_npc_bodies[i].script_animation.active && (campaign_npc_bodies[i].script_animation.loop || campaign_npc_bodies[i].script_animation.freeze))) {
             status=rf_motion_apply_controller(&pose->controller,map->states,elapsed,&pose->playback,model->resources,model->count);if(status)return status;
         }
         npc_playback_elapsed(timing,1,&clock);
@@ -10976,6 +11048,7 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
             rf_vpp_close(&tables);if(status)goto done;
             rf_scene_campaign_load_stage=20;status=rf_entity_motion_catalog_open(&campaign_skeletons,&campaign_base_motions,512*1024,&campaign_motion_catalog);
             if(status)goto done;
+            status=campaign_animation_catalog(level,&motions);if(status)goto done;
             rf_scene_campaign_load_stage=21;status=rf_entity_playback_resources_open(&campaign_motion_catalog,256*1024,&campaign_playback_resources);if(status)goto done;
             /* Diagnostic startup delta matches the existing first-class pose query.
              * Subsequent live selector scheduling/geometry submission is separate. */
@@ -11179,7 +11252,7 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
             status=campaign_actors_restore();if(status)goto done;
             campaign_triggers.death_query=campaign_death_query;
             campaign_triggers.activate_mover=campaign_event_mover;
-            memset(rf_scene_npc_triggers,0,sizeof(rf_scene_npc_triggers));memset(rf_scene_script_routes,0,sizeof(rf_scene_script_routes));memset(rf_scene_script_actor,0,sizeof(rf_scene_script_actor));memset(rf_scene_script_movement,0,sizeof(rf_scene_script_movement));campaign_triggers.move_npc=campaign_script_move;campaign_triggers.attack_npc=campaign_script_attack;
+            memset(rf_scene_npc_triggers,0,sizeof(rf_scene_npc_triggers));memset(rf_scene_script_routes,0,sizeof(rf_scene_script_routes));memset(rf_scene_script_actor,0,sizeof(rf_scene_script_actor));memset(rf_scene_script_movement,0,sizeof(rf_scene_script_movement));campaign_triggers.move_npc=campaign_script_move;campaign_triggers.attack_npc=campaign_script_attack;campaign_triggers.play_animation=campaign_play_animation;
             /* Apply initial linked flags without consuming switch activations. */
             for(i=0;i<campaign_events.count;i++)if(campaign_events.items[i].switch_state && !campaign_events.items[i].retired) {
                 status=rf_runtime_switch_initialize(&campaign_triggers,campaign_events.items[i].handle);if(status)goto done;

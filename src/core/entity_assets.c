@@ -1804,6 +1804,44 @@ void rf_entity_motion_catalog_close(rf_entity_motion_catalog *v)
     for(i=0;i<v->model_count;++i)free(v->models[i].items);
     free(v->models);free(v->mappings);memset(v,0,sizeof(*v));
 }
+int rf_entity_motion_catalog_find(const rf_entity_motion_catalog *catalog,uint32_t skeleton,
+    const char *name,uint32_t loop,int32_t *index)
+{
+    rf_motion_cache_record cache={0};uint32_t i,identity;int status;
+    if(!catalog || !name || !*name || !index || loop>1 || skeleton>=catalog->model_count || !catalog->models)return RF_RANGE;
+    status=rf_motion_cache_acquire(&cache,1,name,&identity);if(status)return status;
+    for(i=0;i<catalog->models[skeleton].count;i++)if(catalog->models[skeleton].items[i].looping==loop &&
+        same(catalog->models[skeleton].items[i].identity,(const char*)cache.bytes)){*index=(int32_t)i;return RF_OK;}
+    return RF_NOT_FOUND;
+}
+int rf_entity_motion_catalog_append(rf_entity_motion_catalog *catalog,uint32_t skeleton,
+    rf_vpp *archive,const char *name,uint32_t loop,uint32_t budget,int32_t *index)
+{
+    rf_motion_cache_record cache={0};rf_entity_model_motion motion={0},*items;
+    rf_entity_model_motions *model;rf_motion_marker_names *markers;rf_motion_track track;
+    uint32_t identity,i;uint64_t old_bytes,new_bytes,peak;char compiled[64];int status;
+    if(!catalog || !archive || !name || !*name || !index || loop>1 || skeleton>=catalog->model_count || !catalog->models)return RF_RANGE;
+    model=catalog->models+skeleton;if(model->count>=INT32_MAX)return RF_RANGE;
+    status=rf_motion_cache_acquire(&cache,1,name,&identity);if(status)return status;
+    for(i=0;i<model->count;i++)if(model->items[i].looping==loop && same(model->items[i].identity,(const char*)cache.bytes)) {
+        *index=(int32_t)i;return RF_OK;
+    }
+    status=rf_motion_compiled_filename(name,compiled);if(status)return status;
+    status=rf_motion_file_open(&motion.file,archive,compiled);if(status)return status;
+    status=rf_motion_file_track(&motion.file,0,&track);if(status)return status;
+    motion.comparison=track.envelope;motion.looping=(uint8_t)loop;memcpy(motion.identity,cache.bytes,64);
+    old_bytes=(uint64_t)model->count*(sizeof(*items)+sizeof(*markers));
+    new_bytes=(uint64_t)(model->count+1)*(sizeof(*items)+sizeof(*markers));
+    peak=(uint64_t)catalog->resident_bytes+new_bytes;
+    if(peak>budget || old_bytes>catalog->resident_bytes)return RF_RANGE;
+    items=calloc(1,(size_t)new_bytes);if(!items)return RF_IO;
+    markers=(rf_motion_marker_names *)(items+model->count+1);
+    if(model->count){memcpy(items,model->items,model->count*sizeof(*items));memcpy(markers,model->marker_names,model->count*sizeof(*markers));}
+    items[model->count]=motion;*index=(int32_t)model->count;
+    free(model->items);model->items=items;model->marker_names=markers;++model->count;
+    catalog->resident_bytes=(uint32_t)(catalog->resident_bytes-old_bytes+new_bytes);
+    if(peak>catalog->peak_bytes)catalog->peak_bytes=(uint32_t)peak;return RF_OK;
+}
 int rf_entity_motion_mapping_overlay(const rf_entity_motion_mapping *base,
     const rf_entity_motion_mapping *weapon,rf_entity_motion_mapping *result)
 {

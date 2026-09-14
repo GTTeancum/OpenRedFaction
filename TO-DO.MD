@@ -19,6 +19,11 @@ Xbox also passes L2S2a-to-L2S3 and L2S3-to-L3S1. The latest native run finishes
 bounded texture fallback and removal of redundant diagnostic loading; full
 encounters and uninterrupted traversal remain open. Estimate remains ~45%.
 
+Scripted animation update: Custom clips now play through shared campaign events;
+PC checks cover natural delayed cower, action completion, Goto cancellation and
+a retained freeze request. Stock64MiB Xbox run183857 passes the natural cower
+with5432 free pages (21.219MiB). See docs/SCRIPTED-ANIMATIONS.md. Estimate ~45%.
+
 Airlock gameplay update: L2S1-to-L2S2a now passes a Use/contact replay after
 waiting for opposite doors to close, and the reverse PC boundary also passes.
 Walking without Use correctly leaves the exit inactive. Pressure effects and
@@ -27,6 +32,7 @@ Final stock64MiB Xbox run182149 passes360 frames and the same exit at frame274,
 with4383 free pages (17.121MiB). Overall estimate remains ~45%.
 
 Shortlist:
+- TO COMPLETE: Finish named state/action animation events, root motion, automatic combat/death interruption and script-animation persistence after the verified custom-clip path.
 - TO COMPLETE: Walk uninterrupted Area2 encounters after the L2S1 Use/airlock interlock fix; isolated boundary checks are not full traversal.
 - TO COMPLETE: Finish airlock pressure equalization, atmosphere/audio, unsupported peer layouts and state restoration on revisits.
 - DEFERRED / TO COMPLETE: Replace coarse world texture fallback caps with selective residency and verify PS2 parity; L2S2a currently needs the128-pixel cap to load within12MiB.

@@ -518,6 +518,18 @@ static void startup_event_action(void *context,rf_event_state *state,uint32_t ac
 {
     startup_context *c=context;uint32_t i;
     if(c->status)return;
+    if(state->type==11 || state->type==12) {
+        if(action!=1)return;
+        if(!c->triggers->play_animation){++c->report->unsupported_actions;return;}
+        for(i=0;i<c->event->authored->record.link_count;i++) {
+            const rf_level_link_target *link=c->event->links+i;int status;
+            if(link->kind!=1 && link->kind!=2)continue;
+            status=c->triggers->play_animation(c->triggers->animation_context,link->value,&c->event->authored->record);
+            if(status==RF_NOT_FOUND){++c->report->other_targets;continue;}
+            if(status){c->status=status;return;}
+        }
+        return;
+    }
     if(state->type==46) {
         if(action==2)return;
         if(!c->triggers->alarm){++c->report->unsupported_actions;return;}
@@ -973,6 +985,7 @@ int rf_runtime_events_tick(rf_runtime_events *events,rf_runtime_triggers *trigge
            !(event->state.type==24 && triggers->set_invulnerable) &&
            !(event->state.type==38 && triggers->attack_npc) &&
            !(event->state.type==46 && triggers->alarm) &&
+           !((event->state.type==11 || event->state.type==12) && triggers->play_animation) &&
            !(event->state.type==1 && triggers->slay_object) &&
            !(event->state.type==15 && triggers->show_message) &&
            !(event->state.type==17 && startup_damage_ready(triggers)) &&
