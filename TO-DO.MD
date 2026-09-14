@@ -6,7 +6,7 @@ and defer visual polish. Focus: movement, combat/damage, AI, mission events,
 then level progression. Fidelity remains a later completion requirement.
 
 Shortlist:
-- ACTIVE: Fix killed NPCs remaining upright, then connect first-person weapon presentation and firing/reload feedback.
+- ACTIVE: Connect first-person weapon presentation and firing/reload feedback.
 - Continue campaign traversal/physics coverage beyond the repaired walking route.
 - DEFERRED / TO COMPLETE: Finish lighting lifecycle updates, shadows and visual parity within64MiB; revisit after critical gameplay systems.
 - Finish glare volumes/reflections, cross-level bitmap clocks, special visibility and parent ordering/tag resolution.
@@ -26,8 +26,14 @@ Stock64MiB XEMU360-frame combat regression PASS after the surface-ray and
 friendliness changes:22 shots,8 hits,1 recorded kill;8 return hits,health61.6.
 State/HUD match PC;7115 available pages at completion. Evidence:
 artifacts/xemu/replay-20260914-011423/report.json and framebuffer.png.
-VISUAL FAILURE: inspected final capture still shows the killed guard upright;
-fix death-pose publication/playback before treating NPC death as complete.
+Historical visual failure: that capture showed the killed guard upright.
+The PC fix stops looping locomotion once at death, uses the retained death
+motion setup and skips the standing controller for dead NPCs. Generic death
+now completes and holds its final grounded pose at360/480 frames. Both builds
+and26 CTests pass. Stock64MiB XEMU360-frame PASS with inspected grounded
+body and PC-matching frozen death state.7115 available pages at completion.
+Evidence artifacts/xemu/replay-20260914-012508/report.json and framebuffer.png.
+Evidence artifacts/combat-death/report.json; death audio remains deferred.
 This replay does not prove door-gap shots or authored allegiance transitions.
 
 Next weapon integration: the installed12mm handgun uses fp_glock.v3c(52232

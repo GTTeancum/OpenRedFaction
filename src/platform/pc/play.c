@@ -529,6 +529,7 @@ int main(int argc,char **argv)
     printf("PLAYER_LIFE");for(i=0;i<8;++i)printf(" %u",rf_scene_player_life[i]);puts("");
     printf("ENEMY_AWARENESS");for(uint32_t i=0;i<8;i++)printf(" %u",rf_scene_enemy_awareness[i]);printf("\n");
     printf("ENEMY_COMBAT");for(i=0;i<8;++i)printf(" %u",rf_scene_enemy_combat[i]);puts("");
+    printf("COMBAT_DEATH");for(i=0;i<8;++i)printf(" %u",rf_scene_combat_death[i]);puts("");
     printf("COMBAT");for(i=0;i<8;++i)printf(" %u",rf_scene_combat[i]);puts("");
     printf("Completed %u frames, 640x480 raster, %u byte mesh cap.\n",p.frames,RF_SCENE_FOLLOW_CAPACITY);
 cleanup:

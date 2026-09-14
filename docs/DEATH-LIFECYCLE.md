@@ -11128,3 +11128,24 @@ inspected framebuffer still shows the targeted guard upright. Health/death
 counters are therefore insufficient evidence of rendered death playback.
 Trace generic death action selection and pose publication next; do not claim
 a correct corpse/death animation from this replay.
+
+## Combat death pose correction
+
+The first-pass kill called the action player directly and then reapplied the
+standing locomotion controller every frame. The death clip was loaded and its
+clock advanced, but the living controller overrode the visible result.
+
+Combat now stops looping motion once, requests generic death through the
+retained death-motion setup (including bone-override reset), and skips living
+controller application for dead NPCs. The death helper holds the completed
+pose. Stopping loops every frame would clear that freeze flag, so it occurs
+only before death setup. Action sound uses an explicit first-pass no-op; death
+audio and full corpse physics/teardown remain open.
+
+`tools/replay_combat_death.py` verifies visible guard8456 at360 and480 frames:
+one kill, action5/motion62, successful setup, tick12800 and a frozen final pose
+with unchanged generation274. Both PC captures show the body on the ground.
+Both builds and26 CTests pass. Stock64MiB XEMU360-frame PASS, with the
+final guest framebuffer visually confirming the body on the ground. Death
+state and HUD samples match PC;7115 available pages at completion. Evidence:
+artifacts/xemu/replay-20260914-012508/report.json and framebuffer.png.

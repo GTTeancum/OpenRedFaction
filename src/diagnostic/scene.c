@@ -6930,6 +6930,7 @@ static int actor_listener_pose(scene_stream *stream,uint32_t frame,
 }
 /* Playable-first hitscan prototype; tuning/inventory and complete effect/AI
  * services remain pending. Uses retained damage ownership and death animation. */
+uint32_t rf_scene_combat_death[8]; /* entered,action,motion,status,tick,weight bits,frozen,generation */
 uint32_t rf_scene_combat[8];
 static uint32_t combat_cooldown,combat_frame,combat_hit_frame;
 uint32_t rf_scene_enemy_awareness[8]; /* checks,acquired,blocked,range,facing,nonhostile,last handle,status */
@@ -7035,6 +7036,21 @@ static int combat_shot_obstructed(scene_stream *stream,const float start[3],cons
      * Only visibility is needed, avoiding the original wrapper's reused fractions. */
     return rf_geometry_collision_ray(stream->collision,&campaign_movers,start,end,0x27,NULL,blocked);
 }
+/* First-pass death presentation; action audio remains a separate integration. */
+static int combat_death_sound(void *context,uint32_t handle,const char *name)
+{(void)context;(void)handle;(void)name;return RF_OK;}
+static int combat_death_start(uint32_t slot)
+{
+    campaign_npc_body *owner=campaign_npc_bodies+slot;rf_entity_pose *pose=NULL;rf_entity_playback_model *model;int status;
+    rf_scene_death_motion_ops ops={NULL,combat_death_sound,NULL};
+    status=campaign_actor_pose(slot,&pose);if(status)return status;if(!pose)return RF_NOT_FOUND;
+    model=campaign_playback_resources.models+pose->skeleton;
+    status=rf_motion_stop_looping(&pose->playback,model->resources,model->count);if(status)return status;
+    owner->death.requested_83c=5;status=rf_scene_npc_death_motion(owner->registration.handle,&ops);
+    rf_scene_combat_death[0]=1;rf_scene_combat_death[1]=(uint32_t)owner->death.action_824;
+    rf_scene_combat_death[2]=(uint32_t)owner->selection.mapping.actions[5];rf_scene_combat_death[3]=(uint32_t)status;
+    return status;
+}
 static int campaign_enemy_tick(scene_stream *stream,uint32_t frame,const float player_eye[3])
 {
     uint32_t i,j,blocked,clock_bits;float seconds=(float)frame/60;
@@ -7079,7 +7095,7 @@ static int campaign_enemy_tick(scene_stream *stream,uint32_t frame,const float p
 static int campaign_combat_tick(scene_stream *stream,uint32_t frame,const float position[3],const float orientation[3][3])
 {
     float delta[3],nearest=1,amount;uint32_t i,target=UINT32_MAX,blocked;int status;
-    if(!frame){memset(rf_scene_combat,0,sizeof(rf_scene_combat));rf_scene_combat[3]=UINT32_MAX;rf_scene_combat[5]=12;combat_cooldown=0;combat_frame=combat_hit_frame=UINT32_MAX;
+    if(!frame){memset(rf_scene_combat_death,0,sizeof(rf_scene_combat_death));memset(rf_scene_combat,0,sizeof(rf_scene_combat));rf_scene_combat[3]=UINT32_MAX;rf_scene_combat[5]=12;combat_cooldown=0;combat_frame=combat_hit_frame=UINT32_MAX;
         memset(rf_scene_enemy_awareness,0,sizeof(rf_scene_enemy_awareness));
         memset(rf_scene_enemy_combat,0,sizeof(rf_scene_enemy_combat));combat_initial_health=campaign_player_damage.state.effects.health;
         for(i=0;i<campaign_npc_body_count;i++)campaign_npc_bodies[i].combat_alert=campaign_npc_bodies[i].combat_due=0;}
@@ -7110,7 +7126,7 @@ static int campaign_combat_tick(scene_stream *stream,uint32_t frame,const float 
         ++rf_scene_combat[1];rf_scene_combat[3]=handle;memcpy(rf_scene_combat+4,&owner->damage.effects.health,4);
         if(owner->damage.effects.health<=0) {
             status=rf_scene_npc_death_entry(handle,&entered);if(status)return status;
-            if(entered){++rf_scene_combat[2];status=rf_scene_npc_death_play(handle,5,0,NULL,NULL);if(status!=RF_NOT_FOUND && status)return status;}
+            if(entered){++rf_scene_combat[2];status=combat_death_start(target);if(status)return status;}
         }
     }
     return RF_OK;
@@ -8105,7 +8121,9 @@ static int campaign_npc_playback_tick(scene_stream *stream,float elapsed)
         if(class_index>=campaign_motion_catalog.class_count || pose->skeleton>=campaign_playback_resources.model_count)return RF_RANGE;
         map=&campaign_npc_bodies[i].selection.mapping;model=campaign_playback_resources.models+pose->skeleton;
         if(map->skeleton!=pose->skeleton)return RF_FORMAT;
-        status=rf_motion_apply_controller(&pose->controller,map->states,elapsed,&pose->playback,model->resources,model->count);if(status)return status;
+        if(!(campaign_npc_bodies[i].view.flags_810&1u)) {
+            status=rf_motion_apply_controller(&pose->controller,map->states,elapsed,&pose->playback,model->resources,model->count);if(status)return status;
+        }
         status=campaign_npc_pose_residency(i);if(status)return status;
         {
             rf_entity_animation_gate gate={0};uint32_t room;int advance;
@@ -8129,6 +8147,13 @@ static int campaign_npc_playback_tick(scene_stream *stream,float elapsed)
                 status=rf_entity_pose_advance(pose,&campaign_skeletons,&campaign_motion_catalog,&campaign_playback_resources,elapsed,displacement);if(status)return status;
                 status=campaign_model_collision_refresh(i);if(status)return status;
             }
+        }
+        if(campaign_npc_bodies[i].registration.handle==rf_scene_combat[3] && campaign_npc_bodies[i].damage.effects.health<=0) {
+            uint32_t z;for(z=0;z<pose->playback.completion.active.count;z++)if(pose->playback.completion.active.slots[z].motion==(int32_t)rf_scene_combat_death[2]) {
+                memcpy(rf_scene_combat_death+4,&pose->playback.completion.active.slots[z].tick,4);
+                memcpy(rf_scene_combat_death+5,&pose->playback.completion.active.slots[z].weight,4);
+            }
+            rf_scene_combat_death[6]=pose->playback.completion.frozen;rf_scene_combat_death[7]=pose->playback.generation;
         }
         status=campaign_npc_eye_update(i);if(status)return status;
         ++actors;bones+=pose->bone_count;
