@@ -28,6 +28,12 @@ def main():
     parser.add_argument('--seconds', type=int, default=180)
     parser.add_argument('--actor', type=int, default=9858)
     parser.add_argument('--visible', action='store_true')
+    visibility = parser.add_mutually_exclusive_group()
+    visibility.add_argument('--culled', dest='culled', action='store_true', help='Experimental model bounds rejection; default off after negative timing result')
+    visibility.add_argument('--unculled', dest='culled', action='store_false')
+    parser.set_defaults(culled=False)
+    parser.add_argument('--unbatched', action='store_true', help='Reference tiny GPU command submission blocks')
+    parser.add_argument('--unsorted', action='store_true', help='Reference source-order world draw ranges')
     args = parser.parse_args()
     if not 32 <= args.frames <= 3600 or not 30 <= args.seconds <= 600 or not 0 < args.actor < 0xffffffff:
         parser.error('Require32..3600 frames,30..600 seconds and a positive actor UID')
@@ -37,7 +43,7 @@ def main():
     run = root / 'artifacts/xemu' / ('render-' + datetime.datetime.now().strftime('%Y%m%d-%H%M%S'))
     run.mkdir(parents=True)
     print('Run:', run, flush=True)
-    report = dict(result='FAIL', frames=args.frames, actor=args.actor,
+    report = dict(result='FAIL', frames=args.frames, actor=args.actor, model_culling=args.culled, command_batching=not args.unbatched, world_grouping=not args.unsorted,
         scope='Staged L1S1 inspection camera, neutral process-local commands, native framebuffer, '
               'phase timings and selected PC gameplay-state checks. No full campaign/parity claim.', samples=[])
     payload = b'RFI5' + struct.pack('<I', 44) + bytes(args.frames * 44)
@@ -51,7 +57,7 @@ def main():
     pc.check_returncode()
     report['pc_sha256'] = hashlib.sha256((root / 'build/pc/Release/rf_pc_play.exe').read_bytes()).hexdigest()
     saved = {p.name: p.read_bytes() for p in disc.glob('campaign-*') if p.is_file()}
-    for name in ('player-replay.bin', 'player-control-frames.txt', 'audio-output.flag', 'particle-step-fixtures.bin'):
+    for name in ('player-replay.bin', 'player-control-frames.txt', 'audio-output.flag', 'particle-step-fixtures.bin', 'renderer-cull-off.flag', 'renderer-cull-on.flag', 'renderer-batch-off.flag', 'renderer-world-off.flag'):
         p = disc / name
         saved[name] = p.read_bytes() if p.exists() else None
     for name in ('campaign-spawn.flag', 'campaign-level.bin', 'campaign-actor.bin'):
@@ -85,6 +91,12 @@ def main():
         (disc / 'campaign-level.bin').write_bytes(b'levels1.vpp'.ljust(64, b'\0') + b'L1S1.rfl'.ljust(64, b'\0'))
         (disc / 'campaign-actor.bin').write_bytes(struct.pack('<I', args.actor))
         (disc / 'player-replay.bin').write_bytes(payload)
+        if args.culled:
+            (disc / 'renderer-cull-on.flag').write_bytes(b'')
+        if args.unbatched:
+            (disc / 'renderer-batch-off.flag').write_bytes(b'')
+        if args.unsorted:
+            (disc / 'renderer-world-off.flag').write_bytes(b'')
         build()
         mapping = (root / 'build/xbox/main.map').read_text()
         (run / 'main.map').write_text(mapping)
@@ -170,7 +182,7 @@ dvd_path = '{root.as_posix()}/build/xbox/redfaction-diagnostic.iso'
             capture(d)
             assert d[37] == args.frames, (d[37], args.frames)
             fields = [('rf_diagnostic', 58), ('rf_xbox_retained_world', 8), ('rf_xbox_retained_models', 8),
-                ('rf_xbox_retained_model_kinds', 6), ('rf_scene_pose_sharing', 4), ('rf_renderer_submission', 4), ('rf_renderer_vblank', 3)]
+                ('rf_xbox_retained_model_kinds', 6), ('rf_scene_pose_sharing', 4), ('rf_xbox_model_visibility', 8), ('rf_xbox_bounds_poses', 2), ('rf_xbox_command_blocks', 6), ('rf_xbox_world_groups', 2), ('rf_renderer_submission', 4), ('rf_renderer_vblank', 3)]
             fields += [(name, 32) for name in ('rf_renderer_profile', 'rf_scene_profile',
                 'rf_scene_presentation_profile', 'rf_scene_world_profile', 'rf_scene_step_profile',
                 'rf_scene_npc_step_profile', 'rf_scene_npc_playback_profile')]

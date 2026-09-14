@@ -22,6 +22,7 @@ SRCS += $(PROJECT_ROOT)/src/core/object_registry.c
 SRCS += $(PROJECT_ROOT)/src/core/lightmap.c
 SRCS += $(PROJECT_ROOT)/src/core/eye.c
 SRCS += $(PROJECT_ROOT)/src/core/model.c
+SRCS += $(PROJECT_ROOT)/src/core/model_bounds.c
 SRCS += $(PROJECT_ROOT)/src/core/motion.c
 SRCS += $(PROJECT_ROOT)/src/core/timer.c
 SRCS += $(PROJECT_ROOT)/src/core/random.c

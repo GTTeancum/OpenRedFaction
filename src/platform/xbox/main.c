@@ -518,6 +518,15 @@ static int scene_preview(rf_level *level,rf_preview_mesh *mesh)
     player_pacing=0;scene_simulation_frames=0;memset(&rf_player_frame_clock,0,sizeof(rf_player_frame_clock));
     rf_scene_set_profile(profile_milliseconds);
     rf_xbox_enable_retained_world();
+    {extern uint32_t rf_xbox_command_batching_disabled;
+     stream_flag=fopen("D:\\renderer-batch-off.flag","rb");rf_xbox_command_batching_disabled=stream_flag!=NULL;
+     if(stream_flag)fclose(stream_flag);}
+    {extern uint32_t rf_xbox_model_culling_disabled;
+     stream_flag=fopen("D:\\renderer-cull-on.flag","rb");rf_xbox_model_culling_disabled=stream_flag==NULL;
+     if(stream_flag)fclose(stream_flag);}
+    {extern uint32_t rf_xbox_world_grouping_disabled;FILE *stream_flag;
+     stream_flag=fopen("D:\\renderer-world-off.flag","rb");rf_xbox_world_grouping_disabled=stream_flag!=NULL;
+     if(stream_flag)fclose(stream_flag);}
     stream_flag=fopen("D:\\campaign-spawn.flag","rb");
     rf_scene_follow_level_exits=stream_flag!=NULL;
     if(stream_flag){fclose(stream_flag);status=rf_scene_set_campaign_spawn(level);}

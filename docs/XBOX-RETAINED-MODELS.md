@@ -43,3 +43,8 @@ Tests were paused during implementation; the subsequent focused render run is re
 Compile evidence: `tools/build-xbox.sh` produces the XBE/XISO, and `cmake --build build/pc --config Release --target rf_pc_play` builds the maintained PC executable. Logs are under `artifacts/opening-handoff/retained-rigid-build.log` and `retained-rigid-pc-build.log`. Existing PC warnings and the existing NXDK linker section-merge warning remain.
 
 First-person GPU rendering remains open: its CPU path clips at0.01 units and writes `16384/(1+reciprocal_z)` for a separate depth band. Reusing the world shader would change clipping/self-occlusion; retain that path until its full projection policy is adapted.
+
+The subsequent [draw submission pass](XBOX-DRAW-SUBMISSION.md) groups GPU
+commands into blocks of at most128 dwords. Conservative posed-batch bounds and
+matrix-key caching remain an opt-in experiment: their measured CPU cost exceeded
+the GPU savings in the initial scene. Normal play does not allocate those records.

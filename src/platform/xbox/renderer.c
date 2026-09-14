@@ -4,6 +4,7 @@
 #include "../../../tests/particle_stretch_fixture.h"
 #include "rf/resource_budget.h"
 #include "renderer.h"
+#include "rf/model_bounds.h"
 #include "rf/scene_preview.h"
 #include <pbkit/pbkit.h>
 #include <xboxkrnl/xboxkrnl.h>
@@ -86,6 +87,21 @@ static const rf_materials *stream_materials;
 static const rf_lightmaps *stream_lightmaps;
 static int stream_mode,stream_device_ready;static uint32_t stream_capacity,stream_fallback;
 static uint32_t retained_draw_count;
+/* Actual/former pb_end blocks: retained world, shader uploads, model parts. */
+uint32_t rf_xbox_command_blocks[6],rf_xbox_command_batching_disabled;
+typedef struct renderer_command_batch {uint32_t *begin,*p,*blocks;} renderer_command_batch;
+/* pbkit's debug contract permits at most128 dwords per begin/end pair. */
+static uint32_t *renderer_reserve(renderer_command_batch *batch,uint32_t words)
+{
+    if(batch->p && (rf_xbox_command_batching_disabled || (uint32_t)(batch->p-batch->begin)+words>128)) {
+        pb_end(batch->p);batch->p=NULL;
+    }
+    if(!batch->p){batch->begin=batch->p=pb_begin();++*batch->blocks;}
+    return batch->p;
+}
+static void renderer_flush(renderer_command_batch *batch)
+{if(batch->p){pb_end(batch->p);batch->p=NULL;}}
+
 static int retained_model_prepare(const rf_model_geometry *,uint32_t,const float (*)[12],uint32_t,
     const rf_model_projection *,uint32_t,uint32_t);
 static void retained_models_begin(void);
@@ -104,6 +120,15 @@ static struct {
 /* state, GPU bytes, descriptor bytes, cached vertices, visible vertices,
  * visible faces, draw ranges, fallback count. No correctness-test dependency. */
 uint32_t rf_xbox_retained_world[8];
+uint32_t rf_xbox_world_grouping_disabled,rf_xbox_world_groups[2];
+static int retained_face_material_order(const void *left,const void *right)
+{
+    const retained_face *a=left,*b=right;
+    if(a->material!=b->material)return a->material<b->material?-1:1;
+    if(a->lightmap!=b->lightmap)return a->lightmap<b->lightmap?-1:1;
+    /* Keep original order within an identical material/lightmap group. */
+    return a->start<b->start?-1:a->start>b->start;
+}
 static void retained_world_close(void)
 {
     if(retained_world.vertices){if(stream_device_ready)while(pb_busy()){} MmFreeContiguousMemory(retained_world.vertices);}
@@ -159,6 +184,10 @@ static int retained_world_prepare(const rf_scene_world_geometry *scene,const flo
                 }
             }
         }
+        /* This pass disables blending, writes depth and draws opaque surfaces.
+         * Only descriptors move: never read back write-combined GPU vertices. */
+        if(!rf_xbox_world_grouping_disabled)
+            qsort(retained_world.faces,g->faces,sizeof(retained_face),retained_face_material_order);
         __asm__ volatile("sfence" ::: "memory");
         retained_world.count=count;retained_world.face_count=g->faces;
         retained_world.bytes=count*sizeof(rf_preview_vertex);retained_world.ready=1;
@@ -179,7 +208,13 @@ static void vertex_program(const uint32_t *program,uint32_t words)
         field(NV097_SET_TRANSFORM_EXECUTION_MODE_RANGE_MODE,NV097_SET_TRANSFORM_EXECUTION_MODE_RANGE_MODE_PRIV));
     p=pb_push1(p,NV097_SET_TRANSFORM_PROGRAM_CXT_WRITE_EN,0);
     p=pb_push1(p,NV097_SET_TRANSFORM_PROGRAM_LOAD,0);pb_end(p);
-    for(i=0;i<words;i+=4){p=pb_begin();pb_push(p++,NV097_SET_TRANSFORM_PROGRAM,4);memcpy(p,program+i,16);p+=4;pb_end(p);}
+    ++rf_xbox_command_blocks[2];rf_xbox_command_blocks[3]+=1+words/4;
+    for(i=0;i<words;) {
+        uint32_t end=i+(rf_xbox_command_batching_disabled?4:96);if(end>words)end=words;
+        p=pb_begin();
+        for(;i<end;i+=4){pb_push(p++,NV097_SET_TRANSFORM_PROGRAM,4);memcpy(p,program+i,16);p+=4;}
+        pb_end(p);++rf_xbox_command_blocks[2];
+    }
 }
 static int retained_face_visible(const retained_face *face)
 {
@@ -193,7 +228,9 @@ static int retained_world_draw(const rf_materials *materials,const rf_lightmaps 
     const uint32_t program[]={
 #include "world_vertex.inl"
     };
-    uint32_t i,j,*p,visible=0,faces=0,draws=0;float rows[3][4];
+    uint32_t i,j,*p,visible=0,faces=0,draws=0,active=0,bound_material=0,bound_lightmap=0;float rows[3][4];
+    renderer_command_batch commands={NULL,NULL,rf_xbox_command_blocks};
+    memset(rf_xbox_world_groups,0,sizeof(rf_xbox_world_groups));
     if(retained_world.ready!=1)return RF_OK;
     vertex_program(program,sizeof(program)/4);
     for(i=0;i<3;i++) {
@@ -227,24 +264,36 @@ static int retained_world_draw(const rf_materials *materials,const rf_lightmaps 
             if(next->start!=start+count || next->material!=material || next->lightmap!=lightmap || !retained_face_visible(next))break;
             count+=next->count;++i;++faces;
         }
-        if(lightmap!=UINT32_MAX && lightmap>=lightmaps->count)return RF_FORMAT;
+        if(lightmap!=UINT32_MAX && lightmap>=lightmaps->count) {
+            if(active){p=renderer_reserve(&commands,2);commands.p=pb_push1(p,NV097_SET_BEGIN_END,NV097_SET_BEGIN_END_OP_END);}
+            renderer_flush(&commands);return RF_FORMAT;
+        }
         textured=material<materials->count && textures[material].pixels;
         texture=textured?textures+material:textures+materials->count;
         lighting=lightmap<lightmaps->count?textures+materials->count+1+lightmap:textures+materials->count;
-        p=pb_begin();p=pb_push1(p,NV097_SET_TEXTURE_OFFSET,(uint32_t)texture->pixels&0x03ffffff);
+        if(!active || material!=bound_material || lightmap!=bound_lightmap) {
+        if(active){p=renderer_reserve(&commands,2);commands.p=pb_push1(p,NV097_SET_BEGIN_END,NV097_SET_BEGIN_END_OP_END);++rf_xbox_command_blocks[1];}
+        p=renderer_reserve(&commands,17);p=pb_push1(p,NV097_SET_TEXTURE_OFFSET,(uint32_t)texture->pixels&0x03ffffff);
         p=pb_push1(p,NV097_SET_TEXTURE_FORMAT,texture->format);
         p=pb_push1(p,NV097_SET_TEXTURE_OFFSET+0x40,(uint32_t)lighting->pixels&0x03ffffff);
         p=pb_push1(p,NV097_SET_TEXTURE_FORMAT+0x40,lighting->format);
         p=pb_push1(p,NV097_SET_TRANSFORM_CONSTANT_LOAD,99);
         p=pb_push4f(p,NV097_SET_TRANSFORM_CONSTANT,textured?0:1,textured?1:0,lightmap==UINT32_MAX?.5f:1,.1f);
-        p=pb_push1(p,NV097_SET_BEGIN_END,NV097_SET_BEGIN_END_OP_TRIANGLES);pb_end(p);
-        while(count) {
-            uint32_t batch=count>252?252:count;p=pb_begin();
-            p=pb_push1(p,0x40000000|NV097_DRAW_ARRAYS,field(NV097_DRAW_ARRAYS_COUNT,batch-1)|field(NV097_DRAW_ARRAYS_START_INDEX,start));pb_end(p);
-            count-=batch;start+=batch;visible+=batch;++draws;
+        p=pb_push1(p,NV097_SET_BEGIN_END,NV097_SET_BEGIN_END_OP_TRIANGLES);commands.p=p;++rf_xbox_command_blocks[1];
+        active=1;bound_material=material;bound_lightmap=lightmap;++rf_xbox_world_groups[0];
         }
-        p=pb_begin();p=pb_push1(p,NV097_SET_BEGIN_END,NV097_SET_BEGIN_END_OP_END);pb_end(p);
+        ++rf_xbox_world_groups[1];
+        while(count) {
+            uint32_t batch=count>252?252:count;p=renderer_reserve(&commands,2);
+            p=pb_push1(p,0x40000000|NV097_DRAW_ARRAYS,field(NV097_DRAW_ARRAYS_COUNT,batch-1)|field(NV097_DRAW_ARRAYS_START_INDEX,start));commands.p=p;
+            count-=batch;start+=batch;visible+=batch;++draws;++rf_xbox_command_blocks[1];
+        }
+        if(rf_xbox_world_grouping_disabled) {
+            p=renderer_reserve(&commands,2);commands.p=pb_push1(p,NV097_SET_BEGIN_END,NV097_SET_BEGIN_END_OP_END);active=0;++rf_xbox_command_blocks[1];
+        }
     }
+    if(active){p=renderer_reserve(&commands,2);commands.p=pb_push1(p,NV097_SET_BEGIN_END,NV097_SET_BEGIN_END_OP_END);++rf_xbox_command_blocks[1];}
+    renderer_flush(&commands);
     rf_xbox_retained_world[4]=visible;rf_xbox_retained_world[5]=faces;rf_xbox_retained_world[6]=draws;return RF_OK;
 }
 #include "retained_models.h"
@@ -365,6 +414,7 @@ static int preview(const rf_preview_mesh *mesh, const rf_materials *materials, c
         const gpu_texture *bound_texture=NULL,*bound_lighting=NULL;
         uint32_t bound_blend=UINT32_MAX,draws=0,methods=8,state_changes=0;
         uint32_t retained_next=0,retained_total=model==4?retained_draw_count:0;
+        memset(rf_xbox_command_blocks,0,sizeof(rf_xbox_command_blocks));
         for(i=0;i<retained_total;i++)if(retained_draws[i].at_vertex>mesh->count || retained_draws[i].at_vertex%3)return RF_FORMAT;
         /* Allow one frame start per observed VBlank. Slow simulation may
          * already have crossed it; do not force an additional refresh delay.

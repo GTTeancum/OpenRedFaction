@@ -20,7 +20,8 @@ def main():
     run.mkdir(parents=True)
     saved = {p.name: p.read_bytes() for p in disc.glob('campaign-*') if p.is_file()}
     for name in ('campaign-spawn.flag', 'campaign-level.bin', 'player-replay.bin',
-                 'player-control-frames.txt', 'player-control.flag', 'particle-step-fixtures.bin'):
+                 'player-control-frames.txt', 'player-control.flag', 'particle-step-fixtures.bin',
+                 'renderer-cull-off.flag', 'renderer-cull-on.flag', 'renderer-batch-off.flag', 'renderer-world-off.flag'):
         p = disc / name
         saved.setdefault(name, p.read_bytes() if p.exists() else None)
 

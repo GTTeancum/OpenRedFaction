@@ -65,6 +65,25 @@ ticks/sec across45 seconds,22.10MiB available. NPC pose work fell to1.687ms;
 32/36 poses reused in the final sample. XEMU remains open for USER input.
 Evidence and reproduction: docs/XBOX-PACING-POSE-SHARING.md.
 
+Opaque world draw grouping and larger pbkit submission blocks are implemented.
+The same-XBE180-frame pair render-20260914-153547/reference and
+render-20260914-153350/optimized passes selected PC gameplay-state checks and
+has zero differing final RGB pixels. World BEGIN/END groups fall510 ->41;
+retained-world/shader/model-part submission blocks fall1530/127/644 ->15/12/139.
+The native draw/wait phase falls22.183ms ->15.354ms in the focused run, with
+zero retained-model fallback. Unlimited play-20260914-154020 measured26.102 FPS,
+53.625 simulation ticks/sec and22.086MiB available across45.016 seconds, with
+all77 sampled player-body words matching the preceding live baseline. That
+baseline measured21.067 FPS, but another project's emulator exited at an
+unknown point before the post-run check: the difference is not a controlled
+FPS speedup. The optimized XEMU remains open without a frame limit.
+An experimental conservative model-bounds path passes12000 brute-force cases
+and native image checks but increases net CPU cost in this scene; it remains
+OFF for normal play and allocates no bounds records/keys unless enabled.
+TO COMPLETE: Cover moving cameras, coplanar world surfaces and busy gameplay;
+revisit model culling only where measured GPU savings outweigh its CPU cost.
+Evidence and reproduction: docs/XBOX-DRAW-SUBMISSION.md.
+
 Both retained geometry caches retain their independent4MiB caps and CPU fallback.
 Moving geometry and first-person weapons still use the CPU path; weapon near/depth
 policy needs a separate GPU adaptation. Clipping, winding, depth/perspective,

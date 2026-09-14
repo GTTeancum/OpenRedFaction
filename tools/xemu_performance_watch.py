@@ -23,8 +23,8 @@ def main():
     mapping = (run / 'main.map').read_text()
     fields = [('rf_diagnostic', 58), ('rf_player_frame_clock', 8), ('scene_actor_body', 77),
               ('rf_xbox_retained_world', 8), ('rf_xbox_retained_models', 8),
-              ('rf_xbox_retained_model_kinds', 6), ('rf_scene_pose_sharing', 4)]
-    profiles = ['rf_scene_profile', 'rf_renderer_profile', 'rf_scene_npc_playback_profile']
+              ('rf_xbox_retained_model_kinds', 6), ('rf_scene_pose_sharing', 4), ('rf_xbox_model_visibility', 8), ('rf_xbox_bounds_poses', 2), ('rf_xbox_command_blocks', 6), ('rf_xbox_world_groups', 2)]
+    profiles = ['rf_scene_profile', 'rf_renderer_profile', 'rf_scene_presentation_profile', 'rf_scene_npc_playback_profile']
     fields += [(n, 32) for n in profiles]
     addresses = {n: (int(match[1], 16), count) for n, count in fields
                  if (match := re.search('_' + n + r'\s+([0-9a-fA-F]+)', mapping))}
@@ -78,7 +78,11 @@ def main():
             phase_means[name] = rows
         summary = dict(seconds=round(seconds, 3), presented_fps=round(frames/seconds, 3),
             simulation_hz=round(steps/seconds, 3), available_mib=right['rf_diagnostic']['words'][44]/256,
-            pose_sharing=right.get('rf_scene_pose_sharing', {}).get('words'), phase_mean_ms=phase_means)
+            pose_sharing=right.get('rf_scene_pose_sharing', {}).get('words'),
+            model_visibility=right.get('rf_xbox_model_visibility', {}).get('words'),
+            bounds_poses=right.get('rf_xbox_bounds_poses', {}).get('words'),
+            command_blocks=right.get('rf_xbox_command_blocks', {}).get('words'),
+            world_groups=right.get('rf_xbox_world_groups', {}).get('words'), phase_mean_ms=phase_means)
         report = dict(summary=summary, before=before, after=after, memory=memory,
             scope='Non-atomic read-only live guest samples. Real user input/camera and host scheduling affect results; '
                   'not a deterministic parity check. Emulator remains running.')

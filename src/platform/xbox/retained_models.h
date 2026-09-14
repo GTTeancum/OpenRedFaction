@@ -9,7 +9,8 @@ _Static_assert(sizeof(retained_rigid_vertex)==20,"Retained rigid attribute strid
 typedef struct retained_skin_part {uint32_t start,count,bones,two_sided;uint8_t ids[RETAINED_SKIN_BONES];} retained_skin_part;
 typedef struct retained_model_entry {
     const rf_model_geometry *geometry;uint32_t batch,bones,vertices,part_count,bytes,stride;
-    void *gpu;retained_skin_part *parts;
+    void *gpu;retained_skin_part *parts;rf_model_bounds *bounds;
+    rf_model_box posed_bounds;uint32_t posed_valid;
 } retained_model_entry;
 typedef struct retained_model_draw {
     uint32_t entry,at_vertex,material,front_face;float rows[3][4],screen[4],palette[150][4];
@@ -22,9 +23,15 @@ static uint32_t retained_model_count,retained_model_bytes;
 uint32_t rf_xbox_retained_models[8];
 /* Frame pairs: queued skeletal/rigid, submitted skeletal/rigid, vertices. */
 uint32_t rf_xbox_retained_model_kinds[6];
+/* tested skin/rigid, rejected skin/rigid, rejected vertices, bound bytes,
+ * uncullable requests, culling-disabled fixture. */
+uint32_t rf_xbox_model_visibility[8],rf_xbox_model_culling_disabled;
+uint32_t rf_xbox_bounds_poses[2]; /* Full bounds evaluations, reused poses this frame. */
 static void retained_models_begin(void)
 {
-    retained_draw_count=0;
+    retained_draw_count=0;memset(rf_xbox_bounds_poses,0,sizeof(rf_xbox_bounds_poses));
+    memset(rf_xbox_model_visibility,0,5*sizeof(uint32_t));rf_xbox_model_visibility[6]=0;
+    rf_xbox_model_visibility[7]=rf_xbox_model_culling_disabled;
     rf_xbox_retained_models[0]=rf_xbox_retained_models[1]=rf_xbox_retained_models[4]=rf_xbox_retained_models[5]=rf_xbox_retained_models[6]=0;
     memset(rf_xbox_retained_model_kinds,0,sizeof(rf_xbox_retained_model_kinds));
 }
@@ -33,11 +40,12 @@ static void retained_models_close(void)
     uint32_t i;if(stream_device_ready)while(pb_busy()){}
     for(i=0;i<retained_model_count;i++) {
         if(retained_models[i].gpu)MmFreeContiguousMemory(retained_models[i].gpu);
-        free(retained_models[i].parts);
+        free(retained_models[i].parts);free(retained_models[i].bounds);
     }
     free(retained_draws);retained_draws=NULL;memset(retained_models,0,sizeof(retained_models));
     retained_model_count=retained_draw_count=retained_model_bytes=0;
     memset(rf_xbox_retained_models,0,sizeof(rf_xbox_retained_models));
+    memset(rf_xbox_model_visibility,0,sizeof(rf_xbox_model_visibility));
     memset(rf_xbox_retained_model_kinds,0,sizeof(rf_xbox_retained_model_kinds));
 }
 static int retained_skin_source(const rf_model_geometry *geometry,const rf_model_draw_batch *draw,
@@ -121,17 +129,24 @@ static int retained_model_cache(const rf_model_geometry *geometry,uint32_t batch
         ++parts;
         if(!pass) {
             entry.part_count=parts;
-            bytes=(((uint64_t)entry.vertices*entry.stride+4095u)&~4095ull)+(uint64_t)parts*sizeof(retained_skin_part);
+            uint32_t bounds_bytes=rf_xbox_model_culling_disabled?0:sizeof(rf_model_bounds)+bones*48;
+            bytes=(((uint64_t)entry.vertices*entry.stride+4095u)&~4095ull)+(uint64_t)parts*sizeof(retained_skin_part)+bounds_bytes;
             if(bytes>RETAINED_MODEL_BUDGET-retained_model_bytes)return RF_NOT_FOUND;entry.bytes=(uint32_t)bytes;
             entry.gpu=MmAllocateContiguousMemoryEx(entry.vertices*entry.stride,0,0x03ffb000,0,PAGE_READWRITE|PAGE_WRITECOMBINE);
-            entry.parts=calloc(parts,sizeof(retained_skin_part));
-            if(!entry.gpu || !entry.parts){status=RF_NOT_FOUND;goto failed;}
+            entry.parts=calloc(parts,sizeof(retained_skin_part));entry.bounds=bounds_bytes?malloc(bounds_bytes):NULL;
+            if(!entry.gpu || !entry.parts || (bounds_bytes && !entry.bounds)){status=RF_NOT_FOUND;goto failed;}
+            if(entry.bounds) {
+                status=rf_model_bounds_build(geometry,batch,bones,entry.bounds);
+                if(status==RF_NOT_FOUND){free(entry.bounds);entry.bounds=NULL;entry.bytes-=bounds_bytes;}
+                else if(status)goto failed;
+            }
         } else if(parts!=entry.part_count){status=RF_FORMAT;goto failed;}
     }
     __asm__ volatile("sfence" ::: "memory");retained_models[*slot]=entry;retained_model_bytes+=entry.bytes;
+    if(entry.bounds)rf_xbox_model_visibility[5]+=sizeof(rf_model_bounds)+bones*48;
     ++rf_xbox_retained_models[2];rf_xbox_retained_models[3]=retained_model_bytes;return RF_OK;
 failed:
-    if(entry.gpu)MmFreeContiguousMemory(entry.gpu);free(entry.parts);return status;
+    if(entry.gpu)MmFreeContiguousMemory(entry.gpu);free(entry.parts);free(entry.bounds);return status;
 }
 static int retained_model_prepare(const rf_model_geometry *geometry,uint32_t batch,const float (*matrices)[12],uint32_t bones,
     const rf_model_projection *view,uint32_t material,uint32_t at_vertex)
@@ -153,6 +168,21 @@ static int retained_model_prepare(const rf_model_geometry *geometry,uint32_t bat
     }
     status=retained_model_cache(geometry,batch,bones,&slot);
     if(status==RF_NOT_FOUND)goto fallback;if(status)return status;
+    if(!rf_xbox_model_culling_disabled && retained_models[slot].bounds) {
+        uint32_t visible=1;
+        {retained_model_entry *entry=retained_models+slot;
+         void *stored=(void *)(entry->bounds+1);
+         if(!entry->posed_valid || (bones && memcmp(stored,matrices,bones*48))) {
+            status=rf_model_bounds_pose(entry->bounds,matrices,&entry->posed_bounds);if(status)return status;
+            if(bones)memcpy(stored,matrices,bones*48);entry->posed_valid=1;++rf_xbox_bounds_poses[0];
+         } else ++rf_xbox_bounds_poses[1];
+         status=rf_model_box_visible(&entry->posed_bounds,view,640,480,&visible);if(status)return status;}
+        ++rf_xbox_model_visibility[bones?0:1];
+        if(!visible) {
+            ++rf_xbox_model_visibility[bones?2:3];rf_xbox_model_visibility[4]+=retained_models[slot].vertices;
+            return RF_OK;
+        }
+    } else ++rf_xbox_model_visibility[6];
     if(retained_draw_count && retained_draws[retained_draw_count-1].at_vertex>at_vertex)return RF_RANGE;
     draw=retained_draws+retained_draw_count;draw->entry=slot;draw->at_vertex=at_vertex;draw->material=material;
     /* Original accepts dot(camera-a, cross(b-a,c-b)) > 0. Screen Y is
@@ -184,6 +214,7 @@ static int retained_model_render(uint32_t request,const rf_materials *materials,
     const retained_model_draw *draw=retained_draws+request;const retained_model_entry *entry=retained_models+draw->entry;
     const gpu_texture *texture=draw->material<materials->count && textures[draw->material].pixels?textures+draw->material:textures+materials->count;
     const gpu_texture *white=textures+materials->count;uint32_t i,part_index,*p;
+    renderer_command_batch commands={NULL,NULL,rf_xbox_command_blocks+4};
     if(install_program) {
         if(entry->bones)vertex_program(skinned_program,sizeof(skinned_program)/4);
         else vertex_program(rigid_program,sizeof(rigid_program)/4);
@@ -220,18 +251,19 @@ static int retained_model_render(uint32_t request,const rf_materials *materials,
         for(i=0;i<part->bones*3;) {
             /* The constant method window is 32 dwords (eight float4 rows). */
             uint32_t count=part->bones*3-i;if(count>8)count=8;
-            p=pb_begin();p=pb_push1(p,NV097_SET_TRANSFORM_CONSTANT_LOAD,104+i);
-            pb_push(p++,NV097_SET_TRANSFORM_CONSTANT,count*4);memcpy(p,palette+i,count*16);p+=count*4;pb_end(p);i+=count;
+            p=renderer_reserve(&commands,3+count*4);p=pb_push1(p,NV097_SET_TRANSFORM_CONSTANT_LOAD,104+i);
+            pb_push(p++,NV097_SET_TRANSFORM_CONSTANT,count*4);memcpy(p,palette+i,count*16);p+=count*4;commands.p=p;i+=count;++rf_xbox_command_blocks[5];
         }
-        p=pb_begin();p=pb_push1(p,NV097_SET_CULL_FACE_ENABLE,!part->two_sided);
-        p=pb_push1(p,NV097_SET_BEGIN_END,NV097_SET_BEGIN_END_OP_TRIANGLES);pb_end(p);
+        p=renderer_reserve(&commands,4);p=pb_push1(p,NV097_SET_CULL_FACE_ENABLE,!part->two_sided);
+        p=pb_push1(p,NV097_SET_BEGIN_END,NV097_SET_BEGIN_END_OP_TRIANGLES);commands.p=p;++rf_xbox_command_blocks[5];
         while(remaining) {
-            uint32_t count=remaining>252?252:remaining;p=pb_begin();
+            uint32_t count=remaining>252?252:remaining;p=renderer_reserve(&commands,2);
             p=pb_push1(p,0x40000000|NV097_DRAW_ARRAYS,field(NV097_DRAW_ARRAYS_COUNT,count-1)|field(NV097_DRAW_ARRAYS_START_INDEX,start));
-            pb_end(p);start+=count;remaining-=count;
+            commands.p=p;start+=count;remaining-=count;++rf_xbox_command_blocks[5];
         }
-        p=pb_begin();p=pb_push1(p,NV097_SET_BEGIN_END,NV097_SET_BEGIN_END_OP_END);pb_end(p);
+        p=renderer_reserve(&commands,2);p=pb_push1(p,NV097_SET_BEGIN_END,NV097_SET_BEGIN_END_OP_END);commands.p=p;++rf_xbox_command_blocks[5];
     }
+    renderer_flush(&commands);
     ++rf_xbox_retained_models[1];rf_xbox_retained_models[4]+=entry->vertices;rf_xbox_retained_models[5]+=entry->part_count;
     ++rf_xbox_retained_model_kinds[entry->bones?2:3];rf_xbox_retained_model_kinds[entry->bones?4:5]+=entry->vertices;return RF_OK;
 }

@@ -24,3 +24,8 @@ The model backend adds retained GPU NPC skinning and rigid-model projection; see
 
 
 Build evidence: shared PC executable and NXDK XBE/XISO compile successfully. Cg maps view rows to c0..c2, shading to c3, projection to c4 and its zero literal to c5; the renderer uploads all six explicitly. The initial build preceded resumed testing; subsequent runtime evidence is recorded in [the performance notes](XBOX-PACING-POSE-SHARING.md).
+
+The subsequent [draw submission pass](XBOX-DRAW-SUBMISSION.md) groups opaque
+world faces by material/lightmap to share BEGIN/END pairs, and groups method
+words into pbkit blocks of at most128 dwords. Shader and retained-model uploads
+also use larger blocks. Model-bounds rejection remains an opt-in experiment.
