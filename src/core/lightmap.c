@@ -552,6 +552,30 @@ int rf_lightmap_shadow_polygon(const rf_lightmap_sample_plane *view,uint32_t wid
 
 static int shadow_filter_raster(const float (*)[2],uint32_t,const rf_lightmap_shadow_filter *,
     unsigned char *,uint32_t,uint32_t,uint32_t,unsigned char,uint32_t *);
+int rf_lightmap_shadow_dispatch_masks(const rf_lightmap_shadow_dispatch *dispatch,
+    rf_lightmap_shadow_render render,void *context,uint32_t *changed)
+{
+    uint32_t i,update=0;uint64_t pixels;int status;
+    if(!dispatch || !changed || dispatch->count>=64 ||
+       (dispatch->count && !dispatch->source_modes))return RF_RANGE;
+    if(!dispatch->mode){*changed=1;return RF_OK;}
+    pixels=(uint64_t)dispatch->width*dispatch->height;
+    if(!dispatch->width || !dispatch->height || pixels>dispatch->stride ||
+       (uint64_t)dispatch->stride*dispatch->count>dispatch->bytes ||
+       (dispatch->count && !dispatch->masks))return RF_RANGE;
+    for(i=0;i<dispatch->count;i++) {
+        uint32_t mode=dispatch->source_modes[i];unsigned char *mask=dispatch->masks+(size_t)i*dispatch->stride;
+        memset(mask,255,(size_t)pixels);
+        if(!mode){update=1;continue;}
+        if(!(dispatch->dirty&2) && !((dispatch->dirty&4) && mode==2))continue;
+        if(dispatch->mode!=1 && dispatch->mode!=2)continue;
+        if(!render)return RF_RANGE;
+        status=render(context,i,dispatch->mode,mask,dispatch->stride);if(status)return status;
+        update=1;
+    }
+    *changed=update;return RF_OK;
+}
+
 int rf_lightmap_shadow_source_samples(const rf_lightmap_shadow_source *source,uint32_t local,
     rf_lightmap_shadow_samples *out)
 {

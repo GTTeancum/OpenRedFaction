@@ -122,6 +122,8 @@ static int light_dispatch_dirty(void *c,uint32_t a,uint32_t b,uint32_t d){(void)
 static int light_dispatch_enter(void *c,uint32_t a,uint32_t b){(void)c;return light_dispatch_record(2,a,b,0);}
 static int light_dispatch_transform(void *c,uint32_t a){(void)c;return light_dispatch_record(3,a,0,0);}
 static int light_dispatch_leave(void *c){(void)c;return light_dispatch_record(4,0,0,0);}
+static int shadow_dispatch_fixture(void *context,uint32_t source,uint32_t mode,unsigned char *mask,uint32_t bytes)
+{(void)context;(void)bytes;mask[0]=(unsigned char)(source+mode*16);return RF_OK;}
 int main(int argc,char **argv)
 {
     if(argc==2 && !strcmp(argv[1],"--light-storage")) {
@@ -382,6 +384,17 @@ int main(int argc,char **argv)
             memset(output,0xa5,sizeof(output));count=0xa5a5a5a5;
             status=input.boundary_count>16 || input.subject_count>16 || input.capacity>64?RF_RANGE:rf_lightmap_shadow_clip_2d(input.boundary,input.boundary_count,input.subject,input.subject_count,&work,output,input.capacity,&count);
             fwrite(&status,4,1,stdout);fwrite(&count,4,1,stdout);fwrite(output,sizeof(output),1,stdout);
+        }
+        return 0;
+    }
+    if(argc==2 && !strcmp(argv[1],"--lightmap-shadow-dispatch")) {
+        struct {uint32_t count,dirty,mode,width,height,stride,bytes,modes[8];unsigned char masks[512];} in;
+        _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
+        while(fread(&in,sizeof(in),1,stdin)==1) {
+            rf_lightmap_shadow_dispatch dispatch={in.masks,in.bytes,in.stride,in.width,in.height,in.modes,in.count,in.dirty,in.mode};
+            uint32_t result[2]={0,UINT32_MAX};if(in.count>8 || in.bytes>512)return 2;
+            result[0]=rf_lightmap_shadow_dispatch_masks(&dispatch,shadow_dispatch_fixture,NULL,result+1);
+            fwrite(result,sizeof(result),1,stdout);fwrite(in.masks,512,1,stdout);
         }
         return 0;
     }

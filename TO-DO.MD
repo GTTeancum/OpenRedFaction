@@ -15,6 +15,15 @@ Shortlist:
 
 Progress reporting: include a very high-level working area (e.g. Lighting, AI, Weapons, GeoMod or Scripted events) and an overall percent estimate at the end of every turn report (USER preference) and revisit remaining 24-hour workdays when measured throughput supports a forecast; current rough estimate40% (35-45%), no defensible +/-48-hour completion forecast before end-to-end gameplay.
 
+Dirty shadow-mask dispatch matches2048 original/PC/NXDK schedules across
+all dirty bytes, renderer modes0..7 and source modes0..3, including1910
+accumulation requests. Four compiled NXDK guards and25 tests pass; both
+builds succeed. Logical mask resets preserve guard/padding. Deterministic
+callbacks replace projected/ray bodies in this scheduling comparison; this
+is not native XEMU rendering evidence. Next bind live campaign source modes,
+receiver jobs and retained storage; reconstruct ray-test body4f4280 and
+measure live memory/rendering.
+
 Bounded shadow storage owns receivers, face/clip/UV scratch and1..63 masks
 in one allocation, with zero scratch and255 masks/private guard rows. Exact/
 short budgets, overflow, isolation and repeated close pass; compiled NXDK

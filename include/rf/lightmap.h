@@ -180,6 +180,21 @@ typedef struct rf_lightmap_shadow_filter {
 int rf_lightmap_shadow_filter_raster(const float (*polygon)[2],uint32_t count,
     const rf_lightmap_shadow_filter *,unsigned char *mask,uint32_t bytes,
     uint32_t width,uint32_t height,unsigned char amount,uint32_t *accepted);
+typedef int (*rf_lightmap_shadow_render)(void *context,uint32_t source,uint32_t mode,
+    unsigned char *mask,uint32_t bytes);
+typedef struct rf_lightmap_shadow_dispatch {
+    unsigned char *masks;uint32_t bytes,stride,width,height;
+    const uint32_t *source_modes;uint32_t count,dirty,mode;
+} rf_lightmap_shadow_dispatch;
+/* Original4f29b1..4f2aaa after source selection/ambient setup and <64 gate.
+ * Mode0 requests unmasked accumulation without touching masks. Other modes
+ * reset each logical mask to255, preserving guard/padding bytes. Source mode0
+ * requests accumulation; dirty2 updates all nonzero modes, dirty4 only source
+ * mode2. Renderer mode1 projects,2 ray-tests; other values perform no callback.
+ * Callback implements chosen algorithm; source list/dirty flags remain owned
+ * externally. No allocation. Errors preserve changed but may alter masks. */
+int rf_lightmap_shadow_dispatch_masks(const rf_lightmap_shadow_dispatch *,rf_lightmap_shadow_render,
+    void *context,uint32_t *changed);
 typedef struct rf_lightmap_shadow_source {
     uint32_t kind;float position[3],end[3],local_position[3],local_end[3],radius;
 } rf_lightmap_shadow_source;
