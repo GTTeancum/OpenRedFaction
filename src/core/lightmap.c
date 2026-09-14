@@ -333,6 +333,26 @@ int rf_lightmap_mapping_read(const void *record,uint32_t bytes,uint32_t image_co
 static double shadow_dot(const float a[3],const float b[3])
 { return ((double)a[2]*b[2]+(double)a[1]*b[1])+(double)a[0]*b[0]; }
 
+/* 5085c0 is a ray, not the bounded506430 collision segment test. */
+int rf_lightmap_shadow_ray(const float start[3],const float direction[3],const float plane[4],
+    float point[3],uint32_t *hit)
+{
+    double denominator;float divisor,t,value[3];uint32_t i;
+    if(!start || !direction || !plane || !point || !hit)return RF_RANGE;
+    for(i=0;i<3;i++)if(!isfinite(start[i]) || !isfinite(direction[i]))return RF_RANGE;
+    for(i=0;i<4;i++)if(!isfinite(plane[i]))return RF_RANGE;
+    denominator=shadow_dot(direction,plane);
+    if(denominator==0) {*hit=0;return RF_OK;}
+    divisor=(float)denominator;if(!isfinite(divisor) || divisor==0)return RF_RANGE;
+    t=(float)(-((shadow_dot(start,plane)+plane[3])/divisor));if(!isfinite(t))return RF_RANGE;
+    for(i=0;i<3;i++) {
+        float step=(float)((double)direction[i]*t);value[i]=(float)((double)start[i]+step);
+        if(!isfinite(value[i]))return RF_RANGE;
+    }
+    /* Original writes a behind-origin intersection before returning false. */
+    memcpy(point,value,12);*hit=t>=0;return RF_OK;
+}
+
 /* Original54a1c0 keeps the non-positive half-space with54a320's epsilon. */
 int rf_lightmap_clip_shadow(const float (*vertices)[3],uint32_t count,const float plane[4],
     float (*output)[3],uint32_t capacity,uint32_t *out_count)

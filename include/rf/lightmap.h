@@ -100,6 +100,11 @@ typedef struct rf_lightmap_sample_plane {
     uint32_t image_width,image_height,x,y;
     float scale[2],offset[2],plane[4];uint32_t normal_axis,u_axis;
 } rf_lightmap_sample_plane;
+/* Original5085c0 ray/plane intersection with no upper parameter bound.
+ * Parallel rays preserve point; behind-origin intersections write point with
+ * hit=0. Invalid numeric inputs preserve both outputs. No allocation. */
+int rf_lightmap_shadow_ray(const float start[3],const float direction[3],const float plane[4],
+    float point[3],uint32_t *hit);
 /* Original54a1c0 ordered polygon/plane clipping, used by shadow volumes.
  * Disjoint buffers; count zero or >=2; capacity >=2*count bounds arbitrary
  * input polygons. No allocation. Invalid preflight preserves output; numeric
