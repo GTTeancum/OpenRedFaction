@@ -207,6 +207,20 @@ int main(int argc, char **argv)
         for(i=0;i<count;++i)if(rf_vpp_open(archives+i,argv[i+5]))return 1;
         result=rf_geometry_materials_open(&bundle,sources,movers.count+1,archives,count,
             (uint32_t)strtoul(argv[4],NULL,10));if(result){fprintf(stderr,"material load %d: %s archive %u entry bytes %u\n",result,rf_material_failure_name,rf_material_failure[1],rf_material_failure[2]);return 1;}
+        for(g=0;g<bundle.count;g++) {
+            uint32_t n=sources[g]->textures;const rf_image **images=malloc((n+1)*sizeof(*images));
+            if(!images)return 3;for(j=0;j<n;j++)images[j]=(const rf_image *)(uintptr_t)1;
+            if(n) {
+                if(rf_geometry_material_shadow_images(&bundle,g,sources[g],images,n-1)!=RF_RANGE)return 3;
+                for(j=0;j<n;j++)if(images[j]!=(const rf_image *)(uintptr_t)1)return 3;
+            }
+            if(rf_geometry_material_shadow_images(&bundle,g,sources[g],images,n))return 3;
+            for(j=0;j<n;j++) {
+                const rf_material *item=bundle.textures.items+bundle.slots[bundle.offsets[g]+j];
+                if(images[j]!=(item->status==RF_NOT_FOUND?NULL:&item->image))return 3;
+            }
+            free(images);
+        }
         peak=bundle.peak_bytes;
         if(rf_geometry_materials_open(&check,sources,movers.count+1,archives,count,peak-1)!=RF_RANGE ||
             check.offsets || check.slots || check.textures.items || check.resident_bytes)return 3;

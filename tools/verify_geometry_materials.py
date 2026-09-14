@@ -56,7 +56,7 @@ live = check(next(level for level in levels if level['file'] == 'L1S1.rfl'), arc
 report = dict(result='PASS', levels=len(results),
               reusable_mesh_pose_cases=3*len(results),
               references=sum(item['references'] for item in results), live_mines=live,
-              scope='PC: all inventoried mover levels plus world materials, case-insensitive first-use slots; '
+              scope='PC: shadow image bindings and short-capacity preservation for every geometry, including loaded Live Mines; all inventoried mover levels plus world materials, case-insensitive first-use slots; '
                     'missing-image sharing with no archives; Live Mines decoded bytes/status/archive selection '
                     'against ordinary named loader; exact/one-byte-short peak budgets and repeated close. '
                     'Sources and archives closed before image checks. Combined world/authored-mover projection '

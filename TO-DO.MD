@@ -15,6 +15,15 @@ Shortlist:
 
 Progress reporting: include a very high-level working area (e.g. Lighting, AI, Weapons, GeoMod or Scripted events) and an overall percent estimate at the end of every turn report (USER preference) and revisit remaining 24-hour workdays when measured throughput supports a forecast; current rough estimate40% (35-45%), no defensible +/-48-hour completion forecast before end-to-end gameplay.
 
+Campaign material-to-shadow image binding borrows geometry-local pointers
+from existing shared slots, with no pixel read/load/allocation. Verified5919
+references across68 PC level fixtures plus28 loaded Live Mines references
+(17 unique images), and256 compiled NXDK tables/2048 entries with3 guards.
+Both builds and24 tests pass. Missing slots are explicit NULL; other load
+errors propagate, preserving output. Current retained images only: no new
+animation clock/override policy. Next connect these bindings to source passes,
+receiver/mask/scratch lifetime, then native rendered/memory verification.
+
 Retained shadow traversal matches256 original/PC/NXDK passes over2048
 serialized synthetic faces:194 eligible/projected,129 filter-accepted,4750
 changed mask bytes;3 NXDK guards. Actual original texture classification,

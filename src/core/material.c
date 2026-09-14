@@ -13,6 +13,28 @@ static int geometry_material_slot(const rf_geometry_materials *materials,uint32_
     value=materials->slots[first+source.texture];if(value>=materials->textures.count || !materials->textures.items)return RF_FORMAT;
     *slot=value;return RF_OK;
 }
+int rf_geometry_material_shadow_images(const rf_geometry_materials *materials,uint32_t index,
+    const rf_geometry *geometry,const rf_image **output,uint32_t capacity)
+{
+    uint32_t first,last,i;
+    if(!materials || !geometry || !materials->offsets || index>=materials->count ||
+       capacity<geometry->textures || (geometry->textures && !output))return RF_RANGE;
+    first=materials->offsets[index];last=materials->offsets[index+1];
+    if(last<first || last-first!=geometry->textures ||
+       (geometry->textures && (!materials->slots || !materials->textures.items)))return RF_FORMAT;
+    for(i=0;i<geometry->textures;i++) {
+        uint32_t slot=materials->slots[first+i];int status;
+        if(slot>=materials->textures.count)return RF_FORMAT;
+        status=materials->textures.items[slot].status;
+        if(status && status!=RF_NOT_FOUND)return status;
+    }
+    for(i=0;i<geometry->textures;i++) {
+        const rf_material *item=materials->textures.items+materials->slots[first+i];
+        output[i]=item->status==RF_NOT_FOUND?NULL:&item->image;
+    }
+    return RF_OK;
+}
+
 int rf_geometry_material_sample(const rf_geometry_materials *materials,uint32_t geometry_index,
     const rf_geometry *geometry,uint32_t face,const float point[3],
     rf_geometry_texture_workspace *work,uint32_t *color)

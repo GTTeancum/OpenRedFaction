@@ -182,6 +182,13 @@ int rf_geometry_materials_open(rf_geometry_materials *materials,
     const rf_geometry *const *geometries,uint32_t count,
     rf_vpp *archives,uint32_t archive_count,uint32_t budget);
 void rf_geometry_materials_close(rf_geometry_materials *materials);
+/* Borrow a geometry-local image table for shadow traversal from the shared
+ * campaign material slots. Missing RF_NOT_FOUND slots become NULL; other load
+ * failures propagate. No pixel read/allocation, and no animation or overrides
+ * are inferred. Rebind after the owner changes frames/images. Caller output
+ * has geometry->textures entries; errors preserve the entire table. */
+int rf_geometry_material_shadow_images(const rf_geometry_materials *,uint32_t geometry_index,
+    const rf_geometry *,const rf_image **output,uint32_t capacity);
 /* Resolve an initial authored face through geometry-local texture slots and
  * sample its currently retained image. No allocation or placeholder texture.
  * Missing texture/slot image returns its load status; malformed mappings fail.
