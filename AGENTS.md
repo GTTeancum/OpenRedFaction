@@ -14,3 +14,5 @@
 - Never activate Computer Use, Codex capture, desktop automation, or host keyboard/mouse/controller input.
 - Use source, files, logs, native emulator capture, and process-contained harnesses; ordinary terminal process management is allowed.
 - Do not spawn agents unless the user explicitly requests delegation.
+
+- Keep the four existing GitHub images; upload no additional screenshots until near-retail-quality replacements are available.

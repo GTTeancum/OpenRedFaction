@@ -10,6 +10,9 @@ stock64MiB Xbox, with the shared PC build maintained. Use measured gameplay
 failures to select work; avoid spending time on exact RE or visual polish unless
 it blocks those systems. This priority change does not increase completion.
 
+GitHub image policy: retain the current four images; upload no additional
+screenshots until near-retail-quality replacements are available.
+
 Shortlist:
 - ACTIVE: Connect mission dialogue/subtitles and continue consecutive campaign progression.
 - TO COMPLETE: Preserve remaining world changes across sections, including partial actor state and dropped items.
@@ -30,6 +33,12 @@ Shortlist:
 - USER: Review the interactive PC movement and audio items listed below.
 
 Progress reporting: include a very high-level working area (e.g. Lighting, AI, Weapons, GeoMod or Scripted events) and an overall percent estimate at the end of every turn report (USER preference) and revisit remaining 24-hour workdays when measured throughput supports a forecast; current rough estimate45% (35-45%), no defensible +/-48-hour completion forecast before end-to-end gameplay.
+
+Expanded PC walking-exit tests pass four routes across L1S1/L1S2/L1S3.
+New L1S2->L1S3 event9512 and L1S3->L1S2 event9324 crossings retain facing,
+apply the authored(41,32,-118) translation/inverse and continue movement.
+These fixtures stage outside exit volumes; full intervening gameplay is unproven.
+Evidence: artifacts/walk-exit/report.json. Native section3 checks remain open.
 
 Stock64MiB native dialogue audio passes240 frames: three starts match PC,
 no device errors, and3939 nonzero DSP-ring samples. Evidence:
