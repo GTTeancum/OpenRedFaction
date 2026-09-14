@@ -31,6 +31,11 @@ Shortlist:
 
 Progress reporting: include a very high-level working area (e.g. Lighting, AI, Weapons, GeoMod or Scripted events) and an overall percent estimate at the end of every turn report (USER preference) and revisit remaining 24-hour workdays when measured throughput supports a forecast; current rough estimate45% (35-45%), no defensible +/-48-hour completion forecast before end-to-end gameplay.
 
+Native repeated-message audio validation is running in
+artifacts/message-audio-xemu.log (replay-20260914-084040); do not rebuild Xbox
+until the harness finishes/restores its disc. Voice header inventory confirms713
+available PCM clips, six missing named clips and a489098-byte largest file.
+
 Mission voice playback now uses on-demand PCM in the existing1MiB sound bank;
 replacement/off requests stop the previous voice and audio failures keep subtitles.
 PC240-frame tests confirm natural/explicit/repeated dialogue starts and distinct

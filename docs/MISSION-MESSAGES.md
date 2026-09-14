@@ -78,6 +78,18 @@ all three software PCM captures differ. This proves shared mixer delivery, not
 listened intelligibility or physical/native device output. Both builds and37 tests
 pass. Local results: artifacts/message-audio/report.json.
 
+`tools/inspect_mission_voice_formats.py` inventories719 distinct named voice
+references:713 exist in audio.vpp and six are missing. Empty voice references
+also occur and need explicit subtitle-only handling. All available headers are
+mono16-bit PCM:712 at22050Hz and one at44100Hz. The largest whole file is
+489098 bytes (about11.09 seconds). This supports the current decoder choice,
+but does not prove that each clip fits beside other active/pinned bank samples.
+Report: artifacts/mission-voice-formats.json.
+
+The XEMU replay harness now compares MESSAGE_AUDIO counters against PC and is
+running the repeated8356 fixture with APU/DSP capture. Its report remains pending
+in artifacts/xemu/replay-20260914-084040; native audibility is not yet claimed.
+
 Remaining: native validation, voice ownership/playback, longer-text presentation
 coverage, full character/language support, authored queue and interruption
 behavior, speaker placement and timing. The current display is a playable
