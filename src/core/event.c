@@ -340,7 +340,7 @@ int rf_trigger_links_dispatch(const rf_object_registry *registry,rf_event_links 
         if(!links->handles)return RF_RANGE;
         handle=links->handles[i++];object=rf_object_registry_lookup(registry,handle);
         if(!object)continue;memcpy(&kind,object,4);
-        if(kind!=6 && (kind!=8 || (suppress_movers&255)))continue;
+        if(kind!=5 && kind!=6 && (kind!=8 || (suppress_movers&255)))continue;
         status=effect(context,kind,handle,source,actor);if(status)return status;
     }
     return RF_OK;

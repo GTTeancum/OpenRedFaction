@@ -1,6 +1,6 @@
 # Opening mission: authored waypoint blocker
 
-Performance work is deferred after the final basic-testing pass. Follow_Waypoints is now connected to shared actor movement; the full natural opening sequence remains unverified.
+Performance work is deferred after the final basic-testing pass. Follow_Waypoints and linked-trigger enabling are now connected. The staged entrance-to-Riot-Stick walking sequence passes on PC; full confrontation choreography and the rest of the campaign remain incomplete.
 
 ## Reproduced behavior
 
@@ -27,7 +27,25 @@ Event28 dispatches through the existing movement callback, including delayed act
 
 `python tools/replay_waypoints.py` stages outside player trigger9029 and uses ordinary walking to activate9646. It supplies no direct setup/event dispatch. The2400-frame PC replay records one movement request,906 movement steps, both destination arrivals, zero blocked steps, and no active movement at completion. Miner8322 ends within0.25 horizontal units of node330 and contacts NPC trigger9672 near the first waypoint. All38 PC tests pass, including malformed/missing/placeholder paths and delayed on/off dispatch.
 
-The replay does not cross player trigger9028, so9027 remains disabled and the Riot Stick grant does not occur. Extend the actual walking route through9028 and the handoff volume next. Play_Animation/Look_At and full confrontation choreography remain incomplete; do not equate successful path traversal with retail mission parity.
+The earlier waypoint-only replay does not cross player trigger9028, so9027 remains disabled and the Riot Stick grant does not occur. The extended replay below covers that missing route. Play_Animation/Look_At and full confrontation choreography remain incomplete; do not equate successful path traversal with retail mission parity.
 
 
 Stock64MiB XEMU replay `replay-20260914-132101` passes2400 frames with exact PC movement, actor-position and route counters. NXDK build and normal-build restoration succeed. Reproduce with `python tools/xemu_replay_check.py artifacts/waypoints/inputs.bin --campaign-spawn --level L1S1.rfl --exit-start-uid 9646 --seconds 240`.
+
+
+## Linked-trigger dispatch fix and opening handoff
+
+The extended route crossed9028 and started both Goto events, but9027 stayed disabled. The shared `rf_trigger_links_dispatch` admitted only events(kind6) and movers(kind8); it dropped linked triggers(kind5). Original4c0320 dispatches kind5 at4c0378 to4c0200, which clears bit16 at trigger+2b0. It enables the target without firing it or resetting its activation count/cooldown. The shared dispatch now forwards kind5 to the scene, which performs that same flag change.
+
+The older `verify_trigger_links.py` compared only recorded event/controller calls. It executed the original enable branch but never observed it, so its passing result did not establish complete trigger-link behavior. The expanded verifier records trigger-enable calls, executes the original enable unchanged, and checks that only bit16 clears. All1024 kind/order/suppression combinations match PC/NXDK callback traces. Other original dispatch families, including kind4 object actions and ambient fallback, remain outside this implementation.
+
+`python tools/replay_opening_handoff.py` starts once outside9029, walks into the hall through9028, and approaches9869. It sends no setup events, forced grants/slays, or later position changes. Three PC controls pass:
+
+- Hall-only2400 frames: confrontation starts, but the player never enters the handoff volume; stays unarmed.
+- Full approach1750 frames: player is in the handoff volume but the scripted delay has not finished; stays unarmed.
+- Full approach2400 frames: exactly one authored Riot Stick grant, selected weaponID2, loaded charge1, reserve0; no player death. Two authored Slay_Object actions also execute.
+
+The final player position is(-75.388870,-8.095128,27.786995). The NPC-trigger chain and delayed player contact now deliver the weapon naturally within this staged entrance route. This is not a start-to-finish mission proof: Play_Animation/Look_At, confrontation presentation, full actor combat behavior and onward campaign traversal remain unfinished.
+
+
+Xbox handoff verification remains incomplete: the240-second attempt timed out while frames were advancing; the600-second retry (`replay-20260914-133827`) lost its QMP connection. These are terminal harness results, not a successful native handoff. The user then paused tests and redirected work to structural Xbox optimization. The PC controls and original/PC/NXDK dispatch verifier above passed before that pause.

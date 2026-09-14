@@ -1,0 +1,19 @@
+// NV2A retained world transform. Screen projection follows nxdk samples/mesh:
+// divide output XYZ explicitly and retain camera depth in output W.
+struct Input { float3 position : POSITION; float3 color : DIFFUSE; float3 texture : TEXCOORD0; float3 lightmap : TEXCOORD1; };
+struct Output { float4 position : POSITION; float4 color : COLOR; float4 texture : TEXCOORD0; float4 lightmap : TEXCOORD1; };
+Output main(Input input, uniform float4 view_x : register(c0),
+    uniform float4 view_y : register(c1), uniform float4 view_z : register(c2),
+    uniform float4 shade : register(c3), uniform float4 projection : register(c4)) {
+    Output output;
+    float4 world = float4(input.position, projection.w);
+    float x = dot(world, view_x), y = dot(world, view_y), z = dot(world, view_z);
+    float reciprocal = projection.w / z;
+    output.position = float4(projection.x + x * reciprocal * projection.x,
+        projection.y - y * reciprocal * projection.x,
+        projection.z * (projection.w - shade.w * reciprocal), z);
+    output.color = float4((input.color * shade.x + shade.y) * shade.z, projection.w);
+    output.texture = float4(input.texture.xy, 0.0, projection.w);
+    output.lightmap = float4(input.lightmap.xy, 0.0, projection.w);
+    return output;
+}

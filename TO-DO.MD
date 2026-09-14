@@ -14,8 +14,10 @@ GitHub image policy: retain the current four images; upload no additional
 screenshots until near-retail-quality replacements are available.
 
 Shortlist:
-- ACTIVE: Extend the walking route through the opening confrontation and Riot Stick handoff now that Follow_Waypoints moves the miner.
-- DEFERRED / TO COMPLETE: Improve Xbox performance beyond the current basic-testing baseline; revisit NPC pose evaluation.
+- ACTIVE: Make structural Xbox rendering optimizations, beginning with retained GPU world geometry; FPS gain is not yet measured.
+- USER: Gameplay/parity/emulator test runs are paused during this optimization push; compile checks only until testing resumes.
+- ACTIVE: Complete scripted actor animation/look behavior and onward gameplay after the verified opening Riot Stick handoff.
+- TO COMPLETE: Move more actor rendering work off the CPU after retained static-world rendering.
 - TO COMPLETE: Preserve remaining world changes across sections, including actor placement/inventory and dropped items.
 - ACTIVE: Verify enemy firing visually, add muzzle/impact effects, and extend natural-trigger encounter coverage.
 - ACTIVE: Add Riot Stick alternate fire and impact feedback, then expand the remaining weapons.
@@ -35,14 +37,39 @@ Shortlist:
 
 Progress reporting: include a very high-level working area (e.g. Lighting, AI, Weapons, GeoMod or Scripted events) and an overall percent estimate at the end of every turn report (USER preference) and revisit remaining 24-hour workdays when measured throughput supports a forecast; current rough estimate45% (35-45%), no defensible +/-48-hour completion forecast before end-to-end gameplay.
 
+Current USER direction supersedes the earlier deferred-performance policy:
+big rendering changes first, tests paused. Xbox now has a retained static-world
+GPU backend: one bounded level upload, per-frame camera constants and visible
+face ranges, GPU transformation/projection, and no CPU-expanded static-world
+stream on that path. Movers/actors retain the existing path. The shared PC
+renderer remains available. FourMiB metadata+vertex cap falls back to CPU for
+oversized/allocation-failed levels. Compile checks only; visual correctness,
+clipping, depth/perspective, residency and FPS must be measured when testing
+resumes. No performance gain is claimed yet. See docs/XBOX-RETAINED-WORLD.md.
+
+Opening handoff Xbox verification is incomplete: the240-second run timed out
+while advancing, and replay-20260914-133827 lost its QMP connection. Both runs
+are terminal; tests were then paused by USER. The pre-optimization PC handoff
+controls and1024-case original/PC/NXDK dispatch verifier passed.
+
+Linked-trigger enabling is repaired: original4c0378/4c0200 clears disable bit16;
+the shared contact dispatch previously dropped kind5 targets. The expanded
+1024-case original/PC/NXDK verifier records enable calls and checks original
+flag mutation, closing a gap in its earlier event/controller-only traces.
+All38 PC tests pass. tools/replay_opening_handoff.py proves the entrance-to-
+Riot-Stick sequence with ordinary movement and no event/grant injection:
+hall-only and pre-delay controls stay unarmed; the complete2400-frame approach
+grants exactly one Riot Stick and executes both authored Slay_Object actions.
+Scripted animation/look presentation and onward mission traversal remain open.
+
 Follow_Waypoints now dispatches shared NPC movement through named authored
 navigation nodes. The walking fixture activates9646 by contacting trigger9029,
 and miner8322 reaches both destinations without blocked steps. All38 PC tests
 pass, including68 installed campaign path sections, malformed/sentinel handling
 and delayed waypoint on/off dispatch. Missing paths preserve current movement.
 Loop/Ping Pong endpoint behavior is implemented but needs authored replay
-coverage. Natural confrontation/item delivery remains open: the current route
-does not cross player trigger9028 to enable NPC trigger9027. Evidence and
+coverage. The waypoint-only fixture stops before9028; the extended opening-handoff
+fixture above now covers that contact and delayed item delivery. Evidence and
 reproduction:docs/OPENING-MISSION-CHAIN.md and tools/replay_waypoints.py.
 Stock64MiB XEMU replay-20260914-132101 passes2400 frames with exact PC
 movement, position and route counters; NXDK build/restoration succeeds.

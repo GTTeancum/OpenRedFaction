@@ -3,6 +3,7 @@
 #include "rf/preview.h"
 #include "rf/material.h"
 #include "rf/lightmap.h"
+void rf_xbox_enable_retained_world(void);
 int rf_xbox_scene_stream_frame(const rf_preview_mesh *mesh,const rf_materials *materials,const rf_lightmaps *lightmaps,
     uint32_t world_vertices,volatile uint32_t capture[6],volatile uint32_t memory[3]);
 int rf_xbox_scene_preview(const rf_preview_mesh *mesh,const rf_materials *materials,const rf_lightmaps *lightmaps,

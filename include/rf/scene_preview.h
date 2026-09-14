@@ -579,6 +579,13 @@ typedef struct rf_scene_world_geometry {
     uint32_t geometry_count,material_count,allocated_bytes;
     float camera_position[3],camera_orientation[3][3];
 } rf_scene_world_geometry;
+struct rf_visibility;
+/* Optional retained static-world backend. OK takes ownership of static-world
+ * drawing for this frame; NOT_FOUND uses the shared CPU projection. Geometry
+ * and visibility are borrowed until the frame completes; NULL releases them. */
+typedef int (*rf_scene_static_world_backend)(const rf_scene_world_geometry *,const float *,
+    const float (*)[3],const struct rf_visibility *);
+void rf_scene_set_static_world_backend(rf_scene_static_world_backend backend);
 /* Retain mover source geometry and local material mappings for reprojection.
  * Borrows world (must outlive this owner); copies only the preview camera.
  * Archives and the source level may close after success. Output mesh, material

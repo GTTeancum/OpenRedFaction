@@ -192,9 +192,10 @@ int rf_event_links_propagate(rf_event_links *links,uint32_t source,uint32_t acto
     uint32_t mode,rf_event_link_callback callback,void *context);
 /* Single-player 4c0320 resolved-link routing. Kind8 requests controller
  * activation unless suppress_movers low byte is nonzero; kind6 requests event
- * activation. Missing/stale/other objects are ignored. Effects are supplied by
+ * activation; kind5 enables a linked trigger without firing it. Missing/stale/
+ * other objects are ignored. Effects are supplied by
  * caller; no activation implementation, multiplayer or entity backlink here.
- * Callback receives kind6/8 and registered handle, preserving authored order.
+ * Callback receives kind5/6/8 and registered handle, preserving authored order.
  * Registry and list ownership must survive callbacks; list/count are reread. */
 typedef int (*rf_trigger_link_effect)(void *context,uint32_t kind,uint32_t handle,
     uint32_t source,uint32_t actor);

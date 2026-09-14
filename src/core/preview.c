@@ -278,6 +278,7 @@ static int world_mesh(rf_preview_mesh *mesh,const rf_geometry *world,
     for(pass=scratch?1:0;pass<2;++pass) {
         uint32_t at=0;
         for(i=0;i<materials->count;++i) {
+            if(!i && (disabled&0x100u))continue; /* Static world is retained by the GPU backend. */
             const rf_geometry *g=i?&movers->items[i-1].geometry:world;
             const float *origin=i?(poses?poses[i-1].position:movers->items[i-1].position):NULL;
             const float (*matrix)[3]=i?(poses?(const float (*)[3])poses[i-1].output_matrix:(const float (*)[3])movers->items[i-1].orientation):NULL;

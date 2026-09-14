@@ -91,6 +91,8 @@ int rf_preview_update_world_dispatch(rf_preview_mesh *mesh,uint32_t capacity_byt
  * and camera. Detail/unknown rooms and movers are conservatively retained.
  * NULL preserves unfiltered rendering; no allocation or visibility mutation. */
 struct rf_visibility;
+/* disabled bit0x100 omits static geometry for a retained platform backend;
+ * the low byte keeps its existing mover suppression meaning. */
 int rf_preview_update_world_visible(rf_preview_mesh *mesh,uint32_t capacity_bytes,
     rf_preview_vertex *scratch,uint32_t scratch_bytes,const rf_geometry *world,
     const rf_geometry_movers *movers,rf_group_attached_pose *poses,

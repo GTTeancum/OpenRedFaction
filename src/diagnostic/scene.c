@@ -393,6 +393,10 @@ int rf_scene_world_update_camera_staged(const rf_scene_world_geometry *geometry,
     return rf_preview_update_world_staged(mesh,capacity_bytes,scratch,scratch_bytes,
         geometry->world,&geometry->movers,poses,&mapping,&camera);
 }
+static rf_scene_static_world_backend static_world_backend;
+static uint32_t static_world_retained;
+void rf_scene_set_static_world_backend(rf_scene_static_world_backend backend)
+{static_world_backend=backend;static_world_retained=0;}
 static int scene_world_dispatch_camera(const rf_scene_world_geometry *geometry,
     rf_group_attached_pose *poses,uint32_t pose_count,const float position[3],
     const float orientation[3][3],rf_preview_mesh *mesh,uint32_t capacity_bytes,
@@ -408,7 +412,7 @@ static int scene_world_dispatch_camera(const rf_scene_world_geometry *geometry,
     mapping.textures.count=geometry->material_count;
     memcpy(camera.player_position,position,12);memcpy(camera.player_orientation,orientation,36);
     return rf_preview_update_world_visible(mesh,capacity_bytes,scratch,scratch_bytes,
-        geometry->world,&geometry->movers,poses,&mapping,&camera,0,visibility);
+        geometry->world,&geometry->movers,poses,&mapping,&camera,static_world_retained?0x100u:0,visibility);
 }
 int rf_scene_preview_camera(rf_level *level,int32_t uid)
 {
@@ -2087,6 +2091,12 @@ typedef struct campaign_activation_context {int32_t now;uint32_t frame;rf_level_
 static int campaign_link_effect(void *context,uint32_t kind,uint32_t handle,uint32_t source,uint32_t actor)
 {
     campaign_activation_context *c=context;int status;
+    if(kind==5) {
+        /* Original4c0378 ->4c0200 enables a linked trigger; it does not fire it. */
+        rf_runtime_trigger *trigger=rf_object_registry_lookup(&campaign_registry,handle);
+        if(!trigger || trigger->object_kind!=5)return RF_NOT_FOUND;
+        trigger->state.flags&=~16u;return RF_OK;
+    }
     if(kind==6) {
         rf_startup_events_report report={0};++rf_scene_live_activation[3];
         status=rf_runtime_event_fire(&campaign_triggers,handle,source,actor,c->now,&scene_gravity,c->particles, &campaign_forces,&report);
@@ -8189,6 +8199,13 @@ static int actor_follow_view(void *context,uint32_t frame,const rf_motion_contro
         rf_scene_visibility_summary[4]=record[2];rf_scene_visibility_summary[5]=room.room;
     }
     world_profile_mark(5,&world_clock);
+    static_world_retained=0;
+    if(static_world_backend && campaign_spawn) {
+        status=static_world_backend(actor_follow_world,position,orientation,
+            stream->visibility.storage?&stream->visibility.state:NULL);
+        if(status!=RF_OK && status!=RF_NOT_FOUND)return status;
+        static_world_retained=status==RF_OK;
+    }
     /* The actor portion is idle until animation emits this tick's model. Use
      * it for transactional world projection before the actor is appended. */
     {rf_preview_mesh world_mesh=*stream->mesh;

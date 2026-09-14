@@ -85,8 +85,166 @@ static gpu_texture *stream_textures;
 static const rf_materials *stream_materials;
 static const rf_lightmaps *stream_lightmaps;
 static int stream_mode,stream_device_ready;static uint32_t stream_capacity,stream_fallback;
+/* Retained static-world geometry: no per-frame CPU projection, clipping,
+ * expanded triangle construction or world vertex upload. Four MiB hard cap
+ * includes metadata; unsupported/large levels retain the existing CPU path. */
+typedef struct retained_face {
+    uint32_t start,count,material,lightmap,room,detail;float plane[4];
+} retained_face;
+static struct {
+    const rf_geometry *source;const rf_visibility *visibility;
+    rf_preview_vertex *vertices;retained_face *faces;
+    uint32_t count,bytes,face_count;int ready;
+    float position[3],orientation[3][3];
+} retained_world;
+/* state, GPU bytes, descriptor bytes, cached vertices, visible vertices,
+ * visible faces, draw ranges, fallback count. No correctness-test dependency. */
+uint32_t rf_xbox_retained_world[8];
+static void retained_world_close(void)
+{
+    if(retained_world.vertices){if(stream_device_ready)while(pb_busy()){} MmFreeContiguousMemory(retained_world.vertices);}
+    free(retained_world.faces);memset(&retained_world,0,sizeof(retained_world));
+}
+static int retained_world_prepare(const rf_scene_world_geometry *scene,const float *position,
+    const float orientation[3][3],const rf_visibility *visibility)
+{
+    const rf_geometry *g;uint32_t f,count=0,at=0;int status;
+    if(!scene){retained_world_close();return RF_OK;}
+    g=scene->world;if(!g || !g->data || !position || !orientation)return RF_RANGE;
+    if(retained_world.source!=g)retained_world_close();
+    if(!retained_world.source) {
+        retained_world.source=g;retained_world.ready=-1;
+        memset(rf_xbox_retained_world,0,sizeof(rf_xbox_retained_world));
+        for(f=0;f<g->faces;f++) {
+            rf_geometry_face face;status=rf_geometry_get_face(g,f,&face);if(status)return status;
+            if(face.portal || (face.flags&1) || face.texture==UINT32_MAX || face.corners<3)continue;
+            if(face.corners-2>(UINT32_MAX-count)/3)return RF_RANGE;
+            count+=(face.corners-2)*3;
+        }
+        if(!count || (uint64_t)count*sizeof(rf_preview_vertex)+(uint64_t)g->faces*sizeof(retained_face)>4u*1024u*1024u) {
+            ++rf_xbox_retained_world[7];return RF_NOT_FOUND;
+        }
+        retained_world.faces=calloc(g->faces,sizeof(retained_face));
+        retained_world.vertices=MmAllocateContiguousMemoryEx(count*sizeof(rf_preview_vertex),0,0x03ffb000,0,PAGE_READWRITE|PAGE_WRITECOMBINE);
+        if(!retained_world.faces || !retained_world.vertices) {
+            retained_world_close();retained_world.source=g;retained_world.ready=-1;
+            ++rf_xbox_retained_world[7];return RF_NOT_FOUND;
+        }
+        for(f=0;f<g->faces;f++) {
+            rf_geometry_face face;retained_face *out=retained_world.faces+f;uint32_t corner,lightmap=UINT32_MAX;float color;
+            status=rf_geometry_get_face(g,f,&face);if(status)return status;
+            if(face.portal || (face.flags&1) || face.texture==UINT32_MAX || face.corners<3)continue;
+            if(face.texture>=g->textures || !scene->slots)return RF_FORMAT;
+            if(face.lightmap_mapping!=UINT32_MAX){status=rf_geometry_lightmap(g,face.lightmap_mapping,UINT32_MAX,&lightmap);if(status)return status;}
+            color=.25f+.6f*fabsf(face.plane[0]*.3f+face.plane[1]*.8f+face.plane[2]*.5f);if(color>1)color=1;
+            out->start=at;out->count=(face.corners-2)*3;out->material=scene->slots[face.texture];out->lightmap=lightmap;
+            out->room=face.room;out->detail=face.room<g->rooms?g->data[g->room_offsets[face.room]+34]!=0:1;
+            memcpy(out->plane,face.plane,16);
+            for(corner=1;corner+1<face.corners;corner++) {
+                uint32_t j,indices[3]={0,corner,corner+1};
+                for(j=0;j<3;j++) {
+                    rf_geometry_corner c;rf_preview_vertex v={0};
+                    status=rf_geometry_get_corner(g,f,indices[j],&c);if(status)return status;
+                    status=rf_geometry_vertex(g,c.vertex,v.position);if(status)return status;
+                    v.texture[0]=c.uv[0];v.texture[1]=c.uv[1];v.texture[2]=1;
+                    v.lightmap_texture[0]=c.lightmap_uv[0];v.lightmap_texture[1]=c.lightmap_uv[1];v.lightmap_texture[2]=1;
+                    v.color[0]=color;v.color[1]=color*.85f;v.color[2]=color*.65f;
+                    v.material=out->material;v.lightmap=lightmap;
+                    retained_world.vertices[at++]=v; /* Write once; never read WC memory. */
+                }
+            }
+        }
+        __asm__ volatile("sfence" ::: "memory");
+        retained_world.count=count;retained_world.face_count=g->faces;
+        retained_world.bytes=count*sizeof(rf_preview_vertex);retained_world.ready=1;
+        rf_xbox_retained_world[0]=1;rf_xbox_retained_world[1]=retained_world.bytes;
+        rf_xbox_retained_world[2]=g->faces*sizeof(retained_face);rf_xbox_retained_world[3]=count;
+    }
+    if(retained_world.ready!=1)return RF_NOT_FOUND;
+    retained_world.visibility=visibility;memcpy(retained_world.position,position,12);
+    memcpy(retained_world.orientation,orientation,36);return RF_OK;
+}
+void rf_xbox_enable_retained_world(void){rf_scene_set_static_world_backend(retained_world_prepare);}
+static void vertex_program(const uint32_t *program,uint32_t words)
+{
+    uint32_t i,*p=pb_begin();
+    p=pb_push1(p,NV097_SET_TRANSFORM_PROGRAM_START,0);
+    p=pb_push1(p,NV097_SET_TRANSFORM_EXECUTION_MODE,
+        field(NV097_SET_TRANSFORM_EXECUTION_MODE_MODE,NV097_SET_TRANSFORM_EXECUTION_MODE_MODE_PROGRAM)|
+        field(NV097_SET_TRANSFORM_EXECUTION_MODE_RANGE_MODE,NV097_SET_TRANSFORM_EXECUTION_MODE_RANGE_MODE_PRIV));
+    p=pb_push1(p,NV097_SET_TRANSFORM_PROGRAM_CXT_WRITE_EN,0);
+    p=pb_push1(p,NV097_SET_TRANSFORM_PROGRAM_LOAD,0);pb_end(p);
+    for(i=0;i<words;i+=4){p=pb_begin();pb_push(p++,NV097_SET_TRANSFORM_PROGRAM,4);memcpy(p,program+i,16);p+=4;pb_end(p);}
+}
+static int retained_face_visible(const retained_face *face)
+{
+    const rf_visibility *v=retained_world.visibility;
+    if(!face->count)return 0;
+    if(v && !face->detail && face->room<v->count && !v->rooms[face->room].visible)return 0;
+    return rf_preview_plane_visible(face->plane,retained_world.position)!=0;
+}
+static int retained_world_draw(const rf_materials *materials,const rf_lightmaps *lightmaps,const gpu_texture *textures)
+{
+    const uint32_t program[]={
+#include "world_vertex.inl"
+    };
+    uint32_t i,j,*p,visible=0,faces=0,draws=0;float rows[3][4];
+    if(retained_world.ready!=1)return RF_OK;
+    vertex_program(program,sizeof(program)/4);
+    for(i=0;i<3;i++) {
+        memcpy(rows[i],retained_world.orientation[i],12);rows[i][3]=0;
+        for(j=0;j<3;j++)rows[i][3]-=rows[i][j]*retained_world.position[j];
+    }
+    p=pb_begin();p=pb_push1(p,NV097_SET_TRANSFORM_CONSTANT_LOAD,96);
+    pb_push(p++,NV097_SET_TRANSFORM_CONSTANT,12);memcpy(p,rows,sizeof(rows));p+=12;
+    p=pb_push1(p,NV097_SET_TRANSFORM_CONSTANT_LOAD,100);
+    p=pb_push4f(p,NV097_SET_TRANSFORM_CONSTANT,320,240,(1000.0f/999.9f)*16777215.0f,1);
+    p=pb_push4f(p,NV097_SET_TRANSFORM_CONSTANT,0,0,0,0); /* Cg literal c5. */
+    p=pb_push1(p,NV097_SET_BLEND_ENABLE,0);p=pb_push1(p,NV097_SET_DEPTH_MASK,1);
+    p=pb_push1(p,NV097_SET_CONTROL0,NV097_SET_CONTROL0_Z_FORMAT_FIXED|NV097_SET_CONTROL0_TEXTURE_PERSPECTIVE_ENABLE);
+    for(i=0;i<16;i++)p=pb_push1(p,NV097_SET_VERTEX_DATA_ARRAY_FORMAT+4*i,NV097_SET_VERTEX_DATA_ARRAY_FORMAT_TYPE_F);
+    for(i=0;i<4;i++) {
+        uint32_t attribute=i==0?0:i==1?3:i==2?9:10;
+        p=pb_push1(p,NV097_SET_VERTEX_DATA_ARRAY_FORMAT+attribute*4,
+            field(NV097_SET_VERTEX_DATA_ARRAY_FORMAT_TYPE,NV097_SET_VERTEX_DATA_ARRAY_FORMAT_TYPE_F)|
+            field(NV097_SET_VERTEX_DATA_ARRAY_FORMAT_SIZE,3)|field(NV097_SET_VERTEX_DATA_ARRAY_FORMAT_STRIDE,sizeof(rf_preview_vertex)));
+        p=pb_push1(p,NV097_SET_VERTEX_DATA_ARRAY_OFFSET+attribute*4,((uint32_t)retained_world.vertices+(i==3?40:i*12))&0x03ffffff);
+    }
+    p=pb_push1(p,NV097_SET_TEXTURE_ADDRESS,0x00010101);p=pb_push1(p,NV097_SET_TEXTURE_CONTROL0,NV097_SET_TEXTURE_CONTROL0_ENABLE);
+    p=pb_push1(p,NV097_SET_TEXTURE_FILTER,0x02020000);p=pb_push1(p,NV097_SET_TEXTURE_ADDRESS+0x40,0x00030303);
+    p=pb_push1(p,NV097_SET_TEXTURE_CONTROL0+0x40,NV097_SET_TEXTURE_CONTROL0_ENABLE);p=pb_push1(p,NV097_SET_TEXTURE_FILTER+0x40,0x02020000);pb_end(p);
+    for(i=0;i<retained_world.face_count;) {
+        const retained_face *face=retained_world.faces+i;uint32_t start,count,material,lightmap,textured;const gpu_texture *texture,*lighting;
+        if(!retained_face_visible(face)){++i;continue;}
+        start=face->start;count=face->count;material=face->material;lightmap=face->lightmap;++i;++faces;
+        while(i<retained_world.face_count) {
+            const retained_face *next=retained_world.faces+i;
+            if(next->start!=start+count || next->material!=material || next->lightmap!=lightmap || !retained_face_visible(next))break;
+            count+=next->count;++i;++faces;
+        }
+        if(lightmap!=UINT32_MAX && lightmap>=lightmaps->count)return RF_FORMAT;
+        textured=material<materials->count && textures[material].pixels;
+        texture=textured?textures+material:textures+materials->count;
+        lighting=lightmap<lightmaps->count?textures+materials->count+1+lightmap:textures+materials->count;
+        p=pb_begin();p=pb_push1(p,NV097_SET_TEXTURE_OFFSET,(uint32_t)texture->pixels&0x03ffffff);
+        p=pb_push1(p,NV097_SET_TEXTURE_FORMAT,texture->format);
+        p=pb_push1(p,NV097_SET_TEXTURE_OFFSET+0x40,(uint32_t)lighting->pixels&0x03ffffff);
+        p=pb_push1(p,NV097_SET_TEXTURE_FORMAT+0x40,lighting->format);
+        p=pb_push1(p,NV097_SET_TRANSFORM_CONSTANT_LOAD,99);
+        p=pb_push4f(p,NV097_SET_TRANSFORM_CONSTANT,textured?0:1,textured?1:0,lightmap==UINT32_MAX?.5f:1,.1f);
+        p=pb_push1(p,NV097_SET_BEGIN_END,NV097_SET_BEGIN_END_OP_TRIANGLES);pb_end(p);
+        while(count) {
+            uint32_t batch=count>252?252:count;p=pb_begin();
+            p=pb_push1(p,0x40000000|NV097_DRAW_ARRAYS,field(NV097_DRAW_ARRAYS_COUNT,batch-1)|field(NV097_DRAW_ARRAYS_START_INDEX,start));pb_end(p);
+            count-=batch;start+=batch;visible+=batch;++draws;
+        }
+        p=pb_begin();p=pb_push1(p,NV097_SET_BEGIN_END,NV097_SET_BEGIN_END_OP_END);pb_end(p);
+    }
+    rf_xbox_retained_world[4]=visible;rf_xbox_retained_world[5]=faces;rf_xbox_retained_world[6]=draws;return RF_OK;
+}
 void rf_xbox_scene_stream_close(void)
 {
+    retained_world_close();
     stream_profile_frames=0;memset(rf_renderer_profile,0,sizeof(rf_renderer_profile));
     stream_start_valid=0;memset(rf_renderer_vblank,0,sizeof(rf_renderer_vblank));
     if(!stream_gpu)return;
@@ -216,6 +374,13 @@ static int preview(const rf_preview_mesh *mesh, const rf_materials *materials, c
         pb_fill(0, 0, 640, 480, 0xff101018);
         while (pb_busy()) {}
         renderer_mark(4,&profile_previous,profiling);
+        if(model==4 && retained_world.ready==1) {
+            int status=retained_world_draw(materials,lightmaps,textures);if(status)return status;
+            vertex_program(program,sizeof(program)/4);
+            p=pb_begin();p=pb_push1(p,NV097_SET_TRANSFORM_CONSTANT_LOAD,96);
+            p=pb_push4f(p,NV097_SET_TRANSFORM_CONSTANT,1,0,0,0);pb_end(p);
+        }
+
         p = pb_begin();
         /* pb_target_back_buffer restores W buffering each frame. Our projected
          * vertices carry screen-space Z and a constant W, so restore Z here. */
