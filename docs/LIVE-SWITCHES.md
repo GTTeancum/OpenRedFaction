@@ -20,8 +20,9 @@ activation enables that trigger and consumes the single allowed activation.
 The four-frame PC check proves the trigger remains disabled before the delay;
 120-frame activation and repeated-request checks prove it enables once.
 Switch8687 waits8seconds then routes to Alarm8686. Alarm is type46, not the
-special flags-only event17; its gameplay action remains unsupported. The520-frame
-case proves delayed switch/event routing only, not working alarm behavior.
+special flags-only event17. The original520-frame switch-only case established
+routing; Alarm46 now has timed siren and practical NPC wake behavior, documented
+in ALARMS.md with separate activation/shutoff checks.
 
 Switch snapshots retain disabled, limit, unlimited, activation count and mode by
 canonical section name and authored UID. Restore reapplies initial link effects

@@ -157,9 +157,38 @@ static int unhide_dispatch_check(const char *path)
     CHECK(rf_runtime_events_tick(&events,&triggers,&gravity,1500,0,0,&report,&pending)==RF_OK && !event->unhide.on && visible_calls==2);
     rf_runtime_events_close(&events);rf_vpp_close(&archive);return 0;
 }
+static uint32_t alarm_calls,alarm_on,alarm_uid;static int32_t alarm_now;
+static int alarm_command(void *context,const rf_level_event *event,const rf_level_link_target *links,int32_t now,uint32_t on)
+{
+    (void)context;(void)links;++alarm_calls;alarm_on=on;alarm_uid=event->uid;alarm_now=now;return RF_OK;
+}
+static int alarm_dispatch_check(void)
+{
+    rf_object_registry registry;rf_runtime_triggers triggers={0};rf_runtime_events events={0};
+    rf_runtime_event event={0};rf_level_owned_event authored={0};
+    rf_physics_gravity gravity={0};rf_startup_events_report report;uint32_t pending;
+    rf_object_registry_init(&registry);triggers.registry=&registry;
+    event.object_kind=6;event.state.type=46;event.state.deadline=-1;event.authored=&authored;
+    authored.record.uid=8686;
+    CHECK(rf_object_registry_insert(&registry,&event,&event.handle)==RF_OK);
+    CHECK(rf_runtime_event_fire(&triggers,event.handle,7,9,100,&gravity,0,0,&report)==RF_OK);
+    CHECK(report.unsupported_actions==1 && !alarm_calls);
+    triggers.alarm=alarm_command;event.state.delay=.25f;
+    events.items=&event;events.count=1;events.registry=&registry;
+    CHECK(rf_runtime_event_fire(&triggers,event.handle,7,9,100,&gravity,0,0,&report)==RF_OK && !alarm_calls);
+    CHECK(rf_runtime_events_tick(&events,&triggers,&gravity,349,0,0,&report,&pending)==RF_OK && !pending && !alarm_calls);
+    CHECK(rf_runtime_events_tick(&events,&triggers,&gravity,350,0,0,&report,&pending)==RF_OK && !pending);
+    CHECK(alarm_calls==1 && alarm_on==1 && alarm_uid==8686 && alarm_now==350);
+    event.state.deadline=400;event.state.mode=0;
+    CHECK(rf_runtime_events_tick(&events,&triggers,&gravity,400,0,0,&report,&pending)==RF_OK);
+    CHECK(alarm_calls==2 && !alarm_on && alarm_now==400);
+    CHECK(rf_runtime_events_tick(&events,&triggers,&gravity,401,0,0,&report,&pending)==RF_OK && alarm_calls==2);
+    rf_object_registry_remove(&registry,event.handle);return 0;
+}
 int main(int argc,char **argv)
 {
     CHECK(argc==2);CHECK(unhide_dispatch_check(argv[1])==0);
+    CHECK(alarm_dispatch_check()==0);
     {
         rf_runtime_trigger old={0},restored={0},before;rf_campaign_trigger_state saved,sentinel;
         rf_trigger_gate gate={0};rf_trigger_actor_facts actor={0};uint32_t eligible;

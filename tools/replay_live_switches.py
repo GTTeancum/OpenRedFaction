@@ -1,4 +1,4 @@
-"""Authored switch9836 enables trigger9840; delayed switch8687 routes to currently unsupported Alarm8686."""
+"""Authored switch9836 enables trigger9840; delayed switch8687 routes to Alarm8686."""
 import json,os,struct,subprocess
 from pathlib import Path
 root=Path(__file__).resolve().parents[1];folder=root/'artifacts/live-switches';folder.mkdir(exist_ok=True);rows=[]
@@ -23,4 +23,4 @@ for name,frames,setup in [('before_delay',4,'9836'),('enable',120,'9836'),('limi
     else:assert runtime[3]==1 and detail[:7]==[9836,0,1,1,0,9840,5] and not detail[7]&16,detail
     assert f'Completed {frames} frames' in run.stdout
     rows.append(dict(case=name,runtime=runtime,detail=detail));print(rows[-1],flush=True)
-(folder/'report.json').write_text(json.dumps(dict(result='PASS',cases=rows,scope='Authored switches dispatched through process-local setup, with live target flags, delay and activation limit. Round trip restores switch state and linked trigger flags. Alarm action and other target families remain open.'),indent=2))
+(folder/'report.json').write_text(json.dumps(dict(result='PASS',cases=rows,scope='Authored switches dispatched through process-local setup, with live target flags, delay and activation limit. Round trip restores switch state and linked trigger flags. Alarm gameplay is checked separately by replay_alarm.py; other switch target families remain open.'),indent=2))

@@ -14,6 +14,8 @@ GitHub image policy: retain the current four images; upload no additional
 screenshots until near-retail-quality replacements are available.
 
 Shortlist:
+- TO COMPLETE: Extend alarm encounters and native linked-NPC coverage; preserve alarm state across sections and complete Alarm_Siren45 and original AI transitions.
+- TO COMPLETE: Diagnose L2S3 scene-loading RF_RANGE at stage6 before its alarm fixture can run (artifacts/alarm-replay/linked.log).
 - DEFERRED / TO COMPLETE: Revisit Xbox optimization after gameplay work; current performance is sufficient for basic testing.
 - TO COMPLETE: Extend focused Xbox optimization checks to representative combat, camera movement and level handoffs.
 - ACTIVE: Complete scripted actor animation/look behavior and onward gameplay after the verified opening Riot Stick handoff.
@@ -36,6 +38,8 @@ Shortlist:
 - Keep shared PC/Xbox behavior verified within the stock64MiB memory budget.
 - USER: Review PS2 visual parity and test hardware after representative XEMU gameplay is stable.
 - USER: Review the interactive PC movement and audio items listed below.
+
+Gameplay update (September14): Alarm46 now starts/stops one timed siren and wakes linked NPCs through shared PC/Xbox gameplay; five PC cases and stock64MiB XEMU active/shutoff checks pass with22.4MiB free; see docs/ALARMS.md for remaining AI/encounter coverage.
 
 Gameplay update (September14): Riot Stick held alternate fire, battery drain/reload,
 full-cell scripted grants and held/idle animation are implemented on shared PC/Xbox.
@@ -69,7 +73,7 @@ state remain open. See docs/TRIGGER-CHECKPOINTS.md.
 
 Live switches: attached the missing gameplay backend for trigger/event links,
 applied initial linked flags, and added switch-state snapshots on section return.
-Authored9836 delay/one-use PC checks and a stock64MiB Xbox round trip pass; Alarm46 actions and
+Authored9836 delay/one-use PC checks and a stock64MiB Xbox round trip pass; exact Alarm46 AI behavior and
 controller/sound-object/light/renderable switch targets remain TO COMPLETE.
 See docs/LIVE-SWITCHES.md for explicit coverage and remaining startup side effects.
 

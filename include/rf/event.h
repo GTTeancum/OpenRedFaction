@@ -334,6 +334,9 @@ typedef struct rf_runtime_triggers {
     /* Attack38: authored attacker UID plus ordered resolved target links. */
     int (*attack_npc)(void *context,const rf_level_event *event,const rf_level_link_target *links,uint32_t on);
     void *attack_context;
+    /* Alarm46: linked NPC wake requests plus one shared timed siren. */
+    int (*alarm)(void *,const rf_level_event *,const rf_level_link_target *,int32_t,uint32_t);
+    void *alarm_context;
     /* First-pass visibility service. NOT_FOUND skips unsupported targets. */
     int (*set_visible)(void *context,uint32_t handle,uint32_t visible);
     void *visibility_context;

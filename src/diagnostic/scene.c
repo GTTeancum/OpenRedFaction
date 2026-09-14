@@ -798,7 +798,7 @@ int rf_scene_fire_setup_event(uint32_t uid,int32_t now)
 {
     uint32_t i;rf_startup_events_report report;
     for(i=0;i<campaign_events.count;i++)if(campaign_events.items[i].authored->record.uid==uid) {
-        if(campaign_events.items[i].state.type!=48 && campaign_events.items[i].state.type!=2 && campaign_events.items[i].state.type!=1 && campaign_events.items[i].state.type!=15 && campaign_events.items[i].state.type!=24 && campaign_events.items[i].state.type!=30 && campaign_events.items[i].state.type!=13 && campaign_events.items[i].state.type!=14 && campaign_events.items[i].state.type!=19 && campaign_events.items[i].state.type!=56 && campaign_events.items[i].state.type!=32)return RF_FORMAT;
+        if(campaign_events.items[i].state.type!=48 && campaign_events.items[i].state.type!=2 && campaign_events.items[i].state.type!=1 && campaign_events.items[i].state.type!=15 && campaign_events.items[i].state.type!=24 && campaign_events.items[i].state.type!=30 && campaign_events.items[i].state.type!=13 && campaign_events.items[i].state.type!=14 && campaign_events.items[i].state.type!=19 && campaign_events.items[i].state.type!=56 && campaign_events.items[i].state.type!=32 && campaign_events.items[i].state.type!=46)return RF_FORMAT;
         return rf_runtime_event_fire(&campaign_triggers,campaign_events.items[i].handle,UINT32_MAX,UINT32_MAX,now,&scene_gravity,NULL,NULL,&report);
     }
     return RF_NOT_FOUND;
@@ -7558,6 +7558,75 @@ static int campaign_set_visible(void *context,uint32_t handle,uint32_t visible)
     }
     return RF_NOT_FOUND;
 }
+/* on/off requests, voice starts/stops, active, deadline, awakened, alerted,
+ * skipped targets, audio failures, loaded PCM bytes, last event UID. */
+uint32_t rf_scene_alarm[12];
+static int32_t campaign_alarm_voice=-1,campaign_alarm_deadline=-1;
+static void campaign_alarm_stop(void)
+{
+    uint32_t handle;
+    if(campaign_alarm_voice>=0 && !rf_audio_voice_ids_resolve(&campaign_device_voice_ids,
+        &campaign_audio_mixer,campaign_alarm_voice,&handle)) {
+        rf_audio_voice_stop(&campaign_audio_mixer,handle);
+        if(campaign_audio_events.stop)campaign_audio_events.stop(campaign_audio_events_context,handle);
+        memset(campaign_spatial_voices+(handle&0xffff),0,sizeof(*campaign_spatial_voices));
+        ++rf_scene_alarm[3];
+    }
+    campaign_alarm_voice=-1;rf_scene_alarm[4]=0;
+}
+static int campaign_alarm_tick(int32_t now)
+{
+    int expired,status=rf_timer_expired(campaign_alarm_deadline,now,&expired);
+    if(status)return status;
+    if(expired){campaign_alarm_stop();campaign_alarm_deadline=-1;}
+    rf_scene_alarm[5]=(uint32_t)campaign_alarm_deadline;return RF_OK;
+}
+static int campaign_alarm(void *context,const rf_level_event *event,
+    const rf_level_link_target *links,int32_t now,uint32_t on)
+{
+    uint32_t i,j,index;int status;const float origin[3]={0,0,0};(void)context;
+    if(!event || (event->link_count && !links) || on>1)return RF_RANGE;
+    ++rf_scene_alarm[on?0:1];rf_scene_alarm[11]=event->uid;
+    if(!on){campaign_alarm_stop();return RF_OK;}
+    /*4ba8f0 wakes each linked entity before requesting the shared alarm.
+     * Practical AI: wake living NPCs and alert hostile actors through the
+     * existing pursuit/combat owner. Exact original states10/12 remain open. */
+    for(i=0;i<event->link_count;i++) {
+        if(links[i].kind!=1 && links[i].kind!=2){++rf_scene_alarm[8];continue;}
+        for(j=0;j<campaign_npc_body_count;j++) {
+            campaign_npc_body *owner=campaign_npc_bodies+j;
+            if(!owner->registration.view || owner->registration.handle!=links[i].value)continue;
+            if(owner->damage.effects.health<=0 || (owner->object_flags&2))break;
+            status=campaign_set_visible(NULL,links[i].value,1);if(status)return status;
+            ++rf_scene_alarm[6];
+            if(owner->damage.effects.affiliation==0 && owner->view.weapons[0]>=0) {
+                campaign_pursuit_stop(owner);owner->script_move.active=0;
+                owner->combat_scripted=0;owner->combat_target=campaign_player_object.handle;
+                owner->combat_alert=1;owner->combat_due=owner->combat_navigation_due=0;
+                ++rf_scene_alarm[7];
+            }
+            break;
+        }
+        if(j==campaign_npc_body_count)++rf_scene_alarm[8];
+    }
+    /*4b0590: repeat on leaves both voice and17-second deadline unchanged.
+     *4b05d0 off stops the voice but leaves the timer for4b0560 to clear. */
+    if(rf_scene_alarm[4])return RF_OK;
+    status=rf_timer_set(&campaign_alarm_deadline,now,17000);if(status)return status;
+    rf_scene_alarm[4]=1;rf_scene_alarm[5]=(uint32_t)campaign_alarm_deadline;
+    /* Original global sound slot51; use its declared name, not bank order. */
+    status=rf_audio_bank_declare(&campaign_audio_bank,"alarm_loop.wav",15,.9f,1,&index);
+    if(!status && !rf_audio_bank_sample(&campaign_audio_bank,index)) {
+        status=campaign_ambient_reload(index);
+        if(!status){campaign_audio_evictable[index]=1;++rf_scene_sound_bank[1];
+            rf_scene_sound_bank[2]+=campaign_audio_bank.samples[index].bytes;
+            rf_scene_live_audio[1]=campaign_audio_bank.bytes;rf_scene_alarm[10]+=campaign_audio_bank.samples[index].bytes;}
+    }
+    if(!status){campaign_alarm_voice=campaign_sound_start((int32_t)index,origin,1,0,0,0);
+        if(campaign_alarm_voice<0)status=RF_RANGE;}
+    if(status)++rf_scene_alarm[9];else ++rf_scene_alarm[2];
+    return RF_OK; /* Missing sound/voice budget cannot stop mission progression. */
+}
 static int campaign_set_friendliness(void *context,uint32_t handle,uint32_t value)
 {
     uint32_t i;const rf_entity_view *view=rf_entity_lookup(&campaign_entities,(int32_t)handle);(void)context;
@@ -10400,6 +10469,7 @@ static int scene_frame(void *context,uint32_t frame,rf_preview_mesh *actor)
                 rf_startup_events_report tick_report;uint32_t pending,j,words[9];
                 uint64_t elapsed=((uint64_t)frame+1)*1000/60;
                 int32_t now=(int32_t)(elapsed?((elapsed-1)%RF_TIMER_PERIOD)+1:0);
+                status=campaign_alarm_tick(now);if(status)return status;
                 /* Owned 60-Hz replay clock. Original 4333ea calls event tick
                  * after physics; full wall-clock/whole-frame parity is open. */
                 status=campaign_trigger_contacts(&rf_scene_actor_pose,now,frame,&stream->particles,player_poll?player_input.use:0);if(status)return status;
@@ -10714,6 +10784,9 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
             campaign_triggers.set_friendliness=campaign_set_friendliness;campaign_triggers.adjust_vitals=campaign_adjust_vitals;campaign_triggers.give_item=campaign_give_item;campaign_triggers.strip_weapons=campaign_strip_weapons;campaign_triggers.give_item_context=(void *)tables_path;
             campaign_triggers.switch_backend=&campaign_switch_backend;
             campaign_triggers.set_visible=campaign_set_visible;
+            campaign_triggers.alarm=campaign_alarm;
+            campaign_alarm_voice=campaign_alarm_deadline=-1;
+            memset(rf_scene_alarm,0,sizeof(rf_scene_alarm));rf_scene_alarm[5]=UINT32_MAX;
             campaign_triggers.set_invulnerable=campaign_set_invulnerable;
             campaign_triggers.remove_object=campaign_remove_object;
             campaign_triggers.show_message=campaign_show_message;campaign_triggers.message_context=(void*)level;

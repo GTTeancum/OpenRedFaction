@@ -518,6 +518,13 @@ static void startup_event_action(void *context,rf_event_state *state,uint32_t ac
 {
     startup_context *c=context;uint32_t i;
     if(c->status)return;
+    if(state->type==46) {
+        if(action==2)return;
+        if(!c->triggers->alarm){++c->report->unsupported_actions;return;}
+        c->status=c->triggers->alarm(c->triggers->alarm_context,&c->event->authored->record,
+            c->event->links,c->now,action==1);
+        return;
+    }
     if(state->type==15) {
         int status;
         if(action==2)return;
@@ -965,6 +972,7 @@ int rf_runtime_events_tick(rf_runtime_events *events,rf_runtime_triggers *trigge
            !(event->state.type==30 && triggers->set_friendliness) &&
            !(event->state.type==24 && triggers->set_invulnerable) &&
            !(event->state.type==38 && triggers->attack_npc) &&
+           !(event->state.type==46 && triggers->alarm) &&
            !(event->state.type==1 && triggers->slay_object) &&
            !(event->state.type==15 && triggers->show_message) &&
            !(event->state.type==17 && startup_damage_ready(triggers)) &&
