@@ -1,7 +1,8 @@
 # L2S2a miner rescue investigation
 
-The rotating door phase now works on PC; the miner's onward route remains
-blocked. This is not a complete playable encounter or Xbox runtime validation.
+The focused PC rescue chain now opens the door, moves the miner into the guard
+trigger, fires the guards' weapons, and activates the miner's death watch.
+This is not a full player traversal or Xbox runtime validation.
 
 The authored Use trigger5658 links Goto8481, Goto8482, Invert8468, Pin Door
 key8512, Message4785, Remove_Object8073 and Set_Friendliness8483. Switch5671
@@ -35,8 +36,8 @@ It uses the new headless-only RF_REPLAY_TRIGGER_UID placement helper, keeps
 normal trigger eligibility and timing, and records telemetry without calling
 an exit0 a successful rescue. The new assertions verify the door phase:900
 frames,61 active rotation ticks, one arrival at key8512, angle2.094395 radians,
-one bound mover,62 matrix updates, and both authored Goto requests. The miner
-still records834 blocked movement ticks and no scripted attack. Failure evidence
+one bound mover,62 matrix updates, and both authored Goto requests. Before the
+route fix the miner recorded834 blocked movement ticks and no scripted attack. Failure evidence
 is local at artifacts/miner-encounter/contact.log.
 
 Earlier direct Goto8482 testing reached only52 movement ticks and758 blocked
@@ -66,6 +67,35 @@ orientation, bounds, matrix commit, automatic open/wait/close, zero-duration
 snap and invalid-input state preservation. The three existing PC airlock cases
 still pass. NXDK builds the XBE and ISO successfully; no emulator was launched.
 
-Next: repair the miner route (reported static room19/face443 obstacle), reach
-NPC trigger5673 and verify the guard encounter. Validate rotation on stock64MiB
-XEMU when no manual Red Faction session is open.
+## Route and encounter update
+
+The first conservative search selected nodes60 and56, but connector59 had
+authored radius0.5 while the largest miner body sphere was0.6. Node59 was the
+only connecting graph path:60 ->59 ->56. The full body can traverse that route;
+the metadata rejection caused a direct approach into the wall instead.
+
+The scene adapter now tries full clearance first, then a zero-radius graph
+centerline search only after no usable route. Height filtering remains active.
+Actual movement retains all collision spheres and full world/mover sweeps.
+This is a practical planning fallback, not a recovered value for original
+entity radius+7c0. A failed physical step still stops the actor. A bounded
+horizontal wall slide also removes only inward velocity and rechecks the full
+body; it does not increase speed or bypass a second obstruction.
+
+The900-frame rescue replay reports eight successful route requests (two using
+the fallback),17 waypoint advances, five authored movement requests,2,024
+movement ticks across actors, and zero blocked steps. NPC contact activates
+the guards' authored Attack/UnHide chain without forced attack events. Ten
+enemy shots are presented; tracked attacker8490 fires five shots, and
+When_Dead8611 fires at12,300ms for miner5458. The player remains alive.
+
+A separate1,200-frame control starts authored Goto8482 with the Pin Door closed:
+332 steps remain blocked against a mover, no door rotation occurs, and no
+scripted attack starts. It proves the graph fallback still respects collision.
+The four custom-animation regression cases pass, and NXDK builds successfully.
+No emulator was launched or existing manual session changed.
+
+Next: validate this encounter on stock64MiB XEMU and reach it through ordinary
+player traversal. Verify other narrow navigation layouts, genuine dead ends,
+corner handling and original navigation dimensions; the centerline fallback
+can still select a route the physical body cannot traverse.

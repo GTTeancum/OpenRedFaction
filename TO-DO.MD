@@ -32,7 +32,7 @@ Final stock64MiB Xbox run182149 passes360 frames and the same exit at frame274,
 with4383 free pages (17.121MiB). Overall estimate remains ~45%.
 
 Shortlist:
-- ACTIVE: Finish the L2S2a miner rescue route after the verified PC rotating Pin Door; validate rotation on Xbox and complete obstruction, attached actors and revisit behavior.
+- ACTIVE: Validate the now-working PC miner rescue/guard encounter on Xbox and during normal traversal; complete mover obstruction, attached actors and revisit behavior.
 - TO COMPLETE: Verify nonlethal damage, immunity and sight/alarm interruption of scripted poses after the PC/Xbox death-cancellation fix.
 - TO COMPLETE: Finish named state/action animation events, root motion, automatic combat/death interruption and script-animation persistence after the verified custom-clip path.
 - TO COMPLETE: Walk uninterrupted Area2 encounters after the L2S1 Use/airlock interlock fix; isolated boundary checks are not full traversal.

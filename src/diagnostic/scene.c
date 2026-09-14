@@ -9434,7 +9434,7 @@ static int campaign_model_query_fixture(uint32_t frame)
     }
     return RF_OK;
 }
-uint32_t rf_scene_script_routes[8]; /* attempts, found, misses, waypoint advances, last count, last index, status, reserved */
+uint32_t rf_scene_script_routes[8]; /* attempts, found, misses, waypoint advances, last count, last index, status, centerline fallback successes */
 uint32_t rf_scene_script_route_detail[8],rf_scene_script_obstacle[8];
 typedef struct campaign_route_visibility {const rf_collision_solid_view *solid;float radius;} campaign_route_visibility;
 static int campaign_route_visible(void *context,const float start[3],const float end[3],float radius,uint32_t *blocked)
@@ -9467,14 +9467,21 @@ static int campaign_script_route(scene_stream *stream,campaign_npc_body *owner,u
     solid.children=stream->collision->children;solid.child_count=stream->collision->child_count;
     memcpy(start.position,owner->body.state.position,12);memcpy(start.query_point,start.position,12);
     memcpy(goal.position,owner->script_move.target,12);memcpy(goal.query_point,goal.position,12);
-    status=rf_entity_navigation_select(campaign_navigation.references,campaign_navigation.count,
-        start.position,q.radius,q.height,0,1,campaign_route_visible,&visibility,&begin);if(status)return status;
-    status=rf_entity_navigation_select(campaign_navigation.references,campaign_navigation.count,
-        goal.position,q.radius,q.height,0,1,campaign_route_visible,&visibility,&end);if(status)return status;
-    rf_scene_script_route_detail[3]=begin.first;rf_scene_script_route_detail[4]=end.first;rf_scene_script_route_detail[5]=begin.contained;rf_scene_script_route_detail[6]=end.contained;
-    if(begin.first==UINT32_MAX || end.first==UINT32_MAX){++rf_scene_script_routes[2];return RF_OK;}
-    q.first_start=begin.first;q.second_start=begin.second;q.first_end=end.first;q.second_end=end.second;q.search_mode=1;q.solid=&solid;
-    status=rf_scene_npc_route_request(owner->registration.handle,&start,&goal,&q,found);if(status)return status;
+    /* Authored clearance metadata can reject a physically passable doorway.
+     * Prefer full clearance; retry graph centerlines only after no route. Every
+     * movement step still uses the unchanged full body/world collision sweep. */
+    for(i=0;i<2;i++) {
+        if(i){q.radius=0;visibility.radius=0;}
+        status=rf_entity_navigation_select(campaign_navigation.references,campaign_navigation.count,
+            start.position,q.radius,q.height,0,1,campaign_route_visible,&visibility,&begin);if(status)return status;
+        status=rf_entity_navigation_select(campaign_navigation.references,campaign_navigation.count,
+            goal.position,q.radius,q.height,0,1,campaign_route_visible,&visibility,&end);if(status)return status;
+        rf_scene_script_route_detail[3]=begin.first;rf_scene_script_route_detail[4]=end.first;rf_scene_script_route_detail[5]=begin.contained;rf_scene_script_route_detail[6]=end.contained;
+        if(begin.first==UINT32_MAX || end.first==UINT32_MAX)continue;
+        q.first_start=begin.first;q.second_start=begin.second;q.first_end=end.first;q.second_end=end.second;q.search_mode=1;q.solid=&solid;
+        status=rf_scene_npc_route_request(owner->registration.handle,&start,&goal,&q,found);if(status)return status;
+        if(*found && owner->navigation.retained.count>1){if(i)++rf_scene_script_routes[7];break;}
+    }
     rf_scene_script_route_detail[7]=*found;
     if(*found && owner->navigation.retained.count>1){++rf_scene_script_routes[1];owner->script_move.route_index=1;}
     else {*found=0;owner->navigation.retained.count=0;++rf_scene_script_routes[2];}
@@ -9612,6 +9619,24 @@ static int campaign_script_step(scene_stream *stream,float elapsed)
                 proposal.next_position[1]=proposal.position[1]+rise+.001f;
                 status=rf_physics_body_prepare_sweep(&proposal);if(status)return status;
                 status=rf_scene_npc_body_sweep(stream->collision,o->registration.handle,&proposal,0x460,scratch,8,&hit,&blocked);if(status)return status;
+            }
+        }
+        if(blocked && fabsf(hit.contact.normal[1])<.5f) {
+            /* Practical wall slide: discard the inward horizontal component,
+             * retain tangential speed, then sweep the complete body again. */
+            float nx=hit.contact.normal[0],nz=hit.contact.normal[2],length=nx*nx+nz*nz;
+            float dx=proposal.next_position[0]-proposal.position[0];
+            float dz=proposal.next_position[2]-proposal.position[2];
+            float inward=dx*nx+dz*nz;
+            if(length>.0001f && inward<0) {
+                dx-=nx*inward/length;dz-=nz*inward/length;
+                if(dx*dx+dz*dz>.00000001f) {
+                    proposal.next_position[0]=proposal.position[0]+dx;
+                    proposal.next_position[1]=proposal.position[1];
+                    proposal.next_position[2]=proposal.position[2]+dz;
+                    status=rf_physics_body_prepare_sweep(&proposal);if(status)return status;
+                    status=rf_scene_npc_body_sweep(stream->collision,o->registration.handle,&proposal,0x460,scratch,8,&hit,&blocked);if(status)return status;
+                }
             }
         }
         if(blocked){rf_scene_script_obstacle[0]=hit.solid;rf_scene_script_obstacle[1]=hit.room;rf_scene_script_obstacle[2]=hit.face;memcpy(rf_scene_script_obstacle+3,hit.contact.normal,12);memcpy(rf_scene_script_obstacle+6,&hit.contact.fraction,4);rf_scene_script_obstacle[7]=hit.contact.object_id;++rf_scene_script_movement[3];status=campaign_script_locomotion(i,0);if(status)return status;continue;}
