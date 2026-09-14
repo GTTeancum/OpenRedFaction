@@ -15,6 +15,17 @@ Shortlist:
 
 Progress reporting: include a very high-level working area (e.g. Lighting, AI, Weapons, GeoMod or Scripted events) and an overall percent estimate at the end of every turn report (USER preference) and revisit remaining 24-hour workdays when measured throughput supports a forecast; current rough estimate40% (35-45%), no defensible +/-48-hour completion forecast before end-to-end gameplay.
 
+Retained raw RGB owner preserves original section1200 bytes needed by the
+initial dirty1/live-light path4f2cfe, avoiding lossy reconstruction from1555.
+Verified1515 images across94 PC levels and all23 Live Mines images byte-for-
+byte in compiled NXDK. Exact/short budgets, late cleanup and repeated close
+pass; both builds and25 tests pass. Live Mines RGB owner1130876 bytes;
+peak tested PC owner2753420 bytes, excluding allocator overhead. Native full-
+scene memory not yet measured. Dirty1 class-light composition requires these
+base colors even when dirty2/4 shadow regeneration is skipped; next connect
+retained RGB, computed base updates and class-light overlay to scene scheduling.
+Evidence artifacts/lightmap-rgb-owner.json.
+
 Native stock64MiB XEMU now renders one packed lightmap allocation before and
 after a16-texel rectangle update. All64 framebuffer samples match PC bilinear
 rendering within2 channel levels, including48 unmodified texels. Prior draw

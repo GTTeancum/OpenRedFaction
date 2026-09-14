@@ -13,6 +13,20 @@ typedef struct rf_lightmaps {
  * Close before reuse; failures leave the result empty. */
 int rf_lightmaps_open(rf_lightmaps *maps, const rf_level *level, uint32_t budget);
 void rf_lightmaps_close(rf_lightmaps *maps);
+typedef struct rf_lightmap_rgb_image {
+    unsigned char *pixels;uint32_t width,height,bytes;
+} rf_lightmap_rgb_image;
+typedef struct rf_lightmap_rgb_owner {
+    rf_lightmap_rgb_image *images;uint32_t count,allocated_bytes;
+} rf_lightmap_rgb_owner;
+/* Retained original RGB bytes from v180 section1200, before1555 quantization.
+ * Needed by4f2cfe live-light addition; never recover these from packed images.
+ * Linear on both targets. Budget includes owner/records/pixels, not allocator
+ * overhead or source assets. Zero-init/close before reuse; no render storage
+ * allocation. Success survives archive close; failure leaves output empty. */
+int rf_lightmap_rgb_open(rf_lightmap_rgb_owner *,const rf_level *,uint32_t budget);
+void rf_lightmap_rgb_close(rf_lightmap_rgb_owner *);
+
 typedef struct rf_lightmap_projection {
     uint32_t axes[2];float scale[2],offset[2];
 } rf_lightmap_projection;

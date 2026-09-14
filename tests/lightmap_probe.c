@@ -17,6 +17,22 @@ int main(int argc, char **argv)
         while(fread(input,sizeof(input),1,stdin)==1){value=rf_lightmap_requires_brightening(input[0],input[1],input[2]);fwrite(&value,4,1,stdout);}
         return ferror(stdin)||ferror(stdout)?1:0;
     }
+    if(argc==5 && !strcmp(argv[1],"--rgb")) {
+        rf_lightmap_rgb_owner owner={0},empty={0};uint32_t budget,j,k;
+        if(rf_vpp_open(&archive,argv[2]) || rf_level_open(&level,&archive,argv[3]))return 2;
+        if(rf_lightmap_rgb_open(&owner,&level,(uint32_t)strtoul(argv[4],NULL,10)))return 3;
+        budget=owner.allocated_bytes;rf_lightmap_rgb_close(&owner);
+        if(!rf_lightmap_rgb_open(&owner,&level,budget-1) || memcmp(&owner,&empty,sizeof(owner)))return 4;
+        if(rf_lightmap_rgb_open(&owner,&level,budget))return 5;
+        rf_vpp_close(&archive);memset(&level,0xa5,sizeof(level));
+        printf("%u %u\n",owner.count,owner.allocated_bytes);
+        for(j=0;j<owner.count;j++) {
+            rf_lightmap_rgb_image *image=owner.images+j;uint32_t hash=2166136261u;
+            for(k=0;k<image->bytes;k++)hash=(hash^image->pixels[k])*16777619u;
+            printf("%u %u %u %u\n",image->width,image->height,image->bytes,hash);
+        }
+        rf_lightmap_rgb_close(&owner);rf_lightmap_rgb_close(&owner);return memcmp(&owner,&empty,sizeof(owner))?6:0;
+    }
     if(argc==1){printf("%u\n",(unsigned)sizeof(rf_image));return 0;}
     if (argc != 4) return 2;
     if (rf_vpp_open(&archive, argv[1])) return 1;

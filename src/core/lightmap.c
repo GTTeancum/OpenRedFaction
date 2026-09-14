@@ -76,6 +76,45 @@ fail:
     return result;
 }
 
+void rf_lightmap_rgb_close(rf_lightmap_rgb_owner *owner)
+{
+    uint32_t i;if(!owner)return;
+    for(i=0;i<owner->count;i++)free(owner->images[i].pixels);
+    free(owner->images);memset(owner,0,sizeof(*owner));
+}
+int rf_lightmap_rgb_open(rf_lightmap_rgb_owner *owner,const rf_level *level,uint32_t budget)
+{
+    rf_lightmap_rgb_owner value={0};const rf_level_section *section;unsigned char header[8];
+    uint32_t i,at=4;uint64_t bytes;int status;
+    if(!owner || owner->images || owner->count || owner->allocated_bytes)return RF_RANGE;
+    if(!level || level->version!=180)return RF_FORMAT;
+    section=rf_level_find(level,0x1200);if(!section)return RF_NOT_FOUND;
+    if(section->size<4)return RF_FORMAT;
+    status=rf_level_read(level,section,0,header,4);if(status)return status;
+    value.count=u32(header);bytes=sizeof(value)+(uint64_t)value.count*sizeof(*value.images);
+    if((uint64_t)value.count*11>section->size-4)return RF_FORMAT;
+    if(bytes>budget)return RF_RANGE;
+    value.allocated_bytes=(uint32_t)bytes;
+    if(value.count){value.images=calloc(value.count,sizeof(*value.images));if(!value.images)return RF_IO;}
+    for(i=0;i<value.count;i++) {
+        rf_lightmap_rgb_image *image=value.images+i;
+        status=rf_level_read(level,section,at,header,8);if(status)goto failed;at+=8;
+        image->width=u32(header);image->height=u32(header+4);
+        status=RF_FORMAT;
+        if(!image->width || !image->height || image->width>4096 || image->height>4096)goto failed;
+        bytes=(uint64_t)image->width*image->height*3;
+        if(bytes>section->size-at)goto failed;
+        status=RF_RANGE;if(bytes>budget-value.allocated_bytes)goto failed;
+        image->bytes=(uint32_t)bytes;image->pixels=malloc(image->bytes);if(!image->pixels){status=RF_IO;goto failed;}
+        value.allocated_bytes+=image->bytes;
+        status=rf_level_read(level,section,at,image->pixels,image->bytes);if(status)goto failed;at+=image->bytes;
+    }
+    if(at!=section->size){status=RF_FORMAT;goto failed;}
+    *owner=value;return RF_OK;
+failed:
+    rf_lightmap_rgb_close(&value);return status;
+}
+
 /* Exact positive binary32 product/truncation, as the x87 caller before ftol.
  * Integer arithmetic avoids a host-double rounding crossing a texel boundary. */
 static uint32_t lightmap_texel_index(uint32_t extent,float coordinate)
