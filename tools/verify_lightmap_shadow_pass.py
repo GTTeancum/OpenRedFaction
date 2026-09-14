@@ -21,6 +21,7 @@ rng=random.Random(0x4f5069);inputs=[];responses=[];projected_total=accepted_tota
 for i in range(512):
  n=3+i%6;width=16;height=16;iw=128;ih=128;ox=8;oy=8;scale=[.01,.01];offset=[.1,.1];origin=[0,0,0]
  planes=[[0,0,-1,1],[0,0,1,-10],[1,0,0,-2],[-1,0,0,-2],[0,1,0,-2],[0,-1,0,-2]]
+ if i%7==0:planes[2]=list(struct.unpack("<4f",w(*([0xffc00000]*4))))
  cx=rng.uniform(-5,5);cy=rng.uniform(-5,5);z=rng.uniform(.5,11);radius=rng.uniform(.1,5)
  vertices=[(cx+radius*math.cos(j*2*math.pi/n),cy+radius*math.sin(j*2*math.pi/n),z) for j in range(n)]
  view=w(iw,ih,ox,oy)+f(*scale,*offset,0,0,1,-10)+w(2,0);rawvertices=b''.join(f(*v) for v in vertices).ljust(96,b'\0')
@@ -46,5 +47,5 @@ for offset,value in ((172,2),(180,1)):
  assert subprocess.check_output([str(root/'build/pc/Release/rf_effect_probe.exe'),'--lightmap-shadow-pass'],input=bytes(bad))==w(status,0xffffffff,0xffffffff)+initial
 x.mem_write(B,data);x.mem_write(B+0x630c,w(1));x.mem_write(OUT,w(0xffffffff,0xffffffff));x.mem_write(STACK,w(STOP,B+0x2000,B+184,n,B+0x6300,B+356,capacity,amount,OUT,OUT+4));x.reg_write(UC_X86_REG_ESP,STACK);x.emu_start(entry,STOP,count=1000000)
 assert x.reg_read(UC_X86_REG_EIP)==STOP and x.reg_read(UC_X86_REG_EAX)!=0 and bytes(x.mem_read(OUT,8))==w(0xffffffff,0xffffffff) and bytes(x.mem_read(B+356,1024))==initial
-report=dict(result='PASS',original_pc_nxdk_passes=len(inputs),projected=projected_total,degenerate_projections=degenerate,shared_guards=2,nxdk_capacity_guards=1,raster_accepted=accepted_total,changed_mask_bytes=changed,original_sha256=sha,scope='Unhooked4f5069..4f5515 with projection/raster observation only; all six clipping planes, ray/projection/deduplication, receiver clipping/area and mask subtraction combined. Explicit zero-initialized retained UV/filter scratch per case. Source/mapping preparation, face selection/traversal, border and native rendering remain external.')
+report=dict(result='PASS',original_pc_nxdk_passes=len(inputs),projected=projected_total,degenerate_projections=degenerate,shared_guards=2,nxdk_capacity_guards=1,raster_accepted=accepted_total,changed_mask_bytes=changed,original_sha256=sha,scope='Unhooked4f5069..4f5515 with projection/raster observation only; all six clipping planes including canonical indefinite side planes, ray/projection/deduplication, receiver clipping/area and mask subtraction combined. Explicit zero-initialized retained UV/filter scratch per case. Source/mapping preparation, face selection/traversal, border and native rendering remain external.')
 (root/'artifacts/lightmap-shadow-pass.json').write_text(json.dumps(report,indent=2));print(report)

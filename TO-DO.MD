@@ -15,13 +15,21 @@ Shortlist:
 
 Progress reporting: include a very high-level working area (e.g. Lighting, AI, Weapons, GeoMod or Scripted events) and an overall percent estimate at the end of every turn report (USER preference) and revisit remaining 24-hour workdays when measured throughput supports a forecast; current rough estimate40% (35-45%), no defensible +/-48-hour completion forecast before end-to-end gameplay.
 
+Collapsed shadow-volume edges now retain original x87 indefinite planes;
+culling and clipping treat that exact four-word encoding as non-restricting.
+Verified1024 preparations including two-texel extents,2048 volumes (512
+collapsed-edge cases),4096 occluders,2048 clips and512 combined passes against
+original/PC/NXDK. Both builds and24 tests pass. Other malformed/nonfinite
+inputs still reject. Next bind source space/endpoint selection and retained
+occluder traversal with bounded mask/scratch ownership, then native rendering.
+
 Combined shadow cull/pass preparation matches1024 original/PC/NXDK
 cases with extents3..64:494 facing,530 rejected,4 preserved-output guards.
 Original corner/facing/mapping-bound expansion/volume are replayed; source
 center/radius bounds independently checked. Both builds,24 tests and pass/
-volume regressions pass. IMPORTANT: two-texel mapping extents collapse corners
-and currently fail volume validation; reconstruct original degenerate behavior
-before live traversal. Then bind source space/endpoint selection, retained
+volume regressions pass. Two-texel collapsed-volume gap subsequently resolved
+by exact indefinite-plane handling above. Next bind source space/endpoint
+selection, retained
 occluder iteration and bounded mask/scratch ownership, and validate native.
 
 Combined occluder clipping/projection/filter/mask pass matches512 original/

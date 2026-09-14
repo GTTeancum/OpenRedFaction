@@ -23,6 +23,7 @@ for i in range(2048):
  if i%19==0:plane=[0,0,0,1]
  if i%23==0:plane=[0,0,0,-1]
  if i==0:n=0;vertices=[]
+ if i%17==0:plane=list(struct.unpack("<4f",w(*([0xffc00000]*4))))
  raw=b''.join(f(*v) for v in vertices).ljust(384,b'\0');data=w(n,64)+f(*plane)+raw
  o.mem_write(B,data);o.mem_write(OUT,bytes([165])*768);expected_n=call(o,0x54a1c0,[n,B+24,OUT,B+8]);assert expected_n<=2*n
  expected=bytes(o.mem_read(OUT,768));x.mem_write(B,data);x.mem_write(OUT,bytes([165])*768);x.mem_write(OWNER,w(0xa5a5a5a5))
@@ -35,5 +36,5 @@ for at,value in [(0,w(1)),(4,w(2*n-1)),(8,f(float('nan'))),(24,f(float('inf')))]
  bad=bytearray(data);bad[at:at+4]=value;x.mem_write(B,bytes(bad));x.mem_write(OUT,bytes([165])*768);x.mem_write(OWNER,w(0xa5a5a5a5));nn,cap=struct.unpack('<II',bad[:8])
  status=call(x,entry,[B+24,nn,B+8,OUT,cap,OWNER]);assert status!=0 and bytes(x.mem_read(OUT,768))==bytes([165])*768 and bytes(x.mem_read(OWNER,4))==w(0xa5a5a5a5)
  assert subprocess.check_output([str(root/'build/pc/Release/rf_effect_probe.exe'),'--lightmap-clip-shadow'],input=bytes(bad))==w(status,0xa5a5a5a5)+bytes([165])*768
-report=dict(result='PASS',original_pc_nxdk_polygons=len(inputs),emitted_vertices=emitted,intersection_vertices=crossings,empty_polygons=empty,pc_nxdk_guards=4,original_sha256=sha,x87_control_word='0x027f',scope='Full unhooked54a1c0 with actual54a320 plane classification and vector helpers; arbitrary ordered polygons, epsilon boundaries, all in/out, zero normals and empty input. Output order/float bits and untouched tail exact. Compiled NXDK CPU replay; six-plane volume construction and native rendered shadows excluded.')
+report=dict(result='PASS',original_pc_nxdk_polygons=len(inputs),emitted_vertices=emitted,intersection_vertices=crossings,empty_polygons=empty,pc_nxdk_guards=4,original_sha256=sha,x87_control_word='0x027f',scope='Full unhooked54a1c0 with actual54a320 plane classification and vector helpers; arbitrary ordered polygons, epsilon boundaries, all in/out, zero normals, canonical indefinite planes and empty input. Output order/float bits and untouched tail exact. Compiled NXDK CPU replay; six-plane volume construction and native rendered shadows excluded.')
 (root/'artifacts/lightmap-clip-shadow.json').write_text(json.dumps(report,indent=2));print(report)

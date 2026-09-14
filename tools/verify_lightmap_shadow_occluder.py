@@ -35,6 +35,7 @@ for i in range(4096):
  if mode==13:portal=-1;facemap=-32768
  if mode==14:lightmin[0]=1;mapmax[1]=-1
  if mode==15:flags=0x80000000;facemap=32767
+ if i%17==0:planes[i%6]=list(struct.unpack("<4f",w(*([0xffc00000]*4))))
  view=f(*lightmin,*lightmax,*mapmin,*mapmax,*mapplane,*[q for p in planes for q in p])+w(mapping);face=f(*faceplane,*minimum,*maximum)+w(flags,facemap&0xffffffff,portal&0xffffffff,excluded);data=view+face
  o.mem_write(OWNER,bytes(124));o.mem_write(OWNER,w(mapping));o.mem_write(OWNER+0x6c,f(*mapplane));o.mem_write(B+0x1000,bytes(80));o.mem_write(B+0x1000,f(*faceplane,*minimum,*maximum)+w(flags,0,0)+struct.pack('<hh',portal,facemap));o.mem_write(STACK,bytes(4096));o.mem_write(STACK+0x18,w(B+0x1000));o.mem_write(STACK+0x4c,f(*lightmin,*lightmax));o.mem_write(STACK+0xd4,f(*mapmin));o.mem_write(STACK+0xf8,f(*mapmax));o.mem_write(STACK+0x1a0,f(*[q for p in planes for q in p]));o.mem_write(B+0xf00c,w(OWNER))
  for j,p in enumerate(planes):
@@ -48,5 +49,5 @@ assert subprocess.check_output([str(root/'build/pc/Release/rf_effect_probe.exe')
 for at,value in [(0,f(float('nan'))),(64,f(float('inf'))),(164,f(float('nan'))),(164+44,w(32768)),(164+48,w(32768))]:
  bad=bytearray(data);bad[at:at+4]=value;x.mem_write(B,bytes(bad));x.mem_write(OUT,w(0xa5a5a5a5));status=call(x,entry,[B,B+164,OUT]);assert status!=0 and bytes(x.mem_read(OUT,4))==w(0xa5a5a5a5)
  assert subprocess.check_output([str(root/'build/pc/Release/rf_effect_probe.exe'),'--lightmap-shadow-occluder'],input=bytes(bad))==w(status,0xa5a5a5a5)
-report=dict(result='PASS',original_pc_nxdk_faces=len(inputs),accepted=accepted_total,rejected=len(inputs)-accepted_total,pc_nxdk_guards=5,original_sha256=sha,x87_control_word='0x027f',scope='Original4f4f15..4f5031 with actual bounds overlap, signed metadata, coplanar test, support corners and six plane distances. Only510710 texture classification supplied. Sixteen case groups include equality thresholds, signed IDs and unrelated flags. Retained face decoding/texture ownership and native rendering excluded.')
+report=dict(result='PASS',original_pc_nxdk_faces=len(inputs),accepted=accepted_total,rejected=len(inputs)-accepted_total,pc_nxdk_guards=5,original_sha256=sha,x87_control_word='0x027f',scope='Original4f4f15..4f5031 with actual bounds overlap, signed metadata, coplanar test, support corners and six plane distances. Only510710 texture classification supplied. Canonical indefinite planes and sixteen case groups include equality thresholds, signed IDs and unrelated flags. Retained face decoding/texture ownership and native rendering excluded.')
 (root/'artifacts/lightmap-shadow-occluder.json').write_text(json.dumps(report,indent=2));print(report)

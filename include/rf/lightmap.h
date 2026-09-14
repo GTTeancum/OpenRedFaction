@@ -110,6 +110,7 @@ typedef struct rf_lightmap_shadow_cull {
 /* Original4f4f15..4f5031 occluder eligibility. Runtime face fields, expanded
  * bounds and resolved510710 texture exclusion supplied by the owner.
  * Signed16 mapping/portal fields, strict coplanar/volume rules. No allocation. */
+/* Canonical four-word0xffc00000 planes from collapsed edges impose no cull. */
 int rf_lightmap_shadow_occluder(const rf_lightmap_shadow_cull *,const rf_lightmap_shadow_face *,uint32_t *accepted);
 /* Bind the selected retained image's original format to shadow eligibility.
  * NULL means no bitmap; image pixels are not read. Caller selects animation
@@ -127,7 +128,8 @@ int rf_lightmap_shadow_mapping_prepare(const rf_lightmap_sample_plane *,uint32_t
 /* Original4f4590 six clipping planes from mapping plane, ray origin,
  * interior center and four unprojected corners in perimeter order.
  * Caller has passed the facing test. Reuses reconstructed plane math;
- * no allocation; invalid/degenerate inputs preserve the six output planes. */
+ * no allocation; invalid inputs preserve the six output planes. Collapsed
+ * finite edges produce original four-word0xffc00000 indefinite planes. */
 int rf_lightmap_shadow_volume(const float mapping_plane[4],const float origin[3],const float center[3],
     const float (*corners)[3],float (*planes)[4]);
 /* Original5085c0 ray/plane intersection with no upper parameter bound.
@@ -138,7 +140,8 @@ int rf_lightmap_shadow_ray(const float start[3],const float direction[3],const f
 /* Original54a1c0 ordered polygon/plane clipping, used by shadow volumes.
  * Disjoint buffers; count zero or >=2; capacity >=2*count bounds arbitrary
  * input polygons. No allocation. Invalid preflight preserves output; numeric
- * failure may retain emitted vertices. out_count changes only on success. */
+ * failure may retain emitted vertices. out_count changes only on success.
+ * A four-word0xffc00000 indefinite plane preserves all input vertices. */
 int rf_lightmap_clip_shadow(const float (*vertices)[3],uint32_t count,const float plane[4],
     float (*output)[3],uint32_t capacity,uint32_t *out_count);
 /* 4f4590 projected intersection -> mask coordinates, clamped to [1,extent-1].
@@ -187,8 +190,8 @@ typedef struct rf_lightmap_shadow_pass {
  * center on each axis. Bounds and sample must refer to the same mapping.
  * No allocation. Non-facing success sets facing0 and preserves cull/pass;
  * caller clears its mask. Errors preserve all outputs. Filter is borrowed.
- * Current volume validation rejects degenerate corners (including two-texel
- * extents); original degenerate-volume behavior remains to be reconstructed. */
+ * Collapsed edges retain original x87 indefinite planes, which the shadow
+ * culler/clipper recognize as non-restricting. Two-texel extents are supported. */
 int rf_lightmap_shadow_prepare(const rf_lightmap_mapping *,const rf_lightmap_sample_plane *,
     int32_t mapping,const float light_center[3],float radius,const float origin[3],
     const rf_lightmap_shadow_filter *,rf_lightmap_shadow_cull *,rf_lightmap_shadow_pass *,uint32_t *facing);

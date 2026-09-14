@@ -334,13 +334,41 @@ int rf_lightmap_mapping_read(const void *record,uint32_t bytes,uint32_t image_co
 static double shadow_dot(const float a[3],const float b[3])
 { return ((double)a[2]*b[2]+(double)a[1]*b[1])+(double)a[0]*b[0]; }
 
+/* x87 indefinite emitted by original4db910 for a zero cross product.
+ * Only this complete plane encoding is accepted as a non-restricting plane. */
+static int shadow_indefinite_plane(const float plane[4])
+{
+    uint32_t bits[4],i;memcpy(bits,plane,16);
+    for(i=0;i<4;i++)if(bits[i]!=0xffc00000u)return 0;
+    return 1;
+}
+static int shadow_plane_points(const float a[3],const float b[3],const float c[3],rf_visibility_plane *plane)
+{
+    float first[3],second[3],normal[3];uint32_t i;int status=rf_visibility_plane_points(a,b,c,plane);
+    if(!status)return RF_OK;
+    for(i=0;i<3;i++) {
+        if(!isfinite(a[i]) || !isfinite(b[i]) || !isfinite(c[i]))return status;
+        first[i]=b[i]-a[i];second[i]=c[i]-b[i];
+        if(!isfinite(first[i]) || !isfinite(second[i]))return status;
+    }
+    for(i=0;i<3;i++) {
+        uint32_t j=(i+1)%3,k=(i+2)%3;
+        normal[i]=(float)((double)first[j]*second[k]-(double)first[k]*second[j]);
+        if(normal[i]!=0)return status;
+    }
+    {uint32_t indefinite[4]={0xffc00000u,0xffc00000u,0xffc00000u,0xffc00000u};
+     memcpy(plane->normal,indefinite,12);memcpy(&plane->distance,indefinite,4);plane->corner=4;}
+    return RF_OK;
+}
+
 int rf_lightmap_shadow_occluder(const rf_lightmap_shadow_cull *view,const rf_lightmap_shadow_face *face,uint32_t *accepted)
 {
     uint32_t i,j,value=0;
     if(!view || !face || !accepted || face->mapping<INT16_MIN || face->mapping>INT16_MAX ||
         face->portal<INT16_MIN || face->portal>INT16_MAX)return RF_RANGE;
     for(i=0;i<4;i++)if(!isfinite(face->plane[i]) || !isfinite(view->mapping_plane[i]))return RF_RANGE;
-    for(i=0;i<6;i++)for(j=0;j<4;j++)if(!isfinite(view->planes[i][j]))return RF_RANGE;
+    for(i=0;i<6;i++)if(!shadow_indefinite_plane(view->planes[i]))
+        for(j=0;j<4;j++)if(!isfinite(view->planes[i][j]))return RF_RANGE;
     for(i=0;i<3;i++) {
         if(!isfinite(face->minimum[i]) || !isfinite(face->maximum[i]) || face->minimum[i]>face->maximum[i] ||
             !isfinite(view->light_minimum[i]) || !isfinite(view->light_maximum[i]) || view->light_minimum[i]>view->light_maximum[i] ||
@@ -352,7 +380,8 @@ int rf_lightmap_shadow_occluder(const rf_lightmap_shadow_cull *view,const rf_lig
     if(fabs((double)face->plane[3]-view->mapping_plane[3])<(double).001f &&
         shadow_dot(face->plane,view->mapping_plane)>(double).999f)goto done;
     for(i=0;i<6;i++) {
-        float point[3];for(j=0;j<3;j++)point[j]=view->planes[i][j]>0?face->minimum[j]:face->maximum[j];
+        float point[3];if(shadow_indefinite_plane(view->planes[i]))continue;
+        for(j=0;j<3;j++)point[j]=view->planes[i][j]>0?face->minimum[j]:face->maximum[j];
         if(shadow_dot(point,view->planes[i])+view->planes[i][3]>-.001)goto done;
     }
     value=1;
@@ -407,7 +436,7 @@ int rf_lightmap_shadow_volume(const float mapping_plane[4],const float origin[3]
     status=rf_visibility_plane_normal(mapping_plane,origin,work);if(status)return status;
     status=rf_visibility_plane_normal(negative,center,work+1);if(status)return status;
     for(i=0;i<4;i++) {
-        status=rf_visibility_plane_points(origin,corners[edge[i][0]],corners[edge[i][1]],work+i+2);if(status)return status;
+        status=shadow_plane_points(origin,corners[edge[i][0]],corners[edge[i][1]],work+i+2);if(status)return status;
     }
     for(i=0;i<6;i++) {
         memcpy(value[i],work[i].normal,12);value[i][3]=work[i].distance;
@@ -445,8 +474,11 @@ int rf_lightmap_clip_shadow(const float (*vertices)[3],uint32_t count,const floa
     uint32_t i,j,n=0;
     if(!plane || !out_count || count==1 || count>INT32_MAX ||
         (count && (!vertices || !output)) || (uint64_t)count*2>capacity)return RF_RANGE;
-    for(i=0;i<4;i++)if(!isfinite(plane[i]))return RF_RANGE;
+    if(!shadow_indefinite_plane(plane))for(i=0;i<4;i++)if(!isfinite(plane[i]))return RF_RANGE;
     for(i=0;i<count;i++)for(j=0;j<3;j++)if(!isfinite(vertices[i][j]))return RF_RANGE;
+    if(shadow_indefinite_plane(plane)) {
+        if(count)memcpy(output,vertices,(size_t)count*12);*out_count=count;return RF_OK;
+    }
     for(i=0;i<count;i++) {
         const float *a=vertices[i],*b=vertices[i+1==count?0:i+1];
         double da=shadow_dot(a,plane),db=shadow_dot(b,plane);

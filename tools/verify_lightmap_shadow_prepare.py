@@ -22,7 +22,7 @@ def stop_facing(u,a,size,ctx):
 o.hook_add(UC_HOOK_CODE,stop_facing,begin=0x4f4b9e,end=0x4f4b9e)
 rng=random.Random(0x4f4637);inputs=[];responses=[];facing_count=0
 for i in range(1024):
- width=3+i%62;height=3+(i//62)%62;iw=width+rng.randrange(256);ih=height+rng.randrange(256);ox=rng.randrange(iw-width+1);oy=rng.randrange(ih-height+1)
+ width=2+i%63;height=2+(i//63)%63;iw=width+rng.randrange(256);ih=height+rng.randrange(256);ox=rng.randrange(iw-width+1);oy=rng.randrange(ih-height+1)
  normal=i%3;uaxis=[j for j in range(3) if j!=normal][(i//3)%2];scale=[rng.choice([-1,1])*rng.uniform(.01,2) for _ in range(2)];offset=[rng.uniform(-1,1) for _ in range(2)];plane=[rng.uniform(-2,2) for _ in range(4)];plane[normal]=rng.choice([-1,1])*rng.uniform(.1,2);origin=[rng.uniform(-100,100) for _ in range(3)]
  view=w(iw,ih,ox,oy)+f(*scale,*offset,*plane)+w(normal,uaxis)
  minimum=[rng.uniform(-20,0) for _ in range(3)];maximum=[rng.uniform(0,20) for _ in range(3)];center=[rng.uniform(-20,20) for _ in range(3)];radius=rng.uniform(0,100)
@@ -50,5 +50,5 @@ for at,value in [(180,f(-1)),(168,f(float('nan'))),(164,w(0xffffffff)),(108,w(0)
  bad=bytearray(data);bad[at:at+4]=value;x.mem_write(B,bytes(bad));x.mem_write(OUT,bytes([165])*340);idx,rad=struct.unpack_from('<I',bad,164)[0],struct.unpack_from('<I',bad,180)[0]
  status=call(x,entry,[B,B+108,idx,B+168,rad,B+184,B+0x6000,OUT,OUT+164,OUT+336]);assert status!=0 and bytes(x.mem_read(OUT,340))==bytes([165])*340
  assert subprocess.check_output([str(root/'build/pc/Release/rf_effect_probe.exe'),'--lightmap-shadow-prepare'],input=bytes(bad))==w(status,0xffffffff)+bytes([165])*336
-report=dict(result='PASS',original_pc_nxdk_preparations=len(inputs),facing=facing_count,rejected=len(inputs)-facing_count,guards=4,original_sha256=sha,scope='Extents3..64; original corner chunk and continuous facing/bounds/volume4f4b32..4f4daa; source center/radius bounds independently computed from serialized floats. Complete cull/pass bytes except borrowed filter pointer. Two-texel degenerate volumes remain unresolved. No native source traversal or rendered masks yet.')
+report=dict(result='PASS',original_pc_nxdk_preparations=len(inputs),facing=facing_count,rejected=len(inputs)-facing_count,guards=4,original_sha256=sha,scope='Extents2..64; original corner chunk and continuous facing/bounds/volume4f4b32..4f4daa; source center/radius bounds independently computed from serialized floats. Complete cull/pass bytes except borrowed filter pointer. No native source traversal or rendered masks yet.')
 (root/'artifacts/lightmap-shadow-prepare.json').write_text(json.dumps(report,indent=2));print(report)
