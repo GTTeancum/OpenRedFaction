@@ -5,7 +5,7 @@
 #define CHECK(x) do{if(!(x)){fprintf(stderr,"weapon line %d\n",__LINE__);return 1;}}while(0)
 int main(int argc,char **argv)
 {
-    rf_vpp meshes={0},motions={0},maps[5]={{0}};rf_player_weapon *w=NULL,*other=NULL;
+    rf_vpp meshes={0},motions={0},maps[5]={{0}};rf_player_weapon *w=NULL,*other=NULL,*rifle=NULL;
     const char *map_names[5]={"maps1.vpp","maps2.vpp","maps3.vpp","maps4.vpp","maps_en.vpp"};
     char path[1024];uint32_t i,j;rf_motion_sample sample;
     {
@@ -59,6 +59,25 @@ int main(int argc,char **argv)
             {const char *fixture="$Class Name: \"test\" $V3D Filename: \"test.v3d\" $V3D Type: \"static\" $Count Single: 7 $Count: 3 $Count Multi: 99 $Flags: (\"no_pickup\")";
              CHECK(rf_item_definition_read(fixture,(uint32_t)strlen(fixture),"test",&item)==RF_OK && item.count==7 && item.flags==1);}
         }
+        {
+            rf_weapon_view_definition view,saved;
+            const char *fixture="$Name: \"test\" $1st Person Mesh: \"test.v3d\" +State: \"idle\" \"idle.mvf\" +Action: \"fire\" \"fire.mvf\" \"\" +Action: \"reload\" \"reload.mvf\" \"\"";
+            CHECK(rf_weapon_view_read(fixture,(uint32_t)strlen(fixture),"test",&view)==RF_OK);
+            CHECK(!strcmp(view.mesh,"test.v3c") && !strcmp(view.clips[2],"reload.rfa"));saved=view;
+            {char duplicate[1024];snprintf(duplicate,sizeof(duplicate),"%s +State: \"idle\" \"other.mvf\"",fixture);
+             CHECK(rf_weapon_view_read(duplicate,(uint32_t)strlen(duplicate),"test",&view)==RF_FORMAT && !memcmp(&view,&saved,sizeof(view)));}
+
+            CHECK(rf_weapon_view_read(fixture,(uint32_t)strlen(fixture),"missing",&view)==RF_NOT_FOUND && !memcmp(&view,&saved,sizeof(view)));
+            CHECK(rf_weapon_view_read(fixture,(uint32_t)strlen(fixture)-20,"test",&view)!=RF_OK && !memcmp(&view,&saved,sizeof(view)));
+            CHECK(rf_weapon_view_load(&tables,"12mm handgun",128*1024,&view)==RF_OK);
+            CHECK(!strcmp(view.mesh,"fp_glock.v3c") && !strcmp(view.clips[1],"fp_glock_fire.rfa"));
+            CHECK(rf_weapon_view_load(&tables,"Assault Rifle",128*1024,&view)==RF_OK);
+            CHECK(!strcmp(view.mesh,"fp_aslt_rfl.v3c") && !strcmp(view.clips[1],"fp_aslt_rfl_fire_burst.rfa"));
+            CHECK(rf_player_weapon_open_view(&meshes,&motions,maps,5,&view,1024*1024,&rifle)==RF_OK);
+            CHECK(rf_player_weapon_open_view(&meshes,&motions,maps,5,&view,rifle->resident_bytes-1,&other)==RF_RANGE && !other);
+            memset(view.mesh,'x',64);
+            CHECK(rf_player_weapon_open_view(&meshes,&motions,maps,5,&view,2*1024*1024,&other)==RF_RANGE && !other);
+        }
         rf_vpp_close(&tables);
         CHECK(d.damage_kind==1 && d.magazine==16 && d.semi_automatic==1 && d.damage==40 && d.fire_seconds==.5f && d.reload_seconds==1.1f);
         printf("Primary definition PASS magazine=%u semi=%u damage=%g reload=%g fire=%g\n",d.magazine,d.semi_automatic,d.damage,d.reload_seconds,d.fire_seconds);
@@ -66,6 +85,16 @@ int main(int argc,char **argv)
     CHECK(w->bone_count && w->geometry.vertex_count && w->materials.count && w->peak_bytes<=1024*1024);
     CHECK(rf_player_weapon_open(&meshes,&motions,maps,5,w->resident_bytes-1,&other)==RF_RANGE && !other);
     rf_vpp_close(&meshes);rf_vpp_close(&motions);for(i=0;i<5;i++)rf_vpp_close(maps+i);
+    {
+        uint32_t ticks;
+        CHECK(rf_player_weapon_step(rifle,0,0)==RF_OK);
+        CHECK(rf_player_weapon_step(rifle,1,.08f)==RF_OK && rifle->current==1);
+        CHECK(rf_player_weapon_step(rifle,2,.2f)==RF_OK && rifle->current==2);
+        for(ticks=0;ticks<600 && rifle->current!=0;ticks++)CHECK(rf_player_weapon_step(rifle,-1,1.0f/60)==RF_OK);
+        CHECK(rifle->current==0 && ticks<600);
+        printf("Assault resource PASS bones=%u vertices=%u resident=%u peak=%u reload-return=%u\n",rifle->bone_count,rifle->geometry.vertex_count,rifle->resident_bytes,rifle->peak_bytes,ticks);
+        rf_player_weapon_close(&rifle);rf_player_weapon_close(&rifle);CHECK(!rifle);
+    }
     for(i=0;i<3;i++)for(j=0;j<w->bone_count;j++) {
         rf_motion_track t;CHECK(rf_motion_file_track(w->clips+i,j,&t)==RF_OK);
         CHECK(rf_motion_file_sample(w->clips+i,j,t.envelope.start_tick,1,&sample)==RF_OK);

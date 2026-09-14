@@ -470,6 +470,52 @@ int rf_item_definition_load(rf_vpp *tables,const char *name,uint32_t budget,rf_i
     free(text);return status;
 }
 
+int rf_weapon_view_read(const void *text,uint32_t bytes,const char *name,rf_weapon_view_definition *result)
+{
+    lexer l={text,bytes,0};rf_weapon_view_definition v={0};char t[256],file[64];
+    uint32_t mask=0;int selected=0,found=0,q,status,index;
+    if(!text || !name || !*name || !result)return RF_RANGE;
+    while((status=token(&l,t,&q))==RF_OK) {
+        if(q)continue;
+        if(same(t,"$Name:")) {
+            if(found)break;
+            if(token(&l,t,&q) || !q)return RF_FORMAT;
+            selected=same(t,name);found=selected;continue;
+        }
+        if(!selected)continue;if(same(t,"#End"))break;
+        if(same(t,"$1st")) {
+            if(token(&l,t,&q) || q || !same(t,"Person"))return RF_FORMAT;
+            if(token(&l,t,&q) || q)return RF_FORMAT;
+            if(!same(t,"Mesh:"))continue;
+            if(mask&1)return RF_FORMAT;
+            if(metadata_string(&l,file,sizeof(file)))return RF_FORMAT;
+            status=rf_model_compiled_filename(file,v.mesh,".v3c");if(status)return status;mask|=1;
+        } else if(same(t,"+State:") || same(t,"+Action:")) {
+            int action=same(t,"+Action:");
+            if(token(&l,t,&q) || !q)return RF_FORMAT;
+            index=!action && same(t,"idle")?0:action && same(t,"fire")?1:action && same(t,"reload")?2:-1;
+            if(index<0)continue;
+            if(mask&(2u<<index))return RF_FORMAT;
+            if(metadata_string(&l,file,sizeof(file)))return RF_FORMAT;
+            status=rf_motion_compiled_filename(file,v.clips[index]);if(status)return status;mask|=2u<<index;
+        }
+    }
+    if(status!=RF_OK && status!=RF_NOT_FOUND)return status;
+    if(!found)return RF_NOT_FOUND;if(mask!=15)return RF_FORMAT;
+    *result=v;return RF_OK;
+}
+int rf_weapon_view_load(rf_vpp *tables,const char *name,uint32_t budget,rf_weapon_view_definition *result)
+{
+    rf_vpp_entry entry;void *text;int status;
+    if(!tables || !name || !*name || !result)return RF_RANGE;
+    status=rf_vpp_find(tables,"weapons.tbl",&entry);if(status)return status;
+    if(!entry.size || entry.size>budget)return RF_RANGE;
+    text=malloc(entry.size);if(!text)return RF_IO;
+    status=rf_vpp_read(tables,&entry,0,text,entry.size);
+    if(!status)status=rf_weapon_view_read(text,entry.size,name,result);
+    free(text);return status;
+}
+
 int rf_weapon_primary_read(const void *text,uint32_t bytes,const char *name,rf_weapon_primary_definition *result)
 {
     lexer l={text,bytes,0};rf_weapon_primary_definition v={0};char t[256];

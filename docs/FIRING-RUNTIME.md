@@ -888,3 +888,28 @@ First-pass supplies now include live Handgun, Medical Kit, Suit Repair and
 12mm_ammo class handling; see LEVEL-ITEMS.md for verified gameplay and limits.
 Health/armor use a provisional100 cap; the armor HUD reads the same damage owner.
 Mission-specific starting supply, further weapons and selection remain open.
+
+
+## Table-driven first-person resources
+
+rf_weapon_view_read/load binds the named weapons.tbl first-person mesh and
+idle/fire/reload animation names into an owned256-byte descriptor. Compiled
+extensions are resolved by existing model/motion filename helpers. Missing,
+duplicate and malformed required fields preserve output; unsupported weapons
+without these three clips require a later playback policy. No table text is
+retained. The live pistol uses this binding with the existing1MiB owner cap.
+rf_player_weapon_open_view removes fixed pistol names from the resource loader;
+the compatibility pistol entry point remains for existing resource tests.
+
+Installed Assault Rifle binds fp_aslt_rfl.v3c, idle, fire_burst and reload clips.
+Its shared resource/playback test passes after closing all input archives:
+34 bones,637 vertices,1036732 resident and1048328 peak bytes (under1MiB).
+Reload returns to idle after86 remaining ticks in the test. Tests also cover
+insufficient budgets, invalid names, missing/duplicate definitions and retained
+output. Both PC/NXDK builds and28 CTests pass. The live pistol framebuffer is
+byte-identical to the PC reference from native replay-20260914-024732.
+Evidence: artifacts/weapon-view-tests.log, weapon-view-pc.log and
+weapon-view-xbox.log. This is resource readiness, not a live selectable rifle:
+equipped state/input, burst firing, acquisition, sounds and native rifle checks
+remain required. The table explicitly declares three-shot primary bursts with
+0.1s spacing; do not treat its0.75s primary wait as ordinary single-shot fire.

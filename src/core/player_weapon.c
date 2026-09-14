@@ -9,17 +9,18 @@ void rf_player_weapon_close(rf_player_weapon **weapon)
     rf_model_geometry_close(&w->geometry);rf_model_materials_close(&w->materials);
     free(w);*weapon=NULL;
 }
-int rf_player_weapon_open(rf_vpp *meshes,rf_vpp *motions,rf_vpp *maps,uint32_t map_count,
-    uint32_t budget,rf_player_weapon **result)
+int rf_player_weapon_open_view(rf_vpp *meshes,rf_vpp *motions,rf_vpp *maps,uint32_t map_count,
+    const rf_weapon_view_definition *definition,uint32_t budget,rf_player_weapon **result)
 {
-    static const char *const names[3]={"fp_glock_idle.rfa","fp_glock_fire.rfa","fp_glock_reload.rfa"};
     rf_player_weapon *w=NULL;rf_model_file *model=NULL;unsigned char *bones=NULL;
     uint32_t i,j,used=sizeof(rf_player_weapon),scratch=sizeof(rf_model_file)+4+50*56;int status;
-    if(!meshes || !motions || !maps || !map_count || !result || *result)return RF_RANGE;
+    if(!meshes || !motions || !maps || !map_count || !definition || !result || *result)return RF_RANGE;
+    if(!memchr(definition->mesh,0,64) || !definition->mesh[0])return RF_RANGE;
+    for(i=0;i<3;i++)if(!memchr(definition->clips[i],0,64) || !definition->clips[i][0])return RF_RANGE;
     if(budget<used || budget-used<scratch)return RF_RANGE;
     w=calloc(1,sizeof(*w));model=calloc(1,sizeof(*model));bones=malloc(4+50*56);
     if(!w || !model || !bones){status=RF_IO;goto done;}
-    status=rf_model_file_open(model,meshes,"fp_glock.v3c");if(status)goto done;
+    status=rf_model_file_open(model,meshes,definition->mesh);if(status)goto done;
     for(i=0;i<model->section_count;i++)if(model->sections[i].type==0x424f4e45) {
         if(model->sections[i].size>4+50*56){status=RF_RANGE;goto done;}
         status=rf_vpp_read(meshes,&model->entry,model->sections[i].offset,bones,model->sections[i].size);if(status)goto done;
@@ -33,7 +34,7 @@ int rf_player_weapon_open(rf_vpp *meshes,rf_vpp *motions,rf_vpp *maps,uint32_t m
     w->peak_bytes=used+w->materials.peak_bytes+scratch;used+=w->materials.resident_bytes;
     for(i=0;i<3;i++) {
         rf_motion_track track;
-        status=rf_motion_file_open(w->clips+i,motions,names[i]);if(status)goto done;
+        status=rf_motion_file_open(w->clips+i,motions,definition->clips[i]);if(status)goto done;
         if(w->clips[i].entry.size>budget-used-scratch){status=RF_RANGE;goto done;}
         w->payloads[i]=malloc(w->clips[i].entry.size);if(!w->payloads[i]){status=RF_IO;goto done;}
         status=rf_vpp_read(motions,&w->clips[i].entry,0,w->payloads[i],w->clips[i].entry.size);if(status)goto done;
@@ -47,6 +48,13 @@ int rf_player_weapon_open(rf_vpp *meshes,rf_vpp *motions,rf_vpp *maps,uint32_t m
     *result=w;w=NULL;status=RF_OK;
 done:
     free(bones);free(model);rf_player_weapon_close(&w);return status;
+}
+
+int rf_player_weapon_open(rf_vpp *meshes,rf_vpp *motions,rf_vpp *maps,uint32_t map_count,
+    uint32_t budget,rf_player_weapon **result)
+{
+    const rf_weapon_view_definition pistol={"fp_glock.v3c",{"fp_glock_idle.rfa","fp_glock_fire.rfa","fp_glock_reload.rfa"}};
+    return rf_player_weapon_open_view(meshes,motions,maps,map_count,&pistol,budget,result);
 }
 
 static int player_weapon_start(rf_player_weapon *w,uint32_t clip)

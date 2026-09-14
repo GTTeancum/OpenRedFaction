@@ -9572,7 +9572,10 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
             status=campaign_npc_bodies_open(tables_path,collision,0);if(status)goto done;
             status=campaign_weapon_models_open(tables_path,&archive);if(status)goto done;
             status=campaign_weapon_materials_open(maps,map_count);if(status)goto done;
-            status=rf_player_weapon_open(&archive,&motions,maps,map_count,1024*1024,&stream.player_weapon);if(status)goto done;
+            {rf_vpp tables={0};rf_weapon_view_definition view;
+             status=rf_vpp_open(&tables,tables_path);if(status)goto done;
+             status=rf_weapon_view_load(&tables,"12mm handgun",128*1024,&view);rf_vpp_close(&tables);if(status)goto done;
+             status=rf_player_weapon_open_view(&archive,&motions,maps,map_count,&view,1024*1024,&stream.player_weapon);if(status)goto done;}
             status=campaign_weapon_hands_open();if(status)goto done;
             status=campaign_weapon_placement_probe();if(status)goto done;
             status=campaign_weapon_aim_probe();if(status)goto done;

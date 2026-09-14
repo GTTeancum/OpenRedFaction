@@ -23,6 +23,14 @@ Shortlist:
 
 Progress reporting: include a very high-level working area (e.g. Lighting, AI, Weapons, GeoMod or Scripted events) and an overall percent estimate at the end of every turn report (USER preference) and revisit remaining 24-hour workdays when measured throughput supports a forecast; current rough estimate43% (35-45%), no defensible +/-48-hour completion forecast before end-to-end gameplay.
 
+Weapon selection preparation: the live first-person loader now reads its model
+and idle/fire/reload clips from weapons.tbl rather than fixed pistol filenames.
+Shared assault-rifle loading/playback passes after archives close:34 bones,
+637 vertices,1036732 resident/1048328 peak bytes, below1MiB. Both builds and28
+CTests pass; pistol replay framebuffer matches the prior native-run PC reference.
+Next connect equipped-weapon state, input cycling, rifle acquisition and burst
+fire; there is no live selectable rifle or native rifle validation yet.
+
 Health/armor pickup gameplay is connected: Medical Kit and Suit Repair restore
 up to a provisional100 cap; full values leave items available, dead players cannot
 collect, and successful collection removes the item once. Shared static pickup

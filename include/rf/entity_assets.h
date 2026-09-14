@@ -19,6 +19,12 @@ typedef struct rf_weapon_primary_definition {
 int rf_weapon_primary_read(const void *text,uint32_t bytes,const char *name,rf_weapon_primary_definition *result);
 int rf_weapon_primary_load(rf_vpp *tables,const char *name,uint32_t scratch_budget,rf_weapon_primary_definition *result);
 
+/* Named first-person resource binding: compiled mesh and idle/fire/reload clips.
+ * Owns all names; missing/duplicate required fields preserve the output. */
+typedef struct rf_weapon_view_definition {char mesh[64],clips[3][64];} rf_weapon_view_definition;
+int rf_weapon_view_read(const void *,uint32_t,const char *,rf_weapon_view_definition *);
+int rf_weapon_view_load(rf_vpp *,const char *,uint32_t,rf_weapon_view_definition *);
+
 /* First-pass items.tbl binding; weapon is empty for non-ammunition benefits.
  * mesh_kind:1 static,3 animated; flags bit0 no_pickup. SP count overrides base. */
 typedef struct rf_item_definition {
