@@ -1,6 +1,7 @@
 #include "rf/event.h"
 #include <stdio.h>
 #include <string.h>
+#include <math.h>
 #define CHECK(x) do{if(!(x)){fprintf(stderr,"transition line %u\n",(unsigned)__LINE__);return 1;}}while(0)
 static int enqueue(void *context,const rf_level_event *event,uint32_t source,uint32_t actor)
 {return rf_level_transition_enqueue(context,event,source,actor);}
@@ -43,7 +44,24 @@ int main(int argc,char **argv)
             if(!request.pending)CHECK(rf_runtime_events_tick(&owned,&triggers,&gravity,owned.items[i].state.deadline,0,0,&report,&pending)==RF_OK);
             CHECK(request.pending && request.uid==owned.items[i].authored->record.uid && !report.unsupported_actions);
             CHECK(rf_vpp_find(&archive,request.level,&target)==RF_OK);
+            {rf_vpp destination={0};rf_level next;float offset[3],saved_offset[3];rf_level_transition_request bad;
+             CHECK(rf_level_campaign_open(&next,&destination,argv[1],request.level)==RF_OK);
+             CHECK(rf_level_transition_offset(&request,&next,offset)==RF_OK);
+             printf("ARRIVAL %s %u anchor=%s delta=%.6g,%.6g,%.6g\n",name,request.uid,request.anchor,offset[0],offset[1],offset[2]);
+             if(j==1 && request.uid==9019)CHECK(fabsf(offset[0]+144)<.001f && fabsf(offset[1]+32)<.001f && fabsf(offset[2]+48)<.001f);
+             if(j==2 && request.uid==9346)CHECK(fabsf(offset[0]-144)<.001f && fabsf(offset[1]-32)<.001f && fabsf(offset[2]-48)<.001f);
+             memcpy(saved_offset,offset,sizeof(offset));bad=request;strcpy(bad.anchor,"missing-exit-anchor");
+             CHECK(rf_level_transition_offset(&bad,&next,offset)==RF_NOT_FOUND && !memcmp(offset,saved_offset,sizeof(offset)));
+             bad=request;bad.anchor_position[0]=NAN;
+             CHECK(rf_level_transition_offset(&bad,&next,offset)==RF_FORMAT && !memcmp(offset,saved_offset,sizeof(offset)));
+             rf_vpp_close(&destination);}
+
             printf("EXIT %s uid=%u target=%s entrance=%s\n",name,request.uid,request.level,request.entrance);total++;
+            {const rf_level_event *e=&owned.items[i].authored->record;
+             printf("EXIT_DATA %s %u words=%u,%u flags=%u,%u values=%.6g,%.6g position=%.6g,%.6g,%.6g orientation=%u links=%u name=%s\n",
+                 name,e->uid,e->words[0],e->words[1],e->flags[0],e->flags[1],e->values[0],e->values[1],
+                 e->position[0],e->position[1],e->position[2],e->has_orientation,e->link_count,e->name);}
+
         }
         saved=request;rf_runtime_events_close(&owned);rf_vpp_close(&archive);CHECK(!memcmp(&saved,&request,sizeof(saved)));
     }

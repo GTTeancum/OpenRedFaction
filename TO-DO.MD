@@ -25,6 +25,12 @@ Shortlist:
 
 Progress reporting: include a very high-level working area (e.g. Lighting, AI, Weapons, GeoMod or Scripted events) and an overall percent estimate at the end of every turn report (USER preference) and revisit remaining 24-hour workdays when measured throughput supports a forecast; current rough estimate44% (35-45%), no defensible +/-48-hour completion forecast before end-to-end gameplay.
 
+Arrival lookup now resolves unique named destination anchors for all14 opening
+exits. Independent L1S2/L1S3 routes agree on translation (41,32,-118); both builds
+and34 CTests pass. Requests own source marker name/position. Next apply this
+translation to the departing player pose and verify doorway clearance/trigger
+behavior; actual arrivals still use default spawn. Evidence: arrival-anchor-data.log.
+
 Xbox L1S1 -> L1S2 now passes a complete120-frame native replay on stock64MiB:
 exit9019 hands off at61 frames, state comparisons pass and framebuffer is verified.
 Old-level cleanup leaves12175 free pages (47.6MiB); destination rendering leaves

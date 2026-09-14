@@ -275,8 +275,14 @@ typedef struct rf_runtime_damage_backend {
  * consumes/resets it after scene teardown. No archive I/O during dispatch. */
 typedef struct rf_level_transition_request {
     uint32_t pending,uid,source,actor;char level[64],entrance[256];uint32_t words[2],flags[2];
+    char anchor[256];float anchor_position[3];
 } rf_level_transition_request;
 int rf_level_transition_enqueue(rf_level_transition_request *,const rf_level_event *,uint32_t source,uint32_t actor);
+/* First-pass arrival translation from matching named Load_Level anchors.
+ * Destination anchor must name the destination itself; ambiguity/malformed
+ * coordinates fail without changing offset. Missing names return NOT_FOUND.
+ * No placement, rotation or geometry clearance is implied by this lookup. */
+int rf_level_transition_offset(const rf_level_transition_request *,const rf_level *,float offset[3]);
 
 typedef struct rf_runtime_triggers {
     rf_level_owned_triggers decoded;

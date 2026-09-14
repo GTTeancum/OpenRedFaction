@@ -69,3 +69,26 @@ remain open. Respawn retains the existing fresh-supply policy. Native backward
 and repeated transitions, walking into authored exit triggers, cross-archive disc
 coverage and real hardware validation remain to complete. The passing native
 fixture proves a handoff, not end-to-end campaign progression or PS2 visual parity.
+
+## Authored arrival anchors
+
+Deferred requests now own the event name and source marker position as well as
+the destination payload. rf_level_transition_offset reads the destination's
+Load_Level events and requires one matching name whose target is the destination
+itself. It returns destination-marker minus source-marker position, without
+allocation, placement or mutation of the level. Missing/empty names return
+NOT_FOUND; ambiguous matches, malformed coordinates and destination mismatch
+fail without changing output. Name comparison is ASCII case-insensitive.
+
+All14 exits across L1S1/2/3 have unique matching destination anchors. L1S1->L1S2
+uses (-144,-32,-48), with the inverse for returning. Both independent L1S2->L1S3
+routes yield (41,32,-118), and both returns yield its inverse. L1S3->L2S1 yields
+(150.25,-176,-121). Same-level marker offsets are zero. These authored-data checks
+support a first-pass translation policy; no original Load_Level placement oracle
+is claimed. Evidence: artifacts/arrival-anchor-data.log. Both builds and34 CTests
+pass, including invalid-coordinate/missing-anchor rollback and known route deltas.
+
+The platform loops still use the destination default spawn. Next apply the marker
+translation to the departing player's pose, preserve facing, and verify clearance
+and exit-trigger behavior at arrival. The raw marker positions alone do not prove
+safe player placement or rotation semantics.

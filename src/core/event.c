@@ -367,7 +367,43 @@ int rf_level_transition_enqueue(rf_level_transition_request *request,const rf_le
         if(!((c>='A' && c<='Z') || (c>='a' && c<='z') || (c>='0' && c<='9') || c=='_' || c=='-'))return RF_FORMAT;}
     memcpy(next.level,event->texts[0],base);memcpy(next.level+base,".rfl",5);
     memcpy(next.entrance,event->texts[1],sizeof(next.entrance));memcpy(next.words,event->words,sizeof(next.words));memcpy(next.flags,event->flags,sizeof(next.flags));
+    if(!memchr(event->name,0,sizeof(event->name)))return RF_FORMAT;
+    memcpy(next.anchor,event->name,sizeof(next.anchor));memcpy(next.anchor_position,event->position,sizeof(next.anchor_position));
     next.pending=1;next.uid=event->uid;next.source=source;next.actor=actor;*request=next;return RF_OK;
+}
+
+
+static int transition_name_equal(const char *a,const char *b)
+{
+    unsigned char x,y;
+    do{x=(unsigned char)*a++;y=(unsigned char)*b++;
+       if(x>='A' && x<='Z')x+=32;if(y>='A' && y<='Z')y+=32;
+       if(x!=y)return 0;}while(x);return 1;
+}
+int rf_level_transition_offset(const rf_level_transition_request *request,const rf_level *level,float offset[3])
+{
+    rf_level_event_reader reader;rf_level_event event;rf_level_transition_request marker;
+    float delta[3]={0};uint32_t i,found=0;int status;
+    if(!request || !level || !offset)return RF_RANGE;
+    if(!request->pending || !memchr(request->anchor,0,sizeof(request->anchor)) ||
+       !memchr(request->level,0,sizeof(request->level)))return RF_FORMAT;
+    if(!request->anchor[0])return RF_NOT_FOUND;
+    if(!transition_name_equal(request->level,level->entry.name))return RF_FORMAT;
+    for(i=0;i<3;i++)if(!isfinite(request->anchor_position[i]))return RF_FORMAT;
+    status=rf_level_events_begin(level,&reader);if(status)return status;
+    while((status=rf_level_event_next(&reader,&event))==RF_OK) {
+        if(strcmp(event.type,"Load_Level") || !transition_name_equal(event.name,request->anchor))continue;
+        memset(&marker,0,sizeof(marker));status=rf_level_transition_enqueue(&marker,&event,0,0);if(status)return status;
+        if(!transition_name_equal(marker.level,request->level))continue;
+        if(found++)return RF_FORMAT;
+        for(i=0;i<3;i++) {
+            delta[i]=event.position[i]-request->anchor_position[i];
+            if(!isfinite(event.position[i]) || !isfinite(delta[i]))return RF_FORMAT;
+        }
+    }
+    if(status!=RF_NOT_FOUND)return status;
+    if(!found)return RF_NOT_FOUND;
+    memcpy(offset,delta,sizeof(delta));return RF_OK;
 }
 
 static void startup_event_action(void *context,rf_event_state *state,uint32_t action,
