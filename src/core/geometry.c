@@ -43,6 +43,19 @@ static void string(cursor *c)
     const unsigned char *p = take(c, 2);
     if (p) take(c, p[0] | (uint32_t)p[1] << 8);
 }
+int rf_geometry_room_ambient(const rf_geometry *g,int32_t room,unsigned char out[4])
+{
+    cursor c={0};const unsigned char *p,*color;unsigned char value[4]={0};
+    if(!g || !out || room< -1)return RF_RANGE;
+    if(room==-1){memcpy(out,value,4);return RF_OK;}
+    if(!g->data || !g->room_offsets || (uint32_t)room>=g->rooms || g->room_offsets[room]>g->bytes)return RF_RANGE;
+    c.g=(rf_geometry *)g;c.at=g->room_offsets[room];p=take(&c,40);if(!p)return c.error;
+    string(&c);if(p[32]){take(&c,8);string(&c);take(&c,37);}
+    value[0]=p[33];
+    if(value[0]){color=take(&c,4);if(color)memcpy(value+1,color,3);}
+    if(c.error)return c.error;memcpy(out,value,4);return RF_OK;
+}
+
 static uint32_t *index_array(cursor *c, uint32_t count, uint32_t minimum_record_bytes)
 {
     uint32_t *array;

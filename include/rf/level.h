@@ -20,6 +20,13 @@ typedef struct rf_level {
     float player_orientation[3][3]; /* Rows reordered from disk 2,0,1. */
 } rf_level;
 
+typedef struct rf_level_lighting {unsigned char color[4],directional;} rf_level_lighting;
+/* v180 section900 /4618b0: initial RGBA and directional switch after texture
+ * name and its integer field. Original switch==1 creates a directional
+ * source instead; other switch values select ambient. No allocation;
+ * unrelated properties remain serialized. Failure preserves output. */
+int rf_level_lighting_read(const rf_level *,rf_level_lighting *);
+
 /* Reads directory and player start only; other section payloads remain on disc.
  * Supports the installed campaign's v180 format. Clears result on failure. */
 int rf_level_open(rf_level *level, rf_vpp *archive, const char *name);

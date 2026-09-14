@@ -11,6 +11,7 @@ rows=[{k:int(v) for k,v in r.items()} for r in csv.DictReader(io.StringIO(run.st
 assert len(rows)==5851 and [r['mapping'] for r in rows]==list(range(5851))
 assert all(r['sources']<64 and r['callbacks']<=r['sources'] and r['backfacing']<=r['callbacks'] and r['accepted']<=r['eligible']<=r['visited'] for r in rows)
 assert any(r['accepted'] and r['changed_bytes'] for r in rows)
+assert all(r['unmasked_packed_hash']==r['masked_packed_hash'] and r['rgb_changed_bytes']==0 for r in rows if not r['sources'])
 assert any(r['rgb_changed_bytes'] and r['unmasked_packed_hash']!=r['masked_packed_hash'] for r in rows)
 # Reopening ownership must reproduce the first64 complete jobs exactly.
 short=command.copy();short[4]='64'
@@ -25,7 +26,7 @@ report=dict(result='PASS',level='L1S1.rfl',mappings=len(rows),mappings_with_shad
     totals={k:sum(r[k] for r in rows) for k in ('sources','callbacks','passes','backfacing','visited','eligible','accepted','changed_bytes','rgb_changed_bytes')},
     maximum_sources=max(r['sources'] for r in rows),peak_pc_shadow_scratch_bytes=max(r['scratch_bytes'] for r in rows),
     seconds=seconds,cached_seconds=cached_seconds,cached_identical_jobs=len(rows),cached_face_bytes=7418*56,reopened_identical_jobs=64,
-    scope='PC real world geometry, authored light selection and shadow modes, loaded texture formats, receiver grouping, bounded masks and actual projected callbacks. All initial world faces in file order, mapping-box selection, dirty2 and renderer mode1; caller routing supplied. Lit mappings also execute ordinary/special accumulation, RGB resolve and linear1555 packing, comparing masked/unmasked contributions with explicitly supplied zero ambient and directional scale1. No original full-scene comparison, campaign ambient binding, movers, removed faces, live room routing, GPU upload/swizzling, native Xbox memory or rendered parity evidence. Scratch budget excludes other owners and allocator overhead.')
+    scope='PC real world geometry, authored light selection and shadow modes, loaded texture formats, receiver grouping, bounded masks and actual projected callbacks. All initial world faces in file order, mapping-box selection, dirty2 and renderer mode1; caller routing supplied. Lit mappings also execute ordinary/special accumulation, RGB resolve and linear1555 packing, comparing masked/unmasked contributions with authored level ambient, room overrides and explicit directional scale1. No original full-scene comparison, directional-source level support, movers, removed faces, live room routing, GPU upload/swizzling, native Xbox memory or rendered parity evidence. Scratch budget excludes other owners and allocator overhead.')
 (root/'artifacts/campaign-shadow-l1s1.csv').write_text(run.stdout)
 (root/'artifacts/campaign-shadow-l1s1.json').write_text(json.dumps(report,indent=2))
 print(json.dumps(report,indent=2))

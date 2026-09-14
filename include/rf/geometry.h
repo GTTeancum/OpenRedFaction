@@ -211,6 +211,11 @@ int rf_geometry_shadow_source_mask(const rf_geometry_shadow_job *,const rf_light
 int rf_geometry_shadow_source_mask_cached(const rf_geometry_shadow_job *,const rf_lightmap_shadow_source *,
     const rf_lightmap_shadow_face *cached,uint32_t count,uint32_t local,unsigned char *mask,uint32_t bytes,
     rf_geometry_shadow_source_result *);
+/* v180 room loader4ed520 -> original room+45 override/+46 RGB. Returns
+ * {override,R,G,B}; absent room(-1) yields zeros. Skip optional liquid payload
+ * before color, preserving exact override byte (only1 selects color later).
+ * No allocation; source remains resident and errors preserve output. */
+int rf_geometry_room_ambient(const rf_geometry *,int32_t room,unsigned char out[4]);
 int rf_geometry_get_corner(const rf_geometry *geometry, uint32_t face, uint32_t corner, rf_geometry_corner *result);
 typedef struct rf_geometry_texture_workspace {
     float (*vertices)[3],(*coordinates)[2];uint32_t capacity;

@@ -15,6 +15,16 @@ Shortlist:
 
 Progress reporting: include a very high-level working area (e.g. Lighting, AI, Weapons, GeoMod or Scripted events) and an overall percent estimate at the end of every turn report (USER preference) and revisit remaining 24-hour workdays when measured throughput supports a forecast; current rough estimate40% (35-45%), no defensible +/-48-hour completion forecast before end-to-end gameplay.
 
+Authored ambient binding now reads v180 section900 (4618b0) and optional
+room colors after liquid payloads (4ed520). Live Mines globalRGB96/96/96 and
+room overrides feed all5851 mapping results, including446 ambient-only regions.
+Cached/uncached hashes/counters agree;1024 level and1024 room records plus2048
+truncation guards pass in compiled NXDK;both builds and25 tests pass. Zero-source
+regions use original direct ambient fill. Directional switch1 is retained and
+explicitly rejected by this fixture until its source is bound; original other
+values select ambient. Next retain image/RGB owners and submit dirty/swizzled
+updates in live rendering with measured stock64MiB memory.
+
 Campaign fixture now carries masks through actual ordinary/special lighting,
 RGB resolve and linear1555 packing:1521 ordinary and3884 special lit mappings.
 Shadows alter49626 RGB bytes in782 regions;769 retain differences after1555

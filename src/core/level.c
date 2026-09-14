@@ -312,6 +312,18 @@ static int load(rf_level *level, rf_vpp *archive, const char *name)
     return RF_OK;
 }
 
+int rf_level_lighting_read(const rf_level *level,rf_level_lighting *out)
+{
+    const rf_level_section *section;unsigned char length[2],data[5];uint32_t at;int status;
+    rf_level_lighting value;
+    if(!level || !out || level->version!=180)return RF_RANGE;
+    section=rf_level_find(level,0x900);if(!section)return RF_NOT_FOUND;
+    status=rf_level_read(level,section,0,length,2);if(status)return status;
+    at=6u+length[0]+((uint32_t)length[1]<<8);
+    status=rf_level_read(level,section,at,data,5);if(status)return status;
+    memcpy(value.color,data,4);value.directional=data[4];*out=value;return RF_OK;
+}
+
 int rf_level_open(rf_level *level, rf_vpp *archive, const char *name)
 {
     int result;
