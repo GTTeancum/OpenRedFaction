@@ -15,5 +15,8 @@ renderer=rows('rf_renderer_profile',['validation','resource preparation','vertex
 presentation=rows('rf_scene_presentation_profile',['NPCs','clutter','world weapons','pickups','first-person weapon','platform sink','player state export','unused']) if 'rf_scene_presentation_profile' in symbols else []
 world=rows('rf_scene_world_profile',['listener/camera effects','audio scheduling','combat/inspection camera','camera setup/room location','visibility traversal','visibility telemetry','world geometry rebuild','unused']) if 'rf_scene_world_profile' in symbols else []
 report=dict(scene=scene,renderer=renderer,presentation=presentation,world=world,scope='Guest millisecond phase timing after16 section frames/submissions; scene presentation includes renderer costs, so do not add renderer and scene totals. Input polling/pacing and level loading excluded. Phase means are not an exact FPS measurement; scene final-frame phase counts may differ. XEMU host scheduling affects timings.')
+if "rf_renderer_submission" in symbols:
+ values=symbols["rf_renderer_submission"]["words"];assert len(values)==4
+ report["submission"]=dict(zip(("last_frame_batches","former_methods","submitted_methods","state_changes"),values))
 if a.out:a.out.write_text(json.dumps(report,indent=2))
 print(json.dumps(report,indent=2))

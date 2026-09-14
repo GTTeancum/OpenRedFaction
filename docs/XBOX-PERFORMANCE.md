@@ -165,3 +165,25 @@ to this cache. Treat as a modest reduction, roughly11-12FPS-equivalent
 frame work, not hardware FPS. Next: larger world projection/submission costs.
 Evidence: artifacts/world-clip-codes/pc-report.json, performance.json,
 and artifacts/xemu/replay-20260914-093743/native-image-comparison.json.
+
+GPU state candidate: set eight invariant texture/blend methods once per
+frame, then emit blend/depth, material and lightmap bindings only on changes.
+Triangle ordering,252-vertex batch limit and all GPU waits are retained.
+Bindings reset before every mesh frame to isolate particle/HUD state.
+No persistent allocation. rf_renderer_submission records last-frame batch
+count, old equivalent methods(17 per batch), actual methods and state changes.
+Counts cover this mesh loop plus eight hoisted methods, not the whole frame.
+Native --capture replay completed: artifacts/gpu-state/xemu.log.
+
+GPU state reuse verified in replay-20260914-094219: stock64MiB180-frame
+crossing/state/HUD checks pass, and full native final framebuffer exactly
+matches093743. Last frame388 batches require2100 methods instead of6596
+(68.2% fewer in the measured mesh loop); triangle order/count unchanged.
+Draw/GPU-wait phase11.106->10.519ms, platform24.212->24.058ms, total
+scene83.482->82.529ms. This is a modest timing improvement, roughly12FPS
+equivalent, with host variation; command reduction is directly counted.
+Xbox build/restoration pass. Shared PC code is unchanged; prior37-test
+result remains applicable, and harness PC/native state comparison passes.
+Evidence: artifacts/gpu-state/performance.json and
+artifacts/xemu/replay-20260914-094219/native-image-comparison.json.
+Next: larger world projection/visibility and scene preparation costs.

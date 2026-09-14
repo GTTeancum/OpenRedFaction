@@ -34,6 +34,19 @@ Shortlist:
 
 Progress reporting: include a very high-level working area (e.g. Lighting, AI, Weapons, GeoMod or Scripted events) and an overall percent estimate at the end of every turn report (USER preference) and revisit remaining 24-hour workdays when measured throughput supports a forecast; current rough estimate45% (35-45%), no defensible +/-48-hour completion forecast before end-to-end gameplay.
 
+GPU state reuse verified in replay-20260914-094219: stock64MiB180-frame
+crossing/state/HUD checks pass, and full native final framebuffer exactly
+matches093743. Last frame388 batches require2100 methods instead of6596
+(68.2% fewer in the measured mesh loop); triangle order/count unchanged.
+Draw/GPU-wait phase11.106->10.519ms, platform24.212->24.058ms, total
+scene83.482->82.529ms. This is a modest timing improvement, roughly12FPS
+equivalent, with host variation; command reduction is directly counted.
+Xbox build/restoration pass. Shared PC code is unchanged; prior37-test
+result remains applicable, and harness PC/native state comparison passes.
+Evidence: artifacts/gpu-state/performance.json and
+artifacts/xemu/replay-20260914-094219/native-image-comparison.json.
+Next: larger world projection/visibility and scene preparation costs.
+
 Clip-code cache verified in replay-20260914-093743:180-frame stock64MiB
 crossing/state/HUD checks pass; complete640x480 native final framebuffer
 matches091453 exactly. Both builds and37 tests pass; six PC comparisons

@@ -17,6 +17,8 @@
 /* Millisecond presentation phases after the first 16 stream submissions.
  * Each row contains calls, elapsed low/high, maximum. Read-only QMP evidence. */
 uint32_t rf_renderer_profile[8][4];
+/* Last frame: draw batches, former methods, submitted methods, state changes. */
+uint32_t rf_renderer_submission[4];
 static uint32_t stream_profile_frames;
 static uint32_t hud_batch_active,hud_batch_ready,hud_batch_draws;
 static void hud_batch_flush(void)
@@ -191,6 +193,8 @@ static int preview(const rf_preview_mesh *mesh, const rf_materials *materials, c
     pb_show_front_screen();
     renderer_mark(3,&profile_previous,profiling);
     for (frame = 0; frame < (streaming?1u:3u); ++frame) {
+        const gpu_texture *bound_texture=NULL,*bound_lighting=NULL;
+        uint32_t bound_blend=UINT32_MAX,draws=0,methods=8,state_changes=0;
         pb_wait_for_vbl(); pb_reset(); pb_target_back_buffer();
         pb_erase_depth_stencil_buffer(0, 0, 640, 480);
         pb_fill(0, 0, 640, 480, 0xff101018);
@@ -209,6 +213,16 @@ static int preview(const rf_preview_mesh *mesh, const rf_materials *materials, c
                 field(NV097_SET_VERTEX_DATA_ARRAY_FORMAT_STRIDE, sizeof(*gpu)));
             p = pb_push1(p, NV097_SET_VERTEX_DATA_ARRAY_OFFSET + attribute*4, ((uint32_t)gpu + (i == 3 ? 40 : i*12)) & 0x03ffffff);
         }
+        /* Sampling and blend factors are invariant during this ordered mesh.
+         * Reset bindings each frame because particles/HUD install their own state. */
+        p=pb_push1(p,NV097_SET_BLEND_FUNC_SFACTOR,NV097_SET_BLEND_FUNC_SFACTOR_V_SRC_ALPHA);
+        p=pb_push1(p,NV097_SET_BLEND_FUNC_DFACTOR,NV097_SET_BLEND_FUNC_DFACTOR_V_ONE_MINUS_SRC_ALPHA);
+        p=pb_push1(p,NV097_SET_TEXTURE_ADDRESS,0x00010101);
+        p=pb_push1(p,NV097_SET_TEXTURE_CONTROL0,NV097_SET_TEXTURE_CONTROL0_ENABLE);
+        p=pb_push1(p,NV097_SET_TEXTURE_FILTER,0x02020000);
+        p=pb_push1(p,NV097_SET_TEXTURE_ADDRESS+0x40,0x00030303);
+        p=pb_push1(p,NV097_SET_TEXTURE_CONTROL0+0x40,NV097_SET_TEXTURE_CONTROL0_ENABLE);
+        p=pb_push1(p,NV097_SET_TEXTURE_FILTER+0x40,0x02020000);
         pb_end(p);
         for (i = 0; i < mesh->count;) {
             uint32_t count = 3, material = mesh->vertices[i].material, lightmap = mesh->vertices[i].lightmap;
@@ -217,26 +231,30 @@ static int preview(const rf_preview_mesh *mesh, const rf_materials *materials, c
             while (count < 252 && i+count < mesh->count && mesh->vertices[i+count].material == material && mesh->vertices[i+count].lightmap == lightmap) count += 3;
             texture = material < materials->count && textures[material].pixels ? textures+material : textures+materials->count;
             p = pb_begin();
-            p = pb_push1(p,NV097_SET_BLEND_ENABLE,model && (model<3 || i>=world_vertices) && texture->transparent);
-            p = pb_push1(p,NV097_SET_DEPTH_MASK,!(model && (model<3 || i>=world_vertices) && texture->transparent));
-            p = pb_push1(p,NV097_SET_BLEND_FUNC_SFACTOR,NV097_SET_BLEND_FUNC_SFACTOR_V_SRC_ALPHA);
-            p = pb_push1(p,NV097_SET_BLEND_FUNC_DFACTOR,NV097_SET_BLEND_FUNC_DFACTOR_V_ONE_MINUS_SRC_ALPHA);
-            p = pb_push1(p, NV097_SET_TEXTURE_OFFSET, (uint32_t)texture->pixels & 0x03ffffff);
-            p = pb_push1(p, NV097_SET_TEXTURE_FORMAT, texture->format);
-            p = pb_push1(p, NV097_SET_TEXTURE_ADDRESS, 0x00010101);
-            p = pb_push1(p, NV097_SET_TEXTURE_CONTROL0, NV097_SET_TEXTURE_CONTROL0_ENABLE);
-            p = pb_push1(p, NV097_SET_TEXTURE_FILTER, 0x02020000);
-            p = pb_push1(p, NV097_SET_TEXTURE_OFFSET + 0x40, (uint32_t)lighting->pixels & 0x03ffffff);
-            p = pb_push1(p, NV097_SET_TEXTURE_FORMAT + 0x40, lighting->format);
-            p = pb_push1(p, NV097_SET_TEXTURE_ADDRESS + 0x40, 0x00030303);
-            p = pb_push1(p, NV097_SET_TEXTURE_CONTROL0 + 0x40, NV097_SET_TEXTURE_CONTROL0_ENABLE);
-            p = pb_push1(p, NV097_SET_TEXTURE_FILTER + 0x40, 0x02020000);
+            {uint32_t blend=model && (model<3 || i>=world_vertices) && texture->transparent;
+             if(blend!=bound_blend) {
+                p=pb_push1(p,NV097_SET_BLEND_ENABLE,blend);
+                p=pb_push1(p,NV097_SET_DEPTH_MASK,!blend);
+                bound_blend=blend;methods+=2;++state_changes;
+             }}
+            if(texture!=bound_texture) {
+                p=pb_push1(p,NV097_SET_TEXTURE_OFFSET,(uint32_t)texture->pixels & 0x03ffffff);
+                p=pb_push1(p,NV097_SET_TEXTURE_FORMAT,texture->format);
+                bound_texture=texture;methods+=2;++state_changes;
+            }
+            if(lighting!=bound_lighting) {
+                p=pb_push1(p,NV097_SET_TEXTURE_OFFSET+0x40,(uint32_t)lighting->pixels & 0x03ffffff);
+                p=pb_push1(p,NV097_SET_TEXTURE_FORMAT+0x40,lighting->format);
+                bound_lighting=lighting;methods+=2;++state_changes;
+            }
             p = pb_push1(p, NV097_SET_BEGIN_END, NV097_SET_BEGIN_END_OP_TRIANGLES);
             p = pb_push1(p, 0x40000000 | NV097_DRAW_ARRAYS,
                 field(NV097_DRAW_ARRAYS_COUNT, count-1) | field(NV097_DRAW_ARRAYS_START_INDEX, i));
             p = pb_push1(p, NV097_SET_BEGIN_END, NV097_SET_BEGIN_END_OP_END);
-            pb_end(p); i += count;
+            pb_end(p); i += count;++draws;methods+=3;
         }
+        rf_renderer_submission[0]=draws;rf_renderer_submission[1]=draws*17;
+        rf_renderer_submission[2]=methods;rf_renderer_submission[3]=state_changes;
         while (pb_busy()) {}
         if(streaming) {int status=rf_scene_draw_particles(scene_particle_present,NULL);if(status)return status;
             status=rf_scene_draw_coronas(scene_particle_present,NULL);if(status)return status;}
