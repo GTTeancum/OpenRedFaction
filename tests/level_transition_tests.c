@@ -4,6 +4,15 @@
 #define CHECK(x) do{if(!(x)){fprintf(stderr,"transition line %u\n",(unsigned)__LINE__);return 1;}}while(0)
 static int enqueue(void *context,const rf_level_event *event,uint32_t source,uint32_t actor)
 {return rf_level_transition_enqueue(context,event,source,actor);}
+typedef struct resolver_context {const char *directory;uint32_t count;} resolver_context;
+static int verify_destination(const rf_vpp_entry *entry,void *context)
+{
+    resolver_context *c=context;rf_level level={0};rf_vpp archive={0};size_t n=strlen(entry->name);
+    if(n<4 || strcmp(entry->name+n-4,".rfl"))return RF_OK;
+    CHECK(rf_level_campaign_open(&level,&archive,c->directory,entry->name)==RF_OK);
+    CHECK(level.archive==&archive && level.entry.size==entry->size && level.section_count);
+    rf_vpp_close(&archive);c->count++;return RF_OK;
+}
 int main(int argc,char **argv)
 {
     rf_level_transition_request request={0},saved;rf_level_owned_event authored={0};
@@ -37,6 +46,29 @@ int main(int argc,char **argv)
             printf("EXIT %s uid=%u target=%s entrance=%s\n",name,request.uid,request.level,request.entrance);total++;
         }
         saved=request;rf_runtime_events_close(&owned);rf_vpp_close(&archive);CHECK(!memcmp(&saved,&request,sizeof(saved)));
+    }
+    {
+        resolver_context context={argv[1],0};rf_vpp archive={0};rf_level level={0},before;char path[1024];
+        for(j=1;j<=3;j++) {
+            snprintf(path,sizeof(path),"%s/levels%u.vpp",argv[1],j);
+            CHECK(rf_vpp_open(&archive,path)==RF_OK);
+            CHECK(rf_vpp_visit(&archive,verify_destination,&context)==RF_OK);
+            rf_vpp_close(&archive);
+        }
+        before=level;
+        CHECK(rf_level_campaign_open(&level,&archive,argv[1],"absent-transition-target.rfl")==RF_NOT_FOUND);
+        CHECK(!archive.stream && !memcmp(&level,&before,sizeof(level)));
+        CHECK(rf_level_campaign_open(&level,&archive,"missing-campaign-directory","L1S1.rfl")==RF_IO);
+        CHECK(!archive.stream && !memcmp(&level,&before,sizeof(level)));
+        CHECK(rf_level_campaign_open(&level,&archive,argv[1],"L1S1.rfl")==RF_OK);
+        before=level;
+        CHECK(rf_level_campaign_open(&level,&archive,argv[1],"L1S2.rfl")==RF_RANGE);
+        CHECK(archive.stream && !memcmp(&level,&before,sizeof(level)));
+        rf_vpp_close(&archive);
+        snprintf(path,sizeof(path),"%s/",argv[1]);
+        CHECK(rf_level_campaign_open(&level,&archive,path,"l1s1.RFL")==RF_OK);
+        rf_vpp_close(&archive);CHECK(context.count>3);
+        printf("PASS %u campaign destinations across three archives, ownership and failure rollback\n",context.count);
     }
     CHECK(total>0);printf("PASS %u authored exits, delay, first-request ownership and validation\n",total);return 0;
 }

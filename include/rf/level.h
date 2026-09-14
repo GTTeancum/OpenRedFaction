@@ -30,6 +30,12 @@ int rf_level_lighting_read(const rf_level *,rf_level_lighting *);
 /* Reads directory and player start only; other section payloads remain on disc.
  * Supports the installed campaign's v180 format. Clears result on failure. */
 int rf_level_open(rf_level *level, rf_vpp *archive, const char *name);
+/* Shared first-pass campaign resolver: search levels1/2/3.vpp in order.
+ * The output archive must be closed/zero initialized. On success the level
+ * borrows that archive; caller closes it after releasing all level owners.
+ * No geometry/material allocation. Failure preserves both outputs. Missing or
+ * corrupt required archives fail immediately; absent destination is NOT_FOUND. */
+int rf_level_campaign_open(rf_level *level,rf_vpp *archive,const char *directory,const char *name);
 const rf_level_section *rf_level_find(const rf_level *level, uint32_t type);
 int rf_level_read(const rf_level *level, const rf_level_section *section,
                   uint32_t offset, void *data, uint32_t size);

@@ -30,3 +30,19 @@ Next steps: establish current-level request behavior (several authored pairs nam
 the current level), preserve the appropriate player placement/vitals/inventory,
 release the current level completely, resolve the destination archive, and load
 through the shared PC/Xbox lifecycle. Prevent overlapping level residency on64MiB.
+
+Shared destination resolution now exists as rf_level_campaign_open. It searches
+levels1/2/3.vpp in order with one candidate archive open at a time, reads only
+level metadata, and transfers archive ownership to the caller on success. The
+returned level borrows the caller's archive, not a temporary stack handle.
+Failure preserves both outputs; reopening an already-owned archive is rejected.
+Missing/corrupt required archives fail immediately; an absent destination returns
+NOT_FOUND after the search. This is an explicit first-pass archive policy, not
+original engine search-order reconstruction; multiplayer archives are excluded.
+
+The authored transition test resolves all 68 installed campaign level entries
+across the three archives and checks missing targets/directories, output rollback,
+open-handle protection, case-insensitive names and trailing directory separators.
+Both builds and all 33 CTests pass. Evidence: artifacts/campaign-resolver-tests.log
+and artifacts/campaign-resolver-destinations.log. Platform loading-loop consumption,
+player-state transfer and native cross-level playback remain unimplemented.

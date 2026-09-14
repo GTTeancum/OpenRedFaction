@@ -25,6 +25,12 @@ Shortlist:
 
 Progress reporting: include a very high-level working area (e.g. Lighting, AI, Weapons, GeoMod or Scripted events) and an overall percent estimate at the end of every turn report (USER preference) and revisit remaining 24-hour workdays when measured throughput supports a forecast; current rough estimate44% (35-45%), no defensible +/-48-hour completion forecast before end-to-end gameplay.
 
+Shared campaign destination resolution now finds all 68 installed level entries
+across levels1/2/3.vpp without geometry/material allocation, preserves outputs
+on failure and transfers one archive handle on success. Both builds and all
+33 CTests pass; see artifacts/campaign-resolver-destinations.log. Actual scene
+handoff, player-state transfer and native cross-level verification remain open.
+
 Load_Level(type22) now dispatches through a shared deferred request backend,
 including delayed activation. Scene wiring retains destination, entrance, raw
 words/flags and source IDs without destroying resources during event dispatch.

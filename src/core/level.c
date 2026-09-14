@@ -1818,3 +1818,22 @@ int rf_level_light_tick(const rf_level_light_runtime *record,rf_level_light_cloc
     }
     if(next.random_used)*random=rng;*clock=next;*visibility_update=visibility;return RF_OK;
 }
+
+int rf_level_campaign_open(rf_level *level,rf_vpp *archive,const char *directory,const char *name)
+{
+    static const char *archives[]={"levels1.vpp","levels2.vpp","levels3.vpp"};
+    rf_vpp candidate={0};rf_level next;char path[1024];unsigned i;int n,status;size_t length;const char *separator;
+    if(!level || !archive || archive->stream || !directory || !directory[0] || !name || !name[0])return RF_RANGE;
+    length=strlen(directory);
+    separator=(directory[length-1]=='/' || directory[length-1]=='\\')?"":(strchr(directory,'\\')?"\\":"/");
+    for(i=0;i<3;i++) {
+        n=snprintf(path,sizeof(path),"%s%s%s",directory,separator,archives[i]);
+        if(n<0 || (unsigned)n>=sizeof(path))return RF_RANGE;
+        status=rf_vpp_open(&candidate,path);if(status)return status;
+        status=rf_level_open(&next,&candidate,name);
+        if(!status) {*archive=candidate;next.archive=archive;*level=next;return RF_OK;}
+        rf_vpp_close(&candidate);
+        if(status!=RF_NOT_FOUND)return status;
+    }
+    return RF_NOT_FOUND;
+}
