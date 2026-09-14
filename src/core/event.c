@@ -518,6 +518,10 @@ static void startup_event_action(void *context,rf_event_state *state,uint32_t ac
 {
     startup_context *c=context;uint32_t i;
     if(c->status)return;
+    if(state->type==50) {
+        if(action!=2)c->status=rf_unhide_request(&c->event->unhide,action==1);
+        return;
+    }
     if(action==2) {
         for(i=0;i<c->event->authored->record.link_count && !c->status;++i)
             startup_target(c,c->event->links+i,source,actor,(mode&255u)==1);
@@ -798,6 +802,19 @@ static int runtime_death_poll(startup_context *c,rf_runtime_event *event)
         startup_target(c,event->links+i,UINT32_MAX,UINT32_MAX,1);
     return c->status;
 }
+static int runtime_unhide_target(void *context,uint32_t uid,int visible)
+{
+    startup_context *c=context;uint32_t i;
+    for(i=0;i<c->event->authored->record.link_count;i++)if(c->event->authored->links[i]==uid) {
+        const rf_level_link_target *link=c->event->links+i;int status;
+        if(link->kind!=1 && link->kind!=2)return 1;
+        status=c->triggers->set_visible(c->triggers->visibility_context,link->value,visible!=0);
+        if(status==RF_NOT_FOUND){++c->report->other_targets;return 1;}
+        if(status)c->status=status;
+        return status==RF_OK;
+    }
+    return 1;
+}
 int rf_runtime_events_tick(rf_runtime_events *events,rf_runtime_triggers *triggers,
     rf_physics_gravity *gravity,int32_t now,rf_level_particles *particles, rf_physics_force_collection *forces,rf_startup_events_report *report,
     uint32_t *unsupported_pending)
@@ -809,6 +826,22 @@ int rf_runtime_events_tick(rf_runtime_events *events,rf_runtime_triggers *trigge
     context.particles=particles;context.forces=forces;context.triggers=triggers;context.gravity=gravity;context.report=report;context.now=now;context.depth=1;
     for(i=0;i<events->count;++i) {
         rf_runtime_event *event=events->items+i;
+        if(event->state.type==50) {
+            if(!triggers->set_visible) {
+                if(event->state.deadline>=0 || event->unhide.on || event->unhide.off)++*unsupported_pending;
+                continue;
+            }
+            context.event=event;
+            /* Keep authored base delay, then service deferred visibility requests. */
+            if(event->state.deadline>=0) {
+                status=rf_event_tick(&event->state,now,startup_event_action,&context);
+                if(status)return status;if(context.status)return context.status;
+            }
+            status=rf_unhide_tick(&event->unhide,now,event->authored->links,
+                event->authored->record.link_count,runtime_unhide_target,&context);
+            if(status)return status;if(context.status)return context.status;
+            continue;
+        }
         if(event->state.type==16) {
             if(event->state.deadline>=0) {
                 context.event=event;status=rf_event_tick(&event->state,now,startup_event_action,&context);

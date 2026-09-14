@@ -1045,6 +1045,13 @@ static int npc_door_occupancy_check(void)
     CHECK(campaign_npc_door_occupied(&volume,&occupied)==RF_OK && occupied);
     owners[1].object_flags=0x4000; /* Authored hidden, even though alive. */
     CHECK(campaign_npc_door_occupied(&volume,&occupied)==RF_OK && !occupied);
+    CHECK(campaign_set_visible(NULL,101,1)==RF_OK);
+    CHECK(!(owners[1].view.flags_7c&0x4000) && !(owners[1].room.flags&0x4000));
+    CHECK(campaign_npc_door_occupied(&volume,&occupied)==RF_OK && occupied);
+    CHECK(campaign_set_visible(NULL,101,0)==RF_OK);
+    CHECK(campaign_npc_door_occupied(&volume,&occupied)==RF_OK && !occupied);
+    owners[1].damage.effects.health=0;
+    CHECK(campaign_set_visible(NULL,101,1)==RF_OK && (owners[1].object_flags&0x4000));
     owners[1].object_flags=0;owners[1].damage.effects.health=0;
     CHECK(campaign_npc_door_occupied(&volume,&occupied)==RF_OK && !occupied);
     owners[1].damage.effects.health=75;owners[1].registration.view=NULL;

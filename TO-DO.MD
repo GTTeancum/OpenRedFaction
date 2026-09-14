@@ -11,7 +11,7 @@ failures to select work; avoid spending time on exact RE or visual polish unless
 it blocks those systems. This priority change does not increase completion.
 
 Shortlist:
-- ACTIVE: Wire authored UnHide events so scripted NPCs become active before moving and opening doors.
+- ACTIVE: Sequence authored NPC visibility/setup events and verify visible hangar-door traversal.
 - TO COMPLETE: Preserve remaining world changes across sections, including partial actor state and dropped items.
 - NEXT: Expand mission scripts and AI until consecutive campaign sections are playable end to end.
 - TO COMPLETE: Expand the working pistol/rifle combat, pickups and first-person feedback to the remaining weapons.
@@ -30,6 +30,12 @@ Shortlist:
 - USER: Review the interactive PC movement and audio items listed below.
 
 Progress reporting: include a very high-level working area (e.g. Lighting, AI, Weapons, GeoMod or Scripted events) and an overall percent estimate at the end of every turn report (USER preference) and revisit remaining 24-hour workdays when measured throughput supports a forecast; current rough estimate45% (35-45%), no defensible +/-48-hour completion forecast before end-to-end gameplay.
+
+Shared UnHide events now queue deferred visibility changes for living NPCs.
+Authored dispatch, cooldown, missing backend, unresolved links, visibility
+publication and no-resurrection checks pass. The PC build and36 tests pass;
+full Shot1/Shot3 door traversal and native runtime verification remain open.
+See docs/NPC-VISIBILITY.md; artifacts/unhide-ctest.log.
 
 NPC door contacts and occupancy now have shared scene adapters, including separate
 controller backlinks per NPC. The L7S2 positive door route remains unverified:

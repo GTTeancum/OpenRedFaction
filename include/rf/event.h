@@ -109,6 +109,10 @@ typedef struct rf_event_state {
     uint32_t type;float delay;int32_t deadline;
     uint32_t actor,source,flags,mode;
 } rf_event_state;
+typedef struct rf_unhide_state {
+    int32_t deadline;
+    uint8_t on,off;
+} rf_unhide_state;
 typedef struct rf_runtime_event {
     uint32_t object_kind,handle;
     rf_event_state state;
@@ -116,6 +120,7 @@ typedef struct rf_runtime_event {
     rf_level_link_target *links;
     rf_switch_state *switch_state; /* type32 only; shares the owner's allocation */
     uint32_t death_fired,death_time; /* When_Dead one-shot poll, per scene. */
+    rf_unhide_state unhide;
 } rf_runtime_event;
 typedef struct rf_runtime_events {
     rf_level_owned_events decoded;
@@ -313,6 +318,9 @@ typedef struct rf_runtime_triggers {
     void *mover_context;
     int (*move_npc)(void *context,uint32_t handle,const rf_level_event *event,uint32_t on);
     void *move_context;
+    /* First-pass visibility service. NOT_FOUND skips unsupported targets. */
+    int (*set_visible)(void *context,uint32_t handle,uint32_t visible);
+    void *visibility_context;
 } rf_runtime_triggers;
 /* Declare authored goals before any startup trigger runs. */
 int rf_runtime_goals_initialize(const rf_runtime_events *events,rf_campaign_goals *goals);
@@ -435,10 +443,6 @@ int rf_runtime_events_tick(rf_runtime_events *events,rf_runtime_triggers *trigge
     rf_physics_gravity *gravity,int32_t now,rf_level_particles *particles, rf_physics_force_collection *forces,rf_startup_events_report *report,
     uint32_t *unsupported_pending);
 
-typedef struct rf_unhide_state {
-    int32_t deadline;
-    uint8_t on,off;
-} rf_unhide_state;
 /* Callback resolves each handle at visitation time and applies visibility.
  * Return zero only for an existing target denied unhide eligibility; missing
  * targets count as processed. Hide ignores the return value. Links/state must

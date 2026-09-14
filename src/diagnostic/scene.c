@@ -7236,6 +7236,21 @@ static struct {
     rf_physics_sphere spheres[8];uint32_t count,stance,landing[8],support;
     float support_velocity[3];
 } life_start;
+static int campaign_set_visible(void *context,uint32_t handle,uint32_t visible)
+{
+    uint32_t i;(void)context;
+    for(i=0;i<campaign_npc_body_count;i++) {
+        campaign_npc_body *owner=campaign_npc_bodies+i;
+        if(!owner->registration.view || owner->registration.handle!=handle)continue;
+        /* Practical SP visibility transition; no resurrection or host input.
+         * Original proximity/appearance eligibility and non-NPC targets remain. */
+        if(owner->damage.effects.health<=0 || (owner->object_flags&2))return RF_OK;
+        if(visible)owner->object_flags&=~0x4000u;else owner->object_flags|=0x4000u;
+        owner->view.flags_7c=owner->room.flags=owner->object_flags;
+        return RF_OK;
+    }
+    return RF_NOT_FOUND;
+}
 static int campaign_set_friendliness(void *context,uint32_t handle,uint32_t value)
 {
     uint32_t i;const rf_entity_view *view=rf_entity_lookup(&campaign_entities,(int32_t)handle);(void)context;
@@ -9869,6 +9884,7 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
 
             if(status)goto done;
             campaign_triggers.set_friendliness=campaign_set_friendliness;
+            campaign_triggers.set_visible=campaign_set_visible;
             rf_scene_campaign_triggers[0]=campaign_triggers.count;
             rf_scene_campaign_triggers[1]=campaign_triggers.allocated_bytes;
             rf_scene_campaign_load_stage=4;status=rf_level_owned_groups_open(level,1024*1024,&campaign_groups);

@@ -91,8 +91,33 @@ static int goto_dispatch_check(const char *path)
     CHECK(rf_runtime_events_tick(&events,&triggers,&gravity,1100,0,0,&report,&pending)==RF_OK && move_calls==2 && !move_on);
     rf_runtime_events_close(&events);rf_vpp_close(&archive);return 0;
 }
+static uint32_t visible_calls,visible_value,visible_handle;
+static int visibility_command(void *context,uint32_t handle,uint32_t visible)
+{(void)context;++visible_calls;visible_value=visible;visible_handle=handle;return RF_OK;}
+static int unhide_dispatch_check(const char *path)
+{
+    rf_vpp archive={0};rf_level level;rf_object_registry registry;rf_runtime_events events={0};rf_runtime_triggers triggers={0};
+    rf_physics_gravity gravity={0};rf_startup_events_report report;rf_runtime_event *event=NULL;uint32_t i,pending,object=0,handle;
+    rf_object_registry_init(&registry);triggers.registry=&registry;triggers.set_visible=visibility_command;
+    CHECK(rf_level_campaign_open(&level,&archive,path,"L7S2.rfl")==RF_OK);
+    CHECK(rf_runtime_events_open(&level,&registry,1024*1024,&events)==RF_OK);
+    for(i=0;i<events.count;i++)if(events.items[i].authored->record.uid==4962)event=events.items+i;
+    CHECK(event && event->state.type==50 && event->authored->links[0]==4952);
+    CHECK(rf_object_registry_insert(&registry,&object,&handle)==RF_OK);event->links[0].kind=1;event->links[0].value=handle;
+    CHECK(rf_runtime_event_fire(&triggers,event->handle,7,9,500,&gravity,0,0,&report)==RF_OK && !visible_calls);
+    CHECK(rf_runtime_events_tick(&events,&triggers,&gravity,500,0,0,&report,&pending)==RF_OK && visible_calls==1 && visible_value && visible_handle==handle);
+    CHECK(rf_unhide_request(&event->unhide,0)==RF_OK);
+    CHECK(rf_runtime_events_tick(&events,&triggers,&gravity,999,0,0,&report,&pending)==RF_OK && visible_calls==1);
+    CHECK(rf_runtime_events_tick(&events,&triggers,&gravity,1000,0,0,&report,&pending)==RF_OK && visible_calls==2 && !visible_value);
+    triggers.set_visible=NULL;CHECK(rf_unhide_request(&event->unhide,1)==RF_OK);
+    CHECK(rf_runtime_events_tick(&events,&triggers,&gravity,1500,0,0,&report,&pending)==RF_OK && pending==1 && visible_calls==2);
+    triggers.set_visible=visibility_command;event->links[0].kind=0;
+    CHECK(rf_runtime_events_tick(&events,&triggers,&gravity,1500,0,0,&report,&pending)==RF_OK && !event->unhide.on && visible_calls==2);
+    rf_runtime_events_close(&events);rf_vpp_close(&archive);return 0;
+}
 int main(int argc,char **argv)
 {
+    CHECK(argc==2);CHECK(unhide_dispatch_check(argv[1])==0);
     rf_campaign_goals goals={0};rf_object_registry registry;rf_runtime_triggers triggers={0};
     rf_runtime_events events={0};rf_physics_gravity gravity={0};rf_startup_events_report report;
     rf_vpp archive={0};rf_level level;uint32_t i,passed,pending;int found=0;
