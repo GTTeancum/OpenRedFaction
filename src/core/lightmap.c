@@ -1055,6 +1055,30 @@ int rf_lightmap_live_rectangle(const rf_lightmap_sample_lighting *lighting,const
     *dirty&=(unsigned char)~8u;return RF_OK;
 }
 
+int rf_lightmap_live_image(const rf_lightmap_sample_lighting *lighting,const rf_lightmap_rgb_image *base,
+    rf_image *image,unsigned char *dirty)
+{
+    uint32_t x,y;int status;
+    if(!lighting || !base || !base->pixels || !image || !image->rgba || !dirty ||
+       !lighting->width || !lighting->height || !rf_image_is_packed_1555(image) ||
+       image->width>4096 || image->height>4096 || (image->width&(image->width-1)) ||
+       (image->height&(image->height-1)) || base->width!=image->width || base->height!=image->height ||
+       lighting->sample.image_width!=image->width || lighting->sample.image_height!=image->height ||
+       (uint64_t)base->width*base->height*3!=base->bytes ||
+       (uint64_t)lighting->sample.x+lighting->width>image->width ||
+       (uint64_t)lighting->sample.y+lighting->height>image->height)return RF_RANGE;
+    for(y=0;y<lighting->height;y++)for(x=0;x<lighting->width;x++) {
+        uint32_t px=lighting->sample.x+x,py=lighting->sample.y+y;float point[3];uint16_t pixel;
+        const unsigned char *rgb=base->pixels+((size_t)py*base->width+px)*3;
+        unsigned char *out=rf_image_pixel(image,px,py);
+        status=rf_lightmap_sample_position(&lighting->sample,x,y,point);if(status)return status;
+        status=rf_lightmap_live_pixel(rgb,point,lighting->sample.plane,lighting->directional_scale,
+            lighting->lights,lighting->light_count,&pixel);if(status)return status;
+        out[0]=(unsigned char)pixel;out[1]=(unsigned char)(pixel>>8);
+    }
+    *dirty&=(unsigned char)~8u;return RF_OK;
+}
+
 static int lightmap_scaled_rgb(const double scaled[3],unsigned char rgb[3])
 {
     int32_t value[3],peak=0;unsigned char result[3];uint32_t i;

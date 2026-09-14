@@ -30,10 +30,24 @@ for i in range(256):
  assert o.reg_read(UC_X86_REG_EIP)==0x4f2ef3;expected=bytes(o.mem_read(OUT,768));changed=bytes(o.mem_read(OWNER+8,1));assert bytes(o.mem_read(B+380,768))==rgb
  x.mem_write(B,data);x.mem_write(VIEW,sample+w(width,height,B+76,count,0,0)+f(.25)+bytes(16));x.mem_write(UPLOAD,w(B+380,768,48,OUT,768,pitch,2,3,width,height));x.mem_write(OUT,bytes([165])*768);x.mem_write(DIRTY,bytes([dirty]))
  assert call([VIEW,UPLOAD,DIRTY])==0 and bytes(x.mem_read(OUT,768))==expected and bytes(x.mem_read(DIRTY,1))==changed,i
+ image_expected=bytearray([165]*512)
+ for y in range(height):
+  for col in range(width):
+   px=2+col;py=3+y;at=sum(((px>>bit)&1)<<(2*bit) | ((py>>bit)&1)<<(2*bit+1) for bit in range(4))*2
+   image_expected[at:at+2]=expected[py*pitch+px*2:py*pitch+px*2+2]
+ x.mem_write(B+0x7300,w(16,16,512,5,OUT));x.mem_write(B+0x7400,w(B+380,16,16,768));x.mem_write(OUT,bytes([165])*512);x.mem_write(DIRTY,bytes([dirty]))
+ x.mem_write(STACK,w(STOP,VIEW,B+0x7400,B+0x7300,DIRTY));x.reg_write(UC_X86_REG_ESP,STACK)
+ image_entry=int(re.search(r'\s_rf_lightmap_live_image\s+([0-9a-fA-F]+)',mp)[1],16)
+ x.emu_start(image_entry,STOP,count=1000000)
+ assert x.reg_read(UC_X86_REG_EIP)==STOP and x.reg_read(UC_X86_REG_EAX)==0 and bytes(x.mem_read(OUT,512))==bytes(image_expected) and bytes(x.mem_read(DIRTY,1))==changed,('image',i)
  assert bytes(x.mem_read(B+380,768))==rgb;responses.append(w(0)+changed+expected);pixels+=width*height
 assert subprocess.check_output([str(root/'build/pc/Release/rf_effect_probe.exe'),'--lightmap-live-rectangle'],input=b''.join(inputs))==b''.join(responses)
 for offset,value in [(4,1),(16,1),(20,1),(32,0)]:
  saved=bytes(x.mem_read(UPLOAD+offset,4));x.mem_write(UPLOAD+offset,w(value));x.mem_write(OUT,bytes([165])*768);x.mem_write(DIRTY,b'\x09')
  assert call([VIEW,UPLOAD,DIRTY])!=0 and bytes(x.mem_read(OUT,768))==bytes([165])*768 and bytes(x.mem_read(DIRTY,1))==b'\x09';x.mem_write(UPLOAD+offset,saved)
-report=dict(result='PASS',original_pc_nxdk_rectangles=len(inputs),pixels=pixels,nxdk_guards=4,original_sha256=sha,x87_control_word='0x027f',scope='Unhooked original4f2cfe..4f2ef0 complete locked rectangle with actual plane coordinates,4daff0/4da8b0,1555 addition and dirty8 clear;1..4 mixed sources, all axis orders, special flag0/1, row padding and unchanged base RGB. Selection, lock/unlock and final dirty reset excluded.')
+for address,value in [(B+0x7300+12,7),(B+0x7400+12,1),(B+0x7300,7),(VIEW+8,0xffffffff)]:
+ saved=bytes(x.mem_read(address,4));x.mem_write(address,w(value));x.mem_write(OUT,bytes([165])*512);x.mem_write(DIRTY,b'\x09')
+ x.mem_write(STACK,w(STOP,VIEW,B+0x7400,B+0x7300,DIRTY));x.reg_write(UC_X86_REG_ESP,STACK);x.emu_start(image_entry,STOP,count=1000000)
+ assert x.reg_read(UC_X86_REG_EIP)==STOP and x.reg_read(UC_X86_REG_EAX)!=0 and bytes(x.mem_read(OUT,512))==bytes([165])*512 and bytes(x.mem_read(DIRTY,1))==b'\x09';x.mem_write(address,saved)
+report=dict(result='PASS',pc_nxdk_resident_images=256,nxdk_image_guards=4,original_pc_nxdk_rectangles=len(inputs),pixels=pixels,nxdk_guards=4,original_sha256=sha,x87_control_word='0x027f',scope='Unhooked original4f2cfe..4f2ef0 complete locked rectangle with actual plane coordinates,4daff0/4da8b0,1555 addition and dirty8 clear;1..4 mixed sources, all axis orders, special flag0/1, row padding and unchanged base RGB. Selection, lock/unlock and final dirty reset excluded.')
 (root/'artifacts/lightmap-live-rectangle.json').write_text(json.dumps(report,indent=2));print(report)

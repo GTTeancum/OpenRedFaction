@@ -367,6 +367,15 @@ int rf_lightmap_live_pixel(const unsigned char base[3],const float position[3],c
  * Success clears dirty8; errors retain completed pixels and do not clear it.
  * No allocation; light selection, lock/unlock and final dirty reset external. */
 int rf_lightmap_live_rectangle(const rf_lightmap_sample_lighting *,const rf_lightmap_rgb_upload *,unsigned char *dirty);
+/* Same locked live-light operation using retained linear RGB and an existing
+ * packed image (native swizzle on Xbox), without an intermediate packed copy.
+ * Image/base/sample dimensions must agree. Ordinary samples even for special
+ * mappings. No allocation or base mutation; success clears dirty8 only.
+ * Caller selects lights, owns dirty scheduling and GPU synchronization. Bounds
+ * failures preserve image/state; numeric errors may retain completed pixels. */
+int rf_lightmap_live_image(const rf_lightmap_sample_lighting *,const rf_lightmap_rgb_image *,
+    rf_image *,unsigned char *dirty);
+
 
 typedef struct rf_lightmap_1555_view {
     const unsigned char *pixels;uint32_t width,height,pitch,bytes;

@@ -15,6 +15,15 @@ Shortlist:
 
 Progress reporting: include a very high-level working area (e.g. Lighting, AI, Weapons, GeoMod or Scripted events) and an overall percent estimate at the end of every turn report (USER preference) and revisit remaining 24-hour workdays when measured throughput supports a forecast; current rough estimate40% (35-45%), no defensible +/-48-hour completion forecast before end-to-end gameplay.
 
+Live-light overlay now reads retained linear baseRGB and writes existing
+packed images directly, with native Xbox swizzle and no packed staging copy.
+All256 original/PC/NXDK rectangles (5184 shaded pixels,1..4 mixed sources)
+match complete resident images including untouched texels; baseRGB remains
+unchanged. Four image guards, prior four rectangle guards, both builds and25
+tests pass. This is the locked computation, not live scheduling: caller still
+selects class lights, synchronizes GPU use and resets final dirty state. Next
+connect retained base/overlay owners to scene mapping dispatch and XEMU timing.
+
 Retained raw RGB owner preserves original section1200 bytes needed by the
 initial dirty1/live-light path4f2cfe, avoiding lossy reconstruction from1555.
 Verified1515 images across94 PC levels and all23 Live Mines images byte-for-

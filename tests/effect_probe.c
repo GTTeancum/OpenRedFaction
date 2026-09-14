@@ -293,6 +293,17 @@ int main(int argc,char **argv)
             view.x=input.sample.x;view.y=input.sample.y;view.width=input.width;view.height=input.height;
             dirty=(unsigned char)input.dirty;memset(packed,0xa5,sizeof(packed));
             status=input.count>4?RF_RANGE:rf_lightmap_live_rectangle(&lighting,&view,&dirty);
+            if(!status && input.sample.image_width==16 && input.sample.image_height==16) {
+                unsigned char pixels[512],state=(unsigned char)input.dirty;rf_image image={16,16,512,5,pixels};
+                rf_lightmap_rgb_image base={input.rgb,16,16,768};uint32_t x,y;
+                memset(pixels,0xa5,sizeof(pixels));
+                if(rf_lightmap_live_image(&lighting,&base,&image,&state) || state!=dirty)return 3;
+                for(y=0;y<16;y++)for(x=0;x<16;x++) {
+                    unsigned char expected[2]={165,165};
+                    if(x>=view.x && x<view.x+view.width && y>=view.y && y<view.y+view.height)memcpy(expected,packed+y*input.pitch+x*2,2);
+                    if(memcmp(pixels+(y*16+x)*2,expected,2))return 4;
+                }
+            }
             fwrite(&status,4,1,stdout);fwrite(&dirty,1,1,stdout);fwrite(packed,sizeof(packed),1,stdout);
         }
         return 0;
