@@ -329,6 +329,9 @@ typedef struct rf_runtime_triggers {
     void *removal_context;
     int (*slay_object)(void *context,uint32_t handle,uint32_t source,int32_t now);
     void *slay_context;
+    /* Borrowed message presentation service; links identify speakers, not actions. */
+    int (*show_message)(void *context,const rf_level_event *event,int32_t now,uint32_t on);
+    void *message_context;
 } rf_runtime_triggers;
 /* Declare authored goals before any startup trigger runs. */
 int rf_runtime_goals_initialize(const rf_runtime_events *events,rf_campaign_goals *goals);

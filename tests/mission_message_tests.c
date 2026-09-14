@@ -1,4 +1,5 @@
 #include "rf/level.h"
+#include "rf/event.h"
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
@@ -7,6 +8,48 @@
 #include <fcntl.h>
 #endif
 #define CHECK(x) do{if(!(x)){fprintf(stderr,"message line %u\n",(unsigned)__LINE__);return 1;}}while(0)
+static uint32_t calls,last_on,last_uid;static int32_t last_clock;static int message_status;
+static int receive_message(void *context,const rf_level_event *event,int32_t now,uint32_t on)
+{
+    rf_level_message value;
+    ++calls;last_on=on;last_uid=event->uid;last_clock=now;
+    if(message_status)return message_status;
+    return on?rf_level_message_read(context,event->words[0],&value):RF_OK;
+}
+static int dispatch_check(rf_level *level)
+{
+    rf_object_registry registry;rf_runtime_events events={0};rf_runtime_triggers triggers={0};
+    rf_physics_gravity gravity={0};rf_startup_events_report report;rf_runtime_event *message=NULL;
+    uint32_t i,pending;rf_runtime_trigger speaker={0};
+    rf_object_registry_init(&registry);triggers.registry=&registry;
+    CHECK(rf_runtime_events_open(level,&registry,1024*1024,&events)==RF_OK);
+    for(i=0;i<events.count;i++)if(events.items[i].authored->record.uid==8356)message=events.items+i;
+    CHECK(message && message->state.type==15 && message->authored->record.words[0]==0);
+    /* Resolve the authored speaker link to a contained trigger: a message must
+     * never enable it as if it were a downstream event action. */
+    message->state.delay=0; /* Isolate immediate dispatch before the delayed case. */
+    speaker.object_kind=5;speaker.state.flags=16;
+    CHECK(rf_object_registry_insert(&registry,&speaker,&speaker.handle)==RF_OK);
+    CHECK(message->authored->record.link_count==1);
+    message->links[0].kind=1;message->links[0].value=speaker.handle;
+    CHECK(rf_runtime_event_fire(&triggers,message->handle,7,9,100,&gravity,0,0,&report)==RF_OK);
+    CHECK(report.unsupported_actions==1 && (speaker.state.flags&16));
+    triggers.show_message=receive_message;triggers.message_context=level;
+    CHECK(rf_runtime_event_fire(&triggers,message->handle,7,9,200,&gravity,0,0,&report)==RF_OK);
+    CHECK(calls==1 && last_on==1 && last_uid==8356 && last_clock==200 && !report.unsupported_actions);
+    CHECK(speaker.state.flags&16);
+    message->state.delay=.25f;
+    CHECK(rf_runtime_event_fire(&triggers,message->handle,7,9,300,&gravity,0,0,&report)==RF_OK && calls==1);
+    CHECK(rf_runtime_events_tick(&events,&triggers,&gravity,549,0,0,&report,&pending)==RF_OK && calls==1);
+    CHECK(rf_runtime_events_tick(&events,&triggers,&gravity,550,0,0,&report,&pending)==RF_OK && calls==2 && last_clock==550 && !pending);
+    message->state.deadline=600;message->state.mode=0;
+    CHECK(rf_runtime_events_tick(&events,&triggers,&gravity,600,0,0,&report,&pending)==RF_OK && calls==3 && !last_on);
+    message->state.delay=0;message_status=RF_NOT_FOUND;
+    CHECK(rf_runtime_event_fire(&triggers,message->handle,7,9,700,&gravity,0,0,&report)==RF_OK && report.other_targets==1);
+    message_status=RF_FORMAT;
+    CHECK(rf_runtime_event_fire(&triggers,message->handle,7,9,800,&gravity,0,0,&report)==RF_FORMAT);
+    rf_runtime_events_close(&events);return 0;
+}
 int main(int argc,char **argv)
 {
     if(argc==2 && !strcmp(argv[1],"--parse")) {
@@ -36,5 +79,6 @@ int main(int argc,char **argv)
     CHECK(argc==2);CHECK(rf_level_campaign_open(&level,&archive,argv[1],"L1S1.rfl")==RF_OK);
     CHECK(rf_level_message_read(&level,0,&result)==RF_OK && !strcmp(result.voice,"L1S1_GRD_01.wav"));
     CHECK(!strcmp(result.text,"Hey, where do you think you're goin'?"));
+    CHECK(dispatch_check(&level)==0);
     rf_vpp_close(&archive);puts("PASS bounded mission dialogue reader");return 0;
 }

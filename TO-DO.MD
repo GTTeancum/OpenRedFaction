@@ -31,6 +31,11 @@ Shortlist:
 
 Progress reporting: include a very high-level working area (e.g. Lighting, AI, Weapons, GeoMod or Scripted events) and an overall percent estimate at the end of every turn report (USER preference) and revisit remaining 24-hour workdays when measured throughput supports a forecast; current rough estimate45% (35-45%), no defensible +/-48-hour completion forecast before end-to-end gameplay.
 
+Message events now deliver authored records through a shared presentation
+callback, including delayed/on/off handling and speaker-link isolation.
+Authored L1S1 callback tests and all37 tests pass; PC/NXDK builds succeed.
+Scene subtitle ownership/display and audio registration remain the next work.
+
 Mission dialogue lookup now matches all918 installed English records in66
 tables through shared C code. PC and NXDK builds succeed;37 tests pass.
 Temporary text-table storage is capped at64KiB and released after lookup.

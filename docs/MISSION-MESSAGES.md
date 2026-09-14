@@ -29,8 +29,20 @@ suite passes, including malformed/truncated, oversized, duplicate requested ID
 and missing-ID cases. PC and NXDK Xbox builds succeed. This verifies lookup,
 not live presentation or native runtime behavior.
 
-Next implementation: Message event dispatch, a timed subtitle display, and
-voice playback through the existing audio owner.
+Message event type15 now dispatches through a borrowed `show_message` callback
+with the authored record, event clock and on/off state. Speaker links do not
+propagate gameplay activation. Delayed messages use the same callback when due;
+missing resources are reported without aborting the event chain, while other
+backend errors propagate. This is a practical first-pass presentation contract,
+not a claim of original queue or interruption behavior.
+
+The contained L1S1 event8356 test reads its real text, verifies one delivery,
+delayed delivery at550ms, off requests, missing/error results and speaker-link
+isolation. All37 tests and PC/NXDK builds pass. The scene has not registered a
+presentation backend yet; live subtitle display and audio remain unimplemented.
+
+Next implementation: register the scene subtitle owner, draw timed text, and
+connect voice playback through the existing audio owner.
 Queue/interrupt behavior, speaker placement, timing and language handling need
 explicit first-pass decisions and validation. No live message support is claimed
 by the inventory alone.
