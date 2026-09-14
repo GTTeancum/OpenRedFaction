@@ -3,6 +3,8 @@
 #include <string.h>
 #define CHECK(x) do{if(!(x)){fprintf(stderr,"mission line %u\n",(unsigned)__LINE__);return 1;}}while(0)
 static uint32_t death_present[2],death_alive[2],death_unknown;
+static int remove_registered(void *context,uint32_t handle)
+{return rf_object_registry_remove(context,handle);}
 static int death_query(void *context,uint32_t uid,uint32_t *present,uint32_t *alive)
 {
     (void)context;if(uid<10 || uid>11 || death_unknown)return RF_NOT_FOUND;
@@ -34,6 +36,14 @@ static int death_watch_check(void)
     CHECK(rf_runtime_events_tick(&events,&triggers,&gravity,5,0,0,&report,&pending)==RF_OK && !watcher.death_fired && report.unsupported_actions==1);
     death_unknown=0;watcher.state.deadline=100;
     CHECK(rf_runtime_events_tick(&events,&triggers,&gravity,99,0,0,&report,&pending)==RF_OK && !watcher.death_fired);
+    CHECK(rf_object_registry_remove(&registry,links[2].value)==RF_OK);
+    watcher.state.deadline=-1;authored.record.flags[0]=0;
+    death_present[0]=death_present[1]=death_alive[0]=death_alive[1]=1;
+    CHECK(rf_runtime_events_tick(&events,&triggers,&gravity,100,0,0,&report,&pending)==RF_OK && !watcher.death_fired && !report.unsupported_actions);
+    authored.record.flags[0]=1;
+    CHECK(rf_runtime_events_tick(&events,&triggers,&gravity,101,0,0,&report,&pending)==RF_OK && watcher.death_fired && watcher.death_time==101);
+    watcher.death_fired=0;links[2].kind=0; /* Same UID never resolved: still unknown. */
+    CHECK(rf_runtime_events_tick(&events,&triggers,&gravity,102,0,0,&report,&pending)==RF_OK && !watcher.death_fired && report.unsupported_actions==1);
     return 0;
 }
 static uint32_t mover_calls,mover_source,mover_actor;static int32_t mover_now;static int mover_error;
@@ -141,6 +151,14 @@ int main(int argc,char **argv)
         remove->links[0].value=trigger.handle;
         CHECK(rf_runtime_event_fire(&triggers,remove->handle,7,9,4200,&gravity,0,0,&report)==RF_OK);
         CHECK((trigger.state.flags&16) && (trigger.activation.object_flags&2) && !rf_object_registry_lookup(&registry,trigger.handle));
+        {
+            uint32_t object=0,handle;
+            CHECK(rf_object_registry_insert(&registry,&object,&handle)==RF_OK);
+            remove->links[0].value=handle;
+            CHECK(rf_runtime_event_fire(&triggers,remove->handle,7,9,4250,&gravity,0,0,&report)==RF_OK && report.other_targets==1);
+            triggers.remove_object=remove_registered;triggers.removal_context=&registry;
+            CHECK(rf_runtime_event_fire(&triggers,remove->handle,7,9,4260,&gravity,0,0,&report)==RF_OK && !rf_object_registry_lookup(&registry,handle));
+        }
         remove->links[0].value=remove->handle;
         CHECK(rf_runtime_event_fire(&triggers,remove->handle,7,9,4300,&gravity,0,0,&report)==RF_OK);
         CHECK(!rf_object_registry_lookup(&registry,remove->handle));

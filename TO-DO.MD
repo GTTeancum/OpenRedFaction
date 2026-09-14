@@ -11,7 +11,7 @@ failures to select work; avoid spending time on exact RE or visual polish unless
 it blocks those systems. This priority change does not increase completion.
 
 Shortlist:
-- ACTIVE: Expand authored mission events and obtain a useful visual check of scripted NPC walking.
+- ACTIVE: Verify scripted NPC removal on Xbox and expand consecutive mission progression.
 - TO COMPLETE: Preserve remaining world changes across sections, including partial actor state and dropped items.
 - NEXT: Expand mission scripts and AI until consecutive campaign sections are playable end to end.
 - TO COMPLETE: Expand the working pistol/rifle combat, pickups and first-person feedback to the remaining weapons.
@@ -30,6 +30,13 @@ Shortlist:
 - USER: Review the interactive PC movement and audio items listed below.
 
 Progress reporting: include a very high-level working area (e.g. Lighting, AI, Weapons, GeoMod or Scripted events) and an overall percent estimate at the end of every turn report (USER preference) and revisit remaining 24-hour workdays when measured throughput supports a forecast; current rough estimate45% (35-45%), no defensible +/-48-hour completion forecast before end-to-end gameplay.
+
+Remove_Object now removes registered NPCs from collision, targeting and
+rendering, stops movement and preserves retirement across section revisits.
+Death watchers recognize removed resolved handles as missing while unknown
+authored objects still defer. L1S3 event9602 removes NPC9436 in a90-frame PC
+replay; both builds and36 tests pass. Native verification is running in
+artifacts/npc-remove-xemu.log; full object-family deletion remains open.
 
 Stock64MiB Xbox tracking-camera replay passes at1000 frames, with a native
 capture of Gryphon walking beyond the hangar and exact PC movement/contact

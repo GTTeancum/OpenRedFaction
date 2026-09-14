@@ -687,7 +687,7 @@ int rf_scene_fire_setup_event(uint32_t uid,int32_t now)
 {
     uint32_t i;rf_startup_events_report report;
     for(i=0;i<campaign_events.count;i++)if(campaign_events.items[i].authored->record.uid==uid) {
-        if(campaign_events.items[i].state.type!=48)return RF_FORMAT;
+        if(campaign_events.items[i].state.type!=48 && campaign_events.items[i].state.type!=2)return RF_FORMAT;
         return rf_runtime_event_fire(&campaign_triggers,campaign_events.items[i].handle,UINT32_MAX,UINT32_MAX,now,&scene_gravity,NULL,NULL,&report);
     }
     return RF_NOT_FOUND;
@@ -3487,6 +3487,24 @@ static int campaign_script_move(void *context,uint32_t handle,const rf_level_eve
         memcpy(owner->script_move.target,event->position,12);
         ++rf_scene_script_movement[0];rf_scene_script_movement[5]=campaign_seeds.records.items[i].record.uid;
         rf_scene_script_movement[6]=event->uid;return on?RF_OK:campaign_script_locomotion(i,0);
+    }
+    return RF_NOT_FOUND;
+}
+static int campaign_remove_object(void *context,uint32_t handle)
+{
+    uint32_t i;int status;(void)context;
+    for(i=0;i<campaign_npc_body_count;i++) {
+        campaign_npc_body *owner=campaign_npc_bodies+i;
+        if(!owner->registration.view || owner->registration.handle!=handle)continue;
+        status=rf_entity_view_unregister(&campaign_registry,&campaign_entities,&owner->registration);if(status)return status;
+        owner->script_move.active=0;owner->navigation.retained.count=0;
+        owner->damage.effects.health=0;owner->view.flags_810|=1;
+        owner->damage.effects.flags_810=owner->view.flags_810;
+        owner->object_flags|=2|0x4000;owner->view.flags_7c=owner->room.flags=owner->object_flags;
+        rf_physics_body_close(&owner->body);
+        ++rf_scene_actor_retirement[1]; /* Excluded from this scene's live owners. */
+        if(owner->persistence_registered)rf_scene_defeated_actors.items[owner->persistence_slot].retired=1;
+        return RF_OK;
     }
     return RF_NOT_FOUND;
 }
@@ -9983,6 +10001,7 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
             campaign_triggers.set_friendliness=campaign_set_friendliness;
             campaign_triggers.set_visible=campaign_set_visible;
             campaign_triggers.set_invulnerable=campaign_set_invulnerable;
+            campaign_triggers.remove_object=campaign_remove_object;
             rf_scene_campaign_triggers[0]=campaign_triggers.count;
             rf_scene_campaign_triggers[1]=campaign_triggers.allocated_bytes;
             rf_scene_campaign_load_stage=4;status=rf_level_owned_groups_open(level,1024*1024,&campaign_groups);

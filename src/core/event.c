@@ -533,7 +533,12 @@ static void startup_event_action(void *context,rf_event_state *state,uint32_t ac
             } else if(kind==5) {
                 rf_runtime_trigger *removed=object;
                 removed->state.flags|=16;removed->activation.object_flags|=2;
-            } else {++c->report->other_targets;continue;}
+            } else {
+                if(!c->triggers->remove_object){++c->report->other_targets;continue;}
+                status=c->triggers->remove_object(c->triggers->removal_context,link->value);
+                if(status==RF_NOT_FOUND){++c->report->other_targets;continue;}
+                if(status){c->status=status;return;}continue;
+            }
             /* Retain allocation until scene teardown: dispatch may still hold
              * a pointer, including self-removal. Stale handles stop resolving. */
             status=rf_object_registry_remove(c->triggers->registry,link->value);
@@ -822,7 +827,11 @@ static int runtime_death_poll(startup_context *c,rf_runtime_event *event)
         const rf_level_link_target *link=event->links+i;
         if(link->kind==1 || link->kind==2)object=rf_object_registry_lookup(c->triggers->registry,link->value);
         if(object)memcpy(&kind,object,4);
-        if(kind==5 || kind==6) {present=1;status=RF_OK;}
+        if((link->kind==1 || link->kind==2) && !object) {
+            /* Previously resolved runtime identity, now removed. This is
+             * known absence, unlike a never-resolved authored object. */
+            present=alive=0;status=RF_OK;
+        } else if(kind==5 || kind==6) {present=1;status=RF_OK;}
         else if(c->triggers->death_query)status=c->triggers->death_query(c->triggers->death_context,
             event->authored->links[i],&present,&alive);
         if(status==RF_NOT_FOUND){unknown=1;continue;}

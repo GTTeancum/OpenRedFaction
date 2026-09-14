@@ -1029,7 +1029,15 @@ static int actor_retirement_check(void)
     memset(&owner,0,sizeof(owner));owner.damage.effects.health=100;
     CHECK(rf_entity_view_register(&campaign_registry,&campaign_entities,&owner.view,&owner.registration)==RF_OK);
     CHECK(campaign_actors_restore()==RF_OK && owner.registration.view && owner.damage.effects.health==100);
-    CHECK(rf_entity_view_unregister(&campaign_registry,&campaign_entities,&owner.registration)==RF_OK);
+    handle=owner.registration.handle;owner.script_move.active=1;owner.navigation.retained.count=1;
+    owner.body.spheres.items=calloc(1,sizeof(*owner.body.spheres.items));CHECK(owner.body.spheres.items);
+    owner.body.spheres.count=1;owner.body.allocated_bytes=sizeof(*owner.body.spheres.items);
+    CHECK(campaign_remove_object(NULL,handle)==RF_OK);
+    CHECK(!owner.registration.view && !rf_object_registry_lookup(&campaign_registry,handle));
+    CHECK(!rf_object_lookup(&campaign_entities,(int32_t)handle) && !owner.body.spheres.items && !owner.body.allocated_bytes);
+    CHECK(!owner.script_move.active && !owner.navigation.retained.count && owner.damage.effects.health==0);
+    CHECK(rf_scene_defeated_actors.items[owner.persistence_slot].retired);
+    CHECK((owner.object_flags&0x4002)==0x4002 && campaign_remove_object(NULL,handle)==RF_NOT_FOUND);
     campaign_seeds.records.items=NULL;campaign_seeds.records.count=0;campaign_npc_bodies=NULL;campaign_npc_body_count=0;
     memset(&rf_scene_defeated_actors,0,sizeof(rf_scene_defeated_actors));return 0;
 }
