@@ -65,7 +65,7 @@ static int player_poll_paced(void *context,uint32_t frame,rf_scene_input *input)
     }
     if(campaign_return_exit_uid && campaign_total_frames==180) {
         int status=rf_scene_fire_level_exit(campaign_return_exit_uid,(int32_t)((uint64_t)frame*1000/60));
-        campaign_forced_exit_uid=campaign_return_exit_uid;campaign_return_exit_uid=0;campaign_return_place=1;if(status)return status;
+        campaign_forced_exit_uid=campaign_return_exit_uid;campaign_return_exit_uid=0;campaign_return_place=campaign_return_item_uid!=0;if(status)return status;
     }
     if(campaign_exit_uid && campaign_total_frames==60) {
         int status=rf_scene_fire_level_exit(campaign_exit_uid,(int32_t)((uint64_t)frame*1000/60));
@@ -500,7 +500,7 @@ static int scene_preview(rf_level *level,rf_preview_mesh *mesh)
         if(exit_file){int invalid=fread(&campaign_exit_uid,4,1,exit_file)!=1 || fgetc(exit_file)!=EOF;fclose(exit_file);if(invalid)return RF_FORMAT;}
         exit_file=fopen("D:\\campaign-return.bin","rb");
         if(exit_file){uint32_t data[2];int invalid=fread(data,4,2,exit_file)!=2 || fgetc(exit_file)!=EOF;fclose(exit_file);
-            if(invalid || !data[0] || !data[1])return RF_FORMAT;campaign_return_exit_uid=data[0];campaign_return_item_uid=data[1];}
+            if(invalid || !data[0])return RF_FORMAT;campaign_return_exit_uid=data[0];campaign_return_item_uid=data[1];}
         exit_file=fopen("D:\\campaign-watch.bin","rb");
         if(exit_file){int invalid=fread(&rf_scene_watch_test_uid,4,1,exit_file)!=1 || fgetc(exit_file)!=EOF;fclose(exit_file);if(invalid)return RF_FORMAT;}
         exit_file=fopen("D:\\campaign-setup.bin","rb");

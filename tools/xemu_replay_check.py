@@ -9,7 +9,7 @@ if args.follow_uid is not None and (not args.level or not 0<args.follow_uid<0xff
 if args.setup_uid is not None and (not args.level or len(args.setup_uid)>2 or any(not 0<x<0xffffffff for x in args.setup_uid)):p.error('--setup-uid requires --level and positive UIDs')
 if args.goto_uid is not None and (not args.level or not 0<args.goto_uid<0xffffffff):p.error('--goto-uid requires --level and a positive UID')
 if args.watch_uid is not None and (not args.level or not 0<args.watch_uid<0xffffffff):p.error('--watch-uid requires --level and a positive UID')
-if args.return_exit_uid is not None and (args.exit_uid is None or args.item_uid is None or not 0<args.return_exit_uid<0xffffffff):p.error('--return-exit-uid requires --exit-uid and --item-uid')
+if args.return_exit_uid is not None and (args.exit_uid is None or not 0<args.return_exit_uid<0xffffffff):p.error('--return-exit-uid requires --exit-uid')
 if args.goal_uid is not None and (not args.level or not 0<args.goal_uid<0xffffffff):p.error('--goal-uid requires --level and a positive UID')
 if args.exit_start_uid is not None and (not args.level or args.exit_uid is not None or args.item_uid is not None or args.actor_uid is not None or args.force_uid is not None or args.door or args.lift or args.climb or not 0<args.exit_start_uid<0xffffffff):p.error('--exit-start-uid requires --level without another staging/forced exit')
 if args.exit_uid is not None and (not args.level or not 0<args.exit_uid<0xffffffff):p.error('--exit-uid requires --level and a positive UID')
@@ -118,7 +118,7 @@ process=monitor=None;report={'result':'FAIL','level':args.level or ('L1S2.rfl' i
 def build():subprocess.run(['C:/msys64/usr/bin/bash.exe','--noprofile','--norc','tools/build-xbox.sh'],cwd=root,env=dict(os.environ,MSYSTEM='CLANG64'),check=True)
 try:
  if args.return_exit_uid is None:return_file.unlink(missing_ok=True)
- else:return_file.write_bytes(struct.pack('<II',args.return_exit_uid,args.item_uid))
+ else:return_file.write_bytes(struct.pack('<II',args.return_exit_uid,args.item_uid or 0))
  if args.follow_uid is None:follow_file.unlink(missing_ok=True)
  else:follow_file.write_bytes(args.follow_uid.to_bytes(4,'little'))
  if args.setup_uid is None:setup_file.unlink(missing_ok=True)
@@ -1003,17 +1003,23 @@ dvd_path = '{root.as_posix()}/build/xbox/redfaction-diagnostic.iso'
       taken.append(f'TAKEN_PICKUP {name} {uid}')
     assert taken==[line for line in pc.stdout.splitlines() if line.startswith('TAKEN_PICKUP ')]
     report['taken_pickups']=taken
-    retired=words(monitor,symbol('rf_scene_defeated_actors'),8194)
+    retired=words(monitor,symbol('rf_scene_defeated_actors'),14338)
     level_count,actor_count=retired[:2];assert level_count<=128 and actor_count<=2048
-    retired_bytes=struct.pack('<8194I',*retired);defeated=[]
+    retired_bytes=struct.pack('<14338I',*retired);defeated=[];actor_vitals=[]
     for index in range(actor_count):
      level_index,uid,dead=struct.unpack_from('<III',retired_bytes,8200+index*12)
      assert level_index<level_count and dead<=1
+     name=retired_bytes[8+level_index*64:8+(level_index+1)*64].split(b'\0')[0].decode('ascii')
+     valid,health,armor=struct.unpack_from('<III',retired_bytes,32776+index*12)
+     assert valid<=1
+     if valid:actor_vitals.append(f'ACTOR_VITALS {name} {uid} {health} {armor}')
      if dead:
       name=retired_bytes[8+level_index*64:8+(level_index+1)*64].split(b'\0')[0].decode('ascii')
       defeated.append(f'DEFEATED_ACTOR {name} {uid}')
     assert defeated==[line for line in pc.stdout.splitlines() if line.startswith('DEFEATED_ACTOR ')]
     report['defeated_actors']=defeated
+    assert actor_vitals==[line for line in pc.stdout.splitlines() if line.startswith('ACTOR_VITALS ')]
+    report['actor_vitals']=actor_vitals
     report['actor_retirement']=words(monitor,symbol('rf_scene_actor_retirement'),4)
     assert report['actor_retirement']==expected('ACTOR_RETIREMENT')
     report['level_transitions']=words(monitor,symbol('rf_xbox_level_transitions'),4)

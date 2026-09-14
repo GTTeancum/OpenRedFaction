@@ -15,7 +15,7 @@ screenshots until near-retail-quality replacements are available.
 
 Shortlist:
 - DEFERRED / TO COMPLETE: Improve Xbox performance beyond the current basic-testing baseline; revisit NPC pose evaluation.
-- TO COMPLETE: Preserve remaining world changes across sections, including partial actor state and dropped items.
+- TO COMPLETE: Preserve remaining world changes across sections, including actor placement/allegiance/inventory and dropped items.
 - ACTIVE: Verify enemy firing visually, add muzzle/impact effects, and extend natural-trigger encounter coverage.
 - TO COMPLETE: Expand the working pistol/rifle combat, pickups and first-person feedback to the remaining weapons.
 - DEFERRED / TO COMPLETE: Restore full NPC/prop texture detail through better residency; verify PS2 parity for reduced textures.
@@ -33,6 +33,23 @@ Shortlist:
 - USER: Review the interactive PC movement and audio items listed below.
 
 Progress reporting: include a very high-level working area (e.g. Lighting, AI, Weapons, GeoMod or Scripted events) and an overall percent estimate at the end of every turn report (USER preference) and revisit remaining 24-hour workdays when measured throughput supports a forecast; current rough estimate45% (35-45%), no defensible +/-48-hour completion forecast before end-to-end gameplay.
+
+Living actor health and armor now survive section backtracking, using the
+existing level/UID persistence slots. The appended fixed vitals owner costs24KiB;
+no per-hit or per-transition allocations, runtime handles or pointers are saved.
+Retirement still takes precedence over old living values. Tests cover wounded
+restoration, identical UIDs in different sections, untouched first visits and
+retirement. All37 PC tests pass. The actor-vitals replay shoots guard8456 before
+explicit L1S1->L1S2->L1S1 exits and retains80.8 health/79.2 armor. This is staged
+encounter/exit coverage; full natural route and complete actor-state persistence
+remain open. Position/orientation, allegiance, inventory and dropped items are
+not included. Native harness compares saved vitals against PC; return-exit
+staging now permits no pickup UID on both platforms. Reproduce PC coverage with
+python tools/replay_actor_vitals.py. Evidence:artifacts/actor-vitals.
+Stock64MiB XEMU replay `replay-20260914-120730` passes240 frames and both
+section transitions, with saved actor vitals exactly matching PC (including
+guard8456 at80.8 health/79.2 armor). NXDK build and restoration pass.
+
 
 Combat pursuit is stopped when player death is first observed. Previously the
 combat tick stopped firing while active follow2 navigation kept moving enemies

@@ -3590,6 +3590,9 @@ static int campaign_actors_restore(void)
             owner->damage.effects.flags_810=owner->view.flags_810;
             owner->object_flags|=2|0x4000;owner->view.flags_7c=owner->object_flags;
             rf_physics_body_close(&owner->body);++rf_scene_actor_retirement[1];
+        } else if(rf_scene_defeated_actors.vitals[owner->persistence_slot].valid) {
+            owner->damage.effects.health=rf_scene_defeated_actors.vitals[owner->persistence_slot].health;
+            owner->damage.effects.armor=rf_scene_defeated_actors.vitals[owner->persistence_slot].armor;
         }
     }
     return RF_OK;
@@ -3599,6 +3602,11 @@ static void campaign_actors_capture(void)
     uint32_t i;
     for(i=0;i<campaign_npc_body_count;i++) {
         const campaign_npc_body *owner=campaign_npc_bodies+i;
+        if(owner->persistence_registered && owner->registration.view && owner->damage.effects.health>0) {
+            rf_scene_defeated_actors.vitals[owner->persistence_slot].valid=1;
+            rf_scene_defeated_actors.vitals[owner->persistence_slot].health=owner->damage.effects.health;
+            rf_scene_defeated_actors.vitals[owner->persistence_slot].armor=owner->damage.effects.armor;
+        }
         if(owner->persistence_registered && owner->damage.effects.health<=0 &&
            !rf_scene_defeated_actors.items[owner->persistence_slot].retired) {
             rf_scene_defeated_actors.items[owner->persistence_slot].retired=1;

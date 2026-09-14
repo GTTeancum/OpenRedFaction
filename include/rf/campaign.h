@@ -49,6 +49,9 @@ typedef struct rf_campaign_actors {
     uint32_t level_count,count;
     char levels[RF_CAMPAIGN_PICKUP_LEVELS][64];
     rf_campaign_object_record items[RF_CAMPAIGN_ACTOR_SLOTS];
+    /* Section-local living vitals, keyed by the same slots; no runtime handles.
+     * Valid only after capture; retirement takes precedence. Fixed24KiB. */
+    struct {uint32_t valid;float health,armor;} vitals[RF_CAMPAIGN_ACTOR_SLOTS];
 } rf_campaign_actors;
 int rf_campaign_actor_register(rf_campaign_actors *state,const char *level,uint32_t uid,uint32_t *slot);
 #endif

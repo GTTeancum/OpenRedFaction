@@ -1012,6 +1012,15 @@ static int actor_retirement_check(void)
     CHECK(rf_entity_view_register(&campaign_registry,&campaign_entities,&owner.view,&owner.registration)==RF_OK);
     CHECK(campaign_actors_restore()==RF_OK && rf_scene_actor_retirement[1]==0);
     campaign_actors_capture();CHECK(!rf_scene_defeated_actors.items[0].retired);
+    owner.damage.effects.health=37.5f;owner.damage.effects.armor=12.25f;
+    campaign_actors_capture();
+    CHECK(rf_scene_defeated_actors.vitals[0].valid && rf_scene_defeated_actors.vitals[0].health==37.5f);
+    owner.damage.effects.health=100;owner.damage.effects.armor=50;
+    CHECK(campaign_actors_restore()==RF_OK && owner.damage.effects.health==37.5f && owner.damage.effects.armor==12.25f);
+    strcpy(campaign_current_level,"L1S2.rfl");owner.damage.effects.health=80;owner.damage.effects.armor=20;
+    CHECK(campaign_actors_restore()==RF_OK && owner.damage.effects.health==80 && owner.damage.effects.armor==20);
+    campaign_actors_capture();strcpy(campaign_current_level,"L1S1.rfl");
+    CHECK(campaign_actors_restore()==RF_OK && owner.damage.effects.health==37.5f && owner.damage.effects.armor==12.25f);
     owner.damage.effects.health=0;
     /* Death cleanup may unregister before the scene exits. */
     CHECK(rf_entity_view_unregister(&campaign_registry,&campaign_entities,&owner.registration)==RF_OK);

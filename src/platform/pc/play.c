@@ -166,7 +166,7 @@ static int input(void *context,uint32_t frame,rf_scene_input *out)
     }
     if(p->headless && p->return_exit_uid && p->frames==180) {
         int status=rf_scene_fire_level_exit(p->return_exit_uid,(int32_t)((uint64_t)frame*1000/60));
-        p->forced_exit_uid=p->return_exit_uid;p->return_exit_uid=0;p->return_place=1;if(status)return status;
+        p->forced_exit_uid=p->return_exit_uid;p->return_exit_uid=0;p->return_place=p->return_item_uid!=0;if(status)return status;
     }
     if(p->headless && p->exit_uid && p->frames==p->exit_frame) {
         int status=rf_scene_fire_level_exit(p->exit_uid,(int32_t)((uint64_t)frame*1000/60));
@@ -407,9 +407,12 @@ int main(int argc,char **argv)
     }
     if(p.headless && getenv("RF_REPLAY_RETURN_EXIT_UID")) {
         char *end;unsigned long uid=strtoul(getenv("RF_REPLAY_RETURN_EXIT_UID"),&end,10);
-        if(*end || !uid || !getenv("RF_REPLAY_ITEM_UID") || !p.exit_uid)CHECK(RF_FORMAT);
-        p.return_exit_uid=(uint32_t)uid;uid=strtoul(getenv("RF_REPLAY_ITEM_UID"),&end,10);
-        if(*end || !uid)CHECK(RF_FORMAT);p.return_item_uid=(uint32_t)uid;
+        if(*end || !uid || !p.exit_uid)CHECK(RF_FORMAT);
+        p.return_exit_uid=(uint32_t)uid;
+        if(getenv("RF_REPLAY_ITEM_UID")) {
+            uid=strtoul(getenv("RF_REPLAY_ITEM_UID"),&end,10);
+            if(*end || !uid)CHECK(RF_FORMAT);p.return_item_uid=(uint32_t)uid;
+        }
     }
 run_scene:
     p.scene_start=p.frames;
@@ -649,6 +652,10 @@ run_scene:
         printf("ACTOR_RETIREMENT");for(i=0;i<4;i++)printf(" %u",rf_scene_actor_retirement[i]);puts("");
         for(i=0;i<rf_scene_defeated_actors.count;i++)if(rf_scene_defeated_actors.items[i].retired)
             printf("DEFEATED_ACTOR %s %u\n",rf_scene_defeated_actors.levels[rf_scene_defeated_actors.items[i].level],rf_scene_defeated_actors.items[i].uid);
+        for(i=0;i<rf_scene_defeated_actors.count;i++)if(rf_scene_defeated_actors.vitals[i].valid) {
+            uint32_t health,armor;memcpy(&health,&rf_scene_defeated_actors.vitals[i].health,4);memcpy(&armor,&rf_scene_defeated_actors.vitals[i].armor,4);
+            printf("ACTOR_VITALS %s %u %u %u\n",rf_scene_defeated_actors.levels[rf_scene_defeated_actors.items[i].level],rf_scene_defeated_actors.items[i].uid,health,armor);
+        }
         for(i=0;i<rf_scene_campaign_pickups.count;i++)if(rf_scene_campaign_pickups.items[i].retired)
             printf("TAKEN_PICKUP %s %u\n",rf_scene_campaign_pickups.levels[rf_scene_campaign_pickups.items[i].level],rf_scene_campaign_pickups.items[i].uid);
         for(i=0;i<rf_scene_mission_goals.count;i++)printf("MISSION_GOAL %s %d %u\n",rf_scene_mission_goals.items[i].name,rf_scene_mission_goals.items[i].value,rf_scene_mission_goals.items[i].persistent);
