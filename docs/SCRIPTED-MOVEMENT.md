@@ -44,3 +44,36 @@ Native600-frame verification passes in
 6057 free pages (23.66MiB) remain; framebuffer inspected. This proves simulation
 movement and stopping, not finished locomotion animation or an escort sequence.
 The existing480-frame PC walking round trip also passes with exits at62/264.
+
+## Authored waypoint following
+
+Commands now connect start/destination through the existing navigation-volume
+selection and graph-request helpers. Clearance comes from the retained body
+spheres (maximum radius and vertical span). Selecting endpoints through authored
+volumes is necessary: a direct sphere visibility query to the raw Goto position
+rejected every destination candidate in this case. Navigation selection retains
+its original contained/overlapping-volume and visibility fallback behavior.
+
+The existing graph search retains up to four nodes. Movement consumes that
+window and replans when it runs out, preserving owned endpoint storage and
+borrowed level nodes. No per-frame allocation is added. Missing routes retry
+at60-frame intervals while the existing collision-bounded direct approach remains
+available. Goto_Player invalidates a route after its destination shifts over one
+horizontal unit. Commands reset route state; walking remains horizontal for now.
+
+Updated PC controls pass:180 frames gives120 movement steps;600 gives540 steps,
+zero blocked steps, two successful route requests and five waypoint advances.
+Previously this actor stopped after355 steps. At1500/1501 frames it instead stops
+at (16.7452793,3.20673919,15.7683830), with638 movement steps and802/803 blocked
+steps. That location is adjacent to Hangar door L (key3667 at X17.5); the paired
+right door is key3694. Authored triggers3670 and4963 link to these door keys.
+Only player contacts currently reach the live trigger-contact loop, so NPC door
+activation is the next integration point to verify. This is not a completed route.
+
+Native verification: artifacts/xemu/replay-20260914-065556/report.json passes600
+frames. Route words [2,2,0,5,4,3,0,0], movement [1,540,0,0,1,4952,4994,0]
+and actor position/target words exactly match PC.6056 free pages (23.66MiB)
+remain; native framebuffer inspected. Both builds,36 CTests and the updated
+59/180/600/1500/1501-frame PC controls pass. Native1500-frame hangar-door stop
+has not been checked separately. Trigger4963's filter3 rejects player-controlled
+actors in rf_trigger_eligible, consistent with the needed NPC contact path.

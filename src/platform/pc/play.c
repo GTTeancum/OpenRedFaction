@@ -617,6 +617,7 @@ run_scene:
         printf("PLAYER_JUMP");for(i=0;i<4;++i)printf(" %u",rf_scene_player_jump[i]);puts("");
         printf("PLAYER_JUMP_FRAMES");for(i=0;i<1024;++i)printf(" %u",((uint32_t*)rf_scene_player_jump_frames)[i]);puts("");
         printf("ACTOR_PLAYER_INPUT");for(i=0;i<64*7;++i)printf(" %u",((uint32_t*)rf_scene_player_input_frames)[i]);puts("");
+        printf("SCRIPT_ROUTES");for(i=0;i<8;i++)printf(" %u",rf_scene_script_routes[i]);puts("");
         printf("SCRIPT_MOVE");for(i=0;i<8;i++)printf(" %u",rf_scene_script_movement[i]);puts("");
         printf("SCRIPT_ACTOR");for(i=0;i<8;i++)printf(" %u",rf_scene_script_actor[i]);puts("");
         printf("WATCH_TEST");for(i=0;i<4;i++)printf(" %u",rf_scene_watch_test[i]);puts("");

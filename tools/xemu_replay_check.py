@@ -390,7 +390,7 @@ dvd_path = '{root.as_posix()}/build/xbox/redfaction-diagnostic.iso'
      watch_test=words(monitor,symbol('rf_scene_watch_test'),4)
      assert watch_test==expected('WATCH_TEST'),watch_test
      report['watch_test']=watch_test
-     for label,sym in [('SCRIPT_MOVE','rf_scene_script_movement'),('SCRIPT_ACTOR','rf_scene_script_actor')]:
+     for label,sym in [('SCRIPT_MOVE','rf_scene_script_movement'),('SCRIPT_ACTOR','rf_scene_script_actor'),('SCRIPT_ROUTES','rf_scene_script_routes')]:
       actual=words(monitor,symbol(sym),8);assert actual==expected(label),(label,actual,expected(label))
       report[label.lower()]=actual
      retirement=words(monitor,symbol('rf_scene_actor_retirement'),4)
