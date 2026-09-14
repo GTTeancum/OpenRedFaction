@@ -226,3 +226,24 @@ Initial audit incorrectly treated a mesh-count-inclusive hash as camera-only;
 corrected to compare final body state and input records before the full run.
 No new engine change or FPS gain in this audit. Existing native baseline
 remains approximately15FPS-equivalent work.
+
+Hidden-player mesh candidate: campaign first-person mode opts out of the
+animation fixture's full-body render batches. Scene already discarded that
+mesh; retain skeleton evaluation/publication, collision-vertex diagnostics,
+eye placement, body updates and all frame callbacks. Separate first-person
+weapon drawing is unaffected. Default/third-person diagnostics still render.
+No allocation change yet.37 tests pass; PC image/state comparisons and native
+--capture timing run completed under artifacts/hidden-player-mesh.
+
+Hidden first-person body mesh suppression verified in replay-20260914-100127:
+stock64MiB180-frame crossing/state/HUD checks pass; full native final image
+matches095052 exactly. All64 sampled actor-render records emit zero vertices.
+Actor render phase5.769->0.298ms; scene65.000->64.259ms. Platform time rises
+18.817->24.106ms, offsetting the CPU reduction; no overall FPS gain claimed
+beyond the existing ~15FPS-equivalent work. Both builds,37 tests and six
+strict PC image/world/player/model comparisons pass. Poses, eye/collision
+updates and the visible first-person weapon remain active. Default and
+third-person rendering remain enabled. Evidence: artifacts/hidden-player-mesh/
+comparison/report.json, performance.json and native100127 image comparison.
+TODO: reclaim unused first-person body mesh/render scratch allocations after
+checking their ownership; inspect presentation pacing and physics costs.

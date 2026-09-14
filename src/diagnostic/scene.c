@@ -10238,6 +10238,7 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
         /* Port-zeroed inactive payload;49f010 itself leaves these fields untouched. */
         memset(&campaign_player_contact,0,sizeof(campaign_player_contact));campaign_player_material=physics_config.material.index;
         placement.campaign_player=campaign_spawn;
+        placement.suppress_mesh=campaign_spawn && rf_scene_actor_eye_enabled;
         placement.published_model=campaign_spawn?&campaign_player_model:NULL;
         campaign_crouched=0;placement.player_stance=campaign_spawn?actor_player_stance:NULL;
         placement.physics_diagnostic=rf_scene_actor_physics_diagnostic;

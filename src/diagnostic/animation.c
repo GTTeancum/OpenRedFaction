@@ -376,7 +376,7 @@ static int animation_run(const char *meshes_path,const char *motions_path,uint32
             status=rf_model_collision_vertex(v->position,v->weights,v->bones,prepared,count,position);if(status)goto done;
             out[5]=hash_bytes(out[5],position,sizeof(position));
         }
-        for(render_batch=0;render_batch<geometry.batch_count;++render_batch) {
+        for(render_batch=0;!(placement && placement->suppress_mesh) && render_batch<geometry.batch_count;++render_batch) {
             rf_animation_progress[1]=7;rf_animation_progress[3]=render_batch;
             const rf_model_draw_batch *draw=geometry.batches+render_batch;uint32_t n;
             uint32_t batch_indices;
