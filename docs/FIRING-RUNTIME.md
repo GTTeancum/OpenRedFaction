@@ -764,8 +764,8 @@ are validated against every bone and sampled without open archives. The
 first-pass owner uses explicit installed filenames; general weapon selection
 and descriptor-driven presentation remain separate.
 
-PC accounting:847 vertices,8 material records,929280 resident bytes and
-940876 conservative peak bytes within1MiB. The budget reserves model/bone
+PC accounting:847 vertices,8 material records,934656 resident bytes and
+946252 conservative peak bytes within1MiB. The budget reserves model/bone
 loader scratch and counts embedded descriptors conservatively; allocator
 metadata is excluded. Live pose buffers are included; render scratch is not.
 
