@@ -100,6 +100,17 @@ typedef struct rf_lightmap_sample_plane {
     uint32_t image_width,image_height,x,y;
     float scale[2],offset[2],plane[4];uint32_t normal_axis,u_axis;
 } rf_lightmap_sample_plane;
+typedef struct rf_lightmap_shadow_face {
+    float plane[4],minimum[3],maximum[3];uint32_t flags;int32_t mapping,portal;uint32_t texture_excluded;
+} rf_lightmap_shadow_face;
+typedef struct rf_lightmap_shadow_cull {
+    float light_minimum[3],light_maximum[3],mapping_minimum[3],mapping_maximum[3];
+    float mapping_plane[4],planes[6][4];int32_t mapping;
+} rf_lightmap_shadow_cull;
+/* Original4f4f15..4f5031 occluder eligibility. Runtime face fields, expanded
+ * bounds and resolved510710 texture exclusion supplied by the owner.
+ * Signed16 mapping/portal fields, strict coplanar/volume rules. No allocation. */
+int rf_lightmap_shadow_occluder(const rf_lightmap_shadow_cull *,const rf_lightmap_shadow_face *,uint32_t *accepted);
 typedef struct rf_lightmap_shadow_mapping {
     float corners[4][3],center[3];uint32_t facing;
 } rf_lightmap_shadow_mapping;

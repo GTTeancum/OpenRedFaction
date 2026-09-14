@@ -334,6 +334,32 @@ int rf_lightmap_mapping_read(const void *record,uint32_t bytes,uint32_t image_co
 static double shadow_dot(const float a[3],const float b[3])
 { return ((double)a[2]*b[2]+(double)a[1]*b[1])+(double)a[0]*b[0]; }
 
+int rf_lightmap_shadow_occluder(const rf_lightmap_shadow_cull *view,const rf_lightmap_shadow_face *face,uint32_t *accepted)
+{
+    uint32_t i,j,value=0;
+    if(!view || !face || !accepted || face->mapping<INT16_MIN || face->mapping>INT16_MAX ||
+        face->portal<INT16_MIN || face->portal>INT16_MAX)return RF_RANGE;
+    for(i=0;i<4;i++)if(!isfinite(face->plane[i]) || !isfinite(view->mapping_plane[i]))return RF_RANGE;
+    for(i=0;i<6;i++)for(j=0;j<4;j++)if(!isfinite(view->planes[i][j]))return RF_RANGE;
+    for(i=0;i<3;i++) {
+        if(!isfinite(face->minimum[i]) || !isfinite(face->maximum[i]) || face->minimum[i]>face->maximum[i] ||
+            !isfinite(view->light_minimum[i]) || !isfinite(view->light_maximum[i]) || view->light_minimum[i]>view->light_maximum[i] ||
+            !isfinite(view->mapping_minimum[i]) || !isfinite(view->mapping_maximum[i]) || view->mapping_minimum[i]>view->mapping_maximum[i])return RF_RANGE;
+    }
+    for(i=0;i<3;i++)if(face->minimum[i]>=view->light_maximum[i] || face->maximum[i]<=view->light_minimum[i] ||
+        face->minimum[i]>=view->mapping_maximum[i] || face->maximum[i]<=view->mapping_minimum[i])goto done;
+    if(face->portal>0 || (face->flags&0x2044) || face->mapping==view->mapping || (face->texture_excluded&255u))goto done;
+    if(fabs((double)face->plane[3]-view->mapping_plane[3])<(double).001f &&
+        shadow_dot(face->plane,view->mapping_plane)>(double).999f)goto done;
+    for(i=0;i<6;i++) {
+        float point[3];for(j=0;j<3;j++)point[j]=view->planes[i][j]>0?face->minimum[j]:face->maximum[j];
+        if(shadow_dot(point,view->planes[i])+view->planes[i][3]>-.001)goto done;
+    }
+    value=1;
+ done:
+    *accepted=value;return RF_OK;
+}
+
 int rf_lightmap_shadow_mapping_prepare(const rf_lightmap_sample_plane *view,uint32_t width,uint32_t height,
     const float origin[3],rf_lightmap_shadow_mapping *out)
 {

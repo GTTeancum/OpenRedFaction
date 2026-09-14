@@ -15,6 +15,13 @@ Shortlist:
 
 Progress reporting: include a very high-level working area (e.g. Lighting, AI, Weapons, GeoMod or Scripted events) and an overall percent estimate at the end of every turn report (USER preference) and revisit remaining 24-hour workdays when measured throughput supports a forecast; current rough estimate40% (35-45%), no defensible +/-48-hour completion forecast before end-to-end gameplay.
 
+Shadow occluder selection now matches4096 original/PC/NXDK faces (1323
+accepted,2773 rejected), with5 guards. Preserve strict bounds overlap,
+signed16 fields, flag/texture exclusions and mixed coplanar/volume thresholds.
+Both builds and24 tests pass. Texture classification was supplied to the
+original replay; bind retained face decoding and actual texture ownership,
+then compose full masks and verify native memory/rendering.
+
 Combined shadow receiver clipping/area/filter/raster matches1024 original/
 PC/NXDK passes (771 accepted,253 rejected,54219 changed mask bytes). Both
 builds,24 tests and standalone2048 clipping cases pass. Preserve549f10's
