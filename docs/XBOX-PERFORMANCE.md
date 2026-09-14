@@ -101,3 +101,12 @@ limits general FPS claims. This is approximately8FPS-equivalent measured work.
 Next priorities from the optimized run: camera/visibility/world rebuild41.894ms,
 platform sink36.712ms, physics13.288ms. Break down world rebuild before changes.
 Evidence: artifacts/performance-scratch.json, artifacts/scratch-differential/report.json.
+
+World-phase profiling verified in replay-20260914-092055: stock64MiB native
+180-frame crossing passes with 104 destination samples. World geometry
+rebuild averages39.587ms; visibility traversal0.269ms, audio0.173ms,
+camera setup/room location0.240ms. Total scene work123.634ms confirms
+the prior scratch improvement; this instrumentation adds no new speedup.
+Next optimization target: world geometry rebuild, then platform submission.
+PC build and37 tests pass; Xbox build/harness restoration pass. Evidence:
+artifacts/performance-world-detail.json and artifacts/xemu/replay-20260914-092055.

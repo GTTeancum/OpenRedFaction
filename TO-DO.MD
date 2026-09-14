@@ -34,6 +34,15 @@ Shortlist:
 
 Progress reporting: include a very high-level working area (e.g. Lighting, AI, Weapons, GeoMod or Scripted events) and an overall percent estimate at the end of every turn report (USER preference) and revisit remaining 24-hour workdays when measured throughput supports a forecast; current rough estimate45% (35-45%), no defensible +/-48-hour completion forecast before end-to-end gameplay.
 
+World-phase profiling verified in replay-20260914-092055: stock64MiB native
+180-frame crossing passes with 104 destination samples. World geometry
+rebuild averages39.587ms; visibility traversal0.269ms, audio0.173ms,
+camera setup/room location0.240ms. Total scene work123.634ms confirms
+the prior scratch improvement; this instrumentation adds no new speedup.
+Next optimization target: world geometry rebuild, then platform submission.
+PC build and37 tests pass; Xbox build/harness restoration pass. Evidence:
+artifacts/performance-world-detail.json and artifacts/xemu/replay-20260914-092055.
+
 Active-range scratch optimization passes stock64MiB native crossing/state/
 capture verification in replay-20260914-091453. Detailed scene work decreases
 294.365->125.864ms; NPC51.192->7.913ms, clutter84.702->2.500ms. These are

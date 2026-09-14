@@ -177,7 +177,16 @@ static uint32_t profile_last,profile_active;
 /* View failures101..108: listener, camera effect, ambient, camera setup,
  * room locate, visibility begin/view, world mesh. Success stages stay0..12. */
 uint32_t rf_scene_profile[8][4],rf_scene_profile_stage[2];
-uint32_t rf_scene_presentation_profile[8][4];
+uint32_t rf_scene_presentation_profile[8][4],rf_scene_world_profile[8][4];
+static void world_profile_mark(uint32_t phase,uint32_t *previous)
+{
+    uint32_t now,elapsed,*row;uint64_t total;
+    if(!profile_clock || !profile_active)return;
+    now=profile_clock();elapsed=now-*previous;*previous=now;
+    row=rf_scene_world_profile[phase];total=((uint64_t)row[2]<<32)+row[1]+elapsed;
+    ++row[0];row[1]=(uint32_t)total;row[2]=(uint32_t)(total>>32);
+    if(elapsed>row[3])row[3]=elapsed;
+}
 static void presentation_mark(uint32_t phase,uint32_t *previous)
 {
     uint32_t now,elapsed,*row;uint64_t total;
@@ -188,7 +197,7 @@ static void presentation_mark(uint32_t phase,uint32_t *previous)
     if(elapsed>row[3])row[3]=elapsed;
 }
 void rf_scene_set_profile(uint32_t (*milliseconds)(void))
-{profile_clock=milliseconds;profile_active=0;memset(rf_scene_profile,0,sizeof(rf_scene_profile));memset(rf_scene_presentation_profile,0,sizeof(rf_scene_presentation_profile));}
+{profile_clock=milliseconds;profile_active=0;memset(rf_scene_profile,0,sizeof(rf_scene_profile));memset(rf_scene_presentation_profile,0,sizeof(rf_scene_presentation_profile));memset(rf_scene_world_profile,0,sizeof(rf_scene_world_profile));}
 static void profile_mark(uint32_t stage)
 {
     uint32_t now,elapsed,*row;uint64_t total;
@@ -7815,7 +7824,8 @@ static int actor_follow_view(void *context,uint32_t frame,const rf_motion_contro
 {
     scene_stream *stream=context;float position[3],orientation[3][3];
     uint32_t *r=rf_scene_actor_follow_frames[frame%64];int status;
-    profile_mark(1);
+    uint32_t world_clock=0;profile_mark(1);
+    if(profile_clock && profile_active)world_clock=profile_clock();
     status=actor_listener_pose(stream,frame,controller,position,orientation);if(status){rf_scene_profile_stage[1]=101;return status;}
     if(campaign_spawn && stream->particles.state) {
         uint32_t active;uint64_t elapsed=(uint64_t)frame*1000/60;
@@ -7823,6 +7833,7 @@ static int actor_follow_view(void *context,uint32_t frame,const rf_motion_contro
         status=rf_camera_effect_apply_random(&campaign_camera_effect,now,&stream->particles.state->random,(float *)orientation,&active);
         if(status){rf_scene_profile_stage[1]=102;return status;}
     }
+    world_profile_mark(0,&world_clock);
     if(campaign_spawn) {
         campaign_audio_listener(position,orientation[0]);
         /* Original480ef7 follows listener refresh. Use the owned replay clock;
@@ -7835,6 +7846,7 @@ static int actor_follow_view(void *context,uint32_t frame,const rf_motion_contro
             campaign_ambient_frame=frame;
         }
     }
+    world_profile_mark(1,&world_clock);
     if(campaign_spawn){status=campaign_combat_tick(stream,frame,position,orientation);rf_scene_combat[7]=(uint32_t)status;if(status)return status;}
     if(rf_scene_follow_npc_uid){status=campaign_inspect_camera(stream,position,orientation);if(status)return status;}
     if(rf_scene_particle_view_enabled && frame<400 && stream->particles.state && stream->particles.materials.count) {
@@ -7844,6 +7856,7 @@ static int actor_follow_view(void *context,uint32_t frame,const rf_motion_contro
             position[1]+=4;position[2]-=4;memcpy(orientation,inspection_basis,sizeof(inspection_basis));
         }
     }
+    world_profile_mark(2,&world_clock);
     if(stream->visibility.storage) {
         rf_collision_room_location room;rf_visibility_camera camera={0};
         /* Match the preview's fixed 4:3, x/z projection and 1000-unit far
@@ -7854,8 +7867,10 @@ static int actor_follow_view(void *context,uint32_t frame,const rf_motion_contro
         status=rf_visibility_camera_setup(&parameters,&camera);if(status){rf_scene_profile_stage[1]=104;return status;}
         stream->particle_camera=camera;stream->particle_frame=frame;
         status=rf_geometry_collision_world_locate(stream->collision,position,&room);if(status){rf_scene_profile_stage[1]=105;return status;}
+        world_profile_mark(3,&world_clock);
         status=rf_level_visibility_begin_render(&stream->visibility);if(status){rf_scene_profile_stage[1]=106;return status;}
         status=rf_level_visibility_view(&stream->visibility,&camera,640,480,room.room,UINT32_MAX,0,1);if(status){rf_scene_profile_stage[1]=107;return status;}
+        world_profile_mark(4,&world_clock);
         for(i=0;i<stream->visibility.state.count;i++)hash=(hash^stream->visibility.state.rooms[i].visible)*16777619u;
         for(i=0;i<stream->visibility.graph.count;i++)cached+=stream->visibility.cache[i].valid!=0;
         record[0]=frame;record[1]=room.room;record[2]=stream->visibility.state.visible_count;record[3]=cached;record[4]=hash;
@@ -7864,6 +7879,7 @@ static int actor_follow_view(void *context,uint32_t frame,const rf_motion_contro
         rf_scene_visibility_summary[2]=stream->visibility.state.count;rf_scene_visibility_summary[3]=stream->visibility.graph.count;
         rf_scene_visibility_summary[4]=record[2];rf_scene_visibility_summary[5]=room.room;
     }
+    world_profile_mark(5,&world_clock);
     /* The actor portion is idle until animation emits this tick's model. Use
      * it for transactional world projection before the actor is appended. */
     {rf_preview_mesh world_mesh=*stream->mesh;
@@ -7886,7 +7902,7 @@ static int actor_follow_view(void *context,uint32_t frame,const rf_motion_contro
      }
      if(status){rf_scene_profile_stage[1]=108;return status;}
      *stream->mesh=world_mesh;}
-    profile_mark(2);
+    world_profile_mark(6,&world_clock);profile_mark(2);
     stream->world=stream->mesh->count;
     memcpy(view->camera,position,12);memcpy(view->rotation,orientation,36);
     {uint32_t axis;for(axis=3;axis<6;++axis)view->rotation[axis]*=4.0f/3.0f;}
