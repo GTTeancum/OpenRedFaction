@@ -330,6 +330,37 @@ int rf_lightmap_mapping_read(const void *record,uint32_t bytes,uint32_t image_co
     *out=value;return RF_OK;
 }
 
+static double shadow_dot(const float a[3],const float b[3])
+{ return ((double)a[2]*b[2]+(double)a[1]*b[1])+(double)a[0]*b[0]; }
+
+/* Original54a1c0 keeps the non-positive half-space with54a320's epsilon. */
+int rf_lightmap_clip_shadow(const float (*vertices)[3],uint32_t count,const float plane[4],
+    float (*output)[3],uint32_t capacity,uint32_t *out_count)
+{
+    uint32_t i,j,n=0;
+    if(!plane || !out_count || count==1 || count>INT32_MAX ||
+        (count && (!vertices || !output)) || (uint64_t)count*2>capacity)return RF_RANGE;
+    for(i=0;i<4;i++)if(!isfinite(plane[i]))return RF_RANGE;
+    for(i=0;i<count;i++)for(j=0;j<3;j++)if(!isfinite(vertices[i][j]))return RF_RANGE;
+    for(i=0;i<count;i++) {
+        const float *a=vertices[i],*b=vertices[i+1==count?0:i+1];
+        double da=shadow_dot(a,plane),db=shadow_dot(b,plane);
+        int inside_a=da+plane[3]<=(double).0001f,inside_b=db+plane[3]<=(double).0001f;
+        if(inside_a) {memcpy(output[n],a,12);n++;}
+        if(inside_a!=inside_b) {
+            float start=(float)-da,t,value[3];double denominator=-db-start;
+            if(!denominator)return RF_RANGE;
+            t=(float)(((double)plane[3]-start)/denominator);if(!isfinite(t))return RF_RANGE;
+            for(j=0;j<3;j++) {
+                float delta=(float)((double)b[j]-a[j]),step=(float)((double)delta*t);
+                value[j]=(float)((double)a[j]+step);if(!isfinite(value[j]))return RF_RANGE;
+            }
+            memcpy(output[n],value,12);n++;
+        }
+    }
+    *out_count=n;return RF_OK;
+}
+
 /* 4f5219..4f5320, after the shadow ray/plane intersection. */
 int rf_lightmap_project_shadow(const rf_lightmap_sample_plane *view,uint32_t width,uint32_t height,
     const float point[3],float uv[2])

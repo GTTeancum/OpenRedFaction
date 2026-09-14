@@ -100,6 +100,12 @@ typedef struct rf_lightmap_sample_plane {
     uint32_t image_width,image_height,x,y;
     float scale[2],offset[2],plane[4];uint32_t normal_axis,u_axis;
 } rf_lightmap_sample_plane;
+/* Original54a1c0 ordered polygon/plane clipping, used by shadow volumes.
+ * Disjoint buffers; count zero or >=2; capacity >=2*count bounds arbitrary
+ * input polygons. No allocation. Invalid preflight preserves output; numeric
+ * failure may retain emitted vertices. out_count changes only on success. */
+int rf_lightmap_clip_shadow(const float (*vertices)[3],uint32_t count,const float plane[4],
+    float (*output)[3],uint32_t capacity,uint32_t *out_count);
 /* 4f4590 projected intersection -> mask coordinates, clamped to [1,extent-1].
  * Caller has already intersected each shadow ray with the receiving plane.
  * Both extents >=2; derived V axis. No allocation; errors preserve output. */

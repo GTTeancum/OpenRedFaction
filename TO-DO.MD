@@ -15,6 +15,13 @@ Shortlist:
 
 Progress reporting: include a very high-level working area (e.g. Lighting, AI, Weapons, GeoMod or Scripted events) and an overall percent estimate at the end of every turn report (USER preference) and revisit remaining 24-hour workdays when measured throughput supports a forecast; current rough estimate40% (35-45%), no defensible +/-48-hour completion forecast before end-to-end gameplay.
 
+Shadow polygon/plane clipping matches2048 unhooked original/PC/NXDK cases,
+with35103 emitted vertices (15741 intersections), epsilon-boundary cases,
+123 empty results and4 guards. Both builds and24 tests pass. Caller supplies
+disjoint bounded buffers; no allocation. Next compose the six-plane shadow
+volume, ray-plane intersections and projected polygon filtering before live
+mask/resource integration and native XEMU rendered verification.
+
 Shadow intersection-to-mask projection matches4096 original/PC/NXDK points,
 including asymmetric U/V rounding, both edge clamps and8 input guards.
 Both builds and24 tests pass. Original mask bank has64 slots at4096-byte

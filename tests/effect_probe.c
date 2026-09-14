@@ -335,6 +335,16 @@ int main(int argc,char **argv)
         }
         return 0;
     }
+    if(argc==2 && !strcmp(argv[1],"--lightmap-clip-shadow")) {
+        struct {uint32_t count,capacity;float plane[4],vertices[32][3];} input;float output[64][3];uint32_t status,count;
+        _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
+        while(fread(&input,sizeof(input),1,stdin)==1) {
+            memset(output,0xa5,sizeof(output));count=0xa5a5a5a5;
+            status=input.count>32 || input.capacity>64?RF_RANGE:rf_lightmap_clip_shadow(input.vertices,input.count,input.plane,output,input.capacity,&count);
+            fwrite(&status,4,1,stdout);fwrite(&count,4,1,stdout);fwrite(output,sizeof(output),1,stdout);
+        }
+        return 0;
+    }
     if(argc==2 && !strcmp(argv[1],"--lightmap-project-shadow")) {
         struct {rf_lightmap_sample_plane view;uint32_t width,height;float point[3];} input;float output[2];uint32_t status;
         _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
