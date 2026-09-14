@@ -50,6 +50,13 @@ int main(int argc,char **argv)
              printf("ARRIVAL %s %u anchor=%s delta=%.6g,%.6g,%.6g\n",name,request.uid,request.anchor,offset[0],offset[1],offset[2]);
              if(j==1 && request.uid==9019)CHECK(fabsf(offset[0]+144)<.001f && fabsf(offset[1]+32)<.001f && fabsf(offset[2]+48)<.001f);
              if(j==2 && request.uid==9346)CHECK(fabsf(offset[0]-144)<.001f && fabsf(offset[1]-32)<.001f && fabsf(offset[2]-48)<.001f);
+             {float departing[3],facing[9]={0,0,-1,0,1,0,1,0,0};rf_level before;unsigned axis;
+              for(axis=0;axis<3;axis++)departing[axis]=request.anchor_position[axis]+(float)(axis+1)*.25f;
+              CHECK(rf_level_transition_place(&request,&next,departing,facing)==RF_OK);
+              for(axis=0;axis<3;axis++)CHECK(fabsf(next.player_position[axis]-(departing[axis]+offset[axis]))<.0001f);
+              CHECK(!memcmp(next.player_orientation,facing,sizeof(facing)));
+              before=next;facing[4]=NAN;
+              CHECK(rf_level_transition_place(&request,&next,departing,facing)==RF_FORMAT && !memcmp(&before,&next,sizeof(next)));}
              memcpy(saved_offset,offset,sizeof(offset));bad=request;strcpy(bad.anchor,"missing-exit-anchor");
              CHECK(rf_level_transition_offset(&bad,&next,offset)==RF_NOT_FOUND && !memcmp(offset,saved_offset,sizeof(offset)));
              bad=request;bad.anchor_position[0]=NAN;

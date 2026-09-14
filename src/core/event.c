@@ -406,6 +406,21 @@ int rf_level_transition_offset(const rf_level_transition_request *request,const 
     memcpy(offset,delta,sizeof(delta));return RF_OK;
 }
 
+
+int rf_level_transition_place(const rf_level_transition_request *request,rf_level *level,
+    const float position[3],const float orientation[9])
+{
+    float offset[3],placed[3],facing[9];unsigned i;int status;
+    if(!request || !level || !position || !orientation)return RF_RANGE;
+    for(i=0;i<3;i++)if(!isfinite(position[i]))return RF_FORMAT;
+    for(i=0;i<9;i++)if(!isfinite(orientation[i]))return RF_FORMAT;
+    status=rf_level_transition_offset(request,level,offset);if(status)return status;
+    for(i=0;i<3;i++){placed[i]=position[i]+offset[i];if(!isfinite(placed[i]))return RF_RANGE;}
+    memcpy(facing,orientation,sizeof(facing));
+    memcpy(level->player_position,placed,sizeof(placed));memcpy(level->player_orientation,facing,sizeof(facing));
+    return RF_OK;
+}
+
 static void startup_event_action(void *context,rf_event_state *state,uint32_t action,
     uint32_t source,uint32_t actor,uint32_t mode);
 static int startup_switch_ready(const rf_runtime_triggers *triggers)

@@ -1375,6 +1375,15 @@ int rf_scene_campaign_player_get(rf_campaign_player_state *state)
     if(!campaign_export_valid)return RF_NOT_FOUND;
     return rf_campaign_player_copy(state,&campaign_player_export,campaign_player_export.catalog_hash);
 }
+int rf_scene_campaign_pose_get(float position[3],float orientation[9])
+{
+    unsigned i;
+    if(!position || !orientation)return RF_RANGE;
+    if(!campaign_export_valid || campaign_player_damage.state.effects.health<=0)return RF_NOT_FOUND;
+    for(i=0;i<3;i++)if(!isfinite(scene_actor_body.state.position[i]))return RF_FORMAT;
+    for(i=0;i<9;i++)if(!isfinite(actor_look.eye_orientation[i]))return RF_FORMAT;
+    memcpy(position,scene_actor_body.state.position,12);memcpy(orientation,actor_look.eye_orientation,36);return RF_OK;
+}
 int rf_scene_campaign_player_set(const rf_campaign_player_state *state)
 {
     int status;

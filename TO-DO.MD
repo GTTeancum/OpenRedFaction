@@ -25,6 +25,12 @@ Shortlist:
 
 Progress reporting: include a very high-level working area (e.g. Lighting, AI, Weapons, GeoMod or Scripted events) and an overall percent estimate at the end of every turn report (USER preference) and revisit remaining 24-hour workdays when measured throughput supports a forecast; current rough estimate44% (35-45%), no defensible +/-48-hour completion forecast before end-to-end gameplay.
 
+Shared arrival placement now translates a departing position and preserves
+combined facing; pose export works across the four PC exit replays. Both builds
+and34 CTests pass, including14 placement cases. Not yet enabled in gameplay:
+next approach the authored exit region and verify translated arrival clearance,
+then connect placement in PC/Xbox loops (the forced exit fires far from its marker).
+
 Arrival lookup now resolves unique named destination anchors for all14 opening
 exits. Independent L1S2/L1S3 routes agree on translation (41,32,-118); both builds
 and34 CTests pass. Requests own source marker name/position. Next apply this

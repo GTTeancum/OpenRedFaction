@@ -92,3 +92,19 @@ The platform loops still use the destination default spawn. Next apply the marke
 translation to the departing player's pose, preserve facing, and verify clearance
 and exit-trigger behavior at arrival. The raw marker positions alone do not prove
 safe player placement or rotation semantics.
+
+The shared rf_level_transition_place operation now applies an anchor offset to a
+departing position and copies its facing matrix into destination spawn fields.
+Finite-input and overflow checks preserve the previous spawn on failure. All14
+opening anchor cases verify placement arithmetic and facing retention, with invalid
+facing rollback. rf_scene_campaign_pose_get copies the current physics position
+and combined body/eye orientation while the completed scene state remains valid;
+PC exit diagnostics now emit LEVEL_EXIT_POSE before teardown of platform owners.
+Both builds,34 CTests and four PC exit replays pass (arrival-pose-*.log).
+
+Automatic arrival placement is not yet enabled. The current forced-exit test fires
+L1S1 exit9019 from the normal spawn, approximately (-119.188,0.320,59.440), far
+from its marker (112.582,20.8295,-44.4395). Applying the offset to that fixture
+would not test the actual doorway. Next stage/approach the authored exit region,
+validate destination collision clearance and trigger behavior, then connect this
+placement operation in both platform loops. No translated-arrival gameplay claim.

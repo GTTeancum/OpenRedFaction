@@ -364,6 +364,9 @@ run_scene:
     if(spawn_profile && rf_scene_level_transition.pending && (!limit || p.frames<limit)) {
         rf_campaign_player_state player_state;rf_level_transition_request next=rf_scene_level_transition;
         CHECK(rf_scene_campaign_player_get(&player_state));
+        {float position[3],orientation[9];CHECK(rf_scene_campaign_pose_get(position,orientation));
+         printf("LEVEL_EXIT_POSE");for(i=0;i<3;i++)printf(" %.9g",position[i]);for(i=0;i<9;i++)printf(" %.9g",orientation[i]);puts("");}
+
         printf("LEVEL_TRANSITION %s %s %u %u\n",level.entry.name,next.level,next.uid,p.frames);
         rf_scene_actor_follow(NULL);
         rf_lightmaps_close(&p.lightmaps);rf_materials_close(&materials);rf_preview_close(&mesh);

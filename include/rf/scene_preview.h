@@ -19,6 +19,8 @@ extern uint32_t rf_scene_follow_level_exits;
 /* Process-local fixture: dispatch an authored Load_Level UID at a given tick. */
 int rf_scene_fire_level_exit(uint32_t uid,int32_t now);
 int rf_scene_campaign_player_get(rf_campaign_player_state *);
+/* Entity origin and combined body/eye facing; copy before starting a new scene. */
+int rf_scene_campaign_pose_get(float position[3],float orientation[9]);
 int rf_scene_campaign_player_set(const rf_campaign_player_state *);
 
 /* Called by a synchronous scene frame sink before drawing, after prior GPU

@@ -283,6 +283,11 @@ int rf_level_transition_enqueue(rf_level_transition_request *,const rf_level_eve
  * coordinates fail without changing offset. Missing names return NOT_FOUND.
  * No placement, rotation or geometry clearance is implied by this lookup. */
 int rf_level_transition_offset(const rf_level_transition_request *,const rf_level *,float offset[3]);
+/* Translate a departing entity-origin pose into destination spawn coordinates.
+ * Facing is retained. No body clearance, room lookup or rotation between levels;
+ * those remain caller responsibilities. Failure preserves the level spawn. */
+int rf_level_transition_place(const rf_level_transition_request *,rf_level *,
+    const float position[3],const float orientation[9]);
 
 typedef struct rf_runtime_triggers {
     rf_level_owned_triggers decoded;
