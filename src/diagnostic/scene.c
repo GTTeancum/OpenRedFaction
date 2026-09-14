@@ -2225,7 +2225,7 @@ static int campaign_link_effect(void *context,uint32_t kind,uint32_t handle,uint
         rf_group_runtime_entry *entry;rf_group_activation_actor facts;const rf_entity_view *view;
         campaign_controller_effects *request;uint32_t started,*backlink;
         if(!controller || controller->object_kind!=8)return RF_NOT_FOUND;
-        entry=controller->runtime;if(entry->kind!=RF_GROUP_RUNTIME_TRANSLATION)return RF_FORMAT;
+        entry=controller->runtime;if(entry->kind==RF_GROUP_RUNTIME_EMPTY)return RF_FORMAT;
         request=campaign_controller_requests+(entry-campaign_group_runtime.items);
         view=rf_object_lookup(&campaign_entities,(int32_t)actor);
         facts.present=view!=NULL;facts.flags=view?view->flags_7c:0;
@@ -2251,7 +2251,7 @@ static int campaign_event_mover(void *context,uint32_t handle,uint32_t source,ui
     campaign_activation_context activation={now,(uint32_t)((uint64_t)now*60/1000),NULL};
     rf_group_registered_controller *controller=rf_object_registry_lookup(&campaign_registry,handle);
     (void)context;
-    if(!controller || controller->object_kind!=8 || controller->runtime->kind!=RF_GROUP_RUNTIME_TRANSLATION)return RF_NOT_FOUND;
+    if(!controller || controller->object_kind!=8 || controller->runtime->kind==RF_GROUP_RUNTIME_EMPTY)return RF_NOT_FOUND;
     return campaign_link_effect(&activation,8,handle,source,actor);
 }
 /* First-pass airlock interlock. Loader465510 fields0 -> constructor+1c ->
@@ -2305,7 +2305,7 @@ static int campaign_actor_trigger_contacts(const rf_entity_view *actor,const flo
         const rf_level_trigger *record=&trigger->authored->record;uint32_t ready=0,fired=0;
         if(trigger->activation.object_flags&2)continue;
         if(record->value_byte>4 || record->fields[2]!=UINT32_MAX ||
-           record->fields[1]!=UINT32_MAX || record->script[0] ||
+           record->fields[1]!=UINT32_MAX || (record->script[0] && strcmp(record->script,"-1")) ||
            (trigger->state.flags&(2u|128u))) {++rf_scene_trigger_contacts[4];continue;}
         status=rf_trigger_contact_filter_authored(trigger,facts.handle,-1,&filter);if(status)return status;
         status=rf_runtime_trigger_contact(&campaign_triggers,trigger->handle,&facts,positions,&filter,now,use,&ready);
@@ -2329,6 +2329,7 @@ static int campaign_trigger_contacts(const rf_group_attached_pose *pose,int32_t 
     status=campaign_actor_trigger_contacts(&campaign_player_view,positions,now,frame,particles,use,0);if(status)return status;
     return campaign_npc_trigger_contacts(now,frame,particles);
 }
+uint32_t rf_scene_rotating_doors[8]; /* active ticks, arrivals, last key, angle bits, mover count, matrix changes, reserved, errors */
 static int campaign_controller_tick(int32_t now,rf_level_particles *particles,const float player_position[3])
 {
     uint32_t i,j;int status;rf_trigger_occupant actor;
@@ -2339,6 +2340,27 @@ static int campaign_controller_tick(int32_t now,rf_level_particles *particles,co
         rf_group_translation_runtime *runtime=&entry->translation;rf_group_translation_frame tick;
         campaign_controller_effects *request=campaign_controller_requests+i;uint32_t occupied=0,sounds=0;
         rf_runtime_trigger *trigger=NULL;
+        if(entry->kind==RF_GROUP_RUNTIME_ROTATION_PENDING) {
+            uint32_t active=runtime->motion.next_key!=-1;
+            status=rf_group_rotation_tick(runtime,entry->source->keys,1.0f/60,now,&sounds);if(status)return status;
+            if(active) {
+                ++rf_scene_rotating_doors[0];rf_scene_rotating_doors[2]=entry->source->keys[0].uid;
+                memcpy(rf_scene_rotating_doors+3,&runtime->distance,4);
+                rf_scene_rotating_doors[4]=campaign_memberships.items[i].count;
+            }
+            if(sounds&RF_GROUP_SOUND_END) {
+                const rf_level_group_key *key=entry->source->keys;
+                ++rf_scene_rotating_doors[1];
+                if(key->links[0]!=UINT32_MAX)for(j=0;j<campaign_events.count;j++)if(campaign_events.items[j].authored->record.uid==key->links[0]) {
+                    rf_startup_events_report report={0};uint32_t handle=UINT32_MAX,k;
+                    for(k=0;k<campaign_group_registration.count;k++)if(campaign_group_registration.controllers[k].runtime==entry)handle=campaign_group_registration.controllers[k].handle;
+                    status=rf_runtime_event_fire(&campaign_triggers,campaign_events.items[j].handle,handle,UINT32_MAX,now,&scene_gravity,particles,&campaign_forces,&report);if(status)return status;
+                    rf_scene_live_motion[6]+=report.unsupported_actions+report.unresolved_targets+report.other_targets;break;
+                }
+            }
+            if(sounds)campaign_sound_request(entry,request,sounds);
+            continue;
+        }
         if(entry->kind!=RF_GROUP_RUNTIME_TRANSLATION)continue;
         status=rf_group_translation_tick_begin(runtime,entry->source->keys,entry->source->record.key_count,1.0f/60,now,&tick);if(status)return status;
         if(tick.stage==RF_GROUP_TICK_GATES) {
@@ -2412,7 +2434,15 @@ static int campaign_controller_commit(void)
     uint32_t i;int status;
     for(i=0;i<campaign_group_runtime.count;++i) {
         rf_group_runtime_entry *entry=campaign_group_runtime.items+i;
-        if(entry->kind!=RF_GROUP_RUNTIME_TRANSLATION)continue;
+        if(entry->kind==RF_GROUP_RUNTIME_EMPTY)continue;
+        if(entry->kind==RF_GROUP_RUNTIME_ROTATION_PENDING) {
+            uint32_t j;const rf_group_controller_view *binding=campaign_controller_views+i;
+            for(j=0;j<binding->mover_count;j++) {
+                uint32_t handle=binding->mover_handles[j],slot=handle&0xffffu;
+                if(slot<RF_OBJECT_CAPACITY && campaign_pose_slots[slot].handle==handle && campaign_pose_slots[slot].pose &&
+                   memcmp(campaign_pose_slots[slot].pose->input_matrix,campaign_pose_slots[slot].pose->pending_matrix,36))++rf_scene_rotating_doors[5];
+            }
+        }
         status=rf_group_commit_positions(&entry->translation.motion.flags,&entry->pose,campaign_controller_views+i,campaign_pose_slots,RF_OBJECT_CAPACITY);if(status)return status;
         memcpy(entry->translation.position,entry->pose.position,12);memcpy(entry->translation.pending,entry->pose.pending,12);
     }
@@ -4278,16 +4308,14 @@ static int campaign_bind_movers(void)
     campaign_controller_views=calloc(campaign_group_runtime.count?campaign_group_runtime.count:1,sizeof(*campaign_controller_views));
     if(!campaign_controller_views)return RF_RANGE;
     memset(campaign_pose_slots,0,sizeof(campaign_pose_slots));memset(rf_scene_live_motion,0,sizeof(rf_scene_live_motion));
+    memset(rf_scene_rotating_doors,0,sizeof(rf_scene_rotating_doors));
     memset(rf_scene_live_door_positions,0,sizeof(rf_scene_live_door_positions));
     for(i=0;i<campaign_group_runtime.count;++i) {
         campaign_controller_views[i].runtime=&campaign_group_runtime.items[i].translation;
         campaign_controller_views[i].first_key=campaign_group_runtime.items[i].source->keys;
         campaign_controller_views[i].mover_handles=campaign_memberships.items[i].handles;
         campaign_controller_views[i].mover_count=campaign_memberships.items[i].count;
-        if(campaign_group_runtime.items[i].kind!=RF_GROUP_RUNTIME_TRANSLATION) {
-            if(campaign_controller_views[i].mover_count)++rf_scene_live_motion[6];
-            campaign_controller_views[i].mover_count=0; /* Rotation has no valid translation contribution. */
-        }
+        campaign_controller_views[i].rotation_sign=campaign_memberships.items[i].rotation_sign;
         if(campaign_group_runtime.items[i].source->record.ids_count[0])++rf_scene_live_motion[6];
     }
     for(i=0;i<campaign_mover_count;++i) {

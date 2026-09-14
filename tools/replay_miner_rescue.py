@@ -1,5 +1,6 @@
 """Probe the authored L2S2a rescue contact; records evidence, not a traversal pass."""
 import json
+import math
 import os
 from pathlib import Path
 import struct
@@ -18,14 +19,21 @@ run = subprocess.run([str(root / 'build/pc/Release/rf_pc_play.exe'),
     '--spawn-replay', str(root / 'Installed_Game'), str(source),
     str(folder / 'contact.ppm')], cwd=root, env=env, capture_output=True, text=True)
 (folder / 'contact.log').write_text(run.stdout + run.stderr)
-labels = ('TRIGGER_CONTACTS', 'SCRIPT_MOVE', 'SCRIPT_ATTACK', 'ENEMY_FIRE',
+labels = ('TRIGGER_CONTACTS', 'SCRIPT_MOVE', 'SCRIPT_ATTACK', 'ENEMY_FIRE', 'ROTATING_DOORS',
           'SCRIPT_ANIMATION', 'SWITCH_DETAIL')
 rows = {label: next((line.split()[1:] for line in run.stdout.splitlines()
                     if line.startswith(label + ' ')), None) for label in labels}
 report = dict(returncode=run.returncode, telemetry=rows,
     scope='Player placed inside trigger5658, Switch5671 fired at frame0, held Use; '
           'no actor repositioning or forced Goto/Attack. Diagnostic probe only; '
-          'exit0 alone does not prove the rescue fired or completed.')
+          'door phase is checked separately; full rescue completion remains unverified.')
+run.check_returncode()
+door = list(map(int, rows['ROTATING_DOORS']))
+angle = struct.unpack('<f', struct.pack('<I', door[3]))[0]
+assert door[0] >= 60 and door[1:3] == [1, 8512], door
+assert abs(angle - math.radians(120)) < .00001 and door[4] == 1 and door[5] >= 60, door
+assert int(rows['SCRIPT_MOVE'][0]) >= 2 and 'Completed 900 frames' in run.stdout
+report.update(door_phase_verified=True, full_encounter_verified=False, angle_radians=angle)
 (folder / 'report.json').write_text(json.dumps(report, indent=2))
 print(json.dumps(report, indent=2))
 raise SystemExit(run.returncode)

@@ -449,6 +449,10 @@ int rf_group_translation_tick_move(rf_group_translation_runtime *runtime,
     rf_group_translation_frame *frame);
 int rf_group_translation_tick_finish(rf_group_translation_runtime *runtime,
     rf_group_translation_frame *frame,uint32_t key_count,uint32_t *sounds);
+/* Practical fixed-axis rotation from463820/46a3d0: distance is radians,
+ * speed is ramp elapsed, phase is leg elapsed. Shared motion/timer storage. */
+int rf_group_rotation_tick(rf_group_translation_runtime *runtime,
+    const rf_level_group_key *key,float dt,int32_t now,uint32_t *sounds);
 typedef struct rf_group_translation_contribution {
     float first_key[3],pending[3];uint32_t flags;
 } rf_group_translation_contribution;
@@ -515,6 +519,7 @@ typedef struct rf_group_controller_view {
     const rf_level_group_key *first_key;
     const uint32_t *mover_handles;uint32_t mover_count;
     const uint32_t *general_handles;uint32_t general_count;
+    float rotation_sign;
 } rf_group_controller_view;
 typedef struct rf_group_pose_slot {
     uint32_t handle;rf_group_attached_pose *pose;
@@ -547,9 +552,9 @@ typedef struct rf_group_runtime_collection {
     rf_group_runtime_entry *items;uint32_t count,allocated_bytes;
 } rf_group_runtime_collection;
 /* Persistent runtime storage in authored order, borrowing stable owned inputs.
- * Translation entries are initialized; rotation entries retain base pose/flags
- * but translation state is invalid (kind ROTATION_PENDING), pending recovery.
- * Empty records remain EMPTY. Callers must check kind before running motion.
+ * Rotation entries reuse motion/timer storage: distance is angle, speed is ramp
+ * elapsed. Historical ROTATION_PENDING enum name retains its numeric identity.
+ * Empty records remain EMPTY. Callers must choose the matching tick by kind.
  * Source outlives result. One allocation, budget includes owner and entries;
  * errors preserve output. Does not allocate handles, bind members or activate. */
 int rf_group_runtime_open(const rf_level_owned_groups *source,int32_t now_ms,

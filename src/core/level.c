@@ -1475,16 +1475,72 @@ int rf_group_commit_positions(uint32_t *flags,rf_group_attached_pose *controller
                 if(handle==UINT32_MAX || index>=slot_count || !slots[index].pose || slots[index].handle!=handle)continue;
                 target=slots[index].pose;if(!pass) {test=*target;target=&test;}
                 status=rf_group_pose_set_position(target,target->pending);if(status)return status;
+                if(bindings->runtime && (bindings->runtime->motion.flags&4)) {
+                    memcpy(target->input_matrix,target->pending_matrix,36);
+                    memcpy(target->output_matrix,target->pending_matrix,36);
+                }
             }
         }
     }
     *flags&=~0x80000008u;return RF_OK;
 }
+int rf_group_rotation_tick(rf_group_translation_runtime *runtime,
+    const rf_level_group_key *key,float dt,int32_t now,uint32_t *sounds)
+{
+    rf_group_translation_runtime r;float duration,target,scale=1;uint32_t out=0;int status;
+    if(!runtime || !key || !sounds)return RF_RANGE;
+    if(!isfinite(dt) || dt<=0 || !group_finite(key->timing,5) || !isfinite(key->rotation) ||
+       key->timing[3]<0 || key->timing[4]<0)return RF_FORMAT;
+    r=*runtime;
+    if(!(r.motion.flags&4))return RF_RANGE;
+    if(r.motion.next_key==-1 || (r.deadline>=0 && now<r.deadline)){*sounds=0;return RF_OK;}
+    duration=key->timing[(r.motion.flags&0x2000)?1:2];
+    target=-key->rotation*0.017453292519943295f;
+    if(duration<0 || !isfinite(target))return RF_FORMAT;
+    r.motion.flags|=0x4008;r.object_flags|=0x4000000;
+    r.motion.phase+=dt;
+    status=rf_group_rotation_ramp(&r.motion,&r.speed,key->timing[3],key->timing[4],dt,&scale);if(status)return status;
+    if(duration>0 && (r.motion.phase<duration || r.motion.mode==5)) {
+        float step=scale*target*(dt/duration);
+        r.distance+=(r.motion.flags&0x2000)?step:-step;
+        if(r.motion.mode==5){r.distance=fmodf(r.distance,6.28318530718f);r.motion.phase=fmodf(r.motion.phase,duration);}
+    } else {
+        uint32_t forward=r.motion.flags&0x2000;
+        r.distance=forward?target:0;r.motion.current_key=0;
+        r.motion.phase=0;r.speed=0;out=RF_GROUP_SOUND_END;
+        r.motion.flags^=0x2000;
+        if(r.motion.terminal_key==0) {r.motion.next_key=-1;r.motion.terminal_key=-1;}
+        else switch(r.motion.mode) {
+        case 2:r.motion.flags&=~0x2000u; /* first leg always ends at the open pose */
+        case 4:r.motion.next_key=0;r.motion.terminal_key=0;break;
+        case 3:r.motion.next_key=0;r.motion.flags&=~0x2000u;break;
+        case 5:r.motion.next_key=0;break;
+        default:r.motion.next_key=-1;break;
+        }
+        r.deadline=-1;
+        if(r.motion.next_key!=-1) {
+            out|=RF_GROUP_SOUND_START;
+            if(forward && key->timing[0]>0) {
+                double delay=(double)key->timing[0]*1000;
+                if(delay>RF_TIMER_PERIOD)return RF_RANGE;
+                status=rf_timer_set(&r.deadline,now,(int32_t)delay);if(status)return status;
+            }
+        }
+    }
+    if(!isfinite(r.distance) || !isfinite(r.motion.phase))return RF_FORMAT;
+    *runtime=r;*sounds=out;return RF_OK;
+}
+static void group_rotate_vector(const float axis[3],float angle,const float in[3],float out[3])
+{
+    float c=cosf(angle),s=sinf(angle),dot=axis[0]*in[0]+axis[1]*in[1]+axis[2]*in[2];
+    uint32_t i;for(i=0;i<3;i++)out[i]=in[i]*c+axis[i]*dot*(1-c)+
+        (axis[(i+1)%3]*in[(i+2)%3]-axis[(i+2)%3]*in[(i+1)%3])*s;
+}
 int rf_group_translation_bind_pose(rf_group_attached_pose *pose,uint32_t handle,
     const rf_group_controller_view *controllers,uint32_t count,float dt,uint32_t force)
 {
     const rf_group_controller_view *selected[4];rf_group_translation_contribution values[4];
-    uint32_t i,j,list,n=0,dirty=0;
+    uint32_t i,j,list,n=0,dirty=0,rotating=0;
     if(!pose || handle==UINT32_MAX || (handle&0xffffu)>=1024 || (count && !controllers))return RF_RANGE;
     for(i=0;i<count;i++) {
         const rf_group_controller_view *c=controllers+i;
@@ -1502,9 +1558,38 @@ int rf_group_translation_bind_pose(rf_group_attached_pose *pose,uint32_t handle,
     if(!n || (!force && !dirty))return RF_OK;
     for(i=0;i<n;i++) {
         const rf_group_controller_view *c=selected[i];if(!c->first_key)return RF_RANGE;
+        rotating|=c->runtime->motion.flags&4;
         memcpy(values[i].first_key,c->first_key->position,12);memcpy(values[i].pending,c->runtime->pending,12);values[i].flags=c->runtime->motion.flags;
     }
-    return rf_group_translation_propagate(pose,values,n,dt,force);
+    if(!rotating)return rf_group_translation_propagate(pose,values,n,dt,force);
+    {
+        rf_group_attached_pose next=*pose;float position[3],matrix[9];
+        if(!isfinite(dt) || dt<=0 || !group_finite(pose->base_position,12) ||
+           !isfinite(pose->radius) || pose->radius<0)return RF_FORMAT;
+        memcpy(position,pose->base_position,12);memcpy(matrix,pose->base_matrix,36);
+        for(i=0;i<n;i++) {
+            const rf_group_controller_view *c=selected[i];
+            if(c->runtime->motion.flags&4) {
+                float axis[3],v[3],out[3],length=0,angle=c->runtime->distance;
+                if(c->rotation_sign<0)angle=-angle;
+                for(j=0;j<3;j++){axis[j]=c->first_key->orientation[1][j];length+=axis[j]*axis[j];}
+                if(!isfinite(length) || length<1e-12f || !isfinite(angle))return RF_FORMAT;
+                length=sqrtf(length);for(j=0;j<3;j++){axis[j]/=length;v[j]=position[j]-c->first_key->position[j];}
+                group_rotate_vector(axis,angle,v,out);for(j=0;j<3;j++)position[j]=out[j]+c->first_key->position[j];
+                for(j=0;j<3;j++){group_rotate_vector(axis,angle,matrix+j*3,out);memcpy(matrix+j*3,out,12);}
+            } else for(j=0;j<3;j++)position[j]+=c->runtime->pending[j]-c->first_key->position[j];
+        }
+        memcpy(next.pending,position,12);memcpy(next.pending_matrix,matrix,36);memcpy(next.output_matrix,matrix,36);
+        if(force){memcpy(next.position,position,12);memcpy(next.public_position,position,12);memcpy(next.input_matrix,matrix,36);}
+        for(j=0;j<3;j++) {
+            next.velocity[j]=force?0:(position[j]-next.position[j])/dt;
+            next.minimum[j]=fminf(position[j],next.position[j])-next.radius;
+            next.maximum[j]=fmaxf(position[j],next.position[j])+next.radius;
+        }
+        next.flags|=0x4000000;
+        if(!group_finite(next.pending,6) || !group_finite(next.minimum,6) || !group_finite(matrix,9))return RF_FORMAT;
+        *pose=next;return RF_OK;
+    }
 }
 int rf_group_attach_movers(rf_group_object *objects,uint32_t object_count,
     uint32_t controller_handle,uint32_t controller_flags,uint32_t global_mode,
@@ -1550,7 +1635,15 @@ int rf_group_runtime_open(const rf_level_owned_groups *source,int32_t now_ms,
         if(!g->keys) {status=RF_RANGE;goto failed;}
         status=rf_level_group_initial_flags(&g->record,g->keys,&entry->initial_flags);if(status)goto failed;
         status=rf_group_controller_pose(g->keys,&entry->pose);if(status)goto failed;
-        if(entry->initial_flags&4) {entry->kind=RF_GROUP_RUNTIME_ROTATION_PENDING;continue;}
+        if(entry->initial_flags&4) {
+            rf_group_translation_runtime *r=&entry->translation;
+            entry->kind=RF_GROUP_RUNTIME_ROTATION_PENDING;
+            r->motion.flags=entry->initial_flags;r->motion.mode=g->record.mode>5?1:g->record.mode;
+            r->motion.current_key=0;r->motion.next_key=-1;r->motion.terminal_key=-1;
+            r->deadline=-1;r->object_flags=entry->pose.flags;
+            memcpy(r->position,entry->pose.position,12);memcpy(r->pending,r->position,12);
+            continue;
+        }
         if(g->record.unknown>=g->record.key_count) {status=RF_RANGE;goto failed;}
         status=rf_group_translation_initialize(&entry->translation,&entry->pose,entry->initial_flags,
             g->record.mode>5?1:g->record.mode,g->keys+g->record.unknown,g->record.unknown,g->record.key_count,now_ms);

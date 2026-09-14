@@ -291,3 +291,6 @@ add_test(NAME world_texture_budget COMMAND rf_world_texture_budget_tests "${CMAK
 add_executable(rf_script_motion_catalog_tests tests/script_motion_catalog_tests.c)
 target_link_libraries(rf_script_motion_catalog_tests PRIVATE rf_core)
 add_test(NAME script_motion_catalog COMMAND rf_script_motion_catalog_tests "${CMAKE_SOURCE_DIR}/Installed_Game")
+add_executable(rf_rotation_gameplay_tests tests/rotation_gameplay_tests.c)
+target_link_libraries(rf_rotation_gameplay_tests PRIVATE rf_core)
+add_test(NAME rotation_gameplay COMMAND rf_rotation_gameplay_tests)
