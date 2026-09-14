@@ -270,3 +270,7 @@ add_test(NAME mission_goal_dispatch COMMAND rf_mission_goal_tests "${CMAKE_SOURC
 add_executable(rf_campaign_pickup_tests tests/campaign_pickup_tests.c)
 target_link_libraries(rf_campaign_pickup_tests PRIVATE rf_core)
 add_test(NAME campaign_pickup_persistence COMMAND rf_campaign_pickup_tests "${CMAKE_SOURCE_DIR}/Installed_Game")
+
+add_executable(rf_waypoint_tests tests/waypoint_tests.c)
+target_link_libraries(rf_waypoint_tests PRIVATE rf_core)
+add_test(NAME authored_waypoint_paths COMMAND rf_waypoint_tests "${CMAKE_SOURCE_DIR}/Installed_Game")

@@ -44,6 +44,16 @@ const rf_level_section *rf_level_find(const rf_level *level, uint32_t type);
 int rf_level_read(const rf_level *level, const rf_level_section *section,
                   uint32_t offset, void *data, uint32_t size);
 
+/* Installed v180 section10000: borrowed packed node indices. Full payload
+ * validation precedes publication; NULL name validates without selecting.
+ * UINT32_MAX placeholders validate but cannot resolve to a playable path.
+ * Empty names return NOT_FOUND. Output is preserved on failure; caller retains
+ * data for the path lifetime. */
+typedef struct rf_level_waypoint_path {const unsigned char *indices;uint32_t count;} rf_level_waypoint_path;
+int rf_level_waypoint_find(const void *data,uint32_t bytes,uint32_t navigation_count,
+    const char *name,rf_level_waypoint_path *result);
+uint32_t rf_level_waypoint_node(const rf_level_waypoint_path *path,uint32_t index);
+
 typedef struct rf_level_navigation_node {
     rf_entity_navigation_candidate candidate;
     uint32_t uid,oriented;float orientation[3][3];

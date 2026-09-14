@@ -14,7 +14,7 @@ GitHub image policy: retain the current four images; upload no additional
 screenshots until near-retail-quality replacements are available.
 
 Shortlist:
-- ACTIVE: Implement authored Follow_Waypoints movement to unblock the opening confrontation and natural Riot Stick handoff.
+- ACTIVE: Extend the walking route through the opening confrontation and Riot Stick handoff now that Follow_Waypoints moves the miner.
 - DEFERRED / TO COMPLETE: Improve Xbox performance beyond the current basic-testing baseline; revisit NPC pose evaluation.
 - TO COMPLETE: Preserve remaining world changes across sections, including actor placement/inventory and dropped items.
 - ACTIVE: Verify enemy firing visually, add muzzle/impact effects, and extend natural-trigger encounter coverage.
@@ -34,6 +34,18 @@ Shortlist:
 - USER: Review the interactive PC movement and audio items listed below.
 
 Progress reporting: include a very high-level working area (e.g. Lighting, AI, Weapons, GeoMod or Scripted events) and an overall percent estimate at the end of every turn report (USER preference) and revisit remaining 24-hour workdays when measured throughput supports a forecast; current rough estimate45% (35-45%), no defensible +/-48-hour completion forecast before end-to-end gameplay.
+
+Follow_Waypoints now dispatches shared NPC movement through named authored
+navigation nodes. The walking fixture activates9646 by contacting trigger9029,
+and miner8322 reaches both destinations without blocked steps. All38 PC tests
+pass, including68 installed campaign path sections, malformed/sentinel handling
+and delayed waypoint on/off dispatch. Missing paths preserve current movement.
+Loop/Ping Pong endpoint behavior is implemented but needs authored replay
+coverage. Natural confrontation/item delivery remains open: the current route
+does not cross player trigger9028 to enable NPC trigger9027. Evidence and
+reproduction:docs/OPENING-MISSION-CHAIN.md and tools/replay_waypoints.py.
+Stock64MiB XEMU replay-20260914-132101 passes2400 frames with exact PC
+movement, position and route counters; NXDK build/restoration succeeds.
 
 Strip_Player_Weapons now clears shared weapon ownership/ammunition, cancels
 reload/fire state and enters an unarmed presentation. Startup strips use the

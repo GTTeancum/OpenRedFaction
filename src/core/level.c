@@ -80,6 +80,40 @@ static uint32_t le32(const unsigned char *p)
 {
     return (uint32_t)p[0] | (uint32_t)p[1] << 8 | (uint32_t)p[2] << 16 | (uint32_t)p[3] << 24;
 }
+uint32_t rf_level_waypoint_node(const rf_level_waypoint_path *path,uint32_t index)
+{
+    if(!path || !path->indices || index>=path->count)return UINT32_MAX;
+    return le32(path->indices+4*index);
+}
+int rf_level_waypoint_find(const void *data,uint32_t bytes,uint32_t navigation_count,
+    const char *name,rf_level_waypoint_path *result)
+{
+    const unsigned char *p=data;uint32_t cursor=4,n,i,j,found=0;
+    rf_level_waypoint_path selected={0};size_t wanted=name?strlen(name):0;
+    if(!data || (name && !result))return RF_RANGE;
+    if(bytes<4)return RF_FORMAT;n=le32(p);
+    if(n>(bytes-4)/6)return RF_FORMAT;
+    for(i=0;i<n;i++) {
+        uint32_t length,count;const unsigned char *text;
+        if(bytes-cursor<2)return RF_FORMAT;
+        length=p[cursor]|((uint32_t)p[cursor+1]<<8);cursor+=2;
+        if(length>bytes-cursor)return RF_FORMAT;text=p+cursor;cursor+=length;
+        if(memchr(text,0,length) || bytes-cursor<4)return RF_FORMAT;
+        count=le32(p+cursor);cursor+=4;
+        if(count>(bytes-cursor)/4)return RF_FORMAT;
+        for(j=0;j<count;j++){uint32_t node=le32(p+cursor+4*j);if(node!=UINT32_MAX && node>=navigation_count)return RF_FORMAT;}
+        if(name && wanted && wanted==length && !memcmp(name,text,length)) {
+            if(found)return RF_FORMAT;found=1;selected.indices=p+cursor;selected.count=count;
+        }
+        cursor+=4*count;
+    }
+    if(cursor!=bytes)return RF_FORMAT;
+    if(!name)return RF_OK;
+    if(!found)return RF_NOT_FOUND;
+    for(j=0;j<selected.count;j++)if(rf_level_waypoint_node(&selected,j)==UINT32_MAX)return RF_NOT_FOUND;
+    *result=selected;return RF_OK;
+}
+
 
 static int entity_read(rf_level_entity_reader *r,void *data,uint32_t bytes)
 {

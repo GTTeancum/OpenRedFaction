@@ -124,6 +124,13 @@ static int goto_dispatch_check(const char *path)
     CHECK(rf_runtime_events_tick(&events,&triggers,&gravity,1200,0,0,&report,&pending)==RF_OK && !pending && attack_calls==1 && attack_on);
     event->state.deadline=1300;event->state.mode=0;
     CHECK(rf_runtime_events_tick(&events,&triggers,&gravity,1300,0,0,&report,&pending)==RF_OK && attack_calls==2 && !attack_on);
+    /* Follow_Waypoints shares the movement callback, including delayed off. */
+    event->state.type=28;event->state.deadline=1400;event->state.mode=1;
+    CHECK(rf_runtime_events_tick(&events,&triggers,&gravity,1399,0,0,&report,&pending)==RF_OK && move_calls==2);
+    CHECK(rf_runtime_events_tick(&events,&triggers,&gravity,1400,0,0,&report,&pending)==RF_OK && move_calls==3 && move_on && !pending);
+    event->state.deadline=1500;event->state.mode=0;
+    CHECK(rf_runtime_events_tick(&events,&triggers,&gravity,1500,0,0,&report,&pending)==RF_OK && move_calls==4 && !move_on && !pending);
+
     rf_runtime_events_close(&events);rf_vpp_close(&archive);return 0;
 }
 static uint32_t visible_calls,visible_value,visible_handle;

@@ -625,7 +625,7 @@ static void startup_event_action(void *context,rf_event_state *state,uint32_t ac
         if(status==RF_NOT_FOUND)++c->report->other_targets;else if(status)c->status=status;
         return;
     }
-    if(state->type==5 || state->type==6) {
+    if(state->type==5 || state->type==6 || state->type==28) {
         if(!c->triggers->move_npc){++c->report->unsupported_actions;return;}
         for(i=0;i<c->event->authored->record.link_count;i++) {
             const rf_level_link_target *link=c->event->links+i;int status;
@@ -956,7 +956,7 @@ int rf_runtime_events_tick(rf_runtime_events *events,rf_runtime_triggers *trigge
         if(event->state.type!=2 && event->state.type!=3 && event->state.type!=44 && event->state.type!=48 &&
            !(event->state.type==39 && particles && particles->state) &&
            !(event->state.type==51 && forces) &&
-           !((event->state.type==5 || event->state.type==6) && triggers->move_npc) &&
+           !((event->state.type==5 || event->state.type==6 || event->state.type==28) && triggers->move_npc) &&
            !(event->state.type==22 && triggers->load_level) &&
            !(event->state.type>=35 && event->state.type<=37 && triggers->goals) &&
            !((event->state.type==13 || event->state.type==14) && triggers->adjust_vitals) &&

@@ -620,6 +620,7 @@ uint32_t rf_scene_actor_turn_enabled,rf_scene_actor_look_enabled,rf_scene_actor_
 static rf_look_pose actor_look;
 static rf_level_owned_regions campaign_regions;
 static rf_level_owned_navigation campaign_navigation;
+static unsigned char *campaign_waypoints;static uint32_t campaign_waypoint_bytes;
 static rf_level_navigation_workspace campaign_navigation_workspace;
 uint32_t rf_scene_navigation_workspace[4]; /* globals, bytes, edges, layout hash */
 uint32_t rf_scene_navigation[6]; /* nodes, edges, tags, oriented, bytes, content hash */
@@ -3135,6 +3136,14 @@ static int campaign_navigation_open(const rf_level *level)
     status=rf_level_owned_navigation_open(level,65536,&campaign_navigation);
     if(status==RF_NOT_FOUND)return RF_OK;
     if(status)return status;
+    {const rf_level_section *section=rf_level_find(level,0x10000);
+     if(section) {
+        if(section->size>65536)return RF_RANGE;
+        campaign_waypoints=malloc(section->size?section->size:1);if(!campaign_waypoints)return RF_IO;
+        campaign_waypoint_bytes=section->size;
+        status=rf_level_read(level,section,0,campaign_waypoints,section->size);if(status)return status;
+        status=rf_level_waypoint_find(campaign_waypoints,section->size,campaign_navigation.count,NULL,NULL);if(status)return status;
+     }}
     rf_scene_navigation[0]=campaign_navigation.count;
     rf_scene_navigation[4]=campaign_navigation.allocated_bytes;
     for(i=0;i<campaign_navigation.count;++i) {
@@ -3228,7 +3237,8 @@ typedef struct campaign_npc_body {
     rf_weapon_inventory inventory;rf_entity_motion_selection selection;
     rf_weapon_reset_state firing;
     uint32_t persistence_slot,persistence_registered,controller_handle;
-    struct {uint32_t active,event,follow,route_index,retry,stop;float target[3],fall_speed;} script_move;
+    struct {uint32_t active,event,follow,route_index,retry,stop;float target[3],fall_speed;
+        rf_level_waypoint_path path;uint32_t path_index,path_mode,path_reverse;} script_move;
     uint32_t combat_alert,combat_due; /* First-pass retaliation, simulation-frame clock. */
     uint32_t combat_scripted,combat_target,combat_navigation_due; /* Explicit Attack target; normal awareness targets player. */
     campaign_npc_route navigation;
@@ -3546,7 +3556,16 @@ static void campaign_pursuit_target(campaign_npc_body *owner,const float target[
 uint32_t rf_scene_script_movement[8]; /* requests, steps, arrivals, blocked, active, last actor UID, last event UID, status */
 static int campaign_script_move(void *context,uint32_t handle,const rf_level_event *event,uint32_t on)
 {
-    uint32_t i,j;(void)context;
+    uint32_t i,j,mode=0;rf_level_waypoint_path path={0};int status;(void)context;
+    if(on && !strcmp(event->type,"Follow_Waypoints")) {
+        if(!campaign_waypoints)return RF_NOT_FOUND;
+        if(!strcmp(event->texts[1],"Loop"))mode=1;
+        else if(!strcmp(event->texts[1],"Ping Pong"))mode=2;
+        else if(strcmp(event->texts[1],"One way"))return RF_NOT_FOUND;
+        status=rf_level_waypoint_find(campaign_waypoints,campaign_waypoint_bytes,
+            campaign_navigation.count,event->texts[0],&path);if(status)return status;
+        if(!path.count)return RF_NOT_FOUND;
+    }
     for(i=0;i<campaign_npc_body_count;i++) {
         campaign_npc_body *owner=campaign_npc_bodies+i;
         if(!owner->registration.view || owner->registration.handle!=handle)continue;
@@ -3556,7 +3575,10 @@ static int campaign_script_move(void *context,uint32_t handle,const rf_level_eve
         owner->script_move.stop=0;owner->script_move.active=on;owner->script_move.event=event->uid;
         owner->navigation.retained.count=0;owner->script_move.route_index=1;owner->script_move.retry=0;
         owner->script_move.follow=!strcmp(event->type,"Goto_Player");
-        memcpy(owner->script_move.target,event->position,12);
+        owner->script_move.path=path;owner->script_move.path_index=0;
+        owner->script_move.path_mode=mode;owner->script_move.path_reverse=0;
+        memcpy(owner->script_move.target,path.count?
+            campaign_navigation.nodes[rf_level_waypoint_node(&path,0)].candidate.position:event->position,12);
         ++rf_scene_script_movement[0];rf_scene_script_movement[5]=campaign_seeds.records.items[i].record.uid;
         rf_scene_script_movement[6]=event->uid;return on?RF_OK:campaign_script_locomotion(i,0);
     }
@@ -9173,6 +9195,23 @@ static int campaign_script_step(scene_stream *stream,float elapsed)
         rf_scene_script_routes[5]=o->script_move.route_index;
         delta[0]=target[0]-o->body.state.position[0];delta[1]=0;
         delta[2]=target[2]-o->body.state.position[2];distance=sqrtf(delta[0]*delta[0]+delta[2]*delta[2]);
+        if(distance<.25f && o->script_move.path.count && !o->script_move.follow) {
+            uint32_t next=o->script_move.path_index;
+            if(o->script_move.path_reverse) {if(next)--next;else {o->script_move.path_reverse=0;next=1;}}
+            else ++next;
+            if(next>=o->script_move.path.count) {
+                if(o->script_move.path_mode==1)next=0;
+                else if(o->script_move.path_mode==2 && o->script_move.path.count>1) {
+                    o->script_move.path_reverse=1;next=o->script_move.path.count-2;
+                }
+            }
+            if(next<o->script_move.path.count) {
+                o->script_move.path_index=next;o->navigation.retained.count=0;o->script_move.retry=0;
+                memcpy(o->script_move.target,campaign_navigation.nodes[
+                    rf_level_waypoint_node(&o->script_move.path,next)].candidate.position,12);
+                ++rf_scene_script_movement[2];continue;
+            }
+        }
         if(distance<.25f){if(!o->script_move.follow)o->script_move.active=0;++rf_scene_script_movement[2];
             status=campaign_script_locomotion(i,0);if(status)return status;continue;}
         step=fminf(1.5f*elapsed,distance);proposal=o->body.state;
@@ -10868,6 +10907,7 @@ done:
     memset(&campaign_climb,0,sizeof(campaign_climb));rf_level_owned_regions_close(&campaign_regions);
     rf_level_navigation_workspace_close(&campaign_navigation_workspace);
     rf_level_owned_navigation_close(&campaign_navigation);
+    free(campaign_waypoints);campaign_waypoints=NULL;campaign_waypoint_bytes=0;
     free(stream.surface_indices);free(states);if(motions_opened)rf_vpp_close(&motions);
     free(vertices);free(items);rf_preview_close(&actor);rf_model_materials_close(&bundle);
     rf_vpp_close(&archive);return status;
