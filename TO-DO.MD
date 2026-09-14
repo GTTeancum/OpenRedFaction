@@ -28,12 +28,16 @@ body, pose, health/armor and ammunition, clearing reactive enemy alerts.
 World/NPC/mission state persists: full level restart/checkpoints remain open.
 A1132-byte retained snapshot avoids respawn allocations. PC tests cover death,
 held-Use rejection, health/ammo restoration and resumed firing; movement input
-is accepted, but horizontal displacement is not demonstrated on this staged
-route. Both builds and26 CTests pass. Stock64MiB XEMU1500-frame lifecycle
+was initially accepted without travel: the snapshot preceded speed/pose
+initialization. Capture now follows initialization; the strengthened PC test
+requires real displacement and measures about5.2 horizontal units after respawn. Both builds and26 CTests pass. Stock64MiB XEMU1500-frame lifecycle
 PASS: one death, one respawn, resumed firing and matching PC state/HUD.
 Evidence artifacts/xemu/replay-20260914-003751/report.json;7115 available
 pages at completion (not a peak memory measurement).
 Evidence artifacts/player-life/report.json; docs/DEATH-LIFECYCLE.md.
+Corrected snapshot native replay PASS: artifacts/xemu/replay-20260914-004948/
+report.json,1500 frames with PC-matching body/lifecycle/combat and15 HUD pixels;
+7115 available pages at completion. Prior no-travel limitation is resolved.
 
 First-pass armed retaliation now uses8 retained bytes per NPC (624 for78):
 a damaging hit alerts an armed visible actor; after30 frames it attacks every

@@ -5,7 +5,7 @@ from PIL import Image
 root=Path(__file__).resolve().parents[1];folder=root/'artifacts/player-life';folder.mkdir(exist_ok=True);rows=[]
 for name,frames in [('dead',1350),('held',1350),('respawn',1301),('resume',1500)]:
  def command(i):
-  move=1 if (name=='dead' and i>1220) or (name=='resume' and i>1340) else 0
+  move=1 if name=='dead' and i>1220 else (-1 if name=='resume' and i>1340 else 0)
   use=int(i>=1190) if name=='held' else int(name in ('respawn','resume') and i==1300)
   fire=int(i==30 or (name=='resume' and i==1320))
   return struct.pack('<5f5I',move,0,0,0,0,0,0,use,fire,0)
@@ -25,6 +25,9 @@ for name,frames in [('dead',1350),('held',1350),('respawn',1301),('resume',1500)
  if name=='respawn':assert health==100 and combat[5:7]==[12,0]
  if name=='resume':
   assert combat[0]==2
-  ring=row('ACTOR_PLAYER_INPUT');assert all(ring[i]==1065353216 for i in range(1,len(ring),7))
+  ring=row('ACTOR_PLAYER_INPUT');assert all(ring[i]==3212836864 for i in range(1,len(ring),7))
+ position=struct.unpack('<3f',struct.pack('<3I',*body[22:25]))
+ if name=='respawn':start_position=position
+ if name=='resume':assert sum((position[i]-start_position[i])**2 for i in (0,2))>1
  rows.append(dict(case=name,frames=frames,life=life,health=health,combat=combat,position=struct.unpack('<3f',struct.pack('<3I',*body[22:25]))));print(rows[-1],flush=True)
-(folder/'report.json').write_text(json.dumps(dict(result='PASS',cases=rows,scope='Default100-health death from armed retaliation; blocked controls, fresh-use respawn, restored health/ammo and resumed firing and accepted movement input (horizontal displacement not demonstrated on this staged route). In-place starting-player restore; world/NPC/mission state persists. Not a full level reload/checkpoint.'),indent=2))
+(folder/'report.json').write_text(json.dumps(dict(result='PASS',cases=rows,scope='Default100-health death from armed retaliation; blocked controls, fresh-use respawn, restored health/ammo and resumed firing and more than one unit of horizontal travel. In-place starting-player restore; world/NPC/mission state persists. Not a full level reload/checkpoint.'),indent=2))

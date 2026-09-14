@@ -11104,8 +11104,10 @@ position and repeat recovery across arbitrary campaign encounters remain open.
 
 `python tools/replay_player_life.py` covers fatal retaliation, input blocking,
 held-Use rejection, restored health/ammo and firing after respawn. Movement
-input is accepted again; this staged route does not demonstrate horizontal
-displacement after respawn. Evidence: artifacts/player-life/report.json.
+was initially accepted without travel because camera preparation captured
+the snapshot before scene-frame speed/pose initialization. Capture now follows
+that initialization. The stronger test failed before the fix and now measures
+about5.2 horizontal units after respawn (minimum required:1 unit). Evidence: artifacts/player-life/report.json.
 
 Stock64MiB XEMU1500-frame replay PASS: one death, one respawn at frame1300,
 two player shots and renewed enemy retaliation. Player lifecycle and combat
@@ -11113,3 +11115,8 @@ state match PC, as do15 sampled final HUD pixels.7115 available pages at
 completion. Evidence: artifacts/xemu/replay-20260914-003751/report.json.
 The final capture is after respawn; the death prompt was visually inspected
 on PC, not in a native Xbox death-frame capture. Both builds and26 CTests pass.
+
+The initialized-snapshot fix also passes stock64MiB XEMU1500-frame replay:
+artifacts/xemu/replay-20260914-004948/report.json. Body state matches PC after
+about5.2 horizontal units of post-respawn travel, with matching lifecycle,
+combat and15 HUD samples;7115 available pages at completion. No added storage.
