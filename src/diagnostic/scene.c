@@ -6944,6 +6944,19 @@ static struct {
     rf_physics_sphere spheres[8];uint32_t count,stance,landing[8],support;
     float support_velocity[3];
 } life_start;
+static int campaign_set_friendliness(void *context,uint32_t handle,uint32_t value)
+{
+    uint32_t i;const rf_entity_view *view=rf_entity_lookup(&campaign_entities,(int32_t)handle);(void)context;
+    if(!view)return RF_NOT_FOUND;
+    if(view==&campaign_player_view){campaign_player_damage.state.effects.affiliation=value;return RF_OK;}
+    for(i=0;i<campaign_npc_body_count;i++)if(campaign_npc_bodies[i].registration.view==view) {
+        campaign_npc_body *owner=campaign_npc_bodies+i;
+        owner->damage.effects.affiliation=value;
+        /* Practical AI handoff: scripted allegiance invalidates the old combat target. */
+        owner->combat_alert=owner->combat_due=0;return RF_OK;
+    }
+    return RF_NOT_FOUND;
+}
 static int campaign_life_capture(void)
 {
     if(scene_actor_body.spheres.count>8)return RF_RANGE;
@@ -9164,6 +9177,7 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
             rf_scene_campaign_events[2]=sizeof(campaign_registry);
             status=rf_runtime_triggers_open(level,&campaign_registry,1024*1024,0,&campaign_triggers);
             if(status)goto done;
+            campaign_triggers.set_friendliness=campaign_set_friendliness;
             rf_scene_campaign_triggers[0]=campaign_triggers.count;
             rf_scene_campaign_triggers[1]=campaign_triggers.allocated_bytes;
             status=rf_level_owned_groups_open(level,1024*1024,&campaign_groups);

@@ -13,7 +13,7 @@ original AI. The affiliation values are corroborated by Dash Faction's
 0 unfriendly,1 neutral,2 friendly,3 outcast. No community implementation code
 was copied. Original loader field evidence is in entity-loader-fields-verification;
 Set_Friendliness original action evidence is in door-event-actions-verification.
-Runtime scripted allegiance changes remain to be connected to this awareness owner.
+Runtime Set_Friendliness now updates this awareness owner as described below.
 
 The existing two words per NPC retain alert/timing; global awareness counters
 add32 bytes. There is no per-frame allocation for perception. No patrol, pursuit,
@@ -35,3 +35,20 @@ Stock64MiB XEMU240-frame PASS: awareness and combat state match PC, with
 2 acquired guards,8 hits,health61.6 and matching final HUD samples.7115
 available pages at completion (not peak memory):
 artifacts/xemu/replay-20260914-010332/report.json. Both builds and26 CTests pass.
+
+## Scripted allegiance
+
+Set_Friendliness (type30, original action4bc280, off no-op4b9f80) now
+dispatches resolved registered links through the scene service, including
+delayed event ticks. The value comes from authored words[0]. NPC and player
+damage affiliations are updated; the practical NPC combat alert and due time
+are cleared so the new affiliation takes effect on subsequent awareness ticks.
+Non-entity objects remain unsupported by the scene service. This does not
+claim the original object+560 targeting side effects or all original AI state.
+
+The npc_motion_residency test exercises the actual scene callback through
+registered runtime events: absent backend, stale generation, duplicate links,
+immediate friendly change clearing an active alert, and delayed hostile change.
+Both PC/NXDK builds and26 CTests pass. Eight bytes of borrowed callback/context
+are added to the32-bit trigger owner; no event-time allocation. End-to-end
+authored mission sequences in XEMU remain to be verified.

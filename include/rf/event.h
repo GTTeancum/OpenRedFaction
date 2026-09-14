@@ -278,6 +278,9 @@ typedef struct rf_runtime_triggers {
     uint32_t count,allocated_bytes;
     const rf_runtime_switch_backend *switch_backend;
     const rf_runtime_damage_backend *damage_backend;
+    /* Borrowed Set_Friendliness service; RF_NOT_FOUND skips unsupported objects. */
+    int (*set_friendliness)(void *context,uint32_t handle,uint32_t value);
+    void *friendliness_context;
 } rf_runtime_triggers;
 /* Same ownership/budget/registry contract as rf_runtime_events_open. Retains
  * raw ordered UID links plus initially unresolved runtime targets. */

@@ -899,8 +899,40 @@ static int corpse_authored_check(char **argv)
     rf_entity_skeletons_close(&campaign_skeletons);rf_entity_seeds_close(&campaign_seeds);
     rf_vpp_close(&motions);rf_vpp_close(&meshes);rf_vpp_close(&tables);rf_vpp_close(&levels);return 0;
 }
+static int friendliness_binding_check(void)
+{
+    campaign_npc_body owner={0};rf_runtime_event event={0};rf_level_owned_event authored={0};
+    rf_runtime_triggers triggers={0};rf_runtime_events events={0};rf_level_link_target links[3];
+    rf_startup_events_report report;rf_physics_gravity gravity={0};uint32_t pending;
+    rf_object_registry_init(&campaign_registry);memset(&campaign_entities,0,sizeof(campaign_entities));
+    campaign_npc_bodies=&owner;campaign_npc_body_count=1;
+    CHECK(rf_entity_view_register(&campaign_registry,&campaign_entities,&owner.view,&owner.registration)==RF_OK);
+    triggers.registry=&campaign_registry;events.registry=&campaign_registry;events.items=&event;events.count=1;
+    event.object_kind=6;event.authored=&authored;event.links=links;event.state.type=30;event.state.deadline=-1;
+    authored.record.link_count=3;authored.record.words[0]=2;
+    links[0]=(rf_level_link_target){owner.registration.handle^0x10000u,1,0};
+    links[1]=(rf_level_link_target){owner.registration.handle,1,0};links[2]=links[1];
+    CHECK(rf_object_registry_insert(&campaign_registry,&event,&event.handle)==RF_OK);
+    owner.combat_alert=1;owner.combat_due=999;
+    CHECK(rf_runtime_event_fire(&triggers,event.handle,0,UINT32_MAX,100,&gravity,NULL,NULL,&report)==RF_OK);
+    CHECK(report.unsupported_actions==1 && owner.combat_alert==1 && owner.damage.effects.affiliation==0);
+    triggers.set_friendliness=campaign_set_friendliness;
+    CHECK(rf_runtime_event_fire(&triggers,event.handle,0,UINT32_MAX,100,&gravity,NULL,NULL,&report)==RF_OK);
+    CHECK(!report.unsupported_actions && owner.damage.effects.affiliation==2 && !owner.combat_alert && !owner.combat_due);
+    CHECK(campaign_set_friendliness(NULL,owner.registration.handle^0x10000u,0)==RF_NOT_FOUND);
+    CHECK(owner.damage.effects.affiliation==2);
+    event.state.delay=.25f;authored.record.words[0]=0;
+    CHECK(rf_runtime_event_fire(&triggers,event.handle,0,UINT32_MAX,1000,&gravity,NULL,NULL,&report)==RF_OK);
+    CHECK(owner.damage.effects.affiliation==2);
+    CHECK(rf_runtime_events_tick(&events,&triggers,&gravity,1250,NULL,NULL,&report,&pending)==RF_OK);
+    CHECK(!pending && owner.damage.effects.affiliation==0);
+    CHECK(rf_object_registry_remove(&campaign_registry,event.handle)==RF_OK);
+    CHECK(rf_entity_view_unregister(&campaign_registry,&campaign_entities,&owner.registration)==RF_OK);
+    campaign_npc_bodies=NULL;campaign_npc_body_count=0;return 0;
+}
 int main(int argc,char **argv)
 {
+    CHECK(friendliness_binding_check()==0);
     if(argc==4 && !strcmp(argv[1],"--model-publication"))return model_publication_check(argv);
     if(argc==7 && !strcmp(argv[1],"--corpse-authored"))return corpse_authored_check(argv);
     rf_vpp archive={0};unsigned char payload[160]={0};

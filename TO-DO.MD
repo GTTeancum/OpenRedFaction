@@ -22,6 +22,14 @@ Shortlist:
 
 Progress reporting: include a very high-level working area (e.g. Lighting, AI, Weapons, GeoMod or Scripted events) and an overall percent estimate at the end of every turn report (USER preference) and revisit remaining 24-hour workdays when measured throughput supports a forecast; current rough estimate42% (35-45%), no defensible +/-48-hour completion forecast before end-to-end gameplay.
 
+Set_Friendliness(type30) now dispatches immediate and delayed mission events
+through resolved live actor links. The scene updates player/NPC affiliation
+and clears NPC combat alerts so scripts can stop an ongoing attack. Missing
+and stale objects are skipped; non-entity support remains open. Shared-scene
+integration tests cover duplicate/stale links, missing backend, delay and
+hostile/friendly transitions. Both builds and26 CTests pass; authored mission
+sequence validation in XEMU remains open. Adds8 bytes to the trigger owner.
+
 First-pass enemy awareness now lets visible armed hostile actors acquire the
 player without being shot, using staggered30-frame range/cone/geometry checks.
 Neutral/friendly actors require provocation. PC240-frame hostile encounter:
@@ -31,7 +39,7 @@ Both builds,26 CTests and PC death/respawn/travel regression pass.
 Stock64MiB XEMU240-frame PASS:2 acquired guards,8 hits,health61.6;
 awareness/combat state and HUD match PC.7115 available pages at completion.
 Evidence artifacts/xemu/replay-20260914-010332/report.json.
-See docs/ENEMY-AI.md; scripted allegiance, pursuit and weapon behavior remain open.
+See docs/ENEMY-AI.md; pursuit and weapon behavior remain open.
 
 First-pass player recovery now blocks controls after fatal damage and shows
 a death/respawn prompt. After60 frames, fresh E/X restores the starting player
