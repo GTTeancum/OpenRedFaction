@@ -1149,9 +1149,37 @@ static int scripted_attack_damage_check(void)
 
     owners[0].combat_target^=0x10000u;
     CHECK(campaign_enemy_tick(&stream,60,eye)==RF_OK && owners[1].damage.effects.health==health && campaign_player_damage.state.effects.health==100);CHECK(!owners[0].script_move.active && owners[0].script_move.stop);
+    {
+        uint32_t saved_clock=combat_frame;combat_frame=61;
+        owners[0].combat_target=owners[1].registration.handle;owners[0].combat_due=61;owners[1].view.weapons[0]=0;
+        CHECK(campaign_enemy_tick(&stream,61,eye)==RF_OK && owners[1].damage.effects.health<health);
+        CHECK(owners[1].combat_alert && owners[1].combat_scripted==2 && owners[1].combat_target==owners[0].registration.handle && owners[1].combat_due==91);
+        combat_frame=saved_clock;
+    }
     for(i=0;i<2;i++)CHECK(rf_entity_view_unregister(&campaign_registry,&campaign_entities,&owners[i].registration)==RF_OK);
     campaign_npc_bodies=NULL;campaign_npc_body_count=0;memset(&campaign_seeds,0,sizeof(campaign_seeds));
     campaign_player_object.handle=0;campaign_player_damage.state.effects.health=saved_health;return 0;
+}
+static int combat_retaliation_check(void)
+{
+    campaign_npc_body owners[2]={0};uint32_t affiliation,saved_frame=combat_frame;
+    campaign_npc_bodies=owners;campaign_npc_body_count=2;combat_frame=10;
+    for(uint32_t i=0;i<2;i++){owners[i].registration.view=&owners[i].view;owners[i].registration.handle=100+i;
+        owners[i].damage.effects.health=100;owners[i].damage.effects.affiliation=i;owners[i].view.weapons[0]=0;}
+    CHECK(combat_source(NULL,101,&affiliation) && affiliation==1);
+    combat_notify(NULL,RF_DAMAGE_AI_REACTION,100,10,101);
+    CHECK(owners[0].combat_alert && owners[0].combat_scripted==2 && owners[0].combat_target==101 && owners[0].combat_due==40);
+    combat_frame=20;combat_notify(NULL,RF_DAMAGE_AI_REACTION,100,10,101);CHECK(owners[0].combat_due==40);
+    owners[0].combat_scripted=1;owners[0].combat_target=555;
+    combat_notify(NULL,RF_DAMAGE_AI_REACTION,100,10,101);CHECK(owners[0].combat_target==555);
+    owners[0].combat_alert=owners[0].combat_scripted=0;
+    combat_notify(NULL,RF_DAMAGE_AI_REACTION,100,10,100);CHECK(!owners[0].combat_alert);
+    combat_notify(NULL,RF_DAMAGE_AI_REACTION,100,10,101^0x10000u);CHECK(!owners[0].combat_alert);
+    combat_notify(NULL,RF_DAMAGE_AI_REACTION,100,0,101);CHECK(!owners[0].combat_alert);
+    owners[0].view.weapons[0]=-1;combat_notify(NULL,RF_DAMAGE_AI_REACTION,100,10,101);CHECK(!owners[0].combat_alert);
+    owners[0].view.weapons[0]=0;owners[0].damage.effects.health=0;
+    combat_notify(NULL,RF_DAMAGE_AI_REACTION,100,10,101);CHECK(!owners[0].combat_alert);
+    campaign_npc_bodies=NULL;campaign_npc_body_count=0;combat_frame=saved_frame;return 0;
 }
 static int scripted_attack_check(void)
 {
@@ -1184,6 +1212,7 @@ int main(int argc,char **argv)
         actor.look.orientation[8]=-1;CHECK(campaign_enemy_aim_aligned(&actor,target));
     }
     CHECK(scripted_attack_damage_check()==0);
+    CHECK(combat_retaliation_check()==0);
     CHECK(scripted_attack_check()==0);
     CHECK(script_locomotion_check()==0);
     CHECK(npc_door_occupancy_check()==0);

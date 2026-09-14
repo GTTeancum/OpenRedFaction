@@ -18,6 +18,7 @@
 
 extern uint32_t rf_scene_script_attack[12];
 extern uint32_t rf_scene_enemy_aim[4];
+extern uint32_t rf_scene_enemy_retaliation[4];
 extern uint32_t rf_scene_enemy_fire[6];
 extern uint32_t rf_scene_script_route_detail[8],rf_scene_script_obstacle[8];
 extern float rf_scene_script_attack_position[9];
@@ -662,6 +663,7 @@ run_scene:
     printf("SCRIPT_OBSTACLE");for(i=0;i<8;++i)printf(" %u",rf_scene_script_obstacle[i]);puts("");
     printf("SCRIPT_ATTACK");for(i=0;i<12;++i)printf(" %u",rf_scene_script_attack[i]);puts("");
     printf("ENEMY_FIRE");for(i=0;i<6;++i)printf(" %u",rf_scene_enemy_fire[i]);puts("");
+    printf("ENEMY_RETALIATION");for(i=0;i<4;++i)printf(" %u",rf_scene_enemy_retaliation[i]);puts("");
     printf("ENEMY_AIM");for(i=0;i<4;++i)printf(" %u",rf_scene_enemy_aim[i]);puts("");
     printf("ENEMY_COMBAT");for(i=0;i<8;++i)printf(" %u",rf_scene_enemy_combat[i]);puts("");
     printf("PICKUP_VITALS");for(i=0;i<4;++i)printf(" %u",rf_scene_pickup_vitals[i]);puts("");

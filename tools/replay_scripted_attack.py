@@ -13,7 +13,7 @@ for frames in (840,1000,3000,4000):
     (out/f'pc-{frames}.log').write_text(run.stdout+run.stderr)
     if run.returncode:raise RuntimeError(f'{frames}: exit {run.returncode}; see log')
     def row(name,kind=int):return list(map(kind,next(x for x in run.stdout.splitlines() if x.startswith(name+' ')).split()[1:]))
-    runs.append(dict(frames=frames,attack=row('SCRIPT_ATTACK'),positions=row('SCRIPT_ATTACK_POSITION',float),movement=row('SCRIPT_MOVE'),routes=row('SCRIPT_ROUTES'),enemy=row('ENEMY_COMBAT'),aim=row('ENEMY_AIM'),fire=row('ENEMY_FIRE'),weapon_audio=row('WEAPON_AUDIO'),death=row('COMBAT_DEATH'),input_sha256=hashlib.sha256(source.read_bytes()).hexdigest()))
+    runs.append(dict(frames=frames,attack=row('SCRIPT_ATTACK'),positions=row('SCRIPT_ATTACK_POSITION',float),movement=row('SCRIPT_MOVE'),routes=row('SCRIPT_ROUTES'),enemy=row('ENEMY_COMBAT'),retaliation=row('ENEMY_RETALIATION'),aim=row('ENEMY_AIM'),fire=row('ENEMY_FIRE'),weapon_audio=row('WEAPON_AUDIO'),death=row('COMBAT_DEATH'),input_sha256=hashlib.sha256(source.read_bytes()).hexdigest()))
 assert runs[0]['attack'][0]==0,'Attack fired before authored delay'
 for run in runs[1:]:
     assert run['attack'][1:3]==[9802,8324] and run['attack'][4]==1
@@ -30,6 +30,8 @@ assert defeated and last['death'][0]>0,'Scripted attack failed to defeat target 
 
 assert last['aim'][0]>0,'No stationary aiming updates observed'
 
-assert last['fire'][1]==last['attack'][5] and last['fire'][1]>0,'Not every shot activated its authored firing clip'
+assert last['fire'][1]==last['enemy'][2] and last['fire'][1]>0,'Not every shot activated its authored firing clip'
 
-assert last['fire'][3]==last['attack'][5] and last['weapon_audio'][2]>=last['attack'][5] and last['weapon_audio'][7]==0,'Firing audio failed'
+assert last['fire'][3]==last['enemy'][2] and last['weapon_audio'][2]>=last['enemy'][2] and last['weapon_audio'][7]==0,'Firing audio failed'
+
+assert last['retaliation'][0]>0 and last['enemy'][2]>last['attack'][5],'Victim did not retaliate and return fire'

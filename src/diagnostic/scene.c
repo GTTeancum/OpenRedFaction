@@ -7467,11 +7467,33 @@ static uint32_t combat_predicate(void *c,uint32_t kind,uint32_t handle)
 static uint32_t combat_uid(void *c,int32_t uid)
 {uint32_t i;(void)c;for(i=0;i<campaign_npc_body_count;i++)if((uint32_t)campaign_seeds.records.items[i].record.uid==(uint32_t)uid)return campaign_npc_bodies[i].registration.handle;return UINT32_MAX;}
 static int combat_source(void *c,uint32_t handle,uint32_t *affiliation)
-{(void)c;*affiliation=0;return handle==campaign_player_object.handle;}
+{
+    uint32_t i;(void)c;
+    if(campaign_player_object.view && handle==campaign_player_object.handle){*affiliation=campaign_player_damage.state.effects.affiliation;return 1;}
+    for(i=0;i<campaign_npc_body_count;i++)if(campaign_npc_bodies[i].registration.view && campaign_npc_bodies[i].registration.handle==handle) {
+        *affiliation=campaign_npc_bodies[i].damage.effects.affiliation;return 1;
+    }
+    *affiliation=0;return 0;
+}
 static uint32_t combat_burn(void *c,uint32_t a,uint32_t d){(void)c;(void)a;(void)d;return 0;}
 static float combat_random(void *c,float low,float high){(void)c;return (low+high)*.5f;}
+uint32_t rf_scene_enemy_retaliation[4]; /* reactions, last victim, last source, preserved authored orders */
 static void combat_notify(void *c,uint32_t k,uint32_t t,float v,uint32_t s)
-{(void)c;(void)k;(void)t;(void)v;(void)s;}
+{
+    uint32_t i,affiliation;campaign_npc_body *owner=NULL;(void)c;
+    if(k!=RF_DAMAGE_AI_REACTION || !(v>0) || t==s || !combat_source(NULL,s,&affiliation))return;
+    for(i=0;i<campaign_npc_body_count;i++)if(campaign_npc_bodies[i].registration.view && campaign_npc_bodies[i].registration.handle==t){owner=campaign_npc_bodies+i;break;}
+    if(!owner || owner->damage.effects.health<=0 || (owner->object_flags&(2|0x4000)) ||
+       (owner->view.flags_810&1) || owner->view.weapons[0]<0)return;
+    /* Authored Attack orders retain priority. Mode2 is reactive targeting. */
+    if(owner->combat_scripted==1){++rf_scene_enemy_retaliation[3];return;}
+    if(owner->combat_alert && ((owner->combat_scripted==2 && owner->combat_target==s) ||
+       (!owner->combat_scripted && s==campaign_player_object.handle)))return;
+    campaign_pursuit_stop(owner);owner->script_move.active=0;
+    owner->combat_scripted=s==campaign_player_object.handle?0:2;owner->combat_target=s;
+    owner->combat_alert=1;owner->combat_navigation_due=0;owner->combat_due=(combat_frame==UINT32_MAX?0:combat_frame)+30;
+    ++rf_scene_enemy_retaliation[0];rf_scene_enemy_retaliation[1]=t;rf_scene_enemy_retaliation[2]=s;
+}
 static uint32_t combat_playing(void *c,uint32_t v){(void)c;(void)v;return 0;}
 static uint32_t combat_play(void *c,uint32_t t){(void)c;(void)t;return UINT32_MAX;}
 /* Nearest segment/AABB entry; the legacy segment predicate returns an endpoint. */

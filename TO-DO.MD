@@ -34,6 +34,21 @@ Shortlist:
 
 Progress reporting: include a very high-level working area (e.g. Lighting, AI, Weapons, GeoMod or Scripted events) and an overall percent estimate at the end of every turn report (USER preference) and revisit remaining 24-hour workdays when measured throughput supports a forecast; current rough estimate45% (35-45%), no defensible +/-48-hour completion forecast before end-to-end gameplay.
 
+NPC retaliation now consumes the gameplay AI-reaction notification. Armed,
+living victims can target the recognized NPC/player source; repeated hits keep
+the current reaction deadline. Explicit authored Attack orders retain priority;
+reactive mode2 shares pursuit/aim/fire. Tests reject stale/self/zero/unarmed/dead
+cases and verify the actual damage-dispatch path starts retaliation. Source
+lookup now supplies retained NPC/player affiliation. This is a practical policy,
+not full407fb0/group AI or faction escalation behavior. Controlled Attack9802
+now produces39 shots (20 attacker plus19 after victim retaliation),39 active
+fire clips,39 sound plays and target death; zero audio errors. Regression compares
+scene-wide effects against total shots and requires retaliation/return fire.
+37 PC tests, NXDK build/restoration and stock64MiB XEMU replay113808 pass;
+XEMU coverage is180-frame L1S2->L1S3 transition/state, not full duel execution.
+Natural-trigger traversal, unarmed/group reactions, visual verification and full
+Xbox combat remain open. Evidence:artifacts/npc-retaliation.
+
 Enemy shots now activate mapped fire_stand action2 through motion residency and
 shared action playback, without touching the death-action owner. Action sound
 labels are used when present; known pistol/rifle shots fall back to the existing
