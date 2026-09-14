@@ -15,6 +15,13 @@ Shortlist:
 
 Progress reporting: include a very high-level working area (e.g. Lighting, AI, Weapons, GeoMod or Scripted events) and an overall percent estimate at the end of every turn report (USER preference) and revisit remaining 24-hour workdays when measured throughput supports a forecast; current rough estimate40% (35-45%), no defensible +/-48-hour completion forecast before end-to-end gameplay.
 
+Combined shadow polygon ray construction/intersection/projection/deduplication
+matches1024 original/PC/NXDK polygons (797 accepted,227 rejected,2595 removed
+duplicates), with4 guards and exact partial scratch on ray rejection. Both
+builds and24 tests pass. Next reconstruct six-plane volume construction and
+projected polygon area/filtering, then bind bounded mask resources and verify
+native rendered updates. Supplied clipped vertices are not live scene binding.
+
 Shadow ray/plane intersection matches4096 unhooked original/PC/NXDK rays:
 1788 hits,1024 parallel,1284 behind-origin and512 explicit beyond-segment
 hits, plus4 guards. Both builds and24 tests pass. Preserve point writes for

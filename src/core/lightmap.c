@@ -406,6 +406,28 @@ int rf_lightmap_project_shadow(const rf_lightmap_sample_plane *view,uint32_t wid
     memcpy(uv,value,sizeof(value));return RF_OK;
 }
 
+/* 4f50c9..4f53bd: projected polygon after six-plane clipping. */
+int rf_lightmap_shadow_polygon(const rf_lightmap_sample_plane *view,uint32_t width,uint32_t height,
+    const float origin[3],const float plane[4],const float (*vertices)[3],uint32_t count,
+    float (*output)[2],uint32_t capacity,uint32_t *out_count)
+{
+    uint32_t i,j,n=0,hit;int status;
+    if(!view || !origin || !plane || !vertices || count<3 || !output || !out_count || capacity<count)return RF_RANGE;
+    for(i=0;i<3;i++)if(!isfinite(origin[i]))return RF_RANGE;
+    for(i=0;i<4;i++)if(!isfinite(plane[i]))return RF_RANGE;
+    for(i=0;i<count;i++)for(j=0;j<3;j++)if(!isfinite(vertices[i][j]))return RF_RANGE;
+    for(i=0;i<count;i++) {
+        float direction[3],point[3],uv[2];
+        for(j=0;j<3;j++)direction[j]=(float)((double)vertices[i][j]-origin[j]);
+        status=rf_lightmap_shadow_ray(origin,direction,plane,point,&hit);if(status)return status;
+        if(!hit) {*out_count=0;return RF_OK;}
+        status=rf_lightmap_project_shadow(view,width,height,point,uv);if(status)return status;
+        if(!n || uv[0]!=output[n-1][0] || uv[1]!=output[n-1][1]) {memcpy(output[n],uv,8);n++;}
+    }
+    if(n && output[0][0]==output[n-1][0] && output[0][1]==output[n-1][1])n--;
+    *out_count=n;return RF_OK;
+}
+
 /* 4f2100 keeps inclusive X/last-row bounds and wraps subtraction in bytes.
  * The caller must supply the explicitly checked guard row and final byte. */
 int rf_lightmap_raster_shadow(const float (*vertices)[2],uint32_t count,unsigned char *mask,

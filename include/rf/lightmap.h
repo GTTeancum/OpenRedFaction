@@ -116,6 +116,14 @@ int rf_lightmap_clip_shadow(const float (*vertices)[3],uint32_t count,const floa
  * Both extents >=2; derived V axis. No allocation; errors preserve output. */
 int rf_lightmap_project_shadow(const rf_lightmap_sample_plane *,uint32_t width,uint32_t height,
     const float point[3],float uv[2]);
+/* Original4f4590 clipped-vertex ray/projection/deduplication loop.
+ * Explicit receiving plane and ray origin; disjoint buffers; capacity>=count.
+ * A missed ray rejects the polygon (out_count=0). Scratch output may retain
+ * completed vertices on rejection/error. Fewer than3 unique points is valid
+ * output for the caller's later polygon rejection. No allocation. */
+int rf_lightmap_shadow_polygon(const rf_lightmap_sample_plane *,uint32_t width,uint32_t height,
+    const float origin[3],const float plane[4],const float (*vertices)[3],uint32_t count,
+    float (*output)[2],uint32_t capacity,uint32_t *out_count);
 /* Original4f2100 projected-polygon scan conversion; byte subtraction wraps.
  * Caller supplies ordered projected polygon and width*(height+1)+1 mask bytes:
  * original inclusive right/bottom writes alias the next row at X==width.
