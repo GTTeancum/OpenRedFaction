@@ -12,6 +12,26 @@ int main(int argc, char **argv)
     rf_geometry geometry;
     uint32_t budget = 8u * 1024u * 1024u;
     int result,flags_mode=argc==4 && !strcmp(argv[3],"--flags"),links_mode=argc==4 && !strcmp(argv[3],"--links"),primary_mode=argc==4 && !strcmp(argv[3],"--primary");
+    if(argc==2 && !strcmp(argv[1],"--shadow-traversal")) {
+        struct {rf_lightmap_shadow_cull cull;unsigned char pass[172],raw[1472];uint32_t formats[8];
+            float receiver[4][2],threshold[2];unsigned char mask[1024];} in;
+        _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
+        while(fread(&in,sizeof(in),1,stdin)==1) {
+            rf_geometry g={0};uint32_t ids[8],offsets[8],i,status;rf_image images[8]={{0}};const rf_image *table[8];
+            float face[4][3],vertices[2][64][3],uv[64][2]={0},intersection[64][2]={0},polygons[2][64][2],distances[64];
+            rf_lightmap_shadow_clip_work clip={{polygons[0],polygons[1]},distances,64};
+            rf_lightmap_uv_polygon receiver={in.receiver,4};
+            rf_lightmap_shadow_filter filter={&receiver,1,{in.threshold[0],in.threshold[1]},&clip,intersection,64};
+            rf_lightmap_shadow_pass pass;rf_lightmap_shadow_pass_work pass_work={{vertices[0],vertices[1]},uv,64};
+            rf_geometry_shadow_work work={face,4,&pass_work};rf_geometry_shadow_result result;
+            g.data=in.raw;g.bytes=1472;g.vertices=32;g.faces=8;g.rooms=1;g.textures=8;g.mappings=2;g.face_offsets=offsets;
+            for(i=0;i<8;i++){ids[i]=i;offsets[i]=384+i*136;images[i].source_format=in.formats[i];table[i]=in.formats[i]==UINT32_MAX?NULL:images+i;}
+            memcpy(&pass,in.pass,172);pass.filter=&filter;memset(&result,0xa5,sizeof(result));
+            status=rf_geometry_shadow_traverse(&g,ids,8,table,8,&in.cull,&pass,&work,in.mask,1024,127,&result);
+            fwrite(&status,4,1,stdout);fwrite(&result,sizeof(result),1,stdout);fwrite(in.mask,1024,1,stdout);
+        }
+        return 0;
+    }
     if(argc==2 && !strcmp(argv[1],"--adjacency-fixture")) {
         unsigned char data[276]={0};uint32_t offsets[3]={0,92,184},ids[2]={0,2},corners[9]={0,1,0,1,2,1,0,2,3};
         uint32_t expected_offsets[5]={0,2,3,4,5},expected_faces[5]={0,2,0,2,2},i,j,value;

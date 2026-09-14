@@ -155,6 +155,21 @@ int rf_geometry_shadow_receiver(const rf_geometry *,uint32_t index,const rf_ligh
  * No allocation; errors preserve output, scratch may change. */
 int rf_geometry_shadow_face(const rf_geometry *,uint32_t index,float (*scratch)[3],
     uint32_t capacity,rf_lightmap_shadow_face *);
+typedef struct rf_geometry_shadow_work {
+    float (*face_vertices)[3];uint32_t face_capacity;rf_lightmap_shadow_pass_work *pass;
+} rf_geometry_shadow_work;
+typedef struct rf_geometry_shadow_result {uint32_t visited,eligible,projected,accepted;} rf_geometry_shadow_result;
+/* Traverse supplied surviving file-order faces through retained decoding,
+ * bitmap-format exclusion and the prepared shadow pass. images is indexed by
+ * authored texture index and selects current frames; NULL entries mean absent
+ * bitmaps. UINT32_MAX texture means no bitmap. No image loads or allocation.
+ * Scratch and mask persist between faces; UV/filter tails must be initialized
+ * by their owner. Results commit on success; errors may retain partial masks.
+ * Static snapshot only. Caller owns source passes, mask reset and final border. */
+int rf_geometry_shadow_traverse(const rf_geometry *,const uint32_t *face_ids,uint32_t count,
+    const rf_image *const *images,uint32_t image_count,const rf_lightmap_shadow_cull *,
+    const rf_lightmap_shadow_pass *,rf_geometry_shadow_work *,unsigned char *mask,uint32_t bytes,
+    unsigned char amount,rf_geometry_shadow_result *);
 int rf_geometry_get_corner(const rf_geometry *geometry, uint32_t face, uint32_t corner, rf_geometry_corner *result);
 typedef struct rf_geometry_texture_workspace {
     float (*vertices)[3],(*coordinates)[2];uint32_t capacity;

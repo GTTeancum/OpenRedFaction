@@ -15,6 +15,15 @@ Shortlist:
 
 Progress reporting: include a very high-level working area (e.g. Lighting, AI, Weapons, GeoMod or Scripted events) and an overall percent estimate at the end of every turn report (USER preference) and revisit remaining 24-hour workdays when measured throughput supports a forecast; current rough estimate40% (35-45%), no defensible +/-48-hour completion forecast before end-to-end gameplay.
 
+Retained shadow traversal matches256 original/PC/NXDK passes over2048
+serialized synthetic faces:194 eligible/projected,129 filter-accepted,4750
+changed mask bytes;3 NXDK guards. Actual original texture classification,
+linked-corner decoding and per-face cull/clip/project/filter chunks are replayed
+in supplied file order, retaining mask and scratch between faces. No allocation.
+Both builds and24 tests pass. Next bind campaign texture-frame tables, source
+space/endpoint selection, receiver/mask/scratch lifetime and final border;
+then run native memory/rendering validation on representative gameplay.
+
 Collapsed shadow-volume edges now retain original x87 indefinite planes;
 culling and clipping treat that exact four-word encoding as non-restricting.
 Verified1024 preparations including two-texel extents,2048 volumes (512

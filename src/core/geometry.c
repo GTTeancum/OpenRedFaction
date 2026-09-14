@@ -566,6 +566,35 @@ int rf_geometry_shadow_face(const rf_geometry *geometry,uint32_t index,float (*s
     value.flags=source.flags;value.texture_excluded=0;*out=value;return RF_OK;
 }
 
+int rf_geometry_shadow_traverse(const rf_geometry *g,const uint32_t *ids,uint32_t count,
+    const rf_image *const *images,uint32_t image_count,const rf_lightmap_shadow_cull *cull,
+    const rf_lightmap_shadow_pass *pass,rf_geometry_shadow_work *work,unsigned char *mask,uint32_t bytes,
+    unsigned char amount,rf_geometry_shadow_result *out)
+{
+    rf_geometry_shadow_result result={0};uint32_t i;int status;
+    if(!g || !g->data || (count && !ids) || !cull || !pass || !work || !work->face_vertices ||
+       !work->pass || !out || !mask || (image_count && !images))return RF_RANGE;
+    for(i=0;i<count;i++)if(ids[i]>=g->faces || (i && ids[i]<=ids[i-1]))return RF_RANGE;
+    for(i=0;i<count;i++) {
+        rf_geometry_face source;rf_lightmap_shadow_face face;const rf_image *image=NULL;
+        uint32_t eligible,projected,accepted;
+        status=rf_geometry_get_face(g,ids[i],&source);if(status)return status;
+        if(source.texture!=UINT32_MAX) {
+            if(source.texture>=image_count)return RF_RANGE;
+            image=images[source.texture];
+        }
+        status=rf_geometry_shadow_face(g,ids[i],work->face_vertices,work->face_capacity,&face);if(status)return status;
+        ++result.visited;
+        status=rf_lightmap_shadow_occluder_image(cull,&face,image,&eligible);if(status)return status;
+        if(!eligible)continue;
+        ++result.eligible;
+        status=rf_lightmap_shadow_pass_polygon(pass,work->face_vertices,source.corners,work->pass,
+            mask,bytes,amount,&projected,&accepted);if(status)return status;
+        result.projected+=projected;result.accepted+=accepted;
+    }
+    *out=result;return RF_OK;
+}
+
 int rf_geometry_initial_collision_filter(const rf_geometry *geometry,uint32_t index,
     uint32_t query_flags,rf_collision_face_filter *filter)
 {
