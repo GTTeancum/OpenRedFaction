@@ -516,7 +516,7 @@ static int scene_preview(rf_level *level,rf_preview_mesh *mesh)
     }
     campaign_scene_start=campaign_total_frames;
     player_pacing=0;scene_simulation_frames=0;memset(&rf_player_frame_clock,0,sizeof(rf_player_frame_clock));
-    rf_scene_set_profile(NULL);
+    rf_scene_set_profile(profile_milliseconds);
     stream_flag=fopen("D:\\campaign-spawn.flag","rb");
     rf_scene_follow_level_exits=stream_flag!=NULL;
     if(stream_flag){fclose(stream_flag);status=rf_scene_set_campaign_spawn(level);}

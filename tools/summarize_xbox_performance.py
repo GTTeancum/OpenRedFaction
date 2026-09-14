@@ -1,0 +1,17 @@
+"""Summarize native phase timings without counting renderer time twice."""
+import argparse,json
+from pathlib import Path
+p=argparse.ArgumentParser();p.add_argument('snapshot',type=Path);p.add_argument('--out',type=Path);a=p.parse_args()
+j=json.loads(a.snapshot.read_text());symbols=j['symbols']
+def rows(name,labels):
+ raw=symbols[name]['words'];assert len(raw)==32
+ result=[]
+ for i,label in enumerate(labels):
+  n,lo,hi,peak=raw[4*i:4*i+4];total=(hi<<32)|lo
+  result.append(dict(phase=i,label=label,samples=n,total_ms=total,mean_ms=round(total/n,3) if n else None,max_ms=peak))
+ return result
+scene=rows('rf_scene_profile',['unused','pre-camera work','camera/visibility/world rebuild','world diagnostics','actor construction/drawing','remaining scene preparation','presentation and state export','physics/event stepping'])
+renderer=rows('rf_renderer_profile',['validation','resource preparation','vertex upload','render setup','vblank/reset/clear','world/particles/HUD draw and GPU waits','swap submission','finalization'])
+report=dict(scene=scene,renderer=renderer,scope='Guest millisecond phase timing after16 section frames/submissions; scene presentation includes renderer costs, so do not add renderer and scene totals. Input polling/pacing and level loading excluded. Phase means are not an exact FPS measurement; scene final-frame phase counts may differ. XEMU host scheduling affects timings.')
+if a.out:a.out.write_text(json.dumps(report,indent=2))
+print(json.dumps(report,indent=2))

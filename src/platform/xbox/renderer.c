@@ -17,6 +17,7 @@
 /* Millisecond presentation phases after the first 16 stream submissions.
  * Each row contains calls, elapsed low/high, maximum. Read-only QMP evidence. */
 uint32_t rf_renderer_profile[8][4];
+static uint32_t stream_profile_frames;
 static void renderer_mark(uint32_t phase,uint32_t *previous,int enabled)
 {
     uint32_t now,elapsed,*row;uint64_t total;
@@ -71,6 +72,7 @@ static const rf_lightmaps *stream_lightmaps;
 static int stream_mode,stream_device_ready;static uint32_t stream_capacity,stream_fallback;
 void rf_xbox_scene_stream_close(void)
 {
+    stream_profile_frames=0;memset(rf_renderer_profile,0,sizeof(rf_renderer_profile));
     if(!stream_gpu)return;
     while(pb_busy()) {}
     /* pbkit owns process-lifetime framebuffer/DMA state; only level buffers retire. */
@@ -89,7 +91,7 @@ static int preview(const rf_preview_mesh *mesh, const rf_materials *materials, c
     /* Bound referenced image payload; it is now shared, not copied. */
     uint64_t upload_bytes = 4;
     int streaming=model==2 || model==4;
-    int profiling=streaming && capture[5]>=16;uint32_t profile_previous=profiling?GetTickCount():0;
+    int profiling=streaming && stream_profile_frames++>=16;uint32_t profile_previous=profiling?GetTickCount():0;
     uint32_t vertex_bytes=streaming?1024*1024+(model==4?world_vertices*sizeof(rf_preview_vertex):0):mesh?mesh->bytes:0;
     if(requested_capacity) {
         if(!streaming || requested_capacity>8*1024*1024 || (stream_gpu && stream_capacity!=requested_capacity))return RF_RANGE;
