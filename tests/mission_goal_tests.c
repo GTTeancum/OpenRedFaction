@@ -2,6 +2,40 @@
 #include <stdio.h>
 #include <string.h>
 #define CHECK(x) do{if(!(x)){fprintf(stderr,"mission line %u\n",(unsigned)__LINE__);return 1;}}while(0)
+static uint32_t death_present[2],death_alive[2],death_unknown;
+static int death_query(void *context,uint32_t uid,uint32_t *present,uint32_t *alive)
+{
+    (void)context;if(uid<10 || uid>11 || death_unknown)return RF_NOT_FOUND;
+    *present=death_present[uid-10];*alive=death_alive[uid-10];return RF_OK;
+}
+static int death_watch_check(void)
+{
+    rf_object_registry registry;rf_runtime_triggers triggers={0};rf_runtime_events events={0};
+    rf_runtime_event watcher={0};rf_runtime_trigger target={0};rf_level_owned_event authored={0};
+    rf_level_link_target links[3]={{0}};uint32_t uids[3]={10,11,12},pending;
+    rf_physics_gravity gravity={0};rf_startup_events_report report;
+    rf_object_registry_init(&registry);triggers.registry=&registry;triggers.death_query=death_query;
+    target.object_kind=5;target.state.flags=16;
+    CHECK(rf_object_registry_insert(&registry,&target,&links[2].value)==RF_OK);links[2].kind=1;
+    authored.links=uids;authored.record.link_count=3;watcher.authored=&authored;watcher.links=links;
+    watcher.state.type=16;watcher.state.deadline=-1;watcher.state.delay=3.5f;
+    events.items=&watcher;events.count=1;events.registry=&registry;
+    death_present[0]=death_present[1]=death_alive[0]=death_alive[1]=1;
+    CHECK(rf_runtime_events_tick(&events,&triggers,&gravity,0,0,0,&report,&pending)==RF_OK && !watcher.death_fired);
+    death_alive[0]=0;
+    CHECK(rf_runtime_events_tick(&events,&triggers,&gravity,1,0,0,&report,&pending)==RF_OK && !watcher.death_fired);
+    death_alive[1]=0;
+    CHECK(rf_runtime_events_tick(&events,&triggers,&gravity,2,0,0,&report,&pending)==RF_OK && watcher.death_fired && !(target.state.flags&16));
+    target.state.flags|=16;
+    CHECK(rf_runtime_events_tick(&events,&triggers,&gravity,3,0,0,&report,&pending)==RF_OK && (target.state.flags&16));
+    watcher.death_fired=0;authored.record.flags[0]=1;death_alive[1]=1;death_present[0]=0;
+    CHECK(rf_runtime_events_tick(&events,&triggers,&gravity,4,0,0,&report,&pending)==RF_OK && watcher.death_fired && !(target.state.flags&16));
+    watcher.death_fired=0;death_unknown=1;target.state.flags|=16;
+    CHECK(rf_runtime_events_tick(&events,&triggers,&gravity,5,0,0,&report,&pending)==RF_OK && !watcher.death_fired && report.unsupported_actions==1);
+    death_unknown=0;watcher.state.deadline=100;
+    CHECK(rf_runtime_events_tick(&events,&triggers,&gravity,99,0,0,&report,&pending)==RF_OK && !watcher.death_fired);
+    return 0;
+}
 int main(int argc,char **argv)
 {
     rf_campaign_goals goals={0};rf_object_registry registry;rf_runtime_triggers triggers={0};
@@ -9,6 +43,7 @@ int main(int argc,char **argv)
     rf_vpp archive={0};rf_level level;uint32_t i,passed,pending;int found=0;
     rf_runtime_event check={0};rf_level_owned_event authored={0};rf_level_link_target link={0};
     rf_runtime_trigger target={0};
+    CHECK(death_watch_check()==0);
     CHECK(argc==2);rf_object_registry_init(&registry);triggers.registry=&registry;triggers.goals=&goals;
     CHECK(rf_level_campaign_open(&level,&archive,argv[1],"L8S1.rfl")==RF_OK);
     CHECK(rf_runtime_events_open(&level,&registry,1024*1024,&events)==RF_OK);

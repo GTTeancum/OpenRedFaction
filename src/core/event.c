@@ -608,7 +608,7 @@ static void startup_event_action(void *context,rf_event_state *state,uint32_t ac
         return;
     }
     /* Delay (48) uses no-op base actions; common scheduling/propagation own it. */
-    if(state->type==48)return;
+    if(state->type==48 || state->type==16)return;
     if(state->type!=44) {++c->report->unsupported_actions;return;}
     c->status=rf_event_gravity_action(c->gravity,c->event->authored->record.values[0],action);
     if(!c->status && action==1)++c->report->gravity_actions;
@@ -753,6 +753,33 @@ int rf_runtime_startup_events(rf_runtime_triggers *triggers,rf_physics_gravity *
     }
     return RF_OK;
 }
+/* Original 4bb3a0 polls links once after base timer processing. A nonzero
+ * flags[0] additionally permits any missing object; otherwise no live linked
+ * object may remain. Fire targets with sentinel source/actor, once per scene. */
+static int runtime_death_poll(startup_context *c,rf_runtime_event *event)
+{
+    uint32_t i,any_missing=0,any_alive=0,unknown=0;
+    if(!c->triggers->death_query || event->death_fired || event->state.deadline>=0)return RF_OK;
+    for(i=0;i<event->authored->record.link_count;i++) {
+        uint32_t present=0,alive=0,kind=0;int status=RF_NOT_FOUND;void *object=NULL;
+        const rf_level_link_target *link=event->links+i;
+        if(link->kind==1 || link->kind==2)object=rf_object_registry_lookup(c->triggers->registry,link->value);
+        if(object)memcpy(&kind,object,4);
+        if(kind==5 || kind==6) {present=1;status=RF_OK;}
+        else if(c->triggers->death_query)status=c->triggers->death_query(c->triggers->death_context,
+            event->authored->links[i],&present,&alive);
+        if(status==RF_NOT_FOUND){unknown=1;continue;}
+        if(status)return status;
+        any_missing|=!present;any_alive|=alive;
+    }
+    /* Unsupported objects cannot safely be interpreted as dead or absent. */
+    if(unknown){++c->report->unsupported_actions;return RF_OK;}
+    if(any_alive && !(event->authored->record.flags[0] && any_missing))return RF_OK;
+    event->death_fired=1;c->event=event;++c->report->events;
+    for(i=0;i<event->authored->record.link_count && !c->status;i++)
+        startup_target(c,event->links+i,UINT32_MAX,UINT32_MAX,1);
+    return c->status;
+}
 int rf_runtime_events_tick(rf_runtime_events *events,rf_runtime_triggers *triggers,
     rf_physics_gravity *gravity,int32_t now,rf_level_particles *particles, rf_physics_force_collection *forces,rf_startup_events_report *report,
     uint32_t *unsupported_pending)
@@ -764,6 +791,13 @@ int rf_runtime_events_tick(rf_runtime_events *events,rf_runtime_triggers *trigge
     context.particles=particles;context.forces=forces;context.triggers=triggers;context.gravity=gravity;context.report=report;context.now=now;context.depth=1;
     for(i=0;i<events->count;++i) {
         rf_runtime_event *event=events->items+i;
+        if(event->state.type==16) {
+            if(event->state.deadline>=0) {
+                context.event=event;status=rf_event_tick(&event->state,now,startup_event_action,&context);
+                if(status)return status;if(context.status)return context.status;
+            }
+            status=runtime_death_poll(&context,event);if(status)return status;continue;
+        }
         if(event->state.deadline<0)continue;
         if(event->state.type!=3 && event->state.type!=44 && event->state.type!=48 &&
            !(event->state.type==39 && particles && particles->state) &&

@@ -115,6 +115,7 @@ typedef struct rf_runtime_event {
     const rf_level_owned_event *authored;
     rf_level_link_target *links;
     rf_switch_state *switch_state; /* type32 only; shares the owner's allocation */
+    uint32_t death_fired; /* When_Dead one-shot poll, per scene. */
 } rf_runtime_event;
 typedef struct rf_runtime_events {
     rf_level_owned_events decoded;
@@ -303,6 +304,10 @@ typedef struct rf_runtime_triggers {
     int (*load_level)(void *context,const rf_level_event *,uint32_t source,uint32_t actor);
     void *load_level_context;
     rf_campaign_goals *goals; /* Borrowed campaign owner; survives scene teardown. */
+    /* When_Dead object query by authored UID. Unknown objects return NOT_FOUND
+     * and defer the watcher; missing known actors report present=alive=0. */
+    int (*death_query)(void *context,uint32_t uid,uint32_t *present,uint32_t *alive);
+    void *death_context;
 } rf_runtime_triggers;
 /* Declare authored goals before any startup trigger runs. */
 int rf_runtime_goals_initialize(const rf_runtime_events *events,rf_campaign_goals *goals);

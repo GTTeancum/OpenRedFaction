@@ -3386,6 +3386,19 @@ static void campaign_npc_bodies_close(void)
     free(campaign_npc_stances);campaign_npc_stances=NULL;
     free(campaign_npc_eyes);campaign_npc_eyes=NULL;
 }
+static int campaign_death_query(void *context,uint32_t uid,uint32_t *present,uint32_t *alive)
+{
+    uint32_t i;(void)context;
+    for(i=0;i<campaign_npc_body_count;i++)if((uint32_t)campaign_seeds.records.items[i].record.uid==uid) {
+        const campaign_npc_body *owner=campaign_npc_bodies+i;
+        /* Unsupported actor classes remain unknown, never silently dead. */
+        if(!owner->persistence_registered)return RF_NOT_FOUND;
+        *present=owner->registration.view!=NULL;
+        *alive=*present && owner->damage.effects.health>0;
+        return RF_OK;
+    }
+    return RF_NOT_FOUND;
+}
 static int campaign_actors_restore(void)
 {
     uint32_t i;int status;
@@ -9969,6 +9982,7 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
             for(i=0;i<RF_AMBIENT_SLOTS;i++)campaign_ambient_slots[i].sample=campaign_ambient_slots[i].voice=-1;
             memset(rf_scene_ambient_schedule,0,sizeof(rf_scene_ambient_schedule));campaign_ambient_frame=UINT32_MAX;
             status=campaign_actors_restore();if(status)goto done;
+            campaign_triggers.death_query=campaign_death_query;
             /* Original level startup435df0 calls45ade0 before levelstart.vcs. */
             status=campaign_ambient_schedule(0,1);if(status)goto done;
             status=rf_runtime_startup_events(&campaign_triggers,&scene_gravity,0,0,&stream.particles, &campaign_forces,&rf_scene_startup_events);

@@ -26,6 +26,13 @@ Shortlist:
 
 Progress reporting: include a very high-level working area (e.g. Lighting, AI, Weapons, GeoMod or Scripted events) and an overall percent estimate at the end of every turn report (USER preference) and revisit remaining 24-hour workdays when measured throughput supports a forecast; current rough estimate45% (35-45%), no defensible +/-48-hour completion forecast before end-to-end gameplay.
 
+When_Dead now polls known NPC state and dispatches linked events/triggers once
+per scene, including grouped deaths and the authored any-missing-object flag.
+Unknown object classes defer detection. Both builds,36 CTests and the rendered
+PC rifle round trip pass; authored death-chain/native verification, clutter
+queries and mover actions remain open. Evidence/first-pass differences:
+docs/WHEN-DEAD.md; artifacts/death-watch-* logs.
+
 Defeated-NPC revisit now passes rendered PC and stock64MiB Xbox verification:
 L4S5 guard3305 killed by rifle fire stays retired after L4S4 and return; rifle3415
 stays collected,39 rounds retained,240 inputs and both handoffs match PC.
