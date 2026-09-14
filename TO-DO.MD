@@ -15,6 +15,14 @@ Shortlist:
 
 Progress reporting: include a very high-level working area (e.g. Lighting, AI, Weapons, GeoMod or Scripted events) and an overall percent estimate at the end of every turn report (USER preference) and revisit remaining 24-hour workdays when measured throughput supports a forecast; current rough estimate40% (35-45%), no defensible +/-48-hour completion forecast before end-to-end gameplay.
 
+Resident lightmap image binding now passes5851 compiled NXDK mappings
+and all5851 PC receiver groups/28356 UV vertices using loaded L1S1 images.
+Serialized image section confirms128x128 dimensions. Three binding guards
+preserve both outputs, and out-of-range image IDs fall back to image zero.
+Both builds and24 tests pass. No pixel allocation/read in the binding itself;
+receiver probe owns loaded images. Next compose bounded masks/scratch and
+source/receiver/occluder traversal, then verify native rendering and64MiB.
+
 Retained receiver grouping passes5851 L1S1 PC mapping groups/28356 UV
 vertices and35 compiled NXDK groups, plus3 NXDK guards and an empty query.
 Peak polygon/UV scratch1352 bytes (32-bit layout); no allocation or normal

@@ -69,16 +69,16 @@ int main(int argc, char **argv)
             rf_geometry_close(&geometry);rf_vpp_close(&archive);return 0;
         }
         if(argc==5 && !strcmp(argv[3],"--shadow-receiver-groups")) {
-            rf_geometry_shadow_receiver_work work={0};uint32_t i,j,*ids=(uint32_t *)malloc((geometry.faces+1)*4);
+            rf_lightmaps maps={0};rf_geometry_shadow_receiver_work work={0};uint32_t i,j,*ids=(uint32_t *)malloc((geometry.faces+1)*4);
             if(!ids)return 6;for(i=0;i<geometry.faces;i++)ids[i]=i;
+            if(rf_lightmaps_open(&maps,&level,16u*1024u*1024u))return 7;
             _setmode(_fileno(stdout),_O_BINARY);
             for(i=0;i<geometry.mappings;i++) {
                 rf_lightmap_mapping mapping;rf_lightmap_sample_plane view={0};uint32_t counts[2],header[3],guard[2]={UINT32_MAX,UINT32_MAX};
-                if(rf_geometry_get_lightmap_mapping(&geometry,i,1,&mapping))return 9;
-                view.image_width=128;view.image_height=128;
+                if(rf_geometry_lightmap_sample_binding(&geometry,&maps,i,&mapping,&view))return 9;
                 if(rf_geometry_shadow_receivers(&geometry,ids,geometry.faces,i,mapping.room,NULL,NULL,counts,counts+1))return 10;
                 if((uint64_t)counts[0]*sizeof(*work.polygons)+(uint64_t)counts[1]*sizeof(*work.vertices)>strtoul(argv[4],NULL,10))return 11;
-                view.x=mapping.x;view.y=mapping.y;work.polygon_capacity=counts[0];work.vertex_capacity=counts[1];
+                work.polygon_capacity=counts[0];work.vertex_capacity=counts[1];
                 work.polygons=malloc((counts[0]+1)*sizeof(*work.polygons));work.vertices=malloc((counts[1]+1)*sizeof(*work.vertices));if(!work.polygons || !work.vertices)return 12;
                 if(counts[1]) {
                     --work.vertex_capacity;
@@ -91,7 +91,7 @@ int main(int argc, char **argv)
                 for(j=0;j<counts[0];j++){fwrite(&work.polygons[j].count,4,1,stdout);fwrite(work.polygons[j].uv,sizeof(*work.vertices),work.polygons[j].count,stdout);}
                 free(work.polygons);free(work.vertices);
             }
-            free(ids);rf_geometry_close(&geometry);rf_vpp_close(&archive);return 0;
+            rf_lightmaps_close(&maps);free(ids);rf_geometry_close(&geometry);rf_vpp_close(&archive);return 0;
         }
         if(argc==5 && !strcmp(argv[3],"--lightmap-polygons")) {
             rf_geometry_vertex_faces graph={0};rf_geometry_lightmap_work work={0};uint32_t i,j,max=0,*ids=(uint32_t *)malloc((geometry.faces+1)*4);

@@ -48,6 +48,14 @@ int rf_geometry_lightmap_polygons(const rf_geometry *,const rf_geometry_vertex_f
     const uint32_t *face_ids,uint32_t face_count,uint32_t mapping,int32_t room,
     rf_geometry_lightmap_work *work,uint32_t *polygon_count,uint32_t *vertex_count);
 
+/* Bind saved mapping and sampling metadata to the level's resident images.
+ * Uses original out-of-range image-ID fallback to image zero. No allocation,
+ * pixel reads or ownership transfer; output records commit only on success.
+ * Validates image dimensions and rectangle bounds; numeric projection validity
+ * remains with the consuming sampler. Output records must not overlap. */
+int rf_geometry_lightmap_sample_binding(const rf_geometry *,const rf_lightmaps *,
+    uint32_t mapping,rf_lightmap_mapping *,rf_lightmap_sample_plane *);
+
 typedef struct rf_geometry_shadow_receiver_work {
     rf_lightmap_uv_polygon *polygons;float (*vertices)[2];
     uint32_t polygon_capacity,vertex_capacity;

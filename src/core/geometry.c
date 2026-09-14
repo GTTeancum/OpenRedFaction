@@ -291,6 +291,21 @@ int rf_geometry_get_lightmap_mapping(const rf_geometry *geometry,uint32_t mappin
     return rf_lightmap_mapping_read(geometry->data+(uint32_t)offset,96,image_count,result);
 }
 
+int rf_geometry_lightmap_sample_binding(const rf_geometry *geometry,const rf_lightmaps *maps,
+    uint32_t index,rf_lightmap_mapping *mapping,rf_lightmap_sample_plane *sample)
+{
+    rf_lightmap_mapping m;rf_lightmap_sample_plane v;const rf_image *image;int status;
+    if(!maps || !maps->count || !maps->images || !mapping || !sample)return RF_RANGE;
+    status=rf_geometry_get_lightmap_mapping(geometry,index,maps->count,&m);if(status)return status;
+    image=maps->images+m.image;
+    if(!image->width || !image->height || image->width>INT32_MAX || image->height>INT32_MAX ||
+       (uint64_t)m.x+m.width>image->width || (uint64_t)m.y+m.height>image->height)return RF_RANGE;
+    v.image_width=image->width;v.image_height=image->height;v.x=m.x;v.y=m.y;
+    memcpy(v.scale,m.scale,8);memcpy(v.offset,m.offset,8);memcpy(v.plane,m.plane,16);
+    v.normal_axis=m.normal_axis;v.u_axis=m.u_axis;
+    *mapping=m;*sample=v;return RF_OK;
+}
+
 int rf_geometry_lightmap_projection(const rf_geometry *geometry,uint32_t mapping,rf_lightmap_projection *projection)
 {
     if(!geometry || !geometry->data || mapping>=geometry->mappings || !projection)return RF_RANGE;
