@@ -65,7 +65,7 @@ typedef struct player {
     rf_frame_clock clock;
     LARGE_INTEGER frequency;
     uint32_t frames,headless;
-    rf_scene_input *replay;uint32_t replay_count,scene_start,exit_uid,exit_frame,forced_exit_uid,goal_uid,return_exit_uid,return_item_uid,return_place;
+    rf_scene_input *replay;uint32_t replay_count,scene_start,exit_uid,exit_frame,forced_exit_uid,goal_uid,goto_uid,return_exit_uid,return_item_uid,return_place;
     int quit,focused;
 } player;
 
@@ -144,6 +144,10 @@ static int input(void *context,uint32_t frame,rf_scene_input *out)
 {
     player *p=context;MSG message;uint32_t wait;
     memset(out,0,sizeof(*out));
+    if(p->headless && p->goto_uid && p->frames==30) {
+        int status=rf_scene_fire_npc_event(p->goto_uid,(int32_t)((uint64_t)frame*1000/60));
+        p->goto_uid=0;if(status)return status;
+    }
     if(p->headless && p->goal_uid && p->frames==30) {
         int status=rf_scene_fire_goal_setter(p->goal_uid,(int32_t)((uint64_t)frame*1000/60));
         p->goal_uid=0;if(status)return status;
@@ -367,6 +371,10 @@ int main(int argc,char **argv)
     if(p.headless && getenv("RF_REPLAY_WATCH_UID")) {
         char *end;unsigned long value=strtoul(getenv("RF_REPLAY_WATCH_UID"),&end,10);if(*end || !value)CHECK(RF_FORMAT);
         rf_scene_watch_test_uid=(uint32_t)value;
+    }
+    if(p.headless && getenv("RF_REPLAY_GOTO_UID")) {
+        char *end;unsigned long value=strtoul(getenv("RF_REPLAY_GOTO_UID"),&end,10);if(*end || !value)CHECK(RF_FORMAT);
+        p.goto_uid=(uint32_t)value;
     }
     if(p.headless && getenv("RF_REPLAY_GOAL_UID")) {
         char *end;unsigned long value=strtoul(getenv("RF_REPLAY_GOAL_UID"),&end,10);if(*end || !value)CHECK(RF_FORMAT);
@@ -609,6 +617,8 @@ run_scene:
         printf("PLAYER_JUMP");for(i=0;i<4;++i)printf(" %u",rf_scene_player_jump[i]);puts("");
         printf("PLAYER_JUMP_FRAMES");for(i=0;i<1024;++i)printf(" %u",((uint32_t*)rf_scene_player_jump_frames)[i]);puts("");
         printf("ACTOR_PLAYER_INPUT");for(i=0;i<64*7;++i)printf(" %u",((uint32_t*)rf_scene_player_input_frames)[i]);puts("");
+        printf("SCRIPT_MOVE");for(i=0;i<8;i++)printf(" %u",rf_scene_script_movement[i]);puts("");
+        printf("SCRIPT_ACTOR");for(i=0;i<8;i++)printf(" %u",rf_scene_script_actor[i]);puts("");
         printf("WATCH_TEST");for(i=0;i<4;i++)printf(" %u",rf_scene_watch_test[i]);puts("");
         for(i=0;i<rf_scene_death_watches[0];i++)printf("DEATH_WATCH %u %u %u\n",rf_scene_death_watches[1+i*3],rf_scene_death_watches[2+i*3],rf_scene_death_watches[3+i*3]);
         printf("ACTOR_RETIREMENT");for(i=0;i<4;i++)printf(" %u",rf_scene_actor_retirement[i]);puts("");

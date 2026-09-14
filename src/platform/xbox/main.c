@@ -38,7 +38,7 @@ static uint32_t player_pacing,scene_simulation_frames,campaign_total_frames,camp
 uint32_t rf_xbox_load_stage;
 uint32_t rf_xbox_level_transitions[4]; /* count,last UID,frames at exit,available pages after release */
 static FILE *player_replay;
-static uint32_t player_replay_size,campaign_exit_uid,campaign_forced_exit_uid,campaign_goal_uid,campaign_return_exit_uid,campaign_return_item_uid,campaign_return_place;
+static uint32_t player_replay_size,campaign_exit_uid,campaign_forced_exit_uid,campaign_goal_uid,campaign_goto_uid,campaign_return_exit_uid,campaign_return_item_uid,campaign_return_place;
 uint32_t rf_player_replay_diagnostic[4]; /* active, records, consumed, read status */
 static void player_input_close(void)
 {
@@ -48,6 +48,10 @@ static void player_input_close(void)
 static uint32_t profile_milliseconds(void){return GetTickCount();}
 static int player_poll_paced(void *context,uint32_t frame,rf_scene_input *input)
 {
+    if(campaign_goto_uid && campaign_total_frames==30) {
+        int status=rf_scene_fire_npc_event(campaign_goto_uid,(int32_t)((uint64_t)frame*1000/60));
+        campaign_goto_uid=0;if(status)return status;
+    }
     if(campaign_goal_uid && campaign_total_frames==30) {
         int status=rf_scene_fire_goal_setter(campaign_goal_uid,(int32_t)((uint64_t)frame*1000/60));
         campaign_goal_uid=0;if(status)return status;
@@ -492,6 +496,8 @@ static int scene_preview(rf_level *level,rf_preview_mesh *mesh)
             if(invalid || !data[0] || !data[1])return RF_FORMAT;campaign_return_exit_uid=data[0];campaign_return_item_uid=data[1];}
         exit_file=fopen("D:\\campaign-watch.bin","rb");
         if(exit_file){int invalid=fread(&rf_scene_watch_test_uid,4,1,exit_file)!=1 || fgetc(exit_file)!=EOF;fclose(exit_file);if(invalid)return RF_FORMAT;}
+        exit_file=fopen("D:\\campaign-goto.bin","rb");
+        if(exit_file){int invalid=fread(&campaign_goto_uid,4,1,exit_file)!=1 || fgetc(exit_file)!=EOF;fclose(exit_file);if(invalid)return RF_FORMAT;}
         exit_file=fopen("D:\\campaign-goal.bin","rb");
         if(exit_file){int invalid=fread(&campaign_goal_uid,4,1,exit_file)!=1 || fgetc(exit_file)!=EOF;fclose(exit_file);if(invalid)return RF_FORMAT;}
     }

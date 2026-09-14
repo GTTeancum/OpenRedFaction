@@ -311,6 +311,8 @@ typedef struct rf_runtime_triggers {
     /* Borrowed controller activation; on links only, no owner destruction. */
     int (*activate_mover)(void *context,uint32_t handle,uint32_t source,uint32_t actor,int32_t now);
     void *mover_context;
+    int (*move_npc)(void *context,uint32_t handle,const rf_level_event *event,uint32_t on);
+    void *move_context;
 } rf_runtime_triggers;
 /* Declare authored goals before any startup trigger runs. */
 int rf_runtime_goals_initialize(const rf_runtime_events *events,rf_campaign_goals *goals);

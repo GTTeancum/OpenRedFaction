@@ -6,7 +6,7 @@ and defer visual polish. Focus: movement, combat/damage, AI, mission events,
 then level progression. Fidelity remains a later completion requirement.
 
 Shortlist:
-- ACTIVE: Connect scripted NPC movement and verify event-driven doors/movers.
+- ACTIVE: Finish scripted NPC routing, grounding and walking animation; verify event-driven doors/movers.
 - TO COMPLETE: Preserve remaining world changes across sections, including partial actor state and dropped items.
 - NEXT: Expand mission scripts and AI until consecutive campaign sections are playable end to end.
 - TO COMPLETE: Expand the working pistol/rifle combat, pickups and first-person feedback to the remaining weapons.
@@ -25,6 +25,16 @@ Shortlist:
 - USER: Review the interactive PC movement and audio items listed below.
 
 Progress reporting: include a very high-level working area (e.g. Lighting, AI, Weapons, GeoMod or Scripted events) and an overall percent estimate at the end of every turn report (USER preference) and revisit remaining 24-hour workdays when measured throughput supports a forecast; current rough estimate45% (35-45%), no defensible +/-48-hour completion forecast before end-to-end gameplay.
+
+Basic Goto/Goto_Player commands now drive shared NPC horizontal movement with
+steering, position publication and body/world collision sweeps. L7S2 Gryphon
+Goto4994 delays0.5s, moves8.875 units, then stops at geometry:600-frame stock64MiB
+XEMU state exactly matches PC (355 steps,185 blocked),6057 free pages (23.66MiB).
+Both builds,36 CTests, PC59/180/600/601 controls and480-frame walking round trip
+pass. This is a fixed1.5-unit/s horizontal approach, not complete locomotion:
+route following, grounding/vertical travel, avoidance, authored modes and walking
+animation remain open. See docs/SCRIPTED-MOVEMENT.md, artifacts/script-move/report.json
+and artifacts/xemu/replay-20260914-064211/report.json.
 
 Event on-links now reach registered translation mover activation through the
 existing scene controller service. Conditional dispatch, source/actor/time, off

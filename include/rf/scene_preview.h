@@ -18,6 +18,8 @@
 extern uint32_t rf_scene_follow_level_exits;
 /* Process-local fixture: dispatch an authored Load_Level UID at a given tick. */
 int rf_scene_fire_level_exit(uint32_t uid,int32_t now);
+int rf_scene_fire_npc_event(uint32_t uid,int32_t now);
+extern uint32_t rf_scene_script_movement[8],rf_scene_script_actor[8];
 int rf_scene_fire_goal_setter(uint32_t uid,int32_t now);
 extern rf_campaign_goals rf_scene_mission_goals;
 extern rf_campaign_pickups rf_scene_campaign_pickups;
