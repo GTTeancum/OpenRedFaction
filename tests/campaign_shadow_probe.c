@@ -9,7 +9,7 @@
 
 typedef struct shadow_context {
     rf_geometry_shadow_job job;const rf_lightmap_shadow_face *cached;
-    const rf_level_owned_lights *lights;float ambient[3];
+    const rf_level_owned_lights *lights;float ambient[3];rf_image *target;
     const uint32_t *ids;
     uint32_t callbacks,passes,backfacing,visited,eligible,accepted;
 } shadow_context;
@@ -66,6 +66,12 @@ static int shade_mapping(shadow_context *context,const rf_geometry_vertex_faces 
         upload.rgb=rgb;upload.rgb_bytes=pixels*3;upload.rgb_pitch=view.width*3;upload.packed=packed;upload.packed_bytes=pixels*2;upload.packed_pitch=view.width*2;upload.width=view.width;upload.height=view.height;
         status=rf_lightmap_upload_rgb_1555(&upload,&dirty);if(status)goto done;
         if(dirty){status=RF_FORMAT;goto done;}
+        if(pass) {
+            dirty=8;status=rf_lightmap_upload_image_1555(context->target,rgb,pixels*3,view.width*3,mapping->x,mapping->y,view.width,view.height,&dirty);if(status)goto done;
+            if(dirty){status=RF_FORMAT;goto done;}
+            for(j=0;j<view.height;j++)for(k=0;k<view.width;k++)
+                if(memcmp(rf_image_pixel(context->target,mapping->x+k,mapping->y+j),packed+(j*view.width+k)*2,2)){status=RF_FORMAT;goto done;}
+        }
         for(j=0;j<pixels*2;j++)hash=(hash^packed[j])*16777619u;hashes[pass]=hash;
     }
 done:
@@ -109,6 +115,7 @@ int main(int argc,char **argv)
         rf_lightmap_mapping mapping;rf_lightmap_sample_plane sample;uint32_t hashes[3]={0},counts[2],changed=0,changed_bytes=0,hash=2166136261u,clip;
         rf_lightmap_shadow_filter filter;rf_lightmap_shadow_dispatch dispatch;shadow_context context={0};
         CHECK(rf_geometry_lightmap_sample_binding(&geometry,&maps,i,&mapping,&sample));
+        context.target=maps.images+mapping.image;
         CHECK(rf_vfx_lights_box(lights->pool.sources,lights->pool.capacity,mapping.minimum,mapping.maximum,1,1,selected,1100,&n));
         if(!n) {
             context.job.geometry=&geometry;context.job.mapping=&mapping;context.job.sample=&sample;context.job.mapping_index=(int32_t)i;

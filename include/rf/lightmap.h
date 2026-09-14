@@ -328,6 +328,17 @@ typedef struct rf_lightmap_rgb_upload {
  * Disjoint buffers, even packed pitch. Guards precede mutation. No allocation.
  * Renderer locking/swizzling and preceding lighting stages remain separate. */
 int rf_lightmap_upload_rgb_1555(const rf_lightmap_rgb_upload *,unsigned char *dirty);
+/* Port adapter for4f26a0 RGB upload into an existing packed1555 image.
+ * RGB is a local rectangle (pitch in bytes); x/y offset the destination only.
+ * Uses native image addressing: linear PC, swizzled Xbox. Original dirty/lock
+ * gates and conversion, no allocation or loader brightness clamp. Caller must
+ * ensure GPU reads are finished and invalidate texture caches before reuse.
+ * Null image/pixels models unavailable lock; preflight failure preserves both
+ * image and dirty. Unaffected texels remain untouched. Same power-of-two image
+ * contract on both builds, dimensions at most4096. Buffers must not alias. */
+int rf_lightmap_upload_image_1555(rf_image *,const unsigned char *rgb,uint32_t bytes,uint32_t pitch,
+    uint32_t x,uint32_t y,uint32_t width,uint32_t height,unsigned char *dirty);
+
 
 /*4f2dff..4f2ea6 class-light pixel: shade with zero ambient and negative
  * gain, add resulting RGB bytes to retained base RGB, saturate5-bit channels

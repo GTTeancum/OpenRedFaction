@@ -15,6 +15,16 @@ Shortlist:
 
 Progress reporting: include a very high-level working area (e.g. Lighting, AI, Weapons, GeoMod or Scripted events) and an overall percent estimate at the end of every turn report (USER preference) and revisit remaining 24-hour workdays when measured throughput supports a forecast; current rough estimate40% (35-45%), no defensible +/-48-hour completion forecast before end-to-end gameplay.
 
+Computed RGB now writes existing packed lightmap image rectangles without a
+second texture allocation:linear PC/swizzled Xbox. All5851 Live Mines regions
+compare each written PC texel against the linear1555 conversion, including
+ambient-only regions.1024 compiled NXDK cases plus4 image/extent guards verify
+full backing images, untouched neighbors and dirty/lock behavior;225 rejected
+cases preserve image/state. Both builds and25 tests pass. Writes require caller
+GPU-read completion and texture-cache invalidation, still unbound/unverified
+natively. Next schedule these updates in the live renderer and measure XEMU
+memory/timing before claiming rendered lighting parity.
+
 Authored ambient binding now reads v180 section900 (4618b0) and optional
 room colors after liquid payloads (4ed520). Live Mines globalRGB96/96/96 and
 room overrides feed all5851 mapping results, including446 ambient-only regions.

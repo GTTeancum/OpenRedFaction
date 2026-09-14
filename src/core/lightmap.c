@@ -1108,6 +1108,26 @@ int rf_lightmap_upload_rgb_1555(const rf_lightmap_rgb_upload *view,unsigned char
     *dirty=0;return RF_OK;
 }
 
+int rf_lightmap_upload_image_1555(rf_image *image,const unsigned char *rgb,uint32_t bytes,uint32_t pitch,
+    uint32_t x,uint32_t y,uint32_t width,uint32_t height,unsigned char *dirty)
+{
+    uint32_t i,j,value;
+    if(!dirty)return RF_RANGE;
+    if(!width || !height)return RF_OK;
+    if(*dirty&7u)return RF_RANGE;
+    if(!(*dirty&8u) || !image || !image->rgba){*dirty=0;return RF_OK;}
+    if(!rgb || !rf_image_is_packed_1555(image) || image->width>4096 || image->height>4096 ||
+       (image->width&(image->width-1)) || (image->height&(image->height-1)) ||
+       (uint64_t)x+width>image->width || (uint64_t)y+height>image->height ||
+       (uint64_t)width*3>pitch || (uint64_t)(height-1)*pitch+(uint64_t)width*3>bytes)return RF_RANGE;
+    for(j=0;j<height;j++)for(i=0;i<width;i++) {
+        const unsigned char *source=rgb+(size_t)j*pitch+i*3;unsigned char *target=rf_image_pixel(image,x+i,y+j);
+        value=0x8000u|((uint32_t)(source[0]>>3)<<10)|((uint32_t)(source[1]>>3)<<5)|(source[2]>>3);
+        target[0]=(unsigned char)value;target[1]=(unsigned char)(value>>8);
+    }
+    *dirty=0;return RF_OK;
+}
+
 void rf_packed_lightmaps_close(rf_packed_lightmaps *maps)
 {
     uint32_t i;if(!maps)return;
