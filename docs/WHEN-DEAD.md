@@ -46,9 +46,10 @@ it never sets watcher state, invokes Goal_Set or changes goal counters directly.
 At59 frames the first guard is dead, watcher5012 is unfired and door1=0.
 At90 frames both are dead, watcher5012 fired at1016ms and its authored link5011
 incremented door1 to1. The other six watchers remain unfired. Both PC cases pass.
-The authored Goal_Check5015 needs door1>=2, so this does not yet unlock the door;
-watcher5013's separate pair must also be defeated. That complete door chain and
-mover activation remain further work.
+The authored Goal_Check5015 needs door1>=2, then targets Goto4994 (delay0.5s),
+which targets NPC4952 (admin_male, Gryphon). It is not a direct door-controller
+link. Watcher5013's separate pair must also be defeated; scripted Gryphon movement
+and the remainder of the sequence remain open.
 
 Per-watcher telemetry retains authored UID, one-shot state and firing time in a
 bounded32-record snapshot (largest authored level currently has18 watchers).
@@ -62,3 +63,22 @@ and goals door1=1/door2=0/vator=0 exactly match PC. Native framebuffer inspected
 6057 free pages (23.66MiB) remain. Both builds and36 CTests pass; the strengthened
 firing-time assertion also passes. Native first-death-only control has not been
 run separately; that gating control currently has rendered PC evidence.
+
+## Event outputs to movers
+
+The runtime dispatcher now forwards on-links resolving to registered kind8
+controllers to a borrowed activation service. The scene uses its existing
+translation-controller activation, source/actor gates, pending requests and
+sound handling. Subsequent simulation/render/collision updates remain owned by
+the existing controller loop. Ordinary off-links do not activate movers.
+Unsupported controller families report an unhandled target; backend errors
+propagate. Exact special Invert/mover behavior remains a separate fidelity item.
+
+Contained tests reuse L7S2's authored threshold2 check but explicitly redirect
+its output to a test controller; they verify below-threshold suppression, source,
+actor and clock forwarding, off suppression, missing backend and error propagation.
+They do not imply that the authored output4994 is a mover. Both builds, all36
+CTests and the rendered death-to-goal regression pass. Native event-driven mover
+motion and direct authored mover-target integration remain unverified. There
+are actual direct targets elsewhere, e.g. L17S1 Goal_Check20330 (door17) links
+eight shutter keys, and L3S2 Delay7766 links four elevator-door keys.

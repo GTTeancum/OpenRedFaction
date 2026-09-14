@@ -36,6 +36,40 @@ static int death_watch_check(void)
     CHECK(rf_runtime_events_tick(&events,&triggers,&gravity,99,0,0,&report,&pending)==RF_OK && !watcher.death_fired);
     return 0;
 }
+static uint32_t mover_calls,mover_source,mover_actor;static int32_t mover_now;static int mover_error;
+static int mover_activate(void *context,uint32_t handle,uint32_t source,uint32_t actor,int32_t now)
+{
+    (void)context;(void)handle;++mover_calls;mover_source=source;mover_actor=actor;mover_now=now;return mover_error;
+}
+static int authored_mover_check(const char *path)
+{
+    rf_vpp archive={0};rf_level level;rf_object_registry registry;rf_runtime_events events={0};
+    rf_runtime_triggers triggers={0};rf_campaign_goals goals={0};rf_physics_gravity gravity={0};
+    rf_startup_events_report report;rf_runtime_event *check=NULL,*setter=NULL;uint32_t i,controller=8,handle,pending;
+    rf_object_registry_init(&registry);triggers.registry=&registry;triggers.goals=&goals;triggers.activate_mover=mover_activate;
+    CHECK(rf_level_campaign_open(&level,&archive,path,"L7S2.rfl")==RF_OK);
+    CHECK(rf_runtime_events_open(&level,&registry,1024*1024,&events)==RF_OK);
+    CHECK(rf_runtime_goals_initialize(&events,&goals)==RF_OK);
+    for(i=0;i<events.count;i++) {
+        if(events.items[i].authored->record.uid==5015)check=events.items+i;
+        if(events.items[i].authored->record.uid==5011)setter=events.items+i;
+    }
+    CHECK(check && setter && check->authored->record.words[0]==2 && check->authored->links[0]==4994);
+    CHECK(rf_object_registry_insert(&registry,&controller,&handle)==RF_OK);
+    check->links[0].kind=1;check->links[0].value=handle;
+    CHECK(rf_runtime_event_fire(&triggers,setter->handle,7,9,0,&gravity,0,0,&report)==RF_OK);
+    CHECK(rf_runtime_event_fire(&triggers,check->handle,444,555,10,&gravity,0,0,&report)==RF_OK && !mover_calls);
+    CHECK(rf_runtime_event_fire(&triggers,setter->handle,7,9,20,&gravity,0,0,&report)==RF_OK);
+    CHECK(rf_runtime_event_fire(&triggers,check->handle,444,555,30,&gravity,0,0,&report)==RF_OK && mover_calls==1 && !report.other_targets);
+    CHECK(mover_source==444 && mover_actor==555 && mover_now==30);
+    check->state.deadline=40;check->state.mode=0;
+    CHECK(rf_runtime_events_tick(&events,&triggers,&gravity,40,0,0,&report,&pending)==RF_OK && mover_calls==1);
+    triggers.activate_mover=NULL;
+    CHECK(rf_runtime_event_fire(&triggers,check->handle,444,555,50,&gravity,0,0,&report)==RF_OK && report.other_targets==1);
+    triggers.activate_mover=mover_activate;mover_error=RF_IO;
+    CHECK(rf_runtime_event_fire(&triggers,check->handle,444,555,60,&gravity,0,0,&report)==RF_IO);
+    rf_runtime_events_close(&events);rf_vpp_close(&archive);return 0;
+}
 int main(int argc,char **argv)
 {
     rf_campaign_goals goals={0};rf_object_registry registry;rf_runtime_triggers triggers={0};
@@ -44,7 +78,7 @@ int main(int argc,char **argv)
     rf_runtime_event check={0};rf_level_owned_event authored={0};rf_level_link_target link={0};
     rf_runtime_trigger target={0};
     CHECK(death_watch_check()==0);
-    CHECK(argc==2);rf_object_registry_init(&registry);triggers.registry=&registry;triggers.goals=&goals;
+    CHECK(argc==2);CHECK(authored_mover_check(argv[1])==0);rf_object_registry_init(&registry);triggers.registry=&registry;triggers.goals=&goals;
     CHECK(rf_level_campaign_open(&level,&archive,argv[1],"L8S1.rfl")==RF_OK);
     CHECK(rf_runtime_events_open(&level,&registry,1024*1024,&events)==RF_OK);
     CHECK(rf_runtime_goals_initialize(&events,&goals)==RF_OK);

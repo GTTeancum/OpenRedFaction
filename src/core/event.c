@@ -626,6 +626,13 @@ static void startup_target(startup_context *c,const rf_level_link_target *target
         if(on)trigger->state.flags&=~16u;else trigger->state.flags|=16u;
         return;
     }
+    if(kind==8) {
+        if(!on)return;
+        if(!c->triggers->activate_mover){++c->report->other_targets;return;}
+        status=c->triggers->activate_mover(c->triggers->mover_context,target->value,source,actor,c->now);
+        if(status==RF_NOT_FOUND)++c->report->other_targets;else c->status=status;
+        return;
+    }
     if(kind!=6) {++c->report->other_targets;return;}
     /* Fail explicitly before exhausting the stock Xbox stack on an immediate
      * cycle. This is a defensive limit, not an original event rule. */

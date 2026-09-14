@@ -2039,6 +2039,14 @@ static int campaign_link_effect(void *context,uint32_t kind,uint32_t handle,uint
         return RF_OK;
     }
 }
+static int campaign_event_mover(void *context,uint32_t handle,uint32_t source,uint32_t actor,int32_t now)
+{
+    campaign_activation_context activation={now,(uint32_t)((uint64_t)now*60/1000),NULL};
+    rf_group_registered_controller *controller=rf_object_registry_lookup(&campaign_registry,handle);
+    (void)context;
+    if(!controller || controller->object_kind!=8 || controller->runtime->kind!=RF_GROUP_RUNTIME_TRANSLATION)return RF_NOT_FOUND;
+    return campaign_link_effect(&activation,8,handle,source,actor);
+}
 /* Default player contact path; special ownership/key/script gates stay explicit. */
 static int campaign_trigger_contacts(const rf_group_attached_pose *pose,int32_t now,uint32_t frame,rf_level_particles *particles,uint32_t use)
 {
@@ -10020,6 +10028,7 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
             memset(rf_scene_ambient_schedule,0,sizeof(rf_scene_ambient_schedule));campaign_ambient_frame=UINT32_MAX;
             status=campaign_actors_restore();if(status)goto done;
             campaign_triggers.death_query=campaign_death_query;
+            campaign_triggers.activate_mover=campaign_event_mover;
             /* Original level startup435df0 calls45ade0 before levelstart.vcs. */
             status=campaign_ambient_schedule(0,1);if(status)goto done;
             status=rf_runtime_startup_events(&campaign_triggers,&scene_gravity,0,0,&stream.particles, &campaign_forces,&rf_scene_startup_events);

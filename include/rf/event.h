@@ -308,6 +308,9 @@ typedef struct rf_runtime_triggers {
      * and defer the watcher; missing known actors report present=alive=0. */
     int (*death_query)(void *context,uint32_t uid,uint32_t *present,uint32_t *alive);
     void *death_context;
+    /* Borrowed controller activation; on links only, no owner destruction. */
+    int (*activate_mover)(void *context,uint32_t handle,uint32_t source,uint32_t actor,int32_t now);
+    void *mover_context;
 } rf_runtime_triggers;
 /* Declare authored goals before any startup trigger runs. */
 int rf_runtime_goals_initialize(const rf_runtime_events *events,rf_campaign_goals *goals);

@@ -6,7 +6,7 @@ and defer visual polish. Focus: movement, combat/damage, AI, mission events,
 then level progression. Fidelity remains a later completion requirement.
 
 Shortlist:
-- ACTIVE: Connect mission conditions to doors/movers and expand playable campaign script chains.
+- ACTIVE: Connect scripted NPC movement and verify event-driven doors/movers.
 - TO COMPLETE: Preserve remaining world changes across sections, including partial actor state and dropped items.
 - NEXT: Expand mission scripts and AI until consecutive campaign sections are playable end to end.
 - TO COMPLETE: Expand the working pistol/rifle combat, pickups and first-person feedback to the remaining weapons.
@@ -26,13 +26,21 @@ Shortlist:
 
 Progress reporting: include a very high-level working area (e.g. Lighting, AI, Weapons, GeoMod or Scripted events) and an overall percent estimate at the end of every turn report (USER preference) and revisit remaining 24-hour workdays when measured throughput supports a forecast; current rough estimate45% (35-45%), no defensible +/-48-hour completion forecast before end-to-end gameplay.
 
+Event on-links now reach registered translation mover activation through the
+existing scene controller service. Conditional dispatch, source/actor/time, off
+suppression and errors pass contained tests; both builds and36 CTests pass.
+Direct authored mover/native motion verification remains open. L7S2 door1 is
+actually a counter gating Gryphon movement (5015 -> Goto4994 -> NPC4952), not
+a direct door link; prioritize that missing scripted NPC system next.
+See docs/WHEN-DEAD.md and artifacts/mission-mover-* logs.
+
 Authored L7S2 death-to-goal chain passes PC and stock64MiB Xbox: guard4887
 death leaves door1=0, guard4907 death fires watcher5012 -> Goal_Set5011 once
 at1016ms, door1=1; other six watchers remain inactive. Controlled shared damage
 fixture, not a played combat route. Native90 frames match every watcher and
 goal,6057 free pages (23.66MiB), framebuffer inspected. Both builds and36 tests
-pass; firing-time assertion also passes. The door needs counter2, so the second
-guard group and final mover response remain open. Evidence:
+pass; firing-time assertion also passes. The counter2 check targets delayed
+Goto4994 -> Gryphon4952; scripted NPC movement and the second guard group remain open. Evidence:
 artifacts/death-chain/report.json; artifacts/xemu/replay-20260914-062247/report.json.
 
 When_Dead now polls known NPC state and dispatches linked events/triggers once
