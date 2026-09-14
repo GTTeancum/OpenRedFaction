@@ -11,6 +11,12 @@
 #include "rf/glare.h"
 #include "rf/weapon.h"
 
+/* Called by a synchronous scene frame sink before drawing, after prior GPU
+ * reads finish. Applies dirty1 live-light overlays/dirty8 base upload to shared
+ * images. Pending dirty2/4 base regeneration remains queued and counted, not
+ * cleared; its worker is not bound yet. No per-frame allocation. */
+int rf_scene_update_lightmaps(rf_lightmaps *);
+
 /* Play a resolved48a9c0 request from an already resident campaign sample.
  * Flat pan is the original float bit pattern retained in request.pan; values
  * outside the supported device range [-10,10] are rejected, not clamped.

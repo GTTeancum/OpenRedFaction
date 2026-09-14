@@ -118,6 +118,11 @@ static int preview(const rf_preview_mesh *mesh, const rf_materials *materials, c
     if(streaming) {stream_gpu=gpu;stream_textures=textures;stream_materials=materials;
         stream_mode=model;stream_capacity=vertex_bytes;stream_lightmaps=lightmaps;}
     }
+    if(model==4) {
+        int status;while(pb_busy()) {}
+        status=rf_scene_update_lightmaps((rf_lightmaps *)lightmaps);if(status)return status;
+        __asm__ volatile("sfence" ::: "memory");
+    }
     renderer_mark(1,&profile_previous,profiling);
     memcpy(gpu,mesh->vertices,mesh->bytes);
     for (i = 0; i < mesh->count; ++i) if (gpu[i].material < materials->count && textures[gpu[i].material].pixels) {

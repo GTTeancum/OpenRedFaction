@@ -15,6 +15,18 @@ Shortlist:
 
 Progress reporting: include a very high-level working area (e.g. Lighting, AI, Weapons, GeoMod or Scripted events) and an overall percent estimate at the end of every turn report (USER preference) and revisit remaining 24-hour workdays when measured throughput supports a forecast; current rough estimate40% (35-45%), no defensible +/-48-hour completion forecast before end-to-end gameplay.
 
+Scene frame sinks now bind retained base RGB and allocation-free dirty1/8
+lightmap uploads on PC and Xbox, waiting for prior GPU reads on Xbox.
+Stock64MiB XEMU completed180 Live Mines frames:5851 initial uploads,
+no repeated uploads, no deferred base requests and zero update errors;
+PC final-frame replay agrees on upload totals. Retained RGB1130876 bytes
+plus overlay scratch88000 bytes excludes allocator overhead. Both builds
+and25 tests pass. Current authored lights are class0, so this run does
+not exercise changing live overlays or establish visual lighting parity.
+Dirty2/4 base/shadow requests remain queued until their worker is bound;
+next integrate base regeneration, then test changing rendered lighting.
+Evidence artifacts/xemu/replay-20260913-222748/report.json.
+
 Live-light overlay now reads retained linear baseRGB and writes existing
 packed images directly, with native Xbox swizzle and no packed staging copy.
 All256 original/PC/NXDK rectangles (5184 shaded pixels,1..4 mixed sources)

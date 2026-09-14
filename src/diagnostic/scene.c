@@ -358,10 +358,52 @@ typedef struct scene_stream {
     rf_level_visibility visibility;
     rf_level_particles particles;rf_level_particle_tick_result particle_first;
     rf_level_owned_lights *lights;rf_light_dirty_storage *light_storage;
+    rf_lightmap_rgb_owner light_rgb;void *light_overlay_work;
     void *light_scratch_memory;rf_light_world_scratch light_scratch;
     rf_visibility_camera particle_camera;scene_particle_workspace *particle_workspace;uint32_t particle_frame;
 } scene_stream;
 static scene_stream *particle_draw_stream;
+uint32_t rf_scene_lightmap_updates[8]; /* frames,visits,uploads,lit regions,RGB bytes,work bytes,deferred base,status */
+int rf_scene_update_lightmaps(rf_lightmaps *maps)
+{
+    scene_stream *stream=particle_draw_stream;uint32_t i,j,count,*ids;rf_vfx_light_source *sources;int status=RF_OK;
+    if(!stream || !stream->light_storage || !stream->light_rgb.images)return RF_OK;
+    if(!maps || maps->count!=stream->light_rgb.count || !stream->light_overlay_work)return RF_RANGE;
+    ids=stream->light_overlay_work;sources=(rf_vfx_light_source *)(ids+1100);
+    ++rf_scene_lightmap_updates[0];rf_scene_lightmap_updates[6]=0;
+    for(i=0;i<stream->light_storage->dirty_count;i++) {
+        unsigned char *dirty=stream->light_storage->dirty+i;rf_lightmap_mapping mapping;rf_lightmap_sample_plane sample;
+        rf_lightmap_rgb_image *base;rf_image *image;
+        if(!*dirty)continue;++rf_scene_lightmap_updates[1];
+        status=rf_geometry_lightmap_sample_binding(stream->geometry,maps,i,&mapping,&sample);if(status)break;
+        if(!mapping.width || !mapping.height)continue;
+        /* The base/shadow worker is still being integrated. Never acknowledge
+         * its bits or overlay stale RGB while regeneration remains pending. */
+        if((*dirty&6u) && !mapping.inhibit){++rf_scene_lightmap_updates[6];continue;}
+        base=stream->light_rgb.images+mapping.image;image=maps->images+mapping.image;count=0;
+        if((*dirty&1u) && stream->lights) {
+            status=rf_vfx_lights_box(stream->lights->pool.sources,stream->lights->pool.capacity,
+                mapping.minimum,mapping.maximum,1,0,ids,1100,&count);if(status)break;
+            for(j=0;j<count;j++)sources[j]=stream->lights->pool.sources[ids[j]].source;
+        }
+        if((*dirty&1u) && count) {
+            rf_lightmap_sample_lighting lighting={0};
+            lighting.sample=sample;lighting.width=mapping.width;lighting.height=mapping.height;
+            lighting.lights=sources;lighting.light_count=count;lighting.directional_scale=.25f; /* original5a38e0 initial value */
+            status=rf_lightmap_live_image(&lighting,base,image,dirty);if(status)break;
+            ++rf_scene_lightmap_updates[3];++rf_scene_lightmap_updates[2];
+        } else if(*dirty&9u) {
+            size_t offset=((size_t)mapping.y*base->width+mapping.x)*3;unsigned char upload_dirty=8;
+            if(base->width!=image->width || base->height!=image->height || offset>=base->bytes){status=RF_RANGE;break;}
+            status=rf_lightmap_upload_image_1555(image,base->pixels+offset,base->bytes-(uint32_t)offset,base->width*3,
+                mapping.x,mapping.y,mapping.width,mapping.height,&upload_dirty);if(status)break;
+            ++rf_scene_lightmap_updates[2];
+        }
+        *dirty=0;
+    }
+    rf_scene_lightmap_updates[7]=(uint32_t)status;return status;
+}
+
 uint32_t rf_scene_light_ticks[8]; /* frames,visits,changes,world updates,clock hash,generation,scratch bytes,status */
 uint32_t rf_scene_light_storage[5]; /* faces,mappings,bytes,face hash,dirty hash */
 uint32_t rf_scene_light_fields[34];
@@ -8991,6 +9033,12 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
                 rf_random_state *rng=stream.particles.state?&stream.particles.state->random:NULL;
                 status=rf_visibility_light_world_storage_open(geometry,collision,512*1024,&stream.light_storage);if(status)goto done;
                 status=scene_lights_scratch_open(&stream,collision);if(status)goto done;
+                memset(rf_scene_lightmap_updates,0,sizeof(rf_scene_lightmap_updates));
+                status=rf_lightmap_rgb_open(&stream.light_rgb,level,4u*1024u*1024u);if(status)goto done;
+                stream.light_overlay_work=malloc(1100u*(sizeof(uint32_t)+sizeof(rf_vfx_light_source)));
+                if(!stream.light_overlay_work){status=RF_IO;goto done;}
+                rf_scene_lightmap_updates[4]=stream.light_rgb.allocated_bytes;
+                rf_scene_lightmap_updates[5]=1100u*(sizeof(uint32_t)+sizeof(rf_vfx_light_source));
                 rf_scene_light_storage[0]=stream.light_storage->face_count;rf_scene_light_storage[1]=stream.light_storage->dirty_count;rf_scene_light_storage[2]=stream.light_storage->allocated_bytes;
                 rf_scene_light_storage[3]=rf_scene_light_storage[4]=2166136261u;
                 for(i=0;i<stream.light_storage->face_count*sizeof(*stream.light_storage->faces);i++)rf_scene_light_storage[3]=(rf_scene_light_storage[3]^((unsigned char *)stream.light_storage->faces)[i])*16777619u;
@@ -9051,6 +9099,7 @@ done:
     free(stream.npc_memory);free(stream.npc_indices);free(stream.npc_pool);
     rf_level_visibility_close(&stream.visibility);
     free(stream.light_scratch_memory);
+    rf_lightmap_rgb_close(&stream.light_rgb);free(stream.light_overlay_work);
     rf_visibility_light_storage_close(&stream.light_storage);
     rf_level_owned_lights_close(&stream.lights);
     rf_level_particles_close(&stream.particles);
