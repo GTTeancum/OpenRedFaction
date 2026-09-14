@@ -334,6 +334,32 @@ int rf_lightmap_mapping_read(const void *record,uint32_t bytes,uint32_t image_co
 static double shadow_dot(const float a[3],const float b[3])
 { return ((double)a[2]*b[2]+(double)a[1]*b[1])+(double)a[0]*b[0]; }
 
+int rf_lightmap_shadow_mapping_prepare(const rf_lightmap_sample_plane *view,uint32_t width,uint32_t height,
+    const float origin[3],rf_lightmap_shadow_mapping *out)
+{
+    rf_lightmap_shadow_mapping value;float low[2],high[2],uv[2],direction[3],inverse_v;
+    double inverse_u,inverse;uint32_t i;int status;
+    if(!view || !origin || !out || width<2 || height<2 || !view->image_width || !view->image_height ||
+        view->image_width>INT32_MAX || view->image_height>INT32_MAX ||
+        (uint64_t)view->x+width>view->image_width || (uint64_t)view->y+height>view->image_height)return RF_RANGE;
+    for(i=0;i<3;i++)if(!isfinite(origin[i]))return RF_RANGE;
+    /* The original retains inverse U, but stores inverse V as binary32. */
+    inverse_u=1.0/view->image_width;inverse_v=(float)(1.0/view->image_height);
+    low[0]=(float)(((double)view->x+1)*inverse_u);low[1]=(float)(((double)view->y+1)*inverse_v);
+    high[0]=(float)((double)(width-2)*inverse_u+low[0]);high[1]=(float)((double)(height-2)*inverse_v+low[1]);
+    for(i=0;i<4;i++) {
+        uv[0]=(i==1 || i==2)?high[0]:low[0];uv[1]=i>=2?high[1]:low[1];
+        status=rf_lightmap_unproject(view,uv,value.corners[i]);if(status)return status;
+    }
+    for(i=0;i<2;i++)uv[i]=(float)(((double)high[i]-low[i])*.5+low[i]);
+    status=rf_lightmap_unproject(view,uv,value.center);if(status)return status;
+    for(i=0;i<3;i++)direction[i]=(float)((double)origin[i]-value.center[i]);
+    inverse=1.0/sqrt(((double)direction[0]*direction[0]+(double)direction[1]*direction[1])+(double)direction[2]*direction[2]);
+    if(!isfinite(inverse))return RF_RANGE;
+    for(i=0;i<3;i++) {direction[i]=(float)((double)direction[i]*inverse);if(!isfinite(direction[i]))return RF_RANGE;}
+    value.facing=shadow_dot(direction,view->plane)>0;*out=value;return RF_OK;
+}
+
 /* 4f4c03..4f4daa, after the caller's facing test and bounds expansion. */
 int rf_lightmap_shadow_volume(const float mapping_plane[4],const float origin[3],const float center[3],
     const float (*corners)[3],float (*planes)[4])

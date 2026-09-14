@@ -15,6 +15,13 @@ Shortlist:
 
 Progress reporting: include a very high-level working area (e.g. Lighting, AI, Weapons, GeoMod or Scripted events) and an overall percent estimate at the end of every turn report (USER preference) and revisit remaining 24-hour workdays when measured throughput supports a forecast; current rough estimate40% (35-45%), no defensible +/-48-hour completion forecast before end-to-end gameplay.
 
+Mapping-driven shadow corners/center/facing now match2048 original/PC/NXDK
+cases (1016 facing,1032 rejected), including all axes,2..64 extents and6 guards.
+Preserve retained inverse U versus stored inverse V in this path. Both builds
+and24 tests pass. Next compose retained source/mapping preparation with volume
+construction and occluder selection, then projected filtering and mask ownership;
+these calculations have not yet driven native rendered shadows.
+
 Six-plane shadow volume construction now matches2048 original/PC/NXDK
 volumes (12288 planes), including orientation and final receiver replacement,
 with4 guards. Reuses verified visibility plane math; both builds and24 tests

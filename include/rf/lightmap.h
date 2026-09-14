@@ -100,6 +100,14 @@ typedef struct rf_lightmap_sample_plane {
     uint32_t image_width,image_height,x,y;
     float scale[2],offset[2],plane[4];uint32_t normal_axis,u_axis;
 } rf_lightmap_sample_plane;
+typedef struct rf_lightmap_shadow_mapping {
+    float corners[4][3],center[3];uint32_t facing;
+} rf_lightmap_shadow_mapping;
+/* Original4f4637..4f4738 corners/center plus4f4b32 facing decision.
+ * Extents >=2 within the image; finite, nonzero light-to-center direction.
+ * No allocation; errors preserve output. Origin is the selected light sample. */
+int rf_lightmap_shadow_mapping_prepare(const rf_lightmap_sample_plane *,uint32_t width,uint32_t height,
+    const float origin[3],rf_lightmap_shadow_mapping *);
 /* Original4f4590 six clipping planes from mapping plane, ray origin,
  * interior center and four unprojected corners in perimeter order.
  * Caller has passed the facing test. Reuses reconstructed plane math;
