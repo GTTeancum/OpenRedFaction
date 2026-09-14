@@ -520,6 +520,33 @@ int rf_lightmap_shadow_polygon(const rf_lightmap_sample_plane *view,uint32_t wid
 
 static int shadow_filter_raster(const float (*)[2],uint32_t,const rf_lightmap_shadow_filter *,
     unsigned char *,uint32_t,uint32_t,uint32_t,unsigned char,uint32_t *);
+int rf_lightmap_shadow_prepare(const rf_lightmap_mapping *mapping,const rf_lightmap_sample_plane *sample,
+    int32_t index,const float light_center[3],float radius,const float origin[3],
+    const rf_lightmap_shadow_filter *filter,rf_lightmap_shadow_cull *cull,
+    rf_lightmap_shadow_pass *pass,uint32_t *facing)
+{
+    rf_lightmap_shadow_mapping points;rf_lightmap_shadow_cull c;rf_lightmap_shadow_pass p;
+    uint32_t i;int status;
+    if(!mapping || !sample || !light_center || !origin || !filter || !cull || !pass || !facing ||
+       index<0 || !isfinite(radius) || radius<0)return RF_RANGE;
+    for(i=0;i<3;i++)if(!isfinite(light_center[i]) || !isfinite(mapping->minimum[i]) ||
+        !isfinite(mapping->maximum[i]) || mapping->minimum[i]>mapping->maximum[i])return RF_RANGE;
+    status=rf_lightmap_shadow_mapping_prepare(sample,mapping->width,mapping->height,origin,&points);if(status)return status;
+    if(!points.facing){*facing=0;return RF_OK;}
+    for(i=0;i<3;i++) {
+        c.light_minimum[i]=(float)((double)light_center[i]-radius);
+        c.light_maximum[i]=(float)((double)light_center[i]+radius);
+        c.mapping_minimum[i]=origin[i]<mapping->minimum[i]?origin[i]:mapping->minimum[i];
+        c.mapping_maximum[i]=origin[i]>mapping->maximum[i]?origin[i]:mapping->maximum[i];
+        if(!isfinite(c.light_minimum[i]) || !isfinite(c.light_maximum[i]))return RF_RANGE;
+    }
+    memcpy(c.mapping_plane,sample->plane,16);c.mapping=index;
+    status=rf_lightmap_shadow_volume(sample->plane,origin,points.center,points.corners,c.planes);if(status)return status;
+    p.sample=*sample;p.width=mapping->width;p.height=mapping->height;memcpy(p.origin,origin,12);
+    memcpy(p.planes,c.planes,96);p.filter=filter;
+    *cull=c;*pass=p;*facing=1;return RF_OK;
+}
+
 int rf_lightmap_shadow_pass_polygon(const rf_lightmap_shadow_pass *pass,const float (*vertices)[3],
     uint32_t count,rf_lightmap_shadow_pass_work *work,unsigned char *mask,uint32_t bytes,
     unsigned char amount,uint32_t *projected,uint32_t *accepted)

@@ -181,6 +181,17 @@ typedef struct rf_lightmap_shadow_pass {
     rf_lightmap_sample_plane sample;uint32_t width,height;float origin[3],planes[6][4];
     const rf_lightmap_shadow_filter *filter;
 } rf_lightmap_shadow_pass;
+/* Prepare one selected light sample: mapping corners/facing, expanded mapping
+ * bounds and six clipping planes. light_center is the source's selected space
+ * position (distinct from endpoint origin for kind4); radius expands that
+ * center on each axis. Bounds and sample must refer to the same mapping.
+ * No allocation. Non-facing success sets facing0 and preserves cull/pass;
+ * caller clears its mask. Errors preserve all outputs. Filter is borrowed.
+ * Current volume validation rejects degenerate corners (including two-texel
+ * extents); original degenerate-volume behavior remains to be reconstructed. */
+int rf_lightmap_shadow_prepare(const rf_lightmap_mapping *,const rf_lightmap_sample_plane *,
+    int32_t mapping,const float light_center[3],float radius,const float origin[3],
+    const rf_lightmap_shadow_filter *,rf_lightmap_shadow_cull *,rf_lightmap_shadow_pass *,uint32_t *facing);
 typedef struct rf_lightmap_shadow_pass_work {
     float (*vertices[2])[3],(*uv)[2];uint32_t capacity;
 } rf_lightmap_shadow_pass_work;
