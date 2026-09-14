@@ -1,8 +1,8 @@
 # L2S2a miner rescue investigation
 
-The focused PC rescue chain now opens the door, moves the miner into the guard
-trigger, fires the guards' weapons, and activates the miner's death watch.
-This is not a full player traversal or Xbox runtime validation.
+The focused PC/Xbox rescue chain now opens the door, moves the miner into the
+guard trigger, fires the guards' weapons, and enters death state. PC also
+verifies the miner's authored death watch. This is not a full player traversal.
 
 The authored Use trigger5658 links Goto8481, Goto8482, Invert8468, Pin Door
 key8512, Message4785, Remove_Object8073 and Set_Friendliness8483. Switch5671
@@ -121,3 +121,26 @@ Use reach was introduced based on that failed approach. Starting inside5658
 remains the focused encounter fixture; it is not ordinary traversal from spawn.
 Local approach evidence is in artifacts/miner-traversal; headless PC output
 now includes CAMPAIGN_FINAL_POSITION to make movement endpoints inspectable.
+
+## Stock64MiB Xbox validation
+
+Run `artifacts/xemu/render-20260914-193612/report.json` passes900 frames and24
+selected state comparisons, ending with4,411 free pages (17.230MiB). Native
+ROTATING_DOORS is `[61,1,8512,1074137746,1,62,0,0]`; SCRIPT_MOVE is
+`[5,2024,0,0,3,5678,5674,0]`. SCRIPT_ATTACK, ten-shot ENEMY_FIRE, and the
+single-death COMBAT_DEATH counters match the PC reference word for word.
+The native harness does not separately compare the When_Dead8611 timer.
+
+Reproduce with:
+
+```
+python tools/xemu_render_check.py --spawn --level L2S2a.rfl --trigger-start-uid 5658 --setup-uid 5671 --input artifacts/miner-rescue-replay/contact.bin --seconds 240
+```
+
+The new trigger-start option uses the same one-time placement helper as PC.
+It retains normal trigger eligibility/Use and does not itself fire the trigger;
+the separate explicit Switch5671 setup remains part of this focused fixture.
+Native checks now include rotation, scripted attack and enemy-fire telemetry.
+The process guard confirmed no project emulator before launch; cleanup closed
+only the harness process and restored/repacked the original disc settings.
+Ordinary player approach to the Use volume remains the next traversal gap.

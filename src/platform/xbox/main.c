@@ -981,6 +981,11 @@ int main(void)
                 if(exit_start){uint32_t uid;int invalid=fread(&uid,4,1,exit_start)!=1 || fgetc(exit_start)!=EOF;fclose(exit_start);
                     result=invalid?RF_FORMAT:rf_scene_stage_exit(&level,uid);}
             }
+            if(result==RF_OK) {
+                FILE *trigger_start=fopen("D:\\campaign-trigger-start.bin","rb");
+                if(trigger_start){uint32_t uid;int invalid=fread(&uid,4,1,trigger_start)!=1 || fgetc(trigger_start)!=EOF;fclose(trigger_start);
+                    result=invalid || !uid?RF_FORMAT:rf_scene_stage_trigger(&level,uid);}
+            }
 campaign_load_section:
             rf_xbox_load_stage=1;
             if (result == RF_OK) {

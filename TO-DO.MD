@@ -33,7 +33,7 @@ with4383 free pages (17.121MiB). Overall estimate remains ~45%.
 
 Shortlist:
 - ACTIVE: Resolve the player approach to the miner rescue Use volume; normal contact enables the switch, but full walking access remains unverified.
-- ACTIVE: Validate the now-working PC miner rescue/guard encounter on Xbox and during normal traversal; complete mover obstruction, attached actors and revisit behavior.
+- ACTIVE: Complete normal player traversal after the PC/Xbox miner encounter passes900 frames with17.230MiB free; finish mover obstruction, attached actors and revisit behavior.
 - TO COMPLETE: Verify nonlethal damage, immunity and sight/alarm interruption of scripted poses after the PC/Xbox death-cancellation fix.
 - TO COMPLETE: Finish named state/action animation events, root motion, automatic combat/death interruption and script-animation persistence after the verified custom-clip path.
 - TO COMPLETE: Walk uninterrupted Area2 encounters after the L2S1 Use/airlock interlock fix; isolated boundary checks are not full traversal.
