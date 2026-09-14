@@ -143,4 +143,52 @@ the separate explicit Switch5671 setup remains part of this focused fixture.
 Native checks now include rotation, scripted attack and enemy-fire telemetry.
 The process guard confirmed no project emulator before launch; cleanup closed
 only the harness process and restored/repacked the original disc settings.
-Ordinary player approach to the Use volume remains the next traversal gap.
+Ordinary player approach was the next traversal gap; the local approach update
+below extends the coverage beyond this isolated setup.
+
+## Playable Use reach and local approach
+
+Original4a1970 ->4c0100 ->4bfc60 ->4c0a80 tests the ordinary actor movement
+segment; no temporary extended Use segment was found in these calls. The
+port deliberately adds a first-pass interaction affordance at the scene layer:
+held Use may test a nearby point inside a nondirectional Use trigger, up to the
+largest player collision-sphere radius (capped at1 unit). A static/mover ray
+must be clear. Trigger eligibility, activation limits, delays and airlock gates
+still apply. Passive contacts, NPC contacts, and movement collision are not
+expanded. This is practical interaction behavior, not a claim of retail parity.
+
+`rf_trigger_reach_point` performs bounded sphere/OBB point selection without
+allocation; the scene owns occlusion checks. Zero-distance/inside-volume cases
+retain ordinary contact. The live collision-world pointer is borrowed for the
+scene lifetime and cleared during teardown. `USE_REACH` records nearby probes,
+clear probes, occluded probes and activations. A first experiment used sweep
+flag0x45 with the ray API and failed at frame106; using the existing opaque ray
+flag1 convention resolved that mismatched query mode.
+
+`python tools/replay_miner_approach.py` starts once at contact trigger5670,
+then uses only player movement and Use for1,200 frames. No setup, Goto, Attack,
+or forced exit commands are supplied. The switch enables normally, Use opens
+Pin Door8512, the miner follows his route, guards fire and When_Dead8611 fires.
+USE_REACH is `[1,1,0,1]`. Walking without Use and using from the initial distant
+position both keep the door closed and the attack inactive. CTest trigger_reach
+covers rotated boxes, spheres, range limits and malformed input. Existing
+airlock replays retain exit frames274/272 with their interlocks intact.
+
+This is a verified local approach, still not uninterrupted traversal from the
+level's original player spawn. Detailed occlusion-layout coverage, retail Use
+feel and complete Area2 traversal remain open.
+
+Stock64MiB XEMU run `render-20260914-194753` passes all1,200 frames and25
+selected PC/native comparisons, including USE_REACH `[1,1,0,1]`, rotating-door
+state, scripted attacks, enemy fire and death entry. It ends with4,410 free
+pages (17.227MiB). Reproduce with:
+
+```
+python tools/xemu_render_check.py --spawn --level L2S2a.rfl --trigger-start-uid 5670 --input artifacts/miner-approach-replay/use.bin --seconds 240
+```
+
+No setup event is passed. The harness closes its own process and restores the
+disc flags after completion. Its native framebuffer was inspected: the scene,
+opened gate area and first-person weapon render; the final camera does not
+show the distant guard encounter, so the firing/death claim here rests on the
+explicit state comparisons rather than a visual firing inspection.

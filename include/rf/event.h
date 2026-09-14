@@ -97,6 +97,10 @@ int rf_trigger_occupancy(const rf_trigger_volume *volume,
  * No normalization. Finite active fields and nonnegative box sizes required;
  * signed sphere radius preserved. Unused fields zeroed; errors preserve output. */
 int rf_trigger_volume_init(const rf_level_trigger *record,rf_trigger_volume *volume);
+/* First-pass interaction helper, not original trigger contact semantics.
+ * Finds a nearby point inside a volume; caller owns eligibility and occlusion. */
+int rf_trigger_reach_point(const rf_trigger_volume *volume,const float origin[3],
+    float reach,float point[3],uint32_t *found);
 /* SP 4bfc60 eligibility/contact/delay stage, before key and activation gates.
  * Actor pose is +3c, +e4, +f0 in that order. Flag4 skips geometry; unknown
  * shape rejects contact otherwise. Timer/ready are unchanged on errors.

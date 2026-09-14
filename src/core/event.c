@@ -254,6 +254,32 @@ int rf_trigger_volume_init(const rf_level_trigger *record,rf_trigger_volume *vol
     }
     *volume=value;return RF_OK;
 }
+int rf_trigger_reach_point(const rf_trigger_volume *v,const float origin[3],
+    float reach,float point[3],uint32_t *found)
+{
+    float delta[3],target[3],distance=0;uint32_t i,j;
+    if(!v || !origin || !point || !found)return RF_RANGE;
+    if(!isfinite(reach) || reach<0 || v->shape>1)return RF_FORMAT;
+    for(i=0;i<3;i++) {
+        if(!isfinite(origin[i]) || !isfinite(v->center[i]))return RF_FORMAT;
+        delta[i]=origin[i]-v->center[i];target[i]=v->center[i];
+    }
+    if(v->shape==0) {
+        float length=sqrtf(delta[0]*delta[0]+delta[1]*delta[1]+delta[2]*delta[2]);
+        if(!isfinite(v->radius) || v->radius<0 || !isfinite(length))return RF_FORMAT;
+        if(length<=v->radius)memcpy(target,origin,12);
+        else if(length>0)for(i=0;i<3;i++)target[i]+=delta[i]*fmaxf(0,v->radius-.0001f)/length;
+    } else for(i=0;i<3;i++) {
+        float local=0,half;
+        if(!isfinite(v->size[i]) || v->size[i]<0)return RF_FORMAT;
+        for(j=0;j<3;j++){if(!isfinite(v->matrix[i][j]))return RF_FORMAT;local+=delta[j]*v->matrix[i][j];}
+        half=fmaxf(0,v->size[i]*.5f-.0001f);local=fmaxf(-half,fminf(half,local));
+        for(j=0;j<3;j++)target[j]+=local*v->matrix[i][j];
+    }
+    for(i=0;i<3;i++){float d=target[i]-origin[i];distance+=d*d;}
+    if(!isfinite(distance))return RF_FORMAT;
+    *found=distance<=reach*reach;if(*found)memcpy(point,target,12);return RF_OK;
+}
 int rf_trigger_contact_poll(const rf_trigger_gate *gate,const rf_trigger_actor_facts *actor,
     const rf_trigger_volume *volume,const float pose[3][3],rf_trigger_contact_timer *timer,
     int32_t now,uint32_t input,uint32_t *ready)

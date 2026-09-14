@@ -32,7 +32,7 @@ Final stock64MiB Xbox run182149 passes360 frames and the same exit at frame274,
 with4383 free pages (17.121MiB). Overall estimate remains ~45%.
 
 Shortlist:
-- ACTIVE: Resolve the player approach to the miner rescue Use volume; normal contact enables the switch, but full walking access remains unverified.
+- ACTIVE: Extend the PC/Xbox local miner rescue walking/Use approach (1200 frames,17.227MiB free) to uninterrupted Area2 traversal; finish occlusion and retail interaction feel.
 - ACTIVE: Complete normal player traversal after the PC/Xbox miner encounter passes900 frames with17.230MiB free; finish mover obstruction, attached actors and revisit behavior.
 - TO COMPLETE: Verify nonlethal damage, immunity and sight/alarm interruption of scripted poses after the PC/Xbox death-cancellation fix.
 - TO COMPLETE: Finish named state/action animation events, root motion, automatic combat/death interruption and script-animation persistence after the verified custom-clip path.

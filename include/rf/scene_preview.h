@@ -781,4 +781,5 @@ extern uint32_t rf_scene_watch_test_uid,rf_scene_watch_test[4],rf_scene_death_wa
 extern uint32_t rf_scene_airlock[6];
 extern uint32_t rf_scene_script_animation[10];
 extern uint32_t rf_scene_rotating_doors[8];
+extern uint32_t rf_scene_use_reach[4];
 #endif

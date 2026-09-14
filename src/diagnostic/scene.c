@@ -2258,6 +2258,8 @@ static int campaign_event_mover(void *context,uint32_t handle,uint32_t source,ui
  * trigger+2c0 is a room UID;4bfc60 checks peer doors before dispatch.
  * Equalization/pressure mutation and its sound are not implemented here. */
 static const rf_geometry *campaign_trigger_geometry;
+static const rf_geometry_collision_world *campaign_trigger_collision;
+uint32_t rf_scene_use_reach[4]; /* nearby probes, clear probes, occluded probes, activations */
 uint32_t rf_scene_airlock[6]; /* polls, allowed, blocked, unsupported, room UID, trigger UID */
 static int campaign_airlock_ready(const rf_runtime_trigger *trigger)
 {
@@ -2303,14 +2305,31 @@ static int campaign_actor_trigger_contacts(const rf_entity_view *actor,const flo
     for(i=0;i<campaign_triggers.count;++i) {
         rf_runtime_trigger *trigger=campaign_triggers.items+i;
         const rf_level_trigger *record=&trigger->authored->record;uint32_t ready=0,fired=0;
+        const float (*contact_positions)[3]=positions;float reached[3][3];uint32_t extended=0;
         if(trigger->activation.object_flags&2)continue;
         if(record->value_byte>4 || record->fields[2]!=UINT32_MAX ||
            record->fields[1]!=UINT32_MAX || (record->script[0] && strcmp(record->script,"-1")) ||
            (trigger->state.flags&(2u|128u))) {++rf_scene_trigger_contacts[4];continue;}
         status=rf_trigger_contact_filter_authored(trigger,facts.handle,-1,&filter);if(status)return status;
-        status=rf_runtime_trigger_contact(&campaign_triggers,trigger->handle,&facts,positions,&filter,now,use,&ready);
+        if(!npc && use && (trigger->state.flags&1) && !(trigger->state.flags&(16|32)) && campaign_trigger_collision &&
+           (trigger->activation.limit==-1 || trigger->state.count<(uint32_t)trigger->activation.limit)) {
+            uint32_t j,nearby,blocked;float reach=0;rf_collision_solid_hit hit;
+            for(j=0;j<scene_actor_body.spheres.count;j++)if(scene_actor_body.spheres.items[j].radius>reach)reach=scene_actor_body.spheres.items[j].radius;
+            status=rf_trigger_reach_point(&trigger->volume,positions[0],fminf(reach,1),reached[0],&nearby);if(status)return status;
+            if(nearby) {float d=0;for(j=0;j<3;j++){float v=positions[0][j]-reached[0][j];d+=v*v;}if(d<1e-10f)nearby=0;}
+            if(nearby) {
+                ++rf_scene_use_reach[0];
+                status=rf_geometry_collision_ray(campaign_trigger_collision,&campaign_movers,positions[0],reached[0],1,&hit,&blocked);if(status)return status;
+                if(!blocked) {
+                    memcpy(reached[1],reached[0],12);memcpy(reached[2],reached[0],12);
+                    contact_positions=reached;extended=1;++rf_scene_use_reach[1];
+                } else ++rf_scene_use_reach[2];
+            }
+        }
+        status=rf_runtime_trigger_contact(&campaign_triggers,trigger->handle,&facts,contact_positions,&filter,now,use,&ready);
         ++rf_scene_trigger_contacts[0];if(npc)++rf_scene_npc_triggers[0];rf_scene_trigger_contacts[5]=(uint32_t)status;if(status)return status;
         if(ready && !campaign_airlock_ready(trigger))continue;
+        if(ready && extended)++rf_scene_use_reach[3];
         if(ready) {if(npc){++rf_scene_npc_triggers[1];rf_scene_npc_triggers[2]=npc;rf_scene_npc_triggers[3]=record->uid;}++rf_scene_trigger_contacts[1];rf_scene_trigger_contacts[2]=record->uid;
             if(record->uid==8542)++rf_scene_trigger_contacts[3];
             status=rf_runtime_trigger_fire_links(&campaign_triggers,trigger->handle,facts.handle,now,
@@ -10963,7 +10982,7 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
             rf_scene_campaign_events[0]=campaign_events.count;
             rf_scene_campaign_events[1]=campaign_events.allocated_bytes;
             rf_scene_campaign_events[2]=sizeof(campaign_registry);
-            campaign_trigger_geometry=geometry;memset(rf_scene_airlock,0,sizeof(rf_scene_airlock));
+            campaign_trigger_geometry=geometry;campaign_trigger_collision=collision;memset(rf_scene_airlock,0,sizeof(rf_scene_airlock));memset(rf_scene_use_reach,0,sizeof(rf_scene_use_reach));
             rf_scene_campaign_load_stage=3;status=rf_runtime_triggers_open(level,&campaign_registry,1024*1024,0,&campaign_triggers);
             if(status)goto done;
             if(rf_scene_follow_level_exits && rf_scene_level_transition.pending)
@@ -11382,7 +11401,7 @@ done:
     rf_group_registration_close(&campaign_group_registration);
     rf_group_runtime_close(&campaign_group_runtime);
     rf_level_owned_groups_close(&campaign_groups);
-    rf_runtime_triggers_close(&campaign_triggers);campaign_trigger_geometry=NULL;
+    rf_runtime_triggers_close(&campaign_triggers);campaign_trigger_geometry=NULL;campaign_trigger_collision=NULL;
     rf_runtime_events_close(&campaign_events);
     rf_level_owned_ambient_close(&campaign_ambient);
     memset(&campaign_climb,0,sizeof(campaign_climb));rf_level_owned_regions_close(&campaign_regions);
