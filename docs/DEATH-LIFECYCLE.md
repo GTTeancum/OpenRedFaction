@@ -2,9 +2,9 @@
 
 # Death lifecycle reconstruction
 
-The live campaign does not yet have a complete death-start, dying-update,
-game-over or respawn owner. Negative health and the death-audio bit are not
-substitutes for those transitions.
+The live campaign now has a practical first-pass death gate and in-place
+respawn, described below. Full original death-start/dying-update, game-over,
+checkpoints and level restart remain unfinished.
 
 ## Death-entry state prefix
 
@@ -11087,3 +11087,29 @@ advances510 before muzzle query, and4267c6 calls4257c0 after shot effects;
 actor814 bit1000 can cause a second consumption call. This ordering is
 trace evidence for future composition, not implemented firing behavior.
 Do not consume ammo merely when calculating or rendering a muzzle pose.
+
+## Playable-first player recovery
+
+The shared scene suppresses all player input after fatal damage and displays
+YOU DIED / E/X TO RESPAWN. After 60 frames, a fresh Use press restores the
+starting player body, pose, look, damage/armor state, stance, collision spheres
+and support state. A held Use button cannot accidentally respawn. The clip
+is refilled, reload/damage flash cleared and reactive NPC alerts reset.
+The retained starting snapshot costs 1132 bytes; no respawn heap allocation.
+
+This is a practical implementation, not an original-routine reconstruction.
+World geometry, NPC health/deaths and mission state persist. It is not a
+checkpoint or full level reload. Moving-world obstruction at the restored
+position and repeat recovery across arbitrary campaign encounters remain open.
+
+`python tools/replay_player_life.py` covers fatal retaliation, input blocking,
+held-Use rejection, restored health/ammo and firing after respawn. Movement
+input is accepted again; this staged route does not demonstrate horizontal
+displacement after respawn. Evidence: artifacts/player-life/report.json.
+
+Stock64MiB XEMU1500-frame replay PASS: one death, one respawn at frame1300,
+two player shots and renewed enemy retaliation. Player lifecycle and combat
+state match PC, as do15 sampled final HUD pixels.7115 available pages at
+completion. Evidence: artifacts/xemu/replay-20260914-003751/report.json.
+The final capture is after respawn; the death prompt was visually inspected
+on PC, not in a native Xbox death-frame capture. Both builds and26 CTests pass.

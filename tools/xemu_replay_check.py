@@ -228,6 +228,8 @@ dvd_path = '{root.as_posix()}/build/xbox/redfaction-diagnostic.iso'
     for name,label,count in [('rf_scene_actor_follow_summary','ACTOR_FOLLOW_SUMMARY',5),('rf_scene_player_input_frames','ACTOR_PLAYER_INPUT',448),('scene_actor_body','PC_PLAY_BODY',77)]:
      got=words(monitor,symbol(name),count);assert got==expected(label),name;report[name]=got
     if args.campaign_spawn:
+     report['player_life']=words(monitor,symbol('rf_scene_player_life'),8)
+     assert report['player_life']==expected('PLAYER_LIFE'),report['player_life']
      report['enemy_combat']=words(monitor,symbol('rf_scene_enemy_combat'),8)
      assert report['enemy_combat']==expected('ENEMY_COMBAT') and report['enemy_combat'][7]==0,report['enemy_combat']
      report['combat']=words(monitor,symbol('rf_scene_combat'),8)

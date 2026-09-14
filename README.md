@@ -10,7 +10,9 @@ visual quality must meet the PS2 version. **Full campaign play remains unfinishe
 firing loop damages a visible NPC; the green reticle confirms a hit and the
 bottom-right markers show11 rounds left. Reloading is supported. First-person
 gun presentation and shot audio remain unfinished. Armed NPCs now retaliate
-when damaged; broader detection, pursuit and death/restart flow remain open.
+when damaged. Death blocks controls; E (keyboard) or X (controller) respawns
+the player with full health/ammo at the starting position. This first pass
+preserves world state; checkpoints, full restart, detection and pursuit remain open.
 
 ![Xbox reconstruction: miner, mining robot, overhead lamps and warning fixture in Live Mines](docs/images/xbox-campaign-props.png)
 

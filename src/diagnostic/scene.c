@@ -153,6 +153,7 @@ static void profile_mark(uint32_t stage)
 uint32_t rf_scene_player_input_frames[64][7];
 void rf_scene_set_input(rf_scene_input_poll poll,void *context,uint32_t frame_limit)
 {player_poll=poll;player_context=context;player_frame_limit=frame_limit;}
+static int campaign_life_input(uint32_t frame,rf_scene_input *input);
 static int player_begin_frame(void *context,uint32_t frame)
 {
     rf_scene_input value={0};uint32_t i,*r=rf_scene_player_input_frames[frame%64];int status;(void)context;
@@ -161,6 +162,7 @@ static int player_begin_frame(void *context,uint32_t frame)
     for(i=0;i<3;++i)if(!isfinite(value.move[i]) || fabsf(value.move[i])>1)return RF_FORMAT;
     for(i=0;i<2;++i)if(!isfinite(value.look[i]) || fabsf(value.look[i])>1)return RF_FORMAT;
     if(value.crouch>1 || value.jump>1 || value.use>1 || value.fire>1 || value.reload>1)return RF_FORMAT;
+    if(campaign_spawn){status=campaign_life_input(frame,&value);if(status)return status;}
     player_input=value;r[0]=frame;memcpy(r+1,&value,24); /* Preserve the legacy movement/stance ring. */
     profile_active=frame>=16;rf_scene_profile_stage[0]=frame;profile_mark(0);return RF_OK;
 }
@@ -6932,6 +6934,53 @@ uint32_t rf_scene_combat[8];
 static uint32_t combat_cooldown,combat_frame,combat_hit_frame;
 uint32_t rf_scene_enemy_combat[8]; /* ticks,alerts,shots,hits,blocked,health bits,down,status */
 static float combat_initial_health;
+uint32_t rf_scene_player_life[8]; /* deaths,respawns,dead,death frame,respawn frame,snapshot bytes,blocked inputs,status */
+static uint32_t life_valid,life_use;
+static struct {
+    rf_physics_body_state body;rf_group_attached_pose pose;rf_look_pose look;
+    campaign_player_damage_owner damage;rf_entity_view view;
+    rf_movement_settings movement;rf_player_climb_state climb;
+    rf_physics_sphere spheres[8];uint32_t count,stance,landing[8],support;
+    float support_velocity[3];
+} life_start;
+static int campaign_life_capture(void)
+{
+    if(scene_actor_body.spheres.count>8)return RF_RANGE;
+    life_start.body=scene_actor_body.state;life_start.pose=rf_scene_actor_pose;life_start.look=actor_look;
+    life_start.damage=campaign_player_damage;life_start.view=campaign_player_view;
+    life_start.movement=rf_scene_actor_movement_settings;life_start.climb=campaign_climb;
+    life_start.count=scene_actor_body.spheres.count;memcpy(life_start.spheres,scene_actor_body.spheres.items,life_start.count*sizeof(*life_start.spheres));
+    life_start.stance=rf_scene_actor_stance_flags;memcpy(life_start.landing,rf_scene_actor_landing,sizeof(life_start.landing));
+    life_start.support=campaign_support_handle;memcpy(life_start.support_velocity,campaign_support_velocity,12);
+    life_valid=1;rf_scene_player_life[5]=sizeof(life_start);return RF_OK;
+}
+static int campaign_life_input(uint32_t frame,rf_scene_input *input)
+{
+    uint32_t pressed=input->use && !life_use,i;
+    if(!frame){memset(rf_scene_player_life,0,sizeof(rf_scene_player_life));life_valid=0;life_use=input->use;return RF_OK;}
+    life_use=input->use;
+    if(!life_valid || campaign_player_damage.state.effects.health>0)return RF_OK;
+    if(!rf_scene_player_life[2]) {
+        ++rf_scene_player_life[0];rf_scene_player_life[2]=1;rf_scene_player_life[3]=frame;
+        memset(scene_actor_body.state.velocity,0,12);memset(rf_scene_actor_pose.velocity,0,12);
+    }
+    ++rf_scene_player_life[6];memset(input,0,sizeof(*input));
+    if(!pressed || frame-rf_scene_player_life[3]<60)return RF_OK;
+    if(scene_actor_body.spheres.count!=life_start.count)return RF_RANGE;
+    scene_actor_body.state=life_start.body;rf_scene_actor_pose=life_start.pose;actor_look=life_start.look;
+    campaign_player_damage=life_start.damage;campaign_player_view=life_start.view;
+    rf_scene_actor_movement_settings=life_start.movement;campaign_climb=life_start.climb;
+    memcpy(scene_actor_body.spheres.items,life_start.spheres,life_start.count*sizeof(*life_start.spheres));
+    rf_scene_actor_stance_flags=life_start.stance;memcpy(rf_scene_actor_landing,life_start.landing,sizeof(life_start.landing));
+    campaign_support_handle=life_start.support;memcpy(campaign_support_velocity,life_start.support_velocity,12);
+    campaign_crouched=(life_start.stance&0x400)!=0;campaign_jump_held=0;
+    memset(&campaign_player_flash,0,sizeof(campaign_player_flash));memset(&campaign_camera_effect,0,sizeof(campaign_camera_effect));
+    combat_cooldown=0;combat_hit_frame=UINT32_MAX;rf_scene_combat[5]=12;rf_scene_combat[6]=0;
+    for(i=0;i<campaign_npc_body_count;i++)campaign_npc_bodies[i].combat_alert=campaign_npc_bodies[i].combat_due=0;
+    rf_scene_enemy_combat[6]=0;memcpy(rf_scene_enemy_combat+5,&campaign_player_damage.state.effects.health,4);
+    ++rf_scene_player_life[1];rf_scene_player_life[2]=0;rf_scene_player_life[4]=frame;
+    return RF_OK;
+}
 static uint32_t combat_predicate(void *c,uint32_t kind,uint32_t handle)
 {(void)c;return (kind==RF_DAMAGE_PLAYER || kind==RF_DAMAGE_OBJECT_PLAYER_FLAG) && handle==campaign_player_object.handle;}
 static uint32_t combat_uid(void *c,int32_t uid)
@@ -6991,7 +7040,8 @@ static int campaign_combat_tick(scene_stream *stream,uint32_t frame,const float 
     float delta[3],nearest=1,amount;uint32_t i,target=UINT32_MAX,matched;rf_geometry_world_hit wall;int status;
     if(!frame){memset(rf_scene_combat,0,sizeof(rf_scene_combat));rf_scene_combat[3]=UINT32_MAX;rf_scene_combat[5]=12;combat_cooldown=0;combat_frame=combat_hit_frame=UINT32_MAX;
         memset(rf_scene_enemy_combat,0,sizeof(rf_scene_enemy_combat));combat_initial_health=campaign_player_damage.state.effects.health;
-        for(i=0;i<campaign_npc_body_count;i++)campaign_npc_bodies[i].combat_alert=campaign_npc_bodies[i].combat_due=0;}
+        for(i=0;i<campaign_npc_body_count;i++)campaign_npc_bodies[i].combat_alert=campaign_npc_bodies[i].combat_due=0;
+        status=campaign_life_capture();if(status)return status;}
     if(combat_frame==frame)return RF_OK;combat_frame=frame;
     status=campaign_enemy_tick(stream,frame,position);rf_scene_enemy_combat[7]=(uint32_t)status;if(status)return status;
     if(rf_scene_enemy_combat[6])return RF_OK;
@@ -7036,6 +7086,29 @@ static int combat_hud_rect(rf_scene_particle_sink sink,void *context,float x,flo
     for(i=0;i<4;i++){vertices[i].screen[0]=x+((i==1 || i==2)?width:0);vertices[i].screen[1]=y+(i>=2?height:0);vertices[i].reciprocal_w=1;vertices[i].argb=color;}
     return sink(context,vertices,4,NULL,0x18000);
 }
+static int combat_hud_text(rf_scene_particle_sink sink,void *context,float x,float y,const char *text,uint32_t color)
+{
+    static const struct {char letter;unsigned char rows[7];} font[]={
+        {'A',{14,17,17,31,17,17,17}},{'D',{30,17,17,17,17,17,30}},
+        {'E',{31,16,16,30,16,16,31}},{'I',{31,4,4,4,4,4,31}},
+        {'N',{17,25,25,21,19,19,17}},{'O',{14,17,17,17,17,17,14}},
+        {'P',{30,17,17,30,16,16,16}},{'R',{30,17,17,30,20,18,17}},
+        {'S',{15,16,16,14,1,1,30}},{'T',{31,4,4,4,4,4,4}},
+        {'U',{17,17,17,17,17,17,14}},{'W',{17,17,17,17,21,21,10}},
+        {'X',{17,17,10,4,10,17,17}},{'Y',{17,17,10,4,4,4,4}},
+        {'/',{1,2,2,4,8,8,16}}};
+    uint32_t n,i,row,col;
+    for(n=0;text[n];n++)for(i=0;i<sizeof(font)/sizeof(font[0]);i++)if(font[i].letter==text[n]) {
+        for(row=0;row<7;row++)for(col=0;col<5;) {
+            uint32_t start=col;int status;
+            if(!(font[i].rows[row]&(16u>>col))){++col;continue;}
+            while(col<5 && (font[i].rows[row]&(16u>>col)))++col;
+            status=combat_hud_rect(sink,context,x+n*12+start*2,y+row*2,(col-start)*2,2,color);if(status)return status;
+        }
+        break;
+    }
+    return RF_OK;
+}
 int rf_scene_draw_combat_hud(rf_scene_particle_sink sink,void *context)
 {
     const float arms[4][4]={{310,239,7,2},{323,239,7,2},{319,230,2,7},{319,243,2,7}};
@@ -7058,6 +7131,11 @@ int rf_scene_draw_combat_hud(rf_scene_particle_sink sink,void *context)
     if(rf_scene_combat[6]) {
         status=combat_hud_rect(sink,context,477,458,128,3,0xff484848);if(status)return status;
         status=combat_hud_rect(sink,context,477,458,128.0f*(72-rf_scene_combat[6])/72.0f,3,0xffffc040);if(status)return status;
+    }
+    if(rf_scene_enemy_combat[6]) {
+        status=combat_hud_rect(sink,context,224,184,192,64,0xff101010);if(status)return status;
+        status=combat_hud_text(sink,context,272,194,"YOU DIED",0xffee6060);if(status)return status;
+        status=combat_hud_text(sink,context,242,224,"E/X TO RESPAWN",0xffeeeeee);if(status)return status;
     }
     return RF_OK;
 }

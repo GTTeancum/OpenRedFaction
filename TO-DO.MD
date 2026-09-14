@@ -22,6 +22,19 @@ Shortlist:
 
 Progress reporting: include a very high-level working area (e.g. Lighting, AI, Weapons, GeoMod or Scripted events) and an overall percent estimate at the end of every turn report (USER preference) and revisit remaining 24-hour workdays when measured throughput supports a forecast; current rough estimate42% (35-45%), no defensible +/-48-hour completion forecast before end-to-end gameplay.
 
+First-pass player recovery now blocks controls after fatal damage and shows
+a death/respawn prompt. After60 frames, fresh E/X restores the starting player
+body, pose, health/armor and ammunition, clearing reactive enemy alerts.
+World/NPC/mission state persists: full level restart/checkpoints remain open.
+A1132-byte retained snapshot avoids respawn allocations. PC tests cover death,
+held-Use rejection, health/ammo restoration and resumed firing; movement input
+is accepted, but horizontal displacement is not demonstrated on this staged
+route. Both builds and26 CTests pass. Stock64MiB XEMU1500-frame lifecycle
+PASS: one death, one respawn, resumed firing and matching PC state/HUD.
+Evidence artifacts/xemu/replay-20260914-003751/report.json;7115 available
+pages at completion (not a peak memory measurement).
+Evidence artifacts/player-life/report.json; docs/DEATH-LIFECYCLE.md.
+
 First-pass armed retaliation now uses8 retained bytes per NPC (624 for78):
 a damaging hit alerts an armed visible actor; after30 frames it attacks every
 60 frames within40 units, checking the existing moving/static geometry ray
@@ -35,8 +48,8 @@ tests pass. Evidence artifacts/enemy-first/report.json. Stock64MiB XEMU
 artifacts/xemu/replay-20260914-002734/report.json, framebuffer.png and
 health-pixels.json.7115 available pages observed at completion, not a peak.
 This is stationary reactive AI, not campaign detection/pursuit/squad behavior.
-Death/restart, firing animation/audio, faction handling and weapon tuning are
-open. Attempted walking cover routes remained visible/in range; no verified
+Full level restart/checkpoints, firing animation/audio, faction handling and
+weapon tuning are open; first-pass in-place respawn is described above. Attempted walking cover routes remained visible/in range; no verified
 cover-transition claim. Ray obstruction uses the existing geometry path.
 
 Shared combat HUD now renders a centered reticle, green damaging-hit feedback,
