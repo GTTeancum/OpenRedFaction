@@ -335,6 +335,17 @@ int main(int argc,char **argv)
         }
         return 0;
     }
+    if(argc==2 && !strcmp(argv[1],"--lightmap-shadow-occluder-image")) {
+        struct {rf_lightmap_shadow_cull view;rf_lightmap_shadow_face face;uint32_t present,format;} input;
+        rf_image image={0};uint32_t status,accepted;
+        _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
+        while(fread(&input,sizeof(input),1,stdin)==1) {
+            accepted=0xa5a5a5a5;image.source_format=input.format;
+            status=rf_lightmap_shadow_occluder_image(&input.view,&input.face,input.present?&image:NULL,&accepted);
+            fwrite(&status,4,1,stdout);fwrite(&accepted,4,1,stdout);
+        }
+        return 0;
+    }
     if(argc==2 && !strcmp(argv[1],"--lightmap-shadow-occluder")) {
         struct {rf_lightmap_shadow_cull view;rf_lightmap_shadow_face face;} input;uint32_t status,accepted;
         _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);

@@ -360,6 +360,15 @@ int rf_lightmap_shadow_occluder(const rf_lightmap_shadow_cull *view,const rf_lig
     *accepted=value;return RF_OK;
 }
 
+int rf_lightmap_shadow_occluder_image(const rf_lightmap_shadow_cull *view,const rf_lightmap_shadow_face *face,
+    const rf_image *image,uint32_t *accepted)
+{
+    rf_lightmap_shadow_face value;
+    if(!face)return RF_RANGE;
+    value=*face;value.texture_excluded=image?rf_image_format_has_alpha(image->source_format):0;
+    return rf_lightmap_shadow_occluder(view,&value,accepted);
+}
+
 int rf_lightmap_shadow_mapping_prepare(const rf_lightmap_sample_plane *view,uint32_t width,uint32_t height,
     const float origin[3],rf_lightmap_shadow_mapping *out)
 {

@@ -111,6 +111,11 @@ typedef struct rf_lightmap_shadow_cull {
  * bounds and resolved510710 texture exclusion supplied by the owner.
  * Signed16 mapping/portal fields, strict coplanar/volume rules. No allocation. */
 int rf_lightmap_shadow_occluder(const rf_lightmap_shadow_cull *,const rf_lightmap_shadow_face *,uint32_t *accepted);
+/* Bind the selected retained image's original format to shadow eligibility.
+ * NULL means no bitmap; image pixels are not read. Caller selects animation
+ * frame/loads the image first. Overrides face.texture_excluded. No allocation. */
+int rf_lightmap_shadow_occluder_image(const rf_lightmap_shadow_cull *,const rf_lightmap_shadow_face *,
+    const rf_image *image,uint32_t *accepted);
 typedef struct rf_lightmap_shadow_mapping {
     float corners[4][3],center[3];uint32_t facing;
 } rf_lightmap_shadow_mapping;

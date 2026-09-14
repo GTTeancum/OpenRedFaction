@@ -15,6 +15,13 @@ Shortlist:
 
 Progress reporting: include a very high-level working area (e.g. Lighting, AI, Weapons, GeoMod or Scripted events) and an overall percent estimate at the end of every turn report (USER preference) and revisit remaining 24-hour workdays when measured throughput supports a forecast; current rough estimate40% (35-45%), no defensible +/-48-hour completion forecast before end-to-end gameplay.
 
+Retained image format now drives shadow texture exclusion via the existing
+format classifier.4096 original/PC/NXDK face cases pass through actual static
+bitmap lookup/classification (1266 accepted,2830 rejected), without supplying
+510710 results;5 guards, both builds and24 tests pass. NULL image means no
+bitmap; caller must select/load the correct animated frame. Next bind retained
+face decoding, receiver/mask ownership and native scene updates.
+
 Shadow occluder selection now matches4096 original/PC/NXDK faces (1323
 accepted,2773 rejected), with5 guards. Preserve strict bounds overlap,
 signed16 fields, flag/texture exclusions and mixed coplanar/volume thresholds.
