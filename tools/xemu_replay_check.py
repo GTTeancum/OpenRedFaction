@@ -208,7 +208,8 @@ dvd_path = '{root.as_posix()}/build/xbox/redfaction-diagnostic.iso'
    if d[37]//60!=last:last=d[37]//60;print('Submitted',d[37],'frames',flush=True)
    if args.exit_uid is not None or args.exit_start_uid is not None:
     transition=words(monitor,symbol('rf_xbox_level_transitions'),4)+words(monitor,symbol('rf_xbox_load_stage'),1)
-    if transition!=last_transition:print('Level handoff',transition,flush=True);last_transition=transition
+    if transition!=last_transition:
+     print('Level handoff',transition,flush=True);report.setdefault('handoffs',[]).append({'state':transition[:4],'load_stage':transition[4]});last_transition=transition
    if d[2]==5:
     final=snapshot(monitor,mapping);(run/'guest-memory-final.json').write_text(json.dumps(final,indent=2))
     fp_control=words(monitor,symbol('rf_fp_control_diagnostic'),5)

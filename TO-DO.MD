@@ -6,7 +6,7 @@ and defer visual polish. Focus: movement, combat/damage, AI, mission events,
 then level progression. Fidelity remains a later completion requirement.
 
 Shortlist:
-- ACTIVE: Extend authored arrivals and mission-state carry, and verify repeated Xbox campaign transitions.
+- ACTIVE: Implement mission goals and preserve mission state across campaign sections.
 - NEXT: Expand mission scripts and AI until consecutive campaign sections are playable end to end.
 - TO COMPLETE: Expand the working pistol/rifle combat, pickups and first-person feedback to the remaining weapons.
 - DEFERRED / TO COMPLETE: Restore full NPC/prop texture detail through better residency; verify PS2 parity for reduced textures.
@@ -24,6 +24,14 @@ Shortlist:
 - USER: Review the interactive PC movement and audio items listed below.
 
 Progress reporting: include a very high-level working area (e.g. Lighting, AI, Weapons, GeoMod or Scripted events) and an overall percent estimate at the end of every turn report (USER preference) and revisit remaining 24-hour workdays when measured throughput supports a forecast; current rough estimate45% (35-45%), no defensible +/-48-hour completion forecast before end-to-end gameplay.
+
+Walking round trip L1S1 -> L1S2 -> L1S1 now passes PC and stock64MiB XEMU:
+two exits at62/264 frames, three scene loads,480 inputs, retained ammunition and
+facing, matching PC state and verified framebuffer. Renderer free pages are6656
+on first L1S1 visit and6667 (26MiB) on return; longer stress remains open. Evidence:
+artifacts/roundtrip/report.json; artifacts/xemu/replay-20260914-045904/report.json.
+Next implement persistent mission goals/state; broader arrivals and velocity/stance
+carry remain to complete.
 
 Authored doorway placement is now connected on PC/Xbox. Walking into the real
 exit triggers passes both directions on PC, preserving facing and continuing

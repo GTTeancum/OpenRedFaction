@@ -65,8 +65,7 @@ Current-level requests are ignored to avoid paired events masking a neighboring
 exit or creating a reload loop. This is a port policy, not verified original
 Load_Level semantics. Named anchors translate departing position and preserve facing; missing anchors
 fall back to the authored spawn. Broader arrival coverage, mission flags and
-deliberate same-level restarts remain open. Respawn retains the existing fresh-supply policy. Native backward
-and repeated transitions, additional walking routes, cross-archive disc coverage
+deliberate same-level restarts remain open. Respawn retains the existing fresh-supply policy. Longer repeated-transition stress tests, additional walking routes, cross-archive disc coverage
 and real hardware validation remain to complete. The passing native
 fixture proves a handoff, not end-to-end campaign progression or PS2 visual parity.
 
@@ -129,5 +128,23 @@ artifacts/walk-exit/report.json and artifacts/xemu/replay-20260914-045205/report
 Both builds,34 CTests and four legacy forced-dispatch PC replays pass.
 
 This proves clearance and trigger behavior along these tested walking paths, not
-all possible arrival positions. Native reverse/repeated crossings, other anchors,
+all possible arrival positions. Longer transition stress tests, other anchors,
 velocity/stance carry and mission-state continuity remain to complete.
+
+## Return crossing and revisit
+
+tools/replay_roundtrip.py now walks L1S1->L1S2 at frame62, reverses direction and
+returns to L1S1 at frame264, then continues to480 total frames. It requires exactly
+two transitions, verifies both translation offsets and retained facing, and checks
+that pistol ammunition remains16 loaded /125 reserve. No forced event dispatch.
+
+Stock64MiB XEMU replay-20260914-045904 passes the same round trip: three scene
+loads, all480 inputs consumed, final PC state comparisons and inspected framebuffer.
+Handoff history records13470 free pages after L1S1 cleanup and11917 after L1S2
+cleanup. Renderer readings are6656 pages in the first L1S1 visit,5589 in L1S2 and
+6667 (26.0MiB) in the returned L1S1 visit. This cycle does not show a net loss in
+that renderer-phase reading; it is not a general leak-free or endurance claim.
+Evidence: artifacts/roundtrip/report.json and
+artifacts/xemu/replay-20260914-045904/report.json. The harness now saves per-handoff
+memory/stage history instead of only the last handoff. Mission flags, world-state
+persistence, velocity/stance carry and broader route/long-run testing remain open.
