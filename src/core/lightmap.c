@@ -1,4 +1,5 @@
 #include "rf/lightmap.h"
+#include "rf/visibility.h"
 #include <stdlib.h>
 #include <string.h>
 #include <math.h>
@@ -332,6 +333,29 @@ int rf_lightmap_mapping_read(const void *record,uint32_t bytes,uint32_t image_co
 
 static double shadow_dot(const float a[3],const float b[3])
 { return ((double)a[2]*b[2]+(double)a[1]*b[1])+(double)a[0]*b[0]; }
+
+/* 4f4c03..4f4daa, after the caller's facing test and bounds expansion. */
+int rf_lightmap_shadow_volume(const float mapping_plane[4],const float origin[3],const float center[3],
+    const float (*corners)[3],float (*planes)[4])
+{
+    static const uint32_t edge[4][2]={{0,1},{3,0},{1,2},{2,3}};
+    rf_visibility_plane work[6];float negative[3],value[6][4];uint32_t i,j;int status;
+    if(!mapping_plane || !origin || !center || !corners || !planes)return RF_RANGE;
+    for(i=0;i<4;i++)if(!isfinite(mapping_plane[i]))return RF_RANGE;
+    for(i=0;i<3;i++) {if(!isfinite(center[i]))return RF_RANGE;negative[i]=-mapping_plane[i];}
+    status=rf_visibility_plane_normal(mapping_plane,origin,work);if(status)return status;
+    status=rf_visibility_plane_normal(negative,center,work+1);if(status)return status;
+    for(i=0;i<4;i++) {
+        status=rf_visibility_plane_points(origin,corners[edge[i][0]],corners[edge[i][1]],work+i+2);if(status)return status;
+    }
+    for(i=0;i<6;i++) {
+        memcpy(value[i],work[i].normal,12);value[i][3]=work[i].distance;
+        if(shadow_dot(value[i],center)+value[i][3]>0)for(j=0;j<4;j++)value[i][j]=-value[i][j];
+    }
+    /* Receiver replaces the center-derived plane after orientation. */
+    for(i=0;i<4;i++)value[1][i]=-mapping_plane[i];
+    memcpy(planes,value,sizeof(value));return RF_OK;
+}
 
 /* 5085c0 is a ray, not the bounded506430 collision segment test. */
 int rf_lightmap_shadow_ray(const float start[3],const float direction[3],const float plane[4],

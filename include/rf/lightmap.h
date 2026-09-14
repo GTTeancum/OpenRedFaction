@@ -100,6 +100,12 @@ typedef struct rf_lightmap_sample_plane {
     uint32_t image_width,image_height,x,y;
     float scale[2],offset[2],plane[4];uint32_t normal_axis,u_axis;
 } rf_lightmap_sample_plane;
+/* Original4f4590 six clipping planes from mapping plane, ray origin,
+ * interior center and four unprojected corners in perimeter order.
+ * Caller has passed the facing test. Reuses reconstructed plane math;
+ * no allocation; invalid/degenerate inputs preserve the six output planes. */
+int rf_lightmap_shadow_volume(const float mapping_plane[4],const float origin[3],const float center[3],
+    const float (*corners)[3],float (*planes)[4]);
 /* Original5085c0 ray/plane intersection with no upper parameter bound.
  * Parallel rays preserve point; behind-origin intersections write point with
  * hit=0. Invalid numeric inputs preserve both outputs. No allocation. */
