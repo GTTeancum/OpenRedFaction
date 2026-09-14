@@ -303,6 +303,7 @@ void rf_scene_world_geometry_close(rf_scene_world_geometry *geometry)
     rf_geometry_movers_close(&geometry->movers);free(geometry->offsets);free(geometry->slots);
     memset(geometry,0,sizeof(*geometry));
 }
+uint32_t rf_scene_world_texture_budget[4]; /* dimension cap, attempts, resident, peak */
 int rf_scene_world_open_retained(const rf_level *level,const rf_geometry *world,
     rf_vpp *maps,uint32_t map_count,rf_preview_mesh *mesh,rf_materials *materials,
     uint32_t mesh_budget,uint32_t material_budget,rf_scene_world_geometry *geometry)
@@ -329,7 +330,15 @@ int rf_scene_world_open_retained(const rf_level *level,const rf_geometry *world,
     sources=malloc(((size_t)movers.count+1)*sizeof(*sources));if(!sources){status=RF_RANGE;goto done;}
     sources[0]=world;for(i=0;i<movers.count;++i)sources[i+1]=&movers.items[i].geometry;
     rf_scene_profile_stage[1]=11;
+    memset(rf_scene_world_texture_budget,0,sizeof(rf_scene_world_texture_budget));rf_scene_world_texture_budget[1]=1;
     status=rf_geometry_materials_open(&bundle,sources,movers.count+1,maps,map_count,material_budget);
+    for(i=256;status==RF_RANGE && i>=64;i/=2) {
+        /* Keep the stock64MiB loading budget: retry oversized worlds using
+         * existing area-filtered textures, without modifying installed assets. */
+        rf_scene_world_texture_budget[0]=i;++rf_scene_world_texture_budget[1];
+        status=rf_geometry_materials_open_limit(&bundle,sources,movers.count+1,maps,map_count,material_budget,i);
+    }
+    if(!status){rf_scene_world_texture_budget[2]=bundle.resident_bytes;rf_scene_world_texture_budget[3]=bundle.peak_bytes;}
     if(!status){rf_scene_profile_stage[1]=12;status=rf_preview_build_world(mesh,world,&movers,NULL,&bundle,level,mesh_budget);}
     if(!status) {
         rf_scene_world_geometry next={0};next.world=world;next.movers=movers;

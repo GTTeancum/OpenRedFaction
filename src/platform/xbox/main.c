@@ -37,6 +37,7 @@ rf_frame_clock rf_player_frame_clock;
 static uint32_t player_pacing,scene_simulation_frames,campaign_total_frames,campaign_scene_start,campaign_frame_limit;
 uint32_t rf_xbox_load_stage;
 uint32_t rf_xbox_level_transitions[4]; /* count,last UID,frames at exit,available pages after release */
+char rf_xbox_transition_target[64]; /* Last successfully opened destination. */
 static FILE *player_replay;
 static uint32_t player_replay_size,campaign_exit_uid,campaign_forced_exit_uid,campaign_goal_uid,campaign_goto_uid,campaign_setup_uid,campaign_return_exit_uid,campaign_return_item_uid,campaign_return_place;
 static uint32_t campaign_setup_next_uid;
@@ -1017,7 +1018,7 @@ campaign_load_section:
                     rf_diagnostic[30] = resident_geometry.bytes - resident_geometry.tail_offset - 4;
                     if(!campaign_total_frames)debugPrint("Geometry: %u vertices, %u faces, %u bytes\n", resident_geometry.vertices, resident_geometry.faces, resident_geometry.allocated_bytes);
                     {
-                        rf_preview_mesh mesh;
+                        rf_preview_mesh mesh={0};uint32_t scene_mode=0;FILE *scene_flag;
                         rf_xbox_load_stage=3;result = collision_check(&level);
                         rf_xbox_load_stage=4;
                         if(result == RF_OK) result = rf_lightmaps_open(&resident_lightmaps, &level, RF_CAMPAIGN_LIGHTMAP_BUDGET);
@@ -1028,14 +1029,19 @@ campaign_load_section:
                             rf_diagnostic[43] = resident_lightmaps.count;
                         }
                         rf_xbox_load_stage=5;
-                        if (result == RF_OK) result = load_materials();
+                        scene_flag=fopen("D:\\scene-preview.flag","rb");
+                        if(scene_flag){scene_mode=1;fclose(scene_flag);}
+                        /* scene_preview owns its combined world/mover images
+                         * and mesh. Loading the diagnostic copies first both
+                         * wastes memory and bypasses its bounded fallback. */
+                        if (result == RF_OK && !scene_mode) result = load_materials();
+                        if(scene_mode)for(i=38;i<=41;i++)rf_diagnostic[i]=0;
                         if (NT_SUCCESS(MmQueryStatistics(&memory))) rf_diagnostic[42] = memory.AvailablePages;
                         rf_xbox_load_stage=6;
-                        if (result == RF_OK) result = rf_preview_build(&mesh, &resident_geometry, &level, 8u*1024u*1024u);
+                        if (result == RF_OK && !scene_mode) result = rf_preview_build(&mesh, &resident_geometry, &level, 8u*1024u*1024u);
                         if (result == RF_OK) {
                             rf_xbox_load_stage=7;
-                            FILE *scene_flag=fopen("D:\\scene-preview.flag","rb");
-                            if(scene_flag) {fclose(scene_flag);result=scene_preview(&level,&mesh);}
+                            if(scene_mode)result=scene_preview(&level,&mesh);
                             else {
                                 FILE *model_flag=fopen("D:\\model-preview.flag","rb");
                                 if(model_flag) {fclose(model_flag);result=model_preview();}
@@ -1069,6 +1075,7 @@ campaign_load_section:
                     ++rf_xbox_level_transitions[0];rf_xbox_level_transitions[1]=next.uid;rf_xbox_level_transitions[2]=campaign_total_frames;
                     if(NT_SUCCESS(MmQueryStatistics(&memory)))rf_xbox_level_transitions[3]=memory.AvailablePages;
                     result=rf_level_campaign_open(&level,&archive,"D:\\",next.level);
+                    if(result==RF_OK)memcpy(rf_xbox_transition_target,next.level,sizeof(rf_xbox_transition_target));
                     if(result==RF_OK && next.uid!=campaign_forced_exit_uid) {
                         result=rf_level_transition_place(&next,&level,departing_position,departing_orientation);
                         if(result==RF_NOT_FOUND)result=RF_OK;

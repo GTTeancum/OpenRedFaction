@@ -34,6 +34,7 @@ def main():
     parser.add_argument('--item-uid', type=int, help='Stage near an authored L1S1 pickup instead of an actor')
     parser.add_argument('--input', type=Path, help='Optional process-local replay; its length supplies the frame count')
     parser.add_argument('--setup-uid', type=int, nargs='+', default=[], help='Authored setup event at frame0, optionally another at frame60')
+    parser.add_argument('--exit-start-uid', type=int, help='Stage once outside a real exit volume; replay must walk into it')
     parser.add_argument('--exit-uid', type=int, help='Authored exit at frame60')
     parser.add_argument('--return-exit-uid', type=int, help='Authored return at frame180, restaging the initial pickup')
     parser.add_argument('--visible', action='store_true')
@@ -64,6 +65,8 @@ def main():
         parser.error('Require positive exit UIDs and an outbound exit for a return')
     if not re.fullmatch(r'[A-Za-z0-9_-]+\.rfl',args.level) or len(args.level)>63 or (args.goal_uid is not None and not 0<args.goal_uid<0xffffffff) or (args.spawn and args.item_uid):
         parser.error('Require a plain level filename, positive goal UID and one placement mode')
+    if args.exit_start_uid is not None and (not args.spawn or not 0<args.exit_start_uid<0xffffffff or args.exit_uid or args.return_exit_uid):
+        parser.error('Exit-start requires --spawn, a positive UID and no forced exit options')
     root = Path(__file__).resolve().parents[1]
     emulator = Path('C:/Games/Emulators/Xemu')
     disc = root / 'build/xbox/disc'
@@ -71,7 +74,7 @@ def main():
     run.mkdir(parents=True)
     print('Run:', run, flush=True)
     report = dict(result='FAIL', frames=args.frames, actor=None if args.item_uid or args.spawn else args.actor, level=args.level, archive=args.archive, goal_uid=args.goal_uid, item_uid=args.item_uid, model_culling=args.culled, command_batching=not args.unbatched, world_grouping=not args.unsorted,
-        input_sha256=hashlib.sha256(payload).hexdigest(), setup_uids=args.setup_uid, exit_uid=args.exit_uid, return_exit_uid=args.return_exit_uid,
+        input_sha256=hashlib.sha256(payload).hexdigest(), setup_uids=args.setup_uid, exit_start_uid=args.exit_start_uid, exit_uid=args.exit_uid, return_exit_uid=args.return_exit_uid,
         scope='Authored section, player spawn or staged actor/pickup camera, process-local replay/setup commands, native framebuffer, '
               'phase timings and selected PC gameplay-state checks. No full campaign/parity claim.', samples=[])
     (run / 'inputs.bin').write_bytes(payload)
@@ -82,6 +85,7 @@ def main():
     if args.item_uid:
         env.pop('RF_REPLAY_ACTOR_UID')
         env['RF_REPLAY_ITEM_UID']=str(args.item_uid)
+    if args.exit_start_uid:env['RF_REPLAY_EXIT_START']=str(args.exit_start_uid)
     if args.exit_uid:env['RF_REPLAY_EXIT_UID']=str(args.exit_uid)
     if args.return_exit_uid:
         env['RF_REPLAY_RETURN_EXIT_UID']=str(args.return_exit_uid)
@@ -98,7 +102,7 @@ def main():
     for name in ('player-replay.bin', 'player-control-frames.txt', 'audio-output.flag', 'particle-step-fixtures.bin', 'renderer-cull-off.flag', 'renderer-cull-on.flag', 'renderer-batch-off.flag', 'renderer-world-off.flag'):
         p = disc / name
         saved[name] = p.read_bytes() if p.exists() else None
-    for name in ('campaign-spawn.flag', 'campaign-level.bin', 'campaign-actor.bin', 'campaign-setup.bin', 'campaign-item.bin', 'campaign-exit.bin', 'campaign-return.bin', 'campaign-goal.bin'):
+    for name in ('campaign-spawn.flag', 'campaign-level.bin', 'campaign-actor.bin', 'campaign-setup.bin', 'campaign-item.bin', 'campaign-exit.bin', 'campaign-return.bin', 'campaign-goal.bin', 'campaign-exit-start.bin'):
         saved.setdefault(name, None)
     process = monitor = None
     mapping = ''
@@ -129,6 +133,7 @@ def main():
         (disc / 'campaign-level.bin').write_bytes(args.archive.encode().ljust(64, b'\0') + args.level.encode().ljust(64, b'\0'))
         if args.goal_uid:(disc/'campaign-goal.bin').write_bytes(struct.pack('<I',args.goal_uid))
         if not args.spawn:(disc / ('campaign-item.bin' if args.item_uid else 'campaign-actor.bin')).write_bytes(struct.pack('<I', args.item_uid or args.actor))
+        if args.exit_start_uid:(disc/'campaign-exit-start.bin').write_bytes(struct.pack('<I',args.exit_start_uid))
         if args.exit_uid:(disc/'campaign-exit.bin').write_bytes(struct.pack('<I',args.exit_uid))
         if args.return_exit_uid:(disc/'campaign-return.bin').write_bytes(struct.pack('<II',args.return_exit_uid,args.item_uid or 0))
         if args.setup_uid:
@@ -212,6 +217,9 @@ dvd_path = '{root.as_posix()}/build/xbox/redfaction-diagnostic.iso'
                 report['samples'].append(dict(time=time.monotonic(), phase=d[2], frame=d[37], pages=d[44]))
                 current = (d[2], d[37] // 30)
                 if current != previous:
+                    if d[2]==2 and d[37]>0:
+                        budget_words=words(monitor,symbol('rf_scene_world_texture_budget'),4)
+                        report.setdefault('world_texture_samples',[]).append(dict(frame=d[37],words=budget_words))
                     print('Guest phase', d[2], 'submitted', d[37], 'frames', flush=True)
                     previous = current
                 if d[2] & 0x80000000:
@@ -232,6 +240,16 @@ dvd_path = '{root.as_posix()}/build/xbox/redfaction-diagnostic.iso'
             snap = dict(symbols={name: dict(words=words(monitor, symbol(name), count)) for name, count in fields})
             (run / 'guest-memory-final.json').write_text(json.dumps(snap, indent=2))
             report['checks'] = {}
+            transition_rows=[line.split()[1:] for line in pc.stdout.splitlines() if line.startswith('LEVEL_TRANSITION ')]
+            native_transition=words(monitor,symbol('rf_xbox_level_transitions'),4)
+            target=struct.pack('<16I',*words(monitor,symbol('rf_xbox_transition_target'),16)).split(b'\0')[0].decode('ascii')
+            expected_transition=[len(transition_rows),int(transition_rows[-1][2]),int(transition_rows[-1][3])] if transition_rows else [0,0,0]
+            report['transitions']=dict(pc=transition_rows,xbox=native_transition,target=target)
+            assert native_transition[:3]==expected_transition, 'Transition count/UID/frame mismatch'
+            if transition_rows:assert target==transition_rows[-1][1], 'Destination mismatch'
+            if args.exit_start_uid:
+                assert len(transition_rows)==1 and int(transition_rows[0][2])==args.exit_start_uid, 'Walk did not reach its exit'
+
             goal_words=words(monitor,symbol('rf_scene_mission_goals'),4225)
             assert goal_words[0]<=64
             raw_goals=struct.pack('<4225I',*goal_words)

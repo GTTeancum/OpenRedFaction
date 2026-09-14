@@ -187,6 +187,11 @@ typedef struct rf_geometry_materials {
 int rf_geometry_materials_open(rf_geometry_materials *materials,
     const rf_geometry *const *geometries,uint32_t count,
     rf_vpp *archives,uint32_t archive_count,uint32_t budget);
+/* Same ownership/mappings with optional power-of-two texture dimension cap.
+ * Peak budget includes source plus reduced pixels and name scratch. Zero is
+ * full resolution. The caller chooses any quality fallback policy. */
+int rf_geometry_materials_open_limit(rf_geometry_materials *,const rf_geometry *const *,uint32_t,
+    rf_vpp *,uint32_t,uint32_t,uint32_t);
 void rf_geometry_materials_close(rf_geometry_materials *materials);
 /* Borrow a geometry-local image table for shadow traversal from the shared
  * campaign material slots. Missing RF_NOT_FOUND slots become NULL; other load

@@ -36,6 +36,7 @@ extern uint32_t rf_scene_startup_inventory[4];
 extern uint32_t rf_scene_trigger_history[4];
 extern uint32_t rf_scene_switch_runtime[8],rf_scene_switch_detail[8],rf_scene_switch_history[4];
 extern uint32_t rf_scene_alarm[12];
+extern uint32_t rf_scene_world_texture_budget[4];
 extern uint32_t rf_scene_actor_revisit[8];
 extern uint32_t rf_scene_campaign_load_stage;
 int rf_scene_campaign_player_get(rf_campaign_player_state *);

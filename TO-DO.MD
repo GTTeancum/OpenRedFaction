@@ -13,7 +13,15 @@ it blocks those systems. This priority change does not increase completion.
 GitHub image policy: retain the current four images; upload no additional
 screenshots until near-retail-quality replacements are available.
 
+Gameplay update (2026-09-14): Three isolated Area2/Area3 PC walking boundaries pass;
+Xbox also passes L2S2a-to-L2S3 and L2S3-to-L3S1. The latest native run finishes
+240 frames with4699 free pages (18.355MiB). L2S2a loading is unblocked by a
+bounded texture fallback and removal of redundant diagnostic loading; full
+encounters and uninterrupted traversal remain open. Estimate remains ~45%.
+
 Shortlist:
+- TO COMPLETE: Walk uninterrupted Area2 encounters and diagnose the L2S1 exit3218 approach/contact that did not trigger; isolated L2S2a/L2S3/L3S1 boundary checks are not full traversal.
+- DEFERRED / TO COMPLETE: Replace coarse world texture fallback caps with selective residency and verify PS2 parity; L2S2a currently needs the128-pixel cap to load within12MiB.
 - TO COMPLETE: Extend alarm encounters and native linked-NPC coverage; preserve alarm state across sections and complete Alarm_Siren45 and original AI transitions.
 - TO COMPLETE: Extend L2S3 traversal after collision-particle, instantaneous-mover and combined-image budget fixes; finish particle liquids, moving-object impacts, wind/swirl and precise bounce behavior.
 - DEFERRED / TO COMPLETE: Revisit Xbox optimization after gameplay work; current performance is sufficient for basic testing.

@@ -313,12 +313,13 @@ void rf_geometry_materials_close(rf_geometry_materials *m)
     rf_materials_close(&m->textures);free(m->offsets);free(m->slots);
     memset(m,0,sizeof(*m));
 }
-int rf_geometry_materials_open(rf_geometry_materials *m,
+int rf_geometry_materials_open_limit(rf_geometry_materials *m,
     const rf_geometry *const *geometries,uint32_t count,
-    rf_vpp *archives,uint32_t archive_count,uint32_t budget)
+    rf_vpp *archives,uint32_t archive_count,uint32_t budget,uint32_t limit)
 {
     rf_geometry_materials next={0};char *storage=NULL;const char **names=NULL;
-    uint64_t total=0,base,scratch;uint32_t i,j,at=0,unique=0;int status=RF_OK;
+    uint64_t total=0,base,scratch;uint32_t i,j,at=0,unique=0,texture_peak=0;int status=RF_OK;
+    if(limit>4096 || (limit && (limit&(limit-1))))return RF_RANGE;
     if(!m || m->offsets || m->slots || m->textures.items || m->resident_bytes ||
         (!geometries && count) || (!archives && archive_count))return RF_RANGE;
     for(i=0;i<count;++i) {
@@ -348,16 +349,19 @@ int rf_geometry_materials_open(rf_geometry_materials *m,
         }
     }
     next.offsets[count]=at;
-    status=rf_materials_open_names(&next.textures,names,unique,archives,archive_count,
-        budget-(uint32_t)(base+scratch));
+    status=open_materials(&next.textures,NULL,names,unique,archives,archive_count,
+        budget-(uint32_t)(base+scratch),limit,&texture_peak);
     if(status)goto done;
     next.resident_bytes=(uint32_t)base+next.textures.allocated_bytes;
-    next.peak_bytes=next.resident_bytes+(uint32_t)scratch;
+    next.peak_bytes=(uint32_t)(base+scratch)+texture_peak;
 done:
     free(storage);free(names);
     if(status)rf_geometry_materials_close(&next);else *m=next;
     return status;
 }
+int rf_geometry_materials_open(rf_geometry_materials *m,const rf_geometry *const *geometries,uint32_t count,
+    rf_vpp *archives,uint32_t archive_count,uint32_t budget)
+{return rf_geometry_materials_open_limit(m,geometries,count,archives,archive_count,budget,0);}
 void rf_level_particle_materials_close(rf_level_particle_materials *materials)
 {
     uint32_t i;if(!materials)return;
