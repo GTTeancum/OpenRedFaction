@@ -110,3 +110,23 @@ the prior scratch improvement; this instrumentation adds no new speedup.
 Next optimization target: world geometry rebuild, then platform submission.
 PC build and37 tests pass; Xbox build/harness restoration pass. Evidence:
 artifacts/performance-world-detail.json and artifacts/xemu/replay-20260914-092055.
+
+Camera-transform cache candidate: each geometry draw uses a64-entry,1024-byte
+temporary cache keyed by vertex index; UV/lightmap UV remain face-corner data.
+The cache resets for every geometry/camera/mover pose, preserving arithmetic
+and avoiding persistent allocation. XBE stack reserve is65536 bytes.
+All37 tests pass. tools/replay_world_cache.py compares a preserved executable
+against the new build across five walking transitions plus visible actor8323:
+all final pixels and selected world/model/player summaries match. Native
+stock64MiB timing validation completed; measured results follow.
+
+World camera cache verified in replay-20260914-092818: stock64MiB180-frame
+crossing/state/framebuffer checks pass. World rebuild39.587->25.135ms
+(36.5% lower); scene total123.634->88.875ms, about11FPS-equivalent work.
+Platform time also falls36.471->27.260ms, indicating host/run variation;
+do not attribute the whole scene gain to the cache or claim hardware FPS.
+Both builds,37 tests, five PC transition comparisons and the visible-actor
+comparison pass. Cache uses1024 transient bytes, with no persistent allocation
+or geometry/texture reduction. Evidence: artifacts/world-cache/report.json,
+artifacts/world-cache/performance.json and artifacts/world-cache/xemu.log.
+Next: reduce remaining world projection and render submission costs.

@@ -34,6 +34,17 @@ Shortlist:
 
 Progress reporting: include a very high-level working area (e.g. Lighting, AI, Weapons, GeoMod or Scripted events) and an overall percent estimate at the end of every turn report (USER preference) and revisit remaining 24-hour workdays when measured throughput supports a forecast; current rough estimate45% (35-45%), no defensible +/-48-hour completion forecast before end-to-end gameplay.
 
+World camera cache verified in replay-20260914-092818: stock64MiB180-frame
+crossing/state/framebuffer checks pass. World rebuild39.587->25.135ms
+(36.5% lower); scene total123.634->88.875ms, about11FPS-equivalent work.
+Platform time also falls36.471->27.260ms, indicating host/run variation;
+do not attribute the whole scene gain to the cache or claim hardware FPS.
+Both builds,37 tests, five PC transition comparisons and the visible-actor
+comparison pass. Cache uses1024 transient bytes, with no persistent allocation
+or geometry/texture reduction. Evidence: artifacts/world-cache/report.json,
+artifacts/world-cache/performance.json and artifacts/world-cache/xemu.log.
+Next: reduce remaining world projection and render submission costs.
+
 World-phase profiling verified in replay-20260914-092055: stock64MiB native
 180-frame crossing passes with 104 destination samples. World geometry
 rebuild averages39.587ms; visibility traversal0.269ms, audio0.173ms,

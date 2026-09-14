@@ -80,14 +80,23 @@ static unsigned clip(const point *input, unsigned count, point *output, unsigned
     }
     return used;
 }
+/* Per-generate cache: geometry, camera and mover pose are fixed for its lifetime.
+ * Cache only rounded positions; UVs remain owned by each face corner. */
+typedef struct camera_cache_entry { uint32_t vertex; float position[3]; } camera_cache_entry;
+#define CAMERA_CACHE_COUNT 64u
 static int camera(const rf_geometry *g, const rf_level *level, const rf_geometry_corner *corner,
-    const float *origin,const float matrix[3][3],point *out)
+    const float *origin,const float matrix[3][3],camera_cache_entry *cache,point *out)
 {
     float p[3], v[3];
+    camera_cache_entry *entry=cache+(corner->vertex&(CAMERA_CACHE_COUNT-1));
     unsigned i;
     point result = {0, 0, 0, 0, 0, 0, 0};
     result.u = corner->uv[0]; result.v = corner->uv[1];
     result.lu = corner->lightmap_uv[0]; result.lv = corner->lightmap_uv[1];
+    if(entry->vertex==corner->vertex && corner->vertex!=UINT32_MAX) {
+        result.x=entry->position[0];result.y=entry->position[1];result.z=entry->position[2];
+        *out=result;return RF_OK;
+    }
     if(rf_geometry_vertex(g, corner->vertex, p))return RF_FORMAT;
     if(origin) {
         rf_collision_ray_hit local={0},world;int status;memcpy(local.point,p,12);
@@ -99,12 +108,16 @@ static int camera(const rf_geometry *g, const rf_level *level, const rf_geometry
         result.y += v[i] * level->player_orientation[1][i];
         result.z += v[i] * level->player_orientation[2][i];
     }
+    entry->vertex=corner->vertex;
+    entry->position[0]=result.x;entry->position[1]=result.y;entry->position[2]=result.z;
     *out=result;return RF_OK;
 }
 static int generate(rf_preview_mesh *mesh, const rf_geometry *g, const rf_level *level, uint32_t capacity,
     const float *origin,const float matrix[3][3],uint32_t material_base)
 {
     uint32_t f, used = 0;
+    camera_cache_entry cache[CAMERA_CACHE_COUNT];
+    for(f=0;f<CAMERA_CACHE_COUNT;++f)cache[f].vertex=UINT32_MAX;
     for (f = 0; f < g->faces; ++f) {
         rf_geometry_face face;
         rf_geometry_corner a, b, c;
@@ -128,8 +141,8 @@ static int generate(rf_preview_mesh *mesh, const rf_geometry *g, const rf_level 
         rf_geometry_get_corner(g, f, 0, &a);
         if(face.corners<3)continue;
         rf_geometry_get_corner(g,f,1,&b);
-        if((status=camera(g,level,&a,origin,matrix,&anchor)) ||
-           (status=camera(g,level,&b,origin,matrix,&previous)))return status;
+        if((status=camera(g,level,&a,origin,matrix,cache,&anchor)) ||
+           (status=camera(g,level,&b,origin,matrix,cache,&previous)))return status;
         for (corner = 1; corner + 1 < face.corners; ++corner) {
             point buffers[2][12];
             unsigned count = 3, plane, current = 0, i, j, crossing=0;
@@ -138,7 +151,7 @@ static int generate(rf_preview_mesh *mesh, const rf_geometry *g, const rf_level 
              * occurrence again. UVs belong to these same face corners. */
             rf_geometry_get_corner(g, f, corner + 1, &c);
             buffers[0][0]=anchor;buffers[0][1]=previous;
-            if((status=camera(g,level,&c,origin,matrix,&buffers[0][2])))return status;
+            if((status=camera(g,level,&c,origin,matrix,cache,&buffers[0][2])))return status;
             previous=buffers[0][2];
             /* Convex frustum: triangles wholly outside one plane cannot
              * contribute, and wholly inside triangles need no polygon copies.
