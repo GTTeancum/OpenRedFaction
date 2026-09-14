@@ -15,6 +15,13 @@ Shortlist:
 
 Progress reporting: include a very high-level working area (e.g. Lighting, AI, Weapons, GeoMod or Scripted events) and an overall percent estimate at the end of every turn report (USER preference) and revisit remaining 24-hour workdays when measured throughput supports a forecast; current rough estimate40% (35-45%), no defensible +/-48-hour completion forecast before end-to-end gameplay.
 
+Shadow-mask border finalization matches1024 original/PC/NXDK masks,
+including79 two-pixel extents and205 inactive passes;4 guards preserve data.
+Original4f5588 copies sides first, then interleaves top/bottom writes. Gate is
+reached-projection, not successful raster acceptance. Both builds and24 tests
+pass. Next compose full source/occluder traversal with explicit retained
+scratch and mask lifetime, then native memory/rendered validation.
+
 Resident lightmap image binding now passes5851 compiled NXDK mappings
 and all5851 PC receiver groups/28356 UV vertices using loaded L1S1 images.
 Serialized image section confirms128x128 dimensions. Three binding guards

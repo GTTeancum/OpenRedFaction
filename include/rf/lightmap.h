@@ -177,6 +177,13 @@ typedef struct rf_lightmap_shadow_filter {
 int rf_lightmap_shadow_filter_raster(const float (*polygon)[2],uint32_t count,
     const rf_lightmap_shadow_filter *,unsigned char *mask,uint32_t bytes,
     uint32_t width,uint32_t height,unsigned char amount,uint32_t *accepted);
+/* Original4f5588..4f55f1 shadow-mask border finalization. projected is the
+ * caller's reached-projection flag (not the raster acceptance result); only1
+ * copies borders. Side columns precede interleaved top/bottom row copies.
+ * Active extents >=2; two-wide/high alias order is preserved. No allocation;
+ * preflight errors preserve mask. Inactive calls leave even absent masks alone. */
+int rf_lightmap_shadow_border(unsigned char *mask,uint32_t bytes,uint32_t width,
+    uint32_t height,uint32_t projected);
 /* Original4f25a0 triangle-fan area used by projected shadow filtering.
  * Preserves mixed precision and whole-polygon zero on degenerate radicand.
  * No allocation; finite inputs required; errors preserve area. */

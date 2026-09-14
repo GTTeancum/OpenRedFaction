@@ -593,6 +593,21 @@ int rf_lightmap_shadow_filter_raster(const float (*polygon)[2],uint32_t count,
 
 /* 4f25a0 uses a fan and Heron's formula; a nonpositive radicand rejects
  * the whole area, even after earlier triangles accumulated successfully. */
+int rf_lightmap_shadow_border(unsigned char *mask,uint32_t bytes,uint32_t width,
+    uint32_t height,uint32_t projected)
+{
+    uint32_t x,y;
+    if(projected!=1)return RF_OK;
+    if(!mask || width<2 || height<2 || (uint64_t)width*height>bytes)return RF_RANGE;
+    for(y=0;y<height;y++) {
+        unsigned char *row=mask+y*width;row[0]=row[1];row[width-1]=row[width-2];
+    }
+    for(x=0;x<width;x++) {
+        mask[x]=mask[width+x];mask[(height-1)*width+x]=mask[(height-2)*width+x];
+    }
+    return RF_OK;
+}
+
 int rf_lightmap_shadow_area(const float (*vertices)[2],uint32_t count,float *area)
 {
     float total=0;uint32_t i,j;

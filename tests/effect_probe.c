@@ -385,6 +385,15 @@ int main(int argc,char **argv)
         }
         return 0;
     }
+    if(argc==2 && !strcmp(argv[1],"--lightmap-shadow-border")) {
+        struct {uint32_t width,height,bytes,projected;unsigned char mask[4096];} in;
+        _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
+        while(fread(&in,sizeof(in),1,stdin)==1) {
+            uint32_t status=rf_lightmap_shadow_border(in.mask,in.bytes>4096?4096:in.bytes,in.width,in.height,in.projected);
+            fwrite(&status,4,1,stdout);fwrite(in.mask,4096,1,stdout);
+        }
+        return 0;
+    }
     if(argc==2 && !strcmp(argv[1],"--lightmap-shadow-area")) {
         struct {uint32_t count;float vertices[32][2];} input;float area;uint32_t status;
         _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
