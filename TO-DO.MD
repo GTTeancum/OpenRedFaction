@@ -6,9 +6,9 @@ and defer visual polish. Focus: movement, combat/damage, AI, mission events,
 then level progression. Fidelity remains a later completion requirement.
 
 Shortlist:
-- ACTIVE: Connect ammunition pickups and weapon selection to campaign combat.
-- ACTIVE: Connect first-person weapon presentation and firing/reload feedback.
-- ACTIVE: Expand scripted mission events and level progression beyond the opening.
+- ACTIVE: Make campaign level exits load the next section on PC/Xbox while preserving player state within 64 MiB.
+- NEXT: Expand mission scripts and AI until consecutive campaign sections are playable end to end.
+- TO COMPLETE: Expand the working pistol/rifle combat, pickups and first-person feedback to the remaining weapons.
 - DEFERRED / TO COMPLETE: Restore full NPC/prop texture detail through better residency; verify PS2 parity for reduced textures.
 - Continue campaign traversal/physics coverage beyond the repaired walking route.
 - DEFERRED / TO COMPLETE: Finish lighting lifecycle updates, shadows and visual parity within64MiB; revisit after critical gameplay systems.
