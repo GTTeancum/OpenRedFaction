@@ -3,6 +3,15 @@
 #include "rf/motion.h"
 #include "rf/entity.h"
 
+/* First-pass fixed-tick firing policy. Accepted bursts finish after trigger release;
+ * blocked (reload/death/switch) cancels queued shots and consumes trigger edges.
+ * Caller consumes one inventory round for event1; event2 requests dry/reload handling.
+ * No allocation, ammo mutation or RNG. Invalid inputs preserve state/output. */
+typedef struct rf_weapon_trigger_rules {uint32_t fire_ticks,burst_count,burst_ticks,semi_automatic;} rf_weapon_trigger_rules;
+typedef struct rf_weapon_trigger_state {uint32_t cooldown,remaining,delay,held;} rf_weapon_trigger_state;
+int rf_weapon_trigger_step(rf_weapon_trigger_state *,const rf_weapon_trigger_rules *,
+    uint32_t trigger,uint32_t blocked,uint32_t loaded,uint32_t *event);
+
 #define RF_PROJECTILE_CAPACITY 50u
 #define RF_PROJECTILE_RECORD_WORDS 197u
 /* Original48b4d0/48b590/48b610 fixed storage; raw record fields are populated

@@ -41,6 +41,44 @@ int main(int argc,char **argv)
         memset(&inv,0,sizeof(inv));inv.reserve[0]=100;
         CHECK(rf_weapon_pickup_grant_sp(&inv,&d,3,2147483647,1,&grant)==RF_OK && grant.rounds==41 && inv.reserve[0]==125 && inv.loaded[3]==16);
     }
+    {
+        rf_weapon_trigger_rules rules={45,3,6,0};rf_weapon_trigger_state state={0},saved;
+        rf_weapon_inventory inv={0};rf_weapon_acquire_definition defs[64]={{0}};uint32_t i,event,shots=0;
+        defs[3]=(rf_weapon_acquire_definition){0,200,42};inv.owned[3]=1;inv.loaded[3]=42;
+        for(i=0;i<60;i++) {
+            CHECK(rf_weapon_trigger_step(&state,&rules,i==0,0,inv.loaded[3],&event)==RF_OK);
+            CHECK((event==1)==(i==0 || i==6 || i==12));
+            if(event==1){CHECK(rf_weapon_consume_shot(&inv,defs,64,3)==RF_OK);shots++;}
+        }
+        CHECK(shots==3 && inv.loaded[3]==39); /* Release still completes accepted burst. */
+        memset(&state,0,sizeof(state));inv.loaded[3]=42;shots=0;
+        for(i=0;i<90;i++) {
+            CHECK(rf_weapon_trigger_step(&state,&rules,1,0,inv.loaded[3],&event)==RF_OK);
+            CHECK((event==1)==(i==0 || i==6 || i==12 || i==45 || i==51 || i==57));
+            if(event==1){CHECK(rf_weapon_consume_shot(&inv,defs,64,3)==RF_OK);shots++;}
+        }
+        CHECK(shots==6 && inv.loaded[3]==36); /* Burst-start cooldown, no extra bullets. */
+
+        memset(&state,0,sizeof(state));inv.loaded[3]=2;shots=0;
+        for(i=0;i<20;i++) {
+            CHECK(rf_weapon_trigger_step(&state,&rules,i==0,0,inv.loaded[3],&event)==RF_OK);
+            if(event==1){CHECK(rf_weapon_consume_shot(&inv,defs,64,3)==RF_OK);shots++;}
+            if(i==12)CHECK(event==2 && !state.remaining);
+        }
+        CHECK(shots==2 && !inv.loaded[3]);
+        memset(&state,0,sizeof(state));
+        CHECK(rf_weapon_trigger_step(&state,&rules,1,0,42,&event)==RF_OK && event==1);
+        CHECK(rf_weapon_trigger_step(&state,&rules,0,1,41,&event)==RF_OK && !event && !state.remaining);
+        for(i=0;i<30;i++)CHECK(rf_weapon_trigger_step(&state,&rules,0,0,41,&event)==RF_OK && !event);
+        rules=(rf_weapon_trigger_rules){30,1,0,1};memset(&state,0,sizeof(state));
+        for(i=0;i<90;i++){CHECK(rf_weapon_trigger_step(&state,&rules,1,0,16,&event)==RF_OK);CHECK(event==(i==0));}
+        CHECK(rf_weapon_trigger_step(&state,&rules,0,0,15,&event)==RF_OK && !event);
+        CHECK(rf_weapon_trigger_step(&state,&rules,1,1,15,&event)==RF_OK && !event);
+        CHECK(rf_weapon_trigger_step(&state,&rules,1,0,15,&event)==RF_OK && !event); /* Blocked edge consumed. */
+        saved=state;event=999;rules.burst_count=0;
+        CHECK(rf_weapon_trigger_step(&state,&rules,1,0,15,&event)==RF_RANGE && event==999 && !memcmp(&state,&saved,sizeof(state)));
+        printf("Trigger PASS burst cadence, partial magazine, cancellation, semi-auto and blocked edges\n");
+    }
     CHECK(argc==2);snprintf(path,sizeof(path),"%s/meshes.vpp",argv[1]);CHECK(rf_vpp_open(&meshes,path)==RF_OK);
     snprintf(path,sizeof(path),"%s/motions.vpp",argv[1]);CHECK(rf_vpp_open(&motions,path)==RF_OK);
     for(i=0;i<5;i++){snprintf(path,sizeof(path),"%s/%s",argv[1],map_names[i]);CHECK(rf_vpp_open(maps+i,path)==RF_OK);}
@@ -77,6 +115,19 @@ int main(int argc,char **argv)
             CHECK(rf_player_weapon_open_view(&meshes,&motions,maps,5,&view,rifle->resident_bytes-1,&other)==RF_RANGE && !other);
             memset(view.mesh,'x',64);
             CHECK(rf_player_weapon_open_view(&meshes,&motions,maps,5,&view,2*1024*1024,&other)==RF_RANGE && !other);
+        }
+        {rf_weapon_primary_definition rifle,saved;
+         CHECK(rf_weapon_primary_load(&tables,"Assault Rifle",128*1024,&rifle)==RF_OK);
+         CHECK(rifle.burst_count==3 && rifle.burst_seconds==.1f && rifle.magazine==42 && rifle.fire_seconds==.75f && rifle.damage==60 && rifle.damage_kind==2);
+         saved=rifle;
+         {const char *bad="$Name: \"test\" $Clip Size: 42 42 $Clip Reload Time: 1.35 $Fire Wait: .75 $Damage: 60 $Damage Type: \"bullet\" $Burst Mode: true +Burst Count: 3";
+          CHECK(rf_weapon_primary_read(bad,(uint32_t)strlen(bad),"test",&rifle)==RF_FORMAT && !memcmp(&rifle,&saved,sizeof(rifle)));}
+         {const char *alt="$Name: \"test\" $Clip Size: 42 42 $Clip Reload Time: 1.35 $Fire Wait: .75 $Damage: 60 $Damage Type: \"bullet\" $Burst Mode: true +Burst Count: 3 +Burst Delay: .1 +Burst Alt Fire: true";
+          char duplicate[1024];
+          CHECK(rf_weapon_primary_read(alt,(uint32_t)strlen(alt),"test",&rifle)==RF_OK && rifle.burst_count==1 && rifle.burst_seconds==0);saved=rifle;
+          snprintf(duplicate,sizeof(duplicate),"%s +Burst Count: 4",alt);
+          CHECK(rf_weapon_primary_read(duplicate,(uint32_t)strlen(duplicate),"test",&rifle)==RF_FORMAT && !memcmp(&rifle,&saved,sizeof(rifle)));}
+         CHECK(d.burst_count==1 && d.burst_seconds==0);
         }
         rf_vpp_close(&tables);
         CHECK(d.damage_kind==1 && d.magazine==16 && d.semi_automatic==1 && d.damage==40 && d.fire_seconds==.5f && d.reload_seconds==1.1f);

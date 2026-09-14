@@ -1342,7 +1342,7 @@ static rf_weapon_supply_catalog campaign_weapon_supply;
 static rf_weapon_primary_definition campaign_pistol;
 static rf_weapon_inventory campaign_player_inventory;static int32_t campaign_pistol_id=-1;
 uint32_t rf_scene_player_ammo[8]; /* weapon,reserve,loaded,transferred,reloads,denied,owner bytes,status */
-static uint32_t pistol_reload_ticks,pistol_fire_ticks,combat_fire_held;
+static uint32_t pistol_reload_ticks,pistol_fire_ticks;
 uint32_t rf_scene_pistol_rules[7]; /* magazine,reload ticks,fire ticks,SP damage bits,semi-auto,definition bytes,damage kind */
 static rf_weapon_reset_catalog campaign_weapon_reset;
 uint32_t rf_scene_weapon_reset_catalog[4]; /* weapons,resolved stop sounds,bytes,hash */
@@ -6981,7 +6981,8 @@ static void combat_sound(const char *name,const float position[3])
 }
 uint32_t rf_scene_combat_death[8]; /* entered,action,motion,status,tick,weight bits,frozen,generation */
 uint32_t rf_scene_combat[8];
-static uint32_t combat_cooldown,combat_frame,combat_hit_frame;
+static uint32_t combat_frame,combat_hit_frame;
+static rf_weapon_trigger_state combat_trigger;
 uint32_t rf_scene_enemy_awareness[8]; /* checks,acquired,blocked,range,facing,nonhostile,last handle,status */
 uint32_t rf_scene_enemy_combat[8]; /* ticks,alerts,shots,hits,blocked,health bits,down,status */
 static float combat_initial_health;
@@ -7058,7 +7059,7 @@ static int campaign_life_input(uint32_t frame,rf_scene_input *input)
     campaign_crouched=(life_start.stance&0x400)!=0;campaign_jump_held=0;
     memset(&campaign_player_flash,0,sizeof(campaign_player_flash));memset(&campaign_camera_effect,0,sizeof(campaign_camera_effect));
     status=campaign_ammo_reset();if(status)return status;
-    combat_cooldown=0;combat_hit_frame=UINT32_MAX;rf_scene_combat[5]=campaign_pistol.magazine;rf_scene_combat[6]=0;
+    memset(&combat_trigger,0,sizeof(combat_trigger));combat_hit_frame=UINT32_MAX;rf_scene_combat[5]=campaign_pistol.magazine;rf_scene_combat[6]=0;
     for(i=0;i<campaign_npc_body_count;i++)campaign_npc_bodies[i].combat_alert=campaign_npc_bodies[i].combat_due=0;
     rf_scene_enemy_combat[6]=0;memcpy(rf_scene_enemy_combat+5,&campaign_player_damage.state.effects.health,4);
     ++rf_scene_player_life[1];rf_scene_player_life[2]=0;rf_scene_player_life[4]=frame;
@@ -7196,7 +7197,7 @@ static int campaign_pickups_tick(scene_stream *stream,const float eye[3])
 static int campaign_combat_tick(scene_stream *stream,uint32_t frame,const float position[3],const float orientation[3][3])
 {
     float delta[3],nearest=1,amount;uint32_t i,target=UINT32_MAX,blocked,fire;int status;
-    if(!frame){memset(rf_scene_weapon_audio,0,sizeof(rf_scene_weapon_audio));combat_sound_random.value=1;memset(rf_scene_combat_death,0,sizeof(rf_scene_combat_death));memset(rf_scene_combat,0,sizeof(rf_scene_combat));rf_scene_combat[3]=UINT32_MAX;rf_scene_combat[5]=campaign_pistol.magazine;combat_cooldown=0;combat_fire_held=0;combat_frame=combat_hit_frame=UINT32_MAX;
+    if(!frame){memset(rf_scene_weapon_audio,0,sizeof(rf_scene_weapon_audio));combat_sound_random.value=1;memset(rf_scene_combat_death,0,sizeof(rf_scene_combat_death));memset(rf_scene_combat,0,sizeof(rf_scene_combat));rf_scene_combat[3]=UINT32_MAX;rf_scene_combat[5]=campaign_pistol.magazine;memset(&combat_trigger,0,sizeof(combat_trigger));combat_frame=combat_hit_frame=UINT32_MAX;
         memset(rf_scene_enemy_awareness,0,sizeof(rf_scene_enemy_awareness));
         memset(rf_scene_enemy_combat,0,sizeof(rf_scene_enemy_combat));combat_initial_health=campaign_player_damage.state.effects.health;
         memset(rf_scene_player_ammo,0,sizeof(rf_scene_player_ammo));
@@ -7204,12 +7205,15 @@ static int campaign_combat_tick(scene_stream *stream,uint32_t frame,const float 
         for(i=0;i<campaign_npc_body_count;i++)campaign_npc_bodies[i].combat_alert=campaign_npc_bodies[i].combat_due=0;
 }
     if(combat_frame==frame)return RF_OK;combat_frame=frame;
-    fire=player_input.fire && (!campaign_pistol.semi_automatic || !combat_fire_held);combat_fire_held=!!player_input.fire;
     status=campaign_pickups_tick(stream,position);rf_scene_pickups[7]=(uint32_t)status;if(status)return status;
     status=campaign_enemy_tick(stream,frame,position);rf_scene_enemy_combat[7]=(uint32_t)status;if(status)return status;
     memcpy(rf_scene_pickup_vitals,&campaign_player_damage.state.effects.health,4);memcpy(rf_scene_pickup_vitals+1,&campaign_player_damage.state.effects.armor,4);
+    {rf_weapon_trigger_rules rules={pistol_fire_ticks,campaign_pistol.burst_count,
+        (uint32_t)ceilf(campaign_pistol.burst_seconds*60),campaign_pistol.semi_automatic};
+     uint32_t inhibit=rf_scene_enemy_combat[6] || rf_scene_combat[6] ||
+        (player_input.reload && rf_scene_combat[5]<campaign_pistol.magazine && rf_scene_player_ammo[1]);
+     status=rf_weapon_trigger_step(&combat_trigger,&rules,player_input.fire,inhibit,rf_scene_combat[5],&fire);if(status)return status;}
     if(rf_scene_enemy_combat[6])return RF_OK;
-    if(combat_cooldown)--combat_cooldown;
     if(rf_scene_combat[6]) {
         if(!--rf_scene_combat[6]) {
             uint32_t moved;status=rf_weapon_reload_transfer(&campaign_player_inventory,campaign_weapon_supply.definitions+campaign_pistol_id,campaign_pistol_id,&moved);
@@ -7219,11 +7223,11 @@ static int campaign_combat_tick(scene_stream *stream,uint32_t frame,const float 
         return RF_OK;
     }
     if(player_input.reload && rf_scene_combat[5]<campaign_pistol.magazine && rf_scene_player_ammo[1]){rf_scene_combat[6]=pistol_reload_ticks;combat_sound("Glock Reload",position);return RF_OK;}
-    if(!fire || combat_cooldown)return RF_OK;
+    if(!fire)return RF_OK;
     if(!rf_scene_combat[5]){if(!rf_scene_player_ammo[1]){++rf_scene_player_ammo[5];return RF_OK;}rf_scene_combat[6]=pistol_reload_ticks;combat_sound("Glock Reload",position);return RF_OK;}
     status=rf_weapon_consume_shot(&campaign_player_inventory,campaign_weapon_supply.definitions,campaign_weapon_supply.names.count,campaign_pistol_id);
     rf_scene_player_ammo[7]=(uint32_t)status;if(status)return status;campaign_ammo_publish();
-    ++rf_scene_combat[0];combat_cooldown=pistol_fire_ticks;combat_sound("Glock Launch",position);
+    ++rf_scene_combat[0];combat_sound("Glock Launch",position);
     for(i=0;i<3;i++)delta[i]=orientation[2][i]*100;
     for(i=0;i<campaign_npc_body_count;i++) {
         campaign_npc_body *owner=campaign_npc_bodies+i;float fraction;

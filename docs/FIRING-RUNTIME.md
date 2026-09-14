@@ -913,3 +913,43 @@ weapon-view-xbox.log. This is resource readiness, not a live selectable rifle:
 equipped state/input, burst firing, acquisition, sounds and native rifle checks
 remain required. The table explicitly declares three-shot primary bursts with
 0.1s spacing; do not treat its0.75s primary wait as ordinary single-shot fire.
+
+
+## Shared first-pass primary burst scheduler
+
+The primary table definition now also retains burst count/delay (32bytes total).
+Assault Rifle supplies three shots,0.1s between shots and0.75s between burst starts;
+its42-round clip and60 armor-piercing base damage are verified from weapons.tbl.
+Burst-mode declarations require bounded count and positive delay; alternate-only
+bursts do not enable primary bursting. This is authored configuration evidence,
+not a claim that the original trigger implementation has been matched exactly.
+
+rf_weapon_trigger_step is allocation-free and fixed-tick. Its16-byte state holds
+cooldown, pending shot count, spacing and previous trigger state. An accepted
+burst finishes after release; held automatic input may begin another burst when
+the start-to-start cooldown expires. Each successful event consumes one round
+through the existing inventory function. An empty magazine stops pending shots;
+the caller handles dry fire/automatic reload. Reload/death inhibition cancels
+pending shots and consumes semi-auto edges. Equip changes must reset this state.
+This deliberately defines practical first-pass behavior for gameplay.
+
+The live pistol now uses the same scheduler. PC tests verify shots at0/6/12 and
+45/51/57 for rifle burst rules, trigger release, two-round partial magazines,
+blocked cancellation, semi-auto holds and malformed-state rollback. Six live
+pistol replays pass, including66-tick reload completion, a held trigger during
+reload,18 shots with one automatic reload, and ammo conservation. NPC death
+replays and28 CTests pass; both builds pass. Evidence:
+artifacts/weapon-burst-tests.log and artifacts/pistol-rules/report.json.
+Live rifle selection, acquisition, rifle audio and native rifle gameplay remain
+open; only shared rifle scheduling is exercised by the integration test here.
+
+The6000-frame ammo-exhaustion regression also passes with the shared trigger:
+141 shots,125 reserve transferred over8 reloads,34 later dry presses and exactly
+149 shot/reload audio events. No additional successful shots or reloads occur
+after ammunition exhaustion. Evidence: artifacts/weapon-burst-exhaustion.log.
+
+Stock64MiB XEMU660-frame pistol regression PASS with the shared scheduler:
+18 shots, one automatic reload,14 loaded/109 reserve, combat and HUD match PC;
+6884 available pages (26.9MiB). Native framebuffer inspected. Evidence:
+artifacts/xemu/replay-20260914-025927/report.json. This validates the live pistol
+path on Xbox; native three-shot rifle gameplay remains unverified.

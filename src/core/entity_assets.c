@@ -519,8 +519,9 @@ int rf_weapon_view_load(rf_vpp *tables,const char *name,uint32_t budget,rf_weapo
 int rf_weapon_primary_read(const void *text,uint32_t bytes,const char *name,rf_weapon_primary_definition *result)
 {
     lexer l={text,bytes,0};rf_weapon_primary_definition v={0};char t[256];
-    uint32_t mask=0,bit,other;int selected=0,found=0,q,status;
+    uint32_t mask=0,bit,other,burst_enabled=0,burst_alt=0;int selected=0,found=0,q,status;
     if(!text || !name || !*name || !result)return RF_RANGE;
+    v.burst_count=1;
     while((status=token(&l,t,&q))==RF_OK) {
         if(q)continue;
         if(same(t,"$Name:")) {
@@ -539,6 +540,27 @@ int rf_weapon_primary_read(const void *text,uint32_t bytes,const char *name,rf_w
                 if(!q && !strcmp(t,")"))break;
                 if(!q)return RF_FORMAT;
                 if(same(t,"semi_automatic"))v.semi_automatic=1;
+            }
+        } else if(same(t,"$Burst")) {
+            if(token(&l,t,&q) || q || !same(t,"Mode:"))return RF_FORMAT;
+            bit=64;if(mask&bit)return RF_FORMAT;
+            if(token(&l,t,&q) || q || (!same(t,"true") && !same(t,"false")))return RF_FORMAT;
+            burst_enabled=same(t,"true");
+        } else if(same(t,"+Burst")) {
+            if(token(&l,t,&q) || q)return RF_FORMAT;
+            if(same(t,"Count:")) {
+                bit=128;if(mask&bit)return RF_FORMAT;
+                if(metadata_integer(&l,&v.burst_count))return RF_FORMAT;
+                if(!v.burst_count || v.burst_count>32)return RF_RANGE;
+            } else if(same(t,"Delay:")) {
+                bit=256;if(mask&bit)return RF_FORMAT;
+                if(sphere_number(&l,&v.burst_seconds))return RF_FORMAT;
+                if(!(v.burst_seconds>0 && v.burst_seconds<=60))return RF_RANGE;
+            } else if(same(t,"Alt")) {
+                bit=512;if(mask&bit)return RF_FORMAT;
+                if(token(&l,t,&q) || q || !same(t,"Fire:"))return RF_FORMAT;
+                if(token(&l,t,&q) || q || (!same(t,"true") && !same(t,"false")))return RF_FORMAT;
+                burst_alt=same(t,"true");
             }
         } else if(same(t,"$Clip")) {
             if(token(&l,t,&q) || q)return RF_FORMAT;
@@ -571,6 +593,8 @@ int rf_weapon_primary_read(const void *text,uint32_t bytes,const char *name,rf_w
     if(status!=RF_OK && status!=RF_NOT_FOUND)return status;
     if(!found)return RF_NOT_FOUND;if((mask&47)!=47)return RF_FORMAT;
     if(!(v.reload_seconds>0 && v.reload_seconds<=60 && v.fire_seconds>0 && v.fire_seconds<=60 && v.damage>0 && v.damage<=1000000))return RF_RANGE;
+    if(burst_enabled && (mask&384)!=384)return RF_FORMAT;
+    if(!burst_enabled || burst_alt){v.burst_count=1;v.burst_seconds=0;}
     *result=v;return RF_OK;
 }
 int rf_weapon_primary_load(rf_vpp *tables,const char *name,uint32_t budget,rf_weapon_primary_definition *result)

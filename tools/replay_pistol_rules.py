@@ -16,7 +16,7 @@ for name,frames,fire,reload,shots,ammo,timer in cases:
  (folder/(name+'.txt')).write_text(run.stdout+run.stderr);run.check_returncode()
  def words(key):return list(map(int,next(l for l in run.stdout.splitlines() if l.startswith(key+' ')).split()[1:]))
  rules=words('PISTOL_RULES');combat=words('COMBAT');supply=words('PLAYER_AMMO')
- assert rules==[16,66,30,1109393408,1,24,1],rules
+ assert rules==[16,66,30,1109393408,1,32,1],rules
  assert combat[0]==shots and combat[5:]==[ammo,timer,0],combat
  assert supply[1]+supply[2]+combat[0]==141 and supply[2]==combat[5] and supply[7]==0,supply
  rows.append(dict(name=name,rules=rules,combat=combat,ammo=supply));print(rows[-1],flush=True)

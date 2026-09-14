@@ -2,6 +2,28 @@
 #include "rf/timer.h"
 #include <string.h>
 #include <math.h>
+int rf_weapon_trigger_step(rf_weapon_trigger_state *state,const rf_weapon_trigger_rules *rules,
+    uint32_t trigger,uint32_t blocked,uint32_t loaded,uint32_t *event)
+{
+    uint32_t pressed;
+    if(!state || !rules || !event || !rules->fire_ticks || rules->fire_ticks>3600 ||
+        !rules->burst_count || rules->burst_count>32 || rules->burst_ticks>3600 ||
+        (rules->burst_count>1 && !rules->burst_ticks) || rules->semi_automatic>1 ||
+        state->remaining>=rules->burst_count || state->cooldown>3600 || state->delay>3600)return RF_RANGE;
+    pressed=trigger && (!rules->semi_automatic || !state->held);state->held=!!trigger;*event=0;
+    if(state->cooldown)--state->cooldown;if(state->delay)--state->delay;
+    if(blocked){state->remaining=state->delay=0;return RF_OK;}
+    if(state->remaining) {
+        if(state->delay)return RF_OK;
+        if(!loaded){state->remaining=0;*event=2;return RF_OK;}
+        --state->remaining;state->delay=state->remaining?rules->burst_ticks:0;*event=1;return RF_OK;
+    }
+    if(!pressed || state->cooldown)return RF_OK;
+    if(!loaded){*event=2;return RF_OK;}
+    state->cooldown=rules->fire_ticks;state->remaining=rules->burst_count-1;
+    state->delay=state->remaining?rules->burst_ticks:0;*event=1;return RF_OK;
+}
+
 void rf_projectile_pool_init(rf_projectile_pool *pool)
 {
     uint32_t i;if(!pool)return;
