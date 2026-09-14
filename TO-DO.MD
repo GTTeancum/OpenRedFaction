@@ -16,7 +16,7 @@ screenshots until near-retail-quality replacements are available.
 Shortlist:
 - DEFERRED / TO COMPLETE: Improve Xbox performance beyond the current basic-testing baseline; revisit NPC pose evaluation.
 - TO COMPLETE: Preserve remaining world changes across sections, including partial actor state and dropped items.
-- ACTIVE: Resolve the door/route or script prerequisites blocking the L1S1 Attack9802 encounter, then add aiming/firing presentation.
+- ACTIVE: Add visible aiming/firing and natural-trigger coverage after the controlled L1S1 attack now reaches target death.
 - TO COMPLETE: Expand the working pistol/rifle combat, pickups and first-person feedback to the remaining weapons.
 - DEFERRED / TO COMPLETE: Restore full NPC/prop texture detail through better residency; verify PS2 parity for reduced textures.
 - Continue campaign traversal/physics coverage beyond the repaired walking route.
@@ -33,6 +33,21 @@ Shortlist:
 - USER: Review the interactive PC movement and audio items listed below.
 
 Progress reporting: include a very high-level working area (e.g. Lighting, AI, Weapons, GeoMod or Scripted events) and an overall percent estimate at the end of every turn report (USER preference) and revisit remaining 24-hour workdays when measured throughput supports a forecast; current rough estimate45% (35-45%), no defensible +/-48-hour completion forecast before end-to-end gameplay.
+
+Attack9802 controlled encounter now completes through target death. Root cause:
+scene fallback clearance used2.5 radius for an actor radius~0.43, leaving no
+start node despite188 eligible nodes and valid goal32. The obstruction was
+static world face5974/room53, not a mover. Scene adapter now uses actual actor
+radius; shared selector, graph and physical movement sweeps remain unchanged.
+Matched3000-frame replay: one four-node route, zero blocked steps,14 shots and
+target32.8 health instead of36 route misses/726 blocked steps/zero shots. By4000
+frames20 shots defeat the target and COMBAT_DEATH confirms death entry. This is
+controlled activation with authored delay/target preserved, not natural trigger
+traversal or visual proof. Regression now fails if the target is not defeated.
+37 PC tests pass; NXDK build and stock64MiB XEMU replay-20260914-111450 pass
+180-frame L1S2->L1S3 crossing/state validation. Xbox full-encounter execution,
+visible aiming/firing and natural-trigger traversal remain open. No capture.
+Current evidence:artifacts/attack-obstruction and attack-encounter/verified.
 
 Controlled authored encounter now reproducible with tools/replay_scripted_attack.py.
 Event9802 is requested at frame30 with its real13.75s delay and target8322;

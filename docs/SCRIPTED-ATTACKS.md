@@ -49,3 +49,15 @@ The final attacker position is(-78.136,-5.629,45.468), versus target(-78.650,-4.
 The earlier L1S1 event9394 dispatch fixture references attacker8638, which the installed actor reader could not locate for staging. Its unit test proves event dispatch only.
 
 The new diagnostics retain the last successful attack owner, target, health, shot counts, pursuit ticks and sampled positions. PC tests37/37 and NXDK build pass. Evidence: `artifacts/attack-encounter/verified/report.json` and per-checkpoint logs. No new Xbox encounter proof or image comparison is claimed.
+
+## Actor-sized route fallback fixes the controlled encounter
+
+The blocked sample reports static world face5974 in room53, with no mover/object owner. It has188 eligible navigation nodes, a valid goal node32 and no start node. The scene adapter was interpreting the shared selector's fixed2.5 callback argument as a sweep radius even though this actor's body radius is about0.43. The shared original selector is unchanged; the scene adapter now supplies the actual actor radius for its fallback clearance check. The graph and normal body/ground collision checks remain active. This is a practical scene integration choice, not a new retail-equivalence claim.
+
+In the matched3000-frame replay, the old adapter produced36 failed routes,726 blocked movement steps and no shots. The actor-sized adapter selects a four-node route, records no blocked movement steps and fires14 shots; the target reaches32.8 health. At4000 frames it has fired20 shots, the target health is effectively zero (small negative floating-point residue), and COMBAT_DEATH records entry into the existing death presentation. The attacker stops at(-78.200,-6.913,41.228), with the target at(-78.650,-4.554,48.784).
+
+The replay now checks all four checkpoints840/1000/3000/4000 and fails unless the target is defeated and death presentation is entered. It still deliberately requests the authored event through the process-local harness. Natural trigger traversal, visible firing animation/aiming, and an Xbox execution of this entire encounter remain unproven.
+
+Additional route diagnostics report actor clearance, eligible-node count, selected start/goal, containment and graph result; obstruction diagnostics retain the last body-hit solid, room, face, normal, fraction and owner. Evidence is under `artifacts/attack-obstruction/`, with the current full replay report in `artifacts/attack-encounter/verified/`.
+
+Validation:37 PC tests pass and the controlled encounter regression passes. Stock64MiB XEMU replay `replay-20260914-111450` passes the180-frame L1S2-to-L1S3 transition/state checks; NXDK build/restoration succeeds. No native image was requested. This checks Xbox compatibility, not the complete Attack9802 encounter on Xbox.
