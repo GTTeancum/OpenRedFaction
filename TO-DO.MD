@@ -14,7 +14,7 @@ GitHub image policy: retain the current four images; upload no additional
 screenshots until near-retail-quality replacements are available.
 
 Shortlist:
-- ACTIVE: Connect mission dialogue/subtitles and continue consecutive campaign progression.
+- ACTIVE: Profile and improve Xbox gameplay performance before adding more campaign systems.
 - TO COMPLETE: Preserve remaining world changes across sections, including partial actor state and dropped items.
 - NEXT: Expand mission scripts and AI until consecutive campaign sections are playable end to end.
 - TO COMPLETE: Expand the working pistol/rifle combat, pickups and first-person feedback to the remaining weapons.
@@ -33,6 +33,15 @@ Shortlist:
 - USER: Review the interactive PC movement and audio items listed below.
 
 Progress reporting: include a very high-level working area (e.g. Lighting, AI, Weapons, GeoMod or Scripted events) and an overall percent estimate at the end of every turn report (USER preference) and revisit remaining 24-hour workdays when measured throughput supports a forecast; current rough estimate45% (35-45%), no defensible +/-48-hour completion forecast before end-to-end gameplay.
+
+The command-buffer fix passes the original L1S2->L1S3 stock64MiB replay:
+180 frames, exit9512 at60, final L1S3, and matching native/PC state.
+Evidence: replay-20260914-085417/report.json. GPU-drained recycling prevents
+the observed boundary overflow; optimization must preserve this regression.
+USER reports roughly4FPS: prioritize measured Xbox performance now. The existing
+renderer profile is partial and includes loading outliers; do not attribute the
+whole frame cost to HUD resets without steady-state CPU/GPU measurements.
+Next: collect comparable frame timings and batch solid HUD draws/command resets.
 
 PC walking handoff coverage now passes five routes, including L1S3->L2S1
 (event7079 at frame86, translation150.25,-176,-121, facing/movement retained).

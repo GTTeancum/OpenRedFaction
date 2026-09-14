@@ -349,6 +349,9 @@ int rf_xbox_particle_draw(const rf_particle_draw_vertex *vertices,uint32_t count
     }
     p=pb_begin();p=pb_push1(p,NV097_SET_BEGIN_END,NV097_SET_BEGIN_END_OP_END);pb_end(p);
     while(pb_busy()) {}
+    /* pb_begin does not wrap the pushbuffer. HUD glyphs can issue hundreds
+     * of these completed draws in one frame; recycle only after GPU drain. */
+    pb_reset();
     return RF_OK;
 }
 

@@ -166,3 +166,27 @@ For the second return it stages the player outside the original pickup using the
 existing shared staging routine, then replays ordinary movement into collection
 range. This tests persistent state through real scene/resource teardown but does
 not claim the player navigated the intervening route.
+
+## L1S3 command-buffer failure investigation
+
+replay-20260914-084854 failed after walking exit9512. The saved exception record
+identifies access violation0xc0000005 at0x130b49 (pb_push1_to), writing at
+0x82e0b000 from pointer0x82e0affc. Caller0x3836b maps to rf_xbox_particle_draw.
+The debug-kernel halt at0x8001d1ea is secondary. Free pages after old-scene
+release were12263; this evidence points to a pushbuffer boundary write, not
+a demonstrated heap budget failure.
+
+The installed NXDK pb_begin returns pb_Put directly; only debug builds check
+pb_Tail, and pb_reset explicitly jumps to the head. Repeated HUD/glyph draws
+can exhaust a frame's command buffer. Candidate fix drains the GPU after each
+complete particle/HUD fan, then resets the pushbuffer before subsequent draws.
+No framebuffer or scene ownership is reset. Native replay of the original
+crossing is running via artifacts/section3-pushbuffer-xemu.log; success is pending.
+
+Verification: replay-20260914-085417 now passes the original180-frame crossing
+on stock64MiB, following event9512 at global frame60 into L1S3. The normal disc
+was restored and the harness exited successfully. This validates the observed
+crash fix; full traversal and performance remain separate requirements.
+The renderer profile includes a4168ms resource-stage outlier and mixes sections,
+so it must not serve as a steady-state FPS benchmark. User-observed4FPS makes
+CPU/GPU timing and bounded HUD batching the next priority.
