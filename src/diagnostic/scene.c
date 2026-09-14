@@ -134,6 +134,8 @@ int rf_scene_set_campaign_spawn(const rf_level *level)
 }
 static uint32_t (*profile_clock)(void);
 static uint32_t profile_last,profile_active;
+/* View failures101..108: listener, camera effect, ambient, camera setup,
+ * room locate, visibility begin/view, world mesh. Success stages stay0..12. */
 uint32_t rf_scene_profile[8][4],rf_scene_profile_stage[2];
 void rf_scene_set_profile(uint32_t (*milliseconds)(void))
 {profile_clock=milliseconds;profile_active=0;memset(rf_scene_profile,0,sizeof(rf_scene_profile));}
@@ -6928,12 +6930,12 @@ static int actor_follow_view(void *context,uint32_t frame,const rf_motion_contro
     scene_stream *stream=context;float position[3],orientation[3][3];
     uint32_t *r=rf_scene_actor_follow_frames[frame%64];int status;
     profile_mark(1);
-    status=actor_listener_pose(stream,frame,controller,position,orientation);if(status)return status;
+    status=actor_listener_pose(stream,frame,controller,position,orientation);if(status){rf_scene_profile_stage[1]=101;return status;}
     if(campaign_spawn && stream->particles.state) {
         uint32_t active;uint64_t elapsed=(uint64_t)frame*1000/60;
         int32_t now=(int32_t)(elapsed?((elapsed-1)%RF_TIMER_PERIOD)+1:0);
         status=rf_camera_effect_apply_random(&campaign_camera_effect,now,&stream->particles.state->random,(float *)orientation,&active);
-        if(status)return status;
+        if(status){rf_scene_profile_stage[1]=102;return status;}
     }
     if(campaign_spawn) {
         campaign_audio_listener(position,orientation[0]);
@@ -6943,7 +6945,7 @@ static int actor_follow_view(void *context,uint32_t frame,const rf_motion_contro
             uint64_t elapsed=(uint64_t)frame*1000/60;
             int32_t now=(int32_t)(elapsed?((elapsed-1)%RF_TIMER_PERIOD)+1:0);
             campaign_ambient_process();
-            status=campaign_ambient_schedule(now,0);if(status)return status;
+            status=campaign_ambient_schedule(now,0);if(status){rf_scene_profile_stage[1]=103;return status;}
             campaign_ambient_frame=frame;
         }
     }
@@ -6961,11 +6963,11 @@ static int actor_follow_view(void *context,uint32_t frame,const rf_motion_contro
         rf_visibility_camera_parameters parameters={{640,480,0,0,1,1,1000,1},{0},{0},.1f,1,1,1,0};
         uint32_t i,cached=0,hash=2166136261u,*record=rf_scene_visibility_frames[frame%64];
         memcpy(parameters.origin,position,12);memcpy(parameters.basis,orientation,36);
-        status=rf_visibility_camera_setup(&parameters,&camera);if(status)return status;
+        status=rf_visibility_camera_setup(&parameters,&camera);if(status){rf_scene_profile_stage[1]=104;return status;}
         stream->particle_camera=camera;stream->particle_frame=frame;
-        status=rf_geometry_collision_world_locate(stream->collision,position,&room);if(status)return status;
-        status=rf_level_visibility_begin_render(&stream->visibility);if(status)return status;
-        status=rf_level_visibility_view(&stream->visibility,&camera,640,480,room.room,UINT32_MAX,0,1);if(status)return status;
+        status=rf_geometry_collision_world_locate(stream->collision,position,&room);if(status){rf_scene_profile_stage[1]=105;return status;}
+        status=rf_level_visibility_begin_render(&stream->visibility);if(status){rf_scene_profile_stage[1]=106;return status;}
+        status=rf_level_visibility_view(&stream->visibility,&camera,640,480,room.room,UINT32_MAX,0,1);if(status){rf_scene_profile_stage[1]=107;return status;}
         for(i=0;i<stream->visibility.state.count;i++)hash=(hash^stream->visibility.state.rooms[i].visible)*16777619u;
         for(i=0;i<stream->visibility.graph.count;i++)cached+=stream->visibility.cache[i].valid!=0;
         record[0]=frame;record[1]=room.room;record[2]=stream->visibility.state.visible_count;record[3]=cached;record[4]=hash;
@@ -6976,21 +6978,26 @@ static int actor_follow_view(void *context,uint32_t frame,const rf_motion_contro
     }
     /* The actor portion is idle until animation emits this tick's model. Use
      * it for transactional world projection before the actor is appended. */
-    {uint32_t world_capacity=(stream->capacity/2)/sizeof(rf_preview_vertex)*sizeof(rf_preview_vertex);
+    {rf_preview_mesh world_mesh=*stream->mesh;
+     uint32_t world_capacity=(stream->capacity/2)/sizeof(rf_preview_vertex)*sizeof(rf_preview_vertex);
+     /* Previous frame includes appended NPCs; only its world prefix belongs
+      * to the next world transaction. Keep the published header on failure. */
+     world_mesh.count=stream->world;world_mesh.bytes=stream->world*sizeof(rf_preview_vertex);
      rf_preview_failure[0]=0;
-     if(rf_scene_actor_eye_enabled && stream->mesh->bytes>world_capacity)
-        status=scene_world_dispatch_camera(actor_follow_world,campaign_movers.poses,campaign_movers.count,position,orientation,stream->mesh,stream->capacity-(campaign_spawn?1024*1024:0),NULL,0);
+     if(rf_scene_actor_eye_enabled && world_mesh.bytes>world_capacity)
+        status=scene_world_dispatch_camera(actor_follow_world,campaign_movers.poses,campaign_movers.count,position,orientation,&world_mesh,stream->capacity-(campaign_spawn?1024*1024:0),NULL,0);
      else {
         status=scene_world_dispatch_camera(actor_follow_world,campaign_movers.poses,campaign_movers.count,position,orientation,
-        stream->mesh,world_capacity,stream->mesh->vertices+world_capacity/sizeof(rf_preview_vertex),
+        &world_mesh,world_capacity,stream->mesh->vertices+world_capacity/sizeof(rf_preview_vertex),
         stream->capacity-world_capacity);
         /* First-person rendering has no visible actor prefix to reserve. A
          * large world may use the whole allocation through the transactional
          * two-pass path instead of terminating at the staging-half boundary. */
         if(status==RF_RANGE && rf_scene_actor_eye_enabled && rf_preview_failure[0])
-            status=scene_world_dispatch_camera(actor_follow_world,campaign_movers.poses,campaign_movers.count,position,orientation,stream->mesh,stream->capacity-(campaign_spawn?1024*1024:0),NULL,0);
+            status=scene_world_dispatch_camera(actor_follow_world,campaign_movers.poses,campaign_movers.count,position,orientation,&world_mesh,stream->capacity-(campaign_spawn?1024*1024:0),NULL,0);
      }
-     if(status)return status;}
+     if(status){rf_scene_profile_stage[1]=108;return status;}
+     *stream->mesh=world_mesh;}
     profile_mark(2);
     stream->world=stream->mesh->count;
     memcpy(view->camera,position,12);memcpy(view->rotation,orientation,36);

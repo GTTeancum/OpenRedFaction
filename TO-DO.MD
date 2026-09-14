@@ -1,7 +1,13 @@
 # Red Faction Xbox / PC - open work
 
+First-pass policy: playable campaign systems take priority over exact1:1 RE.
+Use practical shared implementations, verify gameplay and stock64MiB operation,
+and defer visual polish. Focus: movement, combat/damage, AI, mission events,
+then level progression. Fidelity remains a later completion requirement.
+
 Shortlist:
-- ACTIVE: Fix the repeatable walking failure, then advance campaign traversal and physics.
+- ACTIVE: Advance the playable combat loop: weapon input, hit detection, damage and enemy response.
+- Continue campaign traversal/physics coverage beyond the repaired walking route.
 - DEFERRED / TO COMPLETE: Finish lighting lifecycle updates, shadows and visual parity within64MiB; revisit after critical gameplay systems.
 - Finish glare volumes/reflections, cross-level bitmap clocks, special visibility and parent ordering/tag resolution.
 - Complete the single-player actor, AI, damage and mission runtime.
@@ -15,6 +21,18 @@ Shortlist:
 - USER: Review the interactive PC movement and audio items listed below.
 
 Progress reporting: include a very high-level working area (e.g. Lighting, AI, Weapons, GeoMod or Scripted events) and an overall percent estimate at the end of every turn report (USER preference) and revisit remaining 24-hour workdays when measured throughput supports a forecast; current rough estimate40% (35-45%), no defensible +/-48-hour completion forecast before end-to-end gameplay.
+
+Walking failure fixed: actor_follow_view now passes only the retained world
+prefix into world regeneration; the previous frame's appended NPC geometry
+is excluded from the world-only budget check. Frame291 previously submitted
+2132760 old bytes against a2097152 world budget in the3MiB shared mesh.
+PC now completes30/390/780/1170 frames with unchanged3MiB mesh cap and
+forward/back/forward movement. Both builds and26 tests pass. Ambient smoke
+checks retain voice/load counters and stable bank sizes across return trips;
+stale global-RNG hash and unrelated Foley-byte golden values were removed.
+Evidence artifacts/ambient-walk-check/restart-report.json. Stock64MiB XEMU
+passes390 frames with PC comparison: artifacts/xemu/replay-20260913-235513/report.json.
+No allocation increase. Next prioritize playable combat integration.
 
 USER priority change: shelve further lighting work and return to it later.
 Lighting remains incomplete: lifecycle event routing, alternate/moving solids,
