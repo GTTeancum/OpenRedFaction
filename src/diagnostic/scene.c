@@ -7441,6 +7441,41 @@ static int campaign_combat_tick(scene_stream *stream,uint32_t frame,const float 
     }
     return RF_OK;
 }
+/* Process-local fixture: damage one linked NPC at frames30 and60. */
+uint32_t rf_scene_watch_test_uid,rf_scene_watch_test[4],rf_scene_death_watches[97];
+static int campaign_watch_fixture(uint32_t frame)
+{
+    uint32_t i,j,k=0,wanted=frame==30?0:1;rf_runtime_event *watch=NULL;
+    if(!frame)memset(rf_scene_watch_test,0,sizeof(rf_scene_watch_test));
+    if(!rf_scene_watch_test_uid || (frame!=30 && frame!=60))return RF_OK;
+    for(i=0;i<campaign_events.count;i++)if(campaign_events.items[i].authored->record.uid==rf_scene_watch_test_uid)watch=campaign_events.items+i;
+    if(!watch || watch->state.type!=16)return RF_NOT_FOUND;
+    for(i=0;i<watch->authored->record.link_count;i++)for(j=0;j<campaign_npc_body_count;j++)
+        if((uint32_t)campaign_seeds.records.items[j].record.uid==watch->authored->links[i]) {
+            campaign_npc_body *owner=campaign_npc_bodies+j;uint32_t bits,entered;float seconds=(float)frame/60,amount;int status;
+            rf_damage_request request={100000,campaign_player_object.handle,0,0,UINT32_MAX,0};
+            rf_damage_effect_backend effects={combat_predicate,combat_uid,combat_source,combat_burn,combat_random,combat_notify,combat_playing,combat_play,NULL};
+            if(k++!=wanted)continue;
+            if(!owner->registration.view || owner->damage.effects.health<=0)return RF_FORMAT;
+            memcpy(&bits,&seconds,4);status=rf_scene_npc_damage(owner->registration.handle,&request,1,bits,&effects,&amount);
+            if(!status && owner->damage.effects.health>0)status=RF_FORMAT;
+            if(!status)status=rf_scene_npc_death_entry(owner->registration.handle,&entered);
+            if(!status && entered)status=combat_death_start(j);
+            rf_scene_watch_test[3]=(uint32_t)status;if(status)return status;
+            ++rf_scene_watch_test[0];rf_scene_watch_test[1]=watch->authored->links[i];rf_scene_watch_test[2]=frame;return RF_OK;
+        }
+    return RF_NOT_FOUND;
+}
+static int campaign_watch_snapshot(void)
+{
+    uint32_t i,n=0;memset(rf_scene_death_watches,0,sizeof(rf_scene_death_watches));
+    for(i=0;i<campaign_events.count;i++)if(campaign_events.items[i].state.type==16) {
+        const rf_runtime_event *e=campaign_events.items+i;if(n==32)return RF_RANGE;
+        rf_scene_death_watches[1+n*3]=e->authored->record.uid;
+        rf_scene_death_watches[2+n*3]=e->death_fired;rf_scene_death_watches[3+n*3]=e->death_time;++n;
+    }
+    rf_scene_death_watches[0]=n;return RF_OK;
+}
 static int combat_hud_rect(rf_scene_particle_sink sink,void *context,float x,float y,float width,float height,uint32_t color)
 {
     rf_particle_draw_vertex vertices[4]={0};uint32_t i;
@@ -9369,8 +9404,10 @@ static int scene_frame(void *context,uint32_t frame,rf_preview_mesh *actor)
                 /* Owned 60-Hz replay clock. Original 4333ea calls event tick
                  * after physics; full wall-clock/whole-frame parity is open. */
                 status=campaign_trigger_contacts(&rf_scene_actor_pose,now,frame,&stream->particles,player_poll?player_input.use:0);if(status)return status;
+                status=campaign_watch_fixture(frame);if(status)return status;
                 status=rf_runtime_events_tick(&campaign_events,&campaign_triggers,&scene_gravity,now,&stream->particles, &campaign_forces,&tick_report,&pending);
                 if(status)return status;
+                status=campaign_watch_snapshot();if(status)return status;
                 campaign_force_snapshot();campaign_switch_snapshot();
                 ++rf_scene_event_ticks[0];rf_scene_event_ticks[1]=(uint32_t)now;rf_scene_event_ticks[2]=pending;
                 memcpy(words,&tick_report,sizeof(words));

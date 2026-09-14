@@ -775,7 +775,7 @@ static int runtime_death_poll(startup_context *c,rf_runtime_event *event)
     /* Unsupported objects cannot safely be interpreted as dead or absent. */
     if(unknown){++c->report->unsupported_actions;return RF_OK;}
     if(any_alive && !(event->authored->record.flags[0] && any_missing))return RF_OK;
-    event->death_fired=1;c->event=event;++c->report->events;
+    event->death_fired=1;event->death_time=(uint32_t)c->now;c->event=event;++c->report->events;
     for(i=0;i<event->authored->record.link_count && !c->status;i++)
         startup_target(c,event->links+i,UINT32_MAX,UINT32_MAX,1);
     return c->status;

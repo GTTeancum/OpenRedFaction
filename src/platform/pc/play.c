@@ -364,6 +364,10 @@ int main(int argc,char **argv)
         CHECK(rf_scene_campaign_player_set(&state));
     }
     rf_scene_follow_level_exits=spawn_profile;
+    if(p.headless && getenv("RF_REPLAY_WATCH_UID")) {
+        char *end;unsigned long value=strtoul(getenv("RF_REPLAY_WATCH_UID"),&end,10);if(*end || !value)CHECK(RF_FORMAT);
+        rf_scene_watch_test_uid=(uint32_t)value;
+    }
     if(p.headless && getenv("RF_REPLAY_GOAL_UID")) {
         char *end;unsigned long value=strtoul(getenv("RF_REPLAY_GOAL_UID"),&end,10);if(*end || !value)CHECK(RF_FORMAT);
         p.goal_uid=(uint32_t)value;
@@ -605,6 +609,8 @@ run_scene:
         printf("PLAYER_JUMP");for(i=0;i<4;++i)printf(" %u",rf_scene_player_jump[i]);puts("");
         printf("PLAYER_JUMP_FRAMES");for(i=0;i<1024;++i)printf(" %u",((uint32_t*)rf_scene_player_jump_frames)[i]);puts("");
         printf("ACTOR_PLAYER_INPUT");for(i=0;i<64*7;++i)printf(" %u",((uint32_t*)rf_scene_player_input_frames)[i]);puts("");
+        printf("WATCH_TEST");for(i=0;i<4;i++)printf(" %u",rf_scene_watch_test[i]);puts("");
+        for(i=0;i<rf_scene_death_watches[0];i++)printf("DEATH_WATCH %u %u %u\n",rf_scene_death_watches[1+i*3],rf_scene_death_watches[2+i*3],rf_scene_death_watches[3+i*3]);
         printf("ACTOR_RETIREMENT");for(i=0;i<4;i++)printf(" %u",rf_scene_actor_retirement[i]);puts("");
         for(i=0;i<rf_scene_defeated_actors.count;i++)if(rf_scene_defeated_actors.items[i].retired)
             printf("DEFEATED_ACTOR %s %u\n",rf_scene_defeated_actors.levels[rf_scene_defeated_actors.items[i].level],rf_scene_defeated_actors.items[i].uid);

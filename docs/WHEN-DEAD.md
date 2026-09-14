@@ -36,3 +36,29 @@ XEMU gameplay verification and wider object-family coverage remain open.
 Validation: PC and NXDK builds pass, all36 CTests pass (including expanded
 mission_goal_dispatch), and the rendered240-frame rifle section round trip
 retains its defeated actor and collected pickup. Logs: `artifacts/death-watch-*`.
+
+## Authored goal-chain replay
+
+`tools/replay_death_chain.py` loads L7S2 and applies fatal damage through the
+shared NPC damage/death-entry/animation services to watcher5012's linked guards:
+4887 at frame30,4907 at60. This fixture bypasses aiming and player ammunition;
+it never sets watcher state, invokes Goal_Set or changes goal counters directly.
+At59 frames the first guard is dead, watcher5012 is unfired and door1=0.
+At90 frames both are dead, watcher5012 fired at1016ms and its authored link5011
+incremented door1 to1. The other six watchers remain unfired. Both PC cases pass.
+The authored Goal_Check5015 needs door1>=2, so this does not yet unlock the door;
+watcher5013's separate pair must also be defeated. That complete door chain and
+mover activation remain further work.
+
+Per-watcher telemetry retains authored UID, one-shot state and firing time in a
+bounded32-record snapshot (largest authored level currently has18 watchers).
+XEMU `--watch-uid` uses the same scene-local damage fixture and compares every
+watcher, fixture outcome and mission goal directly with PC. It saves/restores
+campaign-watch.bin with its existing fixture cleanup; no host input is sent.
+
+Native result: `artifacts/xemu/replay-20260914-062247/report.json` passes90
+frames on stock64MiB. All seven watcher triples, damage fixture [2,4907,60,0],
+and goals door1=1/door2=0/vator=0 exactly match PC. Native framebuffer inspected;
+6057 free pages (23.66MiB) remain. Both builds and36 CTests pass; the strengthened
+firing-time assertion also passes. Native first-death-only control has not been
+run separately; that gating control currently has rendered PC evidence.

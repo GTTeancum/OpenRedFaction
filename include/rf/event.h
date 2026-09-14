@@ -115,7 +115,7 @@ typedef struct rf_runtime_event {
     const rf_level_owned_event *authored;
     rf_level_link_target *links;
     rf_switch_state *switch_state; /* type32 only; shares the owner's allocation */
-    uint32_t death_fired; /* When_Dead one-shot poll, per scene. */
+    uint32_t death_fired,death_time; /* When_Dead one-shot poll, per scene. */
 } rf_runtime_event;
 typedef struct rf_runtime_events {
     rf_level_owned_events decoded;

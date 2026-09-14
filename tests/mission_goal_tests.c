@@ -25,7 +25,7 @@ static int death_watch_check(void)
     death_alive[0]=0;
     CHECK(rf_runtime_events_tick(&events,&triggers,&gravity,1,0,0,&report,&pending)==RF_OK && !watcher.death_fired);
     death_alive[1]=0;
-    CHECK(rf_runtime_events_tick(&events,&triggers,&gravity,2,0,0,&report,&pending)==RF_OK && watcher.death_fired && !(target.state.flags&16));
+    CHECK(rf_runtime_events_tick(&events,&triggers,&gravity,2,0,0,&report,&pending)==RF_OK && watcher.death_fired && watcher.death_time==2 && !(target.state.flags&16));
     target.state.flags|=16;
     CHECK(rf_runtime_events_tick(&events,&triggers,&gravity,3,0,0,&report,&pending)==RF_OK && (target.state.flags&16));
     watcher.death_fired=0;authored.record.flags[0]=1;death_alive[1]=1;death_present[0]=0;

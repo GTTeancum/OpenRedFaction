@@ -6,7 +6,7 @@ and defer visual polish. Focus: movement, combat/damage, AI, mission events,
 then level progression. Fidelity remains a later completion requirement.
 
 Shortlist:
-- ACTIVE: Connect death-triggered mission events and expand campaign script coverage.
+- ACTIVE: Connect mission conditions to doors/movers and expand playable campaign script chains.
 - TO COMPLETE: Preserve remaining world changes across sections, including partial actor state and dropped items.
 - NEXT: Expand mission scripts and AI until consecutive campaign sections are playable end to end.
 - TO COMPLETE: Expand the working pistol/rifle combat, pickups and first-person feedback to the remaining weapons.
@@ -25,6 +25,15 @@ Shortlist:
 - USER: Review the interactive PC movement and audio items listed below.
 
 Progress reporting: include a very high-level working area (e.g. Lighting, AI, Weapons, GeoMod or Scripted events) and an overall percent estimate at the end of every turn report (USER preference) and revisit remaining 24-hour workdays when measured throughput supports a forecast; current rough estimate45% (35-45%), no defensible +/-48-hour completion forecast before end-to-end gameplay.
+
+Authored L7S2 death-to-goal chain passes PC and stock64MiB Xbox: guard4887
+death leaves door1=0, guard4907 death fires watcher5012 -> Goal_Set5011 once
+at1016ms, door1=1; other six watchers remain inactive. Controlled shared damage
+fixture, not a played combat route. Native90 frames match every watcher and
+goal,6057 free pages (23.66MiB), framebuffer inspected. Both builds and36 tests
+pass; firing-time assertion also passes. The door needs counter2, so the second
+guard group and final mover response remain open. Evidence:
+artifacts/death-chain/report.json; artifacts/xemu/replay-20260914-062247/report.json.
 
 When_Dead now polls known NPC state and dispatches linked events/triggers once
 per scene, including grouped deaths and the authored any-missing-object flag.
