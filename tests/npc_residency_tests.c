@@ -915,7 +915,7 @@ static int combat_shot_geometry_check(void)
     CHECK(combat_shot_obstructed(&stream,start,delta,1,&hit)==RF_OK && hit);
     CHECK(combat_shot_obstructed(&stream,start,delta,.4f,&hit)==RF_OK && !hit); /* Target before the panel. */
     {
-        rf_level_item item={0};uint8_t taken=0;float eye[3]={1,-1,4};
+        rf_level_item item={0};uint8_t taken=0;uint32_t pickup_slot;float eye[3]={1,-1,4};
         rf_weapon_inventory saved_inventory=campaign_player_inventory;
         rf_weapon_acquire_definition saved_definition=campaign_weapon_supply.definitions[3];
         int32_t saved_id=campaign_pistol_id;float saved_health=campaign_player_damage.state.effects.health,saved_position[3];
@@ -928,10 +928,17 @@ static int combat_shot_geometry_check(void)
         campaign_player_damage.state.effects.health=100;memcpy(scene_actor_body.state.position,eye,12);
         strcpy(item.class_name,"Handgun");item.uid=777;item.quantity=16;item.position[0]=1;item.position[1]=-1;item.position[2]=6;
         stream.pickups.items=&item;stream.pickups.count=1;stream.pickup_taken=&taken;stream.handgun_pickup.gives_weapon=1;
+        stream.pickup_slots=&pickup_slot;strcpy(campaign_current_level,"L1S1.rfl");
+        memset(&rf_scene_campaign_pickups,0,sizeof(rf_scene_campaign_pickups));
+        CHECK(campaign_pickups_restore(&stream)==RF_OK && !taken);
         CHECK(campaign_pickups_tick(&stream,eye)==RF_OK && !taken && rf_scene_pickups[2]==1 && campaign_player_inventory.reserve[0]==100);
         solid.input_origin[0]=20;solid.minimum[0]+=20;solid.maximum[0]+=20;
         CHECK(campaign_pickups_tick(&stream,eye)==RF_OK && taken && rf_scene_pickups[3]==1 && campaign_player_inventory.reserve[0]==116);
         CHECK(campaign_pickups_tick(&stream,eye)==RF_OK && rf_scene_pickups[3]==1 && campaign_player_inventory.reserve[0]==116);
+        /* Recreate the per-scene mask and restore from campaign storage. The
+         * collected item cannot grant again after a section revisit. */
+        taken=0;CHECK(campaign_pickups_restore(&stream)==RF_OK && taken);
+        CHECK(campaign_pickups_tick(&stream,eye)==RF_OK && campaign_player_inventory.reserve[0]==116);
         {
             scene_pickup_resource resources[3]={0};float saved_armor=campaign_player_damage.state.effects.armor;
             uint32_t saved_vitals[4];memcpy(saved_vitals,rf_scene_pickup_vitals,sizeof(saved_vitals));

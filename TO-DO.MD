@@ -25,6 +25,14 @@ Shortlist:
 
 Progress reporting: include a very high-level working area (e.g. Lighting, AI, Weapons, GeoMod or Scripted events) and an overall percent estimate at the end of every turn report (USER preference) and revisit remaining 24-hour workdays when measured throughput supports a forecast; current rough estimate45% (35-45%), no defensible +/-48-hour completion forecast before end-to-end gameplay.
 
+Pickup retirement now persists in the shared section handoff: owned level+UID
+keys, preallocated grants and restored taken masks prevent repeat collection.
+All593 authored items across68 levels fit the20488-byte owner; scene contact
+and restore tests prevent duplicate ammunition grants. Both builds,36 CTests
+and the PC rifle replay pass (affected tests repeated after capacity reduction).
+Rendered out-and-back pickup replay and native XEMU retirement remain open.
+See docs/WORLD-STATE.md and artifacts/pickup-persistence-* logs.
+
 Native mission-state handoff now passes L8S1 -> L8S2 on stock64MiB XEMU:
 120 input frames, authored VAT setter at30, forced exit5625 at61, all five
 retained goal records exactly match PC; framebuffer verified,6910 free pages

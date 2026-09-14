@@ -2,6 +2,23 @@
 #include <math.h>
 #include <string.h>
 #include <limits.h>
+int rf_campaign_pickup_register(rf_campaign_pickups *state,const char *level,uint32_t uid,uint32_t *slot)
+{
+    char canonical[64]={0};uint32_t i,n,l;
+    if(!state || !level || !slot || state->level_count>RF_CAMPAIGN_PICKUP_LEVELS || state->count>RF_CAMPAIGN_PICKUP_SLOTS)return RF_RANGE;
+    for(n=0;n<64 && level[n];n++) {
+        unsigned char c=(unsigned char)level[n];
+        if(!((c>='a' && c<='z') || (c>='A' && c<='Z') || (c>='0' && c<='9') || c=='_' || c=='-' || c=='.'))return RF_FORMAT;
+        canonical[n]=(char)(c>='A' && c<='Z'?c+32:c);
+    }
+    if(!n || n==64)return RF_FORMAT;
+    for(l=0;l<state->level_count;l++)if(!strcmp(canonical,state->levels[l]))break;
+    for(i=0;i<state->count;i++)if(state->items[i].level==l && state->items[i].uid==uid){*slot=i;return RF_OK;}
+    if(state->count==RF_CAMPAIGN_PICKUP_SLOTS || l==RF_CAMPAIGN_PICKUP_LEVELS)return RF_RANGE;
+    if(l==state->level_count){memcpy(state->levels[l],canonical,64);++state->level_count;}
+    state->items[state->count].level=l;state->items[state->count].uid=uid;state->items[state->count].taken=0;
+    *slot=state->count++;return RF_OK;
+}
 static int goal_find(const rf_campaign_goals *goals,const char *name,uint32_t *index)
 {
     uint32_t i,j;

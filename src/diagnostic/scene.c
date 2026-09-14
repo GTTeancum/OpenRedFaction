@@ -403,7 +403,7 @@ typedef struct scene_stream {
     uint32_t world,base,capacity,npc_base,npc_textures;rf_scene_frame_sink sink;void *context;
     uint32_t clutter_base,clutter_textures;
     uint32_t weapon_base,weapon_textures;
-    rf_level_owned_items pickups;uint8_t *pickup_taken;rf_item_definition handgun_pickup;scene_pickup_resource *pickup_resources;
+    rf_level_owned_items pickups;uint8_t *pickup_taken;uint32_t *pickup_slots;rf_item_definition handgun_pickup;scene_pickup_resource *pickup_resources;
     rf_player_weapon *player_weapon[2];uint32_t player_weapon_base[2],player_weapon_textures[2],player_shots,player_reload,player_slot;
     rf_model_projection npc_view;void *npc_memory;uint16_t *npc_indices;rf_model_clip_pool *npc_pool;
     const rf_geometry_collision_world *collision;
@@ -655,6 +655,7 @@ static void campaign_switch_snapshot(void)
 static rf_runtime_triggers campaign_triggers;
 rf_level_transition_request rf_scene_level_transition;
 rf_campaign_goals rf_scene_mission_goals;
+rf_campaign_pickups rf_scene_campaign_pickups;
 uint32_t rf_scene_campaign_load_stage;
 uint32_t rf_scene_follow_level_exits;
 static char campaign_current_level[64];
@@ -7271,6 +7272,16 @@ static float pickup_restore(float *value,int32_t quantity)
     float amount=100-*value;if(amount<=0 || quantity<=0)return 0;
     if(amount>(float)quantity)amount=(float)quantity;*value+=amount;return amount;
 }
+static int campaign_pickups_restore(scene_stream *stream)
+{
+    uint32_t i;int status;
+    for(i=0;i<stream->pickups.count;i++)if(pickup_class(stream->pickups.items[i].class_name)>=0) {
+        status=rf_campaign_pickup_register(&rf_scene_campaign_pickups,campaign_current_level,stream->pickups.items[i].uid,stream->pickup_slots+i);
+        if(status)return status;
+        stream->pickup_taken[i]=(uint8_t)rf_scene_campaign_pickups.items[stream->pickup_slots[i]].taken;
+    }
+    return RF_OK;
+}
 static int campaign_pickups_tick(scene_stream *stream,const float eye[3])
 {
     uint32_t i;int status;
@@ -7293,7 +7304,8 @@ static int campaign_pickups_tick(scene_stream *stream,const float eye[3])
                 id,item->quantity,definition->gives_weapon,&grant);if(status)return status;
             if(!grant.rounds && !grant.acquired)continue;
         }
-        stream->pickup_taken[i]=1;++rf_scene_pickups[3];rf_scene_pickups[4]+=grant.rounds;rf_scene_pickups[5]=item->uid;
+        stream->pickup_taken[i]=1;rf_scene_campaign_pickups.items[stream->pickup_slots[i]].taken=1;
+        ++rf_scene_pickups[3];rf_scene_pickups[4]+=grant.rounds;rf_scene_pickups[5]=item->uid;
         campaign_ammo_publish();
     }
     return RF_OK;
@@ -9579,7 +9591,7 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
             if(status)goto done;
             if(rf_scene_follow_level_exits && rf_scene_level_transition.pending)
                 status=rf_campaign_goals_next_section(&rf_scene_mission_goals);
-            else memset(&rf_scene_mission_goals,0,sizeof(rf_scene_mission_goals));
+            else {memset(&rf_scene_mission_goals,0,sizeof(rf_scene_mission_goals));memset(&rf_scene_campaign_pickups,0,sizeof(rf_scene_campaign_pickups));}
             if(!status)status=rf_runtime_goals_initialize(&campaign_events,&rf_scene_mission_goals);
             if(status)goto done;
             campaign_triggers.goals=&rf_scene_mission_goals;
@@ -9621,8 +9633,12 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
             rf_scene_campaign_load_stage=10;status=campaign_audio_open(tables_path,level->entry.name,binding.entity.class_name);if(status)goto done;
             rf_scene_campaign_load_stage=11;status=campaign_clutter_open(tables_path,level);if(status)goto done;
             memset(rf_scene_pickups,0,sizeof(rf_scene_pickups));memset(rf_scene_pickup_vitals,0,sizeof(rf_scene_pickup_vitals));
-            rf_scene_campaign_load_stage=12;status=rf_level_owned_items_open(level,256*1024,&stream.pickups);if(status)goto done;
+            rf_scene_campaign_load_stage=12;status=rf_level_owned_items_open(level,256*1024,&stream.pickups);
+            if(status==RF_NOT_FOUND)status=RF_OK;if(status)goto done;
             stream.pickup_taken=calloc(stream.pickups.count?stream.pickups.count:1,1);if(!stream.pickup_taken){status=RF_IO;goto done;}
+            stream.pickup_slots=calloc(stream.pickups.count?stream.pickups.count:1,sizeof(*stream.pickup_slots));
+            if(!stream.pickup_slots){status=RF_IO;goto done;}
+            status=campaign_pickups_restore(&stream);if(status)goto done;
             {rf_vpp pickup_tables;status=rf_vpp_open(&pickup_tables,tables_path);if(status)goto done;
              status=rf_item_definition_load(&pickup_tables,"Handgun",128*1024,&stream.handgun_pickup);rf_vpp_close(&pickup_tables);if(status)goto done;
              if(strcmp(stream.handgun_pickup.weapon,"12mm handgun") || strcmp(stream.handgun_pickup.mesh,"weapon_ultorgun.v3d") || stream.handgun_pickup.mesh_kind!=1){status=RF_FORMAT;goto done;}}
@@ -9926,7 +9942,7 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
 done:
     for(i=0;i<2;i++)rf_player_weapon_close(&stream.player_weapon[i]);
     if(stream.pickup_resources){for(i=0;i<5;i++){rf_static_render_resource_close(&stream.pickup_resources[i].model);rf_model_materials_close(&stream.pickup_resources[i].materials);}free(stream.pickup_resources);}
-    rf_level_owned_items_close(&stream.pickups);free(stream.pickup_taken);
+    rf_level_owned_items_close(&stream.pickups);free(stream.pickup_taken);free(stream.pickup_slots);
     free(stream.npc_memory);free(stream.npc_indices);free(stream.npc_pool);
     rf_level_visibility_close(&stream.visibility);
     free(stream.light_scratch_memory);
