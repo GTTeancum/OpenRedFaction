@@ -16,7 +16,7 @@ screenshots until near-retail-quality replacements are available.
 Shortlist:
 - DEFERRED / TO COMPLETE: Improve Xbox performance beyond the current basic-testing baseline; revisit NPC pose evaluation.
 - TO COMPLETE: Preserve remaining world changes across sections, including partial actor state and dropped items.
-- ACTIVE: Add enemy firing animation/effects, visually verify stationary aiming, and extend natural-trigger encounter coverage.
+- ACTIVE: Verify enemy firing visually, add muzzle/impact effects, and extend natural-trigger encounter coverage.
 - TO COMPLETE: Expand the working pistol/rifle combat, pickups and first-person feedback to the remaining weapons.
 - DEFERRED / TO COMPLETE: Restore full NPC/prop texture detail through better residency; verify PS2 parity for reduced textures.
 - Continue campaign traversal/physics coverage beyond the repaired walking route.
@@ -33,6 +33,21 @@ Shortlist:
 - USER: Review the interactive PC movement and audio items listed below.
 
 Progress reporting: include a very high-level working area (e.g. Lighting, AI, Weapons, GeoMod or Scripted events) and an overall percent estimate at the end of every turn report (USER preference) and revisit remaining 24-hour workdays when measured throughput supports a forecast; current rough estimate45% (35-45%), no defensible +/-48-hour completion forecast before end-to-end gameplay.
+
+Enemy shots now activate mapped fire_stand action2 through motion residency and
+shared action playback, without touching the death-action owner. Action sound
+labels are used when present; known pistol/rifle shots fall back to the existing
+Glock Launch/Assault Loop groups. Missing clips are counted and do not prevent
+damage; other playback errors remain explicit. No new persistent animation
+allocation; existing cache and audio budgets apply. Controlled Attack9802 still
+reaches target death:20 shots,20 confirmed active firing clips (motion60),20
+sound plays, zero audio errors. Regression requires these counts.37 PC tests
+pass; NXDK and stock64MiB XEMU replay112944 pass180-frame L1S2->L1S3 transition
+checks. No full Xbox encounter claim. A local PC follow-camera render at2200
+was inspected and shows the robot attacker; this is a single frame, not visual
+proof of a firing sequence. No GitHub images uploaded. Muzzle/impact effects,
+crouched/weapon-specific blends, other weapon sounds, natural triggers and full
+Xbox combat validation remain open. Evidence:artifacts/enemy-fire.
 
 Stationary combat aiming now uses retained steering/angular prediction and
 ordinary orientation publication while preserving position. Shots require a

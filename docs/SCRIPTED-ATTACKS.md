@@ -71,3 +71,13 @@ The basic firing loop now requires the target within a30-degree horizontal cone 
 Tests cover front/side/back alignment and a real damage dispatch held while facing backward, followed by a shot after alignment. The controlled4000-frame encounter still defeats the target with20 shots and records1171 stationary aiming updates. This sample already has suitable facing at shot time; its aim-hold count is zero. It does not demonstrate a large stationary turn or visually validate body/weapon presentation. The replay regression now requires stationary aiming updates as well as target defeat and death entry.
 
 Validation:37 PC tests and the controlled encounter regression pass. NXDK build/restoration and stock64MiB XEMU replay `replay-20260914-112202` pass180-frame L1S2-to-L1S3 transition/state checks. No capture was requested; full Xbox encounter execution and visual aiming remain separate. Evidence: `artifacts/enemy-aim/`.
+
+## Authored firing clips and sound
+
+Actual basic enemy shots now load and activate their selected `fire_stand` action2 through the existing motion cache and action player. The implementation uses the action mapping directly and does not alter the death-action owner. It confirms the clip is active after the request. Missing authored clips are counted and leave gameplay damage available; other playback errors propagate. Existing motion residency budgets remain in force.
+
+An authored action sound label is requested at the attacker eye position. Where that label is absent, the known pistol and rifle use the already-supported Glock Launch and Assault Loop groups. This is a bounded first-pass fallback; remaining weapons, crouched fire, precise sound/muzzle timing and upper-body blending still need implementation. Audio errors remain in the existing diagnostic counters and do not stop gameplay.
+
+The controlled Attack9802 regression still reaches target death and records20 shots,20 active firing clips (motion60),20 sound plays and zero audio errors. It now requires firing animation activation and audio success in addition to target defeat/death entry. All37 PC tests pass. NXDK and stock64MiB XEMU replay `replay-20260914-112944` pass the180-frame L1S2-to-L1S3 transition/state checks, which are compatibility coverage rather than full Xbox combat validation.
+
+A PC process-local follow-camera capture at2200 frames was inspected: the robot attacker is visible in the mine, with the diagnostic first-person overlay still present. The log records one shot, active firing clip and sound play. One still frame does not verify the complete firing motion or exact alignment. Local output: `artifacts/enemy-fire/view.png`; no GitHub image upload. Muzzle/impact effects and visual sequence verification remain open.

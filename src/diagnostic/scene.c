@@ -7560,6 +7560,33 @@ static int campaign_script_attack(void *context,const rf_level_event *event,cons
     owner->combat_scripted=owner->combat_alert=1;owner->combat_target=target;owner->combat_due=0;
     campaign_pursuit_stop(owner);owner->combat_navigation_due=0;owner->script_move.active=0;return RF_OK;
 }
+uint32_t rf_scene_enemy_fire[6]; /* shots, motion starts, missing, sounds, last motion, status */
+static int campaign_enemy_fire_presentation(uint32_t slot)
+{
+    campaign_npc_body *owner=campaign_npc_bodies+slot;rf_entity_pose *pose=NULL;
+    rf_entity_playback_model *model;int32_t sounds[45],sound,motion;uint32_t i;int status,active;
+    const char *label=owner->selection.action_sounds[2];
+    ++rf_scene_enemy_fire[0];
+    if((!label || !label[0]) && campaign_weapon_supply.names.count) {
+        if(owner->view.weapons[0]==campaign_pistol_id)label="Glock Launch";
+        else if(owner->view.weapons[0]==campaign_rifle_id)label="Assault Loop";
+    }
+    if(label && label[0]){combat_sound(label,owner->eye_position);++rf_scene_enemy_fire[3];}
+    /* Pure damage fixtures have no pose owner; absent authored clips are optional. */
+    if(slot>=campaign_poses.count || !campaign_poses.items)return RF_NOT_FOUND;
+    status=campaign_actor_pose(slot,&pose);if(status)return status;if(!pose)return RF_NOT_FOUND;
+    motion=owner->selection.mapping.actions[2];
+    if(motion<0)return RF_NOT_FOUND;
+    status=campaign_npc_motion_require(pose->skeleton,(uint32_t)motion);if(status)return status;
+    if(pose->skeleton>=campaign_playback_resources.model_count)return RF_RANGE;
+    model=campaign_playback_resources.models+pose->skeleton;
+    for(i=0;i<45;i++)sounds[i]=-1;
+    status=rf_motion_start_action(&pose->playback,model->resources,model->count,
+        owner->selection.mapping.actions,sounds,2,1,0,0,&sound);if(status)return status;
+    status=rf_motion_action_active(&pose->playback,model->resources,model->count,owner->selection.mapping.actions,2,&active);if(status)return status;
+    if(active)++rf_scene_enemy_fire[1];rf_scene_enemy_fire[4]=(uint32_t)motion;
+    return RF_OK;
+}
 uint32_t rf_scene_enemy_aim[4]; /* stationary turns, shots held for aim, last actor handle, reserved */
 static int campaign_enemy_aim_aligned(const campaign_npc_body *owner,const float delta[3])
 {
@@ -7626,6 +7653,8 @@ static int campaign_enemy_tick(scene_stream *stream,uint32_t frame,const float p
         status=combat_obstructed(stream,owner->eye_position,delta,&blocked);if(status)return status;
         if(blocked){++rf_scene_enemy_combat[4];continue;}
         ++rf_scene_enemy_combat[2];
+        status=campaign_enemy_fire_presentation(i);rf_scene_enemy_fire[5]=(uint32_t)status;
+        if(status==RF_NOT_FOUND)++rf_scene_enemy_fire[2];else if(status)return status;
         {rf_damage_request request={10,owner->registration.handle,0,0,UINT32_MAX,0};
          if(victim) {
              uint32_t entered;
