@@ -25,6 +25,7 @@ extern uint32_t rf_scene_script_movement[8],rf_scene_script_actor[8],rf_scene_sc
 extern uint32_t rf_scene_follow_npc_uid; /* Process-local inspection camera only. */
 extern uint32_t rf_scene_script_slays[6];
 extern uint32_t rf_scene_message_audio[4];
+extern uint32_t rf_scene_model_scratch_full_test;
 int rf_scene_fire_goal_setter(uint32_t uid,int32_t now);
 extern rf_campaign_goals rf_scene_mission_goals;
 extern rf_campaign_pickups rf_scene_campaign_pickups;

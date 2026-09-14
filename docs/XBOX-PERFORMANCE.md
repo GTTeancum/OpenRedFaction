@@ -44,3 +44,60 @@ weapon drawing, platform sink and state export within the dominant scene phase.
 Both builds and37 tests pass. Native detailed timing is running in
 artifacts/performance-detail-xemu.log. Remaining CPU costs still dominate;
 next changes must follow those measurements.
+
+Detailed run replay-20260914-090636 passes. Presentation subphase means:
+NPC51.192ms, clutter84.702ms, world weapons12.260ms, pickups10.404ms,
+first-person weapon16.404ms, platform sink37.942ms, state export0.029ms.
+Absolute timings vary between runs; model-side work clearly warrants attention.
+
+Source inspection found full384KiB scratch poisoning per model batch in four
+paths. The candidate now poisons only the batch's addressable vertices in each
+cache/clip/second/output array, preserving0xa5 initialization and capacity checks.
+It changes neither allocation size nor geometry selection. The same PC crossing
+has byte-identical final pixels and matching NPC/clutter/world-weapon/first-person
+draw summaries;37 tests pass. Evidence: artifacts/scratch-active/report.json.
+Native timing/state/capture validation is running in artifacts/performance-scratch-xemu.log;
+no native speedup is claimed before it completes.
+
+Scratch validation correction: the initial PC build failed, but the shell
+continued into tests/replay using the previous executable. Those initial claims
+are withdrawn. Native run replay-20260914-091131 stopped at compilation; no
+emulator performance result exists for it. Fixed the world-weapon batch variable
+reference and allowed NULL secondary scratch for static geometry. Build commands
+now check exit status before testing.
+
+Fresh corrected PC build/replay passes with SHA25612ad5c30891264b7a3309516769520f9d566ebd42e919727d44a22316508d55e,
+distinct from baseline1b4f82f8d2b61c2be7cc081a6bfd2e29d8cf1d5ea380ec4fea7ca90b96bccb81.
+Final pixels match byte-for-byte and final four model-draw summaries match;
+NPC/clutter/world-weapon final counts are zero in this camera, so these alone
+are not proof for all visible models. The37-test suite also passes. Repeatable
+comparison: tools/replay_model_scratch.py. Corrected native run is now active
+in artifacts/performance-scratch-fixed-xemu.log. Speedup remains unverified.
+
+Visible-model differential coverage now passes via tools/replay_scratch_differential.py.
+The same freshly built PC binary renders actor8323 with either active-range or
+full-capacity diagnostic initialization. Final pixels and all four draw summaries
+match: NPC7446 vertices, clutter1200, world weapons972, first-person weapon756.
+The active capture was inspected and shows the guard/HUD. This closes the
+zero-visible-actor weakness of the crossing's final-frame comparison, but is
+still one camera/level. No GitHub image was uploaded. All37 tests pass.
+The full-fill switch is process-local PC headless test input only; normal builds
+retain active-range initialization. Native performance remains pending in
+artifacts/performance-scratch-fixed-xemu.log.
+
+Native scratch optimization verified: replay-20260914-091453 passes the same
+180-frame stock64MiB crossing, native/PC state checks and framebuffer validation.
+The native capture was inspected: subtitle, weapon and HUD remain correct.
+No image was uploaded. Harness restoration built the latest source successfully.
+
+Detailed baseline -> active-range scratch phase means (ms):
+NPC51.192->7.913; clutter84.702->2.500; world weapons12.260->0.885;
+pickups10.404->1.010; first-person weapon16.404->4.115;
+platform sink37.942->36.712; state export0.029->0.029.
+Scene totals294.365->125.864ms (57.2% lower in this comparison). The relatively
+stable platform timing supports a model-side improvement; host variation still
+limits general FPS claims. This is approximately8FPS-equivalent measured work.
+
+Next priorities from the optimized run: camera/visibility/world rebuild41.894ms,
+platform sink36.712ms, physics13.288ms. Break down world rebuild before changes.
+Evidence: artifacts/performance-scratch.json, artifacts/scratch-differential/report.json.

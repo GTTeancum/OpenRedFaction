@@ -309,6 +309,7 @@ int main(int argc,char **argv)
         if(*end || getenv("RF_REPLAY_REGION_START") || getenv("RF_REPLAY_DOOR_START") || getenv("RF_REPLAY_LIFT_START"))CHECK(RF_RANGE);
         CHECK(rf_scene_stage_force(&level,(uint32_t)uid));
     }
+    rf_scene_model_scratch_full_test=p.headless && getenv("RF_REPLAY_FULL_SCRATCH")!=NULL;
     if(spawn_profile && p.headless && getenv("RF_REPLAY_ACTOR_UID")) {
         char *end;unsigned long uid=strtoul(getenv("RF_REPLAY_ACTOR_UID"),&end,10);
         if(*end || getenv("RF_REPLAY_REGION_START") || getenv("RF_REPLAY_DOOR_START") || getenv("RF_REPLAY_LIFT_START") || getenv("RF_REPLAY_FORCE_UID"))CHECK(RF_RANGE);

@@ -8975,6 +8975,18 @@ static int scene_npc_render_kind(void *context,uint32_t model,uint32_t *kind)
 }
 static int scene_npc_render_prepare(void *context,uint32_t model)
 {(void)context;(void)model;return RF_NOT_FOUND;} /* Kind3 is not a skeletal owner. */
+/* Preserve diagnostic initialization for every addressable vertex, without
+ * touching the unused capacity of the384KiB shared scratch allocation. */
+uint32_t rf_scene_model_scratch_full_test; /* Process-local differential fixture; default off. */
+static int scene_model_scratch_prepare(rf_model_render_buffers *buffers,uint32_t vertices)
+{
+    if(!buffers || vertices>buffers->capacity || !buffers->cache || !buffers->clip || !buffers->vertices)return RF_RANGE;
+    if(rf_scene_model_scratch_full_test)vertices=buffers->capacity;
+    memset(buffers->cache,0xa5,vertices*sizeof(*buffers->cache));
+    memset(buffers->clip,0xa5,vertices*sizeof(*buffers->clip));
+    if(buffers->second)memset(buffers->second,0xa5,vertices*sizeof(*buffers->second));
+    memset(buffers->vertices,0xa5,vertices*sizeof(*buffers->vertices));return RF_OK;
+}
 static int scene_npc_render_family(void *context,uint32_t kind)
 {
     scene_npc_render_context *c=context;scene_stream *stream=c->stream;uint32_t actor=c->actor;
@@ -8999,7 +9011,7 @@ static int scene_npc_render_family(void *context,uint32_t kind)
             if(slot>=stream->npc_textures)return RF_FORMAT;
             rf_scene_npc_draw_detail[1]=lod;rf_scene_npc_draw_detail[2]=batch;rf_scene_npc_draw_detail[3]=1;
             rf_scene_npc_draw_detail[4]=stream->mesh->bytes;rf_scene_npc_draw_detail[5]=stream->capacity;
-            memset(stream->npc_memory,0xa5,4096*96);
+            status=scene_model_scratch_prepare(c->buffers,geometry->batches[batch].vertices);if(status)return status;
             status=rf_model_geometry_render_batch(geometry,batch,prepared,pose->bone_count,&view,c->lights,c->attributes,c->buffers);if(status)return status;
             rf_scene_npc_draw_detail[3]=2;
             status=rf_preview_model_emit(geometry,batch,c->buffers,stream->npc_indices,stream->npc_pool,&view,c->planes,c->projection,
@@ -9096,7 +9108,7 @@ static int scene_clutter_render_family(void *context,uint32_t kind)
             if(draw->material==UINT32_MAX)continue;if(draw->material>=last-first)return RF_FORMAT;
             memcpy(&slot,campaign_clutter_materials.items[first+draw->material].record.bytes+0x10,4);
             if(slot>=stream->clutter_textures)return RF_FORMAT;
-            memset(stream->npc_memory,0xa5,4096*96);
+            status=scene_model_scratch_prepare(c->buffers,geometry->batches[batch].vertices);if(status)return status;
             status=rf_model_geometry_render_static_batch(geometry,batch,&view,c->lights,c->attributes,NULL,c->buffers);if(status)return status;
             status=rf_preview_static_model_emit(geometry,batch,c->buffers,stream->npc_indices,stream->npc_pool,&view,c->planes,c->projection,
                 c->attributes,stream->mesh,stream->capacity,&emitted,lod->planes+draw->first_triangle,NULL);if(status)return status;
@@ -9171,7 +9183,7 @@ static int scene_weapon_submit(void *context,uint32_t model,const rf_weapon_hand
             if(b->material==UINT32_MAX)continue;if(b->material>=r->material_count)return RF_FORMAT;
             memcpy(&slot,(c->resource?c->resource->materials.items:campaign_weapon_materials.items)[first+b->material].record.bytes+0x10,4);
             if(slot>=(c->resource?c->resource->textures:stream->weapon_textures))return RF_FORMAT;
-            memset(stream->npc_memory,0xa5,4096*96);
+            status=scene_model_scratch_prepare(&c->buffers,b->vertices);if(status)return status;
             status=rf_model_geometry_render_static_batch(g,batch,&view,&c->lights,&c->attributes,NULL,&c->buffers);if(status)return status;
             status=rf_preview_static_model_emit(g,batch,&c->buffers,stream->npc_indices,stream->npc_pool,&view,&c->planes,&c->projection,
                 &c->attributes,stream->mesh,stream->capacity,&emitted,lod->planes+b->first_triangle,NULL);if(status)return status;
@@ -9218,7 +9230,7 @@ static int scene_player_weapon_draw(scene_stream *stream,uint32_t frame)
         if(material>=w->materials.count){status=RF_FORMAT;goto done;}
         memcpy(&slot,w->materials.items[material].record.bytes+0x10,4);
         if(slot>=stream->player_weapon_textures[campaign_equipped_slot]){status=RF_FORMAT;goto done;}
-        memset(stream->npc_memory,0xa5,4096*96);
+        status=scene_model_scratch_prepare(&buffers,w->geometry.batches[batch].vertices);if(status)goto done;
         status=rf_model_geometry_render_batch(&w->geometry,batch,w->prepared,w->bone_count,&view,&lights,&attributes,&buffers);if(status)goto done;
         status=rf_preview_model_emit(&w->geometry,batch,&buffers,stream->npc_indices,stream->npc_pool,&view,&planes,&projection,
             &attributes,stream->mesh,stream->capacity,&emitted);if(status)goto done;

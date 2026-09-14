@@ -34,6 +34,31 @@ Shortlist:
 
 Progress reporting: include a very high-level working area (e.g. Lighting, AI, Weapons, GeoMod or Scripted events) and an overall percent estimate at the end of every turn report (USER preference) and revisit remaining 24-hour workdays when measured throughput supports a forecast; current rough estimate45% (35-45%), no defensible +/-48-hour completion forecast before end-to-end gameplay.
 
+Active-range scratch optimization passes stock64MiB native crossing/state/
+capture verification in replay-20260914-091453. Detailed scene work decreases
+294.365->125.864ms; NPC51.192->7.913ms, clutter84.702->2.500ms. These are
+single replay guest timings, roughly8FPS-equivalent work, not hardware FPS.
+Both builds and37 tests pass; visible-model PC A/B pixels/summaries match.
+Next measured costs: camera/visibility/world rebuild41.894ms, platform sink36.712ms,
+physics13.288ms. Profile world rebuild before the next optimization.
+
+Visible-actor scratch A/B replay passes with identical pixels and nonzero
+NPC/clutter/world-weapon/first-person output;37 tests pass. Native corrected
+performance run remains active in artifacts/performance-scratch-fixed-xemu.log.
+See tools/replay_scratch_differential.py and artifacts/scratch-differential/report.json.
+
+Scratch validation correction: initial build failed and old-PC replay claims
+were invalid. Fixed batch reference/optional static scratch, enforced build exit
+checks, and reran with a distinct executable hash. Fresh PC pixels/final summaries
+match and37 tests pass. Corrected native run: artifacts/performance-scratch-fixed-xemu.log.
+The earlier performance-scratch-xemu.log run failed at compile, before emulation.
+
+Detailed timing passes in replay-20260914-090636: clutter85ms/NPC51ms are
+major costs. Replaced whole384KiB per-batch diagnostic scratch fills with
+active-vertex ranges; identical PC pixels/model summaries and37 tests pass.
+Candidate native timing/state/capture run is active in artifacts/performance-scratch-xemu.log;
+do not rebuild Xbox until harness restoration. No native speedup claimed yet.
+
 Bounded HUD batching passes native crossing/state/capture verification in
 replay-20260914-090327. Measured scene work drops222->198ms (about11%);
 renderer time drops43.5->26.8ms. Still roughly5FPS-equivalent, not adequate.
