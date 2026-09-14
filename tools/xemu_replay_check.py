@@ -4,7 +4,8 @@ from pathlib import Path
 from xemu_smoke import Monitor
 from door_fixture_metrics import measure
 from xemu_guest_snapshot import words,snapshot
-p=argparse.ArgumentParser();p.add_argument('input',type=Path);p.add_argument('--seconds',type=int,default=180);p.add_argument('--require-wide',action='store_true');p.add_argument('--campaign-spawn',action='store_true');p.add_argument('--approach',action='store_true',help='Stage outside the first L1S2 climb region');p.add_argument('--climb',action='store_true',help='Staged L1S2 first-region campaign replay');p.add_argument('--capture',action='store_true',help='Native guest framebuffer for renderer validation');p.add_argument('--door',action='store_true',help='Explicit L1S1 lower-door contact fixture');p.add_argument('--level',help='Authored campaign level, without climb staging');p.add_argument('--archive',default='levels1.vpp',choices=['levels1.vpp','levels2.vpp','levels3.vpp','levelsm.vpp']);p.add_argument('--audio-capture',action='store_true',help='Enable APU events and inspect guest DSP output');p.add_argument('--lift',action='store_true',help='Staged L1S2 lift contact');p.add_argument('--force-uid',type=int,help='Explicit authored force-region staging; requires --level');p.add_argument('--damage-uid',type=int,help='Explicit NPC damage plus player pain-sound fixture');p.add_argument('--death-animation',action='store_true',help='Exercise base NPC death animation at frame 120; requires --damage-uid');p.add_argument('--actor-pairs',action='store_true',help='Restored-state registered actor response publication fixture');p.add_argument('--glare-loss',action='store_true',help='Destroy three glares at frame90 through parent-loss/marked retirement');p.add_argument('--volume-test',action='store_true',help='Copied-owner animated beam through the live sorted queue');p.add_argument('--actor-uid',type=int,help='Process-local camera facing an authored actor; requires --level');p.add_argument('--lightmap-regen',action='store_true',help='Force initial world lightmap base regeneration');p.add_argument('--lightmap-all',action='store_true',help='Full-level regeneration stress test, bypassing visibility');p.add_argument('--item-uid',type=int,help='Process-local staging near an authored pickup; requires --level');p.add_argument('--exit-uid',type=int,help='Dispatch authored level exit at frame60');p.add_argument('--exit-start-uid',type=int,help='Walk from outside a linked authored exit volume');args=p.parse_args()
+p=argparse.ArgumentParser();p.add_argument('input',type=Path);p.add_argument('--seconds',type=int,default=180);p.add_argument('--require-wide',action='store_true');p.add_argument('--campaign-spawn',action='store_true');p.add_argument('--approach',action='store_true',help='Stage outside the first L1S2 climb region');p.add_argument('--climb',action='store_true',help='Staged L1S2 first-region campaign replay');p.add_argument('--capture',action='store_true',help='Native guest framebuffer for renderer validation');p.add_argument('--door',action='store_true',help='Explicit L1S1 lower-door contact fixture');p.add_argument('--level',help='Authored campaign level, without climb staging');p.add_argument('--archive',default='levels1.vpp',choices=['levels1.vpp','levels2.vpp','levels3.vpp','levelsm.vpp']);p.add_argument('--audio-capture',action='store_true',help='Enable APU events and inspect guest DSP output');p.add_argument('--lift',action='store_true',help='Staged L1S2 lift contact');p.add_argument('--force-uid',type=int,help='Explicit authored force-region staging; requires --level');p.add_argument('--damage-uid',type=int,help='Explicit NPC damage plus player pain-sound fixture');p.add_argument('--death-animation',action='store_true',help='Exercise base NPC death animation at frame 120; requires --damage-uid');p.add_argument('--actor-pairs',action='store_true',help='Restored-state registered actor response publication fixture');p.add_argument('--glare-loss',action='store_true',help='Destroy three glares at frame90 through parent-loss/marked retirement');p.add_argument('--volume-test',action='store_true',help='Copied-owner animated beam through the live sorted queue');p.add_argument('--actor-uid',type=int,help='Process-local camera facing an authored actor; requires --level');p.add_argument('--lightmap-regen',action='store_true',help='Force initial world lightmap base regeneration');p.add_argument('--lightmap-all',action='store_true',help='Full-level regeneration stress test, bypassing visibility');p.add_argument('--item-uid',type=int,help='Process-local staging near an authored pickup; requires --level');p.add_argument('--exit-uid',type=int,help='Dispatch authored level exit at frame60');p.add_argument('--exit-start-uid',type=int,help='Walk from outside a linked authored exit volume');p.add_argument('--goal-uid',type=int,help='Dispatch authored goal setter at frame30');args=p.parse_args()
+if args.goal_uid is not None and (not args.level or not 0<args.goal_uid<0xffffffff):p.error('--goal-uid requires --level and a positive UID')
 if args.exit_start_uid is not None and (not args.level or args.exit_uid is not None or args.item_uid is not None or args.actor_uid is not None or args.force_uid is not None or args.door or args.lift or args.climb or not 0<args.exit_start_uid<0xffffffff):p.error('--exit-start-uid requires --level without another staging/forced exit')
 if args.exit_uid is not None and (not args.level or not 0<args.exit_uid<0xffffffff):p.error('--exit-uid requires --level and a positive UID')
 if args.lightmap_all and not args.lightmap_regen:p.error('--lightmap-all requires --lightmap-regen')
@@ -27,6 +28,7 @@ if args.level:
  args.campaign_spawn=True
 elif args.archive!='levels1.vpp':p.error('--archive requires --level')
 replay_env={k:v for k,v in os.environ.items() if not k.startswith('RF_REPLAY_')}
+if args.goal_uid is not None:replay_env['RF_REPLAY_GOAL_UID']=str(args.goal_uid)
 if args.exit_uid is not None:replay_env['RF_REPLAY_EXIT_UID']=str(args.exit_uid)
 if args.exit_start_uid is not None:replay_env['RF_REPLAY_EXIT_START']=str(args.exit_start_uid)
 for key in ('RF_REPLAY_ITEM_UID','RF_REPLAY_ACTOR_UID','RF_REPLAY_LEVEL','RF_REPLAY_ARCHIVE','RF_REPLAY_REGION_START','RF_REPLAY_DOOR_START','RF_REPLAY_LIFT_START','RF_REPLAY_FORCE_UID','RF_REPLAY_DAMAGE_UID','RF_REPLAY_DEATH_ANIMATION'):replay_env.pop(key,None)
@@ -85,6 +87,7 @@ door_flag=root/'build/xbox/disc/campaign-door.flag';saved_door=door_flag.read_by
 climb_flag=root/'build/xbox/disc/campaign-climb.flag';saved_climb=climb_flag.read_bytes() if climb_flag.exists() else None
 selection_file=root/'build/xbox/disc/campaign-level.bin';saved_selection=selection_file.read_bytes() if selection_file.exists() else None
 exit_start_file=root/'build/xbox/disc/campaign-exit-start.bin';saved_exit_start=exit_start_file.read_bytes() if exit_start_file.exists() else None
+goal_file=root/'build/xbox/disc/campaign-goal.bin';saved_goal=goal_file.read_bytes() if goal_file.exists() else None
 exit_file=root/'build/xbox/disc/campaign-exit.bin';saved_exit=exit_file.read_bytes() if exit_file.exists() else None
 item_file=root/'build/xbox/disc/campaign-item.bin';saved_item=item_file.read_bytes() if item_file.exists() else None
 actor_file=root/'build/xbox/disc/campaign-actor.bin';saved_actor=actor_file.read_bytes() if actor_file.exists() else None
@@ -99,6 +102,8 @@ step_file=root/'build/xbox/disc/particle-step-fixtures.bin';saved_steps=step_fil
 process=monitor=None;report={'result':'FAIL','level':args.level or ('L1S2.rfl' if args.climb else 'L1S1.rfl'),'final_level':final_level,'archive':args.archive,'frames':frames,'input_sha256':hashlib.sha256(payload).hexdigest(),'pc_sha256':hashlib.sha256((root/'build/pc/Release/rf_pc_play.exe').read_bytes()).hexdigest(),'samples':[],'scope':'Guest command replay, submission counts, CPU world/camera hashes and final body; optional native framebuffer capture, no PS2 parity claim.'}
 def build():subprocess.run(['C:/msys64/usr/bin/bash.exe','--noprofile','--norc','tools/build-xbox.sh'],cwd=root,env=dict(os.environ,MSYSTEM='CLANG64'),check=True)
 try:
+ if args.goal_uid is None:goal_file.unlink(missing_ok=True)
+ else:goal_file.write_bytes(args.goal_uid.to_bytes(4,'little'))
  if args.exit_start_uid is None:exit_start_file.unlink(missing_ok=True)
  else:exit_start_file.write_bytes(args.exit_start_uid.to_bytes(4,'little'))
  if args.exit_uid is None:exit_file.unlink(missing_ok=True)
@@ -400,7 +405,7 @@ dvd_path = '{root.as_posix()}/build/xbox/redfaction-diagnostic.iso'
      clutter_render=words(monitor,symbol('rf_scene_clutter_render'),8)
      assert clutter_render==expected('CLUTTER_RENDER'),clutter_render
      assert clutter_render[1]+clutter_render[2]+clutter_render[3]==clutter[1],clutter_render
-     assert clutter_render[4]<=clutter_render[5]<=256*1024,clutter_render
+     assert clutter_render[4]<=clutter_render[5]<=1024*1024,clutter_render
      if final_level.lower()=='l1s1.rfl':
       tag_reference=json.loads((root/'artifacts/clutter-scene-tags.json').read_text())
       assert tag_reference['result']=='PASS' and clutter_render[:4]==[12,168,2,0] and clutter_render[4:6]==tag_reference['render_budget'],clutter_render
@@ -924,6 +929,16 @@ dvd_path = '{root.as_posix()}/build/xbox/redfaction-diagnostic.iso'
       report['outside_distance']=sum((positions[-1][i]-positions[0][i])**2 for i in range(3))**.5 if len(positions)>1 else 0
       assert report['outside_distance']>.25,'Walking approach missing'
     report['available_pages_at_completion']=d[44]
+    goal_words=words(monitor,symbol('rf_scene_mission_goals'),4225)
+    assert goal_words[0]<=64
+    goal_bytes=struct.pack('<4225I',*goal_words);native_goals=[]
+    for goal_index in range(goal_words[0]):
+     offset=4+goal_index*264
+     name=goal_bytes[offset:offset+256].split(b'\0')[0].decode('cp1252')
+     value,persistent=struct.unpack_from('<iI',goal_bytes,offset+256)
+     native_goals.append(f'MISSION_GOAL {name} {value} {persistent}')
+    assert native_goals==[line for line in pc.stdout.splitlines() if line.startswith('MISSION_GOAL ')]
+    report['mission_goals']=native_goals
     report['level_transitions']=words(monitor,symbol('rf_xbox_level_transitions'),4)
     assert report['level_transitions'][:3]==([len(pc_transitions),int(pc_transitions[-1][2]),int(pc_transitions[-1][3])] if pc_transitions else [0,0,0])
     replay_state=words(monitor,symbol('rf_player_replay_diagnostic'),4);assert replay_state==[0,frames,frames,0],replay_state
@@ -986,6 +1001,8 @@ finally:
  try:
   if saved_exit_start is None:exit_start_file.unlink(missing_ok=True)
   else:exit_start_file.write_bytes(saved_exit_start)
+  if saved_goal is None:goal_file.unlink(missing_ok=True)
+  else:goal_file.write_bytes(saved_goal)
   if saved_exit is None:exit_file.unlink(missing_ok=True)
   else:exit_file.write_bytes(saved_exit)
   if saved_volume is None:volume_flag.unlink(missing_ok=True)

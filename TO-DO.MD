@@ -6,7 +6,7 @@ and defer visual polish. Focus: movement, combat/damage, AI, mission events,
 then level progression. Fidelity remains a later completion requirement.
 
 Shortlist:
-- ACTIVE: Implement mission goals and preserve mission state across campaign sections.
+- ACTIVE: Expand mission-script coverage and preserve world state across campaign sections.
 - NEXT: Expand mission scripts and AI until consecutive campaign sections are playable end to end.
 - TO COMPLETE: Expand the working pistol/rifle combat, pickups and first-person feedback to the remaining weapons.
 - DEFERRED / TO COMPLETE: Restore full NPC/prop texture detail through better residency; verify PS2 parity for reduced textures.
@@ -24,6 +24,16 @@ Shortlist:
 - USER: Review the interactive PC movement and audio items listed below.
 
 Progress reporting: include a very high-level working area (e.g. Lighting, AI, Weapons, GeoMod or Scripted events) and an overall percent estimate at the end of every turn report (USER preference) and revisit remaining 24-hour workdays when measured throughput supports a forecast; current rough estimate45% (35-45%), no defensible +/-48-hour completion forecast before end-to-end gameplay.
+
+Native mission-state handoff now passes L8S1 -> L8S2 on stock64MiB XEMU:
+120 input frames, authored VAT setter at30, forced exit5625 at61, all five
+retained goal records exactly match PC; framebuffer verified,6910 free pages
+(27MiB) at completion. Separate PC fresh-game control retains VAT=0 and local
+sample1 is retired. Both builds and35 CTests pass. Fixed lab load limits with
+64px NPC fallback,1MiB prop geometry,512 texture slots and VBM frame-zero
+loading. Full lab traversal, world persistence and visual fidelity remain open.
+Evidence: artifacts/mission-replay/report.json;
+artifacts/xemu/replay-20260914-052507/report.json.
 
 Mission goals are now connected to shared scene initialization and dispatch:
 load-time declarations, increment/decrement, conditional on/off propagation and

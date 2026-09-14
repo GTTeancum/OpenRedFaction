@@ -38,7 +38,7 @@ static uint32_t player_pacing,scene_simulation_frames,campaign_total_frames,camp
 uint32_t rf_xbox_load_stage;
 uint32_t rf_xbox_level_transitions[4]; /* count,last UID,frames at exit,available pages after release */
 static FILE *player_replay;
-static uint32_t player_replay_size,campaign_exit_uid,campaign_forced_exit_uid;
+static uint32_t player_replay_size,campaign_exit_uid,campaign_forced_exit_uid,campaign_goal_uid;
 uint32_t rf_player_replay_diagnostic[4]; /* active, records, consumed, read status */
 static void player_input_close(void)
 {
@@ -48,6 +48,10 @@ static void player_input_close(void)
 static uint32_t profile_milliseconds(void){return GetTickCount();}
 static int player_poll_paced(void *context,uint32_t frame,rf_scene_input *input)
 {
+    if(campaign_goal_uid && campaign_total_frames==30) {
+        int status=rf_scene_fire_goal_setter(campaign_goal_uid,(int32_t)((uint64_t)frame*1000/60));
+        campaign_goal_uid=0;if(status)return status;
+    }
     if(campaign_exit_uid && campaign_total_frames==60) {
         int status=rf_scene_fire_level_exit(campaign_exit_uid,(int32_t)((uint64_t)frame*1000/60));
         campaign_forced_exit_uid=campaign_exit_uid;campaign_exit_uid=0;if(status)return status;
@@ -479,6 +483,8 @@ static int scene_preview(rf_level *level,rf_preview_mesh *mesh)
     if(!campaign_total_frames) {
         FILE *exit_file=fopen("D:\\campaign-exit.bin","rb");
         if(exit_file){int invalid=fread(&campaign_exit_uid,4,1,exit_file)!=1 || fgetc(exit_file)!=EOF;fclose(exit_file);if(invalid)return RF_FORMAT;}
+        exit_file=fopen("D:\\campaign-goal.bin","rb");
+        if(exit_file){int invalid=fread(&campaign_goal_uid,4,1,exit_file)!=1 || fgetc(exit_file)!=EOF;fclose(exit_file);if(invalid)return RF_FORMAT;}
     }
     campaign_scene_start=campaign_total_frames;
     player_pacing=0;scene_simulation_frames=0;memset(&rf_player_frame_clock,0,sizeof(rf_player_frame_clock));

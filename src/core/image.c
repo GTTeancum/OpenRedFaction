@@ -250,7 +250,8 @@ int rf_image_open(rf_image *image,rf_vpp *archive,const rf_vpp_entry *entry,uint
     if(!archive || !entry)return RF_RANGE;
     if(entry->size<4)return RF_FORMAT;
     status=rf_vpp_read(archive,entry,0,magic,4);if(status)return status;
-    return !memcmp(magic,".vbm",4)?rf_image_vbm(image,archive,entry,budget):
+    /* Generic material loads use frame zero until their animation owner binds. */
+    return !memcmp(magic,".vbm",4)?rf_image_vbm_frame(image,archive,entry,0,budget,NULL,NULL):
         rf_image_tga(image,archive,entry,budget);
 }
 

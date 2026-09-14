@@ -99,7 +99,7 @@ static int preview(const rf_preview_mesh *mesh, const rf_materials *materials, c
     const uint32_t program[] = {
 #include "preview_vertex.inl"
     };
-    if (!mesh || (!mesh->count && !streaming) || !materials || materials->count > 256 || !lightmaps || lightmaps->count > 256) return RF_FORMAT;
+    if (!mesh || (!mesh->count && !streaming) || !materials || materials->count > RF_CAMPAIGN_TEXTURE_SLOTS || !lightmaps || lightmaps->count > 256) return RF_FORMAT;
     for (i = 0; i < materials->count; ++i) upload_bytes += materials->items[i].image.bytes;
     for (i = 0; i < lightmaps->count; ++i) upload_bytes += lightmaps->images[i].bytes;
     if (upload_bytes > RF_CAMPAIGN_IMAGE_BUDGET || mesh->bytes > 8u*1024u*1024u || vertex_bytes>8u*1024u*1024u) return RF_RANGE;

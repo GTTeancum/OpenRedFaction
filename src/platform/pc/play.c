@@ -65,7 +65,7 @@ typedef struct player {
     rf_frame_clock clock;
     LARGE_INTEGER frequency;
     uint32_t frames,headless;
-    rf_scene_input *replay;uint32_t replay_count,scene_start,exit_uid,exit_frame,forced_exit_uid;
+    rf_scene_input *replay;uint32_t replay_count,scene_start,exit_uid,exit_frame,forced_exit_uid,goal_uid;
     int quit,focused;
 } player;
 
@@ -144,6 +144,10 @@ static int input(void *context,uint32_t frame,rf_scene_input *out)
 {
     player *p=context;MSG message;uint32_t wait;
     memset(out,0,sizeof(*out));
+    if(p->headless && p->goal_uid && p->frames==30) {
+        int status=rf_scene_fire_goal_setter(p->goal_uid,(int32_t)((uint64_t)frame*1000/60));
+        p->goal_uid=0;if(status)return status;
+    }
     if(p->headless && p->exit_uid && p->frames==p->exit_frame) {
         int status=rf_scene_fire_level_exit(p->exit_uid,(int32_t)((uint64_t)frame*1000/60));
         p->forced_exit_uid=p->exit_uid;p->exit_uid=0;if(status)return status;
@@ -356,6 +360,10 @@ int main(int argc,char **argv)
         CHECK(rf_scene_campaign_player_set(&state));
     }
     rf_scene_follow_level_exits=spawn_profile;
+    if(p.headless && getenv("RF_REPLAY_GOAL_UID")) {
+        char *end;unsigned long value=strtoul(getenv("RF_REPLAY_GOAL_UID"),&end,10);if(*end || !value)CHECK(RF_FORMAT);
+        p.goal_uid=(uint32_t)value;
+    }
     if(p.headless && getenv("RF_REPLAY_EXIT_UID")) {
         char *end;unsigned long value=strtoul(getenv("RF_REPLAY_EXIT_UID"),&end,10);if(*end || !value)CHECK(RF_FORMAT);
         p.exit_uid=(uint32_t)value;p.exit_frame=60;
@@ -586,6 +594,7 @@ run_scene:
         printf("PLAYER_JUMP");for(i=0;i<4;++i)printf(" %u",rf_scene_player_jump[i]);puts("");
         printf("PLAYER_JUMP_FRAMES");for(i=0;i<1024;++i)printf(" %u",((uint32_t*)rf_scene_player_jump_frames)[i]);puts("");
         printf("ACTOR_PLAYER_INPUT");for(i=0;i<64*7;++i)printf(" %u",((uint32_t*)rf_scene_player_input_frames)[i]);puts("");
+        for(i=0;i<rf_scene_mission_goals.count;i++)printf("MISSION_GOAL %s %d %u\n",rf_scene_mission_goals.items[i].name,rf_scene_mission_goals.items[i].value,rf_scene_mission_goals.items[i].persistent);
         printf("PC_PLAY_BODY");for(i=0;i<sizeof(scene_actor_body.state)/4;++i) {
             uint32_t word;memcpy(&word,(const unsigned char*)&scene_actor_body.state+i*4,4);printf(" %u",word);
         }puts("");
@@ -609,6 +618,7 @@ cleanup:
     if(capture.pcm){int error=ferror(capture.pcm);if(fclose(capture.pcm) || error)status=RF_IO;}
     rf_pc_audio_close();rf_scene_set_audio_events(NULL,NULL);
     if(status) {
+        fprintf(stderr,"CAMPAIGN_LOAD_STAGE %u\n",rf_scene_campaign_load_stage);
         fprintf(stderr,"MATERIAL_FAILURE %s %u %u %u\n",rf_material_failure_name,rf_material_failure[0],rf_material_failure[1],rf_material_failure[2]);
         fprintf(stderr,"ANIMATION_PROGRESS");for(i=0;i<4;++i)fprintf(stderr," %u",rf_animation_progress[i]);
         fprintf(stderr,"\nNPC_DRAW_DETAIL %u %u %u %u %u %u\n",rf_scene_npc_draw_detail[0],rf_scene_npc_draw_detail[1],rf_scene_npc_draw_detail[2],rf_scene_npc_draw_detail[3],rf_scene_npc_draw_detail[4],rf_scene_npc_draw_detail[5]);

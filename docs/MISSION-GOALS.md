@@ -55,3 +55,40 @@ which installs vtable 0x589b0c. Its on action 0x4bcab0 and off action
 Still to complete: native cross-section goal replay and a fresh-game/respawn
 policy integrated with save files. Goal HUD text, killed actors, pickups and general world-state
 persistence remain separate work.
+
+
+## Live lab replay
+
+`tools/replay_mission_goals.py` now runs L8S1 -> L8S2 in the shared PC renderer:
+actual setter8898 at frame30, exit5625 at frame60, destination loads at61.
+VAT retains value1; a separate fresh campaign keeps value0. Section-local
+sample1 is retired. This uses process-local event dispatch, not a played route.
+`xemu_replay_check.py --goal-uid 8898 --exit-uid 5625 --level L8S1.rfl
+--archive levels2.vpp` supplies the same fixture and compares every retained
+name/value/lifetime field directly from guest memory with the PC output.
+
+The lab route exposed loading limits: NPC textures now try64px only after the
+existing full/128px attempts exceed4MiB; prop render/collision/tag storage has a
+bounded1MiB allowance; the combined texture index table allows512 slots on both
+platforms. Pixel-memory budgets remain separate. Generic VBM material loads use
+frame zero for animated sources (L8S2 console texture has four64x64 frames);
+the explicit static-only VBM API still rejects animated inputs. World bitmap
+animation clocks and restoration of full texture detail remain deferred.
+
+`rf_scene_campaign_load_stage` identifies resource setup failures in PC logs and
+is addressable in XEMU memory. Stages1-18 cover NPC materials, events, triggers,
+groups, forces, registration, movers, alpha, audio, clutter, pickups, prop models,
+prop materials, glare resources, prop bodies, mover binding and navigation.
+Stages19-32 cover base motions, motion catalog, playback, initial poses, model
+owners, NPC bodies, weapon models/materials/hands, glare instances, link resolution,
+motion residency, NPC geometry and player skin. Stages33-35 mark combined texture
+setup, NPC append and prop append. A value records the last reached stage; it is
+not proof that every later unstaged operation succeeded.
+
+
+Native evidence: `artifacts/xemu/replay-20260914-052507/report.json` passes on
+stock64MiB with120 inputs and handoff `[1,5625,61,12296]`. All five destination
+goal records match PC; VAT=1 persists. The native framebuffer was visually
+inspected. Destination rendering leaves6910 free pages (26.99MiB). This covers
+controlled event/exit dispatch, not natural interaction with the lab objectives.
+The PC fresh-game control separately retains VAT=0. Both builds and35 CTests pass.
