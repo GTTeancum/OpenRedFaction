@@ -34,6 +34,16 @@ Shortlist:
 
 Progress reporting: include a very high-level working area (e.g. Lighting, AI, Weapons, GeoMod or Scripted events) and an overall percent estimate at the end of every turn report (USER preference) and revisit remaining 24-hour workdays when measured throughput supports a forecast; current rough estimate45% (35-45%), no defensible +/-48-hour completion forecast before end-to-end gameplay.
 
+PC walking handoff coverage now passes five routes, including L1S3->L2S1
+(event7079 at frame86, translation150.25,-176,-121, facing/movement retained).
+The apparent reverse event7080 has no direct authored trigger; no walkable
+return is inferred. Full traversals between these boundary fixtures remain open.
+Native L1S2->L1S3 verification is running in artifacts/section3-xemu.log,
+replay-20260914-084854; wait for harness restoration before Xbox builds.
+Next gameplay gap to investigate: scripted Attack commands are not dispatched;
+L1S1 contains six such events and L1S2 contains three. Confirm actor/target
+semantics before connecting these commands to the existing combat runtime.
+
 Expanded PC walking-exit tests pass four routes across L1S1/L1S2/L1S3.
 New L1S2->L1S3 event9512 and L1S3->L1S2 event9324 crossings retain facing,
 apply the authored(41,32,-118) translation/inverse and continue movement.
