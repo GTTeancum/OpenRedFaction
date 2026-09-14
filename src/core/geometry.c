@@ -1,4 +1,5 @@
 #include <float.h>
+#include <math.h>
 #include "rf/geometry.h"
 #include <stdlib.h>
 #include <string.h>
@@ -487,6 +488,25 @@ int rf_geometry_collision_face(const rf_geometry *geometry,uint32_t index,
     for(j=0;j<3;j++) {value.minimum[j]-=0.0001f;value.maximum[j]+=0.0001f;}
     memcpy(value.plane,source.plane,sizeof(value.plane));value.vertices=scratch;
     value.count=source.corners;value.filter=*filter;*face=value;return RF_OK;
+}
+
+int rf_geometry_shadow_receiver(const rf_geometry *geometry,uint32_t index,const rf_lightmap_sample_plane *view,
+    float (*output)[2],uint32_t capacity,uint32_t *count)
+{
+    rf_geometry_face face;rf_geometry_corner corner;uint32_t i;float width,height,x,y;int status;
+    if(!view || !output || !count || !view->image_width || !view->image_height ||
+        view->image_width>INT32_MAX || view->image_height>INT32_MAX || view->x>INT32_MAX || view->y>INT32_MAX)return RF_RANGE;
+    status=rf_geometry_get_face(geometry,index,&face);if(status)return status;
+    if(face.lightmap_mapping==UINT32_MAX)return RF_NOT_FOUND;
+    if(face.corners>capacity)return RF_RANGE;
+    width=(float)view->image_width;height=(float)view->image_height;x=(float)view->x;y=(float)view->y;
+    for(i=0;i<face.corners;i++) {
+        float uv[2];status=rf_geometry_get_corner(geometry,index,i,&corner);if(status)return status;
+        uv[0]=(float)((double)width*corner.lightmap_uv[0]-x);uv[1]=(float)((double)height*corner.lightmap_uv[1]-y);
+        if(!isfinite(uv[0]) || !isfinite(uv[1]))return RF_RANGE;
+        memcpy(output[i],uv,8);
+    }
+    *count=face.corners;return RF_OK;
 }
 
 int rf_geometry_shadow_face(const rf_geometry *geometry,uint32_t index,float (*scratch)[3],

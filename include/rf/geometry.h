@@ -122,6 +122,12 @@ int rf_geometry_get_lightmap_mapping(const rf_geometry *geometry,uint32_t mappin
 int rf_geometry_lightmap_projection(const rf_geometry *geometry,uint32_t mapping,rf_lightmap_projection *projection);
 int rf_geometry_lightmap(const rf_geometry *geometry, uint32_t mapping, uint32_t image_count, uint32_t *image);
 int rf_geometry_get_face(const rf_geometry *geometry, uint32_t index, rf_geometry_face *face);
+/* Selected receiver face's authored lightmap UVs -> local image coordinates
+ * (4f49ae..4f4a12). Caller supplies the owning image dimensions/mapping origin.
+ * No allocation; capacity preflight preserves output. Later errors may leave
+ * earlier vertices; count changes only on success. Unmapped faces NOT_FOUND. */
+int rf_geometry_shadow_receiver(const rf_geometry *,uint32_t index,const rf_lightmap_sample_plane *,
+    float (*output)[2],uint32_t capacity,uint32_t *count);
 /* Initial authored shadow face snapshot, using the verified collision-bound
  * adapter and signed16 metadata. Caller supplies surviving face IDs and vertex
  * scratch; later runtime mutations/texture classification remain external.

@@ -32,13 +32,30 @@ int main(int argc, char **argv)
         rf_geometry_vertex_faces_close(&graph);rf_geometry_vertex_faces_close(&graph);puts("PASS adjacency subset, duplicate corners, empty selection, budget/index guards and close");return 0;
     }
     if (argc != 3 && argc != 4 && !(argc==5 && (!strcmp(argv[3],"--portal-graph") || !strcmp(argv[3],"--visibility") || !strcmp(argv[3],"--adjacency") || !strcmp(argv[3],"--lightmap-vertices") || !strcmp(argv[3],"--lightmap-polygons")))) return 2;
+    int receiver_mode=argc==4 && !strcmp(argv[3],"--shadow-receivers");
     int shadow_mode=argc==4 && !strcmp(argv[3],"--shadow-faces");
-    if (argc == 4 && !shadow_mode && !flags_mode && !links_mode && !primary_mode && strcmp(argv[3],"--portals")) budget = (uint32_t)strtoul(argv[3], NULL, 10);
+    if (argc == 4 && !receiver_mode && !shadow_mode && !flags_mode && !links_mode && !primary_mode && strcmp(argv[3],"--portals")) budget = (uint32_t)strtoul(argv[3], NULL, 10);
     result = rf_vpp_open(&archive, argv[1]);
     if (result != RF_OK) return 3;
     result = rf_level_open(&level, &archive, argv[2]);
     if (result == RF_OK) result = rf_geometry_open(&geometry, &level, budget);
     if (result == RF_OK) {
+        if(receiver_mode) {
+            float output[256][2],guard[256][2];uint32_t i,header[2],count;
+            _setmode(_fileno(stdout),_O_BINARY);
+            for(i=0;i<geometry.faces;i++) {
+                rf_geometry_face face;rf_lightmap_mapping mapping;rf_lightmap_sample_plane view={0};
+                if(rf_geometry_get_face(&geometry,i,&face))return 6;
+                if(face.lightmap_mapping==UINT32_MAX)continue;
+                if(rf_geometry_get_lightmap_mapping(&geometry,face.lightmap_mapping,1,&mapping))return 7;
+                view.image_width=128;view.image_height=128;view.x=mapping.x;view.y=mapping.y;
+                memset(guard,0xa5,sizeof(guard));memcpy(output,guard,sizeof(output));count=UINT32_MAX;
+                if(!rf_geometry_shadow_receiver(&geometry,i,&view,output,face.corners-1,&count) || count!=UINT32_MAX || memcmp(output,guard,sizeof(output)))return 8;
+                if(rf_geometry_shadow_receiver(&geometry,i,&view,output,256,&count))return 9;
+                header[0]=i;header[1]=count;fwrite(header,sizeof(header),1,stdout);fwrite(output,8,count,stdout);
+            }
+            rf_geometry_close(&geometry);rf_vpp_close(&archive);return 0;
+        }
         if(shadow_mode) {
             float scratch[256][3];rf_lightmap_shadow_face face,guard;uint32_t i,header[2];
             _setmode(_fileno(stdout),_O_BINARY);
