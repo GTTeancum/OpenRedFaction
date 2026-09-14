@@ -118,6 +118,26 @@ static int unhide_dispatch_check(const char *path)
 int main(int argc,char **argv)
 {
     CHECK(argc==2);CHECK(unhide_dispatch_check(argv[1])==0);
+    {
+        rf_vpp archive={0};rf_level level;rf_object_registry registry;rf_runtime_events events={0};rf_runtime_triggers triggers={0};
+        rf_physics_gravity gravity={0};rf_startup_events_report report;rf_runtime_event *protect=NULL,*invert=NULL;uint32_t i,pending,object=0,handle;
+        rf_object_registry_init(&registry);triggers.registry=&registry;triggers.set_invulnerable=visibility_command;
+        CHECK(rf_level_campaign_open(&level,&archive,argv[1],"L7S2.rfl")==RF_OK);
+        CHECK(rf_runtime_events_open(&level,&registry,1024*1024,&events)==RF_OK);
+        for(i=0;i<events.count;i++) {
+            if(events.items[i].authored->record.uid==4970)protect=events.items+i;
+            if(events.items[i].authored->record.uid==4995)invert=events.items+i;
+        }
+        CHECK(protect && invert && protect->state.type==24 && invert->state.delay==7);
+        CHECK(rf_object_registry_insert(&registry,&object,&handle)==RF_OK);
+        protect->links[0].kind=1;protect->links[0].value=handle;
+        invert->links[0].kind=1;invert->links[0].value=protect->handle;visible_calls=0;
+        CHECK(rf_runtime_event_fire(&triggers,protect->handle,7,9,0,&gravity,0,0,&report)==RF_OK && visible_calls==1 && visible_value);
+        CHECK(rf_runtime_event_fire(&triggers,invert->handle,7,9,0,&gravity,0,0,&report)==RF_OK);
+        CHECK(rf_runtime_events_tick(&events,&triggers,&gravity,6999,0,0,&report,&pending)==RF_OK && visible_calls==1);
+        CHECK(rf_runtime_events_tick(&events,&triggers,&gravity,7000,0,0,&report,&pending)==RF_OK && visible_calls==2 && !visible_value);
+        rf_runtime_events_close(&events);rf_vpp_close(&archive);
+    }
     rf_campaign_goals goals={0};rf_object_registry registry;rf_runtime_triggers triggers={0};
     rf_runtime_events events={0};rf_physics_gravity gravity={0};rf_startup_events_report report;
     rf_vpp archive={0};rf_level level;uint32_t i,passed,pending;int found=0;

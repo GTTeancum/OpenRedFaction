@@ -11,7 +11,7 @@ failures to select work; avoid spending time on exact RE or visual polish unless
 it blocks those systems. This priority change does not increase completion.
 
 Shortlist:
-- ACTIVE: Verify scripted NPC grounding and walk/stand selection on Xbox, then expand mission progression.
+- ACTIVE: Expand authored mission events and obtain a useful visual check of scripted NPC walking.
 - TO COMPLETE: Preserve remaining world changes across sections, including partial actor state and dropped items.
 - NEXT: Expand mission scripts and AI until consecutive campaign sections are playable end to end.
 - TO COMPLETE: Expand the working pistol/rifle combat, pickups and first-person feedback to the remaining weapons.
@@ -31,11 +31,16 @@ Shortlist:
 
 Progress reporting: include a very high-level working area (e.g. Lighting, AI, Weapons, GeoMod or Scripted events) and an overall percent estimate at the end of every turn report (USER preference) and revisit remaining 24-hour workdays when measured throughput supports a forecast; current rough estimate45% (35-45%), no defensible +/-48-hour completion forecast before end-to-end gameplay.
 
+Make_Invulnerable now reaches the existing ordinary-damage immunity flag for
+registered NPCs and the player. Authored4970/Invert4995 on/off timing passes,
+as do36 tests and PC door controls; native protection-event testing remains.
+Grounding replay: artifacts/xemu/replay-20260914-074151/report.json PASS.
+
 Scripted run/fall actors now accept floor support, fall through body sweeps
 and retry uphill motion along walkable slopes. PC hangar controls pass with
 actual floor-height correction (Y2.987934),999 steps and no blocks. Both builds
-and36 tests pass. Native1000-frame combined validation is running; results
-must be checked before claiming Xbox runtime parity for this change.
+and36 tests pass. Stock64MiB XEMU1000 frames now match PC position, movement and contacts.
+The starting-tunnel capture does not verify walking visual quality.
 Evidence: artifacts/npc-ground-replay.log; artifacts/npc-ground-xemu.log.
 
 Scripted movement now requests authored walk/stand animations using existing

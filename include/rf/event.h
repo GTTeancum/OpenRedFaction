@@ -321,6 +321,8 @@ typedef struct rf_runtime_triggers {
     /* First-pass visibility service. NOT_FOUND skips unsupported targets. */
     int (*set_visible)(void *context,uint32_t handle,uint32_t visible);
     void *visibility_context;
+    int (*set_invulnerable)(void *context,uint32_t handle,uint32_t enabled);
+    void *invulnerability_context;
 } rf_runtime_triggers;
 /* Declare authored goals before any startup trigger runs. */
 int rf_runtime_goals_initialize(const rf_runtime_events *events,rf_campaign_goals *goals);

@@ -522,6 +522,18 @@ static void startup_event_action(void *context,rf_event_state *state,uint32_t ac
         if(action!=2)c->status=rf_unhide_request(&c->event->unhide,action==1);
         return;
     }
+    if(state->type==24) {
+        if(action==2)return;
+        if(!c->triggers->set_invulnerable){++c->report->unsupported_actions;return;}
+        for(i=0;i<c->event->authored->record.link_count;i++) {
+            const rf_level_link_target *link=c->event->links+i;int status;
+            if(link->kind!=1 && link->kind!=2)continue;
+            status=c->triggers->set_invulnerable(c->triggers->invulnerability_context,link->value,action==1);
+            if(status==RF_NOT_FOUND){++c->report->other_targets;continue;}
+            if(status){c->status=status;return;}
+        }
+        return;
+    }
     if(action==2) {
         for(i=0;i<c->event->authored->record.link_count && !c->status;++i)
             startup_target(c,c->event->links+i,source,actor,(mode&255u)==1);
@@ -857,6 +869,7 @@ int rf_runtime_events_tick(rf_runtime_events *events,rf_runtime_triggers *trigge
            !(event->state.type==22 && triggers->load_level) &&
            !(event->state.type>=35 && event->state.type<=37 && triggers->goals) &&
            !(event->state.type==30 && triggers->set_friendliness) &&
+           !(event->state.type==24 && triggers->set_invulnerable) &&
            !(event->state.type==17 && startup_damage_ready(triggers)) &&
            !(event->state.type==32 && event->switch_state && startup_switch_ready(triggers))) {++*unsupported_pending;continue;}
         status=rf_timer_expired(event->state.deadline,now,&expired);if(status)return status;

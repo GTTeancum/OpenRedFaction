@@ -94,6 +94,13 @@ controls pass; visible Gryphon ends atY2.987934 instead of spawnY3.206739,
 with999 successful steps and zero blocked steps. Both builds and36 tests pass;
 combined native grounding/animation validation is pending.
 
+Update: stock64MiB XEMU1000-frame replay now passes in
+`artifacts/xemu/replay-20260914-074151/report.json`. Corrected position
+(23.013216,2.987934,16.036537),999 steps, zero blocked steps, trigger contacts
+and occupancy match PC. The native framebuffer was inspected but keeps the
+starting-tunnel camera; walking visual quality remains unverified. This replay
+predates the subsequent Make_Invulnerable scene binding.
+
 Scripted movement now requests authored logical state2 (`walk`) after a
 successful movement step, and state0 (`stand`) when blocked, arrived or
 cancelled. Requests use the existing quarter-second transition and do not

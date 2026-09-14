@@ -1,5 +1,18 @@
 # NPC visibility in mission events
 
+The shared first-pass mission runtime also handles type24 `Make_Invulnerable`
+through the existing damage-dispatch object flag4. On/off updates the registered
+NPC's object, entity-view and room flags (or the retained player flags).
+Ordinary damage already respects this bit in `rf_damage_dispatch_sp`; explicitly
+forced damage retains its existing bypass. Unsupported object families return
+NOT_FOUND. This is a practical scene binding, not full original event parity.
+
+The authored L7S2 chain4970 -> Gryphon4952 enables protection; delayed Invert4995
+turns it off. A contained test verifies protection remains at6999ms and switches
+off at7000ms, using the actual level events and the shared event dispatcher.
+Scene tests verify flag publication and unsupported-target handling. Native
+runtime validation for this event remains separate from the grounding replay.
+
 Type50 (`UnHide`) now queues on/off requests in the shared runtime and services
 them with `rf_unhide_tick`. The existing reconstruction of original `4bcdf0`
 provides on-before-off ordering and a shared500ms cooldown. Authored base delay
