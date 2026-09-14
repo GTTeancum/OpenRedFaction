@@ -15,6 +15,18 @@ Shortlist:
 
 Progress reporting: include a very high-level working area (e.g. Lighting, AI, Weapons, GeoMod or Scripted events) and an overall percent estimate at the end of every turn report (USER preference) and revisit remaining 24-hour workdays when measured throughput supports a forecast; current rough estimate40% (35-45%), no defensible +/-48-hour completion forecast before end-to-end gameplay.
 
+Retained shading workspace now keeps three accumulation planes and special
+polygon/vertex/normal scratch in one budgeted allocation. Live Mines reuses
+16196 PC bytes across5851 mappings; all previous mask/RGB/packed hashes and
+counters remain identical, including cached/uncached and64 reopened jobs.
+Compiled NXDK validates64 capacity combinations, disjoint arrays, zeroed
+scratch, exact/short budgets, allocation failure, overflow and repeated close.
+Both builds and26 tests pass. This removes per-mapping shading allocations;
+fixture reference buffers and shadow storage still allocate separately. Next
+retain shadow workspace across jobs and bind complete dirty2/4 scene work.
+No new rendered/native full-scene memory claim. Evidence
+artifacts/geometry-lightmap-storage.json and campaign-shadow-l1s1.json.
+
 Shared base regeneration now writes retained RGB at atlas offsets, composing
 ambient fill or seeded ordinary/special masked accumulation and RGB resolve
 without allocation. All5851 Live Mines mappings match the prior temporary-

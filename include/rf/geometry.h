@@ -39,6 +39,19 @@ typedef struct rf_geometry_lightmap_work {
     rf_lightmap_sample_polygon *polygons;rf_lightmap_sample_vertex *vertices;
     rf_lightmap_normal_face *normals;uint32_t polygon_capacity,vertex_capacity,normal_capacity;
 } rf_geometry_lightmap_work;
+typedef struct rf_geometry_lightmap_storage {
+    void *storage;float *channels[3];uint32_t pixel_capacity;
+    rf_geometry_lightmap_work work;uint32_t resident_bytes;
+} rf_geometry_lightmap_storage;
+/* Shared reconstruction workspace, not an original binary layout. One zeroed
+ * allocation retains three accumulation planes and special-surface scratch.
+ * Capacities are level maxima supplied by the caller; no mapping pointers
+ * survive reuse. Budget includes owner, excludes allocator overhead. Empty
+ * initialization/close required; errors preserve output. No frame allocation. */
+int rf_geometry_lightmap_storage_open(rf_geometry_lightmap_storage *,uint32_t pixels,
+    uint32_t polygons,uint32_t vertices,uint32_t normals,uint32_t budget);
+void rf_geometry_lightmap_storage_close(rf_geometry_lightmap_storage *);
+
 /*4f3390 selected-face grouping: surviving file-order IDs, mapping match and
  * optional room filter (-1 means whole solid). NULL work queries polygon and
  * vertex counts without adjacency. Otherwise fills caller scratch using the

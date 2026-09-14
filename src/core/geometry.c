@@ -623,6 +623,29 @@ int rf_geometry_shadow_traverse(const rf_geometry *g,const uint32_t *ids,uint32_
     unsigned char amount,rf_geometry_shadow_result *out)
 {return shadow_traverse(NULL,g,ids,count,images,image_count,cull,pass,work,mask,bytes,amount,out);}
 
+void rf_geometry_lightmap_storage_close(rf_geometry_lightmap_storage *owner)
+{
+    if(!owner)return;free(owner->storage);memset(owner,0,sizeof(*owner));
+}
+int rf_geometry_lightmap_storage_open(rf_geometry_lightmap_storage *out,uint32_t pixels,
+    uint32_t polygons,uint32_t vertices,uint32_t normals,uint32_t budget)
+{
+    rf_geometry_lightmap_storage value={0};uint64_t bytes;unsigned char *cursor;uint32_t i;
+    if(!out || out->storage || !pixels)return RF_RANGE;
+    bytes=(uint64_t)pixels*12+(uint64_t)polygons*sizeof(rf_lightmap_sample_polygon)+
+        (uint64_t)vertices*sizeof(rf_lightmap_sample_vertex)+(uint64_t)normals*sizeof(rf_lightmap_normal_face);
+    if(bytes>SIZE_MAX || bytes+sizeof(value)>budget)return RF_RANGE;
+    cursor=calloc(1,(size_t)bytes);if(!cursor)return RF_IO;value.storage=cursor;
+    /* Polygons first keeps their native pointer alignment on either target. */
+    value.work.polygons=(rf_lightmap_sample_polygon *)cursor;cursor+=(size_t)polygons*sizeof(*value.work.polygons);
+    value.work.vertices=(rf_lightmap_sample_vertex *)cursor;cursor+=(size_t)vertices*sizeof(*value.work.vertices);
+    value.work.normals=(rf_lightmap_normal_face *)cursor;cursor+=(size_t)normals*sizeof(*value.work.normals);
+    for(i=0;i<3;i++){value.channels[i]=(float *)cursor;cursor+=(size_t)pixels*4;}
+    value.pixel_capacity=pixels;value.work.polygon_capacity=polygons;
+    value.work.vertex_capacity=vertices;value.work.normal_capacity=normals;
+    value.resident_bytes=(uint32_t)(bytes+sizeof(value));*out=value;return RF_OK;
+}
+
 void rf_geometry_shadow_storage_close(rf_geometry_shadow_storage *owner)
 {
     if(!owner)return;free(owner->storage);memset(owner,0,sizeof(*owner));

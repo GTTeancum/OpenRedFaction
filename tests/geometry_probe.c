@@ -12,6 +12,27 @@ int main(int argc, char **argv)
     rf_geometry geometry;
     uint32_t budget = 8u * 1024u * 1024u;
     int result,flags_mode=argc==4 && !strcmp(argv[3],"--flags"),links_mode=argc==4 && !strcmp(argv[3],"--links"),primary_mode=argc==4 && !strcmp(argv[3],"--primary");
+    if(argc==2 && !strcmp(argv[1],"--lightmap-storage")) {
+        rf_geometry_lightmap_storage owner={0},empty={0};uint32_t i,n,bytes=0;
+        for(n=1;n<=64;n++) {
+            if(rf_geometry_lightmap_storage_open(&owner,n*64,n,n*4,n*2,1024*1024))return 3;
+            bytes=owner.resident_bytes;
+            if(owner.pixel_capacity!=n*64 || owner.work.polygon_capacity!=n || owner.work.vertex_capacity!=n*4 || owner.work.normal_capacity!=n*2)return 4;
+            for(i=0;i<n*64;i++)if(owner.channels[0][i] || owner.channels[1][i] || owner.channels[2][i])return 5;
+            owner.channels[0][n*64-1]=17;owner.channels[1][0]=18;owner.channels[2][0]=19;
+            if(owner.channels[0][n*64-1]!=17 || owner.channels[1][0]!=18)return 6;
+            if(rf_geometry_lightmap_storage_open(&owner,1,0,0,0,1024*1024)!=RF_RANGE)return 7;
+            rf_geometry_lightmap_storage_close(&owner);rf_geometry_lightmap_storage_close(&owner);
+            if(memcmp(&owner,&empty,sizeof(owner)))return 8;
+            if(rf_geometry_lightmap_storage_open(&owner,n*64,n,n*4,n*2,bytes-1)!=RF_RANGE || memcmp(&owner,&empty,sizeof(owner)))return 9;
+            if(rf_geometry_lightmap_storage_open(&owner,n*64,n,n*4,n*2,bytes))return 10;
+            rf_geometry_lightmap_storage_close(&owner);
+        }
+        if(rf_geometry_lightmap_storage_open(&owner,UINT32_MAX,UINT32_MAX,UINT32_MAX,UINT32_MAX,UINT32_MAX)!=RF_RANGE || memcmp(&owner,&empty,sizeof(owner)))return 11;
+        if(rf_geometry_lightmap_storage_open(&owner,1,0,0,0,1024))return 12;
+        rf_geometry_lightmap_storage_close(&owner);
+        printf("PASS lighting workspace64 sizes, plane separation, zero scratch, exact/short budgets, overflow, empty polygon scratch and repeated close; max %u bytes\n",bytes);return 0;
+    }
     if(argc==2 && !strcmp(argv[1],"--shadow-storage")) {
         uint32_t n,i,bytes;rf_geometry_shadow_storage owner={0},empty={0};
         for(n=1;n<64;n++) {

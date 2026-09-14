@@ -10,7 +10,7 @@
 typedef struct shadow_context {
     rf_geometry_shadow_job job;const rf_lightmap_shadow_face *cached;
     const rf_level_owned_lights *lights;float ambient[3];rf_image *target;rf_lightmap_rgb_image *base;
-    const uint32_t *ids;
+    const uint32_t *ids;rf_geometry_lightmap_storage *shading;
     uint32_t callbacks,passes,backfacing,visited,eligible,accepted;
 } shadow_context;
 static int render_shadow(void *opaque,uint32_t index,uint32_t mode,unsigned char *mask,uint32_t bytes)
@@ -32,24 +32,20 @@ static int shade_mapping(shadow_context *context,const rf_geometry_vertex_faces 
     const rf_geometry_shadow_job *job=&context->job;const rf_lightmap_mapping *mapping=job->mapping;
     rf_lightmap_sample_lighting view={0};rf_lightmap_accumulation accumulation;
     rf_vfx_light_source lights[63];const unsigned char *masks[63];unsigned char room_ambient[4];
-    rf_geometry_lightmap_work work={0};uint32_t pixels=mapping->width*mapping->height,counts[2]={0},j,k,pass,max_degree=0;
-    float *channels=NULL;unsigned char *rgb=NULL,*reference=NULL,*packed=NULL,*before=NULL;int status=RF_OK;
-    if(pixels>65536 || count>63)return RF_RANGE;
-    channels=malloc((size_t)pixels*12);rgb=malloc((size_t)pixels*3);reference=malloc((size_t)pixels*3);packed=malloc((size_t)pixels*2);
+    rf_geometry_lightmap_work work=context->shading->work;uint32_t pixels=mapping->width*mapping->height,counts[2]={0},j,k,pass;
+    unsigned char *rgb=NULL,*reference=NULL,*packed=NULL,*before=NULL;int status=RF_OK;
+    if(pixels>65536 || pixels>context->shading->pixel_capacity || count>63)return RF_RANGE;
+    rgb=malloc((size_t)pixels*3);reference=malloc((size_t)pixels*3);packed=malloc((size_t)pixels*2);
     before=malloc(context->base->bytes);
-    if(!channels || !rgb || !reference || !packed || !before){status=RF_IO;goto done;}
+    if(!rgb || !reference || !packed || !before){status=RF_IO;goto done;}
     status=rf_geometry_room_ambient(job->geometry,mapping->room,room_ambient);if(status)goto done;
     view.sample=*job->sample;view.width=mapping->width;view.height=mapping->height;
     view.lights=lights;view.light_count=count;view.mask_bytes=storage->mask_stride;view.directional_scale=1;view.capacity=pixels;
     for(j=0;j<count;j++){lights[j]=context->lights->pool.sources[context->ids[j]].source;masks[j]=storage->masks+j*storage->mask_stride;}
-    for(j=0;j<3;j++){view.channels[j]=channels+j*pixels;accumulation.channels[j]=view.channels[j];}
+    for(j=0;j<3;j++){view.channels[j]=context->shading->channels[j];accumulation.channels[j]=view.channels[j];}
     accumulation.count=pixels;accumulation.width=view.width;accumulation.height=view.height;
     if(count && mapping->special) {
         status=rf_geometry_lightmap_polygons(job->geometry,NULL,job->faces,job->face_count,job->mapping_index,mapping->room,NULL,counts,counts+1);if(status)goto done;
-        for(j=0;j<graph->vertices;j++){k=graph->offsets[j+1]-graph->offsets[j];if(k>max_degree)max_degree=k;}
-        work.polygons=malloc((counts[0]+1)*sizeof(*work.polygons));work.vertices=malloc((counts[1]+1)*sizeof(*work.vertices));work.normals=malloc((max_degree+1)*sizeof(*work.normals));
-        if(!work.polygons || !work.vertices || !work.normals){status=RF_IO;goto done;}
-        work.polygon_capacity=counts[0];work.vertex_capacity=counts[1];work.normal_capacity=max_degree;
         status=rf_geometry_lightmap_polygons(job->geometry,graph,job->faces,job->face_count,job->mapping_index,mapping->room,&work,counts,counts+1);if(status)goto done;
     }
     for(pass=0;pass<2;pass++) {
@@ -98,13 +94,13 @@ static int shade_mapping(shadow_context *context,const rf_geometry_vertex_faces 
         for(j=0;j<pixels*2;j++)hash=(hash^packed[j])*16777619u;hashes[pass]=hash;
     }
 done:
-    free(channels);free(rgb);free(reference);free(packed);free(before);free(work.polygons);free(work.vertices);free(work.normals);return status;
+    free(rgb);free(reference);free(packed);free(before);return status;
 }
 int main(int argc,char **argv)
 {
     rf_vpp archive={0},textures[16];rf_level level;rf_geometry geometry={0};rf_lightmaps maps={0};
     rf_level_lighting lighting;float ambient[3];rf_lightmap_rgb_owner rgb_owner={0};
-    rf_geometry_vertex_faces graph={0};
+    rf_geometry_vertex_faces graph={0};rf_geometry_lightmap_storage shading={0};
     rf_geometry_materials materials={0};rf_level_owned_lights *lights=NULL;rf_random_state rng={123};
     rf_geometry_shadow_storage storage={0};const rf_geometry *g=&geometry;const rf_image **images=NULL;
     rf_lightmap_shadow_face *cached=NULL;float (*scratch)[3]=NULL;int retained=argc>1 && !strcmp(argv[1],"--retained");
@@ -127,6 +123,18 @@ int main(int argc,char **argv)
     CHECK(rf_geometry_material_shadow_images(&materials,0,&geometry,images,geometry.textures));
     for(i=0;i<geometry.faces;i++){rf_geometry_face f;faces[i]=i;CHECK(rf_geometry_get_face(&geometry,i,&f));if(f.corners>max_face)max_face=f.corners;}
     CHECK(rf_geometry_vertex_faces_open(&geometry,faces,geometry.faces,1024u*1024u,&graph));
+    {uint32_t max_pixels=1,max_polygons=0,max_vertices=0,max_normals=0;
+     for(i=0;i<graph.vertices;i++){uint32_t degree=graph.offsets[i+1]-graph.offsets[i];if(degree>max_normals)max_normals=degree;}
+     for(i=0;i<geometry.mappings;i++) {
+         rf_lightmap_mapping mapping;rf_lightmap_sample_plane sample;uint32_t counts[2],pixels;
+         CHECK(rf_geometry_lightmap_sample_binding(&geometry,&maps,i,&mapping,&sample));
+         pixels=mapping.width*mapping.height;if(pixels>max_pixels)max_pixels=pixels;
+         if(!mapping.special)continue;
+         CHECK(rf_geometry_lightmap_polygons(&geometry,NULL,faces,geometry.faces,i,mapping.room,NULL,counts,counts+1));
+         if(counts[0]>max_polygons)max_polygons=counts[0];if(counts[1]>max_vertices)max_vertices=counts[1];
+     }
+     CHECK(rf_geometry_lightmap_storage_open(&shading,max_pixels,max_polygons,max_vertices,max_normals,1024u*1024u));}
+
     if(retained) {
         cached=malloc(geometry.faces*sizeof(*cached));scratch=malloc(max_face*sizeof(*scratch));
         if(!cached || !scratch){status=RF_IO;goto done;}
@@ -134,18 +142,18 @@ int main(int argc,char **argv)
         free(scratch);scratch=NULL;
     }
     if(first>=geometry.mappings || limit>geometry.mappings-first){status=RF_RANGE;goto done;}
-    puts("mapping,width,height,sources,callbacks,passes,backfacing,visited,eligible,accepted,changed_bytes,mask_hash,scratch_bytes,unmasked_packed_hash,masked_packed_hash,rgb_changed_bytes,special");
+    puts("mapping,width,height,sources,callbacks,passes,backfacing,visited,eligible,accepted,changed_bytes,mask_hash,scratch_bytes,unmasked_packed_hash,masked_packed_hash,rgb_changed_bytes,special,shading_bytes");
     for(i=first;i<first+limit;i++) {
         rf_lightmap_mapping mapping;rf_lightmap_sample_plane sample;uint32_t hashes[3]={0},counts[2],changed=0,changed_bytes=0,hash=2166136261u,clip;
         rf_lightmap_shadow_filter filter;rf_lightmap_shadow_dispatch dispatch;shadow_context context={0};
         CHECK(rf_geometry_lightmap_sample_binding(&geometry,&maps,i,&mapping,&sample));
-        context.target=maps.images+mapping.image;context.base=rgb_owner.images+mapping.image;
+        context.shading=&shading;context.target=maps.images+mapping.image;context.base=rgb_owner.images+mapping.image;
         CHECK(rf_vfx_lights_box(lights->pool.sources,lights->pool.capacity,mapping.minimum,mapping.maximum,1,1,selected,1100,&n));
         if(!n) {
             context.job.geometry=&geometry;context.job.mapping=&mapping;context.job.sample=&sample;context.job.mapping_index=(int32_t)i;
             context.lights=lights;context.ids=selected;memcpy(context.ambient,ambient,12);
             CHECK(shade_mapping(&context,&graph,&storage,0,hashes));
-            printf("%u,%u,%u,0,0,0,0,0,0,0,0,0,0,%u,%u,%u,%u\n",i,mapping.width,mapping.height,hashes[0],hashes[1],hashes[2],mapping.special);continue;
+            printf("%u,%u,%u,0,0,0,0,0,0,0,0,0,0,%u,%u,%u,%u,%u\n",i,mapping.width,mapping.height,hashes[0],hashes[1],hashes[2],mapping.special,shading.resident_bytes);continue;
         }
         CHECK(rf_level_owned_light_shadow_modes(lights,selected,n,modes,63));
         CHECK(rf_geometry_shadow_receivers(&geometry,faces,geometry.faces,i,mapping.room,NULL,NULL,counts,counts+1));
@@ -163,11 +171,11 @@ int main(int argc,char **argv)
         if(status){fprintf(stderr,"mapping %u (%ux%u), sources %u, receivers %u/%u\n",i,mapping.width,mapping.height,n,counts[0],counts[1]);goto done;}
         CHECK(shade_mapping(&context,&graph,&storage,n,hashes));
         for(j=0;j<dispatch.bytes;j++){unsigned char b=storage.masks[j];hash=(hash^b)*16777619u;if(b!=255)changed_bytes++;}
-        printf("%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u\n",i,mapping.width,mapping.height,n,context.callbacks,context.passes,context.backfacing,context.visited,context.eligible,context.accepted,changed_bytes,hash,storage.resident_bytes,hashes[0],hashes[1],hashes[2],mapping.special);
+        printf("%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u\n",i,mapping.width,mapping.height,n,context.callbacks,context.passes,context.backfacing,context.visited,context.eligible,context.accepted,changed_bytes,hash,storage.resident_bytes,hashes[0],hashes[1],hashes[2],mapping.special,shading.resident_bytes);
         rf_geometry_shadow_storage_close(&storage);
     }
 done:
-    rf_geometry_vertex_faces_close(&graph);rf_geometry_shadow_storage_close(&storage);free(images);free(faces);free(cached);free(scratch);rf_geometry_materials_close(&materials);rf_level_owned_lights_close(&lights);
+    rf_geometry_lightmap_storage_close(&shading);rf_geometry_vertex_faces_close(&graph);rf_geometry_shadow_storage_close(&storage);free(images);free(faces);free(cached);free(scratch);rf_geometry_materials_close(&materials);rf_level_owned_lights_close(&lights);
     rf_lightmap_rgb_close(&rgb_owner);rf_lightmaps_close(&maps);rf_geometry_close(&geometry);while(opened)rf_vpp_close(textures+--opened);if(archive_open)rf_vpp_close(&archive);
     return status?1:0;
 }

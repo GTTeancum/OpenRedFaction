@@ -223,3 +223,4 @@ add_test(NAME projectile_owned_lifetime COMMAND rf_weapon_probe --projectile-sto
 add_test(NAME projectile_resource_lifetime COMMAND rf_weapon_probe --projectile-resources)
 
 add_test(NAME shadow_storage_lifetime COMMAND rf_geometry_probe --shadow-storage)
+add_test(NAME lightmap_storage_lifetime COMMAND rf_geometry_probe --lightmap-storage)
