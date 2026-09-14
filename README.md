@@ -20,7 +20,8 @@ bottom-right markers show11 rounds left. Reloading is supported. First-person
 gun presentation remains unfinished; player shot and reload audio are connected. Hostile armed NPCs now spot and attack the player; armed actors also retaliate
 when damaged. Death blocks controls; E (keyboard) or X (controller) respawns
 the player with full health/ammo at the starting position. This first pass
-preserves world state; checkpoints, full restart and pursuit remain open.
+preserves world state; checkpoints and full restart remain open. Scripted and
+reactive NPC targets now support pursuit.
 
 ![Xbox reconstruction: miner, mining robot, overhead lamps and warning fixture in Live Mines](docs/images/xbox-campaign-props.png)
 
@@ -40,10 +41,15 @@ and door panels placed halfway along their authored travel. This is a diagnostic
 scene, not playable campaign footage. The Xbox target remains stock 64 MiB;
 this higher-resolution image is not an Xbox capture.
 
-Current outputs include archive/level diagnostics, a shared static geometry,
-texture and lightmap preview for PC and Xbox, and reconstructed filename checksum,
-entity eye-update and character tag-lookup routines. Model loading, gameplay and
-full campaign reconstruction remain open. See [TO-DO.MD](TO-DO.MD),
+The shared runtime now includes campaign movement, door/level transitions,
+pistol/rifle combat, pickups, basic enemy awareness, authored Attack commands,
+pursuit, target-facing, firing clips and sounds, and NPC retaliation. A controlled
+PC/Xbox encounter verifies a delayed authored attack through return fire and target
+death. This uses explicit event activation and is not a full campaign playthrough.
+See [combat evidence and limits](docs/SCRIPTED-ATTACKS.md).
+
+Full mission progression, remaining weapons, GeoMod, visual fidelity and other
+campaign systems remain unfinished. See [TO-DO.MD](TO-DO.MD),
 [architecture](docs/ARCHITECTURE.md), and [provenance](docs/PROVENANCE.md).
 
 The original installation is read from

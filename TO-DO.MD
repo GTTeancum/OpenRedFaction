@@ -34,6 +34,16 @@ Shortlist:
 
 Progress reporting: include a very high-level working area (e.g. Lighting, AI, Weapons, GeoMod or Scripted events) and an overall percent estimate at the end of every turn report (USER preference) and revisit remaining 24-hour workdays when measured throughput supports a forecast; current rough estimate45% (35-45%), no defensible +/-48-hour completion forecast before end-to-end gameplay.
 
+Full native duel verification now passes: stock64MiB XEMU replay
+replay-20260914-114230 completes4000 frames of L1S1 Attack9802 and matches PC
+for scripted attack, pursuit, aiming, retaliation, combat, firing clips and audio.
+There are39 shots,39 active firing clips,39 sound plays, zero audio errors and
+one target death. The native harness now checks all four new enemy-action
+counter groups and includes them in guest snapshots. NXDK staging restoration
+also succeeded. This is controlled event activation with a staged player;
+natural triggers and complete firing visuals remain open. Performance tuning
+stays deferred. Evidence:artifacts/xemu/replay-20260914-114230/report.json.
+
 NPC retaliation now consumes the gameplay AI-reaction notification. Armed,
 living victims can target the recognized NPC/player source; repeated hits keep
 the current reaction deadline. Explicit authored Attack orders retain priority;

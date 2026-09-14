@@ -93,3 +93,18 @@ Tests cover direct source recognition, reaction/cooldown preservation, authored-
 The previous replay assertion compared scene-wide effects against only the original attacker's20 shots. It correctly failed once the victim started shooting; the regression now compares effects to total scene shots and requires retaliation plus additional fire. This does not prove natural trigger traversal, full Xbox encounter execution or visual reaction fidelity. Evidence: `artifacts/npc-retaliation/` and `artifacts/attack-encounter/verified/`.
 
 Validation:37 PC tests and the updated encounter regression pass. NXDK build/restoration and stock64MiB XEMU replay `replay-20260914-113808` pass180-frame L1S2-to-L1S3 transition/state checks. No capture requested. This remains compatibility coverage rather than full native duel validation.
+
+## Full Xbox encounter check
+
+The native replay harness now compares SCRIPT_ATTACK, ENEMY_AIM, ENEMY_FIRE and ENEMY_RETALIATION directly against the matching PC replay, in addition to its existing combat, audio, movement, animation and memory checks. Guest snapshots retain those counters for inspection. The existing `--goto-uid` option can request an authored Goto or Attack event; it does not bypass its delay.
+
+Reproduce the controlled full encounter with:
+
+```powershell
+python tools/replay_scripted_attack.py
+python tools/xemu_replay_check.py artifacts/attack-encounter/verified/inputs-4000.bin --campaign-spawn --level L1S1.rfl --actor-uid 8324 --goto-uid 9802 --seconds 900
+```
+
+This remains a process-local controlled event request and staged player position, not natural trigger traversal. The native run must reach4000 frames and pass its final comparison before it is treated as Xbox encounter evidence.
+
+Result: `replay-20260914-114230` **PASS**,4000 frames,67108864 bytes guest RAM and no expansion. The native counters exactly match PC:39 shots,39 active firing clips,39 sound plays, one retaliation acquisition and one target death, with zero combat/audio errors. The delayed attacker accounts for20 shots and1290 pursuit ticks. NXDK restoration completed successfully. This closes controlled full-duel Xbox execution coverage; natural triggers and visual sequence verification remain open. Evidence: `artifacts/xemu/replay-20260914-114230/report.json`.
