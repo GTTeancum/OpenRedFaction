@@ -34,13 +34,12 @@ Shortlist:
 
 Progress reporting: include a very high-level working area (e.g. Lighting, AI, Weapons, GeoMod or Scripted events) and an overall percent estimate at the end of every turn report (USER preference) and revisit remaining 24-hour workdays when measured throughput supports a forecast; current rough estimate45% (35-45%), no defensible +/-48-hour completion forecast before end-to-end gameplay.
 
-Xbox performance baseline is running with scene timings enabled in replay
-mode and renderer timings reset per section (first16 submissions excluded).
-Log: artifacts/performance-baseline-xemu.log. Do not rebuild Xbox until the
-harness restores its disc. tools/summarize_xbox_performance.py separates scene
-and nested renderer timings; neither excludes host scheduling effects.
-Next optimization candidate: bounded solid-overlay batches with one shader
-setup/GPU drain per batch, preserving draw order and command-buffer bounds.
+Xbox baseline completed: replay-20260914-090014 passes;104 destination samples
+average about222ms measured scene work, with44ms nested renderer time. The
+165ms broad presentation phase needs finer NPC/clutter/platform timing.
+Bounded64-draw HUD batching is implemented but unverified; native comparison
+is running in artifacts/performance-hud-batch-xemu.log. Do not rebuild Xbox
+until the harness restores the disc. See docs/XBOX-PERFORMANCE.md.
 
 The command-buffer fix passes the original L1S2->L1S3 stock64MiB replay:
 180 frames, exit9512 at60, final L1S3, and matching native/PC state.
