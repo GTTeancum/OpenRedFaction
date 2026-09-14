@@ -180,6 +180,19 @@ typedef struct rf_lightmap_shadow_filter {
 int rf_lightmap_shadow_filter_raster(const float (*polygon)[2],uint32_t count,
     const rf_lightmap_shadow_filter *,unsigned char *mask,uint32_t bytes,
     uint32_t width,uint32_t height,unsigned char amount,uint32_t *accepted);
+typedef struct rf_lightmap_shadow_source {
+    uint32_t kind;float position[3],end[3],local_position[3],local_end[3],radius;
+} rf_lightmap_shadow_source;
+typedef struct rf_lightmap_shadow_samples {
+    float center[3],minimum[3],maximum[3],origins[2][3];uint32_t count,amount;
+} rf_lightmap_shadow_samples;
+/* Original4f4738..4f4919: nonzero local selects cached source coordinates.
+ * kind4 interpolates both endpoints with original float stores and uses127
+ * subtraction per sample; others use one sample/255. Bounds remain centered
+ * on selected position, including for kind4. Cached transforms are supplied;
+ * no transform/dirty-state ownership. Errors preserve output; unused origin0. */
+int rf_lightmap_shadow_source_samples(const rf_lightmap_shadow_source *,uint32_t local,
+    rf_lightmap_shadow_samples *);
 typedef struct rf_lightmap_shadow_pass {
     rf_lightmap_sample_plane sample;uint32_t width,height;float origin[3],planes[6][4];
     const rf_lightmap_shadow_filter *filter;

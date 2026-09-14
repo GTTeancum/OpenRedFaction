@@ -552,6 +552,30 @@ int rf_lightmap_shadow_polygon(const rf_lightmap_sample_plane *view,uint32_t wid
 
 static int shadow_filter_raster(const float (*)[2],uint32_t,const rf_lightmap_shadow_filter *,
     unsigned char *,uint32_t,uint32_t,uint32_t,unsigned char,uint32_t *);
+int rf_lightmap_shadow_source_samples(const rf_lightmap_shadow_source *source,uint32_t local,
+    rf_lightmap_shadow_samples *out)
+{
+    rf_lightmap_shadow_samples value={0};const float *position,*end;uint32_t i,j;
+    if(!source || !out || !isfinite(source->radius) || source->radius<0)return RF_RANGE;
+    position=local?source->local_position:source->position;end=local?source->local_end:source->end;
+    value.count=source->kind==4?2:1;value.amount=source->kind==4?127:255;
+    for(i=0;i<3;i++) {
+        if(!isfinite(position[i]) || (value.count==2 && !isfinite(end[i])))return RF_RANGE;
+        value.center[i]=position[i];value.minimum[i]=(float)((double)position[i]-source->radius);
+        value.maximum[i]=(float)((double)position[i]+source->radius);
+        if(!isfinite(value.minimum[i]) || !isfinite(value.maximum[i]))return RF_RANGE;
+        for(j=0;j<value.count;j++) {
+            if(value.count==1)value.origins[j][i]=position[i];
+            else {
+                float delta=(float)((double)end[i]-position[i]),step=(float)((double)delta*j);
+                value.origins[j][i]=(float)((double)position[i]+step);
+                if(!isfinite(value.origins[j][i]))return RF_RANGE;
+            }
+        }
+    }
+    *out=value;return RF_OK;
+}
+
 int rf_lightmap_shadow_prepare(const rf_lightmap_mapping *mapping,const rf_lightmap_sample_plane *sample,
     int32_t index,const float light_center[3],float radius,const float origin[3],
     const rf_lightmap_shadow_filter *filter,rf_lightmap_shadow_cull *cull,

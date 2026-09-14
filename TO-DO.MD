@@ -15,6 +15,14 @@ Shortlist:
 
 Progress reporting: include a very high-level working area (e.g. Lighting, AI, Weapons, GeoMod or Scripted events) and an overall percent estimate at the end of every turn report (USER preference) and revisit remaining 24-hour workdays when measured throughput supports a forecast; current rough estimate40% (35-45%), no defensible +/-48-hour completion forecast before end-to-end gameplay.
 
+Shadow source sampling matches2048 original/PC/NXDK records, including
+1170 line sources and838 endpoints whose float interpolation differs from a
+direct endpoint copy. World/cached-local selection, bounds,1x255 versus2x127
+passes and3 guards verified. Both builds and24 tests pass. Selected cached
+coordinates are supplied, not transformed by this adapter. Next compose
+source samples with preparation/traversal/final border and explicit receiver,
+mask/scratch lifetime, then native campaign rendering and memory validation.
+
 Campaign material-to-shadow image binding borrows geometry-local pointers
 from existing shared slots, with no pixel read/load/allocation. Verified5919
 references across68 PC level fixtures plus28 loaded Live Mines references

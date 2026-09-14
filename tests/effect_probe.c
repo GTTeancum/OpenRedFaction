@@ -385,6 +385,16 @@ int main(int argc,char **argv)
         }
         return 0;
     }
+    if(argc==2 && !strcmp(argv[1],"--lightmap-shadow-source")) {
+        struct {rf_lightmap_shadow_source source;uint32_t local;} in;
+        _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
+        while(fread(&in,sizeof(in),1,stdin)==1) {
+            rf_lightmap_shadow_samples samples;uint32_t status;memset(&samples,0xa5,sizeof(samples));
+            status=rf_lightmap_shadow_source_samples(&in.source,in.local,&samples);
+            fwrite(&status,4,1,stdout);fwrite(&samples,sizeof(samples),1,stdout);
+        }
+        return 0;
+    }
     if(argc==2 && !strcmp(argv[1],"--lightmap-shadow-prepare")) {
         struct {rf_lightmap_mapping mapping;rf_lightmap_sample_plane sample;int32_t index;
             float center[3],radius,origin[3];} in;
