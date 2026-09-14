@@ -44,6 +44,11 @@ int main(void)
     REJECT(bad.health=0);REJECT(bad.health=NAN);REJECT(bad.armor=INFINITY);REJECT(bad.armor=-1);
     REJECT(bad.weapon=64);REJECT(bad.weapon=7);REJECT(bad.catalog_hash=2);
     REJECT(bad.inventory.reserve[31]=-1);REJECT(bad.inventory.loaded[63]=-1);REJECT(bad.inventory.owned[63]=2);
+    bad=original;memset(&bad.inventory,0,sizeof(bad.inventory));bad.weapon=UINT32_MAX;
+    CHECK(rf_campaign_player_copy(&copied,&bad,1234)==RF_OK && copied.weapon==UINT32_MAX);
+    CHECK(!memcmp(&copied.inventory,&bad.inventory,sizeof(bad.inventory)));
+    before=copied;bad.weapon=64;
+    CHECK(rf_campaign_player_copy(&copied,&bad,1234)==RF_FORMAT && !memcmp(&copied,&before,sizeof(copied)));
     CHECK(rf_campaign_player_copy(&copied,&copied,1234)==RF_OK);
     printf("PASS %u-byte owned player handoff, retained ammo/vitals and invalid-state rollback\n",(unsigned)sizeof(copied));return 0;
 }

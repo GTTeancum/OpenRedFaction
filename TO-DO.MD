@@ -17,7 +17,7 @@ Shortlist:
 - DEFERRED / TO COMPLETE: Improve Xbox performance beyond the current basic-testing baseline; revisit NPC pose evaluation.
 - TO COMPLETE: Preserve remaining world changes across sections, including actor placement/inventory and dropped items.
 - ACTIVE: Verify enemy firing visually, add muzzle/impact effects, and extend natural-trigger encounter coverage.
-- ACTIVE: Add weapon stripping, Riot Stick alternate fire and impact feedback, then expand the remaining weapons.
+- ACTIVE: Add Riot Stick alternate fire and impact feedback, then expand the remaining weapons.
 - DEFERRED / TO COMPLETE: Restore full NPC/prop texture detail through better residency; verify PS2 parity for reduced textures.
 - Continue campaign traversal/physics coverage beyond the repaired walking route.
 - DEFERRED / TO COMPLETE: Finish lighting lifecycle updates, shadows and visual parity within64MiB; revisit after critical gameplay systems.
@@ -33,6 +33,26 @@ Shortlist:
 - USER: Review the interactive PC movement and audio items listed below.
 
 Progress reporting: include a very high-level working area (e.g. Lighting, AI, Weapons, GeoMod or Scripted events) and an overall percent estimate at the end of every turn report (USER preference) and revisit remaining 24-hour workdays when measured throughput supports a forecast; current rough estimate45% (35-45%), no defensible +/-48-hour completion forecast before end-to-end gameplay.
+
+Strip_Player_Weapons now clears shared weapon ownership/ammunition, cancels
+reload/fire state and enters an unarmed presentation. Startup strips use the
+same ordered queue as item grants, so inventory initialization cannot undo them.
+Firing is blocked and weapon vertices are hidden while the selected weapon is
+unowned; movement and interactions remain available. A later supported weapon
+grant/pickup automatically selects an owned slot. Handoff represents unarmed as
+UINT32_MAX without indexing inventory at that value. Unarmed respawn stays
+unarmed instead of restoring the diagnostic pistol. All37 PC tests pass,
+including unarmed handoff validation. Controlled strip-only, rearm, backtracking
+and respawn cases pass; rearm grants Riot Stick and permits its primary hit.
+This practical policy clears all ammo too; full original strip/holster visual
+sequencing and natural campaign traversal remain open. Evidence:artifacts/weapon-strip.
+Reproduce:python tools/replay_weapon_strip.py.
+Stock64MiB XEMU replay `replay-20260914-125923` passes240 frames and both
+section transitions with exact PC state:unarmed ID, zero ammo/shots and zero
+weapon vertices. NXDK build/restoration succeeds. All five PC strip cases,
+including mid-play stripping, pass; the existing armed rifle respawn replay
+also passes, preserving its prior ammo/reload behavior.
+
 
 Riot Stick now occupies playable slot2 after pistol/rifle. Weapon cycling skips
 unowned slots; ammo publication, reload ownership and campaign handoff use the

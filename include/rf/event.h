@@ -312,6 +312,8 @@ typedef struct rf_runtime_triggers {
     void *vitals_context;
     int (*give_item)(void *,const char *name);
     void *give_item_context;
+    int (*strip_weapons)(void *);
+    void *strip_weapons_context;
     int (*load_level)(void *context,const rf_level_event *,uint32_t source,uint32_t actor);
     void *load_level_context;
     rf_campaign_goals *goals; /* Borrowed campaign owner; survives scene teardown. */

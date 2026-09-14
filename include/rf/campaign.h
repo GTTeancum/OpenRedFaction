@@ -7,7 +7,7 @@
 typedef struct rf_campaign_player_state {
     rf_weapon_inventory inventory;
     float health,armor;
-    uint32_t weapon,catalog_hash;
+    uint32_t weapon,catalog_hash; /* UINT32_MAX weapon means unarmed. */
 } rf_campaign_player_state;
 /* Living players only; failure preserves destination. No allocation. */
 int rf_campaign_player_copy(rf_campaign_player_state *destination,
