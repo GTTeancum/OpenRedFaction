@@ -21,6 +21,10 @@ typedef struct rf_level {
 } rf_level;
 
 typedef struct rf_level_lighting {unsigned char color[4],directional;} rf_level_lighting;
+typedef struct rf_level_message {uint32_t id;char voice[64],text[512];} rf_level_message;
+/* Bounded English mission-table lookup; caller owns output. Errors preserve it. */
+int rf_level_message_parse(const void *data,uint32_t bytes,uint32_t id,rf_level_message *result);
+int rf_level_message_read(const rf_level *level,uint32_t id,rf_level_message *result);
 /* v180 section900 /4618b0: initial RGBA and directional switch after texture
  * name and its integer field. Original switch==1 creates a directional
  * source instead; other switch values select ambient. No allocation;

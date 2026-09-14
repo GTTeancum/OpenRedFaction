@@ -15,6 +15,66 @@ int rf_level_entity_find(const rf_level *level,int32_t uid,rf_level_entity *enti
 #include <string.h>
 #include <math.h>
 #include <stdlib.h>
+static void message_space(const char **cursor,const char *end)
+{
+    while(*cursor<end && (**cursor==' ' || **cursor=='\t' || **cursor=='\r' || **cursor=='\n'))++*cursor;
+}
+static int message_quoted(const char **cursor,const char *end,char *out,uint32_t capacity)
+{
+    const char *p=*cursor;uint32_t n=0;
+    if(p==end || *p++!='"')return RF_FORMAT;
+    while(p<end && *p!='"') {
+        char c=*p++;if(!c)return RF_FORMAT;
+        if(c=='\\') {
+            if(p==end)return RF_FORMAT;c=*p++;
+            if(c=='n')c='\n';else if(c=='r')c='\r';else if(c=='t')c='\t';
+            else if(out && c!='"' && c!='\\')return RF_FORMAT;
+        }
+        if(out){if(n+1>=capacity)return RF_RANGE;out[n++]=c;}
+    }
+    if(p==end)return RF_FORMAT;
+    if(out)out[n]=0;*cursor=p+1;return RF_OK;
+}
+int rf_level_message_parse(const void *data,uint32_t bytes,uint32_t id,rf_level_message *result)
+{
+    const char *p=data,*end;rf_level_message candidate={0},selected={0};uint32_t current=0,have=0,found=0,english=0;int status;
+    if(!data || !result || bytes>65536)return RF_RANGE;
+    end=p+bytes;
+    while(1) {
+        message_space(&p,end);if(p==end)break;
+        if(end-p>=2 && p[0]=='/' && p[1]=='/'){while(p<end && *p!='\n' && *p!='\r')++p;continue;}
+        if(*p>='0' && *p<='9') {
+            if(have && !english)return RF_FORMAT;
+            current=0;english=0;memset(&candidate,0,sizeof(candidate));
+            do {uint32_t digit=(uint32_t)(*p++-'0');if(current>(UINT32_MAX-digit)/10)return RF_RANGE;current=current*10+digit;} while(p<end && *p>='0' && *p<='9');
+            candidate.id=current;have=1;message_space(&p,end);
+            status=message_quoted(&p,end,candidate.voice,sizeof(candidate.voice));if(status)return status;
+        } else {
+            uint32_t en;
+            if(!have || end-p<3 || p[2]!=':')return RF_FORMAT;
+            en=p[0]=='E' && p[1]=='n';p+=3;message_space(&p,end);
+            if(en && english)return RF_FORMAT;
+            status=message_quoted(&p,end,en?candidate.text:NULL,sizeof(candidate.text));if(status)return status;
+            if(en){english=1;if(current==id){if(found)return RF_FORMAT;selected=candidate;found=1;}}
+        }
+    }
+    if(have && !english)return RF_FORMAT;
+    if(!found)return RF_NOT_FOUND;*result=selected;return RF_OK;
+}
+int rf_level_message_read(const rf_level *level,uint32_t id,rf_level_message *result)
+{
+    char name[RF_LEVEL_NAME_CAPACITY];const char *dot;uint32_t n;rf_vpp_entry entry;void *data;int status;
+    if(!level || !level->archive || !result)return RF_RANGE;
+    dot=strrchr(level->entry.name,'.');n=dot?(uint32_t)(dot-level->entry.name):(uint32_t)strlen(level->entry.name);
+    if(n+10>sizeof(name))return RF_RANGE;
+    memcpy(name,level->entry.name,n);memcpy(name+n,"_text.tbl",10);
+    status=rf_vpp_find(level->archive,name,&entry);if(status)return status;
+    if(entry.size>65536)return RF_RANGE;
+    data=malloc(entry.size?entry.size:1);if(!data)return RF_IO;
+    status=rf_vpp_read(level->archive,&entry,0,data,entry.size);
+    if(!status)status=rf_level_message_parse(data,entry.size,id,result);
+    free(data);return status;
+}
 
 static uint32_t le32(const unsigned char *p)
 {

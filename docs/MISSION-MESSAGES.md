@@ -17,8 +17,20 @@ and L8S2 messages2/9/12/14/15. Preserve subtitle display when a voice is absent.
 Source hashes, per-level counts and missing references are recorded locally in
 `artifacts/mission-messages.json`; original dialogue text remains untracked.
 
-Next implementation: shared bounded table lookup, Message event dispatch, a
-timed subtitle display, and voice playback through the existing audio owner.
+Shared bounded lookup is implemented in `rf_level_message_parse/read`. It
+reads from the RFL archive using the entry filename, caps temporary table input
+at64KiB, copies the selected record into a580-byte result, and releases the
+table allocation before returning. Failed reads preserve the caller output.
+English is the first-pass display language; voice filenames are retained.
+
+`tools/verify_mission_messages.py` independently compares all918 installed
+English records across66 tables with the C parser. All match. The37-test PC
+suite passes, including malformed/truncated, oversized, duplicate requested ID
+and missing-ID cases. PC and NXDK Xbox builds succeed. This verifies lookup,
+not live presentation or native runtime behavior.
+
+Next implementation: Message event dispatch, a timed subtitle display, and
+voice playback through the existing audio owner.
 Queue/interrupt behavior, speaker placement, timing and language handling need
 explicit first-pass decisions and validation. No live message support is claimed
 by the inventory alone.

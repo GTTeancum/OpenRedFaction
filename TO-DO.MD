@@ -31,6 +31,12 @@ Shortlist:
 
 Progress reporting: include a very high-level working area (e.g. Lighting, AI, Weapons, GeoMod or Scripted events) and an overall percent estimate at the end of every turn report (USER preference) and revisit remaining 24-hour workdays when measured throughput supports a forecast; current rough estimate45% (35-45%), no defensible +/-48-hour completion forecast before end-to-end gameplay.
 
+Mission dialogue lookup now matches all918 installed English records in66
+tables through shared C code. PC and NXDK builds succeed;37 tests pass.
+Temporary text-table storage is capped at64KiB and released after lookup.
+Message event dispatch, timed subtitles and voice playback remain open.
+See docs/MISSION-MESSAGES.md and artifacts/mission-message-reader.json.
+
 Stock64MiB Xbox repeated Slay_Object test passes90 frames: one NPC8432 death
 entry, health-1, matching PC. Evidence: replay-20260914-081317/report.json.
 Mission-message inventory locates66 level-local text tables/918 entries; all
