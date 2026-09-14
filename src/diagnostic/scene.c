@@ -732,7 +732,7 @@ int rf_scene_fire_setup_event(uint32_t uid,int32_t now)
 {
     uint32_t i;rf_startup_events_report report;
     for(i=0;i<campaign_events.count;i++)if(campaign_events.items[i].authored->record.uid==uid) {
-        if(campaign_events.items[i].state.type!=48 && campaign_events.items[i].state.type!=2 && campaign_events.items[i].state.type!=1 && campaign_events.items[i].state.type!=15 && campaign_events.items[i].state.type!=24 && campaign_events.items[i].state.type!=30 && campaign_events.items[i].state.type!=13 && campaign_events.items[i].state.type!=14)return RF_FORMAT;
+        if(campaign_events.items[i].state.type!=48 && campaign_events.items[i].state.type!=2 && campaign_events.items[i].state.type!=1 && campaign_events.items[i].state.type!=15 && campaign_events.items[i].state.type!=24 && campaign_events.items[i].state.type!=30 && campaign_events.items[i].state.type!=13 && campaign_events.items[i].state.type!=14 && campaign_events.items[i].state.type!=19)return RF_FORMAT;
         return rf_runtime_event_fire(&campaign_triggers,campaign_events.items[i].handle,UINT32_MAX,UINT32_MAX,now,&scene_gravity,NULL,NULL,&report);
     }
     return RF_NOT_FOUND;
@@ -1473,6 +1473,10 @@ static rf_weapon_supply_catalog campaign_weapon_supply;
 static rf_weapon_primary_definition campaign_pistol,campaign_primary[2];
 static uint32_t campaign_equipped_slot,weapon_cycle_held;static int32_t campaign_rifle_id=-1;
 uint32_t rf_scene_weapon_selection[8];
+typedef struct campaign_item_grant {int32_t weapon,quantity;uint32_t gives_weapon;} campaign_item_grant;
+static campaign_item_grant campaign_item_pending[32];
+static uint32_t campaign_item_pending_count,campaign_inventory_ready;
+uint32_t rf_scene_script_grants[8]; /* applied, acquired, rounds, weapon, owned, loaded, reserve, status */
 static rf_weapon_inventory campaign_player_inventory;static int32_t campaign_pistol_id=-1;
 static rf_campaign_player_state campaign_player_import,campaign_player_export;
 static uint32_t campaign_import_pending,campaign_export_valid;
@@ -7597,6 +7601,31 @@ static int campaign_slay_object(void *context,uint32_t handle,uint32_t source,in
  * Practical combat backend; exact AI state machine and pursuit remain open. */
 float rf_scene_script_attack_position[9]; /* initial/current attacker position, target position */
 uint32_t rf_scene_script_attack[12]; /* requests,event,attacker UID,target,on,shots,damage,initial/final health,pursuit ticks,sampled,attacker handle */
+static int campaign_apply_item_grant(const campaign_item_grant *request)
+{
+    const rf_weapon_acquire_definition *d=campaign_weapon_supply.definitions+request->weapon;
+    rf_weapon_pickup_grant grant={0};int status=rf_weapon_pickup_grant_sp(&campaign_player_inventory,d,request->weapon,request->quantity,request->gives_weapon,&grant);
+    rf_scene_script_grants[7]=(uint32_t)status;if(status)return status;
+    ++rf_scene_script_grants[0];rf_scene_script_grants[1]+=grant.acquired;rf_scene_script_grants[2]+=grant.rounds;
+    rf_scene_script_grants[3]=(uint32_t)request->weapon;rf_scene_script_grants[4]=campaign_player_inventory.owned[request->weapon];
+    rf_scene_script_grants[5]=(uint32_t)campaign_player_inventory.loaded[request->weapon];rf_scene_script_grants[6]=(uint32_t)campaign_player_inventory.reserve[d->ammo_type];
+    campaign_ammo_publish();return RF_OK;
+}
+static int campaign_give_item(void *context,const char *name)
+{
+    rf_vpp tables={0};rf_item_definition item;campaign_item_grant request;int status;
+    if(!context || !name || !name[0])return RF_NOT_FOUND;
+    status=rf_vpp_open(&tables,(const char *)context);if(status)return status;
+    status=rf_item_definition_load(&tables,name,128*1024,&item);rf_vpp_close(&tables);if(status)return status;
+    if(!item.weapon[0] || (item.flags&1))return RF_NOT_FOUND;
+    request.weapon=rf_weapon_name_find(&campaign_weapon_supply.names,item.weapon);if(request.weapon<0)return RF_NOT_FOUND;
+    request.quantity=item.count;request.gives_weapon=item.gives_weapon;
+    if(!campaign_inventory_ready) {
+        if(campaign_item_pending_count==32)return RF_RANGE;
+        campaign_item_pending[campaign_item_pending_count++]=request;return RF_OK;
+    }
+    return campaign_apply_item_grant(&request);
+}
 static int campaign_adjust_vitals(void *context,uint32_t handle,int32_t amount,uint32_t armor)
 {
     rf_damage_effect_state *vitals=NULL;campaign_npc_body *owner=NULL;uint32_t i,slot=0;float value,limit;
@@ -7819,6 +7848,11 @@ static int campaign_combat_tick(scene_stream *stream,uint32_t frame,const float 
         }
         for(i=0;i<campaign_npc_body_count;i++){campaign_pursuit_stop(campaign_npc_bodies+i);campaign_npc_bodies[i].combat_navigation_due=0;campaign_npc_bodies[i].combat_scripted=campaign_npc_bodies[i].combat_target=campaign_npc_bodies[i].combat_alert=campaign_npc_bodies[i].combat_due=0;}
 }
+    if(!campaign_inventory_ready) {
+        campaign_inventory_ready=1;
+        for(i=0;i<campaign_item_pending_count;i++){status=campaign_apply_item_grant(campaign_item_pending+i);if(status)return status;}
+        campaign_item_pending_count=0;
+    }
     if(combat_frame==frame)return RF_OK;combat_frame=frame;
     status=campaign_pickups_tick(stream,position);rf_scene_pickups[7]=(uint32_t)status;if(status)return status;
     if(player_input.cycle_weapon && !weapon_cycle_held && campaign_player_damage.state.effects.health>0) {
@@ -10419,7 +10453,7 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
             campaign_triggers.load_level=campaign_load_level;campaign_triggers.load_level_context=&rf_scene_level_transition;
 
             if(status)goto done;
-            campaign_triggers.set_friendliness=campaign_set_friendliness;campaign_triggers.adjust_vitals=campaign_adjust_vitals;
+            campaign_triggers.set_friendliness=campaign_set_friendliness;campaign_triggers.adjust_vitals=campaign_adjust_vitals;campaign_triggers.give_item=campaign_give_item;campaign_triggers.give_item_context=(void *)tables_path;
             campaign_triggers.set_visible=campaign_set_visible;
             campaign_triggers.set_invulnerable=campaign_set_invulnerable;
             campaign_triggers.remove_object=campaign_remove_object;
@@ -10756,6 +10790,7 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
             memset(campaign_ambient_slots,0,sizeof(campaign_ambient_slots));
             for(i=0;i<RF_AMBIENT_SLOTS;i++)campaign_ambient_slots[i].sample=campaign_ambient_slots[i].voice=-1;
             memset(rf_scene_ambient_schedule,0,sizeof(rf_scene_ambient_schedule));campaign_ambient_frame=UINT32_MAX;
+            campaign_inventory_ready=campaign_item_pending_count=0;memset(rf_scene_script_grants,0,sizeof(rf_scene_script_grants));
             status=campaign_actors_restore();if(status)goto done;
             campaign_triggers.death_query=campaign_death_query;
             campaign_triggers.activate_mover=campaign_event_mover;

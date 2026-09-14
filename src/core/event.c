@@ -588,6 +588,13 @@ static void startup_event_action(void *context,rf_event_state *state,uint32_t ac
             startup_target(c,c->event->links+i,source,actor,(mode&255u)==1);
         return;
     }
+    if(state->type==19) {
+        int status;if(action!=1)return;
+        if(!c->triggers->give_item){++c->report->unsupported_actions;return;}
+        status=c->triggers->give_item(c->triggers->give_item_context,c->event->authored->record.texts[0]);
+        if(status==RF_NOT_FOUND)++c->report->other_targets;else c->status=status;
+        return;
+    }
     if(state->type==13 || state->type==14) {
         const rf_level_event *e=&c->event->authored->record;int32_t amount;int status;
         if(action!=1)return;
@@ -948,6 +955,7 @@ int rf_runtime_events_tick(rf_runtime_events *events,rf_runtime_triggers *trigge
            !(event->state.type==22 && triggers->load_level) &&
            !(event->state.type>=35 && event->state.type<=37 && triggers->goals) &&
            !((event->state.type==13 || event->state.type==14) && triggers->adjust_vitals) &&
+           !(event->state.type==19 && triggers->give_item) &&
            !(event->state.type==30 && triggers->set_friendliness) &&
            !(event->state.type==24 && triggers->set_invulnerable) &&
            !(event->state.type==38 && triggers->attack_npc) &&

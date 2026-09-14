@@ -17,7 +17,7 @@ Shortlist:
 - DEFERRED / TO COMPLETE: Improve Xbox performance beyond the current basic-testing baseline; revisit NPC pose evaluation.
 - TO COMPLETE: Preserve remaining world changes across sections, including actor placement/inventory and dropped items.
 - ACTIVE: Verify enemy firing visually, add muzzle/impact effects, and extend natural-trigger encounter coverage.
-- TO COMPLETE: Expand the working pistol/rifle combat, pickups and first-person feedback to the remaining weapons.
+- ACTIVE: Make the granted Riot Stick selectable and usable, support weapon stripping, then expand the remaining weapons.
 - DEFERRED / TO COMPLETE: Restore full NPC/prop texture detail through better residency; verify PS2 parity for reduced textures.
 - Continue campaign traversal/physics coverage beyond the repaired walking route.
 - DEFERRED / TO COMPLETE: Finish lighting lifecycle updates, shadows and visual parity within64MiB; revisit after critical gameplay systems.
@@ -33,6 +33,24 @@ Shortlist:
 - USER: Review the interactive PC movement and audio items listed below.
 
 Progress reporting: include a very high-level working area (e.g. Lighting, AI, Weapons, GeoMod or Scripted events) and an overall percent estimate at the end of every turn report (USER preference) and revisit remaining 24-hour workdays when measured throughput supports a forecast; current rough estimate45% (35-45%), no defensible +/-48-hour completion forecast before end-to-end gameplay.
+
+Give_Item_To_Player now resolves named items.tbl weapon/ammo definitions and
+applies the existing SP pickup grant to the shared inventory. Requests during
+startup wait in a fixed32-entry queue (384 bytes) until starting/imported
+inventory is ready, so frame0 initialization cannot erase the grant. Repeated
+requests add allowed ammo without reacquiring an owned weapon. The live9870
+regression grants Riot Stick ID2 with one loaded unit; a second request adds
+one reserve unit. This does not equip Riot Stick: usable selection, melee,
+first-person presentation and authored Strip_Player_Weapons remain critical
+open work. Non-weapon item grants are unsupported. All37 PC tests and both
+startup/repeated-grant replays pass. Original4bb690 creates a temporary item
+through459100 before pickup dispatch; this practical path reuses decoded item
+benefits without creating that object. Reproduce:python tools/replay_script_grants.py.
+Evidence:artifacts/script-grants.
+Stock64MiB XEMU replay `replay-20260914-124350` passes90 frames with exact
+PC grant/inventory diagnostics:two requests, one acquisition, one loaded and
+one reserve unit. NXDK build and restoration succeed.
+
 
 Authored Heal and Armor events now dispatch signed amounts to linked NPCs and
 the optional player target through shared runtime callbacks, including delayed
