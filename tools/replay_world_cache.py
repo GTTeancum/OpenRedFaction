@@ -4,9 +4,10 @@ from pathlib import Path
 
 p = argparse.ArgumentParser()
 p.add_argument('baseline', type=Path)
+p.add_argument('--out', type=Path, default=Path('artifacts/world-cache'))
 a = p.parse_args()
 r = Path(__file__).resolve().parents[1]
-d = r / 'artifacts/world-cache'
+d = a.out.resolve()
 d.mkdir(exist_ok=True)
 executables = [a.baseline.resolve(), r / 'build/pc/Release/rf_pc_play.exe']
 hashes = [hashlib.sha256(x.read_bytes()).hexdigest() for x in executables]

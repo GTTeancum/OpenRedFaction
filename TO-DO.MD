@@ -34,6 +34,17 @@ Shortlist:
 
 Progress reporting: include a very high-level working area (e.g. Lighting, AI, Weapons, GeoMod or Scripted events) and an overall percent estimate at the end of every turn report (USER preference) and revisit remaining 24-hour workdays when measured throughput supports a forecast; current rough estimate45% (35-45%), no defensible +/-48-hour completion forecast before end-to-end gameplay.
 
+Clip-code cache verified in replay-20260914-093743:180-frame stock64MiB
+crossing/state/HUD checks pass; complete640x480 native final framebuffer
+matches091453 exactly. Both builds and37 tests pass; six PC comparisons
+match final pixels and world/model/player summaries. Transient cache1280B.
+Measured world rebuild25.135->24.317ms; scene88.875->83.482ms. Platform
+27.260->24.212ms also changes, so the overall gain is not attributable solely
+to this cache. Treat as a modest reduction, roughly11-12FPS-equivalent
+frame work, not hardware FPS. Next: larger world projection/submission costs.
+Evidence: artifacts/world-clip-codes/pc-report.json, performance.json,
+and artifacts/xemu/replay-20260914-093743/native-image-comparison.json.
+
 Vertex-upload experiment rejected after replay-20260914-093224. Preparing
 colors in a local vertex before writing GPU storage passes stock64MiB replay
 state and selected HUD pixels, but upload time5.144->6.212ms shows no measured

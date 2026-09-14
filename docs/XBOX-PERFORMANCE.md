@@ -147,3 +147,21 @@ Evidence: artifacts/vertex-upload/performance.json and native-image-comparison.j
 in artifacts/xemu/replay-20260914-093224. Repeatable tool:
 tools/compare_native_replay_images.py. This verifies one final frame only.
 Next: world projection/clipping remains the measured CPU target (~25ms).
+
+World clip-code cache candidate: reuse each transformed vertex's six-plane
+outside mask across face fans, preserving the existing full clipping order
+for crossing triangles. Cache grows1024->1280 transient bytes. PC build
+and37 tests pass; five walking transitions plus visible actor8323 match
+baseline final pixels and world/model/player summaries. Native --capture
+timing/state replay completed; verified results follow.
+
+Clip-code cache verified in replay-20260914-093743:180-frame stock64MiB
+crossing/state/HUD checks pass; complete640x480 native final framebuffer
+matches091453 exactly. Both builds and37 tests pass; six PC comparisons
+match final pixels and world/model/player summaries. Transient cache1280B.
+Measured world rebuild25.135->24.317ms; scene88.875->83.482ms. Platform
+27.260->24.212ms also changes, so the overall gain is not attributable solely
+to this cache. Treat as a modest reduction, roughly11-12FPS-equivalent
+frame work, not hardware FPS. Next: larger world projection/submission costs.
+Evidence: artifacts/world-clip-codes/pc-report.json, performance.json,
+and artifacts/xemu/replay-20260914-093743/native-image-comparison.json.

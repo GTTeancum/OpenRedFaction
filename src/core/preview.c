@@ -81,11 +81,11 @@ static unsigned clip(const point *input, unsigned count, point *output, unsigned
     return used;
 }
 /* Per-generate cache: geometry, camera and mover pose are fixed for its lifetime.
- * Cache only rounded positions; UVs remain owned by each face corner. */
-typedef struct camera_cache_entry { uint32_t vertex; float position[3]; } camera_cache_entry;
+ * Cache rounded positions and clip codes; UVs remain owned by each face corner. */
+typedef struct camera_cache_entry { uint32_t vertex; float position[3]; uint32_t outside; } camera_cache_entry;
 #define CAMERA_CACHE_COUNT 64u
 static int camera(const rf_geometry *g, const rf_level *level, const rf_geometry_corner *corner,
-    const float *origin,const float matrix[3][3],camera_cache_entry *cache,point *out)
+    const float *origin,const float matrix[3][3],camera_cache_entry *cache,point *out,uint32_t *outside)
 {
     float p[3], v[3];
     camera_cache_entry *entry=cache+(corner->vertex&(CAMERA_CACHE_COUNT-1));
@@ -95,7 +95,7 @@ static int camera(const rf_geometry *g, const rf_level *level, const rf_geometry
     result.lu = corner->lightmap_uv[0]; result.lv = corner->lightmap_uv[1];
     if(entry->vertex==corner->vertex && corner->vertex!=UINT32_MAX) {
         result.x=entry->position[0];result.y=entry->position[1];result.z=entry->position[2];
-        *out=result;return RF_OK;
+        *outside=entry->outside;*out=result;return RF_OK;
     }
     if(rf_geometry_vertex(g, corner->vertex, p))return RF_FORMAT;
     if(origin) {
@@ -110,7 +110,9 @@ static int camera(const rf_geometry *g, const rf_level *level, const rf_geometry
     }
     entry->vertex=corner->vertex;
     entry->position[0]=result.x;entry->position[1]=result.y;entry->position[2]=result.z;
-    *out=result;return RF_OK;
+    entry->outside=0;
+    for(i=0;i<6;++i)if(distance(result,i)<0)entry->outside|=1u<<i;
+    *outside=entry->outside;*out=result;return RF_OK;
 }
 static int generate(rf_preview_mesh *mesh, const rf_geometry *g, const rf_level *level, uint32_t capacity,
     const float *origin,const float matrix[3][3],uint32_t material_base)
@@ -121,7 +123,7 @@ static int generate(rf_preview_mesh *mesh, const rf_geometry *g, const rf_level 
     for (f = 0; f < g->faces; ++f) {
         rf_geometry_face face;
         rf_geometry_corner a, b, c;
-        point anchor,previous;
+        point anchor,previous;uint32_t anchor_outside,previous_outside;
         uint32_t corner, lightmap = UINT32_MAX;
         float color;int status;
         rf_geometry_get_face(g, f, &face);
@@ -141,27 +143,26 @@ static int generate(rf_preview_mesh *mesh, const rf_geometry *g, const rf_level 
         rf_geometry_get_corner(g, f, 0, &a);
         if(face.corners<3)continue;
         rf_geometry_get_corner(g,f,1,&b);
-        if((status=camera(g,level,&a,origin,matrix,cache,&anchor)) ||
-           (status=camera(g,level,&b,origin,matrix,cache,&previous)))return status;
+        if((status=camera(g,level,&a,origin,matrix,cache,&anchor,&anchor_outside)) ||
+           (status=camera(g,level,&b,origin,matrix,cache,&previous,&previous_outside)))return status;
         for (corner = 1; corner + 1 < face.corners; ++corner) {
             point buffers[2][12];
-            unsigned count = 3, plane, current = 0, i, j, crossing=0;
+            unsigned count = 3, plane, current = 0, i, j, crossing,next_outside;
             /* A polygon fan reuses its anchor and the previous corner. Keep
              * their rounded camera-space values rather than transforming each
              * occurrence again. UVs belong to these same face corners. */
             rf_geometry_get_corner(g, f, corner + 1, &c);
             buffers[0][0]=anchor;buffers[0][1]=previous;
-            if((status=camera(g,level,&c,origin,matrix,cache,&buffers[0][2])))return status;
+            if((status=camera(g,level,&c,origin,matrix,cache,&buffers[0][2],&next_outside)))return status;
             previous=buffers[0][2];
             /* Convex frustum: triangles wholly outside one plane cannot
              * contribute, and wholly inside triangles need no polygon copies.
              * Crossing triangles retain the original six-plane clip order. */
-            for(plane=0;plane<6;++plane) {
-                unsigned outside=0;
-                for(j=0;j<3;++j)outside+=distance(buffers[0][j],plane)<0;
-                if(outside==3){count=0;break;}
-                crossing|=outside;
-            }
+            /* Codes use the same rounded six-plane distances as clipping.
+             * Shared vertices retain their classification across adjacent fans. */
+            if(anchor_outside&previous_outside&next_outside)count=0;
+            crossing=anchor_outside|previous_outside|next_outside;
+            previous_outside=next_outside;
             for (plane = 0; crossing && plane < 6 && count; ++plane) {
                 count = clip(buffers[current], count, buffers[1-current], plane);
                 current = 1-current;
