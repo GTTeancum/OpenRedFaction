@@ -20,7 +20,7 @@ def call(name,args):
 
 
 
-rng=random.Random(0x4d8130);inputs=[];responses=[];P=0xc4e7d8;hits=[0,0,0]
+rng=random.Random(0x4d8130);inputs=[];responses=[];live_inputs=[];live_responses=[];P=0xc4e7d8;hits=[0,0,0]
 for i in range(4096):
  kind=2+i%3;position=[rng.uniform(-10,10) for _ in range(3)];end=[rng.uniform(-10,10) for _ in range(3)];axis=[rng.uniform(-1,1) for _ in range(3)]
  radius=rng.uniform(.01,10);angle=rng.uniform(.1,6.1);lo=[rng.uniform(-10,0) for _ in range(3)];hi=[v+rng.uniform(0,15) for v in lo]
@@ -41,9 +41,37 @@ for i in range(4096):
  o.mem_write(STACK,w(STOP,P,B+84,B+96));o.reg_write(UC_X86_REG_ESP,STACK);o.emu_start({2:0x4d8130,3:0x4d81d0,4:0x4d8250}[kind],STOP,count=100000);assert o.reg_read(UC_X86_REG_EIP)==STOP
  hit=o.reg_read(UC_X86_REG_EAX)&255;hits[kind-2]+=hit
  assert got==volume+w(hit),(i,kind,got.hex(),(volume+w(hit)).hex())
+ # Move the original live light after construction; keep a segment's endpoint
+ # fixed as4d91d0 does, and preserve its already-biased radius.
+ if i<384:
+  moved=f(*(v+13.25 for v in position));o.mem_write(B+200,moved)
+  o.mem_write(STACK,w(STOP,0,B+200));o.reg_write(UC_X86_REG_ESP,STACK)
+  o.emu_start(0x4d91d0,STOP,count=100000);assert o.reg_read(UC_X86_REG_EIP)==STOP
+  assert call('rf_vfx_light_create',[B,FACE])==0;x.mem_write(FACE+8,moved)
+  source=bytes(x.mem_read(FACE,76));live_inputs.append(source+data[76:80]+data[84:108])
+  x.mem_write(OUT,b'\xa5'*156)
+  assert call('rf_visibility_light_source_volume',[FACE,read(x,B+76),OUT])==0
+  assert call('rf_visibility_light_bounds',[OUT,B+84,B+96,OUT+152])==0
+  moved_got=bytes(x.mem_read(OUT,156));live_responses.append(w(0)+moved_got)
+  planes=bytes(120)
+  if kind==3:
+   o.mem_write(STACK,w(STOP,P,0,0));o.reg_write(UC_X86_REG_ESP,STACK)
+   o.emu_start(0x4d86d0,0x4d89f8,count=100000);assert o.reg_read(UC_X86_REG_EIP)==0x4d89f8
+   planes=b''.join(bytes(o.mem_read(P+0x94+j*16,16))+bytes(o.mem_read(P+0xf4+j*4,4)) for j in range(6))
+  volume=w(kind)+bytes(o.mem_read(P+12,12))+(bytes(o.mem_read(P+24,12)) if kind==4 else bytes(12))+bytes(o.mem_read(P+0x3c,4))+planes
+  o.mem_write(STACK,w(STOP,P,B+84,B+96));o.reg_write(UC_X86_REG_ESP,STACK)
+  o.emu_start({2:0x4d8130,3:0x4d81d0,4:0x4d8250}[kind],STOP,count=100000);assert o.reg_read(UC_X86_REG_EIP)==STOP
+  assert moved_got==volume+w(o.reg_read(UC_X86_REG_EAX)&255),(i,kind,'moved source')
+
 for offset,value in [(0,w(1)),(64,f(-1)),(16,f(float('nan')))]:
  bad=bytearray(data);bad[offset:offset+4]=value;inputs.append(bytes(bad));x.mem_write(B,bytes(bad));x.mem_write(OUT,b'\xa5'*156)
  status=call('rf_visibility_light_volume',[B,OUT]);assert status and bytes(x.mem_read(OUT,156))==b'\xa5'*156;responses.append(w(status)+b'\xa5'*156)
 assert subprocess.check_output([str(root/'build/pc/Release/rf_effect_probe.exe'),'--light-volume'],input=b''.join(inputs))==b''.join(responses)
-report=dict(result='PASS',original_pc_nxdk_cases=4096,guards=3,hits=hits,scope='Actual source constructors, spotlight width/planes and point/cone/segment box predicates without hooks; all152 prepared volume bytes and bounds decisions match PC/NXDK. World-space supplied definitions, room traversal/native owner composition excluded.')
+moved_cases=len(live_inputs)
+for sample,offset,value in [(0,0,w(1)),(0,56,f(-1)),(0,8,f(float('nan'))),(2,20,f(float('nan'))),(1,32,f(float('nan')))]:
+ bad=bytearray(live_inputs[sample]);bad[offset:offset+4]=value;x.mem_write(B,bytes(bad));x.mem_write(OUT,b'\xa5'*156)
+ status=call('rf_visibility_light_source_volume',[B,read(x,B+76),OUT]);assert status and bytes(x.mem_read(OUT,156))==b'\xa5'*156
+ live_inputs.append(bytes(bad));live_responses.append(w(status)+b'\xa5'*156)
+assert subprocess.check_output([str(root/'build/pc/Release/rf_effect_probe.exe'),'--light-source-volume'],input=b''.join(live_inputs))==b''.join(live_responses)
+report=dict(result='PASS',original_pc_nxdk_cases=4096,original_pc_nxdk_moved_source_cases=moved_cases,live_source_guards=5,guards=3,hits=hits,scope='Actual source constructors, spotlight width/planes and point/cone/segment box predicates without hooks; all152 prepared volume bytes and bounds decisions match PC/NXDK. World-space supplied definitions, room traversal/native owner composition excluded.')
 (root/'artifacts/light-volume.json').write_text(json.dumps(report,indent=2));print(report)

@@ -454,9 +454,10 @@ static int scene_lights_tick(scene_stream *stream,float seconds)
         ++rf_scene_light_ticks[1];rf_scene_light_ticks[2]+=owner->clocks[i].changed;
         if(visibility) {
             rf_light_visibility_volume volume;
-            /* Authored stationary light geometry; moving/replaced sources and
-             * alternate-view solids still need their lifecycle bindings. */
-            status=rf_visibility_light_volume(&item->activation.definition,&volume);
+            /* Geometry comes from the current slot; cone angle remains authored
+             * metadata. Alternate-view solids still need lifecycle bindings. */
+            status=rf_visibility_light_source_volume(&owner->pool.sources[item->id].source,
+                item->activation.definition.outer_angle,&volume);
             if(!status)status=rf_visibility_light_world(&volume,stream->collision,stream->light_storage,1,0,&stream->light_scratch);
             rf_scene_light_ticks[7]=(uint32_t)status;if(status)return status;
             ++rf_scene_light_ticks[3];

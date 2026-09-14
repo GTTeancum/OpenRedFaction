@@ -171,6 +171,10 @@ int rf_visibility_light_world(const rf_light_visibility_volume *,const rf_geomet
  * enabled/color/class filter. Cone planes use the authored outer angle.
  * No allocation; errors preserve output. */
 int rf_visibility_light_volume(const rf_vfx_light_definition *,rf_light_visibility_volume *);
+/* Live source geometry, already carrying the constructor's segment radius bias.
+ * outer_angle is retained authored metadata, required only for cone sources.
+ * No reconstruction of position/end/radius and no second radius bias. */
+int rf_visibility_light_source_volume(const rf_vfx_light_source *,float outer_angle,rf_light_visibility_volume *);
 /*4d8480 resolved view transform followed by the same volume preparation.
  * Transform position/end as points, axis as a direction; no radius scaling. */
 int rf_visibility_light_volume_view(const rf_vfx_light_definition *,const float origin[3],

@@ -652,6 +652,16 @@ int main(int argc,char **argv)
         }
         return 0;
     }
+    if(argc==2 && !strcmp(argv[1],"--light-source-volume")) {
+        struct {rf_vfx_light_source source;float angle,minimum[3],maximum[3];} input;
+        struct {uint32_t status;rf_light_visibility_volume volume;uint32_t hit;} output;
+        _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
+        while(fread(&input,sizeof(input),1,stdin)==1) {
+            memset(&output,0xa5,sizeof(output));output.status=rf_visibility_light_source_volume(&input.source,input.angle,&output.volume);
+            if(!output.status)output.status=rf_visibility_light_bounds(&output.volume,input.minimum,input.maximum,&output.hit);
+            fwrite(&output,sizeof(output),1,stdout);
+        }return 0;
+    }
     if(argc==2 && !strcmp(argv[1],"--light-volume")) {
         struct {rf_vfx_light_definition definition;float minimum[3],maximum[3];} input;
         struct {uint32_t status;rf_light_visibility_volume volume;uint32_t hit;} output;

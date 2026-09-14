@@ -232,18 +232,25 @@ int rf_visibility_light_world(const rf_light_visibility_volume *volume,const rf_
     }
     return RF_OK;
 }
-static int visibility_light_volume_space(const rf_vfx_light_definition *definition,const float *origin,const float *basis,rf_light_visibility_volume *out)
+int rf_visibility_light_source_volume(const rf_vfx_light_source *source,float outer_angle,rf_light_visibility_volume *out)
 {
-    rf_vfx_light_candidate source;rf_light_visibility_volume value;int status;
-    if(!out)return RF_RANGE;status=rf_vfx_light_create(definition,&source);if(status)return status;
-    if(origin){status=rf_vfx_light_transform(&source.source,origin,basis,&source.source);if(status)return status;}
-    memset(&value,0,sizeof(value));value.type=source.source.type;value.radius=source.source.radius;
-    memcpy(value.position,source.source.position,12);memcpy(value.end,source.source.end,12);
+    rf_light_visibility_volume value;uint32_t i;int status;
+    if(!source || !out || source->type<2 || source->type>4 || !isfinite(source->radius) || source->radius<0)return RF_RANGE;
+    for(i=0;i<3;i++)if(!isfinite(source->position[i]) || (source->type==4 && !isfinite(source->end[i])))return RF_RANGE;
+    memset(&value,0,sizeof(value));value.type=source->type;value.radius=source->radius;
+    memcpy(value.position,source->position,12);if(value.type==4)memcpy(value.end,source->end,12);
     if(value.type==3) {
-        status=rf_visibility_light_cone_prepare(value.position,source.source.axis,value.radius,definition->outer_angle,value.planes);
+        status=rf_visibility_light_cone_prepare(value.position,source->axis,value.radius,outer_angle,value.planes);
         if(status)return status;
     }
     *out=value;return RF_OK;
+}
+static int visibility_light_volume_space(const rf_vfx_light_definition *definition,const float *origin,const float *basis,rf_light_visibility_volume *out)
+{
+    rf_vfx_light_candidate source;int status;
+    if(!out)return RF_RANGE;status=rf_vfx_light_create(definition,&source);if(status)return status;
+    if(origin){status=rf_vfx_light_transform(&source.source,origin,basis,&source.source);if(status)return status;}
+    return rf_visibility_light_source_volume(&source.source,definition->outer_angle,out);
 }
 int rf_visibility_light_volume(const rf_vfx_light_definition *definition,rf_light_visibility_volume *out)
 {return visibility_light_volume_space(definition,NULL,NULL,out);}

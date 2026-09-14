@@ -15,6 +15,16 @@ Shortlist:
 
 Progress reporting: include a very high-level working area (e.g. Lighting, AI, Weapons, GeoMod or Scripted events) and an overall percent estimate at the end of every turn report (USER preference) and revisit remaining 24-hour workdays when measured throughput supports a forecast; current rough estimate40% (35-45%), no defensible +/-48-hour completion forecast before end-to-end gameplay.
 
+Scene clock visibility now uses live pool source position/end/radius instead
+of reconstructing the authored placement. Shared source-volume preparation
+preserves the already-biased segment radius and takes retained authored cone
+angle metadata. Original/PC/compiledNXDK match384 moved point/cone/segment
+cases (actual4d91d0), plus4096 world and4096 transformed-view cases; five
+new invalid-source guards preserve outputs. Both builds and26 tests pass.
+Evidence artifacts/light-volume.json and light-volume-view.json. Release/move
+event routing, alternate solids and rendered changing-light validation remain
+open; this change establishes their current-source geometry path.
+
 Light release now exposes original4d9130 visibility notification before unlink,
 after reference decrement and generation advance, retaining the live source,
 list and active cache during the callback. Class0 notifies only for update
