@@ -32,7 +32,10 @@ Shortlist:
 Progress reporting: include a very high-level working area (e.g. Lighting, AI, Weapons, GeoMod or Scripted events) and an overall percent estimate at the end of every turn report (USER preference) and revisit remaining 24-hour workdays when measured throughput supports a forecast; current rough estimate45% (35-45%), no defensible +/-48-hour completion forecast before end-to-end gameplay.
 
 Scripted run/fall actors now accept floor support, fall through body sweeps
-and retry uphill motion along walkable slopes. PC hangar controls pass withctual floor-height correction (Y2.987934),999 steps and no blocks. Both buildsnd36 tests pass. Native1000-frame combined validation is running; resultsmust be checked before claiming Xbox runtime parity for this change.
+and retry uphill motion along walkable slopes. PC hangar controls pass with
+actual floor-height correction (Y2.987934),999 steps and no blocks. Both builds
+and36 tests pass. Native1000-frame combined validation is running; results
+must be checked before claiming Xbox runtime parity for this change.
 Evidence: artifacts/npc-ground-replay.log; artifacts/npc-ground-xemu.log.
 
 Scripted movement now requests authored walk/stand animations using existing
