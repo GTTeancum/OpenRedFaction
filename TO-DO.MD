@@ -6,7 +6,7 @@ and defer visual polish. Focus: movement, combat/damage, AI, mission events,
 then level progression. Fidelity remains a later completion requirement.
 
 Shortlist:
-- ACTIVE: Advance the playable combat loop: weapon input, hit detection, damage and enemy response.
+- ACTIVE: Fix killed NPCs remaining upright, then connect first-person weapon presentation and firing/reload feedback.
 - Continue campaign traversal/physics coverage beyond the repaired walking route.
 - DEFERRED / TO COMPLETE: Finish lighting lifecycle updates, shadows and visual parity within64MiB; revisit after critical gameplay systems.
 - Finish glare volumes/reflections, cross-level bitmap clocks, special visibility and parent ordering/tag resolution.
@@ -21,6 +21,22 @@ Shortlist:
 - USER: Review the interactive PC movement and audio items listed below.
 
 Progress reporting: include a very high-level working area (e.g. Lighting, AI, Weapons, GeoMod or Scripted events) and an overall percent estimate at the end of every turn report (USER preference) and revisit remaining 24-hour workdays when measured throughput supports a forecast; current rough estimate42% (35-45%), no defensible +/-48-hour completion forecast before end-to-end gameplay.
+
+Stock64MiB XEMU360-frame combat regression PASS after the surface-ray and
+friendliness changes:22 shots,8 hits,1 recorded kill;8 return hits,health61.6.
+State/HUD match PC;7115 available pages at completion. Evidence:
+artifacts/xemu/replay-20260914-011423/report.json and framebuffer.png.
+VISUAL FAILURE: inspected final capture still shows the killed guard upright;
+fix death-pose publication/playback before treating NPC death as complete.
+This replay does not prove door-gap shots or authored allegiance transitions.
+
+Next weapon integration: the installed12mm handgun uses fp_glock.v3c(52232
+bytes), idle/fire/reload RFA clips(5880/5240/8712 bytes), Glock Launch and
+Glock Reload foley groups. Authored .v3d/.mvf names are logical labels, not
+missing assets. Table values are16 rounds,1.1s reload,0.5s primary fire wait
+and40 SP base damage; current12-round prototype tuning remains provisional.
+Asset inventory evidence: artifacts/player-weapon-assets.json. No player gun
+rendering or audible weapon feedback is claimed by this inventory audit.
 
 Player hitscan now selects the nearest NPC bounds, then checks actual static/
 moving collision faces along the segment to that target. Mover AABBs no longer

@@ -11120,3 +11120,11 @@ The initialized-snapshot fix also passes stock64MiB XEMU1500-frame replay:
 artifacts/xemu/replay-20260914-004948/report.json. Body state matches PC after
 about5.2 horizontal units of post-respawn travel, with matching lifecycle,
 combat and15 HUD samples;7115 available pages at completion. No added storage.
+
+## Outstanding visible NPC death failure
+
+Native360-frame combat replay20260914-011423 reports one NPC kill but the
+inspected framebuffer still shows the targeted guard upright. Health/death
+counters are therefore insufficient evidence of rendered death playback.
+Trace generic death action selection and pose publication next; do not claim
+a correct corpse/death animation from this replay.
