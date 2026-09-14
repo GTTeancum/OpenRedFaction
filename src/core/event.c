@@ -588,6 +588,24 @@ static void startup_event_action(void *context,rf_event_state *state,uint32_t ac
             startup_target(c,c->event->links+i,source,actor,(mode&255u)==1);
         return;
     }
+    if(state->type==13 || state->type==14) {
+        const rf_level_event *e=&c->event->authored->record;int32_t amount;int status;
+        if(action!=1)return;
+        if(!c->triggers->adjust_vitals){++c->report->unsupported_actions;return;}
+        memcpy(&amount,e->words,4);
+        for(i=0;i<e->link_count;i++) {
+            const rf_level_link_target *link=c->event->links+i;
+            if(link->kind!=1 && link->kind!=2)continue;
+            status=c->triggers->adjust_vitals(c->triggers->vitals_context,link->value,amount,state->type==14);
+            if(status==RF_NOT_FOUND){++c->report->other_targets;continue;}
+            if(status){c->status=status;return;}
+        }
+        if(e->flags[0]) {
+            status=c->triggers->adjust_vitals(c->triggers->vitals_context,UINT32_MAX,amount,state->type==14);
+            if(status!=RF_NOT_FOUND)c->status=status;
+        }
+        return;
+    }
     if(state->type==38) {
         int status;
         if(!c->triggers->attack_npc){++c->report->unsupported_actions;return;}
@@ -929,6 +947,7 @@ int rf_runtime_events_tick(rf_runtime_events *events,rf_runtime_triggers *trigge
            !((event->state.type==5 || event->state.type==6) && triggers->move_npc) &&
            !(event->state.type==22 && triggers->load_level) &&
            !(event->state.type>=35 && event->state.type<=37 && triggers->goals) &&
+           !((event->state.type==13 || event->state.type==14) && triggers->adjust_vitals) &&
            !(event->state.type==30 && triggers->set_friendliness) &&
            !(event->state.type==24 && triggers->set_invulnerable) &&
            !(event->state.type==38 && triggers->attack_npc) &&

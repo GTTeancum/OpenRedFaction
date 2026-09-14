@@ -34,6 +34,24 @@ Shortlist:
 
 Progress reporting: include a very high-level working area (e.g. Lighting, AI, Weapons, GeoMod or Scripted events) and an overall percent estimate at the end of every turn report (USER preference) and revisit remaining 24-hour workdays when measured throughput supports a forecast; current rough estimate45% (35-45%), no defensible +/-48-hour completion forecast before end-to-end gameplay.
 
+Authored Heal and Armor events now dispatch signed amounts to linked NPCs and
+the optional player target through shared runtime callbacks, including delayed
+activation. Class limits clamp values; negative amounts support authored training
+and campaign reductions. Dead actors are not resurrected; newly lethal NPC
+reductions enter the existing death path. Unsupported non-NPC objects remain
+unimplemented. Original evidence:Heal4bb0d0, Armor4bb170, heal helper48a510;
+signed event+2b8 amounts and optional-player byte+2bc. This is a practical shared
+implementation, not complete original helper equivalence. All37 PC tests pass,
+covering delayed dispatch, linked/player selection, caps, reductions and stale
+handles. The controlled9959/9960 replay retains half-second delays and produces
+71.2 final health versus61.6 in control with the same8 enemy hits. No natural
+trigger traversal claim. Evidence:artifacts/script-vitals; reproduction:
+python tools/replay_script_vitals.py.
+Stock64MiB XEMU replay `replay-20260914-123601` passes240 frames with
+exact PC combat and player-vitals comparisons:8 hits and71.2 final health.
+NXDK build and staging restoration succeed.
+
+
 Live revisit validation now compares registered actor values after section
 startup and gameplay against saved records before a new capture can overwrite
 them. The previous native checks compared storage only. The controlled PC

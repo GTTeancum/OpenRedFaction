@@ -307,6 +307,9 @@ typedef struct rf_runtime_triggers {
     /* Borrowed Set_Friendliness service; RF_NOT_FOUND skips unsupported objects. */
     int (*set_friendliness)(void *context,uint32_t handle,uint32_t value);
     void *friendliness_context;
+    /* Heal/Armor: signed amount; UINT32_MAX selects the explicit player option. */
+    int (*adjust_vitals)(void *,uint32_t,int32_t,uint32_t);
+    void *vitals_context;
     int (*load_level)(void *context,const rf_level_event *,uint32_t source,uint32_t actor);
     void *load_level_context;
     rf_campaign_goals *goals; /* Borrowed campaign owner; survives scene teardown. */

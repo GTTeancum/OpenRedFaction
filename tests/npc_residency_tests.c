@@ -970,6 +970,40 @@ static int combat_shot_geometry_check(void)
     CHECK(combat_shot_obstructed(&stream,start,delta,1,&hit)==RF_OK && !hit); /* Moved panel. */
     memset(&campaign_movers,0,sizeof(campaign_movers));return 0;
 }
+static int scripted_vitals_check(void)
+{
+    campaign_npc_body owner={0};rf_runtime_event event={0};rf_level_owned_event authored={0};
+    rf_runtime_triggers triggers={0};rf_runtime_events events={0};rf_level_link_target link;
+    rf_startup_events_report report;rf_physics_gravity gravity={0};uint32_t pending;
+    rf_damage_effect_state saved=campaign_player_damage.state.effects;
+    rf_object_registry_init(&campaign_registry);memset(&campaign_entities,0,sizeof(campaign_entities));
+    campaign_npc_bodies=&owner;campaign_npc_body_count=1;
+    CHECK(rf_entity_view_register(&campaign_registry,&campaign_entities,&owner.view,&owner.registration)==RF_OK);
+    owner.damage.effects.health=20;owner.damage.effects.class_health=100;
+    owner.damage.effects.armor=30;owner.damage.effects.class_armor=60;
+    campaign_player_damage.state.effects.health=50;campaign_player_damage.state.effects.class_health=100;
+    campaign_player_damage.state.effects.armor=25;campaign_player_damage.state.effects.class_armor=80;
+    triggers.registry=&campaign_registry;triggers.adjust_vitals=campaign_adjust_vitals;
+    events.registry=&campaign_registry;events.items=&event;events.count=1;
+    event.object_kind=6;event.authored=&authored;event.links=&link;event.state.type=13;event.state.deadline=-1;event.state.delay=.25f;
+    authored.record.link_count=1;authored.record.words[0]=35;authored.record.flags[0]=1;
+    link=(rf_level_link_target){owner.registration.handle,1,0};
+    CHECK(rf_object_registry_insert(&campaign_registry,&event,&event.handle)==RF_OK);
+    CHECK(rf_runtime_event_fire(&triggers,event.handle,0,UINT32_MAX,1000,&gravity,NULL,NULL,&report)==RF_OK);
+    CHECK(rf_runtime_events_tick(&events,&triggers,&gravity,1249,NULL,NULL,&report,&pending)==RF_OK && owner.damage.effects.health==20);
+    CHECK(rf_runtime_events_tick(&events,&triggers,&gravity,1250,NULL,NULL,&report,&pending)==RF_OK && owner.damage.effects.health==55 && campaign_player_damage.state.effects.health==85);
+    event.state.type=14;event.state.delay=0;authored.record.words[0]=100;
+    CHECK(rf_runtime_event_fire(&triggers,event.handle,0,UINT32_MAX,1500,&gravity,NULL,NULL,&report)==RF_OK);
+    CHECK(owner.damage.effects.armor==60 && campaign_player_damage.state.effects.armor==80);
+    event.state.type=13;authored.record.words[0]=(uint32_t)-10;authored.record.flags[0]=0;
+    CHECK(rf_runtime_event_fire(&triggers,event.handle,0,UINT32_MAX,1600,&gravity,NULL,NULL,&report)==RF_OK);
+    CHECK(owner.damage.effects.health==45 && campaign_player_damage.state.effects.health==85);
+    CHECK(campaign_adjust_vitals(NULL,UINT32_MAX,-200,0)==RF_OK && campaign_player_damage.state.effects.health==0);
+    CHECK(campaign_adjust_vitals(NULL,UINT32_MAX,100,0)==RF_OK && campaign_player_damage.state.effects.health==0);
+    CHECK(campaign_adjust_vitals(NULL,owner.registration.handle^0x10000u,10,0)==RF_NOT_FOUND);
+    CHECK(rf_entity_view_unregister(&campaign_registry,&campaign_entities,&owner.registration)==RF_OK);
+    campaign_npc_bodies=NULL;campaign_npc_body_count=0;campaign_player_damage.state.effects=saved;return 0;
+}
 static int friendliness_binding_check(void)
 {
     campaign_npc_body owner={0};rf_runtime_event event={0};rf_level_owned_event authored={0};
@@ -1276,6 +1310,7 @@ int main(int argc,char **argv)
     CHECK(npc_door_occupancy_check()==0);
     CHECK(actor_retirement_check()==0);
     CHECK(combat_shot_geometry_check()==0);
+    CHECK(scripted_vitals_check()==0);
     CHECK(friendliness_binding_check()==0);
     if(argc==4 && !strcmp(argv[1],"--model-publication"))return model_publication_check(argv);
     if(argc==7 && !strcmp(argv[1],"--corpse-authored"))return corpse_authored_check(argv);

@@ -732,7 +732,7 @@ int rf_scene_fire_setup_event(uint32_t uid,int32_t now)
 {
     uint32_t i;rf_startup_events_report report;
     for(i=0;i<campaign_events.count;i++)if(campaign_events.items[i].authored->record.uid==uid) {
-        if(campaign_events.items[i].state.type!=48 && campaign_events.items[i].state.type!=2 && campaign_events.items[i].state.type!=1 && campaign_events.items[i].state.type!=15 && campaign_events.items[i].state.type!=24 && campaign_events.items[i].state.type!=30)return RF_FORMAT;
+        if(campaign_events.items[i].state.type!=48 && campaign_events.items[i].state.type!=2 && campaign_events.items[i].state.type!=1 && campaign_events.items[i].state.type!=15 && campaign_events.items[i].state.type!=24 && campaign_events.items[i].state.type!=30 && campaign_events.items[i].state.type!=13 && campaign_events.items[i].state.type!=14)return RF_FORMAT;
         return rf_runtime_event_fire(&campaign_triggers,campaign_events.items[i].handle,UINT32_MAX,UINT32_MAX,now,&scene_gravity,NULL,NULL,&report);
     }
     return RF_NOT_FOUND;
@@ -7597,6 +7597,27 @@ static int campaign_slay_object(void *context,uint32_t handle,uint32_t source,in
  * Practical combat backend; exact AI state machine and pursuit remain open. */
 float rf_scene_script_attack_position[9]; /* initial/current attacker position, target position */
 uint32_t rf_scene_script_attack[12]; /* requests,event,attacker UID,target,on,shots,damage,initial/final health,pursuit ticks,sampled,attacker handle */
+static int campaign_adjust_vitals(void *context,uint32_t handle,int32_t amount,uint32_t armor)
+{
+    rf_damage_effect_state *vitals=NULL;campaign_npc_body *owner=NULL;uint32_t i,slot=0;float value,limit;
+    (void)context;if(armor>1)return RF_RANGE;
+    if(handle==UINT32_MAX || (campaign_player_object.view && handle==campaign_player_object.handle))vitals=&campaign_player_damage.state.effects;
+    else for(i=0;i<campaign_npc_body_count;i++)if(campaign_npc_bodies[i].registration.view && campaign_npc_bodies[i].registration.handle==handle) {
+        owner=campaign_npc_bodies+i;slot=i;vitals=&owner->damage.effects;break;
+    }
+    if(!vitals)return RF_NOT_FOUND;
+    if(vitals->health<=0)return RF_OK; /* First pass does not reconstruct resurrection. */
+    limit=armor?vitals->class_armor:vitals->class_health;
+    if(!isfinite(limit) || limit<0)limit=100;
+    value=(armor?vitals->armor:vitals->health)+(float)amount;
+    if(value<0)value=0;if(value>limit)value=limit;
+    if(armor)vitals->armor=value;else vitals->health=value;
+    if(owner && vitals->health<=0) {
+        uint32_t entered;int status=rf_scene_npc_death_entry(owner->registration.handle,&entered);
+        if(status)return status;if(entered){owner->script_move.active=0;return combat_death_start(slot);}
+    }
+    return RF_OK;
+}
 static int campaign_script_attack(void *context,const rf_level_event *event,const rf_level_link_target *links,uint32_t on)
 {
     uint32_t i,j,target=UINT32_MAX;campaign_npc_body *owner=NULL;(void)context;
@@ -10398,7 +10419,7 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
             campaign_triggers.load_level=campaign_load_level;campaign_triggers.load_level_context=&rf_scene_level_transition;
 
             if(status)goto done;
-            campaign_triggers.set_friendliness=campaign_set_friendliness;
+            campaign_triggers.set_friendliness=campaign_set_friendliness;campaign_triggers.adjust_vitals=campaign_adjust_vitals;
             campaign_triggers.set_visible=campaign_set_visible;
             campaign_triggers.set_invulnerable=campaign_set_invulnerable;
             campaign_triggers.remove_object=campaign_remove_object;
