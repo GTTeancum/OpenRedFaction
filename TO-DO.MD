@@ -14,10 +14,10 @@ GitHub image policy: retain the current four images; upload no additional
 screenshots until near-retail-quality replacements are available.
 
 Shortlist:
-- ACTIVE: Move world and animated-character rendering onto retained GPU geometry; measure FPS and stock64MiB residency when tests resume.
+- ACTIVE: Move world and model rendering onto retained GPU geometry; measure FPS and stock64MiB residency when tests resume.
 - USER: Gameplay/parity/emulator test runs are paused during this optimization push; compile checks only until testing resumes.
 - ACTIVE: Complete scripted actor animation/look behavior and onward gameplay after the verified opening Riot Stick handoff.
-- TO COMPLETE: Verify GPU character skinning, then address remaining rigid-model rendering and CPU animation costs.
+- TO COMPLETE: Verify retained model rendering, then address CPU animation and first-person weapon rendering costs.
 - TO COMPLETE: Preserve remaining world changes across sections, including actor placement/inventory and dropped items.
 - ACTIVE: Verify enemy firing visually, add muzzle/impact effects, and extend natural-trigger encounter coverage.
 - ACTIVE: Add Riot Stick alternate fire and impact feedback, then expand the remaining weapons.
@@ -42,17 +42,23 @@ big rendering changes first, tests paused. Xbox now has a retained static-world
 GPU backend: one bounded level upload, per-frame camera constants and visible
 face ranges, GPU transformation/projection, and no CPU-expanded static-world
 stream on that path. Animated NPCs now have a retained GPU skinning path too;
-per-frame work submits camera/bone constants and cached palette ranges. Movers,
-clutter, world weapons, pickups and the first-person weapon retain the CPU path.
-The shared PC renderer remains available. FourMiB metadata+vertex cap falls back to CPU for
+per-frame work submits camera/bone constants and cached palette ranges. Rigid
+clutter, world weapons and pickups now share the retained model cache, with
+compact20-byte position/UV vertices and an18-instruction shader. Moving world
+geometry and the first-person weapon retain the CPU path. First-person rendering
+has a separate near-plane/depth-band policy that needs its own GPU adaptation.
+The shared PC renderer remains available. FourMiB world metadata+vertex cap falls back to CPU for
 oversized/allocation-failed levels. Compile checks only; visual correctness,
 clipping, depth/perspective, residency and FPS must be measured when testing
 resumes. No performance gain is claimed yet. See docs/XBOX-RETAINED-WORLD.md
-and docs/XBOX-RETAINED-MODELS.md. The skeletal cache adds a separate4MiB limit,
+and docs/XBOX-RETAINED-MODELS.md. All retained models share a separate4MiB limit,
 including its frame queue, metadata and rounded GPU allocation sizes. It retains
 triangle order, splits28-bone shader palettes and two-sided face ranges, and
 restores the CPU draw state around fallbacks. Source review and PC/NXDK builds
-only; character clipping, winding, pose alignment and total memory remain unverified.
+only; model clipping, winding, pose alignment and total memory remain unverified.
+Skeletal/rigid queued/submitted/vertex counters are now available separately in
+rf_xbox_retained_model_kinds for the next permitted native inspection. Updated
+PC and NXDK builds compile; no runtime or benchmark was launched.
 
 Opening handoff Xbox verification is incomplete: the240-second run timed out
 while advancing, and replay-20260914-133827 lost its QMP connection. Both runs

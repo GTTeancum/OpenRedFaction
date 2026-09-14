@@ -88,7 +88,7 @@ static int stream_mode,stream_device_ready;static uint32_t stream_capacity,strea
 static uint32_t retained_draw_count;
 static int retained_model_prepare(const rf_model_geometry *,uint32_t,const float (*)[12],uint32_t,
     const rf_model_projection *,uint32_t,uint32_t);
-extern uint32_t rf_xbox_retained_models[8];
+static void retained_models_begin(void);
 /* Retained static-world geometry: no per-frame CPU projection, clipping,
  * expanded triangle construction or world vertex upload. Four MiB hard cap
  * includes metadata; unsupported/large levels retain the existing CPU path. */
@@ -115,7 +115,7 @@ static int retained_world_prepare(const rf_scene_world_geometry *scene,const flo
     const rf_geometry *g;uint32_t f,count=0,at=0;int status;
     if(!scene){retained_world_close();return RF_OK;}
     g=scene->world;if(!g || !g->data || !position || !orientation)return RF_RANGE;
-    retained_draw_count=0;rf_xbox_retained_models[0]=rf_xbox_retained_models[1]=rf_xbox_retained_models[4]=rf_xbox_retained_models[5]=rf_xbox_retained_models[6]=0;
+    retained_models_begin();
     if(retained_world.source!=g)retained_world_close();
     if(!retained_world.source) {
         retained_world.source=g;retained_world.ready=-1;
@@ -417,8 +417,12 @@ static int preview(const rf_preview_mesh *mesh, const rf_materials *materials, c
         for (i = 0; i < mesh->count || retained_next<retained_total;) {
             if(retained_next<retained_total && retained_draws[retained_next].at_vertex<i)return RF_FORMAT;
             if(retained_next<retained_total && retained_draws[retained_next].at_vertex==i) {
-                uint32_t loaded=0,j;
-                do {int status=retained_model_render(retained_next,materials,textures,!loaded);if(status)return status;loaded=1;++retained_next;}
+                uint32_t loaded=UINT32_MAX,j;
+                do {
+                    uint32_t shader=retained_models[retained_draws[retained_next].entry].bones!=0;
+                    int status=retained_model_render(retained_next,materials,textures,loaded!=shader);
+                    if(status)return status;loaded=shader;++retained_next;
+                }
                 while(retained_next<retained_total && retained_draws[retained_next].at_vertex==i);
                 vertex_program(program,sizeof(program)/4);
                 p=pb_begin();p=pb_push1(p,NV097_SET_TRANSFORM_CONSTANT_LOAD,96);

@@ -586,7 +586,8 @@ struct rf_visibility;
 typedef int (*rf_scene_static_world_backend)(const rf_scene_world_geometry *,const float *,
     const float (*)[3],const struct rf_visibility *);
 void rf_scene_set_static_world_backend(rf_scene_static_world_backend backend);
-/* Optional skeletal draw backend: copy stack-owned matrices/view before return.
+/* Optional model draw backend: copy stack-owned matrices/view before return.
+ * Bone count0 and NULL matrices denote a rigid mesh; otherwise apply skinning.
  * at_vertex preserves ordering among CPU-stream draws. OK replaces this batch;
  * NOT_FOUND leaves the CPU path responsible. Geometry lives until stream close. */
 typedef int (*rf_scene_model_backend)(const rf_model_geometry *,uint32_t,

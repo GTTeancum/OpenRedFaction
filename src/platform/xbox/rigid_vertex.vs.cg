@@ -1,0 +1,20 @@
+// Retained rigid props/weapons: positions and UVs stay in GPU-accessible memory.
+// The constant layout matches skinned_vertex so mixed model draws share setup.
+struct Input { float3 position : POSITION; float2 texture : TEXCOORD0; };
+struct Output { float4 position : POSITION; float4 color : COLOR;
+    float4 texture : TEXCOORD0; float4 lightmap : TEXCOORD1; };
+Output main(Input input, uniform float4 view_x : register(c0),
+    uniform float4 view_y : register(c1), uniform float4 view_z : register(c2),
+    uniform float4 projection : register(c3), uniform float4 depth : register(c4),
+    uniform float4 tint : register(c5)) {
+    Output output;
+    float4 p = float4(input.position, depth.z);
+    float x = dot(p, view_x), y = dot(p, view_y), z = dot(p, view_z);
+    float q = depth.z / z;
+    output.position = float4(projection.z + x*q*projection.x,
+        projection.w + y*q*projection.y, depth.x*(depth.z-depth.y*q), z);
+    output.color = tint;
+    output.texture = float4(input.texture, depth.w, depth.z);
+    output.lightmap = float4(depth.www, depth.z);
+    return output;
+}

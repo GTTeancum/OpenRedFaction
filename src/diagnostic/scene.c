@@ -9393,6 +9393,13 @@ static int scene_model_scratch_prepare(rf_model_render_buffers *buffers,uint32_t
     if(buffers->second)memset(buffers->second,0xa5,vertices*sizeof(*buffers->second));
     memset(buffers->vertices,0xa5,vertices*sizeof(*buffers->vertices));return RF_OK;
 }
+static int scene_model_retain(scene_stream *stream,const rf_model_geometry *geometry,uint32_t batch,
+    const float (*matrices)[12],uint32_t bones,const rf_model_projection *view,uint32_t material)
+{
+    /* Missing textures keep the CPU ambient-color fallback. */
+    if(!model_backend || material>=stream->materials->count || !stream->materials->items[material].image.rgba)return RF_NOT_FOUND;
+    return model_backend(geometry,batch,matrices,bones,view,material,stream->mesh->count);
+}
 static int scene_npc_render_family(void *context,uint32_t kind)
 {
     scene_npc_render_context *c=context;scene_stream *stream=c->stream;uint32_t actor=c->actor;
@@ -9415,14 +9422,9 @@ static int scene_npc_render_family(void *context,uint32_t kind)
             if(material==UINT32_MAX)continue;if(material>=last-first)return RF_FORMAT;
             memcpy(&slot,campaign_npc_materials.materials.items[first+material].record.bytes+0x10,4);
             if(slot>=stream->npc_textures)return RF_FORMAT;
-            /* Missing textures keep the CPU ambient-color fallback. */
-            if(model_backend && stream->npc_base+slot<stream->materials->count &&
-               stream->materials->items[stream->npc_base+slot].image.rgba) {
-                status=model_backend(geometry,batch,prepared,pose->bone_count,&view,
-                    stream->npc_base+slot,stream->mesh->count);
-                if(status==RF_OK){retained=1;continue;}
-                if(status!=RF_NOT_FOUND)return status;
-            }
+            status=scene_model_retain(stream,geometry,batch,prepared,pose->bone_count,&view,stream->npc_base+slot);
+            if(status==RF_OK){retained=1;continue;}
+            if(status!=RF_NOT_FOUND)return status;
             rf_scene_npc_draw_detail[1]=lod;rf_scene_npc_draw_detail[2]=batch;rf_scene_npc_draw_detail[3]=1;
             rf_scene_npc_draw_detail[4]=stream->mesh->bytes;rf_scene_npc_draw_detail[5]=stream->capacity;
             status=scene_model_scratch_prepare(c->buffers,geometry->batches[batch].vertices);if(status)return status;
@@ -9503,7 +9505,7 @@ static int scene_clutter_render_family(void *context,uint32_t kind)
     scene_clutter_render_context *c=context;scene_stream *stream=c->stream;uint32_t i=c->placement;
     const rf_clutter_base_owner *owner=campaign_clutter_bodies[i];
     const rf_static_render_resource *resource;rf_model_projection view;
-    uint32_t model=campaign_clutter_model_slots[i],first,last,part,batch,k,start_actor=stream->mesh->count;int status;
+    uint32_t model=campaign_clutter_model_slots[i],first,last,part,batch,k,retained=0,start_actor=stream->mesh->count;int status;
     if(kind!=4)return RF_RANGE;
     resource=&campaign_clutter_models[model].resource;
     if(campaign_clutter_appearance_slots[i]>=rf_scene_clutter_skins[0])return RF_FORMAT;
@@ -9522,6 +9524,9 @@ static int scene_clutter_render_family(void *context,uint32_t kind)
             if(draw->material==UINT32_MAX)continue;if(draw->material>=last-first)return RF_FORMAT;
             memcpy(&slot,campaign_clutter_materials.items[first+draw->material].record.bytes+0x10,4);
             if(slot>=stream->clutter_textures)return RF_FORMAT;
+            status=scene_model_retain(stream,geometry,batch,NULL,0,&view,stream->clutter_base+slot);
+            if(status==RF_OK){retained=1;++rf_scene_clutter_draw[5];continue;}
+            if(status!=RF_NOT_FOUND)return status;
             status=scene_model_scratch_prepare(c->buffers,geometry->batches[batch].vertices);if(status)return status;
             status=rf_model_geometry_render_static_batch(geometry,batch,&view,c->lights,c->attributes,NULL,c->buffers);if(status)return status;
             status=rf_preview_static_model_emit(geometry,batch,c->buffers,stream->npc_indices,stream->npc_pool,&view,c->planes,c->projection,
@@ -9530,7 +9535,7 @@ static int scene_clutter_render_family(void *context,uint32_t kind)
             if(emitted)++rf_scene_clutter_draw[5];
         }
     }
-    if(stream->mesh->count>start_actor)++rf_scene_clutter_draw[1];
+    if(retained || stream->mesh->count>start_actor)++rf_scene_clutter_draw[1];
     return RF_OK;
 }
 static int scene_clutter_draw(scene_stream *stream,uint32_t frame)
@@ -9597,6 +9602,9 @@ static int scene_weapon_submit(void *context,uint32_t model,const rf_weapon_hand
             if(b->material==UINT32_MAX)continue;if(b->material>=r->material_count)return RF_FORMAT;
             memcpy(&slot,(c->resource?c->resource->materials.items:campaign_weapon_materials.items)[first+b->material].record.bytes+0x10,4);
             if(slot>=(c->resource?c->resource->textures:stream->weapon_textures))return RF_FORMAT;
+            status=scene_model_retain(stream,g,batch,NULL,0,&view,(c->resource?c->resource->base:stream->weapon_base)+slot);
+            if(status==RF_OK)continue;
+            if(status!=RF_NOT_FOUND)return status;
             status=scene_model_scratch_prepare(&c->buffers,b->vertices);if(status)return status;
             status=rf_model_geometry_render_static_batch(g,batch,&view,&c->lights,&c->attributes,NULL,&c->buffers);if(status)return status;
             status=rf_preview_static_model_emit(g,batch,&c->buffers,stream->npc_indices,stream->npc_pool,&view,&c->planes,&c->projection,

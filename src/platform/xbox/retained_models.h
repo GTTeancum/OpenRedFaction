@@ -3,11 +3,13 @@
 #define RETAINED_MODEL_BUDGET (4u*1024u*1024u)
 typedef struct retained_skin_vertex {float position[3],weights[4],bones[4],uv[2];} retained_skin_vertex;
 _Static_assert(sizeof(retained_skin_vertex)==52,"Retained skin attribute stride");
+typedef struct retained_rigid_vertex {float position[3],uv[2];} retained_rigid_vertex;
+_Static_assert(sizeof(retained_rigid_vertex)==20,"Retained rigid attribute stride");
 #define RETAINED_SKIN_BONES 28u
 typedef struct retained_skin_part {uint32_t start,count,bones,two_sided;uint8_t ids[RETAINED_SKIN_BONES];} retained_skin_part;
 typedef struct retained_model_entry {
-    const rf_model_geometry *geometry;uint32_t batch,bones,vertices,part_count,bytes;
-    retained_skin_vertex *gpu;retained_skin_part *parts;
+    const rf_model_geometry *geometry;uint32_t batch,bones,vertices,part_count,bytes,stride;
+    void *gpu;retained_skin_part *parts;
 } retained_model_entry;
 typedef struct retained_model_draw {
     uint32_t entry,at_vertex,material,front_face;float rows[3][4],screen[4],palette[150][4];
@@ -16,8 +18,16 @@ static retained_model_entry retained_models[RETAINED_MODEL_LIMIT];
 static retained_model_draw *retained_draws;
 static uint32_t retained_model_count,retained_model_bytes;
 /* queued, rendered, cached batches, resident bytes, submitted vertices,
- * submitted palette parts, frame fallbacks, cache misses. */
+ * submitted draw parts, frame fallbacks, cache misses. */
 uint32_t rf_xbox_retained_models[8];
+/* Frame pairs: queued skeletal/rigid, submitted skeletal/rigid, vertices. */
+uint32_t rf_xbox_retained_model_kinds[6];
+static void retained_models_begin(void)
+{
+    retained_draw_count=0;
+    rf_xbox_retained_models[0]=rf_xbox_retained_models[1]=rf_xbox_retained_models[4]=rf_xbox_retained_models[5]=rf_xbox_retained_models[6]=0;
+    memset(rf_xbox_retained_model_kinds,0,sizeof(rf_xbox_retained_model_kinds));
+}
 static void retained_models_close(void)
 {
     uint32_t i;if(stream_device_ready)while(pb_busy()){}
@@ -28,6 +38,7 @@ static void retained_models_close(void)
     free(retained_draws);retained_draws=NULL;memset(retained_models,0,sizeof(retained_models));
     retained_model_count=retained_draw_count=retained_model_bytes=0;
     memset(rf_xbox_retained_models,0,sizeof(rf_xbox_retained_models));
+    memset(rf_xbox_retained_model_kinds,0,sizeof(rf_xbox_retained_model_kinds));
 }
 static int retained_skin_source(const rf_model_geometry *geometry,const rf_model_draw_batch *draw,
     uint32_t index,uint32_t bones,retained_skin_vertex *v)
@@ -42,7 +53,7 @@ static int retained_skin_source(const rf_model_geometry *geometry,const rf_model
     memcpy(v->position,source->position,12);memcpy(v->uv,original->uv,8);
     for(j=0;j<3;j++)if(!isfinite(v->position[j]))return RF_FORMAT;
     for(j=0;j<2;j++)if(!isfinite(v->uv[j]))return RF_FORMAT;
-    for(j=0;j<4 && source->weights[j];j++) {
+    for(j=0;bones && j<4 && source->weights[j];j++) {
         if(source->bones[j]>=bones)return RF_FORMAT;
         v->weights[j]=(float)source->weights[j]*(1.0f/256.0f);v->bones[j]=(float)source->bones[j];
     }
@@ -70,13 +81,14 @@ static int retained_model_cache(const rf_model_geometry *geometry,uint32_t batch
     if(draw->first_vertex>geometry->vertex_count || draw->vertices>geometry->vertex_count-draw->first_vertex ||
        draw->first_triangle>geometry->triangle_count || draw->triangles>geometry->triangle_count-draw->first_triangle)return RF_RANGE;
     entry.geometry=geometry;entry.batch=batch;entry.bones=bones;
+    entry.stride=bones?sizeof(retained_skin_vertex):sizeof(retained_rigid_vertex);
     *slot=retained_model_count;retained_models[retained_model_count++]=entry;++rf_xbox_retained_models[7];
-    bytes=((uint64_t)draw->triangles*3*sizeof(retained_skin_vertex)+4095u)&~4095ull;
+    bytes=((uint64_t)draw->triangles*3*entry.stride+4095u)&~4095ull;
     if(!draw->vertices || !draw->triangles || bytes>RETAINED_MODEL_BUDGET-retained_model_bytes)return RF_NOT_FOUND;
     entry.vertices=draw->triangles*3;
     for(pass=0;pass<2;pass++) {
         retained_skin_part part={0};uint32_t parts=0;
-        part.bones=1; /* Bone0 also makes all zero-weight shader fetches valid. */
+        part.bones=bones?1:0; /* Bone0 makes zero-weight skinning fetches valid. */
         for(i=0;i<draw->triangles;i++) {
             retained_skin_vertex v[3];
             uint32_t two_sided=(geometry->triangles[draw->first_triangle+i].flags&0x20u)!=0;
@@ -86,17 +98,22 @@ static int retained_model_cache(const rf_model_geometry *geometry,uint32_t batch
             }
             if((part.count && part.two_sided!=two_sided) || !retained_skin_add(&part,v)) {
                 if(pass)entry.parts[parts]=part;
-                ++parts;memset(&part,0,sizeof(part));part.start=i*3;part.bones=1;
+                ++parts;memset(&part,0,sizeof(part));part.start=i*3;part.bones=bones?1:0;
                 if(!retained_skin_add(&part,v)){status=RF_FORMAT;goto failed;}
             }
             part.two_sided=two_sided;
             if(pass)for(j=0;j<3;j++) {
                 uint32_t influence;
-                for(influence=0;influence<4;influence++) {
+                for(influence=0;bones && influence<4;influence++) {
                     for(k=0;k<part.bones;k++)if(part.ids[k]==(uint32_t)v[j].bones[influence])break;
                     if(k==part.bones){status=RF_FORMAT;goto failed;}v[j].bones[influence]=(float)(k*3);
                 }
-                entry.gpu[i*3+j]=v[j];
+                if(bones)((retained_skin_vertex*)entry.gpu)[i*3+j]=v[j];
+                else {
+                    retained_rigid_vertex rigid;
+                    memcpy(rigid.position,v[j].position,12);memcpy(rigid.uv,v[j].uv,8);
+                    ((retained_rigid_vertex*)entry.gpu)[i*3+j]=rigid;
+                }
             }
             part.count+=3;
         }
@@ -104,9 +121,9 @@ static int retained_model_cache(const rf_model_geometry *geometry,uint32_t batch
         ++parts;
         if(!pass) {
             entry.part_count=parts;
-            bytes=(((uint64_t)entry.vertices*sizeof(retained_skin_vertex)+4095u)&~4095ull)+(uint64_t)parts*sizeof(retained_skin_part);
+            bytes=(((uint64_t)entry.vertices*entry.stride+4095u)&~4095ull)+(uint64_t)parts*sizeof(retained_skin_part);
             if(bytes>RETAINED_MODEL_BUDGET-retained_model_bytes)return RF_NOT_FOUND;entry.bytes=(uint32_t)bytes;
-            entry.gpu=MmAllocateContiguousMemoryEx(entry.vertices*sizeof(retained_skin_vertex),0,0x03ffb000,0,PAGE_READWRITE|PAGE_WRITECOMBINE);
+            entry.gpu=MmAllocateContiguousMemoryEx(entry.vertices*entry.stride,0,0x03ffb000,0,PAGE_READWRITE|PAGE_WRITECOMBINE);
             entry.parts=calloc(parts,sizeof(retained_skin_part));
             if(!entry.gpu || !entry.parts){status=RF_NOT_FOUND;goto failed;}
         } else if(parts!=entry.part_count){status=RF_FORMAT;goto failed;}
@@ -120,8 +137,8 @@ static int retained_model_prepare(const rf_model_geometry *geometry,uint32_t bat
     const rf_model_projection *view,uint32_t material,uint32_t at_vertex)
 {
     retained_model_draw *draw;uint32_t slot,i,j;float determinant;int status;
-    if(!view || !matrices)return RF_RANGE;
-    if(!bones || bones>50 || !view->perspective || retained_draw_count==RETAINED_MODEL_LIMIT)goto fallback;
+    if(!view || (bones && !matrices))return RF_RANGE;
+    if((!bones && matrices) || bones>50 || !view->perspective || retained_draw_count==RETAINED_MODEL_LIMIT)goto fallback;
     for(i=0;i<9;i++)if(!isfinite(view->rotation[i]))return RF_RANGE;
     for(i=0;i<3;i++)if(!isfinite(view->camera[i]))return RF_RANGE;
     for(i=0;i<4;i++)if(!isfinite(view->screen[i]))return RF_RANGE;
@@ -151,19 +168,26 @@ static int retained_model_prepare(const rf_model_geometry *geometry,uint32_t bat
         row[0]=matrices[i][j];row[1]=matrices[i][3+j];row[2]=matrices[i][6+j];row[3]=matrices[i][9+j];
         for(k=0;k<4;k++)if(!isfinite(row[k]))return RF_RANGE;
     }
-    ++retained_draw_count;rf_xbox_retained_models[0]=retained_draw_count;return RF_OK;
+    ++retained_draw_count;rf_xbox_retained_models[0]=retained_draw_count;
+    ++rf_xbox_retained_model_kinds[bones?0:1];return RF_OK;
 fallback:
     ++rf_xbox_retained_models[6];return RF_NOT_FOUND;
 }
 static int retained_model_render(uint32_t request,const rf_materials *materials,const gpu_texture *textures,uint32_t install_program)
 {
-    const uint32_t program[]={
+    static const uint32_t skinned_program[]={
 #include "skinned_vertex.inl"
+    };
+    static const uint32_t rigid_program[]={
+#include "rigid_vertex.inl"
     };
     const retained_model_draw *draw=retained_draws+request;const retained_model_entry *entry=retained_models+draw->entry;
     const gpu_texture *texture=draw->material<materials->count && textures[draw->material].pixels?textures+draw->material:textures+materials->count;
     const gpu_texture *white=textures+materials->count;uint32_t i,part_index,*p;
-    if(install_program)vertex_program(program,sizeof(program)/4);
+    if(install_program) {
+        if(entry->bones)vertex_program(skinned_program,sizeof(skinned_program)/4);
+        else vertex_program(rigid_program,sizeof(rigid_program)/4);
+    }
     p=pb_begin();p=pb_push1(p,NV097_SET_TRANSFORM_CONSTANT_LOAD,96);
     pb_push(p++,NV097_SET_TRANSFORM_CONSTANT,12);memcpy(p,draw->rows,48);p+=12;
     p=pb_push4f(p,NV097_SET_TRANSFORM_CONSTANT,draw->screen[0],draw->screen[1],draw->screen[2],draw->screen[3]);
@@ -177,11 +201,16 @@ static int retained_model_render(uint32_t request,const rf_materials *materials,
     p=pb_push1(p,NV097_SET_TEXTURE_OFFSET,(uint32_t)texture->pixels&0x03ffffff);p=pb_push1(p,NV097_SET_TEXTURE_FORMAT,texture->format);
     p=pb_push1(p,NV097_SET_TEXTURE_OFFSET+0x40,(uint32_t)white->pixels&0x03ffffff);p=pb_push1(p,NV097_SET_TEXTURE_FORMAT+0x40,white->format);
     for(i=0;i<16;i++)p=pb_push1(p,NV097_SET_VERTEX_DATA_ARRAY_FORMAT+4*i,NV097_SET_VERTEX_DATA_ARRAY_FORMAT_TYPE_F);
-    {const uint32_t attribute[4]={0,1,10,9},offset[4]={0,12,28,44},size[4]={3,4,4,2};
-     for(i=0;i<4;i++) {
+    {const uint32_t skinned_attribute[4]={0,1,10,9},skinned_offset[4]={0,12,28,44},skinned_size[4]={3,4,4,2};
+     const uint32_t rigid_attribute[2]={0,9},rigid_offset[2]={0,12},rigid_size[2]={3,2};
+     const uint32_t *attribute=entry->bones?skinned_attribute:rigid_attribute;
+     const uint32_t *offset=entry->bones?skinned_offset:rigid_offset;
+     const uint32_t *size=entry->bones?skinned_size:rigid_size;
+     uint32_t count=entry->bones?4:2;
+     for(i=0;i<count;i++) {
         p=pb_push1(p,NV097_SET_VERTEX_DATA_ARRAY_FORMAT+attribute[i]*4,
             field(NV097_SET_VERTEX_DATA_ARRAY_FORMAT_TYPE,NV097_SET_VERTEX_DATA_ARRAY_FORMAT_TYPE_F)|
-            field(NV097_SET_VERTEX_DATA_ARRAY_FORMAT_SIZE,size[i])|field(NV097_SET_VERTEX_DATA_ARRAY_FORMAT_STRIDE,sizeof(retained_skin_vertex)));
+            field(NV097_SET_VERTEX_DATA_ARRAY_FORMAT_SIZE,size[i])|field(NV097_SET_VERTEX_DATA_ARRAY_FORMAT_STRIDE,entry->stride));
         p=pb_push1(p,NV097_SET_VERTEX_DATA_ARRAY_OFFSET+attribute[i]*4,((uint32_t)entry->gpu+offset[i])&0x03ffffff);
      }}
     pb_end(p);
@@ -203,5 +232,6 @@ static int retained_model_render(uint32_t request,const rf_materials *materials,
         }
         p=pb_begin();p=pb_push1(p,NV097_SET_BEGIN_END,NV097_SET_BEGIN_END_OP_END);pb_end(p);
     }
-    ++rf_xbox_retained_models[1];rf_xbox_retained_models[4]+=entry->vertices;rf_xbox_retained_models[5]+=entry->part_count;return RF_OK;
+    ++rf_xbox_retained_models[1];rf_xbox_retained_models[4]+=entry->vertices;rf_xbox_retained_models[5]+=entry->part_count;
+    ++rf_xbox_retained_model_kinds[entry->bones?2:3];rf_xbox_retained_model_kinds[entry->bones?4:5]+=entry->vertices;return RF_OK;
 }
