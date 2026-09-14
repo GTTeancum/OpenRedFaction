@@ -131,6 +131,7 @@ static int controller_input(rf_scene_input *out)
         if(x || y){out->look[0]=y;out->look[1]=x;}
         out->fire|=state.Gamepad.bRightTrigger>30;
         out->reload|=(state.Gamepad.wButtons&XINPUT_GAMEPAD_Y)!=0;
+        out->cycle_weapon|=(state.Gamepad.wButtons&XINPUT_GAMEPAD_DPAD_RIGHT)!=0;
         out->jump|=(state.Gamepad.wButtons&XINPUT_GAMEPAD_A)!=0;
         out->use|=(state.Gamepad.wButtons&XINPUT_GAMEPAD_X)!=0;
         out->crouch|=(state.Gamepad.wButtons&XINPUT_GAMEPAD_B)!=0;
@@ -170,7 +171,7 @@ static int input(void *context,uint32_t frame,rf_scene_input *out)
     if(out->move[0] && out->move[2]) {out->move[0]*=.7071067811865475f;out->move[2]*=.7071067811865475f;}
     out->look[0]=(float)p->keys[VK_UP]-(float)p->keys[VK_DOWN];
     out->look[1]=(float)p->keys[VK_RIGHT]-(float)p->keys[VK_LEFT];
-    out->fire=p->keys['F'];out->reload=p->keys['R'];out->use=p->keys['E'];out->jump=p->keys[VK_SPACE];out->crouch=p->keys[VK_CONTROL];return p->focused?controller_input(out):RF_OK;
+    out->cycle_weapon=p->keys[VK_TAB];out->fire=p->keys['F'];out->reload=p->keys['R'];out->use=p->keys['E'];out->jump=p->keys[VK_SPACE];out->crouch=p->keys[VK_CONTROL];return p->focused?controller_input(out):RF_OK;
 }
 
 static int particle_present(void *context,const rf_particle_draw_vertex *vertices,uint32_t count,const rf_image *image,uint32_t mode)
@@ -538,6 +539,7 @@ int main(int argc,char **argv)
     printf("PICKUPS");for(i=0;i<8;++i)printf(" %u",rf_scene_pickups[i]);puts("");
     printf("PLAYER_AMMO");for(i=0;i<8;++i)printf(" %u",rf_scene_player_ammo[i]);puts("");
     printf("PISTOL_RULES");for(i=0;i<7;++i)printf(" %u",rf_scene_pistol_rules[i]);puts("");
+    printf("WEAPON_SELECTION");for(i=0;i<8;++i)printf(" %u",rf_scene_weapon_selection[i]);puts("");
     printf("PLAYER_WEAPON");for(i=0;i<8;++i)printf(" %u",rf_scene_player_weapon[i]);puts("");
     printf("WEAPON_AUDIO");for(i=0;i<9;++i)printf(" %u",rf_scene_weapon_audio[i]);puts("");
     printf("COMBAT_DEATH");for(i=0;i<8;++i)printf(" %u",rf_scene_combat_death[i]);puts("");

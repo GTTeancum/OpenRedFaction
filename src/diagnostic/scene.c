@@ -113,8 +113,8 @@ int rf_scene_replay_header(FILE *file,uint32_t *count,uint32_t *record_size)
     if(!file || !count || !record_size)return RF_RANGE;
     if(fseek(file,0,SEEK_END) || (bytes=ftell(file))<=0 || fseek(file,0,SEEK_SET))return RF_FORMAT;
     if(fread(header,4,1,file)!=1)return RF_FORMAT;
-    if(header[0]==0x32494652u || header[0]==0x33494652u || header[0]==0x34494652u) {
-        size=header[0]==0x32494652u?28:header[0]==0x33494652u?32:40;
+    if(header[0]==0x32494652u || header[0]==0x33494652u || header[0]==0x34494652u || header[0]==0x35494652u) {
+        size=header[0]==0x32494652u?28:header[0]==0x33494652u?32:header[0]==0x34494652u?40:44;
         if(fread(header+1,4,1,file)!=1 || header[1]!=size)return RF_FORMAT;
         offset=8;
     }
@@ -365,20 +365,20 @@ typedef struct scene_particle_workspace {
     rf_render_queue_record records[2048];rf_render_sphere spheres[2048];
     uint32_t order[2048];float distances[2048];
 } scene_particle_workspace;
-static const char *pickup_classes[4]={"Handgun","Medical Kit","Suit Repair","12mm_ammo"};
+static const char *pickup_classes[6]={"Handgun","Medical Kit","Suit Repair","12mm_ammo","Assault Rifle","5.56mm_ammo"};
 typedef struct scene_pickup_resource {
     rf_item_definition definition;rf_static_render_resource model;rf_model_materials materials;
     uint32_t base,textures,resident,peak;
 } scene_pickup_resource;
 static int pickup_class(const char *name)
-{int i;for(i=0;i<4;i++)if(!strcmp(name,pickup_classes[i]))return i;return -1;}
+{int i;for(i=0;i<6;i++)if(!strcmp(name,pickup_classes[i]))return i;return -1;}
 typedef struct scene_stream {
     rf_preview_mesh *mesh;rf_materials *materials;const rf_model_materials *bundle;
     uint32_t world,base,capacity,npc_base,npc_textures;rf_scene_frame_sink sink;void *context;
     uint32_t clutter_base,clutter_textures;
     uint32_t weapon_base,weapon_textures;
     rf_level_owned_items pickups;uint8_t *pickup_taken;rf_item_definition handgun_pickup;scene_pickup_resource *pickup_resources;
-    rf_player_weapon *player_weapon;uint32_t player_weapon_base,player_weapon_textures,player_shots,player_reload;
+    rf_player_weapon *player_weapon[2];uint32_t player_weapon_base[2],player_weapon_textures[2],player_shots,player_reload,player_slot;
     rf_model_projection npc_view;void *npc_memory;uint16_t *npc_indices;rf_model_clip_pool *npc_pool;
     const rf_geometry_collision_world *collision;
     const rf_geometry *geometry;unsigned char *surface_indices;float actor_spawn[3];uint32_t eye_flags;
@@ -1339,11 +1339,21 @@ static rf_clutter_catalogs campaign_clutter_catalogs;
 static int32_t campaign_riot_shield_class=-1;
 uint32_t rf_scene_clutter_contact_test[8];
 static rf_weapon_supply_catalog campaign_weapon_supply;
-static rf_weapon_primary_definition campaign_pistol;
+static rf_weapon_primary_definition campaign_pistol,campaign_primary[2];
+static uint32_t campaign_equipped_slot,weapon_cycle_held;static int32_t campaign_rifle_id=-1;
+uint32_t rf_scene_weapon_selection[8];
 static rf_weapon_inventory campaign_player_inventory;static int32_t campaign_pistol_id=-1;
 uint32_t rf_scene_player_ammo[8]; /* weapon,reserve,loaded,transferred,reloads,denied,owner bytes,status */
 static uint32_t pistol_reload_ticks,pistol_fire_ticks;
 uint32_t rf_scene_pistol_rules[7]; /* magazine,reload ticks,fire ticks,SP damage bits,semi-auto,definition bytes,damage kind */
+static void campaign_select_primary(uint32_t slot)
+{
+    campaign_equipped_slot=slot;campaign_pistol=campaign_primary[slot];
+    pistol_reload_ticks=(uint32_t)ceilf(campaign_pistol.reload_seconds*60);pistol_fire_ticks=(uint32_t)ceilf(campaign_pistol.fire_seconds*60);
+    rf_scene_pistol_rules[0]=campaign_pistol.magazine;rf_scene_pistol_rules[1]=pistol_reload_ticks;rf_scene_pistol_rules[2]=pistol_fire_ticks;
+    memcpy(rf_scene_pistol_rules+3,&campaign_pistol.damage,4);rf_scene_pistol_rules[4]=campaign_pistol.semi_automatic;
+    rf_scene_pistol_rules[5]=sizeof(campaign_pistol);rf_scene_pistol_rules[6]=(uint32_t)campaign_pistol.damage_kind;
+}
 static rf_weapon_reset_catalog campaign_weapon_reset;
 uint32_t rf_scene_weapon_reset_catalog[4]; /* weapons,resolved stop sounds,bytes,hash */
 uint32_t rf_scene_weapon_supply[4]; /* count,primary count,retained bytes,catalog hash */
@@ -2878,6 +2888,7 @@ static int campaign_clutter_open(const char *tables_path,const rf_level *level)
         rf_scene_weapon_supply[3]=npc_hash_bytes(2166136261u,&campaign_weapon_supply,sizeof(campaign_weapon_supply));
     }
     if(!status)status=rf_weapon_primary_load(&tables,"12mm handgun",128*1024,&campaign_pistol);
+    if(!status){campaign_primary[0]=campaign_pistol;status=rf_weapon_primary_load(&tables,"Assault Rifle",128*1024,&campaign_primary[1]);}
     if(!status) {
         pistol_reload_ticks=(uint32_t)ceilf(campaign_pistol.reload_seconds*60.0f);
         pistol_fire_ticks=(uint32_t)ceilf(campaign_pistol.fire_seconds*60.0f);
@@ -7021,21 +7032,25 @@ static int campaign_life_capture(void)
 }
 static void campaign_ammo_publish(void)
 {
-    const rf_weapon_acquire_definition *d=campaign_weapon_supply.definitions+campaign_pistol_id;
-    rf_scene_combat[5]=(uint32_t)campaign_player_inventory.loaded[campaign_pistol_id];
-    rf_scene_player_ammo[0]=(uint32_t)campaign_pistol_id;rf_scene_player_ammo[1]=(uint32_t)campaign_player_inventory.reserve[d->ammo_type];
+    const rf_weapon_acquire_definition *d=campaign_weapon_supply.definitions+(campaign_equipped_slot?campaign_rifle_id:campaign_pistol_id);
+    rf_scene_combat[5]=(uint32_t)campaign_player_inventory.loaded[(campaign_equipped_slot?campaign_rifle_id:campaign_pistol_id)];
+    rf_scene_player_ammo[0]=(uint32_t)(campaign_equipped_slot?campaign_rifle_id:campaign_pistol_id);rf_scene_player_ammo[1]=(uint32_t)campaign_player_inventory.reserve[d->ammo_type];
     rf_scene_player_ammo[2]=rf_scene_combat[5];rf_scene_player_ammo[6]=sizeof(campaign_player_inventory);
 }
 static int campaign_ammo_reset(void)
 {
-    const rf_weapon_acquire_definition *d;int status;
+    const rf_weapon_acquire_definition *d;int status;uint32_t had_rifle=campaign_rifle_id>=0?campaign_player_inventory.owned[campaign_rifle_id]:0;
+    campaign_select_primary(0);weapon_cycle_held=0;
+    campaign_rifle_id=rf_weapon_name_find(&campaign_weapon_supply.names,"Assault Rifle");if(campaign_rifle_id<0)return RF_NOT_FOUND;
     campaign_pistol_id=rf_weapon_name_find(&campaign_weapon_supply.names,"12mm handgun");
     if(campaign_pistol_id<0)return RF_NOT_FOUND;d=campaign_weapon_supply.definitions+campaign_pistol_id;
     if(d->ammo_type<0 || d->ammo_type>=32 || d->capacity<0 || d->magazine!=(int32_t)campaign_pistol.magazine)return RF_FORMAT;
     memset(&campaign_player_inventory,0,sizeof(campaign_player_inventory));
     status=rf_weapon_acquire_sp(&campaign_player_inventory,d,campaign_pistol_id,-1);if(status)return status;
     /* First-pass starting supply; mission-specific grants remain separate. */
-    campaign_player_inventory.reserve[d->ammo_type]=d->capacity;campaign_ammo_publish();return RF_OK;
+    campaign_player_inventory.reserve[d->ammo_type]=d->capacity;
+    if(had_rifle){d=campaign_weapon_supply.definitions+campaign_rifle_id;status=rf_weapon_acquire_sp(&campaign_player_inventory,d,campaign_rifle_id,-1);if(status)return status;campaign_player_inventory.reserve[d->ammo_type]=d->capacity;}
+    campaign_ammo_publish();return RF_OK;
 }
 static int campaign_life_input(uint32_t frame,rf_scene_input *input)
 {
@@ -7185,8 +7200,9 @@ static int campaign_pickups_tick(scene_stream *stream,const float eye[3])
             float total;restored=pickup_restore(kind==1?&campaign_player_damage.state.effects.health:&campaign_player_damage.state.effects.armor,item->quantity);
             if(restored<=0)continue;memcpy(&total,rf_scene_pickup_vitals+kind+1,4);total+=restored;memcpy(rf_scene_pickup_vitals+kind+1,&total,4);
         } else {
-            status=rf_weapon_pickup_grant_sp(&campaign_player_inventory,campaign_weapon_supply.definitions+campaign_pistol_id,
-                campaign_pistol_id,item->quantity,definition->gives_weapon,&grant);if(status)return status;
+            int32_t id=kind>=4?campaign_rifle_id:campaign_pistol_id;
+            status=rf_weapon_pickup_grant_sp(&campaign_player_inventory,campaign_weapon_supply.definitions+id,
+                id,item->quantity,definition->gives_weapon,&grant);if(status)return status;
             if(!grant.rounds && !grant.acquired)continue;
         }
         stream->pickup_taken[i]=1;++rf_scene_pickups[3];rf_scene_pickups[4]+=grant.rounds;rf_scene_pickups[5]=item->uid;
@@ -7197,15 +7213,27 @@ static int campaign_pickups_tick(scene_stream *stream,const float eye[3])
 static int campaign_combat_tick(scene_stream *stream,uint32_t frame,const float position[3],const float orientation[3][3])
 {
     float delta[3],nearest=1,amount;uint32_t i,target=UINT32_MAX,blocked,fire;int status;
-    if(!frame){memset(rf_scene_weapon_audio,0,sizeof(rf_scene_weapon_audio));combat_sound_random.value=1;memset(rf_scene_combat_death,0,sizeof(rf_scene_combat_death));memset(rf_scene_combat,0,sizeof(rf_scene_combat));rf_scene_combat[3]=UINT32_MAX;rf_scene_combat[5]=campaign_pistol.magazine;memset(&combat_trigger,0,sizeof(combat_trigger));combat_frame=combat_hit_frame=UINT32_MAX;
+    if(!frame){memset(rf_scene_weapon_selection,0,sizeof(rf_scene_weapon_selection));memset(rf_scene_weapon_audio,0,sizeof(rf_scene_weapon_audio));combat_sound_random.value=1;memset(rf_scene_combat_death,0,sizeof(rf_scene_combat_death));memset(rf_scene_combat,0,sizeof(rf_scene_combat));rf_scene_combat[3]=UINT32_MAX;rf_scene_combat[5]=campaign_pistol.magazine;memset(&combat_trigger,0,sizeof(combat_trigger));combat_frame=combat_hit_frame=UINT32_MAX;
         memset(rf_scene_enemy_awareness,0,sizeof(rf_scene_enemy_awareness));
         memset(rf_scene_enemy_combat,0,sizeof(rf_scene_enemy_combat));combat_initial_health=campaign_player_damage.state.effects.health;
-        memset(rf_scene_player_ammo,0,sizeof(rf_scene_player_ammo));
+        memset(rf_scene_player_ammo,0,sizeof(rf_scene_player_ammo));memset(&campaign_player_inventory,0,sizeof(campaign_player_inventory));
         status=campaign_ammo_reset();if(status)return status;
         for(i=0;i<campaign_npc_body_count;i++)campaign_npc_bodies[i].combat_alert=campaign_npc_bodies[i].combat_due=0;
 }
     if(combat_frame==frame)return RF_OK;combat_frame=frame;
     status=campaign_pickups_tick(stream,position);rf_scene_pickups[7]=(uint32_t)status;if(status)return status;
+    if(player_input.cycle_weapon && !weapon_cycle_held && campaign_player_damage.state.effects.health>0) {
+        uint32_t next=1-campaign_equipped_slot;int32_t id=next?campaign_rifle_id:campaign_pistol_id;
+        if(campaign_player_inventory.owned[id]) {
+            campaign_select_primary(next);
+            memset(&combat_trigger,0,sizeof(combat_trigger));combat_trigger.held=!!player_input.fire;
+            rf_scene_combat[6]=0;++rf_scene_weapon_selection[1];campaign_ammo_publish();
+        }
+    }
+    weapon_cycle_held=!!player_input.cycle_weapon;
+    rf_scene_weapon_selection[0]=campaign_equipped_slot;rf_scene_weapon_selection[2]=(uint32_t)campaign_rifle_id;
+    rf_scene_weapon_selection[3]=campaign_player_inventory.owned[campaign_rifle_id];rf_scene_weapon_selection[4]=campaign_player_inventory.loaded[campaign_rifle_id];
+    rf_scene_weapon_selection[5]=campaign_player_inventory.reserve[campaign_weapon_supply.definitions[campaign_rifle_id].ammo_type];
     status=campaign_enemy_tick(stream,frame,position);rf_scene_enemy_combat[7]=(uint32_t)status;if(status)return status;
     memcpy(rf_scene_pickup_vitals,&campaign_player_damage.state.effects.health,4);memcpy(rf_scene_pickup_vitals+1,&campaign_player_damage.state.effects.armor,4);
     {rf_weapon_trigger_rules rules={pistol_fire_ticks,campaign_pistol.burst_count,
@@ -7216,18 +7244,18 @@ static int campaign_combat_tick(scene_stream *stream,uint32_t frame,const float 
     if(rf_scene_enemy_combat[6])return RF_OK;
     if(rf_scene_combat[6]) {
         if(!--rf_scene_combat[6]) {
-            uint32_t moved;status=rf_weapon_reload_transfer(&campaign_player_inventory,campaign_weapon_supply.definitions+campaign_pistol_id,campaign_pistol_id,&moved);
+            uint32_t moved;status=rf_weapon_reload_transfer(&campaign_player_inventory,campaign_weapon_supply.definitions+(campaign_equipped_slot?campaign_rifle_id:campaign_pistol_id),(campaign_equipped_slot?campaign_rifle_id:campaign_pistol_id),&moved);
             rf_scene_player_ammo[7]=(uint32_t)status;if(status)return status;
             rf_scene_player_ammo[3]+=moved;++rf_scene_player_ammo[4];campaign_ammo_publish();
         }
         return RF_OK;
     }
-    if(player_input.reload && rf_scene_combat[5]<campaign_pistol.magazine && rf_scene_player_ammo[1]){rf_scene_combat[6]=pistol_reload_ticks;combat_sound("Glock Reload",position);return RF_OK;}
+    if(player_input.reload && rf_scene_combat[5]<campaign_pistol.magazine && rf_scene_player_ammo[1]){rf_scene_combat[6]=pistol_reload_ticks;combat_sound(campaign_equipped_slot?"ARifle Reload":"Glock Reload",position);return RF_OK;}
     if(!fire)return RF_OK;
-    if(!rf_scene_combat[5]){if(!rf_scene_player_ammo[1]){++rf_scene_player_ammo[5];return RF_OK;}rf_scene_combat[6]=pistol_reload_ticks;combat_sound("Glock Reload",position);return RF_OK;}
-    status=rf_weapon_consume_shot(&campaign_player_inventory,campaign_weapon_supply.definitions,campaign_weapon_supply.names.count,campaign_pistol_id);
+    if(!rf_scene_combat[5]){if(!rf_scene_player_ammo[1]){++rf_scene_player_ammo[5];return RF_OK;}rf_scene_combat[6]=pistol_reload_ticks;combat_sound(campaign_equipped_slot?"ARifle Reload":"Glock Reload",position);return RF_OK;}
+    status=rf_weapon_consume_shot(&campaign_player_inventory,campaign_weapon_supply.definitions,campaign_weapon_supply.names.count,(campaign_equipped_slot?campaign_rifle_id:campaign_pistol_id));
     rf_scene_player_ammo[7]=(uint32_t)status;if(status)return status;campaign_ammo_publish();
-    ++rf_scene_combat[0];combat_sound("Glock Launch",position);
+    ++rf_scene_combat[0];combat_sound(campaign_equipped_slot?"Assault Loop":"Glock Launch",position);
     for(i=0;i<3;i++)delta[i]=orientation[2][i]*100;
     for(i=0;i<campaign_npc_body_count;i++) {
         campaign_npc_body *owner=campaign_npc_bodies+i;float fraction;
@@ -8545,26 +8573,26 @@ static int scene_weapon_submit(void *context,uint32_t model,const rf_weapon_hand
 uint32_t rf_scene_player_weapon[8]; /* frames,clip,vertices,resident,peak,pose hash,status,reserved */
 static int scene_player_weapon_draw(scene_stream *stream,uint32_t frame)
 {
-    rf_player_weapon *w=stream->player_weapon;rf_model_projection view={0};
+    rf_player_weapon *w=stream->player_weapon[campaign_equipped_slot];rf_model_projection view={0};
     rf_model_render_buffers buffers={0};rf_model_lighting lights={0};
     rf_model_render_output attributes={1,{255,255,255},255,1,1};
     rf_model_clip_planes planes={0};rf_model_clip_projection projection={0};
     uint32_t batch,k,start;int status,request=-1;
     if(!frame)memset(rf_scene_player_weapon,0,sizeof(rf_scene_player_weapon));
     if(!w)return RF_OK;
-    if(!frame)request=0;
+    if(!frame || stream->player_slot!=campaign_equipped_slot)request=0;
     else if(rf_scene_combat[6]>stream->player_reload)request=2;
     else if(rf_scene_combat[0]!=stream->player_shots)request=1;
-    stream->player_shots=rf_scene_combat[0];stream->player_reload=rf_scene_combat[6];
+    stream->player_slot=campaign_equipped_slot;stream->player_shots=rf_scene_combat[0];stream->player_reload=rf_scene_combat[6];
     status=rf_player_weapon_step(w,request,1.0f/60);if(status)goto done;
     rf_scene_player_weapon[0]=frame+1;rf_scene_player_weapon[1]=w->current;
     rf_scene_player_weapon[2]=0;rf_scene_player_weapon[3]=w->resident_bytes;rf_scene_player_weapon[4]=w->peak_bytes;
     rf_scene_player_weapon[5]=npc_hash_bytes(2166136261u,w->prepared,w->bone_count*48);
     if(campaign_player_damage.state.effects.health<=0)return RF_OK;
-    /* First-pass camera-space presentation; authored pistol FOV, provisional X/Y offset
-     * and no Z offset for this model's positive-Z camera-space poses.
+    /* First-pass camera-space presentation; shared65-degree FOV and fitted
+     * per-weapon camera offsets. Rifle pose extends behind the model origin.
      * Independent depth band preserves self-occlusion without wall clipping. */
-    view.camera[0]=-.110f;view.camera[1]=.140f;view.camera[2]=0;
+    view.camera[0]=campaign_equipped_slot?-.064f:-.110f;view.camera[1]=campaign_equipped_slot?.3f:.140f;view.camera[2]=campaign_equipped_slot?-.9f:0;
     view.rotation[0]=view.rotation[8]=view.rotation[4]=1;
     view.screen[0]=320/tanf(65.0f*3.14159265f/360);view.screen[1]=-view.screen[0];
     view.screen[2]=320;view.screen[3]=240;view.perspective=view.compute_clip=view.clipping=1;
@@ -8579,13 +8607,13 @@ static int scene_player_weapon_draw(scene_stream *stream,uint32_t frame)
         if(material==UINT32_MAX)continue;
         if(material>=w->materials.count){status=RF_FORMAT;goto done;}
         memcpy(&slot,w->materials.items[material].record.bytes+0x10,4);
-        if(slot>=stream->player_weapon_textures){status=RF_FORMAT;goto done;}
+        if(slot>=stream->player_weapon_textures[campaign_equipped_slot]){status=RF_FORMAT;goto done;}
         memset(stream->npc_memory,0xa5,4096*96);
         status=rf_model_geometry_render_batch(&w->geometry,batch,w->prepared,w->bone_count,&view,&lights,&attributes,&buffers);if(status)goto done;
         status=rf_preview_model_emit(&w->geometry,batch,&buffers,stream->npc_indices,stream->npc_pool,&view,&planes,&projection,
             &attributes,stream->mesh,stream->capacity,&emitted);if(status)goto done;
         for(k=first;k<stream->mesh->count;k++) {
-            rf_preview_vertex *v=stream->mesh->vertices+k;v->material=stream->player_weapon_base+slot;
+            rf_preview_vertex *v=stream->mesh->vertices+k;v->material=stream->player_weapon_base[campaign_equipped_slot]+slot;
             v->position[2]=16384.0f/(1.0f+v->texture[2]);
         }
     }
@@ -9319,15 +9347,15 @@ done:
 static int scene_pickup_resources_open(scene_stream *stream,const char *tables_path,rf_vpp *meshes,rf_vpp *maps,uint32_t map_count,rf_materials *materials)
 {
     uint32_t kind,i;rf_vpp tables={0};rf_model_file *file=NULL;int status;
-    stream->pickup_resources=calloc(3,sizeof(*stream->pickup_resources));if(!stream->pickup_resources)return RF_IO;
+    stream->pickup_resources=calloc(5,sizeof(*stream->pickup_resources));if(!stream->pickup_resources)return RF_IO;
     status=rf_vpp_open(&tables,tables_path);if(status)return status;
     file=calloc(1,sizeof(*file));if(!file){status=RF_IO;goto done;}
-    for(kind=1;kind<4;kind++) {
+    for(kind=1;kind<6;kind++) {
         scene_pickup_resource *r=stream->pickup_resources+kind-1;char compiled[64];uint32_t count=0,used=sizeof(*r)+sizeof(*file),budget=2*1024*1024;rf_material *combined;rf_materials *textures;
         for(i=0;i<stream->pickups.count;i++)if(pickup_class(stream->pickups.items[i].class_name)==(int)kind)count++;
         if(!count)continue;
         status=rf_item_definition_load(&tables,pickup_classes[kind],128*1024,&r->definition);if(status)goto done;
-        if(r->definition.mesh_kind!=1 || (kind==3 && strcmp(r->definition.weapon,"12mm handgun"))){status=RF_FORMAT;goto done;}
+        if(r->definition.mesh_kind!=1 || (kind==3 && strcmp(r->definition.weapon,"12mm handgun")) || (kind>=4 && strcmp(r->definition.weapon,"Assault Rifle"))){status=RF_FORMAT;goto done;}
         status=rf_model_compiled_filename(r->definition.mesh,compiled,".v3m");if(status)goto done;
         status=rf_model_file_open(file,meshes,compiled);if(status)goto done;
         status=rf_static_render_resource_open(file,budget-used,&r->model);if(status)goto done;used+=r->model.allocated_bytes;
@@ -9578,8 +9606,11 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
             status=campaign_weapon_materials_open(maps,map_count);if(status)goto done;
             {rf_vpp tables={0};rf_weapon_view_definition view;
              status=rf_vpp_open(&tables,tables_path);if(status)goto done;
-             status=rf_weapon_view_load(&tables,"12mm handgun",128*1024,&view);rf_vpp_close(&tables);if(status)goto done;
-             status=rf_player_weapon_open_view(&archive,&motions,maps,map_count,&view,1024*1024,&stream.player_weapon);if(status)goto done;}
+             for(i=0;i<2 && !status;i++) {
+                 status=rf_weapon_view_load(&tables,i?"Assault Rifle":"12mm handgun",128*1024,&view);
+                 if(!status)status=rf_player_weapon_open_view(&archive,&motions,maps,map_count,&view,1024*1024,&stream.player_weapon[i]);
+             }
+             rf_vpp_close(&tables);if(status)goto done;}
             status=campaign_weapon_hands_open();if(status)goto done;
             status=campaign_weapon_placement_probe();if(status)goto done;
             status=campaign_weapon_aim_probe();if(status)goto done;
@@ -9670,8 +9701,9 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
         free(materials->items);materials->items=combined;materials->count+=textures->count;
         materials->loaded+=textures->loaded;materials->missing+=textures->missing;materials->allocated_bytes+=textures->allocated_bytes;
         free(textures->items);memset(textures,0,sizeof(*textures));
-        textures=&stream.player_weapon->materials.textures;
-        stream.player_weapon_base=materials->count;stream.player_weapon_textures=textures->count;
+        for(i=0;i<2;i++) {
+        textures=&stream.player_weapon[i]->materials.textures;
+        stream.player_weapon_base[i]=materials->count;stream.player_weapon_textures[i]=textures->count;
         if((uint64_t)materials->count+textures->count>256){status=RF_RANGE;goto done;}
         combined=malloc((materials->count+textures->count)*sizeof(*combined));if(!combined){status=RF_IO;goto done;}
         memcpy(combined,materials->items,materials->count*sizeof(*combined));
@@ -9679,6 +9711,7 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
         free(materials->items);materials->items=combined;materials->count+=textures->count;
         materials->loaded+=textures->loaded;materials->missing+=textures->missing;materials->allocated_bytes+=textures->allocated_bytes;
         free(textures->items);memset(textures,0,sizeof(*textures));
+        }
         status=scene_pickup_resources_open(&stream,tables_path,&archive,maps,map_count,materials);if(status)goto done;
         stream.npc_memory=malloc(4096*96);stream.npc_indices=malloc(24576*sizeof(uint16_t));stream.npc_pool=calloc(1,sizeof(*stream.npc_pool));
         if(!stream.npc_memory || !stream.npc_indices || !stream.npc_pool){status=RF_IO;goto done;}
@@ -9767,8 +9800,8 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
         if(!status && collision && rf_scene_actor_route_enabled && !rf_scene_actor_live_enabled)status=actor_routes(&stream);
     }
 done:
-    rf_player_weapon_close(&stream.player_weapon);
-    if(stream.pickup_resources){for(i=0;i<3;i++){rf_static_render_resource_close(&stream.pickup_resources[i].model);rf_model_materials_close(&stream.pickup_resources[i].materials);}free(stream.pickup_resources);}
+    for(i=0;i<2;i++)rf_player_weapon_close(&stream.player_weapon[i]);
+    if(stream.pickup_resources){for(i=0;i<5;i++){rf_static_render_resource_close(&stream.pickup_resources[i].model);rf_model_materials_close(&stream.pickup_resources[i].materials);}free(stream.pickup_resources);}
     rf_level_owned_items_close(&stream.pickups);free(stream.pickup_taken);
     free(stream.npc_memory);free(stream.npc_indices);free(stream.npc_pool);
     rf_level_visibility_close(&stream.visibility);

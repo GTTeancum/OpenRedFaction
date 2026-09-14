@@ -953,3 +953,48 @@ Stock64MiB XEMU660-frame pistol regression PASS with the shared scheduler:
 6884 available pages (26.9MiB). Native framebuffer inspected. Evidence:
 artifacts/xemu/replay-20260914-025927/report.json. This validates the live pistol
 path on Xbox; native three-shot rifle gameplay remains unverified.
+
+
+## Live pistol/rifle selection
+
+The campaign now retains two first-person resources, each under a1MiB cap, and
+cycles only owned weapons on a fresh Tab/D-pad Right press. RFI5 adds a44-byte
+input record with cycle_weapon; older replay formats remain supported. Rifle
+and pistol use separate inventory slots (installed IDs8 and3), definitions,
+magazine sizes, damage and firing timing. Switching cancels reload/pending burst
+shots without transferring ammunition. First-pass respawn retains acquired rifle
+ownership and refills it, while equipping the pistol. World pickup availability
+still persists. Checkpoint/mission-specific supply policy remains open.
+
+Assault Rifle and5.56mm_ammo authored pickup classes now use the same bounded
+static-model, proximity/occlusion and capped-grant path as other supplies. A new
+rifle pickup fills its42-round magazine before reserve; no reserve is invented.
+The two first-person owners total1971388 accounted resident bytes, share render
+scratch and load once. Camera placement is fitted for usability and remains
+provisional. Rifle shots use the Assault Loop group once per bullet and reload
+uses ARifle Reload; exact burst launch/envelope audio remains polish work.
+
+Six PC replays pass in tools/replay_weapon_selection.py: L4S5 rifle3415 is taken
+once with42 rounds; one press produces three hits and leaves39 rounds; held cycle
+switches once; switching back preserves rifle ammunition and pistol16/125;
+switching after the first burst shot cancels the other two; no-reserve reload
+adds no rounds/audio; an unowned rifle cannot be selected. Both builds and28
+CTests pass. Rifle reload with acquired reserve and5.56mm box pickup still need
+authored live replay coverage. Evidence: artifacts/weapon-select/report.json.
+
+Campaign blockers found while locating the rifle test: L3S1 has camera1 entity
+records but the installed entity.tbl names camera2 (using camera1 mesh), so class
+binding currently fails; no alias has been assumed. L3S4 exceeds the existing
+4MiB NPC-material budget while loading riot_guard_chest-mip3.tga. These need
+class compatibility handling and budgeted resource residency respectively;
+neither is fixed by increasing the Xbox memory target.
+
+The additional1800-frame PC replay passes acquired-rifle death/respawn and
+reload: after respawn the rifle remains owned, three shots leave39 rounds, and
+reload transfers three from reserve, ending42 loaded/197 reserve. The refill is
+explicit first-pass respawn policy, not an authored reserve pickup test.
+Stock64MiB XEMU120-frame L4S5 pickup/select/fire PASS: rifle3415 collected once,
+three shots/hits, one kill,39 loaded and HUD/state match PC;7234 free pages
+(28.3MiB). Native framebuffer inspected. Evidence:
+artifacts/xemu/replay-20260914-031805/report.json. Native rifle reload, ammo-box
+replenishment and exact per-weapon presentation/audio remain follow-up coverage.

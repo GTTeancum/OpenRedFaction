@@ -45,7 +45,7 @@ if args.door:replay_env['RF_REPLAY_DOOR_START']='1'
 if args.climb:replay_env['RF_REPLAY_REGION_START']='2' if args.approach else '1'
 
 root=Path(__file__).resolve().parents[1];emulator=Path('C:/Games/Emulators/Xemu');payload=args.input.read_bytes()
-record_size={b'RFI2':28,b'RFI3':32,b'RFI4':40}.get(payload[:4],24)
+record_size={b'RFI2':28,b'RFI3':32,b'RFI4':40,b'RFI5':44}.get(payload[:4],24)
 offset=8 if record_size!=24 else 0
 if offset and payload[4:8]!=record_size.to_bytes(4,'little'):raise ValueError('Invalid replay record size')
 if len(payload)<=offset or (len(payload)-offset)%record_size or (len(payload)-offset)>60000*record_size:raise ValueError('Expected 1..60000 input records')
@@ -241,6 +241,8 @@ dvd_path = '{root.as_posix()}/build/xbox/redfaction-diagnostic.iso'
      assert report['pickup_vitals']==expected('PICKUP_VITALS'),report['pickup_vitals']
      report['pickups']=words(monitor,symbol('rf_scene_pickups'),8)
      assert report['pickups']==expected('PICKUPS') and report['pickups'][7]==0,report['pickups']
+     report['weapon_selection']=words(monitor,symbol('rf_scene_weapon_selection'),8)
+     assert report['weapon_selection']==expected('WEAPON_SELECTION'),report['weapon_selection']
      report['player_ammo']=words(monitor,symbol('rf_scene_player_ammo'),8)
      assert report['player_ammo']==expected('PLAYER_AMMO') and report['player_ammo'][7]==0,report['player_ammo']
      report['pistol_rules']=words(monitor,symbol('rf_scene_pistol_rules'),7)

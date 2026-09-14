@@ -134,3 +134,8 @@ Pickup/vitals state and sampled armor HUD pixels match PC;6837 available pages
 (26.7MiB). Native framebuffer inspected. Evidence:
 artifacts/xemu/replay-20260914-024732/report.json. Native medical-kit and
 later-level ammo-box replays remain separate coverage items.
+
+Live Assault Rifle and5.56mm_ammo class handling is connected. L4S5 rifle3415
+grants ownership and42 loaded rounds, is removed once and can be selected with
+D-pad Right/Tab. PC and stock64MiB XEMU pickup/fire replay pass; ammo-box
+collection still needs an authored live replay. See FIRING-RUNTIME.md.

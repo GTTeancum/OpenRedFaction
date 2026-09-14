@@ -6,7 +6,7 @@ of the original PC keyboard/mouse mapping. The user confirmed movement on
 September 9, 2026. Guest RAM also records non-neutral movement and look axes.
 
 Controls: left stick moves, right stick looks, B holds crouch, A jumps, X uses,
-RT fires the prototype weapon, Y reloads, and Back+Start ends
+RT fires, Y reloads, D-pad Right cycles owned supported weapons, and Back+Start ends
 the session. Sticks use an 18% radial deadzone with a unit-length diagonal cap;
 disconnect produces neutral input and polling can reconnect a controller.
 Look currently uses one radian/second at full input. Simulation remains fixed
@@ -14,12 +14,16 @@ at 1/60 second per simulation tick; interactive sessions now use shared pacing. 
 is a first-pass hitscan combat loop and partial campaign scripting; the full
 campaign, enemy combat, gun presentation and weapon inventory remain unfinished.
 
-PC campaign controls add F to fire and R to reload (or RT/Y with XInput).
+PC campaign controls add F to fire, R to reload and Tab to cycle weapons
+(or RT/Y/D-pad Right with XInput). A held cycle button switches only once.
 Launch `rf_pc_play --campaign Installed_Game` for the campaign profile. The
-prototype has12 rounds, automatic/manual reload and unlimited reserve ammo.
-The centered reticle flashes green on damaging hits. Bottom-right markers
-show the12-round clip; a gold bar shows reload progress. First-person gun
-presentation remains pending; firing and reload now emit the pistol sounds.
+pistol starts with16 loaded/125 reserve as first-pass policy. Authored assault
+rifle pickups grant ownership and ammunition; primary rifle fire uses three-shot
+bursts. Both guns have first-person models, sounds and finite independent ammo.
+The reticle flashes green on damaging hits. Bottom-right markers show the current
+magazine and reserve; a gold bar shows reload progress. Switching cancels pending
+burst/reload actions and preserves loaded/reserve ammunition. Lower-left bars
+show health and armor. Other weapons and alternate fire remain incomplete.
 Hostile armed NPCs acquire the player in sight; armed NPCs also retaliate
 when damaged, checking line of sight. The lower-left
 bar shows player health; incoming hits trigger the damage flash. Zero health

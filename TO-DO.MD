@@ -8,6 +8,7 @@ then level progression. Fidelity remains a later completion requirement.
 Shortlist:
 - ACTIVE: Connect ammunition pickups and weapon selection to campaign combat.
 - ACTIVE: Connect first-person weapon presentation and firing/reload feedback.
+- Resolve L3S1 missing camera1 class binding and L3S4 NPC texture residency before those campaign sections.
 - Continue campaign traversal/physics coverage beyond the repaired walking route.
 - DEFERRED / TO COMPLETE: Finish lighting lifecycle updates, shadows and visual parity within64MiB; revisit after critical gameplay systems.
 - Finish glare volumes/reflections, cross-level bitmap clocks, special visibility and parent ordering/tag resolution.
@@ -21,7 +22,17 @@ Shortlist:
 - USER: Review PS2 visual parity and test hardware after representative XEMU gameplay is stable.
 - USER: Review the interactive PC movement and audio items listed below.
 
-Progress reporting: include a very high-level working area (e.g. Lighting, AI, Weapons, GeoMod or Scripted events) and an overall percent estimate at the end of every turn report (USER preference) and revisit remaining 24-hour workdays when measured throughput supports a forecast; current rough estimate43% (35-45%), no defensible +/-48-hour completion forecast before end-to-end gameplay.
+Progress reporting: include a very high-level working area (e.g. Lighting, AI, Weapons, GeoMod or Scripted events) and an overall percent estimate at the end of every turn report (USER preference) and revisit remaining 24-hour workdays when measured throughput supports a forecast; current rough estimate44% (35-45%), no defensible +/-48-hour completion forecast before end-to-end gameplay.
+
+Live pistol/rifle switching and authored rifle acquisition now pass six PC
+replays: independent ammo, three-shot fire, held-cycle suppression, burst cancel,
+unowned rejection and no-reserve reload. Both first-person resources are retained
+under1MiB each. Both builds and28 CTests pass; stock64MiB XEMU120-frame rifle
+PASS: pickup3415, selection, three shots,39 remaining and HUD match PC;7234
+pages free. PC1800-frame death/respawn/fire/reload PASS: retained ownership,
+three reserve rounds transferred,42 loaded/197 reserve. Evidence:
+artifacts/xemu/replay-20260914-031805/report.json and artifacts/weapon-select/report.json.
+Next:5.56mm ammo-box collection, native rifle reload and broader weapon/mission progression. Fitted weapon placement and exact rifle audio remain polish.
 
 Shared burst firing is implemented and the live pistol uses the same scheduler.
 Authored rifle rules produce three shots six ticks apart, with45 ticks between
