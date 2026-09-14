@@ -252,3 +252,7 @@ foreach(level L3S1 L3S4)
         "${CMAKE_SOURCE_DIR}/Installed_Game/maps4.vpp"
         "${CMAKE_SOURCE_DIR}/Installed_Game/maps_en.vpp")
 endforeach()
+
+add_executable(rf_level_transition_tests tests/level_transition_tests.c)
+target_link_libraries(rf_level_transition_tests PRIVATE rf_core)
+add_test(NAME authored_level_transitions COMMAND rf_level_transition_tests "${CMAKE_SOURCE_DIR}/Installed_Game")

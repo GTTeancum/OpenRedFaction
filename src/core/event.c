@@ -352,6 +352,24 @@ typedef struct startup_context {
 } startup_context;
 static void startup_target(startup_context *c,const rf_level_link_target *target,
     uint32_t source,uint32_t actor,uint32_t on);
+int rf_level_transition_enqueue(rf_level_transition_request *request,const rf_level_event *event,uint32_t source,uint32_t actor)
+{
+    rf_level_transition_request next={0};uint32_t n=0,i,base;
+    if(!request || !event)return RF_RANGE;
+    if(request->pending)return RF_OK;
+    while(n<sizeof(event->texts[0]) && event->texts[0][n])n++;
+    if(!n || n==sizeof(event->texts[0]) || !memchr(event->texts[1],0,sizeof(event->texts[1])))return RF_FORMAT;
+    base=n;
+    if(n>=4 && event->texts[0][n-4]=='.' && (event->texts[0][n-3]|32)=='r' &&
+       (event->texts[0][n-2]|32)=='f' && (event->texts[0][n-1]|32)=='l')base-=4;
+    if(!base || base+4>=sizeof(next.level))return RF_RANGE;
+    for(i=0;i<base;i++) {unsigned char c=(unsigned char)event->texts[0][i];
+        if(!((c>='A' && c<='Z') || (c>='a' && c<='z') || (c>='0' && c<='9') || c=='_' || c=='-'))return RF_FORMAT;}
+    memcpy(next.level,event->texts[0],base);memcpy(next.level+base,".rfl",5);
+    memcpy(next.entrance,event->texts[1],sizeof(next.entrance));memcpy(next.words,event->words,sizeof(next.words));memcpy(next.flags,event->flags,sizeof(next.flags));
+    next.pending=1;next.uid=event->uid;next.source=source;next.actor=actor;*request=next;return RF_OK;
+}
+
 static void startup_event_action(void *context,rf_event_state *state,uint32_t action,
     uint32_t source,uint32_t actor,uint32_t mode);
 static int startup_switch_ready(const rf_runtime_triggers *triggers)
@@ -436,6 +454,11 @@ static void startup_event_action(void *context,rf_event_state *state,uint32_t ac
         for(i=0;i<c->event->authored->record.link_count && !c->status;++i)
             startup_target(c,c->event->links+i,source,actor,(mode&255u)==1);
         return;
+    }
+    if(state->type==22) {
+        if(!action)return;
+        if(!c->triggers->load_level){++c->report->unsupported_actions;return;}
+        c->status=c->triggers->load_level(c->triggers->load_level_context,&c->event->authored->record,source,actor);return;
     }
     if(state->type==32) {
         if(!action)return; /* Original off-action has no effect. */
@@ -661,6 +684,7 @@ int rf_runtime_events_tick(rf_runtime_events *events,rf_runtime_triggers *trigge
         if(event->state.type!=3 && event->state.type!=44 && event->state.type!=48 &&
            !(event->state.type==39 && particles && particles->state) &&
            !(event->state.type==51 && forces) &&
+           !(event->state.type==22 && triggers->load_level) &&
            !(event->state.type==30 && triggers->set_friendliness) &&
            !(event->state.type==17 && startup_damage_ready(triggers)) &&
            !(event->state.type==32 && event->switch_state && startup_switch_ready(triggers))) {++*unsupported_pending;continue;}

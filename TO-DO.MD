@@ -25,6 +25,15 @@ Shortlist:
 
 Progress reporting: include a very high-level working area (e.g. Lighting, AI, Weapons, GeoMod or Scripted events) and an overall percent estimate at the end of every turn report (USER preference) and revisit remaining 24-hour workdays when measured throughput supports a forecast; current rough estimate44% (35-45%), no defensible +/-48-hour completion forecast before end-to-end gameplay.
 
+Load_Level(type22) now dispatches through a shared deferred request backend,
+including delayed activation. Scene wiring retains destination, entrance, raw
+words/flags and source IDs without destroying resources during event dispatch.
+All14 authored exits across L1S1/2/3 dispatch and resolve existing destination
+files;33 CTests and both builds pass. This does not yet load a second scene.
+Next connect teardown/reload on PC/Xbox, resolve same-level exit behavior and
+carry player inventory/vitals/placement across section boundaries. Evidence:
+artifacts/level-transition-authored.log. No seamless/native transition claim.
+
 L3S1/L3S4 now load and run120-frame PC replays within unchanged NPC4MiB and
 clutter1MiB budgets. Full textures are tried first; oversized NPC sets fall back
 to128-pixel maximum dimensions and props to128 then64. Box reduction preserves

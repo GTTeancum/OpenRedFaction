@@ -627,6 +627,10 @@ static void campaign_switch_snapshot(void)
 }
 
 static rf_runtime_triggers campaign_triggers;
+rf_level_transition_request rf_scene_level_transition;
+static int campaign_load_level(void *context,const rf_level_event *event,uint32_t source,uint32_t actor)
+{return rf_level_transition_enqueue(context,event,source,actor);}
+
 static rf_level_owned_groups campaign_groups;
 static rf_group_runtime_collection campaign_group_runtime;
 static rf_group_registration campaign_group_registration;
@@ -9468,6 +9472,9 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
             rf_scene_campaign_events[1]=campaign_events.allocated_bytes;
             rf_scene_campaign_events[2]=sizeof(campaign_registry);
             status=rf_runtime_triggers_open(level,&campaign_registry,1024*1024,0,&campaign_triggers);
+            memset(&rf_scene_level_transition,0,sizeof(rf_scene_level_transition));
+            campaign_triggers.load_level=campaign_load_level;campaign_triggers.load_level_context=&rf_scene_level_transition;
+
             if(status)goto done;
             campaign_triggers.set_friendliness=campaign_set_friendliness;
             rf_scene_campaign_triggers[0]=campaign_triggers.count;

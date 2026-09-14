@@ -712,6 +712,7 @@ extern uint32_t rf_scene_player_ammo[8];
 extern uint32_t rf_scene_pickups[8];
 extern uint32_t rf_scene_pickup_vitals[4];
 extern uint32_t rf_scene_combat_death[8];
+extern rf_level_transition_request rf_scene_level_transition;
 extern uint32_t rf_scene_weapon_selection[8];
 extern uint32_t rf_scene_combat[8]; /* shots,hits,kills,last target,health bits,clip,reload ticks,status */
 /* RFI5 + size44 adds weapon cycling; RFI4 + size40 adds fire/reload. RFI3 + uint32 size32 includes use; RFI2 size28 omits use; legacy raw
