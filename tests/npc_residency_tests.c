@@ -914,6 +914,29 @@ static int combat_shot_geometry_check(void)
     start[0]=1;start[1]=-1;
     CHECK(combat_shot_obstructed(&stream,start,delta,1,&hit)==RF_OK && hit);
     CHECK(combat_shot_obstructed(&stream,start,delta,.4f,&hit)==RF_OK && !hit); /* Target before the panel. */
+    {
+        rf_level_item item={0};uint8_t taken=0;float eye[3]={1,-1,4};
+        rf_weapon_inventory saved_inventory=campaign_player_inventory;
+        rf_weapon_acquire_definition saved_definition=campaign_weapon_supply.definitions[3];
+        int32_t saved_id=campaign_pistol_id;float saved_health=campaign_player_damage.state.effects.health,saved_position[3];
+        uint32_t saved_pickups[8],saved_ammo[8],saved_combat[8];
+        memcpy(saved_position,scene_actor_body.state.position,12);memcpy(saved_pickups,rf_scene_pickups,sizeof(saved_pickups));
+        memcpy(saved_ammo,rf_scene_player_ammo,sizeof(saved_ammo));memcpy(saved_combat,rf_scene_combat,sizeof(saved_combat));
+        memset(rf_scene_pickups,0,sizeof(rf_scene_pickups));memset(&campaign_player_inventory,0,sizeof(campaign_player_inventory));
+        campaign_pistol_id=3;campaign_weapon_supply.definitions[3]=(rf_weapon_acquire_definition){0,125,16};
+        campaign_player_inventory.owned[3]=1;campaign_player_inventory.loaded[3]=16;campaign_player_inventory.reserve[0]=100;
+        campaign_player_damage.state.effects.health=100;memcpy(scene_actor_body.state.position,eye,12);
+        strcpy(item.class_name,"Handgun");item.uid=777;item.quantity=16;item.position[0]=1;item.position[1]=-1;item.position[2]=6;
+        stream.pickups.items=&item;stream.pickups.count=1;stream.pickup_taken=&taken;stream.handgun_pickup.gives_weapon=1;
+        CHECK(campaign_pickups_tick(&stream,eye)==RF_OK && !taken && rf_scene_pickups[2]==1 && campaign_player_inventory.reserve[0]==100);
+        solid.input_origin[0]=20;solid.minimum[0]+=20;solid.maximum[0]+=20;
+        CHECK(campaign_pickups_tick(&stream,eye)==RF_OK && taken && rf_scene_pickups[3]==1 && campaign_player_inventory.reserve[0]==116);
+        CHECK(campaign_pickups_tick(&stream,eye)==RF_OK && rf_scene_pickups[3]==1 && campaign_player_inventory.reserve[0]==116);
+        solid.input_origin[0]=0;solid.minimum[0]-=20;solid.maximum[0]-=20;
+        campaign_player_inventory=saved_inventory;campaign_weapon_supply.definitions[3]=saved_definition;campaign_pistol_id=saved_id;
+        campaign_player_damage.state.effects.health=saved_health;memcpy(scene_actor_body.state.position,saved_position,12);
+        memcpy(rf_scene_pickups,saved_pickups,sizeof(saved_pickups));memcpy(rf_scene_player_ammo,saved_ammo,sizeof(saved_ammo));memcpy(rf_scene_combat,saved_combat,sizeof(saved_combat));
+    }
     solid.input_origin[0]=20;solid.minimum[0]+=20;solid.maximum[0]+=20;
     CHECK(combat_shot_obstructed(&stream,start,delta,1,&hit)==RF_OK && !hit); /* Moved panel. */
     memset(&campaign_movers,0,sizeof(campaign_movers));return 0;

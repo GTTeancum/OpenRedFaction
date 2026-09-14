@@ -291,6 +291,11 @@ int main(int argc,char **argv)
         if(*end || getenv("RF_REPLAY_REGION_START") || getenv("RF_REPLAY_DOOR_START") || getenv("RF_REPLAY_LIFT_START") || getenv("RF_REPLAY_FORCE_UID"))CHECK(RF_RANGE);
         CHECK(rf_scene_stage_actor(&level,(uint32_t)uid));
     }
+    if(spawn_profile && p.headless && getenv("RF_REPLAY_ITEM_UID")) {
+        char *end;unsigned long uid=strtoul(getenv("RF_REPLAY_ITEM_UID"),&end,10);
+        if(*end || getenv("RF_REPLAY_ACTOR_UID") || getenv("RF_REPLAY_FORCE_UID") || getenv("RF_REPLAY_DOOR_START") || getenv("RF_REPLAY_REGION_START") || getenv("RF_REPLAY_LIFT_START"))CHECK(RF_RANGE);
+        CHECK(rf_scene_stage_item(&level,(uint32_t)uid));
+    }
     if(spawn_profile)CHECK(rf_scene_set_campaign_spawn(&level));
     else CHECK(rf_scene_preview_route_camera(&level,9858));
     CHECK(rf_geometry_open(&geometry,&level,8*1024*1024));
@@ -529,6 +534,7 @@ int main(int argc,char **argv)
     printf("PLAYER_LIFE");for(i=0;i<8;++i)printf(" %u",rf_scene_player_life[i]);puts("");
     printf("ENEMY_AWARENESS");for(uint32_t i=0;i<8;i++)printf(" %u",rf_scene_enemy_awareness[i]);printf("\n");
     printf("ENEMY_COMBAT");for(i=0;i<8;++i)printf(" %u",rf_scene_enemy_combat[i]);puts("");
+    printf("PICKUPS");for(i=0;i<8;++i)printf(" %u",rf_scene_pickups[i]);puts("");
     printf("PLAYER_AMMO");for(i=0;i<8;++i)printf(" %u",rf_scene_player_ammo[i]);puts("");
     printf("PISTOL_RULES");for(i=0;i<7;++i)printf(" %u",rf_scene_pistol_rules[i]);puts("");
     printf("PLAYER_WEAPON");for(i=0;i<8;++i)printf(" %u",rf_scene_player_weapon[i]);puts("");

@@ -21,7 +21,18 @@ Shortlist:
 - USER: Review PS2 visual parity and test hardware after representative XEMU gameplay is stable.
 - USER: Review the interactive PC movement and audio items listed below.
 
-Progress reporting: include a very high-level working area (e.g. Lighting, AI, Weapons, GeoMod or Scripted events) and an overall percent estimate at the end of every turn report (USER preference) and revisit remaining 24-hour workdays when measured throughput supports a forecast; current rough estimate42% (35-45%), no defensible +/-48-hour completion forecast before end-to-end gameplay.
+Progress reporting: include a very high-level working area (e.g. Lighting, AI, Weapons, GeoMod or Scripted events) and an overall percent estimate at the end of every turn report (USER preference) and revisit remaining 24-hour workdays when measured throughput supports a forecast; current rough estimate43% (35-45%), no defensible +/-48-hour completion forecast before end-to-end gameplay.
+
+Live authored Handgun pickups now render using the retained pistol world model
+and replenish player reserve. A two-unit body-distance check plus precise world/
+moving-solid occlusion gates collection; full inventory leaves the item in place.
+Successful collection removes it once for this scene. PC cases cover visible/full,
+partial replenishment,16-round grant and no second collection; panel obstruction
+and moving-clear tests pass. Both PC integration and28 CTests pass; stock64MiB
+XEMU210-frame walk-and-collect PASS:Handgun9427 collected once, ammo/HUD
+match PC, world model absent afterward;6869 available pages. Evidence:
+artifacts/xemu/replay-20260914-023510/report.json. Other item classes, pickup
+sounds, script/registry publication and original starting grants remain open.
 
 Item definitions and capped inventory grants are implemented in shared C.
 Handgun gives12mm handgun ownership/16 rounds;12mm_ammo grants32 SP rounds.

@@ -68,3 +68,40 @@ missing-class output preservation, initial acquisition, ammo-only addition,
 partial capacity, full reserve, invalid quantity and maximal signed quantity.
 Both builds and28 CTests pass. Live rendering, proximity/occlusion, item removal
 and pickup sound/event integration remain open; no XEMU collection is claimed.
+
+## Live Handgun pickup path
+
+Campaign scenes retain authored item records plus one availability byte per
+record. The first supported class is Handgun. Its table definition is checked
+against the existing pistol world-model resource, and the pistol model is
+included in resource selection even when no NPC carries it. No duplicate model
+or texture allocation is introduced. Other item classes remain unsupported.
+
+Available handguns draw at their authored position/orientation through the
+shared static-model renderer and existing NPC scratch. Before combat, live
+players within two units of the item (body origin) query precise geometry from
+the eye to the pickup. Static/moving solids can prevent collection. A successful
+inventory grant marks the item taken and it stops drawing. Full inventory adds
+nothing and preserves the item. The authored SP record quantity is used.
+
+This is first-pass scene availability: no item object-registry entry, mission
+notification, pickup sound, respawn scheduling or moving-parent attachment yet.
+Taken items remain taken across the existing in-place player respawn. Finite
+inventory caps and actual starting supply remain as documented in FIRING-RUNTIME.
+
+Process-local staging is exposed through RF_REPLAY_ITEM_UID and the XEMU harness
+--item-uid option. It changes only the loaded test level's starting camera/body,
+never host input. The separate campaign-item.bin flag is restored by the harness.
+
+PC replay coverage: Handgun9427 in L1S1 visibly emits162 vertices; full reserve
+keeps it visible; after spending/reloading one round, walking near it restores
+one reserve round and removes it. Later spending/reloading cannot collect it
+again. A depleted-magazine case grants all16 authored rounds. A synthetic solid
+panel blocks the live collection function, and moving it aside permits exactly
+one grant. All28 CTests pass. Evidence: artifacts/live-pickups/report.json.
+
+Stock64MiB XEMU210-frame walk-and-collect PASS:Handgun9427 adds one missing
+reserve round and disappears, matching PC state/HUD;6869 available pages.
+Native framebuffer inspected. Both builds and28 CTests pass. Evidence:
+artifacts/xemu/replay-20260914-023510/report.json. The obstruction/moved-panel
+case is a PC integration test, not an authored native through-wall replay.

@@ -460,6 +460,7 @@ extern uint32_t rf_scene_npc_impact_test[4]; /* cases,health before/after,errors
 int rf_scene_stage_climb(rf_level *level,uint32_t mode);
 /* Explicit L1S1 lower-door collision fixture, not an authored spawn. */
 int rf_scene_stage_door(rf_level *level);
+int rf_scene_stage_item(rf_level *,uint32_t uid);
 int rf_scene_stage_actor(rf_level *level,uint32_t uid);
 int rf_scene_stage_lift(rf_level *level);
 int rf_scene_stage_force(rf_level *level,uint32_t uid);
@@ -708,6 +709,7 @@ extern uint32_t rf_scene_weapon_audio[9];
 extern uint32_t rf_scene_player_weapon[8];
 extern uint32_t rf_scene_pistol_rules[7];
 extern uint32_t rf_scene_player_ammo[8];
+extern uint32_t rf_scene_pickups[8];
 extern uint32_t rf_scene_combat_death[8];
 extern uint32_t rf_scene_combat[8]; /* shots,hits,kills,last target,health bits,clip,reload ticks,status */
 /* RFI4 + size40 adds fire/reload. RFI3 + uint32 size32 includes use; RFI2 size28 omits use; legacy raw

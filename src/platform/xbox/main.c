@@ -901,6 +901,15 @@ int main(void)
                     if(force_file)fclose(force_file);fclose(actor_file);
                 }
             }
+            if(result==RF_OK) {
+                FILE *item_file=fopen("D:\\campaign-item.bin","rb");
+                if(item_file) {
+                    uint32_t uid;FILE *actor_file=fopen("D:\\campaign-actor.bin","rb"),*force_file=fopen("D:\\campaign-force.bin","rb");
+                    if(staged_door || staged_climb || staged_lift || actor_file || force_file || fread(&uid,4,1,item_file)!=1 || fgetc(item_file)!=EOF)result=RF_FORMAT;
+                    else result=rf_scene_stage_item(&level,uid);
+                    if(actor_file)fclose(actor_file);if(force_file)fclose(force_file);fclose(item_file);
+                }
+            }
             if (result == RF_OK) {
                 const rf_level_section *geometry = rf_level_find(&level, 0x100);
                 const rf_level_section *lightmaps = rf_level_find(&level, 0x1200);

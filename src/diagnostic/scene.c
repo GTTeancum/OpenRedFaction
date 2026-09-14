@@ -34,6 +34,19 @@ int rf_scene_stage_door(rf_level *level)
     rf_geometry_movers_close(&movers);return RF_OK;
 }
 /* Process-local inspection camera; never changes authored actor placement. */
+int rf_scene_stage_item(rf_level *level,uint32_t uid)
+{
+    rf_level_entity_reader r;rf_level_item item;int status;
+    if(!level)return RF_RANGE;status=rf_level_items_begin(level,&r);if(status)return status;
+    while((status=rf_level_item_next(&r,&item))==RF_OK)if(item.uid==uid) {
+        float direction[3]={0,.4472136f,.8944272f};
+        memcpy(level->player_position,item.position,12);level->player_position[2]-=2.5f;level->player_position[1]+=.625f;
+        memset(level->player_orientation,0,36);level->player_orientation[0][0]=1;
+        level->player_orientation[1][1]=direction[2];level->player_orientation[1][2]=-direction[1];
+        memcpy(level->player_orientation[2],direction,12);return RF_OK;
+    }
+    return status;
+}
 int rf_scene_stage_actor(rf_level *level,uint32_t uid)
 {
     rf_level_entity_reader reader;rf_level_entity actor;uint32_t i;int status;
@@ -357,6 +370,7 @@ typedef struct scene_stream {
     uint32_t world,base,capacity,npc_base,npc_textures;rf_scene_frame_sink sink;void *context;
     uint32_t clutter_base,clutter_textures;
     uint32_t weapon_base,weapon_textures;
+    rf_level_owned_items pickups;uint8_t *pickup_taken;rf_item_definition handgun_pickup;
     rf_player_weapon *player_weapon;uint32_t player_weapon_base,player_weapon_textures,player_shots,player_reload;
     rf_model_projection npc_view;void *npc_memory;uint16_t *npc_indices;rf_model_clip_pool *npc_pool;
     const rf_geometry_collision_world *collision;
@@ -3223,6 +3237,8 @@ static int campaign_weapon_models_open(const char *tables_path,rf_vpp *meshes)
     if(status){free(names);return status;}
     for(i=0;i<campaign_npc_body_count;++i)for(j=0;j<64;++j)
         if(campaign_npc_bodies[i].inventory.owned[j])selected[j/32]|=1u<<(j%32);
+    {int32_t pistol=rf_weapon_name_find(&campaign_weapon_supply.names,"12mm handgun");
+     if(pistol<0){free(names);return RF_NOT_FOUND;}selected[pistol/32]|=1u<<(pistol%32);}
     status=rf_weapon_models_open(meshes,names,selected,256*1024-sizeof(*names),&campaign_weapon_models);
     free(names);if(status)return status;
     rf_scene_weapon_models[0]=campaign_weapon_models.count;
@@ -7137,6 +7153,27 @@ static int campaign_enemy_tick(scene_stream *stream,uint32_t frame,const float p
     rf_scene_enemy_combat[6]=campaign_player_damage.state.effects.health<=0;
     return RF_OK;
 }
+uint32_t rf_scene_pickups[8]; /* supported,checks,blocked,collected,rounds,last UID,draw vertices,status */
+static int campaign_pickups_tick(scene_stream *stream,const float eye[3])
+{
+    uint32_t i;int status;
+    if(campaign_player_damage.state.effects.health<=0)return RF_OK;
+    for(i=0;i<stream->pickups.count;i++) {
+        const rf_level_item *item=stream->pickups.items+i;float delta[3],distance=0;uint32_t k,blocked=0;rf_weapon_pickup_grant grant;
+        if(stream->pickup_taken[i] || strcmp(item->class_name,"Handgun") || (stream->handgun_pickup.flags&1))continue;
+        for(k=0;k<3;k++){float d=item->position[k]-scene_actor_body.state.position[k];distance+=d*d;delta[k]=item->position[k]-eye[k];}
+        if(distance>4)continue;++rf_scene_pickups[1];
+        status=combat_shot_obstructed(stream,eye,delta,1,&blocked);if(status)return status;
+        if(blocked){++rf_scene_pickups[2];continue;}
+        if(item->quantity<0)return RF_FORMAT;
+        status=rf_weapon_pickup_grant_sp(&campaign_player_inventory,campaign_weapon_supply.definitions+campaign_pistol_id,
+            campaign_pistol_id,item->quantity,stream->handgun_pickup.gives_weapon,&grant);if(status)return status;
+        if(!grant.rounds && !grant.acquired)continue;
+        stream->pickup_taken[i]=1;++rf_scene_pickups[3];rf_scene_pickups[4]+=grant.rounds;rf_scene_pickups[5]=item->uid;
+        campaign_ammo_publish();
+    }
+    return RF_OK;
+}
 static int campaign_combat_tick(scene_stream *stream,uint32_t frame,const float position[3],const float orientation[3][3])
 {
     float delta[3],nearest=1,amount;uint32_t i,target=UINT32_MAX,blocked,fire;int status;
@@ -7149,6 +7186,7 @@ static int campaign_combat_tick(scene_stream *stream,uint32_t frame,const float 
 }
     if(combat_frame==frame)return RF_OK;combat_frame=frame;
     fire=player_input.fire && (!campaign_pistol.semi_automatic || !combat_fire_held);combat_fire_held=!!player_input.fire;
+    status=campaign_pickups_tick(stream,position);rf_scene_pickups[7]=(uint32_t)status;if(status)return status;
     status=campaign_enemy_tick(stream,frame,position);rf_scene_enemy_combat[7]=(uint32_t)status;if(status)return status;
     if(rf_scene_enemy_combat[6])return RF_OK;
     if(combat_cooldown)--combat_cooldown;
@@ -8441,7 +8479,7 @@ static int scene_clutter_draw(scene_stream *stream,uint32_t frame)
 }
 uint32_t rf_scene_weapon_draw[6]; /* frame, actors, submissions, vertices, vertex hash, flags hash */
 typedef struct scene_weapon_context {
-    scene_stream *stream;uint32_t actor;rf_model_render_buffers buffers;
+    scene_stream *stream;uint32_t actor,pickup;rf_model_render_buffers buffers;
     rf_model_lighting lights;rf_model_render_output attributes;
     rf_model_clip_planes planes;rf_model_clip_projection projection;
 } scene_weapon_context;
@@ -8457,7 +8495,7 @@ static int scene_weapon_submit(void *context,uint32_t model,const rf_weapon_hand
     if(!model || model>campaign_weapon_models.count || !(draw_state[0]&0x80))return RF_RANGE;
     r=&campaign_weapon_models.items[model-1].render;first=campaign_weapon_material_offsets[model-1];
     status=rf_model_local_view(&stream->npc_view,pose->position,pose->basis,&view);if(status)return status;
-    ++rf_scene_weapon_draw[2];
+    if(!c->pickup)++rf_scene_weapon_draw[2];
     /* Shared diagnostic lighting/highest LOD policy; original material-state
      * lighting and distance LOD are still required for final visual parity. */
     for(part=0;part<r->part_count;++part) {
@@ -8557,6 +8595,23 @@ static int scene_weapon_draw(scene_stream *stream,uint32_t frame)
     rf_scene_weapon_draw[3]=stream->mesh->count-start;
     rf_scene_weapon_draw[4]=npc_hash_bytes(2166136261u,stream->mesh->vertices+start,rf_scene_weapon_draw[3]*sizeof(rf_preview_vertex));return RF_OK;
 }
+static int scene_pickups_draw(scene_stream *stream)
+{
+    scene_weapon_context c={0};uint32_t i,start=stream->mesh->count,state[20]={0},model;int status;
+    rf_scene_pickups[6]=0;if(!stream->pickup_taken || campaign_pistol_id<0)return RF_OK;
+    c.stream=stream;c.pickup=1;state[0]=0x80;model=campaign_weapon_models.weapons[campaign_pistol_id].model;
+    if(!model)return RF_NOT_FOUND;
+    c.buffers.cache=stream->npc_memory;c.buffers.clip=(float(*)[3])((uint8_t*)stream->npc_memory+4096*32);
+    c.buffers.vertices=(uint8_t(*)[40])((uint8_t*)stream->npc_memory+4096*56);c.buffers.capacity=4096;
+    c.attributes=(rf_model_render_output){1,{255,255,255},255,1,1};c.lights.ambient[0]=40;c.lights.ambient[1]=50;c.lights.ambient[2]=60;
+    c.planes.near_depth=.1f;c.planes.far_depth=1000;c.projection.scale[0]=320;c.projection.scale[1]=240;c.projection.clamp=1;
+    for(i=0;i<stream->pickups.count;i++)if(!stream->pickup_taken[i] && !strcmp(stream->pickups.items[i].class_name,"Handgun")) {
+        rf_weapon_hand_placement pose={0};memcpy(pose.position,stream->pickups.items[i].position,12);memcpy(pose.basis,stream->pickups.items[i].orientation,36);
+        status=scene_weapon_submit(&c,model,&pose,state);if(status)return status;
+    }
+    rf_scene_pickups[6]=stream->mesh->count-start;return RF_OK;
+}
+
 typedef struct scene_glare_search_context {
     rf_glare_visibility_object *objects;uint32_t (*facts)[3];uint32_t count,movers,actors;
 } scene_glare_search_context;
@@ -9003,6 +9058,7 @@ static int scene_frame(void *context,uint32_t frame,rf_preview_mesh *actor)
         status=scene_npc_draw(stream,frame);if(status)return status;
         status=scene_clutter_draw(stream,frame);if(status)return status;
         status=scene_weapon_draw(stream,frame);if(status)return status;
+        status=scene_pickups_draw(stream);if(status)return status;
         status=scene_player_weapon_draw(stream,frame);if(status)return status;
         particle_draw_stream=stream;
         status=stream->sink(stream->context,frame,stream->mesh,stream->materials,stream->world);
@@ -9357,6 +9413,14 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
             if(!campaign_controller_requests){status=RF_RANGE;goto done;}
             status=campaign_audio_open(tables_path,level->entry.name,binding.entity.class_name);if(status)goto done;
             status=campaign_clutter_open(tables_path,level);if(status)goto done;
+            memset(rf_scene_pickups,0,sizeof(rf_scene_pickups));
+            status=rf_level_owned_items_open(level,256*1024,&stream.pickups);if(status)goto done;
+            stream.pickup_taken=calloc(stream.pickups.count?stream.pickups.count:1,1);if(!stream.pickup_taken){status=RF_IO;goto done;}
+            {rf_vpp pickup_tables;status=rf_vpp_open(&pickup_tables,tables_path);if(status)goto done;
+             status=rf_item_definition_load(&pickup_tables,"Handgun",128*1024,&stream.handgun_pickup);rf_vpp_close(&pickup_tables);if(status)goto done;
+             if(strcmp(stream.handgun_pickup.weapon,"12mm handgun") || strcmp(stream.handgun_pickup.mesh,"weapon_ultorgun.v3d") || stream.handgun_pickup.mesh_kind!=1){status=RF_FORMAT;goto done;}}
+            for(i=0;i<stream.pickups.count;i++)if(!strcmp(stream.pickups.items[i].class_name,"Handgun"))++rf_scene_pickups[0];
+
             status=campaign_clutter_render_open(&archive);if(status)goto done;
             status=campaign_clutter_materials_open(tables_path,maps,map_count);if(status)goto done;
             status=campaign_glare_resources_open(tables_path,maps,map_count);if(status)goto done;
@@ -9644,6 +9708,7 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
     }
 done:
     rf_player_weapon_close(&stream.player_weapon);
+    rf_level_owned_items_close(&stream.pickups);free(stream.pickup_taken);
     free(stream.npc_memory);free(stream.npc_indices);free(stream.npc_pool);
     rf_level_visibility_close(&stream.visibility);
     free(stream.light_scratch_memory);
