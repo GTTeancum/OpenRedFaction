@@ -77,3 +77,22 @@ remain; native framebuffer inspected. Both builds,36 CTests and the updated
 59/180/600/1500/1501-frame PC controls pass. Native1500-frame hangar-door stop
 has not been checked separately. Trigger4963's filter3 rejects player-controlled
 actors in rf_trigger_eligible, consistent with the needed NPC contact path.
+# First-pass locomotion selection
+
+Scripted movement now requests authored logical state2 (`walk`) after a
+successful movement step, and state0 (`stand`) when blocked, arrived or
+cancelled. Requests use the existing quarter-second transition and do not
+restart an already selected state. Hidden actors do not receive these requests;
+missing walk mappings retain the existing stand fallback. Armed/stance states,
+animation speed matching, footsteps and grounding remain open.
+
+Contained tests cover walk/stand selection, preserving an in-progress blend,
+hidden actors and missing mappings. Both builds and36 CTests pass, as do the
+three PC hangar-door controls (`artifacts/npc-walk-replay.log`). This change still
+needs native replay and visual walking confirmation; earlier XEMU door evidence
+predates the locomotion selector.
+
+The next L7S2 obstruction nearX27.471 is not evidence of a route-search failure:
+Door SecurElev key4880 and CheckPt Door02 key3768 are linked to player-use
+triggers4930/5346 and Delay5324 (3s), itself reached from Delay5325 (120s) through
+When_Dead5323. Preserve that mission interaction rather than bypassing the doors.

@@ -1063,8 +1063,28 @@ static int npc_door_occupancy_check(void)
     CHECK(campaign_npc_door_occupied(NULL,&occupied)==RF_OK && !occupied);
     campaign_npc_bodies=NULL;campaign_npc_body_count=0;return 0;
 }
+static int script_locomotion_check(void)
+{
+    campaign_npc_body owner={0};rf_entity_pose pose={0};rf_motion_controller saved;uint32_t i;
+    campaign_npc_bodies=&owner;campaign_npc_body_count=1;campaign_poses.items=&pose;campaign_poses.count=1;
+    for(i=0;i<23;i++)owner.selection.mapping.states[i]=-1;
+    owner.selection.mapping.states[0]=0;owner.selection.mapping.states[2]=2;
+    pose.controller.current=0;pose.controller.next=-1;
+    CHECK(campaign_script_locomotion(0,1)==RF_OK && pose.controller.next==2);
+    pose.controller.elapsed=.1f;saved=pose.controller;
+    CHECK(campaign_script_locomotion(0,1)==RF_OK && !memcmp(&saved,&pose.controller,sizeof(saved)));
+    pose.controller.current=2;pose.controller.next=-1;pose.controller.duration=pose.controller.elapsed=0;
+    CHECK(campaign_script_locomotion(0,0)==RF_OK && pose.controller.next==0);
+    saved=pose.controller;owner.object_flags=0x4000;
+    CHECK(campaign_script_locomotion(0,1)==RF_OK && !memcmp(&saved,&pose.controller,sizeof(saved)));
+    owner.object_flags=0;owner.selection.mapping.states[2]=-1;
+    pose.controller.current=0;pose.controller.next=-1;pose.controller.duration=pose.controller.elapsed=0;
+    CHECK(campaign_script_locomotion(0,1)==RF_OK && pose.controller.current==0 && pose.controller.next==-1);
+    campaign_npc_bodies=NULL;campaign_npc_body_count=0;campaign_poses.items=NULL;campaign_poses.count=0;return 0;
+}
 int main(int argc,char **argv)
 {
+    CHECK(script_locomotion_check()==0);
     CHECK(npc_door_occupancy_check()==0);
     CHECK(actor_retirement_check()==0);
     CHECK(combat_shot_geometry_check()==0);

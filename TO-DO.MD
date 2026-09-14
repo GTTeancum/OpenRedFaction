@@ -11,7 +11,7 @@ failures to select work; avoid spending time on exact RE or visual polish unless
 it blocks those systems. This priority change does not increase completion.
 
 Shortlist:
-- ACTIVE: Complete scripted NPC route progression, grounding and walking animation beyond the verified hangar door.
+- ACTIVE: Ground scripted NPC movement and verify the new walk/stand animation selection on Xbox.
 - TO COMPLETE: Preserve remaining world changes across sections, including partial actor state and dropped items.
 - NEXT: Expand mission scripts and AI until consecutive campaign sections are playable end to end.
 - TO COMPLETE: Expand the working pistol/rifle combat, pickups and first-person feedback to the remaining weapons.
@@ -30,6 +30,12 @@ Shortlist:
 - USER: Review the interactive PC movement and audio items listed below.
 
 Progress reporting: include a very high-level working area (e.g. Lighting, AI, Weapons, GeoMod or Scripted events) and an overall percent estimate at the end of every turn report (USER preference) and revisit remaining 24-hour workdays when measured throughput supports a forecast; current rough estimate45% (35-45%), no defensible +/-48-hour completion forecast before end-to-end gameplay.
+
+Scripted movement now requests authored walk/stand animations using existing
+blends, with hidden/missing-map guards. Both builds,36 tests and PC door
+controls pass; native replay and visual walking confirmation remain open.
+The later security doors have authored player-use/delayed-event prerequisites;
+keep those intact. See docs/SCRIPTED-MOVEMENT.md.
 
 L7S2 PC hangar traversal passes with authored Shot1/Shot3 setup and Goto4994:
 1000 frames,999 steps, zero blocked steps, two NPC contacts/two door starts

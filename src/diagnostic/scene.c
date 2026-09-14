@@ -3471,6 +3471,7 @@ static int campaign_npc_door_occupied(const rf_trigger_volume *volume,uint32_t *
     return RF_OK;
 }
 uint32_t rf_scene_script_actor[8];
+static int campaign_script_locomotion(uint32_t index,uint32_t moving);
 uint32_t rf_scene_script_movement[8]; /* requests, steps, arrivals, blocked, active, last actor UID, last event UID, status */
 static int campaign_script_move(void *context,uint32_t handle,const rf_level_event *event,uint32_t on)
 {
@@ -3485,7 +3486,7 @@ static int campaign_script_move(void *context,uint32_t handle,const rf_level_eve
         owner->script_move.follow=!strcmp(event->type,"Goto_Player");
         memcpy(owner->script_move.target,event->position,12);
         ++rf_scene_script_movement[0];rf_scene_script_movement[5]=campaign_seeds.records.items[i].record.uid;
-        rf_scene_script_movement[6]=event->uid;return RF_OK;
+        rf_scene_script_movement[6]=event->uid;return on?RF_OK:campaign_script_locomotion(i,0);
     }
     return RF_NOT_FOUND;
 }
@@ -8599,6 +8600,18 @@ static int campaign_script_route(scene_stream *stream,campaign_npc_body *owner,u
     else {*found=0;owner->navigation.retained.count=0;++rf_scene_script_routes[2];}
     rf_scene_script_routes[4]=owner->navigation.retained.count;return RF_OK;
 }
+static int campaign_script_locomotion(uint32_t index,uint32_t moving)
+{
+    campaign_npc_body *owner=campaign_npc_bodies+index;
+    rf_entity_pose *pose=campaign_poses.items+index;
+    /* Ordinary unarmed stand/walk states from the retained authored mapping.
+     * Weapon/stance/AI overrides and speed matching remain separate work. */
+    int32_t desired=moving?2:0;
+    if(owner->object_flags&0x4000)return RF_OK;
+    if(owner->selection.mapping.states[desired]<0)desired=0;
+    if(rf_motion_has_state(&pose->controller,desired))return RF_OK;
+    return rf_motion_request_state(&pose->controller,owner->selection.mapping.states,desired,.25f);
+}
 /* First-pass horizontal approach, bounded by the existing body/world sweep.
  * Routing, slope support and full authored movement-mode semantics remain open. */
 static int campaign_script_step(scene_stream *stream,float elapsed)
@@ -8634,17 +8647,19 @@ static int campaign_script_step(scene_stream *stream,float elapsed)
         rf_scene_script_routes[5]=o->script_move.route_index;
         delta[0]=target[0]-o->body.state.position[0];delta[1]=0;
         delta[2]=target[2]-o->body.state.position[2];distance=sqrtf(delta[0]*delta[0]+delta[2]*delta[2]);
-        if(distance<.25f){if(!o->script_move.follow)o->script_move.active=0;++rf_scene_script_movement[2];continue;}
+        if(distance<.25f){if(!o->script_move.follow)o->script_move.active=0;++rf_scene_script_movement[2];
+            status=campaign_script_locomotion(i,0);if(status)return status;continue;}
         step=fminf(1.5f*elapsed,distance);proposal=o->body.state;
         for(j=0;j<3;j++)proposal.next_position[j]=proposal.position[j]+delta[j]*(step/distance);
         status=rf_physics_body_prepare_sweep(&proposal);if(status)return status;
         status=rf_scene_npc_body_sweep(stream->collision,o->registration.handle,&proposal,0x460,scratch,8,&hit,&blocked);if(status)return status;
-        if(blocked){++rf_scene_script_movement[3];continue;}
+        if(blocked){++rf_scene_script_movement[3];status=campaign_script_locomotion(i,0);if(status)return status;continue;}
         status=rf_scene_npc_steer(o->registration.handle,target,elapsed,rf_scene_npc_playback[0],&turn);if(status)return status;
         status=rf_scene_npc_prepare_angular(o->registration.handle,elapsed);if(status)return status;
         memcpy(o->body.state.next_position,proposal.next_position,12);o->body.state.flags|=0x40000000u;
         status=rf_scene_npc_commit_ordinary(o->registration.handle,elapsed);if(status)return status;
         status=rf_scene_npc_publish_position(o->registration.handle);if(status)return status;
+        status=campaign_script_locomotion(i,1);if(status)return status;
         ++rf_scene_script_movement[1];
         rf_scene_script_actor[0]=campaign_seeds.records.items[i].record.uid;
         memcpy(rf_scene_script_actor+1,o->body.state.position,12);memcpy(rf_scene_script_actor+4,o->script_move.target,12);
