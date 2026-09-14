@@ -150,6 +150,14 @@ int rf_particle_pool_step_resolved(rf_particle_pool *pool,uint32_t index,float d
     rf_particle_emitter_bounds *bounds,const rf_particle_owner_gate *gate);
 int rf_particle_pool_step_unowned(rf_particle_pool *pool,uint32_t index,float dt,
     rf_particle_emitter_bounds *bounds);
+typedef struct rf_particle_collision_hit {float point[3],normal[3];uint32_t hit;} rf_particle_collision_hit;
+typedef int (*rf_particle_collision_query)(void *,const float start[3],const float end[3],rf_particle_collision_hit *);
+/* Practical solid-world collision: point sweep, restitution/stickiness from
+ * packed nibbles, one impact per step. Original multi-contact slide, liquids,
+ * impact callbacks and moving objects remain open. Callback errors preserve
+ * the particle and bounds. NULL query retains the strict unsupported result. */
+int rf_particle_pool_step_collision(rf_particle_pool *,uint32_t,float,
+    rf_particle_emitter_bounds *,const rf_particle_owner_gate *,rf_particle_collision_query,void *);
 typedef struct rf_emitter_slot {
     rf_particle_emitter_runtime runtime;
     rf_particle_emitter_bounds bounds;

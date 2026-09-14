@@ -1246,6 +1246,13 @@ int rf_group_translation_integrate(const rf_group_translation_step *step,
     for(i=0;i<3;i++)delta[i]=step->from[i]-step->to[i];
     length=sqrt((double)delta[0]*delta[0]+(double)delta[1]*delta[1]+(double)delta[2]*delta[2]);
     out.length=(float)length;
+    /* Authored instantaneous keys (e.g. L2S3 PONR Block) must reach the
+     * existing timing==0 arrival branch without dividing by zero first. */
+    if(step->timing==0) {
+        out.speed=0;out.elapsed=(float)((double)step->dt+step->elapsed);out.distance=out.length;
+        if(!isfinite(out.length) || !isfinite(out.elapsed))return RF_FORMAT;
+        *result=out;return RF_OK;
+    }
     target=(step->flags&0x400)?step->timing:(float)(length/step->timing);
     if(step->acceleration_time>0 && step->elapsed<=step->acceleration_time)
         acceleration=(double)target/step->acceleration_time;

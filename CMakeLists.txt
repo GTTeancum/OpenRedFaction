@@ -281,3 +281,6 @@ add_test(NAME campaign_pickup_persistence COMMAND rf_campaign_pickup_tests "${CM
 add_executable(rf_waypoint_tests tests/waypoint_tests.c)
 target_link_libraries(rf_waypoint_tests PRIVATE rf_core)
 add_test(NAME authored_waypoint_paths COMMAND rf_waypoint_tests "${CMAKE_SOURCE_DIR}/Installed_Game")
+add_executable(rf_gameplay_effect_tests tests/gameplay_effect_tests.c)
+target_link_libraries(rf_gameplay_effect_tests PRIVATE rf_core)
+add_test(NAME gameplay_effect_collision COMMAND rf_gameplay_effect_tests)

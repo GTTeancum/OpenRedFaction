@@ -10374,14 +10374,14 @@ static int scene_frame(void *context,uint32_t frame,rf_preview_mesh *actor)
     {
         int status;uint32_t presentation_clock=0,step_clock=0;profile_mark(5);
         if(profile_clock && profile_active)presentation_clock=profile_clock();
-        status=scene_npc_draw(stream,frame);presentation_mark(0,&presentation_clock);if(status)return status;
-        status=scene_clutter_draw(stream,frame);presentation_mark(1,&presentation_clock);if(status)return status;
-        status=scene_weapon_draw(stream,frame);presentation_mark(2,&presentation_clock);if(status)return status;
-        status=scene_pickups_draw(stream);presentation_mark(3,&presentation_clock);if(status)return status;
-        status=scene_player_weapon_draw(stream,frame);presentation_mark(4,&presentation_clock);if(status)return status;
+        status=scene_npc_draw(stream,frame);presentation_mark(0,&presentation_clock);if(status){rf_scene_profile_stage[1]=201;return status;}
+        status=scene_clutter_draw(stream,frame);presentation_mark(1,&presentation_clock);if(status){rf_scene_profile_stage[1]=202;return status;}
+        status=scene_weapon_draw(stream,frame);presentation_mark(2,&presentation_clock);if(status){rf_scene_profile_stage[1]=203;return status;}
+        status=scene_pickups_draw(stream);presentation_mark(3,&presentation_clock);if(status){rf_scene_profile_stage[1]=204;return status;}
+        status=scene_player_weapon_draw(stream,frame);presentation_mark(4,&presentation_clock);if(status){rf_scene_profile_stage[1]=205;return status;}
         particle_draw_stream=stream;
         status=stream->sink(stream->context,frame,stream->mesh,stream->materials,stream->world);
-        particle_draw_stream=NULL;presentation_mark(5,&presentation_clock);if(status)return status;
+        particle_draw_stream=NULL;presentation_mark(5,&presentation_clock);if(status){rf_scene_profile_stage[1]=206;return status;}
         if(campaign_spawn) {
             rf_campaign_player_state state;
             state.inventory=campaign_player_inventory;
@@ -10486,7 +10486,7 @@ static int scene_frame(void *context,uint32_t frame,rf_preview_mesh *actor)
             if(stream->particles.state) {
                 rf_level_particle_tick_result step,last;uint32_t particle_index,byte_index,hash=2166136261u;
                 uint32_t *record=rf_scene_particles_frames[(frame+1)%64],*summary=rf_scene_particles_summary;
-                status=rf_level_particles_simulate(&stream->particles,&stream->visibility.state,1,scene_step_seconds,NULL,NULL,&step);
+                status=rf_level_particles_simulate_world(&stream->particles,&stream->visibility.state,1,scene_step_seconds,NULL,NULL,&step,stream->collision);
                 if(status)return status;
                 status=rf_level_particles_emit_pass(&stream->particles,&stream->visibility.state,1,scene_step_seconds,
                     particle_now,NULL,NULL,&last);if(status)return status;

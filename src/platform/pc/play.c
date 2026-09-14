@@ -212,8 +212,11 @@ static int particle_present(void *context,const rf_particle_draw_vertex *vertice
 static int present(void *context,uint32_t frame,const rf_preview_mesh *mesh,
     const rf_materials *materials,uint32_t world)
 {
-    player *p=context;uint32_t i;int status;
+    player *p=context;uint32_t i;int status;uint64_t image_bytes=4;
     if(frame+p->scene_start!=p->frames || mesh->bytes>RF_SCENE_FOLLOW_CAPACITY)return RF_RANGE;
+    for(i=0;i<materials->count;i++)image_bytes+=materials->items[i].image.bytes;
+    for(i=0;i<p->lightmaps.count;i++)image_bytes+=p->lightmaps.images[i].bytes;
+    if(image_bytes>RF_CAMPAIGN_IMAGE_BUDGET)return RF_RANGE;
     status=rf_scene_update_lightmaps(&p->lightmaps);if(status)return status;
     /* Recorded-input diagnosis projects every tick, rasterizes only the last. */
     if(p->replay && p->frames+1<p->replay_count){status=rf_scene_draw_particles(NULL,NULL);if(status)return status;

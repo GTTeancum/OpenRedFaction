@@ -20,6 +20,7 @@
 uint32_t rf_renderer_profile[8][4];
 /* Last frame: draw batches, former methods, submitted methods, state changes. */
 uint32_t rf_renderer_submission[4];
+uint32_t rf_xbox_renderer_stage[4]; /* stage, image bytes, vertex bytes, free pages before GPU allocation */
 static uint32_t stream_profile_frames;
 static uint32_t stream_start_vblank,stream_start_valid;
 /* Streaming frame starts: explicit waits, already crossed VBlank, last counter. */
@@ -323,6 +324,7 @@ static int preview(const rf_preview_mesh *mesh, const rf_materials *materials, c
     int streaming=model==2 || model==4;
     int profiling=streaming && stream_profile_frames++>=16;uint32_t profile_previous=profiling?GetTickCount():0;
     uint32_t vertex_bytes=streaming?1024*1024+(model==4?world_vertices*sizeof(rf_preview_vertex):0):mesh?mesh->bytes:0;
+    rf_xbox_renderer_stage[0]=1;
     if(requested_capacity) {
         if(!streaming || requested_capacity>8*1024*1024 || (stream_gpu && stream_capacity!=requested_capacity))return RF_RANGE;
         vertex_bytes=requested_capacity;
@@ -334,6 +336,7 @@ static int preview(const rf_preview_mesh *mesh, const rf_materials *materials, c
     if (!mesh || (!mesh->count && !streaming) || !materials || materials->count > RF_CAMPAIGN_TEXTURE_SLOTS || !lightmaps || lightmaps->count > 256) return RF_FORMAT;
     for (i = 0; i < materials->count; ++i) upload_bytes += materials->items[i].image.bytes;
     for (i = 0; i < lightmaps->count; ++i) upload_bytes += lightmaps->images[i].bytes;
+    rf_xbox_renderer_stage[1]=(uint32_t)upload_bytes;rf_xbox_renderer_stage[2]=vertex_bytes;
     if (upload_bytes > RF_CAMPAIGN_IMAGE_BUDGET || mesh->bytes > 8u*1024u*1024u || vertex_bytes>8u*1024u*1024u) return RF_RANGE;
     for (i = 0; i < mesh->count; ++i) if (mesh->vertices[i].lightmap != UINT32_MAX && mesh->vertices[i].lightmap >= lightmaps->count) return RF_FORMAT;
     if(mesh->bytes>vertex_bytes)return RF_RANGE;
@@ -344,15 +347,20 @@ static int preview(const rf_preview_mesh *mesh, const rf_materials *materials, c
         gpu=stream_gpu;textures=stream_textures;
         while(pb_busy()) {}
     } else {
+    rf_xbox_renderer_stage[0]=2;
     if (!stream_device_ready) {if(pb_init())return RF_IO;stream_device_ready=1;}
+    rf_xbox_renderer_stage[0]=3;
+    {MM_STATISTICS stats={0};stats.Length=sizeof(stats);if(NT_SUCCESS(MmQueryStatistics(&stats)))rf_xbox_renderer_stage[3]=stats.AvailablePages;}
     gpu = MmAllocateContiguousMemoryEx(vertex_bytes, 0, 0x03ffb000, 0, PAGE_READWRITE | PAGE_WRITECOMBINE);
     if (!gpu) { pb_kill();stream_device_ready=0; return RF_RANGE; }
+    rf_xbox_renderer_stage[0]=4;
     textures = calloc(materials->count + 1 + lightmaps->count, sizeof(*textures));
     if (!textures) { MmFreeContiguousMemory(gpu); pb_kill();stream_device_ready=0; return RF_RANGE; }
     for (i = 0; i < materials->count + 1 + lightmaps->count; ++i) {
         int result;
         const rf_image *image = i < materials->count ? &materials->items[i].image : i == materials->count ? &fallback : lightmaps->images + i - materials->count - 1;
         if (!image->rgba) continue;
+        rf_xbox_renderer_stage[0]=1000+i;
         result = upload(textures+i, image,i==materials->count);
         if (result) {
             if(i>materials->count && textures[materials->count].pixels)MmFreeContiguousMemory(textures[materials->count].pixels);
@@ -362,6 +370,7 @@ static int preview(const rf_preview_mesh *mesh, const rf_materials *materials, c
     if(streaming) {stream_gpu=gpu;stream_textures=textures;stream_materials=materials;
         stream_mode=model;stream_capacity=vertex_bytes;stream_lightmaps=lightmaps;stream_fallback=materials->count;}
     }
+    rf_xbox_renderer_stage[0]=5;
     if(model==4) {
         int status;while(pb_busy()) {}
         status=rf_scene_update_lightmaps((rf_lightmaps *)lightmaps);if(status)return status;

@@ -59,10 +59,10 @@ gameplay comparison with5731 free pages; ALARM is
 The focused harness compares gameplay fields, not CPU/GPU geometry counts or
 pixel parity. Voice ownership/counters do not prove audible device output.
 
-The first linked-NPC fixture in L2S3 failed scene loading with RF_RANGE(-3) at
-scene stage6 before the setup event ran (artifacts/alarm-replay/linked.log).
-That failure remains open; L8S1 provides an independently loadable authored
-linked-NPC case. No original asset was changed to bypass the failure.
+The first linked-NPC fixture in L2S3 failed its first simulation tick with RF_NOT_FOUND(-3) at
+scene stage6 before the delayed setup event fired (artifacts/alarm-replay/linked.log).
+L2S3-GAMEPLAY.md records the subsequent particle, mover and image-budget fixes;
+L8S1 remains the linked-NPC alarm case. No original asset was changed.
 
 Reproduce the native shutoff check after the PC fixtures:
 

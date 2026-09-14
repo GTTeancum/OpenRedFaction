@@ -83,8 +83,16 @@ int rf_level_particles_emit_pass(rf_level_particles *p,const rf_visibility *v,
     }
     return RF_OK;
 }
+static int level_particle_collision(void *context,const float start[3],const float end[3],rf_particle_collision_hit *out)
+{
+    const rf_geometry_collision_world *world=context;rf_geometry_world_hit hit;uint32_t matched,i;float delta[3];int status;
+    for(i=0;i<3;i++)delta[i]=end[i]-start[i];
+    if(delta[0]==0 && delta[1]==0 && delta[2]==0){out->hit=0;return RF_OK;}
+    status=rf_geometry_collision_world_ray(world,4,start,delta,1,&hit,&matched);if(status)return status;
+    out->hit=matched;if(matched){memcpy(out->point,hit.hit.point,12);memcpy(out->normal,hit.hit.normal,12);}return RF_OK;
+}
 static int level_step_list(rf_level_particles *p,const rf_visibility *v,uint32_t list,float dt,
-    rf_level_particle_lookup lookup,void *context,rf_level_particle_tick_result *out)
+    rf_level_particle_lookup lookup,void *context,rf_level_particle_tick_result *out,const rf_geometry_collision_world *world)
 {
     rf_particle_pool *pool=&p->state->particles;uint32_t index,visited=0;
     for(index=pool->lists[list].next;index!=RF_PARTICLE_CAPACITY+list;) {
@@ -103,23 +111,27 @@ static int level_step_list(rf_level_particles *p,const rf_visibility *v,uint32_t
                 gate.entry_found=1;gate.room_present=room!=0;gate.room_visible=room?v->rooms[room-1].visible:0;break;
             }
         }
-        status=rf_particle_pool_step_resolved(pool,index,dt,bounds,&gate);if(status)return status;
+        status=rf_particle_pool_step_collision(pool,index,dt,bounds,&gate,world?level_particle_collision:NULL,(void *)world);if(status)return status;
         ++out->stepped;out->expired+=!(pool->particles[index].flags&1u);index=next;
     }
     return RF_OK;
 }
-int rf_level_particles_simulate(rf_level_particles *p,const rf_visibility *v,
-    uint32_t enabled,float dt,rf_level_particle_lookup lookup,void *context,rf_level_particle_tick_result *out)
+int rf_level_particles_simulate_world(rf_level_particles *p,const rf_visibility *v,
+    uint32_t enabled,float dt,rf_level_particle_lookup lookup,void *context,rf_level_particle_tick_result *out,
+    const rf_geometry_collision_world *world)
 {
     uint32_t index,visited=0;int status=level_tick_valid(p,v,dt,out);if(status)return status;
-    status=level_step_list(p,v,2,dt,lookup,context,out);if(status)return status;
+    status=level_step_list(p,v,2,dt,lookup,context,out,world);if(status)return status;
     for(index=p->state->emitters.lists[1].next;index!=129;index=p->state->slots[index].next) {
         if(index>=RF_PARTICLE_EMITTER_CAPACITY || ++visited>RF_PARTICLE_EMITTER_CAPACITY)return RF_RANGE;
-        status=level_step_list(p,v,RF_PARTICLE_BASE_LISTS+index,dt,lookup,context,out);if(status)return status;
+        status=level_step_list(p,v,RF_PARTICLE_BASE_LISTS+index,dt,lookup,context,out,world);if(status)return status;
     }
-    status=level_step_list(p,v,4,dt,lookup,context,out);if(status)return status;
+    status=level_step_list(p,v,4,dt,lookup,context,out,world);if(status)return status;
     return rf_emitter_pool_finish_bounds(&p->state->emitters,enabled);
 }
+int rf_level_particles_simulate(rf_level_particles *p,const rf_visibility *v,
+    uint32_t enabled,float dt,rf_level_particle_lookup lookup,void *context,rf_level_particle_tick_result *out)
+{return rf_level_particles_simulate_world(p,v,enabled,dt,lookup,context,out,NULL);}
 int rf_level_particles_set_state(rf_level_particles *p,const uint32_t *uids,
     uint32_t count,uint32_t action,int32_t now)
 {

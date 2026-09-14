@@ -54,6 +54,11 @@ int rf_level_particles_emit_pass(rf_level_particles *particles,const rf_visibili
 int rf_level_particles_simulate(rf_level_particles *particles,const rf_visibility *visibility,
     uint32_t global_enabled,float dt,rf_level_particle_lookup lookup,void *context,
     rf_level_particle_tick_result *result);
+/* Same list/lifetime behavior, with practical solid-world particle collision.
+ * World is borrowed only during this serialized call; no extra retained memory. */
+int rf_level_particles_simulate_world(rf_level_particles *,const rf_visibility *,
+    uint32_t,float,rf_level_particle_lookup,void *,rf_level_particle_tick_result *,
+    const rf_geometry_collision_world *);
 enum {RF_LEVEL_PARTICLE_DRAW_SINGLE=1,RF_LEVEL_PARTICLE_DRAW_EMITTER=2};
 /* 4967a0 then 497c20: global pool 0, detached particles, then active emitters,
  * filtered by the supplied room handle (index+1, zero missing). Emitters queue

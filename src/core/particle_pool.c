@@ -253,7 +253,8 @@ int rf_particle_pool_recycle(rf_particle_pool *pool,uint32_t index)
 }
 
 static int particle_step(rf_particle_pool *pool,uint32_t index,float dt,
-    rf_particle_emitter_bounds *bounds,const rf_particle_owner_gate *gate)
+    rf_particle_emitter_bounds *bounds,const rf_particle_owner_gate *gate,
+    rf_particle_collision_query collision,void *context)
 {
     rf_particle value;unsigned i;double radius,length,inverse;float speed,bound=0;volatile float ratio;
     int track;
@@ -267,7 +268,8 @@ static int particle_step(rf_particle_pool *pool,uint32_t index,float dt,
             return RF_OK;
         }
     }
-    if((value.emitter && !bounds) || (value.flags&0xff000010u) || (value.secondary&1u))return RF_NOT_FOUND;
+    if((value.emitter && !bounds) || (value.flags&0xff000000u) ||
+       ((value.flags&16u) && !collision) || (value.secondary&1u))return RF_NOT_FOUND;
     track=value.emitter && bounds && bounds->owner>=0;
     if(track) {
         bound=bounds->maximum_distance_squared;
@@ -288,6 +290,28 @@ static int particle_step(rf_particle_pool *pool,uint32_t index,float dt,
     }
     value.flags&=~0x8000u;
     for(i=0;i<3;i++)value.position[i]+=(float)((double)value.velocity[i]*dt);
+    if((value.flags&16u) && dt>0) {
+        rf_particle_collision_hit hit={0};float normal_length=0,dot=0;
+        int status=collision(context,value.previous_position,value.position,&hit);if(status)return status;
+        if(hit.hit) {
+            float restitution=(float)((value.flags>>16)&15u)/15.0f;
+            float tangent=(float)(15u-((value.flags>>20)&15u))/15.0f;
+            for(i=0;i<3;i++) {
+                if(!isfinite(hit.point[i]) || !isfinite(hit.normal[i]))return RF_FORMAT;
+                normal_length+=hit.normal[i]*hit.normal[i];
+            }
+            if(!isfinite(normal_length) || normal_length<.000001f)return RF_FORMAT;
+            normal_length=sqrtf(normal_length);
+            for(i=0;i<3;i++){hit.normal[i]/=normal_length;dot+=value.velocity[i]*hit.normal[i];}
+            for(i=0;i<3;i++) {
+                value.position[i]=hit.point[i]+hit.normal[i]*.001f;
+                if(dot<0)value.velocity[i]=(value.velocity[i]-dot*hit.normal[i])*tangent-dot*hit.normal[i]*restitution;
+            }
+            value.flags|=0x8000u;
+            /*495880 marks age for recycling by the following simulation step. */
+            if((value.flags&0x880u)==0x800u)value.age=value.life;
+        }
+    }
     if(track) {
         float delta[3];double distance;
         for(i=0;i<3;i++)delta[i]=bounds->center[i]-value.position[i];
@@ -323,14 +347,18 @@ static int particle_step(rf_particle_pool *pool,uint32_t index,float dt,
 int rf_particle_pool_step_resolved(rf_particle_pool *pool,uint32_t index,float dt,
     rf_particle_emitter_bounds *bounds,const rf_particle_owner_gate *gate)
 {
-    return particle_step(pool,index,dt,bounds,gate);
+    return particle_step(pool,index,dt,bounds,gate,NULL,NULL);
 }
 
 int rf_particle_pool_step_unowned(rf_particle_pool *pool,uint32_t index,float dt,
     rf_particle_emitter_bounds *bounds)
 {
-    return particle_step(pool,index,dt,bounds,NULL);
+    return particle_step(pool,index,dt,bounds,NULL,NULL,NULL);
 }
+int rf_particle_pool_step_collision(rf_particle_pool *pool,uint32_t index,float dt,
+    rf_particle_emitter_bounds *bounds,const rf_particle_owner_gate *gate,
+    rf_particle_collision_query collision,void *context)
+{return particle_step(pool,index,dt,bounds,gate,collision,context);}
 
 int rf_particle_pool_step_free(rf_particle_pool *pool,uint32_t index,float dt)
 {
