@@ -203,6 +203,14 @@ typedef struct rf_geometry_shadow_source_result {
  * result commits only on success. Does not select source lists or dirty modes. */
 int rf_geometry_shadow_source_mask(const rf_geometry_shadow_job *,const rf_lightmap_shadow_source *,
     uint32_t local,unsigned char *mask,uint32_t bytes,rf_geometry_shadow_source_result *);
+/* Same ordered source operation using caller-retained shadow_face snapshots,
+ * indexed by geometry face ID. Snapshots must match current geometry; refresh
+ * after topology/position/plane/flag changes. Texture classification stays live.
+ * Mirrors original solid+70 traversal over precomputed face planes/bounds
+ * (4f4efe..4f552d); decode vertices only for eligible faces. No allocation. */
+int rf_geometry_shadow_source_mask_cached(const rf_geometry_shadow_job *,const rf_lightmap_shadow_source *,
+    const rf_lightmap_shadow_face *cached,uint32_t count,uint32_t local,unsigned char *mask,uint32_t bytes,
+    rf_geometry_shadow_source_result *);
 int rf_geometry_get_corner(const rf_geometry *geometry, uint32_t face, uint32_t corner, rf_geometry_corner *result);
 typedef struct rf_geometry_texture_workspace {
     float (*vertices)[3],(*coordinates)[2];uint32_t capacity;

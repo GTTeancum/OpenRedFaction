@@ -566,7 +566,7 @@ int rf_geometry_shadow_face(const rf_geometry *geometry,uint32_t index,float (*s
     value.flags=source.flags;value.texture_excluded=0;*out=value;return RF_OK;
 }
 
-int rf_geometry_shadow_traverse(const rf_geometry *g,const uint32_t *ids,uint32_t count,
+static int shadow_traverse(const rf_lightmap_shadow_face *cached,const rf_geometry *g,const uint32_t *ids,uint32_t count,
     const rf_image *const *images,uint32_t image_count,const rf_lightmap_shadow_cull *cull,
     const rf_lightmap_shadow_pass *pass,rf_geometry_shadow_work *work,unsigned char *mask,uint32_t bytes,
     unsigned char amount,rf_geometry_shadow_result *out)
@@ -583,17 +583,32 @@ int rf_geometry_shadow_traverse(const rf_geometry *g,const uint32_t *ids,uint32_
             if(source.texture>=image_count)return RF_RANGE;
             image=images[source.texture];
         }
-        status=rf_geometry_shadow_face(g,ids[i],work->face_vertices,work->face_capacity,&face);if(status)return status;
+        if(cached)face=cached[ids[i]];
+        else {status=rf_geometry_shadow_face(g,ids[i],work->face_vertices,work->face_capacity,&face);if(status)return status;}
         ++result.visited;
         status=rf_lightmap_shadow_occluder_image(cull,&face,image,&eligible);if(status)return status;
         if(!eligible)continue;
         ++result.eligible;
+        if(cached) {
+            uint32_t j;rf_geometry_corner corner;
+            if(!source.corners || source.corners>work->face_capacity)return RF_RANGE;
+            for(j=0;j<source.corners;j++) {
+                status=rf_geometry_get_corner(g,ids[i],j,&corner);if(status)return status;
+                status=rf_geometry_vertex(g,corner.vertex,work->face_vertices[j]);if(status)return status;
+            }
+        }
         status=rf_lightmap_shadow_pass_polygon(pass,work->face_vertices,source.corners,work->pass,
             mask,bytes,amount,&projected,&accepted);if(status)return status;
         result.projected+=projected;result.accepted+=accepted;
     }
     *out=result;return RF_OK;
 }
+
+int rf_geometry_shadow_traverse(const rf_geometry *g,const uint32_t *ids,uint32_t count,
+    const rf_image *const *images,uint32_t image_count,const rf_lightmap_shadow_cull *cull,
+    const rf_lightmap_shadow_pass *pass,rf_geometry_shadow_work *work,unsigned char *mask,uint32_t bytes,
+    unsigned char amount,rf_geometry_shadow_result *out)
+{return shadow_traverse(NULL,g,ids,count,images,image_count,cull,pass,work,mask,bytes,amount,out);}
 
 void rf_geometry_shadow_storage_close(rf_geometry_shadow_storage *owner)
 {
@@ -627,7 +642,7 @@ int rf_geometry_shadow_storage_open(rf_geometry_shadow_storage *out,uint32_t pol
     *out=value;out->work.pass=&out->pass;return RF_OK;
 }
 
-int rf_geometry_shadow_source_mask(const rf_geometry_shadow_job *job,const rf_lightmap_shadow_source *source,
+static int shadow_source_mask(const rf_lightmap_shadow_face *cached,const rf_geometry_shadow_job *job,const rf_lightmap_shadow_source *source,
     uint32_t local,unsigned char *mask,uint32_t bytes,rf_geometry_shadow_source_result *out)
 {
     rf_lightmap_shadow_samples samples;rf_geometry_shadow_source_result result={0};
@@ -645,13 +660,25 @@ int rf_geometry_shadow_source_mask(const rf_geometry_shadow_job *job,const rf_li
         if(!facing) {
             memset(mask,0,(size_t)width*height);result.backfacing=1;*out=result;return RF_OK;
         }
-        status=rf_geometry_shadow_traverse(job->geometry,job->faces,job->face_count,job->images,
+        status=shadow_traverse(cached,job->geometry,job->faces,job->face_count,job->images,
             job->image_count,&cull,&pass,job->work,mask,bytes,(unsigned char)samples.amount,&faces);if(status)return status;
         result.faces.visited+=faces.visited;result.faces.eligible+=faces.eligible;
         result.faces.projected+=faces.projected;result.faces.accepted+=faces.accepted;
     }
     status=rf_lightmap_shadow_border(mask,bytes,width,height,result.faces.projected!=0);if(status)return status;
     *out=result;return RF_OK;
+}
+
+int rf_geometry_shadow_source_mask(const rf_geometry_shadow_job *job,const rf_lightmap_shadow_source *source,
+    uint32_t local,unsigned char *mask,uint32_t bytes,rf_geometry_shadow_source_result *out)
+{return shadow_source_mask(NULL,job,source,local,mask,bytes,out);}
+
+int rf_geometry_shadow_source_mask_cached(const rf_geometry_shadow_job *job,const rf_lightmap_shadow_source *source,
+    const rf_lightmap_shadow_face *cached,uint32_t count,uint32_t local,unsigned char *mask,uint32_t bytes,
+    rf_geometry_shadow_source_result *out)
+{
+    if(!job || !job->geometry || !cached || count!=job->geometry->faces)return RF_RANGE;
+    return shadow_source_mask(cached,job,source,local,mask,bytes,out);
 }
 
 int rf_geometry_initial_collision_filter(const rf_geometry *geometry,uint32_t index,

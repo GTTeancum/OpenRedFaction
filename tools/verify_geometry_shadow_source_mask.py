@@ -74,6 +74,14 @@ for case in range(256):
  mapping=bytearray(108);mapping[12:20]=w(16,16);mapping[28:52]=cull[24:48];x.mem_write(B+0x5a00,bytes(mapping));x.mem_write(B+0x5b00,w(B+0x6100,B+0x6300,8,B+0x5100,8,B+0x5a00,B+164,0,B+0x5600,B+0x6500));x.mem_write(B+0x6600,bytes([165])*24)
  x.mem_write(STACK,w(STOP,B+0x5b00,B+2904,local,B+0x4000,1024,B+0x6600));x.reg_write(UC_X86_REG_ESP,STACK);x.reg_write(UC_X86_REG_FPCW,0x27f);x.emu_start(entry,STOP,count=2000000);status=x.reg_read(UC_X86_REG_EAX)
  assert x.reg_read(UC_X86_REG_EIP)==STOP and status==0 and bytes(x.mem_read(B+0x6600,24))==w(*counts) and bytes(x.mem_read(B+0x4000,1024))==expected,(case,status,counts,bytes(x.mem_read(B+0x6600,24)).hex())
+ # Retained plane/bounds path must match the same original mask and counters.
+ symbols=(root/'build/xbox/main.map').read_text()
+ symbol=lambda name:int(re.search(r'\s_'+name+r'\s+([0-9a-fA-F]+)',symbols)[1],16)
+ for face in range(8):
+  x.mem_write(STACK,w(STOP,B+0x6100,face,B+0x6000,4,B+0xa000+face*56));x.reg_write(UC_X86_REG_ESP,STACK);x.emu_start(symbol('rf_geometry_shadow_face'),STOP,count=1000000);assert x.reg_read(UC_X86_REG_EAX)==0
+ x.mem_write(B+0x8800,bytes(512));x.mem_write(B+0x9c00,bytes(512));x.mem_write(B+0x4000,initial);x.mem_write(B+0x6600,bytes([165])*24)
+ x.mem_write(STACK,w(STOP,B+0x5b00,B+2904,B+0xa000,8,local,B+0x4000,1024,B+0x6600));x.reg_write(UC_X86_REG_ESP,STACK);x.emu_start(symbol('rf_geometry_shadow_source_mask_cached'),STOP,count=2000000)
+ assert x.reg_read(UC_X86_REG_EIP)==STOP and x.reg_read(UC_X86_REG_EAX)==0 and bytes(x.mem_read(B+0x6600,24))==w(*counts) and bytes(x.mem_read(B+0x4000,1024))==expected,('cached',case)
  inputs.append(data);responses.append(w(0,*counts)+expected);totals=[a+b for a,b in zip(totals,counts)];changed+=sum(a!=b for a,b in zip(initial,expected))
 assert subprocess.check_output([str(root/'build/pc/Release/rf_geometry_probe.exe'),'--shadow-source-mask'],input=b''.join(inputs))==b''.join(responses)
 for guard in range(3):
@@ -82,5 +90,8 @@ for guard in range(3):
  if guard==2:x.mem_write(B+2904+52,f(-1))
  x.mem_write(STACK,w(STOP,B+0x5b00,B+2904,local,B+0x4000,1 if guard==0 else 1024,B+0x6600));x.reg_write(UC_X86_REG_ESP,STACK);x.emu_start(entry,STOP,count=2000000)
  assert x.reg_read(UC_X86_REG_EIP)==STOP and x.reg_read(UC_X86_REG_EAX)!=0 and bytes(x.mem_read(B+0x6600,24))==bytes([165])*24 and bytes(x.mem_read(B+0x4000,1024))==initial
-report=dict(result='PASS',original_pc_nxdk_source_masks=len(inputs),nxdk_guards=3,passes=totals[0],backfacing=totals[1],visited=totals[2],eligible=totals[3],projected=totals[4],accepted=totals[5],changed_mask_bytes=changed,original_sha256=sha,scope='Original source sample, corner, facing/volume, per-face traversal and border chunks, retaining scratch/mask across faces and endpoints. Back-facing clear modeled as width*height zero bytes. PC uses bounded shadow storage owner. Synthetic serialized geometry and explicit world/cached coordinates; live ownership/dirty dispatch still external.')
+x.mem_write(B+0x4000,initial);x.mem_write(B+0x6600,bytes([165])*24)
+x.mem_write(STACK,w(STOP,B+0x5b00,B+2904,B+0xa000,7,local,B+0x4000,1024,B+0x6600));x.reg_write(UC_X86_REG_ESP,STACK);x.emu_start(symbol('rf_geometry_shadow_source_mask_cached'),STOP,count=2000000)
+assert x.reg_read(UC_X86_REG_EIP)==STOP and x.reg_read(UC_X86_REG_EAX)!=0 and bytes(x.mem_read(B+0x6600,24))==bytes([165])*24 and bytes(x.mem_read(B+0x4000,1024))==initial
+report=dict(result='PASS',nxdk_cached_sources=256,nxdk_cached_count_guard=1,original_pc_nxdk_source_masks=len(inputs),nxdk_guards=3,passes=totals[0],backfacing=totals[1],visited=totals[2],eligible=totals[3],projected=totals[4],accepted=totals[5],changed_mask_bytes=changed,original_sha256=sha,scope='Original source sample, corner, facing/volume, per-face traversal and border chunks, retaining scratch/mask across faces and endpoints. Back-facing clear modeled as width*height zero bytes. PC uses bounded shadow storage owner. Synthetic serialized geometry and explicit world/cached coordinates; live ownership/dirty dispatch still external.')
 (root/'artifacts/geometry-shadow-source-mask.json').write_text(json.dumps(report,indent=2));print(report)

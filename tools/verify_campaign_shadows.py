@@ -15,10 +15,13 @@ assert any(r['accepted'] and r['changed_bytes'] for r in rows)
 short=command.copy();short[4]='64'
 repeat=subprocess.run(short,capture_output=True,text=True,check=True)
 assert not repeat.stderr and repeat.stdout.splitlines()==run.stdout.splitlines()[:65]
+cached_command=command.copy();cached_command.insert(1,'--retained')
+start=time.perf_counter();cached=subprocess.run(cached_command,capture_output=True,text=True,check=True);cached_seconds=time.perf_counter()-start
+assert not cached.stderr and cached.stdout==run.stdout
 report=dict(result='PASS',level='L1S1.rfl',mappings=len(rows),mappings_with_shadows=sum(r['callbacks']>0 for r in rows),
     totals={k:sum(r[k] for r in rows) for k in ('sources','callbacks','passes','backfacing','visited','eligible','accepted','changed_bytes')},
     maximum_sources=max(r['sources'] for r in rows),peak_pc_shadow_scratch_bytes=max(r['scratch_bytes'] for r in rows),
-    seconds=seconds,reopened_identical_jobs=64,
+    seconds=seconds,cached_seconds=cached_seconds,cached_identical_jobs=len(rows),cached_face_bytes=7418*56,reopened_identical_jobs=64,
     scope='PC real world geometry, authored light selection and shadow modes, loaded texture formats, receiver grouping, bounded masks and actual projected callbacks. All initial world faces in file order, mapping-box selection, dirty2 and renderer mode1; caller routing supplied. No original full-scene comparison, movers, removed faces, live room routing, RGB accumulation/upload, native Xbox memory or rendered parity evidence. Scratch budget excludes other owners and allocator overhead.')
 (root/'artifacts/campaign-shadow-l1s1.csv').write_text(run.stdout)
 (root/'artifacts/campaign-shadow-l1s1.json').write_text(json.dumps(report,indent=2))

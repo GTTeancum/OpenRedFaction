@@ -15,6 +15,16 @@ Shortlist:
 
 Progress reporting: include a very high-level working area (e.g. Lighting, AI, Weapons, GeoMod or Scripted events) and an overall percent estimate at the end of every turn report (USER preference) and revisit remaining 24-hour workdays when measured throughput supports a forecast; current rough estimate40% (35-45%), no defensible +/-48-hour completion forecast before end-to-end gameplay.
 
+Retained shadow-face snapshots preserve all5851 Live Mines mask hashes and
+counters while cutting this host's full-level fixture from17.78s to8.78s.
+Snapshot storage is415408 bytes plus existing73252-byte peak shadow scratch;
+not total/native scene memory. Compiled NXDK cached path matches256 original
+composition cases; count guard, both builds and25 tests pass. Evidence corrects
+prior room-routing assumption:4f4efe reads solid+70 and4f5520 follows face+54
+for occluders; room routing selects receivers only. Cache snapshots must refresh
+on topology/plane/position/flag changes. Next retain jobs/dirty scheduling and
+compose masked accumulation/RGB upload, then rendered XEMU validation.
+
 Real-asset PC shadow harness completes all5851 Live Mines mappings using
 loaded texture formats, authored light selection/modes, receiver groups and
 actual projected callbacks:7537 callbacks,17804 accepted occluders and169812
