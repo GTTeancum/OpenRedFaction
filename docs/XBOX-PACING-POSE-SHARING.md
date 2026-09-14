@@ -93,7 +93,7 @@ physics/event phase 6.655 ms. The session remains open with controller input.
 The before and after values use explicit 30-second and 45-second windows. Both
 use the same L1S1 manual campaign spawn configuration; the complete sampled
 player body state matches between runs. These are separate from the earlier
-staged 180-frame replay. 
+staged 180-frame replay.
 Files remain under ignored `artifacts/xemu/`; no game assets
 or additional screenshots are uploaded to GitHub.
 
