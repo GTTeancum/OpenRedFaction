@@ -1033,8 +1033,32 @@ static int actor_retirement_check(void)
     campaign_seeds.records.items=NULL;campaign_seeds.records.count=0;campaign_npc_bodies=NULL;campaign_npc_body_count=0;
     memset(&rf_scene_defeated_actors,0,sizeof(rf_scene_defeated_actors));return 0;
 }
+static int npc_door_occupancy_check(void)
+{
+    campaign_npc_body owners[2]={0};rf_trigger_volume volume={0};uint32_t occupied;
+    campaign_npc_bodies=owners;campaign_npc_body_count=2;
+    volume.radius=2;
+    owners[0].registration.view=&owners[0].view;owners[0].registration.handle=100;
+    owners[1].registration.view=&owners[1].view;owners[1].registration.handle=101;
+    owners[0].damage.effects.health=owners[1].damage.effects.health=75;
+    owners[0].published[0]=10; /* First actor outside must not mask the second. */
+    CHECK(campaign_npc_door_occupied(&volume,&occupied)==RF_OK && occupied);
+    owners[1].object_flags=0x4000; /* Authored hidden, even though alive. */
+    CHECK(campaign_npc_door_occupied(&volume,&occupied)==RF_OK && !occupied);
+    owners[1].object_flags=0;owners[1].damage.effects.health=0;
+    CHECK(campaign_npc_door_occupied(&volume,&occupied)==RF_OK && !occupied);
+    owners[1].damage.effects.health=75;owners[1].registration.view=NULL;
+    CHECK(campaign_npc_door_occupied(&volume,&occupied)==RF_OK && !occupied);
+    owners[1].registration.view=&owners[1].view;
+    *campaign_controller_actor_slot(100)=12;*campaign_controller_actor_slot(101)=24;
+    CHECK(owners[0].controller_handle==12 && owners[1].controller_handle==24);
+    CHECK(campaign_controller_actor_slot(999)==&campaign_actor_controller);
+    CHECK(campaign_npc_door_occupied(NULL,&occupied)==RF_OK && !occupied);
+    campaign_npc_bodies=NULL;campaign_npc_body_count=0;return 0;
+}
 int main(int argc,char **argv)
 {
+    CHECK(npc_door_occupancy_check()==0);
     CHECK(actor_retirement_check()==0);
     CHECK(combat_shot_geometry_check()==0);
     CHECK(friendliness_binding_check()==0);

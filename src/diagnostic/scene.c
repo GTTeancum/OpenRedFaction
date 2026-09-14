@@ -10,6 +10,7 @@
 #include "rf/audio.h"
 #include "rf/clutter.h"
 #include <stdlib.h>
+#include <stdio.h>
 #include <string.h>
 #include <math.h>
 #include "rf/visibility.h"
@@ -677,6 +678,16 @@ int rf_scene_fire_level_exit(uint32_t uid,int32_t now)
     uint32_t i;rf_startup_events_report report;
     for(i=0;i<campaign_events.count;i++)if(campaign_events.items[i].authored->record.uid==uid) {
         if(campaign_events.items[i].state.type!=22)return RF_FORMAT;
+        return rf_runtime_event_fire(&campaign_triggers,campaign_events.items[i].handle,UINT32_MAX,UINT32_MAX,now,&scene_gravity,NULL,NULL,&report);
+    }
+    return RF_NOT_FOUND;
+}
+
+int rf_scene_fire_setup_event(uint32_t uid,int32_t now)
+{
+    uint32_t i;rf_startup_events_report report;
+    for(i=0;i<campaign_events.count;i++)if(campaign_events.items[i].authored->record.uid==uid) {
+        if(campaign_events.items[i].state.type!=48)return RF_FORMAT;
         return rf_runtime_event_fire(&campaign_triggers,campaign_events.items[i].handle,UINT32_MAX,UINT32_MAX,now,&scene_gravity,NULL,NULL,&report);
     }
     return RF_NOT_FOUND;
@@ -2014,6 +2025,9 @@ static rf_group_pose_slot campaign_pose_slots[RF_OBJECT_CAPACITY];
 uint32_t rf_scene_live_motion[8]; /* ticks, propagated frames, holds, reversals, arrivals, sound requests, unresolved key effects, status */
 float rf_scene_live_door_positions[6];
 static uint32_t campaign_actor_controller;
+static uint32_t *campaign_controller_actor_slot(uint32_t handle);
+static int campaign_npc_trigger_contacts(int32_t now,uint32_t frame,rf_level_particles *particles);
+static int campaign_npc_door_occupied(const rf_trigger_volume *volume,uint32_t *occupied);
 uint32_t rf_scene_live_activation[8]; /* fired, controller calls/starts, event calls, pending effects, status, door8593/8591 start frame+1 */
 typedef struct campaign_activation_context {int32_t now;uint32_t frame;rf_level_particles *particles;} campaign_activation_context;
 static int campaign_link_effect(void *context,uint32_t kind,uint32_t handle,uint32_t source,uint32_t actor)
@@ -2026,17 +2040,17 @@ static int campaign_link_effect(void *context,uint32_t kind,uint32_t handle,uint
     } else {
         rf_group_registered_controller *controller=rf_object_registry_lookup(&campaign_registry,handle);
         rf_group_runtime_entry *entry;rf_group_activation_actor facts;const rf_entity_view *view;
-        campaign_controller_effects *request;uint32_t started;
+        campaign_controller_effects *request;uint32_t started,*backlink;
         if(!controller || controller->object_kind!=8)return RF_NOT_FOUND;
         entry=controller->runtime;if(entry->kind!=RF_GROUP_RUNTIME_TRANSLATION)return RF_FORMAT;
         request=campaign_controller_requests+(entry-campaign_group_runtime.items);
         view=rf_object_lookup(&campaign_entities,(int32_t)actor);
         facts.present=view!=NULL;facts.flags=view?view->flags_7c:0;
         facts.entity_present=rf_entity_lookup(&campaign_entities,(int32_t)actor)!=NULL;
-        facts.controller_handle=campaign_actor_controller;++rf_scene_live_activation[1];
+        backlink=campaign_controller_actor_slot(actor);facts.controller_handle=*backlink;++rf_scene_live_activation[1];
         status=rf_group_activation_begin(&entry->translation.motion,entry->source->record.key_count,
             handle,&facts,&started);if(status)return status;
-        campaign_actor_controller=facts.controller_handle;
+        *backlink=facts.controller_handle;
         if(started) {
             /* Retain outstanding alert/wakeup work. Sound dispatch below has
              * a nonspatial PCM adapter; source is needed by occupancy lookup. */
@@ -2057,34 +2071,40 @@ static int campaign_event_mover(void *context,uint32_t handle,uint32_t source,ui
     if(!controller || controller->object_kind!=8 || controller->runtime->kind!=RF_GROUP_RUNTIME_TRANSLATION)return RF_NOT_FOUND;
     return campaign_link_effect(&activation,8,handle,source,actor);
 }
-/* Default player contact path; special ownership/key/script gates stay explicit. */
-static int campaign_trigger_contacts(const rf_group_attached_pose *pose,int32_t now,uint32_t frame,rf_level_particles *particles,uint32_t use)
+uint32_t rf_scene_npc_triggers[6]; /* checks, ready, last actor UID, last trigger UID, occupancy hits, status */
+static int campaign_actor_trigger_contacts(const rf_entity_view *actor,const float positions[3][3],int32_t now,uint32_t frame,rf_level_particles *particles,uint32_t use,uint32_t npc)
 {
-    uint32_t i,clock_bits;float positions[3][3],seconds=(float)now*.001f;int32_t player=campaign_player_view.handle;
+    uint32_t i,clock_bits;float seconds=(float)now*.001f;int32_t player=campaign_player_view.handle;
     campaign_activation_context context={now,frame,particles};memcpy(&clock_bits,&seconds,4);
     rf_trigger_actor_facts facts;rf_trigger_contact_filter filter={0,-1,0,NULL};
-    int status=rf_trigger_actor_resolve(&campaign_entities,&campaign_player_view,-1,-1,&player,1,&facts);
+    int status=rf_trigger_actor_resolve(&campaign_entities,actor,-1,-1,&player,1,&facts);
     if(status)return status;
-    memcpy(positions[0],pose->public_position,12);memcpy(positions[1],pose->position,12);memcpy(positions[2],pose->pending,12);
     for(i=0;i<campaign_triggers.count;++i) {
         rf_runtime_trigger *trigger=campaign_triggers.items+i;
         const rf_level_trigger *record=&trigger->authored->record;uint32_t ready=0,fired=0;
-        trigger->state.flags&=~64u; /* 4bf740 per-frame fired reset; deferred trigger stages remain open. */
         if(trigger->activation.object_flags&2)continue;
         if(record->value_byte>4 || record->fields[2]!=UINT32_MAX || record->fields[0]!=UINT32_MAX ||
            record->fields[1]!=UINT32_MAX || record->script[0] ||
            (trigger->state.flags&(2u|128u))) {++rf_scene_trigger_contacts[4];continue;}
         status=rf_trigger_contact_filter_authored(trigger,facts.handle,-1,&filter);if(status)return status;
         status=rf_runtime_trigger_contact(&campaign_triggers,trigger->handle,&facts,positions,&filter,now,use,&ready);
-        ++rf_scene_trigger_contacts[0];rf_scene_trigger_contacts[5]=(uint32_t)status;if(status)return status;
-        if(ready) {++rf_scene_trigger_contacts[1];rf_scene_trigger_contacts[2]=record->uid;
+        ++rf_scene_trigger_contacts[0];if(npc)++rf_scene_npc_triggers[0];rf_scene_trigger_contacts[5]=(uint32_t)status;if(status)return status;
+        if(ready) {if(npc){++rf_scene_npc_triggers[1];rf_scene_npc_triggers[2]=npc;rf_scene_npc_triggers[3]=record->uid;}++rf_scene_trigger_contacts[1];rf_scene_trigger_contacts[2]=record->uid;
             if(record->uid==8542)++rf_scene_trigger_contacts[3];
-            status=rf_runtime_trigger_fire_links(&campaign_triggers,trigger->handle,(uint32_t)player,now,
+            status=rf_runtime_trigger_fire_links(&campaign_triggers,trigger->handle,facts.handle,now,
                 clock_bits,0,0,campaign_link_effect,&context,&fired);
             rf_scene_live_activation[5]=(uint32_t)status;if(status)return status;
             rf_scene_live_activation[0]+=fired;}
     }
     return RF_OK;
+}
+static int campaign_trigger_contacts(const rf_group_attached_pose *pose,int32_t now,uint32_t frame,rf_level_particles *particles,uint32_t use)
+{
+    uint32_t i;float positions[3][3];int status;
+    for(i=0;i<campaign_triggers.count;i++)campaign_triggers.items[i].state.flags&=~64u;
+    memcpy(positions[0],pose->public_position,12);memcpy(positions[1],pose->position,12);memcpy(positions[2],pose->pending,12);
+    status=campaign_actor_trigger_contacts(&campaign_player_view,positions,now,frame,particles,use,0);if(status)return status;
+    return campaign_npc_trigger_contacts(now,frame,particles);
 }
 static int campaign_controller_tick(int32_t now,rf_level_particles *particles,const float player_position[3])
 {
@@ -2105,6 +2125,7 @@ static int campaign_controller_tick(int32_t now,rf_level_particles *particles,co
             }
             if((runtime->motion.flags&2) && runtime->motion.mode!=1) {
                 status=rf_trigger_occupancy(trigger?&trigger->volume:NULL,&actor,1,NULL,0,NULL,NULL,&occupied);if(status)return status;
+                if(!occupied){status=campaign_npc_door_occupied(trigger?&trigger->volume:NULL,&occupied);if(status)return status;}
             }
             if(occupied && (runtime->motion.flags&0x2001)==0x2001) {
                 double delay=(double)tick.dwell*1000.+.5;
@@ -3152,7 +3173,7 @@ typedef struct campaign_npc_body {
     rf_physics_body body;rf_physics_support_contact support;
     rf_weapon_inventory inventory;rf_entity_motion_selection selection;
     rf_weapon_reset_state firing;
-    uint32_t persistence_slot,persistence_registered;
+    uint32_t persistence_slot,persistence_registered,controller_handle;
     struct {uint32_t active,event,follow,route_index,retry;float target[3];} script_move;
     uint32_t combat_alert,combat_due; /* First-pass retaliation, simulation-frame clock. */
     campaign_npc_route navigation;
@@ -3417,6 +3438,37 @@ static int campaign_death_query(void *context,uint32_t uid,uint32_t *present,uin
         return RF_OK;
     }
     return RF_NOT_FOUND;
+}
+static uint32_t *campaign_controller_actor_slot(uint32_t handle)
+{
+    uint32_t i;
+    for(i=0;i<campaign_npc_body_count;i++)if(campaign_npc_bodies[i].registration.view && campaign_npc_bodies[i].registration.handle==handle)
+        return &campaign_npc_bodies[i].controller_handle;
+    return &campaign_actor_controller;
+}
+static int campaign_npc_trigger_contacts(int32_t now,uint32_t frame,rf_level_particles *particles)
+{
+    uint32_t i;int status;
+    for(i=0;i<campaign_npc_body_count;i++) {
+        campaign_npc_body *owner=campaign_npc_bodies+i;float positions[3][3];
+        if(!owner->registration.view || owner->damage.effects.health<=0 || (owner->object_flags&(2|0x4000)))continue;
+        memcpy(positions[0],owner->published,12);memcpy(positions[1],owner->body.state.position,12);memcpy(positions[2],owner->body.state.next_position,12);
+        status=campaign_actor_trigger_contacts(&owner->view,positions,now,frame,particles,0,campaign_seeds.records.items[i].record.uid);
+        rf_scene_npc_triggers[5]=(uint32_t)status;if(status)return status;
+    }
+    return RF_OK;
+}
+static int campaign_npc_door_occupied(const rf_trigger_volume *volume,uint32_t *occupied)
+{
+    uint32_t i;int status;*occupied=0;
+    for(i=0;volume && i<campaign_npc_body_count;i++) {
+        const campaign_npc_body *owner=campaign_npc_bodies+i;rf_trigger_occupant actor;
+        if(!owner->registration.view || owner->damage.effects.health<=0 || (owner->object_flags&(2|0x4000)))continue;
+        actor.handle=owner->registration.handle;actor.flags=owner->object_flags;memcpy(actor.position,owner->published,12);
+        status=rf_trigger_occupancy(volume,&actor,1,NULL,0,NULL,NULL,occupied);if(status)return status;
+        if(*occupied){++rf_scene_npc_triggers[4];return RF_OK;}
+    }
+    return RF_OK;
 }
 uint32_t rf_scene_script_actor[8];
 uint32_t rf_scene_script_movement[8]; /* requests, steps, arrivals, blocked, active, last actor UID, last event UID, status */
@@ -10148,7 +10200,7 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
             status=campaign_actors_restore();if(status)goto done;
             campaign_triggers.death_query=campaign_death_query;
             campaign_triggers.activate_mover=campaign_event_mover;
-            memset(rf_scene_script_routes,0,sizeof(rf_scene_script_routes));memset(rf_scene_script_actor,0,sizeof(rf_scene_script_actor));memset(rf_scene_script_movement,0,sizeof(rf_scene_script_movement));campaign_triggers.move_npc=campaign_script_move;
+            memset(rf_scene_npc_triggers,0,sizeof(rf_scene_npc_triggers));memset(rf_scene_script_routes,0,sizeof(rf_scene_script_routes));memset(rf_scene_script_actor,0,sizeof(rf_scene_script_actor));memset(rf_scene_script_movement,0,sizeof(rf_scene_script_movement));campaign_triggers.move_npc=campaign_script_move;
             /* Original level startup435df0 calls45ade0 before levelstart.vcs. */
             status=campaign_ambient_schedule(0,1);if(status)goto done;
             status=rf_runtime_startup_events(&campaign_triggers,&scene_gravity,0,0,&stream.particles, &campaign_forces,&rf_scene_startup_events);

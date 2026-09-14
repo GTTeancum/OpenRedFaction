@@ -4,9 +4,14 @@ First-pass policy: playable campaign systems take priority over exact1:1 RE.
 Use practical shared implementations, verify gameplay and stock64MiB operation,
 and defer visual polish. Focus: movement, combat/damage, AI, mission events,
 then level progression. Fidelity remains a later completion requirement.
+First-pass acceptance: consecutive campaign sections playable with movement,
+working combat, responsive enemies, required mission events and level exits on
+stock64MiB Xbox, with the shared PC build maintained. Use measured gameplay
+failures to select work; avoid spending time on exact RE or visual polish unless
+it blocks those systems. This priority change does not increase completion.
 
 Shortlist:
-- ACTIVE: Connect NPC door-trigger contacts, then finish grounding and walking animation.
+- ACTIVE: Wire authored UnHide events so scripted NPCs become active before moving and opening doors.
 - TO COMPLETE: Preserve remaining world changes across sections, including partial actor state and dropped items.
 - NEXT: Expand mission scripts and AI until consecutive campaign sections are playable end to end.
 - TO COMPLETE: Expand the working pistol/rifle combat, pickups and first-person feedback to the remaining weapons.
@@ -25,6 +30,16 @@ Shortlist:
 - USER: Review the interactive PC movement and audio items listed below.
 
 Progress reporting: include a very high-level working area (e.g. Lighting, AI, Weapons, GeoMod or Scripted events) and an overall percent estimate at the end of every turn report (USER preference) and revisit remaining 24-hour workdays when measured throughput supports a forecast; current rough estimate45% (35-45%), no defensible +/-48-hour completion forecast before end-to-end gameplay.
+
+NPC door contacts and occupancy now have shared scene adapters, including separate
+controller backlinks per NPC. The L7S2 positive door route remains unverified:
+Gryphon4952 is alive (health75) but starts hidden (flags0x0202c000), so occupancy
+correctly excludes him. Shot1 Delay4953 -> UnHide4962 -> Gryphon is a missing
+runtime prerequisite; Shot3 Delay4961 only enables trigger4963 and later moves.
+The current Goto fixture moves the hidden actor; its earlier route results prove
+simulation only, not an active visible mission sequence. Implement UnHide and
+sequence both authored setup events before claiming the door route complete.
+Evidence: artifacts/npc-trigger-diag.log (temporary logging removed from source).
 
 Scripted NPCs now follow authored navigation nodes through the existing route
 search and collision sweeps. Gryphon passes the first obstruction:600-frame PC
