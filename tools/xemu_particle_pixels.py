@@ -114,6 +114,14 @@ dvd_path = '{root.as_posix()}/build/xbox/redfaction-diagnostic.iso'
   assert max(errors)<=2,report['packed_lightmap']
   assert all(rgb==(32,64,96) for rgb in packed_rgb[32:])
   assert packed_rgb[0]!=packed_rgb[31]
+  update_address=int(re.search(r'\s_rf_lightmap_update_diagnostic\s+([0-9a-fA-F]+)',mapping)[1],16)
+  update=words(monitor,update_address,67);assert update[:3]==[0x52464c55,2,0],update[:3]
+  update_rgb=[((p>>16)&255,(p>>8)&255,p&255) for p in update[3:]]
+  expected_update=[tuple(map(int,line.split())) for line in subprocess.check_output([str(root/'build/pc/Release/rf_particle_pixel_probe.exe'),'--packed-lightmap-update'],text=True).splitlines()]
+  assert len(expected_update)==64 and all(all(abs(a-b)<=1 for a,b in zip(expected_update[y*32+x],(16,140,247))) for y in range(2) for x in range(8,15))
+  errors=[abs(a-b) for rgb,ref in zip(update_rgb,expected_update) for a,b in zip(rgb,ref)]
+  report['lightmap_rectangle_update']=dict(max_channel_error=max(errors),actual_rgb=update_rgb,expected_rgb=expected_update,scope='Same GPU allocation rendered before and after16-texel RGB rectangle update; pb_busy completion, sfence and normal draw rebinding.64 native framebuffer samples compare PC bilinear filtering across16 changed and48 unmodified texels. XEMU only, not hardware cache proof.')
+  assert max(errors)<=2,report['lightmap_rectangle_update']
   sample_address=int(re.search(r'\s_rf_packed_lightmap_samples\s+([0-9a-fA-F]+)',mapping)[1],16)
   samples=words(monitor,sample_address,132)
   pc_samples=[int(v) for v in subprocess.check_output([str(root/'build/pc/Release/rf_particle_pixel_probe.exe'),'--packed-lightmap-samples'],text=True).split()]

@@ -15,6 +15,17 @@ Shortlist:
 
 Progress reporting: include a very high-level working area (e.g. Lighting, AI, Weapons, GeoMod or Scripted events) and an overall percent estimate at the end of every turn report (USER preference) and revisit remaining 24-hour workdays when measured throughput supports a forecast; current rough estimate40% (35-45%), no defensible +/-48-hour completion forecast before end-to-end gameplay.
 
+Native stock64MiB XEMU now renders one packed lightmap allocation before and
+after a16-texel rectangle update. All64 framebuffer samples match PC bilinear
+rendering within2 channel levels, including48 unmodified texels. Prior draw
+completion via pb_busy, CPU sfence and normal texture rebinding suffice in this
+XEMU test; hardware cache behavior is not proven. Initial edge check corrected
+to account for bilinear footprints rather than loosening tolerance. Full native
+pixel suite and25 PC tests pass; build succeeds. Evidence:
+artifacts/xemu/particle-pixels-20260913-221410/report.json.
+Next schedule real campaign lighting work and uploads at the verified frame
+boundary, measure full-scene memory/timing and inspect meaningful rendered output.
+
 Computed RGB now writes existing packed lightmap image rectangles without a
 second texture allocation:linear PC/swizzled Xbox. All5851 Live Mines regions
 compare each written PC texel against the linear1555 conversion, including

@@ -334,7 +334,7 @@ int rf_xbox_particle_draw(const rf_particle_draw_vertex *vertices,uint32_t count
     return RF_OK;
 }
 
-uint32_t rf_packed_lightmap_diagnostic[66],rf_packed_lightmap_samples[132];
+uint32_t rf_packed_lightmap_diagnostic[66],rf_packed_lightmap_samples[132],rf_lightmap_update_diagnostic[67];
 static int packed_lightmap_test(void)
 {
     rf_image image={0};rf_particle_draw_vertex vertices[4];uint32_t x,y;int status;
@@ -346,6 +346,23 @@ static int packed_lightmap_test(void)
     while(pb_busy()) {}
     if(!status)for(y=0;y<2;++y)for(x=0;x<32;++x)rf_packed_lightmap_diagnostic[2+y*32+x]=
         *(volatile uint32_t*)((unsigned char*)pb_back_buffer()+(96+y*64)*pb_back_buffer_pitch()+(72+x*16)*4);
+    if(!status) {
+        unsigned char rgb[48],dirty=8;uint32_t i;
+        rf_lightmap_update_diagnostic[0]=0x52464c55;
+        for(i=0;i<16;i++){rgb[i*3]=17;rgb[i*3+1]=136;rgb[i*3+2]=247;}
+        /* Prior draw completed above. Retain the same GPU allocation, flush
+         * CPU write-combining, then rebind through the normal draw path. */
+        status=rf_lightmap_upload_image_1555(&image,rgb,sizeof(rgb),24,8,0,8,2,&dirty);
+        rf_lightmap_update_diagnostic[2]=dirty;
+        __asm__ volatile("sfence" ::: "memory");
+        if(!status) {
+            pb_fill(0,0,640,480,0xff204060);pb_erase_depth_stencil_buffer(0,0,640,480);while(pb_busy()) {}
+            status=rf_xbox_particle_draw(vertices,4,&image,RF_PARTICLE_NORMAL_MODE,1,0,0,0);while(pb_busy()) {}
+            if(!status)for(y=0;y<2;y++)for(x=0;x<32;x++)rf_lightmap_update_diagnostic[3+y*32+x]=
+                *(volatile uint32_t*)((unsigned char*)pb_back_buffer()+(96+y*64)*pb_back_buffer_pitch()+(72+x*16)*4);
+        }
+        rf_lightmap_update_diagnostic[1]=status?(uint32_t)status:2;
+    }
     rf_image_close(&image);rf_packed_lightmap_diagnostic[1]=status?(uint32_t)status:2;return status;
 }
 uint32_t rf_corpse_pixel_diagnostic[1032];
