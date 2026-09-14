@@ -25,6 +25,13 @@ Shortlist:
 
 Progress reporting: include a very high-level working area (e.g. Lighting, AI, Weapons, GeoMod or Scripted events) and an overall percent estimate at the end of every turn report (USER preference) and revisit remaining 24-hour workdays when measured throughput supports a forecast; current rough estimate45% (35-45%), no defensible +/-48-hour completion forecast before end-to-end gameplay.
 
+Mission counter storage now builds for PC/Xbox with34 CTests passing: owned
+names, signed thresholds, increment/decrement, explicit local/persistent lifetime
+and bounded16900-byte capacity. Current C reader verifies53 goal events across9
+levels, including14 cross-section references. Not yet connected to gameplay: next
+confirm Goal_Create mapping and integrate dispatcher/loading loops. Evidence:
+artifacts/mission-goals.json; docs/MISSION-GOALS.md; mission-goals build/test logs.
+
 Walking round trip L1S1 -> L1S2 -> L1S1 now passes PC and stock64MiB XEMU:
 two exits at62/264 frames, three scene loads,480 inputs, retained ammunition and
 facing, matching PC state and verified framebuffer. Renderer free pages are6656
