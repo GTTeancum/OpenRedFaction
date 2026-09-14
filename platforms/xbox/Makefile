@@ -43,6 +43,7 @@ SRCS += $(PROJECT_ROOT)/src/diagnostic/animation.c
 SRCS += $(PROJECT_ROOT)/src/diagnostic/scene.c
 CFLAGS += -DRF_IMAGE_XBOX_NATIVE -std=c11 -O2 -Wall -Wextra -Werror -fstack-usage -I$(PROJECT_ROOT)/include
 LDFLAGS += -map:main.map -entry:rf_diagnostic_start
+SRCS += $(PROJECT_ROOT)/src/core/player_weapon.c
 include $(NXDK_DIR)/Makefile
 $(APU_SRCS:.c=.obj): CFLAGS += -std=c23 -Wno-unused-function -I$(APU_BACKEND)/include
 $(PROJECT_ROOT)/src/platform/xbox/audio.obj: CFLAGS += -std=c23 -I$(APU_BACKEND)/include
@@ -55,3 +56,4 @@ $(filter %.obj,$(SRCS:.c=.obj)): $(PROJECT_ROOT)/platforms/xbox/Makefile
 $(PROJECT_ROOT)/src/platform/xbox/renderer.obj: $(SHADER_OBJS)
 
 $(PROJECT_ROOT)/src/platform/xbox/main.obj: $(wildcard $(PROJECT_ROOT)/tests/*_fixture.h)
+

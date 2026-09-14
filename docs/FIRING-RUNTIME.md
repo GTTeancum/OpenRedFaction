@@ -755,3 +755,21 @@ Both builds and26 CTests pass. Stock64MiB XEMU180-frame audio-device PASS:
 weapon requests/selections/plays match PC, no device errors and nonzero DSP
 DMA output. Evidence: artifacts/xemu/replay-20260914-013131/report.json.
 This is guest device-output evidence, not physical-speaker audibility.
+
+## First-person pistol resources
+
+`rf_player_weapon_open` owns highest-LOD fp_glock geometry,40 bind bones,
+decoded material textures and immutable idle/fire/reload RFA payloads. Clips
+are validated against every bone and sampled without open archives. The
+first-pass owner uses explicit installed filenames; general weapon selection
+and descriptor-driven presentation remain separate.
+
+PC accounting:847 vertices,8 material records,929280 resident bytes and
+940876 conservative peak bytes within1MiB. The budget reserves model/bone
+loader scratch and counts embedded descriptors conservatively; allocator
+metadata is excluded. No render scratch or live pose buffers are included.
+
+The resource test closes all archives before sampling each bone at both clip
+ends, checks undersized-budget failure leaves an empty owner, and repeat close.
+Both PC and NXDK compile the loader; all27 CTests pass. This is resource
+readiness, not live first-person rendering or native XEMU residency evidence.

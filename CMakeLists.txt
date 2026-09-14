@@ -224,3 +224,8 @@ add_test(NAME projectile_resource_lifetime COMMAND rf_weapon_probe --projectile-
 
 add_test(NAME shadow_storage_lifetime COMMAND rf_geometry_probe --shadow-storage)
 add_test(NAME lightmap_storage_lifetime COMMAND rf_geometry_probe --lightmap-storage)
+
+target_sources(rf_core PRIVATE src/core/player_weapon.c)
+add_executable(rf_player_weapon_tests tests/player_weapon_tests.c)
+target_link_libraries(rf_player_weapon_tests PRIVATE rf_core)
+add_test(NAME player_weapon_resources COMMAND rf_player_weapon_tests "${CMAKE_SOURCE_DIR}/Installed_Game")
