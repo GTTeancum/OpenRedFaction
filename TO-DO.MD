@@ -11,7 +11,7 @@ failures to select work; avoid spending time on exact RE or visual polish unless
 it blocks those systems. This priority change does not increase completion.
 
 Shortlist:
-- ACTIVE: Verify scripted NPC deaths on Xbox and expand consecutive mission progression.
+- ACTIVE: Connect mission dialogue/subtitles and continue consecutive campaign progression.
 - TO COMPLETE: Preserve remaining world changes across sections, including partial actor state and dropped items.
 - NEXT: Expand mission scripts and AI until consecutive campaign sections are playable end to end.
 - TO COMPLETE: Expand the working pistol/rifle combat, pickups and first-person feedback to the remaining weapons.
@@ -30,6 +30,13 @@ Shortlist:
 - USER: Review the interactive PC movement and audio items listed below.
 
 Progress reporting: include a very high-level working area (e.g. Lighting, AI, Weapons, GeoMod or Scripted events) and an overall percent estimate at the end of every turn report (USER preference) and revisit remaining 24-hour workdays when measured throughput supports a forecast; current rough estimate45% (35-45%), no defensible +/-48-hour completion forecast before end-to-end gameplay.
+
+Stock64MiB Xbox repeated Slay_Object test passes90 frames: one NPC8432 death
+entry, health-1, matching PC. Evidence: replay-20260914-081317/report.json.
+Mission-message inventory locates66 level-local text tables/918 entries; all
+714 Message event IDs resolve. Six voice references are absent from indexed
+archives, so subtitles need a fallback. Live message display/audio remains
+open; see docs/MISSION-MESSAGES.md and artifacts/mission-messages.json.
 
 Stock64MiB XEMU NPC removal passes90 frames in L1S3 with one actor excluded.
 Evidence: artifacts/xemu/replay-20260914-080631/report.json; capture inspected.

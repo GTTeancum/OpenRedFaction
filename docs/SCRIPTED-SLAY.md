@@ -18,3 +18,8 @@ compares a control with L1S1 event9362, which targets NPC8432, at frames0 and60.
 The90-frame repeated case records one death entry and health-1; control records
 none. Both builds and36 tests pass. Native repeated-slay verification is running
 in `artifacts/slay-xemu.log`; do not treat the launch as a passed result.
+
+Update: stock64MiB XEMU90-frame repeated-slay test passes in
+`artifacts/xemu/replay-20260914-081317/report.json`, matching PC's single death
+entry for NPC8432 with health-1 and no status error. Native framebuffer was
+inspected; its starting camera does not demonstrate the corpse presentation.
