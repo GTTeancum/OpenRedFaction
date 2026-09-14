@@ -34,6 +34,13 @@ Shortlist:
 
 Progress reporting: include a very high-level working area (e.g. Lighting, AI, Weapons, GeoMod or Scripted events) and an overall percent estimate at the end of every turn report (USER preference) and revisit remaining 24-hour workdays when measured throughput supports a forecast; current rough estimate45% (35-45%), no defensible +/-48-hour completion forecast before end-to-end gameplay.
 
+Bounded HUD batching passes native crossing/state/capture verification in
+replay-20260914-090327. Measured scene work drops222->198ms (about11%);
+renderer time drops43.5->26.8ms. Still roughly5FPS-equivalent, not adequate.
+Finer NPC/clutter/weapon/platform timings are added; both builds and37 tests
+pass. Native detailed run is active in artifacts/performance-detail-xemu.log;
+wait for disc restoration before Xbox builds. No GitHub images added.
+
 Xbox baseline completed: replay-20260914-090014 passes;104 destination samples
 average about222ms measured scene work, with44ms nested renderer time. The
 165ms broad presentation phase needs finer NPC/clutter/platform timing.

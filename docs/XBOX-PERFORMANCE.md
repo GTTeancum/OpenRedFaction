@@ -15,7 +15,7 @@ presentation FPS or a hardware benchmark. XEMU scheduling affects these times.
 - Physics/event stepping:10.798ms.
 - Other measured phases total7.221ms.
 
-Nested renderer phases total43.539ms, including28.442ms for world/particles/HUD
+Nested renderer phases total43.479ms, including28.442ms for world/particles/HUD
 and GPU waits. Do not add this renderer total to scene time. The broad165ms
 phase includes scene_npc_draw, scene_clutter_draw, weapon/pickup/player-weapon
 drawing, the platform sink and state export; it needs finer timing before
@@ -27,3 +27,20 @@ adds no vertex allocations. Native timing/state/capture validation is running
 in artifacts/performance-hud-batch-xemu.log. No speedup is claimed yet.
 Next: compare that run, then instrument the broad presentation phase to find
 its dominant actor/geometry/platform cost. Local baseline: artifacts/performance-baseline.json.
+
+HUD batching validation: replay-20260914-090327 passes the same180-frame
+stock64MiB crossing and native/PC state checks. Its native framebuffer was
+inspected: the two-line Hendrix subtitle, crosshair and weapon HUD remain visible.
+No GitHub screenshot was added. Command batches retain at most64 fans before
+GPU drain/reset and reuse solid shader state within the overlay pass.
+
+Measured scene phase means total198.077ms versus221.913ms baseline (10.7%
+lower); nested renderer means total26.750ms versus43.479ms. Draw/GPU-wait
+phase falls from28.442 to12.558ms. This single controlled replay comparison
+suggests about5FPS-equivalent frame work, not a broad game performance guarantee.
+
+Finer instrumentation now separates NPC/clutter/world-weapon/pickup/first-person
+weapon drawing, platform sink and state export within the dominant scene phase.
+Both builds and37 tests pass. Native detailed timing is running in
+artifacts/performance-detail-xemu.log. Remaining CPU costs still dominate;
+next changes must follow those measurements.

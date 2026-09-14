@@ -18,6 +18,16 @@
  * Each row contains calls, elapsed low/high, maximum. Read-only QMP evidence. */
 uint32_t rf_renderer_profile[8][4];
 static uint32_t stream_profile_frames;
+static uint32_t hud_batch_active,hud_batch_ready,hud_batch_draws;
+static void hud_batch_flush(void)
+{
+    while(pb_busy()) {}
+    pb_reset();hud_batch_draws=0;
+}
+static void hud_batch_begin(void)
+{hud_batch_flush();hud_batch_active=1;hud_batch_ready=0;}
+static void hud_batch_end(void)
+{hud_batch_flush();hud_batch_active=hud_batch_ready=0;}
 static void renderer_mark(uint32_t phase,uint32_t *previous,int enabled)
 {
     uint32_t now,elapsed,*row;uint64_t total;
@@ -230,8 +240,10 @@ static int preview(const rf_preview_mesh *mesh, const rf_materials *materials, c
         while (pb_busy()) {}
         if(streaming) {int status=rf_scene_draw_particles(scene_particle_present,NULL);if(status)return status;
             status=rf_scene_draw_coronas(scene_particle_present,NULL);if(status)return status;}
-        if(streaming) {int status=rf_scene_draw_player_flash(scene_particle_present,NULL);if(status)return status;
-            status=rf_scene_draw_combat_hud(scene_particle_present,NULL);if(status)return status;}
+        if(streaming) {int status;hud_batch_begin();
+            status=rf_scene_draw_player_flash(scene_particle_present,NULL);
+            if(!status)status=rf_scene_draw_combat_hud(scene_particle_present,NULL);
+            hud_batch_end();if(status)return status;}
         renderer_mark(5,&profile_previous,profiling);
         capture[0] = (uint32_t)pb_back_buffer();
         capture[1] = pb_back_buffer_width(); capture[2] = pb_back_buffer_height(); capture[3] = pb_back_buffer_pitch();
@@ -294,7 +306,9 @@ int rf_xbox_particle_draw(const rf_particle_draw_vertex *vertices,uint32_t count
         for(j=0;j<2;j++)if(!isfinite(vertices[i].screen[j]) || !isfinite(vertices[i].uv[j]) ||
             !isfinite(vertices[i].uv[j]*vertices[i].reciprocal_w))return RF_RANGE;
     }
+    if(hud_batch_active && !solid)return RF_FORMAT; /* This scope owns solid overlays only. */
     if(!solid){status=upload(&texture,image,0);if(status!=RF_OK)return status;}
+    if(!hud_batch_active || !hud_batch_ready) {
     p=pb_begin();
     p=pb_push1(p,NV097_SET_TRANSFORM_PROGRAM_START,0);
     p=pb_push1(p,NV097_SET_TRANSFORM_EXECUTION_MODE,
@@ -334,7 +348,9 @@ int rf_xbox_particle_draw(const rf_particle_draw_vertex *vertices,uint32_t count
     p=pb_push1(p,NV097_SET_TEXTURE_FILTER,0x02020000);
     for(i=1;i<4;i++)p=pb_push1(p,NV097_SET_TEXTURE_CONTROL0+i*0x40,0);
     for(i=0;i<16;i++)p=pb_push1(p,NV097_SET_VERTEX_DATA_ARRAY_FORMAT+i*4,NV097_SET_VERTEX_DATA_ARRAY_FORMAT_TYPE_F);
-    p=pb_push1(p,NV097_SET_BEGIN_END,NV097_SET_BEGIN_END_OP_TRIANGLE_FAN);pb_end(p);
+    pb_end(p);if(hud_batch_active)hud_batch_ready=1;
+    }
+    p=pb_begin();p=pb_push1(p,NV097_SET_BEGIN_END,NV097_SET_BEGIN_END_OP_TRIANGLE_FAN);pb_end(p);
     for(i=0;i<count;i++) {
         const rf_particle_draw_vertex *v=vertices+i;
         float f=(!solid && !glow && (fog_enabled&255u))?(float)(v->fog>>24)/255.0f:1.0f;
@@ -350,10 +366,11 @@ int rf_xbox_particle_draw(const rf_particle_draw_vertex *vertices,uint32_t count
         pb_end(p);
     }
     p=pb_begin();p=pb_push1(p,NV097_SET_BEGIN_END,NV097_SET_BEGIN_END_OP_END);pb_end(p);
-    while(pb_busy()) {}
-    /* pb_begin does not wrap the pushbuffer. HUD glyphs can issue hundreds
-     * of these completed draws in one frame; recycle only after GPU drain. */
-    pb_reset();
+    /* At most64 fans of12 vertices: under64KiB of commands plus shader setup,
+     * within the512KiB pushbuffer. Immediate vertices are copied into commands;
+     * no borrowed CPU vertex storage survives this call. Preserve draw order. */
+    if(hud_batch_active){if(++hud_batch_draws==64)hud_batch_flush();}
+    else {while(pb_busy()) {}pb_reset();}
     return RF_OK;
 }
 

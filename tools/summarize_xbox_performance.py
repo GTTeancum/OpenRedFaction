@@ -12,6 +12,7 @@ def rows(name,labels):
  return result
 scene=rows('rf_scene_profile',['unused','pre-camera work','camera/visibility/world rebuild','world diagnostics','actor construction/drawing','remaining scene preparation','presentation and state export','physics/event stepping'])
 renderer=rows('rf_renderer_profile',['validation','resource preparation','vertex upload','render setup','vblank/reset/clear','world/particles/HUD draw and GPU waits','swap submission','finalization'])
-report=dict(scene=scene,renderer=renderer,scope='Guest millisecond phase timing after16 section frames/submissions; scene presentation includes renderer costs, so do not add renderer and scene totals. Input polling/pacing and level loading excluded. Phase means are not an exact FPS measurement; scene final-frame phase counts may differ. XEMU host scheduling affects timings.')
+presentation=rows('rf_scene_presentation_profile',['NPCs','clutter','world weapons','pickups','first-person weapon','platform sink','player state export','unused']) if 'rf_scene_presentation_profile' in symbols else []
+report=dict(scene=scene,renderer=renderer,presentation=presentation,scope='Guest millisecond phase timing after16 section frames/submissions; scene presentation includes renderer costs, so do not add renderer and scene totals. Input polling/pacing and level loading excluded. Phase means are not an exact FPS measurement; scene final-frame phase counts may differ. XEMU host scheduling affects timings.')
 if a.out:a.out.write_text(json.dumps(report,indent=2))
 print(json.dumps(report,indent=2))
