@@ -9,7 +9,7 @@
 
 typedef struct shadow_context {
     rf_geometry_shadow_job job;const rf_lightmap_shadow_face *cached;
-    const rf_level_owned_lights *lights;float ambient[3];rf_image *target;
+    const rf_level_owned_lights *lights;float ambient[3];rf_image *target;rf_lightmap_rgb_image *base;
     const uint32_t *ids;
     uint32_t callbacks,passes,backfacing,visited,eligible,accepted;
 } shadow_context;
@@ -33,10 +33,11 @@ static int shade_mapping(shadow_context *context,const rf_geometry_vertex_faces 
     rf_lightmap_sample_lighting view={0};rf_lightmap_accumulation accumulation;
     rf_vfx_light_source lights[63];const unsigned char *masks[63];unsigned char room_ambient[4];
     rf_geometry_lightmap_work work={0};uint32_t pixels=mapping->width*mapping->height,counts[2]={0},j,k,pass,max_degree=0;
-    float *channels=NULL;unsigned char *rgb=NULL,*reference=NULL,*packed=NULL;int status=RF_OK;
+    float *channels=NULL;unsigned char *rgb=NULL,*reference=NULL,*packed=NULL,*before=NULL;int status=RF_OK;
     if(pixels>65536 || count>63)return RF_RANGE;
     channels=malloc((size_t)pixels*12);rgb=malloc((size_t)pixels*3);reference=malloc((size_t)pixels*3);packed=malloc((size_t)pixels*2);
-    if(!channels || !rgb || !reference || !packed){status=RF_IO;goto done;}
+    before=malloc(context->base->bytes);
+    if(!channels || !rgb || !reference || !packed || !before){status=RF_IO;goto done;}
     status=rf_geometry_room_ambient(job->geometry,mapping->room,room_ambient);if(status)goto done;
     view.sample=*job->sample;view.width=mapping->width;view.height=mapping->height;
     view.lights=lights;view.light_count=count;view.mask_bytes=storage->mask_stride;view.directional_scale=1;view.capacity=pixels;
@@ -61,13 +62,35 @@ static int shade_mapping(shadow_context *context,const rf_geometry_vertex_faces 
             status=rf_lightmap_resolve_rgb(&accumulation,rgb,pixels*3,view.width*3,&dirty);if(status)goto done;
         }
         if(dirty!=8){status=RF_FORMAT;goto done;}
+        /* Compare retained RGB with the established local-buffer route,
+         * including every neighboring atlas texel. */
+        memcpy(before,context->base->pixels,context->base->bytes);
+        dirty=6;status=rf_lightmap_regenerate_rgb(&view,work.polygons,counts[0],mapping->special,
+            context->ambient,room_ambient,context->base,&dirty);if(status)goto done;
+        if(dirty!=14){status=RF_FORMAT;goto done;}
+        for(j=0;j<context->base->height;j++)for(k=0;k<context->base->width;k++) {
+            uint32_t at=(j*context->base->width+k)*3;
+            const unsigned char *expected=before+at;
+            if(k>=mapping->x && k-mapping->x<view.width && j>=mapping->y && j-mapping->y<view.height)
+                expected=rgb+((j-mapping->y)*view.width+k-mapping->x)*3;
+            if(memcmp(context->base->pixels+at,expected,3)){status=RF_FORMAT;goto done;}
+        }
+        memcpy(before,context->base->pixels,context->base->bytes);
+        {rf_lightmap_sample_lighting bad=view;unsigned char guard=6;
+         bad.sample.x=context->base->width;
+         if(rf_lightmap_regenerate_rgb(&bad,work.polygons,counts[0],mapping->special,
+             context->ambient,room_ambient,context->base,&guard)!=RF_RANGE || guard!=6 ||
+             memcmp(before,context->base->pixels,context->base->bytes)){status=RF_FORMAT;goto done;}}
+        dirty=8;
         if(!pass)memcpy(reference,rgb,pixels*3);
         else {hashes[2]=0;for(j=0;j<pixels*3;j++)hashes[2]+=reference[j]!=rgb[j];}
         upload.rgb=rgb;upload.rgb_bytes=pixels*3;upload.rgb_pitch=view.width*3;upload.packed=packed;upload.packed_bytes=pixels*2;upload.packed_pitch=view.width*2;upload.width=view.width;upload.height=view.height;
         status=rf_lightmap_upload_rgb_1555(&upload,&dirty);if(status)goto done;
         if(dirty){status=RF_FORMAT;goto done;}
         if(pass) {
-            dirty=8;status=rf_lightmap_upload_image_1555(context->target,rgb,pixels*3,view.width*3,mapping->x,mapping->y,view.width,view.height,&dirty);if(status)goto done;
+            uint32_t offset=(mapping->y*context->base->width+mapping->x)*3;
+            dirty=8;status=rf_lightmap_upload_image_1555(context->target,context->base->pixels+offset,
+                context->base->bytes-offset,context->base->width*3,mapping->x,mapping->y,view.width,view.height,&dirty);if(status)goto done;
             if(dirty){status=RF_FORMAT;goto done;}
             for(j=0;j<view.height;j++)for(k=0;k<view.width;k++)
                 if(memcmp(rf_image_pixel(context->target,mapping->x+k,mapping->y+j),packed+(j*view.width+k)*2,2)){status=RF_FORMAT;goto done;}
@@ -75,12 +98,12 @@ static int shade_mapping(shadow_context *context,const rf_geometry_vertex_faces 
         for(j=0;j<pixels*2;j++)hash=(hash^packed[j])*16777619u;hashes[pass]=hash;
     }
 done:
-    free(channels);free(rgb);free(reference);free(packed);free(work.polygons);free(work.vertices);free(work.normals);return status;
+    free(channels);free(rgb);free(reference);free(packed);free(before);free(work.polygons);free(work.vertices);free(work.normals);return status;
 }
 int main(int argc,char **argv)
 {
     rf_vpp archive={0},textures[16];rf_level level;rf_geometry geometry={0};rf_lightmaps maps={0};
-    rf_level_lighting lighting;float ambient[3];
+    rf_level_lighting lighting;float ambient[3];rf_lightmap_rgb_owner rgb_owner={0};
     rf_geometry_vertex_faces graph={0};
     rf_geometry_materials materials={0};rf_level_owned_lights *lights=NULL;rf_random_state rng={123};
     rf_geometry_shadow_storage storage={0};const rf_geometry *g=&geometry;const rf_image **images=NULL;
@@ -93,6 +116,7 @@ int main(int argc,char **argv)
     CHECK(rf_vpp_open(&archive,argv[1]));archive_open=1;CHECK(rf_level_open(&level,&archive,argv[2]));
     CHECK(rf_geometry_open(&geometry,&level,8u*1024u*1024u));CHECK(rf_lightmaps_open(&maps,&level,16u*1024u*1024u));
     CHECK(rf_level_owned_lights_open(&level,1024u*1024u,1,1,&rng,&lights));
+    CHECK(rf_lightmap_rgb_open(&rgb_owner,&level,4u*1024u*1024u));
     CHECK(rf_level_lighting_read(&level,&lighting));
     if(lighting.directional==1){fprintf(stderr,"Directional level lighting is not yet bound in this fixture.\n");status=RF_RANGE;goto done;}
     for(i=0;i<3;i++)ambient[i]=(float)((double)lighting.color[i]*(double)0.003921568859368563f);
@@ -115,7 +139,7 @@ int main(int argc,char **argv)
         rf_lightmap_mapping mapping;rf_lightmap_sample_plane sample;uint32_t hashes[3]={0},counts[2],changed=0,changed_bytes=0,hash=2166136261u,clip;
         rf_lightmap_shadow_filter filter;rf_lightmap_shadow_dispatch dispatch;shadow_context context={0};
         CHECK(rf_geometry_lightmap_sample_binding(&geometry,&maps,i,&mapping,&sample));
-        context.target=maps.images+mapping.image;
+        context.target=maps.images+mapping.image;context.base=rgb_owner.images+mapping.image;
         CHECK(rf_vfx_lights_box(lights->pool.sources,lights->pool.capacity,mapping.minimum,mapping.maximum,1,1,selected,1100,&n));
         if(!n) {
             context.job.geometry=&geometry;context.job.mapping=&mapping;context.job.sample=&sample;context.job.mapping_index=(int32_t)i;
@@ -144,6 +168,6 @@ int main(int argc,char **argv)
     }
 done:
     rf_geometry_vertex_faces_close(&graph);rf_geometry_shadow_storage_close(&storage);free(images);free(faces);free(cached);free(scratch);rf_geometry_materials_close(&materials);rf_level_owned_lights_close(&lights);
-    rf_lightmaps_close(&maps);rf_geometry_close(&geometry);while(opened)rf_vpp_close(textures+--opened);if(archive_open)rf_vpp_close(&archive);
+    rf_lightmap_rgb_close(&rgb_owner);rf_lightmaps_close(&maps);rf_geometry_close(&geometry);while(opened)rf_vpp_close(textures+--opened);if(archive_open)rf_vpp_close(&archive);
     return status?1:0;
 }

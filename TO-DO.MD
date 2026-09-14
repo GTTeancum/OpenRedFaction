@@ -15,6 +15,18 @@ Shortlist:
 
 Progress reporting: include a very high-level working area (e.g. Lighting, AI, Weapons, GeoMod or Scripted events) and an overall percent estimate at the end of every turn report (USER preference) and revisit remaining 24-hour workdays when measured throughput supports a forecast; current rough estimate40% (35-45%), no defensible +/-48-hour completion forecast before end-to-end gameplay.
 
+Shared base regeneration now writes retained RGB at atlas offsets, composing
+ambient fill or seeded ordinary/special masked accumulation and RGB resolve
+without allocation. All5851 Live Mines mappings match the prior temporary-
+buffer route byte-for-byte, including untouched atlas neighbors; the fixture
+uploads these retained colors and still matches packed1555 results. Cached
+and uncached jobs agree. Compiled NXDK passes256 composed rectangles and7
+guards; both builds and25 tests pass. These are integration checks against
+previously verified stages, not new original-scene or XEMU rendering proof.
+Next bind retained mask/channel/polygon workspace and this worker into live
+dirty2/4 scene scheduling; source overflow and ray shadows remain open.
+Evidence artifacts/lightmap-regenerate-rgb.json and campaign-shadow-l1s1.json.
+
 Scene frame sinks now bind retained base RGB and allocation-free dirty1/8
 lightmap uploads on PC and Xbox, waiting for prior GPU reads on Xbox.
 Stock64MiB XEMU completed180 Live Mines frames:5851 initial uploads,

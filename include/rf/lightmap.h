@@ -330,6 +330,17 @@ int rf_lightmap_filtered_rgb(const rf_lightmap_accumulation *,uint32_t x,uint32_
 int rf_lightmap_resolve_rgb(const rf_lightmap_accumulation *,unsigned char *rgb,
     uint32_t bytes,uint32_t pitch,unsigned char *dirty);
 
+/* Base regeneration portion of4f26a0: zero sources fill ambient directly;
+ * 1..63 sources seed, accumulate ordinary/special samples, then resolve into
+ * retained linear RGB at sample.x/y. Masks, selected polygons and channel
+ * scratch are caller-owned. No allocation or packed conversion. Success ORs
+ * dirty8; caller owns dirty2/4 acknowledgement. Atlas bounds precede writes;
+ * errors can retain channel or partial RGB writes. Source overflow
+ * (original magenta diagnostic path) is rejected, not silently truncated. */
+int rf_lightmap_regenerate_rgb(const rf_lightmap_sample_lighting *,
+    const rf_lightmap_sample_polygon *,uint32_t polygon_count,int special,
+    const float global[3],const unsigned char room[4],rf_lightmap_rgb_image *,unsigned char *dirty);
+
 typedef struct rf_lightmap_rgb_upload {
     const unsigned char *rgb;uint32_t rgb_bytes,rgb_pitch;
     unsigned char *packed;uint32_t packed_bytes,packed_pitch;

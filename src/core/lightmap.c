@@ -1151,6 +1151,28 @@ int rf_lightmap_resolve_rgb(const rf_lightmap_accumulation *view,unsigned char *
     *dirty|=8u;return RF_OK;
 }
 
+int rf_lightmap_regenerate_rgb(const rf_lightmap_sample_lighting *view,
+    const rf_lightmap_sample_polygon *polygons,uint32_t polygon_count,int special,
+    const float global[3],const unsigned char room[4],rf_lightmap_rgb_image *base,unsigned char *dirty)
+{
+    rf_lightmap_accumulation accumulation;uint64_t offset;uint32_t pitch,c;int status;
+    if(!view || !base || !base->pixels || !dirty || !view->width || !view->height ||
+       !base->width || !base->height || (uint64_t)base->width*base->height>UINT32_MAX/3 ||
+       (uint64_t)base->width*base->height*3!=base->bytes ||
+       view->sample.image_width!=base->width || view->sample.image_height!=base->height ||
+       (uint64_t)view->sample.x+view->width>base->width ||
+       (uint64_t)view->sample.y+view->height>base->height || view->light_count>=64)return RF_RANGE;
+    pitch=base->width*3;offset=((uint64_t)view->sample.y*base->width+view->sample.x)*3;
+    if(!view->light_count)return rf_lightmap_fill_ambient(base->pixels+offset,base->bytes-(uint32_t)offset,
+        pitch,view->width,view->height,global,room,dirty);
+    if(!view->lights || (special && (view->width<2 || view->height<2 || (polygon_count && !polygons))))return RF_RANGE;
+    status=rf_lightmap_seed_ambient(view,global,room);if(status)return status;
+    status=special?rf_lightmap_accumulate_special(view,polygons,polygon_count):rf_lightmap_accumulate_samples(view);if(status)return status;
+    for(c=0;c<3;c++)accumulation.channels[c]=view->channels[c];
+    accumulation.width=view->width;accumulation.height=view->height;accumulation.count=view->capacity;
+    return rf_lightmap_resolve_rgb(&accumulation,base->pixels+offset,base->bytes-(uint32_t)offset,pitch,dirty);
+}
+
 int rf_lightmap_upload_rgb_1555(const rf_lightmap_rgb_upload *view,unsigned char *dirty)
 {
     uint32_t x,y,value;uint64_t right,bottom;
