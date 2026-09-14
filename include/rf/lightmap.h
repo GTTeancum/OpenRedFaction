@@ -138,6 +138,15 @@ int rf_lightmap_project_shadow(const rf_lightmap_sample_plane *,uint32_t width,u
 int rf_lightmap_shadow_polygon(const rf_lightmap_sample_plane *,uint32_t width,uint32_t height,
     const float origin[3],const float plane[4],const float (*vertices)[3],uint32_t count,
     float (*output)[2],uint32_t capacity,uint32_t *out_count);
+typedef struct rf_lightmap_shadow_clip_work {
+    float (*polygons[2])[2],*distances;uint32_t capacity;
+} rf_lightmap_shadow_clip_work;
+/* Original549f10 clipping of a subject polygon by an ordered convex boundary.
+ * Disjoint inputs, output and caller scratch. No allocation; errors preserve
+ * output/count but may change scratch. Empty results set count=0 only. */
+int rf_lightmap_shadow_clip_2d(const float (*boundary)[2],uint32_t boundary_count,
+    const float (*subject)[2],uint32_t subject_count,rf_lightmap_shadow_clip_work *,
+    float (*output)[2],uint32_t capacity,uint32_t *out_count);
 /* Original4f25a0 triangle-fan area used by projected shadow filtering.
  * Preserves mixed precision and whole-polygon zero on degenerate radicand.
  * No allocation; finite inputs required; errors preserve area. */

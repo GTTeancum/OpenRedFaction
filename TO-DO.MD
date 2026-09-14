@@ -15,6 +15,13 @@ Shortlist:
 
 Progress reporting: include a very high-level working area (e.g. Lighting, AI, Weapons, GeoMod or Scripted events) and an overall percent estimate at the end of every turn report (USER preference) and revisit remaining 24-hour workdays when measured throughput supports a forecast; current rough estimate40% (35-45%), no defensible +/-48-hour completion forecast before end-to-end gameplay.
 
+Projected2D polygon clipping matches2048 original/PC/NXDK cases (1521
+clipped,437 unchanged,90 empty), including winding and epsilon boundaries.
+Five shared guards plus one NXDK scratch-capacity guard pass; both builds
+and24 tests pass. Caller-owned bounded scratch replaces original globals.
+Next compose polygon intersection/area acceptance and occluder selection,
+then mask resource ownership and native rendered updates.
+
 Projected shadow polygon area now matches4096 original/PC/NXDK cases,
 including513 late-degenerate whole-polygon zero results and3 guards. Both
 builds and24 tests pass. Preserve triangle-fan ordering, Heron product order,

@@ -335,6 +335,18 @@ int main(int argc,char **argv)
         }
         return 0;
     }
+    if(argc==2 && !strcmp(argv[1],"--lightmap-shadow-clip-2d")) {
+        struct {uint32_t boundary_count,subject_count,capacity;float boundary[16][2],subject[16][2];} input;
+        float output[64][2],polygons[2][64][2],distances[64];rf_lightmap_shadow_clip_work work;uint32_t status,count;
+        work.polygons[0]=polygons[0];work.polygons[1]=polygons[1];work.distances=distances;work.capacity=64;
+        _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
+        while(fread(&input,sizeof(input),1,stdin)==1) {
+            memset(output,0xa5,sizeof(output));count=0xa5a5a5a5;
+            status=input.boundary_count>16 || input.subject_count>16 || input.capacity>64?RF_RANGE:rf_lightmap_shadow_clip_2d(input.boundary,input.boundary_count,input.subject,input.subject_count,&work,output,input.capacity,&count);
+            fwrite(&status,4,1,stdout);fwrite(&count,4,1,stdout);fwrite(output,sizeof(output),1,stdout);
+        }
+        return 0;
+    }
     if(argc==2 && !strcmp(argv[1],"--lightmap-shadow-area")) {
         struct {uint32_t count;float vertices[32][2];} input;float area;uint32_t status;
         _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);

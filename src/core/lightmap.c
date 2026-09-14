@@ -478,6 +478,57 @@ int rf_lightmap_shadow_polygon(const rf_lightmap_sample_plane *view,uint32_t wid
     *out_count=n;return RF_OK;
 }
 
+static double shadow_dot2(const float a[2],const float b[2])
+{ return (double)a[1]*b[1]+(double)a[0]*b[0]; }
+int rf_lightmap_shadow_clip_2d(const float (*boundary)[2],uint32_t boundary_count,
+    const float (*subject)[2],uint32_t subject_count,rf_lightmap_shadow_clip_work *work,
+    float (*output)[2],uint32_t capacity,uint32_t *out_count)
+{
+    uint32_t i,j,n=subject_count,current=0,flipped=0;const double epsilon=(double).0001f;
+    if(!boundary || boundary_count<3 || !subject || subject_count<3 || !work || !output || !out_count ||
+        !work->polygons[0] || !work->polygons[1] || !work->distances || work->capacity<subject_count ||
+        (uint64_t)subject_count*8>SIZE_MAX || (uint64_t)capacity*8>SIZE_MAX)return RF_RANGE;
+    for(i=0;i<boundary_count;i++)for(j=0;j<2;j++)if(!isfinite(boundary[i][j]))return RF_RANGE;
+    for(i=0;i<subject_count;i++)for(j=0;j<2;j++)if(!isfinite(subject[i][j]))return RF_RANGE;
+    memcpy(work->polygons[0],subject,(size_t)n*8);
+    for(i=0;i<boundary_count;i++) {
+        const float *a=boundary[i],*b=boundary[i+1==boundary_count?0:i+1];
+        float normal[2],distance;double dx=(double)a[0]-b[0],magnitude;uint32_t outside=0,emitted=0;
+        normal[0]=(float)((double)b[1]-a[1]);normal[1]=(float)dx;magnitude=fabs(dx)+fabs((double)normal[0]);
+        if(magnitude<epsilon)continue;
+        normal[0]=(float)((double)normal[0]/magnitude);normal[1]=(float)((double)normal[1]/magnitude);
+        distance=(float)shadow_dot2(a,normal);
+        if(i==0 && shadow_dot2(boundary[2],normal)-distance>epsilon)flipped=1;
+        if(flipped) {normal[0]=-normal[0];normal[1]=-normal[1];distance=-distance;}
+        if(!isfinite(distance))return RF_RANGE;
+        for(j=0;j<n;j++) {
+            double d=shadow_dot2(work->polygons[current][j],normal)-distance;
+            work->distances[j]=(float)d;if(!isfinite(work->distances[j]))return RF_RANGE;
+            outside+=d>epsilon;
+        }
+        if(outside==n) {*out_count=0;return RF_OK;}
+        if(!outside)continue;
+        for(j=0;j<n;j++) {
+            uint32_t next=j+1==n?0:j+1,k;float d=work->distances[j],e=work->distances[next];
+            const float *from=work->polygons[current][j],*to=work->polygons[current][next];
+            if(d<epsilon) {
+                if(emitted>=work->capacity)return RF_RANGE;
+                memcpy(work->polygons[1-current][emitted++],from,8);
+            }
+            if((d< -epsilon && e>epsilon) || (d>=epsilon && e< -epsilon)) {
+                double t=(double)d/((double)d-e);float value[2];
+                if(emitted>=work->capacity)return RF_RANGE;
+                for(k=0;k<2;k++) {value[k]=(float)(((double)to[k]-from[k])*t+from[k]);if(!isfinite(value[k]))return RF_RANGE;}
+                memcpy(work->polygons[1-current][emitted++],value,8);
+            }
+        }
+        n=emitted;current=1-current;
+    }
+    if(n<3) {*out_count=0;return RF_OK;}
+    if(n>capacity)return RF_RANGE;
+    memcpy(output,work->polygons[current],(size_t)n*8);*out_count=n;return RF_OK;
+}
+
 /* 4f25a0 uses a fan and Heron's formula; a nonpositive radicand rejects
  * the whole area, even after earlier triangles accumulated successfully. */
 int rf_lightmap_shadow_area(const float (*vertices)[2],uint32_t count,float *area)
