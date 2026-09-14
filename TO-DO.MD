@@ -14,6 +14,7 @@ GitHub image policy: retain the current four images; upload no additional
 screenshots until near-retail-quality replacements are available.
 
 Shortlist:
+- ACTIVE: Implement authored Follow_Waypoints movement to unblock the opening confrontation and natural Riot Stick handoff.
 - DEFERRED / TO COMPLETE: Improve Xbox performance beyond the current basic-testing baseline; revisit NPC pose evaluation.
 - TO COMPLETE: Preserve remaining world changes across sections, including actor placement/inventory and dropped items.
 - ACTIVE: Verify enemy firing visually, add muzzle/impact effects, and extend natural-trigger encounter coverage.
