@@ -56,4 +56,3 @@ $(filter %.obj,$(SRCS:.c=.obj)): $(PROJECT_ROOT)/platforms/xbox/Makefile
 $(PROJECT_ROOT)/src/platform/xbox/renderer.obj: $(SHADER_OBJS)
 
 $(PROJECT_ROOT)/src/platform/xbox/main.obj: $(wildcard $(PROJECT_ROOT)/tests/*_fixture.h)
-
