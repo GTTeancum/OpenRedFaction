@@ -687,7 +687,7 @@ int rf_scene_fire_setup_event(uint32_t uid,int32_t now)
 {
     uint32_t i;rf_startup_events_report report;
     for(i=0;i<campaign_events.count;i++)if(campaign_events.items[i].authored->record.uid==uid) {
-        if(campaign_events.items[i].state.type!=48 && campaign_events.items[i].state.type!=2)return RF_FORMAT;
+        if(campaign_events.items[i].state.type!=48 && campaign_events.items[i].state.type!=2 && campaign_events.items[i].state.type!=1)return RF_FORMAT;
         return rf_runtime_event_fire(&campaign_triggers,campaign_events.items[i].handle,UINT32_MAX,UINT32_MAX,now,&scene_gravity,NULL,NULL,&report);
     }
     return RF_NOT_FOUND;
@@ -7414,6 +7414,25 @@ static int combat_death_start(uint32_t slot)
     rf_scene_combat_death[2]=(uint32_t)owner->selection.mapping.actions[5];rf_scene_combat_death[3]=(uint32_t)status;
     return status;
 }
+uint32_t rf_scene_script_slays[6]; /* requests,death entries,last UID,health bits,clock,status */
+static int campaign_slay_object(void *context,uint32_t handle,uint32_t source,int32_t now)
+{
+    uint32_t i,entered,clock_bits;float amount,seconds=(float)now*.001f;int status;(void)context;
+    rf_damage_effect_backend effects={combat_predicate,combat_uid,combat_source,combat_burn,combat_random,combat_notify,combat_playing,combat_play,NULL};
+    for(i=0;i<campaign_npc_body_count;i++) {
+        campaign_npc_body *owner=campaign_npc_bodies+i;rf_damage_request request;
+        if(!owner->registration.view || owner->registration.handle!=handle)continue;
+        if(owner->damage.effects.health<=0)return RF_OK;
+        request=(rf_damage_request){owner->damage.effects.health+fmaxf(0,owner->damage.effects.armor)+1,source,-1,0,UINT32_MAX,1};
+        memcpy(&clock_bits,&seconds,4);++rf_scene_script_slays[0];
+        rf_scene_script_slays[2]=campaign_seeds.records.items[i].record.uid;rf_scene_script_slays[4]=(uint32_t)now;
+        status=rf_scene_npc_damage(handle,&request,1,clock_bits,&effects,&amount);
+        if(!status)status=rf_scene_npc_death_entry(handle,&entered);
+        if(!status && entered){++rf_scene_script_slays[1];owner->script_move.active=0;status=combat_death_start(i);}
+        memcpy(rf_scene_script_slays+3,&owner->damage.effects.health,4);rf_scene_script_slays[5]=(uint32_t)status;return status;
+    }
+    return RF_NOT_FOUND;
+}
 static int campaign_enemy_tick(scene_stream *stream,uint32_t frame,const float player_eye[3])
 {
     uint32_t i,j,blocked,clock_bits;float seconds=(float)frame/60;
@@ -10002,6 +10021,7 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
             campaign_triggers.set_visible=campaign_set_visible;
             campaign_triggers.set_invulnerable=campaign_set_invulnerable;
             campaign_triggers.remove_object=campaign_remove_object;
+            campaign_triggers.slay_object=campaign_slay_object;memset(rf_scene_script_slays,0,sizeof(rf_scene_script_slays));
             rf_scene_campaign_triggers[0]=campaign_triggers.count;
             rf_scene_campaign_triggers[1]=campaign_triggers.allocated_bytes;
             rf_scene_campaign_load_stage=4;status=rf_level_owned_groups_open(level,1024*1024,&campaign_groups);

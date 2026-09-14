@@ -327,6 +327,8 @@ typedef struct rf_runtime_triggers {
     /* Borrowed deletion service for non-event objects; owns registry removal. */
     int (*remove_object)(void *context,uint32_t handle);
     void *removal_context;
+    int (*slay_object)(void *context,uint32_t handle,uint32_t source,int32_t now);
+    void *slay_context;
 } rf_runtime_triggers;
 /* Declare authored goals before any startup trigger runs. */
 int rf_runtime_goals_initialize(const rf_runtime_events *events,rf_campaign_goals *goals);

@@ -518,6 +518,18 @@ static void startup_event_action(void *context,rf_event_state *state,uint32_t ac
 {
     startup_context *c=context;uint32_t i;
     if(c->status)return;
+    if(state->type==1) {
+        if(action!=1)return;
+        if(!c->triggers->slay_object){++c->report->unsupported_actions;return;}
+        for(i=0;i<c->event->authored->record.link_count;i++) {
+            const rf_level_link_target *link=c->event->links+i;int status;
+            if(link->kind!=1 && link->kind!=2)continue;
+            status=c->triggers->slay_object(c->triggers->slay_context,link->value,source,c->now);
+            if(status==RF_NOT_FOUND){++c->report->other_targets;continue;}
+            if(status){c->status=status;return;}
+        }
+        return;
+    }
     if(state->type==2) {
         if(action!=1)return;
         for(i=0;i<c->event->authored->record.link_count;i++) {
@@ -903,6 +915,7 @@ int rf_runtime_events_tick(rf_runtime_events *events,rf_runtime_triggers *trigge
            !(event->state.type>=35 && event->state.type<=37 && triggers->goals) &&
            !(event->state.type==30 && triggers->set_friendliness) &&
            !(event->state.type==24 && triggers->set_invulnerable) &&
+           !(event->state.type==1 && triggers->slay_object) &&
            !(event->state.type==17 && startup_damage_ready(triggers)) &&
            !(event->state.type==32 && event->switch_state && startup_switch_ready(triggers))) {++*unsupported_pending;continue;}
         status=rf_timer_expired(event->state.deadline,now,&expired);if(status)return status;

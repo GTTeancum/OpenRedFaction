@@ -5,6 +5,9 @@
 static uint32_t death_present[2],death_alive[2],death_unknown;
 static int remove_registered(void *context,uint32_t handle)
 {return rf_object_registry_remove(context,handle);}
+static uint32_t slay_calls,slay_source,slay_target;static int32_t slay_clock;
+static int slay_command(void *context,uint32_t handle,uint32_t source,int32_t now)
+{(void)context;++slay_calls;slay_target=handle;slay_source=source;slay_clock=now;return RF_OK;}
 static int death_query(void *context,uint32_t uid,uint32_t *present,uint32_t *alive)
 {
     (void)context;if(uid<10 || uid>11 || death_unknown)return RF_NOT_FOUND;
@@ -128,6 +131,24 @@ static int unhide_dispatch_check(const char *path)
 int main(int argc,char **argv)
 {
     CHECK(argc==2);CHECK(unhide_dispatch_check(argv[1])==0);
+    {
+        rf_vpp archive={0};rf_level level;rf_object_registry registry;rf_runtime_events events={0};rf_runtime_triggers triggers={0};
+        rf_physics_gravity gravity={0};rf_startup_events_report report;rf_runtime_event *slay=NULL;uint32_t i,pending,object=0,handle;
+        rf_object_registry_init(&registry);triggers.registry=&registry;triggers.slay_object=slay_command;
+        CHECK(rf_level_campaign_open(&level,&archive,argv[1],"L7S2.rfl")==RF_OK);
+        CHECK(rf_runtime_events_open(&level,&registry,1024*1024,&events)==RF_OK);
+        for(i=0;i<events.count;i++)if(events.items[i].authored->record.uid==5331)slay=events.items+i;
+        CHECK(slay && slay->state.type==1 && slay->authored->links[0]==4974);
+        CHECK(rf_object_registry_insert(&registry,&object,&handle)==RF_OK);slay->links[0].kind=1;slay->links[0].value=handle;
+        slay->state.deadline=100;slay->state.mode=0;
+        CHECK(rf_runtime_events_tick(&events,&triggers,&gravity,100,0,0,&report,&pending)==RF_OK && !slay_calls);
+        CHECK(rf_runtime_event_fire(&triggers,slay->handle,7,9,150,&gravity,0,0,&report)==RF_OK && slay_calls==1 && slay_target==handle && slay_source==7 && slay_clock==150);
+        slay->state.delay=.5f;
+        CHECK(rf_runtime_event_fire(&triggers,slay->handle,8,9,200,&gravity,0,0,&report)==RF_OK);
+        CHECK(rf_runtime_events_tick(&events,&triggers,&gravity,699,0,0,&report,&pending)==RF_OK && slay_calls==1);
+        CHECK(rf_runtime_events_tick(&events,&triggers,&gravity,700,0,0,&report,&pending)==RF_OK && slay_calls==2 && slay_source==8 && slay_clock==700);
+        rf_runtime_events_close(&events);rf_vpp_close(&archive);
+    }
     {
         rf_vpp archive={0};rf_level level;rf_object_registry registry;rf_runtime_events events={0};rf_runtime_triggers triggers={0};
         rf_physics_gravity gravity={0};rf_startup_events_report report;rf_runtime_event *remove=NULL,*delay=NULL;rf_runtime_trigger trigger={0};uint32_t i,pending;
