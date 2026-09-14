@@ -79,6 +79,21 @@ has not been checked separately. Trigger4963's filter3 rejects player-controlled
 actors in rf_trigger_eligible, consistent with the needed NPC contact path.
 # First-pass locomotion selection
 
+Scripted run/fall actors now commit accepted floor contacts through the existing
+ground-probe/support helpers and fall with collision-checked gravity when no
+support is found. Hidden actors and other movement modes are excluded. Uphill
+contacts with normalY>=0.5 project the proposed step along the support plane,
+then repeat the full-body sweep so walls and ceilings still block movement.
+This is practical shared locomotion, not full original physics: stairs, moving
+platform transport, fall damage, landing effects and general navigation remain.
+
+The initial ground integration stopped at L7S2 face904 with normal
+(-0.023749,0.997374,0.068417), exposing a gentle uphill floor as a horizontal
+sweep obstruction. The slope retry fixes that regression. All three PC door
+controls pass; visible Gryphon ends atY2.987934 instead of spawnY3.206739,
+with999 successful steps and zero blocked steps. Both builds and36 tests pass;
+combined native grounding/animation validation is pending.
+
 Scripted movement now requests authored logical state2 (`walk`) after a
 successful movement step, and state0 (`stand`) when blocked, arrived or
 cancelled. Requests use the existing quarter-second transition and do not

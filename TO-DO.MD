@@ -11,7 +11,7 @@ failures to select work; avoid spending time on exact RE or visual polish unless
 it blocks those systems. This priority change does not increase completion.
 
 Shortlist:
-- ACTIVE: Ground scripted NPC movement and verify the new walk/stand animation selection on Xbox.
+- ACTIVE: Verify scripted NPC grounding and walk/stand selection on Xbox, then expand mission progression.
 - TO COMPLETE: Preserve remaining world changes across sections, including partial actor state and dropped items.
 - NEXT: Expand mission scripts and AI until consecutive campaign sections are playable end to end.
 - TO COMPLETE: Expand the working pistol/rifle combat, pickups and first-person feedback to the remaining weapons.
@@ -30,6 +30,10 @@ Shortlist:
 - USER: Review the interactive PC movement and audio items listed below.
 
 Progress reporting: include a very high-level working area (e.g. Lighting, AI, Weapons, GeoMod or Scripted events) and an overall percent estimate at the end of every turn report (USER preference) and revisit remaining 24-hour workdays when measured throughput supports a forecast; current rough estimate45% (35-45%), no defensible +/-48-hour completion forecast before end-to-end gameplay.
+
+Scripted run/fall actors now accept floor support, fall through body sweeps
+and retry uphill motion along walkable slopes. PC hangar controls pass withctual floor-height correction (Y2.987934),999 steps and no blocks. Both buildsnd36 tests pass. Native1000-frame combined validation is running; resultsmust be checked before claiming Xbox runtime parity for this change.
+Evidence: artifacts/npc-ground-replay.log; artifacts/npc-ground-xemu.log.
 
 Scripted movement now requests authored walk/stand animations using existing
 blends, with hidden/missing-map guards. Both builds,36 tests and PC door

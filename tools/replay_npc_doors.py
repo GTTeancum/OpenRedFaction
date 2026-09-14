@@ -28,6 +28,7 @@ for name, setup in [('hidden', '4961'), ('door-disabled', '4953'), ('enabled', '
         assert position[0] > 20 and movement[3] == 0, (position, movement)
         assert contacts[1] >= 1 and contacts[2] == 4952 and contacts[4] > 0, contacts
         assert activation[1:3] == [2, 2], activation
+        assert 2.8 < position[1] < 3.1, position  # Floor support, below spawn Y3.2067.
     else:
         assert position[0] < 17.5 and activation[2] == 0, (position, activation)
     cases.append(dict(name=name, setup=setup, position=position, contacts=contacts,

@@ -3174,7 +3174,7 @@ typedef struct campaign_npc_body {
     rf_weapon_inventory inventory;rf_entity_motion_selection selection;
     rf_weapon_reset_state firing;
     uint32_t persistence_slot,persistence_registered,controller_handle;
-    struct {uint32_t active,event,follow,route_index,retry;float target[3];} script_move;
+    struct {uint32_t active,event,follow,route_index,retry;float target[3],fall_speed;} script_move;
     uint32_t combat_alert,combat_due; /* First-pass retaliation, simulation-frame clock. */
     campaign_npc_route navigation;
     struct {rf_eye_angle_state angles;float body_angles[3],orientation[9],command_708[3];uint32_t clock_7b0;} look;
@@ -8600,6 +8600,38 @@ static int campaign_script_route(scene_stream *stream,campaign_npc_body *owner,u
     else {*found=0;owner->navigation.retained.count=0;++rf_scene_script_routes[2];}
     rf_scene_script_routes[4]=owner->navigation.retained.count;return RF_OK;
 }
+static int campaign_script_ground(scene_stream *stream,campaign_npc_body *owner,float elapsed)
+{
+    rf_physics_ground_probe probe;rf_collision_body_query query={0};rf_collision_body_sphere sphere,scratch[8];
+    rf_geometry_body_hit hit={0};rf_physics_body_state proposal;uint32_t found,i;int status;
+    if(owner->object_flags&0x4000)return RF_OK;
+    if(owner->movement_slot>=16)return RF_RANGE;
+    if(campaign_modes[owner->movement_slot].index!=1 && campaign_modes[owner->movement_slot].index!=3)return RF_OK;
+    status=rf_physics_ground_prepare(owner->body.spheres.items,owner->body.spheres.count,
+        owner->body.state.next_position,owner->body.state.state_124,0,elapsed,1.5f,owner->support_velocity[1],&probe);
+    if(status)return status;
+    memcpy(sphere.center,probe.sphere.center,12);sphere.radius=probe.sphere.radius;
+    memcpy(query.start,probe.start,12);memcpy(query.end,probe.end,12);
+    for(i=0;i<3;i++)query.matrix[i][i]=1;
+    query.radius=probe.bounds.radius;query.flags=probe.query_flags;query.spheres=&sphere;query.count=1;query.limit=1;
+    status=campaign_body_query(stream->collision,&query,&hit,&found);if(status)return status;
+    if(found && hit.contact.fraction<1 && hit.contact.normal[1]>=.5f) {
+        status=rf_physics_support_accept(&owner->body.state,&probe,hit.contact.fraction,hit.solid!=UINT32_MAX,
+            hit.contact.velocity[1],hit.contact.object_id,(int32_t)hit.contact.material,&owner->support,owner->published);
+        if(status)return status;owner->script_move.fall_speed=0;
+    } else {
+        /* First-pass gravity for scripted actors. Full fall/landing effects remain. */
+        float distance;owner->script_move.fall_speed-=9.8f*elapsed;
+        proposal=owner->body.state;distance=owner->script_move.fall_speed*elapsed;
+        proposal.next_position[1]=proposal.position[1]+distance;
+        status=rf_physics_body_prepare_sweep(&proposal);if(status)return status;
+        status=rf_scene_npc_body_sweep(stream->collision,owner->registration.handle,&proposal,0x460,scratch,8,&hit,&found);if(status)return status;
+        if(found){proposal.next_position[1]=proposal.position[1]+distance*hit.contact.fraction;owner->script_move.fall_speed=0;}
+        memcpy(owner->body.state.next_position,proposal.next_position,12);owner->body.state.flags|=0x40000000u;
+        status=rf_scene_npc_commit_ordinary(owner->registration.handle,elapsed);if(status)return status;
+    }
+    return rf_scene_npc_publish_position(owner->registration.handle);
+}
 static int campaign_script_locomotion(uint32_t index,uint32_t moving)
 {
     campaign_npc_body *owner=campaign_npc_bodies+index;
@@ -8622,6 +8654,7 @@ static int campaign_script_step(scene_stream *stream,float elapsed)
         rf_physics_body_state proposal;rf_collision_body_sphere scratch[8];rf_geometry_body_hit hit;uint32_t blocked;
         if(!o->script_move.active)continue;
         if(!o->registration.view || o->damage.effects.health<=0){o->script_move.active=0;continue;}
+        status=campaign_script_ground(stream,o,elapsed);if(status)return status;
         ++rf_scene_script_movement[4];
         if(o->script_move.follow) {
             float x=o->navigation.goal.position[0]-scene_actor_body.state.position[0];
@@ -8653,6 +8686,16 @@ static int campaign_script_step(scene_stream *stream,float elapsed)
         for(j=0;j<3;j++)proposal.next_position[j]=proposal.position[j]+delta[j]*(step/distance);
         status=rf_physics_body_prepare_sweep(&proposal);if(status)return status;
         status=rf_scene_npc_body_sweep(stream->collision,o->registration.handle,&proposal,0x460,scratch,8,&hit,&blocked);if(status)return status;
+        if(blocked && hit.contact.normal[1]>=.5f) {
+            /* Project an uphill step along a walkable support plane, then
+             * recheck the full body; a wall/ceiling still rejects the step. */
+            float rise=-(delta[0]*hit.contact.normal[0]+delta[2]*hit.contact.normal[2])*(step/distance)/hit.contact.normal[1];
+            if(rise>0) {
+                proposal.next_position[1]=proposal.position[1]+rise+.001f;
+                status=rf_physics_body_prepare_sweep(&proposal);if(status)return status;
+                status=rf_scene_npc_body_sweep(stream->collision,o->registration.handle,&proposal,0x460,scratch,8,&hit,&blocked);if(status)return status;
+            }
+        }
         if(blocked){++rf_scene_script_movement[3];status=campaign_script_locomotion(i,0);if(status)return status;continue;}
         status=rf_scene_npc_steer(o->registration.handle,target,elapsed,rf_scene_npc_playback[0],&turn);if(status)return status;
         status=rf_scene_npc_prepare_angular(o->registration.handle,elapsed);if(status)return status;
