@@ -731,7 +731,7 @@ int rf_scene_fire_setup_event(uint32_t uid,int32_t now)
 {
     uint32_t i;rf_startup_events_report report;
     for(i=0;i<campaign_events.count;i++)if(campaign_events.items[i].authored->record.uid==uid) {
-        if(campaign_events.items[i].state.type!=48 && campaign_events.items[i].state.type!=2 && campaign_events.items[i].state.type!=1 && campaign_events.items[i].state.type!=15)return RF_FORMAT;
+        if(campaign_events.items[i].state.type!=48 && campaign_events.items[i].state.type!=2 && campaign_events.items[i].state.type!=1 && campaign_events.items[i].state.type!=15 && campaign_events.items[i].state.type!=24 && campaign_events.items[i].state.type!=30)return RF_FORMAT;
         return rf_runtime_event_fire(&campaign_triggers,campaign_events.items[i].handle,UINT32_MAX,UINT32_MAX,now,&scene_gravity,NULL,NULL,&report);
     }
     return RF_NOT_FOUND;
@@ -3593,6 +3593,9 @@ static int campaign_actors_restore(void)
         } else if(rf_scene_defeated_actors.vitals[owner->persistence_slot].valid) {
             owner->damage.effects.health=rf_scene_defeated_actors.vitals[owner->persistence_slot].health;
             owner->damage.effects.armor=rf_scene_defeated_actors.vitals[owner->persistence_slot].armor;
+            owner->damage.effects.affiliation=rf_scene_defeated_actors.mission[owner->persistence_slot].affiliation;
+            owner->object_flags=(owner->object_flags&~0x4004u)|(rf_scene_defeated_actors.mission[owner->persistence_slot].flags&0x4004u);
+            owner->view.flags_7c=owner->room.flags=owner->object_flags;
         }
     }
     return RF_OK;
@@ -3606,6 +3609,8 @@ static void campaign_actors_capture(void)
             rf_scene_defeated_actors.vitals[owner->persistence_slot].valid=1;
             rf_scene_defeated_actors.vitals[owner->persistence_slot].health=owner->damage.effects.health;
             rf_scene_defeated_actors.vitals[owner->persistence_slot].armor=owner->damage.effects.armor;
+            rf_scene_defeated_actors.mission[owner->persistence_slot].affiliation=owner->damage.effects.affiliation;
+            rf_scene_defeated_actors.mission[owner->persistence_slot].flags=owner->object_flags&0x4004u;
         }
         if(owner->persistence_registered && owner->damage.effects.health<=0 &&
            !rf_scene_defeated_actors.items[owner->persistence_slot].retired) {

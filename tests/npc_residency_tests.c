@@ -1013,15 +1013,24 @@ static int actor_retirement_check(void)
     CHECK(campaign_actors_restore()==RF_OK && rf_scene_actor_retirement[1]==0);
     campaign_actors_capture();CHECK(!rf_scene_defeated_actors.items[0].retired);
     owner.damage.effects.health=37.5f;owner.damage.effects.armor=12.25f;
+    CHECK(campaign_set_friendliness(NULL,owner.registration.handle,2)==RF_OK);
+    CHECK(campaign_set_invulnerable(NULL,owner.registration.handle,1)==RF_OK);
+    CHECK(campaign_set_visible(NULL,owner.registration.handle,0)==RF_OK);
     campaign_actors_capture();
     CHECK(rf_scene_defeated_actors.vitals[0].valid && rf_scene_defeated_actors.vitals[0].health==37.5f);
     owner.damage.effects.health=100;owner.damage.effects.armor=50;
+    owner.damage.effects.affiliation=0;owner.object_flags=0x80;
     CHECK(campaign_actors_restore()==RF_OK && owner.damage.effects.health==37.5f && owner.damage.effects.armor==12.25f);
+    CHECK(owner.damage.effects.affiliation==2 && owner.object_flags==0x4084);
+    CHECK(owner.view.flags_7c==owner.object_flags && owner.room.flags==owner.object_flags);
     strcpy(campaign_current_level,"L1S2.rfl");owner.damage.effects.health=80;owner.damage.effects.armor=20;
+    owner.damage.effects.affiliation=1;owner.object_flags=0;
     CHECK(campaign_actors_restore()==RF_OK && owner.damage.effects.health==80 && owner.damage.effects.armor==20);
+    CHECK(owner.damage.effects.affiliation==1 && owner.object_flags==0);
     campaign_actors_capture();strcpy(campaign_current_level,"L1S1.rfl");
     CHECK(campaign_actors_restore()==RF_OK && owner.damage.effects.health==37.5f && owner.damage.effects.armor==12.25f);
     owner.damage.effects.health=0;
+    CHECK(owner.damage.effects.affiliation==2 && owner.object_flags==0x4004);
     /* Death cleanup may unregister before the scene exits. */
     CHECK(rf_entity_view_unregister(&campaign_registry,&campaign_entities,&owner.registration)==RF_OK);
     campaign_actors_capture();CHECK(rf_scene_defeated_actors.items[0].retired && rf_scene_actor_retirement[2]==1);

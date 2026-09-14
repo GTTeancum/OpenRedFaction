@@ -656,6 +656,8 @@ run_scene:
             uint32_t health,armor;memcpy(&health,&rf_scene_defeated_actors.vitals[i].health,4);memcpy(&armor,&rf_scene_defeated_actors.vitals[i].armor,4);
             printf("ACTOR_VITALS %s %u %u %u\n",rf_scene_defeated_actors.levels[rf_scene_defeated_actors.items[i].level],rf_scene_defeated_actors.items[i].uid,health,armor);
         }
+        for(i=0;i<rf_scene_defeated_actors.count;i++)if(rf_scene_defeated_actors.vitals[i].valid)
+            printf("ACTOR_MISSION_STATE %s %u %u %u\n",rf_scene_defeated_actors.levels[rf_scene_defeated_actors.items[i].level],rf_scene_defeated_actors.items[i].uid,rf_scene_defeated_actors.mission[i].affiliation,rf_scene_defeated_actors.mission[i].flags);
         for(i=0;i<rf_scene_campaign_pickups.count;i++)if(rf_scene_campaign_pickups.items[i].retired)
             printf("TAKEN_PICKUP %s %u\n",rf_scene_campaign_pickups.levels[rf_scene_campaign_pickups.items[i].level],rf_scene_campaign_pickups.items[i].uid);
         for(i=0;i<rf_scene_mission_goals.count;i++)printf("MISSION_GOAL %s %d %u\n",rf_scene_mission_goals.items[i].name,rf_scene_mission_goals.items[i].value,rf_scene_mission_goals.items[i].persistent);

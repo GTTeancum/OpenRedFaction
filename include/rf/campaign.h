@@ -52,6 +52,9 @@ typedef struct rf_campaign_actors {
     /* Section-local living vitals, keyed by the same slots; no runtime handles.
      * Valid only after capture; retirement takes precedence. Fixed24KiB. */
     struct {uint32_t valid;float health,armor;} vitals[RF_CAMPAIGN_ACTOR_SLOTS];
+    /* Captured with vitals: allegiance and authored hidden/invulnerable bits.
+     * Other object bits remain owned by normal actor construction. Fixed16KiB. */
+    struct {uint32_t affiliation,flags;} mission[RF_CAMPAIGN_ACTOR_SLOTS];
 } rf_campaign_actors;
 int rf_campaign_actor_register(rf_campaign_actors *state,const char *level,uint32_t uid,uint32_t *slot);
 #endif

@@ -15,7 +15,7 @@ screenshots until near-retail-quality replacements are available.
 
 Shortlist:
 - DEFERRED / TO COMPLETE: Improve Xbox performance beyond the current basic-testing baseline; revisit NPC pose evaluation.
-- TO COMPLETE: Preserve remaining world changes across sections, including actor placement/allegiance/inventory and dropped items.
+- TO COMPLETE: Preserve remaining world changes across sections, including actor placement/inventory and dropped items.
 - ACTIVE: Verify enemy firing visually, add muzzle/impact effects, and extend natural-trigger encounter coverage.
 - TO COMPLETE: Expand the working pistol/rifle combat, pickups and first-person feedback to the remaining weapons.
 - DEFERRED / TO COMPLETE: Restore full NPC/prop texture detail through better residency; verify PS2 parity for reduced textures.
@@ -33,6 +33,25 @@ Shortlist:
 - USER: Review the interactive PC movement and audio items listed below.
 
 Progress reporting: include a very high-level working area (e.g. Lighting, AI, Weapons, GeoMod or Scripted events) and an overall percent estimate at the end of every turn report (USER preference) and revisit remaining 24-hour workdays when measured throughput supports a forecast; current rough estimate45% (35-45%), no defensible +/-48-hour completion forecast before end-to-end gameplay.
+
+Actor section persistence now includes allegiance and the authored hidden/
+invulnerable object bits0x4000/4, alongside health/armor. This adds16KiB of fixed
+storage (40KiB total for vitals plus mission fields), with no transient handles,
+physics flags or animation state retained. Restore publishes flags consistently
+to object/view/room owners. Retirement still wins. Tests exercise real mission
+setters before capture, restore, unchanged first visits, section separation and
+preservation of unrelated construction flags. All37 PC tests pass. A controlled
+L1S1 round trip compares authored Make_Invulnerable9668 against a control:
+actor9643 retains flag4 versus0, with allegiance1 in both. The guard damage
+regression remains80.8 health/79.2 armor. Replay setup now permits existing
+Make_Invulnerable and Set_Friendliness runtime events without bypassing delays.
+Reproduce:python tools/replay_actor_vitals.py --mission-event. Full natural
+traversal, actor placement/inventory and remaining world state remain open.
+Evidence:artifacts/actor-vitals/mission-*.
+Stock64MiB XEMU replay `replay-20260914-121653` passes240 frames and both
+section transitions with exact PC mission-state/vitals comparisons, including
+actor9643 allegiance1 and invulnerability flag4. NXDK restoration succeeds.
+
 
 Living actor health and armor now survive section backtracking, using the
 existing level/UID persistence slots. The appended fixed vitals owner costs24KiB;
