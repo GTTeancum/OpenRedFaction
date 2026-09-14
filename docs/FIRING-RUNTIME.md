@@ -767,9 +767,16 @@ and descriptor-driven presentation remain separate.
 PC accounting:847 vertices,8 material records,929280 resident bytes and
 940876 conservative peak bytes within1MiB. The budget reserves model/bone
 loader scratch and counts embedded descriptors conservatively; allocator
-metadata is excluded. No render scratch or live pose buffers are included.
+metadata is excluded. Live pose buffers are included; render scratch is not.
 
 The resource test closes all archives before sampling each bone at both clip
 ends, checks undersized-budget failure leaves an empty owner, and repeat close.
 Both PC and NXDK compile the loader; all27 CTests pass. This is resource
 readiness, not live first-person rendering or native XEMU residency evidence.
+
+`rf_player_weapon_step` now drives private idle/fire/reload playback and
+prepares skinning matrices without per-frame allocation or archive access.
+Explicit actions restart their clip; completed actions return to looping idle.
+Tests verify distinct poses, reload completion and100 repeated action requests
+without accumulating playback references. This adds5376 accounted bytes to
+the owner. Gameplay event wiring and camera-space submission remain next.

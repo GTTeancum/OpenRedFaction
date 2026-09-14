@@ -23,11 +23,13 @@ Shortlist:
 Progress reporting: include a very high-level working area (e.g. Lighting, AI, Weapons, GeoMod or Scripted events) and an overall percent estimate at the end of every turn report (USER preference) and revisit remaining 24-hour workdays when measured throughput supports a forecast; current rough estimate42% (35-45%), no defensible +/-48-hour completion forecast before end-to-end gameplay.
 
 First-person pistol resource owner is implemented in shared C:40 bones,847
-vertices,8 materials and resident idle/fire/reload clips. PC resident929280
-bytes, conservative peak940876 bytes within1MiB. Sampling works after all
-source archives close; undersized-budget failure cleans up. Both builds and
-27 CTests pass. Next connect this owner to live pose playback and camera-space
-rendering; no visible first-person gun or native residency claim yet.
+vertices,8 materials and resident idle/fire/reload clips. PC resident934656
+bytes, conservative peak946252 bytes within1MiB, including live pose buffers.
+Idle/fire/reload playback now produces skinning matrices without frame-time
+allocation or archive I/O and returns completed actions to idle. Tests cover
+closed archives, pose changes, reload completion,100 action restarts and budget
+cleanup. Next connect gameplay requests and camera-space rendering; no visible
+first-person gun or native residency claim yet.
 See include/rf/player_weapon.h and tests/player_weapon_tests.c.
 
 First-pass player pistol audio now emits authored Glock Launch and Glock

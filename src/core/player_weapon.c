@@ -1,6 +1,7 @@
 #include "rf/player_weapon.h"
 #include <stdlib.h>
 #include <string.h>
+#include <math.h>
 void rf_player_weapon_close(rf_player_weapon **weapon)
 {
     uint32_t i;rf_player_weapon *w;if(!weapon || !(w=*weapon))return;
@@ -38,10 +39,34 @@ int rf_player_weapon_open(rf_vpp *meshes,rf_vpp *motions,rf_vpp *maps,uint32_t m
         status=rf_vpp_read(motions,&w->clips[i].entry,0,w->payloads[i],w->clips[i].entry.size);if(status)goto done;
         status=rf_motion_file_bind_memory(w->clips+i,w->payloads[i],w->clips[i].entry.size);if(status)goto done;
         for(j=0;j<w->bone_count;j++){status=rf_motion_file_track(w->clips+i,j,&track);if(status)goto done;}
+        status=rf_motion_file_track(w->clips+i,0,&track);if(status)goto done;
+        w->resources[i].comparison=track.envelope;w->resources[i].looping=i==0;
         w->clips[i].archive=NULL;used+=w->clips[i].entry.size;
     }
     w->resident_bytes=used;if(used+scratch>w->peak_bytes)w->peak_bytes=used+scratch;
     *result=w;w=NULL;status=RF_OK;
 done:
     free(bones);free(model);rf_player_weapon_close(&w);return status;
+}
+
+static int player_weapon_start(rf_player_weapon *w,uint32_t clip)
+{
+    uint32_t i;rf_motion_playback_initialize(&w->playback);
+    for(i=0;i<3;i++)w->resources[i].references=0; /* This owner is the only consumer. */
+    memset(w->generations,0xff,sizeof(w->generations));memset(w->prepared_generations,0xff,sizeof(w->prepared_generations));
+    w->current=clip;w->initialized=1;
+    return rf_motion_start(&w->playback,w->resources,3,(int32_t)clip,1,0);
+}
+int rf_player_weapon_step(rf_player_weapon *w,int32_t request,float elapsed)
+{
+    const rf_motion_file *files[3];float displacement[3]={0};uint32_t i;int status;
+    if(!w || request<-1 || request>2 || !isfinite(elapsed) || elapsed<0 || elapsed>1)return RF_RANGE;
+    if(!w->initialized || request>=0){status=player_weapon_start(w,request<0?0:(uint32_t)request);if(status)return status;}
+    status=rf_motion_update(&w->playback,w->resources,3,elapsed);if(status)return status;
+    if(!w->playback.completion.active.count){status=player_weapon_start(w,0);if(status)return status;}
+    for(i=0;i<3;i++)files[i]=w->clips+i;
+    status=rf_model_evaluate_playback(w->bones,w->bone_count,&w->playback,files,w->resources,3,
+        displacement,w->pose,w->generations,50);if(status)return status;
+    return rf_model_prepare_skinning(w->stored,w->pose,w->bone_count,(uint16_t)w->playback.generation,
+        w->prepared,w->prepared_generations,50);
 }

@@ -19,6 +19,20 @@ int main(int argc,char **argv)
         CHECK(rf_motion_file_sample(w->clips+i,j,t.envelope.start_tick,1,&sample)==RF_OK);
         CHECK(rf_motion_file_sample(w->clips+i,j,t.envelope.end_tick,1,&sample)==RF_OK);
     }
+    {
+        float idle[50][12],fire[50][12];uint32_t ticks;
+        CHECK(rf_player_weapon_step(w,0,0)==RF_OK);memcpy(idle,w->pose,sizeof(idle));
+        CHECK(rf_player_weapon_step(w,1,.08f)==RF_OK && w->current==1);memcpy(fire,w->pose,sizeof(fire));
+        CHECK(memcmp(idle,fire,w->bone_count*48));
+        CHECK(rf_player_weapon_step(w,2,.2f)==RF_OK && w->current==2);
+        CHECK(memcmp(fire,w->pose,w->bone_count*48));
+        for(ticks=0;ticks<600 && w->current!=0;ticks++)CHECK(rf_player_weapon_step(w,-1,1.0f/60)==RF_OK);
+        CHECK(w->current==0 && ticks<600);
+        for(i=0;i<50;i++){CHECK(rf_player_weapon_step(w,1,0)==RF_OK);CHECK(rf_player_weapon_step(w,2,0)==RF_OK);}
+        CHECK(w->resources[0].references==0 && w->resources[1].references==0 && w->resources[2].references==1);
+        CHECK(rf_player_weapon_step(w,3,0)==RF_RANGE);
+        printf("Playback PASS reload-return=%u frames repeated-actions=100\n",ticks);
+    }
     printf("PASS bones=%u vertices=%u materials=%u resident=%u peak=%u\n",w->bone_count,w->geometry.vertex_count,w->materials.count,w->resident_bytes,w->peak_bytes);
     rf_player_weapon_close(&w);rf_player_weapon_close(&w);CHECK(!w);return 0;
 }
