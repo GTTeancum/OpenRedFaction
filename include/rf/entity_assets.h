@@ -10,6 +10,15 @@
 #include "rf/effect.h"
 #include "rf/weapon.h"
 #include "rf/audio.h"
+/* First-pass primary-fire settings from a named weapons.tbl declaration.
+ * SP values only; finite positive timing/damage and a bounded magazine.
+ * Output is preserved on malformed, duplicate or missing required fields. */
+typedef struct rf_weapon_primary_definition {
+    uint32_t magazine,semi_automatic;float reload_seconds,fire_seconds,damage;
+} rf_weapon_primary_definition;
+int rf_weapon_primary_read(const void *text,uint32_t bytes,const char *name,rf_weapon_primary_definition *result);
+int rf_weapon_primary_load(rf_vpp *tables,const char *name,uint32_t scratch_budget,rf_weapon_primary_definition *result);
+
 typedef struct rf_weapon_names {
     char names[64][64];uint32_t count,primary_count;
 } rf_weapon_names;

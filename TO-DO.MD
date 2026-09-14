@@ -6,6 +6,7 @@ and defer visual polish. Focus: movement, combat/damage, AI, mission events,
 then level progression. Fidelity remains a later completion requirement.
 
 Shortlist:
+- ACTIVE: Replace prototype pistol rules with validated authored settings and semi-automatic input handling.
 - ACTIVE: Connect first-person weapon presentation and firing/reload feedback.
 - Continue campaign traversal/physics coverage beyond the repaired walking route.
 - DEFERRED / TO COMPLETE: Finish lighting lifecycle updates, shadows and visual parity within64MiB; revisit after critical gameplay systems.
@@ -21,6 +22,14 @@ Shortlist:
 - USER: Review the interactive PC movement and audio items listed below.
 
 Progress reporting: include a very high-level working area (e.g. Lighting, AI, Weapons, GeoMod or Scripted events) and an overall percent estimate at the end of every turn report (USER preference) and revisit remaining 24-hour workdays when measured throughput supports a forecast; current rough estimate42% (35-45%), no defensible +/-48-hour completion forecast before end-to-end gameplay.
+
+Primary weapon definition loading is implemented: the installed pistol yields
+16 rounds,40 SP damage,1.1s reload,0.5s primary fire wait and semi-automatic
+input. The20-byte definition uses the existing NXDK-safe decimal reader,
+bounded table scratch and preserves output on invalid/missing fields. PC
+fixture and installed-data tests pass. Live combat still uses prototype values;
+next wire the definition into firing, reload, respawn and HUD, and replace held
+fire replay inputs with deliberate presses where appropriate.
 
 First-person pistol resource owner is implemented in shared C:40 bones,847
 vertices,8 materials and resident idle/fire/reload clips. PC resident934656

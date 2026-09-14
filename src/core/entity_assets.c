@@ -417,6 +417,66 @@ static int metadata_integer(lexer *l,uint32_t *result)
     }
     if(!digits)return RF_FORMAT;*result=negative?0u-(uint32_t)number:(uint32_t)number;return RF_OK;
 }
+int rf_weapon_primary_read(const void *text,uint32_t bytes,const char *name,rf_weapon_primary_definition *result)
+{
+    lexer l={text,bytes,0};rf_weapon_primary_definition v={0};char t[256];
+    uint32_t mask=0,bit,other;int selected=0,found=0,q,status;
+    if(!text || !name || !*name || !result)return RF_RANGE;
+    while((status=token(&l,t,&q))==RF_OK) {
+        if(q)continue;
+        if(same(t,"$Name:")) {
+            if(found)break;
+            if(token(&l,t,&q) || !q)return RF_FORMAT;
+            selected=same(t,name);found=selected;continue;
+        }
+        if(!selected)continue;
+        if(same(t,"#End"))break;
+        bit=0;
+        if(same(t,"$Flags:")) {
+            if(mask&16)return RF_FORMAT;mask|=16;
+            if(token(&l,t,&q) || q || strcmp(t,"("))return RF_FORMAT;
+            while(1) {
+                if(token(&l,t,&q))return RF_FORMAT;
+                if(!q && !strcmp(t,")"))break;
+                if(!q)return RF_FORMAT;
+                if(same(t,"semi_automatic"))v.semi_automatic=1;
+            }
+        } else if(same(t,"$Clip")) {
+            if(token(&l,t,&q) || q)return RF_FORMAT;
+            if(same(t,"Size:")) {
+                bit=1;if(mask&bit)return RF_FORMAT;
+                if(metadata_integer(&l,&v.magazine) || metadata_integer(&l,&other))return RF_FORMAT;
+                if(!v.magazine || v.magazine>256)return RF_RANGE;
+            } else if(same(t,"Reload")) {
+                if(token(&l,t,&q) || q || !same(t,"Time:"))return RF_FORMAT;
+                bit=2;if(mask&bit)return RF_FORMAT;
+                if(sphere_number(&l,&v.reload_seconds))return RF_FORMAT;
+            }
+        } else if(same(t,"$Fire")) {
+            if(token(&l,t,&q) || q)return RF_FORMAT;
+            if(same(t,"Wait:")) {bit=4;if(mask&bit)return RF_FORMAT;if(sphere_number(&l,&v.fire_seconds))return RF_FORMAT;}
+        } else if(same(t,"$Damage:")) {
+            bit=8;if(mask&bit)return RF_FORMAT;if(sphere_number(&l,&v.damage))return RF_FORMAT;
+        }
+        mask|=bit;
+    }
+    if(status!=RF_OK && status!=RF_NOT_FOUND)return status;
+    if(!found)return RF_NOT_FOUND;if((mask&15)!=15)return RF_FORMAT;
+    if(!(v.reload_seconds>0 && v.reload_seconds<=60 && v.fire_seconds>0 && v.fire_seconds<=60 && v.damage>0 && v.damage<=1000000))return RF_RANGE;
+    *result=v;return RF_OK;
+}
+int rf_weapon_primary_load(rf_vpp *tables,const char *name,uint32_t budget,rf_weapon_primary_definition *result)
+{
+    rf_vpp_entry entry;void *text;int status;
+    if(!tables || !name || !*name || !result)return RF_RANGE;
+    status=rf_vpp_find(tables,"weapons.tbl",&entry);if(status)return status;
+    if(!entry.size || entry.size>budget)return RF_RANGE;
+    text=malloc(entry.size);if(!text)return RF_IO;
+    status=rf_vpp_read(tables,&entry,0,text,entry.size);
+    if(!status)status=rf_weapon_primary_read(text,entry.size,name,result);
+    free(text);return status;
+}
+
 int rf_weapon_supply_read(const void *ammo,uint32_t ammo_bytes,
     const void *weapons,uint32_t weapon_bytes,rf_weapon_supply_catalog *result)
 {

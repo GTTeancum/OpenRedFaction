@@ -809,3 +809,16 @@ hash,1560 emitted vertices and memory accounting, no weapon error and
 6937 available pages at completion. Native framebuffer visually inspected.
 Evidence: artifacts/xemu/replay-20260914-015216/report.json. This establishes
 the first pistol path, not full weapon-system or campaign completion.
+
+## Primary-fire definition
+
+rf_weapon_primary_read/load selects a named weapons.tbl declaration and reads
+SP magazine size, reload seconds, primary fire wait, SP damage and the
+semi_automatic flag. The20-byte result is port-owned first-pass metadata, not
+an original binary descriptor layout. The loader uses bounded temporary table
+storage and the existing decimal parser rather than NXDK strtod.
+
+The installed12mm handgun gives16/1.1/0.5/40 and semi-automatic input. Tests
+cover SP-versus-MP selection, duplicate fields, invalid magazine, missing name
+and unchanged output on failure. Runtime integration remains open: current
+prototype firing still repeats when held and uses12/72/12/25.
