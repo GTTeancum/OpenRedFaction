@@ -15,13 +15,21 @@ Shortlist:
 
 Progress reporting: include a very high-level working area (e.g. Lighting, AI, Weapons, GeoMod or Scripted events) and an overall percent estimate at the end of every turn report (USER preference) and revisit remaining 24-hour workdays when measured throughput supports a forecast; current rough estimate40% (35-45%), no defensible +/-48-hour completion forecast before end-to-end gameplay.
 
+Shadow intersection-to-mask projection matches4096 original/PC/NXDK points,
+including asymmetric U/V rounding, both edge clamps and8 input guards.
+Both builds and24 tests pass. Original mask bank has64 slots at4096-byte
+spacing;4f4590 clamps projected coordinates to [1,width-1]/[1,height-1]
+before rasterization. Keep the standalone filler padding contract for arbitrary
+polygons; live projection requires extents >=2. Next bind ray-plane intersection,
+clipping, duplicate-vertex removal, source modes and bounded mask ownership.
+
 Shadow polygon rasterization now matches2048 unhooked original/PC/NXDK
 cases (99066 changed bytes, including7119 guard-row bytes), with6 guards.
 Both builds and24 tests pass. Preserve inclusive right/bottom writes and
 wrapping byte subtraction with explicit width*(height+1)+1 capacity; do not
 bind this routine to a tightly allocated width*height mask. Next reconstruct
 projection/clipping and resolve live mask allocation/ownership before native
-rendered verification. Original caller padding remains to be traced.
+rendered verification. Original caller bounds and bank are traced above.
 
 Shadow UV-to-plane reconstruction now matches4096 unhooked original/PC/NXDK
 points across all six axis orders, with8 invalid-input guards. Both builds

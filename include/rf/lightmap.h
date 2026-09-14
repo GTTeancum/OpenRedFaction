@@ -100,6 +100,11 @@ typedef struct rf_lightmap_sample_plane {
     uint32_t image_width,image_height,x,y;
     float scale[2],offset[2],plane[4];uint32_t normal_axis,u_axis;
 } rf_lightmap_sample_plane;
+/* 4f4590 projected intersection -> mask coordinates, clamped to [1,extent-1].
+ * Caller has already intersected each shadow ray with the receiving plane.
+ * Both extents >=2; derived V axis. No allocation; errors preserve output. */
+int rf_lightmap_project_shadow(const rf_lightmap_sample_plane *,uint32_t width,uint32_t height,
+    const float point[3],float uv[2]);
 /* Original4f2100 projected-polygon scan conversion; byte subtraction wraps.
  * Caller supplies ordered projected polygon and width*(height+1)+1 mask bytes:
  * original inclusive right/bottom writes alias the next row at X==width.

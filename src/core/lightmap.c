@@ -330,6 +330,31 @@ int rf_lightmap_mapping_read(const void *record,uint32_t bytes,uint32_t image_co
     *out=value;return RF_OK;
 }
 
+/* 4f5219..4f5320, after the shadow ray/plane intersection. */
+int rf_lightmap_project_shadow(const rf_lightmap_sample_plane *view,uint32_t width,uint32_t height,
+    const float point[3],float uv[2])
+{
+    float value[2],scaled;uint32_t axis[2],i,extent[2];
+    if(!view || !point || !uv || view->normal_axis>2 || view->u_axis>2 || view->normal_axis==view->u_axis ||
+        !view->image_width || !view->image_height || view->image_width>INT32_MAX || view->image_height>INT32_MAX ||
+        view->x>INT32_MAX || view->y>INT32_MAX || width<2 || height<2 || width>INT32_MAX || height>INT32_MAX)return RF_RANGE;
+    axis[0]=view->u_axis;axis[1]=3-view->normal_axis-view->u_axis;extent[0]=width;extent[1]=height;
+    for(i=0;i<2;i++) {
+        if(!isfinite(point[axis[i]]) || !isfinite(view->scale[i]) || !isfinite(view->offset[i]))return RF_RANGE;
+        value[i]=(float)((double)point[axis[i]]*view->scale[i]);
+        value[i]=(float)((double)value[i]+view->offset[i]);
+    }
+    /* Original stores image-scaled U before subtracting origin, but retains V. */
+    scaled=(float)((double)view->image_width*value[0]);value[0]=(float)((double)scaled-view->x);
+    value[1]=(float)((double)view->image_height*value[1]-view->y);
+    for(i=0;i<2;i++) {
+        if(!isfinite(value[i]))return RF_RANGE;
+        if(value[i]<1)value[i]=1;
+        else if((double)value[i]>extent[i]-1)value[i]=(float)(extent[i]-1);
+    }
+    memcpy(uv,value,sizeof(value));return RF_OK;
+}
+
 /* 4f2100 keeps inclusive X/last-row bounds and wraps subtraction in bytes.
  * The caller must supply the explicitly checked guard row and final byte. */
 int rf_lightmap_raster_shadow(const float (*vertices)[2],uint32_t count,unsigned char *mask,
