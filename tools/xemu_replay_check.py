@@ -372,6 +372,9 @@ dvd_path = '{root.as_posix()}/build/xbox/redfaction-diagnostic.iso'
      report['npc_gate']=npc_gate
      npc_bodies=words(monitor,symbol('rf_scene_npc_bodies'),6)
      assert npc_bodies==expected('NPC_BODIES') and npc_bodies[1]==startup[0],npc_bodies
+     retirement=words(monitor,symbol('rf_scene_actor_retirement'),4)
+     assert retirement==expected('ACTOR_RETIREMENT') and retirement[1]<=npc_bodies[1] and retirement[3]==0,retirement
+     active_npc_count=npc_bodies[1]-retirement[1]
      assert 0<npc_bodies[3]<=npc_bodies[4]<=640*1024,npc_bodies
      report['npc_bodies']=npc_bodies
      navigation=words(monitor,symbol('rf_scene_navigation'),6)
@@ -640,12 +643,12 @@ dvd_path = '{root.as_posix()}/build/xbox/redfaction-diagnostic.iso'
      report['pair_dispatch']=pair_dispatch
      collision_views=words(monitor,symbol('rf_scene_collision_views'),8)
      assert collision_views==expected('COLLISION_VIEWS'),collision_views
-     assert collision_views[0]==section_frames and collision_views[3]==section_frames*npc_bodies[1],collision_views
-     assert collision_views[4]==0xffffffff and collision_views[5]==npc_bodies[1] and collision_views[6]==0 and collision_views[7]==section_frames-1,collision_views
+     assert collision_views[0]==section_frames and collision_views[3]==section_frames*active_npc_count,collision_views
+     assert collision_views[4]==0xffffffff and collision_views[5]==active_npc_count and collision_views[6]==0 and collision_views[7]==section_frames-1,collision_views
      report['collision_views']=collision_views
      collision_responses=words(monitor,symbol('rf_scene_collision_responses'),6)
      assert collision_responses==expected('COLLISION_RESPONSES'),collision_responses
-     assert collision_responses[0]==section_frames and collision_responses[3]==section_frames*npc_bodies[1],collision_responses
+     assert collision_responses[0]==section_frames and collision_responses[3]==section_frames*active_npc_count,collision_responses
      assert collision_responses[4]==0 and collision_responses[5]==section_frames-1,collision_responses
      report['collision_responses']=collision_responses
      actor_pairs=words(monitor,symbol('rf_scene_actor_pair_test'),8)
@@ -669,7 +672,7 @@ dvd_path = '{root.as_posix()}/build/xbox/redfaction-diagnostic.iso'
      npc_pain_sound_owners=words(monitor,symbol('rf_scene_npc_pain_sound_owners'),4)
      assert npc_pain_sound_owners==expected('NPC_PAIN_SOUND_OWNERS'),npc_pain_sound_owners
      npc_eyes=words(monitor,symbol('rf_scene_npc_eyes'),4)
-     assert npc_eyes==expected('NPC_EYES') and npc_eyes[0]==npc_bodies[1],npc_eyes
+     assert npc_eyes==expected('NPC_EYES') and npc_eyes[0]==active_npc_count,npc_eyes
      report['npc_eyes']=npc_eyes
      assert npc_pain_sound_owners[0]==npc_bodies[1] and npc_pain_sound_owners[1]==npc_bodies[0]*8,npc_pain_sound_owners
      report['npc_pain_sound_owners']=npc_pain_sound_owners
@@ -955,6 +958,19 @@ dvd_path = '{root.as_posix()}/build/xbox/redfaction-diagnostic.iso'
       taken.append(f'TAKEN_PICKUP {name} {uid}')
     assert taken==[line for line in pc.stdout.splitlines() if line.startswith('TAKEN_PICKUP ')]
     report['taken_pickups']=taken
+    retired=words(monitor,symbol('rf_scene_defeated_actors'),8194)
+    level_count,actor_count=retired[:2];assert level_count<=128 and actor_count<=2048
+    retired_bytes=struct.pack('<8194I',*retired);defeated=[]
+    for index in range(actor_count):
+     level_index,uid,dead=struct.unpack_from('<III',retired_bytes,8200+index*12)
+     assert level_index<level_count and dead<=1
+     if dead:
+      name=retired_bytes[8+level_index*64:8+(level_index+1)*64].split(b'\0')[0].decode('ascii')
+      defeated.append(f'DEFEATED_ACTOR {name} {uid}')
+    assert defeated==[line for line in pc.stdout.splitlines() if line.startswith('DEFEATED_ACTOR ')]
+    report['defeated_actors']=defeated
+    report['actor_retirement']=words(monitor,symbol('rf_scene_actor_retirement'),4)
+    assert report['actor_retirement']==expected('ACTOR_RETIREMENT')
     report['level_transitions']=words(monitor,symbol('rf_xbox_level_transitions'),4)
     assert report['level_transitions'][:3]==([len(pc_transitions),int(pc_transitions[-1][2]),int(pc_transitions[-1][3])] if pc_transitions else [0,0,0])
     replay_state=words(monitor,symbol('rf_player_replay_diagnostic'),4);assert replay_state==[0,frames,frames,0],replay_state

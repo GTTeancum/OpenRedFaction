@@ -656,6 +656,8 @@ static rf_runtime_triggers campaign_triggers;
 rf_level_transition_request rf_scene_level_transition;
 rf_campaign_goals rf_scene_mission_goals;
 rf_campaign_pickups rf_scene_campaign_pickups;
+rf_campaign_actors rf_scene_defeated_actors;
+uint32_t rf_scene_actor_retirement[4]; /* registered keys, restored, captured deaths, status */
 uint32_t rf_scene_campaign_load_stage;
 uint32_t rf_scene_follow_level_exits;
 static char campaign_current_level[64];
@@ -3132,6 +3134,7 @@ typedef struct campaign_npc_body {
     rf_physics_body body;rf_physics_support_contact support;
     rf_weapon_inventory inventory;rf_entity_motion_selection selection;
     rf_weapon_reset_state firing;
+    uint32_t persistence_slot,persistence_registered;
     uint32_t combat_alert,combat_due; /* First-pass retaliation, simulation-frame clock. */
     campaign_npc_route navigation;
     struct {rf_eye_angle_state angles;float body_angles[3],orientation[9],command_708[3];uint32_t clock_7b0;} look;
@@ -3382,6 +3385,41 @@ static void campaign_npc_bodies_close(void)
     free(campaign_npc_movement_configs);campaign_npc_movement_configs=NULL;
     free(campaign_npc_stances);campaign_npc_stances=NULL;
     free(campaign_npc_eyes);campaign_npc_eyes=NULL;
+}
+static int campaign_actors_restore(void)
+{
+    uint32_t i;int status;
+    memset(rf_scene_actor_retirement,0,sizeof(rf_scene_actor_retirement));
+    for(i=0;i<campaign_npc_body_count;i++)if(campaign_npc_bodies[i].registration.view) {
+        campaign_npc_body *owner=campaign_npc_bodies+i;
+        status=rf_campaign_actor_register(&rf_scene_defeated_actors,campaign_current_level,
+            (uint32_t)campaign_seeds.records.items[i].record.uid,&owner->persistence_slot);
+        if(status){rf_scene_actor_retirement[3]=(uint32_t)status;return status;}
+        owner->persistence_registered=1;
+        ++rf_scene_actor_retirement[0];
+        if(rf_scene_defeated_actors.items[owner->persistence_slot].retired) {
+            /* First-pass revisit retirement, not corpse-pose serialization. */
+            status=rf_entity_view_unregister(&campaign_registry,&campaign_entities,&owner->registration);
+            if(status){rf_scene_actor_retirement[3]=(uint32_t)status;return status;}
+            owner->damage.effects.health=0;owner->view.flags_810|=1;
+            owner->damage.effects.flags_810=owner->view.flags_810;
+            owner->object_flags|=2|0x4000;owner->view.flags_7c=owner->object_flags;
+            rf_physics_body_close(&owner->body);++rf_scene_actor_retirement[1];
+        }
+    }
+    return RF_OK;
+}
+static void campaign_actors_capture(void)
+{
+    uint32_t i;
+    for(i=0;i<campaign_npc_body_count;i++) {
+        const campaign_npc_body *owner=campaign_npc_bodies+i;
+        if(owner->persistence_registered && owner->damage.effects.health<=0 &&
+           !rf_scene_defeated_actors.items[owner->persistence_slot].retired) {
+            rf_scene_defeated_actors.items[owner->persistence_slot].retired=1;
+            ++rf_scene_actor_retirement[2];
+        }
+    }
 }
 static int campaign_npc_bodies_open(const char *tables_path,const rf_geometry_collision_world *world,int32_t now)
 {
@@ -7278,7 +7316,7 @@ static int campaign_pickups_restore(scene_stream *stream)
     for(i=0;i<stream->pickups.count;i++)if(pickup_class(stream->pickups.items[i].class_name)>=0) {
         status=rf_campaign_pickup_register(&rf_scene_campaign_pickups,campaign_current_level,stream->pickups.items[i].uid,stream->pickup_slots+i);
         if(status)return status;
-        stream->pickup_taken[i]=(uint8_t)rf_scene_campaign_pickups.items[stream->pickup_slots[i]].taken;
+        stream->pickup_taken[i]=(uint8_t)rf_scene_campaign_pickups.items[stream->pickup_slots[i]].retired;
     }
     return RF_OK;
 }
@@ -7304,7 +7342,7 @@ static int campaign_pickups_tick(scene_stream *stream,const float eye[3])
                 id,item->quantity,definition->gives_weapon,&grant);if(status)return status;
             if(!grant.rounds && !grant.acquired)continue;
         }
-        stream->pickup_taken[i]=1;rf_scene_campaign_pickups.items[stream->pickup_slots[i]].taken=1;
+        stream->pickup_taken[i]=1;rf_scene_campaign_pickups.items[stream->pickup_slots[i]].retired=1;
         ++rf_scene_pickups[3];rf_scene_pickups[4]+=grant.rounds;rf_scene_pickups[5]=item->uid;
         campaign_ammo_publish();
     }
@@ -8536,6 +8574,8 @@ static int scene_npc_draw(scene_stream *stream,uint32_t frame)
         scene_npc_render_context context={stream,actor,NULL,&buffers,&lights,&attributes,&planes,&projection};
         rf_object_render_backend backend={scene_npc_render_white,scene_npc_render_kind,scene_npc_render_prepare,scene_npc_render_family,&context};
         rf_scene_npc_draw_detail[0]=actor;
+        if(actor<campaign_npc_body_count && campaign_npc_bodies[actor].persistence_registered &&
+           rf_scene_defeated_actors.items[campaign_npc_bodies[actor].persistence_slot].retired)continue;
         status=campaign_model_pose(actor,&pose);if(status)return status;if(!pose)continue;
         if(owner->room<stream->visibility.state.count && !stream->visibility.state.rooms[owner->room].visible)continue;
         if(actor>=campaign_npc_body_count || !campaign_npc_bodies[actor].registration.view)return RF_RANGE;
@@ -9591,7 +9631,7 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
             if(status)goto done;
             if(rf_scene_follow_level_exits && rf_scene_level_transition.pending)
                 status=rf_campaign_goals_next_section(&rf_scene_mission_goals);
-            else {memset(&rf_scene_mission_goals,0,sizeof(rf_scene_mission_goals));memset(&rf_scene_campaign_pickups,0,sizeof(rf_scene_campaign_pickups));}
+            else {memset(&rf_scene_mission_goals,0,sizeof(rf_scene_mission_goals));memset(&rf_scene_campaign_pickups,0,sizeof(rf_scene_campaign_pickups));memset(&rf_scene_defeated_actors,0,sizeof(rf_scene_defeated_actors));}
             if(!status)status=rf_runtime_goals_initialize(&campaign_events,&rf_scene_mission_goals);
             if(status)goto done;
             campaign_triggers.goals=&rf_scene_mission_goals;
@@ -9928,6 +9968,7 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
             memset(campaign_ambient_slots,0,sizeof(campaign_ambient_slots));
             for(i=0;i<RF_AMBIENT_SLOTS;i++)campaign_ambient_slots[i].sample=campaign_ambient_slots[i].voice=-1;
             memset(rf_scene_ambient_schedule,0,sizeof(rf_scene_ambient_schedule));campaign_ambient_frame=UINT32_MAX;
+            status=campaign_actors_restore();if(status)goto done;
             /* Original level startup435df0 calls45ade0 before levelstart.vcs. */
             status=campaign_ambient_schedule(0,1);if(status)goto done;
             status=rf_runtime_startup_events(&campaign_triggers,&scene_gravity,0,0,&stream.particles, &campaign_forces,&rf_scene_startup_events);
@@ -9940,6 +9981,7 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
         if(!status && collision && rf_scene_actor_route_enabled && !rf_scene_actor_live_enabled)status=actor_routes(&stream);
     }
 done:
+    if(!status && campaign_spawn && collision && rf_scene_level_transition.pending)campaign_actors_capture();
     for(i=0;i<2;i++)rf_player_weapon_close(&stream.player_weapon[i]);
     if(stream.pickup_resources){for(i=0;i<5;i++){rf_static_render_resource_close(&stream.pickup_resources[i].model);rf_model_materials_close(&stream.pickup_resources[i].materials);}free(stream.pickup_resources);}
     rf_level_owned_items_close(&stream.pickups);free(stream.pickup_taken);free(stream.pickup_slots);

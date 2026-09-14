@@ -1001,8 +1001,41 @@ static int friendliness_binding_check(void)
     CHECK(rf_entity_view_unregister(&campaign_registry,&campaign_entities,&owner.registration)==RF_OK);
     campaign_npc_bodies=NULL;campaign_npc_body_count=0;return 0;
 }
+static int actor_retirement_check(void)
+{
+    campaign_npc_body owner={0};rf_level_owned_entity record={0};uint32_t handle;
+    rf_object_registry_init(&campaign_registry);memset(&campaign_entities,0,sizeof(campaign_entities));
+    memset(&rf_scene_defeated_actors,0,sizeof(rf_scene_defeated_actors));
+    strcpy(campaign_current_level,"L1S1.rfl");record.record.uid=777;
+    campaign_seeds.records.items=&record;campaign_seeds.records.count=1;
+    campaign_npc_bodies=&owner;campaign_npc_body_count=1;owner.damage.effects.health=100;
+    CHECK(rf_entity_view_register(&campaign_registry,&campaign_entities,&owner.view,&owner.registration)==RF_OK);
+    CHECK(campaign_actors_restore()==RF_OK && rf_scene_actor_retirement[1]==0);
+    campaign_actors_capture();CHECK(!rf_scene_defeated_actors.items[0].retired);
+    owner.damage.effects.health=0;
+    /* Death cleanup may unregister before the scene exits. */
+    CHECK(rf_entity_view_unregister(&campaign_registry,&campaign_entities,&owner.registration)==RF_OK);
+    campaign_actors_capture();CHECK(rf_scene_defeated_actors.items[0].retired && rf_scene_actor_retirement[2]==1);
+    memset(&owner,0,sizeof(owner));owner.damage.effects.health=100;
+    CHECK(rf_entity_view_register(&campaign_registry,&campaign_entities,&owner.view,&owner.registration)==RF_OK);
+    handle=owner.registration.handle;owner.body.spheres.items=calloc(1,sizeof(*owner.body.spheres.items));
+    CHECK(owner.body.spheres.items);owner.body.spheres.count=1;owner.body.allocated_bytes=sizeof(*owner.body.spheres.items);
+    CHECK(campaign_actors_restore()==RF_OK && rf_scene_actor_retirement[1]==1);
+    CHECK(!owner.registration.view && !rf_object_lookup(&campaign_entities,(int32_t)handle));
+    CHECK(!rf_object_registry_lookup(&campaign_registry,handle) && !owner.body.allocated_bytes && !owner.body.spheres.items);
+    CHECK(owner.damage.effects.health==0 && (owner.view.flags_810&1) && (owner.object_flags&0x4002)==0x4002);
+    campaign_actors_capture();CHECK(!rf_scene_actor_retirement[2]);
+    memset(&rf_scene_defeated_actors,0,sizeof(rf_scene_defeated_actors));
+    memset(&owner,0,sizeof(owner));owner.damage.effects.health=100;
+    CHECK(rf_entity_view_register(&campaign_registry,&campaign_entities,&owner.view,&owner.registration)==RF_OK);
+    CHECK(campaign_actors_restore()==RF_OK && owner.registration.view && owner.damage.effects.health==100);
+    CHECK(rf_entity_view_unregister(&campaign_registry,&campaign_entities,&owner.registration)==RF_OK);
+    campaign_seeds.records.items=NULL;campaign_seeds.records.count=0;campaign_npc_bodies=NULL;campaign_npc_body_count=0;
+    memset(&rf_scene_defeated_actors,0,sizeof(rf_scene_defeated_actors));return 0;
+}
 int main(int argc,char **argv)
 {
+    CHECK(actor_retirement_check()==0);
     CHECK(combat_shot_geometry_check()==0);
     CHECK(friendliness_binding_check()==0);
     if(argc==4 && !strcmp(argv[1],"--model-publication"))return model_publication_check(argv);

@@ -605,7 +605,10 @@ run_scene:
         printf("PLAYER_JUMP");for(i=0;i<4;++i)printf(" %u",rf_scene_player_jump[i]);puts("");
         printf("PLAYER_JUMP_FRAMES");for(i=0;i<1024;++i)printf(" %u",((uint32_t*)rf_scene_player_jump_frames)[i]);puts("");
         printf("ACTOR_PLAYER_INPUT");for(i=0;i<64*7;++i)printf(" %u",((uint32_t*)rf_scene_player_input_frames)[i]);puts("");
-        for(i=0;i<rf_scene_campaign_pickups.count;i++)if(rf_scene_campaign_pickups.items[i].taken)
+        printf("ACTOR_RETIREMENT");for(i=0;i<4;i++)printf(" %u",rf_scene_actor_retirement[i]);puts("");
+        for(i=0;i<rf_scene_defeated_actors.count;i++)if(rf_scene_defeated_actors.items[i].retired)
+            printf("DEFEATED_ACTOR %s %u\n",rf_scene_defeated_actors.levels[rf_scene_defeated_actors.items[i].level],rf_scene_defeated_actors.items[i].uid);
+        for(i=0;i<rf_scene_campaign_pickups.count;i++)if(rf_scene_campaign_pickups.items[i].retired)
             printf("TAKEN_PICKUP %s %u\n",rf_scene_campaign_pickups.levels[rf_scene_campaign_pickups.items[i].level],rf_scene_campaign_pickups.items[i].uid);
         for(i=0;i<rf_scene_mission_goals.count;i++)printf("MISSION_GOAL %s %d %u\n",rf_scene_mission_goals.items[i].name,rf_scene_mission_goals.items[i].value,rf_scene_mission_goals.items[i].persistent);
         printf("PC_PLAY_BODY");for(i=0;i<sizeof(scene_actor_body.state)/4;++i) {

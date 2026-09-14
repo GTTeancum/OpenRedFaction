@@ -35,11 +35,20 @@ int rf_campaign_goals_next_section(rf_campaign_goals *goals);
  * capacity after granting its reward. Zero the owner for a new campaign. */
 #define RF_CAMPAIGN_PICKUP_LEVELS 128
 #define RF_CAMPAIGN_PICKUP_SLOTS 1024
-typedef struct rf_campaign_pickup_record {uint32_t level,uid,taken;} rf_campaign_pickup_record;
+typedef struct rf_campaign_object_record {uint32_t level,uid,retired;} rf_campaign_object_record;
+typedef rf_campaign_object_record rf_campaign_pickup_record;
 typedef struct rf_campaign_pickups {
     uint32_t level_count,count;
     char levels[RF_CAMPAIGN_PICKUP_LEVELS][64];
     rf_campaign_pickup_record items[RF_CAMPAIGN_PICKUP_SLOTS];
 } rf_campaign_pickups;
 int rf_campaign_pickup_register(rf_campaign_pickups *state,const char *level,uint32_t uid,uint32_t *slot);
+#define RF_CAMPAIGN_ACTOR_SLOTS 2048
+/* Same owned key layout, separate namespace and capacity from pickups. */
+typedef struct rf_campaign_actors {
+    uint32_t level_count,count;
+    char levels[RF_CAMPAIGN_PICKUP_LEVELS][64];
+    rf_campaign_object_record items[RF_CAMPAIGN_ACTOR_SLOTS];
+} rf_campaign_actors;
+int rf_campaign_actor_register(rf_campaign_actors *state,const char *level,uint32_t uid,uint32_t *slot);
 #endif

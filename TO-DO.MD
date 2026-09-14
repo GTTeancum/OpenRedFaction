@@ -6,7 +6,8 @@ and defer visual polish. Focus: movement, combat/damage, AI, mission events,
 then level progression. Fidelity remains a later completion requirement.
 
 Shortlist:
-- ACTIVE: Preserve defeated NPCs and world changes across campaign sections.
+- ACTIVE: Connect death-triggered mission events and expand campaign script coverage.
+- TO COMPLETE: Preserve remaining world changes across sections, including partial actor state and dropped items.
 - NEXT: Expand mission scripts and AI until consecutive campaign sections are playable end to end.
 - TO COMPLETE: Expand the working pistol/rifle combat, pickups and first-person feedback to the remaining weapons.
 - DEFERRED / TO COMPLETE: Restore full NPC/prop texture detail through better residency; verify PS2 parity for reduced textures.
@@ -24,6 +25,16 @@ Shortlist:
 - USER: Review the interactive PC movement and audio items listed below.
 
 Progress reporting: include a very high-level working area (e.g. Lighting, AI, Weapons, GeoMod or Scripted events) and an overall percent estimate at the end of every turn report (USER preference) and revisit remaining 24-hour workdays when measured throughput supports a forecast; current rough estimate45% (35-45%), no defensible +/-48-hour completion forecast before end-to-end gameplay.
+
+Defeated-NPC revisit now passes rendered PC and stock64MiB Xbox verification:
+L4S5 guard3305 killed by rifle fire stays retired after L4S4 and return; rifle3415
+stays collected,39 rounds retained,240 inputs and both handoffs match PC.
+Native retirement [8,1,0,0],7223 free pages (28.21MiB); framebuffer inspected.
+All1610 authored actor keys fit32776 bytes; both builds and36 tests pass.
+Corpse poses, partial health and other world changes remain open. Next:14
+When_Dead events in the opening two sections need runtime dispatch support.
+Evidence: artifacts/xemu/replay-20260914-060602/report.json and
+artifacts/pickup-return/report.json; see docs/WORLD-STATE.md.
 
 Pickup revisit now passes a rendered PC and stock64MiB Xbox round trip:
 L4S5 rifle3415 collected/fired, exit861 to L4S4, return592 to the pickup.240

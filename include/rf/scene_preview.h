@@ -21,6 +21,8 @@ int rf_scene_fire_level_exit(uint32_t uid,int32_t now);
 int rf_scene_fire_goal_setter(uint32_t uid,int32_t now);
 extern rf_campaign_goals rf_scene_mission_goals;
 extern rf_campaign_pickups rf_scene_campaign_pickups;
+extern rf_campaign_actors rf_scene_defeated_actors;
+extern uint32_t rf_scene_actor_retirement[4];
 extern uint32_t rf_scene_campaign_load_stage;
 int rf_scene_campaign_player_get(rf_campaign_player_state *);
 /* Entity origin and combined body/eye facing; copy before starting a new scene. */

@@ -19,12 +19,16 @@ def words(label):return list(map(int,next(x for x in run.stdout.splitlines() if 
 ammo,pickups=words('PLAYER_AMMO'),words('PICKUPS')
 assert ammo[:3]==[8,0,39] and pickups[3]==0,(ammo,pickups)
 assert 'TAKEN_PICKUP l4s5.rfl 3415' in run.stdout.splitlines()
+retirement=words('ACTOR_RETIREMENT')
+assert retirement==[8,1,0,0],retirement
+defeated=[x for x in run.stdout.splitlines() if x.startswith('DEFEATED_ACTOR ')]
+assert defeated==['DEFEATED_ACTOR l4s5.rfl 3305'],defeated
 def floats(values):return struct.unpack('<'+'f'*len(values),struct.pack('<'+'I'*len(values),*values))
 spawn=floats(words('PLAYER_SPAWN')[1:4]);body=floats(words('PC_PLAY_BODY')[22:25])
 # Inverse of the documented stage_item offset, not a simulated collection.
 item=(spawn[0],spawn[1]-.625,spawn[2]+2.5)
 distance=sum((a-b)**2 for a,b in zip(item,body))**.5
 assert distance<2,(body,item,distance)
-report=dict(result='PASS',frames=240,transitions=transitions,ammo=ammo,pickups=pickups,return_item_distance=distance,
+report=dict(result='PASS',frames=240,transitions=transitions,ammo=ammo,pickups=pickups,actor_retirement=retirement,defeated=defeated,return_item_distance=distance,
             scope='Actual pickup contact, rifle fire, authored exit dispatch and staged return; no played-route claim.')
 (folder/'report.json').write_text(json.dumps(report,indent=2)+'\n');print(report)

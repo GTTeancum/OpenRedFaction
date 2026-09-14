@@ -17,7 +17,7 @@ without an item section now initialize an empty list.
 
 This is an explicit product-first persistence policy, not a reconstruction of the
 original save-file format. Disk saves, dedicated restart/checkpoint policies,
-dropped items, multiplayer respawn, killed NPCs, destructible props and GeoMod
+dropped items, multiplayer respawn, corpse poses, destructible props and GeoMod
 state remain separate work.
 
 Validation:
@@ -59,4 +59,40 @@ grants remain zero. The PC final body is1.18 units from the item (within the2-un
 collection radius), and native state matches. Native framebuffer visually checked;
 7231 free pages (28.25MiB) remain while rendering the returned scene. Both builds
 and all36 CTests pass. This verifies pickup lifetime through controlled scene
-transitions; killed actors and other world changes are still not persisted.
+transitions; that earlier run predates actor retirement.
+
+
+## Defeated actors
+
+A separate owned actor-key store now records defeated NPCs before successful
+section teardown. Its 2,048 records and 128 level names occupy 32,776 bytes, and the
+shared C inventory verifies all 1,610 authored actor keys across the campaign fit.
+Pickup and actor namespaces stay independent even when their level/UID pairs
+match. Both stores share the bounded registration implementation; the pickup
+layout remains 20,488 bytes.
+
+Actor keys register before startup events. At a successful level handoff, owners
+with health<=0 mark their preallocated key, including owners already unregistered
+by death cleanup. On revisit, the normal actor registry entry is removed, the
+physics body is closed and render dispatch skips that explicitly retired actor.
+Registry-backed combat/AI/weapon paths consequently cannot treat it as living.
+This first pass removes defeated actors on return; it does not reconstruct their
+corpse pose, move animation time forward or replay death side effects. Partial
+health, positions, dropped items and resurrection scripts remain separate work.
+
+The contained scene test covers alive/dead capture, capture after unregister,
+replacement owner restoration, missing registry lookup, sphere allocation release,
+repeat capture and a fresh campaign. The rendered L4S5 rifle round trip also
+exercises this path naturally: its three shots defeat NPC 3305; the return restores
+one defeated actor while retaining 39 rifle rounds and retiring pickup 3415. This
+caught and fixed a renderer assumption that every retained model had a live actor
+registration. The error remains for unexpected missing registrations; only
+explicit campaign retirement is skipped.
+
+Native actor-retirement verification passes in
+`artifacts/xemu/replay-20260914-060602/report.json`: 240 frames, both handoffs,
+retirement `[8,1,0,0]`, defeated key `l4s5.rfl / 3305`, and pickup/inventory
+state exactly match PC. The returned scene has 7 active collision/eye actors
+from 8 created owners; the harness now distinguishes live counts from startup
+counts while retaining exact PC comparisons. Native framebuffer inspected;
+7,223 free pages (28.21 MiB) remain. Both builds and all 36 CTests pass.
