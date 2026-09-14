@@ -34,6 +34,18 @@ Shortlist:
 
 Progress reporting: include a very high-level working area (e.g. Lighting, AI, Weapons, GeoMod or Scripted events) and an overall percent estimate at the end of every turn report (USER preference) and revisit remaining 24-hour workdays when measured throughput supports a forecast; current rough estimate45% (35-45%), no defensible +/-48-hour completion forecast before end-to-end gameplay.
 
+Unused first-person render allocations removed; replay-20260914-100657
+passes180-frame stock64MiB crossing/state/HUD checks and exact full native
+final-image comparison with100127. Counter[1,0,0,1283456] confirms no
+body output/scratch allocation and1,283,456 bytes of omitted payload.
+Last-frame renderer available pages6160->6481 (+321 pages,1,314,816 bytes);
+this uses diagnostic44 sampled by the renderer, not load/teardown samples.
+Both builds and37 tests pass; six strict PC image/state comparisons match.
+Evidence: artifacts/hidden-player-memory/memory-report.json, comparison/report.json,
+and artifacts/xemu/replay-20260914-100657/native-image-comparison.json.
+Pose/collision geometry remains resident. No new FPS gain claimed.
+Next: presentation pacing and physics/event costs.
+
 Hidden first-person body mesh suppression verified in replay-20260914-100127:
 stock64MiB180-frame crossing/state/HUD checks pass; full native final image
 matches095052 exactly. All64 sampled actor-render records emit zero vertices.

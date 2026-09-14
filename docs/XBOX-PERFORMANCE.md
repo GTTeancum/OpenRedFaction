@@ -247,3 +247,24 @@ third-person rendering remain enabled. Evidence: artifacts/hidden-player-mesh/
 comparison/report.json, performance.json and native100127 image comparison.
 TODO: reclaim unused first-person body mesh/render scratch allocations after
 checking their ownership; inspect presentation pacing and physics costs.
+
+First-person allocation candidate: when suppress_mesh is fixed on for the
+animation call, omit output mesh, render cache/clip/output scratch, triangle
+indices and clip pool. Retain source geometry, bones, pose/collision work and
+callbacks. Empty sink meshes have NULL vertices and zero count/bytes.
+All37 tests pass. PC differential and stock64MiB native --capture runs are
+completed under artifacts/hidden-player-memory. Guest rf_animation_render_memory
+reports suppression, actual output/scratch payloads and omitted bytes;
+this is allocation payload accounting, not total heap/page accounting.
+
+Unused first-person render allocations removed; replay-20260914-100657
+passes180-frame stock64MiB crossing/state/HUD checks and exact full native
+final-image comparison with100127. Counter[1,0,0,1283456] confirms no
+body output/scratch allocation and1,283,456 bytes of omitted payload.
+Last-frame renderer available pages6160->6481 (+321 pages,1,314,816 bytes);
+this uses diagnostic44 sampled by the renderer, not load/teardown samples.
+Both builds and37 tests pass; six strict PC image/state comparisons match.
+Evidence: artifacts/hidden-player-memory/memory-report.json, comparison/report.json,
+and artifacts/xemu/replay-20260914-100657/native-image-comparison.json.
+Pose/collision geometry remains resident. No new FPS gain claimed.
+Next: presentation pacing and physics/event costs.

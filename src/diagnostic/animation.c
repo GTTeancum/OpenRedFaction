@@ -11,6 +11,8 @@
 /* Frame, operation stage, final status, render batch. Stages are documented in
  * docs/INPUT.md; retained after errors so QMP can identify a stopped stream. */
 uint32_t rf_animation_progress[4];
+/* Suppressed, actual mesh bytes, actual scratch bytes, omitted payload bytes. */
+uint32_t rf_animation_render_memory[4];
 
 static uint32_t hash_bytes(uint32_t hash, const void *bytes, size_t count)
 {
@@ -112,6 +114,7 @@ static int animation_run(const char *meshes_path,const char *motions_path,uint32
     rf_model_render_buffers render_buffers={0};rf_model_projection render_view={0};rf_model_lighting render_lights={0};
     rf_model_render_output render_output={1,{255,255,255},255,1,1};
     uint32_t frame_count=sink && placement && placement->frame_count?placement->frame_count:64;
+    memset(rf_animation_render_memory,0,sizeof(rf_animation_render_memory));
     memset(rf_animation_progress,0,sizeof(rf_animation_progress));rf_animation_progress[0]=UINT32_MAX;
     if(placement && placement->animation_timing && !placement->animation_timing_wrap && frame_count>(placement->animation_timing_capacity?placement->animation_timing_capacity:64))return RF_RANGE;
     if (!out || (placement && (!isfinite(placement->step_seconds) || placement->step_seconds<0))) return RF_RANGE;
@@ -154,6 +157,7 @@ static int animation_run(const char *meshes_path,const char *motions_path,uint32
     for(i=0;i<geometry.batch_count;++i)if(geometry.batches[i].vertices>render_capacity)render_capacity=geometry.batches[i].vertices;
     if(!render_capacity || render_capacity>4096) {status=RF_RANGE;goto done;}
     render_bytes=render_capacity*56+4096*40;
+    if(!(placement && placement->suppress_mesh)) {
     render_memory=malloc(render_bytes);render_indices=malloc(24576*sizeof(*render_indices));clip_pool=malloc(sizeof(*clip_pool));
     if(!render_memory || !render_indices || !clip_pool) {status=RF_IO;goto done;}
     memset(clip_pool,0,sizeof(*clip_pool));
@@ -161,6 +165,13 @@ static int animation_run(const char *meshes_path,const char *motions_path,uint32
     render_buffers.clip=(float(*)[3])(render_memory+render_capacity*32);
     render_buffers.second=(float(*)[3])(render_memory+render_capacity*44);
     render_buffers.vertices=(uint8_t(*)[40])(render_memory+render_capacity*56);render_buffers.capacity=render_capacity;
+    }
+    {uint32_t scratch_bytes=render_bytes+24576*sizeof(*render_indices)+sizeof(*clip_pool);
+     uint32_t hidden=placement && placement->suppress_mesh;
+     rf_animation_render_memory[0]=hidden;
+     rf_animation_render_memory[1]=preview && !hidden?budget:0;
+     rf_animation_render_memory[2]=hidden?0:scratch_bytes;
+     rf_animation_render_memory[3]=hidden?scratch_bytes+(preview?budget:0):0;}
     /* Fixed view and ambient fixture; real animation poses feed the renderer.
      * Triangle submission and world-derived lighting remain separate. */
     render_view.camera[2]=-100;render_view.rotation[0]=render_view.rotation[4]=render_view.rotation[8]=1;
@@ -453,7 +464,7 @@ int rf_animation_preview_placed(const char *meshes_path,const char *motions_path
 {
     uint32_t out[8];int status;
     if(!placement || !mesh || mesh->vertices || frame>=64 || budget<sizeof(rf_preview_vertex))return RF_RANGE;
-    memset(mesh,0,sizeof(*mesh));mesh->vertices=malloc(budget);if(!mesh->vertices)return RF_IO;
+    memset(mesh,0,sizeof(*mesh));if(!placement->suppress_mesh){mesh->vertices=malloc(budget);if(!mesh->vertices)return RF_IO;}
     status=animation_run(meshes_path,motions_path,out,mesh,frame,budget,NULL,NULL,placement,NULL);
     if(status) {rf_preview_close(mesh);return status;}
     mesh->bytes=mesh->count*sizeof(rf_preview_vertex);return RF_OK;
@@ -481,7 +492,7 @@ int rf_animation_stream_placed(const char *meshes_path,const char *motions_path,
 {
     rf_preview_mesh mesh={0};uint32_t out[8];int status;
     if(!placement || !sink || budget<sizeof(rf_preview_vertex))return RF_RANGE;
-    mesh.vertices=malloc(budget);if(!mesh.vertices)return RF_IO;
+    if(!placement->suppress_mesh){mesh.vertices=malloc(budget);if(!mesh.vertices)return RF_IO;}
     status=animation_run(meshes_path,motions_path,out,&mesh,0,budget,sink,context,placement,NULL);
     rf_preview_close(&mesh);return status;
 }
@@ -491,7 +502,7 @@ int rf_animation_stream_states(const char *meshes_path,const char *motions_path,
 {
     rf_preview_mesh mesh={0};uint32_t out[8];int status;
     if(!placement || !states || !sink || budget<sizeof(rf_preview_vertex))return RF_RANGE;
-    mesh.vertices=malloc(budget);if(!mesh.vertices)return RF_IO;
+    if(!placement->suppress_mesh){mesh.vertices=malloc(budget);if(!mesh.vertices)return RF_IO;}
     status=animation_run(meshes_path,motions_path,out,&mesh,0,budget,sink,context,placement,states);
     rf_preview_close(&mesh);return status;
 }
