@@ -65,7 +65,7 @@ typedef struct player {
     rf_frame_clock clock;
     LARGE_INTEGER frequency;
     uint32_t frames,headless;
-    rf_scene_input *replay;uint32_t replay_count,scene_start,exit_uid,exit_frame;
+    rf_scene_input *replay;uint32_t replay_count,scene_start,exit_uid,exit_frame,forced_exit_uid;
     int quit,focused;
 } player;
 
@@ -146,7 +146,7 @@ static int input(void *context,uint32_t frame,rf_scene_input *out)
     memset(out,0,sizeof(*out));
     if(p->headless && p->exit_uid && p->frames==p->exit_frame) {
         int status=rf_scene_fire_level_exit(p->exit_uid,(int32_t)((uint64_t)frame*1000/60));
-        p->exit_uid=0;if(status)return status;
+        p->forced_exit_uid=p->exit_uid;p->exit_uid=0;if(status)return status;
     }
     if(p->headless) {
         if(frame==0) { /* Read while owners live, before scene teardown. */
@@ -301,6 +301,10 @@ int main(int argc,char **argv)
         if(*end || getenv("RF_REPLAY_ACTOR_UID") || getenv("RF_REPLAY_FORCE_UID") || getenv("RF_REPLAY_DOOR_START") || getenv("RF_REPLAY_REGION_START") || getenv("RF_REPLAY_LIFT_START"))CHECK(RF_RANGE);
         CHECK(rf_scene_stage_item(&level,(uint32_t)uid));
     }
+    if(spawn_profile && p.headless && getenv("RF_REPLAY_EXIT_START")) {
+        char *end;unsigned long uid=strtoul(getenv("RF_REPLAY_EXIT_START"),&end,10);
+        if(*end || !uid)CHECK(RF_FORMAT);CHECK(rf_scene_stage_exit(&level,(uint32_t)uid));
+    }
     if(spawn_profile)CHECK(rf_scene_set_campaign_spawn(&level));
     else CHECK(rf_scene_preview_route_camera(&level,9858));
     CHECK(rf_geometry_open(&geometry,&level,8*1024*1024));
@@ -362,10 +366,10 @@ run_scene:
     CHECK(rf_scene_stream_miner_body(&level,9858,meshes,motions,tables,maps,opened,&mesh,&materials,
         8*1024*1024,RF_CAMPAIGN_MATERIAL_BUDGET,present,&p,&collision,&geometry));
     if(spawn_profile && rf_scene_level_transition.pending && (!limit || p.frames<limit)) {
-        rf_campaign_player_state player_state;rf_level_transition_request next=rf_scene_level_transition;
+        rf_campaign_player_state player_state;rf_level_transition_request next=rf_scene_level_transition;float departing_position[3],departing_orientation[9];
         CHECK(rf_scene_campaign_player_get(&player_state));
-        {float position[3],orientation[9];CHECK(rf_scene_campaign_pose_get(position,orientation));
-         printf("LEVEL_EXIT_POSE");for(i=0;i<3;i++)printf(" %.9g",position[i]);for(i=0;i<9;i++)printf(" %.9g",orientation[i]);puts("");}
+        CHECK(rf_scene_campaign_pose_get(departing_position,departing_orientation));
+        printf("LEVEL_EXIT_POSE");for(i=0;i<3;i++)printf(" %.9g",departing_position[i]);for(i=0;i<9;i++)printf(" %.9g",departing_orientation[i]);puts("");
 
         printf("LEVEL_TRANSITION %s %s %u %u\n",level.entry.name,next.level,next.uid,p.frames);
         rf_scene_actor_follow(NULL);
@@ -373,6 +377,13 @@ run_scene:
         rf_scene_world_geometry_close(&retained);rf_geometry_collision_world_close(&collision);rf_geometry_close(&geometry);
         rf_vpp_close(&archive);
         CHECK(rf_level_campaign_open(&level,&archive,directory,next.level));
+        /* A remote event-dispatch fixture has no doorway-relative player pose. */
+        if(next.uid!=p.forced_exit_uid) {
+            status=rf_level_transition_place(&next,&level,departing_position,departing_orientation);
+            if(status!=RF_NOT_FOUND)CHECK(status);else status=RF_OK;
+            printf("LEVEL_ARRIVAL %.9g %.9g %.9g\n",level.player_position[0],level.player_position[1],level.player_position[2]);
+        }
+        p.forced_exit_uid=0;
         CHECK(rf_scene_set_campaign_spawn(&level));
         CHECK(rf_geometry_open(&geometry,&level,8*1024*1024));
         CHECK(rf_geometry_collision_world_open(&geometry,8*1024*1024,&collision));

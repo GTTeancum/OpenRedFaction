@@ -13,6 +13,30 @@
 #include <math.h>
 #include "rf/visibility.h"
 #include "rf/level_particles.h"
+/* Choose the thin horizontal box axis, approaching from the authored spawn side.
+ * Fixture setup only: the normal collision and trigger runtime handles movement. */
+int rf_scene_stage_exit(rf_level *level,uint32_t uid)
+{
+    rf_level_trigger_reader reader;rf_level_trigger record;rf_trigger_volume selected={0},volume;
+    uint32_t link,i,j,found=0,axis=3;float direction[3],position[3],matrix[3][3]={{0}},dot=0;int status;
+    if(!level)return RF_RANGE;
+    status=rf_level_triggers_begin(level,&reader);if(status)return status;
+    while((status=rf_level_trigger_next(&reader,&record))==RF_OK) {
+        uint32_t match=0;
+        for(j=0;j<record.link_count;j++){status=rf_level_trigger_link(level,&record,j,&link);if(status)return status;if(link==uid)match=1;}
+        if(!match)continue;
+        if(found++)return RF_FORMAT;
+        status=rf_trigger_volume_init(&record,&volume);if(status)return status;selected=volume;
+    }
+    if(status!=RF_NOT_FOUND)return status;if(!found)return RF_NOT_FOUND;
+    if(selected.shape!=1)return RF_FORMAT;
+    for(i=0;i<3;i++)if(fabsf(selected.matrix[i][1])<.01f && (axis==3 || selected.size[i]<selected.size[axis]))axis=i;
+    if(axis==3)return RF_FORMAT;
+    for(i=0;i<3;i++)dot+=(selected.center[i]-level->player_position[i])*selected.matrix[axis][i];
+    for(i=0;i<3;i++){direction[i]=selected.matrix[axis][i]*(dot<0?-1:1);position[i]=selected.center[i]-direction[i]*(selected.size[axis]*.5f+2);}
+    direction[1]=0;matrix[0][0]=direction[2];matrix[0][2]=-direction[0];matrix[1][1]=1;memcpy(matrix[2],direction,12);
+    memcpy(level->player_position,position,12);memcpy(level->player_orientation,matrix,36);return RF_OK;
+}
 /* Explicit replay setup, not an authored player-start reconstruction. */
 int rf_scene_stage_door(rf_level *level)
 {

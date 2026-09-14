@@ -38,7 +38,7 @@ static uint32_t player_pacing,scene_simulation_frames,campaign_total_frames,camp
 uint32_t rf_xbox_load_stage;
 uint32_t rf_xbox_level_transitions[4]; /* count,last UID,frames at exit,available pages after release */
 static FILE *player_replay;
-static uint32_t player_replay_size,campaign_exit_uid;
+static uint32_t player_replay_size,campaign_exit_uid,campaign_forced_exit_uid;
 uint32_t rf_player_replay_diagnostic[4]; /* active, records, consumed, read status */
 static void player_input_close(void)
 {
@@ -50,7 +50,7 @@ static int player_poll_paced(void *context,uint32_t frame,rf_scene_input *input)
 {
     if(campaign_exit_uid && campaign_total_frames==60) {
         int status=rf_scene_fire_level_exit(campaign_exit_uid,(int32_t)((uint64_t)frame*1000/60));
-        campaign_exit_uid=0;if(status)return status;
+        campaign_forced_exit_uid=campaign_exit_uid;campaign_exit_uid=0;if(status)return status;
     }
     if(player_replay) {
         memset(input,0,sizeof(*input));
@@ -931,6 +931,11 @@ int main(void)
                     if(actor_file)fclose(actor_file);if(force_file)fclose(force_file);fclose(item_file);
                 }
             }
+            if(result==RF_OK) {
+                FILE *exit_start=fopen("D:\\campaign-exit-start.bin","rb");
+                if(exit_start){uint32_t uid;int invalid=fread(&uid,4,1,exit_start)!=1 || fgetc(exit_start)!=EOF;fclose(exit_start);
+                    result=invalid?RF_FORMAT:rf_scene_stage_exit(&level,uid);}
+            }
 campaign_load_section:
             rf_xbox_load_stage=1;
             if (result == RF_OK) {
@@ -1000,8 +1005,9 @@ campaign_load_section:
             }
             if(result==RF_OK && rf_scene_follow_level_exits && rf_scene_level_transition.pending &&
                (!campaign_frame_limit || campaign_total_frames<campaign_frame_limit)) {
-                rf_campaign_player_state state;rf_level_transition_request next=rf_scene_level_transition;
+                rf_campaign_player_state state;rf_level_transition_request next=rf_scene_level_transition;float departing_position[3],departing_orientation[9];
                 result=rf_scene_campaign_player_get(&state);
+                if(result==RF_OK)result=rf_scene_campaign_pose_get(departing_position,departing_orientation);
                 if(result==RF_OK) {
                     rf_xbox_scene_stream_close();rf_scene_actor_follow(NULL);
                     rf_scene_world_geometry_close(&resident_render_geometry);
@@ -1019,6 +1025,11 @@ campaign_load_section:
                     ++rf_xbox_level_transitions[0];rf_xbox_level_transitions[1]=next.uid;rf_xbox_level_transitions[2]=campaign_total_frames;
                     if(NT_SUCCESS(MmQueryStatistics(&memory)))rf_xbox_level_transitions[3]=memory.AvailablePages;
                     result=rf_level_campaign_open(&level,&archive,"D:\\",next.level);
+                    if(result==RF_OK && next.uid!=campaign_forced_exit_uid) {
+                        result=rf_level_transition_place(&next,&level,departing_position,departing_orientation);
+                        if(result==RF_NOT_FOUND)result=RF_OK;
+                    }
+                    campaign_forced_exit_uid=0;
                     if(result==RF_OK)result=rf_scene_campaign_player_set(&state);
                     live_mines_door_fixture=0;
                     if(result==RF_OK)goto campaign_load_section;

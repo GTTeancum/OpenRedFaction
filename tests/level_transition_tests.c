@@ -40,6 +40,15 @@ int main(int argc,char **argv)
         rf_object_registry_init(&registry);CHECK(rf_runtime_events_open(&level,&registry,1024*1024,&owned)==RF_OK);
         for(i=0;i<owned.count;i++)if(owned.items[i].state.type==22) {
             rf_vpp_entry target;memset(&request,0,sizeof(request));
+            {rf_level_trigger_reader reader;rf_level_trigger trigger;int rc;uint32_t k,link;
+             CHECK(rf_level_triggers_begin(&level,&reader)==RF_OK);
+             while((rc=rf_level_trigger_next(&reader,&trigger))==RF_OK)for(k=0;k<trigger.link_count;k++) {
+                CHECK(rf_level_trigger_link(&level,&trigger,k,&link)==RF_OK);
+                if(link==owned.items[i].authored->record.uid)printf("EXIT_TRIGGER %s event=%u trigger=%u position=%.6g,%.6g,%.6g dimensions=%.6g,%.6g,%.6g shape=%u name=%s\n",
+                    name,link,trigger.uid,trigger.position[0],trigger.position[1],trigger.position[2],trigger.dimensions_disk[0],trigger.dimensions_disk[1],trigger.dimensions_disk[2],trigger.shape,trigger.name);
+             }
+             CHECK(rc==RF_NOT_FOUND);}
+
             CHECK(rf_runtime_event_fire(&triggers,owned.items[i].handle,7,9,100,&gravity,0,0,&report)==RF_OK);
             if(!request.pending)CHECK(rf_runtime_events_tick(&owned,&triggers,&gravity,owned.items[i].state.deadline,0,0,&report,&pending)==RF_OK);
             CHECK(request.pending && request.uid==owned.items[i].authored->record.uid && !report.unsupported_actions);

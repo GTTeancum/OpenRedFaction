@@ -63,11 +63,11 @@ frame count, while still checking total replay consumption/submission counts.
 
 Current-level requests are ignored to avoid paired events masking a neighboring
 exit or creating a reload loop. This is a port policy, not verified original
-Load_Level semantics. Arrivals use the destination's authored spawn; entrance
-alignment, doorway continuity, mission flags and deliberate same-level restarts
-remain open. Respawn retains the existing fresh-supply policy. Native backward
-and repeated transitions, walking into authored exit triggers, cross-archive disc
-coverage and real hardware validation remain to complete. The passing native
+Load_Level semantics. Named anchors translate departing position and preserve facing; missing anchors
+fall back to the authored spawn. Broader arrival coverage, mission flags and
+deliberate same-level restarts remain open. Respawn retains the existing fresh-supply policy. Native backward
+and repeated transitions, additional walking routes, cross-archive disc coverage
+and real hardware validation remain to complete. The passing native
 fixture proves a handoff, not end-to-end campaign progression or PS2 visual parity.
 
 ## Authored arrival anchors
@@ -88,11 +88,6 @@ support a first-pass translation policy; no original Load_Level placement oracle
 is claimed. Evidence: artifacts/arrival-anchor-data.log. Both builds and34 CTests
 pass, including invalid-coordinate/missing-anchor rollback and known route deltas.
 
-The platform loops still use the destination default spawn. Next apply the marker
-translation to the departing player's pose, preserve facing, and verify clearance
-and exit-trigger behavior at arrival. The raw marker positions alone do not prove
-safe player placement or rotation semantics.
-
 The shared rf_level_transition_place operation now applies an anchor offset to a
 departing position and copies its facing matrix into destination spawn fields.
 Finite-input and overflow checks preserve the previous spawn on failure. All14
@@ -102,9 +97,37 @@ and combined body/eye orientation while the completed scene state remains valid;
 PC exit diagnostics now emit LEVEL_EXIT_POSE before teardown of platform owners.
 Both builds,34 CTests and four PC exit replays pass (arrival-pose-*.log).
 
-Automatic arrival placement is not yet enabled. The current forced-exit test fires
-L1S1 exit9019 from the normal spawn, approximately (-119.188,0.320,59.440), far
-from its marker (112.582,20.8295,-44.4395). Applying the offset to that fixture
-would not test the actual doorway. Next stage/approach the authored exit region,
-validate destination collision clearance and trigger behavior, then connect this
-placement operation in both platform loops. No translated-arrival gameplay claim.
+Automatic placement now runs in both platform loops for normal campaign exits.
+The loops copy departing position/facing before closing the source and apply the
+matching anchor translation before initializing the destination player. Missing
+anchors retain default-spawn fallback; malformed placement remains an error.
+The remote RF_REPLAY_EXIT_UID dispatch fixture explicitly retains default spawn,
+since it fires from an unrelated location. Walking fixtures use production placement.
+
+## Walking trigger and doorway validation
+
+rf_scene_stage_exit is a process-local fixture: it finds a unique directly linked
+trigger box, chooses its thinnest horizontal axis and starts outside the volume
+on the authored-spawn side. It never directly dispatches the exit. Input waits30
+frames, then walks forward for the rest of180 frames; ordinary collision and
+trigger code determines activation. PC uses RF_REPLAY_EXIT_START; Xbox uses
+campaign-exit-start.bin through harness --exit-start-uid. This fixture does not
+claim to navigate the entire preceding campaign section.
+
+Both directions pass tools/replay_walk_exits.py with one transition at frame62,
+facing preserved and continued movement after arrival:
+- L1S1->L1S2: (112.159729,18.864132,-48.439453) becomes
+  (-31.840271,-13.135868,-96.439453); the player continues to x=-21.093378.
+- L1S2->L1S1: (-39.995773,-13.135904,-96.439453) becomes
+  (104.004227,18.864096,-48.439453); the player continues to x=93.115570.
+
+Stock64MiB XEMU replay-20260914-045205 passes the forward walking case, matches
+PC destination state and renders the inspected framebuffer. It consumes all180
+records with one exit9019 at frame62. Cleanup leaves13470 free pages (52.6MiB),
+and destination rendering reports5589 free pages (21.8MiB). Evidence:
+artifacts/walk-exit/report.json and artifacts/xemu/replay-20260914-045205/report.json.
+Both builds,34 CTests and four legacy forced-dispatch PC replays pass.
+
+This proves clearance and trigger behavior along these tested walking paths, not
+all possible arrival positions. Native reverse/repeated crossings, other anchors,
+velocity/stance carry and mission-state continuity remain to complete.

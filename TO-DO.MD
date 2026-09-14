@@ -6,7 +6,7 @@ and defer visual polish. Focus: movement, combat/damage, AI, mission events,
 then level progression. Fidelity remains a later completion requirement.
 
 Shortlist:
-- ACTIVE: Complete doorway arrivals and mission-state carry, and verify repeated Xbox campaign transitions.
+- ACTIVE: Extend authored arrivals and mission-state carry, and verify repeated Xbox campaign transitions.
 - NEXT: Expand mission scripts and AI until consecutive campaign sections are playable end to end.
 - TO COMPLETE: Expand the working pistol/rifle combat, pickups and first-person feedback to the remaining weapons.
 - DEFERRED / TO COMPLETE: Restore full NPC/prop texture detail through better residency; verify PS2 parity for reduced textures.
@@ -23,19 +23,16 @@ Shortlist:
 - USER: Review PS2 visual parity and test hardware after representative XEMU gameplay is stable.
 - USER: Review the interactive PC movement and audio items listed below.
 
-Progress reporting: include a very high-level working area (e.g. Lighting, AI, Weapons, GeoMod or Scripted events) and an overall percent estimate at the end of every turn report (USER preference) and revisit remaining 24-hour workdays when measured throughput supports a forecast; current rough estimate44% (35-45%), no defensible +/-48-hour completion forecast before end-to-end gameplay.
+Progress reporting: include a very high-level working area (e.g. Lighting, AI, Weapons, GeoMod or Scripted events) and an overall percent estimate at the end of every turn report (USER preference) and revisit remaining 24-hour workdays when measured throughput supports a forecast; current rough estimate45% (35-45%), no defensible +/-48-hour completion forecast before end-to-end gameplay.
 
-Shared arrival placement now translates a departing position and preserves
-combined facing; pose export works across the four PC exit replays. Both builds
-and34 CTests pass, including14 placement cases. Not yet enabled in gameplay:
-next approach the authored exit region and verify translated arrival clearance,
-then connect placement in PC/Xbox loops (the forced exit fires far from its marker).
-
-Arrival lookup now resolves unique named destination anchors for all14 opening
-exits. Independent L1S2/L1S3 routes agree on translation (41,32,-118); both builds
-and34 CTests pass. Requests own source marker name/position. Next apply this
-translation to the departing player pose and verify doorway clearance/trigger
-behavior; actual arrivals still use default spawn. Evidence: arrival-anchor-data.log.
+Authored doorway placement is now connected on PC/Xbox. Walking into the real
+exit triggers passes both directions on PC, preserving facing and continuing
+movement after exactly one transition at62 frames. Stock64MiB XEMU forward
+walking/arrival passes180 frames with matching PC state and verified framebuffer;
+5589 free pages (21.8MiB) remain during destination rendering. Both builds,34
+CTests and four legacy dispatch replays pass. Native backward/repeated crossings,
+other arrival routes, velocity/stance and mission-state carry remain open. Evidence:
+artifacts/walk-exit/report.json; artifacts/xemu/replay-20260914-045205/report.json.
 
 Xbox L1S1 -> L1S2 now passes a complete120-frame native replay on stock64MiB:
 exit9019 hands off at61 frames, state comparisons pass and framebuffer is verified.
