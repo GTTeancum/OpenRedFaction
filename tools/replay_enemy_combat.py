@@ -13,9 +13,9 @@ for name,frames in [('idle',240),('provoke',240),('kill',360),('down',1500)]:
  def words(label):return list(map(int,next(l for l in run.stdout.splitlines() if l.startswith(label+' ')).split()[1:]))
  enemy=words('ENEMY_COMBAT');player=words('COMBAT');health=struct.unpack('<f',struct.pack('<I',enemy[5]))[0]
  assert enemy[0]==frames and enemy[7]==player[7]==0
- if name=='idle':assert enemy[1:5]==[0,0,0,0] and health==100
- if name=='provoke':assert enemy[1]==1 and enemy[2]==enemy[3]==3 and 0<health<100 and player[:2]==[1,1]
- if name=='kill':assert player[2]==1 and enemy[2]==enemy[3]==1 and health>0
+ if name=='idle':assert enemy[1]==2 and enemy[2]==enemy[3]==8 and 0<health<100 and player[0]==0
+ if name=='provoke':assert enemy[1]==2 and enemy[2]==enemy[3]==8 and 0<health<100 and player[:2]==[1,1]
+ if name=='kill':assert player[2]==1 and enemy[2]==enemy[3]==8 and health>0
  if name=='down':assert enemy[6]==1 and health<=0 and player[0]==1
  rows.append(dict(case=name,frames=frames,enemy=enemy,player=player,health=health));print(rows[-1],flush=True)
-(folder/'report.json').write_text(json.dumps(dict(result='PASS',cases=rows,scope='Visible armed NPC8456 retaliates after damage, passive before provocation; death stops return fire and zero player health prevents further firing. Retained damage/armor and HUD health. No patrol detection, pursuit, restart, weapon-specific AI, cover transition or shooting-animation claim.'),indent=2))
+(folder/'report.json').write_text(json.dumps(dict(result='PASS',cases=rows,scope='Nearby hostile armed NPCs acquire without provocation; killing one attacker reduces return fire while the other continues and zero player health prevents further firing. Retained damage/armor and HUD health. No patrol/pursuit, weapon-specific AI, cover transition or shooting-animation claim.'),indent=2))

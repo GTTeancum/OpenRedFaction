@@ -20,7 +20,8 @@ prototype has12 rounds, automatic/manual reload and unlimited reserve ammo.
 The centered reticle flashes green on damaging hits. Bottom-right markers
 show the12-round clip; a gold bar shows reload progress. First-person gun
 presentation and shot audio remain pending.
-Armed NPCs now retaliate when damaged, checking line of sight. The lower-left
+Hostile armed NPCs acquire the player in sight; armed NPCs also retaliate
+when damaged, checking line of sight. The lower-left
 bar shows player health; incoming hits trigger the damage flash. Zero health
 blocks movement, look and actions and displays a respawn prompt. After a
 60-frame pause, release then press E (keyboard) or X (controller) to restore

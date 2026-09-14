@@ -22,6 +22,17 @@ Shortlist:
 
 Progress reporting: include a very high-level working area (e.g. Lighting, AI, Weapons, GeoMod or Scripted events) and an overall percent estimate at the end of every turn report (USER preference) and revisit remaining 24-hour workdays when measured throughput supports a forecast; current rough estimate42% (35-45%), no defensible +/-48-hour completion forecast before end-to-end gameplay.
 
+First-pass enemy awareness now lets visible armed hostile actors acquire the
+player without being shot, using staggered30-frame range/cone/geometry checks.
+Neutral/friendly actors require provocation. PC240-frame hostile encounter:
+2 guards,8 hits,health61.6; neutral miner area stays passive at100 health.
+Adds32 global diagnostic bytes, no per-NPC growth or perception allocation.
+Both builds,26 CTests and PC death/respawn/travel regression pass.
+Stock64MiB XEMU240-frame PASS:2 acquired guards,8 hits,health61.6;
+awareness/combat state and HUD match PC.7115 available pages at completion.
+Evidence artifacts/xemu/replay-20260914-010332/report.json.
+See docs/ENEMY-AI.md; scripted allegiance, pursuit and weapon behavior remain open.
+
 First-pass player recovery now blocks controls after fatal damage and shows
 a death/respawn prompt. After60 frames, fresh E/X restores the starting player
 body, pose, health/armor and ammunition, clearing reactive enemy alerts.
@@ -46,12 +57,13 @@ path. Hidden/dead/unarmed actors do not attack. Damage goes through retained
 player health/armor and flash handling; the HUD adds a health bar. Player fire
 and further enemy attacks stop at zero health. PC240-frame provoke:3 hits,
 health85.6; killing the attacker stops at1 return hit;1500-frame sustained
-retaliation reaches zero after20 hits. Idle stays passive. Both builds and26
+retaliation reaches zero after20 hits. Idle stayed passive before the awareness pass documented above. Both builds and26
 tests pass. Evidence artifacts/enemy-first/report.json. Stock64MiB XEMU
 240-frame PASS with matching3 return hits/health85.6 and inspected HUD:
 artifacts/xemu/replay-20260914-002734/report.json, framebuffer.png and
 health-pixels.json.7115 available pages observed at completion, not a peak.
-This is stationary reactive AI, not campaign detection/pursuit/squad behavior.
+This earlier retaliation-only pass is extended by awareness above; pursuit
+and squad behavior remain open.
 Full level restart/checkpoints, firing animation/audio, faction handling and
 weapon tuning are open; first-pass in-place respawn is described above. Attempted walking cover routes remained visible/in range; no verified
 cover-transition claim. Ray obstruction uses the existing geometry path.

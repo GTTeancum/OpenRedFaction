@@ -6932,6 +6932,7 @@ static int actor_listener_pose(scene_stream *stream,uint32_t frame,
  * services remain pending. Uses retained damage ownership and death animation. */
 uint32_t rf_scene_combat[8];
 static uint32_t combat_cooldown,combat_frame,combat_hit_frame;
+uint32_t rf_scene_enemy_awareness[8]; /* checks,acquired,blocked,range,facing,nonhostile,last handle,status */
 uint32_t rf_scene_enemy_combat[8]; /* ticks,alerts,shots,hits,blocked,health bits,down,status */
 static float combat_initial_health;
 uint32_t rf_scene_player_life[8]; /* deaths,respawns,dead,death frame,respawn frame,snapshot bytes,blocked inputs,status */
@@ -7019,10 +7020,28 @@ static int campaign_enemy_tick(scene_stream *stream,uint32_t frame,const float p
     memcpy(&clock_bits,&seconds,4);++rf_scene_enemy_combat[0];
     for(i=0;i<campaign_npc_body_count && campaign_player_damage.state.effects.health>0;i++) {
         campaign_npc_body *owner=campaign_npc_bodies+i;float delta[3],distance=0,amount;int status;
-        if(!owner->combat_alert || !owner->registration.view || (owner->object_flags&(2|0x4000)) ||
-           owner->damage.effects.health<=0 || (owner->view.flags_810&1) || owner->view.weapons[0]<0 || frame<owner->combat_due)continue;
-        owner->combat_due=frame+60;
+        if(!owner->registration.view || (owner->object_flags&(2|0x4000)) ||
+           owner->damage.effects.health<=0 || (owner->view.flags_810&1) || owner->view.weapons[0]<0)continue;
         for(j=0;j<3;j++){delta[j]=player_eye[j]-owner->eye_position[j];distance+=delta[j]*delta[j];}
+        if(!owner->combat_alert) {
+            float forward=0;
+            /* Practical first pass: stagger sight checks, 20-unit range and 120-degree cone.
+             * Authored affiliation 0 is unfriendly; neutral/friendly actors need provocation. */
+            if(frame%30!=i%30)continue;
+            ++rf_scene_enemy_awareness[0];
+            if(owner->damage.effects.affiliation!=0){++rf_scene_enemy_awareness[5];continue;}
+            if(distance>20*20 || distance<.0001f){++rf_scene_enemy_awareness[3];continue;}
+            for(j=0;j<3;j++)forward+=owner->look.orientation[6+j]*delta[j];
+            if(forward<=0 || forward*forward<distance*.25f){++rf_scene_enemy_awareness[4];continue;}
+            status=combat_obstructed(stream,owner->eye_position,delta,&blocked);
+            rf_scene_enemy_awareness[7]=(uint32_t)status;if(status)return status;
+            if(blocked){++rf_scene_enemy_awareness[2];continue;}
+            owner->combat_alert=1;owner->combat_due=frame+30;
+            ++rf_scene_enemy_awareness[1];rf_scene_enemy_awareness[6]=owner->registration.handle;
+            ++rf_scene_enemy_combat[1];
+        }
+        if(frame<owner->combat_due)continue;
+        owner->combat_due=frame+60;
         if(distance>40*40 || distance<.0001f)continue;
         status=combat_obstructed(stream,owner->eye_position,delta,&blocked);if(status)return status;
         if(blocked){++rf_scene_enemy_combat[4];continue;}
@@ -7039,6 +7058,7 @@ static int campaign_combat_tick(scene_stream *stream,uint32_t frame,const float 
 {
     float delta[3],nearest=1,amount;uint32_t i,target=UINT32_MAX,matched;rf_geometry_world_hit wall;int status;
     if(!frame){memset(rf_scene_combat,0,sizeof(rf_scene_combat));rf_scene_combat[3]=UINT32_MAX;rf_scene_combat[5]=12;combat_cooldown=0;combat_frame=combat_hit_frame=UINT32_MAX;
+        memset(rf_scene_enemy_awareness,0,sizeof(rf_scene_enemy_awareness));
         memset(rf_scene_enemy_combat,0,sizeof(rf_scene_enemy_combat));combat_initial_health=campaign_player_damage.state.effects.health;
         for(i=0;i<campaign_npc_body_count;i++)campaign_npc_bodies[i].combat_alert=campaign_npc_bodies[i].combat_due=0;}
     if(combat_frame==frame)return RF_OK;combat_frame=frame;

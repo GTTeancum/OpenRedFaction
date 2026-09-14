@@ -6,7 +6,7 @@ root=Path(__file__).resolve().parents[1];folder=root/'artifacts/player-life';fol
 for name,frames in [('dead',1350),('held',1350),('respawn',1301),('resume',1500)]:
  def command(i):
   move=1 if name=='dead' and i>1220 else (-1 if name=='resume' and i>1340 else 0)
-  use=int(i>=1190) if name=='held' else int(name in ('respawn','resume') and i==1300)
+  use=1 if name=='held' else int(name in ('respawn','resume') and i==1300)
   fire=int(i==30 or (name=='resume' and i==1320))
   return struct.pack('<5f5I',move,0,0,0,0,0,0,use,fire,0)
  source=folder/(name+'.bin');source.write_bytes(b'RFI4'+struct.pack('<I',40)+b''.join(command(i) for i in range(frames)))
