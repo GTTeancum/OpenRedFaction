@@ -31,6 +31,7 @@ extern rf_campaign_goals rf_scene_mission_goals;
 extern rf_campaign_pickups rf_scene_campaign_pickups;
 extern rf_campaign_actors rf_scene_defeated_actors;
 extern uint32_t rf_scene_actor_retirement[4];
+extern uint32_t rf_scene_actor_revisit[8];
 extern uint32_t rf_scene_campaign_load_stage;
 int rf_scene_campaign_player_get(rf_campaign_player_state *);
 /* Entity origin and combined body/eye facing; copy before starting a new scene. */

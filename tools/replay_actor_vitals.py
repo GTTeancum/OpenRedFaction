@@ -36,10 +36,12 @@ health, armor = struct.unpack('<2f', struct.pack('<2I', *map(int, vitals.split()
 assert abs(health - 80.8) < .0001 and abs(armor - 79.2) < .0001, vitals
 assert 'DEFEATED_ACTOR l1s1.rfl 8456' not in lines
 assert 'Completed 240 frames' in run.stdout
+revisit = list(map(int, next(s for s in lines if s.startswith('ACTOR_REVISIT ')).split()[1:]))
+assert revisit[0] > 0 and revisit[1:] == [0] * 7, revisit
 mission = next(s for s in lines if s.startswith('ACTOR_MISSION_STATE l1s1.rfl 9643 '))
 assert mission == f'ACTOR_MISSION_STATE l1s1.rfl 9643 1 {4 if args.mission_event else 0}', mission
-report = dict(result='PASS', transitions=transitions, health=health, armor=armor, mission=mission,
+report = dict(result='PASS', transitions=transitions, health=health, armor=armor, mission=mission, revisit=revisit,
               scope='Staged aim, real shot and explicit exits; verifies retained living vitals. '
-                    'Restoration into live owners is covered by scene tests. No natural route claim.')
+                    'Final live actors match saved fields after startup and gameplay. No natural route claim.')
 (folder / 'report.json').write_text(json.dumps(report, indent=2))
 print(report)

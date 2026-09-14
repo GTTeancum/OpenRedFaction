@@ -702,6 +702,7 @@ rf_level_transition_request rf_scene_level_transition;
 rf_campaign_goals rf_scene_mission_goals;
 rf_campaign_pickups rf_scene_campaign_pickups;
 rf_campaign_actors rf_scene_defeated_actors;
+uint32_t rf_scene_actor_revisit[8]; /* compared living actors; health/armor/allegiance/flag differences; first UID and health bits */
 uint32_t rf_scene_actor_retirement[4]; /* registered keys, restored, captured deaths, status */
 uint32_t rf_scene_campaign_load_stage;
 uint32_t rf_scene_follow_level_exits;
@@ -3599,6 +3600,26 @@ static int campaign_actors_restore(void)
         }
     }
     return RF_OK;
+}
+static void campaign_actors_revisit_snapshot(void)
+{
+    uint32_t i;memset(rf_scene_actor_revisit,0,sizeof(rf_scene_actor_revisit));
+    for(i=0;i<campaign_npc_body_count;i++) {
+        const campaign_npc_body *owner=campaign_npc_bodies+i;uint32_t slot=owner->persistence_slot,difference[4],j,changed=0;
+        if(!owner->persistence_registered || !owner->registration.view ||
+           !rf_scene_defeated_actors.vitals[slot].valid || rf_scene_defeated_actors.items[slot].retired)continue;
+        ++rf_scene_actor_revisit[0];
+        difference[0]=owner->damage.effects.health!=rf_scene_defeated_actors.vitals[slot].health;
+        difference[1]=owner->damage.effects.armor!=rf_scene_defeated_actors.vitals[slot].armor;
+        difference[2]=owner->damage.effects.affiliation!=rf_scene_defeated_actors.mission[slot].affiliation;
+        difference[3]=(owner->object_flags&0x4004u)!=rf_scene_defeated_actors.mission[slot].flags;
+        for(j=0;j<4;j++){rf_scene_actor_revisit[1+j]+=difference[j];changed|=difference[j];}
+        if(changed && !rf_scene_actor_revisit[5]) {
+            rf_scene_actor_revisit[5]=rf_scene_defeated_actors.items[slot].uid;
+            memcpy(rf_scene_actor_revisit+6,&owner->damage.effects.health,4);
+            memcpy(rf_scene_actor_revisit+7,&rf_scene_defeated_actors.vitals[slot].health,4);
+        }
+    }
 }
 static void campaign_actors_capture(void)
 {
@@ -10730,6 +10751,7 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
         if(!status && collision && rf_scene_actor_route_enabled && !rf_scene_actor_live_enabled)status=actor_routes(&stream);
     }
 done:
+    if(!status && campaign_spawn && collision)campaign_actors_revisit_snapshot();
     if(!status && campaign_spawn && collision && rf_scene_level_transition.pending)campaign_actors_capture();
     for(i=0;i<2;i++)rf_player_weapon_close(&stream.player_weapon[i]);
     if(stream.pickup_resources){for(i=0;i<5;i++){rf_static_render_resource_close(&stream.pickup_resources[i].model);rf_model_materials_close(&stream.pickup_resources[i].materials);}free(stream.pickup_resources);}

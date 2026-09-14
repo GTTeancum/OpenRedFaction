@@ -45,3 +45,20 @@ actor9643 allegiance1 and invulnerability flag4. NXDK restoration succeeds.
 
 
 Native verification uses the same command above with `--setup-uid 9668`.
+
+## Live-state verification
+
+Live revisit validation now compares registered actor values after section
+startup and gameplay against saved records before a new capture can overwrite
+them. The previous native checks compared storage only. The controlled PC
+round trip now requires78 living actors with zero health, armor, allegiance or
+mission-flag differences, including the wounded guard and invulnerable actor.
+ACTOR_REVISIT records compared count, four difference counts and first differing
+UID/current/saved health bits. Differences are diagnostic during ordinary
+combat; zero is required only by this controlled return replay. This confirms
+this route has no startup overwrite; it does not prove all campaign scripts.
+The32-byte diagnostic is also available in native failure snapshots.
+Evidence:artifacts/actor-vitals/revisit-*.
+Stock64MiB XEMU replay `replay-20260914-122418` passes240 frames, both
+transitions, and the same78 live actors with zero differences after return.
+All37 PC tests and NXDK build/restoration pass.
