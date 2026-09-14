@@ -115,7 +115,7 @@ static int camera(const rf_geometry *g, const rf_level *level, const rf_geometry
     *outside=entry->outside;*out=result;return RF_OK;
 }
 static int generate(rf_preview_mesh *mesh, const rf_geometry *g, const rf_level *level, uint32_t capacity,
-    const float *origin,const float matrix[3][3],uint32_t material_base)
+    const float *origin,const float matrix[3][3],uint32_t material_base,const rf_visibility *visibility)
 {
     uint32_t f, used = 0;
     camera_cache_entry cache[CAMERA_CACHE_COUNT];
@@ -127,6 +127,12 @@ static int generate(rf_preview_mesh *mesh, const rf_geometry *g, const rf_level 
         uint32_t corner, lightmap = UINT32_MAX;
         float color;int status;
         rf_geometry_get_face(g, f, &face);
+        /* Primary room IDs are file-order visibility indices. Detail rooms are
+         * not independently traversed: retain them until parent eligibility is
+         * explicitly bound. Unknown-room faces and movers also remain visible. */
+        if(visibility && !origin && face.room<g->rooms &&
+           !g->data[g->room_offsets[face.room]+34] &&
+           !visibility->rooms[face.room].visible)continue;
         if (face.portal || (face.flags & 1) || face.texture == UINT32_MAX) continue;
         if(face.texture>=g->textures)return RF_FORMAT;
         if (face.lightmap_mapping != UINT32_MAX && rf_geometry_lightmap(g, face.lightmap_mapping, UINT32_MAX, &lightmap)) return RF_FORMAT;
@@ -205,13 +211,13 @@ static int build(rf_preview_mesh *mesh, const rf_geometry *g, const rf_level *le
     uint32_t count;
     if (!mesh || !g || !g->data || !level) return RF_RANGE;
     memset(mesh, 0, sizeof(*mesh));
-    result = generate(mesh, g, level, budget / sizeof(rf_preview_vertex),origin,matrix,material_base);
+    result = generate(mesh, g, level, budget / sizeof(rf_preview_vertex),origin,matrix,material_base,NULL);
     if (result != RF_OK || !mesh->count) return result;
     count = mesh->count;
     mesh->bytes = count * sizeof(rf_preview_vertex);
     mesh->vertices = (rf_preview_vertex *)malloc(mesh->bytes);
     if (!mesh->vertices) { rf_preview_close(mesh); return RF_RANGE; }
-    result = generate(mesh, g, level, count,origin,matrix,material_base);
+    result = generate(mesh, g, level, count,origin,matrix,material_base,NULL);
     if (result != RF_OK) rf_preview_close(mesh);
     return result;
 }
@@ -245,11 +251,11 @@ static int mover_render_family(void *context,uint32_t kind)
 {
     mover_render_context *c=context;if(kind!=9)return RF_RANGE;
     if((uint8_t)c->disabled || !c->geometry)return RF_OK;
-    return generate(c->mesh,c->geometry,c->level,c->capacity,c->origin,c->matrix,0);
+    return generate(c->mesh,c->geometry,c->level,c->capacity,c->origin,c->matrix,0,NULL);
 }
 static int world_mesh(rf_preview_mesh *mesh,const rf_geometry *world,
     const rf_geometry_movers *movers,const rf_group_attached_pose *poses,
-    const rf_geometry_materials *materials,const rf_level *level,uint32_t budget,int reuse,rf_preview_vertex *scratch,rf_group_attached_pose *render_poses,uint32_t disabled)
+    const rf_geometry_materials *materials,const rf_level *level,uint32_t budget,int reuse,rf_preview_vertex *scratch,rf_group_attached_pose *render_poses,uint32_t disabled,const rf_visibility *visibility)
 {
     rf_preview_mesh next={0};uint32_t pass,i,j,total=0,capacity=budget/sizeof(rf_preview_vertex);int status;
     memset(rf_preview_failure,0,sizeof(rf_preview_failure));
@@ -267,6 +273,7 @@ static int world_mesh(rf_preview_mesh *mesh,const rf_geometry *world,
         for(j=materials->offsets[i];j<materials->offsets[i+1];++j)
             if(materials->slots[j]>=materials->textures.count)return RF_RANGE;
     }
+    if(visibility && (visibility->count!=world->rooms || !visibility->rooms))return RF_RANGE;
     next.vertices=scratch;
     for(pass=scratch?1:0;pass<2;++pass) {
         uint32_t at=0;
@@ -286,7 +293,7 @@ static int world_mesh(rf_preview_mesh *mesh,const rf_geometry *world,
                 rf_object_render_backend backend={mover_render_white,mover_render_kind,mover_render_prepare,mover_render_family,&context};
                 /* Local flags: sizing and failed emission must not publish markers. */
                 status=rf_object_render_dispatch(&flags,9,0,&backend);
-            } else status=generate(&part,g,level,capacity-at,origin,matrix,0);
+            } else status=generate(&part,g,level,capacity-at,origin,matrix,0,i?NULL:visibility);
             if(status)goto fail;
             if(pass)for(j=0;j<part.count;++j) {
                 if(part.vertices[j].material>=g->textures){status=RF_FORMAT;goto fail;}
@@ -314,14 +321,14 @@ int rf_preview_build_world(rf_preview_mesh *mesh,const rf_geometry *world,
     const rf_geometry_movers *movers,const rf_group_attached_pose *poses,
     const rf_geometry_materials *materials,const rf_level *level,uint32_t budget)
 {
-    return world_mesh(mesh,world,movers,poses,materials,level,budget,0,NULL,NULL,0);
+    return world_mesh(mesh,world,movers,poses,materials,level,budget,0,NULL,NULL,0,NULL);
 }
 int rf_preview_update_world(rf_preview_mesh *mesh,uint32_t capacity_bytes,
     const rf_geometry *world,const rf_geometry_movers *movers,
     const rf_group_attached_pose *poses,const rf_geometry_materials *materials,
     const rf_level *level)
 {
-    return world_mesh(mesh,world,movers,poses,materials,level,capacity_bytes,1,NULL,NULL,0);
+    return world_mesh(mesh,world,movers,poses,materials,level,capacity_bytes,1,NULL,NULL,0,NULL);
 }
 int rf_preview_update_world_staged(rf_preview_mesh *mesh,uint32_t capacity_bytes,
     rf_preview_vertex *scratch,uint32_t scratch_bytes,const rf_geometry *world,
@@ -333,7 +340,7 @@ int rf_preview_update_world_staged(rf_preview_mesh *mesh,uint32_t capacity_bytes
     destination=(uintptr_t)mesh->vertices;
     if(source>UINTPTR_MAX-scratch_bytes || destination>UINTPTR_MAX-capacity_bytes ||
        (source<destination+capacity_bytes && destination<source+scratch_bytes))return RF_RANGE;
-    return world_mesh(mesh,world,movers,poses,materials,level,capacity_bytes,1,scratch,NULL,0);
+    return world_mesh(mesh,world,movers,poses,materials,level,capacity_bytes,1,scratch,NULL,0,NULL);
 }
 
 static int preview_model_emit(const rf_model_geometry *geometry,uint32_t batch,
@@ -408,6 +415,15 @@ int rf_preview_update_world_dispatch(rf_preview_mesh *mesh,uint32_t capacity_byt
     const rf_geometry_movers *movers,rf_group_attached_pose *poses,
     const rf_geometry_materials *materials,const rf_level *level,uint32_t disabled)
 {
+    return rf_preview_update_world_visible(mesh,capacity_bytes,scratch,scratch_bytes,
+        world,movers,poses,materials,level,disabled,NULL);
+}
+int rf_preview_update_world_visible(rf_preview_mesh *mesh,uint32_t capacity_bytes,
+    rf_preview_vertex *scratch,uint32_t scratch_bytes,const rf_geometry *world,
+    const rf_geometry_movers *movers,rf_group_attached_pose *poses,
+    const rf_geometry_materials *materials,const rf_level *level,uint32_t disabled,
+    const rf_visibility *visibility)
+{
     uintptr_t source=(uintptr_t)scratch,destination;
     if(!mesh || !movers || (movers->count && !poses))return RF_RANGE;
     if(scratch) {
@@ -415,5 +431,5 @@ int rf_preview_update_world_dispatch(rf_preview_mesh *mesh,uint32_t capacity_byt
         if(scratch_bytes<capacity_bytes || source>UINTPTR_MAX-scratch_bytes || destination>UINTPTR_MAX-capacity_bytes ||
             (source<destination+capacity_bytes && destination<source+scratch_bytes))return RF_RANGE;
     }
-    return world_mesh(mesh,world,movers,poses,materials,level,capacity_bytes,1,scratch,poses,disabled);
+    return world_mesh(mesh,world,movers,poses,materials,level,capacity_bytes,1,scratch,poses,disabled,visibility);
 }

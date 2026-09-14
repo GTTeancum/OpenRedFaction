@@ -34,6 +34,18 @@ Shortlist:
 
 Progress reporting: include a very high-level working area (e.g. Lighting, AI, Weapons, GeoMod or Scripted events) and an overall percent estimate at the end of every turn report (USER preference) and revisit remaining 24-hour workdays when measured throughput supports a forecast; current rough estimate45% (35-45%), no defensible +/-48-hour completion forecast before end-to-end gameplay.
 
+Primary-room culling verified in replay-20260914-095052: stock64MiB native
+180-frame crossing/state/HUD checks pass; complete final framebuffer exactly
+matches094219. World rebuild23.356->13.538ms; platform24.058->18.817ms;
+scene82.529->65.000ms (~15FPS-equivalent, not hardware FPS). Final batches
+388->85, measured mesh methods2100->463. This eliminates unseen world work
+without changing geometry residency or adding allocations. Both builds and
+37 tests pass. Five PC transition final images match; actor8323 retains one
+reviewed changed pixel, explicitly PASS_WITH_DIFFERENCES in comparison/report.json.
+Broader camera and portal-boundary testing, detail-parent culling and that
+one-pixel discrepancy remain open. Evidence: artifacts/world-room-culling/
+performance.json and artifacts/xemu/replay-20260914-095052/native-image-comparison.json.
+
 GPU state reuse verified in replay-20260914-094219: stock64MiB180-frame
 crossing/state/HUD checks pass, and full native final framebuffer exactly
 matches093743. Last frame388 batches require2100 methods instead of6596

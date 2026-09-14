@@ -371,7 +371,7 @@ int rf_scene_world_update_camera_staged(const rf_scene_world_geometry *geometry,
 static int scene_world_dispatch_camera(const rf_scene_world_geometry *geometry,
     rf_group_attached_pose *poses,uint32_t pose_count,const float position[3],
     const float orientation[3][3],rf_preview_mesh *mesh,uint32_t capacity_bytes,
-    rf_preview_vertex *scratch,uint32_t scratch_bytes)
+    rf_preview_vertex *scratch,uint32_t scratch_bytes,const rf_visibility *visibility)
 {
     rf_geometry_materials mapping={0};rf_level camera={0};uint32_t i,j;
     if(!geometry || !geometry->world || !position || !orientation || pose_count!=geometry->movers.count)return RF_RANGE;
@@ -382,8 +382,8 @@ static int scene_world_dispatch_camera(const rf_scene_world_geometry *geometry,
     mapping.offsets=geometry->offsets;mapping.slots=geometry->slots;mapping.count=geometry->geometry_count;
     mapping.textures.count=geometry->material_count;
     memcpy(camera.player_position,position,12);memcpy(camera.player_orientation,orientation,36);
-    return rf_preview_update_world_dispatch(mesh,capacity_bytes,scratch,scratch_bytes,
-        geometry->world,&geometry->movers,poses,&mapping,&camera,0);
+    return rf_preview_update_world_visible(mesh,capacity_bytes,scratch,scratch_bytes,
+        geometry->world,&geometry->movers,poses,&mapping,&camera,0,visibility);
 }
 int rf_scene_preview_camera(rf_level *level,int32_t uid)
 {
@@ -7889,16 +7889,16 @@ static int actor_follow_view(void *context,uint32_t frame,const rf_motion_contro
      world_mesh.count=stream->world;world_mesh.bytes=stream->world*sizeof(rf_preview_vertex);
      rf_preview_failure[0]=0;
      if(rf_scene_actor_eye_enabled && world_mesh.bytes>world_capacity)
-        status=scene_world_dispatch_camera(actor_follow_world,campaign_movers.poses,campaign_movers.count,position,orientation,&world_mesh,stream->capacity-(campaign_spawn?1024*1024:0),NULL,0);
+        status=scene_world_dispatch_camera(actor_follow_world,campaign_movers.poses,campaign_movers.count,position,orientation,&world_mesh,stream->capacity-(campaign_spawn?1024*1024:0),NULL,0,stream->visibility.storage?&stream->visibility.state:NULL);
      else {
         status=scene_world_dispatch_camera(actor_follow_world,campaign_movers.poses,campaign_movers.count,position,orientation,
         &world_mesh,world_capacity,stream->mesh->vertices+world_capacity/sizeof(rf_preview_vertex),
-        stream->capacity-world_capacity);
+        stream->capacity-world_capacity,stream->visibility.storage?&stream->visibility.state:NULL);
         /* First-person rendering has no visible actor prefix to reserve. A
          * large world may use the whole allocation through the transactional
          * two-pass path instead of terminating at the staging-half boundary. */
         if(status==RF_RANGE && rf_scene_actor_eye_enabled && rf_preview_failure[0])
-            status=scene_world_dispatch_camera(actor_follow_world,campaign_movers.poses,campaign_movers.count,position,orientation,&world_mesh,stream->capacity-(campaign_spawn?1024*1024:0),NULL,0);
+            status=scene_world_dispatch_camera(actor_follow_world,campaign_movers.poses,campaign_movers.count,position,orientation,&world_mesh,stream->capacity-(campaign_spawn?1024*1024:0),NULL,0,stream->visibility.storage?&stream->visibility.state:NULL);
      }
      if(status){rf_scene_profile_stage[1]=108;return status;}
      *stream->mesh=world_mesh;}

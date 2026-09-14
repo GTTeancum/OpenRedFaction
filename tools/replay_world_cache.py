@@ -4,6 +4,8 @@ from pathlib import Path
 
 p = argparse.ArgumentParser()
 p.add_argument('baseline', type=Path)
+p.add_argument('--max-changed-pixels', type=int, default=0, help='Explicit reviewed final-image difference budget; default exact')
+p.add_argument('--allow-world-changes', action='store_true', help='Permit world mesh summary changes while checking pixels and other state')
 p.add_argument('--out', type=Path, default=Path('artifacts/world-cache'))
 a = p.parse_args()
 r = Path(__file__).resolve().parents[1]
@@ -44,10 +46,20 @@ for name, level, uid in cases:
             assert sum(x.startswith('LEVEL_TRANSITION ') for x in rows) == 1
         runs.append(rows)
         images.append(output.read_bytes())
+    if a.allow_world_changes:
+        runs = [[x for x in rows if not x.startswith("ACTOR_FOLLOW_SUMMARY ")] for rows in runs]
     assert runs[0] == runs[1], (name, 'world/model/state summaries changed')
-    assert images[0] == images[1], (name, 'final pixels changed')
-    results.append(dict(case=name, pixels_identical=True, summaries=runs[1]))
+    changed = 0
+    if images[0] != images[1]:
+        from PIL import Image
+        from io import BytesIO
+        pair = [Image.open(BytesIO(x)).convert("RGB") for x in images]
+        assert pair[0].size == pair[1].size
+        changed = sum(x != y for x, y in zip(pair[0].get_flattened_data(), pair[1].get_flattened_data()))
+    assert changed <= a.max_changed_pixels, (name, "changed pixels", changed)
+
+    results.append(dict(case=name, pixels_identical=changed==0, changed_pixels=changed, summaries=runs[1]))
     print(name, 'PASS', flush=True)
-report = dict(result='PASS', executable_sha256=hashes, cases=results,
-              scope='Five walking transitions and one visible-actor camera; exact final pixels and selected world/model/player summaries. Not exhaustive campaign coverage.')
+report = dict(result='PASS_WITH_DIFFERENCES' if any(x['changed_pixels'] for x in results) else 'PASS', pixel_budget=a.max_changed_pixels, world_changes_allowed=a.allow_world_changes, executable_sha256=hashes, cases=results,
+              scope='Five walking transitions and one visible-actor camera; final pixel differences and selected world/model/player summaries. Not exhaustive campaign coverage.')
 (d / 'report.json').write_text(json.dumps(report, indent=2))

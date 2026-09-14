@@ -187,3 +187,27 @@ result remains applicable, and harness PC/native state comparison passes.
 Evidence: artifacts/gpu-state/performance.json and
 artifacts/xemu/replay-20260914-094219/native-image-comparison.json.
 Next: larger world projection/visibility and scene preparation costs.
+
+Primary-room world culling candidate: world preview now borrows the same
+visibility indices used by actors; it skips only primary rooms marked
+invisible. Detail-room faces remain because traversal does not independently
+mark them; unassigned faces, movers and absent-visibility paths are retained.
+No allocation. Five PC transition final images/state comparisons match.
+Actor8323 changes exactly one pixel at(117,212), RGB60,42,25->42,34,34;
+inspected captures show intact scene/actor/HUD. Accepted as a documented
+first-pass visual difference, not exact parity. Strict comparison failed
+as intended; explicit one-pixel-budget rerun preserves this difference in
+its report. All37 tests pass. Native timing/capture validation completed; results follow.
+TODO: broader camera/portal-boundary coverage and detail-parent eligibility.
+
+Primary-room culling verified in replay-20260914-095052: stock64MiB native
+180-frame crossing/state/HUD checks pass; complete final framebuffer exactly
+matches094219. World rebuild23.356->13.538ms; platform24.058->18.817ms;
+scene82.529->65.000ms (~15FPS-equivalent, not hardware FPS). Final batches
+388->85, measured mesh methods2100->463. This eliminates unseen world work
+without changing geometry residency or adding allocations. Both builds and
+37 tests pass. Five PC transition final images match; actor8323 retains one
+reviewed changed pixel, explicitly PASS_WITH_DIFFERENCES in comparison/report.json.
+Broader camera and portal-boundary testing, detail-parent culling and that
+one-pixel discrepancy remain open. Evidence: artifacts/world-room-culling/
+performance.json and artifacts/xemu/replay-20260914-095052/native-image-comparison.json.

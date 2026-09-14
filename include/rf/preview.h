@@ -87,4 +87,13 @@ int rf_preview_update_world_dispatch(rf_preview_mesh *mesh,uint32_t capacity_byt
     rf_preview_vertex *scratch,uint32_t scratch_bytes,const rf_geometry *world,
     const rf_geometry_movers *movers,rf_group_attached_pose *poses,
     const rf_geometry_materials *materials,const rf_level *level,uint32_t disabled);
+/* As dispatch, with borrowed primary-room visibility from this same geometry
+ * and camera. Detail/unknown rooms and movers are conservatively retained.
+ * NULL preserves unfiltered rendering; no allocation or visibility mutation. */
+struct rf_visibility;
+int rf_preview_update_world_visible(rf_preview_mesh *mesh,uint32_t capacity_bytes,
+    rf_preview_vertex *scratch,uint32_t scratch_bytes,const rf_geometry *world,
+    const rf_geometry_movers *movers,rf_group_attached_pose *poses,
+    const rf_geometry_materials *materials,const rf_level *level,uint32_t disabled,
+    const struct rf_visibility *visibility);
 #endif
