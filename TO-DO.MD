@@ -6,7 +6,7 @@ and defer visual polish. Focus: movement, combat/damage, AI, mission events,
 then level progression. Fidelity remains a later completion requirement.
 
 Shortlist:
-- ACTIVE: Replace prototype pistol rules with validated authored settings and semi-automatic input handling.
+- ACTIVE: Connect finite ammunition, pickups and weapon selection to campaign combat.
 - ACTIVE: Connect first-person weapon presentation and firing/reload feedback.
 - Continue campaign traversal/physics coverage beyond the repaired walking route.
 - DEFERRED / TO COMPLETE: Finish lighting lifecycle updates, shadows and visual parity within64MiB; revisit after critical gameplay systems.
@@ -23,13 +23,17 @@ Shortlist:
 
 Progress reporting: include a very high-level working area (e.g. Lighting, AI, Weapons, GeoMod or Scripted events) and an overall percent estimate at the end of every turn report (USER preference) and revisit remaining 24-hour workdays when measured throughput supports a forecast; current rough estimate42% (35-45%), no defensible +/-48-hour completion forecast before end-to-end gameplay.
 
-Primary weapon definition loading is implemented: the installed pistol yields
-16 rounds,40 SP damage,1.1s reload,0.5s primary fire wait and semi-automatic
-input. The20-byte definition uses the existing NXDK-safe decimal reader,
-bounded table scratch and preserves output on invalid/missing fields. PC
-fixture and installed-data tests pass. Live combat still uses prototype values;
-next wire the definition into firing, reload, respawn and HUD, and replace held
-fire replay inputs with deliberate presses where appropriate.
+Live pistol combat now uses the authored16-round magazine,40 SP base damage,
+66-tick reload and30-tick primary cooldown. Semi-automatic input fires only on
+a fresh press; presses during cooldown/reload are consumed rather than queued.
+Reload completion, respawn ammo and HUD use the same definition. Damage type
+is now authored bullet rather than prototype bash. The24-byte definition uses
+the existing NXDK-safe parser and is loaded once; finite reserve and pickups
+remain open. Six PC rule cases,27 CTests and kill/death regressions pass.
+Stock64MiB XEMU127-frame reload-boundary PASS:16 rounds restored, bullet
+damage selected, HUD/state match PC,6936 available pages. Both builds and
+player death/respawn regressions pass. Evidence:
+artifacts/xemu/replay-20260914-020444/report.json.
 
 First-person pistol resource owner is implemented in shared C:40 bones,847
 vertices,8 materials and resident idle/fire/reload clips. PC resident934656

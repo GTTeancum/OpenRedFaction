@@ -457,11 +457,20 @@ int rf_weapon_primary_read(const void *text,uint32_t bytes,const char *name,rf_w
             if(same(t,"Wait:")) {bit=4;if(mask&bit)return RF_FORMAT;if(sphere_number(&l,&v.fire_seconds))return RF_FORMAT;}
         } else if(same(t,"$Damage:")) {
             bit=8;if(mask&bit)return RF_FORMAT;if(sphere_number(&l,&v.damage))return RF_FORMAT;
+        } else if(same(t,"$Damage")) {
+            static const char *names[]={"bash","bullet","armor piercing bullet","explosive","fire","energy","electrical","acid","scalding"};
+            uint32_t k;
+            if(token(&l,t,&q) || q)return RF_FORMAT;
+            if(!same(t,"Type:"))continue;
+            bit=32;if(mask&bit)return RF_FORMAT;
+            if(token(&l,t,&q) || !q)return RF_FORMAT;
+            for(k=0;k<9;k++)if(same(t,names[k]))break;
+            if(k==9)return RF_FORMAT;v.damage_kind=(int32_t)k;
         }
         mask|=bit;
     }
     if(status!=RF_OK && status!=RF_NOT_FOUND)return status;
-    if(!found)return RF_NOT_FOUND;if((mask&15)!=15)return RF_FORMAT;
+    if(!found)return RF_NOT_FOUND;if((mask&47)!=47)return RF_FORMAT;
     if(!(v.reload_seconds>0 && v.reload_seconds<=60 && v.fire_seconds>0 && v.fire_seconds<=60 && v.damage>0 && v.damage<=1000000))return RF_RANGE;
     *result=v;return RF_OK;
 }

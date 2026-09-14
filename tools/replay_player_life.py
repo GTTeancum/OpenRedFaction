@@ -24,7 +24,7 @@ for name,frames in [('dead',1350),('held',1350),('respawn',1301),('resume',1500)
   ring=row('ACTOR_PLAYER_INPUT');assert all(ring[i:i+6]==[0]*6 for i in range(1,len(ring),7))
   image=Image.open(folder/(name+'.ppm'));image.save(folder/'dead.png');assert image.getpixel((225,185))==(16,16,16)
  if name in ('respawn','resume'):assert life[1:3]==[1,0] and life[4]==1300 and health>0
- if name=='respawn':assert health==100 and combat[5:7]==[12,0]
+ if name=='respawn':assert health==100 and combat[5:7]==[16,0]
  if name=='resume':
   assert combat[0]==2
   ring=row('ACTOR_PLAYER_INPUT');assert all(ring[i]==3212836864 for i in range(1,len(ring),7))

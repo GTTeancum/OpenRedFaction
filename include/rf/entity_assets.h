@@ -14,7 +14,7 @@
  * SP values only; finite positive timing/damage and a bounded magazine.
  * Output is preserved on malformed, duplicate or missing required fields. */
 typedef struct rf_weapon_primary_definition {
-    uint32_t magazine,semi_automatic;float reload_seconds,fire_seconds,damage;
+    uint32_t magazine,semi_automatic;float reload_seconds,fire_seconds,damage;int32_t damage_kind;
 } rf_weapon_primary_definition;
 int rf_weapon_primary_read(const void *text,uint32_t bytes,const char *name,rf_weapon_primary_definition *result);
 int rf_weapon_primary_load(rf_vpp *tables,const char *name,uint32_t scratch_budget,rf_weapon_primary_definition *result);

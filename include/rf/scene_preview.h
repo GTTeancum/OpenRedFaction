@@ -706,6 +706,7 @@ extern uint32_t rf_scene_enemy_awareness[8];
 extern uint32_t rf_scene_enemy_combat[8];
 extern uint32_t rf_scene_weapon_audio[9];
 extern uint32_t rf_scene_player_weapon[8];
+extern uint32_t rf_scene_pistol_rules[7];
 extern uint32_t rf_scene_combat_death[8];
 extern uint32_t rf_scene_combat[8]; /* shots,hits,kills,last target,health bits,clip,reload ticks,status */
 /* RFI4 + size40 adds fire/reload. RFI3 + uint32 size32 includes use; RFI2 size28 omits use; legacy raw

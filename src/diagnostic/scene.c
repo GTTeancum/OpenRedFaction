@@ -1318,6 +1318,9 @@ static rf_clutter_catalogs campaign_clutter_catalogs;
 static int32_t campaign_riot_shield_class=-1;
 uint32_t rf_scene_clutter_contact_test[8];
 static rf_weapon_supply_catalog campaign_weapon_supply;
+static rf_weapon_primary_definition campaign_pistol;
+static uint32_t pistol_reload_ticks,pistol_fire_ticks,combat_fire_held;
+uint32_t rf_scene_pistol_rules[7]; /* magazine,reload ticks,fire ticks,SP damage bits,semi-auto,definition bytes,damage kind */
 static rf_weapon_reset_catalog campaign_weapon_reset;
 uint32_t rf_scene_weapon_reset_catalog[4]; /* weapons,resolved stop sounds,bytes,hash */
 uint32_t rf_scene_weapon_supply[4]; /* count,primary count,retained bytes,catalog hash */
@@ -2850,6 +2853,14 @@ static int campaign_clutter_open(const char *tables_path,const rf_level *level)
         rf_scene_weapon_supply[1]=campaign_weapon_supply.names.primary_count;
         rf_scene_weapon_supply[2]=sizeof(campaign_weapon_supply);
         rf_scene_weapon_supply[3]=npc_hash_bytes(2166136261u,&campaign_weapon_supply,sizeof(campaign_weapon_supply));
+    }
+    if(!status)status=rf_weapon_primary_load(&tables,"12mm handgun",128*1024,&campaign_pistol);
+    if(!status) {
+        pistol_reload_ticks=(uint32_t)ceilf(campaign_pistol.reload_seconds*60.0f);
+        pistol_fire_ticks=(uint32_t)ceilf(campaign_pistol.fire_seconds*60.0f);
+        rf_scene_pistol_rules[0]=campaign_pistol.magazine;rf_scene_pistol_rules[1]=pistol_reload_ticks;
+        rf_scene_pistol_rules[2]=pistol_fire_ticks;memcpy(rf_scene_pistol_rules+3,&campaign_pistol.damage,4);
+        rf_scene_pistol_rules[4]=campaign_pistol.semi_automatic;rf_scene_pistol_rules[5]=sizeof(campaign_pistol);rf_scene_pistol_rules[6]=(uint32_t)campaign_pistol.damage_kind;
     }
     if(!status)status=rf_clutter_catalogs_open(&tables,&campaign_foley,65536,&campaign_clutter_catalogs);
     memset(&campaign_contact_splashes,0,sizeof(campaign_contact_splashes));
@@ -7003,7 +7014,7 @@ static int campaign_life_input(uint32_t frame,rf_scene_input *input)
     campaign_support_handle=life_start.support;memcpy(campaign_support_velocity,life_start.support_velocity,12);
     campaign_crouched=(life_start.stance&0x400)!=0;campaign_jump_held=0;
     memset(&campaign_player_flash,0,sizeof(campaign_player_flash));memset(&campaign_camera_effect,0,sizeof(campaign_camera_effect));
-    combat_cooldown=0;combat_hit_frame=UINT32_MAX;rf_scene_combat[5]=12;rf_scene_combat[6]=0;
+    combat_cooldown=0;combat_hit_frame=UINT32_MAX;rf_scene_combat[5]=campaign_pistol.magazine;rf_scene_combat[6]=0;
     for(i=0;i<campaign_npc_body_count;i++)campaign_npc_bodies[i].combat_alert=campaign_npc_bodies[i].combat_due=0;
     rf_scene_enemy_combat[6]=0;memcpy(rf_scene_enemy_combat+5,&campaign_player_damage.state.effects.health,4);
     ++rf_scene_player_life[1];rf_scene_player_life[2]=0;rf_scene_player_life[4]=frame;
@@ -7107,21 +7118,22 @@ static int campaign_enemy_tick(scene_stream *stream,uint32_t frame,const float p
 }
 static int campaign_combat_tick(scene_stream *stream,uint32_t frame,const float position[3],const float orientation[3][3])
 {
-    float delta[3],nearest=1,amount;uint32_t i,target=UINT32_MAX,blocked;int status;
-    if(!frame){memset(rf_scene_weapon_audio,0,sizeof(rf_scene_weapon_audio));combat_sound_random.value=1;memset(rf_scene_combat_death,0,sizeof(rf_scene_combat_death));memset(rf_scene_combat,0,sizeof(rf_scene_combat));rf_scene_combat[3]=UINT32_MAX;rf_scene_combat[5]=12;combat_cooldown=0;combat_frame=combat_hit_frame=UINT32_MAX;
+    float delta[3],nearest=1,amount;uint32_t i,target=UINT32_MAX,blocked,fire;int status;
+    if(!frame){memset(rf_scene_weapon_audio,0,sizeof(rf_scene_weapon_audio));combat_sound_random.value=1;memset(rf_scene_combat_death,0,sizeof(rf_scene_combat_death));memset(rf_scene_combat,0,sizeof(rf_scene_combat));rf_scene_combat[3]=UINT32_MAX;rf_scene_combat[5]=campaign_pistol.magazine;combat_cooldown=0;combat_fire_held=0;combat_frame=combat_hit_frame=UINT32_MAX;
         memset(rf_scene_enemy_awareness,0,sizeof(rf_scene_enemy_awareness));
         memset(rf_scene_enemy_combat,0,sizeof(rf_scene_enemy_combat));combat_initial_health=campaign_player_damage.state.effects.health;
         for(i=0;i<campaign_npc_body_count;i++)campaign_npc_bodies[i].combat_alert=campaign_npc_bodies[i].combat_due=0;
 }
     if(combat_frame==frame)return RF_OK;combat_frame=frame;
+    fire=player_input.fire && (!campaign_pistol.semi_automatic || !combat_fire_held);combat_fire_held=!!player_input.fire;
     status=campaign_enemy_tick(stream,frame,position);rf_scene_enemy_combat[7]=(uint32_t)status;if(status)return status;
     if(rf_scene_enemy_combat[6])return RF_OK;
     if(combat_cooldown)--combat_cooldown;
-    if(rf_scene_combat[6]){if(!--rf_scene_combat[6])rf_scene_combat[5]=12;return RF_OK;}
-    if(player_input.reload && rf_scene_combat[5]<12){rf_scene_combat[6]=72;combat_sound("Glock Reload",position);return RF_OK;}
-    if(!player_input.fire || combat_cooldown)return RF_OK;
-    if(!rf_scene_combat[5]){rf_scene_combat[6]=72;combat_sound("Glock Reload",position);return RF_OK;}
-    --rf_scene_combat[5];++rf_scene_combat[0];combat_cooldown=12;combat_sound("Glock Launch",position);
+    if(rf_scene_combat[6]){if(!--rf_scene_combat[6])rf_scene_combat[5]=campaign_pistol.magazine;return RF_OK;}
+    if(player_input.reload && rf_scene_combat[5]<campaign_pistol.magazine){rf_scene_combat[6]=pistol_reload_ticks;combat_sound("Glock Reload",position);return RF_OK;}
+    if(!fire || combat_cooldown)return RF_OK;
+    if(!rf_scene_combat[5]){rf_scene_combat[6]=pistol_reload_ticks;combat_sound("Glock Reload",position);return RF_OK;}
+    --rf_scene_combat[5];++rf_scene_combat[0];combat_cooldown=pistol_fire_ticks;combat_sound("Glock Launch",position);
     for(i=0;i<3;i++)delta[i]=orientation[2][i]*100;
     for(i=0;i<campaign_npc_body_count;i++) {
         campaign_npc_body *owner=campaign_npc_bodies+i;float fraction;
@@ -7132,7 +7144,7 @@ static int campaign_combat_tick(scene_stream *stream,uint32_t frame,const float 
         status=combat_shot_obstructed(stream,position,delta,nearest,&blocked);if(status)return status;
         if(blocked)return RF_OK;
         campaign_npc_body *owner=campaign_npc_bodies+target;uint32_t handle=owner->registration.handle,entered,clock_bits;
-        float seconds=(float)frame/60;rf_damage_request request={25,campaign_player_object.handle,0,0,UINT32_MAX,0};
+        float seconds=(float)frame/60;rf_damage_request request={campaign_pistol.damage,campaign_player_object.handle,campaign_pistol.damage_kind,0,UINT32_MAX,0};
         rf_damage_effect_backend effects={combat_predicate,combat_uid,combat_source,combat_burn,combat_random,combat_notify,combat_playing,combat_play,NULL};
         memcpy(&clock_bits,&seconds,4);status=rf_scene_npc_damage(handle,&request,1,clock_bits,&effects,&amount);if(status)return status;
         if(amount>0){combat_hit_frame=frame;
@@ -7190,12 +7202,13 @@ int rf_scene_draw_combat_hud(rf_scene_particle_sink sink,void *context)
      status=combat_hud_rect(sink,context,26,444,128,12,0xff484848);if(status)return status;
      if(health>0){status=combat_hud_rect(sink,context,26,444,128*health,12,health>.25f?0xff60cc80:0xffee4040);if(status)return status;}}
     status=combat_hud_rect(sink,context,470,436,146,28,0xff101010);if(status)return status;
-    for(i=0;i<12;i++) {
-        status=combat_hud_rect(sink,context,477+i*11,443,7,12,i<rf_scene_combat[5]?0xffeeeeee:0xff484848);if(status)return status;
+    for(i=0;i<campaign_pistol.magazine;i++) {
+        float step=132.0f/campaign_pistol.magazine;
+        status=combat_hud_rect(sink,context,477+i*step,443,step-2,12,i<rf_scene_combat[5]?0xffeeeeee:0xff484848);if(status)return status;
     }
     if(rf_scene_combat[6]) {
         status=combat_hud_rect(sink,context,477,458,128,3,0xff484848);if(status)return status;
-        status=combat_hud_rect(sink,context,477,458,128.0f*(72-rf_scene_combat[6])/72.0f,3,0xffffc040);if(status)return status;
+        status=combat_hud_rect(sink,context,477,458,128.0f*(pistol_reload_ticks-rf_scene_combat[6])/pistol_reload_ticks,3,0xffffc040);if(status)return status;
     }
     if(rf_scene_enemy_combat[6]) {
         status=combat_hud_rect(sink,context,224,184,192,64,0xff101010);if(status)return status;

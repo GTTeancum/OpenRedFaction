@@ -822,3 +822,35 @@ The installed12mm handgun gives16/1.1/0.5/40 and semi-automatic input. Tests
 cover SP-versus-MP selection, duplicate fields, invalid magazine, missing name
 and unchanged output on failure. Runtime integration remains open: current
 prototype firing still repeats when held and uses12/72/12/25.
+
+## Live authored pistol rules
+
+This supersedes the prototype12-round/72-tick/12-tick/25-damage values above.
+Campaign startup loads the named pistol definition once:16 rounds,1.1 seconds
+reload,0.5 seconds primary cooldown,40 SP damage,semi_automatic and bullet
+damage type1. The24-byte definition plus three state/timer words replace the
+scattered prototype values. The HUD scales magazine bars to the capacity.
+
+Seconds convert to simulation ticks with ceil(seconds*60). A trigger rising
+edge is consumed even during cooldown or reload, preventing delayed shots
+from a held trigger. Empty-magazine fire requests automatic reload. Reload
+and in-place respawn refill the authored magazine; reserve remains unlimited
+until pickups/inventory are connected. Fire/reload audio and animation still
+use the established event edges. This is first-pass input scheduling, not a
+claim of recovered original trigger-buffer behavior.
+
+Player shots now pass the authored damage kind through the shared damage
+pipeline, fixing the prototype bash tag. NPC retaliation still has its own
+first-pass tuning. Full weapon descriptors, alternate fire and damage by hit
+location remain open. Six recorded rule cases cover held trigger, presses
+faster than the cooldown, both sides of reload completion, held fire through
+reload and automatic reload. See tools/replay_pistol_rules.py.
+
+Validation: both builds,27 CTests,six firing-rule cases,kill/death and player
+death/respawn regressions pass. Updated audio replay uses discrete30-tick
+presses; automatic reload produces18 shots plus1 reload in660 frames.
+Final stock64MiB XEMU127-frame reload-boundary PASS:16 rounds restored,
+PC-identical rules/combat/HUD and6936 available pages. Native framebuffer
+inspected. Evidence artifacts/xemu/replay-20260914-020444/report.json.
+Clip completion and authored gameplay reload deadline remain separate; exact
+animation-marker synchronization is still open.

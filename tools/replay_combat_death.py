@@ -4,7 +4,7 @@ from pathlib import Path
 from PIL import Image
 root=Path(__file__).resolve().parents[1];folder=root/'artifacts/combat-death';folder.mkdir(exist_ok=True);rows=[]
 for frames in (360,480):
- source=folder/(str(frames)+'.bin');source.write_bytes(b'RFI4'+struct.pack('<I',40)+b''.join(struct.pack('<5f5I',0,0,0,0,0,0,0,0,int(i>=30),0) for i in range(frames)))
+ source=folder/(str(frames)+'.bin');source.write_bytes(b'RFI4'+struct.pack('<I',40)+b''.join(struct.pack('<5f5I',0,0,0,0,0,0,0,0,int(i>=30 and i%30==0),0) for i in range(frames)))
  env=dict(os.environ,RF_REPLAY_ACTOR_UID='8456',RF_REPLAY_LEVEL='L1S1.rfl',RF_REPLAY_ARCHIVE='levels1.vpp')
  for key in ('RF_REPLAY_DAMAGE_UID','RF_REPLAY_DEATH_ANIMATION','RF_REPLAY_LIGHTMAP_REGEN','RF_REPLAY_DOOR_START','RF_REPLAY_REGION_START','RF_REPLAY_LIFT_START','RF_REPLAY_FORCE_UID'):env.pop(key,None)
  run=subprocess.run([str(root/'build/pc/Release/rf_pc_play.exe'),'--spawn-replay',str(root/'Installed_Game'),str(source),str(folder/(str(frames)+'.ppm'))],env=env,capture_output=True,text=True)

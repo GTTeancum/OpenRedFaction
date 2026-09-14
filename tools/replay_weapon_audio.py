@@ -2,8 +2,8 @@
 import os,struct,subprocess,json,hashlib,wave
 from pathlib import Path
 root=Path(__file__).resolve().parents[1];folder=root/'artifacts/weapon-audio';folder.mkdir(exist_ok=True);rows=[]
-for name,frames,requests in [('idle',180,0),('shot',180,1),('reload',180,2),('auto',360,23),('full_clip',180,0)]:
- source=folder/(name+'.bin');source.write_bytes(b'RFI4'+struct.pack('<I',40)+b''.join(struct.pack('<5f5I',0,0,0,0,0,0,0,0,int(name in ('shot','reload','auto') and (i==30 or (name=='auto' and i>=30))),int(name in ('reload','full_clip') and i>=60)) for i in range(frames)))
+for name,frames,requests in [('idle',180,0),('shot',180,1),('reload',180,2),('auto',660,19),('full_clip',180,0)]:
+ source=folder/(name+'.bin');source.write_bytes(b'RFI4'+struct.pack('<I',40)+b''.join(struct.pack('<5f5I',0,0,0,0,0,0,0,0,int(name in ('shot','reload','auto') and (i==30 or (name=='auto' and i>=30 and i%30==0))),int(name in ('reload','full_clip') and i>=60)) for i in range(frames)))
  trace=folder/(name+'.trace');env=dict(os.environ,RF_REPLAY_ACTOR_UID='8431',RF_REPLAY_LEVEL='L1S1.rfl',RF_REPLAY_ARCHIVE='levels1.vpp',RF_REPLAY_AUDIO_TRACE=str(trace))
  for key in ('RF_REPLAY_DAMAGE_UID','RF_REPLAY_DEATH_ANIMATION','RF_REPLAY_LIGHTMAP_REGEN','RF_REPLAY_DOOR_START','RF_REPLAY_REGION_START','RF_REPLAY_LIFT_START','RF_REPLAY_FORCE_UID'):env.pop(key,None)
  run=subprocess.run([str(root/'build/pc/Release/rf_pc_play.exe'),'--spawn-replay',str(root/'Installed_Game'),str(source),str(folder/(name+'.ppm'))],env=env,capture_output=True,text=True)
