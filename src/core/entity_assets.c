@@ -3089,8 +3089,47 @@ int rf_entity_owned_pose_close(rf_entity_owned_pose *pose,rf_entity_playback_res
     status=rf_entity_pose_release(&pose->pose,resources);if(status)return status;
     free(pose->storage);memset(pose,0,sizeof(*pose));return RF_OK;
 }
-int rf_entity_pose_advance(rf_entity_pose *pose,const rf_entity_skeletons *skeletons,
-    const rf_entity_motion_catalog *catalog,rf_entity_playback_resources *resources,float elapsed,float displacement[3])
+void rf_entity_pose_batch_reset(rf_entity_pose_batch *batch)
+{
+    if(!batch)return;
+    batch->skeletons=NULL;batch->catalog=NULL;
+    batch->count=batch->next=batch->hits=batch->misses=batch->bypasses=0;
+}
+static int entity_pose_evaluate_shared(rf_entity_pose *pose,const rf_entity_skeletons *skeletons,
+    const rf_entity_motion_catalog *catalog,float displacement[3],rf_entity_pose_batch *batch)
+{
+    uint32_t i;float pending[3];int status;rf_entity_pose_batch_entry *entry;
+    if(!batch)return rf_entity_pose_evaluate(pose,skeletons,catalog,displacement);
+    if(!batch->count){batch->skeletons=skeletons;batch->catalog=catalog;}
+    if(batch->count>16 || batch->next>=16 || batch->skeletons!=skeletons || batch->catalog!=catalog ||
+       !pose->bone_count || pose->bone_count>50 || pose->playback.generation>65535)goto bypass;
+    for(i=0;i<pose->bone_count;++i)
+        if(pose->generations[i]==(uint16_t)pose->playback.generation ||
+           (pose->overrides && pose->overrides[i].enabled))goto bypass;
+    for(i=0;i<batch->count;++i) {
+        entry=batch->entries+i;
+        if(entry->skeleton!=pose->skeleton || entry->bone_count!=pose->bone_count ||
+           memcmp(&entry->active,&pose->playback.completion.active,sizeof(entry->active)) ||
+           memcmp(entry->displacement,displacement,sizeof(entry->displacement)))continue;
+        memcpy(pose->matrices,entry->matrices,pose->bone_count*sizeof(*pose->matrices));
+        for(i=0;i<pose->bone_count;++i)pose->generations[i]=(uint16_t)pose->playback.generation;
+        displacement[0]=displacement[1]=displacement[2]=0;
+        ++batch->hits;return RF_OK;
+    }
+    memcpy(pending,displacement,sizeof(pending));++batch->misses;
+    status=rf_entity_pose_evaluate(pose,skeletons,catalog,displacement);if(status)return status;
+    entry=batch->entries+batch->next;batch->next=(batch->next+1)%16;
+    if(batch->count<16)++batch->count;
+    entry->skeleton=pose->skeleton;entry->bone_count=pose->bone_count;
+    entry->active=pose->playback.completion.active;
+    memcpy(entry->displacement,pending,sizeof(pending));
+    memcpy(entry->matrices,pose->matrices,pose->bone_count*sizeof(*pose->matrices));return RF_OK;
+bypass:
+    ++batch->bypasses;return rf_entity_pose_evaluate(pose,skeletons,catalog,displacement);
+}
+static int entity_pose_advance(rf_entity_pose *pose,const rf_entity_skeletons *skeletons,
+    const rf_entity_motion_catalog *catalog,rf_entity_playback_resources *resources,float elapsed,float displacement[3],
+    rf_entity_pose_batch *batch)
 {
     rf_entity_playback_model *model;int status;
     if(!pose || !skeletons || !catalog || !resources || !resources->models || !catalog->models || !displacement ||
@@ -3099,8 +3138,15 @@ int rf_entity_pose_advance(rf_entity_pose *pose,const rf_entity_skeletons *skele
     model=resources->models+pose->skeleton;
     if(model->count!=catalog->models[pose->skeleton].count)return RF_RANGE;
     status=rf_motion_update(&pose->playback,model->resources,model->count,elapsed);if(status)return status;
-    return rf_entity_pose_evaluate(pose,skeletons,catalog,displacement);
+    return entity_pose_evaluate_shared(pose,skeletons,catalog,displacement,batch);
 }
+int rf_entity_pose_advance(rf_entity_pose *pose,const rf_entity_skeletons *skeletons,
+    const rf_entity_motion_catalog *catalog,rf_entity_playback_resources *resources,float elapsed,float displacement[3])
+{return entity_pose_advance(pose,skeletons,catalog,resources,elapsed,displacement,NULL);}
+int rf_entity_pose_advance_shared(rf_entity_pose *pose,const rf_entity_skeletons *skeletons,
+    const rf_entity_motion_catalog *catalog,rf_entity_playback_resources *resources,float elapsed,float displacement[3],
+    rf_entity_pose_batch *batch)
+{return entity_pose_advance(pose,skeletons,catalog,resources,elapsed,displacement,batch);}
 int rf_entity_pose_evaluate(rf_entity_pose *pose,const rf_entity_skeletons *skeletons,
     const rf_entity_motion_catalog *catalog,float pending_displacement[3])
 {

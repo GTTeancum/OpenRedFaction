@@ -16,7 +16,7 @@ def call(name,now):
  return u.reg_read(UC_X86_REG_EAX)
 rng=random.Random(601);n=0
 for initial in [0,0xfffffff0]:
- u.mem_write(base,bytes(32));last=initial;credit=0;steps=draws=skips=discarded=0;started=False;now=initial
+ u.mem_write(base,bytes(40));last=initial;credit=0;steps=draws=skips=discarded=0;started=False;now=initial;last_present=0
  for i in range(4000):
   now=(now+rng.choice([0,1,4,16,17,33,100,1000]))&0xffffffff
   if not started:credit=1000;started=True
@@ -28,11 +28,11 @@ for initial in [0,0xfffffff0]:
   if not expected:
    cost=rng.choice([0,1,8,16,17,50,100]);now=(now+cost)&0xffffffff
    credit+=cost*60;last=now;discarded+=max(0,credit-8000);credit=min(credit,8000)
-   render=cost>=17 or not(credit>=1000 and skips<8)
-   if render:skips=0;draws+=1
+   render=cost>=17 or not(draws and ((now-last_present)&0xffffffff)<33 and credit>=1000 and skips<8)
+   if render:skips=0;draws+=1;last_present=now
    else:skips+=1
    assert call('rf_frame_clock_present',now)==render
-  assert bytes(u.mem_read(base,32))==struct.pack('<6IQ',1,last,credit,skips,steps,draws,discarded)
+  assert bytes(u.mem_read(base,36))==struct.pack('<6IQI',1,last,credit,skips,steps,draws,discarded,last_present)
   n+=1
 report={'result':'PASS','cases':n,'scope':'Compiled NXDK integer pacing matches oracle, including wrap, irregular intervals and long stalls; no emulator timing claim.'}
 (root/'artifacts/frame-clock-nxdk.json').write_text(json.dumps(report,indent=2));print(report)

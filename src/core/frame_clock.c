@@ -20,6 +20,7 @@ int rf_frame_clock_present(rf_frame_clock *c,uint32_t now)
     update(c,now);
     /* Skipping draws cannot restore 60 Hz when simulation alone exceeds its
      * budget. Preserve visual updates while the owner profiles that workload. */
-    if(!overloaded && c->credit>=1000 && c->skipped<8){++c->skipped;return 0;}
-    c->skipped=0;++c->presentations;return 1;
+    if(!overloaded && c->presentations && (uint32_t)(now-c->last_present_ms)<33 &&
+       c->credit>=1000 && c->skipped<8){++c->skipped;return 0;}
+    c->skipped=0;c->last_present_ms=now;++c->presentations;return 1;
 }

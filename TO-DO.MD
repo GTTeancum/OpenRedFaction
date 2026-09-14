@@ -14,10 +14,10 @@ GitHub image policy: retain the current four images; upload no additional
 screenshots until near-retail-quality replacements are available.
 
 Shortlist:
-- ACTIVE: Move world and model rendering onto retained GPU geometry; measure FPS and stock64MiB residency when tests resume.
-- USER: Gameplay/parity/emulator test runs are paused during this optimization push; compile checks only until testing resumes.
+- ACTIVE: Optimize Xbox frame pacing, shared NPC animation and rendering; measure sustained live performance within64MiB.
+- TO COMPLETE: Extend focused Xbox optimization checks to representative combat, camera movement and level handoffs.
 - ACTIVE: Complete scripted actor animation/look behavior and onward gameplay after the verified opening Riot Stick handoff.
-- TO COMPLETE: Verify retained model rendering, then address CPU animation and first-person weapon rendering costs.
+- TO COMPLETE: Verify retained model clipping/poses, reduce draw overhead and adapt first-person weapons to GPU rendering.
 - TO COMPLETE: Preserve remaining world changes across sections, including actor placement/inventory and dropped items.
 - ACTIVE: Verify enemy firing visually, add muzzle/impact effects, and extend natural-trigger encounter coverage.
 - ACTIVE: Add Riot Stick alternate fire and impact feedback, then expand the remaining weapons.
@@ -37,28 +37,39 @@ Shortlist:
 
 Progress reporting: include a very high-level working area (e.g. Lighting, AI, Weapons, GeoMod or Scripted events) and an overall percent estimate at the end of every turn report (USER preference) and revisit remaining 24-hour workdays when measured throughput supports a forecast; current rough estimate45% (35-45%), no defensible +/-48-hour completion forecast before end-to-end gameplay.
 
-Current USER direction supersedes the earlier deferred-performance policy:
-big rendering changes first, tests paused. Xbox now has a retained static-world
-GPU backend: one bounded level upload, per-frame camera constants and visible
-face ranges, GPU transformation/projection, and no CPU-expanded static-world
-stream on that path. Animated NPCs now have a retained GPU skinning path too;
-per-frame work submits camera/bone constants and cached palette ranges. Rigid
-clutter, world weapons and pickups now share the retained model cache, with
-compact20-byte position/UV vertices and an18-instruction shader. Moving world
-geometry and the first-person weapon retain the CPU path. First-person rendering
-has a separate near-plane/depth-band policy that needs its own GPU adaptation.
-The shared PC renderer remains available. FourMiB world metadata+vertex cap falls back to CPU for
-oversized/allocation-failed levels. Compile checks only; visual correctness,
-clipping, depth/perspective, residency and FPS must be measured when testing
-resumes. No performance gain is claimed yet. See docs/XBOX-RETAINED-WORLD.md
-and docs/XBOX-RETAINED-MODELS.md. All retained models share a separate4MiB limit,
-including its frame queue, metadata and rounded GPU allocation sizes. It retains
-triangle order, splits28-bone shader palettes and two-sided face ranges, and
-restores the CPU draw state around fallbacks. Source review and PC/NXDK builds
-only; model clipping, winding, pose alignment and total memory remain unverified.
-Skeletal/rigid queued/submitted/vertex counters are now available separately in
-rf_xbox_retained_model_kinds for the next permitted native inspection. Updated
-PC and NXDK builds compile; no runtime or benchmark was launched.
+Current USER direction: continue major optimizations. "Give it a spin on Xbox"
+resumed focused native performance/render checking; it is not a request for the
+long campaign suite. Leave manual XEMU sessions running without an automatic
+cutoff. tools/xemu_play.py stages an unlimited controller-driven campaign and
+mounts an isolated ISO copy, so later builds cannot modify the running image.
+
+Retained static-world, NPC GPU skinning and rigid-model projection are built and
+running on stock64MiB XEMU. The short180-frame render-20260914-142844 check
+passed selected PC gameplay-state comparisons and showed the scene/miner with
+no retained fallback. It ended with22.70MiB available; USER observed about23FPS.
+That brief staged-camera run is not a sustained or same-scene baseline.
+
+The subsequent unlimited campaign run exposed draw starvation:40.81 simulation
+ticks/sec produced only4.53 actual presentations/sec over30 seconds. Physics
+runs after the presentation callback, outside its old overload check, causing
+eight skipped draws in every nine ticks. The shared frame clock now bounds
+skipping by a33ms presentation deadline while retaining fixed60Hz physics.
+NPC pose evaluation also now shares identical whole-skeleton results within a
+single simulation tick using a bounded42,076-byte cache. Each actor still owns
+its playback/events, generations, overrides and collision data. Overrides and
+partially current generation caches fall back. The180-frame PC comparison has
+identical complete diagnostic output and final pixels, with33 pose hits and5
+misses in its final tick. Focused tests and PC/NXDK builds pass; sustained new
+native run play-20260914-144559 measured27.61 presented FPS and56.29 simulation
+ticks/sec across45 seconds,22.10MiB available. NPC pose work fell to1.687ms;
+32/36 poses reused in the final sample. XEMU remains open for USER input.
+Evidence and reproduction: docs/XBOX-PACING-POSE-SHARING.md.
+
+Both retained geometry caches retain their independent4MiB caps and CPU fallback.
+Moving geometry and first-person weapons still use the CPU path; weapon near/depth
+policy needs a separate GPU adaptation. Clipping, winding, depth/perspective,
+pose alignment and representative handoff/cache retirement remain open. See
+docs/XBOX-RETAINED-WORLD.md and docs/XBOX-RETAINED-MODELS.md.
 
 Opening handoff Xbox verification is incomplete: the240-second run timed out
 while advancing, and replay-20260914-133827 lost its QMP connection. Both runs

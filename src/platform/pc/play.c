@@ -316,6 +316,7 @@ int main(int argc,char **argv)
         CHECK(rf_scene_stage_force(&level,(uint32_t)uid));
     }
     rf_scene_model_scratch_full_test=p.headless && getenv("RF_REPLAY_FULL_SCRATCH")!=NULL;
+    {extern uint32_t rf_scene_pose_sharing_disabled;rf_scene_pose_sharing_disabled=p.headless && getenv("RF_REPLAY_NO_POSE_SHARING")!=NULL;}
     if(spawn_profile && p.headless && getenv("RF_REPLAY_ACTOR_UID")) {
         char *end;unsigned long uid=strtoul(getenv("RF_REPLAY_ACTOR_UID"),&end,10);
         if(*end || getenv("RF_REPLAY_REGION_START") || getenv("RF_REPLAY_DOOR_START") || getenv("RF_REPLAY_LIFT_START") || getenv("RF_REPLAY_FORCE_UID"))CHECK(RF_RANGE);
@@ -686,6 +687,7 @@ run_scene:
     printf("WEAPON_AUDIO");for(i=0;i<9;++i)printf(" %u",rf_scene_weapon_audio[i]);puts("");
     printf("COMBAT_DEATH");for(i=0;i<8;++i)printf(" %u",rf_scene_combat_death[i]);puts("");
     printf("COMBAT");for(i=0;i<8;++i)printf(" %u",rf_scene_combat[i]);puts("");
+    {extern uint32_t rf_scene_pose_sharing[4];printf("POSE_SHARING %u %u %u %u\n",rf_scene_pose_sharing[0],rf_scene_pose_sharing[1],rf_scene_pose_sharing[2],rf_scene_pose_sharing[3]);}
     printf("Completed %u frames, 640x480 raster, %u byte mesh cap.\n",p.frames,RF_SCENE_FOLLOW_CAPACITY);
 cleanup:
     rf_scene_set_audio_observer(NULL,NULL);rf_scene_set_audio(NULL,NULL);

@@ -9261,11 +9261,15 @@ static int campaign_script_step(scene_stream *stream,float elapsed)
     }
     return RF_OK;
 }
+uint32_t rf_scene_pose_sharing[4],rf_scene_pose_sharing_disabled;
+static rf_entity_pose_batch campaign_pose_batch;
+_Static_assert(sizeof(rf_entity_pose_batch)<44u*1024u,"Bounded shared pose cache");
 static int campaign_npc_playback_tick(scene_stream *stream,float elapsed)
 {
     uint32_t i,h=2166136261u,p=2166136261u,actors=0,bones=0,markers=0,g=2166136261u;int status;
     uint32_t timing[8]={0},clock=profile_clock && profile_active?profile_clock():0;
     if(campaign_npc_body_count!=campaign_poses.count)return RF_RANGE;
+    rf_entity_pose_batch_reset(&campaign_pose_batch);
     /* Original snapshot list completes before any model/controller update. */
     for(i=0;i<campaign_npc_body_count;++i) {
         rf_entity_pose *pose;status=campaign_actor_pose(i,&pose);if(status)return status;if(!pose)continue;
@@ -9309,7 +9313,7 @@ static int campaign_npc_playback_tick(scene_stream *stream,float elapsed)
             g=(g^(uint32_t)advance)*16777619u;
             npc_playback_elapsed(timing,3,&clock);
             if(advance) {
-                status=rf_entity_pose_advance(pose,&campaign_skeletons,&campaign_motion_catalog,&campaign_playback_resources,elapsed,displacement);if(status)return status;
+                status=rf_entity_pose_advance_shared(pose,&campaign_skeletons,&campaign_motion_catalog,&campaign_playback_resources,elapsed,displacement,rf_scene_pose_sharing_disabled?NULL:&campaign_pose_batch);if(status)return status;
                 npc_playback_elapsed(timing,4,&clock);
                 status=campaign_model_collision_refresh(i);if(status)return status;
                 npc_playback_elapsed(timing,5,&clock);
@@ -9329,6 +9333,8 @@ static int campaign_npc_playback_tick(scene_stream *stream,float elapsed)
         markers|=pose->playback.event_mask;
         npc_playback_elapsed(timing,6,&clock);
     }
+    rf_scene_pose_sharing[0]=campaign_pose_batch.hits;rf_scene_pose_sharing[1]=campaign_pose_batch.misses;
+    rf_scene_pose_sharing[2]=campaign_pose_batch.bypasses;rf_scene_pose_sharing[3]=sizeof(campaign_pose_batch);
     rf_scene_npc_gate[3]=g;
     rf_scene_npc_eyes[3]=2166136261u;rf_scene_npc_eyes[0]=0;
     for(i=0;i<campaign_npc_body_count;++i)if(campaign_npc_bodies[i].registration.view) {

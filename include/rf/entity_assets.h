@@ -607,6 +607,27 @@ int rf_entity_playback_cache_references(const rf_entity_playback_resources *reso
  * and release its slots before destroying these owners. No heap allocation. */
 int rf_entity_pose_advance(rf_entity_pose *pose,const rf_entity_skeletons *skeletons,
     const rf_entity_motion_catalog *catalog,rf_entity_playback_resources *resources,float elapsed,float displacement[3]);
+/* Port-owned sharing of identical fully stale skeletal evaluations within ONE
+ * simulation tick. Playback/controllers/events still advance per actor. Reset
+ * before every tick and before any skeleton/catalog payload changes or releases.
+ * No heap allocation; 16 bounded entries (<44KiB on either supported build).
+ * Enabled overrides and partially current generation caches use the ordinary
+ * evaluator. Owners and immutable motion payloads must outlive the batch. */
+typedef struct rf_entity_pose_batch_entry {
+    uint32_t skeleton,bone_count;
+    rf_motion_slot_state active;
+    float displacement[3],matrices[50][12];
+} rf_entity_pose_batch_entry;
+typedef struct rf_entity_pose_batch {
+    const rf_entity_skeletons *skeletons;
+    const rf_entity_motion_catalog *catalog;
+    uint32_t count,next,hits,misses,bypasses;
+    rf_entity_pose_batch_entry entries[16];
+} rf_entity_pose_batch;
+void rf_entity_pose_batch_reset(rf_entity_pose_batch *batch);
+int rf_entity_pose_advance_shared(rf_entity_pose *pose,const rf_entity_skeletons *skeletons,
+    const rf_entity_motion_catalog *catalog,rf_entity_playback_resources *resources,
+    float elapsed,float displacement[3],rf_entity_pose_batch *batch);
 /* Release exactly this actor's active references, reset playback and invalidate
  * bone cache stamps. Other actors sharing registrations retain their counters.
  * Empty playback is repeatable; invalid slots/counts preserve the owner/pose. */

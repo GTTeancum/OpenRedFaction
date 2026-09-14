@@ -1,6 +1,6 @@
 # Retained Xbox model rendering
 
-Status: implemented, compile checks only. The user has paused gameplay, parity and emulator tests. There is no measured FPS gain or native visual-correctness result for this backend.
+Status: focused stock64MiB XEMU runtime checks have resumed. The first180-frame check renders and matches selected PC gameplay state; full visual/parity checks remain open. See [sustained performance work](XBOX-PACING-POSE-SHARING.md).
 
 ## Work removed from each frame
 
@@ -30,7 +30,7 @@ This does not establish the total64MiB peak. The static-world cache has its own4
 
 `rf_xbox_retained_models[8]` publishes queued batches, rendered batches, successful cached batches, accounted resident bytes, submitted vertices, submitted draw parts, frame fallbacks and lifetime cache misses. `rf_xbox_retained_model_kinds[6]` separates skeletal/rigid queued batches, submitted batches and submitted vertices. Scene mesh counts/hashes describe only remaining CPU triangles; retained placement/batch counts describe submissions, not confirmed visible pixels. These counters describe rendering work, not gameplay correctness or visual parity.
 
-## Checks still required when testing resumes
+## Remaining runtime checks
 
 - Start with a short representative hall run containing the miner and robot; compare frame costs, retained counters and available pages against the earlier path.
 - Inspect walking and turning poses, reused-position UV seams, culling, two-sided/transparent surfaces, occlusion and the camera crossing triangles.
@@ -38,7 +38,7 @@ This does not establish the total64MiB peak. The static-world cache has its own4
 - Exercise cache/queue exhaustion and level handoff, then check that allocations retire and the new scene cannot reuse stale geometry.
 - Update native render-stream checks to distinguish intentional GPU/CPU mesh differences while preserving gameplay-state checks.
 
-No runtime, benchmark, replay or correctness-test process was launched for this implementation while tests were paused.
+Tests were paused during implementation; the subsequent focused render run is recorded in [the performance notes](XBOX-PACING-POSE-SHARING.md).
 
 Compile evidence: `tools/build-xbox.sh` produces the XBE/XISO, and `cmake --build build/pc --config Release --target rf_pc_play` builds the maintained PC executable. Logs are under `artifacts/opening-handoff/retained-rigid-build.log` and `retained-rigid-pc-build.log`. Existing PC warnings and the existing NXDK linker section-merge warning remain.
 

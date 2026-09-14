@@ -1,6 +1,6 @@
 # Retained Xbox static-world rendering
 
-Status: implementation and compile checks only. Gameplay/parity/emulator tests are paused at the user's request. No measured FPS improvement or visual-correctness claim.
+Status: focused stock64MiB XEMU runtime checks have resumed. The first180-frame check renders and matches selected PC gameplay state; full visual/parity checks remain open. See [sustained performance work](XBOX-PACING-POSE-SHARING.md).
 
 ## Structural change
 
@@ -18,9 +18,9 @@ A4MiB hard cap covers cached vertices plus face descriptors. Oversized levels or
 
 ## Outstanding checks and next work
 
-Resume with a short representative hall performance/visual check, not the long campaign suite. Inspect near-plane crossings, geometry behind the camera, depth agreement with dynamic geometry, texture perspective, portal transitions, material fallback and level handoff/cache release. The prior CPU path rounded screen coordinates to1/16 pixel; this GPU path relies on hardware rasterization, so byte-identical framebuffers are not an acceptance criterion. Record actual frame costs and memory before claiming a speedup. The old native harness compares the complete CPU-projected world stream against PC; those mesh counts/hashes intentionally differ now. Update that gate to preserve gameplay-state checks while inspecting retained-world metrics and images separately.
+Extend the initial short render check with representative hall performance and visual checks. Inspect near-plane crossings, geometry behind the camera, depth agreement with dynamic geometry, texture perspective, portal transitions, material fallback and level handoff/cache release. The prior CPU path rounded screen coordinates to1/16 pixel; this GPU path relies on hardware rasterization, so byte-identical framebuffers are not an acceptance criterion. Record actual frame costs and memory before claiming a speedup. The old native harness compares the complete CPU-projected world stream against PC; those mesh counts/hashes intentionally differ now. Update that gate to preserve gameplay-state checks while inspecting retained-world metrics and images separately.
 
 The model backend adds retained GPU NPC skinning and rigid-model projection; see [its implementation and validation limits](XBOX-RETAINED-MODELS.md). First-person weapon projection, CPU pose evaluation and high draw-call counts remain. These changes do not solve all rendering or simulation costs.
 
 
-Build evidence: shared PC executable and NXDK XBE/XISO compile successfully. Cg maps view rows to c0..c2, shading to c3, projection to c4 and its zero literal to c5; the renderer uploads all six explicitly. No runtime or test run was launched after the user paused testing.
+Build evidence: shared PC executable and NXDK XBE/XISO compile successfully. Cg maps view rows to c0..c2, shading to c3, projection to c4 and its zero literal to c5; the renderer uploads all six explicitly. The initial build preceded resumed testing; subsequent runtime evidence is recorded in [the performance notes](XBOX-PACING-POSE-SHARING.md).
