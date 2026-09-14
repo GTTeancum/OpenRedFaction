@@ -25,6 +25,14 @@ Shortlist:
 
 Progress reporting: include a very high-level working area (e.g. Lighting, AI, Weapons, GeoMod or Scripted events) and an overall percent estimate at the end of every turn report (USER preference) and revisit remaining 24-hour workdays when measured throughput supports a forecast; current rough estimate45% (35-45%), no defensible +/-48-hour completion forecast before end-to-end gameplay.
 
+Mission goals are now connected to shared scene initialization and dispatch:
+load-time declarations, increment/decrement, conditional on/off propagation and
+delayed checks. Pending PC/Xbox section handoffs retain persistent counters. Both
+builds and35 CTests pass; authored L8S1 VAT setter survives archive teardown
+and gates the L8S2 check in a contained runtime test. Native mission-goal replay
+and full authored traversal remain open. See docs/MISSION-GOALS.md and
+artifacts/mission-dispatch-ctest.log.
+
 Mission counter storage now builds for PC/Xbox with34 CTests passing: owned
 names, signed thresholds, increment/decrement, explicit local/persistent lifetime
 and bounded16900-byte capacity. Current C reader verifies53 goal events across9

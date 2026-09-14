@@ -653,6 +653,7 @@ static void campaign_switch_snapshot(void)
 
 static rf_runtime_triggers campaign_triggers;
 rf_level_transition_request rf_scene_level_transition;
+rf_campaign_goals rf_scene_mission_goals;
 uint32_t rf_scene_follow_level_exits;
 static char campaign_current_level[64];
 static int campaign_load_level(void *context,const rf_level_event *event,uint32_t source,uint32_t actor)
@@ -9562,6 +9563,13 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
             rf_scene_campaign_events[1]=campaign_events.allocated_bytes;
             rf_scene_campaign_events[2]=sizeof(campaign_registry);
             status=rf_runtime_triggers_open(level,&campaign_registry,1024*1024,0,&campaign_triggers);
+            if(status)goto done;
+            if(rf_scene_follow_level_exits && rf_scene_level_transition.pending)
+                status=rf_campaign_goals_next_section(&rf_scene_mission_goals);
+            else memset(&rf_scene_mission_goals,0,sizeof(rf_scene_mission_goals));
+            if(!status)status=rf_runtime_goals_initialize(&campaign_events,&rf_scene_mission_goals);
+            if(status)goto done;
+            campaign_triggers.goals=&rf_scene_mission_goals;
             memset(&rf_scene_level_transition,0,sizeof(rf_scene_level_transition));campaign_export_valid=0;
             campaign_triggers.load_level=campaign_load_level;campaign_triggers.load_level_context=&rf_scene_level_transition;
 

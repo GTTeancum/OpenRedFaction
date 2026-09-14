@@ -496,6 +496,20 @@ static int startup_damage_ready(const rf_runtime_triggers *triggers)
     const rf_runtime_damage_backend *b=triggers->damage_backend;
     return b && b->effects.lookup && b->effects.damage && b->effects.feedback;
 }
+int rf_runtime_goals_initialize(const rf_runtime_events *events,rf_campaign_goals *goals)
+{
+    uint32_t i,old;int status;
+    if(!events || !goals)return RF_RANGE;
+    for(i=0;i<events->count;i++)if(events->items[i].state.type==35) {
+        const rf_level_event *e=&events->items[i].authored->record;
+        old=goals->count;
+        /* 462707 -> 4b85b0: words[1] initial count, flags[0]==1 persistent. */
+        status=rf_campaign_goal_declare(goals,e->name,e->flags[0]==1);
+        if(status)return status;
+        if(goals->count!=old)memcpy(&goals->items[old].value,&e->words[1],4);
+    }
+    return RF_OK;
+}
 static void startup_event_action(void *context,rf_event_state *state,uint32_t action,
     uint32_t source,uint32_t actor,uint32_t mode)
 {
@@ -504,6 +518,22 @@ static void startup_event_action(void *context,rf_event_state *state,uint32_t ac
     if(action==2) {
         for(i=0;i<c->event->authored->record.link_count && !c->status;++i)
             startup_target(c,c->event->links+i,source,actor,(mode&255u)==1);
+        return;
+    }
+    if(state->type>=35 && state->type<=37) {
+        const rf_level_event *e=&c->event->authored->record;uint32_t passed;int status;int32_t threshold;
+        /* Create declares at load time; its base action only propagates links. */
+        if(state->type==35)return;
+        if(!c->triggers->goals){++c->report->unsupported_actions;return;}
+        if(state->type==37) {
+            status=rf_campaign_goal_adjust(c->triggers->goals,e->texts[0],action==1);
+            if(status!=RF_NOT_FOUND)c->status=status;
+            return;
+        }
+        memcpy(&threshold,&e->words[0],4);
+        c->status=rf_campaign_goal_check(c->triggers->goals,e->texts[0],threshold,&passed);
+        if(!c->status && passed)for(i=0;i<e->link_count && !c->status;i++)
+            startup_target(c,c->event->links+i,source,actor,action==1);
         return;
     }
     if(state->type==22) {
@@ -736,6 +766,7 @@ int rf_runtime_events_tick(rf_runtime_events *events,rf_runtime_triggers *trigge
            !(event->state.type==39 && particles && particles->state) &&
            !(event->state.type==51 && forces) &&
            !(event->state.type==22 && triggers->load_level) &&
+           !(event->state.type>=35 && event->state.type<=37 && triggers->goals) &&
            !(event->state.type==30 && triggers->set_friendliness) &&
            !(event->state.type==17 && startup_damage_ready(triggers)) &&
            !(event->state.type==32 && event->switch_state && startup_switch_ready(triggers))) {++*unsupported_pending;continue;}

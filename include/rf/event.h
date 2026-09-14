@@ -6,6 +6,7 @@
 #include "rf/level.h"
 #include "rf/object_registry.h"
 #include "rf/level_particles.h"
+#include "rf/campaign.h"
 /* Original 4bd700: case-insensitive authored name to type 0..89; -1 for
  * unknown/NULL. Name must be NUL-terminated. Type recognition does not imply
  * that the corresponding runtime action has been reconstructed. */
@@ -301,7 +302,10 @@ typedef struct rf_runtime_triggers {
     void *friendliness_context;
     int (*load_level)(void *context,const rf_level_event *,uint32_t source,uint32_t actor);
     void *load_level_context;
+    rf_campaign_goals *goals; /* Borrowed campaign owner; survives scene teardown. */
 } rf_runtime_triggers;
+/* Declare authored goals before any startup trigger runs. */
+int rf_runtime_goals_initialize(const rf_runtime_events *events,rf_campaign_goals *goals);
 /* Same ownership/budget/registry contract as rf_runtime_events_open. Retains
  * raw ordered UID links plus initially unresolved runtime targets. */
 int rf_runtime_triggers_open(const rf_level *level,rf_object_registry *registry,
