@@ -149,6 +149,8 @@ void rf_model_materials_close(rf_model_materials *materials);
  * auxiliary arrays retain base conversion, including alpha/secondary state.
  * Base and replacement images are retained, case-insensitive deduplicated.
  * Same ownership/budget/error contract as open_records; no glare effects. */
+int rf_model_materials_open_records_overrides_limit(rf_model_materials *,const uint8_t (*)[84],uint32_t,
+    const char *const *,rf_vpp *,uint32_t,uint32_t budget,uint32_t maximum_dimension);
 int rf_model_materials_open_records_overrides(rf_model_materials *materials,const uint8_t (*records)[84],uint32_t count,
     const char *const *overrides,rf_vpp *archives,uint32_t archive_count,uint32_t budget);
 typedef struct rf_entity_materials {
@@ -164,6 +166,10 @@ typedef struct rf_entity_materials {
  * reuse. Failure preserves output and releases partial state. */
 int rf_entity_materials_open(rf_entity_materials *materials,const rf_entity_appearances *appearances,
     const rf_entity_render_models *models,rf_vpp *archives,uint32_t archive_count,uint32_t budget);
+/* Optional fixed maximum texture dimension; zero preserves full images.
+ * Budget includes simultaneous source/reduced pixels. No automatic quality policy. */
+int rf_entity_materials_open_limit(rf_entity_materials *,const rf_entity_appearances *,
+    const rf_entity_render_models *,rf_vpp *,uint32_t,uint32_t budget,uint32_t maximum_dimension);
 void rf_entity_materials_close(rf_entity_materials *materials);
 
 typedef struct rf_geometry_materials {

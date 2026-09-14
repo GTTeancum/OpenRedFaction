@@ -236,3 +236,19 @@ add_test(NAME level_pickup_records COMMAND rf_level_items_tests "${CMAKE_SOURCE_
 add_test(NAME campaign_entity_class_filter COMMAND rf_entity_assets_probe --seeds
     "${CMAKE_SOURCE_DIR}/Installed_Game/levels1.vpp"
     "${CMAKE_SOURCE_DIR}/Installed_Game/tables.vpp" L3S1.rfl)
+
+add_executable(rf_image_reduction_tests tests/image_reduction_tests.c)
+target_link_libraries(rf_image_reduction_tests PRIVATE rf_core)
+add_test(NAME image_reduction_budget COMMAND rf_image_reduction_tests)
+
+foreach(level L3S1 L3S4)
+    add_test(NAME npc_material_budget_${level} COMMAND rf_material_probe --entities128
+        "${CMAKE_SOURCE_DIR}/Installed_Game/levels1.vpp"
+        "${CMAKE_SOURCE_DIR}/Installed_Game/tables.vpp"
+        "${CMAKE_SOURCE_DIR}/Installed_Game/meshes.vpp" ${level}.rfl 4194304
+        "${CMAKE_SOURCE_DIR}/Installed_Game/maps1.vpp"
+        "${CMAKE_SOURCE_DIR}/Installed_Game/maps2.vpp"
+        "${CMAKE_SOURCE_DIR}/Installed_Game/maps3.vpp"
+        "${CMAKE_SOURCE_DIR}/Installed_Game/maps4.vpp"
+        "${CMAKE_SOURCE_DIR}/Installed_Game/maps_en.vpp")
+endforeach()

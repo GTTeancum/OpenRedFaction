@@ -97,10 +97,10 @@ int main(int argc, char **argv)
         } else {if(bundle.items || bundle.textures.items || bundle.resident_bytes)return 3;printf("%d\n",result);}
         rf_model_materials_close(&bundle);rf_model_materials_close(&bundle);return result?1:0;
     }
-    if(argc>=8 && argc<=23 && !strcmp(argv[1],"--entities")) {
+    if(argc>=8 && argc<=23 && (!strcmp(argv[1],"--entities") || !strcmp(argv[1],"--entities128"))) {
         rf_vpp tables,meshes;rf_entity_seeds seeds={0};rf_entity_skeletons skeletons={0};
         rf_entity_render_models models={0};rf_entity_appearances appearances={0};rf_entity_materials bundle={0},guard={0};
-        uint32_t j,k,peak;
+        uint32_t j,k,peak,limit=!strcmp(argv[1],"--entities128")?128:0;
         if(rf_vpp_open(&level_archive,argv[2]) || rf_vpp_open(&tables,argv[3]) || rf_vpp_open(&meshes,argv[4]) ||
             rf_level_open(&level,&level_archive,argv[5]) || rf_entity_seeds_open(&level,&tables,4*1024*1024,&seeds) ||
             rf_entity_skeletons_open(&seeds,&meshes,1024*1024,&skeletons) ||
@@ -108,15 +108,15 @@ int main(int argc, char **argv)
             rf_entity_appearances_open(&seeds,&skeletons,&tables,1024*1024,&appearances))return 4;
         count=(uint32_t)argc-7;
         for(i=0;i<count;++i)if(rf_vpp_open(archives+i,argv[i+7]))return 4;
-        result=rf_entity_materials_open(&bundle,&appearances,&models,archives,count,(uint32_t)strtoul(argv[6],NULL,10));
+        result=rf_entity_materials_open_limit(&bundle,&appearances,&models,archives,count,(uint32_t)strtoul(argv[6],NULL,10),limit);
         if(result){fprintf(stderr,"entity materials %d\n",result);return 5;}
         peak=bundle.peak_bytes;
-        if(rf_entity_materials_open(&guard,&appearances,&models,archives,count,peak-1)!=RF_RANGE ||
+        if(rf_entity_materials_open_limit(&guard,&appearances,&models,archives,count,peak-1,limit)!=RF_RANGE ||
             memcmp(&guard,&(rf_entity_materials){0},sizeof(guard)))return 6;
-        if(rf_entity_materials_open(&guard,&appearances,&models,archives,count,peak) || guard.peak_bytes!=peak ||
+        if(rf_entity_materials_open_limit(&guard,&appearances,&models,archives,count,peak,limit) || guard.peak_bytes!=peak ||
             guard.resident_bytes!=bundle.resident_bytes || memcmp(guard.offsets,bundle.offsets,(bundle.count+1)*4))return 7;
         rf_entity_materials_close(&guard);rf_entity_materials_close(&guard);
-        if(rf_entity_materials_open(&guard,&appearances,&models,NULL,0,peak)!=RF_NOT_FOUND ||
+        if(rf_entity_materials_open_limit(&guard,&appearances,&models,NULL,0,peak,limit)!=RF_NOT_FOUND ||
             memcmp(&guard,&(rf_entity_materials){0},sizeof(guard)))return 8;
         rf_entity_appearances_close(&appearances);rf_entity_render_models_close(&models);
         rf_entity_skeletons_close(&skeletons);rf_entity_seeds_close(&seeds);

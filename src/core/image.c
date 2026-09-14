@@ -80,6 +80,33 @@ void rf_image_close(rf_image *image)
 #endif
     memset(image,0,sizeof(*image));
 }
+int rf_image_reduce(rf_image *image,uint32_t limit,uint32_t budget)
+{
+    rf_image next={0};uint32_t x,y,dx,dy,sx,sy,packed;int status;
+    if(!image || !image->rgba || !limit || limit>4096 || (limit&(limit-1)) ||
+       !image->width || !image->height || image->width>4096 || image->height>4096 ||
+       (image->width&(image->width-1)) || (image->height&(image->height-1)))return RF_RANGE;
+    packed=rf_image_is_packed_1555(image);
+    if(image->bytes!=(uint64_t)image->width*image->height*(packed?2:4) || image->bytes>budget)return RF_RANGE;
+    if(image->width<=limit && image->height<=limit)return RF_OK;
+    next.width=image->width;next.height=image->height;next.source_format=image->source_format;
+    while(next.width>limit || next.height>limit){if(next.width>1)next.width/=2;if(next.height>1)next.height/=2;}
+    next.bytes=next.width*next.height*4;
+    if((uint64_t)next.bytes+image->bytes>budget)return RF_RANGE;
+    status=rf_image_allocate_pixels(&next);if(status)return status;
+    sx=image->width/next.width;sy=image->height/next.height;
+    for(y=0;y<next.height;y++)for(x=0;x<next.width;x++) {
+        uint32_t sum[4]={0},k,n=sx*sy;unsigned char *out=rf_image_pixel(&next,x,y);
+        for(dy=0;dy<sy;dy++)for(dx=0;dx<sx;dx++) {
+            const unsigned char *p=rf_image_pixel(image,x*sx+dx,y*sy+dy);
+            if(packed){uint32_t v=p[0]|((uint32_t)p[1]<<8);sum[0]+=((v>>10)&31)*255/31;sum[1]+=((v>>5)&31)*255/31;sum[2]+=(v&31)*255/31;sum[3]+=(v&0x8000)?255:0;}
+            else for(k=0;k<4;k++)sum[k]+=p[k];
+        }
+        for(k=0;k<4;k++)out[k]=(unsigned char)((sum[k]+n/2)/n);
+    }
+    rf_image_close(image);*image=next;return RF_OK;
+}
+
 int rf_image_missing(rf_image *image,uint32_t budget)
 {
     uint32_t x,y;int status;

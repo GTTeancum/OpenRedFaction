@@ -363,3 +363,40 @@ CTest; artifacts/campaign-class-l3s1.log and campaign-class-l1s1.log.
 Both builds pass. Full L3S1 loading now reaches the NPC material owner and exceeds
 its4MiB budget at UltorGuard_Parts_03f.tga. This removes the class-binding blocker,
 not all campaign-start blockers; native playable L3S1 remains unverified.
+
+
+## Bounded NPC/prop texture fallback
+
+The live loader first requests the original textures under its existing budgets.
+An RF_RANGE failure retries NPC materials with a128-pixel maximum dimension;
+clutter retries128 and then64 under its existing1MiB owner budget. Missing or
+malformed resources still fail. No lower-quality retry is attempted for levels
+that fit at full detail. This is first-pass port policy, not an original/PS2
+texture-quality reconstruction; close-up parity and better residency are open.
+
+rf_image_reduce box-averages a power-of-two source into RGBA8 using logical pixel
+access, shared across PC linear and Xbox swizzled storage. It retains original
+source-format metadata, handles RGBA and packed1555, and leaves the source intact
+on budget failure. Old and new pixel allocations coexist only within the supplied
+budget. Texture loaders report the maximum temporary pixel use as well as retained
+memory; alpha is averaged as a channel. This is not an exact original mip filter.
+
+Standalone L3S1 NPC materials fall from6157816 retained bytes to2618872 (peak
+2654872); L3S4 reduced retention2215972/peak2250532. Runtime owners include a few
+additional binding arrays: L3S1 NPC2623440/2659440, props382328/612216;
+L3S4 NPC2221004/2255564, props351616/458112. Both120-frame PC scenes run; L3S4
+collects rifle9479 and fires three rounds. The full-quality L4S5 framebuffer is
+byte-identical to its prior verified native-run PC reference.
+
+Tests cover reduction values/alpha, packed1555, rectangular aspect ratio, no-op,
+invalid limits and transactional budgets. The two installed NPC-material probes
+also verify exact/undersized peak budgets, missing archives, retained references
+and pixel hashes after closing inputs. Evidence: artifacts/npc-memory-*.log.
+
+Both builds and32 CTests pass. Stock64MiB XEMU L3S4 replay PASS:120 frames,
+authored rifle9479 collected, three shots,39 loaded; reduced NPC/prop pixel
+hashes and material state match PC, as do combat and HUD. Native framebuffer
+inspected;5883 free pages (23.0MiB). Evidence:
+artifacts/xemu/replay-20260914-033621/report.json. Native L3S1 and end-to-end
+mission progression are not claimed; this validates the bounded loading and
+short gameplay replay, with the stated first-pass texture-detail reduction.

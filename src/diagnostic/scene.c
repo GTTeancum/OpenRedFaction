@@ -2847,6 +2847,8 @@ static int campaign_clutter_materials_open(const char *tables_path,rf_vpp *archi
     h=npc_hash_bytes(h,campaign_clutter_appearance_slots,campaign_clutter_records.count*4);rf_scene_clutter_skins[5]=h;
     free(table);table=NULL;free(assets);assets=NULL;free(representatives);representatives=NULL;
     status=rf_model_materials_open_records_overrides(&campaign_clutter_materials,records,k,overrides,archives,archive_count,(uint32_t)(budget-persistent-scratch));
+    if(status==RF_RANGE)status=rf_model_materials_open_records_overrides_limit(&campaign_clutter_materials,records,k,overrides,archives,archive_count,(uint32_t)(budget-persistent-scratch),128);
+    if(status==RF_RANGE)status=rf_model_materials_open_records_overrides_limit(&campaign_clutter_materials,records,k,overrides,archives,archive_count,(uint32_t)(budget-persistent-scratch),64);
     if(status)goto fail;
     peak=campaign_clutter_materials.peak_bytes+persistent+scratch;if(stage_peak>peak)peak=stage_peak;
     free(records);records=NULL;free(overrides);overrides=NULL;free(replacement_names);replacement_names=NULL;
@@ -9445,7 +9447,10 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
         if(!status && collision && campaign_spawn)status=rf_entity_render_models_open(&campaign_skeletons,&archive,1024*1024,&campaign_render_models);
         if(!status && collision && campaign_spawn)status=campaign_model_geometry_open();
         if(!status && collision && campaign_spawn)status=rf_entity_appearances_open(&campaign_seeds,&campaign_skeletons,&tables,1024*1024,&campaign_appearances);
-        if(!status && collision && campaign_spawn)status=rf_entity_materials_open(&campaign_npc_materials,&campaign_appearances,&campaign_render_models,maps,map_count,4*1024*1024);
+        if(!status && collision && campaign_spawn) {
+            status=rf_entity_materials_open(&campaign_npc_materials,&campaign_appearances,&campaign_render_models,maps,map_count,4*1024*1024);
+            if(status==RF_RANGE)status=rf_entity_materials_open_limit(&campaign_npc_materials,&campaign_appearances,&campaign_render_models,maps,map_count,4*1024*1024,128);
+        }
         if(!status && collision && campaign_spawn)campaign_npc_materials_digest();
         rf_vpp_close(&tables);if(status)goto done;
         if(campaign_spawn && collision) {

@@ -174,7 +174,7 @@ void rf_materials_close(rf_materials *m)
 }
 static int equal_texture_name(const char *a,const char *b);
 static int open_materials(rf_materials *m,const rf_geometry *g,const char *const *names,uint32_t count,
-    rf_vpp *archives,uint32_t archive_count,uint32_t budget)
+    rf_vpp *archives,uint32_t archive_count,uint32_t budget,uint32_t limit,uint32_t *peak)
 {
     uint32_t i;
     uint64_t slots;
@@ -189,7 +189,7 @@ static int open_materials(rf_materials *m,const rf_geometry *g,const char *const
     if (!slots) return RF_OK;
     m->items = (rf_material *)calloc(count, sizeof(rf_material));
     if (!m->items) return RF_RANGE;
-    m->count = count; m->allocated_bytes = (uint32_t)slots;
+    m->count = count; m->allocated_bytes = (uint32_t)slots;if(peak)*peak=(uint32_t)slots;
     for (i = 0; i < m->count; ++i) {
         char name[61];
         uint32_t a;
@@ -215,6 +215,11 @@ static int open_materials(rf_materials *m,const rf_geometry *g,const char *const
                 rf_material_failure[0]=(uint32_t)result;rf_material_failure[1]=a;rf_material_failure[2]=entry.size;
                 goto fail;
             }
+            if(limit && (item->image.width>limit || item->image.height>limit)) {
+                uint32_t old=item->image.bytes;
+                result=rf_image_reduce(&item->image,limit,budget-m->allocated_bytes);if(result)goto fail;
+                if(peak && m->allocated_bytes+old+item->image.bytes>*peak)*peak=m->allocated_bytes+old+item->image.bytes;
+            } else if(peak && m->allocated_bytes+item->image.bytes>*peak)*peak=m->allocated_bytes+item->image.bytes;
             item->archive_index = a; item->status = RF_OK;
             m->allocated_bytes += item->image.bytes; ++m->loaded;
             break;
@@ -236,12 +241,12 @@ fail:
 int rf_materials_open(rf_materials *m,const rf_geometry *g,rf_vpp *archives,uint32_t archive_count,uint32_t budget)
 {
     if (!g) { if (m) memset(m,0,sizeof(*m)); return RF_RANGE; }
-    return open_materials(m,g,NULL,g->textures,archives,archive_count,budget);
+    return open_materials(m,g,NULL,g->textures,archives,archive_count,budget,0,NULL);
 }
 int rf_materials_open_names(rf_materials *m,const char *const *names,uint32_t count,
     rf_vpp *archives,uint32_t archive_count,uint32_t budget)
 {
-    return open_materials(m,NULL,names,count,archives,archive_count,budget);
+    return open_materials(m,NULL,names,count,archives,archive_count,budget,0,NULL);
 }
 void rf_model_materials_close(rf_model_materials *m)
 {
@@ -399,10 +404,11 @@ int rf_level_particle_materials_open(rf_level_particle_materials *materials,cons
 static int model_materials_open_source(rf_model_materials *m,const rf_model_file *model,
     const uint8_t (*records)[84],uint32_t record_count,
     const char *const *primary_names,uint32_t primary_count,
-    rf_vpp *archives,uint32_t archive_count,uint32_t budget,const char *const *overrides)
+    rf_vpp *archives,uint32_t archive_count,uint32_t budget,const char *const *overrides,uint32_t limit)
 {
     rf_model_materials next={0}; uint8_t *raw=NULL;const char **names=NULL;int32_t *mapping=NULL;
-    uint64_t count=0,base,scratch,used;uint32_t i,j,k,mesh=0,at=0,unique=0;int status=RF_OK;
+    uint64_t count=0,base,scratch,used;uint32_t i,j,k,mesh=0,at=0,unique=0,texture_peak=0,load_peak=0;int status=RF_OK;
+    if(limit>4096 || (limit && (limit&(limit-1))))return RF_RANGE;
     if (!m || (model && (!model->archive || model->section_count>RF_MODEL_MAX_SECTIONS)) ||
         (!model && record_count && !records) ||
         (!archives && archive_count) || m->items || m->textures.items || m->resident_bytes) return RF_RANGE;
@@ -456,7 +462,8 @@ static int model_materials_open_source(rf_model_materials *m,const rf_model_file
         for(slot=0;slot<unique;++slot)if(equal_texture_name(overrides[i],names[slot]))break;
         if(slot==unique)names[unique++]=overrides[i];mapping[count*2+i]=(int32_t)slot;
     }
-    status=rf_materials_open_names(&next.textures,names,unique,archives,archive_count,budget-(uint32_t)used);
+    status=open_materials(&next.textures,NULL,names,unique,archives,archive_count,budget-(uint32_t)used,limit,&texture_peak);
+    load_peak=(uint32_t)used+texture_peak;
     if(status)goto done;
     if(next.textures.missing) { status=RF_NOT_FOUND;goto done; }
     used+=next.textures.allocated_bytes;
@@ -468,7 +475,7 @@ static int model_materials_open_source(rf_model_materials *m,const rf_model_file
         if(overrides && mapping[count*2+i]>=0)memcpy(next.items[i].record.bytes+0x10,mapping+count*2+i,4);
         used+=next.items[i].accounted_bytes-sizeof(*next.items);
     }
-    next.peak_bytes=(uint32_t)used;next.resident_bytes=(uint32_t)(used-scratch);
+    next.peak_bytes=load_peak>used?load_peak:(uint32_t)used;next.resident_bytes=(uint32_t)(used-scratch);
 done:
     free(raw);free(names);free(mapping);
     if(status)rf_model_materials_close(&next);else *m=next;
@@ -479,19 +486,23 @@ int rf_model_materials_open_skin(rf_model_materials *m,const rf_model_file *mode
     rf_vpp *archives,uint32_t archive_count,uint32_t budget)
 {
     if(!model)return RF_RANGE;
-    return model_materials_open_source(m,model,NULL,0,primary_names,primary_count,archives,archive_count,budget,NULL);
+    return model_materials_open_source(m,model,NULL,0,primary_names,primary_count,archives,archive_count,budget,NULL,0);
 }
 int rf_model_materials_open_records(rf_model_materials *m,const uint8_t (*records)[84],uint32_t count,
     rf_vpp *archives,uint32_t archive_count,uint32_t budget)
 {
-    return model_materials_open_source(m,NULL,records,count,NULL,0,archives,archive_count,budget,NULL);
+    return model_materials_open_source(m,NULL,records,count,NULL,0,archives,archive_count,budget,NULL,0);
 }
 
 int rf_model_materials_open_records_overrides(rf_model_materials *m,const uint8_t (*records)[84],uint32_t count,
     const char *const *overrides,rf_vpp *archives,uint32_t archive_count,uint32_t budget)
 {
-    return model_materials_open_source(m,NULL,records,count,NULL,0,archives,archive_count,budget,overrides);
+    return model_materials_open_source(m,NULL,records,count,NULL,0,archives,archive_count,budget,overrides,0);
 }
+
+int rf_model_materials_open_records_overrides_limit(rf_model_materials *m,const uint8_t (*records)[84],uint32_t count,
+    const char *const *overrides,rf_vpp *archives,uint32_t archive_count,uint32_t budget,uint32_t limit)
+{return model_materials_open_source(m,NULL,records,count,NULL,0,archives,archive_count,budget,overrides,limit);}
 
 int rf_model_materials_open(rf_model_materials *m,const rf_model_file *model,
     rf_vpp *archives,uint32_t archive_count,uint32_t budget)
@@ -506,9 +517,13 @@ void rf_entity_materials_close(rf_entity_materials *m)
 }
 int rf_entity_materials_open(rf_entity_materials *m,const rf_entity_appearances *appearances,
     const rf_entity_render_models *models,rf_vpp *archives,uint32_t archive_count,uint32_t budget)
+{return rf_entity_materials_open_limit(m,appearances,models,archives,archive_count,budget,0);}
+int rf_entity_materials_open_limit(rf_entity_materials *m,const rf_entity_appearances *appearances,
+    const rf_entity_render_models *models,rf_vpp *archives,uint32_t archive_count,uint32_t budget,uint32_t limit)
 {
     rf_entity_materials next={0};uint8_t *raw=NULL;const char **names=NULL;int32_t *mapping=NULL;
-    uint64_t count=0,base,scratch,used;uint32_t a,i,j,k,at=0,unique=0;int status=RF_OK;
+    uint64_t count=0,base,scratch,used;uint32_t a,i,j,k,at=0,unique=0,texture_peak=0,load_peak=0;int status=RF_OK;
+    if(limit>4096 || (limit && (limit&(limit-1))))return RF_RANGE;
     if(!m || !appearances || !models || (appearances->count && !appearances->items) ||
         (models->count && !models->items) || (!archives && archive_count) ||
         m->materials.items || m->materials.textures.items || m->offsets || m->resident_bytes)return RF_RANGE;
@@ -561,7 +576,8 @@ int rf_entity_materials_open(rf_entity_materials *m,const rf_entity_appearances 
         }
     }
     next.offsets[next.count]=at;
-    status=rf_materials_open_names(&next.materials.textures,names,unique,archives,archive_count,budget-(uint32_t)used);
+    status=open_materials(&next.materials.textures,NULL,names,unique,archives,archive_count,budget-(uint32_t)used,limit,&texture_peak);
+    load_peak=(uint32_t)used+texture_peak;
     if(status)goto done;
     if(next.materials.textures.missing){status=RF_NOT_FOUND;goto done;}
     used+=next.materials.textures.allocated_bytes;
@@ -572,9 +588,9 @@ int rf_entity_materials_open(rf_entity_materials *m,const rf_entity_appearances 
             budget-(uint32_t)used+(uint32_t)sizeof(*item));if(status)goto done;
         used+=item->accounted_bytes-sizeof(*item);
     }
-    next.peak_bytes=(uint32_t)used;next.resident_bytes=(uint32_t)(used-scratch);
+    next.peak_bytes=load_peak>used?load_peak:(uint32_t)used;next.resident_bytes=(uint32_t)(used-scratch);
     next.materials.resident_bytes=next.resident_bytes-(uint32_t)(base-count*sizeof(*next.materials.items))+sizeof(next.materials);
-    next.materials.peak_bytes=next.materials.resident_bytes+(uint32_t)scratch;
+    next.materials.peak_bytes=next.materials.resident_bytes+next.peak_bytes-next.resident_bytes;
  done:
     free(raw);free(names);free(mapping);
     if(status)rf_entity_materials_close(&next);else *m=next;

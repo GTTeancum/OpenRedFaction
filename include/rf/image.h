@@ -34,6 +34,10 @@ int rf_image_open(rf_image *image, rf_vpp *archive, const rf_vpp_entry *entry, u
  * allocation within budget. Close before reuse. Failure leaves image empty.
  * Does not select fallback policy or replace runtime USERBMAP owners. */
 int rf_image_missing(rf_image *image,uint32_t budget);
+/* Power-of-two box reduction to a maximum dimension, producing RGBA8.
+ * Budget includes old and new pixels concurrently; errors preserve the owner.
+ * Native swizzled and PC linear storage share the same logical averaging. */
+int rf_image_reduce(rf_image *image,uint32_t maximum_dimension,uint32_t budget);
 void rf_image_close(rf_image *image);
 /* Original 50fe39 TGA depth dispatch: 8/16/24/32 -> 1/5/6/7, else zero.
  * This classifier does not extend decoder support beyond 24/32-bit TGA. */

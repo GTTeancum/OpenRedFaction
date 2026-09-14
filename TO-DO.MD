@@ -8,7 +8,8 @@ then level progression. Fidelity remains a later completion requirement.
 Shortlist:
 - ACTIVE: Connect ammunition pickups and weapon selection to campaign combat.
 - ACTIVE: Connect first-person weapon presentation and firing/reload feedback.
-- Resolve L3S1/L3S4 NPC texture residency within the existing budget before those campaign sections.
+- ACTIVE: Expand scripted mission events and level progression beyond the opening.
+- DEFERRED / TO COMPLETE: Restore full NPC/prop texture detail through better residency; verify PS2 parity for reduced textures.
 - Continue campaign traversal/physics coverage beyond the repaired walking route.
 - DEFERRED / TO COMPLETE: Finish lighting lifecycle updates, shadows and visual parity within64MiB; revisit after critical gameplay systems.
 - Finish glare volumes/reflections, cross-level bitmap clocks, special visibility and parent ordering/tag resolution.
@@ -23,6 +24,18 @@ Shortlist:
 - USER: Review the interactive PC movement and audio items listed below.
 
 Progress reporting: include a very high-level working area (e.g. Lighting, AI, Weapons, GeoMod or Scripted events) and an overall percent estimate at the end of every turn report (USER preference) and revisit remaining 24-hour workdays when measured throughput supports a forecast; current rough estimate44% (35-45%), no defensible +/-48-hour completion forecast before end-to-end gameplay.
+
+L3S1/L3S4 now load and run120-frame PC replays within unchanged NPC4MiB and
+clutter1MiB budgets. Full textures are tried first; oversized NPC sets fall back
+to128-pixel maximum dimensions and props to128 then64. Box reduction preserves
+source-format metadata and accounts simultaneous source/output memory. L3S1
+NPC peak2659440 bytes/props612216; L3S4 NPC2255564/props458112. Full-quality
+L4S5 framebuffer stays byte-identical. This is first-pass resource policy;
+close-up detail/PS2 parity and better residency remain to complete. Both builds
+and32 CTests pass. Stock64MiB XEMU L3S4 PASS:120 frames, rifle9479 collection,
+three shots/39 remaining and texture/HUD hashes match PC;5883 free pages.
+Evidence: artifacts/xemu/replay-20260914-033621/report.json and npc-memory-*.log.
+L3S1 native validation and end-to-end progression remain open.
 
 Campaign class filtering now follows the original unresolved-class skip path.
 L3S1 retains20 valid actors from22 records; both missing camera1 records are
