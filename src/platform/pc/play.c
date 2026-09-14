@@ -430,6 +430,7 @@ run_scene:
         CHECK(rf_scene_campaign_pose_get(departing_position,departing_orientation));
         printf("LEVEL_EXIT_POSE");for(i=0;i<3;i++)printf(" %.9g",departing_position[i]);for(i=0;i<9;i++)printf(" %.9g",departing_orientation[i]);puts("");
 
+        printf("LEVEL_EXIT_AIRLOCK");for(i=0;i<6;i++)printf(" %u",rf_scene_airlock[i]);printf("\n");
         printf("LEVEL_TRANSITION %s %s %u %u\n",level.entry.name,next.level,next.uid,p.frames);
         rf_scene_actor_follow(NULL);
         rf_lightmaps_close(&p.lightmaps);rf_materials_close(&materials);rf_preview_close(&mesh);
@@ -617,6 +618,7 @@ run_scene:
             printf("CAMPAIGN_EVENT_TICKS");for(uint32_t tick_word=0;tick_word<12;++tick_word)printf(" %u",rf_scene_event_ticks[tick_word]);puts("");
             printf("CAMPAIGN_TRIGGERS %u %u\n",rf_scene_campaign_triggers[0],rf_scene_campaign_triggers[1]);
             printf("SWITCH_HISTORY %u %u %u %u\n",rf_scene_switch_history[0],rf_scene_switch_history[1],rf_scene_switch_history[2],rf_scene_switch_history[3]);
+            printf("AIRLOCK");for(i=0;i<6;i++)printf(" %u",rf_scene_airlock[i]);printf("\n");
             printf("WORLD_TEXTURE_BUDGET");for(i=0;i<4;i++)printf(" %u",rf_scene_world_texture_budget[i]);puts("");
             printf("ALARM");for(i=0;i<12;i++)printf(" %u",rf_scene_alarm[i]);puts("");
             printf("SWITCH_RUNTIME");for(i=0;i<8;i++)printf(" %u",rf_scene_switch_runtime[i]);puts("");

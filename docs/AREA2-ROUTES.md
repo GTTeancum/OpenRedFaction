@@ -21,8 +21,9 @@ the existing campaign resolver maps them to installed `.rfl` sections.
 
 `python tools/replay_area2_routes.py` reproduces the fixtures and asserts real
 transition count, UID/frame, translated arrival, player survival and movement
-after the boundary. L2S1 exit3218 did not trigger during its exploratory walking
-fixture; it remains an open contact/approach issue. These separate fixtures
+after the boundary. The earlier L2S1 exit3218 walking-only fixture did not
+trigger because the door requires Use and the live adapter skipped its chamber
+reference. The first-pass interlock and Use fixtures are recorded in AIRLOCKS.md. These separate fixtures
 do not demonstrate an uninterrupted walk through Area2 or its full encounters.
 
 ## Texture fallback

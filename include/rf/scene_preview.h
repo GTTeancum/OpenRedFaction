@@ -777,4 +777,5 @@ void rf_scene_set_input(rf_scene_input_poll poll,void *context,uint32_t frame_li
 int rf_scene_set_campaign_spawn(const rf_level *level);
 extern uint32_t rf_scene_player_spawn_diagnostic[19];
 extern uint32_t rf_scene_watch_test_uid,rf_scene_watch_test[4],rf_scene_death_watches[97];
+extern uint32_t rf_scene_airlock[6];
 #endif

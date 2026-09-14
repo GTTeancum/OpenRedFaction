@@ -2240,6 +2240,44 @@ static int campaign_event_mover(void *context,uint32_t handle,uint32_t source,ui
     if(!controller || controller->object_kind!=8 || controller->runtime->kind!=RF_GROUP_RUNTIME_TRANSLATION)return RF_NOT_FOUND;
     return campaign_link_effect(&activation,8,handle,source,actor);
 }
+/* First-pass airlock interlock. Loader465510 fields0 -> constructor+1c ->
+ * trigger+2c0 is a room UID;4bfc60 checks peer doors before dispatch.
+ * Equalization/pressure mutation and its sound are not implemented here. */
+static const rf_geometry *campaign_trigger_geometry;
+uint32_t rf_scene_airlock[6]; /* polls, allowed, blocked, unsupported, room UID, trigger UID */
+static int campaign_airlock_ready(const rf_runtime_trigger *trigger)
+{
+    const rf_geometry *g=campaign_trigger_geometry;uint32_t i,j,room=trigger->authored->record.fields[0],peers=0;
+    if(room==UINT32_MAX)return 1;
+    ++rf_scene_airlock[0];rf_scene_airlock[4]=room;rf_scene_airlock[5]=trigger->authored->record.uid;
+    if(!g)goto unsupported;
+    for(i=0;i<g->rooms;i++) {
+        const unsigned char *p=g->data+g->room_offsets[i];uint32_t uid;
+        memcpy(&uid,p,4);if(uid==room)break;
+    }
+    if(i==g->rooms)goto unsupported;
+    for(i=0;i<campaign_triggers.count;i++) {
+        const rf_runtime_trigger *peer=campaign_triggers.items+i;uint32_t doors=0;
+        if(peer==trigger || peer->authored->record.fields[0]!=room)continue;
+        ++peers;
+        for(j=0;j<peer->authored->record.link_count;j++) {
+            const rf_group_registered_controller *controller=rf_object_registry_lookup(&campaign_registry,peer->links[j].value);
+            const rf_group_runtime_entry *entry;
+            if(!controller || controller->object_kind!=8)continue;
+            entry=controller->runtime;
+            if(entry->kind!=RF_GROUP_RUNTIME_TRANSLATION || entry->source->record.key_count!=2)goto unsupported;
+            ++doors;
+            if(entry->translation.motion.current_key!=0 || entry->translation.motion.next_key!=-1) {
+                ++rf_scene_airlock[2];return 0;
+            }
+        }
+        if(!doors)goto unsupported;
+    }
+    if(!peers)goto unsupported;
+    ++rf_scene_airlock[1];return 1;
+unsupported:
+    ++rf_scene_airlock[3];return 0;
+}
 uint32_t rf_scene_npc_triggers[6]; /* checks, ready, last actor UID, last trigger UID, occupancy hits, status */
 static int campaign_actor_trigger_contacts(const rf_entity_view *actor,const float positions[3][3],int32_t now,uint32_t frame,rf_level_particles *particles,uint32_t use,uint32_t npc)
 {
@@ -2252,12 +2290,13 @@ static int campaign_actor_trigger_contacts(const rf_entity_view *actor,const flo
         rf_runtime_trigger *trigger=campaign_triggers.items+i;
         const rf_level_trigger *record=&trigger->authored->record;uint32_t ready=0,fired=0;
         if(trigger->activation.object_flags&2)continue;
-        if(record->value_byte>4 || record->fields[2]!=UINT32_MAX || record->fields[0]!=UINT32_MAX ||
+        if(record->value_byte>4 || record->fields[2]!=UINT32_MAX ||
            record->fields[1]!=UINT32_MAX || record->script[0] ||
            (trigger->state.flags&(2u|128u))) {++rf_scene_trigger_contacts[4];continue;}
         status=rf_trigger_contact_filter_authored(trigger,facts.handle,-1,&filter);if(status)return status;
         status=rf_runtime_trigger_contact(&campaign_triggers,trigger->handle,&facts,positions,&filter,now,use,&ready);
         ++rf_scene_trigger_contacts[0];if(npc)++rf_scene_npc_triggers[0];rf_scene_trigger_contacts[5]=(uint32_t)status;if(status)return status;
+        if(ready && !campaign_airlock_ready(trigger))continue;
         if(ready) {if(npc){++rf_scene_npc_triggers[1];rf_scene_npc_triggers[2]=npc;rf_scene_npc_triggers[3]=record->uid;}++rf_scene_trigger_contacts[1];rf_scene_trigger_contacts[2]=record->uid;
             if(record->uid==8542)++rf_scene_trigger_contacts[3];
             status=rf_runtime_trigger_fire_links(&campaign_triggers,trigger->handle,facts.handle,now,
@@ -10777,6 +10816,7 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
             rf_scene_campaign_events[0]=campaign_events.count;
             rf_scene_campaign_events[1]=campaign_events.allocated_bytes;
             rf_scene_campaign_events[2]=sizeof(campaign_registry);
+            campaign_trigger_geometry=geometry;memset(rf_scene_airlock,0,sizeof(rf_scene_airlock));
             rf_scene_campaign_load_stage=3;status=rf_runtime_triggers_open(level,&campaign_registry,1024*1024,0,&campaign_triggers);
             if(status)goto done;
             if(rf_scene_follow_level_exits && rf_scene_level_transition.pending)
@@ -11194,7 +11234,7 @@ done:
     rf_group_registration_close(&campaign_group_registration);
     rf_group_runtime_close(&campaign_group_runtime);
     rf_level_owned_groups_close(&campaign_groups);
-    rf_runtime_triggers_close(&campaign_triggers);
+    rf_runtime_triggers_close(&campaign_triggers);campaign_trigger_geometry=NULL;
     rf_runtime_events_close(&campaign_events);
     rf_level_owned_ambient_close(&campaign_ambient);
     memset(&campaign_climb,0,sizeof(campaign_climb));rf_level_owned_regions_close(&campaign_regions);

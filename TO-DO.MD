@@ -19,8 +19,16 @@ Xbox also passes L2S2a-to-L2S3 and L2S3-to-L3S1. The latest native run finishes
 bounded texture fallback and removal of redundant diagnostic loading; full
 encounters and uninterrupted traversal remain open. Estimate remains ~45%.
 
+Airlock gameplay update: L2S1-to-L2S2a now passes a Use/contact replay after
+waiting for opposite doors to close, and the reverse PC boundary also passes.
+Walking without Use correctly leaves the exit inactive. Pressure effects and
+full traversal remain completion work; see docs/AIRLOCKS.md for evidence.
+Final stock64MiB Xbox run182149 passes360 frames and the same exit at frame274,
+with4383 free pages (17.121MiB). Overall estimate remains ~45%.
+
 Shortlist:
-- TO COMPLETE: Walk uninterrupted Area2 encounters and diagnose the L2S1 exit3218 approach/contact that did not trigger; isolated L2S2a/L2S3/L3S1 boundary checks are not full traversal.
+- TO COMPLETE: Walk uninterrupted Area2 encounters after the L2S1 Use/airlock interlock fix; isolated boundary checks are not full traversal.
+- TO COMPLETE: Finish airlock pressure equalization, atmosphere/audio, unsupported peer layouts and state restoration on revisits.
 - DEFERRED / TO COMPLETE: Replace coarse world texture fallback caps with selective residency and verify PS2 parity; L2S2a currently needs the128-pixel cap to load within12MiB.
 - TO COMPLETE: Extend alarm encounters and native linked-NPC coverage; preserve alarm state across sections and complete Alarm_Siren45 and original AI transitions.
 - TO COMPLETE: Extend L2S3 traversal after collision-particle, instantaneous-mover and combined-image budget fixes; finish particle liquids, moving-object impacts, wind/swirl and precise bounce behavior.
