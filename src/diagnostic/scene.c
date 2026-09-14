@@ -7668,6 +7668,29 @@ int rf_scene_draw_combat_hud(rf_scene_particle_sink sink,void *context)
     }
     return RF_OK;
 }
+uint32_t rf_scene_follow_npc_uid;
+static int campaign_inspect_camera(scene_stream *stream,float position[3],float orientation[3][3])
+{
+    uint32_t i,j,found;int status;
+    for(i=0;i<campaign_npc_body_count;i++)if((uint32_t)campaign_seeds.records.items[i].record.uid==rf_scene_follow_npc_uid) {
+        const campaign_npc_body *owner=campaign_npc_bodies+i;
+        float target[3],offset[3]={3,1.1f,-3},length,right;rf_geometry_world_sweep_hit hit;
+        if(!owner->registration.view)return RF_OK;
+        memcpy(target,owner->published,12);target[1]+=.6f;
+        status=rf_geometry_collision_world_sweep(stream->collision,0x460,target,offset,.15f,1,&hit,&found);if(status)return status;
+        if(found && hit.hit.fraction<.1f)return RF_OK;
+        for(j=0;j<3;j++)position[j]=target[j]+offset[j]*(found?hit.hit.fraction-.03f:1);
+        for(j=0;j<3;j++)orientation[2][j]=target[j]-position[j];
+        length=sqrtf(orientation[2][0]*orientation[2][0]+orientation[2][1]*orientation[2][1]+orientation[2][2]*orientation[2][2]);
+        for(j=0;j<3;j++)orientation[2][j]/=length;
+        right=sqrtf(orientation[2][0]*orientation[2][0]+orientation[2][2]*orientation[2][2]);
+        orientation[0][0]=orientation[2][2]/right;orientation[0][1]=0;orientation[0][2]=-orientation[2][0]/right;
+        orientation[1][0]=orientation[2][1]*orientation[0][2];
+        orientation[1][1]=orientation[2][2]*orientation[0][0]-orientation[2][0]*orientation[0][2];
+        orientation[1][2]=-orientation[2][1]*orientation[0][0];return RF_OK;
+    }
+    return RF_NOT_FOUND;
+}
 static int actor_follow_view(void *context,uint32_t frame,const rf_motion_controller *controller,rf_model_projection *view)
 {
     scene_stream *stream=context;float position[3],orientation[3][3];
@@ -7693,6 +7716,7 @@ static int actor_follow_view(void *context,uint32_t frame,const rf_motion_contro
         }
     }
     if(campaign_spawn){status=campaign_combat_tick(stream,frame,position,orientation);rf_scene_combat[7]=(uint32_t)status;if(status)return status;}
+    if(rf_scene_follow_npc_uid){status=campaign_inspect_camera(stream,position,orientation);if(status)return status;}
     if(rf_scene_particle_view_enabled && frame<400 && stream->particles.state && stream->particles.materials.count) {
         memcpy(position,stream->particles.state->slots[0].runtime.emitter.position,12);
         if(rf_scene_particle_view_back) {

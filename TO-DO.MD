@@ -31,6 +31,12 @@ Shortlist:
 
 Progress reporting: include a very high-level working area (e.g. Lighting, AI, Weapons, GeoMod or Scripted events) and an overall percent estimate at the end of every turn report (USER preference) and revisit remaining 24-hour workdays when measured throughput supports a forecast; current rough estimate45% (35-45%), no defensible +/-48-hour completion forecast before end-to-end gameplay.
 
+PC inspection camera follows Gryphon without changing player placement.
+Frames980/1000/1020 visually show changing walk poses near the floor beyond
+the hangar;1000-frame motion/contact state matches the ordinary camera.
+Both builds and36 tests pass. Native tracking-camera capture is running;
+check artifacts/npc-camera-xemu.log before claiming Xbox visual validation.
+
 Make_Invulnerable now reaches the existing ordinary-damage immunity flag for
 registered NPCs and the player. Authored4970/Invert4995 on/off timing passes,
 as do36 tests and PC door controls; native protection-event testing remains.

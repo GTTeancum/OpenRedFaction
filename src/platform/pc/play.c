@@ -314,6 +314,10 @@ int main(int argc,char **argv)
         if(*end || getenv("RF_REPLAY_REGION_START") || getenv("RF_REPLAY_DOOR_START") || getenv("RF_REPLAY_LIFT_START") || getenv("RF_REPLAY_FORCE_UID"))CHECK(RF_RANGE);
         CHECK(rf_scene_stage_actor(&level,(uint32_t)uid));
     }
+    if(spawn_profile && p.headless && getenv("RF_REPLAY_FOLLOW_UID")) {
+        char *end;unsigned long uid=strtoul(getenv("RF_REPLAY_FOLLOW_UID"),&end,10);
+        if(*end || !uid)CHECK(RF_RANGE);rf_scene_follow_npc_uid=(uint32_t)uid;
+    }
     if(spawn_profile && p.headless && getenv("RF_REPLAY_ITEM_UID")) {
         char *end;unsigned long uid=strtoul(getenv("RF_REPLAY_ITEM_UID"),&end,10);
         if(*end || getenv("RF_REPLAY_ACTOR_UID") || getenv("RF_REPLAY_FORCE_UID") || getenv("RF_REPLAY_DOOR_START") || getenv("RF_REPLAY_REGION_START") || getenv("RF_REPLAY_LIFT_START"))CHECK(RF_RANGE);

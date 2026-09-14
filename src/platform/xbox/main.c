@@ -507,6 +507,8 @@ static int scene_preview(rf_level *level,rf_preview_mesh *mesh)
         if(exit_file){uint32_t values[3]={0};size_t bytes=fread(values,1,sizeof(values),exit_file);fclose(exit_file);
             if((bytes!=4 && bytes!=8) || !values[0] || (bytes==8 && !values[1]))return RF_FORMAT;
             campaign_setup_uid=values[0];campaign_setup_next_uid=values[1];}
+        exit_file=fopen("D:\\campaign-follow.bin","rb");
+        if(exit_file){int invalid=fread(&rf_scene_follow_npc_uid,4,1,exit_file)!=1 || !rf_scene_follow_npc_uid || fgetc(exit_file)!=EOF;fclose(exit_file);if(invalid)return RF_FORMAT;}
         exit_file=fopen("D:\\campaign-goto.bin","rb");
         if(exit_file){int invalid=fread(&campaign_goto_uid,4,1,exit_file)!=1 || fgetc(exit_file)!=EOF;fclose(exit_file);if(invalid)return RF_FORMAT;}
         exit_file=fopen("D:\\campaign-goal.bin","rb");

@@ -79,6 +79,19 @@ has not been checked separately. Trigger4963's filter3 rejects player-controlled
 actors in rf_trigger_eligible, consistent with the needed NPC contact path.
 # First-pass locomotion selection
 
+The process-local inspection camera now follows an authored NPC UID, using a
+world sweep to shorten its offset near geometry. It runs after player/combat
+updates and changes only rendering view inputs; the real player stays put.
+PC replays opt in with `RF_REPLAY_FOLLOW_UID=4952`. The native harness accepts
+`--follow-uid 4952` and saves/restores `campaign-follow.bin` with its other flags.
+
+PC captures at980/1000/1020 frames were individually inspected: Gryphon changes
+walking pose in the room beyond the hangar, with feet near the floor. The1000
+frame movement, position, trigger and occupancy telemetry exactly matches the
+ordinary camera replay. Captures: `artifacts/npc-doors/follow-980.png`,
+`follow.png`, `follow-1020.png`. No foot-sliding/speed-match claim is made from
+these three stills. Native inspection-camera validation is pending.
+
 Scripted run/fall actors now commit accepted floor contacts through the existing
 ground-probe/support helpers and fall with collision-checked gravity when no
 support is found. Hidden actors and other movement modes are excluded. Uphill
