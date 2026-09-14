@@ -92,6 +92,12 @@ ordinary camera replay. Captures: `artifacts/npc-doors/follow-980.png`,
 `follow.png`, `follow-1020.png`. No foot-sliding/speed-match claim is made from
 these three stills. Native inspection-camera validation is pending.
 
+Update: native tracking-camera replay passes on stock64MiB XEMU in
+`artifacts/xemu/replay-20260914-075441/report.json`. Its1000-frame capture was
+inspected and shows Gryphon in the walking pose beyond the hangar, matching
+the PC view. Movement and contact telemetry match PC; the camera remains an
+explicit diagnostic aid, not automatic campaign camera behavior.
+
 Scripted run/fall actors now commit accepted floor contacts through the existing
 ground-probe/support helpers and fall with collision-checked gravity when no
 support is found. Hidden actors and other movement modes are excluded. Uphill

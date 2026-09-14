@@ -120,6 +120,35 @@ int main(int argc,char **argv)
     CHECK(argc==2);CHECK(unhide_dispatch_check(argv[1])==0);
     {
         rf_vpp archive={0};rf_level level;rf_object_registry registry;rf_runtime_events events={0};rf_runtime_triggers triggers={0};
+        rf_physics_gravity gravity={0};rf_startup_events_report report;rf_runtime_event *remove=NULL,*delay=NULL;rf_runtime_trigger trigger={0};uint32_t i,pending;
+        rf_object_registry_init(&registry);triggers.registry=&registry;
+        CHECK(rf_level_campaign_open(&level,&archive,argv[1],"L7S2.rfl")==RF_OK);
+        CHECK(rf_runtime_events_open(&level,&registry,1024*1024,&events)==RF_OK);
+        for(i=0;i<events.count;i++) {
+            if(events.items[i].authored->record.uid==5326)remove=events.items+i;
+            if(events.items[i].authored->record.uid==5324)delay=events.items+i;
+        }
+        CHECK(remove && delay && remove->state.type==2 && delay->state.delay==3);
+        remove->links[0].kind=1;remove->links[0].value=delay->handle;
+        CHECK(rf_runtime_event_fire(&triggers,delay->handle,7,9,0,&gravity,0,0,&report)==RF_OK && delay->state.deadline==3000);
+        remove->state.deadline=1;remove->state.mode=0;
+        CHECK(rf_runtime_events_tick(&events,&triggers,&gravity,1,0,0,&report,&pending)==RF_OK && rf_object_registry_lookup(&registry,delay->handle)==delay);
+        CHECK(rf_runtime_event_fire(&triggers,remove->handle,7,9,100,&gravity,0,0,&report)==RF_OK && delay->state.deadline<0);
+        CHECK(!rf_object_registry_lookup(&registry,delay->handle));
+        CHECK(rf_runtime_events_tick(&events,&triggers,&gravity,4000,0,0,&report,&pending)==RF_OK && !pending && !report.events);
+        CHECK(rf_runtime_event_fire(&triggers,remove->handle,7,9,4100,&gravity,0,0,&report)==RF_OK); /* Missing target is harmless. */
+        trigger.object_kind=5;CHECK(rf_object_registry_insert(&registry,&trigger,&trigger.handle)==RF_OK);
+        remove->links[0].value=trigger.handle;
+        CHECK(rf_runtime_event_fire(&triggers,remove->handle,7,9,4200,&gravity,0,0,&report)==RF_OK);
+        CHECK((trigger.state.flags&16) && (trigger.activation.object_flags&2) && !rf_object_registry_lookup(&registry,trigger.handle));
+        remove->links[0].value=remove->handle;
+        CHECK(rf_runtime_event_fire(&triggers,remove->handle,7,9,4300,&gravity,0,0,&report)==RF_OK);
+        CHECK(!rf_object_registry_lookup(&registry,remove->handle));
+        CHECK(rf_runtime_events_tick(&events,&triggers,&gravity,4400,0,0,&report,&pending)==RF_OK);
+        rf_runtime_events_close(&events);rf_vpp_close(&archive);
+    }
+    {
+        rf_vpp archive={0};rf_level level;rf_object_registry registry;rf_runtime_events events={0};rf_runtime_triggers triggers={0};
         rf_physics_gravity gravity={0};rf_startup_events_report report;rf_runtime_event *protect=NULL,*invert=NULL;uint32_t i,pending,object=0,handle;
         rf_object_registry_init(&registry);triggers.registry=&registry;triggers.set_invulnerable=visibility_command;
         CHECK(rf_level_campaign_open(&level,&archive,argv[1],"L7S2.rfl")==RF_OK);

@@ -518,6 +518,29 @@ static void startup_event_action(void *context,rf_event_state *state,uint32_t ac
 {
     startup_context *c=context;uint32_t i;
     if(c->status)return;
+    if(state->type==2) {
+        if(action!=1)return;
+        for(i=0;i<c->event->authored->record.link_count;i++) {
+            const rf_level_link_target *link=c->event->links+i;void *object;uint32_t kind;int status;
+            if(link->kind!=1 && link->kind!=2)continue;
+            object=rf_object_registry_lookup(c->triggers->registry,link->value);if(!object)continue;
+            memcpy(&kind,object,4);
+            if(kind==6) {
+                rf_runtime_event *removed=object;
+                removed->state.deadline=-1;removed->state.flags|=1;
+                removed->retired=1;
+                removed->unhide.on=removed->unhide.off=0;removed->death_fired=1;
+            } else if(kind==5) {
+                rf_runtime_trigger *removed=object;
+                removed->state.flags|=16;removed->activation.object_flags|=2;
+            } else {++c->report->other_targets;continue;}
+            /* Retain allocation until scene teardown: dispatch may still hold
+             * a pointer, including self-removal. Stale handles stop resolving. */
+            status=rf_object_registry_remove(c->triggers->registry,link->value);
+            if(status){c->status=status;return;}
+        }
+        return;
+    }
     if(state->type==50) {
         if(action!=2)c->status=rf_unhide_request(&c->event->unhide,action==1);
         return;
@@ -838,6 +861,7 @@ int rf_runtime_events_tick(rf_runtime_events *events,rf_runtime_triggers *trigge
     context.particles=particles;context.forces=forces;context.triggers=triggers;context.gravity=gravity;context.report=report;context.now=now;context.depth=1;
     for(i=0;i<events->count;++i) {
         rf_runtime_event *event=events->items+i;
+        if(event->retired)continue;
         if(event->state.type==50) {
             if(!triggers->set_visible) {
                 if(event->state.deadline>=0 || event->unhide.on || event->unhide.off)++*unsupported_pending;
@@ -862,7 +886,7 @@ int rf_runtime_events_tick(rf_runtime_events *events,rf_runtime_triggers *trigge
             status=runtime_death_poll(&context,event);if(status)return status;continue;
         }
         if(event->state.deadline<0)continue;
-        if(event->state.type!=3 && event->state.type!=44 && event->state.type!=48 &&
+        if(event->state.type!=2 && event->state.type!=3 && event->state.type!=44 && event->state.type!=48 &&
            !(event->state.type==39 && particles && particles->state) &&
            !(event->state.type==51 && forces) &&
            !((event->state.type==5 || event->state.type==6) && triggers->move_npc) &&

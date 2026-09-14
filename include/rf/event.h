@@ -121,6 +121,7 @@ typedef struct rf_runtime_event {
     rf_switch_state *switch_state; /* type32 only; shares the owner's allocation */
     uint32_t death_fired,death_time; /* When_Dead one-shot poll, per scene. */
     rf_unhide_state unhide;
+    uint32_t retired; /* Storage retained after Remove_Object until scene close. */
 } rf_runtime_event;
 typedef struct rf_runtime_events {
     rf_level_owned_events decoded;

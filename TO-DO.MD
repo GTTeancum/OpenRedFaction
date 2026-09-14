@@ -31,6 +31,14 @@ Shortlist:
 
 Progress reporting: include a very high-level working area (e.g. Lighting, AI, Weapons, GeoMod or Scripted events) and an overall percent estimate at the end of every turn report (USER preference) and revisit remaining 24-hour workdays when measured throughput supports a forecast; current rough estimate45% (35-45%), no defensible +/-48-hour completion forecast before end-to-end gameplay.
 
+Stock64MiB Xbox tracking-camera replay passes at1000 frames, with a native
+capture of Gryphon walking beyond the hangar and exact PC movement/contact
+state. Evidence: artifacts/xemu/replay-20260914-075441/report.json.
+Remove_Object now cancels/retire events and triggers, preserving allocation
+until scene teardown; NPC/clutter removal remains open. Both builds and36
+tests pass, including delayed cancellation, off/no-op and self-removal.
+See docs/EVENT-REMOVAL.md; native cancellation testing remains open.
+
 PC inspection camera follows Gryphon without changing player placement.
 Frames980/1000/1020 visually show changing walk poses near the floor beyond
 the hangar;1000-frame motion/contact state matches the ordinary camera.

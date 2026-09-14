@@ -4,6 +4,14 @@ Work in progress: shared C/C++ reconstruction targeting a stock 64 MiB Xbox
 through NXDK, with a maintained 32-bit PC build. Single-player comes first and
 visual quality must meet the PS2 version. **Full campaign play remains unfinished.**
 
+![Xbox reconstruction: Gryphon walking beyond the hangar](docs/images/xbox-gryphon-walking.png)
+
+**Xbox build in XEMU, stock 64 MiB, native 640 x 480 capture.** Gryphon follows
+authored navigation through the hangar doors with floor support and walking
+animation. The 1,000-frame replay matches PC movement and trigger state. This
+uses explicit mission setup events and an inspection camera; automatic cutscene
+progression and the full campaign remain unfinished.
+
 ![Xbox combat prototype: NPC hit confirmation and ammunition display](docs/images/xbox-combat-hud.png)
 
 **Xbox build in XEMU, stock64MiB, native640 x480 capture.** The first-pass
