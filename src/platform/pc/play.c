@@ -65,7 +65,7 @@ typedef struct player {
     rf_frame_clock clock;
     LARGE_INTEGER frequency;
     uint32_t frames,headless;
-    rf_scene_input *replay;uint32_t replay_count;
+    rf_scene_input *replay;uint32_t replay_count,scene_start,exit_uid,exit_frame;
     int quit,focused;
 } player;
 
@@ -144,11 +144,15 @@ static int input(void *context,uint32_t frame,rf_scene_input *out)
 {
     player *p=context;MSG message;uint32_t wait;
     memset(out,0,sizeof(*out));
+    if(p->headless && p->exit_uid && p->frames==p->exit_frame) {
+        int status=rf_scene_fire_level_exit(p->exit_uid,(int32_t)((uint64_t)frame*1000/60));
+        p->exit_uid=0;if(status)return status;
+    }
     if(p->headless) {
         if(frame==0) { /* Read while owners live, before scene teardown. */
             for(uint32_t k=0;k<rf_scene_npc_bodies[0];++k){uint32_t row[3];if(!rf_scene_npc_backlink_row(k,row))printf("NPC_BACKLINK_ROW %u %u %u\n",row[0],row[1],row[2]);}
         }
-        if(p->replay){if(frame>=p->replay_count)return RF_RANGE;*out=p->replay[frame];return RF_OK;}
+        if(p->replay){if(p->frames>=p->replay_count)return RF_RANGE;*out=p->replay[p->frames];return RF_OK;}
         /* Same deterministic route as rf_scene_check --input. */
         if(frame>=24 && frame<48)out->move[0]=.25f;
         if(frame>=63)out->move[0]=1;
@@ -184,10 +188,10 @@ static int present(void *context,uint32_t frame,const rf_preview_mesh *mesh,
     const rf_materials *materials,uint32_t world)
 {
     player *p=context;uint32_t i;int status;
-    if(frame!=p->frames || mesh->bytes>RF_SCENE_FOLLOW_CAPACITY)return RF_RANGE;
+    if(frame+p->scene_start!=p->frames || mesh->bytes>RF_SCENE_FOLLOW_CAPACITY)return RF_RANGE;
     status=rf_scene_update_lightmaps(&p->lightmaps);if(status)return status;
     /* Recorded-input diagnosis projects every tick, rasterizes only the last. */
-    if(p->replay && frame+1<p->replay_count){status=rf_scene_draw_particles(NULL,NULL);if(status)return status;
+    if(p->replay && p->frames+1<p->replay_count){status=rf_scene_draw_particles(NULL,NULL);if(status)return status;
         status=rf_scene_draw_coronas(NULL,NULL);if(status)return status;
         status=rf_scene_draw_player_flash(NULL,NULL);if(status)return status;++p->frames;return RF_OK;}
     if(!p->headless && !rf_frame_clock_present(&p->clock,milliseconds(p))){++p->frames;return RF_OK;}
@@ -347,8 +351,35 @@ int main(int argc,char **argv)
         if(fclose(f))failed=1;if(failed)CHECK(RF_FORMAT);
         CHECK(rf_scene_campaign_player_set(&state));
     }
+    rf_scene_follow_level_exits=spawn_profile;
+    if(p.headless && getenv("RF_REPLAY_EXIT_UID")) {
+        char *end;unsigned long value=strtoul(getenv("RF_REPLAY_EXIT_UID"),&end,10);if(*end || !value)CHECK(RF_FORMAT);
+        p.exit_uid=(uint32_t)value;p.exit_frame=60;
+    }
+run_scene:
+    p.scene_start=p.frames;
+    rf_scene_set_input(input,&p,limit?limit-p.frames:0);
     CHECK(rf_scene_stream_miner_body(&level,9858,meshes,motions,tables,maps,opened,&mesh,&materials,
         8*1024*1024,RF_CAMPAIGN_MATERIAL_BUDGET,present,&p,&collision,&geometry));
+    if(spawn_profile && rf_scene_level_transition.pending && (!limit || p.frames<limit)) {
+        rf_campaign_player_state player_state;rf_level_transition_request next=rf_scene_level_transition;
+        CHECK(rf_scene_campaign_player_get(&player_state));
+        printf("LEVEL_TRANSITION %s %s %u %u\n",level.entry.name,next.level,next.uid,p.frames);
+        rf_scene_actor_follow(NULL);
+        rf_lightmaps_close(&p.lightmaps);rf_materials_close(&materials);rf_preview_close(&mesh);
+        rf_scene_world_geometry_close(&retained);rf_geometry_collision_world_close(&collision);rf_geometry_close(&geometry);
+        rf_vpp_close(&archive);
+        CHECK(rf_level_campaign_open(&level,&archive,directory,next.level));
+        CHECK(rf_scene_set_campaign_spawn(&level));
+        CHECK(rf_geometry_open(&geometry,&level,8*1024*1024));
+        CHECK(rf_geometry_collision_world_open(&geometry,8*1024*1024,&collision));
+        CHECK(rf_scene_world_open_retained(&level,&geometry,maps,opened,&mesh,&materials,
+            8*1024*1024,RF_CAMPAIGN_MATERIAL_BUDGET,&retained));
+        CHECK(rf_lightmaps_open(&p.lightmaps,&level,RF_CAMPAIGN_LIGHTMAP_BUDGET));
+        CHECK(rf_scene_campaign_player_set(&player_state));
+        rf_scene_actor_follow(&retained);
+        goto run_scene;
+    }
     if(p.headless && spawn_profile && getenv("RF_REPLAY_PLAYER_STATE_OUT")) {
         rf_campaign_player_state state;int failed;FILE *f;
         CHECK(rf_scene_campaign_player_get(&state));

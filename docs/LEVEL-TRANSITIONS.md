@@ -66,3 +66,26 @@ L1S2 and verifies the entire state byte-for-byte. It also verifies a fresh game
 without import and rejection of a modified catalog hash. Evidence:
 artifacts/campaign-state/report.json. Both builds and 34 CTests pass. This is
 separate-process scene validation, not automatic/native cross-level playback.
+
+PC campaign mode now consumes pending exits in-process. The shared scene stops
+at the next input boundary only when rf_scene_follow_level_exits is enabled;
+its ordinary cleanup runs before the platform releases world geometry, collision,
+materials/lightmaps and the source archive. PC then resolves the destination,
+loads its authored spawn, stages player state and continues the existing window
+or replay. Replay frame indices remain global while simulation clocks restart
+per section. A replay ending on an exit frame does not load an unused next scene.
+
+First-pass policy: current-level requests are ignored when following exits so
+paired authored events do not mask the neighboring destination or reload forever.
+This is not verified original Load_Level semantics. Destination authored spawn
+is a temporary arrival policy; entrance alignment, mission flags, seamless door
+continuity and deliberate same-level restarts remain unfinished.
+
+The process-local RF_REPLAY_EXIT_UID fixture fires the authored type22 event at
+frame60 through the runtime dispatcher. tools/replay_campaign_exits.py covers
+forward L1S1->L1S2, backward L1S2->L1S1, ignored current-level UID9018, and exact
+player-state retention through the forward exit. Each run completes 120 frames;
+real transitions occur after frame61. Evidence: artifacts/campaign-exits/report.json.
+Both builds and 34 CTests pass. Xbox contains the shared stop/handoff code but
+has not enabled exit following: its platform loading loop and native verification
+are the next required work. No native transition or walking-trigger proof yet.

@@ -171,6 +171,7 @@ static int campaign_life_input(uint32_t frame,rf_scene_input *input);
 static int player_begin_frame(void *context,uint32_t frame)
 {
     rf_scene_input value={0};uint32_t i,*r=rf_scene_player_input_frames[frame%64];int status;(void)context;
+    if(frame && rf_scene_follow_level_exits && rf_scene_level_transition.pending)return RF_NOT_FOUND;
     if(!frame)memset(rf_scene_player_input_frames,0,sizeof(rf_scene_player_input_frames));
     status=player_poll(player_context,frame,&value);if(status)return status;
     for(i=0;i<3;++i)if(!isfinite(value.move[i]) || fabsf(value.move[i])>1)return RF_FORMAT;
@@ -628,8 +629,28 @@ static void campaign_switch_snapshot(void)
 
 static rf_runtime_triggers campaign_triggers;
 rf_level_transition_request rf_scene_level_transition;
+uint32_t rf_scene_follow_level_exits;
+static char campaign_current_level[64];
 static int campaign_load_level(void *context,const rf_level_event *event,uint32_t source,uint32_t actor)
-{return rf_level_transition_enqueue(context,event,source,actor);}
+{
+    rf_level_transition_request request={0};uint32_t i;int status;
+    status=rf_level_transition_enqueue(&request,event,source,actor);if(status)return status;
+    if(rf_scene_follow_level_exits) {
+        for(i=0;request.level[i] && campaign_current_level[i] &&
+            (request.level[i]|32)==(campaign_current_level[i]|32);i++);
+        if(!request.level[i] && !campaign_current_level[i])return RF_OK;
+    }
+    return rf_level_transition_enqueue(context,event,source,actor);
+}
+int rf_scene_fire_level_exit(uint32_t uid,int32_t now)
+{
+    uint32_t i;rf_startup_events_report report;
+    for(i=0;i<campaign_events.count;i++)if(campaign_events.items[i].authored->record.uid==uid) {
+        if(campaign_events.items[i].state.type!=22)return RF_FORMAT;
+        return rf_runtime_event_fire(&campaign_triggers,campaign_events.items[i].handle,UINT32_MAX,UINT32_MAX,now,&scene_gravity,NULL,NULL,&report);
+    }
+    return RF_NOT_FOUND;
+}
 
 static rf_level_owned_groups campaign_groups;
 static rf_group_runtime_collection campaign_group_runtime;
@@ -9429,6 +9450,9 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
        !rf_scene_actor_look_enabled || !rf_scene_actor_turn_enabled || !collision || !sink))return RF_RANGE;
     if(actor_follow_world && (!sink || !collision || actor_follow_world->world!=geometry ||
         actor_follow_world->material_count!=materials->count))return RF_RANGE;
+    campaign_export_valid=0;
+    memset(campaign_current_level,0,sizeof(campaign_current_level));
+    memcpy(campaign_current_level,level->entry.name,sizeof(level->entry.name));
     stream.world=mesh->count;stream.base=materials->count;stream.geometry=geometry;
     memset(rf_scene_light_owner,0,sizeof(rf_scene_light_owner));
     memset(rf_scene_light_fields,0,sizeof(rf_scene_light_fields));

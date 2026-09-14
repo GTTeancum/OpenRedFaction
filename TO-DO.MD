@@ -25,6 +25,13 @@ Shortlist:
 
 Progress reporting: include a very high-level working area (e.g. Lighting, AI, Weapons, GeoMod or Scripted events) and an overall percent estimate at the end of every turn report (USER preference) and revisit remaining 24-hour workdays when measured throughput supports a forecast; current rough estimate44% (35-45%), no defensible +/-48-hour completion forecast before end-to-end gameplay.
 
+PC now follows authored exits in-process: L1S1 -> L1S2 and reverse complete
+120-frame replays with cleanup before loading the next scene. Same-level requests
+are ignored as first-pass policy; destination placement uses its authored spawn.
+Xbox builds the shared handoff but still needs its loading loop connected and
+native verification. Doorway alignment and mission-state carry remain open.
+Evidence: artifacts/campaign-exits/report.json; both builds and 34 CTests pass.
+
 Player-state handoff now preserves inventory, equipped pistol/rifle and vitals
 through a 464-byte shared owned snapshot. PC replay acquires/fires the L4S5 rifle
 then imports into L1S2 with byte-identical state (39 rounds, health/armor retained).

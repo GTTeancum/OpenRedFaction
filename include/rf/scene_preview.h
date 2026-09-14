@@ -14,6 +14,10 @@
 
 /* Capture after a successful campaign frame; stage before the next scene.
  * NULL staging clears any queued import. The staged value owns its data. */
+/* Enable only when the caller consumes exits after scene cleanup. */
+extern uint32_t rf_scene_follow_level_exits;
+/* Process-local fixture: dispatch an authored Load_Level UID at a given tick. */
+int rf_scene_fire_level_exit(uint32_t uid,int32_t now);
 int rf_scene_campaign_player_get(rf_campaign_player_state *);
 int rf_scene_campaign_player_set(const rf_campaign_player_state *);
 
