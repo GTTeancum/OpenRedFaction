@@ -16,7 +16,7 @@ screenshots until near-retail-quality replacements are available.
 Shortlist:
 - DEFERRED / TO COMPLETE: Improve Xbox performance beyond the current basic-testing baseline; revisit NPC pose evaluation.
 - TO COMPLETE: Preserve remaining world changes across sections, including partial actor state and dropped items.
-- ACTIVE: Add visible aiming/firing and natural-trigger coverage after the controlled L1S1 attack now reaches target death.
+- ACTIVE: Add enemy firing animation/effects, visually verify stationary aiming, and extend natural-trigger encounter coverage.
 - TO COMPLETE: Expand the working pistol/rifle combat, pickups and first-person feedback to the remaining weapons.
 - DEFERRED / TO COMPLETE: Restore full NPC/prop texture detail through better residency; verify PS2 parity for reduced textures.
 - Continue campaign traversal/physics coverage beyond the repaired walking route.
@@ -33,6 +33,19 @@ Shortlist:
 - USER: Review the interactive PC movement and audio items listed below.
 
 Progress reporting: include a very high-level working area (e.g. Lighting, AI, Weapons, GeoMod or Scripted events) and an overall percent estimate at the end of every turn report (USER preference) and revisit remaining 24-hour workdays when measured throughput supports a forecast; current rough estimate45% (35-45%), no defensible +/-48-hour completion forecast before end-to-end gameplay.
+
+Stationary combat aiming now uses retained steering/angular prediction and
+ordinary orientation publication while preserving position. Shots require a
+30-degree horizontal forward cone; failed alignment leaves cooldown available.
+This is practical first-pass aiming; vertical aim and upper-body/fire blends
+remain open. Tests verify front/side/back gating and actual NPC damage held
+while backward, then allowed once aligned.37 PC tests pass. Controlled4000-frame
+Attack9802 replay still defeats target with20 shots and1171 stationary aim
+updates; that sample has zero aim holds and does not prove a large turn or
+visual weapon alignment. NXDK build and stock64MiB XEMU replay112202 pass the
+180-frame L1S2->L1S3 transition/state checks. No screenshot requested; full Xbox
+encounter execution, visual turning verification and firing presentation remain
+open. Evidence:artifacts/enemy-aim and attack-encounter/verified.
 
 Attack9802 controlled encounter now completes through target death. Root cause:
 scene fallback clearance used2.5 radius for an actor radius~0.43, leaving no

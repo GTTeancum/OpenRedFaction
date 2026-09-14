@@ -1117,9 +1117,13 @@ static int scripted_attack_damage_check(void)
         CHECK(rf_entity_view_register(&campaign_registry,&campaign_entities,&owners[i].view,&owners[i].registration)==RF_OK);
         owners[i].damage.effects.handle=owners[i].registration.handle;
     }
-    owners[0].view.weapons[0]=0;owners[0].combat_scripted=owners[0].combat_alert=1;owners[0].combat_target=owners[1].registration.handle;
+    owners[0].look.orientation[8]=1;owners[0].view.weapons[0]=0;owners[0].combat_scripted=owners[0].combat_alert=1;owners[0].combat_target=owners[1].registration.handle;
     owners[1].eye_position[2]=5;
-    CHECK(campaign_enemy_tick(&stream,0,eye)==RF_OK);
+    owners[0].look.orientation[8]=-1;
+    CHECK(campaign_enemy_tick(&stream,0,eye)==RF_OK && owners[1].damage.effects.health==100 && owners[0].combat_due==0);
+    owners[0].look.orientation[8]=1;
+    CHECK(campaign_enemy_tick(&stream,1,eye)==RF_OK);
+
     health=owners[1].damage.effects.health;CHECK(health<100 && health>0 && campaign_player_damage.state.effects.health==100);
     CHECK(campaign_enemy_tick(&stream,1,eye)==RF_OK && owners[1].damage.effects.health==health);
     owners[1].eye_position[2]=owners[1].body.state.position[2]=60;
@@ -1173,6 +1177,12 @@ static int scripted_attack_check(void)
 }
 int main(int argc,char **argv)
 {
+    {
+        campaign_npc_body actor={0};float target[3]={0,0,5};actor.look.orientation[8]=1;
+        CHECK(campaign_enemy_aim_aligned(&actor,target));target[0]=5;CHECK(!campaign_enemy_aim_aligned(&actor,target));
+        target[0]=0;target[2]=-5;CHECK(!campaign_enemy_aim_aligned(&actor,target));
+        actor.look.orientation[8]=-1;CHECK(campaign_enemy_aim_aligned(&actor,target));
+    }
     CHECK(scripted_attack_damage_check()==0);
     CHECK(scripted_attack_check()==0);
     CHECK(script_locomotion_check()==0);

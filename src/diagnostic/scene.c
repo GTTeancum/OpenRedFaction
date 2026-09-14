@@ -7560,6 +7560,14 @@ static int campaign_script_attack(void *context,const rf_level_event *event,cons
     owner->combat_scripted=owner->combat_alert=1;owner->combat_target=target;owner->combat_due=0;
     campaign_pursuit_stop(owner);owner->combat_navigation_due=0;owner->script_move.active=0;return RF_OK;
 }
+uint32_t rf_scene_enemy_aim[4]; /* stationary turns, shots held for aim, last actor handle, reserved */
+static int campaign_enemy_aim_aligned(const campaign_npc_body *owner,const float delta[3])
+{
+    float x=owner->look.orientation[6],z=owner->look.orientation[8];
+    float forward=x*delta[0]+z*delta[2],length=x*x+z*z,distance=delta[0]*delta[0]+delta[2]*delta[2];
+    /* Practical30-degree horizontal firing cone; pitch/upper-body aim remains open. */
+    return length>0 && distance>.0001f && forward>0 && forward*forward>=.75f*length*distance;
+}
 static int campaign_enemy_tick(scene_stream *stream,uint32_t frame,const float player_eye[3])
 {
     uint32_t i,j,blocked,clock_bits;float seconds=(float)frame/60;
@@ -7612,6 +7620,7 @@ static int campaign_enemy_tick(scene_stream *stream,uint32_t frame,const float p
             } else if(owner->script_move.follow==2)campaign_pursuit_target(owner,target_position);
         }
         if(frame<owner->combat_due)continue;
+        if(!campaign_enemy_aim_aligned(owner,delta)){++rf_scene_enemy_aim[1];continue;}
         owner->combat_due=frame+60;
         if(distance>40*40 || distance<.0001f)continue;
         status=combat_obstructed(stream,owner->eye_position,delta,&blocked);if(status)return status;
@@ -8942,6 +8951,24 @@ static int campaign_script_step(scene_stream *stream,float elapsed)
         rf_physics_body_state proposal;rf_collision_body_sphere scratch[8];rf_geometry_body_hit hit;uint32_t blocked;
         if(o->script_move.stop) {
             if(o->registration.view && o->damage.effects.health>0 && !(o->view.flags_810&1)){status=campaign_script_locomotion(i,0);if(status)return status;}o->script_move.stop=0;
+        }
+        if(!o->script_move.active && o->combat_alert && o->registration.view && o->damage.effects.health>0 &&
+           !(o->object_flags&(2|0x4000)) && !(o->view.flags_810&1) && o->view.weapons[0]>=0) {
+            const float *aim=scene_actor_body.state.position;
+            if(o->combat_scripted && o->combat_target!=campaign_player_object.handle) {
+                aim=NULL;
+                for(j=0;j<campaign_npc_body_count;j++)if(campaign_npc_bodies[j].registration.view &&
+                    campaign_npc_bodies[j].registration.handle==o->combat_target && campaign_npc_bodies[j].damage.effects.health>0) {
+                    aim=campaign_npc_bodies[j].body.state.position;break;
+                }
+            }
+            if(aim && campaign_player_damage.state.effects.health>0) {
+                memcpy(o->body.state.next_position,o->body.state.position,12);
+                status=rf_scene_npc_steer(o->registration.handle,aim,elapsed,rf_scene_npc_playback[0],&turn);if(status)return status;
+                status=rf_scene_npc_prepare_angular(o->registration.handle,elapsed);if(status)return status;
+                status=rf_scene_npc_commit_ordinary(o->registration.handle,elapsed);if(status)return status;
+                ++rf_scene_enemy_aim[0];rf_scene_enemy_aim[2]=o->registration.handle;
+            }
         }
         if(!o->script_move.active)continue;
         if(!o->registration.view || o->damage.effects.health<=0){o->script_move.active=0;continue;}

@@ -17,6 +17,7 @@
 #include <string.h>
 
 extern uint32_t rf_scene_script_attack[12];
+extern uint32_t rf_scene_enemy_aim[4];
 extern uint32_t rf_scene_script_route_detail[8],rf_scene_script_obstacle[8];
 extern float rf_scene_script_attack_position[9];
 extern char rf_material_failure_name[61];
@@ -659,6 +660,7 @@ run_scene:
     printf("SCRIPT_ROUTE_DETAIL");for(i=0;i<8;++i)printf(" %u",rf_scene_script_route_detail[i]);puts("");
     printf("SCRIPT_OBSTACLE");for(i=0;i<8;++i)printf(" %u",rf_scene_script_obstacle[i]);puts("");
     printf("SCRIPT_ATTACK");for(i=0;i<12;++i)printf(" %u",rf_scene_script_attack[i]);puts("");
+    printf("ENEMY_AIM");for(i=0;i<4;++i)printf(" %u",rf_scene_enemy_aim[i]);puts("");
     printf("ENEMY_COMBAT");for(i=0;i<8;++i)printf(" %u",rf_scene_enemy_combat[i]);puts("");
     printf("PICKUP_VITALS");for(i=0;i<4;++i)printf(" %u",rf_scene_pickup_vitals[i]);puts("");
     printf("PICKUPS");for(i=0;i<8;++i)printf(" %u",rf_scene_pickups[i]);puts("");

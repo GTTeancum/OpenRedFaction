@@ -61,3 +61,13 @@ The replay now checks all four checkpoints840/1000/3000/4000 and fails unless th
 Additional route diagnostics report actor clearance, eligible-node count, selected start/goal, containment and graph result; obstruction diagnostics retain the last body-hit solid, room, face, normal, fraction and owner. Evidence is under `artifacts/attack-obstruction/`, with the current full replay report in `artifacts/attack-encounter/verified/`.
 
 Validation:37 PC tests pass and the controlled encounter regression passes. Stock64MiB XEMU replay `replay-20260914-111450` passes the180-frame L1S2-to-L1S3 transition/state checks; NXDK build/restoration succeeds. No native image was requested. This checks Xbox compatibility, not the complete Attack9802 encounter on Xbox.
+
+## Stationary aiming and firing direction
+
+Alert, armed, living NPCs that are not currently walking now steer toward their selected live target through the same retained steering/angular prediction/ordinary commit path used by scripted movement. The stationary path copies current position to proposed position first, so turning does not intentionally translate the actor. The committed body orientation is published to the model owner. Retired, hidden, dead and unsupported actors are excluded.
+
+The basic firing loop now requires the target within a30-degree horizontal cone around the current facing direction. A rejected aim does not consume the shot cooldown. This is a practical first-pass threshold; vertical aiming, upper-body pose blends and weapon-specific firing animations remain open. Walking attackers keep their route steering and obey the same firing cone.
+
+Tests cover front/side/back alignment and a real damage dispatch held while facing backward, followed by a shot after alignment. The controlled4000-frame encounter still defeats the target with20 shots and records1171 stationary aiming updates. This sample already has suitable facing at shot time; its aim-hold count is zero. It does not demonstrate a large stationary turn or visually validate body/weapon presentation. The replay regression now requires stationary aiming updates as well as target defeat and death entry.
+
+Validation:37 PC tests and the controlled encounter regression pass. NXDK build/restoration and stock64MiB XEMU replay `replay-20260914-112202` pass180-frame L1S2-to-L1S3 transition/state checks. No capture was requested; full Xbox encounter execution and visual aiming remain separate. Evidence: `artifacts/enemy-aim/`.
