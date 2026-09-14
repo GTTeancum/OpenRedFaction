@@ -6928,7 +6928,7 @@ static int actor_listener_pose(scene_stream *stream,uint32_t frame,
 /* Playable-first hitscan prototype; tuning/inventory and complete effect/AI
  * services remain pending. Uses retained damage ownership and death animation. */
 uint32_t rf_scene_combat[8];
-static uint32_t combat_cooldown,combat_frame;
+static uint32_t combat_cooldown,combat_frame,combat_hit_frame;
 static uint32_t combat_predicate(void *c,uint32_t kind,uint32_t handle)
 {(void)c;return (kind==RF_DAMAGE_PLAYER || kind==RF_DAMAGE_OBJECT_PLAYER_FLAG) && handle==campaign_player_object.handle;}
 static uint32_t combat_uid(void *c,int32_t uid)
@@ -6956,7 +6956,7 @@ static int combat_box(const float start[3],const float delta[3],const rf_physics
 static int campaign_combat_tick(scene_stream *stream,uint32_t frame,const float position[3],const float orientation[3][3])
 {
     float delta[3],nearest=1,amount;uint32_t i,target=UINT32_MAX,matched;rf_geometry_world_hit wall;int status;
-    if(!frame){memset(rf_scene_combat,0,sizeof(rf_scene_combat));rf_scene_combat[3]=UINT32_MAX;rf_scene_combat[5]=12;combat_cooldown=0;combat_frame=UINT32_MAX;}
+    if(!frame){memset(rf_scene_combat,0,sizeof(rf_scene_combat));rf_scene_combat[3]=UINT32_MAX;rf_scene_combat[5]=12;combat_cooldown=0;combat_frame=combat_hit_frame=UINT32_MAX;}
     if(combat_frame==frame)return RF_OK;combat_frame=frame;
     if(combat_cooldown)--combat_cooldown;
     if(rf_scene_combat[6]){if(!--rf_scene_combat[6])rf_scene_combat[5]=12;return RF_OK;}
@@ -6975,7 +6975,7 @@ static int campaign_combat_tick(scene_stream *stream,uint32_t frame,const float 
     }
     for(i=0;i<campaign_npc_body_count;i++) {
         campaign_npc_body *owner=campaign_npc_bodies+i;float fraction;
-        if(!owner->registration.view || !owner->body.allocated_bytes || owner->damage.effects.health<=0 || (owner->view.flags_810&1))continue;
+        if(!owner->registration.view || (owner->object_flags&(2|0x4000)) || !owner->body.allocated_bytes || owner->damage.effects.health<=0 || (owner->view.flags_810&1))continue;
         if(combat_box(position,delta,&owner->body.state.bounds,nearest,&fraction) && fraction<nearest){nearest=fraction;target=i;}
     }
     if(target!=UINT32_MAX) {
@@ -6983,11 +6983,38 @@ static int campaign_combat_tick(scene_stream *stream,uint32_t frame,const float 
         float seconds=(float)frame/60;rf_damage_request request={25,campaign_player_object.handle,0,0,UINT32_MAX,0};
         rf_damage_effect_backend effects={combat_predicate,combat_uid,combat_source,combat_burn,combat_random,combat_notify,combat_playing,combat_play,NULL};
         memcpy(&clock_bits,&seconds,4);status=rf_scene_npc_damage(handle,&request,1,clock_bits,&effects,&amount);if(status)return status;
+        if(amount>0)combat_hit_frame=frame;
         ++rf_scene_combat[1];rf_scene_combat[3]=handle;memcpy(rf_scene_combat+4,&owner->damage.effects.health,4);
         if(owner->damage.effects.health<=0) {
             status=rf_scene_npc_death_entry(handle,&entered);if(status)return status;
             if(entered){++rf_scene_combat[2];status=rf_scene_npc_death_play(handle,5,0,NULL,NULL);if(status!=RF_NOT_FOUND && status)return status;}
         }
+    }
+    return RF_OK;
+}
+static int combat_hud_rect(rf_scene_particle_sink sink,void *context,float x,float y,float width,float height,uint32_t color)
+{
+    rf_particle_draw_vertex vertices[4]={0};uint32_t i;
+    for(i=0;i<4;i++){vertices[i].screen[0]=x+((i==1 || i==2)?width:0);vertices[i].screen[1]=y+(i>=2?height:0);vertices[i].reciprocal_w=1;vertices[i].argb=color;}
+    return sink(context,vertices,4,NULL,0x18000);
+}
+int rf_scene_draw_combat_hud(rf_scene_particle_sink sink,void *context)
+{
+    const float arms[4][4]={{310,239,7,2},{323,239,7,2},{319,230,2,7},{319,243,2,7}};
+    uint32_t i,color=0xffeeeeee;int status;
+    if(!sink || !particle_draw_stream || !campaign_spawn)return RF_OK;
+    if(combat_hit_frame!=UINT32_MAX && combat_frame-combat_hit_frame<=8)color=0xff60ff80;
+    for(i=0;i<4;i++) {
+        status=combat_hud_rect(sink,context,arms[i][0]-1,arms[i][1]-1,arms[i][2]+2,arms[i][3]+2,0xff101010);if(status)return status;
+        status=combat_hud_rect(sink,context,arms[i][0],arms[i][1],arms[i][2],arms[i][3],color);if(status)return status;
+    }
+    status=combat_hud_rect(sink,context,470,436,146,28,0xff101010);if(status)return status;
+    for(i=0;i<12;i++) {
+        status=combat_hud_rect(sink,context,477+i*11,443,7,12,i<rf_scene_combat[5]?0xffeeeeee:0xff484848);if(status)return status;
+    }
+    if(rf_scene_combat[6]) {
+        status=combat_hud_rect(sink,context,477,458,128,3,0xff484848);if(status)return status;
+        status=combat_hud_rect(sink,context,477,458,128.0f*(72-rf_scene_combat[6])/72.0f,3,0xffffc040);if(status)return status;
     }
     return RF_OK;
 }

@@ -2,7 +2,14 @@
 
 Work in progress: shared C/C++ reconstruction targeting a stock 64 MiB Xbox
 through NXDK, with a maintained 32-bit PC build. Single-player comes first and
-visual quality must meet the PS2 version. **There is no playable port yet.**
+visual quality must meet the PS2 version. **Full campaign play remains unfinished.**
+
+![Xbox combat prototype: NPC hit confirmation and ammunition display](docs/images/xbox-combat-hud.png)
+
+**Xbox build in XEMU, stock64MiB, native640 x480 capture.** The first-pass
+firing loop damages a visible NPC; the green reticle confirms a hit and the
+bottom-right markers show11 rounds left. Reloading is supported. First-person
+gun presentation, shot audio and enemy return fire remain unfinished.
 
 ![Xbox reconstruction: miner, mining robot, overhead lamps and warning fixture in Live Mines](docs/images/xbox-campaign-props.png)
 

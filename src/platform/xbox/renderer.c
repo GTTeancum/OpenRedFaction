@@ -59,6 +59,9 @@ static int upload(gpu_texture *out, const rf_image *image, int fallback)
 static int scene_particle_present(void *context,const rf_particle_draw_vertex *vertices,uint32_t count,const rf_image *image,uint32_t mode)
 {
     (void)context;
+    /* Screen-space solid overlays have direct depth, not world reciprocal-Z.
+     * Applying the world bias at depth0 exceeds the24-bit far plane. */
+    if(mode==0x18000u)return rf_xbox_particle_draw(vertices,count,image,mode,1,0,0,0);
     return rf_xbox_particle_draw(vertices,count,image,mode,RF_SCENE_PARTICLE_DEPTH_SCALE,RF_SCENE_PARTICLE_DEPTH_BIAS,0,0);
 }
 static int preview(const rf_preview_mesh *mesh, const rf_materials *materials, const rf_lightmaps *lightmaps, volatile uint32_t capture[6], volatile uint32_t memory[3],int model,uint32_t world_vertices,uint32_t requested_capacity)
@@ -216,7 +219,8 @@ static int preview(const rf_preview_mesh *mesh, const rf_materials *materials, c
         while (pb_busy()) {}
         if(streaming) {int status=rf_scene_draw_particles(scene_particle_present,NULL);if(status)return status;
             status=rf_scene_draw_coronas(scene_particle_present,NULL);if(status)return status;}
-        if(streaming) {int status=rf_scene_draw_player_flash(scene_particle_present,NULL);if(status)return status;}
+        if(streaming) {int status=rf_scene_draw_player_flash(scene_particle_present,NULL);if(status)return status;
+            status=rf_scene_draw_combat_hud(scene_particle_present,NULL);if(status)return status;}
         renderer_mark(5,&profile_previous,profiling);
         capture[0] = (uint32_t)pb_back_buffer();
         capture[1] = pb_back_buffer_width(); capture[2] = pb_back_buffer_height(); capture[3] = pb_back_buffer_pitch();

@@ -22,6 +22,25 @@ Shortlist:
 
 Progress reporting: include a very high-level working area (e.g. Lighting, AI, Weapons, GeoMod or Scripted events) and an overall percent estimate at the end of every turn report (USER preference) and revisit remaining 24-hour workdays when measured throughput supports a forecast; current rough estimate41% (35-45%), no defensible +/-48-hour completion forecast before end-to-end gameplay.
 
+Shared combat HUD now renders a centered reticle, green damaging-hit feedback,
+12 remaining-round markers and a reload progress bar through both renderers.
+Draw-only, stack vertices, no retained allocation. PC native pixel checks cover
+ready/hit/reload states. Image inspection exposed that the previous combat
+target9858 is hidden; shots now exclude object flags2/0x4000. The old counter
+evidence did not demonstrate hitting a visible actor. Tests now use visible
+guard8456 (22 shots/8 hits/1 death at360 frames), and hidden9858 explicitly
+produces zero hits. Both builds and26 tests pass. Evidence:
+artifacts/combat-hud/report.json and artifacts/combat-first/report.json.
+Initial native capture001553 passed game-state checks but contained no HUD:
+the shared world-depth bias clipped screen overlays beyond the GPU far plane.
+Xbox solid screen overlays now use direct depth, also fixing scene damage
+flash routing. Native capture harness now checks actual HUD pixels against PC,
+so submission/state success cannot mask missing overlays. Retest PASS:
+artifacts/xemu/replay-20260914-001847/report.json and framebuffer.png.
+Stock64MiB,34 frames,1 shot/1 hit,11 rounds;13 HUD pixels match PC within
+2/channel. Native capture visually inspected and added to README.
+Next prioritize enemy combat behavior; original HUD styling stays deferred.
+
 Playable-first combat now connects RT (PC F) and Y reload (PC R) to a shared
 hitscan prototype:12-round clip, unlimited reserve,12-tick cooldown,72-tick
 reload,25 base damage and100-unit range. Static world geometry and conservative
@@ -35,7 +54,7 @@ artifacts/xemu/replay-20260914-000617/report.json;22 shots/8 hits/1 death/2
 rounds left exactly match PC.7180 available pages at completion is an endpoint,
 not a peak guarantee. Legacy390-frame raw input walk still passes with no shots.
 This is new first-pass policy, not1:1 weapon reconstruction. Weapon inventory/
-tuning, first-person gun/crosshair/ammo presentation, shot/impact audio, precise
+tuning, first-person gun presentation, shot/impact audio, precise
 mover/actor hit geometry, clutter obstruction and enemy return fire remain. Damage-side peripheral
 notifications and special effects are not yet bound; bullet health/death is.
 

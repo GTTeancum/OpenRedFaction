@@ -883,6 +883,13 @@ dvd_path = '{root.as_posix()}/build/xbox/redfaction-diagnostic.iso'
      monitor.command('human-monitor-command',{'command-line':f'pmemsave 0x{d[32]&0x03ffffff:x} {d[35]*d[34]} "{capture.as_posix()}"'})
      Image.frombytes('RGB',(d[33],d[34]),capture.read_bytes(),'raw','BGRX',d[35],1).save(run/'framebuffer.png')
      report['capture']='Native guest framebuffer for renderer validation'
+     if args.campaign_spawn:
+      native=Image.open(run/'framebuffer.png');reference=Image.open(run/'pc-final.ppm')
+      points=[(312,240)]+[(480+i*11,448) for i in range(12)]
+      if report['combat'][6]:points.extend([(480,459),(600,459)])
+      report['combat_hud_pixels']=[dict(point=q,xbox=native.getpixel(q),pc=reference.getpixel(q)) for q in points]
+      assert all(max(abs(a-b) for a,b in zip(v['xbox'],v['pc']))<=2 for v in report['combat_hud_pixels']),report['combat_hud_pixels']
+
     if args.audio_capture:
      device_audio=words(monitor,symbol('rf_xbox_audio_diagnostic'),12)
      report['device_audio']=device_audio

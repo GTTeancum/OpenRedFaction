@@ -17,7 +17,9 @@ campaign, enemy combat, gun presentation and weapon inventory remain unfinished.
 PC campaign controls add F to fire and R to reload (or RT/Y with XInput).
 Launch `rf_pc_play --campaign Installed_Game` for the campaign profile. The
 prototype has12 rounds, automatic/manual reload and unlimited reserve ammo.
-No crosshair or first-person gun is shown yet; these are next presentation work.
+The centered reticle flashes green on damaging hits. Bottom-right markers
+show the12-round clip; a gold bar shows reload progress. First-person gun
+presentation and shot audio remain pending.
 
 The shared provider polls once before stance and animation. Its validated
 movement/look/crouch state is reused by physics and camera; it replaces the

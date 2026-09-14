@@ -195,6 +195,7 @@ static int present(void *context,uint32_t frame,const rf_preview_mesh *mesh,
     status=rf_scene_draw_particles(particle_present,p);if(status)return status;
     status=rf_scene_draw_coronas(particle_present,p);if(status)return status;
     status=rf_scene_draw_player_flash(particle_present,p);if(status)return status;
+    status=rf_scene_draw_combat_hud(particle_present,p);if(status)return status;
     ++p->frames;
     if(!p->headless) {
         for(i=0;i<p->raster.pixels;++i) {
