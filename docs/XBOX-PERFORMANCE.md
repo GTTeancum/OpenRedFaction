@@ -211,3 +211,18 @@ reviewed changed pixel, explicitly PASS_WITH_DIFFERENCES in comparison/report.js
 Broader camera and portal-boundary testing, detail-parent culling and that
 one-pixel discrepancy remain open. Evidence: artifacts/world-room-culling/
 performance.json and artifacts/xemu/replay-20260914-095052/native-image-comparison.json.
+
+Room-culling camera audit completed with tools/replay_visibility_views.py:
+nine final views after90-frame left/right/up-right rotations near authored
+exits in L1S1/L1S2/L1S3. Final player state and recorded inputs match in all
+cases, with distinct final body states confirming the rotations. Eight
+images match exactly; L1S3-right has three isolated ceiling-edge pixels
+replaced by background. Both images inspected; accepted for first pass,
+tracked as polish work rather than exact parity. Raw report remains
+REVIEW_REQUIRED; explicit review is artifacts/visibility-views/review.json.
+TODO: repair the earlier actor-view single pixel and these three pixels;
+extend coverage to more rooms/intermediate frames and bind detail parents.
+Initial audit incorrectly treated a mesh-count-inclusive hash as camera-only;
+corrected to compare final body state and input records before the full run.
+No new engine change or FPS gain in this audit. Existing native baseline
+remains approximately15FPS-equivalent work.
