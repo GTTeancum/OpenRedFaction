@@ -39,6 +39,7 @@ uint32_t rf_xbox_load_stage;
 uint32_t rf_xbox_level_transitions[4]; /* count,last UID,frames at exit,available pages after release */
 static FILE *player_replay;
 static uint32_t player_replay_size,campaign_exit_uid,campaign_forced_exit_uid,campaign_goal_uid,campaign_goto_uid,campaign_setup_uid,campaign_return_exit_uid,campaign_return_item_uid,campaign_return_place;
+static uint32_t campaign_setup_next_uid;
 uint32_t rf_player_replay_diagnostic[4]; /* active, records, consumed, read status */
 static void player_input_close(void)
 {
@@ -51,7 +52,10 @@ static int player_poll_paced(void *context,uint32_t frame,rf_scene_input *input)
     if(campaign_setup_uid && !campaign_total_frames) {
         int status=rf_scene_fire_setup_event(campaign_setup_uid,0);if(status)return status;
     }
-    if(campaign_goto_uid && campaign_total_frames==(campaign_setup_uid?300:30)) {
+    if(campaign_setup_next_uid && campaign_total_frames==60) {
+        int status=rf_scene_fire_setup_event(campaign_setup_next_uid,1000);if(status)return status;
+    }
+    if(campaign_goto_uid && campaign_total_frames==(campaign_setup_next_uid?360:(campaign_setup_uid?300:30))) {
         int status=rf_scene_fire_npc_event(campaign_goto_uid,(int32_t)((uint64_t)frame*1000/60));
         campaign_goto_uid=0;if(status)return status;
     }
@@ -500,7 +504,9 @@ static int scene_preview(rf_level *level,rf_preview_mesh *mesh)
         exit_file=fopen("D:\\campaign-watch.bin","rb");
         if(exit_file){int invalid=fread(&rf_scene_watch_test_uid,4,1,exit_file)!=1 || fgetc(exit_file)!=EOF;fclose(exit_file);if(invalid)return RF_FORMAT;}
         exit_file=fopen("D:\\campaign-setup.bin","rb");
-        if(exit_file){int invalid=fread(&campaign_setup_uid,4,1,exit_file)!=1 || fgetc(exit_file)!=EOF;fclose(exit_file);if(invalid)return RF_FORMAT;}
+        if(exit_file){uint32_t values[3]={0};size_t bytes=fread(values,1,sizeof(values),exit_file);fclose(exit_file);
+            if((bytes!=4 && bytes!=8) || !values[0] || (bytes==8 && !values[1]))return RF_FORMAT;
+            campaign_setup_uid=values[0];campaign_setup_next_uid=values[1];}
         exit_file=fopen("D:\\campaign-goto.bin","rb");
         if(exit_file){int invalid=fread(&campaign_goto_uid,4,1,exit_file)!=1 || fgetc(exit_file)!=EOF;fclose(exit_file);if(invalid)return RF_FORMAT;}
         exit_file=fopen("D:\\campaign-goal.bin","rb");

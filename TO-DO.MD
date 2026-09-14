@@ -11,7 +11,7 @@ failures to select work; avoid spending time on exact RE or visual polish unless
 it blocks those systems. This priority change does not increase completion.
 
 Shortlist:
-- ACTIVE: Sequence authored NPC visibility/setup events and verify visible hangar-door traversal.
+- ACTIVE: Complete scripted NPC route progression, grounding and walking animation beyond the verified hangar door.
 - TO COMPLETE: Preserve remaining world changes across sections, including partial actor state and dropped items.
 - NEXT: Expand mission scripts and AI until consecutive campaign sections are playable end to end.
 - TO COMPLETE: Expand the working pistol/rifle combat, pickups and first-person feedback to the remaining weapons.
@@ -30,6 +30,16 @@ Shortlist:
 - USER: Review the interactive PC movement and audio items listed below.
 
 Progress reporting: include a very high-level working area (e.g. Lighting, AI, Weapons, GeoMod or Scripted events) and an overall percent estimate at the end of every turn report (USER preference) and revisit remaining 24-hour workdays when measured throughput supports a forecast; current rough estimate45% (35-45%), no defensible +/-48-hour completion forecast before end-to-end gameplay.
+
+L7S2 PC hangar traversal passes with authored Shot1/Shot3 setup and Goto4994:
+1000 frames,999 steps, zero blocked steps, two NPC contacts/two door starts
+and370 occupancy hits. Hidden-actor and disabled-trigger controls both stop
+before the door. Longer1500-frame replay stops nearX27.471 beyond the hangar.
+Automatic cutscene dispatch and full visible mission play remain incomplete.
+Stock64MiB XEMU1000 frames match PC movement, routes, contacts and occupancy.
+Both builds and36 tests pass; native capture inspected (starting tunnel only).
+Evidence: artifacts/npc-doors/report.json; tools/replay_npc_doors.py;
+artifacts/xemu/replay-20260914-072409/report.json.
 
 Shared UnHide events now queue deferred visibility changes for living NPCs.
 Authored dispatch, cooldown, missing backend, unresolved links, visibility
