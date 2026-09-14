@@ -108,3 +108,23 @@ python tools/xemu_replay_check.py artifacts/attack-encounter/verified/inputs-400
 This remains a process-local controlled event request and staged player position, not natural trigger traversal. The native run must reach4000 frames and pass its final comparison before it is treated as Xbox encounter evidence.
 
 Result: `replay-20260914-114230` **PASS**,4000 frames,67108864 bytes guest RAM and no expansion. The native counters exactly match PC:39 shots,39 active firing clips,39 sound plays, one retaliation acquisition and one target death, with zero combat/audio errors. The delayed attacker accounts for20 shots and1290 pursuit ticks. NXDK restoration completed successfully. This closes controlled full-duel Xbox execution coverage; natural triggers and visual sequence verification remain open. Evidence: `artifacts/xemu/replay-20260914-114230/report.json`.
+
+## Player-target pursuit
+
+Player-target pursuit now uses the same movement path as scripted/reactive NPC
+targets. Previously normal sight acquisition and retaliation against the player
+set combat_alert with mode0, so the scripted-only navigation gate left these
+enemies stationary when the player withdrew or broke line of sight. Alert actors
+now request pursuit beyond20 units or behind an obstruction, retain it until
+clear within16 units, and update the player's body position through the existing
+navigation/ground/collision path. Unalerted neutral actors remain passive.
+Tests cover actual sight acquisition without Attack, withdrawal, pursuit target,
+and stopping hysteresis. All37 PC tests and NXDK build pass; the live PC hostile
+and neutral replays retain8 shots/61.6 health and0 shots/100 health respectively.
+This is practical continuous target tracking; search/lost-target AI remains open.
+A naturally traversed campaign encounter is still needed; actor staging is used
+by the live awareness replay. Evidence:artifacts/xbox-duel/player-pursuit-*.
+Stock64MiB XEMU replay `replay-20260914-115452` passes240 frames of the
+staged hostile awareness encounter with exact PC combat/action comparisons;
+NXDK restoration succeeds. This validates acquisition/fire compatibility on
+Xbox; retreat/chase behavior is covered by the focused tests, not this idle replay.

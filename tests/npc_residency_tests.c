@@ -1156,6 +1156,25 @@ static int scripted_attack_damage_check(void)
         CHECK(owners[1].combat_alert && owners[1].combat_scripted==2 && owners[1].combat_target==owners[0].registration.handle && owners[1].combat_due==91);
         combat_frame=saved_clock;
     }
+    /* Natural player acquisition must use pursuit without an authored Attack. */
+    {
+        float saved_position[3];memcpy(saved_position,scene_actor_body.state.position,12);
+        owners[1].view.weapons[0]=-1;
+        owners[0].combat_alert=owners[0].combat_scripted=owners[0].combat_target=0;
+        owners[0].combat_navigation_due=0;owners[0].damage.effects.affiliation=0;
+        memset(&owners[0].script_move,0,sizeof(owners[0].script_move));
+        eye[2]=10;scene_actor_body.state.position[2]=10;
+        CHECK(campaign_enemy_tick(&stream,90,eye)==RF_OK && owners[0].combat_alert && !owners[0].combat_scripted);
+        CHECK(!owners[0].script_move.active);
+        eye[2]=60;scene_actor_body.state.position[2]=60;
+        CHECK(campaign_enemy_tick(&stream,105,eye)==RF_OK && owners[0].script_move.active && owners[0].script_move.follow==2);
+        CHECK(owners[0].script_move.target[2]==60);
+        eye[2]=18;scene_actor_body.state.position[2]=18;
+        CHECK(campaign_enemy_tick(&stream,120,eye)==RF_OK && owners[0].script_move.active);
+        eye[2]=15;scene_actor_body.state.position[2]=15;
+        CHECK(campaign_enemy_tick(&stream,135,eye)==RF_OK && !owners[0].script_move.active && owners[0].script_move.stop);
+        memcpy(scene_actor_body.state.position,saved_position,12);
+    }
     for(i=0;i<2;i++)CHECK(rf_entity_view_unregister(&campaign_registry,&campaign_entities,&owners[i].registration)==RF_OK);
     campaign_npc_bodies=NULL;campaign_npc_body_count=0;memset(&campaign_seeds,0,sizeof(campaign_seeds));
     campaign_player_object.handle=0;campaign_player_damage.state.effects.health=saved_health;return 0;

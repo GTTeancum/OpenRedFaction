@@ -34,6 +34,25 @@ Shortlist:
 
 Progress reporting: include a very high-level working area (e.g. Lighting, AI, Weapons, GeoMod or Scripted events) and an overall percent estimate at the end of every turn report (USER preference) and revisit remaining 24-hour workdays when measured throughput supports a forecast; current rough estimate45% (35-45%), no defensible +/-48-hour completion forecast before end-to-end gameplay.
 
+Player-target pursuit now uses the same movement path as scripted/reactive NPC
+targets. Previously normal sight acquisition and retaliation against the player
+set combat_alert with mode0, so the scripted-only navigation gate left these
+enemies stationary when the player withdrew or broke line of sight. Alert actors
+now request pursuit beyond20 units or behind an obstruction, retain it until
+clear within16 units, and update the player's body position through the existing
+navigation/ground/collision path. Unalerted neutral actors remain passive.
+Tests cover actual sight acquisition without Attack, withdrawal, pursuit target,
+and stopping hysteresis. All37 PC tests and NXDK build pass; the live PC hostile
+and neutral replays retain8 shots/61.6 health and0 shots/100 health respectively.
+This is practical continuous target tracking; search/lost-target AI remains open.
+A naturally traversed campaign encounter is still needed; actor staging is used
+by the live awareness replay. Evidence:artifacts/xbox-duel/player-pursuit-*.
+Stock64MiB XEMU replay `replay-20260914-115452` passes240 frames of the
+staged hostile awareness encounter with exact PC combat/action comparisons;
+NXDK restoration succeeds. This validates acquisition/fire compatibility on
+Xbox; retreat/chase behavior is covered by the focused tests, not this idle replay.
+
+
 Full native duel verification now passes: stock64MiB XEMU replay
 replay-20260914-114230 completes4000 frames of L1S1 Attack9802 and matches PC
 for scripted attack, pursuit, aiming, retaliation, combat, firing clips and audio.

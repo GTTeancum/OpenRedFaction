@@ -7658,7 +7658,7 @@ static int campaign_enemy_tick(scene_stream *stream,uint32_t frame,const float p
             if(!rf_scene_script_attack[10]){memcpy(rf_scene_script_attack+7,&health,4);rf_scene_script_attack[10]=1;}
             memcpy(rf_scene_script_attack+8,&health,4);if(owner->script_move.follow==2)++rf_scene_script_attack[9];
         }
-        if(owner->combat_scripted) {
+        if(owner->combat_alert) {
             const float *target_position=victim?victim->body.state.position:scene_actor_body.state.position;
             if(frame>=owner->combat_navigation_due) {
                 float range=owner->script_move.follow==2?16.0f:20.0f;
