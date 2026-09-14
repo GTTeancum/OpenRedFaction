@@ -31,6 +31,11 @@ Shortlist:
 
 Progress reporting: include a very high-level working area (e.g. Lighting, AI, Weapons, GeoMod or Scripted events) and an overall percent estimate at the end of every turn report (USER preference) and revisit remaining 24-hour workdays when measured throughput supports a forecast; current rough estimate45% (35-45%), no defensible +/-48-hour completion forecast before end-to-end gameplay.
 
+Mission voice playback now uses on-demand PCM in the existing1MiB sound bank;
+replacement/off requests stop the previous voice and audio failures keep subtitles.
+PC240-frame tests confirm natural/explicit/repeated dialogue starts and distinct
+PCM output; both builds and37 tests pass. Native device audio remains to verify.
+
 Stock64MiB XEMU subtitles pass the120-frame authored message8356 replay;
 the native framebuffer visibly contains the guard line. Evidence:
 artifacts/xemu/replay-20260914-083326/report.json and framebuffer.png.

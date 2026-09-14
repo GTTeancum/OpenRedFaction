@@ -1782,6 +1782,7 @@ static int campaign_audio_open(const char *tables_path,const char *level_name,co
     status=rf_vpp_read(&tables,&foley_entry,0,foley_text,foley_entry.size);if(status)goto audio_done;
     status=rf_foley_table_read(foley_text,foley_entry.size,NULL,0,NULL,0,&foley_groups,&foley_samples);if(status)goto audio_done;
     capacity=declared+foley_samples+campaign_group_runtime.count*4+campaign_ambient.count;
+    for(i=0;i<campaign_events.count;i++)if(campaign_events.items[i].state.type==15)++capacity;
     for(i=0;i<campaign_events.count;i++)if(campaign_events.items[i].switch_state) {
         ++rf_scene_switch_audio[0];
         if(campaign_events.items[i].authored->record.texts[0][0])++capacity;
@@ -7245,15 +7246,41 @@ static uint32_t combat_frame,combat_hit_frame;
 static rf_level_message campaign_subtitle;
 static int32_t campaign_subtitle_deadline=-1;
 static uint32_t campaign_subtitle_uid;
+static int32_t campaign_message_voice=-1;
+uint32_t rf_scene_message_audio[4]; /* requests,starts,failures,last status */
+static void campaign_message_stop(void)
+{
+    uint32_t handle;
+    if(campaign_message_voice>=0 && !rf_audio_voice_ids_resolve(&campaign_device_voice_ids,&campaign_audio_mixer,campaign_message_voice,&handle)) {
+        rf_audio_voice_stop(&campaign_audio_mixer,handle);
+        if(campaign_audio_events.stop)campaign_audio_events.stop(campaign_audio_events_context,handle);
+    }
+    campaign_message_voice=-1;
+}
+static void campaign_message_play(const char *name)
+{
+    uint32_t index;int status;const float position[3]={0,0,0};
+    ++rf_scene_message_audio[0];campaign_message_stop();
+    status=rf_audio_bank_declare(&campaign_audio_bank,name,1,1,1,&index);
+    if(!status && !rf_audio_bank_sample(&campaign_audio_bank,index)) {
+        status=campaign_ambient_reload(index);
+        if(!status){campaign_audio_evictable[index]=1;++rf_scene_sound_bank[1];
+            rf_scene_sound_bank[2]+=campaign_audio_bank.samples[index].bytes;rf_scene_live_audio[1]=campaign_audio_bank.bytes;}
+    }
+    if(!status){campaign_message_voice=campaign_sound_start((int32_t)index,position,1,0,0,0);if(campaign_message_voice<0)status=RF_RANGE;}
+    rf_scene_message_audio[3]=(uint32_t)status;
+    if(status)++rf_scene_message_audio[2];else ++rf_scene_message_audio[1];
+}
 static int campaign_show_message(void *context,const rf_level_event *event,int32_t now,uint32_t on)
 {
     rf_level_message next;int status;int32_t duration,deadline;
-    if(!on){if(campaign_subtitle_uid==event->uid)campaign_subtitle_deadline=-1;return RF_OK;}
+    if(!on){if(campaign_subtitle_uid==event->uid){campaign_subtitle_deadline=-1;campaign_message_stop();}return RF_OK;}
     status=rf_level_message_read(context,event->words[0],&next);if(status)return status;
     /* First-pass reading time, independent of missing voice resources. Latest wins. */
     duration=(int32_t)strlen(next.text)*55;if(duration<4000)duration=4000;if(duration>12000)duration=12000;
     status=rf_timer_set(&deadline,now,duration);if(status)return status;
-    campaign_subtitle=next;campaign_subtitle_uid=event->uid;campaign_subtitle_deadline=deadline;return RF_OK;
+    campaign_subtitle=next;campaign_subtitle_uid=event->uid;campaign_subtitle_deadline=deadline;
+    campaign_message_play(next.voice);return RF_OK;
 }
 static rf_weapon_trigger_state combat_trigger;
 uint32_t rf_scene_enemy_awareness[8]; /* checks,acquired,blocked,range,facing,nonhostile,last handle,status */
@@ -10068,6 +10095,7 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
             campaign_triggers.remove_object=campaign_remove_object;
             campaign_triggers.show_message=campaign_show_message;campaign_triggers.message_context=(void*)level;
             campaign_subtitle_deadline=-1;memset(&campaign_subtitle,0,sizeof(campaign_subtitle));
+            campaign_message_voice=-1;memset(rf_scene_message_audio,0,sizeof(rf_scene_message_audio));
             campaign_triggers.slay_object=campaign_slay_object;memset(rf_scene_script_slays,0,sizeof(rf_scene_script_slays));
             rf_scene_campaign_triggers[0]=campaign_triggers.count;
             rf_scene_campaign_triggers[1]=campaign_triggers.allocated_bytes;

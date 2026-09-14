@@ -633,6 +633,7 @@ run_scene:
         printf("ACTOR_PLAYER_INPUT");for(i=0;i<64*7;++i)printf(" %u",((uint32_t*)rf_scene_player_input_frames)[i]);puts("");
         printf("NPC_TRIGGERS");for(i=0;i<6;i++)printf(" %u",rf_scene_npc_triggers[i]);puts("");
         printf("SCRIPT_ROUTES");for(i=0;i<8;i++)printf(" %u",rf_scene_script_routes[i]);puts("");
+        printf("MESSAGE_AUDIO");for(i=0;i<4;i++)printf(" %u",rf_scene_message_audio[i]);puts("");
         printf("SCRIPT_SLAYS");for(i=0;i<6;i++)printf(" %u",rf_scene_script_slays[i]);puts("");
         printf("SCRIPT_MOVE");for(i=0;i<8;i++)printf(" %u",rf_scene_script_movement[i]);puts("");
         printf("SCRIPT_ACTOR");for(i=0;i<8;i++)printf(" %u",rf_scene_script_actor[i]);puts("");

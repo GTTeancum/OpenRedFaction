@@ -63,6 +63,21 @@ slots, load on demand, stop replaced voices and retain subtitles when audio
 is missing or exceeds the available budget; no new decoder is needed for this
 verified opening clip. Other dialogue formats still need validation.
 
+Voice playback is now connected through the existing shared mixer/device
+service. Message events reserve sound-bank name capacity; waveforms load on
+demand within the unchanged1MiB bank, with idle-sample eviction and device
+release handled by the existing owner. Replaced or explicitly stopped messages
+stop their previous voice. Missing/over-budget audio records a diagnostic failure
+without clearing the subtitle or aborting gameplay. First-pass voices are centered,
+nonpositional and use the existing metadata loop mode; speaker spatialization and
+voice-duration subtitle timing remain open.
+
+`tools/replay_message_audio.py` verifies240-frame L1S1 cases: one natural startup
+voice, two with explicit8356, and three with repeated8356. No load/start errors;
+all three software PCM captures differ. This proves shared mixer delivery, not
+listened intelligibility or physical/native device output. Both builds and37 tests
+pass. Local results: artifacts/message-audio/report.json.
+
 Remaining: native validation, voice ownership/playback, longer-text presentation
 coverage, full character/language support, authored queue and interruption
 behavior, speaker placement and timing. The current display is a playable
