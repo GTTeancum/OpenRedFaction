@@ -229,3 +229,7 @@ target_sources(rf_core PRIVATE src/core/player_weapon.c)
 add_executable(rf_player_weapon_tests tests/player_weapon_tests.c)
 target_link_libraries(rf_player_weapon_tests PRIVATE rf_core)
 add_test(NAME player_weapon_resources COMMAND rf_player_weapon_tests "${CMAKE_SOURCE_DIR}/Installed_Game")
+
+add_executable(rf_level_items_tests tests/level_items_tests.c)
+target_link_libraries(rf_level_items_tests PRIVATE rf_core)
+add_test(NAME level_pickup_records COMMAND rf_level_items_tests "${CMAKE_SOURCE_DIR}/Installed_Game")

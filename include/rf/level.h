@@ -102,6 +102,24 @@ typedef struct rf_level_entity {
 typedef struct rf_level_entity_reader {
     const rf_level *level;rf_level_section section;uint32_t cursor,count,index;
 } rf_level_entity_reader;
+typedef struct rf_level_item {
+    uint32_t uid;float position[3],orientation[3][3];
+    char class_name[256],script_name[256];
+    int32_t quantity,respawn_seconds,team;uint8_t common_flag;
+    uint32_t offset,bytes;
+} rf_level_item;
+typedef struct rf_level_owned_items {rf_level_item *items;uint32_t count,allocated_bytes;} rf_level_owned_items;
+/* v180 pickup section40000. Disk format evidence: docs/LEVEL-ITEMS.md.
+ * Streaming reader has no allocation and preserves output/cursor on failure.
+ * Exact section exhaustion required. Common flag/team are retained verbatim.
+ * No gameplay creation, table defaults, pickup acceptance or respawn scheduling. */
+int rf_level_items_begin(const rf_level *,rf_level_entity_reader *);
+int rf_level_item_next(rf_level_entity_reader *,rf_level_item *);
+/* One bounded allocation; empty destination required. Source may close after
+ * success. Budget includes owner/records, excluding allocator metadata. */
+int rf_level_owned_items_open(const rf_level *,uint32_t budget,rf_level_owned_items *);
+void rf_level_owned_items_close(rf_level_owned_items *);
+
 /* v180 section 0x30000 format reader; no gameplay entity creation. Caller keeps
  * level/archive alive. Sequential bounded reads, no heap allocation. next returns
  * NOT_FOUND after exact section exhaustion; errors preserve reader and output. */

@@ -40,6 +40,56 @@ static int entity_string(rf_level_entity_reader *r,char *out)
     status=entity_read(r,out,length);if(status)return status;
     if(memchr(out,0,length))return RF_FORMAT;out[length]=0;return RF_OK;
 }
+int rf_level_items_begin(const rf_level *level,rf_level_entity_reader *reader)
+{
+    const rf_level_section *section;rf_level_entity_reader r={0};uint8_t raw[4];int status;
+    if(!level || !reader || level->version!=180)return RF_RANGE;
+    section=rf_level_find(level,0x40000);if(!section)return RF_NOT_FOUND;
+    r.level=level;r.section=*section;status=entity_read(&r,raw,4);if(status)return status;r.count=le32(raw);
+    if(section->size<4 || r.count>(section->size-4)/69)return RF_FORMAT;
+    *reader=r;return RF_OK;
+}
+int rf_level_item_next(rf_level_entity_reader *reader,rf_level_item *item)
+{
+    rf_level_entity_reader r;rf_level_item v={0};uint8_t raw[48];uint32_t i,bits;int status;
+    if(!reader || !item || !reader->level)return RF_RANGE;
+    if(reader->index>=reader->count)return reader->index==reader->count && reader->cursor==reader->section.size?RF_NOT_FOUND:RF_FORMAT;
+    r=*reader;v.offset=r.cursor;
+    status=entity_read(&r,raw,4);if(status)return status;v.uid=le32(raw);
+    status=entity_string(&r,v.class_name);if(status)return status;
+    status=entity_read(&r,raw,48);if(status)return status;
+    for(i=0;i<12;i++) {
+        float x;bits=le32(raw+4*i);memcpy(&x,&bits,4);if(!isfinite(x))return RF_FORMAT;
+        if(i<3)v.position[i]=x;else v.orientation[((i-3)/3+2)%3][(i-3)%3]=x;
+    }
+    status=entity_string(&r,v.script_name);if(status)return status;
+    status=entity_read(&r,&v.common_flag,1);if(status)return status;
+    status=entity_read(&r,raw,12);if(status)return status;
+    bits=le32(raw);memcpy(&v.quantity,&bits,4);bits=le32(raw+4);memcpy(&v.respawn_seconds,&bits,4);
+    bits=le32(raw+8);memcpy(&v.team,&bits,4);v.bytes=r.cursor-v.offset;
+    ++r.index;if(r.index==r.count && r.cursor!=r.section.size)return RF_FORMAT;
+    *reader=r;*item=v;return RF_OK;
+}
+void rf_level_owned_items_close(rf_level_owned_items *items)
+{if(items){free(items->items);memset(items,0,sizeof(*items));}}
+int rf_level_owned_items_open(const rf_level *level,uint32_t budget,rf_level_owned_items *result)
+{
+    rf_level_entity_reader r;rf_level_item item;rf_level_owned_items v={0};uint64_t bytes;uint32_t i;int status;
+    if(!level || !result || result->items || result->count || result->allocated_bytes)return RF_RANGE;
+    status=rf_level_items_begin(level,&r);if(status)return status;
+    v.count=r.count;bytes=sizeof(v)+(uint64_t)v.count*sizeof(*v.items);if(bytes>budget)return RF_RANGE;
+    while((status=rf_level_item_next(&r,&item))==RF_OK){}
+    if(status!=RF_NOT_FOUND)return status;
+    v.allocated_bytes=(uint32_t)bytes;if(!v.count){*result=v;return RF_OK;}
+    v.items=malloc(v.count*sizeof(*v.items));if(!v.items)return RF_IO;
+    status=rf_level_items_begin(level,&r);if(status)goto fail;
+    if(r.count!=v.count){status=RF_FORMAT;goto fail;}
+    for(i=0;i<v.count;i++){status=rf_level_item_next(&r,v.items+i);if(status)goto fail;}
+    *result=v;return RF_OK;
+fail:
+    rf_level_owned_items_close(&v);return status;
+}
+
 int rf_level_regions_begin(const rf_level *level,rf_level_entity_reader *reader)
 {
     const rf_level_section *section;rf_level_entity_reader next;uint8_t raw[4];int status;

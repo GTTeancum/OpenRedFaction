@@ -23,6 +23,13 @@ Shortlist:
 
 Progress reporting: include a very high-level working area (e.g. Lighting, AI, Weapons, GeoMod or Scripted events) and an overall percent estimate at the end of every turn report (USER preference) and revisit remaining 24-hour workdays when measured throughput supports a forecast; current rough estimate42% (35-45%), no defensible +/-48-hour completion forecast before end-to-end gameplay.
 
+Authored pickup records now load through a bounded shared C reader/owner.
+All63 campaign levels scan exactly:593 pickups, peak28824 retained bytes.
+Truncation, budget failure, repeat close and source-archive closure checks pass;
+both builds and28 CTests pass. L1S1 has authored Handgun pickups with16 rounds.
+Next bind items.tbl classes/models and collect them into the live inventory;
+no live pickup objects or native residency validation yet. See docs/LEVEL-ITEMS.md.
+
 Player combat now owns a448-byte weapon inventory and consumes finite reserve
 on reload. Starting/respawn supply is provisionally a full16-round pistol plus
 the authored125-round reserve capacity. Partial reloads transfer only what is

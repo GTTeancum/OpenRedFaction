@@ -462,3 +462,10 @@ checks pass. Native 120-tick L1S1 campaign replay 20260910-002409 passes in stoc
 This tests current diagnostic rendering, not original-game/PS2 fidelity or L1S2.
 Subsequent small allocator validation and fallback write-combine changes rebuild
 and pass the linked decoder checks; the full campaign remains unfinished.
+
+## Pickup record layout
+
+The independently written item reader in src/core/level.c uses layout leads
+from pinned Open Faction rfl_format.h and shared/CItem.cpp. No implementation
+was copied. Exact record boundaries validate across593 installed campaign
+pickups. See docs/LEVEL-ITEMS.md for scope and remaining runtime work.
