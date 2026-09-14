@@ -19,7 +19,7 @@ Launch `rf_pc_play --campaign Installed_Game` for the campaign profile. The
 prototype has12 rounds, automatic/manual reload and unlimited reserve ammo.
 The centered reticle flashes green on damaging hits. Bottom-right markers
 show the12-round clip; a gold bar shows reload progress. First-person gun
-presentation and shot audio remain pending.
+presentation remains pending; firing and reload now emit the pistol sounds.
 Hostile armed NPCs acquire the player in sight; armed NPCs also retaliate
 when damaged, checking line of sight. The lower-left
 bar shows player health; incoming hits trigger the damage flash. Zero health

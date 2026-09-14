@@ -6930,6 +6930,17 @@ static int actor_listener_pose(scene_stream *stream,uint32_t frame,
 }
 /* Playable-first hitscan prototype; tuning/inventory and complete effect/AI
  * services remain pending. Uses retained damage ownership and death animation. */
+uint32_t rf_scene_weapon_audio[9]; /* requests,selections,plays,loads,bytes,sample,RNG,errors,name hash */
+static rf_random_state combat_sound_random;
+static void combat_sound(const char *name,const float position[3])
+{
+    int32_t group,sample;int status;campaign_pain_audio_context audio={&combat_sound_random,0,rf_scene_weapon_audio,1};
+    ++rf_scene_weapon_audio[0];status=rf_foley_find(&campaign_foley,name,&group);
+    if(!status){sample=campaign_pain_audio_resolve(&audio,group);if(!audio.status)campaign_pain_audio_play(&audio,position,sample);status=audio.status;}
+    rf_scene_weapon_audio[6]=combat_sound_random.value;
+    /* A missing sound or exhausted voice budget must not stop gameplay. */
+    if(status)++rf_scene_weapon_audio[7];
+}
 uint32_t rf_scene_combat_death[8]; /* entered,action,motion,status,tick,weight bits,frozen,generation */
 uint32_t rf_scene_combat[8];
 static uint32_t combat_cooldown,combat_frame,combat_hit_frame;
@@ -7095,7 +7106,7 @@ static int campaign_enemy_tick(scene_stream *stream,uint32_t frame,const float p
 static int campaign_combat_tick(scene_stream *stream,uint32_t frame,const float position[3],const float orientation[3][3])
 {
     float delta[3],nearest=1,amount;uint32_t i,target=UINT32_MAX,blocked;int status;
-    if(!frame){memset(rf_scene_combat_death,0,sizeof(rf_scene_combat_death));memset(rf_scene_combat,0,sizeof(rf_scene_combat));rf_scene_combat[3]=UINT32_MAX;rf_scene_combat[5]=12;combat_cooldown=0;combat_frame=combat_hit_frame=UINT32_MAX;
+    if(!frame){memset(rf_scene_weapon_audio,0,sizeof(rf_scene_weapon_audio));combat_sound_random.value=1;memset(rf_scene_combat_death,0,sizeof(rf_scene_combat_death));memset(rf_scene_combat,0,sizeof(rf_scene_combat));rf_scene_combat[3]=UINT32_MAX;rf_scene_combat[5]=12;combat_cooldown=0;combat_frame=combat_hit_frame=UINT32_MAX;
         memset(rf_scene_enemy_awareness,0,sizeof(rf_scene_enemy_awareness));
         memset(rf_scene_enemy_combat,0,sizeof(rf_scene_enemy_combat));combat_initial_health=campaign_player_damage.state.effects.health;
         for(i=0;i<campaign_npc_body_count;i++)campaign_npc_bodies[i].combat_alert=campaign_npc_bodies[i].combat_due=0;}
@@ -7104,10 +7115,10 @@ static int campaign_combat_tick(scene_stream *stream,uint32_t frame,const float 
     if(rf_scene_enemy_combat[6])return RF_OK;
     if(combat_cooldown)--combat_cooldown;
     if(rf_scene_combat[6]){if(!--rf_scene_combat[6])rf_scene_combat[5]=12;return RF_OK;}
-    if(player_input.reload && rf_scene_combat[5]<12){rf_scene_combat[6]=72;return RF_OK;}
+    if(player_input.reload && rf_scene_combat[5]<12){rf_scene_combat[6]=72;combat_sound("Glock Reload",position);return RF_OK;}
     if(!player_input.fire || combat_cooldown)return RF_OK;
-    if(!rf_scene_combat[5]){rf_scene_combat[6]=72;return RF_OK;}
-    --rf_scene_combat[5];++rf_scene_combat[0];combat_cooldown=12;
+    if(!rf_scene_combat[5]){rf_scene_combat[6]=72;combat_sound("Glock Reload",position);return RF_OK;}
+    --rf_scene_combat[5];++rf_scene_combat[0];combat_cooldown=12;combat_sound("Glock Launch",position);
     for(i=0;i<3;i++)delta[i]=orientation[2][i]*100;
     for(i=0;i<campaign_npc_body_count;i++) {
         campaign_npc_body *owner=campaign_npc_bodies+i;float fraction;

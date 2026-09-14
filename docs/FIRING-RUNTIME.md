@@ -731,3 +731,27 @@ corner, new clear passage there, a blocked shot through the panel, a clear
 shot whose target precedes the panel, and clearance after moving the panel.
 Both builds,26 CTests and PC combat/kill/fatal-damage replays pass. Native XEMU
 door-shot validation and material-specific penetration remain open.
+
+## First-pass player shot/reload audio
+
+Successful prototype shots request Glock Launch; manual and automatic reload
+starts request Glock Reload. Existing foley selection, bounded sample reload,
+local-player routing and software/device voices are reused. No sound is
+requested for a full-clip reload or again while a reload is already active.
+Failure telemetry is nonfatal so missing audio cannot block combat.
+
+This uses pistol-specific first-pass labels and an independent deterministic
+sound RNG, not complete per-weapon descriptor/audio event reconstruction.
+Enemy weapon sounds, impact sounds, animation-marker timing and shared original
+RNG ordering remain open. Prototype12-round/72-tick reload timing is unchanged.
+
+`tools/replay_weapon_audio.py` captures idle, one shot, held manual reload and
+automatic reload. Trace voices include HandGun_Fire01.wav and FP_glock_reload.wav;
+manual emits2 requests total, automatic22 shots plus1 reload. Two assets load
+87548 bytes inside the existing1MiB bank. Mixed48kHz stereo PCM is captured as
+WAV; waveform changes and named voices are checked, not physical audibility.
+Full-clip reload also matches idle PCM and emits no weapon requests.
+Both builds and26 CTests pass. Stock64MiB XEMU180-frame audio-device PASS:
+weapon requests/selections/plays match PC, no device errors and nonzero DSP
+DMA output. Evidence: artifacts/xemu/replay-20260914-013131/report.json.
+This is guest device-output evidence, not physical-speaker audibility.

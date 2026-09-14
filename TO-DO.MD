@@ -22,6 +22,19 @@ Shortlist:
 
 Progress reporting: include a very high-level working area (e.g. Lighting, AI, Weapons, GeoMod or Scripted events) and an overall percent estimate at the end of every turn report (USER preference) and revisit remaining 24-hour workdays when measured throughput supports a forecast; current rough estimate42% (35-45%), no defensible +/-48-hour completion forecast before end-to-end gameplay.
 
+First-pass player pistol audio now emits authored Glock Launch and Glock
+Reload groups through the existing local-player mixer/device path. Requests
+occur on successful shot or reload start, including automatic reload; holding
+reload does not retrigger it. PC traces contain HandGun_Fire01.wav and
+FP_glock_reload.wav, with2 PCM loads totaling87548 bytes within the existing
+1MiB bank cap. Missing audio/voice exhaustion records errors without halting
+gameplay. Separate first-pass sound RNG and diagnostics add40 bytes. Both
+builds,26 CTests and five recorded audio cases pass (including silent full-clip
+reload). Stock64MiB XEMU180-frame audio-device PASS: shot and reload voices
+match PC, no device errors and nonzero DSP DMA output. See
+artifacts/xemu/replay-20260914-013131/report.json; physical audibility not tested.
+Evidence artifacts/weapon-audio/report.json and captured WAV files.
+
 Stock64MiB XEMU360-frame combat regression PASS after the surface-ray and
 friendliness changes:22 shots,8 hits,1 recorded kill;8 return hits,health61.6.
 State/HUD match PC;7115 available pages at completion. Evidence:

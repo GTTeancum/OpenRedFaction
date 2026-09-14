@@ -9,7 +9,7 @@ visual quality must meet the PS2 version. **Full campaign play remains unfinishe
 **Xbox build in XEMU, stock64MiB, native640 x480 capture.** The first-pass
 firing loop damages a visible NPC; the green reticle confirms a hit and the
 bottom-right markers show11 rounds left. Reloading is supported. First-person
-gun presentation and shot audio remain unfinished. Hostile armed NPCs now spot and attack the player; armed actors also retaliate
+gun presentation remains unfinished; player shot and reload audio are connected. Hostile armed NPCs now spot and attack the player; armed actors also retaliate
 when damaged. Death blocks controls; E (keyboard) or X (controller) respawns
 the player with full health/ammo at the starting position. This first pass
 preserves world state; checkpoints, full restart and pursuit remain open.
