@@ -1694,6 +1694,23 @@ int rf_level_owned_lights_open(const rf_level *level,uint32_t budget,uint32_t wo
 failed:
     free(value);return status;
 }
+int rf_level_owned_light_shadow_modes(const rf_level_owned_lights *owner,const uint32_t *ids,
+    uint32_t count,uint32_t *modes,uint32_t capacity)
+{
+    uint32_t result[63],i,j;
+    if(!owner || count>63 || count>capacity || (count && (!ids || !modes)) ||
+       owner->count>1100 || (owner->count && !owner->items) ||
+       !owner->pool.sources || !owner->pool.capacity || owner->pool.capacity>1100)return RF_RANGE;
+    for(i=0;i<count;i++) {
+        if(ids[i]>=owner->pool.capacity || !owner->pool.sources[ids[i]].source.type)return RF_RANGE;
+        for(j=0;j<owner->count;j++)if(owner->items[j].id==ids[i])break;
+        if(j==owner->count)return RF_NOT_FOUND;
+        result[i]=owner->items[j].activation.visibility;
+        if(result[i]>2)return RF_RANGE;
+    }
+    if(count)memcpy(modes,result,count*sizeof(*modes));return RF_OK;
+}
+
 void rf_level_owned_lights_close(rf_level_owned_lights **owner)
 {
     if(owner && *owner){free(*owner);*owner=NULL;}

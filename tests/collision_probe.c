@@ -344,6 +344,20 @@ int main(int argc,char **argv)
         if(!rf_level_owned_lights_open(&level,budget-1,1,1,&rng,&owner) || owner)return 5;
         status=rf_level_owned_lights_open(&level,budget,1,1,&rng,&owner);if(status)return 6;
         rf_vpp_close(&archive);memset(&level,0xa5,sizeof(level));
+        {
+            uint32_t first,j,n,ids[63],modes[63];
+            for(first=0;first<owner->count;first+=63) {
+                n=owner->count-first;if(n>63)n=63;
+                for(j=0;j<n;j++)ids[j]=owner->items[first+n-1-j].id;
+                if(rf_level_owned_light_shadow_modes(owner,ids,n,modes,63))return 8;
+                for(j=0;j<n;j++) {
+                    uint32_t flags=owner->items[first+n-1-j].flags;
+                    if(modes[j]!=(flags&0x2000?2u:(flags&4?1u:0u)))return 9;
+                }
+                if(!rf_level_owned_light_shadow_modes(owner,ids,n,modes,n-1))return 10;
+                if(rf_level_owned_light_shadow_modes(owner,ids,n,ids,63) || memcmp(ids,modes,n*4))return 11;
+            }
+        }
         fwrite(owner,8,1,stdout);fwrite(&owner->pool,36,1,stdout);fwrite(&rng,4,1,stdout);
         fwrite(owner->items,sizeof(*owner->items),owner->count,stdout);
         fwrite(owner->pool.sources,sizeof(*owner->pool.sources),1100,stdout);fwrite(owner->pool.links,sizeof(*owner->pool.links),1100,stdout);

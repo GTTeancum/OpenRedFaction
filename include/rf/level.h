@@ -177,6 +177,7 @@ typedef struct rf_level_light {
 } rf_level_light;
 #include "rf/effect.h"
 typedef struct rf_level_light_activation {
+    /* visibility is the constructor shadow mode at original source+50 (0/1/2). */
     rf_vfx_light_definition definition;uint32_t enabled,phase;float delay;uint32_t visibility;
 } rf_level_light_activation;
 /*45fbc0/45f740 activation arguments. loader_default forces class0 as45f260.
@@ -210,6 +211,14 @@ typedef struct rf_level_owned_lights {
 int rf_level_owned_lights_open(const rf_level *,uint32_t budget,uint32_t world,uint32_t loader_default,
     rf_random_state *,rf_level_owned_lights **);
 void rf_level_owned_lights_close(rf_level_owned_lights **);
+/* Selected authored pool IDs -> original source+50 shadow modes, in selection
+ * order. Activation.visibility retains this constructor argument (45f740).
+ * Snapshot of authored ownership only: IDs must not have been released/reused
+ * or had their shadow settings changed externally. At most63 selected sources;
+ * no heap allocation, output preserved on error, ids may alias output. */
+int rf_level_owned_light_shadow_modes(const rf_level_owned_lights *,const uint32_t *ids,
+    uint32_t count,uint32_t *modes,uint32_t capacity);
+
 /* v180 section300, original45f260 field sequence. Raw disk orientation,
  * degrees, flags and high/on-time/variance/low/off-time/variance cycle values.
  * No allocation or runtime creation; errors preserve reader and output. */

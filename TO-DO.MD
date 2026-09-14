@@ -15,6 +15,15 @@ Shortlist:
 
 Progress reporting: include a very high-level working area (e.g. Lighting, AI, Weapons, GeoMod or Scripted events) and an overall percent estimate at the end of every turn report (USER preference) and revisit remaining 24-hour workdays when measured throughput supports a forecast; current rough estimate40% (35-45%), no defensible +/-48-hour completion forecast before end-to-end gameplay.
 
+Selected authored pool IDs now resolve to retained constructor shadow modes
+in selection order without extra persistent storage. PC/NXDK validate22293
+lights across93 level records, reversed selection, in-place output and short
+capacity rollback. Live Mines modes:156 disabled,75 enabled. Both builds and
+25 tests pass. Snapshot binding assumes authored IDs are not released/reused
+and shadow settings are not externally changed; dynamic source mode ownership
+still pending. Next connect selected receiver jobs and masks to campaign draw,
+then verify native XEMU memory and lighting rather than data-only comparisons.
+
 Dirty shadow-mask dispatch matches2048 original/PC/NXDK schedules across
 all dirty bytes, renderer modes0..7 and source modes0..3, including1910
 accumulation requests. Four compiled NXDK guards and25 tests pass; both

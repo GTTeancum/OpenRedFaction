@@ -47,6 +47,19 @@ for level in report['results']:
   item=raw[48+j*136:48+(j+1)*136];activation=item[36:]
   clock=raw[48+count*136+105600+j*24:48+count*136+105600+(j+1)*24]
   assert clock==activation[88:92]+w(0)+activation[92:96]+activation[68:72]+w(0,0),(level['file'],j)
+ # Bind selected pool IDs in reverse chunks, checking authored flags independently.
+ for first in range(0,count,63):
+  records=level['records'][first:first+63][::-1];indices=list(range(first,first+len(records)))[::-1]
+  ids=[struct.unpack_from('<I',raw,48+j*136+4)[0] for j in indices]
+  expected_modes=w(*[2 if r['flags']&0x2000 else (1 if r['flags']&4 else 0) for r in records])
+  x.mem_write(B+0x3000,w(*ids));x.mem_write(B+0x4000,b'\xa5'*252)
+  assert call('rf_level_owned_light_shadow_modes',[HEAP,B+0x3000,len(ids),B+0x4000,63])==0
+  assert bytes(x.mem_read(B+0x4000,len(ids)*4))==expected_modes
+  saved_modes=bytes(x.mem_read(B+0x4000,252))
+  assert call('rf_level_owned_light_shadow_modes',[HEAP,B+0x3000,len(ids),B+0x4000,len(ids)-1])!=0 and bytes(x.mem_read(B+0x4000,252))==saved_modes
+  assert call('rf_level_owned_light_shadow_modes',[HEAP,B+0x3000,len(ids),B+0x3000,63])==0 and bytes(x.mem_read(B+0x3000,len(ids)*4))==expected_modes
+  x.mem_write(B+0x3000,w(1100))
+  assert call('rf_level_owned_light_shadow_modes',[HEAP,B+0x3000,1,B+0x4000,63])!=0 and bytes(x.mem_read(B+0x4000,252))==saved_modes
  # Source/archive context can be destroyed; all retained storage stays intact.
  saved=bytes(x.mem_read(HEAP,budget));x.mem_write(LEVEL,b'\xa5'*4096);assert bytes(x.mem_read(HEAP,budget))==saved
  call('rf_level_owned_lights_close',[OUT])
@@ -61,5 +74,5 @@ for j in (0,1):
  bad[at:at+4]=w(flags)
 data=bytes(bad);prepare();alloc.clear();freed.clear()
 assert call('rf_level_owned_lights_open',[LEVEL,budget,1,1,B+0x2000,OUT])!=0 and x.mem_read(OUT,4)==w(0) and x.mem_read(B+0x2000,4)==w(123) and alloc==[budget] and freed==[HEAP]
-result=dict(result='PASS',levels=len(report['results']),pc_nxdk_sources=total,exact_and_short_budget_levels=len(report['results']),peak_owned_bytes=peak,nxdk_failure_guards=2,scope='PC actual archives and NXDK shared reader/activation/pool owner with only archive read and heap supplied. Entire retained runtime/pool payload matches, including after source-context destruction; repeated close and RNG/output rollback. Original component comparisons are separate; live scene/timer/visibility integration remains.')
+result=dict(result='PASS',levels=len(report['results']),pc_nxdk_sources=total,selected_authored_shadow_modes=total,exact_and_short_budget_levels=len(report['results']),peak_owned_bytes=peak,nxdk_failure_guards=2,scope='PC actual archives and NXDK shared reader/activation/pool owner with only archive read and heap supplied. Entire retained runtime/pool payload matches, including after source-context destruction; repeated close and RNG/output rollback. Original component comparisons are separate; live scene/timer/visibility integration remains.')
 (root/'artifacts/level-owned-lights.json').write_text(json.dumps(result,indent=2));print(result)
