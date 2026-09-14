@@ -15,6 +15,15 @@ Shortlist:
 
 Progress reporting: include a very high-level working area (e.g. Lighting, AI, Weapons, GeoMod or Scripted events) and an overall percent estimate at the end of every turn report (USER preference) and revisit remaining 24-hour workdays when measured throughput supports a forecast; current rough estimate40% (35-45%), no defensible +/-48-hour completion forecast before end-to-end gameplay.
 
+Combined occluder clipping/projection/filter/mask pass matches512 original/
+PC/NXDK cases:294 reach projection,251 pass filtering,7424 changed mask bytes.
+Thirteen collapsed projections expose original filtering even below3 vertices;
+retain initialized UV/filter tails and preserve projection-vs-acceptance flags.
+Two shared guards plus NXDK scratch guard, both builds,24 tests and prior
+projection/filter/2D clipping regressions pass. Next connect source/mapping
+preparation and retained face traversal, apply border once per source, own
+bounded masks/scratch, and verify native64MiB memory/rendering.
+
 Shadow-mask border finalization matches1024 original/PC/NXDK masks,
 including79 two-pixel extents and205 inactive passes;4 guards preserve data.
 Original4f5588 copies sides first, then interleaves top/bottom writes. Gate is

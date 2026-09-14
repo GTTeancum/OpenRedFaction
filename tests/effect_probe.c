@@ -385,6 +385,27 @@ int main(int argc,char **argv)
         }
         return 0;
     }
+    if(argc==2 && !strcmp(argv[1],"--lightmap-shadow-pass")) {
+        struct {rf_lightmap_sample_plane sample;uint32_t width,height;float origin[3],planes[6][4];
+            uint32_t count,amount,bytes;float vertices[8][3],receiver[8][2];uint32_t receiver_count;
+            float threshold[2];unsigned char mask[1024];} in;
+        _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
+        while(fread(&in,sizeof(in),1,stdin)==1) {
+            float clips[2][64][3],uv[64][2]={0},intersect[64][2]={0},polygons[2][64][2],distances[64];
+            rf_lightmap_shadow_clip_work clip={{polygons[0],polygons[1]},distances,64};
+            rf_lightmap_uv_polygon receiver={in.receiver,in.receiver_count};
+            rf_lightmap_shadow_filter filter={&receiver,1,{in.threshold[0],in.threshold[1]},&clip,intersect,64};
+            rf_lightmap_shadow_pass pass;rf_lightmap_shadow_pass_work work={{clips[0],clips[1]},uv,64};
+            uint32_t result[3]={0,UINT32_MAX,UINT32_MAX};
+            pass.sample=in.sample;pass.width=in.width;pass.height=in.height;memcpy(pass.origin,in.origin,12);
+            memcpy(pass.planes,in.planes,96);pass.filter=&filter;
+            if(in.count>8 || in.receiver_count>8 || in.bytes>1024)return 2;
+            result[0]=rf_lightmap_shadow_pass_polygon(&pass,in.vertices,in.count,&work,in.mask,in.bytes,
+                (unsigned char)in.amount,result+1,result+2);
+            fwrite(result,sizeof(result),1,stdout);fwrite(in.mask,1024,1,stdout);
+        }
+        return 0;
+    }
     if(argc==2 && !strcmp(argv[1],"--lightmap-shadow-border")) {
         struct {uint32_t width,height,bytes,projected;unsigned char mask[4096];} in;
         _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);

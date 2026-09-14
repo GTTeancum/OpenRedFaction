@@ -492,9 +492,9 @@ int rf_lightmap_project_shadow(const rf_lightmap_sample_plane *view,uint32_t wid
 }
 
 /* 4f50c9..4f53bd: projected polygon after six-plane clipping. */
-int rf_lightmap_shadow_polygon(const rf_lightmap_sample_plane *view,uint32_t width,uint32_t height,
+static int shadow_polygon(const rf_lightmap_sample_plane *view,uint32_t width,uint32_t height,
     const float origin[3],const float plane[4],const float (*vertices)[3],uint32_t count,
-    float (*output)[2],uint32_t capacity,uint32_t *out_count)
+    float (*output)[2],uint32_t capacity,uint32_t *out_count,uint32_t *projected)
 {
     uint32_t i,j,n=0,hit;int status;
     if(!view || !origin || !plane || !vertices || count<3 || !output || !out_count || capacity<count)return RF_RANGE;
@@ -505,22 +505,53 @@ int rf_lightmap_shadow_polygon(const rf_lightmap_sample_plane *view,uint32_t wid
         float direction[3],point[3],uv[2];
         for(j=0;j<3;j++)direction[j]=(float)((double)vertices[i][j]-origin[j]);
         status=rf_lightmap_shadow_ray(origin,direction,plane,point,&hit);if(status)return status;
-        if(!hit) {*out_count=0;return RF_OK;}
+        if(!hit) {*out_count=0;if(projected)*projected=0;return RF_OK;}
         status=rf_lightmap_project_shadow(view,width,height,point,uv);if(status)return status;
         if(!n || uv[0]!=output[n-1][0] || uv[1]!=output[n-1][1]) {memcpy(output[n],uv,8);n++;}
     }
     if(n && output[0][0]==output[n-1][0] && output[0][1]==output[n-1][1])n--;
-    *out_count=n;return RF_OK;
+    *out_count=n;if(projected)*projected=1;return RF_OK;
+}
+
+int rf_lightmap_shadow_polygon(const rf_lightmap_sample_plane *view,uint32_t width,uint32_t height,
+    const float origin[3],const float plane[4],const float (*vertices)[3],uint32_t count,
+    float (*output)[2],uint32_t capacity,uint32_t *out_count)
+{ return shadow_polygon(view,width,height,origin,plane,vertices,count,output,capacity,out_count,NULL); }
+
+static int shadow_filter_raster(const float (*)[2],uint32_t,const rf_lightmap_shadow_filter *,
+    unsigned char *,uint32_t,uint32_t,uint32_t,unsigned char,uint32_t *);
+int rf_lightmap_shadow_pass_polygon(const rf_lightmap_shadow_pass *pass,const float (*vertices)[3],
+    uint32_t count,rf_lightmap_shadow_pass_work *work,unsigned char *mask,uint32_t bytes,
+    unsigned char amount,uint32_t *projected,uint32_t *accepted)
+{
+    uint32_t i,n=count,reached=0,filled=0;const float (*current)[3]=vertices;int status;
+    if(!pass || !vertices || count<3 || !work || !work->vertices[0] || !work->vertices[1] ||
+       !work->uv || !projected || !accepted || !pass->filter || !mask ||
+       pass->width<2 || pass->height<2 ||
+       (uint64_t)pass->width*((uint64_t)pass->height+1)+1>bytes)return RF_RANGE;
+    for(i=0;i<6;i++) {
+        float (*next)[3]=work->vertices[i&1];
+        status=rf_lightmap_clip_shadow(current,n,pass->planes[i],next,work->capacity,&n);if(status)return status;
+        if(n<3){*projected=0;*accepted=0;return RF_OK;}
+        current=next;
+    }
+    status=shadow_polygon(&pass->sample,pass->width,pass->height,pass->origin,pass->planes[1],
+        current,n,work->uv,work->capacity,&n,&reached);if(status)return status;
+    if(reached) {
+        status=shadow_filter_raster(work->uv,n,pass->filter,mask,bytes,
+            pass->width,pass->height,amount,&filled);if(status)return status;
+    }
+    *projected=reached;*accepted=filled;return RF_OK;
 }
 
 static double shadow_dot2(const float a[2],const float b[2])
 { return (double)a[1]*b[1]+(double)a[0]*b[0]; }
-int rf_lightmap_shadow_clip_2d(const float (*boundary)[2],uint32_t boundary_count,
+static int shadow_clip_2d(const float (*boundary)[2],uint32_t boundary_count,
     const float (*subject)[2],uint32_t subject_count,rf_lightmap_shadow_clip_work *work,
     float (*output)[2],uint32_t capacity,uint32_t *out_count)
 {
     uint32_t i,j,n=subject_count,current=0,flipped=0;const double epsilon=(double).0001f;
-    if(!boundary || boundary_count<3 || !subject || subject_count<3 || !work || !out_count ||
+    if(!boundary || !subject || subject_count<3 || !work || !out_count ||
         !work->polygons[0] || !work->polygons[1] || !work->distances || work->capacity<subject_count ||
         (uint64_t)subject_count*8>SIZE_MAX || (uint64_t)capacity*8>SIZE_MAX)return RF_RANGE;
     for(i=0;i<boundary_count;i++)for(j=0;j<2;j++)if(!isfinite(boundary[i][j]))return RF_RANGE;
@@ -564,12 +595,20 @@ int rf_lightmap_shadow_clip_2d(const float (*boundary)[2],uint32_t boundary_coun
     if(output)memcpy(output,work->polygons[current],(size_t)n*8);*out_count=n;return RF_OK;
 }
 
-int rf_lightmap_shadow_filter_raster(const float (*polygon)[2],uint32_t count,
+int rf_lightmap_shadow_clip_2d(const float (*boundary)[2],uint32_t boundary_count,
+    const float (*subject)[2],uint32_t subject_count,rf_lightmap_shadow_clip_work *work,
+    float (*output)[2],uint32_t capacity,uint32_t *out_count)
+{
+    if(boundary_count<3)return RF_RANGE;
+    return shadow_clip_2d(boundary,boundary_count,subject,subject_count,work,output,capacity,out_count);
+}
+
+static int shadow_filter_raster(const float (*polygon)[2],uint32_t count,
     const rf_lightmap_shadow_filter *filter,unsigned char *mask,uint32_t bytes,
     uint32_t width,uint32_t height,unsigned char amount,uint32_t *accepted)
 {
     uint32_t i,n;int status;float area;double threshold;
-    if(!polygon || count<3 || !filter || !filter->receivers || !filter->receiver_count ||
+    if(!polygon || !filter || !filter->receivers || !filter->receiver_count ||
         !filter->work || !filter->intersection || !mask || !accepted ||
         !isfinite(filter->threshold[0]) || !isfinite(filter->threshold[1]))return RF_RANGE;
     threshold=(double)filter->threshold[0]*filter->threshold[1];
@@ -579,16 +618,26 @@ int rf_lightmap_shadow_filter_raster(const float (*polygon)[2],uint32_t count,
         /* Original aliases clip output with its subject, so549f10 skips the
          * final copy. Area uses the new count with this retained subject. */
         memcpy(filter->intersection,receiver->uv,(size_t)receiver->count*8);
-        status=rf_lightmap_shadow_clip_2d(polygon,count,receiver->uv,receiver->count,
+        status=shadow_clip_2d(polygon,count,receiver->uv,receiver->count,
             filter->work,NULL,filter->capacity,&n);if(status)return status;
         if(n<3)continue;
         status=rf_lightmap_shadow_area(filter->intersection,n,&area);if(status)return status;
         if((double)area>threshold) {
-            status=rf_lightmap_raster_shadow(polygon,count,mask,bytes,width,height,amount);if(status)return status;
+            /* Collapsed projection can pass receiver area; original raster count0
+             * returns without writes, but acceptance/border state still advances. */
+            if(count) {status=rf_lightmap_raster_shadow(polygon,count,mask,bytes,width,height,amount);if(status)return status;}
             *accepted=1;return RF_OK;
         }
     }
     *accepted=0;return RF_OK;
+}
+
+int rf_lightmap_shadow_filter_raster(const float (*polygon)[2],uint32_t count,
+    const rf_lightmap_shadow_filter *filter,unsigned char *mask,uint32_t bytes,
+    uint32_t width,uint32_t height,unsigned char amount,uint32_t *accepted)
+{
+    if(count<3)return RF_RANGE;
+    return shadow_filter_raster(polygon,count,filter,mask,bytes,width,height,amount,accepted);
 }
 
 /* 4f25a0 uses a fan and Heron's formula; a nonpositive radicand rejects

@@ -177,6 +177,25 @@ typedef struct rf_lightmap_shadow_filter {
 int rf_lightmap_shadow_filter_raster(const float (*polygon)[2],uint32_t count,
     const rf_lightmap_shadow_filter *,unsigned char *mask,uint32_t bytes,
     uint32_t width,uint32_t height,unsigned char amount,uint32_t *accepted);
+typedef struct rf_lightmap_shadow_pass {
+    rf_lightmap_sample_plane sample;uint32_t width,height;float origin[3],planes[6][4];
+    const rf_lightmap_shadow_filter *filter;
+} rf_lightmap_shadow_pass;
+typedef struct rf_lightmap_shadow_pass_work {
+    float (*vertices[2])[3],(*uv)[2];uint32_t capacity;
+} rf_lightmap_shadow_pass_work;
+/* One already-selected occluder through original six-plane clipping,
+ * projection and receiver-filtered mask subtraction (4f5069..4f5515).
+ * Caller supplies disjoint scratch, initialized UV and filter intersection storage.
+ * Degenerate projection still filters; two-point boundaries read retained UV[2].
+ * projected distinguishes completed projection from raster acceptance and is
+ * used by the caller's final border pass. No allocation or mask reset; results
+ * commit on success, scratch/mask may change on later errors. Buffer capacity
+ * must cover twice each intermediate clipping count. Selection and source
+ * traversal remain external; receiving plane is planes[1]. */
+int rf_lightmap_shadow_pass_polygon(const rf_lightmap_shadow_pass *,const float (*vertices)[3],
+    uint32_t count,rf_lightmap_shadow_pass_work *,unsigned char *mask,uint32_t bytes,
+    unsigned char amount,uint32_t *projected,uint32_t *accepted);
 /* Original4f5588..4f55f1 shadow-mask border finalization. projected is the
  * caller's reached-projection flag (not the raster acceptance result); only1
  * copies borders. Side columns precede interleaved top/bottom row copies.
