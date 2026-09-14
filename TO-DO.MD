@@ -14,9 +14,9 @@ GitHub image policy: retain the current four images; upload no additional
 screenshots until near-retail-quality replacements are available.
 
 Shortlist:
-- ACTIVE: Profile and improve Xbox gameplay performance before adding more campaign systems.
+- DEFERRED / TO COMPLETE: Improve Xbox performance beyond the current basic-testing baseline; revisit NPC pose evaluation.
 - TO COMPLETE: Preserve remaining world changes across sections, including partial actor state and dropped items.
-- NEXT: Expand mission scripts and AI until consecutive campaign sections are playable end to end.
+- ACTIVE: Implement scripted attacks and expand mission scripts and AI until consecutive campaign sections are playable end to end.
 - TO COMPLETE: Expand the working pistol/rifle combat, pickups and first-person feedback to the remaining weapons.
 - DEFERRED / TO COMPLETE: Restore full NPC/prop texture detail through better residency; verify PS2 parity for reduced textures.
 - Continue campaign traversal/physics coverage beyond the repaired walking route.
@@ -33,6 +33,20 @@ Shortlist:
 - USER: Review the interactive PC movement and audio items listed below.
 
 Progress reporting: include a very high-level working area (e.g. Lighting, AI, Weapons, GeoMod or Scripted events) and an overall percent estimate at the end of every turn report (USER preference) and revisit remaining 24-hour workdays when measured throughput supports a forecast; current rough estimate45% (35-45%), no defensible +/-48-hour completion forecast before end-to-end gameplay.
+
+USER direction: final performance pass complete; return to systems implementation.
+Native replay-20260914-104251 passes stock64MiB crossing/state/HUD checks and
+matches the complete final image from103625. All37 PC tests pass. New NPC
+per-frame counters identify pose advance/evaluation6.320ms, collision preparation
+and its hash0.631ms, controllers/setup0.252ms, eye/state hashes0.165ms, residency
+0.058ms, snapshots0.029ms, fixtures0.019ms and visibility gate0.010ms.
+Scene phase means total71.751ms this run versus54.270ms previously; no additional
+speedup or sustained high-teens FPS is claimed. Host variation and instrumentation
+remain possible contributors. Defer further performance investigation per USER.
+Next systems work: Attack event38 dispatch and actor/target behavior. Existing
+original loader462150 routes type38 to4b86d0; factory4b69d0 constructs it via
+4beae0. Inspect those bounded functions to establish the authored target mapping,
+then connect to combat; avoid expanding this into an exact-RE parity project.
 
 NPC subphase profiling verified in replay-20260914-103625: stock64MiB
 180-frame crossing/state/HUD checks pass, with an exact final framebuffer

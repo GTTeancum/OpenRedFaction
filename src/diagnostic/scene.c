@@ -178,6 +178,13 @@ static uint32_t profile_last,profile_active;
  * room locate, visibility begin/view, world mesh. Success stages stay0..12. */
 uint32_t rf_scene_profile[8][4],rf_scene_profile_stage[2];
 uint32_t rf_scene_presentation_profile[8][4],rf_scene_world_profile[8][4],rf_scene_step_profile[8][4],rf_scene_npc_step_profile[8][4];
+uint32_t rf_scene_npc_playback_profile[8][4];
+/* Per-frame totals accumulated across actors, nested within NPC playback. */
+static void npc_playback_elapsed(uint32_t *totals,uint32_t phase,uint32_t *previous)
+{
+    uint32_t now;if(!profile_clock || !profile_active)return;
+    now=profile_clock();totals[phase]+=now-*previous;*previous=now;
+}
 static void npc_step_profile_mark(uint32_t phase,uint32_t *previous)
 {
     uint32_t now,elapsed,*row;uint64_t total;
@@ -215,7 +222,7 @@ static void presentation_mark(uint32_t phase,uint32_t *previous)
     if(elapsed>row[3])row[3]=elapsed;
 }
 void rf_scene_set_profile(uint32_t (*milliseconds)(void))
-{profile_clock=milliseconds;profile_active=0;memset(rf_scene_profile,0,sizeof(rf_scene_profile));memset(rf_scene_presentation_profile,0,sizeof(rf_scene_presentation_profile));memset(rf_scene_world_profile,0,sizeof(rf_scene_world_profile));memset(rf_scene_step_profile,0,sizeof(rf_scene_step_profile));memset(rf_scene_npc_step_profile,0,sizeof(rf_scene_npc_step_profile));}
+{profile_clock=milliseconds;profile_active=0;memset(rf_scene_profile,0,sizeof(rf_scene_profile));memset(rf_scene_presentation_profile,0,sizeof(rf_scene_presentation_profile));memset(rf_scene_world_profile,0,sizeof(rf_scene_world_profile));memset(rf_scene_step_profile,0,sizeof(rf_scene_step_profile));memset(rf_scene_npc_step_profile,0,sizeof(rf_scene_npc_step_profile));memset(rf_scene_npc_playback_profile,0,sizeof(rf_scene_npc_playback_profile));}
 static void profile_mark(uint32_t stage)
 {
     uint32_t now,elapsed,*row;uint64_t total;
@@ -8906,6 +8913,7 @@ static int campaign_script_step(scene_stream *stream,float elapsed)
 static int campaign_npc_playback_tick(scene_stream *stream,float elapsed)
 {
     uint32_t i,h=2166136261u,p=2166136261u,actors=0,bones=0,markers=0,g=2166136261u;int status;
+    uint32_t timing[8]={0},clock=profile_clock && profile_active?profile_clock():0;
     if(campaign_npc_body_count!=campaign_poses.count)return RF_RANGE;
     /* Original snapshot list completes before any model/controller update. */
     for(i=0;i<campaign_npc_body_count;++i) {
@@ -8915,6 +8923,7 @@ static int campaign_npc_playback_tick(scene_stream *stream,float elapsed)
         owner->view.flags_7c=owner->object_flags;
         memcpy(campaign_model_owners[i].position,owner->published,12);
     }
+    npc_playback_elapsed(timing,0,&clock);
     for(i=0;i<campaign_poses.count;++i) {
         rf_entity_pose *pose;const rf_entity_motion_mapping *map;
         rf_entity_playback_model *model;float displacement[3]={0};uint32_t class_index;
@@ -8926,7 +8935,9 @@ static int campaign_npc_playback_tick(scene_stream *stream,float elapsed)
         if(!(campaign_npc_bodies[i].view.flags_810&1u)) {
             status=rf_motion_apply_controller(&pose->controller,map->states,elapsed,&pose->playback,model->resources,model->count);if(status)return status;
         }
+        npc_playback_elapsed(timing,1,&clock);
         status=campaign_npc_pose_residency(i);if(status)return status;
+        npc_playback_elapsed(timing,2,&clock);
         {
             rf_entity_animation_gate gate={0};uint32_t room;int advance;
             const rf_entity_seed_class *cls=campaign_seeds.classes+class_index;
@@ -8945,9 +8956,12 @@ static int campaign_npc_playback_tick(scene_stream *stream,float elapsed)
             advance=rf_entity_animation_should_advance(&gate);
             ++rf_scene_npc_gate[0];++rf_scene_npc_gate[advance?1:2];
             g=(g^(uint32_t)advance)*16777619u;
+            npc_playback_elapsed(timing,3,&clock);
             if(advance) {
                 status=rf_entity_pose_advance(pose,&campaign_skeletons,&campaign_motion_catalog,&campaign_playback_resources,elapsed,displacement);if(status)return status;
+                npc_playback_elapsed(timing,4,&clock);
                 status=campaign_model_collision_refresh(i);if(status)return status;
+                npc_playback_elapsed(timing,5,&clock);
             }
         }
         if(campaign_npc_bodies[i].registration.handle==rf_scene_combat[3] && campaign_npc_bodies[i].damage.effects.health<=0) {
@@ -8962,6 +8976,7 @@ static int campaign_npc_playback_tick(scene_stream *stream,float elapsed)
         h=npc_hash_bytes(h,&pose->playback,sizeof(pose->playback));
         p=npc_hash_bytes(p,pose->matrices,pose->bone_count*48);p=npc_hash_bytes(p,pose->generations,pose->bone_count*2);
         markers|=pose->playback.event_mask;
+        npc_playback_elapsed(timing,6,&clock);
     }
     rf_scene_npc_gate[3]=g;
     rf_scene_npc_eyes[3]=2166136261u;rf_scene_npc_eyes[0]=0;
@@ -8980,6 +8995,12 @@ static int campaign_npc_playback_tick(scene_stream *stream,float elapsed)
     status=campaign_npc_motion_request_fixture(rf_scene_npc_playback[0]);if(status)return status;
     status=campaign_npc_body_sweep_fixture(stream->collision,rf_scene_npc_playback[0]);if(status)return status;
     status=campaign_model_query_fixture(rf_scene_npc_playback[0]);if(status)return status;
+    npc_playback_elapsed(timing,7,&clock);
+    if(profile_clock && profile_active)for(i=0;i<8;++i) {
+        uint32_t *row=rf_scene_npc_playback_profile[i];uint64_t total=((uint64_t)row[2]<<32)+row[1]+timing[i];
+        ++row[0];row[1]=(uint32_t)total;row[2]=(uint32_t)(total>>32);
+        if(timing[i]>row[3])row[3]=timing[i];
+    }
     ++rf_scene_npc_playback[0];rf_scene_npc_playback[1]=actors;rf_scene_npc_playback[2]=bones;
     rf_scene_npc_playback[3]=h;rf_scene_npc_playback[4]=p;rf_scene_npc_playback[5]=markers;rf_scene_npc_playback[6]=campaign_npc_motion_bytes;return RF_OK;
 }

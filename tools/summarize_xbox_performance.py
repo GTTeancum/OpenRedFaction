@@ -25,5 +25,7 @@ if "rf_scene_step_profile" in symbols:
  report["step"]=rows("rf_scene_step_profile",["early particle emission","forces/movers/player physics/support","light timers","trigger contacts/events","particle simulation/emission/telemetry","NPC scripts/animation/rooms/attachments","collision/alpha checks","unused"])
 if "rf_scene_npc_step_profile" in symbols:
  report["npc_step"]=rows("rf_scene_npc_step_profile",["scripted movement","NPC playback/pose/collision cache","NPC room refresh","glare retirement and fixtures","attachments","attachment fixture","glare room refresh","unused"])
+if "rf_scene_npc_playback_profile" in symbols:
+ report["npc_playback"]=rows("rf_scene_npc_playback_profile",["position snapshots","actor setup/controllers","motion residency","visibility/LOD gate","pose advance/evaluation","collision preparation/hash","eye update/state hashes","fixtures/final telemetry"])
 if a.out:a.out.write_text(json.dumps(report,indent=2))
 print(json.dumps(report,indent=2))
