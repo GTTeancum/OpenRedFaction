@@ -1290,6 +1290,21 @@ int main(int argc,char **argv)
         rf_vpp levels,tables;rf_level level;rf_entity_seeds seeds={0},guard={0};uint32_t peak,count,classes;
         if(rf_vpp_open(&levels,argv[2]) || rf_vpp_open(&tables,argv[3]) || rf_level_open(&level,&levels,argv[4]))return 2;
         status=rf_entity_seeds_open(&level,&tables,4*1024*1024,&seeds);if(status){fprintf(stderr,"seed open %d\n",status);return 3;}
+        {
+            rf_level_owned_entities authored={0};uint32_t kept=0,missing=0;
+            if(rf_level_owned_entities_open(&level,1024*1024,&authored))return 10;
+            for(i=0;i<authored.count;i++) {
+                rf_entity_creation_vitals_class vitals;
+                int code=rf_entity_vitals_config_load(&tables,authored.items[i].record.class_name,1024*1024,&vitals);
+                if(code==RF_NOT_FOUND){missing++;continue;}
+                if(code || kept>=seeds.records.count || authored.items[i].record.uid!=seeds.records.items[kept].record.uid ||
+                    strcmp(authored.items[i].record.class_name,seeds.records.items[kept].record.class_name))return 11;
+                kept++;
+            }
+            if(kept!=seeds.records.count)return 12;
+            printf("SEED_FILTER authored=%u kept=%u unresolved=%u\n",authored.count,kept,missing);
+            rf_level_owned_entities_close(&authored);
+        }
         peak=seeds.peak_bytes;count=seeds.records.count;classes=seeds.class_count;
         if(rf_entity_seeds_open(&level,&tables,peak-1,&guard)!=RF_RANGE || memcmp(&guard,&(rf_entity_seeds){0},sizeof(guard)))return 4;
         if(rf_entity_seeds_open(&level,&tables,peak,&guard))return 5;

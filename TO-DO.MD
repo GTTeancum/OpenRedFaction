@@ -8,7 +8,7 @@ then level progression. Fidelity remains a later completion requirement.
 Shortlist:
 - ACTIVE: Connect ammunition pickups and weapon selection to campaign combat.
 - ACTIVE: Connect first-person weapon presentation and firing/reload feedback.
-- Resolve L3S1 missing camera1 class binding and L3S4 NPC texture residency before those campaign sections.
+- Resolve L3S1/L3S4 NPC texture residency within the existing budget before those campaign sections.
 - Continue campaign traversal/physics coverage beyond the repaired walking route.
 - DEFERRED / TO COMPLETE: Finish lighting lifecycle updates, shadows and visual parity within64MiB; revisit after critical gameplay systems.
 - Finish glare volumes/reflections, cross-level bitmap clocks, special visibility and parent ordering/tag resolution.
@@ -23,6 +23,15 @@ Shortlist:
 - USER: Review the interactive PC movement and audio items listed below.
 
 Progress reporting: include a very high-level working area (e.g. Lighting, AI, Weapons, GeoMod or Scripted events) and an overall percent estimate at the end of every turn report (USER preference) and revisit remaining 24-hour workdays when measured throughput supports a forecast; current rough estimate44% (35-45%), no defensible +/-48-hour completion forecast before end-to-end gameplay.
+
+Campaign class filtering now follows the original unresolved-class skip path.
+L3S1 retains20 valid actors from22 records; both missing camera1 records are
+skipped without substitution. L1S1 keeps all78 actors. Retained record order,
+class/UID mappings, archive-independent raw data and exact budget guards pass.
+Both builds and29 CTests pass; the original creation-order oracle passes5184 cases. L3S1
+now reaches NPC materials but exceeds4MiB (UltorGuard_Parts_03f.tga); L3S4 has
+the same residency blocker. These sections are not yet playable. Next reduce
+NPC texture residency without raising the stock64MiB target.
 
 Live pistol/rifle switching and authored rifle acquisition now pass six PC
 replays: independent ammo, three-shot fire, held-cycle suppression, burst cancel,

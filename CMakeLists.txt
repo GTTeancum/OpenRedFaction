@@ -233,3 +233,6 @@ add_test(NAME player_weapon_resources COMMAND rf_player_weapon_tests "${CMAKE_SO
 add_executable(rf_level_items_tests tests/level_items_tests.c)
 target_link_libraries(rf_level_items_tests PRIVATE rf_core)
 add_test(NAME level_pickup_records COMMAND rf_level_items_tests "${CMAKE_SOURCE_DIR}/Installed_Game")
+add_test(NAME campaign_entity_class_filter COMMAND rf_entity_assets_probe --seeds
+    "${CMAKE_SOURCE_DIR}/Installed_Game/levels1.vpp"
+    "${CMAKE_SOURCE_DIR}/Installed_Game/tables.vpp" L3S1.rfl)

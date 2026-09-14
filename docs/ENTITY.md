@@ -337,3 +337,29 @@ to another. Numeric sound-class IDs, named timing markers, initial weapon/select
 inputs and live NPC pose evaluation remain open. No new visual claim.
 Native64MiB replay-20260911-070902 passes180 door/audio frames with PC parity
 and nonzero guest DSP output after integration; live NPC playback remains off.
+
+
+## Unresolved authored classes during campaign loading
+
+rf_entity_seeds_open now filters only records whose class lookup returns
+RF_NOT_FOUND. It validates spawn records, retains known classes in original
+order, and compacts owned record views while leaving backing raw storage alive.
+Known classes with malformed required fields still fail. Scratch/table and
+retained arrays remain budgeted, including the all-filtered case.
+
+Original4251c0 scans class names at5cc500 with stride1514 and count62f2d0;
+4251f5..4251fb returns-1 when exhausted. No alias branch appears in this lookup.
+The existing original464625 creation-stage oracle explicitly exercises resolved
+class-1 and skips creation to464e5a. Re-run:5184 cases PASS on original and
+compiled shared PC/NXDK creation code. The table parser itself is not executed
+by that oracle. Evidence: artifacts/campaign-class-original.log.
+
+L3S1 contains22 actor records; two reference camera1, absent from the installed
+entity.tbl. Its camera2 class uses camera1 mesh, but no alias is inferred.
+Filtering retains20 actors across6 classes and keeps raw spawn projections valid
+after archive closure. Peak406167 bytes and exact/undersized budget checks pass.
+L1S1 retains all78 actors unchanged. Regression: campaign_entity_class_filter
+CTest; artifacts/campaign-class-l3s1.log and campaign-class-l1s1.log.
+Both builds pass. Full L3S1 loading now reaches the NPC material owner and exceeds
+its4MiB budget at UltorGuard_Parts_03f.tga. This removes the class-binding blocker,
+not all campaign-start blockers; native playable L3S1 remains unverified.

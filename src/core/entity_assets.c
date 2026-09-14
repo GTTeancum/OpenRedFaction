@@ -3196,6 +3196,23 @@ int rf_entity_seeds_open(const rf_level *level,rf_vpp *tables,uint32_t budget,rf
     status=rf_level_owned_entities_open(level,budget-(uint32_t)(sizeof(v)-sizeof(v.records)),&v.records);
     if(status)return status;
     bytes=sizeof(v)+(uint64_t)v.records.allocated_bytes-sizeof(v.records);
+    /* Original464625 skips a negative resolved class ID. Compact only the owned
+     * record views; raw storage remains owned, so retained pointers stay valid. */
+    if(v.records.count) {
+        uint32_t kept=0;
+        status=rf_vpp_find(tables,"entity.tbl",&entry);if(status)goto done;
+        if(!entry.size || bytes>budget || entry.size>budget-bytes){status=RF_RANGE;goto done;}
+        text=malloc(entry.size);if(!text){status=RF_IO;goto done;}
+        status=rf_vpp_read(tables,&entry,0,text,entry.size);if(status)goto done;
+        for(i=0;i<v.records.count;i++) {
+            rf_entity_creation_vitals_class vitals;rf_level_entity_spawn spawn;
+            status=rf_level_entity_spawn_read(v.records.items+i,&spawn);if(status)goto done;
+            status=rf_entity_vitals_config_read(text,entry.size,v.records.items[i].record.class_name,&vitals);
+            if(status==RF_NOT_FOUND)continue;if(status)goto done;
+            v.records.items[kept++]=v.records.items[i];
+        }
+        v.records.count=kept;
+    }
     bytes+=(uint64_t)v.records.count*sizeof(*v.items);
     if(bytes>budget){status=RF_RANGE;goto done;}
     if(v.records.count) {
@@ -3210,12 +3227,10 @@ int rf_entity_seeds_open(const rf_level *level,rf_vpp *tables,uint32_t budget,rf
     if(bytes>budget){status=RF_RANGE;goto done;}
     v.resident_bytes=(uint32_t)bytes;v.peak_bytes=v.resident_bytes;
     if(v.class_count) {
-        status=rf_vpp_find(tables,"entity.tbl",&entry);if(status)goto done;
-        if(!entry.size || entry.size>budget-bytes){status=RF_RANGE;goto done;}
+        if(entry.size>budget-bytes){status=RF_RANGE;goto done;}
         v.peak_bytes+=(uint32_t)entry.size;
-        v.classes=calloc(v.class_count,sizeof(*v.classes));text=malloc(entry.size);
-        if(!v.classes || !text){status=RF_RANGE;goto done;}
-        status=rf_vpp_read(tables,&entry,0,text,entry.size);if(status)goto done;
+        v.classes=calloc(v.class_count,sizeof(*v.classes));
+        if(!v.classes){status=RF_RANGE;goto done;}
         for(i=0,j=0;i<v.records.count;++i)if(v.items[i].class_index==j) {
             rf_entity_assets assets;
             const char *name=v.records.items[i].record.class_name;
@@ -3234,6 +3249,7 @@ int rf_entity_seeds_open(const rf_level *level,rf_vpp *tables,uint32_t budget,rf
             ++j;
         }
     }
+    if(text && bytes+entry.size>v.peak_bytes)v.peak_bytes=(uint32_t)(bytes+entry.size);
     free(text);*result=v;return RF_OK;
 done:
     free(text);rf_entity_seeds_close(&v);return status;
