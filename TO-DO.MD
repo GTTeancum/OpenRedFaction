@@ -16,7 +16,7 @@ screenshots until near-retail-quality replacements are available.
 Shortlist:
 - DEFERRED / TO COMPLETE: Improve Xbox performance beyond the current basic-testing baseline; revisit NPC pose evaluation.
 - TO COMPLETE: Preserve remaining world changes across sections, including partial actor state and dropped items.
-- ACTIVE: Verify scripted pursuit through an authored encounter and add aiming/firing presentation, then expand mission progression.
+- ACTIVE: Resolve the door/route or script prerequisites blocking the L1S1 Attack9802 encounter, then add aiming/firing presentation.
 - TO COMPLETE: Expand the working pistol/rifle combat, pickups and first-person feedback to the remaining weapons.
 - DEFERRED / TO COMPLETE: Restore full NPC/prop texture detail through better residency; verify PS2 parity for reduced textures.
 - Continue campaign traversal/physics coverage beyond the repaired walking route.
@@ -33,6 +33,23 @@ Shortlist:
 - USER: Review the interactive PC movement and audio items listed below.
 
 Progress reporting: include a very high-level working area (e.g. Lighting, AI, Weapons, GeoMod or Scripted events) and an overall percent estimate at the end of every turn report (USER preference) and revisit remaining 24-hour workdays when measured throughput supports a forecast; current rough estimate45% (35-45%), no defensible +/-48-hour completion forecast before end-to-end gameplay.
+
+Controlled authored encounter now reproducible with tools/replay_scripted_attack.py.
+Event9802 is requested at frame30 with its real13.75s delay and target8322;
+attacker8324 remains inactive at840 frames, then moves3.60 units by1000 and
+35.62 units by3000 through ordinary collision/grounding. At3000 it has1418
+movement steps,726 blocked attempts,36 failed route selections and zero shots;
+target health remains100. Report explicitly says PURSUIT_VERIFIED_ENCOUNTER_INCOMPLETE.
+This identifies a real encounter gap; route selection versus nearby door/script
+prerequisites has not been distinguished. Do not bypass the obstruction or
+claim natural trigger/end-to-end encounter success. Navigation has333 nodes and
+a loaded workspace. Last attacker(-78.136,-5.629,45.468), target(-78.650,-4.554,48.784).
+Earlier candidate9394 references attacker8638, which stage_actor could not find
+in this installed L1S1; its dispatch test does not prove a live encounter.
+37 PC tests and NXDK build pass. This turn adds controlled replay/telemetry;
+no new XEMU encounter or visual capture validation. Local evidence is under
+artifacts/attack-encounter/verified. Next: inspect the blocking geometry, nearby
+door trigger eligibility and authored setup chain for9802 before changing routes.
 
 Scripted pursuit handoff implemented: armed Attack actors approach targets
 beyond20 units or behind obstructed sight, and stop with clear sight inside16.

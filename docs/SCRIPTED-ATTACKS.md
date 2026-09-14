@@ -37,3 +37,15 @@ Combat pursuit owns follow mode2; authored Goto_Player keeps mode1. Cancelling o
 PC tests cover distant and wall-obstructed targets, destination/retry updates, clear-sight stopping, stale handles, walking-to-standing cancellation, and preservation of unrelated Goto_Player movement. They verify decision-to-movement handoff, not a complete character navigating an authored encounter. Full-route pursuit, doors/obstacles during pursuit, aiming/firing presentation and natural encounter validation remain open.
 
 The NXDK build and stock64MiB XEMU replay `replay-20260914-105927` pass the 180-frame L1S2-to-L1S3 transition/state checks with pursuit enabled. No capture was requested. This is build compatibility coverage, not full authored-pursuit validation. All37 PC tests pass; evidence is in `artifacts/scripted-pursuit/`.
+
+## Authored encounter replay
+
+`tools/replay_scripted_attack.py` runs three process-local checkpoints for L1S1 event9802. The existing NPC-event replay entry now accepts Attack38 as well as Goto types; `RF_REPLAY_GOTO_UID=9802` is the legacy harness variable used for this controlled request at frame30. It retains the authored13.75-second delay, attacker8324 and target8322. The player/camera is staged beside8324. It does not activate the natural trigger chain.
+
+At840 frames the command has not activated. At1000 the attacker has moved3.60 world units; at3000 it has moved35.62 units, completed1418 movement steps and encountered726 blocked steps. All36 route searches failed. No shots were fired and target health remains100. The report is deliberately `PURSUIT_VERIFIED_ENCOUNTER_INCOMPLETE`, not a completed-encounter pass. The navigation workspace is loaded with333 nodes.
+
+The final attacker position is(-78.136,-5.629,45.468), versus target(-78.650,-4.554,48.784). Inspect the nearby geometry, door activation and omitted setup-chain prerequisites before deciding whether the route algorithm itself requires repair. This test proves movement through the real scene and exposes an unresolved engagement; it does not justify bypassing a closed door.
+
+The earlier L1S1 event9394 dispatch fixture references attacker8638, which the installed actor reader could not locate for staging. Its unit test proves event dispatch only.
+
+The new diagnostics retain the last successful attack owner, target, health, shot counts, pursuit ticks and sampled positions. PC tests37/37 and NXDK build pass. Evidence: `artifacts/attack-encounter/verified/report.json` and per-checkpoint logs. No new Xbox encounter proof or image comparison is claimed.

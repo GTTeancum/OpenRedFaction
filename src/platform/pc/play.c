@@ -16,6 +16,8 @@
 #include <stdlib.h>
 #include <string.h>
 
+extern uint32_t rf_scene_script_attack[12];
+extern float rf_scene_script_attack_position[9];
 extern char rf_material_failure_name[61];
 extern uint32_t rf_material_failure[3];
 extern uint32_t rf_scene_actor_live_enabled;
@@ -652,6 +654,8 @@ run_scene:
     }
     printf("PLAYER_LIFE");for(i=0;i<8;++i)printf(" %u",rf_scene_player_life[i]);puts("");
     printf("ENEMY_AWARENESS");for(uint32_t i=0;i<8;i++)printf(" %u",rf_scene_enemy_awareness[i]);printf("\n");
+    printf("SCRIPT_ATTACK_POSITION");for(i=0;i<9;++i)printf(" %.6f",rf_scene_script_attack_position[i]);puts("");
+    printf("SCRIPT_ATTACK");for(i=0;i<12;++i)printf(" %u",rf_scene_script_attack[i]);puts("");
     printf("ENEMY_COMBAT");for(i=0;i<8;++i)printf(" %u",rf_scene_enemy_combat[i]);puts("");
     printf("PICKUP_VITALS");for(i=0;i<4;++i)printf(" %u",rf_scene_pickup_vitals[i]);puts("");
     printf("PICKUPS");for(i=0;i<8;++i)printf(" %u",rf_scene_pickups[i]);puts("");
