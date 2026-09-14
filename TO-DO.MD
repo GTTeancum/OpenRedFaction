@@ -15,6 +15,16 @@ Shortlist:
 
 Progress reporting: include a very high-level working area (e.g. Lighting, AI, Weapons, GeoMod or Scripted events) and an overall percent estimate at the end of every turn report (USER preference) and revisit remaining 24-hour workdays when measured throughput supports a forecast; current rough estimate40% (35-45%), no defensible +/-48-hour completion forecast before end-to-end gameplay.
 
+Campaign fixture now carries masks through actual ordinary/special lighting,
+RGB resolve and linear1555 packing:1521 ordinary and3884 special lit mappings.
+Shadows alter49626 RGB bytes in782 regions;769 retain differences after1555
+packing. Cached/uncached hashes and counters agree for5851 mappings;64 fresh
+jobs repeat and25 tests pass. Zero ambient and directional scale1 are explicit
+fixture inputs, not authored ambient reconstruction. No GPU submission/XEMU
+claim; peak shadow scratch excludes new lighting scratch and adjacency.
+Next bind campaign ambient, retained RGB/image owners and dirty upload/swizzle
+in live rendering; preserve zero-source handling and stock64MiB accounting.
+
 Retained shadow-face snapshots preserve all5851 Live Mines mask hashes and
 counters while cutting this host's full-level fixture from17.78s to8.78s.
 Snapshot storage is415408 bytes plus existing73252-byte peak shadow scratch;
