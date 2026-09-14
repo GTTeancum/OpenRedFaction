@@ -90,6 +90,18 @@ The XEMU replay harness now compares MESSAGE_AUDIO counters against PC and is
 running the repeated8356 fixture with APU/DSP capture. Its report remains pending
 in artifacts/xemu/replay-20260914-084040; native audibility is not yet claimed.
 
+Native repeated8356 validation completed successfully in replay-20260914-084040:
+240 frames, stock67108864-byte RAM, MESSAGE_AUDIO=[3,3,0,0], no device errors,
+and3939 nonzero samples in the8192-byte DSP ring snapshot. Device start counts
+match PC. This verifies APU activity with dialogue, not isolated speech quality
+or a linear recording. The harness restored the ordinary build and exited.
+
+Empty voice names now stop the previous message without attempting a load or
+counting an audio failure. L2S1 event1754 replays at120/240 frames complete with
+zero audio requests/errors; both inspected captures contain no visible text.
+These captures therefore do not establish nonempty subtitle-only presentation.
+Both builds and37 tests pass after the empty-name handling change.
+
 Remaining: native validation, voice ownership/playback, longer-text presentation
 coverage, full character/language support, authored queue and interruption
 behavior, speaker placement and timing. The current display is a playable

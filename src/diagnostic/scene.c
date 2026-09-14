@@ -7260,7 +7260,8 @@ static void campaign_message_stop(void)
 static void campaign_message_play(const char *name)
 {
     uint32_t index;int status;const float position[3]={0,0,0};
-    ++rf_scene_message_audio[0];campaign_message_stop();
+    campaign_message_stop();if(!name[0])return;
+    ++rf_scene_message_audio[0];
     status=rf_audio_bank_declare(&campaign_audio_bank,name,1,1,1,&index);
     if(!status && !rf_audio_bank_sample(&campaign_audio_bank,index)) {
         status=campaign_ambient_reload(index);
