@@ -58,3 +58,7 @@ python tools/xemu_render_check.py --input artifacts/riot-pickups/return.bin --it
 ```
 
 The manual controller session was left untouched throughout these checks.
+
+Trigger activation counts and cooldown/contact deadlines now have separate
+section snapshots; see TRIGGER-CHECKPOINTS.md. This does not yet suppress
+repeated auto-start side effects or restore pending event actions.

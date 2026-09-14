@@ -153,3 +153,9 @@ int rf_campaign_local_goals_restore(const rf_campaign_local_goals *store,const c
     }
     return RF_OK;
 }
+
+int rf_campaign_trigger_register(rf_campaign_triggers *state,const char *level,uint32_t uid,uint32_t *slot)
+{
+    if(!state)return RF_RANGE;
+    return object_register(state->levels,&state->level_count,state->items,&state->count,RF_CAMPAIGN_TRIGGER_SLOTS,level,uid,slot);
+}

@@ -52,6 +52,18 @@ typedef struct rf_campaign_pickups {
     rf_campaign_pickup_record items[RF_CAMPAIGN_PICKUP_SLOTS];
 } rf_campaign_pickups;
 int rf_campaign_pickup_register(rf_campaign_pickups *state,const char *level,uint32_t uid,uint32_t *slot);
+#define RF_CAMPAIGN_TRIGGER_SLOTS 4096
+typedef struct rf_campaign_trigger_state {
+    uint32_t flags,count,object_flags,activation_time_bits;
+    int32_t limit,cooldown_remaining,contact_remaining;
+} rf_campaign_trigger_state;
+typedef struct rf_campaign_triggers {
+    uint32_t level_count,count;
+    char levels[RF_CAMPAIGN_PICKUP_LEVELS][64];
+    rf_campaign_object_record items[RF_CAMPAIGN_TRIGGER_SLOTS];
+    rf_campaign_trigger_state states[RF_CAMPAIGN_TRIGGER_SLOTS];
+} rf_campaign_triggers;
+int rf_campaign_trigger_register(rf_campaign_triggers *,const char *level,uint32_t uid,uint32_t *slot);
 #define RF_CAMPAIGN_ACTOR_SLOTS 2048
 /* Same owned key layout, separate namespace and capacity from pickups. */
 typedef struct rf_campaign_actors {

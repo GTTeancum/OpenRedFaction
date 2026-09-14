@@ -161,6 +161,38 @@ int main(int argc,char **argv)
 {
     CHECK(argc==2);CHECK(unhide_dispatch_check(argv[1])==0);
     {
+        rf_runtime_trigger old={0},restored={0},before;rf_campaign_trigger_state saved,sentinel;
+        rf_trigger_gate gate={0};rf_trigger_actor_facts actor={0};uint32_t eligible;
+        static rf_campaign_triggers keys;uint32_t a,b;
+        old.state.handle=11;old.handle=11;old.state.flags=64;old.state.count=1;
+        old.activation.limit=1;old.activation.object_flags=2;
+        old.state.deadline=25;old.contact_timer.deadline=-1;
+        CHECK(!rf_runtime_trigger_save(&old,RF_TIMER_PERIOD-50,&saved));
+        CHECK(saved.cooldown_remaining==75 && saved.contact_remaining==-1 && !saved.flags && saved.count==1);
+        restored.state.handle=restored.handle=99;restored.state.cooldown_ms=300;
+        CHECK(!rf_runtime_trigger_restore(&restored,100,&saved));
+        CHECK(restored.state.handle==99 && restored.handle==99 && restored.state.cooldown_ms==300);
+        CHECK(restored.state.deadline==175 && restored.contact_timer.deadline==-1 && restored.activation.object_flags==2);
+        gate.flags=restored.state.flags;gate.activations=restored.state.count;gate.limit=restored.activation.limit;
+        gate.deadline=restored.state.deadline;gate.attached=-1;actor.test_4895d0=1;
+        CHECK(!rf_trigger_eligible(&gate,&actor,200,0,&eligible) && !eligible);
+        gate.activations=0;CHECK(!rf_trigger_eligible(&gate,&actor,174,0,&eligible) && !eligible);
+        CHECK(!rf_trigger_eligible(&gate,&actor,175,0,&eligible) && eligible);
+        old.state.deadline=10;old.contact_timer.deadline=120;
+        CHECK(!rf_runtime_trigger_save(&old,100,&saved) && !saved.cooldown_remaining && saved.contact_remaining==20);
+        CHECK(!rf_runtime_trigger_restore(&restored,0,&saved) && !restored.state.deadline && restored.contact_timer.deadline==20);
+        before=restored;saved.contact_remaining=-2;
+        CHECK(rf_runtime_trigger_restore(&restored,0,&saved)==RF_RANGE && !memcmp(&restored,&before,sizeof(before)));
+        memset(&sentinel,0xa5,sizeof(sentinel));saved=sentinel;
+        CHECK(rf_runtime_trigger_save(&old,-1,&saved)==RF_RANGE && !memcmp(&saved,&sentinel,sizeof(saved)));
+        CHECK(!rf_campaign_trigger_register(&keys,"L1S1.rfl",123,&a));
+        keys.items[a].retired=1;keys.states[a].count=7;
+        CHECK(!rf_campaign_trigger_register(&keys,"l1s1.RFL",123,&b) && a==b && keys.states[b].count==7);
+        CHECK(!rf_campaign_trigger_register(&keys,"L1S2.rfl",123,&b) && a!=b && !keys.items[b].retired);
+        puts("Trigger checkpoint PASS one-use gate, cooldown pause/wrap, expiry, runtime handle ownership and section keys");
+    }
+
+    {
         rf_vpp archive={0};rf_level level;rf_object_registry registry;rf_runtime_events events={0};rf_runtime_triggers triggers={0};
         rf_physics_gravity gravity={0};rf_startup_events_report report;rf_runtime_event *slay=NULL;uint32_t i,pending,object=0,handle;
         rf_object_registry_init(&registry);triggers.registry=&registry;triggers.slay_object=slay_command;

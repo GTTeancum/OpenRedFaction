@@ -22,6 +22,8 @@ for name,frames in [('view',32),('collect',150),('owned',150),('return',240)]:
     elif name=='return':
         assert ammo[:3]==[2,0,100] and pickups[3]==0,(ammo,pickups)
         assert words("STARTUP_INVENTORY")[:3]==[1,1,0]
+        history=words("TRIGGER_HISTORY")
+        assert history[0]>=history[1]>0 and history[2]==0,history
         assert 'TAKEN_PICKUP l1s1.rfl 9463' in run.stdout
         assert run.stdout.count('LEVEL_TRANSITION ')==2
     else:

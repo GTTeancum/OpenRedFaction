@@ -1363,3 +1363,35 @@ int rf_unhide_tick(rf_unhide_state *s,int32_t now,const uint32_t *links,
     }
     return RF_OK;
 }
+
+static int trigger_checkpoint_remaining(int32_t deadline,int32_t now,int32_t *remaining)
+{
+    int status;if(deadline<0){*remaining=-1;return RF_OK;}
+    status=rf_timer_remaining(deadline,now,remaining);
+    if(!status && *remaining<0)*remaining=0;
+    return status;
+}
+int rf_runtime_trigger_save(const rf_runtime_trigger *trigger,int32_t now,rf_campaign_trigger_state *result)
+{
+    rf_campaign_trigger_state v;int status;
+    if(!trigger || !result || now<0 || now>RF_TIMER_PERIOD)return RF_RANGE;
+    v.flags=trigger->state.flags&~64u;v.count=trigger->state.count;
+    v.object_flags=trigger->activation.object_flags;v.limit=trigger->activation.limit;
+    v.activation_time_bits=trigger->state.activation_time_bits;
+    status=trigger_checkpoint_remaining(trigger->state.deadline,now,&v.cooldown_remaining);if(status)return status;
+    status=trigger_checkpoint_remaining(trigger->contact_timer.deadline,now,&v.contact_remaining);if(status)return status;
+    *result=v;return RF_OK;
+}
+int rf_runtime_trigger_restore(rf_runtime_trigger *trigger,int32_t now,const rf_campaign_trigger_state *saved)
+{
+    int32_t cooldown=-1,contact=-1;int status;
+    if(!trigger || !saved || now<0 || now>RF_TIMER_PERIOD || saved->cooldown_remaining<-1 || saved->contact_remaining<-1 ||
+        saved->cooldown_remaining>RF_TIMER_PERIOD || saved->contact_remaining>RF_TIMER_PERIOD)return RF_RANGE;
+    if(saved->cooldown_remaining>=0){status=rf_timer_set(&cooldown,now,saved->cooldown_remaining);if(status)return status;}
+    if(saved->contact_remaining>=0){status=rf_timer_set(&contact,now,saved->contact_remaining);if(status)return status;}
+    trigger->state.flags=saved->flags&~64u;trigger->state.count=saved->count;
+    trigger->activation.object_flags=saved->object_flags;trigger->activation.limit=saved->limit;
+    trigger->state.activation_time_bits=saved->activation_time_bits;
+    trigger->state.deadline=cooldown;trigger->contact_timer.deadline=contact;
+    return RF_OK;
+}

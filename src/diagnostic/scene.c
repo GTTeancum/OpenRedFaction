@@ -707,6 +707,8 @@ static void campaign_switch_snapshot(void)
 }
 
 static rf_runtime_triggers campaign_triggers;
+static rf_campaign_triggers campaign_trigger_history;
+uint32_t rf_scene_trigger_history[4]; /* registered, restored, saved, owner bytes */
 rf_level_transition_request rf_scene_level_transition;
 rf_campaign_goals rf_scene_mission_goals;
 static rf_campaign_local_goals campaign_local_goals;
@@ -722,6 +724,24 @@ uint32_t rf_scene_actor_retirement[4]; /* registered keys, restored, captured de
 uint32_t rf_scene_campaign_load_stage;
 uint32_t rf_scene_follow_level_exits;
 static char campaign_current_level[64];
+static int campaign_trigger_checkpoint(uint32_t save,int32_t now)
+{
+    uint32_t i,slot;int status;
+    for(i=0;i<campaign_triggers.count;i++) {
+        rf_runtime_trigger *trigger=campaign_triggers.items+i;
+        status=rf_campaign_trigger_register(&campaign_trigger_history,campaign_current_level,trigger->authored->record.uid,&slot);if(status)return status;
+        if(save) {
+            status=rf_runtime_trigger_save(trigger,now,campaign_trigger_history.states+slot);if(status)return status;
+            campaign_trigger_history.items[slot].retired=1;++rf_scene_trigger_history[2];
+        } else if(campaign_trigger_history.items[slot].retired) {
+            status=rf_runtime_trigger_restore(trigger,now,campaign_trigger_history.states+slot);if(status)return status;
+            ++rf_scene_trigger_history[1];
+        }
+    }
+    rf_scene_trigger_history[0]=campaign_trigger_history.count;rf_scene_trigger_history[3]=sizeof(campaign_trigger_history);
+    return RF_OK;
+}
+
 static int campaign_load_level(void *context,const rf_level_event *event,uint32_t source,uint32_t actor)
 {
     rf_level_transition_request request={0};uint32_t i;int status;
@@ -10617,7 +10637,7 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
             if(status)goto done;
             if(rf_scene_follow_level_exits && rf_scene_level_transition.pending)
                 status=rf_campaign_goals_next_section(&rf_scene_mission_goals);
-            else {memset(&campaign_local_goals,0,sizeof(campaign_local_goals));memset(&campaign_startup_inventory,0,sizeof(campaign_startup_inventory));memset(&rf_scene_mission_goals,0,sizeof(rf_scene_mission_goals));memset(&rf_scene_campaign_pickups,0,sizeof(rf_scene_campaign_pickups));memset(&rf_scene_defeated_actors,0,sizeof(rf_scene_defeated_actors));}
+            else {memset(&campaign_trigger_history,0,sizeof(campaign_trigger_history));memset(&campaign_local_goals,0,sizeof(campaign_local_goals));memset(&campaign_startup_inventory,0,sizeof(campaign_startup_inventory));memset(&rf_scene_mission_goals,0,sizeof(rf_scene_mission_goals));memset(&rf_scene_campaign_pickups,0,sizeof(rf_scene_campaign_pickups));memset(&rf_scene_defeated_actors,0,sizeof(rf_scene_defeated_actors));}
             if(!status)status=rf_runtime_goals_initialize(&campaign_events,&rf_scene_mission_goals);
             if(!status)status=rf_campaign_local_goals_restore(&campaign_local_goals,campaign_current_level,&rf_scene_mission_goals);
             if(status)goto done;
@@ -10984,6 +11004,8 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
              if(status)goto done;
              campaign_startup_inventory.items[slot].retired=1;}
 
+            memset(rf_scene_trigger_history,0,sizeof(rf_scene_trigger_history));
+            status=campaign_trigger_checkpoint(0,0);if(status)goto done;
             campaign_force_snapshot();campaign_switch_snapshot();
             memcpy(rf_scene_startup_gravity,&scene_gravity,sizeof(scene_gravity));
         }
@@ -10995,6 +11017,7 @@ done:
     if(!status && campaign_spawn && collision)campaign_actors_revisit_snapshot();
     if(!status && campaign_spawn && collision && rf_scene_level_transition.pending) {
         status=rf_campaign_local_goals_save(&campaign_local_goals,campaign_current_level,&rf_scene_mission_goals);
+        if(!status)status=campaign_trigger_checkpoint(1,(int32_t)rf_scene_event_ticks[1]);
         if(!status)campaign_actors_capture();
     }
     for(i=0;i<3;i++)rf_player_weapon_close(&stream.player_weapon[i]);

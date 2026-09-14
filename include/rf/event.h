@@ -262,6 +262,10 @@ typedef struct rf_runtime_trigger {
     const rf_level_owned_trigger *authored;
     rf_level_link_target *links;
 } rf_runtime_trigger;
+/* Session checkpoint policy: pause cooldown/contact deadlines while away.
+ * Rebuild runtime handles/volume/links normally; preserve activation state only. */
+int rf_runtime_trigger_save(const rf_runtime_trigger *,int32_t now,rf_campaign_trigger_state *);
+int rf_runtime_trigger_restore(rf_runtime_trigger *,int32_t now,const rf_campaign_trigger_state *);
 /* Borrowed Switch resources. Lookup consumes resolved link values, including
  * retained auxiliary UIDs. Trigger/event tokens must be registry handles;
  * those effects run internally. Other effects and sound remain caller-owned.
