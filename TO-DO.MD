@@ -17,7 +17,7 @@ Shortlist:
 - DEFERRED / TO COMPLETE: Improve Xbox performance beyond the current basic-testing baseline; revisit NPC pose evaluation.
 - TO COMPLETE: Preserve remaining world changes across sections, including actor placement/inventory and dropped items.
 - ACTIVE: Verify enemy firing visually, add muzzle/impact effects, and extend natural-trigger encounter coverage.
-- ACTIVE: Make the granted Riot Stick selectable and usable, support weapon stripping, then expand the remaining weapons.
+- ACTIVE: Add weapon stripping, Riot Stick alternate fire and impact feedback, then expand the remaining weapons.
 - DEFERRED / TO COMPLETE: Restore full NPC/prop texture detail through better residency; verify PS2 parity for reduced textures.
 - Continue campaign traversal/physics coverage beyond the repaired walking route.
 - DEFERRED / TO COMPLETE: Finish lighting lifecycle updates, shadows and visual parity within64MiB; revisit after critical gameplay systems.
@@ -33,6 +33,28 @@ Shortlist:
 - USER: Review the interactive PC movement and audio items listed below.
 
 Progress reporting: include a very high-level working area (e.g. Lighting, AI, Weapons, GeoMod or Scripted events) and an overall percent estimate at the end of every turn report (USER preference) and revisit remaining 24-hour workdays when measured throughput supports a forecast; current rough estimate45% (35-45%), no defensible +/-48-hour completion forecast before end-to-end gameplay.
+
+Riot Stick now occupies playable slot2 after pistol/rifle. Weapon cycling skips
+unowned slots; ammo publication, reload ownership and campaign handoff use the
+selected weapon ID instead of a pistol/rifle boolean. Authored primary settings
+supply60 bash damage and1-second cadence. Primary strikes do not consume charge;
+manual/automatic reload is bypassed for this first-pass melee action. A2.6-unit
+segment against existing NPC bounds and world/mover obstruction limits reach;
+this borrows the authored AI attack range, not verified retail player reach.
+The named first-person mesh/draw/fire clips and Riot Attack sound are connected.
+All37 PC tests pass; controlled grant/cycle/approach replays prove a near hit,
+a withdrawn miss and unchanged one-unit charge. First-person attack vertices
+render; fitted camera placement, precise delayed impact, melee hit volume,
+impact effects and electrical alternate fire remain open. No GitHub image upload.
+Evidence:artifacts/riot-stick. Reproduce:python tools/replay_riot_stick.py.
+Stock64MiB XEMU replay `replay-20260914-125149` passes150 frames of the
+close-strike case with exact PC combat, charge and weapon-animation state.
+NXDK build/restoration succeeds. A PC L1S1->L1S2->L1S1 replay retains selected
+Riot Stick ID2 and its charge. All seven existing pistol/rifle selection/reload/
+respawn replay cases pass; their old audio assertions now include measured
+ENEMY_FIRE sound requests alongside player shots/reloads. The prior failure
+was3 player shots plus1 enemy sound compared against3 total sounds.
+
 
 Give_Item_To_Player now resolves named items.tbl weapon/ammo definitions and
 applies the existing SP pickup grant to the shared inventory. Requests during
