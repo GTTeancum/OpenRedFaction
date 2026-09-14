@@ -1254,7 +1254,7 @@ int rf_game_jump_height_load(rf_vpp *tables,uint32_t budget,float *height)
 }
 int rf_entity_movement_load(rf_vpp *tables,const char *name,uint32_t budget,rf_entity_movement_values *result)
 {
-    rf_vpp_entry entry;rf_entity_movement_values value={0,1,1,0};void *text;lexer l;
+    rf_vpp_entry entry;rf_entity_movement_values value={0,1,1,0,0};void *text;lexer l;
     char t[256];int status,quoted,found=0;uint32_t mask=0;
     if(!tables || !name || !*name || !result)return RF_RANGE;
     status=rf_vpp_find(tables,"entity.tbl",&entry);if(status)return status;
@@ -1282,10 +1282,14 @@ int rf_entity_movement_load(rf_vpp *tables,const char *name,uint32_t budget,rf_e
             } else l=saved;
         } else if(found && same(t,"$Acceleration:")) {
             if(mask&2 || sphere_number(&l,&value.acceleration)) {status=RF_FORMAT;goto done;}mask|=2;
+        } else if(found && same(t,"$Movement")) {
+            if(token(&l,t,&quoted)) {status=RF_FORMAT;goto done;}
+            if(quoted || !same(t,"Radius:"))continue;
+            if(mask&4 || sphere_number(&l,&value.radius) || value.radius<=0) {status=RF_FORMAT;goto done;}mask|=4;
         }
     }
     if(status==RF_OK || status==RF_NOT_FOUND) {
-        status=!found?RF_NOT_FOUND:mask!=3 || value.speed<0 || value.acceleration<0 || value.slow_factor<0 || value.fast_factor<0?RF_FORMAT:RF_OK;
+        status=!found?RF_NOT_FOUND:(mask&3)!=3 || value.speed<0 || value.acceleration<0 || value.slow_factor<0 || value.fast_factor<0?RF_FORMAT:RF_OK;
         if(!status)*result=value;
     }
 done:

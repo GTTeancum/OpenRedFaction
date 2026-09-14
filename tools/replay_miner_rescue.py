@@ -39,7 +39,7 @@ watch = next(line.split()[1:] for line in run.stdout.splitlines()
              if line.startswith('DEATH_WATCH 8611 '))
 assert attack[0] == 1 and attack[1:3] == [8496, 8490] and attack[5] > 0, attack
 assert int(rows['ENEMY_FIRE'][0]) > 0 and watch[1] == '1', (rows['ENEMY_FIRE'], watch)
-assert int(rows['SCRIPT_ROUTES'][7]) > 0 and rows['PLAYER_LIFE'][0] == '0'
+assert int(rows['SCRIPT_ROUTES'][7]) == 0 and rows['PLAYER_LIFE'][0] == '0'
 report.update(scripted_attack_verified=True, miner_death_watch=watch)
 
 # A route request with the door still closed must retain physical obstruction.

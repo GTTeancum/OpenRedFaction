@@ -624,6 +624,8 @@ run_scene:
             printf("SWITCH_HISTORY %u %u %u %u\n",rf_scene_switch_history[0],rf_scene_switch_history[1],rf_scene_switch_history[2],rf_scene_switch_history[3]);
             printf("SCRIPT_ANIMATION");for(i=0;i<10;i++)printf(" %u",rf_scene_script_animation[i]);puts("");
             printf("ROTATING_DOORS");for(i=0;i<8;i++)printf(" %u",rf_scene_rotating_doors[i]);puts("");
+            {float position[3],basis[9];if(!rf_scene_campaign_pose_get(position,basis))
+                printf("CAMPAIGN_FINAL_POSITION %.6f %.6f %.6f\n",position[0],position[1],position[2]);}
             printf("AIRLOCK");for(i=0;i<6;i++)printf(" %u",rf_scene_airlock[i]);printf("\n");
             printf("WORLD_TEXTURE_BUDGET");for(i=0;i<4;i++)printf(" %u",rf_scene_world_texture_budget[i]);puts("");
             printf("ALARM");for(i=0;i<12;i++)printf(" %u",rf_scene_alarm[i]);puts("");

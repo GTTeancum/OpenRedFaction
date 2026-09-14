@@ -3459,7 +3459,7 @@ typedef struct campaign_npc_body {
     int32_t attachment_75c; /* Embedded AI initializer402e96: -1; later attachment lifecycle pending. */
     uint32_t stance_clock_7b4; /* Raw6460f0 bits, published after crouch ground refresh. */
     float model_radius_78; /* Original489fe0 model-origin radius. */
-    float published[3],previous[3];uint32_t movement_slot;
+    float published[3],previous[3];uint32_t movement_slot;float navigation_radius;
     const float *movement_orientation; /* Original actor85c, borrowed stable matrix. */
     uint32_t trigger_handle; /* Original entity+838; initialized by422360. */
     struct {int32_t ai_timer,animation_lock,cooldown,selected_action;} pain; /*514/744/830/828*/
@@ -4058,6 +4058,7 @@ static int campaign_npc_bodies_open(const char *tables_path,const rf_geometry_co
                 owner->damage.effects.voice=UINT32_MAX;owner->damage.responsible_handle=UINT32_MAX;
                 owner->damage.burn_source=UINT32_MAX; /* Absent burn; source unused until installed. */
                 owner->movement_slot=rf_movement_start(campaign_modes,(int32_t)config.authored.movement_index,&body->state.flags);
+                owner->navigation_radius=movement_values.radius;
                 owner->movement_orientation=campaign_identity[0]; /* Constructor422360 installs original73a858. */
                 {
                     rf_spawn_look_angles angles;
@@ -9459,6 +9460,7 @@ static int campaign_script_route(scene_stream *stream,campaign_npc_body *owner,u
         if(!i || sphere->center[1]+sphere->radius>high)high=sphere->center[1]+sphere->radius;
     }
     q.height=high-low;
+    if(owner->navigation_radius>0)q.radius=owner->navigation_radius;
     campaign_route_visibility visibility={&solid,q.radius};
     memset(rf_scene_script_route_detail,0,sizeof(rf_scene_script_route_detail));memcpy(rf_scene_script_route_detail,&q.radius,4);memcpy(rf_scene_script_route_detail+1,&q.height,4);
     for(i=0;i<campaign_navigation.count;i++){rf_entity_navigation_candidate *c=campaign_navigation.references[i].candidate;if(rf_entity_navigation_candidate_allowed(q.radius,q.height,0,c->radius,c->height,c->word_040))++rf_scene_script_route_detail[2];}
@@ -9467,10 +9469,10 @@ static int campaign_script_route(scene_stream *stream,campaign_npc_body *owner,u
     solid.children=stream->collision->children;solid.child_count=stream->collision->child_count;
     memcpy(start.position,owner->body.state.position,12);memcpy(start.query_point,start.position,12);
     memcpy(goal.position,owner->script_move.target,12);memcpy(goal.query_point,goal.position,12);
-    /* Authored clearance metadata can reject a physically passable doorway.
-     * Prefer full clearance; retry graph centerlines only after no route. Every
-     * movement step still uses the unchanged full body/world collision sweep. */
-    for(i=0;i<2;i++) {
+    /* Honor authored navigation clearance independently of collision spheres.
+     * Only classes lacking it can retry centerlines after the sphere-derived
+     * clearance fails. Movement still sweeps the unchanged full collision body. */
+    for(i=0;i<(owner->navigation_radius>0?1u:2u);i++) {
         if(i){q.radius=0;visibility.radius=0;}
         status=rf_entity_navigation_select(campaign_navigation.references,campaign_navigation.count,
             start.position,q.radius,q.height,0,1,campaign_route_visible,&visibility,&begin);if(status)return status;

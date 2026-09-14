@@ -190,8 +190,10 @@ int rf_game_jump_height_load(rf_vpp *tables,uint32_t budget,float *height);
 
 typedef struct rf_entity_movement_values {
     float speed,slow_factor,fast_factor,acceleration;
+    float radius; /* Authored $Movement Radius; zero means absent. */
 } rf_entity_movement_values;
-/* Numeric class +50..5c fields at 41be39..41bea0; absent factors default to 1. */
+/* Numeric class +50..5c fields at 41be39..41bea0; absent factors default to 1.
+ * Also retains authored $Movement Radius separately from collision spheres. */
 int rf_entity_movement_load(rf_vpp *tables,const char *name,uint32_t budget,rf_entity_movement_values *result);
 typedef struct rf_entity_class_physics {
     float mass;

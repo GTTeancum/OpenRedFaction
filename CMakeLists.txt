@@ -294,3 +294,6 @@ add_test(NAME script_motion_catalog COMMAND rf_script_motion_catalog_tests "${CM
 add_executable(rf_rotation_gameplay_tests tests/rotation_gameplay_tests.c)
 target_link_libraries(rf_rotation_gameplay_tests PRIVATE rf_core)
 add_test(NAME rotation_gameplay COMMAND rf_rotation_gameplay_tests)
+add_executable(rf_movement_radius_tests tests/movement_radius_tests.c)
+target_link_libraries(rf_movement_radius_tests PRIVATE rf_core)
+add_test(NAME movement_radius COMMAND rf_movement_radius_tests "${CMAKE_SOURCE_DIR}/Installed_Game")

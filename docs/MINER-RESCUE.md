@@ -74,16 +74,16 @@ authored radius0.5 while the largest miner body sphere was0.6. Node59 was the
 only connecting graph path:60 ->59 ->56. The full body can traverse that route;
 the metadata rejection caused a direct approach into the wall instead.
 
-The scene adapter now tries full clearance first, then a zero-radius graph
-centerline search only after no usable route. Height filtering remains active.
+The initial fix tried full clearance first, then a zero-radius graph
+centerline search after no usable route. Height filtering remained active.
 Actual movement retains all collision spheres and full world/mover sweeps.
 This is a practical planning fallback, not a recovered value for original
 entity radius+7c0. A failed physical step still stops the actor. A bounded
 horizontal wall slide also removes only inward velocity and rechecks the full
 body; it does not increase speed or bypass a second obstruction.
 
-The900-frame rescue replay reports eight successful route requests (two using
-the fallback),17 waypoint advances, five authored movement requests,2,024
+The900-frame rescue replay reports eight successful route requests,17 waypoint
+advances, five authored movement requests,2,024
 movement ticks across actors, and zero blocked steps. NPC contact activates
 the guards' authored Attack/UnHide chain without forced attack events. Ten
 enemy shots are presented; tracked attacker8490 fires five shots, and
@@ -99,3 +99,25 @@ Next: validate this encounter on stock64MiB XEMU and reach it through ordinary
 player traversal. Verify other narrow navigation layouts, genuine dead ends,
 corner handling and original navigation dimensions; the centerline fallback
 can still select a route the physical body cannot traverse.
+
+## Authored movement radius and player approach
+
+`entity.tbl` explicitly gives miner1 `$Movement Radius: 0.5`, independently of
+its collision spheres. The loader now retains this field, and live NPC route
+requests use it. The original graph's0.5 connector is therefore eligible under
+normal clearance rules. The same encounter passes with zero fallback searches;
+the gate-closed control remains obstructed. The fallback is now limited to
+classes lacking an authored movement radius, and full physical sweeps remain
+unchanged. This is a table-backed navigation binding, not proof of the precise
+original entity+7c0 assignment. CTest movement_radius checks the original table
+and output preservation on a failed class lookup.
+
+Player-contact trigger5670 normally dispatches Switch5671 and enables rescue
+trigger5658. PC replays starting at5670 confirm that switch without any forced
+setup event. The subsequent walking approach remains unverified: tested routes
+stop outside the small Use volume or pass around its corner without entering.
+Original4c0a80 uses the actor's movement segment against the box, so no wider
+Use reach was introduced based on that failed approach. Starting inside5658
+remains the focused encounter fixture; it is not ordinary traversal from spawn.
+Local approach evidence is in artifacts/miner-traversal; headless PC output
+now includes CAMPAIGN_FINAL_POSITION to make movement endpoints inspectable.
