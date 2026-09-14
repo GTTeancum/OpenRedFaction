@@ -712,3 +712,22 @@ artifacts/vfx-mesh-owned.json. No native XEMU or composed rendering claimed.
 
 Next: bind original key-time conversion and base/key transform order, compose
 frame/parent transforms and material state, and submit animated geometry.
+
+## Playable-first shot obstruction
+
+The shared campaign now selects the nearest eligible NPC body bounds, then
+queries actual retained static/moving faces up to that intersection. The
+previous conservative mover AABB obstruction could falsely block empty parts
+of a moving solid. NPC hitboxes remain body bounds; mesh hit detection is open.
+
+The geometric498e80 wrapper intentionally preserves original list ordering
+and fraction reuse after shortening; it is not a generic nearest-hit query.
+The port therefore uses its boolean obstruction result, not its returned
+fraction, for the already bounded target segment. Flags0x27 retain the former
+bullet world mask0x460 plus early-hit bit0. No query-time allocation is added.
+
+The scene integration test proves old AABB obstruction at an empty triangular
+corner, new clear passage there, a blocked shot through the panel, a clear
+shot whose target precedes the panel, and clearance after moving the panel.
+Both builds,26 CTests and PC combat/kill/fatal-damage replays pass. Native XEMU
+door-shot validation and material-specific penetration remain open.

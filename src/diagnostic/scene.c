@@ -7026,6 +7026,15 @@ static int combat_obstructed(scene_stream *stream,const float start[3],const flo
     for(j=0;j<3;j++)end[j]=start[j]+delta[j];
     return rf_geometry_collision_ray(stream->collision,&campaign_movers,start,end,1,NULL,blocked);
 }
+static int combat_shot_obstructed(scene_stream *stream,const float start[3],const float delta[3],
+    float fraction,uint32_t *blocked)
+{
+    float end[3];uint32_t j;
+    for(j=0;j<3;j++)end[j]=start[j]+delta[j]*fraction;
+    /* 0x26 maps to the existing bullet world flags0x460; bit0 requests any hit.
+     * Only visibility is needed, avoiding the original wrapper's reused fractions. */
+    return rf_geometry_collision_ray(stream->collision,&campaign_movers,start,end,0x27,NULL,blocked);
+}
 static int campaign_enemy_tick(scene_stream *stream,uint32_t frame,const float player_eye[3])
 {
     uint32_t i,j,blocked,clock_bits;float seconds=(float)frame/60;
@@ -7069,7 +7078,7 @@ static int campaign_enemy_tick(scene_stream *stream,uint32_t frame,const float p
 }
 static int campaign_combat_tick(scene_stream *stream,uint32_t frame,const float position[3],const float orientation[3][3])
 {
-    float delta[3],nearest=1,amount;uint32_t i,target=UINT32_MAX,matched;rf_geometry_world_hit wall;int status;
+    float delta[3],nearest=1,amount;uint32_t i,target=UINT32_MAX,blocked;int status;
     if(!frame){memset(rf_scene_combat,0,sizeof(rf_scene_combat));rf_scene_combat[3]=UINT32_MAX;rf_scene_combat[5]=12;combat_cooldown=0;combat_frame=combat_hit_frame=UINT32_MAX;
         memset(rf_scene_enemy_awareness,0,sizeof(rf_scene_enemy_awareness));
         memset(rf_scene_enemy_combat,0,sizeof(rf_scene_enemy_combat));combat_initial_health=campaign_player_damage.state.effects.health;
@@ -7084,20 +7093,14 @@ static int campaign_combat_tick(scene_stream *stream,uint32_t frame,const float 
     if(!rf_scene_combat[5]){rf_scene_combat[6]=72;return RF_OK;}
     --rf_scene_combat[5];++rf_scene_combat[0];combat_cooldown=12;
     for(i=0;i<3;i++)delta[i]=orientation[2][i]*100;
-    status=rf_geometry_collision_world_ray(stream->collision,0x460,position,delta,1,&wall,&matched);
-    if(status)return status;if(matched)nearest=wall.hit.fraction;
-    /* First-pass mover obstruction uses conservative live bounds, so doors
-     * block shots; precise moving-face hits remain a later refinement. */
-    for(i=0;i<campaign_movers.count;i++){rf_physics_bounds box={0};float fraction;
-        memcpy(box.minimum,campaign_movers.poses[i].minimum,12);memcpy(box.maximum,campaign_movers.poses[i].maximum,12);
-        if(combat_box(position,delta,&box,nearest,&fraction) && fraction<nearest)nearest=fraction;
-    }
     for(i=0;i<campaign_npc_body_count;i++) {
         campaign_npc_body *owner=campaign_npc_bodies+i;float fraction;
         if(!owner->registration.view || (owner->object_flags&(2|0x4000)) || !owner->body.allocated_bytes || owner->damage.effects.health<=0 || (owner->view.flags_810&1))continue;
         if(combat_box(position,delta,&owner->body.state.bounds,nearest,&fraction) && fraction<nearest){nearest=fraction;target=i;}
     }
     if(target!=UINT32_MAX) {
+        status=combat_shot_obstructed(stream,position,delta,nearest,&blocked);if(status)return status;
+        if(blocked)return RF_OK;
         campaign_npc_body *owner=campaign_npc_bodies+target;uint32_t handle=owner->registration.handle,entered,clock_bits;
         float seconds=(float)frame/60;rf_damage_request request={25,campaign_player_object.handle,0,0,UINT32_MAX,0};
         rf_damage_effect_backend effects={combat_predicate,combat_uid,combat_source,combat_burn,combat_random,combat_notify,combat_playing,combat_play,NULL};

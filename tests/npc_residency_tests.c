@@ -899,6 +899,25 @@ static int corpse_authored_check(char **argv)
     rf_entity_skeletons_close(&campaign_skeletons);rf_entity_seeds_close(&campaign_seeds);
     rf_vpp_close(&motions);rf_vpp_close(&meshes);rf_vpp_close(&tables);rf_vpp_close(&levels);return 0;
 }
+static int combat_shot_geometry_check(void)
+{
+    rf_geometry_collision_world world={0};rf_collision_solid_view solid={0};rf_collision_face face={0};
+    scene_stream stream={0};float vertices[3][3]={{-2,-2,5},{2,-2,5},{2,2,5}};
+    float start[3]={-1,1,0},delta[3]={0,0,10},fraction;rf_physics_bounds box={0};uint32_t hit,j;
+    stream.collision=&world;face.vertices=vertices;face.count=3;face.plane[2]=-1;face.plane[3]=5;
+    for(j=0;j<3;j++){solid.input_matrix[j][j]=solid.output_matrix[j][j]=1;
+        solid.minimum[j]=face.minimum[j]=box.minimum[j]=j==2?4.999f:-2;
+        solid.maximum[j]=face.maximum[j]=box.maximum[j]=j==2?5.001f:2;}
+    solid.flat_faces=&face;solid.flat_count=1;campaign_movers.views=&solid;campaign_movers.count=1;
+    CHECK(combat_box(start,delta,&box,1,&fraction)); /* Old broad bounds falsely block this empty corner. */
+    CHECK(combat_shot_obstructed(&stream,start,delta,1,&hit)==RF_OK && !hit);
+    start[0]=1;start[1]=-1;
+    CHECK(combat_shot_obstructed(&stream,start,delta,1,&hit)==RF_OK && hit);
+    CHECK(combat_shot_obstructed(&stream,start,delta,.4f,&hit)==RF_OK && !hit); /* Target before the panel. */
+    solid.input_origin[0]=20;solid.minimum[0]+=20;solid.maximum[0]+=20;
+    CHECK(combat_shot_obstructed(&stream,start,delta,1,&hit)==RF_OK && !hit); /* Moved panel. */
+    memset(&campaign_movers,0,sizeof(campaign_movers));return 0;
+}
 static int friendliness_binding_check(void)
 {
     campaign_npc_body owner={0};rf_runtime_event event={0};rf_level_owned_event authored={0};
@@ -932,6 +951,7 @@ static int friendliness_binding_check(void)
 }
 int main(int argc,char **argv)
 {
+    CHECK(combat_shot_geometry_check()==0);
     CHECK(friendliness_binding_check()==0);
     if(argc==4 && !strcmp(argv[1],"--model-publication"))return model_publication_check(argv);
     if(argc==7 && !strcmp(argv[1],"--corpse-authored"))return corpse_authored_check(argv);

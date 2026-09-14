@@ -22,6 +22,12 @@ Shortlist:
 
 Progress reporting: include a very high-level working area (e.g. Lighting, AI, Weapons, GeoMod or Scripted events) and an overall percent estimate at the end of every turn report (USER preference) and revisit remaining 24-hour workdays when measured throughput supports a forecast; current rough estimate42% (35-45%), no defensible +/-48-hour completion forecast before end-to-end gameplay.
 
+Player hitscan now selects the nearest NPC bounds, then checks actual static/
+moving collision faces along the segment to that target. Mover AABBs no longer
+act as solid shot blockers. Shared scene tests cover empty bounds corners,
+panel obstruction, target-before-panel and a moved panel. Both builds,26 CTests
+and PC combat/kill/death replays pass. Native door-shot validation remains open.
+
 Set_Friendliness(type30) now dispatches immediate and delayed mission events
 through resolved live actor links. The scene updates player/NPC affiliation
 and clears NPC combat alerts so scripts can stop an ongoing attack. Missing
