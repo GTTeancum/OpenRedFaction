@@ -335,6 +335,10 @@ int main(int argc,char **argv)
         if(*end || getenv("RF_REPLAY_ACTOR_UID") || getenv("RF_REPLAY_FORCE_UID") || getenv("RF_REPLAY_DOOR_START") || getenv("RF_REPLAY_REGION_START") || getenv("RF_REPLAY_LIFT_START"))CHECK(RF_RANGE);
         CHECK(rf_scene_stage_item(&level,(uint32_t)uid));
     }
+    if(spawn_profile && p.headless && getenv("RF_REPLAY_TRIGGER_UID")) {
+        char *end;unsigned long uid=strtoul(getenv("RF_REPLAY_TRIGGER_UID"),&end,10);
+        if(*end || !uid)CHECK(RF_FORMAT);CHECK(rf_scene_stage_trigger(&level,(uint32_t)uid));
+    }
     if(spawn_profile && p.headless && getenv("RF_REPLAY_EXIT_START")) {
         char *end;unsigned long uid=strtoul(getenv("RF_REPLAY_EXIT_START"),&end,10);
         if(*end || !uid)CHECK(RF_FORMAT);CHECK(rf_scene_stage_exit(&level,(uint32_t)uid));

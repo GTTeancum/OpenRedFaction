@@ -496,6 +496,7 @@ int rf_scene_stage_door(rf_level *level);
 int rf_scene_stage_item(rf_level *,uint32_t uid);
 /* Process-local walking fixture outside a directly linked horizontal exit box. */
 int rf_scene_stage_exit(rf_level *,uint32_t uid);
+int rf_scene_stage_trigger(rf_level *,uint32_t uid);
 int rf_scene_stage_actor(rf_level *level,uint32_t uid);
 int rf_scene_stage_lift(rf_level *level);
 int rf_scene_stage_force(rf_level *level,uint32_t uid);

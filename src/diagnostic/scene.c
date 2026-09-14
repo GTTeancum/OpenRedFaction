@@ -39,6 +39,19 @@ int rf_scene_stage_exit(rf_level *level,uint32_t uid)
     direction[1]=0;matrix[0][0]=direction[2];matrix[0][2]=-direction[0];matrix[1][1]=1;memcpy(matrix[2],direction,12);
     memcpy(level->player_position,position,12);memcpy(level->player_orientation,matrix,36);return RF_OK;
 }
+/* Isolated contact fixture: place the player inside an authored trigger.
+ * Does not enable or fire it; normal eligibility, Use and timing still apply. */
+int rf_scene_stage_trigger(rf_level *level,uint32_t uid)
+{
+    rf_level_trigger_reader reader;rf_level_trigger record;int status;
+    if(!level)return RF_RANGE;
+    status=rf_level_triggers_begin(level,&reader);if(status)return status;
+    while((status=rf_level_trigger_next(&reader,&record))==RF_OK)if(record.uid==uid) {
+        rf_trigger_volume volume;status=rf_trigger_volume_init(&record,&volume);if(status)return status;
+        memcpy(level->player_position,volume.center,12);return RF_OK;
+    }
+    return status;
+}
 /* Explicit replay setup, not an authored player-start reconstruction. */
 int rf_scene_stage_door(rf_level *level)
 {
@@ -2205,6 +2218,7 @@ static int campaign_link_effect(void *context,uint32_t kind,uint32_t handle,uint
     if(kind==6) {
         rf_startup_events_report report={0};++rf_scene_live_activation[3];
         status=rf_runtime_event_fire(&campaign_triggers,handle,source,actor,c->now,&scene_gravity,c->particles, &campaign_forces,&report);
+        if(status){rf_runtime_event *event=rf_object_registry_lookup(&campaign_registry,handle);fprintf(stderr,"Event %u failed (%d)\n",event?event->authored->record.uid:0,status);}
         rf_scene_live_activation[4]+=report.unsupported_actions+report.other_targets+report.unresolved_targets;return status;
     } else {
         rf_group_registered_controller *controller=rf_object_registry_lookup(&campaign_registry,handle);
@@ -2301,6 +2315,7 @@ static int campaign_actor_trigger_contacts(const rf_entity_view *actor,const flo
             if(record->uid==8542)++rf_scene_trigger_contacts[3];
             status=rf_runtime_trigger_fire_links(&campaign_triggers,trigger->handle,facts.handle,now,
                 clock_bits,0,0,campaign_link_effect,&context,&fired);
+            if(status)fprintf(stderr,"Trigger %u actor %u frame %u failed (%d)\n",record->uid,npc,frame,status);
             rf_scene_live_activation[5]=(uint32_t)status;if(status)return status;
             rf_scene_live_activation[0]+=fired;}
     }
