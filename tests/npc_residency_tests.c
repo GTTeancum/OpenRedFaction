@@ -1092,6 +1092,16 @@ static int script_locomotion_check(void)
     owner.object_flags=0;owner.selection.mapping.states[2]=-1;
     pose.controller.current=0;pose.controller.next=-1;pose.controller.duration=pose.controller.elapsed=0;
     CHECK(campaign_script_locomotion(0,1)==RF_OK && pose.controller.current==0 && pose.controller.next==-1);
+    {
+        scene_stream stream={0};float destination[3]={10,0,0};
+        owner.damage.effects.health=100;owner.registration.view=&owner.view;
+        pose.controller.current=2;pose.controller.next=-1;pose.controller.duration=pose.controller.elapsed=0;
+        campaign_pursuit_target(&owner,destination);campaign_pursuit_stop(&owner);
+        CHECK(owner.script_move.stop && !owner.script_move.active);
+        CHECK(campaign_script_step(&stream,1.0f/60)==RF_OK && !owner.script_move.stop && pose.controller.next==0);
+        owner.script_move.active=1;owner.script_move.follow=1;
+        campaign_pursuit_stop(&owner);CHECK(owner.script_move.active && owner.script_move.follow==1);
+    }
     campaign_npc_bodies=NULL;campaign_npc_body_count=0;campaign_poses.items=NULL;campaign_poses.count=0;return 0;
 }
 static int scripted_attack_damage_check(void)
@@ -1112,8 +1122,29 @@ static int scripted_attack_damage_check(void)
     CHECK(campaign_enemy_tick(&stream,0,eye)==RF_OK);
     health=owners[1].damage.effects.health;CHECK(health<100 && health>0 && campaign_player_damage.state.effects.health==100);
     CHECK(campaign_enemy_tick(&stream,1,eye)==RF_OK && owners[1].damage.effects.health==health);
+    owners[1].eye_position[2]=owners[1].body.state.position[2]=60;
+    CHECK(campaign_enemy_tick(&stream,15,eye)==RF_OK && owners[0].script_move.active && owners[0].script_move.follow==2);
+    CHECK(owners[0].script_move.target[2]==60 && owners[1].damage.effects.health==health);
+    owners[0].script_move.retry=12;owners[1].body.state.position[2]=60.5f;
+    CHECK(campaign_enemy_tick(&stream,16,eye)==RF_OK && owners[0].script_move.retry==12 && owners[0].script_move.target[2]==60);
+    owners[1].body.state.position[2]=62;
+    CHECK(campaign_enemy_tick(&stream,17,eye)==RF_OK && owners[0].script_move.retry==0 && owners[0].script_move.target[2]==62);
+    owners[1].eye_position[2]=owners[1].body.state.position[2]=5;
+    CHECK(campaign_enemy_tick(&stream,30,eye)==RF_OK && !owners[0].script_move.active && owners[0].script_move.stop);
+    {
+        rf_collision_solid_view wall={0};rf_collision_face face={0};float vertices[3][3]={{-2,-2,2},{2,-2,2},{0,2,2}};
+        face.vertices=vertices;face.count=3;face.plane[2]=-1;face.plane[3]=2;
+        for(i=0;i<3;i++){wall.input_matrix[i][i]=wall.output_matrix[i][i]=1;
+            wall.minimum[i]=face.minimum[i]=i==2?1.999f:-2;wall.maximum[i]=face.maximum[i]=i==2?2.001f:2;}
+        wall.flat_faces=&face;wall.flat_count=1;campaign_movers.views=&wall;campaign_movers.count=1;
+        owners[0].combat_due=45;
+        CHECK(campaign_enemy_tick(&stream,45,eye)==RF_OK && owners[0].script_move.active && owners[0].script_move.follow==2);
+        CHECK(owners[1].damage.effects.health==health && campaign_player_damage.state.effects.health==100);
+        memset(&campaign_movers,0,sizeof(campaign_movers));
+    }
+
     owners[0].combat_target^=0x10000u;
-    CHECK(campaign_enemy_tick(&stream,60,eye)==RF_OK && owners[1].damage.effects.health==health && campaign_player_damage.state.effects.health==100);
+    CHECK(campaign_enemy_tick(&stream,60,eye)==RF_OK && owners[1].damage.effects.health==health && campaign_player_damage.state.effects.health==100);CHECK(!owners[0].script_move.active && owners[0].script_move.stop);
     for(i=0;i<2;i++)CHECK(rf_entity_view_unregister(&campaign_registry,&campaign_entities,&owners[i].registration)==RF_OK);
     campaign_npc_bodies=NULL;campaign_npc_body_count=0;memset(&campaign_seeds,0,sizeof(campaign_seeds));
     campaign_player_object.handle=0;campaign_player_damage.state.effects.health=saved_health;return 0;

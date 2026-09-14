@@ -25,3 +25,15 @@ No attack command allocates memory; ownership adds two 32-bit fields per NPC. Ot
 All 37 CTest tests pass. Added coverage includes actual L1S1 event9394 dispatch, delayed on/off, missing-backend retention, ordered target selection, player override, cancellation, nonfatal NPC-to-NPC damage, cooldown and stale target handles. These tests do not demonstrate a full natural-trigger encounter or lethal scripted-shot presentation.
 
 The NXDK build passes. XEMU replay `replay-20260914-105213` passes the stock64MiB 180-frame L1S2-to-L1S3 crossing and state checks. It is a compatibility check for the changed build, not proof that an authored Attack sequence played correctly. No capture was requested. Local evidence lives in `artifacts/scripted-attack/`; original analysis exports remain untracked.
+
+## Pursuit first pass
+
+Scripted armed attackers now request movement when their target is farther than twenty world units or their sight line is obstructed. They keep pursuing until a clear sight line is available inside sixteen units; the gap prevents rapid start/stop changes near one threshold. Decisions refresh every fifteen simulation ticks, independently of the shooting cooldown. These thresholds are practical first-pass choices, not recovered retail constants.
+
+Pursuit feeds the existing navigation, ground support, steering and body-sweep path. Its destination follows the selected NPC body or the player body. Movement beyond one horizontal unit updates that destination and invalidates the retained route; smaller movement keeps the route and retry state. No new navigation allocation is introduced. Two additional words per NPC retain the decision deadline and a deferred stand request.
+
+Combat pursuit owns follow mode2; authored Goto_Player keeps mode1. Cancelling or invalidating a pursuit clears its route and requests standing on the next live actor update. A new authored Goto command supersedes explicit combat targeting. Allegiance changes and respawn cancel combat-owned movement.
+
+PC tests cover distant and wall-obstructed targets, destination/retry updates, clear-sight stopping, stale handles, walking-to-standing cancellation, and preservation of unrelated Goto_Player movement. They verify decision-to-movement handoff, not a complete character navigating an authored encounter. Full-route pursuit, doors/obstacles during pursuit, aiming/firing presentation and natural encounter validation remain open.
+
+The NXDK build and stock64MiB XEMU replay `replay-20260914-105927` pass the 180-frame L1S2-to-L1S3 transition/state checks with pursuit enabled. No capture was requested. This is build compatibility coverage, not full authored-pursuit validation. All37 PC tests pass; evidence is in `artifacts/scripted-pursuit/`.

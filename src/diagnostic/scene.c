@@ -3219,9 +3219,9 @@ typedef struct campaign_npc_body {
     rf_weapon_inventory inventory;rf_entity_motion_selection selection;
     rf_weapon_reset_state firing;
     uint32_t persistence_slot,persistence_registered,controller_handle;
-    struct {uint32_t active,event,follow,route_index,retry;float target[3],fall_speed;} script_move;
+    struct {uint32_t active,event,follow,route_index,retry,stop;float target[3],fall_speed;} script_move;
     uint32_t combat_alert,combat_due; /* First-pass retaliation, simulation-frame clock. */
-    uint32_t combat_scripted,combat_target; /* Explicit Attack target; normal awareness targets player. */
+    uint32_t combat_scripted,combat_target,combat_navigation_due; /* Explicit Attack target; normal awareness targets player. */
     campaign_npc_route navigation;
     struct {rf_eye_angle_state angles;float body_angles[3],orientation[9],command_708[3];uint32_t clock_7b0;} look;
     rf_collision_contact_extra collision_contact;
@@ -3518,6 +3518,22 @@ static int campaign_npc_door_occupied(const rf_trigger_volume *volume,uint32_t *
 }
 uint32_t rf_scene_script_actor[8];
 static int campaign_script_locomotion(uint32_t index,uint32_t moving);
+/* follow2 owns a combat pursuit; follow1 remains authored Goto_Player. */
+static void campaign_pursuit_stop(campaign_npc_body *owner)
+{
+    if(owner->script_move.follow!=2)return;
+    owner->script_move.active=0;owner->script_move.follow=0;owner->script_move.stop=1;
+    owner->navigation.retained.count=0;owner->script_move.retry=0;
+}
+static void campaign_pursuit_target(campaign_npc_body *owner,const float target[3])
+{
+    float x=owner->script_move.target[0]-target[0],z=owner->script_move.target[2]-target[2];
+    if(owner->script_move.follow!=2 || !owner->script_move.active || x*x+z*z>1) {
+        memcpy(owner->script_move.target,target,12);owner->navigation.retained.count=0;
+        owner->script_move.route_index=1;owner->script_move.retry=0;
+    }
+    owner->script_move.active=1;owner->script_move.follow=2;owner->script_move.stop=0;
+}
 uint32_t rf_scene_script_movement[8]; /* requests, steps, arrivals, blocked, active, last actor UID, last event UID, status */
 static int campaign_script_move(void *context,uint32_t handle,const rf_level_event *event,uint32_t on)
 {
@@ -3527,7 +3543,8 @@ static int campaign_script_move(void *context,uint32_t handle,const rf_level_eve
         if(!owner->registration.view || owner->registration.handle!=handle)continue;
         if(owner->damage.effects.health<=0)return RF_NOT_FOUND;
         for(j=0;j<3;j++)if(!isfinite(event->position[j]))return RF_FORMAT;
-        owner->script_move.active=on;owner->script_move.event=event->uid;
+        if(on){owner->combat_scripted=owner->combat_target=owner->combat_navigation_due=0;owner->combat_alert=0;}
+        owner->script_move.stop=0;owner->script_move.active=on;owner->script_move.event=event->uid;
         owner->navigation.retained.count=0;owner->script_move.route_index=1;owner->script_move.retry=0;
         owner->script_move.follow=!strcmp(event->type,"Goto_Player");
         memcpy(owner->script_move.target,event->position,12);
@@ -7380,7 +7397,7 @@ static int campaign_set_friendliness(void *context,uint32_t handle,uint32_t valu
         campaign_npc_body *owner=campaign_npc_bodies+i;
         owner->damage.effects.affiliation=value;
         /* Practical AI handoff: scripted allegiance invalidates the old combat target. */
-        owner->combat_scripted=owner->combat_target=owner->combat_alert=owner->combat_due=0;return RF_OK;
+        campaign_pursuit_stop(owner);owner->combat_navigation_due=0;owner->combat_scripted=owner->combat_target=owner->combat_alert=owner->combat_due=0;return RF_OK;
     }
     return RF_NOT_FOUND;
 }
@@ -7440,7 +7457,7 @@ static int campaign_life_input(uint32_t frame,rf_scene_input *input)
     memset(&campaign_player_flash,0,sizeof(campaign_player_flash));memset(&campaign_camera_effect,0,sizeof(campaign_camera_effect));
     status=campaign_ammo_reset();if(status)return status;
     memset(&combat_trigger,0,sizeof(combat_trigger));combat_hit_frame=UINT32_MAX;rf_scene_combat[5]=campaign_pistol.magazine;rf_scene_combat[6]=0;
-    for(i=0;i<campaign_npc_body_count;i++)campaign_npc_bodies[i].combat_scripted=campaign_npc_bodies[i].combat_target=campaign_npc_bodies[i].combat_alert=campaign_npc_bodies[i].combat_due=0;
+    for(i=0;i<campaign_npc_body_count;i++){campaign_pursuit_stop(campaign_npc_bodies+i);campaign_npc_bodies[i].combat_navigation_due=0;campaign_npc_bodies[i].combat_scripted=campaign_npc_bodies[i].combat_target=campaign_npc_bodies[i].combat_alert=campaign_npc_bodies[i].combat_due=0;}
     rf_scene_enemy_combat[6]=0;memcpy(rf_scene_enemy_combat+5,&campaign_player_damage.state.effects.health,4);
     ++rf_scene_player_life[1];rf_scene_player_life[2]=0;rf_scene_player_life[4]=frame;
     return RF_OK;
@@ -7529,7 +7546,7 @@ static int campaign_script_attack(void *context,const rf_level_event *event,cons
         owner=campaign_npc_bodies+i;break;
     }
     if(!owner || !owner->registration.view || owner->damage.effects.health<=0)return RF_NOT_FOUND;
-    if(!on){owner->combat_scripted=owner->combat_alert=owner->combat_due=0;owner->combat_target=0;return RF_OK;}
+    if(!on){campaign_pursuit_stop(owner);owner->combat_scripted=owner->combat_alert=owner->combat_due=owner->combat_navigation_due=0;owner->combat_target=0;return RF_OK;}
     for(i=0;i<event->link_count && target==UINT32_MAX;i++)if(links[i].kind==1 || links[i].kind==2) {
         if(links[i].value==campaign_player_object.handle && campaign_player_object.handle)target=links[i].value;
         else for(j=0;j<campaign_npc_body_count;j++)if(campaign_npc_bodies[j].registration.view &&
@@ -7538,7 +7555,7 @@ static int campaign_script_attack(void *context,const rf_level_event *event,cons
     if(!strcmp(event->name,"player") && campaign_player_object.handle)target=campaign_player_object.handle;
     if(target==UINT32_MAX)return RF_NOT_FOUND;
     owner->combat_scripted=owner->combat_alert=1;owner->combat_target=target;owner->combat_due=0;
-    owner->script_move.active=0;return RF_OK;
+    campaign_pursuit_stop(owner);owner->combat_navigation_due=0;owner->script_move.active=0;return RF_OK;
 }
 static int campaign_enemy_tick(scene_stream *stream,uint32_t frame,const float player_eye[3])
 {
@@ -7548,13 +7565,13 @@ static int campaign_enemy_tick(scene_stream *stream,uint32_t frame,const float p
     for(i=0;i<campaign_npc_body_count && campaign_player_damage.state.effects.health>0;i++) {
         campaign_npc_body *owner=campaign_npc_bodies+i;float delta[3],distance=0,amount;int status;
         if(!owner->registration.view || (owner->object_flags&(2|0x4000)) ||
-           owner->damage.effects.health<=0 || (owner->view.flags_810&1) || owner->view.weapons[0]<0)continue;
+           owner->damage.effects.health<=0 || (owner->view.flags_810&1) || owner->view.weapons[0]<0){campaign_pursuit_stop(owner);continue;}
         campaign_npc_body *victim=NULL;uint32_t victim_slot=UINT32_MAX;
         const float *target_eye=player_eye;
         if(owner->combat_scripted && owner->combat_target!=campaign_player_object.handle) {
             for(j=0;j<campaign_npc_body_count;j++)if(campaign_npc_bodies[j].registration.view &&
                 campaign_npc_bodies[j].registration.handle==owner->combat_target){victim=campaign_npc_bodies+j;victim_slot=j;break;}
-            if(!victim || victim==owner || victim->damage.effects.health<=0 || (victim->object_flags&(2|0x4000)))continue;
+            if(!victim || victim==owner || victim->damage.effects.health<=0 || (victim->object_flags&(2|0x4000))){campaign_pursuit_stop(owner);continue;}
             target_eye=victim->eye_position;
         }
         for(j=0;j<3;j++){delta[j]=target_eye[j]-owner->eye_position[j];distance+=delta[j]*delta[j];}
@@ -7574,6 +7591,16 @@ static int campaign_enemy_tick(scene_stream *stream,uint32_t frame,const float p
             owner->combat_alert=1;owner->combat_due=frame+30;
             ++rf_scene_enemy_awareness[1];rf_scene_enemy_awareness[6]=owner->registration.handle;
             ++rf_scene_enemy_combat[1];
+        }
+        if(owner->combat_scripted) {
+            const float *target_position=victim?victim->body.state.position:scene_actor_body.state.position;
+            if(frame>=owner->combat_navigation_due) {
+                float range=owner->script_move.follow==2?16.0f:20.0f;
+                status=combat_obstructed(stream,owner->eye_position,delta,&blocked);if(status)return status;
+                owner->combat_navigation_due=frame+15;
+                if(distance>range*range || blocked)campaign_pursuit_target(owner,target_position);
+                else campaign_pursuit_stop(owner);
+            } else if(owner->script_move.follow==2)campaign_pursuit_target(owner,target_position);
         }
         if(frame<owner->combat_due)continue;
         owner->combat_due=frame+60;
@@ -7661,7 +7688,7 @@ static int campaign_combat_tick(scene_stream *stream,uint32_t frame,const float 
             campaign_select_primary(imported.weapon==(uint32_t)campaign_rifle_id);
             campaign_ammo_publish();campaign_import_pending=0;
         }
-        for(i=0;i<campaign_npc_body_count;i++)campaign_npc_bodies[i].combat_scripted=campaign_npc_bodies[i].combat_target=campaign_npc_bodies[i].combat_alert=campaign_npc_bodies[i].combat_due=0;
+        for(i=0;i<campaign_npc_body_count;i++){campaign_pursuit_stop(campaign_npc_bodies+i);campaign_npc_bodies[i].combat_navigation_due=0;campaign_npc_bodies[i].combat_scripted=campaign_npc_bodies[i].combat_target=campaign_npc_bodies[i].combat_alert=campaign_npc_bodies[i].combat_due=0;}
 }
     if(combat_frame==frame)return RF_OK;combat_frame=frame;
     status=campaign_pickups_tick(stream,position);rf_scene_pickups[7]=(uint32_t)status;if(status)return status;
@@ -8890,11 +8917,14 @@ static int campaign_script_step(scene_stream *stream,float elapsed)
     for(i=0;i<campaign_npc_body_count;i++) {
         campaign_npc_body *o=campaign_npc_bodies+i;float delta[3],distance,step,turn;int status;
         rf_physics_body_state proposal;rf_collision_body_sphere scratch[8];rf_geometry_body_hit hit;uint32_t blocked;
+        if(o->script_move.stop) {
+            if(o->registration.view && o->damage.effects.health>0 && !(o->view.flags_810&1)){status=campaign_script_locomotion(i,0);if(status)return status;}o->script_move.stop=0;
+        }
         if(!o->script_move.active)continue;
         if(!o->registration.view || o->damage.effects.health<=0){o->script_move.active=0;continue;}
         status=campaign_script_ground(stream,o,elapsed);if(status)return status;
         ++rf_scene_script_movement[4];
-        if(o->script_move.follow) {
+        if(o->script_move.follow==1) {
             float x=o->navigation.goal.position[0]-scene_actor_body.state.position[0];
             float z=o->navigation.goal.position[2]-scene_actor_body.state.position[2];
             if(x*x+z*z>1){o->navigation.retained.count=0;o->script_move.retry=0;}

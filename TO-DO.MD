@@ -16,7 +16,7 @@ screenshots until near-retail-quality replacements are available.
 Shortlist:
 - DEFERRED / TO COMPLETE: Improve Xbox performance beyond the current basic-testing baseline; revisit NPC pose evaluation.
 - TO COMPLETE: Preserve remaining world changes across sections, including partial actor state and dropped items.
-- ACTIVE: Add pursuit and firing presentation to scripted combat, then verify complete campaign encounters and mission progression.
+- ACTIVE: Verify scripted pursuit through an authored encounter and add aiming/firing presentation, then expand mission progression.
 - TO COMPLETE: Expand the working pistol/rifle combat, pickups and first-person feedback to the remaining weapons.
 - DEFERRED / TO COMPLETE: Restore full NPC/prop texture detail through better residency; verify PS2 parity for reduced textures.
 - Continue campaign traversal/physics coverage beyond the repaired walking route.
@@ -33,6 +33,21 @@ Shortlist:
 - USER: Review the interactive PC movement and audio items listed below.
 
 Progress reporting: include a very high-level working area (e.g. Lighting, AI, Weapons, GeoMod or Scripted events) and an overall percent estimate at the end of every turn report (USER preference) and revisit remaining 24-hour workdays when measured throughput supports a forecast; current rough estimate45% (35-45%), no defensible +/-48-hour completion forecast before end-to-end gameplay.
+
+Scripted pursuit handoff implemented: armed Attack actors approach targets
+beyond20 units or behind obstructed sight, and stop with clear sight inside16.
+Decision cadence15 ticks, destination refresh after1 horizontal unit; practical
+first-pass choices, not recovered retail constants. Uses existing navigation,
+grounding, steering and body sweeps, with no new route allocation. Cancellation,
+stale/dead targets and allegiance/respawn clear combat-owned movement and request
+standing; a new Goto supersedes explicit combat targeting. Two extra words/NPC.
+Validation:37 PC tests pass, including destination/retry behavior, a wall-blocked
+shot that requests pursuit without damage, clear-sight stopping, stale targets,
+deferred standing and unrelated Goto_Player preservation. Native stock64MiB
+replay-20260914-105927 passes180-frame L1S2->L1S3 crossing/state checks, and NXDK
+build/restoration passes. No capture requested. This replay is compatibility
+coverage, not proof of a full authored pursuit route or encounter. Next: execute
+an authored encounter end to end and connect visible aiming/firing behavior.
 
 Scripted Attack38 first pass implemented. Attacker comes from words[0] UID;
 first supported live target link is selected, with event name player overriding
