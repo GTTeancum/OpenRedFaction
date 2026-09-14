@@ -359,10 +359,17 @@ typedef struct scene_stream {
     rf_level_particles particles;rf_level_particle_tick_result particle_first;
     rf_level_owned_lights *lights;rf_light_dirty_storage *light_storage;
     rf_lightmap_rgb_owner light_rgb;void *light_overlay_work;
+    rf_geometry_vertex_faces light_graph;rf_geometry_lightmap_storage light_shading;
+    rf_geometry_shadow_storage light_shadow;uint32_t *light_faces;int32_t *light_mapping_rooms;
+    rf_lightmap_shadow_face *light_cached;const rf_image **light_images;
+    float light_ambient[3];uint32_t light_directional;
     void *light_scratch_memory;rf_light_world_scratch light_scratch;
     rf_visibility_camera particle_camera;scene_particle_workspace *particle_workspace;uint32_t particle_frame;
 } scene_stream;
 static scene_stream *particle_draw_stream;
+uint32_t rf_scene_lightmap_regeneration[8]; /* jobs,ambient,shadow callbacks,workspace bytes,RGB hash,deferred,status,failing stage */
+uint32_t rf_scene_lightmap_regeneration_test;
+static int scene_light_regenerate(scene_stream *,uint32_t,const rf_lightmap_mapping *,const rf_lightmap_sample_plane *,unsigned char *,uint32_t *,rf_vfx_light_source *);
 uint32_t rf_scene_lightmap_updates[8]; /* frames,visits,uploads,lit regions,RGB bytes,work bytes,deferred base,status */
 int rf_scene_update_lightmaps(rf_lightmaps *maps)
 {
@@ -374,12 +381,23 @@ int rf_scene_update_lightmaps(rf_lightmaps *maps)
     for(i=0;i<stream->light_storage->dirty_count;i++) {
         unsigned char *dirty=stream->light_storage->dirty+i;rf_lightmap_mapping mapping;rf_lightmap_sample_plane sample;
         rf_lightmap_rgb_image *base;rf_image *image;
-        if(!*dirty)continue;++rf_scene_lightmap_updates[1];
+        if(!*dirty)continue;
+        if((*dirty&6u) && rf_scene_lightmap_regeneration_test!=2) {
+            int32_t room=stream->light_mapping_rooms[i];
+            /* Room visibility is the existing renderer's demand signal. Keep
+             * every dirty bit until that region is needed; no stale upload. */
+            if(room>=0 && ((uint32_t)room>=stream->visibility.state.count || !stream->visibility.state.rooms[room].visible)) {
+                ++rf_scene_lightmap_updates[6];continue;
+            }
+        }
+        ++rf_scene_lightmap_updates[1];
         status=rf_geometry_lightmap_sample_binding(stream->geometry,maps,i,&mapping,&sample);if(status)break;
         if(!mapping.width || !mapping.height)continue;
-        /* The base/shadow worker is still being integrated. Never acknowledge
-         * its bits or overlay stale RGB while regeneration remains pending. */
-        if((*dirty&6u) && !mapping.inhibit){++rf_scene_lightmap_updates[6];continue;}
+        if((*dirty&6u) && !mapping.inhibit) {
+            status=scene_light_regenerate(stream,i,&mapping,&sample,dirty,ids,sources);
+            if(status==RF_NOT_FOUND){++rf_scene_lightmap_updates[6];status=RF_OK;continue;}
+            if(status)break;
+        }
         base=stream->light_rgb.images+mapping.image;image=maps->images+mapping.image;count=0;
         if((*dirty&1u) && stream->lights) {
             status=rf_vfx_lights_box(stream->lights->pool.sources,stream->lights->pool.capacity,
@@ -8698,6 +8716,118 @@ static int scene_frame(void *context,uint32_t frame,rf_preview_mesh *actor)
         return RF_OK;
     }
 }
+/* Initial world-solid lighting. Moving solids/GeoMod topology and original
+ * room/global selection caches still require their own retained routing. */
+static void scene_light_regeneration_close(scene_stream *s)
+{
+    rf_geometry_vertex_faces_close(&s->light_graph);rf_geometry_lightmap_storage_close(&s->light_shading);
+    rf_geometry_shadow_storage_close(&s->light_shadow);free(s->light_faces);free(s->light_cached);free(s->light_images);free(s->light_mapping_rooms);
+    s->light_faces=NULL;s->light_cached=NULL;s->light_images=NULL;s->light_mapping_rooms=NULL;
+}
+static int scene_light_regeneration_open(scene_stream *s,const rf_level *level)
+{
+    const rf_geometry *g=s->geometry;rf_level_lighting ambient;uint32_t i,maximum=3;
+    uint32_t pixels=1,polygons=1,vertices=3,normals=0,width=2,height=2,clip;uint64_t bytes;int status;
+    memset(rf_scene_lightmap_regeneration,0,sizeof(rf_scene_lightmap_regeneration));rf_scene_lightmap_regeneration[4]=2166136261u;
+    status=rf_level_lighting_read(level,&ambient);if(status)return status;s->light_directional=ambient.directional;
+    for(i=0;i<3;i++)s->light_ambient[i]=(float)((double)ambient.color[i]*(double)0.003921568859368563f);
+    bytes=(uint64_t)g->faces*(4+sizeof(*s->light_cached))+((uint64_t)g->textures+1)*sizeof(*s->light_images)+(uint64_t)g->mappings*4;
+    if(bytes>2u*1024u*1024u)return RF_RANGE;
+    s->light_faces=malloc((size_t)g->faces*4);s->light_cached=malloc((size_t)g->faces*sizeof(*s->light_cached));
+    s->light_images=malloc((size_t)(g->textures+1)*sizeof(*s->light_images));
+    s->light_mapping_rooms=malloc((size_t)g->mappings*4);
+    if(!s->light_faces || !s->light_cached || !s->light_images || !s->light_mapping_rooms)return RF_IO;
+    for(i=0;i<g->faces;i++) {
+        rf_geometry_face face;s->light_faces[i]=i;status=rf_geometry_get_face(g,i,&face);if(status)return status;
+        if(face.corners>maximum)maximum=face.corners;
+    }
+    status=rf_geometry_vertex_faces_open(g,s->light_faces,g->faces,1024u*1024u,&s->light_graph);if(status)return status;
+    bytes+=s->light_graph.resident_bytes;
+    for(i=0;i<s->light_graph.vertices;i++) {
+        uint32_t n=s->light_graph.offsets[i+1]-s->light_graph.offsets[i];if(n>normals)normals=n;
+    }
+    for(i=0;i<g->mappings;i++) {
+        rf_lightmap_mapping mapping;uint32_t counts[2],area;
+        status=rf_geometry_get_lightmap_mapping(g,i,s->light_rgb.count,&mapping);if(status)return status;
+        s->light_mapping_rooms[i]=mapping.room;
+        area=mapping.width*mapping.height;if(area>pixels)pixels=area;
+        if(mapping.width>width)width=mapping.width;if(mapping.height>height)height=mapping.height;
+        status=rf_geometry_shadow_receivers(g,s->light_faces,g->faces,i,mapping.room,NULL,NULL,counts,counts+1);if(status)return status;
+        if(counts[0]>polygons)polygons=counts[0];if(counts[1]>vertices)vertices=counts[1];
+    }
+    status=rf_geometry_lightmap_storage_open(&s->light_shading,pixels,polygons,vertices,normals,1024u*1024u);if(status)return status;
+    clip=maximum*64;if(clip<vertices*2)clip=vertices*2;
+    status=rf_geometry_shadow_storage_open(&s->light_shadow,polygons,vertices,maximum,clip,width,height,63,1024u*1024u);if(status)return status;
+    for(i=0;i<g->faces;i++) {
+        status=rf_geometry_shadow_face(g,i,s->light_shadow.work.face_vertices,maximum,s->light_cached+i);if(status)return status;
+    }
+    bytes+=s->light_shading.resident_bytes+s->light_shadow.resident_bytes;
+    if(bytes>2u*1024u*1024u)return RF_RANGE;
+    rf_scene_lightmap_regeneration[3]=(uint32_t)bytes;return RF_OK;
+}
+typedef struct scene_light_shadow_context {
+    rf_geometry_shadow_job job;scene_stream *stream;const rf_vfx_light_source *sources;
+} scene_light_shadow_context;
+static int scene_light_shadow_render(void *opaque,uint32_t index,uint32_t mode,unsigned char *mask,uint32_t bytes)
+{
+    scene_light_shadow_context *c=opaque;rf_lightmap_shadow_source source={0};rf_geometry_shadow_source_result result;
+    const rf_vfx_light_source *s=c->sources+index;int status;
+    if(mode!=1)return RF_RANGE;source.kind=s->type;source.radius=s->radius;
+    memcpy(source.position,s->position,12);memcpy(source.end,s->end,12);
+    status=rf_geometry_shadow_source_mask_cached(&c->job,&source,c->stream->light_cached,c->job.geometry->faces,0,mask,bytes,&result);
+    if(!status)++rf_scene_lightmap_regeneration[2];return status;
+}
+static int scene_light_regenerate(scene_stream *s,uint32_t index,const rf_lightmap_mapping *mapping,
+    const rf_lightmap_sample_plane *sample,unsigned char *dirty,uint32_t *ids,rf_vfx_light_source *sources)
+{
+    uint32_t n,i,counts[2]={0},modes[63],changed=0;unsigned char room[4];const unsigned char *masks[63];
+    rf_geometry_shadow_storage *shadow=&s->light_shadow;rf_lightmap_sample_lighting view={0};
+    rf_lightmap_shadow_filter filter;rf_lightmap_shadow_dispatch dispatch;scene_light_shadow_context context={0};int status;
+    /* The authored directional source and64-source diagnostic branch are not
+     * reconstructed here. Preserve requests, never upload stale base colors. */
+    if(s->light_directional==1){++rf_scene_lightmap_regeneration[5];return RF_NOT_FOUND;}
+    rf_scene_lightmap_regeneration[7]=1;n=0;if(s->lights){status=rf_vfx_lights_box(s->lights->pool.sources,s->lights->pool.capacity,mapping->minimum,mapping->maximum,0,1,ids,1100,&n);if(status)goto done;}
+    if(n>=64){++rf_scene_lightmap_regeneration[5];return RF_NOT_FOUND;}
+    rf_scene_lightmap_regeneration[7]=2;status=rf_geometry_room_ambient(s->geometry,mapping->room,room);if(status)goto done;
+    for(i=0;i<n;i++)sources[i]=s->lights->pool.sources[ids[i]].source;
+    view.sample=*sample;view.width=mapping->width;view.height=mapping->height;
+    view.lights=sources;view.light_count=n;view.directional_scale=.25f;view.capacity=s->light_shading.pixel_capacity;
+    for(i=0;i<3;i++)view.channels[i]=s->light_shading.channels[i];
+    if(n) {
+        rf_scene_lightmap_regeneration[7]=3;status=rf_level_owned_light_shadow_modes(s->lights,ids,n,modes,63);if(status)goto done;
+        rf_scene_lightmap_regeneration[7]=4;status=rf_geometry_shadow_storage_begin(shadow,mapping->width,mapping->height,n);if(status)goto done;
+        rf_scene_lightmap_regeneration[7]=5;status=rf_geometry_shadow_receivers(s->geometry,s->light_faces,s->geometry->faces,index,mapping->room,sample,&shadow->receivers,counts,counts+1);if(status)goto done;
+        {rf_geometry_materials current=campaign_alpha_mapping;
+         /* Scene setup moves material records into combined actor/clutter
+          * storage. Never dereference the alpha view's earlier array. */
+         current.textures=*s->materials;current.textures.count=actor_follow_world->material_count;
+         rf_scene_lightmap_regeneration[7]=6;status=rf_geometry_material_shadow_images(&current,0,s->geometry,s->light_images,s->geometry->textures);if(status)goto done;}
+        filter.receivers=shadow->receivers.polygons;filter.receiver_count=counts[0];memcpy(filter.threshold,mapping->density,8);
+        filter.work=&shadow->clip;filter.intersection=shadow->intersection;filter.capacity=shadow->clip.capacity;
+        context.stream=s;context.sources=sources;context.job.geometry=s->geometry;context.job.faces=s->light_faces;context.job.face_count=s->geometry->faces;
+        context.job.images=s->light_images;context.job.image_count=s->geometry->textures;context.job.mapping=mapping;context.job.sample=sample;
+        context.job.mapping_index=(int32_t)index;context.job.filter=&filter;context.job.work=&shadow->work;
+        dispatch.masks=shadow->masks;dispatch.bytes=shadow->mask_stride*n;dispatch.stride=shadow->mask_stride;
+        dispatch.width=mapping->width;dispatch.height=mapping->height;dispatch.source_modes=modes;dispatch.count=n;dispatch.dirty=*dirty;dispatch.mode=1;
+        rf_scene_lightmap_regeneration[7]=7;status=rf_lightmap_shadow_dispatch_masks(&dispatch,scene_light_shadow_render,&context,&changed);if(status)goto done;
+        /* Original skips accumulation when the selected mask mode produced no work. */
+        if(!changed){*dirty&=(unsigned char)~6u;rf_scene_lightmap_regeneration[7]=0;return RF_OK;}
+        for(i=0;i<n;i++)masks[i]=shadow->masks+i*shadow->mask_stride;
+        view.masks=masks;view.mask_bytes=shadow->mask_stride;
+        if(mapping->special) {
+            rf_scene_lightmap_regeneration[7]=8;status=rf_geometry_lightmap_polygons(s->geometry,&s->light_graph,s->light_faces,s->geometry->faces,index,mapping->room,&s->light_shading.work,counts,counts+1);if(status)goto done;
+        }
+    }
+    rf_scene_lightmap_regeneration[7]=9;status=rf_lightmap_regenerate_rgb(&view,s->light_shading.work.polygons,counts[0],mapping->special,s->light_ambient,room,s->light_rgb.images+mapping->image,dirty);
+    if(!status) {
+        *dirty&=(unsigned char)~6u;++rf_scene_lightmap_regeneration[0];if(!n)++rf_scene_lightmap_regeneration[1];
+        {const rf_lightmap_rgb_image *image=s->light_rgb.images+mapping->image;uint32_t x,y;
+         for(y=0;y<mapping->height;y++)for(x=0;x<mapping->width*3;x++)
+             rf_scene_lightmap_regeneration[4]=(rf_scene_lightmap_regeneration[4]^image->pixels[((mapping->y+y)*image->width+mapping->x)*3+x])*16777619u;}
+    }
+done:
+    rf_scene_lightmap_regeneration[6]=(uint32_t)status;if(!status)rf_scene_lightmap_regeneration[7]=0;return status;
+}
 static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path,
     const char *motions_path,const char *tables_path,rf_vpp *maps,uint32_t map_count,
     rf_preview_mesh *mesh,rf_materials *materials,uint32_t mesh_budget,uint32_t material_budget,
@@ -9035,6 +9165,8 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
                 status=scene_lights_scratch_open(&stream,collision);if(status)goto done;
                 memset(rf_scene_lightmap_updates,0,sizeof(rf_scene_lightmap_updates));
                 status=rf_lightmap_rgb_open(&stream.light_rgb,level,4u*1024u*1024u);if(status)goto done;
+                status=scene_light_regeneration_open(&stream,level);if(status)goto done;
+                if(rf_scene_lightmap_regeneration_test)for(i=0;i<stream.light_storage->dirty_count;i++)stream.light_storage->dirty[i]|=2;
                 stream.light_overlay_work=malloc(1100u*(sizeof(uint32_t)+sizeof(rf_vfx_light_source)));
                 if(!stream.light_overlay_work){status=RF_IO;goto done;}
                 rf_scene_lightmap_updates[4]=stream.light_rgb.allocated_bytes;
@@ -9099,6 +9231,7 @@ done:
     free(stream.npc_memory);free(stream.npc_indices);free(stream.npc_pool);
     rf_level_visibility_close(&stream.visibility);
     free(stream.light_scratch_memory);
+    scene_light_regeneration_close(&stream);
     rf_lightmap_rgb_close(&stream.light_rgb);free(stream.light_overlay_work);
     rf_visibility_light_storage_close(&stream.light_storage);
     rf_level_owned_lights_close(&stream.lights);

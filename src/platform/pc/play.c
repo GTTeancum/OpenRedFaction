@@ -182,12 +182,12 @@ static int present(void *context,uint32_t frame,const rf_preview_mesh *mesh,
 {
     player *p=context;uint32_t i;int status;
     if(frame!=p->frames || mesh->bytes>RF_SCENE_FOLLOW_CAPACITY)return RF_RANGE;
+    status=rf_scene_update_lightmaps(&p->lightmaps);if(status)return status;
     /* Recorded-input diagnosis projects every tick, rasterizes only the last. */
     if(p->replay && frame+1<p->replay_count){status=rf_scene_draw_particles(NULL,NULL);if(status)return status;
         status=rf_scene_draw_coronas(NULL,NULL);if(status)return status;
         status=rf_scene_draw_player_flash(NULL,NULL);if(status)return status;++p->frames;return RF_OK;}
     if(!p->headless && !rf_frame_clock_present(&p->clock,milliseconds(p))){++p->frames;return RF_OK;}
-    status=rf_scene_update_lightmaps(&p->lightmaps);if(status)return status;
     status=rf_pc_raster_frame(&p->raster,mesh,materials,&p->lightmaps,world);
     if(status)return status;
     status=rf_scene_draw_particles(particle_present,p);if(status)return status;
@@ -271,6 +271,7 @@ int main(int argc,char **argv)
     }
     rf_scene_death_animation_test_enabled=spawn_profile && p.headless && getenv("RF_REPLAY_DEATH_ANIMATION");
     rf_scene_glare_loss_test_enabled=getenv("RF_REPLAY_GLARE_LOSS")!=NULL;
+    {const char *regen=getenv("RF_REPLAY_LIGHTMAP_REGEN");rf_scene_lightmap_regeneration_test=regen?(!strcmp(regen,"2")?2u:1u):0u;}
     rf_scene_volume_test_enabled=getenv("RF_REPLAY_VOLUME_TEST")!=NULL;
     rf_scene_actor_pair_test_enabled=spawn_profile && p.headless && getenv("RF_REPLAY_ACTOR_PAIRS");
     if(spawn_profile && p.headless && getenv("RF_REPLAY_DAMAGE_UID")) {
@@ -490,6 +491,7 @@ int main(int argc,char **argv)
             printf("CAMPAIGN_TRIGGERS %u %u\n",rf_scene_campaign_triggers[0],rf_scene_campaign_triggers[1]);
             printf("SWITCH_STATE %u %u %u\n",rf_scene_switch_state[0],rf_scene_switch_state[1],rf_scene_switch_state[2]);
             printf("LIGHT_FIELDS");for(i=0;i<34;++i)printf(" %u",rf_scene_light_fields[i]);printf("\n");
+            printf("LIGHTMAP_REGEN");for(i=0;i<8;++i)printf(" %u",rf_scene_lightmap_regeneration[i]);printf("\n");
             {extern uint32_t rf_scene_lightmap_updates[8];printf("LIGHTMAP_UPDATES");for(i=0;i<8;++i)printf(" %u",rf_scene_lightmap_updates[i]);printf("\n");}
             {extern uint32_t rf_scene_light_ticks[8];printf("LIGHT_TICKS");for(i=0;i<8;++i)printf(" %u",rf_scene_light_ticks[i]);printf("\n");}
             {extern uint32_t rf_scene_light_storage[5];printf("LIGHT_STORAGE");for(i=0;i<5;++i)printf(" %u",rf_scene_light_storage[i]);printf("\n");}

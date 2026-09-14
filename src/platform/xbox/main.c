@@ -852,6 +852,8 @@ int main(void)
             FILE *damage_file=fopen("D:\\campaign-damage.bin","rb");
             FILE *death_flag=fopen("D:\\campaign-death-animation.flag","rb");
             rf_scene_death_animation_test_enabled=death_flag!=NULL;if(death_flag)fclose(death_flag);
+            FILE *regen_flag=fopen("D:\\campaign-lightmap-regen.flag","rb");
+            rf_scene_lightmap_regeneration_test=regen_flag?(fgetc(regen_flag)=='2'?2u:1u):0u;if(regen_flag)fclose(regen_flag);
             FILE *loss_flag=fopen("D:\\campaign-glare-loss.flag","rb");
             FILE *volume_flag=fopen("D:\\campaign-volume-test.flag","rb");
             rf_scene_volume_test_enabled=volume_flag!=NULL;if(volume_flag)fclose(volume_flag);

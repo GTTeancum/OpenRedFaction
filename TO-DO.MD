@@ -15,6 +15,34 @@ Shortlist:
 
 Progress reporting: include a very high-level working area (e.g. Lighting, AI, Weapons, GeoMod or Scripted events) and an overall percent estimate at the end of every turn report (USER preference) and revisit remaining 24-hour workdays when measured throughput supports a forecast; current rough estimate40% (35-45%), no defensible +/-48-hour completion forecast before end-to-end gameplay.
 
+Scene base/projected-shadow regeneration now uses renderer room visibility
+and cached mapping-room IDs; offscreen jobs retain all dirty bits without
+mapping decode or stale uploads. Stock64MiB XEMU passes180 frames, matching
+PC330 completed jobs/36 ambient/333 callbacks/RGB hash820094536, with5521
+pending requests: all5851 accounted for. Final7197 available pages (~28MiB)
+is an observed endpoint, not a peak guarantee. Regeneration workspace771272
+bytes excludes RGB1130876, overlay88000 and allocator overhead. Both builds
+and26 tests pass. PC updates lighting even when replay drawing is skipped.
+Native evidence artifacts/xemu/replay-20260913-232705/report.json.
+Fixed a stale material-array binding exposed by native testing after scene
+setup combined actor/clutter records. The full-level --lightmap-all stress
+mode remains separate; previous five-minute run reached4670 jobs before its
+first draw, so visibility demand is essential. Stage/counters persist on
+failure and are sampled every10s in regeneration tests. Initial-world face
+order, projected mode1 and authored shadow modes are bound; directional
+source/64-source diagnostic, moving-solid/GeoMod routing and ray mode remain
+open. No PS2 parity or changing-source visual claim. Next validate queued
+jobs across changing visibility and bind actual base-light invalidation.
+
+Additional PC movement check: the existing ambient forward-walk replay fails
+at frame291 with RF_RANGE, scene stage1, both with regeneration enabled and
+disabled. Track under traversal/physics. A shorter270-frame walk and camera
+rotation keep the same330 visible mappings. Staged lower-door1/180-frame
+replays both pass with715 completed/5136 pending mappings, but also retain
+the same visible-room set; they do not prove resume after a visibility change.
+Evidence artifacts/lightmap-walk-baseline.txt, lightmap-demand-walk-270.txt
+and lightmap-demand-door-180.txt.
+
 Shadow workspace now reuses one allocation across jobs, resetting active
 mask strides/guard rows while preserving geometry scratch and inactive masks.
 Live Mines retains141952 PC bytes;5851 cached/uncached jobs and64 reopened

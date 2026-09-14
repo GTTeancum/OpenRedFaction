@@ -4,7 +4,8 @@ from pathlib import Path
 from xemu_smoke import Monitor
 from door_fixture_metrics import measure
 from xemu_guest_snapshot import words,snapshot
-p=argparse.ArgumentParser();p.add_argument('input',type=Path);p.add_argument('--seconds',type=int,default=180);p.add_argument('--require-wide',action='store_true');p.add_argument('--campaign-spawn',action='store_true');p.add_argument('--approach',action='store_true',help='Stage outside the first L1S2 climb region');p.add_argument('--climb',action='store_true',help='Staged L1S2 first-region campaign replay');p.add_argument('--capture',action='store_true',help='Native guest framebuffer for renderer validation');p.add_argument('--door',action='store_true',help='Explicit L1S1 lower-door contact fixture');p.add_argument('--level',help='Authored campaign level, without climb staging');p.add_argument('--archive',default='levels1.vpp',choices=['levels1.vpp','levels2.vpp','levels3.vpp','levelsm.vpp']);p.add_argument('--audio-capture',action='store_true',help='Enable APU events and inspect guest DSP output');p.add_argument('--lift',action='store_true',help='Staged L1S2 lift contact');p.add_argument('--force-uid',type=int,help='Explicit authored force-region staging; requires --level');p.add_argument('--damage-uid',type=int,help='Explicit NPC damage plus player pain-sound fixture');p.add_argument('--death-animation',action='store_true',help='Exercise base NPC death animation at frame 120; requires --damage-uid');p.add_argument('--actor-pairs',action='store_true',help='Restored-state registered actor response publication fixture');p.add_argument('--glare-loss',action='store_true',help='Destroy three glares at frame90 through parent-loss/marked retirement');p.add_argument('--volume-test',action='store_true',help='Copied-owner animated beam through the live sorted queue');p.add_argument('--actor-uid',type=int,help='Process-local camera facing an authored actor; requires --level');args=p.parse_args()
+p=argparse.ArgumentParser();p.add_argument('input',type=Path);p.add_argument('--seconds',type=int,default=180);p.add_argument('--require-wide',action='store_true');p.add_argument('--campaign-spawn',action='store_true');p.add_argument('--approach',action='store_true',help='Stage outside the first L1S2 climb region');p.add_argument('--climb',action='store_true',help='Staged L1S2 first-region campaign replay');p.add_argument('--capture',action='store_true',help='Native guest framebuffer for renderer validation');p.add_argument('--door',action='store_true',help='Explicit L1S1 lower-door contact fixture');p.add_argument('--level',help='Authored campaign level, without climb staging');p.add_argument('--archive',default='levels1.vpp',choices=['levels1.vpp','levels2.vpp','levels3.vpp','levelsm.vpp']);p.add_argument('--audio-capture',action='store_true',help='Enable APU events and inspect guest DSP output');p.add_argument('--lift',action='store_true',help='Staged L1S2 lift contact');p.add_argument('--force-uid',type=int,help='Explicit authored force-region staging; requires --level');p.add_argument('--damage-uid',type=int,help='Explicit NPC damage plus player pain-sound fixture');p.add_argument('--death-animation',action='store_true',help='Exercise base NPC death animation at frame 120; requires --damage-uid');p.add_argument('--actor-pairs',action='store_true',help='Restored-state registered actor response publication fixture');p.add_argument('--glare-loss',action='store_true',help='Destroy three glares at frame90 through parent-loss/marked retirement');p.add_argument('--volume-test',action='store_true',help='Copied-owner animated beam through the live sorted queue');p.add_argument('--actor-uid',type=int,help='Process-local camera facing an authored actor; requires --level');p.add_argument('--lightmap-regen',action='store_true',help='Force initial world lightmap base regeneration');p.add_argument('--lightmap-all',action='store_true',help='Full-level regeneration stress test, bypassing visibility');args=p.parse_args()
+if args.lightmap_all and not args.lightmap_regen:p.error('--lightmap-all requires --lightmap-regen')
 if args.actor_uid is not None and (not args.level or args.climb or args.approach or args.door or args.lift or args.force_uid is not None or not 0<=args.actor_uid<0xffffffff):p.error('--actor-uid requires --level and no other staging')
 if args.death_animation and args.damage_uid is None:p.error('--death-animation requires --damage-uid')
 if args.damage_uid is not None and not 0<=args.damage_uid<0xffffffff:p.error('--damage-uid requires an unsigned actor UID')
@@ -29,6 +30,8 @@ if args.damage_uid is not None:replay_env['RF_REPLAY_DAMAGE_UID']=str(args.damag
 if args.death_animation:replay_env['RF_REPLAY_DEATH_ANIMATION']='1'
 replay_env.pop('RF_REPLAY_VOLUME_TEST',None)
 if args.volume_test:replay_env['RF_REPLAY_VOLUME_TEST']='1'
+replay_env.pop('RF_REPLAY_LIGHTMAP_REGEN',None)
+if args.lightmap_regen:replay_env['RF_REPLAY_LIGHTMAP_REGEN']='2' if args.lightmap_all else '1'
 replay_env.pop('RF_REPLAY_GLARE_LOSS',None)
 if args.glare_loss:replay_env['RF_REPLAY_GLARE_LOSS']='1'
 replay_env.pop('RF_REPLAY_ACTOR_PAIRS',None)
@@ -78,6 +81,7 @@ damage_file=root/'build/xbox/disc/campaign-damage.bin';saved_damage=damage_file.
 death_flag=root/'build/xbox/disc/campaign-death-animation.flag';saved_death=death_flag.read_bytes() if death_flag.exists() else None
 pair_flag=root/'build/xbox/disc/campaign-actor-pairs.flag';saved_pair=pair_flag.read_bytes() if pair_flag.exists() else None
 volume_flag=root/'build/xbox/disc/campaign-volume-test.flag';saved_volume=volume_flag.read_bytes() if volume_flag.exists() else None
+regen_flag=root/'build/xbox/disc/campaign-lightmap-regen.flag';saved_regen=regen_flag.read_bytes() if regen_flag.exists() else None
 loss_flag=root/'build/xbox/disc/campaign-glare-loss.flag';saved_loss=loss_flag.read_bytes() if loss_flag.exists() else None
 step_file=root/'build/xbox/disc/particle-step-fixtures.bin';saved_steps=step_file.read_bytes() if step_file.exists() else None
 process=monitor=None;report={'result':'FAIL','level':args.level or ('L1S2.rfl' if args.climb else 'L1S1.rfl'),'archive':args.archive,'frames':frames,'input_sha256':hashlib.sha256(payload).hexdigest(),'pc_sha256':hashlib.sha256((root/'build/pc/Release/rf_pc_play.exe').read_bytes()).hexdigest(),'samples':[],'scope':'Guest command replay, submission counts, CPU world/camera hashes and final body; optional native framebuffer capture, no PS2 parity claim.'}
@@ -95,6 +99,8 @@ try:
  else:selection_file.unlink(missing_ok=True)
  if args.volume_test:volume_flag.write_bytes(b'1')
  else:volume_flag.unlink(missing_ok=True)
+ if args.lightmap_regen:regen_flag.write_bytes(b'2' if args.lightmap_all else b'1')
+ else:regen_flag.unlink(missing_ok=True)
  if args.glare_loss:loss_flag.write_bytes(b'1')
  else:loss_flag.unlink(missing_ok=True)
  if args.actor_pairs:pair_flag.write_bytes(b'1')
@@ -148,7 +154,7 @@ dvd_path = '{root.as_posix()}/build/xbox/redfaction-diagnostic.iso'
  if os.name=='nt':startup=subprocess.STARTUPINFO();startup.dwFlags|=subprocess.STARTF_USESHOWWINDOW;startup.wShowWindow=0
  with (run/'stdout.log').open('wb') as out,(run/'stderr.log').open('wb') as err:
   process=subprocess.Popen(command,cwd=run,env=dict(os.environ,SDL_AUDIO_DRIVER='dummy'),stdout=out,stderr=err,startupinfo=startup,creationflags=subprocess.CREATE_NO_WINDOW if os.name=='nt' else 0)
-  deadline=time.monotonic()+args.seconds;last=-1
+  deadline=time.monotonic()+args.seconds;last=-1;lighting_poll=0
   while time.monotonic()<deadline:
    if process.poll() is not None:raise RuntimeError(f'XEMU exited {process.returncode}')
    if monitor is None:
@@ -161,10 +167,19 @@ dvd_path = '{root.as_posix()}/build/xbox/redfaction-diagnostic.iso'
     time.sleep(.5);continue
    if d[0]!=0x52464447:time.sleep(.5);continue
    report['samples'].append(d)
+   if args.lightmap_regen and time.monotonic()>=lighting_poll:
+    lighting_poll=time.monotonic()+10
+    progress=words(monitor,symbol('rf_scene_lightmap_regeneration'),8)
+    report.setdefault('lighting_progress',[]).append({'remaining_seconds':round(deadline-time.monotonic(),1),'state':progress})
+    print('Lighting jobs/callbacks/stage:',progress[0],progress[2],progress[7],flush=True)
+    (run/'lighting-progress.json').write_text(json.dumps(report['lighting_progress'],indent=2))
    if args.audio_capture:
     report['device_audio']=words(monitor,symbol('rf_xbox_audio_diagnostic'),12)
     report['audio_close_phase']=words(monitor,symbol('rf_xbox_audio_close_phase'),1)
-   if d[2]&0x80000000:raise RuntimeError(f'Guest error {d[2]:08x}')
+   if d[2]&0x80000000:
+    report['lightmap_regeneration_failure']=words(monitor,symbol('rf_scene_lightmap_regeneration'),8)
+    report['lightmap_updates_failure']=words(monitor,symbol('rf_scene_lightmap_updates'),8)
+    raise RuntimeError(f'Guest error {d[2]:08x}')
    if d[37]//60!=last:last=d[37]//60;print('Submitted',d[37],'frames',flush=True)
    if d[2]==5:
     final=snapshot(monitor,mapping);(run/'guest-memory-final.json').write_text(json.dumps(final,indent=2))
@@ -234,10 +249,13 @@ dvd_path = '{root.as_posix()}/build/xbox/redfaction-diagnostic.iso'
      assert report['light_fields']==report['light_fields_pc'],report['light_fields']
      assert lights==expected('LIGHT_OWNER') and lights[1]<=256*1024 and lights[0]==lights[2],lights
      report['light_owner']=lights
+     report['lightmap_regeneration']=words(monitor,symbol('rf_scene_lightmap_regeneration'),8)
+     assert report['lightmap_regeneration']==expected('LIGHTMAP_REGEN') and report['lightmap_regeneration'][6]==0,report['lightmap_regeneration']
+     if args.lightmap_regen:assert report['lightmap_regeneration'][0]>0 and report['lightmap_regeneration'][2]>0 and report['lightmap_regeneration'][5]==0,report['lightmap_regeneration']
      report['lightmap_updates']=words(monitor,symbol('rf_scene_lightmap_updates'),8)
      pc_updates=expected('LIGHTMAP_UPDATES')
-     # PC replay rasterizes its last frame only; Xbox submits every frame.
-     assert report['lightmap_updates'][1:]==pc_updates[1:] and report['lightmap_updates'][7]==0,report['lightmap_updates']
+     # Lighting updates execute every tick on both paths, even when PC rasterization is skipped.
+     assert report['lightmap_updates']==pc_updates and report['lightmap_updates'][7]==0,report['lightmap_updates']
      report['light_ticks']=words(monitor,symbol('rf_scene_light_ticks'),8)
      assert report['light_ticks']==expected('LIGHT_TICKS') and report['light_ticks'][6]<=64*1024 and report['light_ticks'][7]==0,report['light_ticks']
      if lights[0]:assert report['light_ticks'][:2]==[frames-1,(frames-1)*lights[0]],report['light_ticks']
@@ -877,6 +895,11 @@ dvd_path = '{root.as_posix()}/build/xbox/redfaction-diagnostic.iso'
 except Exception as exc:
  report['error']=repr(exc)
  if monitor:
+  try:
+   report['lightmap_regeneration_failure']=words(monitor,symbol('rf_scene_lightmap_regeneration'),8)
+   report['lightmap_updates_failure']=words(monitor,symbol('rf_scene_lightmap_updates'),8)
+  except Exception as telemetry_error:report['lighting_telemetry_error']=repr(telemetry_error)
+ if monitor:
   try:(run/'guest-memory-failure.json').write_text(json.dumps(snapshot(monitor,mapping),indent=2))
   except Exception as snapshot_error:report['snapshot_error']=repr(snapshot_error)
  raise
@@ -901,6 +924,8 @@ finally:
  try:
   if saved_volume is None:volume_flag.unlink(missing_ok=True)
   else:volume_flag.write_bytes(saved_volume)
+  if saved_regen is None:regen_flag.unlink(missing_ok=True)
+  else:regen_flag.write_bytes(saved_regen)
   if saved_loss is None:loss_flag.unlink(missing_ok=True)
   else:loss_flag.write_bytes(saved_loss)
   if saved_pair is None:pair_flag.unlink(missing_ok=True)

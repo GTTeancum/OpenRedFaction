@@ -13,9 +13,14 @@
 
 /* Called by a synchronous scene frame sink before drawing, after prior GPU
  * reads finish. Applies dirty1 live-light overlays/dirty8 base upload to shared
- * images. Pending dirty2/4 base regeneration remains queued and counted, not
- * cleared; its worker is not bound yet. No per-frame allocation. */
+ * images. Dirty2/4 regenerates initial world-solid projected lighting using
+ * retained scratch for visible rooms; other requests keep their dirty bits.
+ * Unsupported directional/overflow requests stay queued.
+ * Moving-solid/GeoMod routing and ray shadows remain open. No frame allocation. */
 int rf_scene_update_lightmaps(rf_lightmaps *);
+extern uint32_t rf_scene_lightmap_regeneration[8];
+/* Initial dirty2 fixture:1 follows visibility,2 forces the entire level. */
+extern uint32_t rf_scene_lightmap_regeneration_test;
 
 /* Play a resolved48a9c0 request from an already resident campaign sample.
  * Flat pan is the original float bit pattern retained in request.pan; values
