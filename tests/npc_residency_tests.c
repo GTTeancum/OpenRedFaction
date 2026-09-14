@@ -1094,8 +1094,56 @@ static int script_locomotion_check(void)
     CHECK(campaign_script_locomotion(0,1)==RF_OK && pose.controller.current==0 && pose.controller.next==-1);
     campaign_npc_bodies=NULL;campaign_npc_body_count=0;campaign_poses.items=NULL;campaign_poses.count=0;return 0;
 }
+static int scripted_attack_damage_check(void)
+{
+    campaign_npc_body owners[2]={0};rf_entity_seed seeds[2]={0};rf_entity_seed_class cls={0};
+    rf_geometry_collision_world world={0};scene_stream stream={0};float eye[3]={0,0,20},saved_health=campaign_player_damage.state.effects.health,health;
+    uint32_t i;
+    rf_object_registry_init(&campaign_registry);memset(&campaign_entities,0,sizeof(campaign_entities));
+    campaign_npc_bodies=owners;campaign_npc_body_count=2;campaign_seeds.items=seeds;campaign_seeds.classes=&cls;campaign_seeds.class_count=1;
+    stream.collision=&world;campaign_player_damage.state.effects.health=100;campaign_player_object.handle=999;cls.damage_factors[0]=1;
+    for(i=0;i<2;i++) {
+        owners[i].view.linked_handle=-1;owners[i].view.weapons[0]=-1;owners[i].damage.effects.health=owners[i].damage.effects.class_health=100;
+        CHECK(rf_entity_view_register(&campaign_registry,&campaign_entities,&owners[i].view,&owners[i].registration)==RF_OK);
+        owners[i].damage.effects.handle=owners[i].registration.handle;
+    }
+    owners[0].view.weapons[0]=0;owners[0].combat_scripted=owners[0].combat_alert=1;owners[0].combat_target=owners[1].registration.handle;
+    owners[1].eye_position[2]=5;
+    CHECK(campaign_enemy_tick(&stream,0,eye)==RF_OK);
+    health=owners[1].damage.effects.health;CHECK(health<100 && health>0 && campaign_player_damage.state.effects.health==100);
+    CHECK(campaign_enemy_tick(&stream,1,eye)==RF_OK && owners[1].damage.effects.health==health);
+    owners[0].combat_target^=0x10000u;
+    CHECK(campaign_enemy_tick(&stream,60,eye)==RF_OK && owners[1].damage.effects.health==health && campaign_player_damage.state.effects.health==100);
+    for(i=0;i<2;i++)CHECK(rf_entity_view_unregister(&campaign_registry,&campaign_entities,&owners[i].registration)==RF_OK);
+    campaign_npc_bodies=NULL;campaign_npc_body_count=0;memset(&campaign_seeds,0,sizeof(campaign_seeds));
+    campaign_player_object.handle=0;campaign_player_damage.state.effects.health=saved_health;return 0;
+}
+static int scripted_attack_check(void)
+{
+    campaign_npc_body owners[3]={0};rf_level_owned_entity seeds[3]={0};rf_level_event event={0};
+    rf_level_link_target links[3]={{0}};uint32_t i;
+    campaign_npc_bodies=owners;campaign_npc_body_count=3;campaign_seeds.records.items=seeds;
+    campaign_player_object.handle=999;
+    for(i=0;i<3;i++){owners[i].registration.view=&owners[i].view;owners[i].registration.handle=100+i;
+        owners[i].damage.effects.health=100;seeds[i].record.uid=500+i;}
+    event.words[0]=500;event.link_count=3;
+    links[0].kind=1;links[0].value=777;links[1].kind=1;links[1].value=101;links[2].kind=1;links[2].value=102;
+    CHECK(campaign_script_attack(NULL,&event,links,1)==RF_OK);
+    CHECK(owners[0].combat_scripted && owners[0].combat_alert && owners[0].combat_target==101 && !owners[1].combat_alert);
+    strcpy(event.name,"player");CHECK(campaign_script_attack(NULL,&event,links,1)==RF_OK && owners[0].combat_target==999);
+    CHECK(campaign_script_attack(NULL,&event,links,0)==RF_OK && !owners[0].combat_scripted && !owners[0].combat_alert);
+    event.name[0]=0;owners[1].registration.view=NULL;
+    CHECK(campaign_script_attack(NULL,&event,links,1)==RF_OK && owners[0].combat_target==102);
+    owners[2].registration.view=NULL;CHECK(campaign_script_attack(NULL,&event,links,1)==RF_NOT_FOUND);
+    CHECK(owners[0].combat_target==102);
+    owners[0].damage.effects.health=0;CHECK(campaign_script_attack(NULL,&event,links,1)==RF_NOT_FOUND);
+    campaign_npc_bodies=NULL;campaign_npc_body_count=0;campaign_seeds.records.items=NULL;campaign_player_object.handle=0;
+    return 0;
+}
 int main(int argc,char **argv)
 {
+    CHECK(scripted_attack_damage_check()==0);
+    CHECK(scripted_attack_check()==0);
     CHECK(script_locomotion_check()==0);
     CHECK(npc_door_occupancy_check()==0);
     CHECK(actor_retirement_check()==0);

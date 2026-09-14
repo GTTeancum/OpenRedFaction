@@ -588,6 +588,13 @@ static void startup_event_action(void *context,rf_event_state *state,uint32_t ac
             startup_target(c,c->event->links+i,source,actor,(mode&255u)==1);
         return;
     }
+    if(state->type==38) {
+        int status;
+        if(!c->triggers->attack_npc){++c->report->unsupported_actions;return;}
+        status=c->triggers->attack_npc(c->triggers->attack_context,&c->event->authored->record,c->event->links,action==1);
+        if(status==RF_NOT_FOUND)++c->report->other_targets;else if(status)c->status=status;
+        return;
+    }
     if(state->type==5 || state->type==6) {
         if(!c->triggers->move_npc){++c->report->unsupported_actions;return;}
         for(i=0;i<c->event->authored->record.link_count;i++) {
@@ -924,6 +931,7 @@ int rf_runtime_events_tick(rf_runtime_events *events,rf_runtime_triggers *trigge
            !(event->state.type>=35 && event->state.type<=37 && triggers->goals) &&
            !(event->state.type==30 && triggers->set_friendliness) &&
            !(event->state.type==24 && triggers->set_invulnerable) &&
+           !(event->state.type==38 && triggers->attack_npc) &&
            !(event->state.type==1 && triggers->slay_object) &&
            !(event->state.type==15 && triggers->show_message) &&
            !(event->state.type==17 && startup_damage_ready(triggers)) &&

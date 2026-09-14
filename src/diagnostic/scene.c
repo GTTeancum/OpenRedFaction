@@ -3221,6 +3221,7 @@ typedef struct campaign_npc_body {
     uint32_t persistence_slot,persistence_registered,controller_handle;
     struct {uint32_t active,event,follow,route_index,retry;float target[3],fall_speed;} script_move;
     uint32_t combat_alert,combat_due; /* First-pass retaliation, simulation-frame clock. */
+    uint32_t combat_scripted,combat_target; /* Explicit Attack target; normal awareness targets player. */
     campaign_npc_route navigation;
     struct {rf_eye_angle_state angles;float body_angles[3],orientation[9],command_708[3];uint32_t clock_7b0;} look;
     rf_collision_contact_extra collision_contact;
@@ -7379,7 +7380,7 @@ static int campaign_set_friendliness(void *context,uint32_t handle,uint32_t valu
         campaign_npc_body *owner=campaign_npc_bodies+i;
         owner->damage.effects.affiliation=value;
         /* Practical AI handoff: scripted allegiance invalidates the old combat target. */
-        owner->combat_alert=owner->combat_due=0;return RF_OK;
+        owner->combat_scripted=owner->combat_target=owner->combat_alert=owner->combat_due=0;return RF_OK;
     }
     return RF_NOT_FOUND;
 }
@@ -7439,7 +7440,7 @@ static int campaign_life_input(uint32_t frame,rf_scene_input *input)
     memset(&campaign_player_flash,0,sizeof(campaign_player_flash));memset(&campaign_camera_effect,0,sizeof(campaign_camera_effect));
     status=campaign_ammo_reset();if(status)return status;
     memset(&combat_trigger,0,sizeof(combat_trigger));combat_hit_frame=UINT32_MAX;rf_scene_combat[5]=campaign_pistol.magazine;rf_scene_combat[6]=0;
-    for(i=0;i<campaign_npc_body_count;i++)campaign_npc_bodies[i].combat_alert=campaign_npc_bodies[i].combat_due=0;
+    for(i=0;i<campaign_npc_body_count;i++)campaign_npc_bodies[i].combat_scripted=campaign_npc_bodies[i].combat_target=campaign_npc_bodies[i].combat_alert=campaign_npc_bodies[i].combat_due=0;
     rf_scene_enemy_combat[6]=0;memcpy(rf_scene_enemy_combat+5,&campaign_player_damage.state.effects.health,4);
     ++rf_scene_player_life[1];rf_scene_player_life[2]=0;rf_scene_player_life[4]=frame;
     return RF_OK;
@@ -7518,6 +7519,27 @@ static int campaign_slay_object(void *context,uint32_t handle,uint32_t source,in
     }
     return RF_NOT_FOUND;
 }
+/* 4b86d0/+2b8,4bcac0/4bcba0: attacker UID, first live link, player-name override.
+ * Practical combat backend; exact AI state machine and pursuit remain open. */
+static int campaign_script_attack(void *context,const rf_level_event *event,const rf_level_link_target *links,uint32_t on)
+{
+    uint32_t i,j,target=UINT32_MAX;campaign_npc_body *owner=NULL;(void)context;
+    if(!event || (event->link_count && !links))return RF_RANGE;
+    for(i=0;i<campaign_npc_body_count;i++)if((uint32_t)campaign_seeds.records.items[i].record.uid==event->words[0]) {
+        owner=campaign_npc_bodies+i;break;
+    }
+    if(!owner || !owner->registration.view || owner->damage.effects.health<=0)return RF_NOT_FOUND;
+    if(!on){owner->combat_scripted=owner->combat_alert=owner->combat_due=0;owner->combat_target=0;return RF_OK;}
+    for(i=0;i<event->link_count && target==UINT32_MAX;i++)if(links[i].kind==1 || links[i].kind==2) {
+        if(links[i].value==campaign_player_object.handle && campaign_player_object.handle)target=links[i].value;
+        else for(j=0;j<campaign_npc_body_count;j++)if(campaign_npc_bodies[j].registration.view &&
+            campaign_npc_bodies[j].registration.handle==links[i].value){target=links[i].value;break;}
+    }
+    if(!strcmp(event->name,"player") && campaign_player_object.handle)target=campaign_player_object.handle;
+    if(target==UINT32_MAX)return RF_NOT_FOUND;
+    owner->combat_scripted=owner->combat_alert=1;owner->combat_target=target;owner->combat_due=0;
+    owner->script_move.active=0;return RF_OK;
+}
 static int campaign_enemy_tick(scene_stream *stream,uint32_t frame,const float player_eye[3])
 {
     uint32_t i,j,blocked,clock_bits;float seconds=(float)frame/60;
@@ -7527,7 +7549,15 @@ static int campaign_enemy_tick(scene_stream *stream,uint32_t frame,const float p
         campaign_npc_body *owner=campaign_npc_bodies+i;float delta[3],distance=0,amount;int status;
         if(!owner->registration.view || (owner->object_flags&(2|0x4000)) ||
            owner->damage.effects.health<=0 || (owner->view.flags_810&1) || owner->view.weapons[0]<0)continue;
-        for(j=0;j<3;j++){delta[j]=player_eye[j]-owner->eye_position[j];distance+=delta[j]*delta[j];}
+        campaign_npc_body *victim=NULL;uint32_t victim_slot=UINT32_MAX;
+        const float *target_eye=player_eye;
+        if(owner->combat_scripted && owner->combat_target!=campaign_player_object.handle) {
+            for(j=0;j<campaign_npc_body_count;j++)if(campaign_npc_bodies[j].registration.view &&
+                campaign_npc_bodies[j].registration.handle==owner->combat_target){victim=campaign_npc_bodies+j;victim_slot=j;break;}
+            if(!victim || victim==owner || victim->damage.effects.health<=0 || (victim->object_flags&(2|0x4000)))continue;
+            target_eye=victim->eye_position;
+        }
+        for(j=0;j<3;j++){delta[j]=target_eye[j]-owner->eye_position[j];distance+=delta[j]*delta[j];}
         if(!owner->combat_alert) {
             float forward=0;
             /* Practical first pass: stagger sight checks, 20-unit range and 120-degree cone.
@@ -7552,7 +7582,15 @@ static int campaign_enemy_tick(scene_stream *stream,uint32_t frame,const float p
         if(blocked){++rf_scene_enemy_combat[4];continue;}
         ++rf_scene_enemy_combat[2];
         {rf_damage_request request={10,owner->registration.handle,0,0,UINT32_MAX,0};
-         status=rf_scene_player_damage(campaign_player_object.handle,&request,1,clock_bits,&effects,&amount);if(status)return status;}
+         if(victim) {
+             uint32_t entered;
+             status=rf_scene_npc_damage(victim->registration.handle,&request,1,clock_bits,&effects,&amount);if(status)return status;
+             if(victim->damage.effects.health<=0) {
+                 status=rf_scene_npc_death_entry(victim->registration.handle,&entered);if(status)return status;
+                 if(entered){victim->script_move.active=0;status=combat_death_start(victim_slot);if(status)return status;}
+             }
+         } else {status=rf_scene_player_damage(campaign_player_object.handle,&request,1,clock_bits,&effects,&amount);if(status)return status;}
+        }
         if(amount>0)++rf_scene_enemy_combat[3];
     }
     memcpy(rf_scene_enemy_combat+5,&campaign_player_damage.state.effects.health,4);
@@ -7623,7 +7661,7 @@ static int campaign_combat_tick(scene_stream *stream,uint32_t frame,const float 
             campaign_select_primary(imported.weapon==(uint32_t)campaign_rifle_id);
             campaign_ammo_publish();campaign_import_pending=0;
         }
-        for(i=0;i<campaign_npc_body_count;i++)campaign_npc_bodies[i].combat_alert=campaign_npc_bodies[i].combat_due=0;
+        for(i=0;i<campaign_npc_body_count;i++)campaign_npc_bodies[i].combat_scripted=campaign_npc_bodies[i].combat_target=campaign_npc_bodies[i].combat_alert=campaign_npc_bodies[i].combat_due=0;
 }
     if(combat_frame==frame)return RF_OK;combat_frame=frame;
     status=campaign_pickups_tick(stream,position);rf_scene_pickups[7]=(uint32_t)status;if(status)return status;
@@ -10534,7 +10572,7 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
             status=campaign_actors_restore();if(status)goto done;
             campaign_triggers.death_query=campaign_death_query;
             campaign_triggers.activate_mover=campaign_event_mover;
-            memset(rf_scene_npc_triggers,0,sizeof(rf_scene_npc_triggers));memset(rf_scene_script_routes,0,sizeof(rf_scene_script_routes));memset(rf_scene_script_actor,0,sizeof(rf_scene_script_actor));memset(rf_scene_script_movement,0,sizeof(rf_scene_script_movement));campaign_triggers.move_npc=campaign_script_move;
+            memset(rf_scene_npc_triggers,0,sizeof(rf_scene_npc_triggers));memset(rf_scene_script_routes,0,sizeof(rf_scene_script_routes));memset(rf_scene_script_actor,0,sizeof(rf_scene_script_actor));memset(rf_scene_script_movement,0,sizeof(rf_scene_script_movement));campaign_triggers.move_npc=campaign_script_move;campaign_triggers.attack_npc=campaign_script_attack;
             /* Original level startup435df0 calls45ade0 before levelstart.vcs. */
             status=campaign_ambient_schedule(0,1);if(status)goto done;
             status=rf_runtime_startup_events(&campaign_triggers,&scene_gravity,0,0,&stream.particles, &campaign_forces,&rf_scene_startup_events);

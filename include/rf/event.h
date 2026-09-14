@@ -319,6 +319,9 @@ typedef struct rf_runtime_triggers {
     void *mover_context;
     int (*move_npc)(void *context,uint32_t handle,const rf_level_event *event,uint32_t on);
     void *move_context;
+    /* Attack38: authored attacker UID plus ordered resolved target links. */
+    int (*attack_npc)(void *context,const rf_level_event *event,const rf_level_link_target *links,uint32_t on);
+    void *attack_context;
     /* First-pass visibility service. NOT_FOUND skips unsupported targets. */
     int (*set_visible)(void *context,uint32_t handle,uint32_t visible);
     void *visibility_context;

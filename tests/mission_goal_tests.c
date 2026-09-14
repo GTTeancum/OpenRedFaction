@@ -86,6 +86,22 @@ static int authored_mover_check(const char *path)
 static uint32_t move_calls,move_on;static rf_level_event move_event;
 static int move_command(void *context,uint32_t handle,const rf_level_event *event,uint32_t on)
 {(void)context;(void)handle;++move_calls;move_on=on;move_event=*event;return RF_OK;}
+static uint32_t attack_calls,attack_on;
+static int attack_command(void *context,const rf_level_event *event,const rf_level_link_target *links,uint32_t on)
+{(void)context;CHECK(event && links);++attack_calls;attack_on=on;return RF_OK;}
+static int authored_attack_check(const char *path)
+{
+    rf_vpp archive={0};rf_level level;rf_object_registry registry;rf_runtime_events events={0};rf_runtime_triggers triggers={0};
+    rf_physics_gravity gravity={0};rf_startup_events_report report;rf_runtime_event *event=NULL;uint32_t i;
+    rf_object_registry_init(&registry);triggers.registry=&registry;triggers.attack_npc=attack_command;
+    CHECK(rf_level_campaign_open(&level,&archive,path,"L1S1.rfl")==RF_OK);
+    CHECK(rf_runtime_events_open(&level,&registry,1024*1024,&events)==RF_OK);
+    for(i=0;i<events.count;i++)if(events.items[i].authored->record.uid==9394)event=events.items+i;
+    CHECK(event && event->state.type==38 && event->authored->record.words[0]==8638 && event->authored->links[0]==9391);
+    attack_calls=0;
+    CHECK(rf_runtime_event_fire(&triggers,event->handle,7,9,500,&gravity,0,0,&report)==RF_OK && attack_calls==1 && attack_on && !report.unsupported_actions);
+    rf_runtime_events_close(&events);rf_vpp_close(&archive);return 0;
+}
 static int goto_dispatch_check(const char *path)
 {
     rf_vpp archive={0};rf_level level;rf_object_registry registry;rf_runtime_events events={0};rf_runtime_triggers triggers={0};
@@ -102,6 +118,12 @@ static int goto_dispatch_check(const char *path)
     CHECK(!memcmp(&move_event,&event->authored->record,sizeof(move_event)));
     event->state.deadline=1100;event->state.mode=0;
     CHECK(rf_runtime_events_tick(&events,&triggers,&gravity,1100,0,0,&report,&pending)==RF_OK && move_calls==2 && !move_on);
+    event->state.type=38;event->state.deadline=1200;event->state.mode=1;
+    CHECK(rf_runtime_events_tick(&events,&triggers,&gravity,1200,0,0,&report,&pending)==RF_OK && pending==1 && !attack_calls);
+    triggers.attack_npc=attack_command;
+    CHECK(rf_runtime_events_tick(&events,&triggers,&gravity,1200,0,0,&report,&pending)==RF_OK && !pending && attack_calls==1 && attack_on);
+    event->state.deadline=1300;event->state.mode=0;
+    CHECK(rf_runtime_events_tick(&events,&triggers,&gravity,1300,0,0,&report,&pending)==RF_OK && attack_calls==2 && !attack_on);
     rf_runtime_events_close(&events);rf_vpp_close(&archive);return 0;
 }
 static uint32_t visible_calls,visible_value,visible_handle;
@@ -212,7 +234,7 @@ int main(int argc,char **argv)
     rf_runtime_event check={0};rf_level_owned_event authored={0};rf_level_link_target link={0};
     rf_runtime_trigger target={0};
     CHECK(death_watch_check()==0);
-    CHECK(argc==2);CHECK(goto_dispatch_check(argv[1])==0);CHECK(authored_mover_check(argv[1])==0);rf_object_registry_init(&registry);triggers.registry=&registry;triggers.goals=&goals;
+    CHECK(argc==2);CHECK(goto_dispatch_check(argv[1])==0);CHECK(authored_attack_check(argv[1])==0);CHECK(authored_mover_check(argv[1])==0);rf_object_registry_init(&registry);triggers.registry=&registry;triggers.goals=&goals;
     CHECK(rf_level_campaign_open(&level,&archive,argv[1],"L8S1.rfl")==RF_OK);
     CHECK(rf_runtime_events_open(&level,&registry,1024*1024,&events)==RF_OK);
     CHECK(rf_runtime_goals_initialize(&events,&goals)==RF_OK);

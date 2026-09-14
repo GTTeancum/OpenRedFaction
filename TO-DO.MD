@@ -16,7 +16,7 @@ screenshots until near-retail-quality replacements are available.
 Shortlist:
 - DEFERRED / TO COMPLETE: Improve Xbox performance beyond the current basic-testing baseline; revisit NPC pose evaluation.
 - TO COMPLETE: Preserve remaining world changes across sections, including partial actor state and dropped items.
-- ACTIVE: Implement scripted attacks and expand mission scripts and AI until consecutive campaign sections are playable end to end.
+- ACTIVE: Add pursuit and firing presentation to scripted combat, then verify complete campaign encounters and mission progression.
 - TO COMPLETE: Expand the working pistol/rifle combat, pickups and first-person feedback to the remaining weapons.
 - DEFERRED / TO COMPLETE: Restore full NPC/prop texture detail through better residency; verify PS2 parity for reduced textures.
 - Continue campaign traversal/physics coverage beyond the repaired walking route.
@@ -33,6 +33,22 @@ Shortlist:
 - USER: Review the interactive PC movement and audio items listed below.
 
 Progress reporting: include a very high-level working area (e.g. Lighting, AI, Weapons, GeoMod or Scripted events) and an overall percent estimate at the end of every turn report (USER preference) and revisit remaining 24-hour workdays when measured throughput supports a forecast; current rough estimate45% (35-45%), no defensible +/-48-hour completion forecast before end-to-end gameplay.
+
+Scripted Attack38 first pass implemented. Attacker comes from words[0] UID;
+first supported live target link is selected, with event name player overriding
+it. Off cancels explicit targeting. Delayed events retain their deadline when
+no backend exists. Shared enemy tick now damages the selected NPC or player,
+uses existing world/mover LOS and cooldown, and enters NPC death on lethal hits.
+Stale explicit targets never redirect fire to the player. Allegiance/respawn
+resets clear explicit target state. No per-command allocation; two words/NPC.
+Validation:37 PC tests pass, including actual L1S1 event9394 dispatch, delayed
+on/off, missing backend, target order/player override/cancellation, NPC damage,
+cooldown and stale handles. NXDK build passes. Stock64MiB XEMU replay105213
+passes180-frame L1S2->L1S3 crossing/state validation; no capture requested and
+no authored Attack encounter or lethal scripted shot is proven by that replay.
+Open: pursuit, aim/firing presentation, target props, retaliation to NPC sources,
+lethal-shot integration coverage, case behavior of the player-name override,
+and complete natural-trigger encounters. Details:docs/SCRIPTED-ATTACKS.md.
 
 USER direction: final performance pass complete; return to systems implementation.
 Native replay-20260914-104251 passes stock64MiB crossing/state/HUD checks and
