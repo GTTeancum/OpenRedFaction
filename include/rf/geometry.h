@@ -170,6 +170,23 @@ int rf_geometry_shadow_traverse(const rf_geometry *,const uint32_t *face_ids,uin
     const rf_image *const *images,uint32_t image_count,const rf_lightmap_shadow_cull *,
     const rf_lightmap_shadow_pass *,rf_geometry_shadow_work *,unsigned char *mask,uint32_t bytes,
     unsigned char amount,rf_geometry_shadow_result *);
+typedef struct rf_geometry_shadow_job {
+    const rf_geometry *geometry;const uint32_t *faces;uint32_t face_count;
+    const rf_image *const *images;uint32_t image_count;
+    const rf_lightmap_mapping *mapping;const rf_lightmap_sample_plane *sample;int32_t mapping_index;
+    const rf_lightmap_shadow_filter *filter;rf_geometry_shadow_work *work;
+} rf_geometry_shadow_job;
+typedef struct rf_geometry_shadow_source_result {
+    uint32_t passes,backfacing;rf_geometry_shadow_result faces;
+} rf_geometry_shadow_source_result;
+/* Complete one source's projected mask operation: select samples, prepare,
+ * traverse and apply borders once. Any non-facing endpoint clears width*height
+ * mask bytes and terminates, discarding prior endpoint shadows as original.
+ * Caller seeds mask (normally255), owns receiver grouping and initialized
+ * persistent scratch. No allocation; errors may leave partial mask/scratch,
+ * result commits only on success. Does not select source lists or dirty modes. */
+int rf_geometry_shadow_source_mask(const rf_geometry_shadow_job *,const rf_lightmap_shadow_source *,
+    uint32_t local,unsigned char *mask,uint32_t bytes,rf_geometry_shadow_source_result *);
 int rf_geometry_get_corner(const rf_geometry *geometry, uint32_t face, uint32_t corner, rf_geometry_corner *result);
 typedef struct rf_geometry_texture_workspace {
     float (*vertices)[3],(*coordinates)[2];uint32_t capacity;

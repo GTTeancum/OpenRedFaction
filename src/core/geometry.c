@@ -595,6 +595,33 @@ int rf_geometry_shadow_traverse(const rf_geometry *g,const uint32_t *ids,uint32_
     *out=result;return RF_OK;
 }
 
+int rf_geometry_shadow_source_mask(const rf_geometry_shadow_job *job,const rf_lightmap_shadow_source *source,
+    uint32_t local,unsigned char *mask,uint32_t bytes,rf_geometry_shadow_source_result *out)
+{
+    rf_lightmap_shadow_samples samples;rf_geometry_shadow_source_result result={0};
+    uint32_t i,width,height;int status;
+    if(!job || !source || !job->mapping || !job->sample || !job->filter || !job->work ||
+       !out || !mask || job->face_count>UINT32_MAX/2)return RF_RANGE;
+    width=job->mapping->width;height=job->mapping->height;
+    if(width<2 || height<2 || (uint64_t)width*((uint64_t)height+1)+1>bytes)return RF_RANGE;
+    status=rf_lightmap_shadow_source_samples(source,local,&samples);if(status)return status;
+    for(i=0;i<samples.count;i++) {
+        rf_lightmap_shadow_cull cull;rf_lightmap_shadow_pass pass;rf_geometry_shadow_result faces;uint32_t facing;
+        status=rf_lightmap_shadow_prepare(job->mapping,job->sample,job->mapping_index,samples.center,
+            source->radius,samples.origins[i],job->filter,&cull,&pass,&facing);if(status)return status;
+        ++result.passes;
+        if(!facing) {
+            memset(mask,0,(size_t)width*height);result.backfacing=1;*out=result;return RF_OK;
+        }
+        status=rf_geometry_shadow_traverse(job->geometry,job->faces,job->face_count,job->images,
+            job->image_count,&cull,&pass,job->work,mask,bytes,(unsigned char)samples.amount,&faces);if(status)return status;
+        result.faces.visited+=faces.visited;result.faces.eligible+=faces.eligible;
+        result.faces.projected+=faces.projected;result.faces.accepted+=faces.accepted;
+    }
+    status=rf_lightmap_shadow_border(mask,bytes,width,height,result.faces.projected!=0);if(status)return status;
+    *out=result;return RF_OK;
+}
+
 int rf_geometry_initial_collision_filter(const rf_geometry *geometry,uint32_t index,
     uint32_t query_flags,rf_collision_face_filter *filter)
 {

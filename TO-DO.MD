@@ -15,6 +15,15 @@ Shortlist:
 
 Progress reporting: include a very high-level working area (e.g. Lighting, AI, Weapons, GeoMod or Scripted events) and an overall percent estimate at the end of every turn report (USER preference) and revisit remaining 24-hour workdays when measured throughput supports a forecast; current rough estimate40% (35-45%), no defensible +/-48-hour completion forecast before end-to-end gameplay.
 
+Complete per-source projected shadow operation now matches256 original/
+PC/NXDK compositions:384 endpoint passes,75 back-facing clears,2472 face
+visits,257 accepted occluders and28865 changed mask bytes. Three NXDK guards,
+both builds and24 tests pass. Original source/preparation/traversal/border
+chunks form oracle; back-facing clear modeled as width*height zero bytes.
+Synthetic geometry, caller-seeded masks and initialized retained scratch;
+source lists/dirty modes and campaign ownership still external. Next own
+receivers, masks and scratch under budget, bind live campaign and verify XEMU.
+
 Shadow source sampling matches2048 original/PC/NXDK records, including
 1170 line sources and838 endpoints whose float interpolation differs from a
 direct endpoint copy. World/cached-local selection, bounds,1x255 versus2x127
