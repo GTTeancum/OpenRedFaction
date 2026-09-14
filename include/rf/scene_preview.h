@@ -701,6 +701,7 @@ typedef struct rf_scene_input {float move[3],look[2];uint32_t crouch,jump,use,fi
 /* Poll once before stance/animation/physics. RF_NOT_FOUND ends the stream cleanly.
  * Finite axes in [-1,1], crouch/jump/use held states 0/1. Caller owns context until stream ends.
  * Zero frame_limit permits a UINT32_MAX-frame session with bounded rings. */
+extern uint32_t rf_scene_enemy_combat[8];
 extern uint32_t rf_scene_combat[8]; /* shots,hits,kills,last target,health bits,clip,reload ticks,status */
 /* RFI4 + size40 adds fire/reload. RFI3 + uint32 size32 includes use; RFI2 size28 omits use; legacy raw
  * size24 omits jump/use. Readers must zero omitted fields before loading. */

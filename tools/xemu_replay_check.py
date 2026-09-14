@@ -228,6 +228,8 @@ dvd_path = '{root.as_posix()}/build/xbox/redfaction-diagnostic.iso'
     for name,label,count in [('rf_scene_actor_follow_summary','ACTOR_FOLLOW_SUMMARY',5),('rf_scene_player_input_frames','ACTOR_PLAYER_INPUT',448),('scene_actor_body','PC_PLAY_BODY',77)]:
      got=words(monitor,symbol(name),count);assert got==expected(label),name;report[name]=got
     if args.campaign_spawn:
+     report['enemy_combat']=words(monitor,symbol('rf_scene_enemy_combat'),8)
+     assert report['enemy_combat']==expected('ENEMY_COMBAT') and report['enemy_combat'][7]==0,report['enemy_combat']
      report['combat']=words(monitor,symbol('rf_scene_combat'),8)
      assert report['combat']==expected('COMBAT') and report['combat'][7]==0,report['combat']
      forces=words(monitor,symbol('rf_scene_campaign_forces'),3)
@@ -885,7 +887,7 @@ dvd_path = '{root.as_posix()}/build/xbox/redfaction-diagnostic.iso'
      report['capture']='Native guest framebuffer for renderer validation'
      if args.campaign_spawn:
       native=Image.open(run/'framebuffer.png');reference=Image.open(run/'pc-final.ppm')
-      points=[(312,240)]+[(480+i*11,448) for i in range(12)]
+      points=[(312,240),(30,448),(150,448)]+[(480+i*11,448) for i in range(12)]
       if report['combat'][6]:points.extend([(480,459),(600,459)])
       report['combat_hud_pixels']=[dict(point=q,xbox=native.getpixel(q),pc=reference.getpixel(q)) for q in points]
       assert all(max(abs(a-b) for a,b in zip(v['xbox'],v['pc']))<=2 for v in report['combat_hud_pixels']),report['combat_hud_pixels']

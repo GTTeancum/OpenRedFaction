@@ -20,6 +20,9 @@ prototype has12 rounds, automatic/manual reload and unlimited reserve ammo.
 The centered reticle flashes green on damaging hits. Bottom-right markers
 show the12-round clip; a gold bar shows reload progress. First-person gun
 presentation and shot audio remain pending.
+Armed NPCs now retaliate when damaged, checking line of sight. The lower-left
+bar shows player health; incoming hits trigger the damage flash. Zero health
+stops firing; death/restart flow and broader enemy AI remain unfinished.
 
 The shared provider polls once before stance and animation. Its validated
 movement/look/crouch state is reused by physics and camera; it replaces the

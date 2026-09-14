@@ -526,6 +526,7 @@ int main(int argc,char **argv)
             uint32_t word;memcpy(&word,(const unsigned char*)&scene_actor_body.state+i*4,4);printf(" %u",word);
         }puts("");
     }
+    printf("ENEMY_COMBAT");for(i=0;i<8;++i)printf(" %u",rf_scene_enemy_combat[i]);puts("");
     printf("COMBAT");for(i=0;i<8;++i)printf(" %u",rf_scene_combat[i]);puts("");
     printf("Completed %u frames, 640x480 raster, %u byte mesh cap.\n",p.frames,RF_SCENE_FOLLOW_CAPACITY);
 cleanup:

@@ -9,7 +9,8 @@ visual quality must meet the PS2 version. **Full campaign play remains unfinishe
 **Xbox build in XEMU, stock64MiB, native640 x480 capture.** The first-pass
 firing loop damages a visible NPC; the green reticle confirms a hit and the
 bottom-right markers show11 rounds left. Reloading is supported. First-person
-gun presentation, shot audio and enemy return fire remain unfinished.
+gun presentation and shot audio remain unfinished. Armed NPCs now retaliate
+when damaged; broader detection, pursuit and death/restart flow remain open.
 
 ![Xbox reconstruction: miner, mining robot, overhead lamps and warning fixture in Live Mines](docs/images/xbox-campaign-props.png)
 
@@ -74,7 +75,7 @@ Ctrl crouches and Escape exits. It uses the shared Xbox-oriented runtime at
 unfinished. See [input controls and verification](docs/INPUT.md).
 The `--campaign Installed_Game` profile now includes a basic hitscan combat
 prototype: F/RT fires and R/Y reloads. NPC damage/death is connected; full
-weapon presentation, enemy return fire and campaign completion are pending.
+weapon presentation, full enemy AI and campaign completion are pending.
 
 ## Xbox diagnostic
 

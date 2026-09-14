@@ -20,7 +20,24 @@ Shortlist:
 - USER: Review PS2 visual parity and test hardware after representative XEMU gameplay is stable.
 - USER: Review the interactive PC movement and audio items listed below.
 
-Progress reporting: include a very high-level working area (e.g. Lighting, AI, Weapons, GeoMod or Scripted events) and an overall percent estimate at the end of every turn report (USER preference) and revisit remaining 24-hour workdays when measured throughput supports a forecast; current rough estimate41% (35-45%), no defensible +/-48-hour completion forecast before end-to-end gameplay.
+Progress reporting: include a very high-level working area (e.g. Lighting, AI, Weapons, GeoMod or Scripted events) and an overall percent estimate at the end of every turn report (USER preference) and revisit remaining 24-hour workdays when measured throughput supports a forecast; current rough estimate42% (35-45%), no defensible +/-48-hour completion forecast before end-to-end gameplay.
+
+First-pass armed retaliation now uses8 retained bytes per NPC (624 for78):
+a damaging hit alerts an armed visible actor; after30 frames it attacks every
+60 frames within40 units, checking the existing moving/static geometry ray
+path. Hidden/dead/unarmed actors do not attack. Damage goes through retained
+player health/armor and flash handling; the HUD adds a health bar. Player fire
+and further enemy attacks stop at zero health. PC240-frame provoke:3 hits,
+health85.6; killing the attacker stops at1 return hit;1500-frame sustained
+retaliation reaches zero after20 hits. Idle stays passive. Both builds and26
+tests pass. Evidence artifacts/enemy-first/report.json. Stock64MiB XEMU
+240-frame PASS with matching3 return hits/health85.6 and inspected HUD:
+artifacts/xemu/replay-20260914-002734/report.json, framebuffer.png and
+health-pixels.json.7115 available pages observed at completion, not a peak.
+This is stationary reactive AI, not campaign detection/pursuit/squad behavior.
+Death/restart, firing animation/audio, faction handling and weapon tuning are
+open. Attempted walking cover routes remained visible/in range; no verified
+cover-transition claim. Ray obstruction uses the existing geometry path.
 
 Shared combat HUD now renders a centered reticle, green damaging-hit feedback,
 12 remaining-round markers and a reload progress bar through both renderers.
