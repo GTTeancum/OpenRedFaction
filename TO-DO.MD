@@ -15,6 +15,17 @@ Shortlist:
 
 Progress reporting: include a very high-level working area (e.g. Lighting, AI, Weapons, GeoMod or Scripted events) and an overall percent estimate at the end of every turn report (USER preference) and revisit remaining 24-hour workdays when measured throughput supports a forecast; current rough estimate40% (35-45%), no defensible +/-48-hour completion forecast before end-to-end gameplay.
 
+Real-asset PC shadow harness completes all5851 Live Mines mappings using
+loaded texture formats, authored light selection/modes, receiver groups and
+actual projected callbacks:7537 callbacks,17804 accepted occluders and169812
+changed mask bytes;64 reopened jobs reproduce exactly. Peak PC shadow scratch
+73252 bytes (not total scene memory);25 tests pass. Full initial world-face
+scan visits51.4M faces in18s on this host, so this is an integration fixture,
+not a viable per-frame policy. No renderer submission or XEMU evidence yet.
+Next preserve original room/surviving-face routing and retained mapping jobs,
+compose masked accumulation/RGB upload, then measure rendered native memory.
+Harness: tools/verify_campaign_shadows.py; evidence artifacts/campaign-shadow-l1s1.json.
+
 Selected authored pool IDs now resolve to retained constructor shadow modes
 in selection order without extra persistent storage. PC/NXDK validate22293
 lights across93 level records, reversed selection, in-place output and short
