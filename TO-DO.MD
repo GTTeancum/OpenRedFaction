@@ -28,8 +28,14 @@ bytes, conservative peak946252 bytes within1MiB, including live pose buffers.
 Idle/fire/reload playback now produces skinning matrices without frame-time
 allocation or archive I/O and returns completed actions to idle. Tests cover
 closed archives, pose changes, reload completion,100 action restarts and budget
-cleanup. Next connect gameplay requests and camera-space rendering; no visible
-first-person gun or native residency claim yet.
+cleanup. Live scene integration now renders the gun and drives shot/reload
+animation from gameplay; PC idle/fire/reload/return captures pass. Camera
+placement, depth band and lighting are provisional. Stock64MiB XEMU80-frame
+reload PASS: pose hash,1560 emitted vertices and weapon budget match PC;
+6937 available pages at completion. Native framebuffer inspected.
+Both builds,27 CTests,four weapon cases and death/respawn regressions pass.
+Evidence artifacts/xemu/replay-20260914-015216/report.json. Muzzle flash,
+other weapons and authored tuning remain open.
 See include/rf/player_weapon.h and tests/player_weapon_tests.c.
 
 First-pass player pistol audio now emits authored Glock Launch and Glock

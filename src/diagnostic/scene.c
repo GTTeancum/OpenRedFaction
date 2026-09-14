@@ -4,6 +4,7 @@
 #include "rf/entity_assets.h"
 #include "rf/corpse_effect.h"
 #include "rf/player.h"
+#include "rf/player_weapon.h"
 #include "rf/event.h"
 #include "rf/audio.h"
 #include "rf/clutter.h"
@@ -356,6 +357,7 @@ typedef struct scene_stream {
     uint32_t world,base,capacity,npc_base,npc_textures;rf_scene_frame_sink sink;void *context;
     uint32_t clutter_base,clutter_textures;
     uint32_t weapon_base,weapon_textures;
+    rf_player_weapon *player_weapon;uint32_t player_weapon_base,player_weapon_textures,player_shots,player_reload;
     rf_model_projection npc_view;void *npc_memory;uint16_t *npc_indices;rf_model_clip_pool *npc_pool;
     const rf_geometry_collision_world *collision;
     const rf_geometry *geometry;unsigned char *surface_indices;float actor_spawn[3];uint32_t eye_flags;
@@ -7109,7 +7111,8 @@ static int campaign_combat_tick(scene_stream *stream,uint32_t frame,const float 
     if(!frame){memset(rf_scene_weapon_audio,0,sizeof(rf_scene_weapon_audio));combat_sound_random.value=1;memset(rf_scene_combat_death,0,sizeof(rf_scene_combat_death));memset(rf_scene_combat,0,sizeof(rf_scene_combat));rf_scene_combat[3]=UINT32_MAX;rf_scene_combat[5]=12;combat_cooldown=0;combat_frame=combat_hit_frame=UINT32_MAX;
         memset(rf_scene_enemy_awareness,0,sizeof(rf_scene_enemy_awareness));
         memset(rf_scene_enemy_combat,0,sizeof(rf_scene_enemy_combat));combat_initial_health=campaign_player_damage.state.effects.health;
-        for(i=0;i<campaign_npc_body_count;i++)campaign_npc_bodies[i].combat_alert=campaign_npc_bodies[i].combat_due=0;}
+        for(i=0;i<campaign_npc_body_count;i++)campaign_npc_bodies[i].combat_alert=campaign_npc_bodies[i].combat_due=0;
+}
     if(combat_frame==frame)return RF_OK;combat_frame=frame;
     status=campaign_enemy_tick(stream,frame,position);rf_scene_enemy_combat[7]=(uint32_t)status;if(status)return status;
     if(rf_scene_enemy_combat[6])return RF_OK;
@@ -8421,6 +8424,57 @@ static int scene_weapon_submit(void *context,uint32_t model,const rf_weapon_hand
     }
     return RF_OK;
 }
+uint32_t rf_scene_player_weapon[8]; /* frames,clip,vertices,resident,peak,pose hash,status,reserved */
+static int scene_player_weapon_draw(scene_stream *stream,uint32_t frame)
+{
+    rf_player_weapon *w=stream->player_weapon;rf_model_projection view={0};
+    rf_model_render_buffers buffers={0};rf_model_lighting lights={0};
+    rf_model_render_output attributes={1,{255,255,255},255,1,1};
+    rf_model_clip_planes planes={0};rf_model_clip_projection projection={0};
+    uint32_t batch,k,start;int status,request=-1;
+    if(!frame)memset(rf_scene_player_weapon,0,sizeof(rf_scene_player_weapon));
+    if(!w)return RF_OK;
+    if(!frame)request=0;
+    else if(rf_scene_combat[6]>stream->player_reload)request=2;
+    else if(rf_scene_combat[0]!=stream->player_shots)request=1;
+    stream->player_shots=rf_scene_combat[0];stream->player_reload=rf_scene_combat[6];
+    status=rf_player_weapon_step(w,request,1.0f/60);if(status)goto done;
+    rf_scene_player_weapon[0]=frame+1;rf_scene_player_weapon[1]=w->current;
+    rf_scene_player_weapon[2]=0;rf_scene_player_weapon[3]=w->resident_bytes;rf_scene_player_weapon[4]=w->peak_bytes;
+    rf_scene_player_weapon[5]=npc_hash_bytes(2166136261u,w->prepared,w->bone_count*48);
+    if(campaign_player_damage.state.effects.health<=0)return RF_OK;
+    /* First-pass camera-space presentation; authored pistol FOV, provisional X/Y offset
+     * and no Z offset for this model's positive-Z camera-space poses.
+     * Independent depth band preserves self-occlusion without wall clipping. */
+    view.camera[0]=-.110f;view.camera[1]=.140f;view.camera[2]=0;
+    view.rotation[0]=view.rotation[8]=view.rotation[4]=1;
+    view.screen[0]=320/tanf(65.0f*3.14159265f/360);view.screen[1]=-view.screen[0];
+    view.screen[2]=320;view.screen[3]=240;view.perspective=view.compute_clip=view.clipping=1;
+    planes.near_depth=.01f;planes.far_depth=1000;projection.scale[0]=320;projection.scale[1]=240;projection.clamp=1;
+    buffers.cache=stream->npc_memory;buffers.clip=(float(*)[3])((uint8_t*)stream->npc_memory+4096*32);
+    buffers.second=(float(*)[3])((uint8_t*)stream->npc_memory+4096*44);
+    buffers.vertices=(uint8_t(*)[40])((uint8_t*)stream->npc_memory+4096*56);buffers.capacity=4096;
+    lights.ambient[0]=lights.ambient[1]=lights.ambient[2]=180;
+    start=stream->mesh->count;
+    for(batch=0;batch<w->geometry.batch_count;batch++) {
+        uint32_t material=w->geometry.batches[batch].material,slot,first=stream->mesh->count,emitted;
+        if(material==UINT32_MAX)continue;
+        if(material>=w->materials.count){status=RF_FORMAT;goto done;}
+        memcpy(&slot,w->materials.items[material].record.bytes+0x10,4);
+        if(slot>=stream->player_weapon_textures){status=RF_FORMAT;goto done;}
+        memset(stream->npc_memory,0xa5,4096*96);
+        status=rf_model_geometry_render_batch(&w->geometry,batch,w->prepared,w->bone_count,&view,&lights,&attributes,&buffers);if(status)goto done;
+        status=rf_preview_model_emit(&w->geometry,batch,&buffers,stream->npc_indices,stream->npc_pool,&view,&planes,&projection,
+            &attributes,stream->mesh,stream->capacity,&emitted);if(status)goto done;
+        for(k=first;k<stream->mesh->count;k++) {
+            rf_preview_vertex *v=stream->mesh->vertices+k;v->material=stream->player_weapon_base+slot;
+            v->position[2]=16384.0f/(1.0f+v->texture[2]);
+        }
+    }
+    rf_scene_player_weapon[2]=stream->mesh->count-start;
+done:
+    rf_scene_player_weapon[6]=status;return status;
+}
 static int scene_weapon_draw(scene_stream *stream,uint32_t frame)
 {
     scene_weapon_context c={0};rf_weapon_world_draw_ops ops={scene_weapon_place,scene_weapon_submit};
@@ -8896,6 +8950,7 @@ static int scene_frame(void *context,uint32_t frame,rf_preview_mesh *actor)
         status=scene_npc_draw(stream,frame);if(status)return status;
         status=scene_clutter_draw(stream,frame);if(status)return status;
         status=scene_weapon_draw(stream,frame);if(status)return status;
+        status=scene_player_weapon_draw(stream,frame);if(status)return status;
         particle_draw_stream=stream;
         status=stream->sink(stream->context,frame,stream->mesh,stream->materials,stream->world);
         particle_draw_stream=NULL;if(status)return status;
@@ -9348,6 +9403,7 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
             status=campaign_npc_bodies_open(tables_path,collision,0);if(status)goto done;
             status=campaign_weapon_models_open(tables_path,&archive);if(status)goto done;
             status=campaign_weapon_materials_open(maps,map_count);if(status)goto done;
+            status=rf_player_weapon_open(&archive,&motions,maps,map_count,1024*1024,&stream.player_weapon);if(status)goto done;
             status=campaign_weapon_hands_open();if(status)goto done;
             status=campaign_weapon_placement_probe();if(status)goto done;
             status=campaign_weapon_aim_probe();if(status)goto done;
@@ -9431,6 +9487,15 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
         free(textures->items);memset(textures,0,sizeof(*textures));
         textures=&campaign_weapon_materials.textures;
         stream.weapon_base=materials->count;stream.weapon_textures=textures->count;
+        if((uint64_t)materials->count+textures->count>256){status=RF_RANGE;goto done;}
+        combined=malloc((materials->count+textures->count)*sizeof(*combined));if(!combined){status=RF_IO;goto done;}
+        memcpy(combined,materials->items,materials->count*sizeof(*combined));
+        memcpy(combined+materials->count,textures->items,textures->count*sizeof(*combined));
+        free(materials->items);materials->items=combined;materials->count+=textures->count;
+        materials->loaded+=textures->loaded;materials->missing+=textures->missing;materials->allocated_bytes+=textures->allocated_bytes;
+        free(textures->items);memset(textures,0,sizeof(*textures));
+        textures=&stream.player_weapon->materials.textures;
+        stream.player_weapon_base=materials->count;stream.player_weapon_textures=textures->count;
         if((uint64_t)materials->count+textures->count>256){status=RF_RANGE;goto done;}
         combined=malloc((materials->count+textures->count)*sizeof(*combined));if(!combined){status=RF_IO;goto done;}
         memcpy(combined,materials->items,materials->count*sizeof(*combined));
@@ -9525,6 +9590,7 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
         if(!status && collision && rf_scene_actor_route_enabled && !rf_scene_actor_live_enabled)status=actor_routes(&stream);
     }
 done:
+    rf_player_weapon_close(&stream.player_weapon);
     free(stream.npc_memory);free(stream.npc_indices);free(stream.npc_pool);
     rf_level_visibility_close(&stream.visibility);
     free(stream.light_scratch_memory);

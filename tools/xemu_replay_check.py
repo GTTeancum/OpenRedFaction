@@ -232,6 +232,8 @@ dvd_path = '{root.as_posix()}/build/xbox/redfaction-diagnostic.iso'
      assert report['player_life']==expected('PLAYER_LIFE'),report['player_life']
      report['enemy_awareness']=words(monitor,symbol('rf_scene_enemy_awareness'),8)
      assert report['enemy_awareness']==expected('ENEMY_AWARENESS') and report['enemy_awareness'][7]==0,report['enemy_awareness']
+     report['player_weapon']=words(monitor,symbol('rf_scene_player_weapon'),8)
+     assert report['player_weapon']==expected('PLAYER_WEAPON') and report['player_weapon'][6]==0,report['player_weapon']
      report['weapon_audio']=words(monitor,symbol('rf_scene_weapon_audio'),9)
      assert report['weapon_audio']==expected('WEAPON_AUDIO') and report['weapon_audio'][7]==0,report['weapon_audio']
      report['combat_death']=words(monitor,symbol('rf_scene_combat_death'),8)

@@ -780,3 +780,32 @@ Explicit actions restart their clip; completed actions return to looping idle.
 Tests verify distinct poses, reload completion and100 repeated action requests
 without accumulating playback references. This adds5376 accounted bytes to
 the owner. Gameplay event wiring and camera-space submission remain next.
+
+## Live first-person presentation
+
+The campaign scene now loads the pistol owner, transfers its texture images
+to the scene renderer and reuses existing NPC render scratch for skinned gun
+submission. Shot counters and reload-start edges request fire/reload clips;
+no repeated request occurs while the reload timer counts down. Dead players
+suppress the gun draw. Scene teardown releases the owner.
+
+Camera-space presentation uses65-degree horizontal FOV, provisional camera
+(-0.110,0.140,0), a0.01 near clip and an independent foreground depth band.
+The installed poses face positive Z; applying the table Z offset here placed
+the camera inside the barrel. Position and lighting remain first-pass policy,
+not recovered visual parity. Shared renderer submission adds no new scratch
+allocation; the weapon owner remains934656 resident /946252 peak PC bytes.
+
+Recorded PC cases in tools/replay_player_weapon.py verify idle, fire, reload
+and return to idle with distinct pose hashes and nonempty emitted geometry.
+Native validation compares player_weapon telemetry in xemu_replay_check.py.
+Remaining: muzzle flash, alternate weapons, authored tuning and animation-event
+timing, placement polish and level-transition ownership.
+
+Validation: both builds and27 CTests pass. Four PC weapon cases pass; player
+death/held-Use/respawn/resumed-play regressions also verify gun suppression
+and restoration. Stock64MiB XEMU80-frame reload PASS with PC-identical pose
+hash,1560 emitted vertices and memory accounting, no weapon error and
+6937 available pages at completion. Native framebuffer visually inspected.
+Evidence: artifacts/xemu/replay-20260914-015216/report.json. This establishes
+the first pistol path, not full weapon-system or campaign completion.

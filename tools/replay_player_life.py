@@ -15,6 +15,8 @@ for name,frames in [('dead',1350),('held',1350),('respawn',1301),('resume',1500)
  run=subprocess.run([str(root/'build/pc/Release/rf_pc_play.exe'),'--spawn-replay',str(root/'Installed_Game'),str(source),str(folder/(name+'.ppm'))],env=env,capture_output=True,text=True)
  (folder/(name+'.txt')).write_text(run.stdout+run.stderr);run.check_returncode()
  def row(label):return list(map(int,next(l for l in run.stdout.splitlines() if l.startswith(label+' ')).split()[1:]))
+ weapon=row('PLAYER_WEAPON');assert weapon[6]==0
+ assert (weapon[2]==0) if name in ('dead','held') else (weapon[2]>0)
  life=row('PLAYER_LIFE');enemy=row('ENEMY_COMBAT');combat=row('COMBAT');body=row('PC_PLAY_BODY');health=struct.unpack('<f',struct.pack('<I',enemy[5]))[0]
  assert life[0]==1 and life[7]==enemy[7]==combat[7]==0
  if name in ('dead','held'):assert life[1:3]==[0,1] and life[6]>0 and health<=0
