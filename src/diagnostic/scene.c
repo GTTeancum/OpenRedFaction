@@ -1347,6 +1347,21 @@ static rf_weapon_primary_definition campaign_pistol,campaign_primary[2];
 static uint32_t campaign_equipped_slot,weapon_cycle_held;static int32_t campaign_rifle_id=-1;
 uint32_t rf_scene_weapon_selection[8];
 static rf_weapon_inventory campaign_player_inventory;static int32_t campaign_pistol_id=-1;
+static rf_campaign_player_state campaign_player_import,campaign_player_export;
+static uint32_t campaign_import_pending,campaign_export_valid;
+int rf_scene_campaign_player_get(rf_campaign_player_state *state)
+{
+    if(!campaign_export_valid)return RF_NOT_FOUND;
+    return rf_campaign_player_copy(state,&campaign_player_export,campaign_player_export.catalog_hash);
+}
+int rf_scene_campaign_player_set(const rf_campaign_player_state *state)
+{
+    int status;
+    if(!state){campaign_import_pending=0;return RF_OK;}
+    status=rf_campaign_player_copy(&campaign_player_import,state,state->catalog_hash);
+    if(!status)campaign_import_pending=1;return status;
+}
+
 uint32_t rf_scene_player_ammo[8]; /* weapon,reserve,loaded,transferred,reloads,denied,owner bytes,status */
 static uint32_t pistol_reload_ticks,pistol_fire_ticks;
 uint32_t rf_scene_pistol_rules[7]; /* magazine,reload ticks,fire ticks,SP damage bits,semi-auto,definition bytes,damage kind */
@@ -7224,6 +7239,17 @@ static int campaign_combat_tick(scene_stream *stream,uint32_t frame,const float 
         memset(rf_scene_enemy_combat,0,sizeof(rf_scene_enemy_combat));combat_initial_health=campaign_player_damage.state.effects.health;
         memset(rf_scene_player_ammo,0,sizeof(rf_scene_player_ammo));memset(&campaign_player_inventory,0,sizeof(campaign_player_inventory));
         status=campaign_ammo_reset();if(status)return status;
+        campaign_export_valid=0;
+        if(campaign_import_pending) {
+            rf_campaign_player_state imported;
+            status=rf_campaign_player_copy(&imported,&campaign_player_import,rf_scene_weapon_supply[3]);if(status)return status;
+            if(imported.weapon!=(uint32_t)campaign_pistol_id && imported.weapon!=(uint32_t)campaign_rifle_id)return RF_FORMAT;
+            campaign_player_inventory=imported.inventory;
+            campaign_player_damage.state.effects.health=imported.health;
+            campaign_player_damage.state.effects.armor=imported.armor;
+            campaign_select_primary(imported.weapon==(uint32_t)campaign_rifle_id);
+            campaign_ammo_publish();campaign_import_pending=0;
+        }
         for(i=0;i<campaign_npc_body_count;i++)campaign_npc_bodies[i].combat_alert=campaign_npc_bodies[i].combat_due=0;
 }
     if(combat_frame==frame)return RF_OK;combat_frame=frame;
@@ -9125,6 +9151,13 @@ static int scene_frame(void *context,uint32_t frame,rf_preview_mesh *actor)
         particle_draw_stream=stream;
         status=stream->sink(stream->context,frame,stream->mesh,stream->materials,stream->world);
         particle_draw_stream=NULL;if(status)return status;
+        if(campaign_spawn) {
+            rf_campaign_player_state state;
+            state.inventory=campaign_player_inventory;
+            state.health=campaign_player_damage.state.effects.health;state.armor=campaign_player_damage.state.effects.armor;
+            state.weapon=(uint32_t)(campaign_equipped_slot?campaign_rifle_id:campaign_pistol_id);state.catalog_hash=rf_scene_weapon_supply[3];
+            campaign_export_valid=rf_campaign_player_copy(&campaign_player_export,&state,state.catalog_hash)==RF_OK;
+        }
         profile_mark(6);
         if(stream->collision && frame+1<rf_scene_actor_frame_count) {
             uint64_t particle_elapsed=((uint64_t)frame+1)*1000/60;
@@ -9472,7 +9505,7 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
             rf_scene_campaign_events[1]=campaign_events.allocated_bytes;
             rf_scene_campaign_events[2]=sizeof(campaign_registry);
             status=rf_runtime_triggers_open(level,&campaign_registry,1024*1024,0,&campaign_triggers);
-            memset(&rf_scene_level_transition,0,sizeof(rf_scene_level_transition));
+            memset(&rf_scene_level_transition,0,sizeof(rf_scene_level_transition));campaign_export_valid=0;
             campaign_triggers.load_level=campaign_load_level;campaign_triggers.load_level_context=&rf_scene_level_transition;
 
             if(status)goto done;

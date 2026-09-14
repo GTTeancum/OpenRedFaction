@@ -46,3 +46,23 @@ open-handle protection, case-insensitive names and trailing directory separators
 Both builds and all 33 CTests pass. Evidence: artifacts/campaign-resolver-tests.log
 and artifacts/campaign-resolver-destinations.log. Platform loading-loop consumption,
 player-state transfer and native cross-level playback remain unimplemented.
+
+Player handoff now uses the shared 464-byte rf_campaign_player_state: all weapon
+ownership/loaded/reserve slots, health, armor, selected weapon ID and supply
+catalog hash. It contains no scene handles or pointers. Copy/import rejects dead
+or nonfinite vitals, negative ammo, invalid ownership/selection and mismatched
+catalogs without changing the destination. Scene staging owns its copy, consumes
+it on first-frame combat initialization, restores vitals/inventory/equipment and
+starts with reset reload/burst timers. It currently accepts equipped pistol/rifle;
+additional usable weapons remain separate work. Spawn position and mission flags
+are not yet carried; respawn continues using the existing fresh-supply policy.
+
+After a successful frame, the scene retains an export independent of scene
+resource cleanup. Dead players have no export. The PC headless harness exposes
+RF_REPLAY_PLAYER_STATE_IN/OUT as raw build-local test blobs, not a save-game format.
+The process-local tools/replay_campaign_state.py acquires and fires the L4S5 rifle,
+exports 39 loaded rounds /95.199997 health /94.800003 armor, then imports into
+L1S2 and verifies the entire state byte-for-byte. It also verifies a fresh game
+without import and rejection of a modified catalog hash. Evidence:
+artifacts/campaign-state/report.json. Both builds and 34 CTests pass. This is
+separate-process scene validation, not automatic/native cross-level playback.

@@ -10,6 +10,12 @@
 #include "rf/collision.h"
 #include "rf/glare.h"
 #include "rf/weapon.h"
+#include "rf/campaign.h"
+
+/* Capture after a successful campaign frame; stage before the next scene.
+ * NULL staging clears any queued import. The staged value owns its data. */
+int rf_scene_campaign_player_get(rf_campaign_player_state *);
+int rf_scene_campaign_player_set(const rf_campaign_player_state *);
 
 /* Called by a synchronous scene frame sink before drawing, after prior GPU
  * reads finish. Applies dirty1 live-light overlays/dirty8 base upload to shared

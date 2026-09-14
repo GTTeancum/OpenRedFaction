@@ -340,8 +340,21 @@ int main(int argc,char **argv)
         rf_scene_set_audio_observer(audio_observe,&capture);rf_scene_set_audio(audio_capture_pcm,&capture);
     }
     if(!p.headless && spawn_profile && rf_pc_audio_open()==RF_OK)rf_scene_set_audio_events(&rf_pc_audio_events,NULL);
+    if(p.headless && spawn_profile && getenv("RF_REPLAY_PLAYER_STATE_IN")) {
+        rf_campaign_player_state state;int failed;FILE *f=fopen(getenv("RF_REPLAY_PLAYER_STATE_IN"),"rb");
+        if(!f)CHECK(RF_IO);
+        failed=fread(&state,sizeof(state),1,f)!=1 || fgetc(f)!=EOF || ferror(f);
+        if(fclose(f))failed=1;if(failed)CHECK(RF_FORMAT);
+        CHECK(rf_scene_campaign_player_set(&state));
+    }
     CHECK(rf_scene_stream_miner_body(&level,9858,meshes,motions,tables,maps,opened,&mesh,&materials,
         8*1024*1024,RF_CAMPAIGN_MATERIAL_BUDGET,present,&p,&collision,&geometry));
+    if(p.headless && spawn_profile && getenv("RF_REPLAY_PLAYER_STATE_OUT")) {
+        rf_campaign_player_state state;int failed;FILE *f;
+        CHECK(rf_scene_campaign_player_get(&state));
+        f=fopen(getenv("RF_REPLAY_PLAYER_STATE_OUT"),"wb");if(!f)CHECK(RF_IO);
+        failed=fwrite(&state,sizeof(state),1,f)!=1;if(fclose(f))failed=1;if(failed)CHECK(RF_IO);
+    }
     if(p.headless) {
         if(p.frames!=limit){status=RF_FORMAT;goto cleanup;}
         if(spawn_profile){

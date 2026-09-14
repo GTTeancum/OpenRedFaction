@@ -25,6 +25,13 @@ Shortlist:
 
 Progress reporting: include a very high-level working area (e.g. Lighting, AI, Weapons, GeoMod or Scripted events) and an overall percent estimate at the end of every turn report (USER preference) and revisit remaining 24-hour workdays when measured throughput supports a forecast; current rough estimate44% (35-45%), no defensible +/-48-hour completion forecast before end-to-end gameplay.
 
+Player-state handoff now preserves inventory, equipped pistol/rifle and vitals
+through a 464-byte shared owned snapshot. PC replay acquires/fires the L4S5 rifle
+then imports into L1S2 with byte-identical state (39 rounds, health/armor retained).
+Fresh-game and catalog-mismatch cases pass; both builds and 34 CTests pass.
+Evidence: artifacts/campaign-state/report.json. Automatic scene transitions,
+arrival placement, mission-state carry and native handoff still remain open.
+
 Shared campaign destination resolution now finds all 68 installed level entries
 across levels1/2/3.vpp without geometry/material allocation, preserves outputs
 on failure and transfers one archive handle on success. Both builds and all

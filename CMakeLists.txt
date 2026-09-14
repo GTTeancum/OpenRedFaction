@@ -256,3 +256,8 @@ endforeach()
 add_executable(rf_level_transition_tests tests/level_transition_tests.c)
 target_link_libraries(rf_level_transition_tests PRIVATE rf_core)
 add_test(NAME authored_level_transitions COMMAND rf_level_transition_tests "${CMAKE_SOURCE_DIR}/Installed_Game")
+
+target_sources(rf_core PRIVATE src/core/campaign.c)
+add_executable(rf_campaign_state_tests tests/campaign_state_tests.c)
+target_link_libraries(rf_campaign_state_tests PRIVATE rf_core)
+add_test(NAME campaign_player_handoff COMMAND rf_campaign_state_tests)
