@@ -128,3 +128,20 @@ Stock64MiB XEMU replay `replay-20260914-115452` passes240 frames of the
 staged hostile awareness encounter with exact PC combat/action comparisons;
 NXDK restoration succeeds. This validates acquisition/fire compatibility on
 Xbox; retreat/chase behavior is covered by the focused tests, not this idle replay.
+
+## Player death and pursuit
+
+Combat pursuit is stopped when player death is first observed. Previously the
+combat tick stopped firing while active follow2 navigation kept moving enemies
+toward a dead player. Death now clears only combat-owned pursuit and its route,
+leaving authored Goto/Goto_Player movement intact; existing respawn clears enemy
+alerts and restores player controls/ammo. Tests exercise death entry, route
+release, retained authored movement and repeated death input. All37 PC tests,
+NXDK build and all four player-life replay cases pass: death, held-use rejection,
+fresh-use respawn and resumed movement/fire. The replay now removes inherited
+RF_REPLAY_* staging variables for reproducible setup. Full reload/checkpoints
+and natural encounter traversal remain open. Evidence:artifacts/xbox-duel/death-pursuit-*.
+Stock64MiB XEMU replay `replay-20260914-115921` passes the full1500-frame
+death/respawn/resume sequence with exact PC life, combat and enemy-action
+comparisons. NXDK staging restoration succeeds. This is a staged encounter,
+not full campaign/checkpoint validation.

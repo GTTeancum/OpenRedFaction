@@ -7442,6 +7442,7 @@ static int campaign_life_input(uint32_t frame,rf_scene_input *input)
     if(!life_valid || campaign_player_damage.state.effects.health>0)return RF_OK;
     if(!rf_scene_player_life[2]) {
         ++rf_scene_player_life[0];rf_scene_player_life[2]=1;rf_scene_player_life[3]=frame;
+        for(i=0;i<campaign_npc_body_count;i++)campaign_pursuit_stop(campaign_npc_bodies+i);
         memset(scene_actor_body.state.velocity,0,12);memset(rf_scene_actor_pose.velocity,0,12);
     }
     ++rf_scene_player_life[6];memset(input,0,sizeof(*input));

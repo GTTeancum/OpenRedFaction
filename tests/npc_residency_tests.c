@@ -1179,6 +1179,26 @@ static int scripted_attack_damage_check(void)
     campaign_npc_bodies=NULL;campaign_npc_body_count=0;memset(&campaign_seeds,0,sizeof(campaign_seeds));
     campaign_player_object.handle=0;campaign_player_damage.state.effects.health=saved_health;return 0;
 }
+static int player_death_pursuit_check(void)
+{
+    campaign_npc_body owners[2]={0};rf_scene_input input={0};
+    float goal[3]={10,0,0},health=campaign_player_damage.state.effects.health;
+    uint32_t valid=life_valid,use=life_use,life[8];
+    memcpy(life,rf_scene_player_life,sizeof(life));memset(rf_scene_player_life,0,sizeof(life));
+    campaign_npc_bodies=owners;campaign_npc_body_count=2;
+    campaign_pursuit_target(owners,goal);owners[0].navigation.retained.count=3;
+    owners[1].script_move.active=1;owners[1].script_move.follow=1;
+    life_valid=1;life_use=0;campaign_player_damage.state.effects.health=0;
+    input.fire=1;
+    CHECK(campaign_life_input(200,&input)==RF_OK);
+    CHECK(!input.fire && rf_scene_player_life[0]==1 && rf_scene_player_life[2]);
+    CHECK(!owners[0].script_move.active && owners[0].script_move.stop && !owners[0].navigation.retained.count);
+    CHECK(owners[1].script_move.active && owners[1].script_move.follow==1);
+    CHECK(campaign_life_input(201,&input)==RF_OK && rf_scene_player_life[0]==1);
+    campaign_npc_bodies=NULL;campaign_npc_body_count=0;life_valid=valid;life_use=use;
+    campaign_player_damage.state.effects.health=health;memcpy(rf_scene_player_life,life,sizeof(life));
+    return 0;
+}
 static int combat_retaliation_check(void)
 {
     campaign_npc_body owners[2]={0};uint32_t affiliation,saved_frame=combat_frame;
@@ -1232,6 +1252,7 @@ int main(int argc,char **argv)
     }
     CHECK(scripted_attack_damage_check()==0);
     CHECK(combat_retaliation_check()==0);
+    CHECK(player_death_pursuit_check()==0);
     CHECK(scripted_attack_check()==0);
     CHECK(script_locomotion_check()==0);
     CHECK(npc_door_occupancy_check()==0);

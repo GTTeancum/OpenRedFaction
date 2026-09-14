@@ -34,6 +34,22 @@ Shortlist:
 
 Progress reporting: include a very high-level working area (e.g. Lighting, AI, Weapons, GeoMod or Scripted events) and an overall percent estimate at the end of every turn report (USER preference) and revisit remaining 24-hour workdays when measured throughput supports a forecast; current rough estimate45% (35-45%), no defensible +/-48-hour completion forecast before end-to-end gameplay.
 
+Combat pursuit is stopped when player death is first observed. Previously the
+combat tick stopped firing while active follow2 navigation kept moving enemies
+toward a dead player. Death now clears only combat-owned pursuit and its route,
+leaving authored Goto/Goto_Player movement intact; existing respawn clears enemy
+alerts and restores player controls/ammo. Tests exercise death entry, route
+release, retained authored movement and repeated death input. All37 PC tests,
+NXDK build and all four player-life replay cases pass: death, held-use rejection,
+fresh-use respawn and resumed movement/fire. The replay now removes inherited
+RF_REPLAY_* staging variables for reproducible setup. Full reload/checkpoints
+and natural encounter traversal remain open. Evidence:artifacts/xbox-duel/death-pursuit-*.
+Stock64MiB XEMU replay `replay-20260914-115921` passes the full1500-frame
+death/respawn/resume sequence with exact PC life, combat and enemy-action
+comparisons. NXDK staging restoration succeeds. This is a staged encounter,
+not full campaign/checkpoint validation.
+
+
 Player-target pursuit now uses the same movement path as scripted/reactive NPC
 targets. Previously normal sight acquisition and retaliation against the player
 set combat_alert with mode0, so the scripted-only navigation gate left these
