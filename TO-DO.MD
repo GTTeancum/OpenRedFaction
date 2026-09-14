@@ -15,6 +15,20 @@ Shortlist:
 
 Progress reporting: include a very high-level working area (e.g. Lighting, AI, Weapons, GeoMod or Scripted events) and an overall percent estimate at the end of every turn report (USER preference) and revisit remaining 24-hour workdays when measured throughput supports a forecast; current rough estimate40% (35-45%), no defensible +/-48-hour completion forecast before end-to-end gameplay.
 
+Light release now exposes original4d9130 visibility notification before unlink,
+after reference decrement and generation advance, retaining the live source,
+list and active cache during the callback. Class0 notifies only for update
+low byte1; other classes notify on final release regardless of update value.
+Original/PC/compiledNXDK match105 cases including48 callbacks; the existing
+1024-operation/2048-cache oracle, both builds and26 tests pass. Evidence
+artifacts/light-release-notify.json. Callback is synchronous and must not
+mutate/reenter its pool; existing release keeps its no-callback behavior.
+Corrupt INT32_MIN references are rejected before mutation. This does not yet
+bind scene release/move notifications or demonstrate changing rendered light.
+Original4d93d0 base-color changes advance the selection-cache generation only;
+do not infer base dirty2 from every generation or authored clock change.
+Next connect explicit lifecycle invalidation to visibility/scene ownership.
+
 Scene base/projected-shadow regeneration now uses renderer room visibility
 and cached mapping-room IDs; offscreen jobs retain all dirty bits without
 mapping decode or stale uploads. Stock64MiB XEMU passes180 frames, matching

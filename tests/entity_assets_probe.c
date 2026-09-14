@@ -13,8 +13,30 @@
 #include "clutter_load_probe.h"
 #include "model_attach_probe.h"
 #include "clutter_base_probe.h"
+static void release_observe(void *context,const rf_vfx_light_pool *pool,uint32_t id,uint32_t update)
+{
+    uint32_t *out=(uint32_t *)context;
+    ++out[0];out[1]=id;out[2]=update;out[3]=pool->count;out[4]=pool->generation;
+    out[5]=pool->active;out[6]=pool->active_count;out[7]=pool->sources[id].source.type;
+    out[8]=(uint32_t)pool->links[id].references;out[9]=pool->first[pool->links[id].list];
+}
 int main(int argc,char **argv)
 {
+    if(argc==2 && !strcmp(argv[1],"--light-release-notify")) {
+        uint32_t input[3];
+        _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
+        while(fread(input,sizeof(input),1,stdin)==1) {
+            rf_vfx_light_pool pool;rf_vfx_light_candidate sources[1];rf_vfx_light_link links[1];
+            uint32_t out[10]={0};int32_t status;
+            rf_vfx_light_pool_init(&pool,sources,links,1);
+            pool.count=1;pool.generation=17;pool.active=1;pool.active_count=7;pool.first[0]=pool.last[0]=0;
+            sources[0].source.type=2;sources[0].light_class=(unsigned char)input[0];
+            links[0].references=(int32_t)input[2];links[0].list=0;links[0].previous=links[0].next=UINT32_MAX;
+            status=rf_vfx_light_pool_release_update(&pool,0,input[1],release_observe,out);
+            fwrite(&status,4,1,stdout);fwrite(out,sizeof(out),1,stdout);
+            fwrite(&pool,36,1,stdout);fwrite(sources,sizeof(sources),1,stdout);fwrite(links,sizeof(links),1,stdout);
+        }return ferror(stdin)?1:0;
+    }
     if(argc==5 && !strcmp(argv[1],"--weapon-models")) {
         rf_vpp tables,meshes;rf_weapon_model_names names;rf_weapon_model_owner owner={0},zero={0};
         uint32_t masks[2];int32_t code;uint32_t i;

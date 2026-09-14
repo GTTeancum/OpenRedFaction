@@ -2422,18 +2422,24 @@ int rf_vfx_light_pool_retain(rf_vfx_light_pool *pool,uint32_t id)
     if(!vfx_light_pool_id(pool,id) || pool->links[id].references==INT32_MAX)return RF_RANGE;
     ++pool->links[id].references;return RF_OK;
 }
-int rf_vfx_light_pool_release(rf_vfx_light_pool *pool,uint32_t id)
+int rf_vfx_light_pool_release_update(rf_vfx_light_pool *pool,uint32_t id,uint32_t update,
+    rf_vfx_light_release_notify notify,void *context)
 {
     rf_vfx_light_link *link;
-    if(!vfx_light_pool_id(pool,id))return RF_RANGE;link=pool->links+id;
-    if(link->references>1)--link->references;
-    else {
-        link->references=-1+(link->references==1?1:0);
+    if(!vfx_light_pool_id(pool,id) || pool->links[id].references==INT32_MIN)return RF_RANGE;
+    link=pool->links+id;
+    if(--link->references<1) {
+        ++pool->generation;
+        if(notify && (pool->sources[id].light_class || (update&255u)==1u))notify(context,pool,id,update);
         if(link->previous==UINT32_MAX)pool->first[link->list]=link->next;else pool->links[link->previous].next=link->next;
         if(link->next==UINT32_MAX)pool->last[link->list]=link->previous;else pool->links[link->next].previous=link->previous;
-        pool->sources[id].source.type=0;link->previous=link->next=UINT32_MAX;--pool->count;++pool->generation;
+        pool->sources[id].source.type=0;link->previous=link->next=UINT32_MAX;--pool->count;
     }
     pool->active=pool->active_count=0;return RF_OK;
+}
+int rf_vfx_light_pool_release(rf_vfx_light_pool *pool,uint32_t id)
+{
+    return rf_vfx_light_pool_release_update(pool,id,0,NULL,NULL);
 }
 int rf_vfx_light_pool_move(rf_vfx_light_pool *pool,uint32_t id,const float position[3])
 {

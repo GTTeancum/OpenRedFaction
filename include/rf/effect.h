@@ -145,6 +145,13 @@ int rf_vfx_light_pool_init(rf_vfx_light_pool *,rf_vfx_light_candidate *,rf_vfx_l
 int rf_vfx_light_pool_create(rf_vfx_light_pool *,const rf_vfx_light_definition *,uint32_t world,uint32_t *id);
 int rf_vfx_light_pool_retain(rf_vfx_light_pool *,uint32_t id);
 int rf_vfx_light_pool_release(rf_vfx_light_pool *,uint32_t id);
+/*4d9130: notify before unlink, after reference decrement/generation advance.
+ * On final release, class0 notifies only for update low byte1; other classes always notify.
+ * Callback must not mutate/reenter this pool; source remains valid only during
+ * the call. Existing release is the no-notification convenience wrapper. */
+typedef void (*rf_vfx_light_release_notify)(void *,const rf_vfx_light_pool *,uint32_t id,uint32_t update);
+int rf_vfx_light_pool_release_update(rf_vfx_light_pool *,uint32_t id,uint32_t update,
+    rf_vfx_light_release_notify,void *context);
 int rf_vfx_light_pool_move(rf_vfx_light_pool *,uint32_t id,const float position[3]);
 /*4d93d0 scales RGB. Class0 advances generation; other classes request a
  * scene visibility update instead. Does not reset active selection. */
