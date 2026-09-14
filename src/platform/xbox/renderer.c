@@ -64,6 +64,21 @@ static int scene_particle_present(void *context,const rf_particle_draw_vertex *v
     if(mode==0x18000u)return rf_xbox_particle_draw(vertices,count,image,mode,1,0,0,0);
     return rf_xbox_particle_draw(vertices,count,image,mode,RF_SCENE_PARTICLE_DEPTH_SCALE,RF_SCENE_PARTICLE_DEPTH_BIAS,0,0);
 }
+static rf_preview_vertex *stream_gpu;
+static gpu_texture *stream_textures;
+static const rf_materials *stream_materials;
+static const rf_lightmaps *stream_lightmaps;
+static int stream_mode,stream_device_ready;static uint32_t stream_capacity,stream_fallback;
+void rf_xbox_scene_stream_close(void)
+{
+    if(!stream_gpu)return;
+    while(pb_busy()) {}
+    /* pbkit owns process-lifetime framebuffer/DMA state; only level buffers retire. */
+    if(stream_textures && stream_textures[stream_fallback].pixels)MmFreeContiguousMemory(stream_textures[stream_fallback].pixels);
+    free(stream_textures);MmFreeContiguousMemory(stream_gpu);
+    stream_gpu=NULL;stream_textures=NULL;stream_materials=NULL;stream_lightmaps=NULL;
+    stream_mode=0;stream_capacity=stream_fallback=0;
+}
 static int preview(const rf_preview_mesh *mesh, const rf_materials *materials, const rf_lightmaps *lightmaps, volatile uint32_t capture[6], volatile uint32_t memory[3],int model,uint32_t world_vertices,uint32_t requested_capacity)
 {
     uint32_t *p, i, frame;
@@ -73,12 +88,6 @@ static int preview(const rf_preview_mesh *mesh, const rf_materials *materials, c
     rf_image fallback = {1, 1, 4, 0, (unsigned char *)&white};
     /* Bound referenced image payload; it is now shared, not copied. */
     uint64_t upload_bytes = 4;
-    /* One process-lifetime inspection stream; resource arrays are uploaded once. */
-    static rf_preview_vertex *stream_gpu;
-    static gpu_texture *stream_textures;
-    static const rf_materials *stream_materials;
-    static const rf_lightmaps *stream_lightmaps;
-    static int stream_mode;static uint32_t stream_capacity;
     int streaming=model==2 || model==4;
     int profiling=streaming && capture[5]>=16;uint32_t profile_previous=profiling?GetTickCount():0;
     uint32_t vertex_bytes=streaming?1024*1024+(model==4?world_vertices*sizeof(rf_preview_vertex):0):mesh?mesh->bytes:0;
@@ -103,11 +112,11 @@ static int preview(const rf_preview_mesh *mesh, const rf_materials *materials, c
         gpu=stream_gpu;textures=stream_textures;
         while(pb_busy()) {}
     } else {
-    if (pb_init()) return RF_IO;
+    if (!stream_device_ready) {if(pb_init())return RF_IO;stream_device_ready=1;}
     gpu = MmAllocateContiguousMemoryEx(vertex_bytes, 0, 0x03ffb000, 0, PAGE_READWRITE | PAGE_WRITECOMBINE);
-    if (!gpu) { pb_kill(); return RF_RANGE; }
+    if (!gpu) { pb_kill();stream_device_ready=0; return RF_RANGE; }
     textures = calloc(materials->count + 1 + lightmaps->count, sizeof(*textures));
-    if (!textures) { MmFreeContiguousMemory(gpu); pb_kill(); return RF_RANGE; }
+    if (!textures) { MmFreeContiguousMemory(gpu); pb_kill();stream_device_ready=0; return RF_RANGE; }
     for (i = 0; i < materials->count + 1 + lightmaps->count; ++i) {
         int result;
         const rf_image *image = i < materials->count ? &materials->items[i].image : i == materials->count ? &fallback : lightmaps->images + i - materials->count - 1;
@@ -115,11 +124,11 @@ static int preview(const rf_preview_mesh *mesh, const rf_materials *materials, c
         result = upload(textures+i, image,i==materials->count);
         if (result) {
             if(i>materials->count && textures[materials->count].pixels)MmFreeContiguousMemory(textures[materials->count].pixels);
-            free(textures); MmFreeContiguousMemory(gpu); pb_kill(); return result;
+            free(textures); MmFreeContiguousMemory(gpu); pb_kill();stream_device_ready=0; return result;
         }
     }
     if(streaming) {stream_gpu=gpu;stream_textures=textures;stream_materials=materials;
-        stream_mode=model;stream_capacity=vertex_bytes;stream_lightmaps=lightmaps;}
+        stream_mode=model;stream_capacity=vertex_bytes;stream_lightmaps=lightmaps;stream_fallback=materials->count;}
     }
     if(model==4) {
         int status;while(pb_busy()) {}

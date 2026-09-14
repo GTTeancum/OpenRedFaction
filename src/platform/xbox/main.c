@@ -34,9 +34,11 @@ static int door_render_frame(void);
 static rf_preview_mesh door_mesh;
 static uint32_t door_capacity;
 rf_frame_clock rf_player_frame_clock;
-static uint32_t player_pacing,scene_simulation_frames;
+static uint32_t player_pacing,scene_simulation_frames,campaign_total_frames,campaign_scene_start,campaign_frame_limit;
+uint32_t rf_xbox_load_stage;
+uint32_t rf_xbox_level_transitions[4]; /* count,last UID,frames at exit,available pages after release */
 static FILE *player_replay;
-static uint32_t player_replay_size;
+static uint32_t player_replay_size,campaign_exit_uid;
 uint32_t rf_player_replay_diagnostic[4]; /* active, records, consumed, read status */
 static void player_input_close(void)
 {
@@ -46,9 +48,13 @@ static void player_input_close(void)
 static uint32_t profile_milliseconds(void){return GetTickCount();}
 static int player_poll_paced(void *context,uint32_t frame,rf_scene_input *input)
 {
+    if(campaign_exit_uid && campaign_total_frames==60) {
+        int status=rf_scene_fire_level_exit(campaign_exit_uid,(int32_t)((uint64_t)frame*1000/60));
+        campaign_exit_uid=0;if(status)return status;
+    }
     if(player_replay) {
         memset(input,0,sizeof(*input));
-        int status=frame!=rf_player_replay_diagnostic[2]?RF_FORMAT:
+        int status=frame+campaign_scene_start!=rf_player_replay_diagnostic[2]?RF_FORMAT:
             fread(input,player_replay_size,1,player_replay)!=1?RF_IO:RF_OK;
         rf_player_replay_diagnostic[3]=(uint32_t)status;
         if(!status)++rf_player_replay_diagnostic[2];return status;
@@ -66,6 +72,7 @@ volatile uint32_t rf_sweep_diagnostic[8]={0x52465357u};
 static rf_group_mover_memberships resident_memberships;
 static rf_group_object *resident_mover_objects;
 static uint32_t *resident_controller_handles;
+static uint32_t resident_membership_ready;
 static rf_object_registry resident_registry;
 volatile uint32_t rf_registry_diagnostic[6]={0x52465247u};
 volatile uint32_t rf_group_membership_diagnostic[11]={0x5246474du};
@@ -190,7 +197,7 @@ static int group_storage_check(void)
     if(hash!=rf_group_storage_diagnostic[7]) {rf_group_storage_diagnostic[1]=(uint32_t)RF_FORMAT;return RF_FORMAT;}
     hash=group_runtime_hash();rf_group_runtime_diagnostic[7]=hash;
     if(hash!=rf_group_runtime_diagnostic[6]) {rf_group_runtime_diagnostic[1]=(uint32_t)RF_FORMAT;return RF_FORMAT;}
-    return rf_group_membership_diagnostic[1]==1?membership_check():RF_OK;
+    return resident_membership_ready?membership_check():RF_OK;
 }
 static int group_storage_open(const rf_level *level)
 {
@@ -229,7 +236,10 @@ static uint32_t membership_hash(void)
 }
 static int membership_check(void)
 {
-    uint32_t i,hash=membership_hash();rf_group_membership_diagnostic[8]=hash;rf_group_membership_diagnostic[9]++;
+    uint32_t i,hash;
+    if((resident_movers.count && !resident_mover_objects) ||
+       (resident_group_runtime.count && !resident_controller_handles))return RF_FORMAT;
+    hash=membership_hash();rf_group_membership_diagnostic[8]=hash;rf_group_membership_diagnostic[9]++;
     for(i=0;i<resident_movers.count;i++)if(resident_movers.poses[i].flags!=resident_mover_objects[i].flags ||
         resident_movers.views[i].object_id!=resident_mover_objects[i].handle)goto failed;
     for(i=0;i<resident_movers.count;i++)if(rf_object_registry_lookup(&resident_registry,resident_mover_objects[i].handle)!=resident_mover_objects+i)goto failed;
@@ -241,7 +251,7 @@ static int membership_check(void)
 }
 static int membership_open(void)
 {
-    uint32_t i;int status;
+    uint32_t i;int status;resident_membership_ready=0;
     if((uint64_t)resident_movers.count+resident_group_runtime.count>1024)return RF_RANGE;
     resident_mover_objects=calloc(resident_movers.count?resident_movers.count:1,sizeof(*resident_mover_objects));
     resident_controller_handles=calloc(resident_group_runtime.count?resident_group_runtime.count:1,4);
@@ -266,7 +276,7 @@ static int membership_open(void)
     for(i=0;i<resident_memberships.count;i++)rf_group_membership_diagnostic[6]+=resident_memberships.items[i].count;
     rf_group_membership_diagnostic[7]=membership_hash();
     rf_group_membership_diagnostic[10]=resident_movers.count*sizeof(*resident_mover_objects)+resident_group_runtime.count*4;
-    return membership_check();
+    status=membership_check();resident_membership_ready=status==RF_OK;return status;
  failed:
     rf_object_registry_init(&resident_registry);rf_registry_diagnostic[1]=(uint32_t)status;
     free(resident_mover_objects);resident_mover_objects=NULL;free(resident_controller_handles);resident_controller_handles=NULL;
@@ -450,7 +460,7 @@ static int scene_frame(void *context,uint32_t frame,const rf_preview_mesh *mesh,
 {
     (void)context;
     if(scene_simulation_frames!=frame)return RF_FORMAT;
-    ++scene_simulation_frames;
+    ++scene_simulation_frames;++campaign_total_frames;
     if(frame==(rf_scene_actor_live_enabled?663u:63u) && actor_body_preview) {
         memcpy(rf_actor_world_diagnostic,rf_scene_actor_initial_world,sizeof(rf_actor_world_diagnostic));
         memcpy(rf_actor_fall_diagnostic,rf_scene_actor_initial_fall,sizeof(rf_actor_fall_diagnostic));
@@ -466,9 +476,15 @@ static int scene_preview(rf_level *level,rf_preview_mesh *mesh)
 {
     static const char *paths[]={"D:\\maps1.vpp","D:\\maps2.vpp","D:\\maps3.vpp","D:\\maps4.vpp","D:\\maps_en.vpp"};
     rf_vpp maps[5];uint32_t opened=0,world;int status,player_controls=0;FILE *stream_flag;
+    if(!campaign_total_frames) {
+        FILE *exit_file=fopen("D:\\campaign-exit.bin","rb");
+        if(exit_file){int invalid=fread(&campaign_exit_uid,4,1,exit_file)!=1 || fgetc(exit_file)!=EOF;fclose(exit_file);if(invalid)return RF_FORMAT;}
+    }
+    campaign_scene_start=campaign_total_frames;
     player_pacing=0;scene_simulation_frames=0;memset(&rf_player_frame_clock,0,sizeof(rf_player_frame_clock));
     rf_scene_set_profile(NULL);
     stream_flag=fopen("D:\\campaign-spawn.flag","rb");
+    rf_scene_follow_level_exits=stream_flag!=NULL;
     if(stream_flag){fclose(stream_flag);status=rf_scene_set_campaign_spawn(level);}
     else status=rf_scene_preview_camera(level,9858);
     if(status)return status;
@@ -501,11 +517,16 @@ static int scene_preview(rf_level *level,rf_preview_mesh *mesh)
         memset(rf_player_replay_diagnostic,0,sizeof(rf_player_replay_diagnostic));
         if(player_replay) {
             if(rf_scene_replay_header(player_replay,&limit,&player_replay_size)){player_input_close();return RF_FORMAT;}
+            long replay_offset=ftell(player_replay);
             rf_player_replay_diagnostic[0]=1;rf_player_replay_diagnostic[1]=limit;
+            if(replay_offset<0 || campaign_total_frames>=limit || fseek(player_replay,replay_offset+(long)((uint64_t)campaign_total_frames*player_replay_size),SEEK_SET)){player_input_close();return RF_RANGE;}
+            rf_player_replay_diagnostic[2]=campaign_total_frames;
         } else {status=rf_xbox_input_open();if(status)return status;}
         player_controls=1;player_pacing=!player_replay && limit==0;
         if(player_pacing)rf_scene_set_profile(profile_milliseconds);
-        rf_scene_set_input(player_poll_paced,NULL,limit);
+        campaign_frame_limit=limit;
+        if(limit && campaign_total_frames>=limit){player_input_close();return RF_RANGE;}
+        rf_scene_set_input(player_poll_paced,NULL,limit?limit-campaign_total_frames:0);
         rf_scene_actor_turn_enabled=rf_scene_actor_look_enabled=rf_scene_actor_eye_enabled=1;
         actor_follow_preview=rf_scene_actor_live_enabled=actor_body_preview=1;rf_scene_actor_drive(1);
     }
@@ -910,6 +931,8 @@ int main(void)
                     if(actor_file)fclose(actor_file);if(force_file)fclose(force_file);fclose(item_file);
                 }
             }
+campaign_load_section:
+            rf_xbox_load_stage=1;
             if (result == RF_OK) {
                 const rf_level_section *geometry = rf_level_find(&level, 0x100);
                 const rf_level_section *lightmaps = rf_level_find(&level, 0x1200);
@@ -924,8 +947,9 @@ int main(void)
                     memcpy(&bits, &level.player_position[i], sizeof(bits));
                     rf_diagnostic[13 + i] = bits;
                 }
-                debugPrint("%s: %u sections, %u bytes\n", level.name, level.section_count, level.entry.size);
+                if(!campaign_total_frames)debugPrint("%s: %u sections, %u bytes\n", level.name, level.section_count, level.entry.size);
                 OutputDebugStringA("RF_LEVEL_DIRECTORY_VALIDATED\n");
+                rf_xbox_load_stage=2;
                 result = rf_geometry_open(&resident_geometry, &level, 8u * 1024u * 1024u);
                 if (result == RF_OK) {
                     float vertex[3];
@@ -942,10 +966,11 @@ int main(void)
                     rf_geometry_vertex(&resident_geometry, resident_geometry.vertices - 1, vertex);
                     for (i = 0; i < 3; ++i) { uint32_t bits; memcpy(&bits, &vertex[i], 4); rf_diagnostic[27 + i] = bits; }
                     rf_diagnostic[30] = resident_geometry.bytes - resident_geometry.tail_offset - 4;
-                    debugPrint("Geometry: %u vertices, %u faces, %u bytes\n", resident_geometry.vertices, resident_geometry.faces, resident_geometry.allocated_bytes);
+                    if(!campaign_total_frames)debugPrint("Geometry: %u vertices, %u faces, %u bytes\n", resident_geometry.vertices, resident_geometry.faces, resident_geometry.allocated_bytes);
                     {
                         rf_preview_mesh mesh;
-                        result = collision_check(&level);
+                        rf_xbox_load_stage=3;result = collision_check(&level);
+                        rf_xbox_load_stage=4;
                         if(result == RF_OK) result = rf_lightmaps_open(&resident_lightmaps, &level, RF_CAMPAIGN_LIGHTMAP_BUDGET);
                         if (result == RF_OK) {
                             uint32_t mapping, image;
@@ -953,10 +978,13 @@ int main(void)
                                 result = rf_geometry_lightmap(&resident_geometry, mapping, resident_lightmaps.count, &image);
                             rf_diagnostic[43] = resident_lightmaps.count;
                         }
+                        rf_xbox_load_stage=5;
                         if (result == RF_OK) result = load_materials();
                         if (NT_SUCCESS(MmQueryStatistics(&memory))) rf_diagnostic[42] = memory.AvailablePages;
+                        rf_xbox_load_stage=6;
                         if (result == RF_OK) result = rf_preview_build(&mesh, &resident_geometry, &level, 8u*1024u*1024u);
                         if (result == RF_OK) {
+                            rf_xbox_load_stage=7;
                             FILE *scene_flag=fopen("D:\\scene-preview.flag","rb");
                             if(scene_flag) {fclose(scene_flag);result=scene_preview(&level,&mesh);}
                             else {
@@ -968,6 +996,32 @@ int main(void)
                             if (NT_SUCCESS(MmQueryStatistics(&memory))) rf_diagnostic[47] = memory.AvailablePages;
                         }
                     }
+                }
+            }
+            if(result==RF_OK && rf_scene_follow_level_exits && rf_scene_level_transition.pending &&
+               (!campaign_frame_limit || campaign_total_frames<campaign_frame_limit)) {
+                rf_campaign_player_state state;rf_level_transition_request next=rf_scene_level_transition;
+                result=rf_scene_campaign_player_get(&state);
+                if(result==RF_OK) {
+                    rf_xbox_scene_stream_close();rf_scene_actor_follow(NULL);
+                    rf_scene_world_geometry_close(&resident_render_geometry);
+                    rf_materials_close(&resident_materials);rf_lightmaps_close(&resident_lightmaps);
+                    resident_membership_ready=0;
+                    rf_group_mover_memberships_close(&resident_memberships);
+                    free(resident_mover_objects);resident_mover_objects=NULL;
+                    free(resident_controller_handles);resident_controller_handles=NULL;
+                    rf_geometry_collision_movers_close(&resident_movers);
+                    rf_group_runtime_close(&resident_group_runtime);rf_level_owned_groups_close(&resident_groups);
+                    rf_level_owned_triggers_close(&resident_triggers);rf_level_owned_events_close(&resident_events);
+                    rf_level_owned_entities_close(&resident_entities);
+                    rf_geometry_collision_world_close(&resident_collision);rf_geometry_close(&resident_geometry);
+                    rf_vpp_close(&archive);rf_object_registry_init(&resident_registry);
+                    ++rf_xbox_level_transitions[0];rf_xbox_level_transitions[1]=next.uid;rf_xbox_level_transitions[2]=campaign_total_frames;
+                    if(NT_SUCCESS(MmQueryStatistics(&memory)))rf_xbox_level_transitions[3]=memory.AvailablePages;
+                    result=rf_level_campaign_open(&level,&archive,"D:\\",next.level);
+                    if(result==RF_OK)result=rf_scene_campaign_player_set(&state);
+                    live_mines_door_fixture=0;
+                    if(result==RF_OK)goto campaign_load_section;
                 }
             }
             rf_vpp_close(&archive);

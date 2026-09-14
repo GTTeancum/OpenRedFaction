@@ -6,7 +6,7 @@ and defer visual polish. Focus: movement, combat/damage, AI, mission events,
 then level progression. Fidelity remains a later completion requirement.
 
 Shortlist:
-- ACTIVE: Make campaign level exits load the next section on PC/Xbox while preserving player state within 64 MiB.
+- ACTIVE: Complete doorway arrivals and mission-state carry, and verify repeated Xbox campaign transitions.
 - NEXT: Expand mission scripts and AI until consecutive campaign sections are playable end to end.
 - TO COMPLETE: Expand the working pistol/rifle combat, pickups and first-person feedback to the remaining weapons.
 - DEFERRED / TO COMPLETE: Restore full NPC/prop texture detail through better residency; verify PS2 parity for reduced textures.
@@ -24,6 +24,13 @@ Shortlist:
 - USER: Review the interactive PC movement and audio items listed below.
 
 Progress reporting: include a very high-level working area (e.g. Lighting, AI, Weapons, GeoMod or Scripted events) and an overall percent estimate at the end of every turn report (USER preference) and revisit remaining 24-hour workdays when measured throughput supports a forecast; current rough estimate44% (35-45%), no defensible +/-48-hour completion forecast before end-to-end gameplay.
+
+Xbox L1S1 -> L1S2 now passes a complete120-frame native replay on stock64MiB:
+exit9019 hands off at61 frames, state comparisons pass and framebuffer is verified.
+Old-level cleanup leaves12175 free pages (47.6MiB); destination rendering leaves
+5583 (21.8MiB). Fixed stale membership-ready state reading freed controller handles.
+Evidence: artifacts/xemu/replay-20260914-043300/report.json. Native backward/repeated
+exits, walking triggers, doorway placement and mission-state carry remain open.
 
 PC now follows authored exits in-process: L1S1 -> L1S2 and reverse complete
 120-frame replays with cleanup before loading the next scene. Same-level requests

@@ -1,91 +1,71 @@
-# Campaign level transition integration
+# Campaign level transitions
 
-Load_Level (event type22) previously reached unsupported_actions. It now invokes
-an optional borrowed backend on its on action; off is a no-op. Delayed events are
-eligible for the existing timer dispatcher when the backend is attached. Without
-one, the existing unsupported-action/pending accounting remains available.
+PC and Xbox campaign loading loops now follow shared deferred Load_Level (type22)
+requests. The event backend queues on activation, including delayed activation;
+off is a no-op. The first pending request owns its destination/entrance strings,
+raw words/flags and event/source/actor IDs. No archive I/O or destruction occurs
+inside dispatch. Missing backends retain unsupported-action accounting.
 
-The scene attaches rf_scene_level_transition as an owned deferred request. It
-copies destination/entrance strings, raw words/flags and event/source/actor IDs.
-The request survives event/archive destruction; IDs are provenance, not promises
-that the objects remain registered afterward. No archive I/O or scene destruction
-occurs inside event dispatch. The first request remains pending until its owner
-resets it, so later events cannot overwrite the selected destination.
+The shared scene stops at its next input boundary when exit following is enabled.
+Scene cleanup completes before the platform releases world/collision/material and
+lightmap owners and the source archive. rf_level_campaign_open searches
+levels1/2/3.vpp one at a time, reads metadata without geometry allocation and
+transfers the successful archive to the caller. The returned level borrows that
+caller-owned handle. Missing/corrupt required archives fail immediately; absent
+levels return NOT_FOUND and preserve output state. Multiplayer archives are not
+searched. All 68 installed campaign entries resolve in shared tests.
 
-The destination validator accepts a bounded simple level basename, adds .rfl
-when absent, normalizes the extension, and rejects directory paths or malformed
-names. This is a port loading policy. Entrance text and unverified words/flags
-are retained without inventing semantics. Platform consumption is not connected:
-this change queues exits but does not automatically enter a second level.
+The 464-byte rf_campaign_player_state carries weapon ownership, loaded/reserve
+ammunition, health, armor, equipped weapon ID and the supply catalog hash. It owns
+all data and contains no scene pointers/handles. Import rejects invalid vitals,
+negative ammunition, invalid selection/ownership and catalog mismatch, then restores
+state at first-frame combat initialization. Pistol/rifle equipment is supported;
+other weapons remain unfinished. Reload/burst timers restart. Dead players have
+no export. PC RF_REPLAY_PLAYER_STATE_IN/OUT blobs are build-local test artifacts,
+not a stable save format.
 
-Tests cover first-request ownership, malformed-name rollback, missing backend,
-250ms delayed activation, and14 authored exits across L1S1/L1S2/L1S3. Each target
-exists in levels1.vpp, including both forward/backward and current-level targets.
-All requests remain intact after closing their source resources. Both builds and
-33 CTests pass. Evidence: artifacts/level-transition-authored.log and
-artifacts/level-transition-tests.log. This is shared C dispatch verification;
-no original full Load_Level oracle or native transition is claimed.
+Xbox retires its vertex buffer, fallback texture and cached borrowed image pointers
+after GPU completion, while keeping pbkit framebuffer/DMA device state alive.
+Diagnostic group/mover/controller owners also close before loading the next level.
+Membership readiness is explicit: old diagnostic success flags cannot enable checks
+against destroyed controller arrays. New membership becomes ready only after
+registration validation. This fixes the NULL controller-handle access at 0x35ae5
+in membership_check captured in replay-20260914-042558; the kernel bugcheck was
+secondary. Startup framebuffer text is limited to boot.
 
-Next steps: establish current-level request behavior (several authored pairs name
-the current level), preserve the appropriate player placement/vitals/inventory,
-release the current level completely, resolve the destination archive, and load
-through the shared PC/Xbox lifecycle. Prevent overlapping level residency on64MiB.
+Replay consumption stays global across sections, while simulation counters restart
+per section. Xbox reopens the replay at its actual payload offset plus consumed
+records, preserving old raw and newer header formats. The diagnostic
+rf_xbox_level_transitions contains exit count, last UID, global frames at exit and
+free pages after releasing the old section; rf_xbox_load_stage identifies setup
+phases. The harness uses the final destination's authored metadata and section
+frame count, while still checking total replay consumption/submission counts.
 
-Shared destination resolution now exists as rf_level_campaign_open. It searches
-levels1/2/3.vpp in order with one candidate archive open at a time, reads only
-level metadata, and transfers archive ownership to the caller on success. The
-returned level borrows the caller's archive, not a temporary stack handle.
-Failure preserves both outputs; reopening an already-owned archive is rejected.
-Missing/corrupt required archives fail immediately; an absent destination returns
-NOT_FOUND after the search. This is an explicit first-pass archive policy, not
-original engine search-order reconstruction; multiplayer archives are excluded.
+## Verified
 
-The authored transition test resolves all 68 installed campaign level entries
-across the three archives and checks missing targets/directories, output rollback,
-open-handle protection, case-insensitive names and trailing directory separators.
-Both builds and all 33 CTests pass. Evidence: artifacts/campaign-resolver-tests.log
-and artifacts/campaign-resolver-destinations.log. Platform loading-loop consumption,
-player-state transfer and native cross-level playback remain unimplemented.
+- Both builds and 34 CTests pass; authored event tests cover 14 exits, delay,
+  request ownership/validation and all 68 destination entries.
+- tools/replay_campaign_state.py acquires/fires the L4S5 rifle, then restores the
+  exact 39-round inventory and vitals in a separate L1S2 scene run; fresh-game
+  behavior and catalog mismatch rejection also pass.
+- tools/replay_campaign_exits.py passes automatic forward/backward PC handoffs,
+  current-level suppression and exact player-state carry, each over 120 frames.
+- Stock64MiB XEMU replay-20260914-043300 passes L1S1 -> L1S2 through authored
+  exit9019 dispatched by the process-local fixture at frame60. The handoff occurs
+  after61 frames and completes120 total. Destination actor/weapon/camera/player
+  state comparisons pass, and framebuffer.png was visually inspected.
+  Native telemetry is [1,9019,61,12175]: 47.6MiB free after old-level cleanup;
+  the destination renderer reports5583 free pages (21.8MiB).
+  Evidence: artifacts/xemu/replay-20260914-043300/report.json and its matching
+  main.map/default.xbe. No host input or desktop capture was used.
 
-Player handoff now uses the shared 464-byte rf_campaign_player_state: all weapon
-ownership/loaded/reserve slots, health, armor, selected weapon ID and supply
-catalog hash. It contains no scene handles or pointers. Copy/import rejects dead
-or nonfinite vitals, negative ammo, invalid ownership/selection and mismatched
-catalogs without changing the destination. Scene staging owns its copy, consumes
-it on first-frame combat initialization, restores vitals/inventory/equipment and
-starts with reset reload/burst timers. It currently accepts equipped pistol/rifle;
-additional usable weapons remain separate work. Spawn position and mission flags
-are not yet carried; respawn continues using the existing fresh-supply policy.
+## Remaining first-pass work
 
-After a successful frame, the scene retains an export independent of scene
-resource cleanup. Dead players have no export. The PC headless harness exposes
-RF_REPLAY_PLAYER_STATE_IN/OUT as raw build-local test blobs, not a save-game format.
-The process-local tools/replay_campaign_state.py acquires and fires the L4S5 rifle,
-exports 39 loaded rounds /95.199997 health /94.800003 armor, then imports into
-L1S2 and verifies the entire state byte-for-byte. It also verifies a fresh game
-without import and rejection of a modified catalog hash. Evidence:
-artifacts/campaign-state/report.json. Both builds and 34 CTests pass. This is
-separate-process scene validation, not automatic/native cross-level playback.
-
-PC campaign mode now consumes pending exits in-process. The shared scene stops
-at the next input boundary only when rf_scene_follow_level_exits is enabled;
-its ordinary cleanup runs before the platform releases world geometry, collision,
-materials/lightmaps and the source archive. PC then resolves the destination,
-loads its authored spawn, stages player state and continues the existing window
-or replay. Replay frame indices remain global while simulation clocks restart
-per section. A replay ending on an exit frame does not load an unused next scene.
-
-First-pass policy: current-level requests are ignored when following exits so
-paired authored events do not mask the neighboring destination or reload forever.
-This is not verified original Load_Level semantics. Destination authored spawn
-is a temporary arrival policy; entrance alignment, mission flags, seamless door
-continuity and deliberate same-level restarts remain unfinished.
-
-The process-local RF_REPLAY_EXIT_UID fixture fires the authored type22 event at
-frame60 through the runtime dispatcher. tools/replay_campaign_exits.py covers
-forward L1S1->L1S2, backward L1S2->L1S1, ignored current-level UID9018, and exact
-player-state retention through the forward exit. Each run completes 120 frames;
-real transitions occur after frame61. Evidence: artifacts/campaign-exits/report.json.
-Both builds and 34 CTests pass. Xbox contains the shared stop/handoff code but
-has not enabled exit following: its platform loading loop and native verification
-are the next required work. No native transition or walking-trigger proof yet.
+Current-level requests are ignored to avoid paired events masking a neighboring
+exit or creating a reload loop. This is a port policy, not verified original
+Load_Level semantics. Arrivals use the destination's authored spawn; entrance
+alignment, doorway continuity, mission flags and deliberate same-level restarts
+remain open. Respawn retains the existing fresh-supply policy. Native backward
+and repeated transitions, walking into authored exit triggers, cross-archive disc
+coverage and real hardware validation remain to complete. The passing native
+fixture proves a handoff, not end-to-end campaign progression or PS2 visual parity.

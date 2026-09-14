@@ -4,7 +4,8 @@ from pathlib import Path
 from xemu_smoke import Monitor
 from door_fixture_metrics import measure
 from xemu_guest_snapshot import words,snapshot
-p=argparse.ArgumentParser();p.add_argument('input',type=Path);p.add_argument('--seconds',type=int,default=180);p.add_argument('--require-wide',action='store_true');p.add_argument('--campaign-spawn',action='store_true');p.add_argument('--approach',action='store_true',help='Stage outside the first L1S2 climb region');p.add_argument('--climb',action='store_true',help='Staged L1S2 first-region campaign replay');p.add_argument('--capture',action='store_true',help='Native guest framebuffer for renderer validation');p.add_argument('--door',action='store_true',help='Explicit L1S1 lower-door contact fixture');p.add_argument('--level',help='Authored campaign level, without climb staging');p.add_argument('--archive',default='levels1.vpp',choices=['levels1.vpp','levels2.vpp','levels3.vpp','levelsm.vpp']);p.add_argument('--audio-capture',action='store_true',help='Enable APU events and inspect guest DSP output');p.add_argument('--lift',action='store_true',help='Staged L1S2 lift contact');p.add_argument('--force-uid',type=int,help='Explicit authored force-region staging; requires --level');p.add_argument('--damage-uid',type=int,help='Explicit NPC damage plus player pain-sound fixture');p.add_argument('--death-animation',action='store_true',help='Exercise base NPC death animation at frame 120; requires --damage-uid');p.add_argument('--actor-pairs',action='store_true',help='Restored-state registered actor response publication fixture');p.add_argument('--glare-loss',action='store_true',help='Destroy three glares at frame90 through parent-loss/marked retirement');p.add_argument('--volume-test',action='store_true',help='Copied-owner animated beam through the live sorted queue');p.add_argument('--actor-uid',type=int,help='Process-local camera facing an authored actor; requires --level');p.add_argument('--lightmap-regen',action='store_true',help='Force initial world lightmap base regeneration');p.add_argument('--lightmap-all',action='store_true',help='Full-level regeneration stress test, bypassing visibility');p.add_argument('--item-uid',type=int,help='Process-local staging near an authored pickup; requires --level');args=p.parse_args()
+p=argparse.ArgumentParser();p.add_argument('input',type=Path);p.add_argument('--seconds',type=int,default=180);p.add_argument('--require-wide',action='store_true');p.add_argument('--campaign-spawn',action='store_true');p.add_argument('--approach',action='store_true',help='Stage outside the first L1S2 climb region');p.add_argument('--climb',action='store_true',help='Staged L1S2 first-region campaign replay');p.add_argument('--capture',action='store_true',help='Native guest framebuffer for renderer validation');p.add_argument('--door',action='store_true',help='Explicit L1S1 lower-door contact fixture');p.add_argument('--level',help='Authored campaign level, without climb staging');p.add_argument('--archive',default='levels1.vpp',choices=['levels1.vpp','levels2.vpp','levels3.vpp','levelsm.vpp']);p.add_argument('--audio-capture',action='store_true',help='Enable APU events and inspect guest DSP output');p.add_argument('--lift',action='store_true',help='Staged L1S2 lift contact');p.add_argument('--force-uid',type=int,help='Explicit authored force-region staging; requires --level');p.add_argument('--damage-uid',type=int,help='Explicit NPC damage plus player pain-sound fixture');p.add_argument('--death-animation',action='store_true',help='Exercise base NPC death animation at frame 120; requires --damage-uid');p.add_argument('--actor-pairs',action='store_true',help='Restored-state registered actor response publication fixture');p.add_argument('--glare-loss',action='store_true',help='Destroy three glares at frame90 through parent-loss/marked retirement');p.add_argument('--volume-test',action='store_true',help='Copied-owner animated beam through the live sorted queue');p.add_argument('--actor-uid',type=int,help='Process-local camera facing an authored actor; requires --level');p.add_argument('--lightmap-regen',action='store_true',help='Force initial world lightmap base regeneration');p.add_argument('--lightmap-all',action='store_true',help='Full-level regeneration stress test, bypassing visibility');p.add_argument('--item-uid',type=int,help='Process-local staging near an authored pickup; requires --level');p.add_argument('--exit-uid',type=int,help='Dispatch authored level exit at frame60');args=p.parse_args()
+if args.exit_uid is not None and (not args.level or not 0<args.exit_uid<0xffffffff):p.error('--exit-uid requires --level and a positive UID')
 if args.lightmap_all and not args.lightmap_regen:p.error('--lightmap-all requires --lightmap-regen')
 if args.item_uid is not None and (not args.level or args.climb or args.approach or args.door or args.lift or args.force_uid is not None or args.actor_uid is not None or not 0<=args.item_uid<0xffffffff):p.error('--item-uid requires --level and no other staging')
 if args.actor_uid is not None and (not args.level or args.climb or args.approach or args.door or args.lift or args.force_uid is not None or not 0<=args.actor_uid<0xffffffff):p.error('--actor-uid requires --level and no other staging')
@@ -24,7 +25,8 @@ if args.level:
  if args.climb or not re.fullmatch(r'[A-Za-z0-9_-]+\.rfl',args.level) or len(args.level)>63:p.error('Choose a plain level name, without climb staging')
  args.campaign_spawn=True
 elif args.archive!='levels1.vpp':p.error('--archive requires --level')
-replay_env=dict(os.environ)
+replay_env={k:v for k,v in os.environ.items() if not k.startswith('RF_REPLAY_')}
+if args.exit_uid is not None:replay_env['RF_REPLAY_EXIT_UID']=str(args.exit_uid)
 for key in ('RF_REPLAY_ITEM_UID','RF_REPLAY_ACTOR_UID','RF_REPLAY_LEVEL','RF_REPLAY_ARCHIVE','RF_REPLAY_REGION_START','RF_REPLAY_DOOR_START','RF_REPLAY_LIFT_START','RF_REPLAY_FORCE_UID','RF_REPLAY_DAMAGE_UID','RF_REPLAY_DEATH_ANIMATION'):replay_env.pop(key,None)
 replay_env.update(RF_REPLAY_LEVEL=args.level or ('L1S2.rfl' if args.climb else 'L1S1.rfl'),RF_REPLAY_ARCHIVE=args.archive)
 if args.damage_uid is not None:replay_env['RF_REPLAY_DAMAGE_UID']=str(args.damage_uid)
@@ -57,14 +59,17 @@ run=root/'artifacts/xemu'/('replay-'+datetime.datetime.now().strftime('%Y%m%d-%H
 source=run/'inputs.bin';source.write_bytes(payload)
 pc=subprocess.run([str(root/'build/pc/Release/rf_pc_play.exe'),'--spawn-replay' if args.campaign_spawn else '--replay',str(root/'Installed_Game'),str(source),str(run/'pc-final.ppm')],capture_output=True,text=True,check=True,env=replay_env)
 (run/'pc-reference.txt').write_text(pc.stdout)
+pc_transitions=[line.split()[1:] for line in pc.stdout.splitlines() if line.startswith('LEVEL_TRANSITION ')]
+final_level=pc_transitions[-1][1] if pc_transitions else replay_env['RF_REPLAY_LEVEL']
+section_frames=frames-int(pc_transitions[-1][3]) if pc_transitions else frames
 def expected(label):return list(map(int,next(x for x in pc.stdout.splitlines() if x.startswith(label+' ')).split()[1:]))
 if args.campaign_spawn and not args.climb and not args.door and not args.lift and args.force_uid is None and args.actor_uid is None and args.item_uid is None:
  starts=json.loads((root/'artifacts/player-start-verification.json').read_text())
  look=json.loads((root/'artifacts/player-spawn-look.json').read_text())
  original='b8fb9ab4c9bfc6f2868c30839d6cfc69f84b8c25d7e54eee1325f5b633c9b836'
  assert starts['original_sha256']==look['original_sha256']==original
- start=next(c for c in starts['levels'] if c['file'].lower()==(args.level or 'L1S1.rfl').lower())
- angles=next(c for c in look['cases'] if c['file'].lower()==(args.level or 'L1S1.rfl').lower())
+ start=next(c for c in starts['levels'] if c['file'].lower()==final_level.lower())
+ angles=next(c for c in look['cases'] if c['file'].lower()==final_level.lower())
  assert expected('PLAYER_SPAWN')==[1]+start['transform_words']+angles['body_words']+angles['eye_words']
 if args.campaign_spawn:assert expected('PC_PLAY_BODY')[68]&0x80, 'Campaign player physics flag missing'
 hdd=root/'local/xemu-harness/pacing-base.qcow2'
@@ -77,6 +82,7 @@ lift_flag=root/'build/xbox/disc/campaign-lift.flag';saved_lift=lift_flag.read_by
 door_flag=root/'build/xbox/disc/campaign-door.flag';saved_door=door_flag.read_bytes() if door_flag.exists() else None
 climb_flag=root/'build/xbox/disc/campaign-climb.flag';saved_climb=climb_flag.read_bytes() if climb_flag.exists() else None
 selection_file=root/'build/xbox/disc/campaign-level.bin';saved_selection=selection_file.read_bytes() if selection_file.exists() else None
+exit_file=root/'build/xbox/disc/campaign-exit.bin';saved_exit=exit_file.read_bytes() if exit_file.exists() else None
 item_file=root/'build/xbox/disc/campaign-item.bin';saved_item=item_file.read_bytes() if item_file.exists() else None
 actor_file=root/'build/xbox/disc/campaign-actor.bin';saved_actor=actor_file.read_bytes() if actor_file.exists() else None
 force_file=root/'build/xbox/disc/campaign-force.bin';saved_force=force_file.read_bytes() if force_file.exists() else None
@@ -87,9 +93,11 @@ volume_flag=root/'build/xbox/disc/campaign-volume-test.flag';saved_volume=volume
 regen_flag=root/'build/xbox/disc/campaign-lightmap-regen.flag';saved_regen=regen_flag.read_bytes() if regen_flag.exists() else None
 loss_flag=root/'build/xbox/disc/campaign-glare-loss.flag';saved_loss=loss_flag.read_bytes() if loss_flag.exists() else None
 step_file=root/'build/xbox/disc/particle-step-fixtures.bin';saved_steps=step_file.read_bytes() if step_file.exists() else None
-process=monitor=None;report={'result':'FAIL','level':args.level or ('L1S2.rfl' if args.climb else 'L1S1.rfl'),'archive':args.archive,'frames':frames,'input_sha256':hashlib.sha256(payload).hexdigest(),'pc_sha256':hashlib.sha256((root/'build/pc/Release/rf_pc_play.exe').read_bytes()).hexdigest(),'samples':[],'scope':'Guest command replay, submission counts, CPU world/camera hashes and final body; optional native framebuffer capture, no PS2 parity claim.'}
+process=monitor=None;report={'result':'FAIL','level':args.level or ('L1S2.rfl' if args.climb else 'L1S1.rfl'),'final_level':final_level,'archive':args.archive,'frames':frames,'input_sha256':hashlib.sha256(payload).hexdigest(),'pc_sha256':hashlib.sha256((root/'build/pc/Release/rf_pc_play.exe').read_bytes()).hexdigest(),'samples':[],'scope':'Guest command replay, submission counts, CPU world/camera hashes and final body; optional native framebuffer capture, no PS2 parity claim.'}
 def build():subprocess.run(['C:/msys64/usr/bin/bash.exe','--noprofile','--norc','tools/build-xbox.sh'],cwd=root,env=dict(os.environ,MSYSTEM='CLANG64'),check=True)
 try:
+ if args.exit_uid is None:exit_file.unlink(missing_ok=True)
+ else:exit_file.write_bytes(args.exit_uid.to_bytes(4,'little'))
  subprocess.run([sys.executable,'tools/verify_particle_free_step.py'],cwd=root,check=True)
  step_file.write_bytes((root/'artifacts/particle-free-step-input.bin').read_bytes())
  if args.level:
@@ -131,6 +139,7 @@ try:
  if args.campaign_spawn:spawn_flag.write_bytes(b'')
  elif spawn_flag.exists():spawn_flag.unlink()
  build();mapping=(root/'build/xbox/main.map').read_text()
+ (run/'main.map').write_text(mapping);shutil.copyfile(root/'build/xbox/disc/default.xbe',run/'default.xbe')
  def symbol(name):return int(re.search('_'+name+r'\s+([0-9a-fA-F]+)',mapping)[1],16)
  report.update(map_sha256=hashlib.sha256(mapping.encode()).hexdigest(),xbe_sha256=hashlib.sha256((root/'build/xbox/disc/default.xbe').read_bytes()).hexdigest(),iso_sha256=hashlib.sha256((root/'build/xbox/redfaction-diagnostic.iso').read_bytes()).hexdigest())
  with socket.socket() as reservation:reservation.bind(('127.0.0.1',0));port=reservation.getsockname()[1]
@@ -159,7 +168,7 @@ dvd_path = '{root.as_posix()}/build/xbox/redfaction-diagnostic.iso'
  if os.name=='nt':startup=subprocess.STARTUPINFO();startup.dwFlags|=subprocess.STARTF_USESHOWWINDOW;startup.wShowWindow=0
  with (run/'stdout.log').open('wb') as out,(run/'stderr.log').open('wb') as err:
   process=subprocess.Popen(command,cwd=run,env=dict(os.environ,SDL_AUDIO_DRIVER='dummy'),stdout=out,stderr=err,startupinfo=startup,creationflags=subprocess.CREATE_NO_WINDOW if os.name=='nt' else 0)
-  deadline=time.monotonic()+args.seconds;last=-1;lighting_poll=0
+  deadline=time.monotonic()+args.seconds;last=-1;lighting_poll=0;last_transition=None;fault_poll=0
   while time.monotonic()<deadline:
    if process.poll() is not None:raise RuntimeError(f'XEMU exited {process.returncode}')
    if monitor is None:
@@ -172,6 +181,12 @@ dvd_path = '{root.as_posix()}/build/xbox/redfaction-diagnostic.iso'
     time.sleep(.5);continue
    if d[0]!=0x52464447:time.sleep(.5);continue
    report['samples'].append(d)
+   if args.exit_uid is not None and time.monotonic()>=fault_poll:
+    fault_poll=time.monotonic()+30
+    regs=monitor.command('human-monitor-command',{'command-line':'info registers'})
+    # Specific debug BIOS bugcheck halt observed in both failed handoff runs.
+    if 'EIP=8001d1ea' in regs and 'HLT=1' in regs:raise RuntimeError('Guest debug-kernel bugcheck halt at 8001d1ea')
+
    if args.lightmap_regen and time.monotonic()>=lighting_poll:
     lighting_poll=time.monotonic()+10
     progress=words(monitor,symbol('rf_scene_lightmap_regeneration'),8)
@@ -186,6 +201,9 @@ dvd_path = '{root.as_posix()}/build/xbox/redfaction-diagnostic.iso'
     report['lightmap_updates_failure']=words(monitor,symbol('rf_scene_lightmap_updates'),8)
     raise RuntimeError(f'Guest error {d[2]:08x}')
    if d[37]//60!=last:last=d[37]//60;print('Submitted',d[37],'frames',flush=True)
+   if args.exit_uid is not None:
+    transition=words(monitor,symbol('rf_xbox_level_transitions'),4)+words(monitor,symbol('rf_xbox_load_stage'),1)
+    if transition!=last_transition:print('Level handoff',transition,flush=True);last_transition=transition
    if d[2]==5:
     final=snapshot(monitor,mapping);(run/'guest-memory-final.json').write_text(json.dumps(final,indent=2))
     fp_control=words(monitor,symbol('rf_fp_control_diagnostic'),5)
@@ -287,7 +305,7 @@ dvd_path = '{root.as_posix()}/build/xbox/redfaction-diagnostic.iso'
      assert report['lightmap_updates']==pc_updates and report['lightmap_updates'][7]==0,report['lightmap_updates']
      report['light_ticks']=words(monitor,symbol('rf_scene_light_ticks'),8)
      assert report['light_ticks']==expected('LIGHT_TICKS') and report['light_ticks'][6]<=64*1024 and report['light_ticks'][7]==0,report['light_ticks']
-     if lights[0]:assert report['light_ticks'][:2]==[frames-1,(frames-1)*lights[0]],report['light_ticks']
+     if lights[0]:assert report['light_ticks'][:2]==[section_frames-1,(section_frames-1)*lights[0]],report['light_ticks']
      report['light_storage']=words(monitor,symbol('rf_scene_light_storage'),5)
      assert report['light_storage']==expected('LIGHT_STORAGE') and report['light_storage'][2]<=512*1024,report['light_storage']
      ambient=words(monitor,symbol('rf_scene_ambient_records'),3)
@@ -326,14 +344,14 @@ dvd_path = '{root.as_posix()}/build/xbox/redfaction-diagnostic.iso'
      assert npc_materials[0]>0 and npc_materials[2]>0 and npc_materials[6]>0,npc_materials
      report['npc_materials']=npc_materials
      npc_draw=words(monitor,symbol('rf_scene_npc_draw'),5)
-     assert npc_draw==expected('NPC_DRAW') and npc_draw[0]==frames and npc_draw[4]<512*1024,npc_draw
+     assert npc_draw==expected('NPC_DRAW') and npc_draw[0]==section_frames and npc_draw[4]<512*1024,npc_draw
      report['npc_draw']=npc_draw
      npc_playback=words(monitor,symbol('rf_scene_npc_playback'),7)
-     assert npc_playback==expected('NPC_PLAYBACK') and npc_playback[0]==frames-1 and npc_playback[6]<=1024*1024,npc_playback
-     if frames>1:assert npc_playback[1:3]==startup[:2],npc_playback
+     assert npc_playback==expected('NPC_PLAYBACK') and npc_playback[0]==section_frames-1 and npc_playback[6]<=1024*1024,npc_playback
+     if section_frames>1:assert npc_playback[1:3]==startup[:2],npc_playback
      report['npc_playback']=npc_playback
      npc_gate=words(monitor,symbol('rf_scene_npc_gate'),4)
-     assert npc_gate==expected('NPC_GATE') and npc_gate[0]==(frames-1)*startup[0],npc_gate
+     assert npc_gate==expected('NPC_GATE') and npc_gate[0]==(section_frames-1)*startup[0],npc_gate
      assert npc_gate[1]+npc_gate[2]==npc_gate[0],npc_gate
      report['npc_gate']=npc_gate
      npc_bodies=words(monitor,symbol('rf_scene_npc_bodies'),6)
@@ -342,7 +360,7 @@ dvd_path = '{root.as_posix()}/build/xbox/redfaction-diagnostic.iso'
      report['npc_bodies']=npc_bodies
      navigation=words(monitor,symbol('rf_scene_navigation'),6)
      assert navigation==expected('NAVIGATION') and navigation[4]<=65536,navigation
-     if replay_env['RF_REPLAY_LEVEL'].lower()=='l1s1.rfl':
+     if final_level.lower()=='l1s1.rfl':
       # Independently derived from original463d50-audited L1S1 records.
       assert navigation==[333,760,3,1,48360,916127865],navigation
      report['navigation']=navigation
@@ -370,20 +388,20 @@ dvd_path = '{root.as_posix()}/build/xbox/redfaction-diagnostic.iso'
      clutter=words(monitor,symbol('rf_scene_clutter'),8)
      assert clutter==expected('CLUTTER') and clutter[0]==431 and clutter[3]==55610,clutter
      assert clutter[5]<=clutter[6]<=256*1024,clutter
-     if replay_env['RF_REPLAY_LEVEL'].lower()=='l1s1.rfl':
+     if final_level.lower()=='l1s1.rfl':
       assert clutter[1]==170 and clutter[4]==39834,clutter
      report['clutter']=clutter
      clutter_render=words(monitor,symbol('rf_scene_clutter_render'),8)
      assert clutter_render==expected('CLUTTER_RENDER'),clutter_render
      assert clutter_render[1]+clutter_render[2]+clutter_render[3]==clutter[1],clutter_render
      assert clutter_render[4]<=clutter_render[5]<=256*1024,clutter_render
-     if replay_env['RF_REPLAY_LEVEL'].lower()=='l1s1.rfl':
+     if final_level.lower()=='l1s1.rfl':
       tag_reference=json.loads((root/'artifacts/clutter-scene-tags.json').read_text())
       assert tag_reference['result']=='PASS' and clutter_render[:4]==[12,168,2,0] and clutter_render[4:6]==tag_reference['render_budget'],clutter_render
      report['clutter_render']=clutter_render
      clutter_tags=words(monitor,symbol('rf_scene_clutter_tags'),4)
      assert clutter_tags==expected('CLUTTER_TAGS') and clutter_tags[0]==clutter_render[0],clutter_tags
-     if replay_env['RF_REPLAY_LEVEL'].lower()=='l1s1.rfl':assert clutter_tags==tag_reference['expected'],clutter_tags
+     if final_level.lower()=='l1s1.rfl':assert clutter_tags==tag_reference['expected'],clutter_tags
      report['clutter_tags']=clutter_tags
      glare_resources=words(monitor,symbol('rf_scene_glare_resources'),9)
      glare_reference=json.loads((root/'artifacts/glare-scene-resources.json').read_text())
@@ -398,7 +416,7 @@ dvd_path = '{root.as_posix()}/build/xbox/redfaction-diagnostic.iso'
      alpha_contacts=words(monitor,symbol('rf_scene_geometry_alpha_contacts'),4)
      assert alpha_contacts==expected('GEOMETRY_ALPHA_CONTACTS'),alpha_contacts
      assert alpha_contacts[0]==sum(alpha_contacts[1:]) and alpha_contacts[3]==0,alpha_contacts
-     if args.actor_pairs and report['level'].lower()=='l1s2.rfl':assert alpha_contacts[1]>0 and alpha_contacts[2]>0,alpha_contacts
+     if args.actor_pairs and final_level.lower()=='l1s2.rfl':assert alpha_contacts[1]>0 and alpha_contacts[2]>0,alpha_contacts
      report['geometry_alpha_contacts']=alpha_contacts
      glare_solids=words(monitor,symbol('rf_scene_glare_solids'),5)
      assert glare_solids==expected('GLARE_SOLIDS') and glare_solids[3]==0,glare_solids
@@ -408,7 +426,7 @@ dvd_path = '{root.as_posix()}/build/xbox/redfaction-diagnostic.iso'
      assert npc_visibility==expected('NPC_VISIBILITY') and npc_visibility[6]==0,npc_visibility
      # Two initial fixture snapshots, then volume and corona snapshots after
      # each completed room refresh (frame zero has neither live snapshot).
-     if args.actor_pairs:assert npc_visibility[0]>0 and npc_visibility[1]>0 and (2+2*(frames-1))*npc_visibility[3]==npc_visibility[0],npc_visibility
+     if args.actor_pairs:assert npc_visibility[0]>0 and npc_visibility[1]>0 and (2+2*(section_frames-1))*npc_visibility[3]==npc_visibility[0],npc_visibility
      report['npc_visibility']=npc_visibility
      npc_rooms=words(monitor,symbol('rf_scene_npc_visibility_rooms'),6)
      assert npc_rooms==expected('NPC_VISIBILITY_ROOMS'),npc_rooms
@@ -416,16 +434,16 @@ dvd_path = '{root.as_posix()}/build/xbox/redfaction-diagnostic.iso'
      report['npc_visibility_rooms']=npc_rooms
      npc_room_refresh=words(monitor,symbol('rf_scene_npc_room_refresh'),8)
      assert npc_room_refresh==expected('NPC_ROOM_REFRESH') and npc_room_refresh[7]==0,npc_room_refresh
-     assert npc_room_refresh[0]==frames-1,npc_room_refresh
-     if args.actor_pairs and frames>1:assert npc_room_refresh[2]>0,npc_room_refresh
-     if args.actor_pairs and frames>1 and report['level'].lower()=='l1s2.rfl':assert npc_room_refresh[4]>0,npc_room_refresh
+     assert npc_room_refresh[0]==section_frames-1,npc_room_refresh
+     if args.actor_pairs and section_frames>1:assert npc_room_refresh[2]>0,npc_room_refresh
+     if args.actor_pairs and section_frames>1 and final_level.lower()=='l1s2.rfl':assert npc_room_refresh[4]>0,npc_room_refresh
      report['npc_room_refresh']=npc_room_refresh
      npc_dispatch=words(monitor,symbol('rf_scene_npc_render_dispatch'),6)
-     assert npc_dispatch==expected('NPC_RENDER_DISPATCH') and npc_dispatch[0]==frames and npc_dispatch[5]==0,npc_dispatch
+     assert npc_dispatch==expected('NPC_RENDER_DISPATCH') and npc_dispatch[0]==section_frames and npc_dispatch[5]==0,npc_dispatch
      assert npc_dispatch[1]==npc_dispatch[2]+npc_dispatch[3],npc_dispatch
      report['npc_render_dispatch']=npc_dispatch
      clutter_dispatch=words(monitor,symbol('rf_scene_clutter_render_dispatch'),6)
-     assert clutter_dispatch==expected('CLUTTER_RENDER_DISPATCH') and clutter_dispatch[0]==frames and clutter_dispatch[5]==0,clutter_dispatch
+     assert clutter_dispatch==expected('CLUTTER_RENDER_DISPATCH') and clutter_dispatch[0]==section_frames and clutter_dispatch[5]==0,clutter_dispatch
      assert clutter_dispatch[1]==clutter_dispatch[2]+clutter_dispatch[3],clutter_dispatch
      report['clutter_render_dispatch']=clutter_dispatch
      mover_visibility=words(monitor,symbol('rf_scene_mover_visibility'),3)
@@ -436,18 +454,18 @@ dvd_path = '{root.as_posix()}/build/xbox/redfaction-diagnostic.iso'
      assert glare_search[0]==1 and glare_search[1]==glare_search[3],glare_search
      report['glare_search']=glare_search
      corona=words(monitor,symbol('rf_scene_corona_draw'),8)
-     assert corona==expected('CORONA_DRAW') and corona[0]==frames and corona[7]==0,corona
+     assert corona==expected('CORONA_DRAW') and corona[0]==section_frames and corona[7]==0,corona
      assert corona[1]==corona[2] and corona[3]<=corona[2] and corona[4]>=3*corona[3],corona
      assert corona[6]<=128*1024,corona
      report['corona_draw']=corona
      volume=words(monitor,symbol('rf_scene_volume_draw'),8)
-     assert volume==expected('VOLUME_DRAW') and volume[0]==frames and volume[7]==0,volume
+     assert volume==expected('VOLUME_DRAW') and volume[0]==section_frames and volume[7]==0,volume
      assert volume[3]<=volume[2]<=volume[1] and volume[4]>=3*volume[3],volume
      report['volume_draw']=volume
      volume_test=words(monitor,symbol('rf_scene_volume_test'),8)
      assert volume_test==expected('VOLUME_TEST') and volume_test[6]==0,volume_test
      if args.volume_test:
-      assert volume_test[:5]==[frames-90]*5 and volume[2]>=frames-90 and volume[3]>=frames-90,volume_test
+      assert volume_test[:5]==[section_frames-90]*5 and volume[2]>=section_frames-90 and volume[3]>=section_frames-90,volume_test
      report['volume_test']=volume_test
      volume_npc=words(monitor,symbol('rf_scene_volume_npc_test'),8)
      assert volume_npc==expected('VOLUME_NPC_TEST') and volume_npc[6]==0,volume_npc
@@ -456,14 +474,14 @@ dvd_path = '{root.as_posix()}/build/xbox/redfaction-diagnostic.iso'
      glare_instances=words(monitor,symbol('rf_scene_glare_instances'),10)
      assert glare_instances==expected('GLARE_INSTANCES') and glare_instances[3]==glare_instances[8] and glare_instances[9]==0,glare_instances
      assert glare_instances[5]<=glare_instances[6]<=256*1024,glare_instances
-     if replay_env['RF_REPLAY_LEVEL'].lower()=='l1s1.rfl':
+     if final_level.lower()=='l1s1.rfl':
       glare_instance_reference=json.loads((root/'artifacts/clutter-scene-glares.json').read_text())
       assert glare_instance_reference['result']=='PASS' and glare_instances==glare_instance_reference['expected'],glare_instances
      assert glare_search[1]==glare_instances[3],(glare_search,glare_instances)
      report['glare_instances']=glare_instances
      attachment_motion=words(monitor,symbol('rf_scene_attachment_motion'),8)
      assert attachment_motion==expected('ATTACHMENT_MOTION') and attachment_motion[6]==0,attachment_motion
-     if args.actor_pairs and frames>1:
+     if args.actor_pairs and section_frames>1:
       n=glare_instances[3]
       assert attachment_motion[:5]==[4*n,3*n,n,4*n,n],attachment_motion
      report['attachment_motion']=attachment_motion
@@ -473,25 +491,25 @@ dvd_path = '{root.as_posix()}/build/xbox/redfaction-diagnostic.iso'
      report['glare_loss_test']=glare_loss
      glare_retirement=words(monitor,symbol('rf_scene_glare_retirement'),8)
      assert glare_retirement==expected('GLARE_RETIREMENT') and glare_retirement[7]==0,glare_retirement
-     assert glare_retirement[0]==frames-1,glare_retirement
+     assert glare_retirement[0]==section_frames-1,glare_retirement
      assert glare_retirement[3]+glare_retirement[6]==glare_instances[3],glare_retirement
      report['glare_retirement']=glare_retirement
      attachments=words(monitor,symbol('rf_scene_attachments'),8)
      assert attachments==expected('ATTACHMENTS') and attachments[7]==0,attachments
-     assert attachments[0]==frames-1 and attachments[5]<=32768,attachments
-     if frames>1:
+     assert attachments[0]==section_frames-1 and attachments[5]<=32768,attachments
+     if section_frames>1:
       assert attachments[3]==glare_instances[3] and attachments[4]==glare_instances[0],attachments
      report['attachments']=attachments
      glare_rooms=words(monitor,symbol('rf_scene_glare_rooms'),8)
      assert glare_rooms==expected('GLARE_ROOMS') and glare_rooms[7]==0,glare_rooms
-     assert glare_rooms[0]==frames-1 and glare_rooms[1]==(frames-1)*glare_instances[3]-(max(0,frames-91)*3 if args.glare_loss else 0),glare_rooms
-     if frames>1:
+     assert glare_rooms[0]==section_frames-1 and glare_rooms[1]==(section_frames-1)*glare_instances[3]-(max(0,section_frames-91)*3 if args.glare_loss else 0),glare_rooms
+     if section_frames>1:
       assert glare_rooms[2]==glare_instances[3] and glare_rooms[3]>0,glare_rooms
       assert glare_rooms[5]==20*glare_instances[3] and glare_rooms[5]<=65536,glare_rooms
      report['glare_rooms']=glare_rooms
      clutter_tag_queries=words(monitor,symbol('rf_scene_clutter_tag_queries'),5)
      assert clutter_tag_queries==expected('CLUTTER_TAG_QUERIES') and clutter_tag_queries[4]==0,clutter_tag_queries
-     if replay_env['RF_REPLAY_LEVEL'].lower()=='l1s1.rfl':
+     if final_level.lower()=='l1s1.rfl':
       tag_query_reference=json.loads((root/'artifacts/clutter-scene-tag-queries.json').read_text())
       assert tag_query_reference['result']=='PASS' and clutter_tag_queries==tag_query_reference['expected'],clutter_tag_queries
      report['clutter_tag_queries']=clutter_tag_queries
@@ -501,28 +519,28 @@ dvd_path = '{root.as_posix()}/build/xbox/redfaction-diagnostic.iso'
      assert clutter_skins==expected('CLUTTER_SKINS') and clutter_skins[1]==clutter_render[1],clutter_skins
      assert clutter_materials[0]==clutter_skins[0],clutter_materials
      assert clutter_materials[3]<=clutter_materials[4]<=1024*1024,clutter_materials
-     if replay_env['RF_REPLAY_LEVEL'].lower()=='l1s1.rfl':
+     if final_level.lower()=='l1s1.rfl':
       skin_reference=json.loads((root/'artifacts/clutter-scene-skins.json').read_text())
       assert skin_reference['result']=='PASS' and clutter_skins==skin_reference['expected'],clutter_skins
       assert clutter_materials[:5]==[12,23,12,909700,915680],clutter_materials
      report['clutter_materials']=clutter_materials
      report['clutter_skins']=clutter_skins
      clutter_draw=words(monitor,symbol('rf_scene_clutter_draw'),6)
-     assert clutter_draw==expected('CLUTTER_DRAW') and clutter_draw[0]==frames,clutter_draw
+     assert clutter_draw==expected('CLUTTER_DRAW') and clutter_draw[0]==section_frames,clutter_draw
      assert clutter_draw[4]==0 and clutter_draw[2]%3==0,clutter_draw
      report['clutter_draw']=clutter_draw
      clutter_bodies=words(monitor,symbol('rf_scene_clutter_bodies'),10)
      assert clutter_bodies==expected('CLUTTER_BODIES'),clutter_bodies
      assert clutter_bodies[0]==clutter_bodies[6]==clutter_bodies[7]==clutter_render[1],clutter_bodies
      assert clutter_bodies[8:]==[0,0] and clutter_bodies[3]<=clutter_bodies[4]<=256*1024,clutter_bodies
-     if replay_env['RF_REPLAY_LEVEL'].lower()=='l1s1.rfl':
+     if final_level.lower()=='l1s1.rfl':
       body_reference=json.loads((root/'artifacts/clutter-scene-bodies.json').read_text())
       assert body_reference['result']=='PASS' and clutter_bodies[:5]==body_reference['expected'],clutter_bodies
      report['clutter_bodies']=clutter_bodies
      clutter_collision=words(monitor,symbol('rf_scene_clutter_collision'),9)
      assert clutter_collision==expected('CLUTTER_COLLISION') and clutter_collision[8]==0,clutter_collision
      assert clutter_collision[0]==clutter_render[0] and clutter_collision[4]==6*clutter_bodies[0],clutter_collision
-     if replay_env['RF_REPLAY_LEVEL'].lower()=='l1s1.rfl':
+     if final_level.lower()=='l1s1.rfl':
       collision_reference=json.loads((root/'artifacts/clutter-scene-collision.json').read_text())
       assert collision_reference['result']=='PASS' and clutter_collision==collision_reference['expected'],clutter_collision
      report['clutter_collision']=clutter_collision
@@ -536,11 +554,11 @@ dvd_path = '{root.as_posix()}/build/xbox/redfaction-diagnostic.iso'
      collision_cache=words(monitor,symbol('rf_scene_npc_collision_cache'),6)
      assert collision_cache==expected('NPC_COLLISION_CACHE'),collision_cache
      assert collision_cache[0]==collision_cache[4]==npc_models[0] and collision_cache[1]<=256*1024 and collision_cache[5]==0,collision_cache
-     if frames>1:assert collision_cache[2]>0,collision_cache
+     if section_frames>1:assert collision_cache[2]>0,collision_cache
      report['npc_collision_cache']=collision_cache
      model_queries=words(monitor,symbol('rf_scene_npc_model_queries'),7)
      assert model_queries==expected('NPC_MODEL_QUERIES') and model_queries[1]+model_queries[2]<=1024*1024 and model_queries[6]==0,model_queries
-     if args.actor_pairs and frames>1:assert model_queries[3]>0 and model_queries[4]>0,model_queries
+     if args.actor_pairs and section_frames>1:assert model_queries[3]>0 and model_queries[4]>0,model_queries
      report['npc_model_queries']=model_queries
      impact_groups=words(monitor,symbol('rf_scene_npc_impact_groups'),3)
      assert impact_groups==expected('NPC_IMPACT_GROUPS') and impact_groups[1]==impact_groups[0]*4,impact_groups
@@ -606,13 +624,13 @@ dvd_path = '{root.as_posix()}/build/xbox/redfaction-diagnostic.iso'
      report['pair_dispatch']=pair_dispatch
      collision_views=words(monitor,symbol('rf_scene_collision_views'),8)
      assert collision_views==expected('COLLISION_VIEWS'),collision_views
-     assert collision_views[0]==frames and collision_views[3]==frames*npc_bodies[1],collision_views
-     assert collision_views[4]==0xffffffff and collision_views[5]==npc_bodies[1] and collision_views[6]==0 and collision_views[7]==frames-1,collision_views
+     assert collision_views[0]==section_frames and collision_views[3]==section_frames*npc_bodies[1],collision_views
+     assert collision_views[4]==0xffffffff and collision_views[5]==npc_bodies[1] and collision_views[6]==0 and collision_views[7]==section_frames-1,collision_views
      report['collision_views']=collision_views
      collision_responses=words(monitor,symbol('rf_scene_collision_responses'),6)
      assert collision_responses==expected('COLLISION_RESPONSES'),collision_responses
-     assert collision_responses[0]==frames and collision_responses[3]==frames*npc_bodies[1],collision_responses
-     assert collision_responses[4]==0 and collision_responses[5]==frames-1,collision_responses
+     assert collision_responses[0]==section_frames and collision_responses[3]==section_frames*npc_bodies[1],collision_responses
+     assert collision_responses[4]==0 and collision_responses[5]==section_frames-1,collision_responses
      report['collision_responses']=collision_responses
      actor_pairs=words(monitor,symbol('rf_scene_actor_pair_test'),8)
      assert actor_pairs==expected('ACTOR_PAIR_TEST'),actor_pairs
@@ -777,7 +795,7 @@ dvd_path = '{root.as_posix()}/build/xbox/redfaction-diagnostic.iso'
      death_clearance=words(monitor,symbol('rf_scene_death_clearance_test'),8)
      assert death_clearance==expected('DEATH_CLEARANCE'),death_clearance
      if args.damage_uid is not None:
-      passes=int(frames>1)+int(frames>90)
+      passes=int(section_frames>1)+int(section_frames>90)
       assert death_clearance[0]==passes and death_clearance[6]==0,death_clearance
       assert death_clearance[1]==2*passes*death_clearance[4] and sum(death_clearance[2:4])==death_clearance[1],death_clearance
       assert death_clearance[7]==20*death_clearance[4],death_clearance
@@ -900,6 +918,8 @@ dvd_path = '{root.as_posix()}/build/xbox/redfaction-diagnostic.iso'
       report['outside_distance']=sum((positions[-1][i]-positions[0][i])**2 for i in range(3))**.5 if len(positions)>1 else 0
       assert report['outside_distance']>.25,'Walking approach missing'
     report['available_pages_at_completion']=d[44]
+    report['level_transitions']=words(monitor,symbol('rf_xbox_level_transitions'),4)
+    assert report['level_transitions'][:3]==([len(pc_transitions),int(pc_transitions[-1][2]),int(pc_transitions[-1][3])] if pc_transitions else [0,0,0])
     replay_state=words(monitor,symbol('rf_player_replay_diagnostic'),4);assert replay_state==[0,frames,frames,0],replay_state
     assert d[37]==frames and d[46]==3145728
     peak=max(s[36]*56 for s in report['samples']);report['sampled_gpu_mesh_peak_bytes']=peak
@@ -958,6 +978,8 @@ finally:
  except Exception as capture_error:
   report['result']='FAIL';report['capture_error']=repr(capture_error)
  try:
+  if saved_exit is None:exit_file.unlink(missing_ok=True)
+  else:exit_file.write_bytes(saved_exit)
   if saved_volume is None:volume_flag.unlink(missing_ok=True)
   else:volume_flag.write_bytes(saved_volume)
   if saved_regen is None:regen_flag.unlink(missing_ok=True)

@@ -35,4 +35,6 @@ int rf_xbox_particle_draw(const rf_particle_draw_vertex *vertices,uint32_t count
 void rf_xbox_particle_pixel_test(void);
 extern uint32_t rf_particle_pixel_diagnostic[20];
 extern uint32_t rf_particle_texture_diagnostic[1544];
+/* Drain GPU work and drop cached borrowed texture pointers before level owners close. */
+void rf_xbox_scene_stream_close(void);
 #endif
