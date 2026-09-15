@@ -132,3 +132,20 @@ Next: verify the13200-frame route on stock64MiB Xbox, then continue L3S1 gamepla
 The tight low-health replay does not replace representative human playtesting.
 Overall first-pass estimate: ~48%; this turn extends verified campaign coverage,
 not engine fidelity or visual polish.
+
+## Full-route Xbox verification (2026-09-15)
+
+`artifacts/xemu/render-20260915-014953`: PASS13200frames on stock64MiB.
+All32 selected final-state comparisons pass, including all77 player-body words.
+Native transition counters are[2,6604,13085,12743], with destination L3S1.rfl;
+PC independently reports the two expected transitions at7275 and13085.
+Both finish with5health and5rifle rounds. Endpoint free memory is6278pages
+(24.5234375MiB), not a minimum-memory guarantee for the complete route.
+The harness restored all18 saved disc entries and closed its own emulator;
+a subsequent process inventory found no project XEMU session.
+
+This establishes natural full-route arrival and selected final-state parity.
+Combat counters reset on section change: the final L3S1 snapshot alone does
+not independently prove all nine preceding kills. The12910-frame PC prefix
+provides that kill evidence; the earlier11950-frame native run independently
+covers seven. Further L3S1 traversal and combat are PC-only so far.

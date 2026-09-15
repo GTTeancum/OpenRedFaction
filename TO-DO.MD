@@ -4,7 +4,8 @@
 - Weapons: Verify remaining enemy drop policies and uncollected-drop revisits; supported held weapons now drop collectible supplies, with PC/Xbox rifle acquisition and firing verified.
 - Combat: Finish enemy damage amounts, cadence and weapon coverage; authored SP primary spread and target/bullet-obstruction checks now pass PC/Xbox verification (24 hits, 3 misses).
 - Weapons: Exercise the shotgun in the uninterrupted campaign and continue weapon coverage; PC manual/automatic reload and PC/Xbox automatic reload plus two-level persistence checks now pass.
-- Gameplay: Verify the full L2S3 shaft route on Xbox, then continue L3S1; PC now clears nine L2S3 enemies and crosses the natural exit alive, while Xbox covers seven earlier kills.
+- Health: Implement the separate First Aid Kit pickup class used by L3S1 cabinets; Medical Kit works, but the class whitelist currently skips both cabinet kits.
+- Gameplay: Collect L3S1 entry supplies and continue its encounters; full-route Xbox arrival now passes, and PC clears the first L3S1 guard while preserving the allied miner.
 - Movement: Refine ladder entry and top-edge transitions; body contact now unblocks the first L2S3 ladder, but the verified route still uses a jump and repeated top-edge state changes need smoothing.
 
 Weapon-drop update (2026-09-15): Supported enemy weapons now become collectible
@@ -30,6 +31,13 @@ clears both corridor guards (nine total L2S3 kills), and naturally crosses
 exit6604 into L3S1 at13085. The13200-frame route finishes alive with5health
 and5rifle rounds. No physics, health or inventory changes were needed.
 Full-route Xbox verification and L3S1 gameplay remain open. Estimate ~48%.
+
+L3S1 update (2026-09-15): The13200-frame Xbox route passes32 final-state
+comparisons and the natural L3S1 transition, with24.523MiB free at the endpoint.
+PC continues through the side-room ladder and kills guard109; miner789 remains
+unharmed. Cabinet supplies and further encounters remain open. Final native
+combat counters reset on transition; see docs/MAIN-SHAFT.md and
+docs/L3S1-ENTRY.md for exact coverage. Estimate remains ~48%.
 
 First-pass policy: playable campaign systems take priority over exact1:1 RE.
 Use practical shared implementations, verify gameplay and stock64MiB operation,
