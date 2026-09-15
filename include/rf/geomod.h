@@ -33,6 +33,20 @@ typedef struct rf_geomod_vertex {float position[3],uv[2];} rf_geomod_vertex;
 int rf_geomod_polygon_split(const rf_geomod_vertex *vertices,uint32_t count,
     const float plane[4],rf_geomod_vertex *front,uint32_t front_capacity,
     rf_geomod_vertex *back,uint32_t back_capacity,uint32_t *front_count,uint32_t *back_count);
+/* Port surface-lightmap grid. No allocation; power-of-two dimensions4..64,
+ * one border texel. Inputs are a unit plane and convex planar face; sample/UV
+ * calls require a grid returned by open. Layout and sampling use the dominant
+ * projection; samples outside its convex footprint clamp to the nearest edge.
+ * This is independent of atlas ownership, GPU upload and light selection. */
+typedef struct rf_geomod_light_grid {
+    float plane[4],minimum[2],maximum[2];uint32_t axis,u,v,width,height;
+} rf_geomod_light_grid;
+int rf_geomod_light_grid_open(const rf_geomod_vertex *,uint32_t,const float plane[4],
+    float spacing,rf_geomod_light_grid *);
+int rf_geomod_light_grid_sample(const rf_geomod_light_grid *,const rf_geomod_vertex *,uint32_t,
+    uint32_t x,uint32_t y,float position[3]);
+/* UVs place footprint extrema at the centers of the inner texels. */
+int rf_geomod_light_grid_uv(const rf_geomod_light_grid *,const float position[3],float uv[2]);
 typedef struct rf_geomod_fragment {uint32_t first,count;} rf_geomod_fragment;
 /* Subtract a convex cutter (interior is negative for every plane) from one
  * convex surface polygon. Returns disjoint surviving convex fragments. This

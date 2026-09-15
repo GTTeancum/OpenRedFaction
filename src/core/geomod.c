@@ -41,6 +41,78 @@ int rf_geomod_light_visible(const rf_geomod_terrain_view *terrain,
     if(status)return status;*visible=!matched;return RF_OK;
 }
 
+int rf_geomod_light_grid_open(const rf_geomod_vertex *vertices,uint32_t count,
+    const float plane[4],float spacing,rf_geomod_light_grid *out)
+{
+    rf_geomod_light_grid g={0};uint32_t i,j,dims[2];
+    if(!vertices || !plane || !out || count<3 || count>64)return RF_RANGE;
+    if(!isfinite(spacing) || spacing<=0)return RF_FORMAT;
+    for(i=0;i<4;i++)if(!isfinite(plane[i]))return RF_FORMAT;
+    for(i=1;i<3;i++)if(fabsf(plane[i])>fabsf(plane[g.axis]))g.axis=i;
+    if(plane[g.axis]==0)return RF_FORMAT;
+    g.u=(g.axis+1)%3;g.v=(g.axis+2)%3;memcpy(g.plane,plane,16);
+    for(i=0;i<count;i++) {
+        double distance=plane[3];
+        for(j=0;j<3;j++) {
+            if(!isfinite(vertices[i].position[j]))return RF_FORMAT;
+            distance+=(double)plane[j]*vertices[i].position[j];
+        }
+        if(fabs(distance)>1e-5)return RF_FORMAT;
+        for(j=0;j<2;j++) {
+            float value=vertices[i].position[j?g.v:g.u];
+            if(!i || value<g.minimum[j])g.minimum[j]=value;
+            if(!i || value>g.maximum[j])g.maximum[j]=value;
+        }
+    }
+    for(j=0;j<2;j++) {
+        double span=(double)g.maximum[j]-g.minimum[j],needed=ceil(span/spacing)+3;
+        if(span<=0)return RF_FORMAT;
+        if(needed>64)return RF_RANGE;
+        dims[j]=4;while(dims[j]<needed)dims[j]*=2;
+    }
+    g.width=dims[0];g.height=dims[1];*out=g;return RF_OK;
+}
+int rf_geomod_light_grid_uv(const rf_geomod_light_grid *g,const float position[3],float uv[2])
+{
+    float result[2];unsigned j;
+    if(!g || !position || !uv || g->u>2 || g->v>2 || g->width<4 || g->height<4)return RF_RANGE;
+    for(j=0;j<2;j++) {
+        double span=(double)g->maximum[j]-g->minimum[j],p=position[j?g->v:g->u];unsigned size=j?g->height:g->width;
+        if(!isfinite(span) || span<=0 || !isfinite(p))return RF_FORMAT;
+        result[j]=(float)((1.5+(p-g->minimum[j])*(size-3)/span)/size);
+    }
+    memcpy(uv,result,8);return RF_OK;
+}
+int rf_geomod_light_grid_sample(const rf_geomod_light_grid *g,const rf_geomod_vertex *vertices,
+    uint32_t count,uint32_t x,uint32_t y,float position[3])
+{
+    double p[2],nearest[2]={0},best=1e300;int positive=0,negative=0;unsigned i,j;float out[3];
+    if(!g || !vertices || !position || count<3 || count>64 || g->axis>2 || g->u>2 || g->v>2 ||
+        g->axis==g->u || g->axis==g->v || g->u==g->v || g->width<4 || g->height<4 || x>=g->width || y>=g->height)return RF_RANGE;
+    for(j=0;j<4;j++)if(!isfinite(g->plane[j]))return RF_FORMAT;
+    if(g->plane[g->axis]==0)return RF_FORMAT;
+    for(j=0;j<2;j++) {
+        unsigned at=j?y:x,size=j?g->height:g->width;double span=(double)g->maximum[j]-g->minimum[j];
+        if(!isfinite(span) || span<=0)return RF_FORMAT;
+        p[j]=g->minimum[j]+((double)at-1)*span/(size-3);
+    }
+    for(i=0;i<count;i++) {
+        const float *a=vertices[i].position,*b=vertices[(i+1)%count].position;
+        double ax=a[g->u],ay=a[g->v],dx=(double)b[g->u]-ax,dy=(double)b[g->v]-ay;
+        double cross=dx*(p[1]-ay)-dy*(p[0]-ax),length=dx*dx+dy*dy,t,q[2],distance;
+        if(!isfinite(cross) || !isfinite(length) || length==0)return RF_FORMAT;
+        positive|=cross>0;negative|=cross<0;
+        t=((p[0]-ax)*dx+(p[1]-ay)*dy)/length;t=fmax(0,fmin(1,t));
+        q[0]=ax+t*dx;q[1]=ay+t*dy;distance=(p[0]-q[0])*(p[0]-q[0])+(p[1]-q[1])*(p[1]-q[1]);
+        if(distance<best){best=distance;nearest[0]=q[0];nearest[1]=q[1];}
+    }
+    if(positive && negative){p[0]=nearest[0];p[1]=nearest[1];}
+    out[g->u]=(float)p[0];out[g->v]=(float)p[1];
+    out[g->axis]=(float)(-((double)g->plane[g->u]*out[g->u]+(double)g->plane[g->v]*out[g->v]+g->plane[3])/g->plane[g->axis]);
+    for(j=0;j<3;j++)if(!isfinite(out[j]))return RF_FORMAT;
+    memcpy(position,out,12);return RF_OK;
+}
+
 int rf_geomod_planar_uv(const float normal[3],const float position[3],
     uint32_t width,uint32_t height,float uv[2])
 {

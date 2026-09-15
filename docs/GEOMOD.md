@@ -1179,3 +1179,30 @@ No runtime change, visual improvement, or original-game appearance parity is
 claimed. The captured probe output is pixel-identical to the prior close view.
 Full lightmap generation remains the intended fidelity direction; a center
 sample alone would still be an approximation, not proof of correct shadows.
+
+## Bounded crater surface-lightmap grids (2026-09-15)
+
+rf_geomod_light_grid_open/sample/uv provide the first part of generated
+surface lightmaps. Each convex planar face receives a dominant-axis projection
+and power-of-two grid from4x4 to64x64, including a border texel. Requested
+spacing bounds the distance between interior grid samples. Oversized grids
+fail explicitly; no hidden reduction in requested density. UV extrema map to
+inner texel centers, retaining a border for filtered sampling. Grid samples
+outside the polygon footprint clamp to its nearest projected edge, then return
+to the receiving plane, avoiding lighting samples in neighboring solid terrain.
+This is a practical port layout, not an original lightmap-packer reconstruction.
+
+The implementation allocates nothing; grid/image/atlas ownership remains with
+the caller. Layout failures preserve output. Tests cover all three principal
+plane axes, UV/sample correspondence, interior sampling, out-of-footprint
+clamping, insufficient extent limits, nonfinite spacing and invalid coordinates.
+The six-cut original-template fixture samples every generated face at0.5-unit
+spacing and checks each point against its plane and every convex edge. Texel
+counts after cuts1-6 are2160,5824,10240,14976,18480,22784. The last represents
+45568bytes of1555 pixel data before atlas padding, metadata or staging buffers.
+Both GeoMod interior/repeated-cut CTests pass; NXDK builds.
+
+Evidence:artifacts/geomod-light-grid.log and geomod-light-grid-xbox-build.log.
+The grids are not yet used by the scene renderer: lighting evaluation, bounded
+atlas ownership, upload and mapped drawing remain to be integrated. No new
+visual result or XEMU runtime verification is claimed for this foundation.

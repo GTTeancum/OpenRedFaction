@@ -229,8 +229,42 @@ static int terrain_ray_coverage(const rf_geomod_terrain_view *live,unsigned cut)
     }
     printf("TERRAIN_COVERAGE cut %u nearest %u short_segment %u\n",cut,probes,probes);return 0;
 }
+static int light_grid_check(void)
+{
+    unsigned axis,x,y;rf_geomod_vertex vertices[3]={0};
+    for(axis=0;axis<3;axis++) {
+        unsigned u=(axis+1)%3,v=(axis+2)%3;float plane[4]={0},point[3],uv[2];rf_geomod_light_grid grid,saved;
+        plane[axis]=1;plane[3]=-2;
+        memset(vertices,0,sizeof(vertices));
+        vertices[0].position[u]=-1;vertices[0].position[v]=-1;
+        vertices[1].position[u]=1;vertices[1].position[v]=-1;
+        vertices[2].position[u]=-1;vertices[2].position[v]=1;
+        for(x=0;x<3;x++)vertices[x].position[axis]=2;
+        CHECK(!rf_geomod_light_grid_open(vertices,3,plane,.5f,&grid));
+        CHECK(grid.width==8 && grid.height==8 && grid.axis==axis);
+        for(y=0;y<8;y++)for(x=0;x<8;x++) {
+            CHECK(!rf_geomod_light_grid_sample(&grid,vertices,3,x,y,point));
+            CHECK(point[axis]==2 && point[u]>=-1 && point[v]>=-1 && point[u]+point[v]<=1e-6);
+        }
+        CHECK(!rf_geomod_light_grid_uv(&grid,vertices[0].position,uv));
+        CHECK(uv[0]==1.5f/8 && uv[1]==1.5f/8);
+        CHECK(!rf_geomod_light_grid_sample(&grid,vertices,3,1,1,point));
+        CHECK(!memcmp(point,vertices[0].position,12));
+        /* A bright interior sample cannot be reconstructed from three dark
+         * corner samples; the grid includes interior surface positions. */
+        CHECK(!rf_geomod_light_grid_sample(&grid,vertices,3,3,3,point));
+        CHECK(point[u]>-.5f && point[v]>-.5f && point[u]<0 && point[v]<0);
+        saved=grid;CHECK(rf_geomod_light_grid_open(vertices,3,plane,.001f,&grid)==RF_RANGE);
+        CHECK(!memcmp(&saved,&grid,sizeof(grid)));
+        CHECK(rf_geomod_light_grid_open(vertices,3,plane,NAN,&grid)==RF_FORMAT);
+        point[0]=point[1]=point[2]=123;
+        CHECK(rf_geomod_light_grid_sample(&grid,vertices,3,8,0,point)==RF_RANGE && point[0]==123);
+    }
+    return 0;
+}
 int main(int argc,char **argv)
 {
+    CHECK(!light_grid_check());
     {
         unsigned axis,k;const int signs[4][2]={{-1,-1},{1,-1},{1,1},{-1,1}};
         for(axis=0;axis<3;axis++) {
@@ -880,6 +914,31 @@ int main(int argc,char **argv)
                     printf("JUNCTION_REFERENCE cut %u double_hits %u direct_hits %u\n",repeat+1,reference_hits,direct_hits);
                     junction_misses+=misses;CHECK(!body_misses);
                     CHECK(reference_hits==misses); /* These misses have mesh intersections. */
+                }
+                {
+                    unsigned samples=0;
+                    for(i=0;i<live.mesh.face_count;i++) {
+                        const rf_geomod_face *face=live.mesh.faces+i;rf_geomod_light_grid grid;
+                        unsigned x,y;float sample[3];
+                        if(face->source_face!=UINT32_MAX)continue;
+                        CHECK(!rf_geomod_light_grid_open(live.mesh.vertices+face->first,face->count,live.faces[i].plane,.5f,&grid));
+                        for(y=0;y<grid.height;y++)for(x=0;x<grid.width;x++) {
+                            double distance=grid.plane[3];unsigned k;
+                            CHECK(!rf_geomod_light_grid_sample(&grid,live.mesh.vertices+face->first,face->count,x,y,sample));
+                            for(k=0;k<3;k++)distance+=(double)grid.plane[k]*sample[k];
+                            CHECK(fabs(distance)<1e-5);
+                            for(k=0;k<face->count;k++) {
+                                const float *a=live.mesh.vertices[face->first+k].position;
+                                const float *b=live.mesh.vertices[face->first+(k+1)%face->count].position;
+                                double edge[3],q[3],side=0,length=0;unsigned c;
+                                for(c=0;c<3;c++){edge[c]=(double)b[c]-a[c];q[c]=(double)sample[c]-a[c];length+=edge[c]*edge[c];}
+                                for(c=0;c<3;c++)side+=grid.plane[c]*(edge[(c+1)%3]*q[(c+2)%3]-edge[(c+2)%3]*q[(c+1)%3]);
+                                CHECK(side>=-1e-5*sqrt(length));
+                            }
+                            samples++;
+                        }
+                    }
+                    printf("CRATER_LIGHT_GRID cut %u samples %u\n",repeat+1,samples);CHECK(samples>0);
                 }
                 CHECK(!terrain_ray_coverage(&live,repeat+1));
                 CHECK(-total>previous_volume);previous_volume=-total;
