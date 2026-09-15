@@ -141,7 +141,7 @@ static int collision_clearance(const rf_geomod_mesh_view *mesh,int tunnel)
     }
     rf_collision_tree_close(&tree);return 0;
 }
-int main(void)
+int main(int argc,char **argv)
 {
     float source[6][4],cutter[6][4],lo[3]={-2,-2,-2},hi[3]={2,2,2};
     rf_geomod_vertex faces[6][4],cut_faces[6][4],out[2048],sentinel[64];rf_geomod_fragment fragments[32];
@@ -309,5 +309,75 @@ int main(void)
             }
         }
     }
-    puts("PASS: repeated cuts, edge closure, materials, ray/body clearance, interior collision and rollback");return 0;
+    {
+        static rf_geomod_multi_work work;
+        rf_geomod_face sf[6],cf[6];rf_geomod_mesh_view src,cuts[2],pending;
+        rf_geomod_vertex second[6][4];rf_geomod_storage *s=NULL;
+        const float other_lo[3]={-1,-3,-1},other_hi[3]={1,3,1};
+        box(lo,hi,source,faces);box(cut_lo,cut_hi,cutter,cut_faces);box(other_lo,other_hi,cutter,second);
+        for(i=0;i<6;i++) {
+            rf_geomod_vertex t=faces[i][0];faces[i][0]=faces[i][3];faces[i][3]=t;
+            t=faces[i][1];faces[i][1]=faces[i][2];faces[i][2]=t;
+            sf[i]=(rf_geomod_face){i*4,4,100+i,i};cf[i]=(rf_geomod_face){i*4,4,200+i,i};
+        }
+        src=(rf_geomod_mesh_view){faces[0],sf,24,6,0};
+        cuts[0]=(rf_geomod_mesh_view){cut_faces[0],cf,24,6,0};cuts[1]=(rf_geomod_mesh_view){second[0],cf,24,6,0};
+        CHECK(!rf_geomod_storage_open(&src,2048,128,100000,&s));
+        CHECK(rf_geomod_storage_prepare_cuts(s,cuts,1,&work)==RF_FORMAT);
+        for(unsigned count=1;count<=3;count++) {
+            if(count==3)cuts[1]=cuts[0];
+            CHECK(!rf_geomod_storage_prepare_cavity_cuts(s,cuts,count==3?2:count,&work));
+            CHECK(!rf_geomod_storage_pending(s,&pending));
+            result=0;surface_count=polygon_count=0;
+            for(i=0;i<pending.face_count;i++) {
+                const rf_geomod_face *f=pending.faces+i;result+=volume(pending.vertices+f->first,f->count);
+                CHECK(record(pending.vertices+f->first,f->count));
+            }
+            CHECK(fabs(result-(-64-8*(double)(count==3?1:count)))<1e-5 && closed());
+            CHECK(!rf_geomod_storage_commit(s));
+        }
+        rf_geomod_storage_close(&s);
+    }
+    if(argc==2) {
+        static rf_geomod_multi_work work;static float positions[2048][3];
+        static rf_collision_face bound[128];static rf_collision_face_filter filters[128];
+        rf_vpp archive={0};rf_level level={0};rf_geometry geometry={0};
+        rf_geomod_face sf[6],cf[6];rf_geomod_mesh_view src,cut,pending;rf_geomod_storage *s=NULL;
+        rf_collision_tree tree={0};rf_collision_tree_hit hit;uint32_t matched;char path[1024];
+        const float wall_lo[3]={-1,-11,19},wall_hi[3]={1,-9,21};
+        float ray_start[3]={0,-10,19},ray_delta[3]={0,0,4};
+        snprintf(path,sizeof(path),"%s/levelsm.vpp",argv[1]);
+        CHECK(!rf_vpp_open(&archive,path));CHECK(!rf_level_open(&level,&archive,"glass_house.rfl"));
+        CHECK(!rf_geometry_open(&geometry,&level,1024*1024));
+        CHECK(geometry.faces==598 && geometry.vertices==782);
+        for(i=0;i<6;i++) {
+            rf_geometry_face f;CHECK(!rf_geometry_get_face(&geometry,i,&f) && f.corners==4);
+            sf[i]=(rf_geomod_face){i*4,4,f.texture,i};
+            for(j=0;j<4;j++) {
+                rf_geometry_corner c;CHECK(!rf_geometry_get_corner(&geometry,i,j,&c));
+                CHECK(!rf_geometry_vertex(&geometry,c.vertex,faces[i][j].position));memcpy(faces[i][j].uv,c.uv,8);
+            }
+            cf[i]=(rf_geomod_face){i*4,4,2,UINT32_MAX};
+        }
+        src=(rf_geomod_mesh_view){faces[0],sf,24,6,0};result=0;
+        for(i=0;i<6;i++)result+=volume(faces[i],4);
+        CHECK(fabs(result+30720)<1e-4); /* Actual inward room,32x24x40. */
+        box(wall_lo,wall_hi,cutter,cut_faces);cut=(rf_geomod_mesh_view){cut_faces[0],cf,24,6,0};
+        CHECK(!rf_geomod_storage_open(&src,2048,128,100000,&s));
+        CHECK(!rf_geomod_storage_prepare_cavity_cuts(s,&cut,1,&work));
+        CHECK(!rf_geomod_storage_pending(s,&pending));result=0;surface_count=polygon_count=0;
+        for(i=0;i<pending.face_count;i++) {
+            const rf_geomod_face *f=pending.faces+i;result+=volume(pending.vertices+f->first,f->count);
+            CHECK(record(pending.vertices+f->first,f->count));
+        }
+        CHECK(fabs(result+30724)<1e-4 && closed());
+        CHECK(!rf_geomod_collision_faces(&pending,filters,positions,2048,bound,128));
+        CHECK(!rf_collision_tree_open(bound,pending.face_count,1024*1024,&tree));
+        CHECK(!rf_collision_thin_tree(tree.nodes,tree.node_count,tree.faces,tree.face_count,0,
+            ray_start,ray_delta,1,tree.stack,tree.node_capacity,&hit,&matched));
+        CHECK(matched && fabs(hit.hit.fraction-.5f)<1e-5 && hit.hit.normal[2]<-.99f);
+        rf_collision_tree_close(&tree);rf_geomod_storage_close(&s);rf_geometry_close(&geometry);rf_vpp_close(&archive);
+        puts("PASS: authored Glass House cavity expansion, closed edges and excavated-wall collision");
+    }
+    puts("PASS: repeated solid/cavity cuts, edge closure, materials, ray/body clearance, rendering and rollback");return 0;
 }

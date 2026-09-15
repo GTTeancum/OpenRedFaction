@@ -80,6 +80,7 @@ int rf_geomod_storage_prepare_convex_cut(rf_geomod_storage *storage,
 #define RF_GEOMOD_WORK_FRAGMENTS 512
 typedef struct rf_geomod_multi_work {
     rf_geomod_cut_work split;
+    rf_geomod_cut_work seed;
     rf_geomod_vertex vertices[2][RF_GEOMOD_WORK_VERTICES];
     rf_geomod_fragment fragments[2][RF_GEOMOD_WORK_FRAGMENTS];
     float source_planes[32][4],cut_planes[RF_GEOMOD_CUT_LIMIT][32][4];
@@ -93,6 +94,12 @@ typedef struct rf_geomod_multi_work {
  * Zero cutters prepares the original. No allocation or retained input pointers.
  * Work and cutter inputs must not alias storage or each other. */
 int rf_geomod_storage_prepare_cuts(rf_geomod_storage *storage,
+    const rf_geomod_mesh_view *cutters,uint32_t count,rf_geomod_multi_work *work);
+/* Expand an inward-wound convex empty room by the cutter union. This treats
+ * original geometry as a cavity in surrounding material, not a finite solid.
+ * Same bounded full-history/pending-edit contract. It does not include room
+ * contents, other cavities, portals, or authored destruction eligibility. */
+int rf_geomod_storage_prepare_cavity_cuts(rf_geomod_storage *storage,
     const rf_geomod_mesh_view *cutters,uint32_t count,rf_geomod_multi_work *work);
 /* Bind a prepared mesh to the existing collision tree/query implementation.
  * Caller provides one explicit filter per face and persistent position/face

@@ -264,3 +264,42 @@ structure, handgun and HUD remain visible. Audio and full weapon-sequence
 presentation were not reviewed. NXDK builds the XBE/XISO; native execution of
 generated-terrain rendering remains unverified. Next is live terrain ownership
 and joint rendering/collision publication, then weapon impact and reset wiring.
+
+
+## Actual room cavity representation
+
+Inspection of glass_house.rfl section0x100 found598 faces,782 vertices and91
+serialized rooms. Faces0..5 form the inward-wound outer cavity with bounds
+(-16,-12,-20)..(16,12,20), signed volume-30720. They cannot be passed to the
+outward-solid cutter. The remaining geometry includes the central structure,
+small closed members and paired surfaces; it is not one convex material solid.
+
+rf_geomod_storage_prepare_cavity_cuts now expands a convex empty room by the
+complete bounded cutter union. It flips plane interpretation for original
+half-space validation, removes cut overlaps from inward room surfaces, and
+keeps reversed cutter boundaries outside the original air volume. Opposing
+contact faces are internal and removed; duplicate cutters retain one boundary.
+It shares history exclusion, capacity rollback and explicit pending publication
+with the solid path. It does not recover room merging, portals or cut eligibility.
+Detached cutters can mathematically create separate cavities; gameplay admission
+must prevent unwanted disconnected excavation. Other level geometry is external.
+
+The retained workspace now includes a second single-face fragment buffer so
+cavity seeds survive subsequent cutter exclusions: sizeof(rf_geomod_multi_work)
+is259072 bytes with the current scalar layouts, outside mesh/tree allocations.
+No cavity-cut allocation occurs. Live stock64MiB accounting must include it.
+
+Tests expand the synthetic cavity by one/two crossed cuts and duplicate cuts,
+checking signed volume and geometric edge closure. A separate installed-data
+case imports positions, UVs and materials from actual Glass House faces0..5,
+cuts x[-1,1],y[-11,-9],z[19,21], and verifies volume-30724 plus closed edges.
+The existing collision tree then hits the excavated wall at z21 instead ofz20.
+Run rf_geomod_interior_tests Installed_Game to include this case; CTest passes
+the absolute installed-data path. Earlier solid/collision/projection tests pass.
+
+This closes the original representation mismatch but does not yet change the
+live developer room. Next: publish replaced outer faces and their collision
+alongside the unchanged room contents, bind weapon impact and reset, then
+verify the actual view and player movement on PC/Xbox. Arbitrary campaign
+cavities and portal merging remain later work under the developer-room mandate.
+NXDK compilation passes and produces the XBE/XISO; cavity cutting has not yet run inside XEMU.
