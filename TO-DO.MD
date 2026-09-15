@@ -1,10 +1,10 @@
 # Red Faction Xbox / PC - open work
 
-- Weapons: Exercise automatic rifle fire in the main shaft; authored alternate cadence, spread and loop animation now pass PC/Xbox checks.
+- Weapons: Implement remaining campaign weapons beyond handgun, rifle, Riot Stick and shotgun; automatic rifle now clears three shaft guards on PC/Xbox.
 - Weapons: Verify remaining enemy drop policies and uncollected-drop revisits; supported held weapons now drop collectible supplies, with PC/Xbox rifle acquisition and firing verified.
 - Combat: Finish enemy damage amounts, cadence and weapon coverage; authored SP primary spread and target/bullet-obstruction checks now pass PC/Xbox verification (24 hits, 3 misses).
 - Weapons: Exercise the shotgun in the uninterrupted campaign and continue weapon coverage; PC manual/automatic reload and PC/Xbox automatic reload plus two-level persistence checks now pass.
-- Gameplay: Continue through the main L2S3 shaft; PC reaches the first upper landing with five health and a newly acquired rifle, while the updated full route still needs Xbox verification.
+- Gameplay: Step off the second L2S3 shaft ladder at the exit landing and clear its two guards; seven earlier L2S3 kills pass PC/Xbox, and the corrected crossing and second climb pass PC-only.
 - Movement: Refine ladder entry and top-edge transitions; body contact now unblocks the first L2S3 ladder, but the verified route still uses a jump and repeated top-edge state changes need smoothing.
 
 Weapon-drop update (2026-09-15): Supported enemy weapons now become collectible
@@ -18,6 +18,12 @@ Rifle alternate update (2026-09-15): Automatic fire now passes PC and stock64MiB
 Xbox (ten shots, three hits, one kill); PC also verifies burst/alternate handoffs
 and release. The loop adds5152bytes within a bounded8KiB budget extension.
 The main shaft encounter remains open; see docs/RIFLE-ALTERNATE.md. Estimate ~47%.
+
+Main-shaft update (2026-09-15): The11950-frame uninterrupted route passes all32
+PC/Xbox comparisons through seven L2S3 kills and the diagnostic50m climb.
+The intended35m crossing now passes on PC, and a PC extension reaches the top
+of the second shaft alive. Exit corridor, corrected-branch native verification
+and ladder dismount refinement remain open; see docs/MAIN-SHAFT.md. Estimate ~47%.
 
 First-pass policy: playable campaign systems take priority over exact1:1 RE.
 Use practical shared implementations, verify gameplay and stock64MiB operation,
