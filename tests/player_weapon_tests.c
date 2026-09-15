@@ -207,6 +207,23 @@ int main(int argc,char **argv)
              CHECK(shotgun.projectiles==4 && shotgun.spread_degrees==3 && shotgun.alt_spread_degrees==6);
              CHECK(shotgun.magazine==8 && shotgun.reload_seconds==2 && shotgun.fire_seconds==1.5f && shotgun.alt_fire_seconds==.225f);
              CHECK(shotgun.damage==40 && shotgun.alt_damage==40 && shotgun.damage_kind==1 && shotgun.ai_spread_degrees==5);}
+            CHECK(!rf_weapon_view_load(&tables,"Rocket Launcher",128*1024,&view));
+            CHECK(!strcmp(view.mesh,"fp_rocketlauncher.v3c") && !strcmp(view.clips[0],"fp_rocket_hold.rfa") &&
+                !strcmp(view.clips[1],"fp_rocket_fire.rfa") && !strcmp(view.clips[2],"fp_rocket_reload.rfa"));
+            CHECK(!rf_player_weapon_open_view(&meshes,&motions,maps,5,&view,1024*1024,&other));
+            CHECK(other->bone_count && other->geometry.vertex_count && other->materials.count && other->peak_bytes<=1024*1024);
+            printf("Rocket resources: bones=%u vertices=%u clips=%u resident=%u peak=%u\n",
+                other->bone_count,other->geometry.vertex_count,other->clip_count,other->resident_bytes,other->peak_bytes);
+            for(unsigned clip=0;clip<3;clip++) {
+                CHECK(!rf_player_weapon_step(other,(int32_t)clip,0));
+                for(unsigned tick=0;tick<240;tick++) {
+                    CHECK(!rf_player_weapon_step(other,-1,1.0f/60));
+                    for(unsigned bone=0;bone<other->bone_count;bone++)for(unsigned component=0;component<12;component++)
+                        CHECK(isfinite(other->prepared[bone][component]));
+                }
+                CHECK(other->current==0);
+            }
+            rf_player_weapon_close(&other);
             CHECK(rf_weapon_view_load(&tables,"Riot Stick",128*1024,&view)==RF_OK);
             CHECK(!strcmp(view.clips[3],"fp_riot_attack_taserB.rfa"));
             CHECK(!rf_player_weapon_open_view(&meshes,&motions,maps,5,&view,1024*1024,&riot));

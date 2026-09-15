@@ -2,7 +2,7 @@
 
 - DEV testbed: Review full weapon animations and add complete room reset; terrain reset and ammo refill are implemented, while campaign progression remains paused.
 - GeoMod: Add explosive-weapon integration, non-box cutters and authored eligibility; live repeated excavation passes PC/Xbox, and guarded terrain reset passes PC/Xbox checks.
-- Weapons: Integrate the verified swept rocket-flight core with scene impacts, damage, GeoMod, first-person presentation and developer-room supply.
+- Weapons: Integrate rocket flight, blast damage and GeoMod in the DEV room; authored launcher assets pass the 1 MiB resource budget, while live presentation and supply remain open.
 - Combat: Extend pain-reaction coverage across enemy weapons and encounters; retained attack locks now pass35 PC/Xbox comparisons with independent actor recovery.
 - Combat: Revalidate encounters with the new shared body-sphere bullet collision; captured false hits are rejected, but old oversized-box aiming replays need recalibration.
 - Weapons: Implement remaining campaign weapons beyond handgun, rifle, Riot Stick and shotgun; automatic rifle now clears three shaft guards on PC/Xbox.
@@ -5137,3 +5137,11 @@ Declared skeletal weapon groups now retain state/action file bindings within
 the1MiB budget;4284 weapon slots across63 level groups verify. Stable shared
 motion identities and initial actor/weapon selection are required before ticks.
 Native64MiB replay-20260911-070902 passes after weapon-group loading.
+
+Rocket resource preflight (2026-09-15): Authored launcher mesh, textures and
+idle/fire/reload clips load through the shared weapon owner with24bones and
+549vertices. PC accounting is879608resident/891204peak bytes, below1MiB.
+All three clips evaluate240ticks with finite skinning matrices and return
+to idle. This is asset/playback validation, not visual animation review or
+a playable launcher; scene firing, blast damage and explosive GeoMod remain
+open. Campaign progression stays paused. Estimate remains ~49%.

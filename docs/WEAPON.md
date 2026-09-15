@@ -366,3 +366,15 @@ gravity, bounce or grenade-fuse behavior. The callback still needs live scene
 routing across world/movers/actors, followed by damage and GeoMod dispatch.
 Projectile pool/resource ownership, launcher supply and visible presentation
 remain separate integration work; normal weapons are unchanged by this core.
+
+## Rocket launcher resource preflight
+
+The authored first-person definition resolves fp_rocketlauncher.v3c with
+fp_rocket_hold/fire/reload.rfa through the existing shared resource owner.
+Installed-asset PC verification loads24bones,549vertices and3clips with
+879608resident/891204peak accounted bytes, below the1MiB per-weapon budget.
+Each clip runs240ticks at60Hz with finite prepared skinning matrices and
+ends in idle. This establishes resource compatibility and numeric playback
+only: framing, complete visual animation review and audio remain unverified.
+The launcher is not yet selectable or firing in the live developer room.
+No native run or new Xbox build was needed for this test-only change.
