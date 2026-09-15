@@ -69,6 +69,19 @@ typedef rf_glare_materials rf_vfx_material_textures;
 int rf_vfx_material_textures_open(rf_vfx_material_textures *,const rf_vfx_material_view *,
     uint32_t count,rf_vpp *archives,uint32_t archive_count,uint32_t budget);
 void rf_vfx_material_textures_close(rf_vfx_material_textures *);
+/* Flatten legacy geometry-asset materials and deduplicate owned textures.
+ * Geometry/archives may close after success. Views retain texture/render
+ * fields only; serialized track offsets must not be used without mesh data.
+ * first[mesh]..first[mesh+1] maps local material IDs into views/bindings.
+ * Fixed64-material bound; budget covers owner and retained texture storage,
+ * excluding decoder stack/allocator metadata. Empty output required. */
+typedef struct rf_vfx_asset_materials {
+    rf_vfx_material_view views[64];uint32_t first[33],colors[64],count,resident_bytes;
+    rf_vfx_material_textures textures;
+} rf_vfx_asset_materials;
+int rf_vfx_asset_materials_open(const rf_vfx_geometry_asset *,rf_vpp *,uint32_t,uint32_t,rf_vfx_asset_materials **);
+void rf_vfx_asset_materials_close(rf_vfx_asset_materials **);
+
 /* Select retained primary(slot0)/secondary(slot1) image using authored clock
  * fields and original bitmap metadata rounding. Missing/original-map slots
  * return NOT_FOUND; caller supplies original-map ownership separately. No

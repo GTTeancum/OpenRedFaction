@@ -467,3 +467,24 @@ numeric resource readiness only, not visual correctness or live drawing.
 
 NXDK XBE/XISO build passes with the new geometry owner; live renderer
 integration is pending, so no native visual execution is claimed here.
+
+## Rocket material and texture ownership
+
+rf_vfx_asset_materials_open flattens legacy per-mesh material IDs through
+first[mesh] offsets, retains render/texture fields and color words, and
+loads deduplicated texture animations through the existing VFX loader.
+It has a64-material bound and transactional failure cleanup. Geometry and
+archives may close after success; embedded serialized track offsets are
+not standalone tracks and must not be sampled without original mesh data.
+Geometry-based material track evaluation remains a separate API.
+
+DrillMissile01.vfx resolves9materials to Dmissile_Parts01/02/03/04.tga and
+MissileFlare01.tga. All5textures contain one frame and load successfully.
+Retained material/texture storage is51536bytes, alongside48989geometry
+bytes (~98.2KiB combined). Tests reject resident-minus-one budget, close
+source archives/geometry, then sample all bound primary/secondary slots
+for61 timestamps without lost resources. No live render, blend correctness
+or native runtime visual claim follows from these resource checks.
+
+NXDK XBE/XISO build passes with the material owner; scene integration
+remains pending and this change does not add a native visual run.

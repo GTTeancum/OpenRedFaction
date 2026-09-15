@@ -5177,3 +5177,15 @@ Estimate ~49%; current area is projectile presentation.
 
 NXDK XBE/XISO build passes with the new geometry owner; live renderer
 integration is pending, so no native visual execution is claimed here.
+
+Rocket material ownership (2026-09-15): All9 authored VFX materials now
+map through a bounded shared owner to5 deduplicated textures; all5 resolve
+from installed archives. Materials/textures retain51536bytes, bringing
+geometry plus texture owners to100525bytes (~98.2KiB). Texture sampling
+passes after source geometry and archives close. Budget-minus-one rejects
+without output ownership. Live renderer submission, blend state and
+flight-time animation wrapping remain open; no new visual claim.
+Estimate ~49%; current area is projectile visuals.
+
+NXDK XBE/XISO build passes with the material owner; scene integration
+remains pending and this change does not add a native visual run.

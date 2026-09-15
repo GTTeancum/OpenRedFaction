@@ -653,3 +653,36 @@ int rf_vfx_material_texture_sample(const rf_vfx_material_textures *textures,cons
     status=rf_vfx_texture_frame(animation->count,duration,start,speed,view->words[field+2],time,normalized,&frame);
     if(status)return status;*out=animation->images+frame;return RF_OK;
 }
+
+void rf_vfx_asset_materials_close(rf_vfx_asset_materials **out)
+{
+    rf_vfx_asset_materials *m;if(!out || !(m=*out))return;
+    rf_vfx_material_textures_close(&m->textures);free(m);*out=NULL;
+}
+int rf_vfx_asset_materials_open(const rf_vfx_geometry_asset *asset,rf_vpp *maps,uint32_t map_count,
+    uint32_t budget,rf_vfx_asset_materials **out)
+{
+    rf_vfx_asset_materials *m;uint32_t i,j,at;int status;
+    if(!asset || !maps || !map_count || !out || *out || asset->count>32 || budget<sizeof(*m))return RF_RANGE;
+    m=calloc(1,sizeof(*m));if(!m)return RF_IO;
+    for(i=0;i<asset->count;i++) {
+        const rf_vfx_mesh *mesh=asset->meshes[i];
+        if(!mesh || mesh->version>=0x40000){status=RF_FORMAT;goto done;}
+        if(mesh->materials>64-m->count){status=RF_RANGE;goto done;}
+        m->first[i]=m->count;at=mesh->material_offset;
+        for(j=0;j<mesh->materials;j++) {
+            rf_vfx_embedded_material_view view;
+            if(at>mesh->bytes){status=RF_FORMAT;goto done;}
+            status=rf_vfx_embedded_material_read(mesh->data+at,mesh->bytes-at,mesh->version,
+                mesh->prefix.timing.flags,mesh->prefix.timing.samples,&view);if(status)goto done;
+            m->views[m->count]=view.material;m->colors[m->count]=view.color_word;++m->count;at+=view.material.bytes;
+        }
+    }
+    m->first[asset->count]=m->count;
+    status=rf_vfx_material_textures_open(&m->textures,m->views,m->count,maps,map_count,
+        budget-(uint32_t)sizeof(*m)+(uint32_t)sizeof(m->textures));if(status)goto done;
+    m->resident_bytes=(uint32_t)sizeof(*m)+m->textures.resident_bytes-(uint32_t)sizeof(m->textures);
+    *out=m;m=NULL;status=RF_OK;
+done:
+    rf_vfx_asset_materials_close(&m);return status;
+}
