@@ -472,7 +472,7 @@ int rf_item_definition_load(rf_vpp *tables,const char *name,uint32_t budget,rf_i
 
 int rf_weapon_view_read(const void *text,uint32_t bytes,const char *name,rf_weapon_view_definition *result)
 {
-    lexer l={text,bytes,0};rf_weapon_view_definition v={0};char t[256],file[64];
+    lexer l={text,bytes,0};rf_weapon_view_definition v={0};char t[256],file[64],alternate[64]={0};
     uint32_t mask=0,continuous_alt=0;int selected=0,found=0,q,status,index;
     if(!text || !name || !*name || !result)return RF_RANGE;
     while((status=token(&l,t,&q))==RF_OK) {
@@ -500,17 +500,18 @@ int rf_weapon_view_read(const void *text,uint32_t bytes,const char *name,rf_weap
         } else if(same(t,"+State:") || same(t,"+Action:")) {
             int action=same(t,"+Action:");
             if(token(&l,t,&q) || !q)return RF_FORMAT;
-            index=!action && same(t,"idle")?0:action && same(t,"fire")?1:action && same(t,"reload")?2:!action && same(t,"loop_fire")?3:-1;
+            index=!action && same(t,"idle")?0:action && same(t,"fire")?1:action && same(t,"reload")?2:!action && same(t,"loop_fire")?3:action && same(t,"alt_fire")?4:-1;
             if(index<0)continue;
             if(mask&(2u<<index))return RF_FORMAT;
             if(metadata_string(&l,file,sizeof(file)))return RF_FORMAT;
-            status=rf_motion_compiled_filename(file,v.clips[index]);if(status)return status;mask|=2u<<index;
+            status=rf_motion_compiled_filename(file,index==4?alternate:v.clips[index]);if(status)return status;mask|=2u<<index;
         }
     }
     if(status!=RF_OK && status!=RF_NOT_FOUND)return status;
     if(!found)return RF_NOT_FOUND;if((mask&15)!=15)return RF_FORMAT;
-    if(!continuous_alt)memset(v.clips[3],0,64);
+    if(!continuous_alt)memcpy(v.clips[3],alternate,64);
     else if(!(mask&16))return RF_FORMAT;
+    v.alt_loop=continuous_alt;
     *result=v;return RF_OK;
 }
 int rf_weapon_view_load(rf_vpp *tables,const char *name,uint32_t budget,rf_weapon_view_definition *result)
@@ -530,7 +531,7 @@ int rf_weapon_primary_read(const void *text,uint32_t bytes,const char *name,rf_w
     lexer l={text,bytes,0};rf_weapon_primary_definition v={0};char t[256];
     uint32_t mask=0,bit,other,burst_enabled=0,burst_alt=0;int selected=0,found=0,q,status;
     if(!text || !name || !*name || !result)return RF_RANGE;
-    v.burst_count=1;
+    v.burst_count=1;v.projectiles=1;
     while((status=token(&l,t,&q))==RF_OK) {
         if(q)continue;
         if(same(t,"$Name:")) {
@@ -564,6 +565,17 @@ int rf_weapon_primary_read(const void *text,uint32_t bytes,const char *name,rf_w
                 if(sphere_number(&l,&v.ai_spread_degrees) || sphere_number(&l,&paired))return RF_FORMAT;
                 if(!(v.ai_spread_degrees>=0 && v.ai_spread_degrees<=90 && paired>=0 && paired<=90))return RF_RANGE;
             } else continue;
+        } else if(same(t,"$Num")) {
+            if(token(&l,t,&q) || q || !same(t,"Projectiles:"))return RF_FORMAT;
+            bit=65536;if(mask&bit)return RF_FORMAT;
+            if(metadata_integer(&l,&v.projectiles))return RF_FORMAT;
+            if(!v.projectiles || v.projectiles>32)return RF_RANGE;
+        } else if(same(t,"$Spread")) {
+            if(token(&l,t,&q) || q)return RF_FORMAT;
+            if(!same(t,"Degrees:"))continue; /* Separate multiplayer clause. */
+            bit=131072;if(mask&bit)return RF_FORMAT;
+            if(sphere_number(&l,&v.spread_degrees))return RF_FORMAT;
+            if(!(v.spread_degrees>=0 && v.spread_degrees<=90))return RF_RANGE;
         } else if(same(t,"$Burst")) {
             if(token(&l,t,&q) || q || !same(t,"Mode:"))return RF_FORMAT;
             bit=64;if(mask&bit)return RF_FORMAT;
@@ -608,6 +620,12 @@ int rf_weapon_primary_read(const void *text,uint32_t bytes,const char *name,rf_w
                 bit=1024;if(mask&bit)return RF_FORMAT;
                 if(sphere_number(&l,&v.alt_fire_seconds))return RF_FORMAT;
                 if(!(v.alt_fire_seconds>0 && v.alt_fire_seconds<=60))return RF_RANGE;
+            } else if(same(t,"Spread")) {
+                if(token(&l,t,&q) || q)return RF_FORMAT;
+                if(!same(t,"Degrees:"))continue;
+                bit=262144;if(mask&bit)return RF_FORMAT;
+                if(sphere_number(&l,&v.alt_spread_degrees))return RF_FORMAT;
+                if(!(v.alt_spread_degrees>=0 && v.alt_spread_degrees<=90))return RF_RANGE;
             } else if(same(t,"Damage:")) {
                 bit=2048;if(mask&bit)return RF_FORMAT;
                 if(sphere_number(&l,&v.alt_damage))return RF_FORMAT;
@@ -644,6 +662,7 @@ int rf_weapon_primary_read(const void *text,uint32_t bytes,const char *name,rf_w
     if(!burst_enabled || burst_alt){v.burst_count=1;v.burst_seconds=0;}
     if(!(mask&1024))v.alt_fire_seconds=v.fire_seconds;
     if(!(mask&2048))v.alt_damage=v.damage;
+    if(!(mask&262144))v.alt_spread_degrees=v.spread_degrees;
     if(v.reload_drain_seconds>v.reload_seconds)return RF_RANGE;
     *result=v;return RF_OK;
 }

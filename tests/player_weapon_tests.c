@@ -37,6 +37,23 @@ int main(int argc,char **argv)
         CHECK(rf_weapon_primary_read(bad,(uint32_t)strlen(bad),"pistol",&d)==RF_RANGE && !memcmp(&d,&saved,sizeof(d)));
         CHECK(rf_weapon_primary_read(valid,(uint32_t)strlen(valid),"missing",&d)==RF_NOT_FOUND && !memcmp(&d,&saved,sizeof(d)));
         CHECK(d.ai_attack_range==0 && d.ai_spread_degrees==0);
+        CHECK(d.projectiles==1 && d.spread_degrees==0 && d.alt_spread_degrees==0);
+        {char table[1024];const char *end=strstr(valid,"#End");
+         const char *invalid[]={"$Num Projectiles: 0","$Num Projectiles: 33","$Num Projectiles: -1",
+             "$Num Projectiles: 4 $Num Projectiles: 4","$Num Projectiles:",
+             "$Spread Degrees: -1","$Spread Degrees: 91","$Spread Degrees: 3 $Spread Degrees: 4",
+             "$Alt Spread Degrees: -1","$Alt Spread Degrees: 91","$Alt Spread Degrees: 6 $Alt Spread Degrees: 7"};
+         snprintf(table,sizeof(table),"%.*s $Num Projectiles: 4 $Spread Degrees: 3 $Spread Degrees Multi: 2.75 $Alt Spread Degrees: 6 $Alt Spread Degrees Multi: 4 #End",(int)(end-valid),valid);
+         CHECK(!rf_weapon_primary_read(table,(uint32_t)strlen(table),"pistol",&d));
+         CHECK(d.projectiles==4 && d.spread_degrees==3 && d.alt_spread_degrees==6);
+         snprintf(table,sizeof(table),"%.*s $Spread Degrees: 3 #End",(int)(end-valid),valid);
+         CHECK(!rf_weapon_primary_read(table,(uint32_t)strlen(table),"pistol",&d) && d.alt_spread_degrees==3);
+         d=saved;
+         for(unsigned k=0;k<sizeof(invalid)/sizeof(*invalid);k++) {
+             snprintf(table,sizeof(table),"%.*s %s #End",(int)(end-valid),valid,invalid[k]);
+             CHECK(rf_weapon_primary_read(table,(uint32_t)strlen(table),"pistol",&d)!=RF_OK && !memcmp(&d,&saved,sizeof(d)));
+         }}
+
         {char spread[512];const char *end=strstr(valid,"#End");
          snprintf(spread,sizeof(spread),"%.*s $AI Spread Degrees: 3 4 #End",(int)(end-valid),valid);
          CHECK(rf_weapon_primary_read(spread,(uint32_t)strlen(spread),"pistol",&d)==RF_OK && d.ai_spread_degrees==3);d=saved;
@@ -174,6 +191,22 @@ int main(int argc,char **argv)
             CHECK(rf_player_weapon_open_view(&meshes,&motions,maps,5,&view,rifle->resident_bytes-1,&other)==RF_RANGE && !other);
             memset(view.mesh,'x',64);
             CHECK(rf_player_weapon_open_view(&meshes,&motions,maps,5,&view,2*1024*1024,&other)==RF_RANGE && !other);
+            CHECK(!rf_weapon_view_load(&tables,"Shotgun",128*1024,&view));
+            CHECK(!strcmp(view.mesh,"fp_shotgun.v3c") && !strcmp(view.clips[1],"fp_shotgun_fire_slow.rfa"));
+            CHECK(!rf_player_weapon_open_view(&meshes,&motions,maps,5,&view,1024*1024,&other));
+            CHECK(other->clip_count==4 && !view.alt_loop && !strcmp(view.clips[3],"fp_shotgun_fire_fast.rfa") && other->peak_bytes<=1024*1024);
+            printf("Shotgun resources: resident=%u peak=%u\n",other->resident_bytes,other->peak_bytes);
+            for(unsigned clip=0;clip<4;clip++) {
+                CHECK(!rf_player_weapon_step(other,(int32_t)clip,1.0f/60));
+                for(unsigned tick=0;tick<180;tick++)CHECK(!rf_player_weapon_step(other,-1,1.0f/60));
+                CHECK(other->current==0);
+            }
+            rf_player_weapon_close(&other);
+            {rf_weapon_primary_definition shotgun;
+             CHECK(!rf_weapon_primary_load(&tables,"Shotgun",128*1024,&shotgun));
+             CHECK(shotgun.projectiles==4 && shotgun.spread_degrees==3 && shotgun.alt_spread_degrees==6);
+             CHECK(shotgun.magazine==8 && shotgun.reload_seconds==2 && shotgun.fire_seconds==1.5f && shotgun.alt_fire_seconds==.225f);
+             CHECK(shotgun.damage==40 && shotgun.alt_damage==40 && shotgun.damage_kind==1 && shotgun.ai_spread_degrees==5);}
             CHECK(rf_weapon_view_load(&tables,"Riot Stick",128*1024,&view)==RF_OK);
             CHECK(!strcmp(view.clips[3],"fp_riot_attack_taserB.rfa"));
             CHECK(!rf_player_weapon_open_view(&meshes,&motions,maps,5,&view,1024*1024,&riot));

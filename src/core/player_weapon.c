@@ -42,7 +42,7 @@ int rf_player_weapon_open_view(rf_vpp *meshes,rf_vpp *motions,rf_vpp *maps,uint3
         status=rf_motion_file_bind_memory(w->clips+i,w->payloads[i],w->clips[i].entry.size);if(status)goto done;
         for(j=0;j<w->bone_count;j++){status=rf_motion_file_track(w->clips+i,j,&track);if(status)goto done;}
         status=rf_motion_file_track(w->clips+i,0,&track);if(status)goto done;
-        w->resources[i].comparison=track.envelope;w->resources[i].looping=i==0 || i==3;
+        w->resources[i].comparison=track.envelope;w->resources[i].looping=i==0 || (i==3 && definition->alt_loop);
         w->clips[i].archive=NULL;used+=w->clips[i].entry.size;
     }
     w->resident_bytes=used;if(used+scratch>w->peak_bytes)w->peak_bytes=used+scratch;
@@ -54,7 +54,7 @@ done:
 int rf_player_weapon_open(rf_vpp *meshes,rf_vpp *motions,rf_vpp *maps,uint32_t map_count,
     uint32_t budget,rf_player_weapon **result)
 {
-    const rf_weapon_view_definition pistol={"fp_glock.v3c",{"fp_glock_idle.rfa","fp_glock_fire.rfa","fp_glock_reload.rfa"}};
+    const rf_weapon_view_definition pistol={"fp_glock.v3c",{"fp_glock_idle.rfa","fp_glock_fire.rfa","fp_glock_reload.rfa"},0};
     return rf_player_weapon_open_view(meshes,motions,maps,map_count,&pistol,budget,result);
 }
 

@@ -412,3 +412,30 @@ The natural transition remains UID5150 at frame7275. Free memory is
 native comparisons verify aggregate combat and shared player state. All 18
 disc override files match the saved restoration manifest, and the owned
 XEMU process is closed. Rough project estimate remains approximately46%.
+
+
+## Shotgun resource and rules support (2026-09-14)
+
+The shared primary definition now retains Num Projectiles (default one,
+maximum32), SP primary spread and SP alternate spread (defaults to primary).
+The parser keeps multiplayer clauses separate, rejects duplicate/out-of-range
+values, and preserves the caller output on errors. Installed Shotgun settings
+are verified as four projectiles,3/6-degree spread,8 shells,2-second reload,
+1.50/.225-second firing waits and40 damage. These are data bindings; the scene
+still needs shotgun selection, pickup support and multi-pellet damage.
+
+The first-person view loader also retains a noncontinuous alt_fire action.
+The fourth clip now loops only when alt_continuous_fire selects loop_fire;
+ordinary alternate fire completes and returns to idle. This allows the
+shotgun fast-fire clip without treating it as the baton's held taser loop.
+Tests load fp_shotgun.v3c and all four authored clips, step each for180 ticks,
+and verify return to idle. The existing baton loop checks still pass.
+Shotgun resource residency is983,504 bytes and peak is995,100 bytes, inside
+the existing1MiB weapon budget. This is resource/playback evidence, not yet
+an in-game shotgun or its final camera placement. No Xbox runtime claim is
+made for the new shotgun resource; NXDK compilation is checked separately.
+
+Validation: PC Release build and player_weapon_resources pass; NXDK emits
+default.xbe and the XISO successfully. The compatibility pistol initializer
+explicitly sets the new alt_loop field to zero for the NXDK warning policy.
+No emulator session was launched for this resource-only change.
