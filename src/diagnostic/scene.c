@@ -7957,6 +7957,12 @@ static int combat_box(const float start[3],const float delta[3],const rf_physics
     }
     *fraction=(float)lo;return 1;
 }
+static int combat_body(const float start[3],const float delta[3],const rf_physics_body *body,float limit,float *fraction)
+{
+    float broad;
+    return combat_box(start,delta,&body->state.bounds,limit,&broad) &&
+        rf_physics_body_segment(body,start,delta,limit,fraction);
+}
 /* Reuse retained moving/static geometry for line-of-sight obstruction. */
 static int combat_obstructed(scene_stream *stream,const float start[3],const float delta[3],uint32_t *blocked)
 {
@@ -8267,7 +8273,7 @@ static int campaign_enemy_tick(scene_stream *stream,uint32_t frame,const float p
             rf_scene_enemy_spread[7]=(uint32_t)status;if(status)return status;
             if(definition && definition->ai_spread_degrees>0)++rf_scene_enemy_spread[1];
             rf_scene_enemy_spread[5]=campaign_enemy_spread_random.value;
-            if(!combat_box(owner->eye_position,spread_ray,victim?&victim->body.state.bounds:&scene_actor_body.state.bounds,1,&fraction)) {
+            if(!combat_body(owner->eye_position,spread_ray,victim?&victim->body:&scene_actor_body,1,&fraction)) {
                 ++rf_scene_enemy_spread[3];goto enemy_shot_done;
             }
             status=combat_shot_obstructed(stream,owner->eye_position,spread_ray,fraction,&blocked);if(status)return status;
@@ -8485,7 +8491,7 @@ static int campaign_combat_tick(scene_stream *stream,uint32_t frame,const float 
     for(i=0;i<campaign_npc_body_count;i++) {
         campaign_npc_body *owner=campaign_npc_bodies+i;float fraction;
         if(!owner->registration.view || (owner->object_flags&(2|0x4000)) || !owner->body.allocated_bytes || owner->damage.effects.health<=0 || (owner->view.flags_810&1))continue;
-        if(combat_box(position,delta,&owner->body.state.bounds,nearest,&fraction) && fraction<nearest){nearest=fraction;target=i;}
+        if(combat_body(position,delta,&owner->body,nearest,&fraction) && fraction<nearest){nearest=fraction;target=i;}
     }
     if(rf_scene_combat_trace) {
         uint32_t uid=target==UINT32_MAX?UINT32_MAX:campaign_seeds.records.items[target].record.uid;

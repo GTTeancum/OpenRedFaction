@@ -7,6 +7,28 @@
 #include <float.h>
 #include <stdlib.h>
 #include <string.h>
+int rf_physics_body_segment(const rf_physics_body *body,const float start[3],
+    const float delta[3],float limit,float *fraction)
+{
+    double a=0,nearest=limit;uint32_t i,k;int hit=0;
+    if(!body || !start || !delta || !fraction || !isfinite(limit) || limit<0 || limit>1 ||
+        (body->spheres.count && !body->spheres.items))return 0;
+    for(k=0;k<3;k++){if(!isfinite(start[k]) || !isfinite(delta[k]))return 0;a+=(double)delta[k]*delta[k];}
+    for(i=0;i<body->spheres.count;i++) {
+        const rf_physics_sphere *s=body->spheres.items+i;double b=0,c=-(double)s->radius*s->radius,t;
+        for(k=0;k<3;k++) {
+            float center=(float)((double)body->state.position[k]+(double)s->center[0]*body->state.orientation[k]+
+                (double)s->center[1]*body->state.orientation[3+k]+(double)s->center[2]*body->state.orientation[6+k]);
+            double offset=(double)start[k]-center;b+=offset*delta[k];c+=offset*offset;
+        }
+        if(c<=0)t=0;
+        else {double discriminant=b*b-a*c;if(a==0 || b>=0 || discriminant<0)continue;
+            /* Stable near root avoids cancellation for distant/small targets. */
+            t=c/(-b+sqrt(discriminant));}
+        if(t<=nearest){nearest=t;hit=1;}
+    }
+    if(hit)*fraction=(float)nearest;return hit;
+}
 int rf_physics_creation_body_open(const rf_physics_creation_seed *seed,float elasticity,float friction,
     float density,uint32_t budget,rf_physics_body *result)
 {

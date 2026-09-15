@@ -1,12 +1,19 @@
 # Red Faction Xbox / PC - open work
 
-- Combat: Replace broad-box-only bullet hits with precise shared body collision; measured PC shots miss all miner spheres yet cause friendly damage and retaliation.
+- Combat: Revalidate encounters with the new shared body-sphere bullet collision; captured false hits are rejected, but old oversized-box aiming replays need recalibration.
 - Weapons: Implement remaining campaign weapons beyond handgun, rifle, Riot Stick and shotgun; automatic rifle now clears three shaft guards on PC/Xbox.
 - Weapons: Verify remaining enemy drop policies and uncollected-drop revisits; supported held weapons now drop collectible supplies, with PC/Xbox rifle acquisition and firing verified.
 - Combat: Finish enemy damage amounts, cadence and weapon coverage; authored SP primary spread and target/bullet-obstruction checks now pass PC/Xbox verification (24 hits, 3 misses).
 - Weapons: Exercise the shotgun in the uninterrupted campaign and continue weapon coverage; PC manual/automatic reload and PC/Xbox automatic reload plus two-level persistence checks now pass.
-- Gameplay: Continue into the L3S1 main room; PC/Xbox now clear the checkpoint guard with45health and36rifle rounds, but the next encounter exposes false bullet hits.
+- Gameplay: Recalibrate the uninterrupted campaign route after precise bullet collision; historical checkpoint coverage passed, but the current old-input run dies in L2S2a.
 - Movement: Refine ladder entry and top-edge transitions; body contact now unblocks the first L2S3 ladder, but the verified route still uses a jump and repeated top-edge state changes need smoothing.
+
+Body-hit update (2026-09-15): Player/enemy bullets now narrow-test the shared
+transformed body spheres after broad bounds; captured false and retained hits,
+nearest entry, limits, overlap and rotation pass focused tests. PC/NXDK build.
+The old full-route input now dies before its first transition; prior checkpoint
+evidence is historical until aiming is recalibrated. See docs/BODY-HIT-DETECTION.md.
+Estimate remains ~48%; current focus is combat and encounter revalidation.
 
 Checkpoint update (2026-09-15): The15290-frame stock64MiB Xbox route passes
 all33 PC/native comparisons, clears guard892 and ends with23.895MiB free.

@@ -109,6 +109,13 @@ typedef struct rf_physics_body {
     rf_physics_spheres spheres;
     uint32_t allocated_bytes;
 } rf_physics_body;
+/* Practical finite-segment hit test against the body's transformed sphere union.
+ * Delta is not normalized; limit is in [0,1]. Includes tangency and initial
+ * overlap. Returns one on hit and writes the nearest fraction; misses preserve
+ * output. Requires valid finite body spheres and an orthonormal orientation.
+ * No allocation. This is gameplay scaffolding, not a recovered retail wrapper. */
+int rf_physics_body_segment(const rf_physics_body *body,const float start[3],
+    const float delta[3],float limit,float *fraction);
 /* Fresh 49f010 setup (third argument zero), with pre-resolved coefficients and
  * already prepared mass/local inverse tensor. Sphere flags 0x70 select the
  * source list; otherwise it is ignored. Positive sphere parameter_10 sets

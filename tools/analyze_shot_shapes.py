@@ -1,7 +1,8 @@
 """Compare opt-in player shot traces with the selected actor's body spheres.
 
 Capture with RF_REPLAY_TRACE=1 and RF_REPLAY_TRACE_FROM=<global frame>.
-SHOT_RAY records broad-phase candidates before world obstruction/damage.
+SHOT_RAY records selected candidates before world obstruction/damage.
+Older captures before body-segment integration selected broad boxes alone.
 This analysis measures collision-shape agreement, not visible mesh coverage.
 """
 import argparse
@@ -19,7 +20,7 @@ def analyze(log):
         if words[0] == 'SHOT_RAY':
             shots.append(dict(frame=int(words[1]), slot=int(words[2]),
                 pellet=int(words[3]), uid=int(words[4]),
-                box_fraction=float(words[5]), origin=list(map(float, words[6:9])),
+                hit_fraction=float(words[5]), origin=list(map(float, words[6:9])),
                 delta=list(map(float, words[9:12])), spheres=[]))
         elif words[0] == 'SHOT_SHAPE':
             shot = shots[-1]

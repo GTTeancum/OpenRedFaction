@@ -1,5 +1,8 @@
 # L3S1 checkpoint route
 
+Historical coverage below predates body-sphere bullet collision. The updated
+old-input route no longer passes; see BODY-HIT-DETECTION.md for current status.
+
 The checkpoint control is in the elevated booth. It operates a different opening
 in the lower hall; walking east from the control leads into a solid booth wall.
 This was a route error, not evidence of a broken door or collision routine.
