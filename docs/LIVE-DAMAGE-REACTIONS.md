@@ -74,4 +74,19 @@ body words, NPC state, combat journal, pain/gate telemetry and final position;
 miner2061 remains at100health. The152 captured look records reproduce exactly.
 `tools/replay_l2s3_maintenance.py --verify-existing` validates the generator
 and completed logs; omit the option to rerun capture and playback. The full
-maintenance continuation has not yet been verified on Xbox.
+maintenance continuation now passes all35 PC/Xbox comparisons in
+`artifacts/xemu/render-20260915-041539`:8402frames,15health, natural section
+transition at6631, and4335free pages (16.93359375MiB) at endpoint. All18
+staged disc entries restore byte-for-byte and no project XEMU remains open.
+
+## Hall continuation
+
+The9302-frame PC input clears guard1751 after maintenance, retaining15health
+and leaving miner2061 at100health. Total L2S3 combat is24shots,12hits,3kills.
+Initial shots from x95 missed; moving east to(98.923,-.837,84.985) before
+firing produced four hits and the kill. This is route evidence, not a change
+to damage or collision rules. Ordinary recorded playback matches all77body
+words, NPC state, combat journal, pain/gate telemetry and final position.
+`tools/replay_l2s3_hall_recording.py` reconstructs the executed inputs from
+local fixtures and captured look logs, then verifies the completed playback.
+This covers the hall on PC; native hall and onward shotgun/shaft remain open.

@@ -1,13 +1,25 @@
 # Red Faction Xbox / PC - open work
 
+- GeoMod: Implement campaign-required terrain destruction and updated collision before the first destruction-gated objective; prioritize playable progression over visual polish.
 - Combat: Extend pain-reaction coverage across enemy weapons and encounters; retained attack locks now pass35 PC/Xbox comparisons with independent actor recovery.
 - Combat: Revalidate encounters with the new shared body-sphere bullet collision; captured false hits are rejected, but old oversized-box aiming replays need recalibration.
 - Weapons: Implement remaining campaign weapons beyond handgun, rifle, Riot Stick and shotgun; automatic rifle now clears three shaft guards on PC/Xbox.
 - Weapons: Verify remaining enemy drop policies and uncollected-drop revisits; supported held weapons now drop collectible supplies, with PC/Xbox rifle acquisition and firing verified.
 - Combat: Finish enemy damage amounts, cadence and weapon coverage; authored SP primary spread and target/bullet-obstruction checks now pass PC/Xbox verification (24 hits, 3 misses).
 - Weapons: Exercise the shotgun in the uninterrupted campaign and continue weapon coverage; PC manual/automatic reload and PC/Xbox automatic reload plus two-level persistence checks now pass.
-- Gameplay: Verify the revised maintenance route on Xbox and continue onward; ordinary8402-frame PC playback clears both L2S3 guards with15health and the miner unharmed.
+- Gameplay: Continue shotgun and shaft encounters; maintenance now passes35 Xbox comparisons and the recorded PC hall route clears three guards with15health.
 - Movement: Refine ladder entry and top-edge transitions; body contact now unblocks the first L2S3 ladder, but the verified route still uses a jump and repeated top-edge state changes need smoothing.
+
+Hall probe (2026-09-15): PC9302frames clear guard1751 after the two
+maintenance guards, retaining15health. The first approach missed from
+x95; moving east to98.923 before firing produces four hits and the kill.
+Ordinary playback now matches body/NPC state and combat journal, with
+miner2061 unharmed. tools/replay_l2s3_hall_recording.py reproduces the
+executed bytes and verifies the result; shotgun acquisition is next.
+The8402-frame native maintenance run passes35 comparisons at
+artifacts/xemu/render-20260915-041539, with15health and16.934MiB free
+at endpoint; all18 disc entries restored and the owned emulator exited.
+Estimate ~48%; current area is combat and campaign progression.
 
 Attack-lock update (2026-09-15): Live enemies now defer due attacks during
 the retained pain animation lock and resume without an extra cooldown.
