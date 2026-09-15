@@ -53,6 +53,61 @@ static void trace_compaction(void *context,const rf_geomod_mesh_view *mesh,const
     }
     if(ferror(file)){fprintf(stderr,"compaction trace write failed\n");exit(1);}
 }
+static int check_clipping_provenance(const rf_geomod_multi_work *work)
+{
+    /* Last cutter face starts in bank0. Check real retained edge
+     * IDs after seed clipping/history copies and any reversal. */
+    const rf_geomod_fragment *fragment=work->fragments[0];
+    uint32_t edge,end;
+    CHECK(fragment->count>=3 && fragment->count<=64);
+    for(edge=0;edge<fragment->count;edge++) {
+        uint16_t id=work->edges[0][fragment->first+edge];const float *support;
+        if(id<32){CHECK(id<6);support=work->source_planes[id];}
+        else {
+            uint32_t cutter=(id-32)/128,local=(id-32)%128;
+            CHECK(cutter<RF_GEOMOD_CUT_LIMIT && local/4<work->star_count[cutter]);
+            support=work->star_planes[cutter][local/4][local%4];
+        }
+        for(end=0;end<2;end++) {
+            const float *point=work->vertices[0][fragment->first+(edge+end)%fragment->count].position;
+            CHECK(fabs((double)support[0]*point[0]+(double)support[1]*point[1]+(double)support[2]*point[2]+support[3])<1e-4);
+        }
+    }
+    return 0;
+}
+static int check_compact_provenance(const rf_geomod_multi_work *work,const rf_geomod_mesh_view *pending)
+{
+    uint32_t face,edge,end,checked=0;
+    for(face=0;face<pending->face_count;face++) {
+        const rf_geomod_face *f=pending->faces+face;
+        for(edge=0;edge<f->count;edge++) {
+            uint16_t id=work->compact_edges[f->first+edge];const float *support;
+            if(id<32){CHECK(id<6);support=work->source_planes[id];}
+            else {
+                uint32_t cutter=(id-32)/128,local=(id-32)%128;
+                CHECK(cutter<RF_GEOMOD_CUT_LIMIT && local/4<work->star_count[cutter]);
+                support=work->star_planes[cutter][local/4][local%4];
+            }
+            for(end=0;end<2;end++) {
+                const float *p=pending->vertices[f->first+(edge+end)%f->count].position;
+                CHECK(fabs((double)support[0]*p[0]+(double)support[1]*p[1]+(double)support[2]*p[2]+support[3])<1e-4);
+            }
+            ++checked;
+        }
+        if(f->source_face!=UINT32_MAX)CHECK(work->compact_planes[face]==f->source_face);
+    }
+    CHECK(checked==pending->vertex_count);
+    printf("COMPACT_SUPPORTS edges%u\n",checked);
+    return 0;
+}
+static int provenance_result;
+static void observe_clipping_provenance(void *context,const rf_geomod_mesh_view *mesh,
+    const uint16_t *planes,const uint16_t *edges)
+{
+    (void)mesh;(void)planes;(void)edges;
+    provenance_result=check_clipping_provenance(context);
+    if(!provenance_result)provenance_result=check_compact_provenance(context,mesh);
+}
 static int record(const rf_geomod_vertex *v,unsigned n)
 {
     if(surface_count+n>SNAPSHOT_VERTICES || polygon_count==SNAPSHOT_FACES)return 0;
@@ -1102,27 +1157,10 @@ int main(int argc,char **argv)
             CHECK(!rf_geomod_terrain_open(&source,original_filters,&generated,cavity,4096,512,1024*1024,&terrain));
             for(repeat=1;repeat<=2;repeat++) {
                 double total=0;rf_collision_tree tree={0};uint32_t x,y;
+                if(cavity){provenance_result=-1;rf_geomod_observe_compaction(observe_clipping_provenance,&work);}
                 {int status=rf_geomod_storage_prepare_star_cuts(owner,cutters,kernels,repeat,cavity,&work);if(status)fprintf(stderr,"original star status%d cavity%u repeat%u\n",status,cavity,repeat);CHECK(!status);}
-                if(cavity) {
-                    /* Last cutter face starts in bank0. Check real retained edge
-                     * IDs after seed clipping/history copies and any reversal. */
-                    const rf_geomod_fragment *fragment=work.fragments[0];
-                    uint32_t edge,end;
-                    CHECK(fragment->count>=3 && fragment->count<=64);
-                    for(edge=0;edge<fragment->count;edge++) {
-                        uint16_t id=work.edges[0][fragment->first+edge];const float *support;
-                        if(id<32){CHECK(id<source.face_count);support=work.source_planes[id];}
-                        else {
-                            uint32_t cutter=(id-32)/128,local=(id-32)%128;
-                            CHECK(cutter<repeat && local/4<work.star_count[cutter]);
-                            support=work.star_planes[cutter][local/4][local%4];
-                        }
-                        for(end=0;end<2;end++) {
-                            const float *point=work.vertices[0][fragment->first+(edge+end)%fragment->count].position;
-                            CHECK(fabs((double)support[0]*point[0]+(double)support[1]*point[1]+(double)support[2]*point[2]+support[3])<1e-4);
-                        }
-                    }
-                }
+                rf_geomod_observe_compaction(NULL,NULL);
+                if(cavity)CHECK(provenance_result==0);
                 {
                     uint32_t c,f,e,g,h,k,paired=0;
                     for(c=0;c<repeat;c++)for(f=0;f<count;f++)for(e=0;e<3;e++)for(g=f+1;g<count;g++)for(h=0;h<3;h++) {
@@ -1134,29 +1172,7 @@ int main(int argc,char **argv)
                     CHECK(paired==repeat*count*3/2);
                 }
                 CHECK(!rf_geomod_storage_pending(owner,&pending));surface_count=polygon_count=0;
-                if(cavity) {
-                    uint32_t face,edge,end,checked=0;
-                    for(face=0;face<pending.face_count;face++) {
-                        const rf_geomod_face *f=pending.faces+face;
-                        for(edge=0;edge<f->count;edge++) {
-                            uint16_t id=work.compact_edges[f->first+edge];const float *support;
-                            if(id<32){CHECK(id<source.face_count);support=work.source_planes[id];}
-                            else {
-                                uint32_t cutter=(id-32)/128,local=(id-32)%128;
-                                CHECK(cutter<repeat && local/4<work.star_count[cutter]);
-                                support=work.star_planes[cutter][local/4][local%4];
-                            }
-                            for(end=0;end<2;end++) {
-                                const float *p=pending.vertices[f->first+(edge+end)%f->count].position;
-                                CHECK(fabs((double)support[0]*p[0]+(double)support[1]*p[1]+(double)support[2]*p[2]+support[3])<1e-4);
-                            }
-                            ++checked;
-                        }
-                        if(f->source_face!=UINT32_MAX)CHECK(work.compact_planes[face]==f->source_face);
-                    }
-                    CHECK(checked==pending.vertex_count);
-                    printf("COMPACT_SUPPORTS cuts%u edges%u\n",repeat,checked);
-                }
+
 
                 CHECK(!rf_geomod_terrain_cut_star(terrain,cutters+repeat-1,kernels[repeat-1]));
                 CHECK(!rf_geomod_terrain_get(terrain,&live));
@@ -1245,7 +1261,7 @@ int main(int argc,char **argv)
         }
         {
             rf_geomod_template shape;rf_random_state random={1};double previous_volume=0;unsigned junction_misses=0;
-            rf_geomod_terrain *uncached=NULL;rf_geomod_terrain_view reference;
+            rf_geomod_terrain *uncached=NULL,*limited=NULL;rf_geomod_terrain_view reference;
             const char *trace_cut=getenv("RF_GEOMOD_INTERSECTION_CUT");unsigned trace_index=0,stress_count=6;
             const char *stress=getenv("RF_GEOMOD_STRESS_COUNT");
             if(stress){CHECK(stress[0]>='6' && stress[0]<='8' && !stress[1]);stress_count=(unsigned)(stress[0]-'0');}
@@ -1258,8 +1274,9 @@ int main(int argc,char **argv)
                 for(j=0;j<2;j++){rf_geomod_vertex temp=source_v[i][j];source_v[i][j]=source_v[i][3-j];source_v[i][3-j]=temp;}
             }
             source=(rf_geomod_mesh_view){source_v[0],source_f,24,6,0};
-            CHECK(!rf_geomod_terrain_open(&source,original_filters,&generated,1,4096,768,1024*1024,&terrain));
-            CHECK(!rf_geomod_terrain_open(&source,original_filters,&generated,1,4096,769,1024*1024,&uncached));
+            CHECK(!rf_geomod_terrain_open(&source,original_filters,&generated,1,4096,stress_count>6?800:768,1024*1024,&terrain));
+            CHECK(!rf_geomod_terrain_open(&source,original_filters,&generated,1,4096,801,1024*1024,&uncached));
+            if(stress_count==8)CHECK(!rf_geomod_terrain_open(&source,original_filters,&generated,1,4096,768,1024*1024,&limited));
             report_closure=getenv("RF_GEOMOD_CLOSURE_ALL")?2:1;
             {uint16_t edges[24];CHECK(!rf_geomod_seed_adjacency(&source,edges,24));}
             for(repeat=0;repeat<stress_count;repeat++) {
@@ -1280,6 +1297,24 @@ int main(int argc,char **argv)
                     rf_geomod_observe_compaction(NULL,NULL);
                     if(compact_trace)CHECK(!fclose(compact_trace));
                     if(trace)CHECK(!fclose(trace));
+                }
+                if(limited) {
+                    if(repeat<7)CHECK(!rf_geomod_terrain_cut_template(limited,&shape,hit.hit.point,basis,3.75f,77));
+                    else {
+                        rf_geomod_terrain_view before,after;
+                        static rf_geomod_vertex kept_vertices[4096];static rf_geomod_face kept_faces[768];
+                        CHECK(!rf_geomod_terrain_get(limited,&before));
+                        memcpy(kept_vertices,before.mesh.vertices,before.mesh.vertex_count*sizeof(*kept_vertices));
+                        memcpy(kept_faces,before.mesh.faces,before.mesh.face_count*sizeof(*kept_faces));
+                        CHECK(rf_geomod_terrain_cut_template(limited,&shape,hit.hit.point,basis,3.75f,77)==RF_RANGE);
+                        CHECK(!rf_geomod_terrain_get(limited,&after));
+                        CHECK(after.cuts==7 && after.mesh.generation==before.mesh.generation);
+                        CHECK(after.mesh.vertex_count==before.mesh.vertex_count && after.mesh.face_count==before.mesh.face_count);
+                        CHECK(!memcmp(kept_vertices,after.mesh.vertices,after.mesh.vertex_count*sizeof(*kept_vertices)));
+                        CHECK(!memcmp(kept_faces,after.mesh.faces,after.mesh.face_count*sizeof(*kept_faces)));
+                        CHECK(!terrain_ray_coverage(&after,8));
+                        puts("PASS: repaired eighth-cut face overflow preserves seven-cut live geometry and collision");
+                    }
                 }
                 CHECK(!rf_geomod_terrain_cut_template(uncached,&shape,hit.hit.point,basis,3.75f,77));
                 CHECK(!rf_geomod_terrain_get(uncached,&reference));
@@ -1302,10 +1337,10 @@ int main(int argc,char **argv)
                     const rf_geomod_face *f=live.mesh.faces+i;
                     CHECK(record(live.mesh.vertices+f->first,f->count));total+=volume(live.mesh.vertices+f->first,f->count);
                 }
-                {int closure=closed();if(!repeat)CHECK(closure);
+                {int closure=closed();CHECK(closure);
                  printf("STRESS %u %u %u %g prior %g closed %d\n",repeat,live.mesh.vertex_count,live.mesh.face_count,-total,previous_volume,closure);}
-                /* Later room-scale closure is an open defect also observed without
-                 * compaction; report it without claiming this capacity test proves it. */
+                printf("STRESS_MEMORY cut%u resident%u peak%u\n",repeat+1,live.resident_bytes,live.peak_bytes);
+                /* Closure is required after every live repaired admission. */
                 {
                     /* Probe individual float steps across the known near-coincident
                      * junction. A closed room must stop every outward segment,
@@ -1380,9 +1415,10 @@ int main(int argc,char **argv)
             }
             rf_geomod_terrain_close(&terrain);
             rf_geomod_terrain_close(&uncached);
+            rf_geomod_terrain_close(&limited);
             report_closure=0;
             CHECK(!junction_misses);
-            printf("PASS: %u ray-placed crater admissions and increasing signed volume within1MiB; room-scale closure remains diagnostic\n",stress_count);
+            printf("PASS: %u ray-placed crater admissions and increasing signed volume within1MiB; closed room-scale edges verified\n",stress_count);
         }
         puts("PASS: original concave template, overlapping cuts, closed edges, volume and324 independent triangle rays");
     }

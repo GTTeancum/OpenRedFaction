@@ -504,9 +504,9 @@ typedef struct scene_debris_pool {
 } scene_debris_pool;
 uint32_t rf_scene_debris[8]; /* spawned,active,bounces,expired,vertices,hash,bytes,replaced */
 
-enum { SCENE_TERRAIN_DRAW_VERTICES=8192, SCENE_TERRAIN_DRAW_BUDGET=320*1024 };
+enum { SCENE_TERRAIN_FACES=800, SCENE_TERRAIN_DRAW_VERTICES=8192, SCENE_TERRAIN_DRAW_BUDGET=320*1024 };
 typedef struct scene_terrain_draw_mesh {
-    rf_geomod_vertex vertices[SCENE_TERRAIN_DRAW_VERTICES];rf_geomod_face faces[768];rf_collision_face bound[768];
+    rf_geomod_vertex vertices[SCENE_TERRAIN_DRAW_VERTICES];rf_geomod_face faces[SCENE_TERRAIN_FACES];rf_collision_face bound[SCENE_TERRAIN_FACES];
     rf_geomod_mesh_view view;
     uint16_t sorted[3][4096]; /* Coordinate indices, bounded and reused per edit. */
 } scene_terrain_draw_mesh;
@@ -8547,7 +8547,7 @@ static int scene_terrain_subdivide(scene_stream *s,const rf_geomod_terrain_view 
     scene_terrain_draw_mesh *draw=s->terrain_draw;const rf_geomod_mesh_view *mesh=&source->mesh;
     uint32_t f,e,i,k,n=mesh->vertex_count,inserted=0,written=0;
     rf_geomod_vertex polygon[64];
-    if(!draw || n>4096 || mesh->face_count>768 ||
+    if(!draw || n>4096 || mesh->face_count>SCENE_TERRAIN_FACES ||
        sizeof(*draw)+(SCENE_TERRAIN_DRAW_VERTICES-4096)*sizeof(*s->terrain_colors)>SCENE_TERRAIN_DRAW_BUDGET)return RF_RANGE;
     for(k=0;k<3;k++) {
         uint32_t gap;
@@ -8631,7 +8631,7 @@ static int scene_terrain_subdivide(scene_stream *s,const rf_geomod_terrain_view 
 static int scene_terrain_bind(scene_stream *s)
 {
     rf_geomod_terrain_view view;uint32_t i;int status=rf_geomod_terrain_get(s->terrain,&view);if(status)return status;
-    if(view.mesh.face_count>768)return RF_RANGE;
+    if(view.mesh.face_count>SCENE_TERRAIN_FACES)return RF_RANGE;
     status=scene_terrain_subdivide(s,&view);if(status)return status;
     for(i=0;i<view.mesh.face_count;i++)s->terrain_ids[i]=view.mesh.faces[i].source_face==UINT32_MAX?s->terrain_fallback:view.mesh.faces[i].source_face;
     status=rf_geometry_collision_overlay_bind(&s->terrain_collision,view.tree,s->terrain_ids,view.mesh.face_count);if(status)return status;
@@ -8789,7 +8789,7 @@ static int scene_terrain_shadow_lighting(scene_stream *s,const rf_geomod_terrain
     uint32_t i,j,k,count=0,*ids=s->light_overlay_work;rf_vfx_light_source *sources;
     float lo[3],hi[3],ambient[3];unsigned char room[4];uint32_t modes[63];int status;
     scene_terrain_light_cache *cache=s->terrain_light_cache;
-    if(!s->terrain_colors || !cache || !s->lights || !ids || terrain->mesh.face_count>768 || terrain->mesh.vertex_count>4096 || !terrain->mesh.vertex_count)return RF_RANGE;
+    if(!s->terrain_colors || !cache || !s->lights || !ids || terrain->mesh.face_count>SCENE_TERRAIN_FACES || terrain->mesh.vertex_count>4096 || !terrain->mesh.vertex_count)return RF_RANGE;
     sources=(rf_vfx_light_source *)(ids+1100);
     status=rf_geometry_room_ambient(s->geometry,0,room);if(status)return status;
     for(k=0;k<3;k++)ambient[k]=.5f*(room[0]==1?(float)((double)room[k+1]*0.003921568859368563):s->light_ambient[k]);
@@ -8890,7 +8890,7 @@ static int scene_terrain_lighting(scene_stream *s,const rf_geomod_terrain_view *
 {
     scene_terrain_noise_owner *owner=s->terrain_noise;uint32_t i,j,k,f,remaining=512*512,processed=0;int status;
     if(s->terrain_shadow_reference)return scene_terrain_shadow_lighting(s,terrain);
-    if(!owner || !s->terrain_atlas_registered || terrain->mesh.face_count>768)return RF_RANGE;
+    if(!owner || !s->terrain_atlas_registered || terrain->mesh.face_count>SCENE_TERRAIN_FACES)return RF_RANGE;
     if(owner->generation!=terrain->mesh.generation) {
         if(!owner->generation || terrain->cuts<owner->cuts) {
             memset(owner,0,sizeof(*owner));owner->random.value=1;
@@ -9025,17 +9025,17 @@ static int scene_terrain_open(scene_stream *s,const rf_level *level)
     s->terrain_atlas.width=s->terrain_atlas.height=512;s->terrain_atlas.bytes=512*512*2;s->terrain_atlas.source_format=5;
     status=rf_image_allocate_pixels(&s->terrain_atlas);if(status)return status;
     s->terrain_atlas_pixels=calloc(1,512*512*2);s->terrain_tile=malloc(64*64*2);
-    s->terrain_tiles=calloc(768,sizeof(*s->terrain_tiles));
-    s->terrain_bindings=calloc(768,sizeof(*s->terrain_bindings));s->terrain_atlas_index=UINT32_MAX;
+    s->terrain_tiles=calloc(SCENE_TERRAIN_FACES,sizeof(*s->terrain_tiles));
+    s->terrain_bindings=calloc(SCENE_TERRAIN_FACES,sizeof(*s->terrain_bindings));s->terrain_atlas_index=UINT32_MAX;
     if(!s->terrain_atlas_pixels || !s->terrain_tile || !s->terrain_bindings || !s->terrain_tiles)return RF_IO;
     rf_scene_terrain_atlas[0]=1;rf_scene_terrain_atlas[1]=rf_scene_terrain_atlas[2]=512;
-    rf_scene_terrain_atlas[3]=2*512*512*2+64*64*2+768*(sizeof(*s->terrain_bindings)+sizeof(*s->terrain_tiles))+sizeof(rf_image)+sizeof(*s->terrain_noise);
+    rf_scene_terrain_atlas[3]=2*512*512*2+64*64*2+SCENE_TERRAIN_FACES*(sizeof(*s->terrain_bindings)+sizeof(*s->terrain_tiles))+sizeof(rf_image)+sizeof(*s->terrain_noise);
     if(rf_scene_terrain_atlas[3]>1280*1024)return RF_RANGE;
     s->debris=calloc(1,sizeof(*s->debris));if(!s->debris)return RF_IO;
     s->debris->random.value=1;memset(rf_scene_debris,0,sizeof(rf_scene_debris));rf_scene_debris[6]=sizeof(*s->debris);
     s->terrain_draw=calloc(1,sizeof(*s->terrain_draw));if(!s->terrain_draw)return RF_IO;
     memset(rf_scene_terrain_draw,0,sizeof(rf_scene_terrain_draw));
-    s->terrain_ids=calloc(768,sizeof(*s->terrain_ids));if(!s->terrain_ids)return RF_IO;
+    s->terrain_ids=calloc(SCENE_TERRAIN_FACES,sizeof(*s->terrain_ids));if(!s->terrain_ids)return RF_IO;
     s->terrain_colors=calloc(SCENE_TERRAIN_DRAW_VERTICES,sizeof(*s->terrain_colors));if(!s->terrain_colors)return RF_IO;
     for(i=0;i<SCENE_TERRAIN_DRAW_VERTICES;i++)for(j=0;j<3;j++)s->terrain_colors[i][j]=1;
     s->terrain_light_cache=calloc(1,sizeof(*s->terrain_light_cache));if(!s->terrain_light_cache)return RF_IO;
@@ -9063,9 +9063,9 @@ static int scene_terrain_open(scene_stream *s,const rf_level *level)
     }
     if(s->terrain_fallback==UINT32_MAX)return RF_FORMAT;
     source=(rf_geomod_mesh_view){vertices,faces,24,6,0};generated.face_flags=256;
-    status=rf_geomod_terrain_open(&source,filters,&generated,1,4096,768,1024*1024,&s->terrain);if(status)return status;
+    status=rf_geomod_terrain_open(&source,filters,&generated,1,4096,SCENE_TERRAIN_FACES,1024*1024,&s->terrain);if(status)return status;
     status=rf_geomod_terrain_set_mapping(s->terrain,s->terrain_texture_width,s->terrain_texture_height);if(status)return status;
-    status=rf_geometry_collision_overlay_open(s->collision,0,768,65536,&s->terrain_collision);if(status)return status;
+    status=rf_geometry_collision_overlay_open(s->collision,0,SCENE_TERRAIN_FACES,65536,&s->terrain_collision);if(status)return status;
     status=scene_terrain_bind(s);if(status)return status;
     s->collision=&s->terrain_collision.world;
     /* A borrowed draw view excludes exactly the replaced outer-room faces.

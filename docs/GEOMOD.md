@@ -3004,3 +3004,46 @@ edge assembly is still in the host experiment, and no new game/XEMU execution
 was performed. Next: consume compact provenance while preparing pending CSG,
 reuse dead CSG scratch for the replacement, and validate admission/abort plus
 peak memory before publication. The four-face overflow at cut8 remains open.
+
+Live support-matched repair and Xbox verification (2026-09-15):
+Pending cavity assembly now inserts exact endpoints from edges carrying the
+same unordered supporting-plane pair, ordered by the dominant edge coordinate.
+Duplicate positions are removed; conflicting equal fractions reject the edit.
+Each face interpolates inserted UVs from its own original boundary edge, then
+uses the shared collision-valid partitioner. All output is assembled in dead
+clipping workspace before replacing the pending bank. Live/source banks remain
+untouched on failure. The workspace union adds no geometry allocation; expanded
+provenance and cached bounds add1280 bytes. Provenance observers run before
+repair and borrow pre-repair metadata; tests now validate it at that point.
+
+Repair applies to tracked cavity owners up to4096 vertices/1024 faces; larger
+owners retain their prior generic behavior. Cached joining extends to800 faces.
+The actual scene uses800 faces consistently across terrain, draw, atlas and
+lighting allocations, retaining the1MiB terrain and320KiB draw ceilings.
+
+Eight ray-placed live admissions now REQUIRE unchanged strict closure after
+every cut, instead of merely printing later failures. Cut8 is3956 vertices/
+773 faces, peak1020708 bytes. Counts after cut3 differ slightly from offline
+snapshots because subsequent rays now query the repaired live tree. The768-face
+control owner rejects cut8 with RF_RANGE and preserves its seven-cut vertices,
+faces, generation and collision coverage byte-for-byte. Evidence:
+artifacts/live-support-eight.log. All six rebuilt GeoMod/clipping tests pass.
+
+The1500-frame actual PC developer-room replay admits eight cuts, uses3900
+physical/render vertices with zero extra render-only seam insertions, terrain
+peak1034912 bytes and draw owner311188 bytes. Its469 generated noise maps occupy
+23394 atlas texels. The paired three-cut depth comparison has19487 substantially
+recessed pixels, zero substantially nearer pixels and zero new uncovered pixels;
+minimum raw coplanar delta remains-71. This is one view, not universal coverage.
+
+Stock64MiB XEMU render-20260915-175409 completes1500 frames and all46 PC/Xbox
+comparisons, with8578 free pages (33.5078125MiB). Native framebuffer inspected:
+the wall, floor, weapon and dark crater render, but the mound-like appearance
+is still unresolved. No original-game appearance parity claim. PID49712 exited;
+all20 disc entries match their saved bytes/absence. No GitHub images added.
+
+Next is crater readability and broader cut/view coverage. Side-view depth
+threshold failures from earlier work still require revalidation. Arbitrary
+campaign destruction, material/lighting fidelity and edit stalls remain open.
+Estimate: overall~49%, GeoMod~63%; current area is destruction geometry and
+appearance. This increase reflects live closure/rollback and Xbox validation.

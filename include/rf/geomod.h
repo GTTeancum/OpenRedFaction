@@ -197,7 +197,13 @@ int rf_geomod_storage_prepare_convex_cut(rf_geomod_storage *storage,
 typedef struct rf_geomod_multi_work {
     rf_geomod_cut_work split;
     rf_geomod_cut_work seed;
-    rf_geomod_vertex vertices[2][RF_GEOMOD_WORK_VERTICES];
+    union {
+        rf_geomod_vertex vertices[2][RF_GEOMOD_WORK_VERTICES];
+        struct {
+            rf_geomod_vertex vertices[RF_GEOMOD_WORK_VERTICES];
+            rf_geomod_face faces[1024];
+        } repair;
+    };
     rf_geomod_fragment fragments[2][RF_GEOMOD_WORK_FRAGMENTS];
     float source_planes[32][4],cut_planes[RF_GEOMOD_CUT_LIMIT][32][4];
     float star_planes[RF_GEOMOD_CUT_LIMIT][32][4][4];
@@ -205,11 +211,11 @@ typedef struct rf_geomod_multi_work {
     /* Supporting-plane IDs parallel to cavity clipping vertices (28 KiB). */
     uint16_t edges[2][RF_GEOMOD_WORK_VERTICES];
     uint16_t split_edges[64*32],seed_edges[64*32],initial_edges[64*32];
-    /* Pending cavity provenance for owners with <=4096 vertices/768 faces
+    /* Pending cavity provenance for owners with <=4096 vertices/1024 faces
      * capacity; larger owners leave it unspecified. UINT16_MAX marks a face whose
-     * contributors have different support IDs. Geometry remains authoritative. */
-    uint16_t compact_edges[RF_GEOMOD_WORK_VERTICES],compact_planes[768];
-    float compact_bounds[768][6]; /* Pending-face bounds; larger owners use uncached joins. */
+     * contributors have different support IDs. Geometry remains authoritative. Provenance describes pre-repair geometry. */
+    uint16_t compact_edges[RF_GEOMOD_WORK_VERTICES],compact_planes[1024];
+    float compact_bounds[800][6]; /* Pending-face bounds; larger owners use uncached joins. */
 } rf_geomod_multi_work;
 /* Rebuild from immutable original data, never from a concave working result.
  * The caller supplies the COMPLETE ordered cutter history (0..8), including
