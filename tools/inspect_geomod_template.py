@@ -39,7 +39,7 @@ def run():
     cpu.mem_write(stack, pack(stop, name))
     cpu.reg_write(UC_X86_REG_ESP, stack)
     cpu.reg_write(UC_X86_REG_FPCW, 0x37f)
-    vertices, faces, uv, boundaries = [], [], [], []
+    vertices, faces, uv, boundaries, properties = [], [], [], [], []
     controlled = {0x573619, 0x4cf060, 0x4cfc80, 0x4cfab0, 0x40a480, 0x4e0140, 0x40a490, 0x4e76f8}
     completed = False
 
@@ -69,6 +69,7 @@ def run():
             result = len(vertices)
         elif address == 0x4cfab0:
             assert ecx == solid and len(vertices) == 10 and len(faces) < 16
+            properties.append(list(struct.unpack('<6I',u.mem_read(arg(0),24))))
             faces.append([])
             uv.append([])
             result = face_base + (len(faces) - 1) * 256
@@ -103,6 +104,7 @@ def run():
     assert vertices == candidate['vertex_words'], 'Original vertex submissions differ'
     assert faces == candidate['faces'], 'Original face order differs'
     assert uv == candidate['uv_words'], 'Original corner UVs differ'
+    assert len(properties)==16 and all(p==[0x100,0,0xffffffff,0xffff0000,0xffffffff,0] for p in properties),properties
     bounds = list(struct.unpack('<10f', cpu.mem_read(solid + 0x48, 40)))
     assert all(math.isfinite(v) for v in bounds) and bounds[6] > 0
     for vertex in candidate['vertices']:
@@ -110,6 +112,7 @@ def run():
         assert sum((vertex[k]-bounds[k+7])**2 for k in range(3)) <= (bounds[6]+1e-6)**2
     report = dict(exe_sha256=SHA, entry='004e6d60', stop_before='004e76f8',
         scope=__doc__, vertex_words=vertices, faces=faces, uv_words=uv,
+        face_property_words=properties, template_detail_classes=[(p[0]>>8)&3 for p in properties],
         controlled_boundaries=sorted(set(boundaries)),
         bounds_radius_center=bounds,
         bit_exact_match=True, convex=candidate['convex'])

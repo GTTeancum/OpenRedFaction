@@ -2060,3 +2060,24 @@ classes would yield 2,4,8,16, so selecting one without provenance would be an
 unsupported visual change. PC probe and NXDK builds pass; no new runtime or
 visual acceptance is claimed. Continue tracing generated-face flag ownership
 before replacing the live assumption. Estimate remains ~49 percent.
+
+Holey01 property provenance (2026-09-15): inspect_geomod_template.py now
+captures the six property words supplied at every original 4cfab0 factory
+call. All 16 faces supply [0x100,0,0xffffffff,0xffff0000,0xffffffff,0].
+The default initializer 4ce420 executes unhooked in that factory harness.
+Consequently each template face has detail class1, which preserves caller
+density4 under the independently verified scaling rule. The original
+factory vertices, face order, UVs, bounds and radius continue to pass.
+The report artifacts/geomod-holey01-original.json now includes properties
+and template_detail_classes; allocation/container boundaries remain supplied.
+Static inspection of 4dfbd0 shows the six property words copied to face+28;
+4e0240 copies those same words when converting the cutter into the working
+solid. Stage0 4dbdf0 calls that conversion. This supports template density4
+at construction, but does not prove every later split/merge preserves class
+or establish final mapping identity and relighting. No live density change
+is justified by this evidence, and no visual improvement is claimed.
+The lightmap finalization pass4dd8c0 only requests mapping creation for
+eligible unmapped faces; the nearby4f98f0 resets mapping references and
+updates bounds, rather than selecting the density class.
+Next follow-up is post-split property inheritance and mapping/relighting
+behavior. Dark crater appearance remains open. Estimate stays ~49 percent.
