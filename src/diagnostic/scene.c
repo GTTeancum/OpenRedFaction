@@ -9167,7 +9167,7 @@ static int scene_rocket_sweep(void *context,const float start[3],const float del
     return status;
 }
 /* DEV integration: recovered chunk/count/launch helpers with provisional
- * point-sweep bounce and timed removal. Original spin/fade/sounds remain open. */
+ * point-sweep bounce, spin and recovered age/fade; sound/material parity remains open. */
 static int scene_debris_prepare(scene_stream *s,const rf_weapon_flight_contact *contact,float radius)
 {
     scene_debris_pool *p=s->debris;uint32_t i,k,matched;int status;
@@ -9175,12 +9175,17 @@ static int scene_debris_prepare(scene_stream *s,const rf_weapon_flight_contact *
     for(k=0;k<3;k++)p->origin[k]=contact->hit.point[k]+contact->hit.normal[k]*radius*.1f;
     status=rf_geomod_debris_probe_points(p->origin,radius,p->endpoints);if(status)return status;
     for(i=0;i<14;i++) {
-        rf_geometry_world_hit hit;float delta[3],length=0;
-        for(k=0;k<3;k++){delta[k]=p->endpoints[i][k]-p->origin[k];length+=delta[k]*delta[k];}
-        status=rf_geometry_collision_world_ray(s->collision,0x460,p->origin,delta,1,&hit,&matched);if(status)return status;
+        rf_collision_room_hit hit;float delta[3];
+        for(k=0;k<3;k++)delta[k]=p->endpoints[i][k]-p->origin[k];
+        status=rf_collision_thin_rooms(s->collision->views,s->collision->room_count,
+            s->collision->primary,s->collision->primary_count,s->collision->children,s->collision->child_count,
+            RF_GEOMOD_DEBRIS_QUERY_FLAGS,p->origin,delta,1,&hit,&matched);if(status)return status;
         if(matched) {
-            rf_geometry_face face;status=rf_geometry_get_face(s->geometry,hit.face,&face);if(status)return status;
-            p->probes[i]=(rf_geomod_debris_probe){1,1,face.flags,fminf(radius,sqrtf(length)*hit.hit.fraction)};
+            const rf_collision_tree *tree;
+            if(hit.room>=s->collision->room_count)return RF_FORMAT;
+            tree=&s->collision->rooms[hit.room].tree;
+            if(hit.tree.face_index>=tree->face_count)return RF_FORMAT;
+            p->probes[i]=(rf_geomod_debris_probe){1,1,tree->faces[hit.tree.face_index].filter.face_flags,hit.tree.hit.fraction};
         }
     }
     return rf_geomod_debris_count(radius,p->probes,&p->pending);
@@ -9349,7 +9354,7 @@ static __declspec(noinline) int scene_impact_start(scene_stream *s,const rf_weap
         status=rf_explosion_central_prepare(&campaign_rocket_impact,i,campaign_rocket.impact_radius[0],&p,&extent);
         if(status==RF_NOT_FOUND)continue;if(status)return status;
         texture=s->impact->materials.slot_texture[i];if(texture>=s->impact->materials.count)return RF_RANGE;
-        for(j=0;j<3;j++){t.position[j]=hit->hit.point[j]+hit->hit.normal[j]*.01f;t.direction[j]=p.direction[j];}
+        for(j=0;j<3;j++){t.position[j]=hit->hit.point[j]+hit->hit.normal[j]*.01f;t.direction[j]=hit->hit.normal[j];}
         t.source_id=i;t.direction_random=p.direction_random;t.min_velocity=p.min_velocity;t.max_velocity=p.max_velocity;
         t.spawn_radius=p.spawn_radius;t.min_spawn_delay=p.min_spawn_delay;t.max_spawn_delay=p.max_spawn_delay;
         t.flags=p.flags.emitter;t.min_life=p.min_life;t.max_life=p.max_life;t.min_radius=p.min_radius;t.max_radius=p.max_radius;

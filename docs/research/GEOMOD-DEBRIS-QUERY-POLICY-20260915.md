@@ -21,3 +21,7 @@ The existing recovered collision filter documents why flags matter:0x460 rejects
 ## Limits
 
 This is debris count/surface-query evidence, not complete terrain CSG eligibility. It does not execute4df1c0, original room liquid fallback, repeated room search, or an original visual frame. It does not establish whether changing to0x5 alone reproduces original world traversal. The supplied hit fractions are valid0..1 values. No source edits, builds or emulator runs were performed.
+
+Primary integration: corrected the count probe to0x5, actual live-face flags and
+raw fraction;138 original/PC/NXDK count cases and native560-frame47-check run
+pass. Broader traversal/material parity remains subject to the limits above.

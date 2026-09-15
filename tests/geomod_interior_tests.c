@@ -663,10 +663,16 @@ int main(int argc,char **argv)
         CHECK(!rf_geomod_debris_count(.1f,probes,&count) && count==-1);
         for(i=0;i<14;i++){probes[i].hit=1;probes[i].has_face=1;}
         CHECK(!rf_geomod_debris_count(3.75f,probes,&count) && count==16);
-        count=123;probes[4].distance=NAN;
+        count=123;probes[4].fraction=NAN;
         CHECK(rf_geomod_debris_count(1,probes,&count)==RF_FORMAT && count==123);
         probes[4].face_flags=8;
         CHECK(!rf_geomod_debris_count(1,probes,&count) && count==16);
+        for(i=0;i<14;i++){probes[i].face_flags=0;probes[i].fraction=1;}
+        CHECK(!rf_geomod_debris_count(.5f,probes,&count) && count==-14);
+        for(i=0;i<14;i++)probes[i].fraction=.25f;
+        CHECK(!rf_geomod_debris_count(.5f,probes,&count) && count==7);
+        count=123;probes[4].fraction=1.01f;
+        CHECK(rf_geomod_debris_count(5,probes,&count)==RF_FORMAT && count==123);
         memset(points,0x5a,sizeof(points));memcpy(saved_points,points,sizeof(points));origin[2]=INFINITY;
         CHECK(rf_geomod_debris_probe_points(origin,1,points)==RF_FORMAT);
         CHECK(!memcmp(points,saved_points,sizeof(points)));

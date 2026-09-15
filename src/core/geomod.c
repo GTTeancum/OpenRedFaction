@@ -292,8 +292,8 @@ int rf_geomod_debris_count(float radius,const rf_geomod_debris_probe probes[14],
     for(i=0;i<14;i++) {
         float distance=radius;
         if(probes[i].hit==1 && probes[i].has_face && !(probes[i].face_flags&8)) {
-            distance=probes[i].distance;
-            if(!isfinite(distance) || distance<0 || distance>radius)return RF_FORMAT;
+            distance=probes[i].fraction;
+            if(!isfinite(distance) || distance<0 || distance>1)return RF_FORMAT;
         }
         remaining=(float)((double)remaining-distance);
     }

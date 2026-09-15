@@ -6,7 +6,7 @@
 - GeoMod: Diagnose the 425 PC/Xbox capture pixels differing by more than one color level; the shared dark crater appearance remains the main fidelity issue.
 - GeoMod lighting: Extend rocket glow beyond generated crater surfaces and obtain a verified stock-game capture; authored projectile lighting now follows live rockets, while impact effects and crater readability remain open.
 - DEV testbed: Review full weapon animations and add complete room reset; terrain reset and ammo refill are implemented, while campaign progression remains paused.
-- GeoMod: Correct the debris probe flags and fraction handling identified by original-code RE, then refine bounce, lighting and surface eligibility; original age timing now drives real PC/Xbox fading, while crater readability remains open.
+- GeoMod: Refine debris bounce, lighting and surface eligibility; original query flags/fractions and impact-normal effects now pass PC/Xbox checks, while crater readability remains open.
 - USER: Review destruction readability after replacing the folded-panel interior; destruction remains the current focus.
 - Weapons: Refine the live six-emitter rocket blast against original visuals; audible/spatial impact validation and multi-clip playback (installed missing sparks are confirmed original behavior), actor/mover impacts and blast/cover behavior remain open.
 - Combat: Extend pain-reaction coverage across enemy weapons and encounters; retained attack locks now pass35 PC/Xbox comparisons with independent actor recovery.

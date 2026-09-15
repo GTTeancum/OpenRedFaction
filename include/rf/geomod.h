@@ -69,12 +69,14 @@ int rf_geomod_debris_launch(const float position[3],const float origin[3],
 
 /*490500: six axial and eight diagonal world-query endpoints, in original
  * order.490890 consumes resolved query results; hit must equal1, a face must
- * exist, and face flag8 must be clear to subtract the hit distance.
+ * exist, and face flag8 must be clear to subtract the intersection fraction (not world distance).
  * Count is min(floor(2*remaining),16), preserving original negative rounding
- * residue: callers spawn only when count>0. Distances must be in[0,radius]
+ * residue: callers spawn only when count>0. Fractions must be in[0,1]
  * for eligible hits. Invalid inputs preserve output. No allocation/overlap. */
+/*490890 ->48fc10 ->49c5c0 uses first-hit thin query flags0x5. */
+enum { RF_GEOMOD_DEBRIS_QUERY_FLAGS=5 };
 typedef struct rf_geomod_debris_probe {
-    uint32_t hit,has_face,face_flags;float distance;
+    uint32_t hit,has_face,face_flags;float fraction;
 } rf_geomod_debris_probe;
 int rf_geomod_debris_probe_points(const float origin[3],float radius,float endpoints[14][3]);
 int rf_geomod_debris_count(float radius,const rf_geomod_debris_probe probes[14],int32_t *count);

@@ -1504,7 +1504,7 @@ resolved hit records to rf_geomod_debris_count. No collision ownership or
 material lookup is implied by the API.
 
 The accumulator starts at float(radius*14). Each490890 sample subtracts its
-hit distance only when the query returns exactly1, a face exists and that
+hit fraction (corrected by the deeper wrapper audit below) only when the query returns exactly1, a face exists and that
 face's flag8 is clear; otherwise it subtracts the full radius. Each subtraction
 rounds to float.490500 floors twice the remainder, then caps the signed result
 at16. Preserve signed results: radius.1 with all misses produces-1 from numeric
@@ -3290,3 +3290,40 @@ A separate debris investigation found two actionable live-binding discrepancies:
 query flags0x460 versus original0x5, and world-distance conversion where the
 original subtracts intersection fraction directly. That correction is queued;
 see research/GEOMOD-DEBRIS-QUERY-POLICY-20260915.md for evidence and limits.
+
+
+### Debris-query and blast-direction corrections (2026-09-15)
+
+The live debris count probe now uses original flags0x5 and retains the actual
+intersection fraction. It queries current collision-tree faces directly for
+face flags, including generated crater surfaces, instead of looking up flags
+on a remapped serialized source face. Rocket flight and chunk bounce queries
+keep their separate policies. The public probe field is renamed fraction and
+validates0..1, independent of crater radius; original signed/negative count
+behavior remains intact. Nonunit-radius tests expose the former unit error.
+
+The138-case original490500/490890 oracle now supplies valid fraction fixtures
+and checks both compiled PC and NXDK count results. All match, including
+radius<1 with fraction>radius;14 world-query endpoints also match PC. The nine
+original wrapper cases separately verify0x5 and direct fraction subtraction.
+The focused geomod_interior_faces CTest passes with new range/rollback cases.
+
+Original central-emitter assignment48e900..48e91e replaces authored direction
+with the explosion normal. The live impact templates now do the same before
+existing constructor normalization. Retained verifier
+`tools/verify_code_explosion_direction.py` passes36 dispatch plus3 unhooked
+central assignment cases; broader liquid/attachment behavior is still open.
+
+PC560/580/620/900 captures were individually inspected: wall-impact fire,
+fading smoke and eventual disappearance. Three blasts create48 chunks and all
+48 expire by900 frames, without pool replacement. Existing radius5 count caps
+mean this particular route's chunk totals stay unchanged despite the corrected
+query semantics. The560-frame image changes4525 pixels within the blast area
+relative to the prior upward-emission capture; this is not full visual parity.
+
+Native run render-20260915-191220 completes560 frames and47 comparisons,
+including debris/terrain/particle/audio state, with8567 free pages (33.465MiB).
+Its framebuffer was inspected and shows the corrected wall blast. The owned
+emulator exited and all20 disc entries were verified restored. An unrelated
+project's emulator was left untouched. The remaining dark crater appearance
+and broad terrain-protection behavior are not solved by these changes.
