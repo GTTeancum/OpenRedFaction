@@ -46,6 +46,24 @@ int main(int argc,char **argv)
         CHECK(value.hardness==25 && value.matches==1 && value.allowed && value.scale==3);
         saved=value;region.flags|=32;
         CHECK(rf_geomod_hardness(&region,1,0,point,4,&value)==RF_NOT_FOUND && !memcmp(&value,&saved,sizeof(value)));
+        {
+            rf_geomod_region_result prepared,kept;rf_geo_region pair[2]={out,out};
+            pair[0].flags|=32;pair[0].shallow_depth=2;
+            CHECK(!rf_geomod_regions_prepare(pair,1,0,point,4,&prepared));
+            CHECK(prepared.hardness.allowed && prepared.limit_count==1 && prepared.limits[0].depth==2);
+            CHECK(prepared.limits[0].normal[1]==-1 && prepared.hardness.scale==3);
+            pair[0].shallow_depth=-2;
+            CHECK(!rf_geomod_regions_prepare(pair,1,0,point,4,&prepared));
+            CHECK(prepared.limit_count==1 && prepared.limits[0].depth==-2 && prepared.limits[0].normal[1]==-1);
+            pair[0].shallow_depth=2;
+            kept=prepared;pair[1]=pair[0];pair[1].shallow_depth=NAN;
+            CHECK(rf_geomod_regions_prepare(pair,2,0,point,4,&prepared)==RF_FORMAT && !memcmp(&prepared,&kept,sizeof(kept)));
+            pair[1]=pair[0];pair[1].file_basis[7]=-1;
+            CHECK(!rf_geomod_regions_prepare(pair,2,0,point,4,&prepared) && !prepared.hardness.allowed);
+            pair[1]=pair[0];pair[1].hardness=75;
+            CHECK(!rf_geomod_regions_prepare(pair,2,0,point,4,&prepared));
+            CHECK(prepared.hardness.allowed && prepared.limit_count==1 && prepared.hardness.hardness==75 && fabsf(prepared.hardness.scale-1)<.000001f);
+        }
         region=out;region.position[0]=NAN;
         CHECK(rf_geomod_hardness(&region,1,0,point,4,&value)==RF_FORMAT && !memcmp(&value,&saved,sizeof(value)));
         CHECK(rf_geomod_hardness(NULL,1,0,point,4,&value)==RF_RANGE && !memcmp(&value,&saved,sizeof(value)));

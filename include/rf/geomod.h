@@ -42,6 +42,17 @@ int rf_geomod_shallow_point(const float center[3],const float point[3],float rad
 typedef struct rf_geomod_hardness_result {
     uint32_t hardness,allowed,matches,flags;float scale;
 } rf_geomod_hardness_result;
+typedef struct rf_geomod_region_result {
+    rf_geomod_hardness_result hardness;
+    /* Region-selected directions and SIGNED depths, before normalization. */
+    rf_geomod_shallow_limit limits[2];uint32_t limit_count;
+} rf_geomod_region_result;
+/* Region-only45cff0 preparation, before earlier-crater center adjustment.
+ * Preserves authored limit order; incompatible overlaps set allowed=0.
+ * Validates finite unit shallow normals/depths. Signed depths are retained
+ * for history adjustment; these are not yet cutter-ready limits. Errors preserve output. */
+int rf_geomod_regions_prepare(const rf_geo_region *regions,uint32_t count,uint32_t stored_default,
+    const float position[3],float scale,rf_geomod_region_result *out);
 /* Original ordinary-region policy45cff0/45d520. Sphere boundaries exclude;
  * oriented box boundaries include. Maximum matching hardness wins; no match
  * uses the level default (stored0 becomes55). Hardness100 refuses the cut.

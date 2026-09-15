@@ -63,7 +63,7 @@ int main(int argc,char **argv)
         for(i=0;i<12;i++)for(j=0;j<3;j++)for(k=0;k<2;k++)printf(" %.9g",mesh.uv[i][j][k]);
         puts("");return 0;
     }
-    if(argc==2 && !strcmp(argv[1],"--hardness")) {
+    if(argc==2 && (!strcmp(argv[1],"--hardness") || !strcmp(argv[1],"--regions"))) {
         rf_geo_region regions[16];rf_geomod_hardness_result result;uint32_t count,default_value,j;float point[3],scale;
         if(scanf("%u %u %f %f %f %f",&count,&default_value,&scale,point,point+1,point+2)!=6 || count>16)return 3;
         memset(regions,0,sizeof(regions));
@@ -74,6 +74,14 @@ int main(int argc,char **argv)
             for(j=0;j<9;j++)if(scanf("%f",regions[i].file_basis+j)!=1)return 3;
             for(j=0;j<3;j++)if(scanf("%f",regions[i].dimensions+j)!=1)return 3;
             if(scanf("%f",&regions[i].radius)!=1)return 3;
+            if(!strcmp(argv[1],"--regions") && scanf("%f",&regions[i].shallow_depth)!=1)return 3;
+        }
+        if(!strcmp(argv[1],"--regions")) {
+            rf_geomod_region_result prepared;
+            if(rf_geomod_regions_prepare(regions,count,default_value,point,scale,&prepared))return 4;
+            printf("%u %.9g %u",prepared.hardness.allowed,prepared.hardness.scale,prepared.limit_count);
+            for(i=0;i<prepared.limit_count;i++)for(j=0;j<3;j++)printf(" %.9g",prepared.limits[i].normal[j]*prepared.limits[i].depth);
+            puts("");return 0;
         }
         if(rf_geomod_hardness(regions,count,default_value,point,scale,&result))return 4;
         printf("%u %u %u %u %.9g\n",result.hardness,result.allowed,result.matches,result.flags,result.scale);return 0;

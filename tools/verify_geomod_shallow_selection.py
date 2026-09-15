@@ -32,3 +32,18 @@ for normals in configs:
    values+=([0.0]*(6-len(values)));assert f(*limits)==f(*values) or all(abs(a-b)<1e-6 for a,b in zip(limits,values));assert scale==3.75
   rows.append(dict(normals=normals,hardness=hardness,accepted=accepted,limits=limits,scale=scale))
 (R/'artifacts/crater-shading-re/shallow-selection.json').write_text(json.dumps(dict(exe_sha256=hashlib.sha256((R/'Installed_Game/RF.exe').read_bytes()).hexdigest(),scope=__doc__,rows=rows),indent=2));print('PASS:24 original shallow selection/depth/hardness cases')
+
+# Shared C region preparation compared with successful original limit vectors.
+import subprocess
+for row in rows:
+ normals=row['normals'];lines=[f"{len(normals)} 55 5 0 0 0"]
+ for i,n in enumerate(normals):
+  values=[34,row['hardness'],0,0,0,0,0,1,1,0,0,*n,100,100,100,100,2+i]
+  lines.append(' '.join(map(str,values)))
+ actual=subprocess.check_output([str(R/'build/pc/Release/rf_geomod_basis_probe.exe'),'--regions'],input='\n'.join(lines)+'\n',text=True).split()
+ assert int(actual[0])==row['accepted'],(row,actual)
+ if row['accepted']:
+  assert abs(float(actual[1])-row['scale'])<1e-6
+  vectors=list(map(float,actual[3:]));vectors += [0.0]*(6-len(vectors))
+  assert max(abs(a-b) for a,b in zip(vectors,row['limits']))<1e-6,(row,actual)
+print('PASS:24 shared C/original region admission and selected-limit comparisons')

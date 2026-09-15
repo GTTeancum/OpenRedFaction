@@ -394,10 +394,10 @@ int rf_geomod_shallow_point(const float center[3],const float point[3],float rad
     memcpy(out,result,sizeof(result));return RF_OK;
 }
 
-int rf_geomod_hardness(const rf_geo_region *regions,uint32_t count,uint32_t stored_default,
-    const float position[3],float scale,rf_geomod_hardness_result *out)
+int rf_geomod_regions_prepare(const rf_geo_region *regions,uint32_t count,uint32_t stored_default,
+    const float position[3],float scale,rf_geomod_region_result *out)
 {
-    rf_geomod_hardness_result result={0,1,0,0,0};uint32_t i,j,k;int shallow=0;
+    rf_geomod_hardness_result result={0,1,0,0,0};rf_geomod_region_result prepared={0};uint32_t i,j,k;
     if(!position || !out || (count && !regions) || count>4096 || stored_default>100)return RF_RANGE;
     if(!isfinite(scale) || scale<0)return RF_FORMAT;
     for(j=0;j<3;j++)if(!isfinite(position[j]))return RF_FORMAT;
@@ -428,18 +428,44 @@ int rf_geomod_hardness(const rf_geo_region *regions,uint32_t count,uint32_t stor
         }
         if(inside) {
             if(!result.matches || r->hardness>result.hardness)result.hardness=r->hardness;
-            result.matches++;if(r->flags&64)result.flags|=0x10;if(r->flags&32)shallow=1;
+            result.matches++;if(r->flags&64)result.flags|=0x10;
+            if(r->flags&32) {
+                double length=0,dot=0;rf_geomod_shallow_limit limit;
+                if(!isfinite(r->shallow_depth))return RF_FORMAT;
+                limit.depth=r->shallow_depth;
+                for(j=0;j<3;j++) {
+                    limit.normal[j]=-r->file_basis[6+j];
+                    if(!isfinite(limit.normal[j]))return RF_FORMAT;
+                    length+=(double)limit.normal[j]*limit.normal[j];
+                    dot+=(double)limit.normal[j]*prepared.limits[0].normal[j];
+                }
+                if(fabs(length-1)>0.00001)return RF_FORMAT;
+                if(prepared.limit_count==1 && dot>(double).95f)continue;
+                if(prepared.limit_count==2 || (prepared.limit_count==1 && dot<(double)-.1f)) {
+                    result.allowed=0;break;
+                }
+                prepared.limits[prepared.limit_count++]=limit;
+            }
         }
     }
-    if(shallow)return RF_NOT_FOUND;
     if(!result.matches)result.hardness=stored_default?stored_default:55;
     if(result.hardness==100)result.allowed=0;
-    else {
+    if(result.allowed) {
         float factor=(float)(1.0-(double)result.hardness*(double).01f);
         if(factor<0)factor=0;if(factor>1)factor=1;
         result.scale*=factor;
     }
-    *out=result;return RF_OK;
+    prepared.hardness=result;*out=prepared;return RF_OK;
+}
+int rf_geomod_hardness(const rf_geo_region *regions,uint32_t count,uint32_t stored_default,
+    const float position[3],float scale,rf_geomod_hardness_result *out)
+{
+    rf_geomod_region_result prepared;int status;
+    if(!out)return RF_RANGE;
+    status=rf_geomod_regions_prepare(regions,count,stored_default,position,scale,&prepared);
+    if(status)return status;
+    if(prepared.limit_count)return RF_NOT_FOUND;
+    *out=prepared.hardness;return RF_OK;
 }
 
 static int append(rf_geomod_vertex *out,uint32_t *count,const rf_geomod_vertex *v)
