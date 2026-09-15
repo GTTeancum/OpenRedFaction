@@ -1303,3 +1303,27 @@ isolate every operation, but synchronous full-atlas ray baking is now a major
 new workload. The current implementation is not gameplay-ready; prioritize
 bounded incremental baking or faster occlusion evaluation before acceptance.
 Do not interpret the800-frame pass as smooth frame pacing.
+
+## Rejected shadow-query validation optimization (2026-09-15)
+
+A temporary owned-tree query skipped the full node-validation scan for each
+shadow ray while retaining the same traversal and leaf tests. Nearest-hit,
+short-segment and shadow-flag results matched the original query throughout
+the six-cut room fixture. All PC replay captures were byte-identical. XEMU
+render-20260915-114725 passed41 checks over800frames with8748pages free;
+its decoded framebuffer matches the inspected114309 capture exactly. All19
+disc entries restored; owned PID31044 exited.
+
+It did not produce the required performance improvement. World rebuild maximum
+was7886ms versus7839ms before; total world rebuild time was27290ms versus24677ms.
+These runs have host/emulator timing variability, so this is not proof of a
+regression, but it provides no evidence of a useful gain. The experiment and
+its API/tests were removed; the validated original path is restored. Existing
+pre-atlas111742 evidence had an844ms world-rebuild maximum (6748ms total),
+confirming that the full synchronous pixel bake introduced the much larger
+workload. Next step:bounded incremental baking/upload rather than smaller
+validation changes. Final settling time and interruption by subsequent cuts
+must be measured separately from per-frame budget.
+
+Evidence:artifacts/geomod-owned-ray-native.log, geomod-owned-ray-replays.log,
+geomod-owned-ray-before-images.json and the cited native performance.json files.
