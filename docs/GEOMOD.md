@@ -1699,3 +1699,17 @@ channel difference255). Both images were inspected and show the same test
 scene/cavity, but that whole-frame difference is not explained by the focused
 17-pixel fix and remains unverified. See geomod-stitch-eight-pixel-comparison.json;
 do not treat the45 state comparisons as full image-parity acceptance.
+
+### Eight-cut image difference audit (2026-09-15)
+
+`tools/compare_geomod_capture.py artifacts/xemu/render-20260915-131241`
+compares the actual 640x480 PC baseline and native Xbox framebuffer without
+registration or resampling. Of 307200 pixels, 24535 differ: 24110 differ by only
+one RGB level, 425 by more than one, and 290 by more than 16 (maximum 255).
+The upper 350 rows contain 347 of the 425 larger differences; the lower weapon
+and HUD region contains 78. An inspected crater bounding box x 280..365,
+y 185..278 contains 303 differing pixels, 302 differing by one level and one
+by 40. Thus the dark crater is shared by both outputs; backend mismatch does
+not explain its overall appearance. The cause of larger differences remains
+unverified, and numerical agreement does not establish original-game parity.
+The native frame was visually inspected. No new GitHub screenshot was added.
