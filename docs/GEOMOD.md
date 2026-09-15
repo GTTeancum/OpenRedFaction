@@ -2615,3 +2615,28 @@ passes420 maps/22335 texels. NXDK XBE/XISO builds pass after fixing an unused
 PC-only frame parameter warning. No new native replay has been run, and the
 colored-light diagnostic is PC-only; native additive execution and real gameplay
 light lifecycles remain explicit follow-up work. Overall ~49%, GeoMod ~61%.
+
+Native additive diagnostic (2026-09-15): xemu_render_check.py now accepts
+--terrain-test-light only with --dev-room. It enables the same timed diagnostic
+point source on PC and Xbox, saves/restores terrain-test-light.flag alongside
+other disc settings, and leaves ordinary boots with no synthetic light.
+The1500-frame native lit run at artifacts/xemu/render-20260915-164312 passes
+46 comparisons with8648 pages free (33.78125MiB). The actual framebuffer shows
+the warm contribution on exposed rock. All8019 pixels changing by more than
+8/255 in the paired PC lit/base images are closer to the lit reference in the
+native capture. Native versus PC lit images have86 pixels exceeding8/255 in
+any channel; this is not exact image parity. The20 saved disc entries were
+restored byte-exactly and the owned emulator exited. Light-removal native
+verification follows separately; the crater's mound-like appearance remains
+unaccepted. No README image changes. Overall ~49%, GeoMod ~61%.
+
+The2500-frame native removal run at artifacts/xemu/render-20260915-164500 also
+passes46 comparisons with8648 pages free. Its framebuffer was inspected and
+shows the unlit crater again, without the warm contribution. Its PC reference
+is byte-identical to the earlier no-light control; native versus this PC frame
+has86 pixels exceeding8/255 in any channel. This supports visible restoration
+but does not prove byte-exact native restoration without a paired native
+no-light control. All20 disc entries restored and PID45848 exited. Both native
+runs use the synthetic source, not real gameplay light spawning/expiry. The
+source-selection/update path now has native visual evidence; gameplay light
+lifecycles and final crater readability remain open. Estimates unchanged.

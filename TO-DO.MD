@@ -4,7 +4,7 @@
 - GeoMod: Finish overlap boundary repair; supporting-line intersections now unify a second-blast junction, with 35 closure failures remaining after six cuts.
 - GeoMod: Reduce remaining terrain-cut stalls; the latest native eighth edit measures 250ms total, with 219ms CSG and 27ms binding, subject to host timing variation.
 - GeoMod: Diagnose the 425 PC/Xbox capture pixels differing by more than one color level; the shared dark crater appearance remains the main fidelity issue.
-- GeoMod lighting: Verify additive crater relighting on Xbox and connect gameplay light lifecycles; scene selection and exact light-removal restoration now pass the PC diagnostic cycle, while crater appearance remains unresolved.
+- GeoMod lighting: Connect gameplay light lifecycles and resolve crater appearance; diagnostic light addition/removal now runs on Xbox with inspected captures and 46 checks per run, while exact restoration is proven on PC.
 - DEV testbed: Review full weapon animations and add complete room reset; terrain reset and ammo refill are implemented, while campaign progression remains paused.
 - GeoMod: Refine debris bounce, lighting and surface eligibility; original age timing now drives real PC/Xbox fading, while crater readability remains open.
 - USER: Review destruction readability after replacing the folded-panel interior; destruction remains the current focus.

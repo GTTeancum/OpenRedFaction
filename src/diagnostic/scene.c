@@ -8832,7 +8832,6 @@ static int scene_terrain_dynamic_lighting(scene_stream *s,const rf_geomod_terrai
     scene_terrain_light_cache *cache=s->terrain_light_cache;scene_terrain_noise_owner *owner=s->terrain_noise;
     uint32_t *ids=s->light_overlay_work,count=0,i,j,k;rf_vfx_light_source *sources;int status;
     const rf_collision_node *root;
-    (void)frame; /* The diagnostic source is PC-only. */
     if(!cache || !owner || !ids || !terrain->tree || !terrain->tree->nodes)return RF_RANGE;
     root=terrain->tree->nodes;sources=(rf_vfx_light_source *)(ids+1100);
     if(s->lights) {
@@ -8840,14 +8839,12 @@ static int scene_terrain_dynamic_lighting(scene_stream *s,const rf_geomod_terrai
     }
     if(count>63)return RF_RANGE;
     for(i=0;i<count;i++)sources[i]=s->lights->pool.sources[ids[i]].source;
-#ifndef RF_IMAGE_XBOX_NATIVE
     if(s->terrain_test_light && frame>=1000 && frame<2000) {
         if(count==63)return RF_RANGE;
         rf_vfx_light_source *light=sources+count++;memset(light,0,sizeof(*light));light->type=2;light->radius=8;
         light->position[0]=-14;light->position[1]=-8;light->position[2]=4;
         light->color[0]=1;light->color[1]=.6f;light->color[2]=.25f;
     }
-#endif
     if(cache->valid && cache->generation==owner->generation && cache->count==count && !memcmp(cache->sources,sources,count*sizeof(*sources)))return RF_OK;
     for(i=0;i<owner->bake;i++) {
         scene_terrain_noise_map *map=owner->maps+i;unsigned char dirty=0;rf_lightmap_sample_lighting lighting={0};
@@ -9001,6 +8998,8 @@ static int scene_terrain_open(scene_stream *s,const rf_level *level)
 #ifndef RF_IMAGE_XBOX_NATIVE
     s->terrain_shadow_reference=getenv("RF_REPLAY_TERRAIN_SHADOW_REFERENCE")!=NULL;
     s->terrain_test_light=getenv("RF_REPLAY_TERRAIN_TEST_LIGHT")!=NULL;
+#else
+    {FILE *flag=fopen("D:\\terrain-test-light.flag","rb");s->terrain_test_light=flag!=NULL;if(flag)fclose(flag);}
 #endif
     s->terrain_atlas.width=s->terrain_atlas.height=512;s->terrain_atlas.bytes=512*512*2;s->terrain_atlas.source_format=5;
     status=rf_image_allocate_pixels(&s->terrain_atlas);if(status)return status;
