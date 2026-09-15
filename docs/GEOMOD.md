@@ -1256,3 +1256,43 @@ This verifies generated lightmap drawing in the rendered-pixel fixture, not
 live DEV-room integration. The scene still needs bounded persistent atlas
 ownership, stable image registration before Xbox texture setup, generation/light
 invalidation and pixel upload. No new in-game appearance or XEMU runtime claim.
+
+## Live crater lightmap atlas (2026-09-15)
+
+The DEV scene now owns a512x512 packed1555 atlas, a same-size linear staging
+buffer, one64x64 tile scratch buffer and768 projection bindings. A separate
+TERRAIN_ATLAS diagnostic accounts for1078292bytes (image record included),
+limited to1280KiB; geometry retains its previous independent budget. The atlas
+image is registered once in the shared lightmap table before Xbox texture
+setup. Image ownership transfers to that table; scene cleanup frees staging,
+tile and binding memory, and frees unregistered images on partial-open failure.
+
+On terrain/light-cache invalidation, generated faces receive0.5-unit sample
+grids, point/cone terrain shadows and packed pixels. Shelf packing refuses
+atlas overflow instead of silently reducing density. Authored surviving faces
+keep their saved lightmaps. Drawing uses the generated projection bindings.
+CPU staging is copied into native image storage only during the lightmap-update
+phase; Xbox waits for GPU completion there before modifying swizzled pixels.
+Unchanged frames reuse the atlas and existing lighting cache. Reset terrain
+has no generated draw; subsequent cuts invalidate the generation cache.
+
+All six ordinary PC destruction replays and three close-view replays pass.
+The live six-cut atlas contains22928 sampled texels across490 generated faces;
+geometry remains resident817644/peak936701bytes. TERRAIN_SHADOWS now measures
+per-texel sampling (147680 cumulative rays,117635 blocked over six rebuilds),
+so the two-cut depth replay bound changes from10000 to100000 rays. Both replay
+tools additionally enforce the separate atlas budget. The XEMU harness adds a
+TERRAIN_ATLAS comparison for dimensions, ownership, generation, texels, face
+count and image index; counters are not a claim of pixel identity.
+
+The close image changes51814pixels within the crater bounds(91,65)-(369,388).
+Close, left and right outputs were inspected. The cavity remains dark and
+angular; this is live per-texel lighting, not accepted original-game appearance
+parity. No additional GitHub screenshots. Evidence:artifacts/geomod-live-atlas-
+close.log, geomod-live-atlas-replays.log and artifacts/destruction/depth outputs.
+
+Native verification:artifacts/xemu/render-20260915-114309 completes800frames
+and41 comparisons with8748pages free (34.171875MiB). Atlas allocation,
+generation, texel/face counts and shadow counters match PC. The actual native
+framebuffer was inspected and shows the crater; the distant capture does not
+prove close-view fidelity. All19disc entries restored; owned PID39568 exited.

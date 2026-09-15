@@ -334,6 +334,7 @@ static int preview(const rf_preview_mesh *mesh, const rf_materials *materials, c
 #include "preview_vertex.inl"
     };
     if (!mesh || (!mesh->count && !streaming) || !materials || materials->count > RF_CAMPAIGN_TEXTURE_SLOTS || !lightmaps || lightmaps->count > 256) return RF_FORMAT;
+    if(streaming){int status=rf_scene_prepare_lightmaps((rf_lightmaps *)lightmaps);if(status)return status;}
     for (i = 0; i < materials->count; ++i) upload_bytes += materials->items[i].image.bytes;
     for (i = 0; i < lightmaps->count; ++i) upload_bytes += lightmaps->images[i].bytes;
     rf_xbox_renderer_stage[1]=(uint32_t)upload_bytes;rf_xbox_renderer_stage[2]=vertex_bytes;

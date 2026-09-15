@@ -486,11 +486,15 @@ typedef struct scene_terrain_light_cache {
     rf_vfx_light_source sources[63];uint32_t modes[63],count,generation,valid;
     float ambient[3];
 } scene_terrain_light_cache;
+uint32_t rf_scene_terrain_atlas[8]; /* enabled,width,height,owned bytes,generation,texels,faces,image */
 uint32_t rf_scene_terrain_shadows[4]; /* lighting refreshes, rays, blocked, cache hits */
 typedef struct scene_stream {
     rf_geomod_terrain *terrain;rf_geometry_collision_overlay terrain_collision;
     rf_geomod_template *terrain_template;rf_random_state terrain_random;uint32_t terrain_texture_width,terrain_texture_height;float (*terrain_colors)[3];
     scene_terrain_light_cache *terrain_light_cache;
+    rf_image terrain_atlas;unsigned char *terrain_atlas_pixels,*terrain_tile;
+    rf_preview_surface_lightmap *terrain_bindings;
+    uint32_t terrain_atlas_index,terrain_atlas_registered,terrain_atlas_pending;
     rf_geo_region *terrain_regions;uint32_t terrain_region_count,terrain_default_hardness;
     rf_geometry terrain_geometry;rf_scene_world_geometry terrain_render;
     uint32_t *terrain_ids;uint32_t terrain_fallback,terrain_material,terrain_held;
@@ -521,11 +525,31 @@ uint32_t rf_scene_lightmap_regeneration[8]; /* jobs,ambient,shadow callbacks,wor
 uint32_t rf_scene_lightmap_regeneration_test;
 static int scene_light_regenerate(scene_stream *,uint32_t,const rf_lightmap_mapping *,const rf_lightmap_sample_plane *,unsigned char *,uint32_t *,rf_vfx_light_source *);
 uint32_t rf_scene_lightmap_updates[8]; /* frames,visits,uploads,lit regions,RGB bytes,work bytes,deferred base,status */
+int rf_scene_prepare_lightmaps(rf_lightmaps *maps)
+{
+    scene_stream *s=particle_draw_stream;rf_image *images;
+    if(!s || !s->terrain || s->terrain_atlas_registered)return RF_OK;
+    if(!maps || !maps->images || maps->count>=256)return RF_RANGE;
+    images=calloc(maps->count+1,sizeof(*images));if(!images)return RF_IO;
+    memcpy(images,maps->images,maps->count*sizeof(*images));
+    s->terrain_atlas_index=maps->count;images[maps->count]=s->terrain_atlas;
+    free(maps->images);maps->images=images;maps->count++;
+    maps->allocated_bytes+=sizeof(*images)+s->terrain_atlas.bytes;s->terrain_atlas_registered=1;
+    rf_scene_terrain_atlas[7]=s->terrain_atlas_index;
+    return RF_OK;
+}
 int rf_scene_update_lightmaps(rf_lightmaps *maps)
 {
     scene_stream *stream=particle_draw_stream;uint32_t i,j,count,*ids;rf_vfx_light_source *sources;int status=RF_OK;
+    if(stream && stream->terrain_atlas_pending) {
+        uint32_t x,y;
+        if(!maps || !stream->terrain_atlas_registered || stream->terrain_atlas_index>=maps->count)return RF_RANGE;
+        for(y=0;y<512;y++)for(x=0;x<512;x++)
+            memcpy(rf_image_pixel(maps->images+stream->terrain_atlas_index,x,y),stream->terrain_atlas_pixels+(y*512+x)*2,2);
+        stream->terrain_atlas_pending=0;
+    }
     if(!stream || !stream->light_storage || !stream->light_rgb.images)return RF_OK;
-    if(!maps || maps->count!=stream->light_rgb.count || !stream->light_overlay_work)return RF_RANGE;
+    if(!maps || maps->count!=stream->light_rgb.count+stream->terrain_atlas_registered || !stream->light_overlay_work)return RF_RANGE;
     ids=stream->light_overlay_work;sources=(rf_vfx_light_source *)(ids+1100);
     ++rf_scene_lightmap_updates[0];rf_scene_lightmap_updates[6]=0;
     for(i=0;i<stream->light_storage->dirty_count;i++) {
@@ -8460,7 +8484,7 @@ static int scene_terrain_bind(scene_stream *s)
 static int scene_terrain_lighting(scene_stream *s,const rf_geomod_terrain_view *terrain)
 {
     uint32_t i,j,k,count=0,*ids=s->light_overlay_work;rf_vfx_light_source *sources;
-    float lo[3],hi[3],ambient[3];unsigned char room[4],weights[63];uint32_t modes[63],n;int status;
+    float lo[3],hi[3],ambient[3];unsigned char room[4];uint32_t modes[63];int status;
     scene_terrain_light_cache *cache=s->terrain_light_cache;
     if(!s->terrain_colors || !cache || !s->lights || !ids || terrain->mesh.face_count>768 || terrain->mesh.vertex_count>4096 || !terrain->mesh.vertex_count)return RF_RANGE;
     sources=(rf_vfx_light_source *)(ids+1100);
@@ -8477,28 +8501,34 @@ static int scene_terrain_lighting(scene_stream *s,const rf_geomod_terrain_view *
     if(cache->valid && cache->generation==terrain->mesh.generation && cache->count==count &&
        !memcmp(cache->ambient,ambient,sizeof(ambient)) && !memcmp(cache->sources,sources,count*sizeof(*sources)) &&
        !memcmp(cache->modes,modes,count*sizeof(*modes))) {++rf_scene_terrain_shadows[3];return RF_OK;}
-    for(i=0;i<terrain->mesh.face_count;i++) {
-        const rf_geomod_face *face=terrain->mesh.faces+i;const float *normal=terrain->faces[i].plane;
-        for(j=0;j<face->count;j++) {
-            uint32_t vertex=face->first+j;float accumulated[3];unsigned char rgb[3];
-            if(face->source_face!=UINT32_MAX) {
-                s->terrain_colors[vertex][0]=s->terrain_colors[vertex][1]=s->terrain_colors[vertex][2]=1;continue;
+    {
+        uint32_t tile_x=0,tile_y=0,row_height=0,texels=0,faces=0;
+        rf_geomod_light_bake bake={sources,modes,count,{ambient[0],ambient[1],ambient[2]},.25f,terrain};
+        if(!s->terrain_atlas_registered)return RF_RANGE;
+        memset(s->terrain_atlas_pixels,0,512*512*2);
+        for(i=0;i<terrain->mesh.vertex_count;i++)for(k=0;k<3;k++)s->terrain_colors[i][k]=1;
+        for(i=0;i<terrain->mesh.face_count;i++) {
+            const rf_geomod_face *face=terrain->mesh.faces+i;rf_geomod_light_grid grid;uint32_t stats[3],x,y;
+            rf_preview_surface_lightmap *binding=s->terrain_bindings+i;
+            binding->image=UINT32_MAX;if(face->source_face!=UINT32_MAX)continue;
+            status=rf_geomod_light_grid_open(terrain->mesh.vertices+face->first,face->count,terrain->faces[i].plane,.5f,&grid);if(status)return status;
+            if(tile_x+grid.width>512){tile_y+=row_height;tile_x=0;row_height=0;}
+            if(tile_y+grid.height>512)return RF_RANGE;
+            status=rf_geomod_light_grid_bake(&grid,terrain->mesh.vertices+face->first,face->count,&bake,
+                s->terrain_tile,grid.width*2,64*64*2,stats);if(status)return status;
+            for(y=0;y<grid.height;y++)for(x=0;x<grid.width;x++)
+                memcpy(s->terrain_atlas_pixels+((tile_y+y)*512+tile_x+x)*2,s->terrain_tile+(y*grid.width+x)*2,2);
+            binding->image=s->terrain_atlas_index;binding->projection.axes[0]=grid.u;binding->projection.axes[1]=grid.v;
+            for(j=0;j<2;j++) {
+                double scale=((j?grid.height:grid.width)-3)/((double)grid.maximum[j]-grid.minimum[j]);
+                binding->projection.scale[j]=(float)(scale/512);
+                binding->projection.offset[j]=(float)(((j?tile_y:tile_x)+1.5-grid.minimum[j]*scale)/512);
             }
-            /* Static-surface arithmetic at each corner, retaining the face
-             * normal so rock creases stay sharp. Opaque terrain masks handle
-             * point/cone sources; area/directional and texel-grid work remains. */
-            for(n=0;n<count;n++) {
-                weights[n]=255;
-                if(modes[n] && (sources[n].type==2 || sources[n].type==3)) {
-                    uint32_t visible;
-                    status=rf_geomod_light_visible(terrain,sources[n].position,terrain->mesh.vertices[vertex].position,&visible);if(status)return status;
-                    ++rf_scene_terrain_shadows[1];if(!visible){weights[n]=0;++rf_scene_terrain_shadows[2];}
-                }
-            }
-            status=rf_vfx_light_accumulate(terrain->mesh.vertices[vertex].position,normal,ambient,.25f,sources,count,weights,1,accumulated);if(status)return status;
-            status=rf_lightmap_accumulated_rgb(accumulated,rgb);if(status)return status;
-            for(k=0;k<3;k++)s->terrain_colors[vertex][k]=fminf(1.f,2.f*(float)rgb[k]/255.f);
+            tile_x+=grid.width;if(grid.height>row_height)row_height=grid.height;
+            rf_scene_terrain_shadows[1]+=stats[1];rf_scene_terrain_shadows[2]+=stats[2];texels+=stats[0];faces++;
         }
+        s->terrain_atlas_pending=1;
+        rf_scene_terrain_atlas[4]=terrain->mesh.generation;rf_scene_terrain_atlas[5]=texels;rf_scene_terrain_atlas[6]=faces;
     }
     cache->valid=1;cache->generation=terrain->mesh.generation;cache->count=count;
     memcpy(cache->ambient,ambient,sizeof(ambient));memcpy(cache->sources,sources,count*sizeof(*sources));memcpy(cache->modes,modes,count*sizeof(*modes));
@@ -8509,6 +8539,7 @@ static int scene_terrain_open(scene_stream *s,const rf_level *level)
     rf_geomod_vertex vertices[24];rf_geomod_face faces[6];rf_collision_face_filter filters[6],generated={0};
     rf_geomod_mesh_view source;uint32_t i,j;int status;
     memset(rf_scene_geomod,0,sizeof(rf_scene_geomod));memset(rf_scene_terrain_shadows,0,sizeof(rf_scene_terrain_shadows));
+    memset(rf_scene_terrain_atlas,0,sizeof(rf_scene_terrain_atlas));
     if(!rf_scene_dev_room_enabled)return RF_OK;
     if(!s->geometry || !s->collision || !actor_follow_world || strcmp(level->entry.name,"glass_house.rfl") ||
        s->geometry->faces!=598 || s->geometry->rooms!=91 || s->collision->room_count!=91)return RF_FORMAT;
@@ -8526,6 +8557,14 @@ static int scene_terrain_open(scene_stream *s,const rf_level *level)
         }
         free(payload);if(status)return status;
     }
+    s->terrain_atlas.width=s->terrain_atlas.height=512;s->terrain_atlas.bytes=512*512*2;s->terrain_atlas.source_format=5;
+    status=rf_image_allocate_pixels(&s->terrain_atlas);if(status)return status;
+    s->terrain_atlas_pixels=calloc(1,512*512*2);s->terrain_tile=malloc(64*64*2);
+    s->terrain_bindings=calloc(768,sizeof(*s->terrain_bindings));s->terrain_atlas_index=UINT32_MAX;
+    if(!s->terrain_atlas_pixels || !s->terrain_tile || !s->terrain_bindings)return RF_IO;
+    rf_scene_terrain_atlas[0]=1;rf_scene_terrain_atlas[1]=rf_scene_terrain_atlas[2]=512;
+    rf_scene_terrain_atlas[3]=2*512*512*2+64*64*2+768*sizeof(*s->terrain_bindings)+sizeof(rf_image);
+    if(rf_scene_terrain_atlas[3]>1280*1024)return RF_RANGE;
     s->terrain_ids=calloc(768,sizeof(*s->terrain_ids));if(!s->terrain_ids)return RF_IO;
     s->terrain_colors=calloc(4096,sizeof(*s->terrain_colors));if(!s->terrain_colors)return RF_IO;
     s->terrain_light_cache=calloc(1,sizeof(*s->terrain_light_cache));if(!s->terrain_light_cache)return RF_IO;
@@ -9176,8 +9215,8 @@ static int actor_follow_view(void *context,uint32_t frame,const rf_motion_contro
         generated.vertices=world_mesh.vertices+world_mesh.count;
         memcpy(camera.player_position,position,12);memcpy(camera.player_orientation,orientation,36);
         status=scene_terrain_lighting(stream,&terrain);if(status)return status;
-        status=rf_preview_geomod_world_lit(&generated,stream->capacity-1024*1024-world_mesh.bytes,
-            &terrain.mesh,terrain.faces,stream->materials->count,&camera,stream->terrain_colors,stream->geometry);if(status)return status;
+        status=rf_preview_geomod_lightmapped(&generated,stream->capacity-1024*1024-world_mesh.bytes,
+            &terrain.mesh,terrain.faces,stream->materials->count,&camera,stream->terrain_colors,stream->geometry,stream->terrain_bindings);if(status)return status;
         world_mesh.count+=generated.count;world_mesh.bytes+=generated.bytes;
      }
      *stream->mesh=world_mesh;}
@@ -12077,6 +12116,8 @@ done:
     rf_level_navigation_workspace_close(&campaign_navigation_workspace);
     rf_level_owned_navigation_close(&campaign_navigation);
     free(campaign_waypoints);campaign_waypoints=NULL;campaign_waypoint_bytes=0;
+    if(!stream.terrain_atlas_registered)rf_image_close(&stream.terrain_atlas);
+    free(stream.terrain_atlas_pixels);free(stream.terrain_tile);free(stream.terrain_bindings);
     rf_geometry_collision_overlay_close(&stream.terrain_collision);rf_geomod_terrain_close(&stream.terrain);free(stream.terrain_template);free(stream.terrain_colors);free(stream.terrain_regions);free(stream.terrain_light_cache);free(stream.terrain_ids);
     free(stream.surface_indices);free(states);if(motions_opened)rf_vpp_close(&motions);
     free(vertices);free(items);rf_preview_close(&actor);rf_model_materials_close(&bundle);

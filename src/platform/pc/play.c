@@ -267,6 +267,7 @@ static int present(void *context,uint32_t frame,const rf_preview_mesh *mesh,
     const char *capture=p->headless && p->replay?getenv("RF_REPLAY_CAPTURE_DIR"):NULL;
     if(capture && (!*capture || p->replay_count>600))return RF_RANGE;
     if(frame+p->scene_start!=p->frames || mesh->bytes>RF_SCENE_FOLLOW_CAPACITY)return RF_RANGE;
+    status=rf_scene_prepare_lightmaps(&p->lightmaps);if(status)return status;
     for(i=0;i<materials->count;i++)image_bytes+=materials->items[i].image.bytes;
     for(i=0;i<p->lightmaps.count;i++)image_bytes+=p->lightmaps.images[i].bytes;
     if(image_bytes>RF_CAMPAIGN_IMAGE_BUDGET)return RF_RANGE;
@@ -796,6 +797,7 @@ run_scene:
     printf("ROCKET_BLAST");for(i=0;i<8;++i)printf(" %u",rf_scene_rocket_blast[i]);puts("");
     printf("ROCKETS");for(i=0;i<8;++i)printf(" %u",rf_scene_rockets[i]);puts("");
     printf("GEOMOD");for(i=0;i<8;++i)printf(" %u",rf_scene_geomod[i]);puts("");
+    printf("TERRAIN_ATLAS");for(i=0;i<8;++i)printf(" %u",rf_scene_terrain_atlas[i]);puts("");
     printf("TERRAIN_SHADOWS");for(i=0;i<4;++i)printf(" %u",rf_scene_terrain_shadows[i]);puts("");
     printf("PISTOL_RULES");for(i=0;i<7;++i)printf(" %u",rf_scene_pistol_rules[i]);puts("");
     printf("WEAPON_SELECTION");for(i=0;i<8;++i)printf(" %u",rf_scene_weapon_selection[i]);puts("");
