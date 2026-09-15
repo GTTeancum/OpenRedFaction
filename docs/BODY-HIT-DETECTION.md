@@ -139,6 +139,12 @@ The final counters reset at transition; a pre-exit capture is still needed to
 attribute the improved health to individual eastern-guard outcomes. The25health
 variant and its onward L2S3 encounter are not covered by the Xbox run above.
 
+The healthier route now clears2020 on PC using ordinary recorded look inputs
+captured from an opt-in test controller. Four hits kill it and two return shots
+leave5health. The7356-frame recording reproduces all77body words and combat
+state with tracking disabled. See REPLAY-AIM-CAPTURE.md for exact scope and
+the separate pending native run; later L2S3 encounters remain open.
+
 The helper assumes valid finite body spheres and orthonormal orientation,
 as supplied by the physics body. It does not implement animated limb hitboxes,
 per-part damage, or new enemy interception/target-selection behavior.

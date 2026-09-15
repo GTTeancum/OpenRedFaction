@@ -7946,6 +7946,7 @@ static uint32_t combat_playing(void *c,uint32_t v){(void)c;(void)v;return 0;}
 static uint32_t combat_play(void *c,uint32_t t){(void)c;(void)t;return UINT32_MAX;}
 /* Nearest segment/AABB entry; the legacy segment predicate returns an endpoint. */
 uint32_t rf_scene_combat_trace; /* Opt-in process-local shot/candidate-shape diagnostics. */
+float rf_scene_gameplay_eye[3]; /* Last gameplay camera, read-only harness telemetry. */
 static int combat_box(const float start[3],const float delta[3],const rf_physics_bounds *box,float limit,float *fraction)
 {
     double lo=0,hi=limit;uint32_t j;
@@ -8381,6 +8382,7 @@ static int campaign_pickups_tick(scene_stream *stream,const float eye[3])
 static int campaign_combat_tick(scene_stream *stream,uint32_t frame,const float position[3],const float orientation[3][3])
 {
     float delta[3],nearest=1,amount;uint32_t i,target=UINT32_MAX,blocked,fire,alt,active=0;int status;
+    memcpy(rf_scene_gameplay_eye,position,sizeof(rf_scene_gameplay_eye));
     if(!frame){memset(rf_scene_rifle_alt,0,sizeof(rf_scene_rifle_alt));campaign_rifle_alt_random.value=1;memset(rf_scene_weapon_drops,0,sizeof(rf_scene_weapon_drops));rf_scene_combat_event_count=0;memset(rf_scene_combat_events,0,sizeof(rf_scene_combat_events));memset(rf_scene_shotgun,0,sizeof(rf_scene_shotgun));campaign_shotgun_random.value=1;campaign_last_alt=0;memset(rf_scene_riot,0,sizeof(rf_scene_riot));riot_charge_remainder=0;combat_surface_frame=UINT32_MAX;}
     if(!frame){memset(rf_scene_weapon_selection,0,sizeof(rf_scene_weapon_selection));memset(rf_scene_weapon_audio,0,sizeof(rf_scene_weapon_audio));combat_sound_random.value=1;memset(rf_scene_combat_death,0,sizeof(rf_scene_combat_death));memset(rf_scene_combat,0,sizeof(rf_scene_combat));rf_scene_combat[3]=UINT32_MAX;rf_scene_combat[5]=campaign_pistol.magazine;memset(&combat_trigger,0,sizeof(combat_trigger));combat_frame=combat_hit_frame=UINT32_MAX;
         memset(rf_scene_enemy_awareness,0,sizeof(rf_scene_enemy_awareness));

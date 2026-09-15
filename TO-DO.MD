@@ -5,8 +5,14 @@
 - Weapons: Verify remaining enemy drop policies and uncollected-drop revisits; supported held weapons now drop collectible supplies, with PC/Xbox rifle acquisition and firing verified.
 - Combat: Finish enemy damage amounts, cadence and weapon coverage; authored SP primary spread and target/bullet-obstruction checks now pass PC/Xbox verification (24 hits, 3 misses).
 - Weapons: Exercise the shotgun in the uninterrupted campaign and continue weapon coverage; PC manual/automatic reload and PC/Xbox automatic reload plus two-level persistence checks now pass.
-- Gameplay: Verify the corrected25health L2S3 arrival on Xbox and continue its first encounter; PC now retains20more health after adjusting the eastern-room aim.
+- Gameplay: Verify the7356-frame first L2S3 guard recording on Xbox and continue toward maintenance; PC clears it with5health and the captured input matches with tracking disabled.
 - Movement: Refine ladder entry and top-edge transitions; body contact now unblocks the first L2S3 ladder, but the verified route still uses a jump and repeated top-edge state changes need smoothing.
+
+Tracked-input update (2026-09-15): An opt-in PC harness emits bounded ordinary
+look inputs while tracking one named actor; it does not inject game state.
+The7356-frame recording kills L2S3 guard2020 and ends alive with5health.
+Replay with tracking disabled matches77body words, NPCs and combat journal.
+Xbox verification is running; see docs/REPLAY-AIM-CAPTURE.md. Estimate ~48%.
 
 Eastern aim update (2026-09-15): The corrected6806-frame PC input reaches
 L2S3 at6631 with25health instead of5, retaining16loaded rounds. The --healthy

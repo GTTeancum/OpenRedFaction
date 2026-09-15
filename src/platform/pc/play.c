@@ -74,6 +74,7 @@ typedef struct player {
     rf_frame_clock clock;
     LARGE_INTEGER frequency;
     uint32_t frames,headless;
+    uint32_t aim_uid,aim_from,aim_until;
     rf_scene_input *replay;uint32_t trace_from,replay_count,scene_start,exit_uid,exit_frame,forced_exit_uid,goal_uid,goto_uid,setup_uid,setup_next_uid,return_exit_uid,return_item_uid,return_place;
     int quit,focused;
 } player;
@@ -206,7 +207,28 @@ static int input(void *context,uint32_t frame,rf_scene_input *out)
         if(frame==0) { /* Read while owners live, before scene teardown. */
             for(uint32_t k=0;k<rf_scene_npc_bodies[0];++k){uint32_t row[3];if(!rf_scene_npc_backlink_row(k,row))printf("NPC_BACKLINK_ROW %u %u %u\n",row[0],row[1],row[2]);}
         }
-        if(p->replay){if(p->frames>=p->replay_count)return RF_RANGE;*out=p->replay[p->frames];return RF_OK;}
+        if(p->replay){
+            if(p->frames>=p->replay_count)return RF_RANGE;*out=p->replay[p->frames];
+            if(p->aim_uid && p->frames>=p->aim_from && p->frames<p->aim_until) {
+                extern float rf_scene_gameplay_eye[3];
+                float position[3],basis[9];
+                if(!rf_scene_campaign_pose_get(position,basis))for(uint32_t k=0;k<rf_scene_npc_bodies[0];k++) {
+                    uint32_t row[8];float values[7],dx,dy,dz,yaw,pitch;
+                    if(rf_scene_npc_combat_row(k,row,values) || row[0]!=p->aim_uid || values[6]<=0)continue;
+                    /* Test controller aims between authored body origin and eye.
+                     * Ordinary bounded look commands only; movement/fire unchanged. */
+                    dx=values[0]-rf_scene_gameplay_eye[0];dz=values[2]-rf_scene_gameplay_eye[2];
+                    dy=(values[1]+values[4])*.5f-rf_scene_gameplay_eye[1];
+                    yaw=atan2f(dx,dz)-atan2f(basis[6],basis[8]);
+                    while(yaw>3.14159265f)yaw-=6.28318531f;
+                    while(yaw< -3.14159265f)yaw+=6.28318531f;
+                    pitch=atan2f(dy,sqrtf(dx*dx+dz*dz))-asinf(fmaxf(-1,fminf(1,basis[7])));
+                    out->look[0]=fmaxf(-1,fminf(1,pitch*60));out->look[1]=fmaxf(-1,fminf(1,yaw*60));
+                    printf("AIM_INPUT %u %u %.9g %.9g\n",p->frames,p->aim_uid,out->look[0],out->look[1]);break;
+                }
+            }
+            return RF_OK;
+        }
         /* Same deterministic route as rf_scene_check --input. */
         if(frame>=24 && frame<48)out->move[0]=.25f;
         if(frame>=63)out->move[0]=1;
@@ -319,6 +341,13 @@ int main(int argc,char **argv)
     else {fprintf(stderr,"Usage: rf_pc_play <Installed_Game>\n       rf_pc_play --campaign <Installed_Game>\n       rf_pc_play --headless <Installed_Game> <frames 1..60000> <output.ppm>\n       rf_pc_play --replay <Installed_Game> <inputs.bin> <output.ppm>\n       rf_pc_play --spawn-replay <Installed_Game> <inputs.bin> <output.ppm>\n");return 2;}
 #define CHECK(call) do {status=(call);if(status){fprintf(stderr,"%s failed (%d)\n",#call,status);goto cleanup;}} while(0)
     p.trace_from=UINT32_MAX;
+    if(p.headless && getenv("RF_REPLAY_AIM")) {
+        char extra;const char *value=getenv("RF_REPLAY_AIM");
+        if(!p.replay || sscanf(value,"%u:%u:%u%c",&p.aim_uid,&p.aim_from,&p.aim_until,&extra)!=3 ||
+            !p.aim_uid || !p.aim_from || p.aim_from>=p.aim_until || p.aim_until>p.replay_count) {
+            status=RF_FORMAT;goto cleanup;
+        }
+    }
     if(p.headless && getenv("RF_REPLAY_TRACE_FROM")) {
         const char *value=getenv("RF_REPLAY_TRACE_FROM");char *end;unsigned long n=strtoul(value,&end,10);
         if(!*value || *end || n>60000){status=RF_FORMAT;goto cleanup;}p.trace_from=(uint32_t)n;
