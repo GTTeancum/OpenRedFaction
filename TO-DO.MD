@@ -1,7 +1,7 @@
 # Red Faction Xbox / PC - open work
 
 - PRIORITY GeoMod: Match original destruction shape, exposed materials, lighting, debris, collision and repeated blasts before returning to other systems; a visible hole alone is not acceptance.
-- GeoMod: Finish overlap boundary repair; supporting-line intersections now unify a second-blast junction, with 35 closure failures remaining after six cuts. The clipped-screen-edge gap is fixed; the remaining left-view junction misses render subdivision at 1.069e-6 distance against the 1e-6 gate.
+- GeoMod: Finish overlap boundary repair; supporting-line intersections now unify a second-blast junction, with 35 closure failures remaining after six cuts. The identified screen-edge and left-view junction gaps are fixed and verified in XEMU; broader closure and depth-threshold failures remain open.
 - GeoMod: Reduce remaining terrain-cut stalls; the latest native eighth edit measures 250ms total, with 219ms CSG and 27ms binding, subject to host timing variation.
 - GeoMod: Diagnose the 425 PC/Xbox capture pixels differing by more than one color level; the shared dark crater appearance remains the main fidelity issue.
 - GeoMod lighting: Connect gameplay light lifecycles and resolve crater appearance; diagnostic light addition/removal now runs on Xbox with inspected captures and 46 checks per run, while exact restoration is proven on PC.

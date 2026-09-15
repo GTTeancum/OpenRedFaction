@@ -2715,3 +2715,38 @@ weld tolerance increase. Shared support identity or a bounded floating-point
 construction rule must distinguish this junction from genuinely separate edges.
 No production geometry was changed this turn. PC build and export reproduction
 pass; no new native run. Overall ~49%, GeoMod ~61%; destruction boundary repair.
+
+Float-rounding render subdivision (2026-09-15): The render-only T-junction
+predicate retains its existing1e-6 geometric test and additionally admits a
+candidate whose three coordinate residuals fit the float32 rounding intervals
+of the candidate and interpolated edge endpoints. For fraction t, each bound
+is halfULP(candidate)+(1-t)*halfULP(A)+t*halfULP(B). Half-step values are computed
+in double from float exponent bits, including subnormals. Search ranges,
+endpoint guards and existing64-corner/8192-vertex limits remain in force.
+Source vertices and physical collision faces are untouched; the accepted
+candidate is inserted into the draw polygon with interpolated owning-face UVs.
+This is a practical rendering repair, not proof of original topology or a fix
+for the35 remaining six-cut physical closure failures.
+
+The recorded missed candidate now passes coordinate bounds approximately
+(1.90735e-6,9.53674e-7,2.38419e-7). The independent junction analyzer reports these
+bounds alongside the rejected legacy distance gate. Both side views were rerun
+and inspected; the left uncovered count drops1->0 and right remains0. Existing
+near-depth threshold failures (left112/right8 pixels) and the right view's
+9727-pixel area below the frontal10000 gate remain explicit. The side-view
+script still exits nonzero; these are not all-green side geometry claims.
+Front paired depth passes19985 recessed pixels, no nearer or uncovered pixels,
+minimum delta-71. Eight-cut playback passes with3112 physical vertices and3762
+render vertices (650 inserted, previously608), using the same308244-byte draw
+owner. Lightmap bake and memory gates pass. NXDK compilation passes. The dark
+mound-like crater appearance remains unchanged at normal viewing scale.
+
+Native1620-frame side-view verification at artifacts/xemu/render-20260915-165844
+passes46 comparisons with8647 pages free (33.77734MiB). The actual framebuffer
+was inspected. Previously uncovered pixel(281,228), which held clear RGB16,16,24,
+now holds rock RGB24,22,21 in both native and PC captures. The already-repaired
+screen-edge pixel(499,328) also matches at53,49,43. These exact pixel checks
+complement the full PC depth coverage audit; they are not complete native image
+parity. All20 saved disc entries restored byte-exactly, and owned PID10056 exited.
+Overall ~49%, GeoMod ~61%; destruction shape/readability and remaining topology
+remain priorities. No GitHub image was uploaded.

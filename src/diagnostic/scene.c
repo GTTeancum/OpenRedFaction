@@ -8532,6 +8532,14 @@ static void scene_terrain_edit_mark(uint32_t row,uint32_t column,uint32_t *previ
     now=profile_clock();rf_scene_terrain_edit_times[row][column]=now-*previous;*previous=now;
 }
 uint32_t rf_scene_geomod[8]; /* enabled,cuts,generation,resident,peak,status,attempts,successful edits */
+/* Half a float32 coordinate step, computed in double so subnormals retain
+ * a nonzero rounding interval. Inputs are finite terrain coordinates. */
+static double scene_terrain_coordinate_rounding(float value)
+{
+    uint32_t bits;float power;memcpy(&bits,&value,4);bits&=0x7f800000u;
+    if(!bits)return 7.0064923216240853546e-46;
+    memcpy(&power,&bits,4);return (double)power/16777216.0;
+}
 /* Render-only T-junction subdivision. Physical faces and light-grid inputs
  * retain their original geometry; UVs interpolate on the owning face edge. */
 static int scene_terrain_subdivide(scene_stream *s,const rf_geomod_terrain_view *source)
@@ -8588,7 +8596,20 @@ static int scene_terrain_subdivide(scene_stream *s,const rf_geomod_terrain_view 
             }
             fraction/=length;if(fraction<=0 || fraction>=1 || fraction>best || (fraction==best && i>=selected) || near_a<=1e-12 || near_b<=1e-12)continue;
             for(k=0;k<3;k++){double d=(double)v[k]-(a.position[k]+fraction*delta[k]);error+=d*d;}
-            if(error<=1e-12){best=fraction;selected=i;}
+            if(error>1e-12) {
+                /* Admit only coordinate residuals consistent with rounding
+                 * the candidate and both ends of this same segment. This
+                 * does not move a source vertex or widen collision geometry. */
+                for(k=0;k<3;k++) {
+                    double residual=fabs((double)v[k]-(a.position[k]+fraction*delta[k]));
+                    double rounding=scene_terrain_coordinate_rounding(v[k])+
+                        (1-fraction)*scene_terrain_coordinate_rounding(a.position[k])+
+                        fraction*scene_terrain_coordinate_rounding(b.position[k]);
+                    if(residual>rounding)break;
+                }
+                if(k<3)continue;
+            }
+            best=fraction;selected=i;
         }}
         if(selected!=UINT32_MAX) {
             rf_geomod_vertex added=mesh->vertices[selected];uint32_t at=e+1;
