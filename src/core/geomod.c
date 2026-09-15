@@ -22,6 +22,24 @@ int rf_geomod_debris_age(float age,float lifetime,float dt,uint32_t paused,
     *out=next;return RF_OK;
 }
 
+int rf_geomod_lightmap_size(const float span[2],const float density[2],uint32_t special,
+    uint32_t dimensions[2],float adjusted_density[2])
+{
+    uint32_t sizes[2],i,minimum=special?8:4;float adjusted[2];
+    if(!span || !density || !dimensions || !adjusted_density || special>1)return RF_RANGE;
+    for(i=0;i<2;i++) {
+        double rounded;
+        if(!isfinite(span[i]) || span[i]<0 || !isfinite(density[i]) || density[i]<=0)return RF_RANGE;
+        rounded=(double)span[i]*density[i]+.5;
+        if(rounded>INT32_MAX)return RF_RANGE;
+        sizes[i]=(uint32_t)rounded;adjusted[i]=density[i];
+        if(sizes[i]>64){adjusted[i]=(float)((64./sizes[i])*density[i]);sizes[i]=64;}
+        if(sizes[i]<minimum){adjusted[i]=(float)(((double)minimum/(sizes[i]?sizes[i]:1))*adjusted[i]);sizes[i]=minimum;}
+        if(!isfinite(adjusted[i]))return RF_RANGE;
+    }
+    memcpy(dimensions,sizes,sizeof(sizes));memcpy(adjusted_density,adjusted,sizeof(adjusted));return RF_OK;
+}
+
 int rf_geomod_light_noise(unsigned char *rgb,uint32_t bytes,uint32_t pitch,
     uint32_t width,uint32_t height,rf_random_state *random)
 {

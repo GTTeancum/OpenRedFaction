@@ -5,6 +5,11 @@
 int main(int argc,char **argv)
 {
     rf_random_state state;float basis[9];uint32_t i;
+    if(argc==7 && !strcmp(argv[1],"--light-size")) {
+        float span[2]={strtof(argv[2],NULL),strtof(argv[3],NULL)},density[2]={strtof(argv[4],NULL),strtof(argv[5],NULL)},adjusted[2];uint32_t dims[2];
+        if(rf_geomod_lightmap_size(span,density,(uint32_t)strtoul(argv[6],NULL,10),dims,adjusted))return 2;
+        printf("%u %u %.9g %.9g\n",dims[0],dims[1],adjusted[0],adjusted[1]);return 0;
+    }
     if(argc==5 && !strcmp(argv[1],"--light-noise")) {
         unsigned char rgb[64*64*3];uint32_t width=(uint32_t)strtoul(argv[3],NULL,10),height=(uint32_t)strtoul(argv[4],NULL,10);
         state.value=(uint32_t)strtoul(argv[2],NULL,0);if(width>64 || height>64)return 3;

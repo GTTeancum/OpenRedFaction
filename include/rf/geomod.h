@@ -12,6 +12,10 @@
  * replicated gray=(draw&63)+32. Row padding remains untouched. This supplies
  * pixels only; mapping construction and live RNG ownership are separate.
  * Inputs/output must be disjoint. Invalid sizes preserve pixels and RNG. */
+/* Original4e4452..4e453e rounded/clamped lightmap extents. Density is the
+ * already detail-adjusted value; no power-of-two rounding. Outputs disjoint. */
+int rf_geomod_lightmap_size(const float span[2],const float density[2],uint32_t special,
+    uint32_t dimensions[2],float adjusted_density[2]);
 int rf_geomod_light_noise(unsigned char *rgb,uint32_t bytes,uint32_t pitch,
     uint32_t width,uint32_t height,rf_random_state *random);
 int rf_geomod_random_basis(rf_random_state *random,float basis[9]);

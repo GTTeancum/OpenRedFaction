@@ -1888,3 +1888,34 @@ lighting policy. Next: verify mapping density and later dirty propagation,
 then connect the appropriate new-face lighting to the bounded shared renderer.
 Evidence: artifacts/geomod-light-noise-original.json and Ghidra exports 436fc0,
 4e3e90,4e5040,4e5b20,4dd8c0,4de4d0,4dbc50 and 4de9d0 for the existing RF.exe SHA.
+
+### Original new-face mapping dimensions (2026-09-15)
+
+4e4180 sets density from its caller parameter, adjusts it by the largest
+face-flags bits 8..9 class, and measures projected surface extents. The recovered
+numeric block 4e4452..4e453e rounds span*density+.5 down to an integer, clamps
+above 64 with density rescaling, and clamps below 4 (ordinary) or 8 (special).
+Zero rounded size uses denominator 1 for the minimum-size density correction.
+There is no power-of-two rounding. The later mapping formula uses width-2 and
+height-2 over surface spans with a one-texel offset; the existing port grid's
+width-3/1.5-texel mapping is a different policy and must not be silently reused.
+
+rf_geomod_lightmap_size implements the sizing block for already measured spans
+and adjusted densities. inspect_geomod_light_size.py executes the original
+block unhooked, including float-to-integer and max helpers. 120 cases match
+both dimensions and adjusted-density float bits. Focused CTests cover a 9-texel
+non-power-of-two result, zero-size minimum correction and invalid rollback.
+PC and NXDK builds pass. Global density-class selection and axis/UV construction
+are not claimed recovered by this helper; live rendering is unchanged.
+
+The mapping's special byte comes from whether any grouped face has nonzero
+field 3c. Its inhibit byte comes from 4e5f40's bit 5 query of supplied flags.
+These static observations are not proof of the flags on actual cut faces.
+Post-subtraction 4f0bd0 changes referenced owner state 1 to 2; 4e60c0 rebuilds a
+face-reference list. Neither inspected routine calls lightmap regeneration.
+This narrows immediate cleanup, but does not rule out later light dirtying.
+
+Evidence: artifacts/geomod-light-size-original.json, exports 4e4180/4f0bd0/
+4f0b90/4e60c0/466c50 and disassembly 4e5f40. Next integration must preserve
+existing face mappings across later cuts, rather than repainting every old
+surface whenever the terrain generation changes.

@@ -1239,5 +1239,17 @@ int main(int argc,char **argv)
         for(x=18;x<sizeof(pixels);x++)CHECK(pixels[x]==165);
         puts("PASS: new-face randomized lightmap fill, padding and invalid-input rollback");
     }
+    {
+        float span[2]={2.25f,20},density[2]={4,4},adjusted[2]={123,456};uint32_t dims[2]={77,88};
+        CHECK(!rf_geomod_lightmap_size(span,density,0,dims,adjusted));
+        CHECK(dims[0]==9 && dims[1]==64 && adjusted[0]==4 && adjusted[1]==3.2f);
+        span[0]=span[1]=0;
+        CHECK(!rf_geomod_lightmap_size(span,density,1,dims,adjusted));
+        CHECK(dims[0]==8 && dims[1]==8 && adjusted[0]==32 && adjusted[1]==32);
+        span[0]=NAN;
+        CHECK(rf_geomod_lightmap_size(span,density,0,dims,adjusted)==RF_RANGE);
+        CHECK(dims[0]==8 && dims[1]==8 && adjusted[0]==32 && adjusted[1]==32);
+        puts("PASS: original non-power-of-two lightmap extents, clamps and rollback");
+    }
     puts("PASS: repeated solid/cavity cuts, edge closure, materials, ray/body clearance, rendering and rollback");return 0;
 }
