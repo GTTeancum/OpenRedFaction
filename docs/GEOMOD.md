@@ -1602,3 +1602,36 @@ PC compilation and the paired900-frame audit pass. No shared renderer change,
 Xbox rebuild, native run or new screenshot was needed for this diagnostic-only
 frontend change. Next investigate the cavity's illumination/material treatment
 against original behavior and separately repair the uncovered pixels.
+
+## Projected seam evidence and rejected collision stitching (2026-09-15)
+
+RF_REPLAY_MESH_OUT optionally captures the final headless replay mesh before
+rasterization. RFM1 contains count,world_count,stride as little-endian uint32,
+then preview vertex records (currently56 bytes). It runs only on the final
+recorded frame and does not alter the draw stream. The paired depth harness
+now saves both meshes alongside depth and pixels.
+
+analyze_crater_seams.py tests every uncovered pixel against every world
+triangle using exact integer edge equations on the existing1/16-pixel grid.
+All17 uncovered pixels are outside every projected triangle. Thus changing
+only the PC raster's floating-point coverage test cannot fill these gaps.
+artifacts/destruction/depth-audit/seams.json records the two nearest edges
+for each pixel. At(196,229), the adjoining projected edge segments use
+(193.1875,224.5), (206.5625,244.6875) and(219.375,264.125); the intermediate
+point does not lie exactly on the long snapped edge. Near the viewport top,
+another pair starts at y=0 and y=-.0625. These are projected subdivision/clip
+consistency leads, not proof that the known world closure defect is their cause.
+
+A pending-bank experiment inserted existing near-collinear world vertices
+into neighboring faces before collision publication, reusing clipping scratch.
+It was rejected and fully removed. Some tiny inserted edges violated existing
+convex-face validation; skipping those insertions avoided that initial failure
+but the live replay subsequently returned RF_FORMAT at frame345. No validation
+tolerance was weakened. Original core source was restored and rebuilt: both
+GeoMod CTests and the paired900-frame audit pass again, with the original17
+projected gaps still reported OPEN. Rejected source and logs remain ignored
+under artifacts/geomod-rejected-stitch.c and geomod-stitch-*.log for diagnosis.
+
+Next isolate render-only edge subdivision and canonical clipping, retaining
+the verified collision mesh and existing light-grid source polygons. This
+turn adds diagnosis only; no seam repair or changed Xbox result is claimed.

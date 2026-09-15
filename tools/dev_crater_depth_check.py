@@ -18,6 +18,7 @@ def main():
             for i in range((len(data)-8)//48):struct.pack_into('<I',data,8+i*48+32,0)
         path=folder/(kind+'.bin');path.write_bytes(data)
         env={k:v for k,v in os.environ.items() if not k.startswith('RF_REPLAY_')};env['RF_REPLAY_DEPTH_OUT']=str(folder/(kind+'.depth'))
+        env['RF_REPLAY_MESH_OUT']=str(folder/(kind+'.mesh'))
         r=subprocess.run([str(ROOT/'build/pc/Release/rf_pc_play.exe'),'--dev-room-replay',str(ROOT/'Installed_Game'),str(path),str(folder/(kind+'.ppm'))],cwd=ROOT,env=env,capture_output=True,text=True)
         (folder/(kind+'.log')).write_text(r.stdout+r.stderr);r.check_returncode()
         row=lambda label:next(l.split()[1:] for l in r.stdout.splitlines() if l.startswith(label+' '))

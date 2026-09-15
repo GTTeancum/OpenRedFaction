@@ -278,6 +278,12 @@ static int present(void *context,uint32_t frame,const rf_preview_mesh *mesh,
         status=rf_scene_draw_coronas(NULL,NULL);if(status)return status;
         status=rf_scene_draw_player_flash(NULL,NULL);if(status)return status;++p->frames;return RF_OK;}
     if(!p->headless && !rf_frame_clock_present(&p->clock,milliseconds(p))){++p->frames;return RF_OK;}
+    if(p->headless && p->replay && p->frames+1==p->replay_count && getenv("RF_REPLAY_MESH_OUT")) {
+        FILE *file=fopen(getenv("RF_REPLAY_MESH_OUT"),"wb");uint32_t header[3]={mesh->count,world,sizeof(rf_preview_vertex)};int failed=0;
+        if(!file)return RF_IO;
+        if(fwrite("RFM1",1,4,file)!=4 || fwrite(header,4,3,file)!=3 || fwrite(mesh->vertices,1,mesh->bytes,file)!=mesh->bytes)failed=1;
+        if(fclose(file))failed=1;if(failed)return RF_IO;
+    }
     status=rf_pc_raster_frame(&p->raster,mesh,materials,&p->lightmaps,world);
     if(status)return status;
     status=rf_scene_draw_particles(particle_present,p);if(status)return status;
