@@ -29,6 +29,7 @@ extern char rf_material_failure_name[61];
 extern uint32_t rf_material_failure[3];
 extern uint32_t rf_scene_actor_live_enabled;
 extern uint32_t rf_scene_actor_follow_summary[5];
+extern uint32_t rf_scene_actor_follow_frames[64][14];
 extern uint32_t rf_scene_player_input_frames[64][7];
 extern uint32_t rf_preview_failure[8],rf_animation_progress[4];
 extern rf_physics_body scene_actor_body;
@@ -725,6 +726,18 @@ run_scene:
             for(j=0;j<7;++j){printf("%s",labels[j]);for(i=0;i<sizes[j];++i){uint32_t word;memcpy(&word,(const char*)records[j]+i*4,4);printf(" %u",word);}puts("");}
         }
         CHECK(rf_pc_raster_save(&p.raster,argv[4]));
+        if(p.headless && getenv("RF_REPLAY_DEPTH_OUT")) {
+            FILE *depth_file=fopen(getenv("RF_REPLAY_DEPTH_OUT"),"wb");uint32_t dimensions[2]={p.raster.width,p.raster.height};int failed=0;
+            if(!depth_file)CHECK(RF_IO);
+            if(fwrite("RFD1",1,4,depth_file)!=4 || fwrite(dimensions,4,2,depth_file)!=2 ||
+               fwrite(p.raster.depth,4,p.raster.pixels,depth_file)!=p.raster.pixels)failed=1;
+            if(fclose(depth_file))failed=1;if(failed)CHECK(RF_IO);
+            {uint32_t latest=0,j;for(j=1;j<64;j++)if(rf_scene_actor_follow_frames[j][0]>rf_scene_actor_follow_frames[latest][0])latest=j;
+             printf("DEPTH_CAMERA %u",rf_scene_actor_follow_frames[latest][0]);
+             for(j=2;j<14;j++)printf(" %u",rf_scene_actor_follow_frames[latest][j]);puts("");}
+
+        }
+
         printf("ACTOR_FOLLOW_SUMMARY");for(i=0;i<5;++i)printf(" %u",rf_scene_actor_follow_summary[i]);puts("");
         printf("SCENE_VISIBILITY");for(i=0;i<6;++i)printf(" %u",rf_scene_visibility_summary[i]);puts("");
         printf("SCENE_VISIBILITY_FRAMES");for(i=0;i<64*17;++i)printf(" %u",((uint32_t*)rf_scene_visibility_frames)[i]);puts("");

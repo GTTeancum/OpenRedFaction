@@ -1,7 +1,7 @@
 # Red Faction Xbox / PC - open work
 
 - PRIORITY GeoMod: Match original destruction shape, exposed materials, lighting, debris, collision and repeated blasts before returning to other systems; a visible hole alone is not acceptance.
-- GeoMod: Resolve remaining mesh-closure junctions and crater appearance; six-cut coverage now verifies 25350 local rays plus 10404 room-wide hits and 10404 short-segment misses.
+- GeoMod: Resolve mesh-closure junctions and17 newly uncovered raster pixels; identical-camera depth comparison confirms recessed solid surfaces, while crater appearance remains unfinished.
 - GeoMod: Reduce remaining edit latency and lighting settling time; tile-region uploads now remove most recurring atlas-copy cost, while edits still peak above a smooth frame budget.
 - GeoMod: Refine live crater lightmaps and appearance; per-texel terrain shadows now render from a bounded atlas, but the inspected cavity remains dark and angular.
 - DEV testbed: Review full weapon animations and add complete room reset; terrain reset and ammo refill are implemented, while campaign progression remains paused.

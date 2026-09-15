@@ -1566,3 +1566,39 @@ DEBRIS matches PC exactly:[48,16,236,32,276,2973937245,50320,0]. These fields ar
 spawned,active,bounces,expired,rendered vertices/hash,owned bytes,replacements.
 The machine reports64MiB and8757 available pages (34.2MiB). All19 disc entries
 restored and the owned process exited. No GitHub image was added.
+
+## Final-raster crater depth audit (2026-09-15)
+
+The PC headless frontend can now export its final depth target through
+RF_REPLAY_DEPTH_OUT. RFD1 contains width/height as little-endian uint32 values,
+then width*height float32 depth entries in the existing forward24-bit encoded
+domain. DEPTH_CAMERA prints the final sampled frame and exact position/basis
+words. The export is diagnostic-only and does not modify scene rendering.
+
+The new dev_crater_depth_check.py runs identical900-frame close-view inputs
+with three rocket shots or with only the fire bits cleared. It requires exact
+camera-word equality, no living debris, three/zero cuts and a living player.
+Both target files contain640x480 finite depth values. The audit inspects all
+pixels in the top350 rows, excluding the first-person weapon/HUD region.
+The intact image was inspected; cut pixels exactly match the previously
+inspected close-900 capture.
+
+There are19487 substantially farther solid pixels within(186,136)-(346,317)
+and zero substantially nearer pixels, using128 encoded depth units as the
+threshold for meaningful displacement. Raw minimum difference is-71 units:
+small differences from the two differently triangulated/projected paths remain
+and are not claimed to be exact coplanar equality. Together with the earlier
+world-position/normal checks, this supports a recessed cavity rather than an
+outward mound. Do not reverse all normals to address the visual ambiguity.
+
+Separately,17 pixels that had valid intact-world depth are now uncovered.
+These are explicitly excluded from the recessed-solid count and retained as
+an open seam defect; the cause is not yet proven to be the known mesh-closure
+junction issue. Their full coordinates and raw comparison statistics are in
+artifacts/destruction/depth-audit/report.json. The audit reports this defect
+as OPEN; its passing comparison is not a no-holes or fidelity acceptance.
+
+PC compilation and the paired900-frame audit pass. No shared renderer change,
+Xbox rebuild, native run or new screenshot was needed for this diagnostic-only
+frontend change. Next investigate the cavity's illumination/material treatment
+against original behavior and separately repair the uncovered pixels.
