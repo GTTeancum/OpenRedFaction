@@ -169,3 +169,29 @@ Reproduce the verified continuation after generating its medical prefix:
 python tools/replay_cover_combat.py --medical-crate
 python tools/replay_area2_corridor.py
 ```
+
+## Native corridor and eastern firefight (2026-09-14)
+
+Stock64MiB run `render-20260914-214750` passes5,350 frames and all28 selected
+final PC/native comparisons for the four-kill corridor route. Free memory is
+4,255 pages (16.621MiB). Original disc settings match the saved restoration
+manifest afterward and no project XEMU remains.
+
+`tools/replay_area2_east.py` extends the authored-spawn route to6,250 PC frames.
+It takes the far eastern ramp at x50, approaches door triggers7816/8058 centered
+near(46.981,-4.771,38.495), and fights from(47.108,-5.118,38.624). Four pistol
+shots each kill8071 and5683. The full route records37 shots,26 hits,six player
+kills and four reloads;16 rounds remain loaded with88 reserve and15 health.
+The six dead IDs are checked in the live NPC snapshot. The initial higher aim
+missed both guards; correcting pitch produces eight hits from eight new shots.
+This extension is PC evidence only; native remains the5,350-frame corridor run.
+
+Exploratory ordinary-input continuations cross the chamber alive, approach
+trigger7827 at(18.481,-4.771,46.495), and enter the room before the exit ramp.
+The lower floor contains a long central fixture (approximately x12.8..15.1,
+z47.6..59.1) absent from the earlier higher slice. The exit ramp near x7.75..9.625,
+z50.5..52.5 rises from y-5.0625 to-3.875 (static faces7040/7041). Standing
+movement/jump attempts remain obstructed. Crouch clearance, breakable geometry,
+and precise collision behavior there have not yet been distinguished. No full
+section-exit claim or forced exit is made. Full six-kill native verification and
+resolving this last approach are open.
