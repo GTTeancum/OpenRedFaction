@@ -17,7 +17,7 @@ User mandate: keep one secondary agent supplied with useful, bounded RE work whi
 13. Reported, primary review pending: shallow vectors do not override material; tested ice flag remains the override.
 14. Reported: replay exposes total restored history count; outer reset/auxiliary clearing remains to verify.
 15. Reported: ordinary projectile paths explicitly selectHoley01; special shapes are separate.
-16. Active: outer save-load/reset auxiliary clearing and reachability of stale future records.
-17. Queued: shallow-intersection geometry tolerance/merge behavior for repeated-blast validation.
+16. Reported: identified reset/restore stages preserve auxiliary data; complete ordinary reload route remains unexecuted.
+17. Active: plane/face classification and split construction; original solid-bound expansion was confirmed during live duplicate integration.
 
 Send findings to the primary as each investigation completes, then proceed to the next queued item. Primary reviews reports and replenishes this queue. Do not edit shared implementation or use desktop control, host input or emulators.

@@ -536,6 +536,9 @@ typedef struct scene_stream {
     rf_preview_surface_lightmap *terrain_bindings;scene_terrain_light_tile *terrain_tiles;
     uint32_t terrain_atlas_index,terrain_atlas_registered,terrain_atlas_pending;uint16_t terrain_dirty[4];
     rf_geo_region *terrain_regions;uint32_t terrain_region_count,terrain_default_hardness;
+    rf_geomod_shallow_history terrain_history[128];uint16_t terrain_requested[128][3];
+    uint32_t terrain_history_count; /* DEV rocket path: template0, room0. */
+    float terrain_history_minimum[3],terrain_history_maximum[3];
     rf_geometry terrain_geometry;rf_scene_world_geometry terrain_render;
     uint32_t *terrain_ids;uint32_t terrain_fallback,terrain_material,terrain_held;
     rf_preview_mesh *mesh;rf_materials *materials;const rf_model_materials *bundle;
@@ -9055,6 +9058,15 @@ static int scene_terrain_open(scene_stream *s,const rf_level *level)
         }
         free(payload);if(status)return status;
     }
+#ifndef RF_IMAGE_XBOX_NATIVE
+    /* Opt-in process-local authored-region fixture; installed data stays unchanged. */
+    if(getenv("RF_REPLAY_SHALLOW_FIXTURE")) {
+        static const float basis[9]={0,0,1,0,-1,0,1,0,0};
+        if(s->terrain_region_count!=1)return RF_FORMAT;
+        s->terrain_regions[0].flags|=32;s->terrain_regions[0].shallow_depth=.75f;
+        memcpy(s->terrain_regions[0].file_basis,basis,sizeof(basis));
+    }
+#endif
     memset(rf_scene_terrain_edit_times,0,sizeof(rf_scene_terrain_edit_times));
     s->terrain_noise=calloc(1,sizeof(*s->terrain_noise));if(!s->terrain_noise)return RF_IO;
 #ifndef RF_IMAGE_XBOX_NATIVE
@@ -9088,6 +9100,7 @@ static int scene_terrain_open(scene_stream *s,const rf_level *level)
 #endif
     if(status)return status;
     s->terrain_random.value=1; /* Explicit DEV stream; original global stream remains to integrate. */
+    memcpy(s->terrain_history_minimum,s->collision->minimum,12);memcpy(s->terrain_history_maximum,s->collision->maximum,12);
     s->terrain_fallback=UINT32_MAX;
     for(i=0;i<s->geometry->faces;i++) {
         rf_geometry_face f;status=rf_geometry_get_face(s->geometry,i,&f);if(status)return status;
@@ -9140,6 +9153,7 @@ static int scene_terrain_input(scene_stream *s,const float position[3],const flo
                 }
             }
             if(!status)status=rf_geomod_terrain_reset(s->terrain);
+            if(!status)s->terrain_history_count=0;
             if(!status && s->debris){memset(s->debris,0,sizeof(*s->debris));s->debris->random.value=1;memset(rf_scene_debris,0,sizeof(rf_scene_debris));rf_scene_debris[6]=sizeof(*s->debris);}
             if(!status){status=scene_terrain_bind(s);if(status)return status;++rf_scene_geomod[7];}
         } else {
@@ -9411,18 +9425,40 @@ static int scene_rockets_tick(scene_stream *s,uint32_t frame)
                 uint32_t timing_row=rf_scene_geomod[6]%8,timing_clock=0;
                 memset(rf_scene_terrain_edit_times[timing_row],0,sizeof(rf_scene_terrain_edit_times[0]));rf_scene_terrain_edit_times[timing_row][0]=frame;
                 ++rf_scene_geomod[6];
-                {float basis[9];rf_geomod_hardness_result hardness;
-                 status=rf_geomod_hardness(s->terrain_regions,s->terrain_region_count,s->terrain_default_hardness,
-                     event.contact.hit.point,campaign_rocket.crater_radius/s->terrain_template->radius,&hardness);
+                {float basis[9],adjusted[3];rf_geomod_region_result prepared;
+                 rf_geomod_hardness_result hardness;rf_geomod_shallow_limit limits[2];uint32_t limit_count=0,h,j;
+                 uint16_t packed[3];
+                 status=rf_geomod_regions_prepare(s->terrain_regions,s->terrain_region_count,s->terrain_default_hardness,
+                     event.contact.hit.point,campaign_rocket.crater_radius/s->terrain_template->radius,&prepared);
+                 if(!status)hardness=prepared.hardness;
                  if(!status && (!hardness.allowed || hardness.flags))status=RF_NOT_FOUND; /* Ice geometry remains unsupported. */
+                 if(!status)status=rf_geomod_shallow_align(event.contact.hit.point,s->terrain_template->radius,
+                     prepared.limits,prepared.limit_count,s->terrain_history,s->terrain_history_count,adjusted);
+                 /* Original master compares requested centers; auxiliary shallow history
+                  * independently retains adjusted centers. All live DEV rockets use0/0. */
+                 for(h=0;!status && h<s->terrain_history_count;h++) {
+                     float decoded[3];double distance=0;
+                     status=rf_geomod_position_decode(s->terrain_history_minimum,s->terrain_history_maximum,s->terrain_requested[h],decoded);
+                     for(j=0;!status && j<3;j++){float d=decoded[j]-event.contact.hit.point[j];distance+=(double)d*d;}
+                     if(!status && distance<=(double)(.2f*.2f))status=RF_NOT_FOUND;
+                 }
+                 if(!status && s->terrain_history_count==128)status=RF_RANGE;
+                 if(!status)status=rf_geomod_position_encode(s->terrain_history_minimum,s->terrain_history_maximum,event.contact.hit.point,packed);
+                 if(!status)status=rf_geomod_shallow_normalize(prepared.limits,prepared.limit_count,limits,&limit_count);
                  if(!status) {
+                     rf_geomod_shallow_history *record=s->terrain_history+s->terrain_history_count;
+                     memset(record,0,sizeof(*record));memcpy(record->center,adjusted,sizeof(adjusted));record->scale=hardness.scale;
+                     for(h=0;h<prepared.limit_count;h++)for(j=0;j<3;j++)record->vectors[h][j]=prepared.limits[h].normal[j]*prepared.limits[h].depth;
+                     memcpy(s->terrain_requested[s->terrain_history_count],packed,sizeof(packed));
+                     ++s->terrain_history_count; /* Queued admission survives later CSG rejection. */
+                     if(rf_scene_combat_trace)printf("GEOMOD_ADMISSION %u %u %u %.9g %.9g %.9g\n",frame,s->terrain_history_count,limit_count,adjusted[0],adjusted[1],adjusted[2]);
                      if(rf_scene_combat_trace)printf("GEOMOD_HARDNESS %u %u %u %.9g\n",frame,hardness.hardness,hardness.matches,hardness.scale);
                      status=rf_geomod_random_basis(&s->terrain_random,basis);if(status)return status;
                      if(profile_clock && profile_active)timing_clock=profile_clock();
                      status=scene_debris_prepare(s,&event.contact,hardness.scale*s->terrain_template->radius);if(status)return status;
                      scene_terrain_edit_mark(timing_row,3,&timing_clock);
-                     status=rf_geomod_terrain_cut_template_scale(s->terrain,s->terrain_template,event.contact.hit.point,basis,
-                         hardness.scale,s->terrain_material);
+                     status=rf_geomod_terrain_cut_template_limits(s->terrain,s->terrain_template,adjusted,basis,
+                         hardness.scale,s->terrain_material,limits,limit_count);
                      scene_terrain_edit_mark(timing_row,1,&timing_clock);
                  }}
                 rf_scene_geomod[5]=(uint32_t)status;
