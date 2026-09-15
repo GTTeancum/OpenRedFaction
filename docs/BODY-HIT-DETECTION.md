@@ -87,12 +87,51 @@ in `artifacts/body-corridor-exit` naturally crosses5150 into L2S3 at6631,
 ending alive with5health and16loaded handgun rounds. The generated input also
 matches the executed fixture byte for byte. Final combat counters reset at the
 handoff, so they do not establish how many east-hall guards were killed.
-Xbox verification of this new route is pending.
+Stock64MiB Xbox verification is complete in
+`artifacts/xemu/render-20260915-032327`:6806frames and all33 PC/native
+comparisons pass, including the natural transition and retained player state.
+Endpoint free memory is4402pages (17.1953125MiB). All18 staged disc entries
+restore and the owned emulator exits. This verifies the5health route, not
+later L2S3 encounters or further aim revisions.
 
 Rejected alternatives remain local evidence: `body-aim-corridor-track` hits
 both remaining pursuers but dies; `body-aim-early-cover` changes the second
 guard's stopping position and loses that kill; `body-aim-early-second` restores
 the kill but still dies on retreat. These are not accepted campaign routes.
+
+## L2S3 continuation under review
+
+Appending the former L2S3 hall inputs to the corrected exit produces an8956-frame
+probe (`artifacts/body-area3-hall`). It misses guard2020 and dies; this is not
+restored L2S3 combat coverage. The pre-shot snapshot in `body-area3-aim` puts
+the player at(58.116360,.788409,75.962776) and the guard at
+(57.338871,-1.107309,78.765457). The old forward vector
+(-.415501,-.548758,.725412) points left of the guard, and subsequent movement
+drops the player off the ledge. Corrected aiming and a ledge stop are being
+tested; do not infer success from the prior broad-box route.
+
+The `body-area3-ledge` probe corrects yaw by15frames of ordinary.98turn
+input, shortens the downward pitch input by4frames and stops the approach
+10frames earlier. It hits2020 once (40damage), but return fire kills the
+5health player before the next successful shot. The `body-area3-pass` probe
+omits all L2S3 shots but retains the old pauses; it also dies. These establish
+that aim correction alone is insufficient and that this guard can acquire
+without being shot. Immediate movement through the room remains under test.
+The local authored item inventory lists medical kit1931 at
+(108.701927,7.130690,60.701210), well beyond this first encounter; no nearby
+health supply was established by that inventory.
+
+`body-area3-moving` removes335idle frames before onward movement, with firing
+still omitted. It also dies at local455. The next diagnostic target is the
+L2S2a eastern chamber: preserve more health there before retrying L2S3, rather
+than treating the5health arrival as sufficient for a stationary gunfight.
+
+`body-east-health` stops at5606 before the exit and confirms guard8071 dies
+from four shots, while all four shots at5683 miss its body. Guard5683 remains
+at100health at(35.189323,-5.141514,49.586697). The player still has33.79999
+health here; health falls later during onward movement. A second-guard torso
+aim correction is now under test in `body-east-corrected`. Its outcome is not
+covered by the completed Xbox run above.
 
 The helper assumes valid finite body spheres and orthonormal orientation,
 as supplied by the physics body. It does not implement animated limb hitboxes,
