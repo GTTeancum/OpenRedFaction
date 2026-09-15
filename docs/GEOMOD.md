@@ -2691,3 +2691,27 @@ NXDK XBE/XISO compilation passes. No native replay of this clipping change has
 yet run. This closes the specific screen-edge construction defect, not all
 frustum seams or crater topology. Overall ~49%, GeoMod ~61%; next work remains
 the crater junction and destruction appearance. No GitHub screenshot changes.
+
+Remaining render junction attribution (2026-09-15): The opt-in PC final-state
+RF_REPLAY_TERRAIN_MESH_AUDIT exports terrain draw faces/corners, source IDs,
+planes, world positions and UVs as CSV before owner cleanup. It adds no
+per-frame allocation or Xbox code. Its captured image is byte-identical to the
+ordinary left-view cut capture. The CSV is the render-subdivided mesh, not the
+physical collision mesh; do not confuse those ownership domains.
+
+At uncovered pixel(281,228), projected edges trace to face114 corner5 and
+face138 corners1..2. analyze_geomod_render_junction.py restores CSV coordinates
+to float32, computes double segment projection, and reports fraction
+0.96893721538919, distance1.0694725709238113e-6. The current render insertion
+predicate rejects that candidate because squared perpendicular error exceeds
+1e-12. Residual is approximately(-1.05999516e-6,-1.04232337e-7,-9.6526994e-8).
+The long face138 edge lacks the short neighboring edge's corner, leaving two
+different projected segments after1/16-pixel flooring. Evidence:
+artifacts/geomod-side-views/left/source.csv and junction.json. Reproduce with
+analyze_geomod_render_junction.py source.csv --edge 138 1 2 --point 114 5.
+
+This identifies the failed subdivision predicate but does not justify a global
+weld tolerance increase. Shared support identity or a bounded floating-point
+construction rule must distinguish this junction from genuinely separate edges.
+No production geometry was changed this turn. PC build and export reproduction
+pass; no new native run. Overall ~49%, GeoMod ~61%; destruction boundary repair.

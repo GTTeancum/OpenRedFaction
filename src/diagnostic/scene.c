@@ -12685,6 +12685,23 @@ done:
     rf_level_owned_navigation_close(&campaign_navigation);
     free(campaign_waypoints);campaign_waypoints=NULL;campaign_waypoint_bytes=0;
 #ifndef RF_IMAGE_XBOX_NATIVE
+    if(!status && getenv("RF_REPLAY_TERRAIN_MESH_AUDIT")) {
+        FILE *file=fopen(getenv("RF_REPLAY_TERRAIN_MESH_AUDIT"),"wb");
+        scene_terrain_draw_mesh *draw=stream.terrain_draw;uint32_t f,c;
+        if(!file)status=RF_IO;
+        else {
+            if(!draw)status=RF_RANGE;
+            else {
+                fprintf(file,"face,corner,source,nx,ny,nz,d,x,y,z,u,v\n");
+                for(f=0;f<draw->view.face_count;f++)for(c=0;c<draw->faces[f].count;c++) {
+                    const rf_geomod_vertex *v=draw->vertices+draw->faces[f].first+c;const float *p=draw->bound[f].plane;
+                    fprintf(file,"%u,%u,%u,%.9g,%.9g,%.9g,%.9g,%.9g,%.9g,%.9g,%.9g,%.9g\n",f,c,draw->faces[f].source_face,
+                        p[0],p[1],p[2],p[3],v->position[0],v->position[1],v->position[2],v->uv[0],v->uv[1]);
+                }
+            }
+            if(ferror(file))status=RF_IO;if(fclose(file))status=RF_IO;
+        }
+    }
     if(!status && getenv("RF_REPLAY_TERRAIN_BASE_AUDIT"))
         status=scene_terrain_base_audit(&stream,getenv("RF_REPLAY_TERRAIN_BASE_AUDIT"));
     if(!status && stream.terrain_shadow_reference && getenv("RF_REPLAY_TERRAIN_LIGHT_AUDIT"))
