@@ -386,6 +386,21 @@ static int light_grid_check(void)
 }
 int main(int argc,char **argv)
 {
+    if(argc==3 && !strcmp(argv[1],"--mesh")) {
+        FILE *file=fopen(argv[2],"rb");char magic[4];uint32_t counts[2],i,packed=0;
+        static rf_geomod_face input_faces[768];int result;CHECK(file);
+        CHECK(fread(magic,1,4,file)==4 && !memcmp(magic,"RGM1",4));
+        CHECK(fread(counts,4,2,file)==2 && counts[0]>0 && counts[0]<=4096 && counts[1]>0 && counts[1]<=768);
+        CHECK(fread(surface,sizeof(*surface),counts[0],file)==counts[0]);
+        CHECK(fread(input_faces,sizeof(*input_faces),counts[1],file)==counts[1] && fgetc(file)==EOF);CHECK(!fclose(file));
+        surface_count=counts[0];polygon_count=counts[1];
+        for(i=0;i<polygon_count;i++) {
+            CHECK(input_faces[i].first==packed && input_faces[i].count>=3 && input_faces[i].count<=64 && input_faces[i].count<=surface_count-packed);
+            polygons[i]=(rf_geomod_fragment){input_faces[i].first,input_faces[i].count};packed+=input_faces[i].count;
+        }
+        CHECK(packed==surface_count);report_closure=2;result=closed();
+        printf("SNAPSHOT_CLOSURE %d vertices%u faces%u\n",result,surface_count,polygon_count);return result?0:1;
+    }
     {
         rf_lightmap_sample_lighting lighting={0};rf_vfx_light_source light={0};
         rf_random_state random={0x12345678};unsigned char rgb[48],base[40],lit[40],saved[40];unsigned x,y;

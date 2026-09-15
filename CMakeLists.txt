@@ -338,5 +338,7 @@ add_executable(rf_rocket_visual_tests tests/rocket_visual_tests.c)
 target_link_libraries(rf_rocket_visual_tests PRIVATE rf_core)
 add_test(NAME rocket_visual_resources COMMAND rf_rocket_visual_tests "${CMAKE_SOURCE_DIR}/Installed_Game")
 
+add_executable(rf_geomod_mesh_probe tools/geomod_mesh_probe.c)
+target_link_libraries(rf_geomod_mesh_probe PRIVATE rf_core)
 add_executable(rf_geomod_basis_probe tools/geomod_basis_probe.c)
 target_link_libraries(rf_geomod_basis_probe PRIVATE rf_core)

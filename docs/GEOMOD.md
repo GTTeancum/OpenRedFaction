@@ -2911,3 +2911,37 @@ replay or appearance change is claimed for this diagnostic-only addition.
 Next step is support-matched interval assembly, retaining collision convexity
 and first-cut closure rather than inserting arbitrary nearby vertices.
 Overall ~49%, GeoMod ~61%; overlapping destruction geometry.
+
+Support-matched split prototype (2026-09-15): Added an offline geometry workflow
+that groups exact float32 endpoint tuples by unordered supporting-plane IDs,
+orders candidates along each original edge's dominant coordinate, and inserts
+interior candidates from that support group only. Ambiguous equal-coordinate
+candidates are reported rather than silently chosen. No gameplay code is changed.
+The prototype uses zero UV placeholders and material0; it is geometry evidence,
+not a usable replacement mesh or a visual-fidelity result.
+
+rf_geomod_mesh_probe reads bounded RGM1 vertex/face snapshots and invokes the
+actual rf_geomod_collision_faces validator. Matching supports alone still produce
+invalid polygons:7 in the second cut,29 in the sixth. The prototype replaces only
+those invalid polygons with center-fan triangles, preserving every newly split
+boundary segment. The added --mesh mode in rf_geomod_interior_tests applies its
+unchanged geometric closure test directly to each snapshot. No distance, angular,
+convexity or closure threshold was relaxed.
+
+All six resulting snapshots pass collision-face validation and strict closure:
+cut1:354 vertices/80 faces; cut2:918/197; cut3:1556/339; cut4:2242/500;
+cut5:2690/595; cut6:3274/722. The original live results remain unchanged with
+0/8/12/16/24/35 closure failures. The corrected offline meshes have zero failing
+intervals. These are separate representations; do not describe the live game
+as fixed. In particular,722 faces at cut6 approaches the768-face budget, and
+no eight-cut capacity, tree-memory, ray/body, rendering or Xbox runtime acceptance
+has been established for this prototype.
+
+Tools: probe_geomod_support_splits.py, geomod_mesh_probe.c (rf_geomod_mesh_probe),
+and rf_geomod_interior_tests --mesh. Evidence: artifacts/support-split-second,
+support-split-sixth, support-split-cut1/cut3/cut4/cut5 and
+support-split-additional-cuts.json. Original snapshots also pass the same collision
+validator. Normal three focused CTests pass after the diagnostic additions.
+Next: reduce subdivision overhead where possible, preserve real UV/material
+attributes, implement bounded shared C assembly and validate runtime collision
+and stock64MiB Xbox operation. Overall ~49%, GeoMod ~61%; overlap geometry.
