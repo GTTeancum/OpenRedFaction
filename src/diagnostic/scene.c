@@ -7200,7 +7200,7 @@ static int campaign_climb_update(scene_stream *stream,uint32_t frame)
 {
     uint32_t index,mode=rf_scene_actor_landing[1],selected=mode;int status;
     const rf_player_movement_region *region;
-    status=rf_player_movement_region_find(campaign_regions.items,campaign_regions.count,scene_actor_body.state.position,&index);
+    status=rf_player_movement_region_touch(campaign_regions.items,campaign_regions.count,scene_actor_body.state.position,&scene_actor_body.spheres,&index);
     if(status)return status;region=index==UINT32_MAX?NULL:campaign_regions.items+index;
     ++rf_scene_player_climb[0];rf_scene_player_climb[3]=index;
     campaign_climb.speed=rf_scene_actor_movement_settings;

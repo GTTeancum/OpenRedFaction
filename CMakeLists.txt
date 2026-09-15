@@ -300,3 +300,7 @@ add_test(NAME movement_radius COMMAND rf_movement_radius_tests "${CMAKE_SOURCE_D
 add_executable(rf_trigger_reach_tests tests/trigger_reach_tests.c)
 target_link_libraries(rf_trigger_reach_tests PRIVATE rf_core)
 add_test(NAME trigger_reach COMMAND rf_trigger_reach_tests)
+
+add_executable(rf_ladder_contact_tests tests/ladder_contact_tests.c)
+target_link_libraries(rf_ladder_contact_tests PRIVATE rf_core)
+add_test(NAME ladder_contact COMMAND rf_ladder_contact_tests)

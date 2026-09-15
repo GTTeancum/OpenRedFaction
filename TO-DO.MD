@@ -2,7 +2,8 @@
 
 - Combat: Finish enemy damage amounts, cadence and weapon coverage; authored SP primary spread and target/bullet-obstruction checks now pass PC/Xbox verification (24 hits, 3 misses).
 - Weapons: Exercise the shotgun in the uninterrupted campaign and continue weapon coverage; PC manual/automatic reload and PC/Xbox automatic reload plus two-level persistence checks now pass.
-- Gameplay: Continue L2S3 into the elevator shaft; the pre-shotgun PC/Xbox baseline reaches the third guard at9600 frames with5 health, and the new shotgun must be exercised on that route.
+- Gameplay: Continue from the first L2S3 ladder into the main shaft; PC/Xbox now pass the10800-frame approach/climb with four L2S3 kills,5 health and16.613MiB free, and PC also reaches the upper landing.
+- Movement: Refine ladder entry and top-edge transitions; body contact now unblocks the first L2S3 ladder, but the verified route still uses a jump and repeated top-edge state changes need smoothing.
 
 First-pass policy: playable campaign systems take priority over exact1:1 RE.
 Use practical shared implementations, verify gameplay and stock64MiB operation,

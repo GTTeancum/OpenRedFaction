@@ -521,3 +521,58 @@ python tools/replay_shotgun_state.py
 python tools/xemu_render_check.py --level L7S4.rfl --archive levels2.vpp --item-uid 11087 --input artifacts/shotgun-state/automatic.bin --seconds 240
 python tools/xemu_render_check.py --level L2S3.rfl --item-uid 2115 --input artifacts/shotgun-state/return.bin --exit-uid 5151 --return-exit-uid 5150 --seconds 300
 ```
+
+
+## First L2S3 ladder: body contact (2026-09-15)
+
+The uninterrupted route now acquires item2115 after four L2S3 guard fights.
+The first selection attempt preceded pickup and fired the pistol; moving
+cycle to9752 and using shotgun alternate fire at9760..9789 survives with
+five health and five shells. Guard2114 dies, bringing L2S3 COMBAT to22 shots,
+18 hits and4 kills; SHOTGUN is[3,12,5,1,3,10044473,0,0].
+
+The next ladder exposed a real contact gap. Region102 is centered at
+(101.625,1.75,66.75), with full dimensions(1,5,1). Collision stops the player
+center aroundx100.636, outside the box's left edgex101.125. A center-point
+region query never entered it, even with a jump; the player stayed below.
+The shared first-pass adapter now retains point-region priority, then checks
+actual player spheres against kind1 climbing boxes using closest-point
+sphere/OBB distance. Kind2 regions keep point-only behavior. There is no
+collision bypass or allocation. The existing reconstructed point-query
+function remains unchanged. This contact policy is a practical port fix,
+not a claim about original ladder acquisition semantics.
+
+Tests cover wall contact, separation, corner misses, rotated boxes, local
+sphere centers, kind2 behavior and invalid-input output preservation. PC
+Release, ladder_contact and NXDK builds pass. On the identical full replay,
+the new query reaches(100.635559,4.780417,66.865967) at10,800 frames; the old
+point query ended at the same approach aroundy-.868 without any climb entry.
+The10,950-frame extension steps off and lands at(98.489456,3.381521,65.357544)
+in walking mode. Four guard kills, five health, five shotgun shells and the
+healthy friendly miner2061 survive. The main shaft climb and exit remain open.
+
+The jump-assisted reference still has top-edge enter/exit cycling while
+holding climb input (28 entries/27 exits before stepping off). This needs
+smoothing. A shorter item-staged fixture starts lower and did not reproduce
+the successful climb; it is not used as proof. Full-route input and log checks
+are factored in replay_area3_shaft.py, with --landing for the extension. Both
+builders match the executed inputs byte-for-byte and validate their real logs.
+
+
+Native confirmation: `render-20260915-000258` completes10,800 frames and all30
+selected PC/Xbox comparisons. PC_PLAY_BODY matches every word, confirming
+native position/height matches the full-route PC climb; the detailed climb
+transition counters are PC evidence, not an added native comparison here.
+COMBAT[22,18,4,9896086,3251109886,5,0,0], SHOTGUN[3,12,5,1,3,10044473,0,0]
+and selected shotgun/five shells match. Health stays5. Stock64MiB free memory
+is4,253 pages(16.61328125MiB). All18 disc overrides restore correctly and the
+owned emulator is closed. The10,950-frame upper-landing extension remains
+PC-only; main-shaft traversal and smoother ladder transitions remain open.
+Rough project estimate stays approximately47%.
+
+Reproduce after generating the hall prefix:
+```
+python tools/replay_area3_shaft.py
+python tools/replay_area3_shaft.py --landing
+python tools/xemu_render_check.py --spawn --level L2S2a.rfl --input artifacts/area3-shaft-replay/input.bin --seconds 900
+```

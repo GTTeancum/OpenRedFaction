@@ -144,6 +144,38 @@ int rf_player_movement_region_find(const rf_player_movement_region *regions,
     }
     *index=UINT32_MAX;return RF_OK;
 }
+int rf_player_movement_region_touch(const rf_player_movement_region *regions,
+    uint32_t count,const float position[3],const rf_physics_spheres *spheres,uint32_t *index)
+{
+    uint32_t selected,i,j,k,n;int status;
+    if(!spheres || !index || (spheres->count && !spheres->items))return RF_RANGE;
+    for(n=0;n<spheres->count;n++) {
+        const rf_physics_sphere *sphere=spheres->items+n;
+        if(!isfinite(sphere->radius) || sphere->radius<0)return RF_FORMAT;
+        for(k=0;k<3;k++)if(!isfinite(sphere->center[k]))return RF_FORMAT;
+    }
+    status=rf_player_movement_region_find(regions,count,position,&selected);if(status)return status;
+    if(selected!=UINT32_MAX){*index=selected;return RF_OK;}
+    for(i=0;i<count;i++) {
+        const rf_player_movement_region *r=regions+i;
+        if(r->kind!=1)continue;
+        for(j=0;j<3;j++)for(k=0;k<3;k++) {
+            double dot=0;for(n=0;n<3;n++)dot+=(double)r->matrix[j][n]*r->matrix[k][n];
+            if(fabs(dot-(j==k?1.0:0.0))>.001)return RF_FORMAT;
+        }
+        for(n=0;n<spheres->count;n++) {
+            const rf_physics_sphere *sphere=spheres->items+n;double distance=0;
+            for(j=0;j<3;j++) {
+                double local=0,excess;
+                for(k=0;k<3;k++)local+=((double)position[k]+sphere->center[k]-r->center[k])*r->matrix[j][k];
+                excess=fabs(local)-(double)r->size[j]*.5;
+                if(excess>0)distance+=excess*excess;
+            }
+            if(distance<=(double)sphere->radius*sphere->radius){*index=i;return RF_OK;}
+        }
+    }
+    *index=UINT32_MAX;return RF_OK;
+}
 uint32_t rf_player_stance_enabled(const rf_player_stance_gate *gate)
 {
     if(!gate || !gate->owns_entity || gate->environment_present ||

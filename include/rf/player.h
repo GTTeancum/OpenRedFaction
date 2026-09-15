@@ -178,6 +178,11 @@ typedef struct rf_player_stance_gate {
     int32_t movement_mode,speed_mode,entity_kind,attachment_1380;
     uint32_t blocked_f38,global_blocked;
 } rf_player_stance_gate;
+/* First-pass ladder contact: retain point-region priority, then overlap the
+ * physical spheres with kind1 climbing boxes. Orthonormal boxes only; no
+ * allocation or collision bypass. Output is preserved on errors. */
+int rf_player_movement_region_touch(const rf_player_movement_region *,uint32_t,
+    const float position[3],const rf_physics_spheres *,uint32_t *index);
 /* 430c70 through the action-4 query, with resolved ownership/environment and
  * 444ac0 results. Missing entity means owns_entity=0. This gates both pressing
  * and releasing crouch; it does not perform environment transitions or input. */
