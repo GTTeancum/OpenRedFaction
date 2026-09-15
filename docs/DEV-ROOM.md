@@ -120,3 +120,20 @@ free memory is9489 pages (37.0664MiB) on the64MiB target. All19 staged disc
 entries were checked against their saved bytes and restored. No host input or
 desktop capture was used; no GitHub screenshots were added. Audio and full
 weapon animation sequences were not reviewed in this check.
+
+
+Repeated excavation verification: tools/dev_geomod_check.py --extended adds a
+held-chord400-frame control and a720-frame/four-cut route. Holding Use+AltFire
+from frame110 creates exactly one cut and reaches the same position as one
+press. Separate presses at110,400,500,600 produce four retained cuts and let
+the player walk to(-23.391994,-14.450785,.282855), beyond the first excavation.
+Both remain alive. The PC final images were inspected; interior walls, handgun
+and HUD remain visible. PC peak GeoMod owner+overlay accounting is465106bytes
+for this route, excluding external render allocations and allocator metadata.
+
+Xbox artifacts/xemu/render-20260915-074302 completes the720-frame/four-cut
+route with all35 PC comparisons equal. Its native final image was inspected.
+Endpoint available memory is9473 pages (37.0039MiB); all19 disc entries match
+the saved pre-run bytes after restoration. The held-chord control was PC-only.
+This verifies repeated live box excavation and locomotion, not new blast
+shapes, explosion damage, audio, lighting parity or an in-session reset.
