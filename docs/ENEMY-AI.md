@@ -481,3 +481,43 @@ campaign, remaining weapons and visual parity are still incomplete.
 Additional PC regressions: all five replay_riot_alternate cases pass (held,
 release, exhausted battery/bash, replacement battery, both buttons), alongside
 the three weapon-selection cases. No new GitHub screenshot was uploaded.
+
+
+## Shotgun reload and transition checks (2026-09-14)
+
+`tools/replay_shotgun_state.py` adds four PC cases. For reloads, it stages
+near authored L7S4 shotgun11087 and walks into normal pickup contact with
+nearby ammunition. The player then selects the shotgun and fires/reloads:
+
+- Manual,219 frames:7 loaded/32 reserve, no transfer yet,2 reload ticks left.
+- Manual,221 frames:8 loaded/31 reserve, exactly1 shell transferred and1 reload.
+- Automatic,360 frames:8 alternate shots/32 pellets empty the magazine;
+  automatic reload restores8 loaded from reserve, leaving24. No inventory grant.
+- Return,240 frames: stage at L2S3 item2115, acquire/select/fire once, dispatch
+  authored exits5151 and5150 at global61/181, then revisit the retired item.
+  Selected weapon5 and7 shells survive both transitions; the shotgun pickup
+  remains retired and grants no duplicate ammo. The destinations are L2S2a
+  and L2S3. This proves the dispatch/import path, not traversal of those exits.
+
+The first attempted ammo fixture at L10S1 did not reach the pickups: its
+staged approach fell to a lower floor. It is not evidence of a reload bug.
+L7S4 uses actual successful contacts with the authored gun and ammo; that
+fixture establishes reload behavior without adding a test inventory grant.
+
+
+Xbox results: reload run `render-20260914-234051` passes360 frames and all30
+comparisons, with ammo[5,24,8,8,1,0,448,0] and4,835 pages free(18.887MiB).
+Round-trip run `render-20260914-234251` passes240 frames and all30 comparisons;
+ammo remains[5,0,7,0,0,0,448,0], and both transitions match PC (61 and181).
+The returned L2S3 guest has4,443 pages free(17.355MiB). Both are stock64MiB.
+The pickup remains consumed on revisit, with no second grant. All18 saved
+disc files match restoration manifests and no project XEMU remains running.
+Manual timing boundaries are PC evidence; automatic reload and round-trip
+state have native confirmation. Rough estimate remains approximately47%.
+
+Reproduce:
+```
+python tools/replay_shotgun_state.py
+python tools/xemu_render_check.py --level L7S4.rfl --archive levels2.vpp --item-uid 11087 --input artifacts/shotgun-state/automatic.bin --seconds 240
+python tools/xemu_render_check.py --level L2S3.rfl --item-uid 2115 --input artifacts/shotgun-state/return.bin --exit-uid 5151 --return-exit-uid 5150 --seconds 300
+```
