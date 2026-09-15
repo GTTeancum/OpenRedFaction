@@ -974,6 +974,26 @@ int main(int argc,char **argv)
             for(repeat=1;repeat<=2;repeat++) {
                 double total=0;rf_collision_tree tree={0};uint32_t x,y;
                 {int status=rf_geomod_storage_prepare_star_cuts(owner,cutters,kernels,repeat,cavity,&work);if(status)fprintf(stderr,"original star status%d cavity%u repeat%u\n",status,cavity,repeat);CHECK(!status);}
+                if(cavity) {
+                    /* Last cutter face starts in bank0. Check real retained edge
+                     * IDs after seed clipping/history copies and any reversal. */
+                    const rf_geomod_fragment *fragment=work.fragments[0];
+                    uint32_t edge,end;
+                    CHECK(fragment->count>=3 && fragment->count<=64);
+                    for(edge=0;edge<fragment->count;edge++) {
+                        uint16_t id=work.edges[0][fragment->first+edge];const float *support;
+                        if(id<32){CHECK(id<source.face_count);support=work.source_planes[id];}
+                        else {
+                            uint32_t cutter=(id-32)/128,local=(id-32)%128;
+                            CHECK(cutter<repeat && local/4<work.star_count[cutter]);
+                            support=work.star_planes[cutter][local/4][local%4];
+                        }
+                        for(end=0;end<2;end++) {
+                            const float *point=work.vertices[0][fragment->first+(edge+end)%fragment->count].position;
+                            CHECK(fabs((double)support[0]*point[0]+(double)support[1]*point[1]+(double)support[2]*point[2]+support[3])<1e-4);
+                        }
+                    }
+                }
                 {
                     uint32_t c,f,e,g,h,k,paired=0;
                     for(c=0;c<repeat;c++)for(f=0;f<count;f++)for(e=0;e<3;e++)for(g=f+1;g<count;g++)for(h=0;h<3;h++) {

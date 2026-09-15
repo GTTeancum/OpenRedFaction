@@ -2307,3 +2307,23 @@ baseline. NXDK builds the XBE and XISO; no new native replay was performed.
 History-bank copies, seed clipping and reversal still need metadata integration
 before the corner solver can change live intersections. Closure and crater
 appearance remain unresolved; estimate ~49 percent, current area GeoMod.
+
+Cavity history edge ownership (2026-09-15): Live cavity reconstruction now
+recovers exact source/cutter edge adjacency and retains supporting-plane IDs
+through seed subtraction, every history work-bank copy and final reversal.
+IDs0..31 reference source planes; each cutter reserves128 IDs, with four per
+star tetrahedron (outer face first). Convex cutters use their face indices.
+Reversing winding remaps outgoing-edge IDs with the required one-edge offset.
+The work owner adds28672 bytes (28 KiB), counted by existing terrain allocation
+budgets; eight-cut PC stress and the six-cut1MiB fixture still pass. No rendered
+vertex layout changes. Finite-solid reconstruction remains untracked for now.
+Installed Holey01 tests check the retained first bank fragment's edge endpoints
+against their identified planes after one and two cavity cuts. This is targeted
+metadata evidence, not an exhaustive audit of all emitted edges. Three focused
+CTests, eight-cut PC replay and NXDK XBE/XISO builds pass. The PC endpoint image
+remains byte-identical to the prior baseline. No new native replay was performed.
+The canonical three-plane solver is still not invoked during clipping; actual
+corner positions and closure failures have not changed. Next: supply the face
+support plane and use the retained edge plane at intersections, with explicit
+handling for singular/coplanar supports. Estimate ~49 percent; GeoMod remains
+first priority, including the unresolved dark crater appearance.

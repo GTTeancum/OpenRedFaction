@@ -197,6 +197,9 @@ typedef struct rf_geomod_multi_work {
     float source_planes[32][4],cut_planes[RF_GEOMOD_CUT_LIMIT][32][4];
     float star_planes[RF_GEOMOD_CUT_LIMIT][32][4][4];
     uint32_t star_count[RF_GEOMOD_CUT_LIMIT];
+    /* Supporting-plane IDs parallel to cavity clipping vertices (28 KiB). */
+    uint16_t edges[2][RF_GEOMOD_WORK_VERTICES];
+    uint16_t split_edges[64*32],seed_edges[64*32],initial_edges[64*32];
     float compact_bounds[768][6]; /* Pending-face bounds; larger owners use uncached joins. */
 } rf_geomod_multi_work;
 /* Rebuild from immutable original data, never from a concave working result.

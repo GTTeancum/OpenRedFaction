@@ -874,10 +874,11 @@ static int mesh_polygon_bounds_separated(const rf_geomod_mesh_view *mesh,const r
  * after all exclusions, so the boundary policy sees the cutter's true normal. */
 static int subtract_history_face(rf_geomod_storage *s,const rf_geomod_vertex *vertices,
     uint32_t count,uint32_t material,uint32_t source_face,uint32_t owner,
-    const rf_geomod_mesh_view *cutters,uint32_t cutter_count,rf_geomod_multi_work *work)
+    const rf_geomod_mesh_view *cutters,uint32_t cutter_count,rf_geomod_multi_work *work,const uint16_t *edges)
 {
     uint32_t bank=0,pieces=1,c,i,j;int status;
     memcpy(work->vertices[0],vertices,count*sizeof(*vertices));
+    if(edges)memcpy(work->edges[0],edges,count*sizeof(*edges));
     work->fragments[0][0]=(rf_geomod_fragment){0,count};
     for(c=0;c<cutter_count && pieces;c++) {
         uint32_t part,parts=work->star_count[c]?work->star_count[c]:1;
@@ -887,13 +888,17 @@ static int subtract_history_face(rf_geomod_storage *s,const rf_geomod_vertex *ve
             uint32_t next=bank^1,total=0,next_pieces=0;
             const float (*planes)[4]=work->star_count[c]?work->star_planes[c][part]:work->cut_planes[c];
             uint32_t plane_count=work->star_count[c]?4:cutters[c].face_count;
+            uint16_t plane_ids[32];
+            if(edges)for(j=0;j<plane_count;j++)plane_ids[j]=(uint16_t)(32+c*128+(work->star_count[c]?part*4+j:j));
             for(i=0;i<pieces;i++) {
                 const rf_geomod_fragment *face=work->fragments[bank]+i;uint32_t n,nf;
-                status=polygon_subtract_policy(work->vertices[bank]+face->first,face->count,
+                rf_geomod_edge_tracking tracking={work->edges[bank]+face->first,plane_ids,work->split_edges};
+                status=polygon_subtract_tracked_policy(work->vertices[bank]+face->first,face->count,
                     planes,plane_count,work->split.vertices,64*32,
-                    work->split.fragments,32,&n,&nf,policy);if(status)return status;
+                    work->split.fragments,32,&n,&nf,policy,edges?&tracking:NULL);if(status)return status;
                 if(n>RF_GEOMOD_WORK_VERTICES-total || nf>RF_GEOMOD_WORK_FRAGMENTS-next_pieces)return RF_RANGE;
                 memcpy(work->vertices[next]+total,work->split.vertices,n*sizeof(*vertices));
+                if(edges)memcpy(work->edges[next]+total,work->split_edges,n*sizeof(uint16_t));
                 for(j=0;j<nf;j++) {
                     rf_geomod_fragment f=work->split.fragments[j];f.first+=total;
                     work->fragments[next][next_pieces++]=f;
@@ -906,7 +911,14 @@ static int subtract_history_face(rf_geomod_storage *s,const rf_geomod_vertex *ve
     for(i=0;i<pieces;i++) {
         const rf_geomod_fragment *f=work->fragments[bank]+i;
         rf_geomod_vertex *v=work->vertices[bank]+f->first;
-        if(owner!=UINT32_MAX)reverse_vertices(v,f->count);
+        if(owner!=UINT32_MAX) {
+            reverse_vertices(v,f->count);
+            if(edges) {
+                uint16_t saved[64];uint32_t k;
+                memcpy(saved,work->edges[bank]+f->first,f->count*sizeof(uint16_t));
+                for(k=0;k<f->count;k++)work->edges[bank][f->first+k]=saved[(2*f->count-2-k)%f->count];
+            }
+        }
         status=append_compact(s,v,f->count,material,source_face,work);if(status)return status;
     }
     return RF_OK;
@@ -926,7 +938,7 @@ static int prepare_cuts(rf_geomod_storage *s,
     for(i=0;i<source.face_count;i++) {
         const rf_geomod_face *f=source.faces+i;
         status=subtract_history_face(s,source.vertices+f->first,f->count,f->material,
-            f->source_face,UINT32_MAX,cutters,count,work);if(status)goto failed;
+            f->source_face,UINT32_MAX,cutters,count,work,NULL);if(status)goto failed;
     }
     for(c=0;c<count;c++)for(i=0;i<cutters[c].face_count;i++) {
         const rf_geomod_face *f=cutters[c].faces+i;
@@ -935,7 +947,7 @@ static int prepare_cuts(rf_geomod_storage *s,
         if(!n)continue;
         reverse_vertices(work->split.vertices,n);
         status=subtract_history_face(s,work->split.vertices,n,f->material,UINT32_MAX,
-            c,cutters,count,work);if(status)goto failed;
+            c,cutters,count,work,NULL);if(status)goto failed;
     }
     return RF_OK;
 failed:
@@ -946,27 +958,36 @@ static int prepare_cavity_cuts(rf_geomod_storage *s,
     const rf_geomod_mesh_view *cutters,uint32_t count,rf_geomod_multi_work *work,int prepared)
 {
     rf_geomod_mesh_view source;uint32_t i,c,j,n,pieces;int status;
+    /* IDs0..31 name source planes; each cutter owns128 IDs, four per star part. */
+    uint16_t source_ids[32];
     if(!s || !work || s->editing || count>RF_GEOMOD_CUT_LIMIT || (count && !cutters))return RF_RANGE;
     source=(rf_geomod_mesh_view){s->vertices[2],s->faces[2],s->nv[2],s->nf[2],0};
     status=convex_mesh_planes_oriented(&source,work->source_planes,1);if(status)return status;
     if(!prepared)for(c=0;c<count;c++){work->star_count[c]=0;status=convex_mesh_planes(cutters+c,work->cut_planes[c]);if(status)return status;}
+    status=rf_geomod_seed_adjacency(&source,work->initial_edges,64*32);if(status)return status;
+    for(i=0;i<source.face_count;i++)source_ids[i]=(uint16_t)i;
     status=rf_geomod_storage_begin(s);if(status)return status;
     for(i=0;i<source.face_count;i++) {
         const rf_geomod_face *f=source.faces+i;
         status=subtract_history_face(s,source.vertices+f->first,f->count,f->material,
-            f->source_face,UINT32_MAX,cutters,count,work);if(status)goto failed;
+            f->source_face,UINT32_MAX,cutters,count,work,work->initial_edges+f->first);if(status)goto failed;
     }
-    for(c=0;c<count;c++)for(i=0;i<cutters[c].face_count;i++) {
-        const rf_geomod_face *f=cutters[c].faces+i;
-        /* Keep cutter boundaries outside the original empty room. Contact
-         * between cavity and cutter is internal, for either plane orientation. */
-        status=polygon_subtract_policy(cutters[c].vertices+f->first,f->count,
-            work->source_planes,source.face_count,work->seed.vertices,64*32,
-            work->seed.fragments,32,&n,&pieces,1);if(status)goto failed;
-        for(j=0;j<pieces;j++) {
-            const rf_geomod_fragment *part=work->seed.fragments+j;
-            status=subtract_history_face(s,work->seed.vertices+part->first,part->count,
-                f->material,UINT32_MAX,c,cutters,count,work);if(status)goto failed;
+    for(c=0;c<count;c++) {
+        status=rf_geomod_seed_adjacency(cutters+c,work->initial_edges,64*32);if(status)goto failed;
+        for(i=0;i<cutters[c].vertex_count;i++)work->initial_edges[i]=(uint16_t)(32+c*128+work->initial_edges[i]*(work->star_count[c]?4:1));
+        for(i=0;i<cutters[c].face_count;i++) {
+            const rf_geomod_face *f=cutters[c].faces+i;
+            /* Keep cutter boundaries outside the original empty room. Contact
+             * between cavity and cutter is internal, for either plane orientation. */
+            rf_geomod_edge_tracking tracking={work->initial_edges+f->first,source_ids,work->seed_edges};
+            status=polygon_subtract_tracked_policy(cutters[c].vertices+f->first,f->count,
+                work->source_planes,source.face_count,work->seed.vertices,64*32,
+                work->seed.fragments,32,&n,&pieces,1,&tracking);if(status)goto failed;
+            for(j=0;j<pieces;j++) {
+                const rf_geomod_fragment *part=work->seed.fragments+j;
+                status=subtract_history_face(s,work->seed.vertices+part->first,part->count,
+                    f->material,UINT32_MAX,c,cutters,count,work,work->seed_edges+part->first);if(status)goto failed;
+            }
         }
     }
     return RF_OK;

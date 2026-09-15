@@ -1,7 +1,7 @@
 # Red Faction Xbox / PC - open work
 
 - PRIORITY GeoMod: Match original destruction shape, exposed materials, lighting, debris, collision and repeated blasts before returning to other systems; a visible hole alone is not acceptance.
-- GeoMod: Retain tracked edge-plane IDs across history work buffers and connect the corner solver; multi-plane subtraction now preserves IDs, while live closure remains unresolved.
+- GeoMod: Connect the shared-corner solver to tracked cavity intersections; edge IDs now survive live history buffers, but closure remains unresolved.
 - GeoMod: Reduce remaining terrain-cut stalls; face-local assembly brings eighth-blast binding to 48ms, leaving terrain CSG at 323ms of the 378ms measured edit.
 - GeoMod: Diagnose the 425 PC/Xbox capture pixels differing by more than one color level; the shared dark crater appearance remains the main fidelity issue.
 - GeoMod lighting: Trace runtime dynamic-light scheduling and crater mapping identity; template density4 and ordinary level-material selection now have original-executable evidence.
