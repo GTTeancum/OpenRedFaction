@@ -1672,6 +1672,7 @@ static rf_weapon_supply_catalog campaign_weapon_supply;
 static rf_weapon_primary_definition campaign_pistol,campaign_primary[SCENE_WEAPON_SLOTS];
 static rf_weapon_explosive_definition campaign_rocket;
 static rf_explosion_definition campaign_rocket_impact;
+static int32_t campaign_rocket_impact_sound=-1;
 uint32_t rf_scene_rockets[8]; /* launches, impacts, expired, active, edits, rejected edits, pool full, status */
 static uint32_t riot_charge_remainder,campaign_last_alt;
 static rf_random_state campaign_rifle_alt_random;
@@ -3420,6 +3421,8 @@ static int campaign_clutter_open(const char *tables_path,const rf_level *level)
         status=rf_vclip_definition_load(&tables,"rocket_impact",128*1024,&clip);
         if(!status && !(clip.flags&8u))status=RF_FORMAT;
         if(!status)status=rf_explosion_definition_load(&tables,clip.explosion,256*1024,&campaign_rocket_impact);
+        campaign_rocket_impact_sound=-1;
+        if(!status && clip.has_foley)status=rf_foley_find(&campaign_foley,clip.foley,&campaign_rocket_impact_sound);
     }
     if(!status) {
         pistol_reload_ticks=(uint32_t)ceilf(campaign_pistol.reload_seconds*60.0f);
@@ -7780,6 +7783,20 @@ static int actor_listener_pose(scene_stream *stream,uint32_t frame,
  * services remain pending. Uses retained damage ownership and death animation. */
 uint32_t rf_scene_weapon_audio[9]; /* requests,selections,plays,loads,bytes,sample,RNG,errors,name hash */
 static rf_random_state combat_sound_random;
+uint32_t rf_scene_impact_audio[9];
+extern uint32_t rf_scene_combat_trace;
+static rf_random_state impact_sound_random;
+static void scene_impact_sound(const float position[3],uint32_t frame)
+{
+    int32_t sample;campaign_pain_audio_context audio={&impact_sound_random,0,rf_scene_impact_audio,0};
+    if(campaign_rocket_impact_sound<0)return;
+    ++rf_scene_impact_audio[0];sample=campaign_pain_audio_resolve(&audio,campaign_rocket_impact_sound);
+    if(!audio.status)campaign_pain_audio_play(&audio,position,sample);
+    rf_scene_impact_audio[6]=impact_sound_random.value;
+    if(audio.status)++rf_scene_impact_audio[7];
+    if(rf_scene_combat_trace)printf("IMPACT_SOUND %u %d %d %.9g %.9g %.9g\n",frame,sample,audio.status,position[0],position[1],position[2]);
+}
+
 static void combat_sound(const char *name,const float position[3])
 {
     int32_t group,sample;int status;campaign_pain_audio_context audio={&combat_sound_random,0,rf_scene_weapon_audio,1};
@@ -9377,6 +9394,7 @@ static int scene_rockets_tick(scene_stream *s,uint32_t frame)
         if(event.kind==1) {
             ++rf_scene_rockets[1];
             status=scene_impact_start(s,&event.contact,frame);if(status)return status;
+            scene_impact_sound(event.contact.hit.point,frame);
             status=scene_rocket_blast(s,frame,&event.contact);rf_scene_rocket_blast[7]=(uint32_t)status;if(status)return status;
             if(rf_scene_combat_trace)printf("ROCKET_IMPACT %u %u %.9g %.9g %.9g\n",frame,event.contact.room,
                 event.contact.hit.point[0],event.contact.hit.point[1],event.contact.hit.point[2]);
@@ -9416,7 +9434,7 @@ static int campaign_combat_tick(scene_stream *stream,uint32_t frame,const float 
     if(!frame){dev_refill_held=0;memset(stream->rockets,0,sizeof(stream->rockets));memset(rf_scene_rockets,0,sizeof(rf_scene_rockets));memset(rf_scene_rocket_blast,0,sizeof(rf_scene_rocket_blast));}
     if(!frame){memset(rf_scene_combat_pain,0,sizeof(rf_scene_combat_pain));memset(rf_scene_pain_attack_gate,0,sizeof(rf_scene_pain_attack_gate));combat_pain_random.value=1;}
     if(!frame){memset(rf_scene_rifle_alt,0,sizeof(rf_scene_rifle_alt));campaign_rifle_alt_random.value=1;memset(rf_scene_weapon_drops,0,sizeof(rf_scene_weapon_drops));rf_scene_combat_event_count=0;memset(rf_scene_combat_events,0,sizeof(rf_scene_combat_events));memset(rf_scene_shotgun,0,sizeof(rf_scene_shotgun));campaign_shotgun_random.value=1;campaign_last_alt=0;memset(rf_scene_riot,0,sizeof(rf_scene_riot));riot_charge_remainder=0;combat_surface_frame=UINT32_MAX;}
-    if(!frame){memset(rf_scene_weapon_selection,0,sizeof(rf_scene_weapon_selection));memset(rf_scene_weapon_audio,0,sizeof(rf_scene_weapon_audio));combat_sound_random.value=1;memset(rf_scene_combat_death,0,sizeof(rf_scene_combat_death));memset(rf_scene_combat,0,sizeof(rf_scene_combat));rf_scene_combat[3]=UINT32_MAX;rf_scene_combat[5]=campaign_pistol.magazine;memset(&combat_trigger,0,sizeof(combat_trigger));combat_frame=combat_hit_frame=UINT32_MAX;
+    if(!frame){memset(rf_scene_weapon_selection,0,sizeof(rf_scene_weapon_selection));memset(rf_scene_weapon_audio,0,sizeof(rf_scene_weapon_audio));combat_sound_random.value=1;impact_sound_random.value=1;memset(rf_scene_impact_audio,0,sizeof(rf_scene_impact_audio));memset(rf_scene_combat_death,0,sizeof(rf_scene_combat_death));memset(rf_scene_combat,0,sizeof(rf_scene_combat));rf_scene_combat[3]=UINT32_MAX;rf_scene_combat[5]=campaign_pistol.magazine;memset(&combat_trigger,0,sizeof(combat_trigger));combat_frame=combat_hit_frame=UINT32_MAX;
         memset(rf_scene_enemy_awareness,0,sizeof(rf_scene_enemy_awareness));
         memset(rf_scene_enemy_spread,0,sizeof(rf_scene_enemy_spread));campaign_enemy_spread_random.value=1;
         memset(rf_scene_enemy_combat,0,sizeof(rf_scene_enemy_combat));combat_initial_health=campaign_player_damage.state.effects.health;

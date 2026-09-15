@@ -772,7 +772,7 @@ extern uint32_t rf_scene_rocket_visual[8];
 extern uint32_t rf_scene_player_life[8];
 extern uint32_t rf_scene_enemy_awareness[8];
 extern uint32_t rf_scene_enemy_combat[8];
-extern uint32_t rf_scene_weapon_audio[9];
+extern uint32_t rf_scene_weapon_audio[9],rf_scene_impact_audio[9];
 extern uint32_t rf_scene_player_weapon[8];
 extern uint32_t rf_scene_pistol_rules[7];
 extern uint32_t rf_scene_player_ammo[8];

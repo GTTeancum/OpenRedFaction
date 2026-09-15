@@ -828,6 +828,7 @@ run_scene:
     printf("PLAYER_WEAPON");for(i=0;i<8;++i)printf(" %u",rf_scene_player_weapon[i]);puts("");
     printf("RIOT_STICK");for(i=0;i<8;++i)printf(" %u",rf_scene_riot[i]);puts("");
     printf("WEAPON_AUDIO");for(i=0;i<9;++i)printf(" %u",rf_scene_weapon_audio[i]);puts("");
+    printf("IMPACT_AUDIO");for(i=0;i<9;++i)printf(" %u",rf_scene_impact_audio[i]);puts("");
     printf("COMBAT_DEATH");for(i=0;i<8;++i)printf(" %u",rf_scene_combat_death[i]);puts("");
     printf("COMBAT");for(i=0;i<8;++i)printf(" %u",rf_scene_combat[i]);puts("");
     {extern uint32_t rf_scene_pose_sharing[4];printf("POSE_SHARING %u %u %u %u\n",rf_scene_pose_sharing[0],rf_scene_pose_sharing[1],rf_scene_pose_sharing[2],rf_scene_pose_sharing[3]);}

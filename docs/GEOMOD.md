@@ -3239,3 +3239,27 @@ entries were verified restored; the three failed diagnostic runs also restored
 their entries. xemu_render_check now detects a sampled return to boot/frame0
 after gameplay, and offers optional QEMU exception/reset logging for diagnosis.
 Estimate: overall~49%, GeoMod~65%; focus remains destruction fidelity.
+
+
+### Rocket impact audio (2026-09-15)
+
+The rocket_impact vclip's authored Foley group now resolves during setup and
+plays once at each actual collision point through the existing world-sound
+path. Cosmetic emitter saturation does not suppress the sound. A separate
+seeded audio RNG keeps sound variation from perturbing destruction geometry,
+particle motion or weapon-fire sample selection. Missing voices/load failures
+are counted without cancelling damage or terrain cuts.
+
+`tools/dev_rocket_impact_audio_check.py` verifies three real impacts at frames
+167/284/558: each starts its mixer voice on that same frame and at the logged
+collision position. The retained group selects Boom_Md02.wav twice then
+Boom_Md01.wav; two samples load161628 PCM bytes total. The mixed stereo PCM
+capture contains2556800 bytes, nonzero samples in each impact block, and no
+remaining explosion voice at the endpoint. Listening, exact original spatial
+attenuation and physical speaker output were not verified.
+
+Native800-frame run render-20260915-185828 passes47 PC/Xbox comparisons,
+including all nine impact-audio telemetry words: three requests/selections/plays,
+two loads, zero errors. It retains8567 free pages (33.465MiB), exits its owned
+emulator and restores all20 disc entries. This establishes the native request
+and mixer path; XEMU's host audio output was disabled by the harness.
