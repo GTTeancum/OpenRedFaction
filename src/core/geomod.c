@@ -22,6 +22,24 @@ int rf_geomod_random_basis(rf_random_state *random,float basis[9])
     memcpy(basis,v,sizeof(v));*random=next;return RF_OK;
 }
 
+int rf_geomod_planar_uv(const float normal[3],const float position[3],
+    uint32_t width,uint32_t height,float uv[2])
+{
+    static const unsigned axes[3][2]={{2,1},{0,2},{1,0}};
+    uint32_t i,major,u,v;float result[2],scale_u,scale_v;
+    if(!normal || !position || !uv || !width || !height || width>INT32_MAX || height>INT32_MAX)return RF_RANGE;
+    for(i=0;i<3;i++)if(!isfinite(normal[i]) || !isfinite(position[i]))return RF_FORMAT;
+    if(normal[0]==0 && normal[1]==0 && normal[2]==0)return RF_FORMAT;
+    /*4fa6d0 tie rules: Z wins a tie with the X/Y winner; Y wins X/Y. */
+    major=fabsf(normal[0])<=fabsf(normal[1])?1:0;
+    if(fabsf(normal[2])>=fabsf(normal[major]))major=2;
+    u=axes[major][normal[major]>0?0:1];v=axes[major][normal[major]>0?1:0];
+    scale_u=32.f/(float)width;scale_v=32.f/(float)height;
+    result[0]=scale_u*position[u];result[1]=scale_v*position[v];
+    if(!isfinite(result[0]) || !isfinite(result[1]))return RF_FORMAT;
+    memcpy(uv,result,sizeof(result));return RF_OK;
+}
+
 static int append(rf_geomod_vertex *out,uint32_t *count,const rf_geomod_vertex *v)
 {
     if(*count==RF_GEOMOD_POLYGON_LIMIT)return RF_RANGE;
@@ -582,7 +600,7 @@ struct rf_geomod_terrain {
     rf_geomod_vertex cut_vertices[RF_GEOMOD_CUT_LIMIT][60];
     rf_geomod_face cut_faces[RF_GEOMOD_CUT_LIMIT][20];
     rf_geomod_mesh_view cuts[RF_GEOMOD_CUT_LIMIT];
-    float kernels[RF_GEOMOD_CUT_LIMIT][3];uint32_t star_mask;
+    float kernels[RF_GEOMOD_CUT_LIMIT][3];uint32_t star_mask,mapping_width,mapping_height;
     rf_collision_face_filter original_filters[32],generated_filter,*filters;
     rf_collision_face *faces[2];float (*positions[2])[3];rf_collision_tree tree;
     uint32_t bank,count,cavity,vc,fc,base_bytes,budget,peak_bytes;
@@ -650,6 +668,33 @@ int rf_geomod_terrain_open(const rf_geomod_mesh_view *source,
 failed:
     rf_collision_tree_close(&tree);rf_geomod_terrain_close(&t);return status;
 }
+int rf_geomod_terrain_set_mapping(rf_geomod_terrain *t,uint32_t width,uint32_t height)
+{
+    if(!t || t->count || !width || !height || width>INT32_MAX || height>INT32_MAX)return RF_RANGE;
+    t->mapping_width=width;t->mapping_height=height;return RF_OK;
+}
+static int terrain_map_pending(rf_geomod_terrain *t)
+{
+    rf_geomod_storage *s=t->mesh;uint32_t bank=s->current^1,i,j,k;int status;
+    if(!t->mapping_width)return RF_OK;
+    for(i=0;i<s->nf[bank];i++) {
+        const rf_geomod_face *f=s->faces[bank]+i;double normal[3]={0},length=0;float n[3];
+        rf_geomod_vertex *v=s->vertices[bank]+f->first;
+        if(f->source_face!=UINT32_MAX)continue;
+        for(j=0;j<f->count;j++)for(k=0;k<3;k++) {
+            const float *a=v[j].position,*b=v[(j+1)%f->count].position;
+            normal[k]+=(double)a[(k+1)%3]*b[(k+2)%3]-(double)a[(k+2)%3]*b[(k+1)%3];
+        }
+        for(k=0;k<3;k++)length+=normal[k]*normal[k];
+        if(!isfinite(length) || length<=1e-24)return RF_FORMAT;
+        length=sqrt(length);for(k=0;k<3;k++)n[k]=(float)(normal[k]/length);
+        for(j=0;j<f->count;j++) {
+            status=rf_geomod_planar_uv(n,v[j].position,t->mapping_width,t->mapping_height,v[j].uv);
+            if(status)return status;
+        }
+    }
+    return RF_OK;
+}
 static int terrain_publish(rf_geomod_terrain *t,uint32_t count)
 {
     rf_geomod_mesh_view pending;rf_collision_tree tree={0};uint32_t bank=t->bank^1,c;int status;
@@ -665,6 +710,7 @@ static int terrain_publish(rf_geomod_terrain *t,uint32_t count)
     status=t->cavity?prepare_cavity_cuts(t->mesh,t->cuts,count,&t->work,1):
         prepare_cuts(t->mesh,t->cuts,count,&t->work,1);
     if(status)return status;
+    status=terrain_map_pending(t);if(status)goto failed;
     status=rf_geomod_storage_pending(t->mesh,&pending);if(status)goto failed;
     status=terrain_bind(t,&pending,bank,&tree);if(status)goto failed;
     status=rf_geomod_storage_commit(t->mesh);if(status)goto failed;

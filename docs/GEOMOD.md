@@ -656,3 +656,46 @@ The500frame rerun artifacts/xemu/render-20260915-092952 passes38comparisons
 with9086pages free (35.492MiB). Native framebuffer inspected: the original
 shape is visible, but cavity readability remains unfinished. PC/disc asset
 bytes match; all19staging entries restored; owned emulator exited.
+
+## Original mode4 texture projection (2026-09-15)
+
+466b00 configures4f8720(4),4f8730(32.0) and all three bitmap slots from
+the level substrate. These setters target5a3e9c/5a3eac and5a3ea0/a4/a8.
+4f8740 mode4 overwrites face-corner UVs, so retaining the factory UVs in
+world-space craters was incorrect. 4fa6d0 selects the dominant normal axis:
+Y wins an X/Y tie, Z wins ties against that winner. Positive-axis U/V
+pairs at5a3ee0 are (Z,Y),(X,Z),(Y,X); nonpositive normals swap the pair.
+UV scales are32/bitmap-width and32/bitmap-height. Negative Y faces choose
+the second bitmap slot, positive Y the third; the current GeoMod setup
+assigns the same substrate to all three slots.
+
+rf_geomod_planar_uv reproduces the mapping. tools/inspect_geomod_uv.py
+executes original4f8740/4fa6d0 with only bitmap-dimension lookup510630
+supplied, plus synthetic face/corner records. All126 UV pairs match shared
+float words exactly across14 normals,3 dimensions and3 positions. Cases
+include all axis signs, ties, negative world coordinates, non-power-of-two
+dimensions and traversal of the original circular corner list.
+
+The terrain owner applies this mapping only to generated interior faces
+in the pending bank, after CSG and before collision publication. Original
+level UVs survive. Scene configuration takes dimensions from the loaded
+authored substrate. Tests verify unchanged geometry/face records, preserved
+original-surface UVs, expected generated UVs, pre-cut-only configuration and
+invalid-dimension rejection. The two stored dimensions add8owner bytes.
+All PC GeoMod tests and five live destruction/traversal replays pass.
+
+PC image artifacts/destruction/original-planar-uv.png was inspected: the
+texture no longer follows the old stretched template UVs, but the cavity
+remains visually ambiguous. The next concrete lighting lead is
+src/core/preview.c generate_source: it uses0.25+0.6*abs(dot(normal,light))
+for generated geometry, making opposite normals receive the same shading.
+This is preview scaffolding, not original interior lighting. Replace it
+with suitable scene lighting for terrain without changing unrelated weapon
+projection. Original vertex transform arithmetic, hardness, surface
+eligibility, debris and broader history bounds remain open.
+
+Mode4 native verification:500frame run
+artifacts/xemu/render-20260915-093901 passes38comparisons with9085pages
+free (35.488MiB). Native framebuffer inspected with corrected texture
+projection; cavity lighting remains unfinished. All19disc entries restored
+and owned emulator exited. No new GitHub screenshot uploaded.

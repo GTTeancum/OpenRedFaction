@@ -7,6 +7,10 @@
 /* Original4fccc0 random crater orientation: two CRT draws, a uniform sphere
  * direction and4fcfa0 basis. Invalid inputs preserve state/output. */
 int rf_geomod_random_basis(rf_random_state *random,float basis[9]);
+/* Original4f8740 mode4: signed dominant-axis projection at32 texels per
+ * world unit. Texture dimensions are the source bitmap dimensions. */
+int rf_geomod_planar_uv(const float normal[3],const float position[3],
+    uint32_t width,uint32_t height,float uv[2]);
 typedef struct rf_geomod_vertex {float position[3],uv[2];} rf_geomod_vertex;
 /* Practical port CSG primitive, not an original executable binding.
  * Split a planar convex polygon by unit plane n.xyz*p+d=0. Positive is front.
@@ -144,6 +148,10 @@ int rf_geomod_terrain_open(const rf_geomod_mesh_view *source,
     const rf_collision_face_filter *filters,const rf_collision_face_filter *generated_filter,
     uint32_t cavity,uint32_t vertex_capacity,uint32_t face_capacity,uint32_t budget,rf_geomod_terrain **out);
 void rf_geomod_terrain_close(rf_geomod_terrain **terrain);
+/* Enable original mode4 mapping for new interior faces. Configure before
+ * the first cut; original level surface UVs remain untouched. */
+int rf_geomod_terrain_set_mapping(rf_geomod_terrain *terrain,uint32_t width,uint32_t height);
+
 /* Atomically publish matching mesh, source-order face bindings, tree and cut
  * history after all preparation succeeds. Tree construction may allocate;
  * cutting/projection workspaces do not. Failure preserves the live generation,

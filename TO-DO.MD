@@ -1,7 +1,7 @@
 # Red Faction Xbox / PC - open work
 
 - PRIORITY GeoMod: Match original destruction behavior and appearance; the current faceted crater is a prototype, not an accepted fidelity milestone.
-- GeoMod: Refine live original-template destruction: verify final transform/UV and hardness rules, improve depth readability, and reduce fragmentation before larger cut histories.
+- GeoMod: Replace preview-only interior lighting with appropriate scene lighting; original planar UV mapping is verified, while hardness, final transforms and larger cut histories remain open.
 - DEV testbed: Review full weapon animations and add complete room reset; terrain reset and ammo refill are implemented, while campaign progression remains paused.
 - GeoMod: Improve crater shape/readability, add debris and authored surface eligibility; rockets now cut repeated faceted craters with the level-authored interior texture.
 - USER: Review destruction readability after replacing the folded-panel interior; destruction remains the current focus.
@@ -5274,3 +5274,17 @@ The500frame rerun artifacts/xemu/render-20260915-092952 passes38comparisons
 with9086pages free (35.492MiB). Native framebuffer inspected: the original
 shape is visible, but cavity readability remains unfinished. PC/disc asset
 bytes match; all19staging entries restored; owned emulator exited.
+
+Original GeoMod UV mapping (2026-09-15): Shared mode4 projection matches
+126 original4f8740 UV pairs bit-for-bit, including axis signs/ties and
+non-square textures. Live generated faces now use32/source-dimension scale
+with signed dominant-axis projection; authored wall UVs and collision
+geometry are unchanged. All five PC destruction replays pass. Preview
+lighting still uses an absolute normal dot product, a concrete next lead
+for the crater's poor depth cues. Estimate ~49%; GeoMod.
+
+Mode4 native verification:500frame run
+artifacts/xemu/render-20260915-093901 passes38comparisons with9085pages
+free (35.488MiB). Native framebuffer inspected with corrected texture
+projection; cavity lighting remains unfinished. All19disc entries restored
+and owned emulator exited. No new GitHub screenshot uploaded.

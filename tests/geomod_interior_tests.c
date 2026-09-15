@@ -652,6 +652,33 @@ int main(int argc,char **argv)
                 CHECK(!rf_geomod_terrain_reset(terrain));
                 CHECK(!rf_geomod_terrain_cut_template(terrain,&shape,center,basis,shape.radius*10,77));
                 CHECK(!rf_geomod_terrain_get(terrain,&before) && before.cuts==1);
+                {
+                    static rf_geomod_vertex saved_vertices[4096];static rf_geomod_face saved_faces[512];
+                    uint32_t vc=before.mesh.vertex_count,fc=before.mesh.face_count,generated_count=0;
+                    memcpy(saved_vertices,before.mesh.vertices,vc*sizeof(*saved_vertices));
+                    memcpy(saved_faces,before.mesh.faces,fc*sizeof(*saved_faces));
+                    CHECK(rf_geomod_terrain_set_mapping(terrain,256,128)==RF_RANGE);
+                    CHECK(!rf_geomod_terrain_reset(terrain));
+                    CHECK(rf_geomod_terrain_set_mapping(terrain,0,128)==RF_RANGE);
+                    CHECK(!rf_geomod_terrain_set_mapping(terrain,256,128));
+                    CHECK(!rf_geomod_terrain_cut_template(terrain,&shape,center,basis,shape.radius*10,77));
+                    CHECK(!rf_geomod_terrain_get(terrain,&before));
+                    CHECK(before.mesh.vertex_count==vc && before.mesh.face_count==fc);
+                    CHECK(!memcmp(before.mesh.faces,saved_faces,fc*sizeof(*saved_faces)));
+                    for(i=0;i<fc;i++) {
+                        const rf_geomod_face *face=before.mesh.faces+i;
+                        for(j=0;j<face->count;j++) {
+                            uint32_t index=face->first+j;const rf_geomod_vertex *v=before.mesh.vertices+index;
+                            CHECK(!memcmp(v->position,saved_vertices[index].position,12));
+                            if(face->source_face==UINT32_MAX) {
+                                float expected[2];CHECK(!rf_geomod_planar_uv(before.faces[i].plane,v->position,256,128,expected));
+                                CHECK(!memcmp(v->uv,expected,8));generated_count++;
+                            } else CHECK(!memcmp(v->uv,saved_vertices[index].uv,8));
+                        }
+                    }
+                    CHECK(generated_count>0);
+                }
+
                 basis[0]=2;CHECK(rf_geomod_terrain_cut_template(terrain,&shape,center,basis,1,77)==RF_FORMAT);
                 CHECK(!rf_geomod_terrain_get(terrain,&live) && live.mesh.generation==before.mesh.generation && live.cuts==1);
                 basis[0]=0;center[0]=NAN;CHECK(rf_geomod_terrain_cut_template(terrain,&shape,center,basis,1,77)==RF_FORMAT);

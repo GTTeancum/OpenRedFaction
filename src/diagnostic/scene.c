@@ -484,7 +484,7 @@ typedef struct scene_rocket_visual {
 } scene_rocket_visual;
 typedef struct scene_stream {
     rf_geomod_terrain *terrain;rf_geometry_collision_overlay terrain_collision;
-    rf_geomod_template *terrain_template;rf_random_state terrain_random;
+    rf_geomod_template *terrain_template;rf_random_state terrain_random;uint32_t terrain_texture_width,terrain_texture_height;
     rf_geometry terrain_geometry;rf_scene_world_geometry terrain_render;
     uint32_t terrain_ids[512],terrain_fallback,terrain_material,terrain_held;
     rf_preview_mesh *mesh;rf_materials *materials;const rf_model_materials *bundle;
@@ -8483,6 +8483,7 @@ static int scene_terrain_open(scene_stream *s,const rf_level *level)
     if(s->terrain_fallback==UINT32_MAX)return RF_FORMAT;
     source=(rf_geomod_mesh_view){vertices,faces,24,6,0};generated.face_flags=256;
     status=rf_geomod_terrain_open(&source,filters,&generated,1,4096,512,1024*1024,&s->terrain);if(status)return status;
+    status=rf_geomod_terrain_set_mapping(s->terrain,s->terrain_texture_width,s->terrain_texture_height);if(status)return status;
     status=rf_geometry_collision_overlay_open(s->collision,0,512,65536,&s->terrain_collision);if(status)return status;
     status=scene_terrain_bind(s);if(status)return status;
     s->collision=&s->terrain_collision.world;
@@ -11847,6 +11848,7 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
             combined=realloc(materials->items,(materials->count+1)*sizeof(*combined));
             if(!combined){rf_materials_close(&interior);status=RF_IO;goto done;}
             /* Use the level-authored GeoMod substrate; hardness policy remains separate. */
+            stream.terrain_texture_width=interior.items[0].image.width;stream.terrain_texture_height=interior.items[0].image.height;
             materials->items=combined;stream.terrain_material=materials->count;combined[materials->count++]=interior.items[0];
             ++materials->loaded;materials->allocated_bytes+=interior.allocated_bytes;free(interior.items);
         }
