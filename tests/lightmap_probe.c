@@ -12,6 +12,16 @@ int main(int argc, char **argv)
     rf_geometry geometry;
     int result;
     uint32_t i;
+    if(argc==2 && !strcmp(argv[1],"--dynamic-mark")) {
+        struct {int32_t index;uint32_t dirty;float minimum[3],maximum[3],center[3],radius;} input;
+        _setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
+        while(fread(&input,sizeof(input),1,stdin)==1) {
+            unsigned char dirty=(unsigned char)input.dirty;int32_t output[2];
+            output[0]=rf_lightmap_mark_dynamic(input.index,&dirty,input.minimum,input.maximum,input.center,input.radius);
+            output[1]=dirty;if(fwrite(output,sizeof(output),1,stdout)!=1)return 1;
+        }
+        return ferror(stdin)||ferror(stdout)?1:0;
+    }
     if(argc==2 && !strcmp(argv[1],"--brightening")) {
         uint32_t input[3],value;_setmode(_fileno(stdin),_O_BINARY);_setmode(_fileno(stdout),_O_BINARY);
         while(fread(input,sizeof(input),1,stdin)==1){value=rf_lightmap_requires_brightening(input[0],input[1],input[2]);fwrite(&value,4,1,stdout);}

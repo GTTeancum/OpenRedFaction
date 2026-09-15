@@ -297,6 +297,12 @@ int rf_lightmap_accumulate_samples(const rf_lightmap_sample_lighting *);
  * multiplication before halving. Only channel/dimension/capacity view fields
  * are consumed; binding/numeric errors preserve planes. No allocation. */
 int rf_lightmap_seed_ambient(const rf_lightmap_sample_lighting *,const float global[3],const unsigned char room[4]);
+/*4f1f30: clean mapped faces become dirty1 when the light center is inside
+ * radius-expanded face bounds (inclusive). Negative mapping indices skip all
+ * access; nonzero dirty bytes skip geometry. Caller resolves mapping ownership.
+ * Numeric/range errors preserve dirty; no allocation or light accumulation. */
+int rf_lightmap_mark_dynamic(int32_t mapping_index,unsigned char *dirty,
+    const float minimum[3],const float maximum[3],const float center[3],float radius);
 /* Zero selected lights,4f2719..4f2c74: select ambient as above, truncate
  * 128*ambient and write low bytes (no clamp) to a caller-offset RGB rectangle.
  * Successful fill ORs dirty8. Positive dimensions, explicit byte pitch/size;

@@ -2529,3 +2529,27 @@ was removed. Use4f1f30.c.txt/4f1ff0.c.txt with disassembly, not the discarded ex
 Evidence: artifacts/geomod-dynamic-relight-gate-original.json and corrected
 analysis exports. No game source or rendered output changes this turn.
 Overall ~49%, GeoMod ~61%; current area is destruction lighting updates.
+
+Shared dynamic-map marker (2026-09-15): rf_lightmap_mark_dynamic reconstructs
+4f1f30 after caller mapping lookup. A negative signed mapping index skips all
+access; an already-dirty map is unchanged. Otherwise radius expands the face
+minimum/maximum, and an inclusive test of the light center marks dirty1.
+This is expanded-AABB admission, not a Euclidean sphere/box-distance test.
+436db0/436d70 subtract/add the scalar radius; the prior candidate description
+of transformed bounds was imprecise. Invalid numeric inputs preserve dirty;
+these guards are explicit port policy outside the original valid-input scope.
+verify_lightmap_dynamic_mark.py executes complete original4f1f30 with only
+40a480 mapping-array lookup supplied. Vector initialization, radius expansion,
+5079f0 bounds test, dirty gating and stores execute unhooked. All6144 cases
+match the shared C probe: indices-1/0/32767, all256 dirty values, eight center
+positions including inclusive limits and just-outside points. Additional
+negative-radius and NaN guards preserve dirty. No allocation is introduced.
+Disassembly places direct marking calls at4f1ec3 and4f2092. Caller4f1e80
+chooses a flat face collection or hierarchy4f1ff0;4f1ff0 recurses through
+children after bounds rejection. That full traversal and live map ownership
+remain unimplemented here. The marker alone does not update a rendered map.
+PC probe build and original/shared verification pass. Evidence is
+artifacts/lightmap-dynamic-mark-original.json. Overall ~49%, GeoMod ~61%;
+current area is destruction lighting updates, with no new visual claim.
+NXDK XBE/XISO builds also pass. The new marker has not yet been exercised
+in a native replay; live rendering remains unchanged.

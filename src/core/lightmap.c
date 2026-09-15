@@ -3,6 +3,23 @@
 #include <stdlib.h>
 #include <string.h>
 #include <math.h>
+int rf_lightmap_mark_dynamic(int32_t mapping_index,unsigned char *dirty,
+    const float minimum[3],const float maximum[3],const float center[3],float radius)
+{
+    float lo[3],hi[3];uint32_t i;
+    if(mapping_index<0)return RF_OK;
+    if(!dirty)return RF_RANGE;
+    if(*dirty)return RF_OK;
+    if(!minimum || !maximum || !center)return RF_RANGE;
+    if(!isfinite(radius) || radius<0)return RF_FORMAT;
+    for(i=0;i<3;i++) {
+        if(!isfinite(minimum[i]) || !isfinite(maximum[i]) || !isfinite(center[i]) || minimum[i]>maximum[i])return RF_FORMAT;
+        lo[i]=minimum[i]-radius;hi[i]=maximum[i]+radius;
+        if(!isfinite(lo[i]) || !isfinite(hi[i]))return RF_FORMAT;
+    }
+    for(i=0;i<3;i++)if(center[i]<lo[i] || center[i]>hi[i])return RF_OK;
+    *dirty=1;return RF_OK;
+}
 static uint32_t u32(const unsigned char *p)
 { return p[0] | (uint32_t)p[1]<<8 | (uint32_t)p[2]<<16 | (uint32_t)p[3]<<24; }
 void rf_lightmaps_close(rf_lightmaps *maps)
