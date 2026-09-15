@@ -2827,3 +2827,28 @@ evidence is physical-split-rejection.log and physical-split-guarded.log.
 No experimental Xbox build or native run was made. The next repair must address
 shared corner construction before final polygons, not insert approximate
 collinear points into physical faces after the fact. Overall ~49%, GeoMod ~61%.
+
+Short-edge construction trace (2026-09-15): Captured second-blast intersections
+through the existing observer. At(-16,-8.78587341,2.00874901), all four recorded
+constructions have identical input planes/endpoints and identical float output.
+The clip plane is(0.836305678,0.539372623,0.0983359963,17.9222183). This case is
+not two differently rounded versions of the same generated corner. The opposed
+long edge passes through another point sequence on that plane, leaving the
+short edge slightly noncollinear after float storage. Evidence:
+artifacts/short-edge-second.bin and its intersection.json;1192 events overall.
+
+Tested balancing each tetrahedron plane offset around the minimum/maximum dot
+products of its three source vertices, keeping rounded normals unchanged. This
+minimizes the unquantized maximum residual for that chosen normal. Shared
+internal-plane checks and the full fixture passed, but closure counts remained
+exactly0,8,12,16,24,35. Later mesh counts changed slightly (sixth cut2306 vertices/
+529 faces versus2310/531), without resolving the targeted defects. The numerical
+adjustment was therefore discarded. No broader fidelity benefit is claimed.
+
+Restored core source byte-exactly, rebuilt PC player and fixture, and reran all
+three focused geometry/preview CTests successfully. No native experiment was
+run. Rejected source and results are artifacts/rejected-balanced-planes.c and
+balanced-planes-closure.log/.summary.json. Preserve shared supporting-edge
+identity through final face assembly as the next structural repair direction;
+neither another global epsilon change nor offset centering is established as
+an effective repair. Overall ~49%, GeoMod ~61%; overlapping destruction geometry.
