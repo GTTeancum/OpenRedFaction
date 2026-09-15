@@ -2412,3 +2412,26 @@ Eighth-edit timings are352ms CSG,39ms bind,4ms debris preparation and3ms spawn
 This is a correctness improvement with a measured edit-time regression, not
 an FPS improvement. Remaining closure, performance and visual work stay open.
 Estimate GeoMod ~61 percent, overall ~49 percent; current area is destruction.
+
+Rejected precise-plane experiments (2026-09-15): Recomputing normalized plane
+coefficients in double directly from canonical seed triangles reduces closure
+failures to0,1,9,18,21,30. The first crater stays closed. An initial on-demand
+implementation and a32KiB plane cache give the same counts. Eight PC cuts pass
+with3096 physical/3722 render vertices and terrain peak1033092 bytes under1MiB.
+However, the identical-camera depth audit exposes one new uncovered pixel at
+(196,229), with19486 recessed pixels rather than19487. This version is rejected.
+Keeping the old float-plane corner solver and using precise planes only when
+intersecting an exact seed edge with another cutter removes that pixel, but
+closure becomes0,6,17,21,27,46, worsening the later baseline39. Also rejected.
+Evidence: artifacts/geomod-precise-cache-tests.log and its summary, precise-cache-
+depth.log, precise-edge-tests.log and summary, and precise-edge-depth.log.
+Both experiments are removed, including the plane cache and added test assertion.
+The retained exact-seed-edge version is restored; focused CTests, the depth
+audit (19487 recessed, no new uncovered pixels) and eight-cut PC replay pass
+again with3116 physical/3729 render vertices. This turn makes no retained
+geometry change. The next hypothesis is that classification using rounded
+float planes and construction using higher-precision planes must be reconciled
+together. These experiments do not prove that hypothesis or justify loosening
+closure/depth tolerances. Overall ~49%, GeoMod ~61%; overlap accuracy remains open.
+Restored NXDK XBE/XISO builds also pass; no new XEMU replay was run for the
+rejected changes, and the last retained native verification remains155050.
