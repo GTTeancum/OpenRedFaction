@@ -39,6 +39,12 @@ int rf_geomod_planar_uv(const float normal[3],const float position[3],
 typedef struct rf_geomod_shallow_limit { float normal[3],depth; } rf_geomod_shallow_limit;
 int rf_geomod_shallow_point(const float center[3],const float point[3],float radius,
     const rf_geomod_shallow_limit *limits,uint32_t count,float out[3]);
+/* Convert region-selected signed depths after history adjustment into cutter
+ * limits. Original4dbfb3: zero first vector disables both; zero second skips
+ * only itself. Negative depth reverses direction. Output may alias input;
+ * errors preserve both output array and count. */
+int rf_geomod_shallow_normalize(const rf_geomod_shallow_limit *selected,uint32_t count,
+    rf_geomod_shallow_limit out[2],uint32_t *out_count);
 typedef struct rf_geomod_hardness_result {
     uint32_t hardness,allowed,matches,flags;float scale;
 } rf_geomod_hardness_result;

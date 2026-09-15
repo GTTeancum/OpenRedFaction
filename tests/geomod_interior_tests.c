@@ -506,6 +506,20 @@ int main(int argc,char **argv)
 {
     CHECK(!partition_contract());
     {
+        rf_geomod_shallow_limit selected[2]={{{0,-1,0},-2},{{-1,0,0},3}},normalized[2],saved[2];uint32_t count=77;
+        CHECK(!rf_geomod_shallow_normalize(selected,2,normalized,&count));
+        CHECK(count==2 && normalized[0].depth==2 && normalized[0].normal[1]==1);
+        memcpy(saved,normalized,sizeof(saved));selected[1].depth=NAN;
+        CHECK(rf_geomod_shallow_normalize(selected,2,normalized,&count)==RF_FORMAT && count==2 && !memcmp(saved,normalized,sizeof(saved)));
+        CHECK(rf_geomod_shallow_normalize(NULL,1,normalized,&count)==RF_RANGE && count==2 && !memcmp(saved,normalized,sizeof(saved)));
+        selected[1].depth=0;
+        CHECK(!rf_geomod_shallow_normalize(selected,2,selected,&count) && count==1 && selected[0].normal[1]==1);
+        CHECK(!rf_geomod_shallow_normalize(NULL,0,normalized,&count) && count==0);
+        selected[0].depth=0;selected[1]=(rf_geomod_shallow_limit){{1,0,0},3};
+        CHECK(!rf_geomod_shallow_normalize(selected,2,normalized,&count) && count==0);
+    }
+
+    {
         float center[3]={10,20,30},point[3]={13,15,33},out[3],saved[3]={91,92,93};
         rf_geomod_shallow_limit limits[2]={{{0,-1,0},2},{{1,0,0},3}};
         CHECK(!rf_geomod_shallow_point(center,point,5,limits,1,out));

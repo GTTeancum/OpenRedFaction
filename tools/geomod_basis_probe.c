@@ -5,6 +5,18 @@
 int main(int argc,char **argv)
 {
     rf_random_state state;float basis[9];uint32_t i;
+    if(argc==2 && !strcmp(argv[1],"--shallow-normalize")) {
+        rf_geomod_shallow_limit input[2],out[2];uint32_t count,j,used;
+        if(scanf("%u",&count)!=1 || count>2)return 3;
+        for(i=0;i<count;i++) {
+            for(j=0;j<3;j++)if(scanf("%f",input[i].normal+j)!=1)return 3;
+            if(scanf("%f",&input[i].depth)!=1)return 3;
+        }
+        if(rf_geomod_shallow_normalize(input,count,out,&used))return 2;
+        printf("%u",used);
+        for(i=0;i<2;i++){printf(" %.9g",out[i].depth);for(j=0;j<3;j++)printf(" %.9g",out[i].normal[j]);}
+        puts("");return 0;
+    }
     if(argc==2 && !strcmp(argv[1],"--shallow")) {
         float center[3],point[3],radius,out[3];rf_geomod_shallow_limit limits[2];uint32_t count,j;
         if(scanf("%u %f",&count,&radius)!=2 || count>2)return 3;

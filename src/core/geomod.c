@@ -363,6 +363,29 @@ int rf_geomod_debris_build(float radius,uint32_t width,uint32_t height,
     *random=next;*out=mesh;return RF_OK;
 }
 
+int rf_geomod_shallow_normalize(const rf_geomod_shallow_limit *selected,uint32_t count,
+    rf_geomod_shallow_limit out[2],uint32_t *out_count)
+{
+    rf_geomod_shallow_limit result[2]={0};uint32_t i,j,used=0;
+    if(!out || !out_count || count>2 || (count && !selected))return RF_RANGE;
+    for(i=0;i<count;i++) {
+        double length=0;float vector[3];
+        if(!isfinite(selected[i].depth))return RF_FORMAT;
+        for(j=0;j<3;j++) {
+            if(!isfinite(selected[i].normal[j]))return RF_FORMAT;
+            vector[j]=selected[i].normal[j]*selected[i].depth;
+            if(!isfinite(vector[j]))return RF_FORMAT;
+            length+=(double)vector[j]*vector[j];
+        }
+        if(length==0) {if(!i)break;continue;}
+        result[used].depth=(float)sqrt(length);
+        if(!isfinite(result[used].depth) || result[used].depth<=0)return RF_FORMAT;
+        for(j=0;j<3;j++)result[used].normal[j]=vector[j]/result[used].depth;
+        used++;
+    }
+    memcpy(out,result,sizeof(result));*out_count=used;return RF_OK;
+}
+
 int rf_geomod_shallow_point(const float center[3],const float point[3],float radius,
     const rf_geomod_shallow_limit *limits,uint32_t count,float out[3])
 {
