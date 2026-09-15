@@ -678,6 +678,31 @@ int rf_weapon_primary_load(rf_vpp *tables,const char *name,uint32_t budget,rf_we
     free(text);return status;
 }
 
+static int weapon_glow_read(lexer *l,rf_weapon_explosive_definition *value)
+{
+    char t[256];int quoted;unsigned k;
+    if(token(l,t,&quoted) || quoted)return RF_FORMAT;
+    if(same(t,"false"))return RF_OK;
+    if(!same(t,"true"))return RF_FORMAT;
+    value->glow=1;
+    if(!metadata_tag(l,"+Inner Radius:") || sphere_number(l,&value->glow_inner) ||
+       !metadata_tag(l,"+Outer Radius:") || sphere_number(l,&value->glow_outer) ||
+       !metadata_tag(l,"+Color:"))return RF_FORMAT;
+    if(value->glow_inner<0 || value->glow_outer<=0 || value->glow_inner>value->glow_outer)return RF_RANGE;
+    if(token(l,t,&quoted) || quoted || strcmp(t,"{"))return RF_FORMAT;
+    for(k=0;k<3;k++) {
+        uint32_t color=0,digits=0;
+        while(l->at<l->size && l->text[l->at] && l->text[l->at]<=32)l->at++;
+        while(l->at<l->size && l->text[l->at]>='0' && l->text[l->at]<='9') {
+            color=color*10+l->text[l->at++]-'0';if(color>255)return RF_RANGE;digits++;
+        }
+        if(!digits)return RF_FORMAT;
+        value->glow_color[k]=(float)color/255.f;
+        while(l->at<l->size && l->text[l->at] && l->text[l->at]<=32)l->at++;
+        if(l->at==l->size || l->text[l->at++]!=(k==2?'}':','))return RF_FORMAT;
+    }
+    return RF_OK;
+}
 int rf_weapon_explosive_read(const void *text,uint32_t bytes,const char *name,rf_weapon_explosive_definition *out)
 {
     lexer l={text,bytes,0};rf_weapon_explosive_definition value={0};char t[256];
@@ -693,6 +718,10 @@ int rf_weapon_explosive_read(const void *text,uint32_t bytes,const char *name,rf
         if(!selected)continue;
         if(same(t,"#End"))break;
         bit=0;
+        if(same(t,"$Glow:")) {
+            if(mask&64)return RF_FORMAT;
+            status=weapon_glow_read(&l,&value);if(status)return status;mask|=64;continue;
+        }
         if(same(t,"$Velocity:")){bit=1;field=&value.speed;}
         else if(same(t,"$Lifetime:")){bit=2;field=&value.lifetime;}
         else if(same(t,"$Collision")) {
@@ -721,7 +750,7 @@ int rf_weapon_explosive_read(const void *text,uint32_t bytes,const char *name,rf
     }
     if(status!=RF_OK && status!=RF_NOT_FOUND)return status;
     if(!found)return RF_NOT_FOUND;
-    if(mask!=63)return RF_FORMAT;
+    if((mask&63)!=63)return RF_FORMAT;
     *out=value;return RF_OK;
 }
 int rf_weapon_explosive_load(rf_vpp *tables,const char *name,uint32_t budget,rf_weapon_explosive_definition *out)

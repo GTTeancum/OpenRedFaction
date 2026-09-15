@@ -3081,3 +3081,32 @@ changed and no new native run was needed. The front depth check and prior native
 eight-blast validation remain as recorded above. Crater material/lighting cues
 and a stock-game appearance reference are next; no percentage increase for this
 diagnostic clarification (overall~49%, GeoMod~63%).
+
+Authored projectile-light inputs (2026-09-15):
+The installed Rocket Launcher weapons.tbl entry declares $Glow true, inner
+radius1, outer radius3 and RGB{100,50,100}. Its following muzzle-flash light
+is a different white source with radii4/7; it must not overwrite projectile
+fields. The shared explosive decoder now retains the optional glow block,
+validates ordered fields and byte colors, and normalizes RGB to0..1. Absent or
+false glow leaves zeroed fields; malformed/duplicate blocks preserve output.
+No heap allocation added; the retained definition grows24 bytes.
+
+Installed rocket/grenade tests and seven malformed glow cases pass, including
+a truncated block that must not borrow the following muzzle light's radius.
+A valid fixture also includes the full following muzzle block and retains the
+purple projectile values. PC player and NXDK XBE/XISO builds succeed; no
+new native run was needed for unconsumed metadata. Light registration,
+movement, removal, original inner/outer attenuation and thruster placement are
+not yet connected; this metadata change has no visible lighting effect. Base
+crater noise and brightness remain unchanged. Original impact-flash/particle
+recipes and projectile glow are separate lifecycles, not interchangeable.
+
+Reference search found the historical Glass House page and screenshot link:
+https://www.redfactionwiki.com/w/index.php?title=Glass_House&oldid=4343
+https://www.redfactionwiki.com/w/images/b/bb/0412_screen000.jpg
+The page identifies the map, but image retrieval was unavailable in the current
+web tool. No visual comparison, patch-version identification, or appearance
+acceptance is claimed from search metadata. Do not treat this as the missing
+verified stock-game capture. No remote screenshot was added to the repository.
+
+Current area: authored gameplay lighting for GeoMod. Overall~49%, GeoMod~63%.

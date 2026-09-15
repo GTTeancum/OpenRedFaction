@@ -40,12 +40,36 @@ int main(int argc,char **argv)
     snprintf(text,sizeof(text),"$Name: \"test\" $Weapon Type: \"bullet\" %s #End",valid);
     CHECK(rf_weapon_explosive_read(text,(uint32_t)strlen(text),"test",&value)==RF_FORMAT && !memcmp(&value,&saved,sizeof(value)));
     CHECK(rf_weapon_explosive_read(text,(uint32_t)strlen(text),"missing",&value)==RF_NOT_FOUND && !memcmp(&value,&saved,sizeof(value)));
+    {
+        const char *bad_glow[]={
+            "$Glow: true +Inner Radius: 4 +Outer Radius: 3 +Color: {100,50,100}",
+            "$Glow: true +Inner Radius: 1 +Outer Radius: 0 +Color: {100,50,100}",
+            "$Glow: true +Inner Radius: 1 +Outer Radius: 3 +Color: {256,50,100}",
+            "$Glow: true +Inner Radius: 1 +Outer Radius: 3 +Color: {100,50}",
+            "$Glow: true +Inner Radius: nan +Outer Radius: 3 +Color: {100,50,100}",
+            "$Glow: false $Glow: true +Inner Radius: 1 +Outer Radius: 3 +Color: {100,50,100}",
+            "$Glow: true +Inner Radius: 1 $Muzzle Flash Light: true +Outer Radius: 7 +Color: {255,255,255}"
+        };
+        snprintf(text,sizeof(text),"%s%s $Glow: true +Inner Radius: 1 +Outer Radius: 3 +Color: { 100, 50, 100 } $Muzzle Flash Light: true +Inner Radius: 4 +Outer Radius: 7 +Color: {255,255,255} #End",prefix,valid);
+        CHECK(!rf_weapon_explosive_read(text,(uint32_t)strlen(text),"test",&value));
+        CHECK(value.glow && value.glow_inner==1 && value.glow_outer==3 && fabsf(value.glow_color[0]-100.f/255)<1e-7f && fabsf(value.glow_color[1]-50.f/255)<1e-7f);
+        saved=value;
+        for(i=0;i<sizeof(bad_glow)/sizeof(*bad_glow);i++) {
+            snprintf(text,sizeof(text),"%s%s %s #End",prefix,valid,bad_glow[i]);
+            CHECK(rf_weapon_explosive_read(text,(uint32_t)strlen(text),"test",&value)!=RF_OK && !memcmp(&value,&saved,sizeof(value)));
+        }
+        snprintf(text,sizeof(text),"%s%s $Glow: false #End",prefix,valid);
+        CHECK(!rf_weapon_explosive_read(text,(uint32_t)strlen(text),"test",&value));
+        CHECK(!value.glow && !value.glow_inner && !value.glow_outer && !value.glow_color[0] && !value.glow_color[1] && !value.glow_color[2]);
+    }
     CHECK(argc==2);snprintf(path,sizeof(path),"%s/tables.vpp",argv[1]);
     {
         rf_vpp tables={0};rf_weapon_primary_definition primary;
         CHECK(!rf_vpp_open(&tables,path));
         CHECK(!rf_weapon_explosive_load(&tables,"Rocket Launcher",128*1024,&value));
         CHECK(value.speed==20 && value.lifetime==15 && fabsf(value.collision_radius-.051f)<1e-6f && value.damage_radius==5 && value.crater_radius==5);
+        CHECK(value.glow==1 && value.glow_inner==1 && value.glow_outer==3);
+        CHECK(fabsf(value.glow_color[0]-100.f/255)<1e-7f && fabsf(value.glow_color[1]-50.f/255)<1e-7f && fabsf(value.glow_color[2]-100.f/255)<1e-7f);
         CHECK(!rf_weapon_primary_load(&tables,"Rocket Launcher",128*1024,&primary));
         CHECK(primary.magazine==6 && primary.damage==400 && primary.damage_kind==3 && primary.fire_seconds==1.25f && primary.reload_seconds==1.7f);
         CHECK(!rf_weapon_explosive_load(&tables,"Grenade",128*1024,&value));
