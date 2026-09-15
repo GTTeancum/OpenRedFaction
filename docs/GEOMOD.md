@@ -1156,3 +1156,26 @@ must be generated with inspect_geomod_template.py and pack_geomod_template.py;
 missing fixtures fail explicitly, as they do for the Xbox build. No copyrighted
 fixture is added to Git. Evidence:artifacts/geomod-coverage.log. Runtime code is
 unchanged in this follow-up, so no duplicate Xbox run or screenshot is needed.
+
+## Interior lighting sampling diagnosis (2026-09-15)
+
+The close PC capture was inspected again. The cavity is visible but remains
+dark and faceted; it is not an accepted appearance milestone. A temporary
+probe evaluated the arithmetic mean of each generated face's vertices with
+the same authored lights, face normal, ambient, terrain occlusion and RGB
+conversion used for corner samples. It compared that center lighting with
+the mean of the corner colors, without changing rendered colors or geometry.
+
+At generation3 (two cuts),92 generated faces were sampled. For the red channel,
+13 face centers exceed their mean corner value by more than0.01;29 are lower
+by more than0.01. Face84 has corner mean0.2490 and sampled center0.3843;
+face80 has0.3712 versus0.4863. These values identify under-resolved surface
+lighting, not a uniform brightness offset. The centroid is inside each convex
+fragment. A finer surface-lighting representation must retain occlusion and
+sharp normal changes, and must be checked against actual rendered results.
+
+Evidence:artifacts/geomod-light-centers.log; the probe was temporary and removed.
+No runtime change, visual improvement, or original-game appearance parity is
+claimed. The captured probe output is pixel-identical to the prior close view.
+Full lightmap generation remains the intended fidelity direction; a center
+sample alone would still be an approximation, not proof of correct shadows.
