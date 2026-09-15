@@ -4,7 +4,7 @@
 - Weapons: Verify remaining enemy drop policies and uncollected-drop revisits; supported held weapons now drop collectible supplies, with PC/Xbox rifle acquisition and firing verified.
 - Combat: Finish enemy damage amounts, cadence and weapon coverage; authored SP primary spread and target/bullet-obstruction checks now pass PC/Xbox verification (24 hits, 3 misses).
 - Weapons: Exercise the shotgun in the uninterrupted campaign and continue weapon coverage; PC manual/automatic reload and PC/Xbox automatic reload plus two-level persistence checks now pass.
-- Gameplay: Step off the second L2S3 shaft ladder at the exit landing and clear its two guards; seven earlier L2S3 kills pass PC/Xbox, and the corrected crossing and second climb pass PC-only.
+- Gameplay: Verify the full L2S3 shaft route on Xbox, then continue L3S1; PC now clears nine L2S3 enemies and crosses the natural exit alive, while Xbox covers seven earlier kills.
 - Movement: Refine ladder entry and top-edge transitions; body contact now unblocks the first L2S3 ladder, but the verified route still uses a jump and repeated top-edge state changes need smoothing.
 
 Weapon-drop update (2026-09-15): Supported enemy weapons now become collectible
@@ -24,6 +24,12 @@ PC/Xbox comparisons through seven L2S3 kills and the diagnostic50m climb.
 The intended35m crossing now passes on PC, and a PC extension reaches the top
 of the second shaft alive. Exit corridor, corrected-branch native verification
 and ladder dismount refinement remain open; see docs/MAIN-SHAFT.md. Estimate ~47%.
+
+Exit-route update (2026-09-15): PC now dismounts the second shaft ladder,
+clears both corridor guards (nine total L2S3 kills), and naturally crosses
+exit6604 into L3S1 at13085. The13200-frame route finishes alive with5health
+and5rifle rounds. No physics, health or inventory changes were needed.
+Full-route Xbox verification and L3S1 gameplay remain open. Estimate ~48%.
 
 First-pass policy: playable campaign systems take priority over exact1:1 RE.
 Use practical shared implementations, verify gameplay and stock64MiB operation,

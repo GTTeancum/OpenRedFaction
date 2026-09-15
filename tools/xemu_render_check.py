@@ -1,4 +1,4 @@
-"""Short stock64MiB render run: native framebuffer/profiles and PC gameplay checks.
+"""Bounded stock64MiB render/campaign run: native framebuffer/profiles and PC gameplay checks.
 
 Only process-local guest replay and QMP; no host input or desktop capture.
 This is a renderer smoke check, not the complete campaign/parity suite.
@@ -26,7 +26,7 @@ from xemu_session_guard import require_no_project_xemu
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--frames', type=int, default=180)
-    parser.add_argument('--seconds', type=int, default=180)
+    parser.add_argument('--seconds', type=int, default=180, help='Guest wall-clock deadline,30..3600 seconds (default180)')
     parser.add_argument('--level', default='L1S1.rfl')
     parser.add_argument('--archive', choices=['levels1.vpp','levels2.vpp','levels3.vpp'], default='levels1.vpp')
     parser.add_argument('--spawn', action='store_true', help='Use authored player spawn without actor/item staging')
@@ -57,8 +57,8 @@ def main():
         args.frames = (len(payload)-offset)//size
     if len(args.setup_uid)>2 or any(not 0<uid<0xffffffff for uid in args.setup_uid):
         parser.error('Require at most two positive setup UIDs')
-    if not 32 <= args.frames <= 12000 or not 30 <= args.seconds <= 900 or not 0 < args.actor < 0xffffffff:
-        parser.error('Require32..12000 frames,30..900 seconds and a positive actor UID')
+    if not 32 <= args.frames <= 60000 or not 30 <= args.seconds <= 3600 or not 0 < args.actor < 0xffffffff:
+        parser.error('Require32..60000 frames,30..3600 seconds and a positive actor UID')
     if payload is None:
         payload = b'RFI5' + struct.pack('<I', 44) + bytes(args.frames * 44)
     if args.item_uid is not None and not 0 < args.item_uid < 0xffffffff:

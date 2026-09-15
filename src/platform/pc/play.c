@@ -74,7 +74,7 @@ typedef struct player {
     rf_frame_clock clock;
     LARGE_INTEGER frequency;
     uint32_t frames,headless;
-    rf_scene_input *replay;uint32_t replay_count,scene_start,exit_uid,exit_frame,forced_exit_uid,goal_uid,goto_uid,setup_uid,setup_next_uid,return_exit_uid,return_item_uid,return_place;
+    rf_scene_input *replay;uint32_t trace_from,replay_count,scene_start,exit_uid,exit_frame,forced_exit_uid,goal_uid,goto_uid,setup_uid,setup_next_uid,return_exit_uid,return_item_uid,return_place;
     int quit,focused;
 } player;
 
@@ -177,11 +177,21 @@ static int input(void *context,uint32_t frame,rf_scene_input *out)
         p->forced_exit_uid=p->exit_uid;p->exit_uid=0;if(status)return status;
     }
     if(p->headless) {
-        if(frame%60==0 && getenv("RF_REPLAY_TRACE")) {
+        if((frame%60==0 || p->frames>=p->trace_from) && getenv("RF_REPLAY_TRACE")) {
             float position[3],basis[9];
             if(!rf_scene_campaign_pose_get(position,basis))
                 printf("CAMPAIGN_TRACE %u %.6f %.6f %.6f %.6f %.6f %.6f\n",p->frames,
                     position[0],position[1],position[2],basis[6],basis[7],basis[8]);
+        }
+        if(p->frames>=p->trace_from && getenv("RF_REPLAY_TRACE")) {
+            extern uint32_t rf_scene_actor_body_sweeps[5];
+            extern rf_geometry_body_hit rf_scene_actor_body_contact;
+            extern rf_physics_body scene_actor_body;
+            const rf_geometry_body_hit *h=&rf_scene_actor_body_contact;
+            printf("CONTACT_TRACE %u %u %u %u %u %u %.6f %.6f %.6f %.6f %u %.6f %.6f %.6f\n",
+                p->frames,rf_scene_actor_body_sweeps[0],rf_scene_actor_body_sweeps[1],h->solid,h->face,h->sphere,
+                h->contact.normal[0],h->contact.normal[1],h->contact.normal[2],h->contact.fraction,
+                scene_actor_body.state.state_124,scene_actor_body.state.velocity[0],scene_actor_body.state.velocity[1],scene_actor_body.state.velocity[2]);
         }
         if(p->replay && p->frames+1==p->replay_count && getenv("RF_REPLAY_TRACE")) {
             printf("NPC_COMBAT_FRAME %u\n",p->frames);
@@ -306,6 +316,11 @@ int main(int argc,char **argv)
     else if(argc==2)directory=argv[1];
     else {fprintf(stderr,"Usage: rf_pc_play <Installed_Game>\n       rf_pc_play --campaign <Installed_Game>\n       rf_pc_play --headless <Installed_Game> <frames 1..60000> <output.ppm>\n       rf_pc_play --replay <Installed_Game> <inputs.bin> <output.ppm>\n       rf_pc_play --spawn-replay <Installed_Game> <inputs.bin> <output.ppm>\n");return 2;}
 #define CHECK(call) do {status=(call);if(status){fprintf(stderr,"%s failed (%d)\n",#call,status);goto cleanup;}} while(0)
+    p.trace_from=UINT32_MAX;
+    if(p.headless && getenv("RF_REPLAY_TRACE_FROM")) {
+        const char *value=getenv("RF_REPLAY_TRACE_FROM");char *end;unsigned long n=strtoul(value,&end,10);
+        if(!*value || *end || n>60000){status=RF_FORMAT;goto cleanup;}p.trace_from=(uint32_t)n;
+    }
     CHECK(path_join(path,sizeof(path),directory,spawn_profile && p.headless && getenv("RF_REPLAY_ARCHIVE")?getenv("RF_REPLAY_ARCHIVE"):"levels1.vpp"));
     CHECK(rf_vpp_open(&archive,path));CHECK(rf_level_open(&level,&archive,spawn_profile && p.headless && getenv("RF_REPLAY_LEVEL")?getenv("RF_REPLAY_LEVEL"):"L1S1.rfl"));
     CHECK(path_join(meshes,sizeof(meshes),directory,"meshes.vpp"));

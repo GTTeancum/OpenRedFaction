@@ -73,3 +73,62 @@ A further local PC extension (`shaft-second-climb.bin/.log`) reaches
 through the authored approach event. They remain alive. The extension overclimbs
 the exit landing; stepping off at its height and clearing the corridor remain
 open. Repeated top-edge ladder transitions remain visible in the counters.
+
+## Exit landing and contact diagnostics (2026-09-15)
+
+`python tools/replay_area3_main_shaft.py --second-climb` reproduces the12600-frame
+second-ladder climb. `--exit-landing` instead stops climbing at12443, then uses
+slower northward movement with pressure toward the outer wall from12460..12529.
+The12620-frame PC replay finishes at(109.886497,67.870689,58.859035), walking,
+with5health,30rifle rounds and both corridor guards alive. Position stays stable
+for the final40frames. All seven earlier L2S3 kills remain verified.
+The generated inputs match the executed local replays byte for byte.
+
+This establishes an ordinary-input ladder dismount; no physics, health,
+inventory or authored geometry was changed. Faster straight and crouched
+approaches fell off the narrow rim. A subsequent jump reaches the corridor,
+but the first attempt dies before completing its turn toward the guards.
+The successful follow-up combat and transition are recorded below.
+
+PC-only opt-in diagnostics: set `RF_REPLAY_TRACE=1` and
+`RF_REPLAY_TRACE_FROM=<global frame>` for per-frame pose and CONTACT_TRACE.
+Fields after the frame are cumulative sweep queries, cumulative hits, solid,
+face, sphere, normalXYZ, fraction, state_124, velocityXYZ. The contact remains
+cached until another hit; compare the hit count before treating it as fresh.
+Tracing starts before that frame's input is applied. A traced/untraced replay
+comparison retained identical final pose, combat, life, rifle and climb results.
+
+Static face2385 is the one-metre-wide right walkway at y67, x110..111 and
+z58.25..60.75. Face4318 is the upper corridor wall (z58.25, y69.96875..81);
+face4812 extends below the corridor floor at66.96875. The failed falling
+approach contacts both wall spans instead of establishing a landing.
+These observations do not establish a collision defect.
+
+The native harness now accepts explicit runs up to60000frames and3600seconds,
+matching the existing runtime frame cap; defaults remain180frames/180seconds.
+Replay input remains streamed on Xbox. These extended routes and limits have
+not yet received a new native run; the previous11950-frame Xbox result above
+is still the latest native campaign evidence.
+
+## Corridor combat and natural exit (PC)
+
+`--exit-combat` reproduces12910frames. Turn toward the guards before the
+landing jump at12711; lower the aim during the jump and recover it while landing.
+Normal rifle alternate fire kills2086 and2087. Final position is
+(108.289345,67.850273,57.197807), walking,5health and5rifle rounds.
+COMBAT begins59,28,9; RIFLE_ALT begins37,10,5. Both guards have-30health.
+The prior seven kills and friendly miner2061's100health remain verified.
+
+`--exit-walk` extends that exact prefix to13200frames. Normal forward movement
+crosses authored exit6604 at13085, transitioning L2S3 to L3S1 without a forced
+exit or staged state. Final position(-58.652866,-3.119846,-20.917120), alive,
+5health and5rifle rounds. Per-section combat counters reset at transition;
+the identical12910-frame prefix separately establishes the nine L2S3 kills.
+All generated branches match their executed input files byte for byte.
+
+Evidence: artifacts/area3-exit-combat and artifacts/area3-exit-walk contain the
+inputs, logs, report and native PC framebuffer. This is PC evidence only.
+Next: verify the13200-frame route on stock64MiB Xbox, then continue L3S1 gameplay.
+The tight low-health replay does not replace representative human playtesting.
+Overall first-pass estimate: ~48%; this turn extends verified campaign coverage,
+not engine fidelity or visual polish.
