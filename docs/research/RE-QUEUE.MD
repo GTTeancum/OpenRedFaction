@@ -7,9 +7,10 @@ User mandate: keep one secondary agent supplied with useful, bounded RE work whi
 3. Reported/reviewed: debris query flags and fraction mismatch; primary integrated the count-probe correction. Broader terrain eligibility remains open.
 4. Reported: impact clips dispatch in order, not random variant selection; primary retained and reran executable evidence.
 5. Reported/integrated: central impact direction uses hit normal; code_explode scale/liquid dispatch evidence retained, broader child behavior still open.
-6. Reported, primary review pending: shallow-region deformation and overlap rejection, minimum-radius admission and 128-entry queued terrain history; center quantization remains unverified.
-7. Active: trace source-face detail classification and face bit8 propagation/consumers; distinguish observed flags from terrain-protection assumptions.
-8. Queued next: execute original crater-center encoding/decoding with solid bounds and rounding, including duplicate-distance boundary cases around0.2.
-9. Follow-up after review: shallow cuts intersecting existing craters; determine whether the limiting deformation changes after earlier terrain edits.
+6. Reported and probes rerun by primary: shallow-region deformation and overlap rejection, minimum-radius admission and 128-entry queued terrain history; center quantization remains unverified.
+7. Reported, primary review pending: source-face detail classification and face bit8 propagation/consumers; distinguish observed flags from terrain-protection assumptions.
+8. Active: execute both shallow limiting branches and their composition before enabling shallow terrain edits.
+9. Queued next: execute original crater-center encoding/decoding with solid bounds and rounding, including duplicate-distance boundary cases around0.2.
+10. Follow-up after review: shallow cuts intersecting existing craters; determine whether the limiting deformation changes after earlier terrain edits.
 
 Send findings to the primary as each investigation completes, then proceed to the next queued item. Primary reviews reports and replenishes this queue. Do not edit shared implementation or use desktop control, host input or emulators.

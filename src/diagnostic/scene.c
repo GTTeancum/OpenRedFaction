@@ -9406,7 +9406,8 @@ static int scene_rockets_tick(scene_stream *s,uint32_t frame)
                 event.contact.hit.point[0],event.contact.hit.point[1],event.contact.hit.point[2]);
             /* Original concave crater template in the explicit DEV cavity. Impact effects
              * and authored surface eligibility remain separate. */
-            if(s->terrain && event.contact.room==0 && campaign_rocket.crater_radius>0) {
+            /* Original4670c3 gates requested radius before hardness scaling. */
+            if(s->terrain && event.contact.room==0 && campaign_rocket.crater_radius>=1.0f) {
                 uint32_t timing_row=rf_scene_geomod[6]%8,timing_clock=0;
                 memset(rf_scene_terrain_edit_times[timing_row],0,sizeof(rf_scene_terrain_edit_times[0]));rf_scene_terrain_edit_times[timing_row][0]=frame;
                 ++rf_scene_geomod[6];

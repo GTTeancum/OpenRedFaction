@@ -1,6 +1,6 @@
 # Red Faction Xbox / PC - open work
 
-- GeoMod RE: Keep the secondary agent on bounded destruction investigations; review shallow-cut and admission-history evidence, then integrate verified behavior into the shared core.
+- GeoMod RE: Integrate shallow-cut deformation and queued crater history after remaining composition/quantization checks; minimum requested-radius admission is corrected and PC/Xbox builds pass.
 - PRIORITY GeoMod: Match original destruction shape, exposed materials, lighting, debris, collision and repeated blasts before returning to other systems; a visible hole alone is not acceptance.
 - GeoMod: Improve crater readability and expand destruction coverage; eight-cut live/Xbox repair passes, and side-view nearer pixels trace to floor projection rounding, while broader shapes and visual parity remain open.
 - GeoMod: Reduce remaining terrain-cut stalls; the latest native eighth edit measures 239ms CSG and 29ms binding, subject to host timing variation.
