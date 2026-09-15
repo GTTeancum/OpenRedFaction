@@ -939,6 +939,47 @@ int rf_geometry_collision_room_open(const rf_geometry *geometry,uint32_t room,
     if(status) {rf_geometry_collision_room_close(&value);return status;}
     *result=value;return RF_OK;
 }
+void rf_geometry_collision_overlay_close(rf_geometry_collision_overlay *overlay)
+{if(overlay){free(overlay->storage);memset(overlay,0,sizeof(*overlay));}}
+int rf_geometry_collision_overlay_open(const rf_geometry_collision_world *base,
+    uint32_t room,uint32_t capacity,uint32_t budget,rf_geometry_collision_overlay *out)
+{
+    rf_geometry_collision_overlay value={0};unsigned char *p;uint32_t i;
+    uint64_t bytes;
+    if(!base || !out || out->storage || !base->rooms || !base->views || room>=base->room_count || !capacity)return RF_RANGE;
+    bytes=sizeof(value)+(uint64_t)base->room_count*(sizeof(*base->rooms)+sizeof(*base->views))+(uint64_t)capacity*4;
+    if(bytes>budget)return RF_RANGE;
+    value.storage=malloc((size_t)bytes-sizeof(value));if(!value.storage)return RF_IO;
+    value.world=*base;value.room=room;value.index_capacity=capacity;value.resident_bytes=(uint32_t)bytes;
+    p=value.storage;value.world.rooms=(rf_geometry_collision_room *)p;p+=(size_t)base->room_count*sizeof(*base->rooms);
+    value.world.views=(rf_collision_room_view *)p;p+=(size_t)base->room_count*sizeof(*base->views);
+    value.source_indices=(uint32_t *)p;
+    memcpy(value.world.rooms,base->rooms,base->room_count*sizeof(*base->rooms));
+    memcpy(value.world.views,base->views,base->room_count*sizeof(*base->views));
+    for(i=0;i<base->room_count;i++)value.world.views[i].tree=&value.world.rooms[i].tree;
+    *out=value;return RF_OK;
+}
+int rf_geometry_collision_overlay_bind(rf_geometry_collision_overlay *o,
+    const rf_collision_tree *tree,const uint32_t *face_ids,uint32_t count)
+{
+    rf_geometry_collision_room *room;uint32_t i,j;
+    if(!o || !o->storage || !tree || tree->face_count!=count || count>o->index_capacity ||
+       (count && (!face_ids || !tree->source_indices || !tree->faces)) ||
+       (tree->node_count && !tree->nodes) || face_ids==o->source_indices || tree->source_indices==o->source_indices)return RF_RANGE;
+    for(i=0;i<count;i++)if(tree->source_indices[i]>=count || face_ids[tree->source_indices[i]]==UINT32_MAX)return RF_FORMAT;
+    if(tree->node_count)for(j=0;j<3;j++)if(!isfinite(tree->nodes[0].minimum[j]) ||
+        !isfinite(tree->nodes[0].maximum[j]) || tree->nodes[0].minimum[j]>tree->nodes[0].maximum[j])return RF_FORMAT;
+    for(i=0;i<count;i++)o->source_indices[i]=face_ids[tree->source_indices[i]];
+    room=o->world.rooms+o->room;room->tree=*tree;room->tree.source_indices=o->source_indices;
+    if(tree->node_count)for(j=0;j<3;j++) {
+        room->minimum[j]=o->world.views[o->room].minimum[j]=tree->nodes[0].minimum[j];
+        room->maximum[j]=o->world.views[o->room].maximum[j]=tree->nodes[0].maximum[j];
+        /* Global bounds stay conservative across smaller edits/resets. */
+        if(room->minimum[j]<o->world.minimum[j])o->world.minimum[j]=room->minimum[j];
+        if(room->maximum[j]>o->world.maximum[j])o->world.maximum[j]=room->maximum[j];
+    }
+    return RF_OK;
+}
 void rf_geometry_collision_world_close(rf_geometry_collision_world *world)
 {
     uint32_t i;if(!world)return;

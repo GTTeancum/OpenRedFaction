@@ -380,8 +380,14 @@ int main(int argc,char **argv)
         {
             rf_geomod_terrain *terrain=NULL,*limited=NULL;rf_geomod_terrain_view live,before;
             rf_collision_face_filter generated={0};uint32_t minimum_budget,baseline_bytes;
+            rf_geometry_collision_world base={0};rf_geometry_collision_overlay overlay={0};
+            rf_geometry_world_hit original_hit,overlay_hit;uint32_t original_matched,ids[128],fallback=UINT32_MAX;
             const float center[3]={0,-10,20},extent[3]={1,1,1};float invalid[3]={0,1,1};
-            generated.face_flags=8;
+            generated.face_flags=256;
+            CHECK(!rf_geometry_collision_world_open(&geometry,8*1024*1024,&base));
+            CHECK(!rf_geometry_collision_overlay_open(&base,0,128,65536,&overlay));
+            for(i=0;i<6;i++)if(sf[i].material==2)fallback=i;
+            CHECK(fallback!=UINT32_MAX);
             CHECK(!rf_geomod_terrain_open(&src,filters,&generated,1,2048,128,1024*1024,&terrain));
             CHECK(!rf_geomod_terrain_get(terrain,&before));minimum_budget=before.peak_bytes;baseline_bytes=before.resident_bytes;
             CHECK(before.cuts==0 && before.mesh.generation==1);
@@ -389,18 +395,48 @@ int main(int argc,char **argv)
                 CHECK(!rf_geomod_terrain_cut_box(terrain,center,extent,2));
                 CHECK(!rf_geomod_terrain_get(terrain,&live));CHECK(live.cuts==i+1 && live.mesh.generation==i+2);
                 CHECK(live.resident_bytes<=live.peak_bytes && live.peak_bytes<=1024*1024);
+                for(j=0;j<live.mesh.face_count;j++)ids[j]=live.mesh.faces[j].source_face==UINT32_MAX?fallback:live.mesh.faces[j].source_face;
+                CHECK(!rf_geometry_collision_overlay_bind(&overlay,live.tree,ids,live.mesh.face_count));
+                CHECK(!rf_geometry_collision_world_ray(&overlay.world,0,ray_start,ray_delta,1,&overlay_hit,&matched));
+                CHECK(matched && overlay_hit.room==0 && fabs(overlay_hit.hit.fraction-.5f)<1e-5);
+                {
+                    rf_geometry_world_sweep_hit body;rf_collision_room_location location;uint32_t tracked;
+                    const float inside[3]={0,-10,20.25f};
+                    CHECK(!rf_geometry_collision_world_sweep(&overlay.world,0,ray_start,ray_delta,.5f,1,&body,&matched));
+                    CHECK(matched && body.room==0 && fabs(body.hit.fraction-.375f)<1e-5);
+                    {int located=rf_geometry_collision_world_locate(&overlay.world,inside,&location);
+                     if(located || location.room!=0){fprintf(stderr,"locate status%d room%u face%u retries%u\n",located,location.room,location.face,location.retries);return 1;}}
+                    CHECK(!rf_geometry_collision_world_track(&overlay.world,0,ray_start,inside,0,&tracked) && tracked==0);
+                }
+                CHECK(!rf_geometry_collision_world_ray(&base,0,ray_start,ray_delta,1,&original_hit,&original_matched));
+                CHECK(original_matched && fabs(original_hit.hit.fraction-.25f)<1e-5); /* Base never mutated. */
+                {
+                    const float p[3]={0,-10,10},d[3]={0,0,-20};
+                    CHECK(!rf_geometry_collision_world_ray(&base,0,p,d,1,&original_hit,&original_matched));
+                    CHECK(!rf_geometry_collision_world_ray(&overlay.world,0,p,d,1,&overlay_hit,&matched));
+                    CHECK(original_matched && matched && original_hit.room!=0 && original_hit.face==overlay_hit.face &&
+                        fabs(original_hit.hit.fraction-overlay_hit.hit.fraction)<1e-6);
+                }
+                ids[0]=UINT32_MAX;
+                CHECK(rf_geometry_collision_overlay_bind(&overlay,live.tree,ids,live.mesh.face_count)==RF_FORMAT);
+                CHECK(!rf_geometry_collision_world_ray(&overlay.world,0,ray_start,ray_delta,1,&overlay_hit,&matched));
+                CHECK(matched && fabs(overlay_hit.hit.fraction-.5f)<1e-5); /* Failed bind preserves map/tree. */
                 CHECK(!rf_collision_thin_tree(live.tree->nodes,live.tree->node_count,live.tree->faces,live.tree->face_count,0,
                     ray_start,ray_delta,1,live.tree->stack,live.tree->node_capacity,&hit,&matched));
                 CHECK(matched && fabs(hit.hit.fraction-.5f)<1e-5);
                 for(j=0;j<live.mesh.face_count;j++) {
                     uint32_t id=live.mesh.faces[j].source_face;
-                    CHECK(live.faces[j].filter.face_flags==(id==UINT32_MAX?8:filters[id].face_flags));
+                    CHECK(live.faces[j].filter.face_flags==(id==UINT32_MAX?256:filters[id].face_flags));
                 }
             }
             before=live;
             CHECK(rf_geomod_terrain_cut_box(terrain,center,extent,2)==RF_RANGE);
             CHECK(!rf_geomod_terrain_get(terrain,&live) && live.mesh.generation==before.mesh.generation && live.cuts==8);
             CHECK(!rf_geomod_terrain_reset(terrain));CHECK(!rf_geomod_terrain_get(terrain,&live));
+            for(j=0;j<live.mesh.face_count;j++)ids[j]=live.mesh.faces[j].source_face;
+            CHECK(!rf_geometry_collision_overlay_bind(&overlay,live.tree,ids,live.mesh.face_count));
+            CHECK(!rf_geometry_collision_world_ray(&overlay.world,0,ray_start,ray_delta,1,&overlay_hit,&matched));
+            CHECK(matched && fabs(overlay_hit.hit.fraction-.25f)<1e-5);
             CHECK(!live.cuts && live.mesh.face_count==6 && live.resident_bytes==baseline_bytes);
             CHECK(!rf_collision_thin_tree(live.tree->nodes,live.tree->node_count,live.tree->faces,live.tree->face_count,0,
                 ray_start,ray_delta,1,live.tree->stack,live.tree->node_capacity,&hit,&matched));
@@ -417,6 +453,8 @@ int main(int argc,char **argv)
                 ray_start,ray_delta,1,live.tree->stack,live.tree->node_capacity,&hit,&matched));
             CHECK(matched && fabs(hit.hit.fraction-.25f)<1e-5);
             printf("PASS: terrain publication/reset,8-cut admission and allocation rollback; initial peak%u bytes\n",minimum_budget);
+            rf_geometry_collision_overlay_close(&overlay);rf_geometry_collision_overlay_close(&overlay);
+            rf_geometry_collision_world_close(&base);
             rf_geomod_terrain_close(&limited);rf_geomod_terrain_close(&terrain);rf_geomod_terrain_close(&terrain);
         }
         rf_collision_tree_close(&tree);rf_geomod_storage_close(&s);rf_geometry_close(&geometry);rf_vpp_close(&archive);

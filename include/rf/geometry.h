@@ -350,6 +350,25 @@ typedef struct rf_geometry_world_hit {
 int rf_geometry_collision_world_open(const rf_geometry *geometry,uint32_t budget,
     rf_geometry_collision_world *world);
 void rf_geometry_collision_world_close(rf_geometry_collision_world *world);
+typedef struct rf_geometry_collision_overlay {
+    rf_geometry_collision_world world;
+    void *storage;uint32_t *source_indices,index_capacity,room,resident_bytes;
+} rf_geometry_collision_overlay;
+/* Borrow a complete world while owning copied room/view descriptors and one
+ * bounded replacement index map. Other room trees, lists and vertex arrays
+ * stay borrowed. Never call world_close on overlay.world. Base must outlive
+ * the overlay; close via the dedicated function. Zero-init before open.
+ * Budget includes owner/descriptors/index map, not borrowed allocations. */
+int rf_geometry_collision_overlay_open(const rf_geometry_collision_world *base,
+    uint32_t room,uint32_t face_capacity,uint32_t budget,rf_geometry_collision_overlay *out);
+/* Replace one room tree. face_ids maps source-order tree input faces to the
+ * caller's geometry IDs (including an explicit metadata ID for new surfaces).
+ * Copies the map in tree order. Replacement nodes/faces/positions are borrowed
+ * and must remain alive until rebind/close. No allocation, failure preserves
+ * the active overlay. Caller synchronizes this with terrain publication. */
+int rf_geometry_collision_overlay_bind(rf_geometry_collision_overlay *overlay,
+    const rf_collision_tree *tree,const uint32_t *face_ids,uint32_t count);
+void rf_geometry_collision_overlay_close(rf_geometry_collision_overlay *overlay);
 #include "rf/corpse_effect.h"
 /*42dc50/4df690 surface callback. Descriptor is retained room index+1 (zero
  * is absent), not a serialized room ID. Queries only that room's tree with

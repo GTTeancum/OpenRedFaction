@@ -345,3 +345,37 @@ source faces from existing world rendering/collision and including the owner
 snapshot in both paths, then weapon-impact and reset controls. Authored cut
 eligibility, arbitrary room unions and portal handling remain separate work.
 NXDK compilation passes and produces the XBE/XISO; this owner has not yet been exercised inside XEMU.
+
+
+## Full-world collision overlay
+
+Glass House outer faces0..5 belong exclusively to room0. The other592 faces
+belong to the other90 room records, so replacing room0 does not require
+rebuilding the central structure. rf_geometry_collision_overlay_open now
+borrows the complete original world while copying room/view descriptors and
+owning one bounded replacement face-ID map. bind swaps that room's borrowed
+tree descriptor and remaps tree source order to explicit geometry metadata IDs.
+Other trees, vertex arrays and room lists remain borrowed. The dedicated close
+releases only overlay allocations; world_close must not be used on its view.
+Bounds expand conservatively and rebind allocates nothing. Invalid mappings
+are rejected before changing the active map/tree.
+
+Tests use all91 rooms: the original world still hits z20, while the overlay
+hits the excavation at z21. A radius0.5 body stops at z20.5, and a point at
+z20.25 locates/tracks in room0. A ray into the central structure retains the
+same face and hit fraction. Rejected mapping updates preserve the previous
+wall hit; reset/rebind restores the original boundary. Generated interior
+metadata uses an explicitly selected original face with the same material;
+this is a provisional metadata fallback, not a new serialized face identity.
+
+Room-location testing exposed that the earlier generic filter-preservation
+fixture used flag8, which the existing locator excludes via mask0x0c. The
+actual-room fixture now supplies outer-wall flag256 for generated surfaces.
+The owner still preserves whatever explicit filter its caller supplies. This
+is why a ray-only check was insufficient for validating traversable space.
+
+PC full-world checks and NXDK XBE/XISO compilation pass. Scene code does not
+yet instantiate the overlay. It must rebind immediately after successful
+terrain edits while no query can observe the retired tree, and project the
+same snapshot while suppressing the original outer wall draw. Native player
+movement, weapon-impact editing and reset controls remain unverified.
