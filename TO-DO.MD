@@ -1,6 +1,6 @@
 # Red Faction Xbox / PC - open work
 
-- Combat: Connect retained NPC pain animation and sound to live damage notifications, then verify reaction and attack timing; the current live callback discards both pain events.
+- Combat: Verify enemy attack behavior during pain reactions; live NPC pain animation/sound now dispatch and pass34 PC/Xbox comparisons, but reaction-based firing interruption remains unverified.
 - Combat: Revalidate encounters with the new shared body-sphere bullet collision; captured false hits are rejected, but old oversized-box aiming replays need recalibration.
 - Weapons: Implement remaining campaign weapons beyond handgun, rifle, Riot Stick and shotgun; automatic rifle now clears three shaft guards on PC/Xbox.
 - Weapons: Verify remaining enemy drop policies and uncollected-drop revisits; supported held weapons now drop collectible supplies, with PC/Xbox rifle acquisition and firing verified.
@@ -8,6 +8,13 @@
 - Weapons: Exercise the shotgun in the uninterrupted campaign and continue weapon coverage; PC manual/automatic reload and PC/Xbox automatic reload plus two-level persistence checks now pass.
 - Gameplay: Revisit maintenance after live damage reactions; the7356-frame first-guard route now passes33 Xbox comparisons, but the PC maintenance probe reaches guard2047 and dies.
 - Movement: Refine ladder entry and top-edge transitions; body contact now unblocks the first L2S3 ladder, but the verified route still uses a jump and repeated top-edge state changes need smoothing.
+
+Live pain update (2026-09-15): NPC damage now dispatches retained pain animation
+and sound with the live clock, deterministic RNG and propagated errors.
+The120-frame Xbox encounter passes34 comparisons (two starts/two sounds),
+with24.645MiB free; the3600-frame PC opening also passes. Fatal hits use the
+separate death path. Attack-lock behavior remains open; see
+docs/LIVE-DAMAGE-REACTIONS.md. Estimate ~48%; focus is AI hit reactions.
 
 First-guard native update (2026-09-15): The7356-frame recording passes33
 stock64MiB Xbox comparisons through guard2020:7shots,4hits,1kill,5health,

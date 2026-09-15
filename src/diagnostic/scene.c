@@ -7926,9 +7926,33 @@ static int combat_source(void *c,uint32_t handle,uint32_t *affiliation)
 static uint32_t combat_burn(void *c,uint32_t a,uint32_t d){(void)c;(void)a;(void)d;return 0;}
 static float combat_random(void *c,float low,float high){(void)c;return (low+high)*.5f;}
 uint32_t rf_scene_enemy_retaliation[4]; /* reactions, last victim, last source, preserved authored orders */
+typedef struct combat_feedback {int32_t now;int status;} combat_feedback;
+static rf_random_state combat_pain_random={1};
+uint32_t rf_scene_combat_pain[8]; /* animation/sound notifications, starts/plays, target, clock, RNG, status */
 static void combat_notify(void *c,uint32_t k,uint32_t t,float v,uint32_t s)
 {
-    uint32_t i,affiliation;campaign_npc_body *owner=NULL;(void)c;
+    uint32_t i,affiliation;campaign_npc_body *owner=NULL;combat_feedback *feedback=c;
+    if(k==RF_DAMAGE_PAIN_ANIMATION || k==RF_DAMAGE_PAIN_SOUND) {
+        int32_t before;uint32_t plays;
+        if(!feedback || feedback->status || t==campaign_player_object.handle)return;
+        for(i=0;i<campaign_npc_body_count;i++)if(campaign_npc_bodies[i].registration.view && campaign_npc_bodies[i].registration.handle==t){owner=campaign_npc_bodies+i;break;}
+        /* Retained pain sound supports living NPCs; fatal hits use death entry
+         * and its separate presentation, not the absent death-class override. */
+        if(!owner || owner->damage.effects.health<=0)return;
+        rf_scene_combat_pain[4]=t;rf_scene_combat_pain[5]=(uint32_t)feedback->now;
+        if(k==RF_DAMAGE_PAIN_ANIMATION) {
+            ++rf_scene_combat_pain[0];before=owner->pain.animation_lock;
+            feedback->status=rf_scene_npc_pain_retained(t,feedback->now,&combat_pain_random);
+            if(!feedback->status && before!=owner->pain.animation_lock)++rf_scene_combat_pain[2];
+        } else {
+            ++rf_scene_combat_pain[1];plays=rf_scene_npc_pain_audio[2];
+            feedback->status=rf_scene_npc_pain_sound(t,v,feedback->now,&combat_pain_random);
+            rf_scene_combat_pain[3]+=rf_scene_npc_pain_audio[2]-plays;
+        }
+        rf_scene_combat_pain[6]=combat_pain_random.value;rf_scene_combat_pain[7]=(uint32_t)feedback->status;
+        if(feedback->status)fprintf(stderr,"COMBAT_PAIN_ERROR %u %u %d %d %d\n",k,t,feedback->now,owner->pain.selected_action,feedback->status);
+        return;
+    }
     if(k!=RF_DAMAGE_AI_REACTION || !(v>0) || t==s || !combat_source(NULL,s,&affiliation))return;
     for(i=0;i<campaign_npc_body_count;i++)if(campaign_npc_bodies[i].registration.view && campaign_npc_bodies[i].registration.handle==t){owner=campaign_npc_bodies+i;break;}
     if(!owner || owner->damage.effects.health<=0 || (owner->object_flags&(2|0x4000)) ||
@@ -8018,7 +8042,8 @@ uint32_t rf_scene_script_slays[6]; /* requests,death entries,last UID,health bit
 static int campaign_slay_object(void *context,uint32_t handle,uint32_t source,int32_t now)
 {
     uint32_t i,entered,clock_bits;float amount,seconds=(float)now*.001f;int status;(void)context;
-    rf_damage_effect_backend effects={combat_predicate,combat_uid,combat_source,combat_burn,combat_random,combat_notify,combat_playing,combat_play,NULL};
+    combat_feedback feedback={now,0};
+    rf_damage_effect_backend effects={combat_predicate,combat_uid,combat_source,combat_burn,combat_random,combat_notify,combat_playing,combat_play,&feedback};
     for(i=0;i<campaign_npc_body_count;i++) {
         campaign_npc_body *owner=campaign_npc_bodies+i;rf_damage_request request;
         if(!owner->registration.view || owner->registration.handle!=handle)continue;
@@ -8026,7 +8051,7 @@ static int campaign_slay_object(void *context,uint32_t handle,uint32_t source,in
         request=(rf_damage_request){owner->damage.effects.health+fmaxf(0,owner->damage.effects.armor)+1,source,-1,0,UINT32_MAX,1};
         memcpy(&clock_bits,&seconds,4);++rf_scene_script_slays[0];
         rf_scene_script_slays[2]=campaign_seeds.records.items[i].record.uid;rf_scene_script_slays[4]=(uint32_t)now;
-        status=rf_scene_npc_damage(handle,&request,1,clock_bits,&effects,&amount);
+        status=rf_scene_npc_damage(handle,&request,1,clock_bits,&effects,&amount);if(!status)status=feedback.status;
         if(!status)status=rf_scene_npc_death_entry(handle,&entered);
         if(!status && entered){++rf_scene_script_slays[1];owner->script_move.active=0;status=combat_death_start(i);}
         memcpy(rf_scene_script_slays+3,&owner->damage.effects.health,4);rf_scene_script_slays[5]=(uint32_t)status;return status;
@@ -8182,7 +8207,8 @@ static rf_random_state campaign_enemy_spread_random;
 static int campaign_enemy_tick(scene_stream *stream,uint32_t frame,const float player_eye[3])
 {
     uint32_t i,j,blocked,clock_bits;float seconds=(float)frame/60;
-    rf_damage_effect_backend effects={combat_predicate,combat_uid,combat_source,combat_burn,combat_random,combat_notify,combat_playing,combat_play,NULL};
+    combat_feedback feedback={(int32_t)((uint64_t)frame*1000/60),0};
+    rf_damage_effect_backend effects={combat_predicate,combat_uid,combat_source,combat_burn,combat_random,combat_notify,combat_playing,combat_play,&feedback};
     memcpy(&clock_bits,&seconds,4);++rf_scene_enemy_combat[0];
     for(i=0;i<campaign_npc_body_count && campaign_player_damage.state.effects.health>0;i++) {
         campaign_npc_body *owner=campaign_npc_bodies+i;float delta[3],distance=0,amount=0;int status;
@@ -8289,7 +8315,7 @@ static int campaign_enemy_tick(scene_stream *stream,uint32_t frame,const float p
          rf_damage_request request={10,owner->registration.handle,kind,0,UINT32_MAX,0};
          if(victim) {
              uint32_t entered;
-             status=rf_scene_npc_damage(victim->registration.handle,&request,1,clock_bits,&effects,&amount);if(status)return status;
+             status=rf_scene_npc_damage(victim->registration.handle,&request,1,clock_bits,&effects,&amount);if(!status)status=feedback.status;if(status)return status;
              if(victim->damage.effects.health<=0) {
                  status=rf_scene_npc_death_entry(victim->registration.handle,&entered);if(status)return status;
                  if(entered){victim->script_move.active=0;status=combat_death_start(victim_slot);if(status)return status;}
@@ -8383,6 +8409,7 @@ static int campaign_combat_tick(scene_stream *stream,uint32_t frame,const float 
 {
     float delta[3],nearest=1,amount;uint32_t i,target=UINT32_MAX,blocked,fire,alt,active=0;int status;
     memcpy(rf_scene_gameplay_eye,position,sizeof(rf_scene_gameplay_eye));
+    if(!frame){memset(rf_scene_combat_pain,0,sizeof(rf_scene_combat_pain));combat_pain_random.value=1;}
     if(!frame){memset(rf_scene_rifle_alt,0,sizeof(rf_scene_rifle_alt));campaign_rifle_alt_random.value=1;memset(rf_scene_weapon_drops,0,sizeof(rf_scene_weapon_drops));rf_scene_combat_event_count=0;memset(rf_scene_combat_events,0,sizeof(rf_scene_combat_events));memset(rf_scene_shotgun,0,sizeof(rf_scene_shotgun));campaign_shotgun_random.value=1;campaign_last_alt=0;memset(rf_scene_riot,0,sizeof(rf_scene_riot));riot_charge_remainder=0;combat_surface_frame=UINT32_MAX;}
     if(!frame){memset(rf_scene_weapon_selection,0,sizeof(rf_scene_weapon_selection));memset(rf_scene_weapon_audio,0,sizeof(rf_scene_weapon_audio));combat_sound_random.value=1;memset(rf_scene_combat_death,0,sizeof(rf_scene_combat_death));memset(rf_scene_combat,0,sizeof(rf_scene_combat));rf_scene_combat[3]=UINT32_MAX;rf_scene_combat[5]=campaign_pistol.magazine;memset(&combat_trigger,0,sizeof(combat_trigger));combat_frame=combat_hit_frame=UINT32_MAX;
         memset(rf_scene_enemy_awareness,0,sizeof(rf_scene_enemy_awareness));
@@ -8524,8 +8551,9 @@ static int campaign_combat_tick(scene_stream *stream,uint32_t frame,const float 
         /* First-pass held taser damage is authored damage per second, not a full
          * damage pulse every simulation tick. Electrical type is port policy. */
         float seconds=(float)frame/60;rf_damage_request request={alt?(campaign_equipped_slot==2?campaign_pistol.alt_damage/60:campaign_pistol.alt_damage):campaign_pistol.damage,campaign_player_object.handle,alt && campaign_equipped_slot==2?6:campaign_pistol.damage_kind,0,UINT32_MAX,0};
-        rf_damage_effect_backend effects={combat_predicate,combat_uid,combat_source,combat_burn,combat_random,combat_notify,combat_playing,combat_play,NULL};
-        memcpy(&clock_bits,&seconds,4);status=rf_scene_npc_damage(handle,&request,1,clock_bits,&effects,&amount);if(status)return status;
+        combat_feedback feedback={(int32_t)((uint64_t)frame*1000/60),0};
+        rf_damage_effect_backend effects={combat_predicate,combat_uid,combat_source,combat_burn,combat_random,combat_notify,combat_playing,combat_play,&feedback};
+        memcpy(&clock_bits,&seconds,4);status=rf_scene_npc_damage(handle,&request,1,clock_bits,&effects,&amount);if(!status)status=feedback.status;if(status)return status;
         if(amount>0){combat_hit_frame=frame;
             campaign_combat_event(frame,0,handle,amount,owner->damage.effects.health);
             if(alt && campaign_equipped_slot==2)++rf_scene_riot[3];
@@ -8555,10 +8583,11 @@ static int campaign_watch_fixture(uint32_t frame)
         if((uint32_t)campaign_seeds.records.items[j].record.uid==watch->authored->links[i]) {
             campaign_npc_body *owner=campaign_npc_bodies+j;uint32_t bits,entered;float seconds=(float)frame/60,amount;int status;
             rf_damage_request request={100000,campaign_player_object.handle,0,0,UINT32_MAX,0};
-            rf_damage_effect_backend effects={combat_predicate,combat_uid,combat_source,combat_burn,combat_random,combat_notify,combat_playing,combat_play,NULL};
+            combat_feedback feedback={(int32_t)((uint64_t)frame*1000/60),0};
+            rf_damage_effect_backend effects={combat_predicate,combat_uid,combat_source,combat_burn,combat_random,combat_notify,combat_playing,combat_play,&feedback};
             if(k++!=wanted)continue;
             if(!owner->registration.view || owner->damage.effects.health<=0)return RF_FORMAT;
-            memcpy(&bits,&seconds,4);status=rf_scene_npc_damage(owner->registration.handle,&request,1,bits,&effects,&amount);
+            memcpy(&bits,&seconds,4);status=rf_scene_npc_damage(owner->registration.handle,&request,1,bits,&effects,&amount);if(!status)status=feedback.status;
             if(!status && owner->damage.effects.health>0)status=RF_FORMAT;
             if(!status)status=rf_scene_npc_death_entry(owner->registration.handle,&entered);
             if(!status && entered)status=combat_death_start(j);

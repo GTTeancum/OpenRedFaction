@@ -1,25 +1,48 @@
-# Missing live NPC damage feedback
+# Live NPC damage feedback
 
-Source inspection confirms an integration gap. `rf_entity_damage_effects` in
-src/core/entity.c emits RF_DAMAGE_PAIN_ANIMATION for incoming damage above5,
-and RF_DAMAGE_PAIN_SOUND for eligible damage fractions. The live scene's
-`combat_notify` accepts only RF_DAMAGE_AI_REACTION; it returns immediately
-for both pain notifications.
+Live damage now dispatches retained NPC pain animation and sound. Previously,
+combat_notify accepted only retaliation events, although rf_entity_damage_effects
+already emitted pain-animation and pain-sound notifications. Only the diagnostic
+fixture called the retained pain wrapper.
 
-The retained implementations already exist: `rf_scene_npc_pain_retained`
-calls the reconstructed428740 pain orchestration, while
-`rf_scene_npc_pain_sound` handles sound. The only scene call to the retained
-animation wrapper is in `campaign_damage_test_notify`, the diagnostic fixture.
-Thus fixture coverage does not establish live campaign pain reactions.
+The callback now uses rf_scene_npc_pain_retained (reconstructed428740) and
+rf_scene_npc_pain_sound with simulation milliseconds and a separate deterministic
+RNG. Existing cooldown, AI/action and animation eligibility gates remain intact.
+Each backend carries an error status; callback failures propagate to the scene
+caller. Player hits, enemy-to-NPC hits and scripted damage use this context.
+Live player pain is not routed through NPC owner functions.
 
-The next gameplay change should connect those notifications using the live
-simulation clock, retained owners and deterministic RNG, propagate failures,
-and exercise normal player/enemy damage. Keep existing cooldown, AI/action and
-animation eligibility gates; do not add unconditional stagger or change damage
-to make an input recording win. Review enemy firing during an active reaction
-against the existing lock/action machinery before changing its behavior.
+The first run exposed RF_NOT_FOUND on lethal-hit sound dispatch: the retained
+sound wrapper supports living NPCs and has no death-class override. The callback
+now skips pain when NPC health is nonpositive, leaving death entry and its
+presentation to handle fatal hits. Other errors emit COMBAT_PAIN_ERROR and
+propagate. This explicit lifecycle split is practical port behavior, not a claim
+that every original death-sound branch has been rebuilt.
 
-Existing evidence includes `tools/verify_npc_pain_binding.py` and
-`tools/verify_pain_reaction.py`. These compare reconstructed bindings and
-orchestration with the original code, not the missing gameplay dispatch.
-This gap is not yet fixed and is not proven to explain every return shot.
+Enemy firing during active reactions remains to review against the existing
+lock/action machinery. No unconditional stagger, fire delay or damage change
+was introduced. Fixing dispatch is not proven to explain every return shot.
+
+## Verification
+
+`tools/replay_live_pain.py` runs a staged L4S5 rifle pickup/encounter, captures
+ordinary look input, then replays it without tracking. Three nonfatal hit
+notifications across actors3270 and3305 produce two animation starts and two
+sound dispatches; a later fatal hit uses death entry without an error. The
+repeated hit on3305 retains the pain cooldown. Ten shots, four hits and one kill
+match between tracking and recorded playback. COMBAT_PAIN exposes eight words
+for animation/sound requests, starts/plays, target, clock, RNG and status.
+
+Stock64MiB Xbox run `artifacts/xemu/render-20260915-035830` passes all34
+PC/native comparisons for the120-frame recording, including exact pain state
+[3,3,2,2,6815847,1200,3884216597,0]. Endpoint free memory is6309pages
+(24.64453125MiB). All18 staged disc entries restore and the owned emulator exits.
+Counters verify sound dispatch; this does not claim a listening check.
+
+The3600-frame normal-input opening route also completes on PC, with11pain
+requests,6animation starts and2sound dispatches. Its9shots,4hits,1kill and player
+health match the prior route. Local evidence: artifacts/live-pain-entry-fixed.
+`tools/verify_pain_reaction.py` passes2048 original/PC/NXDK orchestration cases
+(871accepted). These checks do not establish later campaign completion or attack
+interruption during flinches. The comparison tools for existing bindings remain
+useful, but their older fixture results alone did not prove live dispatch.
