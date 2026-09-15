@@ -8,7 +8,7 @@
 - DEV testbed: Review full weapon animations and add complete room reset; terrain reset and ammo refill are implemented, while campaign progression remains paused.
 - GeoMod: Refine debris bounce, lighting and surface eligibility; original age timing now drives real PC/Xbox fading, while crater readability remains open.
 - USER: Review destruction readability after replacing the folded-panel interior; destruction remains the current focus.
-- Weapons: Connect rocket-impact emitters and expiry using the new128KiB texture owner; flare blending, missing optional sparks, actor/mover impacts and blast/cover behavior remain open.
+- Weapons: Connect rocket-impact emitters and expiry using the 128KiB texture owner and verified shared swirl motion; flare blending, missing optional sparks, actor/mover impacts and blast/cover behavior remain open.
 - Combat: Extend pain-reaction coverage across enemy weapons and encounters; retained attack locks now pass35 PC/Xbox comparisons with independent actor recovery.
 - Combat: Revalidate encounters with the new shared body-sphere bullet collision; captured false hits are rejected, but old oversized-box aiming replays need recalibration.
 - Weapons: Implement remaining campaign weapons beyond handgun, rifle, Riot Stick and shotgun; automatic rifle now clears three shaft guards on PC/Xbox.

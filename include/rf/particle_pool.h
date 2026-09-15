@@ -158,6 +158,13 @@ typedef int (*rf_particle_collision_query)(void *,const float start[3],const flo
  * the particle and bounds. NULL query retains the strict unsupported result. */
 int rf_particle_pool_step_collision(rf_particle_pool *,uint32_t,float,
     rf_particle_emitter_bounds *,const rf_particle_owner_gate *,rf_particle_collision_query,void *);
+/* Full shared motion with caller-owned deterministic RNG, including original
+ *495120 swirl. Errors preserve RNG/record/bounds; expiry consumes no draws.
+ * Wind and damage remain unsupported. Legacy entry points reject swirl. */
+int rf_particle_pool_step_random(rf_particle_pool *,uint32_t,float,
+    rf_particle_emitter_bounds *,const rf_particle_owner_gate *,
+    rf_particle_collision_query,void *,rf_random_state *);
+
 typedef struct rf_emitter_slot {
     rf_particle_emitter_runtime runtime;
     rf_particle_emitter_bounds bounds;

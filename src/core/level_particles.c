@@ -111,7 +111,7 @@ static int level_step_list(rf_level_particles *p,const rf_visibility *v,uint32_t
                 gate.entry_found=1;gate.room_present=room!=0;gate.room_visible=room?v->rooms[room-1].visible:0;break;
             }
         }
-        status=rf_particle_pool_step_collision(pool,index,dt,bounds,&gate,world?level_particle_collision:NULL,(void *)world);if(status)return status;
+        status=rf_particle_pool_step_random(pool,index,dt,bounds,&gate,world?level_particle_collision:NULL,(void *)world,&p->state->random);if(status)return status;
         ++out->stepped;out->expired+=!(pool->particles[index].flags&1u);index=next;
     }
     return RF_OK;

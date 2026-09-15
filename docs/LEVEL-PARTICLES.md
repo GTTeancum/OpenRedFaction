@@ -49,8 +49,9 @@ Freezing still commits the previous-position copy, without aging or expiry.
 The shared gate contains resolved entry presence, room presence and room visibility
 value. Only the low visibility byte matters. Nonnegative owners require a supplied
 gate; missing caller information is not treated as a failed original lookup.
-The existing unowned API retains its rejection of nonnegative owners. Collision,
-swirl, wind and damage remain unsupported for advancing particles.
+The existing unowned API retains its rejection of nonnegative owners. Legacy
+entry points reject swirl; the random-state entry point described below supports
+it. Wind and damage remain unsupported; world collision uses a practical sweep.
 
 `verify_particle_owner_step.py` executes full original `495120`, actual handle
 and level-vector lookups, room accessor and simulation helpers against the
@@ -905,3 +906,27 @@ precondition; natural campaign trigger eligibility and rendered effects are
 not established. PC authored replay and six CTests pass; NXDK builds and native
 replay pass. The harness-owned emulator exits and normal disc contents are
 restored. No screenshot is warranted for state-only replay.
+
+
+## Authored explosion swirl (2026-09-15)
+
+`rf_particle_pool_step_random` implements the swirl branch at original
+`49525b..4952fc`, using `4956b0`'s cosine `1-(swirl/64)^2` from flags bits
+24..27. It normalizes velocity, samples the existing oriented cone, applies
+acceleration if enabled, and restores speed before gravity. The cone is not
+scaled by delta time. Original zero-velocity normalization also applies.
+The level simulator supplies its retained RNG; no allocation or added persistent
+storage is required. Rejected updates preserve RNG, particle and bounds; expired
+or frozen particles consume no random draws. Legacy APIs retain their explicit
+swirl rejection when no RNG is available.
+
+`tools/verify_particle_swirl_step.py` executes full original `495120` and its
+actual vector, cone and CRT callees against PC and NXDK code: 4096 cases,
+2146 expirations and five rejection checks pass. All 16 swirl values, motion,
+zero velocity, acceleration, gravity, colors, complete records and RNG match
+under explicit 53-bit x87 precision. The existing 2048-case free-flight oracle
+also passes. PC player and NXDK XBE/XISO builds succeed.
+
+This enables the motion required by two rocket-impact emitters. The six-emitter
+impact lifecycle and visual integration remain open; these checks do not prove
+appearance or XEMU gameplay correctness.

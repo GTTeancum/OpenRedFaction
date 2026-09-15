@@ -254,9 +254,9 @@ int rf_particle_pool_recycle(rf_particle_pool *pool,uint32_t index)
 
 static int particle_step(rf_particle_pool *pool,uint32_t index,float dt,
     rf_particle_emitter_bounds *bounds,const rf_particle_owner_gate *gate,
-    rf_particle_collision_query collision,void *context)
+    rf_particle_collision_query collision,void *context,rf_random_state *random)
 {
-    rf_particle value;unsigned i;double radius,length,inverse;float speed,bound=0;volatile float ratio;
+    rf_random_state rng={0};rf_particle value;unsigned i;double radius,length,inverse;float speed,bound=0;volatile float ratio;
     int track;
     if(!pool_valid(pool) || index>=RF_PARTICLE_CAPACITY)return RF_RANGE;
     value=pool->particles[index];
@@ -268,8 +268,9 @@ static int particle_step(rf_particle_pool *pool,uint32_t index,float dt,
             return RF_OK;
         }
     }
-    if((value.emitter && !bounds) || (value.flags&0xff000000u) ||
+    if((value.emitter && !bounds) || (value.flags&0xf0000000u) || ((value.flags&0x0f000000u) && !random) ||
        ((value.flags&16u) && !collision) || (value.secondary&1u))return RF_NOT_FOUND;
+    if(random)rng=*random;
     track=value.emitter && bounds && bounds->owner>=0;
     if(track) {
         bound=bounds->maximum_distance_squared;
@@ -319,7 +320,7 @@ static int particle_step(rf_particle_pool *pool,uint32_t index,float dt,
         if(distance>bound)bound=(float)distance;
         if(!isfinite(bound))return RF_RANGE;
     }
-    if(value.flags&0x40u) {
+    if(value.flags&0x0f000040u) {
         double x=value.velocity[0],y=value.velocity[1],z=value.velocity[2];
         length=sqrt((x*x+y*y)+z*z);
         if(length<=0) {length=1;value.velocity[0]=1;value.velocity[1]=value.velocity[2]=0;}
@@ -327,7 +328,18 @@ static int particle_step(rf_particle_pool *pool,uint32_t index,float dt,
             inverse=1.0/length;
             for(i=0;i<3;i++)value.velocity[i]=(float)(value.velocity[i]*inverse);
         }
-        speed=(float)length;speed=(float)((double)dt*value.acceleration+speed);
+        speed=(float)length;
+        /*49525b..4952fc: normalize, random cone, acceleration, restore speed.
+         *4956b0 cosine is 1-(swirl/64)^2; no dt scaling of the cone. */
+        if(value.flags&0x0f000000u) {
+            double amount=(double)((value.flags>>24)&15u)*0.015625;
+            float cosine=(float)(1.0-amount*amount);int status;
+            if(speed>0) {
+                status=rf_particle_cone_oriented(value.velocity,cosine,&rng,value.velocity);
+                if(status)return status;
+            }
+        }
+        if(value.flags&0x40u)speed=(float)((double)dt*value.acceleration+speed);
         for(i=0;i<3;i++)value.velocity[i]*=speed;
     }
     if(value.flags&8u)value.velocity[1]=(float)((double)value.velocity[1]-(double)dt*value.gravity);
@@ -341,24 +353,32 @@ static int particle_step(rf_particle_pool *pool,uint32_t index,float dt,
         value.color_current=color;
     }
     for(i=0;i<3;i++)if(!isfinite(value.position[i]) || !isfinite(value.velocity[i]))return RF_RANGE;
-    pool->particles[index]=value;if(track)bounds->maximum_distance_squared=bound;return RF_OK;
+    pool->particles[index]=value;if(random)*random=rng;if(track)bounds->maximum_distance_squared=bound;return RF_OK;
 }
 
 int rf_particle_pool_step_resolved(rf_particle_pool *pool,uint32_t index,float dt,
     rf_particle_emitter_bounds *bounds,const rf_particle_owner_gate *gate)
 {
-    return particle_step(pool,index,dt,bounds,gate,NULL,NULL);
+    return particle_step(pool,index,dt,bounds,gate,NULL,NULL,NULL);
 }
 
 int rf_particle_pool_step_unowned(rf_particle_pool *pool,uint32_t index,float dt,
     rf_particle_emitter_bounds *bounds)
 {
-    return particle_step(pool,index,dt,bounds,NULL,NULL,NULL);
+    return particle_step(pool,index,dt,bounds,NULL,NULL,NULL,NULL);
 }
 int rf_particle_pool_step_collision(rf_particle_pool *pool,uint32_t index,float dt,
     rf_particle_emitter_bounds *bounds,const rf_particle_owner_gate *gate,
     rf_particle_collision_query collision,void *context)
-{return particle_step(pool,index,dt,bounds,gate,collision,context);}
+{return particle_step(pool,index,dt,bounds,gate,collision,context,NULL);}
+
+int rf_particle_pool_step_random(rf_particle_pool *pool,uint32_t index,float dt,
+    rf_particle_emitter_bounds *bounds,const rf_particle_owner_gate *gate,
+    rf_particle_collision_query collision,void *context,rf_random_state *random)
+{
+    if(!random)return RF_RANGE;
+    return particle_step(pool,index,dt,bounds,gate,collision,context,random);
+}
 
 int rf_particle_pool_step_free(rf_particle_pool *pool,uint32_t index,float dt)
 {
