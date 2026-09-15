@@ -38,6 +38,19 @@ typedef struct rf_particle_animation {
 int rf_particle_animation_open(rf_particle_animation *animation,const rf_particle_definition *definition,
     rf_vpp *archives,uint32_t archive_count,uint32_t budget);
 void rf_particle_animation_close(rf_particle_animation *animation);
+/* Shared retained images for all resolved explosion emitter slots (0..8).
+ * Slot bindings deduplicate case-insensitive filenames. Definition and archives
+ * are borrowed during open only. No frame-time allocation. Zero-initialize;
+ * failure preserves output and releases partial images. Budget counts this
+ * owner and decoded frame storage, excluding caller metadata and allocator overhead. */
+typedef struct rf_explosion_materials {
+    rf_particle_animation animations[9];
+    uint32_t slot_texture[9],count,resident_bytes;
+} rf_explosion_materials;
+int rf_explosion_materials_open(rf_explosion_materials *,const rf_explosion_definition *,
+    rf_vpp *archives,uint32_t archive_count,uint32_t budget);
+void rf_explosion_materials_close(rf_explosion_materials *);
+
 typedef struct rf_level_particle_texture {
     char name[64];rf_particle_animation animation;
 } rf_level_particle_texture;

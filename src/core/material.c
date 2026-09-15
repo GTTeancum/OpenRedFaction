@@ -686,3 +686,37 @@ int rf_vfx_asset_materials_open(const rf_vfx_geometry_asset *asset,rf_vpp *maps,
 done:
     rf_vfx_asset_materials_close(&m);return status;
 }
+
+void rf_explosion_materials_close(rf_explosion_materials *owner)
+{
+    uint32_t i;if(!owner)return;
+    for(i=0;i<owner->count;i++)rf_particle_animation_close(owner->animations+i);
+    memset(owner,0,sizeof(*owner));
+}
+int rf_explosion_materials_open(rf_explosion_materials *out,const rf_explosion_definition *definition,
+    rf_vpp *archives,uint32_t archive_count,uint32_t budget)
+{
+    rf_explosion_materials value={0};uint32_t i,j,slot,source[9];int status;
+    if(!out || !definition || !archives || !archive_count || out->count || out->resident_bytes ||
+       !definition->resolved || (definition->resolved&~511u) || budget<sizeof(value))return RF_RANGE;
+    for(i=0;i<9;i++)if(out->animations[i].images || out->animations[i].count)return RF_RANGE;
+    value.resident_bytes=sizeof(value);
+    for(i=0;i<9;i++)value.slot_texture[i]=UINT32_MAX;
+    for(i=0;i<9;i++)if(definition->resolved&(1u<<i)) {
+        const rf_particle_definition *particle=definition->emitters+i;
+        if(!memchr(particle->bitmap,0,sizeof(particle->bitmap)) || !particle->bitmap[0]){status=RF_FORMAT;goto failed;}
+        for(j=0;j<value.count;j++)if(equal_texture_name(particle->bitmap,definition->emitters[source[j]].bitmap))break;
+        slot=j;
+        if(slot==value.count) {
+            rf_particle_animation *animation=value.animations+slot;
+            status=rf_particle_animation_open(animation,particle,archives,archive_count,
+                budget-value.resident_bytes+(uint32_t)sizeof(*animation));if(status)goto failed;
+            value.resident_bytes+=animation->resident_bytes-(uint32_t)sizeof(*animation);
+            source[slot]=i;value.count++;
+        }
+        value.slot_texture[i]=slot;
+    }
+    *out=value;return RF_OK;
+failed:
+    rf_explosion_materials_close(&value);return status;
+}

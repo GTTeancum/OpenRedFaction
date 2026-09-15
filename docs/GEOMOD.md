@@ -3158,3 +3158,37 @@ PC light removal is byte-exact as above. PID59540 exited and all20 disc entries
 were restored byte-for-byte/absence. Constructor/movement/inactive/error unit
 checks pass together with installed rocket/grenade definitions. Both native
 runs use the new NXDK build. No stock-game visual-parity claim.
+
+Rocket impact resource preparation (2026-09-15):
+Installed vclip rocket_impact carries code_explode and selects explosion recipe
+"rocket hit", with six central emitters and2.0 seconds play time. The optional
+20-spark reference "explosion random bits 2" is absent from emitters.tbl; only
+"explosion random bits" exists. The existing resolver therefore returns mask63,
+with six central slots and no optional sparks. No replacement emitter invented.
+
+New rf_explosion_materials retains all resolved slots through the shared particle
+animation loader, deduplicating case-insensitive filenames. Six central slots
+share four images: JustFire.tga64x64, JustSmoke.tga64x64, Fire01.tga32x32 and
+explosionflare01.tga128x128. The complete owner uses102704 bytes, inside an explicit
+128KiB test budget. Bindings preserve absent slots as UINT32_MAX. Frames remain
+valid after archives close and source definitions are overwritten; no frame-time
+allocation is needed. Resource errors release partial images and preserve output.
+
+Installed-resource tests verify actual vclip/recipe linkage, the missing optional
+reference, all resolved bindings, duplicate reuse, one-byte-short budget failure,
+a missing last-slot image after earlier successful loads, and repeatable cleanup.
+The test can export first-frame RGBA for native image inspection. All four outputs
+were inspected: fire and smoke carry variable alpha, while Fire01 and the flare
+have alpha255 and black backgrounds, requiring their authored glow blend modes.
+Evidence: artifacts/explosion-materials/test.log and texture-*.png. This is source
+asset/resource validation, not an in-game blast screenshot or effect acceptance.
+
+Runtime work remaining: convert scaled definitions into emitter templates, create
+all eligible central emitters at actual impact, run process/release actions against
+the existing particle pool, bind these texture indices during rendering, and verify
+expiry/overlap plus stock64MiB output. Audio, optional missing-spark policy and other
+impact effects remain open. No permanent crater appearance change this turn.
+Overall~49%, GeoMod~64%; current area is destruction impact effects.
+
+PC resource tests and PC player/NXDK XBE/XISO builds pass. No new XEMU run:
+this owner is not connected to live impact rendering yet.
