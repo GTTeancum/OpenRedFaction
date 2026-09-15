@@ -58,3 +58,19 @@ with37.46484375MiB free at endpoint. All19 staged disc entries restore. Use
 `--dev-room --spawn --level glass_house.rfl --archive levelsm.vpp` with the
 Xbox harness and this recipe's input. The flag is restored after the test.
 Full animation sequences, audio, reset UI and GeoMod are still unverified/open.
+
+## Sequential animation capture
+
+Set RF_REPLAY_CAPTURE_DIR to an existing local directory when running a PC
+recording of at most600 frames. Every frame is rasterized and saved after the
+HUD as frame-000001.ppm onward. Missing/unwritable output and overlong captures
+fail rather than silently skipping frames. This is native process output,
+not desktop capture. Capture is disabled for interactive play and by default.
+
+The60-frame dev-riot-idle-sequence capture has all60 files. Capture/control
+runs match player body, life, ammunition, combat, enemy and weapon state, and
+the final image bytes. Frames4 and60 were inspected: the Riot Stick remains
+large in idle. These endpoints do not constitute a full sequence review.
+Source inspection shows weapon switching requests clip0 (idle), not an equip
+clip; earlier references to an equip pose were imprecise. Full idle/bash/held
+fire/reload visual review and camera placement correction remain open.

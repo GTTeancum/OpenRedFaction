@@ -264,13 +264,15 @@ static int present(void *context,uint32_t frame,const rf_preview_mesh *mesh,
     const rf_materials *materials,uint32_t world)
 {
     player *p=context;uint32_t i;int status;uint64_t image_bytes=4;
+    const char *capture=p->headless && p->replay?getenv("RF_REPLAY_CAPTURE_DIR"):NULL;
+    if(capture && (!*capture || p->replay_count>600))return RF_RANGE;
     if(frame+p->scene_start!=p->frames || mesh->bytes>RF_SCENE_FOLLOW_CAPACITY)return RF_RANGE;
     for(i=0;i<materials->count;i++)image_bytes+=materials->items[i].image.bytes;
     for(i=0;i<p->lightmaps.count;i++)image_bytes+=p->lightmaps.images[i].bytes;
     if(image_bytes>RF_CAMPAIGN_IMAGE_BUDGET)return RF_RANGE;
     status=rf_scene_update_lightmaps(&p->lightmaps);if(status)return status;
     /* Recorded-input diagnosis projects every tick, rasterizes only the last. */
-    if(p->replay && p->frames+1<p->replay_count){status=rf_scene_draw_particles(NULL,NULL);if(status)return status;
+    if(p->replay && !capture && p->frames+1<p->replay_count){status=rf_scene_draw_particles(NULL,NULL);if(status)return status;
         status=rf_scene_draw_coronas(NULL,NULL);if(status)return status;
         status=rf_scene_draw_player_flash(NULL,NULL);if(status)return status;++p->frames;return RF_OK;}
     if(!p->headless && !rf_frame_clock_present(&p->clock,milliseconds(p))){++p->frames;return RF_OK;}
@@ -280,6 +282,11 @@ static int present(void *context,uint32_t frame,const rf_preview_mesh *mesh,
     status=rf_scene_draw_coronas(particle_present,p);if(status)return status;
     status=rf_scene_draw_player_flash(particle_present,p);if(status)return status;
     status=rf_scene_draw_combat_hud(particle_present,p);if(status)return status;
+    if(capture) {
+        char path[1024];int length=snprintf(path,sizeof(path),"%s/frame-%06u.ppm",capture,p->frames+1);
+        if(length<0 || (size_t)length>=sizeof(path))return RF_RANGE;
+        status=rf_pc_raster_save(&p->raster,path);if(status)return status;
+    }
     ++p->frames;
     if(!p->headless) {
         for(i=0;i<p->raster.pixels;++i) {
