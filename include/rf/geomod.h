@@ -3,6 +3,7 @@
 #include "rf/vpp.h"
 #include "rf/collision.h"
 #include "rf/random.h"
+#include "rf/level.h"
 #define RF_GEOMOD_POLYGON_LIMIT 64
 /* Original4fccc0 random crater orientation: two CRT draws, a uniform sphere
  * direction and4fcfa0 basis. Invalid inputs preserve state/output. */
@@ -11,6 +12,16 @@ int rf_geomod_random_basis(rf_random_state *random,float basis[9]);
  * world unit. Texture dimensions are the source bitmap dimensions. */
 int rf_geomod_planar_uv(const float normal[3],const float position[3],
     uint32_t width,uint32_t height,float uv[2]);
+typedef struct rf_geomod_hardness_result {
+    uint32_t hardness,allowed,matches,flags;float scale;
+} rf_geomod_hardness_result;
+/* Original ordinary-region policy45cff0/45d520. Sphere boundaries exclude;
+ * oriented box boundaries include. Maximum matching hardness wins; no match
+ * uses the level default (stored0 becomes55). Hardness100 refuses the cut.
+ * Matching shallow regions return RF_NOT_FOUND until their plane policy is
+ * implemented; errors preserve output. Ice flag propagates as descriptor0x10. */
+int rf_geomod_hardness(const rf_geo_region *regions,uint32_t count,uint32_t stored_default,
+    const float position[3],float scale,rf_geomod_hardness_result *out);
 typedef struct rf_geomod_vertex {float position[3],uv[2];} rf_geomod_vertex;
 /* Practical port CSG primitive, not an original executable binding.
  * Split a planar convex polygon by unit plane n.xyz*p+d=0. Positive is front.
@@ -180,6 +191,9 @@ int rf_geomod_template_load(const char *path,rf_geomod_template *out);
  * translated kernel, retained UVs. Material supplied by level settings. */
 int rf_geomod_terrain_cut_template(rf_geomod_terrain *terrain,const rf_geomod_template *shape,
     const float center[3],const float basis[9],float radius,uint32_t material);
+/* Same template operation with an already normalized/adjusted original scale. */
+int rf_geomod_terrain_cut_template_scale(rf_geomod_terrain *terrain,const rf_geomod_template *shape,
+    const float center[3],const float basis[9],float scale,uint32_t material);
 int rf_geomod_terrain_reset(rf_geomod_terrain *terrain);
 /* Borrowed snapshot: valid until next successful cut/reset or close; failed
  * edits preserve it. Single-thread owner; renderer consumes mesh+faces from

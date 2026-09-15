@@ -30,7 +30,9 @@ def main():
         assert list(map(int,row('ROCKETS')))==[cuts,cuts,0,0,cuts,0,0,0]
         assert int(row('PLAYER_LIFE')[0])==0
         position=list(map(float,row('CAMPAIGN_FINAL_POSITION')))
-        if name=='walk':assert position[0]<-18 and -14<position[1]<-12,position
+        # Authored hardness25 reduces excavation depth; still require walking
+        # over two units beyond the original wall x=-16, without falling away.
+        if name=='walk':assert position[0]<-18 and -13<position[1]<-11,position
         elif name=='approach':assert -10<position[0]<-7,position
         else:assert abs(position[0]-.296062)<.003,position
         print('PASS:',name)

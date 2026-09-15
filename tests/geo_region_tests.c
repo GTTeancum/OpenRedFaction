@@ -1,4 +1,6 @@
 #include "rf/level.h"
+#include "rf/geomod.h"
+#include <math.h>
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
@@ -38,6 +40,19 @@ int main(int argc,char **argv)
     CHECK(out.position[0]==0 && out.position[1]==0 && out.position[2]==0);
     CHECK(out.dimensions[0]==56 && out.dimensions[1]==48 && out.dimensions[2]==60);
     CHECK(out.file_basis[2]==1 && out.file_basis[3]==1 && out.file_basis[7]==1);
+    {
+        rf_geomod_hardness_result value,saved;float point[3]={0,0,0};rf_geo_region region=out;
+        CHECK(!rf_geomod_hardness(&region,1,0,point,4,&value));
+        CHECK(value.hardness==25 && value.matches==1 && value.allowed && value.scale==3);
+        saved=value;region.flags|=32;
+        CHECK(rf_geomod_hardness(&region,1,0,point,4,&value)==RF_NOT_FOUND && !memcmp(&value,&saved,sizeof(value)));
+        region=out;region.position[0]=NAN;
+        CHECK(rf_geomod_hardness(&region,1,0,point,4,&value)==RF_FORMAT && !memcmp(&value,&saved,sizeof(value)));
+        CHECK(rf_geomod_hardness(NULL,1,0,point,4,&value)==RF_RANGE && !memcmp(&value,&saved,sizeof(value)));
+        region=out;region.hardness=100;
+        CHECK(!rf_geomod_hardness(&region,1,0,point,4,&value) && !value.allowed && value.scale==4);
+        CHECK(!rf_geomod_hardness(NULL,0,0,point,4,&value) && value.hardness==55 && value.matches==0);
+    }
     memset(&sentinel,0xa5,sizeof(sentinel));
     for(i=0;i<72;i++) {
         out=sentinel;count=77;

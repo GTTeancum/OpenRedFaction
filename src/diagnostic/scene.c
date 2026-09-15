@@ -485,6 +485,7 @@ typedef struct scene_rocket_visual {
 typedef struct scene_stream {
     rf_geomod_terrain *terrain;rf_geometry_collision_overlay terrain_collision;
     rf_geomod_template *terrain_template;rf_random_state terrain_random;uint32_t terrain_texture_width,terrain_texture_height;float (*terrain_colors)[3];
+    rf_geo_region *terrain_regions;uint32_t terrain_region_count,terrain_default_hardness;
     rf_geometry terrain_geometry;rf_scene_world_geometry terrain_render;
     uint32_t terrain_ids[512],terrain_fallback,terrain_material,terrain_held;
     rf_preview_mesh *mesh;rf_materials *materials;const rf_model_materials *bundle;
@@ -8483,6 +8484,20 @@ static int scene_terrain_open(scene_stream *s,const rf_level *level)
     if(!rf_scene_dev_room_enabled)return RF_OK;
     if(!s->geometry || !s->collision || !actor_follow_world || strcmp(level->entry.name,"glass_house.rfl") ||
        s->geometry->faces!=598 || s->geometry->rooms!=91 || s->collision->room_count!=91)return RF_FORMAT;
+    {
+        const rf_level_section *section=rf_level_find(level,0x200);unsigned char *payload;
+        if(!section || section->size>1024*1024)return RF_FORMAT;
+        payload=malloc(section->size);if(!payload)return RF_IO;
+        status=rf_level_read(level,section,0,payload,section->size);
+        if(!status)status=rf_level_geo_regions_decode(payload,section->size,NULL,0,&s->terrain_region_count);
+        if(!status && s->terrain_region_count>4096)status=RF_RANGE;
+        if(!status && s->terrain_region_count) {
+            s->terrain_regions=calloc(s->terrain_region_count,sizeof(*s->terrain_regions));
+            if(!s->terrain_regions)status=RF_IO;
+            else status=rf_level_geo_regions_decode(payload,section->size,s->terrain_regions,s->terrain_region_count,&s->terrain_region_count);
+        }
+        free(payload);if(status)return status;
+    }
     s->terrain_colors=calloc(512,sizeof(*s->terrain_colors));if(!s->terrain_colors)return RF_IO;
     s->terrain_template=calloc(1,sizeof(*s->terrain_template));if(!s->terrain_template)return RF_IO;
 #ifdef RF_IMAGE_XBOX_NATIVE
@@ -8643,9 +8658,16 @@ static int scene_rockets_tick(scene_stream *s,uint32_t frame)
              * and authored surface eligibility remain separate. */
             if(s->terrain && event.contact.room==0 && campaign_rocket.crater_radius>0) {
                 ++rf_scene_geomod[6];
-                {float basis[9];status=rf_geomod_random_basis(&s->terrain_random,basis);if(status)return status;
-                 status=rf_geomod_terrain_cut_template(s->terrain,s->terrain_template,event.contact.hit.point,basis,
-                     campaign_rocket.crater_radius,s->terrain_material);}
+                {float basis[9];rf_geomod_hardness_result hardness;
+                 status=rf_geomod_hardness(s->terrain_regions,s->terrain_region_count,s->terrain_default_hardness,
+                     event.contact.hit.point,campaign_rocket.crater_radius/s->terrain_template->radius,&hardness);
+                 if(!status && (!hardness.allowed || hardness.flags))status=RF_NOT_FOUND; /* Ice geometry remains unsupported. */
+                 if(!status) {
+                     if(rf_scene_combat_trace)printf("GEOMOD_HARDNESS %u %u %u %.9g\n",frame,hardness.hardness,hardness.matches,hardness.scale);
+                     status=rf_geomod_random_basis(&s->terrain_random,basis);if(status)return status;
+                     status=rf_geomod_terrain_cut_template_scale(s->terrain,s->terrain_template,event.contact.hit.point,basis,
+                         hardness.scale,s->terrain_material);
+                 }}
                 rf_scene_geomod[5]=(uint32_t)status;
                 if(!status){status=scene_terrain_bind(s);if(status)return status;++rf_scene_geomod[7];++rf_scene_rockets[4];}
                 else {++rf_scene_rockets[5];if(status!=RF_RANGE && status!=RF_FORMAT && status!=RF_NOT_FOUND)return status;}
@@ -11858,6 +11880,7 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
         if(rf_scene_dev_room_enabled) {
             rf_level_geomod_settings settings;const char *names[1];rf_materials interior={0};rf_material *combined;
             status=rf_level_geomod_settings_read(level,&settings);if(status)goto done;
+            stream.terrain_default_hardness=settings.hardness;
             if(!settings.texture[0]){status=RF_FORMAT;goto done;}names[0]=settings.texture;
             {
                 rf_vpp sources[9]={{0}};char path[1024];uint32_t n,prefix=0;
@@ -12024,7 +12047,7 @@ done:
     rf_level_navigation_workspace_close(&campaign_navigation_workspace);
     rf_level_owned_navigation_close(&campaign_navigation);
     free(campaign_waypoints);campaign_waypoints=NULL;campaign_waypoint_bytes=0;
-    rf_geometry_collision_overlay_close(&stream.terrain_collision);rf_geomod_terrain_close(&stream.terrain);free(stream.terrain_template);free(stream.terrain_colors);
+    rf_geometry_collision_overlay_close(&stream.terrain_collision);rf_geomod_terrain_close(&stream.terrain);free(stream.terrain_template);free(stream.terrain_colors);free(stream.terrain_regions);
     free(stream.surface_indices);free(states);if(motions_opened)rf_vpp_close(&motions);
     free(vertices);free(items);rf_preview_close(&actor);rf_model_materials_close(&bundle);
     rf_vpp_close(&archive);return status;

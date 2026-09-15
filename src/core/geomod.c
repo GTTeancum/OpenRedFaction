@@ -40,6 +40,54 @@ int rf_geomod_planar_uv(const float normal[3],const float position[3],
     memcpy(uv,result,sizeof(result));return RF_OK;
 }
 
+int rf_geomod_hardness(const rf_geo_region *regions,uint32_t count,uint32_t stored_default,
+    const float position[3],float scale,rf_geomod_hardness_result *out)
+{
+    rf_geomod_hardness_result result={0,1,0,0,0};uint32_t i,j,k;int shallow=0;
+    if(!position || !out || (count && !regions) || count>4096 || stored_default>100)return RF_RANGE;
+    if(!isfinite(scale) || scale<0)return RF_FORMAT;
+    for(j=0;j<3;j++)if(!isfinite(position[j]))return RF_FORMAT;
+    result.scale=scale;
+    for(i=0;i<count;i++) {
+        const rf_geo_region *r=regions+i;float delta[3];int inside=1;
+        uint32_t type=r->flags&7;
+        if((type!=2 && type!=4) || r->hardness>100)return RF_FORMAT;
+        for(j=0;j<3;j++) {
+            if(!isfinite(r->position[j]))return RF_FORMAT;
+            delta[j]=position[j]-r->position[j];if(!isfinite(delta[j]))return RF_FORMAT;
+        }
+        if(type==2) {
+            double length;if(!isfinite(r->radius) || r->radius<0)return RF_FORMAT;
+            length=sqrt(((double)delta[0]*delta[0]+(double)delta[1]*delta[1])+(double)delta[2]*delta[2]);
+            inside=length<r->radius;
+        } else {
+            /*52cac0 stores serialized forward/right/up as runtime rows R/U/F. */
+            static const uint32_t row[3]={3,6,0};
+            for(j=0;j<9;j++)if(!isfinite(r->file_basis[j]))return RF_FORMAT;
+            for(j=0;j<3;j++) {
+                float local;double dot=0;
+                if(!isfinite(r->dimensions[j]) || r->dimensions[j]<0)return RF_FORMAT;
+                for(k=0;k<3;k++)dot+=(double)delta[k]*r->file_basis[row[j]+k];
+                local=(float)dot;
+                if(local<-.5f*r->dimensions[j] || local>.5f*r->dimensions[j])inside=0;
+            }
+        }
+        if(inside) {
+            if(!result.matches || r->hardness>result.hardness)result.hardness=r->hardness;
+            result.matches++;if(r->flags&64)result.flags|=0x10;if(r->flags&32)shallow=1;
+        }
+    }
+    if(shallow)return RF_NOT_FOUND;
+    if(!result.matches)result.hardness=stored_default?stored_default:55;
+    if(result.hardness==100)result.allowed=0;
+    else {
+        float factor=(float)(1.0-(double)result.hardness*(double).01f);
+        if(factor<0)factor=0;if(factor>1)factor=1;
+        result.scale*=factor;
+    }
+    *out=result;return RF_OK;
+}
+
 static int append(rf_geomod_vertex *out,uint32_t *count,const rf_geomod_vertex *v)
 {
     if(*count==RF_GEOMOD_POLYGON_LIMIT)return RF_RANGE;
@@ -822,13 +870,13 @@ int rf_geomod_template_load(const char *path,rf_geomod_template *out)
     if(failed)return RF_IO;
     return rf_geomod_template_decode(data,(uint32_t)bytes,out);
 }
-int rf_geomod_terrain_cut_template(rf_geomod_terrain *t,const rf_geomod_template *shape,
-    const float center[3],const float basis[9],float radius,uint32_t material)
+int rf_geomod_terrain_cut_template_scale(rf_geomod_terrain *t,const rf_geomod_template *shape,
+    const float center[3],const float basis[9],float scale,uint32_t material)
 {
     rf_geomod_vertex vertices[60];rf_geomod_face faces[20];rf_geomod_mesh_view mesh;
-    float kernel[3],scale;uint32_t i,j,k;
+    float kernel[3];uint32_t i,j,k;
     if(!t || !shape || !center || !basis || material==UINT32_MAX || shape->face_count<4 || shape->face_count>20)return RF_RANGE;
-    if(!isfinite(radius) || radius<=0 || !isfinite(shape->radius) || shape->radius<=0)return RF_FORMAT;
+    if(!isfinite(scale) || scale<=0 || !isfinite(shape->radius) || shape->radius<=0)return RF_FORMAT;
     for(i=0;i<9;i++)if(!isfinite(basis[i]))return RF_FORMAT;
     for(i=0;i<3;i++)for(j=0;j<3;j++) {
         double dot=0;for(k=0;k<3;k++)dot+=(double)basis[i*3+k]*basis[j*3+k];
@@ -837,7 +885,6 @@ int rf_geomod_terrain_cut_template(rf_geomod_terrain *t,const rf_geomod_template
     {double determinant=(double)basis[0]*(basis[4]*basis[8]-basis[5]*basis[7])-
         (double)basis[1]*(basis[3]*basis[8]-basis[5]*basis[6])+(double)basis[2]*(basis[3]*basis[7]-basis[4]*basis[6]);
      if(determinant<.999)return RF_FORMAT;}
-    scale=radius/shape->radius;if(!isfinite(scale))return RF_FORMAT;
     for(i=0;i<shape->face_count*3;i++) {
         for(j=0;j<3;j++)vertices[i].position[j]=(float)((((double)shape->vertices[i].position[2]*basis[6+j]+
             (double)shape->vertices[i].position[1]*basis[3+j])+(double)shape->vertices[i].position[0]*basis[j])*scale+center[j]);
@@ -848,6 +895,12 @@ int rf_geomod_terrain_cut_template(rf_geomod_terrain *t,const rf_geomod_template
     for(i=0;i<shape->face_count;i++)faces[i]=(rf_geomod_face){i*3,3,material,UINT32_MAX};
     mesh=(rf_geomod_mesh_view){vertices,faces,shape->face_count*3,shape->face_count,0};
     return rf_geomod_terrain_cut_star(t,&mesh,kernel);
+}
+int rf_geomod_terrain_cut_template(rf_geomod_terrain *t,const rf_geomod_template *shape,
+    const float center[3],const float basis[9],float radius,uint32_t material)
+{
+    if(!shape || !isfinite(radius) || radius<=0 || !isfinite(shape->radius) || shape->radius<=0)return RF_FORMAT;
+    return rf_geomod_terrain_cut_template_scale(t,shape,center,basis,radius/shape->radius,material);
 }
 int rf_geomod_terrain_reset(rf_geomod_terrain *t)
 {return t?terrain_publish(t,0):RF_RANGE;}

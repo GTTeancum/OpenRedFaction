@@ -740,3 +740,45 @@ artifacts/xemu/render-20260915-094918 passes38comparisons with9085pages
 free (35.488MiB). Actual Xbox framebuffer inspected: scene-light modulation
 is visible on the crater, matching the PC appearance. All19disc entries
 restored and owned emulator exited. No GitHub image changes.
+
+## Authored hardness and ordinary regions (2026-09-15)
+
+The shared hardness policy now follows original45cff0/45d520: sphere
+membership excludes the radius boundary; oriented boxes include their
+boundaries; maximum hardness among matching regions wins. With no match,
+the stored level default applies, with zero converted to55 by4618b0.
+Hardness100 refuses before changing scale. Other values multiply the
+already normalized template scale by clamp(1-hardness*0.01,0,1).
+Original52cac0 converts serialized forward/right/up to runtime right/up/forward.
+
+tools/inspect_geomod_hardness.py executes the original ordinary-region
+routine and its membership/vector helpers, supplying only the region-list
+container. All45 cases agree on allowance, ice flag and exact float scale
+bits: sphere/box boundaries, rotated box, overlapping regions in both
+orders, no-match defaults, hardness0/25/55/99/100 and varied scales.
+This does not establish shallow-region or ice geometry parity. The shared
+API refuses matching shallow regions without modifying output; the live
+DEV cutter also refuses ice until its special geometry behavior exists.
+
+Glass House region128 is an ordinary hardness25 box of dimensions56x48x60,
+covering the DEV room. Rocket cuts now use that region, reducing the
+requested radius5 scale to75 percent. The region payload is loaded once
+into bounded heap storage and released on scene cleanup. Random orientation
+is generated only after hardness accepts the impact. Blast damage remains
+independent of terrain refusal. Surface eligibility remains separate work.
+
+PC region/rollback tests, original-template collision/interior tests, three
+GeoMod CTest targets and all five ordinary destruction replays pass. The
+walk endpoint is(-18.012171,-11.814328,6.090965): beyond the original x=-16
+wall, with less floor removed. The replay retains its requirement to walk
+over two units beyond that wall; its vertical range follows the shallower cut.
+NXDK builds. Native500frame run artifacts/xemu/render-20260915-100341
+passes38 existing gameplay comparisons, with9084pages free (35.484MiB).
+These comparisons do not directly compare terrain vertex buffers.
+All19disc entries restored and the owned emulator exited.
+
+Both native and PC final frames were inspected. The smaller textured cut
+is present, but its dark silhouette still reads like a lump rather than a
+convincing recess. Visual fidelity is not accepted; crater depth/readability,
+finer lighting, occlusion, debris and larger histories remain priorities.
+No GitHub screenshots were added.
