@@ -36,3 +36,25 @@ weapon selection/supply/reset controls for this room; inspect fire/reload and
 first-person animation sequences; implement GeoMod topology, collision and
 visible destruction within the stock64MiB budget. Controlled target tests can
 be added explicitly while keeping the default room enemy-free.
+
+## Supported weapon loadout
+
+Explicit developer-room mode now supplies the handgun, assault rifle, Riot
+Stick and shotgun on entry using the shared acquisition routine and authored
+ammo capacities. Normal campaign mode does not receive these grants. Restart
+the room to restore its starting supply; an in-room reset control is still open.
+Cycle weapons with the normal control. This does not implement additional guns.
+
+`python tools/dev_room_check.py --loadout` reproduces the180-frame selection
+and shotgun check. PC selection checkpoints31/61/91 were inspected for rifle,
+Riot Stick and shotgun; final PC and Xbox captures show the shotgun mid-action.
+One accepted shotgun shot emits four pellets and leaves7loaded/48reserve; the
+second requested shot is inside the current cooldown. This checks current
+behavior, not retail cadence fidelity. The early Riot Stick equip pose fills
+much of the view and needs sequential animation/framing review.
+
+Stock64MiB run artifacts/xemu/render-20260915-062344 passes35 state comparisons,
+with37.46484375MiB free at endpoint. All19 staged disc entries restore. Use
+`--dev-room --spawn --level glass_house.rfl --archive levelsm.vpp` with the
+Xbox harness and this recipe's input. The flag is restored after the test.
+Full animation sequences, audio, reset UI and GeoMod are still unverified/open.

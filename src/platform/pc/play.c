@@ -457,7 +457,8 @@ int main(int argc,char **argv)
         if(fclose(f))failed=1;if(failed)CHECK(RF_FORMAT);
         CHECK(rf_scene_campaign_player_set(&state));
     }
-    rf_scene_follow_level_exits=spawn_profile && !dev_room;
+    rf_scene_dev_room_enabled=dev_room || (p.headless && getenv("RF_REPLAY_DEV_ROOM")!=NULL);
+    rf_scene_follow_level_exits=spawn_profile && !rf_scene_dev_room_enabled;
     if(p.headless && getenv("RF_REPLAY_WATCH_UID")) {
         char *end;unsigned long value=strtoul(getenv("RF_REPLAY_WATCH_UID"),&end,10);if(*end || !value)CHECK(RF_FORMAT);
         rf_scene_watch_test_uid=(uint32_t)value;

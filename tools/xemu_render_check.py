@@ -25,6 +25,7 @@ from xemu_session_guard import require_no_project_xemu
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--dev-room', action='store_true', help='Supply supported weapons in Glass House only')
     parser.add_argument('--frames', type=int, default=180)
     parser.add_argument('--seconds', type=int, default=180, help='Guest wall-clock deadline,30..3600 seconds (default180)')
     parser.add_argument('--level', default='L1S1.rfl')
@@ -47,6 +48,8 @@ def main():
     parser.add_argument('--unbatched', action='store_true', help='Reference tiny GPU command submission blocks')
     parser.add_argument('--unsorted', action='store_true', help='Reference source-order world draw ranges')
     args = parser.parse_args()
+    if args.dev_room and (args.level != 'glass_house.rfl' or args.archive != 'levelsm.vpp' or not args.spawn):
+        parser.error('Developer room requires --spawn --level glass_house.rfl --archive levelsm.vpp')
     payload = None
     if args.input:
         payload = args.input.read_bytes()
@@ -85,6 +88,7 @@ def main():
     (run / 'inputs.bin').write_bytes(payload)
     env = {k: v for k, v in os.environ.items() if not k.startswith('RF_REPLAY_')}
     env.update(RF_REPLAY_LEVEL=args.level, RF_REPLAY_ARCHIVE=args.archive)
+    if args.dev_room:env['RF_REPLAY_DEV_ROOM']='1'
     if not args.spawn:env['RF_REPLAY_ACTOR_UID']=str(args.actor)
     if args.goal_uid:env['RF_REPLAY_GOAL_UID']=str(args.goal_uid)
     if args.item_uid:
@@ -112,6 +116,8 @@ def main():
         saved.setdefault(name, None)
     process = monitor = None
     saved.setdefault('campaign-trigger-start.bin', None)
+    dev_flag=disc/'dev-room.flag'
+    saved['dev-room.flag']=dev_flag.read_bytes() if dev_flag.exists() else None
     # Persist restoration bytes before mutating the disc, including absent files.
     (run / 'disc-restore.json').write_text(json.dumps({
         name: data.hex() if data is not None else None for name, data in saved.items()}))
@@ -140,6 +146,7 @@ def main():
         for name in saved:
             (disc / name).unlink(missing_ok=True)
         (disc / 'campaign-spawn.flag').write_bytes(b'')
+        if args.dev_room:(disc/'dev-room.flag').write_bytes(b'')
         (disc / 'campaign-level.bin').write_bytes(args.archive.encode().ljust(64, b'\0') + args.level.encode().ljust(64, b'\0'))
         if args.goal_uid:(disc/'campaign-goal.bin').write_bytes(struct.pack('<I',args.goal_uid))
         if not args.spawn:(disc / ('campaign-item.bin' if args.item_uid else 'campaign-actor.bin')).write_bytes(struct.pack('<I', args.item_uid or args.actor))

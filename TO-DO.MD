@@ -1,6 +1,6 @@
 # Red Faction Xbox / PC - open work
 
-- DEV testbed: Add weapon supply/reset controls and inspect weapon/animation behavior in Glass House; room movement/ammo pass35 PC/Xbox comparisons with inspected output, and campaign-route work stays paused.
+- DEV testbed: Review full weapon animations/framing and add an in-room reset; four-weapon starting supply and shotgun firing pass35 PC/Xbox comparisons, while campaign-route work stays paused.
 - GeoMod: Implement campaign-required terrain destruction and updated collision before the first destruction-gated objective; prioritize playable progression over visual polish.
 - Combat: Extend pain-reaction coverage across enemy weapons and encounters; retained attack locks now pass35 PC/Xbox comparisons with independent actor recovery.
 - Combat: Revalidate encounters with the new shared body-sphere bullet collision; captured false hits are rejected, but old oversized-box aiming replays need recalibration.

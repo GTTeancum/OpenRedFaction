@@ -538,8 +538,10 @@ static int scene_preview(rf_level *level,rf_preview_mesh *mesh)
     {extern uint32_t rf_xbox_world_grouping_disabled;FILE *stream_flag;
      stream_flag=fopen("D:\\renderer-world-off.flag","rb");rf_xbox_world_grouping_disabled=stream_flag!=NULL;
      if(stream_flag)fclose(stream_flag);}
+    stream_flag=fopen("D:\\dev-room.flag","rb");rf_scene_dev_room_enabled=stream_flag!=NULL;
+    if(stream_flag)fclose(stream_flag);
     stream_flag=fopen("D:\\campaign-spawn.flag","rb");
-    rf_scene_follow_level_exits=stream_flag!=NULL;
+    rf_scene_follow_level_exits=stream_flag!=NULL && !rf_scene_dev_room_enabled;
     if(stream_flag){fclose(stream_flag);status=rf_scene_set_campaign_spawn(level);}
     else status=rf_scene_preview_camera(level,9858);
     if(status)return status;

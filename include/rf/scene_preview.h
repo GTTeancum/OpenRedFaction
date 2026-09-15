@@ -16,6 +16,8 @@
  * NULL staging clears any queued import. The staged value owns its data. */
 /* Enable only when the caller consumes exits after scene cleanup. */
 extern uint32_t rf_scene_follow_level_exits;
+/* Explicit developer-room loadout; valid only in glass_house.rfl. */
+extern uint32_t rf_scene_dev_room_enabled;
 /* Process-local fixture: dispatch an authored Load_Level UID at a given tick. */
 int rf_scene_fire_level_exit(uint32_t uid,int32_t now);
 int rf_scene_fire_setup_event(uint32_t uid,int32_t now);

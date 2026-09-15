@@ -165,6 +165,7 @@ static void *player_context;
 static uint32_t player_frame_limit;
 static rf_scene_input player_input;
 static uint32_t campaign_spawn;
+uint32_t rf_scene_dev_room_enabled;
 static uint32_t campaign_crouched,campaign_jump_held;
 static rf_physics_gravity scene_gravity={9.8f,{0,-9.8f,0}};
 uint32_t rf_scene_player_jump[4],rf_scene_player_jump_frames[128][8];
@@ -8448,6 +8449,18 @@ static int campaign_combat_tick(scene_stream *stream,uint32_t frame,const float 
         campaign_inventory_ready=1;
         for(i=0;i<campaign_item_pending_count;i++){status=campaign_apply_item_grant(campaign_item_pending+i);if(status)return status;}
         campaign_item_pending_count=0;
+        if(rf_scene_dev_room_enabled) {
+            if(strcmp(campaign_current_level,"glass_house.rfl"))return RF_FORMAT;
+            /* Developer supply only: ordinary weapon limits, firing and reloads. */
+            for(i=0;i<4;i++) {
+                int32_t id=campaign_slot_weapon(i);
+                const rf_weapon_acquire_definition *d=campaign_weapon_supply.definitions+id;
+                status=rf_weapon_acquire_sp(&campaign_player_inventory,d,id,-1);if(status)return status;
+                if(d->ammo_type<0 || d->ammo_type>=32)return RF_FORMAT;
+                campaign_player_inventory.reserve[d->ammo_type]=d->capacity;
+            }
+            campaign_ammo_publish();
+        }
     }
     if(combat_frame==frame)return RF_OK;combat_frame=frame;
     status=campaign_weapon_drops_tick(stream,position);rf_scene_weapon_drops[7]=(uint32_t)status;if(status)return status;
