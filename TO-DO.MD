@@ -5310,3 +5310,10 @@ NXDK pass; native500frames pass38 gameplay comparisons with35.484MiB free.
 PC/Xbox images inspected: the dark crater still reads like a lump, so visual
 fidelity remains unaccepted. Next: depth/readability and interior shading.
 Estimate ~49%; current area GeoMod. No GitHub image additions.
+
+GeoMod surface policy correction (2026-09-15): use half room/global ambient,
+softened ordinary surface lighting and lightmap RGB conversion. Five PC
+replays pass; native500frames pass39checks including terrain publication
+and bounded memory. Original accumulation512grids and RGB8192cases pass.
+Inspected Xbox crater still reads ambiguously; next work remains depth
+views and spatial interior lighting, not campaign progression. ~49%.

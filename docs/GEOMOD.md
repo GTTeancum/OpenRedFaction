@@ -782,3 +782,43 @@ is present, but its dark silhouette still reads like a lump rather than a
 convincing recess. Visual fidelity is not accepted; crater depth/readability,
 finer lighting, occlusion, debris and larger histories remain priorities.
 No GitHub screenshots were added.
+
+## Static-surface lighting policy correction (2026-09-15)
+
+Crater lighting previously called the unsoftened VFX evaluator with full
+global ambient and VFX RGB conversion. The retained ordinary static-lightmap
+path uses half room/global ambient, softened point/cone accumulation, and
+lightmap RGB conversion. DEV terrain now uses those same arithmetic stages
+at each generated face centroid. Room0 ambient override is respected; the
+result is doubled for the existing base-texture lightmap combiner convention.
+It still has no shadow masks, texel grid, filtering or special-polygon path.
+This is a correction toward surface policy, not a completed lightmap rebuild.
+
+Temporary diagnostics (removed from runtime source) confirmed the selected
+sources are two point lights at(0,-1.5,-12.5) and(0,-1.5,11.5), radius24.
+Global ambient is40/255 and room0 has no override. This selected-source
+measurement supersedes the earlier unqualified note saying three lights.
+Generated back faces have centers behind the x=-16 wall, such as
+(-18.1863,-10.5747,6.10964), with normal approximately(+.999,+.015,+.043).
+They face into the opening; a blanket normal flip is not justified.
+Diagnostic evidence remains in artifacts/geomod-face-probe.log and
+artifacts/geomod-light-diagnosis.log.
+
+All five PC destruction replays pass and NXDK builds. The original ordinary
+lightmap oracle was rerun:512 PC/NXDK grids,10368 pixels, including softening
+and mixed light types, agree with unhooked original4f3390 execution. PC
+surface-light.png was inspected; the silhouette still reads ambiguously.
+Do not treat this arithmetic correction as accepted visual fidelity.
+
+The XEMU DEV harness now explicitly compares terrain presence, cut count,
+generation, last status and publication counters, and enforces resident/peak
+terrain memory within1MiB plus64KiB on both builds. Pointer-width-dependent
+allocation totals are not required to match. This adds a publication check;
+it does not claim to compare every generated vertex or prove appearance.
+
+Native verification: artifacts/xemu/render-20260915-101047 passes39checks
+including GEOMOD, with9084pages free. Both builds report two committed cuts,
+generation3,699024resident/725843peak terrain bytes and no cut error. Native
+framebuffer inspected: dark ambiguous silhouette remains. All19disc entries
+restored; owned emulator exited. Original RGB conversion also passes8192
+PC/NXDK cases. No new GitHub image.

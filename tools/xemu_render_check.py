@@ -302,6 +302,18 @@ dvd_path = '{root.as_posix()}/build/xbox/redfaction-diagnostic.iso'
                     report['pickup_cpu_vertices']=dict(xbox=actual[6],pc=expected[6],
                         scope='Backend-specific rendering count; excluded from gameplay parity')
                 assert equal, label
+            if args.dev_room:
+                expected=list(map(int,next(line for line in pc.stdout.splitlines() if line.startswith('GEOMOD ')).split()[1:]))
+                actual=words(monitor,symbol('rf_scene_geomod'),8)
+                # Allocation sizes differ by pointer width. Compare terrain
+                # presence/history/generation/status, and enforce both budgets.
+                indices=[0,1,2,5,6,7]
+                equal=all(actual[i]==expected[i] for i in indices)
+                budget_ok=all(0<=v[3]<=v[4]<=1024*1024+65536 for v in (actual,expected))
+                report['checks']['GEOMOD']=dict(equal=equal,budget_ok=budget_ok,
+                    compared_indices=indices,xbox=actual,pc=expected,
+                    scope='Terrain publication and bounded memory; geometry buffers require separate verification')
+                assert equal and budget_ok,'GEOMOD'
             report.update(result='PASS', available_pages=d[44], diagnostic=d)
             with (run / 'performance.txt').open('w') as out:
                 subprocess.run([sys.executable, 'tools/summarize_xbox_performance.py',

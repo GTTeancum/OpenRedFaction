@@ -8454,9 +8454,11 @@ static int scene_terrain_bind(scene_stream *s)
 static int scene_terrain_lighting(scene_stream *s,const rf_geomod_terrain_view *terrain)
 {
     uint32_t i,j,k,count=0,*ids=s->light_overlay_work;rf_vfx_light_source *sources;
-    float lo[3],hi[3];int status;
+    float lo[3],hi[3],ambient[3];unsigned char room[4];int status;
     if(!s->terrain_colors || !s->lights || !ids || terrain->mesh.face_count>512 || !terrain->mesh.vertex_count)return RF_RANGE;
     sources=(rf_vfx_light_source *)(ids+1100);
+    status=rf_geometry_room_ambient(s->geometry,0,room);if(status)return status;
+    for(k=0;k<3;k++)ambient[k]=.5f*(room[0]==1?(float)((double)room[k+1]*0.003921568859368563):s->light_ambient[k]);
     memcpy(lo,terrain->mesh.vertices[0].position,12);memcpy(hi,lo,12);
     for(i=1;i<terrain->mesh.vertex_count;i++)for(k=0;k<3;k++) {
         float p=terrain->mesh.vertices[i].position[k];lo[k]=fminf(lo[k],p);hi[k]=fmaxf(hi[k],p);
@@ -8465,14 +8467,18 @@ static int scene_terrain_lighting(scene_stream *s,const rf_geomod_terrain_view *
     for(i=0;i<count;i++)sources[i]=s->lights->pool.sources[ids[i]].source;
     for(i=0;i<terrain->mesh.face_count;i++) {
         const rf_geomod_face *face=terrain->mesh.faces+i;const float *normal=terrain->faces[i].plane;
-        float center[3]={0};unsigned char rgb[3];
+        float center[3]={0},accumulated[3];unsigned char rgb[3];
         if(face->source_face!=UINT32_MAX) {
             /* Existing textured room faces previously used untinted base sampling. */
             s->terrain_colors[i][0]=s->terrain_colors[i][1]=s->terrain_colors[i][2]=1;continue;
         }
         for(j=0;j<face->count;j++)for(k=0;k<3;k++)center[k]+=terrain->mesh.vertices[face->first+j].position[k]/(float)face->count;
-        status=rf_vfx_lighting(center,normal,s->light_ambient,.25f,sources,count,rgb);if(status)return status;
-        for(k=0;k<3;k++)s->terrain_colors[i][k]=(float)rgb[k]/255.f;
+        /* Ordinary static-surface policy: half room/global ambient, softened
+         * point/cone response and lightmap RGB conversion. Still one sample
+         * per face, without shadow masks or original lightmap regeneration. */
+        status=rf_vfx_light_accumulate(center,normal,ambient,.25f,sources,count,NULL,1,accumulated);if(status)return status;
+        status=rf_lightmap_accumulated_rgb(accumulated,rgb);if(status)return status;
+        for(k=0;k<3;k++)s->terrain_colors[i][k]=fminf(1.f,2.f*(float)rgb[k]/255.f);
     }
     return RF_OK;
 }
