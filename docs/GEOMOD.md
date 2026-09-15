@@ -1397,3 +1397,31 @@ same64-texel bound; timings vary and this is not a universal frame-time claim.
 The native framebuffer is pixel-identical to the inspected115520 capture.
 All19disc entries restored; owned PID44584 exited. Edits remain visibly hitchy
 at these peaks, so latency/settling improvements remain open.
+
+## Dirty-region crater atlas uploads (2026-09-15)
+
+Completed face tiles now union their pixel rectangles into a pending dirty
+region. The lightmap-update phase copies only that region into the native image,
+then clears the pending flag. Generation initialization still marks the full
+atlas dirty, so newly packed layouts cannot retain stale pixels. Multiple tiles
+completed before upload are included in the union. Bounds are checked before
+copying; Xbox retains the existing GPU-completion wait before native writes.
+No new pixel allocation or change to lighting computation is introduced.
+
+TERRAIN_UPLOAD counts uploads, copied pixels, largest rectangle and full copies.
+The1200-frame replay performs731 updates but copies1629760pixels (3259520bytes),
+including six full clears. Full-image copying on each of those updates would
+move383254528bytes. The settling harness checks full-clear count and requires
+at least90percent less copy work than that equivalent full-image path. Six
+ordinary, three close-view and the settling PC replays pass; all captured
+images are byte-identical. Evidence:artifacts/geomod-dirty-replays.log and
+geomod-dirty-before-images.json.
+
+Native verification:artifacts/xemu/render-20260915-120614 completes1200frames
+and43 comparisons with8743pages free (34.152MiB). Upload counters match PC.
+Renderer resource preparation averages0.216ms versus25.823ms in the preceding
+1200-frame run, with maximum38ms versus57ms (full clears still cost more).
+The scene phase peaks at165ms, camera/combat131ms and world rebuild77ms;
+these remaining peaks are not smooth-frame acceptance. The decoded framebuffer
+exactly matches the inspected120115 capture. All19disc entries restored;
+owned PID33260 exited. No new GitHub image or altered-appearance claim.

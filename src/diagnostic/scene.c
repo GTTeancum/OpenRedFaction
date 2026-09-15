@@ -488,6 +488,7 @@ typedef struct scene_terrain_light_cache {
     float ambient[3];uint32_t face,sample;
 } scene_terrain_light_cache;
 uint32_t rf_scene_terrain_bake[6]; /* processed,current frame,peak frame,active,completed generation,canceled */
+uint32_t rf_scene_terrain_upload[4]; /* updates,pixels,largest rectangle,full copies */
 uint32_t rf_scene_terrain_atlas[8]; /* enabled,width,height,owned bytes,generation,texels,faces,image */
 uint32_t rf_scene_terrain_shadows[4]; /* lighting refreshes, rays, blocked, cache hits */
 typedef struct scene_stream {
@@ -496,7 +497,7 @@ typedef struct scene_stream {
     scene_terrain_light_cache *terrain_light_cache;
     rf_image terrain_atlas;unsigned char *terrain_atlas_pixels,*terrain_tile;
     rf_preview_surface_lightmap *terrain_bindings;scene_terrain_light_tile *terrain_tiles;
-    uint32_t terrain_atlas_index,terrain_atlas_registered,terrain_atlas_pending;
+    uint32_t terrain_atlas_index,terrain_atlas_registered,terrain_atlas_pending;uint16_t terrain_dirty[4];
     rf_geo_region *terrain_regions;uint32_t terrain_region_count,terrain_default_hardness;
     rf_geometry terrain_geometry;rf_scene_world_geometry terrain_render;
     uint32_t *terrain_ids;uint32_t terrain_fallback,terrain_material,terrain_held;
@@ -527,6 +528,19 @@ uint32_t rf_scene_lightmap_regeneration[8]; /* jobs,ambient,shadow callbacks,wor
 uint32_t rf_scene_lightmap_regeneration_test;
 static int scene_light_regenerate(scene_stream *,uint32_t,const rf_lightmap_mapping *,const rf_lightmap_sample_plane *,unsigned char *,uint32_t *,rf_vfx_light_source *);
 uint32_t rf_scene_lightmap_updates[8]; /* frames,visits,uploads,lit regions,RGB bytes,work bytes,deferred base,status */
+static void scene_terrain_dirty(scene_stream *s,uint32_t x,uint32_t y,uint32_t width,uint32_t height)
+{
+    if(!s->terrain_atlas_pending) {
+        s->terrain_dirty[0]=(uint16_t)x;s->terrain_dirty[1]=(uint16_t)y;
+        s->terrain_dirty[2]=(uint16_t)(x+width);s->terrain_dirty[3]=(uint16_t)(y+height);
+    } else {
+        if(x<s->terrain_dirty[0])s->terrain_dirty[0]=(uint16_t)x;
+        if(y<s->terrain_dirty[1])s->terrain_dirty[1]=(uint16_t)y;
+        if(x+width>s->terrain_dirty[2])s->terrain_dirty[2]=(uint16_t)(x+width);
+        if(y+height>s->terrain_dirty[3])s->terrain_dirty[3]=(uint16_t)(y+height);
+    }
+    s->terrain_atlas_pending=1;
+}
 int rf_scene_prepare_lightmaps(rf_lightmaps *maps)
 {
     scene_stream *s=particle_draw_stream;rf_image *images;
@@ -546,8 +560,14 @@ int rf_scene_update_lightmaps(rf_lightmaps *maps)
     if(stream && stream->terrain_atlas_pending) {
         uint32_t x,y;
         if(!maps || !stream->terrain_atlas_registered || stream->terrain_atlas_index>=maps->count)return RF_RANGE;
-        for(y=0;y<512;y++)for(x=0;x<512;x++)
+        const uint16_t *rect=stream->terrain_dirty;uint32_t pixels;
+        if(rect[0]>=rect[2] || rect[1]>=rect[3] || rect[2]>512 || rect[3]>512)return RF_RANGE;
+        pixels=(rect[2]-rect[0])*(rect[3]-rect[1]);
+        for(y=rect[1];y<rect[3];y++)for(x=rect[0];x<rect[2];x++)
             memcpy(rf_image_pixel(maps->images+stream->terrain_atlas_index,x,y),stream->terrain_atlas_pixels+(y*512+x)*2,2);
+        ++rf_scene_terrain_upload[0];rf_scene_terrain_upload[1]+=pixels;
+        if(pixels>rf_scene_terrain_upload[2])rf_scene_terrain_upload[2]=pixels;
+        if(pixels==512*512)++rf_scene_terrain_upload[3];
         stream->terrain_atlas_pending=0;
     }
     if(!stream || !stream->light_storage || !stream->light_rgb.images)return RF_OK;
@@ -8500,7 +8520,7 @@ static int scene_terrain_light_step(scene_stream *s,const rf_geomod_terrain_view
         if(cache->sample==total) {
             for(y=0;y<tile->grid.height;y++)for(x=0;x<tile->grid.width;x++)
                 memcpy(s->terrain_atlas_pixels+((tile->y+y)*512+tile->x+x)*2,s->terrain_tile+(y*tile->grid.width+x)*2,2);
-            cache->sample=0;cache->face++;s->terrain_atlas_pending=1;
+            cache->sample=0;cache->face++;scene_terrain_dirty(s,tile->x,tile->y,tile->grid.width,tile->grid.height);
         }
     }
     rf_scene_terrain_bake[0]+=processed;rf_scene_terrain_bake[1]=processed;
@@ -8556,7 +8576,7 @@ static int scene_terrain_lighting(scene_stream *s,const rf_geomod_terrain_view *
             tile_x+=grid.width;if(grid.height>row_height)row_height=grid.height;
             texels+=grid.width*grid.height;faces++;
         }
-        s->terrain_atlas_pending=1;
+        scene_terrain_dirty(s,0,0,512,512);
         rf_scene_terrain_atlas[4]=terrain->mesh.generation;rf_scene_terrain_atlas[5]=texels;rf_scene_terrain_atlas[6]=faces;
     }
     cache->valid=1;cache->generation=terrain->mesh.generation;cache->count=count;
@@ -8570,6 +8590,7 @@ static int scene_terrain_open(scene_stream *s,const rf_level *level)
     memset(rf_scene_geomod,0,sizeof(rf_scene_geomod));memset(rf_scene_terrain_shadows,0,sizeof(rf_scene_terrain_shadows));
     memset(rf_scene_terrain_atlas,0,sizeof(rf_scene_terrain_atlas));
     memset(rf_scene_terrain_bake,0,sizeof(rf_scene_terrain_bake));
+    memset(rf_scene_terrain_upload,0,sizeof(rf_scene_terrain_upload));
     if(!rf_scene_dev_room_enabled)return RF_OK;
     if(!s->geometry || !s->collision || !actor_follow_world || strcmp(level->entry.name,"glass_house.rfl") ||
        s->geometry->faces!=598 || s->geometry->rooms!=91 || s->collision->room_count!=91)return RF_FORMAT;

@@ -20,6 +20,9 @@ def main():
     assert terrain[:3]==[1,6,7] and terrain[5:]==[0,6,6],terrain
     assert atlas[:3]==[1,512,512] and atlas[3]<=1280*1024 and atlas[4]==7,atlas
     assert bake[0]==atlas[5] and bake[1]==0 and bake[2]==64 and bake[3]==0 and bake[4]==7 and bake[5]>0,bake
+    uploads=row('TERRAIN_UPLOAD')
+    assert uploads[3]==6 and uploads[0]>uploads[3] and uploads[2]==512*512,uploads
+    assert uploads[1]<uploads[0]*512*512//10,uploads
     assert row('PLAYER_LIFE')[0]==0
     print('PASS:1200 frames, six cuts, interrupted bakes discarded, final atlas complete; peak64 texels/update')
 
