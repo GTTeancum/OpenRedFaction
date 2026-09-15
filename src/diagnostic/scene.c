@@ -485,7 +485,7 @@ typedef struct scene_rocket_visual {
 typedef struct scene_stream {
     rf_geomod_terrain *terrain;rf_geometry_collision_overlay terrain_collision;
     rf_geometry terrain_geometry;rf_scene_world_geometry terrain_render;
-    uint32_t terrain_ids[128],terrain_fallback,terrain_material,terrain_held;
+    uint32_t terrain_ids[512],terrain_fallback,terrain_material,terrain_held;
     rf_preview_mesh *mesh;rf_materials *materials;const rf_model_materials *bundle;
     uint32_t world,base,capacity,npc_base,npc_textures;rf_scene_frame_sink sink;void *context;
     uint32_t clutter_base,clutter_textures;
@@ -8442,7 +8442,7 @@ uint32_t rf_scene_geomod[8]; /* enabled,cuts,generation,resident,peak,status,att
 static int scene_terrain_bind(scene_stream *s)
 {
     rf_geomod_terrain_view view;uint32_t i;int status=rf_geomod_terrain_get(s->terrain,&view);if(status)return status;
-    if(view.mesh.face_count>128)return RF_RANGE;
+    if(view.mesh.face_count>512)return RF_RANGE;
     for(i=0;i<view.mesh.face_count;i++)s->terrain_ids[i]=view.mesh.faces[i].source_face==UINT32_MAX?s->terrain_fallback:view.mesh.faces[i].source_face;
     status=rf_geometry_collision_overlay_bind(&s->terrain_collision,view.tree,s->terrain_ids,view.mesh.face_count);if(status)return status;
     rf_scene_geomod[0]=1;rf_scene_geomod[1]=view.cuts;rf_scene_geomod[2]=view.mesh.generation;
@@ -8463,7 +8463,7 @@ static int scene_terrain_open(scene_stream *s,const rf_level *level)
         if(i>=6){if(!f.room)return RF_FORMAT;continue;}
         if(f.room || f.corners!=4 || f.texture>=s->geometry->textures)return RF_FORMAT;
         faces[i]=(rf_geomod_face){i*4,4,actor_follow_world->slots[f.texture],i};
-        if(f.texture==2){s->terrain_fallback=i;s->terrain_material=faces[i].material;}
+        if(f.texture==2)s->terrain_fallback=i;
         status=rf_geometry_initial_collision_filter(s->geometry,i,0,filters+i);if(status)return status;
         for(j=0;j<4;j++) {
             rf_geometry_corner c;status=rf_geometry_get_corner(s->geometry,i,j,&c);if(status)return status;
@@ -8473,8 +8473,8 @@ static int scene_terrain_open(scene_stream *s,const rf_level *level)
     }
     if(s->terrain_fallback==UINT32_MAX)return RF_FORMAT;
     source=(rf_geomod_mesh_view){vertices,faces,24,6,0};generated.face_flags=256;
-    status=rf_geomod_terrain_open(&source,filters,&generated,1,2048,128,1024*1024,&s->terrain);if(status)return status;
-    status=rf_geometry_collision_overlay_open(s->collision,0,128,65536,&s->terrain_collision);if(status)return status;
+    status=rf_geomod_terrain_open(&source,filters,&generated,1,4096,512,1024*1024,&s->terrain);if(status)return status;
+    status=rf_geometry_collision_overlay_open(s->collision,0,512,65536,&s->terrain_collision);if(status)return status;
     status=scene_terrain_bind(s);if(status)return status;
     s->collision=&s->terrain_collision.world;
     /* A borrowed draw view excludes exactly the replaced outer-room faces.
@@ -8603,12 +8603,11 @@ static int scene_rockets_tick(scene_stream *s,uint32_t frame)
             status=scene_rocket_blast(s,frame,&event.contact);rf_scene_rocket_blast[7]=(uint32_t)status;if(status)return status;
             if(rf_scene_combat_trace)printf("ROCKET_IMPACT %u %u %.9g %.9g %.9g\n",frame,event.contact.room,
                 event.contact.hit.point[0],event.contact.hit.point[1],event.contact.hit.point[2]);
-            /* First-pass box excavation in the explicit DEV cavity only.
-             * Spherical cutters and impact effects remain separate. */
+            /* Bounded faceted crater in the explicit DEV cavity. Impact effects
+             * and authored surface eligibility remain separate. */
             if(s->terrain && event.contact.room==0 && campaign_rocket.crater_radius>0) {
-                float extent[3]={campaign_rocket.crater_radius,campaign_rocket.crater_radius,campaign_rocket.crater_radius};
                 ++rf_scene_geomod[6];
-                status=rf_geomod_terrain_cut_box(s->terrain,event.contact.hit.point,extent,s->terrain_material);
+                status=rf_geomod_terrain_cut_crater(s->terrain,event.contact.hit.point,campaign_rocket.crater_radius,s->terrain_material);
                 rf_scene_geomod[5]=(uint32_t)status;
                 if(!status){status=scene_terrain_bind(s);if(status)return status;++rf_scene_geomod[7];++rf_scene_rockets[4];}
                 else {++rf_scene_rockets[5];if(status!=RF_RANGE && status!=RF_FORMAT && status!=RF_NOT_FOUND)return status;}
@@ -11816,6 +11815,16 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
                 combined[materials->count]=(rf_material){*image,RF_OK,v->materials->textures.textures[i].animation.archive_index};
                 materials->allocated_bytes+=sizeof(*combined)+image->bytes;memset(image,0,sizeof(*image));++materials->count;++materials->loaded;
             }
+        }
+        if(rf_scene_dev_room_enabled) {
+            const char *names[1]={"rck_canyon_rock01.tga"};rf_materials interior={0};rf_material *combined;
+            status=rf_materials_open_names(&interior,names,1,maps,map_count,512*1024);if(status)goto done;
+            if(interior.loaded!=1 || materials->count>=RF_CAMPAIGN_TEXTURE_SLOTS){rf_materials_close(&interior);status=RF_RANGE;goto done;}
+            combined=realloc(materials->items,(materials->count+1)*sizeof(*combined));
+            if(!combined){rf_materials_close(&interior);status=RF_IO;goto done;}
+            /* Explicit DEV rock substrate; campaign-authored interior selection is pending. */
+            materials->items=combined;stream.terrain_material=materials->count;combined[materials->count++]=interior.items[0];
+            ++materials->loaded;materials->allocated_bytes+=interior.allocated_bytes;free(interior.items);
         }
         status=scene_pickup_resources_open(&stream,tables_path,&archive,maps,map_count,materials);if(status)goto done;
         stream.npc_memory=malloc(4096*96);stream.npc_indices=malloc(24576*sizeof(uint16_t));stream.npc_pool=calloc(1,sizeof(*stream.npc_pool));

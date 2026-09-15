@@ -460,8 +460,8 @@ int rf_geomod_collision_faces(const rf_geomod_mesh_view *mesh,
 
 struct rf_geomod_terrain {
     rf_geomod_storage *mesh;rf_geomod_multi_work work;
-    rf_geomod_vertex cut_vertices[RF_GEOMOD_CUT_LIMIT][24];
-    rf_geomod_face cut_faces[RF_GEOMOD_CUT_LIMIT][6];
+    rf_geomod_vertex cut_vertices[RF_GEOMOD_CUT_LIMIT][60];
+    rf_geomod_face cut_faces[RF_GEOMOD_CUT_LIMIT][20];
     rf_geomod_mesh_view cuts[RF_GEOMOD_CUT_LIMIT];
     rf_collision_face_filter original_filters[32],generated_filter,*filters;
     rf_collision_face *faces[2];float (*positions[2])[3];rf_collision_tree tree;
@@ -566,6 +566,37 @@ int rf_geomod_terrain_cut_box(rf_geomod_terrain *t,const float center[3],const f
         }
     }
     t->cuts[slot]=(rf_geomod_mesh_view){t->cut_vertices[slot],t->cut_faces[slot],24,6,0};
+    return terrain_publish(t,t->count+1);
+}
+/* Inscribed twenty-face sphere approximation: bounded and deliberately faceted.
+ * Reuses the same transactional union history as box excavation. */
+int rf_geomod_terrain_cut_crater(rf_geomod_terrain *t,const float center[3],float radius,uint32_t material)
+{
+    static const float points[12][3]={{-1,1.618033989f,0},{1,1.618033989f,0},{-1,-1.618033989f,0},{1,-1.618033989f,0},
+        {0,-1,1.618033989f},{0,1,1.618033989f},{0,-1,-1.618033989f},{0,1,-1.618033989f},
+        {1.618033989f,0,-1},{1.618033989f,0,1},{-1.618033989f,0,-1},{-1.618033989f,0,1}};
+    static const unsigned char triangles[20][3]={{0,11,5},{0,5,1},{0,1,7},{0,7,10},{0,10,11},
+        {1,5,9},{5,11,4},{11,10,2},{10,7,6},{7,1,8},
+        {3,9,4},{3,4,2},{3,2,6},{3,6,8},{3,8,9},
+        {4,9,5},{2,4,11},{6,2,10},{8,6,7},{9,8,1}};
+    uint32_t i,j,k,slot;float scale=radius/1.902113033f;
+    if(!t || !center || material==UINT32_MAX || t->count==RF_GEOMOD_CUT_LIMIT)return RF_RANGE;
+    if(!isfinite(radius) || radius<=0)return RF_FORMAT;
+    for(k=0;k<3;k++)if(!isfinite(center[k]) || !isfinite(center[k]-radius) || !isfinite(center[k]+radius))return RF_FORMAT;
+    slot=t->count;
+    for(i=0;i<20;i++) {
+        float normal[3],a[3],b[3];uint32_t u,v;
+        for(k=0;k<3;k++){a[k]=points[triangles[i][1]][k]-points[triangles[i][0]][k];b[k]=points[triangles[i][2]][k]-points[triangles[i][0]][k];}
+        for(k=0;k<3;k++)normal[k]=a[(k+1)%3]*b[(k+2)%3]-a[(k+2)%3]*b[(k+1)%3];
+        k=0;if(fabsf(normal[1])>fabsf(normal[k]))k=1;if(fabsf(normal[2])>fabsf(normal[k]))k=2;u=(k+1)%3;v=(k+2)%3;
+        t->cut_faces[slot][i]=(rf_geomod_face){i*3,3,material,UINT32_MAX};
+        for(j=0;j<3;j++) {
+            rf_geomod_vertex *p=t->cut_vertices[slot]+i*3+j;
+            for(k=0;k<3;k++)p->position[k]=center[k]+points[triangles[i][j]][k]*scale;
+            p->uv[0]=p->position[u]*.25f;p->uv[1]=p->position[v]*.25f;
+        }
+    }
+    t->cuts[slot]=(rf_geomod_mesh_view){t->cut_vertices[slot],t->cut_faces[slot],60,20,0};
     return terrain_publish(t,t->count+1);
 }
 int rf_geomod_terrain_reset(rf_geomod_terrain *t)

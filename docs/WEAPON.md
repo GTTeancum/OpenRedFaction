@@ -522,3 +522,29 @@ Native frame inspected: authored rocket/purple flare visible just left of
 crosshair; black flare background remains an additive-blending limitation.
 9233pages free (36.066MiB). All19disc entries restored and owned emulator
 exited. No GitHub image uploaded. Estimate ~49%; projectile visuals.
+
+## Destruction focus: faceted rocket craters
+
+Rocket impacts now use an inscribed20-face icosahedral cutter at authored
+radius5 rather than a box. The shared terrain owner retains up to8 mixed
+convex cuts, with60vertices/20faces reserved per history slot. The same
+transactional clipping and collision publication apply. Room capacity is
+4096vertices/512faces under its1MiB budget, with a512-entry overlay map.
+Complex overlap may still reject within these fixed bounds.
+
+The first crater render reused metal wall panels, producing a misleading
+folded/protruding appearance. The DEV room now explicitly uses installed
+rck_canyon_rock01.tga as its excavated substrate. Crater UVs use dominant
+plane projection at one tile per4world units. This is testbed material
+policy, not recovered per-surface GeoMod eligibility/material metadata.
+Collision fallback still maps generated faces to the prior room surface
+policy. Interior illumination and debris are unfinished; coarse facets
+remain visible and are not represented as final destruction quality.
+
+tools/dev_destruction_check.py reproduces intact/single/two-impact views,
+an angled approach and traversal using ordinary game input. Two successful
+cuts reach generation3; the player walks to x=-18.045902 beyond the original
+x=-16wall, alive, at y=-13.067719. Peak terrain plus overlay accounting is
+706675bytes. PC images show a deeper rock cavity after the second shot.
+These checks cover this outer room, not arbitrary campaign geometry,
+material eligibility, dynamic objects or a complete destruction system.

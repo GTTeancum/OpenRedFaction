@@ -1,7 +1,9 @@
 # Red Faction Xbox / PC - open work
 
+- PRIORITY GeoMod: Match original destruction behavior and appearance; the current faceted crater is a prototype, not an accepted fidelity milestone.
 - DEV testbed: Review full weapon animations and add complete room reset; terrain reset and ammo refill are implemented, while campaign progression remains paused.
-- GeoMod: Add explosive-weapon integration, non-box cutters and authored eligibility; live repeated excavation passes PC/Xbox, and guarded terrain reset passes PC/Xbox checks.
+- GeoMod: Improve crater shape/readability, add debris and authored surface eligibility; rockets now cut repeated faceted craters with an explicit DEV rock interior.
+- USER: Review destruction readability after replacing the folded-panel interior; destruction remains the current focus.
 - Weapons: Finish rocket flare blending/explosion effects and actor/mover impacts, and verify NPC blast/cover behavior; authored projectile geometry now draws during live flight.
 - Combat: Extend pain-reaction coverage across enemy weapons and encounters; retained attack locks now pass35 PC/Xbox comparisons with independent actor recovery.
 - Combat: Revalidate encounters with the new shared body-sphere bullet collision; captured false hits are rejected, but old oversized-box aiming replays need recalibration.
@@ -5197,3 +5199,12 @@ Native frame inspected: authored rocket/purple flare visible just left of
 crosshair; black flare background remains an additive-blending limitation.
 9233pages free (36.066MiB). All19disc entries restored and owned emulator
 exited. No GitHub image uploaded. Estimate ~49%; projectile visuals.
+
+Destruction native verification (2026-09-15):500frame two-hit/approach
+run at artifacts/xemu/render-20260915-083610 passes38 comparisons with
+9092pages (35.516MiB) free. Native image inspected; crater geometry and
+rock substrate visible, but coarse shape/readability are still unfinished.
+All19 staged disc entries restored; owned emulator exited. Traversal beyond
+the original wall is currently PC-verified only. User clarified GeoMod must
+take top priority for fidelity; other system work stays deferred.
+Estimate ~49%; current area is GeoMod.

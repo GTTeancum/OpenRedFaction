@@ -118,7 +118,7 @@ typedef struct rf_geomod_terrain_view {
     const rf_collision_tree *tree;
     uint32_t cuts,resident_bytes,peak_bytes;
 } rf_geomod_terrain_view;
-/* Retain original geometry, bounded box history, cut workspace and two
+/* Retain original geometry, bounded convex-cut history, cut workspace and two
  * collision-position banks. Original source_face IDs must be unique/non-sentinel.
  * Explicit filters preserve original surface policy; generated_filter applies
  * to all new surfaces. cavity is0 for a convex solid,1 for an inward room.
@@ -135,6 +135,8 @@ void rf_geomod_terrain_close(rf_geomod_terrain **terrain);
  * history and collision. No game eligibility/weapon policy is implied. */
 int rf_geomod_terrain_cut_box(rf_geomod_terrain *terrain,const float center[3],
     const float half_extent[3],uint32_t material);
+/* Inscribed icosahedral crater; shares bounded atomic history with box cuts. */
+int rf_geomod_terrain_cut_crater(rf_geomod_terrain *,const float center[3],float radius,uint32_t material);
 int rf_geomod_terrain_reset(rf_geomod_terrain *terrain);
 /* Borrowed snapshot: valid until next successful cut/reset or close; failed
  * edits preserve it. Single-thread owner; renderer consumes mesh+faces from
