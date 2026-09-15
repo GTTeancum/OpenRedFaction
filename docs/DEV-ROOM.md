@@ -92,3 +92,31 @@ were rejected and the previous placement retained. Compare the original
 presentation before changing its camera again; the oversized idle endpoint
 alone is insufficient evidence for an arbitrary camera offset. Full sequential
 idle/attack/held-fire/reload inspection remains open.
+
+
+## Live excavation control
+
+Hold Use and press Alt Fire (PC E+G; controller X+left trigger) while aiming at
+an outer wall. The developer cutter makes a4x5x4 box centered on the wall hit,
+once per press, without firing the selected weapon. It affects only outer
+room0; the central structure remains static. Up to8 successful cutters are
+retained; capacity rejection leaves the previous terrain and collision intact.
+Reloading the developer room restores it; an in-session reset control is next.
+This is an explicit gameplay test tool, not retail explosive GeoMod behavior.
+Generated/fragmented outer surfaces temporarily use the shared fallback shading
+without authored lightmaps. Interior UVs are provisional world-space mapping.
+
+The live400-frame comparison turns toward the wall, cuts at frame110, then
+walks forward from frame130. The intact run stops at x-15.388512; the cut run
+enters the excavation and stops at x-17.382938,y-11.951555,z5.566381. Both stay
+alive. tools/dev_geomod_check.py reproduces these inputs and checks state.
+The existing ammo-refill replay also passes. PC images of the approach and
+inside the excavation were inspected; this is now actual gameplay geometry.
+
+Xbox artifacts/xemu/render-20260915-073815 passes all35 comparisons at400frames,
+including body position inside the excavation. The native final framebuffer
+was inspected and matches the excavated interior, weapon and HUD. Endpoint
+free memory is9489 pages (37.0664MiB) on the64MiB target. All19 staged disc
+entries were checked against their saved bytes and restored. No host input or
+desktop capture was used; no GitHub screenshots were added. Audio and full
+weapon animation sequences were not reviewed in this check.

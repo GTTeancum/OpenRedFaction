@@ -379,3 +379,30 @@ yet instantiate the overlay. It must rebind immediately after successful
 terrain edits while no query can observe the retired tree, and project the
 same snapshot while suppressing the original outer wall draw. Native player
 movement, weapon-impact editing and reset controls remain unverified.
+
+
+## Live developer scene integration
+
+The shared developer scene now owns the terrain and collision overlay with
+1MiB/64KiB caps. It copies source positions/UVs/filters from Glass House outer
+faces0..5, resolves materials into the retained shared table and redirects
+scene collision to the overlay. After a successful cut it rebinds immediately
+before further queries. Source-order/generated material metadata maps back to
+valid original face IDs using an explicit same-material fallback for interiors.
+
+After the first cut, a persistent borrowed rendering view starts at original
+face offset6, excluding only the old outer shell. Remaining geometry stays on
+the existing static-world path, including Xbox retention. The matching terrain
+snapshot is projected into the world's dynamic prefix before actor/HUD draws.
+No serialized game bytes are modified. Before any cut, the original rendering
+path and its lightmaps remain active. Close releases overlay and terrain after
+other scene resources. The renderer's shared capacity remains3MiB in the tested
+run, including reserved actor space; cuts exceeding owner capacity are rejected.
+
+Use+AltFire is an explicit developer excavation tool, one edit per press.
+It ray-tests the complete world and accepts room0 only, then creates a box with
+half-extents(2,2.5,2). It suppresses that alternate weapon action. This does not
+claim explosion-driven destruction, spherical cutters, authored GeoMod hardness
+or arbitrary campaign-room topology. See DEV-ROOM.md for live PC/Xbox evidence
+and remaining controls. The GEOMOD diagnostic reports enabled,cut count,mesh
+generation,resident bytes,peak bytes,status,attempts and successful edits.

@@ -476,6 +476,9 @@ typedef struct scene_pickup_resource {
 static int pickup_class(const char *name)
 {int i;for(i=0;i<SCENE_PICKUP_CLASSES;i++)if(!strcmp(name,pickup_classes[i]))return i;return -1;}
 typedef struct scene_stream {
+    rf_geomod_terrain *terrain;rf_geometry_collision_overlay terrain_collision;
+    rf_geometry terrain_geometry;rf_scene_world_geometry terrain_render;
+    uint32_t terrain_ids[128],terrain_fallback,terrain_material,terrain_held;
     rf_preview_mesh *mesh;rf_materials *materials;const rf_model_materials *bundle;
     uint32_t world,base,capacity,npc_base,npc_textures;rf_scene_frame_sink sink;void *context;
     uint32_t clutter_base,clutter_textures;
@@ -8421,6 +8424,72 @@ static int campaign_pickups_tick(scene_stream *stream,const float eye[3])
     }
     return RF_OK;
 }
+uint32_t rf_scene_geomod[8]; /* enabled,cuts,generation,resident,peak,status,attempts,successful edits */
+static int scene_terrain_bind(scene_stream *s)
+{
+    rf_geomod_terrain_view view;uint32_t i;int status=rf_geomod_terrain_get(s->terrain,&view);if(status)return status;
+    if(view.mesh.face_count>128)return RF_RANGE;
+    for(i=0;i<view.mesh.face_count;i++)s->terrain_ids[i]=view.mesh.faces[i].source_face==UINT32_MAX?s->terrain_fallback:view.mesh.faces[i].source_face;
+    status=rf_geometry_collision_overlay_bind(&s->terrain_collision,view.tree,s->terrain_ids,view.mesh.face_count);if(status)return status;
+    rf_scene_geomod[0]=1;rf_scene_geomod[1]=view.cuts;rf_scene_geomod[2]=view.mesh.generation;
+    rf_scene_geomod[3]=view.resident_bytes+s->terrain_collision.resident_bytes;
+    rf_scene_geomod[4]=view.peak_bytes+s->terrain_collision.resident_bytes;return RF_OK;
+}
+static int scene_terrain_open(scene_stream *s,const rf_level *level)
+{
+    rf_geomod_vertex vertices[24];rf_geomod_face faces[6];rf_collision_face_filter filters[6],generated={0};
+    rf_geomod_mesh_view source;uint32_t i,j;int status;
+    memset(rf_scene_geomod,0,sizeof(rf_scene_geomod));
+    if(!rf_scene_dev_room_enabled)return RF_OK;
+    if(!s->geometry || !s->collision || !actor_follow_world || strcmp(level->entry.name,"glass_house.rfl") ||
+       s->geometry->faces!=598 || s->geometry->rooms!=91 || s->collision->room_count!=91)return RF_FORMAT;
+    s->terrain_fallback=UINT32_MAX;
+    for(i=0;i<s->geometry->faces;i++) {
+        rf_geometry_face f;status=rf_geometry_get_face(s->geometry,i,&f);if(status)return status;
+        if(i>=6){if(!f.room)return RF_FORMAT;continue;}
+        if(f.room || f.corners!=4 || f.texture>=s->geometry->textures)return RF_FORMAT;
+        faces[i]=(rf_geomod_face){i*4,4,actor_follow_world->slots[f.texture],i};
+        if(f.texture==2){s->terrain_fallback=i;s->terrain_material=faces[i].material;}
+        status=rf_geometry_initial_collision_filter(s->geometry,i,0,filters+i);if(status)return status;
+        for(j=0;j<4;j++) {
+            rf_geometry_corner c;status=rf_geometry_get_corner(s->geometry,i,j,&c);if(status)return status;
+            status=rf_geometry_vertex(s->geometry,c.vertex,vertices[i*4+j].position);if(status)return status;
+            memcpy(vertices[i*4+j].uv,c.uv,8);
+        }
+    }
+    if(s->terrain_fallback==UINT32_MAX)return RF_FORMAT;
+    source=(rf_geomod_mesh_view){vertices,faces,24,6,0};generated.face_flags=256;
+    status=rf_geomod_terrain_open(&source,filters,&generated,1,2048,128,1024*1024,&s->terrain);if(status)return status;
+    status=rf_geometry_collision_overlay_open(s->collision,0,128,65536,&s->terrain_collision);if(status)return status;
+    status=scene_terrain_bind(s);if(status)return status;
+    s->collision=&s->terrain_collision.world;
+    /* A borrowed draw view excludes exactly the replaced outer-room faces.
+     * Serialized bytes and the remaining face IDs/room links are untouched. */
+    s->terrain_geometry=*s->geometry;s->terrain_geometry.faces-=6;s->terrain_geometry.face_offsets+=6;
+    s->terrain_render=*actor_follow_world;s->terrain_render.world=&s->terrain_geometry;
+    return RF_OK;
+}
+static int scene_terrain_input(scene_stream *s,const float position[3],const float orientation[3][3])
+{
+    uint32_t pressed=player_input.use && player_input.alt_fire,matched;int status=RF_OK;
+    if(!s->terrain)return RF_OK;
+    if(pressed && !s->terrain_held) {
+        rf_geometry_world_hit hit;float delta[3],extent[3]={2,2.5f,2};uint32_t i;
+        ++rf_scene_geomod[6];
+        for(i=0;i<3;i++)delta[i]=orientation[2][i]*100;
+        status=rf_geometry_collision_world_ray(s->collision,0x460,position,delta,1,&hit,&matched);
+        if(status)return status;
+        if(matched && hit.room==0) {
+            status=rf_geomod_terrain_cut_box(s->terrain,hit.hit.point,extent,s->terrain_material);
+            if(!status){status=scene_terrain_bind(s);if(status)return status;++rf_scene_geomod[7];}
+        }
+        rf_scene_geomod[5]=(uint32_t)status;
+        if(rf_scene_combat_trace)printf("GEOMOD_EDIT %u %u %u %d\n",rf_scene_geomod[6],rf_scene_geomod[1],rf_scene_geomod[2],status);
+        /* Bounded edit rejection leaves gameplay and the old wall running. */
+        if(status!=RF_OK && status!=RF_RANGE && status!=RF_FORMAT)return status;
+    }
+    s->terrain_held=pressed;if(pressed)player_input.alt_fire=0;return RF_OK;
+}
 static int campaign_combat_tick(scene_stream *stream,uint32_t frame,const float position[3],const float orientation[3][3])
 {
     float delta[3],nearest=1,amount;uint32_t i,target=UINT32_MAX,blocked,fire,alt,active=0;int status;
@@ -8481,6 +8550,7 @@ static int campaign_combat_tick(scene_stream *stream,uint32_t frame,const float 
         if(refill)player_input.reload=0; /* Do not start a normal reload with the chord. */
     }
     if(combat_frame==frame)return RF_OK;combat_frame=frame;
+    status=scene_terrain_input(stream,position,orientation);if(status)return status;
     status=campaign_weapon_drops_tick(stream,position);rf_scene_weapon_drops[7]=(uint32_t)status;if(status)return status;
     status=campaign_pickups_tick(stream,position);rf_scene_pickups[7]=(uint32_t)status;if(status)return status;
     if(player_input.cycle_weapon && !weapon_cycle_held && campaign_player_damage.state.effects.health>0) {
@@ -8785,6 +8855,7 @@ static int campaign_inspect_camera(scene_stream *stream,float position[3],float 
 static int actor_follow_view(void *context,uint32_t frame,const rf_motion_controller *controller,rf_model_projection *view)
 {
     scene_stream *stream=context;float position[3],orientation[3][3];
+    const rf_scene_world_geometry *render_world=stream->terrain && rf_scene_geomod[1]?&stream->terrain_render:actor_follow_world;
     uint32_t *r=rf_scene_actor_follow_frames[frame%64];int status;
     uint32_t world_clock=0;profile_mark(1);
     if(profile_clock && profile_active)world_clock=profile_clock();
@@ -8844,7 +8915,7 @@ static int actor_follow_view(void *context,uint32_t frame,const rf_motion_contro
     world_profile_mark(5,&world_clock);
     static_world_retained=0;
     if(static_world_backend && campaign_spawn) {
-        status=static_world_backend(actor_follow_world,position,orientation,
+        status=static_world_backend(render_world,position,orientation,
             stream->visibility.storage?&stream->visibility.state:NULL);
         if(status!=RF_OK && status!=RF_NOT_FOUND)return status;
         static_world_retained=status==RF_OK;
@@ -8858,18 +8929,28 @@ static int actor_follow_view(void *context,uint32_t frame,const rf_motion_contro
      world_mesh.count=stream->world;world_mesh.bytes=stream->world*sizeof(rf_preview_vertex);
      rf_preview_failure[0]=0;
      if(rf_scene_actor_eye_enabled && world_mesh.bytes>world_capacity)
-        status=scene_world_dispatch_camera(actor_follow_world,campaign_movers.poses,campaign_movers.count,position,orientation,&world_mesh,stream->capacity-(campaign_spawn?1024*1024:0),NULL,0,stream->visibility.storage?&stream->visibility.state:NULL);
+        status=scene_world_dispatch_camera(render_world,campaign_movers.poses,campaign_movers.count,position,orientation,&world_mesh,stream->capacity-(campaign_spawn?1024*1024:0),NULL,0,stream->visibility.storage?&stream->visibility.state:NULL);
      else {
-        status=scene_world_dispatch_camera(actor_follow_world,campaign_movers.poses,campaign_movers.count,position,orientation,
+        status=scene_world_dispatch_camera(render_world,campaign_movers.poses,campaign_movers.count,position,orientation,
         &world_mesh,world_capacity,stream->mesh->vertices+world_capacity/sizeof(rf_preview_vertex),
         stream->capacity-world_capacity,stream->visibility.storage?&stream->visibility.state:NULL);
         /* First-person rendering has no visible actor prefix to reserve. A
          * large world may use the whole allocation through the transactional
          * two-pass path instead of terminating at the staging-half boundary. */
         if(status==RF_RANGE && rf_scene_actor_eye_enabled && rf_preview_failure[0])
-            status=scene_world_dispatch_camera(actor_follow_world,campaign_movers.poses,campaign_movers.count,position,orientation,&world_mesh,stream->capacity-(campaign_spawn?1024*1024:0),NULL,0,stream->visibility.storage?&stream->visibility.state:NULL);
+            status=scene_world_dispatch_camera(render_world,campaign_movers.poses,campaign_movers.count,position,orientation,&world_mesh,stream->capacity-(campaign_spawn?1024*1024:0),NULL,0,stream->visibility.storage?&stream->visibility.state:NULL);
      }
      if(status){rf_scene_profile_stage[1]=108;return status;}
+     if(stream->terrain && rf_scene_geomod[1]) {
+        rf_geomod_terrain_view terrain;rf_preview_mesh generated={0};rf_level camera={0};
+        status=rf_geomod_terrain_get(stream->terrain,&terrain);if(status)return status;
+        if(world_mesh.bytes>stream->capacity-1024*1024)return RF_RANGE;
+        generated.vertices=world_mesh.vertices+world_mesh.count;
+        memcpy(camera.player_position,position,12);memcpy(camera.player_orientation,orientation,36);
+        status=rf_preview_geomod(&generated,stream->capacity-1024*1024-world_mesh.bytes,
+            &terrain.mesh,terrain.faces,stream->materials->count,&camera);if(status)return status;
+        world_mesh.count+=generated.count;world_mesh.bytes+=generated.bytes;
+     }
      *stream->mesh=world_mesh;}
     world_profile_mark(6,&world_clock);profile_mark(2);
     stream->world=stream->mesh->count;
@@ -11605,6 +11686,7 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
             placement.prepare_view=actor_follow_view;placement.view_context=&stream;
         }
         stream.capacity=(uint32_t)capacity;stream.sink=sink;stream.context=context;stream.collision=collision;
+        status=scene_terrain_open(&stream,level);if(status)goto done;
         if(campaign_spawn && collision) {
             memset(rf_scene_event_ticks,0,sizeof(rf_scene_event_ticks));
             memset(campaign_ambient_slots,0,sizeof(campaign_ambient_slots));
@@ -11677,6 +11759,7 @@ done:
     rf_level_navigation_workspace_close(&campaign_navigation_workspace);
     rf_level_owned_navigation_close(&campaign_navigation);
     free(campaign_waypoints);campaign_waypoints=NULL;campaign_waypoint_bytes=0;
+    rf_geometry_collision_overlay_close(&stream.terrain_collision);rf_geomod_terrain_close(&stream.terrain);
     free(stream.surface_indices);free(states);if(motions_opened)rf_vpp_close(&motions);
     free(vertices);free(items);rf_preview_close(&actor);rf_model_materials_close(&bundle);
     rf_vpp_close(&archive);return status;
