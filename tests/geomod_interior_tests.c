@@ -76,6 +76,41 @@ static int closed(void)
     }
     return 1;
 }
+static int collision_clearance(const rf_geomod_mesh_view *mesh,int tunnel)
+{
+    static float positions[2048][3];static rf_collision_face faces[128];
+    static rf_collision_face_filter filters[128];
+    static float saved_positions[2048][3];static rf_collision_face saved_faces[128];
+    rf_collision_tree tree={0};rf_collision_tree_hit ray;rf_collision_sweep_tree_hit sweep;
+    float start[3]={0,0,-4},delta[3]={0,0,8};uint32_t matched;
+    CHECK(!rf_geomod_collision_faces(mesh,filters,positions,2048,faces,128));
+    memcpy(saved_positions,positions,sizeof(positions));memcpy(saved_faces,faces,sizeof(faces));
+    CHECK(rf_geomod_collision_faces(mesh,filters,positions,mesh->vertex_count-1,faces,128)==RF_RANGE);
+    filters[mesh->face_count-1].owner_present=2;
+    CHECK(rf_geomod_collision_faces(mesh,filters,positions,2048,faces,128)==RF_RANGE);
+    filters[mesh->face_count-1].owner_present=0;
+    CHECK(!memcmp(saved_positions,positions,sizeof(positions)) && !memcmp(saved_faces,faces,sizeof(faces)));
+    CHECK(!rf_collision_tree_open(faces,mesh->face_count,1024*1024,&tree));
+    CHECK(!rf_collision_thin_tree(tree.nodes,tree.node_count,tree.faces,tree.face_count,0,
+        start,delta,1,tree.stack,tree.node_capacity,&ray,&matched));
+    CHECK(matched==(tunnel?0u:1u));
+    if(!tunnel)CHECK(fabs(ray.hit.fraction-.25f)<1e-5 && ray.hit.normal[2]<-.99f);
+    CHECK(!rf_collision_sweep_tree(tree.nodes,tree.node_count,tree.faces,tree.face_count,0,
+        start,delta,delta,.5f,1,tree.stack,tree.node_capacity,&sweep,&matched));
+    CHECK(matched==(tunnel?0u:1u));
+    if(!tunnel)CHECK(fabs(sweep.hit.fraction-.1875f)<1e-5);
+    if(tunnel) {
+        CHECK(!rf_collision_sweep_tree(tree.nodes,tree.node_count,tree.faces,tree.face_count,0,
+            start,delta,delta,1.1f,1,tree.stack,tree.node_capacity,&sweep,&matched));
+        CHECK(matched==1); /* Body larger than the hole still hits its rim. */
+        start[2]=0;delta[0]=3;delta[2]=0;
+        CHECK(!rf_collision_thin_tree(tree.nodes,tree.node_count,tree.faces,tree.face_count,0,
+            start,delta,1,tree.stack,tree.node_capacity,&ray,&matched));
+        CHECK(matched==1 && fabs(ray.hit.fraction-1.f/3)<1e-5 && ray.hit.normal[0]<-.99f);
+        CHECK(mesh->faces[tree.source_indices[ray.face_index]].source_face==UINT32_MAX);
+    }
+    rf_collision_tree_close(&tree);return 0;
+}
 int main(void)
 {
     float source[6][4],cutter[6][4],lo[3]={-2,-2,-2},hi[3]={2,2,2};
@@ -124,6 +159,7 @@ int main(void)
         }
         src=(rf_geomod_mesh_view){faces[0],source_faces,24,6,0};
         cut=(rf_geomod_mesh_view){cut_faces[0],cutter_faces,24,6,0};
+        CHECK(!collision_clearance(&src,0));
         CHECK(!rf_geomod_storage_open(&src,512,128,65536,&storage));
         CHECK(!rf_geomod_storage_prepare_convex_cut(storage,&cut,&work));
         CHECK(!rf_geomod_storage_view(storage,&live) && live.generation==1 && live.face_count==6);
@@ -136,9 +172,11 @@ int main(void)
             else CHECK(f->source_face<6 && f->material==100+f->source_face);
         }
         CHECK(interiors==4 && fabs(result-48)<1e-5 && closed());
+        CHECK(!collision_clearance(&pending,1));
         CHECK(!rf_geomod_storage_commit(storage));CHECK(!rf_geomod_storage_view(storage,&live) && live.generation==2);
         CHECK(rf_geomod_storage_prepare_convex_cut(storage,&cut,&work)==RF_FORMAT); /* Do not treat concave result as convex. */
         CHECK(!rf_geomod_storage_reset(storage));CHECK(!rf_geomod_storage_view(storage,&live) && live.face_count==6);
+        CHECK(!collision_clearance(&live,0));
         CHECK(!rf_geomod_storage_open(&src,24,6,4096,&small));
         CHECK(rf_geomod_storage_prepare_convex_cut(small,&cut,&work)==RF_RANGE);
         CHECK(!rf_geomod_storage_view(small,&live) && live.generation==1 && live.face_count==6 && !memcmp(live.vertices,faces,sizeof(faces)));
@@ -223,6 +261,11 @@ int main(void)
                 CHECK(!rf_geomod_storage_open(&src,2048,128,100000,&s));
                 CHECK(!rf_geomod_storage_prepare_cuts(s,many,8,&work));
                 CHECK(!rf_geomod_storage_pending(s,&pending));
+                {
+                    static float collision_positions[2048][3];static rf_collision_face collision_faces[128];
+                    static rf_collision_face_filter collision_filters[128];
+                    CHECK(!rf_geomod_collision_faces(&pending,collision_filters,collision_positions,2048,collision_faces,128));
+                }
                 result=0;surface_count=polygon_count=0;
                 for(i=0;i<pending.face_count;i++) {
                     const rf_geomod_face *f=pending.faces+i;
@@ -236,5 +279,5 @@ int main(void)
             }
         }
     }
-    puts("PASS: repeated/coplanar cuts, tunnel volumes, geometric edge closure, materials and rollback");return 0;
+    puts("PASS: repeated cuts, edge closure, materials, ray/body clearance, interior collision and rollback");return 0;
 }

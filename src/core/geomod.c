@@ -367,3 +367,59 @@ int rf_geomod_storage_prepare_cuts(rf_geomod_storage *s,
 failed:
     rf_geomod_storage_abort(s);return status;
 }
+
+static int collision_mesh_face(const rf_geomod_mesh_view *mesh,uint32_t index,
+    const rf_collision_face_filter *filter,rf_collision_face *out)
+{
+    const rf_geomod_face *f=mesh->faces+index;rf_collision_face value={0};
+    double normal[3]={0},length=0;uint32_t i,j,accepted;int status;
+    if(f->count<3 || f->count>64 || f->first>mesh->vertex_count || f->count>mesh->vertex_count-f->first)return RF_FORMAT;
+    status=rf_collision_face_accept(filter,&accepted);if(status)return status;
+    for(i=0;i<f->count;i++) {
+        const float *a=mesh->vertices[f->first+i].position,*b=mesh->vertices[f->first+(i+1)%f->count].position;
+        for(j=0;j<3;j++) {
+            normal[j]+=(double)a[(j+1)%3]*b[(j+2)%3]-(double)a[(j+2)%3]*b[(j+1)%3];
+            if(!i || a[j]<value.minimum[j])value.minimum[j]=a[j];
+            if(!i || a[j]>value.maximum[j])value.maximum[j]=a[j];
+        }
+    }
+    for(j=0;j<3;j++)length+=normal[j]*normal[j];
+    if(!isfinite(length) || length<=1e-24)return RF_FORMAT;
+    length=sqrt(length);
+    for(j=0;j<3;j++) {
+        value.plane[j]=(float)(normal[j]/length);
+        value.plane[3]-=value.plane[j]*mesh->vertices[f->first].position[j];
+        /* Same bound expansion as rf_geometry_collision_face /4e002b. */
+        value.minimum[j]-=.0001f;value.maximum[j]+=.0001f;
+        if(!isfinite(value.minimum[j]) || !isfinite(value.maximum[j]))return RF_FORMAT;
+    }
+    if(!isfinite(value.plane[3]))return RF_FORMAT;
+    for(i=0;i<f->count;i++) {
+        const float *a=mesh->vertices[f->first+i].position,*b=mesh->vertices[f->first+(i+1)%f->count].position;
+        double distance=value.plane[3],edge[3],size=0;uint32_t k;
+        for(j=0;j<3;j++){distance+=(double)value.plane[j]*a[j];edge[j]=(double)b[j]-a[j];size+=edge[j]*edge[j];}
+        if(fabs(distance)>1e-5 || size<=1e-24)return RF_FORMAT;
+        /* Every vertex must lie on the inward side of each directed edge. */
+        for(k=0;k<f->count;k++) {
+            const float *p=mesh->vertices[f->first+k].position;double inward=0;
+            for(j=0;j<3;j++)inward+=value.plane[j]*(edge[(j+1)%3]*(p[(j+2)%3]-a[(j+2)%3])-edge[(j+2)%3]*(p[(j+1)%3]-a[(j+1)%3]));
+            if(inward< -1e-5*sqrt(size))return RF_FORMAT;
+        }
+    }
+    value.count=f->count;value.filter=*filter;*out=value;return RF_OK;
+}
+int rf_geomod_collision_faces(const rf_geomod_mesh_view *mesh,
+    const rf_collision_face_filter *filters,float (*positions)[3],uint32_t vc,
+    rf_collision_face *faces,uint32_t fc)
+{
+    uint32_t i;rf_collision_face face;int status;
+    if(!mesh || vc<mesh->vertex_count || fc<mesh->face_count ||
+       (mesh->vertex_count && !positions) || (mesh->face_count && (!mesh->faces || !filters || !faces)))return RF_RANGE;
+    status=storage_vertices(mesh->vertices,mesh->vertex_count);if(status)return status;
+    for(i=0;i<mesh->face_count;i++){status=collision_mesh_face(mesh,i,filters+i,&face);if(status)return status;}
+    for(i=0;i<mesh->vertex_count;i++)memcpy(positions[i],mesh->vertices[i].position,12);
+    for(i=0;i<mesh->face_count;i++) {
+        collision_mesh_face(mesh,i,filters+i,&face);face.vertices=positions+mesh->faces[i].first;faces[i]=face;
+    }
+    return RF_OK;
+}

@@ -1,6 +1,7 @@
 #ifndef RF_GEOMOD_H
 #define RF_GEOMOD_H
 #include "rf/vpp.h"
+#include "rf/collision.h"
 #define RF_GEOMOD_POLYGON_LIMIT 64
 typedef struct rf_geomod_vertex {float position[3],uv[2];} rf_geomod_vertex;
 /* Practical port CSG primitive, not an original executable binding.
@@ -93,4 +94,14 @@ typedef struct rf_geomod_multi_work {
  * Work and cutter inputs must not alias storage or each other. */
 int rf_geomod_storage_prepare_cuts(rf_geomod_storage *storage,
     const rf_geomod_mesh_view *cutters,uint32_t count,rf_geomod_multi_work *work);
+/* Bind a prepared mesh to the existing collision tree/query implementation.
+ * Caller provides one explicit filter per face and persistent position/face
+ * arrays sized to mesh counts. Faces borrow the output positions, never mesh
+ * storage. Output order preserves mesh face/material lookup indices. Validates
+ * finite planar convex polygons; errors preserve both arrays. No allocation.
+ * Arrays/filters/mesh must be disjoint and stable throughout the call. This
+ * does not publish a tree or alter the live world. */
+int rf_geomod_collision_faces(const rf_geomod_mesh_view *mesh,
+    const rf_collision_face_filter *filters,float (*positions)[3],uint32_t vertex_capacity,
+    rf_collision_face *faces,uint32_t face_capacity);
 #endif

@@ -208,3 +208,32 @@ This supports repeated cuts of a convex original, not arbitrary imported
 concave world geometry. The developer room still needs a bounded terrain
 owner, history admission/region rules, shared render and collision publication,
 weapon impact integration and reset before usable live holes can be claimed.
+
+
+## Existing collision-query adapter
+
+rf_geomod_collision_faces converts a prepared mesh into caller-owned position
+and rf_collision_face arrays without allocating or retaining mesh-bank pointers.
+Each caller-supplied face filter is preserved; source-order face indices allow
+the collision tree's source_indices to resolve generated material/source IDs.
+Planes are derived from winding, bounds use the same0.0001 expansion as the
+existing geometry adapter (4e002b), and planar convex polygons are validated.
+Capacity, numeric and filter validation precedes all output writes. This is a
+practical generated-geometry binding, not recovered original GeoMod behavior.
+
+The existing rf_collision_tree_open, rf_collision_thin_tree and
+rf_collision_sweep_tree now run against both the original block and prepared
+tunnel in PC tests. A ray through the original stops at fraction0.25; a
+radius0.5 body stops at0.1875. Both clear the central cut tunnel. A radius1.1
+body remains obstructed by its rim. A ray from inside hits the cut interior at
+fraction1/3 with the inward-facing normal and generated-face material lookup.
+Reset restores the original obstruction. Capacity and invalid-final-filter
+errors leave the output arrays byte-identical. Rotated eight-cutter geometry
+also binds successfully. These are real core collision queries on fixtures,
+not player traversal or visual evidence from the live developer room.
+
+The adapter requires retained output arrays plus the existing tree owner's
+budgeted allocation. Live integration must account for the old and pending
+resources together and publish collision and rendering from the same mesh
+generation. No room owner or weapon impact currently calls this adapter.
+NXDK compilation passes and produces the Xbox XBE/XISO; native execution of this adapter remains unverified.
