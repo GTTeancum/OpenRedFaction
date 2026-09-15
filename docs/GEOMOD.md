@@ -1026,3 +1026,31 @@ generation7, no rejection and identical reported terrain allocations. The
 actual native framebuffer was inspected; its distant opening remains visible
 and is not proof of microscopic closure. All19disc entries restored; owned
 emulator exited. No additional GitHub screenshots.
+
+## Direction-independent edge intersections (2026-09-15)
+
+The polygon splitter interpolated intersections in each polygon's traversal
+direction. For an edge from(-16,-1,0) to(32,2,0), clipped against y=0,
+reversing that edge changes cancellation rounding and can yield different
+position/UV words. A targeted regression fails with the prior implementation.
+Crossing edges now select their lexicographically earlier endpoint before
+computing the fraction and interpolating both position and corner UVs. The
+polygon emission order/winding is unchanged. Texture seams remain independent:
+different UVs on a neighboring polygon still interpolate that polygon's UVs.
+
+The regression passes, as do360 rotated square cuts with exact matching
+front/back vertex sets under reversed winding, area conservation, half-space
+checks, invalid-input rollback and a distinct-UV seam case. Existing interior,
+volume/ray and six-cut admission tests pass, plus six ordinary destruction and
+three close-view replays. NXDK builds. No persistent memory is added.
+
+This establishes direction-independent evaluation for the same input edge and
+plane, not agreement after different sequences of clipping operations. The
+room-scale near-coincident junction closure diagnostic still fails. That
+remaining mismatch is not hidden by this change or by a relaxed test threshold.
+
+Native verification: artifacts/xemu/render-20260915-110230 completes800frames
+and40checks with9024pages free (35.25MiB); six cuts publish without rejection.
+Decoded framebuffer pixels exactly match the previously inspected105731 frame,
+so no new image was posted. All19disc entries restored and owned emulator
+exited. The room-scale closure issue remains unresolved.

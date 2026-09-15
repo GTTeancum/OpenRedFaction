@@ -5359,3 +5359,10 @@ coefficient regression fails under old arithmetic and passes now. Six PC
 destruction/three depth replays pass; native800frames pass40checks with
 35.25MiB free. The room-scale junction closure failure remains unresolved;
 intersection rounding is next. ~49%; current area GeoMod geometry seams.
+
+GeoMod edge arithmetic (2026-09-15): crossing edges now interpolate from a
+consistent endpoint, avoiding direction-dependent position/UV rounding.
+The original targeted regression fails before the fix;360 reversed-winding
+comparisons and preserved UV seams pass now. Native800frames pass40checks
+with six successful cuts and35.25MiB free. Final pixels match the previously
+inspected frame. Different clipping-sequence junctions remain open. ~49%.

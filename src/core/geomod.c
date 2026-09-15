@@ -133,17 +133,21 @@ int rf_geomod_polygon_split(const rf_geomod_vertex *vertices,uint32_t count,
     if(!negative){memcpy(f,vertices,count*sizeof(*f));nf=count;}
     else if(!positive){memcpy(b,vertices,count*sizeof(*b));nb=count;}
     else for(i=0;i<count;i++) {
-        uint32_t next=(i+1)%count;rf_geomod_vertex cut;double t;
+        uint32_t next=(i+1)%count,first=i,last=next;rf_geomod_vertex cut;double t;
         if(sides[i]>=0 && append(f,&nf,vertices+i))return RF_RANGE;
         if(sides[i]<=0 && append(b,&nb,vertices+i))return RF_RANGE;
         if(sides[i]*sides[next]>=0)continue;
-        t=distances[i]/(distances[i]-distances[next]);
+        /* Shared edges occur in opposite polygon directions. Evaluate both
+         * from the same endpoint to avoid different cancellation/rounding. */
+        for(j=0;j<3 && vertices[first].position[j]==vertices[last].position[j];j++);
+        if(j<3 && vertices[first].position[j]>vertices[last].position[j]){first=next;last=i;}
+        t=distances[first]/(distances[first]-distances[last]);
         for(j=0;j<3;j++) {
-            cut.position[j]=(float)((1-t)*vertices[i].position[j]+t*vertices[next].position[j]);
+            cut.position[j]=(float)((1-t)*vertices[first].position[j]+t*vertices[last].position[j]);
             if(!isfinite(cut.position[j]))return RF_FORMAT;
         }
         for(j=0;j<2;j++) {
-            cut.uv[j]=(float)((1-t)*vertices[i].uv[j]+t*vertices[next].uv[j]);
+            cut.uv[j]=(float)((1-t)*vertices[first].uv[j]+t*vertices[last].uv[j]);
             if(!isfinite(cut.uv[j]))return RF_FORMAT;
         }
         if(append(f,&nf,&cut) || append(b,&nb,&cut))return RF_RANGE;
