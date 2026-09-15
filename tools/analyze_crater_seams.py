@@ -9,7 +9,11 @@ import json,math,struct
 from dev_destruction_check import ROOT
 
 def main():
-    folder=ROOT/'artifacts/destruction/depth-audit'
+    import argparse
+    from pathlib import Path
+    parser=argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--folder',type=Path,default=ROOT/'artifacts/destruction/depth-audit')
+    folder=parser.parse_args().folder
     audit=json.loads((folder/'report.json').read_text());raw=(folder/'cut.mesh').read_bytes()
     assert raw[:4]==b'RFM1';count,world,stride=struct.unpack_from('<3I',raw,4)
     assert stride==56 and world<=count and world%3==0 and len(raw)==16+count*stride

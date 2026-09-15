@@ -6,11 +6,19 @@ noise and uncovered pixels are reported separately, never counted as a cavity.
 """
 from array import array
 import json,math,os,struct,subprocess,sys
+from pathlib import Path
 from dev_destruction_check import ROOT,recording
 
 def main():
-    folder=ROOT/'artifacts/destruction/depth-audit';folder.mkdir(parents=True,exist_ok=True)
+    import argparse
+    parser=argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--input',type=Path,help='Three-cut RFI6 replay; intact control clears fire bits only')
+    parser.add_argument('--out',type=Path,default=ROOT/'artifacts/destruction/depth-audit')
+    args=parser.parse_args()
+    folder=args.out;folder.mkdir(parents=True,exist_ok=True)
     original=recording('approach')+b''.join(struct.pack('<5f7I',0,0,0,0,0,0,0,0,int(i==520),0,0,0) for i in range(500,900))
+    if args.input:original=args.input.read_bytes()
+    assert original[:8]==b'RFI6'+struct.pack('<I',48) and (len(original)-8)%48==0
     depths={};cameras={};dimensions=None
     for kind in ('cut','intact'):
         data=bytearray(original)
