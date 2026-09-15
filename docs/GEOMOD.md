@@ -2081,3 +2081,22 @@ eligible unmapped faces; the nearby4f98f0 resets mapping references and
 updates bounds, rather than selecting the density class.
 Next follow-up is post-split property inheritance and mapping/relighting
 behavior. Dark crater appearance remains open. Estimate stays ~49 percent.
+
+Relighting gate audit (2026-09-15): inspect_geomod_relight_gate.py executes
+original4f26a0 until the light query4d9c00 or post-relight label4f2c79. All
+256 dirty-byte values with inhibit0/1 (512 cases) match: lighting is queried
+only when dirty bits1/2 are set and inhibit byte10 is zero. The initial
+new-face dirty8 therefore bypasses the light query. The oracle stops before
+pixel generation/upload; it does not replace branch instructions or prove
+subsequent scheduling. Original SHA is checked and cases are recorded at
+artifacts/geomod-relight-gate-original.json.
+Ghidra direct references to4f26a0 identify creation4e5b20 and the bulk pass
+4e5040. The bulk pass sets dirty7, recalculates maps, processes special-map
+seams/borders, and uploads those with dirty8. Its reference export currently
+contains no callers. Absence in this database is not proof of runtime
+unreachability; indirect calls and other dynamic lighting paths remain open.
+No automatic post-cut full relight is established by this evidence. The live
+persistent grayscale policy remains unchanged, and the dark crater remains
+unaccepted. Next investigation must find the runtime scheduling/texture
+usage path rather than assume the bulk relight pass runs after destruction.
+No new visual or Xbox runtime claim; estimate remains ~49 percent.

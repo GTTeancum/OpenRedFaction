@@ -4,7 +4,7 @@
 - GeoMod: Resolve the remaining world-mesh closure issue and dark crater appearance; render-only subdivision now closes the17-pixel seam regression without changing collision geometry.
 - GeoMod: Reduce remaining terrain-cut stalls; face-local assembly brings eighth-blast binding to 48ms, leaving terrain CSG at 323ms of the 378ms measured edit.
 - GeoMod: Diagnose the 425 PC/Xbox capture pixels differing by more than one color level; the shared dark crater appearance remains the main fidelity issue.
-- GeoMod lighting: Trace post-split face properties and later relighting; all16 original Holey01 template faces now verify as density class1, supporting density4 at construction.
+- GeoMod lighting: Trace post-split properties and runtime lightmap scheduling; template density4 is supported, and512 original flag cases confirm initial grayscale uploads bypass relighting.
 - DEV testbed: Review full weapon animations and add complete room reset; terrain reset and ammo refill are implemented, while campaign progression remains paused.
 - GeoMod: Refine debris bounce, lighting and surface eligibility; original age timing now drives real PC/Xbox fading, while crater readability remains open.
 - USER: Review destruction readability after replacing the folded-panel interior; destruction remains the current focus.
