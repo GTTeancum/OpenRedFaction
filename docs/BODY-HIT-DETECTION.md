@@ -130,8 +130,14 @@ than treating the5health arrival as sufficient for a stationary gunfight.
 from four shots, while all four shots at5683 miss its body. Guard5683 remains
 at100health at(35.189323,-5.141514,49.586697). The player still has33.79999
 health here; health falls later during onward movement. A second-guard torso
-aim correction is now under test in `body-east-corrected`. Its outcome is not
-covered by the completed Xbox run above.
+aim correction passes in `body-east-corrected`: the6806-frame PC route enters
+L2S3 at the same6631 frame and ends with25health and16loaded rounds.
+`replay_area2_body_route.py --healthy` reproduces its exact executed input.
+This raises aim while shortening the second yaw turn by2frames, then restores
+the travel heading/pitch after firing. No weapon or damage rules change.
+The final counters reset at transition; a pre-exit capture is still needed to
+attribute the improved health to individual eastern-guard outcomes. The25health
+variant and its onward L2S3 encounter are not covered by the Xbox run above.
 
 The helper assumes valid finite body spheres and orthonormal orientation,
 as supplied by the physics body. It does not implement animated limb hitboxes,

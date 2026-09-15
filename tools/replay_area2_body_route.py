@@ -13,7 +13,8 @@ import subprocess
 root = Path(__file__).resolve().parents[1]
 
 
-def build_input(exit_route=False):
+def build_input(exit_route=False, healthy=False):
+    exit_route = exit_route or healthy
     prefix = (root / 'artifacts/cover-combat-medical-replay/input.bin').read_bytes()
     assert prefix[:8] == b'RFI6' + struct.pack('<I', 48) and len(prefix) == 8 + 4500 * 48
     # Require the corrected torso aim, not an older oversized-box fixture.
@@ -33,10 +34,20 @@ def build_input(exit_route=False):
         tail = (root / 'artifacts/area2-exit-replay/input.bin').read_bytes()
         assert len(tail) == 8 + 7450 * 48 and tail[:8] == prefix[:8]
         records.extend(tail[8 + 5350 * 48:])
+    if healthy:
+        for i in range(5276, 5302):
+            struct.pack_into('<f', records, 8 + i * 48 + 12, .12)
+        for i in range(5300, 5302):
+            struct.pack_into('<f', records, 8 + i * 48 + 16, 0)
+        for i in range(5420, 5446):
+            struct.pack_into('<f', records, 8 + i * 48 + 12, -.12)
+        for i in range(5446, 5448):
+            struct.pack_into('<f', records, 8 + i * 48 + 16, .98)
     return records
 
 
-def verify(log, exit_route=False):
+def verify(log, exit_route=False, healthy=False):
+    exit_route = exit_route or healthy
     def words(label):
         return list(map(int, next(l.split()[1:] for l in log.splitlines() if l.startswith(label + ' '))))
     if exit_route:
@@ -44,10 +55,10 @@ def verify(log, exit_route=False):
         transitions = [l.split()[1:] for l in log.splitlines() if l.startswith('LEVEL_TRANSITION ')]
         assert transitions == [['L2S2a.rfl', 'L2S3.rfl', '5150', '6631']]
         health = struct.unpack('<f', struct.pack('<I', words('ENEMY_COMBAT')[5]))[0]
-        assert health == 5 and words('PLAYER_AMMO')[:3] == [3, 120, 16]
+        assert health == (25 if healthy else 5) and words('PLAYER_AMMO')[:3] == [3, 120, 16]
         assert 'TAKEN_PICKUP l2s2a.rfl 8553' in log
         return dict(result='PASS', frames=6806, health=health, transitions=transitions,
-            scope='Natural L2S2a exit to L2S3 after normal-input medical/corridor route; alive with5health and16loaded rounds. Final combat counters reset on transition; no all-guards-cleared or Xbox claim.')
+            scope='Natural L2S2a exit to L2S3 after normal-input medical/corridor route; alive with16loaded rounds. Final combat counters reset on transition; this verifier alone makes no all-guards-cleared or Xbox claim.')
     assert 'Completed 4706 frames' in log and words('PLAYER_LIFE')[0] == 0
     assert words('COMBAT')[:3] == [13, 8, 2]
     health = struct.unpack('<f', struct.pack('<I', words('ENEMY_COMBAT')[5]))[0]
@@ -65,11 +76,12 @@ def verify(log, exit_route=False):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--exit', action='store_true', help='Append the historical east-hall and natural exit route')
+    parser.add_argument('--healthy', action='store_true', help='Correct second eastern-guard aim; implies --exit')
     args = parser.parse_args()
-    folder = root / ('artifacts/area2-body-route-exit' if args.exit else 'artifacts/area2-body-route')
+    folder = root / ('artifacts/area2-body-route-healthy' if args.healthy else 'artifacts/area2-body-route-exit' if args.exit else 'artifacts/area2-body-route')
     folder.mkdir(parents=True, exist_ok=True)
     source = folder / 'input.bin'
-    source.write_bytes(build_input(args.exit))
+    source.write_bytes(build_input(args.exit, args.healthy))
     env = {k: v for k, v in os.environ.items() if not k.startswith('RF_REPLAY_')}
     env.update(RF_REPLAY_LEVEL='L2S2a.rfl', RF_REPLAY_TRACE='1')
     run = subprocess.run([str(root / 'build/pc/Release/rf_pc_play.exe'), '--spawn-replay',
@@ -78,6 +90,6 @@ if __name__ == '__main__':
     log = run.stdout + run.stderr
     (folder / 'run.log').write_text(log)
     run.check_returncode()
-    report = verify(log, args.exit)
+    report = verify(log, args.exit, args.healthy)
     (folder / 'report.json').write_text(json.dumps(report, indent=2))
     print(report)

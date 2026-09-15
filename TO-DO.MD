@@ -5,8 +5,14 @@
 - Weapons: Verify remaining enemy drop policies and uncollected-drop revisits; supported held weapons now drop collectible supplies, with PC/Xbox rifle acquisition and firing verified.
 - Combat: Finish enemy damage amounts, cadence and weapon coverage; authored SP primary spread and target/bullet-obstruction checks now pass PC/Xbox verification (24 hits, 3 misses).
 - Weapons: Exercise the shotgun in the uninterrupted campaign and continue weapon coverage; PC manual/automatic reload and PC/Xbox automatic reload plus two-level persistence checks now pass.
-- Gameplay: Preserve more health through the L2S2a eastern guards and continue L2S3; the revised6806-frame exit now passes33 Xbox comparisons, but5health is insufficient for the tested next encounter.
+- Gameplay: Verify the corrected25health L2S3 arrival on Xbox and continue its first encounter; PC now retains20more health after adjusting the eastern-room aim.
 - Movement: Refine ladder entry and top-edge transitions; body contact now unblocks the first L2S3 ladder, but the verified route still uses a jump and repeated top-edge state changes need smoothing.
+
+Eastern aim update (2026-09-15): The corrected6806-frame PC input reaches
+L2S3 at6631 with25health instead of5, retaining16loaded rounds. The --healthy
+route generator matches executed bytes. Native verification and the onward
+L2S3 encounter remain open; no damage, weapon or health rules changed.
+Estimate remains ~48%.
 
 Exit verification (2026-09-15): Stock64MiB Xbox passes all33 comparisons for
 the6806-frame natural L2S3 transition, with17.195MiB free at endpoint. PC
