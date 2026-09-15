@@ -2360,3 +2360,24 @@ and eight cuts, passing46 comparisons with8601 physical pages free (33.60MiB).
 All19 disc entries restore byte-exactly and the owned PID43756 exits. The native
 framebuffer was inspected: the dark mound-like appearance remains, so this is
 not visual acceptance and no GitHub image was added.
+
+Four-plane junction audit (2026-09-15): Temporary process-local instrumentation
+recorded the actual support triples at the first unresolved corner. IDs are
+(0,32,35), (0,32,44), (32,44,0), (44,32,0), where0 is the room wall,
+32/44 are outer cutter faces and35 is the first tetrahedron's third internal
+plane. All corner solves return success. The internal plane and neighboring
+outer face should share the same authored seed edge, but their rounded plane
+coefficients define different intersections with the wall.
+The four distinct planes yield a maximum double-solved corner separation of
+1.5257496324347654e-6. This explains disagreement at this particular junction;
+it does not prove the cause of every later closure failure. Using successful
+three-plane solves alone cannot force four inconsistent planes to meet.
+The exact float coefficients are reproducible with:
+python tools/analyze_geomod_corner_supports.py tests/fixtures/geomod-first-corner-supports.txt --output artifacts/geomod-first-corner-supports.json
+The analyzer restores float32 from nine-significant-digit diagnostics before
+solving; it reports all plane combinations, separation and cross-plane residuals.
+Instrumentation is removed, shared source is restored to the retained native-
+verified implementation, and focused CTests pass. No gameplay change is claimed.
+Next repair must use the actual shared seed edge or higher-precision planes
+constructed from that geometry; choosing nearby vertices or widening the
+closure epsilon would conceal the disagreement. Overall ~49%, GeoMod ~60%.
