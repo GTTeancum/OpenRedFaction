@@ -293,3 +293,7 @@ RFI6 replays append uint32 alternate fire to RFI5:48-byte little-endian records
 (five floats, then crouch/jump/use/fire/reload/cycle/alternate uint32 values),
 preceded by RFI6 and uint32 record size48. RFI2/3/4/5 and raw24-byte movement
 replays remain accepted; omitted fields are zero. See RIOT-STICK.md for scope.
+
+Developer room only: Use + Reload (E+R or X+Y) refills supported weapons once
+per press. Normal reload remains available without Use; holding the chord
+does not grant continuous ammunition.

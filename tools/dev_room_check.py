@@ -8,7 +8,11 @@ import subprocess
 root = Path(__file__).resolve().parents[1]
 
 
-def build_input(loadout=False):
+def build_input(loadout=False, refill=False):
+    if refill:
+        return b'RFI6' + struct.pack('<I',48) + b''.join(
+            struct.pack('<5f7I',0,0,0,0,0,0,0,int(i>=50),int(i in (10,30,75)),int(i>=50),0,0)
+            for i in range(100))
     if loadout:
         return b'RFI6' + struct.pack('<I',48) + b''.join(
             struct.pack('<5f7I',0,0,0,0,0,0,0,0,int(i in (120,155)),0,int(i in (30,60,90)),0)
@@ -19,9 +23,14 @@ def build_input(loadout=False):
         for i in range(240))
 
 
-def verify(log, loadout=False):
+def verify(log, loadout=False, refill=False):
     def words(label):
         return list(map(int, next(l.split()[1:] for l in log.splitlines() if l.startswith(label + ' '))))
+    if refill:
+        assert 'Completed 100 frames' in log and words('PLAYER_LIFE')[0] == 0
+        assert words('PLAYER_AMMO')[:3] == [3,125,15]
+        assert words('COMBAT')[:3] == [2,0,0]
+        return
     if loadout:
         assert 'Completed 180 frames' in log and words('PLAYER_LIFE')[0] == 0
         assert words('WEAPON_SELECTION')[:4] == [3,3,8,1]
@@ -42,11 +51,13 @@ def verify(log, loadout=False):
 
 if __name__ == '__main__':
     parser=argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--loadout', action='store_true')
+    options=parser.add_mutually_exclusive_group()
+    options.add_argument('--loadout', action='store_true')
+    options.add_argument('--refill', action='store_true')
     args=parser.parse_args()
-    folder = root / ('artifacts/dev-room-loadout-check' if args.loadout else 'artifacts/dev-room-check')
+    folder = root / ('artifacts/dev-room-refill-check' if args.refill else 'artifacts/dev-room-loadout-check' if args.loadout else 'artifacts/dev-room-check')
     folder.mkdir(parents=True, exist_ok=True)
-    (folder / 'input.bin').write_bytes(build_input(args.loadout))
+    (folder / 'input.bin').write_bytes(build_input(args.loadout, args.refill))
     env = {k: v for k, v in os.environ.items() if not k.startswith('RF_REPLAY_')}
     env['RF_REPLAY_TRACE'] = '1'
     run = subprocess.run([str(root / 'build/pc/Release/rf_pc_play.exe'), '--dev-room-replay',
@@ -55,5 +66,5 @@ if __name__ == '__main__':
     log = run.stdout + run.stderr
     (folder / 'run.log').write_text(log)
     run.check_returncode()
-    verify(log, args.loadout)
+    verify(log, args.loadout, args.refill)
     print('PASS: developer room input/state checks. Visual/audio review is separate.')

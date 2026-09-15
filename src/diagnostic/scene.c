@@ -166,6 +166,7 @@ static uint32_t player_frame_limit;
 static rf_scene_input player_input;
 static uint32_t campaign_spawn;
 uint32_t rf_scene_dev_room_enabled;
+static uint32_t dev_refill_held;
 static uint32_t campaign_crouched,campaign_jump_held;
 static rf_physics_gravity scene_gravity={9.8f,{0,-9.8f,0}};
 uint32_t rf_scene_player_jump[4],rf_scene_player_jump_frames[128][8];
@@ -8424,6 +8425,7 @@ static int campaign_combat_tick(scene_stream *stream,uint32_t frame,const float 
 {
     float delta[3],nearest=1,amount;uint32_t i,target=UINT32_MAX,blocked,fire,alt,active=0;int status;
     memcpy(rf_scene_gameplay_eye,position,sizeof(rf_scene_gameplay_eye));
+    if(!frame)dev_refill_held=0;
     if(!frame){memset(rf_scene_combat_pain,0,sizeof(rf_scene_combat_pain));memset(rf_scene_pain_attack_gate,0,sizeof(rf_scene_pain_attack_gate));combat_pain_random.value=1;}
     if(!frame){memset(rf_scene_rifle_alt,0,sizeof(rf_scene_rifle_alt));campaign_rifle_alt_random.value=1;memset(rf_scene_weapon_drops,0,sizeof(rf_scene_weapon_drops));rf_scene_combat_event_count=0;memset(rf_scene_combat_events,0,sizeof(rf_scene_combat_events));memset(rf_scene_shotgun,0,sizeof(rf_scene_shotgun));campaign_shotgun_random.value=1;campaign_last_alt=0;memset(rf_scene_riot,0,sizeof(rf_scene_riot));riot_charge_remainder=0;combat_surface_frame=UINT32_MAX;}
     if(!frame){memset(rf_scene_weapon_selection,0,sizeof(rf_scene_weapon_selection));memset(rf_scene_weapon_audio,0,sizeof(rf_scene_weapon_audio));combat_sound_random.value=1;memset(rf_scene_combat_death,0,sizeof(rf_scene_combat_death));memset(rf_scene_combat,0,sizeof(rf_scene_combat));rf_scene_combat[3]=UINT32_MAX;rf_scene_combat[5]=campaign_pistol.magazine;memset(&combat_trigger,0,sizeof(combat_trigger));combat_frame=combat_hit_frame=UINT32_MAX;
@@ -8461,6 +8463,22 @@ static int campaign_combat_tick(scene_stream *stream,uint32_t frame,const float 
             }
             campaign_ammo_publish();
         }
+    }
+    if(rf_scene_dev_room_enabled) {
+        uint32_t refill=player_input.use && player_input.reload;
+        if(refill && !dev_refill_held) {
+            for(i=0;i<4;i++) {
+                int32_t id=campaign_slot_weapon(i);
+                const rf_weapon_acquire_definition *d=campaign_weapon_supply.definitions+id;
+                campaign_player_inventory.loaded[id]=d->magazine;
+                campaign_player_inventory.reserve[d->ammo_type]=d->capacity;
+            }
+            riot_charge_remainder=0;rf_scene_combat[6]=0;
+            memset(&combat_trigger,0,sizeof(combat_trigger));combat_trigger.held=!!player_input.fire;
+            campaign_ammo_publish();
+        }
+        dev_refill_held=refill;
+        if(refill)player_input.reload=0; /* Do not start a normal reload with the chord. */
     }
     if(combat_frame==frame)return RF_OK;combat_frame=frame;
     status=campaign_weapon_drops_tick(stream,position);rf_scene_weapon_drops[7]=(uint32_t)status;if(status)return status;

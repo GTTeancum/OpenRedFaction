@@ -41,8 +41,10 @@ be added explicitly while keeping the default room enemy-free.
 
 Explicit developer-room mode now supplies the handgun, assault rifle, Riot
 Stick and shotgun on entry using the shared acquisition routine and authored
-ammo capacities. Normal campaign mode does not receive these grants. Restart
-the room to restore its starting supply; an in-room reset control is still open.
+ammo capacities. Normal campaign mode does not receive these grants. Use + Reload (PC E+R; Xbox X+Y) refills all four weapons once per press.
+The combination suppresses normal reload while held; release before using it
+again. Firing while held still consumes ammunition. This restores supplies,
+not room geometry, player position or health. Restart for a fresh room.
 Cycle weapons with the normal control. This does not implement additional guns.
 
 `python tools/dev_room_check.py --loadout` reproduces the180-frame selection
@@ -74,3 +76,19 @@ large in idle. These endpoints do not constitute a full sequence review.
 Source inspection shows weapon switching requests clip0 (idle), not an equip
 clip; earlier references to an equip pose were imprecise. Full idle/bash/held
 fire/reload visual review and camera placement correction remain open.
+
+## Refill verification and framing review
+
+The developer-only refill uses authored magazine and reserve capacities and
+cancels an in-progress reload. PC checkpoints verify15 loaded rounds before
+refill,16 after refill, then15 after firing while the chord remains held.
+`python tools/dev_room_check.py --refill` reproduces the final100-frame input.
+Xbox artifacts/xemu/render-20260915-063114 passes35 comparisons;19 staged
+files restore. PC/Xbox final captures were inspected for the room, handgun and
+HUD. These checks do not prove audio or complete transient animation quality.
+
+Two Riot Stick camera pullback experiments exposed open sleeve ends. They
+were rejected and the previous placement retained. Compare the original
+presentation before changing its camera again; the oversized idle endpoint
+alone is insufficient evidence for an arbitrary camera offset. Full sequential
+idle/attack/held-fire/reload inspection remains open.
