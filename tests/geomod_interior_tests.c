@@ -40,6 +40,16 @@ static void trace_intersection(void *context,const float plane[4],const float a[
     memcpy(row,plane,16);memcpy(row+4,a,12);memcpy(row+7,b,12);memcpy(row+10,result,12);
     if(fwrite(row,sizeof(row),1,file)!=1){fprintf(stderr,"intersection trace write failed\n");exit(1);}
 }
+static void trace_compaction(void *context,const rf_geomod_mesh_view *mesh,const uint16_t *planes,const uint16_t *edges)
+{
+    FILE *file=context;uint32_t f,e;
+    fprintf(file,"face,corner,face_support,edge_support,x,y,z\n");
+    for(f=0;f<mesh->face_count;f++)for(e=0;e<mesh->faces[f].count;e++) {
+        uint32_t i=mesh->faces[f].first+e;const float *p=mesh->vertices[i].position;
+        fprintf(file,"%u,%u,%u,%u,%.9g,%.9g,%.9g\n",f,e,planes[f],edges[i],p[0],p[1],p[2]);
+    }
+    if(ferror(file)){fprintf(stderr,"compaction trace write failed\n");exit(1);}
+}
 static int record(const rf_geomod_vertex *v,unsigned n)
 {
     if(surface_count+n>4096 || polygon_count==768)return 0;
@@ -1178,10 +1188,16 @@ int main(int argc,char **argv)
                     0,start,delta,1,live.tree->stack,live.tree->node_capacity,&hit,&matched) && matched);
                 CHECK(!rf_geomod_random_basis(&random,basis));
                 {
-                    FILE *trace=NULL;const char *path=getenv("RF_GEOMOD_INTERSECTION_TRACE");
+                    FILE *trace=NULL,*compact_trace=NULL;const char *path=getenv("RF_GEOMOD_INTERSECTION_TRACE");
+                    if(repeat==trace_index && getenv("RF_GEOMOD_COMPACTION_TRACE")) {
+                        compact_trace=fopen(getenv("RF_GEOMOD_COMPACTION_TRACE"),"wb");CHECK(compact_trace);
+                        rf_geomod_observe_compaction(trace_compaction,compact_trace);
+                    }
                     if(repeat==trace_index && path){trace=fopen(path,"wb");CHECK(trace);CHECK(fwrite("RFI1",4,1,trace)==1);rf_geomod_observe_intersections(trace_intersection,trace);}
                     CHECK(!rf_geomod_terrain_cut_template(terrain,&shape,hit.hit.point,basis,3.75f,77));
                     rf_geomod_observe_intersections(NULL,NULL);
+                    rf_geomod_observe_compaction(NULL,NULL);
+                    if(compact_trace)CHECK(!fclose(compact_trace));
                     if(trace)CHECK(!fclose(trace));
                 }
                 CHECK(!rf_geomod_terrain_cut_template(uncached,&shape,hit.hit.point,basis,3.75f,77));

@@ -416,6 +416,10 @@ static int append(rf_geomod_vertex *out,uint32_t *count,const rf_geomod_vertex *
     if(*count==RF_GEOMOD_POLYGON_LIMIT)return RF_RANGE;
     out[(*count)++]=*v;return RF_OK;
 }
+static rf_geomod_compaction_observer compaction_observer;
+static void *compaction_context;
+void rf_geomod_observe_compaction(rf_geomod_compaction_observer observer,void *context)
+{compaction_observer=observer;compaction_context=context;}
 static rf_geomod_intersection_observer intersection_observer;
 static void *intersection_context;
 void rf_geomod_observe_intersections(rf_geomod_intersection_observer observer,void *context)
@@ -1071,6 +1075,10 @@ static int prepare_cavity_cuts(rf_geomod_storage *s,
                     f->material,UINT32_MAX,c,cutters,count,work,work->seed_edges+part->first,support.face);if(status)goto failed;
             }
         }
+    }
+    if(compaction_observer && s->vertex_capacity<=4096 && s->face_capacity<=768) {
+        rf_geomod_mesh_view pending;status=rf_geomod_storage_pending(s,&pending);if(status)goto failed;
+        compaction_observer(compaction_context,&pending,work->compact_planes,work->compact_edges);
     }
     return RF_OK;
 failed:

@@ -143,6 +143,11 @@ typedef struct rf_geomod_mesh_view {
     const rf_geomod_vertex *vertices;const rf_geomod_face *faces;
     uint32_t vertex_count,face_count,generation;
 } rf_geomod_mesh_view;
+/* Optional synchronous diagnostic for bounded tracked cavity assembly. Views
+ * and ID arrays are borrowed for this call only; callbacks must not mutate or
+ * reenter geometry. Null disables observation. Not a publication notification. */
+typedef void (*rf_geomod_compaction_observer)(void *,const rf_geomod_mesh_view *,const uint16_t *,const uint16_t *);
+void rf_geomod_observe_compaction(rf_geomod_compaction_observer observer,void *context);
 /* Recover the opposite incident face for every packed directed edge of a
  * closed seed mesh. Exact endpoint equality; no proximity welding. Output is
  * indexed by vertex/edge start and unchanged on failure. Output must be

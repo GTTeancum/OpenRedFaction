@@ -2886,3 +2886,28 @@ PID55652 exited. NXDK compilation, PC original-template edge-ID assertions and
 runtime budget checks pass. Later physical closure remains0/8/12/16/24/35 failures
 across the six stress cuts; edge metadata has not yet changed their geometry.
 Overall ~49%, GeoMod ~61%; shared-edge construction is the next repair step.
+
+Support-pair audit (2026-09-15): Added an optional synchronous compaction observer
+at the end of bounded tracked cavity preparation. It exposes borrowed read-only
+pending geometry and face/edge support arrays only during the callback, before
+publication. It is disabled by default, adds no allocation, and is not a stable
+view of published provenance after another edit. The fixture's
+RF_GEOMOD_COMPACTION_TRACE uses the existing selected-cut option to export CSV.
+
+The known second-cut pair is exactly(face18 edge1: face-support0,edge-support176)
+and(face110 edge3: face-support176,edge-support0). Across all six captured stress
+cuts, no merged face has an unknown/mixed support ID. The final2310 vertices and
+531 faces group into485 unordered support pairs. Every recorded closure failure
+at each cut belongs to a group containing at least three edge records, including
+all35 at cut6. This establishes available matching identity; it does not prove
+interval overlap, opposite winding, or a valid geometric repair.
+
+analyze_geomod_support_groups.py provides reusable grouping with explicit scope.
+Evidence is artifacts/compaction-supports/cut1.csv through cut6.csv, report.json,
+failure-pairs.json and cut6-groups.json. The original-template fixture was run
+for every selected cut; geometry counts remain unchanged. All three focused
+CTests and rebuilt PC player pass; NXDK XBE/XISO compilation passes. No new native
+replay or appearance change is claimed for this diagnostic-only addition.
+Next step is support-matched interval assembly, retaining collision convexity
+and first-cut closure rather than inserting arbitrary nearby vertices.
+Overall ~49%, GeoMod ~61%; overlapping destruction geometry.
