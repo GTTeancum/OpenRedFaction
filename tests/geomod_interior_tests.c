@@ -183,6 +183,31 @@ static unsigned junction_reference(const rf_geomod_mesh_view *mesh,const float p
 }
 int main(int argc,char **argv)
 {
+    {
+        unsigned axis,k;const int signs[4][2]={{-1,-1},{1,-1},{1,1},{-1,1}};
+        for(axis=0;axis<3;axis++) {
+            float vertices[4][3]={{0}},start[3]={0},delta[3]={0};
+            unsigned x=(axis+1)%3,y=(axis+2)%3,matched;
+            rf_collision_face face={0};rf_collision_ray_hit hit;
+            face.vertices=vertices;face.count=4;face.triangle_surface=1;
+            face.plane[axis]=1;face.plane[3]=-2;
+            for(k=0;k<3;k++){face.minimum[k]=-10;face.maximum[k]=10;}
+            for(k=0;k<4;k++){vertices[k][axis]=2;vertices[k][x]=(float)signs[k][0];vertices[k][y]=(float)signs[k][1];}
+            start[axis]=5;delta[axis]=-6;
+            CHECK(!rf_collision_thin_face(&face,start,delta,1,&hit,&matched) && matched && hit.fraction==.5f);
+            CHECK(!rf_collision_thin_face(&face,start,delta,.49f,&hit,&matched) && !matched);
+            start[x]=nextafterf(1,0);
+            CHECK(!rf_collision_thin_face(&face,start,delta,1,&hit,&matched) && matched);
+            start[x]=nextafterf(1,2);
+            CHECK(!rf_collision_thin_face(&face,start,delta,1,&hit,&matched) && !matched);
+            start[x]=0;start[axis]=-1;delta[axis]=6;
+            CHECK(!rf_collision_thin_face(&face,start,delta,1,&hit,&matched) && !matched);
+            start[axis]=2;delta[axis]=0;delta[x]=1;
+            CHECK(!rf_collision_thin_face(&face,start,delta,1,&hit,&matched) && !matched);
+            start[axis]=5;delta[axis]=-6;delta[x]=.25f;
+            CHECK(!rf_collision_thin_face(&face,start,delta,1,&hit,&matched) && matched && hit.fraction==.5f);
+        }
+    }
     float source[6][4],cutter[6][4],lo[3]={-2,-2,-2},hi[3]={2,2,2};
     rf_geomod_vertex faces[6][4],cut_faces[6][4],out[2048],sentinel[64];rf_geomod_fragment fragments[32];
     unsigned i,j,n,pieces,caps=0;double result=0;
@@ -812,7 +837,7 @@ int main(int argc,char **argv)
             }
             rf_geomod_terrain_close(&terrain);
             report_closure=0;
-            if(getenv("RF_GEOMOD_STRICT_JUNCTION"))CHECK(!junction_misses);
+            CHECK(!junction_misses);
             puts("PASS: six ray-placed crater admissions and increasing signed volume within1MiB; room-scale closure remains diagnostic");
         }
         puts("PASS: original concave template, overlapping cuts, closed edges, volume and324 independent triangle rays");

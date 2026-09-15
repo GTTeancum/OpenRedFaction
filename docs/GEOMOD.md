@@ -1101,3 +1101,38 @@ is retained. Evidence:artifacts/geomod-junction-reference.log and
 artifacts/geomod-plane-offset-probe.log. Fix the collision evaluation using
 the emitted surface as the reference, preserving original-face compatibility;
 do not enlarge holes or accept arbitrary nearby polygons to hide these misses.
+
+## Generated-surface ray intersection fix (2026-09-15)
+
+Generated terrain collision faces now opt into triangle-fan intersection,
+matching their emitted/rendered vertices. The ray's dominant axis defines a
+sheared two-dimensional projection; double-precision edge weights establish
+triangle containment before the contact is rounded to floats. No proximity
+threshold is added. Existing front-facing, finite segment, nearest-hit limit,
+face filter and bounding-box policies remain. Original level faces initialize
+the new mode to zero and retain their existing plane/polygon query path.
+This is a practical port implementation, not a claim of original algorithm parity.
+
+The former175 missed rays now hit:4225 local probes after each of six cuts,
+25350 total. Zero misses is now an unconditional assertion in the extended
+fixture; RF_GEOMOD_STRICT_JUNCTION is no longer needed. Three-axis tests cover
+interior hits, one-ULP inside/outside edges, nearest-hit limits, reverse-side
+rejection, coplanar rejection and oblique directions. The independent triangle
+reference and original closure diagnostic remain. Strict geometric closure
+still fails separately; fixing collision does not establish watertight topology.
+
+All six ordinary destruction and three close-view PC replays pass. The live
+six-shot PC terrain reports resident817644/peak936701 bytes, including the
+bounded overlay. The new face-mode word is included in sizeof-based allocation
+accounting; no mesh storage budget was enlarged. NXDK builds. Full PC CTest
+is53/54: npc_motion_residency fails at1179/1305 on both unchanged69595922 and
+this change (baseline rebuilt and run). Five focused collision/terrain/preview
+checks and the extended six-cut fixture pass after restoring the final code.
+Evidence:artifacts/geomod-triangle-probe.log, geomod-triangle-replays.log,
+geomod-triangle-ctest.log and geomod-npc-baseline-test.log.
+
+Native verification:artifacts/xemu/render-20260915-111742 completes800frames
+and40 comparisons, with six accepted cuts and9023pages free (35.246MiB).
+PC/Xbox terrain and shadow counters agree. Decoded framebuffer pixels exactly
+match the previously inspected110230 capture; no new image was posted.
+All19disc entries match their saved state and owned PID39472 exited.

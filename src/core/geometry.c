@@ -498,7 +498,7 @@ int rf_geometry_collision_face(const rf_geometry *geometry,uint32_t index,
     const rf_collision_face_filter *filter,float (*scratch)[3],uint32_t capacity,
     rf_collision_face *face)
 {
-    rf_geometry_face source;rf_geometry_corner corner;rf_collision_face value;
+    rf_geometry_face source;rf_geometry_corner corner;rf_collision_face value={0};
     uint32_t i,j,accepted;int status;
     if(!filter || !scratch || !face)return RF_RANGE;
     status=rf_collision_face_accept(filter,&accepted);if(status)return status;

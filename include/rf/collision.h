@@ -104,6 +104,7 @@ typedef struct rf_collision_face {
     float plane[4],minimum[3],maximum[3];
     const float (*vertices)[3];uint32_t count;
     rf_collision_face_filter filter;
+    uint32_t triangle_surface; /* Port-generated convex fan; zero preserves original plane queries. */
 } rf_collision_face;
 /* 4e0c20: deterministic direction change around the supplied forward vector.
  * Preserves original non-normalized forward behavior; finite cosine [-1,1].

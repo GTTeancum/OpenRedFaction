@@ -1251,6 +1251,49 @@ int rf_collision_mover_contact(const rf_collision_ray_hit *local,const float ori
     memcpy(value.velocity,velocity,12);value.object_id=object_id;value.texture=texture;value.material=material;
     value.face_flag=(face_flags>>2)&1;value.face_token=face_token;*result=value;return RF_OK;
 }
+/* Generated terrain is rendered as a triangle fan. Intersect those same
+ * vertices before rounding the contact, instead of intersecting a rounded
+ * plane and then projecting the rounded point into a different major axis. */
+static int collision_triangle_surface(const rf_collision_face *face,const float start[3],
+    const float delta[3],float limit,rf_collision_ray_hit *result,uint32_t *matched)
+{
+    unsigned axis=0,x,y,i,j;double sx,sy,sz,approach=0,best=limit;int found=0;
+    if(!face->vertices || face->count<3 || face->count>65536)return RF_RANGE;
+    for(j=0;j<3;j++) {
+        if(fabsf(delta[j])>fabsf(delta[axis]))axis=j;
+        approach+=(double)face->plane[j]*delta[j];
+    }
+    for(j=0;j<3;j++)if(!isfinite(face->plane[j]))return RF_FORMAT;
+    for(i=0;i<face->count;i++)for(j=0;j<3;j++)
+        if(!isfinite(face->vertices[i][j]))return RF_FORMAT;
+    *matched=0;if(delta[axis]==0 || approach>=0)return RF_OK;
+    x=(axis+1)%3;y=(axis+2)%3;
+    sx=(double)delta[x]/delta[axis];sy=(double)delta[y]/delta[axis];sz=1.0/delta[axis];
+    for(i=1;i+1<face->count;i++) {
+        unsigned ids[3]={0,i,i+1};double p[3][3],u,v,w,det,t;
+        for(j=0;j<3;j++) {
+            const float *vertex=face->vertices[ids[j]];
+            double z=(double)vertex[axis]-start[axis];
+            p[j][0]=((double)vertex[x]-start[x])-sx*z;
+            p[j][1]=((double)vertex[y]-start[y])-sy*z;
+            p[j][2]=z*sz;
+        }
+        u=p[2][0]*p[1][1]-p[2][1]*p[1][0];
+        v=p[0][0]*p[2][1]-p[0][1]*p[2][0];
+        w=p[1][0]*p[0][1]-p[1][1]*p[0][0];
+        if((u<0 || v<0 || w<0) && (u>0 || v>0 || w>0))continue;
+        det=u+v+w;if(det==0)continue;
+        t=(u*p[0][2]+v*p[1][2]+w*p[2][2])/det;
+        if(t<0 || t>1 || t>best)continue;
+        best=t;found=1;
+    }
+    if(found) {
+        result->fraction=(float)best;
+        for(j=0;j<3;j++){result->point[j]=(float)(start[j]+best*delta[j]);result->normal[j]=face->plane[j];}
+        *matched=1;
+    }
+    return RF_OK;
+}
 int rf_collision_thin_face(const rf_collision_face *face,const float start[3],
     const float displacement[3],float limit,rf_collision_ray_hit *result,uint32_t *matched)
 {
@@ -1266,6 +1309,7 @@ int rf_collision_thin_face(const rf_collision_face *face,const float start[3],
     }
     status=rf_collision_segment_box(face->minimum,face->maximum,start,end,box_point,&hit);if(status)return status;
     if(!hit) {*matched=0;return RF_OK;}
+    if(face->triangle_surface)return collision_triangle_surface(face,start,displacement,limit,result,matched);
     status=rf_collision_segment_plane(start,displacement,face->plane,&value.fraction,&hit);if(status)return status;
     if(!hit) {*matched=0;return RF_OK;}
     /* Original 4dec10 rejects the NaN intersection from a coplanar ray.

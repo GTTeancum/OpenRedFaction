@@ -731,7 +731,7 @@ static int collision_mesh_face(const rf_geomod_mesh_view *mesh,uint32_t index,
             if(inward< -1e-5*sqrt(size))return RF_FORMAT;
         }
     }
-    value.count=f->count;value.filter=*filter;*out=value;return RF_OK;
+    value.count=f->count;value.filter=*filter;value.triangle_surface=1;*out=value;return RF_OK;
 }
 int rf_geomod_collision_faces(const rf_geomod_mesh_view *mesh,
     const rf_collision_face_filter *filters,float (*positions)[3],uint32_t vc,
