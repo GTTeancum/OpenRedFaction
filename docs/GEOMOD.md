@@ -2136,3 +2136,23 @@ this setup. Existing live ice-cut rejection remains; supporting ice requires
 its material path rather than reusing rock. No source render change or new
 visual acceptance follows. Current priority remains crater readability,
 runtime dynamic lighting and mapping identity; estimate ~49 percent.
+
+Complete closure sweep (2026-09-15): The checker previously returned after
+the first failed interval. RF_GEOMOD_CLOSURE_ALL=1 now reports every failing
+interval in each room-scale stress cut without changing tolerances or the
+reported closed result. Coordinate differences now cast to double before
+subtraction rather than rounding to float first. This correction does not
+remove the known first1.34534375358e-6 junction failure.
+Running rf_geomod_interior_tests Installed_Game artifacts/geomod-holey01-csg.bin
+with that environment variable produces artifacts/geomod-closure-all.log;
+tools/analyze_geomod_closure.py summarizes it. Failing interval counts are
+5,30,98,133,191,230 after cuts1..6. Cut1 failures are1.0596e-6..1.3453e-6
+units long. Later cuts include intervals as long as2.74915108302 units.
+At cut6,190 intervals have one matched edge,29 have three and11 have four.
+These are interval lengths under existing positional/angular tolerances,
+NOT measured gap widths; nearly parallel displaced edges can fail coverage
+along a long interval. Do not infer large visible holes from these numbers.
+The three focused CTests pass, including enforced ray coverage. Room-scale
+closure remains diagnostic and fails; passing tests are not closed-topology
+acceptance. No production geometry or framebuffer changed. The next repair
+needs full-boundary analysis, not only the first tiny junction. ~49 percent.

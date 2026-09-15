@@ -44,18 +44,18 @@ static int record(const rf_geomod_vertex *v,unsigned n)
  * weld the production output or claim shared topological edge indices. */
 static int closed(void)
 {
-    unsigned p,e,v,i,j,q,f;
+    unsigned p,e,v,i,j,q,f,failures=0;
     for(p=0;p<polygon_count;p++)for(e=0;e<polygons[p].count;e++) {
         const float *a=surface[polygons[p].first+e].position;
         const float *b=surface[polygons[p].first+(e+1)%polygons[p].count].position;
         double d[3],len=0,t[4098]={0,1};unsigned n=2;
-        for(i=0;i<3;i++){d[i]=b[i]-a[i];len+=d[i]*d[i];}
+        for(i=0;i<3;i++){d[i]=(double)b[i]-a[i];len+=d[i]*d[i];}
         if(len<1e-16)return 0;
         for(v=0;v<surface_count;v++) {
             double along=0,error=0;
-            for(i=0;i<3;i++)along+=(surface[v].position[i]-a[i])*d[i];
+            for(i=0;i<3;i++)along+=((double)surface[v].position[i]-a[i])*d[i];
             along/=len;
-            for(i=0;i<3;i++){double x=surface[v].position[i]-a[i]-along*d[i];error+=x*x;}
+            for(i=0;i<3;i++){double x=(double)surface[v].position[i]-a[i]-along*d[i];error+=x*x;}
             if(along>1e-6/sqrt(len) && along<1-1e-6/sqrt(len) && error<1e-12)t[n++]=along;
         }
         for(i=1;i<n;i++){double value=t[i];j=i;while(j && t[j-1]>value){t[j]=t[j-1];j--;}t[j]=value;}
@@ -66,7 +66,7 @@ static int closed(void)
                 const float *x=surface[polygons[q].first+f].position;
                 const float *y=surface[polygons[q].first+(f+1)%polygons[q].count].position;
                 double edge[3],size=0,along=0,error=0,dot=0;
-                for(i=0;i<3;i++){edge[i]=y[i]-x[i];size+=edge[i]*edge[i];along+=(mid[i]-x[i])*edge[i];dot+=d[i]*edge[i];}
+                for(i=0;i<3;i++){edge[i]=(double)y[i]-x[i];size+=edge[i]*edge[i];along+=(mid[i]-x[i])*edge[i];dot+=d[i]*edge[i];}
                 if(size<1e-16)return 0;
                 along/=size;
                 for(i=0;i<3;i++){double z=mid[i]-x[i]-along*edge[i];error+=z*z;}
@@ -88,11 +88,11 @@ static int closed(void)
                             match_face[i],match_edge[i],match_error[i],match_along[i],x[0],x[1],x[2],y[0],y[1],y[2]);
                     }
                 }
-                return 0;
+                ++failures;if(report_closure<2)return 0;
             }
         }
     }
-    return 1;
+    return failures==0;
 }
 static int collision_clearance(const rf_geomod_mesh_view *mesh,int tunnel)
 {
@@ -991,7 +991,7 @@ int main(int argc,char **argv)
             source=(rf_geomod_mesh_view){source_v[0],source_f,24,6,0};
             CHECK(!rf_geomod_terrain_open(&source,original_filters,&generated,1,4096,768,1024*1024,&terrain));
             CHECK(!rf_geomod_terrain_open(&source,original_filters,&generated,1,4096,769,1024*1024,&uncached));
-            report_closure=1;
+            report_closure=getenv("RF_GEOMOD_CLOSURE_ALL")?2:1;
             for(repeat=0;repeat<6;repeat++) {
                 rf_collision_tree_hit hit;uint32_t matched;float basis[9];double total=0;
                 CHECK(!rf_geomod_terrain_get(terrain,&live));

@@ -1,7 +1,7 @@
 # Red Faction Xbox / PC - open work
 
 - PRIORITY GeoMod: Match original destruction shape, exposed materials, lighting, debris, collision and repeated blasts before returning to other systems; a visible hole alone is not acceptance.
-- GeoMod: Resolve the remaining world-mesh closure issue and dark crater appearance; render-only subdivision now closes the17-pixel seam regression without changing collision geometry.
+- GeoMod: Repair repeated-cut boundary consistency; a full closure sweep finds5/30/98/133/191/230 failing intervals across six cuts, beyond the previously reported first tiny junction.
 - GeoMod: Reduce remaining terrain-cut stalls; face-local assembly brings eighth-blast binding to 48ms, leaving terrain CSG at 323ms of the 378ms measured edit.
 - GeoMod: Diagnose the 425 PC/Xbox capture pixels differing by more than one color level; the shared dark crater appearance remains the main fidelity issue.
 - GeoMod lighting: Trace runtime dynamic-light scheduling and crater mapping identity; template density4 and ordinary level-material selection now have original-executable evidence.
