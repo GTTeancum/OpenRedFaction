@@ -1232,3 +1232,27 @@ rendering; it is not yet connected to live crater drawing. No visual improvement
 or new XEMU runtime validation is claimed. Evidence:artifacts/geomod-light-bake-
 build.log and geomod-light-bake-xbox-build.log. Existing lighting/closure/final
 appearance limitations remain open.
+
+## Generated lightmaps in the shared draw path (2026-09-15)
+
+rf_preview_geomod_lightmapped accepts a per-face projection and final lightmap
+image index for newly exposed terrain. It emits the existing perspective
+lightmap coordinates and image tag used by PC/Xbox, including frustum clipping.
+Original surviving faces retain authored mappings; an unbound generated face
+can retain vertex lighting. Existing entry points keep their previous behavior.
+Bindings validate axes, finite transforms and reserved image tags before either
+output pass. Image ownership/index bounds remain the caller's responsibility.
+
+The pixel regression connects the actual grid baker to this draw path: a white
+surface samples the right half of a32x16 packed1555 atlas. The neighboring half
+is red to expose incorrect atlas addressing. The visible center remains neutral
+and darkens when the occluded lightmap replaces the unshadowed data. Projected
+coordinates stay in the correct atlas half. Invalid bindings preserve output
+vertices/counts. Existing static clipping and both GeoMod interior/repeated-cut
+CTests pass. NXDK builds the shared path. Evidence:artifacts/geomod-mapped-
+pixels.log and geomod-mapped-xbox-build.log.
+
+This verifies generated lightmap drawing in the rendered-pixel fixture, not
+live DEV-room integration. The scene still needs bounded persistent atlas
+ownership, stable image registration before Xbox texture setup, generation/light
+invalidation and pixel upload. No new in-game appearance or XEMU runtime claim.

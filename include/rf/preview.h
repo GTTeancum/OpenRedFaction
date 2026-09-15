@@ -17,8 +17,8 @@ typedef struct rf_preview_mesh { rf_preview_vertex *vertices; uint32_t count, by
  * bound must be the successful rf_geomod_collision_faces output for this mesh,
  * in unchanged source order. Materials are final shared table slots. Replaces
  * mesh contents in its existing capacity, with no allocation; capacity/input
- * errors preserve output bytes and counts. No lightmaps on generated surfaces
- * yet. Caller keeps all inputs stable/disjoint from output across both passes.
+ * errors preserve output bytes and counts. The basic entry point is unlit.
+ * Caller keeps all inputs stable/disjoint from output across both passes.
  * This prepares draw data; it does not submit or publish a live world. */
 int rf_preview_geomod(rf_preview_mesh *mesh,uint32_t capacity_bytes,
     const rf_geomod_mesh_view *source,const rf_collision_face *bound,
@@ -31,6 +31,16 @@ int rf_preview_geomod_vertex_lit(rf_preview_mesh *mesh,uint32_t capacity_bytes,
     const rf_level *level,const float (*vertex_colors)[3]);
 /* Surviving authored faces retain their original lightmap image/projection;
  * newly exposed faces use vertex lighting. source_face IDs address authored. */
+typedef struct rf_preview_surface_lightmap {
+    rf_lightmap_projection projection;uint32_t image;
+} rf_preview_surface_lightmap;
+/* Per-face generated lightmap bindings; UINT32_MAX selects vertex lighting.
+ * Surviving source faces retain authored mappings. Projections address final
+ * image/atlas coordinates. Caller owns images and guarantees valid image IDs. */
+int rf_preview_geomod_lightmapped(rf_preview_mesh *mesh,uint32_t capacity_bytes,
+    const rf_geomod_mesh_view *source,const rf_collision_face *bound,uint32_t material_count,
+    const rf_level *level,const float (*vertex_colors)[3],const rf_geometry *authored,
+    const rf_preview_surface_lightmap *bindings);
 int rf_preview_geomod_world_lit(rf_preview_mesh *mesh,uint32_t capacity_bytes,
     const rf_geomod_mesh_view *source,const rf_collision_face *bound,uint32_t material_count,
     const rf_level *level,const float (*vertex_colors)[3],const rf_geometry *authored);

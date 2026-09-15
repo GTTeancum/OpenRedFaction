@@ -265,6 +265,41 @@ static int light_bake_check(void)
         memcpy(&center,shadow+8*36+8*2,2);memcpy(&unshadowed,pixels+8*36+8*2,2);CHECK(center<unshadowed);
         for(y=0;y<16;y++)for(x=0;x<16;x++)if(!memcmp(shadow+y*36+x*2,pixels+y*36+x*2,2))unchanged++;
         CHECK(unchanged>0);
+        {
+            rf_geomod_face receiver={0,4,0,UINT32_MAX};rf_geomod_mesh_view surface={vertices,&receiver,4,1,0};
+            rf_collision_face receiver_bound;float receiver_positions[4][3];rf_preview_surface_lightmap binding={0};
+            rf_preview_vertex projected[64],saved_vertices[64];rf_preview_mesh draw={projected,0,0};rf_level camera={0};
+            rf_pc_raster raster={0};rf_image atlas={0};rf_lightmaps maps={0};rf_material material={0};rf_materials materials={0};
+            unsigned char white[4]={255,255,255,255};unsigned before,after,index=3*(240*640+320);
+            CHECK(!rf_geomod_collision_faces(&surface,&filter,receiver_positions,4,&receiver_bound,1));
+            camera.player_position[2]=5;camera.player_orientation[0][0]=camera.player_orientation[1][1]=1;camera.player_orientation[2][2]=-1;
+            atlas.width=32;atlas.height=16;atlas.bytes=32*16*2;atlas.source_format=5;
+            CHECK(!rf_image_allocate_pixels(&atlas));maps.images=&atlas;maps.count=1;
+            for(y=0;y<16;y++)for(x=0;x<32;x++) {
+                unsigned short value=0xfc00; /* Adjacent atlas region must not leak into this face. */
+                if(x>=16)memcpy(&value,pixels+y*36+(x-16)*2,2);
+                memcpy(rf_image_pixel(&atlas,x,y),&value,2);
+            }
+            material.image.width=material.image.height=1;material.image.bytes=4;material.image.rgba=white;
+            materials.items=&material;materials.count=1;
+            binding.image=0;binding.projection.axes[0]=0;binding.projection.axes[1]=1;
+            binding.projection.scale[0]=13.f/(4*32);binding.projection.offset[0]=24.f/32;
+            binding.projection.scale[1]=13.f/(4*16);binding.projection.offset[1]=8.f/16;
+            CHECK(!rf_preview_geomod_lightmapped(&draw,sizeof(projected),&surface,&receiver_bound,1,&camera,NULL,NULL,&binding));
+            CHECK(draw.count==6 && projected[0].lightmap==0);
+            for(x=0;x<draw.count;x++)CHECK(projected[x].lightmap_texture[0]/projected[x].lightmap_texture[2]>.5f);
+            CHECK(!rf_pc_raster_open(&raster,1));
+            CHECK(!rf_pc_raster_frame(&raster,&draw,&materials,&maps,draw.count));before=raster.rgb[index];
+            CHECK(before==raster.rgb[index+1] && before==raster.rgb[index+2]);
+            for(y=0;y<16;y++)for(x=0;x<16;x++)memcpy(rf_image_pixel(&atlas,x+16,y),shadow+y*36+x*2,2);
+            CHECK(!rf_pc_raster_frame(&raster,&draw,&materials,&maps,draw.count));after=raster.rgb[index];
+            CHECK(after<before && after==raster.rgb[index+1] && after==raster.rgb[index+2]);
+            memcpy(saved_vertices,projected,sizeof(projected));binding.projection.scale[0]=NAN;
+            CHECK(rf_preview_geomod_lightmapped(&draw,sizeof(projected),&surface,&receiver_bound,1,&camera,NULL,NULL,&binding)==RF_FORMAT);
+            CHECK(draw.count==6 && !memcmp(saved_vertices,projected,sizeof(projected)));
+            printf("CRATER_MAPPED_PIXELS center_unshadowed %u shadowed %u\n",before,after);
+            rf_pc_raster_close(&raster);rf_image_close(&atlas);
+        }
         memcpy(saved,shadow,sizeof(saved));light.source.type=1;
         CHECK(rf_geomod_light_grid_bake(&grid,vertices,4,&lighting,shadow,36,sizeof(shadow),stats)==RF_NOT_FOUND);
         CHECK(!memcmp(saved,shadow,sizeof(saved)));

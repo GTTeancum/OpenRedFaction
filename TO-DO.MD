@@ -2,7 +2,7 @@
 
 - PRIORITY GeoMod: Match original destruction behavior and appearance; the current faceted crater is a prototype, not an accepted fidelity milestone.
 - GeoMod: Resolve remaining mesh-closure junctions and crater appearance; six-cut coverage now verifies 25350 local rays plus 10404 room-wide hits and 10404 short-segment misses.
-- GeoMod: Connect generated lightmaps to the renderer; bounded grid evaluation, terrain shadows and packed pixels are implemented, while atlas ownership, upload and visual acceptance remain open.
+- GeoMod: Add live crater atlas ownership and rebuild/upload; baked pixels now render through shared per-face lightmap bindings, while in-game integration and visual acceptance remain open.
 - DEV testbed: Review full weapon animations and add complete room reset; terrain reset and ammo refill are implemented, while campaign progression remains paused.
 - GeoMod: Improve crater shape/readability, add debris and authored surface eligibility; rockets now cut repeated faceted craters with the level-authored interior texture.
 - USER: Review destruction readability after replacing the folded-panel interior; destruction remains the current focus.
