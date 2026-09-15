@@ -1770,3 +1770,31 @@ The existing provisional bounce, gravity and chunk-placement limitations remain.
 Full-frame comparison finds 16719 differing pixels, 133 above one RGB level;
 only one of those lies in the upper 350 rows. Remaining backend differences
 are not claimed resolved by the state or focused pixel tests.
+
+### Completed crater lighting audit (2026-09-15)
+
+Set RF_REPLAY_TERRAIN_LIGHT_AUDIT to a CSV path for a PC DEV replay. At final
+cleanup, the opt-in audit requires a completed lighting generation, then reads
+every generated-face sample and recomputes its unshadowed and shadowed RGB.
+It records positions, normals, blocked-light counts and actual stored atlas
+texels. The audit is excluded from Xbox compilation and adds no normal-frame
+work. Audit failure is reported as a replay error; no lighting is modified.
+`tools/analyze_crater_lighting.py` summarizes the CSV and checks packed values.
+
+The 900-frame three-cut depth replay produced generation 4, 171 generated faces,
+9632 samples and two selected lights. All 9632 stored packed texels match the
+recomputed shadowed RGB. 8246 texels are at 0x9084, the existing packer's minimum
+R/G/B level 4. 5087 samples block both lights, 3830 block one, and 715 block neither.
+Mean red lighting falls from .138178 without shadows to .100210 with shadows.
+For normals with x>.9, 817 of 944 samples hit minimum packed brightness. These
+counts include border samples and hidden faces; they are not visible-pixel
+coverage or proof that the current shadow policy matches the original game.
+
+The existing original lightmap seed code halves ambient before accumulating
+lights, consistent with the live 0.0784314 seed for 40/255 global ambient.
+The packer's minimum raises this seed rather than crushing it to black. There
+is no evidence here to remove the half-ambient factor or brighten the texture.
+Original shadow-mask generation and selected-light eligibility remain the next
+fidelity checks. Evidence files are artifacts/destruction/depth-audit/lighting.csv
+and lighting.json. Audit-enabled and disabled final frame bytes are identical;
+PC and NXDK compilation pass. No new visual improvement is claimed.

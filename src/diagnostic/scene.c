@@ -8568,6 +8568,46 @@ static int scene_terrain_bind(scene_stream *s)
     rf_scene_geomod[3]=view.resident_bytes+s->terrain_collision.resident_bytes;
     rf_scene_geomod[4]=view.peak_bytes+s->terrain_collision.resident_bytes;return RF_OK;
 }
+#ifndef RF_IMAGE_XBOX_NATIVE
+/* Opt-in final-state audit; no extra sampling or allocation during gameplay. */
+static int scene_terrain_light_audit(scene_stream *s,const char *path)
+{
+    rf_geomod_terrain_view terrain;scene_terrain_light_cache *cache=s->terrain_light_cache;
+    FILE *file;uint32_t f,x,y,i,k;int status,failed=0;
+    if(!s->terrain || !cache || !cache->valid || cache->count>63)return RF_RANGE;
+    status=rf_geomod_terrain_get(s->terrain,&terrain);if(status)return status;
+    if(cache->generation!=terrain.mesh.generation || cache->face<terrain.mesh.face_count)return RF_RANGE;
+    file=fopen(path,"wb");if(!file)return RF_IO;
+    fprintf(file,"# generation=%u lights=%u ambient=%.9g,%.9g,%.9g\n",cache->generation,cache->count,cache->ambient[0],cache->ambient[1],cache->ambient[2]);
+    fprintf(file,"face,x,y,px,py,pz,nx,ny,nz,blocked,clear_r,clear_g,clear_b,shadow_r,shadow_g,shadow_b,packed\n");
+    for(f=0;f<terrain.mesh.face_count;f++) {
+        const rf_geomod_face *face=terrain.mesh.faces+f;scene_terrain_light_tile *tile=s->terrain_tiles+f;
+        if(face->source_face!=UINT32_MAX)continue;
+        for(y=0;y<tile->grid.height;y++)for(x=0;x<tile->grid.width;x++) {
+            unsigned char weights[63];float point[3],clear[3],shadow[3];uint32_t blocked=0,at,packed;
+            status=rf_geomod_light_grid_sample(&tile->grid,terrain.mesh.vertices+face->first,face->count,x,y,point);if(status)goto done;
+            status=rf_vfx_light_accumulate(point,tile->grid.plane,cache->ambient,.25f,cache->sources,cache->count,NULL,1,clear);if(status)goto done;
+            for(i=0;i<cache->count;i++) {
+                uint32_t visible=1;
+                if(cache->modes[i]){status=rf_geomod_light_visible(&terrain,cache->sources[i].position,point,&visible);if(status)goto done;}
+                weights[i]=visible?255:0;blocked+=!visible;
+            }
+            status=rf_vfx_light_accumulate(point,tile->grid.plane,cache->ambient,.25f,cache->sources,cache->count,weights,1,shadow);if(status)goto done;
+            at=((tile->y+y)*512+tile->x+x)*2;packed=s->terrain_atlas_pixels[at]|(uint32_t)s->terrain_atlas_pixels[at+1]<<8;
+            fprintf(file,"%u,%u,%u",f,x,y);
+            for(k=0;k<3;k++)fprintf(file,",%.9g",point[k]);
+            for(k=0;k<3;k++)fprintf(file,",%.9g",tile->grid.plane[k]);
+            fprintf(file,",%u",blocked);
+            for(k=0;k<3;k++)fprintf(file,",%.9g",clear[k]);
+            for(k=0;k<3;k++)fprintf(file,",%.9g",shadow[k]);
+            fprintf(file,",%u\n",packed);
+        }
+    }
+ done:
+    failed=ferror(file);if(fclose(file))failed=1;
+    return status?status:failed?RF_IO:RF_OK;
+}
+#endif
 static int scene_terrain_light_step(scene_stream *s,const rf_geomod_terrain_view *terrain)
 {
     scene_terrain_light_cache *cache=s->terrain_light_cache;uint32_t remaining=64,processed=0;int status;
@@ -12351,6 +12391,10 @@ done:
     rf_level_navigation_workspace_close(&campaign_navigation_workspace);
     rf_level_owned_navigation_close(&campaign_navigation);
     free(campaign_waypoints);campaign_waypoints=NULL;campaign_waypoint_bytes=0;
+#ifndef RF_IMAGE_XBOX_NATIVE
+    if(!status && getenv("RF_REPLAY_TERRAIN_LIGHT_AUDIT"))
+        status=scene_terrain_light_audit(&stream,getenv("RF_REPLAY_TERRAIN_LIGHT_AUDIT"));
+#endif
     if(!stream.terrain_atlas_registered)rf_image_close(&stream.terrain_atlas);
     free(stream.terrain_atlas_pixels);free(stream.terrain_tile);free(stream.terrain_bindings);free(stream.terrain_tiles);
     rf_geometry_collision_overlay_close(&stream.terrain_collision);rf_geomod_terrain_close(&stream.terrain);free(stream.terrain_template);free(stream.terrain_colors);free(stream.terrain_regions);free(stream.terrain_light_cache);free(stream.terrain_ids);free(stream.terrain_draw);free(stream.debris);
