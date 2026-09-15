@@ -320,3 +320,7 @@ add_test(NAME geomod_polygon_split COMMAND rf_geomod_split_tests)
 add_executable(rf_geomod_interior_tests tests/geomod_interior_tests.c)
 target_link_libraries(rf_geomod_interior_tests PRIVATE rf_core)
 add_test(NAME geomod_interior_faces COMMAND rf_geomod_interior_tests)
+
+add_executable(rf_geomod_storage_tests tests/geomod_storage_tests.c)
+target_link_libraries(rf_geomod_storage_tests PRIVATE rf_core)
+add_test(NAME geomod_transaction_storage COMMAND rf_geomod_storage_tests)

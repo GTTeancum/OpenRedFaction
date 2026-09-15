@@ -120,3 +120,31 @@ Still required: a transactional mutable solid owner, repeated cuts into
 non-convex results, general coplanar/near-degenerate cases, material ownership,
 edge welding, renderer/collision replacement and reset. The convex cube tests
 are evidence for these primitives, not general watertight GeoMod gameplay.
+
+## Transactional mesh storage
+
+The opaque rf_geomod_storage owner allocates original/reset data and two
+bounded working banks together. Vertex and face capacities are explicit;
+reported bytes include the owner and banks but exclude allocator overhead.
+Each face retains material and original face IDs. Empty output represents full
+removal. Begin clears only the pending bank; append validates capacity and
+finite attributes; commit swaps banks and advances a nonwrapping generation.
+Abort leaves the published mesh unchanged. Reset copies the immutable original
+into the other bank. No append, commit, abort or reset allocation occurs.
+
+Pending/current read-only views allow future rendering and collision builders
+to inspect the replacement before publication. Borrowed views must not survive
+bank reuse. This is data ownership, not complete cross-system atomicity: the
+caller must validate solid topology and prepare renderer/collision resources
+before committing all dependent state together. No game scene consumes this
+owner yet, and existing developer-room controls do not reset it.
+
+PC tests cover exact budget acceptance and one-byte-short rejection, overfull
+and nonfinite edits, pending/current isolation, material/source IDs, empty
+commits, original-data restoration,20 reset cycles and unchanged resident
+allocation. Prior cutting/interior tests still pass. NXDK compilation passes;
+there is no native runtime or live destruction claim for this owner yet.
+
+Next integration: construct complete cut results in the pending bank, retain
+cut history or equivalent topology for repeated cuts, and publish the same
+validated mesh to renderer and collision in the developer room.

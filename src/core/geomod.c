@@ -1,6 +1,7 @@
 #include "rf/geomod.h"
 #include <math.h>
 #include <string.h>
+#include <stdlib.h>
 
 static int append(rf_geomod_vertex *out,uint32_t *count,const rf_geomod_vertex *v)
 {
@@ -142,4 +143,90 @@ int rf_geomod_interior_face(const rf_geomod_vertex *vertices,uint32_t count,
     if(out && capacity<left)return RF_RANGE;
     if(out)for(i=0;i<left;i++)out[i]=current[left-1-i];
     *out_count=left;return RF_OK;
+}
+
+struct rf_geomod_storage {
+    rf_geomod_vertex *vertices[3];rf_geomod_face *faces[3];
+    uint32_t nv[3],nf[3],vertex_capacity,face_capacity,bytes,current,editing,generation;
+};
+static int storage_vertices(const rf_geomod_vertex *v,uint32_t n)
+{
+    uint32_t i,j;if(n && !v)return RF_RANGE;
+    for(i=0;i<n;i++) {
+        for(j=0;j<3;j++)if(!isfinite(v[i].position[j]))return RF_FORMAT;
+        for(j=0;j<2;j++)if(!isfinite(v[i].uv[j]))return RF_FORMAT;
+    }
+    return RF_OK;
+}
+int rf_geomod_storage_open(const rf_geomod_mesh_view *source,uint32_t vc,uint32_t fc,
+    uint32_t budget,rf_geomod_storage **out)
+{
+    rf_geomod_storage *s;unsigned char *p;uint64_t bytes;uint32_t i;int status;
+    if(!source || !out || *out || !vc || !fc || source->vertex_count>vc || source->face_count>fc ||
+       (source->face_count && !source->faces))return RF_RANGE;
+    status=storage_vertices(source->vertices,source->vertex_count);if(status)return status;
+    for(i=0;i<source->face_count;i++) {
+        const rf_geomod_face *f=source->faces+i;
+        if(f->count<3 || f->count>64 || f->first>source->vertex_count || f->count>source->vertex_count-f->first)return RF_FORMAT;
+    }
+    bytes=sizeof(*s)+(2ull*vc+source->vertex_count)*sizeof(rf_geomod_vertex)+(2ull*fc+source->face_count)*sizeof(rf_geomod_face);
+    if(bytes>budget || bytes>UINT32_MAX)return RF_RANGE;
+    s=calloc(1,(size_t)bytes);if(!s)return RF_IO;
+    s->bytes=(uint32_t)bytes;s->vertex_capacity=vc;s->face_capacity=fc;s->generation=1;p=(unsigned char *)(s+1);
+    for(i=0;i<3;i++) {
+        s->vertices[i]=(rf_geomod_vertex *)p;p+=(i==2?source->vertex_count:vc)*sizeof(rf_geomod_vertex);
+        s->faces[i]=(rf_geomod_face *)p;p+=(i==2?source->face_count:fc)*sizeof(rf_geomod_face);
+        if(i!=1) {
+            if(source->vertex_count)memcpy(s->vertices[i],source->vertices,source->vertex_count*sizeof(rf_geomod_vertex));
+            if(source->face_count)memcpy(s->faces[i],source->faces,source->face_count*sizeof(rf_geomod_face));
+            s->nv[i]=source->vertex_count;s->nf[i]=source->face_count;
+        }
+    }
+    *out=s;return RF_OK;
+}
+void rf_geomod_storage_close(rf_geomod_storage **s)
+{if(s){free(*s);*s=NULL;}}
+uint32_t rf_geomod_storage_bytes(const rf_geomod_storage *s)
+{return s?s->bytes:0;}
+int rf_geomod_storage_view(const rf_geomod_storage *s,rf_geomod_mesh_view *out)
+{
+    if(!s || !out)return RF_RANGE;
+    out->vertices=s->vertices[s->current];out->faces=s->faces[s->current];
+    out->vertex_count=s->nv[s->current];out->face_count=s->nf[s->current];out->generation=s->generation;return RF_OK;
+}
+int rf_geomod_storage_begin(rf_geomod_storage *s)
+{
+    uint32_t next;if(!s || s->editing || s->generation==UINT32_MAX)return RF_RANGE;
+    next=s->current^1;s->nv[next]=s->nf[next]=0;s->editing=1;return RF_OK;
+}
+int rf_geomod_storage_pending(const rf_geomod_storage *s,rf_geomod_mesh_view *out)
+{
+    uint32_t next;if(!s || !s->editing || !out)return RF_RANGE;next=s->current^1;
+    out->vertices=s->vertices[next];out->faces=s->faces[next];out->vertex_count=s->nv[next];
+    out->face_count=s->nf[next];out->generation=s->generation+1;return RF_OK;
+}
+int rf_geomod_storage_append(rf_geomod_storage *s,const rf_geomod_vertex *v,uint32_t n,uint32_t material,uint32_t source_face)
+{
+    uint32_t next;rf_geomod_face face;int status;
+    if(!s || !s->editing || n<3 || n>64)return RF_RANGE;
+    next=s->current^1;
+    if(n>s->vertex_capacity-s->nv[next] || s->nf[next]==s->face_capacity)return RF_RANGE;
+    status=storage_vertices(v,n);if(status)return status;
+    face.first=s->nv[next];face.count=n;face.material=material;face.source_face=source_face;
+    memcpy(s->vertices[next]+face.first,v,n*sizeof(*v));s->faces[next][s->nf[next]++]=face;s->nv[next]+=n;return RF_OK;
+}
+int rf_geomod_storage_commit(rf_geomod_storage *s)
+{
+    if(!s || !s->editing || s->generation==UINT32_MAX)return RF_RANGE;
+    s->current^=1;s->generation++;s->editing=0;return RF_OK;
+}
+void rf_geomod_storage_abort(rf_geomod_storage *s)
+{if(s)s->editing=0;}
+int rf_geomod_storage_reset(rf_geomod_storage *s)
+{
+    uint32_t next;if(!s || s->editing || s->generation==UINT32_MAX)return RF_RANGE;
+    next=s->current^1;
+    if(s->nv[2])memcpy(s->vertices[next],s->vertices[2],s->nv[2]*sizeof(rf_geomod_vertex));
+    if(s->nf[2])memcpy(s->faces[next],s->faces[2],s->nf[2]*sizeof(rf_geomod_face));
+    s->nv[next]=s->nv[2];s->nf[next]=s->nf[2];s->current=next;s->generation++;return RF_OK;
 }

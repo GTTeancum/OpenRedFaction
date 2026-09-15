@@ -31,4 +31,29 @@ int rf_geomod_polygon_subtract(const rf_geomod_vertex *vertices,uint32_t count,
 int rf_geomod_interior_face(const rf_geomod_vertex *vertices,uint32_t count,
     const float (*source_planes)[4],uint32_t plane_count,rf_geomod_vertex *out,
     uint32_t capacity,uint32_t *out_count);
+typedef struct rf_geomod_face {uint32_t first,count,material,source_face;} rf_geomod_face;
+typedef struct rf_geomod_mesh_view {
+    const rf_geomod_vertex *vertices;const rf_geomod_face *faces;
+    uint32_t vertex_count,face_count,generation;
+} rf_geomod_mesh_view;
+typedef struct rf_geomod_storage rf_geomod_storage;
+/* Owns original/reset data and two bounded working banks in one allocation.
+ * Budget includes the owner, excludes allocator overhead. Open requires *out
+ * NULL. Append never allocates. Begin builds a replacement, not an in-place edit.
+ * Abort leaves current data untouched; commit swaps banks. A borrowed view is
+ * valid only until the next begin/reset/close. Caller must validate topology
+ * and prepare dependent render/collision resources before commit. This owner
+ * validates storage/numbers, not solid closure or material-resource existence. */
+int rf_geomod_storage_open(const rf_geomod_mesh_view *source,uint32_t vertex_capacity,
+    uint32_t face_capacity,uint32_t budget,rf_geomod_storage **out);
+void rf_geomod_storage_close(rf_geomod_storage **storage);
+int rf_geomod_storage_view(const rf_geomod_storage *storage,rf_geomod_mesh_view *out);
+uint32_t rf_geomod_storage_bytes(const rf_geomod_storage *storage);
+int rf_geomod_storage_begin(rf_geomod_storage *storage);
+int rf_geomod_storage_pending(const rf_geomod_storage *storage,rf_geomod_mesh_view *out);
+int rf_geomod_storage_append(rf_geomod_storage *storage,const rf_geomod_vertex *vertices,
+    uint32_t count,uint32_t material,uint32_t source_face);
+int rf_geomod_storage_commit(rf_geomod_storage *storage);
+void rf_geomod_storage_abort(rf_geomod_storage *storage);
+int rf_geomod_storage_reset(rf_geomod_storage *storage);
 #endif
