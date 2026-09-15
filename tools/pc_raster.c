@@ -77,7 +77,7 @@ int rf_pc_raster_frame(rf_pc_raster *r,const rf_preview_mesh *mesh,const rf_mate
                 float t = (u*a->texture[1]+v*b->texture[1]+w*c->texture[1])/q;
                 float base[4]={1,1,1,1}, light[4] = {0.5f, 0.5f, 0.5f,1};
                 if (image) sample(image, s, t, 0, base);
-                else for (channel = 0; channel < 3; ++channel) base[channel] = a->color[channel];
+                else if(a->lightmap!=RF_PREVIEW_VERTEX_LIT)for (channel = 0; channel < 3; ++channel) base[channel] = a->color[channel];
                 if (a->lightmap < lightmaps->count) {
                     float ls = (u*a->lightmap_texture[0]+v*b->lightmap_texture[0]+w*c->lightmap_texture[0])/q;
                     float lt = (u*a->lightmap_texture[1]+v*b->lightmap_texture[1]+w*c->lightmap_texture[1])/q;
@@ -85,7 +85,8 @@ int rf_pc_raster_frame(rf_pc_raster *r,const rf_preview_mesh *mesh,const rf_mate
                 }
                 if(actor_triangle && base[3]>=1)depth[pixel]=z;
                 for (channel = 0; channel < 3; ++channel) {
-                    float color=fminf(1,base[channel]*light[channel]*2)*255;
+                    float tint=a->lightmap==RF_PREVIEW_VERTEX_LIT?u*a->color[channel]+v*b->color[channel]+w*c->color[channel]:1;
+                    float color=fminf(1,base[channel]*light[channel]*2*tint)*255;
                     if(actor_triangle)color=color*base[3]+rgb[pixel*3+channel]*(1-base[3]);
                     rgb[pixel*3+channel]=(unsigned char)floorf(color+0.5f);
                 }

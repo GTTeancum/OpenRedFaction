@@ -1,7 +1,7 @@
 # Red Faction Xbox / PC - open work
 
 - PRIORITY GeoMod: Match original destruction behavior and appearance; the current faceted crater is a prototype, not an accepted fidelity milestone.
-- GeoMod: Replace preview-only interior lighting with appropriate scene lighting; original planar UV mapping is verified, while hardness, final transforms and larger cut histories remain open.
+- GeoMod: Refine authored-light crater shading with finer sampling and shadows; live rock now receives scene lighting, while hardness, final transforms and larger cut histories remain open.
 - DEV testbed: Review full weapon animations and add complete room reset; terrain reset and ammo refill are implemented, while campaign progression remains paused.
 - GeoMod: Improve crater shape/readability, add debris and authored surface eligibility; rockets now cut repeated faceted craters with the level-authored interior texture.
 - USER: Review destruction readability after replacing the folded-panel interior; destruction remains the current focus.
@@ -5288,3 +5288,18 @@ artifacts/xemu/render-20260915-093901 passes38comparisons with9085pages
 free (35.488MiB). Native framebuffer inspected with corrected texture
 projection; cavity lighting remains unfinished. All19disc entries restored
 and owned emulator exited. No new GitHub screenshot uploaded.
+
+Crater lighting (2026-09-15): Generated rock faces now sample the authored
+scene lights and level ambient through the shared light evaluator. A6144byte
+face-color buffer and explicit vertex-lit draw tag carry RGB through the
+PC/Xbox textured path. The previous textured path ignored preview colors
+and sampled the base texture with neutral lighting; the earlier absolute-dot
+hypothesis was not the active shading of textured rock. PC screenshots now
+show actual illumination changes. This is per-face sampling without shadows,
+not complete original lightmap regeneration. ~49%; GeoMod lighting.
+
+Lit-interior native verification:500frame run
+artifacts/xemu/render-20260915-094918 passes38comparisons with9085pages
+free (35.488MiB). Actual Xbox framebuffer inspected: scene-light modulation
+is visible on the crater, matching the PC appearance. All19disc entries
+restored and owned emulator exited. No GitHub image changes.

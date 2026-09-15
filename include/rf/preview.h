@@ -3,6 +3,7 @@
 #include "rf/geometry.h"
 #include "rf/material.h"
 #include "rf/geomod.h"
+#define RF_PREVIEW_VERTEX_LIT (UINT32_MAX-1u) /* lightmap tag: texture times vertex RGB */
 typedef struct rf_preview_vertex {
     float position[3], color[3];
     /* Perspective texture coordinates: u/z, v/z, 1/z after clipping. */
@@ -22,6 +23,10 @@ typedef struct rf_preview_mesh { rf_preview_vertex *vertices; uint32_t count, by
 int rf_preview_geomod(rf_preview_mesh *mesh,uint32_t capacity_bytes,
     const rf_geomod_mesh_view *source,const rf_collision_face *bound,
     uint32_t material_count,const rf_level *camera);
+/* Explicit linear RGB per face, validated in[0,1]; no preview tint. */
+int rf_preview_geomod_lit(rf_preview_mesh *mesh,uint32_t capacity_bytes,
+    const rf_geomod_mesh_view *source,const rf_collision_face *bound,
+    uint32_t material_count,const rf_level *camera,const float (*face_colors)[3]);
 /* Append a processed model batch using the recovered clipping/emission helpers.
  * Caller supplies batch-local render buffers, 4096 output vertex slots, 24576
  * index slots and an initialized clip pool; all can be reused between actors.

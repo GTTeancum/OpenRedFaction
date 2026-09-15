@@ -338,7 +338,7 @@ static int preview(const rf_preview_mesh *mesh, const rf_materials *materials, c
     for (i = 0; i < lightmaps->count; ++i) upload_bytes += lightmaps->images[i].bytes;
     rf_xbox_renderer_stage[1]=(uint32_t)upload_bytes;rf_xbox_renderer_stage[2]=vertex_bytes;
     if (upload_bytes > RF_CAMPAIGN_IMAGE_BUDGET || mesh->bytes > 8u*1024u*1024u || vertex_bytes>8u*1024u*1024u) return RF_RANGE;
-    for (i = 0; i < mesh->count; ++i) if (mesh->vertices[i].lightmap != UINT32_MAX && mesh->vertices[i].lightmap >= lightmaps->count) return RF_FORMAT;
+    for (i = 0; i < mesh->count; ++i) if (mesh->vertices[i].lightmap != UINT32_MAX && mesh->vertices[i].lightmap != RF_PREVIEW_VERTEX_LIT && mesh->vertices[i].lightmap >= lightmaps->count) return RF_FORMAT;
     if(mesh->bytes>vertex_bytes)return RF_RANGE;
     renderer_mark(0,&profile_previous,profiling);
     if(streaming && stream_gpu) {
@@ -378,10 +378,10 @@ static int preview(const rf_preview_mesh *mesh, const rf_materials *materials, c
     }
     renderer_mark(1,&profile_previous,profiling);
     memcpy(gpu,mesh->vertices,mesh->bytes);
-    for (i = 0; i < mesh->count; ++i) if (gpu[i].material < materials->count && textures[gpu[i].material].pixels) {
+    for (i = 0; i < mesh->count; ++i) if (gpu[i].lightmap!=RF_PREVIEW_VERTEX_LIT && gpu[i].material < materials->count && textures[gpu[i].material].pixels) {
         gpu[i].color[0] = gpu[i].color[1] = gpu[i].color[2] = 1.0f;
     }
-    for (i = 0; i < mesh->count; ++i) if (gpu[i].lightmap == UINT32_MAX) {
+    for (i = 0; i < mesh->count; ++i) if (gpu[i].lightmap == UINT32_MAX || gpu[i].lightmap == RF_PREVIEW_VERTEX_LIT) {
         gpu[i].color[0] *= 0.5f; gpu[i].color[1] *= 0.5f; gpu[i].color[2] *= 0.5f;
     }
     __asm__ volatile("sfence" ::: "memory");

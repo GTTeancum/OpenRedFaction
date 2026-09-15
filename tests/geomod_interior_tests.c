@@ -688,5 +688,29 @@ int main(int argc,char **argv)
         }
         puts("PASS: original concave template, overlapping cuts, closed edges, volume and324 independent triangle rays");
     }
+    {
+        rf_geomod_vertex vertices[4]={{{-1,-1,3},{0,0}},{{-1,1,3},{0,1}},{{1,1,3},{1,1}},{{1,-1,3},{1,0}}};
+        rf_geomod_face face={0,4,0,UINT32_MAX};rf_geomod_mesh_view source={vertices,&face,4,1,0};
+        rf_collision_face_filter filter={0};rf_collision_face bound;float positions[4][3],colors[1][3]={{.2f,.4f,.6f}};
+        rf_preview_vertex projected[64],saved[64];rf_preview_mesh draw={projected,0,0};rf_level camera={0};
+        rf_pc_raster raster={0};unsigned char pixel[4]={200,160,80,255};rf_material item={0};rf_materials materials={0};rf_lightmaps maps={0};
+        uint32_t center=(240*640+320)*3,i;
+        CHECK(!rf_geomod_collision_faces(&source,&filter,positions,4,&bound,1));
+        for(i=0;i<3;i++)camera.player_orientation[i][i]=1;
+        item.image.width=item.image.height=1;item.image.bytes=4;item.image.rgba=pixel;materials.items=&item;materials.count=materials.loaded=1;
+        CHECK(!rf_pc_raster_open(&raster,1));
+        CHECK(!rf_preview_geomod_lit(&draw,sizeof(projected),&source,&bound,1,&camera,colors));
+        CHECK(draw.count==6 && projected[0].lightmap==RF_PREVIEW_VERTEX_LIT);
+        CHECK(!rf_pc_raster_frame(&raster,&draw,&materials,&maps,draw.count));
+        CHECK(raster.rgb[center]==40 && raster.rgb[center+1]==64 && raster.rgb[center+2]==48);
+        memcpy(saved,projected,sizeof(projected));colors[0][0]=NAN;
+        CHECK(rf_preview_geomod_lit(&draw,sizeof(projected),&source,&bound,1,&camera,colors)==RF_FORMAT);
+        CHECK(draw.count==6 && !memcmp(saved,projected,sizeof(projected)));
+        CHECK(!rf_preview_geomod(&draw,sizeof(projected),&source,&bound,1,&camera));
+        CHECK(!rf_pc_raster_frame(&raster,&draw,&materials,&maps,draw.count));
+        CHECK(raster.rgb[center]==200 && raster.rgb[center+1]==160 && raster.rgb[center+2]==80);
+        rf_pc_raster_close(&raster);
+        puts("PASS: textured vertex lighting reaches pixels, invalid RGB preserves output, legacy textured path unchanged");
+    }
     puts("PASS: repeated solid/cavity cuts, edge closure, materials, ray/body clearance, rendering and rollback");return 0;
 }

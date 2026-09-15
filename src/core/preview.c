@@ -126,7 +126,7 @@ static void generated_corner(const rf_geometry *g,const rf_geomod_mesh_view *gen
 }
 static int generate_source(rf_preview_mesh *mesh, const rf_geometry *g, const rf_level *level, uint32_t capacity,
     const float *origin,const float matrix[3][3],uint32_t material_base,const rf_visibility *visibility,
-    const rf_geomod_mesh_view *generated,const rf_collision_face *bound)
+    const rf_geomod_mesh_view *generated,const rf_collision_face *bound,const float (*face_colors)[3])
 {
     uint32_t f, used = 0;
     camera_cache_entry cache[CAMERA_CACHE_COUNT];
@@ -205,11 +205,12 @@ static int generate_source(rf_preview_mesh *mesh, const rf_geometry *g, const rf
                         out->position[0] = floorf(out->position[0]*16.0f)/16.0f;
                         out->position[1] = floorf(out->position[1]*16.0f)/16.0f;
                         out->position[2] = (1000.0f / 999.9f) * (1 - 0.1f / p.z) * 16777215;
-                        out->color[0] = color; out->color[1] = color * 0.85f; out->color[2] = color * 0.65f;
+                        if(face_colors)memcpy(out->color,face_colors[f],12);
+                        else {out->color[0] = color; out->color[1] = color * 0.85f; out->color[2] = color * 0.65f;}
                         out->texture[0] = p.u / p.z; out->texture[1] = p.v / p.z; out->texture[2] = 1.0f / p.z;
                         out->material = face.texture+material_base;
                         out->lightmap_texture[0] = p.lu / p.z; out->lightmap_texture[1] = p.lv / p.z; out->lightmap_texture[2] = 1.0f / p.z;
-                        out->lightmap = lightmap;
+                        out->lightmap = face_colors?RF_PREVIEW_VERTEX_LIT:lightmap;
                     }
                     ++used;
                 }
@@ -222,11 +223,11 @@ static int generate_source(rf_preview_mesh *mesh, const rf_geometry *g, const rf
 static int generate(rf_preview_mesh *mesh,const rf_geometry *g,const rf_level *level,uint32_t capacity,
     const float *origin,const float matrix[3][3],uint32_t material_base,const rf_visibility *visibility)
 {
-    return generate_source(mesh,g,level,capacity,origin,matrix,material_base,visibility,NULL,NULL);
+    return generate_source(mesh,g,level,capacity,origin,matrix,material_base,visibility,NULL,NULL,NULL);
 }
-int rf_preview_geomod(rf_preview_mesh *mesh,uint32_t capacity_bytes,
+int rf_preview_geomod_lit(rf_preview_mesh *mesh,uint32_t capacity_bytes,
     const rf_geomod_mesh_view *source,const rf_collision_face *bound,
-    uint32_t material_count,const rf_level *level)
+    uint32_t material_count,const rf_level *level,const float (*face_colors)[3])
 {
     rf_geometry metadata={0};rf_preview_mesh next={0};uint32_t i,j;int status;
     if(!mesh || !source || !level || (capacity_bytes && !mesh->vertices) ||
@@ -241,18 +242,22 @@ int rf_preview_geomod(rf_preview_mesh *mesh,uint32_t capacity_bytes,
     }
     for(i=0;i<source->face_count;i++) {
         const rf_geomod_face *f=source->faces+i;
+        if(face_colors)for(j=0;j<3;j++)if(!isfinite(face_colors[i][j]) || face_colors[i][j]<0 || face_colors[i][j]>1)return RF_FORMAT;
         if(f->count<3 || f->count>64 || f->first>source->vertex_count || f->count>source->vertex_count-f->first ||
            f->material>=material_count || bound[i].count!=f->count)return RF_FORMAT;
         for(j=0;j<4;j++)if(!isfinite(bound[i].plane[j]))return RF_FORMAT;
     }
     metadata.faces=source->face_count;metadata.textures=material_count;
-    status=generate_source(&next,&metadata,level,capacity_bytes/sizeof(rf_preview_vertex),NULL,NULL,0,NULL,source,bound);
+    status=generate_source(&next,&metadata,level,capacity_bytes/sizeof(rf_preview_vertex),NULL,NULL,0,NULL,source,bound,face_colors);
     if(status)return status;
     next.vertices=mesh->vertices;
-    status=generate_source(&next,&metadata,level,capacity_bytes/sizeof(rf_preview_vertex),NULL,NULL,0,NULL,source,bound);
+    status=generate_source(&next,&metadata,level,capacity_bytes/sizeof(rf_preview_vertex),NULL,NULL,0,NULL,source,bound,face_colors);
     if(status)return status;
     next.bytes=next.count*sizeof(rf_preview_vertex);*mesh=next;return RF_OK;
 }
+int rf_preview_geomod(rf_preview_mesh *mesh,uint32_t capacity_bytes,
+    const rf_geomod_mesh_view *source,const rf_collision_face *bound,uint32_t material_count,const rf_level *level)
+{return rf_preview_geomod_lit(mesh,capacity_bytes,source,bound,material_count,level,NULL);}
 static int build(rf_preview_mesh *mesh, const rf_geometry *g, const rf_level *level,
     const float *origin,const float matrix[3][3],uint32_t material_base,uint32_t budget)
 {

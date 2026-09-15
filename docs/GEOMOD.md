@@ -699,3 +699,44 @@ artifacts/xemu/render-20260915-093901 passes38comparisons with9085pages
 free (35.488MiB). Native framebuffer inspected with corrected texture
 projection; cavity lighting remains unfinished. All19disc entries restored
 and owned emulator exited. No new GitHub screenshot uploaded.
+
+## Authored-light interior shading (2026-09-15)
+
+The preview absolute-normal-dot hypothesis needed correction: both textured
+backends ignored those vertex colors. PC overwrote them with texture times
+neutral lightmap0.5; Xbox replaced textured-vertex RGB with white, then
+halved it for the fixed2x lightmap combiner. Merely computing better colors
+produced a byte-identical image. That failed visual experiment prompted the
+explicit rendering fix rather than a claim based on updated draw data.
+
+RF_PREVIEW_VERTEX_LIT uses a reserved lightmap tag for base texture times
+vertex RGB. rf_preview_geomod_lit validates/copies explicit colors. PC
+modulates the texture; Xbox preserves RGB and halves it to compensate for
+the existing2x combiner with a white fallback lightmap. The legacy tagged
+lightmap and unlit paths remain unchanged. A textured pixel fixture verifies
+(200,160,80) times(0.2,0.4,0.6) becomes(40,64,48), checks invalid-color
+rollback, and verifies the old path still produces(200,160,80).
+
+The DEV terrain samples each generated face centroid against selected
+enabled authored lights, using the shared rf_vfx_lighting evaluator with
+level ambient and directional scale0.25. Existing textured room fragments
+retain neutral modulation. A6144byte heap color buffer and existing light
+selection scratch are reused; there is no per-frame allocation or I/O.
+Lighting refreshes with each draw so changes in the light pool are visible.
+The tested room has three authored lights. Five PC destruction replays and
+the original-template/renderer tests pass. PC image
+artifacts/destruction/authored-lighting.png was inspected; darker recesses
+and differentiated surfaces now reach the framebuffer.
+
+This is practical per-face scene-light sampling, not the original static
+interior lightmap pipeline. Occlusion/shadows, finer sampling across large
+faces, regenerated original-wall lightmaps, complete directional-global
+policy and original interior lighting parity remain open. Per-face sampling
+can also expose differences between coplanar fragments; improve this before
+calling the final crater lighting complete.
+
+Lit-interior native verification:500frame run
+artifacts/xemu/render-20260915-094918 passes38comparisons with9085pages
+free (35.488MiB). Actual Xbox framebuffer inspected: scene-light modulation
+is visible on the crater, matching the PC appearance. All19disc entries
+restored and owned emulator exited. No GitHub image changes.
