@@ -1,6 +1,6 @@
 # Red Faction Xbox / PC - open work
 
-- AI: Verify guards acquire the player after completed scripted attacks; dead-target orders now release to normal sight checks.
+- Gameplay: Complete continuous Area2 traversal and combat; the local rescue now verifies scripted guard recovery and player engagement on PC and stock Xbox.
 
 First-pass policy: playable campaign systems take priority over exact1:1 RE.
 Use practical shared implementations, verify gameplay and stock64MiB operation,

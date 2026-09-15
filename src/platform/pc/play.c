@@ -16,6 +16,7 @@
 #include <stdlib.h>
 #include <string.h>
 
+extern uint32_t rf_scene_attack_recovery[4];
 extern uint32_t rf_scene_script_attack[12];
 extern uint32_t rf_scene_enemy_aim[4];
 extern uint32_t rf_scene_enemy_retaliation[4];
@@ -695,6 +696,7 @@ run_scene:
     printf("SCRIPT_ATTACK_POSITION");for(i=0;i<9;++i)printf(" %.6f",rf_scene_script_attack_position[i]);puts("");
     printf("SCRIPT_ROUTE_DETAIL");for(i=0;i<8;++i)printf(" %u",rf_scene_script_route_detail[i]);puts("");
     printf("SCRIPT_OBSTACLE");for(i=0;i<8;++i)printf(" %u",rf_scene_script_obstacle[i]);puts("");
+    printf("ATTACK_RECOVERY");for(i=0;i<4;++i)printf(" %u",rf_scene_attack_recovery[i]);puts("");
     printf("SCRIPT_ATTACK");for(i=0;i<12;++i)printf(" %u",rf_scene_script_attack[i]);puts("");
     printf("ENEMY_FIRE");for(i=0;i<6;++i)printf(" %u",rf_scene_enemy_fire[i]);puts("");
     printf("ENEMY_RETALIATION");for(i=0;i<4;++i)printf(" %u",rf_scene_enemy_retaliation[i]);puts("");

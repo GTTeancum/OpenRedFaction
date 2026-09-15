@@ -7987,6 +7987,7 @@ static int campaign_slay_object(void *context,uint32_t handle,uint32_t source,in
 /* 4b86d0/+2b8,4bcac0/4bcba0: attacker UID, first live link, player-name override.
  * Practical combat backend; exact AI state machine and pursuit remain open. */
 float rf_scene_script_attack_position[9]; /* initial/current attacker position, target position */
+uint32_t rf_scene_attack_recovery[4]; /* watched order released, player acquired, player shots, acquisition frame */
 uint32_t rf_scene_script_attack[12]; /* requests,event,attacker UID,target,on,shots,damage,initial/final health,pursuit ticks,sampled,attacker handle */
 /* Both world items and scripted gifts interpret baton weapon counts as cells. */
 static int32_t campaign_item_charge(int32_t weapon,int32_t quantity,uint32_t gives_weapon)
@@ -8077,7 +8078,7 @@ static int campaign_script_attack(void *context,const rf_level_event *event,cons
     }
     if(!strcmp(event->name,"player") && campaign_player_object.handle)target=campaign_player_object.handle;
     if(target==UINT32_MAX)return RF_NOT_FOUND;
-    memset(rf_scene_script_attack,0,sizeof(rf_scene_script_attack));rf_scene_script_attack[0]=1;rf_scene_script_attack[1]=event->uid;rf_scene_script_attack[2]=event->words[0];rf_scene_script_attack[3]=target;rf_scene_script_attack[4]=1;rf_scene_script_attack[11]=owner->registration.handle;memcpy(rf_scene_script_attack_position,owner->body.state.position,12);
+    memset(rf_scene_attack_recovery,0,sizeof(rf_scene_attack_recovery));memset(rf_scene_script_attack,0,sizeof(rf_scene_script_attack));rf_scene_script_attack[0]=1;rf_scene_script_attack[1]=event->uid;rf_scene_script_attack[2]=event->words[0];rf_scene_script_attack[3]=target;rf_scene_script_attack[4]=1;rf_scene_script_attack[11]=owner->registration.handle;memcpy(rf_scene_script_attack_position,owner->body.state.position,12);
     {int cancel=campaign_animation_cancel(owner);if(cancel)return cancel;}
     owner->combat_scripted=owner->combat_alert=1;owner->combat_target=target;owner->combat_due=0;
     campaign_pursuit_stop(owner);owner->combat_navigation_due=0;owner->script_move.active=0;return RF_OK;
@@ -8137,6 +8138,7 @@ static int campaign_enemy_tick(scene_stream *stream,uint32_t frame,const float p
                 if(owner->registration.handle==rf_scene_script_attack[11]) {
                     float health=victim?victim->damage.effects.health:0;
                     rf_scene_script_attack[4]=0;memcpy(rf_scene_script_attack+8,&health,4);
+                    ++rf_scene_attack_recovery[0];
                 }
                 campaign_pursuit_stop(owner);
                 owner->combat_scripted=owner->combat_target=owner->combat_alert=0;
@@ -8163,6 +8165,9 @@ static int campaign_enemy_tick(scene_stream *stream,uint32_t frame,const float p
             if(blocked){++rf_scene_enemy_awareness[2];continue;}
             status=campaign_animation_cancel(owner);if(status)return status;
             owner->combat_alert=1;owner->combat_due=frame+30;
+            if(rf_scene_attack_recovery[0] && owner->registration.handle==rf_scene_script_attack[11]) {
+                ++rf_scene_attack_recovery[1];rf_scene_attack_recovery[3]=frame;
+            }
             ++rf_scene_enemy_awareness[1];rf_scene_enemy_awareness[6]=owner->registration.handle;
             ++rf_scene_enemy_combat[1];
         }
@@ -8189,6 +8194,7 @@ static int campaign_enemy_tick(scene_stream *stream,uint32_t frame,const float p
         status=combat_obstructed(stream,owner->eye_position,delta,&blocked);if(status)return status;
         if(blocked){++rf_scene_enemy_combat[4];continue;}
         ++rf_scene_enemy_combat[2];
+        if(!victim && rf_scene_attack_recovery[0] && owner->registration.handle==rf_scene_script_attack[11])++rf_scene_attack_recovery[2];
         status=campaign_enemy_fire_presentation(i);rf_scene_enemy_fire[5]=(uint32_t)status;
         if(status==RF_NOT_FOUND)++rf_scene_enemy_fire[2];else if(status)return status;
         {rf_damage_request request={10,owner->registration.handle,0,0,UINT32_MAX,0};

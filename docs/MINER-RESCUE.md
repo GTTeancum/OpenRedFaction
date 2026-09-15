@@ -212,3 +212,28 @@ Stock64MiB XEMU run `render-20260914-195635` passes1,200 frames and all25
 selected PC/native comparisons, including the inactive Attack order and final
 target health. Free memory remains4,410 pages (17.227MiB). The harness closed
 its owned process; no Red Faction XEMU session remains.
+
+## Player reacquisition after the rescue
+
+`python tools/replay_guard_recovery.py` runs2,400 frames with one initial
+placement at trigger5670. It repeats the walking/Use rescue approach, waits
+for the miner's death, then moves right for60 frames and forward for180.
+No forced Attack, Goto, setup or exit event is used.
+
+`ATTACK_RECOVERY` specifically tracks the most recently authored Attack actor:
+order releases, player acquisitions, shots at the player, acquisition frame.
+PC reports `[1,1,4,1344]` for guard8490 after When_Dead8611 at14,066ms.
+The guard reacquires at22,400ms, fires four shots at the player, and the wider
+group kills the exposed player. The replay asserts this ordering and death.
+This closes the local post-script combat check; uninterrupted traversal and
+player survival/combat balance remain open. The XEMU harness now compares
+the four recovery words as well as the existing gameplay state.
+
+Stock64MiB XEMU run `render-20260914-200353` passes all2,400 frames and26
+selected comparisons. ATTACK_RECOVERY matches `[1,1,4,1344]` exactly; the
+player-death and enemy-fire state also match. It ends with4,378 free pages
+(17.102MiB). The automated session has closed. Reproduce with:
+
+```
+python tools/xemu_render_check.py --spawn --level L2S2a.rfl --trigger-start-uid 5670 --input artifacts/guard-recovery-replay/input.bin --seconds 420
+```
