@@ -139,3 +139,33 @@ python tools/replay_cover_combat.py --medical-crate
 python tools/replay_cover_combat.py --crate-closed-control
 python tools/xemu_render_check.py --spawn --level L2S2a.rfl --input artifacts/cover-combat-medical-replay/input.bin --seconds 600
 ```
+
+## Four kills and onward corridor (2026-09-14)
+
+`tools/replay_area2_corridor.py` preserves the medical replay through frame4199,
+then turns to face the two pursuing Riot Stick guards immediately. A delayed
+turn at4500 instead kills only one guard and the player dies at4814; this is
+route timing evidence, not a reason to weaken damage or grant health.
+
+The earlier turn kills5676 and5678 as well as the two prior guards. PC completes
+5,350 frames alive with48.19999 health,29 shots,18 hits,four kills and three
+reloads (16 loaded,96 reserve). It then walks out of the rescue room, through
+the hall and the northern doorway to(27.092,-4.145,28.662). No placement, event,
+health or damage injection is used. NPC snapshots verify all four dead IDs.
+Native verification of this extension is pending; the4,500-frame native medical
+route remains the latest passing Xbox evidence. This does not clear every guard.
+
+Further PC exploration reaches the western room and rear oval room. Guard5029
+still threatens that route; medical kit8047 can be collected, but lingering in
+the rear room kills the player. The attempted direct north approach stops near
+(4.376,-5.118,49.437). Static geometry slices at y=-5.1 and y=-3.8 show a solid
+northern wall on this floor and an offset upper exit passage connecting from
+the east near x7.5,z51.5. The rear room is not a direct entrance to that passage.
+The eastern upper approach, its elevation changes and uninterrupted section exit
+remain unverified; do not substitute a teleport or forced exit for this traversal.
+
+Reproduce the verified continuation after generating its medical prefix:
+```
+python tools/replay_cover_combat.py --medical-crate
+python tools/replay_area2_corridor.py
+```
