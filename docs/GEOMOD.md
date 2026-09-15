@@ -2802,3 +2802,28 @@ repair direction. Render-only insertion has already repaired the sampled pixels
 but leaves physical faces unchanged. Both focused geometry CTests pass, including
 all existing collision probes; later closure remains explicitly diagnostic.
 No engine change or native rerun this turn. Overall ~49%, GeoMod ~61%.
+
+Rejected physical subdivision experiment (2026-09-15): Tried inserting existing
+near-edge source corners into pending physical polygons using already-owned
+work scratch, before collision binding. No heap or budget increase was used.
+The unrestricted prototype caused the finite-solid fixture's second cut to fail;
+restricting it to cavity publication preserved finite-solid behavior but the
+second cavity cut returned RF_FORMAT. The failing collision-face check was
+convexity: face78 edge6 against vertex8, inward-1.49590181772e-8 versus permitted
+-2.4011370129e-9, with10 corners. This is not a memory-capacity failure.
+
+A second experimental variant validated each expanded polygon and reverted
+invalid individual faces. It admitted the two-cut fixture but broke the enforced
+first room-scale crater closure, introducing tiny unmatched edge intervals.
+Thus applying the render-side proximity approach directly to physical geometry
+is not acceptable. No collision or closure threshold was widened.
+
+Both prototypes and temporary fixture bypasses were discarded. Source and test
+files were restored byte-exactly to their pre-experiment versions; the PC player
+and geometry fixture were rebuilt. All three focused geometry/preview CTests
+pass again, including enforced first-cut closure. The existing later35 failures
+remain. The rejected guarded prototype is local artifacts/rejected-physical-splits.c;
+evidence is physical-split-rejection.log and physical-split-guarded.log.
+No experimental Xbox build or native run was made. The next repair must address
+shared corner construction before final polygons, not insert approximate
+collinear points into physical faces after the fact. Overall ~49%, GeoMod ~61%.
