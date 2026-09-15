@@ -252,3 +252,31 @@ This is an observed incomplete route, not an encounter/level pass. The first
 door needed a correctly aligned approach and did open normally. Determine
 the authored path into the rescue area before extending the replay or changing
 collision/trigger behavior. Staged encounter tests do not prove accessibility.
+
+## Full-spawn rescue reached (2026-09-14)
+
+The failed route above was a route-selection issue, not a verified trigger
+or collision bug. A horizontal static-geometry slice at y=-3.8 identified
+the room entrance farther east. Trigger7747 opens the double door near
+(24.36,-3.77,12.25), linking movers7741/7744 through keys7742/7745.
+The route now crosses that entrance. One jump at frame1260 clears the
+interior obstruction on the way left to enable trigger5670. This proves a
+working path; it does not claim the jump is the intended retail route.
+
+`python tools/replay_area2_spawn.py` now runs2,700 frames and asserts the
+rescue from the authored player spawn: Switch5671, Pin Door8512 arrival,
+Attack8496 by guard8490, released dead-target order, When_Dead8611 and a
+living player. The miner death watcher fires at36,416ms on PC. The input
+uses only movement, one jump, and Use; there is no staging, setup or forced
+event. The final player position is approximately(21.087,-3.739,6.679).
+The remaining section traversal, combat and exit are still open.
+
+Stock64MiB XEMU `render-20260914-202353` completes all2,700 frames and26
+selected PC/native comparisons. Pin Door arrival, scripted shots, dead-target
+release, enemy combat and surviving player state match. Free memory is4,239
+pages (16.559MiB). The harness closes its own emulator; no RF session remains.
+Reproduce without any placement flag:
+
+```
+python tools/xemu_render_check.py --spawn --level L2S2a.rfl --input artifacts/area2-spawn-replay/input.bin --seconds 420
+```

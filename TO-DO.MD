@@ -1,6 +1,6 @@
 # Red Faction Xbox / PC - open work
 
-- Gameplay: Resolve the full-spawn route into the rescue area (current walking path stops near z13.1); complete continuous Area2 traversal and combat; the local rescue now verifies scripted guard recovery and player engagement on PC and stock Xbox.
+- Gameplay: Extend the PC/Xbox verified spawn-to-rescue route through the remaining Area2 combat and exit (native2700 frames, 16.559MiB free).
 
 First-pass policy: playable campaign systems take priority over exact1:1 RE.
 Use practical shared implementations, verify gameplay and stock64MiB operation,
