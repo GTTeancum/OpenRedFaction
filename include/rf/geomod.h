@@ -200,6 +200,10 @@ typedef struct rf_geomod_multi_work {
     /* Supporting-plane IDs parallel to cavity clipping vertices (28 KiB). */
     uint16_t edges[2][RF_GEOMOD_WORK_VERTICES];
     uint16_t split_edges[64*32],seed_edges[64*32],initial_edges[64*32];
+    /* Pending cavity provenance for owners with <=4096 vertices/768 faces
+     * capacity; larger owners leave it unspecified. UINT16_MAX marks a face whose
+     * contributors have different support IDs. Geometry remains authoritative. */
+    uint16_t compact_edges[RF_GEOMOD_WORK_VERTICES],compact_planes[768];
     float compact_bounds[768][6]; /* Pending-face bounds; larger owners use uncached joins. */
 } rf_geomod_multi_work;
 /* Rebuild from immutable original data, never from a concave working result.

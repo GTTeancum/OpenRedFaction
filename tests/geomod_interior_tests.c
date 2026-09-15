@@ -913,6 +913,7 @@ int main(int argc,char **argv)
                 double total=0;
                 {int status=rf_geomod_storage_prepare_star_cuts(owner,cuts,kernels,repeat,cavity,&work);if(status)fprintf(stderr,"star status%d cavity%u repeat%u\n",status,cavity,repeat);CHECK(!status);}
                 CHECK(!rf_geomod_storage_pending(owner,&pending));surface_count=polygon_count=0;
+
                 for(i=0;i<pending.face_count;i++) {
                     const rf_geomod_face *f=pending.faces+i;
                     total+=volume(pending.vertices+f->first,f->count);
@@ -1044,6 +1045,30 @@ int main(int argc,char **argv)
                     CHECK(paired==repeat*count*3/2);
                 }
                 CHECK(!rf_geomod_storage_pending(owner,&pending));surface_count=polygon_count=0;
+                if(cavity) {
+                    uint32_t face,edge,end,checked=0;
+                    for(face=0;face<pending.face_count;face++) {
+                        const rf_geomod_face *f=pending.faces+face;
+                        for(edge=0;edge<f->count;edge++) {
+                            uint16_t id=work.compact_edges[f->first+edge];const float *support;
+                            if(id<32){CHECK(id<source.face_count);support=work.source_planes[id];}
+                            else {
+                                uint32_t cutter=(id-32)/128,local=(id-32)%128;
+                                CHECK(cutter<repeat && local/4<work.star_count[cutter]);
+                                support=work.star_planes[cutter][local/4][local%4];
+                            }
+                            for(end=0;end<2;end++) {
+                                const float *p=pending.vertices[f->first+(edge+end)%f->count].position;
+                                CHECK(fabs((double)support[0]*p[0]+(double)support[1]*p[1]+(double)support[2]*p[2]+support[3])<1e-4);
+                            }
+                            ++checked;
+                        }
+                        if(f->source_face!=UINT32_MAX)CHECK(work.compact_planes[face]==f->source_face);
+                    }
+                    CHECK(checked==pending.vertex_count);
+                    printf("COMPACT_SUPPORTS cuts%u edges%u\n",repeat,checked);
+                }
+
                 CHECK(!rf_geomod_terrain_cut_star(terrain,cutters+repeat-1,kernels[repeat-1]));
                 CHECK(!rf_geomod_terrain_get(terrain,&live));
                 CHECK(live.cuts==repeat && live.mesh.vertex_count==pending.vertex_count && live.mesh.face_count==pending.face_count);

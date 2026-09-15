@@ -2852,3 +2852,37 @@ balanced-planes-closure.log/.summary.json. Preserve shared supporting-edge
 identity through final face assembly as the next structural repair direction;
 neither another global epsilon change nor offset centering is established as
 an effective repair. Overall ~49%, GeoMod ~61%; overlapping destruction geometry.
+
+Final compacted-edge provenance (2026-09-15): Cavity supporting-plane IDs now
+survive append_compact and join_polygons. Each output vertex retains its outgoing
+edge ID through polygon ordering, removal of the joined seam, pending-array
+compaction and final append. At the last corner copied from polygon A, the
+outgoing ID comes from polygon B's continuation, not A's removed seam. Face
+support IDs are retained when contributors agree; UINT16_MAX explicitly marks
+mixed-support merges rather than inventing a common identity. Merge eligibility
+and all geometry/UV calculations are unchanged.
+
+The bounded multi-work owner adds4096 uint16 edge IDs and768 uint16 face IDs,
+9728 bytes total. Provenance is valid for tracked cavity owners whose capacities
+are at most4096 vertices/768 faces; larger generic owners keep their prior
+geometry behavior and leave these metadata arrays unspecified. Finite-solid
+paths remain untracked. This is supporting infrastructure, not a physical seam
+repair or permission to merge nearby edges using these IDs blindly.
+
+The original-template fixture validates every retained outgoing edge's two
+endpoints against its supporting plane after one/two cuts (182/465 edges), using
+the existing1e-4 provenance tolerance, and verifies authored face support IDs.
+Its existing geometry equality, rollback and collision checks pass. An initial
+placement of the new assertions exercised the simpler box fixture; moved them
+to the intended original-template loop and reran before accepting coverage.
+Eight-blast PC playback passes with unchanged3112 physical/3762 render vertices,
+650 render insertions, complete lighting and existing memory ceilings.
+
+Native1500-frame eight-blast verification at artifacts/xemu/render-20260915-171948
+passes46 comparisons with8597 pages free (33.58203MiB). The actual framebuffer
+was inspected; the existing dark crater shape remains, with no visual-fidelity
+improvement claimed. All20 saved disc entries restored byte-exactly and owned
+PID55652 exited. NXDK compilation, PC original-template edge-ID assertions and
+runtime budget checks pass. Later physical closure remains0/8/12/16/24/35 failures
+across the six stress cuts; edge metadata has not yet changed their geometry.
+Overall ~49%, GeoMod ~61%; shared-edge construction is the next repair step.

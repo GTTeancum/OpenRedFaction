@@ -840,7 +840,7 @@ static int collision_mesh_face(const rf_geomod_mesh_view *,uint32_t,const rf_col
  * common affine UV field. This removes partition seams without smoothing the
  * crater shape or changing material interpolation. */
 static int join_polygons(const rf_geomod_vertex *a,uint32_t na,const rf_geomod_vertex *b,uint32_t nb,
-    rf_geomod_vertex out[64],uint32_t *count)
+    rf_geomod_vertex out[64],uint32_t *count,const uint16_t *ae,const uint16_t *be,uint16_t *oe)
 {
     uint32_t i,j,k,c,edge_a=UINT32_MAX,edge_b=0,n=na+nb-2;
     double u[3],v[3],normal[3],uu=0,vv=0,uv=0,den,length;
@@ -885,6 +885,11 @@ static int join_polygons(const rf_geomod_vertex *a,uint32_t na,const rf_geomod_v
         rf_collision_face_filter filter={0};rf_collision_face bound;
         if(collision_mesh_face(&mesh,0,&filter,&bound))return 0;
     }
+    if(ae) {
+        for(j=0;j<na;j++)oe[j]=ae[(edge_a+1+j)%na];
+        oe[na-1]=be[(edge_b+1)%nb];
+        for(j=0;j<nb-2;j++)oe[na+j]=be[(edge_b+2+j)%nb];
+    }
     *count=n;return 1;
 }
 static void compact_bounds(const rf_geomod_vertex *v,uint32_t count,float bounds[6])
@@ -900,17 +905,25 @@ static int compact_separated(const float a[6],const float b[6])
     uint32_t j;for(j=0;j<3;j++)if((double)a[j]-b[j+3]>1e-6 || (double)b[j]-a[j+3]>1e-6)return 1;
     return 0;
 }
-static int append_compact(rf_geomod_storage *s,const rf_geomod_vertex *v,uint32_t n,uint32_t material,uint32_t source_face,rf_geomod_multi_work *work)
+static int append_compact(rf_geomod_storage *s,const rf_geomod_vertex *v,uint32_t n,uint32_t material,uint32_t source_face,rf_geomod_multi_work *work,const uint16_t *edges,uint16_t plane_id)
 {
     rf_geomod_vertex *polygon=work->split.vertices,*joined=polygon+64;uint32_t bank=s->current^1,i=0,j,count;
-    float bounds[6];int cached=s->face_capacity<=768,status;
+    float bounds[6];uint16_t polygon_edges[64],joined_edges[64];int cached=s->face_capacity<=768,status;
+    if(s->vertex_capacity>4096 || s->face_capacity>768)edges=NULL;
     if(n>64)return RF_RANGE;memcpy(polygon,v,n*sizeof(*v));
+    if(edges){if(s->nv[bank]>4096 || s->nf[bank]>768)return RF_RANGE;memcpy(polygon_edges,edges,n*sizeof(*edges));}
     if(cached)compact_bounds(polygon,n,bounds);
     while(i<s->nf[bank]) {
         rf_geomod_face f=s->faces[bank][i];
         if(f.material!=material || f.source_face!=source_face ||
            (cached && compact_separated(bounds,work->compact_bounds[i])) ||
-           !join_polygons(polygon,n,s->vertices[bank]+f.first,f.count,joined,&count)){i++;continue;}
+           !join_polygons(polygon,n,s->vertices[bank]+f.first,f.count,joined,&count,edges?polygon_edges:NULL,edges?work->compact_edges+f.first:NULL,joined_edges)){i++;continue;}
+        if(edges) {
+            if(plane_id!=work->compact_planes[i])plane_id=UINT16_MAX;
+            memmove(work->compact_edges+f.first,work->compact_edges+f.first+f.count,(s->nv[bank]-f.first-f.count)*sizeof(uint16_t));
+            memmove(work->compact_planes+i,work->compact_planes+i+1,(s->nf[bank]-i-1)*sizeof(uint16_t));
+            memcpy(polygon_edges,joined_edges,count*sizeof(uint16_t));
+        }
         memmove(s->vertices[bank]+f.first,s->vertices[bank]+f.first+f.count,
             (s->nv[bank]-f.first-f.count)*sizeof(*v));s->nv[bank]-=f.count;
         if(cached)memmove(work->compact_bounds+i,work->compact_bounds+i+1,(s->nf[bank]-i-1)*sizeof(work->compact_bounds[0]));
@@ -919,7 +932,9 @@ static int append_compact(rf_geomod_storage *s,const rf_geomod_vertex *v,uint32_
         memcpy(polygon,joined,count*sizeof(*v));n=count;i=0;
         if(cached)compact_bounds(polygon,n,bounds);
     }
+    if(edges && (s->nv[bank]>4096-n || s->nf[bank]>=768))return RF_RANGE;
     status=rf_geomod_storage_append(s,polygon,n,material,source_face);
+    if(!status && edges){memcpy(work->compact_edges+s->nv[bank]-n,polygon_edges,n*sizeof(uint16_t));work->compact_planes[s->nf[bank]-1]=plane_id;}
     if(!status && cached)memcpy(work->compact_bounds[s->nf[bank]-1],bounds,sizeof(bounds));
     return status;
 }
@@ -985,7 +1000,7 @@ static int subtract_history_face(rf_geomod_storage *s,const rf_geomod_vertex *ve
                 for(k=0;k<f->count;k++)work->edges[bank][f->first+k]=saved[(2*f->count-2-k)%f->count];
             }
         }
-        status=append_compact(s,v,f->count,material,source_face,work);if(status)return status;
+        status=append_compact(s,v,f->count,material,source_face,work,edges?work->edges[bank]+f->first:NULL,face_id);if(status)return status;
     }
     return RF_OK;
 }
