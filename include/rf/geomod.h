@@ -6,6 +6,11 @@
 #include "rf/level.h"
 #include "rf/effect.h"
 #define RF_GEOMOD_POLYGON_LIMIT 64
+/* Practical shared-corner construction, not recovered original code. Three
+ * unit-normal planes must identify the actual corner. Order and simultaneous
+ * normal/distance sign flips do not change output bits. Rejects singular or
+ * inaccurate float results without modifying output. Does not infer topology. */
+int rf_geomod_plane_corner(const float planes[3][4],float position[3]);
 /* Original4fccc0 random crater orientation: two CRT draws, a uniform sphere
  * direction and4fcfa0 basis. Invalid inputs preserve state/output. */
 /* Original4e5bb0..4e5c25 new-face lightmap fill: one CRT draw per RGB texel,

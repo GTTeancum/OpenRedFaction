@@ -6,6 +6,39 @@
 #include <stdlib.h>
 #include <stdio.h>
 
+int rf_geomod_plane_corner(const float planes[3][4],float position[3])
+{
+    double p[3][4],cross[3][3],det;float result[3];uint32_t i,j,k;
+    if(!planes || !position)return RF_RANGE;
+    for(i=0;i<3;i++) {
+        double norm=0,sign=1;
+        for(j=0;j<4;j++)if(!isfinite(planes[i][j]))return RF_FORMAT;
+        for(j=0;j<3;j++)norm+=(double)planes[i][j]*planes[i][j];
+        if(fabs(norm-1)>1e-4)return RF_FORMAT;
+        for(j=0;j<3;j++)if(planes[i][j]!=0){sign=planes[i][j]<0?-1:1;break;}
+        for(j=0;j<4;j++)p[i][j]=planes[i][j]==0?0:sign*planes[i][j];
+    }
+    /* Canonical ordering fixes arithmetic order as well as plane identity. */
+    for(i=1;i<3;i++)for(j=i;j>0;j--) {
+        for(k=0;k<4 && p[j-1][k]==p[j][k];k++);
+        if(k==4 || p[j-1][k]<p[j][k])break;
+        for(k=0;k<4;k++){double t=p[j][k];p[j][k]=p[j-1][k];p[j-1][k]=t;}
+    }
+    for(i=0;i<3;i++)for(j=0;j<3;j++)cross[i][j]=
+        p[(i+1)%3][(j+1)%3]*p[(i+2)%3][(j+2)%3]-p[(i+1)%3][(j+2)%3]*p[(i+2)%3][(j+1)%3];
+    det=p[0][0]*cross[0][0]+p[0][1]*cross[0][1]+p[0][2]*cross[0][2];
+    if(!isfinite(det) || fabs(det)<1e-10)return RF_FORMAT;
+    for(j=0;j<3;j++) {
+        result[j]=(float)(-(p[0][3]*cross[0][j]+p[1][3]*cross[1][j]+p[2][3]*cross[2][j])/det);
+        if(!isfinite(result[j]))return RF_FORMAT;
+    }
+    for(i=0;i<3;i++) {
+        double residual=p[i][3];for(j=0;j<3;j++)residual+=p[i][j]*result[j];
+        if(fabs(residual)>1e-5)return RF_FORMAT;
+    }
+    memcpy(position,result,sizeof(result));return RF_OK;
+}
+
 int rf_geomod_debris_age(float age,float lifetime,float dt,uint32_t paused,
     rf_geomod_debris_lifecycle *out)
 {

@@ -2237,3 +2237,21 @@ retain complete plane/edge provenance rather than infer identity by proximity.
 Three focused CTests and NXDK build pass. No geometric or visual change is
 claimed, and no new native replay was needed for this dormant observer.
 Estimate ~49 percent; current focus remains shared GeoMod boundaries.
+
+Canonical plane-corner primitive (2026-09-15): rf_geomod_plane_corner
+constructs one float corner from three unit-normal supporting planes. It
+canonicalizes normal/distance signs and sorts planes to fix arithmetic order,
+solves in double precision, then checks the rounded result against all three
+planes. It allocates no heap storage. Singular determinant below1e-10, invalid
+unit normals/nonfinite inputs and float residuals beyond1e-5 return errors
+without changing output. These are primitive admission bounds, not changes
+to the closure checker or existing splitter tolerances.
+The independently fitted first-junction result is reproduced bit-for-bit
+for all six plane orders and eight sign combinations. Duplicate-plane, NaN
+and null-input rollback cases pass. Three focused CTests and NXDK build pass.
+This is a practical reconstruction primitive, not original-binary parity.
+It is not yet called by live clipping: correct incident-plane identity and
+constraint propagation must be carried across splits first. Spatial proximity
+is not sufficient evidence for assigning a plane triple to a vertex. No
+closure fix or visual improvement is claimed until that integration passes
+the complete boundary/collision/native checks. Estimate remains ~49 percent.

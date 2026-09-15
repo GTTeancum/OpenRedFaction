@@ -362,6 +362,22 @@ static int light_grid_check(void)
 int main(int argc,char **argv)
 {
     {
+        const float planes[3][4]={{.8841080665588379f,-.17530789971351624f,-.4331513047218323f,14.125255584716797f},
+            {.41470983624458313f,.8557782173156738f,-.30928853154182434f,13.848827362060547f},{-1,0,0,-16}};
+        const unsigned order[6][3]={{0,1,2},{0,2,1},{1,0,2},{1,2,0},{2,0,1},{2,1,0}};
+        float expected[3]={-16,-7.3684163093566895f,2.9349284172058105f},out[3],variant[3][4];unsigned a,b,i,j;
+        for(a=0;a<6;a++)for(b=0;b<8;b++) {
+            for(i=0;i<3;i++)for(j=0;j<4;j++)variant[i][j]=planes[order[a][i]][j]*((b&(1u<<i))?-1:1);
+            CHECK(!rf_geomod_plane_corner(variant,out));CHECK(!memcmp(out,expected,sizeof(out)));
+        }
+        memcpy(variant,planes,sizeof(variant));memcpy(variant[1],variant[0],sizeof(variant[0]));
+        CHECK(rf_geomod_plane_corner(variant,out)==RF_FORMAT && !memcmp(out,expected,sizeof(out)));
+        memcpy(variant,planes,sizeof(variant));variant[0][0]=NAN;
+        CHECK(rf_geomod_plane_corner(variant,out)==RF_FORMAT && !memcmp(out,expected,sizeof(out)));
+        CHECK(rf_geomod_plane_corner(NULL,out)==RF_RANGE && !memcmp(out,expected,sizeof(out)));
+        puts("PASS: traced plane-corner solution,48 order/sign variants and invalid rollback");
+    }
+    {
         rf_geomod_debris_mesh output,saved;rf_random_state random={1};
         const float invalid[]={0,-1,NAN,INFINITY,1e38f,1e-40f};unsigned k;
         memset(&output,0x5a,sizeof(output));saved=output;
