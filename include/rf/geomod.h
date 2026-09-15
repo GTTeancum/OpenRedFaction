@@ -148,6 +148,12 @@ typedef struct rf_geomod_terrain_view {
     const rf_collision_tree *tree;
     uint32_t cuts,resident_bytes,peak_bytes;
 } rf_geomod_terrain_view;
+/* Practical opaque-terrain visibility query, not the original shadow raster.
+ * Endpoints are finite; ignore the last0.001 world unit to avoid counting the
+ * receiving surface. Uses the owned tree scratch; not concurrent/reentrant.
+ * Does not include other rooms, actors, alpha surfaces or movers. */
+int rf_geomod_light_visible(const rf_geomod_terrain_view *terrain,
+    const float light[3],const float sample[3],uint32_t *visible);
 /* Retain original geometry, bounded convex-cut history, cut workspace and two
  * collision-position banks. Original source_face IDs must be unique/non-sentinel.
  * Explicit filters preserve original surface policy; generated_filter applies

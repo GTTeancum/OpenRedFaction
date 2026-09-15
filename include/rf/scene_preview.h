@@ -755,6 +755,7 @@ extern uint32_t rf_scene_showcase_enabled;
 int rf_scene_showcase_camera(rf_level *level);
 typedef struct rf_scene_input {float move[3],look[2];uint32_t crouch,jump,use,fire,reload,cycle_weapon,alt_fire;} rf_scene_input;
 extern uint32_t rf_scene_geomod[8];
+extern uint32_t rf_scene_terrain_shadows[4];
 extern uint32_t rf_scene_rockets[8];
 extern uint32_t rf_scene_rocket_blast[8];
 extern uint32_t rf_scene_rocket_visual[8];

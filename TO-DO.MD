@@ -1,7 +1,7 @@
 # Red Faction Xbox / PC - open work
 
 - PRIORITY GeoMod: Match original destruction behavior and appearance; the current faceted crater is a prototype, not an accepted fidelity milestone.
-- GeoMod: Fix crater contrast and occlusion; corner lighting and close depth views are working, while shallow/ice regions, final transforms and larger histories remain open.
+- GeoMod: Refine crater shadows and readability; cached point/cone terrain occlusion works, while full lightmaps, shallow/ice regions, final transforms and larger histories remain open.
 - DEV testbed: Review full weapon animations and add complete room reset; terrain reset and ammo refill are implemented, while campaign progression remains paused.
 - GeoMod: Improve crater shape/readability, add debris and authored surface eligibility; rockets now cut repeated faceted craters with the level-authored interior texture.
 - USER: Review destruction readability after replacing the folded-panel interior; destruction remains the current focus.
@@ -5330,3 +5330,10 @@ Pixel/UV/rollback tests, five destruction and three depth replays pass.
 Native595frames pass39checks with35.422MiB free; restored wall lighting
 confirmed in the framebuffer. New-cavity shadows and contrast remain open.
 Estimate ~49%; current area GeoMod appearance.
+
+GeoMod shadow pass (2026-09-15): authored point/cone lights now respect
+opaque terrain occlusion, cached until geometry or lighting inputs change.
+Native595frames pass40checks, matching PC2rebuilds/1016rays/549blocked and
+426cached draws, with35.422MiB free. Images inspected; corner shadows remain
+coarse and final destruction appearance is unaccepted. Five destruction and
+three depth PC replays pass. ~49%; current area GeoMod shadows.

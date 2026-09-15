@@ -696,6 +696,17 @@ int main(int argc,char **argv)
         rf_pc_raster raster={0};unsigned char pixel[4]={200,160,80,255};rf_material item={0};rf_materials materials={0};rf_lightmaps maps={0};
         uint32_t center=(240*640+320)*3,i;
         CHECK(!rf_geomod_collision_faces(&source,&filter,positions,4,&bound,1));
+        {
+            rf_collision_tree tree={0};rf_geomod_terrain_view terrain={0};uint32_t visible=77;
+            float light[3]={0,0,0},sample[3]={0,0,3};
+            CHECK(!rf_collision_tree_open(&bound,1,65536,&tree));terrain.tree=&tree;
+            CHECK(!rf_geomod_light_visible(&terrain,light,sample,&visible) && visible==1);
+            sample[2]=4;CHECK(!rf_geomod_light_visible(&terrain,light,sample,&visible) && visible==0);
+            sample[0]=4;CHECK(!rf_geomod_light_visible(&terrain,light,sample,&visible) && visible==1);
+            sample[0]=NAN;visible=77;
+            CHECK(rf_geomod_light_visible(&terrain,light,sample,&visible)==RF_FORMAT && visible==77);
+            rf_collision_tree_close(&tree);
+        }
         for(i=0;i<3;i++)camera.player_orientation[i][i]=1;
         item.image.width=item.image.height=1;item.image.bytes=4;item.image.rgba=pixel;materials.items=&item;materials.count=materials.loaded=1;
         CHECK(!rf_pc_raster_open(&raster,1));

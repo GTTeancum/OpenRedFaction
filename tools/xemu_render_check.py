@@ -314,6 +314,12 @@ dvd_path = '{root.as_posix()}/build/xbox/redfaction-diagnostic.iso'
                     compared_indices=indices,xbox=actual,pc=expected,
                     scope='Terrain publication and bounded memory; geometry buffers require separate verification')
                 assert equal and budget_ok,'GEOMOD'
+                expected=list(map(int,next(line for line in pc.stdout.splitlines() if line.startswith('TERRAIN_SHADOWS ')).split()[1:]))
+                actual=words(monitor,symbol('rf_scene_terrain_shadows'),4)
+                equal=actual[:3]==expected[:3]
+                report['checks']['TERRAIN_SHADOWS']=dict(equal=equal,xbox=actual,pc=expected,
+                    scope='Lighting rebuild/ray/occlusion counters; cache hits are backend draw-count dependent')
+                assert equal,'TERRAIN_SHADOWS'
             report.update(result='PASS', available_pages=d[44], diagnostic=d)
             with (run / 'performance.txt').open('w') as out:
                 subprocess.run([sys.executable, 'tools/summarize_xbox_performance.py',

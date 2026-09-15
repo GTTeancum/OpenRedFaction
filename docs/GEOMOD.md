@@ -886,3 +886,38 @@ Native verification: artifacts/xemu/render-20260915-102321 passes39checks
 over595frames with9068pages free (35.422MiB). The actual Xbox framebuffer
 was inspected and shows restored wall lightmaps, matching the PC view.
 All19disc entries restored; owned emulator exited. No new GitHub images.
+
+## Cached opaque-terrain shadows (2026-09-15)
+
+The selected Glass House point lights have authored shadow mode1 (flags540,
+bit4), so their crater contribution should not pass through enclosing rock.
+rf_geomod_light_visible uses the current owned terrain tree for a bounded
+light-to-corner segment. The final0.001 world unit is excluded to avoid
+counting the receiving surface. This is a practical opaque-terrain query,
+not the original projected shadow-mask raster. It intentionally treats the
+DEV boundary as opaque and excludes other rooms, actors, movers and alpha.
+Tests cover an unobstructed segment, a blocker before the sample, the surface
+endpoint, and invalid-input output preservation.
+
+For authored shadow-enabled point/cone sources, blocked corners receive
+zero source weight; ambient remains. Source mode0 stays unmasked. Directional
+and area-source shadows are not implemented by this pass. The existing
+lightmap arithmetic evaluates the weighted light at each corner. Shadow
+boundaries therefore interpolate across triangle fans and remain coarse;
+soft shadows, texel-grid regeneration and final visual parity remain open.
+
+A heap cache retains selected source values, shadow modes, ambient and terrain
+generation. Exact byte comparisons detect changes, avoiding repeated ray work
+while those inputs remain stable. A successful lighting update publishes the
+cache after all corners finish; terrain publication invalidates via generation.
+Dynamic-source change invalidation is implemented but not exercised by these
+static-light replays. Geometry invalidation and cache reuse are exercised.
+
+All five destruction and three depth PC replays pass, along with original
+template/collision and rendered-lighting tests; NXDK builds. Close-view run
+artifacts/xemu/render-20260915-103036 completes595frames and40checks with
+9068pages free (35.422MiB). PC/Xbox both record2lighting rebuilds,1016shadow
+rays,549blocked samples and426cached draws. Actual native and all three PC
+views were inspected: occluded patches are darker, while overall appearance
+remains unfinished. All19disc entries restored and owned emulator exited.
+No GitHub screenshots added.

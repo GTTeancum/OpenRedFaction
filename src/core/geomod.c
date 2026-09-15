@@ -22,6 +22,25 @@ int rf_geomod_random_basis(rf_random_state *random,float basis[9])
     memcpy(basis,v,sizeof(v));*random=next;return RF_OK;
 }
 
+int rf_geomod_light_visible(const rf_geomod_terrain_view *terrain,
+    const float light[3],const float sample[3],uint32_t *visible)
+{
+    float delta[3],limit;double length=0;uint32_t i,matched;rf_collision_tree_hit hit;int status;
+    const rf_collision_tree *tree;
+    if(!terrain || !terrain->tree || !light || !sample || !visible)return RF_RANGE;
+    tree=terrain->tree;
+    for(i=0;i<3;i++) {
+        if(!isfinite(light[i]) || !isfinite(sample[i]))return RF_FORMAT;
+        delta[i]=sample[i]-light[i];if(!isfinite(delta[i]))return RF_FORMAT;
+        length+=(double)delta[i]*delta[i];
+    }
+    length=sqrt(length);if(length<=.001){*visible=1;return RF_OK;}
+    limit=(float)(1.0-.001/length);
+    status=rf_collision_thin_tree(tree->nodes,tree->node_count,tree->faces,tree->face_count,0x100b,
+        light,delta,limit,tree->stack,tree->node_capacity,&hit,&matched);
+    if(status)return status;*visible=!matched;return RF_OK;
+}
+
 int rf_geomod_planar_uv(const float normal[3],const float position[3],
     uint32_t width,uint32_t height,float uv[2])
 {
