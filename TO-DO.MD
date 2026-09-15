@@ -2,7 +2,7 @@
 
 - PRIORITY GeoMod: Match original destruction behavior and appearance; the current faceted crater is a prototype, not an accepted fidelity milestone.
 - GeoMod: Resolve remaining mesh-closure junctions and crater appearance; six-cut coverage now verifies 25350 local rays plus 10404 room-wide hits and 10404 short-segment misses.
-- GeoMod: Reduce remaining edit latency and lighting settling time; incremental baking cut the native world-rebuild peak from7839ms to84ms, while camera/combat still peaks near771ms.
+- GeoMod: Reduce remaining edit latency and lighting settling time; cached fragment bounds cut the native camera/combat peak from771ms to175ms, but edits still hitch.
 - GeoMod: Refine live crater lightmaps and appearance; per-texel terrain shadows now render from a bounded atlas, but the inspected cavity remains dark and angular.
 - DEV testbed: Review full weapon animations and add complete room reset; terrain reset and ammo refill are implemented, while campaign progression remains paused.
 - GeoMod: Improve crater shape/readability, add debris and authored surface eligibility; rockets now cut repeated faceted craters with the level-authored interior texture.

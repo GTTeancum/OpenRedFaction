@@ -1367,3 +1367,33 @@ camera/combat subphase still reaches771ms and remains open. Different run
 lengths make average-time comparisons less direct; neither peak comparison
 proves every frame is smooth. The actual native capture was inspected and
 shows the crater and weapon. All19disc entries restored; owned PID40300 exited.
+
+## Spatial rejection before fragment joining (2026-09-15)
+
+The compactor caches exact coordinate bounds for pending faces when the owner
+capacity is at most768faces. Before looking for reversed shared edges, it
+rejects pairs separated by more than the existing1e-6 edge-match tolerance.
+A valid shared edge cannot be rejected by this test. Bounds move with removed
+face records and refresh after a successful union; every edit starts from an
+empty pending bank. Larger owners retain the uncached path. Edge comparison
+also stops as soon as a coordinate disproves a match. Coplanarity, convexity,
+UV-affinity checks and merge order remain unchanged.
+
+The cache adds18432bytes to existing caller-owned work storage. Live terrain
+resident/peak allocations become836076/955133bytes, still within the existing
+geometry budget. A paired six-cut fixture runs768face cached and769face
+uncached owners using the exact same cuts, requiring byte-identical vertices,
+UVs and face records after each edit. Both GeoMod interior/repeated-cut tests
+pass. Six ordinary, three close-view and the1200-frame settling PC replays pass;
+all previously captured replay images remain byte-identical. Evidence:
+artifacts/geomod-bounds-replays.log and geomod-bounds-before-images.json.
+
+Native verification:artifacts/xemu/render-20260915-120115 completes1200frames
+and42 comparisons with8743pages free (34.152MiB). Geometry counts/publication,
+lightmap progress and counters agree with PC. The camera/combat phase peaks
+at175ms versus771ms in the preceding1200-frame run; the enclosing scene phase
+peaks at213ms versus816ms. World rebuild peaks at121ms versus84ms, with the
+same64-texel bound; timings vary and this is not a universal frame-time claim.
+The native framebuffer is pixel-identical to the inspected115520 capture.
+All19disc entries restored; owned PID44584 exited. Edits remain visibly hitchy
+at these peaks, so latency/settling improvements remain open.

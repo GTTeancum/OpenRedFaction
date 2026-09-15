@@ -558,7 +558,7 @@ static int join_polygons(const rf_geomod_vertex *a,uint32_t na,const rf_geomod_v
     for(i=0;i<na && edge_a==UINT32_MAX;i++)for(j=0;j<nb;j++) {
         int same=1;
         for(k=0;k<3;k++)if(fabs((double)a[i].position[k]-b[(j+1)%nb].position[k])>1e-6 ||
-            fabs((double)a[(i+1)%na].position[k]-b[j].position[k])>1e-6)same=0;
+            fabs((double)a[(i+1)%na].position[k]-b[j].position[k])>1e-6){same=0;break;}
         if(same){edge_a=i;edge_b=j;break;}
     }
     if(edge_a==UINT32_MAX)return 0;
@@ -597,21 +597,41 @@ static int join_polygons(const rf_geomod_vertex *a,uint32_t na,const rf_geomod_v
     }
     *count=n;return 1;
 }
+static void compact_bounds(const rf_geomod_vertex *v,uint32_t count,float bounds[6])
+{
+    uint32_t i,j;for(j=0;j<3;j++)bounds[j]=bounds[j+3]=v[0].position[j];
+    for(i=1;i<count;i++)for(j=0;j<3;j++) {
+        if(v[i].position[j]<bounds[j])bounds[j]=v[i].position[j];
+        if(v[i].position[j]>bounds[j+3])bounds[j+3]=v[i].position[j];
+    }
+}
+static int compact_separated(const float a[6],const float b[6])
+{
+    uint32_t j;for(j=0;j<3;j++)if((double)a[j]-b[j+3]>1e-6 || (double)b[j]-a[j+3]>1e-6)return 1;
+    return 0;
+}
 static int append_compact(rf_geomod_storage *s,const rf_geomod_vertex *v,uint32_t n,uint32_t material,uint32_t source_face,rf_geomod_multi_work *work)
 {
     rf_geomod_vertex *polygon=work->split.vertices,*joined=polygon+64;uint32_t bank=s->current^1,i=0,j,count;
+    float bounds[6];int cached=s->face_capacity<=768,status;
     if(n>64)return RF_RANGE;memcpy(polygon,v,n*sizeof(*v));
+    if(cached)compact_bounds(polygon,n,bounds);
     while(i<s->nf[bank]) {
         rf_geomod_face f=s->faces[bank][i];
         if(f.material!=material || f.source_face!=source_face ||
+           (cached && compact_separated(bounds,work->compact_bounds[i])) ||
            !join_polygons(polygon,n,s->vertices[bank]+f.first,f.count,joined,&count)){i++;continue;}
         memmove(s->vertices[bank]+f.first,s->vertices[bank]+f.first+f.count,
             (s->nv[bank]-f.first-f.count)*sizeof(*v));s->nv[bank]-=f.count;
+        if(cached)memmove(work->compact_bounds+i,work->compact_bounds+i+1,(s->nf[bank]-i-1)*sizeof(work->compact_bounds[0]));
         memmove(s->faces[bank]+i,s->faces[bank]+i+1,(s->nf[bank]-i-1)*sizeof(f));s->nf[bank]--;
         for(j=i;j<s->nf[bank];j++)s->faces[bank][j].first-=f.count;
         memcpy(polygon,joined,count*sizeof(*v));n=count;i=0;
+        if(cached)compact_bounds(polygon,n,bounds);
     }
-    return rf_geomod_storage_append(s,polygon,n,material,source_face);
+    status=rf_geomod_storage_append(s,polygon,n,material,source_face);
+    if(!status && cached)memcpy(work->compact_bounds[s->nf[bank]-1],bounds,sizeof(bounds));
+    return status;
 }
 static int mesh_polygon_bounds_separated(const rf_geomod_mesh_view *mesh,const rf_geomod_vertex *v,uint32_t count)
 {

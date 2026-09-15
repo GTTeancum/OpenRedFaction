@@ -120,6 +120,7 @@ typedef struct rf_geomod_multi_work {
     float source_planes[32][4],cut_planes[RF_GEOMOD_CUT_LIMIT][32][4];
     float star_planes[RF_GEOMOD_CUT_LIMIT][32][4][4];
     uint32_t star_count[RF_GEOMOD_CUT_LIMIT];
+    float compact_bounds[768][6]; /* Pending-face bounds; larger owners use uncached joins. */
 } rf_geomod_multi_work;
 /* Rebuild from immutable original data, never from a concave working result.
  * The caller supplies the COMPLETE ordered cutter history (0..8), including

@@ -935,6 +935,7 @@ int main(int argc,char **argv)
         }
         {
             rf_geomod_template shape;rf_random_state random={1};double previous_volume=0;unsigned junction_misses=0;
+            rf_geomod_terrain *uncached=NULL;rf_geomod_terrain_view reference;
             const float start[3]={0,-10,12},delta[3]={-40,0,-20};
             CHECK(!rf_geomod_template_load("build/data/geomod-template.bin",&shape));
             box((float[3]){-16,-12,-20},(float[3]){16,12,20},planes,source_v);
@@ -944,6 +945,7 @@ int main(int argc,char **argv)
             }
             source=(rf_geomod_mesh_view){source_v[0],source_f,24,6,0};
             CHECK(!rf_geomod_terrain_open(&source,original_filters,&generated,1,4096,768,1024*1024,&terrain));
+            CHECK(!rf_geomod_terrain_open(&source,original_filters,&generated,1,4096,769,1024*1024,&uncached));
             report_closure=1;
             for(repeat=0;repeat<6;repeat++) {
                 rf_collision_tree_hit hit;uint32_t matched;float basis[9];double total=0;
@@ -952,7 +954,12 @@ int main(int argc,char **argv)
                     0,start,delta,1,live.tree->stack,live.tree->node_capacity,&hit,&matched) && matched);
                 CHECK(!rf_geomod_random_basis(&random,basis));
                 CHECK(!rf_geomod_terrain_cut_template(terrain,&shape,hit.hit.point,basis,3.75f,77));
+                CHECK(!rf_geomod_terrain_cut_template(uncached,&shape,hit.hit.point,basis,3.75f,77));
+                CHECK(!rf_geomod_terrain_get(uncached,&reference));
                 CHECK(!rf_geomod_terrain_get(terrain,&live) && live.cuts==repeat+1 && live.peak_bytes<=1024*1024);
+                CHECK(reference.mesh.vertex_count==live.mesh.vertex_count && reference.mesh.face_count==live.mesh.face_count);
+                CHECK(!memcmp(reference.mesh.vertices,live.mesh.vertices,live.mesh.vertex_count*sizeof(*live.mesh.vertices)));
+                CHECK(!memcmp(reference.mesh.faces,live.mesh.faces,live.mesh.face_count*sizeof(*live.mesh.faces)));
                 surface_count=polygon_count=0;
                 for(i=0;i<live.mesh.face_count;i++) {
                     const rf_geomod_face *f=live.mesh.faces+i;
@@ -1034,6 +1041,7 @@ int main(int argc,char **argv)
                 CHECK(-total>previous_volume);previous_volume=-total;
             }
             rf_geomod_terrain_close(&terrain);
+            rf_geomod_terrain_close(&uncached);
             report_closure=0;
             CHECK(!junction_misses);
             puts("PASS: six ray-placed crater admissions and increasing signed volume within1MiB; room-scale closure remains diagnostic");
