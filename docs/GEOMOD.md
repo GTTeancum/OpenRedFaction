@@ -2589,3 +2589,29 @@ pixel math remains the existing recovered implementation. There is no new
 scene lighting or visual-parity claim. Overall ~49%, GeoMod ~61%.
 NXDK XBE/XISO builds pass; native execution of this new adapter remains
 unverified until scene integration.
+
+Scene additive lighting integration (2026-09-15): The default persistent crater
+atlas now queries current class lights using flags1,0, retains the selected
+source records in its existing63-source cache, and marks maps against both old
+and new light bounds. Source or terrain-generation changes recompute affected
+rectangles from retained base seeds, update their hashes and schedule atlas
+rectangle uploads. Removed sources therefore restore exact base colors rather
+than leaving stale illumination. Segment sources conservatively mark every map;
+source shading still determines their actual contribution. No new heap owner
+or RGB atlas is introduced. This is practical scene scheduling over recovered
+query, marker and pixel operations, not a claim of original traversal parity.
+
+A PC-only RF_REPLAY_TERRAIN_TEST_LIGHT inserts a diagnostic warm point source
+at(-14,-8,4), radius8, during frames1000..1999. It is not an authored gameplay
+light. tools/dev_geomod_dynamic_cycle.py runs paired1500/2500-frame recordings,
+verifies three settled cuts, no active debris, a living player, identical paired
+camera/depth data, a visible light-on change, and byte-exact light-off restoration.
+Actual base, lit and removed captures were inspected: exposed rock brightens,
+but the unacceptable mound-like crater appearance remains. Evidence is local in
+artifacts/geomod-dynamic-cycle; no README images were changed.
+
+Three focused geometry/preview CTests pass. The default eight-cut seed audit
+passes420 maps/22335 texels. NXDK XBE/XISO builds pass after fixing an unused
+PC-only frame parameter warning. No new native replay has been run, and the
+colored-light diagnostic is PC-only; native additive execution and real gameplay
+light lifecycles remain explicit follow-up work. Overall ~49%, GeoMod ~61%.

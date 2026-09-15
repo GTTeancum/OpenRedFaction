@@ -522,7 +522,7 @@ typedef struct scene_terrain_noise_owner {
 } scene_terrain_noise_owner;
 uint32_t rf_scene_terrain_noise[8]; /* mode,mappings,reused bindings,texels,stable checks,new mappings,bytes,generation */
 typedef struct scene_stream {
-    scene_terrain_noise_owner *terrain_noise;uint32_t terrain_shadow_reference;
+    scene_terrain_noise_owner *terrain_noise;uint32_t terrain_shadow_reference,terrain_test_light;
     scene_terrain_draw_mesh *terrain_draw;
     scene_debris_pool *debris;
     rf_geomod_terrain *terrain;rf_geometry_collision_overlay terrain_collision;
@@ -8827,7 +8827,48 @@ static int scene_terrain_noise_plane(const float a[4],const float b[4])
 {
     uint32_t k;for(k=0;k<4;k++)if(fabsf(a[k]-b[k])>1e-5f)return 0;return 1;
 }
-static int scene_terrain_lighting(scene_stream *s,const rf_geomod_terrain_view *terrain)
+static int scene_terrain_dynamic_lighting(scene_stream *s,const rf_geomod_terrain_view *terrain,uint32_t frame)
+{
+    scene_terrain_light_cache *cache=s->terrain_light_cache;scene_terrain_noise_owner *owner=s->terrain_noise;
+    uint32_t *ids=s->light_overlay_work,count=0,i,j,k;rf_vfx_light_source *sources;int status;
+    const rf_collision_node *root;
+    (void)frame; /* The diagnostic source is PC-only. */
+    if(!cache || !owner || !ids || !terrain->tree || !terrain->tree->nodes)return RF_RANGE;
+    root=terrain->tree->nodes;sources=(rf_vfx_light_source *)(ids+1100);
+    if(s->lights) {
+        status=rf_vfx_lights_box(s->lights->pool.sources,s->lights->pool.capacity,root->minimum,root->maximum,1,0,ids,1100,&count);if(status)return status;
+    }
+    if(count>63)return RF_RANGE;
+    for(i=0;i<count;i++)sources[i]=s->lights->pool.sources[ids[i]].source;
+#ifndef RF_IMAGE_XBOX_NATIVE
+    if(s->terrain_test_light && frame>=1000 && frame<2000) {
+        if(count==63)return RF_RANGE;
+        rf_vfx_light_source *light=sources+count++;memset(light,0,sizeof(*light));light->type=2;light->radius=8;
+        light->position[0]=-14;light->position[1]=-8;light->position[2]=4;
+        light->color[0]=1;light->color[1]=.6f;light->color[2]=.25f;
+    }
+#endif
+    if(cache->valid && cache->generation==owner->generation && cache->count==count && !memcmp(cache->sources,sources,count*sizeof(*sources)))return RF_OK;
+    for(i=0;i<owner->bake;i++) {
+        scene_terrain_noise_map *map=owner->maps+i;unsigned char dirty=0;rf_lightmap_sample_lighting lighting={0};
+        for(j=0;j<count+cache->count && !dirty;j++) {
+            const rf_vfx_light_source *light=j<count?sources+j:cache->sources+j-count;
+            if(light->type==4){dirty=1;break;} /* Conservative admission for segment sources. */
+            status=rf_lightmap_mark_dynamic((int32_t)i,&dirty,map->minimum,map->maximum,light->position,light->radius);if(status)return status;
+        }
+        if(!dirty)continue;
+        lighting.width=map->width;lighting.height=map->height;lighting.lights=sources;lighting.light_count=count;lighting.directional_scale=.25f;
+        lighting.sample.image_width=lighting.sample.image_height=512;lighting.sample.x=map->x;lighting.sample.y=map->y;
+        lighting.sample.u_axis=map->binding.projection.axes[0];lighting.sample.normal_axis=3-map->binding.projection.axes[0]-map->binding.projection.axes[1];
+        memcpy(lighting.sample.scale,map->binding.projection.scale,sizeof(lighting.sample.scale));
+        memcpy(lighting.sample.offset,map->binding.projection.offset,sizeof(lighting.sample.offset));memcpy(lighting.sample.plane,map->plane,sizeof(map->plane));
+        status=rf_lightmap_noise_live_rectangle(&lighting,map->base_seed,s->terrain_tile,map->width*2,64*64*2);if(status)return status;
+        for(k=0;k<map->height;k++)memcpy(s->terrain_atlas_pixels+((map->y+k)*512+map->x)*2,s->terrain_tile+k*map->width*2,map->width*2);
+        map->hash=scene_terrain_noise_hash(s,map);scene_terrain_dirty(s,map->x,map->y,map->width,map->height);
+    }
+    cache->valid=1;cache->generation=owner->generation;cache->count=count;memcpy(cache->sources,sources,count*sizeof(*sources));return RF_OK;
+}
+static int scene_terrain_lighting(scene_stream *s,const rf_geomod_terrain_view *terrain,uint32_t frame)
 {
     scene_terrain_noise_owner *owner=s->terrain_noise;uint32_t i,j,k,f,remaining=512*512,processed=0;int status;
     if(s->terrain_shadow_reference)return scene_terrain_shadow_lighting(s,terrain);
@@ -8909,7 +8950,7 @@ static int scene_terrain_lighting(scene_stream *s,const rf_geomod_terrain_view *
     rf_scene_terrain_bake[0]+=processed;rf_scene_terrain_bake[1]=processed;
     if(processed>rf_scene_terrain_bake[2])rf_scene_terrain_bake[2]=processed;
     rf_scene_terrain_bake[3]=owner->bake<owner->count;if(!rf_scene_terrain_bake[3])rf_scene_terrain_bake[4]=owner->generation;
-    return RF_OK;
+    return scene_terrain_dynamic_lighting(s,terrain,frame);
 }
 #ifndef RF_IMAGE_XBOX_NATIVE
 static int scene_terrain_base_audit(scene_stream *s,const char *path)
@@ -8959,6 +9000,7 @@ static int scene_terrain_open(scene_stream *s,const rf_level *level)
     s->terrain_noise=calloc(1,sizeof(*s->terrain_noise));if(!s->terrain_noise)return RF_IO;
 #ifndef RF_IMAGE_XBOX_NATIVE
     s->terrain_shadow_reference=getenv("RF_REPLAY_TERRAIN_SHADOW_REFERENCE")!=NULL;
+    s->terrain_test_light=getenv("RF_REPLAY_TERRAIN_TEST_LIGHT")!=NULL;
 #endif
     s->terrain_atlas.width=s->terrain_atlas.height=512;s->terrain_atlas.bytes=512*512*2;s->terrain_atlas.source_format=5;
     status=rf_image_allocate_pixels(&s->terrain_atlas);if(status)return status;
@@ -9740,7 +9782,7 @@ static int actor_follow_view(void *context,uint32_t frame,const rf_motion_contro
         if(world_mesh.bytes>stream->capacity-1024*1024)return RF_RANGE;
         generated.vertices=world_mesh.vertices+world_mesh.count;
         memcpy(camera.player_position,position,12);memcpy(camera.player_orientation,orientation,36);
-        status=scene_terrain_lighting(stream,&terrain);if(status)return status;
+        status=scene_terrain_lighting(stream,&terrain,frame);if(status)return status;
         status=rf_preview_geomod_lightmapped(&generated,stream->capacity-1024*1024-world_mesh.bytes,
             &stream->terrain_draw->view,stream->terrain_draw->bound,stream->materials->count,&camera,stream->terrain_colors,stream->geometry,stream->terrain_bindings);if(status)return status;
         world_mesh.count+=generated.count;world_mesh.bytes+=generated.bytes;
