@@ -2945,3 +2945,37 @@ validator. Normal three focused CTests pass after the diagnostic additions.
 Next: reduce subdivision overhead where possible, preserve real UV/material
 attributes, implement bounded shared C assembly and validate runtime collision
 and stock64MiB Xbox operation. Overall ~49%, GeoMod ~61%; overlap geometry.
+
+Selective partitioning and eight-cut capacity (2026-09-15):
+The host mesh probe now tries a diagonal that produces two collision-valid,
+consistently wound polygons before falling back to a center fan. It rejects
+candidate diagonals within1e-6 of another boundary corner or whose midpoint
+is within1e-6 of a boundary segment. Without both guards, thin duplicate
+regions passed collision binding but failed the unchanged closure checker.
+No closure or collision tolerance was relaxed.
+
+The original-template fixture accepts RF_GEOMOD_STRESS_COUNT=6..8 (default6)
+and RF_GEOMOD_INTERSECTION_CUT up to the selected count. Eight live baseline
+admissions, increasing signed volume, collision probes and the existing1MiB
+terrain ceiling pass; baseline closure after the first cut still fails.
+
+Reproduce repaired snapshots with tools/probe_geomod_support_splits.py
+<compaction.csv> --out <directory> --partition. The new option records both
+collision validation and closure, and explicitly reports runtime capacity
+fit separately. Host inspection arrays permit oversized candidates solely
+for measurement; runtime owner capacities were not increased.
+
+All eight repaired snapshots pass collision validation and unchanged edge
+closure: vertices/faces are318/64,828/159,1396/271,1966/383,2376/462,
+2892/560,3492/684,3954/772. The sixth cut previously needed3274/722 with
+center fans. The eighth baseline is3165/733; expansion creates39 invalid
+polygons, and the partitioner resolves each with one extra face. Thus this
+representation exceeds768 faces by4 even without any center-fan overhead.
+Evidence: artifacts/support-partition-eight/summary.json and per-cut logs;
+artifacts/partition-eight-stress.log contains the live baseline admission run.
+
+This remains an offline geometry result with placeholder UVs and materials.
+Shared runtime integration, transactional failure handling, real attributes,
+1MiB peak ownership, Xbox execution and actual appearance remain unverified.
+The focused interior, repeated-cut and static-preview tests pass. No native
+run or new screenshot was warranted by these host-only changes.

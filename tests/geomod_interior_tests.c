@@ -30,8 +30,11 @@ static double volume(const rf_geomod_vertex *p,unsigned n)
     }
     return result;
 }
-static rf_geomod_vertex surface[4096];
-static rf_geomod_fragment polygons[768];
+/* Host snapshot inspection may measure candidates larger than runtime owners. */
+#define SNAPSHOT_VERTICES 8192
+#define SNAPSHOT_FACES 1536
+static rf_geomod_vertex surface[SNAPSHOT_VERTICES];
+static rf_geomod_fragment polygons[SNAPSHOT_FACES];
 static unsigned surface_count,polygon_count;
 static unsigned report_closure;
 static void trace_intersection(void *context,const float plane[4],const float a[3],const float b[3],const float result[3])
@@ -52,7 +55,7 @@ static void trace_compaction(void *context,const rf_geomod_mesh_view *mesh,const
 }
 static int record(const rf_geomod_vertex *v,unsigned n)
 {
-    if(surface_count+n>4096 || polygon_count==768)return 0;
+    if(surface_count+n>SNAPSHOT_VERTICES || polygon_count==SNAPSHOT_FACES)return 0;
     polygons[polygon_count].first=surface_count;polygons[polygon_count++].count=n;
     memcpy(surface+surface_count,v,n*sizeof(*v));surface_count+=n;return 1;
 }
@@ -64,7 +67,7 @@ static int closed(void)
     for(p=0;p<polygon_count;p++)for(e=0;e<polygons[p].count;e++) {
         const float *a=surface[polygons[p].first+e].position;
         const float *b=surface[polygons[p].first+(e+1)%polygons[p].count].position;
-        double d[3],len=0,t[4098]={0,1};unsigned n=2;
+        double d[3],len=0,t[SNAPSHOT_VERTICES+2]={0,1};unsigned n=2;
         for(i=0;i<3;i++){d[i]=(double)b[i]-a[i];len+=d[i]*d[i];}
         if(len<1e-16)return 0;
         for(v=0;v<surface_count;v++) {
@@ -388,9 +391,9 @@ int main(int argc,char **argv)
 {
     if(argc==3 && !strcmp(argv[1],"--mesh")) {
         FILE *file=fopen(argv[2],"rb");char magic[4];uint32_t counts[2],i,packed=0;
-        static rf_geomod_face input_faces[768];int result;CHECK(file);
+        static rf_geomod_face input_faces[SNAPSHOT_FACES];int result;CHECK(file);
         CHECK(fread(magic,1,4,file)==4 && !memcmp(magic,"RGM1",4));
-        CHECK(fread(counts,4,2,file)==2 && counts[0]>0 && counts[0]<=4096 && counts[1]>0 && counts[1]<=768);
+        CHECK(fread(counts,4,2,file)==2 && counts[0]>0 && counts[0]<=SNAPSHOT_VERTICES && counts[1]>0 && counts[1]<=SNAPSHOT_FACES);
         CHECK(fread(surface,sizeof(*surface),counts[0],file)==counts[0]);
         CHECK(fread(input_faces,sizeof(*input_faces),counts[1],file)==counts[1] && fgetc(file)==EOF);CHECK(!fclose(file));
         surface_count=counts[0];polygon_count=counts[1];
@@ -1182,8 +1185,10 @@ int main(int argc,char **argv)
         {
             rf_geomod_template shape;rf_random_state random={1};double previous_volume=0;unsigned junction_misses=0;
             rf_geomod_terrain *uncached=NULL;rf_geomod_terrain_view reference;
-            const char *trace_cut=getenv("RF_GEOMOD_INTERSECTION_CUT");unsigned trace_index=0;
-            if(trace_cut){CHECK(trace_cut[0]>='1' && trace_cut[0]<='6' && !trace_cut[1]);trace_index=(unsigned)(trace_cut[0]-'1');}
+            const char *trace_cut=getenv("RF_GEOMOD_INTERSECTION_CUT");unsigned trace_index=0,stress_count=6;
+            const char *stress=getenv("RF_GEOMOD_STRESS_COUNT");
+            if(stress){CHECK(stress[0]>='6' && stress[0]<='8' && !stress[1]);stress_count=(unsigned)(stress[0]-'0');}
+            if(trace_cut){CHECK(trace_cut[0]>='1' && trace_cut[0]<='8' && !trace_cut[1]);trace_index=(unsigned)(trace_cut[0]-'1');CHECK(trace_index<stress_count);}
             const float start[3]={0,-10,12},delta[3]={-40,0,-20};
             CHECK(!rf_geomod_template_load("build/data/geomod-template.bin",&shape));
             box((float[3]){-16,-12,-20},(float[3]){16,12,20},planes,source_v);
@@ -1196,7 +1201,7 @@ int main(int argc,char **argv)
             CHECK(!rf_geomod_terrain_open(&source,original_filters,&generated,1,4096,769,1024*1024,&uncached));
             report_closure=getenv("RF_GEOMOD_CLOSURE_ALL")?2:1;
             {uint16_t edges[24];CHECK(!rf_geomod_seed_adjacency(&source,edges,24));}
-            for(repeat=0;repeat<6;repeat++) {
+            for(repeat=0;repeat<stress_count;repeat++) {
                 rf_collision_tree_hit hit;uint32_t matched;float basis[9];double total=0;
                 CHECK(!rf_geomod_terrain_get(terrain,&live));
                 CHECK(!rf_collision_thin_tree(live.tree->nodes,live.tree->node_count,live.tree->faces,live.tree->face_count,
@@ -1316,7 +1321,7 @@ int main(int argc,char **argv)
             rf_geomod_terrain_close(&uncached);
             report_closure=0;
             CHECK(!junction_misses);
-            puts("PASS: six ray-placed crater admissions and increasing signed volume within1MiB; room-scale closure remains diagnostic");
+            printf("PASS: %u ray-placed crater admissions and increasing signed volume within1MiB; room-scale closure remains diagnostic\n",stress_count);
         }
         puts("PASS: original concave template, overlapping cuts, closed edges, volume and324 independent triangle rays");
     }

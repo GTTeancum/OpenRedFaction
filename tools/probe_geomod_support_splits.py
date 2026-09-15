@@ -13,6 +13,7 @@ def main():
     parser=argparse.ArgumentParser(description=__doc__)
     parser.add_argument('csv',type=Path)
     parser.add_argument('--out',type=Path,required=True)
+    parser.add_argument('--partition',action='store_true',help='Measure selective partitioning and verify unchanged edge closure')
     args=parser.parse_args();args.out.mkdir(parents=True,exist_ok=True)
     faces={};groups={}
     for row in csv.DictReader(args.csv.open()):
@@ -64,6 +65,17 @@ def main():
                 for j,p in enumerate(polygon):
                     triangulated.append([center,p,polygon[(j+1)%len(polygon)]])
             variants.append(('triangulated',triangulated))
+    if args.partition:
+        path=args.out/'partitioned.bin'
+        run=subprocess.run([str(ROOT/'build/pc/Release/rf_geomod_mesh_probe.exe'),str(args.out/'candidate.bin'),str(path)],capture_output=True,text=True,cwd=ROOT)
+        (args.out/'partition.log').write_text(run.stdout+run.stderr)
+        partitioned=dict(exit=run.returncode,validation=run.stdout)
+        if not run.returncode:
+            nv,nf=struct.unpack_from('<2I',path.read_bytes(),4)
+            closure=subprocess.run([str(ROOT/'build/pc/Release/rf_geomod_interior_tests.exe'),'--mesh',str(path)],capture_output=True,text=True,cwd=ROOT)
+            (args.out/'partitioned-closure.log').write_text(closure.stdout+closure.stderr)
+            partitioned.update(vertices=nv,faces=nf,runtime_capacity_fit=nv<=4096 and nf<=768,closure_exit=closure.returncode)
+        results['partitioned']=partitioned
     results['ambiguous_edges']=ambiguous
     results['scope']='Offline geometry experiment; validator success alone does not prove closure or gameplay correctness. UVs are zero placeholders.'
     (args.out/'report.json').write_text(json.dumps(results,indent=2)+'\n')
