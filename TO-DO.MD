@@ -1,7 +1,7 @@
 # Red Faction Xbox / PC - open work
 
 - Combat: Finish enemy damage amounts, cadence and weapon coverage; authored SP primary spread and target/bullet-obstruction checks now pass PC/Xbox verification (24 hits, 3 misses).
-- Gameplay: Continue L2S3 combat with the corrected accuracy model; updated PC exit/return passes with48.2 health, and the complete updated route still needs Xbox revalidation beyond the focused spread encounter.
+- Gameplay: Continue L2S3 encounters beyond the maintenance door; PC verifies two guard kills and authored delayed deaths (9000 frames, 25 health), and Xbox verifies the full Area2-to-first-L2S3-guard route (8000 frames, 18.273MiB free).
 
 First-pass policy: playable campaign systems take priority over exact1:1 RE.
 Use practical shared implementations, verify gameplay and stock64MiB operation,

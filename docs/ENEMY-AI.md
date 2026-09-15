@@ -323,3 +323,45 @@ The complete updated7,450/8,000-frame route is PC-verified; its new native
 revalidation remains open rather than being inferred from the short encounter.
 Rough project estimate remains~46%; next gameplay focus is L2S3 combat with the
 new carried health and accuracy behavior.
+
+## L2S3 first encounters after spread (2026-09-14)
+
+`tools/replay_area3_entry.py` extends the complete Area2 exit replay to8,000 PC
+frames. From the carried entrance position, west then north clears the low
+passage, followed by ordinary aim/fire/reload input. Guard2020 dies from four
+hits among seven shots; player health is38.599987, pistol16 loaded/81 reserve.
+The outgoing Area2 transition remains5150 at7275. Native full-route validation
+is pending; this continuation uses the accuracy implementation above.
+
+`tools/replay_area3_maintenance.py` extends that sequence to9,000 PC frames.
+It walks through maintenance trigger1103/door1100, then approaches1099 and kills
+guard2047. Two L2S3 kills,14 shots/eight hits/two reloads are checked, with25
+health remaining. The first crossing attempt stopped short; extending the
+centered movement crosses the door using existing behavior. No forced trigger,
+placement, invulnerability or health changes are injected.
+
+Bounded inspection of original L2S3 entity records (level.c read layout) confirms
+2020/2047 are guard1 affiliation0,2061 is miner1 affiliation2, and1762 is tech1
+affiliation1. The nearby armed miners are not interchangeable hostile targets.
+The maintained fixture checks2061 remains at100 health. Trigger1099 also links
+the authored delayed Slay_Object2082/2083 events, which kill miners2058/2043
+at2/2.5 seconds; their deaths are checked separately from the player's two kills.
+Further guards, invulnerability event2084, scripted encounter completion and
+the eventual L2S3 exit remain open. Rough estimate remains~46%.
+
+Native entry confirmation: stock64MiB `render-20260914-224708` completes8,000
+frames and all29 selected PC/native comparisons. The transition remains5150
+at7275. The first L2S3 guard kill matches `[7,4,1,9371790,...]`, with38.599987
+health and16 loaded/81 reserve. Free memory is4,678 pages (18.273MiB). This
+revalidates the full updated Area2-to-L2S3 entry route with firearm spread;
+pre-transition kill counters are still not inferred from destination counters.
+Disc restoration is checked and the owned XEMU is closed. The9,000-frame second
+guard/maintenance continuation remains PC-only evidence. Its final input and
+live snapshot also pass the separate checks for dead2043/2058 and healthy2061.
+
+Reproduce after generating the Area2 exit prefix:
+```
+python tools/replay_area3_entry.py
+python tools/replay_area3_maintenance.py
+python tools/xemu_render_check.py --spawn --level L2S2a.rfl --input artifacts/area3-entry-replay/input.bin --seconds 900
+```
