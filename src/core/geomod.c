@@ -650,12 +650,25 @@ static int star_mesh_planes(const rf_geomod_mesh_view *mesh,const float kernel[3
         for(j=0;j<4;j++) {
             static const unsigned char indices[4][4]={{0,1,2,3},{0,3,1,2},{1,3,2,0},{2,3,0,1}};
             const float *a=points[indices[j][0]],*b=points[indices[j][1]],*c=points[indices[j][2]],*opposite=points[indices[j][3]];
-            double ab[3],ac[3],normal[3],length=0,d=0,distance;
+            double ab[3],ac[3],normal[3],length=0,d=0,distance;int parity=1;
+            if(j) {
+                const float *ordered[3]={a,b,c};uint32_t x,y;
+                /* Adjacent tetrahedra must use exactly opposite versions of
+                 * their shared internal plane. A different anchor changes the
+                 * rounded offset even when the geometric triangle is identical. */
+                for(x=0;x<2;x++)for(y=x+1;y<3;y++) {
+                    for(k=0;k<3 && ordered[x][k]==ordered[y][k];k++);
+                    if(k<3 && ordered[x][k]>ordered[y][k]) {
+                        const float *swap=ordered[x];ordered[x]=ordered[y];ordered[y]=swap;parity=-parity;
+                    }
+                }
+                a=ordered[0];b=ordered[1];c=ordered[2];
+            }
             for(k=0;k<3;k++){ab[k]=(double)b[k]-a[k];ac[k]=(double)c[k]-a[k];}
             for(k=0;k<3;k++){normal[k]=ab[(k+1)%3]*ac[(k+2)%3]-ab[(k+2)%3]*ac[(k+1)%3];length+=normal[k]*normal[k];}
             if(!isfinite(length) || length<=1e-24)return RF_FORMAT;
             length=sqrt(length);
-            for(k=0;k<3;k++){planes[j][k]=(float)(normal[k]/length);d-=(double)planes[j][k]*a[k];}
+            for(k=0;k<3;k++){planes[j][k]=(float)(parity*normal[k]/length);d-=(double)planes[j][k]*a[k];}
             planes[j][3]=(float)d;distance=planes[j][3];
             for(k=0;k<3;k++)distance+=(double)planes[j][k]*opposite[k];
             if(!isfinite(distance) || distance>=-1e-5)return RF_FORMAT;

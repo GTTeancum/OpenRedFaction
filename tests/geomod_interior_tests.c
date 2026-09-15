@@ -616,6 +616,16 @@ int main(int argc,char **argv)
             for(repeat=1;repeat<=2;repeat++) {
                 double total=0;rf_collision_tree tree={0};uint32_t x,y;
                 {int status=rf_geomod_storage_prepare_star_cuts(owner,cutters,kernels,repeat,cavity,&work);if(status)fprintf(stderr,"original star status%d cavity%u repeat%u\n",status,cavity,repeat);CHECK(!status);}
+                {
+                    uint32_t c,f,e,g,h,k,paired=0;
+                    for(c=0;c<repeat;c++)for(f=0;f<count;f++)for(e=0;e<3;e++)for(g=f+1;g<count;g++)for(h=0;h<3;h++) {
+                        const rf_geomod_vertex *a=cutters[c].vertices+f*3,*b=cutters[c].vertices+g*3;
+                        if(memcmp(a[e].position,b[(h+1)%3].position,12) || memcmp(a[(e+1)%3].position,b[h].position,12))continue;
+                        for(k=0;k<4;k++)CHECK(work.star_planes[c][f][e+1][k]==-work.star_planes[c][g][h+1][k]);
+                        paired++;
+                    }
+                    CHECK(paired==repeat*count*3/2);
+                }
                 CHECK(!rf_geomod_storage_pending(owner,&pending));surface_count=polygon_count=0;
                 CHECK(!rf_geomod_terrain_cut_star(terrain,cutters+repeat-1,kernels[repeat-1]));
                 CHECK(!rf_geomod_terrain_get(terrain,&live));

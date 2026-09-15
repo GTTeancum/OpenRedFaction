@@ -994,3 +994,35 @@ room-scale closure remains explicitly diagnostic and unresolved. After removing
 the experiment, the ordinary PC six-shot replay again accepts all six with
 resident809796/peak925604bytes. No production code change, new Xbox run or new
 visual fidelity claim is made by this diagnostic update.
+
+## Consistent shared tetrahedron planes (2026-09-15)
+
+Internal planes in the star-cutter decomposition were independently computed
+from different anchor vertices on each incident tetrahedron. Even with a
+shared geometric triangle, normal/offset rounding could differ, so the two
+clipping half-spaces were not exact opposites. Internal triangles now sort
+their three positions lexicographically before computing the plane, retaining
+permutation parity for outward orientation. Both sides therefore use the same
+arithmetic and anchor, with opposite signs. External template faces and their
+input positions/UVs are unchanged; no proximity welding is performed.
+
+The original-template solid/cavity fixtures now enumerate every shared edge
+and require all four internal plane coefficients to be exact negatives of
+their neighbor. Running the new check with the old arithmetic fails at that
+assertion; restoring the consistent computation passes. The same tests retain
+existing smaller closed-edge, volume, independent-ray and rollback checks.
+All six ordinary destruction replays and three close-view replays pass.
+The live six-shot PC result remains six accepted cuts with no rejection,
+resident809304/peak924389bytes including the bounded overlay. NXDK builds.
+
+This fixes a demonstrated shared-plane inconsistency but does not resolve the
+reported room-scale1.345e-6 junction interval. Its strict closure diagnostic
+still fails and remains open. Subsequent intersection rounding/order must be
+investigated separately; do not claim closed topology or final visual parity.
+
+Native verification: artifacts/xemu/render-20260915-105731 completes800frames
+and40checks with9024pages free (35.25MiB). PC/Xbox both publish six cuts,
+generation7, no rejection and identical reported terrain allocations. The
+actual native framebuffer was inspected; its distant opening remains visible
+and is not proof of microscopic closure. All19disc entries restored; owned
+emulator exited. No additional GitHub screenshots.

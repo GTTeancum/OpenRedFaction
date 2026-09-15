@@ -5352,3 +5352,10 @@ world units near differently rounded endpoints, rather than a whole edge.
 Detailed matched-edge diagnostics now retained. Proximity welding fixed the
 first closure check but broke later cuts, so it was discarded. Stable six-cut
 PC behavior reconfirmed; production geometry unchanged. ~49%; GeoMod seams.
+
+GeoMod shared-plane fix (2026-09-15): canonical internal triangle ordering
+makes neighboring tetrahedron clipping planes exact opposites. The new
+coefficient regression fails under old arithmetic and passes now. Six PC
+destruction/three depth replays pass; native800frames pass40checks with
+35.25MiB free. The room-scale junction closure failure remains unresolved;
+intersection rounding is next. ~49%; current area GeoMod geometry seams.
