@@ -8569,22 +8569,72 @@ static int scene_terrain_bind(scene_stream *s)
     rf_scene_geomod[4]=view.peak_bytes+s->terrain_collision.resident_bytes;return RF_OK;
 }
 #ifndef RF_IMAGE_XBOX_NATIVE
+/* Diagnostic projection on the port's per-face grids. Threshold zero isolates
+ * coverage; original receiver grouping/density ownership is not inferred. */
+static int scene_terrain_projected_mask(scene_stream *s,const rf_geomod_terrain_view *terrain,
+    uint32_t target,uint32_t light,rf_geometry_shadow_storage *storage,unsigned char *mask)
+{
+    const rf_geomod_face *receiver=terrain->mesh.faces+target;
+    const rf_geomod_light_grid *g=&s->terrain_tiles[target].grid;
+    const rf_vfx_light_source *source=s->terrain_light_cache->sources+light;
+    rf_lightmap_mapping mapping={0};rf_lightmap_sample_plane sample={0};
+    rf_lightmap_shadow_filter filter={0};rf_lightmap_shadow_cull cull;rf_lightmap_shadow_pass pass;
+    uint32_t i,j,k,facing,projected_any=0;int status;
+    if(source->type!=2 && source->type!=3)return RF_NOT_FOUND;
+    mapping.width=sample.image_width=g->width;mapping.height=sample.image_height=g->height;
+    sample.normal_axis=g->axis;sample.u_axis=g->u;memcpy(sample.plane,g->plane,16);
+    for(j=0;j<2;j++) {
+        uint32_t size=j?g->height:g->width;double span=(double)g->maximum[j]-g->minimum[j];
+        sample.scale[j]=(float)((size-3)/(span*size));sample.offset[j]=(float)(1.5/size-g->minimum[j]*(double)sample.scale[j]);
+    }
+    for(i=0;i<receiver->count;i++) {
+        const float *v=terrain->mesh.vertices[receiver->first+i].position;
+        for(k=0;k<3;k++){if(!i || v[k]<mapping.minimum[k])mapping.minimum[k]=v[k];if(!i || v[k]>mapping.maximum[k])mapping.maximum[k]=v[k];}
+        status=rf_lightmap_project_shadow(&sample,g->width,g->height,v,storage->receivers.vertices+i);if(status)return status;
+    }
+    storage->receivers.polygons[0]=(rf_lightmap_uv_polygon){storage->receivers.vertices,receiver->count};
+    filter.receivers=storage->receivers.polygons;filter.receiver_count=1;filter.work=&storage->clip;
+    filter.intersection=storage->intersection;filter.capacity=storage->clip.capacity;
+    memset(mask,255,storage->mask_stride);
+    status=rf_lightmap_shadow_prepare(&mapping,&sample,(int32_t)target,source->position,source->radius,source->position,&filter,&cull,&pass,&facing);if(status)return status;
+    if(!facing){memset(mask,0,g->width*g->height);return RF_OK;}
+    for(i=0;i<terrain->mesh.face_count;i++) {
+        const rf_geomod_face *face=terrain->mesh.faces+i;rf_lightmap_shadow_face candidate={0};uint32_t accepted,projected,filled;
+        candidate.mapping=(int32_t)i;memcpy(candidate.plane,terrain->faces[i].plane,16);
+        for(j=0;j<face->count;j++)for(k=0;k<3;k++) {
+            float v=terrain->mesh.vertices[face->first+j].position[k];storage->work.face_vertices[j][k]=v;
+            if(!j || v<candidate.minimum[k])candidate.minimum[k]=v;
+            if(!j || v>candidate.maximum[k])candidate.maximum[k]=v;
+        }
+        if(face->source_face!=UINT32_MAX) {
+            rf_geometry_face original;status=rf_geometry_get_face(s->geometry,face->source_face,&original);if(status)return status;
+            candidate.flags=original.flags;candidate.portal=(int16_t)original.portal;
+        }
+        if(face->material<s->materials->count)candidate.texture_excluded=rf_image_format_has_alpha(s->materials->items[face->material].image.source_format);
+        status=rf_lightmap_shadow_occluder(&cull,&candidate,&accepted);if(status)return status;if(!accepted)continue;
+        status=rf_lightmap_shadow_pass_polygon(&pass,storage->work.face_vertices,face->count,&storage->pass,mask,storage->mask_stride,255,&projected,&filled);if(status)return status;
+        projected_any|=projected;
+    }
+    return rf_lightmap_shadow_border(mask,storage->mask_stride,g->width,g->height,projected_any!=0);
+}
 /* Opt-in final-state audit; no extra sampling or allocation during gameplay. */
 static int scene_terrain_light_audit(scene_stream *s,const char *path)
 {
     rf_geomod_terrain_view terrain;scene_terrain_light_cache *cache=s->terrain_light_cache;
-    FILE *file;uint32_t f,x,y,i,k;int status,failed=0;
+    rf_geometry_shadow_storage projection={0};FILE *file;uint32_t f,x,y,i,k;int status,failed=0;
     if(!s->terrain || !cache || !cache->valid || cache->count>63)return RF_RANGE;
     status=rf_geomod_terrain_get(s->terrain,&terrain);if(status)return status;
     if(cache->generation!=terrain.mesh.generation || cache->face<terrain.mesh.face_count)return RF_RANGE;
     file=fopen(path,"wb");if(!file)return RF_IO;
+    status=rf_geometry_shadow_storage_open(&projection,1,64,64,256,64,64,cache->count,512*1024);if(status)goto done;
     fprintf(file,"# generation=%u lights=%u ambient=%.9g,%.9g,%.9g\n",cache->generation,cache->count,cache->ambient[0],cache->ambient[1],cache->ambient[2]);
-    fprintf(file,"face,x,y,px,py,pz,nx,ny,nz,blocked,clear_r,clear_g,clear_b,shadow_r,shadow_g,shadow_b,packed,blocked_authored,blocked_generated,excluded_flags_portal,excluded_alpha,excluded_coplanar\n");
+    fprintf(file,"face,x,y,px,py,pz,nx,ny,nz,blocked,clear_r,clear_g,clear_b,shadow_r,shadow_g,shadow_b,packed,blocked_authored,blocked_generated,excluded_flags_portal,excluded_alpha,excluded_coplanar,projected_r,projected_g,projected_b\n");
     for(f=0;f<terrain.mesh.face_count;f++) {
         const rf_geomod_face *face=terrain.mesh.faces+f;scene_terrain_light_tile *tile=s->terrain_tiles+f;
         if(face->source_face!=UINT32_MAX)continue;
+        for(i=0;i<cache->count;i++){status=scene_terrain_projected_mask(s,&terrain,f,i,&projection,projection.masks+i*projection.mask_stride);if(status)goto done;}
         for(y=0;y<tile->grid.height;y++)for(x=0;x<tile->grid.width;x++) {
-            unsigned char weights[63];float point[3],clear[3],shadow[3];uint32_t blocked=0,at,packed,authored=0,generated=0,flags_portal=0,alpha=0,coplanar=0;
+            unsigned char weights[63];float point[3],clear[3],shadow[3],projected_rgb[3];uint32_t blocked=0,at,packed,authored=0,generated=0,flags_portal=0,alpha=0,coplanar=0;
             status=rf_geomod_light_grid_sample(&tile->grid,terrain.mesh.vertices+face->first,face->count,x,y,point);if(status)goto done;
             status=rf_vfx_light_accumulate(point,tile->grid.plane,cache->ambient,.25f,cache->sources,cache->count,NULL,1,clear);if(status)goto done;
             for(i=0;i<cache->count;i++) {
@@ -8614,6 +8664,8 @@ static int scene_terrain_light_audit(scene_stream *s,const char *path)
                 weights[i]=visible?255:0;blocked+=!visible;
             }
             status=rf_vfx_light_accumulate(point,tile->grid.plane,cache->ambient,.25f,cache->sources,cache->count,weights,1,shadow);if(status)goto done;
+            for(i=0;i<cache->count;i++)weights[i]=cache->modes[i]?projection.masks[i*projection.mask_stride+y*tile->grid.width+x]:255;
+            status=rf_vfx_light_accumulate(point,tile->grid.plane,cache->ambient,.25f,cache->sources,cache->count,weights,1,projected_rgb);if(status)goto done;
             at=((tile->y+y)*512+tile->x+x)*2;packed=s->terrain_atlas_pixels[at]|(uint32_t)s->terrain_atlas_pixels[at+1]<<8;
             fprintf(file,"%u,%u,%u",f,x,y);
             for(k=0;k<3;k++)fprintf(file,",%.9g",point[k]);
@@ -8621,10 +8673,11 @@ static int scene_terrain_light_audit(scene_stream *s,const char *path)
             fprintf(file,",%u",blocked);
             for(k=0;k<3;k++)fprintf(file,",%.9g",clear[k]);
             for(k=0;k<3;k++)fprintf(file,",%.9g",shadow[k]);
-            fprintf(file,",%u,%u,%u,%u,%u,%u\n",packed,authored,generated,flags_portal,alpha,coplanar);
+            fprintf(file,",%u,%u,%u,%u,%u,%u,%.9g,%.9g,%.9g\n",packed,authored,generated,flags_portal,alpha,coplanar,projected_rgb[0],projected_rgb[1],projected_rgb[2]);
         }
     }
  done:
+    rf_geometry_shadow_storage_close(&projection);
     failed=ferror(file);if(fclose(file))failed=1;
     return status?status:failed?RF_IO:RF_OK;
 }

@@ -41,6 +41,12 @@ def main():
         result['first_accepted_blockers'] = {field:sum(int(row[field]) for row in rows) for field in fields}
         result['blocker_limitation'] = ('Traversal-first accepted hit, not necessarily nearest. Only listed eligibility exclusions are checked; '
                                        'mapping ownership, bounds, shadow-volume clipping and projected raster coverage are not assessed.')
+    if 'projected_r' in rows[0]:
+        result['projected_comparison'] = dict(
+            mean_red=statistics.mean(float(r['projected_r']) for r in rows),
+            brighter_red=sum(float(r['projected_r'])>float(r['shadow_r'])+1e-6 for r in rows),
+            darker_red=sum(float(r['projected_r'])<float(r['shadow_r'])-1e-6 for r in rows),
+            limitation='Recovered projection/cull/raster helpers on port per-face grids; zero receiver-area threshold. Original grouping, density and traversal ownership unverified. No live rendering change.')
     toward_room = [r for r in rows if float(r['nx'])>.9]
     if toward_room: result['normal_x_over_point_nine'] = summary(toward_room)
     args.csv.with_suffix('.json').write_text(json.dumps(result,indent=2)+'\n')

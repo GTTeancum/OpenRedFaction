@@ -1826,3 +1826,31 @@ Evidence: artifacts/destruction/depth-audit/occluders.csv and occluders.json.
 Extended-audit and disabled final frame bytes match exactly. Original oracle
 reports are artifacts/lightmap-shadow-occluder.json and the source verifier's
 reported artifact; this audit makes no new native visual or full-parity claim.
+
+### Projected coverage diagnostic (2026-09-15)
+
+The opt-in completed lighting audit now also runs recovered shadow preparation,
+occluder culling, six-plane clipping, projection, receiver filtering, raster
+subtraction and border replication against the same terrain and point sources.
+It uses a bounded scratch owner allocated only for the offline PC audit, with
+64-corner faces, 256 clipping vertices and mask storage below 512KiB. Runtime
+terrain lighting and Xbox memory requirements are unchanged.
+
+This comparison intentionally uses the port's existing per-face grids as
+synthetic mappings, their face bounds and one receiver polygon per face. The
+receiver-area threshold is zero to isolate coverage. This is not a recovery of
+original generated-face mapping ownership, grouping, density or traversal order.
+Border samples clamp to the port face while projected masks cover its planar
+rectangle; that distinction is included in the aggregate comparison.
+
+At 9632 samples, the ray-shadowed mean red is .100209856; projected mean red
+is .097420701. Projection brightens 1011 samples and darkens 552 (epsilon 1e-6).
+It does not explain broad darkness under these supplied mappings. The next
+original-code target is generated-face lightmap construction and special
+sampling, rather than adopting this diagnostic as a production replacement.
+
+Re-ran 512 original/PC/NXDK complete shadow-pass cases, all passing, including
+299 projections and 254 raster acceptances. The audit preserves final frame
+bytes exactly. Evidence: artifacts/destruction/depth-audit/projected.csv and
+projected.json; helper verification is artifacts/geomod-projection-pass-oracle.log.
+No new native run or visual improvement is claimed by this diagnostic.
