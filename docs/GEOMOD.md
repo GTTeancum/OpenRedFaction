@@ -1296,3 +1296,10 @@ and41 comparisons with8748pages free (34.171875MiB). Atlas allocation,
 generation, texel/face counts and shadow counters match PC. The actual native
 framebuffer was inspected and shows the crater; the distant capture does not
 prove close-view fidelity. All19disc entries restored; owned PID39568 exited.
+
+Performance limitation:the native world-geometry rebuild phase peaks at7839ms
+(scene camera/visibility/world phase8624ms). The aggregate counter does not
+isolate every operation, but synchronous full-atlas ray baking is now a major
+new workload. The current implementation is not gameplay-ready; prioritize
+bounded incremental baking or faster occlusion evaluation before acceptance.
+Do not interpret the800-frame pass as smooth frame pacing.
