@@ -1,6 +1,7 @@
 # Red Faction Xbox / PC - open work
 
-- Gameplay: Fight through the Area2 corridor and reach its exit; PC now verifies spawn-to-rescue-to-cell-exit (3000 frames), with Xbox coverage through frame2700.
+- Combat: Finish authored enemy damage amounts, cadence, accuracy and weapon coverage; supported damage types and close-range Riot Stick pursuit are now wired.
+- Gameplay: Fight through the Area2 corridor and reach its exit; PC and stock Xbox verify spawn-to-rescue-to-cell-exit (3000 frames, 16.8125MiB free).
 
 First-pass policy: playable campaign systems take priority over exact1:1 RE.
 Use practical shared implementations, verify gameplay and stock64MiB operation,

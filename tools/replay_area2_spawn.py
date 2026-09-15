@@ -27,6 +27,11 @@ assert words('SWITCH_DETAIL')[0]==5671
 assert door[1:3]==[1,8512] and attack[1:3]==[8496,8490] and attack[4]==0 and attack[5]>0
 assert any(l.startswith('DEATH_WATCH 8611 1 ') for l in run.stdout.splitlines())
 assert words('PLAYER_LIFE')[0]==0
+kinds,melee=words('ENEMY_DAMAGE_KINDS'),words('ENEMY_MELEE')
+assert kinds[1]>0 and kinds[9]==0
+assert melee[0]>0 and melee[1]>0 and melee[2]>0
+assert 0<struct.unpack('<f',struct.pack('<I',melee[3]))[0]<=2.6**2
+
 position=list(map(float,next(l.split()[1:] for l in run.stdout.splitlines() if l.startswith('CAMPAIGN_FINAL_POSITION '))))
 assert 24<position[0]<25 and 9.5<position[2]<10.7, position
 report=dict(status='PASS',traces=traces,attack=attack,door=door,

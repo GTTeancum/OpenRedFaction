@@ -8118,6 +8118,8 @@ static int campaign_enemy_aim_aligned(const campaign_npc_body *owner,const float
     /* Practical30-degree horizontal firing cone; pitch/upper-body aim remains open. */
     return length>0 && distance>.0001f && forward>0 && forward*forward>=.75f*length*distance;
 }
+uint32_t rf_scene_enemy_melee[4]; /* swings, out-of-reach attempts, pursuit requests, max squared strike distance */
+uint32_t rf_scene_enemy_damage_kinds[10]; /* nine damage kinds; slot9 counts unsupported-weapon fallback shots */
 static int campaign_enemy_tick(scene_stream *stream,uint32_t frame,const float player_eye[3])
 {
     uint32_t i,j,blocked,clock_bits;float seconds=(float)frame/60;
@@ -8125,6 +8127,8 @@ static int campaign_enemy_tick(scene_stream *stream,uint32_t frame,const float p
     memcpy(&clock_bits,&seconds,4);++rf_scene_enemy_combat[0];
     for(i=0;i<campaign_npc_body_count && campaign_player_damage.state.effects.health>0;i++) {
         campaign_npc_body *owner=campaign_npc_bodies+i;float delta[3],distance=0,amount;int status;
+        const uint32_t melee=owner->view.weapons[0]==campaign_riot_id;
+        const float attack_range=melee?2.6f:40.0f;
         if(!owner->registration.view || (owner->object_flags&(2|0x4000)) ||
            owner->damage.effects.health<=0 || (owner->view.flags_810&1) || owner->view.weapons[0]<0){campaign_pursuit_stop(owner);continue;}
         campaign_npc_body *victim=NULL;uint32_t victim_slot=UINT32_MAX;
@@ -8180,24 +8184,35 @@ static int campaign_enemy_tick(scene_stream *stream,uint32_t frame,const float p
         if(owner->combat_alert) {
             const float *target_position=victim?victim->body.state.position:scene_actor_body.state.position;
             if(frame>=owner->combat_navigation_due) {
-                float range=owner->script_move.follow==2?16.0f:20.0f;
+                float range=melee?(owner->script_move.follow==2?2.2f:2.6f):(owner->script_move.follow==2?16.0f:20.0f);
                 status=combat_obstructed(stream,owner->eye_position,delta,&blocked);if(status)return status;
                 owner->combat_navigation_due=frame+15;
-                if(distance>range*range || blocked)campaign_pursuit_target(owner,target_position);
+                if(distance>range*range || blocked){campaign_pursuit_target(owner,target_position);if(melee)++rf_scene_enemy_melee[2];}
                 else campaign_pursuit_stop(owner);
             } else if(owner->script_move.follow==2)campaign_pursuit_target(owner,target_position);
         }
         if(frame<owner->combat_due)continue;
         if(!campaign_enemy_aim_aligned(owner,delta)){++rf_scene_enemy_aim[1];continue;}
         owner->combat_due=frame+60;
-        if(distance>40*40 || distance<.0001f)continue;
+        if(distance>attack_range*attack_range || distance<.0001f){if(melee)++rf_scene_enemy_melee[1];continue;}
         status=combat_obstructed(stream,owner->eye_position,delta,&blocked);if(status)return status;
         if(blocked){++rf_scene_enemy_combat[4];continue;}
+        if(melee){float maximum;memcpy(&maximum,rf_scene_enemy_melee+3,4);++rf_scene_enemy_melee[0];
+            if(distance>maximum)memcpy(rf_scene_enemy_melee+3,&distance,4);}
         ++rf_scene_enemy_combat[2];
         if(!victim && rf_scene_attack_recovery[0] && owner->registration.handle==rf_scene_script_attack[11])++rf_scene_attack_recovery[2];
         status=campaign_enemy_fire_presentation(i);rf_scene_enemy_fire[5]=(uint32_t)status;
         if(status==RF_NOT_FOUND)++rf_scene_enemy_fire[2];else if(status)return status;
-        {rf_damage_request request={10,owner->registration.handle,0,0,UINT32_MAX,0};
+        {int32_t weapon=owner->view.weapons[0],kind=0;
+         /* Supported weapons share the same authored damage type as player fire.
+          * Other weapon classes retain the provisional fallback until loaded. */
+         if(weapon==campaign_pistol_id)kind=campaign_primary[0].damage_kind;
+         else if(weapon==campaign_rifle_id)kind=campaign_primary[1].damage_kind;
+         else if(weapon==campaign_riot_id)kind=campaign_primary[2].damage_kind;
+         else ++rf_scene_enemy_damage_kinds[9];
+         if(kind<0 || kind>8)return RF_FORMAT;
+         ++rf_scene_enemy_damage_kinds[kind];
+         rf_damage_request request={10,owner->registration.handle,kind,0,UINT32_MAX,0};
          if(victim) {
              uint32_t entered;
              status=rf_scene_npc_damage(victim->registration.handle,&request,1,clock_bits,&effects,&amount);if(status)return status;

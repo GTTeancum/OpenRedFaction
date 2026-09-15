@@ -296,3 +296,34 @@ frame3600. A firing probe confirms held primary produces one pistol shot;
 combat inputs must release/repress for subsequent semiautomatic shots.
 The next route must handle combat and cover before claiming section traversal.
 Exploratory logs: artifacts/area2-traversal/{cell-exit,north-hall,guard-fire}.log.
+
+## Weapon-aware enemy damage and melee range
+
+The enemy loop previously sent every hit as damage kind0 (bash) and permitted
+Riot Stick strikes at up to40 units while stopping pursuit at16..20 units.
+Supported pistol, rifle and Riot Stick attacks now use campaign_primary's
+authored damage_kind: bullet1, armor-piercing bullet2 and bash0 respectively.
+Unsupported weapon classes retain the existing provisional fallback and are
+counted explicitly. Flat10 damage, one-second cadence, firearm accuracy,
+AI damage scales, reloads and complete weapon coverage remain open.
+
+Riot Stick enemies now pursue until2.2 units and resume pursuit outside2.6,
+with attacks gated at2.6 units and the existing facing/LOS checks. This is
+the shared player's practical melee reach, not a recovered retail AI constant.
+No route/body allocation or collision-size changes are introduced.
+ENEMY_MELEE records swings, out-of-reach attempts, pursuit requests and
+maximum squared strike distance; ENEMY_DAMAGE_KINDS counts kinds0..8 plus
+unsupported fallback at index9.
+
+PC full-spawn3,000-frame rescue/exit passes: two melee strikes, seven rejected
+out-of-reach attempts,213 pursuit requests, eight bullet shots and no fallback.
+The player ends at100 health; the former run lost health to ranged melee hits.
+The separate2,400-frame guard-recovery replay still passes player acquisition
+and death under exposed guard fire. The weapon-resource test passes.
+
+Stock64MiB XEMU `render-20260914-204440` completes3,000 frames and all28
+selected PC/native comparisons. ENEMY_MELEE matches `[2,7,213,1084702012]`
+(maximum strike distance2.286 units), damage kinds match two bash/eight bullet
+hits, and player health is100. Free memory is4,304 pages (16.8125MiB).
+The harness has closed its emulator. This native run also covers the newly
+extended walk through the opened cell door.
