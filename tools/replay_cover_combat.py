@@ -21,7 +21,8 @@ assert len(prefix)==8+3000*48 and prefix[:8]==b'RFI6'+struct.pack('<I',48)
 records=bytearray(prefix[8:])
 for i in range(3000,3600):
     x,z=(.1066,.9943) if i<3050 else ((-.48279,-.875735) if 3340<=i<3390 else (0,0))
-    pitch,yaw=(-.1,-.9925) if 3050<=i<3074 else (0,0)
+    # Raise aim to the torso; the former downward aim hit only broad bounds.
+    pitch,yaw=(.1,-.9925) if 3050<=i<3074 else (0,0)
     fire=int(3080<=i<3340 and (i-3080)%32==0)
     records.extend(struct.pack('<5f7I',x,0,z,pitch,yaw,0,0,0,fire,int(i==3420),0,0))
 if args.second_guard:
@@ -57,7 +58,8 @@ if args.medical_crate:
     else:
         assert 'TAKEN_PICKUP l2s2a.rfl 8553' in run.stdout
         assert words('ROTATING_DOORS')[2]==8552 and restored==25
-        assert struct.unpack('<f',struct.pack('<I',enemy[5]))[0]>40
+        # Recalibrated body-sphere route takes additional incoming fire.
+        assert 33<struct.unpack('<f',struct.pack('<I',enemy[5]))[0]<34
 else:
     assert 24<position[0]<25 and 9.5<position[2]<10.7
 snapshots=[list(map(float,l.split()[1:])) for l in run.stdout.splitlines() if l.startswith('NPC_COMBAT_ROW ')]

@@ -8,6 +8,14 @@
 - Gameplay: Recalibrate the uninterrupted campaign route after precise bullet collision; historical checkpoint coverage passed, but the current old-input run dies in L2S2a.
 - Movement: Refine ladder entry and top-edge transitions; body contact now unblocks the first L2S3 ladder, but the verified route still uses a jump and repeated top-edge state changes need smoothing.
 
+Aim update (2026-09-15): Xbox3600frames pass33 comparisons through guard8490,
+47.2health and16loaded rounds, with15.727MiB free. Raising torso aim restores PC guard8490
+and5677 kills plus medical-kit collection;4500frames end alive at33.8health.
+The corridor route still needs close-range aiming/cover recalibration; direct
+aim at approaching guard coordinates is blocked by the room wall. Historical
+full-section coverage remains unverified with the new bullet collision.
+See docs/BODY-HIT-DETECTION.md. Estimate remains ~48%.
+
 Body-hit update (2026-09-15): Player/enemy bullets now narrow-test the shared
 transformed body spheres after broad bounds; captured false and retained hits,
 nearest entry, limits, overlap and rotation pass focused tests. PC/NXDK build.
