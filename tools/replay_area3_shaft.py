@@ -8,9 +8,10 @@ def build_input(landing=False):
     prefix=(root/'artifacts/area3-hall-replay/input.bin').read_bytes()
     assert prefix[:8]==b'RFI6'+struct.pack('<I',48) and len(prefix)==8+9600*48
     records=bytearray(prefix)
+    # Enemy drops now grant a Riot Stick before this encounter; cycle past it.
     for i in range(9600,9950):
         x,z=(-.995,.101) if i<9620 else ((.101,.995) if 9640<=i<9720 else (0,0))
-        records.extend(struct.pack('<5f7I',x,0,z,0,-.98 if 9730<=i<9750 else 0,0,0,1,0,0,int(i==9752),int(9760<=i<9790)))
+        records.extend(struct.pack('<5f7I',x,0,z,0,-.98 if 9730<=i<9750 else 0,0,0,1,0,0,int(i in (9752,9754)),int(9760<=i<9790)))
     for i in range(9950,10400):
         x,z=(-.909,.417) if i<9961 else ((.417,.909) if 9980<=i<10066 else (0,0))
         records.extend(struct.pack('<5f7I',x,float(10080<=i<10270),z,0,0,0,0,1,0,0,0,0))

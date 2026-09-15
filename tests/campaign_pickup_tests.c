@@ -2,6 +2,7 @@
 #include "rf/level.h"
 #include <stdio.h>
 #include <string.h>
+#include <math.h>
 #define CHECK(x) do{if(!(x)){fprintf(stderr,"pickup persistence line %u\n",(unsigned)__LINE__);return RF_FORMAT;}}while(0)
 static rf_campaign_pickups state,before;
 static rf_campaign_actors actors;
@@ -46,6 +47,25 @@ int main(int argc,char **argv)
     }
     printf("PASS %u levels, %u authored pickups fit %u-byte persistent owner and survive list replacement\n",c.levels,c.items,(unsigned)sizeof(state));
     printf("PASS %u authored actor keys fit %u-byte independent retirement owner\n",actors.count,(unsigned)sizeof(actors));
+    {
+        float point[3]={1,2,3},bad[3]={NAN,2,3};rf_campaign_weapon_drop saved;
+        memset(&actors,0,sizeof(actors));
+        CHECK(rf_campaign_actor_register(&actors,"L2S3.rfl",2114,&a)==RF_OK);
+        CHECK(rf_campaign_actor_drop_emit(&actors,a,8,42,point)==RF_OK);
+        saved=actors.drops[a];actors.items[a].retired=1;
+        CHECK(rf_campaign_actor_register(&actors,"l2s3.RFL",2114,&b)==RF_OK && a==b);
+        CHECK(!memcmp(&saved,actors.drops+b,sizeof(saved)));
+        CHECK(rf_campaign_actor_drop_emit(&actors,a,3,16,point)==RF_OK && !memcmp(&saved,actors.drops+a,sizeof(saved)));
+        actors.drops[a].state=2;saved=actors.drops[a];
+        CHECK(rf_campaign_actor_drop_emit(&actors,a,8,42,point)==RF_OK && !memcmp(&saved,actors.drops+a,sizeof(saved)));
+        CHECK(rf_campaign_actor_drop_emit(&actors,a,64,42,point)==RF_RANGE);
+        CHECK(rf_campaign_actor_drop_emit(&actors,a,8,0,point)==RF_RANGE);
+        CHECK(rf_campaign_actor_drop_emit(&actors,a,8,42,bad)==RF_RANGE);
+        CHECK(rf_campaign_actor_drop_emit(&actors,actors.count,8,42,point)==RF_RANGE);
+        CHECK(!memcmp(&saved,actors.drops+a,sizeof(saved)));
+        CHECK(rf_campaign_actor_register(&actors,"L2S2a.rfl",2114,&b)==RF_OK && b!=a && !actors.drops[b].state);
+        puts("PASS weapon drops survive actor retirement, reject invalid input, isolate sections and cannot respawn after collection");
+    }
     memset(&state,0,sizeof(state));
     CHECK(rf_campaign_pickup_register(&state,"L1S1.rfl",7,&a)==RF_OK);state.items[a].retired=1;
     CHECK(rf_campaign_pickup_register(&state,"l1s1.RFL",7,&b)==RF_OK && a==b && state.items[b].retired);

@@ -712,6 +712,15 @@ run_scene:
     printf("SCRIPT_ATTACK_POSITION");for(i=0;i<9;++i)printf(" %.6f",rf_scene_script_attack_position[i]);puts("");
     printf("SCRIPT_ROUTE_DETAIL");for(i=0;i<8;++i)printf(" %u",rf_scene_script_route_detail[i]);puts("");
     printf("SCRIPT_OBSTACLE");for(i=0;i<8;++i)printf(" %u",rf_scene_script_obstacle[i]);puts("");
+    if(getenv("RF_REPLAY_TRACE")) {
+        uint32_t first=rf_scene_combat_event_count>32?rf_scene_combat_event_count-32:0;
+        for(uint32_t n=first;n<rf_scene_combat_event_count;n++) {
+            uint32_t *row=rf_scene_combat_events[n%32];float amount,health;
+            memcpy(&amount,row+3,4);memcpy(&health,row+4,4);
+            printf("COMBAT_EVENT %u %u %u %.6f %.6f\n",row[0],row[1],row[2],amount,health);
+        }
+    }
+    printf("WEAPON_DROPS");for(i=0;i<8;++i)printf(" %u",rf_scene_weapon_drops[i]);puts("");
     printf("SHOTGUN");for(i=0;i<8;++i)printf(" %u",rf_scene_shotgun[i]);puts("");
     {extern uint32_t rf_scene_enemy_spread[8];printf("ENEMY_SPREAD");for(i=0;i<8;++i)printf(" %u",rf_scene_enemy_spread[i]);puts("");}
     printf("ENEMY_MELEE");for(i=0;i<4;++i)printf(" %u",rf_scene_enemy_melee[i]);puts("");

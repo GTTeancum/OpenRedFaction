@@ -7973,6 +7973,24 @@ static int combat_shot_obstructed(scene_stream *stream,const float start[3],cons
 /* First-pass death presentation; action audio remains a separate integration. */
 static int combat_death_sound(void *context,uint32_t handle,const char *name)
 {(void)context;(void)handle;(void)name;return RF_OK;}
+uint32_t rf_scene_weapon_drops[8]; /* emitted,collected,rounds,last UID,available,state hash,bytes,status */
+/* Practical live adapter, not exact42ae10: one magazine from a supported
+ * held weapon, floor ray placement, fixed persistent owner. NPC ammunition
+ * depletion, authored no-drop policy and physical tumbling remain open. */
+static int campaign_weapon_drop_emit(campaign_npc_body *owner)
+{
+    int32_t id=owner->view.weapons[0],quantity;uint32_t i,found=0;int status;
+    float start[3],end[3];rf_collision_solid_hit hit;
+    if(!owner->persistence_registered || id<0 || id>=64 || !owner->inventory.owned[id])return RF_OK;
+    for(i=0;i<4;i++)if(id==campaign_slot_weapon(i))break;if(i==4)return RF_OK;
+    if(rf_scene_defeated_actors.drops[owner->persistence_slot].state)return RF_OK;
+    quantity=campaign_weapon_supply.definitions[id].magazine;if(quantity<=0)return RF_OK;
+    memcpy(start,owner->body.state.position,12);start[1]+=.3f;memcpy(end,start,12);end[1]-=4;
+    status=rf_geometry_collision_ray(campaign_trigger_collision,&campaign_movers,start,end,1,&hit,&found);if(status)return status;
+    if(!found)return RF_OK;hit.hit.point[1]+=.1f;
+    status=rf_campaign_actor_drop_emit(&rf_scene_defeated_actors,owner->persistence_slot,id,quantity,hit.hit.point);
+    if(!status)++rf_scene_weapon_drops[0];return status;
+}
 static int combat_death_start(uint32_t slot)
 {
     campaign_npc_body *owner=campaign_npc_bodies+slot;rf_entity_pose *pose=NULL;rf_entity_playback_model *model;int status;
@@ -7980,6 +7998,7 @@ static int combat_death_start(uint32_t slot)
     status=campaign_actor_pose(slot,&pose);if(status)return status;if(!pose)return RF_NOT_FOUND;
     model=campaign_playback_resources.models+pose->skeleton;
     status=rf_motion_stop_looping(&pose->playback,model->resources,model->count);if(status)return status;
+    status=campaign_weapon_drop_emit(owner);if(status)return status;
     owner->death.requested_83c=5;status=rf_scene_npc_death_motion(owner->registration.handle,&ops);
     rf_scene_combat_death[0]=1;rf_scene_combat_death[1]=(uint32_t)owner->death.action_824;
     rf_scene_combat_death[2]=(uint32_t)owner->selection.mapping.actions[5];rf_scene_combat_death[3]=(uint32_t)status;
@@ -8130,6 +8149,14 @@ static int campaign_enemy_fire_presentation(uint32_t slot)
     if(active)++rf_scene_enemy_fire[1];rf_scene_enemy_fire[4]=(uint32_t)motion;
     return RF_OK;
 }
+/* Bounded damage journal for process-local replay/native memory inspection.
+ * type0: player damages NPC; type1: NPC damages player. No gameplay mutation. */
+uint32_t rf_scene_combat_event_count,rf_scene_combat_events[32][5];
+static void campaign_combat_event(uint32_t frame,uint32_t type,uint32_t actor,float amount,float health)
+{
+    uint32_t *row=rf_scene_combat_events[rf_scene_combat_event_count++%32];
+    row[0]=frame;row[1]=type;row[2]=actor;memcpy(row+3,&amount,4);memcpy(row+4,&health,4);
+}
 uint32_t rf_scene_enemy_aim[4]; /* stationary turns, shots held for aim, last actor handle, reserved */
 static int campaign_enemy_aim_aligned(const campaign_npc_body *owner,const float delta[3])
 {
@@ -8264,7 +8291,7 @@ enemy_shot_done:
             float health=victim?victim->damage.effects.health:campaign_player_damage.state.effects.health;
             ++rf_scene_script_attack[5];memcpy(rf_scene_script_attack+6,&amount,4);memcpy(rf_scene_script_attack+8,&health,4);
         }
-        if(amount>0)++rf_scene_enemy_combat[3];
+        if(amount>0){++rf_scene_enemy_combat[3];if(!victim)campaign_combat_event(frame,1,owner->registration.handle,amount,campaign_player_damage.state.effects.health);}
     }
     memcpy(rf_scene_enemy_combat+5,&campaign_player_damage.state.effects.health,4);
     rf_scene_enemy_combat[6]=campaign_player_damage.state.effects.health<=0;
@@ -8284,6 +8311,32 @@ static int campaign_pickups_restore(scene_stream *stream)
         status=rf_campaign_pickup_register(&rf_scene_campaign_pickups,campaign_current_level,stream->pickups.items[i].uid,stream->pickup_slots+i);
         if(status)return status;
         stream->pickup_taken[i]=(uint8_t)rf_scene_campaign_pickups.items[stream->pickup_slots[i]].retired;
+    }
+    return RF_OK;
+}
+static int campaign_weapon_drops_tick(scene_stream *stream,const float eye[3])
+{
+    uint32_t i,k,blocked;int status;rf_scene_weapon_drops[4]=0;rf_scene_weapon_drops[5]=2166136261u;
+    rf_scene_weapon_drops[6]=sizeof(rf_scene_defeated_actors.drops);
+    for(i=0;i<campaign_npc_body_count;i++) {
+        campaign_npc_body *owner=campaign_npc_bodies+i;rf_campaign_weapon_drop *drop;float distance=0,delta[3];rf_weapon_pickup_grant grant={0};
+        if(!owner->persistence_registered)continue;drop=rf_scene_defeated_actors.drops+owner->persistence_slot;
+        if(drop->state==1 && campaign_player_damage.state.effects.health>0) {
+            for(k=0;k<3;k++){float d=drop->position[k]-scene_actor_body.state.position[k];distance+=d*d;delta[k]=drop->position[k]-eye[k];}
+            if(distance<=4) {
+                status=combat_shot_obstructed(stream,eye,delta,1,&blocked);if(status)return status;
+                if(!blocked) {
+                    status=rf_weapon_pickup_grant_sp(&campaign_player_inventory,campaign_weapon_supply.definitions+drop->weapon,
+                        drop->weapon,drop->quantity,1,&grant);if(status)return status;
+                    if(grant.acquired || grant.rounds) {
+                        drop->state=2;++rf_scene_weapon_drops[1];rf_scene_weapon_drops[2]+=grant.rounds;
+                        rf_scene_weapon_drops[3]=rf_scene_defeated_actors.items[owner->persistence_slot].uid;campaign_ammo_publish();
+                    }
+                }
+            }
+        }
+        rf_scene_weapon_drops[4]+=drop->state==1;
+        rf_scene_weapon_drops[5]=npc_hash_bytes(rf_scene_weapon_drops[5],drop,sizeof(*drop));
     }
     return RF_OK;
 }
@@ -8318,7 +8371,7 @@ static int campaign_pickups_tick(scene_stream *stream,const float eye[3])
 static int campaign_combat_tick(scene_stream *stream,uint32_t frame,const float position[3],const float orientation[3][3])
 {
     float delta[3],nearest=1,amount;uint32_t i,target=UINT32_MAX,blocked,fire,alt,active=0;int status;
-    if(!frame){memset(rf_scene_shotgun,0,sizeof(rf_scene_shotgun));campaign_shotgun_random.value=1;campaign_last_alt=0;memset(rf_scene_riot,0,sizeof(rf_scene_riot));riot_charge_remainder=0;combat_surface_frame=UINT32_MAX;}
+    if(!frame){memset(rf_scene_weapon_drops,0,sizeof(rf_scene_weapon_drops));rf_scene_combat_event_count=0;memset(rf_scene_combat_events,0,sizeof(rf_scene_combat_events));memset(rf_scene_shotgun,0,sizeof(rf_scene_shotgun));campaign_shotgun_random.value=1;campaign_last_alt=0;memset(rf_scene_riot,0,sizeof(rf_scene_riot));riot_charge_remainder=0;combat_surface_frame=UINT32_MAX;}
     if(!frame){memset(rf_scene_weapon_selection,0,sizeof(rf_scene_weapon_selection));memset(rf_scene_weapon_audio,0,sizeof(rf_scene_weapon_audio));combat_sound_random.value=1;memset(rf_scene_combat_death,0,sizeof(rf_scene_combat_death));memset(rf_scene_combat,0,sizeof(rf_scene_combat));rf_scene_combat[3]=UINT32_MAX;rf_scene_combat[5]=campaign_pistol.magazine;memset(&combat_trigger,0,sizeof(combat_trigger));combat_frame=combat_hit_frame=UINT32_MAX;
         memset(rf_scene_enemy_awareness,0,sizeof(rf_scene_enemy_awareness));
         memset(rf_scene_enemy_spread,0,sizeof(rf_scene_enemy_spread));campaign_enemy_spread_random.value=1;
@@ -8344,6 +8397,7 @@ static int campaign_combat_tick(scene_stream *stream,uint32_t frame,const float 
         campaign_item_pending_count=0;
     }
     if(combat_frame==frame)return RF_OK;combat_frame=frame;
+    status=campaign_weapon_drops_tick(stream,position);rf_scene_weapon_drops[7]=(uint32_t)status;if(status)return status;
     status=campaign_pickups_tick(stream,position);rf_scene_pickups[7]=(uint32_t)status;if(status)return status;
     if(player_input.cycle_weapon && !weapon_cycle_held && campaign_player_damage.state.effects.health>0) {
         uint32_t next=campaign_equipped_slot,step;int32_t id;
@@ -8433,6 +8487,7 @@ static int campaign_combat_tick(scene_stream *stream,uint32_t frame,const float 
         rf_damage_effect_backend effects={combat_predicate,combat_uid,combat_source,combat_burn,combat_random,combat_notify,combat_playing,combat_play,NULL};
         memcpy(&clock_bits,&seconds,4);status=rf_scene_npc_damage(handle,&request,1,clock_bits,&effects,&amount);if(status)return status;
         if(amount>0){combat_hit_frame=frame;
+            campaign_combat_event(frame,0,handle,amount,owner->damage.effects.health);
             if(alt && campaign_equipped_slot==2)++rf_scene_riot[3];
             if(campaign_equipped_slot==3)++rf_scene_shotgun[2];
             if(campaign_equipped_slot==2 && fire){float impact[3];for(i=0;i<3;i++)impact[i]=position[i]+delta[i]*nearest;combat_sound("Riot Impact Flesh",impact);++rf_scene_riot[4];}
@@ -10196,6 +10251,7 @@ static int scene_weapon_draw(scene_stream *stream,uint32_t frame)
         campaign_npc_body *body=campaign_npc_bodies+i;const rf_entity_view *linked;rf_weapon_world_draw draw={0};uint32_t scratch[20]={0},cls;
         if(!body->registration.view || i>=campaign_model_owner_count)continue;
         if(body->object_flags&(2|0x4000))continue;
+        if(body->persistence_registered && rf_scene_defeated_actors.drops[body->persistence_slot].state)continue;
         if(campaign_model_owners[i].room<stream->visibility.state.count && !stream->visibility.state.rooms[campaign_model_owners[i].room].visible)continue;
         cls=campaign_seeds.items[i].class_index;if(cls>=campaign_seeds.class_count)return RF_RANGE;
         draw.view.flags_810=body->view.flags_810;draw.view.class_flags_724=campaign_seeds.classes[cls].physics.flags;
@@ -10224,6 +10280,14 @@ static int scene_pickups_draw(scene_stream *stream)
     for(i=0;i<stream->pickups.count;i++)if(!stream->pickup_taken[i]) {
         int kind=pickup_class(stream->pickups.items[i].class_name);rf_weapon_hand_placement pose={0};
         if(kind<0)continue;c.resource=kind?stream->pickup_resources+kind-1:NULL;memcpy(pose.position,stream->pickups.items[i].position,12);memcpy(pose.basis,stream->pickups.items[i].orientation,36);
+        status=scene_weapon_submit(&c,model,&pose,state);if(status)return status;
+    }
+    c.resource=NULL;
+    for(i=0;i<campaign_npc_body_count;i++) {
+        campaign_npc_body *owner=campaign_npc_bodies+i;const rf_campaign_weapon_drop *drop;rf_weapon_hand_placement pose={0};
+        if(!owner->persistence_registered)continue;drop=rf_scene_defeated_actors.drops+owner->persistence_slot;if(drop->state!=1)continue;
+        model=campaign_weapon_models.weapons[drop->weapon].model;if(!model)continue;
+        memcpy(pose.position,drop->position,12);pose.basis[0]=pose.basis[4]=pose.basis[8]=1;
         status=scene_weapon_submit(&c,model,&pose,state);if(status)return status;
     }
     rf_scene_pickups[6]=stream->mesh->count-start;return RF_OK;

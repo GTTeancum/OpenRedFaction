@@ -768,7 +768,9 @@ extern uint32_t rf_scene_combat_death[8];
 extern rf_level_transition_request rf_scene_level_transition;
 extern uint32_t rf_scene_weapon_selection[8];
 extern uint32_t rf_scene_combat[8]; /* shots,hits,kills,last target,health bits,clip,reload ticks,status */
+extern uint32_t rf_scene_combat_event_count,rf_scene_combat_events[32][5];
 extern uint32_t rf_scene_shotgun[8];
+extern uint32_t rf_scene_weapon_drops[8];
 extern uint32_t rf_scene_riot[8];
 /* RFI6 + size48 adds alternate fire; RFI5 + size44 adds weapon cycling; RFI4 + size40 adds fire/reload. RFI3 + uint32 size32 includes use; RFI2 size28 omits use; legacy raw
  * size24 omits jump/use. Readers must zero omitted fields before loading. */

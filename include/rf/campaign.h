@@ -65,6 +65,11 @@ typedef struct rf_campaign_triggers {
 } rf_campaign_triggers;
 int rf_campaign_trigger_register(rf_campaign_triggers *,const char *level,uint32_t uid,uint32_t *slot);
 #define RF_CAMPAIGN_ACTOR_SLOTS 2048
+/* First-pass supported weapon drops, keyed by the actor's persistent slot.
+ * state: 0 never emitted, 1 available, 2 collected. Fixed48KiB, no handles. */
+typedef struct rf_campaign_weapon_drop {
+    uint32_t state;int32_t weapon,quantity;float position[3];
+} rf_campaign_weapon_drop;
 /* Same owned key layout, separate namespace and capacity from pickups. */
 typedef struct rf_campaign_actors {
     uint32_t level_count,count;
@@ -76,6 +81,9 @@ typedef struct rf_campaign_actors {
     /* Captured with vitals: allegiance and authored hidden/invulnerable bits.
      * Other object bits remain owned by normal actor construction. Fixed16KiB. */
     struct {uint32_t affiliation,flags;} mission[RF_CAMPAIGN_ACTOR_SLOTS];
+    rf_campaign_weapon_drop drops[RF_CAMPAIGN_ACTOR_SLOTS];
 } rf_campaign_actors;
 int rf_campaign_actor_register(rf_campaign_actors *state,const char *level,uint32_t uid,uint32_t *slot);
+/* Emission is idempotent even after collection. Invalid input preserves state. */
+int rf_campaign_actor_drop_emit(rf_campaign_actors *,uint32_t slot,int32_t weapon,int32_t quantity,const float position[3]);
 #endif

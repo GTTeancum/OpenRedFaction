@@ -1,9 +1,17 @@
 # Red Faction Xbox / PC - open work
 
+- Weapons: Verify remaining enemy drop policies and uncollected-drop revisits; supported held weapons now drop collectible supplies, with PC/Xbox rifle acquisition and firing verified.
 - Combat: Finish enemy damage amounts, cadence and weapon coverage; authored SP primary spread and target/bullet-obstruction checks now pass PC/Xbox verification (24 hits, 3 misses).
 - Weapons: Exercise the shotgun in the uninterrupted campaign and continue weapon coverage; PC manual/automatic reload and PC/Xbox automatic reload plus two-level persistence checks now pass.
-- Gameplay: Continue from the first L2S3 ladder into the main shaft; PC/Xbox now pass the10800-frame approach/climb with four L2S3 kills,5 health and16.613MiB free, and PC also reaches the upper landing.
+- Gameplay: Continue through the main L2S3 shaft; PC reaches the first upper landing with five health and a newly acquired rifle, while the updated full route still needs Xbox verification.
 - Movement: Refine ladder entry and top-edge transitions; body contact now unblocks the first L2S3 ladder, but the verified route still uses a jump and repeated top-edge state changes need smoothing.
+
+Weapon-drop update (2026-09-15): Supported enemy weapons now become collectible
+supplies; the staged rifle kill/pickup/burst passes PC and stock64MiB Xbox
+with17.1875MiB free. PC/Xbox also retain it across two section handoffs. The10950-frame
+PC ladder route passes after updating weapon cycling and now carries a42-round
+rifle. Exact drop policy, uncollected-drop revisit and further shaft traversal
+remain open; see docs/WEAPON-DROPS.md. Estimate remains ~47%.
 
 First-pass policy: playable campaign systems take priority over exact1:1 RE.
 Use practical shared implementations, verify gameplay and stock64MiB operation,
