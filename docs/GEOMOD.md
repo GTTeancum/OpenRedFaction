@@ -2255,3 +2255,20 @@ constraint propagation must be carried across splits first. Spatial proximity
 is not sufficient evidence for assigning a plane triple to a vertex. No
 closure fix or visual improvement is claimed until that integration passes
 the complete boundary/collision/native checks. Estimate remains ~49 percent.
+
+Seed adjacency recovery (2026-09-15): rf_geomod_seed_adjacency recovers the
+opposite incident face for each directed edge of a packed closed seed mesh.
+It uses exact endpoint equality, rejects zero-length edges, same-direction
+duplicates and missing/multiple opposites, and performs validation before
+publishing caller-owned uint16 face IDs. It allocates no memory and accepts
+4..32 faces with3..64 corners. Output must not alias input storage.
+Tests cover the stock room box, both installed Holey01 cutter instances,
+invalid packed layout/open input, short output and unchanged-output failure.
+The installed-data interior test passes; three focused CTests and NXDK build
+pass after correcting an initial header declaration-order compilation error.
+This provides seed topology for supporting-plane identities. It is not yet
+propagated through fragment splits or used to change live crater vertices.
+Existing closure failures therefore remain. Next integration must preserve
+edge identities in work/seed/split buffers and assign the cut-plane identity
+to newly created edges; matching positions after the fact is insufficient.
+No visual or new native execution claim; estimate ~49 percent.

@@ -131,6 +131,11 @@ typedef struct rf_geomod_mesh_view {
     const rf_geomod_vertex *vertices;const rf_geomod_face *faces;
     uint32_t vertex_count,face_count,generation;
 } rf_geomod_mesh_view;
+/* Recover the opposite incident face for every packed directed edge of a
+ * closed seed mesh. Exact endpoint equality; no proximity welding. Output is
+ * indexed by vertex/edge start and unchanged on failure. Output must be
+ * disjoint from mesh inputs. No allocation. */
+int rf_geomod_seed_adjacency(const rf_geomod_mesh_view *,uint16_t *neighbors,uint32_t capacity);
 typedef struct rf_geomod_storage rf_geomod_storage;
 /* Owns original/reset data and two bounded working banks in one allocation.
  * Budget includes the owner, excludes allocator overhead. Open requires *out

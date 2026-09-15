@@ -362,6 +362,22 @@ static int light_grid_check(void)
 int main(int argc,char **argv)
 {
     {
+        float planes[6][4];rf_geomod_vertex v[6][4];rf_geomod_face faces[6];
+        uint16_t neighbors[24],saved[24];unsigned i,j;
+        rf_geomod_mesh_view mesh={v[0],faces,24,6,0};
+        box((float[3]){-16,-12,-20},(float[3]){16,12,20},planes,v);
+        for(i=0;i<6;i++)faces[i]=(rf_geomod_face){i*4,4,0,i};
+        CHECK(!rf_geomod_seed_adjacency(&mesh,neighbors,24));
+        for(i=0;i<6;i++)for(j=0;j<4;j++)CHECK(neighbors[i*4+j]<6 && neighbors[i*4+j]/2!=i/2);
+        memcpy(saved,neighbors,sizeof(saved));mesh.face_count=5;
+        CHECK(rf_geomod_seed_adjacency(&mesh,neighbors,24)==RF_FORMAT && !memcmp(neighbors,saved,sizeof(saved)));
+        mesh.face_count=6;faces[5].first=16;
+        CHECK(rf_geomod_seed_adjacency(&mesh,neighbors,24)==RF_FORMAT && !memcmp(neighbors,saved,sizeof(saved)));
+        faces[5].first=20;
+        CHECK(rf_geomod_seed_adjacency(&mesh,neighbors,23)==RF_RANGE && !memcmp(neighbors,saved,sizeof(saved)));
+        puts("PASS: exact seed edge adjacency and malformed/short-output rollback");
+    }
+    {
         const float planes[3][4]={{.8841080665588379f,-.17530789971351624f,-.4331513047218323f,14.125255584716797f},
             {.41470983624458313f,.8557782173156738f,-.30928853154182434f,13.848827362060547f},{-1,0,0,-16}};
         const unsigned order[6][3]={{0,1,2},{0,2,1},{1,0,2},{1,2,0},{2,0,1},{2,1,0}};
@@ -893,7 +909,7 @@ int main(int argc,char **argv)
             CHECK(!memcmp(&decoded,&saved,sizeof(saved)));
         }
 
-        for(i=0;i<2;i++)cutters[i]=(rf_geomod_mesh_view){vertices[i],faces,count*3,count,0};
+        for(i=0;i<2;i++){uint16_t edges[96];cutters[i]=(rf_geomod_mesh_view){vertices[i],faces,count*3,count,0};CHECK(!rf_geomod_seed_adjacency(cutters+i,edges,96));}
         for(cavity=0;cavity<2;cavity++) {
             box((float[3]){-4,-4,-4},(float[3]){4,4,cavity?0:4},planes,source_v);
             for(i=0;i<6;i++) {
@@ -1016,6 +1032,7 @@ int main(int argc,char **argv)
             CHECK(!rf_geomod_terrain_open(&source,original_filters,&generated,1,4096,768,1024*1024,&terrain));
             CHECK(!rf_geomod_terrain_open(&source,original_filters,&generated,1,4096,769,1024*1024,&uncached));
             report_closure=getenv("RF_GEOMOD_CLOSURE_ALL")?2:1;
+            {uint16_t edges[24];CHECK(!rf_geomod_seed_adjacency(&source,edges,24));}
             for(repeat=0;repeat<6;repeat++) {
                 rf_collision_tree_hit hit;uint32_t matched;float basis[9];double total=0;
                 CHECK(!rf_geomod_terrain_get(terrain,&live));

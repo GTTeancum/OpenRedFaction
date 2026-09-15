@@ -951,6 +951,33 @@ int rf_geomod_storage_prepare_cavity_cuts(rf_geomod_storage *s,
 
 static int same_position(const float a[3],const float b[3])
 {return a[0]==b[0] && a[1]==b[1] && a[2]==b[2];}
+int rf_geomod_seed_adjacency(const rf_geomod_mesh_view *mesh,uint16_t *neighbors,uint32_t capacity)
+{
+    uint32_t pass,f,e,g,h,packed=0,i;int status;
+    if(!mesh || !neighbors || !mesh->faces || mesh->face_count<4 || mesh->face_count>32 || capacity<mesh->vertex_count)return RF_RANGE;
+    status=storage_vertices(mesh->vertices,mesh->vertex_count);if(status)return status;
+    for(f=0;f<mesh->face_count;f++) {
+        const rf_geomod_face *face=mesh->faces+f;
+        if(face->first!=packed || face->count<3 || face->count>64 || face->count>mesh->vertex_count-packed)return RF_FORMAT;
+        packed+=face->count;
+    }
+    if(packed!=mesh->vertex_count)return RF_FORMAT;
+    for(pass=0;pass<2;pass++)for(f=0;f<mesh->face_count;f++)for(e=0;e<mesh->faces[f].count;e++) {
+        const rf_geomod_face *face=mesh->faces+f;
+        const float *a=mesh->vertices[face->first+e].position,*b=mesh->vertices[face->first+(e+1)%face->count].position;
+        uint32_t found=0,opposite=0;
+        if(same_position(a,b))return RF_FORMAT;
+        for(g=0;g<mesh->face_count;g++)if(g!=f)for(h=0;h<mesh->faces[g].count;h++) {
+            const rf_geomod_face *other=mesh->faces+g;
+            const float *c=mesh->vertices[other->first+h].position,*d=mesh->vertices[other->first+(h+1)%other->count].position;
+            if(same_position(a,c) && same_position(b,d))return RF_FORMAT;
+            if(same_position(a,d) && same_position(b,c)){found++;opposite=g;}
+        }
+        if(found!=1)return RF_FORMAT;
+        i=face->first+e;if(pass)neighbors[i]=(uint16_t)opposite;
+    }
+    return RF_OK;
+}
 /* Every triangle and the strict kernel bound one tetrahedron. The union
  * preserves the supplied concave boundary; no convex hull is substituted. */
 static int star_mesh_planes(const rf_geomod_mesh_view *mesh,const float kernel[3],float out[32][4][4])
