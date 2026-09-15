@@ -1,6 +1,7 @@
 # Red Faction Xbox / PC - open work
 
 - PRIORITY GeoMod: Match original destruction behavior and appearance; the current faceted crater is a prototype, not an accepted fidelity milestone.
+- GeoMod: Integrate the verified original concave crater template with correct transforms, UVs and repeated-cut collision; the current cutter accepts only convex shapes.
 - DEV testbed: Review full weapon animations and add complete room reset; terrain reset and ammo refill are implemented, while campaign progression remains paused.
 - GeoMod: Improve crater shape/readability, add debris and authored surface eligibility; rockets now cut repeated faceted craters with the level-authored interior texture.
 - USER: Review destruction readability after replacing the folded-panel interior; destruction remains the current focus.
@@ -5216,3 +5217,10 @@ rock02.tga from ui.vpp. Xbox500frame approach passes38comparisons with
 467020 points to definition lookup4375b0 and cut submission437230; trace
 these next to replace the generic crater shape. Hardness policy, lighting,
 debris and faithful repeated cuts remain open. Estimate ~49%; GeoMod.
+
+Original GeoMod template investigation (2026-09-15): The bounded original
+factory harness matches10vertices,16faces and48UV pairs bit-for-bit and
+executes the original bounds/radius calculation. Holey01 is nonconvex;
+shared terrain support must change before integration. No new visual or
+Xbox runtime validation is claimed. See docs/GEOMOD.md and
+tools/inspect_geomod_template.py. Estimate remains ~49%; focus: GeoMod.

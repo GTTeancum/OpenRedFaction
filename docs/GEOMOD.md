@@ -461,7 +461,7 @@ here; region precedence and how hardness controls cuts remain unimplemented.
 
 Existing export467020 provides the next cut-shape lead: it calls4375b0
 with an input ID, derives scale from radius divided by definition+0x60
-unless flag8 is set, calls45cff0, and submits through437230. A bounded
+unless flag8 is set, calls45cff0, and invokes the effect owner437230. A bounded
 128-entry journal and an ice-texture branch are visible in this routine.
 These are raw decompiler observations, not yet verified callable signatures.
 Trace4375b0/437230 and their data before selecting a replacement shape.
@@ -472,3 +472,46 @@ Xbox approach at artifacts/xemu/render-20260915-084302 passes38comparisons
 with9091pages free; native image inspected with authored dark rock interior.
 All19staging entries restored; owned emulator exited. This corrects material
 selection, not crater fidelity, UV parity or interior lighting.
+
+## Original crater factory verification (2026-09-15)
+
+GeoMod remains the highest priority; the current visible icosahedron is a
+prototype. No gameplay rendering change is claimed by this investigation.
+
+For the RF.exe SHA above,4374c0 initializes four named templates through
+437500;4375b0 retrieves them. Factory4e6d60 builds Holey01.v3d directly
+from embedded constants:10vertices,16triangular faces and48corner UV pairs.
+This is not an absent V3D archive entry. The other factory branches name
+bit_driller_double, bit_driller_single and Holey_APC; they remain unverified.
+
+Run python tools/inspect_geomod_template.py after exporting4e6d60 with
+tools/ghidra/ExportSelected.java. It executes the original factory through
+4cf9a0/4cf500 bounds computation in Unicorn, stopping at4e76f8 before the
+auxiliary solid construction. Allocation and mesh container methods are
+explicit capture boundaries; vector math and bounds execute original bytes.
+It verifies bit-exact agreement against tools/extract_geomod_template.py
+for all submitted vertices, face indices and UVs. Generated data remains
+under ignored artifacts, with original executable/export hashes.
+
+The closed inward-wound mesh has24paired edges and signed volume
+-0.011949739812882259. It is NONCONVEX: maximum wrong-side vertex distance
+is0.019375374254069707, well beyond rounding tolerance. Original bounds
+calculation yields radius0.2196311503648758 at solid+0x60 and center
+(0.005076570902019739,0.009751406498253345,-0.04012307897210121).
+The harness confirms finite bounds and enclosure of every submitted vertex.
+
+Our current convex-only terrain union cannot directly consume this shape.
+Next: support concave cutters transactionally, validate original transform
+and scale rules, preserve UV corners, and verify repeated-cut surface and
+collision agreement on PC and stock64MiB Xbox. Do not replace this mesh
+with its convex hull and call it original parity. Final factory auxiliary
+processing, live visual reference, debris and lighting remain unverified.
+
+Correction to earlier lead:437230 owns a bounded effect list and emitter
+handles; it is not established as the geometry-subtraction worker.466b00
+copies a descriptor into cut globals and selects texture mapping. Raw
+45cff0 indicates maximum matching region hardness, default646004 when no
+region matches, refusal at hardness100, and clamped1-hardness*0.01 scaling.
+These region/transform observations still require execution verification
+before integration. The level loader's zero-to55 fallback is documented
+above; the live prototype does not yet apply those rules.
