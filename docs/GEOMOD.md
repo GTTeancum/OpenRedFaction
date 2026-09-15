@@ -2118,3 +2118,21 @@ bits, but later dirty1 scheduling cannot be ruled out by that oracle.
 Helpers4e6020/4e6080 update scrolling face UVs; they do not consume dirty
 lightmaps. Continue through dynamic-light scheduling and original crater
 material selection. No new visual or native-runtime claim; ~49 percent.
+
+Gameplay material setup (2026-09-15): The DEV path already obtains its
+substrate name from level section900; rock02 is the selected GlassHouse
+level material, not an arbitrary renderer fallback. Original4f8740 mode4
+supports base/down/up texture handles, but the gameplay request setup
+466b00 assigns all three identically through4f86f0/4f8700/4f8710.
+inspect_geomod_material_setup.py executes466bd9..466c1d and those actual
+setters for all256 low-byte blast flag combinations. Without flag0x10 all
+three handles come from global646000; with it they come from loading
+ice_ice01.tga with arguments-1,1. Only that texture-load boundary is supplied;
+all256 selections and load requests match. Original SHA is checked and
+results are artifacts/geomod-material-setup-original.json. Loader handle
+provenance, final CSG and rendering are not covered by this oracle.
+No alternate floor/ceiling material is justified for ordinary gameplay by
+this setup. Existing live ice-cut rejection remains; supporting ice requires
+its material path rather than reusing rock. No source render change or new
+visual acceptance follows. Current priority remains crater readability,
+runtime dynamic lighting and mapping identity; estimate ~49 percent.
