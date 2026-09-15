@@ -2156,3 +2156,22 @@ The three focused CTests pass, including enforced ray coverage. Room-scale
 closure remains diagnostic and fails; passing tests are not closed-topology
 acceptance. No production geometry or framebuffer changed. The next repair
 needs full-boundary analysis, not only the first tiny junction. ~49 percent.
+
+Opposing-edge distance audit (2026-09-15): Full closure mode now searches
+for the nearest oppositely directed edge satisfying the existing angular
+and projected-interior tests, independently of positional tolerance. It
+prints CLOSURE_NEAREST with an explicit found flag; a found0 distance is a
+sentinel and must not be interpreted as geometry. The summary tool reports
+missing candidates separately. No tolerance or production vertex changed.
+The longest failing interval2.74915108302 has an opposed edge at distance
+1.46611917376e-6. Across cuts1..6 the greatest distances among eligible
+opposed candidates are1.62075e-7,1.91186e-6,2.56371e-6,2.56371e-6,
+2.62674e-6,2.69094e-6. Missing eligible candidates number2,9,23,31,41,47;
+these may fail endpoint/angular eligibility and are not proven missing faces.
+Evidence: artifacts/geomod-closure-nearest.log and its .summary.json, produced
+by the full-sweep test and tools/analyze_geomod_closure.py. The three focused
+CTests pass while the strict room-scale closure diagnostic still fails.
+This localizes the long-interval failures to small boundary disagreement,
+but does not excuse them or solve unmatched intervals. Repair must preserve
+incident face-plane constraints; increasing tolerances or blanket welding
+would conceal the issue. No rendered output change; estimate ~49 percent.

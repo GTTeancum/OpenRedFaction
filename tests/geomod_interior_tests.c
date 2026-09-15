@@ -60,7 +60,7 @@ static int closed(void)
         }
         for(i=1;i<n;i++){double value=t[i];j=i;while(j && t[j-1]>value){t[j]=t[j-1];j--;}t[j]=value;}
         for(j=1;j<n;j++)if((t[j]-t[j-1])*sqrt(len)>1e-6) {
-            double mid[3],match_error[8],match_along[8];unsigned match_face[8],match_edge[8];int matches=0,balance=0;
+            double mid[3],match_error[8],match_along[8],nearest=1e30;unsigned nearest_face=0,nearest_edge=0;unsigned match_face[8],match_edge[8];int matches=0,balance=0;
             for(i=0;i<3;i++)mid[i]=a[i]+d[i]*(t[j]+t[j-1])*.5;
             for(q=0;q<polygon_count;q++)for(f=0;f<polygons[q].count;f++) {
                 const float *x=surface[polygons[q].first+f].position;
@@ -70,6 +70,7 @@ static int closed(void)
                 if(size<1e-16)return 0;
                 along/=size;
                 for(i=0;i<3;i++){double z=mid[i]-x[i]-along*edge[i];error+=z*z;}
+                if(dot<0 && along>1e-8 && along<1-1e-8 && fabs(dot*dot-len*size)<1e-8*len*size && error<nearest) {nearest=error;nearest_face=q;nearest_edge=f;}
                 if(along>1e-8 && along<1-1e-8 && error<1e-12 && fabs(dot*dot-len*size)<1e-8*len*size) {
                     if(matches<8){match_face[matches]=q;match_edge[matches]=f;match_error[matches]=sqrt(error);match_along[matches]=along;}
                     matches++;balance+=dot>0?1:-1;
@@ -80,6 +81,7 @@ static int closed(void)
                     p,e,sqrt(len),matches,balance,a[0],a[1],a[2],b[0],b[1],b[2]);
                 if(report_closure) {
                     printf("CLOSURE_INTERVAL width %.12g midpoint %.12g %.12g %.12g\n",(t[j]-t[j-1])*sqrt(len),mid[0],mid[1],mid[2]);
+                    if(report_closure>=2)printf("CLOSURE_NEAREST face%u edge%u distance %.12g found %u\n",nearest_face,nearest_edge,sqrt(nearest),nearest<1e30);
                     for(i=0;i<(unsigned)matches && i<8;i++) {
                         const rf_geomod_fragment *poly=polygons+match_face[i];
                         const float *x=surface[poly->first+match_edge[i]].position;
