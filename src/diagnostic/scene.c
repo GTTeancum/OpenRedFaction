@@ -8127,8 +8127,12 @@ static int campaign_enemy_tick(scene_stream *stream,uint32_t frame,const float p
     memcpy(&clock_bits,&seconds,4);++rf_scene_enemy_combat[0];
     for(i=0;i<campaign_npc_body_count && campaign_player_damage.state.effects.health>0;i++) {
         campaign_npc_body *owner=campaign_npc_bodies+i;float delta[3],distance=0,amount;int status;
-        const uint32_t melee=owner->view.weapons[0]==campaign_riot_id;
-        const float attack_range=melee?2.6f:40.0f;
+        const int32_t weapon=owner->view.weapons[0];
+        const rf_weapon_primary_definition *definition=weapon==campaign_pistol_id?campaign_primary:
+            weapon==campaign_rifle_id?campaign_primary+1:weapon==campaign_riot_id?campaign_primary+2:NULL;
+        const uint32_t melee=weapon==campaign_riot_id;
+        const float attack_range=definition && definition->ai_attack_range>0?definition->ai_attack_range:(melee?2.6f:40.0f);
+        const float pursue_range=definition && definition->ai_attack_range>0?attack_range:(melee?2.6f:20.0f);
         if(!owner->registration.view || (owner->object_flags&(2|0x4000)) ||
            owner->damage.effects.health<=0 || (owner->view.flags_810&1) || owner->view.weapons[0]<0){campaign_pursuit_stop(owner);continue;}
         campaign_npc_body *victim=NULL;uint32_t victim_slot=UINT32_MAX;
@@ -8184,7 +8188,7 @@ static int campaign_enemy_tick(scene_stream *stream,uint32_t frame,const float p
         if(owner->combat_alert) {
             const float *target_position=victim?victim->body.state.position:scene_actor_body.state.position;
             if(frame>=owner->combat_navigation_due) {
-                float range=melee?(owner->script_move.follow==2?2.2f:2.6f):(owner->script_move.follow==2?16.0f:20.0f);
+                float range=owner->script_move.follow==2?(melee?fminf(2.2f,pursue_range):pursue_range*.8f):pursue_range;
                 status=combat_obstructed(stream,owner->eye_position,delta,&blocked);if(status)return status;
                 owner->combat_navigation_due=frame+15;
                 if(distance>range*range || blocked){campaign_pursuit_target(owner,target_position);if(melee)++rf_scene_enemy_melee[2];}
@@ -8203,13 +8207,9 @@ static int campaign_enemy_tick(scene_stream *stream,uint32_t frame,const float p
         if(!victim && rf_scene_attack_recovery[0] && owner->registration.handle==rf_scene_script_attack[11])++rf_scene_attack_recovery[2];
         status=campaign_enemy_fire_presentation(i);rf_scene_enemy_fire[5]=(uint32_t)status;
         if(status==RF_NOT_FOUND)++rf_scene_enemy_fire[2];else if(status)return status;
-        {int32_t weapon=owner->view.weapons[0],kind=0;
-         /* Supported weapons share the same authored damage type as player fire.
-          * Other weapon classes retain the provisional fallback until loaded. */
-         if(weapon==campaign_pistol_id)kind=campaign_primary[0].damage_kind;
-         else if(weapon==campaign_rifle_id)kind=campaign_primary[1].damage_kind;
-         else if(weapon==campaign_riot_id)kind=campaign_primary[2].damage_kind;
-         else ++rf_scene_enemy_damage_kinds[9];
+        {int32_t kind=definition?definition->damage_kind:0;
+         /* Unsupported weapon classes retain the provisional fallback. */
+         if(!definition)++rf_scene_enemy_damage_kinds[9];
          if(kind<0 || kind>8)return RF_FORMAT;
          ++rf_scene_enemy_damage_kinds[kind];
          rf_damage_request request={10,owner->registration.handle,kind,0,UINT32_MAX,0};

@@ -4,8 +4,9 @@ The shared scene now checks unalerted, visible, alive armed actors every30
 simulation frames, staggered by actor index. Authored affiliation0 can acquire
 the player within20 world units and a120-degree forward cone when the retained
 static/moving geometry ray is clear. Acquisition waits30 frames before firing;
-alerted actors then attack every60 frames within40 units with a fresh obstruction
-check. Damaging an armed actor also provokes retaliation regardless of affiliation.
+alerted actors then attack every60 frames within the supported weapon
+range (pistol20, rifle30, Riot Stick2.6), with a fresh obstruction check.
+Unsupported weapons retain the provisional40-unit attack limit. Damaging an armed actor also provokes retaliation regardless of affiliation.
 
 These distances, cone and timing are practical port policy, not reconstructed
 original AI. The affiliation values are corroborated by Dash Faction's
@@ -52,3 +53,46 @@ immediate friendly change clearing an active alert, and delayed hostile change.
 Both PC/NXDK builds and26 CTests pass. Eight bytes of borrowed callback/context
 are added to the32-bit trigger owner; no event-time allocation. End-to-end
 authored mission sequences in XEMU remain to be verified.
+
+## Authored attack range (2026-09-14)
+
+The primary-weapon reader now accepts the optional `$AI attack range:` pair.
+It retains the first value for this single-player implementation and validates
+both finite positive values. Missing range stays zero so callers can retain
+their explicit fallback. Duplicate, truncated and invalid pairs preserve output.
+Installed pistol/rifle/Riot Stick pairs are respectively20/20,30/30 and2.6/2.6;
+all supported pairs agree. The table comment describes this as the range the
+AI attempts to stay within while attacking. No claim is made that the original
+uses the same hard firing cutoff or pursuit hysteresis as this first pass.
+
+Supported firearms pursue outside their range and stop at80 percent of range.
+Riot Stick keeps its2.2-unit stopping threshold within the authored2.6 reach.
+The same definition supplies damage kind. Unsupported classes retain the
+existing20/16 pursuit thresholds and40-unit firing fallback.
+
+The weapon-resource test verifies installed values, distinct paired values,
+missing/default fields and malformed/duplicate preservation. PC full-spawn
+3,000-frame rescue/cell-exit passes. PC and NXDK builds pass.
+
+`tools/replay_cover_combat.py` extends the generated3,000-frame spawn replay
+to3,600 frames: advance, aim, nine semiautomatic shots, retreat and reload.
+Four shots hit and kill guard8490; the player returns to the doorway at
+(24.540,-4.118,10.210), reloads to16 rounds and survives with damage taken.
+A standing exploratory variant dies at frame3587. This is one fought encounter,
+not a cleared corridor or completed section. Generate the prefix first with
+`python tools/replay_area2_spawn.py`, then run the combat script.
+
+Stock64MiB XEMU `render-20260914-205728` completes3,600 frames and all28
+selected PC/native comparisons. COMBAT is `[9,4,1,42664586,...]`: nine shots,
+four hits, one guard kill. Ammunition matches16 loaded,116 reserve and one
+reload. Player health matches47.19998. Free memory is4,304 pages (16.8125MiB).
+The harness closes its own process; no RF emulator remains. Reproduce with:
+
+```
+python tools/replay_area2_spawn.py
+python tools/replay_cover_combat.py
+python tools/xemu_render_check.py --spawn --level L2S2a.rfl --input artifacts/cover-combat-replay/input.bin --seconds 540
+```
+
+This proves the connected spawn/rescue/guard-kill/retreat/reload sequence. It
+does not establish complete encounter balance or a cleared path to the exit.

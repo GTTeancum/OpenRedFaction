@@ -550,6 +550,15 @@ int rf_weapon_primary_read(const void *text,uint32_t bytes,const char *name,rf_w
                 if(!q)return RF_FORMAT;
                 if(same(t,"semi_automatic"))v.semi_automatic=1;
             }
+        } else if(same(t,"$AI")) {
+            float multiplayer_range;
+            if(token(&l,t,&q) || q)return RF_FORMAT;
+            if(!same(t,"attack"))continue;
+            if(token(&l,t,&q) || q || !same(t,"range:"))return RF_FORMAT;
+            bit=16384;if(mask&bit)return RF_FORMAT;
+            if(sphere_number(&l,&v.ai_attack_range) || sphere_number(&l,&multiplayer_range))return RF_FORMAT;
+            if(!(v.ai_attack_range>0 && v.ai_attack_range<=1000000 &&
+                 multiplayer_range>0 && multiplayer_range<=1000000))return RF_RANGE;
         } else if(same(t,"$Burst")) {
             if(token(&l,t,&q) || q || !same(t,"Mode:"))return RF_FORMAT;
             bit=64;if(mask&bit)return RF_FORMAT;
