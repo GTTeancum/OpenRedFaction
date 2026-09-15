@@ -35,6 +35,25 @@ The captured input is `artifacts/body-area3-baked/input.bin`. Replaying with
 RF_REPLAY_AIM absent passes: all77final body words, NPC rows, combat journal,
 health, ammo, position and transitions match the tracked PC run. The converter
 also preserves every non-look byte and rejects invalid/duplicate/absent records.
-PC builds successfully. Stock64MiB Xbox verification is running separately;
-the PC comparison alone does not prove native behavior. Further L2S3 traversal
-needs adjustment to this endpoint and orientation.
+PC builds successfully. Stock64MiB Xbox verification now passes7356frames
+and all33 comparisons in `artifacts/xemu/render-20260915-034047`, including
+7shots,4hits,1kill and the full player-body state. Endpoint free memory is
+4402pages (17.1953125MiB). All18 staged disc entries restore and the owned
+emulator exits. This covers the first guard, not the maintenance encounter.
+Further L2S3 traversal needs adjustment to this endpoint and orientation.
+
+`tools/replay_l2s3_body_entry.py` now rebuilds the exact tracked input from
+the corrected Area2 recipe and historical entry tail, runs tracking, captures
+the resulting look words and verifies a second run with tracking disabled.
+Its builder matches the executed source bytes; its verifier matches the
+existing successful tracked and tracking-free captures. The actual reserve
+count is118 after nearby pickup collection, not just starting reserve minus
+shots; this is asserted alongside16loaded rounds.
+
+The8402-frame `body-maintenance-track` probe adjusts heading, omits the old
+backstep and reaches guard2047, but one return shot kills the5health player.
+Neither an earlier first shot (`body-area3-early`) nor a more distant first
+firing position (`body-area3-upper`) improves the first fight's final health.
+Those alternatives are not accepted route improvements. See
+LIVE-DAMAGE-REACTIONS.md for the confirmed missing gameplay feedback wiring
+selected as the next system task.

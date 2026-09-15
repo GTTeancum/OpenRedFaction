@@ -1,12 +1,24 @@
 # Red Faction Xbox / PC - open work
 
+- Combat: Connect retained NPC pain animation and sound to live damage notifications, then verify reaction and attack timing; the current live callback discards both pain events.
 - Combat: Revalidate encounters with the new shared body-sphere bullet collision; captured false hits are rejected, but old oversized-box aiming replays need recalibration.
 - Weapons: Implement remaining campaign weapons beyond handgun, rifle, Riot Stick and shotgun; automatic rifle now clears three shaft guards on PC/Xbox.
 - Weapons: Verify remaining enemy drop policies and uncollected-drop revisits; supported held weapons now drop collectible supplies, with PC/Xbox rifle acquisition and firing verified.
 - Combat: Finish enemy damage amounts, cadence and weapon coverage; authored SP primary spread and target/bullet-obstruction checks now pass PC/Xbox verification (24 hits, 3 misses).
 - Weapons: Exercise the shotgun in the uninterrupted campaign and continue weapon coverage; PC manual/automatic reload and PC/Xbox automatic reload plus two-level persistence checks now pass.
-- Gameplay: Verify the7356-frame first L2S3 guard recording on Xbox and continue toward maintenance; PC clears it with5health and the captured input matches with tracking disabled.
+- Gameplay: Revisit maintenance after live damage reactions; the7356-frame first-guard route now passes33 Xbox comparisons, but the PC maintenance probe reaches guard2047 and dies.
 - Movement: Refine ladder entry and top-edge transitions; body contact now unblocks the first L2S3 ladder, but the verified route still uses a jump and repeated top-edge state changes need smoothing.
+
+First-guard native update (2026-09-15): The7356-frame recording passes33
+stock64MiB Xbox comparisons through guard2020:7shots,4hits,1kill,5health,
+16loaded rounds and17.195MiB free at endpoint. Maintenance remains open.
+Estimate remains ~48%; next system work is live NPC pain feedback.
+
+Reaction audit (2026-09-15): The live combat notification callback ignores
+existing pain-animation and pain-sound events; only the fixture invokes the
+retained pain wrapper. Connecting that gameplay path is the next system task.
+The first-guard recipe now rebuilds exact inputs and verifies tracking-free
+playback. Maintenance is reached on PC but not cleared. Estimate ~48%.
 
 Tracked-input update (2026-09-15): An opt-in PC harness emits bounded ordinary
 look inputs while tracking one named actor; it does not inject game state.
