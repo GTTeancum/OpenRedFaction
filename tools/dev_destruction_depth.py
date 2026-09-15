@@ -20,6 +20,8 @@ def main():
         r=subprocess.run([str(ROOT/'build/pc/Release/rf_pc_play.exe'),'--dev-room-replay',str(ROOT/'Installed_Game'),str(path),str(folder/(name+'.ppm'))],cwd=ROOT,env=env,capture_output=True,text=True)
         log=r.stdout+r.stderr;(folder/(name+'.log')).write_text(log);r.check_returncode()
         row=lambda label:next(l.split()[1:] for l in log.splitlines() if l.startswith(label+' '))
+        bake=list(map(int,row('TERRAIN_BAKE')))
+        assert bake[1]<=64 and bake[2]<=64,bake
         atlas=list(map(int,row('TERRAIN_ATLAS')))
         assert atlas[:3]==[1,512,512] and 0<atlas[3]<=1280*1024,atlas
         terrain=list(map(int,row('GEOMOD')));position=list(map(float,row('CAMPAIGN_FINAL_POSITION')))

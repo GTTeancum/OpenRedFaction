@@ -114,13 +114,14 @@ int rf_geomod_light_grid_sample(const rf_geomod_light_grid *g,const rf_geomod_ve
     memcpy(position,out,12);return RF_OK;
 }
 
-int rf_geomod_light_grid_bake(const rf_geomod_light_grid *g,const rf_geomod_vertex *vertices,uint32_t count,
-    const rf_geomod_light_bake *lighting,unsigned char *packed,uint32_t pitch,uint32_t bytes,uint32_t stats[3])
+int rf_geomod_light_grid_bake_range(const rf_geomod_light_grid *g,const rf_geomod_vertex *vertices,uint32_t count,
+    const rf_geomod_light_bake *lighting,unsigned char *packed,uint32_t pitch,uint32_t bytes,uint32_t first,uint32_t samples,uint32_t stats[3])
 {
-    unsigned char weights[63],rgb[3];uint32_t x,y,i,total[3]={0};float point[3],color[3];int status;
+    unsigned char weights[63],rgb[3];uint32_t x,y,i,at,total[3]={0};float point[3],color[3];int status;
     if(!g || !vertices || !lighting || !packed || !stats || lighting->count>63 ||
         (lighting->count && (!lighting->sources || !lighting->shadow_modes)) || g->width<4 || g->width>64 || g->height<4 || g->height>64 ||
         pitch%2 || pitch<g->width*2 || (uint64_t)(g->height-1)*pitch+g->width*2>bytes)return RF_RANGE;
+    if(first>g->width*g->height || samples>g->width*g->height-first)return RF_RANGE;
     status=rf_geomod_light_grid_sample(g,vertices,count,0,0,point);if(status)return status;
     for(i=0;i<lighting->count;i++) {
         weights[i]=255;
@@ -131,7 +132,8 @@ int rf_geomod_light_grid_bake(const rf_geomod_light_grid *g,const rf_geomod_vert
     }
     status=rf_vfx_light_accumulate(point,g->plane,lighting->ambient,lighting->directional_scale,
         lighting->sources,lighting->count,weights,1,color);if(status)return status;
-    for(y=0;y<g->height;y++)for(x=0;x<g->width;x++) {
+    for(at=first;at<first+samples;at++) {
+        x=at%g->width;y=at/g->width;
         status=rf_geomod_light_grid_sample(g,vertices,count,x,y,point);if(status)return status;
         for(i=0;i<lighting->count;i++) {
             uint32_t visible=1;weights[i]=255;
@@ -147,6 +149,13 @@ int rf_geomod_light_grid_bake(const rf_geomod_light_grid *g,const rf_geomod_vert
         total[0]++;
     }
     memcpy(stats,total,sizeof(total));return RF_OK;
+}
+
+int rf_geomod_light_grid_bake(const rf_geomod_light_grid *g,const rf_geomod_vertex *vertices,uint32_t count,
+    const rf_geomod_light_bake *lighting,unsigned char *packed,uint32_t pitch,uint32_t bytes,uint32_t stats[3])
+{
+    if(!g || g->width>64 || g->height>64)return RF_RANGE;
+    return rf_geomod_light_grid_bake_range(g,vertices,count,lighting,packed,pitch,bytes,0,g->width*g->height,stats);
 }
 
 int rf_geomod_planar_uv(const float normal[3],const float position[3],

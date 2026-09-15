@@ -327,6 +327,13 @@ dvd_path = '{root.as_posix()}/build/xbox/redfaction-diagnostic.iso'
                 report['checks']['TERRAIN_ATLAS']=dict(equal=equal,budget_ok=budget_ok,xbox=actual,pc=expected,
                     scope='Atlas dimensions, bounded ownership, generation and sampled texels; pixels checked separately')
                 assert equal and budget_ok,'TERRAIN_ATLAS'
+                expected=list(map(int,next(line for line in pc.stdout.splitlines() if line.startswith('TERRAIN_BAKE ')).split()[1:]))
+                actual=words(monitor,symbol('rf_scene_terrain_bake'),6)
+                equal=actual==expected
+                report['checks']['TERRAIN_BAKE']=dict(equal=equal,xbox=actual,pc=expected,
+                    scope='Deterministic bake progress and64-texel work bound; active may be nonzero until settled')
+                assert equal and actual[1]<=64 and actual[2]<=64,'TERRAIN_BAKE'
+
 
             report.update(result='PASS', available_pages=d[44], diagnostic=d)
             with (run / 'performance.txt').open('w') as out:

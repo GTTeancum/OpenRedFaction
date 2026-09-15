@@ -244,6 +244,15 @@ static int light_bake_check(void)
         for(x=0;x<16;x++){memcpy(&word,pixels+y*36+x*2,2);CHECK(word==0x9df7);}
         for(x=32;x<36;x++)CHECK(pixels[y*36+x]==0xa5);
     }
+    memset(shadow,0xa5,sizeof(shadow));
+    for(x=0;x<256;x+=13) {
+        unsigned count=256-x<13?256-x:13;
+        CHECK(!rf_geomod_light_grid_bake_range(&grid,vertices,4,&lighting,shadow,36,sizeof(shadow),x,count,stats));
+        CHECK(stats[0]==count);
+    }
+    CHECK(!memcmp(shadow,pixels,sizeof(pixels)));
+    CHECK(rf_geomod_light_grid_bake_range(&grid,vertices,4,&lighting,shadow,36,sizeof(shadow),255,2,stats)==RF_RANGE);
+    CHECK(!memcmp(shadow,pixels,sizeof(pixels)));
     memcpy(saved,pixels,sizeof(saved));
     CHECK(rf_geomod_light_grid_bake(&grid,vertices,4,&lighting,pixels,36,571,stats)==RF_RANGE);
     CHECK(!memcmp(saved,pixels,sizeof(saved)));

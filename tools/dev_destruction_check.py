@@ -24,6 +24,8 @@ def main():
         log=r.stdout+r.stderr;(folder/(name+'.log')).write_text(log);r.check_returncode()
         def row(label):return next(l.split()[1:] for l in log.splitlines() if l.startswith(label+' '))
         cuts=6 if name=='six' else 0 if name=='before' else 1 if name=='single' else 2
+        bake=list(map(int,row('TERRAIN_BAKE')))
+        assert bake[1]<=64 and bake[2]<=64,bake
         atlas=list(map(int,row('TERRAIN_ATLAS')))
         assert atlas[:3]==[1,512,512] and 0<atlas[3]<=1280*1024,atlas
         terrain=list(map(int,row('GEOMOD')))

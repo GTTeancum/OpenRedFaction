@@ -797,6 +797,7 @@ run_scene:
     printf("ROCKET_BLAST");for(i=0;i<8;++i)printf(" %u",rf_scene_rocket_blast[i]);puts("");
     printf("ROCKETS");for(i=0;i<8;++i)printf(" %u",rf_scene_rockets[i]);puts("");
     printf("GEOMOD");for(i=0;i<8;++i)printf(" %u",rf_scene_geomod[i]);puts("");
+    printf("TERRAIN_BAKE");for(i=0;i<6;++i)printf(" %u",rf_scene_terrain_bake[i]);puts("");
     printf("TERRAIN_ATLAS");for(i=0;i<8;++i)printf(" %u",rf_scene_terrain_atlas[i]);puts("");
     printf("TERRAIN_SHADOWS");for(i=0;i<4;++i)printf(" %u",rf_scene_terrain_shadows[i]);puts("");
     printf("PISTOL_RULES");for(i=0;i<7;++i)printf(" %u",rf_scene_pistol_rules[i]);puts("");

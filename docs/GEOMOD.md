@@ -1327,3 +1327,43 @@ must be measured separately from per-frame budget.
 
 Evidence:artifacts/geomod-owned-ray-native.log, geomod-owned-ray-replays.log,
 geomod-owned-ray-before-images.json and the cited native performance.json files.
+
+## Incremental crater lightmap baking (2026-09-15)
+
+The shared baker now accepts a row-major sample interval while retaining full
+tile addressing and pitch. The original full-grid entry point remains. Tests
+split a tile across13-sample chunks, verify identical packed bytes/padding, and
+reject an overflowing interval without touching staging. The scene keeps a
+face/sample cursor and processes at most64 texels per draw update. Completed
+face tiles publish to the atlas; unfinished tile scratch is never uploaded.
+New terrain/light generations discard unfinished work, initialize the new atlas
+to packed ambient and restart its layout. Completed frames reuse existing pixels.
+
+TERRAIN_BAKE reports processed texels for the current generation, current/peak
+update work, active state, last completed generation and canceled generations.
+Per-face grid/placement storage raises separate atlas ownership to1124372bytes,
+still under1280KiB. The limit bounds sample count rather than elapsed time;
+source count and tree complexity can change the cost of each sample. Atlas
+upload currently still copies the full image when tiles publish and remains
+an optimization opportunity. Reset telemetry/rapid light changes need separate
+coverage; no worker thread runs after the scene stops drawing terrain.
+
+Six standard destruction replays and three close views pass; depth captures
+are byte-identical to the synchronous bake. A new1200-frame settled replay
+verifies six cuts, interrupted generations, all22928 final texels completed,
+active0/completed generation7 and peak64 samples. The1100-frame trial remained
+active with22464 texels, demonstrating why a separate settling check is needed.
+The settled world/crater image region above y350 matches the synchronous
+six-shot capture exactly; later-frame weapon animation differs below it.
+Both interior/repeated-cut CTests pass. Evidence:artifacts/geomod-incremental-
+replays.log, geomod-incremental-settled.log and artifacts/destruction/settled.log.
+
+Native verification:artifacts/xemu/render-20260915-115520 completes1200frames
+and42 comparisons with8748pages free (34.171875MiB). Both targets report
+TERRAIN_BAKE [22928,0,64,0,7,3], proving final completion after three canceled
+generations. World-geometry rebuild maximum falls from7839ms to84ms; the
+scene camera/visibility/world phase falls from8624ms to816ms. Its separate
+camera/combat subphase still reaches771ms and remains open. Different run
+lengths make average-time comparisons less direct; neither peak comparison
+proves every frame is smooth. The actual native capture was inspected and
+shows the crater and weapon. All19disc entries restored; owned PID40300 exited.

@@ -182,6 +182,11 @@ typedef struct rf_geomod_light_bake {
  * Buffers must not alias inputs. Grid must come from light_grid_open. */
 int rf_geomod_light_grid_bake(const rf_geomod_light_grid *,const rf_geomod_vertex *,uint32_t,
     const rf_geomod_light_bake *,unsigned char *packed,uint32_t pitch,uint32_t bytes,uint32_t stats[3]);
+/* Same bake, limited to a row-major sample interval. Staging still addresses
+ * the full tile with its original pitch. Unrequested pixels stay unchanged. */
+int rf_geomod_light_grid_bake_range(const rf_geomod_light_grid *,const rf_geomod_vertex *,uint32_t,
+    const rf_geomod_light_bake *,unsigned char *,uint32_t pitch,uint32_t bytes,
+    uint32_t first,uint32_t samples,uint32_t stats[3]);
 /* Retain original geometry, bounded convex-cut history, cut workspace and two
  * collision-position banks. Original source_face IDs must be unique/non-sentinel.
  * Explicit filters preserve original surface policy; generated_filter applies
