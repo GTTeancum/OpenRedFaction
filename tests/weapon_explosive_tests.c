@@ -1,8 +1,19 @@
 #include "rf/entity_assets.h"
+#include "rf/geometry.h"
 #include <stdio.h>
 #include <string.h>
 #include <math.h>
 #define CHECK(x) do {if(!(x)){fprintf(stderr,"explosive line %d\n",__LINE__);return 1;}} while(0)
+typedef struct sweep_context {const rf_geometry_collision_world *world;uint32_t calls;int fail,bad;} sweep_context;
+static int sweep(void *context,const float start[3],const float delta[3],float radius,
+    rf_weapon_flight_contact *out,uint32_t *matched)
+{
+    sweep_context *c=context;rf_geometry_world_sweep_hit hit;int status;++c->calls;
+    if(c->fail)return RF_IO;
+    status=rf_geometry_collision_world_sweep(c->world,0x460,start,delta,radius,1,&hit,matched);if(status)return status;
+    if(*matched){out->hit=hit.hit;out->room=hit.room;out->face=hit.face;out->object=UINT32_MAX;if(c->bad)out->hit.fraction=2;}
+    return RF_OK;
+}
 int main(int argc,char **argv)
 {
     const char *prefix="$Name: \"test\" $Weapon Type: \"explosive\" ";
@@ -42,5 +53,33 @@ int main(int argc,char **argv)
         saved=value;CHECK(rf_weapon_explosive_load(&tables,"Rocket Launcher",1,&value)==RF_RANGE && !memcmp(&value,&saved,sizeof(value)));
         rf_vpp_close(&tables);
     }
+    {
+        rf_vpp archive={0};rf_level level={0};rf_geometry geometry={0};rf_geometry_collision_world world={0};
+        rf_weapon_flight flight={0},before,coarse;rf_weapon_flight_event event,sentinel;
+        const float start[3]={0,-10,10},direction[3]={3,0,0};sweep_context context={0};unsigned calls,steps;
+        snprintf(path,sizeof(path),"%s/levelsm.vpp",argv[1]);CHECK(!rf_vpp_open(&archive,path));
+        CHECK(!rf_level_open(&level,&archive,"glass_house.rfl"));CHECK(!rf_geometry_open(&geometry,&level,1024*1024));
+        CHECK(!rf_geometry_collision_world_open(&geometry,8*1024*1024,&world));context.world=&world;
+        CHECK(!rf_weapon_flight_launch(&flight,start,direction,20,15,.051f));CHECK(flight.velocity[0]==20);
+        before=flight;CHECK(rf_weapon_flight_launch(&flight,start,direction,20,15,.051f)==RF_RANGE && !memcmp(&flight,&before,sizeof(flight)));
+        memset(&event,0xa5,sizeof(event));sentinel=event;context.fail=1;
+        CHECK(rf_weapon_flight_step(&flight,1,sweep,&context,&event)==RF_IO && !memcmp(&flight,&before,sizeof(flight)) && !memcmp(&event,&sentinel,sizeof(event)));
+        context.fail=0;context.bad=1;
+        CHECK(rf_weapon_flight_step(&flight,1,sweep,&context,&event)==RF_FORMAT && !memcmp(&flight,&before,sizeof(flight)) && !memcmp(&event,&sentinel,sizeof(event)));
+        context.bad=0;CHECK(!rf_weapon_flight_step(&flight,1,sweep,&context,&event));
+        CHECK(event.kind==1 && !flight.active && event.contact.room==0);
+        CHECK(fabsf(flight.position[0]-15.949f)<1e-4f && fabsf(event.contact.hit.point[0]-16)<1e-4f && event.contact.hit.normal[0]<-.99f);
+        coarse=flight;calls=context.calls;CHECK(!rf_weapon_flight_step(&flight,1,sweep,&context,&event) && !event.kind && calls==context.calls);
+        CHECK(!rf_weapon_flight_launch(&flight,start,direction,20,15,.051f));
+        for(steps=0;flight.active && steps<60;steps++)CHECK(!rf_weapon_flight_step(&flight,1.f/60,sweep,&context,&event));
+        CHECK(steps==48 && event.kind==1 && fabsf(flight.position[0]-coarse.position[0])<2e-4f);
+        CHECK(fabs(flight.remaining-coarse.remaining)<2e-5);
+        CHECK(!rf_weapon_flight_launch(&flight,start,direction,20,.1f,.051f));
+        CHECK(!rf_weapon_flight_step(&flight,1,sweep,&context,&event));
+        CHECK(event.kind==2 && !flight.active && flight.remaining==0 && fabsf(flight.position[0]-2)<1e-5f);
+        calls=context.calls;CHECK(!rf_weapon_flight_step(&flight,1,sweep,&context,&event) && !event.kind && context.calls==calls);
+        rf_geometry_collision_world_close(&world);rf_geometry_close(&geometry);rf_vpp_close(&archive);
+    }
+    puts("PASS: authored-room swept flight, no tunneling,60Hz agreement, expiry and callback rollback");
     puts("PASS: installed rocket/grenade SP flight and blast fields, primary rocket rules, malformed/duplicate rollback");return 0;
 }

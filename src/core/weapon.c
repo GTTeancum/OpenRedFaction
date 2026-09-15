@@ -3,6 +3,51 @@
 #include "rf/effect.h"
 #include <string.h>
 #include <math.h>
+int rf_weapon_flight_launch(rf_weapon_flight *flight,const float position[3],const float direction[3],
+    float speed,float lifetime,float radius)
+{
+    rf_weapon_flight value={0};double length=0;uint32_t i;
+    if(!flight || flight->active || !position || !direction)return RF_RANGE;
+    if(!isfinite(speed) || speed<=0 || !isfinite(lifetime) || lifetime<=0 || !isfinite(radius) || radius<0)return RF_FORMAT;
+    for(i=0;i<3;i++){if(!isfinite(position[i]) || !isfinite(direction[i]))return RF_FORMAT;length+=(double)direction[i]*direction[i];}
+    if(length<=1e-24)return RF_FORMAT;
+    length=sqrt(length);
+    for(i=0;i<3;i++){value.position[i]=position[i];value.velocity[i]=(float)(direction[i]/length*speed);}
+    value.radius=radius;value.remaining=lifetime;value.active=1;*flight=value;return RF_OK;
+}
+int rf_weapon_flight_step(rf_weapon_flight *flight,float dt,rf_weapon_flight_sweep sweep,void *context,rf_weapon_flight_event *out)
+{
+    rf_weapon_flight value;rf_weapon_flight_event event={0};float delta[3];double elapsed;uint32_t i,matched=0;int status;
+    if(!flight || !out || !sweep)return RF_RANGE;
+    if(!isfinite(dt) || dt<0 || flight->active>1)return RF_FORMAT;
+    if(!flight->active || dt==0){*out=event;return RF_OK;}
+    if(!isfinite(flight->remaining) || flight->remaining<=0 || !isfinite(flight->radius) || flight->radius<0)return RF_FORMAT;
+    value=*flight;elapsed=fmin((double)dt,value.remaining);
+    for(i=0;i<3;i++) {
+        if(!isfinite(value.position[i]) || !isfinite(value.velocity[i]))return RF_FORMAT;
+        delta[i]=(float)(value.velocity[i]*elapsed);
+        if(!isfinite(delta[i]) || !isfinite(value.position[i]+delta[i]))return RF_FORMAT;
+    }
+    status=sweep(context,value.position,delta,value.radius,&event.contact,&matched);if(status)return status;
+    if(matched>1)return RF_FORMAT;
+    if(matched) {
+        double length=0;
+        if(!isfinite(event.contact.hit.fraction) || event.contact.hit.fraction<0 || event.contact.hit.fraction>1)return RF_FORMAT;
+        for(i=0;i<3;i++) {
+            if(!isfinite(event.contact.hit.point[i]) || !isfinite(event.contact.hit.normal[i]))return RF_FORMAT;
+            length+=(double)event.contact.hit.normal[i]*event.contact.hit.normal[i];
+        }
+        if(fabs(length-1)>1e-3)return RF_FORMAT;
+        for(i=0;i<3;i++)value.position[i]+=delta[i]*event.contact.hit.fraction;
+        value.remaining-=elapsed*event.contact.hit.fraction;value.active=0;event.kind=1;
+    } else {
+        memset(&event.contact,0,sizeof(event.contact));
+        for(i=0;i<3;i++)value.position[i]+=delta[i];
+        value.remaining-=elapsed;
+        if(value.remaining<=0){value.remaining=0;value.active=0;event.kind=2;}
+    }
+    *flight=value;*out=event;return RF_OK;
+}
 int rf_weapon_charge_step(uint32_t *remainder,uint32_t capacity,uint32_t drain_ticks,
     uint32_t active,int32_t *loaded,uint32_t *consumed)
 {

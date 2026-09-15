@@ -2,7 +2,7 @@
 
 - DEV testbed: Review full weapon animations and add complete room reset; terrain reset and ammo refill are implemented, while campaign progression remains paused.
 - GeoMod: Add explosive-weapon integration, non-box cutters and authored eligibility; live repeated excavation passes PC/Xbox, and guarded terrain reset passes PC/Xbox checks.
-- Weapons: Wire rocket flight, impact damage and GeoMod using verified authored SP settings, then add first-person presentation and developer-room supply.
+- Weapons: Integrate the verified swept rocket-flight core with scene impacts, damage, GeoMod, first-person presentation and developer-room supply.
 - Combat: Extend pain-reaction coverage across enemy weapons and encounters; retained attack locks now pass35 PC/Xbox comparisons with independent actor recovery.
 - Combat: Revalidate encounters with the new shared body-sphere bullet collision; captured false hits are rejected, but old oversized-box aiming replays need recalibration.
 - Weapons: Implement remaining campaign weapons beyond handgun, rifle, Riot Stick and shotgun; automatic rifle now clears three shaft guards on PC/Xbox.

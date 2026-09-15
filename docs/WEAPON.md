@@ -338,3 +338,31 @@ NXDK builds the XBE/XISO. No live launcher, projectile motion, blast damage,
 impact presentation or native runtime execution is claimed by these tests.
 Next is bounded projectile flight against current world collision, impact
 routing to damage/GeoMod and launcher resource/input integration in the room.
+
+
+## Swept straight-flight core
+
+rf_weapon_flight_launch/step adds allocation-free straight projectile motion.
+Launch normalizes direction, applies supplied speed/lifetime/radius and refuses
+to overwrite an active flight. Step clamps travel to the remaining lifetime,
+sweeps the complete segment through a caller collision callback, and advances
+the projectile center to the accepted fraction. Impact events retain the
+surface contact separately from the center and carry caller object/room/face
+identities. A hit at lifetime end wins over expiry. Impact/expiry deactivate
+flight and emit once. Callback failures or invalid hit results preserve both
+flight and output event. Remaining lifetime uses double precision to reduce
+repeated tick subtraction drift; positions remain shared float coordinates.
+
+Installed Glass House collision tests launch at(0,-10,10) toward x16 with
+speed20 and radius0.051. A one-second step hits the wall rather than tunneling,
+stopping the center at x15.949 with surface contact x16. Fixed60Hz stepping
+hits on step48 and agrees within float tolerance. A0.1 lifetime stops at x2
+and expires before reaching the wall. Subsequent steps emit no further event
+or query; callback failure/invalid-fraction tests preserve state and outputs.
+NXDK builds the XBE/XISO. No native projectile execution or render is claimed.
+
+This is practical first-pass motion, not recovered homing, acceleration,
+gravity, bounce or grenade-fuse behavior. The callback still needs live scene
+routing across world/movers/actors, followed by damage and GeoMod dispatch.
+Projectile pool/resource ownership, launcher supply and visible presentation
+remain separate integration work; normal weapons are unchanged by this core.

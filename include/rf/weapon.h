@@ -2,6 +2,33 @@
 #define RF_WEAPON_H
 #include "rf/motion.h"
 #include "rf/entity.h"
+#include "rf/collision.h"
+typedef struct rf_weapon_flight {
+    float position[3],velocity[3],radius;
+    double remaining;
+    uint32_t active;
+} rf_weapon_flight;
+typedef struct rf_weapon_flight_contact {
+    rf_collision_ray_hit hit;
+    uint32_t object,room,face;
+} rf_weapon_flight_contact;
+typedef struct rf_weapon_flight_event {
+    uint32_t kind; /*0 flying/inactive,1 impact,2 expired. */
+    rf_weapon_flight_contact contact;
+} rf_weapon_flight_event;
+typedef int (*rf_weapon_flight_sweep)(void *,const float start[3],const float delta[3],
+    float radius,rf_weapon_flight_contact *,uint32_t *matched);
+/* Practical straight-flight first pass, not original homing/gravity/fuse logic.
+ * Zero-initialize before first launch. Launch normalizes direction and refuses
+ * to overwrite an active projectile.
+ * Step sweeps the whole path (clamped to lifetime), then advances its center
+ * to the hit fraction; event contact remains the surface hit, not the center.
+ * Impact wins a tie at expiry. Terminal events occur once. No allocation.
+ * Callback/input errors preserve projectile and event; callback scratch may
+ * change. Callback must not mutate/alias the projectile or event. */
+int rf_weapon_flight_launch(rf_weapon_flight *,const float position[3],const float direction[3],
+    float speed,float lifetime,float radius);
+int rf_weapon_flight_step(rf_weapon_flight *,float dt,rf_weapon_flight_sweep,void *,rf_weapon_flight_event *);
 
 /* First-pass uniform solid-angle spread using an explicit deterministic stream.
  * Preserves ray length; zero spread preserves the ray and does not draw RNG.
