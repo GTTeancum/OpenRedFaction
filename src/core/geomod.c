@@ -1,5 +1,6 @@
 #include "rf/geomod.h"
 #include "rf/effect.h"
+#include "rf/lightmap.h"
 #include <math.h>
 #include <string.h>
 #include <stdlib.h>
@@ -111,6 +112,41 @@ int rf_geomod_light_grid_sample(const rf_geomod_light_grid *g,const rf_geomod_ve
     out[g->axis]=(float)(-((double)g->plane[g->u]*out[g->u]+(double)g->plane[g->v]*out[g->v]+g->plane[3])/g->plane[g->axis]);
     for(j=0;j<3;j++)if(!isfinite(out[j]))return RF_FORMAT;
     memcpy(position,out,12);return RF_OK;
+}
+
+int rf_geomod_light_grid_bake(const rf_geomod_light_grid *g,const rf_geomod_vertex *vertices,uint32_t count,
+    const rf_geomod_light_bake *lighting,unsigned char *packed,uint32_t pitch,uint32_t bytes,uint32_t stats[3])
+{
+    unsigned char weights[63],rgb[3];uint32_t x,y,i,total[3]={0};float point[3],color[3];int status;
+    if(!g || !vertices || !lighting || !packed || !stats || lighting->count>63 ||
+        (lighting->count && (!lighting->sources || !lighting->shadow_modes)) || g->width<4 || g->width>64 || g->height<4 || g->height>64 ||
+        pitch%2 || pitch<g->width*2 || (uint64_t)(g->height-1)*pitch+g->width*2>bytes)return RF_RANGE;
+    status=rf_geomod_light_grid_sample(g,vertices,count,0,0,point);if(status)return status;
+    for(i=0;i<lighting->count;i++) {
+        weights[i]=255;
+        if(lighting->shadow_modes[i]) {
+            if(lighting->sources[i].type!=2 && lighting->sources[i].type!=3)return RF_NOT_FOUND;
+            if(!lighting->terrain || !lighting->terrain->tree)return RF_RANGE;
+        }
+    }
+    status=rf_vfx_light_accumulate(point,g->plane,lighting->ambient,lighting->directional_scale,
+        lighting->sources,lighting->count,weights,1,color);if(status)return status;
+    for(y=0;y<g->height;y++)for(x=0;x<g->width;x++) {
+        status=rf_geomod_light_grid_sample(g,vertices,count,x,y,point);if(status)return status;
+        for(i=0;i<lighting->count;i++) {
+            uint32_t visible=1;weights[i]=255;
+            if(lighting->shadow_modes[i]) {
+                status=rf_geomod_light_visible(lighting->terrain,lighting->sources[i].position,point,&visible);if(status)return status;
+                total[1]++;if(!visible){weights[i]=0;total[2]++;}
+            }
+        }
+        status=rf_vfx_light_accumulate(point,g->plane,lighting->ambient,lighting->directional_scale,
+            lighting->sources,lighting->count,weights,1,color);if(status)return status;
+        status=rf_lightmap_accumulated_rgb(color,rgb);if(status)return status;
+        status=rf_lightmap_pack_1555(rgb,3,1,1,0,packed+y*pitch+x*2,2,2);if(status)return status;
+        total[0]++;
+    }
+    memcpy(stats,total,sizeof(total));return RF_OK;
 }
 
 int rf_geomod_planar_uv(const float normal[3],const float position[3],

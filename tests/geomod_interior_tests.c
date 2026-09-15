@@ -229,6 +229,51 @@ static int terrain_ray_coverage(const rf_geomod_terrain_view *live,unsigned cut)
     }
     printf("TERRAIN_COVERAGE cut %u nearest %u short_segment %u\n",cut,probes,probes);return 0;
 }
+static int light_bake_check(void)
+{
+    rf_geomod_vertex vertices[4]={{{-2,-2,0},{0}},{{2,-2,0},{0}},{{2,2,0},{0}},{{-2,2,0},{0}}};
+    rf_geomod_light_grid grid;rf_geomod_light_bake lighting={0};float plane[4]={0,0,1,0};
+    unsigned char pixels[576],saved[576],shadow[576];uint32_t stats[3]={99,99,99},mode=0,x,y;unsigned short word;
+    rf_vfx_light_definition definition={0};rf_vfx_light_candidate light;
+    CHECK(!rf_geomod_light_grid_open(vertices,4,plane,.5f,&grid) && grid.width==16 && grid.height==16);
+    lighting.ambient[0]=.25f;lighting.ambient[1]=.5f;lighting.ambient[2]=.75f;
+    memset(pixels,0xa5,sizeof(pixels));
+    CHECK(!rf_geomod_light_grid_bake(&grid,vertices,4,&lighting,pixels,36,sizeof(pixels),stats));
+    CHECK(stats[0]==256 && !stats[1] && !stats[2]);
+    for(y=0;y<16;y++) {
+        for(x=0;x<16;x++){memcpy(&word,pixels+y*36+x*2,2);CHECK(word==0x9df7);}
+        for(x=32;x<36;x++)CHECK(pixels[y*36+x]==0xa5);
+    }
+    memcpy(saved,pixels,sizeof(saved));
+    CHECK(rf_geomod_light_grid_bake(&grid,vertices,4,&lighting,pixels,36,571,stats)==RF_RANGE);
+    CHECK(!memcmp(saved,pixels,sizeof(saved)));
+    definition.type=2;definition.position[2]=2;definition.radius=3;definition.intensity=1;
+    definition.color[0]=definition.color[1]=definition.color[2]=1;
+    CHECK(!rf_vfx_light_create(&definition,&light));lighting.sources=&light.source;lighting.shadow_modes=&mode;lighting.count=1;
+    lighting.ambient[0]=lighting.ambient[1]=lighting.ambient[2]=.1f;
+    CHECK(!rf_geomod_light_grid_bake(&grid,vertices,4,&lighting,pixels,36,sizeof(pixels),stats));
+    {unsigned short center,corner;memcpy(&center,pixels+8*36+8*2,2);memcpy(&corner,pixels+36+2,2);CHECK(center>corner);}
+    {
+        rf_geomod_vertex blocker[4]={{{-.5f,-2,1},{0}},{{.5f,-2,1},{0}},{{.5f,2,1},{0}},{{-.5f,2,1},{0}}};
+        rf_geomod_face face={0,4,0,UINT32_MAX};rf_geomod_mesh_view mesh={blocker,&face,4,1,0};
+        rf_collision_face_filter filter={0};rf_collision_face bound;float positions[4][3];
+        rf_collision_tree tree={0};rf_geomod_terrain_view terrain={0};unsigned short center,unshadowed;unsigned unchanged=0;
+        CHECK(!rf_geomod_collision_faces(&mesh,&filter,positions,4,&bound,1));
+        CHECK(!rf_collision_tree_open(&bound,1,65536,&tree));terrain.tree=&tree;lighting.terrain=&terrain;mode=1;
+        CHECK(!rf_geomod_light_grid_bake(&grid,vertices,4,&lighting,shadow,36,sizeof(shadow),stats));
+        CHECK(stats[0]==256 && stats[1]==256 && stats[2]>0 && stats[2]<256);
+        memcpy(&center,shadow+8*36+8*2,2);memcpy(&unshadowed,pixels+8*36+8*2,2);CHECK(center<unshadowed);
+        for(y=0;y<16;y++)for(x=0;x<16;x++)if(!memcmp(shadow+y*36+x*2,pixels+y*36+x*2,2))unchanged++;
+        CHECK(unchanged>0);
+        memcpy(saved,shadow,sizeof(saved));light.source.type=1;
+        CHECK(rf_geomod_light_grid_bake(&grid,vertices,4,&lighting,shadow,36,sizeof(shadow),stats)==RF_NOT_FOUND);
+        CHECK(!memcmp(saved,shadow,sizeof(saved)));
+        light.source.type=2;lighting.terrain=NULL;
+        CHECK(rf_geomod_light_grid_bake(&grid,vertices,4,&lighting,shadow,36,sizeof(shadow),stats)==RF_RANGE);
+        CHECK(!memcmp(saved,shadow,sizeof(saved)));rf_collision_tree_close(&tree);
+    }
+    return 0;
+}
 static int light_grid_check(void)
 {
     unsigned axis,x,y;rf_geomod_vertex vertices[3]={0};
@@ -265,6 +310,7 @@ static int light_grid_check(void)
 int main(int argc,char **argv)
 {
     CHECK(!light_grid_check());
+    CHECK(!light_bake_check());
     {
         unsigned axis,k;const int signs[4][2]={{-1,-1},{1,-1},{1,1},{-1,1}};
         for(axis=0;axis<3;axis++) {

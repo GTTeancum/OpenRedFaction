@@ -1206,3 +1206,29 @@ Evidence:artifacts/geomod-light-grid.log and geomod-light-grid-xbox-build.log.
 The grids are not yet used by the scene renderer: lighting evaluation, bounded
 atlas ownership, upload and mapped drawing remain to be integrated. No new
 visual result or XEMU runtime verification is claimed for this foundation.
+
+## Crater lightmap pixel evaluation (2026-09-15)
+
+rf_geomod_light_grid_bake evaluates every bounded grid sample with the existing
+ordinary softened static-light accumulation, accumulated-RGB conversion and
+1555 packing for MODULATE2X. Caller-owned linear staging buffers support an
+even padded row pitch; no image allocation or GPU upload occurs here. Point
+and cone lights can use the retained terrain collision tree for occlusion.
+Unsupported enabled shadow types return RF_NOT_FOUND explicitly. The caller
+provides selected lights, ambient and directional scale; source selection and
+cache invalidation remain scene responsibilities. Stats commit on success as
+texels/rays/blocked; numeric failures may leave completed staging pixels.
+
+Tests verify exact constant1555 output (0x9df7 for ambient0.25/0.5/0.75),
+row-padding preservation, insufficient-buffer rejection, and interior lighting
+from a point source whose radius excludes the face corners. A separate opaque
+occluder blocks the face center while other pixels retain their unshadowed
+values; all256 shadow rays are counted and only a subset is blocked. Unsupported
+shadow modes and missing terrain leave the staging output untouched. Both
+GeoMod interior and repeated-cut CTests pass. NXDK builds the new function.
+
+The shared pixel evaluator is ready for scene atlas ownership and mapped
+rendering; it is not yet connected to live crater drawing. No visual improvement
+or new XEMU runtime validation is claimed. Evidence:artifacts/geomod-light-bake-
+build.log and geomod-light-bake-xbox-build.log. Existing lighting/closure/final
+appearance limitations remain open.

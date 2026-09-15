@@ -4,6 +4,7 @@
 #include "rf/collision.h"
 #include "rf/random.h"
 #include "rf/level.h"
+#include "rf/effect.h"
 #define RF_GEOMOD_POLYGON_LIMIT 64
 /* Original4fccc0 random crater orientation: two CRT draws, a uniform sphere
  * direction and4fcfa0 basis. Invalid inputs preserve state/output. */
@@ -168,6 +169,19 @@ typedef struct rf_geomod_terrain_view {
  * Does not include other rooms, actors, alpha surfaces or movers. */
 int rf_geomod_light_visible(const rf_geomod_terrain_view *terrain,
     const float light[3],const float sample[3],uint32_t *visible);
+typedef struct rf_geomod_light_bake {
+    const rf_vfx_light_source *sources;const uint32_t *shadow_modes;uint32_t count;
+    float ambient[3],directional_scale;
+    const rf_geomod_terrain_view *terrain;
+} rf_geomod_light_bake;
+/* Ordinary softened static lighting, terrain occlusion and original1555 packing
+ * for MODULATE2X. Linear caller-owned staging output; no allocation/upload.
+ * Up to63 lights; point/cone shadows require terrain, other enabled shadow
+ * types return RF_NOT_FOUND. Stats commit on success (texels,rays,blocked).
+ * Buffer guards precede writes; later errors may retain completed pixels.
+ * Buffers must not alias inputs. Grid must come from light_grid_open. */
+int rf_geomod_light_grid_bake(const rf_geomod_light_grid *,const rf_geomod_vertex *,uint32_t,
+    const rf_geomod_light_bake *,unsigned char *packed,uint32_t pitch,uint32_t bytes,uint32_t stats[3]);
 /* Retain original geometry, bounded convex-cut history, cut workspace and two
  * collision-position banks. Original source_face IDs must be unique/non-sentinel.
  * Explicit filters preserve original surface policy; generated_filter applies
