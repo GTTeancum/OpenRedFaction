@@ -56,4 +56,20 @@ int rf_geomod_storage_append(rf_geomod_storage *storage,const rf_geomod_vertex *
 int rf_geomod_storage_commit(rf_geomod_storage *storage);
 void rf_geomod_storage_abort(rf_geomod_storage *storage);
 int rf_geomod_storage_reset(rf_geomod_storage *storage);
+/* Caller-owned scratch, normally retained on heap, not the Xbox thread stack. */
+typedef struct rf_geomod_cut_work {
+    rf_geomod_vertex vertices[RF_GEOMOD_POLYGON_LIMIT*32];
+    rf_geomod_fragment fragments[32];
+} rf_geomod_cut_work;
+/* Prepare a complete convex-source minus convex-cutter replacement. Caller
+ * supplies closed, outward-wound convex meshes (up to32 faces each); finite
+ * data, face bounds/planes and convex half-space containment are checked.
+ * Non-convex live results must be handled by the future repeated-cut layer,
+ * not passed back as a convex source. No allocation. Failure aborts this new
+ * edit and preserves live data. Success leaves pending data for validation
+ * and dependent render/collision preparation, then explicit commit/abort.
+ * Old surface material/source IDs survive; interior materials come from the
+ * cutter and interior source_face is UINT32_MAX. Work must not alias inputs. */
+int rf_geomod_storage_prepare_convex_cut(rf_geomod_storage *storage,
+    const rf_geomod_mesh_view *cutter,rf_geomod_cut_work *work);
 #endif

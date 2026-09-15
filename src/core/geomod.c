@@ -230,3 +230,55 @@ int rf_geomod_storage_reset(rf_geomod_storage *s)
     if(s->nf[2])memcpy(s->faces[next],s->faces[2],s->nf[2]*sizeof(rf_geomod_face));
     s->nv[next]=s->nv[2];s->nf[next]=s->nf[2];s->current=next;s->generation++;return RF_OK;
 }
+
+static int convex_mesh_planes(const rf_geomod_mesh_view *mesh,float planes[32][4])
+{
+    uint32_t i,j,k;int status;
+    if(!mesh || mesh->face_count<4 || mesh->face_count>32 || !mesh->faces)return RF_RANGE;
+    status=storage_vertices(mesh->vertices,mesh->vertex_count);if(status)return status;
+    for(i=0;i<mesh->face_count;i++) {
+        const rf_geomod_face *face=mesh->faces+i;double normal[3]={0},length=0,offset=0;
+        if(face->count<3 || face->count>64 || face->first>mesh->vertex_count || face->count>mesh->vertex_count-face->first)return RF_FORMAT;
+        for(j=0;j<face->count;j++) {
+            const float *a=mesh->vertices[face->first+j].position,*b=mesh->vertices[face->first+(j+1)%face->count].position;
+            for(k=0;k<3;k++)normal[k]+=(double)a[(k+1)%3]*b[(k+2)%3]-(double)a[(k+2)%3]*b[(k+1)%3];
+        }
+        for(k=0;k<3;k++)length+=normal[k]*normal[k];
+        if(!isfinite(length) || length<=1e-24)return RF_FORMAT;
+        length=sqrt(length);
+        for(k=0;k<3;k++){planes[i][k]=(float)(normal[k]/length);offset-=(double)planes[i][k]*mesh->vertices[face->first].position[k];}
+        planes[i][3]=(float)offset;if(!isfinite(planes[i][3]))return RF_FORMAT;
+        for(j=0;j<mesh->vertex_count;j++) {
+            double distance=planes[i][3];for(k=0;k<3;k++)distance+=(double)planes[i][k]*mesh->vertices[j].position[k];
+            if(distance>1e-5 || (j>=face->first && j<face->first+face->count && fabs(distance)>1e-5))return RF_FORMAT;
+        }
+    }
+    return RF_OK;
+}
+int rf_geomod_storage_prepare_convex_cut(rf_geomod_storage *s,
+    const rf_geomod_mesh_view *cutter,rf_geomod_cut_work *work)
+{
+    rf_geomod_mesh_view source;float source_planes[32][4],cut_planes[32][4];uint32_t i,j,n,pieces;int status;
+    if(!s || !cutter || !work || s->editing)return RF_RANGE;
+    rf_geomod_storage_view(s,&source);
+    status=convex_mesh_planes(&source,source_planes);if(status)return status;
+    status=convex_mesh_planes(cutter,cut_planes);if(status)return status;
+    status=rf_geomod_storage_begin(s);if(status)return status;
+    for(i=0;i<source.face_count;i++) {
+        const rf_geomod_face *face=source.faces+i;
+        status=rf_geomod_polygon_subtract(source.vertices+face->first,face->count,cut_planes,cutter->face_count,
+            work->vertices,64*32,work->fragments,32,&n,&pieces);if(status)goto failed;
+        for(j=0;j<pieces;j++) {
+            const rf_geomod_fragment *f=work->fragments+j;
+            status=rf_geomod_storage_append(s,work->vertices+f->first,f->count,face->material,face->source_face);if(status)goto failed;
+        }
+    }
+    for(i=0;i<cutter->face_count;i++) {
+        const rf_geomod_face *face=cutter->faces+i;
+        status=rf_geomod_interior_face(cutter->vertices+face->first,face->count,source_planes,source.face_count,work->vertices,64*32,&n);if(status)goto failed;
+        if(n){status=rf_geomod_storage_append(s,work->vertices,n,face->material,UINT32_MAX);if(status)goto failed;}
+    }
+    return RF_OK;
+failed:
+    rf_geomod_storage_abort(s);return status;
+}

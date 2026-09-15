@@ -113,5 +113,37 @@ int main(void)
             CHECK(closed());
         }
     }
+    {
+        static rf_geomod_cut_work work;
+        rf_geomod_face source_faces[6],cutter_faces[6];rf_geomod_mesh_view src,cut,live,pending;
+        rf_geomod_storage *storage=NULL,*small=NULL;unsigned interiors=0;
+        box(cut_lo,cut_hi,cutter,cut_faces);
+        for(i=0;i<6;i++) {
+            source_faces[i]=(rf_geomod_face){i*4,4,100+i,i};
+            cutter_faces[i]=(rf_geomod_face){i*4,4,200+i,i};
+        }
+        src=(rf_geomod_mesh_view){faces[0],source_faces,24,6,0};
+        cut=(rf_geomod_mesh_view){cut_faces[0],cutter_faces,24,6,0};
+        CHECK(!rf_geomod_storage_open(&src,512,128,65536,&storage));
+        CHECK(!rf_geomod_storage_prepare_convex_cut(storage,&cut,&work));
+        CHECK(!rf_geomod_storage_view(storage,&live) && live.generation==1 && live.face_count==6);
+        CHECK(!rf_geomod_storage_pending(storage,&pending));
+        result=0;surface_count=polygon_count=0;
+        for(i=0;i<pending.face_count;i++) {
+            const rf_geomod_face *f=pending.faces+i;
+            result+=volume(pending.vertices+f->first,f->count);CHECK(record(pending.vertices+f->first,f->count));
+            if(f->source_face==UINT32_MAX){interiors++;CHECK(f->material>=200 && f->material<206);}
+            else CHECK(f->source_face<6 && f->material==100+f->source_face);
+        }
+        CHECK(interiors==4 && fabs(result-48)<1e-5 && closed());
+        CHECK(!rf_geomod_storage_commit(storage));CHECK(!rf_geomod_storage_view(storage,&live) && live.generation==2);
+        CHECK(rf_geomod_storage_prepare_convex_cut(storage,&cut,&work)==RF_FORMAT); /* Do not treat concave result as convex. */
+        CHECK(!rf_geomod_storage_reset(storage));CHECK(!rf_geomod_storage_view(storage,&live) && live.face_count==6);
+        CHECK(!rf_geomod_storage_open(&src,24,6,4096,&small));
+        CHECK(rf_geomod_storage_prepare_convex_cut(small,&cut,&work)==RF_RANGE);
+        CHECK(!rf_geomod_storage_view(small,&live) && live.generation==1 && live.face_count==6 && !memcmp(live.vertices,faces,sizeof(faces)));
+        CHECK(rf_geomod_storage_pending(small,&pending)==RF_RANGE);
+        rf_geomod_storage_close(&small);rf_geomod_storage_close(&storage);
+    }
     puts("PASS: tunnel/boundary volumes, geometric edge closure, interior winding and rollback");return 0;
 }

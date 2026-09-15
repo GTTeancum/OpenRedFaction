@@ -148,3 +148,27 @@ there is no native runtime or live destruction claim for this owner yet.
 Next integration: construct complete cut results in the pending bank, retain
 cut history or equivalent topology for repeated cuts, and publish the same
 validated mesh to renderer and collision in the developer room.
+
+## Complete convex-cut preparation
+
+rf_geomod_storage_prepare_convex_cut now combines the surface and interior
+primitives into one pending replacement. It derives outward planes from the
+source/cutter polygons, checks face bounds, finite attributes, planar faces
+and convex half-space containment, then builds survivors and interior faces.
+Caller-provided retained scratch avoids cut-time allocation and a large Xbox
+stack array. Source material/face IDs survive; new interiors use cutter
+materials and UINT32_MAX as their source-face sentinel. Commit remains
+explicit so dependent rendering/collision can be prepared first.
+
+The storage-backed tunnel test passes volume48 and geometric edge closure,
+checks four interior materials, verifies live/pending isolation, commits and
+resets. A deliberately undersized bank fails without modifying live vertices,
+counts or generation. Attempting to pass the resulting non-convex tunnel back
+as a convex source is rejected rather than misclassified. Prior geometry and
+storage tests pass; NXDK compilation passes. This is a convex assembly path,
+not repeated-cut support for arbitrary terrain or a live scene integration.
+
+Closed input meshes remain a caller requirement; the plane checks alone are
+not a universal manifold validator. Next: retain cut history or equivalent
+non-convex solid representation, then use pending mesh views for shared
+renderer/collision preparation and live developer-room cuts.
