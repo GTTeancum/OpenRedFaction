@@ -492,8 +492,8 @@ uint32_t rf_scene_terrain_upload[4]; /* updates,pixels,largest rectangle,full co
 uint32_t rf_scene_terrain_atlas[8]; /* enabled,width,height,owned bytes,generation,texels,faces,image */
 uint32_t rf_scene_terrain_shadows[4]; /* lighting refreshes, rays, blocked, cache hits */
 typedef struct scene_debris_chunk {
-    rf_geomod_debris_mesh mesh;float position[3],velocity[3],radius,remaining;
-    uint32_t active,bounces;float axis[3],spin,angle;
+    rf_geomod_debris_mesh mesh;float position[3],velocity[3],radius,age;
+    uint32_t active,bounces,alpha;float axis[3],spin,angle;
 } scene_debris_chunk;
 typedef struct scene_debris_pool {
     scene_debris_chunk chunks[80];rf_random_state random;uint32_t next;
@@ -8815,7 +8815,7 @@ static int scene_debris_spawn(scene_stream *s)
         rf_random_next(&p->random,&draw);c->spin=(float)(((double)draw/32768.0)*3.1415927410125732f+3.1415927410125732f);c->angle=0;
         status=rf_geomod_debris_build(c->radius,s->terrain_texture_width,s->terrain_texture_height,&p->random,&c->mesh);if(status)return status;
         status=rf_geomod_debris_launch(c->position,p->origin,c->radius,resistance,&p->random,c->velocity);if(status)return status;
-        c->remaining=c->mesh.lifetime;c->active=1;++rf_scene_debris[0];
+        c->age=0;c->alpha=255;c->active=1;++rf_scene_debris[0];
     }
     p->pending=0;return RF_OK;
 }
@@ -8825,7 +8825,6 @@ static int scene_debris_tick(scene_stream *s)
     if(!p)return RF_OK;rf_scene_debris[1]=0;
     for(i=0;i<80;i++)if(p->chunks[i].active) {
         scene_debris_chunk *c=p->chunks+i;float delta[3];rf_geometry_world_hit hit;
-        c->remaining-=1.f/60;if(c->remaining<=0){c->active=0;++rf_scene_debris[3];continue;}
         if(!c->bounces){++rf_scene_debris[1];continue;}
         c->angle+=c->spin/60.f;
         for(k=0;k<3;k++)delta[k]=c->velocity[k]/60.f;
@@ -8834,7 +8833,9 @@ static int scene_debris_tick(scene_stream *s)
             float dot=0;for(k=0;k<3;k++)dot+=c->velocity[k]*hit.hit.normal[k];
             for(k=0;k<3;k++){c->position[k]=hit.hit.point[k]+hit.hit.normal[k]*.002f;c->velocity[k]=(c->velocity[k]-2*dot*hit.hit.normal[k])*.35f;}
             ++rf_scene_debris[2];
-            if(hit.hit.normal[1]>=.7f && c->bounces && !--c->bounces)memset(c->velocity,0,sizeof(c->velocity));
+            if(hit.hit.normal[1]>=.7f && c->bounces && !--c->bounces) {
+                memset(c->velocity,0,sizeof(c->velocity));c->age=c->mesh.lifetime;
+            }
         } else for(k=0;k<3;k++)c->position[k]+=delta[k];
         if(c->bounces)c->velocity[1]-=scene_gravity.acceleration/60.f;++rf_scene_debris[1];
     }
@@ -8842,11 +8843,23 @@ static int scene_debris_tick(scene_stream *s)
 }
 static int scene_debris_draw(scene_stream *s)
 {
-    scene_debris_pool *p=s->debris;uint32_t i,f,j,k,start=s->mesh->count;int status;
+    scene_debris_pool *p=s->debris;uint32_t order[80],count=0,i,f,j,k,start=s->mesh->count;float depths[80];int status;
     if(!p)return RF_OK;
+    /* Back-to-front chunk centers keep fading foreground fragments from
+     * overwriting later opaque chunks behind them. Bounded80-entry scratch. */
     for(i=0;i<80;i++)if(p->chunks[i].active) {
-        scene_debris_chunk *c=p->chunks+i;rf_geomod_mesh_view mesh={0};rf_preview_mesh emitted={0};
-        float cosine=cosf(c->angle),sine=sinf(c->angle);
+        float depth=0;for(k=0;k<3;k++)depth+=(p->chunks[i].position[k]-s->rocket_camera.player_position[k])*s->rocket_camera.player_orientation[2][k];
+        j=count;while(j && depths[j-1]<depth){depths[j]=depths[j-1];order[j]=order[j-1];--j;}
+        depths[j]=depth;order[j]=i;++count;
+    }
+    for(i=0;i<count;i++) {
+        scene_debris_chunk *c=p->chunks+order[i];rf_geomod_mesh_view mesh={0};rf_preview_mesh emitted={0};
+        float cosine=cosf(c->angle),sine=sinf(c->angle);rf_geomod_debris_lifecycle life;
+        /*48fd70 ages at draw submission;48f900 settling starts the fade. */
+        status=rf_geomod_debris_age(c->age,c->mesh.lifetime,1.f/60,0,&life);if(status)return status;
+        c->age=life.age;c->alpha=life.alpha;
+        if(life.removed){c->active=0;++rf_scene_debris[3];continue;}
+        if(!c->alpha)continue;
         for(f=0;f<12;f++) {
             p->faces[f]=(rf_geomod_face){f*3,3,s->terrain_material,UINT32_MAX};
             for(j=0;j<3;j++) {
@@ -8861,8 +8874,13 @@ static int scene_debris_draw(scene_stream *s)
         status=rf_geomod_collision_faces(&mesh,p->filters,p->positions,36,p->bound,12);if(status)return status;
         emitted.vertices=s->mesh->vertices+s->mesh->count;
         status=rf_preview_geomod(&emitted,s->capacity-s->mesh->bytes,&mesh,p->bound,s->materials->count,&s->rocket_camera);if(status)return status;
+        if(c->alpha<255)for(j=0;j<emitted.count;j++) {
+            emitted.vertices[j].lightmap=RF_PREVIEW_FADE_TAG|c->alpha;
+            for(k=0;k<3;k++)emitted.vertices[j].color[k]=1;
+        }
         s->mesh->count+=emitted.count;s->mesh->bytes+=emitted.bytes;
     }
+    rf_scene_debris[1]=0;for(i=0;i<80;i++)rf_scene_debris[1]+=p->chunks[i].active!=0;
     rf_scene_debris[4]=s->mesh->count-start;
     rf_scene_debris[5]=npc_hash_bytes(2166136261u,s->mesh->vertices+start,rf_scene_debris[4]*sizeof(rf_preview_vertex));return RF_OK;
 }

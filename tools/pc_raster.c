@@ -47,7 +47,7 @@ int rf_pc_raster_frame(rf_pc_raster *r,const rf_preview_mesh *mesh,const rf_mate
     width=r->width;height=r->height;pixels=r->pixels;scale=r->scale;depth=r->depth;rgb=r->rgb;
     for (i = 0; i < pixels; ++i) { depth[i] = 16777216; rgb[i*3] = 16; rgb[i*3+1] = 16; rgb[i*3+2] = 24; }
     for (i = 0; i + 2 < mesh->count; i += 3) {
-        int actor_triangle=i>=world_vertices;
+        int actor_triangle=i>=world_vertices || RF_PREVIEW_IS_FADED(mesh->vertices[i].lightmap);
         const rf_preview_vertex *a = mesh->vertices+i, *b = a+1, *c = a+2;
         rf_preview_vertex scaled[3];
         if(scale!=1){unsigned j;memcpy(scaled,a,sizeof(scaled));for(j=0;j<3;++j){scaled[j].position[0]*=scale;scaled[j].position[1]*=scale;}a=scaled;b=scaled+1;c=scaled+2;}
@@ -66,6 +66,19 @@ int rf_pc_raster_frame(rf_pc_raster *r,const rf_preview_mesh *mesh,const rf_mate
             float w = 1-u-v, z;
             uint32_t pixel = (uint32_t)(y*width+x), channel;
             if (u < 0 || v < 0 || w < 0) continue;
+            if(RF_PREVIEW_IS_FADED(a->lightmap)) {
+                /* Half-open edges prevent two coplanar triangles blending a
+                 * shared boundary twice when depth writes are disabled. */
+                const rf_preview_vertex *corners[3]={a,b,c};uint32_t e;int reject=0;
+                for(e=0;e<3;e++) {
+                    const float *p=corners[e]->position,*q=corners[(e+1)%3]->position;
+                    double dx=(double)q[0]-p[0],dy=(double)q[1]-p[1];
+                    double side=((x+.5)-p[0])*dy-((y+.5)-p[1])*dx;
+                    if(area<0){side=-side;dx=-dx;dy=-dy;}
+                    if(side<0 || (side==0 && !(dy>0 || (dy==0 && dx<0)))){reject=1;break;}
+                }
+                if(reject)continue;
+            }
             z = u*a->position[2]+v*b->position[2]+w*c->position[2];
             if (z >= depth[pixel]) continue;
             if(!actor_triangle)depth[pixel] = z;
@@ -77,15 +90,16 @@ int rf_pc_raster_frame(rf_pc_raster *r,const rf_preview_mesh *mesh,const rf_mate
                 float t = (u*a->texture[1]+v*b->texture[1]+w*c->texture[1])/q;
                 float base[4]={1,1,1,1}, light[4] = {0.5f, 0.5f, 0.5f,1};
                 if (image) sample(image, s, t, 0, base);
-                else if(a->lightmap!=RF_PREVIEW_VERTEX_LIT)for (channel = 0; channel < 3; ++channel) base[channel] = a->color[channel];
+                else if(!RF_PREVIEW_IS_VERTEX_LIT(a->lightmap))for (channel = 0; channel < 3; ++channel) base[channel] = a->color[channel];
                 if (a->lightmap < lightmaps->count) {
                     float ls = (u*a->lightmap_texture[0]+v*b->lightmap_texture[0]+w*c->lightmap_texture[0])/q;
                     float lt = (u*a->lightmap_texture[1]+v*b->lightmap_texture[1]+w*c->lightmap_texture[1])/q;
                     sample(lightmaps->images+a->lightmap, ls, lt, 1, light);
                 }
+                if(RF_PREVIEW_IS_FADED(a->lightmap))base[3]*=(a->lightmap&255u)/255.f;
                 if(actor_triangle && base[3]>=1)depth[pixel]=z;
                 for (channel = 0; channel < 3; ++channel) {
-                    float tint=a->lightmap==RF_PREVIEW_VERTEX_LIT?u*a->color[channel]+v*b->color[channel]+w*c->color[channel]:1;
+                    float tint=RF_PREVIEW_IS_VERTEX_LIT(a->lightmap)?u*a->color[channel]+v*b->color[channel]+w*c->color[channel]:1;
                     float color=fminf(1,base[channel]*light[channel]*2*tint)*255;
                     if(actor_triangle)color=color*base[3]+rgb[pixel*3+channel]*(1-base[3]);
                     rgb[pixel*3+channel]=(unsigned char)floorf(color+0.5f);

@@ -339,7 +339,7 @@ static int preview(const rf_preview_mesh *mesh, const rf_materials *materials, c
     for (i = 0; i < lightmaps->count; ++i) upload_bytes += lightmaps->images[i].bytes;
     rf_xbox_renderer_stage[1]=(uint32_t)upload_bytes;rf_xbox_renderer_stage[2]=vertex_bytes;
     if (upload_bytes > RF_CAMPAIGN_IMAGE_BUDGET || mesh->bytes > 8u*1024u*1024u || vertex_bytes>8u*1024u*1024u) return RF_RANGE;
-    for (i = 0; i < mesh->count; ++i) if (mesh->vertices[i].lightmap != UINT32_MAX && mesh->vertices[i].lightmap != RF_PREVIEW_VERTEX_LIT && mesh->vertices[i].lightmap >= lightmaps->count) return RF_FORMAT;
+    for (i = 0; i < mesh->count; ++i) if (mesh->vertices[i].lightmap != UINT32_MAX && !RF_PREVIEW_IS_VERTEX_LIT(mesh->vertices[i].lightmap) && mesh->vertices[i].lightmap >= lightmaps->count) return RF_FORMAT;
     if(mesh->bytes>vertex_bytes)return RF_RANGE;
     renderer_mark(0,&profile_previous,profiling);
     if(streaming && stream_gpu) {
@@ -379,10 +379,10 @@ static int preview(const rf_preview_mesh *mesh, const rf_materials *materials, c
     }
     renderer_mark(1,&profile_previous,profiling);
     memcpy(gpu,mesh->vertices,mesh->bytes);
-    for (i = 0; i < mesh->count; ++i) if (gpu[i].lightmap!=RF_PREVIEW_VERTEX_LIT && gpu[i].material < materials->count && textures[gpu[i].material].pixels) {
+    for (i = 0; i < mesh->count; ++i) if (!RF_PREVIEW_IS_VERTEX_LIT(gpu[i].lightmap) && gpu[i].material < materials->count && textures[gpu[i].material].pixels) {
         gpu[i].color[0] = gpu[i].color[1] = gpu[i].color[2] = 1.0f;
     }
-    for (i = 0; i < mesh->count; ++i) if (gpu[i].lightmap == UINT32_MAX || gpu[i].lightmap == RF_PREVIEW_VERTEX_LIT) {
+    for (i = 0; i < mesh->count; ++i) if (gpu[i].lightmap == UINT32_MAX || RF_PREVIEW_IS_VERTEX_LIT(gpu[i].lightmap)) {
         gpu[i].color[0] *= 0.5f; gpu[i].color[1] *= 0.5f; gpu[i].color[2] *= 0.5f;
     }
     __asm__ volatile("sfence" ::: "memory");
@@ -407,7 +407,7 @@ static int preview(const rf_preview_mesh *mesh, const rf_materials *materials, c
     }
     p = pb_begin();
 #include "preview_fragment.inl"
-    /* Cg emits c[0].x = 1 for position.w and color.a; upload explicitly. */
+    /* Cg emits c[0].x = 1 for position.w; c[1].x supplies draw opacity. */
     p = pb_push1(p, NV097_SET_TRANSFORM_CONSTANT_LOAD, 96);
     p = pb_push4f(p, NV097_SET_TRANSFORM_CONSTANT, 1.0f, 0.0f, 0.0f, 0.0f);
     p = pb_push1(p, NV097_SET_CULL_FACE_ENABLE, 0);
@@ -422,7 +422,7 @@ static int preview(const rf_preview_mesh *mesh, const rf_materials *materials, c
     renderer_mark(3,&profile_previous,profiling);
     for (frame = 0; frame < (streaming?1u:3u); ++frame) {
         const gpu_texture *bound_texture=NULL,*bound_lighting=NULL;
-        uint32_t bound_blend=UINT32_MAX,draws=0,methods=8,state_changes=0;
+        uint32_t bound_alpha=UINT32_MAX,bound_blend=UINT32_MAX,draws=0,methods=8,state_changes=0;
         uint32_t retained_next=0,retained_total=model==4?retained_draw_count:0;
         memset(rf_xbox_command_blocks,0,sizeof(rf_xbox_command_blocks));
         for(i=0;i<retained_total;i++)if(retained_draws[i].at_vertex>mesh->count || retained_draws[i].at_vertex%3)return RF_FORMAT;
@@ -496,7 +496,7 @@ static int preview(const rf_preview_mesh *mesh, const rf_materials *materials, c
                         field(NV097_SET_VERTEX_DATA_ARRAY_FORMAT_SIZE,3)|field(NV097_SET_VERTEX_DATA_ARRAY_FORMAT_STRIDE,sizeof(*gpu)));
                     p=pb_push1(p,NV097_SET_VERTEX_DATA_ARRAY_OFFSET+attribute*4,((uint32_t)gpu+(j==3?40:j*12))&0x03ffffff);
                 }
-                pb_end(p);bound_texture=bound_lighting=NULL;bound_blend=UINT32_MAX;
+                pb_end(p);bound_texture=bound_lighting=NULL;bound_blend=UINT32_MAX;bound_alpha=UINT32_MAX;
                 if(i==mesh->count)break;
             }
             uint32_t count = 3, material = mesh->vertices[i].material, lightmap = mesh->vertices[i].lightmap;
@@ -505,7 +505,13 @@ static int preview(const rf_preview_mesh *mesh, const rf_materials *materials, c
             while (count < 252 && i+count < mesh->count && (retained_next==retained_total || i+count<retained_draws[retained_next].at_vertex) && mesh->vertices[i+count].material == material && mesh->vertices[i+count].lightmap == lightmap) count += 3;
             texture = material < materials->count && textures[material].pixels ? textures+material : textures+materials->count;
             p = pb_begin();
-            {uint32_t blend=model && (model<3 || i>=world_vertices) && texture->transparent;
+            {uint32_t alpha=RF_PREVIEW_IS_FADED(lightmap)?lightmap&255u:255u;
+             uint32_t blend=alpha<255 || (model && (model<3 || i>=world_vertices) && texture->transparent);
+             if(alpha!=bound_alpha) {
+                p=pb_push1(p,NV097_SET_TRANSFORM_CONSTANT_LOAD,97);
+                p=pb_push4f(p,NV097_SET_TRANSFORM_CONSTANT,alpha/255.f,0,0,0);
+                bound_alpha=alpha;methods+=5;++state_changes;
+             }
              if(blend!=bound_blend) {
                 p=pb_push1(p,NV097_SET_BLEND_ENABLE,blend);
                 p=pb_push1(p,NV097_SET_DEPTH_MASK,!blend);

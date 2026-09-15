@@ -1735,3 +1735,38 @@ preview vertex format has RGB but no per-vertex alpha; implement and verify
 bounded PC/Xbox debris blending before replacing the provisional expiry path.
 Do not substitute darkened RGB for transparency. Two focused GeoMod CTests pass,
 including new pause/removal boundaries and invalid-input rollback coverage.
+
+### Live debris transparency (2026-09-15)
+
+The shared lifecycle now runs during DEV debris draw submission. Chunks start
+at age zero; exhaustion of the floor-bounce budget advances age to lifetime.
+Alpha follows original48fd70 and deletion occurs on the next draw invocation
+past lifetime+1. This fixes abrupt expiration, but does not establish original
+room visibility scheduling, pause integration or bounce-response parity.
+
+Reserved lightmap tags 0xfffffd00..0xfffffdff encode constant triangle opacity
+without enlarging the 56-byte preview vertex. These tags select vertex RGB and
+no lightmap. Xbox c[1].x supplies draw alpha; the fragment shader multiplies it
+by texture alpha. Fading batches blend source-over, retain depth testing and
+disable depth writes. PC applies the same blend policy and half-open triangle
+edges to prevent double blending a shared boundary. Chunks are sorted by
+camera-space center depth using bounded 80-entry scratch; intersecting chunks
+and triangle-level transparency ordering remain unverified.
+
+Pixel tests verify half-opacity over the clear color and an opaque surface,
+zero opacity, unchanged background depth, foreground occlusion and shared-edge
+coverage. Three focused CTests pass. Four live debris replays pass through
+900 frames, with 48 chunks spawned/expired and a 50640-byte owned pool. The
+700-frame native run at artifacts/xemu/render-20260915-133714 passes 45 checks,
+with 8676 pages free (33.89MiB), PID 54848 exited and all 19 disc entries restored.
+The first attempt 133516 stopped at the initial fading frame because the Xbox
+validator lacked the new tag; the validator was fixed before the successful run.
+
+The 700-frame PC mesh includes 93 fading vertices at alpha 4, 55, 76 and 153. PC and
+Xbox captures were inspected: the room, crater, weapon and small floor fragments
+render; the crater remains dark and angular. No new GitHub image was uploaded.
+The existing provisional bounce, gravity and chunk-placement limitations remain.
+
+Full-frame comparison finds 16719 differing pixels, 133 above one RGB level;
+only one of those lies in the upper 350 rows. Remaining backend differences
+are not claimed resolved by the state or focused pixel tests.

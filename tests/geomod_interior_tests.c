@@ -1119,6 +1119,37 @@ int main(int argc,char **argv)
         CHECK(draw.count==6 && projected[0].lightmap==RF_PREVIEW_VERTEX_LIT);
         CHECK(!rf_pc_raster_frame(&raster,&draw,&materials,&maps,draw.count));
         CHECK(raster.rgb[center]==40 && raster.rgb[center+1]==64 && raster.rgb[center+2]==48);
+        {
+            uint32_t at=(240*640+330)*3;
+            for(i=0;i<draw.count;i++)projected[i].lightmap=RF_PREVIEW_FADE_TAG|128u;
+            CHECK(!rf_pc_raster_frame(&raster,&draw,&materials,&maps,draw.count));
+            CHECK(raster.rgb[at]==28 && raster.rgb[at+1]==40 && raster.rgb[at+2]==36);
+            CHECK(raster.rgb[center]==28 && raster.rgb[center+1]==40 && raster.rgb[center+2]==36);
+            CHECK(raster.depth[at/3]==16777216);
+            for(i=0;i<draw.count;i++)projected[i].lightmap=RF_PREVIEW_FADE_TAG;
+            CHECK(!rf_pc_raster_frame(&raster,&draw,&materials,&maps,draw.count));
+            CHECK(raster.rgb[at]==16 && raster.rgb[at+1]==16 && raster.rgb[at+2]==24);
+            CHECK(raster.depth[at/3]==16777216);
+            for(i=0;i<draw.count;i++)projected[i].lightmap=RF_PREVIEW_VERTEX_LIT;
+            {
+                uint32_t original=draw.count;float original_depth=projected[0].position[2];
+                for(i=0;i<original;i++)projected[i].position[2]=100;
+                memcpy(projected+original,projected,original*sizeof(*projected));
+                for(i=original;i<original*2;i++) {
+                    projected[i].position[2]=50;projected[i].lightmap=RF_PREVIEW_FADE_TAG|128u;
+                    projected[i].color[0]=projected[i].color[1]=projected[i].color[2]=1;
+                }
+                draw.count*=2;draw.bytes=draw.count*sizeof(*projected);
+                CHECK(!rf_pc_raster_frame(&raster,&draw,&materials,&maps,draw.count));
+                CHECK(raster.rgb[at]==120 && raster.rgb[at+1]==112 && raster.rgb[at+2]==64);
+                CHECK(raster.depth[at/3]==100);
+                for(i=original;i<original*2;i++)projected[i].position[2]=150;
+                CHECK(!rf_pc_raster_frame(&raster,&draw,&materials,&maps,draw.count));
+                CHECK(raster.rgb[at]==40 && raster.rgb[at+1]==64 && raster.rgb[at+2]==48);
+                for(i=0;i<original;i++)projected[i].position[2]=original_depth;
+                draw.count=original;draw.bytes=original*sizeof(*projected);
+            }
+        }
         memcpy(saved,projected,sizeof(projected));colors[0][0]=NAN;
         CHECK(rf_preview_geomod_lit(&draw,sizeof(projected),&source,&bound,1,&camera,colors)==RF_FORMAT);
         CHECK(draw.count==6 && !memcmp(saved,projected,sizeof(projected)));
