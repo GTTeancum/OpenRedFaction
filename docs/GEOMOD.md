@@ -237,3 +237,30 @@ budgeted allocation. Live integration must account for the old and pending
 resources together and publish collision and rendering from the same mesh
 generation. No room owner or weapon impact currently calls this adapter.
 NXDK compilation passes and produces the Xbox XBE/XISO; native execution of this adapter remains unverified.
+
+
+## Shared world projection of generated faces
+
+rf_preview_geomod binds generated mesh positions/UVs/materials and its matching
+collision face planes to the existing world triangle fan, camera transform,
+backface rejection, six-plane clipping and raster output format. The ordinary
+world path calls the same generator with its existing serialized inputs.
+Output uses caller-retained capacity with a sizing pass before writes; generated
+faces currently have no lightmaps. This prepares draw data and does not submit
+or publish live terrain. Collision bindings must match the same mesh snapshot.
+
+The tunnel fixture now runs through the real PC rasterizer. Inspected original
+and cut captures show the intact front surface, then a central passage with
+four interior walls and surviving surrounding surface. Pixel depth checks
+confirm the center becomes background while the rim and interior remain
+visible; material slots, finite projection and capacity rollback also pass.
+Captures are explicitly synthetic geometry, not a developer-room destruction
+screenshot. RF_GEOMOD_CAPTURE_DIR enables optional original.ppm/cut.ppm output
+from rf_geomod_interior_tests when an existing capture directory is supplied.
+
+PC build and the100-frame developer-room ammo-refill replay pass after the
+shared renderer change. Its final image was inspected: textured room, central
+structure, handgun and HUD remain visible. Audio and full weapon-sequence
+presentation were not reviewed. NXDK builds the XBE/XISO; native execution of
+generated-terrain rendering remains unverified. Next is live terrain ownership
+and joint rendering/collision publication, then weapon impact and reset wiring.

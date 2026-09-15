@@ -2,6 +2,7 @@
 #define RF_PREVIEW_H
 #include "rf/geometry.h"
 #include "rf/material.h"
+#include "rf/geomod.h"
 typedef struct rf_preview_vertex {
     float position[3], color[3];
     /* Perspective texture coordinates: u/z, v/z, 1/z after clipping. */
@@ -11,6 +12,16 @@ typedef struct rf_preview_vertex {
     uint32_t lightmap;
 } rf_preview_vertex;
 typedef struct rf_preview_mesh { rf_preview_vertex *vertices; uint32_t count, bytes; } rf_preview_mesh;
+/* Project generated terrain through the same world clipping/raster format.
+ * bound must be the successful rf_geomod_collision_faces output for this mesh,
+ * in unchanged source order. Materials are final shared table slots. Replaces
+ * mesh contents in its existing capacity, with no allocation; capacity/input
+ * errors preserve output bytes and counts. No lightmaps on generated surfaces
+ * yet. Caller keeps all inputs stable/disjoint from output across both passes.
+ * This prepares draw data; it does not submit or publish a live world. */
+int rf_preview_geomod(rf_preview_mesh *mesh,uint32_t capacity_bytes,
+    const rf_geomod_mesh_view *source,const rf_collision_face *bound,
+    uint32_t material_count,const rf_level *camera);
 /* Append a processed model batch using the recovered clipping/emission helpers.
  * Caller supplies batch-local render buffers, 4096 output vertex slots, 24576
  * index slots and an initialized clip pool; all can be reused between actors.

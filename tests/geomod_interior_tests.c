@@ -1,7 +1,9 @@
 #include "rf/geomod.h"
+#include "../tools/pc_raster.h"
 #include <math.h>
 #include <stdio.h>
 #include <string.h>
+#include <stdlib.h>
 #define CHECK(x) do {if(!(x)){fprintf(stderr,"interior line %d\n",__LINE__);return 1;}} while(0)
 static void box(const float lo[3],const float hi[3],float planes[6][4],rf_geomod_vertex faces[6][4])
 {
@@ -90,6 +92,34 @@ static int collision_clearance(const rf_geomod_mesh_view *mesh,int tunnel)
     CHECK(rf_geomod_collision_faces(mesh,filters,positions,2048,faces,128)==RF_RANGE);
     filters[mesh->face_count-1].owner_present=0;
     CHECK(!memcmp(saved_positions,positions,sizeof(positions)) && !memcmp(saved_faces,faces,sizeof(faces)));
+    {
+        static rf_preview_vertex vertices[8192],saved[8192];rf_preview_mesh draw={vertices,0,0};
+        rf_level camera={0};rf_pc_raster raster={0};rf_materials materials={0};rf_lightmaps maps={0};
+        const char *capture=getenv("RF_GEOMOD_CAPTURE_DIR");unsigned i,j,interiors=0;
+        camera.player_position[2]=-6;
+        for(i=0;i<3;i++)camera.player_orientation[i][i]=1;
+        CHECK(!rf_preview_geomod(&draw,sizeof(vertices),mesh,faces,400,&camera));
+        CHECK(draw.count && draw.bytes==draw.count*sizeof(*vertices));
+        for(i=0;i<draw.count;i++) {
+            CHECK(vertices[i].lightmap==UINT32_MAX && vertices[i].texture[2]>0);
+            for(j=0;j<3;j++)CHECK(isfinite(vertices[i].position[j]) && isfinite(vertices[i].texture[j]));
+            if(vertices[i].material>=200)interiors++;
+        }
+        CHECK(tunnel?interiors>0:interiors==0);
+        memcpy(saved,vertices,sizeof(saved));
+        CHECK(rf_preview_geomod(&draw,draw.bytes-sizeof(*vertices),mesh,faces,400,&camera)==RF_RANGE);
+        CHECK(!memcmp(saved,vertices,sizeof(saved)));
+        CHECK(!rf_pc_raster_open(&raster,1));
+        CHECK(!rf_pc_raster_frame(&raster,&draw,&materials,&maps,draw.count));
+        CHECK(tunnel?raster.depth[240*640+320]==16777216:raster.depth[240*640+320]<16777216);
+        CHECK(raster.depth[240*640+450]<16777216); /* Original surface survives. */
+        CHECK(raster.depth[240*640+380]<16777216); /* Interior sidewall after cut. */
+        if(capture) {
+            char path[1024];CHECK(snprintf(path,sizeof(path),"%s/%s.ppm",capture,tunnel?"cut":"original")<(int)sizeof(path));
+            CHECK(!rf_pc_raster_save(&raster,path));
+        }
+        rf_pc_raster_close(&raster);
+    }
     CHECK(!rf_collision_tree_open(faces,mesh->face_count,1024*1024,&tree));
     CHECK(!rf_collision_thin_tree(tree.nodes,tree.node_count,tree.faces,tree.face_count,0,
         start,delta,1,tree.stack,tree.node_capacity,&ray,&matched));

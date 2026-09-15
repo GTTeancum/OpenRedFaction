@@ -84,7 +84,7 @@ static unsigned clip(const point *input, unsigned count, point *output, unsigned
  * Cache rounded positions and clip codes; UVs remain owned by each face corner. */
 typedef struct camera_cache_entry { uint32_t vertex; float position[3]; uint32_t outside; } camera_cache_entry;
 #define CAMERA_CACHE_COUNT 64u
-static int camera(const rf_geometry *g, const rf_level *level, const rf_geometry_corner *corner,
+static int camera(const rf_geometry *g,const rf_geomod_mesh_view *generated, const rf_level *level, const rf_geometry_corner *corner,
     const float *origin,const float matrix[3][3],camera_cache_entry *cache,point *out,uint32_t *outside)
 {
     float p[3], v[3];
@@ -97,7 +97,8 @@ static int camera(const rf_geometry *g, const rf_level *level, const rf_geometry
         result.x=entry->position[0];result.y=entry->position[1];result.z=entry->position[2];
         *outside=entry->outside;*out=result;return RF_OK;
     }
-    if(rf_geometry_vertex(g, corner->vertex, p))return RF_FORMAT;
+    if(generated)memcpy(p,generated->vertices[corner->vertex].position,12);
+    else if(rf_geometry_vertex(g, corner->vertex, p))return RF_FORMAT;
     if(origin) {
         rf_collision_ray_hit local={0},world;int status;memcpy(local.point,p,12);
         status=rf_collision_contact_world(&local,origin,matrix,&world);if(status)return status;memcpy(p,world.point,12);
@@ -114,8 +115,18 @@ static int camera(const rf_geometry *g, const rf_level *level, const rf_geometry
     for(i=0;i<6;++i)if(distance(result,i)<0)entry->outside|=1u<<i;
     *outside=entry->outside;*out=result;return RF_OK;
 }
-static int generate(rf_preview_mesh *mesh, const rf_geometry *g, const rf_level *level, uint32_t capacity,
-    const float *origin,const float matrix[3][3],uint32_t material_base,const rf_visibility *visibility)
+static void generated_corner(const rf_geometry *g,const rf_geomod_mesh_view *generated,
+    uint32_t face,uint32_t corner,rf_geometry_corner *out)
+{
+    if(generated) {
+        uint32_t index=generated->faces[face].first+corner;
+        *out=(rf_geometry_corner){0};out->vertex=index;
+        memcpy(out->uv,generated->vertices[index].uv,sizeof(out->uv));
+    } else rf_geometry_get_corner(g,face,corner,out);
+}
+static int generate_source(rf_preview_mesh *mesh, const rf_geometry *g, const rf_level *level, uint32_t capacity,
+    const float *origin,const float matrix[3][3],uint32_t material_base,const rf_visibility *visibility,
+    const rf_geomod_mesh_view *generated,const rf_collision_face *bound)
 {
     uint32_t f, used = 0;
     camera_cache_entry cache[CAMERA_CACHE_COUNT];
@@ -126,7 +137,11 @@ static int generate(rf_preview_mesh *mesh, const rf_geometry *g, const rf_level 
         point anchor,previous;uint32_t anchor_outside,previous_outside;
         uint32_t corner, lightmap = UINT32_MAX;
         float color;int status;
-        rf_geometry_get_face(g, f, &face);
+        if(generated) {
+            face=(rf_geometry_face){0};memcpy(face.plane,bound[f].plane,sizeof(face.plane));
+            face.texture=generated->faces[f].material;face.corners=generated->faces[f].count;
+            face.room=face.lightmap_mapping=UINT32_MAX;
+        } else rf_geometry_get_face(g, f, &face);
         /* Primary room IDs are file-order visibility indices. Detail rooms are
          * not independently traversed: retain them until parent eligibility is
          * explicitly bound. Unknown-room faces and movers also remain visible. */
@@ -146,20 +161,20 @@ static int generate(rf_preview_mesh *mesh, const rf_geometry *g, const rf_level 
         }
         color = 0.25f + 0.6f * fabsf(face.plane[0] * 0.3f + face.plane[1] * 0.8f + face.plane[2] * 0.5f);
         if (color > 1) color = 1;
-        rf_geometry_get_corner(g, f, 0, &a);
+        generated_corner(g,generated,f,0,&a);
         if(face.corners<3)continue;
-        rf_geometry_get_corner(g,f,1,&b);
-        if((status=camera(g,level,&a,origin,matrix,cache,&anchor,&anchor_outside)) ||
-           (status=camera(g,level,&b,origin,matrix,cache,&previous,&previous_outside)))return status;
+        generated_corner(g,generated,f,1,&b);
+        if((status=camera(g,generated,level,&a,origin,matrix,cache,&anchor,&anchor_outside)) ||
+           (status=camera(g,generated,level,&b,origin,matrix,cache,&previous,&previous_outside)))return status;
         for (corner = 1; corner + 1 < face.corners; ++corner) {
             point buffers[2][12];
             unsigned count = 3, plane, current = 0, i, j, crossing,next_outside;
             /* A polygon fan reuses its anchor and the previous corner. Keep
              * their rounded camera-space values rather than transforming each
              * occurrence again. UVs belong to these same face corners. */
-            rf_geometry_get_corner(g, f, corner + 1, &c);
+            generated_corner(g,generated,f,corner+1,&c);
             buffers[0][0]=anchor;buffers[0][1]=previous;
-            if((status=camera(g,level,&c,origin,matrix,cache,&buffers[0][2],&next_outside)))return status;
+            if((status=camera(g,generated,level,&c,origin,matrix,cache,&buffers[0][2],&next_outside)))return status;
             previous=buffers[0][2];
             /* Convex frustum: triangles wholly outside one plane cannot
              * contribute, and wholly inside triangles need no polygon copies.
@@ -203,6 +218,40 @@ static int generate(rf_preview_mesh *mesh, const rf_geometry *g, const rf_level 
     }
     mesh->count = used;
     return RF_OK;
+}
+static int generate(rf_preview_mesh *mesh,const rf_geometry *g,const rf_level *level,uint32_t capacity,
+    const float *origin,const float matrix[3][3],uint32_t material_base,const rf_visibility *visibility)
+{
+    return generate_source(mesh,g,level,capacity,origin,matrix,material_base,visibility,NULL,NULL);
+}
+int rf_preview_geomod(rf_preview_mesh *mesh,uint32_t capacity_bytes,
+    const rf_geomod_mesh_view *source,const rf_collision_face *bound,
+    uint32_t material_count,const rf_level *level)
+{
+    rf_geometry metadata={0};rf_preview_mesh next={0};uint32_t i,j;int status;
+    if(!mesh || !source || !level || (capacity_bytes && !mesh->vertices) ||
+       (source->vertex_count && !source->vertices) || (source->face_count && (!source->faces || !bound)))return RF_RANGE;
+    for(i=0;i<3;i++) {
+        if(!isfinite(level->player_position[i]))return RF_FORMAT;
+        for(j=0;j<3;j++)if(!isfinite(level->player_orientation[i][j]))return RF_FORMAT;
+    }
+    for(i=0;i<source->vertex_count;i++) {
+        for(j=0;j<3;j++)if(!isfinite(source->vertices[i].position[j]))return RF_FORMAT;
+        for(j=0;j<2;j++)if(!isfinite(source->vertices[i].uv[j]))return RF_FORMAT;
+    }
+    for(i=0;i<source->face_count;i++) {
+        const rf_geomod_face *f=source->faces+i;
+        if(f->count<3 || f->count>64 || f->first>source->vertex_count || f->count>source->vertex_count-f->first ||
+           f->material>=material_count || bound[i].count!=f->count)return RF_FORMAT;
+        for(j=0;j<4;j++)if(!isfinite(bound[i].plane[j]))return RF_FORMAT;
+    }
+    metadata.faces=source->face_count;metadata.textures=material_count;
+    status=generate_source(&next,&metadata,level,capacity_bytes/sizeof(rf_preview_vertex),NULL,NULL,0,NULL,source,bound);
+    if(status)return status;
+    next.vertices=mesh->vertices;
+    status=generate_source(&next,&metadata,level,capacity_bytes/sizeof(rf_preview_vertex),NULL,NULL,0,NULL,source,bound);
+    if(status)return status;
+    next.bytes=next.count*sizeof(rf_preview_vertex);*mesh=next;return RF_OK;
 }
 static int build(rf_preview_mesh *mesh, const rf_geometry *g, const rf_level *level,
     const float *origin,const float matrix[3][3],uint32_t material_base,uint32_t budget)
