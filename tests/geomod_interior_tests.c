@@ -713,7 +713,7 @@ int main(int argc,char **argv)
             rf_geomod_terrain_close(&terrain);rf_geomod_storage_close(&owner);
         }
         {
-            rf_geomod_template shape;rf_random_state random={1};double previous_volume=0;
+            rf_geomod_template shape;rf_random_state random={1};double previous_volume=0;unsigned junction_misses=0;
             const float start[3]={0,-10,12},delta[3]={-40,0,-20};
             CHECK(!rf_geomod_template_load("build/data/geomod-template.bin",&shape));
             box((float[3]){-16,-12,-20},(float[3]){16,12,20},planes,source_v);
@@ -740,10 +740,34 @@ int main(int argc,char **argv)
                 printf("STRESS %u %u %u %g prior %g closed %d\n",repeat,live.mesh.vertex_count,live.mesh.face_count,-total,previous_volume,closed());
                 /* Room-scale closure is an open defect also observed without
                  * compaction; report it without claiming this capacity test proves it. */
+                {
+                    /* Probe individual float steps across the known near-coincident
+                     * junction. A closed room must stop every outward segment,
+                     * whether at the original wall or the new crater boundary. */
+                    int y,z;unsigned probes=0,misses=0,body_misses=0;
+                    const float outward[3]={-15,0,0};
+                    for(y=-32;y<=32;y++)for(z=-32;z<=32;z++) {
+                        float probe[3]={-15,-7.36841655756f+y*0x1p-21f,2.93492785774f+z*0x1p-22f};
+                        CHECK(!rf_collision_thin_tree(live.tree->nodes,live.tree->node_count,
+                            live.tree->faces,live.tree->face_count,0,probe,outward,1,
+                            live.tree->stack,live.tree->node_capacity,&hit,&matched));
+                        probes++;if(!matched) {
+                            rf_collision_sweep_tree_hit sweep;
+                            misses++;
+                            CHECK(!rf_collision_sweep_tree(live.tree->nodes,live.tree->node_count,
+                                live.tree->faces,live.tree->face_count,0,probe,outward,outward,.5f,1,
+                                live.tree->stack,live.tree->node_capacity,&sweep,&matched));
+                            if(!matched)body_misses++;
+                        }
+                    }
+                    printf("JUNCTION_RAYS cut %u probes %u misses %u body_misses %u\n",repeat+1,probes,misses,body_misses);
+                    junction_misses+=misses;CHECK(!body_misses);
+                }
                 CHECK(-total>previous_volume);previous_volume=-total;
             }
             rf_geomod_terrain_close(&terrain);
             report_closure=0;
+            if(getenv("RF_GEOMOD_STRICT_JUNCTION"))CHECK(!junction_misses);
             puts("PASS: six ray-placed crater admissions and increasing signed volume within1MiB; room-scale closure remains diagnostic");
         }
         puts("PASS: original concave template, overlapping cuts, closed edges, volume and324 independent triangle rays");

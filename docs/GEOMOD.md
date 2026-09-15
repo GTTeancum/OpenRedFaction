@@ -1054,3 +1054,27 @@ and40checks with9024pages free (35.25MiB); six cuts publish without rejection.
 Decoded framebuffer pixels exactly match the previously inspected105731 frame,
 so no new image was posted. All19disc entries restored and owned emulator
 exited. The room-scale closure issue remains unresolved.
+
+## Junction collision reproducer (2026-09-15)
+
+The six-cut room-scale fixture now probes a65x65 grid around the previously
+reported near-coincident junction at(-16,-7.36841655756,2.93492785774).
+Segments start at x=-15 and travel15 units toward negative X. Grid spacing
+is one float ULP at each local coordinate:2^-21 in Y and2^-22 in Z.
+Every segment should encounter the room wall or the closed crater boundary.
+
+Cut1 blocks all4225 rays. Cuts2 through6 each miss35 rays. Radius0.5 sphere
+sweeps at those175 missed-ray samples all hit terrain. This demonstrates a
+thin-ray collision failure in the local fixture, but does not establish
+body escape, its exact geometric cause, or visible cracks. The correlation
+with the closure diagnostic does not prove that the same junction causes
+both failures. No geometry or collision tolerance was changed.
+
+Run rf_geomod_interior_tests.exe Installed_Game artifacts/geomod-holey01-csg.bin
+from the project root. Setting RF_GEOMOD_STRICT_JUNCTION=1 asserts zero ray
+misses after collecting all six cuts and currently exits1. Normal runs retain
+the clearly reported diagnostic and assert the tested sphere sweeps remain
+blocked. Evidence:artifacts/geomod-junction-rays.log and
+artifacts/geomod-junction-strict.log. The four targeted CTest checks pass;
+the opt-in zero-miss regression intentionally fails until the defect is fixed.
+This test-only change has no new Xbox build or visual acceptance claim.
