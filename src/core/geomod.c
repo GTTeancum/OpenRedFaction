@@ -363,6 +363,58 @@ int rf_geomod_debris_build(float radius,uint32_t width,uint32_t height,
     *random=next;*out=mesh;return RF_OK;
 }
 
+int rf_geomod_shallow_align(const float requested[3],float template_radius,
+    const rf_geomod_shallow_limit *selected,uint32_t count,
+    const rf_geomod_shallow_history *history,uint32_t history_count,float adjusted[3])
+{
+    double normals[2][3]={{0}},corrections[2][3]={{0}};
+    uint32_t i,j,k,m,found[2]={0};float result[3];
+    if(!requested || !adjusted || count>2 || history_count>128 ||
+        (count && !selected) || (history_count && !history))return RF_RANGE;
+    if(!isfinite(template_radius) || template_radius<=0)return RF_FORMAT;
+    for(j=0;j<3;j++)if(!isfinite(requested[j]))return RF_FORMAT;
+    for(i=0;i<count;i++) {
+        double length=0;
+        if(!isfinite(selected[i].depth))return RF_FORMAT;
+        for(j=0;j<3;j++) {
+            float v=selected[i].normal[j]*selected[i].depth;
+            if(!isfinite(selected[i].normal[j]) || !isfinite(v))return RF_FORMAT;
+            normals[i][j]=v;length+=(double)v*v;
+        }
+        if(length>0){length=sqrt(length);for(j=0;j<3;j++)normals[i][j]/=length;}
+    }
+    for(i=0;i<history_count;i++) {
+        double delta[3],distance=0,radius;
+        if(!isfinite(history[i].scale) || history[i].scale<0)return RF_FORMAT;
+        for(j=0;j<3;j++) {
+            if(!isfinite(history[i].center[j]))return RF_FORMAT;
+            delta[j]=(double)requested[j]-history[i].center[j];distance+=delta[j]*delta[j];
+            for(k=0;k<2;k++)if(!isfinite(history[i].vectors[k][j]))return RF_FORMAT;
+        }
+        if(history[i].vectors[0][0]==0 && history[i].vectors[0][1]==0 && history[i].vectors[0][2]==0)continue;
+        radius=(double)template_radius*history[i].scale;
+        if(distance>=radius*radius)continue;
+        for(k=0;k<2;k++) {
+            double length=0,n[3],signed_distance=0;
+            for(j=0;j<3;j++)length+=(double)history[i].vectors[k][j]*history[i].vectors[k][j];
+            if(length==0)continue;
+            for(j=0;j<3;j++){n[j]=history[i].vectors[k][j]/sqrt(length);signed_distance+=n[j]*delta[j];}
+            if(signed_distance<=0 || signed_distance*signed_distance>=length)continue;
+            for(m=0;m<count;m++)if(!found[m]) {
+                double dot=0;for(j=0;j<3;j++)dot+=n[j]*normals[m][j];
+                if(dot<.95)continue;
+                for(j=0;j<3;j++)corrections[m][j]=-signed_distance*n[j];
+                found[m]=1;
+            }
+        }
+    }
+    for(j=0;j<3;j++) {
+        result[j]=(float)(requested[j]+corrections[0][j]+corrections[1][j]);
+        if(!isfinite(result[j]))return RF_FORMAT;
+    }
+    memcpy(adjusted,result,sizeof(result));return RF_OK;
+}
+
 int rf_geomod_shallow_normalize(const rf_geomod_shallow_limit *selected,uint32_t count,
     rf_geomod_shallow_limit out[2],uint32_t *out_count)
 {

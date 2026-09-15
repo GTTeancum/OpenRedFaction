@@ -5,6 +5,23 @@
 int main(int argc,char **argv)
 {
     rf_random_state state;float basis[9];uint32_t i;
+    if(argc==2 && !strcmp(argv[1],"--shallow-align")) {
+        rf_geomod_shallow_limit limits[2];rf_geomod_shallow_history history[128];
+        float requested[3],radius,out[3];uint32_t count,hc,j,k;
+        if(scanf("%u %u %f",&count,&hc,&radius)!=3 || count>2 || hc>128)return 3;
+        for(j=0;j<3;j++)if(scanf("%f",requested+j)!=1)return 3;
+        for(i=0;i<count;i++) {
+            for(j=0;j<3;j++)if(scanf("%f",limits[i].normal+j)!=1)return 3;
+            if(scanf("%f",&limits[i].depth)!=1)return 3;
+        }
+        for(i=0;i<hc;i++) {
+            for(j=0;j<3;j++)if(scanf("%f",history[i].center+j)!=1)return 3;
+            for(k=0;k<2;k++)for(j=0;j<3;j++)if(scanf("%f",history[i].vectors[k]+j)!=1)return 3;
+            if(scanf("%f",&history[i].scale)!=1)return 3;
+        }
+        if(rf_geomod_shallow_align(requested,radius,limits,count,history,hc,out))return 2;
+        printf("%.9g %.9g %.9g\n",out[0],out[1],out[2]);return 0;
+    }
     if(argc==2 && !strcmp(argv[1],"--shallow-normalize")) {
         rf_geomod_shallow_limit input[2],out[2];uint32_t count,j,used;
         if(scanf("%u",&count)!=1 || count>2)return 3;

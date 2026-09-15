@@ -11,9 +11,11 @@ User mandate: keep one secondary agent supplied with useful, bounded RE work whi
 7. Reported, primary review pending: source-face detail classification and face bit8 propagation/consumers; distinguish observed flags from terrain-protection assumptions.
 8. Reported/integrated: both shallow limiting branches; shared point deformation passes100 original comparisons and PC/NXDK builds, with live preparation still open.
 9. Reported, primary review pending: crater-center encoding/decoding and duplicate-distance boundary cases; original x87 precision mode affects quantization.
-10. Reported, primary integration pending: previous shallow craters adjust the new center;69 original cases available.
+10. Reported/integrated: shared previous-crater alignment passes69 original comparisons; live admission owner integration remains open.
 11. Reported/integrated: signed-depth conversion;8 original/shared comparisons pass, and startup53-bit x87 evidence awaits primary review.
-12. Active: requested versus adjusted center ownership in admission, queue, packed history and auxiliary history.
-13. Queued: newly exposed shallow-face material assignment; distinguish direction-dependent texture choice from ice behavior.
+12. Reported, primary review pending: separate requested center for packed duplicate history and adjusted center for geometry/auxiliary history.
+13. Reported, primary review pending: shallow vectors do not override material; tested ice flag remains the override.
+14. Active: save/replay4674b0 auxiliary-history reconstruction ordering and parameter regeneration.
+15. Queued: ordinary rocket template selection in master467020; expand beyond fixed holey01 when supported.
 
 Send findings to the primary as each investigation completes, then proceed to the next queued item. Primary reviews reports and replenishes this queue. Do not edit shared implementation or use desktop control, host input or emulators.

@@ -45,6 +45,17 @@ int rf_geomod_shallow_point(const float center[3],const float point[3],float rad
  * errors preserve both output array and count. */
 int rf_geomod_shallow_normalize(const rf_geomod_shallow_limit *selected,uint32_t count,
     rf_geomod_shallow_limit out[2],uint32_t *out_count);
+/* Auxiliary admission history stores the ADJUSTED center and signed depth
+ * vectors. Duplicate suppression uses a separate packed REQUESTED center. */
+typedef struct rf_geomod_shallow_history {
+    float center[3],vectors[2][3],scale;
+} rf_geomod_shallow_history;
+/* Original45cff0 prior-plane alignment. History is admission ordered, bounded
+ * to128 records; template_radius belongs to the NEW request. Errors preserve
+ * output. Selection vectors are signed, before shallow_normalize. */
+int rf_geomod_shallow_align(const float requested[3],float template_radius,
+    const rf_geomod_shallow_limit *selected,uint32_t count,
+    const rf_geomod_shallow_history *history,uint32_t history_count,float adjusted[3]);
 typedef struct rf_geomod_hardness_result {
     uint32_t hardness,allowed,matches,flags;float scale;
 } rf_geomod_hardness_result;

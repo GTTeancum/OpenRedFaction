@@ -506,6 +506,20 @@ int main(int argc,char **argv)
 {
     CHECK(!partition_contract());
     {
+        float request[3]={10,20,30},out[3],saved[3]={91,92,93};
+        rf_geomod_shallow_limit limit={{0,-1,0},2};
+        rf_geomod_shallow_history history[2]={{{10,21,30},{{0,-2,0},{0,0,0}},1},{{10,20.5f,30},{{0,-2,0},{0,0,0}},1}};
+        CHECK(!rf_geomod_shallow_align(request,5,&limit,1,history,2,out));
+        CHECK(out[0]==10 && out[1]==21 && out[2]==30);
+        {rf_geomod_shallow_history first=history[0];history[0]=history[1];history[1]=first;}
+        CHECK(!rf_geomod_shallow_align(request,5,&limit,1,history,2,out) && out[1]==20.5f);
+        memcpy(out,saved,sizeof(out));history[1].vectors[1][0]=NAN;
+        CHECK(rf_geomod_shallow_align(request,5,&limit,1,history,2,out)==RF_FORMAT && !memcmp(out,saved,sizeof(out)));
+        CHECK(rf_geomod_shallow_align(request,5,&limit,1,history,129,out)==RF_RANGE && !memcmp(out,saved,sizeof(out)));
+        CHECK(!rf_geomod_shallow_align(request,5,&limit,1,NULL,0,request) && request[1]==20);
+    }
+
+    {
         rf_geomod_shallow_limit selected[2]={{{0,-1,0},-2},{{-1,0,0},3}},normalized[2],saved[2];uint32_t count=77;
         CHECK(!rf_geomod_shallow_normalize(selected,2,normalized,&count));
         CHECK(count==2 && normalized[0].depth==2 && normalized[0].normal[1]==1);
