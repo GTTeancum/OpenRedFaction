@@ -2,7 +2,7 @@
 
 - DEV testbed: Review full weapon animations and add complete room reset; terrain reset and ammo refill are implemented, while campaign progression remains paused.
 - GeoMod: Add explosive-weapon integration, non-box cutters and authored eligibility; live repeated excavation passes PC/Xbox, and guarded terrain reset passes PC/Xbox checks.
-- Weapons: Add rocket blast damage, projectile/explosion presentation and actor/mover collision; DEV launcher selection, reload, swept world impact and box excavation pass PC/Xbox.
+- Weapons: Add rocket projectile/explosion presentation and actor/mover impacts, and verify NPC blast/cover behavior; radial self-damage now passes PC near/far/lethal checks.
 - Combat: Extend pain-reaction coverage across enemy weapons and encounters; retained attack locks now pass35 PC/Xbox comparisons with independent actor recovery.
 - Combat: Revalidate encounters with the new shared body-sphere bullet collision; captured false hits are rejected, but old oversized-box aiming replays need recalibration.
 - Weapons: Implement remaining campaign weapons beyond handgun, rifle, Riot Stick and shotgun; automatic rifle now clears three shaft guards on PC/Xbox.
@@ -5158,3 +5158,10 @@ Projectile visuals, explosion effects, blast/self damage, actor/mover hits,
 full animation/audio review, homing and spherical cuts remain open. This
 is an incomplete launcher first pass, not a finished explosive weapon.
 Estimate remains ~49%; current area is explosive weapons and GeoMod.
+
+Blast native verification (2026-09-15):400frame ordinary nearby-shot replay
+at artifacts/xemu/render-20260915-081337 passes37 PC/Xbox comparisons,
+including all blast diagnostic words;9261pages (36.176MiB) free. Native
+frame inspected with reduced health/armor HUD and excavated cavity visible.
+All19 staged disc entries restored; owned emulator exited. Far/lethal and
+reload/switch cases remain PC-only. Estimate remains ~49%; explosive weapons.

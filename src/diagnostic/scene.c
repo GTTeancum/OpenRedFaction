@@ -8527,6 +8527,64 @@ static int scene_rocket_sweep(void *context,const float start[3],const float del
     if(!status && *matched){out->hit=hit.hit;out->room=hit.room;out->face=hit.face;out->object=UINT32_MAX;}
     return status;
 }
+uint32_t rf_scene_rocket_blast[8]; /* explosions, candidates, damaged, NPC kills, self hits, last amount bits, occluded, status */
+/* Practical first-pass radial policy: nearest visible body-sphere surface,
+ * linear attenuation to the authored radius. This is not recovered falloff. */
+static int scene_blast_amount(scene_stream *s,const float origin[3],const rf_physics_body *body,float *amount)
+{
+    uint32_t i,k,blocked;float best=0;int status;
+    for(i=0;i<body->spheres.count;i++) {
+        const rf_physics_sphere *sphere=body->spheres.items+i;float delta[3],distance=0,surface;
+        for(k=0;k<3;k++) {
+            delta[k]=(float)((double)body->state.position[k]+sphere->center[0]*(double)body->state.orientation[k]+
+                sphere->center[1]*(double)body->state.orientation[3+k]+sphere->center[2]*(double)body->state.orientation[6+k])-origin[k];
+            distance+=delta[k]*delta[k];
+        }
+        distance=sqrtf(distance);surface=fmaxf(0,distance-sphere->radius);
+        if(surface>=campaign_rocket.damage_radius)continue;
+        /* End at the body's near surface; touching a wall behind its center
+         * must not hide an otherwise exposed sphere. */
+        if(distance>0)for(k=0;k<3;k++)delta[k]*=surface/distance;
+        status=combat_shot_obstructed(s,origin,delta,1,&blocked);if(status)return status;
+        if(blocked){++rf_scene_rocket_blast[6];continue;}
+        {float value=campaign_primary[4].damage*(1-surface/campaign_rocket.damage_radius);if(value>best)best=value;}
+    }
+    *amount=best;return RF_OK;
+}
+static int scene_rocket_blast(scene_stream *s,uint32_t frame,const rf_weapon_flight_contact *contact)
+{
+    float origin[3],seconds=(float)frame/60;uint32_t i,bits;int status;
+    ++rf_scene_rocket_blast[0];if(campaign_rocket.damage_radius<=0)return RF_OK;
+    for(i=0;i<3;i++)origin[i]=contact->hit.point[i]+contact->hit.normal[i]*.01f;
+    memcpy(&bits,&seconds,4);
+    for(i=0;i<=campaign_npc_body_count;i++) {
+        uint32_t player=i==campaign_npc_body_count,entered=0;float amount=0,applied=0;
+        campaign_npc_body *owner=player?NULL:campaign_npc_bodies+i;
+        uint32_t handle=player?campaign_player_object.handle:owner->registration.handle;
+        combat_feedback feedback={(int32_t)((uint64_t)frame*1000/60),0};
+        rf_damage_effect_backend effects={combat_predicate,combat_uid,combat_source,combat_burn,combat_random,combat_notify,combat_playing,combat_play,&feedback};
+        rf_damage_request request={0,campaign_player_object.handle,3,0,UINT32_MAX,0};
+        if(player){if(campaign_player_damage.state.effects.health<=0)continue;}
+        else if(!owner->registration.view || !owner->body.allocated_bytes || owner->damage.effects.health<=0 ||
+                (owner->object_flags&(2|0x4000)) || (owner->view.flags_810&1))continue;
+        ++rf_scene_rocket_blast[1];
+        status=scene_blast_amount(s,origin,player?&scene_actor_body:&owner->body,&amount);if(status)return status;
+        if(amount<=0)continue;request.amount=amount;
+        status=player?rf_scene_player_damage(handle,&request,1,bits,&effects,&applied):
+            rf_scene_npc_damage(handle,&request,1,bits,&effects,&applied);
+        if(!status)status=feedback.status;if(status)return status;
+        if(applied>0) {
+            ++rf_scene_rocket_blast[2];memcpy(rf_scene_rocket_blast+5,&applied,4);
+            if(player)++rf_scene_rocket_blast[4];else combat_hit_frame=frame;
+            campaign_combat_event(frame,player?1:0,handle,applied,player?campaign_player_damage.state.effects.health:owner->damage.effects.health);
+        }
+        if(!player && owner->damage.effects.health<=0) {
+            status=rf_scene_npc_death_entry(handle,&entered);if(status)return status;
+            if(entered){++rf_scene_rocket_blast[3];status=combat_death_start(i);if(status)return status;}
+        }
+    }
+    return RF_OK;
+}
 static int scene_rockets_tick(scene_stream *s,uint32_t frame)
 {
     uint32_t i;int status;rf_scene_rockets[3]=0;
@@ -8536,10 +8594,11 @@ static int scene_rockets_tick(scene_stream *s,uint32_t frame)
         if(event.kind==2)++rf_scene_rockets[2];
         if(event.kind==1) {
             ++rf_scene_rockets[1];
+            status=scene_rocket_blast(s,frame,&event.contact);rf_scene_rocket_blast[7]=(uint32_t)status;if(status)return status;
             if(rf_scene_combat_trace)printf("ROCKET_IMPACT %u %u %.9g %.9g %.9g\n",frame,event.contact.room,
                 event.contact.hit.point[0],event.contact.hit.point[1],event.contact.hit.point[2]);
             /* First-pass box excavation in the explicit DEV cavity only.
-             * Blast damage, spherical cutters and impact effects remain separate. */
+             * Spherical cutters and impact effects remain separate. */
             if(s->terrain && event.contact.room==0 && campaign_rocket.crater_radius>0) {
                 float extent[3]={campaign_rocket.crater_radius,campaign_rocket.crater_radius,campaign_rocket.crater_radius};
                 ++rf_scene_geomod[6];
@@ -8557,7 +8616,7 @@ static int campaign_combat_tick(scene_stream *stream,uint32_t frame,const float 
 {
     float delta[3],nearest=1,amount;uint32_t i,target=UINT32_MAX,blocked,fire,alt,active=0;int status;
     memcpy(rf_scene_gameplay_eye,position,sizeof(rf_scene_gameplay_eye));
-    if(!frame){dev_refill_held=0;memset(stream->rockets,0,sizeof(stream->rockets));memset(rf_scene_rockets,0,sizeof(rf_scene_rockets));}
+    if(!frame){dev_refill_held=0;memset(stream->rockets,0,sizeof(stream->rockets));memset(rf_scene_rockets,0,sizeof(rf_scene_rockets));memset(rf_scene_rocket_blast,0,sizeof(rf_scene_rocket_blast));}
     if(!frame){memset(rf_scene_combat_pain,0,sizeof(rf_scene_combat_pain));memset(rf_scene_pain_attack_gate,0,sizeof(rf_scene_pain_attack_gate));combat_pain_random.value=1;}
     if(!frame){memset(rf_scene_rifle_alt,0,sizeof(rf_scene_rifle_alt));campaign_rifle_alt_random.value=1;memset(rf_scene_weapon_drops,0,sizeof(rf_scene_weapon_drops));rf_scene_combat_event_count=0;memset(rf_scene_combat_events,0,sizeof(rf_scene_combat_events));memset(rf_scene_shotgun,0,sizeof(rf_scene_shotgun));campaign_shotgun_random.value=1;campaign_last_alt=0;memset(rf_scene_riot,0,sizeof(rf_scene_riot));riot_charge_remainder=0;combat_surface_frame=UINT32_MAX;}
     if(!frame){memset(rf_scene_weapon_selection,0,sizeof(rf_scene_weapon_selection));memset(rf_scene_weapon_audio,0,sizeof(rf_scene_weapon_audio));combat_sound_random.value=1;memset(rf_scene_combat_death,0,sizeof(rf_scene_combat_death));memset(rf_scene_combat,0,sizeof(rf_scene_combat));rf_scene_combat[3]=UINT32_MAX;rf_scene_combat[5]=campaign_pistol.magazine;memset(&combat_trigger,0,sizeof(combat_trigger));combat_frame=combat_hit_frame=UINT32_MAX;

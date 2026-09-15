@@ -410,3 +410,37 @@ artifacts/xemu/render-20260915-080750 passes36 comparisons, including all
 eight ROCKETS words, with9262physical pages free (36.1797MiB). Its native
 frame shows the launcher and wall recess;19disc staging entries restored.
 Reload/switch-in-flight cases remain PC-only. No GitHub screenshot added.
+
+## Radial blast damage first pass
+
+Each rocket world impact now dispatches one blast before changing terrain.
+The origin is the surface contact biased0.01units along its inward normal.
+For each living registered actor and the player, transformed body spheres
+provide distance to the nearest exposed sphere surface. Damage decreases
+linearly from authored400 to zero at radius5; the largest visible sphere
+contribution applies once per body. This falloff is practical port policy,
+not a recovered original formula. Existing bullet-obstruction geometry
+queries include stationary world and movers. Damage precedes excavation
+so a newly cut hole cannot expose a victim retroactively to this blast.
+
+Requests use explosive kind3, player source attribution and existing SP
+damage dispatch for armor, health and feedback. NPC fatal damage routes
+through retained death entry/presentation. Player self-damage is enabled.
+Expiry does not explode. Knockback, damageable clutter, actor impact sweep,
+projectile/trail visuals, explosion presentation and homing remain open.
+
+The ordinary DEV input harness now has seven cases. Far detonation retains
+100health/100armor; nearer detonation leaves86.22935health/85.08179armor;
+close detonation exhausts armor and activates the player death state.
+Delayed impact and reload/switch-in-flight cases still pass. PC endpoint
+render inspected: launcher, cut cavity and reduced HUD bars are visible.
+NPC blast damage and geometry occlusion are implemented but need dedicated
+behavioral coverage; these empty-room replays do not prove either. Full
+blast audio/animation review also remains open.
+
+Blast native verification (2026-09-15):400frame ordinary nearby-shot replay
+at artifacts/xemu/render-20260915-081337 passes37 PC/Xbox comparisons,
+including all blast diagnostic words;9261pages (36.176MiB) free. Native
+frame inspected with reduced health/armor HUD and excavated cavity visible.
+All19 staged disc entries restored; owned emulator exited. Far/lethal and
+reload/switch cases remain PC-only. Estimate remains ~49%; explosive weapons.
