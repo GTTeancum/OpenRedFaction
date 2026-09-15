@@ -101,7 +101,7 @@ an outer wall. The developer cutter makes a4x5x4 box centered on the wall hit,
 once per press, without firing the selected weapon. It affects only outer
 room0; the central structure remains static. Up to8 successful cutters are
 retained; capacity rejection leaves the previous terrain and collision intact.
-Reloading the developer room restores it; an in-session reset control is next.
+Reloading the developer room restores it; guarded in-session terrain reset is described below.
 This is an explicit gameplay test tool, not retail explosive GeoMod behavior.
 Generated/fragmented outer surfaces temporarily use the shared fallback shading
 without authored lightmaps. Interior UVs are provisional world-space mapping.
@@ -137,3 +137,33 @@ Endpoint available memory is9473 pages (37.0039MiB); all19 disc entries match
 the saved pre-run bytes after restoration. The held-chord control was PC-only.
 This verifies repeated live box excavation and locomotion, not new blast
 shapes, explosion damage, audio, lighting parity or an in-session reset.
+
+
+## Guarded terrain reset
+
+Hold Crouch+Use and press Alt Fire (PC Ctrl+E+G; controller Crouch+X+left
+trigger) to restore the original terrain. Release Use or Alt Fire before
+another excavation/reset action. Holding the chord, or releasing Crouch while
+keeping Use+AltFire held, does not produce repeated edits. This resets terrain
+history, collision and outer-wall rendering; it does not reset pickups, ammo,
+health, weapons or player position. The separate Use+Reload ammo refill remains.
+
+Reset checks every transformed player collision sphere against all six original
+room half-spaces, with0.002 contact tolerance. If any sphere would overlap
+restored terrain, it keeps the excavation and reports RF_NOT_FOUND in the
+GEOMOD status. Return to the original room before retrying. An eye-only check
+would not establish safe body placement, and reset never teleports the player.
+
+PC tools/dev_geomod_check.py --reset verifies a held reset at frames120..129
+restores cuts0/generation3 and the original stopping position x-15.388512.
+An attempt at410..419 from inside the excavation leaves cuts1/generation2 and
+keeps the player alive at x-17.367119. Both final native PC renders were
+inspected: restored original wall versus retained excavated interior, with
+weapon/HUD visible. Full transient animation/audio review is separate.
+
+Xbox artifacts/xemu/render-20260915-074831 passes all35 comparisons for the
+400-frame cut/reset/walk sequence. Its final framebuffer was inspected and
+shows the original wall and HUD restored. Endpoint available memory is9488
+pages (37.0625MiB); all19 staged disc files were verified restored. Reset
+rejection from inside the excavation remains PC-only coverage. NXDK builds
+successfully. No additional GitHub images were uploaded.

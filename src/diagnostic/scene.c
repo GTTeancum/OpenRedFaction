@@ -8471,11 +8471,31 @@ static int scene_terrain_open(scene_stream *s,const rf_level *level)
 }
 static int scene_terrain_input(scene_stream *s,const float position[3],const float orientation[3][3])
 {
-    uint32_t pressed=player_input.use && player_input.alt_fire,matched;int status=RF_OK;
+    uint32_t pressed=player_input.use && player_input.alt_fire?(player_input.crouch?2:1):0,matched;int status=RF_OK;
     if(!s->terrain)return RF_OK;
     if(pressed && !s->terrain_held) {
         rf_geometry_world_hit hit;float delta[3],extent[3]={2,2.5f,2};uint32_t i;
         ++rf_scene_geomod[6];
+        if(pressed==2) {
+            /* Restore only when the entire current body fits in original air.
+             * Eye position alone would allow closing a wall through the body. */
+            uint32_t f,j,k;
+            if(!scene_actor_body.spheres.count)return RF_FORMAT;
+            for(f=0;f<6 && !status;f++) {
+                rf_geometry_face face;status=rf_geometry_get_face(s->geometry,f,&face);if(status)return status;
+                for(j=0;j<scene_actor_body.spheres.count;j++) {
+                    const rf_physics_sphere *sphere=scene_actor_body.spheres.items+j;double distance=face.plane[3];
+                    for(k=0;k<3;k++) {
+                        double center=(double)scene_actor_body.state.position[k]+(double)sphere->center[0]*scene_actor_body.state.orientation[k]+
+                            (double)sphere->center[1]*scene_actor_body.state.orientation[3+k]+(double)sphere->center[2]*scene_actor_body.state.orientation[6+k];
+                        distance+=face.plane[k]*center;
+                    }
+                    if(!isfinite(distance) || distance<sphere->radius-.002){status=RF_NOT_FOUND;break;}
+                }
+            }
+            if(!status)status=rf_geomod_terrain_reset(s->terrain);
+            if(!status){status=scene_terrain_bind(s);if(status)return status;++rf_scene_geomod[7];}
+        } else {
         for(i=0;i<3;i++)delta[i]=orientation[2][i]*100;
         status=rf_geometry_collision_world_ray(s->collision,0x460,position,delta,1,&hit,&matched);
         if(status)return status;
@@ -8483,10 +8503,11 @@ static int scene_terrain_input(scene_stream *s,const float position[3],const flo
             status=rf_geomod_terrain_cut_box(s->terrain,hit.hit.point,extent,s->terrain_material);
             if(!status){status=scene_terrain_bind(s);if(status)return status;++rf_scene_geomod[7];}
         }
+        }
         rf_scene_geomod[5]=(uint32_t)status;
         if(rf_scene_combat_trace)printf("GEOMOD_EDIT %u %u %u %d\n",rf_scene_geomod[6],rf_scene_geomod[1],rf_scene_geomod[2],status);
         /* Bounded edit rejection leaves gameplay and the old wall running. */
-        if(status!=RF_OK && status!=RF_RANGE && status!=RF_FORMAT)return status;
+        if(status!=RF_OK && status!=RF_RANGE && status!=RF_FORMAT && status!=RF_NOT_FOUND)return status;
     }
     s->terrain_held=pressed;if(pressed)player_input.alt_fire=0;return RF_OK;
 }
@@ -8855,11 +8876,12 @@ static int campaign_inspect_camera(scene_stream *stream,float position[3],float 
 static int actor_follow_view(void *context,uint32_t frame,const rf_motion_controller *controller,rf_model_projection *view)
 {
     scene_stream *stream=context;float position[3],orientation[3][3];
-    const rf_scene_world_geometry *render_world=stream->terrain && rf_scene_geomod[1]?&stream->terrain_render:actor_follow_world;
+    const rf_scene_world_geometry *render_world;
     uint32_t *r=rf_scene_actor_follow_frames[frame%64];int status;
     uint32_t world_clock=0;profile_mark(1);
     if(profile_clock && profile_active)world_clock=profile_clock();
     status=actor_listener_pose(stream,frame,controller,position,orientation);if(status){rf_scene_profile_stage[1]=101;return status;}
+    render_world=stream->terrain && rf_scene_geomod[1]?&stream->terrain_render:actor_follow_world;
     if(campaign_spawn && stream->particles.state) {
         uint32_t active;uint64_t elapsed=(uint64_t)frame*1000/60;
         int32_t now=(int32_t)(elapsed?((elapsed-1)%RF_TIMER_PERIOD)+1:0);

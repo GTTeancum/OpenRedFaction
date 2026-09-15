@@ -12,15 +12,18 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 def recording(cut, frames=400, mode='single'):
+    def reset(i):
+        return (120 <= i < 130 if mode == 'reset' else
+                410 <= i < 420 if mode == 'reset-blocked' else False)
     def pressed(i):
         if not cut:
             return False
         if mode == 'held':
             return i >= 110
-        return i in ((110, 400, 500, 600) if mode == 'repeat' else (110,))
+        return reset(i) or i in ((110, 400, 500, 600) if mode == 'repeat' else (110,))
     return b'RFI6' + struct.pack('<I', 48) + b''.join(
-        struct.pack('<5f7I', 0, 0, .8 if i >= 130 else 0,
-                    0, .7 if i < 90 else 0, 0, 0,
+        struct.pack('<5f7I', 0, 0, .8 if i >= 130 and (mode != 'reset-blocked' or i < 400) else 0,
+                    0, .7 if i < 90 else 0, int(reset(i)), 0,
                     int(pressed(i)), 0, 0, 0, int(pressed(i)))
         for i in range(frames))
 
@@ -28,6 +31,7 @@ def recording(cut, frames=400, mode='single'):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--extended', action='store_true', help='Also check held input and repeated live cuts')
+    parser.add_argument('--reset', action='store_true', help='Also check terrain reset and player-clearance rejection')
     args = parser.parse_args()
     folder = ROOT / 'artifacts/geomod-live'
     folder.mkdir(parents=True, exist_ok=True)
@@ -37,6 +41,8 @@ def main():
     cases = [('walk-original', False, 400, 'single'), ('walk-cut', True, 400, 'single')]
     if args.extended:
         cases += [('held', True, 400, 'held'), ('repeat', True, 720, 'repeat')]
+    if args.reset:
+        cases += [('reset', True, 400, 'reset'), ('reset-blocked', True, 430, 'reset-blocked')]
     for name, cut, frames, mode in cases:
         path = folder / (name + '.bin')
         path.write_bytes(recording(cut, frames, mode))
@@ -56,9 +62,19 @@ def main():
         edits = 4 if mode == 'repeat' else int(cut)
         if mode == 'repeat':
             expected = [-23.391994, -14.450785, .282855]
+        if mode == 'reset':
+            expected = [-15.388512, -11.118479, 5.927131]
+        elif mode == 'reset-blocked':
+            expected = [-17.367119, -11.951555, 5.420260]
         assert all(abs(a-b) < .003 for a, b in zip(position, expected)), position
-        assert stats[:3] == [1, edits, 1 + edits], stats
-        assert stats[5:] == [0, edits, edits], stats
+        expected_state = [1, edits, 1 + edits]
+        expected_actions = [0, edits, edits]
+        if mode == 'reset':
+            expected_state, expected_actions = [1, 0, 3], [0, 2, 2]
+        elif mode == 'reset-blocked':
+            expected_state, expected_actions = [1, 1, 2], [0xfffffffd, 2, 1]
+        assert stats[:3] == expected_state, stats
+        assert stats[5:] == expected_actions, stats
         assert stats[3] <= stats[4] <= 1024*1024 + 65536, stats
         assert int(row('PLAYER_LIFE')[0]) == 0
         assert f'Completed {frames} frames' in log
