@@ -439,3 +439,45 @@ Validation: PC Release build and player_weapon_resources pass; NXDK emits
 default.xbe and the XISO successfully. The compatibility pistol initializer
 explicitly sets the new alt_loop field to zero for the NXDK warning policy.
 No emulator session was launched for this resource-only change.
+
+
+## Playable shotgun first pass (2026-09-14)
+
+The shared campaign now exposes Shotgun as slot3 after pistol/rifle/baton.
+Shotgun and10gauge_ammo pickups use the existing inventory grant path; cycle,
+selected-weapon import and respawn supply recognize its weapon ID5. The scene
+loads its four animations within the same per-weapon1MiB limit. The first-
+person camera uses a fitted offset(-.020,.056,-1.071); visual polish remains.
+
+Each shotgun firing action consumes one shell and casts four independent
+rays using the existing deterministic uniform cone sampler. Primary uses3
+and alternate6 degrees, with40 authored damage per pellet, nearest living
+actor selection and bullet obstruction checks. These are practical sampling
+and target-bound policies, not original spread RNG or precise hit meshes.
+Shell, pellet, hit, kill, alternate-shot and RNG counters are exposed as
+SHOTGUN for PC/native comparison. Other player weapons retain their existing
+shot behavior. Alternate shotgun fire uses its one-shot fast animation;
+baton held-fire behavior stays separate.
+
+`tools/replay_shotgun.py` places the player once near actual L2S3 item2115,
+then walks into pickup range and uses ordinary cycle/fire/alternate/reload
+inputs. PC passes360 frames:8 shells picked up,5 shells fired,20 pellets,
+5 damaging hits,1 guard2114 kill,4 alternate shots,3 shells left and0 reserve.
+Friendly2061 remains undamaged; the player survives. Reload with no reserve
+creates no ammo. A native framebuffer from the PC replay confirms a visible
+shotgun. This staged fixture does not prove uninterrupted campaign access,
+reload transfer from reserve, or level-transition persistence. Those remain
+open. Rifle selection, switching back to pistol and skipping unowned weapons
+also pass the existing PC regression cases.
+
+Native confirmation: `render-20260914-233349` passes360 frames and all30
+selected PC/Xbox comparisons. SHOTGUN matches
+`[5,20,5,1,4,2795942921,0,0]` exactly. The native framebuffer shows the
+first-person shotgun, and the stock64MiB guest retains4,413 free pages
+(17.23828125MiB). All18 saved disc files are restored and the owned XEMU
+is closed. Rough project estimate is now approximately47%; the full
+campaign, remaining weapons and visual parity are still incomplete.
+
+Additional PC regressions: all five replay_riot_alternate cases pass (held,
+release, exhausted battery/bash, replacement battery, both buttons), alongside
+the three weapon-selection cases. No new GitHub screenshot was uploaded.

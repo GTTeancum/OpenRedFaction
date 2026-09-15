@@ -1,7 +1,7 @@
 # Red Faction Xbox / PC - open work
 
 - Combat: Finish enemy damage amounts, cadence and weapon coverage; authored SP primary spread and target/bullet-obstruction checks now pass PC/Xbox verification (24 hits, 3 misses).
-- Weapons: Connect shotgun pickup, selection and pellet damage; shared authored settings and all four animations now pass resource/playback checks within1MiB, but shotgun gameplay is not yet enabled.
+- Weapons: Verify shotgun reload transfers and level persistence, then continue campaign weapon coverage; PC/Xbox now verify its pickup, four-pellet primary/alternate fire and guard kill with17.238MiB free on stock64MiB.
 - Gameplay: Continue L2S3 into the elevator shaft; PC/Xbox now verify the uninterrupted third-guard route (9600 frames, 3 L2S3 kills, 5 health, 17.766MiB free on stock64MiB).
 
 First-pass policy: playable campaign systems take priority over exact1:1 RE.
