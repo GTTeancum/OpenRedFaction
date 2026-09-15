@@ -2011,3 +2011,17 @@ The inspected native framebuffer is pixel-identical to 141949. All 19 staged
 disc entries were restored; PID 19572 exited. Available memory is 8593 pages
 (33.57MiB) on the stock 64MiB target. Crater appearance and remaining edit
 stalls remain open; this optimization does not constitute visual acceptance.
+
+Rejected optimization experiment (2026-09-15): Compacting bit-identical
+positions from the coordinate search index preserved the eight-cut PC mesh
+and image byte-for-byte, and depth/stress checks passed. Native run
+artifacts/xemu/render-20260915-143436 passed 46 checks with unchanged pixels,
+but binding times were 4,16,45,95,132,196,284,342ms versus the retained
+4,20,50,87,105,210,287,310ms. The final cut also increased from 282 to 326ms,
+indicating host timing variation; this is not proof of a specific regression,
+but gives no evidence of a meaningful benefit. The candidate-compaction
+change was reverted. The coordinate-index optimization remains in place.
+PID 44888 exited and all 19 staged disc entries were restored. The native
+frame was inspected; crater appearance remains unresolved. Next profiling
+should separate candidate search from repeated vertex-array moves before
+another performance change. Estimate remains ~49%; GeoMod stays first.
