@@ -1165,6 +1165,16 @@ int main(int argc,char **argv)
                 CHECK(reference.mesh.vertex_count==live.mesh.vertex_count && reference.mesh.face_count==live.mesh.face_count);
                 CHECK(!memcmp(reference.mesh.vertices,live.mesh.vertices,live.mesh.vertex_count*sizeof(*live.mesh.vertices)));
                 CHECK(!memcmp(reference.mesh.faces,live.mesh.faces,live.mesh.face_count*sizeof(*live.mesh.faces)));
+                if(repeat==trace_index && getenv("RF_GEOMOD_MESH_TRACE")) {
+                    FILE *mesh_file=fopen(getenv("RF_GEOMOD_MESH_TRACE"),"wb");CHECK(mesh_file);
+                    fprintf(mesh_file,"face,corner,source,nx,ny,nz,d,x,y,z,u,v\n");
+                    for(i=0;i<live.mesh.face_count;i++)for(j=0;j<live.mesh.faces[i].count;j++) {
+                        const rf_geomod_vertex *v=live.mesh.vertices+live.mesh.faces[i].first+j;const float *p=live.faces[i].plane;
+                        CHECK(fprintf(mesh_file,"%u,%u,%u,%.9g,%.9g,%.9g,%.9g,%.9g,%.9g,%.9g,%.9g,%.9g\n",
+                            i,j,live.mesh.faces[i].source_face,p[0],p[1],p[2],p[3],v->position[0],v->position[1],v->position[2],v->uv[0],v->uv[1])>0);
+                    }
+                    CHECK(!fclose(mesh_file));
+                }
                 surface_count=polygon_count=0;
                 for(i=0;i<live.mesh.face_count;i++) {
                     const rf_geomod_face *f=live.mesh.faces+i;

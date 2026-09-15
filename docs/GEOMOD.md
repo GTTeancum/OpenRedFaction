@@ -2774,3 +2774,31 @@ Local read-only reference clone: local/alpine-reference (ignored by Git).
 The repository is MPL-2.0; no source code was copied into the port. This check
 narrows the lighting hypotheses; it is not a visual fix or a percent milestone.
 Overall ~49%, GeoMod ~61%; destruction fidelity remains the current priority.
+
+Physical edge attribution (2026-09-15): Re-ran the complete installed-template
+stress fixture, retaining closure counts0,8,12,16,24,35. Invoking the fixture
+without its installed-game/template arguments only runs synthetic tests; that
+initial invocation was not accepted as a complete stress audit. The full run is
+artifacts/closure-current.log and its summary. Existing pass criteria are intact.
+
+The test fixture can now export the physical mesh at the selected cut using
+RF_GEOMOD_MESH_TRACE and the existing1..6 RF_GEOMOD_INTERSECTION_CUT selector.
+The CSV matches the render-audit column layout but contains physical corners
+and collision planes, before render subdivision. Second-cut evidence is
+artifacts/closure-second-source.csv. This adds no production runtime code.
+
+analyze_geomod_edge_pairs.py finds opposed midpoint projections without first
+rejecting angular mismatches. Face18 edge1 (length0.0102979306) has an opposed
+candidate at face110 edge3, with midpoint separation8.15789458e-7 and angular
+residual2.51024581e-8. It passes the existing distance criterion but fails the
+1e-8 angular criterion. The old CLOSURE_NEAREST reported no candidate because
+it applies that angular filter before recording nearest distance. This is not
+evidence that an entire neighboring face is missing. It also does not establish
+that all35 failures have the same cause or justify relaxing the closure test.
+
+The exact candidate shares one endpoint with the short edge; evaluating physical
+T-junction subdivision and consistent shared corner construction is the next
+repair direction. Render-only insertion has already repaired the sampled pixels
+but leaves physical faces unchanged. Both focused geometry CTests pass, including
+all existing collision probes; later closure remains explicitly diagnostic.
+No engine change or native rerun this turn. Overall ~49%, GeoMod ~61%.
