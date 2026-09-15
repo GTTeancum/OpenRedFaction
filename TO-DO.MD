@@ -5,8 +5,14 @@
 - Weapons: Verify remaining enemy drop policies and uncollected-drop revisits; supported held weapons now drop collectible supplies, with PC/Xbox rifle acquisition and firing verified.
 - Combat: Finish enemy damage amounts, cadence and weapon coverage; authored SP primary spread and target/bullet-obstruction checks now pass PC/Xbox verification (24 hits, 3 misses).
 - Weapons: Exercise the shotgun in the uninterrupted campaign and continue weapon coverage; PC manual/automatic reload and PC/Xbox automatic reload plus two-level persistence checks now pass.
-- Gameplay: Recalibrate the uninterrupted campaign route after precise bullet collision; historical checkpoint coverage passed, but the current old-input run dies in L2S2a.
+- Gameplay: Verify the revised6806-frame L2S2a exit route on Xbox and continue L2S3; PC reaches the natural exit alive by leaving the medical room before pursuers close in.
 - Movement: Refine ladder entry and top-edge transitions; body contact now unblocks the first L2S3 ladder, but the verified route still uses a jump and repeated top-edge state changes need smoothing.
+
+Corridor update (2026-09-15): Normal movement clears the medical-room bottleneck
+without killing all pursuers. PC4706frames reach the north corridor at33.8health;
+6806frames cross naturally into L2S3 at6631 and end alive with5health/16rounds.
+Generated inputs match executed fixtures. Xbox verification is pending; see
+docs/BODY-HIT-DETECTION.md and tools/replay_area2_body_route.py. Estimate ~48%.
 
 Aim update (2026-09-15): Xbox3600frames pass33 comparisons through guard8490,
 47.2health and16loaded rounds, with15.727MiB free. Raising torso aim restores PC guard8490

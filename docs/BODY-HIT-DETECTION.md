@@ -71,6 +71,29 @@ downward pitch during4200..4223 and kills5666 at4512, but still dies before
 clearing the other pursuers. It is not adopted as a successful route. Aiming,
 cover and timing for those remaining guards are the next continuation.
 
+## Restored section exit through movement
+
+The accepted PC continuation leaves the medical room after turning at4256,
+instead of waiting for three melee pursuers to reach striking range. It reuses
+the northbound movement644frames earlier. No health, damage, cooldown, actor
+position or event changes were needed. `tools/replay_area2_body_route.py`
+reproduces this4706-frame route: position(27.092039,-4.145080,28.661510),
+33.79999health,2kills. Guards5666,5676 and5678 remain alive; clearing them
+is not necessary for this section exit. Input matches the executed local
+`artifacts/body-corridor-push` fixture byte for byte.
+
+`--exit` appends the existing east-hall and exit inputs. The6806-frame PC run
+in `artifacts/body-corridor-exit` naturally crosses5150 into L2S3 at6631,
+ending alive with5health and16loaded handgun rounds. The generated input also
+matches the executed fixture byte for byte. Final combat counters reset at the
+handoff, so they do not establish how many east-hall guards were killed.
+Xbox verification of this new route is pending.
+
+Rejected alternatives remain local evidence: `body-aim-corridor-track` hits
+both remaining pursuers but dies; `body-aim-early-cover` changes the second
+guard's stopping position and loses that kill; `body-aim-early-second` restores
+the kill but still dies on retreat. These are not accepted campaign routes.
+
 The helper assumes valid finite body spheres and orthonormal orientation,
 as supplied by the physics body. It does not implement animated limb hitboxes,
 per-part damage, or new enemy interception/target-selection behavior.
