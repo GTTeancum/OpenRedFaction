@@ -362,6 +362,33 @@ static int light_grid_check(void)
 int main(int argc,char **argv)
 {
     {
+        rf_geomod_vertex v[4]={{{-1,-1,0},{0,0}},{{1,-1,0},{1,0}},{{1,1,0},{1,1}},{{-1,1,0},{0,1}}};
+        uint16_t ids[4]={10,11,12,13},fi[64],bi[64],next_ids[64],saved_ids[64];
+        rf_geomod_vertex f[64],b[64],plain_f[64],plain_b[64],next[64],saved[64];
+        const float planes[][4]={{1,0,0,0},{1,0,0,1},{1,0,0,-1},{0,1,0,0},{.70710677f,.70710677f,0,0}};
+        unsigned p,i,k,side;uint32_t nf,nb,pf,pb,nn,nback;
+        for(p=0;p<5;p++) {
+            CHECK(!rf_geomod_polygon_split(v,4,planes[p],plain_f,64,plain_b,64,&pf,&pb));
+            CHECK(!rf_geomod_polygon_split_tracked(v,4,planes[p],ids,99,f,fi,64,b,bi,64,&nf,&nb));
+            CHECK(nf==pf && nb==pb && !memcmp(f,plain_f,nf*sizeof(*f)) && !memcmp(b,plain_b,nb*sizeof(*b)));
+            for(side=0;side<2;side++) {
+                rf_geomod_vertex *verts=side?b:f;uint16_t *tags=side?bi:fi;unsigned n=side?nb:nf;
+                for(i=0;i<n;i++)for(k=0;k<2;k++) {
+                    const float *point=verts[(i+k)%n].position;
+                    if(tags[i]==99)CHECK(fabs(planes[p][0]*point[0]+planes[p][1]*point[1]+planes[p][3])<1e-5);
+                    else {unsigned edge=tags[i]-10;CHECK(edge<4);CHECK(fabs(point[edge%2?0:1]-(edge==1 || edge==2?1:-1))<1e-6);}
+                }
+            }
+        }
+        CHECK(!rf_geomod_polygon_split_tracked(v,4,planes[0],ids,99,f,fi,64,b,bi,64,&nf,&nb));
+        CHECK(!rf_geomod_polygon_split_tracked(f,nf,planes[3],fi,98,next,next_ids,64,b,bi,64,&nn,&nback));
+        {unsigned mask=0;for(i=0;i<nn;i++){if(next_ids[i]==98)mask|=1;if(next_ids[i]==99)mask|=2;}CHECK(mask==3);}
+        memcpy(saved,next,sizeof(saved));memcpy(saved_ids,next_ids,sizeof(saved_ids));nn=123;nback=456;
+        CHECK(rf_geomod_polygon_split_tracked(v,4,planes[0],ids,99,next,next_ids,1,b,bi,64,&nn,&nback)==RF_RANGE);
+        CHECK(nn==123 && nback==456 && !memcmp(next,saved,sizeof(saved)) && !memcmp(next_ids,saved_ids,sizeof(saved_ids)));
+        puts("PASS: tracked split support IDs, geometry equivalence, consecutive cuts and rollback");
+    }
+    {
         float planes[6][4];rf_geomod_vertex v[6][4];rf_geomod_face faces[6];
         uint16_t neighbors[24],saved[24];unsigned i,j;
         rf_geomod_mesh_view mesh={v[0],faces,24,6,0};

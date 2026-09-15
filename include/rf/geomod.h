@@ -105,6 +105,12 @@ int rf_geomod_light_grid_sample(const rf_geomod_light_grid *,const rf_geomod_ver
 /* UVs place footprint extrema at the centers of the inner texels. */
 int rf_geomod_light_grid_uv(const rf_geomod_light_grid *,const float position[3],float uv[2]);
 typedef struct rf_geomod_fragment {uint32_t first,count;} rf_geomod_fragment;
+/* Split while retaining each vertex's outgoing edge support-plane ID.
+ * New edges use cut_edge. IDs are opaque; all output buffers must be disjoint
+ * from each other and inputs. Geometry matches the ordinary splitter. */
+int rf_geomod_polygon_split_tracked(const rf_geomod_vertex *,uint32_t,const float[4],
+    const uint16_t *,uint16_t,rf_geomod_vertex *,uint16_t *,uint32_t,
+    rf_geomod_vertex *,uint16_t *,uint32_t,uint32_t *,uint32_t *);
 /* Optional synchronous diagnostic observer. Never mutates clipping inputs;
  * caller must serialize registration and keep context alive during clipping. */
 typedef void (*rf_geomod_intersection_observer)(void *,const float[4],const float[3],const float[3],const float[3]);

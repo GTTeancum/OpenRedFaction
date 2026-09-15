@@ -420,11 +420,13 @@ static rf_geomod_intersection_observer intersection_observer;
 static void *intersection_context;
 void rf_geomod_observe_intersections(rf_geomod_intersection_observer observer,void *context)
 {intersection_observer=observer;intersection_context=context;}
-int rf_geomod_polygon_split(const rf_geomod_vertex *vertices,uint32_t count,
+static int polygon_split_edges(const rf_geomod_vertex *vertices,uint32_t count,
     const float plane[4],rf_geomod_vertex *front,uint32_t front_capacity,
-    rf_geomod_vertex *back,uint32_t back_capacity,uint32_t *front_count,uint32_t *back_count)
+    rf_geomod_vertex *back,uint32_t back_capacity,uint32_t *front_count,uint32_t *back_count,
+    const uint16_t *edges,uint16_t cut_edge,uint16_t *front_edges,uint16_t *back_edges)
 {
     rf_geomod_vertex f[RF_GEOMOD_POLYGON_LIMIT],b[RF_GEOMOD_POLYGON_LIMIT];
+    uint16_t fe[RF_GEOMOD_POLYGON_LIMIT],be[RF_GEOMOD_POLYGON_LIMIT];
     double distances[RF_GEOMOD_POLYGON_LIMIT],norm=0;
     int sides[RF_GEOMOD_POLYGON_LIMIT];uint32_t i,j,nf=0,nb=0,positive=0,negative=0;
     if(!vertices || !plane || !front_count || !back_count || front_count==back_count || count<3 || count>RF_GEOMOD_POLYGON_LIMIT)return RF_RANGE;
@@ -438,12 +440,12 @@ int rf_geomod_polygon_split(const rf_geomod_vertex *vertices,uint32_t count,
         distances[i]=d;sides[i]=d>1e-5?1:d< -1e-5?-1:0;
         positive+=sides[i]>0;negative+=sides[i]<0;
     }
-    if(!negative){memcpy(f,vertices,count*sizeof(*f));nf=count;}
-    else if(!positive){memcpy(b,vertices,count*sizeof(*b));nb=count;}
+    if(!negative){memcpy(f,vertices,count*sizeof(*f));if(edges)memcpy(fe,edges,count*sizeof(*fe));nf=count;}
+    else if(!positive){memcpy(b,vertices,count*sizeof(*b));if(edges)memcpy(be,edges,count*sizeof(*be));nb=count;}
     else for(i=0;i<count;i++) {
         uint32_t next=(i+1)%count,first=i,last=next;rf_geomod_vertex cut;double t;
-        if(sides[i]>=0 && append(f,&nf,vertices+i))return RF_RANGE;
-        if(sides[i]<=0 && append(b,&nb,vertices+i))return RF_RANGE;
+        if(sides[i]>=0){if(nf==64)return RF_RANGE;if(edges)fe[nf]=sides[i]==0 && sides[next]<0?cut_edge:edges[i];if(append(f,&nf,vertices+i))return RF_RANGE;}
+        if(sides[i]<=0){if(nb==64)return RF_RANGE;if(edges)be[nb]=sides[i]==0 && sides[next]>0?cut_edge:edges[i];if(append(b,&nb,vertices+i))return RF_RANGE;}
         if(sides[i]*sides[next]>=0)continue;
         /* Shared edges occur in opposite polygon directions. Evaluate both
          * from the same endpoint to avoid different cancellation/rounding. */
@@ -458,6 +460,8 @@ int rf_geomod_polygon_split(const rf_geomod_vertex *vertices,uint32_t count,
             cut.uv[j]=(float)((1-t)*vertices[first].uv[j]+t*vertices[last].uv[j]);
             if(!isfinite(cut.uv[j]))return RF_FORMAT;
         }
+        if(nf==64 || nb==64)return RF_RANGE;
+        if(edges){fe[nf]=sides[i]>0?cut_edge:edges[i];be[nb]=sides[i]<0?cut_edge:edges[i];}
         if(append(f,&nf,&cut) || append(b,&nb,&cut))return RF_RANGE;
         if(intersection_observer)intersection_observer(intersection_context,plane,
             vertices[first].position,vertices[last].position,cut.position);
@@ -465,7 +469,19 @@ int rf_geomod_polygon_split(const rf_geomod_vertex *vertices,uint32_t count,
     if((front && front_capacity<nf) || (back && back_capacity<nb))return RF_RANGE;
     if(front && nf)memcpy(front,f,nf*sizeof(*front));
     if(back && nb)memcpy(back,b,nb*sizeof(*back));
+    if(edges){if(nf)memcpy(front_edges,fe,nf*sizeof(*fe));if(nb)memcpy(back_edges,be,nb*sizeof(*be));}
     *front_count=nf;*back_count=nb;return RF_OK;
+}
+
+int rf_geomod_polygon_split(const rf_geomod_vertex *v,uint32_t n,const float plane[4],
+    rf_geomod_vertex *front,uint32_t fc,rf_geomod_vertex *back,uint32_t bc,uint32_t *nf,uint32_t *nb)
+{return polygon_split_edges(v,n,plane,front,fc,back,bc,nf,nb,NULL,0,NULL,NULL);}
+int rf_geomod_polygon_split_tracked(const rf_geomod_vertex *v,uint32_t n,const float plane[4],
+    const uint16_t *edges,uint16_t cut_edge,rf_geomod_vertex *front,uint16_t *front_edges,uint32_t fc,
+    rf_geomod_vertex *back,uint16_t *back_edges,uint32_t bc,uint32_t *nf,uint32_t *nb)
+{
+    if(!edges || !front || !back || !front_edges || !back_edges || front_edges==back_edges)return RF_RANGE;
+    return polygon_split_edges(v,n,plane,front,fc,back,bc,nf,nb,edges,cut_edge,front_edges,back_edges);
 }
 
 static int polygon_subtract_policy(const rf_geomod_vertex *vertices,uint32_t count,

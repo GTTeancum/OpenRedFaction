@@ -2272,3 +2272,22 @@ Existing closure failures therefore remain. Next integration must preserve
 edge identities in work/seed/split buffers and assign the cut-plane identity
 to newly created edges; matching positions after the fact is insufficient.
 No visual or new native execution claim; estimate ~49 percent.
+
+Tracked edge splitting (2026-09-15): rf_geomod_polygon_split_tracked now
+propagates each input vertex outgoing-edge support ID. Existing edge portions
+retain their ID; newly created cut-boundary portions receive the supplied
+cut-plane ID. On-plane corners choose the cut ID when the outgoing edge
+leaves that output half. Geometry and UV arithmetic remain shared with the
+ordinary splitter; optional metadata does not change the intersection point.
+Two64-entry uint16 scratch arrays add256 bytes of bounded stack, no heap.
+Metadata and geometry buffers must be disjoint; invalid/short output preserves
+output and counts. Existing splitter callers pass no metadata.
+Tests compare ordinary/tracked geometry across crossing, touching and diagonal
+planes; verify edge endpoints against their assigned supports; preserve both
+cut IDs after consecutive perpendicular splits; and verify short-output rollback.
+Three focused CTests, eight-cut PC stress and NXDK build pass. The PC endpoint
+image is byte-identical to the pre-index baseline. No new Xbox replay claim.
+History bank/seed/split sidecars are not wired yet, so the canonical corner
+solver remains outside live clipping. The next change must carry these IDs
+through subtraction output, reversals and history-bank copies before solving
+shared corners. Closure and dark crater appearance remain open; ~49 percent.
