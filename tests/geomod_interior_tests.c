@@ -1223,5 +1223,21 @@ int main(int argc,char **argv)
         CHECK(value.removed && value.age==3.25f);
         puts("PASS: debris fade age boundaries, pause/removal order and invalid-input rollback");
     }
+    {
+        unsigned char pixels[30],saved[30];rf_random_state random={1};uint32_t x,y;
+        memset(pixels,165,sizeof(pixels));memcpy(saved,pixels,sizeof(pixels));
+        CHECK(rf_geomod_light_noise(pixels,14,9,2,2,&random)==RF_RANGE);
+        CHECK(random.value==1 && !memcmp(pixels,saved,sizeof(pixels)));
+        CHECK(rf_geomod_light_noise(pixels,sizeof(pixels),9,0,2,&random)==RF_RANGE);
+        CHECK(random.value==1 && !memcmp(pixels,saved,sizeof(pixels)));
+        CHECK(!rf_geomod_light_noise(pixels,sizeof(pixels),9,2,2,&random));
+        for(y=0;y<2;y++) {
+            for(x=0;x<2;x++)CHECK(pixels[y*9+x*3]>=32 && pixels[y*9+x*3]<=95 &&
+                pixels[y*9+x*3]==pixels[y*9+x*3+1] && pixels[y*9+x*3]==pixels[y*9+x*3+2]);
+            for(x=6;x<9;x++)CHECK(pixels[y*9+x]==165);
+        }
+        for(x=18;x<sizeof(pixels);x++)CHECK(pixels[x]==165);
+        puts("PASS: new-face randomized lightmap fill, padding and invalid-input rollback");
+    }
     puts("PASS: repeated solid/cavity cuts, edge closure, materials, ray/body clearance, rendering and rollback");return 0;
 }

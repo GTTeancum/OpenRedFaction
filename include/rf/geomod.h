@@ -8,6 +8,12 @@
 #define RF_GEOMOD_POLYGON_LIMIT 64
 /* Original4fccc0 random crater orientation: two CRT draws, a uniform sphere
  * direction and4fcfa0 basis. Invalid inputs preserve state/output. */
+/* Original4e5bb0..4e5c25 new-face lightmap fill: one CRT draw per RGB texel,
+ * replicated gray=(draw&63)+32. Row padding remains untouched. This supplies
+ * pixels only; mapping construction and live RNG ownership are separate.
+ * Inputs/output must be disjoint. Invalid sizes preserve pixels and RNG. */
+int rf_geomod_light_noise(unsigned char *rgb,uint32_t bytes,uint32_t pitch,
+    uint32_t width,uint32_t height,rf_random_state *random);
 int rf_geomod_random_basis(rf_random_state *random,float basis[9]);
 /* Original4f8740 mode4: signed dominant-axis projection at32 texels per
  * world unit. Texture dimensions are the source bitmap dimensions. */

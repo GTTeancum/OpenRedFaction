@@ -22,6 +22,20 @@ int rf_geomod_debris_age(float age,float lifetime,float dt,uint32_t paused,
     *out=next;return RF_OK;
 }
 
+int rf_geomod_light_noise(unsigned char *rgb,uint32_t bytes,uint32_t pitch,
+    uint32_t width,uint32_t height,rf_random_state *random)
+{
+    uint32_t x,y,draw;rf_random_state next;
+    if(!rgb || !random || !width || !height || (uint64_t)width*3>pitch ||
+        (uint64_t)(height-1)*pitch+(uint64_t)width*3>bytes)return RF_RANGE;
+    next=*random;
+    for(y=0;y<height;y++)for(x=0;x<width;x++) {
+        unsigned char value;rf_random_next(&next,&draw);value=(unsigned char)((draw&63u)+32u);
+        memset(rgb+(size_t)y*pitch+x*3,value,3);
+    }
+    *random=next;return RF_OK;
+}
+
 int rf_geomod_random_basis(rf_random_state *random,float basis[9])
 {
     rf_random_state next;float v[9]={0};double inverse;uint32_t i;int status;

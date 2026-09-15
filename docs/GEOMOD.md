@@ -1854,3 +1854,37 @@ Re-ran 512 original/PC/NXDK complete shadow-pass cases, all passing, including
 bytes exactly. Evidence: artifacts/destruction/depth-audit/projected.csv and
 projected.json; helper verification is artifacts/geomod-projection-pass-oracle.log.
 No new native run or visual improvement is claimed by this diagnostic.
+
+### Recovered new-face randomized lightmap fill (2026-09-15)
+
+New evidence changes the lighting investigation. Original 4dbc50's staged
+subtraction dispatcher calls 4dd8c0 in stage 5 and 4de4d0 in stage 7. In 4dd8c0,
+faces passing 4de9d0's bit 23 predicate and lacking a signed lightmap index call
+4e5b20 with mapping parameter 4.0; the adjacent 4f8740 call supplies the already
+recovered crater UV path. The stage 7 fallback handles unmapped faces when
+5a3a58==1, with mapping parameter 2.0. Exact mode/flag ownership and actual blast
+execution remain to be verified; these are static control-flow observations.
+
+4e5b20 constructs a mapping through 4e4180, then 4e5bb0..4e5c25 fills its RGB
+rectangle using one CRT draw per texel: gray=(draw&63)+32, replicated to all
+three channels. It assigns dirty byte 8 before calling 4f26a0. That routine's
+lighting-regeneration gate requires dirty bits 6, so this immediate call uploads
+without recomputing lighting. Subsequent dirty propagation may still relight
+these mappings and needs tracing before claiming this is permanent lighting.
+
+The new shared rf_geomod_light_noise implements the strided fill, preserving
+row padding and RNG/output on invalid sizes. inspect_geomod_light_noise.py
+executes the original loop with only CRT draws supplied. 64 original/shared
+cases match every RGB byte and final RNG state, covering four seeds and
+1..64 width/height choices plus original-image origin and padding guards.
+Focused CTests cover shared padding and rollback; PC and NXDK builds pass.
+No live rendering change is included yet: original mapping construction,
+density and RNG stream scheduling remain separate requirements.
+
+This is a concrete reason to reconsider the shadow-baked crater default,
+rather than merely increasing its brightness. Earlier shadow audits remain
+valid descriptions of that implementation, not evidence of original crater
+lighting policy. Next: verify mapping density and later dirty propagation,
+then connect the appropriate new-face lighting to the bounded shared renderer.
+Evidence: artifacts/geomod-light-noise-original.json and Ghidra exports 436fc0,
+4e3e90,4e5040,4e5b20,4dd8c0,4de4d0,4dbc50 and 4de9d0 for the existing RF.exe SHA.

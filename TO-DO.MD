@@ -4,7 +4,7 @@
 - GeoMod: Resolve the remaining world-mesh closure issue and dark crater appearance; render-only subdivision now closes the17-pixel seam regression without changing collision geometry.
 - GeoMod: Reduce late-history edit stalls and lighting settling time; the eight-cut Xbox stress run passes but its combat/inspection phase peaks at1053ms, requiring CSG/subdivision profiling.
 - GeoMod: Diagnose the 425 PC/Xbox capture pixels differing by more than one color level; the shared dark crater appearance remains the main fidelity issue.
-- GeoMod: Verify original generated-face lightmap grouping, density and special sampling; projected-mask diagnostics on port grids remain dark and do not justify a brightness override.
+- PRIORITY GeoMod lighting: Bind the recovered randomized new-face lightmap policy after verifying mapping density and subsequent relighting; physical shadow baking may be the wrong default for crater interiors.
 - DEV testbed: Review full weapon animations and add complete room reset; terrain reset and ammo refill are implemented, while campaign progression remains paused.
 - GeoMod: Refine debris bounce, lighting and surface eligibility; original age timing now drives real PC/Xbox fading, while crater readability remains open.
 - USER: Review destruction readability after replacing the folded-panel interior; destruction remains the current focus.

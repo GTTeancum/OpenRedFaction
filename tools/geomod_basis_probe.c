@@ -5,6 +5,12 @@
 int main(int argc,char **argv)
 {
     rf_random_state state;float basis[9];uint32_t i;
+    if(argc==5 && !strcmp(argv[1],"--light-noise")) {
+        unsigned char rgb[64*64*3];uint32_t width=(uint32_t)strtoul(argv[3],NULL,10),height=(uint32_t)strtoul(argv[4],NULL,10);
+        state.value=(uint32_t)strtoul(argv[2],NULL,0);if(width>64 || height>64)return 3;
+        if(rf_geomod_light_noise(rgb,sizeof(rgb),width*3,width,height,&state))return 2;
+        printf("%u",state.value);for(i=0;i<width*height*3;i++)printf(" %u",rgb[i]);puts("");return 0;
+    }
     if(argc==6 && !strcmp(argv[1],"--debris-age")) {
         rf_geomod_debris_lifecycle result;
         if(rf_geomod_debris_age(strtof(argv[2],NULL),strtof(argv[3],NULL),
