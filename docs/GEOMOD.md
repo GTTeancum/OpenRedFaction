@@ -2553,3 +2553,20 @@ artifacts/lightmap-dynamic-mark-original.json. Overall ~49%, GeoMod ~61%;
 current area is destruction lighting updates, with no new visual claim.
 NXDK XBE/XISO builds also pass. The new marker has not yet been exercised
 in a native replay; live rendering remains unchanged.
+
+Retained crater base-color seeds (2026-09-15): Each persistent noise mapping
+now saves the original RNG state before its first texel is generated. This
+allows exact8-bit grayscale base RGB to be regenerated for additive lighting,
+without decoding lossy1555 or allocating another RGB atlas.1024 uint32 seeds
+add4096 bytes. Seed ownership follows the existing mapping lifetime and reset.
+The opt-in PC RF_REPLAY_TERRAIN_BASE_AUDIT exports map dimensions, saved seeds
+and actual completed packed rectangles. verify_geomod_base_seeds.py independently
+replays the CRT LCG and packing in Python, checks every texel and verifies that
+each map's final state is the next map's starting seed. Eight-cut playback
+passes420 mappings/22335 texels; guarded reset plus a fresh shot passes17 maps/
+1472 texels with first seed1. The eight-cut image is byte-identical to the
+previous retained build. No light has yet been added through these seeds.
+PC build, both replay audits and NXDK XBE/XISO builds pass. This turn does not
+claim a new native replay. Live light traversal, source lifecycle, marking old
+and new affected bounds, map update scheduling and additive atlas application
+remain open. Overall ~49%, GeoMod ~61%; destruction lighting updates.

@@ -513,6 +513,7 @@ typedef struct scene_terrain_draw_mesh {
 uint32_t rf_scene_terrain_draw[5]; /* source vertices,render vertices,insertions,owned bytes,generation */
 typedef struct scene_terrain_noise_map {
     float plane[4],minimum[3],maximum[3];uint32_t material,x,y,width,height,hash;
+    uint32_t base_seed; /* Exact base RGB can be regenerated without a second atlas. */
     rf_preview_surface_lightmap binding;
 } scene_terrain_noise_map;
 typedef struct scene_terrain_noise_owner {
@@ -8894,6 +8895,7 @@ static int scene_terrain_lighting(scene_stream *s,const rf_geomod_terrain_view *
         scene_terrain_noise_map *map=owner->maps+owner->bake;unsigned char rgb[64*3],packed[64*2];
         uint32_t count=map->width*map->height-owner->sample;
         if(count>remaining)count=remaining;if(count>64)count=64;
+        if(!owner->sample)map->base_seed=owner->random.value;
         status=rf_geomod_light_noise(rgb,sizeof(rgb),count*3,count,1,&owner->random);if(status)return status;
         status=rf_lightmap_pack_1555(rgb,count*3,count,1,0,packed,count*2,sizeof(packed));if(status)return status;
         for(i=0;i<count;i++) {
@@ -8909,6 +8911,25 @@ static int scene_terrain_lighting(scene_stream *s,const rf_geomod_terrain_view *
     rf_scene_terrain_bake[3]=owner->bake<owner->count;if(!rf_scene_terrain_bake[3])rf_scene_terrain_bake[4]=owner->generation;
     return RF_OK;
 }
+#ifndef RF_IMAGE_XBOX_NATIVE
+static int scene_terrain_base_audit(scene_stream *s,const char *path)
+{
+    scene_terrain_noise_owner *owner=s->terrain_noise;FILE *file;uint32_t i,x,y;int failed;
+    if(!owner || owner->bake!=owner->count || s->terrain_shadow_reference)return RF_RANGE;
+    file=fopen(path,"wb");if(!file)return RF_IO;
+    fprintf(file,"map,seed,width,height,packed\n");
+    for(i=0;i<owner->count;i++) {
+        const scene_terrain_noise_map *map=owner->maps+i;
+        fprintf(file,"%u,%u,%u,%u,",i,map->base_seed,map->width,map->height);
+        for(y=0;y<map->height;y++)for(x=0;x<map->width;x++) {
+            const unsigned char *p=s->terrain_atlas_pixels+((map->y+y)*512+map->x+x)*2;
+            fprintf(file,"%02x%02x",p[0],p[1]);
+        }
+        fprintf(file,"\n");
+    }
+    failed=ferror(file);if(fclose(file))failed=1;return failed?RF_IO:RF_OK;
+}
+#endif
 static int scene_terrain_open(scene_stream *s,const rf_level *level)
 {
     rf_geomod_vertex vertices[24];rf_geomod_face faces[6];rf_collision_face_filter filters[6],generated={0};
@@ -12623,6 +12644,8 @@ done:
     rf_level_owned_navigation_close(&campaign_navigation);
     free(campaign_waypoints);campaign_waypoints=NULL;campaign_waypoint_bytes=0;
 #ifndef RF_IMAGE_XBOX_NATIVE
+    if(!status && getenv("RF_REPLAY_TERRAIN_BASE_AUDIT"))
+        status=scene_terrain_base_audit(&stream,getenv("RF_REPLAY_TERRAIN_BASE_AUDIT"));
     if(!status && stream.terrain_shadow_reference && getenv("RF_REPLAY_TERRAIN_LIGHT_AUDIT"))
         status=scene_terrain_light_audit(&stream,getenv("RF_REPLAY_TERRAIN_LIGHT_AUDIT"));
 #endif
