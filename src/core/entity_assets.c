@@ -706,7 +706,7 @@ static int weapon_glow_read(lexer *l,rf_weapon_explosive_definition *value)
 int rf_weapon_explosive_read(const void *text,uint32_t bytes,const char *name,rf_weapon_explosive_definition *out)
 {
     lexer l={text,bytes,0};rf_weapon_explosive_definition value={0};char t[256];
-    uint32_t mask=0,bit;int q,status,found=0,selected=0;
+    uint32_t mask=0,bit,impact_radii=0;int q,status,found=0,selected=0;
     if(!text || !name || !*name || !out)return RF_RANGE;
     while((status=token(&l,t,&q))==RF_OK) {
         float *field=NULL;if(q)continue;
@@ -721,6 +721,33 @@ int rf_weapon_explosive_read(const void *text,uint32_t bytes,const char *name,rf
         if(same(t,"$Glow:")) {
             if(mask&64)return RF_FORMAT;
             status=weapon_glow_read(&l,&value);if(status)return status;mask|=64;continue;
+        }
+        if(same(t,"$Impact")) {
+            int radii=0;uint32_t count=0;
+            if(token(&l,t,&q) || q)return RF_FORMAT;
+            if(same(t,"Vclips")) {
+                if(token(&l,t,&q) || q || !same(t,"Radius:"))return RF_FORMAT;
+                radii=1;
+            } else if(!same(t,"Vclips:"))continue;
+            bit=radii?256u:128u;if(mask&bit)return RF_FORMAT;
+            if(token(&l,t,&q) || q || strcmp(t,"("))return RF_FORMAT;
+            for(;;) {
+                uint32_t before=l.at;
+                if(token(&l,t,&q))return RF_FORMAT;
+                if(!q && !strcmp(t,")"))break;
+                if(count==3)return RF_RANGE;
+                if(radii) {
+                    l.at=before;
+                    if(sphere_number(&l,value.impact_radius+count))return RF_FORMAT;
+                    if(value.impact_radius[count]<0)return RF_RANGE;
+                } else {
+                    if(!q || !t[0] || strlen(t)>=sizeof(value.impact_vclips[0]))return RF_FORMAT;
+                    strcpy(value.impact_vclips[count],t);
+                }
+                ++count;
+            }
+            if(radii)impact_radii=count;else value.impact_count=count;
+            mask|=bit;continue;
         }
         if(same(t,"$Velocity:")){bit=1;field=&value.speed;}
         else if(same(t,"$Lifetime:")){bit=2;field=&value.lifetime;}
@@ -751,6 +778,7 @@ int rf_weapon_explosive_read(const void *text,uint32_t bytes,const char *name,rf
     if(status!=RF_OK && status!=RF_NOT_FOUND)return status;
     if(!found)return RF_NOT_FOUND;
     if((mask&63)!=63)return RF_FORMAT;
+    if((mask&384u) && ((mask&384u)!=384u || value.impact_count!=impact_radii))return RF_FORMAT;
     *out=value;return RF_OK;
 }
 int rf_weapon_projectile_light(const rf_weapon_explosive_definition *weapon,

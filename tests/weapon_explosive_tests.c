@@ -62,6 +62,34 @@ int main(int argc,char **argv)
         CHECK(!rf_weapon_explosive_read(text,(uint32_t)strlen(text),"test",&value));
         CHECK(!value.glow && !value.glow_inner && !value.glow_outer && !value.glow_color[0] && !value.glow_color[1] && !value.glow_color[2]);
     }
+    {
+        const char *bad_impact[]={
+            "$Impact Vclips: (\"a\")",
+            "$Impact Vclips Radius: (1)",
+            "$Impact Vclips: (\"a\" \"b\") $Impact Vclips Radius: (1)",
+            "$Impact Vclips: (\"a\") $Impact Vclips Radius: (1 2)",
+            "$Impact Vclips: (\"a\" \"b\" \"c\" \"d\") $Impact Vclips Radius: (1 2 3 4)",
+            "$Impact Vclips: (\"a\") $Impact Vclips Radius: (-1)",
+            "$Impact Vclips: (\"a\") $Impact Vclips Radius: (nan)",
+            "$Impact Vclips: (a) $Impact Vclips Radius: (1)",
+            "$Impact Vclips: (\"\") $Impact Vclips Radius: (1)",
+            "$Impact Vclips: (\"a\") $Impact Vclips: (\"b\") $Impact Vclips Radius: (1)",
+            "$Impact Vclips: (\"a\") $Impact Vclips Radius: (1) $Impact Vclips Radius: (2)",
+            "$Impact Vclips: (\"a\" $Impact Vclips Radius: (1)",
+            "$Impact Vclips: (\"a\") $Impact Vclips Radius: (1 #End"
+        };
+        snprintf(text,sizeof(text),"%s%s $Impact Vclips Radius: (0 1.5 2) $Impact Sound: \"default\" \"unused\" $Impact Vclips: (\"small\" \"medium\" \"large\") #End",prefix,valid);
+        CHECK(!rf_weapon_explosive_read(text,(uint32_t)strlen(text),"test",&value));
+        CHECK(value.impact_count==3 && !strcmp(value.impact_vclips[0],"small") && !strcmp(value.impact_vclips[2],"large"));
+        CHECK(value.impact_radius[0]==0 && value.impact_radius[1]==1.5f && value.impact_radius[2]==2);
+        saved=value;
+        for(i=0;i<sizeof(bad_impact)/sizeof(*bad_impact);i++) {
+            snprintf(text,sizeof(text),"%s%s %s #End",prefix,valid,bad_impact[i]);
+            CHECK(rf_weapon_explosive_read(text,(uint32_t)strlen(text),"test",&value)!=RF_OK && !memcmp(&saved,&value,sizeof(value)));
+        }
+        snprintf(text,sizeof(text),"%s%s $Impact Vclips: () $Impact Vclips Radius: () #End",prefix,valid);
+        CHECK(!rf_weapon_explosive_read(text,(uint32_t)strlen(text),"test",&value) && !value.impact_count);
+    }
     CHECK(argc==2);snprintf(path,sizeof(path),"%s/tables.vpp",argv[1]);
     {
         rf_vpp tables={0};rf_weapon_primary_definition primary;
@@ -69,6 +97,7 @@ int main(int argc,char **argv)
         CHECK(!rf_weapon_explosive_load(&tables,"Rocket Launcher",128*1024,&value));
         CHECK(value.speed==20 && value.lifetime==15 && fabsf(value.collision_radius-.051f)<1e-6f && value.damage_radius==5 && value.crater_radius==5);
         CHECK(value.glow==1 && value.glow_inner==1 && value.glow_outer==3);
+        CHECK(value.impact_count==1 && !strcmp(value.impact_vclips[0],"rocket_impact") && value.impact_radius[0]==1.5f);
         CHECK(fabsf(value.glow_color[0]-100.f/255)<1e-7f && fabsf(value.glow_color[1]-50.f/255)<1e-7f && fabsf(value.glow_color[2]-100.f/255)<1e-7f);
         {
             rf_weapon_flight flight={0};rf_vfx_light_source light,kept;
@@ -88,6 +117,7 @@ int main(int argc,char **argv)
         CHECK(primary.magazine==6 && primary.damage==400 && primary.damage_kind==3 && primary.fire_seconds==1.25f && primary.reload_seconds==1.7f);
         CHECK(!rf_weapon_explosive_load(&tables,"Grenade",128*1024,&value));
         CHECK(value.speed==10 && value.lifetime==5 && value.collision_radius==.15f && value.damage_radius==8 && value.crater_radius==5);
+        CHECK(value.impact_count==1 && !strcmp(value.impact_vclips[0],"rocket_impact") && value.impact_radius[0]==1.5f);
         saved=value;CHECK(rf_weapon_explosive_load(&tables,"Rocket Launcher",1,&value)==RF_RANGE && !memcmp(&value,&saved,sizeof(value)));
         rf_vpp_close(&tables);
     }

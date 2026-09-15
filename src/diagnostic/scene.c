@@ -3418,7 +3418,8 @@ static int campaign_clutter_open(const char *tables_path,const rf_level *level)
     if(!status && rf_scene_dev_room_enabled)status=rf_weapon_explosive_load(&tables,"Rocket Launcher",128*1024,&campaign_rocket);
     if(!status && rf_scene_dev_room_enabled) {
         rf_vclip_definition clip;
-        status=rf_vclip_definition_load(&tables,"rocket_impact",128*1024,&clip);
+        if(campaign_rocket.impact_count!=1 || campaign_rocket.impact_radius[0]<=0)status=RF_NOT_FOUND;
+        if(!status)status=rf_vclip_definition_load(&tables,campaign_rocket.impact_vclips[0],128*1024,&clip);
         if(!status && !(clip.flags&8u))status=RF_FORMAT;
         if(!status)status=rf_explosion_definition_load(&tables,clip.explosion,256*1024,&campaign_rocket_impact);
         campaign_rocket_impact_sound=-1;
@@ -9332,7 +9333,7 @@ static int scene_rocket_blast(scene_stream *s,uint32_t frame,const rf_weapon_fli
     }
     return RF_OK;
 }
-/* Scoped Rocket Launcher impact binding: weapons.tbl rocket_impact radius1.5.
+/* Scoped single-variant Rocket Launcher impact binding from weapons.tbl.
  * Optional unresolved sparks are absent, never replaced by a guessed emitter. */
 static __declspec(noinline) int scene_impact_start(scene_stream *s,const rf_weapon_flight_contact *hit,uint32_t frame)
 {
@@ -9342,10 +9343,10 @@ static __declspec(noinline) int scene_impact_start(scene_stream *s,const rf_weap
     if(n==8 || s->particles.state->emitters.live>RF_PARTICLE_EMITTER_CAPACITY-6)return RF_OK;
     if(campaign_rocket_impact.recipe.central_count!=6 || campaign_rocket_impact.recipe.central_random!=0)return RF_FORMAT;
     memset(s->impact->instances+n,0,sizeof(s->impact->instances[n]));
-    s->impact->instances[n].clock.size=1.5f;s->impact->instances[n].clock.active=1;
+    s->impact->instances[n].clock.size=campaign_rocket.impact_radius[0];s->impact->instances[n].clock.active=1;
     for(i=0;i<6;i++) {
         rf_particle_definition p;rf_particle_emitter_template t={0};float extent;uint32_t texture,j;
-        status=rf_explosion_central_prepare(&campaign_rocket_impact,i,1.5f,&p,&extent);
+        status=rf_explosion_central_prepare(&campaign_rocket_impact,i,campaign_rocket.impact_radius[0],&p,&extent);
         if(status==RF_NOT_FOUND)continue;if(status)return status;
         texture=s->impact->materials.slot_texture[i];if(texture>=s->impact->materials.count)return RF_RANGE;
         for(j=0;j<3;j++){t.position[j]=hit->hit.point[j]+hit->hit.normal[j]*.01f;t.direction[j]=p.direction[j];}

@@ -3263,3 +3263,30 @@ including all nine impact-audio telemetry words: three requests/selections/plays
 two loads, zero errors. It retains8567 free pages (33.465MiB), exits its owned
 emulator and restores all20 disc entries. This establishes the native request
 and mixer path; XEMU's host audio output was disabled by the harness.
+
+
+### Authored impact binding and RE handoffs (2026-09-15)
+
+The explosive weapon decoder now retains paired Impact Vclips/Radius lists,
+up to three entries. It validates count agreement, quoted nonempty names,
+finite nonnegative sizes and duplicate/malformed fields without changing output
+on failure. Lists can appear in either order; absent/empty pairs remain empty.
+Installed Rocket Launcher and Grenade both resolve rocket_impact at1.5.
+The scene uses this authored name and size instead of literals. Live code still
+requires one positive-sized clip and the supported six-central-emitter recipe;
+this is not generalized multi-clip playback or zero-scale behavior.
+
+The weapon_explosive_fields CTest covers13 invalid list cases, reversed list
+order, three slots, empty lists and installed values. The three-impact PC replay
+passes; its560/800-frame pixels exactly match retained pre-change PC captures.
+PC and NXDK XBE/XISO builds pass. No additional native run was needed to claim
+unchanged authored values; the latest native effect/audio validation is recorded
+above, not reclassified as a test of this new decoder.
+
+Secondary-agent evidence now confirms original omission of the missing optional
+sparks: original lookup stores-1 and runtime skips the branch. See
+research/ROCKET-MISSING-SPARKS-20260915.md and the retained executable verifier.
+A separate debris investigation found two actionable live-binding discrepancies:
+query flags0x460 versus original0x5, and world-distance conversion where the
+original subtracts intersection fraction directly. That correction is queued;
+see research/GEOMOD-DEBRIS-QUERY-POLICY-20260915.md for evidence and limits.

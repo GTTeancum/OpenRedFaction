@@ -27,13 +27,16 @@ int rf_weapon_primary_load(rf_vpp *tables,const char *name,uint32_t scratch_budg
 typedef struct rf_weapon_explosive_definition {
     float speed,lifetime,collision_radius,damage_radius,crater_radius;
     uint32_t glow;float glow_inner,glow_outer,glow_color[3];
+    uint32_t impact_count;char impact_vclips[3][64];float impact_radius[3];
 } rf_weapon_explosive_definition;
 /* Named explosive weapons.tbl fields for projectile motion/blast integration.
  * Requires explosive weapon type and all five finite fields; speed/lifetime
  * positive, radii nonnegative. Duplicate/missing/malformed fields preserve
  * output. Optional $Glow true requires ordered inner/outer radii and RGB bytes;
  * absent/false glow is zero. RGB is normalized to0..1. This decodes authored
- * inputs, not light attenuation, flight/homing or explosion policy. */
+ * inputs, not light attenuation, flight/homing or explosion policy. Optional
+ * Impact Vclips/Radius lists must be paired, equal-sized and at most3 entries;
+ * names are nonempty quoted strings and radii finite/nonnegative. */
 int rf_weapon_explosive_read(const void *,uint32_t,const char *,rf_weapon_explosive_definition *);
 int rf_weapon_explosive_load(rf_vpp *,const char *,uint32_t,rf_weapon_explosive_definition *);
 /* Original4c7b23 point-light constructor parameters, positioned at the live
