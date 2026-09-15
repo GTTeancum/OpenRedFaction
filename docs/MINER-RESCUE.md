@@ -237,3 +237,18 @@ player-death and enemy-fire state also match. It ends with4,378 free pages
 ```
 python tools/xemu_render_check.py --spawn --level L2S2a.rfl --trigger-start-uid 5670 --input artifacts/guard-recovery-replay/input.bin --seconds 420
 ```
+
+## Full-spawn route reconnaissance
+
+`tools/replay_area2_spawn.py` starts at the authored L2S2a player spawn, with
+no staging variables or injected events. Optional PC `RF_REPLAY_TRACE` emits
+position and forward direction every60 frames while owners remain live.
+The route walks from the entry corridor through the door near(2,10) and the
+next opening near(9,14), reaching(14.1,-4.12,14.48) by frame1020. Attempts
+to move toward trigger5670 from x14..22 stop near z13.1; the final position
+is(21.625,-4.118,13.344). Pin Door and Attack remain inactive.
+
+This is an observed incomplete route, not an encounter/level pass. The first
+door needed a correctly aligned approach and did open normally. Determine
+the authored path into the rescue area before extending the replay or changing
+collision/trigger behavior. Staged encounter tests do not prove accessibility.

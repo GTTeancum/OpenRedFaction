@@ -175,6 +175,12 @@ static int input(void *context,uint32_t frame,rf_scene_input *out)
         p->forced_exit_uid=p->exit_uid;p->exit_uid=0;if(status)return status;
     }
     if(p->headless) {
+        if(frame%60==0 && getenv("RF_REPLAY_TRACE")) {
+            float position[3],basis[9];
+            if(!rf_scene_campaign_pose_get(position,basis))
+                printf("CAMPAIGN_TRACE %u %.6f %.6f %.6f %.6f %.6f %.6f\n",p->frames,
+                    position[0],position[1],position[2],basis[6],basis[7],basis[8]);
+        }
         if(frame==0) { /* Read while owners live, before scene teardown. */
             for(uint32_t k=0;k<rf_scene_npc_bodies[0];++k){uint32_t row[3];if(!rf_scene_npc_backlink_row(k,row))printf("NPC_BACKLINK_ROW %u %u %u\n",row[0],row[1],row[2]);}
         }
