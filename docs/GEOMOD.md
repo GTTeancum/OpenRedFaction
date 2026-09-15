@@ -2175,3 +2175,20 @@ This localizes the long-interval failures to small boundary disagreement,
 but does not excuse them or solve unmatched intervals. Repair must preserve
 incident face-plane constraints; increasing tolerances or blanket welding
 would conceal the issue. No rendered output change; estimate ~49 percent.
+
+Rejected split-band experiments (2026-09-15): The splitter currently
+classifies plane distances within1e-5 as on-plane and preserves those
+vertices. Testing1e-6 and1e-7 independently, without changing any closure
+checker tolerance, breaks existing installed-data interior fixtures. The
+1e-6 variant fails rf_geomod_storage_prepare_star_cuts at the repeated
+original-star fixture (current test line886). The1e-7 variant fails the rotated eight-cut volume/
+closure fixture (printed volume32.0000025,64faces). Neither variant was
+retained; source bytes were restored and the original interior executable
+rebuilt and rerun successfully. No Xbox or rendered improvement is claimed.
+Artifacts: geomod-split-band-1e-6.log, geomod-split-band-1e-7.log,
+geomod-split-band-results.json and geomod-split-band-restored-tests.log.
+This rejects a tolerance-only repair; it does not prove the current band
+is mathematically ideal. The next implementation must preserve common
+boundary/incident-plane constraints through repeated splitting rather than
+independently classifying already rounded vertices more aggressively.
+Strict room-scale closure remains open; estimate ~49 percent.
