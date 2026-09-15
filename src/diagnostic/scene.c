@@ -4359,6 +4359,18 @@ int rf_scene_npc_backlink_row(uint32_t index,uint32_t row[3])
     row[1]=campaign_npc_bodies[index].registration.handle;row[2]=campaign_npc_bodies[index].trigger_handle;
     return RF_OK;
 }
+int rf_scene_npc_combat_row(uint32_t index,uint32_t row[8],float values[7])
+{
+    const campaign_npc_body *owner;
+    if(!row || !values)return RF_RANGE;
+    if(index>=campaign_npc_body_count || !campaign_npc_bodies[index].registration.view)return RF_NOT_FOUND;
+    owner=campaign_npc_bodies+index;
+    row[0]=campaign_seeds.records.items[index].record.uid;row[1]=owner->registration.handle;
+    row[2]=(uint32_t)owner->view.weapons[0];row[3]=owner->object_flags;
+    row[4]=owner->combat_alert;row[5]=owner->combat_scripted;row[6]=owner->combat_target;row[7]=owner->script_move.follow;
+    memcpy(values,owner->body.state.position,12);memcpy(values+3,owner->eye_position,12);values[6]=owner->damage.effects.health;
+    return RF_OK;
+}
 uint32_t rf_scene_npc_backlinks[4]; /* writes, linked actors, hash, retained bytes */
 uint32_t rf_scene_npc_links[4]; /* UID objects, temporary bytes, trigger NPC links, event NPC links */
 static int campaign_resolve_trigger_links(void)

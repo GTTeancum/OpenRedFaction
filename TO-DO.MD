@@ -1,7 +1,7 @@
 # Red Faction Xbox / PC - open work
 
 - Combat: Finish authored enemy damage amounts, cadence, accuracy and weapon coverage; supported damage types, authored attack ranges and close-range Riot Stick pursuit are now wired.
-- Gameplay: Clear the remaining Area2 guards and reach its exit; PC/Xbox verify one guard kill, retreat to cover and reload (3600 frames, 47.2 health remaining); PC and stock Xbox verify spawn-to-rescue-to-cell-exit (3000 frames, 16.8125MiB free).
+- Gameplay: Clear the remaining Area2 guards and reach its exit; PC and stock Xbox verify two kills, reloads and medical-crate recovery (4500 frames, 48.2 health, 16.8125MiB free).
 
 First-pass policy: playable campaign systems take priority over exact1:1 RE.
 Use practical shared implementations, verify gameplay and stock64MiB operation,

@@ -183,6 +183,14 @@ static int input(void *context,uint32_t frame,rf_scene_input *out)
                 printf("CAMPAIGN_TRACE %u %.6f %.6f %.6f %.6f %.6f %.6f\n",p->frames,
                     position[0],position[1],position[2],basis[6],basis[7],basis[8]);
         }
+        if(p->replay && p->frames+1==p->replay_count && getenv("RF_REPLAY_TRACE")) {
+            printf("NPC_COMBAT_FRAME %u\n",p->frames);
+            for(uint32_t k=0;k<rf_scene_npc_bodies[0];++k) {
+                uint32_t row[8];float values[7];if(rf_scene_npc_combat_row(k,row,values))continue;
+                printf("NPC_COMBAT_ROW");for(uint32_t j=0;j<8;j++)printf(" %u",row[j]);
+                for(uint32_t j=0;j<7;j++)printf(" %.6f",values[j]);puts("");
+            }
+        }
         if(frame==0) { /* Read while owners live, before scene teardown. */
             for(uint32_t k=0;k<rf_scene_npc_bodies[0];++k){uint32_t row[3];if(!rf_scene_npc_backlink_row(k,row))printf("NPC_BACKLINK_ROW %u %u %u\n",row[0],row[1],row[2]);}
         }

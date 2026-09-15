@@ -96,3 +96,46 @@ python tools/xemu_render_check.py --spawn --level L2S2a.rfl --input artifacts/co
 
 This proves the connected spawn/rescue/guard-kill/retreat/reload sequence. It
 does not establish complete encounter balance or a cleared path to the exit.
+
+## Two guards and medical recovery (2026-09-14)
+
+The read-only `rf_scene_npc_combat_row` snapshot exposes stable IDs, weapon,
+combat orders, body/eye positions and health while owners are alive. PC replay
+tracing emits it at the beginning of the last simulation frame, before teardown;
+it is not a post-final-frame snapshot and does not alter NPC state.
+
+`python tools/replay_cover_combat.py --second-guard` passes4,000 PC frames:
+guards8490 and5677 die from13 player shots/eight hits; two reloads leave16 loaded
+and112 reserve. The player retreats alive. The snapshot verifies both deaths.
+
+`--medical-crate` extends this same uninterrupted spawn route to4,500 frames.
+The player walks back into the room, holds Use near trigger8549, opens the
+little crate via key8552, and collects medical kit8553. The pickup restores25
+health; the player ends at(25.543,-4.118,4.214) with48.2 health. No actors, events,
+health or player placement are injected. Remaining guards and the exit are open.
+
+The4,000-frame native attempt render-20260914-211422 was manually closed by the
+user during loading and is not gameplay evidence. QMP disconnect cleanup now
+releases its socket without throwing on a reset, so disc restoration can run.
+New render checks persist original disc settings in disc-restore.json before
+mutation. That interrupted older run had no persistent backup: its exact replay
+was removed; the existing spawn/level selection and controller flag were retained.
+
+A same-route PC control with crate Use omitted ends at the same position,
+leaves the crate closed, takes no kit8553 and restores zero health (23.2 health
+remaining). Reproduce with `--crate-closed-control`; merely walking into pickup
+range through a closed lid does not collect the kit.
+
+Stock64MiB XEMU `render-20260914-212459` now passes the full4,500-frame medical
+route and all28 selected final PC/native state comparisons. Two kills/eight hits,
+13 shots, two reloads, kit8553 collection and crate key8552 agree. Final health
+is48.19999; free memory is4,304 pages (16.8125MiB). The pickup CPU-vertex count
+is backend-specific and excluded as before; this is selected final-state parity,
+not a comparison of every frame or every subsystem. Disc restoration was checked
+against the persisted backup and no project XEMU remains after owned cleanup.
+
+```
+python tools/replay_cover_combat.py --medical-crate
+python tools/replay_cover_combat.py --crate-closed-control
+python tools/xemu_render_check.py --spawn --level L2S2a.rfl --input artifacts/cover-combat-medical-replay/input.bin --seconds 600
+```

@@ -49,8 +49,14 @@ class Monitor:
                 return response['return']
 
     def close(self):
-        self.stream.close()
-        self.sock.close()
+        # A user may close XEMU while a buffered QMP write is pending.
+        # Teardown must still release the socket and allow disc restoration.
+        try:
+            self.stream.close()
+        except OSError:
+            pass
+        finally:
+            self.sock.close()
 
 
 def main():
