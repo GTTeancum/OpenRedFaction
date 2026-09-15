@@ -1,6 +1,6 @@
 # Red Faction Xbox / PC - open work
 
-- Gameplay: Extend the PC/Xbox verified spawn-to-rescue route through the remaining Area2 combat and exit (native2700 frames, 16.559MiB free).
+- Gameplay: Fight through the Area2 corridor and reach its exit; PC now verifies spawn-to-rescue-to-cell-exit (3000 frames), with Xbox coverage through frame2700.
 
 First-pass policy: playable campaign systems take priority over exact1:1 RE.
 Use practical shared implementations, verify gameplay and stock64MiB operation,

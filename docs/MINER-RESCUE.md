@@ -280,3 +280,19 @@ Reproduce without any placement flag:
 ```
 python tools/xemu_render_check.py --spawn --level L2S2a.rfl --input artifacts/area2-spawn-replay/input.bin --seconds 420
 ```
+
+## Leaving the cell after rescue
+
+The PC full-spawn replay now continues to3,000 frames. It aligns with the
+1.4375-unit authored Pin Door opening, crosses with world-aligned movement,
+and returns to(24.540,-4.118,10.210) outside the cell. The earlier diagonal
+attempt clipped its edge; no collision size or doorway geometry was changed.
+The replay asserts the final position and living player. The prior native
+result covers2,700 frames; this extension is PC-verified only.
+
+An exploratory continuation into the exposed corridor dies at frame3191
+under seven alerted enemies. Remaining behind the entrance survives through
+frame3600. A firing probe confirms held primary produces one pistol shot;
+combat inputs must release/repress for subsequent semiautomatic shots.
+The next route must handle combat and cover before claiming section traversal.
+Exploratory logs: artifacts/area2-traversal/{cell-exit,north-hall,guard-fire}.log.
