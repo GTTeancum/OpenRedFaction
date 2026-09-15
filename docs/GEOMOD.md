@@ -2045,3 +2045,18 @@ The inspected Xbox framebuffer is pixel-identical to the indexed baseline.
 PID 54748 exited; all 19 staged disc entries were restored. Available memory
 is 8593 pages (33.57MiB). Crater appearance still needs fidelity work; remaining
 edit time is now dominated by terrain cutting. Estimate remains ~49 percent.
+
+Lightmap detail scaling (2026-09-15): The constructor at 4e4180 takes the
+maximum grouped face flags bits8..9, then 4e43eb..4e443a scales both supplied
+densities by 0.5,1,2,4 for classes 0,1,2,3. The new shared helper
+rf_geomod_lightmap_density reproduces that scaling. The unhooked executable
+block and shared helper agree bit-for-bit in 40 cases through
+tools/inspect_geomod_light_density.py; the original executable SHA is checked.
+Evidence is stored in artifacts/geomod-light-density-original.json.
+The oracle supplies the grouped class; it does not recover generated-face
+flag inheritance or grouping. The live DEV path still supplies fixed adjusted
+density 4 and does not yet call this helper. With caller density 4, original
+classes would yield 2,4,8,16, so selecting one without provenance would be an
+unsupported visual change. PC probe and NXDK builds pass; no new runtime or
+visual acceptance is claimed. Continue tracing generated-face flag ownership
+before replacing the live assumption. Estimate remains ~49 percent.

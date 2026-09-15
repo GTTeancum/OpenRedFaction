@@ -22,6 +22,18 @@ int rf_geomod_debris_age(float age,float lifetime,float dt,uint32_t paused,
     *out=next;return RF_OK;
 }
 
+int rf_geomod_lightmap_density(const float density[2],uint32_t detail,float out[2])
+{
+    static const double scale[4]={.5,1,2,4};float next[2];uint32_t i;
+    if(!density || !out || detail>3)return RF_RANGE;
+    for(i=0;i<2;i++) {
+        if(!isfinite(density[i]) || density[i]<=0)return RF_RANGE;
+        next[i]=(float)((double)density[i]*scale[detail]);
+        if(!isfinite(next[i]) || next[i]<=0)return RF_RANGE;
+    }
+    memcpy(out,next,sizeof(next));return RF_OK;
+}
+
 int rf_geomod_lightmap_size(const float span[2],const float density[2],uint32_t special,
     uint32_t dimensions[2],float adjusted_density[2])
 {
