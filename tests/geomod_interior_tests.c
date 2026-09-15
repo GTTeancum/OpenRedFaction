@@ -353,6 +353,7 @@ int main(int argc,char **argv)
         for(i=0;i<6;i++) {
             rf_geometry_face f;CHECK(!rf_geometry_get_face(&geometry,i,&f) && f.corners==4);
             sf[i]=(rf_geomod_face){i*4,4,f.texture,i};
+            filters[i].face_flags=f.flags;
             for(j=0;j<4;j++) {
                 rf_geometry_corner c;CHECK(!rf_geometry_get_corner(&geometry,i,j,&c));
                 CHECK(!rf_geometry_vertex(&geometry,c.vertex,faces[i][j].position));memcpy(faces[i][j].uv,c.uv,8);
@@ -376,6 +377,48 @@ int main(int argc,char **argv)
         CHECK(!rf_collision_thin_tree(tree.nodes,tree.node_count,tree.faces,tree.face_count,0,
             ray_start,ray_delta,1,tree.stack,tree.node_capacity,&hit,&matched));
         CHECK(matched && fabs(hit.hit.fraction-.5f)<1e-5 && hit.hit.normal[2]<-.99f);
+        {
+            rf_geomod_terrain *terrain=NULL,*limited=NULL;rf_geomod_terrain_view live,before;
+            rf_collision_face_filter generated={0};uint32_t minimum_budget,baseline_bytes;
+            const float center[3]={0,-10,20},extent[3]={1,1,1};float invalid[3]={0,1,1};
+            generated.face_flags=8;
+            CHECK(!rf_geomod_terrain_open(&src,filters,&generated,1,2048,128,1024*1024,&terrain));
+            CHECK(!rf_geomod_terrain_get(terrain,&before));minimum_budget=before.peak_bytes;baseline_bytes=before.resident_bytes;
+            CHECK(before.cuts==0 && before.mesh.generation==1);
+            for(i=0;i<8;i++) {
+                CHECK(!rf_geomod_terrain_cut_box(terrain,center,extent,2));
+                CHECK(!rf_geomod_terrain_get(terrain,&live));CHECK(live.cuts==i+1 && live.mesh.generation==i+2);
+                CHECK(live.resident_bytes<=live.peak_bytes && live.peak_bytes<=1024*1024);
+                CHECK(!rf_collision_thin_tree(live.tree->nodes,live.tree->node_count,live.tree->faces,live.tree->face_count,0,
+                    ray_start,ray_delta,1,live.tree->stack,live.tree->node_capacity,&hit,&matched));
+                CHECK(matched && fabs(hit.hit.fraction-.5f)<1e-5);
+                for(j=0;j<live.mesh.face_count;j++) {
+                    uint32_t id=live.mesh.faces[j].source_face;
+                    CHECK(live.faces[j].filter.face_flags==(id==UINT32_MAX?8:filters[id].face_flags));
+                }
+            }
+            before=live;
+            CHECK(rf_geomod_terrain_cut_box(terrain,center,extent,2)==RF_RANGE);
+            CHECK(!rf_geomod_terrain_get(terrain,&live) && live.mesh.generation==before.mesh.generation && live.cuts==8);
+            CHECK(!rf_geomod_terrain_reset(terrain));CHECK(!rf_geomod_terrain_get(terrain,&live));
+            CHECK(!live.cuts && live.mesh.face_count==6 && live.resident_bytes==baseline_bytes);
+            CHECK(!rf_collision_thin_tree(live.tree->nodes,live.tree->node_count,live.tree->faces,live.tree->face_count,0,
+                ray_start,ray_delta,1,live.tree->stack,live.tree->node_capacity,&hit,&matched));
+            CHECK(matched && fabs(hit.hit.fraction-.25f)<1e-5);
+            before=live;CHECK(rf_geomod_terrain_cut_box(terrain,center,invalid,2)==RF_FORMAT);
+            CHECK(!rf_geomod_terrain_get(terrain,&live) && live.mesh.generation==before.mesh.generation);
+            CHECK(rf_geomod_terrain_open(&src,filters,&generated,1,2048,128,minimum_budget-1,&limited)==RF_RANGE && !limited);
+            CHECK(!rf_geomod_terrain_open(&src,filters,&generated,1,2048,128,minimum_budget,&limited));
+            CHECK(!rf_geomod_terrain_get(limited,&before));
+            CHECK(rf_geomod_terrain_cut_box(limited,center,extent,2)==RF_RANGE);
+            CHECK(!rf_geomod_terrain_get(limited,&live) && !live.cuts && live.mesh.generation==before.mesh.generation &&
+                live.mesh.vertices==before.mesh.vertices && live.faces==before.faces);
+            CHECK(!rf_collision_thin_tree(live.tree->nodes,live.tree->node_count,live.tree->faces,live.tree->face_count,0,
+                ray_start,ray_delta,1,live.tree->stack,live.tree->node_capacity,&hit,&matched));
+            CHECK(matched && fabs(hit.hit.fraction-.25f)<1e-5);
+            printf("PASS: terrain publication/reset,8-cut admission and allocation rollback; initial peak%u bytes\n",minimum_budget);
+            rf_geomod_terrain_close(&limited);rf_geomod_terrain_close(&terrain);rf_geomod_terrain_close(&terrain);
+        }
         rf_collision_tree_close(&tree);rf_geomod_storage_close(&s);rf_geometry_close(&geometry);rf_vpp_close(&archive);
         puts("PASS: authored Glass House cavity expansion, closed edges and excavated-wall collision");
     }

@@ -303,3 +303,45 @@ alongside the unchanged room contents, bind weapon impact and reset, then
 verify the actual view and player movement on PC/Xbox. Arbitrary campaign
 cavities and portal merging remain later work under the developer-room mandate.
 NXDK compilation passes and produces the XBE/XISO; cavity cutting has not yet run inside XEMU.
+
+
+## Bounded terrain runtime owner
+
+rf_geomod_terrain owns original/reset mesh data, up to8 axis-aligned box
+cutters, retained Boolean scratch, two position/face banks, copied source
+filters and the current collision tree. It supports convex material solids or
+convex room cavities explicitly. Source-face IDs must be unique and cannot use
+the generated-face sentinel. Original filters follow their source IDs through
+fragmentation; generated faces receive an explicit caller-supplied filter.
+Box interiors currently use provisional world-scale planar UV coordinates.
+
+A cut rebuilds from the complete retained history, binds pending collision and
+builds its tree while old collision remains alive. Only after successful
+preparation does it commit the mesh, tree, source-order face bindings and cut
+count. Failure aborts the pending mesh and preserves the current generation.
+Reset follows the same transaction with zero cutters. Borrowed snapshots expose
+matching mesh/face/tree data and remain valid until the next successful edit.
+This is a single-thread owner; projected/GPU resource publication stays with
+the scene. Tree construction allocates, while clipping scratch is retained.
+
+The total budget includes the original/working mesh, history, workspace,
+position/filter/face buffers, old plus new tree storage and tree construction
+scratch. Accounting conservatively counts embedded tree descriptors again and
+excludes allocator metadata/external rendering resources. On the tested PC
+layout, the actual Glass House outer-room owner at capacities2048 vertices and
+128 faces requires an initial peak423490 bytes. This is not native Xbox free
+RAM evidence or the eventual total scene cost.
+
+Installed-data tests commit eight cuts, verify updated wall hits and original
+versus generated filters, reject a ninth cut without a new generation, reset
+and recover the original wall and resident byte count, reject invalid extents,
+and exercise exact initial budget/one-byte-short rejection. An owner opened
+with only its initial peak budget rejects a later cut because old+new collision
+cannot coexist; its mesh pointers, generation, cut count and original wall hit
+remain unchanged. Closing twice is safe. Existing geometry/render tests pass.
+
+No gameplay scene instantiates this owner yet. Next is excluding replaced
+source faces from existing world rendering/collision and including the owner
+snapshot in both paths, then weapon-impact and reset controls. Authored cut
+eligibility, arbitrary room unions and portal handling remain separate work.
+NXDK compilation passes and produces the XBE/XISO; this owner has not yet been exercised inside XEMU.

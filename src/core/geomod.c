@@ -457,3 +457,123 @@ int rf_geomod_collision_faces(const rf_geomod_mesh_view *mesh,
     }
     return RF_OK;
 }
+
+struct rf_geomod_terrain {
+    rf_geomod_storage *mesh;rf_geomod_multi_work work;
+    rf_geomod_vertex cut_vertices[RF_GEOMOD_CUT_LIMIT][24];
+    rf_geomod_face cut_faces[RF_GEOMOD_CUT_LIMIT][6];
+    rf_geomod_mesh_view cuts[RF_GEOMOD_CUT_LIMIT];
+    rf_collision_face_filter original_filters[32],generated_filter,*filters;
+    rf_collision_face *faces[2];float (*positions[2])[3];rf_collision_tree tree;
+    uint32_t bank,count,cavity,vc,fc,base_bytes,budget,peak_bytes;
+};
+static int terrain_bind(rf_geomod_terrain *t,const rf_geomod_mesh_view *mesh,uint32_t bank,
+    rf_collision_tree *tree)
+{
+    uint32_t i,j,used;int status;
+    for(i=0;i<mesh->face_count;i++) {
+        uint32_t id=mesh->faces[i].source_face;
+        t->filters[i]=t->generated_filter;
+        if(id!=UINT32_MAX) {
+            for(j=0;j<t->mesh->nf[2];j++)if(t->mesh->faces[2][j].source_face==id)break;
+            if(j==t->mesh->nf[2])return RF_FORMAT;
+            t->filters[i]=t->original_filters[j];
+        }
+    }
+    status=rf_geomod_collision_faces(mesh,t->filters,t->positions[bank],t->vc,t->faces[bank],t->fc);if(status)return status;
+    used=t->base_bytes+t->tree.allocated_bytes;
+    if(used>t->budget)return RF_RANGE;
+    status=rf_collision_tree_open(t->faces[bank],mesh->face_count,t->budget-used,tree);if(status)return status;
+    if(used+tree->peak_bytes>t->peak_bytes)t->peak_bytes=used+tree->peak_bytes;
+    return RF_OK;
+}
+void rf_geomod_terrain_close(rf_geomod_terrain **terrain)
+{
+    if(terrain && *terrain) {
+        rf_geomod_terrain *t=*terrain;
+        rf_collision_tree_close(&t->tree);rf_geomod_storage_close(&t->mesh);free(t);*terrain=NULL;
+    }
+}
+int rf_geomod_terrain_open(const rf_geomod_mesh_view *source,
+    const rf_collision_face_filter *filters,const rf_collision_face_filter *generated_filter,
+    uint32_t cavity,uint32_t vc,uint32_t fc,uint32_t budget,rf_geomod_terrain **out)
+{
+    rf_geomod_terrain *t;rf_geomod_mesh_view mesh;rf_collision_tree tree={0};
+    uint64_t bytes=sizeof(*t)+(uint64_t)vc*24+(uint64_t)fc*(2*sizeof(rf_collision_face)+sizeof(rf_collision_face_filter));
+    unsigned char *p;uint32_t i,j,accepted;int status;
+    if(!source || !filters || !generated_filter || !out || *out || cavity>1 || source->face_count>32 ||
+       !source->faces || !vc || !fc || source->face_count>fc || source->vertex_count>vc || bytes>budget)return RF_RANGE;
+    status=rf_collision_face_accept(generated_filter,&accepted);if(status)return status;
+    for(i=0;i<source->face_count;i++) {
+        if(source->faces[i].source_face==UINT32_MAX)return RF_FORMAT;
+        for(j=0;j<i;j++)if(source->faces[i].source_face==source->faces[j].source_face)return RF_FORMAT;
+        status=rf_collision_face_accept(filters+i,&accepted);if(status)return status;
+    }
+    t=calloc(1,(size_t)bytes);if(!t)return RF_IO;
+    t->vc=vc;t->fc=fc;t->budget=budget;t->base_bytes=(uint32_t)bytes;t->cavity=cavity;
+    memcpy(t->original_filters,filters,source->face_count*sizeof(*filters));t->generated_filter=*generated_filter;
+    p=(unsigned char *)(t+1);
+    for(i=0;i<2;i++) {
+        t->positions[i]=(float(*)[3])p;p+=(size_t)vc*12;
+        /* Position bytes are multiples of12. Align native pointer-bearing
+         * face arrays by placing both position banks before them below. */
+    }
+    /* calloc base/owner alignment plus24*vc preserves pointer alignment. */
+    for(i=0;i<2;i++){t->faces[i]=(rf_collision_face *)p;p+=(size_t)fc*sizeof(rf_collision_face);}
+    t->filters=(rf_collision_face_filter *)p;
+    status=rf_geomod_storage_open(source,vc,fc,budget-t->base_bytes,&t->mesh);if(status)goto failed;
+    t->base_bytes+=rf_geomod_storage_bytes(t->mesh);
+    status=convex_mesh_planes_oriented(source,t->work.source_planes,cavity);if(status)goto failed;
+    rf_geomod_storage_view(t->mesh,&mesh);
+    status=terrain_bind(t,&mesh,0,&tree);if(status)goto failed;
+    t->tree=tree;*out=t;return RF_OK;
+failed:
+    rf_collision_tree_close(&tree);rf_geomod_terrain_close(&t);return status;
+}
+static int terrain_publish(rf_geomod_terrain *t,uint32_t count)
+{
+    rf_geomod_mesh_view pending;rf_collision_tree tree={0};uint32_t bank=t->bank^1;int status;
+    status=t->cavity?rf_geomod_storage_prepare_cavity_cuts(t->mesh,t->cuts,count,&t->work):
+        rf_geomod_storage_prepare_cuts(t->mesh,t->cuts,count,&t->work);
+    if(status)return status;
+    status=rf_geomod_storage_pending(t->mesh,&pending);if(status)goto failed;
+    status=terrain_bind(t,&pending,bank,&tree);if(status)goto failed;
+    status=rf_geomod_storage_commit(t->mesh);if(status)goto failed;
+    rf_collision_tree_close(&t->tree);t->tree=tree;t->bank=bank;t->count=count;return RF_OK;
+failed:
+    rf_collision_tree_close(&tree);rf_geomod_storage_abort(t->mesh);return status;
+}
+int rf_geomod_terrain_cut_box(rf_geomod_terrain *t,const float center[3],const float extent[3],uint32_t material)
+{
+    float lo[3],hi[3];uint32_t axis,side,j,slot;
+    const int u[4]={-1,1,1,-1},v[4]={-1,-1,1,1};
+    if(!t || !center || !extent || material==UINT32_MAX || t->count==RF_GEOMOD_CUT_LIMIT)return RF_RANGE;
+    for(j=0;j<3;j++) {
+        if(!isfinite(center[j]) || !isfinite(extent[j]) || extent[j]<=0)return RF_FORMAT;
+        lo[j]=center[j]-extent[j];hi[j]=center[j]+extent[j];
+        if(!isfinite(lo[j]) || !isfinite(hi[j]) || lo[j]>=hi[j])return RF_FORMAT;
+    }
+    slot=t->count;
+    for(axis=0;axis<3;axis++)for(side=0;side<2;side++) {
+        uint32_t face=axis*2+side,a=(axis+1)%3,b=(axis+2)%3;
+        t->cut_faces[slot][face]=(rf_geomod_face){face*4,4,material,UINT32_MAX};
+        for(j=0;j<4;j++) {
+            uint32_t k=side?j:3-j;rf_geomod_vertex *p=t->cut_vertices[slot]+face*4+j;
+            p->position[axis]=side?hi[axis]:lo[axis];
+            p->position[a]=u[k]>0?hi[a]:lo[a];p->position[b]=v[k]>0?hi[b]:lo[b];
+            /* Stable world-scale planar UVs, provisional excavation material mapping. */
+            p->uv[0]=p->position[a];p->uv[1]=p->position[b];
+        }
+    }
+    t->cuts[slot]=(rf_geomod_mesh_view){t->cut_vertices[slot],t->cut_faces[slot],24,6,0};
+    return terrain_publish(t,t->count+1);
+}
+int rf_geomod_terrain_reset(rf_geomod_terrain *t)
+{return t?terrain_publish(t,0):RF_RANGE;}
+int rf_geomod_terrain_get(const rf_geomod_terrain *t,rf_geomod_terrain_view *out)
+{
+    rf_geomod_terrain_view value;if(!t || !out)return RF_RANGE;
+    rf_geomod_storage_view(t->mesh,&value.mesh);value.faces=t->faces[t->bank];value.tree=&t->tree;
+    value.cuts=t->count;value.resident_bytes=t->base_bytes+t->tree.allocated_bytes;value.peak_bytes=t->peak_bytes;
+    *out=value;return RF_OK;
+}

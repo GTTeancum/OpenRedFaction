@@ -111,4 +111,33 @@ int rf_geomod_storage_prepare_cavity_cuts(rf_geomod_storage *storage,
 int rf_geomod_collision_faces(const rf_geomod_mesh_view *mesh,
     const rf_collision_face_filter *filters,float (*positions)[3],uint32_t vertex_capacity,
     rf_collision_face *faces,uint32_t face_capacity);
+typedef struct rf_geomod_terrain rf_geomod_terrain;
+typedef struct rf_geomod_terrain_view {
+    rf_geomod_mesh_view mesh;
+    const rf_collision_face *faces;
+    const rf_collision_tree *tree;
+    uint32_t cuts,resident_bytes,peak_bytes;
+} rf_geomod_terrain_view;
+/* Retain original geometry, bounded box history, cut workspace and two
+ * collision-position banks. Original source_face IDs must be unique/non-sentinel.
+ * Explicit filters preserve original surface policy; generated_filter applies
+ * to all new surfaces. cavity is0 for a convex solid,1 for an inward room.
+ * Budget covers old+pending allocations and collision-tree build scratch,
+ * conservatively counting embedded tree descriptors again; excludes allocator
+ * overhead and external rendering resources. *out must be NULL. */
+int rf_geomod_terrain_open(const rf_geomod_mesh_view *source,
+    const rf_collision_face_filter *filters,const rf_collision_face_filter *generated_filter,
+    uint32_t cavity,uint32_t vertex_capacity,uint32_t face_capacity,uint32_t budget,rf_geomod_terrain **out);
+void rf_geomod_terrain_close(rf_geomod_terrain **terrain);
+/* Atomically publish matching mesh, source-order face bindings, tree and cut
+ * history after all preparation succeeds. Tree construction may allocate;
+ * cutting/projection workspaces do not. Failure preserves the live generation,
+ * history and collision. No game eligibility/weapon policy is implied. */
+int rf_geomod_terrain_cut_box(rf_geomod_terrain *terrain,const float center[3],
+    const float half_extent[3],uint32_t material);
+int rf_geomod_terrain_reset(rf_geomod_terrain *terrain);
+/* Borrowed snapshot: valid until next successful cut/reset or close; failed
+ * edits preserve it. Single-thread owner; renderer consumes mesh+faces from
+ * this one snapshot. Projected/GPU draw-resource publication stays external. */
+int rf_geomod_terrain_get(const rf_geomod_terrain *terrain,rf_geomod_terrain_view *out);
 #endif
