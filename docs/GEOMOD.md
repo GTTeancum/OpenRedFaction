@@ -3110,3 +3110,51 @@ acceptance is claimed from search metadata. Do not treat this as the missing
 verified stock-game capture. No remote screenshot was added to the repository.
 
 Current area: authored gameplay lighting for GeoMod. Overall~49%, GeoMod~63%.
+
+Live rocket glow on generated crater surfaces (2026-09-15):
+Original4c7b23..4c7b81 creates a point light at4d8ed0 using outer radius,
+enabled/intensity, RGB, dynamic1, shadow-condition1 and linear profile0.
+The stored inner radius is not passed. The bounded Unicorn harness
+inspect_weapon_glow_constructor.py executes the actual argument setup under
+the installed RF.exe SHA, with five enabled/inner-radius cases. It stops before
+allocation, so it does not prove original movement, destruction or rendering.
+Community rf/weapon.h and rf/gr/gr_light.h names guided address selection;
+implementation comes from the executable observation, with no copied patch code.
+
+rf_weapon_projectile_light converts an active flight plus decoded weapon into
+the existing shared point-light descriptor, with no allocation. Disabled/inactive
+flights return NOT_FOUND without changing output. The scene adds these sources
+to the generated-crater dynamic-light cache each frame. Position changes rebuild
+affected rectangles; impact/expiry removes the source, and the existing retained
+base-seed path restores the previous lighting. No permanent crater brightness
+gain or extra light pool allocation. Authored static world surfaces, actors,
+thruster-specific offsets/flicker and impact/muzzle effects remain separate work.
+
+The dedicated paired replay harness accepts a pre-integration PC executable
+(--baseline), records both executable and input hashes, and compares550/560-frame
+runs. At550 an active third rocket changes3798 pixels within[223,143,347,318];
+depth and selected body/rocket/terrain state match the control. At560 the rocket
+has impacted and RGB/depth are byte-identical to the unlit control. Actual images
+were inspected. Evidence: artifacts/projectile-glow/pair/report.json plus captures.
+This establishes the selected flight/removal states, not every animation frame.
+
+Stock64MiB XEMU render-20260915-181613 completes the illuminated550-frame run,
+passes46 PC/Xbox checks, and ends with8642 free pages. All1086 PC pixels changed
+by more than4 color levels are closer in the native capture to the lit control
+than the unlit control. Native pixels elsewhere are not identical to PC, so no
+whole-frame pixel parity claim. Framebuffer inspected; PID43488 exited and all20
+disc entries were restored byte-for-byte/absence. No GitHub images uploaded.
+
+The crater is still dark and mound-like after the rocket disappears. This is
+restoration of an authored transient light, not acceptance of destruction
+appearance. Current area: gameplay lighting around destruction. Overall~49%,
+GeoMod~64%, pending broader lighting and visual-parity work.
+
+Post-impact native follow-up: render-20260915-181812 completes560 frames with
+all46 checks and8642 free pages. Framebuffer inspected. In the selected
+crater region x180..354/y130..324, one pixel differs from the unlit PC control
+by more than8 color levels (maximum40); this is not exact native pixel parity.
+PC light removal is byte-exact as above. PID59540 exited and all20 disc entries
+were restored byte-for-byte/absence. Constructor/movement/inactive/error unit
+checks pass together with installed rocket/grenade definitions. Both native
+runs use the new NXDK build. No stock-game visual-parity claim.

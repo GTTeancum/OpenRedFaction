@@ -36,6 +36,11 @@ typedef struct rf_weapon_explosive_definition {
  * inputs, not light attenuation, flight/homing or explosion policy. */
 int rf_weapon_explosive_read(const void *,uint32_t,const char *,rf_weapon_explosive_definition *);
 int rf_weapon_explosive_load(rf_vpp *,const char *,uint32_t,rf_weapon_explosive_definition *);
+/* Original4c7b23 point-light constructor parameters, positioned at the live
+ * projectile. NOT_FOUND for inactive/disabled glow; output preserved on error.
+ * No registration or allocation; caller removes the source when flight ends. */
+int rf_weapon_projectile_light(const rf_weapon_explosive_definition *,
+    const rf_weapon_flight *,rf_vfx_light_source *);
 
 /* Named first-person resource binding: mesh, idle/fire/reload and optional alt.
  * Owns all names; missing/duplicate required fields preserve the output. */

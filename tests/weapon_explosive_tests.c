@@ -70,6 +70,20 @@ int main(int argc,char **argv)
         CHECK(value.speed==20 && value.lifetime==15 && fabsf(value.collision_radius-.051f)<1e-6f && value.damage_radius==5 && value.crater_radius==5);
         CHECK(value.glow==1 && value.glow_inner==1 && value.glow_outer==3);
         CHECK(fabsf(value.glow_color[0]-100.f/255)<1e-7f && fabsf(value.glow_color[1]-50.f/255)<1e-7f && fabsf(value.glow_color[2]-100.f/255)<1e-7f);
+        {
+            rf_weapon_flight flight={0};rf_vfx_light_source light,kept;
+            CHECK(!rf_weapon_flight_launch(&flight,(float[3]){1,2,3},(float[3]){1,0,0},20,15,.051f));
+            CHECK(!rf_weapon_projectile_light(&value,&flight,&light));
+            CHECK(light.type==2 && light.profile==0 && light.radius==3);
+            CHECK(!memcmp(light.position,flight.position,12) && !memcmp(light.color,value.glow_color,12));
+            flight.position[0]=4;CHECK(!rf_weapon_projectile_light(&value,&flight,&light));CHECK(light.position[0]==4);
+            kept=light;flight.active=0;
+            CHECK(rf_weapon_projectile_light(&value,&flight,&light)==RF_NOT_FOUND && !memcmp(&kept,&light,sizeof(light)));
+            flight.active=1;value.glow=0;
+            CHECK(rf_weapon_projectile_light(&value,&flight,&light)==RF_NOT_FOUND && !memcmp(&kept,&light,sizeof(light)));
+            value.glow=1;flight.position[0]=NAN;
+            CHECK(rf_weapon_projectile_light(&value,&flight,&light)==RF_RANGE && !memcmp(&kept,&light,sizeof(light)));
+        }
         CHECK(!rf_weapon_primary_load(&tables,"Rocket Launcher",128*1024,&primary));
         CHECK(primary.magazine==6 && primary.damage==400 && primary.damage_kind==3 && primary.fire_seconds==1.25f && primary.reload_seconds==1.7f);
         CHECK(!rf_weapon_explosive_load(&tables,"Grenade",128*1024,&value));

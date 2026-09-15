@@ -753,6 +753,19 @@ int rf_weapon_explosive_read(const void *text,uint32_t bytes,const char *name,rf
     if((mask&63)!=63)return RF_FORMAT;
     *out=value;return RF_OK;
 }
+int rf_weapon_projectile_light(const rf_weapon_explosive_definition *weapon,
+    const rf_weapon_flight *flight,rf_vfx_light_source *out)
+{
+    rf_vfx_light_definition definition={0};rf_vfx_light_candidate candidate;int status;
+    if(!weapon || !flight || !out || weapon->glow>1 || flight->active>1)return RF_RANGE;
+    if(!weapon->glow || !flight->active)return RF_NOT_FOUND;
+    definition.type=2;definition.profile=0;definition.light_class=1;
+    definition.radius=weapon->glow_outer;definition.intensity=1;
+    memcpy(definition.position,flight->position,sizeof(definition.position));
+    memcpy(definition.color,weapon->glow_color,sizeof(definition.color));
+    status=rf_vfx_light_create(&definition,&candidate);if(status)return status;
+    *out=candidate.source;return RF_OK;
+}
 int rf_weapon_explosive_load(rf_vpp *tables,const char *name,uint32_t budget,rf_weapon_explosive_definition *out)
 {
     rf_vpp_entry entry;void *text;int status;

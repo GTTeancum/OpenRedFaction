@@ -8860,6 +8860,12 @@ static int scene_terrain_dynamic_lighting(scene_stream *s,const rf_geomod_terrai
     }
     if(count>63)return RF_RANGE;
     for(i=0;i<count;i++)sources[i]=s->lights->pool.sources[ids[i]].source;
+    for(i=0;i<SCENE_ROCKETS;i++)if(s->rockets[i].active && campaign_rocket.glow) {
+        rf_vfx_light_source light;
+        status=rf_weapon_projectile_light(&campaign_rocket,s->rockets+i,&light);if(status)return status;
+        if(count==63)return RF_RANGE;
+        sources[count++]=light;
+    }
     if(s->terrain_test_light && frame>=1000 && frame<2000) {
         if(count==63)return RF_RANGE;
         rf_vfx_light_source *light=sources+count++;memset(light,0,sizeof(*light));light->type=2;light->radius=8;
