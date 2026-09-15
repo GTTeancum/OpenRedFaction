@@ -1881,7 +1881,7 @@ int rf_collision_sweep_rooms_textured(const rf_collision_room_view *rooms,uint32
     return sweep_rooms_prepared(rooms,room_count,primary,primary_count,children,child_count,
         query_flags,start,displacement,displacement,active,radius,limit,textures,result,matched);
 }
-int rf_collision_tree_open(const rf_collision_face *faces,uint32_t count,uint32_t budget,rf_collision_tree *tree)
+static int collision_tree_open(const rf_collision_face *faces,uint32_t count,uint32_t budget,rf_collision_tree *tree,void *workspace,uint32_t workspace_bytes)
 {
     rf_collision_tree value={0};uint64_t capacity,retained,scratch_bytes;unsigned char *scratch;
     rf_collision_face *temporary;uint32_t *ids,used=0,i,j;uint8_t *labels;int status=RF_OK;
@@ -1889,12 +1889,13 @@ int rf_collision_tree_open(const rf_collision_face *faces,uint32_t count,uint32_
     capacity=count?(uint64_t)count*2-1:0;
     retained=sizeof(value)+capacity*(sizeof(rf_collision_node)+sizeof(uint32_t))+(uint64_t)count*(sizeof(rf_collision_face)+sizeof(uint32_t));
     scratch_bytes=(uint64_t)count*(sizeof(rf_collision_face)+sizeof(uint32_t)+1);
-    if(retained+scratch_bytes>budget || retained+scratch_bytes>UINT32_MAX)return RF_RANGE;
+    if(workspace && ((uintptr_t)workspace%sizeof(void*) || scratch_bytes>workspace_bytes))return RF_RANGE;
+    if(retained+(workspace?0:scratch_bytes)>budget || retained+scratch_bytes>UINT32_MAX)return RF_RANGE;
     for(i=0;i<count;i++)for(j=0;j<3;j++)if(!isfinite(faces[i].minimum[j]) || !isfinite(faces[i].maximum[j]) || faces[i].minimum[j]>faces[i].maximum[j])return RF_FORMAT;
-    value.allocated_bytes=(uint32_t)retained;value.peak_bytes=(uint32_t)(retained+scratch_bytes);
+    value.allocated_bytes=(uint32_t)retained;value.peak_bytes=(uint32_t)(retained+(workspace?0:scratch_bytes));
     if(!count) {*tree=value;return RF_OK;}
-    value.storage=malloc((size_t)(retained-sizeof(value)));scratch=(unsigned char*)malloc((size_t)scratch_bytes);
-    if(!value.storage || !scratch) {free(value.storage);free(scratch);return RF_IO;}
+    value.storage=malloc((size_t)(retained-sizeof(value)));scratch=workspace?(unsigned char*)workspace:(unsigned char*)malloc((size_t)scratch_bytes);
+    if(!value.storage || !scratch) {free(value.storage);if(!workspace)free(scratch);return RF_IO;}
     value.nodes=(rf_collision_node*)value.storage;value.faces=(rf_collision_face*)(value.nodes+capacity);
     value.source_indices=(uint32_t*)(value.faces+count);value.stack=value.source_indices+count;
     value.node_capacity=(uint32_t)capacity;value.face_count=count;value.node_count=1;
@@ -1921,8 +1922,16 @@ int rf_collision_tree_open(const rf_collision_face *faces,uint32_t count,uint32_
         value.nodes[node->right].first_face=first+groups[0]+groups[1];value.nodes[node->right].face_count=groups[2];
         value.stack[used++]=node->right;value.stack[used++]=node->left;
     }
-    free(scratch);if(status) {rf_collision_tree_close(&value);return status;}
+    if(!workspace)free(scratch);if(status) {rf_collision_tree_close(&value);return status;}
     *tree=value;return RF_OK;
+}
+
+int rf_collision_tree_open(const rf_collision_face *faces,uint32_t count,uint32_t budget,rf_collision_tree *tree)
+{return collision_tree_open(faces,count,budget,tree,NULL,0);}
+int rf_collision_tree_open_scratch(const rf_collision_face *faces,uint32_t count,uint32_t budget,rf_collision_tree *tree,void *workspace,uint32_t workspace_bytes)
+{
+    if(!workspace)return RF_RANGE;
+    return collision_tree_open(faces,count,budget,tree,workspace,workspace_bytes);
 }
 
 static int collision_solid_preferred(const rf_collision_solid_view *solid,

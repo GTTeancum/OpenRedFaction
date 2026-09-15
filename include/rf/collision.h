@@ -257,6 +257,10 @@ typedef struct rf_collision_tree {
  * this struct, retained storage and construction scratch (not allocator overhead).
  * Failure preserves output. Close an existing tree before reusing its output. */
 int rf_collision_tree_open(const rf_collision_face *faces,uint32_t count,uint32_t budget,rf_collision_tree *tree);
+/* Caller scratch is pointer-aligned, disjoint from inputs/output, and already
+ * budgeted by its owner. Requires count*(sizeof(rf_collision_face)+5) bytes.
+ * Tree peak_bytes excludes caller scratch; scratch is not retained. */
+int rf_collision_tree_open_scratch(const rf_collision_face *,uint32_t,uint32_t,rf_collision_tree *,void *,uint32_t);
 void rf_collision_tree_close(rf_collision_tree *tree);
 typedef struct rf_collision_room_view {
     float minimum[3],maximum[3];

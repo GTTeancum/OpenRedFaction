@@ -145,6 +145,21 @@ static int collision_clearance(const rf_geomod_mesh_view *mesh,int tunnel)
         rf_pc_raster_close(&raster);
     }
     CHECK(!rf_collision_tree_open(faces,mesh->face_count,1024*1024,&tree));
+    {
+        rf_collision_tree reused={0},guard={0},saved=guard;
+        uint32_t bytes=mesh->face_count*(sizeof(rf_collision_face)+5);void *scratch=malloc(bytes);
+        CHECK(scratch);
+        CHECK(rf_collision_tree_open_scratch(faces,mesh->face_count,tree.allocated_bytes,&guard,scratch,bytes-1)==RF_RANGE);
+        CHECK(!memcmp(&guard,&saved,sizeof(guard)));
+        CHECK(!rf_collision_tree_open_scratch(faces,mesh->face_count,tree.allocated_bytes,&reused,scratch,bytes));
+        CHECK(reused.node_count==tree.node_count && reused.face_count==tree.face_count);
+        CHECK(reused.allocated_bytes==tree.allocated_bytes && reused.peak_bytes+bytes==tree.peak_bytes);
+        CHECK(!memcmp(reused.nodes,tree.nodes,tree.node_count*sizeof(*tree.nodes)));
+        CHECK(!memcmp(reused.faces,tree.faces,tree.face_count*sizeof(*tree.faces)));
+        CHECK(!memcmp(reused.source_indices,tree.source_indices,tree.face_count*sizeof(*tree.source_indices)));
+        free(scratch);rf_collision_tree_close(&tree);tree=reused;
+    }
+
     CHECK(!rf_collision_thin_tree(tree.nodes,tree.node_count,tree.faces,tree.face_count,0,
         start,delta,1,tree.stack,tree.node_capacity,&ray,&matched));
     CHECK(matched==(tunnel?0u:1u));

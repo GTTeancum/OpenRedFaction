@@ -2327,3 +2327,36 @@ corner positions and closure failures have not changed. Next: supply the face
 support plane and use the retained edge plane at intersections, with explicit
 handling for singular/coplanar supports. Estimate ~49 percent; GeoMod remains
 first priority, including the unresolved dark crater appearance.
+
+Live shared-plane corners (2026-09-15): Cavity clipping now supplies the source
+face support, retained edge support and cutting plane to rf_geomod_plane_corner.
+Successful three-plane solves replace the independently interpolated position;
+UV interpolation remains unchanged. Singular/coplanar support triples retain
+the old edge interpolation. Finite-solid and public untracked clipping remain
+unchanged. This is a practical port repair, not claimed original implementation.
+Six room-scale closure failure counts change from5,30,98,133,191,230 to
+8,21,50,71,104,120. Later cuts improve substantially, but the first cut worsens
+and no cut is fully closed. No positional/closure tolerances were widened.
+The initial eight-blast replay rejected its last cut: collision tree creation
+needed more temporary memory than the remaining1MiB terrain allowance, with
+743 faces/3162 vertices and872176 bytes already committed/reserved.
+rf_collision_tree_open_scratch now accepts caller-owned temporary workspace.
+Terrain reuses the completed clipping vertex banks, already included in its
+base budget. Tree retained bytes are unchanged; peak excludes borrowed scratch
+only when its owner already accounts for it. The old allocating API remains.
+A fixture compares actual nodes, reordered faces and source indices against
+the allocating path, checks short-scratch rollback, then releases the scratch
+before exercising ray/body collision on the resulting tree.
+All eight PC blasts now succeed:3162 physical vertices,3928 render vertices,
+766 inserted render-edge points, terrain peak1011072 bytes under1048576.
+Three focused CTests pass. The identical-camera depth audit again reports19487
+recessed solid pixels, zero substantially nearer pixels, zero new uncovered
+pixels and minimum raw depth delta-71. NXDK XBE/XISO builds pass.
+Crater visual fidelity and strict closure remain unresolved. Estimate overall
+~49 percent, GeoMod ~60 percent; these are judgment estimates, not test coverage.
+
+Native verification: artifacts/xemu/render-20260915-154159 completes1500 frames
+and eight cuts, passing46 comparisons with8601 physical pages free (33.60MiB).
+All19 disc entries restore byte-exactly and the owned PID43756 exits. The native
+framebuffer was inspected: the dark mound-like appearance remains, so this is
+not visual acceptance and no GitHub image was added.
