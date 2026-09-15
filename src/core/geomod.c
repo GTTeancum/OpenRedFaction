@@ -422,6 +422,76 @@ static void reverse_vertices(rf_geomod_vertex *vertices,uint32_t count)
         rf_geomod_vertex v=vertices[i];vertices[i]=vertices[count-1-i];vertices[count-1-i]=v;
     }
 }
+
+static int collision_mesh_face(const rf_geomod_mesh_view *,uint32_t,const rf_collision_face_filter *,rf_collision_face *);
+
+/* Join only convex, coplanar neighbors with one common reversed edge and a
+ * common affine UV field. This removes partition seams without smoothing the
+ * crater shape or changing material interpolation. */
+static int join_polygons(const rf_geomod_vertex *a,uint32_t na,const rf_geomod_vertex *b,uint32_t nb,
+    rf_geomod_vertex out[64],uint32_t *count)
+{
+    uint32_t i,j,k,c,edge_a=UINT32_MAX,edge_b=0,n=na+nb-2;
+    double u[3],v[3],normal[3],uu=0,vv=0,uv=0,den,length;
+    if(n>64)return 0;
+    for(i=0;i<na && edge_a==UINT32_MAX;i++)for(j=0;j<nb;j++) {
+        int same=1;
+        for(k=0;k<3;k++)if(fabs((double)a[i].position[k]-b[(j+1)%nb].position[k])>1e-6 ||
+            fabs((double)a[(i+1)%na].position[k]-b[j].position[k])>1e-6)same=0;
+        if(same){edge_a=i;edge_b=j;break;}
+    }
+    if(edge_a==UINT32_MAX)return 0;
+    /* Find a nondegenerate basis even when clipping retained collinear corners. */
+    for(i=1;i+1<na;i++) {
+        uu=vv=uv=0;
+        for(k=0;k<3;k++){u[k]=(double)a[i].position[k]-a[0].position[k];v[k]=(double)a[i+1].position[k]-a[0].position[k];uu+=u[k]*u[k];vv+=v[k]*v[k];uv+=u[k]*v[k];}
+        den=uu*vv-uv*uv;if(den>1e-16)break;
+    }
+    if(i+1==na)return 0;
+    for(k=0;k<3;k++)normal[k]=u[(k+1)%3]*v[(k+2)%3]-u[(k+2)%3]*v[(k+1)%3];
+    length=sqrt(den);for(k=0;k<3;k++)normal[k]/=length;
+    for(j=0;j<na+nb;j++) {
+        const rf_geomod_vertex *p=j<na?a+j:b+j-na;double du=0,dv=0,dn=0,s,t;
+        for(k=0;k<3;k++){double d=(double)p->position[k]-a[0].position[k];du+=d*u[k];dv+=d*v[k];dn+=d*normal[k];}
+        if(fabs(dn)>1e-5)return 0;
+        s=(du*vv-dv*uv)/den;t=(dv*uu-du*uv)/den;
+        for(c=0;c<2;c++)if(fabs(a[0].uv[c]+s*((double)a[i].uv[c]-a[0].uv[c])+t*((double)a[i+1].uv[c]-a[0].uv[c])-p->uv[c])>1e-5)return 0;
+    }
+    for(j=0;j<na;j++)out[j]=a[(edge_a+1+j)%na];
+    for(j=0;j<nb-2;j++)out[na+j]=b[(edge_b+2+j)%nb];
+    /* Require the complete merged polygon to be convex, not just its seam. */
+    for(j=0;j<n;j++)for(c=0;c<n;c++) {
+        double cross=0;
+        for(k=0;k<3;k++) {
+            uint32_t x=(k+1)%3,y=(k+2)%3;
+            cross+=normal[k]*(((double)out[(j+1)%n].position[x]-out[j].position[x])*((double)out[c].position[y]-out[j].position[y])-
+                ((double)out[(j+1)%n].position[y]-out[j].position[y])*((double)out[c].position[x]-out[j].position[x]));
+        }
+        if(cross < -1e-7)return 0;
+    }
+    {
+        rf_geomod_face face={0,n,0,UINT32_MAX};rf_geomod_mesh_view mesh={out,&face,n,1,0};
+        rf_collision_face_filter filter={0};rf_collision_face bound;
+        if(collision_mesh_face(&mesh,0,&filter,&bound))return 0;
+    }
+    *count=n;return 1;
+}
+static int append_compact(rf_geomod_storage *s,const rf_geomod_vertex *v,uint32_t n,uint32_t material,uint32_t source_face,rf_geomod_multi_work *work)
+{
+    rf_geomod_vertex *polygon=work->split.vertices,*joined=polygon+64;uint32_t bank=s->current^1,i=0,j,count;
+    if(n>64)return RF_RANGE;memcpy(polygon,v,n*sizeof(*v));
+    while(i<s->nf[bank]) {
+        rf_geomod_face f=s->faces[bank][i];
+        if(f.material!=material || f.source_face!=source_face ||
+           !join_polygons(polygon,n,s->vertices[bank]+f.first,f.count,joined,&count)){i++;continue;}
+        memmove(s->vertices[bank]+f.first,s->vertices[bank]+f.first+f.count,
+            (s->nv[bank]-f.first-f.count)*sizeof(*v));s->nv[bank]-=f.count;
+        memmove(s->faces[bank]+i,s->faces[bank]+i+1,(s->nf[bank]-i-1)*sizeof(f));s->nf[bank]--;
+        for(j=i;j<s->nf[bank];j++)s->faces[bank][j].first-=f.count;
+        memcpy(polygon,joined,count*sizeof(*v));n=count;i=0;
+    }
+    return rf_geomod_storage_append(s,polygon,n,material,source_face);
+}
 static int mesh_polygon_bounds_separated(const rf_geomod_mesh_view *mesh,const rf_geomod_vertex *v,uint32_t count)
 {
     uint32_t axis,i;
@@ -471,7 +541,7 @@ static int subtract_history_face(rf_geomod_storage *s,const rf_geomod_vertex *ve
         const rf_geomod_fragment *f=work->fragments[bank]+i;
         rf_geomod_vertex *v=work->vertices[bank]+f->first;
         if(owner!=UINT32_MAX)reverse_vertices(v,f->count);
-        status=rf_geomod_storage_append(s,v,f->count,material,source_face);if(status)return status;
+        status=append_compact(s,v,f->count,material,source_face,work);if(status)return status;
     }
     return RF_OK;
 }

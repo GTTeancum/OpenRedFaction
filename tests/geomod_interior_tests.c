@@ -31,11 +31,12 @@ static double volume(const rf_geomod_vertex *p,unsigned n)
     return result;
 }
 static rf_geomod_vertex surface[4096];
-static rf_geomod_fragment polygons[512];
+static rf_geomod_fragment polygons[768];
 static unsigned surface_count,polygon_count;
+static unsigned report_closure;
 static int record(const rf_geomod_vertex *v,unsigned n)
 {
-    if(surface_count+n>4096 || polygon_count==512)return 0;
+    if(surface_count+n>4096 || polygon_count==768)return 0;
     polygons[polygon_count].first=surface_count;polygons[polygon_count++].count=n;
     memcpy(surface+surface_count,v,n*sizeof(*v));surface_count+=n;return 1;
 }
@@ -73,7 +74,11 @@ static int closed(void)
                     matches++;balance+=dot>0?1:-1;
                 }
             }
-            if(matches!=2 || balance)return 0;
+            if(matches!=2 || balance) {
+                if(report_closure)printf("CLOSURE_DIAGNOSTIC face%u edge%u length%.9g matches%d balance%d start %.9g %.9g %.9g end %.9g %.9g %.9g\n",
+                    p,e,sqrt(len),matches,balance,a[0],a[1],a[2],b[0],b[1],b[2]);
+                return 0;
+            }
         }
     }
     return 1;
@@ -685,6 +690,40 @@ int main(int argc,char **argv)
                 CHECK(!rf_geomod_terrain_get(terrain,&live) && live.mesh.generation==before.mesh.generation);
             }
             rf_geomod_terrain_close(&terrain);rf_geomod_storage_close(&owner);
+        }
+        {
+            rf_geomod_template shape;rf_random_state random={1};double previous_volume=0;
+            const float start[3]={0,-10,12},delta[3]={-40,0,-20};
+            CHECK(!rf_geomod_template_load("build/data/geomod-template.bin",&shape));
+            box((float[3]){-16,-12,-20},(float[3]){16,12,20},planes,source_v);
+            for(i=0;i<6;i++) {
+                source_f[i]=(rf_geomod_face){i*4,4,9,i};
+                for(j=0;j<2;j++){rf_geomod_vertex temp=source_v[i][j];source_v[i][j]=source_v[i][3-j];source_v[i][3-j]=temp;}
+            }
+            source=(rf_geomod_mesh_view){source_v[0],source_f,24,6,0};
+            CHECK(!rf_geomod_terrain_open(&source,original_filters,&generated,1,4096,768,1024*1024,&terrain));
+            report_closure=1;
+            for(repeat=0;repeat<6;repeat++) {
+                rf_collision_tree_hit hit;uint32_t matched;float basis[9];double total=0;
+                CHECK(!rf_geomod_terrain_get(terrain,&live));
+                CHECK(!rf_collision_thin_tree(live.tree->nodes,live.tree->node_count,live.tree->faces,live.tree->face_count,
+                    0,start,delta,1,live.tree->stack,live.tree->node_capacity,&hit,&matched) && matched);
+                CHECK(!rf_geomod_random_basis(&random,basis));
+                CHECK(!rf_geomod_terrain_cut_template(terrain,&shape,hit.hit.point,basis,3.75f,77));
+                CHECK(!rf_geomod_terrain_get(terrain,&live) && live.cuts==repeat+1 && live.peak_bytes<=1024*1024);
+                surface_count=polygon_count=0;
+                for(i=0;i<live.mesh.face_count;i++) {
+                    const rf_geomod_face *f=live.mesh.faces+i;
+                    CHECK(record(live.mesh.vertices+f->first,f->count));total+=volume(live.mesh.vertices+f->first,f->count);
+                }
+                printf("STRESS %u %u %u %g prior %g closed %d\n",repeat,live.mesh.vertex_count,live.mesh.face_count,-total,previous_volume,closed());
+                /* Room-scale closure is an open defect also observed without
+                 * compaction; report it without claiming this capacity test proves it. */
+                CHECK(-total>previous_volume);previous_volume=-total;
+            }
+            rf_geomod_terrain_close(&terrain);
+            report_closure=0;
+            puts("PASS: six ray-placed crater admissions and increasing signed volume within1MiB; room-scale closure remains diagnostic");
         }
         puts("PASS: original concave template, overlapping cuts, closed edges, volume and324 independent triangle rays");
     }

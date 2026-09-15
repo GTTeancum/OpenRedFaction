@@ -921,3 +921,47 @@ rays,549blocked samples and426cached draws. Actual native and all three PC
 views were inspected: occluded patches are darker, while overall appearance
 remains unfinished. All19disc entries restored and owned emulator exited.
 No GitHub screenshots added.
+
+## Repeated excavation capacity (2026-09-15)
+
+An800frame ordinary-input replay fires all six rockets at the opening. Before
+this change, only four cuts published: the fifth/sixth hit the512face capacity.
+The shared multi-cut emitter now attempts to join neighboring fragments only
+when they share a reversed edge, a material/source-face identity, a common
+plane and affine UV field, and form a convex union accepted by the collision
+face validator. This preserves rock creases and UV seams. Merge scratch reuses
+the existing heap workspace. Public raw storage append behavior is unchanged.
+
+Compaction alone admits five live cuts. The DEV face allocation is now768
+while vertices remain4096 and the total terrain budget stays1MiB. The dependent
+collision overlay remains capped at64KiB. The six-shot PC replay now publishes
+all six cuts with no rejection, resident809796/peak925604bytes including the
+overlay. Existing destruction/movement and three close-view replays pass.
+An independent ray-placed six-cut fixture also checks admission and increasing
+signed cavity volume within1MiB. Existing smaller closed-edge and324 independent
+ray fixtures continue to pass after compaction.
+
+The expanded room-scale fixture DOES NOT pass strict closure. It reports four
+balanced edge contributions where two are expected, first on a1.73568unit edge
+at x=-16. The first cut also failed this check with compaction disabled, so this
+is not evidence of a new merge-only defect. It remains unresolved whether thin
+overlapping fragments or tolerance-level duplicate coverage cause the result.
+The capacity fixture reports CLOSURE_DIAGNOSTIC rather than claiming closure
+success; investigate and resolve it before accepting multi-cut geometry parity.
+
+The first Xbox attempt reset after the initial impact. Its scene_miner compiler
+frame was27484bytes. The enlarged face-ID array was moved to a3072byte heap
+allocation, released during scene cleanup, to recover stack headroom. That
+reset is not itself proof of stack overflow; subsequent native validation is
+required before treating the larger cut history as working on Xbox.
+
+Native follow-up: moving face IDs to heap reduces scene_miner from27484 to
+24412compiler-frame bytes. artifacts/xemu/render-20260915-104714 completes
+800frames and40checks with9024pages free (35.25MiB). All six rockets publish
+cuts, generation7, no rejection; PC/Xbox report809796resident/925604peak
+terrain bytes and matching shadow counters. Actual Xbox frame inspected:
+the opening is visible, but the distant view does not prove edge fidelity.
+The prior reset run104342 timed out, restored its disc and exited before
+this run began. Follow-up also restored all19disc entries and exited its
+owned emulator. No GitHub images added. Duplicate edge coverage remains the
+next geometry issue; do not equate six accepted cuts with closed topology.

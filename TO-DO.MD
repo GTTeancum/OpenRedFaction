@@ -1,6 +1,7 @@
 # Red Faction Xbox / PC - open work
 
 - PRIORITY GeoMod: Match original destruction behavior and appearance; the current faceted crater is a prototype, not an accepted fidelity milestone.
+- GeoMod: Resolve duplicate edge coverage in room-scale closure diagnostics; six-cut admission now works on PC/Xbox, but complete boundary fidelity remains unverified.
 - GeoMod: Refine crater shadows and readability; cached point/cone terrain occlusion works, while full lightmaps, shallow/ice regions, final transforms and larger histories remain open.
 - DEV testbed: Review full weapon animations and add complete room reset; terrain reset and ammo refill are implemented, while campaign progression remains paused.
 - GeoMod: Improve crater shape/readability, add debris and authored surface eligibility; rockets now cut repeated faceted craters with the level-authored interior texture.
@@ -5337,3 +5338,11 @@ Native595frames pass40checks, matching PC2rebuilds/1016rays/549blocked and
 426cached draws, with35.422MiB free. Images inspected; corner shadows remain
 coarse and final destruction appearance is unaccepted. Five destruction and
 three depth PC replays pass. ~49%; current area GeoMod shadows.
+
+GeoMod repeated excavation (2026-09-15): compact compatible coplanar
+fragments and raise live face capacity512->768 inside the same1MiB terrain
+budget. Six rockets now publish six cuts instead of four. Native800frames
+pass40checks with35.25MiB free; frame inspected. Face-ID heap move recovers
+3KiB stack and the follow-up avoids the earlier impact reset. Expanded
+room-scale closure diagnostics expose balanced duplicate edge coverage,
+also present without compaction; resolving that is next. ~49% complete.

@@ -493,7 +493,7 @@ typedef struct scene_stream {
     scene_terrain_light_cache *terrain_light_cache;
     rf_geo_region *terrain_regions;uint32_t terrain_region_count,terrain_default_hardness;
     rf_geometry terrain_geometry;rf_scene_world_geometry terrain_render;
-    uint32_t terrain_ids[512],terrain_fallback,terrain_material,terrain_held;
+    uint32_t *terrain_ids;uint32_t terrain_fallback,terrain_material,terrain_held;
     rf_preview_mesh *mesh;rf_materials *materials;const rf_model_materials *bundle;
     uint32_t world,base,capacity,npc_base,npc_textures;rf_scene_frame_sink sink;void *context;
     uint32_t clutter_base,clutter_textures;
@@ -8450,7 +8450,7 @@ uint32_t rf_scene_geomod[8]; /* enabled,cuts,generation,resident,peak,status,att
 static int scene_terrain_bind(scene_stream *s)
 {
     rf_geomod_terrain_view view;uint32_t i;int status=rf_geomod_terrain_get(s->terrain,&view);if(status)return status;
-    if(view.mesh.face_count>512)return RF_RANGE;
+    if(view.mesh.face_count>768)return RF_RANGE;
     for(i=0;i<view.mesh.face_count;i++)s->terrain_ids[i]=view.mesh.faces[i].source_face==UINT32_MAX?s->terrain_fallback:view.mesh.faces[i].source_face;
     status=rf_geometry_collision_overlay_bind(&s->terrain_collision,view.tree,s->terrain_ids,view.mesh.face_count);if(status)return status;
     rf_scene_geomod[0]=1;rf_scene_geomod[1]=view.cuts;rf_scene_geomod[2]=view.mesh.generation;
@@ -8462,7 +8462,7 @@ static int scene_terrain_lighting(scene_stream *s,const rf_geomod_terrain_view *
     uint32_t i,j,k,count=0,*ids=s->light_overlay_work;rf_vfx_light_source *sources;
     float lo[3],hi[3],ambient[3];unsigned char room[4],weights[63];uint32_t modes[63],n;int status;
     scene_terrain_light_cache *cache=s->terrain_light_cache;
-    if(!s->terrain_colors || !cache || !s->lights || !ids || terrain->mesh.face_count>512 || terrain->mesh.vertex_count>4096 || !terrain->mesh.vertex_count)return RF_RANGE;
+    if(!s->terrain_colors || !cache || !s->lights || !ids || terrain->mesh.face_count>768 || terrain->mesh.vertex_count>4096 || !terrain->mesh.vertex_count)return RF_RANGE;
     sources=(rf_vfx_light_source *)(ids+1100);
     status=rf_geometry_room_ambient(s->geometry,0,room);if(status)return status;
     for(k=0;k<3;k++)ambient[k]=.5f*(room[0]==1?(float)((double)room[k+1]*0.003921568859368563):s->light_ambient[k]);
@@ -8526,6 +8526,7 @@ static int scene_terrain_open(scene_stream *s,const rf_level *level)
         }
         free(payload);if(status)return status;
     }
+    s->terrain_ids=calloc(768,sizeof(*s->terrain_ids));if(!s->terrain_ids)return RF_IO;
     s->terrain_colors=calloc(4096,sizeof(*s->terrain_colors));if(!s->terrain_colors)return RF_IO;
     s->terrain_light_cache=calloc(1,sizeof(*s->terrain_light_cache));if(!s->terrain_light_cache)return RF_IO;
     s->terrain_template=calloc(1,sizeof(*s->terrain_template));if(!s->terrain_template)return RF_IO;
@@ -8552,9 +8553,9 @@ static int scene_terrain_open(scene_stream *s,const rf_level *level)
     }
     if(s->terrain_fallback==UINT32_MAX)return RF_FORMAT;
     source=(rf_geomod_mesh_view){vertices,faces,24,6,0};generated.face_flags=256;
-    status=rf_geomod_terrain_open(&source,filters,&generated,1,4096,512,1024*1024,&s->terrain);if(status)return status;
+    status=rf_geomod_terrain_open(&source,filters,&generated,1,4096,768,1024*1024,&s->terrain);if(status)return status;
     status=rf_geomod_terrain_set_mapping(s->terrain,s->terrain_texture_width,s->terrain_texture_height);if(status)return status;
-    status=rf_geometry_collision_overlay_open(s->collision,0,512,65536,&s->terrain_collision);if(status)return status;
+    status=rf_geometry_collision_overlay_open(s->collision,0,768,65536,&s->terrain_collision);if(status)return status;
     status=scene_terrain_bind(s);if(status)return status;
     s->collision=&s->terrain_collision.world;
     /* A borrowed draw view excludes exactly the replaced outer-room faces.
@@ -12076,7 +12077,7 @@ done:
     rf_level_navigation_workspace_close(&campaign_navigation_workspace);
     rf_level_owned_navigation_close(&campaign_navigation);
     free(campaign_waypoints);campaign_waypoints=NULL;campaign_waypoint_bytes=0;
-    rf_geometry_collision_overlay_close(&stream.terrain_collision);rf_geomod_terrain_close(&stream.terrain);free(stream.terrain_template);free(stream.terrain_colors);free(stream.terrain_regions);free(stream.terrain_light_cache);
+    rf_geometry_collision_overlay_close(&stream.terrain_collision);rf_geomod_terrain_close(&stream.terrain);free(stream.terrain_template);free(stream.terrain_colors);free(stream.terrain_regions);free(stream.terrain_light_cache);free(stream.terrain_ids);
     free(stream.surface_indices);free(states);if(motions_opened)rf_vpp_close(&motions);
     free(vertices);free(items);rf_preview_close(&actor);rf_model_materials_close(&bundle);
     rf_vpp_close(&archive);return status;
