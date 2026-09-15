@@ -72,4 +72,25 @@ typedef struct rf_geomod_cut_work {
  * cutter and interior source_face is UINT32_MAX. Work must not alias inputs. */
 int rf_geomod_storage_prepare_convex_cut(rf_geomod_storage *storage,
     const rf_geomod_mesh_view *cutter,rf_geomod_cut_work *work);
+/* Bounded scratch for rebuilding original convex terrain minus a union of
+ * cutters. Retain on heap and include sizeof(*work) in the Xbox memory budget. */
+#define RF_GEOMOD_CUT_LIMIT 8
+#define RF_GEOMOD_WORK_VERTICES 4096
+#define RF_GEOMOD_WORK_FRAGMENTS 512
+typedef struct rf_geomod_multi_work {
+    rf_geomod_cut_work split;
+    rf_geomod_vertex vertices[2][RF_GEOMOD_WORK_VERTICES];
+    rf_geomod_fragment fragments[2][RF_GEOMOD_WORK_FRAGMENTS];
+    float source_planes[32][4],cut_planes[RF_GEOMOD_CUT_LIMIT][32][4];
+} rf_geomod_multi_work;
+/* Rebuild from immutable original data, never from a concave working result.
+ * The caller supplies the COMPLETE ordered cutter history (0..8), including
+ * prior committed cuts. Original and cutters must be closed outward convex
+ * meshes as above. Same-facing coincident interiors belong to the earliest
+ * cutter; internal faces between touching cutters are removed. Success leaves
+ * an uncommitted replacement; overflow/invalid data preserves the live bank.
+ * Zero cutters prepares the original. No allocation or retained input pointers.
+ * Work and cutter inputs must not alias storage or each other. */
+int rf_geomod_storage_prepare_cuts(rf_geomod_storage *storage,
+    const rf_geomod_mesh_view *cutters,uint32_t count,rf_geomod_multi_work *work);
 #endif

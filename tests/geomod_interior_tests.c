@@ -53,10 +53,10 @@ static int closed(void)
             for(i=0;i<3;i++)along+=(surface[v].position[i]-a[i])*d[i];
             along/=len;
             for(i=0;i<3;i++){double x=surface[v].position[i]-a[i]-along*d[i];error+=x*x;}
-            if(along>1e-8 && along<1-1e-8 && error<1e-12)t[n++]=along;
+            if(along>1e-6/sqrt(len) && along<1-1e-6/sqrt(len) && error<1e-12)t[n++]=along;
         }
         for(i=1;i<n;i++){double value=t[i];j=i;while(j && t[j-1]>value){t[j]=t[j-1];j--;}t[j]=value;}
-        for(j=1;j<n;j++)if(t[j]-t[j-1]>1e-8) {
+        for(j=1;j<n;j++)if((t[j]-t[j-1])*sqrt(len)>1e-6) {
             double mid[3];int matches=0,balance=0;
             for(i=0;i<3;i++)mid[i]=a[i]+d[i]*(t[j]+t[j-1])*.5;
             for(q=0;q<polygon_count;q++)for(f=0;f<polygons[q].count;f++) {
@@ -145,5 +145,96 @@ int main(void)
         CHECK(rf_geomod_storage_pending(small,&pending)==RF_RANGE);
         rf_geomod_storage_close(&small);rf_geomod_storage_close(&storage);
     }
-    puts("PASS: tunnel/boundary volumes, geometric edge closure, interior winding and rollback");return 0;
+    {
+        static rf_geomod_multi_work work;
+        rf_geomod_vertex other_vertices[6][4];rf_geomod_face sf[6],cf[2][6];
+        rf_geomod_mesh_view src,history[2],pending,live;rf_geomod_storage *s=NULL,*small=NULL;
+        /* Crossed tunnels; identical, adjacent, separated and nested cutters;
+         * partial same-plane overlap; whole-source removal; external contact. */
+        const float lows[][3]={{-1,-3,-1},{-1,-1,-3},{1,-1,-3},{1.25f,-1,-3},{-.5f,-.5f,-3},{0,-1,-3},{-3,-3,-3},{2,-1,-3}};
+        const float highs[][3]={{1,3,1},{1,1,3},{2,1,3},{1.75f,1,3},{.5f,.5f,3},{1.5f,1,3},{3,3,3},{3,1,3}};
+        const double expected[]={40,48,40,44,48,44,0,48};unsigned c,order,repeat;
+        box(cut_lo,cut_hi,cutter,cut_faces);
+        for(i=0;i<6;i++) {
+            sf[i]=(rf_geomod_face){i*4,4,100+i,i};
+            cf[0][i]=(rf_geomod_face){i*4,4,200+i,i};
+            cf[1][i]=(rf_geomod_face){i*4,4,300+i,i};
+        }
+        src=(rf_geomod_mesh_view){faces[0],sf,24,6,0};
+        CHECK(!rf_geomod_storage_open(&src,2048,128,100000,&s));
+        for(c=0;c<sizeof(expected)/sizeof(*expected);c++)for(order=0;order<2;order++) {
+            box(lows[c],highs[c],cutter,other_vertices);
+            history[order]=(rf_geomod_mesh_view){cut_faces[0],cf[0],24,6,0};
+            history[order^1]=(rf_geomod_mesh_view){other_vertices[0],cf[1],24,6,0};
+            CHECK(!rf_geomod_storage_reset(s));
+            CHECK(!rf_geomod_storage_prepare_cuts(s,history,1,&work));CHECK(!rf_geomod_storage_commit(s));
+            for(repeat=0;repeat<2;repeat++) {
+                CHECK(!rf_geomod_storage_view(s,&live));
+                CHECK(!rf_geomod_storage_prepare_cuts(s,history,2,&work));
+                CHECK(!rf_geomod_storage_pending(s,&pending));
+                CHECK(pending.generation==live.generation+1);
+                result=0;surface_count=polygon_count=0;
+                for(i=0;i<pending.face_count;i++) {
+                    const rf_geomod_face *f=pending.faces+i;
+                    result+=volume(pending.vertices+f->first,f->count);
+                    CHECK(record(pending.vertices+f->first,f->count));
+                    if(f->source_face!=UINT32_MAX)CHECK(f->material==100+f->source_face);
+                    else {
+                        CHECK((f->material>=200 && f->material<206) || (f->material>=300 && f->material<306));
+                        if(c==1)CHECK(f->material/100==(order?3u:2u)); /* Earlier cap owns duplicates. */
+                    }
+                }
+                if(fabs(result-expected[c])>1e-5 || !closed()) {
+                    fprintf(stderr,"history case%u order%u repeat%u volume %.9g expected %.9g\n",c,order,repeat,result,expected[c]);return 1;
+                }
+                CHECK(!rf_geomod_storage_commit(s));
+            }
+        }
+        CHECK(!rf_geomod_storage_prepare_cuts(s,NULL,0,&work));
+        CHECK(!rf_geomod_storage_commit(s));CHECK(!rf_geomod_storage_view(s,&live));
+        CHECK(live.face_count==6 && live.vertex_count==24 && !memcmp(live.vertices,faces,sizeof(faces)));
+        history[1].face_count=33;
+        CHECK(rf_geomod_storage_prepare_cuts(s,history,2,&work)==RF_RANGE);
+        CHECK(rf_geomod_storage_pending(s,&pending)==RF_RANGE);
+        CHECK(!rf_geomod_storage_view(s,&pending) && pending.generation==live.generation);
+        CHECK(rf_geomod_storage_prepare_cuts(s,history,9,&work)==RF_RANGE);
+        CHECK(!rf_geomod_storage_open(&src,24,6,4096,&small));
+        history[0]=(rf_geomod_mesh_view){cut_faces[0],cf[0],24,6,0};
+        CHECK(rf_geomod_storage_prepare_cuts(small,history,1,&work)==RF_RANGE);
+        CHECK(!rf_geomod_storage_view(small,&live) && live.generation==1 && live.face_count==6 && !memcmp(live.vertices,faces,sizeof(faces)));
+        CHECK(rf_geomod_storage_pending(small,&pending)==RF_RANGE);
+        rf_geomod_storage_close(&small);rf_geomod_storage_close(&s);
+        {
+            rf_geomod_vertex third[6][4];rf_geomod_mesh_view many[8];
+            const float l[3]={-3,-1,-1},h[3]={3,1,1};unsigned rotation,k;
+            box(lows[0],highs[0],cutter,other_vertices);box(l,h,cutter,third);
+            many[0]=(rf_geomod_mesh_view){cut_faces[0],cf[0],24,6,0};
+            many[1]=(rf_geomod_mesh_view){other_vertices[0],cf[1],24,6,0};
+            many[2]=(rf_geomod_mesh_view){third[0],cf[1],24,6,0};
+            for(i=3;i<8;i++)many[i]=many[i%3];
+            /* Three intersecting tunnels and five duplicate cutters. Rotate
+             * the entire construction to exercise non-axis-aligned planes. */
+            for(rotation=0;rotation<2;rotation++) {
+                if(rotation)for(k=0;k<4;k++)for(i=0;i<6;i++)for(j=0;j<4;j++) {
+                    rf_geomod_vertex *v=k==0?&faces[i][j]:k==1?&cut_faces[i][j]:k==2?&other_vertices[i][j]:&third[i][j];
+                    float x=v->position[0],y=v->position[1];
+                    v->position[0]=.8f*x-.6f*y;v->position[1]=.6f*x+.8f*y;
+                }
+                CHECK(!rf_geomod_storage_open(&src,2048,128,100000,&s));
+                CHECK(!rf_geomod_storage_prepare_cuts(s,many,8,&work));
+                CHECK(!rf_geomod_storage_pending(s,&pending));
+                result=0;surface_count=polygon_count=0;
+                for(i=0;i<pending.face_count;i++) {
+                    const rf_geomod_face *f=pending.faces+i;
+                    result+=volume(pending.vertices+f->first,f->count);
+                    CHECK(record(pending.vertices+f->first,f->count));
+                }
+                if(fabs(result-32)>=1e-4 || !closed()) {
+                    fprintf(stderr,"eight cuts rotation%u volume %.9g faces%u\n",rotation,result,pending.face_count);return 1;
+                }
+                rf_geomod_storage_close(&s);
+            }
+        }
+    }
+    puts("PASS: repeated/coplanar cuts, tunnel volumes, geometric edge closure, materials and rollback");return 0;
 }

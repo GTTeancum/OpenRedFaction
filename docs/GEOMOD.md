@@ -172,3 +172,39 @@ Closed input meshes remain a caller requirement; the plane checks alone are
 not a universal manifold validator. Next: retain cut history or equivalent
 non-convex solid representation, then use pending mesh views for shared
 renderer/collision preparation and live developer-room cuts.
+
+
+## Bounded repeated-cut preparation
+
+rf_geomod_storage_prepare_cuts rebuilds the immutable original convex solid
+minus the union of a complete caller-supplied history of up to8 convex cutters.
+The working result may be non-convex: it is never reclassified as a convex
+source. Original surfaces are fragmented by every cutter. Each interior face
+is clipped to the original and then excluded by the other cutters. Touching
+cutters lose their internal shared wall; same-facing coincident caps belong
+to the earliest cutter, including its material. Source surface IDs survive.
+Zero cutters prepares the original. History is caller-owned and must include
+all retained cuts; this function does not append to or persist a history.
+
+The caller retains rf_geomod_multi_work on the heap and accounts for its
+sizeof in the stock64MiB budget. It contains two4096-vertex/512-fragment banks,
+a single-face splitting workspace and nine32-plane arrays. There is no
+cut-time allocation. Inputs are validated before beginning an edit; scratch
+or mesh-capacity overflow aborts the pending edit and preserves live data.
+Commit remains explicit, pending shared renderer/collision preparation.
+
+PC tests pass crossed, identical, adjacent, separated, nested, partially
+coplanar, enclosing and externally touching cutters in both orders; repeating
+a history preserves the expected volume and geometric edge closure. Tests
+also verify original-data restoration, cap material ownership, invalid later
+history, the8-cutter bound and undersized storage rollback. Three intersecting
+tunnels plus five duplicate cutters leave volume32 out of an original64,
+both axis-aligned and after a common rotation. The closure checker uses a
+consistent1e-6 world-distance tolerance for float endpoint subdivisions;
+removing a face still fails its negative control. Prior split/storage tests
+pass and NXDK builds the XBE/XISO. No native runtime cut has been exercised.
+
+This supports repeated cuts of a convex original, not arbitrary imported
+concave world geometry. The developer room still needs a bounded terrain
+owner, history admission/region rules, shared render and collision publication,
+weapon impact integration and reset before usable live holes can be claimed.

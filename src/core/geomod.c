@@ -50,9 +50,9 @@ int rf_geomod_polygon_split(const rf_geomod_vertex *vertices,uint32_t count,
     *front_count=nf;*back_count=nb;return RF_OK;
 }
 
-int rf_geomod_polygon_subtract(const rf_geomod_vertex *vertices,uint32_t count,
+static int polygon_subtract_policy(const rf_geomod_vertex *vertices,uint32_t count,
     const float (*planes)[4],uint32_t plane_count,rf_geomod_vertex *out,uint32_t capacity,
-    rf_geomod_fragment *fragments,uint32_t fragment_capacity,uint32_t *vertex_count,uint32_t *fragment_count)
+    rf_geomod_fragment *fragments,uint32_t fragment_capacity,uint32_t *vertex_count,uint32_t *fragment_count,int boundary_policy)
 {
     rf_geomod_vertex current[64],front[64],back[64];
     double normal[3]={0},normal_length=0;
@@ -90,9 +90,12 @@ int rf_geomod_polygon_subtract(const rf_geomod_vertex *vertices,uint32_t count,
                     if(fabs(d)>1e-5){coplanar=0;break;}
                 }
                 for(k=0;k<3;k++)alignment+=normal[k]*planes[i][k];
-                /* Same-facing coincident boundaries are inside the removal;
-                 * opposite-facing boundaries merely touch and must survive. */
-                if(coplanar && alignment>0){nf=0;nb=left;memcpy(back,current,left*sizeof(*back));}
+                /* Source surfaces keep opposite-facing contact. Union caps
+                 * remove internal contact and assign coincident outer caps
+                 * to one owner: policy1 removes both, policy2 keeps same-facing. */
+                if(coplanar && (boundary_policy==1 || (boundary_policy==2?alignment<0:alignment>0))) {
+                    nf=0;nb=left;memcpy(back,current,left*sizeof(*back));
+                }
             }
             if(nf) {
                 if(pass) {
@@ -109,6 +112,14 @@ int rf_geomod_polygon_subtract(const rf_geomod_vertex *vertices,uint32_t count,
         }
     }
     *vertex_count=required;*fragment_count=required_pieces;return RF_OK;
+}
+
+int rf_geomod_polygon_subtract(const rf_geomod_vertex *vertices,uint32_t count,
+    const float (*planes)[4],uint32_t plane_count,rf_geomod_vertex *out,uint32_t capacity,
+    rf_geomod_fragment *fragments,uint32_t fragment_capacity,uint32_t *vertex_count,uint32_t *fragment_count)
+{
+    return polygon_subtract_policy(vertices,count,planes,plane_count,out,capacity,
+        fragments,fragment_capacity,vertex_count,fragment_count,0);
 }
 
 int rf_geomod_interior_face(const rf_geomod_vertex *vertices,uint32_t count,
@@ -277,6 +288,80 @@ int rf_geomod_storage_prepare_convex_cut(rf_geomod_storage *s,
         const rf_geomod_face *face=cutter->faces+i;
         status=rf_geomod_interior_face(cutter->vertices+face->first,face->count,source_planes,source.face_count,work->vertices,64*32,&n);if(status)goto failed;
         if(n){status=rf_geomod_storage_append(s,work->vertices,n,face->material,UINT32_MAX);if(status)goto failed;}
+    }
+    return RF_OK;
+failed:
+    rf_geomod_storage_abort(s);return status;
+}
+
+static void reverse_vertices(rf_geomod_vertex *vertices,uint32_t count)
+{
+    uint32_t i;for(i=0;i<count/2;i++) {
+        rf_geomod_vertex v=vertices[i];vertices[i]=vertices[count-1-i];vertices[count-1-i]=v;
+    }
+}
+/* Process one outward face through the cutter union. owner==UINT32_MAX is
+ * original terrain; otherwise this is an outward cutter face, reversed only
+ * after all exclusions, so the boundary policy sees the cutter's true normal. */
+static int subtract_history_face(rf_geomod_storage *s,const rf_geomod_vertex *vertices,
+    uint32_t count,uint32_t material,uint32_t source_face,uint32_t owner,
+    const rf_geomod_mesh_view *cutters,uint32_t cutter_count,rf_geomod_multi_work *work)
+{
+    uint32_t bank=0,pieces=1,c,i,j;int status;
+    memcpy(work->vertices[0],vertices,count*sizeof(*vertices));
+    work->fragments[0][0]=(rf_geomod_fragment){0,count};
+    for(c=0;c<cutter_count && pieces;c++) {
+        uint32_t next=bank^1,total=0,next_pieces=0;
+        int policy=owner==UINT32_MAX?0:c<owner?1:2;
+        if(c==owner)continue;
+        for(i=0;i<pieces;i++) {
+            const rf_geomod_fragment *face=work->fragments[bank]+i;uint32_t n,nf;
+            status=polygon_subtract_policy(work->vertices[bank]+face->first,face->count,
+                work->cut_planes[c],cutters[c].face_count,work->split.vertices,64*32,
+                work->split.fragments,32,&n,&nf,policy);if(status)return status;
+            if(n>RF_GEOMOD_WORK_VERTICES-total || nf>RF_GEOMOD_WORK_FRAGMENTS-next_pieces)return RF_RANGE;
+            memcpy(work->vertices[next]+total,work->split.vertices,n*sizeof(*vertices));
+            for(j=0;j<nf;j++) {
+                rf_geomod_fragment f=work->split.fragments[j];f.first+=total;
+                work->fragments[next][next_pieces++]=f;
+            }
+            total+=n;
+        }
+        bank=next;pieces=next_pieces;
+    }
+    for(i=0;i<pieces;i++) {
+        const rf_geomod_fragment *f=work->fragments[bank]+i;
+        rf_geomod_vertex *v=work->vertices[bank]+f->first;
+        if(owner!=UINT32_MAX)reverse_vertices(v,f->count);
+        status=rf_geomod_storage_append(s,v,f->count,material,source_face);if(status)return status;
+    }
+    return RF_OK;
+}
+
+int rf_geomod_storage_prepare_cuts(rf_geomod_storage *s,
+    const rf_geomod_mesh_view *cutters,uint32_t count,rf_geomod_multi_work *work)
+{
+    rf_geomod_mesh_view source;uint32_t i,c,n;int status;
+    if(!s || !work || s->editing || count>RF_GEOMOD_CUT_LIMIT || (count && !cutters))return RF_RANGE;
+    source=(rf_geomod_mesh_view){s->vertices[2],s->faces[2],s->nv[2],s->nf[2],0};
+    status=convex_mesh_planes(&source,work->source_planes);if(status)return status;
+    /* Validate the entire history before creating an edit, including cutters
+     * obscured by previous cuts. Failed input must not silently change history. */
+    for(c=0;c<count;c++){status=convex_mesh_planes(cutters+c,work->cut_planes[c]);if(status)return status;}
+    status=rf_geomod_storage_begin(s);if(status)return status;
+    for(i=0;i<source.face_count;i++) {
+        const rf_geomod_face *f=source.faces+i;
+        status=subtract_history_face(s,source.vertices+f->first,f->count,f->material,
+            f->source_face,UINT32_MAX,cutters,count,work);if(status)goto failed;
+    }
+    for(c=0;c<count;c++)for(i=0;i<cutters[c].face_count;i++) {
+        const rf_geomod_face *f=cutters[c].faces+i;
+        status=rf_geomod_interior_face(cutters[c].vertices+f->first,f->count,
+            work->source_planes,source.face_count,work->split.vertices,64*32,&n);if(status)goto failed;
+        if(!n)continue;
+        reverse_vertices(work->split.vertices,n);
+        status=subtract_history_face(s,work->split.vertices,n,f->material,UINT32_MAX,
+            c,cutters,count,work);if(status)goto failed;
     }
     return RF_OK;
 failed:
