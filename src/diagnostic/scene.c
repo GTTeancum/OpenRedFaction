@@ -8131,8 +8131,21 @@ static int campaign_enemy_tick(scene_stream *stream,uint32_t frame,const float p
         if(owner->combat_scripted && owner->combat_target!=campaign_player_object.handle) {
             for(j=0;j<campaign_npc_body_count;j++)if(campaign_npc_bodies[j].registration.view &&
                 campaign_npc_bodies[j].registration.handle==owner->combat_target){victim=campaign_npc_bodies+j;victim_slot=j;break;}
-            if(!victim || victim==owner || victim->damage.effects.health<=0 || (victim->object_flags&(2|0x4000))){campaign_pursuit_stop(owner);continue;}
-            target_eye=victim->eye_position;
+            /* Practical campaign behavior: finished targets release the order back to
+             * ordinary affiliation/sight checks. Hidden living targets may return. */
+            if(!victim || victim==owner || victim->damage.effects.health<=0) {
+                if(owner->registration.handle==rf_scene_script_attack[11]) {
+                    float health=victim?victim->damage.effects.health:0;
+                    rf_scene_script_attack[4]=0;memcpy(rf_scene_script_attack+8,&health,4);
+                }
+                campaign_pursuit_stop(owner);
+                owner->combat_scripted=owner->combat_target=owner->combat_alert=0;
+                owner->combat_due=owner->combat_navigation_due=0;
+                victim=NULL;victim_slot=UINT32_MAX;
+            } else {
+                if(victim->object_flags&(2|0x4000)){campaign_pursuit_stop(owner);continue;}
+                target_eye=victim->eye_position;
+            }
         }
         for(j=0;j<3;j++){delta[j]=target_eye[j]-owner->eye_position[j];distance+=delta[j]*delta[j];}
         if(!owner->combat_alert) {

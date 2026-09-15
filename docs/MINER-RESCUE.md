@@ -192,3 +192,23 @@ disc flags after completion. Its native framebuffer was inspected: the scene,
 opened gate area and first-person weapon render; the final camera does not
 show the distant guard encounter, so the firing/death claim here rests on the
 explicit state comparisons rather than a visual firing inspection.
+
+## Completed attack targets (2026-09-14)
+
+The shared enemy tick previously stopped pursuit but retained scripted orders
+forever when the target died or disappeared. It now clears the order, alert,
+fire deadline and navigation deadline, then applies ordinary affiliation and
+sight checks. Hidden living targets retain their orders for a later UnHide.
+This is practical campaign behavior, not a claim of exact original AI parity.
+The attack diagnostic now records inactive state and the final target health
+even when another guard delivered the killing hit.
+
+The local approach regression requires the watched order to become inactive
+after When_Dead8611. Both negative Use controls still pass. A longer exploratory
+walk remains outside guard sight; reacquisition and firing on the player after
+this encounter are still unverified. PC and NXDK builds succeed.
+
+Stock64MiB XEMU run `render-20260914-195635` passes1,200 frames and all25
+selected PC/native comparisons, including the inactive Attack order and final
+target health. Free memory remains4,410 pages (17.227MiB). The harness closed
+its owned process; no Red Faction XEMU session remains.

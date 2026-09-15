@@ -1,5 +1,7 @@
 # Red Faction Xbox / PC - open work
 
+- AI: Verify guards acquire the player after completed scripted attacks; dead-target orders now release to normal sight checks.
+
 First-pass policy: playable campaign systems take priority over exact1:1 RE.
 Use practical shared implementations, verify gameplay and stock64MiB operation,
 and defer visual polish. Focus: movement, combat/damage, AI, mission events,

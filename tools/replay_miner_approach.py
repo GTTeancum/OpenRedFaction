@@ -24,6 +24,7 @@ for name,use,walk in [('use',1,True),('no-use',0,True),('out-of-range',1,False)]
     if use and walk:
         assert door[1:3]==[1,8512] and attack[1:3]==[8496,8490] and attack[5]>0
         assert reach[3]>0 and any(l.startswith('DEATH_WATCH 8611 1 ') for l in run.stdout.splitlines())
+        assert attack[4]==0 and struct.unpack('<f',struct.pack('<I',attack[8]))[0]<=0, 'Dead target retained its scripted Attack order'
     else:
         assert door[:2]==[0,0] and attack==[0]*12 and reach[3]==0
     rows.append(dict(case=name,door=door,attack=attack,use_reach=reach));print(rows[-1],flush=True)
