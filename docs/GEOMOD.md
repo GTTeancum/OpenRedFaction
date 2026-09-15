@@ -1985,3 +1985,29 @@ No performance improvement is claimed from instrumentation alone.
 The native framebuffer was inspected: the dark mound-like appearance remains
 unaccepted. PID 49500 exited and all 19 staged disc entries were restored.
 No GitHub image was uploaded. Estimate remains ~49%; focus is GeoMod fidelity.
+
+Bounded edge-query indexing (2026-09-15): Render-only subdivision now builds
+three coordinate-sorted arrays of physical vertex indices, then binary-searches
+each edge bounding box and scans the smallest candidate range. The original
+double-precision predicates and UV interpolation are unchanged. Equal-fraction
+candidates explicitly prefer the lowest physical index, preserving the prior
+linear traversal tie rule. Physical CSG and collision meshes are unchanged.
+The three uint16 index arrays add 24576 bytes; tracked draw ownership is
+308244 bytes, below the 320KiB bound. Input remains capped at 4096 vertices;
+no allocations occur per edge or per cut.
+PC eight-cut final mesh (418336 bytes) and image (921615 bytes) match the
+pre-index build byte-for-byte. The paired depth check retains 19487 recessed
+solid pixels, zero substantially nearer pixels and zero new uncovered pixels.
+Eight-cut stress and the three focused geometry/preview CTests pass.
+
+Native validation: artifacts/xemu/render-20260915-143015 passes 46 checks
+through 1500 frames/eight cuts. Bind times are 4,20,50,87,105,210,287,310ms;
+cut times are 15,40,83,132,159,221,288,282ms. Compared with the preceding
+141949 run, eighth-blast binding falls from 773 to 310ms (about 60 percent);
+the four measured edit stages sum to 599ms versus 1071ms (about 44 percent
+less). This is a native replay comparison subject to host scheduling, not
+a claim of eliminated stalls or an overall FPS gain.
+The inspected native framebuffer is pixel-identical to 141949. All 19 staged
+disc entries were restored; PID 19572 exited. Available memory is 8593 pages
+(33.57MiB) on the stock 64MiB target. Crater appearance and remaining edit
+stalls remain open; this optimization does not constitute visual acceptance.

@@ -508,6 +508,7 @@ enum { SCENE_TERRAIN_DRAW_VERTICES=8192, SCENE_TERRAIN_DRAW_BUDGET=320*1024 };
 typedef struct scene_terrain_draw_mesh {
     rf_geomod_vertex vertices[SCENE_TERRAIN_DRAW_VERTICES];rf_geomod_face faces[768];rf_collision_face bound[768];
     rf_geomod_mesh_view view;
+    uint16_t sorted[3][4096]; /* Coordinate indices, bounded and reused per edit. */
 } scene_terrain_draw_mesh;
 uint32_t rf_scene_terrain_draw[5]; /* source vertices,render vertices,insertions,owned bytes,generation */
 typedef struct scene_terrain_noise_map {
@@ -8536,8 +8537,20 @@ static int scene_terrain_subdivide(scene_stream *s,const rf_geomod_terrain_view 
 {
     scene_terrain_draw_mesh *draw=s->terrain_draw;const rf_geomod_mesh_view *mesh=&source->mesh;
     uint32_t f,e,i,k,n=mesh->vertex_count,inserted=0;
-    if(!draw || n>SCENE_TERRAIN_DRAW_VERTICES || mesh->face_count>768 ||
+    if(!draw || n>4096 || mesh->face_count>768 ||
        sizeof(*draw)+(SCENE_TERRAIN_DRAW_VERTICES-4096)*sizeof(*s->terrain_colors)>SCENE_TERRAIN_DRAW_BUDGET)return RF_RANGE;
+    for(k=0;k<3;k++) {
+        uint32_t gap;
+        for(i=0;i<n;i++)draw->sorted[k][i]=(uint16_t)i;
+        for(gap=n/2;gap;gap/=2)for(i=gap;i<n;i++) {
+            uint16_t item=draw->sorted[k][i];uint32_t j=i;
+            float value=mesh->vertices[item].position[k];
+            while(j>=gap && mesh->vertices[draw->sorted[k][j-gap]].position[k]>value) {
+                draw->sorted[k][j]=draw->sorted[k][j-gap];j-=gap;
+            }
+            draw->sorted[k][j]=item;
+        }
+    }
     memcpy(draw->vertices,mesh->vertices,n*sizeof(*draw->vertices));
     memcpy(draw->faces,mesh->faces,mesh->face_count*sizeof(*draw->faces));
     memcpy(draw->bound,source->faces,mesh->face_count*sizeof(*draw->bound));
@@ -8549,17 +8562,29 @@ static int scene_terrain_subdivide(scene_stream *s,const rf_geomod_terrain_view 
         for(k=0;k<3;k++){delta[k]=(double)b.position[k]-a.position[k];length+=delta[k]*delta[k];
             lo[k]=fmin(a.position[k],b.position[k])-1e-6;hi[k]=fmax(a.position[k],b.position[k])+1e-6;}
         if(length<=4e-12)continue;
-        for(i=0;i<mesh->vertex_count;i++) {
-            const float *v=mesh->vertices[i].position;double fraction=0,error=0,near_a=0,near_b=0;
+        /* Select the tightest coordinate range, then retain the exact tests. */
+        {uint32_t axis=0,start=0,count=mesh->vertex_count,q;
+        for(k=0;k<3;k++) {
+            uint32_t left=0,right=mesh->vertex_count,begin;
+            while(left<right){uint32_t mid=left+(right-left)/2;
+                if(mesh->vertices[draw->sorted[k][mid]].position[k]<lo[k])left=mid+1;else right=mid;}
+            begin=left;right=mesh->vertex_count;
+            while(left<right){uint32_t mid=left+(right-left)/2;
+                if(mesh->vertices[draw->sorted[k][mid]].position[k]<=hi[k])left=mid+1;else right=mid;}
+            if(left-begin<count){axis=k;start=begin;count=left-begin;}
+        }
+        for(q=start;q<start+count;q++) {
+            const float *v;double fraction=0,error=0,near_a=0,near_b=0;
+            i=draw->sorted[axis][q];v=mesh->vertices[i].position;
             if(v[0]<lo[0] || v[0]>hi[0] || v[1]<lo[1] || v[1]>hi[1] || v[2]<lo[2] || v[2]>hi[2])continue;
             for(k=0;k<3;k++) {
                 double da=(double)v[k]-a.position[k],db=(double)v[k]-b.position[k];
                 fraction+=da*delta[k];near_a+=da*da;near_b+=db*db;
             }
-            fraction/=length;if(fraction<=0 || fraction>=best || near_a<=1e-12 || near_b<=1e-12)continue;
+            fraction/=length;if(fraction<=0 || fraction>=1 || fraction>best || (fraction==best && i>=selected) || near_a<=1e-12 || near_b<=1e-12)continue;
             for(k=0;k<3;k++){double d=(double)v[k]-(a.position[k]+fraction*delta[k]);error+=d*d;}
             if(error<=1e-12){best=fraction;selected=i;}
-        }
+        }}
         if(selected!=UINT32_MAX) {
             rf_geomod_vertex added=mesh->vertices[selected];uint32_t at=draw->faces[f].first+e+1;
             if(n==SCENE_TERRAIN_DRAW_VERTICES || draw->faces[f].count==64)return RF_RANGE;

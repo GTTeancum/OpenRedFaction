@@ -2,7 +2,7 @@
 
 - PRIORITY GeoMod: Match original destruction shape, exposed materials, lighting, debris, collision and repeated blasts before returning to other systems; a visible hole alone is not acceptance.
 - GeoMod: Resolve the remaining world-mesh closure issue and dark crater appearance; render-only subdivision now closes the17-pixel seam regression without changing collision geometry.
-- GeoMod: Reduce late-history edit stalls; native profiling isolates 773ms in render-mesh/collision binding versus 291ms in the eighth terrain cut, with crater fidelity still required.
+- GeoMod: Reduce remaining edit stalls; indexed edge searches cut eighth-blast binding from 773ms to 310ms, but the combined measured edit still takes about 600ms.
 - GeoMod: Diagnose the 425 PC/Xbox capture pixels differing by more than one color level; the shared dark crater appearance remains the main fidelity issue.
 - GeoMod lighting: Refine the now-live persistent grayscale lightmaps; original density classes, mapping provenance, global RNG order and later relighting remain unverified.
 - DEV testbed: Review full weapon animations and add complete room reset; terrain reset and ammo refill are implemented, while campaign progression remains paused.
