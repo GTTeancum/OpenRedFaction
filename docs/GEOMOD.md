@@ -2214,3 +2214,26 @@ The evidence favors investigating shared intersection identity/plane
 provenance across successive operations; this remains a hypothesis, not a
 proven repair. Incident face constraints and bounded Xbox storage must be
 preserved. Strict closure remains open; estimate ~49 percent.
+
+Intersection provenance trace (2026-09-15): A synchronous optional observer
+now records each successful split intersection: plane4, canonical edge
+endpoints3+3, and rounded result3. No clipping values are changed. Observer
+registration must serialize with clipping and context lifetime is caller-owned.
+The interior fixture enables it only for the first cached room-scale cut
+when RF_GEOMOD_INTERSECTION_TRACE names an output file, then unregisters it.
+Binary format is RFI1 followed by13 little-endian float32 values per event.
+artifacts/geomod-intersections.bin contains338 events. Running
+tools/analyze_geomod_intersections.py with --point -16 -7.36841679 2.93492723
+finds three unique constructions (two/two/four occurrences). Their Z values
+are2.9349286556243896,2.934927225112915,2.9349281787872314; X is-16 and Y
+is-7.368416786193848 throughout. Two arise on different cutter planes
+from already clipped wall edges; the third clips a cutter edge against X=-16.
+The three observed planes intersect at approximately
+(-16,-7.368416394851663,2.9349285303154686), rounding to
+(-16,-7.3684163093566895,2.9349284172058105). This offline fit is a candidate
+shared corner, not proof that all incident constraints permit replacement.
+The trace identifies divergent construction paths; production repair must
+retain complete plane/edge provenance rather than infer identity by proximity.
+Three focused CTests and NXDK build pass. No geometric or visual change is
+claimed, and no new native replay was needed for this dormant observer.
+Estimate ~49 percent; current focus remains shared GeoMod boundaries.

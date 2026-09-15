@@ -34,6 +34,12 @@ static rf_geomod_vertex surface[4096];
 static rf_geomod_fragment polygons[768];
 static unsigned surface_count,polygon_count;
 static unsigned report_closure;
+static void trace_intersection(void *context,const float plane[4],const float a[3],const float b[3],const float result[3])
+{
+    FILE *file=context;float row[13];
+    memcpy(row,plane,16);memcpy(row+4,a,12);memcpy(row+7,b,12);memcpy(row+10,result,12);
+    if(fwrite(row,sizeof(row),1,file)!=1){fprintf(stderr,"intersection trace write failed\n");exit(1);}
+}
 static int record(const rf_geomod_vertex *v,unsigned n)
 {
     if(surface_count+n>4096 || polygon_count==768)return 0;
@@ -1000,7 +1006,13 @@ int main(int argc,char **argv)
                 CHECK(!rf_collision_thin_tree(live.tree->nodes,live.tree->node_count,live.tree->faces,live.tree->face_count,
                     0,start,delta,1,live.tree->stack,live.tree->node_capacity,&hit,&matched) && matched);
                 CHECK(!rf_geomod_random_basis(&random,basis));
-                CHECK(!rf_geomod_terrain_cut_template(terrain,&shape,hit.hit.point,basis,3.75f,77));
+                {
+                    FILE *trace=NULL;const char *path=getenv("RF_GEOMOD_INTERSECTION_TRACE");
+                    if(!repeat && path){trace=fopen(path,"wb");CHECK(trace);CHECK(fwrite("RFI1",4,1,trace)==1);rf_geomod_observe_intersections(trace_intersection,trace);}
+                    CHECK(!rf_geomod_terrain_cut_template(terrain,&shape,hit.hit.point,basis,3.75f,77));
+                    rf_geomod_observe_intersections(NULL,NULL);
+                    if(trace)CHECK(!fclose(trace));
+                }
                 CHECK(!rf_geomod_terrain_cut_template(uncached,&shape,hit.hit.point,basis,3.75f,77));
                 CHECK(!rf_geomod_terrain_get(uncached,&reference));
                 CHECK(!rf_geomod_terrain_get(terrain,&live) && live.cuts==repeat+1 && live.peak_bytes<=1024*1024);

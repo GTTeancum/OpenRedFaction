@@ -383,6 +383,10 @@ static int append(rf_geomod_vertex *out,uint32_t *count,const rf_geomod_vertex *
     if(*count==RF_GEOMOD_POLYGON_LIMIT)return RF_RANGE;
     out[(*count)++]=*v;return RF_OK;
 }
+static rf_geomod_intersection_observer intersection_observer;
+static void *intersection_context;
+void rf_geomod_observe_intersections(rf_geomod_intersection_observer observer,void *context)
+{intersection_observer=observer;intersection_context=context;}
 int rf_geomod_polygon_split(const rf_geomod_vertex *vertices,uint32_t count,
     const float plane[4],rf_geomod_vertex *front,uint32_t front_capacity,
     rf_geomod_vertex *back,uint32_t back_capacity,uint32_t *front_count,uint32_t *back_count)
@@ -422,6 +426,8 @@ int rf_geomod_polygon_split(const rf_geomod_vertex *vertices,uint32_t count,
             if(!isfinite(cut.uv[j]))return RF_FORMAT;
         }
         if(append(f,&nf,&cut) || append(b,&nb,&cut))return RF_RANGE;
+        if(intersection_observer)intersection_observer(intersection_context,plane,
+            vertices[first].position,vertices[last].position,cut.position);
     }
     if((front && front_capacity<nf) || (back && back_capacity<nb))return RF_RANGE;
     if(front && nf)memcpy(front,f,nf*sizeof(*front));
