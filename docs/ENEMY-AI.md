@@ -409,6 +409,6 @@ Xbox confirmation: `render-20260914-230916` passes all 9,600 frames and all
 `[19,13,3,9109642,3240099836,16,0,0]`, health is 5, and ammo is 16/70.
 The natural transition remains UID5150 at frame7275. Free memory is
 4,548 pages (17.765625 MiB). Per-NPC health assertions remain PC-side; the
-native comparisons verify aggregate combat and shared player state. All 19
+native comparisons verify aggregate combat and shared player state. All 18
 disc override files match the saved restoration manifest, and the owned
 XEMU process is closed. Rough project estimate remains approximately46%.
