@@ -1,7 +1,8 @@
 # Red Faction Xbox / PC - open work
 
 - Combat: Finish enemy damage amounts, cadence and weapon coverage; authored SP primary spread and target/bullet-obstruction checks now pass PC/Xbox verification (24 hits, 3 misses).
-- Gameplay: Continue L2S3 encounters beyond the maintenance door; PC verifies two guard kills and authored delayed deaths (9000 frames, 25 health), and Xbox verifies the full Area2-to-first-L2S3-guard route (8000 frames, 18.273MiB free).
+- Weapons: Implement the authored shotgun pickup and player firing/reload behavior before completing the L2S3 shaft approach.
+- Gameplay: Continue L2S3 into the elevator shaft; PC/Xbox now verify the uninterrupted third-guard route (9600 frames, 3 L2S3 kills, 5 health, 17.766MiB free on stock64MiB).
 
 First-pass policy: playable campaign systems take priority over exact1:1 RE.
 Use practical shared implementations, verify gameplay and stock64MiB operation,

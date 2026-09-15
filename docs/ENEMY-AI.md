@@ -365,3 +365,50 @@ python tools/replay_area3_entry.py
 python tools/replay_area3_maintenance.py
 python tools/xemu_render_check.py --spawn --level L2S2a.rfl --input artifacts/area3-entry-replay/input.bin --seconds 900
 ```
+
+
+## L2S3 third guard: uninterrupted hall encounter (2026-09-14)
+
+`tools/replay_area3_hall.py` extends the maintenance fixture to 9,600 frames.
+It walks east while turning south, then fires on guard 1751 from the hall.
+There is no placement, forced event, health grant or state reset: the full
+Area2 rescue/combat/medical/exit prefix remains intact. PC completes with
+three L2S3 kills, 19 shots/13 hits, 5 health and 16 loaded/70 reserve. The final
+position is (98.539818,-0.848180,84.116463). Actor snapshots separately require
+2020/2047/1751 dead, authored Slay victims2043/2058 dead, and friendly 2061 at 100.
+A movement-only exploratory control died in the same hall; this is evidence
+that the current low-health encounter can be survived with aimed fire, not
+that combat balance or the full campaign is complete.
+
+The installed weapons.tbl identifies weapon 8 as Assault Rifle, already one
+of the three supported primary definitions. The earlier working assumption
+that guard 2114 required another weapon implementation was incorrect. Further
+combat, the elevator shaft climb, scripted arrivals and the L2S3 exit remain
+open. The native harness now accepts up to 12,000 streamed input frames (the
+Xbox player already supports 60,000); its 900-second wall-time cap is unchanged.
+
+Reproduce after the maintenance prefix:
+```
+python tools/replay_area3_hall.py
+python tools/xemu_render_check.py --spawn --level L2S2a.rfl --input artifacts/area3-hall-replay/input.bin --seconds 900
+```
+
+Next-route asset evidence: L2S3 item 2115 is a Shotgun at (100.591,-1.704,74.312);
+medical kit 1931 is at (108.702,7.131,60.701). These are authored item-section
+positions, not verified reachable pickups in this replay. Shotgun gameplay
+is outside the current three-slot player implementation and is now a TO-DO.
+
+Shotgun table baseline for the next implementation: four projectiles, eight
+shells, two-second reload, 1.50-second primary and 0.225-second alternate wait;
+SP primary/alternate spread is 3/6 degrees, with damage 40. These values
+are parsed directly from installed weapons.tbl; spread sampling and complete
+primary/alternate behavior still require implementation and verification.
+
+Xbox confirmation: `render-20260914-230916` passes all 9,600 frames and all
+29 selected PC/native comparisons on stock 64 MiB. COMBAT is
+`[19,13,3,9109642,3240099836,16,0,0]`, health is 5, and ammo is 16/70.
+The natural transition remains UID5150 at frame7275. Free memory is
+4,548 pages (17.765625 MiB). Per-NPC health assertions remain PC-side; the
+native comparisons verify aggregate combat and shared player state. All 19
+disc override files match the saved restoration manifest, and the owned
+XEMU process is closed. Rough project estimate remains approximately46%.
