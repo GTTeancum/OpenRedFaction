@@ -23,6 +23,17 @@ typedef struct rf_geomod_hardness_result {
  * implemented; errors preserve output. Ice flag propagates as descriptor0x10. */
 int rf_geomod_hardness(const rf_geo_region *regions,uint32_t count,uint32_t stored_default,
     const float position[3],float scale,rf_geomod_hardness_result *out);
+/* Original490230 debris geometry. Eight randomized corners, twelve triangles,
+ * local rock UVs and lifetime; exactly25 CRT draws. No spawn/physics/rendering.
+ * Radius must be finite and positive. Invalid inputs preserve RNG/output.
+ * Caller owns output; all arguments must not overlap. */
+typedef struct rf_geomod_debris_mesh {
+    float positions[8][3],uv[12][3][2],lifetime;
+    uint32_t indices[12][3];
+} rf_geomod_debris_mesh;
+int rf_geomod_debris_build(float radius,uint32_t width,uint32_t height,
+    rf_random_state *random,rf_geomod_debris_mesh *out);
+
 typedef struct rf_geomod_vertex {float position[3],uv[2];} rf_geomod_vertex;
 /* Practical port CSG primitive, not an original executable binding.
  * Split a planar convex polygon by unit plane n.xyz*p+d=0. Positive is front.

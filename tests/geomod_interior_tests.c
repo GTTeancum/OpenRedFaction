@@ -353,6 +353,20 @@ static int light_grid_check(void)
 }
 int main(int argc,char **argv)
 {
+    {
+        rf_geomod_debris_mesh output,saved;rf_random_state random={1};
+        const float invalid[]={0,-1,NAN,INFINITY,1e38f,1e-40f};unsigned k;
+        memset(&output,0x5a,sizeof(output));saved=output;
+        for(k=0;k<sizeof(invalid)/sizeof(invalid[0]);k++) {
+            CHECK(rf_geomod_debris_build(invalid[k],256,256,&random,&output)==RF_FORMAT);
+            CHECK(random.value==1 && !memcmp(&output,&saved,sizeof(output)));
+        }
+        CHECK(rf_geomod_debris_build(.1f,0,256,&random,&output)==RF_RANGE);
+        CHECK(random.value==1 && !memcmp(&output,&saved,sizeof(output)));
+        CHECK(!rf_geomod_debris_build(.1f,256,256,&random,&output));
+        CHECK(output.lifetime>=1 && output.lifetime<4 && random.value!=1);
+    }
+
     CHECK(!light_grid_check());
     CHECK(!light_bake_check());
     {

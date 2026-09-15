@@ -5,6 +5,17 @@
 int main(int argc,char **argv)
 {
     rf_random_state state;float basis[9];uint32_t i;
+    if(argc==6 && !strcmp(argv[1],"--debris")) {
+        rf_geomod_debris_mesh mesh;uint32_t j,k;
+        state.value=(uint32_t)strtoul(argv[2],NULL,0);
+        if(rf_geomod_debris_build(strtof(argv[3],NULL),(uint32_t)strtoul(argv[4],NULL,10),
+            (uint32_t)strtoul(argv[5],NULL,10),&state,&mesh))return 2;
+        printf("%u %.9g",state.value,mesh.lifetime);
+        for(i=0;i<8;i++)for(j=0;j<3;j++)printf(" %.9g",mesh.positions[i][j]);
+        for(i=0;i<12;i++)for(j=0;j<3;j++)printf(" %u",mesh.indices[i][j]);
+        for(i=0;i<12;i++)for(j=0;j<3;j++)for(k=0;k<2;k++)printf(" %.9g",mesh.uv[i][j][k]);
+        puts("");return 0;
+    }
     if(argc==2 && !strcmp(argv[1],"--hardness")) {
         rf_geo_region regions[16];rf_geomod_hardness_result result;uint32_t count,default_value,j;float point[3],scale;
         if(scanf("%u %u %f %f %f %f",&count,&default_value,&scale,point,point+1,point+2)!=6 || count>16)return 3;

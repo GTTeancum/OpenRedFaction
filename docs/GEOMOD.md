@@ -1438,3 +1438,30 @@ The scene phase peaks at165ms, camera/combat131ms and world rebuild77ms;
 these remaining peaks are not smooth-frame acceptance. The decoded framebuffer
 exactly matches the inspected120115 capture. All19disc entries restored;
 owned PID33260 exited. No new GitHub image or altered-appearance claim.
+
+## Original debris chunk geometry (2026-09-15)
+
+Original467020 calls48fe30 with the effective crater radius and interior bitmap
+when its debris gate permits it.48fe30 reaches490230 to construct each chunk.
+The live reconstructed scene still does not call a debris spawner.
+
+rf_geomod_debris_build reconstructs490230 without allocation: eight randomized
+corners, twelve fixed triangles, signed dominant-axis rock UVs at32texels per
+world unit, and a randomized lifetime in[1,4). It consumes exactly25 CRT draws.
+Corner magnitudes interpolate between radius*.2 and radius*1.8; each corner's
+axis signs follow its index bits. The caller owns the532-byte output record.
+Invalid dimensions, nonfinite/nonpositive radius or degenerate numeric geometry
+preserve both output and random state. Input storage must not overlap.
+
+inspect_geomod_debris.py executes original490230 instructions from the hashed
+installed executable. Only CRT draws and bitmap dimensions are supplied;
+geometry, projection and lifetime calculations execute unchanged.60 cases span
+five seeds, four chunk radii and square/non-square textures. Shared C output
+matches all vertex, index, UV and lifetime values bit-for-bit, with identical
+final RNG state. Generated evidence:artifacts/geomod-debris-original.json.
+The interior and repeated-cut CTests pass, including new invalid-input rollback
+checks. This establishes chunk construction, not original spawning counts,
+launch velocity, collisions, rendering, sounds or visible destruction fidelity.
+Those integrations remain next work; no changed scene or screenshot is claimed.
+NXDK Xbox compilation also passes (artifacts/geomod-debris-xbox.log); no native
+scene validation was run because this helper is not yet wired to live impacts.

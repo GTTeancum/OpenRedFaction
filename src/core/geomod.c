@@ -176,6 +176,43 @@ int rf_geomod_planar_uv(const float normal[3],const float position[3],
     memcpy(uv,result,sizeof(result));return RF_OK;
 }
 
+int rf_geomod_debris_build(float radius,uint32_t width,uint32_t height,
+    rf_random_state *random,rf_geomod_debris_mesh *out)
+{
+    static const uint32_t faces[12][3]={{0,2,6},{0,6,4},{0,3,2},{0,1,3},
+        {0,1,5},{0,5,4},{7,3,1},{7,1,5},{7,4,6},{7,5,4},{7,2,3},{7,6,2}};
+    rf_geomod_debris_mesh mesh={0};rf_random_state next;uint32_t i,j,k,draw;
+    float low,high;int status;
+    if(!random || !out || !width || !height || width>INT32_MAX || height>INT32_MAX)return RF_RANGE;
+    if(!isfinite(radius) || radius<=0)return RF_FORMAT;
+    low=(float)((double)radius*.2f);high=(float)((double)radius*1.8f);
+    if(!isfinite(high) || low==0)return RF_FORMAT;
+    next=*random;rf_random_next(&next,&draw);mesh.lifetime=(float)(1.0+3.0*((double)draw/32768.0));
+    for(i=0;i<8;i++)for(j=0;j<3;j++) {
+        double a=(i&(1u<<j))?low:-low,b=(i&(1u<<j))?high:-high;
+        rf_random_next(&next,&draw);mesh.positions[i][j]=(float)((b-a)*((double)draw/32768.0)+a);
+    }
+    memcpy(mesh.indices,faces,sizeof(faces));
+    for(i=0;i<12;i++) {
+        float a[3],b[3],normal[3];double length=0;
+        for(j=0;j<3;j++) {
+            a[j]=mesh.positions[faces[i][1]][j]-mesh.positions[faces[i][0]][j];
+            b[j]=mesh.positions[faces[i][2]][j]-mesh.positions[faces[i][0]][j];
+        }
+        for(j=0;j<3;j++) {
+            normal[j]=(float)((double)a[(j+1)%3]*b[(j+2)%3]-(double)a[(j+2)%3]*b[(j+1)%3]);
+            length+=(double)normal[j]*normal[j];
+        }
+        if(!isfinite(length) || length==0)return RF_FORMAT;
+        length=1.0/sqrt(length);for(j=0;j<3;j++)normal[j]=(float)(normal[j]*length);
+        for(k=0;k<3;k++) {
+            status=rf_geomod_planar_uv(normal,mesh.positions[faces[i][k]],width,height,mesh.uv[i][k]);
+            if(status)return status;
+        }
+    }
+    *random=next;*out=mesh;return RF_OK;
+}
+
 int rf_geomod_hardness(const rf_geo_region *regions,uint32_t count,uint32_t stored_default,
     const float position[3],float scale,rf_geomod_hardness_result *out)
 {
