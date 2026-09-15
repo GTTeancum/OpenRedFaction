@@ -2435,3 +2435,36 @@ together. These experiments do not prove that hypothesis or justify loosening
 closure/depth tolerances. Overall ~49%, GeoMod ~61%; overlap accuracy remains open.
 Restored NXDK XBE/XISO builds also pass; no new XEMU replay was run for the
 rejected changes, and the last retained native verification remains155050.
+
+Seed supporting-line correction (2026-09-15): The second blast's first failing
+junction uses support IDs(0,160,161) and(0,160,188): room wall, second cutter
+outer face, and either its internal boundary or neighboring outer face.
+The exact seed-edge path declined the intersection because its parameter lay
+outside[0,1], falling back to inconsistent rounded-plane solves. Supporting
+planes define an infinite line; the remaining clipping planes bound the final
+fragment. The line path now accepts any finite parameter and finite float
+result, retaining the existing topological/parallel guards and all tolerances.
+Both recorded constructions now produce exactly(-16,-9.89635181427002,
+-0.18177662789821625). Before, the second produced y=-9.896350860595703 while
+the first produced z=-0.18177726864814758. This is one verified junction repair,
+not proof that every nearby point represents the same topological corner.
+The test harness accepts RF_GEOMOD_INTERSECTION_CUT=1..6 (default1), allowing
+any room-scale blast's rebuild to be traced. The analyzer's optional
+--require-identical requires matches with exactly identical recorded results;
+it rejects the prior trace and passes the repaired trace at this junction.
+Evidence: artifacts/geomod-second-cut.bin, geomod-second-line.bin and their
+intersection.json reports;1192 events in each selected second-cut rebuild.
+Room-scale failure counts are0,8,12,16,24,35 (previously0,9,16,19,27,39).
+The first crater remains enforced closed. Focused CTests and all eight PC blasts
+pass (3112 physical/3720 render vertices,608 inserted points). Depth audit:
+19983 recessed pixels, zero substantially nearer or new uncovered pixels,
+minimum raw delta-71. The actual PC close-up was inspected: dark mound-like
+appearance remains. NXDK builds pass. No visual parity or full closure claim.
+
+Native supporting-line run: artifacts/xemu/render-20260915-160151 completes
+1500 frames/eight blasts and passes46 comparisons with8600 pages free.
+The19 saved disc entries restore byte-exactly and owned PID48856 exits.
+The actual framebuffer was inspected; dark crater appearance remains unresolved.
+Latest eighth-edit timing is219ms CSG+27ms binding+2ms debris preparation+2ms
+spawn=250ms. Host scheduling varies, so this single run is not an FPS claim or
+an isolated performance attribution. Overall ~49%, GeoMod ~61%.

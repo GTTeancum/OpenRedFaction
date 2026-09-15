@@ -469,8 +469,9 @@ static int corner_seed_edge(const geomod_corner_support *support,const uint16_t 
         plane=corner_support_plane(support,ids[other]);da=db=plane[3];
         for(k=0;k<3;k++){da+=(double)plane[k]*first[k];db+=(double)plane[k]*last[k];}
         if(da==db)continue;
-        t=da/(da-db);if(!isfinite(t) || t<0 || t>1)continue;
-        for(k=0;k<3;k++)position[k]=(float)((1-t)*first[k]+t*last[k]);
+        /* Supports define a line; other clipping planes bound the fragment. */
+        t=da/(da-db);if(!isfinite(t))continue;
+        for(k=0;k<3;k++){position[k]=(float)((1-t)*first[k]+t*last[k]);if(!isfinite(position[k]))return 0;}
         return 1;
     }
     return 0;

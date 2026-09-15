@@ -1108,6 +1108,8 @@ int main(int argc,char **argv)
         {
             rf_geomod_template shape;rf_random_state random={1};double previous_volume=0;unsigned junction_misses=0;
             rf_geomod_terrain *uncached=NULL;rf_geomod_terrain_view reference;
+            const char *trace_cut=getenv("RF_GEOMOD_INTERSECTION_CUT");unsigned trace_index=0;
+            if(trace_cut){CHECK(trace_cut[0]>='1' && trace_cut[0]<='6' && !trace_cut[1]);trace_index=(unsigned)(trace_cut[0]-'1');}
             const float start[3]={0,-10,12},delta[3]={-40,0,-20};
             CHECK(!rf_geomod_template_load("build/data/geomod-template.bin",&shape));
             box((float[3]){-16,-12,-20},(float[3]){16,12,20},planes,source_v);
@@ -1128,7 +1130,7 @@ int main(int argc,char **argv)
                 CHECK(!rf_geomod_random_basis(&random,basis));
                 {
                     FILE *trace=NULL;const char *path=getenv("RF_GEOMOD_INTERSECTION_TRACE");
-                    if(!repeat && path){trace=fopen(path,"wb");CHECK(trace);CHECK(fwrite("RFI1",4,1,trace)==1);rf_geomod_observe_intersections(trace_intersection,trace);}
+                    if(repeat==trace_index && path){trace=fopen(path,"wb");CHECK(trace);CHECK(fwrite("RFI1",4,1,trace)==1);rf_geomod_observe_intersections(trace_intersection,trace);}
                     CHECK(!rf_geomod_terrain_cut_template(terrain,&shape,hit.hit.point,basis,3.75f,77));
                     rf_geomod_observe_intersections(NULL,NULL);
                     if(trace)CHECK(!fclose(trace));
