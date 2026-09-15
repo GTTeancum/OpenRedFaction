@@ -2,7 +2,7 @@
 
 - DEV testbed: Review full weapon animations and add complete room reset; terrain reset and ammo refill are implemented, while campaign progression remains paused.
 - GeoMod: Add explosive-weapon integration, non-box cutters and authored eligibility; live repeated excavation passes PC/Xbox, and guarded terrain reset passes PC/Xbox checks.
-- Weapons: Add rocket projectile/explosion presentation and actor/mover impacts, and verify NPC blast/cover behavior; radial self-damage now passes PC near/far/lethal checks.
+- Weapons: Finish rocket flare blending/explosion effects and actor/mover impacts, and verify NPC blast/cover behavior; authored projectile geometry now draws during live flight.
 - Combat: Extend pain-reaction coverage across enemy weapons and encounters; retained attack locks now pass35 PC/Xbox comparisons with independent actor recovery.
 - Combat: Revalidate encounters with the new shared body-sphere bullet collision; captured false hits are rejected, but old oversized-box aiming replays need recalibration.
 - Weapons: Implement remaining campaign weapons beyond handgun, rifle, Riot Stick and shotgun; automatic rifle now clears three shaft guards on PC/Xbox.
@@ -5189,3 +5189,11 @@ Estimate ~49%; current area is projectile visuals.
 
 NXDK XBE/XISO build passes with the material owner; scene integration
 remains pending and this change does not add a native visual run.
+
+Live rocket visual verification (2026-09-15):125frame ordinary in-flight
+replay at artifacts/xemu/render-20260915-082740 passes38 PC/Xbox
+comparisons, including7active meshes,192vertices and matching vertex hash.
+Native frame inspected: authored rocket/purple flare visible just left of
+crosshair; black flare background remains an additive-blending limitation.
+9233pages free (36.066MiB). All19disc entries restored and owned emulator
+exited. No GitHub image uploaded. Estimate ~49%; projectile visuals.

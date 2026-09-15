@@ -11,9 +11,9 @@ ROOT = Path(__file__).resolve().parents[1]
 
 def recording(mode):
     end = {'blast-far':260, 'blast-near':300, 'blast-lethal':350}.get(mode, 0)
-    frames = end + 100 if end else 111 if mode == 'flying' else 260
+    frames = end + 100 if end else 125 if mode == 'visual' else 111 if mode == 'flying' else 260
     return b'RFI6' + struct.pack('<I', 48) + b''.join(
-        struct.pack('<5f7I', 0, 0, .8 if 130 <= i < end else 0, 0, .7 if i < 90 else 0, 0, 0, 0,
+        struct.pack('<5f7I', 0, 0, .8 if 130 <= i < end else 0, 0, .7 if i < 90 else .2 if mode == 'visual' and i > 110 else 0, 0, 0, 0,
                     int(i == (end+10 if end else 110)), int(mode == 'reload' and i == 120),
                     int(i in (10, 20, 30, 40) or (mode == 'switch' and i == 120)), 0)
         for i in range(frames))
@@ -23,7 +23,7 @@ def main():
     folder.mkdir(parents=True, exist_ok=True)
     env = {k:v for k,v in os.environ.items() if not k.startswith('RF_REPLAY_')}
     env['RF_REPLAY_TRACE'] = '1'
-    for mode in ('flying', 'shot', 'reload', 'switch', 'blast-far', 'blast-near', 'blast-lethal'):
+    for mode in ('flying', 'shot', 'reload', 'switch', 'blast-far', 'blast-near', 'blast-lethal', 'visual'):
         path = folder / (mode + '.bin')
         path.write_bytes(recording(mode))
         run = subprocess.run([str(ROOT / 'build/pc/Release/rf_pc_play.exe'), '--dev-room-replay',
@@ -34,9 +34,15 @@ def main():
         run.check_returncode()
         def row(label):
             return list(map(int, next(l.split()[1:] for l in log.splitlines() if l.startswith(label + ' '))))
-        flying = mode == 'flying'
+        flying = mode in ('flying', 'visual')
         assert row('ROCKETS') == [1, int(not flying), 0, int(flying), int(not flying), 0, 0, 0]
         assert row('GEOMOD')[:3] == [1, int(not flying), 1 + int(not flying)]
+        visual = row('ROCKET_VISUAL')
+        assert visual[6] == 0
+        if mode == 'visual':
+            assert visual[1:4] == [1,7,192]
+        elif not flying:
+            assert visual[1:4] == [0,0,0]
         assert row('COMBAT')[:3] == [1, 0, 0]  # No instantaneous hitscan damage.
         assert row('PLAYER_LIFE')[0] == int(mode == 'blast-lethal')
         blast = row('ROCKET_BLAST')

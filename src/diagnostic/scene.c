@@ -477,6 +477,11 @@ typedef struct scene_pickup_resource {
 } scene_pickup_resource;
 static int pickup_class(const char *name)
 {int i;for(i=0;i<SCENE_PICKUP_CLASSES;i++)if(!strcmp(name,pickup_classes[i]))return i;return -1;}
+typedef struct scene_rocket_visual {
+    rf_vfx_geometry_asset *geometry;rf_vfx_asset_materials *materials;uint32_t base;
+    rf_geomod_vertex vertices[384];rf_geomod_face faces[128];
+    rf_collision_face bound[128];rf_collision_face_filter filters[128];float positions[384][3];
+} scene_rocket_visual;
 typedef struct scene_stream {
     rf_geomod_terrain *terrain;rf_geometry_collision_overlay terrain_collision;
     rf_geometry terrain_geometry;rf_scene_world_geometry terrain_render;
@@ -486,7 +491,8 @@ typedef struct scene_stream {
     uint32_t clutter_base,clutter_textures;
     uint32_t weapon_base,weapon_textures;
     rf_level_owned_items pickups;uint8_t *pickup_taken;uint32_t *pickup_slots;rf_item_definition handgun_pickup;scene_pickup_resource *pickup_resources;
-    rf_weapon_flight rockets[SCENE_ROCKETS];
+    rf_weapon_flight rockets[SCENE_ROCKETS];float rocket_basis[SCENE_ROCKETS][9];
+    scene_rocket_visual *rocket_visual;rf_level rocket_camera;
     rf_player_weapon *player_weapon[SCENE_WEAPON_SLOTS];uint32_t player_weapon_base[SCENE_WEAPON_SLOTS],player_weapon_textures[SCENE_WEAPON_SLOTS],player_shots,player_reload,player_slot;
     rf_model_projection npc_view;void *npc_memory;uint16_t *npc_indices;rf_model_clip_pool *npc_pool;
     const rf_geometry_collision_world *collision;
@@ -8741,6 +8747,7 @@ static int campaign_combat_tick(scene_stream *stream,uint32_t frame,const float 
         if(i==SCENE_ROCKETS){++rf_scene_rockets[6];return RF_OK;}
         status=rf_weapon_flight_launch(stream->rockets+i,position,orientation[2],campaign_rocket.speed,
             campaign_rocket.lifetime,campaign_rocket.collision_radius);
+        memcpy(stream->rocket_basis[i],orientation,36);
         rf_scene_rockets[7]=(uint32_t)status;if(status)return status;++rf_scene_rockets[0];++rf_scene_rockets[3];
     }
     status=campaign_equipped_slot==2?RF_OK:rf_weapon_consume_shot(&campaign_player_inventory,campaign_weapon_supply.definitions,campaign_weapon_supply.names.count,campaign_selected_weapon());
@@ -9089,6 +9096,7 @@ static int actor_follow_view(void *context,uint32_t frame,const rf_motion_contro
     memcpy(view->camera,position,12);memcpy(view->rotation,orientation,36);
     {uint32_t axis;for(axis=3;axis<6;++axis)view->rotation[axis]*=4.0f/3.0f;}
     stream->npc_view=*view;
+    memcpy(stream->rocket_camera.player_position,position,12);memcpy(stream->rocket_camera.player_orientation,orientation,36);
     r[0]=frame;r[1]=stream->world;memcpy(r+2,position,12);memcpy(r+5,orientation,36);
     {uint32_t i,*d=rf_scene_actor_follow_summary;if(!frame) {d[0]=d[2]=0;d[1]=d[3]=2166136261u;}
      d[0]=frame+1;d[4]=stream->capacity;if(stream->mesh->bytes>d[2])d[2]=stream->mesh->bytes;
@@ -10510,6 +10518,51 @@ static int scene_weapon_submit(void *context,uint32_t model,const rf_weapon_hand
     return RF_OK;
 }
 uint32_t rf_scene_player_weapon[8]; /* frames,clip,vertices,resident,peak,pose hash,status,reserved */
+uint32_t rf_scene_rocket_visual[8]; /* frame, active flights, active meshes, emitted vertices, hash, resource bytes, status, reserved */
+static int scene_rockets_draw(scene_stream *s,uint32_t frame)
+{
+    scene_rocket_visual *v=s->rocket_visual;uint32_t shot,m,f,j,k,start=s->mesh->count;int status;
+    memset(rf_scene_rocket_visual,0,sizeof(rf_scene_rocket_visual));rf_scene_rocket_visual[0]=frame+1;
+    if(!v)return RF_OK;
+    rf_scene_rocket_visual[5]=sizeof(*v)+v->geometry->resident_bytes+v->materials->resident_bytes;
+    for(shot=0;shot<SCENE_ROCKETS;shot++)if(s->rockets[shot].active) {
+        float time=fmodf((float)(campaign_rocket.lifetime-s->rockets[shot].remaining)*15,16.f);
+        const float *basis=s->rocket_basis[shot];++rf_scene_rocket_visual[1];
+        for(m=0;m<v->geometry->count;m++) {
+            rf_vfx_mesh *source=v->geometry->meshes[m];rf_vfx_instance *instance=v->geometry->instances[m];
+            rf_geomod_mesh_view mesh={0};rf_preview_mesh emitted={0};uint32_t count=0;
+            if(!instance)continue;
+            status=rf_vfx_instance_update(instance,time);if(status)return status;if(!instance->active)continue;
+            ++rf_scene_rocket_visual[2];if(source->prefix.faces>128)return RF_RANGE;
+            for(f=0;f<source->prefix.faces;f++) {
+                rf_vfx_face face;uint32_t material,slot,offset=source->prefix.face_offset+f*(source->version<0x3000d?120:96);
+                float triangle[9],normal[3];
+                status=rf_vfx_face_read(source->data+offset,source->bytes-offset,source->version,&face);if(status)return status;
+                material=v->materials->first[m]+face.material;if(material>=v->materials->count)return RF_FORMAT;
+                slot=v->materials->textures.bindings[material][0];if(slot==UINT32_MAX)continue;
+                for(j=0;j<3;j++)for(k=0;k<3;k++) {
+                    const float *local=instance->vertices+face.indices[j]*3;
+                    triangle[j*3+k]=s->rockets[shot].position[k]+local[0]*basis[k]+local[1]*basis[3+k]+local[2]*basis[6+k];
+                }
+                /* Animated zero-area effect faces are not drawable. */
+                status=rf_vfx_face_normal(triangle,normal);if(status==RF_RANGE || status==RF_FORMAT)continue;if(status)return status;
+                for(j=0;j<3;j++) {
+                    memcpy(v->vertices[count*3+j].position,triangle+j*3,12);
+                    v->vertices[count*3+j].uv[0]=instance->uv[f*6+j];v->vertices[count*3+j].uv[1]=instance->uv[f*6+3+j];
+                }
+                v->faces[count]=(rf_geomod_face){count*3,3,v->base+slot,UINT32_MAX};++count;
+            }
+            mesh.vertices=v->vertices;mesh.faces=v->faces;mesh.vertex_count=count*3;mesh.face_count=count;
+            if(!count)continue;
+            status=rf_geomod_collision_faces(&mesh,v->filters,v->positions,384,v->bound,128);if(status)return status;
+            emitted.vertices=s->mesh->vertices+s->mesh->count;
+            status=rf_preview_geomod(&emitted,s->capacity-s->mesh->bytes,&mesh,v->bound,s->materials->count,&s->rocket_camera);if(status)return status;
+            s->mesh->count+=emitted.count;s->mesh->bytes+=emitted.bytes;
+        }
+    }
+    rf_scene_rocket_visual[3]=s->mesh->count-start;
+    rf_scene_rocket_visual[4]=npc_hash_bytes(2166136261u,s->mesh->vertices+start,rf_scene_rocket_visual[3]*sizeof(rf_preview_vertex));return RF_OK;
+}
 static int scene_player_weapon_draw(scene_stream *stream,uint32_t frame)
 {
     rf_player_weapon *w=stream->player_weapon[campaign_equipped_slot];rf_model_projection view={0};
@@ -11074,6 +11127,7 @@ static int scene_frame(void *context,uint32_t frame,rf_preview_mesh *actor)
         status=scene_clutter_draw(stream,frame);presentation_mark(1,&presentation_clock);if(status){rf_scene_profile_stage[1]=202;return status;}
         status=scene_weapon_draw(stream,frame);presentation_mark(2,&presentation_clock);if(status){rf_scene_profile_stage[1]=203;return status;}
         status=scene_pickups_draw(stream);presentation_mark(3,&presentation_clock);if(status){rf_scene_profile_stage[1]=204;return status;}
+        status=scene_rockets_draw(stream,frame);rf_scene_rocket_visual[6]=(uint32_t)status;if(status)return status;
         status=scene_player_weapon_draw(stream,frame);presentation_mark(4,&presentation_clock);if(status){rf_scene_profile_stage[1]=205;return status;}
         particle_draw_stream=stream;
         status=stream->sink(stream->context,frame,stream->mesh,stream->materials,stream->world);
@@ -11747,6 +11801,22 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
         materials->loaded+=textures->loaded;materials->missing+=textures->missing;materials->allocated_bytes+=textures->allocated_bytes;
         free(textures->items);memset(textures,0,sizeof(*textures));
         }
+        if(rf_scene_dev_room_enabled) {
+            scene_rocket_visual *v=calloc(1,sizeof(*v));rf_material *combined;uint32_t n;
+            if(!v){status=RF_IO;goto done;}stream.rocket_visual=v;
+            status=rf_vfx_geometry_asset_open(&archive,"DrillMissile01.vfx",128*1024,&v->geometry);if(status)goto done;
+            status=rf_vfx_asset_materials_open(v->geometry,maps,map_count,128*1024,&v->materials);if(status)goto done;
+            n=v->materials->textures.texture_count;if(materials->count+n>RF_CAMPAIGN_TEXTURE_SLOTS){status=RF_RANGE;goto done;}
+            for(i=0;i<v->geometry->count;i++)if(strcmp(v->geometry->meshes[i]->prefix.parent,"Scene Root")){status=RF_FORMAT;goto done;}
+            for(i=0;i<n;i++)if(v->materials->textures.textures[i].animation.count!=1){status=RF_FORMAT;goto done;}
+            combined=realloc(materials->items,(materials->count+n)*sizeof(*combined));if(!combined){status=RF_IO;goto done;}
+            materials->items=combined;v->base=materials->count;
+            for(i=0;i<n;i++) {
+                rf_image *image=v->materials->textures.textures[i].animation.images;
+                combined[materials->count]=(rf_material){*image,RF_OK,v->materials->textures.textures[i].animation.archive_index};
+                materials->allocated_bytes+=sizeof(*combined)+image->bytes;memset(image,0,sizeof(*image));++materials->count;++materials->loaded;
+            }
+        }
         status=scene_pickup_resources_open(&stream,tables_path,&archive,maps,map_count,materials);if(status)goto done;
         stream.npc_memory=malloc(4096*96);stream.npc_indices=malloc(24576*sizeof(uint16_t));stream.npc_pool=calloc(1,sizeof(*stream.npc_pool));
         if(!stream.npc_memory || !stream.npc_indices || !stream.npc_pool){status=RF_IO;goto done;}
@@ -11868,6 +11938,7 @@ done:
         if(!status)campaign_actors_capture();
     }
     for(i=0;i<SCENE_WEAPON_SLOTS;i++)rf_player_weapon_close(&stream.player_weapon[i]);
+    if(stream.rocket_visual){rf_vfx_asset_materials_close(&stream.rocket_visual->materials);rf_vfx_geometry_asset_close(&stream.rocket_visual->geometry);free(stream.rocket_visual);}
     if(stream.pickup_resources){for(i=0;i<SCENE_PICKUP_CLASSES-1;i++){rf_static_render_resource_close(&stream.pickup_resources[i].model);rf_model_materials_close(&stream.pickup_resources[i].materials);}free(stream.pickup_resources);}
     rf_level_owned_items_close(&stream.pickups);free(stream.pickup_taken);free(stream.pickup_slots);
     free(stream.npc_memory);free(stream.npc_indices);free(stream.npc_pool);

@@ -488,3 +488,37 @@ or native runtime visual claim follows from these resource checks.
 
 NXDK XBE/XISO build passes with the material owner; scene integration
 remains pending and this change does not add a native visual run.
+
+## Live authored rocket drawing first pass
+
+The DEV scene now opens shared rocket geometry/material owners once and
+transfers the five single-frame image allocations into its shared material
+table without copying pixels. A bounded workspace holds384vertices and
+128faces for one effect mesh at a time. Flight records retain their launch
+basis. Active projectiles update the seven authored meshes at15Hz effect
+time, provisionally wrapping the known16-frame asset, then transform them
+into world space. Shared generated-geometry projection clips/culls textured
+triangles and appends them before the first-person weapon. No render-time
+allocation or archive reads. Zero-area animated faces are omitted.
+
+This first pass uses primary textures and existing geometric shading. VFX
+blend/color/opacity tracks, additive flare state, secondary layers and
+particle trail/impact explosion are not yet integrated. The purple flare
+texture is authored MissileFlare01.tga, not a missing-texture placeholder;
+its black background currently shows because additive blending is pending.
+The launcher targeting display also remains white.
+
+tools/dev_rocket_check.py adds a125-frame flight view with ordinary look
+input after launch. It verifies one flight,7active meshes and192emitted
+vertices; PC frame inspected with the textured projectile/flare visible
+left of the crosshair. Seven prior gameplay cases still pass, and draw
+counts clear after projectile retirement. Workspace plus resource accounting
+is127161bytes on the current build. This is not final visual parity.
+
+Live rocket visual verification (2026-09-15):125frame ordinary in-flight
+replay at artifacts/xemu/render-20260915-082740 passes38 PC/Xbox
+comparisons, including7active meshes,192vertices and matching vertex hash.
+Native frame inspected: authored rocket/purple flare visible just left of
+crosshair; black flare background remains an additive-blending limitation.
+9233pages free (36.066MiB). All19disc entries restored and owned emulator
+exited. No GitHub image uploaded. Estimate ~49%; projectile visuals.
