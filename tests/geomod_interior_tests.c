@@ -157,6 +157,30 @@ static int collision_clearance(const rf_geomod_mesh_view *mesh,int tunnel)
     }
     rf_collision_tree_close(&tree);return 0;
 }
+/* Independent double-precision fan intersection for the axis-aligned
+ * junction probes. No production polygon predicate or tree is used. */
+static unsigned junction_reference(const rf_geomod_mesh_view *mesh,const float probe[3])
+{
+    unsigned f,k;
+    for(f=0;f<mesh->face_count;f++) {
+        const rf_geomod_face *face=mesh->faces+f;
+        const float *a=mesh->vertices[face->first].position;
+        for(k=1;k+1<face->count;k++) {
+            const float *b=mesh->vertices[face->first+k].position;
+            const float *c=mesh->vertices[face->first+k+1].position;
+            double by=(double)b[1]-a[1],bz=(double)b[2]-a[2];
+            double cy=(double)c[1]-a[1],cz=(double)c[2]-a[2];
+            double py=(double)probe[1]-a[1],pz=(double)probe[2]-a[2];
+            double det=by*cz-bz*cy,u,v,x;
+            if(det==0)continue;
+            u=(py*cz-pz*cy)/det;v=(by*pz-bz*py)/det;
+            if(u<0 || v<0 || u+v>1)continue;
+            x=a[0]+u*((double)b[0]-a[0])+v*((double)c[0]-a[0]);
+            if(x<=probe[0] && x>=probe[0]-15)return f+1;
+        }
+    }
+    return 0;
+}
 int main(int argc,char **argv)
 {
     float source[6][4],cutter[6][4],lo[3]={-2,-2,-2},hi[3]={2,2,2};
@@ -744,7 +768,7 @@ int main(int argc,char **argv)
                     /* Probe individual float steps across the known near-coincident
                      * junction. A closed room must stop every outward segment,
                      * whether at the original wall or the new crater boundary. */
-                    int y,z;unsigned probes=0,misses=0,body_misses=0;
+                    int y,z;unsigned probes=0,misses=0,body_misses=0,reference_hits=0,direct_hits=0;
                     const float outward[3]={-15,0,0};
                     for(y=-32;y<=32;y++)for(z=-32;z<=32;z++) {
                         float probe[3]={-15,-7.36841655756f+y*0x1p-21f,2.93492785774f+z*0x1p-22f};
@@ -753,7 +777,26 @@ int main(int argc,char **argv)
                             live.tree->stack,live.tree->node_capacity,&hit,&matched));
                         probes++;if(!matched) {
                             rf_collision_sweep_tree_hit sweep;
+                            unsigned face_index;rf_collision_ray_hit direct;
                             misses++;
+                            {
+                                unsigned reference=junction_reference(&live.mesh,probe);
+                                if(reference)reference_hits++;
+                                if(reference && misses==1) {
+                                    const rf_collision_face *face=live.faces+reference-1;
+                                    float end[3]={probe[0]-15,probe[1],probe[2]},point[3],fraction;unsigned box_hit,plane_hit,inside;
+                                    CHECK(!rf_collision_segment_box(face->minimum,face->maximum,probe,end,point,&box_hit));
+                                    CHECK(!rf_collision_segment_plane(probe,outward,face->plane,&fraction,&plane_hit));
+                                    point[0]=probe[0]+outward[0]*fraction;point[1]=probe[1];point[2]=probe[2];
+                                    CHECK(!rf_collision_polygon_contains(face->plane,point,face->vertices,face->count,&inside));
+                                    printf("JUNCTION_STAGE face %u probe %.9g %.9g %.9g box %u plane %u fraction %.9g inside %u normal %.9g %.9g %.9g\n",
+                                        reference-1,probe[0],probe[1],probe[2],box_hit,plane_hit,fraction,inside,face->plane[0],face->plane[1],face->plane[2]);
+                                }
+                            }
+                            for(face_index=0;face_index<live.tree->face_count;face_index++) {
+                                CHECK(!rf_collision_thin_face(live.tree->faces+face_index,probe,outward,1,&direct,&matched));
+                                if(matched){direct_hits++;break;}
+                            }
                             CHECK(!rf_collision_sweep_tree(live.tree->nodes,live.tree->node_count,
                                 live.tree->faces,live.tree->face_count,0,probe,outward,outward,.5f,1,
                                 live.tree->stack,live.tree->node_capacity,&sweep,&matched));
@@ -761,7 +804,9 @@ int main(int argc,char **argv)
                         }
                     }
                     printf("JUNCTION_RAYS cut %u probes %u misses %u body_misses %u\n",repeat+1,probes,misses,body_misses);
+                    printf("JUNCTION_REFERENCE cut %u double_hits %u direct_hits %u\n",repeat+1,reference_hits,direct_hits);
                     junction_misses+=misses;CHECK(!body_misses);
+                    CHECK(reference_hits==misses); /* These misses have mesh intersections. */
                 }
                 CHECK(-total>previous_volume);previous_volume=-total;
             }

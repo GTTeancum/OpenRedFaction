@@ -1078,3 +1078,26 @@ blocked. Evidence:artifacts/geomod-junction-rays.log and
 artifacts/geomod-junction-strict.log. The four targeted CTest checks pass;
 the opt-in zero-miss regression intentionally fails until the defect is fixed.
 This test-only change has no new Xbox build or visual acceptance claim.
+
+## Junction rejection isolation (2026-09-15)
+
+An independent double-precision triangle-fan reference now intersects the
+actual emitted mesh for every missed local ray:35 of35 on each of cuts2-6.
+It projects triangles into Y/Z, solves barycentric coordinates without an
+edge tolerance, reconstructs X, and checks the finite ray segment. Direct
+production face queries, bypassing the tree, still find zero hits for those
+rays. The test asserts that every reported miss has a reference intersection.
+
+The first missed ray starts at(-15,-7.36841726,2.93492746). Mesh face59 passes
+the production bounding-box and plane tests, returning fraction0.0666667297;
+its production polygon-containment test returns false. Its normal is
+(0.216526687,-0.976276577,-0.000501434202). This narrows the investigation to
+plane/intersection rounding and polygon evaluation, rather than tree culling.
+It does not prove watertight topology or that all other ray directions work.
+
+An experiment accumulating the generated plane offset in double precision
+left the same35 misses and was discarded. No runtime code or tolerance change
+is retained. Evidence:artifacts/geomod-junction-reference.log and
+artifacts/geomod-plane-offset-probe.log. Fix the collision evaluation using
+the emitted surface as the reference, preserving original-face compatibility;
+do not enlarge holes or accept arbitrary nearby polygons to hide these misses.
