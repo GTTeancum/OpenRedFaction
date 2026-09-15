@@ -41,6 +41,18 @@ int rf_geomod_debris_build(float radius,uint32_t width,uint32_t height,
 int rf_geomod_debris_launch(const float position[3],const float origin[3],
     float radius,float resistance,rf_random_state *random,float velocity[3]);
 
+/*490500: six axial and eight diagonal world-query endpoints, in original
+ * order.490890 consumes resolved query results; hit must equal1, a face must
+ * exist, and face flag8 must be clear to subtract the hit distance.
+ * Count is min(floor(2*remaining),16), preserving original negative rounding
+ * residue: callers spawn only when count>0. Distances must be in[0,radius]
+ * for eligible hits. Invalid inputs preserve output. No allocation/overlap. */
+typedef struct rf_geomod_debris_probe {
+    uint32_t hit,has_face,face_flags;float distance;
+} rf_geomod_debris_probe;
+int rf_geomod_debris_probe_points(const float origin[3],float radius,float endpoints[14][3]);
+int rf_geomod_debris_count(float radius,const rf_geomod_debris_probe probes[14],int32_t *count);
+
 typedef struct rf_geomod_vertex {float position[3],uv[2];} rf_geomod_vertex;
 /* Practical port CSG primitive, not an original executable binding.
  * Split a planar convex polygon by unit plane n.xyz*p+d=0. Positive is front.

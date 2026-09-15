@@ -5,6 +5,13 @@
 int main(int argc,char **argv)
 {
     rf_random_state state;float basis[9];uint32_t i;
+    if(argc==2 && !strcmp(argv[1],"--debris-count")) {
+        rf_geomod_debris_probe probes[14];float radius,origin[3],endpoints[14][3];int32_t count;uint32_t j;
+        if(scanf("%f %f %f %f",&radius,origin,origin+1,origin+2)!=4)return 3;
+        for(i=0;i<14;i++)if(scanf("%u %u %u %f",&probes[i].hit,&probes[i].has_face,&probes[i].face_flags,&probes[i].distance)!=4)return 3;
+        if(rf_geomod_debris_probe_points(origin,radius,endpoints) || rf_geomod_debris_count(radius,probes,&count))return 2;
+        printf("%d",count);for(i=0;i<14;i++)for(j=0;j<3;j++)printf(" %.9g",endpoints[i][j]);puts("");return 0;
+    }
     if(argc==11 && !strcmp(argv[1],"--debris-launch")) {
         float position[3],origin[3],velocity[3];state.value=(uint32_t)strtoul(argv[2],NULL,0);
         for(i=0;i<3;i++){position[i]=strtof(argv[5+i],NULL);origin[i]=strtof(argv[8+i],NULL);}

@@ -382,6 +382,22 @@ int main(int argc,char **argv)
 
     }
 
+    {
+        rf_geomod_debris_probe probes[14]={{0}};int32_t count=123;unsigned i;
+        float origin[3]={0,0,0},points[14][3],saved_points[14][3];
+        CHECK(!rf_geomod_debris_count(.1f,probes,&count) && count==-1);
+        for(i=0;i<14;i++){probes[i].hit=1;probes[i].has_face=1;}
+        CHECK(!rf_geomod_debris_count(3.75f,probes,&count) && count==16);
+        count=123;probes[4].distance=NAN;
+        CHECK(rf_geomod_debris_count(1,probes,&count)==RF_FORMAT && count==123);
+        probes[4].face_flags=8;
+        CHECK(!rf_geomod_debris_count(1,probes,&count) && count==16);
+        memset(points,0x5a,sizeof(points));memcpy(saved_points,points,sizeof(points));origin[2]=INFINITY;
+        CHECK(rf_geomod_debris_probe_points(origin,1,points)==RF_FORMAT);
+        CHECK(!memcmp(points,saved_points,sizeof(points)));
+        origin[2]=0;CHECK(!rf_geomod_debris_probe_points(origin,1,points));
+        CHECK(points[0][0]==1 && points[1][0]==-1 && points[4][2]==1 && points[5][2]==-1);
+    }
     CHECK(!light_grid_check());
     CHECK(!light_bake_check());
     {

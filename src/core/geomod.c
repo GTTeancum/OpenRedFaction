@@ -176,6 +176,39 @@ int rf_geomod_planar_uv(const float normal[3],const float position[3],
     memcpy(uv,result,sizeof(result));return RF_OK;
 }
 
+int rf_geomod_debris_probe_points(const float origin[3],float radius,float endpoints[14][3])
+{
+    float result[14][3],diagonal;uint32_t i,j;
+    if(!origin || !endpoints)return RF_RANGE;
+    if(!isfinite(radius) || radius<=0)return RF_FORMAT;
+    for(j=0;j<3;j++)if(!isfinite(origin[j]))return RF_FORMAT;
+    diagonal=(float)((double)radius*.5773500204086304f);
+    for(i=0;i<14;i++)for(j=0;j<3;j++) {
+        float offset=i<6?(i/2==j?(i&1?-radius:radius):0):((i-6)&(1u<<j)?-diagonal:diagonal);
+        result[i][j]=origin[j]+offset;if(!isfinite(result[i][j]))return RF_FORMAT;
+    }
+    memcpy(endpoints,result,sizeof(result));return RF_OK;
+}
+
+int rf_geomod_debris_count(float radius,const rf_geomod_debris_probe probes[14],int32_t *count)
+{
+    float remaining;double result;uint32_t i;
+    if(!probes || !count)return RF_RANGE;
+    if(!isfinite(radius) || radius<=0)return RF_FORMAT;
+    remaining=(float)((double)radius*14.0);if(!isfinite(remaining))return RF_FORMAT;
+    for(i=0;i<14;i++) {
+        float distance=radius;
+        if(probes[i].hit==1 && probes[i].has_face && !(probes[i].face_flags&8)) {
+            distance=probes[i].distance;
+            if(!isfinite(distance) || distance<0 || distance>radius)return RF_FORMAT;
+        }
+        remaining=(float)((double)remaining-distance);
+    }
+    result=floor((double)remaining*2.0);
+    if(result<INT32_MIN || result>INT32_MAX)return RF_RANGE;
+    *count=result<16?(int32_t)result:16;return RF_OK;
+}
+
 int rf_geomod_debris_launch(const float position[3],const float origin[3],
     float radius,float resistance,rf_random_state *random,float velocity[3])
 {

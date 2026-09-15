@@ -1494,3 +1494,31 @@ motion and rendering. Newly exported490500/490890 suggest count depends on
 fourteen world probes (six axial and eight diagonal), rather than a fixed
 number per rocket. This is a decompiler lead, not yet executed policy evidence;
 do not substitute an arbitrary fixed burst and call it original behavior.
+
+## Original terrain-dependent debris count (2026-09-15)
+
+rf_geomod_debris_probe_points reconstructs490500's six axial endpoints and
+eight diagonal endpoints, using radius*.5773500204086304f for each diagonal
+component. The caller performs the world queries in that order and supplies
+resolved hit records to rf_geomod_debris_count. No collision ownership or
+material lookup is implied by the API.
+
+The accumulator starts at float(radius*14). Each490890 sample subtracts its
+hit distance only when the query returns exactly1, a face exists and that
+face's flag8 is clear; otherwise it subtracts the full radius. Each subtraction
+rounds to float.490500 floors twice the remainder, then caps the signed result
+at16. Preserve signed results: radius.1 with all misses produces-1 from numeric
+residue; original48fe30 loops only for positive counts, so it creates no chunks.
+Do not interpret this result as an unsigned allocation count.
+
+inspect_geomod_debris_count.py executes original490500,490890 and their
+rounding/flag helpers. Only48fc10 world queries are supplied synthetic results.
+138 original/shared cases match count and all fourteen endpoint float bits:
+six radii, misses, near/far hits, missing faces, excluded/other flags, return2,
+each isolated contributing sample and mixed samples. Evidence is stored in
+artifacts/geomod-debris-count-original.json. This verifies policy for supplied
+contacts; actual live contact distances, flags and eligible surfaces still need
+binding. The two GeoMod CTests pass, including signed residue and invalid-input
+rollback; no changed scene or screenshot is claimed.
+NXDK compilation passes (artifacts/geomod-debris-count-xbox.log). No native
+scene run was needed for these helpers, which are not yet on the impact path.
