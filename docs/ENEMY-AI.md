@@ -195,3 +195,45 @@ movement/jump attempts remain obstructed. Crouch clearance, breakable geometry,
 and precise collision behavior there have not yet been distinguished. No full
 section-exit claim or forced exit is made. Full six-kill native verification and
 resolving this last approach are open.
+
+## Uninterrupted Area2 exit (2026-09-14)
+
+The obstruction is resolved by the route: a centered approach at x11.5,z51.6,
+a jump at frame6810 and crouch from6822 allow entry over the raised static ramp
+and into the low passage. Crouched movement reaches the authored exit normally.
+No collision bypass, removed geometry, injected event, forced placement or
+health grant is used. Previous standing/poorly centered attempts did not prove
+an engine collision defect; crouch plus alignment succeeds with existing code.
+
+`tools/replay_area2_exit.py` continues the verified6,250-frame six-kill prefix.
+The PC run passes7,450 frames and transitions L2S2a.rfl to L2S3.rfl via5150 at
+frame7275. Player health15, loaded16/reserve88 pistol rounds and the consumed
+kit8553 persist. Combat counters reset for the new section, so the six-kill
+assertions belong to the separately checked prefix, not the destination snapshot.
+The test checks one natural exit and retained player state; it does not establish
+retail parity, every optional encounter, revisit state or the entire campaign.
+
+The native render harness bound is raised to9,000 frames/900 seconds to cover
+this uninterrupted section and loading its successor. Xbox still reads one
+replay record at a time; the change does not allocate the whole replay in guest
+RAM or change the stock64MiB target. Native verification is pending.
+
+```
+python tools/replay_area2_east.py
+python tools/replay_area2_exit.py
+python tools/xemu_render_check.py --spawn --level L2S2a.rfl --input artifacts/area2-exit-replay/input.bin --seconds 900
+```
+
+Native confirmation: stock64MiB `render-20260914-220704` passes all7,450 frames
+and28 selected final-state comparisons. Xbox takes the same5150 exit at global
+frame7275 into L2S3.rfl. Health15 and pistol88 reserve/16 loaded match PC after
+175 destination frames. Destination free memory is4,679 pages (18.277MiB).
+The input SHA256 equals the reproducible PC exit fixture. Disc restoration is
+verified byte-for-byte against its manifest and the owned XEMU is closed.
+
+This validates uninterrupted traversal and retained player state across the
+natural section exit. Destination combat counters reset, so this final snapshot
+does not independently count the six native kills before transition; the six
+kills are directly asserted by the PC prefix and the four-kill native prefix
+was separately checked. Full single-player completion remains open. Next focus:
+L2S3 encounters and onward progression. Rough project estimate advances to~46%.

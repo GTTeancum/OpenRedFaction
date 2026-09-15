@@ -57,8 +57,8 @@ def main():
         args.frames = (len(payload)-offset)//size
     if len(args.setup_uid)>2 or any(not 0<uid<0xffffffff for uid in args.setup_uid):
         parser.error('Require at most two positive setup UIDs')
-    if not 32 <= args.frames <= 6000 or not 30 <= args.seconds <= 600 or not 0 < args.actor < 0xffffffff:
-        parser.error('Require32..6000 frames,30..600 seconds and a positive actor UID')
+    if not 32 <= args.frames <= 9000 or not 30 <= args.seconds <= 900 or not 0 < args.actor < 0xffffffff:
+        parser.error('Require32..9000 frames,30..900 seconds and a positive actor UID')
     if payload is None:
         payload = b'RFI5' + struct.pack('<I', 44) + bytes(args.frames * 44)
     if args.item_uid is not None and not 0 < args.item_uid < 0xffffffff:

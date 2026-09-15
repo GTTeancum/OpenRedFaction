@@ -1,7 +1,7 @@
 # Red Faction Xbox / PC - open work
 
 - Combat: Finish authored enemy damage amounts, cadence, accuracy and weapon coverage; supported damage types, authored attack ranges and close-range Riot Stick pursuit are now wired.
-- Gameplay: Resolve the Area2 exit-ramp obstruction (crouch/breakable/collision status unverified); PC reaches six kills (6250 frames), and Xbox verifies four kills plus the northern hall doorway (5350 frames, 16.621MiB free).
+- Gameplay: Continue uninterrupted L2S3 gameplay; PC and stock Xbox pass the full Area2 spawn/rescue/combat/crouched exit route (7450 frames, 15 health and 18.277MiB free in L2S3).
 
 First-pass policy: playable campaign systems take priority over exact1:1 RE.
 Use practical shared implementations, verify gameplay and stock64MiB operation,
@@ -35,11 +35,11 @@ Final stock64MiB Xbox run182149 passes360 frames and the same exit at frame274,
 with4383 free pages (17.121MiB). Overall estimate remains ~45%.
 
 Shortlist:
-- ACTIVE: Extend the PC/Xbox local miner rescue walking/Use approach (1200 frames,17.227MiB free) to uninterrupted Area2 traversal; finish occlusion and retail interaction feel.
-- ACTIVE: Complete normal player traversal after the PC/Xbox miner encounter passes900 frames with17.230MiB free; finish mover obstruction, attached actors and revisit behavior.
+- DEFERRED / TO COMPLETE: Refine occlusion and retail interaction feel after the verified uninterrupted Area2 route.
+- TO COMPLETE: Finish mover obstruction, attached actors and revisit behavior beyond the verified Area2 walking route.
 - TO COMPLETE: Verify nonlethal damage, immunity and sight/alarm interruption of scripted poses after the PC/Xbox death-cancellation fix.
 - TO COMPLETE: Finish named state/action animation events, root motion, automatic combat/death interruption and script-animation persistence after the verified custom-clip path.
-- TO COMPLETE: Walk uninterrupted Area2 encounters after the L2S1 Use/airlock interlock fix; isolated boundary checks are not full traversal.
+- TO COMPLETE: Extend the uninterrupted Area2 route backward through L2S1 and onward through L2S3, including surviving consecutive encounters.
 - TO COMPLETE: Finish airlock pressure equalization, atmosphere/audio, unsupported peer layouts and state restoration on revisits.
 - DEFERRED / TO COMPLETE: Replace coarse world texture fallback caps with selective residency and verify PS2 parity; L2S2a currently needs the128-pixel cap to load within12MiB.
 - TO COMPLETE: Extend alarm encounters and native linked-NPC coverage; preserve alarm state across sections and complete Alarm_Siren45 and original AI transitions.
