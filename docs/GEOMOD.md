@@ -2025,3 +2025,23 @@ PID 44888 exited and all 19 staged disc entries were restored. The native
 frame was inspected; crater appearance remains unresolved. Next profiling
 should separate candidate search from repeated vertex-array moves before
 another performance change. Estimate remains ~49%; GeoMod stays first.
+
+Face-local subdivision assembly (2026-09-15): Each face is now expanded in
+a 64-vertex scratch array and copied once to the output mesh. This removes
+whole-mesh memmoves and updates to every later face offset for every inserted
+vertex. Candidate searches, exact predicates, insertion order and UV arithmetic
+remain unchanged. Scratch storage is 1280 bytes on the stack; the heap owner
+remains 308244 bytes under 320KiB. Bounds reject malformed face ranges, more
+than 64 corners, output overflow and inconsistent packed vertex counts.
+The eight-cut PC mesh and image match the pre-index baseline byte-for-byte.
+Depth/stress checks pass with 19487 recessed solid pixels and no new gaps.
+Native artifacts/xemu/render-20260915-143854 completes 1500 frames/eight cuts
+and 46 checks. Binding times are 3,8,11,21,26,32,42,48ms, versus the retained
+indexed baseline 4,20,50,87,105,210,287,310ms. The eighth terrain cut takes
+323ms; debris preparation/spawn take 3/4ms, totaling 378ms across the measured
+stages versus 599ms indexed-only and 1071ms before these optimizations.
+Timings are subject to host scheduling; this is not an overall FPS claim.
+The inspected Xbox framebuffer is pixel-identical to the indexed baseline.
+PID 54748 exited; all 19 staged disc entries were restored. Available memory
+is 8593 pages (33.57MiB). Crater appearance still needs fidelity work; remaining
+edit time is now dominated by terrain cutting. Estimate remains ~49 percent.

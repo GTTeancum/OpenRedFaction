@@ -8536,7 +8536,8 @@ uint32_t rf_scene_geomod[8]; /* enabled,cuts,generation,resident,peak,status,att
 static int scene_terrain_subdivide(scene_stream *s,const rf_geomod_terrain_view *source)
 {
     scene_terrain_draw_mesh *draw=s->terrain_draw;const rf_geomod_mesh_view *mesh=&source->mesh;
-    uint32_t f,e,i,k,n=mesh->vertex_count,inserted=0;
+    uint32_t f,e,i,k,n=mesh->vertex_count,inserted=0,written=0;
+    rf_geomod_vertex polygon[64];
     if(!draw || n>4096 || mesh->face_count>768 ||
        sizeof(*draw)+(SCENE_TERRAIN_DRAW_VERTICES-4096)*sizeof(*s->terrain_colors)>SCENE_TERRAIN_DRAW_BUDGET)return RF_RANGE;
     for(k=0;k<3;k++) {
@@ -8551,13 +8552,16 @@ static int scene_terrain_subdivide(scene_stream *s,const rf_geomod_terrain_view 
             draw->sorted[k][j]=item;
         }
     }
-    memcpy(draw->vertices,mesh->vertices,n*sizeof(*draw->vertices));
     memcpy(draw->faces,mesh->faces,mesh->face_count*sizeof(*draw->faces));
     memcpy(draw->bound,source->faces,mesh->face_count*sizeof(*draw->bound));
     /* Preview reads only count/plane; never expose mismatched collision vertices. */
     for(f=0;f<mesh->face_count;f++)draw->bound[f].vertices=NULL;
-    for(f=0;f<mesh->face_count;f++)for(e=0;e<draw->faces[f].count;e++) {
-        rf_geomod_vertex a=draw->vertices[draw->faces[f].first+e],b=draw->vertices[draw->faces[f].first+(e+1)%draw->faces[f].count];
+    for(f=0;f<mesh->face_count;f++) {
+        if(mesh->faces[f].count>64 || mesh->faces[f].first>mesh->vertex_count ||
+           mesh->faces[f].count>mesh->vertex_count-mesh->faces[f].first)return RF_RANGE;
+        memcpy(polygon,mesh->vertices+mesh->faces[f].first,mesh->faces[f].count*sizeof(*polygon));
+        for(e=0;e<draw->faces[f].count;e++) {
+        rf_geomod_vertex a=polygon[e],b=polygon[(e+1)%draw->faces[f].count];
         double delta[3],lo[3],hi[3],length=0,best=1;uint32_t selected=UINT32_MAX;
         for(k=0;k<3;k++){delta[k]=(double)b.position[k]-a.position[k];length+=delta[k]*delta[k];
             lo[k]=fmin(a.position[k],b.position[k])-1e-6;hi[k]=fmax(a.position[k],b.position[k])+1e-6;}
@@ -8586,14 +8590,18 @@ static int scene_terrain_subdivide(scene_stream *s,const rf_geomod_terrain_view 
             if(error<=1e-12){best=fraction;selected=i;}
         }}
         if(selected!=UINT32_MAX) {
-            rf_geomod_vertex added=mesh->vertices[selected];uint32_t at=draw->faces[f].first+e+1;
+            rf_geomod_vertex added=mesh->vertices[selected];uint32_t at=e+1;
             if(n==SCENE_TERRAIN_DRAW_VERTICES || draw->faces[f].count==64)return RF_RANGE;
             for(k=0;k<2;k++)added.uv[k]=(float)((double)a.uv[k]+best*((double)b.uv[k]-a.uv[k]));
-            memmove(draw->vertices+at+1,draw->vertices+at,(n-at)*sizeof(*draw->vertices));draw->vertices[at]=added;
+            memmove(polygon+at+1,polygon+at,(draw->faces[f].count-at)*sizeof(*polygon));polygon[at]=added;
             ++n;++inserted;++draw->faces[f].count;++draw->bound[f].count;
-            for(i=f+1;i<mesh->face_count;i++)++draw->faces[i].first;
         }
+        }
+        if(draw->faces[f].count>SCENE_TERRAIN_DRAW_VERTICES-written)return RF_RANGE;
+        draw->faces[f].first=written;
+        memcpy(draw->vertices+written,polygon,draw->faces[f].count*sizeof(*polygon));written+=draw->faces[f].count;
     }
+    if(written!=n)return RF_FORMAT;
     draw->view=(rf_geomod_mesh_view){draw->vertices,draw->faces,n,mesh->face_count,mesh->generation};
     rf_scene_terrain_draw[0]=mesh->vertex_count;rf_scene_terrain_draw[1]=n;rf_scene_terrain_draw[2]=inserted;
     rf_scene_terrain_draw[3]=sizeof(*draw)+(SCENE_TERRAIN_DRAW_VERTICES-4096)*sizeof(*s->terrain_colors);rf_scene_terrain_draw[4]=mesh->generation;return RF_OK;
