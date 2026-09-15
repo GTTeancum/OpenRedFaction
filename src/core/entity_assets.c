@@ -678,6 +678,63 @@ int rf_weapon_primary_load(rf_vpp *tables,const char *name,uint32_t budget,rf_we
     free(text);return status;
 }
 
+int rf_weapon_explosive_read(const void *text,uint32_t bytes,const char *name,rf_weapon_explosive_definition *out)
+{
+    lexer l={text,bytes,0};rf_weapon_explosive_definition value={0};char t[256];
+    uint32_t mask=0,bit;int q,status,found=0,selected=0;
+    if(!text || !name || !*name || !out)return RF_RANGE;
+    while((status=token(&l,t,&q))==RF_OK) {
+        float *field=NULL;if(q)continue;
+        if(same(t,"$Name:")) {
+            if(found)break;
+            if(token(&l,t,&q) || !q)return RF_FORMAT;
+            selected=found=same(t,name);continue;
+        }
+        if(!selected)continue;
+        if(same(t,"#End"))break;
+        bit=0;
+        if(same(t,"$Velocity:")){bit=1;field=&value.speed;}
+        else if(same(t,"$Lifetime:")){bit=2;field=&value.lifetime;}
+        else if(same(t,"$Collision")) {
+            if(token(&l,t,&q) || q || !same(t,"Radius:"))return RF_FORMAT;
+            bit=4;field=&value.collision_radius;
+        } else if(same(t,"$Damage")) {
+            if(token(&l,t,&q) || q)return RF_FORMAT;
+            if(!same(t,"Radius:"))continue; /* Type/Multi are separate fields. */
+            bit=8;field=&value.damage_radius;
+        } else if(same(t,"+Crater")) {
+            if(token(&l,t,&q) || q || !same(t,"Radius:"))return RF_FORMAT;
+            bit=16;field=&value.crater_radius;
+        } else if(same(t,"$Weapon")) {
+            if(token(&l,t,&q) || q)return RF_FORMAT;
+            if(!same(t,"Type:"))continue;
+            bit=32;if(mask&bit)return RF_FORMAT;
+            if(token(&l,t,&q) || !q || !same(t,"explosive"))return RF_FORMAT;
+        }
+        if(!bit)continue;
+        if(mask&bit)return RF_FORMAT;
+        if(field) {
+            if(sphere_number(&l,field))return RF_FORMAT;
+            if(*field<0 || (bit<=2 && *field==0))return RF_RANGE;
+        }
+        mask|=bit;
+    }
+    if(status!=RF_OK && status!=RF_NOT_FOUND)return status;
+    if(!found)return RF_NOT_FOUND;
+    if(mask!=63)return RF_FORMAT;
+    *out=value;return RF_OK;
+}
+int rf_weapon_explosive_load(rf_vpp *tables,const char *name,uint32_t budget,rf_weapon_explosive_definition *out)
+{
+    rf_vpp_entry entry;void *text;int status;
+    if(!tables || !name || !*name || !out)return RF_RANGE;
+    status=rf_vpp_find(tables,"weapons.tbl",&entry);if(status)return status;
+    if(!entry.size || entry.size>budget)return RF_RANGE;
+    text=malloc(entry.size);if(!text)return RF_IO;
+    status=rf_vpp_read(tables,&entry,0,text,entry.size);
+    if(!status)status=rf_weapon_explosive_read(text,entry.size,name,out);
+    free(text);return status;
+}
 int rf_weapon_supply_read(const void *ammo,uint32_t ammo_bytes,
     const void *weapons,uint32_t weapon_bytes,rf_weapon_supply_catalog *result)
 {

@@ -313,3 +313,28 @@ complete activation operation. Its full body remains unreconstructed.
 sets +fa0 to -1, and stamps +fa8 using 0x4fa360(offset=0). 0x4ab180 sets byte
 +1044 to 1 on global local player 0x7c75d4 when non-null. These observations
 identify the next state dependencies; they are not implemented by this change.
+
+
+## Explosive projectile inputs for live integration
+
+rf_weapon_explosive_read/load independently decodes named weapons.tbl SP
+velocity, lifetime, collision radius, damage radius and crater radius, requiring
+an explosive Weapon Type. It rejects duplicate, missing, malformed or negative
+fields, requires positive speed/lifetime, preserves output on failure and uses
+a bounded table scratch allocation. Multiplayer overrides are ignored. These
+are authored parameters, not recovered flight, homing, fuse or blast policies.
+
+Installed tables.vpp verification: Rocket Launcher has speed20, lifetime15,
+collision radius0.051, damage radius5 and crater radius5. The existing primary
+loader also resolves its six-round clip,1.7 reload,1.25 fire interval,400 SP
+damage and explosive damage kind3. Grenade has speed10, lifetime5, collision
+radius0.15, damage radius8 and crater radius5; its distinct multiplayer values
+do not overwrite the SP fields. The grenade impact-delay/fuse, gravity and
+bounce behavior remain separate and are not implied by this loader.
+
+rf_weapon_explosive_tests checks both installed definitions, primary rocket
+rules, table budget rejection and malformed/duplicate/missing-field rollback.
+NXDK builds the XBE/XISO. No live launcher, projectile motion, blast damage,
+impact presentation or native runtime execution is claimed by these tests.
+Next is bounded projectile flight against current world collision, impact
+routing to damage/GeoMod and launcher resource/input integration in the room.

@@ -24,6 +24,15 @@ typedef struct rf_weapon_primary_definition {
 } rf_weapon_primary_definition;
 int rf_weapon_primary_read(const void *text,uint32_t bytes,const char *name,rf_weapon_primary_definition *result);
 int rf_weapon_primary_load(rf_vpp *tables,const char *name,uint32_t scratch_budget,rf_weapon_primary_definition *result);
+typedef struct rf_weapon_explosive_definition {
+    float speed,lifetime,collision_radius,damage_radius,crater_radius;
+} rf_weapon_explosive_definition;
+/* Named explosive weapons.tbl fields for projectile motion/blast integration.
+ * Requires explosive weapon type and all five finite fields; speed/lifetime
+ * positive, radii nonnegative. Duplicate/missing/malformed fields preserve
+ * output. This decodes authored inputs, not flight/homing or explosion policy. */
+int rf_weapon_explosive_read(const void *,uint32_t,const char *,rf_weapon_explosive_definition *);
+int rf_weapon_explosive_load(rf_vpp *,const char *,uint32_t,rf_weapon_explosive_definition *);
 
 /* Named first-person resource binding: mesh, idle/fire/reload and optional alt.
  * Owns all names; missing/duplicate required fields preserve the output. */
