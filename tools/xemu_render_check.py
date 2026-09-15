@@ -262,8 +262,11 @@ dvd_path = '{root.as_posix()}/build/xbox/redfaction-diagnostic.iso'
             fields += [(name, 32) for name in ('rf_renderer_profile', 'rf_scene_profile',
                 'rf_scene_presentation_profile', 'rf_scene_world_profile', 'rf_scene_step_profile',
                 'rf_scene_npc_step_profile', 'rf_scene_npc_playback_profile')]
+            fields.append(('rf_scene_terrain_edit_times',40))
             snap = dict(symbols={name: dict(words=words(monitor, symbol(name), count)) for name, count in fields})
             (run / 'guest-memory-final.json').write_text(json.dumps(snap, indent=2))
+            edits=snap['symbols']['rf_scene_terrain_edit_times']['words']
+            (run/'terrain-edit-times.json').write_text(json.dumps([dict(zip(('frame','cut_ms','bind_ms','debris_prepare_ms','debris_spawn_ms'),edits[i:i+5])) for i in range(0,40,5) if edits[i]],indent=2)+'\n')
             report['checks'] = {}
             transition_rows=[line.split()[1:] for line in pc.stdout.splitlines() if line.startswith('LEVEL_TRANSITION ')]
             native_transition=words(monitor,symbol('rf_xbox_level_transitions'),4)

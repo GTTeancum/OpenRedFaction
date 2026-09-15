@@ -8523,6 +8523,12 @@ static int campaign_pickups_tick(scene_stream *stream,const float eye[3])
     }
     return RF_OK;
 }
+uint32_t rf_scene_terrain_edit_times[8][5]; /* frame,cut,bind,debris prepare,spawn; ms, latest8 attempts */
+static void scene_terrain_edit_mark(uint32_t row,uint32_t column,uint32_t *previous)
+{
+    uint32_t now;if(!profile_clock || !profile_active)return;
+    now=profile_clock();rf_scene_terrain_edit_times[row][column]=now-*previous;*previous=now;
+}
 uint32_t rf_scene_geomod[8]; /* enabled,cuts,generation,resident,peak,status,attempts,successful edits */
 /* Render-only T-junction subdivision. Physical faces and light-grid inputs
  * retain their original geometry; UVs interpolate on the owning face edge. */
@@ -8890,6 +8896,7 @@ static int scene_terrain_open(scene_stream *s,const rf_level *level)
         }
         free(payload);if(status)return status;
     }
+    memset(rf_scene_terrain_edit_times,0,sizeof(rf_scene_terrain_edit_times));
     s->terrain_noise=calloc(1,sizeof(*s->terrain_noise));if(!s->terrain_noise)return RF_IO;
 #ifndef RF_IMAGE_XBOX_NATIVE
     s->terrain_shadow_reference=getenv("RF_REPLAY_TERRAIN_SHADOW_REFERENCE")!=NULL;
@@ -9180,6 +9187,8 @@ static int scene_rockets_tick(scene_stream *s,uint32_t frame)
             /* Original concave crater template in the explicit DEV cavity. Impact effects
              * and authored surface eligibility remain separate. */
             if(s->terrain && event.contact.room==0 && campaign_rocket.crater_radius>0) {
+                uint32_t timing_row=rf_scene_geomod[6]%8,timing_clock=0;
+                memset(rf_scene_terrain_edit_times[timing_row],0,sizeof(rf_scene_terrain_edit_times[0]));rf_scene_terrain_edit_times[timing_row][0]=frame;
                 ++rf_scene_geomod[6];
                 {float basis[9];rf_geomod_hardness_result hardness;
                  status=rf_geomod_hardness(s->terrain_regions,s->terrain_region_count,s->terrain_default_hardness,
@@ -9188,12 +9197,15 @@ static int scene_rockets_tick(scene_stream *s,uint32_t frame)
                  if(!status) {
                      if(rf_scene_combat_trace)printf("GEOMOD_HARDNESS %u %u %u %.9g\n",frame,hardness.hardness,hardness.matches,hardness.scale);
                      status=rf_geomod_random_basis(&s->terrain_random,basis);if(status)return status;
+                     if(profile_clock && profile_active)timing_clock=profile_clock();
                      status=scene_debris_prepare(s,&event.contact,hardness.scale*s->terrain_template->radius);if(status)return status;
+                     scene_terrain_edit_mark(timing_row,3,&timing_clock);
                      status=rf_geomod_terrain_cut_template_scale(s->terrain,s->terrain_template,event.contact.hit.point,basis,
                          hardness.scale,s->terrain_material);
+                     scene_terrain_edit_mark(timing_row,1,&timing_clock);
                  }}
                 rf_scene_geomod[5]=(uint32_t)status;
-                if(!status){status=scene_terrain_bind(s);if(status)return status;++rf_scene_geomod[7];++rf_scene_rockets[4];status=scene_debris_spawn(s);if(status)return status;}
+                if(!status){status=scene_terrain_bind(s);scene_terrain_edit_mark(timing_row,2,&timing_clock);if(status)return status;++rf_scene_geomod[7];++rf_scene_rockets[4];status=scene_debris_spawn(s);scene_terrain_edit_mark(timing_row,4,&timing_clock);if(status)return status;}
                 else {++rf_scene_rockets[5];if(status!=RF_RANGE && status!=RF_FORMAT && status!=RF_NOT_FOUND)return status;}
             }
         }

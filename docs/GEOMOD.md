@@ -1969,3 +1969,19 @@ including one full atlas upload. Native world-rebuild phase averages 12.935ms
 This does not establish smooth edits or full-frame pixel parity. The native
 frame was inspected. The earlier 141020 run tested the same mappings with
 incremental filling; 141427 verifies the final immediate-fill policy.
+
+Late-edit profiling (2026-09-15): The native harness now exports the latest
+eight DEV blast timings to terrain-edit-times.json, separating terrain cutting,
+render-mesh/collision binding, debris preparation and debris spawning. These
+wall-clock timings are diagnostics, not PC/Xbox equality checks.
+Run artifacts/xemu/render-20260915-141949 completes 1500 frames, eight cuts
+and 46 checks. Cut times grow 17,39,81,122,164,202,271,291ms; bind times grow
+7,42,111,210,309,455,669,773ms. The final blast spends 3ms preparing debris
+and 4ms spawning it. Binding includes render-only T-junction subdivision and
+collision-overlay binding; this measurement does not separate those two.
+The next optimization target is that combined binding path, while preserving
+seam closure and physical geometry. Host scheduling affects these timings.
+No performance improvement is claimed from instrumentation alone.
+The native framebuffer was inspected: the dark mound-like appearance remains
+unaccepted. PID 49500 exited and all 19 staged disc entries were restored.
+No GitHub image was uploaded. Estimate remains ~49%; focus is GeoMod fidelity.
