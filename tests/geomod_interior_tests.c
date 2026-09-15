@@ -181,6 +181,54 @@ static unsigned junction_reference(const rf_geomod_mesh_view *mesh,const float p
     }
     return 0;
 }
+/* Independent plane/barycentric reference, distinct from the production
+ * ray-space edge projection. Returns the nearest front-facing triangle. */
+static double terrain_reference(const rf_geomod_mesh_view *mesh,const float start[3],const float delta[3])
+{
+    unsigned f,k,j;double best=2;
+    for(f=0;f<mesh->face_count;f++) {
+        const rf_geomod_face *face=mesh->faces+f;const float *a=mesh->vertices[face->first].position;
+        for(k=1;k+1<face->count;k++) {
+            const float *b=mesh->vertices[face->first+k].position,*c=mesh->vertices[face->first+k+1].position;
+            double e[3],g[3],n[3],p[3],den=0,num=0,ee=0,eg=0,gg=0,ep=0,gp=0,t,u,v,det;
+            for(j=0;j<3;j++){e[j]=(double)b[j]-a[j];g[j]=(double)c[j]-a[j];}
+            for(j=0;j<3;j++) {
+                n[j]=e[(j+1)%3]*g[(j+2)%3]-e[(j+2)%3]*g[(j+1)%3];
+                den+=n[j]*delta[j];num+=n[j]*((double)a[j]-start[j]);
+            }
+            if(den>=0)continue;t=num/den;if(t<0 || t>1 || t>best)continue;
+            for(j=0;j<3;j++) {
+                p[j]=((double)start[j]-a[j])+t*delta[j];
+                ee+=e[j]*e[j];eg+=e[j]*g[j];gg+=g[j]*g[j];ep+=e[j]*p[j];gp+=g[j]*p[j];
+            }
+            det=ee*gg-eg*eg;if(det<=0)continue;
+            u=(gg*ep-eg*gp)/det;v=(ee*gp-eg*ep)/det;
+            if(u>=0 && v>=0 && u+v<=1)best=t;
+        }
+    }
+    return best;
+}
+static int terrain_ray_coverage(const rf_geomod_terrain_view *live,unsigned cut)
+{
+    const float start[3]={0,-10,12},extent[3]={32,24,40};unsigned axis,side,u,v,j,probes=0;
+    for(axis=0;axis<3;axis++)for(side=0;side<2;side++)for(u=0;u<17;u++)for(v=0;v<17;v++) {
+        float end[3]={0},delta[3];double expected;rf_collision_tree_hit hit;unsigned matched;
+        end[axis]=(side?1:-1)*extent[axis];
+        end[(axis+1)%3]=extent[(axis+1)%3]*((u+.37f)/17-.5f);
+        end[(axis+2)%3]=extent[(axis+2)%3]*((v+.61f)/17-.5f);
+        for(j=0;j<3;j++)delta[j]=end[j]-start[j];
+        expected=terrain_reference(&live->mesh,start,delta);CHECK(expected<=1);
+        CHECK(!rf_collision_thin_tree(live->tree->nodes,live->tree->node_count,live->tree->faces,
+            live->tree->face_count,0,start,delta,1,live->tree->stack,live->tree->node_capacity,&hit,&matched));
+        if(!matched || fabs(hit.hit.fraction-expected)>1e-5)
+            printf("COVERAGE_FAILURE cut %u axis %u side %u grid %u %u expected %.12g hit %u fraction %.9g\n",cut,axis,side,u,v,expected,matched,matched?hit.hit.fraction:0);
+        CHECK(matched && fabs(hit.hit.fraction-expected)<=1e-5);
+        CHECK(!rf_collision_thin_tree(live->tree->nodes,live->tree->node_count,live->tree->faces,
+            live->tree->face_count,0,start,delta,(float)(expected*.5),live->tree->stack,live->tree->node_capacity,&hit,&matched));
+        CHECK(!matched);probes++;
+    }
+    printf("TERRAIN_COVERAGE cut %u nearest %u short_segment %u\n",cut,probes,probes);return 0;
+}
 int main(int argc,char **argv)
 {
     {
@@ -833,6 +881,7 @@ int main(int argc,char **argv)
                     junction_misses+=misses;CHECK(!body_misses);
                     CHECK(reference_hits==misses); /* These misses have mesh intersections. */
                 }
+                CHECK(!terrain_ray_coverage(&live,repeat+1));
                 CHECK(-total>previous_volume);previous_volume=-total;
             }
             rf_geomod_terrain_close(&terrain);

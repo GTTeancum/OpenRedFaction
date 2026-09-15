@@ -320,6 +320,12 @@ add_test(NAME geomod_polygon_split COMMAND rf_geomod_split_tests)
 add_executable(rf_geomod_interior_tests tests/geomod_interior_tests.c tools/pc_raster.c)
 target_link_libraries(rf_geomod_interior_tests PRIVATE rf_core)
 add_test(NAME geomod_interior_faces COMMAND rf_geomod_interior_tests "${CMAKE_SOURCE_DIR}/Installed_Game")
+# Original-template fixtures are produced by inspect_geomod_template.py and
+# pack_geomod_template.py, as required by the Xbox build. Missing inputs fail
+# explicitly instead of silently omitting the repeated-cut regression.
+add_test(NAME geomod_repeated_cut_coverage COMMAND rf_geomod_interior_tests
+    "${CMAKE_SOURCE_DIR}/Installed_Game" "${CMAKE_SOURCE_DIR}/artifacts/geomod-holey01-csg.bin")
+set_tests_properties(geomod_repeated_cut_coverage PROPERTIES WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}")
 
 add_executable(rf_geomod_storage_tests tests/geomod_storage_tests.c)
 target_link_libraries(rf_geomod_storage_tests PRIVATE rf_core)

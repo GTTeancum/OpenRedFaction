@@ -1136,3 +1136,23 @@ and40 comparisons, with six accepted cuts and9023pages free (35.246MiB).
 PC/Xbox terrain and shadow counters agree. Decoded framebuffer pixels exactly
 match the previously inspected110230 capture; no new image was posted.
 All19disc entries match their saved state and owned PID39472 exited.
+
+## Room-wide repeated-cut collision coverage (2026-09-15)
+
+The six-cut fixture now casts1734 rays per cut from(0,-10,12), using17x17
+staggered targets toward each of six room sides. An independent double-precision
+plane/barycentric triangle reference computes the nearest front-facing contact;
+the production implementation uses ray-space edge projection instead. All10404
+room-wide nearest-hit queries match within1e-5 of segment fraction. The same
+10404 queries limited to half the expected hit fraction correctly report no hit.
+The existing25350 junction probes also pass. This covers varied oblique rays
+and all room sides, not arbitrary camera positions or all destructible levels.
+The mesh-closure diagnostic remains unresolved; no visual acceptance is claimed.
+
+CMake now registers geomod_repeated_cut_coverage with the project root as its
+working directory. It runs the previously manual original-template and six-cut
+fixtures, including unconditional zero junction misses. Its original inputs
+must be generated with inspect_geomod_template.py and pack_geomod_template.py;
+missing fixtures fail explicitly, as they do for the Xbox build. No copyrighted
+fixture is added to Git. Evidence:artifacts/geomod-coverage.log. Runtime code is
+unchanged in this follow-up, so no duplicate Xbox run or screenshot is needed.
