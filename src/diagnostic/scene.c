@@ -7945,6 +7945,7 @@ static void combat_notify(void *c,uint32_t k,uint32_t t,float v,uint32_t s)
 static uint32_t combat_playing(void *c,uint32_t v){(void)c;(void)v;return 0;}
 static uint32_t combat_play(void *c,uint32_t t){(void)c;(void)t;return UINT32_MAX;}
 /* Nearest segment/AABB entry; the legacy segment predicate returns an endpoint. */
+uint32_t rf_scene_combat_trace; /* Opt-in process-local shot/candidate-shape diagnostics. */
 static int combat_box(const float start[3],const float delta[3],const rf_physics_bounds *box,float limit,float *fraction)
 {
     double lo=0,hi=limit;uint32_t j;
@@ -8485,6 +8486,22 @@ static int campaign_combat_tick(scene_stream *stream,uint32_t frame,const float 
         campaign_npc_body *owner=campaign_npc_bodies+i;float fraction;
         if(!owner->registration.view || (owner->object_flags&(2|0x4000)) || !owner->body.allocated_bytes || owner->damage.effects.health<=0 || (owner->view.flags_810&1))continue;
         if(combat_box(position,delta,&owner->body.state.bounds,nearest,&fraction) && fraction<nearest){nearest=fraction;target=i;}
+    }
+    if(rf_scene_combat_trace) {
+        uint32_t uid=target==UINT32_MAX?UINT32_MAX:campaign_seeds.records.items[target].record.uid;
+        printf("SHOT_RAY %u %u %u %u %.9g %.9g %.9g %.9g %.9g %.9g %.9g\n",frame,campaign_equipped_slot,pellet,uid,nearest,
+            position[0],position[1],position[2],delta[0],delta[1],delta[2]);
+        if(target!=UINT32_MAX) {
+            const rf_physics_body *body=&campaign_npc_bodies[target].body;
+            for(uint32_t n=0;n<body->spheres.count;n++) {
+                const rf_physics_sphere *sphere=body->spheres.items+n;float center[3];
+                for(uint32_t k=0;k<3;k++)center[k]=(float)((double)body->state.position[k]+(double)sphere->center[0]*body->state.orientation[k]+
+                    (double)sphere->center[1]*body->state.orientation[3+k]+(double)sphere->center[2]*body->state.orientation[6+k]);
+                printf("SHOT_SHAPE %u %u %u %.9g %.9g %.9g %.9g %.9g %.9g %.9g %.9g %.9g %.9g\n",frame,uid,n,
+                    center[0],center[1],center[2],sphere->radius,body->state.bounds.minimum[0],body->state.bounds.minimum[1],body->state.bounds.minimum[2],
+                    body->state.bounds.maximum[0],body->state.bounds.maximum[1],body->state.bounds.maximum[2]);
+            }
+        }
     }
     if(campaign_equipped_slot==2 && fire) {
         rf_collision_solid_hit surface;float end[3];uint32_t matched=0;

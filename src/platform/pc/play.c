@@ -177,6 +177,8 @@ static int input(void *context,uint32_t frame,rf_scene_input *out)
         p->forced_exit_uid=p->exit_uid;p->exit_uid=0;if(status)return status;
     }
     if(p->headless) {
+        extern uint32_t rf_scene_combat_trace;
+        rf_scene_combat_trace=p->frames>=p->trace_from && getenv("RF_REPLAY_TRACE")!=NULL;
         if((frame%60==0 || p->frames>=p->trace_from) && getenv("RF_REPLAY_TRACE")) {
             float position[3],basis[9];
             if(!rf_scene_campaign_pose_get(position,basis))

@@ -1,11 +1,19 @@
 # Red Faction Xbox / PC - open work
 
+- Combat: Replace broad-box-only bullet hits with precise shared body collision; measured PC shots miss all miner spheres yet cause friendly damage and retaliation.
 - Weapons: Implement remaining campaign weapons beyond handgun, rifle, Riot Stick and shotgun; automatic rifle now clears three shaft guards on PC/Xbox.
 - Weapons: Verify remaining enemy drop policies and uncollected-drop revisits; supported held weapons now drop collectible supplies, with PC/Xbox rifle acquisition and firing verified.
 - Combat: Finish enemy damage amounts, cadence and weapon coverage; authored SP primary spread and target/bullet-obstruction checks now pass PC/Xbox verification (24 hits, 3 misses).
 - Weapons: Exercise the shotgun in the uninterrupted campaign and continue weapon coverage; PC manual/automatic reload and PC/Xbox automatic reload plus two-level persistence checks now pass.
-- Gameplay: Continue through the L3S1 checkpoint; PC now reaches it with55health and42loaded rifle rounds after the cabinet supplies, while the allied miner remains unharmed.
+- Gameplay: Continue into the L3S1 main room; PC/Xbox now clear the checkpoint guard with45health and36rifle rounds, but the next encounter exposes false bullet hits.
 - Movement: Refine ladder entry and top-edge transitions; body contact now unblocks the first L2S3 ladder, but the verified route still uses a jump and repeated top-edge state changes need smoothing.
+
+Checkpoint update (2026-09-15): The15290-frame stock64MiB Xbox route passes
+all33 PC/native comparisons, clears guard892 and ends with23.895MiB free.
+The next PC encounter confirms broad-box bullet hits that miss the selected
+actor body spheres, including allied miner910. Precise shared bullet collision
+and encounter revalidation are next; diagnostics do not fix selection yet.
+See docs/L3S1-CHECKPOINT.md. Estimate remains ~48%.
 
 Weapon-drop update (2026-09-15): Supported enemy weapons now become collectible
 supplies; the staged rifle kill/pickup/burst passes PC and stock64MiB Xbox
