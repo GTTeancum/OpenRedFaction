@@ -465,8 +465,8 @@ typedef struct scene_particle_workspace {
     uint32_t order[2048];float distances[2048];
 } scene_particle_workspace;
 static const char *campaign_weapon_names[4]={"12mm handgun","Assault Rifle","Riot Stick","Shotgun"};
-enum { SCENE_PICKUP_CLASSES=10 };
-static const char *pickup_classes[SCENE_PICKUP_CLASSES]={"Handgun","Medical Kit","Suit Repair","12mm_ammo","Assault Rifle","5.56mm_ammo","Riot Stick","riot_stick_battery","Shotgun","10gauge_ammo"};
+enum { SCENE_PICKUP_FIRST_AID=10, SCENE_PICKUP_CLASSES=11 };
+static const char *pickup_classes[SCENE_PICKUP_CLASSES]={"Handgun","Medical Kit","Suit Repair","12mm_ammo","Assault Rifle","5.56mm_ammo","Riot Stick","riot_stick_battery","Shotgun","10gauge_ammo","First Aid Kit"};
 typedef struct scene_pickup_resource {
     rf_item_definition definition;rf_static_render_resource model;rf_model_materials materials;
     uint32_t base,textures,resident,peak;
@@ -8355,9 +8355,10 @@ static int campaign_pickups_tick(scene_stream *stream,const float eye[3])
         status=combat_shot_obstructed(stream,eye,delta,1,&blocked);if(status)return status;
         if(blocked){++rf_scene_pickups[2];continue;}
         if(item->quantity<0)return RF_FORMAT;
-        if(kind==1 || kind==2) {
-            float total;restored=pickup_restore(kind==1?&campaign_player_damage.state.effects.health:&campaign_player_damage.state.effects.armor,item->quantity);
-            if(restored<=0)continue;memcpy(&total,rf_scene_pickup_vitals+kind+1,4);total+=restored;memcpy(rf_scene_pickup_vitals+kind+1,&total,4);
+        if(kind==1 || kind==2 || kind==SCENE_PICKUP_FIRST_AID) {
+            uint32_t vital=kind==2?3:2;float total;
+            restored=pickup_restore(kind==2?&campaign_player_damage.state.effects.armor:&campaign_player_damage.state.effects.health,item->quantity);
+            if(restored<=0)continue;memcpy(&total,rf_scene_pickup_vitals+vital,4);total+=restored;memcpy(rf_scene_pickup_vitals+vital,&total,4);
         } else {
             int32_t id=kind>=8?campaign_shotgun_id:kind>=6?campaign_riot_id:kind>=4?campaign_rifle_id:campaign_pistol_id;
             status=rf_weapon_pickup_grant_sp(&campaign_player_inventory,campaign_weapon_supply.definitions+id,
@@ -11037,7 +11038,7 @@ static int scene_pickup_resources_open(scene_stream *stream,const char *tables_p
         for(i=0;i<stream->pickups.count;i++)if(pickup_class(stream->pickups.items[i].class_name)==(int)kind)count++;
         if(!count)continue;
         status=rf_item_definition_load(&tables,pickup_classes[kind],128*1024,&r->definition);if(status)goto done;
-        if(r->definition.mesh_kind!=1 || (kind>=3 && (rf_weapon_name_find(&campaign_weapon_supply.names,r->definition.weapon)<0 || rf_weapon_name_find(&campaign_weapon_supply.names,r->definition.weapon)!=rf_weapon_name_find(&campaign_weapon_supply.names,kind>=8?"Shotgun":kind>=6?"Riot Stick":kind>=4?"Assault Rifle":"12mm handgun")))){status=RF_FORMAT;goto done;}
+        if(r->definition.mesh_kind!=1 || (kind>=3 && kind!=SCENE_PICKUP_FIRST_AID && (rf_weapon_name_find(&campaign_weapon_supply.names,r->definition.weapon)<0 || rf_weapon_name_find(&campaign_weapon_supply.names,r->definition.weapon)!=rf_weapon_name_find(&campaign_weapon_supply.names,kind>=8?"Shotgun":kind>=6?"Riot Stick":kind>=4?"Assault Rifle":"12mm handgun")))){status=RF_FORMAT;goto done;}
         status=rf_model_compiled_filename(r->definition.mesh,compiled,".v3m");if(status)goto done;
         status=rf_model_file_open(file,meshes,compiled);if(status)goto done;
         status=rf_static_render_resource_open(file,budget-used,&r->model);if(status)goto done;used+=r->model.allocated_bytes;

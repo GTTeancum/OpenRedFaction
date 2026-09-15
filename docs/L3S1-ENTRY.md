@@ -1,8 +1,8 @@
 # L3S1 entry gameplay
 
 The uninterrupted L2S2a/L2S3 route now reaches L3S1 on PC and stock64MiB Xbox;
-see MAIN-SHAFT.md for native scope. This document covers the subsequent PC-only
-entry encounter. No placement, health, inventory or forced-event injection.
+see MAIN-SHAFT.md for native scope. This document covers the subsequent entry encounter; native coverage through
+the cabinet is recorded in FIRST-AID.md, while the checkpoint extension is PC-only. No placement, health, inventory or forced-event injection.
 
 Run `python tools/replay_l3s1_entry.py` for the13870-frame guard encounter;
 `--side-room` stops at13700 before the ladder. The generators exactly match
@@ -37,13 +37,12 @@ A local14050-frame extension dismounts and reaches(-37.784561,.131521,-15.628871
 alive, but has not collected the cabinet contents. Supplies, further L3S1
 combat/events and native verification of this entry encounter remain open.
 
-## First-aid pickup blocker
+## First-aid pickup resolution
 
-The14280-frame cabinet-facing probe remains alive with5health and no rifle ammo.
-USE_REACH is[15,15,0,15], so nearby Use requests clear the reach test and activate;
-the failure is not simply a missed Use input. The pickup class whitelist at
-src/diagnostic/scene.c includes Medical Kit but omits First Aid Kit. Both authored
-cabinet kits are therefore skipped. Add that separate class with its authored
-model and health restoration, then verify collection, limits and Xbox memory.
-The separate rifle remains uncollected; its obstruction/cabinet state still
-needs checking after first-aid support is added. No pickup code was changed here.
+The missing class is now implemented with the authored meds model and the shared
+health adapter. The14280-frame PC route collects both kits, raises health from5
+to55, and retains their taken state. A14620-frame extension collects rifle1228,
+reloads42rounds and reaches the checkpoint alive. Use `--supplies` or
+`--checkpoint` with replay_l3s1_entry.py. See FIRST-AID.md for implementation,
+verification and native scope: the14280-frame Xbox run now passes33 state
+comparisons through the guard and both kits. Further checkpoint encounters remain open.

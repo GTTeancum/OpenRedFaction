@@ -4,8 +4,7 @@
 - Weapons: Verify remaining enemy drop policies and uncollected-drop revisits; supported held weapons now drop collectible supplies, with PC/Xbox rifle acquisition and firing verified.
 - Combat: Finish enemy damage amounts, cadence and weapon coverage; authored SP primary spread and target/bullet-obstruction checks now pass PC/Xbox verification (24 hits, 3 misses).
 - Weapons: Exercise the shotgun in the uninterrupted campaign and continue weapon coverage; PC manual/automatic reload and PC/Xbox automatic reload plus two-level persistence checks now pass.
-- Health: Implement the separate First Aid Kit pickup class used by L3S1 cabinets; Medical Kit works, but the class whitelist currently skips both cabinet kits.
-- Gameplay: Collect L3S1 entry supplies and continue its encounters; full-route Xbox arrival now passes, and PC clears the first L3S1 guard while preserving the allied miner.
+- Gameplay: Continue through the L3S1 checkpoint; PC now reaches it with55health and42loaded rifle rounds after the cabinet supplies, while the allied miner remains unharmed.
 - Movement: Refine ladder entry and top-edge transitions; body contact now unblocks the first L2S3 ladder, but the verified route still uses a jump and repeated top-edge state changes need smoothing.
 
 Weapon-drop update (2026-09-15): Supported enemy weapons now become collectible
@@ -38,6 +37,14 @@ PC continues through the side-room ladder and kills guard109; miner789 remains
 unharmed. Cabinet supplies and further encounters remain open. Final native
 combat counters reset on transition; see docs/MAIN-SHAFT.md and
 docs/L3S1-ENTRY.md for exact coverage. Estimate remains ~48%.
+
+First-aid update (2026-09-15): The separate First Aid Kit class now uses its
+authored meds model and shared capped health restoration. The14280-frame
+stock64MiB Xbox replay passes33 state comparisons through the first L3S1
+guard and both cabinet kits:55health,50restored,24.332MiB free at endpoint.
+PC then collects rifle1228, reloads42rounds and reaches the checkpoint alive.
+Further checkpoint traversal/combat remains open; see docs/FIRST-AID.md.
+Estimate remains ~48%.
 
 First-pass policy: playable campaign systems take priority over exact1:1 RE.
 Use practical shared implementations, verify gameplay and stock64MiB operation,
