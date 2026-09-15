@@ -387,6 +387,31 @@ int main(int argc,char **argv)
         CHECK(rf_geomod_polygon_split_tracked(v,4,planes[0],ids,99,next,next_ids,1,b,bi,64,&nn,&nback)==RF_RANGE);
         CHECK(nn==123 && nback==456 && !memcmp(next,saved,sizeof(saved)) && !memcmp(next_ids,saved_ids,sizeof(saved_ids)));
         puts("PASS: tracked split support IDs, geometry equivalence, consecutive cuts and rollback");
+        {
+            const float cutters[4][2][4]={{{1,0,0,0},{0,1,0,0}},{{0,1,0,0},{1,0,0,0}},
+                {{1,0,0,2},{0,1,0,0}},{{0,0,1,0},{1,0,0,0}}};
+            uint16_t cut_ids[2]={98,99};rf_geomod_fragment fragments[16],plain_fragments[16];
+            rf_geomod_edge_tracking tracking={ids,cut_ids,next_ids};unsigned c,q;
+            for(c=0;c<4;c++) {
+                tracking.output=NULL;
+                CHECK(!rf_geomod_polygon_subtract_tracked(v,4,cutters[c],2,NULL,0,NULL,0,&nn,&nback,&tracking));
+                tracking.output=next_ids;
+                CHECK(!rf_geomod_polygon_subtract_tracked(v,4,cutters[c],2,next,64,fragments,16,&nf,&nb,&tracking));
+                CHECK(nf==nn && nb==nback);
+                CHECK(!rf_geomod_polygon_subtract(v,4,cutters[c],2,plain_f,64,plain_fragments,16,&pf,&pb));
+                CHECK(nf==pf && nb==pb && !memcmp(next,plain_f,nf*sizeof(*next)) && !memcmp(fragments,plain_fragments,nb*sizeof(*fragments)));
+                for(q=0;q<nb;q++)for(i=0;i<fragments[q].count;i++)for(k=0;k<2;k++) {
+                    unsigned at=fragments[q].first+i;uint16_t tag=next_ids[at];
+                    const float *point=next[fragments[q].first+(i+k)%fragments[q].count].position;
+                    if(tag>=98 && tag<=99){const float *plane=cutters[c][tag-98];CHECK(fabs(plane[0]*point[0]+plane[1]*point[1]+plane[2]*point[2]+plane[3])<1e-5);}
+                    else {unsigned edge=tag-10;CHECK(edge<4);CHECK(fabs(point[edge%2?0:1]-(edge==1 || edge==2?1:-1))<1e-6);}
+                }
+            }
+            memcpy(saved,next,sizeof(saved));memcpy(saved_ids,next_ids,sizeof(saved_ids));nf=123;nb=456;
+            CHECK(rf_geomod_polygon_subtract_tracked(v,4,cutters[0],2,next,1,fragments,16,&nf,&nb,&tracking)==RF_RANGE);
+            CHECK(nf==123 && nb==456 && !memcmp(next,saved,sizeof(saved)) && !memcmp(next_ids,saved_ids,sizeof(saved_ids)));
+            puts("PASS: multi-plane edge provenance, coplanar/separated cases, geometry and query/rollback");
+        }
     }
     {
         float planes[6][4];rf_geomod_vertex v[6][4];rf_geomod_face faces[6];

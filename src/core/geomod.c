@@ -484,15 +484,17 @@ int rf_geomod_polygon_split_tracked(const rf_geomod_vertex *v,uint32_t n,const f
     return polygon_split_edges(v,n,plane,front,fc,back,bc,nf,nb,edges,cut_edge,front_edges,back_edges);
 }
 
-static int polygon_subtract_policy(const rf_geomod_vertex *vertices,uint32_t count,
+static int polygon_subtract_tracked_policy(const rf_geomod_vertex *vertices,uint32_t count,
     const float (*planes)[4],uint32_t plane_count,rf_geomod_vertex *out,uint32_t capacity,
-    rf_geomod_fragment *fragments,uint32_t fragment_capacity,uint32_t *vertex_count,uint32_t *fragment_count,int boundary_policy)
+    rf_geomod_fragment *fragments,uint32_t fragment_capacity,uint32_t *vertex_count,uint32_t *fragment_count,int boundary_policy,const rf_geomod_edge_tracking *tracking)
 {
     rf_geomod_vertex current[64],front[64],back[64];
+    uint16_t current_edges[64],front_edges[64],back_edges[64];
     double normal[3]={0},normal_length=0;
     uint32_t pass,i,j,left,nf,nb,total=0,pieces=0,required=0,required_pieces=0;int status;
     if(!vertices || count<3 || count>64 || !planes || !plane_count || plane_count>32 ||
        !vertex_count || !fragment_count || vertex_count==fragment_count || (!!out != !!fragments))return RF_RANGE;
+    if(tracking && (!tracking->input || !tracking->planes || (out && !tracking->output)))return RF_RANGE;
     /* Validate even planes beyond an early empty intersection. */
     for(i=0;i<plane_count;i++) {
         double norm=0;
@@ -523,14 +525,15 @@ static int polygon_subtract_policy(const rf_geomod_vertex *vertices,uint32_t cou
         }
         if(separated && positive) {
             if(out && (capacity<count || fragment_capacity<1))return RF_RANGE;
-            if(out){memcpy(out,vertices,count*sizeof(*out));fragments[0]=(rf_geomod_fragment){0,count};}
+            if(out){memcpy(out,vertices,count*sizeof(*out));fragments[0]=(rf_geomod_fragment){0,count};if(tracking)memcpy(tracking->output,tracking->input,count*sizeof(uint16_t));}
             *vertex_count=count;*fragment_count=1;return RF_OK;
         }
     }
     for(pass=0;pass<(out?2u:1u);pass++) {
-        memcpy(current,vertices,count*sizeof(*current));left=count;total=pieces=0;
+        memcpy(current,vertices,count*sizeof(*current));if(tracking)memcpy(current_edges,tracking->input,count*sizeof(uint16_t));left=count;total=pieces=0;
         for(i=0;i<plane_count && left;i++) {
-            status=rf_geomod_polygon_split(current,left,planes[i],front,64,back,64,&nf,&nb);
+            status=polygon_split_edges(current,left,planes[i],front,64,back,64,&nf,&nb,
+                tracking?current_edges:NULL,tracking?tracking->planes[i]:0,front_edges,back_edges);
             if(status)return status;
             if(nf && !nb) {
                 uint32_t k;int coplanar=1;double alignment=0;
@@ -544,17 +547,17 @@ static int polygon_subtract_policy(const rf_geomod_vertex *vertices,uint32_t cou
                  * remove internal contact and assign coincident outer caps
                  * to one owner: policy1 removes both, policy2 keeps same-facing. */
                 if(coplanar && (boundary_policy==1 || (boundary_policy==2?alignment<0:alignment>0))) {
-                    nf=0;nb=left;memcpy(back,current,left*sizeof(*back));
+                    nf=0;nb=left;memcpy(back,current,left*sizeof(*back));if(tracking)memcpy(back_edges,current_edges,left*sizeof(uint16_t));
                 }
             }
             if(nf) {
                 if(pass) {
-                    memcpy(out+total,front,nf*sizeof(*out));
+                    memcpy(out+total,front,nf*sizeof(*out));if(tracking)memcpy(tracking->output+total,front_edges,nf*sizeof(uint16_t));
                     fragments[pieces].first=total;fragments[pieces].count=nf;
                 }
                 total+=nf;pieces++;
             }
-            memcpy(current,back,nb*sizeof(*current));left=nb;
+            memcpy(current,back,nb*sizeof(*current));if(tracking)memcpy(current_edges,back_edges,nb*sizeof(uint16_t));left=nb;
         }
         if(!pass) {
             required=total;required_pieces=pieces;
@@ -562,6 +565,19 @@ static int polygon_subtract_policy(const rf_geomod_vertex *vertices,uint32_t cou
         }
     }
     *vertex_count=required;*fragment_count=required_pieces;return RF_OK;
+}
+
+static int polygon_subtract_policy(const rf_geomod_vertex *vertices,uint32_t count,
+    const float (*planes)[4],uint32_t plane_count,rf_geomod_vertex *out,uint32_t capacity,
+    rf_geomod_fragment *fragments,uint32_t fragment_capacity,uint32_t *vertex_count,uint32_t *fragment_count,int policy)
+{return polygon_subtract_tracked_policy(vertices,count,planes,plane_count,out,capacity,fragments,fragment_capacity,vertex_count,fragment_count,policy,NULL);}
+int rf_geomod_polygon_subtract_tracked(const rf_geomod_vertex *vertices,uint32_t count,
+    const float (*planes)[4],uint32_t plane_count,rf_geomod_vertex *out,uint32_t capacity,
+    rf_geomod_fragment *fragments,uint32_t fragment_capacity,uint32_t *vertex_count,uint32_t *fragment_count,
+    const rf_geomod_edge_tracking *tracking)
+{
+    if(!tracking)return RF_RANGE;
+    return polygon_subtract_tracked_policy(vertices,count,planes,plane_count,out,capacity,fragments,fragment_capacity,vertex_count,fragment_count,0,tracking);
 }
 
 int rf_geomod_polygon_subtract(const rf_geomod_vertex *vertices,uint32_t count,

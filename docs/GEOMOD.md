@@ -2291,3 +2291,19 @@ History bank/seed/split sidecars are not wired yet, so the canonical corner
 solver remains outside live clipping. The next change must carry these IDs
 through subtraction output, reversals and history-bank copies before solving
 shared corners. Closure and dark crater appearance remain open; ~49 percent.
+
+Tracked polygon subtraction (2026-09-15): rf_geomod_polygon_subtract_tracked
+carries outgoing-edge support IDs through every clipping plane and publishes
+them alongside packed surviving fragments. The separated fast path and coplanar
+policy preserve the matching IDs; size queries and short-capacity failures keep
+output unchanged. Three64-entry uint16 arrays add384 bytes of bounded stack
+in subtraction, in addition to the splitter scratch; there is no heap allocation.
+Existing callers use the same geometry path without supplying metadata.
+Tests independently check each emitted edge against its supporting plane,
+including both plane orders, separated and coplanar cases; ordinary geometry
+and fragment records remain identical. Three focused CTests and the1500-frame
+eight-cut PC stress pass. Its endpoint image is byte-identical to the pre-index
+baseline. NXDK builds the XBE and XISO; no new native replay was performed.
+History-bank copies, seed clipping and reversal still need metadata integration
+before the corner solver can change live intersections. Closure and crater
+appearance remain unresolved; estimate ~49 percent, current area GeoMod.

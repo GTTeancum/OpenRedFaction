@@ -111,6 +111,12 @@ typedef struct rf_geomod_fragment {uint32_t first,count;} rf_geomod_fragment;
 int rf_geomod_polygon_split_tracked(const rf_geomod_vertex *,uint32_t,const float[4],
     const uint16_t *,uint16_t,rf_geomod_vertex *,uint16_t *,uint32_t,
     rf_geomod_vertex *,uint16_t *,uint32_t,uint32_t *,uint32_t *);
+/* Parallel outgoing-edge IDs for subtraction. input has polygon-count entries,
+ * planes has plane-count entries and output has vertex-capacity entries.
+ * Output is optional only for size queries and disjoint from all other data. */
+typedef struct rf_geomod_edge_tracking {const uint16_t *input,*planes;uint16_t *output;} rf_geomod_edge_tracking;
+int rf_geomod_polygon_subtract_tracked(const rf_geomod_vertex *,uint32_t,const float (*)[4],uint32_t,
+    rf_geomod_vertex *,uint32_t,rf_geomod_fragment *,uint32_t,uint32_t *,uint32_t *,const rf_geomod_edge_tracking *);
 /* Optional synchronous diagnostic observer. Never mutates clipping inputs;
  * caller must serialize registration and keep context alive during clipping. */
 typedef void (*rf_geomod_intersection_observer)(void *,const float[4],const float[3],const float[3],const float[3]);
