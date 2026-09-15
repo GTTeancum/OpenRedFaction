@@ -74,6 +74,17 @@ static unsigned clip(const point *input, unsigned count, point *output, unsigned
         if ((before >= 0) != (after >= 0)) {
             volatile float span=before-after,t=before/span;
             output[used++] = (point){interpolate(previous.x,current.x,t),interpolate(previous.y,current.y,t),interpolate(previous.z,current.z,t),interpolate(previous.u,current.u,t),interpolate(previous.v,current.v,t),interpolate(previous.lu,current.lu,t),interpolate(previous.lv,current.lv,t),interpolate(previous.r,current.r,t),interpolate(previous.g,current.g,t),interpolate(previous.b,current.b,t)};
+            /* Construct the constrained coordinate exactly on its clip plane.
+             * Otherwise a right-edge point can round just below640 and floor
+             * to639.9375, opening a crack against an adjacent triangle. */
+            switch(plane) {
+            case 0:output[used-1].z=.1f;break;
+            case 1:output[used-1].z=1000.f;break;
+            case 2:output[used-1].x=-output[used-1].z;break;
+            case 3:output[used-1].x=output[used-1].z;break;
+            case 4:output[used-1].y=-output[used-1].z*.75f;break;
+            case 5:output[used-1].y=output[used-1].z*.75f;break;
+            }
         }
         if (after >= 0) output[used++] = current;
         previous = current; before = after;

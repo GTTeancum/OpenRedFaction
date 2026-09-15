@@ -56,6 +56,25 @@ int main(void)
     }
     CHECK(rf_preview_static_model_emit(&geometry,0,&buffers,indices,&pool,&view,&planes,&projection,&attributes,
         &mesh,sizeof(output),&emitted,NULL,NULL)==RF_RANGE);
+    {
+        /* A crossing endpoint previously projected to639.999878 and floored
+         * one subpixel short of the screen edge. Both clipped ends must meet
+         * the exact viewport boundary, including the reverse edge traversal. */
+        rf_geomod_vertex v[3]={{{3.806925058f,-.3f,18.90612221f},{0,0}},
+            {{3.806925058f,.3f,18.90612221f},{0,1}},{{2.897505999f,0,1.051470995f},{1,0}}};
+        rf_geomod_face face={0,3,0,UINT32_MAX};rf_geomod_mesh_view source={v,&face,3,1,0};
+        rf_collision_face bound;rf_collision_face_filter filter={0};float positions[3][3];
+        rf_level camera={0};uint32_t boundary=0;
+        for(n=0;n<3;n++)camera.player_orientation[n][n]=1;
+        CHECK(!rf_geomod_collision_faces(&source,&filter,positions,3,&bound,1));
+        mesh=(rf_preview_mesh){output,0,0};
+        CHECK(!rf_preview_geomod(&mesh,sizeof(output),&source,&bound,1,&camera));
+        CHECK(mesh.count==6);
+        for(n=0;n<mesh.count;n++)if(output[n].position[0]>639) {
+            CHECK(output[n].position[0]==640);++boundary;
+        }
+        CHECK(boundary>=2);
+    }
     puts("Static preview: direct, near clip, stored-plane rejection, preserved prefix and capacity guards passed.");
     return 0;
 }

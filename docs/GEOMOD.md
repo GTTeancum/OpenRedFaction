@@ -2667,3 +2667,27 @@ screen-clipping mismatch but its cause is not yet proven. Evidence is in
 artifacts/geomod-side-views/{left,right}. No shared engine change, native run or
 GitHub image addition. Overall ~49%, GeoMod ~61%; destruction boundary repair
 and appearance remain active.
+
+Exact frustum construction (2026-09-15): Shared world clipping now sets the
+constrained coordinate of each new intersection exactly to its active plane
+(near/far Z, side X=+/-Z, vertical Y=+/-0.75Z). Previously interpolation could
+leave an intersection just inside the right plane, project to639.999878, then
+floor to639.9375 while the adjacent edge reached640. This is exact constrained
+construction, not an epsilon expansion or a screen-coordinate proximity weld.
+Other interpolated coordinates and attributes retain their existing arithmetic.
+
+The new crossing-triangle regression in preview_static_tests fails on the old
+source at its exact640 boundary assertion and passes on the retained source.
+Three focused geometry/preview CTests pass. Front depth playback passes19985
+recessed pixels, no substantially nearer pixels, no new uncovered pixels, and
+minimum raw delta-71. Both side pairs were rerun; the left uncovered count falls
+from2 to1 and the right remains0. Left pixel(499,328) is fixed; crater-junction
+pixel(281,228) remains outside every projected world triangle. Existing side
+near-depth threshold failures and right projected-area failure remain explicit;
+no acceptance threshold was relaxed. The actual new left capture was inspected:
+no broad appearance improvement; the dark mound-like reading persists.
+
+NXDK XBE/XISO compilation passes. No native replay of this clipping change has
+yet run. This closes the specific screen-edge construction defect, not all
+frustum seams or crater topology. Overall ~49%, GeoMod ~61%; next work remains
+the crater junction and destruction appearance. No GitHub screenshot changes.
