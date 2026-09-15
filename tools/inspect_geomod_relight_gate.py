@@ -1,7 +1,8 @@
-"""Verify the original lightmap relighting entry gate without replacing branches.
+"""Verify the original lightmap static-relighting entry gate without replacing branches.
 
 Execution stops at the light query or the post-relight label. This establishes
-dirty/inhibit gating only, not later scheduling, indirect callers or pixels.
+static dirty/inhibit gating only. Dirty bit1 has a later dynamic-light path
+that this stop point does not execute; scheduling, callers and pixels are excluded.
 """
 import hashlib,json,struct,sys
 from pathlib import Path
@@ -34,8 +35,8 @@ def main():
             u.emu_start(0x4f26a0,stop+1,count=1000)
             expected=0x4d9c00 if flags&6 and not inhibit else 0x4f2c79
             assert reached==[expected],(flags,inhibit,reached)
-            rows.append(dict(dirty=flags,inhibit=inhibit,queries_lights=expected==0x4d9c00))
+            rows.append(dict(dirty=flags,inhibit=inhibit,queries_static_lights=expected==0x4d9c00))
     (ROOT/'artifacts/geomod-relight-gate-original.json').write_text(json.dumps(dict(scope=__doc__,exe_sha256=SHA,cases=rows),indent=2)+'\n')
-    print('PASS: 512 original dirty/inhibit combinations; initial dirty8 bypasses relighting')
+    print('PASS: 512 original dirty/inhibit combinations; initial dirty8 bypasses static relighting')
 
 if __name__=='__main__':main()

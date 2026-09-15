@@ -2100,3 +2100,21 @@ persistent grayscale policy remains unchanged, and the dark crater remains
 unaccepted. Next investigation must find the runtime scheduling/texture
 usage path rather than assume the bulk relight pass runs after destruction.
 No new visual or Xbox runtime claim; estimate remains ~49 percent.
+
+Solid draw and dynamic-light distinction (2026-09-15): Static inspection
+of4f0c00 shows ordinary faces use material+30, mapping+36 and the mapping
+image texture at mapping+0c/image+10. In the normal multitexture route the
+mode is global1808328, already verified as the ordinary lightmapped mode.
+The inspected selection block supplies no separate crater brightness gain.
+Debug/alternate texture modes and full runtime call coverage remain outside
+this observation; no blend-policy change follows from it.
+Correction to the preceding gate audit: 4f2c79 begins a separate dirty-bit1
+dynamic-light branch. It may query4d9c00 with arguments1,0 and add dynamic
+RGB to stored map RGB before saturating to1555. The existing oracle stops
+at this label and therefore proves only the static bits2/4 gate. Its output
+field is now queries_static_lights and its scope explicitly excludes the
+dynamic branch. Initial dirty8 still has neither static nor dynamic query
+bits, but later dirty1 scheduling cannot be ruled out by that oracle.
+Helpers4e6020/4e6080 update scrolling face UVs; they do not consume dirty
+lightmaps. Continue through dynamic-light scheduling and original crater
+material selection. No new visual or native-runtime claim; ~49 percent.
