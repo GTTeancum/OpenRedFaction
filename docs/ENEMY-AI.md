@@ -237,3 +237,31 @@ does not independently count the six native kills before transition; the six
 kills are directly asserted by the PC prefix and the four-kill native prefix
 was separately checked. Full single-player completion remains open. Next focus:
 L2S3 encounters and onward progression. Rough project estimate advances to~46%.
+
+## L2S3 entry and natural return (2026-09-14)
+
+`tools/replay_area2_return.py` extends the7,450-frame exit prefix and follows
+the real return passage east. PC completes8,000 frames with transitions5150
+at7275 into L2S3 and5151 at7688 back into L2S2a. The final live snapshot omits
+retired8490,5677,5676,5678,8071,5683 and5458; ACTOR_RETIREMENT reports seven
+retirements. Kit8553 stays consumed, health remains15, and pistol ammunition
+remains88 reserve/16 loaded. This checks those concrete persistent states, not
+all mission timers, movers, injured living actors or full revisit fidelity.
+Native verification of this return fixture remains open.
+
+The onward path instead runs west to x58.1, then north out of the low passage
+toward z78.6. It activates the point-of-no-return door area near trigger8206.
+Pistol guard2020 waits around(57.339,-1.107,78.765). An unarmed approach dies
+after two enemy hits; the aimed attempt lands three shots, leaves him at30
+health, and the15-health player still dies. These are PC observations, not a
+proof that the encounter is impossible or that damage should be reduced.
+
+The installed weapons.tbl gives the12mm handgun `$AI Spread Degrees: 3.0 4.0`
+and the Assault Rifle2.0/2.0. The current enemy loop aims at its chosen target
+and applies damage after range/facing/visibility checks without a spread ray.
+This is an existing first-pass accuracy gap. The meaning of the paired spread
+values and their original sampling still needs confirmation; do not assume they
+are SP/MP values merely because some other table settings use that convention.
+AI damage scaling and cadence remain open as already documented. Next work
+should address these combat systems rather than indefinitely tuning a route
+against provisional perfect aim. Rough estimate remains~46%.

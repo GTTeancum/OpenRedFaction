@@ -1,7 +1,7 @@
 # Red Faction Xbox / PC - open work
 
 - Combat: Finish authored enemy damage amounts, cadence, accuracy and weapon coverage; supported damage types, authored attack ranges and close-range Riot Stick pursuit are now wired.
-- Gameplay: Continue uninterrupted L2S3 gameplay; PC and stock Xbox pass the full Area2 spawn/rescue/combat/crouched exit route (7450 frames, 15 health and 18.277MiB free in L2S3).
+- Gameplay: Resolve the first L2S3 guard encounter with carried-over health; PC verifies a natural Area2 return preserving seven retired actors, the consumed kit and ammunition (8000 frames); full Area2 exit remains verified on Xbox.
 
 First-pass policy: playable campaign systems take priority over exact1:1 RE.
 Use practical shared implementations, verify gameplay and stock64MiB operation,
