@@ -2468,3 +2468,18 @@ The actual framebuffer was inspected; dark crater appearance remains unresolved.
 Latest eighth-edit timing is219ms CSG+27ms binding+2ms debris preparation+2ms
 spawn=250ms. Host scheduling varies, so this single run is not an FPS claim or
 an isolated performance attribution. Overall ~49%, GeoMod ~61%.
+
+Settled lighting comparison (2026-09-15): tools/dev_geomod_lighting_compare.py
+replays the same2500-frame three-blast close-up with current persistent noise
+maps and the opt-in PC shadow reference. Both bakes finish, the player remains
+alive and debris settles. Camera words and all640x480 encoded depth pixels are
+identical. Current maps process7419 texels; the shadow reference processes9728.
+Both actual PNGs were inspected: the reference is visibly darker, and neither
+resolves the mound-like appearance. Restoring that old path is not supported
+by this comparison. No production lighting change or Xbox replay was made.
+Outputs are local in artifacts/geomod-lighting-comparison: inputs.bin, both
+logs, depth buffers, PPM/PNG captures and report.json. No GitHub images added.
+This harness isolates the two current lighting policies; it is not an original
+visual reference and does not prove the correct relighting schedule. Authored
+light admission, receiver mapping and static/dynamic relighting remain open.
+Overall ~49%, GeoMod ~61%; current area is destruction lighting.
