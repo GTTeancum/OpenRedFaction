@@ -236,6 +236,15 @@ int rf_geomod_storage_prepare_cavity_cuts(rf_geomod_storage *storage,
 int rf_geomod_storage_prepare_star_cuts(rf_geomod_storage *storage,
     const rf_geomod_mesh_view *cutters,const float (*kernels)[3],uint32_t count,
     uint32_t cavity,rf_geomod_multi_work *work);
+/* Split near-convex polygons into collision-valid pieces, preserving winding,
+ * boundary vertices, material/source IDs and UVs. Center-fan fallback averages
+ * position and UV in double precision. Intended for pending CSG repair only:
+ * this does not establish manifold closure or publish geometry. No allocation.
+ * Source, output arrays and out must be disjoint. Output arrays are disposable
+ * scratch and may be partly written on failure; *out changes only on success. */
+int rf_geomod_partition_mesh(const rf_geomod_mesh_view *mesh,
+    rf_geomod_vertex *vertices,uint32_t vertex_capacity,rf_geomod_face *faces,
+    uint32_t face_capacity,rf_geomod_mesh_view *out);
 /* Bind a prepared mesh to the existing collision tree/query implementation.
  * Caller provides one explicit filter per face and persistent position/face
  * arrays sized to mesh counts. Faces borrow the output positions, never mesh

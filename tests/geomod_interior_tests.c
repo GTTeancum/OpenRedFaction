@@ -387,8 +387,69 @@ static int light_grid_check(void)
     }
     return 0;
 }
+static int partition_contract(void)
+{
+    /* First original-template crater: support insertion made this boundary
+     * fail convex collision binding. Keep its float coordinates verbatim. */
+    rf_geomod_vertex source_vertices[10]={
+        {{-16.0f,-7.36763811f,1.4182359f},{0.25f,-0.5f}},
+        {{-16.0f,-7.36746788f,1.08706689f},{1.25f,-1.5f}},
+        {{-16.0f,-7.35663891f,-20.0f},{2.25f,-2.5f}},
+        {{-16.0f,12.0f,-20.0f},{3.25f,-3.5f}},
+        {{-16.0f,12.0f,-17.5771255f},{4.25f,-4.5f}},
+        {{-16.0f,12.0f,5.15646219f},{5.25f,-5.5f}},
+        {{-16.0f,12.0f,7.87391949f},{6.25f,-6.5f}},
+        {{-16.0f,-4.48685169f,4.97079515f},{7.25f,-7.5f}},
+        {{-16.0f,-6.92312765f,2.45680904f},{8.25f,-8.5f}},
+        {{-16.0f,-7.36793566f,1.99781287f},{9.25f,-9.5f}}
+    },saved_vertices[10],vertices[64];
+    rf_geomod_face source_face={0,10,77,19},faces[16];
+    rf_geomod_mesh_view source={source_vertices,&source_face,10,1,42},out={0},saved;
+    rf_collision_face_filter filters[16]={{0}};rf_collision_face bound[16];
+    float positions[64][3];unsigned i,j;
+    memcpy(saved_vertices,source_vertices,sizeof(source_vertices));
+    CHECK(rf_geomod_collision_faces(&source,filters,positions,64,bound,16)==RF_FORMAT);
+    CHECK(!rf_geomod_partition_mesh(&source,vertices,64,faces,16,&out));
+    CHECK(out.face_count==2 && out.vertex_count==12 && out.generation==42);
+    CHECK(!rf_geomod_collision_faces(&out,filters,positions,64,bound,16));
+    for(i=0;i<out.face_count;i++)CHECK(faces[i].material==77 && faces[i].source_face==19);
+    for(i=0;i<out.vertex_count;i++) {
+        for(j=0;j<10;j++)if(!memcmp(vertices+i,source_vertices+j,sizeof(*vertices)))break;
+        CHECK(j<10); /* Every boundary UV survives exactly, including duplicates. */
+    }
+    for(i=0;i<10;i++) {
+        for(j=0;j<out.vertex_count;j++)if(!memcmp(source_vertices+i,vertices+j,sizeof(*vertices)))break;
+        CHECK(j<out.vertex_count);
+    }
+    saved=out;
+    CHECK(rf_geomod_partition_mesh(&source,vertices,64,faces,1,&out)==RF_RANGE);
+    CHECK(!memcmp(&saved,&out,sizeof(out)));
+    CHECK(rf_geomod_partition_mesh(&source,vertices,10,faces,16,&out)==RF_RANGE);
+    CHECK(!memcmp(&saved,&out,sizeof(out)));
+    source_face.count=65;
+    CHECK(rf_geomod_partition_mesh(&source,vertices,64,faces,16,&out)==RF_FORMAT);
+    CHECK(!memcmp(&saved,&out,sizeof(out)));
+    CHECK(!memcmp(saved_vertices,source_vertices,sizeof(source_vertices)));
+    {
+        const float xy[8][2]={{2,0},{.5f,.5f},{0,2},{-.5f,.5f},{-2,0},{-.5f,-.5f},{0,-2},{.5f,-.5f}};
+        rf_geomod_vertex star[8];rf_geomod_face face={0,8,31,UINT32_MAX};
+        rf_geomod_mesh_view mesh={star,&face,8,1,7};
+        for(i=0;i<8;i++)star[i]=(rf_geomod_vertex){{xy[i][0],xy[i][1],0},{3+xy[i][0]*.25f,5+xy[i][1]*.25f}};
+        CHECK(!rf_geomod_partition_mesh(&mesh,vertices,64,faces,16,&out));
+        CHECK(out.face_count==8 && out.vertex_count==24);
+        CHECK(!rf_geomod_collision_faces(&out,filters,positions,64,bound,16));
+        for(i=0;i<8;i++) {
+            const rf_geomod_vertex *center=vertices+faces[i].first;
+            CHECK(faces[i].material==31 && faces[i].source_face==UINT32_MAX);
+            CHECK(center->position[0]==0 && center->position[1]==0 && center->position[2]==0);
+            CHECK(center->uv[0]==3 && center->uv[1]==5);
+        }
+    }
+    return 0;
+}
 int main(int argc,char **argv)
 {
+    CHECK(!partition_contract());
     if(argc==3 && !strcmp(argv[1],"--mesh")) {
         FILE *file=fopen(argv[2],"rb");char magic[4];uint32_t counts[2],i,packed=0;
         static rf_geomod_face input_faces[SNAPSHOT_FACES];int result;CHECK(file);

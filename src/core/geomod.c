@@ -1233,6 +1233,95 @@ static int collision_mesh_face(const rf_geomod_mesh_view *mesh,uint32_t index,
     }
     value.count=f->count;value.filter=*filter;value.triangle_surface=1;*out=value;return RF_OK;
 }
+typedef struct partition_output {
+    rf_geomod_vertex *vertices;rf_geomod_face *faces;
+    uint32_t vc,fc,nv,nf;int status;
+} partition_output;
+static int partition_valid_piece(const rf_geomod_vertex *v,uint32_t n,const double normal[3])
+{
+    rf_geomod_face f={0,n,0,UINT32_MAX};rf_geomod_mesh_view mesh={v,&f,n,1,0};
+    rf_collision_face bound;rf_collision_face_filter filter={0};
+    int status=collision_mesh_face(&mesh,0,&filter,&bound);
+    if(status)return 0;
+    return !normal || bound.plane[0]*normal[0]+bound.plane[1]*normal[1]+bound.plane[2]*normal[2]>0;
+}
+static int partition_emit(partition_output *out,const rf_geomod_vertex *v,uint32_t n,const rf_geomod_face *source)
+{
+    if(n>out->vc-out->nv || out->nf==out->fc){out->status=RF_RANGE;return 0;}
+    memcpy(out->vertices+out->nv,v,n*sizeof(*v));
+    out->faces[out->nf++]=(rf_geomod_face){out->nv,n,source->material,source->source_face};out->nv+=n;return 1;
+}
+static int partition_polygon(partition_output *out,const rf_geomod_vertex *v,const rf_geomod_face *source)
+{
+    rf_geomod_vertex part[64],center={0};double normal[3]={0},sum[5]={0};uint32_t n=source->count,i,j,k,c,na,nb;
+    if(n<3 || n>64)return 0;
+    if(partition_valid_piece(v,n,NULL))return partition_emit(out,v,n,source);
+    for(i=0;i<n;i++)for(k=0;k<3;k++)normal[k]+=(double)v[i].position[(k+1)%3]*v[(i+1)%n].position[(k+2)%3]-(double)v[i].position[(k+2)%3]*v[(i+1)%n].position[(k+1)%3];
+    for(i=0;i<n;i++)for(j=i+2;j<n;j++) {
+        if(i==0 && j==n-1)continue;
+        /* Do not turn a nearly collinear boundary chain into a thin extra
+         * face: closure must distinguish the new diagonal from the boundary. */
+        {
+            double mid[3];uint32_t e;int separated=1;
+            for(k=0;k<3;k++)mid[k]=((double)v[i].position[k]+v[j].position[k])*.5;
+            for(e=0;e<n && separated;e++) {
+                double d[3],length=0,t=0,error=0;
+                for(k=0;k<3;k++){d[k]=(double)v[(e+1)%n].position[k]-v[e].position[k];length+=d[k]*d[k];t+=(mid[k]-v[e].position[k])*d[k];}
+                if(length==0){separated=0;break;}t/=length;if(t<0)t=0;if(t>1)t=1;
+                for(k=0;k<3;k++){double q=mid[k]-v[e].position[k]-t*d[k];error+=q*q;}
+                if(error<=1e-12)separated=0;
+            }
+            if(separated) {
+                double d[3],length=0;
+                for(k=0;k<3;k++){d[k]=(double)v[j].position[k]-v[i].position[k];length+=d[k]*d[k];}
+                if(length==0)separated=0;
+                for(e=0;e<n && separated;e++)if(e!=i && e!=j) {
+                    double t=0,error=0;
+                    for(k=0;k<3;k++)t+=((double)v[e].position[k]-v[i].position[k])*d[k];
+                    t/=length;if(t<=1e-8 || t>=1-1e-8)continue;
+                    for(k=0;k<3;k++){double q=(double)v[e].position[k]-v[i].position[k]-t*d[k];error+=q*q;}
+                    if(error<=1e-12)separated=0;
+                }
+            }
+            if(!separated)continue;
+        }
+        na=j-i+1;nb=n-na+2;
+        for(c=0;c<na;c++)part[c]=v[i+c];
+        if(!partition_valid_piece(part,na,normal))continue;
+        for(c=0;c<nb;c++)part[c]=v[(j+c)%n];
+        if(!partition_valid_piece(part,nb,normal))continue;
+        if(!partition_emit(out,part,nb,source))return 0;
+        for(c=0;c<na;c++)part[c]=v[i+c];
+        return partition_emit(out,part,na,source);
+    }
+    for(i=0;i<n;i++){for(k=0;k<3;k++)sum[k]+=v[i].position[k];for(k=0;k<2;k++)sum[k+3]+=v[i].uv[k];}
+    for(k=0;k<3;k++)center.position[k]=(float)(sum[k]/n);
+    for(k=0;k<2;k++)center.uv[k]=(float)(sum[k+3]/n);
+    for(i=0;i<n;i++) {
+        part[0]=center;part[1]=v[i];part[2]=v[(i+1)%n];
+        if(!partition_valid_piece(part,3,normal) || !partition_emit(out,part,3,source))return 0;
+    }
+    return 1;
+}
+int rf_geomod_partition_mesh(const rf_geomod_mesh_view *mesh,
+    rf_geomod_vertex *vertices,uint32_t vc,rf_geomod_face *faces,uint32_t fc,
+    rf_geomod_mesh_view *out)
+{
+    partition_output output={vertices,faces,vc,fc,0,0,RF_FORMAT};uint32_t i;int status;
+    if(!mesh || !out || !vertices || !faces || !vc || !fc ||
+       !mesh->faces || !mesh->face_count)return RF_RANGE;
+    status=storage_vertices(mesh->vertices,mesh->vertex_count);if(status)return status;
+    for(i=0;i<mesh->face_count;i++) {
+        const rf_geomod_face *f=mesh->faces+i;
+        if(f->count<3 || f->count>64 || f->first>mesh->vertex_count ||
+           f->count>mesh->vertex_count-f->first)return RF_FORMAT;
+    }
+    for(i=0;i<mesh->face_count;i++)if(!partition_polygon(&output,
+        mesh->vertices+mesh->faces[i].first,mesh->faces+i))return output.status;
+    *out=(rf_geomod_mesh_view){vertices,faces,output.nv,output.nf,mesh->generation};
+    return RF_OK;
+}
+
 int rf_geomod_collision_faces(const rf_geomod_mesh_view *mesh,
     const rf_collision_face_filter *filters,float (*positions)[3],uint32_t vc,
     rf_collision_face *faces,uint32_t fc)

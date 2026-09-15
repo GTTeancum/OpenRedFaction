@@ -2979,3 +2979,28 @@ Shared runtime integration, transactional failure handling, real attributes,
 1MiB peak ownership, Xbox execution and actual appearance remain unverified.
 The focused interior, repeated-cut and static-preview tests pass. No native
 run or new screenshot was warranted by these host-only changes.
+
+Shared partitioner extraction (2026-09-15):
+rf_geomod_partition_mesh now lives in src/core/geomod.c and invokes the same
+private collision-face validator without host-sized position/filter arrays.
+It uses caller-owned destination arrays, no heap allocation or mutable global
+state, and a bounded64-vertex local polygon. Material/source IDs and existing
+vertex attributes are copied exactly; the fallback center averages positions
+and UVs in double precision. The returned view preserves input generation.
+Output arrays are disposable scratch on errors; the result view changes only
+on success, so pending-edit callers must not pass live buffers as destinations.
+
+The mesh probe delegates to this shared implementation. All eight resulting
+RGM1 snapshots are byte-identical to the previous closed offline outputs,
+including3954 vertices/772 faces at cut8. A retained real ten-corner crater
+fixture verifies two-piece binding, nonzero UV/material/source preservation,
+all boundary vertices retained, unchanged input, RF_RANGE at face/vertex limits,
+and unchanged result view on failure. An eight-corner star exercises center-fan
+UV interpolation and winding through real collision binding. The focused
+interior/repeated-cut/clipping tests pass; PC player and NXDK XBE/XISO build.
+
+This is a shared-code integration step, not a live geometry fix. Support-pair
+edge assembly is still in the host experiment, and no new game/XEMU execution
+was performed. Next: consume compact provenance while preparing pending CSG,
+reuse dead CSG scratch for the replacement, and validate admission/abort plus
+peak memory before publication. The four-face overflow at cut8 remains open.
