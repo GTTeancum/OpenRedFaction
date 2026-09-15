@@ -469,3 +469,12 @@ The independently written item reader in src/core/level.c uses layout leads
 from pinned Open Faction rfl_format.h and shared/CItem.cpp. No implementation
 was copied. Exact record boundaries validate across593 installed campaign
 pickups. See docs/LEVEL-ITEMS.md for scope and remaining runtime work.
+
+## Alpine crater-lighting reference
+
+Inspected Alpine Faction commit8348aebf40d597211f3a43be5eb025bd6a023310,
+game_patch/misc/g_solid.cpp, to cross-check stock crater lightmap creation and
+texture density. MPL-2.0 reference, kept under ignored local/alpine-reference.
+No implementation was copied. Original RF.exe emulation remains the primary
+basis for reconstructed fill and blend behavior. See docs/GEOMOD.md for limits.
+Source: https://github.com/GooberRF/alpinefaction/blob/8348aebf40d597211f3a43be5eb025bd6a023310/game_patch/misc/g_solid.cpp

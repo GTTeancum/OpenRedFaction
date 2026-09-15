@@ -2750,3 +2750,27 @@ complement the full PC depth coverage audit; they are not complete native image
 parity. All20 saved disc entries restored byte-exactly, and owned PID10056 exited.
 Overall ~49%, GeoMod ~61%; destruction shape/readability and remaining topology
 remain priorities. No GitHub image was uploaded.
+
+Community lighting cross-check (2026-09-15): Inspected Alpine Faction commit
+8348aebf40d597211f3a43be5eb025bd6a023310, game_patch/misc/g_solid.cpp. Its injection
+at original4e5bbe handles fullbright faces by skipping the stock lightmap fill.
+The accompanying author comment identifies GeoMod craters among surfaces without
+calculated lighting and describes using level ambient as a future option, not
+an existing stock operation. This is independent community evidence consistent
+with the already executed original random-fill/dirty8 path. It is not a complete
+runtime proof and supplies no stock-game visual capture.
+
+The same source's466c00 patch adjusts crater pixel density for nonstandard image
+sizes, with32 as the configured default and256-square stock bitmaps. Our current
+GlassHouse rock02 is256-square; this does not explain its appearance or justify
+a texture-scale change. Existing recovered blend-state evidence still supports
+MODULATE2X. No automatic ambient fill, arbitrary brightness multiplier, texture
+replacement or renderer change follows from this investigation. A stock-game
+visual reference remains needed before calling the dark crater appearance a
+specific lighting regression; physical closure defects remain independently open.
+
+Primary source: https://github.com/GooberRF/alpinefaction/blob/8348aebf40d597211f3a43be5eb025bd6a023310/game_patch/misc/g_solid.cpp
+Local read-only reference clone: local/alpine-reference (ignored by Git).
+The repository is MPL-2.0; no source code was copied into the port. This check
+narrows the lighting hypotheses; it is not a visual fix or a percent milestone.
+Overall ~49%, GeoMod ~61%; destruction fidelity remains the current priority.
