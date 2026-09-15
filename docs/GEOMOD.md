@@ -2505,3 +2505,27 @@ unproven. The audit capture is byte-identical to the prior shadow reference.
 PC build and new/legacy audit analysis pass; no production rendering change,
 new Xbox replay, or GitHub image. Evidence is in artifacts/geomod-lighting-
 comparison/light-sources.csv and .json. Overall ~49%, GeoMod ~61%.
+
+Original dynamic query gate (2026-09-15): inspect_geomod_dynamic_relight_gate.py
+executes4f2c79 with all256 dirty values, two mapping-inhibit values and two
+states of the actual4d9fb0 global byte c96890 (1024 cases). Dirty bit1 enters
+the dynamic branch regardless of mapping byte10. With c96890 zero it calls
+4d9c00 using owner0, bounds at mapping+34/+40, and final arguments1,0. With
+c96890 nonzero it bypasses that query and reaches4d9fd0 setup. Clear bit1
+jumps to4f2f0a. The getter executes unhooked; execution stops at query/setup/
+upload-path entry. Mapping owner index is fixed to-1 in this bounded oracle.
+The original static-gate oracle also passes512 cases. Initial dirty8 therefore
+bypasses both static and dynamic light queries; it is not evidence that later
+updates are automatic, or that all crater maps should immediately be relit.
+A disassembly search finds4f1fd8 writing mapping dirty1. Corrected Ghidra entry
+4f1f30 first checks signed face mapping index+36, requires current dirty byte0,
+transforms bounds and calls5079f0 before marking.4f1ff0 traverses a hierarchy
+and calls4f1f30 for candidate faces. These are candidate scheduling semantics,
+not yet full executable/reconstructed behavior verification. Trace callers and
+complete this marking path before binding live updates.
+An initial export mistakenly created an interior entry at4f1f40; the Ghidra
+project now removes that entry and creates4f1f30, and the stale interior export
+was removed. Use4f1f30.c.txt/4f1ff0.c.txt with disassembly, not the discarded export.
+Evidence: artifacts/geomod-dynamic-relight-gate-original.json and corrected
+analysis exports. No game source or rendered output changes this turn.
+Overall ~49%, GeoMod ~61%; current area is destruction lighting updates.
