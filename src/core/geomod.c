@@ -54,6 +54,7 @@ int rf_geomod_polygon_subtract(const rf_geomod_vertex *vertices,uint32_t count,
     rf_geomod_fragment *fragments,uint32_t fragment_capacity,uint32_t *vertex_count,uint32_t *fragment_count)
 {
     rf_geomod_vertex current[64],front[64],back[64];
+    double normal[3]={0},normal_length=0;
     uint32_t pass,i,j,left,nf,nb,total=0,pieces=0,required=0,required_pieces=0;int status;
     if(!vertices || count<3 || count>64 || !planes || !plane_count || plane_count>32 ||
        !vertex_count || !fragment_count || vertex_count==fragment_count || (!!out != !!fragments))return RF_RANGE;
@@ -64,11 +65,34 @@ int rf_geomod_polygon_subtract(const rf_geomod_vertex *vertices,uint32_t count,
         for(j=0;j<3;j++)norm+=(double)planes[i][j]*planes[i][j];
         if(fabs(norm-1)>1e-4)return RF_FORMAT;
     }
+    for(i=0;i<count;i++) {
+        uint32_t next=(i+1)%count;
+        for(j=0;j<3;j++) {
+            uint32_t a=(j+1)%3,b=(j+2)%3;
+            if(!isfinite(vertices[i].position[j]))return RF_FORMAT;
+            normal[j]+=(double)vertices[i].position[a]*vertices[next].position[b]-(double)vertices[i].position[b]*vertices[next].position[a];
+        }
+        for(j=0;j<2;j++)if(!isfinite(vertices[i].uv[j]))return RF_FORMAT;
+    }
+    for(j=0;j<3;j++)normal_length+=normal[j]*normal[j];
+    if(!isfinite(normal_length) || normal_length<=1e-24)return RF_FORMAT;
     for(pass=0;pass<(out?2u:1u);pass++) {
         memcpy(current,vertices,count*sizeof(*current));left=count;total=pieces=0;
         for(i=0;i<plane_count && left;i++) {
             status=rf_geomod_polygon_split(current,left,planes[i],front,64,back,64,&nf,&nb);
             if(status)return status;
+            if(nf && !nb) {
+                uint32_t k;int coplanar=1;double alignment=0;
+                for(j=0;j<left;j++) {
+                    double d=planes[i][3];
+                    for(k=0;k<3;k++)d+=(double)planes[i][k]*current[j].position[k];
+                    if(fabs(d)>1e-5){coplanar=0;break;}
+                }
+                for(k=0;k<3;k++)alignment+=normal[k]*planes[i][k];
+                /* Same-facing coincident boundaries are inside the removal;
+                 * opposite-facing boundaries merely touch and must survive. */
+                if(coplanar && alignment>0){nf=0;nb=left;memcpy(back,current,left*sizeof(*back));}
+            }
             if(nf) {
                 if(pass) {
                     memcpy(out+total,front,nf*sizeof(*out));

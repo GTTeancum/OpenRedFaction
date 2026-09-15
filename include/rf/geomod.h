@@ -16,7 +16,9 @@ int rf_geomod_polygon_split(const rf_geomod_vertex *vertices,uint32_t count,
 typedef struct rf_geomod_fragment {uint32_t first,count;} rf_geomod_fragment;
 /* Subtract a convex cutter (interior is negative for every plane) from one
  * convex surface polygon. Returns disjoint surviving convex fragments. This
- * does not generate a solid's interior caps. Up to32 planes. NULL outputs
+ * does not generate a solid's interior caps. Source winding must face out of
+ * its solid: same-facing coplanar cutter boundaries remove the overlap;
+ * opposite-facing boundaries only touch and survive. Up to32 planes. NULL outputs
  * query sizes; otherwise both arrays are required, disjoint from inputs.
  * Errors preserve output arrays/counts. No allocation. */
 int rf_geomod_polygon_subtract(const rf_geomod_vertex *vertices,uint32_t count,

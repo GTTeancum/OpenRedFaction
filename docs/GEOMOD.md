@@ -97,3 +97,26 @@ Next: retained mutable solid storage with transactional output and shared
 render/collision consumption, including source/cutter material ownership.
 Verify edge closure and repeated/coplanar cuts alongside live visual and ray/
 player traversal evidence. Keep the developer room as the integration target.
+
+## Coplanar boundary correction
+
+A new identical-solid test initially returned the original cube volume64
+instead of0. Surface subtraction now uses source polygon winding to distinguish
+same-facing coincident cutter boundaries (remove the overlapping surface) from
+opposite-facing contact (retain it). The lower-level splitter retains its
+original front-side coplanar convention. Degenerate source polygons are rejected
+before output commits. This supersedes the earlier surface-subtractor policy
+limitation for these tested convex cases, not for arbitrary Boolean topology.
+
+Tests now cover identical cubes (volume0), face contact (64), a partially
+aligned cut (56), enclosing removal (0), disjoint cutting (64), and the prior
+through-tunnel (48). A separate geometric edge-coverage check subdivides edges
+at all result vertices and requires two opposite-directed incidences on every
+segment. All cases pass; removing a face fails the check. This accounts for
+T-junction coverage without claiming that the output already has welded/shared
+mesh indices. PC tests and NXDK build pass; no in-game surface is modified.
+
+Still required: a transactional mutable solid owner, repeated cuts into
+non-convex results, general coplanar/near-degenerate cases, material ownership,
+edge welding, renderer/collision replacement and reset. The convex cube tests
+are evidence for these primitives, not general watertight GeoMod gameplay.
