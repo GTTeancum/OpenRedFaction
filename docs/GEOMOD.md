@@ -2192,3 +2192,25 @@ is mathematically ideal. The next implementation must preserve common
 boundary/incident-plane constraints through repeated splitting rather than
 independently classifying already rounded vertices more aggressively.
 Strict room-scale closure remains open; estimate ~49 percent.
+
+Boundary construction experiments (2026-09-15): Two bounded alternatives
+were tested independently and reverted. First, internal subtract/interior
+clipping kept position/UV intermediates in double until polygon publication,
+leaving the public vertex format and tolerances unchanged. Existing interior
+and eight-blast gameplay checks passed, but closure failures became
+5,26,99,148,209,252 rather than5,30,98,133,191,230. The gameplay draw mesh
+grew from4089 to4125 vertices. This is not a closure improvement.
+Second, polygon compaction required numerically identical reversed edge
+endpoints rather than1e-6 proximity. Interior tests passed; failures were
+5,29,98,133,191,230. Cut6 grew from2320vertices/536faces to2356/554 without
+fixing closure. Therefore proximity-based merging is not sufficient to
+explain the repeated boundary defect.
+Artifacts: geomod-wide-clip-tests.log/.summary.json,
+geomod-wide-clip-stress.log, geomod-exact-join-tests.log/.summary.json.
+Original source bytes were restored, PC targets rebuilt, and three focused
+CTests plus eight-blast stress rerun successfully. No Xbox build used these
+experiments; no live source change or visual improvement is retained.
+The evidence favors investigating shared intersection identity/plane
+provenance across successive operations; this remains a hypothesis, not a
+proven repair. Incident face constraints and bounded Xbox storage must be
+preserved. Strict closure remains open; estimate ~49 percent.
