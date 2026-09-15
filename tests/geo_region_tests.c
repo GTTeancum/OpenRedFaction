@@ -20,6 +20,17 @@ int main(int argc,char **argv)
     char path[1024];CHECK(argc==2);
     snprintf(path,sizeof(path),"%s/levelsm.vpp",argv[1]);
     CHECK(!rf_vpp_open(&archive,path));CHECK(!rf_level_open(&level,&archive,"glass_house.rfl"));
+    {
+        rf_level_geomod_settings settings,saved;unsigned char prefix[69];uint32_t size;
+        CHECK(!rf_level_geomod_settings_read(&level,&settings));
+        printf("Glass House GeoMod texture=%s hardness=%u\n",settings.texture,settings.hardness);
+        CHECK(!strcmp(settings.texture,"rock02.tga") && settings.hardness==0);
+        saved=settings;size=(uint32_t)strlen(settings.texture)+6;
+        CHECK(!rf_level_read(&level,rf_level_find(&level,0x900),0,prefix,size));
+        for(i=0;i<size;i++)CHECK(rf_level_geomod_settings_decode(prefix,i,&settings)!=RF_OK && !memcmp(&settings,&saved,sizeof(saved)));
+        CHECK(!rf_level_geomod_settings_decode(prefix,size,&settings) && !memcmp(&settings,&saved,sizeof(saved)));
+        prefix[0]=64;prefix[1]=0;CHECK(rf_level_geomod_settings_decode(prefix,sizeof(prefix),&settings)==RF_RANGE && !memcmp(&settings,&saved,sizeof(saved)));
+    }
     section=rf_level_find(&level,0x200);CHECK(section && section->size==72);
     CHECK(!rf_level_read(&level,section,0,data,72));rf_vpp_close(&archive);
     CHECK(!rf_level_geo_regions_decode(data,72,&out,1,&count));
@@ -57,6 +68,7 @@ int main(int argc,char **argv)
             for(j=0;j<list.count;j++) {
                 unsigned char *payload;
                 CHECK(!rf_level_open(&level,&archive,list.values[j]));section=rf_level_find(&level,0x200);
+                {rf_level_geomod_settings settings;CHECK(!rf_level_geomod_settings_read(&level,&settings));}
                 if(!section)continue;
                 payload=malloc(section->size);CHECK(payload);
                 CHECK(!rf_level_read(&level,section,0,payload,section->size));

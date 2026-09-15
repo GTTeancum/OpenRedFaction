@@ -15,6 +15,11 @@ if [[ "$root/Installed_Game/audio.vpp" -nt "$root/build/xbox/disc/audio.vpp" ]];
     cp "$root/Installed_Game/audio.vpp" "$root/build/xbox/disc/audio.vpp"
     rm -f "$root/build/xbox/redfaction-diagnostic.iso"
 fi
+# Original level GeoMod textures (including rock02.tga) live in ui.vpp.
+if [[ "$root/Installed_Game/ui.vpp" -nt "$root/build/xbox/disc/ui.vpp" ]]; then
+    cp "$root/Installed_Game/ui.vpp" "$root/build/xbox/disc/ui.vpp"
+    rm -f "$root/build/xbox/redfaction-diagnostic.iso"
+fi
 cd "$root/build/xbox"
 # Repack changed disc flags without make -W default.xbe, which can suppress
 # rebuilding that XBE even when compilation produces a newer main.exe.

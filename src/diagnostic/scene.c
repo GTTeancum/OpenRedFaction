@@ -11817,12 +11817,25 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
             }
         }
         if(rf_scene_dev_room_enabled) {
-            const char *names[1]={"rck_canyon_rock01.tga"};rf_materials interior={0};rf_material *combined;
-            status=rf_materials_open_names(&interior,names,1,maps,map_count,512*1024);if(status)goto done;
+            rf_level_geomod_settings settings;const char *names[1];rf_materials interior={0};rf_material *combined;
+            status=rf_level_geomod_settings_read(level,&settings);if(status)goto done;
+            if(!settings.texture[0]){status=RF_FORMAT;goto done;}names[0]=settings.texture;
+            {
+                rf_vpp sources[9]={{0}};char path[1024];uint32_t n,prefix=0;
+                if(map_count>8){status=RF_RANGE;goto done;}
+                for(n=0;tables_path[n];n++)if(tables_path[n]=='/' || tables_path[n]=='\\')prefix=n+1;
+                if(prefix+sizeof("ui.vpp")>sizeof(path)){status=RF_RANGE;goto done;}
+                memcpy(path,tables_path,prefix);memcpy(path+prefix,"ui.vpp",sizeof("ui.vpp"));
+                memcpy(sources,maps,map_count*sizeof(*maps));
+                status=rf_vpp_open(sources+map_count,path);if(status)goto done;
+                status=rf_materials_open_names(&interior,names,1,sources,map_count+1,512*1024);
+                rf_vpp_close(sources+map_count);if(status)goto done;
+            }
+
             if(interior.loaded!=1 || materials->count>=RF_CAMPAIGN_TEXTURE_SLOTS){rf_materials_close(&interior);status=RF_RANGE;goto done;}
             combined=realloc(materials->items,(materials->count+1)*sizeof(*combined));
             if(!combined){rf_materials_close(&interior);status=RF_IO;goto done;}
-            /* Explicit DEV rock substrate; campaign-authored interior selection is pending. */
+            /* Use the level-authored GeoMod substrate; hardness policy remains separate. */
             materials->items=combined;stream.terrain_material=materials->count;combined[materials->count++]=interior.items[0];
             ++materials->loaded;materials->allocated_bytes+=interior.allocated_bytes;free(interior.items);
         }

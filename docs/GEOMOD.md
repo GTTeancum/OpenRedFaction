@@ -1,9 +1,9 @@
 # GeoMod implementation status
 
-Core gameplay in the developer room is the current priority. This milestone
-adds authored region decoding; it does not implement terrain subtraction,
-interior surfaces, broken glass, debris, collision changes or a usable GeoMod
-weapon. Do not infer destruction support from the room's rendered glass.
+GeoMod fidelity is the highest current priority. The developer room has live
+rocket-driven faceted excavation and matching collision, but crater shape,
+interior lighting, debris and eligibility remain prototypes. Later sections
+record current changes; earlier milestones below are historical evidence.
 
 ## Region input evidence
 
@@ -440,3 +440,35 @@ artifacts/xemu/render-20260915-083610 passes38comparisons and leaves
 9092pages free. Image inspected; all19staging entries restored. Original
 crater reference, material rules, debris, interior lighting and repeated
 destruction behavior require continued work before this can be accepted.
+
+## Authored interior setting and next original-code lead
+
+The v180 section900 prefix stores a16-bit byte count, texture name and
+32-bit hardness. The new bounded reader preserves output on errors and
+does not interpret hardness. Glass House specifies rock02.tga and stored
+hardness0. Its texture is in ui.vpp, not the five map archives. The DEV
+scene now loads that setting with maps-first/ui-last lookup and transfers
+only decoded pixels to the shared material table; ui.vpp is streamed and
+staged by the Xbox build. The prior canyon-rock override is removed.
+
+Format lead: reference/openfaction/common/include/formats/rfl_format.h,
+commit e8a4a885ba866fc472702b3dc8a9e8208f9b91e4 (GPL format reference;
+reader independently written). Original RF.exe SHA256
+b8fb9ab4c9bfc6f2868c30839d6cfc69f84b8c25d7e54eee1325f5b633c9b836,
+Ghidra export4618b0, loads the texture into646000 and hardness into646004,
+replacing zero hardness with55. That runtime fallback is evidence only
+here; region precedence and how hardness controls cuts remain unimplemented.
+
+Existing export467020 provides the next cut-shape lead: it calls4375b0
+with an input ID, derives scale from radius divided by definition+0x60
+unless flag8 is set, calls45cff0, and submits through437230. A bounded
+128-entry journal and an ice-texture branch are visible in this routine.
+These are raw decompiler observations, not yet verified callable signatures.
+Trace4375b0/437230 and their data before selecting a replacement shape.
+
+PC settings tests cover installed levels, truncated prefixes and overlong
+name rollback. Five live destruction/traversal cases pass. The500frame
+Xbox approach at artifacts/xemu/render-20260915-084302 passes38comparisons
+with9091pages free; native image inspected with authored dark rock interior.
+All19staging entries restored; owned emulator exited. This corrects material
+selection, not crater fidelity, UV parity or interior lighting.

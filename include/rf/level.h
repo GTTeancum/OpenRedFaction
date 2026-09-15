@@ -20,6 +20,12 @@ typedef struct rf_level {
     float player_orientation[3][3]; /* Rows reordered from disk 2,0,1. */
 } rf_level;
 
+typedef struct rf_level_geomod_settings {char texture[64];uint32_t hardness;} rf_level_geomod_settings;
+/* v180 section900 prefix: owned texture name and stored hardness, unchanged
+ * on error. Trailing lighting/fog fields are outside this reader. Hardness
+ * semantics/region precedence are not implied by decoding the integer. */
+int rf_level_geomod_settings_decode(const void *,uint32_t,rf_level_geomod_settings *);
+int rf_level_geomod_settings_read(const rf_level *,rf_level_geomod_settings *);
 typedef struct rf_level_lighting {unsigned char color[4],directional;} rf_level_lighting;
 typedef struct rf_level_message {uint32_t id;char voice[64],text[512];} rf_level_message;
 /* Bounded English mission-table lookup; caller owns output. Errors preserve it. */

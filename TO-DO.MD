@@ -2,7 +2,7 @@
 
 - PRIORITY GeoMod: Match original destruction behavior and appearance; the current faceted crater is a prototype, not an accepted fidelity milestone.
 - DEV testbed: Review full weapon animations and add complete room reset; terrain reset and ammo refill are implemented, while campaign progression remains paused.
-- GeoMod: Improve crater shape/readability, add debris and authored surface eligibility; rockets now cut repeated faceted craters with an explicit DEV rock interior.
+- GeoMod: Improve crater shape/readability, add debris and authored surface eligibility; rockets now cut repeated faceted craters with the level-authored interior texture.
 - USER: Review destruction readability after replacing the folded-panel interior; destruction remains the current focus.
 - Weapons: Finish rocket flare blending/explosion effects and actor/mover impacts, and verify NPC blast/cover behavior; authored projectile geometry now draws during live flight.
 - Combat: Extend pain-reaction coverage across enemy weapons and encounters; retained attack locks now pass35 PC/Xbox comparisons with independent actor recovery.
@@ -5208,3 +5208,11 @@ All19 staged disc entries restored; owned emulator exited. Traversal beyond
 the original wall is currently PC-verified only. User clarified GeoMod must
 take top priority for fidelity; other system work stays deferred.
 Estimate ~49%; current area is GeoMod.
+
+GeoMod fidelity update (2026-09-15): Read section900 interior texture and
+stored hardness, replacing the manual rock override with Glass House
+rock02.tga from ui.vpp. Xbox500frame approach passes38comparisons with
+9091pages free; all19staging entries restored and image inspected. Original
+467020 points to definition lookup4375b0 and cut submission437230; trace
+these next to replace the generic crater shape. Hardness policy, lighting,
+debris and faithful repeated cuts remain open. Estimate ~49%; GeoMod.

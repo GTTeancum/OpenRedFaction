@@ -456,6 +456,26 @@ static int load(rf_level *level, rf_vpp *archive, const char *name)
     return RF_OK;
 }
 
+int rf_level_geomod_settings_decode(const void *data,uint32_t bytes,rf_level_geomod_settings *out)
+{
+    const unsigned char *p=data;rf_level_geomod_settings value={0};uint32_t n;
+    if(!data || !out)return RF_RANGE;if(bytes<2)return RF_FORMAT;
+    n=p[0]+((uint32_t)p[1]<<8);if(n>=sizeof(value.texture))return RF_RANGE;
+    if(bytes<6+n || memchr(p+2,0,n))return RF_FORMAT;
+    memcpy(value.texture,p+2,n);p+=2+n;
+    value.hardness=p[0]|((uint32_t)p[1]<<8)|((uint32_t)p[2]<<16)|((uint32_t)p[3]<<24);
+    *out=value;return RF_OK;
+}
+int rf_level_geomod_settings_read(const rf_level *level,rf_level_geomod_settings *out)
+{
+    const rf_level_section *section;unsigned char data[69];uint32_t n;int status;
+    if(!level || !out || level->version!=180)return RF_RANGE;
+    section=rf_level_find(level,0x900);if(!section)return RF_NOT_FOUND;
+    status=rf_level_read(level,section,0,data,2);if(status)return status;
+    n=data[0]+((uint32_t)data[1]<<8);if(n>=64)return RF_RANGE;
+    status=rf_level_read(level,section,2,data+2,n+4);if(status)return status;
+    return rf_level_geomod_settings_decode(data,n+6,out);
+}
 int rf_level_lighting_read(const rf_level *level,rf_level_lighting *out)
 {
     const rf_level_section *section;unsigned char length[2],data[5];uint32_t at;int status;
