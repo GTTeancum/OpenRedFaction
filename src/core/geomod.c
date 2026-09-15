@@ -423,6 +423,7 @@ void rf_geomod_observe_intersections(rf_geomod_intersection_observer observer,vo
 typedef struct geomod_corner_support {
     const rf_geomod_multi_work *work;
     uint16_t face;
+    const rf_geomod_mesh_view *cutters;
 } geomod_corner_support;
 static const float *corner_support_plane(const geomod_corner_support *support,uint16_t id)
 {
@@ -430,6 +431,49 @@ static const float *corner_support_plane(const geomod_corner_support *support,ui
     if(id<32)return support->work->source_planes[id];
     cutter=(id-32)/128;local=(id-32)%128;
     return support->work->star_count[cutter]?support->work->star_planes[cutter][local/4][local%4]:support->work->cut_planes[cutter][local];
+}
+/* Resolve intersections on an actual shared star-cutter edge before using
+ * rounded supporting planes. Internal tetrahedron and outer-face supports
+ * then agree on the same line. No spatial-proximity matching is involved. */
+static int corner_seed_edge(const geomod_corner_support *support,const uint16_t ids[3],float position[3])
+{
+    uint32_t pair,a,b,other,i,j,k;
+    for(pair=0;pair<3;pair++) {
+        const float *points[2][3],*shared[2],*plane;uint32_t counts[2],found=0,cutter;
+        double da,db,t;const float *first,*last;
+        a=pair;b=(pair+1)%3;other=(pair+2)%3;
+        if(ids[a]<32 || ids[b]<32 || (ids[a]-32)/128!=(ids[b]-32)/128)continue;
+        cutter=(ids[a]-32)/128;
+        if(!support->work->star_count[cutter] || (ids[other]>=32 && (ids[other]-32)/128==cutter))continue;
+        for(i=0;i<2;i++) {
+            uint32_t local=(ids[i?b:a]-32)%128,face=local/4,side=local%4;
+            const rf_geomod_vertex *v=support->cutters[cutter].vertices+support->cutters[cutter].faces[face].first;
+            counts[i]=side?2:3;
+            for(j=0;j<counts[i];j++)points[i][j]=v[side?(side-1+j)%3:j].position;
+        }
+        for(i=0;i<counts[0];i++)for(j=0;j<counts[1];j++) {
+            for(k=0;k<3 && points[0][i][k]==points[1][j][k];k++);
+            if(k==3){if(found<2)shared[found]=points[0][i];found++;}
+        }
+        if(found!=2)continue;
+        /* Opposite versions of one internal plane do not identify an edge. */
+        {
+            const float *pa=corner_support_plane(support,ids[a]),*pb=corner_support_plane(support,ids[b]);double cross2=0;
+            for(k=0;k<3;k++){double cross=(double)pa[(k+1)%3]*pb[(k+2)%3]-(double)pa[(k+2)%3]*pb[(k+1)%3];cross2+=cross*cross;}
+            if(cross2<1e-20)continue;
+        }
+        first=shared[0];last=shared[1];
+        for(k=0;k<3 && first[k]==last[k];k++);
+        if(k==3)continue;
+        if(first[k]>last[k]){const float *swap=first;first=last;last=swap;}
+        plane=corner_support_plane(support,ids[other]);da=db=plane[3];
+        for(k=0;k<3;k++){da+=(double)plane[k]*first[k];db+=(double)plane[k]*last[k];}
+        if(da==db)continue;
+        t=da/(da-db);if(!isfinite(t) || t<0 || t>1)continue;
+        for(k=0;k<3;k++)position[k]=(float)((1-t)*first[k]+t*last[k]);
+        return 1;
+    }
+    return 0;
 }
 static int polygon_split_edges(const rf_geomod_vertex *vertices,uint32_t count,
     const float plane[4],rf_geomod_vertex *front,uint32_t front_capacity,
@@ -473,7 +517,8 @@ static int polygon_split_edges(const rf_geomod_vertex *vertices,uint32_t count,
             memcpy(planes[1],corner_support_plane(support,edges[i]),sizeof(planes[1]));
             memcpy(planes[2],plane,sizeof(planes[2]));
             /* Coplanar supporting faces do not define a unique corner. */
-            if(!rf_geomod_plane_corner(planes,position))memcpy(cut.position,position,sizeof(position));
+            {uint16_t ids[3]={support->face,edges[i],cut_edge};
+             if(corner_seed_edge(support,ids,position) || !rf_geomod_plane_corner(planes,position))memcpy(cut.position,position,sizeof(position));}
         }
         for(j=0;j<2;j++) {
             cut.uv[j]=(float)((1-t)*vertices[first].uv[j]+t*vertices[last].uv[j]);
@@ -896,7 +941,7 @@ static int subtract_history_face(rf_geomod_storage *s,const rf_geomod_vertex *ve
     const rf_geomod_mesh_view *cutters,uint32_t cutter_count,rf_geomod_multi_work *work,const uint16_t *edges,uint16_t face_id)
 {
     uint32_t bank=0,pieces=1,c,i,j;int status;
-    geomod_corner_support support={work,face_id};
+    geomod_corner_support support={work,face_id,cutters};
     memcpy(work->vertices[0],vertices,count*sizeof(*vertices));
     if(edges)memcpy(work->edges[0],edges,count*sizeof(*edges));
     work->fragments[0][0]=(rf_geomod_fragment){0,count};
@@ -1000,7 +1045,7 @@ static int prepare_cavity_cuts(rf_geomod_storage *s,
             /* Keep cutter boundaries outside the original empty room. Contact
              * between cavity and cutter is internal, for either plane orientation. */
             rf_geomod_edge_tracking tracking={work->initial_edges+f->first,source_ids,work->seed_edges};
-            geomod_corner_support support={work,(uint16_t)(32+c*128+i*(work->star_count[c]?4:1))};
+            geomod_corner_support support={work,(uint16_t)(32+c*128+i*(work->star_count[c]?4:1)),cutters};
             status=polygon_subtract_tracked_policy(cutters[c].vertices+f->first,f->count,
                 work->source_planes,source.face_count,work->seed.vertices,64*32,
                 work->seed.fragments,32,&n,&pieces,1,&tracking,&support);if(status)goto failed;

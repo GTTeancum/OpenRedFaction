@@ -1144,8 +1144,9 @@ int main(int argc,char **argv)
                     const rf_geomod_face *f=live.mesh.faces+i;
                     CHECK(record(live.mesh.vertices+f->first,f->count));total+=volume(live.mesh.vertices+f->first,f->count);
                 }
-                printf("STRESS %u %u %u %g prior %g closed %d\n",repeat,live.mesh.vertex_count,live.mesh.face_count,-total,previous_volume,closed());
-                /* Room-scale closure is an open defect also observed without
+                {int closure=closed();if(!repeat)CHECK(closure);
+                 printf("STRESS %u %u %u %g prior %g closed %d\n",repeat,live.mesh.vertex_count,live.mesh.face_count,-total,previous_volume,closure);}
+                /* Later room-scale closure is an open defect also observed without
                  * compaction; report it without claiming this capacity test proves it. */
                 {
                     /* Probe individual float steps across the known near-coincident

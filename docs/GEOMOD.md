@@ -2381,3 +2381,34 @@ verified implementation, and focused CTests pass. No gameplay change is claimed.
 Next repair must use the actual shared seed edge or higher-precision planes
 constructed from that geometry; choosing nearby vertices or widening the
 closure epsilon would conceal the disagreement. Overall ~49%, GeoMod ~60%.
+
+Exact seed-edge intersections (2026-09-15): Cavity corner construction now
+first checks whether two supports belong to the same star cutter and share
+exact authored edge endpoints. Outer faces contribute three seed vertices;
+internal tetrahedron faces contribute their two outer edge endpoints. Exactly
+two common vertices identify the seed edge; coincident/opposite supporting
+planes are excluded. The third support must come from the room or a different
+cutter. Canonically ordered edge endpoints are intersected directly with that
+third plane, requiring a finite parameter in[0,1]. Other configurations retain
+the three-plane solver and its singular fallback. No proximity weld, widened
+closure tolerance or new heap allocation is used. This also avoids using a
+rounded internal plane as an independent constraint on its own seed edge.
+The room-scale closure counts become0,9,16,19,27,39, versus8,21,50,71,104,120
+before this change. The first crater now closes and the fixture enforces that
+result; later-cut closure remains an open defect. Its geometry is262 vertices/
+64 faces; the sixth cut is2312 vertices/532 faces. Collision/volume tests pass.
+The1500-frame eight-blast PC replay succeeds with3116 physical vertices,
+3729 render vertices and613 inserted boundary points. Terrain peak1003680
+bytes stays below1MiB. Three focused CTests and the NXDK build pass. The depth
+audit retains19487 recessed pixels, no substantially nearer or newly uncovered
+pixels, minimum raw depth delta-71. Appearance is not accepted by these checks.
+
+Native seed-edge verification: artifacts/xemu/render-20260915-155050 passes46
+comparisons across1500 frames/eight cuts, with8600 pages free (33.59MiB).
+All19 disc entries are restored exactly; owned PID20376 exits. The native
+framebuffer was inspected and still has the dark mound-like crater appearance.
+Eighth-edit timings are352ms CSG,39ms bind,4ms debris preparation and3ms spawn
+(total398ms), versus336ms in the immediately preceding shared-plane run.
+This is a correctness improvement with a measured edit-time regression, not
+an FPS improvement. Remaining closure, performance and visual work stay open.
+Estimate GeoMod ~61 percent, overall ~49 percent; current area is destruction.
