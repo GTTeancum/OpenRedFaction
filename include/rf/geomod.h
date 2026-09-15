@@ -348,6 +348,12 @@ int rf_geomod_terrain_cut_template(rf_geomod_terrain *terrain,const rf_geomod_te
 /* Same template operation with an already normalized/adjusted original scale. */
 int rf_geomod_terrain_cut_template_scale(rf_geomod_terrain *terrain,const rf_geomod_template *shape,
     const float center[3],const float basis[9],float scale,uint32_t material);
+/* Apply already prepared shallow limits to the transformed cutter. Rebuilds
+ * actual CSG/collision geometry; publication remains atomic on invalid geometry
+ * or capacity failure. Caller must supply original region/history-adjusted limits. */
+int rf_geomod_terrain_cut_template_limits(rf_geomod_terrain *terrain,const rf_geomod_template *shape,
+    const float center[3],const float basis[9],float scale,uint32_t material,
+    const rf_geomod_shallow_limit *limits,uint32_t count);
 int rf_geomod_terrain_reset(rf_geomod_terrain *terrain);
 /* Borrowed snapshot: valid until next successful cut/reset or close; failed
  * edits preserve it. Single-thread owner; renderer consumes mesh+faces from

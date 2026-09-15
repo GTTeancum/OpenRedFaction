@@ -34,3 +34,11 @@ Primary review: retained the executable probes under tools/ and reran them succe
 `rf_geomod_shallow_point` now implements up to two ordered limits, with original-offset activation gates and current-point unsigned projection distance. `tools/verify_geomod_shallow_both.py` executes both original branches and compares100 cases with compiled shared C, including the sign-crossing case that differs from ordinary sequential signed compression. Maximum observed error is1.953e-6 world units (tolerance1e-5), not bit-exact parity. Input guards and aliased point/output pass geomod_interior_faces.
 
 The primitive is not connected to live CSG yet: region-limit preparation, prior-crater adjustment, recomputed cutter geometry and actual shallow-cut visuals still require integration and verification. Ordinary matching shallow regions continue to be refused rather than producing unrestricted cuts.
+
+## Terrain mesh integration
+
+`rf_geomod_terrain_cut_template_limits` now transforms the template, applies prepared shallow limits to its vertices and reconstruction kernel, and submits that actual mesh to the existing atomic star-cut publication path. Existing no-limit callers retain their original operation. Face planes, generated mapping and collision are rebuilt through the terrain owner; this is not a render-only displacement.
+
+The original-template integration fixture checks a single positive-Z limit at40% depth in both solid and cavity sources: closed output edges, normalized generated collision planes, generated vertices below the reduced depth bound, and a collision ray hitting within that bound. Invalid limits preserve the published generation. The full original-template suite also passes its existing six-cut closure/volume/junction-ray checks. Two-limit live CSG coverage and repeated shallow-cut interaction remain open, as do authored region/history preparation and visual validation. No new emulator run or screenshot was produced for this step.
+
+Reproduce with `build/pc/Release/rf_geomod_interior_tests.exe Installed_Game artifacts/geomod-holey01-csg.bin`; evidence log: artifacts/shallow-csg-tests.log.

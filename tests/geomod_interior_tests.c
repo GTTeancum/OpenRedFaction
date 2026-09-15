@@ -1278,6 +1278,41 @@ int main(int argc,char **argv)
                     CHECK(generated_count>0);
                 }
 
+                {
+                    rf_geomod_shallow_limit limit={{0,0,1},shape.radius*4};
+                    float max_z=0;uint32_t generated_count=0;
+                    for(i=0;i<shape.face_count*3;i++) {
+                        float z=-shape.vertices[i].position[0]*10;
+                        if(z>max_z)max_z=z;
+                    }
+                    CHECK(!rf_geomod_terrain_reset(terrain));
+                    CHECK(!rf_geomod_terrain_cut_template_limits(terrain,&shape,center,basis,10,77,&limit,1));
+                    CHECK(!rf_geomod_terrain_get(terrain,&before) && before.cuts==1);
+                    surface_count=polygon_count=0;
+                    for(i=0;i<before.mesh.face_count;i++) {
+                        const rf_geomod_face *face=before.mesh.faces+i;
+                        CHECK(record(before.mesh.vertices+face->first,face->count));
+                        if(face->source_face==UINT32_MAX) {
+                            const float *n=before.faces[i].plane;
+                            CHECK(fabs(n[0]*n[0]+n[1]*n[1]+n[2]*n[2]-1)<.0001);
+                            for(j=0;j<face->count;j++)CHECK(before.mesh.vertices[face->first+j].position[2]<=max_z*.4f+.0001f);
+                            generated_count++;
+                        }
+                    }
+                    CHECK(generated_count && closed());
+                    {
+                        rf_collision_tree_hit hit;uint32_t matched;
+                        float start[3]={center[0],0,0},delta[3]={0,0,4};
+                        CHECK(!rf_collision_thin_tree(before.tree->nodes,before.tree->node_count,
+                            before.tree->faces,before.tree->face_count,0,start,delta,1,
+                            before.tree->stack,before.tree->node_capacity,&hit,&matched));
+                        CHECK(matched && hit.hit.fraction>0 && hit.hit.fraction*4<=max_z*.4f+.0001f);
+                    }
+                    limit.normal[2]=2;
+                    CHECK(rf_geomod_terrain_cut_template_limits(terrain,&shape,center,basis,10,77,&limit,1)==RF_FORMAT);
+                    CHECK(!rf_geomod_terrain_get(terrain,&live) && live.mesh.generation==before.mesh.generation);
+                }
+
                 basis[0]=2;CHECK(rf_geomod_terrain_cut_template(terrain,&shape,center,basis,1,77)==RF_FORMAT);
                 CHECK(!rf_geomod_terrain_get(terrain,&live) && live.mesh.generation==before.mesh.generation && live.cuts==1);
                 basis[0]=0;center[0]=NAN;CHECK(rf_geomod_terrain_cut_template(terrain,&shape,center,basis,1,77)==RF_FORMAT);

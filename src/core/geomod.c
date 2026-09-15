@@ -1656,12 +1656,14 @@ int rf_geomod_template_load(const char *path,rf_geomod_template *out)
     if(failed)return RF_IO;
     return rf_geomod_template_decode(data,(uint32_t)bytes,out);
 }
-int rf_geomod_terrain_cut_template_scale(rf_geomod_terrain *t,const rf_geomod_template *shape,
-    const float center[3],const float basis[9],float scale,uint32_t material)
+int rf_geomod_terrain_cut_template_limits(rf_geomod_terrain *t,const rf_geomod_template *shape,
+    const float center[3],const float basis[9],float scale,uint32_t material,
+    const rf_geomod_shallow_limit *limits,uint32_t limit_count)
 {
     rf_geomod_vertex vertices[60];rf_geomod_face faces[20];rf_geomod_mesh_view mesh;
     float kernel[3];uint32_t i,j,k;
     if(!t || !shape || !center || !basis || material==UINT32_MAX || shape->face_count<4 || shape->face_count>20)return RF_RANGE;
+    if(limit_count>2 || (limit_count && !limits))return RF_RANGE;
     if(!isfinite(scale) || scale<=0 || !isfinite(shape->radius) || shape->radius<=0)return RF_FORMAT;
     for(i=0;i<9;i++)if(!isfinite(basis[i]))return RF_FORMAT;
     for(i=0;i<3;i++)for(j=0;j<3;j++) {
@@ -1678,10 +1680,24 @@ int rf_geomod_terrain_cut_template_scale(rf_geomod_terrain *t,const rf_geomod_te
     }
     for(j=0;j<3;j++)kernel[j]=(float)((((double)shape->kernel[2]*basis[6+j]+(double)shape->kernel[1]*basis[3+j])+
         (double)shape->kernel[0]*basis[j])*scale+center[j]);
+    if(limit_count) {
+        int status;
+        for(i=0;i<shape->face_count*3;i++) {
+            status=rf_geomod_shallow_point(center,vertices[i].position,shape->radius*scale,
+                limits,limit_count,vertices[i].position);if(status)return status;
+        }
+        /* The strict interior point is reconstruction bookkeeping. Deform it
+         * with the mesh, then let cut_star validate it before publication. */
+        status=rf_geomod_shallow_point(center,kernel,shape->radius*scale,limits,limit_count,kernel);
+        if(status)return status;
+    }
     for(i=0;i<shape->face_count;i++)faces[i]=(rf_geomod_face){i*3,3,material,UINT32_MAX};
     mesh=(rf_geomod_mesh_view){vertices,faces,shape->face_count*3,shape->face_count,0};
     return rf_geomod_terrain_cut_star(t,&mesh,kernel);
 }
+int rf_geomod_terrain_cut_template_scale(rf_geomod_terrain *t,const rf_geomod_template *shape,
+    const float center[3],const float basis[9],float scale,uint32_t material)
+{return rf_geomod_terrain_cut_template_limits(t,shape,center,basis,scale,material,NULL,0);}
 int rf_geomod_terrain_cut_template(rf_geomod_terrain *t,const rf_geomod_template *shape,
     const float center[3],const float basis[9],float radius,uint32_t material)
 {
