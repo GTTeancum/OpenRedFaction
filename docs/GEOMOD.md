@@ -5,6 +5,19 @@ rocket-driven faceted excavation and matching collision, but crater shape,
 interior lighting, debris and eligibility remain prototypes. Later sections
 record current changes; earlier milestones below are historical evidence.
 
+## Current acceptance priority
+
+GeoMod appearance and behavior remain blocking work before returning to other
+gameplay systems. General deferred-polish guidance does not apply to crater
+shape, exposed rock, interior lighting or debris. Match original-game evidence
+and inspect visible results; rendering a hole or passing collision probes alone
+does not establish fidelity. Stock64MiB Xbox limits continue to apply.
+
+The current rocket-impact path in scene_rockets_tick applies blast damage and
+cuts/rebinds terrain, but does not spawn destruction debris. Debris is missing,
+not merely awaiting visual verification. Fixing it will not by itself resolve
+the dark folded-panel cavity, which remains an independent acceptance issue.
+
 ## Region input evidence
 
 The format lead is [rf-reversed rfl.ksy](https://github.com/rafalh/rf-reversed/blob/master/rfl.ksy),

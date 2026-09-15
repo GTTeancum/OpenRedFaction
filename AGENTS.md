@@ -8,7 +8,7 @@
 - Current mandate: pause campaign-route progression and prioritize core gameplay in an enemy-free developer testbed for weapons, animations, GeoMod and movement; resume campaign integration after the core systems are usable.
 - GeoMod fidelity is now the top priority: treat faceted craters as prototypes, validate against original-game evidence, and prioritize destruction shape, materials, lighting, debris, collision and repeated cuts before returning to other systems.
 - Product first: deliver a playable first pass with movement, combat, AI, mission events and level progression; exact 1:1 RE is not required.
-- Use practical shared implementations where they unblock gameplay; defer lighting/visual polish while preserving Xbox memory limits and the final visual-parity goal.
+- Use practical shared implementations where they unblock gameplay; defer general visual polish, but GeoMod shape, materials, lighting and debris are required fidelity work, not deferred polish. Preserve Xbox memory limits and the final visual-parity goal.
 - Do not substitute an executable patch or PC-only engine for standalone reconstructed Xbox game code.
 - Record source addresses and evidence for reconstructed behavior; label scaffolding and unverified assumptions honestly.
 - Keep original assets/binaries, downloaded references, Ghidra databases, and generated outputs outside tracked source.
