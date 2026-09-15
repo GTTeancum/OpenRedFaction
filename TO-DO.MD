@@ -1,7 +1,7 @@
 # Red Faction Xbox / PC - open work
 
-- Combat: Finish authored enemy damage amounts, cadence, accuracy and weapon coverage; supported damage types, authored attack ranges and close-range Riot Stick pursuit are now wired.
-- Gameplay: Resolve the first L2S3 guard encounter with carried-over health; PC verifies a natural Area2 return preserving seven retired actors, the consumed kit and ammunition (8000 frames); full Area2 exit remains verified on Xbox.
+- Combat: Finish enemy damage amounts, cadence and weapon coverage; authored SP primary spread and target/bullet-obstruction checks now pass PC/Xbox verification (24 hits, 3 misses).
+- Gameplay: Continue L2S3 combat with the corrected accuracy model; updated PC exit/return passes with48.2 health, and the complete updated route still needs Xbox revalidation beyond the focused spread encounter.
 
 First-pass policy: playable campaign systems take priority over exact1:1 RE.
 Use practical shared implementations, verify gameplay and stock64MiB operation,

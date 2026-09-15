@@ -25,6 +25,8 @@ assert attack[1:3]==[8496,8490] and attack[4]==0 and attack[5]>0
 assert recovery[0:2]==[1,1] and recovery[2]>0
 assert int(death[2])==1 and recovery[3]*1000/60>int(death[3])
 assert combat[6]==1, 'Unopposed guards should kill the exposed player'
-report=dict(result='PASS',attack=attack,recovery=recovery,combat=combat,
+spread=words('ENEMY_SPREAD')
+assert spread[0]==spread[1] and spread[0]==sum(spread[2:5]) and spread[3]>0 and spread[6:]==[0,0]
+report=dict(result='PASS',spread=spread,attack=attack,recovery=recovery,combat=combat,
     scope='One placement at trigger5670; subsequent movement and Use only. Guard8490 releases the dead miner, acquires the player, and fires. Local encounter, not full level traversal.')
 (folder/'report.json').write_text(json.dumps(report,indent=2));print(report)

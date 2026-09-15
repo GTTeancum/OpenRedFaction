@@ -1,5 +1,6 @@
 #include "rf/weapon.h"
 #include "rf/timer.h"
+#include "rf/effect.h"
 #include <string.h>
 #include <math.h>
 int rf_weapon_charge_step(uint32_t *remainder,uint32_t capacity,uint32_t drain_ticks,
@@ -812,4 +813,18 @@ int rf_weapon_startup_grant_sp(rf_weapon_inventory *inventory,rf_weapon_startup_
         status=rf_weapon_acquire_sp(inventory,definitions+weapon,weapon,-1);if(status)return status;
     }
     return RF_OK;
+}
+
+int rf_weapon_spread_ray(const float ray[3],float degrees,rf_random_state *random,float result[3])
+{
+    float axis[3],value[3];double length=0;rf_random_state next;unsigned i;int status;
+    if(!ray || !random || !result || !isfinite(degrees) || degrees<0 || degrees>90)return RF_RANGE;
+    for(i=0;i<3;i++){if(!isfinite(ray[i]))return RF_RANGE;length+=(double)ray[i]*ray[i];}
+    if(!(length>0) || length>1e12)return RF_RANGE;
+    if(degrees==0){memcpy(result,ray,12);return RF_OK;}
+    length=sqrt(length);for(i=0;i<3;i++)axis[i]=(float)(ray[i]/length);
+    next=*random;status=rf_particle_cone_oriented(axis,(float)cos(degrees*0.017453292519943295),&next,value);
+    if(status)return status;
+    for(i=0;i<3;i++)value[i]=(float)(value[i]*length);
+    memcpy(result,value,12);*random=next;return RF_OK;
 }

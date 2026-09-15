@@ -2,12 +2,30 @@
 #include "rf/entity_assets.h"
 #include <stdio.h>
 #include <string.h>
+#include <math.h>
 #define CHECK(x) do{if(!(x)){fprintf(stderr,"weapon line %d\n",__LINE__);return 1;}}while(0)
 int main(int argc,char **argv)
 {
     rf_vpp meshes={0},motions={0},maps[5]={{0}};rf_player_weapon *w=NULL,*other=NULL,*rifle=NULL,*riot=NULL;
     const char *map_names[5]={"maps1.vpp","maps2.vpp","maps3.vpp","maps4.vpp","maps_en.vpp"};
     char path[1024];uint32_t i,j;rf_motion_sample sample;
+    {
+        const float axes[4][3]={{0,0,100},{0,100,0},{0,-100,0},{60,0,80}};
+        for(unsigned k=0;k<4;k++) {
+            rf_random_state random={123},repeat={123};
+            for(unsigned j=0;j<512;j++) {
+                float ray[3],other[3];double length=0,dot=0;
+                CHECK(rf_weapon_spread_ray(axes[k],3,&random,ray)==RF_OK);
+                CHECK(rf_weapon_spread_ray(axes[k],3,&repeat,other)==RF_OK && !memcmp(ray,other,sizeof(ray)));
+                for(unsigned n=0;n<3;n++){length+=(double)ray[n]*ray[n];dot+=(double)ray[n]*axes[k][n];}
+                CHECK(fabs(length-10000)<.01 && dot/10000>=cos(3*0.017453292519943295)-.000001);
+            }
+        }
+        {rf_random_state random={123};float axis[3]={0,0,100},out[3]={7,8,9},saved[3];memcpy(saved,out,12);
+         CHECK(rf_weapon_spread_ray(axis,-1,&random,out)==RF_RANGE && random.value==123 && !memcmp(out,saved,12));
+         CHECK(rf_weapon_spread_ray(axis,91,&random,out)==RF_RANGE && random.value==123 && !memcmp(out,saved,12));
+         CHECK(rf_weapon_spread_ray(axis,0,&random,out)==RF_OK && random.value==123 && !memcmp(out,axis,12));}
+    }
     {
         const char *valid="$Name: \"pistol\" $Flags: (\"semi_automatic\") $Clip Size: 16 8 $Clip Reload Time: 1.1 $Fire Wait: .5 $Damage: 40 $Damage Type: \"bullet\" $Damage Multi: 25 #End";
         const char *duplicate="$Name: \"pistol\" $Clip Size: 16 8 $Clip Size: 8 8";
@@ -18,7 +36,14 @@ int main(int argc,char **argv)
         CHECK(rf_weapon_primary_read(duplicate,(uint32_t)strlen(duplicate),"pistol",&d)==RF_FORMAT && !memcmp(&d,&saved,sizeof(d)));
         CHECK(rf_weapon_primary_read(bad,(uint32_t)strlen(bad),"pistol",&d)==RF_RANGE && !memcmp(&d,&saved,sizeof(d)));
         CHECK(rf_weapon_primary_read(valid,(uint32_t)strlen(valid),"missing",&d)==RF_NOT_FOUND && !memcmp(&d,&saved,sizeof(d)));
-        CHECK(d.ai_attack_range==0);
+        CHECK(d.ai_attack_range==0 && d.ai_spread_degrees==0);
+        {char spread[512];const char *end=strstr(valid,"#End");
+         snprintf(spread,sizeof(spread),"%.*s $AI Spread Degrees: 3 4 #End",(int)(end-valid),valid);
+         CHECK(rf_weapon_primary_read(spread,(uint32_t)strlen(spread),"pistol",&d)==RF_OK && d.ai_spread_degrees==3);d=saved;
+         const char *bad_spread[]={"-1 4","3 91","3","3 4 $AI Spread Degrees: 2 2"};
+         for(unsigned i=0;i<4;i++) {snprintf(spread,sizeof(spread),"%.*s $AI Spread Degrees: %s #End",(int)(end-valid),valid,bad_spread[i]);
+          CHECK(rf_weapon_primary_read(spread,(uint32_t)strlen(spread),"pistol",&d)!=RF_OK && !memcmp(&d,&saved,sizeof(d)));}}
+
         {char ranged[512];const char *end=strstr(valid,"#End");
          snprintf(ranged,sizeof(ranged),"%.*s $AI attack range: 20 10 #End",(int)(end-valid),valid);
          CHECK(rf_weapon_primary_read(ranged,(uint32_t)strlen(ranged),"pistol",&d)==RF_OK && d.ai_attack_range==20);d=saved;}
@@ -159,7 +184,7 @@ int main(int argc,char **argv)
         }
         {rf_weapon_primary_definition rifle,saved;
          CHECK(rf_weapon_primary_load(&tables,"Assault Rifle",128*1024,&rifle)==RF_OK);
-         CHECK(rifle.burst_count==3 && rifle.burst_seconds==.1f && rifle.magazine==42 && rifle.fire_seconds==.75f && rifle.damage==60 && rifle.damage_kind==2 && rifle.ai_attack_range==30);
+         CHECK(rifle.burst_count==3 && rifle.burst_seconds==.1f && rifle.magazine==42 && rifle.fire_seconds==.75f && rifle.damage==60 && rifle.damage_kind==2 && rifle.ai_attack_range==30 && rifle.ai_spread_degrees==2);
          saved=rifle;
          {const char *bad="$Name: \"test\" $Clip Size: 42 42 $Clip Reload Time: 1.35 $Fire Wait: .75 $Damage: 60 $Damage Type: \"bullet\" $Burst Mode: true +Burst Count: 3";
           CHECK(rf_weapon_primary_read(bad,(uint32_t)strlen(bad),"test",&rifle)==RF_FORMAT && !memcmp(&rifle,&saved,sizeof(rifle)));}
@@ -171,7 +196,7 @@ int main(int argc,char **argv)
          CHECK(d.burst_count==1 && d.burst_seconds==0);
         }
         rf_vpp_close(&tables);
-        CHECK(d.damage_kind==1 && d.magazine==16 && d.semi_automatic==1 && d.damage==40 && d.fire_seconds==.5f && d.reload_seconds==1.1f);CHECK(d.ai_attack_range==20);
+        CHECK(d.damage_kind==1 && d.magazine==16 && d.semi_automatic==1 && d.damage==40 && d.fire_seconds==.5f && d.reload_seconds==1.1f);CHECK(d.ai_attack_range==20 && d.ai_spread_degrees==3);
         printf("Primary definition PASS magazine=%u semi=%u damage=%g reload=%g fire=%g\n",d.magazine,d.semi_automatic,d.damage,d.reload_seconds,d.fire_seconds);
     }
     CHECK(w->bone_count && w->geometry.vertex_count && w->materials.count && w->peak_bytes<=1024*1024);

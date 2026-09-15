@@ -26,6 +26,7 @@ assert actors and actors.isdisjoint({8490,5677,5676,5678,8071,5683,5458})
 assert words('ACTOR_RETIREMENT')[1]==7
 assert 'TAKEN_PICKUP l2s2a.rfl 8553' in run.stdout
 ammo=words('PLAYER_AMMO');assert ammo[:3]==[3,88,16]
-health=struct.unpack('<f',struct.pack('<I',words('ENEMY_COMBAT')[5]))[0];assert health==15
+health=struct.unpack('<f',struct.pack('<I',words('ENEMY_COMBAT')[5]))[0];prefix_result=json.loads((root/'artifacts/area2-exit-replay/report.json').read_text());assert prefix_result['result']=='PASS' and prefix_result['frames']==7450
+assert health==prefix_result['health'] and 0<health<100
 report=dict(result='PASS',frames=8000,transitions=transitions,health=health,ammo=ammo,retired=7,prefix_sha256=hashlib.sha256(prefix).hexdigest(),scope='Natural return preserves six killed guards, dead miner, consumed kit and player vitals/ammo; not complete world-state persistence coverage.')
 (folder/'report.json').write_text(json.dumps(report,indent=2));print(report)

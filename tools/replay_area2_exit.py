@@ -24,7 +24,8 @@ transitions=[l.split()[1:] for l in run.stdout.splitlines() if l.startswith('LEV
 assert transitions==[['L2S2a.rfl','L2S3.rfl','5150','7275']]
 assert 'Completed 7450 frames' in run.stdout and words('PLAYER_LIFE')[0]==0
 ammo=words('PLAYER_AMMO');assert ammo[:3]==[3,88,16]
-health=struct.unpack('<f',struct.pack('<I',words('ENEMY_COMBAT')[5]))[0];assert health==15
+health=struct.unpack('<f',struct.pack('<I',words('ENEMY_COMBAT')[5]))[0];prefix_result=json.loads((root/'artifacts/area2-east-replay/report.json').read_text());assert prefix_result['result']=='PASS' and prefix_result['frames']==6250 and prefix_result['combat'][2]==6
+assert health==prefix_result['health'] and 0<health<100
 assert 'TAKEN_PICKUP l2s2a.rfl 8553' in run.stdout
 report=dict(result='PASS',frames=7450,transitions=transitions,health=health,ammo=ammo,prefix_sha256=hashlib.sha256(prefix).hexdigest(),input_sha256=hashlib.sha256(records).hexdigest(),scope='Uninterrupted L2S2a spawn/rescue/combat prefix and natural crouched exit to L2S3; selected retained player state checked. Does not prove the whole campaign or retail parity.')
 (folder/'report.json').write_text(json.dumps(report,indent=2));print(report)

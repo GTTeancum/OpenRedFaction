@@ -3,6 +3,11 @@
 #include "rf/motion.h"
 #include "rf/entity.h"
 
+/* First-pass uniform solid-angle spread using an explicit deterministic stream.
+ * Preserves ray length; zero spread preserves the ray and does not draw RNG.
+ * Invalid input preserves output/state. Not a retail sampling-order claim. */
+int rf_weapon_spread_ray(const float ray[3],float degrees,rf_random_state *random,float result[3]);
+
 /* First-pass fixed-tick firing policy. Accepted bursts finish after trigger release;
  * blocked (reload/death/switch) cancels queued shots and consumes trigger edges.
  * Caller consumes one inventory round for event1; event2 requests dry/reload handling.

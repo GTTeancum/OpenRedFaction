@@ -265,3 +265,61 @@ are SP/MP values merely because some other table settings use that convention.
 AI damage scaling and cadence remain open as already documented. Next work
 should address these combat systems rather than indefinitely tuning a route
 against provisional perfect aim. Rough estimate remains~46%.
+
+## Authored firearm spread first pass (2026-09-14)
+
+Local Dash Faction reference commit b2d61d9f66623b188907aae749c4c47c9e40ca25,
+`game_patch/rf/weapon.h` WeaponInfo, labels the paired AI spread fields as
+single/multiplayer plus a selected runtime value. This resolves the earlier
+pair ambiguity: primary handgun SP spread is3 degrees, rifle2. The port now
+parses the SP value and validates both finite values in0..90, rejects duplicates,
+and preserves outputs on malformed input. Missing spread defaults to zero.
+No third-party implementation was copied.
+
+`rf_weapon_spread_ray` normalizes the aim axis, uses the existing deterministic
+cone sampler, and preserves ray length. The cone is uniform in solid angle and
+the table value is treated as its half-angle as an explicit first-pass policy;
+original weapon sampling, difficulty scaling and RNG ordering are not claimed.
+A dedicated RNG starts at1 for each section and does not consume audio RNG.
+Zero spread consumes no RNG and returns the original ray exactly.
+
+After a firearm attempt passes range/facing/visibility and emits presentation,
+the sampled ray must intersect the intended target bounds and pass the existing
+bullet-occlusion query before damage is delivered. Misses still count as shots,
+including watched script Attack attempts. Melee is unchanged. Unsupported
+weapons retain zero-spread fallback and are counted. Intercepting other actors,
+impact effects, complete original accuracy, cadence and damage scales remain
+open; damage is still the provisional10. This is not a tuned survival guarantee.
+
+ENEMY_SPREAD reports firearm attempts,samples,target hits,misses,world blocks,
+RNG state,unsupported fallback count,status. The exposed guard-recovery PC
+fixture passes with27 sampled firearm attempts,24 target hits and3 misses;
+no fallback or errors. The unopposed player still dies. Full-spawn3,000-frame
+rescue also passes (eight firearm hits/eight samples). Older long-route health
+and exact timing evidence predates this change and must be revalidated before
+being claimed for the new build.
+
+Tests cover2048 deterministic samples over horizontal, vertical and oblique
+axes, cone bounds, ray length, zero-spread RNG preservation, malformed parser
+output preservation and installed handgun/rifle values. PC and NXDK builds pass;
+player_weapon_resources passes. Native exposed-encounter verification is pending.
+
+Final-branch PC regressions: the exposed2,400-frame encounter passes, the
+six-kill6,250-frame fixture passes, the natural7,450-frame exit passes, and the
+8,000-frame return passes. The long route now carries48.1999855 health rather
+than15, with ammunition unchanged. Exit/return checks compare health against
+the checked incoming fixture instead of retaining the obsolete15-health value;
+they still require positive damaged health, exact exits, ammunition and retired
+actors. Cone tests pass. A miss-path bookkeeping branch caught in review was
+corrected before the final native rerun; misses reach the final scripted-shot
+accounting instead of returning through the pursuit/cooldown check.
+
+Final native confirmation: `render-20260914-223924` passes2,400 frames and all29
+selected PC/native comparisons on stock64MiB. ENEMY_SPREAD is
+`[27,27,24,3,0,2146787367,0,0]` on both targets. Free memory is4,377 pages
+(17.098MiB). This final run includes the reviewed miss-accounting correction.
+The disc restoration manifest matches afterward and no RF XEMU remains.
+The complete updated7,450/8,000-frame route is PC-verified; its new native
+revalidation remains open rather than being inferred from the short encounter.
+Rough project estimate remains~46%; next gameplay focus is L2S3 combat with the
+new carried health and accuracy behavior.

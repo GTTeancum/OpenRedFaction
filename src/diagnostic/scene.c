@@ -8132,13 +8132,15 @@ static int campaign_enemy_aim_aligned(const campaign_npc_body *owner,const float
 }
 uint32_t rf_scene_enemy_melee[4]; /* swings, out-of-reach attempts, pursuit requests, max squared strike distance */
 uint32_t rf_scene_enemy_damage_kinds[10]; /* nine damage kinds; slot9 counts unsupported-weapon fallback shots */
+uint32_t rf_scene_enemy_spread[8]; /* firearm attempts, spread samples, target hits, misses, world blocks, RNG, fallback, status */
+static rf_random_state campaign_enemy_spread_random;
 static int campaign_enemy_tick(scene_stream *stream,uint32_t frame,const float player_eye[3])
 {
     uint32_t i,j,blocked,clock_bits;float seconds=(float)frame/60;
     rf_damage_effect_backend effects={combat_predicate,combat_uid,combat_source,combat_burn,combat_random,combat_notify,combat_playing,combat_play,NULL};
     memcpy(&clock_bits,&seconds,4);++rf_scene_enemy_combat[0];
     for(i=0;i<campaign_npc_body_count && campaign_player_damage.state.effects.health>0;i++) {
-        campaign_npc_body *owner=campaign_npc_bodies+i;float delta[3],distance=0,amount;int status;
+        campaign_npc_body *owner=campaign_npc_bodies+i;float delta[3],distance=0,amount=0;int status;
         const int32_t weapon=owner->view.weapons[0];
         const rf_weapon_primary_definition *definition=weapon==campaign_pistol_id?campaign_primary:
             weapon==campaign_rifle_id?campaign_primary+1:weapon==campaign_riot_id?campaign_primary+2:NULL;
@@ -8219,6 +8221,21 @@ static int campaign_enemy_tick(scene_stream *stream,uint32_t frame,const float p
         if(!victim && rf_scene_attack_recovery[0] && owner->registration.handle==rf_scene_script_attack[11])++rf_scene_attack_recovery[2];
         status=campaign_enemy_fire_presentation(i);rf_scene_enemy_fire[5]=(uint32_t)status;
         if(status==RF_NOT_FOUND)++rf_scene_enemy_fire[2];else if(status)return status;
+        if(!melee) {
+            float ray[3],spread_ray[3],fraction;
+            ++rf_scene_enemy_spread[0];if(!definition)++rf_scene_enemy_spread[6];
+            for(j=0;j<3;j++)ray[j]=delta[j]*(attack_range/(float)sqrt(distance));
+            status=rf_weapon_spread_ray(ray,definition?definition->ai_spread_degrees:0,&campaign_enemy_spread_random,spread_ray);
+            rf_scene_enemy_spread[7]=(uint32_t)status;if(status)return status;
+            if(definition && definition->ai_spread_degrees>0)++rf_scene_enemy_spread[1];
+            rf_scene_enemy_spread[5]=campaign_enemy_spread_random.value;
+            if(!combat_box(owner->eye_position,spread_ray,victim?&victim->body.state.bounds:&scene_actor_body.state.bounds,1,&fraction)) {
+                ++rf_scene_enemy_spread[3];goto enemy_shot_done;
+            }
+            status=combat_shot_obstructed(stream,owner->eye_position,spread_ray,fraction,&blocked);if(status)return status;
+            if(blocked){++rf_scene_enemy_spread[4];goto enemy_shot_done;}
+            ++rf_scene_enemy_spread[2];
+        }
         {int32_t kind=definition?definition->damage_kind:0;
          /* Unsupported weapon classes retain the provisional fallback. */
          if(!definition)++rf_scene_enemy_damage_kinds[9];
@@ -8234,6 +8251,7 @@ static int campaign_enemy_tick(scene_stream *stream,uint32_t frame,const float p
              }
          } else {status=rf_scene_player_damage(campaign_player_object.handle,&request,1,clock_bits,&effects,&amount);if(status)return status;}
         }
+enemy_shot_done:
         if(owner->combat_scripted && owner->registration.handle==rf_scene_script_attack[11]) {
             float health=victim?victim->damage.effects.health:campaign_player_damage.state.effects.health;
             ++rf_scene_script_attack[5];memcpy(rf_scene_script_attack+6,&amount,4);memcpy(rf_scene_script_attack+8,&health,4);
@@ -8295,6 +8313,7 @@ static int campaign_combat_tick(scene_stream *stream,uint32_t frame,const float 
     if(!frame){memset(rf_scene_riot,0,sizeof(rf_scene_riot));riot_charge_remainder=0;combat_surface_frame=UINT32_MAX;}
     if(!frame){memset(rf_scene_weapon_selection,0,sizeof(rf_scene_weapon_selection));memset(rf_scene_weapon_audio,0,sizeof(rf_scene_weapon_audio));combat_sound_random.value=1;memset(rf_scene_combat_death,0,sizeof(rf_scene_combat_death));memset(rf_scene_combat,0,sizeof(rf_scene_combat));rf_scene_combat[3]=UINT32_MAX;rf_scene_combat[5]=campaign_pistol.magazine;memset(&combat_trigger,0,sizeof(combat_trigger));combat_frame=combat_hit_frame=UINT32_MAX;
         memset(rf_scene_enemy_awareness,0,sizeof(rf_scene_enemy_awareness));
+        memset(rf_scene_enemy_spread,0,sizeof(rf_scene_enemy_spread));campaign_enemy_spread_random.value=1;
         memset(rf_scene_enemy_combat,0,sizeof(rf_scene_enemy_combat));combat_initial_health=campaign_player_damage.state.effects.health;
         memset(rf_scene_player_ammo,0,sizeof(rf_scene_player_ammo));memset(&campaign_player_inventory,0,sizeof(campaign_player_inventory));
         status=campaign_ammo_reset();if(status)return status;
