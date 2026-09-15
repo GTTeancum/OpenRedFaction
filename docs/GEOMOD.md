@@ -610,3 +610,49 @@ and flags0 into467020, with radius read from class+0x14c. These are leads
 for validating projectile dispatch before choosing the live orientation
 policy. Full containing functions4c4ec0/4c69a0 remain to be reviewed.
 References are reproducible with ExportReferences.java at467020.
+
+## Live original-template asset (2026-09-15)
+
+Prepare from the verified local factory evidence:
+- python tools/inspect_geomod_template.py
+- python tools/pack_geomod_template.py
+
+The first command requires the4e6d60 ExportSelected.java output documented
+above. The second rechecks the executable SHA and writes the988byte RFCT
+version1 asset to ignored build/data/geomod-template.bin. This contains
+the original radius, strict kernel and reversed outward position/UV corners.
+No source geometry or original executable is added to tracked source.
+The PC DEV scene reads that path from the repository working directory;
+build-xbox.sh stages the same file on disc, where the scene reads D:\geomod-template.bin.
+The standalone runtime does not load or execute RF.exe.
+
+The bounded C loader requires an exact-size, finite, closed star template.
+It preserves output on malformed input and rejects oversized files. Tests
+cover every truncated prefix, bad magic, extra bytes, nonfinite radius and
+word-equivalent decoded position/UV data. Template transforms reject invalid
+bases/nonfinite centers without changing terrain generation. The positive
+case exercises a90degree basis, translation and scaling through the owner.
+
+DEV rockets now select this template, preserve its corner UVs, use the
+verified default random-basis routine and radius/template-radius scaling.
+The DEV random stream is explicitly seeded1; this is not the original
+global RNG stream. The complete original transform operation order and
+UV-remapping policy remain to verify. Region/default hardness is still
+not applied, so this is not a claim of final crater size or retail parity.
+
+All five PC destruction replays pass. Walk endpoint is
+(-18.173584,-12.416787,6.002432), beyond the original x=-16 wall, with
+two successful cuts and724697bytes peak terrain+overlay. PC images inspected
+at artifacts/destruction/original-template-approach.png and
+original-template-walk.png. Shape changes are visible and traversal remains
+possible, but the exterior view still reads poorly as a cavity. Depth cues,
+interior lighting, texture mapping and debris are the next visual work.
+
+Native original-template verification: First attempt092603 restarted during
+loading. Moving the1540byte template from the scene stack to a heap owner
+and validating planes one face at a time reduced stack use. scene_miner
+falls from27948 to26412bytes; template_decode from3628 to1584bytes.
+The500frame rerun artifacts/xemu/render-20260915-092952 passes38comparisons
+with9086pages free (35.492MiB). Native framebuffer inspected: the original
+shape is visible, but cavity readability remains unfinished. PC/disc asset
+bytes match; all19staging entries restored; owned emulator exited.

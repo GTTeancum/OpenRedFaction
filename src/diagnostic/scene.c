@@ -484,6 +484,7 @@ typedef struct scene_rocket_visual {
 } scene_rocket_visual;
 typedef struct scene_stream {
     rf_geomod_terrain *terrain;rf_geometry_collision_overlay terrain_collision;
+    rf_geomod_template *terrain_template;rf_random_state terrain_random;
     rf_geometry terrain_geometry;rf_scene_world_geometry terrain_render;
     uint32_t terrain_ids[512],terrain_fallback,terrain_material,terrain_held;
     rf_preview_mesh *mesh;rf_materials *materials;const rf_model_materials *bundle;
@@ -8457,6 +8458,14 @@ static int scene_terrain_open(scene_stream *s,const rf_level *level)
     if(!rf_scene_dev_room_enabled)return RF_OK;
     if(!s->geometry || !s->collision || !actor_follow_world || strcmp(level->entry.name,"glass_house.rfl") ||
        s->geometry->faces!=598 || s->geometry->rooms!=91 || s->collision->room_count!=91)return RF_FORMAT;
+    s->terrain_template=calloc(1,sizeof(*s->terrain_template));if(!s->terrain_template)return RF_IO;
+#ifdef RF_IMAGE_XBOX_NATIVE
+    status=rf_geomod_template_load("D:\\geomod-template.bin",s->terrain_template);
+#else
+    status=rf_geomod_template_load("build/data/geomod-template.bin",s->terrain_template);
+#endif
+    if(status)return status;
+    s->terrain_random.value=1; /* Explicit DEV stream; original global stream remains to integrate. */
     s->terrain_fallback=UINT32_MAX;
     for(i=0;i<s->geometry->faces;i++) {
         rf_geometry_face f;status=rf_geometry_get_face(s->geometry,i,&f);if(status)return status;
@@ -8603,11 +8612,13 @@ static int scene_rockets_tick(scene_stream *s,uint32_t frame)
             status=scene_rocket_blast(s,frame,&event.contact);rf_scene_rocket_blast[7]=(uint32_t)status;if(status)return status;
             if(rf_scene_combat_trace)printf("ROCKET_IMPACT %u %u %.9g %.9g %.9g\n",frame,event.contact.room,
                 event.contact.hit.point[0],event.contact.hit.point[1],event.contact.hit.point[2]);
-            /* Bounded faceted crater in the explicit DEV cavity. Impact effects
+            /* Original concave crater template in the explicit DEV cavity. Impact effects
              * and authored surface eligibility remain separate. */
             if(s->terrain && event.contact.room==0 && campaign_rocket.crater_radius>0) {
                 ++rf_scene_geomod[6];
-                status=rf_geomod_terrain_cut_crater(s->terrain,event.contact.hit.point,campaign_rocket.crater_radius,s->terrain_material);
+                {float basis[9];status=rf_geomod_random_basis(&s->terrain_random,basis);if(status)return status;
+                 status=rf_geomod_terrain_cut_template(s->terrain,s->terrain_template,event.contact.hit.point,basis,
+                     campaign_rocket.crater_radius,s->terrain_material);}
                 rf_scene_geomod[5]=(uint32_t)status;
                 if(!status){status=scene_terrain_bind(s);if(status)return status;++rf_scene_geomod[7];++rf_scene_rockets[4];}
                 else {++rf_scene_rockets[5];if(status!=RF_RANGE && status!=RF_FORMAT && status!=RF_NOT_FOUND)return status;}
@@ -11984,7 +11995,7 @@ done:
     rf_level_navigation_workspace_close(&campaign_navigation_workspace);
     rf_level_owned_navigation_close(&campaign_navigation);
     free(campaign_waypoints);campaign_waypoints=NULL;campaign_waypoint_bytes=0;
-    rf_geometry_collision_overlay_close(&stream.terrain_collision);rf_geomod_terrain_close(&stream.terrain);
+    rf_geometry_collision_overlay_close(&stream.terrain_collision);rf_geomod_terrain_close(&stream.terrain);free(stream.terrain_template);
     free(stream.surface_indices);free(states);if(motions_opened)rf_vpp_close(&motions);
     free(vertices);free(items);rf_preview_close(&actor);rf_model_materials_close(&bundle);
     rf_vpp_close(&archive);return status;

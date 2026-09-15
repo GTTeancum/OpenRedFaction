@@ -565,6 +565,28 @@ int main(int argc,char **argv)
             for(j=0;j<3;j++)vertices[1][i*3+j].position[0]+=.4f;
         }
         CHECK(removed>0);
+        {
+            rf_geomod_template shape,saved,decoded;unsigned char packed[1229];size_t bytes;uint32_t length;
+            FILE *asset=fopen("build/data/geomod-template.bin","rb");CHECK(asset);
+            bytes=fread(packed,1,sizeof(packed),asset);CHECK(!ferror(asset));fclose(asset);
+            CHECK(!rf_geomod_template_load("build/data/geomod-template.bin",&shape));
+            CHECK(shape.face_count==count && shape.radius>0 && shape.kernel[0]==0 && shape.kernel[1]==0 && shape.kernel[2]==0);
+            for(i=0;i<count*3;i++) {
+                for(j=0;j<3;j++)CHECK(fabs(shape.vertices[i].position[j]*10-vertices[0][i].position[j])<1e-7);
+                CHECK(!memcmp(shape.vertices[i].uv,vertices[0][i].uv,8));
+            }
+            saved=shape;decoded=saved;
+            for(length=0;length<bytes;length++) {
+                CHECK(rf_geomod_template_decode(packed,length,&decoded)!=RF_OK);
+                CHECK(!memcmp(&decoded,&saved,sizeof(saved)));
+            }
+            packed[bytes]=0;CHECK(rf_geomod_template_decode(packed,(uint32_t)bytes+1,&decoded)==RF_FORMAT);
+            packed[0]^=1;CHECK(rf_geomod_template_decode(packed,(uint32_t)bytes,&decoded)==RF_FORMAT);packed[0]^=1;
+            packed[15]=0x7f;packed[14]=0xc0; /* Nonfinite source radius. */
+            CHECK(rf_geomod_template_decode(packed,(uint32_t)bytes,&decoded)==RF_FORMAT);
+            CHECK(!memcmp(&decoded,&saved,sizeof(saved)));
+        }
+
         for(i=0;i<2;i++)cutters[i]=(rf_geomod_mesh_view){vertices[i],faces,count*3,count,0};
         for(cavity=0;cavity<2;cavity++) {
             box((float[3]){-4,-4,-4},(float[3]){4,4,cavity?0:4},planes,source_v);
@@ -624,6 +646,17 @@ int main(int argc,char **argv)
             /* Reusing a former star slot for a convex cut must clear its type. */
             CHECK(!rf_geomod_terrain_cut_box(terrain,(float[3]){0,0,0},(float[3]){.1f,.1f,.1f},77));
             CHECK(!rf_geomod_terrain_get(terrain,&live) && live.cuts==1);
+            {
+                rf_geomod_template shape;float basis[9]={0,0,-1,0,1,0,1,0,0},center[3]={.3f,0,0};
+                CHECK(!rf_geomod_template_load("build/data/geomod-template.bin",&shape));
+                CHECK(!rf_geomod_terrain_reset(terrain));
+                CHECK(!rf_geomod_terrain_cut_template(terrain,&shape,center,basis,shape.radius*10,77));
+                CHECK(!rf_geomod_terrain_get(terrain,&before) && before.cuts==1);
+                basis[0]=2;CHECK(rf_geomod_terrain_cut_template(terrain,&shape,center,basis,1,77)==RF_FORMAT);
+                CHECK(!rf_geomod_terrain_get(terrain,&live) && live.mesh.generation==before.mesh.generation && live.cuts==1);
+                basis[0]=0;center[0]=NAN;CHECK(rf_geomod_terrain_cut_template(terrain,&shape,center,basis,1,77)==RF_FORMAT);
+                CHECK(!rf_geomod_terrain_get(terrain,&live) && live.mesh.generation==before.mesh.generation);
+            }
             rf_geomod_terrain_close(&terrain);rf_geomod_storage_close(&owner);
         }
         puts("PASS: original concave template, overlapping cuts, closed edges, volume and324 independent triangle rays");

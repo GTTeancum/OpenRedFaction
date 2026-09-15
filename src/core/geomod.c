@@ -3,6 +3,7 @@
 #include <math.h>
 #include <string.h>
 #include <stdlib.h>
+#include <stdio.h>
 
 int rf_geomod_random_basis(rf_random_state *random,float basis[9])
 {
@@ -475,7 +476,7 @@ static int star_mesh_planes(const rf_geomod_mesh_view *mesh,const float kernel[3
     }
     for(i=0;i<mesh->face_count;i++) {
         const rf_geomod_vertex *v=mesh->vertices+mesh->faces[i].first;
-        float points[4][3];
+        float points[4][3],scratch[4][4];float (*planes)[4]=out?out[i]:scratch;
         for(j=0;j<3;j++)memcpy(points[j],v[j].position,12);
         memcpy(points[3],kernel,12);
         for(j=0;j<3;j++) {
@@ -499,9 +500,9 @@ static int star_mesh_planes(const rf_geomod_mesh_view *mesh,const float kernel[3
             for(k=0;k<3;k++){normal[k]=ab[(k+1)%3]*ac[(k+2)%3]-ab[(k+2)%3]*ac[(k+1)%3];length+=normal[k]*normal[k];}
             if(!isfinite(length) || length<=1e-24)return RF_FORMAT;
             length=sqrt(length);
-            for(k=0;k<3;k++){out[i][j][k]=(float)(normal[k]/length);d-=(double)out[i][j][k]*a[k];}
-            out[i][j][3]=(float)d;distance=out[i][j][3];
-            for(k=0;k<3;k++)distance+=(double)out[i][j][k]*opposite[k];
+            for(k=0;k<3;k++){planes[j][k]=(float)(normal[k]/length);d-=(double)planes[j][k]*a[k];}
+            planes[j][3]=(float)d;distance=planes[j][3];
+            for(k=0;k<3;k++)distance+=(double)planes[j][k]*opposite[k];
             if(!isfinite(distance) || distance>=-1e-5)return RF_FORMAT;
         }
     }
@@ -742,6 +743,65 @@ int rf_geomod_terrain_cut_star(rf_geomod_terrain *t,
     memcpy(t->kernels[slot],kernel,12);t->star_mask|=1u<<slot;
     t->cuts[slot]=(rf_geomod_mesh_view){t->cut_vertices[slot],t->cut_faces[slot],cutter->vertex_count,cutter->face_count,0};
     return terrain_publish(t,t->count+1);
+}
+static uint32_t geomod_u32(const unsigned char *p)
+{return (uint32_t)p[0]|((uint32_t)p[1]<<8)|((uint32_t)p[2]<<16)|((uint32_t)p[3]<<24);}
+static float geomod_float(const unsigned char *p)
+{uint32_t word=geomod_u32(p);float value;memcpy(&value,&word,4);return value;}
+int rf_geomod_template_decode(const void *data,uint32_t bytes,rf_geomod_template *out)
+{
+    const unsigned char *p=data;rf_geomod_template value={0};rf_geomod_mesh_view mesh;
+    uint32_t i,j;int status;
+    if(!data || !out)return RF_RANGE;
+    if(bytes<28 || memcmp(p,"RFCT",4) || geomod_u32(p+4)!=1)return RF_FORMAT;
+    value.face_count=geomod_u32(p+8);value.radius=geomod_float(p+12);
+    if(value.face_count<4 || value.face_count>20 || bytes!=28+value.face_count*60 ||
+       !isfinite(value.radius) || value.radius<=0)return RF_FORMAT;
+    for(i=0;i<3;i++)value.kernel[i]=geomod_float(p+16+i*4);
+    for(i=0;i<value.face_count;i++)value.faces[i]=(rf_geomod_face){i*3,3,0,UINT32_MAX};
+    for(i=0;i<value.face_count*3;i++) {
+        for(j=0;j<3;j++)value.vertices[i].position[j]=geomod_float(p+28+i*20+j*4);
+        for(j=0;j<2;j++)value.vertices[i].uv[j]=geomod_float(p+40+i*20+j*4);
+    }
+    mesh=(rf_geomod_mesh_view){value.vertices,value.faces,value.face_count*3,value.face_count,0};
+    status=star_mesh_planes(&mesh,value.kernel,NULL);if(status)return status;
+    *out=value;return RF_OK;
+}
+int rf_geomod_template_load(const char *path,rf_geomod_template *out)
+{
+    unsigned char data[1229];FILE *file;size_t bytes;int failed;
+    if(!path || !out)return RF_RANGE;
+    file=fopen(path,"rb");if(!file)return RF_IO;
+    bytes=fread(data,1,sizeof(data),file);failed=ferror(file);if(fclose(file))failed=1;
+    if(failed)return RF_IO;
+    return rf_geomod_template_decode(data,(uint32_t)bytes,out);
+}
+int rf_geomod_terrain_cut_template(rf_geomod_terrain *t,const rf_geomod_template *shape,
+    const float center[3],const float basis[9],float radius,uint32_t material)
+{
+    rf_geomod_vertex vertices[60];rf_geomod_face faces[20];rf_geomod_mesh_view mesh;
+    float kernel[3],scale;uint32_t i,j,k;
+    if(!t || !shape || !center || !basis || material==UINT32_MAX || shape->face_count<4 || shape->face_count>20)return RF_RANGE;
+    if(!isfinite(radius) || radius<=0 || !isfinite(shape->radius) || shape->radius<=0)return RF_FORMAT;
+    for(i=0;i<9;i++)if(!isfinite(basis[i]))return RF_FORMAT;
+    for(i=0;i<3;i++)for(j=0;j<3;j++) {
+        double dot=0;for(k=0;k<3;k++)dot+=(double)basis[i*3+k]*basis[j*3+k];
+        if(fabs(dot-(i==j?1:0))>1e-4)return RF_FORMAT;
+    }
+    {double determinant=(double)basis[0]*(basis[4]*basis[8]-basis[5]*basis[7])-
+        (double)basis[1]*(basis[3]*basis[8]-basis[5]*basis[6])+(double)basis[2]*(basis[3]*basis[7]-basis[4]*basis[6]);
+     if(determinant<.999)return RF_FORMAT;}
+    scale=radius/shape->radius;if(!isfinite(scale))return RF_FORMAT;
+    for(i=0;i<shape->face_count*3;i++) {
+        for(j=0;j<3;j++)vertices[i].position[j]=(float)((((double)shape->vertices[i].position[2]*basis[6+j]+
+            (double)shape->vertices[i].position[1]*basis[3+j])+(double)shape->vertices[i].position[0]*basis[j])*scale+center[j]);
+        memcpy(vertices[i].uv,shape->vertices[i].uv,8);
+    }
+    for(j=0;j<3;j++)kernel[j]=(float)((((double)shape->kernel[2]*basis[6+j]+(double)shape->kernel[1]*basis[3+j])+
+        (double)shape->kernel[0]*basis[j])*scale+center[j]);
+    for(i=0;i<shape->face_count;i++)faces[i]=(rf_geomod_face){i*3,3,material,UINT32_MAX};
+    mesh=(rf_geomod_mesh_view){vertices,faces,shape->face_count*3,shape->face_count,0};
+    return rf_geomod_terrain_cut_star(t,&mesh,kernel);
 }
 int rf_geomod_terrain_reset(rf_geomod_terrain *t)
 {return t?terrain_publish(t,0):RF_RANGE;}

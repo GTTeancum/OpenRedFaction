@@ -158,6 +158,20 @@ int rf_geomod_terrain_cut_crater(rf_geomod_terrain *,const float center[3],float
  * Supports mixed history with boxes and prototype craters. */
 int rf_geomod_terrain_cut_star(rf_geomod_terrain *terrain,
     const rf_geomod_mesh_view *cutter,const float kernel[3]);
+/* Bounded runtime asset: RFCT/version1, triangle count, source radius,
+ * strict kernel, then outward position/UV corner records (little endian).
+ * Decode/load preserve output on malformed input. No original executable is
+ * needed by the runtime; pack the verified local asset during preparation. */
+typedef struct rf_geomod_template {
+    rf_geomod_vertex vertices[60];rf_geomod_face faces[20];
+    uint32_t face_count;float radius,kernel[3];
+} rf_geomod_template;
+int rf_geomod_template_decode(const void *data,uint32_t bytes,rf_geomod_template *out);
+int rf_geomod_template_load(const char *path,rf_geomod_template *out);
+/* Original radius normalization, supplied proper orthonormal row basis,
+ * translated kernel, retained UVs. Material supplied by level settings. */
+int rf_geomod_terrain_cut_template(rf_geomod_terrain *terrain,const rf_geomod_template *shape,
+    const float center[3],const float basis[9],float radius,uint32_t material);
 int rf_geomod_terrain_reset(rf_geomod_terrain *terrain);
 /* Borrowed snapshot: valid until next successful cut/reset or close; failed
  * edits preserve it. Single-thread owner; renderer consumes mesh+faces from

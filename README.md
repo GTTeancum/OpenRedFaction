@@ -190,3 +190,19 @@ Run `./build/pc/Release/rf_pc_play.exe --campaign Installed_Game` for the PC
 campaign diagnostic with device audio. Headless replays remain device-free.
 The optional `rf_pc_audio_check.exe` validates device open/refill/stop/reopen
 using a quiet synthetic sample; it is not part of device-independent CTest.
+
+## Developer-room GeoMod resource
+
+The DEV room uses a small crater asset extracted from your local RF.exe.
+After the original factory verification described in [GeoMod evidence](docs/GEOMOD.md), run:
+
+```powershell
+python tools/inspect_geomod_template.py
+python tools/pack_geomod_template.py
+```
+
+This prepares ignored build/data/geomod-template.bin; the Xbox build stages
+it automatically. Run the PC diagnostic from the repository directory.
+The runtime uses the prepared asset without loading the original executable.
+Destruction remains in development; the original shape is live, while
+hardness, UV policy, debris and visual fidelity remain unfinished.

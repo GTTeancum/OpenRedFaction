@@ -20,6 +20,15 @@ if [[ "$root/Installed_Game/ui.vpp" -nt "$root/build/xbox/disc/ui.vpp" ]]; then
     cp "$root/Installed_Game/ui.vpp" "$root/build/xbox/disc/ui.vpp"
     rm -f "$root/build/xbox/redfaction-diagnostic.iso"
 fi
+# Prepared from the user's verified executable; no original geometry is tracked.
+if [[ ! -f "$root/build/data/geomod-template.bin" ]]; then
+    echo "Run python tools/inspect_geomod_template.py and python tools/pack_geomod_template.py first." >&2
+    exit 1
+fi
+if [[ "$root/build/data/geomod-template.bin" -nt "$root/build/xbox/disc/geomod-template.bin" ]]; then
+    cp "$root/build/data/geomod-template.bin" "$root/build/xbox/disc/geomod-template.bin"
+    rm -f "$root/build/xbox/redfaction-diagnostic.iso"
+fi
 cd "$root/build/xbox"
 # Repack changed disc flags without make -W default.xbe, which can suppress
 # rebuilding that XBE even when compilation produces a newer main.exe.

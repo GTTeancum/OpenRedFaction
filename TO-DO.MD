@@ -1,7 +1,7 @@
 # Red Faction Xbox / PC - open work
 
 - PRIORITY GeoMod: Match original destruction behavior and appearance; the current faceted crater is a prototype, not an accepted fidelity milestone.
-- GeoMod: Load the original crater into live rockets; concave terrain ownership and original random orientation are verified, while resource loading and final transform/UV rules remain open.
+- GeoMod: Refine live original-template destruction: verify final transform/UV and hardness rules, improve depth readability, and reduce fragmentation before larger cut histories.
 - DEV testbed: Review full weapon animations and add complete room reset; terrain reset and ammo refill are implemented, while campaign progression remains paused.
 - GeoMod: Improve crater shape/readability, add debris and authored surface eligibility; rockets now cut repeated faceted craters with the level-authored interior texture.
 - USER: Review destruction readability after replacing the folded-panel interior; destruction remains the current focus.
@@ -5256,3 +5256,21 @@ Owner regression verification:500frame stock64MiB XEMU run
 artifacts/xemu/render-20260915-091844 passes38comparisons with9102pages
 free. Native framebuffer inspected; this remains the existing prototype
 visual. All19disc entries restored and the owned emulator exited.
+
+Live original crater integration (2026-09-15): Rockets now load the verified
+988byte Holey01 asset, use the reconstructed random basis and normalize
+requested radius by the original template radius. The owned concave mesh
+and collision publish together; all five PC destruction/traversal replays
+pass, with724697bytes peak terrain+overlay on the walk replay. Visual
+inspection confirms the changed shape but depth readability is still poor.
+Original RNG stream/seed, final vertex arithmetic, UV remapping, hardness,
+surface eligibility, debris and larger histories remain open. ~49%; GeoMod.
+
+Native original-template verification: First attempt092603 restarted during
+loading. Moving the1540byte template from the scene stack to a heap owner
+and validating planes one face at a time reduced stack use. scene_miner
+falls from27948 to26412bytes; template_decode from3628 to1584bytes.
+The500frame rerun artifacts/xemu/render-20260915-092952 passes38comparisons
+with9086pages free (35.492MiB). Native framebuffer inspected: the original
+shape is visible, but cavity readability remains unfinished. PC/disc asset
+bytes match; all19staging entries restored; owned emulator exited.
