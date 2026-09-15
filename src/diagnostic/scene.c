@@ -9058,15 +9058,21 @@ static int scene_terrain_open(scene_stream *s,const rf_level *level)
         }
         free(payload);if(status)return status;
     }
+    {
+        uint32_t shallow_fixture=0;
 #ifndef RF_IMAGE_XBOX_NATIVE
+        shallow_fixture=getenv("RF_REPLAY_SHALLOW_FIXTURE")!=NULL;
+#else
+        FILE *flag=fopen("D:\\shallow-fixture.flag","rb");shallow_fixture=flag!=NULL;if(flag)fclose(flag);
+#endif
     /* Opt-in process-local authored-region fixture; installed data stays unchanged. */
-    if(getenv("RF_REPLAY_SHALLOW_FIXTURE")) {
+    if(shallow_fixture) {
         static const float basis[9]={0,0,1,0,-1,0,1,0,0};
         if(s->terrain_region_count!=1)return RF_FORMAT;
         s->terrain_regions[0].flags|=32;s->terrain_regions[0].shallow_depth=.75f;
         memcpy(s->terrain_regions[0].file_basis,basis,sizeof(basis));
     }
-#endif
+    }
     memset(rf_scene_terrain_edit_times,0,sizeof(rf_scene_terrain_edit_times));
     s->terrain_noise=calloc(1,sizeof(*s->terrain_noise));if(!s->terrain_noise)return RF_IO;
 #ifndef RF_IMAGE_XBOX_NATIVE

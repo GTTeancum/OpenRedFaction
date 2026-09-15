@@ -58,3 +58,13 @@ Duplicate comparison uses the actual5897c4 threshold0.04000000283122063, not nea
 `tools/dev_shallow_admission_check.py` applies an opt-in process-local authored-region fixture (depth.75, limiting direction-X) without changing installed files. Two impacts produce one shallow terrain edit and one duplicate rejection. Actual output was inspected: textured room, weapon and dark exposed patch render; crater readability/retail visual parity remains unresolved. The ordinary900-frame route still completes3 edits with48 debris pieces expired at endpoint. Live repeated shallow cuts at distinct positions, multi-region cases, reset playback, save/load integration and wider campaign geometry remain open.
 
 Native validation: render-20260915-194922 completes900 frames on stock64MiB with47 PC/Xbox checks passing and8565 free pages (33.457MiB). Actual framebuffer inspected; the shared dark crater readability issue remains visible. Owned PID8920 exited and all20 temporary disc entries were verified restored. This native run covers the ordinary three-cut route; the shallow fixture remains PC-only verification.
+
+## Native shallow fixture and reset coverage
+
+`tools/xemu_render_check.py --dev-room --shallow-fixture --spawn --level glass_house.rfl --archive levelsm.vpp --input artifacts/destruction/shallow-double.bin` now stages the same opt-in depth.75 region fixture on PC and Xbox. The temporary shallow-fixture.flag is recorded in the disc restoration manifest. Installed game inputs remain unchanged.
+
+The400-frame run render-20260915-195231 passes47 PC/Xbox comparisons with8597 free pages (33.582MiB). Both impacts occur, but only the first is admitted. The native framebuffer was inspected: expected room/weapon/crater content is present; dark mound-like readability persists and is not accepted as retail parity. Owned PID56804 exited and all21 disc entries were verified restored.
+
+The extended process-local checker generates a500-frame reset/refire replay. PC confirms the history index restarts at1, with three impacts, two admitted cuts, one duplicate rejection, and one current crater after reset. This specifically exercises clearing history when terrain reset succeeds.
+
+The500-frame reset/refire native run render-20260915-195421 also passes47 comparisons, with8581 free pages (33.520MiB). The native endpoint shows the new crater and lingering blast smoke; geometry/weapon/room content was inspected. Owned PID47248 exited and all21 disc entries were verified restored. These tests cover the diagnostic fixture, not general campaign shallow-region acceptance.

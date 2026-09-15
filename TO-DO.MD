@@ -1,6 +1,6 @@
 # Red Faction Xbox / PC - open work
 
-- GeoMod: Validate broader live shallow cuts, reset and save/load; live admission/history and shallow deformation now run, with a two-impact fixture confirming one cut plus duplicate rejection.
+- GeoMod: Expand shallow-cut and save/load coverage; duplicate rejection and terrain reset/refire now pass47 PC/Xbox comparisons each, while crater readability and broader region interactions remain open.
 - PRIORITY GeoMod: Match original destruction shape, exposed materials, lighting, debris, collision and repeated blasts before returning to other systems; a visible hole alone is not acceptance.
 - GeoMod: Improve crater readability and expand destruction coverage; eight-cut live/Xbox repair passes, and side-view nearer pixels trace to floor projection rounding, while broader shapes and visual parity remain open.
 - GeoMod: Reduce remaining terrain-cut stalls; the latest native eighth edit measures 239ms CSG and 29ms binding, subject to host timing variation.
