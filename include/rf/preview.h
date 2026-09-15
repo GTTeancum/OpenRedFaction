@@ -29,6 +29,11 @@ int rf_preview_geomod(rf_preview_mesh *mesh,uint32_t capacity_bytes,
 int rf_preview_geomod_vertex_lit(rf_preview_mesh *mesh,uint32_t capacity_bytes,
     const rf_geomod_mesh_view *source,const rf_collision_face *bound,uint32_t material_count,
     const rf_level *level,const float (*vertex_colors)[3]);
+/* Surviving authored faces retain their original lightmap image/projection;
+ * newly exposed faces use vertex lighting. source_face IDs address authored. */
+int rf_preview_geomod_world_lit(rf_preview_mesh *mesh,uint32_t capacity_bytes,
+    const rf_geomod_mesh_view *source,const rf_collision_face *bound,uint32_t material_count,
+    const rf_level *level,const float (*vertex_colors)[3],const rf_geometry *authored);
 int rf_preview_geomod_lit(rf_preview_mesh *mesh,uint32_t capacity_bytes,
     const rf_geomod_mesh_view *source,const rf_collision_face *bound,
     uint32_t material_count,const rf_level *camera,const float (*face_colors)[3]);

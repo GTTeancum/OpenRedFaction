@@ -126,7 +126,7 @@ static void generated_corner(const rf_geometry *g,const rf_geomod_mesh_view *gen
 }
 static int generate_source(rf_preview_mesh *mesh, const rf_geometry *g, const rf_level *level, uint32_t capacity,
     const float *origin,const float matrix[3][3],uint32_t material_base,const rf_visibility *visibility,
-    const rf_geomod_mesh_view *generated,const rf_collision_face *bound,const float (*face_colors)[3],const float (*vertex_colors)[3])
+    const rf_geomod_mesh_view *generated,const rf_collision_face *bound,const float (*face_colors)[3],const float (*vertex_colors)[3],const rf_geometry *authored)
 {
     uint32_t f, used = 0;
     camera_cache_entry cache[CAMERA_CACHE_COUNT];
@@ -136,11 +136,19 @@ static int generate_source(rf_preview_mesh *mesh, const rf_geometry *g, const rf
         rf_geometry_corner a, b, c;
         point anchor,previous;uint32_t anchor_outside,previous_outside;
         uint32_t corner, lightmap = UINT32_MAX;
-        float color;int status;
+        float color;int status,mapped=0;rf_lightmap_projection projection;
         if(generated) {
             face=(rf_geometry_face){0};memcpy(face.plane,bound[f].plane,sizeof(face.plane));
             face.texture=generated->faces[f].material;face.corners=generated->faces[f].count;
             face.room=face.lightmap_mapping=UINT32_MAX;
+            if(authored && generated->faces[f].source_face!=UINT32_MAX) {
+                rf_geometry_face parent;status=rf_geometry_get_face(authored,generated->faces[f].source_face,&parent);if(status)return status;
+                face.lightmap_mapping=parent.lightmap_mapping;
+                if(face.lightmap_mapping!=UINT32_MAX) {
+                    status=rf_geometry_lightmap_projection(authored,face.lightmap_mapping,&projection);if(status)return status;
+                    mapped=1;
+                }
+            }
         } else rf_geometry_get_face(g, f, &face);
         /* Primary room IDs are file-order visibility indices. Detail rooms are
          * not independently traversed: retain them until parent eligibility is
@@ -150,7 +158,7 @@ static int generate_source(rf_preview_mesh *mesh, const rf_geometry *g, const rf
            !visibility->rooms[face.room].visible)continue;
         if (face.portal || (face.flags & 1) || face.texture == UINT32_MAX) continue;
         if(face.texture>=g->textures)return RF_FORMAT;
-        if (face.lightmap_mapping != UINT32_MAX && rf_geometry_lightmap(g, face.lightmap_mapping, UINT32_MAX, &lightmap)) return RF_FORMAT;
+        if (face.lightmap_mapping != UINT32_MAX && rf_geometry_lightmap(mapped?authored:g, face.lightmap_mapping, UINT32_MAX, &lightmap)) return RF_FORMAT;
         if(face.texture>=UINT32_MAX-material_base)return RF_RANGE;
         /* Static cached-solid branch rejects nonpositive camera/plane distance.
          * Mover-local camera preparation remains separate. */
@@ -164,6 +172,10 @@ static int generate_source(rf_preview_mesh *mesh, const rf_geometry *g, const rf
         generated_corner(g,generated,f,0,&a);
         if(face.corners<3)continue;
         generated_corner(g,generated,f,1,&b);
+        if(mapped) {
+            status=rf_lightmap_project(&projection,generated->vertices[a.vertex].position,a.lightmap_uv);if(status)return status;
+            status=rf_lightmap_project(&projection,generated->vertices[b.vertex].position,b.lightmap_uv);if(status)return status;
+        }
         if((status=camera(g,generated,level,&a,origin,matrix,cache,&anchor,&anchor_outside)) ||
            (status=camera(g,generated,level,&b,origin,matrix,cache,&previous,&previous_outside)))return status;
         if(vertex_colors){memcpy(&anchor.r,vertex_colors[a.vertex],12);memcpy(&previous.r,vertex_colors[b.vertex],12);}
@@ -174,6 +186,7 @@ static int generate_source(rf_preview_mesh *mesh, const rf_geometry *g, const rf
              * their rounded camera-space values rather than transforming each
              * occurrence again. UVs belong to these same face corners. */
             generated_corner(g,generated,f,corner+1,&c);
+            if(mapped){status=rf_lightmap_project(&projection,generated->vertices[c.vertex].position,c.lightmap_uv);if(status)return status;}
             buffers[0][0]=anchor;buffers[0][1]=previous;
             if((status=camera(g,generated,level,&c,origin,matrix,cache,&buffers[0][2],&next_outside)))return status;
             if(vertex_colors)memcpy(&buffers[0][2].r,vertex_colors[c.vertex],12);
@@ -213,7 +226,7 @@ static int generate_source(rf_preview_mesh *mesh, const rf_geometry *g, const rf
                         out->texture[0] = p.u / p.z; out->texture[1] = p.v / p.z; out->texture[2] = 1.0f / p.z;
                         out->material = face.texture+material_base;
                         out->lightmap_texture[0] = p.lu / p.z; out->lightmap_texture[1] = p.lv / p.z; out->lightmap_texture[2] = 1.0f / p.z;
-                        out->lightmap = (face_colors || vertex_colors)?RF_PREVIEW_VERTEX_LIT:lightmap;
+                        out->lightmap = !mapped && (face_colors || vertex_colors)?RF_PREVIEW_VERTEX_LIT:lightmap;
                     }
                     ++used;
                 }
@@ -226,11 +239,11 @@ static int generate_source(rf_preview_mesh *mesh, const rf_geometry *g, const rf
 static int generate(rf_preview_mesh *mesh,const rf_geometry *g,const rf_level *level,uint32_t capacity,
     const float *origin,const float matrix[3][3],uint32_t material_base,const rf_visibility *visibility)
 {
-    return generate_source(mesh,g,level,capacity,origin,matrix,material_base,visibility,NULL,NULL,NULL,NULL);
+    return generate_source(mesh,g,level,capacity,origin,matrix,material_base,visibility,NULL,NULL,NULL,NULL,NULL);
 }
 static int geomod_lit(rf_preview_mesh *mesh,uint32_t capacity_bytes,
     const rf_geomod_mesh_view *source,const rf_collision_face *bound,
-    uint32_t material_count,const rf_level *level,const float (*face_colors)[3],const float (*vertex_colors)[3])
+    uint32_t material_count,const rf_level *level,const float (*face_colors)[3],const float (*vertex_colors)[3],const rf_geometry *authored)
 {
     rf_geometry metadata={0};rf_preview_mesh next={0};uint32_t i,j;int status;
     if(!mesh || !source || !level || (capacity_bytes && !mesh->vertices) ||
@@ -252,23 +265,30 @@ static int geomod_lit(rf_preview_mesh *mesh,uint32_t capacity_bytes,
         for(j=0;j<4;j++)if(!isfinite(bound[i].plane[j]))return RF_FORMAT;
     }
     metadata.faces=source->face_count;metadata.textures=material_count;
-    status=generate_source(&next,&metadata,level,capacity_bytes/sizeof(rf_preview_vertex),NULL,NULL,0,NULL,source,bound,face_colors,vertex_colors);
+    status=generate_source(&next,&metadata,level,capacity_bytes/sizeof(rf_preview_vertex),NULL,NULL,0,NULL,source,bound,face_colors,vertex_colors,authored);
     if(status)return status;
     next.vertices=mesh->vertices;
-    status=generate_source(&next,&metadata,level,capacity_bytes/sizeof(rf_preview_vertex),NULL,NULL,0,NULL,source,bound,face_colors,vertex_colors);
+    status=generate_source(&next,&metadata,level,capacity_bytes/sizeof(rf_preview_vertex),NULL,NULL,0,NULL,source,bound,face_colors,vertex_colors,authored);
     if(status)return status;
     next.bytes=next.count*sizeof(rf_preview_vertex);*mesh=next;return RF_OK;
 }
 int rf_preview_geomod_lit(rf_preview_mesh *mesh,uint32_t capacity_bytes,
     const rf_geomod_mesh_view *source,const rf_collision_face *bound,uint32_t material_count,
     const rf_level *level,const float (*face_colors)[3])
-{return geomod_lit(mesh,capacity_bytes,source,bound,material_count,level,face_colors,NULL);}
+{return geomod_lit(mesh,capacity_bytes,source,bound,material_count,level,face_colors,NULL,NULL);}
 int rf_preview_geomod_vertex_lit(rf_preview_mesh *mesh,uint32_t capacity_bytes,
     const rf_geomod_mesh_view *source,const rf_collision_face *bound,uint32_t material_count,
     const rf_level *level,const float (*vertex_colors)[3])
 {
     if(!vertex_colors)return RF_RANGE;
-    return geomod_lit(mesh,capacity_bytes,source,bound,material_count,level,NULL,vertex_colors);
+    return geomod_lit(mesh,capacity_bytes,source,bound,material_count,level,NULL,vertex_colors,NULL);
+}
+int rf_preview_geomod_world_lit(rf_preview_mesh *mesh,uint32_t capacity_bytes,
+    const rf_geomod_mesh_view *source,const rf_collision_face *bound,uint32_t material_count,
+    const rf_level *level,const float (*vertex_colors)[3],const rf_geometry *authored)
+{
+    if(!vertex_colors || !authored)return RF_RANGE;
+    return geomod_lit(mesh,capacity_bytes,source,bound,material_count,level,NULL,vertex_colors,authored);
 }
 int rf_preview_geomod(rf_preview_mesh *mesh,uint32_t capacity_bytes,
     const rf_geomod_mesh_view *source,const rf_collision_face *bound,uint32_t material_count,const rf_level *level)

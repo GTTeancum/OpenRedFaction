@@ -9152,8 +9152,8 @@ static int actor_follow_view(void *context,uint32_t frame,const rf_motion_contro
         generated.vertices=world_mesh.vertices+world_mesh.count;
         memcpy(camera.player_position,position,12);memcpy(camera.player_orientation,orientation,36);
         status=scene_terrain_lighting(stream,&terrain);if(status)return status;
-        status=rf_preview_geomod_vertex_lit(&generated,stream->capacity-1024*1024-world_mesh.bytes,
-            &terrain.mesh,terrain.faces,stream->materials->count,&camera,stream->terrain_colors);if(status)return status;
+        status=rf_preview_geomod_world_lit(&generated,stream->capacity-1024*1024-world_mesh.bytes,
+            &terrain.mesh,terrain.faces,stream->materials->count,&camera,stream->terrain_colors,stream->geometry);if(status)return status;
         world_mesh.count+=generated.count;world_mesh.bytes+=generated.bytes;
      }
      *stream->mesh=world_mesh;}

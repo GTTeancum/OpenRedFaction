@@ -728,6 +728,34 @@ int main(int argc,char **argv)
             memcpy(saved,projected,sizeof(projected));corners[3][2]=NAN;
             CHECK(rf_preview_geomod_vertex_lit(&draw,sizeof(projected),&source,&bound,1,&camera,corners)==RF_FORMAT);
             CHECK(draw.count==count && !memcmp(saved,projected,sizeof(projected)));
+            {
+                unsigned char data[160]={0},light_pixel[4]={64,32,128,255};uint32_t offset=0,word;
+                rf_geometry authored={0};rf_image images[3]={{0}};float value;
+                authored.data=data;authored.faces=1;authored.face_offsets=&offset;authored.mapping_offset=64;authored.mappings=1;
+                word=2;memcpy(data+64,&word,4);word=1;memcpy(data+64+72,&word,4);
+                value=.5f;memcpy(data+64+76,&value,4);memcpy(data+64+80,&value,4);
+                value=.125f;memcpy(data+64+84,&value,4);value=.25f;memcpy(data+64+88,&value,4);
+                face.source_face=0;corners[3][2]=.25f;
+                images[2].width=images[2].height=1;images[2].bytes=4;images[2].rgba=light_pixel;
+                maps.images=images;maps.count=3;
+                CHECK(!rf_preview_geomod_world_lit(&draw,sizeof(projected),&source,&bound,1,&camera,corners,&authored));
+                for(i=0;i<draw.count;i++) {
+                    float x=(projected[i].position[0]-320.f)*3.f/320.f;
+                    float y=(240.f-projected[i].position[1])*3.f/320.f;
+                    CHECK(projected[i].lightmap==2);
+                    CHECK(fabsf(projected[i].lightmap_texture[0]/projected[i].lightmap_texture[2]-(x*.125f+.5f))<.0002f);
+                    CHECK(fabsf(projected[i].lightmap_texture[1]/projected[i].lightmap_texture[2]-(y*.25f+.5f))<.0002f);
+                }
+                CHECK(!rf_pc_raster_frame(&raster,&draw,&materials,&maps,draw.count));
+                CHECK(raster.rgb[center]>=99 && raster.rgb[center]<=101 && raster.rgb[center+1]>=39 && raster.rgb[center+1]<=41 && raster.rgb[center+2]==80);
+                memcpy(saved,projected,sizeof(projected));count=draw.count;word=3;memcpy(data+64+72,&word,4);
+                CHECK(rf_preview_geomod_world_lit(&draw,sizeof(projected),&source,&bound,1,&camera,corners,&authored)==RF_FORMAT);
+                CHECK(draw.count==count && !memcmp(saved,projected,sizeof(projected)));
+                face.source_face=UINT32_MAX;
+                CHECK(!rf_preview_geomod_world_lit(&draw,sizeof(projected),&source,&bound,1,&camera,corners,&authored));
+                CHECK(projected[0].lightmap==RF_PREVIEW_VERTEX_LIT);
+                maps.images=NULL;maps.count=0;
+            }
         }
         rf_pc_raster_close(&raster);
         puts("PASS: textured face/corner lighting reaches pixels, clipped color gradients and invalid RGB rollback, legacy path unchanged");

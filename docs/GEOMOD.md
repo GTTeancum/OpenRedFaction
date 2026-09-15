@@ -857,3 +857,32 @@ PC agree on two cuts, generation3, no publication error and bounded terrain
 memory. Actual Xbox frame and final PC left/right views inspected; no visual
 fidelity acceptance. All19disc entries restored and owned emulator exited.
 No additional GitHub screenshots.
+
+## Preserve lightmaps on surviving room fragments (2026-09-15)
+
+The DEV terrain replacement previously discarded authored lightmap bindings
+on all surviving fragments of the six original room faces. They sampled the
+base texture at neutral brightness even before a cut. This exaggerated the
+brightness difference around the dark crater and lost the room's lighting.
+
+rf_preview_geomod_world_lit now resolves each surviving fragment's source_face
+against the original geometry, retains its lightmap image, and projects each
+new corner using the retained mapping and shared rf_lightmap_project routine.
+The resulting coordinates pass through existing frustum and perspective
+interpolation. Newly exposed faces remain vertex-lit. No lightmap asset copies
+or new persistent allocation are needed, and original asset bytes stay intact.
+This preserves surviving lighting; it does not regenerate shadows after cuts.
+
+A synthetic clipped quad verifies image2 and analytically known lightmap UVs
+at every output vertex. A colored lightmap then modulates the rendered center
+pixel, proving the fragment takes the textured lightmap path rather than its
+supplied corner colors. An invalid projection preserves the previous draw;
+new rock still selects the vertex-light path. Existing original-template and
+static-preview tests pass, as do all five destruction and three close/oblique
+PC replays. NXDK builds. All three final PC depth images were inspected:
+authored wall shading is restored, but crater depth/contrast remains unfinished.
+
+Native verification: artifacts/xemu/render-20260915-102321 passes39checks
+over595frames with9068pages free (35.422MiB). The actual Xbox framebuffer
+was inspected and shows restored wall lightmaps, matching the PC view.
+All19disc entries restored; owned emulator exited. No new GitHub images.

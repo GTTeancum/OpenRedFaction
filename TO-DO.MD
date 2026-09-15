@@ -5323,3 +5323,10 @@ across corners with clipped RGB gradients; preserve hard rock creases.
 Three close/oblique depth replays and five destruction replays pass. Native
 595frames pass39checks with35.422MiB free; framebuffer inspected and crater
 contrast/readability remains unaccepted. Corner storage adds42KiB. ~49%.
+
+GeoMod surviving-wall fix (2026-09-15): preserve original lightmap images
+and projection on clipped room fragments instead of neutral brightness.
+Pixel/UV/rollback tests, five destruction and three depth replays pass.
+Native595frames pass39checks with35.422MiB free; restored wall lighting
+confirmed in the framebuffer. New-cavity shadows and contrast remain open.
+Estimate ~49%; current area GeoMod appearance.
