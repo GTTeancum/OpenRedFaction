@@ -3192,3 +3192,50 @@ Overall~49%, GeoMod~64%; current area is destruction impact effects.
 
 PC resource tests and PC player/NXDK XBE/XISO builds pass. No new XEMU run:
 this owner is not connected to live impact rendering yet.
+
+
+### Live authored rocket impacts (2026-09-15)
+
+The DEV Rocket Launcher now resolves `rocket_impact` to `rocket hit` and creates
+all six central emitters at collision, using the shared particle pool, swirl,
+solid-world sweep and existing normal/additive particle renderer. The current
+weapon-specific binding uses the installed weapons.tbl radius1.5. Central
+random extent is zero in this recipe; other recipes and generalized weapon
+impact selection remain open. The authored optional sparks name is unresolved
+in installed emitters.tbl, so no guessed replacement is spawned.
+
+Eight concurrent effect instances share the four retained textures (102704
+bytes, within the128KiB texture budget). Starts require six available emitter
+slots; saturation drops the cosmetic effect without blocking damage or terrain
+cutting. Frame ticks use the recovered central-process masks and explosion
+clock. At strict elapsed>2 seconds, emitters release their particles to the
+existing detached list; particles continue aging until their own expiry.
+Resources are released with the scene, with no impact-time heap allocation.
+
+`tools/dev_rocket_impact_check.py` runs three real rocket impacts and captures
+frames560/590/650/800. All six emitters start at167/284/558 and release at
+288/405/679; the third impact reuses the first effect instance. PC captures were
+individually inspected: initial fire, fading fire/smoke, lingering smoke, then
+no remaining effect. The800-frame endpoint has zero live particles. These are
+selected-frame checks, not exhaustive animation or original visual-parity proof.
+
+The first native attempt exposed a stack-page write fault at `polygon_split_edges`
+(PC0x4628a, CR2d0037ec4 in the retained failing build). Adding effects to the deep
+scene/terrain call chain exceeded the existing64KiB stack. Retained scene state
+now has heap lifetime instead of occupying every nested call's stack, and impact
+creation is not inlined into the gameplay step. The scene_miner stack frame drops
+from0x61c0 to0x409c (8484 bytes); the stack reservation is unchanged.
+
+Native run `render-20260915-185203` completes560 frames and all46 comparisons,
+including particle state and terrain/debris telemetry, with8599 available pages
+(33.590MiB). Its framebuffer was inspected: fire and smoke appear inside the cut.
+Crater darkness/readability, complete original blast appearance, optional sparks,
+impact Foley and broader collision/campaign coverage remain unfinished.
+
+Native cleanup run `render-20260915-185338` also completes800 frames and46
+comparisons, with zero live particles and8599 available pages. Its framebuffer
+was inspected after smoke expiry. Both owned emulators exited and all20 disc
+entries were verified restored; the three failed diagnostic runs also restored
+their entries. xemu_render_check now detects a sampled return to boot/frame0
+after gameplay, and offers optional QEMU exception/reset logging for diagnosis.
+Estimate: overall~49%, GeoMod~65%; focus remains destruction fidelity.

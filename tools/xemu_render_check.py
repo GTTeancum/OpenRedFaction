@@ -25,6 +25,7 @@ from xemu_session_guard import require_no_project_xemu
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--cpu-exceptions', action='store_true', help='Retain QEMU exception/reset diagnostics for guest crash analysis')
     parser.add_argument('--dev-room', action='store_true', help='Supply supported weapons in Glass House only')
     parser.add_argument('--terrain-test-light', action='store_true', help='DEV crater diagnostic light during frames1000..1999')
     parser.add_argument('--frames', type=int, default=180)
@@ -212,6 +213,7 @@ dvd_path = '{root.as_posix()}/build/xbox/redfaction-diagnostic.iso'
             port = reservation.getsockname()[1]
         command = [str(emulator / 'xemu.exe'), '-config_path', str(config), '-m', '64', '-snapshot',
             '-display', 'xemu', '-audio', 'none', '-qmp', f'tcp:127.0.0.1:{port},server=on,wait=off']
+        if args.cpu_exceptions:command += ['-d','int,cpu_reset','-D',str(run/'cpu-exceptions.log')]
         report['command'] = command
         startup = None
         if os.name == 'nt' and not args.visible:
@@ -248,6 +250,8 @@ dvd_path = '{root.as_posix()}/build/xbox/redfaction-diagnostic.iso'
                 if d[0] != 0x52464447:
                     time.sleep(.5)
                     continue
+                if (d[2]==1 or (d[2]==2 and d[37]==0)) and any(sample['phase']==2 and sample['frame']>0 for sample in report['samples']) and not words(monitor,symbol('rf_xbox_level_transitions'),1)[0]:
+                    raise RuntimeError('Guest restarted after entering gameplay')
                 report['samples'].append(dict(time=time.monotonic(), phase=d[2], frame=d[37], pages=d[44]))
                 current = (d[2], d[37] // 30)
                 if current != previous:
