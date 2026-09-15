@@ -336,14 +336,21 @@ dvd_path = '{root.as_posix()}/build/xbox/redfaction-diagnostic.iso'
                 actual=words(monitor,symbol('rf_scene_terrain_bake'),6)
                 equal=actual==expected
                 report['checks']['TERRAIN_BAKE']=dict(equal=equal,xbox=actual,pc=expected,
-                    scope='Deterministic bake progress and64-texel work bound; active may be nonzero until settled')
-                assert equal and actual[1]<=64 and actual[2]<=64,'TERRAIN_BAKE'
+                    scope='Deterministic lightmap fill progress; noise fills within atlas capacity, reference shadows retain64-texel bound')
+                bound=512*512 if words(monitor,symbol('rf_scene_terrain_noise'),1)[0] else 64
+                assert equal and actual[1]<=bound and actual[2]<=bound,'TERRAIN_BAKE'
                 expected=list(map(int,next(line for line in pc.stdout.splitlines() if line.startswith('TERRAIN_DRAW ')).split()[1:]))
                 actual=words(monitor,symbol('rf_scene_terrain_draw'),5)
                 equal=actual==expected
                 report['checks']['TERRAIN_DRAW']=dict(equal=equal,xbox=actual,pc=expected,
                     scope='Render-only subdivision counts, bounded ownership and generation; physical mesh remains separate')
                 assert equal and actual[1]<=8192 and actual[3]<=320*1024,'TERRAIN_DRAW'
+                expected=list(map(int,next(line for line in pc.stdout.splitlines() if line.startswith('TERRAIN_NOISE ')).split()[1:]))
+                actual=words(monitor,symbol('rf_scene_terrain_noise'),8)
+                equal=actual==expected
+                report['checks']['TERRAIN_NOISE']=dict(equal=equal,xbox=actual,pc=expected,
+                    scope='Persistent generated-face mappings, retained texel checks, bounded owner and generation')
+                assert equal and actual[0]==1 and actual[1]<=1024 and actual[6]<=128*1024,'TERRAIN_NOISE'
                 expected=list(map(int,next(line for line in pc.stdout.splitlines() if line.startswith('DEBRIS ')).split()[1:]))
                 actual=words(monitor,symbol('rf_scene_debris'),8)
                 equal=actual==expected

@@ -1919,3 +1919,53 @@ Evidence: artifacts/geomod-light-size-original.json, exports 4e4180/4f0bd0/
 4f0b90/4e60c0/466c50 and disassembly 4e5f40. Next integration must preserve
 existing face mappings across later cuts, rather than repainting every old
 surface whenever the terrain generation changes.
+
+### Live persistent new-face lightmaps (2026-09-15)
+
+DEV crater interiors now use the recovered grayscale fill and rounded mapping
+sizes on both PC and Xbox. New mappings use caller density 4, ordinary minimum 4,
+maximum 64 and the recovered width-2/one-texel projection convention. Authored
+surviving surfaces retain their authored lightmaps. A 1024-entry owner preserves
+new-face mappings across later cuts; compatible coplanar fragments inside an
+existing mapping reuse its projection and texels. Otherwise current fragments
+of that plane contribute to a new mapping. Plane/containment matching is a
+practical port policy, not recovered original mapping identity.
+
+The owner adds 94244 bytes; total tracked atlas ownership is 1218616 bytes,
+within 1280KiB. Eight-cut playback uses 409 mappings and 22404 texels, with 2334
+binding reuses and 1273 completed-map hash checks across later generations.
+The initial 256-entry pool was too small and rejected a later edit; the enlarged
+pool passes the same history. The 1024-entry/512-square atlas limits remain
+bounded, and broader histories can still need admission/compaction work.
+
+New maps fill completely before frame submission, using 64-texel scratch chunks
+but no longer imposing the expensive shadow bake's 64-texel-per-frame delay.
+Texels are written only inside newly allocated rectangles. Existing completed
+rectangles are hash-checked on generation changes; reset clears mappings and
+starts the explicit DEV RNG stream again. Original global RNG scheduling,
+density-class selection, generated-face flag eligibility and subsequent
+light-driven regeneration remain unverified. This improves the reconstruction
+but is not original visual-parity acceptance.
+
+The prior shadow bake is retained only as an opt-in PC reference through
+RF_REPLAY_TERRAIN_SHADOW_REFERENCE; the old lighting audit also requires that
+flag. Default live lighting no longer shadows the initial randomized maps.
+Six-cut settling and eight-cut stress tests now check persistent mappings and
+per-generation fills. dev_geomod_lightmap_reset.py verifies eight cuts, guarded
+reset and a fresh cut: generation 11, 17 replacement maps, 1472 texels, no stale
+completed-map checks. The paired depth audit still finds 19487 recessed solid
+pixels, zero substantially nearer pixels and no new uncovered pixels.
+
+The close PC capture shows more rock texture, but the cavity remains dark and
+angular. That appearance is still open. No GitHub screenshot was uploaded.
+
+Final native validation: artifacts/xemu/render-20260915-141427 completes 1500
+frames/eight cuts and 46 checks. PC/Xbox agree on 409 mappings, 22404 texels,
+2334 binding reuses and 1273 preservation checks; the largest single-frame
+fill is 3589 texels. Available 8595 pages equals 33.57MiB; PID 48984 exited and
+all 19 staged disc entries were restored. Eight updates copy 354687 texels,
+including one full atlas upload. Native world-rebuild phase averages 12.935ms
+(max 37ms), but the combat/inspection phase still reaches 1146ms on a late edit.
+This does not establish smooth edits or full-frame pixel parity. The native
+frame was inspected. The earlier 141020 run tested the same mappings with
+incremental filling; 141427 verifies the final immediate-fill policy.

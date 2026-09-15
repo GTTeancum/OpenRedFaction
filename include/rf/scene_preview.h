@@ -762,6 +762,7 @@ extern uint32_t rf_scene_terrain_upload[4];
 extern uint32_t rf_scene_terrain_bake[6];
 extern uint32_t rf_scene_debris[8];
 extern uint32_t rf_scene_terrain_draw[5];
+extern uint32_t rf_scene_terrain_noise[8];
 extern uint32_t rf_scene_rockets[8];
 extern uint32_t rf_scene_rocket_blast[8];
 extern uint32_t rf_scene_rocket_visual[8];

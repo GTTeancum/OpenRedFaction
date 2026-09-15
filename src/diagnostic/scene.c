@@ -510,7 +510,17 @@ typedef struct scene_terrain_draw_mesh {
     rf_geomod_mesh_view view;
 } scene_terrain_draw_mesh;
 uint32_t rf_scene_terrain_draw[5]; /* source vertices,render vertices,insertions,owned bytes,generation */
+typedef struct scene_terrain_noise_map {
+    float plane[4],minimum[3],maximum[3];uint32_t material,x,y,width,height,hash;
+    rf_preview_surface_lightmap binding;
+} scene_terrain_noise_map;
+typedef struct scene_terrain_noise_owner {
+    scene_terrain_noise_map maps[1024];uint32_t count,x,y,row,bake,sample,generation,cuts;
+    rf_random_state random;
+} scene_terrain_noise_owner;
+uint32_t rf_scene_terrain_noise[8]; /* mode,mappings,reused bindings,texels,stable checks,new mappings,bytes,generation */
 typedef struct scene_stream {
+    scene_terrain_noise_owner *terrain_noise;uint32_t terrain_shadow_reference;
     scene_terrain_draw_mesh *terrain_draw;
     scene_debris_pool *debris;
     rf_geomod_terrain *terrain;rf_geometry_collision_overlay terrain_collision;
@@ -8708,7 +8718,7 @@ static int scene_terrain_light_step(scene_stream *s,const rf_geomod_terrain_view
     if(!rf_scene_terrain_bake[3])rf_scene_terrain_bake[4]=terrain->mesh.generation;
     return RF_OK;
 }
-static int scene_terrain_lighting(scene_stream *s,const rf_geomod_terrain_view *terrain)
+static int scene_terrain_shadow_lighting(scene_stream *s,const rf_geomod_terrain_view *terrain)
 {
     uint32_t i,j,k,count=0,*ids=s->light_overlay_work;rf_vfx_light_source *sources;
     float lo[3],hi[3],ambient[3];unsigned char room[4];uint32_t modes[63];int status;
@@ -8762,6 +8772,99 @@ static int scene_terrain_lighting(scene_stream *s,const rf_geomod_terrain_view *
     memcpy(cache->ambient,ambient,sizeof(ambient));memcpy(cache->sources,sources,count*sizeof(*sources));memcpy(cache->modes,modes,count*sizeof(*modes));
     ++rf_scene_terrain_shadows[0];return scene_terrain_light_step(s,terrain);
 }
+static uint32_t scene_terrain_noise_hash(scene_stream *s,const scene_terrain_noise_map *map)
+{
+    uint32_t y,hash=2166136261u;
+    for(y=0;y<map->height;y++)hash=npc_hash_bytes(hash,s->terrain_atlas_pixels+((map->y+y)*512+map->x)*2,map->width*2);
+    return hash;
+}
+static int scene_terrain_noise_plane(const float a[4],const float b[4])
+{
+    uint32_t k;for(k=0;k<4;k++)if(fabsf(a[k]-b[k])>1e-5f)return 0;return 1;
+}
+static int scene_terrain_lighting(scene_stream *s,const rf_geomod_terrain_view *terrain)
+{
+    scene_terrain_noise_owner *owner=s->terrain_noise;uint32_t i,j,k,f,remaining=512*512,processed=0;int status;
+    if(s->terrain_shadow_reference)return scene_terrain_shadow_lighting(s,terrain);
+    if(!owner || !s->terrain_atlas_registered || terrain->mesh.face_count>768)return RF_RANGE;
+    if(owner->generation!=terrain->mesh.generation) {
+        if(!owner->generation || terrain->cuts<owner->cuts) {
+            memset(owner,0,sizeof(*owner));owner->random.value=1;
+            memset(s->terrain_atlas_pixels,0,512*512*2);scene_terrain_dirty(s,0,0,512,512);
+            memset(rf_scene_terrain_bake,0,sizeof(rf_scene_terrain_bake));memset(rf_scene_terrain_noise,0,sizeof(rf_scene_terrain_noise));
+            rf_scene_terrain_noise[0]=1;rf_scene_terrain_noise[6]=sizeof(*owner);
+        }
+        for(i=0;i<owner->bake;i++) {
+            if(scene_terrain_noise_hash(s,owner->maps+i)!=owner->maps[i].hash)return RF_FORMAT;
+            ++rf_scene_terrain_noise[4];
+        }
+        for(f=0;f<terrain->mesh.face_count;f++) {
+            const rf_geomod_face *face=terrain->mesh.faces+f;scene_terrain_noise_map *map=NULL;
+            s->terrain_bindings[f].image=UINT32_MAX;if(face->source_face!=UINT32_MAX)continue;
+            for(i=0;i<owner->count;i++) {
+                scene_terrain_noise_map *candidate=owner->maps+i;uint32_t contained=1;
+                if(candidate->material!=face->material || !scene_terrain_noise_plane(candidate->plane,terrain->faces[f].plane))continue;
+                for(j=0;j<face->count;j++)for(k=0;k<3;k++) {
+                    float v=terrain->mesh.vertices[face->first+j].position[k];
+                    if(v<candidate->minimum[k]-1e-4f || v>candidate->maximum[k]+1e-4f)contained=0;
+                }
+                if(contained){map=candidate;++rf_scene_terrain_noise[2];break;}
+            }
+            if(!map) {
+                uint32_t axis=0,u,v,dims[2];float span[2],density[2]={4,4},adjusted[2];
+                if(owner->count>=1024)return RF_RANGE;map=owner->maps+owner->count;memset(map,0,sizeof(*map));
+                memcpy(map->plane,terrain->faces[f].plane,16);map->material=face->material;
+                for(k=0;k<3;k++){map->minimum[k]=INFINITY;map->maximum[k]=-INFINITY;}
+                /* All current fragments of the same source plane share one mapping. */
+                for(i=0;i<terrain->mesh.face_count;i++)if(terrain->mesh.faces[i].source_face==UINT32_MAX &&
+                    terrain->mesh.faces[i].material==face->material && scene_terrain_noise_plane(map->plane,terrain->faces[i].plane)) {
+                    const rf_geomod_face *other=terrain->mesh.faces+i;
+                    for(j=0;j<other->count;j++)for(k=0;k<3;k++) {
+                        float p=terrain->mesh.vertices[other->first+j].position[k];map->minimum[k]=fminf(map->minimum[k],p);map->maximum[k]=fmaxf(map->maximum[k],p);
+                    }
+                }
+                for(k=1;k<3;k++)if(fabsf(map->plane[k])>fabsf(map->plane[axis]))axis=k;
+                u=(axis+1)%3;v=(axis+2)%3;span[0]=map->maximum[u]-map->minimum[u];span[1]=map->maximum[v]-map->minimum[v];
+                if(span[0]<=0 || span[1]<=0)return RF_FORMAT;
+                /*4.0 caller density; detail-class/global RNG ownership remain provisional. */
+                status=rf_geomod_lightmap_size(span,density,0,dims,adjusted);if(status)return status;
+                map->width=dims[0];map->height=dims[1];
+                if(owner->x+map->width>512){owner->y+=owner->row;owner->x=owner->row=0;}
+                if(owner->y+map->height>512)return RF_RANGE;map->x=owner->x;map->y=owner->y;
+                owner->x+=map->width;if(map->height>owner->row)owner->row=map->height;
+                map->binding.image=s->terrain_atlas_index;map->binding.projection.axes[0]=u;map->binding.projection.axes[1]=v;
+                for(j=0;j<2;j++) {
+                    uint32_t a=j?v:u,size=j?map->height:map->width,offset=j?map->y:map->x;
+                    double scale=(size-2)/(double)span[j];map->binding.projection.scale[j]=(float)(scale/512);
+                    map->binding.projection.offset[j]=(float)((offset+1-map->minimum[a]*scale)/512);
+                }
+                ++owner->count;++rf_scene_terrain_noise[5];rf_scene_terrain_noise[3]+=map->width*map->height;
+            }
+            s->terrain_bindings[f]=map->binding;
+        }
+        owner->generation=terrain->mesh.generation;owner->cuts=terrain->cuts;
+        rf_scene_terrain_atlas[4]=owner->generation;rf_scene_terrain_atlas[5]=rf_scene_terrain_noise[3];rf_scene_terrain_atlas[6]=owner->count;
+        rf_scene_terrain_noise[1]=owner->count;rf_scene_terrain_noise[7]=owner->generation;
+    }
+    while(remaining && owner->bake<owner->count) {
+        scene_terrain_noise_map *map=owner->maps+owner->bake;unsigned char rgb[64*3],packed[64*2];
+        uint32_t count=map->width*map->height-owner->sample;
+        if(count>remaining)count=remaining;if(count>64)count=64;
+        status=rf_geomod_light_noise(rgb,sizeof(rgb),count*3,count,1,&owner->random);if(status)return status;
+        status=rf_lightmap_pack_1555(rgb,count*3,count,1,0,packed,count*2,sizeof(packed));if(status)return status;
+        for(i=0;i<count;i++) {
+            uint32_t at=owner->sample+i,x=map->x+at%map->width,y=map->y+at/map->width;
+            memcpy(s->terrain_atlas_pixels+(y*512+x)*2,packed+i*2,2);
+        }
+        owner->sample+=count;remaining-=count;processed+=count;
+        scene_terrain_dirty(s,map->x,map->y,map->width,map->height);
+        if(owner->sample==map->width*map->height){map->hash=scene_terrain_noise_hash(s,map);owner->sample=0;owner->bake++;}
+    }
+    rf_scene_terrain_bake[0]+=processed;rf_scene_terrain_bake[1]=processed;
+    if(processed>rf_scene_terrain_bake[2])rf_scene_terrain_bake[2]=processed;
+    rf_scene_terrain_bake[3]=owner->bake<owner->count;if(!rf_scene_terrain_bake[3])rf_scene_terrain_bake[4]=owner->generation;
+    return RF_OK;
+}
 static int scene_terrain_open(scene_stream *s,const rf_level *level)
 {
     rf_geomod_vertex vertices[24];rf_geomod_face faces[6];rf_collision_face_filter filters[6],generated={0};
@@ -8787,6 +8890,10 @@ static int scene_terrain_open(scene_stream *s,const rf_level *level)
         }
         free(payload);if(status)return status;
     }
+    s->terrain_noise=calloc(1,sizeof(*s->terrain_noise));if(!s->terrain_noise)return RF_IO;
+#ifndef RF_IMAGE_XBOX_NATIVE
+    s->terrain_shadow_reference=getenv("RF_REPLAY_TERRAIN_SHADOW_REFERENCE")!=NULL;
+#endif
     s->terrain_atlas.width=s->terrain_atlas.height=512;s->terrain_atlas.bytes=512*512*2;s->terrain_atlas.source_format=5;
     status=rf_image_allocate_pixels(&s->terrain_atlas);if(status)return status;
     s->terrain_atlas_pixels=calloc(1,512*512*2);s->terrain_tile=malloc(64*64*2);
@@ -8794,7 +8901,7 @@ static int scene_terrain_open(scene_stream *s,const rf_level *level)
     s->terrain_bindings=calloc(768,sizeof(*s->terrain_bindings));s->terrain_atlas_index=UINT32_MAX;
     if(!s->terrain_atlas_pixels || !s->terrain_tile || !s->terrain_bindings || !s->terrain_tiles)return RF_IO;
     rf_scene_terrain_atlas[0]=1;rf_scene_terrain_atlas[1]=rf_scene_terrain_atlas[2]=512;
-    rf_scene_terrain_atlas[3]=2*512*512*2+64*64*2+768*(sizeof(*s->terrain_bindings)+sizeof(*s->terrain_tiles))+sizeof(rf_image);
+    rf_scene_terrain_atlas[3]=2*512*512*2+64*64*2+768*(sizeof(*s->terrain_bindings)+sizeof(*s->terrain_tiles))+sizeof(rf_image)+sizeof(*s->terrain_noise);
     if(rf_scene_terrain_atlas[3]>1280*1024)return RF_RANGE;
     s->debris=calloc(1,sizeof(*s->debris));if(!s->debris)return RF_IO;
     s->debris->random.value=1;memset(rf_scene_debris,0,sizeof(rf_scene_debris));rf_scene_debris[6]=sizeof(*s->debris);
@@ -12466,11 +12573,12 @@ done:
     rf_level_owned_navigation_close(&campaign_navigation);
     free(campaign_waypoints);campaign_waypoints=NULL;campaign_waypoint_bytes=0;
 #ifndef RF_IMAGE_XBOX_NATIVE
-    if(!status && getenv("RF_REPLAY_TERRAIN_LIGHT_AUDIT"))
+    if(!status && stream.terrain_shadow_reference && getenv("RF_REPLAY_TERRAIN_LIGHT_AUDIT"))
         status=scene_terrain_light_audit(&stream,getenv("RF_REPLAY_TERRAIN_LIGHT_AUDIT"));
 #endif
     if(!stream.terrain_atlas_registered)rf_image_close(&stream.terrain_atlas);
-    free(stream.terrain_atlas_pixels);free(stream.terrain_tile);free(stream.terrain_bindings);free(stream.terrain_tiles);
+    if(status && stream.terrain_noise)printf("NOISE_FAILURE %d %u %u %u %u %u %u\n",status,stream.terrain_noise->count,stream.terrain_noise->bake,stream.terrain_noise->sample,stream.terrain_noise->x,stream.terrain_noise->y,stream.terrain_noise->generation);
+    free(stream.terrain_noise);free(stream.terrain_atlas_pixels);free(stream.terrain_tile);free(stream.terrain_bindings);free(stream.terrain_tiles);
     rf_geometry_collision_overlay_close(&stream.terrain_collision);rf_geomod_terrain_close(&stream.terrain);free(stream.terrain_template);free(stream.terrain_colors);free(stream.terrain_regions);free(stream.terrain_light_cache);free(stream.terrain_ids);free(stream.terrain_draw);free(stream.debris);
     free(stream.surface_indices);free(states);if(motions_opened)rf_vpp_close(&motions);
     free(vertices);free(items);rf_preview_close(&actor);rf_model_materials_close(&bundle);
