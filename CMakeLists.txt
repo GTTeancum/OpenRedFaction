@@ -311,3 +311,8 @@ add_test(NAME ladder_contact COMMAND rf_ladder_contact_tests)
 add_executable(rf_geo_region_tests tests/geo_region_tests.c)
 target_link_libraries(rf_geo_region_tests PRIVATE rf_core)
 add_test(NAME geomod_region_records COMMAND rf_geo_region_tests "${CMAKE_SOURCE_DIR}/Installed_Game")
+
+target_sources(rf_core PRIVATE src/core/geomod.c)
+add_executable(rf_geomod_split_tests tests/geomod_split_tests.c)
+target_link_libraries(rf_geomod_split_tests PRIVATE rf_core)
+add_test(NAME geomod_polygon_split COMMAND rf_geomod_split_tests)

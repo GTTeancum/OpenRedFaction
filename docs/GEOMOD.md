@@ -47,3 +47,29 @@ and weapon rays can traverse, repeated overlapping cuts, and room reset.
 Existing geometry/room acceleration structures describe static snapshots and
 must not be silently reused after topology changes. Keep full stock64MiB
 memory accounting; room endpoint headroom is not a destruction memory budget.
+
+## Bounded surface cutting foundation
+
+`rf_geomod_polygon_split` splits a planar convex polygon with a normalized
+plane, retaining winding and interpolating texture UVs. Coplanar polygons
+belong to the front side; the classification tolerance is1e-5 world units.
+Each output is limited to64 vertices. Finite input/plane and buffer capacities
+are validated before outputs commit. This is a practical port implementation,
+not a recovered original routine.
+
+`rf_geomod_polygon_subtract` partitions a polygon against up to32 planes of a
+convex cutter, keeping disjoint outside fragments. A validation/count pass
+precedes output writes so capacity failure leaves outputs untouched. Neither
+operation allocates memory. Scratch uses bounded local arrays; integration
+must account for this stack use as well as caller-owned result storage.
+Callers must provide planar convex input and nonoverlapping input/output
+buffers. Region policy, solid topology and interior cap generation remain
+separate requirements.
+
+PC tests check an analytically known cut, UV interpolation, winding, tangent
+and coplanar cases, required sizes, failure preservation,360 rotated cut
+planes, and a centered square cutter whose surviving polygon area is3 from
+an original area4. PC and NXDK builds pass. These are mathematical primitive
+tests, not proof of watertight solids, native gameplay, visible GeoMod or
+updated collision. Next: build the interior surfaces and mutable solid owner,
+then integrate the same committed topology into rendering and collision.
