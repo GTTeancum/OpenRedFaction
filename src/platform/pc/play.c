@@ -322,13 +322,13 @@ int main(int argc,char **argv)
     player p={0};rf_vpp archive={0},maps[5]={{0}};rf_level level;audio_capture capture={0};
     rf_geometry geometry={0};rf_geometry_collision_world collision={0};
     rf_scene_world_geometry retained={0};rf_preview_mesh mesh={0};rf_materials materials={0};
-    uint32_t opened=0,i,limit=0;int status=RF_OK,spawn_profile=0;WNDCLASSW wc={0};
+    uint32_t opened=0,i,limit=0;int status=RF_OK,spawn_profile=0,dev_room=0;WNDCLASSW wc={0};
     if(argc==5 && !strcmp(argv[1],"--headless")) {
         char *end;unsigned long value=strtoul(argv[3],&end,10);
         if(!argv[3][0] || *end || value<1 || value>60000)return 2;
         p.headless=1;limit=(uint32_t)value;directory=argv[2];
-    } else if(argc==5 && (!strcmp(argv[1],"--replay") || !strcmp(argv[1],"--spawn-replay"))) {
-        spawn_profile=!strcmp(argv[1],"--spawn-replay");
+    } else if(argc==5 && (!strcmp(argv[1],"--replay") || !strcmp(argv[1],"--spawn-replay") || !strcmp(argv[1],"--dev-room-replay"))) {
+        dev_room=!strcmp(argv[1],"--dev-room-replay");spawn_profile=dev_room || !strcmp(argv[1],"--spawn-replay");
         FILE *file=fopen(argv[3],"rb");uint32_t count,size;int read_failed=0;
         if(!file)return 2;
         if(rf_scene_replay_header(file,&count,&size)){fclose(file);return 2;}
@@ -337,8 +337,9 @@ int main(int argc,char **argv)
         if(fclose(file) || read_failed){free(p.replay);return 2;}
         p.headless=1;limit=p.replay_count=count;directory=argv[2];
     } else if(argc==3 && !strcmp(argv[1],"--campaign")){spawn_profile=1;directory=argv[2];}
+    else if(argc==3 && !strcmp(argv[1],"--dev-room")){dev_room=spawn_profile=1;directory=argv[2];}
     else if(argc==2)directory=argv[1];
-    else {fprintf(stderr,"Usage: rf_pc_play <Installed_Game>\n       rf_pc_play --campaign <Installed_Game>\n       rf_pc_play --headless <Installed_Game> <frames 1..60000> <output.ppm>\n       rf_pc_play --replay <Installed_Game> <inputs.bin> <output.ppm>\n       rf_pc_play --spawn-replay <Installed_Game> <inputs.bin> <output.ppm>\n");return 2;}
+    else {fprintf(stderr,"Usage: rf_pc_play <Installed_Game>\n       rf_pc_play --campaign <Installed_Game>\n       rf_pc_play --dev-room <Installed_Game>\n       rf_pc_play --dev-room-replay <Installed_Game> <inputs.bin> <output.ppm>\n       rf_pc_play --headless <Installed_Game> <frames 1..60000> <output.ppm>\n       rf_pc_play --replay <Installed_Game> <inputs.bin> <output.ppm>\n       rf_pc_play --spawn-replay <Installed_Game> <inputs.bin> <output.ppm>\n");return 2;}
 #define CHECK(call) do {status=(call);if(status){fprintf(stderr,"%s failed (%d)\n",#call,status);goto cleanup;}} while(0)
     p.trace_from=UINT32_MAX;
     if(p.headless && getenv("RF_REPLAY_AIM")) {
@@ -352,8 +353,8 @@ int main(int argc,char **argv)
         const char *value=getenv("RF_REPLAY_TRACE_FROM");char *end;unsigned long n=strtoul(value,&end,10);
         if(!*value || *end || n>60000){status=RF_FORMAT;goto cleanup;}p.trace_from=(uint32_t)n;
     }
-    CHECK(path_join(path,sizeof(path),directory,spawn_profile && p.headless && getenv("RF_REPLAY_ARCHIVE")?getenv("RF_REPLAY_ARCHIVE"):"levels1.vpp"));
-    CHECK(rf_vpp_open(&archive,path));CHECK(rf_level_open(&level,&archive,spawn_profile && p.headless && getenv("RF_REPLAY_LEVEL")?getenv("RF_REPLAY_LEVEL"):"L1S1.rfl"));
+    CHECK(path_join(path,sizeof(path),directory,dev_room?"levelsm.vpp":spawn_profile && p.headless && getenv("RF_REPLAY_ARCHIVE")?getenv("RF_REPLAY_ARCHIVE"):"levels1.vpp"));
+    CHECK(rf_vpp_open(&archive,path));CHECK(rf_level_open(&level,&archive,dev_room?"glass_house.rfl":spawn_profile && p.headless && getenv("RF_REPLAY_LEVEL")?getenv("RF_REPLAY_LEVEL"):"L1S1.rfl"));
     CHECK(path_join(meshes,sizeof(meshes),directory,"meshes.vpp"));
     CHECK(path_join(motions,sizeof(motions),directory,"motions.vpp"));
     CHECK(path_join(tables,sizeof(tables),directory,"tables.vpp"));
@@ -456,7 +457,7 @@ int main(int argc,char **argv)
         if(fclose(f))failed=1;if(failed)CHECK(RF_FORMAT);
         CHECK(rf_scene_campaign_player_set(&state));
     }
-    rf_scene_follow_level_exits=spawn_profile;
+    rf_scene_follow_level_exits=spawn_profile && !dev_room;
     if(p.headless && getenv("RF_REPLAY_WATCH_UID")) {
         char *end;unsigned long value=strtoul(getenv("RF_REPLAY_WATCH_UID"),&end,10);if(*end || !value)CHECK(RF_FORMAT);
         rf_scene_watch_test_uid=(uint32_t)value;

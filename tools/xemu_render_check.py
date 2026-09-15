@@ -28,7 +28,7 @@ def main():
     parser.add_argument('--frames', type=int, default=180)
     parser.add_argument('--seconds', type=int, default=180, help='Guest wall-clock deadline,30..3600 seconds (default180)')
     parser.add_argument('--level', default='L1S1.rfl')
-    parser.add_argument('--archive', choices=['levels1.vpp','levels2.vpp','levels3.vpp'], default='levels1.vpp')
+    parser.add_argument('--archive', choices=['levels1.vpp','levels2.vpp','levels3.vpp','levelsm.vpp'], default='levels1.vpp')
     parser.add_argument('--spawn', action='store_true', help='Use authored player spawn without actor/item staging')
     parser.add_argument('--goal-uid', type=int, help='Authored goal setter at frame30')
     parser.add_argument('--actor', type=int, default=9858)

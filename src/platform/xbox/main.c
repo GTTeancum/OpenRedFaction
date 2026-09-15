@@ -154,7 +154,17 @@ static int logic_storage_check(void)
 static int logic_storage_open(const rf_level *level)
 {
     uint32_t i;int status=rf_level_owned_triggers_open(level,512u*1024u,&resident_triggers);
-    if(!status)status=rf_level_owned_events_open(level,512u*1024u-resident_triggers.allocated_bytes,&resident_events);
+    if(status==RF_NOT_FOUND && !rf_level_find(level,0x60000)) {
+        resident_triggers.allocated_bytes=sizeof(resident_triggers);status=RF_OK;
+    }
+    if(!status) {
+        uint32_t remaining=512u*1024u-resident_triggers.allocated_bytes;
+        status=rf_level_owned_events_open(level,remaining,&resident_events);
+        if(status==RF_NOT_FOUND && !rf_level_find(level,0x600)) {
+            if(remaining<sizeof(resident_events))status=RF_RANGE;
+            else {resident_events.allocated_bytes=sizeof(resident_events);status=RF_OK;}
+        }
+    }
     if(!status) {
         uint32_t remaining=512u*1024u-resident_triggers.allocated_bytes-resident_events.allocated_bytes;
         status=rf_level_owned_entities_open(level,remaining,&resident_entities);

@@ -1,5 +1,6 @@
 # Red Faction Xbox / PC - open work
 
+- DEV testbed: Add weapon supply/reset controls and inspect weapon/animation behavior in Glass House; room movement/ammo pass35 PC/Xbox comparisons with inspected output, and campaign-route work stays paused.
 - GeoMod: Implement campaign-required terrain destruction and updated collision before the first destruction-gated objective; prioritize playable progression over visual polish.
 - Combat: Extend pain-reaction coverage across enemy weapons and encounters; retained attack locks now pass35 PC/Xbox comparisons with independent actor recovery.
 - Combat: Revalidate encounters with the new shared body-sphere bullet collision; captured false hits are rejected, but old oversized-box aiming replays need recalibration.
@@ -7,7 +8,7 @@
 - Weapons: Verify remaining enemy drop policies and uncollected-drop revisits; supported held weapons now drop collectible supplies, with PC/Xbox rifle acquisition and firing verified.
 - Combat: Finish enemy damage amounts, cadence and weapon coverage; authored SP primary spread and target/bullet-obstruction checks now pass PC/Xbox verification (24 hits, 3 misses).
 - Weapons: Exercise the shotgun in the uninterrupted campaign and continue weapon coverage; PC manual/automatic reload and PC/Xbox automatic reload plus two-level persistence checks now pass.
-- Gameplay: Continue shotgun and shaft encounters; maintenance now passes35 Xbox comparisons and the recorded PC hall route clears three guards with15health.
+- Gameplay (paused): Resume campaign integration after core gameplay is usable; maintenance passes35 Xbox comparisons and the recorded PC hall route clears three guards with15health.
 - Movement: Refine ladder entry and top-edge transitions; body contact now unblocks the first L2S3 ladder, but the verified route still uses a jump and repeated top-edge state changes need smoothing.
 
 Hall probe (2026-09-15): PC9302frames clear guard1751 after the two

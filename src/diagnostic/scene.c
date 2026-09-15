@@ -11193,7 +11193,8 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
             if(!status)campaign_jump_strength=(float)sqrt(2.0*(double)scene_gravity.acceleration*(double)height);
             for(mode=0;mode<16 && !status;++mode)status=rf_movement_descriptor_load(&tables,mode,65536,campaign_modes+mode);
         }
-        if(!status && collision && campaign_spawn)status=rf_entity_seeds_open(level,&tables,1024*1024,&campaign_seeds);
+        /* Authored empty test/MP rooms can omit the NPC section entirely. */
+        if(!status && collision && campaign_spawn && rf_level_find(level,0x30000))status=rf_entity_seeds_open(level,&tables,1024*1024,&campaign_seeds);
         if(!status && collision && campaign_spawn)status=rf_entity_skeletons_open(&campaign_seeds,&archive,256*1024,&campaign_skeletons);
         if(!status && collision && campaign_spawn)status=rf_entity_poses_open(&campaign_seeds,&campaign_skeletons,1024*1024,&campaign_poses);
         if(!status && collision && campaign_spawn)status=rf_entity_render_models_open(&campaign_skeletons,&archive,1024*1024,&campaign_render_models);
