@@ -5,6 +5,14 @@
 int main(int argc,char **argv)
 {
     rf_random_state state;float basis[9];uint32_t i;
+    if(argc==2 && !strcmp(argv[1],"--crater-position")) {
+        float lo[3],hi[3],point[3],decoded[3];uint16_t packed[3];
+        for(i=0;i<3;i++)if(scanf("%f",lo+i)!=1)return 3;
+        for(i=0;i<3;i++)if(scanf("%f",hi+i)!=1)return 3;
+        for(i=0;i<3;i++)if(scanf("%f",point+i)!=1)return 3;
+        if(rf_geomod_position_encode(lo,hi,point,packed) || rf_geomod_position_decode(lo,hi,packed,decoded))return 2;
+        printf("%u %u %u %.9g %.9g %.9g\n",packed[0],packed[1],packed[2],decoded[0],decoded[1],decoded[2]);return 0;
+    }
     if(argc==2 && !strcmp(argv[1],"--shallow-align")) {
         rf_geomod_shallow_limit limits[2];rf_geomod_shallow_history history[128];
         float requested[3],radius,out[3];uint32_t count,hc,j,k;

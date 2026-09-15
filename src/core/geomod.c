@@ -363,6 +363,40 @@ int rf_geomod_debris_build(float radius,uint32_t width,uint32_t height,
     *random=next;*out=mesh;return RF_OK;
 }
 
+int rf_geomod_position_encode(const float minimum[3],const float maximum[3],
+    const float position[3],uint16_t packed[3])
+{
+    uint16_t result[3]={0};uint32_t i,outside=0;
+    if(!minimum || !maximum || !position || !packed)return RF_RANGE;
+    for(i=0;i<3;i++) {
+        if(!isfinite(minimum[i]) || !isfinite(maximum[i]) || !isfinite(position[i]) || maximum[i]<=minimum[i])return RF_FORMAT;
+        if(position[i]<minimum[i] || position[i]>maximum[i])outside=1;
+    }
+    if(!outside)for(i=0;i<3;i++) {
+        /* Stores force double rounding even on an extended-precision x87 host. */
+        volatile double extent=(double)maximum[i]-minimum[i];
+        volatile double factor=65536.0/extent;
+        volatile double offset=(double)position[i]-minimum[i];
+        volatile double code=offset*factor;
+        result[i]=(uint16_t)((uint32_t)code&65535u);
+    }
+    memcpy(packed,result,sizeof(result));return RF_OK;
+}
+int rf_geomod_position_decode(const float minimum[3],const float maximum[3],
+    const uint16_t packed[3],float position[3])
+{
+    float result[3];uint32_t i;
+    if(!minimum || !maximum || !packed || !position)return RF_RANGE;
+    for(i=0;i<3;i++) {
+        volatile double extent,step,offset,value;
+        if(!isfinite(minimum[i]) || !isfinite(maximum[i]) || maximum[i]<=minimum[i])return RF_FORMAT;
+        extent=(double)maximum[i]-minimum[i];step=extent/65536.0;
+        offset=step*packed[i];value=offset+minimum[i];result[i]=(float)value;
+        if(!isfinite(result[i]))return RF_FORMAT;
+    }
+    memcpy(position,result,sizeof(result));return RF_OK;
+}
+
 int rf_geomod_shallow_align(const float requested[3],float template_radius,
     const rf_geomod_shallow_limit *selected,uint32_t count,
     const rf_geomod_shallow_history *history,uint32_t history_count,float adjusted[3])

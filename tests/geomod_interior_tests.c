@@ -506,6 +506,20 @@ int main(int argc,char **argv)
 {
     CHECK(!partition_contract());
     {
+        float lo[3]={-1000,-1000,-1000},hi[3]={1000,1000,1000},point[3]={-500,0,500},decoded[3],saved[3]={91,92,93};
+        uint16_t packed[3],kept[3];
+        CHECK(!rf_geomod_position_encode(lo,hi,point,packed));
+        CHECK(packed[0]==16384 && packed[1]==32768 && packed[2]==49152);
+        CHECK(!rf_geomod_position_decode(lo,hi,packed,decoded) && !memcmp(decoded,point,sizeof(point)));
+        point[0]=1000;CHECK(!rf_geomod_position_encode(lo,hi,point,packed) && packed[0]==0);
+        point[0]=1001;CHECK(!rf_geomod_position_encode(lo,hi,point,packed) && !packed[0] && !packed[1] && !packed[2]);
+        memcpy(kept,packed,sizeof(kept));point[0]=NAN;
+        CHECK(rf_geomod_position_encode(lo,hi,point,packed)==RF_FORMAT && !memcmp(kept,packed,sizeof(kept)));
+        memcpy(decoded,saved,sizeof(saved));hi[2]=lo[2];
+        CHECK(rf_geomod_position_decode(lo,hi,packed,decoded)==RF_FORMAT && !memcmp(saved,decoded,sizeof(saved)));
+    }
+
+    {
         float request[3]={10,20,30},out[3],saved[3]={91,92,93};
         rf_geomod_shallow_limit limit={{0,-1,0},2};
         rf_geomod_shallow_history history[2]={{{10,21,30},{{0,-2,0},{0,0,0}},1},{{10,20.5f,30},{{0,-2,0},{0,0,0}},1}};

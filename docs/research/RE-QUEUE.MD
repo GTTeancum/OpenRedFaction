@@ -15,7 +15,9 @@ User mandate: keep one secondary agent supplied with useful, bounded RE work whi
 11. Reported/integrated: signed-depth conversion;8 original/shared comparisons pass, and startup53-bit x87 evidence awaits primary review.
 12. Reported, primary review pending: separate requested center for packed duplicate history and adjusted center for geometry/auxiliary history.
 13. Reported, primary review pending: shallow vectors do not override material; tested ice flag remains the override.
-14. Active: save/replay4674b0 auxiliary-history reconstruction ordering and parameter regeneration.
-15. Queued: ordinary rocket template selection in master467020; expand beyond fixed holey01 when supported.
+14. Reported: replay exposes total restored history count; outer reset/auxiliary clearing remains to verify.
+15. Reported: ordinary projectile paths explicitly selectHoley01; special shapes are separate.
+16. Active: outer save-load/reset auxiliary clearing and reachability of stale future records.
+17. Queued: shallow-intersection geometry tolerance/merge behavior for repeated-blast validation.
 
 Send findings to the primary as each investigation completes, then proceed to the next queued item. Primary reviews reports and replenishes this queue. Do not edit shared implementation or use desktop control, host input or emulators.

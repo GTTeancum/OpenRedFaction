@@ -45,6 +45,13 @@ int rf_geomod_shallow_point(const float center[3],const float point[3],float rad
  * errors preserve both output array and count. */
 int rf_geomod_shallow_normalize(const rf_geomod_shallow_limit *selected,uint32_t count,
     rf_geomod_shallow_limit out[2],uint32_t *out_count);
+/* Original4b5820/4b5900 position codec with explicit53-bit arithmetic.
+ * Bounds are inclusive; upper-bound encoding wraps to0. Any outside axis
+ * encodes all zeros. Malformed bounds/nonfinite inputs preserve output. */
+int rf_geomod_position_encode(const float minimum[3],const float maximum[3],
+    const float position[3],uint16_t packed[3]);
+int rf_geomod_position_decode(const float minimum[3],const float maximum[3],
+    const uint16_t packed[3],float position[3]);
 /* Auxiliary admission history stores the ADJUSTED center and signed depth
  * vectors. Duplicate suppression uses a separate packed REQUESTED center. */
 typedef struct rf_geomod_shallow_history {
