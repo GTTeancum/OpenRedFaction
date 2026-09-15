@@ -60,7 +60,7 @@ static int closed(void)
         }
         for(i=1;i<n;i++){double value=t[i];j=i;while(j && t[j-1]>value){t[j]=t[j-1];j--;}t[j]=value;}
         for(j=1;j<n;j++)if((t[j]-t[j-1])*sqrt(len)>1e-6) {
-            double mid[3];int matches=0,balance=0;
+            double mid[3],match_error[8],match_along[8];unsigned match_face[8],match_edge[8];int matches=0,balance=0;
             for(i=0;i<3;i++)mid[i]=a[i]+d[i]*(t[j]+t[j-1])*.5;
             for(q=0;q<polygon_count;q++)for(f=0;f<polygons[q].count;f++) {
                 const float *x=surface[polygons[q].first+f].position;
@@ -71,12 +71,23 @@ static int closed(void)
                 along/=size;
                 for(i=0;i<3;i++){double z=mid[i]-x[i]-along*edge[i];error+=z*z;}
                 if(along>1e-8 && along<1-1e-8 && error<1e-12 && fabs(dot*dot-len*size)<1e-8*len*size) {
+                    if(matches<8){match_face[matches]=q;match_edge[matches]=f;match_error[matches]=sqrt(error);match_along[matches]=along;}
                     matches++;balance+=dot>0?1:-1;
                 }
             }
             if(matches!=2 || balance) {
                 if(report_closure)printf("CLOSURE_DIAGNOSTIC face%u edge%u length%.9g matches%d balance%d start %.9g %.9g %.9g end %.9g %.9g %.9g\n",
                     p,e,sqrt(len),matches,balance,a[0],a[1],a[2],b[0],b[1],b[2]);
+                if(report_closure) {
+                    printf("CLOSURE_INTERVAL width %.12g midpoint %.12g %.12g %.12g\n",(t[j]-t[j-1])*sqrt(len),mid[0],mid[1],mid[2]);
+                    for(i=0;i<(unsigned)matches && i<8;i++) {
+                        const rf_geomod_fragment *poly=polygons+match_face[i];
+                        const float *x=surface[poly->first+match_edge[i]].position;
+                        const float *y=surface[poly->first+(match_edge[i]+1)%poly->count].position;
+                        printf("CLOSURE_MATCH face%u edge%u distance %.12g along %.12g start %.9g %.9g %.9g end %.9g %.9g %.9g\n",
+                            match_face[i],match_edge[i],match_error[i],match_along[i],x[0],x[1],x[2],y[0],y[1],y[2]);
+                    }
+                }
                 return 0;
             }
         }

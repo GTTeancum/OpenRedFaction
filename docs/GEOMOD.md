@@ -965,3 +965,32 @@ The prior reset run104342 timed out, restored its disc and exited before
 this run began. Follow-up also restored all19disc entries and exited its
 owned emulator. No GitHub images added. Duplicate edge coverage remains the
 next geometry issue; do not equate six accepted cuts with closed topology.
+
+## Closure interval diagnosis (2026-09-15)
+
+The checker now prints the failed subinterval, its midpoint and every matched
+edge (up to eight), including distance from the sample and projected position.
+This distinguishes a full overlapping edge from a tiny ambiguous junction.
+The room-scale six-cut fixture's first failure is the same1.34534375358e-6
+unit interval for every cut. Two exact opposing edges end at z2.93492723;
+the nearby continuations end at z2.93492866 and2.93492818. At the sample,
+their perpendicular errors are4.86224e-7 and3.24149e-7, inside the checker's
+1e-6 positional tolerance. Thus four edges are counted in a tiny junction
+interval, not along the full1.73568unit edge. This explains this particular
+failure but does not establish that all other boundaries are valid.
+
+A discarded experiment reconciled pending positions within the cutter's1e-5
+plane tolerance and removed collapsed consecutive corners. It made the first
+room-scale closure test pass, but later edits failed collision validation and
+the ordinary six-shot replay regressed to four accepted cuts. It was removed
+in full. A future repair must preserve each incident face's plane constraints;
+blanket proximity welding is not sufficient. The closure threshold and the
+working production geometry have not been relaxed or replaced.
+
+Retained evidence: artifacts/geomod-closure-diagnostic.log contains detailed
+intervals; the test command remains rf_geomod_interior_tests Installed_Game
+artifacts/geomod-holey01-csg.bin. Existing enforced geometry/pixel tests pass;
+room-scale closure remains explicitly diagnostic and unresolved. After removing
+the experiment, the ordinary PC six-shot replay again accepts all six with
+resident809796/peak925604bytes. No production code change, new Xbox run or new
+visual fidelity claim is made by this diagnostic update.
