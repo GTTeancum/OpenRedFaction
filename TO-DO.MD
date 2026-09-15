@@ -1,7 +1,7 @@
 # Red Faction Xbox / PC - open work
 
 - PRIORITY GeoMod: Match original destruction shape, exposed materials, lighting, debris, collision and repeated blasts before returning to other systems; a visible hole alone is not acceptance.
-- GeoMod: Improve crater readability and expand destruction coverage; support-matched live repairs now pass eight-cut closure, rollback and stock64MiB Xbox checks, while broader shapes, side views and visual parity remain open.
+- GeoMod: Improve crater readability and expand destruction coverage; eight-cut live/Xbox repair passes, and side-view nearer pixels trace to floor projection rounding, while broader shapes and visual parity remain open.
 - GeoMod: Reduce remaining terrain-cut stalls; the latest native eighth edit measures 239ms CSG and 29ms binding, subject to host timing variation.
 - GeoMod: Diagnose the 425 PC/Xbox capture pixels differing by more than one color level; the shared dark crater appearance remains the main fidelity issue.
 - GeoMod lighting: Obtain a stock-game visual reference and connect gameplay light lifecycles; original-binary and community evidence support the unlit base-fill path, while diagnostic light addition/removal is verified on Xbox.

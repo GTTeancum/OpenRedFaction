@@ -3,6 +3,8 @@
 Nonzero exit preserves the existing strict depth gates; inspect reports and PNGs.
 No host input, artificial camera placement, or production rendering changes.
 """
+import argparse
+from pathlib import Path
 import struct
 import subprocess
 import sys
@@ -19,7 +21,9 @@ def inputs(side):
 
 
 def main():
-    out = ROOT / 'artifacts/geomod-side-views'
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--out', type=Path, default=ROOT / 'artifacts/geomod-side-views')
+    out = parser.parse_args().out.resolve()
     out.mkdir(parents=True, exist_ok=True)
     failed = False
     for name, side in [('left', -.8), ('right', .8)]:
@@ -33,6 +37,8 @@ def main():
             raise RuntimeError('Depth replay did not produce a report')
         subprocess.run([sys.executable, 'tools/analyze_crater_seams.py',
             '--folder', str(out/name)], cwd=ROOT, check=True)
+        subprocess.run([sys.executable, 'tools/analyze_geomod_nearer_pixels.py',
+            str(out/name)], cwd=ROOT, check=True)
         for mode in ('cut', 'intact'):
             Image.open(out/name/(mode+'.ppm')).save(out/name/(mode+'.png'))
     return int(failed)

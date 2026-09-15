@@ -3047,3 +3047,37 @@ threshold failures from earlier work still require revalidation. Arbitrary
 campaign destruction, material/lighting fidelity and edit stalls remain open.
 Estimate: overall~49%, GeoMod~63%; current area is destruction geometry and
 appearance. This increase reflects live closure/rollback and Xbox validation.
+
+Side-view depth attribution after live repair (2026-09-15):
+Both process-local side replays now render zero newly uncovered pixels. Strict
+128-unit depth gates still fail: left has254 nearer pixels (minimum-140) and
+right8 (minimum-133); the right view also has9727 recessed pixels, below the
+existing10000 frontal-view count gate. No thresholds were relaxed.
+
+Every flagged pixel was inspected by tools/analyze_geomod_nearer_pixels.py
+against all emitted world triangles, reproducing the raster winner and checking
+its depth within4 float-operation rounding units. All254 left and8 right pixels
+come from material0/lightmap0 floor triangles in both cut and intact views.
+They do not come from the dark generated crater material. Actual captures were
+inspected: the crater still looks mound-like, especially from the left.
+
+The replay now exports the actual terrain source planes/positions beside the
+projected meshes. Its authored upward floor is exactlyY=-12. The emitted
+reciprocal depth and that plane reconstruct each affected triangle vertex's
+pre-rounding screenY: all residuals lie within the expected0..1/16 pixel floor
+operation. Analytical depth for this camera/floor gives a maximum196.5974-unit
+screen-rounding displacement. Both intact and cut depths fall within that bound;
+left cut errors relative to the exact floor range-191.98..-168.71 versus
+-62.98..-39.71 intact. Right values are similarly bounded. This supports floor
+triangulation/projection rounding as the cause of these nearer-depth flags,
+not cavity geometry protruding toward the camera. It does not prove arbitrary
+world geometry or all projection noise harmless.
+
+Evidence: artifacts/live-support-side-provenance/{left,right}/nearer-surfaces.json,
+report.json, *.terrain.csv and actual cut/intact PNGs. The side-view harness now
+accepts --out to preserve earlier evidence and runs this attribution alongside
+seam checks, while retaining its nonzero strict-gate exit. No engine behavior
+changed and no new native run was needed. The front depth check and prior native
+eight-blast validation remain as recorded above. Crater material/lighting cues
+and a stock-game appearance reference are next; no percentage increase for this
+diagnostic clarification (overall~49%, GeoMod~63%).
