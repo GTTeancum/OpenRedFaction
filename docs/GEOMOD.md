@@ -1548,11 +1548,11 @@ original restitution/random normal response, water/mover interaction, actor
 damage or bounce sounds yet.48f900 confirms the floor threshold and bounce
 budget but contains additional response logic that is not implemented here.
 
-Correction to earlier timer terminology:490230's field74, exposed by the helper
-as lifetime, is a fade duration.48f900 copies it to field70 when the bounce
-budget ends; it is not proof of total airborne lifetime. The current DEV pass
-uses it as an absolute removal timer, without a fade. Replace this provisional
-lifecycle rather than treating existing expiry checks as original parity.
+Timer terminology corrected by the48fd70 instruction oracle below: field74
+is the age at which a one-second fade starts, not the fade duration.48f900
+copies it into elapsed age field70 when the bounce budget ends, advancing
+settled chunks to fading. The current DEV pass still uses an absolute removal
+timer without fading; its expiry checks do not establish original parity.
 
 Six ordinary destruction/traversal replays pass. dev_debris_check.py captures
 560/580/620/900-frame close-range runs:48 total chunks across three cuts,
@@ -1713,3 +1713,25 @@ by 40. Thus the dark crater is shared by both outputs; backend mismatch does
 not explain its overall appearance. The cause of larger differences remains
 unverified, and numerical agreement does not establish original-game parity.
 The native frame was visually inspected. No new GitHub screenshot was added.
+
+### Original debris age and fade policy (2026-09-15)
+
+`tools/inspect_geomod_debris_lifecycle.py` executes original48fd70 with only
+pause-query436320, unlink48f3d0 and draw517080 hooks. Original x87 arithmetic,
+integer conversion573528 and clamp40a520 execute unchanged. Across256 cases,
+shared `rf_geomod_debris_age` matches elapsed-age float bits, removal decisions
+and integer alpha. Cases include four lifetimes, adjacent representable values
+around removal, zero/normal/large time steps and both pause states.
+
+The routine first removes a chunk if age > lifetime+1, including while paused.
+Otherwise it advances age by the frame interval unless paused. Alpha stays255
+through lifetime, then truncates/clamps (1-(age-lifetime))*255. A time step can
+therefore produce a zero-alpha draw before removal on the next invocation.
+The original draw-driven clock also means visibility can affect advancement;
+this harness does not establish scheduling or physics behavior.
+
+The shared helper is ready but not yet connected to live rendering. The current
+preview vertex format has RGB but no per-vertex alpha; implement and verify
+bounded PC/Xbox debris blending before replacing the provisional expiry path.
+Do not substitute darkened RGB for transparency. Two focused GeoMod CTests pass,
+including new pause/removal boundaries and invalid-input rollback coverage.

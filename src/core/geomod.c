@@ -6,6 +6,22 @@
 #include <stdlib.h>
 #include <stdio.h>
 
+int rf_geomod_debris_age(float age,float lifetime,float dt,uint32_t paused,
+    rf_geomod_debris_lifecycle *out)
+{
+    rf_geomod_debris_lifecycle next;double alpha;
+    if(!out || !isfinite(age) || age<0 || !isfinite(lifetime) || lifetime<0 ||
+        !isfinite(dt) || dt<0 || paused>1)return RF_RANGE;
+    next.age=age;next.removed=(double)age>(double)lifetime+1.;next.alpha=0;
+    if(!next.removed) {
+        if(!paused)next.age=(float)((double)age+dt);
+        if(!isfinite(next.age))return RF_RANGE;
+        alpha=next.age<=lifetime?255.:(1.-((double)next.age-lifetime))*255.;
+        next.alpha=alpha<=0?0:alpha>=255?255:(uint32_t)alpha;
+    }
+    *out=next;return RF_OK;
+}
+
 int rf_geomod_random_basis(rf_random_state *random,float basis[9])
 {
     rf_random_state next;float v[9]={0};double inverse;uint32_t i;int status;

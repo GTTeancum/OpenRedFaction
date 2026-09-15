@@ -5,6 +5,12 @@
 int main(int argc,char **argv)
 {
     rf_random_state state;float basis[9];uint32_t i;
+    if(argc==6 && !strcmp(argv[1],"--debris-age")) {
+        rf_geomod_debris_lifecycle result;
+        if(rf_geomod_debris_age(strtof(argv[2],NULL),strtof(argv[3],NULL),
+            strtof(argv[4],NULL),(uint32_t)strtoul(argv[5],NULL,10),&result))return 2;
+        printf("%.9g %u %u\n",result.age,result.removed,result.alpha);return 0;
+    }
     if(argc==2 && !strcmp(argv[1],"--debris-count")) {
         rf_geomod_debris_probe probes[14];float radius,origin[3],endpoints[14][3];int32_t count;uint32_t j;
         if(scanf("%f %f %f %f",&radius,origin,origin+1,origin+2)!=4)return 3;

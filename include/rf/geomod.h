@@ -28,9 +28,17 @@ int rf_geomod_hardness(const rf_geo_region *regions,uint32_t count,uint32_t stor
  * Radius must be finite and positive. Invalid inputs preserve RNG/output.
  * Caller owns output; all arguments must not overlap. */
 typedef struct rf_geomod_debris_mesh {
-    float positions[8][3],uv[12][3][2],lifetime; /* field74 fade duration, not total airborne life */
+    float positions[8][3],uv[12][3][2],lifetime; /* field74 age at fade start; fade lasts one second */
     uint32_t indices[12][3];
 } rf_geomod_debris_mesh;
+/* Original48fd70 draw-time aging. Removal precedes time advancement;
+ * pausing suppresses age advancement only. Settling48f900 sets age=lifetime.
+ * Numeric errors preserve output. This does not draw or update physics. */
+typedef struct rf_geomod_debris_lifecycle {
+    float age;uint32_t removed,alpha;
+} rf_geomod_debris_lifecycle;
+int rf_geomod_debris_age(float age,float lifetime,float dt,uint32_t paused,
+    rf_geomod_debris_lifecycle *out);
 int rf_geomod_debris_build(float radius,uint32_t width,uint32_t height,
     rf_random_state *random,rf_geomod_debris_mesh *out);
 

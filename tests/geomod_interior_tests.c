@@ -1176,5 +1176,21 @@ int main(int argc,char **argv)
         rf_pc_raster_close(&raster);
         puts("PASS: textured face/corner lighting reaches pixels, clipped color gradients and invalid RGB rollback, legacy path unchanged");
     }
+    {
+        rf_geomod_debris_lifecycle value={12,34,56},saved=value;
+        CHECK(rf_geomod_debris_age(NAN,2,1.f/60,0,&value)==RF_RANGE);
+        CHECK(!memcmp(&value,&saved,sizeof(value)));
+        CHECK(rf_geomod_debris_age(0,2,-1,0,&value)==RF_RANGE);
+        CHECK(!memcmp(&value,&saved,sizeof(value)));
+        CHECK(rf_geomod_debris_age(0,2,0,2,&value)==RF_RANGE);
+        CHECK(!memcmp(&value,&saved,sizeof(value)));
+        CHECK(!rf_geomod_debris_age(2,2,.5f,0,&value));
+        CHECK(value.age==2.5f && !value.removed && value.alpha==127);
+        CHECK(!rf_geomod_debris_age(3,2,.25f,0,&value));
+        CHECK(value.age==3.25f && !value.removed && !value.alpha);
+        CHECK(!rf_geomod_debris_age(value.age,2,0,1,&value));
+        CHECK(value.removed && value.age==3.25f);
+        puts("PASS: debris fade age boundaries, pause/removal order and invalid-input rollback");
+    }
     puts("PASS: repeated solid/cavity cuts, edge closure, materials, ray/body clearance, rendering and rollback");return 0;
 }
