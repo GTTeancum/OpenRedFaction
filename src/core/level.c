@@ -2031,3 +2031,40 @@ int rf_level_campaign_open(rf_level *level,rf_vpp *archive,const char *directory
     }
     return RF_NOT_FOUND;
 }
+
+/* Section200 format lead: rf-reversed/rfl.ksy (see docs/GEOMOD.md).
+ * Independent bounded byte decoding; no CSG or region policy is inferred. */
+static int geo_region_record(const unsigned char *p,uint32_t bytes,uint32_t *used,rf_geo_region *out)
+{
+    rf_geo_region v={0};uint32_t i,n=20,at=8;float values[16];
+    if(bytes<20)return RF_FORMAT;
+    memcpy(&v.uid,p,4);memcpy(&v.flags,p+4,2);memcpy(&v.hardness,p+6,2);
+    if((v.flags&6)!=2 && (v.flags&6)!=4)return RF_FORMAT;
+    if(v.hardness>100)return RF_FORMAT;
+    if(v.flags&32)n+=4;
+    if(v.flags&(4|32))n+=36;
+    n+=(v.flags&4)?12:4;
+    if(bytes<n)return RF_FORMAT;
+    for(i=0;i<(n-8)/4;i++) {memcpy(values+i,p+8+i*4,4);if(!isfinite(values[i]))return RF_FORMAT;}
+    if(v.flags&32){memcpy(&v.shallow_depth,p+at,4);at+=4;if(v.shallow_depth<0)return RF_FORMAT;}
+    memcpy(v.position,p+at,12);at+=12;
+    if(v.flags&(4|32)){memcpy(v.file_basis,p+at,36);at+=36;}
+    if(v.flags&4) {
+        memcpy(v.dimensions,p+at,12);
+        for(i=0;i<3;i++)if(v.dimensions[i]<0)return RF_FORMAT;
+    } else {memcpy(&v.radius,p+at,4);if(v.radius<0)return RF_FORMAT;}
+    *out=v;*used=n;return RF_OK;
+}
+int rf_level_geo_regions_decode(const void *data,uint32_t bytes,
+    rf_geo_region *out,uint32_t capacity,uint32_t *count)
+{
+    const unsigned char *p=data;uint32_t n,i,at=4,used;rf_geo_region v;int status;
+    if(!data || !count)return RF_RANGE;
+    if(bytes<4)return RF_FORMAT;
+    memcpy(&n,p,4);if(n>(bytes-4)/24)return RF_FORMAT;
+    if(out && capacity<n)return RF_RANGE;
+    for(i=0;i<n;i++) {status=geo_region_record(p+at,bytes-at,&used,&v);if(status)return status;at+=used;}
+    if(at!=bytes)return RF_FORMAT;
+    if(out)for(i=0,at=4;i<n;i++) {geo_region_record(p+at,bytes-at,&used,&v);out[i]=v;at+=used;}
+    *count=n;return RF_OK;
+}

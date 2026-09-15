@@ -1,7 +1,7 @@
 # Red Faction Xbox / PC - open work
 
 - DEV testbed: Review full weapon sequences against original presentation and implement room/GeoMod reset; ammo refill now passes PC/Xbox checks and Riot Stick camera pullback was rejected for exposing sleeve ends; four-weapon starting supply and shotgun firing pass35 PC/Xbox comparisons, while campaign-route work stays paused.
-- GeoMod: Implement campaign-required terrain destruction and updated collision before the first destruction-gated objective; prioritize playable progression over visual polish.
+- GeoMod: Implement bounded terrain subtraction with matching render/collision updates in the developer room; the C region reader validates903 installed records, but visible destruction is not implemented.
 - Combat: Extend pain-reaction coverage across enemy weapons and encounters; retained attack locks now pass35 PC/Xbox comparisons with independent actor recovery.
 - Combat: Revalidate encounters with the new shared body-sphere bullet collision; captured false hits are rejected, but old oversized-box aiming replays need recalibration.
 - Weapons: Implement remaining campaign weapons beyond handgun, rifle, Riot Stick and shotgun; automatic rifle now clears three shaft guards on PC/Xbox.

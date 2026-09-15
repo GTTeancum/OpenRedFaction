@@ -44,6 +44,16 @@ const rf_level_section *rf_level_find(const rf_level *level, uint32_t type);
 int rf_level_read(const rf_level *level, const rf_level_section *section,
                   uint32_t offset, void *data, uint32_t size);
 
+typedef struct rf_geo_region {
+    int32_t uid;uint16_t flags,hardness;
+    float shallow_depth,position[3],file_basis[9],dimensions[3],radius;
+} rf_geo_region;
+/* Decode a v180 section200 payload without allocation. NULL output validates
+ * and counts. Errors preserve output/count. Basis retains serialized order;
+ * interpretation/region precedence and destruction are separate operations. */
+int rf_level_geo_regions_decode(const void *data,uint32_t bytes,
+    rf_geo_region *out,uint32_t capacity,uint32_t *count);
+
 /* Installed v180 section10000: borrowed packed node indices. Full payload
  * validation precedes publication; NULL name validates without selecting.
  * UINT32_MAX placeholders validate but cannot resolve to a playable path.
