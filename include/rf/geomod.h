@@ -22,4 +22,11 @@ typedef struct rf_geomod_fragment {uint32_t first,count;} rf_geomod_fragment;
 int rf_geomod_polygon_subtract(const rf_geomod_vertex *vertices,uint32_t count,
     const float (*planes)[4],uint32_t plane_count,rf_geomod_vertex *out,uint32_t capacity,
     rf_geomod_fragment *fragments,uint32_t fragment_capacity,uint32_t *vertex_count,uint32_t *fragment_count);
+/* Clip an outward cutter face to a convex source solid's negative half-spaces
+ * and reverse winding to form an exposed interior face. A face wholly on a
+ * source boundary yields no cap. Same bounded/atomic buffer contract as split.
+ * This primitive is not a complete Boolean-solid owner or coplanar-face policy. */
+int rf_geomod_interior_face(const rf_geomod_vertex *vertices,uint32_t count,
+    const float (*source_planes)[4],uint32_t plane_count,rf_geomod_vertex *out,
+    uint32_t capacity,uint32_t *out_count);
 #endif

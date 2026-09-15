@@ -85,3 +85,37 @@ int rf_geomod_polygon_subtract(const rf_geomod_vertex *vertices,uint32_t count,
     }
     *vertex_count=required;*fragment_count=required_pieces;return RF_OK;
 }
+
+int rf_geomod_interior_face(const rf_geomod_vertex *vertices,uint32_t count,
+    const float (*planes)[4],uint32_t plane_count,rf_geomod_vertex *out,
+    uint32_t capacity,uint32_t *out_count)
+{
+    rf_geomod_vertex current[64],front[64],back[64];uint32_t i,j,k,left=count,nf,nb;int status;
+    if(!vertices || count<3 || count>64 || !planes || !plane_count || plane_count>32 || !out_count)return RF_RANGE;
+    for(i=0;i<plane_count;i++) {
+        double norm=0;
+        for(j=0;j<4;j++)if(!isfinite(planes[i][j]))return RF_FORMAT;
+        for(j=0;j<3;j++)norm+=(double)planes[i][j]*planes[i][j];
+        if(fabs(norm-1)>1e-4)return RF_FORMAT;
+    }
+    for(i=0;i<count;i++) {
+        for(j=0;j<3;j++)if(!isfinite(vertices[i].position[j]))return RF_FORMAT;
+        for(j=0;j<2;j++)if(!isfinite(vertices[i].uv[j]))return RF_FORMAT;
+    }
+    memcpy(current,vertices,count*sizeof(*current));
+    for(i=0;i<plane_count && left;i++) {
+        int on_boundary=1;
+        for(j=0;j<left;j++) {
+            double d=planes[i][3];
+            for(k=0;k<3;k++)d+=(double)planes[i][k]*current[j].position[k];
+            if(fabs(d)>1e-5){on_boundary=0;break;}
+        }
+        if(on_boundary){left=0;break;}
+        status=rf_geomod_polygon_split(current,left,planes[i],front,64,back,64,&nf,&nb);
+        if(status)return status;
+        left=nb;memcpy(current,back,nb*sizeof(*current));
+    }
+    if(out && capacity<left)return RF_RANGE;
+    if(out)for(i=0;i<left;i++)out[i]=current[left-1-i];
+    *out_count=left;return RF_OK;
+}

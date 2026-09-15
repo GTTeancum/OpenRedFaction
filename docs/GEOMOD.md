@@ -73,3 +73,27 @@ an original area4. PC and NXDK builds pass. These are mathematical primitive
 tests, not proof of watertight solids, native gameplay, visible GeoMod or
 updated collision. Next: build the interior surfaces and mutable solid owner,
 then integrate the same committed topology into rendering and collision.
+
+## Interior surface primitive
+
+`rf_geomod_interior_face` clips one outward cutter face against the negative
+half-spaces of a convex source, then reverses its winding. This supplies the
+correct facing direction for an exposed interior wall. Faces wholly on a
+source boundary do not generate duplicate caps. The same64-vertex/32-plane
+limits, no-allocation policy and capacity-failure preservation apply.
+
+The PC test combines surviving cube surfaces with these interior faces for a
+through-tunnel. A64-unit cube minus a16-unit tunnel gives signed volume48 and
+four interior quads. Boundary exclusion, required counts and insufficient
+output capacity are checked; the prior split/subtraction tests still pass.
+This is not an edge-manifold/watertightness proof. It does not resolve arbitrary
+concave sources, repeated cuts, coincident source/cutter boundary policy,
+vertex welding, or T-junctions between fragments. In particular, the surface
+subtractor's front-side coplanar convention is not a complete Boolean boundary
+classification. A production solid owner must resolve these cases before
+claiming general subtraction. No in-game geometry has been changed yet.
+
+Next: retained mutable solid storage with transactional output and shared
+render/collision consumption, including source/cutter material ownership.
+Verify edge closure and repeated/coplanar cuts alongside live visual and ray/
+player traversal evidence. Keep the developer room as the integration target.
