@@ -19,9 +19,13 @@ presentation to handle fatal hits. Other errors emit COMBAT_PAIN_ERROR and
 propagate. This explicit lifecycle split is practical port behavior, not a claim
 that every original death-sound branch has been rebuilt.
 
-Enemy firing during active reactions remains to review against the existing
-lock/action machinery. No unconditional stagger, fire delay or damage change
-was introduced. Fixing dispatch is not proven to explain every return shot.
+The live attack loop now honors the retained animation lock before firing or
+melee strikes. This is a practical integration of428740's existing lock, not
+a claim that the original complete attack scheduler has been reconstructed.
+No new fixed stun duration or damage multiplier is added. Navigation and
+targeting continue; the pending attack deadline is preserved, so expiry can
+resume immediately instead of adding another cooldown. Actors without a
+pending pain lock continue normally.
 
 ## Verification
 
@@ -46,3 +50,28 @@ health match the prior route. Local evidence: artifacts/live-pain-entry-fixed.
 (871accepted). These checks do not establish later campaign completion or attack
 interruption during flinches. The comparison tools for existing bindings remain
 useful, but their older fixture results alone did not prove live dispatch.
+
+## Attack-lock integration
+
+`tools/replay_pain_attack_gate.py` extends the recorded rifle encounter to240
+frames. Injured actor3270's1717ms lock blocks14due checks through1716ms; it
+fires on frame104 (1733ms), then164 and224. Uninjured actor3271 fires at66,
+126 and186. Thus the injured actor resumes on the first eligible frame and
+both retain60-frame cadence; other actors are not globally paused.
+Opt-in ENEMY_SHOT_TRACE logs attempts, including misses, so the check does
+not mistake missing damage events for absent shots.
+
+Stock64MiB Xbox artifact `artifacts/xemu/render-20260915-040603` passes all35
+PC/native comparisons, including PAIN_ATTACK_GATE [20,14,3270,1717,1716,0].
+Endpoint free memory is6261pages (24.45703125MiB). All18 staged disc entries
+restore and the owned emulator exits. Exact attempt timestamps above are PC
+trace evidence; native verification compares the exported states/counters.
+
+The7356-frame PC route now clears the first L2S3 guard with25health instead
+of5. The8402-frame tracked continuation clears guard2047 in maintenance with
+15health,14shots,8hits and2L2S3 kills. Tracking-free playback matches all77
+body words, NPC state, combat journal, pain/gate telemetry and final position;
+miner2061 remains at100health. The152 captured look records reproduce exactly.
+`tools/replay_l2s3_maintenance.py --verify-existing` validates the generator
+and completed logs; omit the option to rerun capture and playback. The full
+maintenance continuation has not yet been verified on Xbox.

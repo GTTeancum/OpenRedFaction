@@ -40,7 +40,7 @@ def verify(log):
     assert words('COMBAT')[:3] == [7, 4, 1] and words('PLAYER_AMMO')[:3] == [3, 118, 16]
     assert len(words('PC_PLAY_BODY')) == 77
     health = struct.unpack('<f', struct.pack('<I', words('ENEMY_COMBAT')[5]))[0]
-    assert health == 5
+    assert health == 25
     guard = next(l.split() for l in log.splitlines() if l.startswith('NPC_COMBAT_ROW 2020 '))
     assert float(guard[-1]) <= 0
     assert [l.split()[1:] for l in log.splitlines() if l.startswith('LEVEL_TRANSITION ')] == [

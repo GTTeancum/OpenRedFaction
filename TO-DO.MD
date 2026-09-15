@@ -1,13 +1,23 @@
 # Red Faction Xbox / PC - open work
 
-- Combat: Verify enemy attack behavior during pain reactions; live NPC pain animation/sound now dispatch and pass34 PC/Xbox comparisons, but reaction-based firing interruption remains unverified.
+- Combat: Extend pain-reaction coverage across enemy weapons and encounters; retained attack locks now pass35 PC/Xbox comparisons with independent actor recovery.
 - Combat: Revalidate encounters with the new shared body-sphere bullet collision; captured false hits are rejected, but old oversized-box aiming replays need recalibration.
 - Weapons: Implement remaining campaign weapons beyond handgun, rifle, Riot Stick and shotgun; automatic rifle now clears three shaft guards on PC/Xbox.
 - Weapons: Verify remaining enemy drop policies and uncollected-drop revisits; supported held weapons now drop collectible supplies, with PC/Xbox rifle acquisition and firing verified.
 - Combat: Finish enemy damage amounts, cadence and weapon coverage; authored SP primary spread and target/bullet-obstruction checks now pass PC/Xbox verification (24 hits, 3 misses).
 - Weapons: Exercise the shotgun in the uninterrupted campaign and continue weapon coverage; PC manual/automatic reload and PC/Xbox automatic reload plus two-level persistence checks now pass.
-- Gameplay: Revisit maintenance after live damage reactions; the7356-frame first-guard route now passes33 Xbox comparisons, but the PC maintenance probe reaches guard2047 and dies.
+- Gameplay: Verify the revised maintenance route on Xbox and continue onward; ordinary8402-frame PC playback clears both L2S3 guards with15health and the miner unharmed.
 - Movement: Refine ladder entry and top-edge transitions; body contact now unblocks the first L2S3 ladder, but the verified route still uses a jump and repeated top-edge state changes need smoothing.
+
+Attack-lock update (2026-09-15): Live enemies now defer due attacks during
+the retained pain animation lock and resume without an extra cooldown.
+The240-frame stock64MiB Xbox recording passes35 comparisons with24.457MiB
+free at endpoint. PC first-guard playback ends with25health; maintenance
+clears both guards with15health and miner2061 at100health. Tracking-free
+playback matches body/NPC state and combat journal; its generator matches
+executed inputs exactly. Full maintenance Xbox verification remains open.
+See docs/LIVE-DAMAGE-REACTIONS.md and tools/replay_l2s3_maintenance.py.
+Estimate remains ~48%; current area is combat and campaign progression.
 
 Live pain update (2026-09-15): NPC damage now dispatches retained pain animation
 and sound with the live clock, deterministic RNG and propagated errors.

@@ -771,6 +771,7 @@ run_scene:
     printf("SHOTGUN");for(i=0;i<8;++i)printf(" %u",rf_scene_shotgun[i]);puts("");
     {extern uint32_t rf_scene_enemy_spread[8];printf("ENEMY_SPREAD");for(i=0;i<8;++i)printf(" %u",rf_scene_enemy_spread[i]);puts("");}
     {extern uint32_t rf_scene_combat_pain[8];printf("COMBAT_PAIN");for(i=0;i<8;++i)printf(" %u",rf_scene_combat_pain[i]);puts("");}
+    {extern uint32_t rf_scene_pain_attack_gate[6];printf("PAIN_ATTACK_GATE");for(i=0;i<6;++i)printf(" %u",rf_scene_pain_attack_gate[i]);puts("");}
     printf("ENEMY_MELEE");for(i=0;i<4;++i)printf(" %u",rf_scene_enemy_melee[i]);puts("");
     printf("ENEMY_DAMAGE_KINDS");for(i=0;i<10;++i)printf(" %u",rf_scene_enemy_damage_kinds[i]);puts("");
     printf("ATTACK_RECOVERY");for(i=0;i<4;++i)printf(" %u",rf_scene_attack_recovery[i]);puts("");
