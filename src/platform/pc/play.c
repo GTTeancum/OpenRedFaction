@@ -721,6 +721,7 @@ run_scene:
         }
     }
     printf("WEAPON_DROPS");for(i=0;i<8;++i)printf(" %u",rf_scene_weapon_drops[i]);puts("");
+    printf("RIFLE_ALT");for(i=0;i<8;++i)printf(" %u",rf_scene_rifle_alt[i]);puts("");
     printf("SHOTGUN");for(i=0;i<8;++i)printf(" %u",rf_scene_shotgun[i]);puts("");
     {extern uint32_t rf_scene_enemy_spread[8];printf("ENEMY_SPREAD");for(i=0;i<8;++i)printf(" %u",rf_scene_enemy_spread[i]);puts("");}
     printf("ENEMY_MELEE");for(i=0;i<4;++i)printf(" %u",rf_scene_enemy_melee[i]);puts("");

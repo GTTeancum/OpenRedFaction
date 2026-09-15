@@ -186,8 +186,8 @@ int main(int argc,char **argv)
             CHECK(!strcmp(view.mesh,"fp_glock.v3c") && !strcmp(view.clips[1],"fp_glock_fire.rfa"));
             CHECK(rf_weapon_view_load(&tables,"Assault Rifle",128*1024,&view)==RF_OK);
             CHECK(!strcmp(view.mesh,"fp_aslt_rfl.v3c") && !strcmp(view.clips[1],"fp_aslt_rfl_fire_burst.rfa"));
-            view.clips[3][0]=0; /* Rifle alternate mode is not enabled by the scene. */
-            CHECK(rf_player_weapon_open_view(&meshes,&motions,maps,5,&view,1024*1024,&rifle)==RF_OK);
+            CHECK(view.alt_loop && !strcmp(view.clips[3],"fp_aslt_rfl_fire.rfa"));
+            CHECK(rf_player_weapon_open_view(&meshes,&motions,maps,5,&view,1024*1024+8192,&rifle)==RF_OK);
             CHECK(rf_player_weapon_open_view(&meshes,&motions,maps,5,&view,rifle->resident_bytes-1,&other)==RF_RANGE && !other);
             memset(view.mesh,'x',64);
             CHECK(rf_player_weapon_open_view(&meshes,&motions,maps,5,&view,2*1024*1024,&other)==RF_RANGE && !other);
@@ -247,6 +247,9 @@ int main(int argc,char **argv)
         for(ticks=0;ticks<600 && rifle->current!=0;ticks++)CHECK(rf_player_weapon_step(rifle,-1,1.0f/60)==RF_OK);
         CHECK(rifle->current==0 && ticks<600);
         printf("Assault resource PASS bones=%u vertices=%u resident=%u peak=%u reload-return=%u\n",rifle->bone_count,rifle->geometry.vertex_count,rifle->resident_bytes,rifle->peak_bytes,ticks);
+        CHECK(rf_player_weapon_step(rifle,3,0)==RF_OK && rifle->current==3);
+        for(ticks=0;ticks<180;ticks++)CHECK(rf_player_weapon_step(rifle,-1,1.0f/60)==RF_OK && rifle->current==3);
+        CHECK(rf_player_weapon_step(rifle,0,0)==RF_OK && rifle->current==0);
         rf_player_weapon_close(&rifle);rf_player_weapon_close(&rifle);CHECK(!rifle);
     }
     for(i=0;i<3;i++)for(j=0;j<w->bone_count;j++) {
