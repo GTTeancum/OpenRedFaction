@@ -327,3 +327,7 @@ add_test(NAME geomod_transaction_storage COMMAND rf_geomod_storage_tests)
 add_executable(rf_weapon_explosive_tests tests/weapon_explosive_tests.c)
 target_link_libraries(rf_weapon_explosive_tests PRIVATE rf_core)
 add_test(NAME weapon_explosive_fields COMMAND rf_weapon_explosive_tests "${CMAKE_SOURCE_DIR}/Installed_Game")
+
+add_executable(rf_rocket_visual_tests tests/rocket_visual_tests.c)
+target_link_libraries(rf_rocket_visual_tests PRIVATE rf_core)
+add_test(NAME rocket_visual_resources COMMAND rf_rocket_visual_tests "${CMAKE_SOURCE_DIR}/Installed_Game")

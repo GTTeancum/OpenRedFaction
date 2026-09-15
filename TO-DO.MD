@@ -5165,3 +5165,15 @@ including all blast diagnostic words;9261pages (36.176MiB) free. Native
 frame inspected with reduced health/armor HUD and excavated cavity visible.
 All19 staged disc entries restored; owned emulator exited. Far/lethal and
 reload/switch cases remain PC-only. Estimate remains ~49%; explosive weapons.
+
+Rocket VFX ownership (2026-09-15): The seven authored DrillMissile01.vfx
+mesh chunks now compose into a bounded shared geometry owner with persistent
+playback buffers. All use Scene Root parent. PC mesh/UV playback is finite
+after archive close; retained48989bytes, peak57839bytes. Exact peak budget
+succeeds; one byte less fails without publishing an owner. Unsupported
+newer/other-chunk assets reject explicitly. Textures, render submission and
+flight-time wrapping remain open; no visible projectile is claimed yet.
+Estimate ~49%; current area is projectile presentation.
+
+NXDK XBE/XISO build passes with the new geometry owner; live renderer
+integration is pending, so no native visual execution is claimed here.

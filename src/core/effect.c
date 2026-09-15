@@ -2480,3 +2480,38 @@ int rf_vfx_light_pool_color(rf_vfx_light_pool *pool,uint32_t id,float intensity,
     visibility=pool->sources[id].light_class!=0;memcpy(pool->sources[id].source.color,rgb,12);
     if(!visibility)++pool->generation;*visibility_update=visibility;return RF_OK;
 }
+
+void rf_vfx_geometry_asset_close(rf_vfx_geometry_asset **out)
+{
+    uint32_t i;rf_vfx_geometry_asset *a;if(!out || !(a=*out))return;
+    for(i=0;i<32;i++){rf_vfx_instance_close(a->instances+i);rf_vfx_mesh_close(a->meshes+i);}
+    free(a);*out=NULL;
+}
+int rf_vfx_geometry_asset_open(rf_vpp *archive,const char *name,uint32_t budget,rf_vfx_geometry_asset **out)
+{
+    rf_vfx_directory directory={0};rf_vfx_geometry_asset *a=NULL;unsigned char *scratch=NULL;
+    uint32_t i,used=sizeof(*a),temporary,maximum=0;int status;
+    if(!archive || !name || !out || *out || budget<used)return RF_RANGE;
+    status=rf_vfx_directory_open(archive,name,budget-used,&directory);if(status)return status;
+    if(directory.header.version<0x3000a || directory.header.version>=0x40000 || !directory.count || directory.count>32){status=RF_FORMAT;goto done;}
+    for(i=0;i<directory.count;i++) {
+        if(directory.chunks[i].type!=0x4f584653u){status=RF_FORMAT;goto done;}
+        if(directory.chunks[i].bytes>maximum)maximum=directory.chunks[i].bytes;
+    }
+    if((uint64_t)used+directory.allocated_bytes+maximum>budget){status=RF_RANGE;goto done;}
+    temporary=directory.allocated_bytes+maximum;
+    a=calloc(1,sizeof(*a));scratch=malloc(maximum);if(!a || !scratch){status=RF_IO;goto done;}
+    for(i=0;i<directory.count;i++) {
+        status=rf_vfx_chunk_read(&directory,i,0,scratch,directory.chunks[i].bytes);if(status)goto done;
+        status=rf_vfx_mesh_open(scratch,directory.chunks[i].bytes,directory.header.version,0,NULL,budget-used-temporary,a->meshes+i);if(status)goto done;
+        used+=a->meshes[i]->allocated_bytes;
+        if(a->meshes[i]->prefix.vertices) {
+            status=rf_vfx_instance_open(a->meshes[i],budget-used-temporary,a->instances+i);if(status)goto done;
+            used+=a->instances[i]->allocated_bytes;
+        }
+        ++a->count;
+    }
+    a->resident_bytes=used;a->peak_bytes=used+temporary;*out=a;a=NULL;status=RF_OK;
+done:
+    free(scratch);rf_vfx_directory_close(&directory);rf_vfx_geometry_asset_close(&a);return status;
+}

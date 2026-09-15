@@ -444,3 +444,26 @@ including all blast diagnostic words;9261pages (36.176MiB) free. Native
 frame inspected with reduced health/armor HUD and excavated cavity visible.
 All19 staged disc entries restored; owned emulator exited. Far/lethal and
 reload/switch cases remain PC-only. Estimate remains ~49%; explosive weapons.
+
+## Authored rocket VFX geometry owner
+
+rf_vfx_geometry_asset_open composes the existing VFX directory, mesh and
+instance decoders for legacy mesh-only assets (versions3000a through3ffff).
+It owns at most32meshes and their playback buffers, rejects non-SFXO chunks
+and unsupported versions, and rolls back all partial allocations on error.
+The budget includes directory accounting and temporary largest-chunk bytes
+alongside all retained geometry. Archives may close after successful load.
+Textures, material playback, parent hierarchy and renderer binding are not
+part of this owner; its name explicitly identifies geometry-only scope.
+
+The installed DrillMissile01.vfx has7meshes, all parented to Scene Root:
+Mesh01,Box02,Box03,Box07,Box08,Box04,Box01. PC storage is48989resident and
+57839peak bytes. Tests step0..16effect frames at quarter-frame increments
+after archive close, checking finite vertex/UV output. Exact peak budget
+loads successfully; peak-minus-one and resident-minus-one reject without
+output ownership. NanoAttackMissile.vfx rejects its unsupported newer
+composition rather than silently dropping content. These checks establish
+numeric resource readiness only, not visual correctness or live drawing.
+
+NXDK XBE/XISO build passes with the new geometry owner; live renderer
+integration is pending, so no native visual execution is claimed here.

@@ -422,6 +422,18 @@ int rf_vfx_directory_open(rf_vpp *,const char *name,uint32_t budget,rf_vfx_direc
 /* Read within a single indexed payload; no reads into neighboring records. */
 int rf_vfx_chunk_read(const rf_vfx_directory *,uint32_t index,uint32_t offset,void *,uint32_t bytes);
 void rf_vfx_directory_close(rf_vfx_directory *);
+/* Bounded legacy mesh-only VFX composition for live projectile presentation.
+ * Owns up to32 decoded meshes and mutable geometry instances; archives may
+ * close after success. No textures, parent hierarchy or rendering yet.
+ * Rejects unsupported record types/versions rather than omitting content.
+ * Budget covers retained owners, temporary chunk and directory accounting. */
+typedef struct rf_vfx_geometry_asset {
+    rf_vfx_mesh *meshes[32];rf_vfx_instance *instances[32];
+    uint32_t count,resident_bytes,peak_bytes;
+} rf_vfx_geometry_asset;
+int rf_vfx_geometry_asset_open(rf_vpp *,const char *,uint32_t,rf_vfx_geometry_asset **);
+void rf_vfx_geometry_asset_close(rf_vfx_geometry_asset **);
+
 /* Retained standalone MATL records in directory order. One allocation owns
  * views and raw arrays; directory/archive can close after success. Array offsets
  * are rebased into data. Budget includes owner/views/payload, not allocator
