@@ -1635,3 +1635,67 @@ under artifacts/geomod-rejected-stitch.c and geomod-stitch-*.log for diagnosis.
 Next isolate render-only edge subdivision and canonical clipping, retaining
 the verified collision mesh and existing light-grid source polygons. This
 turn adds diagnosis only; no seam repair or changed Xbox result is claimed.
+
+## Render-only edge subdivision and viewport repair (2026-09-15)
+
+The live terrain now owns a separate draw mesh rebuilt only when a cut/reset
+binds a new generation. Existing source vertices lying within1e-6 of an edge
+are inserted in edge order; endpoint duplicates within1e-6 are skipped. Each
+inserted UV is interpolated on its owning face, preserving material seams.
+A per-edge bounding box rejects separated candidates before distance work.
+Physical vertices/faces, collision trees and light-grid inputs stay unchanged.
+Preview count/plane descriptors borrow original plane values and have NULL
+collision-vertex pointers; they must never be used as physical face records.
+
+Subdivision alone reduced the paired frame's17 uncovered pixels to10. The
+remaining cases involved shared clipped endpoints at0 versus-.0625 pixels.
+The shared world projector now clamps its already-clipped,1/16-pixel-quantized
+result to[0,640]x[0,480]. It does not enlarge internal triangles or relax the
+raster's coverage rules. The paired900-frame audit now has zero uncovered
+pixels,19487 substantially recessed solid pixels and no substantially nearer
+pixels; it now asserts zero new uncovered pixels as a regression requirement.
+The separate world-space closure-junction issue is not declared fixed.
+
+Three-cut rendering uses1000 original vertices and1287 draw vertices. The
+eight-cut stress pattern uses3120 and4089 respectively. Initial4096-vertex draw
+storage was too close to that result, so the final draw allocation permits8192
+vertices, while retaining768 faces and64 corners per face. Draw ownership plus
+the additional neutral-color storage costs283668 bytes under a320KiB bound;
+original physical terrain budgets are unchanged. This is one tested eight-cut
+pattern, not proof of arbitrary destruction history or every cut arrangement.
+
+The two GeoMod CTests and static-preview clipping test pass. All six ordinary
+replays, three close/oblique views and the1200-frame six-cut settling check pass.
+The three close images were inspected: the seam repair does not resolve the
+dark, angular cavity appearance. dev_destruction_stress.py adds1500-frame
+eight-cut/refill coverage with a completed29616-texel lightmap bake and a live
+player. No new GitHub image is added.
+
+The initial900-frame native run render-20260915-130456 passed45 comparisons
+with the smaller draw allocation. All17 former gap coordinates have exactly
+matching PC/Xbox RGB values (artifacts/geomod-seam-pixel-comparison.json), and
+its framebuffer was inspected. All19 disc entries restored; owned PID9464
+exited. The larger-buffer run130936 correctly failed the allocation comparison
+because the reference PC binary was stale: all other TERRAIN_DRAW fields
+matched, but PC reported152596 bytes versus Xbox283668. Its1500-frame guest
+completed and all19disc entries restored. The PC reference was rebuilt; the
+harness now also builds rf_pc_play before capturing future comparison baselines.
+
+Final larger-buffer validation:artifacts/xemu/render-20260915-131241 passes
+1500frames and45 comparisons with8612pages free (33.64MiB). TERRAIN_DRAW is
+[3120,4089,969,283668,9] on both builds; all eight cuts committed and the
+final lightmap bake completed. Its framebuffer was inspected. All19disc
+entries restored and owned PID38716 exited.
+
+Performance remains a limitation: the eight-cut run records a1108ms maximum
+camera/world phase, including1053ms in combat/inspection work, and world
+geometry rebuild averages32.202ms. These broad phases do not isolate CSG
+versus subdivision cost. There is no matching pre-change eight-cut timing
+baseline, so no performance improvement or smooth-edit claim is made.
+Late-history edit stalls and broader cut-pattern coverage remain open.
+
+Full eight-cut PC/native RGB is not bit-identical (24535 pixels differ; maximum
+channel difference255). Both images were inspected and show the same test
+scene/cavity, but that whole-frame difference is not explained by the focused
+17-pixel fix and remains unverified. See geomod-stitch-eight-pixel-comparison.json;
+do not treat the45 state comparisons as full image-parity acceptance.

@@ -1,8 +1,9 @@
 # Red Faction Xbox / PC - open work
 
 - PRIORITY GeoMod: Match original destruction shape, exposed materials, lighting, debris, collision and repeated blasts before returning to other systems; a visible hole alone is not acceptance.
-- GeoMod: Repair17 verified gaps between projected triangles and the separate mesh-closure issue; collision-mesh stitching was rejected after validation failures, so target render subdivision next.
-- GeoMod: Reduce remaining edit latency and lighting settling time; tile-region uploads now remove most recurring atlas-copy cost, while edits still peak above a smooth frame budget.
+- GeoMod: Resolve the remaining world-mesh closure issue and dark crater appearance; render-only subdivision now closes the17-pixel seam regression without changing collision geometry.
+- GeoMod: Reduce late-history edit stalls and lighting settling time; the eight-cut Xbox stress run passes but its combat/inspection phase peaks at1053ms, requiring CSG/subdivision profiling.
+- GeoMod: Explain full-frame PC/Xbox differences in the eight-cut capture; focused seam pixels match, but state checks alone do not establish image parity.
 - GeoMod: Refine live crater lightmaps and appearance; per-texel terrain shadows now render from a bounded atlas, but the inspected cavity remains dark and angular.
 - DEV testbed: Review full weapon animations and add complete room reset; terrain reset and ammo refill are implemented, while campaign progression remains paused.
 - GeoMod: Refine live debris bounce, fade, lighting and effects; PC/Xbox now render bounded tumbling fragments, while original lifecycle, surface eligibility and crater readability remain open.

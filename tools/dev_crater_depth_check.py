@@ -46,9 +46,10 @@ def main():
     report=dict(camera_words=cameras['cut'],dimensions=dimensions,rows_checked=350,depth_tolerance=128,
         min_raw_delta=min(deltas),max_raw_delta=max(deltas),substantially_farther_pixels=len(farther),farther_bounds=bounds(farther),
         substantially_nearer_pixels=len(nearer),new_uncovered_pixels=len(new_clear),uncovered_coordinates=[[i%w,i//w] for i in new_clear],
-        limitation='Coplanar projection noise remains; uncovered pixels are an open seam issue. No lighting or original-game parity claim.')
+        limitation='Coplanar projection noise remains. No lighting or original-game parity claim.')
     (folder/'report.json').write_text(json.dumps(report,indent=2)+'\n')
     assert len(farther)>10000 and not nearer,report
     print('PASS: identical camera bits;',len(farther),'recessed solid pixels,',len(nearer),'substantially nearer pixels')
-    print('OPEN:',len(new_clear),'new uncovered pixels; minimum raw depth delta',min(deltas))
+    assert not new_clear,report
+    print('PASS: no new uncovered pixels; minimum raw depth delta',min(deltas))
 if __name__=='__main__':main()

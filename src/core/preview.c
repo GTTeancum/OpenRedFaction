@@ -219,9 +219,10 @@ static int generate_source(rf_preview_mesh *mesh, const rf_geometry *g, const rf
                         out->position[0] = 320 + p.x / p.z * 320;
                         out->position[1] = 240 - p.y / p.z * 320;
                         /* Shared raster precision: both backends receive the same
-                         * 1/16-pixel grid, avoiding host-dependent edge sampling. */
-                        out->position[0] = floorf(out->position[0]*16.0f)/16.0f;
-                        out->position[1] = floorf(out->position[1]*16.0f)/16.0f;
+                         * 1/16-pixel grid. Bound the clipped result so tiny negative
+                         * boundary error cannot snap a shared endpoint to -1/16. */
+                        out->position[0] = fminf(640.f,fmaxf(0.f,floorf(out->position[0]*16.0f)/16.0f));
+                        out->position[1] = fminf(480.f,fmaxf(0.f,floorf(out->position[1]*16.0f)/16.0f));
                         out->position[2] = (1000.0f / 999.9f) * (1 - 0.1f / p.z) * 16777215;
                         if(vertex_colors)memcpy(out->color,&p.r,12);
                         else if(face_colors)memcpy(out->color,face_colors[f],12);

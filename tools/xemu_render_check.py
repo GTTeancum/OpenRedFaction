@@ -102,6 +102,11 @@ def main():
         if args.item_uid:env['RF_REPLAY_RETURN_ITEM_UID']=str(args.item_uid)
     if args.setup_uid:
         env['RF_REPLAY_SETUP_UID']=','.join(map(str,args.setup_uid))
+    # Build the reference before capture; a new Xbox build must not be compared
+    # against a stale PC executable after shared source/allocation changes.
+    with (run / 'pc-build.log').open('w') as out:
+        subprocess.run(['cmake','--build','build/pc','--config','Release','--target','rf_pc_play'],
+            cwd=root,stdout=out,stderr=subprocess.STDOUT,check=True)
     pc = subprocess.run([str(root / 'build/pc/Release/rf_pc_play.exe'), '--spawn-replay',
         str(root / 'Installed_Game'), str(run / 'inputs.bin'), str(run / 'pc-final.ppm')],
         cwd=root, env=env, capture_output=True, text=True)
@@ -333,6 +338,12 @@ dvd_path = '{root.as_posix()}/build/xbox/redfaction-diagnostic.iso'
                 report['checks']['TERRAIN_BAKE']=dict(equal=equal,xbox=actual,pc=expected,
                     scope='Deterministic bake progress and64-texel work bound; active may be nonzero until settled')
                 assert equal and actual[1]<=64 and actual[2]<=64,'TERRAIN_BAKE'
+                expected=list(map(int,next(line for line in pc.stdout.splitlines() if line.startswith('TERRAIN_DRAW ')).split()[1:]))
+                actual=words(monitor,symbol('rf_scene_terrain_draw'),5)
+                equal=actual==expected
+                report['checks']['TERRAIN_DRAW']=dict(equal=equal,xbox=actual,pc=expected,
+                    scope='Render-only subdivision counts, bounded ownership and generation; physical mesh remains separate')
+                assert equal and actual[1]<=8192 and actual[3]<=320*1024,'TERRAIN_DRAW'
                 expected=list(map(int,next(line for line in pc.stdout.splitlines() if line.startswith('DEBRIS ')).split()[1:]))
                 actual=words(monitor,symbol('rf_scene_debris'),8)
                 equal=actual==expected

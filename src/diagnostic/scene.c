@@ -504,7 +504,14 @@ typedef struct scene_debris_pool {
 } scene_debris_pool;
 uint32_t rf_scene_debris[8]; /* spawned,active,bounces,expired,vertices,hash,bytes,replaced */
 
+enum { SCENE_TERRAIN_DRAW_VERTICES=8192, SCENE_TERRAIN_DRAW_BUDGET=320*1024 };
+typedef struct scene_terrain_draw_mesh {
+    rf_geomod_vertex vertices[SCENE_TERRAIN_DRAW_VERTICES];rf_geomod_face faces[768];rf_collision_face bound[768];
+    rf_geomod_mesh_view view;
+} scene_terrain_draw_mesh;
+uint32_t rf_scene_terrain_draw[5]; /* source vertices,render vertices,insertions,owned bytes,generation */
 typedef struct scene_stream {
+    scene_terrain_draw_mesh *terrain_draw;
     scene_debris_pool *debris;
     rf_geomod_terrain *terrain;rf_geometry_collision_overlay terrain_collision;
     rf_geomod_template *terrain_template;rf_random_state terrain_random;uint32_t terrain_texture_width,terrain_texture_height;float (*terrain_colors)[3];
@@ -8507,10 +8514,54 @@ static int campaign_pickups_tick(scene_stream *stream,const float eye[3])
     return RF_OK;
 }
 uint32_t rf_scene_geomod[8]; /* enabled,cuts,generation,resident,peak,status,attempts,successful edits */
+/* Render-only T-junction subdivision. Physical faces and light-grid inputs
+ * retain their original geometry; UVs interpolate on the owning face edge. */
+static int scene_terrain_subdivide(scene_stream *s,const rf_geomod_terrain_view *source)
+{
+    scene_terrain_draw_mesh *draw=s->terrain_draw;const rf_geomod_mesh_view *mesh=&source->mesh;
+    uint32_t f,e,i,k,n=mesh->vertex_count,inserted=0;
+    if(!draw || n>SCENE_TERRAIN_DRAW_VERTICES || mesh->face_count>768 ||
+       sizeof(*draw)+(SCENE_TERRAIN_DRAW_VERTICES-4096)*sizeof(*s->terrain_colors)>SCENE_TERRAIN_DRAW_BUDGET)return RF_RANGE;
+    memcpy(draw->vertices,mesh->vertices,n*sizeof(*draw->vertices));
+    memcpy(draw->faces,mesh->faces,mesh->face_count*sizeof(*draw->faces));
+    memcpy(draw->bound,source->faces,mesh->face_count*sizeof(*draw->bound));
+    /* Preview reads only count/plane; never expose mismatched collision vertices. */
+    for(f=0;f<mesh->face_count;f++)draw->bound[f].vertices=NULL;
+    for(f=0;f<mesh->face_count;f++)for(e=0;e<draw->faces[f].count;e++) {
+        rf_geomod_vertex a=draw->vertices[draw->faces[f].first+e],b=draw->vertices[draw->faces[f].first+(e+1)%draw->faces[f].count];
+        double delta[3],lo[3],hi[3],length=0,best=1;uint32_t selected=UINT32_MAX;
+        for(k=0;k<3;k++){delta[k]=(double)b.position[k]-a.position[k];length+=delta[k]*delta[k];
+            lo[k]=fmin(a.position[k],b.position[k])-1e-6;hi[k]=fmax(a.position[k],b.position[k])+1e-6;}
+        if(length<=4e-12)continue;
+        for(i=0;i<mesh->vertex_count;i++) {
+            const float *v=mesh->vertices[i].position;double fraction=0,error=0,near_a=0,near_b=0;
+            if(v[0]<lo[0] || v[0]>hi[0] || v[1]<lo[1] || v[1]>hi[1] || v[2]<lo[2] || v[2]>hi[2])continue;
+            for(k=0;k<3;k++) {
+                double da=(double)v[k]-a.position[k],db=(double)v[k]-b.position[k];
+                fraction+=da*delta[k];near_a+=da*da;near_b+=db*db;
+            }
+            fraction/=length;if(fraction<=0 || fraction>=best || near_a<=1e-12 || near_b<=1e-12)continue;
+            for(k=0;k<3;k++){double d=(double)v[k]-(a.position[k]+fraction*delta[k]);error+=d*d;}
+            if(error<=1e-12){best=fraction;selected=i;}
+        }
+        if(selected!=UINT32_MAX) {
+            rf_geomod_vertex added=mesh->vertices[selected];uint32_t at=draw->faces[f].first+e+1;
+            if(n==SCENE_TERRAIN_DRAW_VERTICES || draw->faces[f].count==64)return RF_RANGE;
+            for(k=0;k<2;k++)added.uv[k]=(float)((double)a.uv[k]+best*((double)b.uv[k]-a.uv[k]));
+            memmove(draw->vertices+at+1,draw->vertices+at,(n-at)*sizeof(*draw->vertices));draw->vertices[at]=added;
+            ++n;++inserted;++draw->faces[f].count;++draw->bound[f].count;
+            for(i=f+1;i<mesh->face_count;i++)++draw->faces[i].first;
+        }
+    }
+    draw->view=(rf_geomod_mesh_view){draw->vertices,draw->faces,n,mesh->face_count,mesh->generation};
+    rf_scene_terrain_draw[0]=mesh->vertex_count;rf_scene_terrain_draw[1]=n;rf_scene_terrain_draw[2]=inserted;
+    rf_scene_terrain_draw[3]=sizeof(*draw)+(SCENE_TERRAIN_DRAW_VERTICES-4096)*sizeof(*s->terrain_colors);rf_scene_terrain_draw[4]=mesh->generation;return RF_OK;
+}
 static int scene_terrain_bind(scene_stream *s)
 {
     rf_geomod_terrain_view view;uint32_t i;int status=rf_geomod_terrain_get(s->terrain,&view);if(status)return status;
     if(view.mesh.face_count>768)return RF_RANGE;
+    status=scene_terrain_subdivide(s,&view);if(status)return status;
     for(i=0;i<view.mesh.face_count;i++)s->terrain_ids[i]=view.mesh.faces[i].source_face==UINT32_MAX?s->terrain_fallback:view.mesh.faces[i].source_face;
     status=rf_geometry_collision_overlay_bind(&s->terrain_collision,view.tree,s->terrain_ids,view.mesh.face_count);if(status)return status;
     rf_scene_geomod[0]=1;rf_scene_geomod[1]=view.cuts;rf_scene_geomod[2]=view.mesh.generation;
@@ -8633,8 +8684,11 @@ static int scene_terrain_open(scene_stream *s,const rf_level *level)
     if(rf_scene_terrain_atlas[3]>1280*1024)return RF_RANGE;
     s->debris=calloc(1,sizeof(*s->debris));if(!s->debris)return RF_IO;
     s->debris->random.value=1;memset(rf_scene_debris,0,sizeof(rf_scene_debris));rf_scene_debris[6]=sizeof(*s->debris);
+    s->terrain_draw=calloc(1,sizeof(*s->terrain_draw));if(!s->terrain_draw)return RF_IO;
+    memset(rf_scene_terrain_draw,0,sizeof(rf_scene_terrain_draw));
     s->terrain_ids=calloc(768,sizeof(*s->terrain_ids));if(!s->terrain_ids)return RF_IO;
-    s->terrain_colors=calloc(4096,sizeof(*s->terrain_colors));if(!s->terrain_colors)return RF_IO;
+    s->terrain_colors=calloc(SCENE_TERRAIN_DRAW_VERTICES,sizeof(*s->terrain_colors));if(!s->terrain_colors)return RF_IO;
+    for(i=0;i<SCENE_TERRAIN_DRAW_VERTICES;i++)for(j=0;j<3;j++)s->terrain_colors[i][j]=1;
     s->terrain_light_cache=calloc(1,sizeof(*s->terrain_light_cache));if(!s->terrain_light_cache)return RF_IO;
     s->terrain_template=calloc(1,sizeof(*s->terrain_template));if(!s->terrain_template)return RF_IO;
 #ifdef RF_IMAGE_XBOX_NATIVE
@@ -9378,7 +9432,7 @@ static int actor_follow_view(void *context,uint32_t frame,const rf_motion_contro
         memcpy(camera.player_position,position,12);memcpy(camera.player_orientation,orientation,36);
         status=scene_terrain_lighting(stream,&terrain);if(status)return status;
         status=rf_preview_geomod_lightmapped(&generated,stream->capacity-1024*1024-world_mesh.bytes,
-            &terrain.mesh,terrain.faces,stream->materials->count,&camera,stream->terrain_colors,stream->geometry,stream->terrain_bindings);if(status)return status;
+            &stream->terrain_draw->view,stream->terrain_draw->bound,stream->materials->count,&camera,stream->terrain_colors,stream->geometry,stream->terrain_bindings);if(status)return status;
         world_mesh.count+=generated.count;world_mesh.bytes+=generated.bytes;
      }
      *stream->mesh=world_mesh;}
@@ -12281,7 +12335,7 @@ done:
     free(campaign_waypoints);campaign_waypoints=NULL;campaign_waypoint_bytes=0;
     if(!stream.terrain_atlas_registered)rf_image_close(&stream.terrain_atlas);
     free(stream.terrain_atlas_pixels);free(stream.terrain_tile);free(stream.terrain_bindings);free(stream.terrain_tiles);
-    rf_geometry_collision_overlay_close(&stream.terrain_collision);rf_geomod_terrain_close(&stream.terrain);free(stream.terrain_template);free(stream.terrain_colors);free(stream.terrain_regions);free(stream.terrain_light_cache);free(stream.terrain_ids);free(stream.debris);
+    rf_geometry_collision_overlay_close(&stream.terrain_collision);rf_geomod_terrain_close(&stream.terrain);free(stream.terrain_template);free(stream.terrain_colors);free(stream.terrain_regions);free(stream.terrain_light_cache);free(stream.terrain_ids);free(stream.terrain_draw);free(stream.debris);
     free(stream.surface_indices);free(states);if(motions_opened)rf_vpp_close(&motions);
     free(vertices);free(items);rf_preview_close(&actor);rf_model_materials_close(&bundle);
     rf_vpp_close(&archive);return status;
