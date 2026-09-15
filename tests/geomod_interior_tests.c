@@ -552,6 +552,7 @@ int main(int argc,char **argv)
         FILE *file=fopen(argv[2],"rb");uint32_t count,i,j,k,cavity,repeat;
         rf_geomod_vertex vertices[2][96],source_v[6][4];rf_geomod_face faces[32],source_f[6];
         rf_geomod_mesh_view cutters[2],source,pending;rf_geomod_storage *owner=NULL;
+        rf_geomod_terrain *terrain=NULL;rf_geomod_terrain_view live,before;rf_collision_face_filter original_filters[6]={{0}},generated={0};
         static rf_geomod_multi_work work;float kernels[2][3]={{0,0,0},{.4f,0,0}},planes[6][4];
         static float positions[4096][3];static rf_collision_face bound[512];
         static rf_collision_face_filter filters[512];double removed=0;
@@ -573,10 +574,16 @@ int main(int argc,char **argv)
             }
             source=(rf_geomod_mesh_view){source_v[0],source_f,24,6,0};
             CHECK(!rf_geomod_storage_open(&source,4096,512,1024*1024,&owner));
+            CHECK(!rf_geomod_terrain_open(&source,original_filters,&generated,cavity,4096,512,1024*1024,&terrain));
             for(repeat=1;repeat<=2;repeat++) {
                 double total=0;rf_collision_tree tree={0};uint32_t x,y;
                 {int status=rf_geomod_storage_prepare_star_cuts(owner,cutters,kernels,repeat,cavity,&work);if(status)fprintf(stderr,"original star status%d cavity%u repeat%u\n",status,cavity,repeat);CHECK(!status);}
                 CHECK(!rf_geomod_storage_pending(owner,&pending));surface_count=polygon_count=0;
+                CHECK(!rf_geomod_terrain_cut_star(terrain,cutters+repeat-1,kernels[repeat-1]));
+                CHECK(!rf_geomod_terrain_get(terrain,&live));
+                CHECK(live.cuts==repeat && live.mesh.vertex_count==pending.vertex_count && live.mesh.face_count==pending.face_count);
+                CHECK(!memcmp(live.mesh.vertices,pending.vertices,pending.vertex_count*sizeof(rf_geomod_vertex)));
+                CHECK(!memcmp(live.mesh.faces,pending.faces,pending.face_count*sizeof(rf_geomod_face)));
                 for(i=0;i<pending.face_count;i++) {
                     const rf_geomod_face *f=pending.faces+i;total+=volume(pending.vertices+f->first,f->count);
                     CHECK(record(pending.vertices+f->first,f->count));
@@ -601,10 +608,23 @@ int main(int argc,char **argv)
                     CHECK(!rf_collision_thin_tree(tree.nodes,tree.node_count,tree.faces,tree.face_count,0,
                         start,delta,1,tree.stack,tree.node_capacity,&hit,&matched));
                     CHECK(matched && fabs(hit.hit.fraction-expected/3)<1e-5);
+                    CHECK(!rf_collision_thin_tree(live.tree->nodes,live.tree->node_count,live.tree->faces,live.tree->face_count,0,
+                        start,delta,1,live.tree->stack,live.tree->node_capacity,&hit,&matched));
+                    CHECK(matched && fabs(hit.hit.fraction-expected/3)<1e-5);
                 }
                 rf_collision_tree_close(&tree);CHECK(!rf_geomod_storage_commit(owner));
             }
-            rf_geomod_storage_close(&owner);
+            before=live;kernels[0][0]=100;
+            CHECK(rf_geomod_terrain_cut_star(terrain,cutters,kernels[0])==RF_FORMAT);kernels[0][0]=0;
+            CHECK(!rf_geomod_terrain_get(terrain,&live) && live.cuts==before.cuts && live.mesh.generation==before.mesh.generation);
+            CHECK(!rf_geomod_terrain_cut_box(terrain,(float[3]){0,0,0},(float[3]){.1f,.1f,.1f},77));
+            CHECK(!rf_geomod_terrain_get(terrain,&live) && live.cuts==3);
+            CHECK(!rf_geomod_terrain_reset(terrain));
+            CHECK(!rf_geomod_terrain_get(terrain,&live) && !live.cuts && live.mesh.face_count==6);
+            /* Reusing a former star slot for a convex cut must clear its type. */
+            CHECK(!rf_geomod_terrain_cut_box(terrain,(float[3]){0,0,0},(float[3]){.1f,.1f,.1f},77));
+            CHECK(!rf_geomod_terrain_get(terrain,&live) && live.cuts==1);
+            rf_geomod_terrain_close(&terrain);rf_geomod_storage_close(&owner);
         }
         puts("PASS: original concave template, overlapping cuts, closed edges, volume and324 independent triangle rays");
     }

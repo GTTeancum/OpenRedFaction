@@ -564,3 +564,49 @@ artifacts/xemu/render-20260915-090812 passes38comparisons with9102pages
 free (35.555MiB). Native framebuffer inspected: existing prototype crater
 remains visually unaccepted. All19disc entries restored. Concave star
 geometry is CPU-test verified; it is not yet the live rocket cutter.
+
+## Owned concave history and original default orientation (2026-09-15)
+
+rf_geomod_terrain_cut_star copies at most20triangles/60corners, the strict
+world-space kernel and per-face materials into the retained terrain owner.
+Mixed histories retain convex handling for boxes/prototype craters and use
+star planes only for explicit star entries. Pending-slot type is overwritten
+when a convex cut reuses it; reset does not preserve a stale star type.
+Publication rebuilds the matching collision tree before switching live banks.
+It adds100bytes per terrain owner; the star scratch budget is unchanged.
+
+The original-template tests exercise solid and cavity owners with one/two
+overlapping cuts. Published meshes match the previously verified pending
+CSG output byte-for-byte, and324 extra rays through the owned collision
+tree match the source triangles. Invalid kernels preserve generation/history;
+a mixed box cut, reset and reused convex slot pass. Fixed-budget allocation rollback
+fixtures from the previous owner also continue to pass.
+
+Original4fccc0 calls4fad60 (sphere direction) followed by4fcfa0 (basis).
+The already reconstructed rf_particle_cone_sample with cosine_min=-1 matches
+the first stage, consuming two CRT draws. rf_geomod_random_basis reproduces
+the basis stage, including the near-vertical branch. tools/inspect_geomod_basis.py
+executes original4fccc0 with only57312d CRT draws supplied by the fixture.
+All69 tested seeds match all nine shared float words and the final RNG state;
+the text roundtrip error reported separately is not a matrix mismatch.
+The near-vertical branch is exercised
+by two specifically solved CRT seeds in addition to67 ordinary cases. This is the default branch in467020 when flag4 is clear.
+The flag4 path can use4fce70 identity or copy an object basis. Selection for
+each live weapon and the original RNG stream/seed still require verification.
+
+Reproduce with rf_geomod_basis_probe plus python tools/inspect_geomod_basis.py,
+and the original-template C test command above. Generated evidence stays in
+artifacts/geomod-basis-original.json. PC GeoMod suites, original-template
+owner tests and five live prototype destruction replays pass; NXDK builds.
+The new shape and random orientation are not yet selected by live rockets.
+
+Owner regression verification:500frame stock64MiB XEMU run
+artifacts/xemu/render-20260915-091844 passes38comparisons with9102pages
+free. Native framebuffer inspected; this remains the existing prototype
+visual. All19disc entries restored and the owned emulator exited.
+
+Next call-site evidence: raw x86 at4c5323 and4c6c12 pushes template ID0
+and flags0 into467020, with radius read from class+0x14c. These are leads
+for validating projectile dispatch before choosing the live orientation
+policy. Full containing functions4c4ec0/4c69a0 remain to be reviewed.
+References are reproducible with ExportReferences.java at467020.

@@ -2,7 +2,11 @@
 #define RF_GEOMOD_H
 #include "rf/vpp.h"
 #include "rf/collision.h"
+#include "rf/random.h"
 #define RF_GEOMOD_POLYGON_LIMIT 64
+/* Original4fccc0 random crater orientation: two CRT draws, a uniform sphere
+ * direction and4fcfa0 basis. Invalid inputs preserve state/output. */
+int rf_geomod_random_basis(rf_random_state *random,float basis[9]);
 typedef struct rf_geomod_vertex {float position[3],uv[2];} rf_geomod_vertex;
 /* Practical port CSG primitive, not an original executable binding.
  * Split a planar convex polygon by unit plane n.xyz*p+d=0. Positive is front.
@@ -148,6 +152,12 @@ int rf_geomod_terrain_cut_box(rf_geomod_terrain *terrain,const float center[3],
     const float half_extent[3],uint32_t material);
 /* Inscribed icosahedral crater; shares bounded atomic history with box cuts. */
 int rf_geomod_terrain_cut_crater(rf_geomod_terrain *,const float center[3],float radius,uint32_t material);
+/* Copy and atomically publish a closed outward triangular star cutter.
+ * Up to20 faces/60 corners; kernel is strictly inside and visible from every
+ * face. Materials come from the supplied faces. No input pointers are retained.
+ * Supports mixed history with boxes and prototype craters. */
+int rf_geomod_terrain_cut_star(rf_geomod_terrain *terrain,
+    const rf_geomod_mesh_view *cutter,const float kernel[3]);
 int rf_geomod_terrain_reset(rf_geomod_terrain *terrain);
 /* Borrowed snapshot: valid until next successful cut/reset or close; failed
  * edits preserve it. Single-thread owner; renderer consumes mesh+faces from

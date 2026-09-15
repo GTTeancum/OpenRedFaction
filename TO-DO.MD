@@ -1,7 +1,7 @@
 # Red Faction Xbox / PC - open work
 
 - PRIORITY GeoMod: Match original destruction behavior and appearance; the current faceted crater is a prototype, not an accepted fidelity milestone.
-- GeoMod: Wire the verified original crater into live rockets with correct transforms and UVs; bounded concave subtraction now passes original-template overlap and collision tests.
+- GeoMod: Load the original crater into live rockets; concave terrain ownership and original random orientation are verified, while resource loading and final transform/UV rules remain open.
 - DEV testbed: Review full weapon animations and add complete room reset; terrain reset and ammo refill are implemented, while campaign progression remains paused.
 - GeoMod: Improve crater shape/readability, add debris and authored surface eligibility; rockets now cut repeated faceted craters with the level-authored interior texture.
 - USER: Review destruction readability after replacing the folded-panel interior; destruction remains the current focus.
@@ -5241,3 +5241,18 @@ artifacts/xemu/render-20260915-090812 passes38comparisons with9102pages
 free (35.555MiB). Native framebuffer inspected: existing prototype crater
 remains visually unaccepted. All19disc entries restored. Concave star
 geometry is CPU-test verified; it is not yet the live rocket cutter.
+
+Concave terrain ownership and orientation (2026-09-15): The terrain owner
+now copies original star cutters and publishes matching surfaces/collision,
+supports mixed box/star history, preserves failed edits and resets cleanly.
+Original-template tests compare publication with the checked CSG output and
+324 additional collision rays. The shared default orientation matches all
+nine float words and final RNG state in69 original4fccc0 executions.
+The original live RNG seed/stream and flag-dependent orientation choices
+remain open. Live rockets still use the prototype until template resources
+and the complete transform path are connected. Estimate ~49%; GeoMod.
+
+Owner regression verification:500frame stock64MiB XEMU run
+artifacts/xemu/render-20260915-091844 passes38comparisons with9102pages
+free. Native framebuffer inspected; this remains the existing prototype
+visual. All19disc entries restored and the owned emulator exited.
