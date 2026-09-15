@@ -3,6 +3,7 @@ import argparse
 import collections
 import csv
 import json
+import math
 from pathlib import Path
 import statistics
 
@@ -13,7 +14,9 @@ def main():
     args = parser.parse_args()
     with args.csv.open() as source:
         metadata = source.readline().strip()
-        rows = list(csv.DictReader(source))
+        remaining = list(source)
+        lights = [json.loads(line[len('# source='):]) for line in remaining if line.startswith('# source=')]
+        rows = list(csv.DictReader(line for line in remaining if not line.startswith('#')))
     assert rows and metadata.startswith('# generation=')
     mismatches = []
     for row in rows:
@@ -33,6 +36,17 @@ def main():
 
     result = dict(metadata=metadata, all=summary(rows), packing_mismatches=mismatches,
                   limitation='All generated-face grid samples, including border samples; not screen-visible pixel coverage or original shadow parity.')
+    if lights:
+        result['admitted_lights'] = lights
+        for light in lights:
+            if light['type'] != 2:
+                continue
+            distances = [math.dist(light['position'], [float(row['p'+axis]) for axis in 'xyz'])
+                         for row in rows]
+            light['sample_distances'] = dict(minimum=min(distances), maximum=max(distances),
+                                            inside_radius=sum(d < light['radius'] for d in distances),
+                                            total=len(distances),
+                                            scope='Geometric point-light radius only; does not include profile, normal or shadows')
     if 'blocked_authored' in rows[0]:
         fields = ('blocked_authored', 'blocked_generated', 'excluded_flags_portal',
                   'excluded_alpha', 'excluded_coplanar')

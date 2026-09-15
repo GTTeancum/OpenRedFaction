@@ -2483,3 +2483,25 @@ This harness isolates the two current lighting policies; it is not an original
 visual reference and does not prove the correct relighting schedule. Authored
 light admission, receiver mapping and static/dynamic relighting remain open.
 Overall ~49%, GeoMod ~61%; current area is destruction lighting.
+
+Crater light-source admission audit (2026-09-15): The opt-in completed PC light
+audit now records each admitted light's type/profile, shadow mode, radius,
+position and RGB. analyze_crater_lighting.py accepts both the original CSV and
+new comment records, and reports geometric point-light distance coverage.
+Settled three-cut GlassHouse reference: two type2/profile0 lights, radius24,
+RGB(.909803987,1,1), at(0,-1.5,-12.5) and(0,-1.5,11.5), both shadow mode1.
+The first is24.3616..32.0606 units from every one of9728 grid samples: none is
+inside its radius. The second is17.6383..25.7819 units away, with8621 samples
+inside its radius. Admission is a whole-terrain bounding-box query, so admitting
+a light that cannot reach these crater samples is not by itself a loader bug.
+The reference ambient is(.0784313753,.0784313753,.0784313753). Mean red is
+.13993248 without visibility masks and.101047247 after ray shadows;8228/9728
+samples pack to the minimum1555 value. Recovered projected masks give mean
+red.09863345. All packed atlas values match recomputed shadow shading.
+Blocker totals include out-of-radius lights and should not be interpreted as
+actual lost light energy. These are all grid samples, including borders, not
+screen-pixel coverage. Original live relighting and mapping ownership remain
+unproven. The audit capture is byte-identical to the prior shadow reference.
+PC build and new/legacy audit analysis pass; no production rendering change,
+new Xbox replay, or GitHub image. Evidence is in artifacts/geomod-lighting-
+comparison/light-sources.csv and .json. Overall ~49%, GeoMod ~61%.

@@ -8677,6 +8677,11 @@ static int scene_terrain_light_audit(scene_stream *s,const char *path)
     file=fopen(path,"wb");if(!file)return RF_IO;
     status=rf_geometry_shadow_storage_open(&projection,1,64,64,256,64,64,cache->count,512*1024);if(status)goto done;
     fprintf(file,"# generation=%u lights=%u ambient=%.9g,%.9g,%.9g\n",cache->generation,cache->count,cache->ambient[0],cache->ambient[1],cache->ambient[2]);
+    for(i=0;i<cache->count;i++) {
+        const rf_vfx_light_source *light=cache->sources+i;
+        fprintf(file,"# source={\"index\":%u,\"type\":%u,\"profile\":%u,\"shadow_mode\":%u,\"radius\":%.9g,\"position\":[%.9g,%.9g,%.9g],\"color\":[%.9g,%.9g,%.9g]}\n",
+            i,light->type,light->profile,cache->modes[i],light->radius,light->position[0],light->position[1],light->position[2],light->color[0],light->color[1],light->color[2]);
+    }
     fprintf(file,"face,x,y,px,py,pz,nx,ny,nz,blocked,clear_r,clear_g,clear_b,shadow_r,shadow_g,shadow_b,packed,blocked_authored,blocked_generated,excluded_flags_portal,excluded_alpha,excluded_coplanar,projected_r,projected_g,projected_b\n");
     for(f=0;f<terrain.mesh.face_count;f++) {
         const rf_geomod_face *face=terrain.mesh.faces+f;scene_terrain_light_tile *tile=s->terrain_tiles+f;
