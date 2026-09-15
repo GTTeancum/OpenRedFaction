@@ -30,12 +30,12 @@ static double volume(const rf_geomod_vertex *p,unsigned n)
     }
     return result;
 }
-static rf_geomod_vertex surface[2048];
-static rf_geomod_fragment polygons[128];
+static rf_geomod_vertex surface[4096];
+static rf_geomod_fragment polygons[512];
 static unsigned surface_count,polygon_count;
 static int record(const rf_geomod_vertex *v,unsigned n)
 {
-    if(surface_count+n>2048 || polygon_count==128)return 0;
+    if(surface_count+n>4096 || polygon_count==512)return 0;
     polygons[polygon_count].first=surface_count;polygons[polygon_count++].count=n;
     memcpy(surface+surface_count,v,n*sizeof(*v));surface_count+=n;return 1;
 }
@@ -47,7 +47,7 @@ static int closed(void)
     for(p=0;p<polygon_count;p++)for(e=0;e<polygons[p].count;e++) {
         const float *a=surface[polygons[p].first+e].position;
         const float *b=surface[polygons[p].first+(e+1)%polygons[p].count].position;
-        double d[3],len=0,t[2050]={0,1};unsigned n=2;
+        double d[3],len=0,t[4098]={0,1};unsigned n=2;
         for(i=0;i<3;i++){d[i]=b[i]-a[i];len+=d[i]*d[i];}
         if(len<1e-16)return 0;
         for(v=0;v<surface_count;v++) {
@@ -338,7 +338,7 @@ int main(int argc,char **argv)
         }
         rf_geomod_storage_close(&s);
     }
-    if(argc==2) {
+    if(argc>=2) {
         static rf_geomod_multi_work work;static float positions[2048][3];
         static rf_collision_face bound[128];static rf_collision_face_filter filters[128];
         rf_vpp archive={0};rf_level level={0};rf_geometry geometry={0};
@@ -459,6 +459,154 @@ int main(int argc,char **argv)
         }
         rf_collision_tree_close(&tree);rf_geomod_storage_close(&s);rf_geometry_close(&geometry);rf_vpp_close(&archive);
         puts("PASS: authored Glass House cavity expansion, closed edges and excavated-wall collision");
+    }
+    {
+        /* A cube with a depressed top center: volume7, not convex-hull8.
+         * This independent analytic fixture exposes accidental hull filling. */
+        rf_geomod_vertex source_v[6][4],cube[6][4],cut_v[2][42];
+        rf_geomod_face source_f[6],cut_f[14];float planes[6][4];
+        float kernels[2][3]={{0,0,0},{0,0,0}};
+        rf_geomod_mesh_view cuts[2],source,pending,live;
+        static rf_geomod_multi_work work;
+        static float positions[2048][3];static rf_collision_face bound[128];
+        static rf_collision_face_filter filters[128];
+        rf_geomod_storage *owner=NULL,*limited=NULL;uint32_t i,j,k,n=0,cavity,repeat;
+        box((float[3]){-1,-1,-1},(float[3]){1,1,1},planes,cube);
+        for(i=0;i<6;i++) {
+            uint32_t triangles=i==5?4:2;
+            for(j=0;j<triangles;j++) {
+                rf_geomod_vertex *v=cut_v[0]+n*3;
+                cut_f[n]=(rf_geomod_face){n*3,3,77,UINT32_MAX};
+                if(i==5) {
+                    v[0]=cube[i][j];v[1]=cube[i][(j+1)%4];
+                    v[2]=(rf_geomod_vertex){{0,0,.25f},{0,0}};
+                } else {v[0]=cube[i][0];v[1]=cube[i][j+1];v[2]=cube[i][j+2];}
+                /* Globally affine UVs let clipped-corner interpolation be checked. */
+                for(k=0;k<3;k++){v[k].uv[0]=v[k].position[0]*2+v[k].position[2];v[k].uv[1]=v[k].position[1]*3;}
+                n++;
+            }
+        }
+        CHECK(n==14);memcpy(cut_v[1],cut_v[0],sizeof(cut_v[0]));
+        for(i=0;i<2;i++)cuts[i]=(rf_geomod_mesh_view){cut_v[i],cut_f,42,14,0};
+        for(cavity=0;cavity<2;cavity++) {
+            box((float[3]){-2,-2,-2},(float[3]){2,2,cavity?0:2},planes,source_v);
+            for(i=0;i<6;i++) {
+                source_f[i]=(rf_geomod_face){i*4,4,9,i};
+                if(cavity)for(j=0;j<2;j++){rf_geomod_vertex temp=source_v[i][j];source_v[i][j]=source_v[i][3-j];source_v[i][3-j]=temp;}
+            }
+            source=(rf_geomod_mesh_view){source_v[0],source_f,24,6,0};
+            CHECK(!rf_geomod_storage_open(&source,2048,128,1024*1024,&owner));
+            for(repeat=1;repeat<=2;repeat++) {
+                double total=0;
+                {int status=rf_geomod_storage_prepare_star_cuts(owner,cuts,kernels,repeat,cavity,&work);if(status)fprintf(stderr,"star status%d cavity%u repeat%u\n",status,cavity,repeat);CHECK(!status);}
+                CHECK(!rf_geomod_storage_pending(owner,&pending));surface_count=polygon_count=0;
+                for(i=0;i<pending.face_count;i++) {
+                    const rf_geomod_face *f=pending.faces+i;
+                    total+=volume(pending.vertices+f->first,f->count);
+                    CHECK(record(pending.vertices+f->first,f->count));
+                    if(f->material==77)for(j=0;j<f->count;j++) {
+                        const rf_geomod_vertex *v=pending.vertices+f->first+j;
+                        CHECK(fabs(v->uv[0]-v->position[0]*2-v->position[2])<1e-5);
+                        CHECK(fabs(v->uv[1]-v->position[1]*3)<1e-5);
+                    }
+                }
+                CHECK(fabs(total-(cavity?-35:57))<1e-5 && closed());
+                CHECK(!rf_geomod_collision_faces(&pending,filters,positions,2048,bound,128));
+                {
+                    rf_collision_tree tree={0};rf_collision_tree_hit hit;uint32_t matched,x,y;
+                    CHECK(!rf_collision_tree_open(bound,pending.face_count,1024*1024,&tree));
+                    for(x=0;x<9;x++)for(y=0;y<9;y++) {
+                        float start[3]={-.88f+x*.22f,-.87f+y*.2175f,0},delta[3]={0,0,2};
+                        float height=.25f+.75f*fmaxf(fabsf(start[0]),fabsf(start[1]));
+                        CHECK(!rf_collision_thin_tree(tree.nodes,tree.node_count,tree.faces,tree.face_count,0,
+                            start,delta,1,tree.stack,tree.node_capacity,&hit,&matched));
+                        CHECK(matched && fabs(hit.hit.fraction-height*.5f)<1e-5);
+                    }
+                    rf_collision_tree_close(&tree);
+                }
+                CHECK(!rf_geomod_storage_commit(owner));
+            }
+            CHECK(!rf_geomod_storage_view(owner,&live));
+            kernels[0][2]=2;
+            CHECK(rf_geomod_storage_prepare_star_cuts(owner,cuts,kernels,1,cavity,&work)==RF_FORMAT);
+            kernels[0][2]=0;cut_f[0].count=2;
+            CHECK(rf_geomod_storage_prepare_star_cuts(owner,cuts,kernels,1,cavity,&work)==RF_FORMAT);
+            cut_f[0].count=3;
+            cut_v[0][0].position[0]+=.125f;
+            CHECK(rf_geomod_storage_prepare_star_cuts(owner,cuts,kernels,1,cavity,&work)==RF_FORMAT);
+            cut_v[0][0].position[0]-=.125f;
+            {rf_geomod_vertex temp=cut_v[0][0];cut_v[0][0]=cut_v[0][1];cut_v[0][1]=temp;}
+            CHECK(rf_geomod_storage_prepare_star_cuts(owner,cuts,kernels,1,cavity,&work)==RF_FORMAT);
+            {rf_geomod_vertex temp=cut_v[0][0];cut_v[0][0]=cut_v[0][1];cut_v[0][1]=temp;}
+            CHECK(!rf_geomod_storage_view(owner,&pending) && pending.generation==live.generation && pending.vertices==live.vertices);
+            CHECK(!rf_geomod_storage_open(&source,24,6,1024*1024,&limited));
+            CHECK(rf_geomod_storage_prepare_star_cuts(limited,cuts,kernels,1,cavity,&work)==RF_RANGE);
+            CHECK(!rf_geomod_storage_view(limited,&pending) && pending.generation==1 && pending.face_count==6);
+            rf_geomod_storage_close(&limited);rf_geomod_storage_close(&owner);
+        }
+        puts("PASS: concave star cuts preserve volume, closed edges, affine UVs,324 analytic collision rays and rollback");
+    }
+    if(argc>2) {
+        /* Independently captured original factory corners, generated locally.
+         * Upward intersections are checked against those input triangles. */
+        FILE *file=fopen(argv[2],"rb");uint32_t count,i,j,k,cavity,repeat;
+        rf_geomod_vertex vertices[2][96],source_v[6][4];rf_geomod_face faces[32],source_f[6];
+        rf_geomod_mesh_view cutters[2],source,pending;rf_geomod_storage *owner=NULL;
+        static rf_geomod_multi_work work;float kernels[2][3]={{0,0,0},{.4f,0,0}},planes[6][4];
+        static float positions[4096][3];static rf_collision_face bound[512];
+        static rf_collision_face_filter filters[512];double removed=0;
+        CHECK(file && fread(&count,4,1,file)==1 && count>=4 && count<=32);
+        CHECK(fread(vertices[0],sizeof(rf_geomod_vertex),count*3,file)==count*3 && fgetc(file)==EOF);fclose(file);
+        memcpy(vertices[1],vertices[0],count*3*sizeof(rf_geomod_vertex));
+        for(i=0;i<count;i++) {
+            faces[i]=(rf_geomod_face){i*3,3,77,UINT32_MAX};
+            removed+=volume(vertices[0]+i*3,3);
+            for(j=0;j<3;j++)vertices[1][i*3+j].position[0]+=.4f;
+        }
+        CHECK(removed>0);
+        for(i=0;i<2;i++)cutters[i]=(rf_geomod_mesh_view){vertices[i],faces,count*3,count,0};
+        for(cavity=0;cavity<2;cavity++) {
+            box((float[3]){-4,-4,-4},(float[3]){4,4,cavity?0:4},planes,source_v);
+            for(i=0;i<6;i++) {
+                source_f[i]=(rf_geomod_face){i*4,4,9,i};
+                if(cavity)for(j=0;j<2;j++){rf_geomod_vertex temp=source_v[i][j];source_v[i][j]=source_v[i][3-j];source_v[i][3-j]=temp;}
+            }
+            source=(rf_geomod_mesh_view){source_v[0],source_f,24,6,0};
+            CHECK(!rf_geomod_storage_open(&source,4096,512,1024*1024,&owner));
+            for(repeat=1;repeat<=2;repeat++) {
+                double total=0;rf_collision_tree tree={0};uint32_t x,y;
+                {int status=rf_geomod_storage_prepare_star_cuts(owner,cutters,kernels,repeat,cavity,&work);if(status)fprintf(stderr,"original star status%d cavity%u repeat%u\n",status,cavity,repeat);CHECK(!status);}
+                CHECK(!rf_geomod_storage_pending(owner,&pending));surface_count=polygon_count=0;
+                for(i=0;i<pending.face_count;i++) {
+                    const rf_geomod_face *f=pending.faces+i;total+=volume(pending.vertices+f->first,f->count);
+                    CHECK(record(pending.vertices+f->first,f->count));
+                }
+                printf("Original star cavity%u cuts%u: %u vertices, %u faces\n",cavity,repeat,pending.vertex_count,pending.face_count);
+                CHECK(closed());if(!cavity && repeat==1)CHECK(fabs(total-(512-removed))<1e-4);
+                CHECK(!rf_geomod_collision_faces(&pending,filters,positions,4096,bound,512));
+                CHECK(!rf_collision_tree_open(bound,pending.face_count,1024*1024,&tree));
+                for(x=0;x<9;x++)for(y=0;y<9;y++) {
+                    float start[3]={-.4f+x*.1f,-.4f+y*.1f,0},delta[3]={0,0,3};
+                    double expected=-1;rf_collision_tree_hit hit;uint32_t matched,c;
+                    for(c=0;c<repeat;c++)for(i=0;i<count;i++) {
+                        const float *a=vertices[c][i*3].position,*b=vertices[c][i*3+1].position,*d=vertices[c][i*3+2].position;
+                        double ux=b[0]-a[0],uy=b[1]-a[1],vx=d[0]-a[0],vy=d[1]-a[1];
+                        double det=ux*vy-uy*vx,px=start[0]-a[0],py=start[1]-a[1],u,v,z;
+                        if(det<=1e-10)continue;
+                        u=(px*vy-py*vx)/det;v=(ux*py-uy*px)/det;
+                        if(u< -1e-6 || v< -1e-6 || u+v>1.000001)continue;
+                        z=a[2]+u*(b[2]-a[2])+v*(d[2]-a[2]);if(z>expected)expected=z;
+                    }
+                    CHECK(expected>0);
+                    CHECK(!rf_collision_thin_tree(tree.nodes,tree.node_count,tree.faces,tree.face_count,0,
+                        start,delta,1,tree.stack,tree.node_capacity,&hit,&matched));
+                    CHECK(matched && fabs(hit.hit.fraction-expected/3)<1e-5);
+                }
+                rf_collision_tree_close(&tree);CHECK(!rf_geomod_storage_commit(owner));
+            }
+            rf_geomod_storage_close(&owner);
+        }
+        puts("PASS: original concave template, overlapping cuts, closed edges, volume and324 independent triangle rays");
     }
     puts("PASS: repeated solid/cavity cuts, edge closure, materials, ray/body clearance, rendering and rollback");return 0;
 }

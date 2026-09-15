@@ -114,6 +114,14 @@ def run():
         bounds_radius_center=bounds,
         bit_exact_match=True, convex=candidate['convex'])
     (ROOT / 'artifacts/geomod-holey01-original.json').write_text(json.dumps(report, indent=2) + '\n')
+    # Local CSG fixture: outward corner order, scale10 for world-space tolerances.
+    fixture = struct.pack('<I', len(faces))
+    for face, corners in zip(faces, uv):
+        for index, corner in reversed(list(zip(face, corners))):
+            position = [v * 10 for v in candidate['vertices'][index]]
+            texcoord = struct.unpack('<2f', pack(*corner))
+            fixture += struct.pack('<5f', *position, *texcoord)
+    (ROOT / 'artifacts/geomod-holey01-csg.bin').write_bytes(fixture)
     print('PASS: original factory submits identical 10 vertices, 16 faces and 48 corner UV pairs; bounds enclose vertices; radius', bounds[6])
 
 

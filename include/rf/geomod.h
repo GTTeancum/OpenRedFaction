@@ -84,6 +84,8 @@ typedef struct rf_geomod_multi_work {
     rf_geomod_vertex vertices[2][RF_GEOMOD_WORK_VERTICES];
     rf_geomod_fragment fragments[2][RF_GEOMOD_WORK_FRAGMENTS];
     float source_planes[32][4],cut_planes[RF_GEOMOD_CUT_LIMIT][32][4];
+    float star_planes[RF_GEOMOD_CUT_LIMIT][32][4][4];
+    uint32_t star_count[RF_GEOMOD_CUT_LIMIT];
 } rf_geomod_multi_work;
 /* Rebuild from immutable original data, never from a concave working result.
  * The caller supplies the COMPLETE ordered cutter history (0..8), including
@@ -101,6 +103,15 @@ int rf_geomod_storage_prepare_cuts(rf_geomod_storage *storage,
  * contents, other cavities, portals, or authored destruction eligibility. */
 int rf_geomod_storage_prepare_cavity_cuts(rf_geomod_storage *storage,
     const rf_geomod_mesh_view *cutters,uint32_t count,rf_geomod_multi_work *work);
+/* Closed outward triangular star-shaped cutters, each with a strict interior
+ * kernel visible from every face. Up to32 triangles per cutter. Edge pairing,
+ * winding and kernel half-spaces are checked; non-self-intersection is a caller
+ * precondition. Internal tetrahedron faces are never emitted. The same full
+ * history, bounded scratch and transactional contract applies. cavity selects
+ * an inward empty room (1) or outward convex source solid (0). */
+int rf_geomod_storage_prepare_star_cuts(rf_geomod_storage *storage,
+    const rf_geomod_mesh_view *cutters,const float (*kernels)[3],uint32_t count,
+    uint32_t cavity,rf_geomod_multi_work *work);
 /* Bind a prepared mesh to the existing collision tree/query implementation.
  * Caller provides one explicit filter per face and persistent position/face
  * arrays sized to mesh counts. Faces borrow the output positions, never mesh

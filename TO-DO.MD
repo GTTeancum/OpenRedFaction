@@ -1,7 +1,7 @@
 # Red Faction Xbox / PC - open work
 
 - PRIORITY GeoMod: Match original destruction behavior and appearance; the current faceted crater is a prototype, not an accepted fidelity milestone.
-- GeoMod: Integrate the verified original concave crater template with correct transforms, UVs and repeated-cut collision; the current cutter accepts only convex shapes.
+- GeoMod: Wire the verified original crater into live rockets with correct transforms and UVs; bounded concave subtraction now passes original-template overlap and collision tests.
 - DEV testbed: Review full weapon animations and add complete room reset; terrain reset and ammo refill are implemented, while campaign progression remains paused.
 - GeoMod: Improve crater shape/readability, add debris and authored surface eligibility; rockets now cut repeated faceted craters with the level-authored interior texture.
 - USER: Review destruction readability after replacing the folded-panel interior; destruction remains the current focus.
@@ -5224,3 +5224,20 @@ executes the original bounds/radius calculation. Holey01 is nonconvex;
 shared terrain support must change before integration. No new visual or
 Xbox runtime validation is claimed. See docs/GEOMOD.md and
 tools/inspect_geomod_template.py. Estimate remains ~49%; focus: GeoMod.
+
+Concave GeoMod support (2026-09-15): Shared C now subtracts closed
+star-shaped triangular cutters as a union of internal tetrahedra and emits
+only authored boundary faces. Original-template single/overlapping cuts pass
+closure, volume and324 triangle-reference ray checks; an independent dented
+cube passes324 analytic rays, UV interpolation and error rollback. Full
+work scratch is275488bytes. Two original cavity cuts currently produce
+155faces, so fragmentation reduction and larger histories remain open.
+Live rockets still use the prototype; original resource loading, transforms,
+hardness and visual comparison are next. Estimate ~49%; focus: GeoMod.
+
+Final verification: PC GeoMod tests and five live destruction replays pass.
+NXDK build succeeds;500frame XEMU approach at
+artifacts/xemu/render-20260915-090812 passes38comparisons with9102pages
+free (35.555MiB). Native framebuffer inspected: existing prototype crater
+remains visually unaccepted. All19disc entries restored. Concave star
+geometry is CPU-test verified; it is not yet the live rocket cutter.

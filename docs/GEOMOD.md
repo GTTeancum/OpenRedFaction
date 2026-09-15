@@ -515,3 +515,52 @@ region matches, refusal at hardness100, and clamped1-hardness*0.01 scaling.
 These region/transform observations still require execution verification
 before integration. The level loader's zero-to55 fallback is documented
 above; the live prototype does not yet apply those rules.
+
+## Shared concave subtraction (2026-09-15)
+
+rf_geomod_storage_prepare_star_cuts accepts up to8 ordered closed triangular
+cutters, up to32faces each, with a strict interior kernel visible from every
+face. It supports either convex solid subtraction or empty-room expansion.
+Each cutter is partitioned into tetrahedra for exclusion; only input exterior
+faces are emitted, with their UVs. No internal tetrahedron caps are rendered.
+The caller must supply a non-self-intersecting surface. Validation checks
+finite data, triangle bounds, opposite edge pairing, outward winding and
+strict kernel containment. This is a practical CSG implementation, not a
+claim to have reconstructed the original Boolean worker.
+
+Mesh bounds and separating-plane rejection avoid needlessly partitioning
+distant polygons. Both existing convex and new star paths share those checks.
+The full-history/pending-bank contract remains: failures preserve live data.
+Dependent collision construction and commit remain caller responsibilities.
+Scratch grows from259072 to275488bytes; no cutting-time allocation is added.
+
+Validation commands:
+- python tools/inspect_geomod_template.py
+- build/pc/Release/rf_geomod_interior_tests.exe Installed_Game artifacts/geomod-holey01-csg.bin
+
+The original-machine-code harness exports a local, ignored triangle fixture
+at10x scale with reversed outward corner order. The C tests cover solid and
+cavity modes, one cut and two cuts overlapping by an x shift of0.4. They
+check edge closure, single-cut solid volume and324 rays against independent
+input-triangle intersections. Results after bounds rejection:
+- Solid: one cut72vertices/22faces; two cuts642vertices/170faces.
+- Cavity: one cut224vertices/60faces; two cuts593vertices/155faces.
+
+An independently constructed dented cube distinguishes this from a convex
+hull: removed volume7 rather than8, and center roof height0.25 rather than1.
+It exercises solid/cavity and duplicate cuts,324 analytic collision rays,
+interpolated affine UVs, geometric closure, invalid kernel/open edge/reversed
+face rejection and output-capacity rollback. Existing convex fixtures pass.
+
+The original template is not yet loaded into live rocket resources. Resource
+loading, original basis/scale/region rules and new live visuals remain open.
+The two-cut fragmentation counts also need improvement before larger live
+histories can be accepted within the current512face limit. These tests prove
+concave geometry handling, not original-game visual parity.
+
+Final verification: PC GeoMod tests and five live destruction replays pass.
+NXDK build succeeds;500frame XEMU approach at
+artifacts/xemu/render-20260915-090812 passes38comparisons with9102pages
+free (35.555MiB). Native framebuffer inspected: existing prototype crater
+remains visually unaccepted. All19disc entries restored. Concave star
+geometry is CPU-test verified; it is not yet the live rocket cutter.
