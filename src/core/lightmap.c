@@ -1,5 +1,6 @@
 #include "rf/lightmap.h"
 #include "rf/visibility.h"
+#include "rf/random.h"
 #include <stdlib.h>
 #include <string.h>
 #include <math.h>
@@ -1048,6 +1049,27 @@ int rf_lightmap_live_pixel(const unsigned char base[3],const float position[3],c
     status=rf_vfx_light_rgb(accumulated,zero,-1,rgb);if(status)return status;
     for(c=0;c<3;c++){value[c]=((uint32_t)base[c]+rgb[c])>>3;if(value[c]>31)value[c]=31;}
     *packed=(uint16_t)(0x8000u|(value[0]<<10)|(value[1]<<5)|value[2]);return RF_OK;
+}
+
+int rf_lightmap_noise_live_rectangle(const rf_lightmap_sample_lighting *lighting,uint32_t base_seed,
+    unsigned char *packed,uint32_t pitch,uint32_t bytes)
+{
+    rf_random_state random={base_seed};uint32_t x,y;int status;
+    if(!lighting || !packed || !lighting->width || !lighting->height || lighting->width>64 || lighting->height>64 ||
+       lighting->light_count>64 || (lighting->light_count && !lighting->lights) || pitch<lighting->width*2 ||
+       (uint64_t)(lighting->height-1)*pitch+lighting->width*2>bytes)return RF_RANGE;
+    if((uint64_t)lighting->sample.x+lighting->width>lighting->sample.image_width ||
+       (uint64_t)lighting->sample.y+lighting->height>lighting->sample.image_height)return RF_RANGE;
+    for(y=0;y<lighting->height;y++)for(x=0;x<lighting->width;x++) {
+        float point[3];unsigned char base[3];uint32_t draw;uint16_t pixel;
+        status=rf_lightmap_sample_position(&lighting->sample,x,y,point);if(status)return status;
+        status=rf_random_next(&random,&draw);if(status)return status;
+        base[0]=base[1]=base[2]=(unsigned char)((draw&63)+32);
+        status=rf_lightmap_live_pixel(base,point,lighting->sample.plane,lighting->directional_scale,
+            lighting->lights,lighting->light_count,&pixel);if(status)return status;
+        memcpy(packed+(size_t)y*pitch+x*2,&pixel,2);
+    }
+    return RF_OK;
 }
 
 int rf_lightmap_live_rectangle(const rf_lightmap_sample_lighting *lighting,const rf_lightmap_rgb_upload *view,unsigned char *dirty)

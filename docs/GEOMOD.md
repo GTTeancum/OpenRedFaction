@@ -2570,3 +2570,22 @@ PC build, both replay audits and NXDK XBE/XISO builds pass. This turn does not
 claim a new native replay. Live light traversal, source lifecycle, marking old
 and new affected bounds, map update scheduling and additive atlas application
 remain open. Overall ~49%, GeoMod ~61%; destruction lighting updates.
+
+Seeded additive rectangle (2026-09-15): rf_lightmap_noise_live_rectangle joins
+the retained base seed to ordinary mapping sample reconstruction and the
+verified rf_lightmap_live_pixel operation. It regenerates8-bit base grayscale
+using the original CRT stream, adds selected class-light RGB, and writes a
+linear1555 rectangle. It accepts1..64 texels per dimension, leaves row padding
+untouched, and uses no allocation or retained-seed mutation. Scene selection,
+dirty scheduling, image transfer and synchronization are still caller work.
+The focused fixture checks no-light output against the original noise-fill/
+packing path, a red point light increasing only red, exact base restoration
+after removing the light, row padding, and short-capacity unchanged output.
+An initial fixture passed pitch where the existing packer expected total RGB
+bytes; corrected before the passing run. Three focused CTests pass, including
+the enforced first-crater closure and repeated-cut collision coverage.
+This is a shared adapter, not a recovered original function boundary. Core
+pixel math remains the existing recovered implementation. There is no new
+scene lighting or visual-parity claim. Overall ~49%, GeoMod ~61%.
+NXDK XBE/XISO builds pass; native execution of this new adapter remains
+unverified until scene integration.

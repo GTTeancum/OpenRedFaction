@@ -377,6 +377,30 @@ static int light_grid_check(void)
 int main(int argc,char **argv)
 {
     {
+        rf_lightmap_sample_lighting lighting={0};rf_vfx_light_source light={0};
+        rf_random_state random={0x12345678};unsigned char rgb[48],base[40],lit[40],saved[40];unsigned x,y;
+        lighting.width=lighting.height=4;lighting.sample.image_width=lighting.sample.image_height=8;
+        lighting.sample.x=lighting.sample.y=1;lighting.sample.scale[0]=lighting.sample.scale[1]=.25f;
+        lighting.sample.plane[2]=1;lighting.sample.normal_axis=2;lighting.sample.u_axis=0;lighting.directional_scale=.25f;
+        memset(base,0x7e,sizeof(base));memset(lit,0x7e,sizeof(lit));
+        CHECK(!rf_geomod_light_noise(rgb,sizeof(rgb),12,4,4,&random));
+        CHECK(!rf_lightmap_pack_1555(rgb,sizeof(rgb),4,4,0,base,10,sizeof(base)));
+        CHECK(!rf_lightmap_noise_live_rectangle(&lighting,0x12345678,lit,10,sizeof(lit)));
+        CHECK(!memcmp(base,lit,sizeof(base)));
+        light.type=2;light.radius=16;light.position[0]=light.position[1]=1.5f;light.position[2]=4;light.color[0]=1;
+        lighting.lights=&light;lighting.light_count=1;
+        CHECK(!rf_lightmap_noise_live_rectangle(&lighting,0x12345678,lit,10,sizeof(lit)));
+        for(y=0;y<4;y++) {
+            for(x=0;x<4;x++){uint16_t a,c;memcpy(&a,base+y*10+x*2,2);memcpy(&c,lit+y*10+x*2,2);CHECK((c&1023)==(a&1023) && ((c>>10)&31)>((a>>10)&31));}
+            CHECK(lit[y*10+8]==0x7e && lit[y*10+9]==0x7e);
+        }
+        memcpy(saved,lit,sizeof(saved));
+        CHECK(rf_lightmap_noise_live_rectangle(&lighting,0x12345678,lit,10,37)==RF_RANGE && !memcmp(saved,lit,sizeof(saved)));
+        lighting.light_count=0;
+        CHECK(!rf_lightmap_noise_live_rectangle(&lighting,0x12345678,lit,10,sizeof(lit)) && !memcmp(base,lit,sizeof(base)));
+        puts("PASS: retained noise base, additive red light, exact removal restoration and rectangle guards");
+    }
+    {
         rf_geomod_vertex v[4]={{{-1,-1,0},{0,0}},{{1,-1,0},{1,0}},{{1,1,0},{1,1}},{{-1,1,0},{0,1}}};
         uint16_t ids[4]={10,11,12,13},fi[64],bi[64],next_ids[64],saved_ids[64];
         rf_geomod_vertex f[64],b[64],plain_f[64],plain_b[64],next[64],saved[64];

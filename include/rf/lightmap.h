@@ -377,6 +377,13 @@ int rf_lightmap_upload_image_1555(rf_image *,const unsigned char *rgb,uint32_t b
  * errors preserve output. Geometry sampling, lock and dirty dispatch separate. */
 int rf_lightmap_live_pixel(const unsigned char base[3],const float position[3],const float normal[3],
     float directional_scale,const rf_vfx_light_source *sources,uint32_t count,uint16_t *packed);
+/* Port adapter: regenerate retained crater base RGB from its initial CRT seed,
+ * then apply the recovered live-pixel operation to a linear1555 rectangle.
+ * Extents1..64; caller owns source selection, dirty scheduling and upload.
+ * No allocation or retained-seed mutation. Disjoint output, untouched padding;
+ * preflight errors preserve output, later numeric errors may retain pixels. */
+int rf_lightmap_noise_live_rectangle(const rf_lightmap_sample_lighting *,uint32_t base_seed,
+    unsigned char *packed,uint32_t pitch,uint32_t bytes);
 
 /*4f2cfe..4f2ef0 locked class-light rectangle. Plane samples are ordinary
  * even for a special mapping. Borrow disjoint base RGB and linear packed
