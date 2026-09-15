@@ -28,3 +28,9 @@ Extend a bounded preparation result with up to two limiting vectors, retaining o
 Evidence JSONs: shallow-selection.json and shallow-deformation.json beside the scripts. SHA256 b8fb9ab4c9bfc6f2868c30839d6cfc69f84b8c25d7e54eee1325f5b633c9b836. No shared-source edits/builds/emulator runs. This is independent CPU evidence, not visual acceptance.
 
 Primary review: retained the executable probes under tools/ and reran them successfully. These prove the scoped original CPU behavior, not live port or visual parity.
+
+## Shared deformation primitive
+
+`rf_geomod_shallow_point` now implements up to two ordered limits, with original-offset activation gates and current-point unsigned projection distance. `tools/verify_geomod_shallow_both.py` executes both original branches and compares100 cases with compiled shared C, including the sign-crossing case that differs from ordinary sequential signed compression. Maximum observed error is1.953e-6 world units (tolerance1e-5), not bit-exact parity. Input guards and aliased point/output pass geomod_interior_faces.
+
+The primitive is not connected to live CSG yet: region-limit preparation, prior-crater adjustment, recomputed cutter geometry and actual shallow-cut visuals still require integration and verification. Ordinary matching shallow regions continue to be refused rather than producing unrestricted cuts.

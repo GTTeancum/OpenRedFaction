@@ -505,6 +505,26 @@ static int partition_contract(void)
 int main(int argc,char **argv)
 {
     CHECK(!partition_contract());
+    {
+        float center[3]={10,20,30},point[3]={13,15,33},out[3],saved[3]={91,92,93};
+        rf_geomod_shallow_limit limits[2]={{{0,-1,0},2},{{1,0,0},3}};
+        CHECK(!rf_geomod_shallow_point(center,point,5,limits,1,out));
+        CHECK(out[0]==13 && out[1]==18 && out[2]==33);
+        CHECK(!rf_geomod_shallow_point(center,point,5,limits,2,out));
+        CHECK(fabsf(out[0]-11.8f)<.00001f && out[1]==18 && out[2]==33);
+        CHECK(!rf_geomod_shallow_point(center,point,5,NULL,0,out) && !memcmp(out,point,sizeof(out)));
+        memcpy(out,saved,sizeof(out));limits[1].normal[0]=2;
+        CHECK(rf_geomod_shallow_point(center,point,5,limits,2,out)==RF_FORMAT && !memcmp(out,saved,sizeof(out)));
+        CHECK(rf_geomod_shallow_point(center,point,0,limits,1,out)==RF_FORMAT && !memcmp(out,saved,sizeof(out)));
+        CHECK(rf_geomod_shallow_point(center,point,5,NULL,1,out)==RF_RANGE && !memcmp(out,saved,sizeof(out)));
+        CHECK(rf_geomod_shallow_point(center,point,5,limits,3,out)==RF_RANGE && !memcmp(out,saved,sizeof(out)));
+        limits[0].depth=NAN;
+        CHECK(rf_geomod_shallow_point(center,point,5,limits,1,out)==RF_FORMAT && !memcmp(out,saved,sizeof(out)));
+        limits[0].depth=2;
+        CHECK(!rf_geomod_shallow_point(center,point,5,limits,1,point));
+        CHECK(point[0]==13 && point[1]==18 && point[2]==33);
+    }
+
     if(argc==3 && !strcmp(argv[1],"--mesh")) {
         FILE *file=fopen(argv[2],"rb");char magic[4];uint32_t counts[2],i,packed=0;
         static rf_geomod_face input_faces[SNAPSHOT_FACES];int result;CHECK(file);

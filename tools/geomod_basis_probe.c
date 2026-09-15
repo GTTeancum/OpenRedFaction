@@ -5,6 +5,18 @@
 int main(int argc,char **argv)
 {
     rf_random_state state;float basis[9];uint32_t i;
+    if(argc==2 && !strcmp(argv[1],"--shallow")) {
+        float center[3],point[3],radius,out[3];rf_geomod_shallow_limit limits[2];uint32_t count,j;
+        if(scanf("%u %f",&count,&radius)!=2 || count>2)return 3;
+        for(j=0;j<3;j++)if(scanf("%f",center+j)!=1)return 3;
+        for(j=0;j<3;j++)if(scanf("%f",point+j)!=1)return 3;
+        for(i=0;i<count;i++) {
+            for(j=0;j<3;j++)if(scanf("%f",limits[i].normal+j)!=1)return 3;
+            if(scanf("%f",&limits[i].depth)!=1)return 3;
+        }
+        if(rf_geomod_shallow_point(center,point,radius,limits,count,out))return 2;
+        printf("%.9g %.9g %.9g\n",out[0],out[1],out[2]);return 0;
+    }
     if(argc==5 && !strcmp(argv[1],"--light-density")) {
         float density[2]={strtof(argv[2],NULL),strtof(argv[3],NULL)},adjusted[2];
         if(rf_geomod_lightmap_density(density,(uint32_t)strtoul(argv[4],NULL,10),adjusted))return 2;

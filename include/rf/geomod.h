@@ -31,6 +31,14 @@ int rf_geomod_random_basis(rf_random_state *random,float basis[9]);
  * world unit. Texture dimensions are the source bitmap dimensions. */
 int rf_geomod_planar_uv(const float normal[3],const float position[3],
     uint32_t width,uint32_t height,float uv[2]);
+/* Original4dc103..4dc220 shallow cutter deformation. Limits are ordered,
+ * unit directions with nonnegative depths. Both activation tests use the
+ * original offset; each active projection uses the current point and unsigned
+ * distance. Region selection and prior-crater adjustment are caller concerns.
+ * At most two limits. Errors preserve output; point/output may alias. */
+typedef struct rf_geomod_shallow_limit { float normal[3],depth; } rf_geomod_shallow_limit;
+int rf_geomod_shallow_point(const float center[3],const float point[3],float radius,
+    const rf_geomod_shallow_limit *limits,uint32_t count,float out[3]);
 typedef struct rf_geomod_hardness_result {
     uint32_t hardness,allowed,matches,flags;float scale;
 } rf_geomod_hardness_result;

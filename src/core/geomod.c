@@ -363,6 +363,37 @@ int rf_geomod_debris_build(float radius,uint32_t width,uint32_t height,
     *random=next;*out=mesh;return RF_OK;
 }
 
+int rf_geomod_shallow_point(const float center[3],const float point[3],float radius,
+    const rf_geomod_shallow_limit *limits,uint32_t count,float out[3])
+{
+    float original[3],current[3],result[3];uint32_t i,j;
+    if(!center || !point || !out || count>2 || (count && !limits))return RF_RANGE;
+    if(!isfinite(radius) || radius<=0)return RF_FORMAT;
+    for(j=0;j<3;j++) {
+        if(!isfinite(center[j]) || !isfinite(point[j]))return RF_FORMAT;
+        original[j]=current[j]=point[j]-center[j];
+        if(!isfinite(original[j]))return RF_FORMAT;
+    }
+    for(i=0;i<count;i++) {
+        double length=0,gate=0,dot=0,distance=0;float projected[3];
+        if(!isfinite(limits[i].depth) || limits[i].depth<0)return RF_FORMAT;
+        for(j=0;j<3;j++) {
+            float n=limits[i].normal[j];if(!isfinite(n))return RF_FORMAT;
+            length+=(double)n*n;gate+=(double)original[j]*n;dot+=(double)current[j]*n;
+        }
+        if(fabs(length-1)>0.00001)return RF_FORMAT;
+        if(gate<=0)continue;
+        for(j=0;j<3;j++) {
+            double delta;projected[j]=(float)(current[j]-dot*limits[i].normal[j]);
+            delta=(double)current[j]-projected[j];distance+=delta*delta;
+        }
+        distance=sqrt(distance)*limits[i].depth/radius;
+        for(j=0;j<3;j++)current[j]=(float)(projected[j]+limits[i].normal[j]*distance);
+    }
+    for(j=0;j<3;j++){result[j]=count?center[j]+current[j]:point[j];if(!isfinite(result[j]))return RF_FORMAT;}
+    memcpy(out,result,sizeof(result));return RF_OK;
+}
+
 int rf_geomod_hardness(const rf_geo_region *regions,uint32_t count,uint32_t stored_default,
     const float position[3],float scale,rf_geomod_hardness_result *out)
 {
