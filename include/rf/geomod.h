@@ -34,6 +34,13 @@ typedef struct rf_geomod_debris_mesh {
 int rf_geomod_debris_build(float radius,uint32_t width,uint32_t height,
     rf_random_state *random,rf_geomod_debris_mesh *out);
 
+/* Original490150 blast launch. Resistance is the resolved chunk field3c
+ * (spawn48fe30 sets it to (radius-.05)*5). Two CRT draws; no integration.
+ * Finite positions/radius/resistance required, positive radius. Zero separation
+ * uses original +X fallback. Numeric errors preserve RNG/output; no overlap. */
+int rf_geomod_debris_launch(const float position[3],const float origin[3],
+    float radius,float resistance,rf_random_state *random,float velocity[3]);
+
 typedef struct rf_geomod_vertex {float position[3],uv[2];} rf_geomod_vertex;
 /* Practical port CSG primitive, not an original executable binding.
  * Split a planar convex polygon by unit plane n.xyz*p+d=0. Positive is front.

@@ -5,7 +5,7 @@
 - GeoMod: Reduce remaining edit latency and lighting settling time; tile-region uploads now remove most recurring atlas-copy cost, while edits still peak above a smooth frame budget.
 - GeoMod: Refine live crater lightmaps and appearance; per-texel terrain shadows now render from a bounded atlas, but the inspected cavity remains dark and angular.
 - DEV testbed: Review full weapon animations and add complete room reset; terrain reset and ammo refill are implemented, while campaign progression remains paused.
-- GeoMod: Integrate debris spawning, motion and rendering; shared chunk geometry/UVs/lifetime match60 original cases, while crater readability and authored surface eligibility remain open.
+- GeoMod: Integrate debris spawning, motion and rendering; chunk construction matches60 original cases and blast launch matches432, while spawn counts, crater readability and surface eligibility remain open.
 - USER: Review destruction readability after replacing the folded-panel interior; destruction remains the current focus.
 - Weapons: Finish rocket flare blending/explosion effects and actor/mover impacts, and verify NPC blast/cover behavior; authored projectile geometry now draws during live flight.
 - Combat: Extend pain-reaction coverage across enemy weapons and encounters; retained attack locks now pass35 PC/Xbox comparisons with independent actor recovery.

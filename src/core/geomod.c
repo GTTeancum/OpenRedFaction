@@ -176,6 +176,30 @@ int rf_geomod_planar_uv(const float normal[3],const float position[3],
     memcpy(uv,result,sizeof(result));return RF_OK;
 }
 
+int rf_geomod_debris_launch(const float position[3],const float origin[3],
+    float radius,float resistance,rf_random_state *random,float velocity[3])
+{
+    float direction[3],result[3],factor;double length=0;rf_random_state next;uint32_t i;int status;
+    if(!position || !origin || !random || !velocity)return RF_RANGE;
+    if(!isfinite(radius) || radius<=0 || !isfinite(resistance))return RF_FORMAT;
+    for(i=0;i<3;i++) {
+        if(!isfinite(position[i]) || !isfinite(origin[i]))return RF_FORMAT;
+        direction[i]=position[i]-origin[i];if(!isfinite(direction[i]))return RF_FORMAT;
+        length+=(double)direction[i]*direction[i];
+    }
+    if(length==0){direction[0]=1;direction[1]=direction[2]=0;}
+    else {length=1.0/sqrt(length);for(i=0;i<3;i++)direction[i]=(float)(direction[i]*length);}
+    next=*random;status=rf_particle_cone_oriented(direction,.5f,&next,result);if(status)return status;
+    factor=(float)(1.0-(double)resistance);
+    for(i=0;i<3;i++) {
+        result[i]=(float)((double)result[i]*6.0);
+        if(radius<.13f)result[i]=(float)((double)result[i]*2.0);
+        else {result[i]=(float)((double)result[i]*factor);result[i]=(float)((double)result[i]*1.4f);}
+        if(!isfinite(result[i]))return RF_FORMAT;
+    }
+    memcpy(velocity,result,sizeof(result));*random=next;return RF_OK;
+}
+
 int rf_geomod_debris_build(float radius,uint32_t width,uint32_t height,
     rf_random_state *random,rf_geomod_debris_mesh *out)
 {

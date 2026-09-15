@@ -365,6 +365,21 @@ int main(int argc,char **argv)
         CHECK(random.value==1 && !memcmp(&output,&saved,sizeof(output)));
         CHECK(!rf_geomod_debris_build(.1f,256,256,&random,&output));
         CHECK(output.lifetime>=1 && output.lifetime<4 && random.value!=1);
+        {
+            float position[3]={0,0,0},origin[3]={0,0,0},velocity[3]={11,22,33},saved_velocity[3];
+            uint32_t before=random.value;memcpy(saved_velocity,velocity,sizeof(velocity));
+            CHECK(rf_geomod_debris_launch(position,origin,NAN,0,&random,velocity)==RF_FORMAT);
+            CHECK(rf_geomod_debris_launch(position,origin,.1f,INFINITY,&random,velocity)==RF_FORMAT);
+            position[0]=INFINITY;
+            CHECK(rf_geomod_debris_launch(position,origin,.1f,0,&random,velocity)==RF_FORMAT);
+            CHECK(random.value==before && !memcmp(velocity,saved_velocity,sizeof(velocity)));
+            position[0]=0;
+            CHECK(!rf_geomod_debris_launch(position,origin,.1f,0,&random,velocity));
+            CHECK(fabsf(sqrtf(velocity[0]*velocity[0]+velocity[1]*velocity[1]+velocity[2]*velocity[2])-12)<.00001f);
+            CHECK(!rf_geomod_debris_launch(position,origin,.25f,1,&random,velocity));
+            CHECK(velocity[0]==0 && velocity[1]==0 && velocity[2]==0);
+        }
+
     }
 
     CHECK(!light_grid_check());

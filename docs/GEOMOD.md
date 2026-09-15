@@ -1465,3 +1465,32 @@ launch velocity, collisions, rendering, sounds or visible destruction fidelity.
 Those integrations remain next work; no changed scene or screenshot is claimed.
 NXDK Xbox compilation also passes (artifacts/geomod-debris-xbox.log); no native
 scene validation was run because this helper is not yet wired to live impacts.
+
+## Original debris launch (2026-09-15)
+
+rf_geomod_debris_launch reconstructs490150: normalize chunk position minus
+blast origin (zero separation falls back to+X), apply the existing verified
+oriented cone sampler with cosine minimum.5, then scale the result. Chunk
+radius strictly below.13 produces12units/second; other chunks apply6,
+(1-resistance), then1.4 as separate float-rounded multiplies. Resistance is
+an explicit input corresponding to original field3c;48fe30 initializes it
+from(radius-.05)*5. Exactly two CRT draws advance the caller's stream.
+Errors preserve velocity and random state. No allocation or physics scheduling.
+
+inspect_geomod_debris_launch.py executes490150 and its original vector/cone
+helpers, replacing only the CRT integer random boundary.432 original/shared
+cases match velocity bits and final random state exactly: four seeds, six radii
+including adjacent float values around.13, nine positions and two origins.
+Zero separation, positive/negative principal axes, near-vertical orientation
+and translated positions are covered. Evidence is in
+artifacts/geomod-debris-launch-original.json. The two GeoMod CTests pass,
+including invalid-input rollback, small-chunk speed and full-resistance stop.
+The60 construction comparisons still pass. NXDK compilation also passes:
+artifacts/geomod-debris-launch-xbox.log.
+
+Live impact integration remains unfinished; no new visual/native scene claim.
+Next recover spawn count/placement and connect the bounded pool to collision,
+motion and rendering. Newly exported490500/490890 suggest count depends on
+fourteen world probes (six axial and eight diagonal), rather than a fixed
+number per rocket. This is a decompiler lead, not yet executed policy evidence;
+do not substitute an arbitrary fixed burst and call it original behavior.

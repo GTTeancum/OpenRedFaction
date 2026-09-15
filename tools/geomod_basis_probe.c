@@ -5,6 +5,12 @@
 int main(int argc,char **argv)
 {
     rf_random_state state;float basis[9];uint32_t i;
+    if(argc==11 && !strcmp(argv[1],"--debris-launch")) {
+        float position[3],origin[3],velocity[3];state.value=(uint32_t)strtoul(argv[2],NULL,0);
+        for(i=0;i<3;i++){position[i]=strtof(argv[5+i],NULL);origin[i]=strtof(argv[8+i],NULL);}
+        if(rf_geomod_debris_launch(position,origin,strtof(argv[3],NULL),strtof(argv[4],NULL),&state,velocity))return 2;
+        printf("%u %.9g %.9g %.9g\n",state.value,velocity[0],velocity[1],velocity[2]);return 0;
+    }
     if(argc==6 && !strcmp(argv[1],"--debris")) {
         rf_geomod_debris_mesh mesh;uint32_t j,k;
         state.value=(uint32_t)strtoul(argv[2],NULL,0);
