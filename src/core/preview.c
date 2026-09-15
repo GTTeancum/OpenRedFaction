@@ -3,7 +3,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <math.h>
-typedef struct point { float x, y, z, u, v, lu, lv; } point;
+typedef struct point { float x, y, z, u, v, lu, lv, r, g, b; } point;
 /* Last world-projection capacity failure: valid, face, fan corner, used,
  * capacity (vertices), geometry face count, writing pass, required vertices. */
 uint32_t rf_preview_failure[8];
@@ -73,7 +73,7 @@ static unsigned clip(const point *input, unsigned count, point *output, unsigned
         volatile float after = distance(current, plane);
         if ((before >= 0) != (after >= 0)) {
             volatile float span=before-after,t=before/span;
-            output[used++] = (point){interpolate(previous.x,current.x,t),interpolate(previous.y,current.y,t),interpolate(previous.z,current.z,t),interpolate(previous.u,current.u,t),interpolate(previous.v,current.v,t),interpolate(previous.lu,current.lu,t),interpolate(previous.lv,current.lv,t)};
+            output[used++] = (point){interpolate(previous.x,current.x,t),interpolate(previous.y,current.y,t),interpolate(previous.z,current.z,t),interpolate(previous.u,current.u,t),interpolate(previous.v,current.v,t),interpolate(previous.lu,current.lu,t),interpolate(previous.lv,current.lv,t),interpolate(previous.r,current.r,t),interpolate(previous.g,current.g,t),interpolate(previous.b,current.b,t)};
         }
         if (after >= 0) output[used++] = current;
         previous = current; before = after;
@@ -90,7 +90,7 @@ static int camera(const rf_geometry *g,const rf_geomod_mesh_view *generated, con
     float p[3], v[3];
     camera_cache_entry *entry=cache+(corner->vertex&(CAMERA_CACHE_COUNT-1));
     unsigned i;
-    point result = {0, 0, 0, 0, 0, 0, 0};
+    point result = {0};
     result.u = corner->uv[0]; result.v = corner->uv[1];
     result.lu = corner->lightmap_uv[0]; result.lv = corner->lightmap_uv[1];
     if(entry->vertex==corner->vertex && corner->vertex!=UINT32_MAX) {
@@ -126,7 +126,7 @@ static void generated_corner(const rf_geometry *g,const rf_geomod_mesh_view *gen
 }
 static int generate_source(rf_preview_mesh *mesh, const rf_geometry *g, const rf_level *level, uint32_t capacity,
     const float *origin,const float matrix[3][3],uint32_t material_base,const rf_visibility *visibility,
-    const rf_geomod_mesh_view *generated,const rf_collision_face *bound,const float (*face_colors)[3])
+    const rf_geomod_mesh_view *generated,const rf_collision_face *bound,const float (*face_colors)[3],const float (*vertex_colors)[3])
 {
     uint32_t f, used = 0;
     camera_cache_entry cache[CAMERA_CACHE_COUNT];
@@ -166,6 +166,7 @@ static int generate_source(rf_preview_mesh *mesh, const rf_geometry *g, const rf
         generated_corner(g,generated,f,1,&b);
         if((status=camera(g,generated,level,&a,origin,matrix,cache,&anchor,&anchor_outside)) ||
            (status=camera(g,generated,level,&b,origin,matrix,cache,&previous,&previous_outside)))return status;
+        if(vertex_colors){memcpy(&anchor.r,vertex_colors[a.vertex],12);memcpy(&previous.r,vertex_colors[b.vertex],12);}
         for (corner = 1; corner + 1 < face.corners; ++corner) {
             point buffers[2][12];
             unsigned count = 3, plane, current = 0, i, j, crossing,next_outside;
@@ -175,6 +176,7 @@ static int generate_source(rf_preview_mesh *mesh, const rf_geometry *g, const rf
             generated_corner(g,generated,f,corner+1,&c);
             buffers[0][0]=anchor;buffers[0][1]=previous;
             if((status=camera(g,generated,level,&c,origin,matrix,cache,&buffers[0][2],&next_outside)))return status;
+            if(vertex_colors)memcpy(&buffers[0][2].r,vertex_colors[c.vertex],12);
             previous=buffers[0][2];
             /* Convex frustum: triangles wholly outside one plane cannot
              * contribute, and wholly inside triangles need no polygon copies.
@@ -205,12 +207,13 @@ static int generate_source(rf_preview_mesh *mesh, const rf_geometry *g, const rf
                         out->position[0] = floorf(out->position[0]*16.0f)/16.0f;
                         out->position[1] = floorf(out->position[1]*16.0f)/16.0f;
                         out->position[2] = (1000.0f / 999.9f) * (1 - 0.1f / p.z) * 16777215;
-                        if(face_colors)memcpy(out->color,face_colors[f],12);
+                        if(vertex_colors)memcpy(out->color,&p.r,12);
+                        else if(face_colors)memcpy(out->color,face_colors[f],12);
                         else {out->color[0] = color; out->color[1] = color * 0.85f; out->color[2] = color * 0.65f;}
                         out->texture[0] = p.u / p.z; out->texture[1] = p.v / p.z; out->texture[2] = 1.0f / p.z;
                         out->material = face.texture+material_base;
                         out->lightmap_texture[0] = p.lu / p.z; out->lightmap_texture[1] = p.lv / p.z; out->lightmap_texture[2] = 1.0f / p.z;
-                        out->lightmap = face_colors?RF_PREVIEW_VERTEX_LIT:lightmap;
+                        out->lightmap = (face_colors || vertex_colors)?RF_PREVIEW_VERTEX_LIT:lightmap;
                     }
                     ++used;
                 }
@@ -223,11 +226,11 @@ static int generate_source(rf_preview_mesh *mesh, const rf_geometry *g, const rf
 static int generate(rf_preview_mesh *mesh,const rf_geometry *g,const rf_level *level,uint32_t capacity,
     const float *origin,const float matrix[3][3],uint32_t material_base,const rf_visibility *visibility)
 {
-    return generate_source(mesh,g,level,capacity,origin,matrix,material_base,visibility,NULL,NULL,NULL);
+    return generate_source(mesh,g,level,capacity,origin,matrix,material_base,visibility,NULL,NULL,NULL,NULL);
 }
-int rf_preview_geomod_lit(rf_preview_mesh *mesh,uint32_t capacity_bytes,
+static int geomod_lit(rf_preview_mesh *mesh,uint32_t capacity_bytes,
     const rf_geomod_mesh_view *source,const rf_collision_face *bound,
-    uint32_t material_count,const rf_level *level,const float (*face_colors)[3])
+    uint32_t material_count,const rf_level *level,const float (*face_colors)[3],const float (*vertex_colors)[3])
 {
     rf_geometry metadata={0};rf_preview_mesh next={0};uint32_t i,j;int status;
     if(!mesh || !source || !level || (capacity_bytes && !mesh->vertices) ||
@@ -237,6 +240,7 @@ int rf_preview_geomod_lit(rf_preview_mesh *mesh,uint32_t capacity_bytes,
         for(j=0;j<3;j++)if(!isfinite(level->player_orientation[i][j]))return RF_FORMAT;
     }
     for(i=0;i<source->vertex_count;i++) {
+        if(vertex_colors)for(j=0;j<3;j++)if(!isfinite(vertex_colors[i][j]) || vertex_colors[i][j]<0 || vertex_colors[i][j]>1)return RF_FORMAT;
         for(j=0;j<3;j++)if(!isfinite(source->vertices[i].position[j]))return RF_FORMAT;
         for(j=0;j<2;j++)if(!isfinite(source->vertices[i].uv[j]))return RF_FORMAT;
     }
@@ -248,12 +252,23 @@ int rf_preview_geomod_lit(rf_preview_mesh *mesh,uint32_t capacity_bytes,
         for(j=0;j<4;j++)if(!isfinite(bound[i].plane[j]))return RF_FORMAT;
     }
     metadata.faces=source->face_count;metadata.textures=material_count;
-    status=generate_source(&next,&metadata,level,capacity_bytes/sizeof(rf_preview_vertex),NULL,NULL,0,NULL,source,bound,face_colors);
+    status=generate_source(&next,&metadata,level,capacity_bytes/sizeof(rf_preview_vertex),NULL,NULL,0,NULL,source,bound,face_colors,vertex_colors);
     if(status)return status;
     next.vertices=mesh->vertices;
-    status=generate_source(&next,&metadata,level,capacity_bytes/sizeof(rf_preview_vertex),NULL,NULL,0,NULL,source,bound,face_colors);
+    status=generate_source(&next,&metadata,level,capacity_bytes/sizeof(rf_preview_vertex),NULL,NULL,0,NULL,source,bound,face_colors,vertex_colors);
     if(status)return status;
     next.bytes=next.count*sizeof(rf_preview_vertex);*mesh=next;return RF_OK;
+}
+int rf_preview_geomod_lit(rf_preview_mesh *mesh,uint32_t capacity_bytes,
+    const rf_geomod_mesh_view *source,const rf_collision_face *bound,uint32_t material_count,
+    const rf_level *level,const float (*face_colors)[3])
+{return geomod_lit(mesh,capacity_bytes,source,bound,material_count,level,face_colors,NULL);}
+int rf_preview_geomod_vertex_lit(rf_preview_mesh *mesh,uint32_t capacity_bytes,
+    const rf_geomod_mesh_view *source,const rf_collision_face *bound,uint32_t material_count,
+    const rf_level *level,const float (*vertex_colors)[3])
+{
+    if(!vertex_colors)return RF_RANGE;
+    return geomod_lit(mesh,capacity_bytes,source,bound,material_count,level,NULL,vertex_colors);
 }
 int rf_preview_geomod(rf_preview_mesh *mesh,uint32_t capacity_bytes,
     const rf_geomod_mesh_view *source,const rf_collision_face *bound,uint32_t material_count,const rf_level *level)

@@ -24,6 +24,11 @@ int rf_preview_geomod(rf_preview_mesh *mesh,uint32_t capacity_bytes,
     const rf_geomod_mesh_view *source,const rf_collision_face *bound,
     uint32_t material_count,const rf_level *camera);
 /* Explicit linear RGB per face, validated in[0,1]; no preview tint. */
+/* Per-source-corner colors survive frustum clipping; hard face normals remain
+ * the caller's responsibility. Invalid RGB preserves the destination mesh. */
+int rf_preview_geomod_vertex_lit(rf_preview_mesh *mesh,uint32_t capacity_bytes,
+    const rf_geomod_mesh_view *source,const rf_collision_face *bound,uint32_t material_count,
+    const rf_level *level,const float (*vertex_colors)[3]);
 int rf_preview_geomod_lit(rf_preview_mesh *mesh,uint32_t capacity_bytes,
     const rf_geomod_mesh_view *source,const rf_collision_face *bound,
     uint32_t material_count,const rf_level *camera,const float (*face_colors)[3]);

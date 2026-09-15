@@ -8455,7 +8455,7 @@ static int scene_terrain_lighting(scene_stream *s,const rf_geomod_terrain_view *
 {
     uint32_t i,j,k,count=0,*ids=s->light_overlay_work;rf_vfx_light_source *sources;
     float lo[3],hi[3],ambient[3];unsigned char room[4];int status;
-    if(!s->terrain_colors || !s->lights || !ids || terrain->mesh.face_count>512 || !terrain->mesh.vertex_count)return RF_RANGE;
+    if(!s->terrain_colors || !s->lights || !ids || terrain->mesh.face_count>512 || terrain->mesh.vertex_count>4096 || !terrain->mesh.vertex_count)return RF_RANGE;
     sources=(rf_vfx_light_source *)(ids+1100);
     status=rf_geometry_room_ambient(s->geometry,0,room);if(status)return status;
     for(k=0;k<3;k++)ambient[k]=.5f*(room[0]==1?(float)((double)room[k+1]*0.003921568859368563):s->light_ambient[k]);
@@ -8467,18 +8467,18 @@ static int scene_terrain_lighting(scene_stream *s,const rf_geomod_terrain_view *
     for(i=0;i<count;i++)sources[i]=s->lights->pool.sources[ids[i]].source;
     for(i=0;i<terrain->mesh.face_count;i++) {
         const rf_geomod_face *face=terrain->mesh.faces+i;const float *normal=terrain->faces[i].plane;
-        float center[3]={0},accumulated[3];unsigned char rgb[3];
-        if(face->source_face!=UINT32_MAX) {
-            /* Existing textured room faces previously used untinted base sampling. */
-            s->terrain_colors[i][0]=s->terrain_colors[i][1]=s->terrain_colors[i][2]=1;continue;
+        for(j=0;j<face->count;j++) {
+            uint32_t vertex=face->first+j;float accumulated[3];unsigned char rgb[3];
+            if(face->source_face!=UINT32_MAX) {
+                s->terrain_colors[vertex][0]=s->terrain_colors[vertex][1]=s->terrain_colors[vertex][2]=1;continue;
+            }
+            /* Static-surface arithmetic at each corner, retaining the face
+             * normal so rock creases stay sharp. Shadow masks and texel-grid
+             * regeneration remain separate work. */
+            status=rf_vfx_light_accumulate(terrain->mesh.vertices[vertex].position,normal,ambient,.25f,sources,count,NULL,1,accumulated);if(status)return status;
+            status=rf_lightmap_accumulated_rgb(accumulated,rgb);if(status)return status;
+            for(k=0;k<3;k++)s->terrain_colors[vertex][k]=fminf(1.f,2.f*(float)rgb[k]/255.f);
         }
-        for(j=0;j<face->count;j++)for(k=0;k<3;k++)center[k]+=terrain->mesh.vertices[face->first+j].position[k]/(float)face->count;
-        /* Ordinary static-surface policy: half room/global ambient, softened
-         * point/cone response and lightmap RGB conversion. Still one sample
-         * per face, without shadow masks or original lightmap regeneration. */
-        status=rf_vfx_light_accumulate(center,normal,ambient,.25f,sources,count,NULL,1,accumulated);if(status)return status;
-        status=rf_lightmap_accumulated_rgb(accumulated,rgb);if(status)return status;
-        for(k=0;k<3;k++)s->terrain_colors[i][k]=fminf(1.f,2.f*(float)rgb[k]/255.f);
     }
     return RF_OK;
 }
@@ -8504,7 +8504,7 @@ static int scene_terrain_open(scene_stream *s,const rf_level *level)
         }
         free(payload);if(status)return status;
     }
-    s->terrain_colors=calloc(512,sizeof(*s->terrain_colors));if(!s->terrain_colors)return RF_IO;
+    s->terrain_colors=calloc(4096,sizeof(*s->terrain_colors));if(!s->terrain_colors)return RF_IO;
     s->terrain_template=calloc(1,sizeof(*s->terrain_template));if(!s->terrain_template)return RF_IO;
 #ifdef RF_IMAGE_XBOX_NATIVE
     status=rf_geomod_template_load("D:\\geomod-template.bin",s->terrain_template);
@@ -9152,7 +9152,7 @@ static int actor_follow_view(void *context,uint32_t frame,const rf_motion_contro
         generated.vertices=world_mesh.vertices+world_mesh.count;
         memcpy(camera.player_position,position,12);memcpy(camera.player_orientation,orientation,36);
         status=scene_terrain_lighting(stream,&terrain);if(status)return status;
-        status=rf_preview_geomod_lit(&generated,stream->capacity-1024*1024-world_mesh.bytes,
+        status=rf_preview_geomod_vertex_lit(&generated,stream->capacity-1024*1024-world_mesh.bytes,
             &terrain.mesh,terrain.faces,stream->materials->count,&camera,stream->terrain_colors);if(status)return status;
         world_mesh.count+=generated.count;world_mesh.bytes+=generated.bytes;
      }

@@ -709,8 +709,28 @@ int main(int argc,char **argv)
         CHECK(!rf_preview_geomod(&draw,sizeof(projected),&source,&bound,1,&camera));
         CHECK(!rf_pc_raster_frame(&raster,&draw,&materials,&maps,draw.count));
         CHECK(raster.rgb[center]==200 && raster.rgb[center+1]==160 && raster.rgb[center+2]==80);
+        {
+            float corners[4][3]={{0,.5f,.25f},{0,.5f,.25f},{1,.5f,.25f},{1,.5f,.25f}};uint32_t clipped=0,count;
+            vertices[0].position[0]=vertices[1].position[0]=-4;
+            CHECK(!rf_geomod_collision_faces(&source,&filter,positions,4,&bound,1));
+            CHECK(!rf_preview_geomod_vertex_lit(&draw,sizeof(projected),&source,&bound,1,&camera,corners));
+            count=draw.count;CHECK(count>=6);
+            for(i=0;i<count;i++) {
+                float x=(projected[i].position[0]-320.f)*3.f/320.f;
+                CHECK(projected[i].lightmap==RF_PREVIEW_VERTEX_LIT);
+                CHECK(fabsf(projected[i].color[0]-(x+4.f)/5.f)<.0002f);
+                CHECK(projected[i].color[1]==.5f && projected[i].color[2]==.25f);
+                if(projected[i].position[0]==0){CHECK(fabsf(projected[i].color[0]-.2f)<1e-6f);clipped++;}
+            }
+            CHECK(clipped>0);
+            CHECK(!rf_pc_raster_frame(&raster,&draw,&materials,&maps,draw.count));
+            CHECK(raster.rgb[center]>=159 && raster.rgb[center]<=161 && raster.rgb[center+1]==80 && raster.rgb[center+2]==20);
+            memcpy(saved,projected,sizeof(projected));corners[3][2]=NAN;
+            CHECK(rf_preview_geomod_vertex_lit(&draw,sizeof(projected),&source,&bound,1,&camera,corners)==RF_FORMAT);
+            CHECK(draw.count==count && !memcmp(saved,projected,sizeof(projected)));
+        }
         rf_pc_raster_close(&raster);
-        puts("PASS: textured vertex lighting reaches pixels, invalid RGB preserves output, legacy textured path unchanged");
+        puts("PASS: textured face/corner lighting reaches pixels, clipped color gradients and invalid RGB rollback, legacy path unchanged");
     }
     puts("PASS: repeated solid/cavity cuts, edge closure, materials, ray/body clearance, rendering and rollback");return 0;
 }

@@ -822,3 +822,38 @@ generation3,699024resident/725843peak terrain bytes and no cut error. Native
 framebuffer inspected: dark ambiguous silhouette remains. All19disc entries
 restored; owned emulator exited. Original RGB conversion also passes8192
 PC/NXDK cases. No new GitHub image.
+
+## Corner lighting and close depth replays (2026-09-15)
+
+tools/dev_destruction_depth.py now reproduces three595frame close/oblique
+views after the same two rocket impacts. Each remains inside the original
+room, alive, with two committed cuts and no publication error. All three
+PC images were inspected sequentially. The side wall occludes more of the
+cavity in the right-hand view; together with the previous geometric position
+diagnostics this supports a recessed boundary, rather than a normal flip.
+The rock remains visually too dark and ambiguous; this is not acceptance.
+
+Terrain now evaluates retained static-surface lighting at each source corner,
+using the owning face normal to preserve sharp rock creases. Preview clipping
+interpolates RGB with the same rounded edge parameter as position/UV. Both
+backends receive the resulting varying colors. Original-room fragments retain
+neutral modulation. The heap color buffer grows from6144 to49152bytes, an
+additional42KiB; it is freed with the scene and does not enlarge terrain CSG
+storage. There is still no texel grid, shadow mask, or lightmap regeneration.
+
+A clipped textured-quad test supplies an analytic linear color gradient:
+the new vertices on the left frustum boundary retain red0.2, all projected
+vertices follow the expected gradient, and the center pixel has the expected
+texture modulation. Invalid corner RGB preserves prior draw data. Existing
+face-color and legacy textured cases still pass. Original-template collision
+tests, static-preview clipping, all five destruction replays and all three
+depth replays pass. NXDK builds after fixing its stricter aggregate initializer
+warning. The closer PC corner-lit image was inspected; overall readability
+still requires work, especially interior contrast and occlusion.
+
+Native close-view verification: artifacts/xemu/render-20260915-101726
+completes595frames and39checks with9068pages free (35.422MiB). Xbox and
+PC agree on two cuts, generation3, no publication error and bounded terrain
+memory. Actual Xbox frame and final PC left/right views inspected; no visual
+fidelity acceptance. All19disc entries restored and owned emulator exited.
+No additional GitHub screenshots.
