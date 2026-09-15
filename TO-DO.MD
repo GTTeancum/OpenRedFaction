@@ -2,7 +2,7 @@
 
 - DEV testbed: Review full weapon animations and add complete room reset; terrain reset and ammo refill are implemented, while campaign progression remains paused.
 - GeoMod: Add explosive-weapon integration, non-box cutters and authored eligibility; live repeated excavation passes PC/Xbox, and guarded terrain reset passes PC/Xbox checks.
-- Weapons: Integrate rocket flight, blast damage and GeoMod in the DEV room; authored launcher assets pass the 1 MiB resource budget, while live presentation and supply remain open.
+- Weapons: Add rocket blast damage, projectile/explosion presentation and actor/mover collision; DEV launcher selection, reload, swept world impact and box excavation pass PC/Xbox.
 - Combat: Extend pain-reaction coverage across enemy weapons and encounters; retained attack locks now pass35 PC/Xbox comparisons with independent actor recovery.
 - Combat: Revalidate encounters with the new shared body-sphere bullet collision; captured false hits are rejected, but old oversized-box aiming replays need recalibration.
 - Weapons: Implement remaining campaign weapons beyond handgun, rifle, Riot Stick and shotgun; automatic rifle now clears three shaft guards on PC/Xbox.
@@ -5145,3 +5145,16 @@ All three clips evaluate240ticks with finite skinning matrices and return
 to idle. This is asset/playback validation, not visual animation review or
 a playable launcher; scene firing, blast damage and explosive GeoMod remain
 open. Campaign progression stays paused. Estimate remains ~49%.
+
+Live launcher update (2026-09-15): Glass House has a fifth weapon slot with
+authored6-round magazine,18reserve,1.7s reload and1.25s fire cadence. A
+fixed50-flight scene owner advances rockets at20units/s and0.051radius
+against current world collision; room0 impacts excavate a box using authored
+crater radius5. No hitscan fallback. PC checks cover delayed impact and
+continued flight during reload/selection changes. Native260frame replay
+passes36 comparisons with9262pages free (36.18MiB); all19 staging entries
+restored. Native frame inspected: launcher and wall recess visible.
+Projectile visuals, explosion effects, blast/self damage, actor/mover hits,
+full animation/audio review, homing and spherical cuts remain open. This
+is an incomplete launcher first pass, not a finished explosive weapon.
+Estimate remains ~49%; current area is explosive weapons and GeoMod.

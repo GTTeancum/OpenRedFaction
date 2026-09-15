@@ -755,6 +755,7 @@ extern uint32_t rf_scene_showcase_enabled;
 int rf_scene_showcase_camera(rf_level *level);
 typedef struct rf_scene_input {float move[3],look[2];uint32_t crouch,jump,use,fire,reload,cycle_weapon,alt_fire;} rf_scene_input;
 extern uint32_t rf_scene_geomod[8];
+extern uint32_t rf_scene_rockets[8];
 /* Poll once before stance/animation/physics. RF_NOT_FOUND ends the stream cleanly.
  * Finite axes in [-1,1], crouch/jump/use held states 0/1. Caller owns context until stream ends.
  * Zero frame_limit permits a UINT32_MAX-frame session with bounded rings. */

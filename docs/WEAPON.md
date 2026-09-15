@@ -378,3 +378,35 @@ ends in idle. This establishes resource compatibility and numeric playback
 only: framing, complete visual animation review and audio remain unverified.
 The launcher is not yet selectable or firing in the live developer room.
 No native run or new Xbox build was needed for this test-only change.
+
+## Live DEV launcher first pass
+
+Glass House now exposes the Rocket Launcher after Shotgun in the ordinary
+weapon cycle. Supply/refill includes its authored6loaded/18reserve rounds.
+First-person idle/fire/reload uses the verified resource owner, with existing
+shared camera framing provisionally reused. Normal primary timing, ammo
+consumption and reload operate; alternate lock/homing is not implemented.
+Outside explicit DEV mode, the four prior slots/resources remain selected.
+
+A fixed50-entry scene-local flight array launches from the gameplay eye along
+the aim vector. It advances once per combat tick before selection/reload
+early returns. The full sphere sweep tests current world collision, including
+the live terrain overlay. Impact or lifetime expiry retires each flight once.
+Only room0 impacts dispatch bounded box excavation with authored crater
+radius5; successful edits immediately rebind collision. Expected bounded
+cut rejection leaves the previous terrain intact. No hitscan damage is used.
+
+This remains incomplete: actor/mover collision, visible projectile/trail,
+explosion effects, blast/self damage, homing, spherical cuts and eligibility
+are pending. Fire/reload sound requests use the authored names, but audio and
+full animation sequences have not been reviewed. The launcher display is
+currently white; no working targeting display is claimed.
+
+tools/dev_rocket_check.py reproduces four ordinary PC input cases: a rocket
+still in flight immediately after firing, completed impact/excavation, reload
+during flight and switch to pistol during flight. Existing shotgun loadout
+checks pass. Native260frame shot replay at
+artifacts/xemu/render-20260915-080750 passes36 comparisons, including all
+eight ROCKETS words, with9262physical pages free (36.1797MiB). Its native
+frame shows the launcher and wall recess;19disc staging entries restored.
+Reload/switch-in-flight cases remain PC-only. No GitHub screenshot added.
