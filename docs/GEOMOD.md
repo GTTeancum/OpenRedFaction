@@ -13,10 +13,10 @@ shape, exposed rock, interior lighting or debris. Match original-game evidence
 and inspect visible results; rendering a hole or passing collision probes alone
 does not establish fidelity. Stock64MiB Xbox limits continue to apply.
 
-The current rocket-impact path in scene_rockets_tick applies blast damage and
-cuts/rebinds terrain, but does not spawn destruction debris. Debris is missing,
-not merely awaiting visual verification. Fixing it will not by itself resolve
-the dark folded-panel cavity, which remains an independent acceptance issue.
+The rocket-impact path now spawns bounded debris after successful terrain cuts.
+Chunk construction and launch have original-code evidence; the live motion and
+lifecycle remain provisional. The dark folded-panel cavity is still an
+independent acceptance issue. See the latest integration section below.
 
 ## Region input evidence
 
@@ -1522,3 +1522,47 @@ binding. The two GeoMod CTests pass, including signed residue and invalid-input
 rollback; no changed scene or screenshot is claimed.
 NXDK compilation passes (artifacts/geomod-debris-count-xbox.log). No native
 scene run was needed for these helpers, which are not yet on the impact path.
+
+## Live DEV debris integration (2026-09-15)
+
+Rocket terrain impacts now query debris contribution before the successful cut,
+then spawn recovered chunk meshes against the updated world. The origin is
+impact+normal*(effective crater radius*.1), matching48fe30's5893c4 constant.
+Chunks start at random offsets up to.5 units from that origin, with a ray clamp
+to keep the placement out of intervening terrain. This first binding handles
+the supported enemy-free room; original room-search retries and existing-debris
+relaunch are not implemented. Surface queries use the current overlay and
+source-face metadata; full original48fc10 eligibility remains unverified.
+
+An80-slot pool uses50320 bytes including render/query scratch, with oldest-slot
+replacement and no per-impact allocation. The DEV random stream is separate
+from crater orientation. Chunk radius follows r^3*.2+.05, launch and mesh use
+the verified helpers. Authored rock02 material remains shared. Chunks rotate
+around sampled axes at initial rates in[pi,2pi); interpolation is practical
+axis-angle rotation, not verified original orientation integration. Reset clears
+the pool only after the existing safe terrain-reset guard succeeds.
+
+Motion is provisional: point rays, gravity,35percent reflected velocity and
+three-to-five floor bounces (normal.y>=.7) before rest. No swept chunk volume,
+original restitution/random normal response, water/mover interaction, actor
+damage or bounce sounds yet.48f900 confirms the floor threshold and bounce
+budget but contains additional response logic that is not implemented here.
+
+Correction to earlier timer terminology:490230's field74, exposed by the helper
+as lifetime, is a fade duration.48f900 copies it to field70 when the bounce
+budget ends; it is not proof of total airborne lifetime. The current DEV pass
+uses it as an absolute removal timer, without a fade. Replace this provisional
+lifecycle rather than treating existing expiry checks as original parity.
+
+Six ordinary destruction/traversal replays pass. dev_debris_check.py captures
+560/580/620/900-frame close-range runs:48 total chunks across three cuts,
+changing visible mesh hashes, floor contacts, zero pool replacement, and all
+removed by900 under the provisional timer. The560/620/900 PC images and580
+Xbox image were inspected: chips are visible against the cavity, shift lower
+as they fall, then disappear; the dark folded-mound crater remains unresolved.
+
+Native artifacts/xemu/render-20260915-123842 passes580 frames and44 comparisons.
+DEBRIS matches PC exactly:[48,16,236,32,276,2973937245,50320,0]. These fields are
+spawned,active,bounces,expired,rendered vertices/hash,owned bytes,replacements.
+The machine reports64MiB and8757 available pages (34.2MiB). All19 disc entries
+restored and the owned process exited. No GitHub image was added.

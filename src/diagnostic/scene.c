@@ -491,7 +491,21 @@ uint32_t rf_scene_terrain_bake[6]; /* processed,current frame,peak frame,active,
 uint32_t rf_scene_terrain_upload[4]; /* updates,pixels,largest rectangle,full copies */
 uint32_t rf_scene_terrain_atlas[8]; /* enabled,width,height,owned bytes,generation,texels,faces,image */
 uint32_t rf_scene_terrain_shadows[4]; /* lighting refreshes, rays, blocked, cache hits */
+typedef struct scene_debris_chunk {
+    rf_geomod_debris_mesh mesh;float position[3],velocity[3],radius,remaining;
+    uint32_t active,bounces;float axis[3],spin,angle;
+} scene_debris_chunk;
+typedef struct scene_debris_pool {
+    scene_debris_chunk chunks[80];rf_random_state random;uint32_t next;
+    float origin[3],endpoints[14][3];int32_t pending;
+    rf_geomod_debris_probe probes[14];
+    rf_geomod_vertex vertices[36];rf_geomod_face faces[12];
+    rf_collision_face_filter filters[12];rf_collision_face bound[12];float positions[36][3];
+} scene_debris_pool;
+uint32_t rf_scene_debris[8]; /* spawned,active,bounces,expired,vertices,hash,bytes,replaced */
+
 typedef struct scene_stream {
+    scene_debris_pool *debris;
     rf_geomod_terrain *terrain;rf_geometry_collision_overlay terrain_collision;
     rf_geomod_template *terrain_template;rf_random_state terrain_random;uint32_t terrain_texture_width,terrain_texture_height;float (*terrain_colors)[3];
     scene_terrain_light_cache *terrain_light_cache;
@@ -8617,6 +8631,8 @@ static int scene_terrain_open(scene_stream *s,const rf_level *level)
     rf_scene_terrain_atlas[0]=1;rf_scene_terrain_atlas[1]=rf_scene_terrain_atlas[2]=512;
     rf_scene_terrain_atlas[3]=2*512*512*2+64*64*2+768*(sizeof(*s->terrain_bindings)+sizeof(*s->terrain_tiles))+sizeof(rf_image);
     if(rf_scene_terrain_atlas[3]>1280*1024)return RF_RANGE;
+    s->debris=calloc(1,sizeof(*s->debris));if(!s->debris)return RF_IO;
+    s->debris->random.value=1;memset(rf_scene_debris,0,sizeof(rf_scene_debris));rf_scene_debris[6]=sizeof(*s->debris);
     s->terrain_ids=calloc(768,sizeof(*s->terrain_ids));if(!s->terrain_ids)return RF_IO;
     s->terrain_colors=calloc(4096,sizeof(*s->terrain_colors));if(!s->terrain_colors)return RF_IO;
     s->terrain_light_cache=calloc(1,sizeof(*s->terrain_light_cache));if(!s->terrain_light_cache)return RF_IO;
@@ -8680,6 +8696,7 @@ static int scene_terrain_input(scene_stream *s,const float position[3],const flo
                 }
             }
             if(!status)status=rf_geomod_terrain_reset(s->terrain);
+            if(!status && s->debris){memset(s->debris,0,sizeof(*s->debris));s->debris->random.value=1;memset(rf_scene_debris,0,sizeof(rf_scene_debris));rf_scene_debris[6]=sizeof(*s->debris);}
             if(!status){status=scene_terrain_bind(s);if(status)return status;++rf_scene_geomod[7];}
         } else {
         for(i=0;i<3;i++)delta[i]=orientation[2][i]*100;
@@ -8705,6 +8722,97 @@ static int scene_rocket_sweep(void *context,const float start[3],const float del
     if(!status && *matched){out->hit=hit.hit;out->room=hit.room;out->face=hit.face;out->object=UINT32_MAX;}
     return status;
 }
+/* DEV integration: recovered chunk/count/launch helpers with provisional
+ * point-sweep bounce and timed removal. Original spin/fade/sounds remain open. */
+static int scene_debris_prepare(scene_stream *s,const rf_weapon_flight_contact *contact,float radius)
+{
+    scene_debris_pool *p=s->debris;uint32_t i,k,matched;int status;
+    if(!p)return RF_OK;p->pending=0;memset(p->probes,0,sizeof(p->probes));
+    for(k=0;k<3;k++)p->origin[k]=contact->hit.point[k]+contact->hit.normal[k]*radius*.1f;
+    status=rf_geomod_debris_probe_points(p->origin,radius,p->endpoints);if(status)return status;
+    for(i=0;i<14;i++) {
+        rf_geometry_world_hit hit;float delta[3],length=0;
+        for(k=0;k<3;k++){delta[k]=p->endpoints[i][k]-p->origin[k];length+=delta[k]*delta[k];}
+        status=rf_geometry_collision_world_ray(s->collision,0x460,p->origin,delta,1,&hit,&matched);if(status)return status;
+        if(matched) {
+            rf_geometry_face face;status=rf_geometry_get_face(s->geometry,hit.face,&face);if(status)return status;
+            p->probes[i]=(rf_geomod_debris_probe){1,1,face.flags,fminf(radius,sqrtf(length)*hit.hit.fraction)};
+        }
+    }
+    return rf_geomod_debris_count(radius,p->probes,&p->pending);
+}
+static int scene_debris_spawn(scene_stream *s)
+{
+    scene_debris_pool *p=s->debris;int32_t i;uint32_t k,draw;int status;
+    if(!p)return RF_OK;
+    for(i=0;i<p->pending;i++) {
+        scene_debris_chunk *c=p->chunks+p->next;float direction[3],distance,resistance;rf_geometry_world_hit hit;uint32_t matched;
+        if(c->active)++rf_scene_debris[7];p->next=(p->next+1)%80;
+        status=rf_particle_cone_sample(-1,&p->random,direction);if(status)return status;
+        rf_random_next(&p->random,&draw);distance=(float)((double)draw/32768.0*.5);
+        for(k=0;k<3;k++)direction[k]*=distance;
+        status=rf_geometry_collision_world_ray(s->collision,0x460,p->origin,direction,1,&hit,&matched);if(status)return status;
+        for(k=0;k<3;k++)c->position[k]=matched?hit.hit.point[k]+hit.hit.normal[k]*.002f:p->origin[k]+direction[k];
+        rf_random_next(&p->random,&draw);
+        {double r=(double)draw/32768.0;c->radius=(float)(r*r*r*.2f+.05f);}
+        resistance=(float)(((double)c->radius-.05f)*5.0);
+        rf_random_next(&p->random,&draw);c->bounces=3+draw%3;
+        status=rf_particle_cone_sample(-1,&p->random,c->axis);if(status)return status;
+        rf_random_next(&p->random,&draw);c->spin=(float)(((double)draw/32768.0)*3.1415927410125732f+3.1415927410125732f);c->angle=0;
+        status=rf_geomod_debris_build(c->radius,s->terrain_texture_width,s->terrain_texture_height,&p->random,&c->mesh);if(status)return status;
+        status=rf_geomod_debris_launch(c->position,p->origin,c->radius,resistance,&p->random,c->velocity);if(status)return status;
+        c->remaining=c->mesh.lifetime;c->active=1;++rf_scene_debris[0];
+    }
+    p->pending=0;return RF_OK;
+}
+static int scene_debris_tick(scene_stream *s)
+{
+    scene_debris_pool *p=s->debris;uint32_t i,k,matched;int status;
+    if(!p)return RF_OK;rf_scene_debris[1]=0;
+    for(i=0;i<80;i++)if(p->chunks[i].active) {
+        scene_debris_chunk *c=p->chunks+i;float delta[3];rf_geometry_world_hit hit;
+        c->remaining-=1.f/60;if(c->remaining<=0){c->active=0;++rf_scene_debris[3];continue;}
+        if(!c->bounces){++rf_scene_debris[1];continue;}
+        c->angle+=c->spin/60.f;
+        for(k=0;k<3;k++)delta[k]=c->velocity[k]/60.f;
+        status=rf_geometry_collision_world_ray(s->collision,0x460,c->position,delta,1,&hit,&matched);if(status)return status;
+        if(matched) {
+            float dot=0;for(k=0;k<3;k++)dot+=c->velocity[k]*hit.hit.normal[k];
+            for(k=0;k<3;k++){c->position[k]=hit.hit.point[k]+hit.hit.normal[k]*.002f;c->velocity[k]=(c->velocity[k]-2*dot*hit.hit.normal[k])*.35f;}
+            ++rf_scene_debris[2];
+            if(hit.hit.normal[1]>=.7f && c->bounces && !--c->bounces)memset(c->velocity,0,sizeof(c->velocity));
+        } else for(k=0;k<3;k++)c->position[k]+=delta[k];
+        if(c->bounces)c->velocity[1]-=scene_gravity.acceleration/60.f;++rf_scene_debris[1];
+    }
+    return RF_OK;
+}
+static int scene_debris_draw(scene_stream *s)
+{
+    scene_debris_pool *p=s->debris;uint32_t i,f,j,k,start=s->mesh->count;int status;
+    if(!p)return RF_OK;
+    for(i=0;i<80;i++)if(p->chunks[i].active) {
+        scene_debris_chunk *c=p->chunks+i;rf_geomod_mesh_view mesh={0};rf_preview_mesh emitted={0};
+        float cosine=cosf(c->angle),sine=sinf(c->angle);
+        for(f=0;f<12;f++) {
+            p->faces[f]=(rf_geomod_face){f*3,3,s->terrain_material,UINT32_MAX};
+            for(j=0;j<3;j++) {
+                const float *v=c->mesh.positions[c->mesh.indices[f][j]];float dot=0;
+                for(k=0;k<3;k++)dot+=c->axis[k]*v[k];
+                for(k=0;k<3;k++)p->vertices[f*3+j].position[k]=c->position[k]+v[k]*cosine+
+                    (c->axis[(k+1)%3]*v[(k+2)%3]-c->axis[(k+2)%3]*v[(k+1)%3])*sine+c->axis[k]*dot*(1-cosine);
+                memcpy(p->vertices[f*3+j].uv,c->mesh.uv[f][j],8);
+            }
+        }
+        mesh.vertices=p->vertices;mesh.faces=p->faces;mesh.vertex_count=36;mesh.face_count=12;
+        status=rf_geomod_collision_faces(&mesh,p->filters,p->positions,36,p->bound,12);if(status)return status;
+        emitted.vertices=s->mesh->vertices+s->mesh->count;
+        status=rf_preview_geomod(&emitted,s->capacity-s->mesh->bytes,&mesh,p->bound,s->materials->count,&s->rocket_camera);if(status)return status;
+        s->mesh->count+=emitted.count;s->mesh->bytes+=emitted.bytes;
+    }
+    rf_scene_debris[4]=s->mesh->count-start;
+    rf_scene_debris[5]=npc_hash_bytes(2166136261u,s->mesh->vertices+start,rf_scene_debris[4]*sizeof(rf_preview_vertex));return RF_OK;
+}
+
 uint32_t rf_scene_rocket_blast[8]; /* explosions, candidates, damaged, NPC kills, self hits, last amount bits, occluded, status */
 /* Practical first-pass radial policy: nearest visible body-sphere surface,
  * linear attenuation to the authored radius. This is not recovered falloff. */
@@ -8766,6 +8874,7 @@ static int scene_rocket_blast(scene_stream *s,uint32_t frame,const rf_weapon_fli
 static int scene_rockets_tick(scene_stream *s,uint32_t frame)
 {
     uint32_t i;int status;rf_scene_rockets[3]=0;
+    status=scene_debris_tick(s);if(status)return status;
     for(i=0;i<SCENE_ROCKETS;i++)if(s->rockets[i].active) {
         rf_weapon_flight_event event;
         status=rf_weapon_flight_step(s->rockets+i,1.f/60,scene_rocket_sweep,s,&event);if(status)return status;
@@ -8786,11 +8895,12 @@ static int scene_rockets_tick(scene_stream *s,uint32_t frame)
                  if(!status) {
                      if(rf_scene_combat_trace)printf("GEOMOD_HARDNESS %u %u %u %.9g\n",frame,hardness.hardness,hardness.matches,hardness.scale);
                      status=rf_geomod_random_basis(&s->terrain_random,basis);if(status)return status;
+                     status=scene_debris_prepare(s,&event.contact,hardness.scale*s->terrain_template->radius);if(status)return status;
                      status=rf_geomod_terrain_cut_template_scale(s->terrain,s->terrain_template,event.contact.hit.point,basis,
                          hardness.scale,s->terrain_material);
                  }}
                 rf_scene_geomod[5]=(uint32_t)status;
-                if(!status){status=scene_terrain_bind(s);if(status)return status;++rf_scene_geomod[7];++rf_scene_rockets[4];}
+                if(!status){status=scene_terrain_bind(s);if(status)return status;++rf_scene_geomod[7];++rf_scene_rockets[4];status=scene_debris_spawn(s);if(status)return status;}
                 else {++rf_scene_rockets[5];if(status!=RF_RANGE && status!=RF_FORMAT && status!=RF_NOT_FOUND)return status;}
             }
         }
@@ -11309,6 +11419,7 @@ static int scene_frame(void *context,uint32_t frame,rf_preview_mesh *actor)
         status=scene_weapon_draw(stream,frame);presentation_mark(2,&presentation_clock);if(status){rf_scene_profile_stage[1]=203;return status;}
         status=scene_pickups_draw(stream);presentation_mark(3,&presentation_clock);if(status){rf_scene_profile_stage[1]=204;return status;}
         status=scene_rockets_draw(stream,frame);rf_scene_rocket_visual[6]=(uint32_t)status;if(status)return status;
+        status=scene_debris_draw(stream);if(status)return status;
         status=scene_player_weapon_draw(stream,frame);presentation_mark(4,&presentation_clock);if(status){rf_scene_profile_stage[1]=205;return status;}
         particle_draw_stream=stream;
         status=stream->sink(stream->context,frame,stream->mesh,stream->materials,stream->world);
@@ -12170,7 +12281,7 @@ done:
     free(campaign_waypoints);campaign_waypoints=NULL;campaign_waypoint_bytes=0;
     if(!stream.terrain_atlas_registered)rf_image_close(&stream.terrain_atlas);
     free(stream.terrain_atlas_pixels);free(stream.terrain_tile);free(stream.terrain_bindings);free(stream.terrain_tiles);
-    rf_geometry_collision_overlay_close(&stream.terrain_collision);rf_geomod_terrain_close(&stream.terrain);free(stream.terrain_template);free(stream.terrain_colors);free(stream.terrain_regions);free(stream.terrain_light_cache);free(stream.terrain_ids);
+    rf_geometry_collision_overlay_close(&stream.terrain_collision);rf_geomod_terrain_close(&stream.terrain);free(stream.terrain_template);free(stream.terrain_colors);free(stream.terrain_regions);free(stream.terrain_light_cache);free(stream.terrain_ids);free(stream.debris);
     free(stream.surface_indices);free(states);if(motions_opened)rf_vpp_close(&motions);
     free(vertices);free(items);rf_preview_close(&actor);rf_model_materials_close(&bundle);
     rf_vpp_close(&archive);return status;

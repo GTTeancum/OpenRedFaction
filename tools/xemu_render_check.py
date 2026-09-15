@@ -333,6 +333,12 @@ dvd_path = '{root.as_posix()}/build/xbox/redfaction-diagnostic.iso'
                 report['checks']['TERRAIN_BAKE']=dict(equal=equal,xbox=actual,pc=expected,
                     scope='Deterministic bake progress and64-texel work bound; active may be nonzero until settled')
                 assert equal and actual[1]<=64 and actual[2]<=64,'TERRAIN_BAKE'
+                expected=list(map(int,next(line for line in pc.stdout.splitlines() if line.startswith('DEBRIS ')).split()[1:]))
+                actual=words(monitor,symbol('rf_scene_debris'),8)
+                equal=actual==expected
+                report['checks']['DEBRIS']=dict(equal=equal,xbox=actual,pc=expected,
+                    scope='Bounded DEV pool: spawn/active/bounce/expiry, rendered vertices/hash, owned bytes and replacement count')
+                assert equal and actual[1]<=80 and actual[6]<=65536,'DEBRIS'
                 expected=list(map(int,next(line for line in pc.stdout.splitlines() if line.startswith('TERRAIN_UPLOAD ')).split()[1:]))
                 actual=words(monitor,symbol('rf_scene_terrain_upload'),4)
                 equal=actual==expected
