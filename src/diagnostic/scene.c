@@ -8579,17 +8579,38 @@ static int scene_terrain_light_audit(scene_stream *s,const char *path)
     if(cache->generation!=terrain.mesh.generation || cache->face<terrain.mesh.face_count)return RF_RANGE;
     file=fopen(path,"wb");if(!file)return RF_IO;
     fprintf(file,"# generation=%u lights=%u ambient=%.9g,%.9g,%.9g\n",cache->generation,cache->count,cache->ambient[0],cache->ambient[1],cache->ambient[2]);
-    fprintf(file,"face,x,y,px,py,pz,nx,ny,nz,blocked,clear_r,clear_g,clear_b,shadow_r,shadow_g,shadow_b,packed\n");
+    fprintf(file,"face,x,y,px,py,pz,nx,ny,nz,blocked,clear_r,clear_g,clear_b,shadow_r,shadow_g,shadow_b,packed,blocked_authored,blocked_generated,excluded_flags_portal,excluded_alpha,excluded_coplanar\n");
     for(f=0;f<terrain.mesh.face_count;f++) {
         const rf_geomod_face *face=terrain.mesh.faces+f;scene_terrain_light_tile *tile=s->terrain_tiles+f;
         if(face->source_face!=UINT32_MAX)continue;
         for(y=0;y<tile->grid.height;y++)for(x=0;x<tile->grid.width;x++) {
-            unsigned char weights[63];float point[3],clear[3],shadow[3];uint32_t blocked=0,at,packed;
+            unsigned char weights[63];float point[3],clear[3],shadow[3];uint32_t blocked=0,at,packed,authored=0,generated=0,flags_portal=0,alpha=0,coplanar=0;
             status=rf_geomod_light_grid_sample(&tile->grid,terrain.mesh.vertices+face->first,face->count,x,y,point);if(status)goto done;
             status=rf_vfx_light_accumulate(point,tile->grid.plane,cache->ambient,.25f,cache->sources,cache->count,NULL,1,clear);if(status)goto done;
             for(i=0;i<cache->count;i++) {
                 uint32_t visible=1;
                 if(cache->modes[i]){status=rf_geomod_light_visible(&terrain,cache->sources[i].position,point,&visible);if(status)goto done;}
+                if(!visible) {
+                    const rf_collision_tree *tree=terrain.tree;rf_collision_tree_hit hit;uint32_t matched,source_index;float delta[3],limit;double length=0,dot=0;
+                    const rf_geomod_face *occluder;const float *plane;const rf_material *material;
+                    for(k=0;k<3;k++){delta[k]=point[k]-cache->sources[i].position[k];length+=(double)delta[k]*delta[k];}
+                    limit=(float)(1.-.001/sqrt(length));
+                    status=rf_collision_thin_tree(tree->nodes,tree->node_count,tree->faces,tree->face_count,0x100b,
+                        cache->sources[i].position,delta,limit,tree->stack,tree->node_capacity,&hit,&matched);if(status)goto done;
+                    if(!matched || hit.face_index>=tree->face_count){status=RF_FORMAT;goto done;}
+                    source_index=tree->source_indices[hit.face_index];
+                    if(source_index>=terrain.mesh.face_count){status=RF_FORMAT;goto done;}
+                    occluder=terrain.mesh.faces+source_index;plane=terrain.faces[source_index].plane;
+                    if(occluder->source_face!=UINT32_MAX) {
+                        rf_geometry_face original;++authored;
+                        status=rf_geometry_get_face(s->geometry,occluder->source_face,&original);if(status)goto done;
+                        flags_portal+=(original.flags&0x2044)!=0 || (int16_t)original.portal>0;
+                    } else ++generated;
+                    material=occluder->material<s->materials->count?s->materials->items+occluder->material:NULL;
+                    alpha+=material && material->status==RF_OK && rf_image_format_has_alpha(material->image.source_format);
+                    for(k=0;k<3;k++)dot+=(double)plane[k]*tile->grid.plane[k];
+                    coplanar+=fabs((double)plane[3]-tile->grid.plane[3])<(double).001f && dot>(double).999f;
+                }
                 weights[i]=visible?255:0;blocked+=!visible;
             }
             status=rf_vfx_light_accumulate(point,tile->grid.plane,cache->ambient,.25f,cache->sources,cache->count,weights,1,shadow);if(status)goto done;
@@ -8600,7 +8621,7 @@ static int scene_terrain_light_audit(scene_stream *s,const char *path)
             fprintf(file,",%u",blocked);
             for(k=0;k<3;k++)fprintf(file,",%.9g",clear[k]);
             for(k=0;k<3;k++)fprintf(file,",%.9g",shadow[k]);
-            fprintf(file,",%u\n",packed);
+            fprintf(file,",%u,%u,%u,%u,%u,%u\n",packed,authored,generated,flags_portal,alpha,coplanar);
         }
     }
  done:

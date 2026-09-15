@@ -1798,3 +1798,31 @@ Original shadow-mask generation and selected-light eligibility remain the next
 fidelity checks. Evidence files are artifacts/destruction/depth-audit/lighting.csv
 and lighting.json. Audit-enabled and disabled final frame bytes are identical;
 PC and NXDK compilation pass. No new visual improvement is claimed.
+
+### Crater blocker eligibility audit (2026-09-15)
+
+The opt-in light audit now identifies the traversal-first accepted blocker for
+each blocked light/sample pair, resolving reordered tree indices through
+source_indices before inspecting source geometry or materials. It records
+authored/generated classification and the recovered 0x2044 flag, signed portal,
+alpha-format and coplanar exclusions. These counters are independent checks,
+not the complete original shadow-volume cull. No live shadow policy changed.
+
+The same three-cut 900-frame replay contains 14004 blocked sample/light pairs:
+13083 authored-surface blockers and 921 generated-surface blockers. None of the
+first blockers meet the tested flag/portal, alpha-format or coplanar exclusions.
+Thus these exclusions do not explain this capture's darkness. This does not
+prove all potential blockers qualify; the current query returns its first
+accepted traversal hit, not necessarily the nearest hit. Mapping ownership,
+volume bounds and projected polygon coverage remain separate verification work.
+
+Re-ran original/PC/NXDK oracles: 4096 occluder cases and 2048 source-sampling cases
+pass. Point sources use one origin and 255 mask subtraction; only kind 4 line
+sources use two origins and 127 each. Therefore adding a soft area-light spread
+to the two point sources would not follow this recovered source policy.
+The next comparison is projected shadow-mask coverage versus binary point rays.
+
+Evidence: artifacts/destruction/depth-audit/occluders.csv and occluders.json.
+Extended-audit and disabled final frame bytes match exactly. Original oracle
+reports are artifacts/lightmap-shadow-occluder.json and the source verifier's
+reported artifact; this audit makes no new native visual or full-parity claim.
