@@ -326,6 +326,48 @@ int rf_geomod_debris_launch(const float position[3],const float origin[3],
     memcpy(velocity,result,sizeof(result));*random=next;return RF_OK;
 }
 
+int rf_geomod_debris_contact(const float velocity[3],const float normal[3],
+    float dt,float gravity,rf_random_state *random,rf_geomod_debris_bounce *out)
+{
+    rf_geomod_debris_bounce value={0};rf_random_state next;
+    double length=0,dot,raw,ratio;float incoming,gdot,rounded_ratio,scale,direction[3],impulse;
+    uint32_t i,draw;int status;
+    if(!velocity || !normal || !random || !out)return RF_RANGE;
+    if(!isfinite(dt) || dt<=0 || !isfinite(gravity) || gravity<0)return RF_FORMAT;
+    for(i=0;i<3;i++) {
+        if(!isfinite(velocity[i]) || !isfinite(normal[i]))return RF_FORMAT;
+        length+=(double)normal[i]*normal[i];
+    }
+    if(fabs(length-1.0)>1e-4)return RF_FORMAT;
+    dot=((double)velocity[0]*normal[0]+(double)velocity[1]*normal[1])+(double)velocity[2]*normal[2];
+    incoming=(float)-dot;gdot=(float)(-(double)gravity*normal[1]);
+    if(!isfinite(incoming) || !isfinite(gdot))return RF_RANGE;
+    next=*random;rf_random_next(&next,&draw);
+    raw=((double).4f-(double).1f)*((double)draw/32768.0)+(double).1f;
+    value.coefficient=(float)raw;
+    /* The original zero-denominator ratio cannot satisfy both comparisons. */
+    if(gdot!=0) {
+        ratio=-(raw*incoming)/((double)dt*gdot);rounded_ratio=(float)ratio;
+        if(ratio>0 && rounded_ratio<1) {
+            if(rounded_ratio==0)return RF_RANGE;
+            value.coefficient=(float)((double)value.coefficient/rounded_ratio);
+        }
+    }
+    if(!isfinite(value.coefficient))return RF_RANGE;
+    status=rf_particle_cone_oriented(normal,.98f,&next,direction);if(status)return status;
+    scale=(float)((1.0+(double)value.coefficient)*incoming);if(!isfinite(scale))return RF_RANGE;
+    for(i=0;i<3;i++) {
+        impulse=(float)((double)direction[i]*scale);
+        value.velocity[i]=(float)((double)velocity[i]+impulse);
+        if(!isfinite(value.velocity[i]))return RF_RANGE;
+    }
+    status=rf_particle_cone_sample(-1,&next,value.spin_axis);if(status)return status;
+    rf_random_next(&next,&draw);
+    value.spin_rate=(float)(((double)6.2831853071795864769f-(double)3.14159265358979323846f)*
+        ((double)draw/32768.0)+(double)3.14159265358979323846f);
+    *out=value;*random=next;return RF_OK;
+}
+
 int rf_geomod_debris_build(float radius,uint32_t width,uint32_t height,
     rf_random_state *random,rf_geomod_debris_mesh *out)
 {

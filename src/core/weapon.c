@@ -4,6 +4,28 @@
 #include "rf/physics.h"
 #include <string.h>
 #include <math.h>
+#include <float.h>
+/* Ordinary entity branch489010: stored float delta, extended intermediates,
+ * no subtraction of collision-sphere radius. Cover belongs to the caller. */
+int rf_weapon_blast_amount(const float origin[3],const float position[3],float damage,float radius,float *out)
+{
+    float delta[3];double squared=0,gain,value;unsigned k;
+    if(!origin || !position || !out)return RF_RANGE;
+    if(!isfinite(damage) || !isfinite(radius))return RF_RANGE;
+    for(k=0;k<3;k++) {
+        double d;
+        if(!isfinite(origin[k]) || !isfinite(position[k]))return RF_RANGE;
+        d=(double)position[k]-origin[k];if(d>FLT_MAX || d< -FLT_MAX)return RF_RANGE;
+        delta[k]=(float)d;
+    }
+    if(damage<=0 || radius<=.1f){*out=0;return RF_OK;}
+    for(k=0;k<3;k++)squared+=(double)delta[k]*delta[k];
+    gain=1.0-sqrt(squared)/(double)radius;
+    value=gain>0?(double)damage*gain:0;
+    if(!isfinite(value) || value>FLT_MAX)return RF_RANGE;
+    *out=(float)value;return RF_OK;
+}
+
 int rf_weapon_liquid_contact(rf_weapon_liquid_state *state,float radius,uint32_t weapon_flags,
     int32_t selector,int32_t default_handle,int32_t alternate_handle,rf_weapon_liquid_effect *out)
 {

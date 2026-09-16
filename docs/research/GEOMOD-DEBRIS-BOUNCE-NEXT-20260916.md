@@ -1,0 +1,31 @@
+# Next debris improvement: original normal impulse
+
+Static source/original-byte audit only; paused for ripple precision debugging. Current scene_debris_tick scales the entire reflected velocity by.35, including tangential motion. Original48fac9..48fbe2 constructs a normal impulse and adds it to the existing velocity. This is a concrete response mismatch, not material-table uncertainty.
+
+Original sequence: negate dot(v,n) into float; form n times that scalar; sample coefficient through504e40(.1,.4), which uses504db0/CRT integer random divided by32768; compute gravity-normal and dt-dependent coefficient correction; perturb the impulse direction with4fae00 and cone limit.98; scale impulse by(1+corrected coefficient)*negative dot; randomize spin axis4fad60 and spin rate504e40(pi,2pi); add impulse to velocity. Source48f900 full export already exists. Current normal.y>=.7 bounce-count/settling and draw-time lifetime evidence should be retained.
+
+Recommended next bounded oracle: execute48f900 with actual arithmetic/cone/random helpers and supplied collision contact; compare tangential retention and normal impulse under floor/wall contacts, low-speed gravity correction and zero-dt precondition. This oracle is not yet written. Do not replace.35 with a new guessed scalar; preserve random call order and the gravity correction. No shared source edits/builds in this audit.
+
+Prepared original48fac9..48fb86 executable coefficient probe now passes96 cases in artifacts/future-vehicles-re/debris_impulse.py / debris-impulse.json. It executes actual x87/vector/random-range math, supplying only the CRT random integer. AxisX/Y normals, four incoming normal speeds, two frame deltas and three random integers establish the gravity/delta correction before cone perturbation. Both normal axes include an independently nonzero perpendicular tangent, confirming that this coefficient stage depends on normal speed, not tangent speed. This does not yet prove cone perturbation, spin generation or complete post-impact velocity. No live bounce change has been made.
+
+## Complete response tail and implementation-ready contract
+
+`artifacts/future-vehicles-re/debris_impulse_tail.py` now executes original48fac9 through48fbe7 for192 cases (three cardinal contact normals, four incoming normal speeds, two independent tangential speeds, two positive frame deltas, four RNG seeds). CRT57312d executes unchanged; its thread-storage resolver577eef is the only supplied service. Cone4fae00, spin4fad60, all vector helpers and final40a350 addition execute as original instructions. Every continuing bounce consumes exactly six CRT draws. No shared source implementation was changed.
+
+The probe additionally calls the currently compiled NXDK `rf_particle_cone_oriented` and `rf_particle_cone_sample` with the intermediate RNG states. Their direction and spin outputs are bit-identical to the original in all192 cases; the sixth draw's pi..2pi spin-rate formula also matches exactly. The cone remains unit length and points within cosine.98 of the contact normal. Final velocity equals a separately binary32-rounded addition of the retained incoming velocity and captured impulse in every case. The impulse obeys the recovered scalar equation within2e-6; exact final helper comparison should replace this scalar tolerance during implementation.
+
+A small helper can accept `(velocity[3], normal[3], dt, gravity, random, result)` and return new velocity, spin axis, spin rate and optionally coefficient for diagnostics. Require finite inputs, unit contact normal, positive dt and nonnegative gravity; use a private RNG copy and commit result/RNG only on success. This is a caller-facing validation contract, not a claim that the original rejects malformed inputs.
+
+For admitted continuing contacts:
+
+1. `d = float(-dot(velocity,normal))`, preserving original40a0b0 X+Y+Z accumulation order.
+2. Draw one CRT value; `raw = .1f + (draw/32768.0)*(.4f-.1f)` with the endpoint subtraction in double, retaining unrounded raw for the correction calculation; `coefficient=float(raw)`.
+3. `gdot=float(-gravity*normal.y)`. Original computes `ratio=float(-(raw*d)/(dt*gdot))`; if the unrounded ratio is positive and rounded ratio is below1, divide the stored coefficient by the rounded ratio and round again. For exactly zero gdot, leave the coefficient unchanged rather than manufacture a floating exception; the original comparison rejects its nonfinite ratio. Zero incoming normal speed likewise receives no correction.
+4. Call existing `rf_particle_cone_oriented(normal,.98f,...)` (two draws). Multiply that direction by `float((1.0+coefficient)*d)`, rounding each component; add each component to the incoming velocity, rounding again. **Do not multiply tangential velocity by a global restitution constant.**
+5. Call existing `rf_particle_cone_sample(-1,...)` for the new spin axis (two draws), then draw spin rate between the exact float pi and2pi endpoints (one draw).
+
+The dry live integration point is `scene_debris_tick`: replace `(v-2dot*n)*.35` with this helper using the debris pool RNG. Apply the existing floor bounce-count/terminal decision **before** calling it: original48fa91 terminal floor settling returns before48fac9 and consumes none of these six draws. Preserve current contact placement and query policy separately; this report does not establish the .002 contact offset, gravity scheduling, wet movement scaling, sloped-normal precision or collision masks. Store returned spin axis/rate in the chunk's existing rotation fields. No arbitrary gain or guessed damping is needed.
+
+## Shared helper handoff
+
+`rf_geomod_debris_contact` and `rf_geomod_debris_bounce` are now implemented in coregeomod/header with transactional outputs/RNG. New `tests/geomod_debris_bounce_tests.c` embeds24 captured original response vectors covering all three contact axes, tangential preservation, low-speed gravity correction, several seeds and both frame deltas; expected values are original instruction outputs, not recomputed from the new helper. It also checks invalid/overflow rollback and continuing zero-speed contacts. Parent owns build registration/execution and scene integration. No build or native validation is claimed at this handoff.

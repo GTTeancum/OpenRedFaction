@@ -10,7 +10,7 @@ import subprocess
 ROOT = Path(__file__).resolve().parents[1]
 
 def recording(mode):
-    end = {'blast-far':260, 'blast-near':300, 'blast-lethal':350}.get(mode, 0)
+    end = {'blast-far':260, 'blast-near':306, 'blast-lethal':350}.get(mode, 0)
     frames = end + 100 if end else 125 if mode == 'visual' else 111 if mode == 'flying' else 260
     return b'RFI6' + struct.pack('<I', 48) + b''.join(
         struct.pack('<5f7I', 0, 0, .8 if 130 <= i < end else 0, 0, .7 if i < 90 else .2 if mode == 'visual' and i > 110 else 0, 0, 0, 0,
@@ -23,6 +23,7 @@ def main():
     folder.mkdir(parents=True, exist_ok=True)
     env = {k:v for k,v in os.environ.items() if not k.startswith('RF_REPLAY_')}
     env['RF_REPLAY_TRACE'] = '1'
+    env['RF_REPLAY_TRACE_FROM'] = '0'
     for mode in ('flying', 'shot', 'reload', 'switch', 'blast-far', 'blast-near', 'blast-lethal', 'visual'):
         path = folder / (mode + '.bin')
         path.write_bytes(recording(mode))

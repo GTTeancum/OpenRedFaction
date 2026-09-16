@@ -484,4 +484,8 @@ int rf_weapon_reset(rf_weapon_reset_state *state,int32_t weapon,
     const rf_weapon_descriptor descriptors[64],const rf_weapon_reset_context *context,
     rf_motion_playback_state *playback,const rf_motion_playback_resource *resources,uint32_t resource_count,
     const rf_weapon_reset_ops *ops,void *user);
+/* Ordinary blast489010: distance to physics position, radius admission>0.1.
+ * Caller performs CF5 cover query first. Malformed inputs preserve output.
+ * Population, shields, attribution and damage application are separate. */
+int rf_weapon_blast_amount(const float origin[3],const float position[3],float damage,float radius,float *out);
 #endif

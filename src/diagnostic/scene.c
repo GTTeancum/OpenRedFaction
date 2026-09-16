@@ -9627,11 +9627,16 @@ static int scene_debris_tick(scene_stream *s)
         for(k=0;k<3;k++)delta[k]=c->velocity[k]/60.f;
         status=rf_geometry_collision_world_ray(s->collision,0x460,c->position,delta,1,&hit,&matched);if(status)return status;
         if(matched) {
-            float dot=0;for(k=0;k<3;k++)dot+=c->velocity[k]*hit.hit.normal[k];
-            for(k=0;k<3;k++){c->position[k]=hit.hit.point[k]+hit.hit.normal[k]*.002f;c->velocity[k]=(c->velocity[k]-2*dot*hit.hit.normal[k])*.35f;}
+            for(k=0;k<3;k++)c->position[k]=hit.hit.point[k]+hit.hit.normal[k]*.002f;
             ++rf_scene_debris[2];
             if(hit.hit.normal[1]>=.7f && c->bounces && !--c->bounces) {
+                /* Original terminal floor contact consumes no bounce RNG. */
                 memset(c->velocity,0,sizeof(c->velocity));c->age=c->mesh.lifetime;
+            } else {
+                rf_geomod_debris_bounce bounce;
+                status=rf_geomod_debris_contact(c->velocity,hit.hit.normal,1.f/60,scene_gravity.acceleration,&p->random,&bounce);
+                if(status)return status;
+                memcpy(c->velocity,bounce.velocity,12);memcpy(c->axis,bounce.spin_axis,12);c->spin=bounce.spin_rate;
             }
         } else for(k=0;k<3;k++)c->position[k]+=delta[k];
         if(c->bounces)c->velocity[1]-=scene_gravity.acceleration/60.f;++rf_scene_debris[1];
@@ -9683,33 +9688,23 @@ static int scene_debris_draw(scene_stream *s)
 }
 
 uint32_t rf_scene_rocket_blast[8]; /* explosions, candidates, damaged, NPC kills, self hits, last amount bits, occluded, status */
-/* Practical first-pass radial policy: nearest visible body-sphere surface,
- * linear attenuation to the authored radius. This is not recovered falloff. */
+/* Ordinary489010 victim: cover ray to physics position with CF5, then falloff.
+ * Bullet rays intentionally retain their distinct CF0x27 policy. */
 static int scene_blast_amount(scene_stream *s,const float origin[3],const rf_physics_body *body,float *amount)
 {
-    uint32_t i,k,blocked;float best=0;int status;
-    for(i=0;i<body->spheres.count;i++) {
-        const rf_physics_sphere *sphere=body->spheres.items+i;float delta[3],distance=0,surface;
-        for(k=0;k<3;k++) {
-            delta[k]=(float)((double)body->state.position[k]+sphere->center[0]*(double)body->state.orientation[k]+
-                sphere->center[1]*(double)body->state.orientation[3+k]+sphere->center[2]*(double)body->state.orientation[6+k])-origin[k];
-            distance+=delta[k]*delta[k];
-        }
-        distance=sqrtf(distance);surface=fmaxf(0,distance-sphere->radius);
-        if(surface>=campaign_rocket.damage_radius)continue;
-        /* End at the body's near surface; touching a wall behind its center
-         * must not hide an otherwise exposed sphere. */
-        if(distance>0)for(k=0;k<3;k++)delta[k]*=surface/distance;
-        status=combat_shot_obstructed(s,origin,delta,1,&blocked);if(status)return status;
-        if(blocked){++rf_scene_rocket_blast[6];continue;}
-        {float value=campaign_primary[4].damage*(1-surface/campaign_rocket.damage_radius);if(value>best)best=value;}
-    }
-    *amount=best;return RF_OK;
+    uint32_t blocked;int status=rf_geometry_collision_ray(s->collision,&campaign_movers,
+        origin,body->state.position,5,NULL,&blocked);
+    if(status)return status;
+    if(blocked){++rf_scene_rocket_blast[6];*amount=0;return RF_OK;}
+    status=rf_weapon_blast_amount(origin,body->state.position,campaign_primary[4].damage,campaign_rocket.damage_radius,amount);
+    if(!status && rf_scene_combat_trace)printf("BLAST_VICTIM %.9g %.9g %.9g %.9g %.9g %.9g %.9g\n",
+        origin[0],origin[1],origin[2],body->state.position[0],body->state.position[1],body->state.position[2],*amount);
+    return status;
 }
 static int scene_rocket_blast(scene_stream *s,uint32_t frame,const rf_weapon_flight_contact *contact)
 {
     float origin[3],seconds=(float)frame/60;uint32_t i,bits;int status;
-    ++rf_scene_rocket_blast[0];if(campaign_rocket.damage_radius<=0)return RF_OK;
+    ++rf_scene_rocket_blast[0];if(campaign_primary[4].damage<=0 || campaign_rocket.damage_radius<=.1f)return RF_OK;
     for(i=0;i<3;i++)origin[i]=contact->hit.point[i]+contact->hit.normal[i]*.01f;
     memcpy(&bits,&seconds,4);
     for(i=0;i<=campaign_npc_body_count;i++) {

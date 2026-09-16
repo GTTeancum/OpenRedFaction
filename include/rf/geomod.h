@@ -110,6 +110,16 @@ int rf_geomod_debris_build(float radius,uint32_t width,uint32_t height,
 int rf_geomod_debris_launch(const float position[3],const float origin[3],
     float radius,float resistance,rf_random_state *random,float velocity[3]);
 
+/*48fac9..48fbe7 continuing debris contact: normal impulse, then new spin.
+ * Caller must apply terminal floor-bounce settling BEFORE calling (no draws).
+ * Unit normal, finite vectors, positive dt and nonnegative gravity required.
+ * Six CRT draws; transactional RNG/output, no allocation or output overlap. */
+typedef struct rf_geomod_debris_bounce {
+    float velocity[3],spin_axis[3],spin_rate,coefficient;
+} rf_geomod_debris_bounce;
+int rf_geomod_debris_contact(const float velocity[3],const float normal[3],
+    float dt,float gravity,rf_random_state *random,rf_geomod_debris_bounce *out);
+
 /*490500: six axial and eight diagonal world-query endpoints, in original
  * order.490890 consumes resolved query results; hit must equal1, a face must
  * exist, and face flag8 must be clear to subtract the intersection fraction (not world distance).
