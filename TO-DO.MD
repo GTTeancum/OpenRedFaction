@@ -5374,3 +5374,5 @@ inspected frame. Different clipping-sequence junctions remain open. ~49%.
 Validation follow-up (2026-09-15): npc_motion_residency fails at1179/1305
 on both the unchanged69595922 baseline and the terrain-ray change; investigate
 the scripted NPC damage fixture separately after the current GeoMod priority.
+
+Crater update verification (2026-09-15): retained53 original-code mapping lifecycle/dirty cases and reran the live PC light cycle. The fixture changes98 of121 atlas maps without changing mapping identity; removal restores all retained map bytes and the rendered frame exactly. All four endpoint images were inspected; the dark mound-like crater appearance remains unresolved. Shared committed-cutter save/load implementation is in progress, not yet integrated or verified. Estimate remains overall~49%, GeoMod~65%.

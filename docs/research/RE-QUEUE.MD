@@ -24,7 +24,10 @@ Send findings to the primary as each investigation completes, then proceed to th
 
 18. Reported/integrated: exact-zero split-child removal fixes the second live shallow cut; thin valid fragments remain supported.
 19. Reported: shared-edge propagation preserves identity with independent face UV/lightmap interpolation; mixed detail guard and draw-state comparison also complete.
-20. Reported: ordinary tested mapping updates preserve base RGB; static replacement requires explicit invalidation, and primary review is pending.
+20. Reviewed/rerun:53 original lifecycle/dirty cases preserve base RGB under ordinary tested updates; explicit static invalidation is separate.
 
 21. Active (crater_shading_re): original backend selection and base/lightmap upload channel and alpha interpretation.
 22. Active (crater_material_audit): independent live crater material and UV binding audit; no shared implementation edits or emulator use.
+
+23. Active (geomod_save_design): implement bounded committed-cutter export/import in shared core; primary will review/build and integrate scene persistence separately.
+24. Active (crater_material_audit): original sampler filtering/mipmap settings; material/UV and winding audits reported without a correction.
