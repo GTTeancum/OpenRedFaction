@@ -28,3 +28,40 @@ measure chronological replay cost and transactional peaks, then decide the
 geometry/tree/atlas budgets from those results. Existing eight-cut stress peaks
 near1MiB, so a larger cut array cannot be assumed to fit the same core budget.
 Do not evict earlier cuts or silently reset destruction to make room.
+
+
+## Executed larger-profile probes
+
+Added isolated rf_geomod_capacity_probe and rf_geomod_capacity_stress_probe
+targets compiling their own geomod.c with RF_GEOMOD_CUT_LIMIT=16. The default
+shared library and live PC/Xbox remain8. Do not mix a16-cut public struct owner
+with an8-cut implementation; these targets call their own complete core.
+
+The basic probe commits16 separated box recesses in both an outward solid and
+an inward cavity. At every edit it queries all previous hole centers and
+protected gaps against analytic expected ray fractions and checks edge closure.
+Decode after15 followed by cut16 matches uninterrupted mesh, UVs, filters and
+queries;17th cut rejects with identical serialized history and live geometry.
+Both cases pass within1MiB per core. Cavity final peak937280 bytes, final
+history9628 bytes. These are simple geometry tests, not full scene/native proof.
+
+Original concave overlapping-template stress with16 slots rejects cut8 under
+1MiB; allowing1088KiB passes8 at peak1052460 bytes. Requesting16 rejects cut9
+with RF_RANGE at both1088KiB and2MiB. Therefore raising the memory allowance
+alone does not resolve the ninth-cut failure. Output after8 is3888 corners and
+770 faces, near the4096-corner/800-face owner limits. Exact ninth rejection
+branch still needs instrumentation; do not claim which one fired from size alone.
+
+Found a separate stale768-face guard in append_compact_lineage, while the
+support-plane array already holds1024. Replaced with the actual array extent.
+New internal boundary coverage appends800/1024 tracked faces, checks tags and
+support IDs, then rejects overflow without changing counts. Five focused
+geometry/UV/lineage tests pass; original-template ninth rejection persists.
+NXDK build passes. No new native run or larger live profile acceptance claimed.
+
+Logs under artifacts/authored-post-live: capacity16.log, capacity16-stress.log,
+capacity16-eight-1088k.log, capacity16-sixteen-1088k.log,
+capacity16-sixteen-2m.log, capacity16-supported-2m.log, and
+capacity-support-{build,xbox-build}.log. RF_GEOMOD_STRESS_COUNT now accepts
+6..configured limit; RF_GEOMOD_STRESS_BUDGET explicitly selects1..2MiB and
+defaults to1MiB. Existing lower-face overflow checks remain enabled for8 cuts.

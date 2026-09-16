@@ -2,7 +2,9 @@
 #define RF_GEOMOD_LIMITS_H
 /* Port working-set limit, separate from the original128 admission journal.
  * Raising this also requires geometry/publication and stock64MiB acceptance. */
+#ifndef RF_GEOMOD_CUT_LIMIT
 #define RF_GEOMOD_CUT_LIMIT 8
+#endif
 #if RF_GEOMOD_CUT_LIMIT < 1 || RF_GEOMOD_CUT_LIMIT > 32
 #error GeoMod cutter mask requires a limit from1 through32
 #endif

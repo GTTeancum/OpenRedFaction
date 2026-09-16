@@ -35,6 +35,25 @@ int main(void)
         CHECK(!rf_geomod_storage_pending(s,&pending));CHECK(pending.face_count>1);
         for(i=0;i<pending.face_count;i++)CHECK(tags->pending[i]==13);
     }
-    rf_geomod_storage_close(&s);free(tags);free(w);
+    rf_geomod_storage_close(&s);
+    /* Repaired chronological meshes may exceed the old768 support guard.
+     * Both cached800 and uncached1024 owners must use their actual arrays. */
+    for(unsigned capacity=800;capacity<=1024;capacity+=224) {
+        uint16_t edges[4]={1,2,3,4};quad(v,0);
+        CHECK(!rf_geomod_storage_open(&source,4096,capacity,300000,&s));
+        CHECK(!rf_geomod_storage_begin(s));
+        for(i=0;i<capacity;i++) {
+            quad(v,2.f*i);
+            CHECK(!append_compact_lineage(s,v,4,i,UINT32_MAX,w,edges,(uint16_t)i,tags,1));
+        }
+        CHECK(!rf_geomod_storage_pending(s,&pending) && pending.face_count==capacity);
+        for(i=0;i<capacity;i++)CHECK(w->compact_planes[i]==i && tags->pending[i]==1 &&
+            !memcmp(w->compact_edges+4*i,edges,sizeof(edges)));
+        quad(v,2.f*capacity);
+        CHECK(append_compact_lineage(s,v,4,capacity,UINT32_MAX,w,edges,0,tags,1)==RF_RANGE);
+        CHECK(!rf_geomod_storage_pending(s,&pending) && pending.face_count==capacity);
+        rf_geomod_storage_close(&s);
+    }
+    free(tags);free(w);
     puts("PASS birth separation, same-birth merge/index movement, repair and concave partition propagation; optional scratch2048bytes");return 0;
 }

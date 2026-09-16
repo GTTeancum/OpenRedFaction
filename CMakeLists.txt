@@ -574,3 +574,12 @@ add_test(NAME geomod_chronological_solid COMMAND rf_geomod_chronological_solid_t
 # Extended eight-cut diagnostic uses the same chronological path as gameplay.
 add_executable(rf_geomod_chronological_stress_probe tests/geomod_interior_tests.c tools/pc_raster.c src/core/geomod.c)
 target_link_libraries(rf_geomod_chronological_stress_probe PRIVATE rf_core)
+
+# Isolated16-cut core profile; production remains at the configured default.
+add_executable(rf_geomod_capacity_probe tests/geomod_capacity_probe.c src/core/geomod.c)
+target_compile_definitions(rf_geomod_capacity_probe PRIVATE RF_GEOMOD_CUT_LIMIT=16)
+target_link_libraries(rf_geomod_capacity_probe PRIVATE rf_core)
+
+add_executable(rf_geomod_capacity_stress_probe tests/geomod_interior_tests.c tools/pc_raster.c src/core/geomod.c)
+target_compile_definitions(rf_geomod_capacity_stress_probe PRIVATE RF_GEOMOD_CUT_LIMIT=16)
+target_link_libraries(rf_geomod_capacity_stress_probe PRIVATE rf_core)

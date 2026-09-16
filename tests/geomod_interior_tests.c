@@ -532,7 +532,7 @@ static int terrain_history_roundtrip(rf_geomod_terrain *source,
         CHECK(rf_geomod_terrain_history_decode(copy,bad,j)!=RF_OK);
     }
     memcpy(bad,data,bytes);bad[4]=2;CHECK(rf_geomod_terrain_history_decode(copy,bad,bytes)==RF_FORMAT);
-    memcpy(bad,data,bytes);bad[12]=9;CHECK(rf_geomod_terrain_history_decode(copy,bad,bytes)==RF_FORMAT);
+    memcpy(bad,data,bytes);bad[12]=RF_GEOMOD_CUT_LIMIT+1;CHECK(rf_geomod_terrain_history_decode(copy,bad,bytes)==RF_FORMAT);
     memcpy(bad,data,bytes);bad[16]^=1;CHECK(rf_geomod_terrain_history_decode(copy,bad,bytes)==RF_FORMAT);
     memcpy(bad,data,bytes);bad[20]^=1;CHECK(rf_geomod_terrain_history_decode(copy,bad,bytes)==RF_FORMAT);
     if(a.cuts) {
@@ -1116,7 +1116,7 @@ int main(int argc,char **argv)
             CHECK(!rf_geomod_terrain_get(terrain,&before));minimum_budget=before.peak_bytes;baseline_bytes=before.resident_bytes;
             CHECK(before.cuts==0 && before.mesh.generation==1);
             CHECK(!terrain_history_roundtrip(terrain,&src,filters,&generated,1,0,0));
-            for(i=0;i<8;i++) {
+            for(i=0;i<RF_GEOMOD_CUT_LIMIT;i++) {
                 CHECK(!rf_geomod_terrain_cut_box(terrain,center,extent,2));
                 CHECK(!rf_geomod_terrain_get(terrain,&live));CHECK(live.cuts==i+1 && live.mesh.generation==i+2);
                 CHECK(live.resident_bytes<=live.peak_bytes && live.peak_bytes<=1024*1024);
@@ -1157,7 +1157,7 @@ int main(int argc,char **argv)
             }
             before=live;
             CHECK(rf_geomod_terrain_cut_box(terrain,center,extent,2)==RF_RANGE);
-            CHECK(!rf_geomod_terrain_get(terrain,&live) && live.mesh.generation==before.mesh.generation && live.cuts==8);
+            CHECK(!rf_geomod_terrain_get(terrain,&live) && live.mesh.generation==before.mesh.generation && live.cuts==RF_GEOMOD_CUT_LIMIT);
             CHECK(!rf_geomod_terrain_reset(terrain));CHECK(!rf_geomod_terrain_get(terrain,&live));
             for(j=0;j<live.mesh.face_count;j++)ids[j]=live.mesh.faces[j].source_face;
             CHECK(!rf_geometry_collision_overlay_bind(&overlay,live.tree,ids,live.mesh.face_count));
@@ -1482,8 +1482,10 @@ int main(int argc,char **argv)
             rf_geomod_template shape;rf_random_state random={1};double previous_volume=0;unsigned junction_misses=0;
             rf_geomod_terrain *uncached=NULL,*limited=NULL;rf_geomod_terrain_view reference;
             const char *trace_cut=getenv("RF_GEOMOD_INTERSECTION_CUT");unsigned trace_index=0,stress_count=6;
-            const char *stress=getenv("RF_GEOMOD_STRESS_COUNT");
-            if(stress){CHECK(stress[0]>='6' && stress[0]<='8' && !stress[1]);stress_count=(unsigned)(stress[0]-'0');}
+            const char *stress=getenv("RF_GEOMOD_STRESS_COUNT"),*budget_text=getenv("RF_GEOMOD_STRESS_BUDGET");
+            unsigned stress_budget=1024*1024;
+            if(stress){char *end;unsigned long value=strtoul(stress,&end,10);CHECK(*stress && !*end && value>=6 && value<=RF_GEOMOD_CUT_LIMIT);stress_count=(unsigned)value;}
+            if(budget_text){char *end;unsigned long value=strtoul(budget_text,&end,10);CHECK(*budget_text && !*end && value>=1024*1024 && value<=2*1024*1024);stress_budget=(unsigned)value;}
             if(trace_cut){CHECK(trace_cut[0]>='1' && trace_cut[0]<='8' && !trace_cut[1]);trace_index=(unsigned)(trace_cut[0]-'1');CHECK(trace_index<stress_count);}
             const float start[3]={0,-10,12},delta[3]={-40,0,-20};
             CHECK(!rf_geomod_template_load("build/data/geomod-template.bin",&shape));
@@ -1493,9 +1495,9 @@ int main(int argc,char **argv)
                 for(j=0;j<2;j++){rf_geomod_vertex temp=source_v[i][j];source_v[i][j]=source_v[i][3-j];source_v[i][3-j]=temp;}
             }
             source=(rf_geomod_mesh_view){source_v[0],source_f,24,6,0};
-            CHECK(!rf_geomod_terrain_open(&source,original_filters,&generated,1,4096,stress_count>6?800:768,1024*1024,&terrain));
-            CHECK(!rf_geomod_terrain_open(&source,original_filters,&generated,1,4096,801,1024*1024,&uncached));
-            if(stress_count==8)CHECK(!rf_geomod_terrain_open(&source,original_filters,&generated,1,4096,768,1024*1024,&limited));
+            CHECK(!rf_geomod_terrain_open(&source,original_filters,&generated,1,4096,stress_count>6?800:768,stress_budget,&terrain));
+            CHECK(!rf_geomod_terrain_open(&source,original_filters,&generated,1,4096,801,stress_budget,&uncached));
+            if(stress_count==8)CHECK(!rf_geomod_terrain_open(&source,original_filters,&generated,1,4096,768,stress_budget,&limited));
             report_closure=getenv("RF_GEOMOD_CLOSURE_ALL")?2:1;
             {uint16_t edges[24];CHECK(!rf_geomod_seed_adjacency(&source,edges,24));}
             for(repeat=0;repeat<stress_count;repeat++) {
@@ -1540,7 +1542,7 @@ int main(int argc,char **argv)
                 {int status=rf_geomod_terrain_cut_template(uncached,&shape,hit.hit.point,basis,3.75f,77);
                  if(status)fprintf(stderr,"UNCACHED_REJECT cut%u status%d\n",repeat+1,status);CHECK(!status);}
                 CHECK(!rf_geomod_terrain_get(uncached,&reference));
-                CHECK(!rf_geomod_terrain_get(terrain,&live) && live.cuts==repeat+1 && live.peak_bytes<=1024*1024);
+                CHECK(!rf_geomod_terrain_get(terrain,&live) && live.cuts==repeat+1 && live.peak_bytes<=stress_budget);
                 CHECK(reference.mesh.vertex_count==live.mesh.vertex_count && reference.mesh.face_count==live.mesh.face_count);
                 CHECK(!memcmp(reference.mesh.vertices,live.mesh.vertices,live.mesh.vertex_count*sizeof(*live.mesh.vertices)));
                 CHECK(!memcmp(reference.mesh.faces,live.mesh.faces,live.mesh.face_count*sizeof(*live.mesh.faces)));
@@ -1640,7 +1642,7 @@ int main(int argc,char **argv)
             rf_geomod_terrain_close(&limited);
             report_closure=0;
             CHECK(!junction_misses);
-            printf("PASS: %u ray-placed crater admissions and increasing signed volume within1MiB; closed room-scale edges verified\n",stress_count);
+            printf("PASS: %u ray-placed crater admissions and increasing signed volume within%u bytes; closed room-scale edges verified\n",stress_count,stress_budget);
         }
         puts("PASS: original concave template, overlapping cuts, closed edges, volume and324 independent triangle rays");
     }

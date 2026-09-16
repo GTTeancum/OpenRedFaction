@@ -1257,7 +1257,7 @@ static int append_compact_lineage(rf_geomod_storage *s,const rf_geomod_vertex *v
     if(lineage && s->face_capacity>1024)return RF_RANGE;
     if(s->vertex_capacity>4096 || s->face_capacity>1024)edges=NULL;
     if(n>64)return RF_RANGE;memcpy(polygon,v,n*sizeof(*v));
-    if(edges){if(s->nv[bank]>4096 || s->nf[bank]>768)return RF_RANGE;memcpy(polygon_edges,edges,n*sizeof(*edges));}
+    if(edges){if(s->nv[bank]>4096 || s->nf[bank]>sizeof(work->compact_planes)/sizeof(work->compact_planes[0]))return RF_RANGE;memcpy(polygon_edges,edges,n*sizeof(*edges));}
     if(cached)compact_bounds(polygon,n,bounds);
     while(i<s->nf[bank]) {
         rf_geomod_face f=s->faces[bank][i];
@@ -1280,7 +1280,7 @@ static int append_compact_lineage(rf_geomod_storage *s,const rf_geomod_vertex *v
         memcpy(polygon,joined,count*sizeof(*v));n=count;i=0;
         if(cached)compact_bounds(polygon,n,bounds);
     }
-    if(edges && (s->nv[bank]>4096-n || s->nf[bank]>=768))return RF_RANGE;
+    if(edges && (s->nv[bank]>4096-n || s->nf[bank]>=sizeof(work->compact_planes)/sizeof(work->compact_planes[0])))return RF_RANGE;
     status=rf_geomod_storage_append(s,polygon,n,material,source_face);
     if(!status && edges){memcpy(work->compact_edges+s->nv[bank]-n,polygon_edges,n*sizeof(uint16_t));work->compact_planes[s->nf[bank]-1]=plane_id;}
     if(!status && cached)memcpy(work->compact_bounds[s->nf[bank]-1],bounds,sizeof(bounds));
