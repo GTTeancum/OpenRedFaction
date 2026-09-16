@@ -421,3 +421,8 @@ add_test(NAME geomod_debris_liquid COMMAND rf_geomod_debris_liquid_tests)
 add_executable(rf_geomod_debris_placement_tests tests/geomod_debris_placement_tests.c)
 target_link_libraries(rf_geomod_debris_placement_tests PRIVATE rf_core)
 add_test(NAME geomod_debris_placement COMMAND rf_geomod_debris_placement_tests)
+
+target_sources(rf_core PRIVATE src/core/composed_checkpoint.c)
+add_executable(rf_composed_checkpoint_tests tests/composed_checkpoint_tests.c)
+target_link_libraries(rf_composed_checkpoint_tests PRIVATE rf_core)
+add_test(NAME composed_checkpoint_codec COMMAND rf_composed_checkpoint_tests)

@@ -15,6 +15,7 @@ SRCS += $(PROJECT_ROOT)/src/core/debris_audio.c
 SRCS += $(PROJECT_ROOT)/src/core/collision_composition.c
 SRCS += $(PROJECT_ROOT)/src/core/checkpoint_file.c
 SRCS += $(PROJECT_ROOT)/src/core/player_checkpoint.c
+SRCS += $(PROJECT_ROOT)/src/core/composed_checkpoint.c
 SRCS += $(PROJECT_ROOT)/src/platform/xbox/checkpoint_storage.c
 SRCS += $(PROJECT_ROOT)/src/platform/xbox/input.c
 SRCS += $(PROJECT_ROOT)/src/platform/xbox/audio.c
