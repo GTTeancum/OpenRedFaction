@@ -16,6 +16,7 @@
 #include <stdlib.h>
 #include <string.h>
 
+extern uint32_t rf_scene_ripple_test_enabled,rf_scene_ripple_visual[8],rf_scene_ripple_lifecycle[4],rf_scene_rocket_liquid[4];
 extern uint32_t rf_scene_enemy_melee[4];
 extern uint32_t rf_scene_enemy_damage_kinds[10];
 extern uint32_t rf_scene_attack_recovery[4];
@@ -472,6 +473,7 @@ int main(int argc,char **argv)
         if(fclose(f))failed=1;if(failed)CHECK(RF_FORMAT);
         CHECK(rf_scene_campaign_player_set(&state));
     }
+    rf_scene_ripple_test_enabled=p.headless && getenv("RF_REPLAY_RIPPLE_TEST")!=NULL;
     rf_scene_dev_room_enabled=dev_room || (p.headless && getenv("RF_REPLAY_DEV_ROOM")!=NULL);
     rf_scene_follow_level_exits=spawn_profile && !rf_scene_dev_room_enabled;
     if(p.headless && getenv("RF_REPLAY_WATCH_UID")) {
@@ -812,6 +814,9 @@ run_scene:
     printf("PICKUP_VITALS");for(i=0;i<4;++i)printf(" %u",rf_scene_pickup_vitals[i]);puts("");
     printf("PICKUPS");for(i=0;i<8;++i)printf(" %u",rf_scene_pickups[i]);puts("");
     printf("PLAYER_AMMO");for(i=0;i<8;++i)printf(" %u",rf_scene_player_ammo[i]);puts("");
+    printf("RIPPLE_VISUAL");for(i=0;i<8;++i)printf(" %u",rf_scene_ripple_visual[i]);puts("");
+    printf("RIPPLE_LIFECYCLE");for(i=0;i<4;++i)printf(" %u",rf_scene_ripple_lifecycle[i]);puts("");
+    printf("ROCKET_LIQUID_STATE");for(i=0;i<4;++i)printf(" %u",rf_scene_rocket_liquid[i]);puts("");
     printf("ROCKET_VISUAL");for(i=0;i<8;++i)printf(" %u",rf_scene_rocket_visual[i]);puts("");
     printf("ROCKET_BLAST");for(i=0;i<8;++i)printf(" %u",rf_scene_rocket_blast[i]);puts("");
     printf("ROCKETS");for(i=0;i<8;++i)printf(" %u",rf_scene_rockets[i]);puts("");

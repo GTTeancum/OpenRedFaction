@@ -39,6 +39,23 @@ int main(int argc,char **argv)
             printf("texture %s frames=%u\n",materials->textures.textures[i].name,materials->textures.textures[i].animation.count);
             CHECK(materials->textures.textures[i].animation.count);
         }
+        {
+            rf_vfx_geometry_asset *ripple=NULL;rf_vfx_asset_materials *water=NULL;
+            snprintf(path,sizeof(path),"%s/meshes.vpp",argv[1]);CHECK(!rf_vpp_open(&archive,path));
+            CHECK(!rf_vfx_geometry_asset_open(&archive,"WaterRipple01.vfx",131072,&ripple));
+            CHECK(!rf_vfx_asset_materials_open(ripple,maps,5,1048576,&water));
+            CHECK(water->count==4 && water->textures.texture_count==2);
+            CHECK(water->first[ripple->count]==4);
+            for(unsigned m=0;m<water->count;m++)CHECK(water->colors[m]==0xffffffffu);
+            CHECK(rf_vfx_asset_materials_open(ripple,maps,5,water->resident_bytes-1,&failed)==RF_RANGE && !failed);
+            rf_vpp_close(&archive);rf_vfx_geometry_asset_close(&ripple);
+            for(unsigned m=0;m<water->count;m++) {
+                const rf_image *image=NULL;
+                CHECK(!rf_vfx_material_texture_sample(&water->textures,water->views+m,m,0,0,0,&image));
+                CHECK(image && image->width && image->height);
+            }
+            rf_vfx_asset_materials_close(&water);
+        }
         for(i=0;i<5;i++)rf_vpp_close(maps+i);
         rf_vfx_geometry_asset_close(&a);
         for(i=0;i<materials->count;i++)for(unsigned slot=0;slot<2;slot++) {

@@ -506,16 +506,18 @@ static int preview(const rf_preview_mesh *mesh, const rf_materials *materials, c
             texture = material < materials->count && textures[material].pixels ? textures+material : textures+materials->count;
             p = pb_begin();
             {uint32_t alpha=RF_PREVIEW_IS_FADED(lightmap)?lightmap&255u:255u;
-             uint32_t blend=alpha<255 || (model && (model<3 || i>=world_vertices) && texture->transparent);
+             uint32_t blend=RF_PREVIEW_IS_ADDITIVE_FADED(lightmap)?2u:(alpha<255 || (model && (model<3 || i>=world_vertices) && texture->transparent));
              if(alpha!=bound_alpha) {
                 p=pb_push1(p,NV097_SET_TRANSFORM_CONSTANT_LOAD,97);
                 p=pb_push4f(p,NV097_SET_TRANSFORM_CONSTANT,alpha/255.f,0,0,0);
                 bound_alpha=alpha;methods+=5;++state_changes;
              }
              if(blend!=bound_blend) {
-                p=pb_push1(p,NV097_SET_BLEND_ENABLE,blend);
+                p=pb_push1(p,NV097_SET_BLEND_FUNC_SFACTOR,NV097_SET_BLEND_FUNC_SFACTOR_V_SRC_ALPHA);
+                p=pb_push1(p,NV097_SET_BLEND_FUNC_DFACTOR,blend==2?NV097_SET_BLEND_FUNC_DFACTOR_V_ONE:NV097_SET_BLEND_FUNC_DFACTOR_V_ONE_MINUS_SRC_ALPHA);
+                p=pb_push1(p,NV097_SET_BLEND_ENABLE,blend!=0);
                 p=pb_push1(p,NV097_SET_DEPTH_MASK,!blend);
-                bound_blend=blend;methods+=2;++state_changes;
+                bound_blend=blend;methods+=4;++state_changes;
              }}
             if(texture!=bound_texture) {
                 p=pb_push1(p,NV097_SET_TEXTURE_OFFSET,(uint32_t)texture->pixels & 0x03ffffff);

@@ -538,6 +538,8 @@ static int scene_preview(rf_level *level,rf_preview_mesh *mesh)
     {extern uint32_t rf_xbox_world_grouping_disabled;FILE *stream_flag;
      stream_flag=fopen("D:\\renderer-world-off.flag","rb");rf_xbox_world_grouping_disabled=stream_flag!=NULL;
      if(stream_flag)fclose(stream_flag);}
+    {extern uint32_t rf_scene_ripple_test_enabled;FILE *ripple_flag=fopen("D:\\ripple-test.flag","rb");
+     rf_scene_ripple_test_enabled=ripple_flag!=NULL;if(ripple_flag)fclose(ripple_flag);}
     stream_flag=fopen("D:\\dev-room.flag","rb");rf_scene_dev_room_enabled=stream_flag!=NULL;
     if(stream_flag)fclose(stream_flag);
     stream_flag=fopen("D:\\campaign-spawn.flag","rb");

@@ -2485,29 +2485,42 @@ void rf_vfx_geometry_asset_close(rf_vfx_geometry_asset **out)
 {
     uint32_t i;rf_vfx_geometry_asset *a;if(!out || !(a=*out))return;
     for(i=0;i<32;i++){rf_vfx_instance_close(a->instances+i);rf_vfx_mesh_close(a->meshes+i);}
-    free(a);*out=NULL;
+    rf_vfx_material_bank_close(&a->material_bank);free(a);*out=NULL;
 }
 int rf_vfx_geometry_asset_open(rf_vpp *archive,const char *name,uint32_t budget,rf_vfx_geometry_asset **out)
 {
     rf_vfx_directory directory={0};rf_vfx_geometry_asset *a=NULL;unsigned char *scratch=NULL;
-    uint32_t i,used=sizeof(*a),temporary,maximum=0;int status;
+    uint32_t i,used=sizeof(*a),temporary,maximum=0,mesh_count=0,global_materials=0,version4;int status;
     if(!archive || !name || !out || *out || budget<used)return RF_RANGE;
     status=rf_vfx_directory_open(archive,name,budget-used,&directory);if(status)return status;
-    if(directory.header.version<0x3000a || directory.header.version>=0x40000 || !directory.count || directory.count>32){status=RF_FORMAT;goto done;}
+    if(directory.header.version<0x3000a || !directory.count){status=RF_FORMAT;goto done;}
+    version4=directory.header.version>=0x40000;
     for(i=0;i<directory.count;i++) {
-        if(directory.chunks[i].type!=0x4f584653u){status=RF_FORMAT;goto done;}
-        if(directory.chunks[i].bytes>maximum)maximum=directory.chunks[i].bytes;
+        if(directory.chunks[i].type==0x4f584653u) {
+            if(++mesh_count>32){status=RF_FORMAT;goto done;}
+            if(directory.chunks[i].bytes>maximum)maximum=directory.chunks[i].bytes;
+        } else if(version4 && directory.chunks[i].type==0x4c54414du)++global_materials;
+        else {status=RF_FORMAT;goto done;}
     }
+    if(!mesh_count || (version4 && directory.header.values[2]!=mesh_count)){status=RF_FORMAT;goto done;}
     if((uint64_t)used+directory.allocated_bytes+maximum>budget){status=RF_RANGE;goto done;}
     temporary=directory.allocated_bytes+maximum;
-    a=calloc(1,sizeof(*a));scratch=malloc(maximum);if(!a || !scratch){status=RF_IO;goto done;}
-    for(i=0;i<directory.count;i++) {
+    a=calloc(1,sizeof(*a));if(!a){status=RF_IO;goto done;}
+    a->version=directory.header.version;
+    if(version4) {
+        status=rf_vfx_material_bank_open(&directory,budget-used-temporary,&a->material_bank);if(status)goto done;
+        if(a->material_bank->count!=global_materials){status=RF_FORMAT;goto done;}
+        used+=a->material_bank->allocated_bytes;
+    }
+    scratch=malloc(maximum);if(!scratch){status=RF_IO;goto done;}
+    for(i=0;i<directory.count;i++)if(directory.chunks[i].type==0x4f584653u) {
+        uint32_t index=a->count;
         status=rf_vfx_chunk_read(&directory,i,0,scratch,directory.chunks[i].bytes);if(status)goto done;
-        status=rf_vfx_mesh_open(scratch,directory.chunks[i].bytes,directory.header.version,0,NULL,budget-used-temporary,a->meshes+i);if(status)goto done;
-        used+=a->meshes[i]->allocated_bytes;
-        if(a->meshes[i]->prefix.vertices) {
-            status=rf_vfx_instance_open(a->meshes[i],budget-used-temporary,a->instances+i);if(status)goto done;
-            used+=a->instances[i]->allocated_bytes;
+        status=rf_vfx_mesh_open(scratch,directory.chunks[i].bytes,directory.header.version,global_materials,NULL,budget-used-temporary,a->meshes+index);if(status)goto done;
+        used+=a->meshes[index]->allocated_bytes;
+        if(a->meshes[index]->prefix.vertices) {
+            status=rf_vfx_instance_open(a->meshes[index],budget-used-temporary,a->instances+index);if(status)goto done;
+            used+=a->instances[index]->allocated_bytes;
         }
         ++a->count;
     }

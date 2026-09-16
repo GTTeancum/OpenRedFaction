@@ -26,6 +26,7 @@ from xemu_session_guard import require_no_project_xemu
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--cpu-exceptions', action='store_true', help='Retain QEMU exception/reset diagnostics for guest crash analysis')
+    parser.add_argument('--ripple-test', action='store_true', help='DEV render-only ripple fixture; no liquid collision claim')
     parser.add_argument('--dev-room', action='store_true', help='Supply supported weapons in Glass House only')
     parser.add_argument('--shallow-oblique', action='store_true', help='Use an oblique second shallow-region limit')
     parser.add_argument('--shallow-two-limits', action='store_true', help='Use two intersecting authored shallow-region fixtures')
@@ -57,6 +58,7 @@ def main():
     args = parser.parse_args()
     if args.dev_room and (args.level != 'glass_house.rfl' or args.archive != 'levelsm.vpp' or not args.spawn):
         parser.error('Developer room requires --spawn --level glass_house.rfl --archive levelsm.vpp')
+    if args.ripple_test and not args.dev_room:parser.error('--ripple-test requires --dev-room')
     if args.shallow_oblique:args.shallow_two_limits=True
     if args.shallow_two_limits:args.shallow_fixture=True
     if args.shallow_fixture and not args.dev_room:
@@ -105,6 +107,7 @@ def main():
     env = {k: v for k, v in os.environ.items() if not k.startswith('RF_REPLAY_')}
     env.update(RF_REPLAY_LEVEL=args.level, RF_REPLAY_ARCHIVE=args.archive)
     if args.dev_room:env['RF_REPLAY_DEV_ROOM']='1'
+    if args.ripple_test:env['RF_REPLAY_RIPPLE_TEST']='1'
     if checkpoint:env['RF_REPLAY_GEOMOD_CHECKPOINT_OUT']=str(run/'pc-checkpoint.rfds')
     if args.geomod_checkpoint_in:env['RF_REPLAY_GEOMOD_CHECKPOINT_IN']=str(args.geomod_checkpoint_in.resolve())
     if args.terrain_test_light:env['RF_REPLAY_TERRAIN_TEST_LIGHT']='1'
@@ -153,7 +156,7 @@ def main():
     saved[light_flag.name]=light_flag.read_bytes() if light_flag.exists() else None
     shallow_flag=disc/'shallow-fixture.flag'
     saved[shallow_flag.name]=shallow_flag.read_bytes() if shallow_flag.exists() else None
-    for name in ('geomod-checkpoint.bin','geomod-checkpoint-out.flag'):
+    for name in ('geomod-checkpoint.bin','geomod-checkpoint-out.flag','ripple-test.flag'):
         path=disc/name;saved[name]=path.read_bytes() if path.exists() else None
     # Persist restoration bytes before mutating the disc, including absent files.
     (run / 'disc-restore.json').write_text(json.dumps({
@@ -182,6 +185,9 @@ def main():
     try:
         for name in saved:
             (disc / name).unlink(missing_ok=True)
+        ripple_flag=disc/'ripple-test.flag'
+        if args.ripple_test:ripple_flag.write_bytes(b'')
+        else:ripple_flag.unlink(missing_ok=True)
         (disc / 'campaign-spawn.flag').write_bytes(b'')
         if args.dev_room:(disc/'dev-room.flag').write_bytes(b'')
         if checkpoint:(disc/'geomod-checkpoint-out.flag').write_bytes(b'')
@@ -351,7 +357,7 @@ dvd_path = '{root.as_posix()}/build/xbox/redfaction-diagnostic.iso'
             for name, label, count in [('scene_actor_body', 'PC_PLAY_BODY', 77),
                     ('rf_scene_player_ammo', 'PLAYER_AMMO', 8), ('rf_scene_combat', 'COMBAT', 8),
                     ('rf_scene_script_movement', 'SCRIPT_MOVE', 8), ('rf_scene_enemy_combat', 'ENEMY_COMBAT', 8),
-                    ('rf_scene_rotating_doors', 'ROTATING_DOORS', 8), ('rf_scene_script_attack', 'SCRIPT_ATTACK', 12), ('rf_scene_attack_recovery', 'ATTACK_RECOVERY', 4), ('rf_scene_enemy_damage_kinds', 'ENEMY_DAMAGE_KINDS', 10), ('rf_scene_enemy_melee', 'ENEMY_MELEE', 4), ('rf_scene_enemy_spread', 'ENEMY_SPREAD', 8), ('rf_scene_combat_pain', 'COMBAT_PAIN', 8), ('rf_scene_pain_attack_gate', 'PAIN_ATTACK_GATE', 6), ('rf_scene_weapon_drops', 'WEAPON_DROPS', 8), ('rf_scene_rifle_alt', 'RIFLE_ALT', 8), ('rf_scene_shotgun', 'SHOTGUN', 8), ('rf_scene_rockets', 'ROCKETS', 8), ('rf_scene_rocket_blast', 'ROCKET_BLAST', 8), ('rf_scene_rocket_visual', 'ROCKET_VISUAL', 8), ('rf_scene_enemy_fire', 'ENEMY_FIRE', 6),
+                    ('rf_scene_rotating_doors', 'ROTATING_DOORS', 8), ('rf_scene_script_attack', 'SCRIPT_ATTACK', 12), ('rf_scene_attack_recovery', 'ATTACK_RECOVERY', 4), ('rf_scene_enemy_damage_kinds', 'ENEMY_DAMAGE_KINDS', 10), ('rf_scene_enemy_melee', 'ENEMY_MELEE', 4), ('rf_scene_enemy_spread', 'ENEMY_SPREAD', 8), ('rf_scene_combat_pain', 'COMBAT_PAIN', 8), ('rf_scene_pain_attack_gate', 'PAIN_ATTACK_GATE', 6), ('rf_scene_weapon_drops', 'WEAPON_DROPS', 8), ('rf_scene_rifle_alt', 'RIFLE_ALT', 8), ('rf_scene_shotgun', 'SHOTGUN', 8), ('rf_scene_rockets', 'ROCKETS', 8), ('rf_scene_rocket_blast', 'ROCKET_BLAST', 8), ('rf_scene_rocket_visual', 'ROCKET_VISUAL', 8), ('rf_scene_ripple_visual', 'RIPPLE_VISUAL', 8), ('rf_scene_ripple_lifecycle', 'RIPPLE_LIFECYCLE', 4), ('rf_scene_rocket_liquid', 'ROCKET_LIQUID_STATE', 4), ('rf_scene_enemy_fire', 'ENEMY_FIRE', 6),
                     ('rf_scene_use_reach', 'USE_REACH', 4),
                     ('rf_scene_particles_summary', 'SCENE_PARTICLES', 8), ('rf_scene_live_motion', 'LIVE_MOTION', 8), ('rf_scene_airlock', 'AIRLOCK', 6), ('rf_scene_script_animation', 'SCRIPT_ANIMATION', 10), ('rf_scene_alarm', 'ALARM', 12), ('rf_scene_switch_runtime', 'SWITCH_RUNTIME', 8), ('rf_scene_switch_detail', 'SWITCH_DETAIL', 8), ('rf_scene_switch_history', 'SWITCH_HISTORY', 4), ('rf_scene_trigger_history', 'TRIGGER_HISTORY', 4), ('rf_scene_startup_inventory', 'STARTUP_INVENTORY', 4), ('rf_scene_pickups', 'PICKUPS', 8), ('rf_scene_pickup_vitals', 'PICKUP_VITALS', 4), ('rf_scene_riot', 'RIOT_STICK', 8), ('rf_scene_weapon_selection', 'WEAPON_SELECTION', 8),
                     ('rf_scene_player_weapon', 'PLAYER_WEAPON', 8), ('rf_scene_weapon_audio', 'WEAPON_AUDIO', 9), ('rf_scene_impact_audio', 'IMPACT_AUDIO', 9),

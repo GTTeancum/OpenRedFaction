@@ -97,11 +97,12 @@ int rf_pc_raster_frame(rf_pc_raster *r,const rf_preview_mesh *mesh,const rf_mate
                     sample(lightmaps->images+a->lightmap, ls, lt, 1, light);
                 }
                 if(RF_PREVIEW_IS_FADED(a->lightmap))base[3]*=(a->lightmap&255u)/255.f;
-                if(actor_triangle && base[3]>=1)depth[pixel]=z;
+                if(actor_triangle && base[3]>=1 && !RF_PREVIEW_IS_ADDITIVE_FADED(a->lightmap))depth[pixel]=z;
                 for (channel = 0; channel < 3; ++channel) {
                     float tint=RF_PREVIEW_IS_VERTEX_LIT(a->lightmap)?u*a->color[channel]+v*b->color[channel]+w*c->color[channel]:1;
                     float color=fminf(1,base[channel]*light[channel]*2*tint)*255;
-                    if(actor_triangle)color=color*base[3]+rgb[pixel*3+channel]*(1-base[3]);
+                    if(actor_triangle)color=color*base[3]+rgb[pixel*3+channel]*(RF_PREVIEW_IS_ADDITIVE_FADED(a->lightmap)?1.f:1-base[3]);
+                    if(color>255)color=255;
                     rgb[pixel*3+channel]=(unsigned char)floorf(color+0.5f);
                 }
             }

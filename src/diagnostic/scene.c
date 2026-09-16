@@ -466,7 +466,7 @@ typedef struct scene_particle_workspace {
     rf_render_queue_record records[2048];rf_render_sphere spheres[2048];
     uint32_t order[2048];float distances[2048];
 } scene_particle_workspace;
-enum { SCENE_WEAPON_SLOTS=5, SCENE_ROCKETS=50 };
+enum { SCENE_WEAPON_SLOTS=5, SCENE_ROCKETS=50, SCENE_RIPPLES=16 };
 static uint32_t scene_weapon_slots(void){return rf_scene_dev_room_enabled?SCENE_WEAPON_SLOTS:4;}
 static const char *campaign_weapon_names[SCENE_WEAPON_SLOTS]={"12mm handgun","Assault Rifle","Riot Stick","Shotgun","Rocket Launcher"};
 enum { SCENE_PICKUP_FIRST_AID=10, SCENE_PICKUP_CLASSES=11 };
@@ -548,7 +548,8 @@ typedef struct scene_stream {
     uint32_t weapon_base,weapon_textures;
     rf_level_owned_items pickups;uint8_t *pickup_taken;uint32_t *pickup_slots;rf_item_definition handgun_pickup;scene_pickup_resource *pickup_resources;
     rf_weapon_flight rockets[SCENE_ROCKETS];rf_weapon_flight_liquid_state rocket_liquid[SCENE_ROCKETS];float rocket_basis[SCENE_ROCKETS][9];
-    scene_rocket_visual *rocket_visual;rf_level rocket_camera;
+    scene_rocket_visual *rocket_visual,*ripple_visual;rf_level rocket_camera;
+    float ripple_position[SCENE_RIPPLES][3];uint32_t ripple_born[SCENE_RIPPLES];uint8_t ripple_active[SCENE_RIPPLES];
     scene_impact_owner *impact;
     rf_player_weapon *player_weapon[SCENE_WEAPON_SLOTS];uint32_t player_weapon_base[SCENE_WEAPON_SLOTS],player_weapon_textures[SCENE_WEAPON_SLOTS],player_shots,player_reload,player_slot;
     rf_model_projection npc_view;void *npc_memory;uint16_t *npc_indices;rf_model_clip_pool *npc_pool;
@@ -9543,6 +9544,20 @@ static int scene_terrain_input(scene_stream *s,const float position[3],const flo
     }
     s->terrain_held=pressed;if(pressed)player_input.alt_fire=0;return RF_OK;
 }
+uint32_t rf_scene_ripple_test_enabled;
+uint32_t rf_scene_ripple_lifecycle[4]; /* starts, expired, capacity replacements, rendering-only fixture starts */
+static void scene_ripple_start(scene_stream *s,const float point[3],uint32_t frame,uint32_t fixture)
+{
+    uint32_t slot=0,j;
+    if(!s->ripple_visual)return;
+    for(j=0;j<SCENE_RIPPLES;j++)if(!s->ripple_active[j] || frame-s->ripple_born[j]>=96u){slot=j;break;}
+    if(j==SCENE_RIPPLES) {
+        for(j=1;j<SCENE_RIPPLES;j++)if(frame-s->ripple_born[j]>frame-s->ripple_born[slot])slot=j;
+        ++rf_scene_ripple_lifecycle[2];
+    } else if(s->ripple_active[slot])++rf_scene_ripple_lifecycle[1];
+    memcpy(s->ripple_position[slot],point,12);s->ripple_born[slot]=frame;s->ripple_active[slot]=1;
+    ++rf_scene_ripple_lifecycle[0];rf_scene_ripple_lifecycle[3]+=fixture!=0;
+}
 uint32_t rf_scene_rocket_liquid[4]; /* entries, query flags, remaining float bits, effect size bits */
 static int scene_rocket_sweep(void *context,const float start[3],const float delta[3],float radius,uint32_t query_flags,
     rf_weapon_flight_contact *out,uint32_t *is_liquid,uint32_t *matched)
@@ -9791,7 +9806,7 @@ static int scene_rockets_tick(scene_stream *s,uint32_t frame)
             combat_sound("Medium Water Splash",movement.liquid_contact.hit.point);
             if(rf_scene_combat_trace)printf("ROCKET_LIQUID %u %u %.9g %.9g %.9g\n",frame,i,
                 movement.liquid_contact.hit.point[0],movement.liquid_contact.hit.point[1],movement.liquid_contact.hit.point[2]);
-            /* Authored ripple VFX instance ownership/rendering remains open. */
+            scene_ripple_start(s,movement.liquid_contact.hit.point,frame,0);
         }
         if(event.kind==2)++rf_scene_rockets[2];
         if(event.kind==1) {
@@ -11800,6 +11815,73 @@ static int scene_rockets_draw(scene_stream *s,uint32_t frame)
     rf_scene_rocket_visual[3]=s->mesh->count-start;
     rf_scene_rocket_visual[4]=npc_hash_bytes(2166136261u,s->mesh->vertices+start,rf_scene_rocket_visual[3]*sizeof(rf_preview_vertex));return RF_OK;
 }
+/* Original liquid VFX: fixed identity/unit scale, action0 ends at frame24.
+ * Geometry instances are reused serially for the bounded active contact pool. */
+uint32_t rf_scene_ripple_visual[8]; /* frame, active, faces, vertices, hash, bytes, status, retired */
+static int scene_ripples_draw(scene_stream *s,uint32_t frame)
+{
+    scene_rocket_visual *v=s->ripple_visual;uint32_t shot,m,f,j,k,first=s->mesh->count;int status;
+    unsigned char lighting[3];
+    memset(rf_scene_ripple_visual,0,sizeof(rf_scene_ripple_visual));rf_scene_ripple_visual[0]=frame+1;
+    if(!v)return RF_OK;
+    rf_scene_ripple_visual[5]=sizeof(*v)+v->geometry->resident_bytes+v->materials->resident_bytes;
+    if(rf_scene_ripple_test_enabled && frame==0) {
+        float point[3],down[3]={0,-20,0};rf_geometry_world_sweep_hit contact;uint32_t hit;
+        for(k=0;k<3;k++)point[k]=s->rocket_camera.player_position[k]+3.f*s->rocket_camera.player_orientation[2][k];
+        point[1]=s->rocket_camera.player_position[1];
+        status=rf_geometry_collision_world_sweep(s->collision,0x464u,point,down,0,1,&contact,&hit);if(status)return status;
+        if(!hit)return RF_NOT_FOUND;
+        scene_ripple_start(s,contact.hit.point,frame,1);
+        if(rf_scene_combat_trace)printf("RIPPLE_RENDER_FIXTURE %u %.9g %.9g %.9g\n",frame,
+            contact.hit.point[0],contact.hit.point[1],contact.hit.point[2]);
+    }
+    /* Ambient is a bounded first-pass scene-light input; brightness remains
+     * the original material floor, rather than multiplying zero into RGB. */
+    for(k=0;k<3;k++)lighting[k]=(unsigned char)(255.f*fminf(1.f,fmaxf(0.f,s->light_ambient[k])));
+    for(shot=0;shot<SCENE_RIPPLES;shot++)if(s->ripple_active[shot]) {
+        uint32_t age=frame-s->ripple_born[shot];float time=(float)age*.25f;
+        if(age>=96u){s->ripple_active[shot]=0;++rf_scene_ripple_visual[7];++rf_scene_ripple_lifecycle[1];continue;}
+        ++rf_scene_ripple_visual[1];
+        for(m=0;m<v->geometry->count;m++) {
+            rf_vfx_mesh *source=v->geometry->meshes[m];rf_vfx_instance *instance=v->geometry->instances[m];
+            if(!instance)continue;
+            status=rf_vfx_instance_update(instance,time);if(status)return status;if(!instance->active)continue;
+            for(f=0;f<source->prefix.faces;f++) {
+                rf_vfx_face face;rf_geomod_mesh_view mesh={0};rf_preview_mesh emitted={0};
+                uint32_t material,slot,opacity_byte,offset=source->prefix.face_offset+f*(source->version<0x3000d?120:96);
+                float opacity=1,brightness=0,normal[3],triangle[9];unsigned char rgb[3];
+                status=rf_vfx_face_read(source->data+offset,source->bytes-offset,source->version,&face);if(status)return status;
+                material=v->materials->first[m]+face.material;if(material>=v->materials->count)return RF_FORMAT;
+                slot=v->materials->textures.bindings[material][0];if(slot==UINT32_MAX)continue;
+                status=rf_vfx_mesh_material_sample(source,v->geometry->material_bank,face.material,1,time,&brightness);
+                if(status && status!=RF_NOT_FOUND)return status;
+                status=rf_vfx_mesh_material_sample(source,v->geometry->material_bank,face.material,2,time,&opacity);
+                if(status && status!=RF_NOT_FOUND)return status;
+                opacity_byte=(uint32_t)(255.f*fminf(1.f,fmaxf(0.f,opacity)));if(!opacity_byte)continue;
+                status=rf_vfx_material_color(v->materials->views+material,lighting,brightness,source->edges.mesh_flags,rgb);if(status)return status;
+                for(j=0;j<3;j++)for(k=0;k<3;k++)
+                    triangle[j*3+k]=s->ripple_position[shot][k]+instance->vertices[face.indices[j]*3+k];
+                status=rf_vfx_face_normal(triangle,normal);if(status==RF_RANGE || status==RF_FORMAT)continue;if(status)return status;
+                for(j=0;j<3;j++) {
+                    memcpy(v->vertices[j].position,triangle+j*3,12);
+                    v->vertices[j].uv[0]=instance->uv[f*6+j];v->vertices[j].uv[1]=instance->uv[f*6+3+j];
+                }
+                v->faces[0]=(rf_geomod_face){0,3,v->base+slot,UINT32_MAX};
+                mesh.vertices=v->vertices;mesh.faces=v->faces;mesh.vertex_count=3;mesh.face_count=1;
+                status=rf_geomod_collision_faces(&mesh,v->filters,v->positions,384,v->bound,128);if(status)return status;
+                emitted.vertices=s->mesh->vertices+s->mesh->count;
+                status=rf_preview_geomod(&emitted,s->capacity-s->mesh->bytes,&mesh,v->bound,s->materials->count,&s->rocket_camera);if(status)return status;
+                for(j=0;j<emitted.count;j++) {
+                    emitted.vertices[j].lightmap=RF_PREVIEW_ADDITIVE_FADE_TAG|opacity_byte;
+                    for(k=0;k<3;k++)emitted.vertices[j].color[k]=rgb[k]*(1.f/255.f);
+                }
+                s->mesh->count+=emitted.count;s->mesh->bytes+=emitted.bytes;if(emitted.count)++rf_scene_ripple_visual[2];
+            }
+        }
+    }
+    rf_scene_ripple_visual[3]=s->mesh->count-first;
+    rf_scene_ripple_visual[4]=npc_hash_bytes(2166136261u,s->mesh->vertices+first,rf_scene_ripple_visual[3]*sizeof(rf_preview_vertex));return RF_OK;
+}
 static int scene_player_weapon_draw(scene_stream *stream,uint32_t frame)
 {
     rf_player_weapon *w=stream->player_weapon[campaign_equipped_slot];rf_model_projection view={0};
@@ -12366,6 +12448,7 @@ static int scene_frame(void *context,uint32_t frame,rf_preview_mesh *actor)
         status=scene_pickups_draw(stream);presentation_mark(3,&presentation_clock);if(status){rf_scene_profile_stage[1]=204;return status;}
         status=scene_rockets_draw(stream,frame);rf_scene_rocket_visual[6]=(uint32_t)status;if(status)return status;
         status=scene_debris_draw(stream);if(status)return status;
+        status=scene_ripples_draw(stream,frame);rf_scene_ripple_visual[6]=(uint32_t)status;if(status)return status;
         status=scene_player_weapon_draw(stream,frame);presentation_mark(4,&presentation_clock);if(status){rf_scene_profile_stage[1]=205;return status;}
         particle_draw_stream=stream;
         status=stream->sink(stream->context,frame,stream->mesh,stream->materials,stream->world);
@@ -13041,9 +13124,11 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
         free(textures->items);memset(textures,0,sizeof(*textures));
         }
         if(rf_scene_dev_room_enabled) {
+            uint32_t visual;
+            for(visual=0;visual<2;visual++) {
             scene_rocket_visual *v=calloc(1,sizeof(*v));rf_material *combined;uint32_t n;
-            if(!v){status=RF_IO;goto done;}stream->rocket_visual=v;
-            status=rf_vfx_geometry_asset_open(&archive,"DrillMissile01.vfx",128*1024,&v->geometry);if(status)goto done;
+            if(!v){status=RF_IO;goto done;}if(visual){stream->ripple_visual=v;memset(rf_scene_ripple_lifecycle,0,sizeof(rf_scene_ripple_lifecycle));}else stream->rocket_visual=v;
+            status=rf_vfx_geometry_asset_open(&archive,visual?"WaterRipple01.vfx":"DrillMissile01.vfx",128*1024,&v->geometry);if(status)goto done;
             status=rf_vfx_asset_materials_open(v->geometry,maps,map_count,128*1024,&v->materials);if(status)goto done;
             n=v->materials->textures.texture_count;if(materials->count+n>RF_CAMPAIGN_TEXTURE_SLOTS){status=RF_RANGE;goto done;}
             for(i=0;i<v->geometry->count;i++)if(strcmp(v->geometry->meshes[i]->prefix.parent,"Scene Root")){status=RF_FORMAT;goto done;}
@@ -13054,6 +13139,7 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
                 rf_image *image=v->materials->textures.textures[i].animation.images;
                 combined[materials->count]=(rf_material){*image,RF_OK,v->materials->textures.textures[i].animation.archive_index};
                 materials->allocated_bytes+=sizeof(*combined)+image->bytes;memset(image,0,sizeof(*image));++materials->count;++materials->loaded;
+            }
             }
         }
         if(rf_scene_dev_room_enabled) {
@@ -13209,6 +13295,7 @@ done:
     }
     for(i=0;i<SCENE_WEAPON_SLOTS;i++)rf_player_weapon_close(&stream->player_weapon[i]);
     if(stream->rocket_visual){rf_vfx_asset_materials_close(&stream->rocket_visual->materials);rf_vfx_geometry_asset_close(&stream->rocket_visual->geometry);free(stream->rocket_visual);}
+    if(stream->ripple_visual){rf_vfx_asset_materials_close(&stream->ripple_visual->materials);rf_vfx_geometry_asset_close(&stream->ripple_visual->geometry);free(stream->ripple_visual);}
     if(stream->pickup_resources){for(i=0;i<SCENE_PICKUP_CLASSES-1;i++){rf_static_render_resource_close(&stream->pickup_resources[i].model);rf_model_materials_close(&stream->pickup_resources[i].materials);}free(stream->pickup_resources);}
     rf_level_owned_items_close(&stream->pickups);free(stream->pickup_taken);free(stream->pickup_slots);
     free(stream->npc_memory);free(stream->npc_indices);free(stream->npc_pool);

@@ -82,10 +82,12 @@ typedef rf_glare_materials rf_vfx_material_textures;
 int rf_vfx_material_textures_open(rf_vfx_material_textures *,const rf_vfx_material_view *,
     uint32_t count,rf_vpp *archives,uint32_t archive_count,uint32_t budget);
 void rf_vfx_material_textures_close(rf_vfx_material_textures *);
-/* Flatten legacy geometry-asset materials and deduplicate owned textures.
+/* Flatten embedded legacy or bank-referenced V4 asset materials and deduplicate textures.
  * Geometry/archives may close after success. Views retain texture/render
  * fields only; serialized track offsets must not be used without mesh data.
  * first[mesh]..first[mesh+1] maps local material IDs into views/bindings.
+ * V4 colors are neutral white; callers sample original brightness/opacity
+ * tracks from the geometry material bank while that owner remains alive.
  * Fixed64-material bound; budget covers owner and retained texture storage,
  * excluding decoder stack/allocator metadata. Empty output required. */
 typedef struct rf_vfx_asset_materials {

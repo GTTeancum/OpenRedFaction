@@ -667,9 +667,23 @@ int rf_vfx_asset_materials_open(const rf_vfx_geometry_asset *asset,rf_vpp *maps,
     m=calloc(1,sizeof(*m));if(!m)return RF_IO;
     for(i=0;i<asset->count;i++) {
         const rf_vfx_mesh *mesh=asset->meshes[i];
-        if(!mesh || mesh->version>=0x40000){status=RF_FORMAT;goto done;}
+        if(!mesh){status=RF_FORMAT;goto done;}
         if(mesh->materials>64-m->count){status=RF_RANGE;goto done;}
         m->first[i]=m->count;at=mesh->material_offset;
+        if(mesh->version>=0x40000) {
+            const rf_vfx_material_bank *bank=asset->material_bank;
+            if(!bank || !bank->views || !mesh->data || (uint64_t)at+(uint64_t)mesh->materials*4>mesh->bytes){status=RF_FORMAT;goto done;}
+            for(j=0;j<mesh->materials;j++) {
+                const unsigned char *p=mesh->data+at+j*4;
+                uint32_t id=(uint32_t)p[0]|(uint32_t)p[1]<<8|(uint32_t)p[2]<<16|(uint32_t)p[3]<<24;
+                if(id>=bank->count){status=RF_FORMAT;goto done;}
+                m->views[m->count]=bank->views[id];
+                /* V4 has no embedded RGB word. Runtime must sample brightness
+                 * and opacity tracks from the geometry owner's material bank. */
+                m->colors[m->count++]=0xffffffffu;
+            }
+            continue;
+        }
         for(j=0;j<mesh->materials;j++) {
             rf_vfx_embedded_material_view view;
             if(at>mesh->bytes){status=RF_FORMAT;goto done;}

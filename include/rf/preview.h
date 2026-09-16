@@ -6,7 +6,9 @@
 /* Reserved lightmap tags carry constant triangle opacity without growing the
  * 56-byte vertex. Faded surfaces use vertex RGB and no lightmap. */
 #define RF_PREVIEW_FADE_TAG 0xfffffd00u
-#define RF_PREVIEW_IS_FADED(tag) (((tag)&0xffffff00u)==RF_PREVIEW_FADE_TAG)
+#define RF_PREVIEW_ADDITIVE_FADE_TAG 0xfffffc00u /* SRC_ALPHA + destination; depth read only. */
+#define RF_PREVIEW_IS_ADDITIVE_FADED(tag) (((tag)&0xffffff00u)==RF_PREVIEW_ADDITIVE_FADE_TAG)
+#define RF_PREVIEW_IS_FADED(tag) ((((tag)&0xffffff00u)==RF_PREVIEW_FADE_TAG) || RF_PREVIEW_IS_ADDITIVE_FADED(tag))
 #define RF_PREVIEW_IS_VERTEX_LIT(tag) ((tag)==RF_PREVIEW_VERTEX_LIT || RF_PREVIEW_IS_FADED(tag))
 #define RF_PREVIEW_VERTEX_LIT (UINT32_MAX-1u) /* lightmap tag: texture times vertex RGB */
 typedef struct rf_preview_vertex {
