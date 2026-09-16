@@ -426,3 +426,8 @@ target_sources(rf_core PRIVATE src/core/composed_checkpoint.c)
 add_executable(rf_composed_checkpoint_tests tests/composed_checkpoint_tests.c)
 target_link_libraries(rf_composed_checkpoint_tests PRIVATE rf_core)
 add_test(NAME composed_checkpoint_codec COMMAND rf_composed_checkpoint_tests)
+
+target_sources(rf_core PRIVATE src/core/geomod_authored_identity.c)
+add_executable(rf_geomod_authored_identity_tests tests/geomod_authored_identity_tests.c)
+target_link_libraries(rf_geomod_authored_identity_tests PRIVATE rf_core)
+add_test(NAME geomod_authored_identity COMMAND rf_geomod_authored_identity_tests)
