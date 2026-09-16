@@ -68,3 +68,9 @@ The400-frame run render-20260915-195231 passes47 PC/Xbox comparisons with8597 fr
 The extended process-local checker generates a500-frame reset/refire replay. PC confirms the history index restarts at1, with three impacts, two admitted cuts, one duplicate rejection, and one current crater after reset. This specifically exercises clearing history when terrain reset succeeds.
 
 The500-frame reset/refire native run render-20260915-195421 also passes47 comparisons, with8581 free pages (33.520MiB). The native endpoint shows the new crater and lingering blast smoke; geometry/weapon/room content was inspected. Owned PID47248 exited and all21 disc entries were verified restored. These tests cover the diagnostic fixture, not general campaign shallow-region acceptance.
+
+## Two-limit native coverage
+
+The fixture supports orthogonal second limits (mode2, --shallow-two-limits) and oblique second limits (mode3, --shallow-oblique), with identical process-local definitions on PC/Xbox. tools/dev_shallow_admission_check.py now validates both: two admitted overlapping cuts, prior-plane center adjustment and closed physical snapshots. Orthogonal output has748 vertices/143 faces; oblique output has1066 vertices/199 faces.
+
+Native400-frame runs render-20260915-200339 and render-20260915-200525 each pass47 comparisons with8581 free pages. Both actual framebuffers were inspected; shape changes are visible, but dark crater readability remains unresolved. Owned PIDs50128/53300 exited and all21 disc entries for each run were verified restored. These are explicit diagnostic regions, not proof of complete campaign coverage.

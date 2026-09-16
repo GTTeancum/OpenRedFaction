@@ -27,6 +27,8 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--cpu-exceptions', action='store_true', help='Retain QEMU exception/reset diagnostics for guest crash analysis')
     parser.add_argument('--dev-room', action='store_true', help='Supply supported weapons in Glass House only')
+    parser.add_argument('--shallow-oblique', action='store_true', help='Use an oblique second shallow-region limit')
+    parser.add_argument('--shallow-two-limits', action='store_true', help='Use two intersecting authored shallow-region fixtures')
     parser.add_argument('--shallow-fixture', action='store_true', help='DEV depth.75 authored-region fixture shared with PC')
     parser.add_argument('--terrain-test-light', action='store_true', help='DEV crater diagnostic light during frames1000..1999')
     parser.add_argument('--frames', type=int, default=180)
@@ -53,6 +55,8 @@ def main():
     args = parser.parse_args()
     if args.dev_room and (args.level != 'glass_house.rfl' or args.archive != 'levelsm.vpp' or not args.spawn):
         parser.error('Developer room requires --spawn --level glass_house.rfl --archive levelsm.vpp')
+    if args.shallow_oblique:args.shallow_two_limits=True
+    if args.shallow_two_limits:args.shallow_fixture=True
     if args.shallow_fixture and not args.dev_room:
         parser.error('--shallow-fixture requires --dev-room')
     if args.terrain_test_light and not args.dev_room:
@@ -97,8 +101,10 @@ def main():
     env.update(RF_REPLAY_LEVEL=args.level, RF_REPLAY_ARCHIVE=args.archive)
     if args.dev_room:env['RF_REPLAY_DEV_ROOM']='1'
     if args.terrain_test_light:env['RF_REPLAY_TERRAIN_TEST_LIGHT']='1'
-    if args.shallow_fixture:env['RF_REPLAY_SHALLOW_FIXTURE']='1'
+    if args.shallow_fixture:env['RF_REPLAY_SHALLOW_FIXTURE']='3' if args.shallow_oblique else '2' if args.shallow_two_limits else '1'
     report['shallow_fixture']=args.shallow_fixture
+    report['shallow_two_limits']=args.shallow_two_limits
+    report['shallow_oblique']=args.shallow_oblique
     report['terrain_test_light']=args.terrain_test_light
     if args.terrain_test_light:
         report['terrain_test_light_scope']='Synthetic point source active at frames1000..1999; inspect framebuffer for visible lighting. No authored light or destruction fidelity claim.'
@@ -169,7 +175,7 @@ def main():
             (disc / name).unlink(missing_ok=True)
         (disc / 'campaign-spawn.flag').write_bytes(b'')
         if args.dev_room:(disc/'dev-room.flag').write_bytes(b'')
-        if args.shallow_fixture:(disc/'shallow-fixture.flag').write_bytes(b'')
+        if args.shallow_fixture:(disc/'shallow-fixture.flag').write_bytes(b'3' if args.shallow_oblique else b'2' if args.shallow_two_limits else b'')
         if args.terrain_test_light:(disc/'terrain-test-light.flag').write_bytes(b'')
         (disc / 'campaign-level.bin').write_bytes(args.archive.encode().ljust(64, b'\0') + args.level.encode().ljust(64, b'\0'))
         if args.goal_uid:(disc/'campaign-goal.bin').write_bytes(struct.pack('<I',args.goal_uid))

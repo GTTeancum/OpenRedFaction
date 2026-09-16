@@ -38,6 +38,24 @@ def main():
  assert float(admission[1][3])==-16,admission
  subprocess.run([str(ROOT/'build/pc/Release/rf_geomod_interior_tests.exe'),'--mesh',str(snapshot)],cwd=ROOT,check=True)
  print('PASS:two overlapping aligned shallow cuts with closed output mesh')
+ env['RF_REPLAY_SHALLOW_FIXTURE']='2';snapshot=folder/'shallow-two-mesh.bin';env['RF_REPLAY_TERRAIN_PHYSICAL_SNAPSHOT']=str(snapshot)
+ result=subprocess.run([str(ROOT/'build/pc/Release/rf_pc_play.exe'),'--dev-room-replay',str(ROOT/'Installed_Game'),str(replay),str(folder/'shallow-two.ppm')],cwd=ROOT,env=env,capture_output=True,text=True)
+ log=result.stdout+result.stderr;(ROOT/'artifacts/shallow-two.log').write_text(log);result.check_returncode()
+ assert list(map(int,rows('ROCKETS')[0]))==[2,2,0,0,2,0,0,0]
+ admission=rows('GEOMOD_ADMISSION');assert len(admission)==2 and all(r[2]=='2' for r in admission),admission
+ assert admission[0][3:5]==admission[1][3:5],admission
+ subprocess.run([str(ROOT/'build/pc/Release/rf_geomod_interior_tests.exe'),'--mesh',str(snapshot)],cwd=ROOT,check=True)
+ print('PASS:two-limit repeated cuts align to both old planes and remain closed')
+ env['RF_REPLAY_SHALLOW_FIXTURE']='3';snapshot=folder/'shallow-oblique-mesh.bin';env['RF_REPLAY_TERRAIN_PHYSICAL_SNAPSHOT']=str(snapshot)
+ result=subprocess.run([str(ROOT/'build/pc/Release/rf_pc_play.exe'),'--dev-room-replay',str(ROOT/'Installed_Game'),str(replay),str(folder/'shallow-oblique.ppm')],cwd=ROOT,env=env,capture_output=True,text=True)
+ log=result.stdout+result.stderr;(ROOT/'artifacts/shallow-oblique.log').write_text(log);result.check_returncode()
+ assert list(map(int,rows('ROCKETS')[0]))==[2,2,0,0,2,0,0,0]
+ admission=rows('GEOMOD_ADMISSION');assert len(admission)==2 and all(r[2]=='2' for r in admission),admission
+ assert float(admission[1][3])!=float(admission[0][3]),admission
+ subprocess.run([str(ROOT/'build/pc/Release/rf_geomod_interior_tests.exe'),'--mesh',str(snapshot)],cwd=ROOT,check=True)
+ print('PASS:oblique two-limit repeated cuts retain closed physical geometry')
+
+
 
 
 if __name__=='__main__':main()

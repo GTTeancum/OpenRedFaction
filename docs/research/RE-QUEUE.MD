@@ -23,4 +23,5 @@ User mandate: keep one secondary agent supplied with useful, bounded RE work whi
 Send findings to the primary as each investigation completes, then proceed to the next queued item. Primary reviews reports and replenishes this queue. Do not edit shared implementation or use desktop control, host input or emulators.
 
 18. Reported/integrated: exact-zero split-child removal fixes the second live shallow cut; thin valid fragments remain supported.
-19. Active:4d02d0 shared-edge vertex propagation and per-face texture/lightmap interpolation.
+19. Reported: shared-edge propagation preserves identity with independent face UV/lightmap interpolation; mixed detail guard and draw-state comparison also complete.
+20. Active: generated lightmap content lifecycle after initial noise, including later replacement/baking/dirty-state transitions.

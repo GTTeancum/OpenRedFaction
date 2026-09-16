@@ -9061,9 +9061,9 @@ static int scene_terrain_open(scene_stream *s,const rf_level *level)
     {
         uint32_t shallow_fixture=0;
 #ifndef RF_IMAGE_XBOX_NATIVE
-        shallow_fixture=getenv("RF_REPLAY_SHALLOW_FIXTURE")!=NULL;
+        {const char *fixture=getenv("RF_REPLAY_SHALLOW_FIXTURE");shallow_fixture=fixture?(fixture[0]=='3'?3:fixture[0]=='2'?2:1):0;}
 #else
-        FILE *flag=fopen("D:\\shallow-fixture.flag","rb");shallow_fixture=flag!=NULL;if(flag)fclose(flag);
+        FILE *flag=fopen("D:\\shallow-fixture.flag","rb");if(flag){int mode=fgetc(flag);shallow_fixture=mode=='3'?3:mode=='2'?2:1;fclose(flag);}
 #endif
     /* Opt-in process-local authored-region fixture; installed data stays unchanged. */
     if(shallow_fixture) {
@@ -9071,6 +9071,17 @@ static int scene_terrain_open(scene_stream *s,const rf_level *level)
         if(s->terrain_region_count!=1)return RF_FORMAT;
         s->terrain_regions[0].flags|=32;s->terrain_regions[0].shallow_depth=.75f;
         memcpy(s->terrain_regions[0].file_basis,basis,sizeof(basis));
+        if(shallow_fixture>=2) {
+            static const float second_basis[9]={0,0,1,1,0,0,0,1,0};
+            rf_geo_region *regions=calloc(2,sizeof(*regions));if(!regions)return RF_IO;
+            regions[0]=regions[1]=s->terrain_regions[0];regions[1].shallow_depth=1.5f;
+            memcpy(regions[1].file_basis,second_basis,sizeof(second_basis));
+            if(shallow_fixture==3) {
+                regions[1].file_basis[3]=.8660254037844386f;regions[1].file_basis[4]=-.5f;
+                regions[1].file_basis[6]=.5f;regions[1].file_basis[7]=.8660254037844386f;
+            }
+            free(s->terrain_regions);s->terrain_regions=regions;s->terrain_region_count=2;
+        }
     }
     }
     memset(rf_scene_terrain_edit_times,0,sizeof(rf_scene_terrain_edit_times));
