@@ -1,6 +1,7 @@
 # Red Faction Xbox / PC - open work
 
-- USER: Stock-game reference testing is paused while the disc is located; continue source work and background RE.
+- GeoMod collisions: Implement verified water-contact continuation before expanding rocket surface queries; liquid contact must not enter terrain excavation.
+- USER: Stock reference needs the matching Red Faction CD #2 image; mounted E: lacks the original music.vpp disc marker, so further stock launches are paused.
 - GeoMod saves: Extend verified DEV destruction checkpoints to writable Xbox storage and full game-state integration; PC-to-Xbox reload and another blast now pass48 comparisons.
 - GeoMod visuals: Obtain a stock-game crater reference with the isolated process-local capture harness; backend upload, material/UV and winding audits found no justified brightness or normal correction.
 - PRIORITY GeoMod: Match original destruction shape, exposed materials, lighting, debris, collision and repeated blasts before returning to other systems; a visible hole alone is not acceptance.

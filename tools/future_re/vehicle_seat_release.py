@@ -1,4 +1,5 @@
 """Execute complete427380 seat release with audio/object lookup boundaries supplied."""
+PROBE_SCOPE = __doc__
 from pathlib import Path
 import sys,itertools
 R=Path(__file__).resolve().parents[2];sys.path.insert(0,str(R/'local/python'))
@@ -27,4 +28,4 @@ for handles,request in [([-1,17,18],-1),([-1,17,18],99),([17,17,18],17),([-1,17,
   mode=read(actor+0x858);assert mode==((0x62fe70 if enabled else 0x62fe50) if success and player else 0x12345678)
   assert [e['kind'] for e in events]==((['lookup']+(['sound_select','sound_play'] if audio and exists else [])) if matched else [])
   rows.append(dict(handles=handles,request=request,object_exists=exists,audio=audio,player=player,run_enabled=enabled,success=success,seats_after=after,host_handle_after=read(actor+0x200),mode_pointer=hex(mode),events=events[:]))
-(R/'artifacts/future-vehicles-re/seat-release.json').write_text(json.dumps(dict(scope=__doc__,exe_sha256=sha,cases=rows),indent=2)+'\n');print('PASS',len(rows),'full427380 cases; firstmatch,missinghandle,staleobject partialmutation,audio/player/movement fallback')
+(R/'artifacts/future-vehicles-re/seat-release.json').write_text(json.dumps(dict(scope=PROBE_SCOPE,exe_sha256=sha,cases=rows),indent=2)+'\n');print('PASS',len(rows),'full427380 cases; firstmatch,missinghandle,staleobject partialmutation,audio/player/movement fallback')

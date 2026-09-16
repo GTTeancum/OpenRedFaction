@@ -1,4 +1,5 @@
 """Original4279d0 exit-position prefix; collision services supplied, commit stopped."""
+PROBE_SCOPE = __doc__
 from pathlib import Path
 import sys
 R=Path(__file__).resolve().parents[2];sys.path.insert(0,str(R/'local/python'))
@@ -36,4 +37,4 @@ for up in [1.,-1.]:
     radius=2 if up>0 and driller else 4;expected=[[10,10+radius,10],[10-radius,10,10],[10+radius,10,10],[10,10,14],[10,10,6]]
     points=[e['point'] for e in events if e['kind']=='objects'];assert points==expected[:min(free+1,5)],(up,driller,free,points,expected)
     rows.append(dict(up=up,driller=bool(driller),first_free=free if free<5 else None,blocked_by=blocked_by,commit_reached=commit,events=events[:]))
-(R/'artifacts/future-vehicles-re/exit-candidates.json').write_text(json.dumps(dict(scope=__doc__,exe_sha256=sha,cases=rows),indent=2)+'\n');print('PASS',len(rows),'original prefix cases; all5 candidate directions,blocked/service order,driller half-radius,inverted up; no mutation beforecommit')
+(R/'artifacts/future-vehicles-re/exit-candidates.json').write_text(json.dumps(dict(scope=PROBE_SCOPE,exe_sha256=sha,cases=rows),indent=2)+'\n');print('PASS',len(rows),'original prefix cases; all5 candidate directions,blocked/service order,driller half-radius,inverted up; no mutation beforecommit')

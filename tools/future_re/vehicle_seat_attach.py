@@ -1,4 +1,5 @@
 """Execute complete427240 host seat attachment; IO/audio supplied, actual predicates."""
+PROBE_SCOPE = __doc__
 from pathlib import Path
 import sys,itertools
 R=Path(__file__).resolve().parents[2];sys.path.insert(0,str(R/'local/python'))
@@ -27,4 +28,4 @@ for tags,occupants,tag in [([10,20,30],[-1,-1,-1],99),([10,20,30],[-1,-1,-1],20)
   velocity=list(struct.unpack('<6f',u.mem_read(actor+0x144,24)));assert velocity==([0]*6 if success else [1,2,3,4,5,6]);mode=read(actor+0x858);assert mode==((0x62ff90 if enabled else 0x62fe50) if success and player else 0x12345678)
   assert u.mem_read(host+0x720,1)[0]==int(success and player and turret)
   rows.append(dict(tags=tags,occupants=occupants,requested_tag=tag,object_exists=exists,player=player,turret=turret,descriptor10_enabled=enabled,success=success,selected=selected,occupants_after=expected,mode_pointer=hex(mode),events=events[:]))
-(R/'artifacts/future-vehicles-re/seat-attach.json').write_text(json.dumps(dict(scope=__doc__,exe_sha256=sha,cases=rows),indent=2)+'\n');print('PASS',len(rows),'full427240 cases; lasttagmatch,occupied/stale rejection,host+taglinks,velocityreset,turret/player/mode10fallback')
+(R/'artifacts/future-vehicles-re/seat-attach.json').write_text(json.dumps(dict(scope=PROBE_SCOPE,exe_sha256=sha,cases=rows),indent=2)+'\n');print('PASS',len(rows),'full427240 cases; lasttagmatch,occupied/stale rejection,host+taglinks,velocityreset,turret/player/mode10fallback')

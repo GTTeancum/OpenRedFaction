@@ -1,4 +1,5 @@
 """Original4a1970 linked-host exit gates, stopped at successful detach continuation."""
+PROBE_SCOPE = __doc__
 from pathlib import Path
 import sys,itertools
 R=Path(__file__).resolve().parents[2];sys.path.insert(0,str(R/'local/python'))
@@ -24,4 +25,4 @@ for multiplayer,veto,physical,negative,islocal,detach in itertools.product([Fals
  denied=veto or physical and negative;expected=[] if multiplayer else ['host_lookup']+((['feedback'] if islocal else [])+['fallback_interaction'] if denied else ['detach'])
  assert events==expected,(events,expected);assert continued==(not multiplayer and not denied and detach);assert read(local+0x10)==(0x923 if not multiplayer and denied else 0x123)
  rows.append(dict(multiplayer=multiplayer,host814_veto=veto,physics1a8_bit4000=physical,host1380_negative=negative,local_caller=islocal,detach_result=detach,success_continuation=continued,local_player_flags=hex(read(local+0x10)),events=events[:]))
-(R/'artifacts/future-vehicles-re/player-exit-gates.json').write_text(json.dumps(dict(scope=__doc__,exe_sha256=sha,cases=rows),indent=2)+'\n');print('PASS',len(rows),'original exitgate cases; SP/veto/physics/timer/localfeedback/detachresult boundaries')
+(R/'artifacts/future-vehicles-re/player-exit-gates.json').write_text(json.dumps(dict(scope=PROBE_SCOPE,exe_sha256=sha,cases=rows),indent=2)+'\n');print('PASS',len(rows),'original exitgate cases; SP/veto/physics/timer/localfeedback/detachresult boundaries')
