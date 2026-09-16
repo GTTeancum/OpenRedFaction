@@ -366,6 +366,10 @@ int rf_physics_contact_process_sp(rf_physics_contact_actor *actor,const rf_physi
  * response are separate. Finite inputs and nonzero displacement required.
  * Flag 0x4000 selects another original path and is rejected. Errors preserve outputs. */
 int rf_physics_contact_advance(rf_physics_body_state *state,float dt,float fraction,float *remaining);
+/* Weapon contact4a01b0: same bounded translation, but consumed dt*fraction
+ * is stored as float before callback and remaining-time subtraction.
+ * Only fraction<1 continuation; callback/effects/iteration remain caller-owned. */
+int rf_physics_weapon_contact_advance(rf_physics_body_state *state,float dt,float fraction,float *remaining);
 typedef struct rf_physics_ground_probe {
     float start[3],end[3];
     rf_physics_sphere sphere;

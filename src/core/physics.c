@@ -247,6 +247,17 @@ int rf_physics_contact_advance(rf_physics_body_state *state,float dt,float fract
     }
     memcpy(state->position,position,sizeof(position));state->scalar_144=adjusted;*remaining=left;return RF_OK;
 }
+int rf_physics_weapon_contact_advance(rf_physics_body_state *state,float dt,float fraction,float *remaining)
+{
+    rf_physics_body_state value;float ignored;volatile float consumed;int status;
+    if(!state || !remaining)return RF_RANGE;
+    value=*state;
+    status=rf_physics_contact_advance(&value,dt,fraction,&ignored);if(status)return status;
+    /* 4a01b0 stores consumed time before invoking the weapon callback. The
+     * older 49ffd2 translation path retains its distinct x87 expression. */
+    consumed=(float)((double)dt*fraction);
+    *remaining=dt-consumed;*state=value;return RF_OK;
+}
 int rf_physics_static_contact(rf_physics_body_state *state,const float normal[3],
     const float support_velocity[3],const float contact_velocity[3],float *impact_speed)
 {

@@ -519,12 +519,12 @@ int main(int argc,char **argv)
         }
         return ferror(stdin)?1:0;
     }
-    if(argc==2 && !strcmp(argv[1],"--advance")) {
+    if(argc==2 && (!strcmp(argv[1],"--advance") || !strcmp(argv[1],"--weapon-advance"))) {
         struct {float dt,fraction,position[3],next[3];uint32_t flags;} input;
         while(fread(&input,sizeof(input),1,stdin)==1) {
             rf_physics_body_state state={0};float remaining;
             memcpy(state.position,input.position,12);memcpy(state.next_position,input.next,12);state.flags=input.flags;
-            if(rf_physics_contact_advance(&state,input.dt,input.fraction,&remaining))return 3;
+            if((!strcmp(argv[1],"--weapon-advance")?rf_physics_weapon_contact_advance:rf_physics_contact_advance)(&state,input.dt,input.fraction,&remaining))return 3;
             if(fwrite(state.position,12,1,stdout)!=1 || fwrite(&state.scalar_144,4,1,stdout)!=1 || fwrite(&remaining,4,1,stdout)!=1)return 1;
         }
         return ferror(stdin)?1:0;
