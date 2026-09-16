@@ -423,6 +423,14 @@ int main(int argc,char **argv)
         char *end;unsigned long uid=strtoul(getenv("RF_REPLAY_EXIT_START"),&end,10);
         if(*end || !uid)CHECK(RF_FORMAT);CHECK(rf_scene_stage_exit(&level,(uint32_t)uid));
     }
+    {extern uint32_t rf_scene_water_test_enabled;
+     rf_scene_water_test_enabled=p.headless && spawn_profile && getenv("RF_REPLAY_WATER_TEST")!=NULL;
+     if(rf_scene_water_test_enabled) {
+        static const float position[3]={-226.5f,-38.25f,-80.f};
+        static const float basis[9]={0,0,-1,.8f,.6f,0,.6f,-.8f,0};
+        if(strcmp(level.entry.name,"dm03.rfl"))CHECK(RF_FORMAT);
+        memcpy(level.player_position,position,12);memcpy(level.player_orientation,basis,36);
+     }}
     if(spawn_profile)CHECK(rf_scene_set_campaign_spawn(&level));
     else CHECK(rf_scene_preview_route_camera(&level,9858));
     CHECK(rf_geometry_open(&geometry,&level,8*1024*1024));
@@ -474,7 +482,7 @@ int main(int argc,char **argv)
         CHECK(rf_scene_campaign_player_set(&state));
     }
     rf_scene_ripple_test_enabled=p.headless && getenv("RF_REPLAY_RIPPLE_TEST")!=NULL;
-    rf_scene_dev_room_enabled=dev_room || (p.headless && getenv("RF_REPLAY_DEV_ROOM")!=NULL);
+    rf_scene_dev_room_enabled=dev_room || (p.headless && (getenv("RF_REPLAY_DEV_ROOM")!=NULL || getenv("RF_REPLAY_WATER_TEST")!=NULL));
     rf_scene_follow_level_exits=spawn_profile && !rf_scene_dev_room_enabled;
     if(p.headless && getenv("RF_REPLAY_WATCH_UID")) {
         char *end;unsigned long value=strtoul(getenv("RF_REPLAY_WATCH_UID"),&end,10);if(*end || !value)CHECK(RF_FORMAT);
@@ -820,6 +828,10 @@ run_scene:
         if(!f)CHECK(RF_IO);
         failed=fwrite(rf_scene_ripple_vertex_state,4,5,f)!=5 ||
             fwrite(rf_scene_ripple_vertices,sizeof(rf_preview_vertex),rf_scene_ripple_vertex_state[2],f)!=rf_scene_ripple_vertex_state[2];
+        {extern float rf_scene_ripple_camera[12],rf_scene_ripple_sources[16][6],rf_scene_ripple_input[240];extern uint32_t rf_scene_ripple_input_count;
+         failed|=fwrite(rf_scene_ripple_camera,4,12,f)!=12 || fwrite(rf_scene_ripple_sources,4,96,f)!=96 ||
+            fwrite(&rf_scene_ripple_input_count,4,1,f)!=1 || fwrite(rf_scene_ripple_input,4,240,f)!=240;}
+        {extern uint32_t rf_scene_ripple_fp_state[4];failed|=fwrite(rf_scene_ripple_fp_state,4,4,f)!=4;}
         if(fclose(f))failed=1;if(failed)CHECK(RF_IO);
     }
     printf("RIPPLE_VISUAL");for(i=0;i<8;++i)printf(" %u",rf_scene_ripple_visual[i]);puts("");

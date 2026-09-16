@@ -52,14 +52,14 @@ def main():
         water_rows.append(dict(radius=radius,fraction=hit[0],position=hit[1:4],normal=hit[4:]))
     # Four ordinary next-weapon presses select slot4 from the default handgun.
     frames=180
-    recording=b'RFI6'+struct.pack('<I',48)+b''.join(struct.pack('<5f7I',0,0,0,0,0,0,0,0,int(i==60),0,int(i in [10,20,30,40]),0) for i in range(frames))
+    recording=b'RFI6'+struct.pack('<I',48)+b''.join(struct.pack('<5f7I',0,0,0,-1 if 1<=i<=56 else 0,0,0,0,0,int(i==60),0,int(i in [10,20,30,40]),0) for i in range(frames))
     (folder/'input.bin').write_bytes(recording)
     report=dict(level='dm03.rfl',archive='levelsm.vpp',room=18,room_name='sewerpipe',layout=layout,
         geometry_sha256=hashlib.sha256(data).hexdigest(),camera_position=start,
         camera_orientation=[[0,0,-1],[.8,.6,0],[.6,-.8,0]],forward=[.6,-.8,0],
         liquid_face=water,solid_ray_evidence=dict(inputs=ray_lines,output=output),liquid_sphere_queries=water_rows,
-        recording=dict(frames=frames,fire_frame=60,next_weapon_frames=[10,20,30,40],sha256=hashlib.sha256(recording).hexdigest()),
+        recording=dict(frames=frames,fire_frame=60,next_weapon_frames=[10,20,30,40],look_down_frames=[1,56],sha256=hashlib.sha256(recording).hexdigest()),
         scope='Authored geometry plus existing shared collision probes; no reconstructed runtime launch, scene staging, ripple visibility or character immersion claim')
     (folder/'fixture.json').write_text(json.dumps(report,indent=2)+'\n')
-    print('Generated water-fixture/input.bin and fixture.json; collision route confirms water before floor. Frontend hook still required.')
+    print('Generated water-fixture/input.bin and fixture.json; collision route confirms water before floor. Use verify_water_gameplay.py for reconstructed PC execution.')
 if __name__=='__main__':main()

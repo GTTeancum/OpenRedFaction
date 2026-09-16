@@ -339,6 +339,8 @@ dvd_path = '{root.as_posix()}/build/xbox/redfaction-diagnostic.iso'
                 data=struct.pack('<5I',*state)
                 count=state[2]*14
                 if count:data+=struct.pack('<'+'I'*count,*words(monitor,symbol('rf_scene_ripple_vertices'),count))
+                for name,count in [('rf_scene_ripple_camera',12),('rf_scene_ripple_sources',96),('rf_scene_ripple_input_count',1),('rf_scene_ripple_input',240),('rf_scene_ripple_fp_state',4)]:
+                    data+=struct.pack('<'+'I'*count,*words(monitor,symbol(name),count))
                 (run/'xbox-ripple-vertices.bin').write_bytes(data)
             transition_rows=[line.split()[1:] for line in pc.stdout.splitlines() if line.startswith('LEVEL_TRANSITION ')]
             native_transition=words(monitor,symbol('rf_xbox_level_transitions'),4)

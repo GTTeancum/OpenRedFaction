@@ -166,6 +166,7 @@ static uint32_t player_frame_limit;
 static rf_scene_input player_input;
 static uint32_t campaign_spawn;
 uint32_t rf_scene_dev_room_enabled;
+uint32_t rf_scene_water_test_enabled; /* Explicit authored dm03 water test; no terrain fixture. */
 static uint32_t dev_refill_held;
 static uint32_t campaign_crouched,campaign_jump_held;
 static rf_physics_gravity scene_gravity={9.8f,{0,-9.8f,0}};
@@ -9057,7 +9058,7 @@ static int scene_terrain_open(scene_stream *s,const rf_level *level)
     memset(rf_scene_terrain_atlas,0,sizeof(rf_scene_terrain_atlas));
     memset(rf_scene_terrain_bake,0,sizeof(rf_scene_terrain_bake));
     memset(rf_scene_terrain_upload,0,sizeof(rf_scene_terrain_upload));
-    if(!rf_scene_dev_room_enabled)return RF_OK;
+    if(!rf_scene_dev_room_enabled || rf_scene_water_test_enabled)return RF_OK;
     if(!s->geometry || !s->collision || !actor_follow_world || strcmp(level->entry.name,"glass_house.rfl") ||
        s->geometry->faces!=598 || s->geometry->rooms!=91 || s->collision->room_count!=91)return RF_FORMAT;
     {
@@ -9899,7 +9900,7 @@ static int campaign_combat_tick(scene_stream *stream,uint32_t frame,const float 
         for(i=0;i<campaign_item_pending_count;i++){status=campaign_apply_item_grant(campaign_item_pending+i);if(status)return status;}
         campaign_item_pending_count=0;
         if(rf_scene_dev_room_enabled) {
-            if(strcmp(campaign_current_level,"glass_house.rfl"))return RF_FORMAT;
+            if(strcmp(campaign_current_level,rf_scene_water_test_enabled?"dm03.rfl":"glass_house.rfl"))return RF_FORMAT;
             /* Developer supply only: ordinary weapon limits, firing and reloads. */
             for(i=0;i<scene_weapon_slots();i++) {
                 int32_t id=campaign_slot_weapon(i);
@@ -10270,7 +10271,7 @@ static int actor_follow_view(void *context,uint32_t frame,const rf_motion_contro
         }
     }
     world_profile_mark(1,&world_clock);
-    if(campaign_spawn){status=campaign_combat_tick(stream,frame,position,orientation);rf_scene_combat[7]=(uint32_t)status;if(status)return status;}
+    if(campaign_spawn){status=campaign_combat_tick(stream,frame,position,orientation);rf_scene_combat[7]=(uint32_t)status;if(status){rf_scene_profile_stage[1]=109;return status;}}
     if(rf_scene_follow_npc_uid){status=campaign_inspect_camera(stream,position,orientation);if(status)return status;}
     if(rf_scene_particle_view_enabled && frame<400 && stream->particles.state && stream->particles.materials.count) {
         memcpy(position,stream->particles.state->slots[0].runtime.emitter.position,12);
@@ -11779,7 +11780,11 @@ static int scene_rockets_draw(scene_stream *s,uint32_t frame)
     rf_scene_rocket_visual[5]=sizeof(*v)+v->geometry->resident_bytes+v->materials->resident_bytes;
     for(shot=0;shot<SCENE_ROCKETS;shot++)if(s->rockets[shot].active) {
         float time=fmodf((float)(campaign_rocket.lifetime-s->rockets[shot].remaining)*15,16.f);
-        const float *basis=s->rocket_basis[shot];++rf_scene_rocket_visual[1];
+        const float *basis=s->rocket_basis[shot];rf_level camera=s->rocket_camera;++rf_scene_rocket_visual[1];
+        /* Bind tiny animated triangles near their own origin: world-space plane
+         * constants lose precision at distant authored level coordinates.
+         * Translating the camera instead preserves the same view and culling. */
+        for(k=0;k<3;k++)camera.player_position[k]-=s->rockets[shot].position[k];
         for(m=0;m<v->geometry->count;m++) {
             rf_vfx_mesh *source=v->geometry->meshes[m];rf_vfx_instance *instance=v->geometry->instances[m];
             rf_geomod_mesh_view mesh={0};rf_preview_mesh emitted={0};uint32_t count=0;
@@ -11794,7 +11799,7 @@ static int scene_rockets_draw(scene_stream *s,uint32_t frame)
                 slot=v->materials->textures.bindings[material][0];if(slot==UINT32_MAX)continue;
                 for(j=0;j<3;j++)for(k=0;k<3;k++) {
                     const float *local=instance->vertices+face.indices[j]*3;
-                    triangle[j*3+k]=s->rockets[shot].position[k]+local[0]*basis[k]+local[1]*basis[3+k]+local[2]*basis[6+k];
+                    triangle[j*3+k]=local[0]*basis[k]+local[1]*basis[3+k]+local[2]*basis[6+k];
                 }
                 /* Animated zero-area effect faces are not drawable. */
                 status=rf_vfx_face_normal(triangle,normal);if(status==RF_RANGE || status==RF_FORMAT)continue;if(status)return status;
@@ -11808,7 +11813,7 @@ static int scene_rockets_draw(scene_stream *s,uint32_t frame)
             if(!count)continue;
             status=rf_geomod_collision_faces(&mesh,v->filters,v->positions,384,v->bound,128);if(status)return status;
             emitted.vertices=s->mesh->vertices+s->mesh->count;
-            status=rf_preview_geomod(&emitted,s->capacity-s->mesh->bytes,&mesh,v->bound,s->materials->count,&s->rocket_camera);if(status)return status;
+            status=rf_preview_geomod(&emitted,s->capacity-s->mesh->bytes,&mesh,v->bound,s->materials->count,&camera);if(status)return status;
             s->mesh->count+=emitted.count;s->mesh->bytes+=emitted.bytes;
         }
     }
@@ -11824,16 +11829,37 @@ rf_preview_vertex rf_scene_ripple_vertices[384];
 uint32_t rf_scene_ripple_vertex_state[5]; /* frame, total, copied, stride, overflow */
 float rf_scene_ripple_camera[12]; /* position XYZ, then right/up/forward rows */
 float rf_scene_ripple_sources[SCENE_RIPPLES][6]; /* center XYZ, age frames, effect time, active */
+float rf_scene_ripple_input[240]; /* First live ripple: face-order interleaved world XYZ, UV. */
+uint32_t rf_scene_ripple_input_count; /* Valid float count; capacity240, independent of emitted faces. */
+uint32_t rf_scene_ripple_fp_state[4]; /* frame+1, x87 control, MXCSR, supported. */
+static void scene_ripple_fp_capture(uint32_t frame)
+{
+    unsigned short control=0;uint32_t mxcsr=0,supported=0;
+#if defined(_MSC_VER) && defined(_M_IX86)
+    __asm { fnstcw control }
+    __asm { stmxcsr mxcsr }
+    supported=1;
+#elif defined(__i386__) && (defined(__GNUC__) || defined(__clang__))
+    __asm__ volatile("fnstcw %0":"=m"(control));
+    __asm__ volatile("stmxcsr %0":"=m"(mxcsr));
+    supported=1;
+#endif
+    rf_scene_ripple_fp_state[0]=frame+1;rf_scene_ripple_fp_state[1]=control;
+    rf_scene_ripple_fp_state[2]=mxcsr;rf_scene_ripple_fp_state[3]=supported;
+}
+
 static int scene_ripples_draw(scene_stream *s,uint32_t frame)
 {
     scene_rocket_visual *v=s->ripple_visual;uint32_t shot,m,f,j,k,first=s->mesh->count;int status;
-    unsigned char lighting[3];
+    unsigned char lighting[3];uint32_t input_shot=UINT32_MAX;
     memset(rf_scene_ripple_visual,0,sizeof(rf_scene_ripple_visual));rf_scene_ripple_visual[0]=frame+1;
     memset(rf_scene_ripple_vertex_state,0,sizeof(rf_scene_ripple_vertex_state));
     rf_scene_ripple_vertex_state[0]=frame+1;rf_scene_ripple_vertex_state[3]=sizeof(rf_preview_vertex);
     memcpy(rf_scene_ripple_camera,s->rocket_camera.player_position,12);
     memcpy(rf_scene_ripple_camera+3,s->rocket_camera.player_orientation,36);
     memset(rf_scene_ripple_sources,0,sizeof(rf_scene_ripple_sources));
+    memset(rf_scene_ripple_fp_state,0,sizeof(rf_scene_ripple_fp_state));
+    memset(rf_scene_ripple_input,0,sizeof(rf_scene_ripple_input));rf_scene_ripple_input_count=0;
     if(!v)return RF_OK;
     rf_scene_ripple_visual[5]=sizeof(*v)+v->geometry->resident_bytes+v->materials->resident_bytes;
     if(rf_scene_ripple_test_enabled && frame==0) {
@@ -11846,19 +11872,29 @@ static int scene_ripples_draw(scene_stream *s,uint32_t frame)
         if(rf_scene_combat_trace)printf("RIPPLE_RENDER_FIXTURE %u %.9g %.9g %.9g\n",frame,
             contact.hit.point[0],contact.hit.point[1],contact.hit.point[2]);
     }
-    /* Ambient is a bounded first-pass scene-light input; brightness remains
-     * the original material floor, rather than multiplying zero into RGB. */
-    for(k=0;k<3;k++)lighting[k]=(unsigned char)(255.f*fminf(1.f,fmaxf(0.f,s->light_ambient[k])));
+    /* Original461950 supplies unhalved level ambient;553ee0/4daff0 applies
+     * gain2 before the material brightness floor. The ordinary ripple route
+     * selects no per-effect lights. General active-light ownership is pending. */
+    if(s->light_directional!=1) {
+        const float point[3]={0,0,0},normal[3]={0,1,0};
+        status=rf_vfx_lighting(point,normal,s->light_ambient,.25f,NULL,0,lighting);if(status)return status;
+    } else {
+        /* Directional-level initialization creates a light instead of setting
+         * ambient: retain the previous preview fallback, explicitly unverified. */
+        for(k=0;k<3;k++)lighting[k]=(unsigned char)(255.f*fminf(1.f,fmaxf(0.f,s->light_ambient[k])));
+    }
     for(shot=0;shot<SCENE_RIPPLES;shot++)if(s->ripple_active[shot]) {
         uint32_t age=frame-s->ripple_born[shot];float time=(float)age*.25f;
         if(age>=96u){s->ripple_active[shot]=0;++rf_scene_ripple_visual[7];++rf_scene_ripple_lifecycle[1];continue;}
         ++rf_scene_ripple_visual[1];
+        if(input_shot==UINT32_MAX)input_shot=shot;
         memcpy(rf_scene_ripple_sources[shot],s->ripple_position[shot],12);
         rf_scene_ripple_sources[shot][3]=(float)age;rf_scene_ripple_sources[shot][4]=time;
         rf_scene_ripple_sources[shot][5]=1;
         for(m=0;m<v->geometry->count;m++) {
             rf_vfx_mesh *source=v->geometry->meshes[m];rf_vfx_instance *instance=v->geometry->instances[m];
             if(!instance)continue;
+            if(!rf_scene_ripple_fp_state[0])scene_ripple_fp_capture(frame);
             status=rf_vfx_instance_update(instance,time);if(status)return status;if(!instance->active)continue;
             for(f=0;f<source->prefix.faces;f++) {
                 rf_vfx_face face;rf_geomod_mesh_view mesh={0};rf_preview_mesh emitted={0};
@@ -11875,6 +11911,13 @@ static int scene_ripples_draw(scene_stream *s,uint32_t frame)
                 status=rf_vfx_material_color(v->materials->views+material,lighting,brightness,source->edges.mesh_flags,rgb);if(status)return status;
                 for(j=0;j<3;j++)for(k=0;k<3;k++)
                     triangle[j*3+k]=s->ripple_position[shot][k]+instance->vertices[face.indices[j]*3+k];
+                if(shot==input_shot && m<4 && f<4 && rf_scene_ripple_input_count<=240-15) {
+                    for(j=0;j<3;j++) {
+                        float *input=rf_scene_ripple_input+rf_scene_ripple_input_count;
+                        memcpy(input,triangle+j*3,12);input[3]=instance->uv[f*6+j];input[4]=instance->uv[f*6+3+j];
+                        rf_scene_ripple_input_count+=5;
+                    }
+                }
                 status=rf_vfx_face_normal(triangle,normal);if(status==RF_RANGE || status==RF_FORMAT)continue;if(status)return status;
                 for(j=0;j<3;j++) {
                     memcpy(v->vertices[j].position,triangle+j*3,12);
@@ -12466,7 +12509,7 @@ static int scene_frame(void *context,uint32_t frame,rf_preview_mesh *actor)
         status=scene_clutter_draw(stream,frame);presentation_mark(1,&presentation_clock);if(status){rf_scene_profile_stage[1]=202;return status;}
         status=scene_weapon_draw(stream,frame);presentation_mark(2,&presentation_clock);if(status){rf_scene_profile_stage[1]=203;return status;}
         status=scene_pickups_draw(stream);presentation_mark(3,&presentation_clock);if(status){rf_scene_profile_stage[1]=204;return status;}
-        status=scene_rockets_draw(stream,frame);rf_scene_rocket_visual[6]=(uint32_t)status;if(status)return status;
+        status=scene_rockets_draw(stream,frame);rf_scene_rocket_visual[6]=(uint32_t)status;if(status){rf_scene_profile_stage[1]=207;return status;}
         status=scene_debris_draw(stream);if(status)return status;
         status=scene_ripples_draw(stream,frame);rf_scene_ripple_visual[6]=(uint32_t)status;if(status)return status;
         status=scene_player_weapon_draw(stream,frame);presentation_mark(4,&presentation_clock);if(status){rf_scene_profile_stage[1]=205;return status;}
@@ -13162,7 +13205,7 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
             }
             }
         }
-        if(rf_scene_dev_room_enabled) {
+        if(rf_scene_dev_room_enabled && !rf_scene_water_test_enabled) {
             rf_level_geomod_settings settings;const char *names[1];rf_materials interior={0};rf_material *combined;
             status=rf_level_geomod_settings_read(level,&settings);if(status)goto done;
             stream->terrain_default_hardness=settings.hardness;

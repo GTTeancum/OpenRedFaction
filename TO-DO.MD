@@ -1,6 +1,6 @@
 # Red Faction Xbox / PC - open work
 
-- GeoMod collisions: Validate authored wet gameplay and resolve PC/Xbox ripple vertex-hash mismatch; authored ripples now render with additive blending and verified PC expiry, while wet-scene audio remains unverified.
+- GeoMod collisions: Validate authored wet gameplay on Xbox and resolve ripple precision differences; PC water entry, floor continuation and ripple expiry now pass, while wet audio and safer visual placement remain open.
 - GeoMod saves: Integrate tested two-slot checkpoint storage and terrain dry-run validation with full RFDS checks and native HDD mounting/flush; persistent Xbox restart verification remains open.
 - GeoMod fidelity: Use binary-derived geometry, material, lighting and collision calculations; original-game screenshot comparisons are excluded by user direction.
 - GeoMod saves: Extend verified DEV destruction checkpoints to writable Xbox storage and full game-state integration; PC-to-Xbox reload and another blast now pass48 comparisons.
