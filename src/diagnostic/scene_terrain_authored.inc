@@ -4,6 +4,8 @@ static void scene_terrain_authored_close(scene_terrain_authored_assets **owner)
     scene_terrain_authored_assets *a;
     if(!owner || !*owner)return;
     a=*owner;free(a->references);free(a->face_storage);
+    free(a->identity_manifest.materials);free(a->identity_manifest.references);
+    free(a->identity_manifest.substrate);
     rf_geomod_authored_post_close(&a->asset);free(a);*owner=NULL;
 }
 static int scene_terrain_authored_reference(scene_stream *s,scene_terrain_authored_assets *a,
@@ -47,8 +49,16 @@ static inline int scene_terrain_authored_open(scene_stream *s,const rf_level *le
     status=rf_geomod_authored_post_get(a->asset,&a->asset_view);if(status)goto fail;
     /* Capture original asset identity before remapping face materials into
      * renderer slots. Temporary decode/repacking memory is released here. */
-    status=rf_geomod_authored_identity_capture(level,s->geometry,&a->asset_view,
-        maps,map_count,&s->light_rgb,2u*1024u*1024u,a->source_identity,&a->identity_peak_bytes);
+    count=a->asset_view.source.face_count+a->asset_view.windows.face_count+a->asset_view.neighbors.face_count;
+    if(!count || count>384){status=RF_RANGE;goto fail;}
+    a->identity_manifest.material_capacity=count>128?128:count;
+    a->identity_manifest.reference_capacity=count;
+    a->identity_manifest.materials=calloc(a->identity_manifest.material_capacity,sizeof(*a->identity_manifest.materials));
+    a->identity_manifest.references=calloc(count,sizeof(*a->identity_manifest.references));
+    a->identity_manifest.substrate=calloc(1,sizeof(*a->identity_manifest.substrate));
+    if(!a->identity_manifest.materials || !a->identity_manifest.references || !a->identity_manifest.substrate){status=RF_IO;goto fail;}
+    status=rf_geomod_authored_identity_capture_manifest(level,s->geometry,&a->asset_view,
+        maps,map_count,&s->light_rgb,2u*1024u*1024u,a->source_identity,&a->identity_peak_bytes,&a->identity_manifest);
     if(status){printf("AUTHORED_IDENTITY_ERROR %d\n",status);goto fail;}
     if(a->asset_view.room>=s->collision->room_count || !a->asset_view.replaced_count){status=RF_FORMAT;goto fail;}
     a->source=a->asset_view.source;a->windows=a->asset_view.windows;a->neighbors=a->asset_view.neighbors;
@@ -82,6 +92,9 @@ static inline int scene_terrain_authored_open(scene_stream *s,const rf_level *le
         4096,SCENE_TERRAIN_FACES,1024*1024,&terrain);if(status)goto fail;
     status=rf_geomod_terrain_set_mapping(terrain,s->terrain_texture_width,s->terrain_texture_height);if(status)goto fail;
     a->resident_bytes=sizeof(*a)+a->asset_view.resident_bytes+count*sizeof(*a->face_storage)+capacity*sizeof(*a->references);
+    /* Manifest descriptor lives inside *a; only its caller-owned arrays add
+     * resident memory. Capture peak already includes descriptor and capacities. */
+    a->resident_bytes+=a->identity_manifest.resident_bytes-sizeof(a->identity_manifest);
     a->peak_bytes=sizeof(*a)+a->asset_view.peak_bytes;
     if(sizeof(*a)+a->asset_view.resident_bytes+a->identity_peak_bytes>a->peak_bytes)
         a->peak_bytes=sizeof(*a)+a->asset_view.resident_bytes+a->identity_peak_bytes;
@@ -93,6 +106,8 @@ static inline int scene_terrain_authored_open(scene_stream *s,const rf_level *le
     printf("AUTHORED_SOURCE %u %u %u %u %u %u %u %u %u\n",a->asset_view.source_uid,a->asset_view.room,
         a->source.vertex_count,a->source.face_count,a->windows.face_count,a->neighbors.face_count,
         a->reference_count,a->resident_bytes,a->peak_bytes);
+    printf("AUTHORED_MANIFEST %u %u %u\n",a->identity_manifest.material_count,
+        a->identity_manifest.reference_count,a->identity_manifest.resident_bytes);
     return RF_OK;
 fail:
     rf_geomod_terrain_close(&terrain);scene_terrain_authored_close(&a);return status;

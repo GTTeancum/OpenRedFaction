@@ -7,10 +7,11 @@ typedef struct identity_capture {
     const rf_geometry *geometry;const rf_lightmap_rgb_owner *rgb;rf_vpp *maps;uint32_t map_count;
     rf_geomod_authored_identity_input input;
     rf_geomod_identity_material *materials;rf_geomod_identity_reference *references;
+    rf_geomod_digest_material *manifest_materials;rf_geomod_authored_chart_identity *manifest_references;
     unsigned char **chart_pixels,*editor;
     uint32_t material_capacity,reference_capacity,material_count,reference_count;
     uint32_t used,peak,budget,temporary_bytes;
-    rf_image temporary;
+    rf_image temporary;rf_geomod_identity_image substrate_pixels;rf_geomod_digest_material manifest_substrate;
 } identity_capture;
 static uint32_t word(const unsigned char *p)
 {return p[0]|(uint32_t)p[1]<<8|(uint32_t)p[2]<<16|(uint32_t)p[3]<<24;}
@@ -28,15 +29,13 @@ static void release(identity_capture *c)
     uint32_t i;if(!c)return;rf_image_close(&c->temporary);
     if(c->materials)for(i=0;i<c->material_capacity;i++)free((void *)c->materials[i].image.pixels);
     if(c->chart_pixels)for(i=0;i<c->rgb->count;i++)free(c->chart_pixels[i]);
-    free(c->materials);free(c->references);free(c->chart_pixels);free(c->editor);free(c);
+    free(c->materials);free(c->references);free(c->chart_pixels);free(c->editor);
+    free(c->manifest_materials);free(c->manifest_references);free((void *)c->substrate_pixels.pixels);free(c);
 }
-static int material_capture(identity_capture *c,uint32_t key)
+static int resource_capture(identity_capture *c,const char *name,rf_geomod_identity_image *output)
 {
     uint32_t i,found=0,index=0,bpp,x,y,remaining;uint64_t bytes,rounded;int status;
-    rf_vpp_entry selected={0},entry;char name[64];rf_geomod_identity_material *m;void *memory;
-    for(i=0;i<c->material_count;i++)if(c->materials[i].compiled_material==key)return RF_OK;
-    if(c->material_count>=c->material_capacity)return RF_RANGE;
-    status=rf_geometry_texture_name(c->geometry,key,name,sizeof(name));if(status)return status;
+    rf_vpp_entry selected={0},entry;void *memory;
     for(i=0;i<c->map_count;i++) {
         status=rf_vpp_find(c->maps+i,name,&entry);if(status==RF_NOT_FOUND)continue;if(status)return status;
         selected=entry;index=i;found++;
@@ -51,15 +50,23 @@ static int material_capture(identity_capture *c,uint32_t key)
     c->temporary_bytes=(uint32_t)rounded;c->used+=c->temporary_bytes;if(c->used>c->peak)c->peak=c->used;
     bpp=rf_image_is_packed_1555(&c->temporary)?2:4;bytes=(uint64_t)c->temporary.width*c->temporary.height*bpp;
     if(!c->temporary.rgba || !bytes || bytes>UINT32_MAX || bytes!=c->temporary.bytes)return RF_FORMAT;
-    m=c->materials+c->material_count;m->compiled_material=key;
-    if(!memchr(selected.name,0,sizeof(selected.name)) || strlen(selected.name)>=sizeof(m->image.name))return RF_FORMAT;
-    strcpy(m->image.name,selected.name);canonical(m->image.name);
-    m->image.width=c->temporary.width;m->image.height=c->temporary.height;m->image.format=c->temporary.source_format;
-    m->image.bytes_per_pixel=bpp;m->image.bytes=(uint32_t)bytes;
-    status=allocate(c,(uint32_t)bytes,&memory);if(status)return status;m->image.pixels=memory;
+    if(!memchr(selected.name,0,sizeof(selected.name)) || strlen(selected.name)>=sizeof(output->name))return RF_FORMAT;
+    strcpy(output->name,selected.name);canonical(output->name);
+    output->width=c->temporary.width;output->height=c->temporary.height;output->format=c->temporary.source_format;
+    output->bytes_per_pixel=bpp;output->bytes=(uint32_t)bytes;
+    status=allocate(c,(uint32_t)bytes,&memory);if(status)return status;output->pixels=memory;
     for(y=0;y<c->temporary.height;y++)for(x=0;x<c->temporary.width;x++)
         memcpy((unsigned char *)memory+(y*c->temporary.width+x)*bpp,rf_image_pixel(&c->temporary,x,y),bpp);
-    c->material_count++;close_temporary(c);return RF_OK;
+    close_temporary(c);return RF_OK;
+}
+static int material_capture(identity_capture *c,uint32_t key)
+{
+    uint32_t i;char name[64];int status;rf_geomod_identity_material *m;
+    for(i=0;i<c->material_count;i++)if(c->materials[i].compiled_material==key)return RF_OK;
+    if(c->material_count>=c->material_capacity)return RF_RANGE;
+    status=rf_geometry_texture_name(c->geometry,key,name,sizeof(name));if(status)return status;
+    m=c->materials+c->material_count;m->compiled_material=key;
+    status=resource_capture(c,name,&m->image);if(status)return status;c->material_count++;return RF_OK;
 }
 static int reference_capture(identity_capture *c,const rf_geomod_publication_origin *o,uint32_t material)
 {
@@ -114,14 +121,54 @@ static int mesh_capture(identity_capture *c,const rf_geomod_mesh_view *mesh,cons
     }
     return RF_OK;
 }
-int rf_geomod_authored_identity_capture(const rf_level *level,const rf_geometry *geometry,
+static int manifest_prepare(identity_capture *c,const rf_geomod_authored_identity_manifest *manifest)
+{
+    uint32_t i;void *memory;int status;
+    if(c->material_count>manifest->material_capacity || c->reference_count>manifest->reference_capacity)return RF_RANGE;
+    status=allocate(c,c->material_count*sizeof(*c->manifest_materials),&memory);if(status)return status;c->manifest_materials=memory;
+    status=allocate(c,c->reference_count*sizeof(*c->manifest_references),&memory);if(status)return status;c->manifest_references=memory;
+    for(i=0;i<c->material_count;i++) {
+        const rf_geomod_identity_material *source=c->materials+i;rf_geomod_digest_material *m=c->manifest_materials+i;
+        m->key=source->compiled_material;m->image=source->image;
+        status=rf_geomod_image_content_digest(&m->image,m->content_digest);if(status)return status;
+        m->image.pixels=NULL;m->prehashed=1;
+    }
+    for(i=0;i<c->reference_count;i++) {
+        const rf_geomod_identity_reference *source=c->references+i;rf_geomod_authored_chart_identity *r=c->manifest_references+i;
+        r->reference=source->reference;r->compiled_material=source->compiled_material;r->filter=source->filter;
+        r->chart.key=source->reference;r->chart.owner=source->owner;r->chart.source_face=source->source_face;
+        r->chart.retained_map=UINT32_MAX;r->chart.projection=source->projection;
+        if(source->unlit)r->chart.kind=RF_GEOMOD_DIGEST_UNLIT;
+        else {
+            r->chart.kind=RF_GEOMOD_DIGEST_SOURCE_CHART;r->chart.image=source->chart;
+            status=rf_geomod_image_content_digest(&r->chart.image,r->chart.content_digest);if(status)return status;
+            r->chart.image.pixels=NULL;r->chart.prehashed=1;
+        }
+    }
+    if(manifest->substrate) {
+        status=resource_capture(c,c->input.asset->settings.texture,&c->substrate_pixels);if(status)return status;
+        c->manifest_substrate.image=c->substrate_pixels;
+        status=rf_geomod_image_content_digest(&c->substrate_pixels,c->manifest_substrate.content_digest);if(status)return status;
+        c->manifest_substrate.image.pixels=NULL;c->manifest_substrate.prehashed=1;
+    }
+    return RF_OK;
+}
+int rf_geomod_authored_identity_capture_manifest(const rf_level *level,const rf_geometry *geometry,
     const rf_geomod_authored_post_view *asset,rf_vpp *maps,uint32_t map_count,const rf_lightmap_rgb_owner *rgb,
-    uint32_t budget,unsigned char digest[32],uint32_t *peak_bytes)
+    uint32_t budget,unsigned char digest[32],uint32_t *peak_bytes,rf_geomod_authored_identity_manifest *manifest)
 {
     identity_capture *c=NULL;const rf_level_section *editor;unsigned char result[32];uint32_t capacity,peak;
-    const rf_geomod_mesh_view *meshes[3];const rf_geomod_publication_origin *origins[3];uint32_t i;void *memory;int status;
+    const rf_geomod_mesh_view *meshes[3];const rf_geomod_publication_origin *origins[3];uint32_t i,manifest_bytes=0;void *memory;int status;
     if(!level || !geometry || !asset || !maps || !map_count || map_count>32 || !rgb || !rgb->images ||
         !rgb->count || rgb->count>4096 || !digest || !peak_bytes || !geometry->data || !geometry->face_offsets)return RF_RANGE;
+    if(manifest) {
+        uint64_t bytes;
+        if(!manifest->materials || !manifest->references || !manifest->material_capacity || manifest->material_capacity>128 ||
+            !manifest->reference_capacity || manifest->reference_capacity>768)return RF_RANGE;
+        bytes=sizeof(*manifest)+(uint64_t)manifest->material_capacity*sizeof(*manifest->materials)+
+            (uint64_t)manifest->reference_capacity*sizeof(*manifest->references)+(manifest->substrate?sizeof(*manifest->substrate):0);
+        if(bytes>UINT32_MAX)return RF_RANGE;manifest_bytes=(uint32_t)bytes;
+    }
     if(level->version!=180 || strcmp(level->entry.name,"ctf06.rfl") || asset->source_uid!=94 || asset->room!=3 ||
         asset->source.face_count!=6 || asset->solid_count!=3)return RF_NOT_FOUND;
     meshes[0]=&asset->source;meshes[1]=&asset->windows;meshes[2]=&asset->neighbors;
@@ -131,11 +178,11 @@ int rf_geomod_authored_identity_capture(const rf_level *level,const rf_geometry 
             !meshes[i]->vertex_count || meshes[i]->vertex_count>4096)return RF_RANGE;
         capacity+=meshes[i]->face_count;
     }
-    if(capacity>768 || budget<sizeof(*c)+CAPTURE_STACK_RESERVE)return RF_RANGE;
+    if(capacity>768 || (uint64_t)budget<sizeof(*c)+CAPTURE_STACK_RESERVE+(uint64_t)manifest_bytes)return RF_RANGE;
     editor=rf_level_find(level,0x2000000);if(!editor || !editor->size)return RF_NOT_FOUND;
     c=calloc(1,sizeof(*c));if(!c)return RF_IO;
     c->geometry=geometry;c->rgb=rgb;c->maps=maps;c->map_count=map_count;c->budget=budget;
-    c->used=c->peak=(uint32_t)sizeof(*c)+CAPTURE_STACK_RESERVE;c->reference_capacity=capacity;
+    c->used=c->peak=(uint32_t)sizeof(*c)+CAPTURE_STACK_RESERVE+manifest_bytes;c->reference_capacity=capacity;
     c->material_capacity=capacity<128?capacity:128;
     status=allocate(c,c->material_capacity*sizeof(*c->materials),&memory);if(status)goto done;c->materials=memory;
     status=allocate(c,capacity*sizeof(*c->references),&memory);if(status)goto done;c->references=memory;
@@ -152,7 +199,18 @@ int rf_geomod_authored_identity_capture(const rf_level *level,const rf_geometry 
     c->input.materials=c->materials;c->input.material_count=c->material_count;
     c->input.references=c->references;c->input.reference_count=c->reference_count;
     status=rf_geomod_authored_identity(&c->input,result);if(status)goto done;
+    if(manifest){status=manifest_prepare(c,manifest);if(status)goto done;}
+    if(manifest) {
+        memcpy(manifest->materials,c->manifest_materials,c->material_count*sizeof(*manifest->materials));
+        memcpy(manifest->references,c->manifest_references,c->reference_count*sizeof(*manifest->references));
+        manifest->material_count=c->material_count;manifest->reference_count=c->reference_count;manifest->resident_bytes=manifest_bytes;
+        if(manifest->substrate)*manifest->substrate=c->manifest_substrate;
+    }
     peak=c->peak;memcpy(digest,result,32);*peak_bytes=peak;
 done:
     release(c);return status;
 }
+int rf_geomod_authored_identity_capture(const rf_level *level,const rf_geometry *geometry,
+    const rf_geomod_authored_post_view *asset,rf_vpp *maps,uint32_t map_count,const rf_lightmap_rgb_owner *rgb,
+    uint32_t budget,unsigned char digest[32],uint32_t *peak_bytes)
+{return rf_geomod_authored_identity_capture_manifest(level,geometry,asset,maps,map_count,rgb,budget,digest,peak_bytes,NULL);}

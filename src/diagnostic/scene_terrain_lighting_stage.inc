@@ -42,13 +42,14 @@ static inline void scene_terrain_lighting_stage_discard(scene_terrain_lighting_s
  * On error, *out and every live byte/telemetry word remain unchanged.
  * Empty/reset publication belongs to the explicit reset route, not this call.
  */
-static inline int scene_terrain_lighting_stage_clone(scene_stream *live,
-    const rf_geomod_terrain_view *candidate,scene_terrain_lighting_stage **out)
+static inline int scene_terrain_lighting_stage_clone_mode(scene_stream *live,
+    const rf_geomod_terrain_view *candidate,uint32_t empty,scene_terrain_lighting_stage **out)
 {
     scene_terrain_lighting_stage *p;
     void *sources[10];size_t sizes[10],total,offset;uint32_t i;
-    if(!live || !candidate || !out || !candidate->mesh.face_count ||
-       !candidate->mesh.vertices || !candidate->mesh.faces || !candidate->faces ||
+    if(!live || !candidate || !out ||
+       (!empty && (!candidate->mesh.face_count || !candidate->mesh.vertices || !candidate->mesh.faces || !candidate->faces)) ||
+       (empty && (candidate->cuts || candidate->mesh.face_count || candidate->mesh.vertex_count)) ||
        candidate->mesh.face_count>SCENE_TERRAIN_FACES || candidate->mesh.vertex_count>4096 ||
        !candidate->tree || !candidate->tree->nodes || !candidate->tree->node_count ||
        candidate->tree->node_count>candidate->tree->node_capacity ||
@@ -91,6 +92,45 @@ static inline int scene_terrain_lighting_stage_clone(scene_stream *live,
     p->clone.terrain_draw=p->buffers[8].copy;p->tree.stack=p->buffers[9].copy;
     scene_lighting_stage_telemetry_get(&p->telemetry);
     *out=p;return RF_OK;
+}
+/* Existing nonempty path retains its validation and behavior. */
+static inline int scene_terrain_lighting_stage_clone(scene_stream *live,
+    const rf_geomod_terrain_view *candidate,scene_terrain_lighting_stage **out)
+{return scene_terrain_lighting_stage_clone_mode(live,candidate,0,out);}
+/* Explicit zero-cut authored restore/reset. candidate contains no publication
+ * faces but its tree is the pending FULL room. Saved journal generation0 is a
+ * lazy owner, independent of nonzero scene serial; initialized owners require
+ * RNG1. Caller has already validated identity/player/empty journal framing.
+ * No bake/query/registration or live admission/player/debris mutation occurs.
+ * Success is ready for publication_finish then the ordinary nonfailing commit.
+ * Abandoning/discarding this stage preserves live state including telemetry. */
+static inline int scene_terrain_lighting_stage_empty(scene_stream *live,
+    const rf_geomod_terrain_view *candidate,uint32_t saved_serial,
+    uint32_t owner_generation,uint32_t random,scene_terrain_lighting_stage **out)
+{
+    scene_terrain_lighting_stage *p=NULL;uint32_t i,k;int status;
+    if(!candidate || !out || saved_serial==UINT32_MAX || random>1 ||
+       (owner_generation && (owner_generation!=saved_serial || !random)))return RF_FORMAT;
+    status=scene_terrain_lighting_stage_clone_mode(live,candidate,1,&p);if(status)return status;
+    for(i=0;i<9;i++)memset(p->buffers[i].copy,0,p->buffers[i].bytes);
+    p->candidate.mesh.generation=saved_serial;
+    p->clone.terrain_noise->generation=owner_generation;
+    p->clone.terrain_noise->random.value=random;
+    p->clone.terrain_draw->view=(rf_geomod_mesh_view){p->clone.terrain_draw->vertices,
+        p->clone.terrain_draw->faces,0,0,saved_serial};
+    /* Empty bindings have no image owner; never leave stale atlas indices. */
+    for(i=0;i<SCENE_TERRAIN_FACES;i++)p->clone.terrain_bindings[i].image=UINT32_MAX;
+    for(i=0;i<SCENE_TERRAIN_DRAW_VERTICES;i++)for(k=0;k<3;k++)p->clone.terrain_colors[i][k]=1;
+    memset(p->telemetry.shadows,0,sizeof(p->telemetry.shadows));
+    memset(p->telemetry.bake,0,sizeof(p->telemetry.bake));
+    memset(p->telemetry.noise,0,sizeof(p->telemetry.noise));
+    memset(p->telemetry.draw,0,sizeof(p->telemetry.draw));
+    p->telemetry.noise[0]=1;p->telemetry.noise[6]=sizeof(*p->clone.terrain_noise);
+    p->telemetry.draw[4]=saved_serial;p->telemetry.noise[7]=owner_generation;
+    /* Preserve atlas dimensions/allocation metadata exactly as ordinary reset. */
+    p->telemetry.atlas[4]=saved_serial;p->telemetry.atlas[5]=p->telemetry.atlas[6]=0;
+    p->clone.terrain_atlas_pending=0;scene_terrain_dirty(&p->clone,0,0,512,512);
+    p->bake_ready=1;p->draw_ready=1;*out=p;return RF_OK;
 }
 /* Restore callers may populate only privately owned clone buffers after clone
  * and before bake. Saved maps/seed history must be validated before this call;

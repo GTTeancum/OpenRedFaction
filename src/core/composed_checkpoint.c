@@ -1,4 +1,5 @@
 #include "rf/composed_checkpoint.h"
+#include "rf/authored_checkpoint_layout.h"
 #include <string.h>
 static uint32_t read32(const unsigned char *p)
 {return (uint32_t)p[0]|((uint32_t)p[1]<<8)|((uint32_t)p[2]<<16)|((uint32_t)p[3]<<24);}
@@ -11,8 +12,10 @@ static int rfds_header(const void *data,uint32_t bytes,uint32_t profile)
     if(bytes<RF_COMPOSED_CHECKPOINT_RFDS_MIN||bytes>RF_COMPOSED_CHECKPOINT_RFDS_MAX)return RF_RANGE;
     if(profile!=RF_COMPOSED_PROFILE_CAVITY && profile!=RF_COMPOSED_PROFILE_AUTHORED)return RF_FORMAT;
     if(memcmp(p,"RFDS",4)||read32(p+4)!=profile||read32(p+8)!=bytes)return RF_FORMAT;
-    if(profile==RF_COMPOSED_PROFILE_AUTHORED &&
-       (bytes<416 || read32(p+276)!=416 || read32(p+280)!=128 || read32(p+284)!=2))return RF_FORMAT;
+    if(profile==RF_COMPOSED_PROFILE_AUTHORED) {
+        rf_authored_checkpoint_layout layout;
+        return rf_authored_checkpoint_layout_read(data,bytes,&layout);
+    }
     return RF_OK;
 }
 int rf_composed_checkpoint_encode(uint32_t profile_id,const rf_player_checkpoint *player,

@@ -1,6 +1,7 @@
 /* Process-local CPU ownership test; actual installed post + RFCT are inputs.
  * No renderer, game window, native capture or GPU upload is involved. */
 #include "../src/diagnostic/scene.c"
+#include "rf/geomod_retained_material_digest.h"
 #define CHECK(x) do{if(!(x)){fprintf(stderr,"lighting stage line%d: %s\n",__LINE__,#x);return 1;}}while(0)
 typedef struct stage_snapshot {
     scene_stream stream;scene_lighting_stage_telemetry telemetry;
@@ -45,6 +46,45 @@ static int publication_projection_rejection(void)
     CHECK(p->has_pending==1 && p->active==0 && p->pending==1);
     CHECK(!memcmp(before,rf_scene_terrain_publication,sizeof(before)));
     free(p);return 0;
+}
+/* Bridge actual scene-generated maps into the persistence contract. The two
+ * identities here are fixed test domains, not a source-authentication claim. */
+static int retained_journal_check(scene_stream *s,const rf_geomod_terrain_view *v,
+    unsigned char digest[32])
+{
+    rf_geomod_retained_material_input input={0};
+    rf_geomod_retained_material_map *maps;
+    rf_geomod_publication_origin origins[SCENE_TERRAIN_FACES];
+    uint16_t bindings[SCENE_TERRAIN_FACES];unsigned char source[32]={1},substrate[32]={2};
+    scene_terrain_noise_owner *owner=s->terrain_noise;uint32_t i,j;
+    CHECK(v->mesh.face_count<=SCENE_TERRAIN_FACES && owner->count && owner->count<=1024);
+    maps=calloc(owner->count,sizeof(*maps));CHECK(maps);
+    for(i=0;i<owner->count;i++) {
+        const scene_terrain_noise_map *m=owner->maps+i;
+        memcpy(maps[i].plane,m->plane,sizeof(m->plane));
+        memcpy(maps[i].minimum,m->minimum,sizeof(m->minimum));
+        memcpy(maps[i].maximum,m->maximum,sizeof(m->maximum));
+        maps[i].x=m->x;maps[i].y=m->y;maps[i].width=m->width;maps[i].height=m->height;
+        maps[i].base_seed=m->base_seed;maps[i].projection=m->binding.projection;
+    }
+    for(i=0;i<v->mesh.face_count;i++) {
+        const rf_geomod_face *f=v->mesh.faces+i;
+        origins[i]=(rf_geomod_publication_origin){f->source_face==UINT32_MAX?1:0,94,f->source_face,i};
+        bindings[i]=65535;
+        if(f->source_face!=UINT32_MAX)continue;
+        for(j=0;j<owner->count;j++)if(owner->maps[j].binding.image==s->terrain_bindings[i].image &&
+            !memcmp(&owner->maps[j].binding.projection,&s->terrain_bindings[i].projection,sizeof(maps[j].projection)))break;
+        CHECK(j<owner->count);bindings[i]=(uint16_t)j;
+    }
+    input.source_identity=source;input.substrate_identity=substrate;
+    input.maps=maps;input.map_count=owner->count;input.origins=origins;
+    input.face_maps=bindings;input.face_count=v->mesh.face_count;input.owner=94;
+    input.serial=v->mesh.generation;input.cuts=v->cuts;
+    input.owner_generation=owner->generation;input.owner_cuts=owner->cuts;
+    input.baked=owner->bake;input.sample=owner->sample;input.random=owner->random.value;
+    input.x=owner->x;input.y=owner->y;input.row=owner->row;input.material_policy=1;
+    {int status=rf_geomod_retained_material_digest(&input,digest);free(maps);CHECK(!status);}
+    return 0;
 }
 int main(int argc,char **argv)
 {
@@ -114,6 +154,20 @@ int main(int argc,char **argv)
         CHECK(!memcmp(restored->staged->terrain_noise,stage->staged->terrain_noise,sizeof(*s.terrain_noise)));
         CHECK(!memcmp(restored->staged->terrain_atlas_pixels,stage->staged->terrain_atlas_pixels,512*512*2));
         CHECK(!memcmp(restored->staged->terrain_bindings,stage->staged->terrain_bindings,SCENE_TERRAIN_FACES*sizeof(*s.terrain_bindings)));
+        {
+            unsigned char original[32],copied[32],unchanged[32];
+            CHECK(!retained_journal_check(stage->staged,&candidate,original));
+            CHECK(!retained_journal_check(restored->staged,&candidate,copied));
+            CHECK(!memcmp(original,copied,32));
+            /* Dynamic atlas/hash are excluded from the saved base journal. */
+            restored->staged->terrain_atlas_pixels[0]^=0x1f;
+            restored->staged->terrain_noise->maps[0].hash^=1;
+            CHECK(!retained_journal_check(restored->staged,&candidate,unchanged));
+            CHECK(!memcmp(original,unchanged,32));
+            restored->staged->terrain_atlas_pixels[0]^=0x1f;
+            restored->staged->terrain_noise->maps[0].hash^=1;
+            puts("PASS actual scene retained journal matches private restore; dynamic atlas excluded");
+        }
         CHECK(!scene_terrain_lighting_stage_draw(restored));CHECK(!snapshot_equal(&s,&snapshot));
         scene_terrain_lighting_stage_discard(&restored);CHECK(!snapshot_equal(&s,&snapshot));
     }

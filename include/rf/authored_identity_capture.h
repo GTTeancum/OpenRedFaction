@@ -1,6 +1,18 @@
 #ifndef RF_AUTHORED_IDENTITY_CAPTURE_H
 #define RF_AUTHORED_IDENTITY_CAPTURE_H
 #include "rf/geomod_authored_identity.h"
+#include "rf/geomod_publication_digest.h"
+typedef struct rf_geomod_authored_chart_identity {
+    uint32_t reference,compiled_material;
+    rf_collision_face_filter filter;
+    rf_geomod_digest_chart chart;
+} rf_geomod_authored_chart_identity;
+typedef struct rf_geomod_authored_identity_manifest {
+    rf_geomod_digest_material *materials;uint32_t material_capacity,material_count;
+    rf_geomod_authored_chart_identity *references;uint32_t reference_capacity,reference_count;
+    rf_geomod_digest_material *substrate; /* Optional separate settings.texture output; key0. */
+    uint32_t resident_bytes; /* Full supplied capacities + this descriptor. */
+} rf_geomod_authored_identity_manifest;
 /* Capture the bounded ctf06/UID94 source identity before original resources
  * close. Inputs remain borrowed; maps is an already-open contiguous array1..32
  * and rgb holds immutable ORIGINAL source RGB, never a dynamically lit atlas.
@@ -19,4 +31,21 @@
 int rf_geomod_authored_identity_capture(const rf_level *,const rf_geometry *,
     const rf_geomod_authored_post_view *,rf_vpp *maps,uint32_t map_count,
     const rf_lightmap_rgb_owner *,uint32_t budget,unsigned char digest[32],uint32_t *peak_bytes);
+/* Optional small trusted manifest, captured while original pixel owners exist.
+ * Caller supplies disjoint arrays/capacities (materials1..128,refs1..768).
+ * On success material keys are compiled IDs; reference/chart keys are compiled
+ * input references. Image descriptors have pixelsNULL and prehashed RFCM32;
+ * source charts preserve immutable projection/owner/token and original filter.
+ * Explicit unlit charts remain zero image/prehashed0. No pixel borrow escapes.
+ * Non-NULL substrate requests an independent original settings.texture decode
+ * and trusted RFCM row, without adding a fake compiled material ID or changing
+ * aggregate source identity. Its key0 is only a caller-remappable lookup key.
+ * Entire arrays/counts/resident_bytes/digest/peak unchanged on any failure.
+ * Supplied array capacities and private staging are charged to budget/peak;
+ * caller must retain resident_bytes after transient capture memory is freed.
+ * NULL manifest is exactly the backward-compatible capture behavior. */
+int rf_geomod_authored_identity_capture_manifest(const rf_level *,const rf_geometry *,
+    const rf_geomod_authored_post_view *,rf_vpp *maps,uint32_t map_count,
+    const rf_lightmap_rgb_owner *,uint32_t budget,unsigned char digest[32],uint32_t *peak_bytes,
+    rf_geomod_authored_identity_manifest *manifest);
 #endif

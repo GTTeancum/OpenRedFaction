@@ -1,12 +1,14 @@
 # Red Faction Xbox / PC - open work
 
+- GeoMod UV seams: Preserve inherited crater texture coordinates across repeated cuts; the shared C split/mapping probe reproduces12 changed corners from rounded-normal axis drift, and the correction remains open.
+
 - PRIORITY GeoMod coverage: Expand verified authored-post destruction beyond the bounded profile; two cuts pass56 stock64MiB PC/Xbox checks and the player crosses the opened post on PC, while authored saves and broader destruction coverage remain open.
 
 - Movement: Extend verified quiet swimming to authored liquid hazards and underwater presentation; entry, surfacing, re-entry and harmless ordinary water pass44 PC/Xbox comparisons.
 - Movement: Finish underwater presentation; authored lava damage and harmless dry control now pass44/45 PC/Xbox checks on stock64MiB.
 
 - GeoMod debris: Verify wet birth placement and audible output; grouped debris sound dispatch and dry destruction now pass55 stock64MiB PC/Xbox checks.
-- GeoMod saves: Integrate authored destruction identity, retained lighting and transactional restore; live source identity now matches PC/Xbox in57 checks, and profile framing/full-room placement pass, while live authored saves remain open and existing cavity restart is verified.
+- GeoMod saves: Finish live authored save/restore; bounded RFDS2 table preflight and private material-history checks pass, while trusted resource manifests, transactional publication and restart continuation remain in integration.
 
 - Explosions: Extend verified actor-position blast falloff and CF5 cover to broader encounters; nearby self-damage and recovered debris bounces now pass50 stock64MiB Xbox comparisons.
 - GeoMod collisions: Resolve active-ripple precision and verify wet audio/safer visual placement; authored water entry, floor impact and ripple expiry now pass42 PC/Xbox comparisons on stock64MiB.
@@ -5392,3 +5394,36 @@ Committed cutter checkpoint (2026-09-15): RGCH v1 explicitly encodes successful 
 Scene destruction checkpoint (2026-09-15): RFDS v1 now preserves committed cutters, admission history, orientation RNG, retained noise maps and face bindings using stable material tokens and content identities. PC fresh-process empty/repeated/orthogonal-shallow/reset cases preserve exact RFDS bytes, physical mesh, atlas CSV and upper320 world rows; malformed version/identity/count/truncation inputs fail. Empty reload preserves next-blast initialization; a third blast after nonempty reload matches uninterrupted geometry and texture state. DEV reset now clears stale maps without changing orientation RNG. Native900-frame reload render-20260915-204514 passes48 comparisons with8934 exact checkpoint bytes; continued-blast render-20260915-204738 passes48 with15632 bytes and8577 available pages (33.50MiB). Both native framebuffers and all PC comparison endpoints were inspected;23 disc entries restored each time and owned emulators exited. Crater readability remains unresolved. This is DEV destruction persistence, not player/AI/weapon save support or writable Xbox save storage. Overall~49%, GeoMod~66%; current work is destruction persistence and crater visual fidelity.
 
 Work-ahead RE (2026-09-15): primary reviewed/retained six executable probes under tools/future_re and reran296 original-code cases (40 campaign,256 vehicle). FUTURE-CAMPAIGN-INDEX and FUTURE-VEHICLES-INDEX link scoped findings, authored uses and implementation gaps. This is research only; campaign progression remains paused and no vehicle/cutscene gameplay completion is claimed. Stock reference run timed out before its frame hook and produced no image; owned process exited. User reported a disc dependency and requested a hold; no further stock launches until the user is ready.
+
+Authored persistence integration (2026-09-16): RFDS2 structural sizing now checks
+416-byte header, 48-byte admissions, 88-byte retained maps and 2-byte final
+face bindings before RFCP accepts a candidate; exact109948-byte inner cap,
+3916 truncated prefixes and malformed counts preserve output on failure.
+Three canonical digest helpers passed initial PC tests and NXDK build; the
+actual post lighting-stage fixture also verifies journal equivalence after
+private restore copying and exclusion of dynamic atlas/hash state. Source
+manifest and explicit candidate-publication adapters are still being integrated.
+No live authored save/load or new native gameplay verification is claimed.
+Estimate remains ~50% overall / ~70% GeoMod; focus is destruction persistence.
+
+Live manifest integration (2026-09-16): The actual PC reset/re-cut replay
+passes with2 original materials/19 source references retained as trusted
+resource digests (initial manifest9212bytes; substrate extension pending
+verification). Aggregate source SHA remains4c74d0a864ac2f303620f5001c8f748a6a52b5e1bb7f65b510b2a7f40505c3b2.
+Eight focused tests pass, including installed-manifest rollback and separate
+decoded candidate publication with active core/tree/telemetry preserved.
+Zero-cut lighting restore staging and generated substrate capture are being
+completed; live authored checkpoint writer/restore wiring remains open.
+
+Native trusted-manifest milestone (2026-09-16): render-20260916-125251
+passes57 PC/Xbox checks through840 reset/re-cut frames on stock64MiB.
+Final free pages4186 (16.3515625MiB), manifest9344bytes, transient capture
+peak1890119bytes under2MiB; source SHA unchanged. Native framebuffer
+inspected: post/beam/floor/water, launcher and HUD present; no visual parity
+claim. UI archive is now borrowed through identity capture and closed before
+frames. Earlier failed PC archive lookup and NXDK empty-loop warning were
+fixed; failed runs124742/125139 remain retained. Twelve focused PC tests
+pass, including private journal/admission import, reset lighting parity and
+full-room digest adapter. Authored live save/load dispatch is still open.
+The separate UV lineage probe intentionally fails12 changed old corners;
+it is a diagnostic target, not a passing regression-suite claim.

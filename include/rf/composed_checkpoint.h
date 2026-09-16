@@ -16,7 +16,8 @@ typedef struct rf_composed_checkpoint {
 /* RFCPv1:32 LE header bytes (magic,version,total,flags0,profile_id,RFPL bytes,
  * RFDS bytes,reserved0), RFPL544 then unchanged RFDS bytes. No checksum: RFSG
  * transport owns it. profile1 requires RFDSv1; profile2 requires RFDSv2 with
- * its416-byte header/128-byte extension. Unknown or crossed profiles reject;
+ * its416-byte header/128-byte extension and exact bounded variable-table spans.
+ * Unknown or crossed profiles reject;
  * full source/level identity remains the existing RFDS identity/level checks.
  * This is bounded settled DEV player+destruction state, NOT a full-game save.
  * No allocation. Inputs/outputs disjoint except RFDS may already occupy its
@@ -28,7 +29,7 @@ int rf_composed_checkpoint_encode(uint32_t profile_id,const rf_player_checkpoint
     const rf_player_checkpoint_catalog *,const void *rfds,uint32_t rfds_bytes,
     void *output,uint32_t capacity,uint32_t *written);
 /* Preflight only: validates RFCP lengths/profile/reserved words, RFPL candidate,
- * and RFDS magic/version/total length. Returns a BORROWED RFDS slice. Caller
+ * and RFDS magic/version/total length (plus authored table spans). Returns a BORROWED RFDS slice. Caller
  * MUST run its complete pure RFDS identity/geometry/material/placement validator
  * before publishing either state; backing bytes must live through that work.
  * Standalone RFDS compatibility is an explicit caller dispatch policy; this

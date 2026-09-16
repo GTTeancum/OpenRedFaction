@@ -586,6 +586,7 @@ typedef struct scene_terrain_authored_assets {
     rf_geomod_publication_binding_reference *references;
     uint32_t reference_count,resident_bytes,peak_bytes;
     unsigned char source_identity[32];uint32_t identity_peak_bytes;
+    rf_geomod_authored_identity_manifest identity_manifest;
 } scene_terrain_authored_assets;
 uint32_t rf_scene_authored_identity[10]; /* SHA256 LE words, capture scratch peak, ready */
 
@@ -13493,7 +13494,7 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
     rf_preview_mesh *mesh,rf_materials *materials,uint32_t mesh_budget,uint32_t material_budget,
     rf_scene_frame_sink sink,void *context,int state_mode,const rf_geometry_collision_world *collision,const rf_geometry *geometry)
 {
-    rf_vpp archive,motions;rf_model_file model;rf_level_actor_assets binding={0};rf_entity_physics_config physics_config;
+    rf_vpp archive,motions,terrain_ui={0};rf_model_file model;rf_level_actor_assets binding={0};rf_entity_physics_config physics_config;
     rf_entity_state_set *states=NULL;int motions_opened=0;
     rf_animation_placement placement;rf_preview_mesh actor={0};rf_model_materials bundle={0};
     rf_preview_vertex *vertices=NULL;rf_material *items=NULL;const char *names[64];
@@ -13905,7 +13906,7 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
                 memcpy(sources,maps,map_count*sizeof(*maps));
                 status=rf_vpp_open(sources+map_count,path);if(status)goto done;
                 status=rf_materials_open_names(&interior,names,1,sources,map_count+1,512*1024);
-                rf_vpp_close(sources+map_count);if(status)goto done;
+                terrain_ui=sources[map_count];if(status)goto done;
             }
 
             if(interior.loaded!=1 || materials->count>=RF_CAMPAIGN_TEXTURE_SLOTS){rf_materials_close(&interior);status=RF_RANGE;goto done;}
@@ -13991,7 +13992,14 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
             placement.prepare_view=actor_follow_view;placement.view_context=stream;
         }
         stream->capacity=(uint32_t)capacity;stream->sink=sink;stream->context=context;stream->collision=collision;
-        status=scene_terrain_open(stream,level,maps,map_count);if(status)goto done;
+        if(terrain_ui.stream) {
+            rf_vpp identity_sources[9];
+            if(map_count>8){status=RF_RANGE;goto done;}
+            memcpy(identity_sources,maps,map_count*sizeof(*maps));identity_sources[map_count]=terrain_ui;
+            status=scene_terrain_open(stream,level,identity_sources,map_count+1);
+            rf_vpp_close(&terrain_ui);
+        } else status=scene_terrain_open(stream,level,maps,map_count);
+        if(status)goto done;
         status=scene_checkpoint_begin(stream,level);if(status)goto done;
         if(campaign_spawn && collision) {
             memset(rf_scene_event_ticks,0,sizeof(rf_scene_event_ticks));
@@ -14034,6 +14042,7 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
         if(!status && collision && rf_scene_actor_route_enabled && !rf_scene_actor_live_enabled)status=actor_routes(stream);
     }
 done:
+    rf_vpp_close(&terrain_ui);
     if(!status)status=scene_checkpoint_capture(stream);
 #ifdef RF_IMAGE_XBOX_NATIVE
     {int checkpoint_close=scene_checkpoint_hdd_close();if(!status)status=checkpoint_close;}

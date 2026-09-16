@@ -58,20 +58,27 @@ int main(void)
  CHECK(rf_composed_checkpoint_encode(profile,&bad,&c,changed+rfds_at,288,changed,sizeof(changed),&written)==RF_FORMAT&&written==0xabcdef12&&!memcmp(changed,saved,sizeof(saved)));
  /* Authored profile2 framing is distinct; this envelope never claims that
   * terrain identity, publication, maps or player placement are validated. */
- make_terrain(416);put(terrain+4,2);put(terrain+276,416);put(terrain+280,128);put(terrain+284,2);
- CHECK(!rf_composed_checkpoint_encode(RF_COMPOSED_PROFILE_AUTHORED,&p,&c,terrain,416,encoded,sizeof(encoded),&n));
- CHECK(n==rfds_at+416&&!rf_composed_checkpoint_preflight(encoded,n,RF_COMPOSED_PROFILE_AUTHORED,&c,&out));
- CHECK(out.rfds_bytes==416&&!memcmp(out.rfds,terrain,416));
+ memset(terrain,0,444);memcpy(terrain,"RFDS",4);put(terrain+4,2);put(terrain+8,444);
+ memcpy(terrain+16,"ctf06.rfl",10);put(terrain+252,28);
+ put(terrain+276,416);put(terrain+280,128);put(terrain+284,2);
+ CHECK(!rf_composed_checkpoint_encode(RF_COMPOSED_PROFILE_AUTHORED,&p,&c,terrain,444,encoded,sizeof(encoded),&n));
+ CHECK(n==rfds_at+444&&!rf_composed_checkpoint_preflight(encoded,n,RF_COMPOSED_PROFILE_AUTHORED,&c,&out));
+ CHECK(out.rfds_bytes==444&&!memcmp(out.rfds,terrain,444));
  reject(encoded,n,profile,&c);reject(encoded,n,0,&c);reject(encoded,n,3,&c);
  for(i=0;i<4;i++) {
   const uint32_t offsets[]={4,276,280,284};memcpy(changed,encoded,n);
   put(changed+rfds_at+offsets[i],i?0:1);reject(changed,n,RF_COMPOSED_PROFILE_AUTHORED,&c);
  }
+ /* Plausible envelope with corrupt variable-table counts is rejected early. */
+ {const uint32_t offsets[]={240,248,252,272};for(i=0;i<4;i++){
+  memcpy(changed,encoded,n);put(changed+rfds_at+offsets[i],UINT32_MAX);
+  reject(changed,n,RF_COMPOSED_PROFILE_AUTHORED,&c);
+ }}
  /* Crossed version and unsupported-profile encode must preserve all bytes. */
  for(i=0;i<3;i++) {
   uint32_t selected=i==0?profile:i==1?0:3;
   memset(changed,0xa5,sizeof(changed));memcpy(saved,changed,sizeof(saved));written=0xabcdef12;
-  CHECK(rf_composed_checkpoint_encode(selected,&p,&c,terrain,416,changed,sizeof(changed),&written)==RF_FORMAT);
+  CHECK(rf_composed_checkpoint_encode(selected,&p,&c,terrain,444,changed,sizeof(changed),&written)==RF_FORMAT);
   CHECK(written==0xabcdef12&&!memcmp(changed,saved,sizeof(saved)));
  }
  /* Version2 cannot exploit the smaller legacy minimum. */

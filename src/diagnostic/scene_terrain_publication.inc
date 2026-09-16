@@ -56,18 +56,25 @@ static inline void scene_terrain_publication_abort(scene_stream *s)
 {
     if(s && s->terrain_publication){rf_collision_composition_abort(s->terrain_publication->composition);s->terrain_publication->has_pending=0;}
 }
-static int scene_terrain_publication_prepare(scene_stream *s)
+/* Synchronous private preparation. candidate/cutters may be borrowed from a
+ * history-check visitor; no input pointer escapes this call. Inactive banks and
+ * pending composition change, but active scene/core/overlay and telemetry do not.
+ * Abort before leaving a validation visitor. saved_serial is the scene revision,
+ * not the independently replayed core generation. Caller validates save identity. */
+static int scene_terrain_publication_prepare_from(scene_stream *s,
+    const rf_geomod_terrain_view *candidate,const rf_geomod_publication_cut *cuts,
+    uint32_t count,uint32_t saved_serial)
 {
     scene_terrain_publication_owner *p;scene_publication_bank *b;scene_terrain_authored_assets *a;
     rf_geomod_terrain_view terrain;rf_geomod_publication_job job={0};
-    rf_geomod_publication_cut cuts[RF_GEOMOD_CUT_LIMIT];uint32_t i,j,pending;int status;
-    if(!s || !(p=s->terrain_publication) || !(a=s->terrain_authored) || p->has_pending)return RF_RANGE;
-    status=rf_geomod_terrain_get(s->terrain,&terrain);if(status)return status;
+    uint32_t i,j,pending;int status;
+    if(!s || !(p=s->terrain_publication) || !(a=s->terrain_authored) || p->has_pending ||
+       !candidate || count!=candidate->cuts || count>RF_GEOMOD_CUT_LIMIT ||
+       (count && !cuts) || count>saved_serial || saved_serial==UINT32_MAX)return RF_RANGE;
+    terrain=*candidate;
     p->pending=p->active^1u;b=p->banks+p->pending;b->cuts=terrain.cuts;b->generated=0;
-    b->mesh=(rf_geomod_mesh_view){b->vertices,b->faces,0,0,terrain.mesh.generation};
+    b->mesh=(rf_geomod_mesh_view){b->vertices,b->faces,0,0,saved_serial};
     if(!terrain.cuts){status=rf_collision_composition_prepare_reset(p->composition);if(status)return status;p->has_pending=1;return RF_OK;}
-    if(terrain.cuts>RF_GEOMOD_CUT_LIMIT)return RF_RANGE;
-    for(i=0;i<terrain.cuts;i++){status=rf_geomod_terrain_cutter_get(s->terrain,i,&cuts[i].mesh,cuts[i].kernel,&cuts[i].star);if(status)return status;}
     job.terrain=terrain.mesh;job.windows=a->windows;job.neighbors=a->neighbors;
     job.window_origins=a->asset_view.window_origins;job.neighbor_origins=a->asset_view.neighbor_origins;
     job.crater_origin=(rf_geomod_publication_origin){RF_GEOMOD_PUBLICATION_CRATER,a->asset_view.source_uid,UINT32_MAX,s->terrain_fallback};
@@ -75,7 +82,7 @@ static int scene_terrain_publication_prepare(scene_stream *s)
     job.solids=a->asset_view.solids;job.solid_count=a->asset_view.solid_count;job.cuts=cuts;job.cut_count=terrain.cuts;
     status=rf_geomod_publication_build(&job,&p->work,b->vertices,RF_GEOMOD_PUBLICATION_VERTICES,
         b->faces,RF_GEOMOD_PUBLICATION_FACES,b->origins,&b->mesh);if(status)return status;
-    b->mesh.generation=terrain.mesh.generation;
+    b->mesh.generation=saved_serial;
     status=rf_geomod_publication_bind(&b->mesh,b->origins,a->references,a->reference_count,
         RF_GEOMOD_BINDING_DEFER_GENERATED,b->corners,RF_GEOMOD_PUBLICATION_VERTICES,sizeof(b->corners),&pending);if(status)return status;
     b->generated=pending;
@@ -100,7 +107,23 @@ static int scene_terrain_publication_prepare(scene_stream *s)
     status=rf_geomod_collision_faces(&b->mesh,b->filters,b->positions,RF_GEOMOD_PUBLICATION_VERTICES,
         b->bound,RF_GEOMOD_PUBLICATION_FACES);if(status)return status;
     status=rf_collision_composition_prepare(p->composition,b->bound,b->ids,b->mesh.face_count);if(status)return status;
-    p->has_pending=1;rf_scene_terrain_publication[6]=1;return RF_OK;
+    p->has_pending=1;return RF_OK;
+}
+/* Existing ordinary-edit entry point: same active-core history and telemetry. */
+static int scene_terrain_publication_prepare(scene_stream *s)
+{
+    rf_geomod_terrain_view terrain;rf_geomod_publication_cut cuts[RF_GEOMOD_CUT_LIMIT];
+    uint32_t i;int status;
+    if(!s || !s->terrain_publication || !s->terrain_authored || s->terrain_publication->has_pending)return RF_RANGE;
+    status=rf_geomod_terrain_get(s->terrain,&terrain);if(status)return status;
+    if(terrain.cuts>RF_GEOMOD_CUT_LIMIT)return RF_RANGE;
+    for(i=0;i<terrain.cuts;i++) {
+        status=rf_geomod_terrain_cutter_get(s->terrain,i,&cuts[i].mesh,cuts[i].kernel,&cuts[i].star);
+        if(status)return status;
+    }
+    status=scene_terrain_publication_prepare_from(s,&terrain,cuts,terrain.cuts,terrain.mesh.generation);
+    if(!status && terrain.cuts)rf_scene_terrain_publication[6]=1;
+    return status;
 }
 /* Pending candidate is mutable only for caller-owned lighting staging.
  * Do not mutate mesh topology/positions after prepare: pending tree borrows it.
