@@ -13,7 +13,7 @@ User mandate: keep one secondary agent supplied with useful, bounded RE work whi
 9. Reported, primary review pending: crater-center encoding/decoding and duplicate-distance boundary cases; original x87 precision mode affects quantization.
 10. Reported/integrated: shared previous-crater alignment passes69 original comparisons; live admission owner integration remains open.
 11. Reported/integrated: signed-depth conversion;8 original/shared comparisons pass, and startup53-bit x87 evidence awaits primary review.
-12. Reported, primary review pending: separate requested center for packed duplicate history and adjusted center for geometry/auxiliary history.
+12. Reviewed/rerun: separate requested center for packed duplicate history and adjusted center for geometry/auxiliary history; retained original admission-copy and bounds-lifetime probes.
 13. Reported, primary review pending: shallow vectors do not override material; tested ice flag remains the override.
 14. Reported: replay exposes total restored history count; outer reset/auxiliary clearing remains to verify.
 15. Reported: ordinary projectile paths explicitly selectHoley01; special shapes are separate.
