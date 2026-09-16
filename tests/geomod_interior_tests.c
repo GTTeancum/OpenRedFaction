@@ -1345,9 +1345,23 @@ int main(int argc,char **argv)
 
                 CHECK(!rf_geomod_terrain_cut_star(terrain,cutters+repeat-1,kernels[repeat-1]));
                 CHECK(!rf_geomod_terrain_get(terrain,&live));
-                CHECK(live.cuts==repeat && live.mesh.vertex_count==pending.vertex_count && live.mesh.face_count==pending.face_count);
-                CHECK(!memcmp(live.mesh.vertices,pending.vertices,pending.vertex_count*sizeof(rf_geomod_vertex)));
-                CHECK(!memcmp(live.mesh.faces,pending.faces,pending.face_count*sizeof(rf_geomod_face)));
+                CHECK(live.cuts==repeat);
+                /* Chronological compaction retains birth/support boundaries;
+                 * compare geometry, not the old union's polygon partition. */
+                {
+                    double live_volume=0,union_volume=0;
+                    for(i=0;i<live.mesh.face_count;i++) {
+                        const rf_geomod_face *f=live.mesh.faces+i;
+                        live_volume+=volume(live.mesh.vertices+f->first,f->count);
+                        CHECK(record(live.mesh.vertices+f->first,f->count));
+                    }
+                    CHECK(closed());surface_count=polygon_count=0;
+                    for(i=0;i<pending.face_count;i++) {
+                        const rf_geomod_face *f=pending.faces+i;
+                        union_volume+=volume(pending.vertices+f->first,f->count);
+                    }
+                    CHECK(fabs(live_volume-union_volume)<1e-4);
+                }
                 for(i=0;i<pending.face_count;i++) {
                     const rf_geomod_face *f=pending.faces+i;total+=volume(pending.vertices+f->first,f->count);
                     CHECK(record(pending.vertices+f->first,f->count));

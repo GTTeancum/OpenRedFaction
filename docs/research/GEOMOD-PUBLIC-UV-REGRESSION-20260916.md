@@ -120,3 +120,25 @@ installed post/cavity replay and native memory/performance acceptance. The
 prototype omits the old cavity repair stage; tested geometry coverage passes,
 but larger/adversarial shapes must establish whether exact support propagation
 suffices or a provenance-preserving repair stage is still required.
+
+## Live-route experiment finds large-cavity blocker
+
+Routing terrain_prepare through chronological replay passed the public16-case UV
+probe and PC authored-post restart/next-blast comparison. Broader holey01 stress
+then exposed an uncovered edge on the second large cavity blast, about.0103 long
+near(-16,-8.785,2.004). This is an actual unresolved coverage failure, unlike a
+mere different polygon partition. The old cavity repair stage cannot be omitted
+for broader acceptance.
+
+Production terrain_prepare remains on the accepted full-union path. The proposed
+route is compiled only by RF_GEOMOD_CHRONOLOGICAL_EXPERIMENT in the standalone
+rf_geomod_chronological_stress_probe target (not CTest). Reproduce with that
+executable and arguments Installed_Game artifacts/geomod-holey01-csg.bin; failure
+log chronological-stress-repro.log is retained. Accepted PC executable rebuilt and
+normal repeated-cut coverage passes. No changed Xbox acceptance claimed.
+
+The original-template comparison now checks closed geometry and signed volume
+agreement instead of exact old polygon partition; its independent analytic
+collision queries still run against both paths. Mapping-only layout equality
+remains enforced. Next action: propagate support IDs through cavity repair and
+its partitions, then retain that provenance for the following chronological step.

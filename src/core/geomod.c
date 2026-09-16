@@ -1983,10 +1983,17 @@ static int terrain_prepare(rf_geomod_terrain *t,uint32_t count,terrain_pending *
         }
         if(status)goto failed;
     }
-    status=t->cavity?prepare_cavity_cuts(t->mesh,t->cuts,count,&t->work,1):
-        prepare_cuts(t->mesh,t->cuts,count,&t->work,1);
-    if(status)goto failed;
-    status=terrain_map_pending(t);if(status)goto failed;
+#ifdef RF_GEOMOD_CHRONOLOGICAL_EXPERIMENT
+    if(count) {
+        status=terrain_prepare_chronological_mesh(t,count);if(status)goto failed;
+    } else
+#endif
+    {
+        status=t->cavity?prepare_cavity_cuts(t->mesh,t->cuts,count,&t->work,1):
+            prepare_cuts(t->mesh,t->cuts,count,&t->work,1);
+        if(status)goto failed;
+        status=terrain_map_pending(t);if(status)goto failed;
+    }
     status=rf_geomod_storage_pending(t->mesh,&pending->mesh);if(status)goto failed;
     status=terrain_bind(t,&pending->mesh,pending->bank,&pending->tree);if(status)goto failed;
     return RF_OK;
