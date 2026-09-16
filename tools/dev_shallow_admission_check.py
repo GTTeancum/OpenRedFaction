@@ -26,5 +26,18 @@ def main():
  assert list(map(int,rows('ROCKETS')[0]))==[3,3,0,0,2,1,0,0]
  terrain=list(map(int,rows('GEOMOD')[0]));assert terrain[:3]==[1,1,4] and terrain[5:]==[0,4,3],terrain
  print('PASS:reset clears admission history and permits another shallow cut')
+ data=bytearray(recording('double'))
+ for i in range(190,210):struct.pack_into('<f',data,8+i*48+16,.1)
+ replay=folder/'shallow-offset.bin';replay.write_bytes(data)
+ snapshot=folder/'shallow-offset-mesh.bin';env['RF_REPLAY_TERRAIN_PHYSICAL_SNAPSHOT']=str(snapshot)
+ result=subprocess.run([str(ROOT/'build/pc/Release/rf_pc_play.exe'),'--dev-room-replay',str(ROOT/'Installed_Game'),str(replay),str(folder/'shallow-offset.ppm')],cwd=ROOT,env=env,capture_output=True,text=True)
+ log=result.stdout+result.stderr;(ROOT/'artifacts/shallow-offset.log').write_text(log);result.check_returncode()
+ assert list(map(int,rows('ROCKETS')[0]))==[2,2,0,0,2,0,0,0]
+ terrain=list(map(int,rows('GEOMOD')[0]));assert terrain[:3]==[1,2,3] and terrain[5:]==[0,2,2],terrain
+ admission=rows('GEOMOD_ADMISSION');assert len(admission)==2 and admission[1][1:3]==['2','1'],admission
+ assert float(admission[1][3])==-16,admission
+ subprocess.run([str(ROOT/'build/pc/Release/rf_geomod_interior_tests.exe'),'--mesh',str(snapshot)],cwd=ROOT,check=True)
+ print('PASS:two overlapping aligned shallow cuts with closed output mesh')
+
 
 if __name__=='__main__':main()

@@ -12854,6 +12854,21 @@ done:
     rf_level_owned_navigation_close(&campaign_navigation);
     free(campaign_waypoints);campaign_waypoints=NULL;campaign_waypoint_bytes=0;
 #ifndef RF_IMAGE_XBOX_NATIVE
+    if(!status && getenv("RF_REPLAY_TERRAIN_PHYSICAL_SNAPSHOT")) {
+        rf_geomod_terrain_view snapshot;FILE *file=NULL;uint32_t counts[2];
+        status=rf_geomod_terrain_get(stream->terrain,&snapshot);
+        if(!status) {
+            file=fopen(getenv("RF_REPLAY_TERRAIN_PHYSICAL_SNAPSHOT"),"wb");
+            if(!file)status=RF_IO;
+            else {
+                counts[0]=snapshot.mesh.vertex_count;counts[1]=snapshot.mesh.face_count;
+                if(fwrite("RGM1",1,4,file)!=4 || fwrite(counts,4,2,file)!=2 ||
+                   fwrite(snapshot.mesh.vertices,sizeof(*snapshot.mesh.vertices),counts[0],file)!=counts[0] ||
+                   fwrite(snapshot.mesh.faces,sizeof(*snapshot.mesh.faces),counts[1],file)!=counts[1])status=RF_IO;
+                if(fclose(file))status=RF_IO;
+            }
+        }
+    }
     if(!status && getenv("RF_REPLAY_TERRAIN_MESH_AUDIT")) {
         FILE *file=fopen(getenv("RF_REPLAY_TERRAIN_MESH_AUDIT"),"wb");
         scene_terrain_draw_mesh *draw=stream->terrain_draw;uint32_t f,c;

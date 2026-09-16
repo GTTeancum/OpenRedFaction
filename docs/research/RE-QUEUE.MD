@@ -21,3 +21,6 @@ User mandate: keep one secondary agent supplied with useful, bounded RE work whi
 17. Active: plane/face classification and split construction; original solid-bound expansion was confirmed during live duplicate integration.
 
 Send findings to the primary as each investigation completes, then proceed to the next queued item. Primary reviews reports and replenishes this queue. Do not edit shared implementation or use desktop control, host input or emulators.
+
+18. Reported/integrated: exact-zero split-child removal fixes the second live shallow cut; thin valid fragments remain supported.
+19. Active:4d02d0 shared-edge vertex propagation and per-face texture/lightmap interpolation.

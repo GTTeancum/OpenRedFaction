@@ -646,6 +646,20 @@ static int corner_seed_edge(const geomod_corner_support *support,const uint16_t 
     }
     return 0;
 }
+/* Interpolation can round a crossing onto an existing corner. Discard only
+ * zero-area split children; do not introduce a sliver-area tolerance. */
+static int split_child_has_area(const rf_geomod_vertex *v,uint32_t count)
+{
+    double normal[3]={0};uint32_t i,j;
+    if(count<3)return 0;
+    for(i=1;i+1<count;i++)for(j=0;j<3;j++) {
+        uint32_t a=(j+1)%3,b=(j+2)%3;
+        normal[j]+=((double)v[i].position[a]-v[0].position[a])*((double)v[i+1].position[b]-v[0].position[b])-
+            ((double)v[i].position[b]-v[0].position[b])*((double)v[i+1].position[a]-v[0].position[a]);
+    }
+    return normal[0]!=0 || normal[1]!=0 || normal[2]!=0;
+}
+
 static int polygon_split_edges(const rf_geomod_vertex *vertices,uint32_t count,
     const float plane[4],rf_geomod_vertex *front,uint32_t front_capacity,
     rf_geomod_vertex *back,uint32_t back_capacity,uint32_t *front_count,uint32_t *back_count,
@@ -701,6 +715,8 @@ static int polygon_split_edges(const rf_geomod_vertex *vertices,uint32_t count,
         if(intersection_observer)intersection_observer(intersection_context,plane,
             vertices[first].position,vertices[last].position,cut.position);
     }
+    if(!split_child_has_area(f,nf))nf=0;
+    if(!split_child_has_area(b,nb))nb=0;
     if((front && front_capacity<nf) || (back && back_capacity<nb))return RF_RANGE;
     if(front && nf)memcpy(front,f,nf*sizeof(*front));
     if(back && nb)memcpy(back,b,nb*sizeof(*back));
