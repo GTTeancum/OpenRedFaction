@@ -579,6 +579,7 @@ typedef struct scene_impact_owner {
     struct {rf_explosion_clock clock;uint32_t slots[6];} instances[8];
 } scene_impact_owner;
 typedef struct scene_terrain_publication_owner scene_terrain_publication_owner;
+typedef struct scene_authored_clutter_baseline scene_authored_clutter_baseline;
 typedef struct scene_terrain_authored_assets {
     rf_geomod_authored_post *asset;rf_geomod_authored_post_view asset_view;
     rf_geomod_mesh_view source,windows,neighbors;
@@ -594,6 +595,7 @@ typedef struct scene_stream {
     scene_terrain_authored_assets *terrain_authored;
     scene_terrain_publication_owner *terrain_publication;
     uint32_t terrain_publication_serial;
+    scene_authored_clutter_baseline *checkpoint_clutter;
     rf_liquid_room *liquid_rooms;uint32_t swim_room_count,swim_bytes;
     rf_motion_controller initial_swim_controller;uint32_t initial_swim_controller_ready;
     unsigned char terrain_checkpoint_identity[128];uint32_t terrain_checkpoint_loaded;
@@ -9467,6 +9469,7 @@ static void checkpoint_sha_end(checkpoint_sha *s,unsigned char out[32])
     for(i=0;i<8;i++)p[i]=(unsigned char)(bits>>(56-i*8));checkpoint_sha_add(s,p,8);
     for(i=0;i<8;i++){out[i*4]=(unsigned char)(s->h[i]>>24);out[i*4+1]=(unsigned char)(s->h[i]>>16);out[i*4+2]=(unsigned char)(s->h[i]>>8);out[i*4+3]=(unsigned char)s->h[i];}
 }
+#include "scene_authored_clutter_scope.inc"
 static int scene_checkpoint_identity(scene_stream *s,const rf_level *level)
 {
     checkpoint_sha h;uint32_t i,j;int status;rf_level_geomod_settings settings;
@@ -9474,6 +9477,8 @@ static int scene_checkpoint_identity(scene_stream *s,const rf_level *level)
     static const unsigned char abc[32]={0xba,0x78,0x16,0xbf,0x8f,0x01,0xcf,0xea,0x41,0x41,0x40,0xde,0x5d,0xae,0x22,0x23,0xb0,0x03,0x61,0xa3,0x96,0x17,0x7a,0x9c,0xb4,0x10,0xff,0x61,0xf2,0x00,0x15,0xad};
     if(!s->terrain)return RF_OK;
     checkpoint_sha_init(&h);checkpoint_sha_add(&h,"abc",3);checkpoint_sha_end(&h,test);if(memcmp(test,abc,32))return RF_FORMAT;
+    if(s->terrain_authored)memcpy(s->terrain_checkpoint_identity,s->terrain_authored->source_identity,32);
+    else {
     checkpoint_sha_init(&h);checkpoint_sha_add(&h,s->geometry->data,s->geometry->bytes);
     for(i=0;i<6;i++) {
         rf_collision_face_filter f;rf_geometry_face face;uint32_t x,y;
@@ -9488,6 +9493,7 @@ static int scene_checkpoint_identity(scene_stream *s,const rf_level *level)
     }
     checkpoint_sha_word(&h,256);checkpoint_sha_word(&h,4096);checkpoint_sha_word(&h,SCENE_TERRAIN_FACES);
     checkpoint_sha_end(&h,s->terrain_checkpoint_identity);
+    }
     checkpoint_sha_init(&h);checkpoint_sha_add(&h,"RFCT",4);checkpoint_sha_word(&h,1);checkpoint_sha_word(&h,s->terrain_template->face_count);
     checkpoint_sha_float(&h,s->terrain_template->radius);for(i=0;i<3;i++)checkpoint_sha_float(&h,s->terrain_template->kernel[i]);
     for(i=0;i<s->terrain_template->face_count*3;i++) {
@@ -9496,11 +9502,17 @@ static int scene_checkpoint_identity(scene_stream *s,const rf_level *level)
     }
     checkpoint_sha_end(&h,s->terrain_checkpoint_identity+32);
     status=rf_level_geomod_settings_read(level,&settings);if(status)return status;
+    if(s->terrain_authored) {
+        const rf_geomod_digest_material *m=s->terrain_authored->identity_manifest.substrate;
+        if(!m || m->prehashed!=1 || m->image.pixels)return RF_FORMAT;
+        memcpy(s->terrain_checkpoint_identity+64,m->content_digest,32);
+    } else {
     image=&s->materials->items[s->terrain_material].image;
     checkpoint_sha_init(&h);checkpoint_sha_add(&h,settings.texture,(uint32_t)strlen(settings.texture)+1);
     checkpoint_sha_word(&h,image->width);checkpoint_sha_word(&h,image->height);checkpoint_sha_word(&h,image->source_format);
     for(i=0;i<image->height;i++)for(j=0;j<image->width;j++)checkpoint_sha_add(&h,rf_image_pixel(image,j,i),rf_image_is_packed_1555(image)?2:4);
     checkpoint_sha_end(&h,s->terrain_checkpoint_identity+64);
+    }
     checkpoint_sha_init(&h);checkpoint_sha_word(&h,s->terrain_default_hardness);checkpoint_sha_word(&h,s->terrain_region_count);
     for(i=0;i<s->terrain_region_count;i++) {
         const rf_geo_region *r=s->terrain_regions+i;
@@ -9804,6 +9816,11 @@ static int scene_checkpoint_restore(scene_stream *s,unsigned char *data,uint32_t
     if(!s->terrain_atlas_registered)s->terrain_atlas_index=s->light_rgb.count;
     return scene_checkpoint_registered(s);
 }
+#include "scene_authored_digest_capture.inc"
+#include "scene_authored_admission_import.inc"
+#include "scene_authored_journal_import.inc"
+#include "scene_authored_checkpoint_stage.inc"
+#include "scene_authored_checkpoint_write.inc"
 #include "scene_player_checkpoint.inc"
 #ifdef RF_IMAGE_XBOX_NATIVE
 static rf_xbox_checkpoint_storage scene_checkpoint_hdd;
@@ -9834,7 +9851,7 @@ static int scene_checkpoint_begin(scene_stream *s,const rf_level *level)
     const char *path=NULL;FILE *file;long length=0;int status,tail;uint32_t hash;
     if(rf_scene_player_checkpoint_enabled && !s->player_checkpoint_started){
         scene_checkpoint_release();s->player_checkpoint_level=level;memset(rf_scene_player_checkpoint_state,0,sizeof(rf_scene_player_checkpoint_state));
-        rf_scene_player_checkpoint_state[0]=1;rf_scene_player_checkpoint_state[4]=SCENE_PLAYER_CHECKPOINT_PROFILE;
+        rf_scene_player_checkpoint_state[0]=1;rf_scene_player_checkpoint_state[4]=scene_checkpoint_profile(s);
         if(!rf_scene_dev_room_enabled || rf_scene_water_test_enabled || !campaign_spawn || !s->terrain)return RF_RANGE;
         return scene_checkpoint_identity(s,level);
     }
@@ -9923,6 +9940,14 @@ static int scene_checkpoint_capture(scene_stream *s)
     file=fopen("D:\\geomod-checkpoint-out.flag","rb");if(!file && !scene_checkpoint_hdd_save)return RF_OK;if(file)fclose(file);
 #endif
     if(!s->terrain || !owner || s->terrain_shadow_reference || !s->terrain_atlas_registered || owner->bake!=owner->count || owner->sample || s->terrain_checkpoint_loaded){status=RF_RANGE;goto done;}
+    if(s->terrain_authored) {
+        if(!prefix){status=RF_RANGE;goto done;}
+        status=scene_checkpoint_player_capture(s,&player,&catalog);if(status)goto done;
+        status=scene_checkpoint_allocate(SCENE_CHECKPOINT_MAX);if(status)goto done;
+        p=rf_scene_geomod_checkpoint_data+prefix;
+        status=scene_authored_checkpoint_write(s,p,SCENE_CHECKPOINT_MAX-prefix,&bytes);if(status)goto done;
+        goto compose_checkpoint;
+    }
     status=rf_geomod_terrain_get(s->terrain,&view);if(status)goto done;
     status=rf_geomod_terrain_history_size(s->terrain,&core);if(status)goto done;
     if(s->terrain_history_count>128 || owner->count>1024 || view.mesh.face_count>SCENE_TERRAIN_FACES){status=RF_RANGE;goto done;}
@@ -9963,9 +9988,10 @@ static int scene_checkpoint_capture(scene_stream *s)
         }
         p[at]=(unsigned char)map;p[at+1]=(unsigned char)(map>>8);
     }
+compose_checkpoint:
     if(prefix){
         uint32_t total;
-        status=rf_composed_checkpoint_encode(SCENE_PLAYER_CHECKPOINT_PROFILE,&player,&catalog,p,bytes,rf_scene_geomod_checkpoint_data,bytes+prefix,&total);if(status)goto done;
+        status=rf_composed_checkpoint_encode(scene_checkpoint_profile(s),&player,&catalog,p,bytes,rf_scene_geomod_checkpoint_data,bytes+prefix,&total);if(status)goto done;
         rf_scene_player_checkpoint_state[5]=bytes;bytes=total;p=rf_scene_geomod_checkpoint_data;
         status=scene_checkpoint_dispatch_validate(p,bytes,s);if(status)goto done;
     }
@@ -14000,6 +14026,12 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
             rf_vpp_close(&terrain_ui);
         } else status=scene_terrain_open(stream,level,maps,map_count);
         if(status)goto done;
+        if(rf_scene_player_checkpoint_enabled && stream->terrain_authored) {
+            stream->checkpoint_clutter=calloc(1,sizeof(*stream->checkpoint_clutter));
+            if(!stream->checkpoint_clutter){status=RF_IO;goto done;}
+            status=scene_authored_clutter_baseline_capture(stream->terrain_authored->source_identity,0,stream->checkpoint_clutter);
+            if(status){printf("AUTHORED_SCOPE_CAPTURE_ERROR %d\n",status);goto done;}
+        }
         status=scene_checkpoint_begin(stream,level);if(status)goto done;
         if(campaign_spawn && collision) {
             memset(rf_scene_event_ticks,0,sizeof(rf_scene_event_ticks));
@@ -14151,6 +14183,7 @@ done:
     free(stream->terrain_face_offsets);rf_geometry_collision_overlay_close(&stream->terrain_collision);scene_terrain_publication_close(&stream->terrain_publication);rf_geomod_terrain_close(&stream->terrain);scene_terrain_authored_close(&stream->terrain_authored);free(stream->terrain_template);free(stream->terrain_colors);free(stream->terrain_regions);free(stream->terrain_light_cache);free(stream->terrain_ids);free(stream->terrain_draw);free(stream->debris);
     free(stream->liquid_rooms);free(stream->surface_indices);free(states);if(motions_opened)rf_vpp_close(&motions);
     free(vertices);free(items);rf_preview_close(&actor);rf_model_materials_close(&bundle);
+    free(stream->checkpoint_clutter);
     rf_vpp_close(&archive);free(stream);return status;
 }
 int rf_scene_preview_miner(const rf_level *level,int32_t uid,const char *meshes_path,

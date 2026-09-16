@@ -550,3 +550,10 @@ add_test(NAME scene_authored_digest_capture COMMAND rf_scene_authored_digest_cap
 add_executable(rf_scene_authored_admission_import_tests tests/scene_authored_admission_import_tests.c)
 target_link_libraries(rf_scene_authored_admission_import_tests PRIVATE rf_core)
 add_test(NAME scene_authored_admission_import COMMAND rf_scene_authored_admission_import_tests)
+
+add_executable(rf_scene_authored_clutter_scope_tests tests/scene_authored_clutter_scope_tests.c src/diagnostic/animation.c)
+target_link_libraries(rf_scene_authored_clutter_scope_tests PRIVATE rf_core)
+if(MSVC)
+    target_compile_definitions(rf_scene_authored_clutter_scope_tests PRIVATE _CRT_SECURE_NO_WARNINGS)
+endif()
+add_test(NAME scene_authored_clutter_scope COMMAND rf_scene_authored_clutter_scope_tests "${CMAKE_SOURCE_DIR}/Installed_Game/levelsm.vpp")

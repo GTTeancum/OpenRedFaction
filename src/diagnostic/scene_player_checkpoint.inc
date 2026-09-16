@@ -1,5 +1,7 @@
 /* Private RFCP scene adapter; included after RFDS restore and before transport. */
 enum {SCENE_PLAYER_CHECKPOINT_PROFILE=1,SCENE_PLAYER_CHECKPOINT_PREFIX=32+RF_PLAYER_CHECKPOINT_BYTES};
+static uint32_t scene_checkpoint_profile(const scene_stream *s)
+{return s->terrain_authored?2:SCENE_PLAYER_CHECKPOINT_PROFILE;}
 static int scene_checkpoint_player_catalog(rf_player_checkpoint_catalog *c)
 {
     static const char *const names[5]={"12mm handgun","Assault Rifle","Riot Stick","Shotgun","Rocket Launcher"};
@@ -19,8 +21,12 @@ static int scene_checkpoint_player_scope(const scene_stream *s,uint32_t live)
 {
     uint32_t i;
     if(!rf_scene_dev_room_enabled||rf_scene_water_test_enabled||!campaign_spawn||!s->terrain||
-       strcmp(campaign_current_level,"glass_house.rfl")||campaign_movers.count||campaign_npc_body_count||rf_scene_clutter_bodies[1]||
+       campaign_movers.count||campaign_npc_body_count||
        !scene_actor_body.allocated_bytes||!scene_actor_body.spheres.count||scene_actor_body.spheres.count>8)return RF_RANGE;
+    if(s->terrain_authored) {
+        if(strcmp(campaign_current_level,"ctf06.rfl") || !s->checkpoint_clutter ||
+           scene_authored_clutter_baseline_check(s->terrain_authored->source_identity,0,s->checkpoint_clutter))return RF_RANGE;
+    } else if(strcmp(campaign_current_level,"glass_house.rfl") || rf_scene_clutter_bodies[1])return RF_RANGE;
     if(!live)return RF_OK;
     if(campaign_player_damage.state.effects.health<=0||campaign_crouched||(rf_scene_actor_stance_flags&0x400u)||
        campaign_climb.region||campaign_player_view.linked_handle!=-1||campaign_support_handle||rf_scene_actor_landing[1]!=1||
@@ -51,10 +57,14 @@ static int scene_checkpoint_dispatch_validate_once(const void *data,uint32_t byt
     if(!rf_scene_player_checkpoint_enabled)return scene_checkpoint_validate(data,bytes,s);
     status=scene_checkpoint_player_scope(s,0);if(status)return status;
     status=scene_checkpoint_player_catalog(&catalog);if(status)return status;
-    status=rf_composed_checkpoint_preflight(data,bytes,SCENE_PLAYER_CHECKPOINT_PROFILE,&catalog,&candidate);if(status)return status;
+    status=rf_composed_checkpoint_preflight(data,bytes,scene_checkpoint_profile(s),&catalog,&candidate);if(status)return status;
     status=rf_player_checkpoint_validate(&candidate.player,&catalog,body,NULL);if(status)return status;
     scene_checkpoint_placement(s,&candidate.player,body,&placement);
-    status=scene_checkpoint_validate_player(candidate.rfds,candidate.rfds_bytes,s,&placement);
+    if(s->terrain_authored) {
+        scene_authored_checkpoint_stage *stage=NULL;
+        status=scene_authored_checkpoint_stage_prepare(s,candidate.rfds,candidate.rfds_bytes,&placement,&stage);
+        scene_authored_checkpoint_stage_discard(&stage);
+    } else status=scene_checkpoint_validate_player(candidate.rfds,candidate.rfds_bytes,s,&placement);
     return scene_checkpoint_player_semantic_status(status);
 }
 static int scene_checkpoint_dispatch_validate(const void *data,uint32_t bytes,void *context)
@@ -78,7 +88,7 @@ static int scene_checkpoint_dispatch_restore(scene_stream *s,unsigned char *data
     if(!rf_scene_player_checkpoint_enabled)return scene_checkpoint_restore(s,data,bytes);
     status=scene_checkpoint_dispatch_validate(data,bytes,s);if(status)return status;
     status=scene_checkpoint_player_catalog(&catalog);if(status)return status;
-    status=rf_composed_checkpoint_preflight(data,bytes,SCENE_PLAYER_CHECKPOINT_PROFILE,&catalog,&candidate);if(status)return status;
+    status=rf_composed_checkpoint_preflight(data,bytes,scene_checkpoint_profile(s),&catalog,&candidate);if(status)return status;
     status=rf_player_checkpoint_validate(&candidate.player,&catalog,basis,eye);if(status)return status;
     body=scene_actor_body.state;memcpy(body.position,candidate.player.position,12);memcpy(body.next_position,body.position,12);
     memcpy(body.orientation,basis,36);memcpy(body.next_orientation,basis,36);memset(body.velocity,0,sizeof(body.velocity));
@@ -86,7 +96,14 @@ static int scene_checkpoint_dispatch_restore(scene_stream *s,unsigned char *data
     status=rf_physics_tensor_world(body.local_tensor,basis,body.world_tensor);if(status)return status;
     /* Existing RFDS semantic validator and candidate body fit have succeeded.
      * Prepare all fallible player work before RFDS publication; only assignments follow. */
-    status=scene_checkpoint_restore(s,(unsigned char *)candidate.rfds,candidate.rfds_bytes);if(status)return status;
+    if(s->terrain_authored) {
+        scene_authored_checkpoint_stage *stage=NULL;rf_checkpoint_placement placement;
+        scene_checkpoint_placement(s,&candidate.player,basis,&placement);
+        status=scene_authored_checkpoint_stage_prepare(s,candidate.rfds,candidate.rfds_bytes,&placement,&stage);
+        if(!status)status=scene_authored_checkpoint_stage_commit(stage);
+        scene_authored_checkpoint_stage_discard(&stage);
+    } else status=scene_checkpoint_restore(s,(unsigned char *)candidate.rfds,candidate.rfds_bytes);
+    if(status)return status;
     scene_actor_body.state=body;s->player_checkpoint_value=candidate.player;s->player_checkpoint_look=1;
     memcpy(s->actor_spawn,body.position,12);memcpy(campaign_position,body.position,12);memcpy(campaign_orientation,eye,36);
     campaign_player_import=candidate.player.player;campaign_import_pending=1;campaign_item_pending_count=0;
@@ -127,6 +144,12 @@ static int scene_checkpoint_player_capture(scene_stream *s,rf_player_checkpoint 
     memcpy(player->body_angles,actor_look.state.body_angles,12);memcpy(player->eye_angles,actor_look.state.eye_angles,12);
     status=rf_player_checkpoint_validate(player,catalog,body,NULL);if(status){printf("PLAYER_CHECKPOINT_REJECT player %d health %.9g/%.9g armor %.9g/%.9g\n",status,(double)player->player.health,(double)catalog->health_capacity,(double)player->player.armor,(double)catalog->armor_capacity);return status;}
     scene_checkpoint_placement(s,player,body,&placement);status=rf_geomod_terrain_get(s->terrain,&view);if(status)return status;
+    if(s->terrain_authored) {
+        rf_collision_composition_view composed;
+        status=scene_terrain_publication_view(s,&view);if(status)return status;
+        status=rf_collision_composition_get(s->terrain_publication->composition,&composed);if(status)return status;
+        view.faces=composed.tree->faces;view.tree=composed.tree;view.mesh.face_count=composed.count;
+    }
     {rf_checkpoint_placement_result fit;
      status=rf_checkpoint_standing_check(&view,&placement,scene_step_seconds,rf_scene_actor_movement_values.speed,&fit);if(status){printf("PLAYER_CHECKPOINT_REJECT placement %d sphere%u reason%u retries%u\n",status,status==RF_NOT_FOUND?fit.sphere:UINT32_MAX,status==RF_NOT_FOUND?fit.reason:0,status==RF_NOT_FOUND?fit.retries:0);return status;}}
 

@@ -1,6 +1,5 @@
 /* Installed CPU pipeline, no window/GPU/emulator. Arguments: Installed_Game RFCT. */
 #include "../src/diagnostic/scene.c"
-#include "../src/diagnostic/scene_authored_digest_capture.inc"
 #define CHECK(x) do{if(!(x)){fprintf(stderr,"authored digest line%d: %s\n",__LINE__,#x);return 1;}}while(0)
 static int reject_atomic(scene_stream *s,const rf_geomod_terrain_view *v,const rf_geomod_publication_origin *o,
     const rf_collision_composition_view *cv,scene_stream *lighting,uint32_t serial)
@@ -37,10 +36,15 @@ int main(int argc,char **argv)
 #undef ALLOC
     s.light_overlay_work=calloc(1100,sizeof(uint32_t)+sizeof(rf_vfx_light_source));CHECK(s.light_overlay_work);
     s.terrain_atlas_registered=1;s.terrain_atlas_index=s.light_rgb.count;
+    strcpy(campaign_current_level,"ctf06.rfl");s.terrain_template=&shape;
+    memcpy(s.terrain_history_minimum,world.minimum,12);memcpy(s.terrain_history_maximum,world.maximum,12);
+    CHECK(!scene_checkpoint_identity(&s,&level));
+
     for(step=1;step<=2;step++) {
         CHECK(!rf_geomod_terrain_cut_template(s.terrain,&shape,centers[step-1],basis,1.05000007f,s.terrain_material));
         CHECK(!scene_terrain_publication_prepare(&s));CHECK(!scene_terrain_publication_candidate(&s,&candidate,&origins,&bindings));
         CHECK(candidate.cuts==step && candidate.tree->face_count==786+candidate.mesh.face_count);
+        s.terrain_publication_serial=candidate.mesh.generation;
         CHECK(!rf_collision_composition_pending(s.terrain_publication->composition,&cv));
         CHECK(!scene_terrain_lighting_stage_prepare(&s,&candidate,bindings,0,&stage));
         CHECK(!scene_authored_digest_capture(&s,&candidate,origins,&cv,stage->staged,candidate.mesh.generation,tail,768,&expected,&peak));
@@ -86,6 +90,40 @@ int main(int argc,char **argv)
         CHECK(!scene_authored_digest_capture(&s,&candidate,origins,&cv,&s,candidate.mesh.generation,other,768,&again,&peak2));
         CHECK(!memcmp(&expected,&again,sizeof(expected)) && !memcmp(tail,other,candidate.mesh.face_count*2));
         scene_terrain_lighting_stage_discard(&stage);
+        {
+            unsigned char *save=malloc(SCENE_CHECKPOINT_MAX);uint32_t bytes=0;
+            scene_authored_checkpoint_stage *restore=NULL;rf_geomod_terrain *live=s.terrain;
+            uint32_t live_serial=s.terrain_publication_serial;
+            CHECK(save);CHECK(!scene_authored_checkpoint_write(&s,save,SCENE_CHECKPOINT_MAX,&bytes));
+            CHECK(bytes>416 && !memcmp(save,"RFDS",4) && checkpoint_u32(save+4)==2);
+            {unsigned char guard[32],before[32];uint32_t written=0x12345678;
+             memset(guard,0xa5,sizeof(guard));memcpy(before,guard,sizeof(guard));
+             CHECK(scene_authored_checkpoint_write(&s,guard,sizeof(guard),&written)==RF_RANGE);
+             CHECK(written==0x12345678 && !memcmp(guard,before,sizeof(guard)));}
+
+            CHECK(!scene_authored_checkpoint_stage_prepare(&s,save,bytes,NULL,&restore));
+            CHECK(restore && restore->cuts==step && restore->serial==live_serial);
+            CHECK(!memcmp(&restore->expected,&expected,sizeof(expected)));
+            CHECK(s.terrain==live && s.terrain_publication_serial==live_serial);
+            scene_authored_checkpoint_stage_discard(&restore);
+            CHECK(!restore && !s.terrain_publication->has_pending && s.terrain==live);
+            save[320]^=1; /* Publication digest corruption must reject atomically. */
+            CHECK(scene_authored_checkpoint_stage_prepare(&s,save,bytes,NULL,&restore)!=RF_OK);
+            CHECK(!restore && !s.terrain_publication->has_pending && s.terrain==live);
+            CHECK(s.terrain_publication_serial==live_serial);
+            save[320]^=1;
+            CHECK(!scene_authored_checkpoint_stage_prepare(&s,save,bytes,NULL,&restore));
+            CHECK(!scene_authored_checkpoint_stage_commit(restore));
+            CHECK(!restore->owns_pending && !restore->core && restore->lighting->committed);
+            CHECK(s.terrain!=live && s.terrain_publication_serial==live_serial);
+            CHECK(scene_authored_checkpoint_stage_commit(restore)==RF_RANGE);
+            scene_authored_checkpoint_stage_discard(&restore);
+            {unsigned char *resaved=malloc(SCENE_CHECKPOINT_MAX);uint32_t again_bytes=0;CHECK(resaved);
+             CHECK(!scene_authored_checkpoint_write(&s,resaved,SCENE_CHECKPOINT_MAX,&again_bytes));
+             CHECK(again_bytes==bytes && !memcmp(save,resaved,bytes));free(resaved);}
+            free(save);
+        }
+
     }
     /* Reset restores all790 original rows, with explicitly cleared journal. */
     CHECK(!rf_geomod_terrain_reset(s.terrain));CHECK(!scene_terrain_publication_prepare(&s));
@@ -95,7 +133,25 @@ int main(int argc,char **argv)
     CHECK(!scene_authored_digest_capture(&s,&candidate,origins,&cv,clone->staged,candidate.mesh.generation,NULL,0,&again,&peak));
     CHECK(memcmp(expected.publication_digest,again.publication_digest,32) && memcmp(expected.collision_digest,again.collision_digest,32));
     CHECK(!reject_atomic(&s,&candidate,origins,&cv,&s,candidate.mesh.generation)); /* old cut journal cannot masquerade as reset */
-    scene_terrain_lighting_stage_discard(&clone);scene_terrain_publication_abort(&s);
+    scene_terrain_lighting_stage_discard(&clone);
+    CHECK(!scene_terrain_lighting_stage_empty(&s,&candidate,candidate.mesh.generation,0,1,&clone));
+    CHECK(!scene_terrain_publication_finish(&s,clone->staged->terrain_bindings,0,s.light_rgb.count+1));
+    scene_terrain_lighting_stage_commit(clone);scene_terrain_lighting_stage_discard(&clone);
+    s.terrain_publication_serial=candidate.mesh.generation;
+    {
+        unsigned char *save=malloc(SCENE_CHECKPOINT_MAX);uint32_t bytes=0;
+        scene_authored_checkpoint_stage *restore=NULL;CHECK(save);
+        CHECK(!scene_authored_checkpoint_write(&s,save,SCENE_CHECKPOINT_MAX,&bytes));
+        CHECK(!scene_authored_checkpoint_stage_prepare(&s,save,bytes,NULL,&restore));
+        CHECK(restore && !restore->cuts && restore->serial==s.terrain_publication_serial);
+        CHECK(restore->lighting->staged->terrain_noise->random.value==1);
+        CHECK(!scene_authored_checkpoint_stage_commit(restore));
+        scene_authored_checkpoint_stage_discard(&restore);CHECK(!s.terrain_publication->has_pending);
+        CHECK(!s.terrain_noise->count && s.terrain_noise->random.value==1);
+        {rf_collision_composition_view restored;CHECK(!rf_collision_composition_get(s.terrain_publication->composition,&restored));CHECK(restored.count==790);}
+        free(save);
+    }
+
     rf_geometry_collision_overlay_close(&s.terrain_collision);scene_terrain_publication_close(&s.terrain_publication);
     rf_geomod_terrain_close(&s.terrain);scene_terrain_authored_close(&s.terrain_authored);
     free(s.terrain_noise);free(s.terrain_atlas_pixels);free(s.terrain_tile);free(s.terrain_bindings);free(s.terrain_colors);

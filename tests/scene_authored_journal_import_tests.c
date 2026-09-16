@@ -1,7 +1,6 @@
 /* Process-local CPU ownership test; actual installed post + RFCT are inputs.
  * No renderer, game window, native capture or GPU upload is involved. */
 #include "../src/diagnostic/scene.c"
-#include "../src/diagnostic/scene_authored_journal_import.inc"
 #define CHECK(x) do{if(!(x)){fprintf(stderr,"lighting stage line%d: %s\n",__LINE__,#x);return 1;}}while(0)
 typedef struct stage_snapshot {
     scene_stream stream;scene_lighting_stage_telemetry telemetry;

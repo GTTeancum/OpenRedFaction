@@ -22,3 +22,5 @@
 - Do not launch a second Red Faction XEMU instance while an existing project session is open; leave the existing session untouched and continue PC-side work.
 
 - Do not use original-game screenshots as visual references or pursue disc-dependent capture sessions; use binary-derived mathematical evidence and reconstructed PC/Xbox validation for fidelity.
+
+- User update (2026-09-16): Work solo on resumption; keep local sub-agents and the secondary helper coordinator paused until the user explicitly reauthorizes delegation.
