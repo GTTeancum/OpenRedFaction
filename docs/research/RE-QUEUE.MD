@@ -38,3 +38,10 @@ Send findings to the primary as each investigation completes, then proceed to th
 
 28. Integrated/verified: RFDS scene checkpoint plus reset cleanup; fresh PC cases and two native48-check runs preserve destruction across reload and another blast. Full game saves/storage remain open.
 29. Active (crater_shading_re): stock reference startup/isolation prerequisites; optional crater capture compiled/static-checked, not live-launched.
+
+## Work-ahead RE (user mandate)
+
+- geomod_save_design: future scripted events/campaign blockers; findings and priorities in FUTURE-CAMPAIGN-INDEX.md, executable probes under artifacts/future-campaign-re.
+- crater_material_audit: future vehicle entry/control/exit, physics/weapons/damage; findings and priorities in FUTURE-VEHICLES-INDEX.md, probes under artifacts/future-vehicles-re.
+- crater_shading_re: continue immediate stock GeoMod reference capture prerequisites.
+- Future workers should advance bounded useful targets after each report, distinguish executable evidence from inference, and leave shared implementation/builds/emulators to primary. Primary reviews findings before integration; work-ahead research does not change active implementation priority.
