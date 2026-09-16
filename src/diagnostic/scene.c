@@ -11818,11 +11818,22 @@ static int scene_rockets_draw(scene_stream *s,uint32_t frame)
 /* Original liquid VFX: fixed identity/unit scale, action0 ends at frame24.
  * Geometry instances are reused serially for the bounded active contact pool. */
 uint32_t rf_scene_ripple_visual[8]; /* frame, active, faces, vertices, hash, bytes, status, retired */
+/* Persistent copies survive scene/mesh teardown for PC/QMP numeric comparison.
+ * Only metadata[2] vertices are valid; overflow never changes draw submission. */
+rf_preview_vertex rf_scene_ripple_vertices[384];
+uint32_t rf_scene_ripple_vertex_state[5]; /* frame, total, copied, stride, overflow */
+float rf_scene_ripple_camera[12]; /* position XYZ, then right/up/forward rows */
+float rf_scene_ripple_sources[SCENE_RIPPLES][6]; /* center XYZ, age frames, effect time, active */
 static int scene_ripples_draw(scene_stream *s,uint32_t frame)
 {
     scene_rocket_visual *v=s->ripple_visual;uint32_t shot,m,f,j,k,first=s->mesh->count;int status;
     unsigned char lighting[3];
     memset(rf_scene_ripple_visual,0,sizeof(rf_scene_ripple_visual));rf_scene_ripple_visual[0]=frame+1;
+    memset(rf_scene_ripple_vertex_state,0,sizeof(rf_scene_ripple_vertex_state));
+    rf_scene_ripple_vertex_state[0]=frame+1;rf_scene_ripple_vertex_state[3]=sizeof(rf_preview_vertex);
+    memcpy(rf_scene_ripple_camera,s->rocket_camera.player_position,12);
+    memcpy(rf_scene_ripple_camera+3,s->rocket_camera.player_orientation,36);
+    memset(rf_scene_ripple_sources,0,sizeof(rf_scene_ripple_sources));
     if(!v)return RF_OK;
     rf_scene_ripple_visual[5]=sizeof(*v)+v->geometry->resident_bytes+v->materials->resident_bytes;
     if(rf_scene_ripple_test_enabled && frame==0) {
@@ -11842,6 +11853,9 @@ static int scene_ripples_draw(scene_stream *s,uint32_t frame)
         uint32_t age=frame-s->ripple_born[shot];float time=(float)age*.25f;
         if(age>=96u){s->ripple_active[shot]=0;++rf_scene_ripple_visual[7];++rf_scene_ripple_lifecycle[1];continue;}
         ++rf_scene_ripple_visual[1];
+        memcpy(rf_scene_ripple_sources[shot],s->ripple_position[shot],12);
+        rf_scene_ripple_sources[shot][3]=(float)age;rf_scene_ripple_sources[shot][4]=time;
+        rf_scene_ripple_sources[shot][5]=1;
         for(m=0;m<v->geometry->count;m++) {
             rf_vfx_mesh *source=v->geometry->meshes[m];rf_vfx_instance *instance=v->geometry->instances[m];
             if(!instance)continue;
@@ -11880,7 +11894,13 @@ static int scene_ripples_draw(scene_stream *s,uint32_t frame)
         }
     }
     rf_scene_ripple_visual[3]=s->mesh->count-first;
-    rf_scene_ripple_visual[4]=npc_hash_bytes(2166136261u,s->mesh->vertices+first,rf_scene_ripple_visual[3]*sizeof(rf_preview_vertex));return RF_OK;
+    rf_scene_ripple_visual[4]=npc_hash_bytes(2166136261u,s->mesh->vertices+first,rf_scene_ripple_visual[3]*sizeof(rf_preview_vertex));
+    rf_scene_ripple_vertex_state[1]=rf_scene_ripple_visual[3];
+    rf_scene_ripple_vertex_state[2]=rf_scene_ripple_visual[3]>384?384:rf_scene_ripple_visual[3];
+    rf_scene_ripple_vertex_state[4]=rf_scene_ripple_visual[3]>384;
+    if(rf_scene_ripple_vertex_state[2])memcpy(rf_scene_ripple_vertices,s->mesh->vertices+first,
+        rf_scene_ripple_vertex_state[2]*sizeof(rf_preview_vertex));
+    return RF_OK;
 }
 static int scene_player_weapon_draw(scene_stream *stream,uint32_t frame)
 {

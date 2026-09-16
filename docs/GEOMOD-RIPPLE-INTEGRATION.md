@@ -16,3 +16,9 @@ A real wet dm03 location/replay is documented in research/WATER-FIXTURE-DM03-202
 Checkpoint transport was added separately: bounded dual slots with pure validation callback, readback and corruption fallback. Its PC tests pass. It is not yet wired into RFDS or native HDD saves, and fflush/fclose do not establish hardware durability.
 
 Estimate remains approximately49% overall,66% GeoMod. Current area: destruction/water effects and save foundations.
+
+## Numeric comparison follow-up
+
+The32frame native export at artifacts/xemu/render-20260916-083200 retains all18 final56-byte vertices. Of252 words,38 differ: perspective texture/reciprocal depth words differ by a few ULP and some24-bit depth values by one unit; screenXY, RGB, material and opacity tags match. This localizes investigation but does not establish the upstream cause or change the strict comparison. Bounded persistent copies and PC/QMP export now preserve evidence after scene teardown. All24 disc entries restored. No original screenshot reference is used.
+
+The terrain history checker now builds a candidate through the same prepare path as restore and always aborts it after a synchronous visitor. Focused tests verify successful and rejected visits, all truncations, budgets, unchanged live terrain and another cut matching uninterrupted control. Existing transaction/interior regressions pass. This enables pure save selection without publishing candidates; complete RFDS validation and persistent HDD integration remain open.

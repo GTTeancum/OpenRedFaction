@@ -814,6 +814,14 @@ run_scene:
     printf("PICKUP_VITALS");for(i=0;i<4;++i)printf(" %u",rf_scene_pickup_vitals[i]);puts("");
     printf("PICKUPS");for(i=0;i<8;++i)printf(" %u",rf_scene_pickups[i]);puts("");
     printf("PLAYER_AMMO");for(i=0;i<8;++i)printf(" %u",rf_scene_player_ammo[i]);puts("");
+    if(p.headless && getenv("RF_REPLAY_RIPPLE_VERTICES")) {
+        extern rf_preview_vertex rf_scene_ripple_vertices[384];extern uint32_t rf_scene_ripple_vertex_state[5];
+        FILE *f=fopen(getenv("RF_REPLAY_RIPPLE_VERTICES"),"wb");int failed;
+        if(!f)CHECK(RF_IO);
+        failed=fwrite(rf_scene_ripple_vertex_state,4,5,f)!=5 ||
+            fwrite(rf_scene_ripple_vertices,sizeof(rf_preview_vertex),rf_scene_ripple_vertex_state[2],f)!=rf_scene_ripple_vertex_state[2];
+        if(fclose(f))failed=1;if(failed)CHECK(RF_IO);
+    }
     printf("RIPPLE_VISUAL");for(i=0;i<8;++i)printf(" %u",rf_scene_ripple_visual[i]);puts("");
     printf("RIPPLE_LIFECYCLE");for(i=0;i<4;++i)printf(" %u",rf_scene_ripple_lifecycle[i]);puts("");
     printf("ROCKET_LIQUID_STATE");for(i=0;i<4;++i)printf(" %u",rf_scene_rocket_liquid[i]);puts("");

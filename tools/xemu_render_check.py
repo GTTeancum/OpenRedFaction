@@ -108,6 +108,7 @@ def main():
     env.update(RF_REPLAY_LEVEL=args.level, RF_REPLAY_ARCHIVE=args.archive)
     if args.dev_room:env['RF_REPLAY_DEV_ROOM']='1'
     if args.ripple_test:env['RF_REPLAY_RIPPLE_TEST']='1'
+    if args.ripple_test:env['RF_REPLAY_RIPPLE_VERTICES']=str(run/'pc-ripple-vertices.bin')
     if checkpoint:env['RF_REPLAY_GEOMOD_CHECKPOINT_OUT']=str(run/'pc-checkpoint.rfds')
     if args.geomod_checkpoint_in:env['RF_REPLAY_GEOMOD_CHECKPOINT_IN']=str(args.geomod_checkpoint_in.resolve())
     if args.terrain_test_light:env['RF_REPLAY_TERRAIN_TEST_LIGHT']='1'
@@ -332,6 +333,13 @@ dvd_path = '{root.as_posix()}/build/xbox/redfaction-diagnostic.iso'
                 assert value==state[2],'Checkpoint readback hash mismatch'
                 assert 0<memory[0]<=memory[1]<=110524,'Checkpoint external memory budget'
                 assert data==expected,'PC/Xbox destruction checkpoint differs'
+            if args.ripple_test:
+                state=words(monitor,symbol('rf_scene_ripple_vertex_state'),5)
+                assert state[2]<=384 and state[3]==56 and state[4]==0,'Ripple vertex capture overflow'
+                data=struct.pack('<5I',*state)
+                count=state[2]*14
+                if count:data+=struct.pack('<'+'I'*count,*words(monitor,symbol('rf_scene_ripple_vertices'),count))
+                (run/'xbox-ripple-vertices.bin').write_bytes(data)
             transition_rows=[line.split()[1:] for line in pc.stdout.splitlines() if line.startswith('LEVEL_TRANSITION ')]
             native_transition=words(monitor,symbol('rf_xbox_level_transitions'),4)
             target=struct.pack('<16I',*words(monitor,symbol('rf_xbox_transition_target'),16)).split(b'\0')[0].decode('ascii')

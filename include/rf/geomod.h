@@ -400,6 +400,17 @@ int rf_geomod_terrain_cut_template_limits(rf_geomod_terrain *terrain,const rf_ge
 int rf_geomod_terrain_history_size(const rf_geomod_terrain *,uint32_t *bytes);
 int rf_geomod_terrain_history_encode(const rf_geomod_terrain *,void *data,uint32_t bytes);
 int rf_geomod_terrain_history_decode(rf_geomod_terrain *,const void *data,uint32_t bytes);
+/* Synchronously prepare history and its collision tree without publication.
+ * Always aborts after the visitor, on success as well as failure. Preserves live
+ * mesh generation/content, collision and history; scratch/peak accounting may
+ * change. Same bounded rollback/tree allocations as decode, no cloned owner.
+ * Candidate pointers are borrowed only for the callback. The visitor must not
+ * retain them, mutate candidate/input memory, or call this terrain reentrantly.
+ * Callback status is returned unchanged; malformed/preparation failure skips it.
+ * Candidate resident_bytes includes live+pending tree and temporary history. */
+typedef int (*rf_geomod_history_check_fn)(const rf_geomod_terrain_view *candidate,void *context);
+int rf_geomod_terrain_history_check(rf_geomod_terrain *,const void *data,uint32_t bytes,
+    rf_geomod_history_check_fn check,void *context);
 int rf_geomod_terrain_reset(rf_geomod_terrain *terrain);
 /* Borrowed snapshot: valid until next successful cut/reset or close; failed
  * edits preserve it. Single-thread owner; renderer consumes mesh+faces from

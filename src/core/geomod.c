@@ -1680,9 +1680,14 @@ static int terrain_map_pending(rf_geomod_terrain *t)
     }
     return RF_OK;
 }
-static int terrain_publish(rf_geomod_terrain *t,uint32_t count)
+typedef struct terrain_pending {
+    rf_geomod_mesh_view mesh;rf_collision_tree tree;uint32_t bank,count;
+} terrain_pending;
+static void terrain_abort(rf_geomod_terrain *t,terrain_pending *pending)
+{rf_collision_tree_close(&pending->tree);rf_geomod_storage_abort(t->mesh);}
+static int terrain_prepare(rf_geomod_terrain *t,uint32_t count,terrain_pending *pending)
 {
-    rf_geomod_mesh_view pending;rf_collision_tree tree={0};uint32_t bank=t->bank^1,c;int status;
+    uint32_t c;int status;memset(pending,0,sizeof(*pending));pending->bank=t->bank^1;pending->count=count;
     for(c=0;c<count;c++) {
         if(t->star_mask&(1u<<c)) {
             status=star_mesh_planes(t->cuts+c,t->kernels[c],t->work.star_planes[c]);
@@ -1690,18 +1695,29 @@ static int terrain_publish(rf_geomod_terrain *t,uint32_t count)
         } else {
             status=convex_mesh_planes(t->cuts+c,t->work.cut_planes[c]);t->work.star_count[c]=0;
         }
-        if(status)return status;
+        if(status)goto failed;
     }
     status=t->cavity?prepare_cavity_cuts(t->mesh,t->cuts,count,&t->work,1):
         prepare_cuts(t->mesh,t->cuts,count,&t->work,1);
-    if(status)return status;
+    if(status)goto failed;
     status=terrain_map_pending(t);if(status)goto failed;
-    status=rf_geomod_storage_pending(t->mesh,&pending);if(status)goto failed;
-    status=terrain_bind(t,&pending,bank,&tree);if(status)goto failed;
-    status=rf_geomod_storage_commit(t->mesh);if(status)goto failed;
-    rf_collision_tree_close(&t->tree);t->tree=tree;t->bank=bank;t->count=count;return RF_OK;
+    status=rf_geomod_storage_pending(t->mesh,&pending->mesh);if(status)goto failed;
+    status=terrain_bind(t,&pending->mesh,pending->bank,&pending->tree);if(status)goto failed;
+    return RF_OK;
 failed:
-    rf_collision_tree_close(&tree);rf_geomod_storage_abort(t->mesh);return status;
+    terrain_abort(t,pending);return status;
+}
+static int terrain_commit(rf_geomod_terrain *t,terrain_pending *pending)
+{
+    int status=rf_geomod_storage_commit(t->mesh);if(status)return status;
+    rf_collision_tree_close(&t->tree);t->tree=pending->tree;memset(&pending->tree,0,sizeof(pending->tree));
+    t->bank=pending->bank;t->count=pending->count;return RF_OK;
+}
+static int terrain_publish(rf_geomod_terrain *t,uint32_t count)
+{
+    terrain_pending pending;int status=terrain_prepare(t,count,&pending);
+    if(!status){status=terrain_commit(t,&pending);if(status)terrain_abort(t,&pending);}
+    return status;
 }
 int rf_geomod_terrain_cut_box(rf_geomod_terrain *t,const float center[3],const float extent[3],uint32_t material)
 {
@@ -1912,7 +1928,8 @@ static void history_exchange(rf_geomod_terrain *t,terrain_history_copy *h)
     v=t->star_mask;t->star_mask=h->mask;h->mask=v;
     v=t->count;t->count=h->count;h->count=v;
 }
-int rf_geomod_terrain_history_decode(rf_geomod_terrain *t,const void *data,uint32_t bytes)
+static int terrain_history_import(rf_geomod_terrain *t,const void *data,uint32_t bytes,
+    rf_geomod_history_check_fn check,void *context,uint32_t publish)
 {
     const unsigned char *p=data;terrain_history_copy *h;uint32_t count,i,j,k,left;int status=RF_OK;
     uint64_t used;
@@ -1954,12 +1971,29 @@ int rf_geomod_terrain_history_decode(rf_geomod_terrain *t,const void *data,uint3
     /* Existing publication prepares inactive mesh/position banks and commits once.
      * Charge rollback scratch through its collision-tree allocation budget. */
     t->base_bytes+=(uint32_t)sizeof(*h);if(used>t->peak_bytes)t->peak_bytes=(uint32_t)used;
-    history_exchange(t,h);status=terrain_publish(t,count);
-    if(status)history_exchange(t,h);
+    {
+        terrain_pending pending;history_exchange(t,h);status=terrain_prepare(t,count,&pending);
+        if(!status) {
+            if(publish)status=terrain_commit(t,&pending);
+            else {
+                rf_geomod_terrain_view candidate;
+                candidate.mesh=pending.mesh;candidate.faces=t->faces[pending.bank];candidate.tree=&pending.tree;
+                candidate.cuts=count;candidate.resident_bytes=t->base_bytes+t->tree.allocated_bytes+pending.tree.allocated_bytes;
+                candidate.peak_bytes=t->peak_bytes;status=check(&candidate,context);
+            }
+            if(!publish || status)terrain_abort(t,&pending);
+        }
+        if(!publish || status)history_exchange(t,h);
+    }
     t->base_bytes-=(uint32_t)sizeof(*h);
 done:
     free(h);return status;
 }
+int rf_geomod_terrain_history_decode(rf_geomod_terrain *t,const void *data,uint32_t bytes)
+{return terrain_history_import(t,data,bytes,NULL,NULL,1);}
+int rf_geomod_terrain_history_check(rf_geomod_terrain *t,const void *data,uint32_t bytes,
+    rf_geomod_history_check_fn check,void *context)
+{if(!check)return RF_RANGE;return terrain_history_import(t,data,bytes,check,context,0);}
 int rf_geomod_terrain_reset(rf_geomod_terrain *t)
 {return t?terrain_publish(t,0):RF_RANGE;}
 int rf_geomod_terrain_get(const rf_geomod_terrain *t,rf_geomod_terrain_view *out)
