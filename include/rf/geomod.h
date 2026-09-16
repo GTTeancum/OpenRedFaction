@@ -1,6 +1,7 @@
 #ifndef RF_GEOMOD_H
 #define RF_GEOMOD_H
 #include "rf/vpp.h"
+#include "rf/geomod_limits.h"
 #include "rf/collision.h"
 #include "rf/random.h"
 #include "rf/level.h"
@@ -288,7 +289,6 @@ int rf_geomod_storage_prepare_convex_cut(rf_geomod_storage *storage,
     const rf_geomod_mesh_view *cutter,rf_geomod_cut_work *work);
 /* Bounded scratch for rebuilding original convex terrain minus a union of
  * cutters. Retain on heap and include sizeof(*work) in the Xbox memory budget. */
-#define RF_GEOMOD_CUT_LIMIT 8
 #define RF_GEOMOD_WORK_VERTICES 4096
 #define RF_GEOMOD_WORK_FRAGMENTS 512
 typedef struct rf_geomod_multi_work {
@@ -448,7 +448,7 @@ int rf_geomod_terrain_cut_template_scale(rf_geomod_terrain *terrain,const rf_geo
 int rf_geomod_terrain_cut_template_limits(rf_geomod_terrain *terrain,const rf_geomod_template *shape,
     const float center[3],const float basis[9],float scale,uint32_t material,
     const rf_geomod_shallow_limit *limits,uint32_t count);
-/* RGCH/version1 little-endian committed-cutter checkpoint, maximum12380 bytes.
+/* RGCH/version1 little-endian committed-cutter checkpoint, maximum RF_GEOMOD_HISTORY_MAX_BYTES.
  * Size query/encode allocate nothing; encode requires exactly the queried size.
  * Decode replaces successful cutter history and atomically rebuilds mesh/tree.
  * Errors preserve live geometry, count and committed history. Import scratch is

@@ -17,7 +17,7 @@ static int scene_authored_journal_import(scene_stream *live,
     int status;
     if(!live || !stage || !layout || !data || !origins || !source_bindings ||
        stage->owner!=live || stage->staged!=&stage->clone || stage->committed ||
-       stage->bake_ready || stage->draw_ready || !cuts || cuts>8 || cuts>serial || serial==UINT32_MAX)return RF_RANGE;
+       stage->bake_ready || stage->draw_ready || !cuts || cuts>RF_GEOMOD_CUT_LIMIT || cuts>serial || serial==UINT32_MAX)return RF_RANGE;
     status=rf_authored_checkpoint_layout_read(data,layout->bytes,&checked);if(status)return status;
     if(memcmp(&checked,layout,sizeof(checked)))return RF_FORMAT;
     s=stage->staged;owner=s->terrain_noise;v=&stage->candidate;

@@ -1,4 +1,5 @@
 #include "rf/geomod_retained_material_digest.h"
+#include "rf/geomod_limits.h"
 #include <math.h>
 #include <string.h>
 /* Existing scene checkpoint SHA256 implementation, isolated unchanged here. */
@@ -81,7 +82,7 @@ int rf_geomod_retained_material_digest(const rf_geomod_retained_material_input *
     uint32_t i,j,x=0,y=0,row=0;int status;
     if(!v || !out || !v->source_identity || !v->substrate_identity || v->map_count>1024 || v->face_count>768 ||
         (v->map_count && !v->maps) || (v->face_count && (!v->origins || !v->face_maps)))return RF_RANGE;
-    if(v->material_policy!=1 || v->owner==UINT32_MAX || v->serial==UINT32_MAX || v->cuts>8 || v->cuts>v->serial ||
+    if(v->material_policy!=1 || v->owner==UINT32_MAX || v->serial==UINT32_MAX || v->cuts>RF_GEOMOD_CUT_LIMIT || v->cuts>v->serial ||
         v->baked!=v->map_count || v->sample || v->owner_cuts!=v->cuts)return RF_FORMAT;
     if(v->owner_generation!=v->serial && (v->owner_generation || v->cuts || v->map_count))return RF_FORMAT;
     if(!v->cuts && v->map_count)return RF_FORMAT; /* Authored reset clears its journal. */

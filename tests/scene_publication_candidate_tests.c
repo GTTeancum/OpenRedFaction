@@ -6,7 +6,7 @@ typedef struct candidate_snapshot {
     rf_geomod_terrain *core;const rf_collision_tree *tree;
     scene_publication_bank bank;rf_geometry_collision_overlay overlay;
     rf_collision_room_view room_view;uint32_t overlay_ids_hash;
-    uint32_t active,telemetry[8],bytes;unsigned char history[12380];
+    uint32_t active,telemetry[8],bytes;unsigned char history[RF_GEOMOD_HISTORY_MAX_BYTES];
 } candidate_snapshot;
 static int snapshot_take(scene_stream *s,candidate_snapshot *b)
 {
@@ -21,7 +21,7 @@ static int snapshot_take(scene_stream *s,candidate_snapshot *b)
 }
 static int snapshot_same(scene_stream *s,const candidate_snapshot *b)
 {
-    rf_collision_composition_view v;unsigned char history[12380];uint32_t bytes;
+    rf_collision_composition_view v;unsigned char history[RF_GEOMOD_HISTORY_MAX_BYTES];uint32_t bytes;
     CHECK(s->terrain==b->core && s->terrain_publication->active==b->active);
     CHECK(!rf_collision_composition_get(s->terrain_publication->composition,&v) && v.tree==b->tree);
     CHECK(!memcmp(&b->bank,s->terrain_publication->banks+b->active,sizeof(b->bank)));
@@ -56,7 +56,7 @@ static int references(scene_terrain_authored_assets *a,const rf_geometry *geomet
 }
 static int visitor(const rf_geomod_terrain_view *v,const rf_geomod_history_view *h,void *opaque)
 {
-    scene_stream *s=opaque;rf_geomod_publication_cut cuts[8];rf_geomod_terrain_view pending;uint32_t i;
+    scene_stream *s=opaque;rf_geomod_publication_cut cuts[RF_GEOMOD_CUT_LIMIT];rf_geomod_terrain_view pending;uint32_t i;
     CHECK(h->count==v->cuts);
     for(i=0;i<h->count;i++){cuts[i].mesh=h->cutters[i];memcpy(cuts[i].kernel,h->kernels[i],12);cuts[i].star=(h->star_mask>>i)&1;}
     CHECK(!scene_terrain_publication_prepare_from(s,v,cuts,h->count,19));
@@ -68,9 +68,9 @@ int main(int argc,char **argv)
     rf_vpp archive={0};rf_level level;rf_geometry geometry={0};rf_geometry_collision_world world={0};
     scene_terrain_authored_assets asset={0};scene_stream s={0};rf_materials materials={0};
     rf_geomod_terrain *live=NULL,*private_core=NULL;rf_geomod_terrain_view view,pending;
-    rf_geomod_publication_cut cuts[8];rf_geomod_template shape;rf_collision_face_filter generated;
+    rf_geomod_publication_cut cuts[RF_GEOMOD_CUT_LIMIT];rf_geomod_template shape;rf_collision_face_filter generated;
     candidate_snapshot *snapshot=calloc(1,sizeof(*snapshot));rf_preview_surface_lightmap *bindings;
-    unsigned char history[12380];uint32_t bytes,i,faces,original_hash;int status;
+    unsigned char history[RF_GEOMOD_HISTORY_MAX_BYTES];uint32_t bytes,i,faces,original_hash;int status;
     const float first[3]={-4.75f,-.9f,2.5f},second[3]={-4.75f,.2f,2.5f},basis[9]={1,0,0,0,1,0,0,0,1};
     CHECK(argc==3 && snapshot);CHECK(!rf_vpp_open(&archive,argv[1]));CHECK(!rf_level_open(&level,&archive,"ctf06.rfl"));
     CHECK(!rf_geometry_open(&geometry,&level,8*1024*1024));

@@ -509,7 +509,7 @@ static int terrain_history_roundtrip(rf_geomod_terrain *source,
     rf_geomod_terrain *copy=NULL,*tight=NULL,*control=NULL;rf_geomod_terrain_view a,b,before;
     unsigned char *data,*again,*bad;uint32_t bytes,n,j;int status;
     const float center[3]={0,-10,20},extent[3]={.75f,.75f,.75f};
-    CHECK(!rf_geomod_terrain_history_size(source,&bytes) && bytes<=12380);
+    CHECK(!rf_geomod_terrain_history_size(source,&bytes) && bytes<=RF_GEOMOD_HISTORY_MAX_BYTES);
     data=malloc(bytes);again=malloc(bytes);bad=malloc(bytes+1);CHECK(data && again && bad);
     CHECK(!rf_geomod_terrain_history_encode(source,data,bytes));
     memset(again,0xA5,bytes);CHECK(rf_geomod_terrain_history_encode(source,again,bytes-1)==RF_RANGE && again[0]==0xA5);

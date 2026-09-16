@@ -1,4 +1,5 @@
 #include "rf/authored_owner_extension.h"
+#include "rf/geomod_limits.h"
 #include <string.h>
 static uint32_t read_word(const unsigned char *p)
 {return p[0]|((uint32_t)p[1]<<8)|((uint32_t)p[2]<<16)|((uint32_t)p[3]<<24);}
@@ -6,7 +7,7 @@ static void write_word(unsigned char *p,uint32_t v)
 {p[0]=(unsigned char)v;p[1]=(unsigned char)(v>>8);p[2]=(unsigned char)(v>>16);p[3]=(unsigned char)(v>>24);}
 static int validate(const rf_authored_owner_extension *v,const rf_authored_owner_expected *e,uint32_t cuts)
 {
-    if(!v || !e || cuts>8)return RF_RANGE;
+    if(!v || !e || cuts>RF_GEOMOD_CUT_LIMIT)return RF_RANGE;
     if(e->uid==UINT32_MAX || e->source_count<4 || e->source_count>32 || !e->neighbor_count || e->neighbor_count>32)return RF_FORMAT;
     if(v->uid!=e->uid || v->mode || v->source_count!=e->source_count || v->neighbor_count!=e->neighbor_count ||
         v->publication_policy!=RF_AUTHORED_OWNER_PUBLICATION_POLICY ||

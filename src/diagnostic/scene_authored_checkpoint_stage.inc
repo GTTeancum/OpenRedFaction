@@ -28,7 +28,7 @@ static int scene_authored_checkpoint_stage_prepare(scene_stream *s,const void *i
 {
     const unsigned char *data=input;rf_authored_checkpoint_layout layout;
     scene_authored_checkpoint_stage *p=NULL;scene_authored_edit_context factory={0};
-    rf_geomod_terrain_view active,core,full;rf_geomod_publication_cut cuts[8];
+    rf_geomod_terrain_view active,core,full;rf_geomod_publication_cut cuts[RF_GEOMOD_CUT_LIMIT];
     rf_collision_composition_view composition;unsigned char *history=NULL;
     uint64_t external,reserved;uint32_t serial,i;int status;
     if(!s || !input || !out || *out || !s->terrain || !s->terrain_authored || !s->terrain_publication ||
@@ -60,7 +60,7 @@ static int scene_authored_checkpoint_stage_prepare(scene_stream *s,const void *i
     status=rf_geomod_terrain_history_decode(p->core,history,layout.core_bytes);if(status)goto failed;
     free(history);history=NULL;
     status=rf_geomod_terrain_get(p->core,&core);if(status)goto failed;
-    p->cuts=core.cuts;if(p->cuts>8 || p->cuts>serial){status=RF_FORMAT;goto failed;}
+    p->cuts=core.cuts;if(p->cuts>RF_GEOMOD_CUT_LIMIT || p->cuts>serial){status=RF_FORMAT;goto failed;}
     for(i=0;i<p->cuts;i++) {
         status=rf_geomod_terrain_cutter_get(p->core,i,&cuts[i].mesh,cuts[i].kernel,&cuts[i].star);if(status)goto failed;
     }

@@ -1,4 +1,5 @@
 #include "rf/authored_owner_extension.h"
+#include "rf/geomod_limits.h"
 #include <stdio.h>
 #include <string.h>
 #define CHECK(x) do{if(!(x)){fprintf(stderr,"FAIL line%d %s\n",__LINE__,#x);return 1;}}while(0)
@@ -42,8 +43,10 @@ int main(void)
     value.mode=1;CHECK(encode_reject(&value,&expected,2,128));value.mode=0;
     value.publication_policy=2;CHECK(encode_reject(&value,&expected,2,128));value.publication_policy=1;
     value.serial=UINT32_MAX;CHECK(encode_reject(&value,&expected,2,128));
-    value.serial=UINT32_MAX-1;CHECK(!rf_authored_owner_extension_encode(&value,&expected,8,encoded,128));
-    CHECK(!rf_authored_owner_extension_decode(encoded,128,&expected,8,&decoded) && decoded.serial==UINT32_MAX-1);
+    value.serial=UINT32_MAX-1;CHECK(!rf_authored_owner_extension_encode(&value,&expected,RF_GEOMOD_CUT_LIMIT,encoded,128));
+    CHECK(!rf_authored_owner_extension_decode(encoded,128,&expected,RF_GEOMOD_CUT_LIMIT,&decoded) && decoded.serial==UINT32_MAX-1);
+    CHECK(encode_reject(&value,&expected,RF_GEOMOD_CUT_LIMIT+1,128));
+    CHECK(decode_reject(encoded,128,&expected,RF_GEOMOD_CUT_LIMIT+1));
     value.serial=0;CHECK(!rf_authored_owner_extension_encode(&value,&expected,0,encoded,128));
     CHECK(!rf_authored_owner_extension_decode(encoded,128,&expected,0,&decoded) && !decoded.serial);
     value.serial=3;CHECK(!rf_authored_owner_extension_encode(&value,&expected,0,encoded,128));

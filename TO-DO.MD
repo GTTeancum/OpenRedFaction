@@ -1,5 +1,7 @@
 # Red Faction Xbox / PC - open work
 
+- GeoMod capacity: Verify and enable a larger destruction profile; engine/save scratch limits are centralized, but the live cap remains eight pending geometry, save-size and Xbox memory acceptance.
+
 - GeoMod UV seams: Broaden chronological reconstruction beyond current fixtures; all105 tests and48 axis-oriented UV cases pass, with live two-cut reload/next-blast passing58 stock64MiB Xbox checks.
 
 - PRIORITY GeoMod coverage: Expand verified authored-post destruction beyond the bounded profile; two cuts pass56 stock64MiB PC/Xbox checks and the player crosses the opened post on PC, while authored saves and broader destruction coverage remain open.

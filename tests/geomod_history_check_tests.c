@@ -6,7 +6,7 @@
 static rf_geomod_vertex original_vertices[24],saved_vertices[4096];
 static rf_geomod_face original_faces[6],saved_faces[800];
 static rf_collision_face_filter filters[6],generated;
-static unsigned char encoded[12380],kept[12380],again[12380],bad[12380];
+static unsigned char encoded[RF_GEOMOD_HISTORY_MAX_BYTES],kept[RF_GEOMOD_HISTORY_MAX_BYTES],again[RF_GEOMOD_HISTORY_MAX_BYTES],bad[RF_GEOMOD_HISTORY_MAX_BYTES];
 static uint32_t query_stack[8192];
 static rf_collision_tree saved_tree;
 static rf_geomod_terrain_view unchanged_control;

@@ -12,7 +12,7 @@ static rf_geomod_vertex vertices[24],obstacle_vertices[24];
 static rf_geomod_face faces[6],obstacle_faces[6];
 static rf_collision_face_filter filters[6],generated;
 static rf_collision_face obstacle[6];static float obstacle_positions[24][3];
-static unsigned char history[12380],before[12380],after[12380];
+static unsigned char history[RF_GEOMOD_HISTORY_MAX_BYTES],before[RF_GEOMOD_HISTORY_MAX_BYTES],after[RF_GEOMOD_HISTORY_MAX_BYTES];
 static double dot(const double a[3],const double b[3]){return a[0]*b[0]+a[1]*b[1]+a[2]*b[2];}
 static void cube(rf_geomod_vertex *v,rf_geomod_face *f,const float origin[3],float size,int inward)
 {

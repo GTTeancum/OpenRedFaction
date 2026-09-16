@@ -41,7 +41,7 @@ int main(int argc,char **argv)
     rf_geomod_terrain *terrain=NULL;rf_geomod_terrain_view t;rf_geomod_mesh_view output;
     rf_geomod_publication_job job={0};rf_geomod_publication_cut cuts[RF_GEOMOD_CUT_LIMIT];
     rf_collision_composition *owner=NULL;rf_collision_composition_view before,after;
-    rf_collision_face_filter generated;unsigned char history[12380];FILE *file;
+    rf_collision_face_filter generated;unsigned char history[RF_GEOMOD_HISTORY_MAX_BYTES];FILE *file;
     uint32_t n,i,j,k,retained=0,liquids=0,yes,id,oldids[2],floor_patches=0;
     rf_collision_tree_hit hit,oldhits[2];
     float controls[2][3]={{-4.645f,-.9f,2.5f},{-13.7433157f,-1.8f,10.6686643f}},down[3]={0,-1,0};

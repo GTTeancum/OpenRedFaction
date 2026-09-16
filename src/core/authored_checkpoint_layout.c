@@ -1,4 +1,5 @@
 #include "rf/authored_checkpoint_layout.h"
+#include "rf/geomod_limits.h"
 #include <string.h>
 static uint32_t word(const unsigned char *p)
 {return p[0]|((uint32_t)p[1]<<8)|((uint32_t)p[2]<<16)|((uint32_t)p[3]<<24);}
@@ -7,8 +8,8 @@ int rf_authored_checkpoint_layout_size(uint32_t core,uint32_t admissions,
 {
     rf_authored_checkpoint_layout v={0};uint64_t end;
     if(!out)return RF_RANGE;
-    /* RGCH1:28-byte header and at most eight current1544-byte cutters. */
-    if(core<28 || core>12380 || admissions>128 || maps>1024 || faces>768)return RF_FORMAT;
+    /* RGCH1:28-byte header and at most RF_GEOMOD_CUT_LIMIT bounded cutters. */
+    if(core<28 || core>RF_GEOMOD_HISTORY_MAX_BYTES || admissions>128 || maps>1024 || faces>768)return RF_FORMAT;
     end=(uint64_t)RF_AUTHORED_CHECKPOINT_HEADER+core+(uint64_t)admissions*48+(uint64_t)maps*88+(uint64_t)faces*2;
     if(end>RF_COMPOSED_CHECKPOINT_RFDS_MAX)return RF_RANGE;
     v.bytes=(uint32_t)end;v.core_offset=RF_AUTHORED_CHECKPOINT_HEADER;v.core_bytes=core;

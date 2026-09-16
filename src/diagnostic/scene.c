@@ -9415,7 +9415,7 @@ static int scene_terrain_open(scene_stream *s,const rf_level *level,rf_vpp *maps
 }
 /* RFDS v1 is a DEV destruction checkpoint, not a whole-game save. All restore
  * calls occur on a fresh scene before frames; failure discards that scene. */
-enum { SCENE_CHECKPOINT_MAX=110524, SCENE_CHECKPOINT_HEADER=288 };
+enum { SCENE_CHECKPOINT_MAX=RF_CHECKPOINT_FILE_MAX, SCENE_CHECKPOINT_HEADER=288 };
 static uint32_t checkpoint_u32(const unsigned char *p)
 {return (uint32_t)p[0]|((uint32_t)p[1]<<8)|((uint32_t)p[2]<<16)|((uint32_t)p[3]<<24);}
 static void checkpoint_put(unsigned char *p,uint32_t v)
@@ -9645,7 +9645,7 @@ static int scene_checkpoint_validate_player(const void *input,uint32_t bytes,voi
     if(checkpoint_u32(data+208)!=s->terrain_texture_width || checkpoint_u32(data+212)!=s->terrain_texture_height)return RF_FORMAT;
     for(i=0;i<3;i++)if(checkpoint_float(data+216+i*4)!=s->terrain_history_minimum[i] || checkpoint_float(data+228+i*4)!=s->terrain_history_maximum[i])return RF_FORMAT;
     admission=checkpoint_u32(data+240);maps=checkpoint_u32(data+248);core=checkpoint_u32(data+252);faces=checkpoint_u32(data+272);
-    if(admission>128 || maps>1024 || core<28 || core>12380 || faces>SCENE_TERRAIN_FACES)return RF_FORMAT;
+    if(admission>128 || maps>1024 || core<28 || core>RF_GEOMOD_HISTORY_MAX_BYTES || faces>SCENE_TERRAIN_FACES)return RF_FORMAT;
     for(i=276;i<288;i++)if(data[i])return RF_FORMAT;
     expected=SCENE_CHECKPOINT_HEADER+(uint64_t)core+admission*48+(uint64_t)maps*88+faces*2;
     if(expected!=bytes)return RF_FORMAT;
@@ -9762,7 +9762,7 @@ static int scene_checkpoint_restore(scene_stream *s,unsigned char *data,uint32_t
     if(checkpoint_u32(data+208)!=s->terrain_texture_width || checkpoint_u32(data+212)!=s->terrain_texture_height)return RF_FORMAT;
     for(i=0;i<3;i++)if(checkpoint_float(data+216+i*4)!=s->terrain_history_minimum[i] || checkpoint_float(data+228+i*4)!=s->terrain_history_maximum[i])return RF_FORMAT;
     admission=checkpoint_u32(data+240);maps=checkpoint_u32(data+248);core=checkpoint_u32(data+252);faces=checkpoint_u32(data+272);
-    if(admission>128 || maps>1024 || core<28 || core>12380 || faces>SCENE_TERRAIN_FACES)return RF_FORMAT;
+    if(admission>128 || maps>1024 || core<28 || core>RF_GEOMOD_HISTORY_MAX_BYTES || faces>SCENE_TERRAIN_FACES)return RF_FORMAT;
     for(i=276;i<288;i++)if(data[i])return RF_FORMAT;
     expected=SCENE_CHECKPOINT_HEADER+(uint64_t)core+admission*48+(uint64_t)maps*88+faces*2;
     if(expected!=bytes)return RF_FORMAT;
@@ -14132,7 +14132,7 @@ done:
     if(stream->terrain_authored && getenv("RF_REPLAY_AUTHORED_HISTORY_OUT")) {
         uint32_t count=0;unsigned char *data=NULL;FILE *file=NULL;int saved_status=status;
         int audit=rf_geomod_terrain_history_size(stream->terrain,&count);
-        if(!audit && count>12380) audit=RF_RANGE;
+        if(!audit && count>RF_GEOMOD_HISTORY_MAX_BYTES) audit=RF_RANGE;
         if(!audit){data=malloc(count);if(!data)audit=RF_IO;}
         if(!audit)audit=rf_geomod_terrain_history_encode(stream->terrain,data,count);
         if(!audit){file=fopen(getenv("RF_REPLAY_AUTHORED_HISTORY_OUT"),"wb");if(!file)audit=RF_IO;}

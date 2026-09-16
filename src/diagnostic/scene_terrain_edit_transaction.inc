@@ -5,7 +5,7 @@
  */
 #include "rf/geomod.h"
 #include <stdlib.h>
-#define SCENE_TERRAIN_EDIT_HISTORY_BYTES 12380u
+#define SCENE_TERRAIN_EDIT_HISTORY_BYTES RF_GEOMOD_HISTORY_MAX_BYTES
 typedef struct scene_terrain_edit_limits {
     uint32_t total_budget;
     /* Everything other than old core, clone core and this history buffer.
