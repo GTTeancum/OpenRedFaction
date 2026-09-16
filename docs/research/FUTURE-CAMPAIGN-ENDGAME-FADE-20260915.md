@@ -1,0 +1,13 @@
+# Endgame fade and callback timing
+
+12 original instruction scenarios pass in `tools/future_re/campaign_endgame_fade.py`; results `endgame-fade.json`. Actual4a73e0 scheduling,432d2e..432eb1 fade-update slice,434460 state gate and callback43e9a0 execute. Player predicates, graphics color setter and final state-request service are intercepted. No rendered output or live control behavior is claimed.
+
+4a73e0(player,duration,callback) sets player+11d8 duration float, initializes alpha+11d4 to bits33d6bf95 (small positive value), and stores callback+11dc. Null callback instead selects4a73c0. Endgame71 supplies1.5 seconds and43e9a0.
+
+In ordinary player fixture with flags+10=0, frame fade adds `simulation_dt * 255 / duration` to alpha. Callback becomes eligible only when alpha is **strictly greater than255**, not equal. Three0.5-second frames reach255 with no callback; another0.1-second frame triggers. Likewise one1.5-second frame reaches255 and needs a subsequent positive delta. A2-second frame triggers immediately. A1-second-duration sequence of four0.25-second frames behaves the same way. This boundary is executed, not inferred from nominal duration.
+
+Original434460 reads current state stack at630064[index5967a4], returningtrue only for states11 or18. Both permit transition callback in the probe. Other state13 blocks it and clamps alpha255; subsequent frames can retry after state changes. For ordinary flags, allowed completion clears alpha0 before callback43e9a0 requestsstate19. Thus this is a frame-serviced fade with state gating, not a separate asynchronous wall-time alarm.
+
+Graphics boundary50cf80 receives black RGB and increasing alpha; actual full-screen draw follows at432eb1..432ec6, outside the executed slice. The evidence supports the fade-to-black intent, but does not verify actual blended pixels. Other branches handle player flags0x100 (fade direction),0x80 (retain alpha),0x200 and0x1000 and player predicates4a4920/4a4940; these remain static only. Do not apply ordinary-flag one-shot assumptions to those untested modes.
+
+Port integration should use the shared simulation update/render loop, finite bounded duration, and explicit state eligibility. Hold terminal reason until fade completes; scene unload must cancel the callback or transfer ownership safely. Practical use of>= at completion can avoid a redundant black frame, but label it a product-first boundary choice if diverging from this executable. No desktop timers, raw original callback pointers or per-frame allocations are needed. Tests next: zero duration, repeat request, cancellation, paused state, and actual fade pixels before presenting terminal information.
