@@ -841,7 +841,16 @@ static int polygon_split_edges(const rf_geomod_vertex *vertices,uint32_t count,
             memcpy(planes[2],plane,sizeof(planes[2]));
             /* Coplanar supporting faces do not define a unique corner. */
             {uint16_t ids[3]={support->face,edges[i],cut_edge};
-             if(corner_seed_edge(support,ids,position) || !rf_geomod_plane_corner(planes,position))memcpy(cut.position,position,sizeof(position));}
+             if(corner_seed_edge(support,ids,position) || !rf_geomod_plane_corner(planes,position)) {
+                 memcpy(cut.position,position,sizeof(position));
+             }}
+            /* Enforce exact axial supports even when coincident planes leave
+             * interpolation as the fallback. A residue can flip the strict
+             * collision approach sign on a mathematically parallel sweep. */
+            {uint32_t p,a;
+             for(p=0;p<3;p++)for(a=0;a<3;a++)
+                 if(planes[p][a]!=0 && planes[p][(a+1)%3]==0 && planes[p][(a+2)%3]==0)
+                     cut.position[a]=-planes[p][3]/planes[p][a];}
         }
         for(j=0;j<2;j++) {
             cut.uv[j]=(float)((1-t)*vertices[first].uv[j]+t*vertices[last].uv[j]);
@@ -1239,6 +1248,7 @@ typedef struct geomod_face_lineage {
 typedef struct geomod_step_support {
     uint16_t edges[4096],planes[1024];
 } geomod_step_support;
+static int repair_cavity_pending_provenance(rf_geomod_storage *,rf_geomod_multi_work *,geomod_face_lineage *,geomod_step_support *);
 
 static int append_compact_lineage(rf_geomod_storage *s,const rf_geomod_vertex *v,uint32_t n,uint32_t material,uint32_t source_face,rf_geomod_multi_work *work,const uint16_t *edges,uint16_t plane_id,geomod_face_lineage *lineage,uint8_t birth)
 {
@@ -1420,6 +1430,7 @@ static inline int prepare_chronological_step(rf_geomod_storage *s,const rf_geomo
             c,cutters,count,work,current_edges,support.face,0,lineage,1);
         if(status)goto failed;
     }
+    if(cavity){status=repair_cavity_pending_provenance(s,work,lineage,previous);if(status)goto failed;}
     return RF_OK;
 failed:
     rf_geomod_storage_abort(s);return status;
@@ -1726,9 +1737,9 @@ static int partition_polygon(partition_output *out,const rf_geomod_vertex *v,con
 /* Assemble only points carrying the same unordered pair of supporting planes.
  * Reuse clipping workspace after the final subtraction. The live bank and the
  * immutable source remain untouched, including when expansion exceeds capacity. */
-static int repair_cavity_pending_lineage(rf_geomod_storage *s,rf_geomod_multi_work *work,geomod_face_lineage *lineage)
+static int repair_cavity_pending_provenance(rf_geomod_storage *s,rf_geomod_multi_work *work,geomod_face_lineage *lineage,geomod_step_support *provenance)
 {
-    uint32_t bank=s->current^1,f,e,q,r,k,n;rf_geomod_vertex polygon[64];
+    uint32_t bank=s->current^1,f,e,q,r,k,n;rf_geomod_vertex polygon[64];uint16_t polygon_edges[64];
     partition_output output={work->repair.vertices,work->repair.faces,
         s->vertex_capacity,s->face_capacity,0,0,RF_FORMAT};
     if(lineage && s->face_capacity>1024)return RF_RANGE;
@@ -1739,8 +1750,8 @@ static int repair_cavity_pending_lineage(rf_geomod_storage *s,rf_geomod_multi_wo
             const rf_geomod_vertex *b=s->vertices[bank]+face->first+(e+1)%face->count;
             uint16_t edge=work->compact_edges[face->first+e];
             double d[3],fractions[64];const rf_geomod_vertex *points[64];uint32_t axis=0,used=0,i,j;
-            if(n==64)return RF_RANGE;polygon[n++]=*a;
-            if(plane==UINT16_MAX || edge==UINT16_MAX)continue;
+            if(n==64)return RF_RANGE;polygon_edges[n]=edge;polygon[n++]=*a;
+            if(plane==UINT16_MAX || edge==UINT16_MAX || (provenance && plane==edge))continue;
             for(k=0;k<3;k++)d[k]=(double)b->position[k]-a->position[k];
             for(k=1;k<3;k++)if(fabs(d[k])>fabs(d[axis]))axis=k;
             if(d[axis]==0)return RF_FORMAT;
@@ -1765,7 +1776,7 @@ static int repair_cavity_pending_lineage(rf_geomod_storage *s,rf_geomod_multi_wo
             }
             if(used>64-n)return RF_RANGE;
             for(i=0;i<used;i++) {
-                polygon[n]=*points[i];
+                polygon_edges[n]=edge;polygon[n]=*points[i];
                 /* This face owns its texture seam: interpolate from its edge,
                  * never borrow UVs from the adjacent face's supporting point. */
                 for(j=0;j<2;j++)polygon[n].uv[j]=(float)((double)a->uv[j]+fractions[i]*((double)b->uv[j]-a->uv[j]));
@@ -1775,13 +1786,39 @@ static int repair_cavity_pending_lineage(rf_geomod_storage *s,rf_geomod_multi_wo
         {rf_geomod_face expanded=*face;uint32_t first=output.nf;
          expanded.first=0;expanded.count=n;
          if(!partition_polygon(&output,polygon,&expanded))return output.status;
-         if(lineage)memset(lineage->repaired+first,lineage->pending[f],output.nf-first);}
+         if(lineage)memset(lineage->repaired+first,lineage->pending[f],output.nf-first);
+         if(provenance) {
+             uint32_t child,v;
+             for(child=first;child<output.nf;child++) {
+                 const rf_geomod_face *cf=output.faces+child;provenance->planes[child]=plane;
+                 for(v=0;v<cf->count;v++) {
+                     const rf_geomod_vertex *a=output.vertices+cf->first+v,*b=output.vertices+cf->first+(v+1)%cf->count;
+                     uint32_t from,to,j;uint16_t support=plane;
+                     for(from=0;from<n;from++)if(!memcmp(a->position,polygon[from].position,12))break;
+                     for(to=0;to<n;to++)if(!memcmp(b->position,polygon[to].position,12))break;
+                     if(from==n || to==n)return RF_FORMAT;
+                     /* Boundary runs retain their original supporting plane.
+                      * Partition diagonals lie in this face's own plane. */
+                     support=polygon_edges[from];j=(from+1)%n;
+                     while(j!=to && polygon_edges[j]==support)j=(j+1)%n;
+                     if(j!=to)support=plane;
+                     provenance->edges[cf->first+v]=support;
+                 }
+             }
+         }}
     }
     memcpy(s->vertices[bank],output.vertices,output.nv*sizeof(*output.vertices));
     memcpy(s->faces[bank],output.faces,output.nf*sizeof(*output.faces));
     if(lineage)memcpy(lineage->pending,lineage->repaired,output.nf);
+    if(provenance) {
+        memcpy(work->compact_edges,provenance->edges,output.nv*sizeof(uint16_t));
+        memcpy(work->compact_planes,provenance->planes,output.nf*sizeof(uint16_t));
+    }
     s->nv[bank]=output.nv;s->nf[bank]=output.nf;return RF_OK;
 }
+
+static int repair_cavity_pending_lineage(rf_geomod_storage *s,rf_geomod_multi_work *work,geomod_face_lineage *lineage)
+{return repair_cavity_pending_provenance(s,work,lineage,NULL);}
 
 static int repair_cavity_pending(rf_geomod_storage *s,rf_geomod_multi_work *work)
 {return repair_cavity_pending_lineage(s,work,NULL);}
@@ -1944,7 +1981,22 @@ static inline int terrain_prepare_chronological_mesh(rf_geomod_terrain *t,uint32
     uint32_t c,i;int status;
     if(!count || count>RF_GEOMOD_CUT_LIMIT || live->editing)return RF_RANGE;
     if(used>=t->budget)return RF_RANGE;
-    status=rf_geomod_storage_open(&source,t->vc,t->fc,t->budget-(uint32_t)used,&replay);if(status)return status;
+    {
+        uint64_t bytes=sizeof(*replay)+(uint64_t)t->vc*sizeof(rf_geomod_vertex)+(uint64_t)t->fc*sizeof(rf_geomod_face);
+        unsigned char *memory;uint32_t inactive=live->current^1;
+        if(bytes>t->budget-used || bytes>UINT32_MAX)return RF_RANGE;
+        replay=calloc(1,(size_t)bytes);if(!replay)return RF_IO;
+        replay->bytes=(uint32_t)bytes;replay->vertex_capacity=t->vc;replay->face_capacity=t->fc;replay->generation=1;
+        memory=(unsigned char *)(replay+1);replay->vertices[0]=(rf_geomod_vertex *)memory;
+        replay->faces[0]=(rf_geomod_face *)(memory+(size_t)t->vc*sizeof(rf_geomod_vertex));
+        /* Borrow only the unpublished bank and immutable source. Live current
+         * geometry/tree remain intact throughout every replay prefix. */
+        replay->vertices[1]=live->vertices[inactive];replay->faces[1]=live->faces[inactive];
+        replay->vertices[2]=live->vertices[2];replay->faces[2]=live->faces[2];
+        replay->nv[0]=replay->nv[2]=source.vertex_count;replay->nf[0]=replay->nf[2]=source.face_count;
+        memcpy(replay->vertices[0],source.vertices,source.vertex_count*sizeof(*source.vertices));
+        memcpy(replay->faces[0],source.faces,source.face_count*sizeof(*source.faces));
+    }
     used+=rf_geomod_storage_bytes(replay);if(used>t->peak_bytes)t->peak_bytes=(uint32_t)used;
     lineage=calloc(1,sizeof(*lineage));support=calloc(1,sizeof(*support));
     if(!lineage || !support){status=RF_IO;goto done;}
@@ -1957,11 +2009,10 @@ static inline int terrain_prepare_chronological_mesh(rf_geomod_terrain *t,uint32
     }
     status=rf_geomod_storage_view(replay,&result);if(status)goto done;
     status=rf_geomod_storage_begin(live);if(status)goto done;
-    for(i=0;i<result.face_count;i++) {
-        const rf_geomod_face *f=result.faces+i;
-        status=rf_geomod_storage_append(live,result.vertices+f->first,f->count,f->material,f->source_face);
-        if(status){rf_geomod_storage_abort(live);goto done;}
-    }
+    i=live->current^1;
+    if(result.vertices!=live->vertices[i])memcpy(live->vertices[i],result.vertices,result.vertex_count*sizeof(*result.vertices));
+    if(result.faces!=live->faces[i])memcpy(live->faces[i],result.faces,result.face_count*sizeof(*result.faces));
+    live->nv[i]=result.vertex_count;live->nf[i]=result.face_count;
 done:
     free(support);free(lineage);rf_geomod_storage_close(&replay);return status;
 }

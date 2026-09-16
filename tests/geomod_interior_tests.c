@@ -1511,7 +1511,9 @@ int main(int argc,char **argv)
                         rf_geomod_observe_compaction(trace_compaction,compact_trace);
                     }
                     if(repeat==trace_index && path){trace=fopen(path,"wb");CHECK(trace);CHECK(fwrite("RFI1",4,1,trace)==1);rf_geomod_observe_intersections(trace_intersection,trace);}
-                    CHECK(!rf_geomod_terrain_cut_template(terrain,&shape,hit.hit.point,basis,3.75f,77));
+                    {int cut_status=rf_geomod_terrain_cut_template(terrain,&shape,hit.hit.point,basis,3.75f,77);
+                     if(cut_status)fprintf(stderr,"STRESS_REJECT cut%u status%d\n",repeat+1,cut_status);
+                     CHECK(!cut_status);}
                     rf_geomod_observe_intersections(NULL,NULL);
                     rf_geomod_observe_compaction(NULL,NULL);
                     if(compact_trace)CHECK(!fclose(compact_trace));
@@ -1535,7 +1537,8 @@ int main(int argc,char **argv)
                         puts("PASS: repaired eighth-cut face overflow preserves seven-cut live geometry and collision");
                     }
                 }
-                CHECK(!rf_geomod_terrain_cut_template(uncached,&shape,hit.hit.point,basis,3.75f,77));
+                {int status=rf_geomod_terrain_cut_template(uncached,&shape,hit.hit.point,basis,3.75f,77);
+                 if(status)fprintf(stderr,"UNCACHED_REJECT cut%u status%d\n",repeat+1,status);CHECK(!status);}
                 CHECK(!rf_geomod_terrain_get(uncached,&reference));
                 CHECK(!rf_geomod_terrain_get(terrain,&live) && live.cuts==repeat+1 && live.peak_bytes<=1024*1024);
                 CHECK(reference.mesh.vertex_count==live.mesh.vertex_count && reference.mesh.face_count==live.mesh.face_count);

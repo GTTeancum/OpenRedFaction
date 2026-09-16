@@ -1,6 +1,6 @@
 # Red Faction Xbox / PC - open work
 
-- GeoMod UV seams: Repair chronological cavity topology before enabling it; small solid/cavity UV tests pass, but the second large holey01 cavity blast exposes an uncovered edge in the isolated stress target.
+- GeoMod UV seams: Activate and verify repaired chronological replay with new save identity; small UV/collision cases and8-blast stress now pass after eliminating axial-coordinate residue, with native acceptance still pending.
 
 - PRIORITY GeoMod coverage: Expand verified authored-post destruction beyond the bounded profile; two cuts pass56 stock64MiB PC/Xbox checks and the player crosses the opened post on PC, while authored saves and broader destruction coverage remain open.
 

@@ -142,3 +142,79 @@ agreement instead of exact old polygon partition; its independent analytic
 collision queries still run against both paths. Mapping-only layout equality
 remains enforced. Next action: propagate support IDs through cavity repair and
 its partitions, then retain that provenance for the following chronological step.
+
+## Repair provenance work in progress
+
+The working tree extends cavity repair to emit face/edge support IDs alongside
+birth tags. Boundary runs retain their prior support; partition diagonals carry
+the containing face plane. Output support IDs replace the next-step cache only
+after repair succeeds. Chronological replay now calls this repair each prefix.
+This is unfinished and has NOT been promoted to the production route.
+
+The original cut2 uncovered edge no longer fails: stress cuts1..3 are closed,
+including their junction rays/body sweeps. Cut4 rejects RF_FORMAT, not RF_RANGE;
+see cavity-provenance-stress.log. The16-case prototype now fails one collision
+comparison: cavity roof-.75/split0, radius.1 sphere moving down from
+(-.00499987602,15,-.786000013), fraction baseline.540684283 versus replay.0906838626.
+It is not established which result is correct. See cavity-provenance-collision.log.
+Do not loosen the collision tolerance or call the prototype accepted. Face-tag
+unit test passes; accepted production repeated-cut coverage passes. Next: trace
+repair/partition rejection and the differing contact before further activation.
+
+## Repair tracing follow-up
+
+The cut4 failure was partition rejection of repaired face160 (six corners).
+Partition diagonals use their containing face plane as the edge support; those
+identical plane pairs do not define a unique geometric edge and must not collect
+other coplanar endpoints. Skipping that repair collection for plane==edge gets
+stress cuts1..5 through closed coverage, junction rays/body sweeps, lighting and
+near/short collision probes. The next rejection is the uncached comparison owner
+at test line1540, not the original cut4 partition. Latest primary peak at cut5 is
+1033632bytes. Do not infer the uncached rejection cause without further tracing.
+
+The small-case differing sphere contact is on the replay's x=0 cavity wall near
+(0,14,-.75), with center starting(-.00499987602,15,-.786000013), radius.1 and deltaY-10.
+Baseline instead reports a much later edge near y9.5. Actual face vertices and IDs
+are saved in cavity-contact-vertices.log. Analytic endpoint contact and the
+original query semantics still need checking; no exception to the comparison
+has been added. Fifteen cases pass; this one remains a failing test. Current
+changes remain uncommitted and the production experiment flag remains off.
+
+## Bounded replay scratch and eight-cut acceptance
+
+The uncached sixth-cut rejection was RF_RANGE. Replay previously allocated both
+private full-capacity mesh banks while the live inactive bank was unused. It now
+allocates one private bank, borrows only the live inactive bank plus immutable
+source, and alternates those two during reconstruction. The live current bank
+and collision tree remain unchanged until caller publication. Final copy skips
+identical pointers; no self-overlapping memcpy. Scratch is charged before
+allocation and released before collision-tree construction.
+
+The six-cut stress now passes with cut6 peak952960bytes. Explicit
+RF_GEOMOD_STRESS_COUNT=8 also passes, including the deliberately768-face limited
+owner's expected eighth-cut overflow and rollback. Logs replay-bank-stress.log
+and replay-bank-eight.log retain full results. No Xbox acceptance yet.
+
+The upper-rim analytic sphere/corner solution gives fraction.0906838846205 versus
+new query.0906838626 (about2.2e-8), whereas baseline reports.540684283. This supports
+the new first contact, but the comparative fixture still intentionally fails;
+need establish the boundary geometry and explicit independent contact oracle
+before changing its comparison policy. Prototype changes remain uncommitted.
+
+## Rim discrepancy resolved without a collision exception
+
+The general double-precision finite-segment capsule oracle is two-sided and
+cannot decide the recovered one-sided face admission. collision_sphere_plane
+requires strictly positive approach. Replay introduced x=-5.55e-17 at an intended
+x=0 face, tilting its computed plane enough to admit a parallel sweep. Applying
+exact axial supporting-plane coordinates after the corner solver AND its
+coincident-plane interpolation fallback removes the residue. This uses exact
+zero coefficients, not proximity welding or a changed collision tolerance.
+
+All16 prototype cases now pass unchanged collision comparisons; no earlier-hit
+exception is accepted. The two-sided edge oracle remains diagnostic only.
+Seven rebuilt focused tests pass. Final explicit eight-cut experimental stress
+also passes: repaired-final-build.log and repaired-final-eight.log. Replay
+remains experimental until live source identity/save policy and native checks.
+This supersedes the earlier suggestion that the new rim contact was acceptable:
+the analytic contact existed, but the original one-sided admission excluded it.
