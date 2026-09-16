@@ -245,3 +245,22 @@ does not prove temporal texture stability, audible effects or retail fidelity.
 UV stability is established by the bounded numeric fixtures, not this image.
 Broader shapes, extended repeated cuts, visual fidelity and native reset-zero
 acceptance after this activation remain open.
+
+
+## Axis coverage and full-suite acceptance
+
+The public API UV fixture now applies handedness-preserving cyclic axis
+permutations to source, cutters, kernel and second-cut bounds. All48 cases
+are required to succeed and each must compare at least one retained corner.
+The48 accepted cases contain201 exact surviving corners with zero UV changes.
+Registered geomod_public_uv_lineage in CTest so this former diagnostic cannot
+silently regress after integration. These are synthetic two-cut cases, not
+general arbitrary-rotation, authored-world or visual-fidelity acceptance.
+
+A full rebuild followed by all104 existing tests found only the intentionally
+changed authored-identity fingerprint still pinned to policy1. Updated that
+expected identity to the policy2 fingerprint already independently observed
+in the PC/Xbox continuation report. All105 registered tests now pass, including
+the new public UV test. Logs: activation-full-build.log, activation-full-tests.log,
+activation-regression-build.log and activation-regression-tests.log under
+artifacts/authored-post-live. No production source changes in this follow-up.

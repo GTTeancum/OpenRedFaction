@@ -1,6 +1,6 @@
 # Red Faction Xbox / PC - open work
 
-- GeoMod UV seams: Broaden chronological reconstruction beyond current fixtures; live two-cut reload/next-blast passes58 stock64MiB Xbox checks, with stable UVs and old-save rejection verified on PC.
+- GeoMod UV seams: Broaden chronological reconstruction beyond current fixtures; all105 tests and48 axis-oriented UV cases pass, with live two-cut reload/next-blast passing58 stock64MiB Xbox checks.
 
 - PRIORITY GeoMod coverage: Expand verified authored-post destruction beyond the bounded profile; two cuts pass56 stock64MiB PC/Xbox checks and the player crosses the opened post on PC, while authored saves and broader destruction coverage remain open.
 

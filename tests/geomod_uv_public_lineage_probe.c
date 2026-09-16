@@ -28,16 +28,16 @@ static void box(const float lo[3],const float hi[3],int inward,
         }
     }
 }
-static int target(const rf_geomod_mesh_view *m,const rf_geomod_face *f)
+static int target(const rf_geomod_mesh_view *m,const rf_geomod_face *f,unsigned rotation)
 {
     unsigned i;if(f->material!=47 || f->source_face!=UINT32_MAX)return 0;
     for(i=0;i<f->count;i++) {
         const float *p=m->vertices[f->first+i].position;
-        if(fabs((double)p[0]+p[1]-10.5)>1e-5)return 0;
+        if(fabs((double)p[rotation]+p[(rotation+1)%3]-10.5)>1e-5)return 0;
     }
     return 1;
 }
-static int run(unsigned cavity,float roof,float split,unsigned *comparisons,unsigned *changed)
+static int run(unsigned cavity,float roof,float split,unsigned rotation,unsigned *comparisons,unsigned *changed)
 {
     rf_geomod_vertex sourcev[24],quad[24],cutv[36],saved[256];
     rf_geomod_face sourcef[6],qf[6],cutf[12];
@@ -61,12 +61,22 @@ static int run(unsigned cavity,float roof,float split,unsigned *comparisons,unsi
             cutv[id*3+k].position[1]=10.25f-a.position[0]+a.position[1];
         }
     }
+    /* Cyclic coordinate permutations preserve handedness and exercise each
+     * possible projection axis with identical geometric relationships. */
+    if(rotation) {
+        for(j=0;j<24+36+3;j++) {
+            float *p=j<24?sourcev[j].position:j<60?cutv[j-24].position:
+                j==60?kernel:j==61?center:extent;
+            float original[3];memcpy(original,p,sizeof(original));
+            for(k=0;k<3;k++)p[(k+rotation)%3]=original[k];
+        }
+    }
     status=rf_geomod_terrain_open(&source,filters,&generated,cavity,4096,800,1048576,&t);
     if(status)goto done;
     status=rf_geomod_terrain_set_mapping(t,256,256);if(status)goto done;
     stage="first-star";status=rf_geomod_terrain_cut_star(t,&cut,kernel);if(status)goto done;
     status=rf_geomod_terrain_get(t,&view);if(status)goto done;
-    for(f=0;f<view.mesh.face_count;f++)if(target(&view.mesh,view.mesh.faces+f)) {
+    for(f=0;f<view.mesh.face_count;f++)if(target(&view.mesh,view.mesh.faces+f,rotation)) {
         const rf_geomod_face *face=view.mesh.faces+f;
         if(face->count>256-n){status=-2;goto done;}
         memcpy(saved+n,view.mesh.vertices+face->first,face->count*sizeof(*saved));n+=face->count;
@@ -74,7 +84,7 @@ static int run(unsigned cavity,float roof,float split,unsigned *comparisons,unsi
     if(!n){stage="no-first-target";status=-2;goto done;}
     stage="second-box";status=rf_geomod_terrain_cut_box(t,center,extent,48);if(status)goto done;
     status=rf_geomod_terrain_get(t,&view);if(status)goto done;
-    for(f=0;f<view.mesh.face_count;f++)if(target(&view.mesh,view.mesh.faces+f)) {
+    for(f=0;f<view.mesh.face_count;f++)if(target(&view.mesh,view.mesh.faces+f,rotation)) {
         const rf_geomod_face *face=view.mesh.faces+f;
         for(j=0;j<face->count;j++) {
             const rf_geomod_vertex *v=view.mesh.vertices+face->first+j;
@@ -91,21 +101,21 @@ static int run(unsigned cavity,float roof,float split,unsigned *comparisons,unsi
         }
     }
 done:
-    printf("PUBLIC_UV_CASE cavity=%u roof=%.9g split=%.9g status=%d stage=%s comparisons=%u changed=%u\n",
-        cavity,roof,split,status,stage,*comparisons,*changed);
+    printf("PUBLIC_UV_CASE rotation=%u cavity=%u roof=%.9g split=%.9g status=%d stage=%s comparisons=%u changed=%u\n",
+        rotation,cavity,roof,split,status,stage,*comparisons,*changed);
     rf_geomod_terrain_close(&t);return status;
 }
 int main(void)
 {
     static const float splits[]={0,.1f,.2f,.3f},roofs[]={-.75f,0,.25f};
-    unsigned c,r,x,total=0,changed=0,accepted=0,rejected=0;
-    for(c=0;c<2;c++)for(r=0;r<(c?3u:1u);r++)for(x=0;x<4;x++) {
-        unsigned compared=0,delta=0;int status=run(c,roofs[r],splits[x],&compared,&delta);
-        if(status)++rejected;else ++accepted;
+    unsigned c,r,x,rotation,total=0,changed=0,accepted=0,rejected=0;
+    for(rotation=0;rotation<3;rotation++)for(c=0;c<2;c++)for(r=0;r<(c?3u:1u);r++)for(x=0;x<4;x++) {
+        unsigned compared=0,delta=0;int status=run(c,roofs[r],splits[x],rotation,&compared,&delta);
+        if(status || !compared)++rejected;else ++accepted;
         total+=compared;changed+=delta;
     }
     printf("PUBLIC_UV_SUMMARY accepted=%u rejected=%u comparisons=%u changed=%u\n",accepted,rejected,total,changed);
     if(changed)return 1;
-    if(!accepted || !total)return 2;
+    if(accepted!=48 || rejected || total<48)return 2;
     puts("NO_COUNTEREXAMPLE in this bounded closed-terrain fixture; not a general lineage pass");return 0;
 }

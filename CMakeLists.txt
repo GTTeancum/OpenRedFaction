@@ -561,6 +561,7 @@ add_test(NAME scene_authored_clutter_scope COMMAND rf_scene_authored_clutter_sco
 # Public terrain integration probe; diagnostic exit1 means UV drift reproduced.
 add_executable(rf_geomod_uv_public_lineage_probe tests/geomod_uv_public_lineage_probe.c)
 target_link_libraries(rf_geomod_uv_public_lineage_probe PRIVATE rf_core)
+add_test(NAME geomod_public_uv_lineage COMMAND rf_geomod_uv_public_lineage_probe)
 
 add_executable(rf_geomod_face_lineage_tests tests/geomod_face_lineage_tests.c)
 target_link_libraries(rf_geomod_face_lineage_tests PRIVATE rf_core)
@@ -573,4 +574,3 @@ add_test(NAME geomod_chronological_solid COMMAND rf_geomod_chronological_solid_t
 # Extended eight-cut diagnostic uses the same chronological path as gameplay.
 add_executable(rf_geomod_chronological_stress_probe tests/geomod_interior_tests.c tools/pc_raster.c src/core/geomod.c)
 target_link_libraries(rf_geomod_chronological_stress_probe PRIVATE rf_core)
-
