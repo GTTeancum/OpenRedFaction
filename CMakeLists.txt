@@ -565,3 +565,7 @@ target_link_libraries(rf_geomod_uv_public_lineage_probe PRIVATE rf_core)
 add_executable(rf_geomod_face_lineage_tests tests/geomod_face_lineage_tests.c)
 target_link_libraries(rf_geomod_face_lineage_tests PRIVATE rf_core)
 add_test(NAME geomod_face_lineage COMMAND rf_geomod_face_lineage_tests)
+
+add_executable(rf_geomod_chronological_solid_tests tests/geomod_chronological_solid_tests.c)
+target_link_libraries(rf_geomod_chronological_solid_tests PRIVATE rf_core)
+add_test(NAME geomod_chronological_solid COMMAND rf_geomod_chronological_solid_tests)

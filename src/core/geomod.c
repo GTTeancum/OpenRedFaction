@@ -1272,7 +1272,7 @@ static int append_compact_lineage(rf_geomod_storage *s,const rf_geomod_vertex *v
     if(!status && lineage)lineage->pending[s->nf[bank]-1]=birth;
     return status;
 }
-static int append_compact(rf_geomod_storage *s,const rf_geomod_vertex *v,uint32_t n,
+static inline int append_compact(rf_geomod_storage *s,const rf_geomod_vertex *v,uint32_t n,
     uint32_t material,uint32_t source_face,rf_geomod_multi_work *work,const uint16_t *edges,uint16_t plane_id)
 {return append_compact_lineage(s,v,n,material,source_face,work,edges,plane_id,NULL,0);}
 static int mesh_polygon_bounds_separated(const rf_geomod_mesh_view *mesh,const rf_geomod_vertex *v,uint32_t count)
@@ -1289,16 +1289,16 @@ static int mesh_polygon_bounds_separated(const rf_geomod_mesh_view *mesh,const r
 /* Process one outward face through the cutter union. owner==UINT32_MAX is
  * original terrain; otherwise this is an outward cutter face, reversed only
  * after all exclusions, so the boundary policy sees the cutter's true normal. */
-static int subtract_history_face(rf_geomod_storage *s,const rf_geomod_vertex *vertices,
+static int subtract_history_face_range(rf_geomod_storage *s,const rf_geomod_vertex *vertices,
     uint32_t count,uint32_t material,uint32_t source_face,uint32_t owner,
-    const rf_geomod_mesh_view *cutters,uint32_t cutter_count,rf_geomod_multi_work *work,const uint16_t *edges,uint16_t face_id)
+    const rf_geomod_mesh_view *cutters,uint32_t cutter_count,rf_geomod_multi_work *work,const uint16_t *edges,uint16_t face_id,uint32_t first_cutter,geomod_face_lineage *lineage,uint8_t birth)
 {
     uint32_t bank=0,pieces=1,c,i,j;int status;
     geomod_corner_support support={work,face_id,cutters};
     memcpy(work->vertices[0],vertices,count*sizeof(*vertices));
     if(edges)memcpy(work->edges[0],edges,count*sizeof(*edges));
     work->fragments[0][0]=(rf_geomod_fragment){0,count};
-    for(c=0;c<cutter_count && pieces;c++) {
+    for(c=first_cutter;c<cutter_count && pieces;c++) {
         uint32_t part,parts=work->star_count[c]?work->star_count[c]:1;
         int policy=owner==UINT32_MAX?0:c<owner?1:2;
         if(c==owner || mesh_polygon_bounds_separated(cutters+c,vertices,count))continue;
@@ -1337,9 +1337,48 @@ static int subtract_history_face(rf_geomod_storage *s,const rf_geomod_vertex *ve
                 for(k=0;k<f->count;k++)work->edges[bank][f->first+k]=saved[(2*f->count-2-k)%f->count];
             }
         }
-        status=append_compact(s,v,f->count,material,source_face,work,edges?work->edges[bank]+f->first:NULL,face_id);if(status)return status;
+        status=append_compact_lineage(s,v,f->count,material,source_face,work,edges?work->edges[bank]+f->first:NULL,face_id,lineage,birth);if(status)return status;
     }
     return RF_OK;
+}
+
+static int subtract_history_face(rf_geomod_storage *s,const rf_geomod_vertex *vertices,
+    uint32_t count,uint32_t material,uint32_t source_face,uint32_t owner,
+    const rf_geomod_mesh_view *cutters,uint32_t cutter_count,rf_geomod_multi_work *work,const uint16_t *edges,uint16_t face_id)
+{return subtract_history_face_range(s,vertices,count,material,source_face,owner,cutters,cutter_count,work,edges,face_id,0,NULL,0);}
+
+/* One chronological outward-solid step in a PRIVATE replay owner. Previous
+ * committed surfaces retain interpolated UV; only the newest cutter creates
+ * birth-tag1 surfaces. Plane caches for the entire prefix are caller prepared.
+ * Mapping and commit follow separately. Cavity support provenance is separate. */
+static inline int prepare_solid_step(rf_geomod_storage *s,const rf_geomod_mesh_view *cutters,
+    uint32_t count,rf_geomod_multi_work *work,geomod_face_lineage *lineage)
+{
+    rf_geomod_mesh_view old,source;uint32_t i,n,c;int status;
+    if(!s || !work || !lineage || !cutters || !count || count>RF_GEOMOD_CUT_LIMIT || s->editing)return RF_RANGE;
+    source=(rf_geomod_mesh_view){s->vertices[2],s->faces[2],s->nv[2],s->nf[2],0};
+    status=convex_mesh_planes(&source,work->source_planes);if(status)return status;
+    status=rf_geomod_storage_view(s,&old);if(status)return status;
+    c=count-1;status=rf_geomod_storage_begin(s);if(status)return status;
+    for(i=0;i<old.face_count;i++) {
+        const rf_geomod_face *f=old.faces+i;
+        status=subtract_history_face_range(s,old.vertices+f->first,f->count,f->material,
+            f->source_face,UINT32_MAX,cutters,count,work,NULL,0,c,lineage,0);
+        if(status)goto failed;
+    }
+    for(i=0;i<cutters[c].face_count;i++) {
+        const rf_geomod_face *f=cutters[c].faces+i;
+        status=rf_geomod_interior_face(cutters[c].vertices+f->first,f->count,
+            work->source_planes,source.face_count,work->split.vertices,64*32,&n);
+        if(status)goto failed;if(!n)continue;
+        reverse_vertices(work->split.vertices,n);
+        status=subtract_history_face_range(s,work->split.vertices,n,f->material,UINT32_MAX,
+            c,cutters,count,work,NULL,0,0,lineage,1);
+        if(status)goto failed;
+    }
+    return RF_OK;
+failed:
+    rf_geomod_storage_abort(s);return status;
 }
 
 static int prepare_cuts(rf_geomod_storage *s,
@@ -1825,14 +1864,14 @@ int rf_geomod_terrain_set_mapping(rf_geomod_terrain *t,uint32_t width,uint32_t h
     if(!t || t->count || !width || !height || width>INT32_MAX || height>INT32_MAX)return RF_RANGE;
     t->mapping_width=width;t->mapping_height=height;return RF_OK;
 }
-static int terrain_map_pending(rf_geomod_terrain *t)
+static int terrain_map_pending_lineage(rf_geomod_terrain *t,const geomod_face_lineage *lineage)
 {
     rf_geomod_storage *s=t->mesh;uint32_t bank=s->current^1,i,j,k;int status;
     if(!t->mapping_width)return RF_OK;
     for(i=0;i<s->nf[bank];i++) {
         const rf_geomod_face *f=s->faces[bank]+i;double normal[3]={0},length=0;float n[3];
         rf_geomod_vertex *v=s->vertices[bank]+f->first;
-        if(f->source_face!=UINT32_MAX)continue;
+        if(f->source_face!=UINT32_MAX || (lineage && !lineage->pending[i]))continue;
         for(j=0;j<f->count;j++)for(k=0;k<3;k++) {
             const float *a=v[j].position,*b=v[(j+1)%f->count].position;
             normal[k]+=(double)a[(k+1)%3]*b[(k+2)%3]-(double)a[(k+2)%3]*b[(k+1)%3];
@@ -1847,6 +1886,9 @@ static int terrain_map_pending(rf_geomod_terrain *t)
     }
     return RF_OK;
 }
+static int terrain_map_pending(rf_geomod_terrain *t)
+{return terrain_map_pending_lineage(t,NULL);}
+
 typedef struct terrain_pending {
     rf_geomod_mesh_view mesh;rf_collision_tree tree;uint32_t bank,count;
 } terrain_pending;

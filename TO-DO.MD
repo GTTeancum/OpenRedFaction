@@ -1,6 +1,6 @@
 # Red Faction Xbox / PC - open work
 
-- GeoMod UV seams: Implement chronological reconstruction using the newly tested face-birth tags; the public terrain probe still reproduces10 shifted corners and live texture preservation remains unfinished.
+- GeoMod UV seams: Finish chronological reconstruction; the solid prototype preserves UVs and matches5808 paired collision queries, but two shared baseline closure failures, cavity support and live/history integration remain open.
 
 - PRIORITY GeoMod coverage: Expand verified authored-post destruction beyond the bounded profile; two cuts pass56 stock64MiB PC/Xbox checks and the player crosses the opened post on PC, while authored saves and broader destruction coverage remain open.
 

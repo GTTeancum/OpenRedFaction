@@ -35,3 +35,44 @@ not a texture fix or Xbox acceptance. Chronological old-face clipping, retained
 support-plane provenance, new-face projection and transactional history replay
 remain to connect. Existing resident-memory accounting is unchanged until a
 caller opts into the separately owned scratch.
+
+## Chronological solid prototype
+
+Added range-bounded subtraction and prepare_solid_step for a private replay
+owner. Old committed faces subtract only the newest cutter, retaining existing
+UV interpolation and winding. The newest cutter is clipped against immutable
+source and preceding cutters; optional birth tags prevent old/new compaction.
+Selective mapping projects only new-tag faces after compaction. Full rebuild
+entry points remain unchanged; no live terrain uses this prototype yet.
+
+geomod_chronological_solid_tests reconstructs the actual two-cut history from the
+public regression's immutable source using these steps. Four outward-solid cases
+compare8 surviving exact corners, with zero UV changes (the original public
+full-rebuild fixture changes2 of these). Cavity cases are explicitly excluded
+from this prototype and remain to implement, not claimed fixed.
+
+The strict rf_geomod_seed_adjacency check returns RF_FORMAT for all four existing
+full-rebuild meshes AND all four chronological meshes. Initial failure output
+was investigated against the baseline rather than treated as proof of a new
+crack. Current test prints this diagnostic; its passing scope is inherited UV,
+not manifold topology or collision equivalence. Shared-edge coverage/geometry
+validation remains required before live integration. No native acceptance.
+
+## Prototype geometry comparison
+
+The established interior-fixture geometric edge-coverage algorithm was applied
+with its unchanged1e-6 diagnostic distance and T-junction subdivision. Both full
+rebuild and chronological solid prototype pass splits0/.2 and fail splits.1/.3.
+Detailed failure output remains in solid-coverage-detail.log. This is an existing
+coverage problem in this synthetic fixture, not proof of full topology validity.
+The prototype test asserts matching coverage outcomes, explicitly retaining those
+two known failures; it does not relabel them as manifold success.
+
+Actual rf_geomod_collision_faces/tree queries compare each full-rebuild and
+chronological output:726 rays and726 radius.1 sphere sweeps per case,5808 paired
+queries total. Hit/miss and first-contact fraction agree within1e-5 in all four
+cases;8 inherited exact corners retain UVs. These fixed-grid queries cannot prove
+all collision equivalence. Results are in solid-collision-comparison.log.
+The live mapper still uses the old path. Fixing support-plane/edge provenance,
+adding cavity chronological replay and integrating budgeted transactional history
+reconstruction remain required before production acceptance.
