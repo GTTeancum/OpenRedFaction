@@ -470,7 +470,9 @@ int rf_model_file_vertex(const rf_model_file *model,const rf_model_batch *batch,
 {
     rf_model_vertex value;uint8_t raw[32],links[8];uint32_t i,j;float f;int status;
     if(!model || !model->archive || !batch || !vertex || index>=batch->vertices)return RF_RANGE;
-    if(batch->format_bits!=0x518c41)return RF_FORMAT;
+    /* Both shipped descriptors use these serialized float/16-bit regions.
+     * Original static CPU52e11b stream consumption is descriptor-independent. */
+    if(batch->format_bits!=0x518c41 && batch->format_bits!=0x110c21)return RF_FORMAT;
     status=batch_read(model,batch,0,index,12,raw);if(status)return status;
     status=batch_read(model,batch,1,index,12,raw+12);if(status)return status;
     status=batch_read(model,batch,2,index,8,raw+24);if(status)return status;
@@ -506,7 +508,9 @@ int rf_model_file_triangle(const rf_model_file *model,const rf_model_batch *batc
 {
     rf_model_triangle value;uint8_t raw[8];uint32_t i;int status;
     if(!model || !model->archive || !batch || !triangle || index>=batch->triangles)return RF_RANGE;
-    if(batch->format_bits!=0x518c41)return RF_FORMAT;
+    /* Both shipped descriptors use these serialized float/16-bit regions.
+     * Original static CPU52e11b stream consumption is descriptor-independent. */
+    if(batch->format_bits!=0x518c41 && batch->format_bits!=0x110c21)return RF_FORMAT;
     status=batch_read(model,batch,3,index,8,raw);if(status)return status;
     for(i=0;i<3;++i) {
         value.indices[i]=(uint16_t)((uint32_t)raw[i*2]|(uint32_t)raw[i*2+1]<<8);
@@ -519,7 +523,9 @@ int rf_model_file_vertex_reuse(const rf_model_file *model,const rf_model_batch *
 {
     uint8_t raw[2];int32_t value;int status;
     if(!model || !model->archive || !batch || !distance || index>=batch->vertices)return RF_RANGE;
-    if(batch->format_bits!=0x518c41)return RF_FORMAT;
+    /* Both shipped descriptors use these serialized float/16-bit regions.
+     * Original static CPU52e11b stream consumption is descriptor-independent. */
+    if(batch->format_bits!=0x518c41 && batch->format_bits!=0x110c21)return RF_FORMAT;
     status=batch_read(model,batch,5,index,2,raw);if(status)return status;
     value=(int32_t)((uint32_t)raw[0]|(uint32_t)raw[1]<<8);
     if(value&32768)value-=65536;

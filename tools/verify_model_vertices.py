@@ -29,7 +29,7 @@ for archive in json.loads((root/'artifacts/inventory.json').read_text())['files'
             for lod_index,lod in enumerate(section.get('lods',[])):
                 for bi in range(lod['batches']):
                     fmt=struct.unpack_from('<I',raw,lod['data_offset']+lod['data_bytes']+4+bi*18+14)[0]
-                    if fmt!=0x518c41:formats.append(dict(submesh=section['name'],lod=lod_index,batch=bi,format=hex(fmt)))
+                    if fmt not in (0x518c41,0x110c21):formats.append(dict(submesh=section['name'],lod=lod_index,batch=bi,format=hex(fmt)))
         if formats:
             assert args.static,entry['name']
             unsupported.append(dict(model=entry['name'],batches=formats))
@@ -45,7 +45,7 @@ for archive in json.loads((root/'artifacts/inventory.json').read_text())['files'
                     lod_vertices+=v;lod_triangles+=t
                     slot=struct.unpack_from('<i',raw,start+bi*56+32)[0]
                     material_lines.append(f"M {li} {bi} {material_base+lod['textures'][slot]['slot']}")
-                    assert fmt==0x518c41
+                    assert fmt in (0x518c41,0x110c21)
                     sizes=[p,p,uv,ix,t*16 if lod['flags']&32 else 0,extra,links,lod['unknown']*2 if lod['flags']&1 else 0]
                     regions=[]
                     for size in sizes:

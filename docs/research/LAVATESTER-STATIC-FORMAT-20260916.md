@@ -1,0 +1,11 @@
+# L5S2 authored model load blocker
+
+Lava fixture failed before frame0 at campaign stage13/campaign_clutter_render_open with RF_FORMAT. Independent existing model probes reproduce the exact failure: LavaTester01.v3m LOD0/batch0/vertex0 is rejected by rf_model_file_vertex's single-descriptor gate. Its format is0x110c21; accepted format was0x518c41. This is not memory exhaustion. Collision-resource and static-tags ownership already pass for this asset.
+
+The original569920 loader retains serialized region lengths and installs pointers without translating the float streams;569d20 only stores the descriptor. Existing documentation had identified23 static batches110c21 with12-byte position/normal,8-byte UV/triangle/link and2-byte reuse regions. New tools/verify_static_format_110c21.py feeds the first eight actual LavaTester vertices/UVs/reuse distances to the unchanged original CPU vertex loop52e11b..52e438 with each descriptor. Both772-byte output records are bit-identical. This proves that bounded consumer's stream interpretation, not full original renderer backend/material dispatch. The original fullstaticcollision work is separately documented in DEATH-LIFECYCLE.md.
+
+Minimal shared change accepts the two observed descriptors in vertex, triangle and reuse readers. Existing region bounds, finite position/UV, triangle index and backward reuse checks remain intact; all other descriptors still reject. No resource cap, actor population, archive, model or room substitution changes.
+
+Focused Release model probe rebuild passes. Full installed static audit:427models,1138batches,58104vertices,47258triangles,760 resident LODs,760 exact-budget loads and760 short-budget rejections; no unsupported models. Every decoded vertex/triangle/reuse byte is independently checked against archive traversal. Existing animated regression:95models,599batches,85866vertices,99214triangles,170 exact/short budget checks. Authored nonfinite normals are still preserved, including246 in LavaTester; no fabricated normal repair.
+
+LavaTester full static resource now opens successfully:10parts,10LODs,52materials,6collision spheres,68768bytes. This is resource-level acceptance only. A fresh full PC/Xbox build and genuine L5S2 gameplay run remain primary-owned validation; no playable-load claim is made yet.
