@@ -30,6 +30,8 @@ def main():
     parser.add_argument('--shallow-oblique', action='store_true', help='Use an oblique second shallow-region limit')
     parser.add_argument('--shallow-two-limits', action='store_true', help='Use two intersecting authored shallow-region fixtures')
     parser.add_argument('--shallow-fixture', action='store_true', help='DEV depth.75 authored-region fixture shared with PC')
+    parser.add_argument('--geomod-checkpoint-in', type=Path, help='Load a DEV destruction checkpoint before playback')
+    parser.add_argument('--geomod-checkpoint-out', action='store_true', help='Capture bounded PC/Xbox destruction checkpoints and compare bytes')
     parser.add_argument('--terrain-test-light', action='store_true', help='DEV crater diagnostic light during frames1000..1999')
     parser.add_argument('--frames', type=int, default=180)
     parser.add_argument('--seconds', type=int, default=180, help='Guest wall-clock deadline,30..3600 seconds (default180)')
@@ -61,6 +63,9 @@ def main():
         parser.error('--shallow-fixture requires --dev-room')
     if args.terrain_test_light and not args.dev_room:
         parser.error('--terrain-test-light requires --dev-room')
+    if (args.geomod_checkpoint_in or args.geomod_checkpoint_out) and not args.dev_room:
+        parser.error('GeoMod checkpoints require --dev-room')
+    checkpoint = args.geomod_checkpoint_in is not None or args.geomod_checkpoint_out
     payload = None
     if args.input:
         payload = args.input.read_bytes()
@@ -100,6 +105,8 @@ def main():
     env = {k: v for k, v in os.environ.items() if not k.startswith('RF_REPLAY_')}
     env.update(RF_REPLAY_LEVEL=args.level, RF_REPLAY_ARCHIVE=args.archive)
     if args.dev_room:env['RF_REPLAY_DEV_ROOM']='1'
+    if checkpoint:env['RF_REPLAY_GEOMOD_CHECKPOINT_OUT']=str(run/'pc-checkpoint.rfds')
+    if args.geomod_checkpoint_in:env['RF_REPLAY_GEOMOD_CHECKPOINT_IN']=str(args.geomod_checkpoint_in.resolve())
     if args.terrain_test_light:env['RF_REPLAY_TERRAIN_TEST_LIGHT']='1'
     if args.shallow_fixture:env['RF_REPLAY_SHALLOW_FIXTURE']='3' if args.shallow_oblique else '2' if args.shallow_two_limits else '1'
     report['shallow_fixture']=args.shallow_fixture
@@ -146,6 +153,8 @@ def main():
     saved[light_flag.name]=light_flag.read_bytes() if light_flag.exists() else None
     shallow_flag=disc/'shallow-fixture.flag'
     saved[shallow_flag.name]=shallow_flag.read_bytes() if shallow_flag.exists() else None
+    for name in ('geomod-checkpoint.bin','geomod-checkpoint-out.flag'):
+        path=disc/name;saved[name]=path.read_bytes() if path.exists() else None
     # Persist restoration bytes before mutating the disc, including absent files.
     (run / 'disc-restore.json').write_text(json.dumps({
         name: data.hex() if data is not None else None for name, data in saved.items()}))
@@ -175,6 +184,8 @@ def main():
             (disc / name).unlink(missing_ok=True)
         (disc / 'campaign-spawn.flag').write_bytes(b'')
         if args.dev_room:(disc/'dev-room.flag').write_bytes(b'')
+        if checkpoint:(disc/'geomod-checkpoint-out.flag').write_bytes(b'')
+        if args.geomod_checkpoint_in:(disc/'geomod-checkpoint.bin').write_bytes(args.geomod_checkpoint_in.read_bytes())
         if args.shallow_fixture:(disc/'shallow-fixture.flag').write_bytes(b'3' if args.shallow_oblique else b'2' if args.shallow_two_limits else b'')
         if args.terrain_test_light:(disc/'terrain-test-light.flag').write_bytes(b'')
         (disc / 'campaign-level.bin').write_bytes(args.archive.encode().ljust(64, b'\0') + args.level.encode().ljust(64, b'\0'))
@@ -296,6 +307,25 @@ dvd_path = '{root.as_posix()}/build/xbox/redfaction-diagnostic.iso'
             edits=snap['symbols']['rf_scene_terrain_edit_times']['words']
             (run/'terrain-edit-times.json').write_text(json.dumps([dict(zip(('frame','cut_ms','bind_ms','debris_prepare_ms','debris_spawn_ms'),edits[i:i+5])) for i in range(0,40,5) if edits[i]],indent=2)+'\n')
             report['checks'] = {}
+            if checkpoint:
+                state=words(monitor,symbol('rf_scene_geomod_checkpoint_state'),4)
+                memory=words(monitor,symbol('rf_scene_geomod_checkpoint_memory'),2)
+                pointer=words(monitor,symbol('rf_scene_geomod_checkpoint_data'),1)[0]
+                assert state[0]==0 and state[3]==1 and 288<=state[1]<=110524 and pointer,'Checkpoint export failed'
+                data=bytearray()
+                for offset in range(0,state[1],4096):
+                    count=(min(4096,state[1]-offset)+3)//4
+                    data.extend(struct.pack('<'+'I'*count,*words(monitor,pointer+offset,count)))
+                data=bytes(data[:state[1]])
+                (run/'xbox-checkpoint.rfds').write_bytes(data)
+                expected=(run/'pc-checkpoint.rfds').read_bytes()
+                value=2166136261
+                for byte in data:value=((value^byte)*16777619)&0xffffffff
+                report['checks']['GEOMOD_CHECKPOINT']=dict(equal=data==expected,state=state,memory=memory,
+                    sha256=hashlib.sha256(data).hexdigest(),pc_sha256=hashlib.sha256(expected).hexdigest())
+                assert value==state[2],'Checkpoint readback hash mismatch'
+                assert 0<memory[0]<=memory[1]<=110524,'Checkpoint external memory budget'
+                assert data==expected,'PC/Xbox destruction checkpoint differs'
             transition_rows=[line.split()[1:] for line in pc.stdout.splitlines() if line.startswith('LEVEL_TRANSITION ')]
             native_transition=words(monitor,symbol('rf_xbox_level_transitions'),4)
             target=struct.pack('<16I',*words(monitor,symbol('rf_xbox_transition_target'),16)).split(b'\0')[0].decode('ascii')

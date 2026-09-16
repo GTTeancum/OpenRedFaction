@@ -526,6 +526,7 @@ typedef struct scene_impact_owner {
     struct {rf_explosion_clock clock;uint32_t slots[6];} instances[8];
 } scene_impact_owner;
 typedef struct scene_stream {
+    unsigned char terrain_checkpoint_identity[128];uint32_t terrain_checkpoint_loaded;
     scene_terrain_noise_owner *terrain_noise;uint32_t terrain_shadow_reference,terrain_test_light;
     scene_terrain_draw_mesh *terrain_draw;
     scene_debris_pool *debris;
@@ -565,6 +566,11 @@ typedef struct scene_stream {
     rf_visibility_camera particle_camera;scene_particle_workspace *particle_workspace;uint32_t particle_frame;
 } scene_stream;
 static scene_stream *particle_draw_stream;
+unsigned char *rf_scene_geomod_checkpoint_data;
+uint32_t rf_scene_geomod_checkpoint_state[4]; /* status,bytes,FNV1a,ready; retained native output. */
+uint32_t rf_scene_geomod_checkpoint_memory[2]; /* external blob resident/peak, excludes core charged scratch. */
+static int scene_checkpoint_registered(scene_stream *);
+
 uint32_t rf_scene_lightmap_regeneration[8]; /* jobs,ambient,shadow callbacks,workspace bytes,RGB hash,deferred,status,failing stage */
 uint32_t rf_scene_lightmap_regeneration_test;
 static int scene_light_regenerate(scene_stream *,uint32_t,const rf_lightmap_mapping *,const rf_lightmap_sample_plane *,unsigned char *,uint32_t *,rf_vfx_light_source *);
@@ -587,13 +593,14 @@ int rf_scene_prepare_lightmaps(rf_lightmaps *maps)
     scene_stream *s=particle_draw_stream;rf_image *images;
     if(!s || !s->terrain || s->terrain_atlas_registered)return RF_OK;
     if(!maps || !maps->images || maps->count>=256)return RF_RANGE;
+    if(s->terrain_checkpoint_loaded==2 && maps->count!=s->terrain_atlas_index)return RF_FORMAT;
     images=calloc(maps->count+1,sizeof(*images));if(!images)return RF_IO;
     memcpy(images,maps->images,maps->count*sizeof(*images));
     s->terrain_atlas_index=maps->count;images[maps->count]=s->terrain_atlas;
     free(maps->images);maps->images=images;maps->count++;
     maps->allocated_bytes+=sizeof(*images)+s->terrain_atlas.bytes;s->terrain_atlas_registered=1;
     rf_scene_terrain_atlas[7]=s->terrain_atlas_index;
-    return RF_OK;
+    return scene_checkpoint_registered(s);
 }
 int rf_scene_update_lightmaps(rf_lightmaps *maps)
 {
@@ -8934,7 +8941,7 @@ static int scene_terrain_lighting(scene_stream *s,const rf_geomod_terrain_view *
 {
     scene_terrain_noise_owner *owner=s->terrain_noise;uint32_t i,j,k,f,remaining=512*512,processed=0;int status;
     if(s->terrain_shadow_reference)return scene_terrain_shadow_lighting(s,terrain);
-    if(!owner || !s->terrain_atlas_registered || terrain->mesh.face_count>SCENE_TERRAIN_FACES)return RF_RANGE;
+    if(!owner || (!s->terrain_atlas_registered && s->terrain_checkpoint_loaded!=2) || terrain->mesh.face_count>SCENE_TERRAIN_FACES)return RF_RANGE;
     if(owner->generation!=terrain->mesh.generation) {
         if(!owner->generation || terrain->cuts<owner->cuts) {
             memset(owner,0,sizeof(*owner));owner->random.value=1;
@@ -9153,6 +9160,334 @@ static int scene_terrain_open(scene_stream *s,const rf_level *level)
     s->terrain_render=*actor_follow_world;s->terrain_render.world=&s->terrain_geometry;
     return RF_OK;
 }
+/* RFDS v1 is a DEV destruction checkpoint, not a whole-game save. All restore
+ * calls occur on a fresh scene before frames; failure discards that scene. */
+enum { SCENE_CHECKPOINT_MAX=110524, SCENE_CHECKPOINT_HEADER=288 };
+static uint32_t checkpoint_u32(const unsigned char *p)
+{return (uint32_t)p[0]|((uint32_t)p[1]<<8)|((uint32_t)p[2]<<16)|((uint32_t)p[3]<<24);}
+static void checkpoint_put(unsigned char *p,uint32_t v)
+{p[0]=(unsigned char)v;p[1]=(unsigned char)(v>>8);p[2]=(unsigned char)(v>>16);p[3]=(unsigned char)(v>>24);}
+static float checkpoint_float(const unsigned char *p)
+{uint32_t w=checkpoint_u32(p);float f;memcpy(&f,&w,4);return f;}
+static void checkpoint_put_float(unsigned char *p,float f)
+{uint32_t w;memcpy(&w,&f,4);checkpoint_put(p,w);}
+typedef struct checkpoint_sha {uint32_t h[8],used;uint64_t bytes;unsigned char block[64];} checkpoint_sha;
+static uint32_t checkpoint_rotr(uint32_t v,uint32_t n){return (v>>n)|(v<<(32-n));}
+static void checkpoint_sha_block(checkpoint_sha *s)
+{
+    static const uint32_t k[64]={
+        0x428a2f98,0x71374491,0xb5c0fbcf,0xe9b5dba5,0x3956c25b,0x59f111f1,0x923f82a4,0xab1c5ed5,
+        0xd807aa98,0x12835b01,0x243185be,0x550c7dc3,0x72be5d74,0x80deb1fe,0x9bdc06a7,0xc19bf174,
+        0xe49b69c1,0xefbe4786,0x0fc19dc6,0x240ca1cc,0x2de92c6f,0x4a7484aa,0x5cb0a9dc,0x76f988da,
+        0x983e5152,0xa831c66d,0xb00327c8,0xbf597fc7,0xc6e00bf3,0xd5a79147,0x06ca6351,0x14292967,
+        0x27b70a85,0x2e1b2138,0x4d2c6dfc,0x53380d13,0x650a7354,0x766a0abb,0x81c2c92e,0x92722c85,
+        0xa2bfe8a1,0xa81a664b,0xc24b8b70,0xc76c51a3,0xd192e819,0xd6990624,0xf40e3585,0x106aa070,
+        0x19a4c116,0x1e376c08,0x2748774c,0x34b0bcb5,0x391c0cb3,0x4ed8aa4a,0x5b9cca4f,0x682e6ff3,
+        0x748f82ee,0x78a5636f,0x84c87814,0x8cc70208,0x90befffa,0xa4506ceb,0xbef9a3f7,0xc67178f2};
+    uint32_t w[64],i,a=s->h[0],b=s->h[1],c=s->h[2],d=s->h[3],e=s->h[4],f=s->h[5],g=s->h[6],h=s->h[7];
+    for(i=0;i<16;i++){const unsigned char *p=s->block+i*4;w[i]=((uint32_t)p[0]<<24)|((uint32_t)p[1]<<16)|((uint32_t)p[2]<<8)|p[3];}
+    for(i=16;i<64;i++)w[i]=w[i-16]+(checkpoint_rotr(w[i-15],7)^checkpoint_rotr(w[i-15],18)^(w[i-15]>>3))+w[i-7]+(checkpoint_rotr(w[i-2],17)^checkpoint_rotr(w[i-2],19)^(w[i-2]>>10));
+    for(i=0;i<64;i++) {
+        uint32_t t=h+(checkpoint_rotr(e,6)^checkpoint_rotr(e,11)^checkpoint_rotr(e,25))+((e&f)^(~e&g))+k[i]+w[i];
+        uint32_t u=(checkpoint_rotr(a,2)^checkpoint_rotr(a,13)^checkpoint_rotr(a,22))+((a&b)^(a&c)^(b&c));
+        h=g;g=f;f=e;e=d+t;d=c;c=b;b=a;a=t+u;
+    }
+    s->h[0]+=a;s->h[1]+=b;s->h[2]+=c;s->h[3]+=d;s->h[4]+=e;s->h[5]+=f;s->h[6]+=g;s->h[7]+=h;
+}
+static void checkpoint_sha_init(checkpoint_sha *s)
+{
+    static const uint32_t initial[8]={0x6a09e667,0xbb67ae85,0x3c6ef372,0xa54ff53a,0x510e527f,0x9b05688c,0x1f83d9ab,0x5be0cd19};
+    memset(s,0,sizeof(*s));memcpy(s->h,initial,sizeof(initial));
+}
+static void checkpoint_sha_add(checkpoint_sha *s,const void *data,uint32_t bytes)
+{
+    const unsigned char *p=data;s->bytes+=bytes;
+    while(bytes){uint32_t n=64-s->used;if(n>bytes)n=bytes;memcpy(s->block+s->used,p,n);s->used+=n;p+=n;bytes-=n;if(s->used==64){checkpoint_sha_block(s);s->used=0;}}
+}
+static void checkpoint_sha_word(checkpoint_sha *s,uint32_t w)
+{unsigned char p[4];checkpoint_put(p,w);checkpoint_sha_add(s,p,4);}
+static void checkpoint_sha_float(checkpoint_sha *s,float f)
+{unsigned char p[4];checkpoint_put_float(p,f);checkpoint_sha_add(s,p,4);}
+static void checkpoint_sha_end(checkpoint_sha *s,unsigned char out[32])
+{
+    uint64_t bits=s->bytes*8;unsigned char p[8];uint32_t i;
+    p[0]=128;checkpoint_sha_add(s,p,1);p[0]=0;
+    while(s->used!=56)checkpoint_sha_add(s,p,1);
+    for(i=0;i<8;i++)p[i]=(unsigned char)(bits>>(56-i*8));checkpoint_sha_add(s,p,8);
+    for(i=0;i<8;i++){out[i*4]=(unsigned char)(s->h[i]>>24);out[i*4+1]=(unsigned char)(s->h[i]>>16);out[i*4+2]=(unsigned char)(s->h[i]>>8);out[i*4+3]=(unsigned char)s->h[i];}
+}
+static int scene_checkpoint_identity(scene_stream *s,const rf_level *level)
+{
+    checkpoint_sha h;uint32_t i,j;int status;rf_level_geomod_settings settings;
+    rf_image *image;unsigned char test[32];
+    static const unsigned char abc[32]={0xba,0x78,0x16,0xbf,0x8f,0x01,0xcf,0xea,0x41,0x41,0x40,0xde,0x5d,0xae,0x22,0x23,0xb0,0x03,0x61,0xa3,0x96,0x17,0x7a,0x9c,0xb4,0x10,0xff,0x61,0xf2,0x00,0x15,0xad};
+    if(!s->terrain)return RF_OK;
+    checkpoint_sha_init(&h);checkpoint_sha_add(&h,"abc",3);checkpoint_sha_end(&h,test);if(memcmp(test,abc,32))return RF_FORMAT;
+    checkpoint_sha_init(&h);checkpoint_sha_add(&h,s->geometry->data,s->geometry->bytes);
+    for(i=0;i<6;i++) {
+        rf_collision_face_filter f;rf_geometry_face face;uint32_t x,y;
+        status=rf_geometry_initial_collision_filter(s->geometry,i,0,&f);if(status)return status;
+        status=rf_geometry_get_face(s->geometry,i,&face);if(status)return status;
+        if(face.texture>=s->geometry->textures || actor_follow_world->slots[face.texture]>=s->materials->count)return RF_FORMAT;
+        image=&s->materials->items[actor_follow_world->slots[face.texture]].image;
+        checkpoint_sha_word(&h,image->width);checkpoint_sha_word(&h,image->height);checkpoint_sha_word(&h,image->source_format);
+        for(y=0;y<image->height;y++)for(x=0;x<image->width;x++)checkpoint_sha_add(&h,rf_image_pixel(image,x,y),rf_image_is_packed_1555(image)?2:4);
+        checkpoint_sha_word(&h,f.query_flags);checkpoint_sha_word(&h,f.face_flags);checkpoint_sha_word(&h,(uint32_t)f.property_34);
+        checkpoint_sha_word(&h,f.owner_present);checkpoint_sha_word(&h,f.owner_kind);checkpoint_sha_word(&h,f.owner_state);
+    }
+    checkpoint_sha_word(&h,256);checkpoint_sha_word(&h,4096);checkpoint_sha_word(&h,SCENE_TERRAIN_FACES);
+    checkpoint_sha_end(&h,s->terrain_checkpoint_identity);
+    checkpoint_sha_init(&h);checkpoint_sha_add(&h,"RFCT",4);checkpoint_sha_word(&h,1);checkpoint_sha_word(&h,s->terrain_template->face_count);
+    checkpoint_sha_float(&h,s->terrain_template->radius);for(i=0;i<3;i++)checkpoint_sha_float(&h,s->terrain_template->kernel[i]);
+    for(i=0;i<s->terrain_template->face_count*3;i++) {
+        for(j=0;j<3;j++)checkpoint_sha_float(&h,s->terrain_template->vertices[i].position[j]);
+        for(j=0;j<2;j++)checkpoint_sha_float(&h,s->terrain_template->vertices[i].uv[j]);
+    }
+    checkpoint_sha_end(&h,s->terrain_checkpoint_identity+32);
+    status=rf_level_geomod_settings_read(level,&settings);if(status)return status;
+    image=&s->materials->items[s->terrain_material].image;
+    checkpoint_sha_init(&h);checkpoint_sha_add(&h,settings.texture,(uint32_t)strlen(settings.texture)+1);
+    checkpoint_sha_word(&h,image->width);checkpoint_sha_word(&h,image->height);checkpoint_sha_word(&h,image->source_format);
+    for(i=0;i<image->height;i++)for(j=0;j<image->width;j++)checkpoint_sha_add(&h,rf_image_pixel(image,j,i),rf_image_is_packed_1555(image)?2:4);
+    checkpoint_sha_end(&h,s->terrain_checkpoint_identity+64);
+    checkpoint_sha_init(&h);checkpoint_sha_word(&h,s->terrain_default_hardness);checkpoint_sha_word(&h,s->terrain_region_count);
+    for(i=0;i<s->terrain_region_count;i++) {
+        const rf_geo_region *r=s->terrain_regions+i;
+        checkpoint_sha_word(&h,(uint32_t)r->uid);checkpoint_sha_word(&h,r->flags);checkpoint_sha_word(&h,r->hardness);checkpoint_sha_float(&h,r->shallow_depth);
+        for(j=0;j<3;j++)checkpoint_sha_float(&h,r->position[j]);for(j=0;j<9;j++)checkpoint_sha_float(&h,r->file_basis[j]);
+        for(j=0;j<3;j++)checkpoint_sha_float(&h,r->dimensions[j]);checkpoint_sha_float(&h,r->radius);
+    }
+    checkpoint_sha_end(&h,s->terrain_checkpoint_identity+96);return RF_OK;
+}
+static void scene_checkpoint_release(void)
+{free(rf_scene_geomod_checkpoint_data);rf_scene_geomod_checkpoint_data=NULL;rf_scene_geomod_checkpoint_memory[0]=0;}
+static int scene_checkpoint_allocate(uint32_t bytes)
+{
+    if(bytes>SCENE_CHECKPOINT_MAX || rf_scene_geomod_checkpoint_data)return RF_RANGE;
+    rf_scene_geomod_checkpoint_data=malloc(bytes);if(!rf_scene_geomod_checkpoint_data)return RF_IO;
+    rf_scene_geomod_checkpoint_memory[0]=bytes;if(bytes>rf_scene_geomod_checkpoint_memory[1])rf_scene_geomod_checkpoint_memory[1]=bytes;return RF_OK;
+}
+static int scene_checkpoint_materials(unsigned char *data,uint32_t bytes,uint32_t from,uint32_t to)
+{
+    uint32_t i,j,at=28,count;
+    if(bytes<28 || memcmp(data,"RGCH",4) || checkpoint_u32(data+4)!=1 || checkpoint_u32(data+8)!=bytes)return RF_FORMAT;
+    count=checkpoint_u32(data+12);if(count>RF_GEOMOD_CUT_LIMIT)return RF_FORMAT;
+    for(i=0;i<count;i++) {
+        uint32_t nv,nf;if(bytes-at<24)return RF_FORMAT;nv=checkpoint_u32(data+at+4);nf=checkpoint_u32(data+at+8);
+        if(!nv || nv>60 || nf<4 || nf>20 || bytes-at-24<nv*20+nf*16)return RF_FORMAT;at+=24+nv*20;
+        for(j=0;j<nf;j++,at+=16){if(checkpoint_u32(data+at+8)!=from)return RF_FORMAT;checkpoint_put(data+at+8,to);}
+    }
+    return at==bytes?RF_OK:RF_FORMAT;
+}
+static int scene_checkpoint_registered(scene_stream *s)
+{
+    uint32_t i;rf_geomod_terrain_view view;int status;
+    if(!s->terrain_checkpoint_loaded)return RF_OK;
+    if(s->terrain_checkpoint_loaded==2) {
+        if(!s->terrain_atlas_registered)return RF_RANGE;
+        s->terrain_checkpoint_loaded=0;return RF_OK;
+    }
+    status=rf_geomod_terrain_get(s->terrain,&view);if(status)return status;
+    for(i=0;i<s->terrain_noise->count;i++)s->terrain_noise->maps[i].binding.image=s->terrain_atlas_index;
+    for(i=0;i<view.mesh.face_count;i++)if(s->terrain_bindings[i].image!=UINT32_MAX) {
+        uint32_t map=s->terrain_bindings[i].image;if(map>=s->terrain_noise->count)return RF_FORMAT;
+        s->terrain_bindings[i]=s->terrain_noise->maps[map].binding;
+    }
+    s->terrain_checkpoint_loaded=s->terrain_atlas_registered?0:2;return RF_OK;
+}
+static int scene_checkpoint_base(scene_stream *s,scene_terrain_noise_map *map,rf_random_state *chain)
+{
+    rf_random_state random={map->base_seed};unsigned char rgb[64*3],packed[64*2];uint32_t at=0,total=map->width*map->height,i;int status;
+    if(chain->value!=random.value)return RF_FORMAT;
+    while(at<total) {
+        uint32_t n=total-at;if(n>64)n=64;
+        status=rf_geomod_light_noise(rgb,sizeof(rgb),n*3,n,1,&random);if(status)return status;
+        status=rf_lightmap_pack_1555(rgb,n*3,n,1,0,packed,n*2,sizeof(packed));if(status)return status;
+        for(i=0;i<n;i++)memcpy(s->terrain_atlas_pixels+((map->y+(at+i)/map->width)*512+map->x+(at+i)%map->width)*2,packed+i*2,2);
+        at+=n;
+    }
+    *chain=random;map->hash=scene_terrain_noise_hash(s,map);return RF_OK;
+}
+static int scene_checkpoint_restore(scene_stream *s,unsigned char *data,uint32_t bytes)
+{
+    uint32_t admission,maps,faces,core,i,j,k,at,x=0,y=0,row=0;uint64_t expected;rf_random_state chain={1};
+    rf_geomod_terrain_view view;scene_terrain_noise_owner *owner=s->terrain_noise;int status;
+    if(!s->terrain || s->terrain_shadow_reference || bytes<SCENE_CHECKPOINT_HEADER || memcmp(data,"RFDS",4) ||
+       checkpoint_u32(data+4)!=1 || checkpoint_u32(data+8)!=bytes || checkpoint_u32(data+12))return RF_FORMAT;
+    if(!memchr(data+16,0,64) || strcmp((const char *)data+16,campaign_current_level) || memcmp(data+80,s->terrain_checkpoint_identity,128))return RF_FORMAT;
+    for(i=(uint32_t)strlen((const char *)data+16)+1;i<64;i++)if(data[16+i])return RF_FORMAT;
+    if(checkpoint_u32(data+208)!=s->terrain_texture_width || checkpoint_u32(data+212)!=s->terrain_texture_height)return RF_FORMAT;
+    for(i=0;i<3;i++)if(checkpoint_float(data+216+i*4)!=s->terrain_history_minimum[i] || checkpoint_float(data+228+i*4)!=s->terrain_history_maximum[i])return RF_FORMAT;
+    admission=checkpoint_u32(data+240);maps=checkpoint_u32(data+248);core=checkpoint_u32(data+252);faces=checkpoint_u32(data+272);
+    if(admission>128 || maps>1024 || core<28 || core>12380 || faces>SCENE_TERRAIN_FACES)return RF_FORMAT;
+    for(i=276;i<288;i++)if(data[i])return RF_FORMAT;
+    expected=SCENE_CHECKPOINT_HEADER+(uint64_t)core+admission*48+(uint64_t)maps*88+faces*2;
+    if(expected!=bytes)return RF_FORMAT;
+    /* With no cut the renderer has never initialized the calloc noise owner.
+     * Preserve RNG0 until its first actual generation rebuild seeds the stream. */
+    if(!maps && !checkpoint_u32(data+SCENE_CHECKPOINT_HEADER+12)) {
+        chain.value=checkpoint_u32(data+256);if(chain.value>1)return RF_FORMAT;
+    }
+    at=SCENE_CHECKPOINT_HEADER+core;
+    for(i=0;i<admission;i++,at+=48) {
+        rf_geomod_shallow_history *h=s->terrain_history+i;
+        for(j=0;j<10;j++)if(!isfinite(checkpoint_float(data+at+j*4)))return RF_FORMAT;
+        for(j=0;j<3;j++)h->center[j]=checkpoint_float(data+at+j*4);
+        for(j=0;j<2;j++)for(k=0;k<3;k++)h->vectors[j][k]=checkpoint_float(data+at+12+(j*3+k)*4);
+        h->scale=checkpoint_float(data+at+36);if(h->scale<=0 || data[at+46] || data[at+47])return RF_FORMAT;
+        for(j=0;j<3;j++)s->terrain_requested[i][j]=(uint16_t)(data[at+40+j*2]|((uint16_t)data[at+41+j*2]<<8));
+    }
+    for(i=0;i<maps;i++,at+=88) {
+        scene_terrain_noise_map *m=owner->maps+i;uint32_t dims[2],axis=0;float span[2],density[2]={4,4},adjusted[2];double length=0;
+        for(j=0;j<10;j++)if(!isfinite(checkpoint_float(data+at+j*4)))return RF_FORMAT;
+        for(j=0;j<4;j++)m->plane[j]=checkpoint_float(data+at+j*4);
+        for(j=0;j<3;j++){m->minimum[j]=checkpoint_float(data+at+16+j*4);m->maximum[j]=checkpoint_float(data+at+28+j*4);if(m->minimum[j]>m->maximum[j])return RF_FORMAT;length+=(double)m->plane[j]*m->plane[j];}
+        if(fabs(length-1)>1e-4 || checkpoint_u32(data+at+40))return RF_FORMAT;m->material=s->terrain_material;
+        m->x=checkpoint_u32(data+at+44);m->y=checkpoint_u32(data+at+48);m->width=checkpoint_u32(data+at+52);m->height=checkpoint_u32(data+at+56);m->base_seed=checkpoint_u32(data+at+60);
+        if(m->width<3 || m->height<3 || m->width>64 || m->height>64 || m->x>512-m->width || m->y>512-m->height)return RF_FORMAT;
+        if(x+m->width>512){y+=row;x=row=0;}if(m->x!=x || m->y!=y)return RF_FORMAT;
+        x+=m->width;if(m->height>row)row=m->height;
+        for(j=1;j<3;j++)if(fabsf(m->plane[j])>fabsf(m->plane[axis]))axis=j;
+        for(j=0;j<2;j++) {
+            uint32_t a=(axis+j+1)%3;double scale;
+            m->binding.projection.axes[j]=checkpoint_u32(data+at+64+j*4);if(m->binding.projection.axes[j]!=a)return RF_FORMAT;
+            span[j]=m->maximum[a]-m->minimum[a];if(!(span[j]>0))return RF_FORMAT;
+            m->binding.projection.scale[j]=checkpoint_float(data+at+72+j*4);m->binding.projection.offset[j]=checkpoint_float(data+at+80+j*4);
+            if(!isfinite(m->binding.projection.scale[j]) || m->binding.projection.scale[j]<=0 || !isfinite(m->binding.projection.offset[j]))return RF_FORMAT;
+            scale=((j?m->height:m->width)-2)/(double)span[j];
+            if(m->binding.projection.scale[j]!=(float)(scale/512) || m->binding.projection.offset[j]!=(float)(((j?m->y:m->x)+1-m->minimum[a]*scale)/512))return RF_FORMAT;
+        }
+        status=rf_geomod_lightmap_size(span,density,0,dims,adjusted);if(status)return status;
+        if(dims[0]!=m->width || dims[1]!=m->height)return RF_FORMAT;
+        m->binding.image=UINT32_MAX;status=scene_checkpoint_base(s,m,&chain);if(status)return status;
+    }
+    if(x!=checkpoint_u32(data+260) || y!=checkpoint_u32(data+264) || row!=checkpoint_u32(data+268) || chain.value!=checkpoint_u32(data+256))return RF_FORMAT;
+    status=scene_checkpoint_materials(data+SCENE_CHECKPOINT_HEADER,core,0,s->terrain_material);if(status)return status;
+    status=rf_geomod_terrain_history_decode(s->terrain,data+SCENE_CHECKPOINT_HEADER,core);if(status)return status;
+    status=rf_geomod_terrain_get(s->terrain,&view);if(status)return status;if(view.mesh.face_count!=faces)return RF_FORMAT;
+    for(i=0;i<faces;i++,at+=2) {
+        const rf_geomod_face *f=view.mesh.faces+i;uint32_t m=data[at]|((uint32_t)data[at+1]<<8);
+        s->terrain_bindings[i].image=UINT32_MAX;
+        if(f->source_face!=UINT32_MAX){if(m!=65535)return RF_FORMAT;continue;}
+        if(m>=maps || f->material!=s->terrain_material || !scene_terrain_noise_plane(owner->maps[m].plane,view.faces[i].plane))return RF_FORMAT;
+        for(j=0;j<f->count;j++)for(k=0;k<3;k++){float v=view.mesh.vertices[f->first+j].position[k];if(v<owner->maps[m].minimum[k]-1e-4f || v>owner->maps[m].maximum[k]+1e-4f)return RF_FORMAT;}
+        s->terrain_bindings[i].image=m;
+    }
+    status=scene_terrain_bind(s);if(status)return status;
+    s->terrain_history_count=admission;s->terrain_random.value=checkpoint_u32(data+244);
+    owner->count=owner->bake=maps;owner->sample=0;owner->x=x;owner->y=y;owner->row=row;owner->random=chain;
+    owner->generation=view.cuts?view.mesh.generation:0;owner->cuts=view.cuts;memset(s->terrain_light_cache,0,sizeof(*s->terrain_light_cache));s->terrain_checkpoint_loaded=1;
+    scene_terrain_dirty(s,0,0,512,512);
+    memset(rf_scene_terrain_noise,0,sizeof(rf_scene_terrain_noise));
+    rf_scene_terrain_noise[0]=1;rf_scene_terrain_noise[1]=maps;rf_scene_terrain_noise[6]=sizeof(*owner);rf_scene_terrain_noise[7]=owner->generation;
+    rf_scene_terrain_atlas[4]=owner->generation;rf_scene_terrain_atlas[6]=maps;
+    for(i=0;i<maps;i++)rf_scene_terrain_noise[3]+=owner->maps[i].width*owner->maps[i].height;
+    rf_scene_terrain_atlas[5]=rf_scene_terrain_noise[3];
+    /* First prepare_view precedes the platform present callback. Reserve the
+     * authored image count now, then require the backend to register this exact
+     * slot before it renders the already projected first frame. */
+    if(!s->light_rgb.images || s->light_rgb.count>=256)return RF_RANGE;
+    s->terrain_atlas_index=s->light_rgb.count;
+    return scene_checkpoint_registered(s);
+}
+static int scene_checkpoint_begin(scene_stream *s,const rf_level *level)
+{
+    const char *path=NULL;FILE *file;long length=0;int status,tail;uint32_t hash;
+    scene_checkpoint_release();memset(rf_scene_geomod_checkpoint_state,0,sizeof(rf_scene_geomod_checkpoint_state));memset(rf_scene_geomod_checkpoint_memory,0,sizeof(rf_scene_geomod_checkpoint_memory));
+    if(!s->terrain)return RF_OK;
+    status=scene_checkpoint_identity(s,level);if(status)goto done;
+#ifndef RF_IMAGE_XBOX_NATIVE
+    path=getenv("RF_REPLAY_GEOMOD_CHECKPOINT_IN");if(!path || !*path)return RF_OK;
+#else
+    path="D:\\geomod-checkpoint.bin";
+#endif
+    file=fopen(path,"rb");
+    if(!file) {
+#ifndef RF_IMAGE_XBOX_NATIVE
+        status=RF_IO;goto done;
+#else
+        return RF_OK; /* Optional staged diagnostic input. */
+#endif
+    }
+    if(fseek(file,0,SEEK_END) || (length=ftell(file))<SCENE_CHECKPOINT_HEADER || length>SCENE_CHECKPOINT_MAX || fseek(file,0,SEEK_SET))status=RF_FORMAT;
+    else {
+        status=scene_checkpoint_allocate((uint32_t)length);
+        if(!status && fread(rf_scene_geomod_checkpoint_data,1,(size_t)length,file)!=(size_t)length)status=RF_IO;
+        if(!status){tail=fgetc(file);if(tail!=EOF || ferror(file))status=RF_IO;}
+    }
+    if(fclose(file) && !status)status=RF_IO;
+    if(!status) {
+        hash=npc_hash_bytes(2166136261u,rf_scene_geomod_checkpoint_data,(uint32_t)length);
+        status=scene_checkpoint_restore(s,rf_scene_geomod_checkpoint_data,(uint32_t)length);
+        if(!status){rf_scene_geomod_checkpoint_state[1]=(uint32_t)length;rf_scene_geomod_checkpoint_state[2]=hash;printf("GEOMOD_CHECKPOINT_LOAD %u %08x %u %u\n",(uint32_t)length,hash,s->terrain_history_count,s->terrain_noise->count);}
+    }
+    scene_checkpoint_release();
+done:
+    rf_scene_geomod_checkpoint_state[0]=(uint32_t)status;if(status)printf("GEOMOD_CHECKPOINT_ERROR load %d\n",status);return status;
+}
+static int scene_checkpoint_capture(scene_stream *s)
+{
+    FILE *file;scene_terrain_noise_owner *owner=s->terrain_noise;rf_geomod_terrain_view view;
+    uint32_t core,bytes,at,i,j,k;unsigned char *p;int status=RF_OK;
+#ifndef RF_IMAGE_XBOX_NATIVE
+    const char *path=getenv("RF_REPLAY_GEOMOD_CHECKPOINT_OUT");if(!path || !*path)return RF_OK;
+#else
+    file=fopen("D:\\geomod-checkpoint-out.flag","rb");if(!file)return RF_OK;fclose(file);
+#endif
+    if(!s->terrain || !owner || s->terrain_shadow_reference || !s->terrain_atlas_registered || owner->bake!=owner->count || owner->sample || s->terrain_checkpoint_loaded){status=RF_RANGE;goto done;}
+    status=rf_geomod_terrain_get(s->terrain,&view);if(status)goto done;
+    status=rf_geomod_terrain_history_size(s->terrain,&core);if(status)goto done;
+    if(s->terrain_history_count>128 || owner->count>1024 || view.mesh.face_count>SCENE_TERRAIN_FACES){status=RF_RANGE;goto done;}
+    bytes=SCENE_CHECKPOINT_HEADER+core+s->terrain_history_count*48+owner->count*88+view.mesh.face_count*2;
+    status=scene_checkpoint_allocate(bytes);if(status)goto done;p=rf_scene_geomod_checkpoint_data;memset(p,0,bytes);
+    memcpy(p,"RFDS",4);checkpoint_put(p+4,1);checkpoint_put(p+8,bytes);
+    if(strlen(campaign_current_level)>=64){status=RF_RANGE;goto done;}memcpy(p+16,campaign_current_level,strlen(campaign_current_level));memcpy(p+80,s->terrain_checkpoint_identity,128);
+    checkpoint_put(p+208,s->terrain_texture_width);checkpoint_put(p+212,s->terrain_texture_height);
+    for(i=0;i<3;i++){checkpoint_put_float(p+216+i*4,s->terrain_history_minimum[i]);checkpoint_put_float(p+228+i*4,s->terrain_history_maximum[i]);}
+    checkpoint_put(p+240,s->terrain_history_count);checkpoint_put(p+244,s->terrain_random.value);checkpoint_put(p+248,owner->count);checkpoint_put(p+252,core);
+    checkpoint_put(p+256,owner->random.value);checkpoint_put(p+260,owner->x);checkpoint_put(p+264,owner->y);checkpoint_put(p+268,owner->row);checkpoint_put(p+272,view.mesh.face_count);
+    status=rf_geomod_terrain_history_encode(s->terrain,p+SCENE_CHECKPOINT_HEADER,core);if(status)goto done;
+    status=scene_checkpoint_materials(p+SCENE_CHECKPOINT_HEADER,core,s->terrain_material,0);if(status)goto done;
+    at=SCENE_CHECKPOINT_HEADER+core;
+    for(i=0;i<s->terrain_history_count;i++,at+=48) {
+        const rf_geomod_shallow_history *h=s->terrain_history+i;
+        for(j=0;j<3;j++)checkpoint_put_float(p+at+j*4,h->center[j]);
+        for(j=0;j<2;j++)for(k=0;k<3;k++)checkpoint_put_float(p+at+12+(j*3+k)*4,h->vectors[j][k]);
+        checkpoint_put_float(p+at+36,h->scale);
+        for(j=0;j<3;j++){p[at+40+j*2]=(unsigned char)s->terrain_requested[i][j];p[at+41+j*2]=(unsigned char)(s->terrain_requested[i][j]>>8);}
+    }
+    for(i=0;i<owner->count;i++,at+=88) {
+        const scene_terrain_noise_map *m=owner->maps+i;if(m->material!=s->terrain_material){status=RF_FORMAT;goto done;}
+        for(j=0;j<4;j++)checkpoint_put_float(p+at+j*4,m->plane[j]);
+        for(j=0;j<3;j++){checkpoint_put_float(p+at+16+j*4,m->minimum[j]);checkpoint_put_float(p+at+28+j*4,m->maximum[j]);}
+        checkpoint_put(p+at+44,m->x);checkpoint_put(p+at+48,m->y);checkpoint_put(p+at+52,m->width);checkpoint_put(p+at+56,m->height);checkpoint_put(p+at+60,m->base_seed);
+        for(j=0;j<2;j++){checkpoint_put(p+at+64+j*4,m->binding.projection.axes[j]);checkpoint_put_float(p+at+72+j*4,m->binding.projection.scale[j]);checkpoint_put_float(p+at+80+j*4,m->binding.projection.offset[j]);}
+    }
+    for(i=0;i<view.mesh.face_count;i++,at+=2) {
+        uint32_t map=65535;
+        if(view.mesh.faces[i].source_face==UINT32_MAX) {
+            for(map=0;map<owner->count;map++)if(owner->maps[map].binding.image==s->terrain_bindings[i].image && !memcmp(&owner->maps[map].binding.projection,&s->terrain_bindings[i].projection,sizeof(s->terrain_bindings[i].projection)))break;
+            if(map==owner->count){status=RF_FORMAT;goto done;}
+        }
+        p[at]=(unsigned char)map;p[at+1]=(unsigned char)(map>>8);
+    }
+#ifndef RF_IMAGE_XBOX_NATIVE
+    {
+        char temporary[1024];size_t length=strlen(path);
+        if(length+5>=sizeof(temporary)){status=RF_RANGE;goto done;}memcpy(temporary,path,length);memcpy(temporary+length,".tmp",5);
+        file=fopen(temporary,"wb");if(!file){status=RF_IO;goto done;}
+        if(fwrite(p,1,bytes,file)!=bytes)status=RF_IO;if(fclose(file) && !status)status=RF_IO;
+        /* Existing destination is not removed on replacement failure. Use a new
+         * diagnostic path per capture on hosts whose rename cannot overwrite. */
+        if(!status && rename(temporary,path))status=RF_IO;
+        if(status){remove(temporary);goto done;}
+    }
+#endif
+    rf_scene_geomod_checkpoint_state[1]=bytes;rf_scene_geomod_checkpoint_state[2]=npc_hash_bytes(2166136261u,p,bytes);rf_scene_geomod_checkpoint_state[3]=1;
+    printf("GEOMOD_CHECKPOINT_SAVE %u %08x %u %u\n",bytes,rf_scene_geomod_checkpoint_state[2],s->terrain_history_count,owner->count);
+done:
+    rf_scene_geomod_checkpoint_state[0]=(uint32_t)status;if(status){scene_checkpoint_release();printf("GEOMOD_CHECKPOINT_ERROR save %d\n",status);}return status;
+}
 static int scene_terrain_input(scene_stream *s,const float position[3],const float orientation[3][3])
 {
     uint32_t pressed=player_input.use && player_input.alt_fire?(player_input.crouch?2:1):0,matched;int status=RF_OK;
@@ -9178,7 +9513,18 @@ static int scene_terrain_input(scene_stream *s,const float position[3],const flo
                 }
             }
             if(!status)status=rf_geomod_terrain_reset(s->terrain);
-            if(!status)s->terrain_history_count=0;
+            if(!status) {
+                s->terrain_history_count=0;
+                /* Reset can return to the same cut count on the next blast.
+                 * Clear retained mappings now; a later count comparison alone
+                 * cannot distinguish that new generation from pre-reset maps. */
+                memset(s->terrain_noise,0,sizeof(*s->terrain_noise));
+                memset(s->terrain_atlas_pixels,0,512*512*2);
+                memset(s->terrain_light_cache,0,sizeof(*s->terrain_light_cache));
+                memset(rf_scene_terrain_noise,0,sizeof(rf_scene_terrain_noise));
+                memset(rf_scene_terrain_bake,0,sizeof(rf_scene_terrain_bake));
+                scene_terrain_dirty(s,0,0,512,512);
+            }
             if(!status && s->debris){memset(s->debris,0,sizeof(*s->debris));s->debris->random.value=1;memset(rf_scene_debris,0,sizeof(rf_scene_debris));rf_scene_debris[6]=sizeof(*s->debris);}
             if(!status){status=scene_terrain_bind(s);if(status)return status;++rf_scene_geomod[7];}
         } else {
@@ -12798,6 +13144,7 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
         }
         stream->capacity=(uint32_t)capacity;stream->sink=sink;stream->context=context;stream->collision=collision;
         status=scene_terrain_open(stream,level);if(status)goto done;
+        status=scene_checkpoint_begin(stream,level);if(status)goto done;
         if(campaign_spawn && collision) {
             memset(rf_scene_event_ticks,0,sizeof(rf_scene_event_ticks));
             memset(campaign_ambient_slots,0,sizeof(campaign_ambient_slots));
@@ -12839,6 +13186,7 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
         if(!status && collision && rf_scene_actor_route_enabled && !rf_scene_actor_live_enabled)status=actor_routes(stream);
     }
 done:
+    if(!status)status=scene_checkpoint_capture(stream);
     if(!status && campaign_spawn && collision)campaign_actors_revisit_snapshot();
     if(!status && campaign_spawn && collision && rf_scene_level_transition.pending) {
         status=rf_campaign_local_goals_save(&campaign_local_goals,campaign_current_level,&rf_scene_mission_goals);
