@@ -22,6 +22,55 @@ static int query(const rf_geometry_collision_world *world,float x,float fraction
     CHECK(matched && liquid && hit.room==room && hit.face==face && fabsf(hit.hit.fraction-fraction)<1e-6f);
     return 0;
 }
+static int body_metadata(void *context,uint32_t solid,uint32_t face,uint32_t *texture,uint32_t *material)
+{
+    uint32_t *calls=context;if(solid!=UINT32_MAX)return RF_FORMAT;
+    ++*calls;*texture=100+face;*material=200+face;return RF_OK;
+}
+static int body_queries(rf_geometry_collision_world *world)
+{
+    rf_geometry_collision_movers movers={0};rf_collision_body_sphere sphere={{0,0,0},.25f};
+    rf_collision_body_query body={0};rf_geometry_body_hit hit,sentinel;
+    uint32_t found,calls=0,i;const uint32_t flags=0x1004;
+    body.matrix[0][0]=body.matrix[1][1]=body.matrix[2][2]=1;
+    body.radius=.25f;body.limit=1;body.flags=flags;body.spheres=&sphere;body.count=1;
+    /* Actual failed stand displacement, with no liquid in this authored room.
+     * State bit1000 is valid even when the player is dry. */
+    body.start[0]=body.end[0]=4.45000124f;body.start[2]=body.end[2]=2.5f;
+    body.start[1]=-.401361138f;body.end[1]=.335426629f;
+    world->liquids[0].contains_liquid=0;
+    memset(&sentinel,0xa5,sizeof(sentinel));hit=sentinel;found=99;
+    CHECK(rf_geometry_collision_body_sweep(world,&movers,&body,NULL,0,body_metadata,&calls,&hit,&found)==RF_OK);
+    CHECK(!found && !calls && !memcmp(&hit,&sentinel,sizeof(hit)) && body.flags==flags);
+    world->liquids[0].contains_liquid=1;
+    /* The same retained bit must still report actual water and source IDs. */
+    body.start[0]=body.end[0]=body.start[2]=body.end[2]=0;
+    body.start[1]=2;body.end[1]=-4;
+    for(i=0;i<2;i++) {
+        body.flags=i?4:flags;calls=0;found=0;
+        CHECK(rf_geometry_collision_body_sweep(world,&movers,&body,NULL,0,body_metadata,&calls,&hit,&found)==RF_OK);
+        CHECK(found && calls==1 && hit.room==0 && hit.solid==UINT32_MAX && hit.sphere==0);
+        CHECK(hit.face==(i?0u:1u) && hit.contact.face_token==hit.face);
+        CHECK(hit.contact.face_flag==(i?0u:1u));
+        CHECK(hit.contact.texture==100+hit.face && hit.contact.material==200+hit.face);
+        CHECK(fabsf(hit.contact.fraction-((i?3.75f:1.75f)/6))<1e-6f);
+    }
+    /* No texture backend was added: alpha queries retain explicit refusal. */
+    body.flags=flags|0x80;hit=sentinel;found=99;calls=0;
+    CHECK(rf_geometry_collision_body_sweep(world,&movers,&body,NULL,0,body_metadata,&calls,&hit,&found)==RF_NOT_FOUND);
+    CHECK(found==99 && !calls && !memcmp(&hit,&sentinel,sizeof(hit)));
+    {
+        rf_collision_room_liquid_view *saved=world->liquids;
+        world->liquids=NULL;body.flags=4;found=0;
+        CHECK(rf_geometry_collision_body_sweep(world,&movers,&body,NULL,0,body_metadata,&calls,&hit,&found)==RF_OK);
+        CHECK(found && hit.face==0 && !hit.contact.face_flag);
+        body.flags=flags;found=99;hit=sentinel;
+        CHECK(rf_geometry_collision_body_sweep(world,&movers,&body,NULL,0,body_metadata,&calls,&hit,&found)==RF_RANGE);
+        CHECK(found==99 && !memcmp(&hit,&sentinel,sizeof(hit)));
+        world->liquids=saved;
+    }
+    return 0;
+}
 int main(void)
 {
     rf_geometry_collision_room rooms[2]={{0}};rf_collision_room_view views[2]={{0}};
@@ -45,6 +94,7 @@ int main(void)
     base.room_count=base.primary_count=2;base.primary=primary;
     base.minimum[0]=base.minimum[2]=-10;base.minimum[1]=-2;
     base.maximum[0]=50;base.maximum[1]=2;base.maximum[2]=10;
+    CHECK(!body_queries(&base));
     CHECK(rf_geometry_collision_overlay_open(&base,0,2,65536,&overlay)==RF_OK);
     CHECK(overlay.world.views[0].tree==&overlay.world.rooms[0].tree);
     CHECK(overlay.world.views[1].tree==&overlay.world.rooms[1].tree);

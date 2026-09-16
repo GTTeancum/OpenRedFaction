@@ -1177,13 +1177,19 @@ static int geometry_body_query(void *context,const rf_collision_body_request *re
     geometry_body_context *c=context;rf_collision_sweep_tree_hit hit;
     const rf_collision_face *face;uint32_t found,source,room=UINT32_MAX;int status;
     if(request->solid==UINT32_MAX) {
-        rf_collision_sweep_room_hit world_hit;const rf_collision_tree *tree;
-        status=rf_collision_sweep_rooms(c->world->views,c->world->room_count,
+        rf_collision_sweep_liquid_room_hit world_hit;const rf_collision_tree *tree;
+        /* Original499ed0 preserves body+124 bit1000. Use the owned liquid
+         * pass rather than rejecting a dry standing query with that bit set. */
+        if(request->flags&0x1000u)status=rf_collision_sweep_rooms_liquid(c->world->views,c->world->room_count,
             c->world->primary,c->world->primary_count,c->world->children,c->world->child_count,
-            request->flags,request->start,request->delta,request->radius,request->limit,&world_hit,&found);
+            request->flags,request->start,request->delta,request->radius,request->limit,
+            c->world->liquids,NULL,&world_hit,&found);
+        else status=rf_collision_sweep_rooms(c->world->views,c->world->room_count,
+            c->world->primary,c->world->primary_count,c->world->children,c->world->child_count,
+            request->flags,request->start,request->delta,request->radius,request->limit,&world_hit.room,&found);
         if(status)return status;if(!found){*matched=0;return RF_OK;}
-        room=world_hit.room;if(room>=c->world->room_count)return RF_FORMAT;
-        tree=&c->world->rooms[room].tree;hit=world_hit.tree;
+        room=world_hit.room.room;if(room>=c->world->room_count)return RF_FORMAT;
+        tree=&c->world->rooms[room].tree;hit=world_hit.room.tree;
         if(hit.face_index>=tree->face_count || !tree->source_indices || !tree->faces)return RF_FORMAT;
         source=tree->source_indices[hit.face_index];face=tree->faces+hit.face_index;
     } else {
