@@ -9,3 +9,7 @@ The extended world sweep returns authored surface flags through an optional outp
 Attempted live hookup found `sweep_rooms_prepared` explicitly rejects query1000. That hookup was removed; scene gameplay remains on the existing dry path. The dry900-frame two-blast run reproduces the8934-byte destruction checkpoint exactly; its actual output was inspected and still shows the known dark crater. No working live water collision, ripple rendering or water audio is claimed.
 
 Next: recover and implement the original room-liquid face pass, preserving its eligibility and hit discriminator, then connect the new flight API. Do not merely remove the unsupported-query guard. Original-game screenshot comparison is not part of this work.
+
+## Native regression after room-pass integration
+
+The later room-pass implementation is committed and live rocket dispatch uses it. XEMU run `artifacts/xemu/render-20260915-215217` completed260frames and47 comparisons on67108864-byte base memory with no expansion, retaining8575 free pages (33.50MiB). The native framebuffer was inspected: room, rocket weapon, HUD and one crater are present; the known dark crater appearance persists. This is a dry destruction regression, not acceptance of wet-scene ripple visuals or audible splash playback. The owned process exited and all saved disc entries were restored.
