@@ -1352,17 +1352,17 @@ static int subtract_history_face(rf_geomod_storage *s,const rf_geomod_vertex *ve
     const rf_geomod_mesh_view *cutters,uint32_t cutter_count,rf_geomod_multi_work *work,const uint16_t *edges,uint16_t face_id)
 {return subtract_history_face_range(s,vertices,count,material,source_face,owner,cutters,cutter_count,work,edges,face_id,0,NULL,0);}
 
-/* One chronological outward-solid step in a PRIVATE replay owner. Previous
+/* One chronological solid/cavity step in a PRIVATE replay owner. Previous
  * committed surfaces retain interpolated UV; only the newest cutter creates
  * birth-tag1 surfaces. Plane caches for the entire prefix are caller prepared.
- * Mapping and commit follow separately. Cavity support provenance is separate. */
-static inline int prepare_solid_step(rf_geomod_storage *s,const rf_geomod_mesh_view *cutters,
-    uint32_t count,rf_geomod_multi_work *work,geomod_face_lineage *lineage,geomod_step_support *previous)
+ * Mapping and commit follow separately; exact support IDs survive each step. */
+static inline int prepare_chronological_step(rf_geomod_storage *s,const rf_geomod_mesh_view *cutters,
+    uint32_t count,rf_geomod_multi_work *work,geomod_face_lineage *lineage,geomod_step_support *previous,uint32_t cavity)
 {
     rf_geomod_mesh_view old,source;uint32_t i,n,c,j,k;int status;
-    if(!s || !work || !lineage || !previous || !cutters || !count || count>RF_GEOMOD_CUT_LIMIT || s->editing || s->vertex_capacity>4096 || s->face_capacity>1024)return RF_RANGE;
+    if(!s || !work || !lineage || !previous || !cutters || !count || count>RF_GEOMOD_CUT_LIMIT || s->editing || s->vertex_capacity>4096 || s->face_capacity>1024 || cavity>1)return RF_RANGE;
     source=(rf_geomod_mesh_view){s->vertices[2],s->faces[2],s->nv[2],s->nf[2],0};
-    status=convex_mesh_planes(&source,work->source_planes);if(status)return status;
+    status=convex_mesh_planes_oriented(&source,work->source_planes,(int)cavity);if(status)return status;
     status=rf_geomod_storage_view(s,&old);if(status)return status;
     c=count-1;
     if(!c) {
@@ -1386,6 +1386,21 @@ static inline int prepare_solid_step(rf_geomod_storage *s,const rf_geomod_mesh_v
         rf_geomod_vertex *current=work->seed.vertices,*front=current+64,*back=current+128;
         uint16_t *current_edges=work->seed_edges,*front_edges=current_edges+64,*back_edges=current_edges+128;
         geomod_corner_support support={work,(uint16_t)(32+c*128+i*(work->star_count[c]?4:1)),cutters};
+        if(cavity) {
+            uint16_t source_ids[32];uint32_t pieces,part;
+            rf_geomod_edge_tracking tracking={work->initial_edges+f->first,source_ids,work->seed_edges};
+            for(j=0;j<source.face_count;j++)source_ids[j]=(uint16_t)j;
+            status=polygon_subtract_tracked_policy(cutters[c].vertices+f->first,f->count,
+                work->source_planes,source.face_count,work->seed.vertices,64*32,
+                work->seed.fragments,32,&n,&pieces,1,&tracking,&support);if(status)goto failed;
+            for(part=0;part<pieces;part++) {
+                const rf_geomod_fragment *piece=work->seed.fragments+part;
+                status=subtract_history_face_range(s,work->seed.vertices+piece->first,piece->count,
+                    f->material,UINT32_MAX,c,cutters,count,work,work->seed_edges+piece->first,support.face,0,lineage,1);
+                if(status)goto failed;
+            }
+            continue;
+        }
         n=f->count;memcpy(current,cutters[c].vertices+f->first,n*sizeof(*current));
         memcpy(current_edges,work->initial_edges+f->first,n*sizeof(*current_edges));
         for(j=0;j<source.face_count && n;j++) {
@@ -1917,6 +1932,39 @@ static int terrain_map_pending_lineage(rf_geomod_terrain *t,const geomod_face_li
 }
 static int terrain_map_pending(rf_geomod_terrain *t)
 {return terrain_map_pending_lineage(t,NULL);}
+
+/* Reconstruct in a disposable storage owner so any prefix failure preserves
+ * the live bank. Reuse the existing work owner; release replay before tree build. */
+static inline int terrain_prepare_chronological_mesh(rf_geomod_terrain *t,uint32_t count)
+{
+    rf_geomod_storage *live=t->mesh,*replay=NULL;
+    rf_geomod_mesh_view source={live->vertices[2],live->faces[2],live->nv[2],live->nf[2],0},result;
+    geomod_face_lineage *lineage=NULL;geomod_step_support *support=NULL;
+    uint64_t used=(uint64_t)t->base_bytes+t->tree.allocated_bytes+sizeof(*lineage)+sizeof(*support);
+    uint32_t c,i;int status;
+    if(!count || count>RF_GEOMOD_CUT_LIMIT || live->editing)return RF_RANGE;
+    if(used>=t->budget)return RF_RANGE;
+    status=rf_geomod_storage_open(&source,t->vc,t->fc,t->budget-(uint32_t)used,&replay);if(status)return status;
+    used+=rf_geomod_storage_bytes(replay);if(used>t->peak_bytes)t->peak_bytes=(uint32_t)used;
+    lineage=calloc(1,sizeof(*lineage));support=calloc(1,sizeof(*support));
+    if(!lineage || !support){status=RF_IO;goto done;}
+    for(c=1;c<=count;c++) {
+        status=prepare_chronological_step(replay,t->cuts,c,&t->work,lineage,support,t->cavity);if(status)goto done;
+        /* No callbacks occur while selecting this private mapping target. */
+        t->mesh=replay;status=terrain_map_pending_lineage(t,lineage);t->mesh=live;
+        if(status)goto done;
+        status=rf_geomod_storage_commit(replay);if(status)goto done;
+    }
+    status=rf_geomod_storage_view(replay,&result);if(status)goto done;
+    status=rf_geomod_storage_begin(live);if(status)goto done;
+    for(i=0;i<result.face_count;i++) {
+        const rf_geomod_face *f=result.faces+i;
+        status=rf_geomod_storage_append(live,result.vertices+f->first,f->count,f->material,f->source_face);
+        if(status){rf_geomod_storage_abort(live);goto done;}
+    }
+done:
+    free(support);free(lineage);rf_geomod_storage_close(&replay);return status;
+}
 
 typedef struct terrain_pending {
     rf_geomod_mesh_view mesh;rf_collision_tree tree;uint32_t bank,count;

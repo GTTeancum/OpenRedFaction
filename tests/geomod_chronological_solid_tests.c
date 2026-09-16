@@ -85,13 +85,28 @@ static int run(unsigned cavity,float roof,float split,unsigned *comparisons,unsi
         memcpy(replay->work.star_planes,t->work.star_planes,sizeof(t->work.star_planes));
         memcpy(replay->work.star_count,t->work.star_count,sizeof(t->work.star_count));
         for(prefix=1;!status && prefix<=2;prefix++) {
-            status=prepare_solid_step(replay->mesh,t->cuts,prefix,&replay->work,tags,provenance);
+            status=prepare_chronological_step(replay->mesh,t->cuts,prefix,&replay->work,tags,provenance,cavity);
             if(!status)status=terrain_map_pending_lineage(replay,tags);
             if(!status)status=rf_geomod_storage_commit(replay->mesh);
         }
         if(!status)status=rf_geomod_storage_view(replay->mesh,&reconstructed);
         if(!status){int closed=lineage_closed(&reconstructed);printf("SOLID_CHRONOLOGICAL_COVERAGE %d\n",closed);if(!closed)status=RF_FORMAT;}
         if(!status)status=lineage_collision_equal(&view.mesh,&reconstructed);
+        if(!status) {
+            rf_geomod_mesh_view pending,unchanged;uint32_t budget=t->budget;
+            t->budget=t->base_bytes;
+            if(terrain_prepare_chronological_mesh(t,2)!=RF_RANGE)status=RF_FORMAT;
+            t->budget=budget;
+            if(!status)status=rf_geomod_storage_view(t->mesh,&unchanged);
+            if(!status && (unchanged.vertices!=view.mesh.vertices || unchanged.generation!=view.mesh.generation || t->mesh->editing))status=RF_FORMAT;
+            if(!status)status=terrain_prepare_chronological_mesh(t,2);
+            if(!status)status=rf_geomod_storage_pending(t->mesh,&pending);
+            if(!status && (pending.vertex_count!=reconstructed.vertex_count || pending.face_count!=reconstructed.face_count ||
+                memcmp(pending.vertices,reconstructed.vertices,pending.vertex_count*sizeof(*pending.vertices)) ||
+                memcmp(pending.faces,reconstructed.faces,pending.face_count*sizeof(*pending.faces))))status=RF_FORMAT;
+            rf_geomod_storage_abort(t->mesh);
+        }
+
         if(!status) {
             /* Keep result alive for existing exact-corner comparisons below. */
             rf_geomod_storage_close(&t->mesh);t->mesh=replay->mesh;replay->mesh=NULL;
@@ -126,13 +141,13 @@ int main(void)
 {
     static const float splits[]={0,.1f,.2f,.3f},roofs[]={-.75f,0,.25f};
     unsigned c,r,x,total=0,changed=0,accepted=0,rejected=0;
-    for(c=0;c<1;c++)for(r=0;r<(c?3u:1u);r++)for(x=0;x<4;x++) {
+    for(c=0;c<2;c++)for(r=0;r<(c?3u:1u);r++)for(x=0;x<4;x++) {
         unsigned compared=0,delta=0;int status=run(c,roofs[r],splits[x],&compared,&delta);
         if(status)++rejected;else ++accepted;
         total+=compared;changed+=delta;
     }
     printf("PUBLIC_UV_SUMMARY accepted=%u rejected=%u comparisons=%u changed=%u\n",accepted,rejected,total,changed);
     if(changed)return 1;
-    if(accepted!=4 || rejected || total<8)return 2;
-    puts("PASS solid UV/closed-coverage/collision comparison; cavity/live integration pending");return 0;
+    if(accepted!=16 || rejected || total<8)return 2;
+    puts("PASS solid/cavity UV/closed-coverage/collision comparison; live integration pending");return 0;
 }

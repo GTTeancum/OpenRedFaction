@@ -96,3 +96,27 @@ tests pass after rebuild. See solid-support-result.log and
 solid-support-regression-build.log. Production/cavity integration remains open.
 Additional optional prototype scratch is12288bytes for lineage+support, excluding
 private replay mesh banks/work and tree allocation; this is not native RAM proof.
+
+## Cavity extension and transactional replay preparation
+
+prepare_chronological_step now handles outward solid and inward cavity sources.
+Cavity cutter faces subtract the original empty volume using tracked supporting
+planes before previous cutters clip them. Previous committed faces retain UVs
+and exact support IDs. All16 solid/cavity cases pass geometric edge coverage;
+62 inherited exact corners keep UVs;23232 paired ray/sphere queries agree within
+1e-5. The historical target name geomod_chronological_solid now covers both modes.
+
+terrain_prepare_chronological_mesh reconstructs all prefixes in disposable
+storage using existing work scratch, accounts lineage/support/replay bytes within
+the terrain budget, and copies only the successful final mesh into the inactive
+live bank. Replay scratch is freed before collision-tree construction. Every
+fixture compares that adapter's pending output byte-for-byte against standalone
+chronological reconstruction and rejects insufficient budget without changing
+live vertices/generation/edit state. Seven focused tests pass after rebuild.
+
+Live terrain_prepare does not route through this adapter yet. Enabling it needs
+broader history/reset/source tests, reconstruction policy identity updates,
+installed post/cavity replay and native memory/performance acceptance. The
+prototype omits the old cavity repair stage; tested geometry coverage passes,
+but larger/adversarial shapes must establish whether exact support propagation
+suffices or a provenance-preserving repair stage is still required.
