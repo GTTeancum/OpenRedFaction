@@ -9,6 +9,7 @@ SHADER_OBJS = $(PROJECT_ROOT)/src/platform/xbox/particle_vertex.inl $(PROJECT_RO
 SHADER_OBJS += $(PROJECT_ROOT)/src/platform/xbox/solid_fragment.inl $(PROJECT_ROOT)/src/platform/xbox/world_vertex.inl $(PROJECT_ROOT)/src/platform/xbox/skinned_vertex.inl $(PROJECT_ROOT)/src/platform/xbox/rigid_vertex.inl
 SRCS += $(PROJECT_ROOT)/src/core/geomod.c
 SRCS += $(PROJECT_ROOT)/src/core/checkpoint_file.c
+SRCS += $(PROJECT_ROOT)/src/core/player_checkpoint.c
 SRCS += $(PROJECT_ROOT)/src/platform/xbox/checkpoint_storage.c
 SRCS += $(PROJECT_ROOT)/src/platform/xbox/input.c
 SRCS += $(PROJECT_ROOT)/src/platform/xbox/audio.c

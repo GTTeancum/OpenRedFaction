@@ -379,3 +379,8 @@ add_test(NAME geomod_debris_relaunch COMMAND rf_geomod_debris_relaunch_tests)
 add_executable(rf_geomod_debris_birth_tests tests/geomod_debris_birth_tests.c)
 target_link_libraries(rf_geomod_debris_birth_tests PRIVATE rf_core)
 add_test(NAME geomod_debris_birth COMMAND rf_geomod_debris_birth_tests)
+
+target_sources(rf_core PRIVATE src/core/player_checkpoint.c)
+add_executable(rf_player_checkpoint_tests tests/player_checkpoint_tests.c)
+target_link_libraries(rf_player_checkpoint_tests PRIVATE rf_core)
+add_test(NAME player_checkpoint_codec COMMAND rf_player_checkpoint_tests)
