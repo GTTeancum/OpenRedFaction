@@ -423,14 +423,8 @@ int main(int argc,char **argv)
         char *end;unsigned long uid=strtoul(getenv("RF_REPLAY_EXIT_START"),&end,10);
         if(*end || !uid)CHECK(RF_FORMAT);CHECK(rf_scene_stage_exit(&level,(uint32_t)uid));
     }
-    {extern uint32_t rf_scene_water_test_enabled;
-     rf_scene_water_test_enabled=p.headless && spawn_profile && getenv("RF_REPLAY_WATER_TEST")!=NULL;
-     if(rf_scene_water_test_enabled) {
-        static const float position[3]={-226.5f,-38.25f,-80.f};
-        static const float basis[9]={0,0,-1,.8f,.6f,0,.6f,-.8f,0};
-        if(strcmp(level.entry.name,"dm03.rfl"))CHECK(RF_FORMAT);
-        memcpy(level.player_position,position,12);memcpy(level.player_orientation,basis,36);
-     }}
+    rf_scene_water_test_enabled=p.headless && spawn_profile && getenv("RF_REPLAY_WATER_TEST")!=NULL;
+    if(rf_scene_water_test_enabled)CHECK(rf_scene_water_test_place(&level));
     if(spawn_profile)CHECK(rf_scene_set_campaign_spawn(&level));
     else CHECK(rf_scene_preview_route_camera(&level,9858));
     CHECK(rf_geometry_open(&geometry,&level,8*1024*1024));

@@ -542,6 +542,9 @@ static int scene_preview(rf_level *level,rf_preview_mesh *mesh)
      rf_scene_ripple_test_enabled=ripple_flag!=NULL;if(ripple_flag)fclose(ripple_flag);}
     stream_flag=fopen("D:\\dev-room.flag","rb");rf_scene_dev_room_enabled=stream_flag!=NULL;
     if(stream_flag)fclose(stream_flag);
+    {FILE *water_flag=fopen("D:\\water-test.flag","rb");
+     rf_scene_water_test_enabled=water_flag!=NULL;
+     if(water_flag){fclose(water_flag);status=rf_scene_water_test_place(level);if(status)return status;rf_scene_dev_room_enabled=1;}}
     stream_flag=fopen("D:\\campaign-spawn.flag","rb");
     rf_scene_follow_level_exits=stream_flag!=NULL && !rf_scene_dev_room_enabled;
     if(stream_flag){fclose(stream_flag);status=rf_scene_set_campaign_spawn(level);}

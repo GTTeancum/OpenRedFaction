@@ -41,3 +41,15 @@ No original runtime, screenshots, source asset modifications or builds were used
 The explicit RF_REPLAY_WATER_TEST hook now places the player and enables DEV weapon supply for dm03 while skipping the Glass House-only terrain fixture. tools/verify_water_gameplay.py regenerates ordinary RFI6 inputs and executes65/180frame checks. The player settles; recorded look-down input=-1 atframes1..56 is necessary because initial body heading alone does not retain the intended downward firing view. Real liquid contact occurs64, solid floor contact66, exactly one ripple starts and expires by180. The close blast kills the player; frame80 inspection shows explosion/death overlay, so later ripple visibility is not proven by that image. A safer view and wet Xbox/audio remain open.
 
 This run found tiny rocket triangles failing generic plane validation at distant world coordinates. Rocket rendering now rotates into projectile-local coordinates and translates the copied camera inversely, preserving all faces and terrain validation thresholds. PC wet replay now completes; dry ripple checks and NXDK build pass. No original visual references were used.
+
+## Stock-memory Xbox execution (2026-09-16)
+
+Shared rf_scene_water_test_place now supplies the identical pose to PC and Xbox; the native frontend reads the explicitly staged water-test.flag. Run:
+
+```
+python tools/xemu_render_check.py --water-test --spawn --level dm03.rfl --archive levelsm.vpp --input artifacts/water-fixture/input.bin --seconds 180
+```
+
+Retained run artifacts/xemu/render-20260916-090120 passes42 comparisons at180frames, base memory67108864 and plugged memory0. Both backends report ROCKET_LIQUID_STATE [1,4,1097789167,1056964608], ROCKETS [1,1,0,0,0,0,0,0], RIPPLE_LIFECYCLE [1,1,0,0], and one blast. Native capture was inspected: tiled room floor and death/respawn HUD from the close blast; this endpoint does not prove active-ripple appearance or wet sound (audio was disabled). The earlier active-ripple precision mismatch remains open. All25 staged disc entries restored exactly and owned PID34112 exited.
+
+The harness now records water_test and applies nonzero scenario assertions to180-frame wet runs. tools/verify_water_xbox.py independently accepts the retained native report; this additional verifier was added after the native run and does not imply another emulator execution. PC event trace establishes entry64 and solid66; native endpoint proves the counters, not exact event-frame timing.

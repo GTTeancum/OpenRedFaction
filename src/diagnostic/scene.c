@@ -167,6 +167,15 @@ static rf_scene_input player_input;
 static uint32_t campaign_spawn;
 uint32_t rf_scene_dev_room_enabled;
 uint32_t rf_scene_water_test_enabled; /* Explicit authored dm03 water test; no terrain fixture. */
+int rf_scene_water_test_place(rf_level *level)
+{
+    static const float position[3]={-226.5f,-38.25f,-80.f};
+    static const float basis[9]={0,0,-1,.8f,.6f,0,.6f,-.8f,0};
+    if(!level || strcmp(level->entry.name,"dm03.rfl"))return RF_FORMAT;
+    memcpy(level->player_position,position,12);memcpy(level->player_orientation,basis,36);
+    return RF_OK;
+}
+
 static uint32_t dev_refill_held;
 static uint32_t campaign_crouched,campaign_jump_held;
 static rf_physics_gravity scene_gravity={9.8f,{0,-9.8f,0}};

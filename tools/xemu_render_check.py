@@ -21,11 +21,13 @@ from PIL import Image
 from xemu_guest_snapshot import words
 from xemu_smoke import Monitor
 from xemu_session_guard import require_no_project_xemu
+from verify_water_xbox import verify as verify_water_scenario
 
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--cpu-exceptions', action='store_true', help='Retain QEMU exception/reset diagnostics for guest crash analysis')
+    parser.add_argument('--water-test', action='store_true', help='Authored dm03 water gameplay with DEV weapon supply')
     parser.add_argument('--ripple-test', action='store_true', help='DEV render-only ripple fixture; no liquid collision claim')
     parser.add_argument('--dev-room', action='store_true', help='Supply supported weapons in Glass House only')
     parser.add_argument('--shallow-oblique', action='store_true', help='Use an oblique second shallow-region limit')
@@ -56,6 +58,8 @@ def main():
     parser.add_argument('--unbatched', action='store_true', help='Reference tiny GPU command submission blocks')
     parser.add_argument('--unsorted', action='store_true', help='Reference source-order world draw ranges')
     args = parser.parse_args()
+    if args.water_test and (args.dev_room or args.level!='dm03.rfl' or args.archive!='levelsm.vpp' or not args.spawn):
+        parser.error('--water-test requires --spawn --level dm03.rfl --archive levelsm.vpp without --dev-room')
     if args.dev_room and (args.level != 'glass_house.rfl' or args.archive != 'levelsm.vpp' or not args.spawn):
         parser.error('Developer room requires --spawn --level glass_house.rfl --archive levelsm.vpp')
     if args.ripple_test and not args.dev_room:parser.error('--ripple-test requires --dev-room')
@@ -107,6 +111,7 @@ def main():
     env = {k: v for k, v in os.environ.items() if not k.startswith('RF_REPLAY_')}
     env.update(RF_REPLAY_LEVEL=args.level, RF_REPLAY_ARCHIVE=args.archive)
     if args.dev_room:env['RF_REPLAY_DEV_ROOM']='1'
+    if args.water_test:env['RF_REPLAY_WATER_TEST']='1'
     if args.ripple_test:env['RF_REPLAY_RIPPLE_TEST']='1'
     if args.ripple_test:env['RF_REPLAY_RIPPLE_VERTICES']=str(run/'pc-ripple-vertices.bin')
     if checkpoint:env['RF_REPLAY_GEOMOD_CHECKPOINT_OUT']=str(run/'pc-checkpoint.rfds')
@@ -114,6 +119,7 @@ def main():
     if args.terrain_test_light:env['RF_REPLAY_TERRAIN_TEST_LIGHT']='1'
     if args.shallow_fixture:env['RF_REPLAY_SHALLOW_FIXTURE']='3' if args.shallow_oblique else '2' if args.shallow_two_limits else '1'
     report['shallow_fixture']=args.shallow_fixture
+    report['water_test']=args.water_test
     report['shallow_two_limits']=args.shallow_two_limits
     report['shallow_oblique']=args.shallow_oblique
     report['terrain_test_light']=args.terrain_test_light
@@ -157,7 +163,7 @@ def main():
     saved[light_flag.name]=light_flag.read_bytes() if light_flag.exists() else None
     shallow_flag=disc/'shallow-fixture.flag'
     saved[shallow_flag.name]=shallow_flag.read_bytes() if shallow_flag.exists() else None
-    for name in ('geomod-checkpoint.bin','geomod-checkpoint-out.flag','ripple-test.flag'):
+    for name in ('geomod-checkpoint.bin','geomod-checkpoint-out.flag','ripple-test.flag','water-test.flag'):
         path=disc/name;saved[name]=path.read_bytes() if path.exists() else None
     # Persist restoration bytes before mutating the disc, including absent files.
     (run / 'disc-restore.json').write_text(json.dumps({
@@ -191,6 +197,7 @@ def main():
         else:ripple_flag.unlink(missing_ok=True)
         (disc / 'campaign-spawn.flag').write_bytes(b'')
         if args.dev_room:(disc/'dev-room.flag').write_bytes(b'')
+        if args.water_test:(disc/'water-test.flag').write_bytes(b'')
         if checkpoint:(disc/'geomod-checkpoint-out.flag').write_bytes(b'')
         if args.geomod_checkpoint_in:(disc/'geomod-checkpoint.bin').write_bytes(args.geomod_checkpoint_in.read_bytes())
         if args.shallow_fixture:(disc/'shallow-fixture.flag').write_bytes(b'3' if args.shallow_oblique else b'2' if args.shallow_two_limits else b'')
@@ -384,6 +391,8 @@ dvd_path = '{root.as_posix()}/build/xbox/redfaction-diagnostic.iso'
                     report['pickup_cpu_vertices']=dict(xbox=actual[6],pc=expected[6],
                         scope='Backend-specific rendering count; excluded from gameplay parity')
                 assert equal, label
+            if args.water_test and args.frames == 180:
+                report['water_scenario'] = verify_water_scenario(report)
             if args.dev_room:
                 expected=list(map(int,next(line for line in pc.stdout.splitlines() if line.startswith('GEOMOD ')).split()[1:]))
                 actual=words(monitor,symbol('rf_scene_geomod'),8)
