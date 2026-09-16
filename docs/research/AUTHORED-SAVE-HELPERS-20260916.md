@@ -73,3 +73,14 @@ floor/water, launcher and HUD present. No audio or full visual-parity claim.
 Disc restoration is confirmed; the runner completed and closed its owned emulator.
 Final profile telemetry2 is included in this build. Five focused tests were rebuilt
 and rerun successfully. Live reset/malformed and broader authored cases remain.
+
+## Reset continuation acceptance
+
+`python tools/check_authored_restart.py --case reset-zero` saves at frame640
+of reset-recut.bin (zero cuts, revision3), then restarts for the last200 frames.
+PC checkpoint, cutter history and publication exactly match uninterrupted840frames.
+Native render-20260916-184934 passes58 checks with16.51171875MiB free on64MiB.
+Xbox, restarted PC and uninterrupted PC checkpoints are identical2518bytes.
+Native framebuffer inspected: room, recut post, floor/water, launcher and HUD
+present. Audio unverified; no visual-parity claim. Disc restoration confirmed
+and owned emulator exited. No code changes were needed for the reset path.

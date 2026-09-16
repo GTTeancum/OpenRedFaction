@@ -1,6 +1,6 @@
 # Red Faction Xbox / PC - open work
 
-- GeoMod UV seams: Preserve inherited crater texture coordinates across repeated cuts; the shared C split/mapping probe reproduces12 changed corners from rounded-normal axis drift, and the correction remains open.
+- GeoMod UV seams: Preserve inherited crater texture coordinates; the public terrain API now reproduces10 changed surviving corners across16 accepted cases, and chronological reconstruction remains to implement.
 
 - PRIORITY GeoMod coverage: Expand verified authored-post destruction beyond the bounded profile; two cuts pass56 stock64MiB PC/Xbox checks and the player crosses the opened post on PC, while authored saves and broader destruction coverage remain open.
 
@@ -8,7 +8,7 @@
 - Movement: Finish underwater presentation; authored lava damage and harmless dry control now pass44/45 PC/Xbox checks on stock64MiB.
 
 - GeoMod debris: Verify wet birth placement and audible output; grouped debris sound dispatch and dry destruction now pass55 stock64MiB PC/Xbox checks.
-- GeoMod saves: Broaden authored save coverage after one-cut reload and next blast pass58 stock64MiB Xbox checks with identical PC/Xbox/uninterrupted checkpoint bytes; reset and malformed live restart coverage remain open.
+- GeoMod saves: Broaden authored save coverage after both one-cut and reset reload/next-blast paths pass58 stock64MiB Xbox checks with identical uninterrupted checkpoint bytes; malformed live restart coverage remains open.
 
 - Explosions: Extend verified actor-position blast falloff and CF5 cover to broader encounters; nearby self-damage and recovered debris bounces now pass50 stock64MiB Xbox comparisons.
 - GeoMod collisions: Resolve active-ripple precision and verify wet audio/safer visual placement; authored water entry, floor impact and ripple expiry now pass42 PC/Xbox comparisons on stock64MiB.

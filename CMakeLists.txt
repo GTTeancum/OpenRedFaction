@@ -557,3 +557,7 @@ if(MSVC)
     target_compile_definitions(rf_scene_authored_clutter_scope_tests PRIVATE _CRT_SECURE_NO_WARNINGS)
 endif()
 add_test(NAME scene_authored_clutter_scope COMMAND rf_scene_authored_clutter_scope_tests "${CMAKE_SOURCE_DIR}/Installed_Game/levelsm.vpp")
+
+# Public terrain integration probe; diagnostic exit1 means UV drift reproduced.
+add_executable(rf_geomod_uv_public_lineage_probe tests/geomod_uv_public_lineage_probe.c)
+target_link_libraries(rf_geomod_uv_public_lineage_probe PRIVATE rf_core)
