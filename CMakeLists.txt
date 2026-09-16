@@ -561,3 +561,7 @@ add_test(NAME scene_authored_clutter_scope COMMAND rf_scene_authored_clutter_sco
 # Public terrain integration probe; diagnostic exit1 means UV drift reproduced.
 add_executable(rf_geomod_uv_public_lineage_probe tests/geomod_uv_public_lineage_probe.c)
 target_link_libraries(rf_geomod_uv_public_lineage_probe PRIVATE rf_core)
+
+add_executable(rf_geomod_face_lineage_tests tests/geomod_face_lineage_tests.c)
+target_link_libraries(rf_geomod_face_lineage_tests PRIVATE rf_core)
+add_test(NAME geomod_face_lineage COMMAND rf_geomod_face_lineage_tests)

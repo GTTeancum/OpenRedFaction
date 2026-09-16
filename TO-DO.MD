@@ -1,6 +1,6 @@
 # Red Faction Xbox / PC - open work
 
-- GeoMod UV seams: Preserve inherited crater texture coordinates; the public terrain API now reproduces10 changed surviving corners across16 accepted cases, and chronological reconstruction remains to implement.
+- GeoMod UV seams: Implement chronological reconstruction using the newly tested face-birth tags; the public terrain probe still reproduces10 shifted corners and live texture preservation remains unfinished.
 
 - PRIORITY GeoMod coverage: Expand verified authored-post destruction beyond the bounded profile; two cuts pass56 stock64MiB PC/Xbox checks and the player crosses the opened post on PC, while authored saves and broader destruction coverage remain open.
 

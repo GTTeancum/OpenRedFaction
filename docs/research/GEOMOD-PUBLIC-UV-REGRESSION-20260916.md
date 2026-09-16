@@ -17,3 +17,21 @@ new rounded normal. History import invokes the same full rebuild. Correcting onl
 live edits would therefore disagree with reloads. Preserve birth-generation UV
 through chronological clipping, with transactional reconstruction and existing
 support-plane identities; do not merely change the axis tie epsilon.
+
+## Face lineage infrastructure
+
+Added optional internal geomod_face_lineage scratch (2048bytes) and tagged
+compaction/repair entry points. Different birth tags cannot merge; same-birth
+compaction moves tags with removed face indices, and repair propagates each tag
+to all concave partition outputs. Existing full-union callers pass NULL and
+allocate no lineage scratch, preserving current production behavior.
+
+geomod_face_lineage tests same-birth merge, differing-birth exclusion, index
+movement, ordinary repair and one-to-many concave partition propagation. It and
+five rebuilt geometry tests pass (polygon split, interior faces, repeated-cut
+coverage, transaction storage, history check). The public UV probe still reports
+16 accepted cases/39 comparisons/10 changed corners. This is a prerequisite,
+not a texture fix or Xbox acceptance. Chronological old-face clipping, retained
+support-plane provenance, new-face projection and transactional history replay
+remain to connect. Existing resident-memory accounting is unchanged until a
+caller opts into the separately owned scratch.
