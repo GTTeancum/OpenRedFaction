@@ -384,3 +384,8 @@ target_sources(rf_core PRIVATE src/core/player_checkpoint.c)
 add_executable(rf_player_checkpoint_tests tests/player_checkpoint_tests.c)
 target_link_libraries(rf_player_checkpoint_tests PRIVATE rf_core)
 add_test(NAME player_checkpoint_codec COMMAND rf_player_checkpoint_tests)
+
+target_sources(rf_core PRIVATE src/core/collision_composition.c)
+add_executable(rf_collision_composition_tests tests/collision_composition_tests.c)
+target_link_libraries(rf_collision_composition_tests PRIVATE rf_core)
+add_test(NAME collision_composition COMMAND rf_collision_composition_tests)
