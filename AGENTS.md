@@ -20,3 +20,5 @@
 - Keep the four existing GitHub images; upload no additional screenshots until near-retail-quality replacements are available.
 
 - Do not launch a second Red Faction XEMU instance while an existing project session is open; leave the existing session untouched and continue PC-side work.
+
+- Do not use original-game screenshots as visual references or pursue disc-dependent capture sessions; use binary-derived mathematical evidence and reconstructed PC/Xbox validation for fidelity.

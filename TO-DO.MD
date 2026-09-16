@@ -1,14 +1,14 @@
 # Red Faction Xbox / PC - open work
 
-- GeoMod collisions: Implement verified water-contact continuation before expanding rocket surface queries; liquid contact must not enter terrain excavation.
-- USER: Stock reference needs the matching Red Faction CD #2 image; mounted E: lacks the original music.vpp disc marker, so further stock launches are paused.
+- GeoMod collisions: Connect verified liquid-contact policy to remaining-time movement and splash rendering before enabling water queries; shared rules pass PC tests and Xbox compilation.
+- GeoMod fidelity: Use binary-derived geometry, material, lighting and collision calculations; original-game screenshot comparisons are excluded by user direction.
 - GeoMod saves: Extend verified DEV destruction checkpoints to writable Xbox storage and full game-state integration; PC-to-Xbox reload and another blast now pass48 comparisons.
-- GeoMod visuals: Obtain a stock-game crater reference with the isolated process-local capture harness; backend upload, material/UV and winding audits found no justified brightness or normal correction.
+- GeoMod visuals: Diagnose crater readability through binary-derived numeric comparisons of geometry, UVs, lighting and projection; no original-game screenshot reference is required.
 - PRIORITY GeoMod: Match original destruction shape, exposed materials, lighting, debris, collision and repeated blasts before returning to other systems; a visible hole alone is not acceptance.
 - GeoMod: Improve crater readability and expand destruction coverage; eight-cut live/Xbox repair passes, and side-view nearer pixels trace to floor projection rounding, while broader shapes and visual parity remain open.
 - GeoMod: Reduce remaining terrain-cut stalls; the latest native eighth edit measures 239ms CSG and 29ms binding, subject to host timing variation.
 - GeoMod: Diagnose the 425 PC/Xbox capture pixels differing by more than one color level; the shared dark crater appearance remains the main fidelity issue.
-- GeoMod lighting: Extend rocket glow beyond generated crater surfaces and obtain a verified stock-game capture; authored projectile lighting now follows live rockets, while impact effects and crater readability remain open.
+- GeoMod lighting: Extend rocket glow beyond generated crater surfaces and validate against binary-derived calculations; impact effects and crater readability remain open.
 - DEV testbed: Review full weapon animations and add complete room reset; terrain reset and ammo refill are implemented, while campaign progression remains paused.
 - GeoMod: Refine debris bounce, lighting and surface eligibility; original query flags/fractions and impact-normal effects now pass PC/Xbox checks, while crater readability remains open.
 - USER: Review destruction readability after replacing the folded-panel interior; destruction remains the current focus.

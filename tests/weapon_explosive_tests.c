@@ -16,6 +16,37 @@ static int sweep(void *context,const float start[3],const float delta[3],float r
 }
 int main(int argc,char **argv)
 {
+    /* Original verify_projectile_liquid_contact.py: six complete contact-dispatch cases.
+     * Selector/clamp boundaries additionally exercise the 4c4e30 contract. */
+    {
+        const uint32_t flags[]={0,0x10000,0x1000000};unsigned k,liquid;
+        for(k=0;k<3;k++)for(liquid=1;liquid<=2;liquid++) {
+            rf_weapon_liquid_state s={10,liquid,0x1000};rf_weapon_liquid_effect e;
+            CHECK(!rf_weapon_liquid_contact(&s,.1f,flags[k],1,23,42,&e));
+            CHECK(s.life==(k==1?0:10) && !s.is_liquid && !s.query_flags && e.handle==42 && e.size==.5f);
+        }
+        {
+            const float radii[]={-1,0,.249f,.25f,.251f,2};
+            const int selectors[]={-1,0,1,2,3};unsigned r,t;
+            for(r=0;r<6;r++)for(t=0;t<5;t++) {
+                rf_weapon_liquid_state s={-1,1,0xdeadffff};rf_weapon_liquid_effect e;
+                CHECK(!rf_weapon_liquid_contact(&s,radii[r],0,selectors[t],-1,77,&e));
+                CHECK(s.life==-1 && !s.is_liquid && s.query_flags==0xdeadefff);
+                CHECK(e.handle==((selectors[t]==1 || selectors[t]==2)?77:-1));
+                CHECK(e.size==(radii[r]<.25f?.5f:radii[r]+radii[r]));
+            }
+        }
+        {
+            rf_weapon_liquid_state s={10,0,0x1004},saved_s=s;
+            rf_weapon_liquid_effect e={44,9},saved_e=e;
+            CHECK(rf_weapon_liquid_contact(&s,.1f,0,1,23,42,&e)==RF_NOT_FOUND);
+            CHECK(!memcmp(&s,&saved_s,sizeof(s)) && !memcmp(&e,&saved_e,sizeof(e)));
+            s.is_liquid=1;saved_s=s;
+            CHECK(rf_weapon_liquid_contact(&s,INFINITY,0,1,23,42,&e)==RF_RANGE);
+            CHECK(!memcmp(&s,&saved_s,sizeof(s)) && !memcmp(&e,&saved_e,sizeof(e)));
+            CHECK(rf_weapon_liquid_contact(NULL,.1f,0,1,23,42,&e)==RF_FORMAT);
+        }
+    }
     const char *prefix="$Name: \"test\" $Weapon Type: \"explosive\" ";
     const char *valid="$Velocity: 20 $Lifetime: 15 $Collision Radius: .051 $Damage Radius: 5 +Crater Radius: 5 ";
     const char *bad[]={

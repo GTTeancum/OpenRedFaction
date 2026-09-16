@@ -30,6 +30,20 @@ int rf_weapon_flight_launch(rf_weapon_flight *,const float position[3],const flo
     float speed,float lifetime,float radius);
 int rf_weapon_flight_step(rf_weapon_flight *,float dt,rf_weapon_flight_sweep,void *,rf_weapon_flight_event *);
 
+typedef struct rf_weapon_liquid_state {
+    float life;
+    uint32_t is_liquid,query_flags;
+} rf_weapon_liquid_state;
+typedef struct rf_weapon_liquid_effect {int32_t handle;float size;} rf_weapon_liquid_effect;
+/* Original4c4b50/4c4e30 liquid-contact policy only: select the alternate
+ * handle for selectors1/2, clamp twice radius to0.5, clear liquid/query1000,
+ * and expire only weapon flag10000 (torpedo). Signed handles pass through.
+ * No terrain dispatch, effect allocation, movement or remaining-tick policy.
+ * Does not change generic flight stepping. NOT_FOUND for nonliquid contacts;
+ * errors preserve both outputs. State/effect must not overlap. */
+int rf_weapon_liquid_contact(rf_weapon_liquid_state *,float radius,uint32_t weapon_flags,
+    int32_t selector,int32_t default_handle,int32_t alternate_handle,rf_weapon_liquid_effect *);
+
 /* First-pass uniform solid-angle spread using an explicit deterministic stream.
  * Preserves ray length; zero spread preserves the ray and does not draw RNG.
  * Invalid input preserves output/state. Not a retail sampling-order claim. */

@@ -3,6 +3,20 @@
 #include "rf/effect.h"
 #include <string.h>
 #include <math.h>
+int rf_weapon_liquid_contact(rf_weapon_liquid_state *state,float radius,uint32_t weapon_flags,
+    int32_t selector,int32_t default_handle,int32_t alternate_handle,rf_weapon_liquid_effect *out)
+{
+    rf_weapon_liquid_state value;rf_weapon_liquid_effect effect;float size;
+    if(!state || !out)return RF_FORMAT;
+    if(!isfinite(radius) || !isfinite(state->life))return RF_RANGE;
+    if(!state->is_liquid)return RF_NOT_FOUND;
+    size=radius+radius;if(!isfinite(size))return RF_RANGE;
+    effect.size=size<.5f?.5f:size;
+    effect.handle=(selector==1 || selector==2)?alternate_handle:default_handle;
+    value=*state;value.is_liquid=0;value.query_flags&=~0x1000u;
+    if(weapon_flags&0x10000u)value.life=0;
+    *state=value;*out=effect;return RF_OK;
+}
 int rf_weapon_flight_launch(rf_weapon_flight *flight,const float position[3],const float direction[3],
     float speed,float lifetime,float radius)
 {
