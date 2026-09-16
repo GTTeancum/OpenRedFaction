@@ -44,6 +44,31 @@ typedef struct rf_weapon_liquid_effect {int32_t handle;float size;} rf_weapon_li
 int rf_weapon_liquid_contact(rf_weapon_liquid_state *,float radius,uint32_t weapon_flags,
     int32_t selector,int32_t default_handle,int32_t alternate_handle,rf_weapon_liquid_effect *);
 
+typedef struct rf_weapon_flight_liquid_state {uint32_t query_flags;} rf_weapon_flight_liquid_state;
+typedef struct rf_weapon_flight_liquid_policy {
+    uint32_t weapon_flags;int32_t selector,default_handle,alternate_handle;
+} rf_weapon_flight_liquid_policy;
+typedef struct rf_weapon_flight_liquid_event {
+    rf_weapon_flight_event terminal;
+    uint32_t has_liquid;
+    rf_weapon_flight_contact liquid_contact;
+    rf_weapon_liquid_effect liquid_effect;
+} rf_weapon_flight_liquid_event;
+typedef int (*rf_weapon_flight_liquid_sweep)(void *,const float start[3],const float delta[3],
+    float radius,uint32_t query_flags,rf_weapon_flight_contact *,uint32_t *is_liquid,uint32_t *matched);
+/* Opt-in straight-flight extension. One liquid entry may precede a solid hit
+ * in the same tick. Liquid entry uses original generic weapon setback/time,
+ * clears query1000 persistently and never becomes terminal.kind1. Fraction1
+ * liquid hits commit the endpoint without an entry effect. Torpedoes expire.
+ * Solid-only stepping retains legacy behavior, including terminal endpoint
+ * hits. Effects are descriptors only; publish after success. Errors preserve
+ * flight, query state and event; callback scratch is not rolled back.
+ * Callback must not mutate/alias these objects. Query flags are supplied raw;
+ * caller owns mesh-space and size-dependent flags. Repeated/disabled liquid
+ * contacts are format errors. No general acceleration or contact response. */
+int rf_weapon_flight_step_liquid(rf_weapon_flight *,float dt,rf_weapon_flight_liquid_state *,
+    const rf_weapon_flight_liquid_policy *,rf_weapon_flight_liquid_sweep,void *,rf_weapon_flight_liquid_event *);
+
 /* First-pass uniform solid-angle spread using an explicit deterministic stream.
  * Preserves ray length; zero spread preserves the ray and does not draw RNG.
  * Invalid input preserves output/state. Not a retail sampling-order claim. */

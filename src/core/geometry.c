@@ -1114,9 +1114,9 @@ int rf_geometry_collision_world_ray(const rf_geometry_collision_world *world,
     *matched=found;return RF_OK;
 }
 
-int rf_geometry_collision_world_sweep(const rf_geometry_collision_world *world,
+int rf_geometry_collision_world_sweep_flags(const rf_geometry_collision_world *world,
     uint32_t flags,const float start[3],const float delta[3],float radius,float limit,
-    rf_geometry_world_sweep_hit *result,uint32_t *matched)
+    rf_geometry_world_sweep_hit *result,uint32_t *matched,uint32_t *face_flags)
 {
     rf_collision_sweep_room_hit hit;uint32_t found;int status;
     if(!world || !result || !matched)return RF_RANGE;
@@ -1124,9 +1124,17 @@ int rf_geometry_collision_world_sweep(const rf_geometry_collision_world *world,
         world->children,world->child_count,flags,start,delta,radius,limit,&hit,&found);if(status)return status;
     if(found) {
         rf_geometry_world_sweep_hit value;value.hit=hit.tree.hit;value.room=hit.room;value.hits=hit.tree.hits;value.edge=hit.tree.edge;
-        value.face=world->rooms[hit.room].tree.source_indices[hit.tree.face_index];*result=value;
+        value.face=world->rooms[hit.room].tree.source_indices[hit.tree.face_index];
+        if(face_flags)*face_flags=world->rooms[hit.room].tree.faces[hit.tree.face_index].filter.face_flags;*result=value;
     }
     *matched=found;return RF_OK;
+}
+
+int rf_geometry_collision_world_sweep(const rf_geometry_collision_world *world,
+    uint32_t flags,const float start[3],const float delta[3],float radius,float limit,
+    rf_geometry_world_sweep_hit *result,uint32_t *matched)
+{
+    return rf_geometry_collision_world_sweep_flags(world,flags,start,delta,radius,limit,result,matched,NULL);
 }
 
 typedef struct geometry_body_context {

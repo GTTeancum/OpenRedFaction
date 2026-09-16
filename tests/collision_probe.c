@@ -1533,7 +1533,7 @@ int main(int argc,char **argv)
     }
     if(argc==4 && !strcmp(argv[1],"--world-sweep")) {
         rf_vpp archive;rf_level level;rf_geometry geometry;rf_geometry_collision_world world={0},guard,sentinel;
-        uint32_t i,j,k,q,pass,edge_hits=0,faces=0,queries=0,hits=0,errors=0,hashes[2]={2166136261u,2166136261u},geometry_bytes;void *poison=NULL;
+        uint32_t i,j,k,q,pass,face_flags=0,edge_hits=0,faces=0,queries=0,hits=0,errors=0,hashes[2]={2166136261u,2166136261u},geometry_bytes;void *poison=NULL;
         if(rf_vpp_open(&archive,argv[2]) || rf_level_open(&level,&archive,argv[3]) || rf_geometry_open(&geometry,&level,8u*1024u*1024u))return 3;
         if(rf_geometry_collision_world_open(&geometry,8u*1024u*1024u,&world))return 4;
         memset(&guard,0xa5,sizeof(guard));sentinel=guard;
@@ -1558,13 +1558,15 @@ int main(int argc,char **argv)
                     float anchor=q==0?start[k]/face->count:q==1?face->vertices[0][k]:(face->vertices[0][k]+face->vertices[1%face->count][k])*.5f;
                     start[k]=anchor+face->plane[k]+.0037f*(k+1);delta[k]=-2*face->plane[k]+.0013f*(k+1);
                 }
-                memset(&out,0xa5,sizeof(out));out.status=rf_geometry_collision_world_sweep(&world,0x460,start,delta,.25f*(q+1),1,&out.hit,&out.matched);
+                memset(&out,0xa5,sizeof(out));out.status=rf_geometry_collision_world_sweep_flags(&world,0x460,start,delta,.25f*(q+1),1,&out.hit,&out.matched,&face_flags);
                 if(!pass) {queries++;errors+=out.status!=0;if(!out.status) {hits+=out.matched;if(out.matched)edge_hits+=out.hit.edge!=0;}}
                 if(!out.status && out.matched) {
                     const rf_collision_tree *target;uint32_t found=0;
                     if(out.hit.face>=faces || out.hit.room>=world.room_count)return 10;
                     target=&world.rooms[out.hit.room].tree;
-                    for(j=0;j<target->face_count;j++)if(target->source_indices[j]==out.hit.face)found=1;
+                    for(j=0;j<target->face_count;j++)if(target->source_indices[j]==out.hit.face) {
+                        found=1;if(face_flags!=target->faces[j].filter.face_flags)return 14;
+                    }
                     if(!found)return 13;
                 }
                 for(j=0;j<sizeof(out);j++)hashes[pass]=(hashes[pass]^bytes[j])*16777619u;

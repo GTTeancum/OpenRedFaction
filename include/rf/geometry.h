@@ -406,6 +406,10 @@ typedef struct rf_geometry_world_sweep_hit {
 int rf_geometry_collision_world_sweep(const rf_geometry_collision_world *world,
     uint32_t flags,const float start[3],const float delta[3],float radius,float limit,
     rf_geometry_world_sweep_hit *result,uint32_t *matched);
+/* Same query with optional authored surface flags, written only on a hit. */
+int rf_geometry_collision_world_sweep_flags(const rf_geometry_collision_world *world,
+    uint32_t flags,const float start[3],const float delta[3],float radius,float limit,
+    rf_geometry_world_sweep_hit *result,uint32_t *matched,uint32_t *face_flags);
 typedef struct rf_geometry_body_hit {
     rf_collision_body_hit contact;uint32_t solid,sphere,room,face,hits,edge;
 } rf_geometry_body_hit;

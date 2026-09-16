@@ -14,8 +14,83 @@ static int sweep(void *context,const float start[3],const float delta[3],float r
     if(*matched){out->hit=hit.hit;out->room=hit.room;out->face=hit.face;out->object=UINT32_MAX;if(c->bad)out->hit.fraction=2;}
     return RF_OK;
 }
+typedef struct liquid_sweep_context {
+    unsigned calls,mode;float starts[2],deltas[2];uint32_t flags[2];
+} liquid_sweep_context;
+static int liquid_sweep(void *context,const float start[3],const float delta[3],float radius,
+    uint32_t flags,rf_weapon_flight_contact *out,uint32_t *is_liquid,uint32_t *matched)
+{
+    liquid_sweep_context *c=context;unsigned n=c->calls++;(void)radius;
+    if(n>=2)return RF_FORMAT;
+    c->starts[n]=start[0];c->deltas[n]=delta[0];c->flags[n]=flags;
+    if(n && c->mode==5)return RF_IO;
+    *is_liquid=(n==0 || c->mode==6);*matched=1;
+    if(c->mode==7)*is_liquid=0;
+    if(n && c->mode==1){*matched=0;*is_liquid=0;return RF_OK;}
+    out->hit.fraction=n?.5f:(c->mode==2?0:c->mode==3?1:.25f);
+    out->hit.normal[0]=-1;out->hit.normal[1]=out->hit.normal[2]=0;
+    out->hit.point[0]=start[0]+delta[0]*out->hit.fraction;
+    out->hit.point[1]=out->hit.point[2]=0;out->room=3;out->face=n+8;out->object=UINT32_MAX;
+    return RF_OK;
+}
+static int dry_sweep(void *context,const float start[3],const float delta[3],float radius,
+    rf_weapon_flight_contact *out,uint32_t *matched)
+{uint32_t liquid;return liquid_sweep(context,start,delta,radius,0,out,&liquid,matched);}
+static int liquid_flight_tests(void)
+{
+    unsigned mode;
+    for(mode=0;mode<=7;mode++) {
+        const float pos[3]={0,0,0},dir[3]={1,0,0};
+        rf_weapon_flight f={0},before;rf_weapon_flight_liquid_state q={0x1004},q_before=q;
+        rf_weapon_flight_liquid_policy p={0,1,23,42};rf_weapon_flight_liquid_event e,saved_e;
+        liquid_sweep_context c={0};int status;
+        c.mode=mode;if(mode==4)p.weapon_flags=0x10000;
+        CHECK(!rf_weapon_flight_launch(&f,pos,dir,100,10,.1f));before=f;
+        memset(&e,0x5a,sizeof(e));saved_e=e;
+        status=rf_weapon_flight_step_liquid(&f,.1f,&q,&p,liquid_sweep,&c,&e);
+        if(mode==5 || mode==6) {
+            CHECK(status==(mode==5?RF_IO:RF_FORMAT));
+            CHECK(!memcmp(&f,&before,sizeof(f)) && !memcmp(&q,&q_before,sizeof(q)) && !memcmp(&e,&saved_e,sizeof(e)));
+            continue;
+        }
+        CHECK(!status);
+        if(mode==7) {
+            rf_weapon_flight dry=before;rf_weapon_flight_event event;liquid_sweep_context d={0};d.mode=7;
+            CHECK(!rf_weapon_flight_step(&dry,.1f,dry_sweep,&d,&event));
+            CHECK(!memcmp(&f,&dry,sizeof(f)) && !memcmp(&e.terminal,&event,sizeof(event)) && !e.has_liquid && q.query_flags==0x1004);
+        } else if(mode==3) {
+            CHECK(c.calls==1 && !e.has_liquid && !e.terminal.kind && q.query_flags==0x1004 && f.active && f.position[0]==10);
+        } else {
+            CHECK(e.has_liquid && e.liquid_contact.face==8 && e.liquid_effect.handle==42 && e.liquid_effect.size==.5f && q.query_flags==4);
+            if(mode==4)CHECK(c.calls==1 && !f.active && !f.remaining && e.terminal.kind==2);
+            else {
+                CHECK(c.calls==2 && c.flags[0]==0x1004 && c.flags[1]==4);
+                CHECK(fabsf(c.starts[1]-(mode==2?0:2.45f))<1e-6f);
+                CHECK(fabsf(c.deltas[1]-(mode==2?10:7.5f))<1e-6f);
+                if(mode==1)CHECK(f.active && !e.terminal.kind && fabsf(f.position[0]-9.95f)<1e-6f && fabs(f.remaining-9.9)<1e-6);
+                else CHECK(!f.active && e.terminal.kind==1 && e.terminal.contact.face==9 && fabsf(f.position[0]-(mode==2?5:6.2f))<1e-6f);
+            }
+        }
+    }
+    {
+        const float pos[3]={0,0,0},dir[3]={1,0,0};
+        rf_weapon_flight f={0},saved;rf_weapon_flight_liquid_state q={0x1004};
+        rf_weapon_flight_liquid_policy p={0,0,23,42};rf_weapon_flight_liquid_event e;
+        liquid_sweep_context c={0};c.mode=3;
+        CHECK(!rf_weapon_flight_launch(&f,pos,dir,100,.05f,.1f));saved=f;
+        memset(&e,0x5a,sizeof(e));
+        CHECK(!rf_weapon_flight_step_liquid(&f,0,&q,&p,liquid_sweep,&c,&e));
+        CHECK(!c.calls && !e.has_liquid && !e.terminal.kind && !memcmp(&f,&saved,sizeof(f)) && q.query_flags==0x1004);
+        CHECK(!rf_weapon_flight_step_liquid(&f,.1f,&q,&p,liquid_sweep,&c,&e));
+        CHECK(c.calls==1 && !f.active && !f.remaining && e.terminal.kind==2 && !e.has_liquid && f.position[0]==5 && q.query_flags==0x1004);
+        CHECK(!rf_weapon_flight_step_liquid(&f,.1f,&q,&p,liquid_sweep,&c,&e));
+        CHECK(c.calls==1 && !e.has_liquid && !e.terminal.kind);
+    }
+    return 0;
+}
 int main(int argc,char **argv)
 {
+    CHECK(!liquid_flight_tests());
     /* Original verify_projectile_liquid_contact.py: six complete contact-dispatch cases.
      * Selector/clamp boundaries additionally exercise the 4c4e30 contract. */
     {

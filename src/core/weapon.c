@@ -1,6 +1,7 @@
 #include "rf/weapon.h"
 #include "rf/timer.h"
 #include "rf/effect.h"
+#include "rf/physics.h"
 #include <string.h>
 #include <math.h>
 int rf_weapon_liquid_contact(rf_weapon_liquid_state *state,float radius,uint32_t weapon_flags,
@@ -61,6 +62,67 @@ int rf_weapon_flight_step(rf_weapon_flight *flight,float dt,rf_weapon_flight_swe
         if(value.remaining<=0){value.remaining=0;value.active=0;event.kind=2;}
     }
     *flight=value;*out=event;return RF_OK;
+}
+int rf_weapon_flight_step_liquid(rf_weapon_flight *flight,float dt,rf_weapon_flight_liquid_state *liquid,
+    const rf_weapon_flight_liquid_policy *policy,rf_weapon_flight_liquid_sweep sweep,void *context,
+    rf_weapon_flight_liquid_event *out)
+{
+    rf_weapon_flight value;rf_weapon_flight_liquid_state query;
+    rf_weapon_flight_liquid_event event={0};double elapsed;uint32_t pass,i;int status;
+    if(!flight || !liquid || !policy || !sweep || !out)return RF_RANGE;
+    if(!isfinite(dt) || dt<0 || flight->active>1)return RF_FORMAT;
+    if(!flight->active || dt==0){*out=event;return RF_OK;}
+    if(!isfinite(flight->remaining) || flight->remaining<=0 || !isfinite(flight->radius) || flight->radius<0)return RF_FORMAT;
+    value=*flight;query=*liquid;elapsed=fmin((double)dt,value.remaining);
+    for(pass=0;pass<2;pass++) {
+        rf_weapon_flight_contact contact={0};float delta[3];uint32_t matched=0,is_liquid=0;
+        for(i=0;i<3;i++) {
+            if(!isfinite(value.position[i]) || !isfinite(value.velocity[i]))return RF_FORMAT;
+            delta[i]=(float)(value.velocity[i]*elapsed);
+            if(!isfinite(delta[i]) || !isfinite(value.position[i]+delta[i]))return RF_FORMAT;
+        }
+        status=sweep(context,value.position,delta,value.radius,query.query_flags,&contact,&is_liquid,&matched);
+        if(status)return status;
+        if(matched>1 || is_liquid>1 || (is_liquid && (!matched || !(query.query_flags&0x1000u) || event.has_liquid)))return RF_FORMAT;
+        if(matched) {
+            double length=0;
+            if(!isfinite(contact.hit.fraction) || contact.hit.fraction<0 || contact.hit.fraction>1)return RF_FORMAT;
+            for(i=0;i<3;i++) {
+                if(!isfinite(contact.hit.point[i]) || !isfinite(contact.hit.normal[i]))return RF_FORMAT;
+                length+=(double)contact.hit.normal[i]*contact.hit.normal[i];
+            }
+            if(fabs(length-1)>1e-3)return RF_FORMAT;
+            if(is_liquid && contact.hit.fraction<1) {
+                rf_physics_body_state body={0};rf_weapon_liquid_state state={1,1,query.query_flags};float left,step=(float)elapsed;
+                /* Scalar life is only a torpedo expiry signal here; the flight
+                 * owns its double lifetime separately from per-tick time. */
+                memcpy(body.position,value.position,sizeof(body.position));
+                for(i=0;i<3;i++)body.next_position[i]=value.position[i]+delta[i];
+                status=rf_physics_weapon_contact_advance(&body,step,contact.hit.fraction,&left);if(status)return status;
+                status=rf_weapon_liquid_contact(&state,value.radius,policy->weapon_flags,policy->selector,
+                    policy->default_handle,policy->alternate_handle,&event.liquid_effect);if(status)return status;
+                event.has_liquid=1;event.liquid_contact=contact;query.query_flags=state.query_flags;
+                memcpy(value.position,body.position,sizeof(value.position));
+                /* Keep total tick time even when the lifetime clamp is not
+                 * exactly representable as a float. The oracle owns left. */
+                {double next=fmin(elapsed,(double)left);value.remaining-=elapsed-next;elapsed=next;}
+                if(!state.life || value.remaining<=0){value.remaining=0;value.active=0;event.terminal.kind=2;break;}
+                if(elapsed==0)break;
+                continue;
+            }
+            if(!is_liquid) {
+                for(i=0;i<3;i++)value.position[i]+=delta[i]*contact.hit.fraction;
+                value.remaining-=elapsed*contact.hit.fraction;value.active=0;
+                event.terminal.kind=1;event.terminal.contact=contact;break;
+            }
+        }
+        /* No hit, or original fraction1 liquid no-contact tail. */
+        for(i=0;i<3;i++)value.position[i]+=delta[i];
+        value.remaining-=elapsed;
+        if(value.remaining<=0){value.remaining=0;value.active=0;event.terminal.kind=2;}
+        break;
+    }
+    *flight=value;*liquid=query;*out=event;return RF_OK;
 }
 int rf_weapon_charge_step(uint32_t *remainder,uint32_t capacity,uint32_t drain_ticks,
     uint32_t active,int32_t *loaded,uint32_t *consumed)
