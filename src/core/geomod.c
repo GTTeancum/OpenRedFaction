@@ -180,7 +180,7 @@ int rf_geomod_light_grid_uv(const rf_geomod_light_grid *g,const float position[3
 int rf_geomod_light_grid_sample(const rf_geomod_light_grid *g,const rf_geomod_vertex *vertices,
     uint32_t count,uint32_t x,uint32_t y,float position[3])
 {
-    double p[2],nearest[2]={0},best=1e300;int positive=0,negative=0;unsigned i,j;float out[3];
+    double p[2],nearest[3]={0},best=1e300;int positive=0,negative=0;unsigned i,j;float out[3];
     if(!g || !vertices || !position || count<3 || count>64 || g->axis>2 || g->u>2 || g->v>2 ||
         g->axis==g->u || g->axis==g->v || g->u==g->v || g->width<4 || g->height<4 || x>=g->width || y>=g->height)return RF_RANGE;
     for(j=0;j<4;j++)if(!isfinite(g->plane[j]))return RF_FORMAT;
@@ -198,11 +198,17 @@ int rf_geomod_light_grid_sample(const rf_geomod_light_grid *g,const rf_geomod_ve
         positive|=cross>0;negative|=cross<0;
         t=((p[0]-ax)*dx+(p[1]-ay)*dy)/length;t=fmax(0,fmin(1,t));
         q[0]=ax+t*dx;q[1]=ay+t*dy;distance=(p[0]-q[0])*(p[0]-q[0])+(p[1]-q[1])*(p[1]-q[1]);
-        if(distance<best){best=distance;nearest[0]=q[0];nearest[1]=q[1];}
+        if(distance<best){best=distance;for(j=0;j<3;j++)nearest[j]=(double)a[j]+t*((double)b[j]-a[j]);}
     }
-    if(positive && negative){p[0]=nearest[0];p[1]=nearest[1];}
-    out[g->u]=(float)p[0];out[g->v]=(float)p[1];
-    out[g->axis]=(float)(-((double)g->plane[g->u]*out[g->u]+(double)g->plane[g->v]*out[g->v]+g->plane[3])/g->plane[g->axis]);
+    if(positive && negative) {
+        /* Retain the actual boundary segment. Reprojecting its rounded
+         * coordinates onto the approximate face plane can move a corner
+         * outside an adjacent edge of a nearly collinear polygon. */
+        for(j=0;j<3;j++)out[j]=(float)nearest[j];
+    } else {
+        out[g->u]=(float)p[0];out[g->v]=(float)p[1];
+        out[g->axis]=(float)(-((double)g->plane[g->u]*out[g->u]+(double)g->plane[g->v]*out[g->v]+g->plane[3])/g->plane[g->axis]);
+    }
     for(j=0;j<3;j++)if(!isfinite(out[j]))return RF_FORMAT;
     memcpy(position,out,12);return RF_OK;
 }

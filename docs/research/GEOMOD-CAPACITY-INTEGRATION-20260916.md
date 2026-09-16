@@ -106,3 +106,31 @@ Later rays/remaining six cuts were not executed.
 Five default-profile geometry/UV/lineage tests pass and NXDK default build
 passes. No expanded native acceptance. Logs capacity-nine.log,
 capacity-ten-capture.log, capacity-expanded-build.log, capacity-expanded-xbox.log.
+
+
+## Tenth-crater sample correction and eleventh regression
+
+Added a small captured-face regression with ten binary32 vertices and the
+actual collision plane. Before the fix, sample0,1 reproduces exactly
+-1.05151169637e-5 edge distance. It now passes every grid sample against all
+edge halfspaces and the existing plane-distance tolerance.
+
+rf_geomod_light_grid_sample previously found a nearest projected edge point
+then reconstructed the dropped coordinate from an approximate float plane.
+That moved a rounded endpoint outside another edge. Outside-grid samples now
+retain all three coordinates interpolated along the selected actual edge;
+inside-grid samples still solve the plane as before. No acceptance tolerance
+was changed. Core default interior/repeated tests and the new boundary test
+pass; NXDK build passes, no new native rendering acceptance in this update.
+
+The extended original-template run now clears all cut10 geometry, junction
+ray/body, light-grid and independent nearest/short-ray checks. Cut11 commits
+and clears closure and junction queries, then fails a separate light boundary:
+face1049 (five vertices), sample4,0 edge3, signed distance
+-1.02452005325e-5, point(-35.5186882,-10.9924421,-3.93110824).
+Saved full mesh capacity-eleven-mesh.csv and isolated light-boundary-eleven.json
+under artifacts/authored-post-live. This is still an unresolved regression;
+no16-cut success or expanded live readiness is claimed.
+
+Logs: light-boundary-fixed-build.log, capacity-fixed-boundary.log,
+capacity-eleven-capture.log, light-boundary-xbox-build.log.
