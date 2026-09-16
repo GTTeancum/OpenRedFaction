@@ -2,6 +2,22 @@
 
 2026-09-16, read-only implementation plan. No build, emulator, original-game launch or runtime filesystem experiment performed for this report. Scope is the existing RFDS DEV destruction state, **not** a full campaign/player/inventory save.
 
+## Native helper implementation update
+
+`src/platform/xbox/checkpoint_storage.h/.c` now implements the bounded adapter described below. It owns no heap allocation and wraps the existing two-slot transport with a caller-owned session token and buffer. `open(session,writable)` refuses an existing R: alias, mounts Partition1, and creates/validates the directory only for writable requests. A directory setup failure retains mount ownership; the caller must still call close. `load` passes the pure RFDS validator to the transport. `store` writes/verifies the inactive generation then opens only that new slot with GENERIC_WRITE/OPEN_EXISTING, invokes NtFlushBuffersFile, handles STATUS_PENDING using the NXDK synchronous-I/O wait pattern, and closes the native handle. Any store/flush/close failure invalidates the token; load is required before retry. It never opens the protected previous generation for writing.
+
+`rf_xbox_checkpoint_storage_state[8]` exposes phase, RF status, Win32 error, NTSTATUS, generation, slot, bytes and flags (owned mount, usable selection, native flush success). Portable stdio failures intentionally report native error0 because errno does not guarantee a current GetLastError. `close` unmounts only an alias owned by this session; unmount failure retains ownership for retry. The helper is not yet added to the build or invoked by scene/main; primary owns integration.
+
+Additional exact local evidence: NXDK `winapi/fileio.c` CreateFileA selects FILE_SYNCHRONOUS_IO_NONALERT unless OVERLAPPED, and its ReadFile path waits on STATUS_PENDING using NtWaitForSingleObject then io.Status. `winapi/filemanip.c` CreateDirectoryA274..298 uses FILE_CREATE and returns mapped NT errors; the helper accepts only already-exists/file-exists with a confirmed directory attribute. `xboxkrnl.h` IO_STATUS_BLOCK197 and NtFlushBuffersFile2969 supply the native bridge. These are source-backed API observations; the helper has not been compiled or executed by this agent.
+
+Remaining proof is still the isolated two-launch HDD-copy test below: write/flush in launchA, exit, load solely from the same owned non-snapshot HDD copy in launchB and compare exact RFDS/terrain/next-blast state. A successful kernel flush result does not establish physical power-interruption durability. No emulator was launched for this implementation.
+
+### Adapter compilation and failure-injection verification
+
+The actual helper now compiles independently with NXDK `nxdk-cc -DRF_IMAGE_XBOX_NATIVE -std=c11 -O2 -Wall -Wextra -Werror -fstack-usage -Iinclude -c`; the object is isolated at `artifacts/checkpoint-native-helper/checkpoint_storage.obj`, without linking or changing the native target. Retained `python tools/verify_xbox_checkpoint_storage.py` compiles the same helper with host doubles and passes18 cases: preexisting mount, mount failure, retained mount on directory failure, existing-directory variants, file/directory collision, read-only save refusal, successful new-slot flush, portable write failure, native reopen failure, flush failure, close failure, pending-flush success/wait failure/completion failure, unmount retry, initial generation and invalid-selection refusal. Output is `artifacts/checkpoint-native-helper/host/report.json`, recording the tested helper source hash.
+
+The doubles assert the exact Partition1 mapping, directory and slot paths, GENERIC_WRITE/OPEN_EXISTING access, native close attempts, and selection invalidation. They do not exercise real disk/kernel behavior or replace shared transport file-corruption tests. A native CloseHandle error is reported and invalidates the token; because the kernel refused closure, this path cannot claim proven handle release. No adapter source fixes were required by these tests. Persistence and physical durability remain distinct pending proofs.
+
 ## Approved implementation
 
 Keep RFDS v1 payload bytes and existing scene restore/capture ownership. The approved transport is two bounded files with a24-byte RFSG v1 envelope, implemented in `include/rf/checkpoint_file.h`, `src/core/checkpoint_file.c` and `tests/checkpoint_file_tests.c`. No rename, manifest, allocation, dashboard metadata or general save manager is involved. Compilation/tests are coordinated by primary; the author has not run them.
@@ -71,3 +87,9 @@ Storage implementation must not regenerate random seeds, patch identities, or ch
 - Separate write error cases: missing/unmounted drive, directory-name collision, open target sharing collision and short-write/fault injection. Disk-full behavior should use a bounded fault-injection adapter first, not fill the user's HDD. Physical hardware persistence and power interruption are explicitly later verification.
 
 No frame-by-frame or user-input harness change is required. First success establishes writable DEV destruction save/reload only; player/weapons, dynamic actors, mission events, full game-state saves and dashboard slots remain outside this pass.
+
+## Executed native restart proof
+
+artifacts/geomod-hdd/20260916-092840-146111 passes: separate write550/read32-frame XEMU launches against a private standalone HDD copy, stock67108864 base and0 expansion. Native store/flush selects generation1 slot0; fresh load selects the same9554byte payload and matches current PC baseline byte-for-byte (SHA2568202934d614484ec745dadb3aeb91b0b5e2ea1aca4a22f3a984a798ccef16186). Source HDD hash unchanged; both disc restoration manifests verified. Explicit HDD flags preserve ordinary staged RFDS flow, and owned R: is unmounted while completed-operation diagnostics remain.18 native-adapter host failures and four relevant CTests pass.
+
+Current PC baseline is artifacts/hdd-baseline-092804 (older overwrite attempt failed as documented PC rename policy; new paths succeeded). This proves DEV destruction persistence and native kernel flush, not full game state, physical power-loss durability, or native corrupt-newer-slot fallback. No framebuffer acceptance claim applies to this memory/file test.

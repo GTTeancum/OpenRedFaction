@@ -9,6 +9,10 @@
 #include "rf/event.h"
 #include "rf/audio.h"
 #include "rf/clutter.h"
+#ifdef RF_IMAGE_XBOX_NATIVE
+#include "../platform/xbox/checkpoint_storage.h"
+#endif
+#include <errno.h>
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
@@ -9558,10 +9562,60 @@ static int scene_checkpoint_restore(scene_stream *s,unsigned char *data,uint32_t
     if(!s->terrain_atlas_registered)s->terrain_atlas_index=s->light_rgb.count;
     return scene_checkpoint_registered(s);
 }
+#ifdef RF_IMAGE_XBOX_NATIVE
+static rf_xbox_checkpoint_storage scene_checkpoint_hdd;
+static uint32_t scene_checkpoint_hdd_save;
+static int scene_checkpoint_flag(const char *path,uint32_t *found)
+{
+    FILE *file;*found=0;errno=0;file=fopen(path,"rb");
+    if(!file)return errno==ENOENT?RF_OK:RF_IO;
+    *found=1;return fclose(file)?RF_IO:RF_OK;
+}
+/* Preserve the completed operation for endpoint QMP, while clearing live mount
+ * ownership. An unmount failure remains a visible storage error. */
+static int scene_checkpoint_hdd_close(void)
+{
+    uint32_t saved[8];int status;
+    scene_checkpoint_hdd_save=0;
+    if(!scene_checkpoint_hdd.mounted)return RF_OK;
+    memcpy(saved,rf_xbox_checkpoint_storage_state,sizeof(saved));
+    status=rf_xbox_checkpoint_storage_close(&scene_checkpoint_hdd);
+    if(!status){saved[7]&=~3u;memcpy(rf_xbox_checkpoint_storage_state,saved,sizeof(saved));}
+    return status;
+}
+#endif
 static int scene_checkpoint_begin(scene_stream *s,const rf_level *level)
 {
     const char *path=NULL;FILE *file;long length=0;int status,tail;uint32_t hash;
     scene_checkpoint_release();memset(rf_scene_geomod_checkpoint_state,0,sizeof(rf_scene_geomod_checkpoint_state));memset(rf_scene_geomod_checkpoint_memory,0,sizeof(rf_scene_geomod_checkpoint_memory));
+#ifdef RF_IMAGE_XBOX_NATIVE
+    {
+        uint32_t load=0,save=0,staged=0,bytes=0;
+        status=scene_checkpoint_hdd_close();if(status)goto done;
+        scene_checkpoint_hdd_save=0;memset(rf_xbox_checkpoint_storage_state,0,sizeof(rf_xbox_checkpoint_storage_state));
+        status=scene_checkpoint_flag("D:\\geomod-hdd-load.flag",&load);if(status)goto done;
+        status=scene_checkpoint_flag("D:\\geomod-hdd-save.flag",&save);if(status)goto done;
+        if(load || save) {
+            if(!rf_scene_dev_room_enabled || !s->terrain || s->terrain_shadow_reference){status=RF_RANGE;goto done;}
+            status=scene_checkpoint_flag("D:\\geomod-checkpoint.bin",&staged);if(status)goto done;
+            if(staged){status=RF_FORMAT;goto done;}
+            status=scene_checkpoint_identity(s,level);if(status)goto done;
+            status=rf_xbox_checkpoint_storage_open(&scene_checkpoint_hdd,save);if(status)goto done;
+            status=scene_checkpoint_allocate(SCENE_CHECKPOINT_MAX);if(status)goto done;
+            status=rf_xbox_checkpoint_storage_load(&scene_checkpoint_hdd,rf_scene_geomod_checkpoint_data,SCENE_CHECKPOINT_MAX,&bytes,scene_checkpoint_validate,s);
+            if(status==RF_NOT_FOUND && !load)status=RF_OK; /* First save; empty protected token. */
+            if(!status && load) {
+                hash=npc_hash_bytes(2166136261u,rf_scene_geomod_checkpoint_data,bytes);
+                status=scene_checkpoint_restore(s,rf_scene_geomod_checkpoint_data,bytes);
+                if(!status){rf_scene_geomod_checkpoint_state[1]=bytes;rf_scene_geomod_checkpoint_state[2]=hash;
+                    printf("GEOMOD_CHECKPOINT_HDD_LOAD %u %u %u\n",bytes,scene_checkpoint_hdd.selection.generation,scene_checkpoint_hdd.selection.slot);}
+            }
+            scene_checkpoint_release();
+            if(!status)scene_checkpoint_hdd_save=save;
+            goto done;
+        }
+    }
+#endif
     if(!s->terrain)return RF_OK;
     status=scene_checkpoint_identity(s,level);if(status)goto done;
 #ifndef RF_IMAGE_XBOX_NATIVE
@@ -9591,6 +9645,7 @@ static int scene_checkpoint_begin(scene_stream *s,const rf_level *level)
     }
     scene_checkpoint_release();
 done:
+    if(status)scene_checkpoint_release();
     rf_scene_geomod_checkpoint_state[0]=(uint32_t)status;if(status)printf("GEOMOD_CHECKPOINT_ERROR load %d\n",status);return status;
 }
 static int scene_checkpoint_capture(scene_stream *s)
@@ -9600,7 +9655,7 @@ static int scene_checkpoint_capture(scene_stream *s)
 #ifndef RF_IMAGE_XBOX_NATIVE
     const char *path=getenv("RF_REPLAY_GEOMOD_CHECKPOINT_OUT");if(!path || !*path)return RF_OK;
 #else
-    file=fopen("D:\\geomod-checkpoint-out.flag","rb");if(!file)return RF_OK;fclose(file);
+    file=fopen("D:\\geomod-checkpoint-out.flag","rb");if(!file && !scene_checkpoint_hdd_save)return RF_OK;if(file)fclose(file);
 #endif
     if(!s->terrain || !owner || s->terrain_shadow_reference || !s->terrain_atlas_registered || owner->bake!=owner->count || owner->sample || s->terrain_checkpoint_loaded){status=RF_RANGE;goto done;}
     status=rf_geomod_terrain_get(s->terrain,&view);if(status)goto done;
@@ -9649,6 +9704,12 @@ static int scene_checkpoint_capture(scene_stream *s)
          * diagnostic path per capture on hosts whose rename cannot overwrite. */
         if(!status && rename(temporary,path))status=RF_IO;
         if(status){remove(temporary);goto done;}
+    }
+#endif
+#ifdef RF_IMAGE_XBOX_NATIVE
+    if(scene_checkpoint_hdd_save) {
+        status=rf_xbox_checkpoint_storage_store(&scene_checkpoint_hdd,p,bytes,scene_checkpoint_validate,s);if(status)goto done;
+        printf("GEOMOD_CHECKPOINT_HDD_SAVE %u %u %u\n",bytes,scene_checkpoint_hdd.selection.generation,scene_checkpoint_hdd.selection.slot);
     }
 #endif
     rf_scene_geomod_checkpoint_state[1]=bytes;rf_scene_geomod_checkpoint_state[2]=npc_hash_bytes(2166136261u,p,bytes);rf_scene_geomod_checkpoint_state[3]=1;
@@ -13525,6 +13586,9 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
     }
 done:
     if(!status)status=scene_checkpoint_capture(stream);
+#ifdef RF_IMAGE_XBOX_NATIVE
+    {int checkpoint_close=scene_checkpoint_hdd_close();if(!status)status=checkpoint_close;}
+#endif
     if(!status && campaign_spawn && collision)campaign_actors_revisit_snapshot();
     if(!status && campaign_spawn && collision && rf_scene_level_transition.pending) {
         status=rf_campaign_local_goals_save(&campaign_local_goals,campaign_current_level,&rf_scene_mission_goals);
