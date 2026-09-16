@@ -9017,10 +9017,11 @@ static int scene_terrain_lighting(scene_stream *s,const rf_geomod_terrain_view *
 #ifndef RF_IMAGE_XBOX_NATIVE
 static int scene_terrain_base_audit(scene_stream *s,const char *path)
 {
-    scene_terrain_noise_owner *owner=s->terrain_noise;FILE *file;uint32_t i,x,y;int failed;
+    scene_terrain_noise_owner *owner=s->terrain_noise;FILE *file;uint32_t i,x,y;int failed;rf_geomod_terrain_view terrain;
     if(!owner || owner->bake!=owner->count || s->terrain_shadow_reference)return RF_RANGE;
+    if(rf_geomod_terrain_get(s->terrain,&terrain))return RF_RANGE;
     file=fopen(path,"wb");if(!file)return RF_IO;
-    fprintf(file,"map,seed,width,height,packed\n");
+    fprintf(file,"map,seed,width,height,packed,material,image,atlas_x,atlas_y,faces,nx,ny,nz,d,min_x,min_y,min_z,max_x,max_y,max_z\n");
     for(i=0;i<owner->count;i++) {
         const scene_terrain_noise_map *map=owner->maps+i;
         fprintf(file,"%u,%u,%u,%u,",i,map->base_seed,map->width,map->height);
@@ -9028,7 +9029,14 @@ static int scene_terrain_base_audit(scene_stream *s,const char *path)
             const unsigned char *p=s->terrain_atlas_pixels+((map->y+y)*512+map->x+x)*2;
             fprintf(file,"%02x%02x",p[0],p[1]);
         }
-        fprintf(file,"\n");
+        {
+            uint32_t f,used=0;
+            for(f=0;f<terrain.mesh.face_count;f++)if(s->terrain_bindings[f].image==map->binding.image &&
+                !memcmp(&s->terrain_bindings[f].projection,&map->binding.projection,sizeof(map->binding.projection)))used++;
+            fprintf(file,",%u,%u,%u,%u,%u,%.9g,%.9g,%.9g,%.9g,%.9g,%.9g,%.9g,%.9g,%.9g,%.9g\n",
+                map->material,map->binding.image,map->x,map->y,used,map->plane[0],map->plane[1],map->plane[2],map->plane[3],
+                map->minimum[0],map->minimum[1],map->minimum[2],map->maximum[0],map->maximum[1],map->maximum[2]);
+        }
     }
     failed=ferror(file);if(fclose(file))failed=1;return failed?RF_IO:RF_OK;
 }

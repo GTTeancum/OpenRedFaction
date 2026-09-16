@@ -1,6 +1,6 @@
 # Secondary reverse-engineering queue
 
-User mandate: keep one secondary agent supplied with useful, bounded RE work while the primary agent implements and tests. Primary owns integration, builds, emulator runs and Git. Research agent must read existing evidence first and report observed behavior separately from assumptions; no filler tasks or duplicate investigations.
+User mandate: keep secondary agents supplied with useful, bounded RE work while the primary agent implements and tests. Primary owns integration, builds, emulator runs and Git. Research agent must read existing evidence first and report observed behavior separately from assumptions; no filler tasks or duplicate investigations.
 
 1. First pass reported: crater face-property inheritance/inversion audit; no shading correction established. Primary reviewed and retained executable verifier; deeper visual comparison remains open.
 2. Reported/reviewed: original missing-sparks omission confirmed; retained executable verifier.
@@ -24,4 +24,7 @@ Send findings to the primary as each investigation completes, then proceed to th
 
 18. Reported/integrated: exact-zero split-child removal fixes the second live shallow cut; thin valid fragments remain supported.
 19. Reported: shared-edge propagation preserves identity with independent face UV/lightmap interpolation; mixed detail guard and draw-state comparison also complete.
-20. Active: generated lightmap content lifecycle after initial noise, including later replacement/baking/dirty-state transitions.
+20. Reported: ordinary tested mapping updates preserve base RGB; static replacement requires explicit invalidation, and primary review is pending.
+
+21. Active (crater_shading_re): original backend selection and base/lightmap upload channel and alpha interpretation.
+22. Active (crater_material_audit): independent live crater material and UV binding audit; no shared implementation edits or emulator use.
