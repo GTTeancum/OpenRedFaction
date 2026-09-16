@@ -218,3 +218,30 @@ also passes: repaired-final-build.log and repaired-final-eight.log. Replay
 remains experimental until live source identity/save policy and native checks.
 This supersedes the earlier suggestion that the new rim contact was acceptable:
 the analytic contact existed, but the original one-sided admission excluded it.
+
+
+## Live activation and native continuation (2026-09-16)
+
+Chronological replay is now the default terrain reconstruction. The internal
+comparison test explicitly selects the legacy baseline, keeping its collision
+comparison independent. Removed an unused compaction wrapper rejected by NXDK.
+The authored source fingerprint uses reconstruction publication policy2; digest
+wire policies remain1. This separates old saves from changed reconstruction.
+
+Five rebuilt focused CTests pass. The public live UV probe accepts16 cases with
+67 matching surviving corners and zero UV changes. Both PC two-shot and
+reset-zero checkpoint continuations match uninterrupted RFCP/RGCH/RGP bytes.
+A retained prior-build checkpoint from render-20260916-184610 is rejected at
+load with RF_FORMAT; no compatible-save migration is claimed.
+
+NXDK build passes. Native run artifacts/xemu/render-20260916-192904 passes58
+comparisons over200 frames on stock64MiB. Xbox checkpoint3884 bytes equals
+both restarted and uninterrupted PC, SHA256
+f02dc2faf1b11b7cb714f107ae6b155bc1f57eacf6a7dd0788ac684b4bbf3234.
+Endpoint free memory16.19140625MiB. Disc restoration succeeded.
+Inspected native framebuffer: textured hall, roof/beams, damaged post beneath
+crosshair, water strips, launcher and HUD present. This single final capture
+does not prove temporal texture stability, audible effects or retail fidelity.
+UV stability is established by the bounded numeric fixtures, not this image.
+Broader shapes, extended repeated cuts, visual fidelity and native reset-zero
+acceptance after this activation remain open.

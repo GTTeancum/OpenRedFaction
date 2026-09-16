@@ -1,4 +1,6 @@
 /* Internal two-cut chronological solid prototype; no public/live-path claim. */
+/* Retain independent legacy query comparisons after live activation. */
+#define RF_GEOMOD_LEGACY_REPLAY_TEST 1
 #include "../src/core/geomod.c"
 #include <math.h>
 #include <stdio.h>

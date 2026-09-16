@@ -570,7 +570,7 @@ add_executable(rf_geomod_chronological_solid_tests tests/geomod_chronological_so
 target_link_libraries(rf_geomod_chronological_solid_tests PRIVATE rf_core)
 add_test(NAME geomod_chronological_solid COMMAND rf_geomod_chronological_solid_tests)
 
-# Opt-in diagnostic, NOT a passing CTest: chronological cavity stress is open.
+# Extended eight-cut diagnostic uses the same chronological path as gameplay.
 add_executable(rf_geomod_chronological_stress_probe tests/geomod_interior_tests.c tools/pc_raster.c src/core/geomod.c)
 target_link_libraries(rf_geomod_chronological_stress_probe PRIVATE rf_core)
-target_compile_definitions(rf_geomod_chronological_stress_probe PRIVATE RF_GEOMOD_CHRONOLOGICAL_EXPERIMENT)
+

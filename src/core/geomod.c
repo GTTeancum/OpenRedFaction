@@ -1287,9 +1287,6 @@ static int append_compact_lineage(rf_geomod_storage *s,const rf_geomod_vertex *v
     if(!status && lineage)lineage->pending[s->nf[bank]-1]=birth;
     return status;
 }
-static inline int append_compact(rf_geomod_storage *s,const rf_geomod_vertex *v,uint32_t n,
-    uint32_t material,uint32_t source_face,rf_geomod_multi_work *work,const uint16_t *edges,uint16_t plane_id)
-{return append_compact_lineage(s,v,n,material,source_face,work,edges,plane_id,NULL,0);}
 static int mesh_polygon_bounds_separated(const rf_geomod_mesh_view *mesh,const rf_geomod_vertex *v,uint32_t count)
 {
     uint32_t axis,i;
@@ -2034,7 +2031,7 @@ static int terrain_prepare(rf_geomod_terrain *t,uint32_t count,terrain_pending *
         }
         if(status)goto failed;
     }
-#ifdef RF_GEOMOD_CHRONOLOGICAL_EXPERIMENT
+#ifndef RF_GEOMOD_LEGACY_REPLAY_TEST
     if(count) {
         status=terrain_prepare_chronological_mesh(t,count);if(status)goto failed;
     } else
