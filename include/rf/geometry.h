@@ -336,6 +336,7 @@ typedef struct rf_geometry_collision_world {
     rf_geometry_collision_room *rooms;
     rf_collision_room_view *views;
     uint32_t *primary,*children;
+    uint8_t *contains_liquid; /* Owned authored room markers; no source-buffer dependency. */
     uint32_t room_count,primary_count,child_count,allocated_bytes,peak_bytes;
     float minimum[3],maximum[3]; /* Full serialized vertex bounds, expanded by original 0.0001. */
 } rf_geometry_collision_world;

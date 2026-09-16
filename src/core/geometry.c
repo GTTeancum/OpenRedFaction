@@ -994,13 +994,14 @@ int rf_geometry_collision_world_open(const rf_geometry *geometry,uint32_t budget
     if(!geometry || !geometry->data || !world)return RF_RANGE;
     p=geometry->data+geometry->room_links_offset;
     for(i=0;i<geometry->room_link_records;i++) {uint32_t n=u32(p+4);links+=n;p+=8+(size_t)n*4;}
-    bytes=sizeof(value)+(uint64_t)geometry->rooms*(sizeof(*value.rooms)+sizeof(*value.views)+4)+links*4;
+    bytes=sizeof(value)+(uint64_t)geometry->rooms*(sizeof(*value.rooms)+sizeof(*value.views)+5)+links*4;
     if(bytes>budget || links>UINT32_MAX)return RF_RANGE;
     if(bytes>sizeof(value)) {
         value.storage=malloc((size_t)(bytes-sizeof(value)));if(!value.storage)return RF_IO;
         memset(value.storage,0,(size_t)(bytes-sizeof(value)));
         value.rooms=(rf_geometry_collision_room*)value.storage;value.views=(rf_collision_room_view*)(value.rooms+geometry->rooms);
         value.primary=(uint32_t*)(value.views+geometry->rooms);value.children=value.primary+geometry->rooms;
+        value.contains_liquid=(uint8_t *)(value.children+links);
     }
     value.room_count=geometry->rooms;value.child_count=(uint32_t)links;retained=peak=bytes;
     for(i=0;i<geometry->vertices;++i) {
@@ -1020,6 +1021,7 @@ int rf_geometry_collision_world_open(const rf_geometry *geometry,uint32_t budget
         retained+=room->allocated_bytes-sizeof(*room);
         memcpy(view->minimum,room->minimum,24);view->tree=&room->tree;
         view->skip=geometry->data[geometry->room_offsets[i]+28];view->first_child=at;
+        value.contains_liquid[i]=geometry->data[geometry->room_offsets[i]+32];
         status=rf_geometry_room_children(geometry,i,value.children+at,value.child_count-at,&view->child_count);if(status)goto fail;
         at+=view->child_count;
     }
