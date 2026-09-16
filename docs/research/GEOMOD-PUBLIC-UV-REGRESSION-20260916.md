@@ -76,3 +76,23 @@ all collision equivalence. Results are in solid-collision-comparison.log.
 The live mapper still uses the old path. Fixing support-plane/edge provenance,
 adding cavity chronological replay and integrating budgeted transactional history
 reconstruction remain required before production acceptance.
+
+## Exact support tracking resolves solid prototype coverage failures
+
+The solid chronological step now retains source/cutter supporting-plane IDs
+through source intersection, old-face subtraction and new-face clipping. A
+separate10240-byte previous-bank support buffer preserves4096 edge IDs and1024
+face IDs while compaction writes the next bank. With lineage enabled, compaction
+also refuses to merge differing support planes; it no longer loses an exact
+support ID to UINT16_MAX. Legacy full-union calls remain unchanged.
+
+All four chronological split cases now PASS the same geometric coverage check,
+including .1/.3 which still fail in the baseline. The test now requires closure,
+rather than merely equality with baseline failure. No tolerance was enlarged and
+no spatial vertex welding added. Actual shared-edge intersection helpers consume
+the retained plane IDs. Twelve exact surviving-corner comparisons retain UVs;
+5808 paired ray/sphere queries still agree within1e-5. Seven focused geometry
+tests pass after rebuild. See solid-support-result.log and
+solid-support-regression-build.log. Production/cavity integration remains open.
+Additional optional prototype scratch is12288bytes for lineage+support, excluding
+private replay mesh banks/work and tree allocation; this is not native RAM proof.

@@ -76,27 +76,28 @@ static int run(unsigned cavity,float roof,float split,unsigned *comparisons,unsi
     {
         rf_geomod_terrain *replay=calloc(1,sizeof(*replay));
         geomod_face_lineage *tags=calloc(1,sizeof(*tags));unsigned prefix;
+        geomod_step_support *provenance=calloc(1,sizeof(*provenance));
         rf_geomod_mesh_view reconstructed;
-        if(!replay || !tags){free(replay);free(tags);status=RF_IO;goto done;}
+        if(!replay || !tags || !provenance){free(replay);free(tags);free(provenance);status=RF_IO;goto done;}
         replay->mapping_width=replay->mapping_height=256;
         status=rf_geomod_storage_open(&source,4096,800,1048576,&replay->mesh);
         memcpy(replay->work.cut_planes,t->work.cut_planes,sizeof(t->work.cut_planes));
         memcpy(replay->work.star_planes,t->work.star_planes,sizeof(t->work.star_planes));
         memcpy(replay->work.star_count,t->work.star_count,sizeof(t->work.star_count));
         for(prefix=1;!status && prefix<=2;prefix++) {
-            status=prepare_solid_step(replay->mesh,t->cuts,prefix,&replay->work,tags);
+            status=prepare_solid_step(replay->mesh,t->cuts,prefix,&replay->work,tags,provenance);
             if(!status)status=terrain_map_pending_lineage(replay,tags);
             if(!status)status=rf_geomod_storage_commit(replay->mesh);
         }
         if(!status)status=rf_geomod_storage_view(replay->mesh,&reconstructed);
-        if(!status){int closed=lineage_closed(&reconstructed);printf("SOLID_CHRONOLOGICAL_COVERAGE %d\n",closed);if(closed!=baseline_closed)status=RF_FORMAT;}
+        if(!status){int closed=lineage_closed(&reconstructed);printf("SOLID_CHRONOLOGICAL_COVERAGE %d\n",closed);if(!closed)status=RF_FORMAT;}
         if(!status)status=lineage_collision_equal(&view.mesh,&reconstructed);
         if(!status) {
             /* Keep result alive for existing exact-corner comparisons below. */
             rf_geomod_storage_close(&t->mesh);t->mesh=replay->mesh;replay->mesh=NULL;
             view.mesh=reconstructed;
         }
-        rf_geomod_storage_close(&replay->mesh);free(replay);free(tags);
+        rf_geomod_storage_close(&replay->mesh);free(replay);free(tags);free(provenance);
         if(status)goto done;
     }
 
@@ -133,5 +134,5 @@ int main(void)
     printf("PUBLIC_UV_SUMMARY accepted=%u rejected=%u comparisons=%u changed=%u\n",accepted,rejected,total,changed);
     if(changed)return 1;
     if(accepted!=4 || rejected || total<8)return 2;
-    puts("PASS solid UV/collision comparison; two baseline closure failures remain; cavity/live integration pending");return 0;
+    puts("PASS solid UV/closed-coverage/collision comparison; cavity/live integration pending");return 0;
 }

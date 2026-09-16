@@ -1235,6 +1235,11 @@ static int compact_separated(const float a[6],const float b[6])
 typedef struct geomod_face_lineage {
     uint8_t pending[1024],repaired[1024];
 } geomod_face_lineage;
+/* Previous chronological bank's exact clipping-plane ownership. */
+typedef struct geomod_step_support {
+    uint16_t edges[4096],planes[1024];
+} geomod_step_support;
+
 static int append_compact_lineage(rf_geomod_storage *s,const rf_geomod_vertex *v,uint32_t n,uint32_t material,uint32_t source_face,rf_geomod_multi_work *work,const uint16_t *edges,uint16_t plane_id,geomod_face_lineage *lineage,uint8_t birth)
 {
     rf_geomod_vertex *polygon=work->split.vertices,*joined=polygon+64;uint32_t bank=s->current^1,i=0,j,count;
@@ -1247,7 +1252,7 @@ static int append_compact_lineage(rf_geomod_storage *s,const rf_geomod_vertex *v
     while(i<s->nf[bank]) {
         rf_geomod_face f=s->faces[bank][i];
         if(f.material!=material || f.source_face!=source_face ||
-           (lineage && lineage->pending[i]!=birth) ||
+           (lineage && (lineage->pending[i]!=birth || (edges && work->compact_planes[i]!=plane_id))) ||
            (cached && compact_separated(bounds,work->compact_bounds[i])) ||
            !join_polygons(polygon,n,s->vertices[bank]+f.first,f.count,joined,&count,edges?polygon_edges:NULL,edges?work->compact_edges+f.first:NULL,joined_edges)){i++;continue;}
         if(edges) {
@@ -1352,28 +1357,52 @@ static int subtract_history_face(rf_geomod_storage *s,const rf_geomod_vertex *ve
  * birth-tag1 surfaces. Plane caches for the entire prefix are caller prepared.
  * Mapping and commit follow separately. Cavity support provenance is separate. */
 static inline int prepare_solid_step(rf_geomod_storage *s,const rf_geomod_mesh_view *cutters,
-    uint32_t count,rf_geomod_multi_work *work,geomod_face_lineage *lineage)
+    uint32_t count,rf_geomod_multi_work *work,geomod_face_lineage *lineage,geomod_step_support *previous)
 {
-    rf_geomod_mesh_view old,source;uint32_t i,n,c;int status;
-    if(!s || !work || !lineage || !cutters || !count || count>RF_GEOMOD_CUT_LIMIT || s->editing)return RF_RANGE;
+    rf_geomod_mesh_view old,source;uint32_t i,n,c,j,k;int status;
+    if(!s || !work || !lineage || !previous || !cutters || !count || count>RF_GEOMOD_CUT_LIMIT || s->editing || s->vertex_capacity>4096 || s->face_capacity>1024)return RF_RANGE;
     source=(rf_geomod_mesh_view){s->vertices[2],s->faces[2],s->nv[2],s->nf[2],0};
     status=convex_mesh_planes(&source,work->source_planes);if(status)return status;
     status=rf_geomod_storage_view(s,&old);if(status)return status;
-    c=count-1;status=rf_geomod_storage_begin(s);if(status)return status;
+    c=count-1;
+    if(!c) {
+        status=rf_geomod_seed_adjacency(&source,previous->edges,4096);if(status)return status;
+        for(i=0;i<source.face_count;i++)previous->planes[i]=(uint16_t)i;
+    } else {
+        memcpy(previous->edges,work->compact_edges,old.vertex_count*sizeof(uint16_t));
+        memcpy(previous->planes,work->compact_planes,old.face_count*sizeof(uint16_t));
+    }
+    status=rf_geomod_storage_begin(s);if(status)return status;
     for(i=0;i<old.face_count;i++) {
         const rf_geomod_face *f=old.faces+i;
         status=subtract_history_face_range(s,old.vertices+f->first,f->count,f->material,
-            f->source_face,UINT32_MAX,cutters,count,work,NULL,0,c,lineage,0);
+            f->source_face,UINT32_MAX,cutters,count,work,previous->edges+f->first,previous->planes[i],c,lineage,0);
         if(status)goto failed;
     }
+    status=rf_geomod_seed_adjacency(cutters+c,work->initial_edges,64*32);if(status)goto failed;
+    for(i=0;i<cutters[c].vertex_count;i++)work->initial_edges[i]=(uint16_t)(32+c*128+work->initial_edges[i]*(work->star_count[c]?4:1));
     for(i=0;i<cutters[c].face_count;i++) {
         const rf_geomod_face *f=cutters[c].faces+i;
-        status=rf_geomod_interior_face(cutters[c].vertices+f->first,f->count,
-            work->source_planes,source.face_count,work->split.vertices,64*32,&n);
-        if(status)goto failed;if(!n)continue;
-        reverse_vertices(work->split.vertices,n);
-        status=subtract_history_face_range(s,work->split.vertices,n,f->material,UINT32_MAX,
-            c,cutters,count,work,NULL,0,0,lineage,1);
+        rf_geomod_vertex *current=work->seed.vertices,*front=current+64,*back=current+128;
+        uint16_t *current_edges=work->seed_edges,*front_edges=current_edges+64,*back_edges=current_edges+128;
+        geomod_corner_support support={work,(uint16_t)(32+c*128+i*(work->star_count[c]?4:1)),cutters};
+        n=f->count;memcpy(current,cutters[c].vertices+f->first,n*sizeof(*current));
+        memcpy(current_edges,work->initial_edges+f->first,n*sizeof(*current_edges));
+        for(j=0;j<source.face_count && n;j++) {
+            uint32_t v,nf,nb;int boundary=1;
+            for(v=0;v<n;v++) {
+                double distance=work->source_planes[j][3];
+                for(k=0;k<3;k++)distance+=(double)work->source_planes[j][k]*current[v].position[k];
+                if(fabs(distance)>1e-5){boundary=0;break;}
+            }
+            if(boundary){n=0;break;}
+            status=polygon_split_edges(current,n,work->source_planes[j],front,64,back,64,&nf,&nb,
+                current_edges,(uint16_t)j,front_edges,back_edges,&support);if(status)goto failed;
+            n=nb;memcpy(current,back,n*sizeof(*current));memcpy(current_edges,back_edges,n*sizeof(*current_edges));
+        }
+        if(!n)continue;
+        status=subtract_history_face_range(s,current,n,f->material,UINT32_MAX,
+            c,cutters,count,work,current_edges,support.face,0,lineage,1);
         if(status)goto failed;
     }
     return RF_OK;

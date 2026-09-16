@@ -1,6 +1,6 @@
 # Red Faction Xbox / PC - open work
 
-- GeoMod UV seams: Finish chronological reconstruction; the solid prototype preserves UVs and matches5808 paired collision queries, but two shared baseline closure failures, cavity support and live/history integration remain open.
+- GeoMod UV seams: Integrate chronological reconstruction after the solid prototype now passes all4 edge-coverage cases, preserves12 inherited corners and matches5808 paired collision queries; cavity and live/save integration remain open.
 
 - PRIORITY GeoMod coverage: Expand verified authored-post destruction beyond the bounded profile; two cuts pass56 stock64MiB PC/Xbox checks and the player crosses the opened post on PC, while authored saves and broader destruction coverage remain open.
 
