@@ -1,0 +1,95 @@
+#include "rf/geomod.h"
+#include <float.h>
+#include <math.h>
+#include <stdio.h>
+#include <string.h>
+#define CHECK(c) do {if(!(c)){fprintf(stderr,"line %d: %s\n",__LINE__,#c);return 1;}} while(0)
+/* Original48fe30 prepass captures: tools/future_re/debris_relaunch_marker.py. */
+typedef struct fixture {uint32_t position[3],marker,seed,matched,velocity[3],bounces,next;} fixture;
+static const fixture cases[]={
+ {{0x3f800000u,0x00000000u,0x00000000u},0u,0u,1u,{0x40ed3a80u,0xc0f2308au,0x40b45743u},3u,3539360597u},
+ {{0x3f800000u,0x00000000u,0x00000000u},0u,1u,1u,{0x41161a40u,0x40e0683eu,0xc0270660u},3u,415139642u},
+ {{0x3f800000u,0x00000000u,0x00000000u},0u,4294967295u,1u,{0x41372040u,0x400b1bc8u,0xc0382623u},3u,2368614256u},
+ {{0x40000000u,0x00000000u,0x00000000u},0u,0u,0u,{0x40e00000u,0x41000000u,0x41100000u},0u,0u},
+ {{0x40000000u,0x00000000u,0x00000000u},0u,1u,0u,{0x40e00000u,0x41000000u,0x41100000u},0u,1u},
+ {{0x40000000u,0x00000000u,0x00000000u},0u,4294967295u,0u,{0x40e00000u,0x41000000u,0x41100000u},0u,4294967295u},
+ {{0x40400000u,0x00000000u,0x00000000u},0u,0u,0u,{0x40e00000u,0x41000000u,0x41100000u},0u,0u},
+ {{0x40400000u,0x00000000u,0x00000000u},0u,1u,0u,{0x40e00000u,0x41000000u,0x41100000u},0u,1u},
+ {{0x40400000u,0x00000000u,0x00000000u},0u,4294967295u,0u,{0x40e00000u,0x41000000u,0x41100000u},0u,4294967295u},
+ {{0x3f99999au,0x3f99999au,0x3f99999au},0u,0u,1u,{0x4058a266u,0xbff321d2u,0x4135adc8u},3u,3539360597u},
+ {{0x3f99999au,0x3f99999au,0x3f99999au},0u,1u,1u,{0x408cc308u,0x4132468du,0x3f354261u},3u,415139642u},
+ {{0x3f99999au,0x3f99999au,0x3f99999au},0u,4294967295u,1u,{0x40f82ab0u,0x41061f8cu,0x406be854u},3u,2368614256u},
+ {{0xbf99999au,0xbf99999au,0xbf99999au},0u,0u,1u,{0x4032dc0du,0xc1275affu,0xc0a59c57u},3u,3539360597u},
+ {{0xbf99999au,0xbf99999au,0xbf99999au},0u,1u,1u,{0xc121fea9u,0x3e9e77b2u,0xc0cde297u},3u,415139642u},
+ {{0xbf99999au,0xbf99999au,0xbf99999au},0u,4294967295u,1u,{0xc1187a91u,0xc09aaa33u,0xc0aebe9cu},3u,2368614256u},
+ {{0x3fc00000u,0x3fc00000u,0x00000000u},0u,0u,0u,{0x40e00000u,0x41000000u,0x41100000u},0u,0u},
+ {{0x3fc00000u,0x3fc00000u,0x00000000u},0u,1u,0u,{0x40e00000u,0x41000000u,0x41100000u},0u,1u},
+ {{0x3fc00000u,0x3fc00000u,0x00000000u},0u,4294967295u,0u,{0x40e00000u,0x41000000u,0x41100000u},0u,4294967295u},
+ {{0x3f800000u,0x00000000u,0x00000000u},805326848u,0u,0u,{0x40e00000u,0x41000000u,0x41100000u},0u,0u},
+ {{0x3f800000u,0x00000000u,0x00000000u},805326848u,1u,0u,{0x40e00000u,0x41000000u,0x41100000u},0u,1u},
+ {{0x3f800000u,0x00000000u,0x00000000u},805326848u,4294967295u,0u,{0x40e00000u,0x41000000u,0x41100000u},0u,4294967295u},
+ {{0x40000000u,0x00000000u,0x00000000u},805326848u,0u,0u,{0x40e00000u,0x41000000u,0x41100000u},0u,0u},
+ {{0x40000000u,0x00000000u,0x00000000u},805326848u,1u,0u,{0x40e00000u,0x41000000u,0x41100000u},0u,1u},
+ {{0x40000000u,0x00000000u,0x00000000u},805326848u,4294967295u,0u,{0x40e00000u,0x41000000u,0x41100000u},0u,4294967295u},
+ {{0x40400000u,0x00000000u,0x00000000u},805326848u,0u,0u,{0x40e00000u,0x41000000u,0x41100000u},0u,0u},
+ {{0x40400000u,0x00000000u,0x00000000u},805326848u,1u,0u,{0x40e00000u,0x41000000u,0x41100000u},0u,1u},
+ {{0x40400000u,0x00000000u,0x00000000u},805326848u,4294967295u,0u,{0x40e00000u,0x41000000u,0x41100000u},0u,4294967295u},
+ {{0x3f99999au,0x3f99999au,0x3f99999au},805326848u,0u,0u,{0x40e00000u,0x41000000u,0x41100000u},0u,0u},
+ {{0x3f99999au,0x3f99999au,0x3f99999au},805326848u,1u,0u,{0x40e00000u,0x41000000u,0x41100000u},0u,1u},
+ {{0x3f99999au,0x3f99999au,0x3f99999au},805326848u,4294967295u,0u,{0x40e00000u,0x41000000u,0x41100000u},0u,4294967295u},
+ {{0xbf99999au,0xbf99999au,0xbf99999au},805326848u,0u,0u,{0x40e00000u,0x41000000u,0x41100000u},0u,0u},
+ {{0xbf99999au,0xbf99999au,0xbf99999au},805326848u,1u,0u,{0x40e00000u,0x41000000u,0x41100000u},0u,1u},
+ {{0xbf99999au,0xbf99999au,0xbf99999au},805326848u,4294967295u,0u,{0x40e00000u,0x41000000u,0x41100000u},0u,4294967295u},
+ {{0x3fc00000u,0x3fc00000u,0x00000000u},805326848u,0u,0u,{0x40e00000u,0x41000000u,0x41100000u},0u,0u},
+ {{0x3fc00000u,0x3fc00000u,0x00000000u},805326848u,1u,0u,{0x40e00000u,0x41000000u,0x41100000u},0u,1u},
+ {{0x3fc00000u,0x3fc00000u,0x00000000u},805326848u,4294967295u,0u,{0x40e00000u,0x41000000u,0x41100000u},0u,4294967295u},
+ {{0x3f800000u,0x00000000u,0x00000000u},3735928559u,0u,0u,{0x40e00000u,0x41000000u,0x41100000u},0u,0u},
+ {{0x3f800000u,0x00000000u,0x00000000u},3735928559u,1u,0u,{0x40e00000u,0x41000000u,0x41100000u},0u,1u},
+ {{0x3f800000u,0x00000000u,0x00000000u},3735928559u,4294967295u,0u,{0x40e00000u,0x41000000u,0x41100000u},0u,4294967295u},
+ {{0x40000000u,0x00000000u,0x00000000u},3735928559u,0u,0u,{0x40e00000u,0x41000000u,0x41100000u},0u,0u},
+ {{0x40000000u,0x00000000u,0x00000000u},3735928559u,1u,0u,{0x40e00000u,0x41000000u,0x41100000u},0u,1u},
+ {{0x40000000u,0x00000000u,0x00000000u},3735928559u,4294967295u,0u,{0x40e00000u,0x41000000u,0x41100000u},0u,4294967295u},
+ {{0x40400000u,0x00000000u,0x00000000u},3735928559u,0u,0u,{0x40e00000u,0x41000000u,0x41100000u},0u,0u},
+ {{0x40400000u,0x00000000u,0x00000000u},3735928559u,1u,0u,{0x40e00000u,0x41000000u,0x41100000u},0u,1u},
+ {{0x40400000u,0x00000000u,0x00000000u},3735928559u,4294967295u,0u,{0x40e00000u,0x41000000u,0x41100000u},0u,4294967295u},
+ {{0x3f99999au,0x3f99999au,0x3f99999au},3735928559u,0u,0u,{0x40e00000u,0x41000000u,0x41100000u},0u,0u},
+ {{0x3f99999au,0x3f99999au,0x3f99999au},3735928559u,1u,0u,{0x40e00000u,0x41000000u,0x41100000u},0u,1u},
+ {{0x3f99999au,0x3f99999au,0x3f99999au},3735928559u,4294967295u,0u,{0x40e00000u,0x41000000u,0x41100000u},0u,4294967295u},
+ {{0xbf99999au,0xbf99999au,0xbf99999au},3735928559u,0u,0u,{0x40e00000u,0x41000000u,0x41100000u},0u,0u},
+ {{0xbf99999au,0xbf99999au,0xbf99999au},3735928559u,1u,0u,{0x40e00000u,0x41000000u,0x41100000u},0u,1u},
+ {{0xbf99999au,0xbf99999au,0xbf99999au},3735928559u,4294967295u,0u,{0x40e00000u,0x41000000u,0x41100000u},0u,4294967295u},
+ {{0x3fc00000u,0x3fc00000u,0x00000000u},3735928559u,0u,0u,{0x40e00000u,0x41000000u,0x41100000u},0u,0u},
+ {{0x3fc00000u,0x3fc00000u,0x00000000u},3735928559u,1u,0u,{0x40e00000u,0x41000000u,0x41100000u},0u,1u},
+ {{0x3fc00000u,0x3fc00000u,0x00000000u},3735928559u,4294967295u,0u,{0x40e00000u,0x41000000u,0x41100000u},0u,4294967295u},
+};
+int main(void)
+{
+    float p[3],origin[3]={0};rf_random_state rng;rf_geomod_debris_relaunch_result out,before;uint32_t i,matched;
+    memset(&before,0xa5,sizeof(before));
+    for(i=0;i<sizeof(cases)/sizeof(cases[0]);i++) {
+        memcpy(p,cases[i].position,12);rng.value=cases[i].seed;out=before;matched=9;
+        CHECK(rf_geomod_debris_relaunch(p,origin,2,.1f,.25f,cases[i].marker,&rng,&out,&matched)==RF_OK);
+        CHECK(matched==cases[i].matched && rng.value==cases[i].next);
+        if(matched) {CHECK(out.bounces==cases[i].bounces);CHECK(!memcmp(out.velocity,cases[i].velocity,12));}
+        else CHECK(!memcmp(&out,&before,sizeof(out)));
+    }
+    /* Neighboring float around the strict axial radius boundary. */
+    for(i=0;i<3;i++) {
+        uint32_t b=0x40000000u+i-1;memcpy(p,&b,4);p[1]=p[2]=0;rng.value=1;matched=9;out=before;
+        CHECK(rf_geomod_debris_relaunch(p,origin,2,.1f,.25f,0,&rng,&out,&matched)==RF_OK);
+        CHECK(matched==(i==0));if(i)CHECK(rng.value==1 && !memcmp(&out,&before,sizeof(out)));
+    }
+    for(i=0;i<8;i++) {
+        float radius=2,chunk=.1f,resistance=.25f;p[0]=1;p[1]=p[2]=0;
+        if(i==0)radius=0;if(i==1)radius=NAN;if(i==2)chunk=0;if(i==3)chunk=INFINITY;
+        if(i==4)resistance=NAN;if(i==5)p[0]=INFINITY;if(i==6)origin[0]=NAN;
+        if(i==7){chunk=.2f;resistance=-FLT_MAX;}
+        rng.value=1;matched=9;out=before;
+        CHECK(rf_geomod_debris_relaunch(p,origin,radius,chunk,resistance,0,&rng,&out,&matched)!=RF_OK);
+        CHECK(rng.value==1 && matched==9 && !memcmp(&out,&before,sizeof(out)));origin[0]=0;
+    }
+    rng.value=1;out=before;matched=9;
+    CHECK(rf_geomod_debris_relaunch(NULL,origin,2,.1f,.25f,0,&rng,&out,&matched)==RF_RANGE);
+    CHECK(rng.value==1 && matched==9 && !memcmp(&out,&before,sizeof(out)));
+    puts("PASS54 original relaunch captures, radius neighbors and transactional guards");return 0;
+}

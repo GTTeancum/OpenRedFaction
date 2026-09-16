@@ -372,3 +372,10 @@ add_test(NAME explosion_material_resources COMMAND rf_explosion_material_tests "
 add_executable(rf_collision_liquid_room_tests tests/collision_liquid_room_tests.c)
 target_link_libraries(rf_collision_liquid_room_tests PRIVATE rf_core)
 add_test(NAME collision_liquid_rooms COMMAND rf_collision_liquid_room_tests)
+
+add_executable(rf_geomod_debris_relaunch_tests tests/geomod_debris_relaunch_tests.c)
+target_link_libraries(rf_geomod_debris_relaunch_tests PRIVATE rf_core)
+add_test(NAME geomod_debris_relaunch COMMAND rf_geomod_debris_relaunch_tests)
+add_executable(rf_geomod_debris_birth_tests tests/geomod_debris_birth_tests.c)
+target_link_libraries(rf_geomod_debris_birth_tests PRIVATE rf_core)
+add_test(NAME geomod_debris_birth COMMAND rf_geomod_debris_birth_tests)

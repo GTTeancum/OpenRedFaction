@@ -394,6 +394,10 @@ dvd_path = '{root.as_posix()}/build/xbox/redfaction-diagnostic.iso'
             if args.water_test and args.frames == 180:
                 report['water_scenario'] = verify_water_scenario(report)
             if args.dev_room:
+                expected=list(map(int,next(line for line in pc.stdout.splitlines() if line.startswith('DEBRIS_RELAUNCH_STATE ')).split()[1:]))
+                actual=words(monitor,symbol('rf_scene_debris_relaunch'),8)
+                report['checks']['DEBRIS_RELAUNCH_STATE']=dict(equal=actual==expected,xbox=actual,pc=expected)
+                assert actual==expected,'Debris relaunch mismatch'
                 expected=list(map(int,next(line for line in pc.stdout.splitlines() if line.startswith('GEOMOD ')).split()[1:]))
                 actual=words(monitor,symbol('rf_scene_geomod'),8)
                 # Allocation sizes differ by pointer width. Compare terrain

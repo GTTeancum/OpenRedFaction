@@ -120,6 +120,26 @@ typedef struct rf_geomod_debris_bounce {
 int rf_geomod_debris_contact(const float velocity[3],const float normal[3],
     float dt,float gravity,rf_random_state *random,rf_geomod_debris_bounce *out);
 
+/*48fe30 prepass: skip detail-marked chunks, strictly compare original
+ * approximate distance against blast radius, then reset count/relaunch.
+ * Three CRT draws only on match. No age/spin/flags mutation. On no match,
+ * only matched becomes0; errors preserve RNG, result and matched. */
+typedef struct rf_geomod_debris_relaunch_result {float velocity[3];uint32_t bounces;} rf_geomod_debris_relaunch_result;
+int rf_geomod_debris_relaunch(const float position[3],const float origin[3],
+    float blast_radius,float chunk_radius,float resistance,uint32_t detail_marked,
+    rf_random_state *random,rf_geomod_debris_relaunch_result *out,uint32_t *matched);
+
+/*48ffa0..4900d4 pre-mesh birth state:8 CRT draws (placement3, radius1,
+ * initial count1, spin3). Existing mesh build then consumes25 and launch2.
+ * Displacement is relative to the resolved spawn origin; query it before
+ * placing the chunk. Keep resistance rather than deriving it from stored radius.
+ * Positive finite blast radius; errors preserve RNG/output. */
+typedef struct rf_geomod_debris_birth_result {
+    float displacement[3],radius,resistance;uint32_t bounces;
+    float axis[3],spin;uint32_t flags;
+} rf_geomod_debris_birth_result;
+int rf_geomod_debris_birth(float blast_radius,rf_random_state *random,rf_geomod_debris_birth_result *out);
+
 /*490500: six axial and eight diagonal world-query endpoints, in original
  * order.490890 consumes resolved query results; hit must equal1, a face must
  * exist, and face flag8 must be clear to subtract the intersection fraction (not world distance).

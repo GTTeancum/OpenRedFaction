@@ -1,5 +1,6 @@
 """Exercise generated RFDS negative fixtures in fresh headless PC processes.
-No build, original executable, desktop input, or purity/rollback claim.
+Optional audit verifies repeated validation preserves recorded published state.
+No build, original executable, desktop input, or visual acceptance claim.
 """
 import argparse
 from datetime import datetime
@@ -18,6 +19,7 @@ def main():
     parser.add_argument('--binary', type=Path, default=ROOT/'build/pc/Release/rf_pc_play.exe')
     parser.add_argument('--output', type=Path)
     parser.add_argument('--timeout', type=float, default=120)
+    parser.add_argument('--audit-validation', action='store_true', help='Require two pure-validation calls with unchanged state for every candidate')
     args = parser.parse_args()
     manifest = json.loads(args.manifest.read_text())
     source = Path(manifest['source'])
@@ -30,6 +32,9 @@ def main():
     inputs = folder/'no-input.bin'
     inputs.write_bytes(b'RFI6'+struct.pack('<I',48)+bytes(8*48))
     env_base = {k:v for k,v in os.environ.items() if not k.startswith('RF_REPLAY_')}
+    env_base.pop('RF_DEV_GEOMOD_CHECKPOINT_VALIDATE_AUDIT', None)
+    if args.audit_validation:
+        env_base['RF_DEV_GEOMOD_CHECKPOINT_VALIDATE_AUDIT'] = '1'
     results = []
     cases = [dict(name='valid-control', expected='accept', source_stage='control', path=None,
                   candidate_sha256=manifest['source_sha256'])] + manifest['cases']
@@ -59,6 +64,14 @@ def main():
                        checkpoint_log=[line for line in log.splitlines() if 'GEOMOD_CHECKPOINT_' in line],
                        candidate_sha256=digest, candidate_changed=digest!=manifest['source_sha256'], elapsed_seconds=round(time.monotonic()-start,3))
             row['pass'] = accepted if case['expected']=='accept' else rejected if case['expected']=='reject' else accepted or rejected
+            if args.audit_validation:
+                audit = [line.split() for line in log.splitlines() if line.startswith('GEOMOD_CHECKPOINT_VALIDATE_AUDIT ')]
+                valid_audit = len(audit)==1 and len(audit[0])==4 and audit[0][1]=='PASS'
+                if valid_audit:
+                    audit_status = int(audit[0][2])
+                    valid_audit = int(audit[0][3])==len(incoming.read_bytes()) and ((audit_status==0) if accepted else (audit_status!=0))
+                row['validation_audit_pass'] = valid_audit
+                row['pass'] = row['pass'] and valid_audit
             if accepted:
                 row['output_sha256']=hashlib.sha256(output.read_bytes()).hexdigest()
                 row['exact_payload']=output.read_bytes()==incoming.read_bytes()
@@ -72,7 +85,10 @@ def main():
         results.append(row)
         report = dict(binary=str(binary), binary_sha256=binary_hash,
                       manifest=str(args.manifest.resolve()), source_sha256=manifest['source_sha256'],
-                      cases=results, scope='Fresh-process PC restore outcomes only. No proof of pure validation or in-place rollback; no visual acceptance claim.')
+                      cases=results, validation_audit=args.audit_validation,
+                      scope=('Restore outcomes plus repeated-validation status and published-state fingerprints; terrain scratch/peak excluded. '
+                             if args.audit_validation else 'Fresh-process PC restore outcomes only; no validation purity claim. ')
+                            + 'No visual acceptance or full game-state rollback claim.')
         (folder/'report.json').write_text(json.dumps(report,indent=2)+'\n')
         print(('PASS' if row['pass'] else 'FAIL'),case['name'],row.get('checkpoint_log',[]),flush=True)
         if case['name']=='valid-control' and not row['pass']:

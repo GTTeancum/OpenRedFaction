@@ -839,6 +839,8 @@ run_scene:
     printf("TERRAIN_NOISE");for(i=0;i<8;++i)printf(" %u",rf_scene_terrain_noise[i]);puts("");
     printf("TERRAIN_DRAW");for(i=0;i<5;++i)printf(" %u",rf_scene_terrain_draw[i]);puts("");
     printf("DEBRIS");for(i=0;i<8;++i)printf(" %u",rf_scene_debris[i]);puts("");
+    {extern uint32_t rf_scene_debris_relaunch[8];
+     printf("DEBRIS_RELAUNCH_STATE");for(i=0;i<8;++i)printf(" %u",rf_scene_debris_relaunch[i]);puts("");}
     printf("TERRAIN_BAKE");for(i=0;i<6;++i)printf(" %u",rf_scene_terrain_bake[i]);puts("");
     printf("TERRAIN_ATLAS");for(i=0;i<8;++i)printf(" %u",rf_scene_terrain_atlas[i]);puts("");
     printf("TERRAIN_SHADOWS");for(i=0;i<4;++i)printf(" %u",rf_scene_terrain_shadows[i]);puts("");

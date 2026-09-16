@@ -2,6 +2,14 @@
 
 Read-only source audit, 2026-09-16. No source changes, builds or emulator runs. The transport's pure callback must reject an unusable newer RFDS without changing live scene state. This document identifies the narrow extraction needed; it does not replace the writable-storage plan.
 
+## Implementation update (2026-09-16)
+
+The synchronous core `rf_geomod_terrain_history_check` is now implemented and its focused rollback/next-cut tests passed in the primary task. Scene integration now adds `scene_checkpoint_validate(const void *, uint32_t, void *)`, matching the two-slot callback ABI, before the mutating restore. It validates the complete existing RFDS envelope, identity, admissions, map packing/projections, noise chain, const RGCH materials and prepared terrain face mappings; its visitor verifies overlay prerequisites and render subdivision capacity. The map reader is shared with restore. The subdivision function shares its edge predicate and sequential polygon insertion between sorted publication and read-only all-vertex count mode. This adds no cloned owner, second atlas or file buffer. Terrain prepare scratch/peak remain the documented exception to opaque-owner bytewise purity.
+
+PC opt-in `RF_DEV_GEOMOD_CHECKPOINT_VALIDATE_AUDIT=1` checks twice and prints `GEOMOD_CHECKPOINT_VALIDATE_AUDIT PASS <status> <bytes>` only when return statuses and SHA256 fingerprints match. Fingerprints include input, all128 admission records and RNG, active noise/maps/bindings, atlas pixels, active draw mesh, overlay indices/bounds/pointers, live terrain mesh/tree and diagnostics; explicit fields avoid padding. Opaque core history is covered separately by core tests, and unused uninitialized overlay allocation is excluded. This source update has not yet been built or executed by this agent; primary owns build and malformed/replay validation. Two-slot mounting/selection and durable native flush are still pending.
+
+The remaining sections preserve the preimplementation rationale and test obligations; statements there describing the core API as absent are historical, superseded by this update.
+
 ## Existing facilities and limits
 
 There is no public terrain clone or history dry-run API. `rf_geomod_terrain_history_decode` at geomod.c1915 parses into bounded `terrain_history_copy`, validates cutters, temporarily exchanges history, calls `terrain_publish`, and restores history on failure. `terrain_publish`1683 prepares inactive mesh/position/face banks and a separate collision tree, then commits mesh, closes old tree, swaps tree/bank and publishes count. `rf_geomod_storage_pending/abort` already support an unpublished mesh. Terrain owner and collision preparation are opaque to scene code.
@@ -81,4 +89,10 @@ Extract its edge-candidate predicate/minimum-fraction/minimum-index tie rule int
 | Render capacity | Existing live subdivision used by PC/Xbox checkpoint replay | Count-only/sorted agreement on retained checkpoints and deliberate64-corner/8192-overflow candidates |
 | Slot fallback | New checkpoint_file_tests proves abstract caller semantic rejection fallback | Newer file with valid RFSG checksum but invalid late RFDS face mapping must fall back; subsequent store protects older valid file |
 
+Malformed fixture generation is retained in `tools/generate_rfds_malformed.py`, execution in `tools/verify_rfds_malformed.py`. The failed-admission continuation reproducer is `tools/verify_geomod_failed_admission.py`.
+
 No existing test proves purity of `scene_checkpoint_restore`; it intentionally mutates. No checkpoint transport test currently substitutes for these scene-specific checks. This extraction is bounded to existing RFDS/RGCH lifecycle and requires no clone owner, second atlas, generalized transaction API or full-game save framework.
+
+## Executed validation audit
+
+PC/NXDK builds pass. tools/verify_rfds_malformed.py --audit-validation completed23 cases in artifacts/geomod-rfds-validation-runs/20260916-091327-145070:21 malformed payloads reject, valid control round-trips exactly, and the previously identified zero-basis no-op remains an accepted unchanged investigation case. Every case records two same-status pure validation calls and matching defined published-state/input SHA256 fingerprints. Core history_check, checkpoint_file_storage, debris bounce and relaunch CTests pass. This does not prove full game-state saves or native HDD durability; both remain pending.

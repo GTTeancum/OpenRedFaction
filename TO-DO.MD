@@ -1,5 +1,8 @@
 # Red Faction Xbox / PC - open work
 
+- GeoMod debris: Correct the remaining birth collision filter/hit-point policy; recovered spawn spread/resistance and settled-fragment reactivation now pass51 stock64MiB PC/Xbox checks.
+- GeoMod saves: Wire native two-slot storage into scene loading; complete RFDS validation now rejects21 malformed saves without changing audited published state.
+
 - Explosions: Extend verified actor-position blast falloff and CF5 cover to broader encounters; nearby self-damage and recovered debris bounces now pass50 stock64MiB Xbox comparisons.
 - GeoMod collisions: Resolve active-ripple precision and verify wet audio/safer visual placement; authored water entry, floor impact and ripple expiry now pass42 PC/Xbox comparisons on stock64MiB.
 - GeoMod saves: Integrate tested two-slot checkpoint storage and terrain dry-run validation with full RFDS checks and native HDD mounting/flush; persistent Xbox restart verification remains open.
