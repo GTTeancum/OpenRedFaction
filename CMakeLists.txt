@@ -346,3 +346,7 @@ target_link_libraries(rf_geomod_basis_probe PRIVATE rf_core)
 add_executable(rf_explosion_material_tests tests/explosion_material_tests.c)
 target_link_libraries(rf_explosion_material_tests PRIVATE rf_core)
 add_test(NAME explosion_material_resources COMMAND rf_explosion_material_tests "${CMAKE_SOURCE_DIR}/Installed_Game")
+
+add_executable(rf_collision_liquid_room_tests tests/collision_liquid_room_tests.c)
+target_link_libraries(rf_collision_liquid_room_tests PRIVATE rf_core)
+add_test(NAME collision_liquid_rooms COMMAND rf_collision_liquid_room_tests)

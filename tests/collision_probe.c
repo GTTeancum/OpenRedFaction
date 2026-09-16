@@ -137,6 +137,13 @@ static int geometry_body_fixture_run(const body_fixture *input,rf_geometry_body_
     status=rf_geometry_collision_body_sweep(&world,&movers,&q,scratch,2,body_fixture_metadata,calls,result,matched);
     rf_collision_tree_close(&room.tree);return status;
 }
+static int liquid_world_flight_sweep(void *context,const float start[3],const float delta[3],float radius,
+    uint32_t flags,rf_weapon_flight_contact *out,uint32_t *liquid,uint32_t *matched)
+{
+    rf_geometry_world_sweep_hit hit;int status=rf_geometry_collision_world_sweep_liquid(context,flags,start,delta,radius,1,&hit,matched,liquid);
+    if(!status && *matched){out->hit=hit.hit;out->face=hit.face;out->room=hit.room;out->object=UINT32_MAX;}
+    return status;
+}
 int main(int argc,char **argv)
 {
     if(argc==2 && !strcmp(argv[1],"--visibility"))return visibility_probe();
@@ -1531,6 +1538,34 @@ int main(int argc,char **argv)
         if(hashes[0]!=hashes[1])return 12;
         printf("%u %u %u %u %u %u %u %u %u %u\n",world.room_count,faces,world.primary_count,world.child_count,world.allocated_bytes,world.peak_bytes,queries,hits,errors,hashes[0]);
         free(poison);rf_geometry_collision_world_close(&world);rf_vpp_close(&archive);return 0;
+    }
+    if(argc==4 && !strcmp(argv[1],"--world-liquid")) {
+        rf_vpp archive;rf_level level;rf_geometry geometry;rf_geometry_collision_world world={0};
+        uint32_t room,i,j,k,queries=0,waters=0,solids=0,entries=0,water_then_solid=0;
+        if(rf_vpp_open(&archive,argv[2]) || rf_level_open(&level,&archive,argv[3]) ||
+           rf_geometry_open(&geometry,&level,8u*1024u*1024u) || rf_geometry_collision_world_open(&geometry,8u*1024u*1024u,&world))return 3;
+        rf_geometry_close(&geometry);
+        for(room=0;room<world.room_count;room++)for(i=0;i<world.rooms[room].tree.face_count;i++) {
+            const rf_collision_face *face=world.rooms[room].tree.faces+i;float start[3]={0},delta[3];
+            rf_geometry_world_sweep_hit hit;uint32_t matched,liquid=0;
+            if(!(face->filter.face_flags&4))continue;
+            for(j=0;j<face->count;j++)for(k=0;k<3;k++)start[k]+=face->vertices[j][k]/face->count;
+            for(k=0;k<3;k++){start[k]+=face->plane[k];delta[k]=-2*face->plane[k];}
+            if(rf_geometry_collision_world_sweep_liquid(&world,0x1004,start,delta,.1f,1,&hit,&matched,&liquid))return 4;
+            ++queries;if(matched){if(liquid)++waters;else ++solids;}
+            /* Disabled water processing must never report a liquid surface. */
+            if(rf_geometry_collision_world_sweep_liquid(&world,4,start,delta,.1f,1,&hit,&matched,&liquid))return 5;
+            if(matched && liquid)return 6;
+            {
+                rf_weapon_flight flight={0};rf_weapon_flight_liquid_state state={0x1004};
+                rf_weapon_flight_liquid_policy policy={0,0,-1,-1};rf_weapon_flight_liquid_event event;
+                if(rf_weapon_flight_launch(&flight,start,delta,2,5,.1f) ||
+                   rf_weapon_flight_step_liquid(&flight,1,&state,&policy,liquid_world_flight_sweep,&world,&event))return 7;
+                if(event.has_liquid){++entries;if(state.query_flags&0x1000)return 8;if(event.terminal.kind==1)++water_then_solid;}
+            }
+        }
+        printf("%u %u %u %u %u\n",queries,waters,solids,entries,water_then_solid);
+        rf_geometry_collision_world_close(&world);rf_vpp_close(&archive);return 0;
     }
     if(argc==4 && !strcmp(argv[1],"--world-sweep")) {
         rf_vpp archive;rf_level level;rf_geometry geometry;rf_geometry_collision_world world={0},guard,sentinel;

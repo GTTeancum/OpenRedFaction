@@ -299,6 +299,29 @@ int rf_collision_thin_rooms(const rf_collision_room_view *rooms,uint32_t room_co
     uint32_t query_flags,const float start[3],const float displacement[3],float limit,
     rf_collision_room_hit *result,uint32_t *matched);
 typedef struct rf_collision_sweep_room_hit {rf_collision_sweep_tree_hit tree;uint32_t room;} rf_collision_sweep_room_hit;
+/* Additive liquid metadata: one view per room, ordered borrowed faces. Trees
+ * may contain these same faces; the solid pass clears query1000 to prevent
+ * double testing. Liquid faces use this array's indices in returned hits. */
+typedef struct rf_collision_room_liquid_view {
+    const rf_collision_face *faces;uint32_t face_count,contains_liquid;
+    const rf_collision_indexed_texture_backend *textures;
+} rf_collision_room_liquid_view;
+typedef struct rf_collision_sweep_liquid_room_hit {
+    rf_collision_sweep_room_hit room;uint32_t is_liquid;
+} rf_collision_sweep_liquid_room_hit;
+/* Original4df523..4df65b ordering: each primary's solid tree, its detail
+ * trees, then its liquid faces. Water requires query1000, contains_liquid,
+ * room AABB overlap and facebit4; sky skip applies only to the solid pass.
+ * Last equal-distance contact wins unless query1 stops at the first hit.
+ * Optional solid textures has room_count entries; liquid textures are per
+ * view. Stable disjoint borrowed owners, existing tree scratch rules apply.
+ * No allocation/rebuild. Errors preserve result/matched; scratch/callback
+ * effects are not rolled back. Old room APIs still reject query1000. */
+int rf_collision_sweep_rooms_liquid(const rf_collision_room_view *rooms,uint32_t room_count,
+    const uint32_t *primary,uint32_t primary_count,const uint32_t *children,uint32_t child_count,
+    uint32_t query_flags,const float start[3],const float displacement[3],float radius,float limit,
+    const rf_collision_room_liquid_view *liquids,const rf_collision_indexed_texture_backend *textures,
+    rf_collision_sweep_liquid_room_hit *result,uint32_t *matched);
 /* Uncached local-coordinate hierarchy of 4df1c0 with radius-expanded sweep
  * bounds. Same primary/child selection, unsupported modes and owned tree
  * scratch rules as thin_rooms. Start/displacement are already solid-local. */

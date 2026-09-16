@@ -547,7 +547,7 @@ typedef struct scene_stream {
     uint32_t clutter_base,clutter_textures;
     uint32_t weapon_base,weapon_textures;
     rf_level_owned_items pickups;uint8_t *pickup_taken;uint32_t *pickup_slots;rf_item_definition handgun_pickup;scene_pickup_resource *pickup_resources;
-    rf_weapon_flight rockets[SCENE_ROCKETS];float rocket_basis[SCENE_ROCKETS][9];
+    rf_weapon_flight rockets[SCENE_ROCKETS];rf_weapon_flight_liquid_state rocket_liquid[SCENE_ROCKETS];float rocket_basis[SCENE_ROCKETS][9];
     scene_rocket_visual *rocket_visual;rf_level rocket_camera;
     scene_impact_owner *impact;
     rf_player_weapon *player_weapon[SCENE_WEAPON_SLOTS];uint32_t player_weapon_base[SCENE_WEAPON_SLOTS],player_weapon_textures[SCENE_WEAPON_SLOTS],player_shots,player_reload,player_slot;
@@ -9543,11 +9543,12 @@ static int scene_terrain_input(scene_stream *s,const float position[3],const flo
     }
     s->terrain_held=pressed;if(pressed)player_input.alt_fire=0;return RF_OK;
 }
-static int scene_rocket_sweep(void *context,const float start[3],const float delta[3],float radius,
-    rf_weapon_flight_contact *out,uint32_t *matched)
+uint32_t rf_scene_rocket_liquid[4]; /* entries, query flags, remaining float bits, effect size bits */
+static int scene_rocket_sweep(void *context,const float start[3],const float delta[3],float radius,uint32_t query_flags,
+    rf_weapon_flight_contact *out,uint32_t *is_liquid,uint32_t *matched)
 {
     scene_stream *s=context;rf_geometry_world_sweep_hit hit;int status;
-    status=rf_geometry_collision_world_sweep(s->collision,0x460,start,delta,radius,1,&hit,matched);
+    status=rf_geometry_collision_world_sweep_liquid(s->collision,query_flags,start,delta,radius,1,&hit,matched,is_liquid);
     if(!status && *matched){out->hit=hit.hit;out->room=hit.room;out->face=hit.face;out->object=UINT32_MAX;}
     return status;
 }
@@ -9779,8 +9780,19 @@ static int scene_rockets_tick(scene_stream *s,uint32_t frame)
     status=scene_debris_tick(s);if(status)return status;
     status=scene_impacts_tick(s,frame);if(status)return status;
     for(i=0;i<SCENE_ROCKETS;i++)if(s->rockets[i].active) {
-        rf_weapon_flight_event event;
-        status=rf_weapon_flight_step(s->rockets+i,1.f/60,scene_rocket_sweep,s,&event);if(status)return status;
+        rf_weapon_flight_event event;rf_weapon_flight_liquid_event movement;
+        rf_weapon_flight_liquid_policy policy={0,0,-1,-1};
+        status=rf_weapon_flight_step_liquid(s->rockets+i,1.f/60,s->rocket_liquid+i,&policy,scene_rocket_sweep,s,&movement);if(status)return status;
+        event=movement.terminal;
+        if(movement.has_liquid) {
+            float left=(float)s->rockets[i].remaining;
+            ++rf_scene_rocket_liquid[0];rf_scene_rocket_liquid[1]=s->rocket_liquid[i].query_flags;
+            memcpy(rf_scene_rocket_liquid+2,&left,4);memcpy(rf_scene_rocket_liquid+3,&movement.liquid_effect.size,4);
+            combat_sound("Medium Water Splash",movement.liquid_contact.hit.point);
+            if(rf_scene_combat_trace)printf("ROCKET_LIQUID %u %u %.9g %.9g %.9g\n",frame,i,
+                movement.liquid_contact.hit.point[0],movement.liquid_contact.hit.point[1],movement.liquid_contact.hit.point[2]);
+            /* Authored ripple VFX instance ownership/rendering remains open. */
+        }
         if(event.kind==2)++rf_scene_rockets[2];
         if(event.kind==1) {
             ++rf_scene_rockets[1];
@@ -9970,6 +9982,7 @@ static int campaign_combat_tick(scene_stream *stream,uint32_t frame,const float 
         if(i==SCENE_ROCKETS){++rf_scene_rockets[6];return RF_OK;}
         status=rf_weapon_flight_launch(stream->rockets+i,position,orientation[2],campaign_rocket.speed,
             campaign_rocket.lifetime,campaign_rocket.collision_radius);
+        stream->rocket_liquid[i].query_flags=0x1004u|(campaign_rocket.collision_radius<.05f?0x100u:0);
         memcpy(stream->rocket_basis[i],orientation,36);
         rf_scene_rockets[7]=(uint32_t)status;if(status)return status;++rf_scene_rockets[0];++rf_scene_rockets[3];
     }
