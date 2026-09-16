@@ -394,6 +394,55 @@ int rf_geomod_debris_relaunch(const float position[3],const float origin[3],
     *out=value;*random=next;*matched=1;return RF_OK;
 }
 
+int rf_geomod_debris_select_room(const float center[3],const float normal[3],float radius,
+    uint32_t fallback_room,rf_geomod_debris_room_query query,void *context,
+    rf_random_state *random,rf_geomod_debris_burst_room *out)
+{
+    rf_geomod_debris_burst_room value={0};rf_random_state next;
+    float distance,direction[3],offset;uint32_t i,j;int status;
+    if(!center || !normal || !query || !random || !out || !isfinite(radius) || radius<=0)return RF_RANGE;
+    for(i=0;i<3;i++)if(!isfinite(center[i]) || !isfinite(normal[i]))return RF_RANGE;
+    next=*random;distance=(float)((double)radius*(double).1f);
+    memcpy(direction,normal,sizeof(direction));
+    /*48fedd initial lookup;48ff3b permits seven random alternatives. */
+    for(i=0;i<8;i++) {
+        if(i){status=rf_particle_cone_sample(-1,&next,direction);if(status)return status;}
+        for(j=0;j<3;j++) {
+            offset=(float)((double)direction[j]*(double)distance);
+            value.origin[j]=(float)((double)center[j]+(double)offset);
+            if(!isfinite(value.origin[j]))return RF_RANGE;
+        }
+        value.room=UINT32_MAX;value.queries=i+1;
+        status=query(context,value.origin,&value.room);if(status)return status;
+        if(value.room!=UINT32_MAX){*random=next;*out=value;return RF_OK;}
+    }
+    /*48ff71 restores the unshifted blast center before caller fallback. */
+    memcpy(value.origin,center,sizeof(value.origin));value.room=fallback_room;
+    value.used_fallback=fallback_room!=UINT32_MAX;
+    *random=next;*out=value;return RF_OK;
+}
+
+int rf_geomod_debris_liquid_miss(const float start[3],const float end[3],
+    uint32_t liquid_flag,float depth,float bottom,rf_geomod_debris_liquid_hit *hit,uint32_t *matched)
+{
+    rf_geomod_debris_liquid_hit value;double raw;float height;uint32_t i;
+    if(!start || !end || !hit || !matched)return RF_RANGE;
+    for(i=0;i<3;i++)if(!isfinite(start[i]) || !isfinite(end[i]))return RF_RANGE;
+    if(!(liquid_flag&255u)){*matched=0;return RF_OK;}
+    if(!isfinite(depth) || !isfinite(bottom))return RF_RANGE;
+    raw=(double)depth+(double)bottom+.5;
+    if(raw<=-2147483649.0 || raw>=2147483648.0)return RF_RANGE;
+    height=(float)(int32_t)raw;
+    if(!(end[1]<height && start[1]>height)){*matched=0;return RF_OK;}
+    value.fraction=(float)(((double)start[1]-(double)height)/((double)start[1]-(double)end[1]));
+    /*48fcd8..48fd0b deliberately use start-end, not end-start. */
+    for(i=0;i<3;i++) {
+        value.point[i]=(float)((double)start[i]+((double)start[i]-(double)end[i])*(double)value.fraction);
+        if(!isfinite(value.point[i]))return RF_RANGE;
+    }
+    *hit=value;*matched=1;return RF_OK;
+}
+
 int rf_geomod_debris_birth(float blast_radius,rf_random_state *random,rf_geomod_debris_birth_result *out)
 {
     rf_geomod_debris_birth_result value={0};rf_random_state next;float scale;
@@ -1699,6 +1748,15 @@ static int terrain_bind(rf_geomod_terrain *t,const rf_geomod_mesh_view *mesh,uin
     if(used+tree->peak_bytes>t->peak_bytes)t->peak_bytes=used+tree->peak_bytes;
     return RF_OK;
 }
+int rf_geomod_terrain_cutter_get(const rf_geomod_terrain *t,uint32_t index,
+    rf_geomod_mesh_view *mesh,float kernel[3],uint32_t *star)
+{
+    uint32_t value;float result[3]={0,0,0};
+    if(!t || !mesh || !kernel || !star || index>=t->count)return RF_RANGE;
+    value=(t->star_mask>>index)&1u;
+    if(value)memcpy(result,t->kernels[index],sizeof(result));
+    *mesh=t->cuts[index];memcpy(kernel,result,sizeof(result));*star=value;return RF_OK;
+}
 void rf_geomod_terrain_close(rf_geomod_terrain **terrain)
 {
     if(terrain && *terrain) {
@@ -2018,7 +2076,7 @@ static void history_exchange(rf_geomod_terrain *t,terrain_history_copy *h)
     v=t->count;t->count=h->count;h->count=v;
 }
 static int terrain_history_import(rf_geomod_terrain *t,const void *data,uint32_t bytes,
-    rf_geomod_history_check_fn check,void *context,uint32_t publish)
+    rf_geomod_history_check_fn check,rf_geomod_history_cuts_check_fn cuts_check,void *context,uint32_t publish)
 {
     const unsigned char *p=data;terrain_history_copy *h;uint32_t count,i,j,k,left;int status=RF_OK;
     uint64_t used;
@@ -2068,7 +2126,11 @@ static int terrain_history_import(rf_geomod_terrain *t,const void *data,uint32_t
                 rf_geomod_terrain_view candidate;
                 candidate.mesh=pending.mesh;candidate.faces=t->faces[pending.bank];candidate.tree=&pending.tree;
                 candidate.cuts=count;candidate.resident_bytes=t->base_bytes+t->tree.allocated_bytes+pending.tree.allocated_bytes;
-                candidate.peak_bytes=t->peak_bytes;status=check(&candidate,context);
+                candidate.peak_bytes=t->peak_bytes;
+                if(cuts_check){
+                    rf_geomod_history_view history={t->cuts,(const float (*)[3])t->kernels,count,t->star_mask};
+                    status=cuts_check(&candidate,&history,context);
+                }else status=check(&candidate,context);
             }
             if(!publish || status)terrain_abort(t,&pending);
         }
@@ -2079,10 +2141,13 @@ done:
     free(h);return status;
 }
 int rf_geomod_terrain_history_decode(rf_geomod_terrain *t,const void *data,uint32_t bytes)
-{return terrain_history_import(t,data,bytes,NULL,NULL,1);}
+{return terrain_history_import(t,data,bytes,NULL,NULL,NULL,1);}
 int rf_geomod_terrain_history_check(rf_geomod_terrain *t,const void *data,uint32_t bytes,
     rf_geomod_history_check_fn check,void *context)
-{if(!check)return RF_RANGE;return terrain_history_import(t,data,bytes,check,context,0);}
+{if(!check)return RF_RANGE;return terrain_history_import(t,data,bytes,check,NULL,context,0);}
+int rf_geomod_terrain_history_check_cuts(rf_geomod_terrain *t,const void *data,uint32_t bytes,
+    rf_geomod_history_cuts_check_fn check,void *context)
+{if(!check)return RF_RANGE;return terrain_history_import(t,data,bytes,NULL,check,context,0);}
 int rf_geomod_terrain_reset(rf_geomod_terrain *t)
 {return t?terrain_publish(t,0):RF_RANGE;}
 int rf_geomod_terrain_get(const rf_geomod_terrain *t,rf_geomod_terrain_view *out)

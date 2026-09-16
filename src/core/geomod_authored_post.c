@@ -1,0 +1,631 @@
+#include "rf/geomod_authored_post.h"
+#include <math.h>
+#include <stdlib.h>
+#include <string.h>
+#define MAX_BRUSHES 4096
+#define MAX_BRUSH_FACES 32768
+typedef struct brush_record {
+    uint32_t uid, index, flags, texture_offset, textures, vertex_offset, vertices, face_offset, faces,
+        corners;
+    float position[3], basis[9], minimum[3], maximum[3];
+} brush_record;
+typedef struct face_owner {
+    uint32_t id, brush;
+} face_owner;
+typedef struct cursor {
+    const unsigned char *data;
+    uint32_t size, at;
+} cursor;
+struct rf_geomod_authored_post {
+    rf_geomod_authored_post_view view;
+};
+static uint32_t u32(const unsigned char *p) {
+    return p[0] | (uint32_t)p[1] << 8 | (uint32_t)p[2] << 16 | (uint32_t)p[3] << 24;
+}
+static float f32(const unsigned char *p) {
+    uint32_t n = u32(p);
+    float f;
+    memcpy(&f, &n, 4);
+    return f;
+}
+static const unsigned char *take(cursor *c, uint32_t n) {
+    const unsigned char *p;
+    if (n > c->size - c->at)
+        return NULL;
+    p = c->data + c->at;
+    c->at += n;
+    return p;
+}
+static int number(cursor *c, uint32_t *n) {
+    const unsigned char *p = take(c, 4);
+    if (!p)
+        return RF_FORMAT;
+    *n = u32(p);
+    return RF_OK;
+}
+/* RED4d0aa0 reorders file forward/right/up to runtime right/up/forward.
+ * RED4b57b0 stores the rotated vector before adding brush position. */
+static int transform(const brush_record *b, const unsigned char *input, float out[3]) {
+    uint32_t i, j;
+    float v[3];
+    for (i = 0; i < 3; i++) {
+        v[i] = f32(input + i * 4);
+        if (!isfinite(v[i]))
+            return RF_FORMAT;
+    }
+    for (i = 0; i < 3; i++) {
+        double sum = 0;
+        volatile float rounded;
+        for (j = 0; j < 3; j++)
+            sum += (double)v[j] * b->basis[j * 3 + i];
+        rounded = (float)sum;
+        out[i] = rounded + b->position[i];
+        if (!isfinite(out[i]))
+            return RF_FORMAT;
+    }
+    return RF_OK;
+}
+/* RED44d690, v180: six prefix bytes, mesh records, then five tail words.
+ * Flags at tail+8 use44d870; the final word is not the CSG operation. */
+static int parse(cursor *c, brush_record *b, uint32_t index) {
+    const unsigned char *p;
+    uint32_t i, j, n;
+    int s;
+    memset(b, 0, sizeof(*b));
+    b->index = index;
+    p = take(c, 52);
+    if (!p)
+        return RF_FORMAT;
+    b->uid = u32(p);
+    for (i = 0; i < 3; i++)
+        b->position[i] = f32(p + 4 + i * 4);
+    for (i = 0; i < 9; i++)
+        b->basis[i] = f32(p + 16 + ((i + 3) % 9) * 4);
+    for (i = 0; i < 3; i++)
+        if (!isfinite(b->position[i]))
+            return RF_FORMAT;
+    for (i = 0; i < 9; i++)
+        if (!isfinite(b->basis[i]))
+            return RF_FORMAT;
+    if (!take(c, 6))
+        return RF_FORMAT;
+    s = number(c, &b->textures);
+    if (s)
+        return s;
+    b->texture_offset = c->at;
+    for (i = 0; i < b->textures; i++) {
+        p = take(c, 2);
+        if (!p)
+            return RF_FORMAT;
+        n = p[0] | (uint32_t)p[1] << 8;
+        if (!take(c, n))
+            return RF_FORMAT;
+    }
+    if (!take(c, 16))
+        return RF_FORMAT;
+    s = number(c, &b->vertices);
+    if (s)
+        return s;
+    b->vertex_offset = c->at;
+    if (b->vertices > (c->size - c->at) / 12)
+        return RF_FORMAT;
+    for (i = 0; i < b->vertices; i++) {
+        float point[3];
+        p = take(c, 12);
+        s = transform(b, p, point);
+        if (s)
+            return s;
+        for (j = 0; j < 3; j++) {
+            if (!i || point[j] < b->minimum[j])
+                b->minimum[j] = point[j];
+            if (!i || point[j] > b->maximum[j])
+                b->maximum[j] = point[j];
+        }
+    }
+    s = number(c, &b->faces);
+    if (s)
+        return s;
+    b->face_offset = c->at;
+    for (i = 0; i < b->faces; i++) {
+        uint32_t stride;
+        p = take(c, 56);
+        if (!p)
+            return RF_FORMAT;
+        n = u32(p + 52);
+        stride = u32(p + 20) == UINT32_MAX ? 12 : 20;
+        if (n > (c->size - c->at) / stride || n > UINT32_MAX - b->corners)
+            return RF_FORMAT;
+        b->corners += n;
+        for (j = 0; j < n; j++) {
+            p = take(c, stride);
+            if (u32(p) >= b->vertices || !isfinite(f32(p + 4)) || !isfinite(f32(p + 8)))
+                return RF_FORMAT;
+        }
+    }
+    p = take(c, 20);
+    if (!p)
+        return RF_FORMAT;
+    b->flags = u32(p + 8);
+    return RF_OK;
+}
+static int owner_compare(const void *a, const void *b) {
+    uint32_t x = ((const face_owner *)a)->id, y = ((const face_owner *)b)->id;
+    return x < y ? -1 : x > y;
+}
+static const face_owner *find_owner(const face_owner *a, uint32_t n, uint32_t id) {
+    face_owner key = {id, 0};
+    return bsearch(&key, a, n, sizeof(*a), owner_compare);
+}
+static int overlap(const brush_record *a, const brush_record *b) {
+    uint32_t i;
+    for (i = 0; i < 3; i++)
+        if (a->minimum[i] > b->maximum[i] + 1e-5f || a->maximum[i] < b->minimum[i] - 1e-5f)
+            return 0;
+    return 1;
+}
+static int same(const float a[3], const float b[3]) { return a[0] == b[0] && a[1] == b[1] && a[2] == b[2]; }
+static int geometry_source(const rf_geometry *g, uint32_t face, uint32_t *id) {
+    uint32_t at;
+    if (face >= g->faces || !g->face_offsets || g->bytes < 56)
+        return RF_FORMAT;
+    at = g->face_offsets[face];
+    if (at > g->bytes - 56)
+        return RF_FORMAT;
+    *id = u32(g->data + at + 24);
+    return RF_OK;
+}
+static int name_equal(const char *a, const char *b) {
+    uint32_t i;
+    for (i = 0;; i++) {
+        unsigned char x = (unsigned char)a[i], y = (unsigned char)b[i];
+        if (x >= 'A' && x <= 'Z')
+            x += 32;
+        if (y >= 'A' && y <= 'Z')
+            y += 32;
+        if (x != y)
+            return 0;
+        if (!x)
+            return 1;
+    }
+}
+static int texture(const unsigned char *data, const brush_record *b, uint32_t local, const rf_geometry *g,
+                   uint32_t *index) {
+    uint32_t at = b->texture_offset, i, n;
+    char expected[256], actual[256];
+    if (local >= b->textures)
+        return RF_FORMAT;
+    for (i = 0; i <= local; i++) {
+        n = data[at] | (uint32_t)data[at + 1] << 8;
+        at += 2;
+        if (i == local) {
+            if (!n || n >= sizeof(expected) || memchr(data + at, 0, n))
+                return RF_FORMAT;
+            memcpy(expected, data + at, n);
+            expected[n] = 0;
+            break;
+        }
+        at += n;
+    }
+    for (i = 0; i < g->textures; i++) {
+        int s = rf_geometry_texture_name(g, i, actual, sizeof(actual));
+        if (s)
+            return s;
+        if (name_equal(expected, actual)) {
+            *index = i;
+            return RF_OK;
+        }
+    }
+    return RF_NOT_FOUND;
+}
+static int reference(const rf_geometry *g, uint32_t source, uint32_t *out) {
+    uint32_t i, id, found = UINT32_MAX;
+    for (i = 0; i < g->faces; i++) {
+        rf_geometry_face f;
+        int s = geometry_source(g, i, &id);
+        if (s)
+            return s;
+        if (id != source)
+            continue;
+        s = rf_geometry_get_face(g, i, &f);
+        if (s)
+            return s;
+        if (found == UINT32_MAX)
+            found = i;
+        if (f.room == 3) {
+            *out = i;
+            return RF_OK;
+        }
+    }
+    *out = found;
+    return RF_OK;
+}
+static int plane_mesh(const rf_geomod_mesh_view *m, float (*planes)[4]) {
+    uint32_t i, j, k, a, b;
+    for (i = 0; i < m->face_count; i++) {
+        const rf_geomod_face *f = m->faces + i;
+        const rf_geomod_vertex *v = m->vertices + f->first;
+        double norm[3], length = 0;
+        for (k = 0; k < 3; k++) {
+            norm[k] = 0;
+            for (j = 0; j < f->count; j++)
+                norm[k] += (double)v[j].position[(k + 1) % 3] * v[(j + 1) % f->count].position[(k + 2) % 3] -
+                           (double)v[j].position[(k + 2) % 3] * v[(j + 1) % f->count].position[(k + 1) % 3];
+            length += norm[k] * norm[k];
+        }
+        if (length < 1e-24 || !isfinite(length))
+            return RF_FORMAT;
+        length = sqrt(length);
+        planes[i][3] = 0;
+        for (k = 0; k < 3; k++) {
+            planes[i][k] = (float)(norm[k] / length);
+            planes[i][3] -= planes[i][k] * v[0].position[k];
+        }
+        for (j = 0; j < m->vertex_count; j++) {
+            double d = planes[i][3];
+            for (k = 0; k < 3; k++)
+                d += (double)planes[i][k] * m->vertices[j].position[k];
+            if (d > 1e-5)
+                return RF_FORMAT;
+            if (j >= f->first && j < f->first + f->count && fabs(d) > 1e-5)
+                return RF_FORMAT;
+        }
+        for (j = 0; j < f->count; j++) {
+            uint32_t matches = 0;
+            const float *x = v[j].position, *y = v[(j + 1) % f->count].position;
+            if (same(x, y))
+                return RF_FORMAT;
+            for (a = 0; a < m->face_count; a++) {
+                const rf_geomod_face *other = m->faces + a;
+                for (b = 0; b < other->count; b++) {
+                    const float *p = m->vertices[other->first + b].position,
+                                *q = m->vertices[other->first + (b + 1) % other->count].position;
+                    if (same(x, q) && same(y, p))
+                        matches++;
+                }
+            }
+            if (matches != 1)
+                return RF_FORMAT;
+        }
+    }
+    return RF_OK;
+}
+static int import_brush(const unsigned char *data, const brush_record *b, const rf_geometry *g,
+                        rf_geomod_vertex *v, rf_geomod_face *f, rf_geomod_publication_origin *origins,
+                        float (*planes)[4], rf_collision_face_filter *filters, uint32_t fallback) {
+    uint32_t i, j, at = b->face_offset, nv = 0;
+    rf_geomod_mesh_view mesh;
+    int s;
+    for (i = 0; i < b->faces; i++) {
+        const unsigned char *p = data + at;
+        uint32_t count = u32(p + 52), stride = u32(p + 20) == UINT32_MAX ? 12 : 20, material, ref;
+        uint32_t source = u32(p + 24);
+        if (count < 3 || count > 64)
+            return RF_FORMAT;
+        s = texture(data, b, u32(p + 16), g, &material);
+        if (s)
+            return s;
+        s = reference(g, source, &ref);
+        if (s)
+            return s;
+        f[i] = (rf_geomod_face){nv, count, material, source};
+        origins[i] = (rf_geomod_publication_origin){
+            filters ? RF_GEOMOD_PUBLICATION_RETAINED : RF_GEOMOD_PUBLICATION_NEIGHBOR, b->uid, source, ref};
+        if (filters) {
+            uint32_t portal = u32(p + 36) & 65535;
+            s = rf_geometry_initial_collision_filter(g, ref == UINT32_MAX ? fallback : ref, 0, filters + i);
+            if (s)
+                return s;
+            filters[i].face_flags = u32(p + 40);
+            filters[i].property_34 = portal >= 32768 ? (int32_t)portal - 65536 : (int32_t)portal;
+        }
+        at += 56;
+        for (j = 0; j < count; j++) {
+            p = data + at + j * stride;
+            s = transform(b, data + b->vertex_offset + u32(p) * 12, v[nv + j].position);
+            if (s)
+                return s;
+            v[nv + j].uv[0] = f32(p + 4);
+            v[nv + j].uv[1] = f32(p + 8);
+        }
+        nv += count;
+        at += count * stride;
+    }
+    mesh = (rf_geomod_mesh_view){v, f, nv, b->faces, 0};
+    return plane_mesh(&mesh, planes);
+}
+static uint64_t aligned(uint64_t n) { return (n + sizeof(void *) - 1) & ~((uint64_t)sizeof(void *) - 1); }
+static void *chunk(unsigned char *base, uint64_t *at, uint32_t n, size_t size) {
+    void *p;
+    *at = aligned(*at);
+    p = base ? base + (size_t)*at : NULL;
+    *at += (uint64_t)n * size;
+    return p;
+}
+int rf_geomod_authored_post_decode(const void *input, uint32_t bytes, const rf_geometry *g,
+                                   const rf_level_geomod_settings *settings, uint32_t budget,
+                                   rf_geomod_authored_post **out) {
+    const unsigned char *data = input;
+    cursor c = {data, bytes, 0};
+    brush_record *records = NULL, *source = NULL, *near[3] = {0};
+    face_owner *owners = NULL;
+    rf_geomod_authored_post *o = NULL;
+    rf_geomod_vertex *sv, *wv, *nv;
+    rf_geomod_face *sf, *wf, *nf;
+    rf_geomod_publication_origin *so, *wo, *no;
+    rf_collision_face_filter *filters;
+    rf_geomod_publication_solid *solids;
+    float (*sp)[4], (*np)[4];
+    uint32_t *replaced;
+    uint32_t count, i, j, k, total_faces = 0, source_index = UINT32_MAX, nnear = 0, nfaces = 0, ncorners = 0,
+                             wfaces = 0, wcorners = 0, fallback = UINT32_MAX, air = 0;
+    uint64_t scratch, at, peak;
+    int s = RF_FORMAT;
+    if (!input || !g || !g->data || !settings || !out || *out)
+        return RF_RANGE;
+    if (bytes < 4)
+        return RF_FORMAT;
+    if (!memchr(settings->texture, 0, sizeof(settings->texture)))
+        return RF_FORMAT;
+    count = u32(data);
+    if (!count || count > MAX_BRUSHES)
+        return RF_FORMAT;
+    scratch = (uint64_t)bytes + (uint64_t)count * sizeof(*records);
+    if (scratch + sizeof(*o) > budget)
+        return RF_RANGE;
+    records = calloc(count, sizeof(*records));
+    if (!records)
+        return RF_IO;
+    c.at = 4;
+    for (i = 0; i < count; i++) {
+        s = parse(&c, records + i, i);
+        if (s)
+            goto done;
+        if (records[i].faces > MAX_BRUSH_FACES - total_faces) {
+            s = RF_RANGE;
+            goto done;
+        }
+        total_faces += records[i].faces;
+        for (j = 0; j < i; j++)
+            if (records[i].uid == records[j].uid) {
+                s = RF_FORMAT;
+                goto done;
+            }
+        if (records[i].uid == 94)
+            source_index = i;
+    }
+    if (c.at != bytes || source_index == UINT32_MAX) {
+        s = RF_FORMAT;
+        goto done;
+    }
+    source = records + source_index;
+    if (source->flags || source->faces < 4 || source->faces > 32) {
+        s = RF_NOT_FOUND;
+        goto done;
+    }
+    for (i = 0; i < count; i++)
+        if (i != source_index && overlap(source, records + i)) {
+            brush_record *b = records + i;
+            if (b->uid == 66 && b->flags == 2 && b->index < source_index) {
+                air++;
+                continue;
+            }
+            if ((b->uid != 71 && b->uid != 95 && b->uid != 70) || b->flags || b->faces < 4 || b->faces > 32 ||
+                nnear == 3) {
+                s = RF_NOT_FOUND;
+                goto done;
+            }
+            near[nnear++] = b;
+            nfaces += b->faces;
+            ncorners += b->corners;
+        }
+    if (air != 1 || nnear != 3) {
+        s = RF_NOT_FOUND;
+        goto done;
+    }
+    scratch += (uint64_t)total_faces * sizeof(*owners);
+    if (scratch + sizeof(*o) > budget) {
+        s = RF_RANGE;
+        goto done;
+    }
+    owners = malloc((size_t)total_faces * sizeof(*owners));
+    if (!owners) {
+        s = RF_IO;
+        goto done;
+    }
+    k = 0;
+    for (i = 0; i < count; i++) {
+        uint32_t offset = records[i].face_offset;
+        for (j = 0; j < records[i].faces; j++) {
+            const unsigned char *p = data + offset;
+            owners[k++] = (face_owner){u32(p + 24), i};
+            offset += 56 + u32(p + 52) * (u32(p + 20) == UINT32_MAX ? 12 : 20);
+        }
+    }
+    qsort(owners, total_faces, sizeof(*owners), owner_compare);
+    for (i = 1; i < total_faces; i++)
+        if (owners[i].id == owners[i - 1].id) {
+            s = RF_FORMAT;
+            goto done;
+        }
+    for (i = 0; i < g->faces; i++) {
+        uint32_t id;
+        const face_owner *owner;
+        rf_geometry_face f;
+        s = geometry_source(g, i, &id);
+        if (s)
+            goto done;
+        s = rf_geometry_get_face(g, i, &f);
+        if (s)
+            goto done;
+        owner = find_owner(owners, total_faces, id);
+        if (!owner && !(f.flags & 4)) {
+            s = RF_FORMAT;
+            goto done;
+        }
+        if (!owner || owner->brush != source_index)
+            continue;
+        if (f.room != 3 || f.corners < 3 || f.corners > 64) {
+            s = RF_NOT_FOUND;
+            goto done;
+        }
+        if (fallback == UINT32_MAX)
+            fallback = i;
+        wfaces++;
+        wcorners += f.corners;
+    }
+    if (!wfaces || wfaces > 256 || source->corners > 2048 || ncorners > 6144 || wcorners > 16384) {
+        s = RF_RANGE;
+        goto done;
+    }
+    /* Exact packed owner, including alignment; payload and indices coexist here. */
+    at = sizeof(*o);
+#define ALLOCATE_FIELDS(base)                                                                                \
+    sv = chunk(base, &at, source->corners, sizeof(*sv));                                                     \
+    wv = chunk(base, &at, wcorners, sizeof(*wv));                                                            \
+    nv = chunk(base, &at, ncorners, sizeof(*nv));                                                            \
+    sf = chunk(base, &at, source->faces, sizeof(*sf));                                                       \
+    wf = chunk(base, &at, wfaces, sizeof(*wf));                                                              \
+    nf = chunk(base, &at, nfaces, sizeof(*nf));                                                              \
+    sp = chunk(base, &at, source->faces, sizeof(*sp));                                                       \
+    np = chunk(base, &at, nfaces, sizeof(*np));                                                              \
+    solids = chunk(base, &at, nnear, sizeof(*solids));                                                       \
+    so = chunk(base, &at, source->faces, sizeof(*so));                                                       \
+    wo = chunk(base, &at, wfaces, sizeof(*wo));                                                              \
+    no = chunk(base, &at, nfaces, sizeof(*no));                                                              \
+    filters = chunk(base, &at, source->faces, sizeof(*filters));                                             \
+    replaced = chunk(base, &at, wfaces, sizeof(*replaced));
+    ALLOCATE_FIELDS(NULL);
+    peak = scratch + at;
+    if (peak > budget || at > UINT32_MAX) {
+        s = RF_RANGE;
+        goto done;
+    }
+    o = calloc(1, (size_t)at);
+    if (!o) {
+        s = RF_IO;
+        goto done;
+    }
+    o->view.resident_bytes = (uint32_t)at;
+    o->view.peak_bytes = (uint32_t)peak;
+    at = sizeof(*o);
+    ALLOCATE_FIELDS((unsigned char *)o);
+#undef ALLOCATE_FIELDS
+    o->view.source = (rf_geomod_mesh_view){sv, sf, source->corners, source->faces, 0};
+    o->view.windows = (rf_geomod_mesh_view){wv, wf, wcorners, wfaces, 0};
+    o->view.neighbors = (rf_geomod_mesh_view){nv, nf, ncorners, nfaces, 0};
+    o->view.source_planes = sp;
+    o->view.solids = solids;
+    o->view.source_origins = so;
+    o->view.window_origins = wo;
+    o->view.neighbor_origins = no;
+    o->view.source_filters = filters;
+    o->view.replaced_ids = replaced;
+    o->view.source_uid = 94;
+    o->view.room = 3;
+    o->view.solid_count = nnear;
+    o->view.replaced_count = wfaces;
+    o->view.brush_count = count;
+    o->view.authored_face_count = total_faces;
+    o->view.settings = *settings;
+    s = import_brush(data, source, g, sv, sf, so, sp, filters, fallback);
+    if (s)
+        goto done;
+    j = k = 0;
+    for (i = 0; i < nnear; i++) {
+        uint32_t f;
+        s = import_brush(data, near[i], g, nv + j, nf + k, no + k, np + k, NULL, 0);
+        if (s)
+            goto done;
+        solids[i] = (rf_geomod_publication_solid){np + k, near[i]->faces, near[i]->uid};
+        for (f = 0; f < near[i]->faces; f++)
+            nf[k + f].first += j;
+        j += near[i]->corners;
+        k += near[i]->faces;
+    }
+    j = k = 0;
+    for (i = 0; i < g->faces; i++) {
+        uint32_t id, t;
+        const face_owner *owner;
+        rf_geometry_face f;
+        s = geometry_source(g, i, &id);
+        if (s)
+            goto done;
+        owner = find_owner(owners, total_faces, id);
+        if (!owner || owner->brush != source_index)
+            continue;
+        s = rf_geometry_get_face(g, i, &f);
+        if (s)
+            goto done;
+        {
+            uint32_t source_face;
+            for (source_face = 0; source_face < source->faces; source_face++)
+                if (sf[source_face].source_face == id)
+                    break;
+            if (source_face == source->faces || sf[source_face].material != f.texture) {
+                s = RF_FORMAT;
+                goto done;
+            }
+        }
+        wf[k] = (rf_geomod_face){j, f.corners, f.texture, id};
+        wo[k] = (rf_geomod_publication_origin){0, 94, id, i};
+        replaced[k++] = i;
+        for (t = 0; t < f.corners; t++) {
+            rf_geometry_corner corner;
+            s = rf_geometry_get_corner(g, i, t, &corner);
+            if (s)
+                goto done;
+            s = rf_geometry_vertex(g, corner.vertex, wv[j + t].position);
+            if (s)
+                goto done;
+            memcpy(wv[j + t].uv, corner.uv, 8);
+        }
+        j += f.corners;
+    }
+    *out = o;
+    o = NULL;
+    s = RF_OK;
+done:
+    free(o);
+    free(owners);
+    free(records);
+    return s;
+}
+int rf_geomod_authored_post_open(const rf_level *level, const rf_geometry *geometry, uint32_t budget,
+                                 rf_geomod_authored_post **out) {
+    const rf_level_section *section;
+    rf_level_geomod_settings settings;
+    unsigned char *data;
+    int status;
+    if (!level || !geometry || !out || *out)
+        return RF_RANGE;
+    if (level->version != 180 || strcmp(level->entry.name, "ctf06.rfl"))
+        return RF_NOT_FOUND;
+    section = rf_level_find(level, 0x2000000);
+    if (!section)
+        return RF_NOT_FOUND;
+    if (section->size > budget || section->size < 4)
+        return RF_RANGE;
+    status = rf_level_geomod_settings_read(level, &settings);
+    if (status)
+        return status;
+    data = malloc(section->size);
+    if (!data)
+        return RF_IO;
+    status = rf_level_read(level, section, 0, data, section->size);
+    if (!status)
+        status = rf_geomod_authored_post_decode(data, section->size, geometry, &settings, budget, out);
+    free(data);
+    return status;
+}
+int rf_geomod_authored_post_get(const rf_geomod_authored_post *o, rf_geomod_authored_post_view *v) {
+    if (!o || !v)
+        return RF_RANGE;
+    *v = o->view;
+    return RF_OK;
+}
+void rf_geomod_authored_post_close(rf_geomod_authored_post **o) {
+    if (o && *o) {
+        free(*o);
+        *o = NULL;
+    }
+}

@@ -138,6 +138,28 @@ typedef struct rf_geomod_debris_birth_result {
     float displacement[3],radius,resistance;uint32_t bounces;
     float axis[3],spin;uint32_t flags;
 } rf_geomod_debris_birth_result;
+/* Original48fe9b..48ff91 burst selection, separate from per-fragment RNG.
+ * Room IDs are caller-owned; UINT32_MAX means no room (ID0 is valid).
+ * Callback receives a point query with no preferred room. It must not mutate
+ * RNG/output; external callback side effects cannot be rolled back. Errors
+ * preserve RNG/output. Successful total miss consumes fourteen random draws.
+ * The selected room is retained across fragment movement and later relaunch. */
+typedef int (*rf_geomod_debris_room_query)(void *context,const float point[3],uint32_t *room);
+typedef struct rf_geomod_debris_burst_room {
+    float origin[3];
+    uint32_t room,queries,used_fallback;
+} rf_geomod_debris_burst_room;
+int rf_geomod_debris_select_room(const float center[3],const float normal[3],float radius,
+    uint32_t fallback_room,rf_geomod_debris_room_query query,void *context,
+    rf_random_state *random,rf_geomod_debris_burst_room *out);
+typedef struct rf_geomod_debris_liquid_hit {float fraction,point[3];} rf_geomod_debris_liquid_hit;
+/*48fc6e..48fd19, only after solid miss. Retained birth-room raw depth and
+ * bottom remain separate; low byte liquid_flag enables strict crossing at
+ * float(trunc(depth+bottom+.5)). Preserves original reverse interpolation.
+ * Miss preserves hit and sets matched0; errors preserve both outputs.
+ * Nonfinite inputs and integer-height overflow are rejected safely. */
+int rf_geomod_debris_liquid_miss(const float start[3],const float end[3],
+    uint32_t liquid_flag,float depth,float bottom,rf_geomod_debris_liquid_hit *hit,uint32_t *matched);
 int rf_geomod_debris_birth(float blast_radius,rf_random_state *random,rf_geomod_debris_birth_result *out);
 
 /*490500: six axial and eight diagonal world-query endpoints, in original
@@ -378,6 +400,13 @@ int rf_geomod_terrain_open(const rf_geomod_mesh_view *source,
     const rf_collision_face_filter *filters,const rf_collision_face_filter *generated_filter,
     uint32_t cavity,uint32_t vertex_capacity,uint32_t face_capacity,uint32_t budget,rf_geomod_terrain **out);
 void rf_geomod_terrain_close(rf_geomod_terrain **terrain);
+/* Borrow one committed transformed cutter. index must be below committed count.
+ * Outputs are unchanged on error. Borrow is invalidated by any successful
+ * mutator/reset/close; a failed cut preserves it. Nonstar kernels return zero;
+ * star explicitly identifies whether the kernel is meaningful. */
+int rf_geomod_terrain_cutter_get(const rf_geomod_terrain *,uint32_t index,
+    rf_geomod_mesh_view *,float kernel[3],uint32_t *star);
+
 /* Enable original mode4 mapping for new interior faces. Configure before
  * the first cut; original level surface UVs remain untouched. */
 int rf_geomod_terrain_set_mapping(rf_geomod_terrain *terrain,uint32_t width,uint32_t height);
@@ -441,6 +470,21 @@ int rf_geomod_terrain_history_decode(rf_geomod_terrain *,const void *data,uint32
 typedef int (*rf_geomod_history_check_fn)(const rf_geomod_terrain_view *candidate,void *context);
 int rf_geomod_terrain_history_check(rf_geomod_terrain *,const void *data,uint32_t bytes,
     rf_geomod_history_check_fn check,void *context);
+/* Extended pure visitor: validated committed cutters in original replay order.
+ * Each mesh has generated source_face sentinel; nonstar kernels are zero.
+ * All nested pointers and this descriptor are callback-only borrows. Never retain
+ * them or call the terrain (including cutter_get) reentrantly. Existing check
+ * rollback/status/budget guarantees apply; no additional allocation or copies.
+ * Bits [0,count) of star_mask identify kernels valid for star cutters. */
+typedef struct rf_geomod_history_view {
+    const rf_geomod_mesh_view *cutters;
+    const float (*kernels)[3];
+    uint32_t count,star_mask;
+} rf_geomod_history_view;
+typedef int (*rf_geomod_history_cuts_check_fn)(const rf_geomod_terrain_view *candidate,
+    const rf_geomod_history_view *history,void *context);
+int rf_geomod_terrain_history_check_cuts(rf_geomod_terrain *,const void *data,uint32_t bytes,
+    rf_geomod_history_cuts_check_fn check,void *context);
 int rf_geomod_terrain_reset(rf_geomod_terrain *terrain);
 /* Borrowed snapshot: valid until next successful cut/reset or close; failed
  * edits preserve it. Single-thread owner; renderer consumes mesh+faces from
