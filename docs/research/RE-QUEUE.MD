@@ -35,3 +35,6 @@ Send findings to the primary as each investigation completes, then proceed to th
 25. Active (crater_shading_re): stock executable process-local reference capture feasibility, without host input or desktop capture.
 26. Active (crater_material_audit): determine actual rock02 base mip ownership; sampler modes alone do not prove a pyramid exists.
 27. Active (geomod_save_design): concrete scene checkpoint restore ordering and validation, read-only design.
+
+28. Integrated/verified: RFDS scene checkpoint plus reset cleanup; fresh PC cases and two native48-check runs preserve destruction across reload and another blast. Full game saves/storage remain open.
+29. Active (crater_shading_re): stock reference startup/isolation prerequisites; optional crater capture compiled/static-checked, not live-launched.

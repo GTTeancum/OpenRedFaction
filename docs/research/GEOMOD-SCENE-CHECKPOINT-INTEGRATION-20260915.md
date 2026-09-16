@@ -1,6 +1,6 @@
 # DEV scene destruction checkpoint integration â€” 2026-09-15
 
-The layout below was implemented in scene.c after this design review. PC fresh-scene tests now cover empty, repeated, shallow and reset states; native verification is in progress. This is a destruction checkpoint, not a complete game save.
+The layout below was implemented in scene.c after this design review. PC fresh-scene tests now cover empty, repeated, shallow and reset states; two native900-frame checks pass48 comparisons each. This is a destruction checkpoint, not a complete game save.
 
 Original design follows over `rf_geomod_terrain_history_size/encode/decode` (RGCH v1), based on the current scene owner. The design sections describe intended boundaries; current verification is recorded in TO-DO.MD and artifacts/geomod-checkpoint/report.json.
 
@@ -91,3 +91,11 @@ Use the existing three-shot settled recording and a shallow-overlap recording. F
 For next-edit continuity, drive the same explicit prepared cut and admission request against an uninterrupted control and the reloaded owner, with no gameplay effects; compare resulting history, geometry, collision and new map seeds. This isolates destruction continuation without falsely claiming full actor/input checkpoint coverage. A later ordinary rocket-input continuation must also restore player body/weapon state and clocks, or first arrange an identical diagnostic spawn and firing state in both branches.
 
 Required edge fixtures: no cuts; eight cuts; mixed boxes/rockets; one/two shallow limits; an admitted-but-rejected cut; duplicate rejection; terrain reset followed by later blast; unreferenced retained maps; altered material runtime slot; wrong region/template/source fingerprint; malformed map rectangle/projection/seed; output-face capacity failure. Run the same RFDS bytes on PC/Xbox and measure peak free pages during restore, not just the settled endpoint.
+
+## Implemented verification
+
+The fresh-process PC harness verifies empty/repeated/shallow/reset checkpoints and malformed input rejection. Its next-blast case matches uninterrupted playback and requires three committed cuts/admissions. Image equality covers upper320 world rows; weapon/player/transient state is outside this checkpoint. All compared endpoint images were inspected.
+
+Native runs render-20260915-204514 and render-20260915-204738 each pass48 checks, with exact PC/Xbox checkpoint sizes8934 and15632 bytes. The latter includes a further blast after reload and leaves8577 pages free on64MiB. Both native framebuffers were inspected; all23 staged disc entries restored and owned emulators exited.
+
+CPU projection precedes the first backend callback: restore reserves the expected atlas slot, and actual registration validates it before transferring ownership. Empty terrain preserves lazy noise initialization. DEV reset clears stale map/pixel/cache state. Projection metadata rejects nonfinite scales/offsets. Writable Xbox saves, complete player/AI/weapon persistence, and retail visual parity remain open.
