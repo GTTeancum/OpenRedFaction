@@ -1855,6 +1855,111 @@ int rf_geomod_terrain_cut_template(rf_geomod_terrain *t,const rf_geomod_template
     if(!shape || !isfinite(radius) || radius<=0 || !isfinite(shape->radius) || shape->radius<=0)return RF_FORMAT;
     return rf_geomod_terrain_cut_template_scale(t,shape,center,basis,radius/shape->radius,material);
 }
+/* Portable committed-cutter checkpoint. Scratch doubles as rollback storage. */
+typedef struct terrain_history_copy {
+    rf_geomod_vertex vertices[RF_GEOMOD_CUT_LIMIT][60];
+    rf_geomod_face faces[RF_GEOMOD_CUT_LIMIT][20];
+    float kernels[RF_GEOMOD_CUT_LIMIT][3];
+    uint32_t vc[RF_GEOMOD_CUT_LIMIT],fc[RF_GEOMOD_CUT_LIMIT],mask,count;
+} terrain_history_copy;
+static void history_u32(unsigned char *p,uint32_t v)
+{p[0]=(unsigned char)v;p[1]=(unsigned char)(v>>8);p[2]=(unsigned char)(v>>16);p[3]=(unsigned char)(v>>24);}
+static void history_float(unsigned char *p,float v)
+{uint32_t word;memcpy(&word,&v,4);history_u32(p,word);}
+int rf_geomod_terrain_history_size(const rf_geomod_terrain *t,uint32_t *bytes)
+{
+    uint32_t i,n=28;if(!t || !bytes)return RF_RANGE;
+    for(i=0;i<t->count;i++)n+=24+t->cuts[i].vertex_count*20+t->cuts[i].face_count*16;
+    *bytes=n;return RF_OK;
+}
+int rf_geomod_terrain_history_encode(const rf_geomod_terrain *t,void *data,uint32_t bytes)
+{
+    unsigned char *p=data;uint32_t n,i,j,k;int status;
+    if(!data)return RF_RANGE;status=rf_geomod_terrain_history_size(t,&n);if(status)return status;
+    if(bytes!=n)return RF_RANGE;
+    memcpy(p,"RGCH",4);history_u32(p+4,1);history_u32(p+8,n);history_u32(p+12,t->count);
+    history_u32(p+16,t->cavity);history_u32(p+20,t->mapping_width);history_u32(p+24,t->mapping_height);p+=28;
+    for(i=0;i<t->count;i++) {
+        uint32_t star=(t->star_mask>>i)&1;
+        history_u32(p,star);history_u32(p+4,t->cuts[i].vertex_count);history_u32(p+8,t->cuts[i].face_count);
+        for(k=0;k<3;k++)history_float(p+12+k*4,star?t->kernels[i][k]:0);p+=24;
+        for(j=0;j<t->cuts[i].vertex_count;j++,p+=20) {
+            for(k=0;k<3;k++)history_float(p+k*4,t->cut_vertices[i][j].position[k]);
+            for(k=0;k<2;k++)history_float(p+12+k*4,t->cut_vertices[i][j].uv[k]);
+        }
+        for(j=0;j<t->cuts[i].face_count;j++,p+=16) {
+            const rf_geomod_face *f=t->cut_faces[i]+j;
+            history_u32(p,f->first);history_u32(p+4,f->count);history_u32(p+8,f->material);history_u32(p+12,f->source_face);
+        }
+    }
+    return RF_OK;
+}
+static void history_exchange_bytes(void *a,void *b,size_t n)
+{
+    unsigned char *x=a,*y=b;size_t i;for(i=0;i<n;i++){unsigned char v=x[i];x[i]=y[i];y[i]=v;}
+}
+static void history_exchange(rf_geomod_terrain *t,terrain_history_copy *h)
+{
+    uint32_t i,v;
+    history_exchange_bytes(t->cut_vertices,h->vertices,sizeof(h->vertices));
+    history_exchange_bytes(t->cut_faces,h->faces,sizeof(h->faces));
+    history_exchange_bytes(t->kernels,h->kernels,sizeof(h->kernels));
+    for(i=0;i<RF_GEOMOD_CUT_LIMIT;i++) {
+        v=t->cuts[i].vertex_count;t->cuts[i].vertex_count=h->vc[i];h->vc[i]=v;
+        v=t->cuts[i].face_count;t->cuts[i].face_count=h->fc[i];h->fc[i]=v;
+        t->cuts[i].vertices=t->cut_vertices[i];t->cuts[i].faces=t->cut_faces[i];t->cuts[i].generation=0;
+    }
+    v=t->star_mask;t->star_mask=h->mask;h->mask=v;
+    v=t->count;t->count=h->count;h->count=v;
+}
+int rf_geomod_terrain_history_decode(rf_geomod_terrain *t,const void *data,uint32_t bytes)
+{
+    const unsigned char *p=data;terrain_history_copy *h;uint32_t count,i,j,k,left;int status=RF_OK;
+    uint64_t used;
+    if(!t || !data)return RF_RANGE;
+    if(bytes<28 || memcmp(p,"RGCH",4) || geomod_u32(p+4)!=1 || geomod_u32(p+8)!=bytes)return RF_FORMAT;
+    count=geomod_u32(p+12);
+    if(count>RF_GEOMOD_CUT_LIMIT || geomod_u32(p+16)!=t->cavity || geomod_u32(p+20)!=t->mapping_width ||
+       geomod_u32(p+24)!=t->mapping_height)return RF_FORMAT;
+    used=(uint64_t)t->base_bytes+t->tree.allocated_bytes+sizeof(*h);
+    if(used>t->budget)return RF_RANGE;
+    h=calloc(1,sizeof(*h));if(!h)return RF_IO;
+    if(used>t->peak_bytes)t->peak_bytes=(uint32_t)used;
+    h->count=count;p+=28;left=bytes-28;
+    for(i=0;i<count;i++) {
+        rf_geomod_mesh_view mesh;uint32_t star,n;
+        if(left<24){status=RF_FORMAT;goto done;}
+        star=geomod_u32(p);h->vc[i]=geomod_u32(p+4);h->fc[i]=geomod_u32(p+8);
+        if(star>1 || !h->vc[i] || h->vc[i]>60 || h->fc[i]<4 || h->fc[i]>20){status=RF_FORMAT;goto done;}
+        for(k=0;k<3;k++) {
+            h->kernels[i][k]=geomod_float(p+12+k*4);
+            if(!isfinite(h->kernels[i][k]) || (!star && h->kernels[i][k]!=0)){status=RF_FORMAT;goto done;}
+        }
+        if(star)h->mask|=1u<<i;p+=24;left-=24;n=h->vc[i]*20+h->fc[i]*16;
+        if(left<n){status=RF_FORMAT;goto done;}
+        for(j=0;j<h->vc[i];j++,p+=20) {
+            for(k=0;k<3;k++)h->vertices[i][j].position[k]=geomod_float(p+k*4);
+            for(k=0;k<2;k++)h->vertices[i][j].uv[k]=geomod_float(p+12+k*4);
+        }
+        for(j=0;j<h->fc[i];j++,p+=16) {
+            rf_geomod_face *f=h->faces[i]+j;
+            f->first=geomod_u32(p);f->count=geomod_u32(p+4);f->material=geomod_u32(p+8);f->source_face=geomod_u32(p+12);
+            if(f->material==UINT32_MAX || f->source_face!=UINT32_MAX){status=RF_FORMAT;goto done;}
+        }
+        left-=n;mesh=(rf_geomod_mesh_view){h->vertices[i],h->faces[i],h->vc[i],h->fc[i],0};
+        status=star?star_mesh_planes(&mesh,h->kernels[i],t->work.star_planes[i]):convex_mesh_planes(&mesh,t->work.cut_planes[i]);
+        if(status)goto done;
+    }
+    if(left){status=RF_FORMAT;goto done;}
+    /* Existing publication prepares inactive mesh/position banks and commits once.
+     * Charge rollback scratch through its collision-tree allocation budget. */
+    t->base_bytes+=(uint32_t)sizeof(*h);if(used>t->peak_bytes)t->peak_bytes=(uint32_t)used;
+    history_exchange(t,h);status=terrain_publish(t,count);
+    if(status)history_exchange(t,h);
+    t->base_bytes-=(uint32_t)sizeof(*h);
+done:
+    free(h);return status;
+}
 int rf_geomod_terrain_reset(rf_geomod_terrain *t)
 {return t?terrain_publish(t,0):RF_RANGE;}
 int rf_geomod_terrain_get(const rf_geomod_terrain *t,rf_geomod_terrain_view *out)

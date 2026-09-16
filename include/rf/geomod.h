@@ -389,6 +389,17 @@ int rf_geomod_terrain_cut_template_scale(rf_geomod_terrain *terrain,const rf_geo
 int rf_geomod_terrain_cut_template_limits(rf_geomod_terrain *terrain,const rf_geomod_template *shape,
     const float center[3],const float basis[9],float scale,uint32_t material,
     const rf_geomod_shallow_limit *limits,uint32_t count);
+/* RGCH/version1 little-endian committed-cutter checkpoint, maximum12380 bytes.
+ * Size query/encode allocate nothing; encode requires exactly the queried size.
+ * Decode replaces successful cutter history and atomically rebuilds mesh/tree.
+ * Errors preserve live geometry, count and committed history. Import scratch is
+ * charged against the existing terrain budget. Original source/filter/material
+ * identities are caller-owned and must match; cavity/mapping dimensions must
+ * match the header. No admission history, RNG, effects or render atlas is saved.
+ * Buffers must not alias terrain storage or output arguments. Single-threaded. */
+int rf_geomod_terrain_history_size(const rf_geomod_terrain *,uint32_t *bytes);
+int rf_geomod_terrain_history_encode(const rf_geomod_terrain *,void *data,uint32_t bytes);
+int rf_geomod_terrain_history_decode(rf_geomod_terrain *,const void *data,uint32_t bytes);
 int rf_geomod_terrain_reset(rf_geomod_terrain *terrain);
 /* Borrowed snapshot: valid until next successful cut/reset or close; failed
  * edits preserve it. Single-thread owner; renderer consumes mesh+faces from

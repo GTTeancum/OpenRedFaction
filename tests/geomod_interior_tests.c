@@ -502,6 +502,105 @@ static int partition_contract(void)
     }
     return 0;
 }
+static int terrain_history_roundtrip(rf_geomod_terrain *source,
+    const rf_geomod_mesh_view *original,const rf_collision_face_filter *filters,
+    const rf_collision_face_filter *generated,uint32_t cavity,uint32_t width,uint32_t height)
+{
+    rf_geomod_terrain *copy=NULL,*tight=NULL,*control=NULL;rf_geomod_terrain_view a,b,before;
+    unsigned char *data,*again,*bad;uint32_t bytes,n,j;int status;
+    const float center[3]={0,-10,20},extent[3]={.75f,.75f,.75f};
+    CHECK(!rf_geomod_terrain_history_size(source,&bytes) && bytes<=12380);
+    data=malloc(bytes);again=malloc(bytes);bad=malloc(bytes+1);CHECK(data && again && bad);
+    CHECK(!rf_geomod_terrain_history_encode(source,data,bytes));
+    memset(again,0xA5,bytes);CHECK(rf_geomod_terrain_history_encode(source,again,bytes-1)==RF_RANGE && again[0]==0xA5);
+    CHECK(!memcmp(data,"RGCH\1\0\0\0",8));
+    CHECK(!rf_geomod_terrain_open(original,filters,generated,cavity,4096,512,1024*1024,&copy));
+    if(width)CHECK(!rf_geomod_terrain_set_mapping(copy,width,height));
+    CHECK(!rf_geomod_terrain_history_decode(copy,data,bytes));
+    CHECK(!rf_geomod_terrain_get(source,&a));CHECK(!rf_geomod_terrain_get(copy,&b));
+    CHECK(a.cuts==b.cuts && a.mesh.vertex_count==b.mesh.vertex_count && a.mesh.face_count==b.mesh.face_count);
+    CHECK(!memcmp(a.mesh.vertices,b.mesh.vertices,a.mesh.vertex_count*sizeof(*a.mesh.vertices)));
+    CHECK(!memcmp(a.mesh.faces,b.mesh.faces,a.mesh.face_count*sizeof(*a.mesh.faces)));
+    for(j=0;j<a.mesh.face_count;j++) {
+        CHECK(!memcmp(a.faces[j].plane,b.faces[j].plane,sizeof(a.faces[j].plane)));
+        CHECK(!memcmp(&a.faces[j].filter,&b.faces[j].filter,sizeof(a.faces[j].filter)));
+    }
+    CHECK(!rf_geomod_terrain_history_encode(copy,again,bytes) && !memcmp(data,again,bytes));
+    before=b;
+    for(j=0;j<bytes;j++) {
+        memcpy(bad,data,bytes);bad[8]=(unsigned char)j;bad[9]=(unsigned char)(j>>8);bad[10]=(unsigned char)(j>>16);bad[11]=(unsigned char)(j>>24);
+        CHECK(rf_geomod_terrain_history_decode(copy,bad,j)!=RF_OK);
+    }
+    memcpy(bad,data,bytes);bad[4]=2;CHECK(rf_geomod_terrain_history_decode(copy,bad,bytes)==RF_FORMAT);
+    memcpy(bad,data,bytes);bad[12]=9;CHECK(rf_geomod_terrain_history_decode(copy,bad,bytes)==RF_FORMAT);
+    memcpy(bad,data,bytes);bad[16]^=1;CHECK(rf_geomod_terrain_history_decode(copy,bad,bytes)==RF_FORMAT);
+    memcpy(bad,data,bytes);bad[20]^=1;CHECK(rf_geomod_terrain_history_decode(copy,bad,bytes)==RF_FORMAT);
+    if(a.cuts) {
+        memcpy(bad,data,bytes);bad[28]=2;CHECK(rf_geomod_terrain_history_decode(copy,bad,bytes)==RF_FORMAT);
+        memcpy(bad,data,bytes);bad[52]=0;bad[53]=0;bad[54]=0xC0;bad[55]=0x7F;
+        CHECK(rf_geomod_terrain_history_decode(copy,bad,bytes)==RF_FORMAT); /* NaN position. */
+        memcpy(bad,data,bytes);memset(bad+52,0,12);memset(bad+72,0,12);memset(bad+92,0,12);
+        CHECK(rf_geomod_terrain_history_decode(copy,bad,bytes)!=RF_OK); /* Collapsed first face. */
+        memcpy(bad,data,bytes);n=52+((uint32_t)data[32]|((uint32_t)data[33]<<8))*20;
+        memset(bad+n+12,0,4);CHECK(rf_geomod_terrain_history_decode(copy,bad,bytes)==RF_FORMAT); /* Source-ID injection. */
+        memcpy(bad,data,bytes);memcpy(bad+n+16,bad+n,16);
+        CHECK(rf_geomod_terrain_history_decode(copy,bad,bytes)!=RF_OK); /* Duplicate face breaks closed edge ownership. */
+
+    }
+    CHECK(!rf_geomod_terrain_get(copy,&b) && before.mesh.generation==b.mesh.generation && before.mesh.vertices==b.mesh.vertices);
+    CHECK(!rf_geomod_terrain_history_encode(copy,again,bytes) && !memcmp(data,again,bytes));
+    /* Exhausted scratch budget fails before mutation, including a nonempty source. */
+    CHECK(!rf_geomod_terrain_open(original,filters,generated,cavity,4096,512,1024*1024,&tight));
+    CHECK(!rf_geomod_terrain_get(tight,&b));n=b.peak_bytes;rf_geomod_terrain_close(&tight);
+    CHECK(!rf_geomod_terrain_open(original,filters,generated,cavity,4096,512,n,&tight));
+    if(width)CHECK(!rf_geomod_terrain_set_mapping(tight,width,height));
+    CHECK(!rf_geomod_terrain_get(tight,&before));
+    CHECK(rf_geomod_terrain_history_decode(tight,data,bytes)==RF_RANGE);
+    CHECK(!rf_geomod_terrain_get(tight,&b) && !b.cuts && b.mesh.generation==before.mesh.generation);
+    if(a.cuts==1 && cavity) {
+        rf_geomod_terrain *small=NULL;rf_geomod_terrain_view kept;unsigned char empty[28];
+        CHECK(!rf_geomod_terrain_open(original,filters,generated,cavity,4096,original->face_count,1024*1024,&small));
+        if(width)CHECK(!rf_geomod_terrain_set_mapping(small,width,height));
+        CHECK(!rf_geomod_terrain_get(small,&kept));
+        CHECK(rf_geomod_terrain_history_decode(small,data,bytes)==RF_RANGE); /* Valid history, insufficient output faces. */
+        CHECK(!rf_geomod_terrain_get(small,&b) && !b.cuts && b.mesh.generation==kept.mesh.generation && b.mesh.vertices==kept.mesh.vertices);
+        CHECK(!rf_geomod_terrain_history_size(small,&n) && n==28);
+        CHECK(!rf_geomod_terrain_history_encode(small,empty,28) && empty[12]==0);
+        CHECK(!rf_geomod_terrain_reset(small));
+        CHECK(!rf_geomod_terrain_get(small,&b) && !b.cuts);
+        rf_geomod_terrain_close(&small);
+    }
+    /* Restore replaces rather than appends; another edit remains available. */
+    CHECK(!rf_geomod_terrain_open(original,filters,generated,cavity,4096,512,1024*1024,&control));
+    if(width)CHECK(!rf_geomod_terrain_set_mapping(control,width,height));
+    CHECK(!rf_geomod_terrain_history_decode(control,data,bytes));
+    status=rf_geomod_terrain_cut_box(copy,center,extent,2);
+    CHECK(a.cuts==RF_GEOMOD_CUT_LIMIT?status==RF_RANGE:status==RF_OK);
+    CHECK(!rf_geomod_terrain_get(copy,&b));CHECK(b.cuts==a.cuts+(a.cuts<RF_GEOMOD_CUT_LIMIT));
+    CHECK(rf_geomod_terrain_cut_box(control,center,extent,2)==status);
+    CHECK(!rf_geomod_terrain_get(control,&before));
+    CHECK(b.mesh.vertex_count==before.mesh.vertex_count && b.mesh.face_count==before.mesh.face_count);
+    CHECK(!memcmp(b.mesh.vertices,before.mesh.vertices,b.mesh.vertex_count*sizeof(*b.mesh.vertices)));
+    CHECK(!memcmp(b.mesh.faces,before.mesh.faces,b.mesh.face_count*sizeof(*b.mesh.faces)));
+    for(j=0;j<3;j++) {
+        float p[3],d[3]={0,0,0},lo[3]={INFINITY,INFINITY,INFINITY},hi[3]={-INFINITY,-INFINITY,-INFINITY};
+        uint32_t v,k,ma,mb;rf_collision_tree_hit ha,hb;
+        for(v=0;v<original->vertex_count;v++)for(k=0;k<3;k++) {
+            lo[k]=fminf(lo[k],original->vertices[v].position[k]);hi[k]=fmaxf(hi[k],original->vertices[v].position[k]);
+        }
+        for(k=0;k<3;k++)p[k]=(lo[k]+hi[k])*.5f;p[j]=lo[j]-10;d[j]=hi[j]-lo[j]+20;
+        CHECK(!rf_collision_thin_tree(b.tree->nodes,b.tree->node_count,b.tree->faces,b.tree->face_count,0,
+            p,d,1,b.tree->stack,b.tree->node_capacity,&ha,&ma));
+        CHECK(!rf_collision_thin_tree(before.tree->nodes,before.tree->node_count,before.tree->faces,before.tree->face_count,0,
+            p,d,1,before.tree->stack,before.tree->node_capacity,&hb,&mb));
+        CHECK(ma==mb);if(ma)CHECK(ha.hit.fraction==hb.hit.fraction && !memcmp(ha.hit.normal,hb.hit.normal,12));
+    }
+    rf_geomod_terrain_close(&control);
+
+    rf_geomod_terrain_close(&tight);rf_geomod_terrain_close(&copy);free(data);free(again);free(bad);
+    printf("PASS: portable cutter checkpoint %u cuts, exact mesh/filter roundtrip, malformed rollback and next edit\n",a.cuts);
+    return 0;
+}
 int main(int argc,char **argv)
 {
     CHECK(!partition_contract());
@@ -1016,10 +1115,12 @@ int main(int argc,char **argv)
             CHECK(!rf_geomod_terrain_open(&src,filters,&generated,1,2048,128,1024*1024,&terrain));
             CHECK(!rf_geomod_terrain_get(terrain,&before));minimum_budget=before.peak_bytes;baseline_bytes=before.resident_bytes;
             CHECK(before.cuts==0 && before.mesh.generation==1);
+            CHECK(!terrain_history_roundtrip(terrain,&src,filters,&generated,1,0,0));
             for(i=0;i<8;i++) {
                 CHECK(!rf_geomod_terrain_cut_box(terrain,center,extent,2));
                 CHECK(!rf_geomod_terrain_get(terrain,&live));CHECK(live.cuts==i+1 && live.mesh.generation==i+2);
                 CHECK(live.resident_bytes<=live.peak_bytes && live.peak_bytes<=1024*1024);
+                if(i==0 || i==7)CHECK(!terrain_history_roundtrip(terrain,&src,filters,&generated,1,0,0));
                 for(j=0;j<live.mesh.face_count;j++)ids[j]=live.mesh.faces[j].source_face==UINT32_MAX?fallback:live.mesh.faces[j].source_face;
                 CHECK(!rf_geometry_collision_overlay_bind(&overlay,live.tree,ids,live.mesh.face_count));
                 CHECK(!rf_geometry_collision_world_ray(&overlay.world,0,ray_start,ray_delta,1,&overlay_hit,&matched));
@@ -1282,6 +1383,7 @@ int main(int argc,char **argv)
             CHECK(!rf_geomod_terrain_get(terrain,&live) && live.cuts==before.cuts && live.mesh.generation==before.mesh.generation);
             CHECK(!rf_geomod_terrain_cut_box(terrain,(float[3]){0,0,0},(float[3]){.1f,.1f,.1f},77));
             CHECK(!rf_geomod_terrain_get(terrain,&live) && live.cuts==3);
+            CHECK(!terrain_history_roundtrip(terrain,&source,original_filters,&generated,cavity,0,0));
             CHECK(!rf_geomod_terrain_reset(terrain));
             CHECK(!rf_geomod_terrain_get(terrain,&live) && !live.cuts && live.mesh.face_count==6);
             /* Reusing a former star slot for a convex cut must clear its type. */

@@ -1,6 +1,6 @@
 # Red Faction Xbox / PC - open work
 
-- GeoMod: Improve crater readability and expand save/load coverage; overlapping orthogonal and oblique two-limit shallow cuts now close correctly and each pass47 PC/Xbox comparisons.
+- GeoMod saves: Connect verified shared cutter checkpoints to scene admission/RNG and retained texture maps, then verify full destruction reload on Xbox.
 - GeoMod lighting: Verify backend texture combination and material UV bindings in parallel; the live atlas has114 referenced maps across180 faces, with base noise matching all121 retained maps.
 - PRIORITY GeoMod: Match original destruction shape, exposed materials, lighting, debris, collision and repeated blasts before returning to other systems; a visible hole alone is not acceptance.
 - GeoMod: Improve crater readability and expand destruction coverage; eight-cut live/Xbox repair passes, and side-view nearer pixels trace to floor projection rounding, while broader shapes and visual parity remain open.
@@ -5376,3 +5376,5 @@ on both the unchanged69595922 baseline and the terrain-ray change; investigate
 the scripted NPC damage fixture separately after the current GeoMod priority.
 
 Crater update verification (2026-09-15): retained53 original-code mapping lifecycle/dirty cases and reran the live PC light cycle. The fixture changes98 of121 atlas maps without changing mapping identity; removal restores all retained map bytes and the rendered frame exactly. All four endpoint images were inspected; the dark mound-like crater appearance remains unresolved. Shared committed-cutter save/load implementation is in progress, not yet integrated or verified. Estimate remains overall~49%, GeoMod~65%.
+
+Committed cutter checkpoint (2026-09-15): RGCH v1 explicitly encodes successful cutter meshes/kernels in at most12380 bytes. Decode rebuilds through transactional CSG/collision publication with rollback scratch charged to the owner budget. PC zero/one/eight box and mixed original star/box coverage passes, including rewritten-length truncations, nonfinite/collapsed/duplicate faces, source-ID injection, budget and publication-capacity failures, exact mesh/filter restoration and continued-edit/collision comparisons against a clean decoded control. PC targets and NXDK build pass; no Xbox runtime save test or scene save/load integration is claimed. Admission history/RNG and retained map identity remain required. Overall~49%; GeoMod~65%.

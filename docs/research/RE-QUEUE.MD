@@ -29,5 +29,9 @@ Send findings to the primary as each investigation completes, then proceed to th
 21. Active (crater_shading_re): original backend selection and base/lightmap upload channel and alpha interpretation.
 22. Active (crater_material_audit): independent live crater material and UV binding audit; no shared implementation edits or emulator use.
 
-23. Active (geomod_save_design): implement bounded committed-cutter export/import in shared core; primary will review/build and integrate scene persistence separately.
+23. Implemented/reviewed: bounded committed-cutter checkpoint passes PC regression and NXDK build; scene admission/RNG and atlas restoration integration is next.
 24. Active (crater_material_audit): original sampler filtering/mipmap settings; material/UV and winding audits reported without a correction.
+
+25. Active (crater_shading_re): stock executable process-local reference capture feasibility, without host input or desktop capture.
+26. Active (crater_material_audit): determine actual rock02 base mip ownership; sampler modes alone do not prove a pyramid exists.
+27. Active (geomod_save_design): concrete scene checkpoint restore ordering and validation, read-only design.
