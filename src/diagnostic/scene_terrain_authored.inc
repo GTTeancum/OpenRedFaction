@@ -35,7 +35,7 @@ static int scene_terrain_authored_reference(scene_stream *s,scene_terrain_author
  * owns its own candidate banks/composition and must retain them until rebind.
  * Asset meshes/material indices remain immutable; face copies below use render
  * slots. Exposed-neighbor refs do not imply a generated crater lightmap. */
-static inline int scene_terrain_authored_open(scene_stream *s,const rf_level *level)
+static inline int scene_terrain_authored_open(scene_stream *s,const rf_level *level,rf_vpp *maps,uint32_t map_count)
 {
     scene_terrain_authored_assets *a=NULL;rf_geomod_terrain *terrain=NULL;
     rf_geomod_mesh_view *views[3];rf_collision_face_filter generated;
@@ -45,6 +45,11 @@ static inline int scene_terrain_authored_open(scene_stream *s,const rf_level *le
     a=calloc(1,sizeof(*a));if(!a)return RF_IO;
     status=rf_geomod_authored_post_open(level,s->geometry,2*1024*1024,&a->asset);if(status)goto fail;
     status=rf_geomod_authored_post_get(a->asset,&a->asset_view);if(status)goto fail;
+    /* Capture original asset identity before remapping face materials into
+     * renderer slots. Temporary decode/repacking memory is released here. */
+    status=rf_geomod_authored_identity_capture(level,s->geometry,&a->asset_view,
+        maps,map_count,&s->light_rgb,2u*1024u*1024u,a->source_identity,&a->identity_peak_bytes);
+    if(status){printf("AUTHORED_IDENTITY_ERROR %d\n",status);goto fail;}
     if(a->asset_view.room>=s->collision->room_count || !a->asset_view.replaced_count){status=RF_FORMAT;goto fail;}
     a->source=a->asset_view.source;a->windows=a->asset_view.windows;a->neighbors=a->asset_view.neighbors;
     count=a->source.face_count+a->windows.face_count+a->neighbors.face_count;
@@ -78,8 +83,12 @@ static inline int scene_terrain_authored_open(scene_stream *s,const rf_level *le
     status=rf_geomod_terrain_set_mapping(terrain,s->terrain_texture_width,s->terrain_texture_height);if(status)goto fail;
     a->resident_bytes=sizeof(*a)+a->asset_view.resident_bytes+count*sizeof(*a->face_storage)+capacity*sizeof(*a->references);
     a->peak_bytes=sizeof(*a)+a->asset_view.peak_bytes;
+    if(sizeof(*a)+a->asset_view.resident_bytes+a->identity_peak_bytes>a->peak_bytes)
+        a->peak_bytes=sizeof(*a)+a->asset_view.resident_bytes+a->identity_peak_bytes;
     if(a->resident_bytes>a->peak_bytes)a->peak_bytes=a->resident_bytes;
     s->terrain_authored=a;s->terrain=terrain;
+    memcpy(rf_scene_authored_identity,a->source_identity,32);
+    rf_scene_authored_identity[8]=a->identity_peak_bytes;rf_scene_authored_identity[9]=1;
     s->terrain_fallback=a->asset_view.replaced_ids[0];s->terrain_default_hardness=a->asset_view.settings.hardness;
     printf("AUTHORED_SOURCE %u %u %u %u %u %u %u %u %u\n",a->asset_view.source_uid,a->asset_view.room,
         a->source.vertex_count,a->source.face_count,a->windows.face_count,a->neighbors.face_count,

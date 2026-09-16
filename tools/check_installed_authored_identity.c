@@ -1,6 +1,7 @@
 /* Standalone immutable ctf06 identity capture. argv: Installed_Game directory.
  * No scene, game, renderer, replacement texture, input or save publication. */
 #include "rf/geomod_authored_identity.h"
+#include "rf/authored_identity_capture.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -126,6 +127,23 @@ int main(int argc,char **argv)
     CHECK(!rf_geomod_authored_identity(&input,digest));
     printf("INSTALLED_SOURCE_SHA256 ");for(i=0;i<32;i++)printf("%02x",digest[i]);puts("");
     CHECK(!rf_geomod_authored_identity(&input,again) && !memcmp(digest,again,32));
+    {
+        uint32_t peak=0xabcdef12;
+        CHECK(!rf_geomod_authored_identity_capture(&c->level,&c->geometry,&c->asset,c->maps,5,
+            &c->rgb,2u*1024u*1024u,again,&peak));
+        CHECK(!memcmp(digest,again,32) && peak<=2u*1024u*1024u && peak>0);
+        printf("RUNTIME_CAPTURE independent_digest_equal1 scratch_peak%u\n",peak);
+        {uint32_t budgets[3]={64,600000,peak-1},k;
+         for(k=0;k<3;k++) {
+            memset(again,0xa5,32);memset(sentinel,0xa5,32);peak=0xabcdef12;
+            CHECK(rf_geomod_authored_identity_capture(&c->level,&c->geometry,&c->asset,c->maps,5,
+                &c->rgb,budgets[k],again,&peak)!=RF_OK);
+            CHECK(peak==0xabcdef12 && !memcmp(again,sentinel,32));
+         }}
+        CHECK(!rf_geomod_authored_identity_capture(&c->level,&c->geometry,&c->asset,c->maps,5,
+            &c->rgb,2u*1024u*1024u,again,&peak) && !memcmp(digest,again,32));
+        puts("RUNTIME_CAPTURE budget_rejections3 recovery_digest_equal1");
+    }
     /* Actual data failure probes preserve output; no row is substituted. */
     memset(sentinel,0xa5,32);memcpy(again,sentinel,32);input.reference_count=0;
     CHECK(rf_geomod_authored_identity(&input,again)!=RF_OK && !memcmp(again,sentinel,32));input.reference_count=c->reference_count;

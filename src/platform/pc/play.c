@@ -865,6 +865,7 @@ run_scene:
     printf("ROCKET_BLAST");for(i=0;i<8;++i)printf(" %u",rf_scene_rocket_blast[i]);puts("");
     printf("ROCKETS");for(i=0;i<8;++i)printf(" %u",rf_scene_rockets[i]);puts("");
     printf("TERRAIN_PUBLICATION");for(i=0;i<8;++i)printf(" %u",rf_scene_terrain_publication[i]);puts("");
+    printf("AUTHORED_IDENTITY");for(i=0;i<10;++i)printf(" %u",rf_scene_authored_identity[i]);puts("");
     printf("GEOMOD");for(i=0;i<8;++i)printf(" %u",rf_scene_geomod[i]);puts("");
     printf("TERRAIN_UPLOAD");for(i=0;i<4;++i)printf(" %u",rf_scene_terrain_upload[i]);puts("");
     printf("TERRAIN_NOISE");for(i=0;i<8;++i)printf(" %u",rf_scene_terrain_noise[i]);puts("");

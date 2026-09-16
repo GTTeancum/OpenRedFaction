@@ -766,6 +766,7 @@ extern uint32_t rf_scene_terrain_bake[6];
 extern uint32_t rf_scene_debris[8];
 extern uint32_t rf_scene_debris_audio[14];
 extern uint32_t rf_scene_terrain_publication[8];
+extern uint32_t rf_scene_authored_identity[10];
 extern uint32_t rf_scene_terrain_draw[5];
 extern uint32_t rf_scene_terrain_noise[8];
 extern uint32_t rf_scene_rockets[8];

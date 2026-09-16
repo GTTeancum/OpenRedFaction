@@ -20,6 +20,7 @@ SRCS += $(PROJECT_ROOT)/src/core/checkpoint_placement.c
 SRCS += $(PROJECT_ROOT)/src/core/authored_reset_placement.c
 SRCS += $(PROJECT_ROOT)/src/core/composed_checkpoint.c
 SRCS += $(PROJECT_ROOT)/src/core/geomod_authored_identity.c
+SRCS += $(PROJECT_ROOT)/src/core/authored_identity_capture.c
 SRCS += $(PROJECT_ROOT)/src/core/authored_owner_extension.c $(PROJECT_ROOT)/src/core/clutter_gameplay.c $(PROJECT_ROOT)/src/core/clutter_damage.c
 SRCS += $(PROJECT_ROOT)/src/platform/xbox/checkpoint_storage.c
 SRCS += $(PROJECT_ROOT)/src/platform/xbox/checkpoint_fixture.c

@@ -15,6 +15,7 @@
 #include "rf/audio.h"
 #include "rf/clutter.h"
 #include "rf/geomod_authored_post.h"
+#include "rf/authored_identity_capture.h"
 #include "rf/geomod_publication_binding.h"
 #ifdef RF_IMAGE_XBOX_NATIVE
 #include "../platform/xbox/checkpoint_storage.h"
@@ -584,7 +585,9 @@ typedef struct scene_terrain_authored_assets {
     rf_geomod_face *face_storage;
     rf_geomod_publication_binding_reference *references;
     uint32_t reference_count,resident_bytes,peak_bytes;
+    unsigned char source_identity[32];uint32_t identity_peak_bytes;
 } scene_terrain_authored_assets;
+uint32_t rf_scene_authored_identity[10]; /* SHA256 LE words, capture scratch peak, ready */
 
 typedef struct scene_stream {
     scene_terrain_authored_assets *terrain_authored;
@@ -9286,11 +9289,12 @@ rejected:
     scene_terrain_lighting_stage_discard(&stage);scene_terrain_publication_abort(s);return status;
 }
 #include "scene_terrain_authored_edit.inc"
-static int scene_terrain_open(scene_stream *s,const rf_level *level)
+static int scene_terrain_open(scene_stream *s,const rf_level *level,rf_vpp *maps,uint32_t map_count)
 {
     rf_geomod_vertex vertices[24];rf_geomod_face faces[6];rf_collision_face_filter filters[6],generated={0};
     rf_geomod_mesh_view source;uint32_t i,j;int status;
     memset(rf_scene_geomod,0,sizeof(rf_scene_geomod));memset(rf_scene_terrain_shadows,0,sizeof(rf_scene_terrain_shadows));
+    memset(rf_scene_authored_identity,0,sizeof(rf_scene_authored_identity));
     memset(rf_scene_terrain_atlas,0,sizeof(rf_scene_terrain_atlas));
     memset(rf_scene_terrain_bake,0,sizeof(rf_scene_terrain_bake));
     memset(rf_scene_terrain_upload,0,sizeof(rf_scene_terrain_upload));
@@ -9374,7 +9378,7 @@ static int scene_terrain_open(scene_stream *s,const rf_level *level)
     memcpy(s->terrain_history_minimum,s->collision->minimum,12);memcpy(s->terrain_history_maximum,s->collision->maximum,12);
     s->terrain_fallback=UINT32_MAX;
     if(!strcmp(level->entry.name,"ctf06.rfl")) {
-        status=scene_terrain_authored_open(s,level);if(status)return status;
+        status=scene_terrain_authored_open(s,level,maps,map_count);if(status)return status;
         status=scene_terrain_publication_open(s);if(status)return status;
         status=scene_terrain_bind(s);if(status)return status;
         s->collision=&s->terrain_collision.world;
@@ -13987,7 +13991,7 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
             placement.prepare_view=actor_follow_view;placement.view_context=stream;
         }
         stream->capacity=(uint32_t)capacity;stream->sink=sink;stream->context=context;stream->collision=collision;
-        status=scene_terrain_open(stream,level);if(status)goto done;
+        status=scene_terrain_open(stream,level,maps,map_count);if(status)goto done;
         status=scene_checkpoint_begin(stream,level);if(status)goto done;
         if(campaign_spawn && collision) {
             memset(rf_scene_event_ticks,0,sizeof(rf_scene_event_ticks));

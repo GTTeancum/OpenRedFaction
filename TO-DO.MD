@@ -6,7 +6,7 @@
 - Movement: Finish underwater presentation; authored lava damage and harmless dry control now pass44/45 PC/Xbox checks on stock64MiB.
 
 - GeoMod debris: Verify wet birth placement and audible output; grouped debris sound dispatch and dry destruction now pass55 stock64MiB PC/Xbox checks.
-- GeoMod saves: Integrate authored destruction identity, retained lighting and transactional restore; profile framing, source identity unit checks and full-room placement pass, while live authored saves remain open and existing cavity restart is verified.
+- GeoMod saves: Integrate authored destruction identity, retained lighting and transactional restore; live source identity now matches PC/Xbox in57 checks, and profile framing/full-room placement pass, while live authored saves remain open and existing cavity restart is verified.
 
 - Explosions: Extend verified actor-position blast falloff and CF5 cover to broader encounters; nearby self-damage and recovered debris bounces now pass50 stock64MiB Xbox comparisons.
 - GeoMod collisions: Resolve active-ripple precision and verify wet audio/safer visual placement; authored water entry, floor impact and ripple expiry now pass42 PC/Xbox comparisons on stock64MiB.

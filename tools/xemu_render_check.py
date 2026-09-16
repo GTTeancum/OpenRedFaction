@@ -389,7 +389,7 @@ dvd_path = '{root.as_posix()}/build/xbox/redfaction-diagnostic.iso'
             pc_goals=[line for line in pc.stdout.splitlines() if line.startswith('MISSION_GOAL ')]
             report['mission_goals']=dict(xbox=native_goals,pc=pc_goals,equal=native_goals==pc_goals)
             assert native_goals==pc_goals,'Mission goal mismatch'
-            for name, label, count in [('rf_scene_terrain_publication', 'TERRAIN_PUBLICATION', 8), ('rf_scene_debris_audio', 'DEBRIS_AUDIO', 14), ('rf_scene_player_checkpoint_state', 'PLAYER_CHECKPOINT', 8), ('rf_scene_liquid_damage', 'LIQUID_DAMAGE', 8), ('rf_scene_player_swim', 'PLAYER_SWIM', 12), ('scene_actor_body', 'PC_PLAY_BODY', 77),
+            for name, label, count in [('rf_scene_authored_identity', 'AUTHORED_IDENTITY', 10), ('rf_scene_terrain_publication', 'TERRAIN_PUBLICATION', 8), ('rf_scene_debris_audio', 'DEBRIS_AUDIO', 14), ('rf_scene_player_checkpoint_state', 'PLAYER_CHECKPOINT', 8), ('rf_scene_liquid_damage', 'LIQUID_DAMAGE', 8), ('rf_scene_player_swim', 'PLAYER_SWIM', 12), ('scene_actor_body', 'PC_PLAY_BODY', 77),
                     ('rf_scene_player_ammo', 'PLAYER_AMMO', 8), ('rf_scene_combat', 'COMBAT', 8),
                     ('rf_scene_script_movement', 'SCRIPT_MOVE', 8), ('rf_scene_enemy_combat', 'ENEMY_COMBAT', 8),
                     ('rf_scene_rotating_doors', 'ROTATING_DOORS', 8), ('rf_scene_script_attack', 'SCRIPT_ATTACK', 12), ('rf_scene_attack_recovery', 'ATTACK_RECOVERY', 4), ('rf_scene_enemy_damage_kinds', 'ENEMY_DAMAGE_KINDS', 10), ('rf_scene_enemy_melee', 'ENEMY_MELEE', 4), ('rf_scene_enemy_spread', 'ENEMY_SPREAD', 8), ('rf_scene_combat_pain', 'COMBAT_PAIN', 8), ('rf_scene_pain_attack_gate', 'PAIN_ATTACK_GATE', 6), ('rf_scene_weapon_drops', 'WEAPON_DROPS', 8), ('rf_scene_rifle_alt', 'RIFLE_ALT', 8), ('rf_scene_shotgun', 'SHOTGUN', 8), ('rf_scene_rockets', 'ROCKETS', 8), ('rf_scene_rocket_blast', 'ROCKET_BLAST', 8), ('rf_scene_rocket_visual', 'ROCKET_VISUAL', 8), ('rf_scene_ripple_visual', 'RIPPLE_VISUAL', 8), ('rf_scene_ripple_lifecycle', 'RIPPLE_LIFECYCLE', 4), ('rf_scene_rocket_liquid', 'ROCKET_LIQUID_STATE', 4), ('rf_scene_enemy_fire', 'ENEMY_FIRE', 6),
@@ -405,6 +405,10 @@ dvd_path = '{root.as_posix()}/build/xbox/redfaction-diagnostic.iso'
                 equal=all(actual[i]==expected[i] for i in indices)
                 report['checks'][label] = dict(equal=equal, all_words_equal=actual==expected,
                     compared_indices=indices, xbox=actual, pc=expected)
+                if label=='AUTHORED_IDENTITY' and args.dev_room and args.level=='ctf06.rfl':
+                    assert actual[9]==1 and any(actual[:8]) and 0<actual[8]<=2*1024*1024,'Authored identity capture missing/overbudget'
+                    report['authored_source_identity']=dict(sha256=struct.pack('<8I',*actual[:8]).hex(),
+                        additional_capture_peak_bytes=actual[8],scope='Immutable authored source/material/chart identity, not saved destruction state')
                 if label=='PICKUPS':
                     report['pickup_cpu_vertices']=dict(xbox=actual[6],pc=expected[6],
                         scope='Backend-specific rendering count; excluded from gameplay parity')

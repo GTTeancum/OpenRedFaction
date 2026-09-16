@@ -418,6 +418,7 @@ add_test(NAME checkpoint_placement COMMAND rf_checkpoint_placement_tests)
 
 target_sources(rf_core PRIVATE src/core/composed_checkpoint.c)
 target_sources(rf_core PRIVATE src/core/geomod_authored_identity.c)
+target_sources(rf_core PRIVATE src/core/authored_identity_capture.c)
 target_sources(rf_core PRIVATE src/core/authored_owner_extension.c src/core/clutter_gameplay.c src/core/clutter_damage.c)
 add_executable(rf_authored_owner_extension_tests tests/authored_owner_extension_tests.c)
 target_link_libraries(rf_authored_owner_extension_tests PRIVATE rf_core)
