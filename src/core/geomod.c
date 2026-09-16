@@ -1242,11 +1242,11 @@ static int compact_separated(const float a[6],const float b[6])
  * legacy full-union rebuilds allocate none. Never encode tags as source_face:
  * that field identifies original material/collision ownership. */
 typedef struct geomod_face_lineage {
-    uint8_t pending[1024],repaired[1024];
+    uint8_t pending[RF_GEOMOD_WORK_FACES],repaired[RF_GEOMOD_WORK_FACES];
 } geomod_face_lineage;
 /* Previous chronological bank's exact clipping-plane ownership. */
 typedef struct geomod_step_support {
-    uint16_t edges[4096],planes[1024];
+    uint16_t edges[RF_GEOMOD_WORK_VERTICES],planes[RF_GEOMOD_WORK_FACES];
 } geomod_step_support;
 static int repair_cavity_pending_provenance(rf_geomod_storage *,rf_geomod_multi_work *,geomod_face_lineage *,geomod_step_support *);
 
@@ -1254,10 +1254,10 @@ static int append_compact_lineage(rf_geomod_storage *s,const rf_geomod_vertex *v
 {
     rf_geomod_vertex *polygon=work->split.vertices,*joined=polygon+64;uint32_t bank=s->current^1,i=0,j,count;
     float bounds[6];uint16_t polygon_edges[64],joined_edges[64];int cached=s->face_capacity<=800,status;
-    if(lineage && s->face_capacity>1024)return RF_RANGE;
-    if(s->vertex_capacity>4096 || s->face_capacity>1024)edges=NULL;
+    if(lineage && s->face_capacity>RF_GEOMOD_WORK_FACES)return RF_RANGE;
+    if(s->vertex_capacity>RF_GEOMOD_WORK_VERTICES || s->face_capacity>RF_GEOMOD_WORK_FACES)edges=NULL;
     if(n>64)return RF_RANGE;memcpy(polygon,v,n*sizeof(*v));
-    if(edges){if(s->nv[bank]>4096 || s->nf[bank]>sizeof(work->compact_planes)/sizeof(work->compact_planes[0]))return RF_RANGE;memcpy(polygon_edges,edges,n*sizeof(*edges));}
+    if(edges){if(s->nv[bank]>RF_GEOMOD_WORK_VERTICES || s->nf[bank]>sizeof(work->compact_planes)/sizeof(work->compact_planes[0]))return RF_RANGE;memcpy(polygon_edges,edges,n*sizeof(*edges));}
     if(cached)compact_bounds(polygon,n,bounds);
     while(i<s->nf[bank]) {
         rf_geomod_face f=s->faces[bank][i];
@@ -1280,7 +1280,7 @@ static int append_compact_lineage(rf_geomod_storage *s,const rf_geomod_vertex *v
         memcpy(polygon,joined,count*sizeof(*v));n=count;i=0;
         if(cached)compact_bounds(polygon,n,bounds);
     }
-    if(edges && (s->nv[bank]>4096-n || s->nf[bank]>=sizeof(work->compact_planes)/sizeof(work->compact_planes[0])))return RF_RANGE;
+    if(edges && (s->nv[bank]>RF_GEOMOD_WORK_VERTICES-n || s->nf[bank]>=sizeof(work->compact_planes)/sizeof(work->compact_planes[0])))return RF_RANGE;
     status=rf_geomod_storage_append(s,polygon,n,material,source_face);
     if(!status && edges){memcpy(work->compact_edges+s->nv[bank]-n,polygon_edges,n*sizeof(uint16_t));work->compact_planes[s->nf[bank]-1]=plane_id;}
     if(!status && cached)memcpy(work->compact_bounds[s->nf[bank]-1],bounds,sizeof(bounds));
@@ -1367,13 +1367,13 @@ static inline int prepare_chronological_step(rf_geomod_storage *s,const rf_geomo
     uint32_t count,rf_geomod_multi_work *work,geomod_face_lineage *lineage,geomod_step_support *previous,uint32_t cavity)
 {
     rf_geomod_mesh_view old,source;uint32_t i,n,c,j,k;int status;
-    if(!s || !work || !lineage || !previous || !cutters || !count || count>RF_GEOMOD_CUT_LIMIT || s->editing || s->vertex_capacity>4096 || s->face_capacity>1024 || cavity>1)return RF_RANGE;
+    if(!s || !work || !lineage || !previous || !cutters || !count || count>RF_GEOMOD_CUT_LIMIT || s->editing || s->vertex_capacity>RF_GEOMOD_WORK_VERTICES || s->face_capacity>RF_GEOMOD_WORK_FACES || cavity>1)return RF_RANGE;
     source=(rf_geomod_mesh_view){s->vertices[2],s->faces[2],s->nv[2],s->nf[2],0};
     status=convex_mesh_planes_oriented(&source,work->source_planes,(int)cavity);if(status)return status;
     status=rf_geomod_storage_view(s,&old);if(status)return status;
     c=count-1;
     if(!c) {
-        status=rf_geomod_seed_adjacency(&source,previous->edges,4096);if(status)return status;
+        status=rf_geomod_seed_adjacency(&source,previous->edges,RF_GEOMOD_WORK_VERTICES);if(status)return status;
         for(i=0;i<source.face_count;i++)previous->planes[i]=(uint16_t)i;
     } else {
         memcpy(previous->edges,work->compact_edges,old.vertex_count*sizeof(uint16_t));
@@ -1501,11 +1501,11 @@ static int prepare_cavity_cuts(rf_geomod_storage *s,
             }
         }
     }
-    if(compaction_observer && s->vertex_capacity<=4096 && s->face_capacity<=1024) {
+    if(compaction_observer && s->vertex_capacity<=RF_GEOMOD_WORK_VERTICES && s->face_capacity<=RF_GEOMOD_WORK_FACES) {
         rf_geomod_mesh_view pending;status=rf_geomod_storage_pending(s,&pending);if(status)goto failed;
         compaction_observer(compaction_context,&pending,work->compact_planes,work->compact_edges);
     }
-    if(count && s->vertex_capacity<=4096 && s->face_capacity<=1024) {
+    if(count && s->vertex_capacity<=RF_GEOMOD_WORK_VERTICES && s->face_capacity<=RF_GEOMOD_WORK_FACES) {
         status=repair_cavity_pending(s,work);if(status)goto failed;
     }
     return RF_OK;
@@ -1739,7 +1739,7 @@ static int repair_cavity_pending_provenance(rf_geomod_storage *s,rf_geomod_multi
     uint32_t bank=s->current^1,f,e,q,r,k,n;rf_geomod_vertex polygon[64];uint16_t polygon_edges[64];
     partition_output output={work->repair.vertices,work->repair.faces,
         s->vertex_capacity,s->face_capacity,0,0,RF_FORMAT};
-    if(lineage && s->face_capacity>1024)return RF_RANGE;
+    if(lineage && s->face_capacity>RF_GEOMOD_WORK_FACES)return RF_RANGE;
     for(f=0;f<s->nf[bank];f++) {
         const rf_geomod_face *face=s->faces[bank]+f;uint16_t plane=work->compact_planes[f];n=0;
         for(e=0;e<face->count;e++) {

@@ -581,5 +581,5 @@ target_compile_definitions(rf_geomod_capacity_probe PRIVATE RF_GEOMOD_CUT_LIMIT=
 target_link_libraries(rf_geomod_capacity_probe PRIVATE rf_core)
 
 add_executable(rf_geomod_capacity_stress_probe tests/geomod_interior_tests.c tools/pc_raster.c src/core/geomod.c)
-target_compile_definitions(rf_geomod_capacity_stress_probe PRIVATE RF_GEOMOD_CUT_LIMIT=16)
+target_compile_definitions(rf_geomod_capacity_stress_probe PRIVATE RF_GEOMOD_CUT_LIMIT=16 RF_GEOMOD_WORK_VERTICES=8192 RF_GEOMOD_WORK_FACES=2048 RF_GEOMOD_TEST_BUDGET=2097152)
 target_link_libraries(rf_geomod_capacity_stress_probe PRIVATE rf_core)

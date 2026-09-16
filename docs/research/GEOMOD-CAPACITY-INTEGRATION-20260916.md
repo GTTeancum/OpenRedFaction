@@ -65,3 +65,44 @@ capacity16-sixteen-2m.log, capacity16-supported-2m.log, and
 capacity-support-{build,xbox-build}.log. RF_GEOMOD_STRESS_COUNT now accepts
 6..configured limit; RF_GEOMOD_STRESS_BUDGET explicitly selects1..2MiB and
 defaults to1MiB. Existing lower-face overflow checks remain enabled for8 cuts.
+
+
+## Exact ninth-cut capacity and expanded workspace
+
+Temporary source instrumentation (restored before committing) proves the
+800-face owner rejects storage append at4022 existing corners plus3, with
+800 faces already used. With1023 faces available, compaction rejects4094
+existing corners plus4 at818 faces. Logs capacity-storage-trace.log and
+capacity-corner-trace.log identify both actual branches rather than inferring
+from peak memory. No trace prints remain in production.
+
+Made RF_GEOMOD_WORK_VERTICES and RF_GEOMOD_WORK_FACES configurable together
+with provenance arrays and guards. Defaults remain4096/1024 and8 cuts. Only
+rf_geomod_capacity_stress_probe selects8192 corners/2048 faces/16 cuts and a
+2MiB core test budget. Its two stress owners request2047/2048 faces, preserving
+a separate owner comparison. RF_GEOMOD_STRESS_FACES sets this diagnostic
+allocation; it does not alter scene settings. All compilation units consuming
+these struct definitions in that isolated target use the same definitions.
+
+Nine overlapping original-template cuts pass closed coverage,4225 junction
+rays/body sweeps per cut,1734 independent nearest/short segment comparisons
+and generated light-grid containment checks. Cut9 peak1871616 bytes. Native
+scene publication/atlas/save memory is NOT included in this isolated proof.
+
+The old coverage endpoint x=-32 lies inside the ninth cavity (minimum x
+-34.6900673). Updated test segments extend beyond the actual mesh AABB when
+needed, keeping the same directions, independent triangle reference and
+short-segment no-hit check. This corrects an invalid outside-endpoint premise;
+no collision tolerance or hit assertion was relaxed.
+
+Cut10 commits at peak1884888 bytes and passes closure and4225 junction
+ray/body checks, then fails light-grid containment: face818 sample0,1 edge1
+signed distance -1.05151169637e-5 against -1e-5 acceptance. Sample is
+(-33.2298813,-11.544426,-2.44844055). Ten face vertices, UVs and plane are
+retained in artifacts/authored-post-live/capacity-ten-mesh.csv. Next correction
+needs a small reproduction of this actual face, not a tolerance increase.
+Later rays/remaining six cuts were not executed.
+
+Five default-profile geometry/UV/lineage tests pass and NXDK default build
+passes. No expanded native acceptance. Logs capacity-nine.log,
+capacity-ten-capture.log, capacity-expanded-build.log, capacity-expanded-xbox.log.

@@ -289,7 +289,12 @@ int rf_geomod_storage_prepare_convex_cut(rf_geomod_storage *storage,
     const rf_geomod_mesh_view *cutter,rf_geomod_cut_work *work);
 /* Bounded scratch for rebuilding original convex terrain minus a union of
  * cutters. Retain on heap and include sizeof(*work) in the Xbox memory budget. */
+#ifndef RF_GEOMOD_WORK_VERTICES
 #define RF_GEOMOD_WORK_VERTICES 4096
+#endif
+#ifndef RF_GEOMOD_WORK_FACES
+#define RF_GEOMOD_WORK_FACES 1024
+#endif
 #define RF_GEOMOD_WORK_FRAGMENTS 512
 typedef struct rf_geomod_multi_work {
     rf_geomod_cut_work split;
@@ -298,7 +303,7 @@ typedef struct rf_geomod_multi_work {
         rf_geomod_vertex vertices[2][RF_GEOMOD_WORK_VERTICES];
         struct {
             rf_geomod_vertex vertices[RF_GEOMOD_WORK_VERTICES];
-            rf_geomod_face faces[1024];
+            rf_geomod_face faces[RF_GEOMOD_WORK_FACES];
         } repair;
     };
     rf_geomod_fragment fragments[2][RF_GEOMOD_WORK_FRAGMENTS];
@@ -311,7 +316,7 @@ typedef struct rf_geomod_multi_work {
     /* Pending cavity provenance for owners with <=4096 vertices/1024 faces
      * capacity; larger owners leave it unspecified. UINT16_MAX marks a face whose
      * contributors have different support IDs. Geometry remains authoritative. Provenance describes pre-repair geometry. */
-    uint16_t compact_edges[RF_GEOMOD_WORK_VERTICES],compact_planes[1024];
+    uint16_t compact_edges[RF_GEOMOD_WORK_VERTICES],compact_planes[RF_GEOMOD_WORK_FACES];
     float compact_bounds[800][6]; /* Pending-face bounds; larger owners use uncached joins. */
 } rf_geomod_multi_work;
 /* Rebuild from immutable original data, never from a concave working result.

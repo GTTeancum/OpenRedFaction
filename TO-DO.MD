@@ -1,6 +1,6 @@
 # Red Faction Xbox / PC - open work
 
-- GeoMod capacity: Resolve ninth overlapping-crater geometry rejection before enabling16 cuts; separated solid/cavity cuts and15-to16 reload pass, but live remains eight pending full geometry/save/Xbox acceptance.
+- GeoMod capacity: Fix the tenth-crater light-sample boundary failure in the larger workspace; nine overlapping original-template cuts pass, while live remains eight pending16-cut geometry/save/Xbox acceptance.
 
 - GeoMod UV seams: Broaden chronological reconstruction beyond current fixtures; all105 tests and48 axis-oriented UV cases pass, with live two-cut reload/next-blast passing58 stock64MiB Xbox checks.
 

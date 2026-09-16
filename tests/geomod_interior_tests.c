@@ -4,6 +4,9 @@
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
+#ifndef RF_GEOMOD_TEST_BUDGET
+#define RF_GEOMOD_TEST_BUDGET (1024*1024)
+#endif
 #define CHECK(x) do {if(!(x)){fprintf(stderr,"interior line %d\n",__LINE__);return 1;}} while(0)
 static void box(const float lo[3],const float hi[3],float planes[6][4],rf_geomod_vertex faces[6][4])
 {
@@ -212,7 +215,7 @@ static int collision_clearance(const rf_geomod_mesh_view *mesh,int tunnel)
         }
         rf_pc_raster_close(&raster);
     }
-    CHECK(!rf_collision_tree_open(faces,mesh->face_count,1024*1024,&tree));
+    CHECK(!rf_collision_tree_open(faces,mesh->face_count,RF_GEOMOD_TEST_BUDGET,&tree));
     {
         rf_collision_tree reused={0},guard={0},saved=guard;
         uint32_t bytes=mesh->face_count*(sizeof(rf_collision_face)+5);void *scratch=malloc(bytes);
@@ -302,13 +305,26 @@ static double terrain_reference(const rf_geomod_mesh_view *mesh,const float star
 static int terrain_ray_coverage(const rf_geomod_terrain_view *live,unsigned cut)
 {
     const float start[3]={0,-10,12},extent[3]={32,24,40};unsigned axis,side,u,v,j,probes=0;
+    float lo[3]={1e30f,1e30f,1e30f},hi[3]={-1e30f,-1e30f,-1e30f};unsigned q;
+    for(q=0;q<live->mesh.vertex_count;q++)for(j=0;j<3;j++) {
+        float x=live->mesh.vertices[q].position[j];if(x<lo[j])lo[j]=x;if(x>hi[j])hi[j]=x;
+    }
     for(axis=0;axis<3;axis++)for(side=0;side<2;side++)for(u=0;u<17;u++)for(v=0;v<17;v++) {
         float end[3]={0},delta[3];double expected;rf_collision_tree_hit hit;unsigned matched;
         end[axis]=(side?1:-1)*extent[axis];
         end[(axis+1)%3]=extent[(axis+1)%3]*((u+.37f)/17-.5f);
         end[(axis+2)%3]=extent[(axis+2)%3]*((v+.61f)/17-.5f);
         for(j=0;j<3;j++)delta[j]=end[j]-start[j];
-        expected=terrain_reference(&live->mesh,start,delta);CHECK(expected<=1);
+        /* Keep existing directions/endpoints unless destruction has grown
+         * past the endpoint. Every coverage segment must leave the mesh AABB. */
+        {double exit=1e30;
+         for(j=0;j<3;j++)if(delta[j]) {
+             double t=((delta[j]>0?hi[j]:lo[j])-start[j])/delta[j];
+             if(t<exit)exit=t;
+         }
+         if(exit>=1)for(j=0;j<3;j++)delta[j]=(float)(delta[j]*(exit+1));}
+        expected=terrain_reference(&live->mesh,start,delta);
+        CHECK(expected<=1);
         CHECK(!rf_collision_thin_tree(live->tree->nodes,live->tree->node_count,live->tree->faces,
             live->tree->face_count,0,start,delta,1,live->tree->stack,live->tree->node_capacity,&hit,&matched));
         if(!matched || fabs(hit.hit.fraction-expected)>1e-5)
@@ -514,7 +530,7 @@ static int terrain_history_roundtrip(rf_geomod_terrain *source,
     CHECK(!rf_geomod_terrain_history_encode(source,data,bytes));
     memset(again,0xA5,bytes);CHECK(rf_geomod_terrain_history_encode(source,again,bytes-1)==RF_RANGE && again[0]==0xA5);
     CHECK(!memcmp(data,"RGCH\1\0\0\0",8));
-    CHECK(!rf_geomod_terrain_open(original,filters,generated,cavity,4096,512,1024*1024,&copy));
+    CHECK(!rf_geomod_terrain_open(original,filters,generated,cavity,4096,512,RF_GEOMOD_TEST_BUDGET,&copy));
     if(width)CHECK(!rf_geomod_terrain_set_mapping(copy,width,height));
     CHECK(!rf_geomod_terrain_history_decode(copy,data,bytes));
     CHECK(!rf_geomod_terrain_get(source,&a));CHECK(!rf_geomod_terrain_get(copy,&b));
@@ -550,7 +566,7 @@ static int terrain_history_roundtrip(rf_geomod_terrain *source,
     CHECK(!rf_geomod_terrain_get(copy,&b) && before.mesh.generation==b.mesh.generation && before.mesh.vertices==b.mesh.vertices);
     CHECK(!rf_geomod_terrain_history_encode(copy,again,bytes) && !memcmp(data,again,bytes));
     /* Exhausted scratch budget fails before mutation, including a nonempty source. */
-    CHECK(!rf_geomod_terrain_open(original,filters,generated,cavity,4096,512,1024*1024,&tight));
+    CHECK(!rf_geomod_terrain_open(original,filters,generated,cavity,4096,512,RF_GEOMOD_TEST_BUDGET,&tight));
     CHECK(!rf_geomod_terrain_get(tight,&b));n=b.peak_bytes;rf_geomod_terrain_close(&tight);
     CHECK(!rf_geomod_terrain_open(original,filters,generated,cavity,4096,512,n,&tight));
     if(width)CHECK(!rf_geomod_terrain_set_mapping(tight,width,height));
@@ -559,7 +575,7 @@ static int terrain_history_roundtrip(rf_geomod_terrain *source,
     CHECK(!rf_geomod_terrain_get(tight,&b) && !b.cuts && b.mesh.generation==before.mesh.generation);
     if(a.cuts==1 && cavity) {
         rf_geomod_terrain *small=NULL;rf_geomod_terrain_view kept;unsigned char empty[28];
-        CHECK(!rf_geomod_terrain_open(original,filters,generated,cavity,4096,original->face_count,1024*1024,&small));
+        CHECK(!rf_geomod_terrain_open(original,filters,generated,cavity,4096,original->face_count,RF_GEOMOD_TEST_BUDGET,&small));
         if(width)CHECK(!rf_geomod_terrain_set_mapping(small,width,height));
         CHECK(!rf_geomod_terrain_get(small,&kept));
         CHECK(rf_geomod_terrain_history_decode(small,data,bytes)==RF_RANGE); /* Valid history, insufficient output faces. */
@@ -571,7 +587,7 @@ static int terrain_history_roundtrip(rf_geomod_terrain *source,
         rf_geomod_terrain_close(&small);
     }
     /* Restore replaces rather than appends; another edit remains available. */
-    CHECK(!rf_geomod_terrain_open(original,filters,generated,cavity,4096,512,1024*1024,&control));
+    CHECK(!rf_geomod_terrain_open(original,filters,generated,cavity,4096,512,RF_GEOMOD_TEST_BUDGET,&control));
     if(width)CHECK(!rf_geomod_terrain_set_mapping(control,width,height));
     CHECK(!rf_geomod_terrain_history_decode(control,data,bytes));
     status=rf_geomod_terrain_cut_box(copy,center,extent,2);
@@ -1072,7 +1088,7 @@ int main(int argc,char **argv)
         float ray_start[3]={0,-10,19},ray_delta[3]={0,0,4};
         snprintf(path,sizeof(path),"%s/levelsm.vpp",argv[1]);
         CHECK(!rf_vpp_open(&archive,path));CHECK(!rf_level_open(&level,&archive,"glass_house.rfl"));
-        CHECK(!rf_geometry_open(&geometry,&level,1024*1024));
+        CHECK(!rf_geometry_open(&geometry,&level,RF_GEOMOD_TEST_BUDGET));
         CHECK(geometry.faces==598 && geometry.vertices==782);
         for(i=0;i<6;i++) {
             rf_geometry_face f;CHECK(!rf_geometry_get_face(&geometry,i,&f) && f.corners==4);
@@ -1097,7 +1113,7 @@ int main(int argc,char **argv)
         }
         CHECK(fabs(result+30724)<1e-4 && closed());
         CHECK(!rf_geomod_collision_faces(&pending,filters,positions,2048,bound,128));
-        CHECK(!rf_collision_tree_open(bound,pending.face_count,1024*1024,&tree));
+        CHECK(!rf_collision_tree_open(bound,pending.face_count,RF_GEOMOD_TEST_BUDGET,&tree));
         CHECK(!rf_collision_thin_tree(tree.nodes,tree.node_count,tree.faces,tree.face_count,0,
             ray_start,ray_delta,1,tree.stack,tree.node_capacity,&hit,&matched));
         CHECK(matched && fabs(hit.hit.fraction-.5f)<1e-5 && hit.hit.normal[2]<-.99f);
@@ -1112,14 +1128,14 @@ int main(int argc,char **argv)
             CHECK(!rf_geometry_collision_overlay_open(&base,0,128,65536,&overlay));
             for(i=0;i<6;i++)if(sf[i].material==2)fallback=i;
             CHECK(fallback!=UINT32_MAX);
-            CHECK(!rf_geomod_terrain_open(&src,filters,&generated,1,2048,128,1024*1024,&terrain));
+            CHECK(!rf_geomod_terrain_open(&src,filters,&generated,1,2048,128,RF_GEOMOD_TEST_BUDGET,&terrain));
             CHECK(!rf_geomod_terrain_get(terrain,&before));minimum_budget=before.peak_bytes;baseline_bytes=before.resident_bytes;
             CHECK(before.cuts==0 && before.mesh.generation==1);
             CHECK(!terrain_history_roundtrip(terrain,&src,filters,&generated,1,0,0));
             for(i=0;i<RF_GEOMOD_CUT_LIMIT;i++) {
                 CHECK(!rf_geomod_terrain_cut_box(terrain,center,extent,2));
                 CHECK(!rf_geomod_terrain_get(terrain,&live));CHECK(live.cuts==i+1 && live.mesh.generation==i+2);
-                CHECK(live.resident_bytes<=live.peak_bytes && live.peak_bytes<=1024*1024);
+                CHECK(live.resident_bytes<=live.peak_bytes && live.peak_bytes<=RF_GEOMOD_TEST_BUDGET);
                 if(i==0 || i==7)CHECK(!terrain_history_roundtrip(terrain,&src,filters,&generated,1,0,0));
                 for(j=0;j<live.mesh.face_count;j++)ids[j]=live.mesh.faces[j].source_face==UINT32_MAX?fallback:live.mesh.faces[j].source_face;
                 CHECK(!rf_geometry_collision_overlay_bind(&overlay,live.tree,ids,live.mesh.face_count));
@@ -1221,7 +1237,7 @@ int main(int argc,char **argv)
                 if(cavity)for(j=0;j<2;j++){rf_geomod_vertex temp=source_v[i][j];source_v[i][j]=source_v[i][3-j];source_v[i][3-j]=temp;}
             }
             source=(rf_geomod_mesh_view){source_v[0],source_f,24,6,0};
-            CHECK(!rf_geomod_storage_open(&source,2048,128,1024*1024,&owner));
+            CHECK(!rf_geomod_storage_open(&source,2048,128,RF_GEOMOD_TEST_BUDGET,&owner));
             for(repeat=1;repeat<=2;repeat++) {
                 double total=0;
                 {int status=rf_geomod_storage_prepare_star_cuts(owner,cuts,kernels,repeat,cavity,&work);if(status)fprintf(stderr,"star status%d cavity%u repeat%u\n",status,cavity,repeat);CHECK(!status);}
@@ -1241,7 +1257,7 @@ int main(int argc,char **argv)
                 CHECK(!rf_geomod_collision_faces(&pending,filters,positions,2048,bound,128));
                 {
                     rf_collision_tree tree={0};rf_collision_tree_hit hit;uint32_t matched,x,y;
-                    CHECK(!rf_collision_tree_open(bound,pending.face_count,1024*1024,&tree));
+                    CHECK(!rf_collision_tree_open(bound,pending.face_count,RF_GEOMOD_TEST_BUDGET,&tree));
                     for(x=0;x<9;x++)for(y=0;y<9;y++) {
                         float start[3]={-.88f+x*.22f,-.87f+y*.2175f,0},delta[3]={0,0,2};
                         float height=.25f+.75f*fmaxf(fabsf(start[0]),fabsf(start[1]));
@@ -1266,7 +1282,7 @@ int main(int argc,char **argv)
             CHECK(rf_geomod_storage_prepare_star_cuts(owner,cuts,kernels,1,cavity,&work)==RF_FORMAT);
             {rf_geomod_vertex temp=cut_v[0][0];cut_v[0][0]=cut_v[0][1];cut_v[0][1]=temp;}
             CHECK(!rf_geomod_storage_view(owner,&pending) && pending.generation==live.generation && pending.vertices==live.vertices);
-            CHECK(!rf_geomod_storage_open(&source,24,6,1024*1024,&limited));
+            CHECK(!rf_geomod_storage_open(&source,24,6,RF_GEOMOD_TEST_BUDGET,&limited));
             CHECK(rf_geomod_storage_prepare_star_cuts(limited,cuts,kernels,1,cavity,&work)==RF_RANGE);
             CHECK(!rf_geomod_storage_view(limited,&pending) && pending.generation==1 && pending.face_count==6);
             rf_geomod_storage_close(&limited);rf_geomod_storage_close(&owner);
@@ -1322,8 +1338,8 @@ int main(int argc,char **argv)
                 if(cavity)for(j=0;j<2;j++){rf_geomod_vertex temp=source_v[i][j];source_v[i][j]=source_v[i][3-j];source_v[i][3-j]=temp;}
             }
             source=(rf_geomod_mesh_view){source_v[0],source_f,24,6,0};
-            CHECK(!rf_geomod_storage_open(&source,4096,512,1024*1024,&owner));
-            CHECK(!rf_geomod_terrain_open(&source,original_filters,&generated,cavity,4096,512,1024*1024,&terrain));
+            CHECK(!rf_geomod_storage_open(&source,4096,512,RF_GEOMOD_TEST_BUDGET,&owner));
+            CHECK(!rf_geomod_terrain_open(&source,original_filters,&generated,cavity,4096,512,RF_GEOMOD_TEST_BUDGET,&terrain));
             for(repeat=1;repeat<=2;repeat++) {
                 double total=0;rf_collision_tree tree={0};uint32_t x,y;
                 if(cavity){provenance_result=-1;rf_geomod_observe_compaction(observe_clipping_provenance,&work);}
@@ -1369,7 +1385,7 @@ int main(int argc,char **argv)
                 printf("Original star cavity%u cuts%u: %u vertices, %u faces\n",cavity,repeat,pending.vertex_count,pending.face_count);
                 CHECK(closed());if(!cavity && repeat==1)CHECK(fabs(total-(512-removed))<1e-4);
                 CHECK(!rf_geomod_collision_faces(&pending,filters,positions,4096,bound,512));
-                CHECK(!rf_collision_tree_open(bound,pending.face_count,1024*1024,&tree));
+                CHECK(!rf_collision_tree_open(bound,pending.face_count,RF_GEOMOD_TEST_BUDGET,&tree));
                 for(x=0;x<9;x++)for(y=0;y<9;y++) {
                     float start[3]={-.4f+x*.1f,-.4f+y*.1f,0},delta[3]={0,0,3};
                     double expected=-1;rf_collision_tree_hit hit;uint32_t matched,c;
@@ -1483,10 +1499,12 @@ int main(int argc,char **argv)
             rf_geomod_terrain *uncached=NULL,*limited=NULL;rf_geomod_terrain_view reference;
             const char *trace_cut=getenv("RF_GEOMOD_INTERSECTION_CUT");unsigned trace_index=0,stress_count=6;
             const char *stress=getenv("RF_GEOMOD_STRESS_COUNT"),*budget_text=getenv("RF_GEOMOD_STRESS_BUDGET");
-            unsigned stress_budget=1024*1024;
+            unsigned stress_budget=RF_GEOMOD_TEST_BUDGET,stress_faces=0;
+            const char *faces_text=getenv("RF_GEOMOD_STRESS_FACES");
             if(stress){char *end;unsigned long value=strtoul(stress,&end,10);CHECK(*stress && !*end && value>=6 && value<=RF_GEOMOD_CUT_LIMIT);stress_count=(unsigned)value;}
-            if(budget_text){char *end;unsigned long value=strtoul(budget_text,&end,10);CHECK(*budget_text && !*end && value>=1024*1024 && value<=2*1024*1024);stress_budget=(unsigned)value;}
-            if(trace_cut){CHECK(trace_cut[0]>='1' && trace_cut[0]<='8' && !trace_cut[1]);trace_index=(unsigned)(trace_cut[0]-'1');CHECK(trace_index<stress_count);}
+            if(budget_text){char *end;unsigned long value=strtoul(budget_text,&end,10);CHECK(*budget_text && !*end && value>=RF_GEOMOD_TEST_BUDGET && value<=2*1024*1024);stress_budget=(unsigned)value;}
+            if(faces_text){char *end;unsigned long value=strtoul(faces_text,&end,10);CHECK(*faces_text && !*end && value>=800 && value<RF_GEOMOD_WORK_FACES);stress_faces=(unsigned)value;}
+            if(trace_cut){char *end;unsigned long value=strtoul(trace_cut,&end,10);CHECK(*trace_cut && !*end && value>=1 && value<=stress_count);trace_index=(unsigned)value-1;}
             const float start[3]={0,-10,12},delta[3]={-40,0,-20};
             CHECK(!rf_geomod_template_load("build/data/geomod-template.bin",&shape));
             box((float[3]){-16,-12,-20},(float[3]){16,12,20},planes,source_v);
@@ -1495,9 +1513,9 @@ int main(int argc,char **argv)
                 for(j=0;j<2;j++){rf_geomod_vertex temp=source_v[i][j];source_v[i][j]=source_v[i][3-j];source_v[i][3-j]=temp;}
             }
             source=(rf_geomod_mesh_view){source_v[0],source_f,24,6,0};
-            CHECK(!rf_geomod_terrain_open(&source,original_filters,&generated,1,4096,stress_count>6?800:768,stress_budget,&terrain));
-            CHECK(!rf_geomod_terrain_open(&source,original_filters,&generated,1,4096,801,stress_budget,&uncached));
-            if(stress_count==8)CHECK(!rf_geomod_terrain_open(&source,original_filters,&generated,1,4096,768,stress_budget,&limited));
+            CHECK(!rf_geomod_terrain_open(&source,original_filters,&generated,1,RF_GEOMOD_WORK_VERTICES,stress_faces?stress_faces:(stress_count>6?800:768),stress_budget,&terrain));
+            CHECK(!rf_geomod_terrain_open(&source,original_filters,&generated,1,RF_GEOMOD_WORK_VERTICES,stress_faces?stress_faces+1:801,stress_budget,&uncached));
+            if(stress_count==8)CHECK(!rf_geomod_terrain_open(&source,original_filters,&generated,1,RF_GEOMOD_WORK_VERTICES,768,stress_budget,&limited));
             report_closure=getenv("RF_GEOMOD_CLOSURE_ALL")?2:1;
             {uint16_t edges[24];CHECK(!rf_geomod_seed_adjacency(&source,edges,24));}
             for(repeat=0;repeat<stress_count;repeat++) {
@@ -1627,6 +1645,9 @@ int main(int argc,char **argv)
                                 double edge[3],q[3],side=0,length=0;unsigned c;
                                 for(c=0;c<3;c++){edge[c]=(double)b[c]-a[c];q[c]=(double)sample[c]-a[c];length+=edge[c]*edge[c];}
                                 for(c=0;c<3;c++)side+=grid.plane[c]*(edge[(c+1)%3]*q[(c+2)%3]-edge[(c+2)%3]*q[(c+1)%3]);
+                                if(side < -1e-5*sqrt(length))fprintf(stderr,
+                                    "LIGHT_GRID_OUTSIDE cut%u face%u sample%u,%u edge%u distance%.12g xyz%.9g,%.9g,%.9g\n",
+                                    repeat+1,i,x,y,k,side/sqrt(length),sample[0],sample[1],sample[2]);
                                 CHECK(side>=-1e-5*sqrt(length));
                             }
                             samples++;
