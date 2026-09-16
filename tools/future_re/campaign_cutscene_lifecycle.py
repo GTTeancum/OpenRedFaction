@@ -25,7 +25,7 @@ for kinds,delays,flags in [([],[],[]),([55,83,15,83,83],[0,0,0,.25,0],[0,0,0,0,1
  u=machine();trace=[];objects=[]
  for i,kind in enumerate(kinds):
   obj=BASE+i*0x400;links=BASE+0x10000+i*16;objects.append(obj)
-  u.mem_write(obj,w(0x589c6c));u.mem_write(obj+0x290,w(kind,struct.unpack('<I',struct.pack('<f',delays[i]))[0],0xffffffff,2,2,links));u.mem_write(obj+0x2b0,w(flags[i]));u.mem_write(links,w(100+i*2,101+i*2))
+  u.mem_write(obj,w(0x589c9c));u.mem_write(obj+0x290,w(kind,struct.unpack('<I',struct.pack('<f',delays[i]))[0],0xffffffff,2,2,links));u.mem_write(obj+0x2b0,w(flags[i]));u.mem_write(links,w(100+i*2,101+i*2))
  u.mem_write(0x856470,w(len(objects),len(objects),BASE+0x20000));u.mem_write(BASE+0x20000,w(*objects));u.mem_write(0x5a3ed8,w(1000))
  def hook(cpu,a,n,data):
   if a==0x4b65c0:

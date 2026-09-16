@@ -27,7 +27,7 @@ for kind,bit in [(77,0x400),(78,0x800)]:
     u=machine(); trace=[]; event=BASE; second=BASE+0x400; target=BASE+0x800; player=BASE+0x2000; mover=BASE+0x4000
     u.mem_write(0x5cb054,w(player if present else 0));u.mem_write(0x7c75d4,w(player));u.mem_write(player+0x10,w(0x55|0xc00));u.mem_write(mover+0x2c,w(333))
     for obj in [event,second,target]:
-     u.mem_write(obj,w(0x589c6c));u.mem_write(obj+0x290,w(83 if obj==target else kind,0,0xffffffff,0,0,0))
+     u.mem_write(obj,w(0x589c9c));u.mem_write(obj+0x290,w(83 if obj==target else kind,0,0xffffffff,0,0,0))
     u.mem_write(event+0x2b0,w(disabled));u.mem_write(event+0x29c,w(0 if empty else 3,3,BASE+0x6000));u.mem_write(BASE+0x6000,w(101,102,103))
     u.mem_write(second+0x29c,w(1,1,BASE+0x6010));u.mem_write(BASE+0x6010,w(101))
     u.mem_write(target+0x29c,w(1,1,BASE+0x6020));u.mem_write(BASE+0x6020,w(777))
@@ -45,7 +45,7 @@ for kind,bit in [(77,0x400),(78,0x800)]:
     if first:assert ['0x4b65c0',777,0xffffffff,0xffffffff] in first and ['0x46aba0',333,0xffffffff,0xffffffff] in first
     results.append(dict(kind=kind,player_present=present,monitor_disabled=disabled,empty_links=empty,pulse_after=hex(word(u,player+0x10)),trace=first))
 for initial in [0,0x80,0xabcdef7f,0xffffffff]:
- u=machine();event=BASE; entity=BASE+0x2000;u.mem_write(event,w(0x589c6c));u.mem_write(event+0x290,w(80));u.mem_write(event+0x29c,w(2,2,BASE+0x6000));u.mem_write(BASE+0x6000,w(101,999));u.mem_write(entity+0x814,w(initial))
+ u=machine();event=BASE; entity=BASE+0x2000;u.mem_write(event,w(0x589c9c));u.mem_write(event+0x290,w(80));u.mem_write(event+0x29c,w(2,2,BASE+0x6000));u.mem_write(BASE+0x6000,w(101,999));u.mem_write(entity+0x814,w(initial))
  def hook(cpu,a,n,data):
   if a==0x426fc0:return_boundary(cpu,entity if word(cpu,cpu.reg_read(UC_X86_REG_ESP)+4)==101 else 0)
  u.hook_add(UC_HOOK_CODE,hook);call(u,0x4b9070,ecx=event);on=word(u,entity+0x814);assert on==initial|0x80

@@ -1,6 +1,6 @@
 # Red Faction Xbox / PC - open work
 
-- GeoMod collisions: Implement room-liquid collision queries and ripple effects, then connect the tested water-continuation step; current live backend rejects liquid queries.
+- GeoMod collisions: Implement room-liquid collision queries and ripple effects, then connect the tested water-continuation step; 1300 authored water faces are inventoried, but the live backend still rejects liquid queries.
 - GeoMod fidelity: Use binary-derived geometry, material, lighting and collision calculations; original-game screenshot comparisons are excluded by user direction.
 - GeoMod saves: Extend verified DEV destruction checkpoints to writable Xbox storage and full game-state integration; PC-to-Xbox reload and another blast now pass48 comparisons.
 - GeoMod visuals: Diagnose crater readability through binary-derived numeric comparisons of geometry, UVs, lighting and projection; no original-game screenshot reference is required.
