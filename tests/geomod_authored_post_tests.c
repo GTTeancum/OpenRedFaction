@@ -9,6 +9,95 @@
             return 1;                                                                                        \
         }                                                                                                    \
     } while (0)
+static uint32_t word(const unsigned char *p) {
+    return p[0] | (uint32_t)p[1] << 8 | (uint32_t)p[2] << 16 | (uint32_t)p[3] << 24;
+}
+static void put_word(unsigned char *p, uint32_t v) {
+    p[0] = (unsigned char)v; p[1] = (unsigned char)(v >> 8);
+    p[2] = (unsigned char)(v >> 16); p[3] = (unsigned char)(v >> 24);
+}
+/* Locate semantic tokens in the valid installed editor stream; do not depend
+ * on a hard-coded section offset or accidentally modify a corner/texture. */
+static int source_offsets(const unsigned char *p, uint32_t bytes, uint32_t offsets[6]) {
+    uint32_t at = 4, count, i, j, n, uid, found = 0;
+    CHECK(bytes >= 4); count = word(p);
+    for (i = 0; i < count; i++) {
+        CHECK(at <= bytes && bytes - at >= 62);
+        uid = word(p + at); at += 58; n = word(p + at); at += 4;
+        for (j = 0; j < n; j++) {
+            uint32_t length;
+            CHECK(bytes - at >= 2); length = p[at] | (uint32_t)p[at + 1] << 8; at += 2;
+            CHECK(length <= bytes - at); at += length;
+        }
+        CHECK(bytes - at >= 20); at += 16; n = word(p + at); at += 4;
+        CHECK(n <= (bytes - at) / 12); at += n * 12;
+        CHECK(bytes - at >= 4); n = word(p + at); at += 4;
+        for (j = 0; j < n; j++) {
+            uint32_t token, corners, stride;
+            CHECK(bytes - at >= 56);
+            token = word(p + at + 24); corners = word(p + at + 52);
+            stride = word(p + at + 20) == UINT32_MAX ? 12 : 20;
+            if (uid == 94) {
+                CHECK(token >= 548 && token <= 553);
+                CHECK(!(found & (1u << (token - 548))));
+                offsets[token - 548] = at; found |= 1u << (token - 548);
+            }
+            at += 56; CHECK(corners <= (bytes - at) / stride); at += corners * stride;
+        }
+        CHECK(bytes - at >= 20); at += 20;
+    }
+    CHECK(at == bytes && found == 63); return 0;
+}
+static int eligibility_cases(unsigned char *payload, uint32_t bytes, rf_geometry *geometry,
+                             const rf_level_geomod_settings *settings,
+                             const rf_geomod_authored_post *published) {
+    uint32_t offsets[6], i, j, rejected = 0;
+    rf_geomod_authored_post *candidate = NULL;
+    rf_geomod_authored_post_view before, after;
+    rf_geomod_vertex vertices[24];
+    CHECK(!source_offsets(payload, bytes, offsets));
+    CHECK(!rf_geomod_authored_post_get(published, &before));
+    CHECK(before.source.vertex_count == 24);
+    memcpy(vertices, before.source.vertices, sizeof(vertices));
+    /* All six faces includes both unpublished caps, not just visible windows. */
+    for (i = 0; i < 10; i++) {
+        unsigned char *face = i < 6 ? payload + offsets[i] : geometry->data + geometry->face_offsets[149 + i - 6];
+        uint32_t flags = word(face + 40), portal = word(face + 36);
+        for (j = 0; j < 3; j++) {
+            put_word(face + 40, flags | (j == 0 ? 4u : j == 1 ? 8u : 0u));
+            put_word(face + 36, j == 2 ? (portal & 0xffff0000u) | 1u : portal);
+            CHECK(rf_geomod_authored_post_decode(payload, bytes, geometry, settings, 2 * 1024 * 1024,
+                                                 &candidate) == RF_NOT_FOUND && !candidate);
+            rejected++;
+            put_word(face + 40, flags); put_word(face + 36, portal);
+        }
+        /* 0x100 is not permission; signed portal zero is still ordinary. */
+        put_word(face + 40, flags & ~256u); put_word(face + 36, portal & 0xffff0000u);
+        CHECK(!rf_geomod_authored_post_decode(payload, bytes, geometry, settings, 2 * 1024 * 1024,
+                                              &candidate));
+        rf_geomod_authored_post_close(&candidate);
+        put_word(face + 40, flags); put_word(face + 36, portal);
+    }
+    {
+        unsigned char *detail = geometry->data + geometry->room_offsets[3] + 34;
+        unsigned char original = *detail;
+        for (j = 1; j <= 2; j++) {
+            *detail = (unsigned char)j;
+            CHECK(rf_geomod_authored_post_decode(payload, bytes, geometry, settings, 2 * 1024 * 1024,
+                                                 &candidate) == RF_NOT_FOUND && !candidate);
+            rejected++;
+        }
+        *detail = original;
+    }
+    CHECK(!rf_geomod_authored_post_get(published, &after));
+    CHECK(after.source.vertices == before.source.vertices && after.source.faces == before.source.faces);
+    CHECK(!memcmp(after.source.vertices, vertices, sizeof(vertices)));
+    CHECK(!rf_geomod_authored_post_decode(payload, bytes, geometry, settings, 2 * 1024 * 1024,
+                                          &candidate));
+    rf_geomod_authored_post_close(&candidate);
+    printf("ELIGIBILITY %u rejections;10 non-permission variants;published owner preserved\n", rejected);
+    return 0;
+}
 static rf_geomod_publication_work publication_work;
 static rf_geomod_vertex output_vertices[4096];
 static rf_geomod_face output_faces[768];
@@ -118,6 +207,7 @@ int main(int argc, char **argv) {
         CHECK(rf_geomod_authored_post_decode(payload, section->size - 1, &geometry, &settings,
                                              2 * 1024 * 1024, &other) == RF_FORMAT &&
               !other);
+        CHECK(!eligibility_cases(payload, section->size, &geometry, &settings, owner));
         payload[4] = 94;
         payload[5] = payload[6] = payload[7] = 0;
         CHECK(rf_geomod_authored_post_decode(payload, section->size, &geometry, &settings, 2 * 1024 * 1024,

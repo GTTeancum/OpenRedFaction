@@ -1159,18 +1159,53 @@ static int script_locomotion_check(void)
 static int scripted_attack_damage_check(void)
 {
     campaign_npc_body owners[2]={0};rf_entity_seed seeds[2]={0};rf_entity_seed_class cls={0};
+    rf_physics_sphere victim_sphere={0};
+    rf_entity_pose poses[2]={0};rf_entity_playback_model models[1]={{0}};
+    campaign_model_owner model_owners[2]={0};int32_t pain_groups[1][2]={{-1,-1}};
+    rf_entity_poses old_poses=campaign_poses;rf_entity_playback_resources old_resources=campaign_playback_resources;
+    campaign_model_owner *old_models=campaign_model_owners;rf_model_skeletal_registration *old_head=campaign_model_head;
+    uint32_t old_model_count=campaign_model_owner_count,old_catalog_count=campaign_motion_catalog.class_count;
+    uint32_t old_base_count=campaign_base_motions.class_count;int32_t (*old_groups)[2]=campaign_pain_groups;
     rf_geometry_collision_world world={0};scene_stream stream={0};float eye[3]={0,0,20},saved_health=campaign_player_damage.state.effects.health,health;
     uint32_t i;
     rf_object_registry_init(&campaign_registry);memset(&campaign_entities,0,sizeof(campaign_entities));
     campaign_npc_bodies=owners;campaign_npc_body_count=2;campaign_seeds.items=seeds;campaign_seeds.classes=&cls;campaign_seeds.class_count=1;
     stream.collision=&world;campaign_player_damage.state.effects.health=100;campaign_player_object.handle=999;cls.damage_factors[0]=1;
+    /* Legitimate absent-action/absent-Foley policy, with valid registered pose
+     * ownership. Pain is dispatched normally; this fixture has no pain clip. */
+    campaign_poses.items=poses;campaign_poses.count=2;
+    memset(&campaign_playback_resources,0,sizeof(campaign_playback_resources));
+    campaign_playback_resources.models=models;campaign_playback_resources.model_count=1;
+    campaign_model_owners=model_owners;campaign_model_owner_count=2;campaign_model_head=NULL;
+    campaign_motion_catalog.class_count=campaign_base_motions.class_count=1;campaign_pain_groups=pain_groups;
     for(i=0;i<2;i++) {
+        uint32_t action;rf_motion_playback_initialize(&poses[i].playback);
+        model_owners[i].pose=poses+i;model_owners[i].registration.loaded=1;
+        model_owners[i].registration.active=&poses[i].playback.completion.active;
+        CHECK(rf_model_skeletal_register(&model_owners[i].registration,&campaign_model_head,2)==RF_OK);
+        owners[i].pain.selected_action=-1;owners[i].pain_sound.voice=-1;
+        for(action=0;action<45;action++)owners[i].selection.mapping.actions[action]=-1;
         owners[i].view.linked_handle=-1;owners[i].view.weapons[0]=-1;owners[i].damage.effects.health=owners[i].damage.effects.class_health=100;
         CHECK(rf_entity_view_register(&campaign_registry,&campaign_entities,&owners[i].view,&owners[i].registration)==RF_OK);
         owners[i].damage.effects.handle=owners[i].registration.handle;
     }
     owners[0].look.orientation[8]=1;owners[0].view.weapons[0]=0;owners[0].combat_scripted=owners[0].combat_alert=1;owners[0].combat_target=owners[1].registration.handle;
     owners[1].eye_position[2]=5;
+    /* This damage/pursuit fixture needs an actual hittable body now that
+     * hitscan uses owned spheres instead of a provisional broad box. */
+    {
+        float ray[3]={0,0,40},fraction;
+        CHECK(!combat_body(owners[0].eye_position,ray,&owners[1].body,1,&fraction));
+        victim_sphere.radius=1;owners[1].body.spheres.items=&victim_sphere;owners[1].body.spheres.count=1;
+        owners[1].body.state.position[2]=5;
+        for(i=0;i<3;i++) {
+            owners[1].body.state.orientation[i*3+i]=1;
+            owners[1].body.state.bounds.minimum[i]=owners[1].body.state.position[i]-1;
+            owners[1].body.state.bounds.maximum[i]=owners[1].body.state.position[i]+1;
+        }
+        CHECK(combat_body(owners[0].eye_position,ray,&owners[1].body,1,&fraction));
+        CHECK(fabsf(fraction-.1f)<1e-6f);
+    }
     owners[0].look.orientation[8]=-1;
     CHECK(campaign_enemy_tick(&stream,0,eye)==RF_OK && owners[1].damage.effects.health==100 && owners[0].combat_due==0);
     owners[0].look.orientation[8]=1;
@@ -1203,8 +1238,14 @@ static int scripted_attack_damage_check(void)
     CHECK(campaign_enemy_tick(&stream,60,eye)==RF_OK && owners[1].damage.effects.health==health && campaign_player_damage.state.effects.health==100);CHECK(!owners[0].script_move.active && owners[0].script_move.stop);
     {
         uint32_t saved_clock=combat_frame;combat_frame=61;
+        float before_hit=owners[1].damage.effects.health;
+        CHECK(!owners[0].combat_scripted && owners[1].view.weapons[0]==-1);
+        CHECK(!owners[1].combat_alert && !owners[1].combat_scripted);
+        /* The invalid target at60 released the old order. Issue a fresh
+         * authored attack before testing this now-armed victim's reaction. */
+        owners[0].combat_scripted=owners[0].combat_alert=1;
         owners[0].combat_target=owners[1].registration.handle;owners[0].combat_due=61;owners[1].view.weapons[0]=0;
-        CHECK(campaign_enemy_tick(&stream,61,eye)==RF_OK && owners[1].damage.effects.health<health);
+        CHECK(campaign_enemy_tick(&stream,61,eye)==RF_OK && owners[1].damage.effects.health<before_hit);
         CHECK(owners[1].combat_alert && owners[1].combat_scripted==2 && owners[1].combat_target==owners[0].registration.handle && owners[1].combat_due==91);
         combat_frame=saved_clock;
     }
@@ -1229,7 +1270,12 @@ static int scripted_attack_damage_check(void)
     }
     for(i=0;i<2;i++)CHECK(rf_entity_view_unregister(&campaign_registry,&campaign_entities,&owners[i].registration)==RF_OK);
     campaign_npc_bodies=NULL;campaign_npc_body_count=0;memset(&campaign_seeds,0,sizeof(campaign_seeds));
-    campaign_player_object.handle=0;campaign_player_damage.state.effects.health=saved_health;return 0;
+    campaign_player_object.handle=0;campaign_player_damage.state.effects.health=saved_health;
+    for(i=0;i<2;i++)CHECK(owners[i].pain.selected_action==-1 && owners[i].pain.animation_lock==0);
+    campaign_poses=old_poses;campaign_playback_resources=old_resources;campaign_model_owners=old_models;
+    campaign_model_head=old_head;campaign_model_owner_count=old_model_count;
+    campaign_motion_catalog.class_count=old_catalog_count;campaign_base_motions.class_count=old_base_count;campaign_pain_groups=old_groups;
+    return 0;
 }
 static int player_death_pursuit_check(void)
 {

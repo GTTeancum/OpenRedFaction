@@ -1412,6 +1412,39 @@ int rf_game_jump_height_load(rf_vpp *tables,uint32_t budget,float *height)
     if(!status)status=rf_game_jump_height_read(text,entry.size,height);
     free(text);return status;
 }
+int rf_game_liquid_damage_read(const void *text,uint32_t bytes,float rates[2])
+{
+    static const char *words[2][4]={{"$Lava","Damage","Per","Second:"},{"$Acid","Damage","Per","Second:"}};
+    lexer l;char t[256];float value[2]={0};uint32_t match[2]={0},found=0,i;int status,quoted;
+    if(!text || !bytes || !rates)return RF_RANGE;
+    l.text=text;l.size=bytes;l.at=0;
+    while((status=token(&l,t,&quoted))==RF_OK) {
+        if(quoted){match[0]=match[1]=0;continue;}
+        for(i=0;i<2;i++) {
+            if(same(t,words[i][match[i]]))++match[i];else match[i]=same(t,words[i][0])?1:0;
+            if(match[i]==4) {
+                if(found&(1u<<i))return RF_FORMAT;
+                status=sphere_number(&l,value+i);if(status)return status;
+                if(!isfinite(value[i]) || value[i]<0)return RF_FORMAT;
+                found|=1u<<i;match[0]=match[1]=0;break;
+            }
+        }
+    }
+    if(status!=RF_NOT_FOUND)return status;
+    if(found!=3)return RF_NOT_FOUND;
+    memcpy(rates,value,sizeof(value));return RF_OK;
+}
+int rf_game_liquid_damage_load(rf_vpp *tables,uint32_t budget,float rates[2])
+{
+    rf_vpp_entry entry;void *text;int status;
+    if(!tables || !rates)return RF_RANGE;
+    status=rf_vpp_find(tables,"game.tbl",&entry);if(status)return status;
+    if(!entry.size || entry.size>budget)return RF_RANGE;
+    text=malloc(entry.size);if(!text)return RF_RANGE;
+    status=rf_vpp_read(tables,&entry,0,text,entry.size);
+    if(!status)status=rf_game_liquid_damage_read(text,entry.size,rates);
+    free(text);return status;
+}
 int rf_entity_movement_load(rf_vpp *tables,const char *name,uint32_t budget,rf_entity_movement_values *result)
 {
     rf_vpp_entry entry;rf_entity_movement_values value={0,1,1,0,0};void *text;lexer l;

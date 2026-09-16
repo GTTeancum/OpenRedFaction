@@ -542,12 +542,28 @@ static int scene_preview(rf_level *level,rf_preview_mesh *mesh)
      rf_scene_ripple_test_enabled=ripple_flag!=NULL;if(ripple_flag)fclose(ripple_flag);}
     stream_flag=fopen("D:\\dev-room.flag","rb");rf_scene_dev_room_enabled=stream_flag!=NULL;
     if(stream_flag)fclose(stream_flag);
+    stream_flag=fopen("D:\\player-checkpoint.flag","rb");rf_scene_player_checkpoint_enabled=stream_flag!=NULL;
+    if(stream_flag)fclose(stream_flag);
+    if(rf_scene_player_checkpoint_enabled && !rf_scene_dev_room_enabled)return RF_FORMAT;
     {FILE *water_flag=fopen("D:\\water-test.flag","rb");
      rf_scene_water_test_enabled=water_flag!=NULL;
      if(water_flag){fclose(water_flag);status=rf_scene_water_test_place(level);if(status)return status;rf_scene_dev_room_enabled=1;}}
+    {FILE *swim_flag=fopen("D:\\swim-test.flag","rb");
+     rf_scene_swim_test_enabled=swim_flag!=NULL;
+     if(swim_flag){int mode=fgetc(swim_flag),failed=ferror(swim_flag);fclose(swim_flag);
+         if(failed)return RF_IO;
+         if(mode!=EOF && mode!='1' && mode!='2' && mode!='3')return RF_FORMAT;
+         rf_scene_swim_test_enabled=mode==EOF?1u:(uint32_t)(mode-'0');
+         if(rf_scene_water_test_enabled)return RF_FORMAT;
+         status=rf_scene_swim_test_place(level);if(status)return status;}}
+    if(rf_scene_dev_room_enabled && !strcmp(level->entry.name,"ctf06.rfl")) {
+        if(rf_scene_water_test_enabled || rf_scene_swim_test_enabled)return RF_FORMAT;
+        status=rf_scene_authored_post_place(level);if(status)return status;
+    }
     stream_flag=fopen("D:\\campaign-spawn.flag","rb");
-    rf_scene_follow_level_exits=stream_flag!=NULL && !rf_scene_dev_room_enabled;
+    rf_scene_follow_level_exits=stream_flag!=NULL && !rf_scene_dev_room_enabled && !rf_scene_swim_test_enabled;
     if(stream_flag){fclose(stream_flag);status=rf_scene_set_campaign_spawn(level);}
+    else if(rf_scene_swim_test_enabled)status=rf_scene_set_campaign_spawn(level);
     else status=rf_scene_preview_camera(level,9858);
     if(status)return status;
     actor_body_preview=0;stream_flag=fopen("D:\\actor-body.flag","rb");

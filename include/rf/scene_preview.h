@@ -16,8 +16,11 @@
  * NULL staging clears any queued import. The staged value owns its data. */
 /* Enable only when the caller consumes exits after scene cleanup. */
 extern uint32_t rf_scene_follow_level_exits;
-/* Explicit developer-room loadout; valid only in glass_house.rfl. */
+/* Explicit developer loadout for the validated GlassHouse, ctf06 and water fixtures. */
 extern uint32_t rf_scene_dev_room_enabled;
+/* Explicit same-level player + destruction checkpoint mode; legacy mode stays RFDS. */
+extern uint32_t rf_scene_player_checkpoint_enabled;
+extern uint32_t rf_scene_player_checkpoint_state[8];
 /* Process-local fixture: dispatch an authored Load_Level UID at a given tick. */
 int rf_scene_fire_level_exit(uint32_t uid,int32_t now);
 int rf_scene_fire_setup_event(uint32_t uid,int32_t now);
@@ -761,6 +764,8 @@ extern uint32_t rf_scene_terrain_atlas[8];
 extern uint32_t rf_scene_terrain_upload[4];
 extern uint32_t rf_scene_terrain_bake[6];
 extern uint32_t rf_scene_debris[8];
+extern uint32_t rf_scene_debris_audio[14];
+extern uint32_t rf_scene_terrain_publication[8];
 extern uint32_t rf_scene_terrain_draw[5];
 extern uint32_t rf_scene_terrain_noise[8];
 extern uint32_t rf_scene_rockets[8];
@@ -800,6 +805,11 @@ int rf_scene_set_campaign_spawn(const rf_level *level);
 /* Explicit authored dm03 wet-playback pose; caller enables DEV weapon supply. */
 extern uint32_t rf_scene_water_test_enabled;
 int rf_scene_water_test_place(rf_level *level);
+/* Explicit L2S3 room0 swimming fixture: body origin, not camera position.
+ * No actors removed, no invulnerability, no geometry/liquid changes. */
+extern uint32_t rf_scene_swim_test_enabled;
+int rf_scene_swim_test_place(rf_level *level);
+int rf_scene_authored_post_place(rf_level *level);
 extern uint32_t rf_scene_player_spawn_diagnostic[19];
 extern uint32_t rf_scene_watch_test_uid,rf_scene_watch_test[4],rf_scene_death_watches[97];
 extern uint32_t rf_scene_airlock[6];

@@ -425,6 +425,21 @@ int main(int argc,char **argv)
     }
     rf_scene_water_test_enabled=p.headless && spawn_profile && getenv("RF_REPLAY_WATER_TEST")!=NULL;
     if(rf_scene_water_test_enabled)CHECK(rf_scene_water_test_place(&level));
+    rf_scene_swim_test_enabled=0;
+    if(p.headless && spawn_profile && getenv("RF_REPLAY_SWIM_TEST")) {
+        char *end;unsigned long choice=strtoul(getenv("RF_REPLAY_SWIM_TEST"),&end,10);
+        if(*end || choice<1 || choice>3)CHECK(RF_FORMAT);
+        rf_scene_swim_test_enabled=(uint32_t)choice;
+    }
+    if(rf_scene_swim_test_enabled) {
+        if(rf_scene_water_test_enabled)CHECK(RF_FORMAT);
+        CHECK(rf_scene_swim_test_place(&level));
+    }
+    if(spawn_profile && !strcmp(level.entry.name,"ctf06.rfl") &&
+       (dev_room || (p.headless && getenv("RF_REPLAY_DEV_ROOM")))) {
+        if(rf_scene_water_test_enabled || rf_scene_swim_test_enabled)CHECK(RF_FORMAT);
+        CHECK(rf_scene_authored_post_place(&level));
+    }
     if(spawn_profile)CHECK(rf_scene_set_campaign_spawn(&level));
     else CHECK(rf_scene_preview_route_camera(&level,9858));
     CHECK(rf_geometry_open(&geometry,&level,8*1024*1024));
@@ -477,7 +492,9 @@ int main(int argc,char **argv)
     }
     rf_scene_ripple_test_enabled=p.headless && getenv("RF_REPLAY_RIPPLE_TEST")!=NULL;
     rf_scene_dev_room_enabled=dev_room || (p.headless && (getenv("RF_REPLAY_DEV_ROOM")!=NULL || getenv("RF_REPLAY_WATER_TEST")!=NULL));
-    rf_scene_follow_level_exits=spawn_profile && !rf_scene_dev_room_enabled;
+    rf_scene_player_checkpoint_enabled=p.headless && getenv("RF_REPLAY_PLAYER_CHECKPOINT")!=NULL;
+    if(rf_scene_player_checkpoint_enabled && (!spawn_profile || !rf_scene_dev_room_enabled || strcmp(getenv("RF_REPLAY_PLAYER_CHECKPOINT"),"1")))CHECK(RF_FORMAT);
+    rf_scene_follow_level_exits=spawn_profile && !rf_scene_dev_room_enabled && !rf_scene_swim_test_enabled;
     if(p.headless && getenv("RF_REPLAY_WATCH_UID")) {
         char *end;unsigned long value=strtoul(getenv("RF_REPLAY_WATCH_UID"),&end,10);if(*end || !value)CHECK(RF_FORMAT);
         rf_scene_watch_test_uid=(uint32_t)value;
@@ -786,6 +803,19 @@ run_scene:
             uint32_t word;memcpy(&word,(const unsigned char*)&scene_actor_body.state+i*4,4);printf(" %u",word);
         }puts("");
     }
+    if(getenv("RF_REPLAY_BODY_SPHERES")) {
+        const char *path=getenv("RF_REPLAY_BODY_SPHERES");FILE *dump=fopen(path,"wb");
+        uint32_t header[4]={0x31534652u,scene_actor_body.spheres.count,0,scene_actor_body.state.state_124};
+        extern float rf_scene_actor_initial_eye_offsets[6];
+        memcpy(header+2,&scene_actor_body.state.bounds.radius,4);
+        if(!dump){fprintf(stderr,"Cannot open body sphere export\n");return 22;}
+        if(fwrite(header,1,sizeof(header),dump)!=sizeof(header) ||
+           fwrite(rf_scene_actor_initial_eye_offsets,1,24,dump)!=24 ||
+           fwrite(scene_actor_body.spheres.items,sizeof(rf_physics_sphere),header[1],dump)!=header[1]) {
+            fclose(dump);fprintf(stderr,"Cannot write body sphere export\n");return 22;
+        }
+        if(fclose(dump)){fprintf(stderr,"Cannot close body sphere export\n");return 22;}
+    }
     printf("PLAYER_LIFE");for(i=0;i<8;++i)printf(" %u",rf_scene_player_life[i]);puts("");
     printf("ENEMY_AWARENESS");for(uint32_t i=0;i<8;i++)printf(" %u",rf_scene_enemy_awareness[i]);printf("\n");
     printf("SCRIPT_ATTACK_POSITION");for(i=0;i<9;++i)printf(" %.6f",rf_scene_script_attack_position[i]);puts("");
@@ -834,13 +864,20 @@ run_scene:
     printf("ROCKET_VISUAL");for(i=0;i<8;++i)printf(" %u",rf_scene_rocket_visual[i]);puts("");
     printf("ROCKET_BLAST");for(i=0;i<8;++i)printf(" %u",rf_scene_rocket_blast[i]);puts("");
     printf("ROCKETS");for(i=0;i<8;++i)printf(" %u",rf_scene_rockets[i]);puts("");
+    printf("TERRAIN_PUBLICATION");for(i=0;i<8;++i)printf(" %u",rf_scene_terrain_publication[i]);puts("");
     printf("GEOMOD");for(i=0;i<8;++i)printf(" %u",rf_scene_geomod[i]);puts("");
     printf("TERRAIN_UPLOAD");for(i=0;i<4;++i)printf(" %u",rf_scene_terrain_upload[i]);puts("");
     printf("TERRAIN_NOISE");for(i=0;i<8;++i)printf(" %u",rf_scene_terrain_noise[i]);puts("");
     printf("TERRAIN_DRAW");for(i=0;i<5;++i)printf(" %u",rf_scene_terrain_draw[i]);puts("");
+    printf("DEBRIS_AUDIO");for(i=0;i<14;++i)printf(" %u",rf_scene_debris_audio[i]);puts("");
     printf("DEBRIS");for(i=0;i<8;++i)printf(" %u",rf_scene_debris[i]);puts("");
     {extern uint32_t rf_scene_debris_relaunch[8];
      printf("DEBRIS_RELAUNCH_STATE");for(i=0;i<8;++i)printf(" %u",rf_scene_debris_relaunch[i]);puts("");}
+    {extern uint32_t rf_scene_player_swim[12];
+     printf("PLAYER_SWIM");for(i=0;i<12;++i)printf(" %u",rf_scene_player_swim[i]);puts("");}
+    {extern uint32_t rf_scene_liquid_damage[8];
+     printf("PLAYER_CHECKPOINT");for(i=0;i<8;++i)printf(" %u",rf_scene_player_checkpoint_state[i]);puts("");
+     printf("LIQUID_DAMAGE");for(i=0;i<8;++i)printf(" %u",rf_scene_liquid_damage[i]);puts("");}
     printf("TERRAIN_BAKE");for(i=0;i<6;++i)printf(" %u",rf_scene_terrain_bake[i]);puts("");
     printf("TERRAIN_ATLAS");for(i=0;i<8;++i)printf(" %u",rf_scene_terrain_atlas[i]);puts("");
     printf("TERRAIN_SHADOWS");for(i=0;i<4;++i)printf(" %u",rf_scene_terrain_shadows[i]);puts("");

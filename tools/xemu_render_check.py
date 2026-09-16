@@ -28,8 +28,11 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--cpu-exceptions', action='store_true', help='Retain QEMU exception/reset diagnostics for guest crash analysis')
     parser.add_argument('--water-test', action='store_true', help='Authored dm03 water gameplay with DEV weapon supply')
+    parser.add_argument('--swim-test', action='store_true', help='Authored L2S3 deep-pool movement fixture')
+    parser.add_argument('--lava-test', choices=('wet','dry'), help='Authored L5S2 lava exposure or same-room dry control')
     parser.add_argument('--ripple-test', action='store_true', help='DEV render-only ripple fixture; no liquid collision claim')
-    parser.add_argument('--dev-room', action='store_true', help='Supply supported weapons in Glass House only')
+    parser.add_argument('--dev-room', action='store_true', help='Supply supported weapons in Glass House or the authored ctf06 post test')
+    parser.add_argument('--player-checkpoint', action='store_true', help='Opt-in RFCP player plus destruction checkpoint mode')
     parser.add_argument('--shallow-oblique', action='store_true', help='Use an oblique second shallow-region limit')
     parser.add_argument('--shallow-two-limits', action='store_true', help='Use two intersecting authored shallow-region fixtures')
     parser.add_argument('--shallow-fixture', action='store_true', help='DEV depth.75 authored-region fixture shared with PC')
@@ -58,10 +61,16 @@ def main():
     parser.add_argument('--unbatched', action='store_true', help='Reference tiny GPU command submission blocks')
     parser.add_argument('--unsorted', action='store_true', help='Reference source-order world draw ranges')
     args = parser.parse_args()
+    if args.player_checkpoint and not args.dev_room:parser.error('--player-checkpoint requires --dev-room')
+    if args.lava_test and (args.swim_test or args.water_test or args.dev_room or not args.spawn or args.level!='L5S2.rfl' or args.archive!='levels1.vpp'):
+        parser.error('--lava-test requires --spawn --level L5S2.rfl --archive levels1.vpp without other placement fixtures')
+    liquid_mode=2 if args.lava_test=='wet' else 3 if args.lava_test=='dry' else 1 if args.swim_test else 0
+    if args.swim_test and (args.water_test or args.dev_room or not args.spawn or args.level!='L2S3.rfl' or args.archive!='levels1.vpp'):
+        parser.error('--swim-test requires --spawn --level L2S3.rfl --archive levels1.vpp without other placement fixtures')
     if args.water_test and (args.dev_room or args.level!='dm03.rfl' or args.archive!='levelsm.vpp' or not args.spawn):
         parser.error('--water-test requires --spawn --level dm03.rfl --archive levelsm.vpp without --dev-room')
-    if args.dev_room and (args.level != 'glass_house.rfl' or args.archive != 'levelsm.vpp' or not args.spawn):
-        parser.error('Developer room requires --spawn --level glass_house.rfl --archive levelsm.vpp')
+    if args.dev_room and (args.level not in ('glass_house.rfl','ctf06.rfl') or args.archive != 'levelsm.vpp' or not args.spawn):
+        parser.error('Developer room requires --spawn --level glass_house.rfl or ctf06.rfl --archive levelsm.vpp')
     if args.ripple_test and not args.dev_room:parser.error('--ripple-test requires --dev-room')
     if args.shallow_oblique:args.shallow_two_limits=True
     if args.shallow_two_limits:args.shallow_fixture=True
@@ -111,7 +120,9 @@ def main():
     env = {k: v for k, v in os.environ.items() if not k.startswith('RF_REPLAY_')}
     env.update(RF_REPLAY_LEVEL=args.level, RF_REPLAY_ARCHIVE=args.archive)
     if args.dev_room:env['RF_REPLAY_DEV_ROOM']='1'
+    if args.player_checkpoint:env['RF_REPLAY_PLAYER_CHECKPOINT']='1'
     if args.water_test:env['RF_REPLAY_WATER_TEST']='1'
+    if liquid_mode:env['RF_REPLAY_SWIM_TEST']=str(liquid_mode)
     if args.ripple_test:env['RF_REPLAY_RIPPLE_TEST']='1'
     if args.ripple_test:env['RF_REPLAY_RIPPLE_VERTICES']=str(run/'pc-ripple-vertices.bin')
     if checkpoint:env['RF_REPLAY_GEOMOD_CHECKPOINT_OUT']=str(run/'pc-checkpoint.rfds')
@@ -120,6 +131,9 @@ def main():
     if args.shallow_fixture:env['RF_REPLAY_SHALLOW_FIXTURE']='3' if args.shallow_oblique else '2' if args.shallow_two_limits else '1'
     report['shallow_fixture']=args.shallow_fixture
     report['water_test']=args.water_test
+    report['player_checkpoint']=args.player_checkpoint
+    report['swim_test']=args.swim_test
+    report['liquid_test_mode']=liquid_mode
     report['shallow_two_limits']=args.shallow_two_limits
     report['shallow_oblique']=args.shallow_oblique
     report['terrain_test_light']=args.terrain_test_light
@@ -163,7 +177,9 @@ def main():
     saved[light_flag.name]=light_flag.read_bytes() if light_flag.exists() else None
     shallow_flag=disc/'shallow-fixture.flag'
     saved[shallow_flag.name]=shallow_flag.read_bytes() if shallow_flag.exists() else None
-    for name in ('geomod-checkpoint.bin','geomod-checkpoint-out.flag','ripple-test.flag','water-test.flag'):
+    for name in ('geomod-checkpoint.bin','geomod-checkpoint-out.flag','ripple-test.flag','water-test.flag','swim-test.flag','player-checkpoint.flag',
+                 'geomod-hdd-load.flag','geomod-hdd-save.flag','geomod-fallback-seed.flag','geomod-fallback-observe.flag',
+                 'geomod-fallback0.rfsg','geomod-fallback1.rfsg'):
         path=disc/name;saved[name]=path.read_bytes() if path.exists() else None
     # Persist restoration bytes before mutating the disc, including absent files.
     (run / 'disc-restore.json').write_text(json.dumps({
@@ -197,7 +213,9 @@ def main():
         else:ripple_flag.unlink(missing_ok=True)
         (disc / 'campaign-spawn.flag').write_bytes(b'')
         if args.dev_room:(disc/'dev-room.flag').write_bytes(b'')
+        if args.player_checkpoint:(disc/'player-checkpoint.flag').write_bytes(b'')
         if args.water_test:(disc/'water-test.flag').write_bytes(b'')
+        if liquid_mode:(disc/'swim-test.flag').write_bytes(str(liquid_mode).encode('ascii'))
         if checkpoint:(disc/'geomod-checkpoint-out.flag').write_bytes(b'')
         if args.geomod_checkpoint_in:(disc/'geomod-checkpoint.bin').write_bytes(args.geomod_checkpoint_in.read_bytes())
         if args.shallow_fixture:(disc/'shallow-fixture.flag').write_bytes(b'3' if args.shallow_oblique else b'2' if args.shallow_two_limits else b'')
@@ -371,7 +389,7 @@ dvd_path = '{root.as_posix()}/build/xbox/redfaction-diagnostic.iso'
             pc_goals=[line for line in pc.stdout.splitlines() if line.startswith('MISSION_GOAL ')]
             report['mission_goals']=dict(xbox=native_goals,pc=pc_goals,equal=native_goals==pc_goals)
             assert native_goals==pc_goals,'Mission goal mismatch'
-            for name, label, count in [('scene_actor_body', 'PC_PLAY_BODY', 77),
+            for name, label, count in [('rf_scene_terrain_publication', 'TERRAIN_PUBLICATION', 8), ('rf_scene_debris_audio', 'DEBRIS_AUDIO', 14), ('rf_scene_player_checkpoint_state', 'PLAYER_CHECKPOINT', 8), ('rf_scene_liquid_damage', 'LIQUID_DAMAGE', 8), ('rf_scene_player_swim', 'PLAYER_SWIM', 12), ('scene_actor_body', 'PC_PLAY_BODY', 77),
                     ('rf_scene_player_ammo', 'PLAYER_AMMO', 8), ('rf_scene_combat', 'COMBAT', 8),
                     ('rf_scene_script_movement', 'SCRIPT_MOVE', 8), ('rf_scene_enemy_combat', 'ENEMY_COMBAT', 8),
                     ('rf_scene_rotating_doors', 'ROTATING_DOORS', 8), ('rf_scene_script_attack', 'SCRIPT_ATTACK', 12), ('rf_scene_attack_recovery', 'ATTACK_RECOVERY', 4), ('rf_scene_enemy_damage_kinds', 'ENEMY_DAMAGE_KINDS', 10), ('rf_scene_enemy_melee', 'ENEMY_MELEE', 4), ('rf_scene_enemy_spread', 'ENEMY_SPREAD', 8), ('rf_scene_combat_pain', 'COMBAT_PAIN', 8), ('rf_scene_pain_attack_gate', 'PAIN_ATTACK_GATE', 6), ('rf_scene_weapon_drops', 'WEAPON_DROPS', 8), ('rf_scene_rifle_alt', 'RIFLE_ALT', 8), ('rf_scene_shotgun', 'SHOTGUN', 8), ('rf_scene_rockets', 'ROCKETS', 8), ('rf_scene_rocket_blast', 'ROCKET_BLAST', 8), ('rf_scene_rocket_visual', 'ROCKET_VISUAL', 8), ('rf_scene_ripple_visual', 'RIPPLE_VISUAL', 8), ('rf_scene_ripple_lifecycle', 'RIPPLE_LIFECYCLE', 4), ('rf_scene_rocket_liquid', 'ROCKET_LIQUID_STATE', 4), ('rf_scene_enemy_fire', 'ENEMY_FIRE', 6),
@@ -404,8 +422,12 @@ dvd_path = '{root.as_posix()}/build/xbox/redfaction-diagnostic.iso'
                 # presence/history/generation/status, and enforce both budgets.
                 indices=[0,1,2,5,6,7]
                 equal=all(actual[i]==expected[i] for i in indices)
-                budget_ok=all(0<=v[3]<=v[4]<=1024*1024+65536 for v in (actual,expected))
-                report['checks']['GEOMOD']=dict(equal=equal,budget_ok=budget_ok,
+                # Authored solid edits reserve old+clone core, two publication
+                # banks and private lighting staging. Match its explicit12MiB
+                # subsystem ceiling; keep the cavity profile's old ceiling.
+                terrain_budget=12*1024*1024 if args.level=='ctf06.rfl' and args.dev_room else 1024*1024+65536
+                budget_ok=all(0<=v[3]<=v[4]<=terrain_budget for v in (actual,expected))
+                report['checks']['GEOMOD']=dict(equal=equal,budget_ok=budget_ok,budget_bytes=terrain_budget,
                     compared_indices=indices,xbox=actual,pc=expected,
                     scope='Terrain publication and bounded memory; geometry buffers require separate verification')
                 assert equal and budget_ok,'GEOMOD'
@@ -493,7 +515,25 @@ dvd_path = '{root.as_posix()}/build/xbox/redfaction-diagnostic.iso'
             else:
                 (disc / name).write_bytes(data)
         try:
-            build()
+            # Restore the disc image without compiling source that may have
+            # changed while the emulator was running. Preserve the tested XBE.
+            for name, data in saved.items():
+                actual = (disc / name).read_bytes() if (disc / name).exists() else None
+                if actual != data:
+                    raise RuntimeError('Disc restoration mismatch: ' + name)
+            iso = root / 'build/xbox/redfaction-diagnostic.iso'
+            temporary = run / 'restored-disc.iso'
+            xbe = disc / 'default.xbe'
+            before = hashlib.sha256(xbe.read_bytes()).hexdigest()
+            with (run / 'restore-pack.log').open('wb') as out:
+                subprocess.run(['C:/nxdk/tools/extract-xiso/build/extract-xiso.exe',
+                    '-c', str(disc), str(temporary)], cwd=root,
+                    stdout=out, stderr=subprocess.STDOUT, check=True)
+            if hashlib.sha256(xbe.read_bytes()).hexdigest() != before:
+                raise RuntimeError('XBE changed during disc restoration')
+            os.replace(temporary, iso)
+            report['disc_restored'] = True
+            report['restore_xbe_sha256'] = before
         except Exception as exc:
             report.update(result='FAIL', restore_error=repr(exc))
             raise

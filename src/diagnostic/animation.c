@@ -255,7 +255,8 @@ static int animation_run(const char *meshes_path,const char *motions_path,uint32
             static const int32_t sequence[4]={0,2,8,0};
             int handled=0;
             if(placement && placement->campaign_player && frame && placement->player_stance) {
-                status=placement->player_stance(placement->stance_context,frame,&controller,motions);if(status)goto done;
+                status=placement->player_stance(placement->stance_context,frame,&controller,motions);
+                if(status){rf_animation_progress[1]=21;printf("ANIMATION_CONTROL_FAILURE stance %u %d %d %d\n",frame,status,controller.current,controller.next);goto done;}
             } else if(placement && !placement->campaign_player && placement->stance_effect && placement->stance_flags) {
                 rf_motion_stance_decision decision;
                 status=rf_motion_select_stance(&controller,motions,8,placement->crouch_request?*placement->crouch_request:(frame>=32 && frame<56),*placement->stance_flags,&decision);if(status)goto done;
@@ -263,11 +264,13 @@ static int animation_run(const char *meshes_path,const char *motions_path,uint32
                 handled=decision.handled;
             }
             if(!handled && placement && placement->movement_select) {
-                status=placement->movement_select(placement->stance_context,frame,&controller,motions);if(status)goto done;
+                status=placement->movement_select(placement->stance_context,frame,&controller,motions);
+                if(status){rf_animation_progress[1]=22;printf("ANIMATION_CONTROL_FAILURE movement %u %d %d %d\n",frame,status,controller.current,controller.next);goto done;}
             } else if(!handled && frame%16==0 && (!(placement && placement->physics_config && placement->physics_body) || !rf_motion_has_state(&controller,sequence[(frame%64)/16]))) {
                 status=rf_motion_request_state(&controller,motions,sequence[(frame%64)/16],.25f);if(status)goto done;
             }
-            status=rf_motion_apply_controller(&controller,motions,frame_seconds,&state,resources,resource_count);if(status)goto done;
+            status=rf_motion_apply_controller(&controller,motions,frame_seconds,&state,resources,resource_count);
+            if(status){rf_animation_progress[1]=23;printf("ANIMATION_CONTROL_FAILURE apply %u %d %d %d %u\n",frame,status,controller.current,controller.next,resource_count);goto done;}
         } else {
         inventory.reserve[0]=frame<32 ? 1 : 0;
         status=rf_weapon_reserve(&inventory,supply,0,&reserve); if (status!=RF_OK) goto done;

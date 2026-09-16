@@ -21,7 +21,8 @@ LIMIT=110524
 NAMES=('player-replay.bin','player-control-frames.txt','audio-output.flag','particle-step-fixtures.bin',
  'renderer-cull-off.flag','renderer-cull-on.flag','renderer-batch-off.flag','renderer-world-off.flag',
  'dev-room.flag','terrain-test-light.flag','shallow-fixture.flag','geomod-checkpoint.bin',
- 'geomod-checkpoint-out.flag','geomod-hdd-load.flag','geomod-hdd-save.flag','ripple-test.flag','water-test.flag')
+ 'geomod-checkpoint-out.flag','geomod-hdd-load.flag','geomod-hdd-save.flag','ripple-test.flag','water-test.flag','swim-test.flag','player-checkpoint.flag',
+ 'geomod-fallback-seed.flag','geomod-fallback-observe.flag','geomod-fallback0.rfsg','geomod-fallback1.rfsg')
 
 def digest(path):
  h=hashlib.sha256()
@@ -51,7 +52,7 @@ def owned_copy(base,destination):
  shutil.copyfile(base,destination)
  if digest(base)!=digest(destination):raise RuntimeError('Private HDD copy differs')
 
-def iso_stage(run,phase,inputs,shallow,packer):
+def iso_stage(run,phase,inputs,shallow,packer,player_checkpoint=False):
  disc=ROOT/'build/xbox/disc';names=set(NAMES)|{p.name for p in disc.glob('campaign-*') if p.is_file()}
  names.update(('campaign-spawn.flag','campaign-level.bin'))
  saved={n:(disc/n).read_bytes() if (disc/n).exists() else None for n in names}
@@ -61,6 +62,7 @@ def iso_stage(run,phase,inputs,shallow,packer):
   for n in ('campaign-spawn.flag','dev-room.flag','geomod-checkpoint-out.flag','geomod-hdd-'+('save' if phase=='write' else 'load')+'.flag'):(disc/n).write_bytes(b'')
   (disc/'campaign-level.bin').write_bytes(b'levelsm.vpp'.ljust(64,b'\0')+b'glass_house.rfl'.ljust(64,b'\0'))
   (disc/'player-replay.bin').write_bytes(inputs)
+  if player_checkpoint:(disc/'player-checkpoint.flag').write_bytes(b'')
   if shallow:(disc/'shallow-fixture.flag').write_bytes(str(shallow).encode())
   iso=run/(phase+'.iso')
   with (run/(phase+'-pack.log')).open('wb') as log:subprocess.run([str(packer),'-c',str(disc),str(iso)],cwd=ROOT,stdout=log,stderr=subprocess.STDOUT,check=True)
@@ -137,7 +139,18 @@ dvd_path = '{iso.as_posix()}'
    data=bytes(data[:check[1]]);fnv=2166136261
    for v in data:fnv=((fnv^v)*16777619)&0xffffffff
    if fnv!=check[2]:raise RuntimeError('Export FNV mismatch')
-   (run/(phase+'.rfds')).write_bytes(data);result.update(checkpoint=check,checkpoint_memory=memory,sha256=hashlib.sha256(data).hexdigest())
+   if data[:4] not in (b'RFDS',b'RFCP') or struct.unpack_from('<II',data,4)!=(1,len(data)):
+    raise RuntimeError('Malformed checkpoint export header')
+   suffix='.rfds'
+   if data[:4]==b'RFCP':
+    if len(data)<864 or data[32:36]!=b'RFPL' or data[576:580]!=b'RFDS':raise RuntimeError('Malformed composed checkpoint sections')
+    player=words(monitor,symbol(mapping,'rf_scene_player_checkpoint_state'),8)
+    if player[0]!=1 or player[1]!=(1 if phase=='read' else 0) or player[2]!=1 or player[3] or player[4]!=1 or player[5]!=len(data)-576 or not player[7]:
+     raise RuntimeError('Player checkpoint operation not successful: '+str(player))
+    result['player_checkpoint']=player
+    result['player_record']=dict(health=struct.unpack_from('<f',data,56)[0],armor=struct.unpack_from('<f',data,60)[0],position=list(struct.unpack_from('<3f',data,64)),body_angles=list(struct.unpack_from('<3f',data,76)),eye_angles=list(struct.unpack_from('<3f',data,88)),weapon=struct.unpack_from('<I',data,52)[0])
+    suffix='.rfcp'
+   (run/(phase+suffix)).write_bytes(data);result.update(checkpoint=check,checkpoint_memory=memory,sha256=hashlib.sha256(data).hexdigest())
    return result,data
  finally:
   if monitor:
@@ -154,10 +167,11 @@ def main():
  p=argparse.ArgumentParser(description=__doc__);p.add_argument('--run',action='store_true',help='Explicitly execute two launches; default only checks inputs/hooks')
  p.add_argument('--write-input',type=Path,required=True);p.add_argument('--read-input',type=Path,required=True);p.add_argument('--expected',type=Path,required=True,help='Verified PC RFDS after write; read replay must not edit terrain')
  p.add_argument('--shallow',type=int,choices=[0,1,2,3],default=0);p.add_argument('--seconds',type=int,default=300)
+ p.add_argument('--player-checkpoint',action='store_true',help='Require and compare complete RFCP player plus destruction payload')
  args=p.parse_args()
  if not 30<=args.seconds<=3600:p.error('Require30..3600 seconds')
  write,nwrite=replay(args.write_input);read,nread=replay(args.read_input);expected=args.expected.read_bytes()
- if not 288<=len(expected)<=LIMIT or expected[:4]!=b'RFDS':p.error('Invalid expected RFDS')
+ if not (864 if args.player_checkpoint else 288)<=len(expected)<=LIMIT or expected[:4]!=(b'RFCP' if args.player_checkpoint else b'RFDS'):p.error('Invalid expected checkpoint format')
  mapping=(ROOT/'build/xbox/main.map').read_text()
  for name in ('rf_diagnostic','rf_xbox_checkpoint_storage_state','rf_scene_geomod_checkpoint_state','rf_scene_geomod_checkpoint_data','rf_scene_geomod_checkpoint_memory'):symbol(mapping,name)
  base=ROOT/'local/xemu-harness/pacing-base.qcow2';emulator=Path('C:/Games/Emulators/Xemu');packer=Path('C:/nxdk/tools/extract-xiso/build/extract-xiso.exe')
@@ -166,13 +180,13 @@ def main():
  if not args.run:print('Preflight inputs/symbols available. No launch, staging or HDD copy performed. Scene flag semantics still require source review.');return
  require_no_project_xemu(ROOT)
  run=ROOT/'artifacts/geomod-hdd'/datetime.datetime.now().strftime('%Y%m%d-%H%M%S-%f');run.mkdir(parents=True)
- report=dict(result='FAIL',scope='Exact DEV RFDS restart persistence only; no visual/fullsave/power-loss claim',base=str(base),base_sha256=digest(base),expected_sha256=hashlib.sha256(expected).hexdigest(),xbe_sha256=digest(ROOT/'build/xbox/disc/default.xbe'))
+ report=dict(result='FAIL',scope='Exact settled DEV RFCP restart persistence; no full campaign or power-loss claim' if args.player_checkpoint else 'Exact DEV RFDS restart persistence only; no visual/fullsave/power-loss claim',base=str(base),base_sha256=digest(base),expected_sha256=hashlib.sha256(expected).hexdigest(),xbe_sha256=digest(ROOT/'build/xbox/disc/default.xbe'))
  try:
   hdd=run/'save-test.qcow2';owned_copy(base,hdd);shutil.copyfile(emulator/'eeprom.bin',run/'eeprom.bin');(run/'main.map').write_text(mapping)
   for phase,payload,frames in [('write',write,nwrite),('read',read,nread)]:
    require_no_project_xemu(ROOT)
    if digest(ROOT/'build/xbox/disc/default.xbe')!=report['xbe_sha256']:raise RuntimeError('XBE changed during test')
-   iso=iso_stage(run,phase,payload,args.shallow,packer);result,data=launch(run,phase,iso,hdd,mapping,frames,args.seconds,emulator);report[phase]=result
+   iso=iso_stage(run,phase,payload,args.shallow,packer,args.player_checkpoint);result,data=launch(run,phase,iso,hdd,mapping,frames,args.seconds,emulator);report[phase]=result
    if result.get('forced_termination'):raise RuntimeError('XEMU required termination; clean restart persistence not established')
    if data!=expected:raise RuntimeError(phase+' RFDS differs from PC baseline')
   if report['write']['storage'][4:7]!=report['read']['storage'][4:7]:raise RuntimeError('Read did not select written generation/slot/bytes')

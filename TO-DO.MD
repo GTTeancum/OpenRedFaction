@@ -1,20 +1,23 @@
 # Red Faction Xbox / PC - open work
 
-- GeoMod debris: Correct the remaining birth collision filter/hit-point policy; recovered spawn spread/resistance and settled-fragment reactivation now pass51 stock64MiB PC/Xbox checks.
-- GeoMod saves: Extend verified writable Xbox destruction saves to native corrupt-slot fallback and full game state; clean restart restores9554 exact RFDS bytes on stock64MiB.
+- PRIORITY GeoMod coverage: Expand verified authored-post destruction beyond the bounded profile; two cuts pass56 stock64MiB PC/Xbox checks and the player crosses the opened post on PC, while authored saves and broader destruction coverage remain open.
+
+- Movement: Extend verified quiet swimming to authored liquid hazards and underwater presentation; entry, surfacing, re-entry and harmless ordinary water pass44 PC/Xbox comparisons.
+- Movement: Finish underwater presentation; authored lava damage and harmless dry control now pass44/45 PC/Xbox checks on stock64MiB.
+
+- GeoMod debris: Verify wet birth placement and audible output; grouped debris sound dispatch and dry destruction now pass55 stock64MiB PC/Xbox checks.
+- GeoMod saves: Integrate authored destruction identity, retained lighting and transactional restore; profile framing, source identity unit checks and full-room placement pass, while live authored saves remain open and existing cavity restart is verified.
 
 - Explosions: Extend verified actor-position blast falloff and CF5 cover to broader encounters; nearby self-damage and recovered debris bounces now pass50 stock64MiB Xbox comparisons.
 - GeoMod collisions: Resolve active-ripple precision and verify wet audio/safer visual placement; authored water entry, floor impact and ripple expiry now pass42 PC/Xbox comparisons on stock64MiB.
-- GeoMod saves: Exercise corruption and interruption recovery after native two-slot storage, RFDS validation, HDD mount/flush and clean restart verification passed.
 - GeoMod fidelity: Use binary-derived geometry, material, lighting and collision calculations; original-game screenshot comparisons are excluded by user direction.
-- GeoMod saves: Extend verified DEV destruction checkpoints to writable Xbox storage and full game-state integration; PC-to-Xbox reload and another blast now pass48 comparisons.
 - GeoMod visuals: Diagnose crater readability through binary-derived numeric comparisons of geometry, UVs, lighting and projection; no original-game screenshot reference is required.
 - PRIORITY GeoMod: Match original destruction shape, exposed materials, lighting, debris, collision and repeated blasts before returning to other systems; a visible hole alone is not acceptance.
 - GeoMod: Improve crater readability and expand destruction coverage; eight-cut live/Xbox repair passes, and side-view nearer pixels trace to floor projection rounding, while broader shapes and visual parity remain open.
 - GeoMod: Reduce remaining terrain-cut stalls; the latest native eighth edit measures 239ms CSG and 29ms binding, subject to host timing variation.
 - GeoMod: Diagnose the 425 PC/Xbox capture pixels differing by more than one color level; the shared dark crater appearance remains the main fidelity issue.
 - GeoMod lighting: Extend rocket glow beyond generated crater surfaces and validate against binary-derived calculations; impact effects and crater readability remain open.
-- DEV testbed: Review full weapon animations and add complete room reset; terrain reset and ammo refill are implemented, while campaign progression remains paused.
+- DEV testbed: Add authored-post saves and broaden reset coverage; safe reset/re-cut passes56 stock64MiB Xbox checks, while unsafe reset and restored-post walking pass PC controls.
 - GeoMod: Refine debris bounce, lighting and surface eligibility; original query flags/fractions and impact-normal effects now pass PC/Xbox checks, while crater readability remains open.
 - USER: Review destruction readability after replacing the folded-panel interior; destruction remains the current focus.
 - Weapons: Refine the live six-emitter rocket blast against original visuals; audible/spatial impact validation and multi-clip playback (installed missing sparks are confirmed original behavior), actor/mover impacts and blast/cover behavior remain open.

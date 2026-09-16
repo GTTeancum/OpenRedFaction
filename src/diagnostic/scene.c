@@ -1,16 +1,24 @@
 #include "rf/resource_budget.h"
+#include "rf/composed_checkpoint.h"
+#include "rf/checkpoint_placement.h"
 #include "rf/eye.h"
 #include "rf/scene_preview.h"
 #include "rf/animation_check.h"
 #include "rf/entity_assets.h"
 #include "rf/corpse_effect.h"
 #include "rf/player.h"
+#include "rf/swim.h"
+#include "rf/liquid_damage.h"
+#include "rf/debris_audio.h"
 #include "rf/player_weapon.h"
 #include "rf/event.h"
 #include "rf/audio.h"
 #include "rf/clutter.h"
+#include "rf/geomod_authored_post.h"
+#include "rf/geomod_publication_binding.h"
 #ifdef RF_IMAGE_XBOX_NATIVE
 #include "../platform/xbox/checkpoint_storage.h"
+#include "../platform/xbox/checkpoint_fixture.h"
 #endif
 #include <errno.h>
 #include <stdlib.h>
@@ -171,6 +179,30 @@ static rf_scene_input player_input;
 static uint32_t campaign_spawn;
 uint32_t rf_scene_dev_room_enabled;
 uint32_t rf_scene_water_test_enabled; /* Explicit authored dm03 water test; no terrain fixture. */
+uint32_t rf_scene_swim_test_enabled;
+int rf_scene_swim_test_place(rf_level *level)
+{
+    static const float bodies[3][3]={{100,1,60},{46.4f,-9.5f,19.2f},{43,-5.5f,19.2f}};
+    static const float basis[9]={1,0,0,0,1,0,0,0,1};
+    uint32_t choice=rf_scene_swim_test_enabled;
+    if(!level || choice<1 || choice>3 || strcmp(level->entry.name,choice==1?"L2S3.rfl":"L5S2.rfl"))return RF_FORMAT;
+    /* Explicit fixtures only:1 swimming,2 authored lava,3 same-room dry ledge.
+     * Exact retained miner spheres pass directional clearance at both lava poses.
+     * Body origin copied unchanged; authored eye tags remain in control. */
+    memcpy(level->player_position,bodies[choice-1],12);memcpy(level->player_orientation,basis,36);
+    return RF_OK;
+}
+/* Explicit ctf06 developer fixture: east of authored post94, facing west.
+ * Standing body origin leaves .01848 clearance above floorY-1.25 using the
+ * retained miner's lowest sphere; actual eye offset remains model-owned. */
+int rf_scene_authored_post_place(rf_level *level)
+{
+    static const float position[3]={-2.75f,-.4f,2.5f};
+    static const float basis[9]={0,0,1,0,1,0,-1,0,0};
+    if(!level || strcmp(level->entry.name,"ctf06.rfl"))return RF_FORMAT;
+    memcpy(level->player_position,position,12);memcpy(level->player_orientation,basis,36);
+    return RF_OK;
+}
 int rf_scene_water_test_place(rf_level *level)
 {
     static const float position[3]={-226.5f,-38.25f,-80.f};
@@ -507,17 +539,22 @@ uint32_t rf_scene_terrain_atlas[8]; /* enabled,width,height,owned bytes,generati
 uint32_t rf_scene_terrain_shadows[4]; /* lighting refreshes, rays, blocked, cache hits */
 typedef struct scene_debris_chunk {
     rf_geomod_debris_mesh mesh;float position[3],velocity[3],radius,resistance,age;
-    uint32_t active,bounces,alpha,detail_marked;float axis[3],spin,angle;
+    uint32_t active,bounces,alpha,detail_marked,room;float axis[3],spin,angle;
 } scene_debris_chunk;
 typedef struct scene_debris_pool {
     scene_debris_chunk chunks[80];rf_random_state random;uint32_t next;
+    rf_debris_audio_state audio;
     float origin[3],endpoints[14][3],blast_radius;int32_t pending;
+    rf_geomod_debris_burst_room selected_room; /* Stable authored index, never a tree/face pointer. */
     rf_geomod_debris_probe probes[14];
     rf_geomod_vertex vertices[36];rf_geomod_face faces[12];
     rf_collision_face_filter filters[12];rf_collision_face bound[12];float positions[36][3];
 } scene_debris_pool;
+uint32_t rf_scene_debris_audio[14]; /* contributions,dispatches,plays,loads,PCM bytes,errors,sample,RNG before/after,pending,deadline,event hash,status,gain bits */
+static int32_t campaign_debris_sound_group=-1;
 uint32_t rf_scene_debris[8]; /* spawned,active,bounces,expired,vertices,hash,bytes,replaced */
 uint32_t rf_scene_debris_relaunch[8]; /* passes,candidates,relaunched,settled resumed,state hash,seed before,seed after,last slot */
+uint32_t rf_scene_debris_wet[8]; /* solid misses,wet tests,accepted,last room,fraction bits,point hash,last status,presence */
 
 enum { SCENE_TERRAIN_FACES=800, SCENE_TERRAIN_DRAW_VERTICES=8192, SCENE_TERRAIN_DRAW_BUDGET=320*1024 };
 typedef struct scene_terrain_draw_mesh {
@@ -540,8 +577,25 @@ typedef struct scene_impact_owner {
     rf_explosion_materials materials;
     struct {rf_explosion_clock clock;uint32_t slots[6];} instances[8];
 } scene_impact_owner;
+typedef struct scene_terrain_publication_owner scene_terrain_publication_owner;
+typedef struct scene_terrain_authored_assets {
+    rf_geomod_authored_post *asset;rf_geomod_authored_post_view asset_view;
+    rf_geomod_mesh_view source,windows,neighbors;
+    rf_geomod_face *face_storage;
+    rf_geomod_publication_binding_reference *references;
+    uint32_t reference_count,resident_bytes,peak_bytes;
+} scene_terrain_authored_assets;
+
 typedef struct scene_stream {
+    scene_terrain_authored_assets *terrain_authored;
+    scene_terrain_publication_owner *terrain_publication;
+    uint32_t terrain_publication_serial;
+    rf_liquid_room *liquid_rooms;uint32_t swim_room_count,swim_bytes;
+    rf_motion_controller initial_swim_controller;uint32_t initial_swim_controller_ready;
     unsigned char terrain_checkpoint_identity[128];uint32_t terrain_checkpoint_loaded;
+    const rf_level *player_checkpoint_level;
+    uint32_t player_checkpoint_started,player_checkpoint_look;
+    rf_player_checkpoint player_checkpoint_value;
     scene_terrain_noise_owner *terrain_noise;uint32_t terrain_shadow_reference,terrain_test_light;
     scene_terrain_draw_mesh *terrain_draw;
     scene_debris_pool *debris;
@@ -556,6 +610,7 @@ typedef struct scene_stream {
     uint32_t terrain_history_count; /* DEV rocket path: template0, room0. */
     float terrain_history_minimum[3],terrain_history_maximum[3];
     rf_geometry terrain_geometry;rf_scene_world_geometry terrain_render;
+    uint32_t *terrain_face_offsets;
     uint32_t *terrain_ids;uint32_t terrain_fallback,terrain_material,terrain_held;
     rf_preview_mesh *mesh;rf_materials *materials;const rf_model_materials *bundle;
     uint32_t world,base,capacity,npc_base,npc_textures;rf_scene_frame_sink sink;void *context;
@@ -784,6 +839,8 @@ int32_t rf_scene_actor_initial_eye_tag;
 uint32_t rf_scene_actor_eye_enabled;
 uint32_t rf_scene_actor_turn_enabled,rf_scene_actor_look_enabled,rf_scene_actor_look_frames[64][33];
 static rf_look_pose actor_look;
+uint32_t rf_scene_player_checkpoint_enabled;
+uint32_t rf_scene_player_checkpoint_state[8];
 static rf_level_owned_regions campaign_regions;
 static rf_level_owned_navigation campaign_navigation;
 static unsigned char *campaign_waypoints;static uint32_t campaign_waypoint_bytes;
@@ -791,7 +848,8 @@ static rf_level_navigation_workspace campaign_navigation_workspace;
 uint32_t rf_scene_navigation_workspace[4]; /* globals, bytes, edges, layout hash */
 uint32_t rf_scene_navigation[6]; /* nodes, edges, tags, oriented, bytes, content hash */
 static rf_physics_force_collection campaign_forces;
-static uint32_t campaign_force_class_flags,campaign_force_class_kind;
+static uint32_t campaign_force_class_flags,campaign_force_class_kind,campaign_player_material;
+static float campaign_liquid_damage_rates[2];
 static float campaign_force_air_limit;
 rf_group_attached_pose rf_scene_actor_pose;
 static rf_camera_effect_state campaign_camera_effect;
@@ -1715,6 +1773,7 @@ uint32_t rf_scene_script_grants[8]; /* applied, acquired, rounds, weapon, owned,
 static rf_weapon_inventory campaign_player_inventory;static int32_t campaign_pistol_id=-1;
 static rf_campaign_player_state campaign_player_import,campaign_player_export;
 static uint32_t campaign_import_pending,campaign_export_valid;
+static uint32_t campaign_explicit_unarmed,campaign_import_applied;
 int rf_scene_campaign_player_get(rf_campaign_player_state *state)
 {
     if(!campaign_export_valid)return RF_NOT_FOUND;
@@ -1746,7 +1805,7 @@ static int32_t campaign_selected_weapon(void)
 {return campaign_slot_weapon(campaign_equipped_slot);}
 static void campaign_select_primary(uint32_t slot)
 {
-    campaign_equipped_slot=slot;campaign_pistol=campaign_primary[slot];
+    campaign_explicit_unarmed=0;campaign_equipped_slot=slot;campaign_pistol=campaign_primary[slot];
     pistol_reload_ticks=(uint32_t)ceilf(campaign_pistol.reload_seconds*60);pistol_fire_ticks=(uint32_t)ceilf(campaign_pistol.fire_seconds*60);
     rf_scene_pistol_rules[0]=campaign_pistol.magazine;rf_scene_pistol_rules[1]=pistol_reload_ticks;rf_scene_pistol_rules[2]=pistol_fire_ticks;
     memcpy(rf_scene_pistol_rules+3,&campaign_pistol.damage,4);rf_scene_pistol_rules[4]=campaign_pistol.semi_automatic;
@@ -2092,6 +2151,8 @@ static int campaign_audio_open(const char *tables_path,const char *level_name,co
     status=rf_foley_open(foley_text,foley_entry.size,256*1024,campaign_foley_register,&foley_registration,&campaign_foley);
     if(!status)status=foley_registration.error;if(status)goto audio_done;
     status=rf_foley_find(&campaign_foley,"Sub Hit",&campaign_contact_sound_group);if(status)goto audio_done;
+    campaign_debris_sound_group=-1;
+    (void)rf_foley_find(&campaign_foley,"Geomod Debris Hit",&campaign_debris_sound_group);
     if(campaign_audio_bank.bytes!=foley_bank_bytes){status=RF_FORMAT;goto audio_done;}
     rf_scene_foley[0]=campaign_foley.group_count;rf_scene_foley[1]=campaign_foley.sample_count;
     rf_scene_foley[2]=foley_registration.missing;rf_scene_foley[3]=campaign_foley.resident_bytes;
@@ -3149,7 +3210,10 @@ static int campaign_clutter_query_probe(void)
 }
 static int campaign_clutter_bodies_open(const rf_geometry_collision_world *world)
 {
-    const uint32_t budget=256*1024;uint64_t bytes,peak;uint32_t i,j,hash=2166136261u;int status;
+    /* Authored ctf06 has506 collidable lanterns sharing3 models: the32-bit
+     * base owners plus fallback spheres retain283416 bytes. Keep all props;
+     * audited in tools/audit_ctf06_clutter_budget.py. No eager budget allocation. */
+    const uint32_t budget=288*1024;uint64_t bytes,peak;uint32_t i,j,hash=2166136261u;int status;
     if(!world || !campaign_surface_palette || campaign_clutter_bodies || campaign_clutter_shared)return RF_RANGE;
     memset(rf_scene_clutter_bodies,0,sizeof(rf_scene_clutter_bodies));rf_object_list_init(&campaign_clutter_objects);campaign_clutter_uid_cursor=UINT32_MAX;
     bytes=(uint64_t)campaign_clutter_records.count*sizeof(*campaign_clutter_bodies)+
@@ -4406,7 +4470,7 @@ static void campaign_close_movers(void)
     if(campaign_audio_events.reset)campaign_audio_events.reset(campaign_audio_events_context);
     rf_audio_mixer_init(&campaign_audio_mixer);
     memset(&campaign_weapon_reset,0,sizeof(campaign_weapon_reset));
-    free(campaign_footstep_groups);campaign_footstep_groups=NULL;rf_foley_close(&campaign_foley);
+    free(campaign_footstep_groups);campaign_footstep_groups=NULL;rf_foley_close(&campaign_foley);campaign_debris_sound_group=-1;
     free(campaign_pain_groups);campaign_pain_groups=NULL;
     free(campaign_impact_groups);campaign_impact_groups=NULL;
     free(campaign_squash_groups);campaign_squash_groups=NULL;
@@ -7263,7 +7327,8 @@ static int actor_stance_ground_commit(const rf_geometry_collision_world *world,u
     actor_ground_record *r=rf_scene_actor_stance_ground+(frame%64);rf_geometry_body_hit contact;
     uint32_t *d=rf_scene_actor_stance_support[frame%64];int status,walkable;
     d[0]=1;d[1]=rf_scene_actor_landing[1];memcpy(d+3,scene_actor_body.state.position,12);
-    status=actor_ground_query(world,r,&contact);if(status)return status;
+    status=actor_ground_query(world,r,&contact);
+    if(status){printf("STANCE_GROUND_FAILURE %u %d %u %u\n",frame,status,scene_actor_body.state.state_124,r->probe.query_flags);return status;}
     walkable=r->matched && r->hit.hit.fraction<1 && r->hit.hit.normal[1]>=.5f;
     if(walkable) {
         if(rf_scene_actor_landing[1]==3) {
@@ -7287,6 +7352,8 @@ static int actor_stand_clearance(void *context,const float start[3],const float 
     float normal[3],fraction;uint32_t sphere;int status;
     memcpy(probe.position,start,12);memcpy(probe.next_position,end,12);
     status=actor_sweep(c->world,&probe,normal,&fraction,&sphere,probe.state_124|4);
+    if(status)printf("STAND_CLEARANCE_FAILURE %d %d %u %.9g %.9g %.9g %.9g %.9g %.9g\n",
+        c->frame,status,probe.state_124|4,start[0],start[1],start[2],end[0],end[1],end[2]);
     if(!status)*blocked=sphere!=UINT32_MAX;return status;
 }
 static int actor_stand_ground(void *context)
@@ -7385,6 +7452,57 @@ static int campaign_climb_update(scene_stream *stream,uint32_t frame)
 }
 static void campaign_jump_sound(void *context,const rf_player_jump_state *state,int32_t sound)
 {(void)context;(void)state;(void)sound;++rf_scene_player_jump[2]; /* Asset resolution/playback pending. */}
+uint32_t rf_scene_player_swim[12]; /* room,wet,eye,mode,entries,exits,blocked,bytes,height,bodyY,eyeY,status */
+/* Snapshot original room minY/depth while geometry is resident. Never derive
+ * water height from CSG-expanded collision bounds or retain source pointers. */
+static int campaign_swim_open(scene_stream *s,const rf_geometry *g)
+{
+    rf_liquid_rooms rooms={0};int status;
+    if(!g || !g->rooms)return RF_OK;
+    status=rf_liquid_rooms_open(g,16384u*sizeof(rf_liquid_room),&rooms);if(status)return status;
+    s->liquid_rooms=rooms.items;s->swim_room_count=rooms.count;s->swim_bytes=rooms.bytes;
+    return RF_OK;
+}
+static int campaign_swim_update(scene_stream *s,uint32_t frame,const rf_motion_controller *controller)
+{
+    rf_collision_room_location room;rf_eye_input eye={0};rf_swim_state state;rf_swim_transition result;
+    float position[3],height=0;int status,has_room,wet=0,underwater=0;
+    if(!frame){memset(rf_scene_player_swim,0,sizeof(rf_scene_player_swim));rf_scene_player_swim[0]=UINT32_MAX;}
+    rf_scene_player_swim[7]=s->swim_bytes;
+    if(!campaign_spawn || !s->collision || !s->liquid_rooms)return RF_OK;
+    /* This live owner is the ordinary unattached miner. Vehicle handling and
+     * ladder ownership remain separate; no wet-body-wide gravity change. */
+    if((rf_scene_actor_movement_config.flags&0x400u) || rf_scene_actor_landing[1]==2)return RF_OK;
+    status=rf_geometry_collision_world_locate(s->collision,scene_actor_body.state.position,&room);if(status)return status;
+    has_room=room.room!=UINT32_MAX;
+    memcpy(eye.position,scene_actor_body.state.position,12);memcpy(eye.orientation,scene_actor_body.state.orientation,36);
+    memcpy(eye.standing_offset,rf_scene_actor_initial_eye_offsets,12);memcpy(eye.crouching_offset,rf_scene_actor_initial_eye_offsets+3,12);
+    eye.eye_tag=rf_scene_actor_initial_eye_tag;eye.flags=s->eye_flags;eye.current_state=controller->current;eye.previous_state=controller->next;
+    eye.transition_duration=controller->duration;eye.transition_elapsed=controller->elapsed;
+    status=rf_eye_position(&eye,position);if(status)return status;
+    if(has_room && room.room<s->swim_room_count && isfinite(s->liquid_rooms[room.room].depth)) {
+        height=(float)((double)s->liquid_rooms[room.room].minimum_y+s->liquid_rooms[room.room].depth);wet=scene_actor_body.state.position[1]<=height;underwater=position[1]<=height;
+    }
+    state.mode=rf_scene_actor_landing[1];state.object_flags=rf_scene_actor_pose.flags;state.entity_flags=rf_scene_actor_stance_flags;
+    state.body_flags=scene_actor_body.state.flags;state.query_flags=scene_actor_body.state.state_124;
+    /* Only proven explicit falling modes feed the outer42a020 gate. General
+     * support-predicate429990 admission remains outside this local owner. */
+    status=rf_swim_transition_prepare(&state,campaign_modes,rf_scene_actor_movement_config.flags,
+        has_room,wet,underwater,state.mode==3 || state.mode==8,&result);if(status)return status;
+    if(result.entered && (rf_scene_actor_stance_flags&0x400u)) {
+        int blocked;status=actor_stance_update(s->collision,0,&blocked,(int)frame);if(status)return status;
+        if(blocked){++rf_scene_player_swim[6];result.entered=0;result.state.mode=state.mode;result.posture_request=-1;}
+        else {result.state.entity_flags&=~0x400u;campaign_crouched=0;}
+    }
+    if(result.posture_request!=-1){status=actor_set_speed_mode(result.posture_request==0);if(status)return status;}
+    rf_scene_actor_pose.flags=result.state.object_flags;rf_scene_actor_stance_flags=result.state.entity_flags;
+    scene_actor_body.state.flags=result.state.body_flags;scene_actor_body.state.state_124=result.state.query_flags;
+    rf_scene_actor_landing[1]=result.state.mode;
+    rf_scene_player_swim[0]=room.room;rf_scene_player_swim[1]=(uint32_t)wet;rf_scene_player_swim[2]=(uint32_t)(wet&&underwater);
+    rf_scene_player_swim[3]=result.state.mode;rf_scene_player_swim[4]+=result.entered;rf_scene_player_swim[5]+=result.exited;
+    memcpy(rf_scene_player_swim+8,&height,4);memcpy(rf_scene_player_swim+9,scene_actor_body.state.position+1,4);memcpy(rf_scene_player_swim+10,position+1,4);
+    return RF_OK;
+}
 static int campaign_jump_update(uint32_t frame)
 {
     uint32_t held=player_poll?player_input.jump:0,pressed,selected=rf_scene_actor_landing[1],accepted=0;
@@ -7417,6 +7535,7 @@ static int campaign_jump_update(uint32_t frame)
 static int actor_player_stance(void *context,uint32_t frame,rf_motion_controller *controller,const int32_t motions[23])
 {
     int update_status=campaign_climb_update((scene_stream*)context,frame);if(update_status)return update_status;
+    update_status=campaign_swim_update((scene_stream*)context,frame,controller);rf_scene_player_swim[11]=(uint32_t)update_status;if(update_status)return update_status;
     rf_motion_stance_decision decision={0,RF_MOTION_STANCE_NONE};
     rf_player_crouch_input eligibility={1,-1,-1,-1,(int32_t)rf_scene_actor_landing[1]};
     /* Ownership/environment/locks are fixture defaults until the player
@@ -7624,6 +7743,17 @@ static int actor_tick(const rf_geometry_collision_world *world,rf_physics_body_s
                 actor_look.eye_orientation,state->orientation,(const float*)campaign_climb.orientation,input);if(status)return status;
             status=rf_physics_climb_propose(state,remaining,rf_scene_actor_movement_settings.speed,
                 rf_scene_actor_movement_values.acceleration,input,support);
+        } else if(campaign_spawn && rf_scene_actor_landing[1]==4) {
+            rf_swim_controls controls={0};rf_swim_motion motion;
+            controls.right=command[0];controls.up=command[1];controls.forward=command[2];
+            controls.jump=player_poll?(float)player_input.jump:0;controls.crouch=player_poll?(float)player_input.crouch:0;
+            /*4a6060 enables held jump-ascent only while eyes are submerged. */
+            controls.jump_press_mode=(rf_scene_actor_stance_flags&0x2000u)?1:0;controls.crouch_press_mode=1;
+            status=rf_swim_motion_prepare(&controls,actor_look.eye_orientation,rf_scene_actor_movement_values.acceleration,
+                rf_scene_actor_movement_settings.response,state->mass,remaining,1,&motion);if(status)return status;
+            /* Original repeated contact passes zero steering49f74d. */
+            if(state->flags&0x1000000u)memset(motion.acceleration,0,sizeof(motion.acceleration));
+            status=rf_physics_ground_propose(state,remaining,motion.resistance,motion.acceleration,support);
         } else if(grounded) {
             float input[3];
             status=rf_movement_transform(rf_scene_actor_movement[0].translation,command,
@@ -7777,7 +7907,10 @@ static int actor_listener_pose(scene_stream *stream,uint32_t frame,
             uint32_t *look=rf_scene_actor_look_frames[frame%64];
             if(!frame){
                 memset(&actor_look,0,sizeof(actor_look));memset(rf_scene_actor_look_frames,0,sizeof(rf_scene_actor_look_frames));
-                if(campaign_spawn) {
+                if(stream->player_checkpoint_look){
+                    memcpy(actor_look.state.body_angles,stream->player_checkpoint_value.body_angles,12);
+                    memcpy(actor_look.state.eye_angles,stream->player_checkpoint_value.eye_angles,12);stream->player_checkpoint_look=0;
+                } else if(campaign_spawn) {
                     rf_spawn_look_angles angles;
                     status=rf_look_spawn_angles(campaign_orientation,scene_actor_body.state.orientation,
                         rf_scene_actor_movement[0].rotation,&angles);if(status)return status;
@@ -8016,6 +8149,7 @@ static int campaign_life_capture(void)
 static void campaign_ammo_publish(void)
 {
     uint32_t slot;
+    if(campaign_explicit_unarmed){rf_scene_player_ammo[0]=UINT32_MAX;rf_scene_player_ammo[1]=rf_scene_player_ammo[2]=rf_scene_combat[5]=0;rf_scene_player_ammo[6]=sizeof(campaign_player_inventory);return;}
     if(!campaign_player_inventory.owned[campaign_selected_weapon()])for(slot=0;slot<scene_weapon_slots();slot++) {
         int32_t id=campaign_slot_weapon(slot);
         if(id>=0 && campaign_player_inventory.owned[id]){campaign_select_primary(slot);break;}
@@ -8206,6 +8340,33 @@ static int combat_death_start(uint32_t slot)
     rf_scene_combat_death[2]=(uint32_t)owner->selection.mapping.actions[5];rf_scene_combat_death[3]=(uint32_t)status;
     return status;
 }
+uint32_t rf_scene_liquid_damage[8]; /* ticks,requests,room,type,material,amount,health,status */
+static int campaign_liquid_damage_tick(scene_stream *s,uint32_t frame,int32_t now)
+{
+    uint32_t room=rf_scene_player_swim[0],clock_bits;float seconds=(float)((double)(frame+1)*scene_step_seconds),amount=0;
+    rf_liquid_damage_input input={0};rf_liquid_damage_result result;int status;
+    combat_feedback feedback={now,0};
+    rf_damage_effect_backend effects={combat_predicate,combat_uid,combat_source,combat_burn,combat_random,combat_notify,combat_playing,combat_play,&feedback};
+    if(!frame)memset(rf_scene_liquid_damage,0,sizeof(rf_scene_liquid_damage));
+    if(campaign_player_damage.state.effects.health<=0)return RF_OK;
+    ++rf_scene_liquid_damage[0];rf_scene_liquid_damage[2]=room;rf_scene_liquid_damage[4]=campaign_player_material;
+    input.target=campaign_player_object.handle;input.actor_flags_810=rf_scene_actor_stance_flags;
+    input.actor_kind_1fc=campaign_player_material;
+    input.room_present=room<s->swim_room_count && isfinite(s->liquid_rooms[room].depth);
+    if(input.room_present)input.liquid_type=s->liquid_rooms[room].type;
+    input.frame_seconds=scene_step_seconds;input.lava_per_second=campaign_liquid_damage_rates[0];input.acid_per_second=campaign_liquid_damage_rates[1];
+    /*421240 consumes the cached room/wet state before this frame's room refresh.
+     * Live replay keeps the pre-movement swim owner through all contact substeps.
+     * Ordinary detached player has no4290d0 rejection (vehicle path separate). */
+    status=rf_liquid_damage_prepare(&input,&result);rf_scene_liquid_damage[3]=(uint32_t)input.liquid_type;
+    if(!status && result.emit) {
+        memcpy(&clock_bits,&seconds,4);++rf_scene_liquid_damage[1];
+        status=rf_scene_player_damage_audio(result.target,&result.request,1,clock_bits,now,&combat_pain_random,&effects,&amount);
+        if(!status)status=feedback.status;
+    }
+    memcpy(rf_scene_liquid_damage+5,&amount,4);memcpy(rf_scene_liquid_damage+6,&campaign_player_damage.state.effects.health,4);
+    rf_scene_liquid_damage[7]=(uint32_t)status;return status;
+}
 uint32_t rf_scene_script_slays[6]; /* requests,death entries,last UID,health bits,clock,status */
 static int campaign_slay_object(void *context,uint32_t handle,uint32_t source,int32_t now)
 {
@@ -8375,6 +8536,8 @@ static rf_random_state campaign_enemy_spread_random;
 static int campaign_enemy_tick(scene_stream *stream,uint32_t frame,const float player_eye[3])
 {
     uint32_t i,j,blocked,clock_bits;float seconds=(float)frame/60;
+    /* Explicit movement fixture: quiet authored pool, no enemy combat. */
+    if(rf_scene_swim_test_enabled)return RF_OK;
     combat_feedback feedback={(int32_t)((uint64_t)frame*1000/60),0};
     rf_damage_effect_backend effects={combat_predicate,combat_uid,combat_source,combat_burn,combat_random,combat_notify,combat_playing,combat_play,&feedback};
     memcpy(&clock_bits,&seconds,4);++rf_scene_enemy_combat[0];
@@ -8695,9 +8858,34 @@ static int scene_terrain_subdivide_mode(scene_stream *s,const rf_geomod_terrain_
 }
 static int scene_terrain_subdivide(scene_stream *s,const rf_geomod_terrain_view *source)
 {return scene_terrain_subdivide_mode(s,source,1);}
+/* Preserve serialized face descriptors while excluding only selected compiled
+ * surfaces from the render view. Collision and source metadata keep original IDs. */
+static int scene_terrain_render_exclude(scene_stream *s,const uint32_t *ids,uint32_t count)
+{
+    uint32_t *offsets,i,j,n=0;rf_geometry next;
+    if(!s || !s->geometry || !actor_follow_world || !count || !ids ||
+       count>s->geometry->faces || s->terrain_face_offsets)return RF_RANGE;
+    for(i=0;i<count;i++) {
+        if(ids[i]>=s->geometry->faces)return RF_RANGE;
+        for(j=0;j<i;j++)if(ids[i]==ids[j])return RF_FORMAT;
+    }
+    if(s->geometry->faces>UINT32_MAX/sizeof(*offsets))return RF_RANGE;
+    offsets=malloc(s->geometry->faces*sizeof(*offsets));if(!offsets)return RF_IO;
+    for(i=0;i<s->geometry->faces;i++) {
+        for(j=0;j<count && ids[j]!=i;j++);
+        if(j==count)offsets[n++]=s->geometry->face_offsets[i];
+    }
+    next=*s->geometry;next.faces=n;next.face_offsets=offsets;
+    s->terrain_face_offsets=offsets;s->terrain_geometry=next;
+    s->terrain_render=*actor_follow_world;s->terrain_render.world=&s->terrain_geometry;
+    return RF_OK;
+}
+static int scene_terrain_authored_bind(scene_stream *s);
 static int scene_terrain_bind(scene_stream *s)
 {
-    rf_geomod_terrain_view view;uint32_t i;int status=rf_geomod_terrain_get(s->terrain,&view);if(status)return status;
+    rf_geomod_terrain_view view;uint32_t i;int status;
+    if(s->terrain_authored)return scene_terrain_authored_bind(s);
+    status=rf_geomod_terrain_get(s->terrain,&view);if(status)return status;
     if(view.mesh.face_count>SCENE_TERRAIN_FACES)return RF_RANGE;
     status=scene_terrain_subdivide(s,&view);if(status)return status;
     for(i=0;i<view.mesh.face_count;i++)s->terrain_ids[i]=view.mesh.faces[i].source_face==UINT32_MAX?s->terrain_fallback:view.mesh.faces[i].source_face;
@@ -9070,6 +9258,34 @@ static int scene_terrain_base_audit(scene_stream *s,const char *path)
     failed=ferror(file);if(fclose(file))failed=1;return failed?RF_IO:RF_OK;
 }
 #endif
+#include "scene_terrain_authored.inc"
+#include "scene_terrain_publication.inc"
+#include "scene_terrain_lighting_stage.inc"
+#include "scene_terrain_edit_transaction.inc"
+static int scene_terrain_authored_bind(scene_stream *s)
+{
+    rf_geomod_terrain_view view;const rf_geomod_publication_origin *origins;
+    rf_preview_surface_lightmap *bindings;scene_terrain_lighting_stage *stage=NULL;
+    int status=scene_terrain_publication_prepare(s);if(status)return status;
+    s->terrain_publication->banks[s->terrain_publication->pending].mesh.generation=s->terrain_publication_serial;
+    status=scene_terrain_publication_candidate(s,&view,&origins,&bindings);if(status)goto rejected;
+    if(view.mesh.face_count) {
+        status=scene_terrain_lighting_stage_prepare(s,&view,bindings,s->particle_frame,&stage);if(status)goto rejected;
+        status=scene_terrain_lighting_stage_draw(stage);if(status)goto rejected;
+        bindings=stage->staged->terrain_bindings;
+    }
+    status=scene_terrain_publication_finish(s,bindings,view.mesh.face_count,
+        s->light_rgb.count+s->terrain_atlas_registered);if(status)goto rejected;
+    if(stage)scene_terrain_lighting_stage_commit(stage);
+    scene_terrain_lighting_stage_discard(&stage);
+    rf_scene_geomod[0]=1;rf_scene_geomod[1]=view.cuts;rf_scene_geomod[2]=view.mesh.generation;
+    rf_scene_geomod[3]=s->terrain_publication->resident_bytes+s->terrain_authored->resident_bytes;
+    rf_scene_geomod[4]=s->terrain_publication->peak_bytes+s->terrain_authored->peak_bytes;
+    return RF_OK;
+rejected:
+    scene_terrain_lighting_stage_discard(&stage);scene_terrain_publication_abort(s);return status;
+}
+#include "scene_terrain_authored_edit.inc"
 static int scene_terrain_open(scene_stream *s,const rf_level *level)
 {
     rf_geomod_vertex vertices[24];rf_geomod_face faces[6];rf_collision_face_filter filters[6],generated={0};
@@ -9079,8 +9295,9 @@ static int scene_terrain_open(scene_stream *s,const rf_level *level)
     memset(rf_scene_terrain_bake,0,sizeof(rf_scene_terrain_bake));
     memset(rf_scene_terrain_upload,0,sizeof(rf_scene_terrain_upload));
     if(!rf_scene_dev_room_enabled || rf_scene_water_test_enabled)return RF_OK;
-    if(!s->geometry || !s->collision || !actor_follow_world || strcmp(level->entry.name,"glass_house.rfl") ||
-       s->geometry->faces!=598 || s->geometry->rooms!=91 || s->collision->room_count!=91)return RF_FORMAT;
+    if(!s->geometry || !s->collision || !actor_follow_world)return RF_FORMAT;
+    if(strcmp(level->entry.name,"ctf06.rfl") && (strcmp(level->entry.name,"glass_house.rfl") ||
+       s->geometry->faces!=598 || s->geometry->rooms!=91 || s->collision->room_count!=91))return RF_FORMAT;
     {
         const rf_level_section *section=rf_level_find(level,0x200);unsigned char *payload;
         if(!section || section->size>1024*1024)return RF_FORMAT;
@@ -9139,7 +9356,7 @@ static int scene_terrain_open(scene_stream *s,const rf_level *level)
     rf_scene_terrain_atlas[3]=2*512*512*2+64*64*2+SCENE_TERRAIN_FACES*(sizeof(*s->terrain_bindings)+sizeof(*s->terrain_tiles))+sizeof(rf_image)+sizeof(*s->terrain_noise);
     if(rf_scene_terrain_atlas[3]>1280*1024)return RF_RANGE;
     s->debris=calloc(1,sizeof(*s->debris));if(!s->debris)return RF_IO;
-    s->debris->random.value=1;memset(rf_scene_debris,0,sizeof(rf_scene_debris));memset(rf_scene_debris_relaunch,0,sizeof(rf_scene_debris_relaunch));rf_scene_debris[6]=sizeof(*s->debris);
+    s->debris->random.value=1;rf_debris_audio_init(&s->debris->audio);memset(rf_scene_debris_audio,0,sizeof(rf_scene_debris_audio));memset(rf_scene_debris,0,sizeof(rf_scene_debris));memset(rf_scene_debris_relaunch,0,sizeof(rf_scene_debris_relaunch));memset(rf_scene_debris_wet,0,sizeof(rf_scene_debris_wet));rf_scene_debris_wet[3]=UINT32_MAX;rf_scene_debris[6]=sizeof(*s->debris);
     s->terrain_draw=calloc(1,sizeof(*s->terrain_draw));if(!s->terrain_draw)return RF_IO;
     memset(rf_scene_terrain_draw,0,sizeof(rf_scene_terrain_draw));
     s->terrain_ids=calloc(SCENE_TERRAIN_FACES,sizeof(*s->terrain_ids));if(!s->terrain_ids)return RF_IO;
@@ -9156,6 +9373,14 @@ static int scene_terrain_open(scene_stream *s,const rf_level *level)
     s->terrain_random.value=1; /* Explicit DEV stream; original global stream remains to integrate. */
     memcpy(s->terrain_history_minimum,s->collision->minimum,12);memcpy(s->terrain_history_maximum,s->collision->maximum,12);
     s->terrain_fallback=UINT32_MAX;
+    if(!strcmp(level->entry.name,"ctf06.rfl")) {
+        status=scene_terrain_authored_open(s,level);if(status)return status;
+        status=scene_terrain_publication_open(s);if(status)return status;
+        status=scene_terrain_bind(s);if(status)return status;
+        s->collision=&s->terrain_collision.world;
+        return scene_terrain_render_exclude(s,s->terrain_authored->asset_view.replaced_ids,
+            s->terrain_authored->asset_view.replaced_count);
+    }
     for(i=0;i<s->geometry->faces;i++) {
         rf_geometry_face f;status=rf_geometry_get_face(s->geometry,i,&f);if(status)return status;
         if(i>=6){if(!f.room)return RF_FORMAT;continue;}
@@ -9178,9 +9403,8 @@ static int scene_terrain_open(scene_stream *s,const rf_level *level)
     s->collision=&s->terrain_collision.world;
     /* A borrowed draw view excludes exactly the replaced outer-room faces.
      * Serialized bytes and the remaining face IDs/room links are untouched. */
-    s->terrain_geometry=*s->geometry;s->terrain_geometry.faces-=6;s->terrain_geometry.face_offsets+=6;
-    s->terrain_render=*actor_follow_world;s->terrain_render.world=&s->terrain_geometry;
-    return RF_OK;
+    {static const uint32_t replaced[6]={0,1,2,3,4,5};
+     return scene_terrain_render_exclude(s,replaced,6);}
 }
 /* RFDS v1 is a DEV destruction checkpoint, not a whole-game save. All restore
  * calls occur on a fresh scene before frames; failure discards that scene. */
@@ -9361,6 +9585,7 @@ static int scene_checkpoint_map_read(const unsigned char *data,scene_terrain_noi
 typedef struct scene_checkpoint_validation {
     scene_stream *scene;const unsigned char *data;
     uint32_t maps,faces,map_offset,face_offset;
+    const rf_checkpoint_placement *player;
 } scene_checkpoint_validation;
 static int scene_checkpoint_candidate(const rf_geomod_terrain_view *view,void *context)
 {
@@ -9386,14 +9611,15 @@ static int scene_checkpoint_candidate(const rf_geomod_terrain_view *view,void *c
     }
     if(tree->node_count)for(j=0;j<3;j++)if(!isfinite(tree->nodes[0].minimum[j]) ||
         !isfinite(tree->nodes[0].maximum[j]) || tree->nodes[0].minimum[j]>tree->nodes[0].maximum[j])return RF_FORMAT;
-    return scene_terrain_subdivide_mode(s,view,0);
+    status=scene_terrain_subdivide_mode(s,view,0);if(status)return status;
+    return c->player?rf_checkpoint_standing_check(view,c->player,scene_step_seconds,rf_scene_actor_movement_values.speed,NULL):RF_OK;
 }
 /* Matches rf_checkpoint_file_validate without a transport dependency. */
-static int scene_checkpoint_validate(const void *input,uint32_t bytes,void *context)
+static int scene_checkpoint_validate_player(const void *input,uint32_t bytes,void *context,const rf_checkpoint_placement *player)
 {
     scene_stream *s=context;const unsigned char *data=input;
     uint32_t admission,maps,faces,core,i,j,at,x=0,y=0,row=0;uint64_t expected;rf_random_state chain={1};
-    scene_checkpoint_validation candidate;int status;
+    scene_checkpoint_validation candidate;int status;candidate.player=player;
     if(!s || !data)return RF_FORMAT;
     if(!s->terrain || s->terrain_shadow_reference || bytes<SCENE_CHECKPOINT_HEADER || memcmp(data,"RFDS",4) ||
        checkpoint_u32(data+4)!=1 || checkpoint_u32(data+8)!=bytes || checkpoint_u32(data+12))return RF_FORMAT;
@@ -9433,6 +9659,9 @@ static int scene_checkpoint_validate(const void *input,uint32_t bytes,void *cont
     status=scene_checkpoint_materials_mode(data+SCENE_CHECKPOINT_HEADER,core,0,0,0);if(status)return status;
     return rf_geomod_terrain_history_check(s->terrain,data+SCENE_CHECKPOINT_HEADER,core,scene_checkpoint_candidate,&candidate);
 }
+static int scene_checkpoint_validate(const void *input,uint32_t bytes,void *context)
+{return scene_checkpoint_validate_player(input,bytes,context,NULL);}
+
 #ifndef RF_IMAGE_XBOX_NATIVE
 static void scene_checkpoint_binding_hash(checkpoint_sha *hash,const rf_preview_surface_lightmap *binding)
 {
@@ -9476,6 +9705,14 @@ static int scene_checkpoint_audit_hash(scene_stream *s,const void *data,uint32_t
     for(i=0;i<s->terrain_draw->view.vertex_count;i++){RFDS_HASH(s->terrain_draw->vertices[i].position);RFDS_HASH(s->terrain_draw->vertices[i].uv);}
     for(i=0;i<s->terrain_draw->view.face_count;i++){RFDS_HASH(s->terrain_draw->faces[i].first);RFDS_HASH(s->terrain_draw->faces[i].count);RFDS_HASH(s->terrain_draw->faces[i].material);RFDS_HASH(s->terrain_draw->faces[i].source_face);}
     RFDS_HASH(rf_scene_geomod);RFDS_HASH(rf_scene_terrain_noise);RFDS_HASH(rf_scene_terrain_atlas);RFDS_HASH(rf_scene_terrain_draw);
+    RFDS_HASH(scene_actor_body.state.position);RFDS_HASH(scene_actor_body.state.next_position);RFDS_HASH(scene_actor_body.state.orientation);RFDS_HASH(scene_actor_body.state.next_orientation);RFDS_HASH(scene_actor_body.state.velocity);RFDS_HASH(scene_actor_body.state.world_tensor);
+    RFDS_HASH(scene_actor_body.spheres.items);RFDS_HASH(scene_actor_body.spheres.count);
+    for(i=0;i<scene_actor_body.spheres.count;i++){RFDS_HASH(scene_actor_body.spheres.items[i].center);RFDS_HASH(scene_actor_body.spheres.items[i].radius);RFDS_HASH(scene_actor_body.spheres.items[i].parameter_10);RFDS_HASH(scene_actor_body.spheres.items[i].opaque_14);}
+    RFDS_HASH(campaign_player_inventory.owned);RFDS_HASH(campaign_player_inventory.reserve);RFDS_HASH(campaign_player_inventory.loaded);
+    RFDS_HASH(campaign_player_damage.state.effects.health);RFDS_HASH(campaign_player_damage.state.effects.armor);RFDS_HASH(campaign_import_pending);RFDS_HASH(campaign_explicit_unarmed);RFDS_HASH(campaign_equipped_slot);
+    RFDS_HASH(campaign_player_import.inventory.owned);RFDS_HASH(campaign_player_import.inventory.reserve);RFDS_HASH(campaign_player_import.inventory.loaded);RFDS_HASH(campaign_player_import.health);RFDS_HASH(campaign_player_import.armor);RFDS_HASH(campaign_player_import.weapon);RFDS_HASH(campaign_player_import.catalog_hash);
+    RFDS_HASH(actor_look.state.body_angles);RFDS_HASH(actor_look.state.eye_angles);RFDS_HASH(actor_look.state.command);RFDS_HASH(actor_look.state.angular_velocity);RFDS_HASH(actor_look.state.pending_pitch);RFDS_HASH(actor_look.state.pending_yaw);RFDS_HASH(s->player_checkpoint_look);
+
 #undef RFDS_HASH
     checkpoint_sha_end(&h,out);return RF_OK;
 }
@@ -9562,9 +9799,12 @@ static int scene_checkpoint_restore(scene_stream *s,unsigned char *data,uint32_t
     if(!s->terrain_atlas_registered)s->terrain_atlas_index=s->light_rgb.count;
     return scene_checkpoint_registered(s);
 }
+#include "scene_player_checkpoint.inc"
 #ifdef RF_IMAGE_XBOX_NATIVE
 static rf_xbox_checkpoint_storage scene_checkpoint_hdd;
-static uint32_t scene_checkpoint_hdd_save;
+static uint32_t scene_checkpoint_hdd_save,scene_checkpoint_hdd_observe;
+uint32_t rf_scene_checkpoint_fallback_before_storage[8],rf_scene_checkpoint_fallback_after_storage[8];
+uint32_t rf_scene_checkpoint_fallback_before_slots[6],rf_scene_checkpoint_fallback_after_slots[6];
 static int scene_checkpoint_flag(const char *path,uint32_t *found)
 {
     FILE *file;*found=0;errno=0;file=fopen(path,"rb");
@@ -9576,7 +9816,7 @@ static int scene_checkpoint_flag(const char *path,uint32_t *found)
 static int scene_checkpoint_hdd_close(void)
 {
     uint32_t saved[8];int status;
-    scene_checkpoint_hdd_save=0;
+    scene_checkpoint_hdd_save=scene_checkpoint_hdd_observe=0;
     if(!scene_checkpoint_hdd.mounted)return RF_OK;
     memcpy(saved,rf_xbox_checkpoint_storage_state,sizeof(saved));
     status=rf_xbox_checkpoint_storage_close(&scene_checkpoint_hdd);
@@ -9587,31 +9827,50 @@ static int scene_checkpoint_hdd_close(void)
 static int scene_checkpoint_begin(scene_stream *s,const rf_level *level)
 {
     const char *path=NULL;FILE *file;long length=0;int status,tail;uint32_t hash;
+    if(rf_scene_player_checkpoint_enabled && !s->player_checkpoint_started){
+        scene_checkpoint_release();s->player_checkpoint_level=level;memset(rf_scene_player_checkpoint_state,0,sizeof(rf_scene_player_checkpoint_state));
+        rf_scene_player_checkpoint_state[0]=1;rf_scene_player_checkpoint_state[4]=SCENE_PLAYER_CHECKPOINT_PROFILE;
+        if(!rf_scene_dev_room_enabled || rf_scene_water_test_enabled || !campaign_spawn || !s->terrain)return RF_RANGE;
+        return scene_checkpoint_identity(s,level);
+    }
     scene_checkpoint_release();memset(rf_scene_geomod_checkpoint_state,0,sizeof(rf_scene_geomod_checkpoint_state));memset(rf_scene_geomod_checkpoint_memory,0,sizeof(rf_scene_geomod_checkpoint_memory));
 #ifdef RF_IMAGE_XBOX_NATIVE
     {
-        uint32_t load=0,save=0,staged=0,bytes=0;
+        uint32_t load=0,save=0,staged=0,bytes=0,seed=0,observe=0;
         status=scene_checkpoint_hdd_close();if(status)goto done;
         scene_checkpoint_hdd_save=0;memset(rf_xbox_checkpoint_storage_state,0,sizeof(rf_xbox_checkpoint_storage_state));
         status=scene_checkpoint_flag("D:\\geomod-hdd-load.flag",&load);if(status)goto done;
         status=scene_checkpoint_flag("D:\\geomod-hdd-save.flag",&save);if(status)goto done;
-        if(load || save) {
+        status=scene_checkpoint_flag("D:\\geomod-fallback-seed.flag",&seed);if(status)goto done;
+        status=scene_checkpoint_flag("D:\\geomod-fallback-observe.flag",&observe);if(status)goto done;
+        memset(rf_scene_checkpoint_fallback_before_storage,0,sizeof(rf_scene_checkpoint_fallback_before_storage));
+        memset(rf_scene_checkpoint_fallback_after_storage,0,sizeof(rf_scene_checkpoint_fallback_after_storage));
+        memset(rf_scene_checkpoint_fallback_before_slots,0,sizeof(rf_scene_checkpoint_fallback_before_slots));
+        memset(rf_scene_checkpoint_fallback_after_slots,0,sizeof(rf_scene_checkpoint_fallback_after_slots));
+        if((seed && (load || save || observe)) || (observe && (!load || !save))){status=RF_FORMAT;goto done;}
+        if(load || save || seed) {
             if(!rf_scene_dev_room_enabled || !s->terrain || s->terrain_shadow_reference){status=RF_RANGE;goto done;}
             status=scene_checkpoint_flag("D:\\geomod-checkpoint.bin",&staged);if(status)goto done;
             if(staged){status=RF_FORMAT;goto done;}
             status=scene_checkpoint_identity(s,level);if(status)goto done;
-            status=rf_xbox_checkpoint_storage_open(&scene_checkpoint_hdd,save);if(status)goto done;
+            status=rf_xbox_checkpoint_storage_open(&scene_checkpoint_hdd,save || seed);if(status)goto done;
+            if(seed){status=rf_xbox_checkpoint_fixture_seed(&scene_checkpoint_hdd);goto done;}
             status=scene_checkpoint_allocate(SCENE_CHECKPOINT_MAX);if(status)goto done;
-            status=rf_xbox_checkpoint_storage_load(&scene_checkpoint_hdd,rf_scene_geomod_checkpoint_data,SCENE_CHECKPOINT_MAX,&bytes,scene_checkpoint_validate,s);
+            status=rf_xbox_checkpoint_storage_load(&scene_checkpoint_hdd,rf_scene_geomod_checkpoint_data,SCENE_CHECKPOINT_MAX,&bytes,scene_checkpoint_dispatch_validate,s);
             if(status==RF_NOT_FOUND && !load)status=RF_OK; /* First save; empty protected token. */
+            if(!status && observe) {
+                status=rf_xbox_checkpoint_fixture_hash_slots(&scene_checkpoint_hdd);if(status)goto done;
+                memcpy(rf_scene_checkpoint_fallback_before_storage,rf_xbox_checkpoint_storage_state,sizeof(rf_scene_checkpoint_fallback_before_storage));
+                memcpy(rf_scene_checkpoint_fallback_before_slots,rf_xbox_checkpoint_fixture_slots,sizeof(rf_scene_checkpoint_fallback_before_slots));
+            }
             if(!status && load) {
                 hash=npc_hash_bytes(2166136261u,rf_scene_geomod_checkpoint_data,bytes);
-                status=scene_checkpoint_restore(s,rf_scene_geomod_checkpoint_data,bytes);
+                status=scene_checkpoint_dispatch_restore(s,rf_scene_geomod_checkpoint_data,bytes);
                 if(!status){rf_scene_geomod_checkpoint_state[1]=bytes;rf_scene_geomod_checkpoint_state[2]=hash;
                     printf("GEOMOD_CHECKPOINT_HDD_LOAD %u %u %u\n",bytes,scene_checkpoint_hdd.selection.generation,scene_checkpoint_hdd.selection.slot);}
             }
             scene_checkpoint_release();
-            if(!status)scene_checkpoint_hdd_save=save;
+            if(!status){scene_checkpoint_hdd_save=save;scene_checkpoint_hdd_observe=observe;}
             goto done;
         }
     }
@@ -9640,7 +9899,7 @@ static int scene_checkpoint_begin(scene_stream *s,const rf_level *level)
     if(fclose(file) && !status)status=RF_IO;
     if(!status) {
         hash=npc_hash_bytes(2166136261u,rf_scene_geomod_checkpoint_data,(uint32_t)length);
-        status=scene_checkpoint_restore(s,rf_scene_geomod_checkpoint_data,(uint32_t)length);
+        status=scene_checkpoint_dispatch_restore(s,rf_scene_geomod_checkpoint_data,(uint32_t)length);
         if(!status){rf_scene_geomod_checkpoint_state[1]=(uint32_t)length;rf_scene_geomod_checkpoint_state[2]=hash;printf("GEOMOD_CHECKPOINT_LOAD %u %08x %u %u\n",(uint32_t)length,hash,s->terrain_history_count,s->terrain_noise->count);}
     }
     scene_checkpoint_release();
@@ -9651,7 +9910,8 @@ done:
 static int scene_checkpoint_capture(scene_stream *s)
 {
     FILE *file;scene_terrain_noise_owner *owner=s->terrain_noise;rf_geomod_terrain_view view;
-    uint32_t core,bytes,at,i,j,k;unsigned char *p;int status=RF_OK;
+    uint32_t core,bytes,at,i,j,k,prefix=rf_scene_player_checkpoint_enabled?SCENE_PLAYER_CHECKPOINT_PREFIX:0;unsigned char *p;int status=RF_OK;
+    rf_player_checkpoint player;rf_player_checkpoint_catalog catalog;
 #ifndef RF_IMAGE_XBOX_NATIVE
     const char *path=getenv("RF_REPLAY_GEOMOD_CHECKPOINT_OUT");if(!path || !*path)return RF_OK;
 #else
@@ -9662,7 +9922,11 @@ static int scene_checkpoint_capture(scene_stream *s)
     status=rf_geomod_terrain_history_size(s->terrain,&core);if(status)goto done;
     if(s->terrain_history_count>128 || owner->count>1024 || view.mesh.face_count>SCENE_TERRAIN_FACES){status=RF_RANGE;goto done;}
     bytes=SCENE_CHECKPOINT_HEADER+core+s->terrain_history_count*48+owner->count*88+view.mesh.face_count*2;
-    status=scene_checkpoint_allocate(bytes);if(status)goto done;p=rf_scene_geomod_checkpoint_data;memset(p,0,bytes);
+    if(prefix){
+        if(bytes>RF_COMPOSED_CHECKPOINT_RFDS_MAX){status=RF_RANGE;goto done;}
+        status=scene_checkpoint_player_capture(s,&player,&catalog);if(status)goto done;
+    }
+    status=scene_checkpoint_allocate(bytes+prefix);if(status)goto done;p=rf_scene_geomod_checkpoint_data+prefix;memset(p,0,bytes);
     memcpy(p,"RFDS",4);checkpoint_put(p+4,1);checkpoint_put(p+8,bytes);
     if(strlen(campaign_current_level)>=64){status=RF_RANGE;goto done;}memcpy(p+16,campaign_current_level,strlen(campaign_current_level));memcpy(p+80,s->terrain_checkpoint_identity,128);
     checkpoint_put(p+208,s->terrain_texture_width);checkpoint_put(p+212,s->terrain_texture_height);
@@ -9694,6 +9958,12 @@ static int scene_checkpoint_capture(scene_stream *s)
         }
         p[at]=(unsigned char)map;p[at+1]=(unsigned char)(map>>8);
     }
+    if(prefix){
+        uint32_t total;
+        status=rf_composed_checkpoint_encode(SCENE_PLAYER_CHECKPOINT_PROFILE,&player,&catalog,p,bytes,rf_scene_geomod_checkpoint_data,bytes+prefix,&total);if(status)goto done;
+        rf_scene_player_checkpoint_state[5]=bytes;bytes=total;p=rf_scene_geomod_checkpoint_data;
+        status=scene_checkpoint_dispatch_validate(p,bytes,s);if(status)goto done;
+    }
 #ifndef RF_IMAGE_XBOX_NATIVE
     {
         char temporary[1024];size_t length=strlen(path);
@@ -9708,19 +9978,37 @@ static int scene_checkpoint_capture(scene_stream *s)
 #endif
 #ifdef RF_IMAGE_XBOX_NATIVE
     if(scene_checkpoint_hdd_save) {
-        status=rf_xbox_checkpoint_storage_store(&scene_checkpoint_hdd,p,bytes,scene_checkpoint_validate,s);if(status)goto done;
+        status=rf_xbox_checkpoint_storage_store(&scene_checkpoint_hdd,p,bytes,scene_checkpoint_dispatch_validate,s);if(status)goto done;
+        if(scene_checkpoint_hdd_observe) {
+            status=rf_xbox_checkpoint_fixture_hash_slots(&scene_checkpoint_hdd);if(status)goto done;
+            memcpy(rf_scene_checkpoint_fallback_after_storage,rf_xbox_checkpoint_storage_state,sizeof(rf_scene_checkpoint_fallback_after_storage));
+            memcpy(rf_scene_checkpoint_fallback_after_slots,rf_xbox_checkpoint_fixture_slots,sizeof(rf_scene_checkpoint_fallback_after_slots));
+        }
         printf("GEOMOD_CHECKPOINT_HDD_SAVE %u %u %u\n",bytes,scene_checkpoint_hdd.selection.generation,scene_checkpoint_hdd.selection.slot);
     }
 #endif
     rf_scene_geomod_checkpoint_state[1]=bytes;rf_scene_geomod_checkpoint_state[2]=npc_hash_bytes(2166136261u,p,bytes);rf_scene_geomod_checkpoint_state[3]=1;
+    if(prefix){rf_scene_player_checkpoint_state[2]=1;printf("PLAYER_CHECKPOINT_SAVE %u %u %u\n",bytes,rf_scene_player_checkpoint_state[5],scene_actor_body.spheres.count);}
     printf("GEOMOD_CHECKPOINT_SAVE %u %08x %u %u\n",bytes,rf_scene_geomod_checkpoint_state[2],s->terrain_history_count,owner->count);
 done:
+    if(prefix)rf_scene_player_checkpoint_state[3]=(uint32_t)status;
     rf_scene_geomod_checkpoint_state[0]=(uint32_t)status;if(status){scene_checkpoint_release();printf("GEOMOD_CHECKPOINT_ERROR save %d\n",status);}return status;
 }
 static int scene_terrain_input(scene_stream *s,const float position[3],const float orientation[3][3])
 {
     uint32_t pressed=player_input.use && player_input.alt_fire?(player_input.crouch?2:1):0,matched;int status=RF_OK;
     if(!s->terrain)return RF_OK;
+    if(s->terrain_authored) {
+        if(pressed==2 && !s->terrain_held) {
+            rf_checkpoint_placement_result fit={UINT32_MAX,RF_CHECKPOINT_PLACEMENT_UNSUPPORTED,0};
+            ++rf_scene_geomod[6];status=scene_terrain_authored_reset(s,&fit);
+            rf_scene_geomod[5]=(uint32_t)status;if(!status)++rf_scene_geomod[7];
+            printf("AUTHORED_RESET %d %u %u %u %u\n",status,fit.sphere,fit.reason,
+                rf_scene_geomod[1],s->terrain_publication_serial);
+            if(status!=RF_OK && status!=RF_RANGE && status!=RF_FORMAT && status!=RF_NOT_FOUND)return status;
+        }
+        s->terrain_held=pressed;if(pressed)player_input.alt_fire=0;return RF_OK;
+    }
     if(pressed && !s->terrain_held) {
         rf_geometry_world_hit hit;float delta[3],extent[3]={2,2.5f,2};uint32_t i;
         ++rf_scene_geomod[6];
@@ -9754,13 +10042,13 @@ static int scene_terrain_input(scene_stream *s,const float position[3],const flo
                 memset(rf_scene_terrain_bake,0,sizeof(rf_scene_terrain_bake));
                 scene_terrain_dirty(s,0,0,512,512);
             }
-            if(!status && s->debris){memset(s->debris,0,sizeof(*s->debris));s->debris->random.value=1;memset(rf_scene_debris,0,sizeof(rf_scene_debris));memset(rf_scene_debris_relaunch,0,sizeof(rf_scene_debris_relaunch));rf_scene_debris[6]=sizeof(*s->debris);}
+            if(!status && s->debris){memset(s->debris,0,sizeof(*s->debris));s->debris->random.value=1;rf_debris_audio_init(&s->debris->audio);memset(rf_scene_debris_audio,0,sizeof(rf_scene_debris_audio));memset(rf_scene_debris,0,sizeof(rf_scene_debris));memset(rf_scene_debris_relaunch,0,sizeof(rf_scene_debris_relaunch));memset(rf_scene_debris_wet,0,sizeof(rf_scene_debris_wet));rf_scene_debris_wet[3]=UINT32_MAX;rf_scene_debris[6]=sizeof(*s->debris);}
             if(!status){status=scene_terrain_bind(s);if(status)return status;++rf_scene_geomod[7];}
         } else {
         for(i=0;i<3;i++)delta[i]=orientation[2][i]*100;
         status=rf_geometry_collision_world_ray(s->collision,0x460,position,delta,1,&hit,&matched);
         if(status)return status;
-        if(matched && hit.room==0) {
+        if(matched && hit.room==s->terrain_collision.room) {
             status=rf_geomod_terrain_cut_box(s->terrain,hit.hit.point,extent,s->terrain_material);
             if(!status){status=scene_terrain_bind(s);if(status)return status;++rf_scene_geomod[7];}
         }
@@ -9797,6 +10085,14 @@ static int scene_rocket_sweep(void *context,const float start[3],const float del
 }
 /* DEV integration: recovered chunk/count/launch helpers with provisional
  * point-sweep bounce, spin and recovered age/fade; sound/material parity remains open. */
+static int scene_debris_room_query(void *context,const float point[3],uint32_t *room)
+{
+    scene_stream *s=context;rf_collision_room_location location;int status;
+    status=rf_geometry_collision_world_locate(s->collision,point,&location);if(status)return status;
+    /* UINT32_MAX is a legitimate outside result; authored room0 is valid. */
+    if(location.room!=UINT32_MAX && location.room>=s->collision->room_count)return RF_FORMAT;
+    *room=location.room;return RF_OK;
+}
 static int scene_debris_prepare(scene_stream *s,const rf_weapon_flight_contact *contact,float radius)
 {
     scene_debris_pool *p=s->debris;uint32_t i,k,matched;int status;
@@ -9822,7 +10118,23 @@ static int scene_debris_prepare(scene_stream *s,const rf_weapon_flight_contact *
     rf_scene_debris_relaunch[6]=p->random.value;
     if(rf_scene_combat_trace)printf("DEBRIS_RELAUNCH %u %u %u %u %u %u %u %u\n",rf_scene_debris_relaunch[0],rf_scene_debris_relaunch[1],
         rf_scene_debris_relaunch[2],rf_scene_debris_relaunch[3],rf_scene_debris_relaunch[4],rf_scene_debris_relaunch[5],rf_scene_debris_relaunch[6],rf_scene_debris_relaunch[7]);
-    for(k=0;k<3;k++)p->origin[k]=contact->hit.point[k]+contact->hit.normal[k]*radius*.1f;
+    {
+        uint32_t before=p->random.value;
+        uint32_t fallback=contact->room<s->collision->room_count?contact->room:UINT32_MAX;
+        rf_geomod_debris_burst_room selected;
+        /*48fe9b..48ff91: select once per burst, after old-fragment relaunch.
+         * The admitted contact room supplies the reconstruction's fallback.
+         * Overlay rebuilds preserve room ordering; no borrowed tree pointers. */
+        p->selected_room.room=UINT32_MAX;p->selected_room.queries=p->selected_room.used_fallback=0;
+        status=rf_geomod_debris_select_room(contact->hit.point,contact->hit.normal,radius,fallback,
+            scene_debris_room_query,s,&p->random,&selected);
+        if(rf_scene_combat_trace)printf("DEBRIS_ROOM %u %u %u %u %u %d\n",
+            status?UINT32_MAX:selected.room,status?0:selected.queries,status?0:selected.used_fallback,
+            before,p->random.value,status);
+        if(status)return status; /* Helper preserves RNG on query errors; pending is already0. */
+        p->selected_room=selected;memcpy(p->origin,selected.origin,12);
+        if(selected.room==UINT32_MAX)return RF_OK; /* Outside with no fallback: no new chunks. */
+    }
     status=rf_geomod_debris_probe_points(p->origin,radius,p->endpoints);if(status)return status;
     for(i=0;i<14;i++) {
         rf_collision_room_hit hit;float delta[3];
@@ -9844,21 +10156,94 @@ static int scene_debris_spawn(scene_stream *s)
 {
     scene_debris_pool *p=s->debris;int32_t i;uint32_t k;int status;
     if(!p)return RF_OK;
+    if(p->pending>0 && p->selected_room.room>=s->collision->room_count)return RF_FORMAT;
     for(i=0;i<p->pending;i++) {
         scene_debris_chunk *c=p->chunks+p->next;rf_geomod_debris_birth_result birth;rf_geometry_world_hit hit;uint32_t matched;
         if(c->active)++rf_scene_debris[7];p->next=(p->next+1)%80;
         status=rf_geomod_debris_birth(p->blast_radius,&p->random,&birth);if(status)return status;
-        status=rf_geometry_collision_world_ray(s->collision,0x460,p->origin,birth.displacement,1,&hit,&matched);if(status)return status;
-        for(k=0;k<3;k++)c->position[k]=matched?hit.hit.point[k]+hit.hit.normal[k]*.002f:p->origin[k]+birth.displacement[k];
+        /*49000b..490036:48fc10 uses internal flags5, point radius0;
+         * solid hits copy the returned point without a normal offset. */
+        status=rf_geometry_collision_world_ray(s->collision,RF_GEOMOD_DEBRIS_QUERY_FLAGS,p->origin,birth.displacement,1,&hit,&matched);if(status)return status;
+        for(k=0;k<3;k++)c->position[k]=matched?hit.hit.point[k]:p->origin[k]+birth.displacement[k];
+        if(!matched) {
+            const rf_liquid_room *room;rf_geomod_debris_liquid_hit wet;uint32_t accepted;
+            ++rf_scene_debris_wet[0];rf_scene_debris_wet[3]=p->selected_room.room;
+            rf_scene_debris_wet[6]=0;rf_scene_debris_wet[7]=0;
+            /*48fc6e: retained birth-room presence, not liquid type. Dry rows
+             * have NAN metadata; raw operands survive source/CSG rebuilds. */
+            if(!s->liquid_rooms || p->selected_room.room>=s->swim_room_count) {
+                rf_scene_debris_wet[6]=(uint32_t)RF_FORMAT;return RF_FORMAT;
+            }
+            room=s->liquid_rooms+p->selected_room.room;
+            if(isfinite(room->minimum_y) && isfinite(room->depth)) {
+                ++rf_scene_debris_wet[1];rf_scene_debris_wet[7]=1;
+                status=rf_geomod_debris_liquid_miss(p->origin,c->position,1,room->depth,room->minimum_y,&wet,&accepted);
+                rf_scene_debris_wet[6]=(uint32_t)status;if(status)return status;
+                if(accepted) {
+                    ++rf_scene_debris_wet[2];memcpy(rf_scene_debris_wet+4,&wet.fraction,4);
+                    rf_scene_debris_wet[5]=npc_hash_bytes(2166136261u,wet.point,12);
+                    /*49002a..490036 copies this historical reverse-interpolated
+                     * point only for birth. Ongoing movement is unchanged. */
+                    memcpy(c->position,wet.point,12);
+                    if(rf_scene_combat_trace)printf("DEBRIS_WET_HIT %u %.9g %.9g %.9g %.9g\n",
+                        p->selected_room.room,wet.fraction,wet.point[0],wet.point[1],wet.point[2]);
+                }
+            }
+        }
         c->radius=birth.radius;c->resistance=birth.resistance;c->bounces=birth.bounces;
+        /*49001c assigns birth room. Movement/relaunch intentionally retain it. */
+        c->room=p->selected_room.room;
         memcpy(c->axis,birth.axis,12);c->spin=birth.spin;c->angle=0;
         status=rf_geomod_debris_build(c->radius,s->terrain_texture_width,s->terrain_texture_height,&p->random,&c->mesh);if(status)return status;
         status=rf_geomod_debris_launch(c->position,p->origin,c->radius,c->resistance,&p->random,c->velocity);if(status)return status;
         c->age=0;c->alpha=255;c->active=1;c->detail_marked=0;++rf_scene_debris[0];
     }
+    if(rf_scene_combat_trace)printf("DEBRIS_WET %u %u %u %u %u %u %u %u\n",rf_scene_debris_wet[0],rf_scene_debris_wet[1],
+        rf_scene_debris_wet[2],rf_scene_debris_wet[3],rf_scene_debris_wet[4],rf_scene_debris_wet[5],rf_scene_debris_wet[6],rf_scene_debris_wet[7]);
     p->pending=0;return RF_OK;
 }
-static int scene_debris_tick(scene_stream *s)
+/*48f4e0 groups floor impacts after the complete debris list. Selection and
+ * cooldown consume the existing debris RNG, before subsequent frame births.
+ * Playback failure cannot retry/reset the already committed aggregate. */
+static int scene_debris_audio_flush(scene_stream *s,uint32_t frame)
+{
+    scene_debris_pool *p=s->debris;const int32_t *samples=NULL;uint32_t count=0;
+    rf_debris_audio_request request;int status;int32_t now=(int32_t)(((uint64_t)frame*1000/60)%RF_TIMER_PERIOD);
+    if(campaign_debris_sound_group>=0 && (uint32_t)campaign_debris_sound_group<campaign_foley.group_count) {
+        const rf_foley_group *g=campaign_foley.groups+campaign_debris_sound_group;
+        if(g->first>campaign_foley.sample_count || g->count>campaign_foley.sample_count-g->first)return RF_FORMAT;
+        samples=campaign_foley.samples+g->first;count=g->count;
+    }
+    rf_scene_debris_audio[7]=p->random.value;
+    status=rf_debris_audio_dispatch(&p->audio,now,samples,count,&p->random,&request);
+    rf_scene_debris_audio[8]=p->random.value;rf_scene_debris_audio[9]=(uint32_t)p->audio.count;
+    rf_scene_debris_audio[10]=(uint32_t)p->audio.deadline;rf_scene_debris_audio[12]=(uint32_t)status;
+    if(status)return status;if(!request.ready)return RF_OK;
+    ++rf_scene_debris_audio[1];rf_scene_debris_audio[6]=(uint32_t)request.sample;
+    memcpy(rf_scene_debris_audio+13,&request.gain,4);
+    rf_scene_debris_audio[11]=npc_hash_bytes(rf_scene_debris_audio[11]?rf_scene_debris_audio[11]:2166136261u,&request,sizeof(request));
+    if(request.sample<0 || (uint32_t)request.sample>=campaign_audio_bank.count)status=RF_NOT_FOUND;
+    else if(!rf_audio_bank_sample(&campaign_audio_bank,(uint32_t)request.sample)) {
+        status=campaign_ambient_reload((uint32_t)request.sample);
+        if(!status) {
+            if((uint32_t)request.sample<sizeof(campaign_audio_evictable))campaign_audio_evictable[request.sample]=1;
+            ++rf_scene_sound_bank[1];rf_scene_sound_bank[2]+=campaign_audio_bank.samples[request.sample].bytes;
+            rf_scene_live_audio[1]=campaign_audio_bank.bytes;
+            ++rf_scene_debris_audio[3];rf_scene_debris_audio[4]+=campaign_audio_bank.samples[request.sample].bytes;
+        }
+    }
+    if(!status) {
+        if(campaign_sound_start(request.sample,request.position,request.gain,0,1,0)<0)status=RF_RANGE;
+        else ++rf_scene_debris_audio[2];
+    }
+    rf_scene_debris_audio[12]=(uint32_t)status;if(status)++rf_scene_debris_audio[5];
+    if(rf_scene_combat_trace)printf("DEBRIS_AUDIO_EVENT %u %u %u %u %u %u %u %.9g %.9g %.9g %.9g %d\n",
+        rf_scene_debris_audio[0],rf_scene_debris_audio[1],rf_scene_debris_audio[2],rf_scene_debris_audio[5],
+        rf_scene_debris_audio[6],rf_scene_debris_audio[7],rf_scene_debris_audio[8],
+        request.position[0],request.position[1],request.position[2],request.gain,status);
+    return RF_OK; /* Missing PCM/device voices cannot stop destruction. */
+}
+static int scene_debris_tick(scene_stream *s,uint32_t frame)
 {
     scene_debris_pool *p=s->debris;uint32_t i,k,matched;int status;
     if(!p)return RF_OK;rf_scene_debris[1]=0;
@@ -9869,6 +10254,15 @@ static int scene_debris_tick(scene_stream *s)
         for(k=0;k<3;k++)delta[k]=c->velocity[k]/60.f;
         status=rf_geometry_collision_world_ray(s->collision,0x460,c->position,delta,1,&hit,&matched);if(status)return status;
         if(matched) {
+            uint32_t wet=0,contributed=0;const rf_liquid_room *room;
+            if(!s->liquid_rooms || c->room>=s->swim_room_count)return RF_FORMAT;
+            room=s->liquid_rooms+c->room;
+            /* Inclusive predicate at hit point; contribution uses old chunk
+             * position and incoming velocity, including terminal settling. */
+            if(isfinite(room->minimum_y) && isfinite(room->depth))
+                wet=hit.hit.point[1] <= (double)room->minimum_y+room->depth;
+            status=rf_debris_audio_contact(&p->audio,c->position,c->velocity,hit.hit.normal[1],wet,&contributed);
+            if(status)return status;rf_scene_debris_audio[0]+=contributed;
             for(k=0;k<3;k++)c->position[k]=hit.hit.point[k]+hit.hit.normal[k]*.002f;
             ++rf_scene_debris[2];
             if(hit.hit.normal[1]>=.7f && c->bounces && !--c->bounces) {
@@ -9883,8 +10277,10 @@ static int scene_debris_tick(scene_stream *s)
         } else for(k=0;k<3;k++)c->position[k]+=delta[k];
         if(c->bounces)c->velocity[1]-=scene_gravity.acceleration/60.f;++rf_scene_debris[1];
     }
-    return RF_OK;
+    /* Original48f4e0 skips its dispatch tail when the debris list is empty. */
+    return rf_scene_debris[1]?scene_debris_audio_flush(s,frame):RF_OK;
 }
+#include "scene_debris_render_plane.inc"
 static int scene_debris_draw(scene_stream *s)
 {
     scene_debris_pool *p=s->debris;uint32_t order[80],count=0,i,f,j,k,start=s->mesh->count;float depths[80];int status;
@@ -9900,7 +10296,8 @@ static int scene_debris_draw(scene_stream *s)
         scene_debris_chunk *c=p->chunks+order[i];rf_geomod_mesh_view mesh={0};rf_preview_mesh emitted={0};
         float cosine=cosf(c->angle),sine=sinf(c->angle);rf_geomod_debris_lifecycle life;
         /*48fd70 ages at draw submission;48f900 settling starts the fade. */
-        status=rf_geomod_debris_age(c->age,c->mesh.lifetime,1.f/60,0,&life);if(status)return status;
+        status=rf_geomod_debris_age(c->age,c->mesh.lifetime,1.f/60,0,&life);
+        if(status){printf("DEBRIS_DRAW_FAILURE age %u %d %.9g %.9g\n",order[i],status,c->age,c->mesh.lifetime);return status;}
         c->age=life.age;c->alpha=life.alpha;
         if(life.removed){c->active=0;++rf_scene_debris[3];continue;}
         if(!c->alpha)continue;
@@ -9915,9 +10312,13 @@ static int scene_debris_draw(scene_stream *s)
             }
         }
         mesh.vertices=p->vertices;mesh.faces=p->faces;mesh.vertex_count=36;mesh.face_count=12;
-        status=rf_geomod_collision_faces(&mesh,p->filters,p->positions,36,p->bound,12);if(status)return status;
+        for(f=0;f<12;f++) {
+            status=scene_debris_render_plane(p->vertices+f*3,p->bound+f);
+            if(status){printf("DEBRIS_DRAW_FAILURE plane %u %u %d\n",order[i],f,status);return status;}
+        }
         emitted.vertices=s->mesh->vertices+s->mesh->count;
-        status=rf_preview_geomod(&emitted,s->capacity-s->mesh->bytes,&mesh,p->bound,s->materials->count,&s->rocket_camera);if(status)return status;
+        status=rf_preview_geomod(&emitted,s->capacity-s->mesh->bytes,&mesh,p->bound,s->materials->count,&s->rocket_camera);
+        if(status){printf("DEBRIS_DRAW_FAILURE preview %u %d %.9g %u\n",order[i],status,c->age,c->alpha);return status;}
         if(c->alpha<255)for(j=0;j<emitted.count;j++) {
             emitted.vertices[j].lightmap=RF_PREVIEW_FADE_TAG|c->alpha;
             for(k=0;k<3;k++)emitted.vertices[j].color[k]=1;
@@ -10030,7 +10431,7 @@ static int scene_impacts_tick(scene_stream *s,uint32_t frame)
 static int scene_rockets_tick(scene_stream *s,uint32_t frame)
 {
     uint32_t i;int status;rf_scene_rockets[3]=0;
-    status=scene_debris_tick(s);if(status)return status;
+    status=scene_debris_tick(s,frame);if(status)return status;
     status=scene_impacts_tick(s,frame);if(status)return status;
     for(i=0;i<SCENE_ROCKETS;i++)if(s->rockets[i].active) {
         rf_weapon_flight_event event;rf_weapon_flight_liquid_event movement;
@@ -10057,7 +10458,7 @@ static int scene_rockets_tick(scene_stream *s,uint32_t frame)
             /* Original concave crater template in the explicit DEV cavity. Impact effects
              * and authored surface eligibility remain separate. */
             /* Original4670c3 gates requested radius before hardness scaling. */
-            if(s->terrain && event.contact.room==0 && campaign_rocket.crater_radius>=1.0f) {
+            if(s->terrain && event.contact.room==s->terrain_collision.room && campaign_rocket.crater_radius>=1.0f) {
                 uint32_t timing_row=rf_scene_geomod[6]%8,timing_clock=0;
                 memset(rf_scene_terrain_edit_times[timing_row],0,sizeof(rf_scene_terrain_edit_times[0]));rf_scene_terrain_edit_times[timing_row][0]=frame;
                 ++rf_scene_geomod[6];
@@ -10093,16 +10494,74 @@ static int scene_rockets_tick(scene_stream *s,uint32_t frame)
                      if(profile_clock && profile_active)timing_clock=profile_clock();
                      status=scene_debris_prepare(s,&event.contact,hardness.scale*s->terrain_template->radius);if(status)return status;
                      scene_terrain_edit_mark(timing_row,3,&timing_clock);
-                     status=rf_geomod_terrain_cut_template_limits(s->terrain,s->terrain_template,adjusted,basis,
+                     status=s->terrain_authored?scene_terrain_authored_template_edit(s,adjusted,basis,
+                         hardness.scale,limits,limit_count):rf_geomod_terrain_cut_template_limits(s->terrain,s->terrain_template,adjusted,basis,
                          hardness.scale,s->terrain_material,limits,limit_count);
                      scene_terrain_edit_mark(timing_row,1,&timing_clock);
                  }}
                 rf_scene_geomod[5]=(uint32_t)status;
-                if(!status){status=scene_terrain_bind(s);scene_terrain_edit_mark(timing_row,2,&timing_clock);if(status)return status;++rf_scene_geomod[7];++rf_scene_rockets[4];status=scene_debris_spawn(s);scene_terrain_edit_mark(timing_row,4,&timing_clock);if(status)return status;}
+                if(!status){status=s->terrain_authored?RF_OK:scene_terrain_bind(s);scene_terrain_edit_mark(timing_row,2,&timing_clock);if(status)return status;++rf_scene_geomod[7];++rf_scene_rockets[4];status=scene_debris_spawn(s);scene_terrain_edit_mark(timing_row,4,&timing_clock);if(status)return status;}
                 else {++rf_scene_rockets[5];if(status!=RF_RANGE && status!=RF_FORMAT && status!=RF_NOT_FOUND)return status;}
             }
         }
         if(s->rockets[i].active)++rf_scene_rockets[3];
+    }
+    return RF_OK;
+}
+/* Explicit carry/save state is published only after catalog and selection checks. */
+static int campaign_player_import_apply(void)
+{
+    rf_campaign_player_state imported;uint32_t slot=0,i;int found=0,status;
+    status=rf_campaign_player_copy(&imported,&campaign_player_import,rf_scene_weapon_supply[3]);if(status)return status;
+    if(imported.weapon==UINT32_MAX)found=1;
+    else for(i=0;i<scene_weapon_slots();i++)if(imported.weapon==(uint32_t)campaign_slot_weapon(i)){slot=i;found=1;break;}
+    if(!found)return RF_FORMAT;
+    campaign_player_inventory=imported.inventory;
+    campaign_player_damage.state.effects.health=imported.health;
+    campaign_player_damage.state.effects.armor=imported.armor;
+    campaign_select_primary(slot);campaign_explicit_unarmed=imported.weapon==UINT32_MAX;
+    campaign_ammo_publish();campaign_import_pending=0;campaign_import_applied=1;return RF_OK;
+}
+static void campaign_player_export_capture(void)
+{
+    rf_campaign_player_state state;
+    state.inventory=campaign_player_inventory;
+    state.health=campaign_player_damage.state.effects.health;state.armor=campaign_player_damage.state.effects.armor;
+    state.weapon=!campaign_explicit_unarmed && campaign_player_inventory.owned[campaign_selected_weapon()]?(uint32_t)campaign_selected_weapon():UINT32_MAX;
+    state.catalog_hash=rf_scene_weapon_supply[3];
+    campaign_export_valid=rf_campaign_player_copy(&campaign_player_export,&state,state.catalog_hash)==RF_OK;
+}
+static uint32_t campaign_cycle_primary(void)
+{
+    uint32_t step;
+    for(step=1;step<=scene_weapon_slots();step++){
+        uint32_t candidate=(campaign_equipped_slot+step)%scene_weapon_slots();int32_t id=campaign_slot_weapon(candidate);
+        if(campaign_player_inventory.owned[id] && (candidate!=campaign_equipped_slot || campaign_explicit_unarmed)){
+            campaign_select_primary(candidate);return 1;
+        }
+    }
+    return 0;
+}
+static int campaign_inventory_initialize(void)
+{
+    uint32_t i;int status;
+    if(!campaign_inventory_ready) {
+        campaign_inventory_ready=1;
+        for(i=0;i<campaign_item_pending_count;i++){status=campaign_apply_item_grant(campaign_item_pending+i);if(status)return status;}
+        campaign_item_pending_count=0;
+        if(rf_scene_dev_room_enabled && !campaign_import_applied) {
+            if(strcmp(campaign_current_level,rf_scene_water_test_enabled?"dm03.rfl":"glass_house.rfl") &&
+               (rf_scene_water_test_enabled || strcmp(campaign_current_level,"ctf06.rfl")))return RF_FORMAT;
+            /* Developer supply only: ordinary weapon limits, firing and reloads. */
+            for(i=0;i<scene_weapon_slots();i++) {
+                int32_t id=campaign_slot_weapon(i);
+                const rf_weapon_acquire_definition *d=campaign_weapon_supply.definitions+id;
+                status=rf_weapon_acquire_sp(&campaign_player_inventory,d,id,-1);if(status)return status;
+                if(d->ammo_type<0 || d->ammo_type>=32)return RF_FORMAT;
+                campaign_player_inventory.reserve[d->ammo_type]=d->capacity;
+            }
+            campaign_ammo_publish();
+        }
     }
     return RF_OK;
 }
@@ -10120,35 +10579,11 @@ static int campaign_combat_tick(scene_stream *stream,uint32_t frame,const float 
         memset(rf_scene_player_ammo,0,sizeof(rf_scene_player_ammo));memset(&campaign_player_inventory,0,sizeof(campaign_player_inventory));
         status=campaign_ammo_reset();if(status)return status;
         campaign_export_valid=0;
-        if(campaign_import_pending) {
-            rf_campaign_player_state imported;
-            status=rf_campaign_player_copy(&imported,&campaign_player_import,rf_scene_weapon_supply[3]);if(status)return status;
-            if(imported.weapon!=(uint32_t)campaign_pistol_id && imported.weapon!=(uint32_t)campaign_rifle_id && imported.weapon!=(uint32_t)campaign_riot_id && imported.weapon!=(uint32_t)campaign_shotgun_id && imported.weapon!=UINT32_MAX)return RF_FORMAT;
-            campaign_player_inventory=imported.inventory;
-            campaign_player_damage.state.effects.health=imported.health;
-            campaign_player_damage.state.effects.armor=imported.armor;
-            campaign_select_primary(imported.weapon==(uint32_t)campaign_shotgun_id?3:imported.weapon==(uint32_t)campaign_riot_id?2:imported.weapon==(uint32_t)campaign_rifle_id);
-            campaign_ammo_publish();campaign_import_pending=0;
-        }
+        campaign_import_applied=0;
+        if(campaign_import_pending){status=campaign_player_import_apply();if(status)return status;}
         for(i=0;i<campaign_npc_body_count;i++){campaign_pursuit_stop(campaign_npc_bodies+i);campaign_npc_bodies[i].combat_navigation_due=0;campaign_npc_bodies[i].combat_scripted=campaign_npc_bodies[i].combat_target=campaign_npc_bodies[i].combat_alert=campaign_npc_bodies[i].combat_due=0;}
 }
-    if(!campaign_inventory_ready) {
-        campaign_inventory_ready=1;
-        for(i=0;i<campaign_item_pending_count;i++){status=campaign_apply_item_grant(campaign_item_pending+i);if(status)return status;}
-        campaign_item_pending_count=0;
-        if(rf_scene_dev_room_enabled) {
-            if(strcmp(campaign_current_level,rf_scene_water_test_enabled?"dm03.rfl":"glass_house.rfl"))return RF_FORMAT;
-            /* Developer supply only: ordinary weapon limits, firing and reloads. */
-            for(i=0;i<scene_weapon_slots();i++) {
-                int32_t id=campaign_slot_weapon(i);
-                const rf_weapon_acquire_definition *d=campaign_weapon_supply.definitions+id;
-                status=rf_weapon_acquire_sp(&campaign_player_inventory,d,id,-1);if(status)return status;
-                if(d->ammo_type<0 || d->ammo_type>=32)return RF_FORMAT;
-                campaign_player_inventory.reserve[d->ammo_type]=d->capacity;
-            }
-            campaign_ammo_publish();
-        }
-    }
+    status=campaign_inventory_initialize();if(status)return status;
     if(rf_scene_dev_room_enabled) {
         uint32_t refill=player_input.use && player_input.reload;
         if(refill && !dev_refill_held) {
@@ -10171,15 +10606,7 @@ static int campaign_combat_tick(scene_stream *stream,uint32_t frame,const float 
     status=campaign_weapon_drops_tick(stream,position);rf_scene_weapon_drops[7]=(uint32_t)status;if(status)return status;
     status=campaign_pickups_tick(stream,position);rf_scene_pickups[7]=(uint32_t)status;if(status)return status;
     if(player_input.cycle_weapon && !weapon_cycle_held && campaign_player_damage.state.effects.health>0) {
-        uint32_t next=campaign_equipped_slot,step;int32_t id;
-        for(step=1;step<scene_weapon_slots();step++) {
-            uint32_t candidate=(campaign_equipped_slot+step)%scene_weapon_slots();
-            id=campaign_slot_weapon(candidate);
-            if(campaign_player_inventory.owned[id]){next=candidate;break;}
-        }
-        id=campaign_slot_weapon(next);
-        if(next!=campaign_equipped_slot && campaign_player_inventory.owned[id]) {
-            campaign_select_primary(next);
+        if(campaign_cycle_primary()) {
             memset(&combat_trigger,0,sizeof(combat_trigger));combat_trigger.held=!!player_input.fire;
             rf_scene_combat[6]=0;++rf_scene_weapon_selection[1];campaign_ammo_publish();
         }
@@ -10191,7 +10618,7 @@ static int campaign_combat_tick(scene_stream *stream,uint32_t frame,const float 
     status=campaign_enemy_tick(stream,frame,position);rf_scene_enemy_combat[7]=(uint32_t)status;if(status)return status;
     memcpy(rf_scene_pickup_vitals,&campaign_player_damage.state.effects.health,4);memcpy(rf_scene_pickup_vitals+1,&campaign_player_damage.state.effects.armor,4);
     rf_scene_riot[0]=0;
-    if(!campaign_player_inventory.owned[campaign_selected_weapon()])return RF_OK;
+    if(campaign_explicit_unarmed || !campaign_player_inventory.owned[campaign_selected_weapon()])return RF_OK;
     alt=(campaign_equipped_slot==1 || campaign_equipped_slot==2 || campaign_equipped_slot==3) && player_input.alt_fire && !player_input.fire;
     /* Rifle alternate is authored continuous fire, not the primary burst.
      * Switching to it cancels pending burst rounds but retains cooldown. */
@@ -10485,6 +10912,18 @@ static int actor_follow_view(void *context,uint32_t frame,const rf_motion_contro
     const rf_scene_world_geometry *render_world;
     uint32_t *r=rf_scene_actor_follow_frames[frame%64];int status;
     uint32_t world_clock=0;profile_mark(1);
+    if(!frame && rf_scene_player_checkpoint_enabled){
+        if(!stream->player_checkpoint_level)return RF_RANGE;
+        stream->player_checkpoint_started=1;
+        status=scene_checkpoint_begin(stream,stream->player_checkpoint_level);
+        rf_scene_player_checkpoint_state[3]=(uint32_t)status;if(status)return status;
+    }
+    /* Animation creates the actual body/eye before this callback, but skips
+     * player_stance at frame0. Retain its real controller for scene initialization. */
+    if(campaign_spawn && !frame) {
+        if(!controller)return RF_RANGE;
+        stream->initial_swim_controller=*controller;stream->initial_swim_controller_ready=1;
+    }
     if(profile_clock && profile_active)world_clock=profile_clock();
     status=actor_listener_pose(stream,frame,controller,position,orientation);if(status){rf_scene_profile_stage[1]=101;return status;}
     render_world=stream->terrain && rf_scene_geomod[1]?&stream->terrain_render:actor_follow_world;
@@ -10571,7 +11010,7 @@ static int actor_follow_view(void *context,uint32_t frame,const rf_motion_contro
      if(status){rf_scene_profile_stage[1]=108;return status;}
      if(stream->terrain && rf_scene_geomod[1]) {
         rf_geomod_terrain_view terrain;rf_preview_mesh generated={0};rf_level camera={0};
-        status=rf_geomod_terrain_get(stream->terrain,&terrain);if(status)return status;
+        status=stream->terrain_authored?scene_terrain_publication_view(stream,&terrain):rf_geomod_terrain_get(stream->terrain,&terrain);if(status)return status;
         if(world_mesh.bytes>stream->capacity-1024*1024)return RF_RANGE;
         generated.vertices=world_mesh.vertices+world_mesh.count;
         memcpy(camera.player_position,position,12);memcpy(camera.player_orientation,orientation,36);
@@ -12190,7 +12629,7 @@ static int scene_player_weapon_draw(scene_stream *stream,uint32_t frame)
     rf_model_clip_planes planes={0};rf_model_clip_projection projection={0};
     uint32_t batch,k,start;int status,request=-1;
     if(!frame)memset(rf_scene_player_weapon,0,sizeof(rf_scene_player_weapon));
-    if(!campaign_player_inventory.owned[campaign_selected_weapon()]){rf_scene_player_weapon[2]=0;stream->player_slot=UINT32_MAX;return RF_OK;}
+    if(campaign_explicit_unarmed || !campaign_player_inventory.owned[campaign_selected_weapon()]){rf_scene_player_weapon[2]=0;stream->player_slot=UINT32_MAX;return RF_OK;}
     if(!w)return RF_OK;
     if(!frame || stream->player_slot!=campaign_equipped_slot)request=0;
     else if(rf_scene_combat[6]>stream->player_reload)request=2;
@@ -12677,6 +13116,14 @@ static int scene_frame(void *context,uint32_t frame,rf_preview_mesh *actor)
         rf_scene_actor_contact_count=0;memset(rf_scene_actor_contacts,0,sizeof(rf_scene_actor_contacts));
         memset(rf_scene_actor_landing,0,sizeof(rf_scene_actor_landing));
         rf_scene_actor_landing[0]=0x52464c44;rf_scene_actor_landing[1]=3;rf_scene_actor_landing[2]=UINT32_MAX;
+        scene_checkpoint_player_locomotion();
+        if(campaign_spawn) {
+            if(!stream->initial_swim_controller_ready)return RF_FORMAT;
+            status=campaign_swim_update(stream,0,&stream->initial_swim_controller);
+            rf_scene_player_swim[11]=(uint32_t)status;if(status)return status;
+            /* The first physics tick must consume initialized cached room/wet
+             * state, just as later ticks consume the preceding refresh. */
+        }
         /* Save initialized locomotion and pose, not the earlier camera-preparation state. */
         if(campaign_spawn){status=campaign_life_capture();if(status)return status;}
     }
@@ -12747,19 +13194,13 @@ static int scene_frame(void *context,uint32_t frame,rf_preview_mesh *actor)
         status=scene_weapon_draw(stream,frame);presentation_mark(2,&presentation_clock);if(status){rf_scene_profile_stage[1]=203;return status;}
         status=scene_pickups_draw(stream);presentation_mark(3,&presentation_clock);if(status){rf_scene_profile_stage[1]=204;return status;}
         status=scene_rockets_draw(stream,frame);rf_scene_rocket_visual[6]=(uint32_t)status;if(status){rf_scene_profile_stage[1]=207;return status;}
-        status=scene_debris_draw(stream);if(status)return status;
-        status=scene_ripples_draw(stream,frame);rf_scene_ripple_visual[6]=(uint32_t)status;if(status)return status;
+        status=scene_debris_draw(stream);if(status){rf_scene_profile_stage[1]=208;return status;}
+        status=scene_ripples_draw(stream,frame);rf_scene_ripple_visual[6]=(uint32_t)status;if(status){rf_scene_profile_stage[1]=209;return status;}
         status=scene_player_weapon_draw(stream,frame);presentation_mark(4,&presentation_clock);if(status){rf_scene_profile_stage[1]=205;return status;}
         particle_draw_stream=stream;
         status=stream->sink(stream->context,frame,stream->mesh,stream->materials,stream->world);
         particle_draw_stream=NULL;presentation_mark(5,&presentation_clock);if(status){rf_scene_profile_stage[1]=206;return status;}
-        if(campaign_spawn) {
-            rf_campaign_player_state state;
-            state.inventory=campaign_player_inventory;
-            state.health=campaign_player_damage.state.effects.health;state.armor=campaign_player_damage.state.effects.armor;
-            state.weapon=campaign_player_inventory.owned[campaign_selected_weapon()]?(uint32_t)campaign_selected_weapon():UINT32_MAX;state.catalog_hash=rf_scene_weapon_supply[3];
-            campaign_export_valid=rf_campaign_player_copy(&campaign_player_export,&state,state.catalog_hash)==RF_OK;
-        }
+        if(campaign_spawn)campaign_player_export_capture();
         presentation_mark(6,&presentation_clock);profile_mark(6);
         if(profile_clock && profile_active)step_clock=profile_clock();
         if(stream->collision && frame+1<rf_scene_actor_frame_count) {
@@ -12831,6 +13272,7 @@ static int scene_frame(void *context,uint32_t frame,rf_preview_mesh *actor)
             memcpy(next.position,rf_scene_actor_pose.position,12);memcpy(next.next_position,rf_scene_actor_pose.pending,12);
             memcpy(next.bounds.minimum,rf_scene_actor_pose.minimum,12);memcpy(next.bounds.maximum,rf_scene_actor_pose.maximum,12);
             scene_actor_body.state=next;
+            if(campaign_spawn){status=campaign_liquid_damage_tick(stream,frame,particle_now);if(status)return status;}
             step_profile_mark(1,&step_clock);
             /* 433260 dispatches authored light timers after physics, before events.
              * Owned replay timing; complete original frame gates/RNG order remain. */
@@ -13071,6 +13513,7 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
     status=rf_vpp_open(&archive,meshes_path);if(status)return status;
     stream=calloc(1,sizeof(*stream));if(!stream){rf_vpp_close(&archive);return RF_RANGE;}
     stream->world=mesh->count;stream->base=materials->count;stream->geometry=geometry;
+    status=campaign_swim_open(stream,geometry);if(status)goto done;
     if(campaign_spawn) {
         rf_entity_skeletal_assets *assets=malloc(sizeof(*assets));
         if(!assets){status=RF_IO;goto done;}
@@ -13098,10 +13541,12 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
         status=rf_entity_physics_config_load(&tables,binding.entity.class_name,512*1024,&physics_config);
         if(!status && campaign_spawn) {
             campaign_force_class_flags=physics_config.authored.flags;campaign_force_class_kind=physics_config.authored.use_kind;
+            campaign_player_material=physics_config.material.index;
             campaign_force_air_limit=0;memset(rf_scene_force_ticks,0,sizeof(rf_scene_force_ticks));
             status=rf_camera_effect_reset(&campaign_camera_effect,0);
             if(!status)status=rf_screen_flash_reset(&campaign_player_flash);
             if(!status)status=campaign_player_damage_open(&tables,binding.entity.class_name,&physics_config.authored);
+            if(!status)status=rf_game_liquid_damage_load(&tables,65536,campaign_liquid_damage_rates);
         }
         if(!status && collision)status=rf_movement_descriptor_load(&tables,physics_config.authored.movement_index,65536,rf_scene_actor_movement);
         if(!status && collision)status=rf_movement_descriptor_load(&tables,3,65536,rf_scene_actor_movement+1);
@@ -13624,6 +14069,32 @@ done:
     rf_level_owned_navigation_close(&campaign_navigation);
     free(campaign_waypoints);campaign_waypoints=NULL;campaign_waypoint_bytes=0;
 #ifndef RF_IMAGE_XBOX_NATIVE
+    if(stream->terrain_publication && getenv("RF_REPLAY_AUTHORED_PUBLICATION_OUT")) {
+        scene_publication_bank *bank=stream->terrain_publication->banks+stream->terrain_publication->active;
+        uint32_t counts[2]={bank->mesh.vertex_count,bank->mesh.face_count};
+        FILE *file=fopen(getenv("RF_REPLAY_AUTHORED_PUBLICATION_OUT"),"wb");int audit=RF_OK;
+        if(!file)audit=RF_IO;
+        else {
+            if(fwrite("RGP1",1,4,file)!=4 || fwrite(counts,4,2,file)!=2 ||
+               fwrite(bank->mesh.vertices,sizeof(*bank->mesh.vertices),counts[0],file)!=counts[0] ||
+               fwrite(bank->mesh.faces,sizeof(*bank->mesh.faces),counts[1],file)!=counts[1] ||
+               fwrite(bank->origins,sizeof(*bank->origins),counts[1],file)!=counts[1])audit=RF_IO;
+            if(fclose(file))audit=RF_IO;
+        }
+        printf("AUTHORED_PUBLICATION_EXPORT %d %u %u\n",audit,counts[0],counts[1]);
+        if(!status)status=audit;
+    }
+    if(stream->terrain_authored && getenv("RF_REPLAY_AUTHORED_HISTORY_OUT")) {
+        uint32_t count=0;unsigned char *data=NULL;FILE *file=NULL;int saved_status=status;
+        int audit=rf_geomod_terrain_history_size(stream->terrain,&count);
+        if(!audit && count>12380) audit=RF_RANGE;
+        if(!audit){data=malloc(count);if(!data)audit=RF_IO;}
+        if(!audit)audit=rf_geomod_terrain_history_encode(stream->terrain,data,count);
+        if(!audit){file=fopen(getenv("RF_REPLAY_AUTHORED_HISTORY_OUT"),"wb");if(!file)audit=RF_IO;}
+        if(file){if(fwrite(data,1,count,file)!=count)audit=RF_IO;if(fclose(file))audit=RF_IO;}
+        free(data);printf("AUTHORED_HISTORY_EXPORT %d %u %d\n",audit,count,saved_status);
+        if(!status)status=audit;
+    }
     if(!status && getenv("RF_REPLAY_TERRAIN_PHYSICAL_SNAPSHOT")) {
         rf_geomod_terrain_view snapshot;FILE *file=NULL;uint32_t counts[2];
         status=rf_geomod_terrain_get(stream->terrain,&snapshot);
@@ -13664,8 +14135,8 @@ done:
     if(!stream->terrain_atlas_registered)rf_image_close(&stream->terrain_atlas);
     if(status && stream->terrain_noise)printf("NOISE_FAILURE %d %u %u %u %u %u %u\n",status,stream->terrain_noise->count,stream->terrain_noise->bake,stream->terrain_noise->sample,stream->terrain_noise->x,stream->terrain_noise->y,stream->terrain_noise->generation);
     free(stream->terrain_noise);free(stream->terrain_atlas_pixels);free(stream->terrain_tile);free(stream->terrain_bindings);free(stream->terrain_tiles);
-    rf_geometry_collision_overlay_close(&stream->terrain_collision);rf_geomod_terrain_close(&stream->terrain);free(stream->terrain_template);free(stream->terrain_colors);free(stream->terrain_regions);free(stream->terrain_light_cache);free(stream->terrain_ids);free(stream->terrain_draw);free(stream->debris);
-    free(stream->surface_indices);free(states);if(motions_opened)rf_vpp_close(&motions);
+    free(stream->terrain_face_offsets);rf_geometry_collision_overlay_close(&stream->terrain_collision);scene_terrain_publication_close(&stream->terrain_publication);rf_geomod_terrain_close(&stream->terrain);scene_terrain_authored_close(&stream->terrain_authored);free(stream->terrain_template);free(stream->terrain_colors);free(stream->terrain_regions);free(stream->terrain_light_cache);free(stream->terrain_ids);free(stream->terrain_draw);free(stream->debris);
+    free(stream->liquid_rooms);free(stream->surface_indices);free(states);if(motions_opened)rf_vpp_close(&motions);
     free(vertices);free(items);rf_preview_close(&actor);rf_model_materials_close(&bundle);
     rf_vpp_close(&archive);free(stream);return status;
 }

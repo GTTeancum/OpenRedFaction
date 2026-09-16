@@ -289,6 +289,12 @@ static int plane_mesh(const rf_geomod_mesh_view *m, float (*planes)[4]) {
     }
     return RF_OK;
 }
+/* Bounded ordinary-world profile: original4dbeed synchronizes detail bit8
+ * from the room, and4dc4cb/4dc86a reject detail/positive-portal candidates.
+ * Collision filters alone do not enforce those gates during reconstructed CSG. */
+static int ordinary_source(const rf_collision_face_filter *f) {
+    return f->owner_present && !f->owner_kind && !(f->face_flags & 12u) && f->property_34 <= 0;
+}
 static int import_brush(const unsigned char *data, const brush_record *b, const rf_geometry *g,
                         rf_geomod_vertex *v, rf_geomod_face *f, rf_geomod_publication_origin *origins,
                         float (*planes)[4], rf_collision_face_filter *filters, uint32_t fallback) {
@@ -315,8 +321,12 @@ static int import_brush(const unsigned char *data, const brush_record *b, const 
             s = rf_geometry_initial_collision_filter(g, ref == UINT32_MAX ? fallback : ref, 0, filters + i);
             if (s)
                 return s;
+            if (!ordinary_source(filters + i))
+                return RF_NOT_FOUND;
             filters[i].face_flags = u32(p + 40);
             filters[i].property_34 = portal >= 32768 ? (int32_t)portal - 65536 : (int32_t)portal;
+            if (!ordinary_source(filters + i))
+                return RF_NOT_FOUND;
         }
         at += 56;
         for (j = 0; j < count; j++) {
@@ -467,6 +477,16 @@ int rf_geomod_authored_post_decode(const void *input, uint32_t bytes, const rf_g
         if (f.room != 3 || f.corners < 3 || f.corners > 64) {
             s = RF_NOT_FOUND;
             goto done;
+        }
+        {
+            rf_collision_face_filter filter;
+            s = rf_geometry_initial_collision_filter(g, i, 0, &filter);
+            if (s)
+                goto done;
+            if (!ordinary_source(&filter)) {
+                s = RF_NOT_FOUND;
+                goto done;
+            }
         }
         if (fallback == UINT32_MAX)
             fallback = i;

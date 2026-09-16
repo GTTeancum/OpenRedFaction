@@ -209,6 +209,9 @@ int rf_movement_descriptor_load(rf_vpp *tables,uint32_t index,uint32_t budget,rf
 /* game.tbl $Max Entity Jump Height from 433dd0/433e94. Decimal parser is
  * shared with authored class numbers; no NXDK strtod stub. Output preserved
  * on missing/duplicate/invalid height. Loader uses one bounded scratch block. */
+/* game.tbl433dd0 hazard rates: output lava then acid. */
+int rf_game_liquid_damage_read(const void *text,uint32_t bytes,float rates[2]);
+int rf_game_liquid_damage_load(rf_vpp *tables,uint32_t budget,float rates[2]);
 int rf_game_jump_height_read(const void *text,uint32_t bytes,float *height);
 int rf_game_jump_height_load(rf_vpp *tables,uint32_t budget,float *height);
 
