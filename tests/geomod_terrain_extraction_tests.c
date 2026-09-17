@@ -1,3 +1,4 @@
+#include "rf/checkpoint_placement.h"
 #include "rf/geomod_piece_bank.h"
 #include <stdio.h>
 #include <stdlib.h>
@@ -98,6 +99,47 @@ static void registry_lifetime(const rf_geomod_mesh_view *mesh,const rf_collision
         query.limit=1;query.matrix[0][0]=NAN;matched=99;
         CHECK(rf_geomod_piece_registry_body_sweep(r,&query,1,&hit,&matched)!=RF_OK);
         CHECK(matched==99 && !memcmp(&hit,&before,sizeof(hit)));body->state.velocity[2]=0;
+    }
+    {
+        const rf_collision_face *face=piece.collision;float center[3]={0},test_center[3];
+        rf_physics_sphere sphere={0};rf_checkpoint_placement placement={0};uint32_t n,k;
+        for(n=0;n<face->count;n++)for(k=0;k<3;k++)center[k]+=face->vertices[n][k]/face->count;
+        for(n=0;n<4;n++) {
+            const float distance[]={1,.1f,.04f,-.3f};int expected=n<2?RF_OK:RF_NOT_FOUND;
+            for(k=0;k<3;k++)test_center[k]=center[k]+distance[n]*face->plane[k];
+            CHECK(rf_checkpoint_solid_sphere_check(piece.collision,piece.mesh.face_count,0,test_center,.1f,NULL)==expected);
+        }
+        sphere.radius=.1f;placement.spheres=&sphere;placement.count=1;
+        placement.basis[0]=placement.basis[4]=placement.basis[8]=1;
+        for(k=0;k<3;k++)placement.position[k]=body->state.position[k]+center[k]-.3f*face->plane[k];
+        CHECK(rf_geomod_piece_registry_placement_check(r,&placement)==RF_NOT_FOUND);
+        for(k=0;k<3;k++)placement.position[k]=body->state.position[k]+center[k]+face->plane[k];
+        CHECK(!rf_geomod_piece_registry_placement_check(r,&placement));
+        /* Tilt the solid and rotate an offset player sphere independently.
+         * The same local clear/overlap cases must survive both transforms. */
+        {
+            float saved_basis[9];uint32_t j;
+            const float tilted[9]={.8f,.6f,0,-.6f,.8f,0,0,0,1};
+            memcpy(saved_basis,body->state.orientation,sizeof(saved_basis));
+            memcpy(body->state.orientation,tilted,sizeof(tilted));
+            memset(placement.basis,0,sizeof(placement.basis));
+            placement.basis[1]=1;placement.basis[3]=-1;placement.basis[8]=1;
+            sphere.center[0]=.25f;sphere.center[1]=-.5f;sphere.center[2]=.125f;
+            for(n=0;n<4;n++) {
+                const float distance[]={1,.1f,.04f,-.3f};
+                for(k=0;k<3;k++)test_center[k]=center[k]+distance[n]*face->plane[k];
+                for(k=0;k<3;k++) {
+                    placement.position[k]=body->state.position[k];
+                    for(j=0;j<3;j++)placement.position[k]+=test_center[j]*tilted[j*3+k]-sphere.center[j]*placement.basis[j*3+k];
+                }
+                CHECK(rf_geomod_piece_registry_placement_check(r,&placement)==(n<2?RF_OK:RF_NOT_FOUND));
+            }
+            memcpy(body->state.orientation,saved_basis,sizeof(saved_basis));
+        }
+        {rf_checkpoint_placement_result value={123,456,789},saved=value;
+         test_center[0]=NAN;
+         CHECK(rf_checkpoint_solid_sphere_check(piece.collision,piece.mesh.face_count,0,test_center,.1f,&value)!=RF_OK);
+         CHECK(!memcmp(&value,&saved,sizeof(value)));}
     }
     bytes=rf_geomod_piece_registry_bytes(r);
     CHECK(!rf_geomod_piece_registry_begin(r,0));

@@ -111,6 +111,10 @@ static int scene_authored_checkpoint_stage_prepare(scene_stream *s,const void *i
         full=p->publication;full.faces=composition.tree->faces;full.tree=p->lighting->candidate.tree;
         full.mesh.face_count=composition.count;
         status=rf_checkpoint_standing_check(&full,player,scene_step_seconds,rf_scene_actor_movement_values.speed,NULL);
+        if(!status) {
+            status=rf_geomod_piece_registry_placement_check(p->pieces,player);
+            if(status)printf("DETACHED_PLAYER_RESTORE_REJECT %d\n",status);
+        }
         if(status==RF_NOT_FOUND)status=RF_FORMAT;if(status)goto failed;
     }
     *out=p;return RF_OK;

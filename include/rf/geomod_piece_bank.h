@@ -111,6 +111,12 @@ typedef struct rf_geomod_registry_body_hit {
 int rf_geomod_piece_registry_body_sweep(const rf_geomod_piece_registry *,
     const rf_collision_body_query *,uint32_t surface_material,
     rf_geomod_registry_body_hit *,uint32_t *matched);
+struct rf_checkpoint_placement;
+/* Extra fit gate after validating the player placement against candidate world.
+ * Tests current chunk poses without moving/allocating owners. RF_NOT_FOUND is
+ * overlap/inside/ambiguous; no support eligibility or player relocation. */
+int rf_geomod_piece_registry_placement_check(const rf_geomod_piece_registry *,
+    const struct rf_checkpoint_placement *);
 /* RFPB1 pointer-free little-endian body snapshot, paired with authenticated
  * terrain history. Canonical prefix/ordinal/piece order must match rebuilt
  * geometry. No allocation. Decode validates every record before any write.

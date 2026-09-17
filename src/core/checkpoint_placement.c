@@ -161,3 +161,37 @@ int rf_checkpoint_standing_check(const rf_geomod_terrain_view *candidate,const r
     if(w.fraction>=1||w.normal[1]<.5f){result.sphere=w.ground.sphere_index;result.reason=RF_CHECKPOINT_PLACEMENT_UNSUPPORTED;if(out)*out=result;return RF_NOT_FOUND;}
     if(out)*out=result;return RF_OK;
 }
+
+int rf_checkpoint_solid_sphere_check(const rf_collision_face *faces,uint32_t count,
+    uint32_t flags,const float center[3],float radius,rf_checkpoint_placement_result *out)
+{
+    rf_checkpoint_placement p={0};placement_work w={0};
+    rf_checkpoint_placement_result result={UINT32_MAX,RF_CHECKPOINT_PLACEMENT_FITS,0};
+    float direction[3]={0,1,0},cosine=.9753f;double length=1,r;uint32_t i,attempt;int status;
+    if(!faces || !count || !center || !isfinite(radius) || radius<=.002 || (flags&0x1180u))return RF_RANGE;
+    p.query_flags=flags;w.placement=&p;
+    for(i=0;i<3;i++){if(!isfinite(center[i]))return RF_FORMAT;w.center[i]=center[i];w.minimum[i]=DBL_MAX;w.maximum[i]=-DBL_MAX;}
+    status=visit_faces(&w,faces,count);if(status)return status;
+    if(!w.faces){if(out)*out=result;return RF_OK;}
+    w.mode=1;w.distance=DBL_MAX;status=visit_faces(&w,faces,count);if(status)return status;
+    r=(double)radius-.002;
+    if(w.distance<r*r){result.reason=RF_CHECKPOINT_PLACEMENT_SURFACE;goto rejected;}
+    for(i=0;i<3;i++)length+=fmax(fabs(w.center[i]-w.minimum[i]),fabs(w.center[i]-w.maximum[i]));
+    if(!isfinite(length) || length>FLT_MAX)return RF_RANGE;
+    for(attempt=0;attempt<16;attempt++) {
+        status=rf_collision_room_direction(direction,cosine,direction);if(status)return status;
+        memset(&w.query,0,sizeof(w.query));w.retry=0;
+        for(i=0;i<3;i++) {
+            volatile float part=direction[i]*(float)length;
+            w.query.start[i]=center[i];w.query.direction[i]=direction[i];w.query.endpoint[i]=center[i]+part;
+            if(!isfinite(w.query.endpoint[i]))return RF_RANGE;
+        }
+        w.mode=2;status=visit_faces(&w,faces,count);if(status)return status;if(!w.retry)break;
+        result.retries++;cosine-=.13579f;if(cosine<-1)cosine=-1;
+    }
+    if(w.retry){result.reason=RF_CHECKPOINT_PLACEMENT_AMBIGUOUS;goto rejected;}
+    if(w.query.selected_face && !w.query.front){result.reason=RF_CHECKPOINT_PLACEMENT_SOLID;goto rejected;}
+    if(out)*out=result;return RF_OK;
+rejected:
+    if(out)*out=result;return RF_NOT_FOUND;
+}

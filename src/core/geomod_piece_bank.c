@@ -1,4 +1,5 @@
 #include "rf/geomod_piece_bank.h"
+#include "rf/checkpoint_placement.h"
 #include <stdlib.h>
 #include <string.h>
 #include <math.h>
@@ -451,4 +452,27 @@ int rf_geomod_piece_registry_body_sweep(const rf_geomod_piece_registry *registry
         memcpy(result.contact.velocity,context.velocity,12);*out=result;
     }
     *matched=found;return RF_OK;
+}
+
+int rf_geomod_piece_registry_placement_check(const rf_geomod_piece_registry *r,const rf_checkpoint_placement *p)
+{
+    uint32_t b,i,n,k,j;int status;
+    if(!p || !p->spheres || !p->count || p->count>8 || (r && r->begun))return RF_RANGE;
+    for(b=0;r && b<r->count;b++)for(i=0;i<r->active[b].batch->count;i++) {
+        const rf_geomod_piece_batch *batch=r->active[b].batch;rf_geomod_owned_piece piece;
+        const rf_physics_body_state *body=&batch->bodies[i].state;
+        status=rf_geomod_piece_bank_get(batch->geometry,i,&piece);if(status)return status;
+        for(n=0;n<p->count;n++) {
+            double world[3];float local[3];
+            for(k=0;k<3;k++) {
+                world[k]=p->position[k];
+                for(j=0;j<3;j++)world[k]+=(double)p->spheres[n].center[j]*p->basis[j*3+k];
+                world[k]-=body->position[k];
+            }
+            for(k=0;k<3;k++)local[k]=(float)(world[0]*body->orientation[k*3]+world[1]*body->orientation[k*3+1]+world[2]*body->orientation[k*3+2]);
+            status=rf_checkpoint_solid_sphere_check(piece.collision,piece.mesh.face_count,p->query_flags,local,p->spheres[n].radius,NULL);
+            if(status)return status;
+        }
+    }
+    return RF_OK;
 }

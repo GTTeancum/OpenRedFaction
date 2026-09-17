@@ -33,4 +33,10 @@ int rf_checkpoint_placement_check(const rf_geomod_terrain_view *,const rf_checkp
  * Full fit runs first. Same pure rollback/output rules; requires standing yaw-only
  * basis (upright Y). This is static support eligibility, not moving-platform state. */
 int rf_checkpoint_standing_check(const rf_geomod_terrain_view *,const rf_checkpoint_placement *,float dt,float class_speed,rf_checkpoint_placement_result *);
+/* Closed outward solid, local-space sphere. Shared .002 clearance tolerance;
+ * rejects surface overlap, interior centers and unresolved edge ambiguity.
+ * Uses nearest polygon/edge distance plus original-derived face classification,
+ * not a zero-motion sweep. Faces must describe one closed oriented component. */
+int rf_checkpoint_solid_sphere_check(const rf_collision_face *,uint32_t count,
+    uint32_t flags,const float center[3],float radius,rf_checkpoint_placement_result *);
 #endif
