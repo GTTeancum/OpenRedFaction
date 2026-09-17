@@ -234,6 +234,17 @@ int rf_physics_solid_propose(rf_physics_body_state *,float dt,float gravity,
  * damping, repeat preparation bypass and15-radian speed cap. Finite nondegenerate
  * basis required. No contact or pose commit; errors preserve the body. */
 int rf_physics_solid_angular_propose(rf_physics_body_state *,float dt);
+typedef enum rf_physics_solid_response {
+    RF_SOLID_CONTACT_IGNORED=0,RF_SOLID_CONTACT_IMPULSE=1,RF_SOLID_CONTACT_STOPPED=2
+} rf_physics_solid_response;
+/*49d330 ordinary nonrigid response after contact admission/pose advance.
+ * Material coefficients and gravity are resolved by caller. Includes stop,
+ * separating/skip/reset gates and friction. Flags4000/100 return NOT_FOUND;
+ * no random-normal/vehicle fallback is invented. Errors preserve all outputs. */
+int rf_physics_solid_contact(rf_physics_body_state *,const float point[3],
+    const float normal[3],const float gravity[3],float elasticity,float friction,
+    rf_physics_solid_response *);
+
 /* 49e7ca..49e8b7 after class-acceleration scaling and movement transform.
  * Caller selects class speed or entity+1488 cap from flag200000. Updates X/Z
  * velocity only; repeat-pass flag1000000 preserves state. No transform,

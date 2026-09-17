@@ -586,6 +586,20 @@ int main(int argc,char **argv)
         }
         return ferror(stdin)?1:0;
     }
+    if(argc==2 && !strcmp(argv[1],"--solid-contact")) {
+        uint32_t flags[3];float v[36];
+        while(fread(flags,sizeof(flags),1,stdin)==1) {
+            rf_physics_body_state state={0};rf_physics_solid_response response;
+            if(fread(v,sizeof(v),1,stdin)!=1)return 2;
+            state.flags=flags[0];state.word_164=flags[1];state.state_124=flags[2];state.mass=v[0];state.coefficients[0]=v[1];state.coefficients[2]=v[2];
+            memcpy(state.position,v+6,12);memcpy(state.velocity,v+9,12);memcpy(state.vector_c8,v+12,12);memcpy(state.mass_vector_d4,v+15,12);
+            memcpy(state.world_tensor,v+18,36);
+            if(rf_physics_solid_contact(&state,v+27,v+30,v+33,v[3],v[4],&response))return 3;
+            if(fwrite(&state.coefficients[0],4,1,stdout)!=1 || fwrite(state.velocity,12,1,stdout)!=1 || fwrite(state.vector_c8,12,1,stdout)!=1 || fwrite(state.mass_vector_d4,12,1,stdout)!=1)return 1;
+            flags[0]=state.flags;flags[1]=state.word_164;flags[2]=state.state_124;if(fwrite(flags,12,1,stdout)!=1)return 1;
+        }
+        return ferror(stdin)?1:0;
+    }
     if(argc==2 && !strcmp(argv[1],"--solid-angular")) {
         uint32_t flags;float v[29];
         while(fread(&flags,4,1,stdin)==1) {

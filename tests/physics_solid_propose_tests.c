@@ -60,5 +60,28 @@ int main(void)
         before=body;CHECK(rf_physics_solid_angular_propose(&body,dt)==RF_RANGE);
         CHECK(!memcmp(&body,&before,sizeof(body)));
     }
-    puts("PASS solid translation/rotation, retry bypass, angular cap and atomic invalid/overflow rejection");return 0;
+    {
+        float point[3]={0,0,0},normal[3]={0,1,0},gravity[3]={0,-9.8f,0};
+        rf_physics_solid_response response;
+        memset(&body,0,sizeof(body));body.mass=2;body.coefficients[0]=1;
+        body.position[1]=.2f;body.velocity[0]=3;body.velocity[1]=-4;
+        body.world_tensor[0]=body.world_tensor[4]=body.world_tensor[8]=1;before=body;
+        CHECK(!rf_physics_solid_contact(&body,point,normal,gravity,.5f,0,&response));
+        CHECK(response==RF_SOLID_CONTACT_IMPULSE && body.velocity[1]==2 && body.velocity[0]==3 && body.coefficients[0]==.8f);
+        CHECK(!memcmp(body.position,before.position,12) && !memcmp(body.world_tensor,before.world_tensor,36));
+        body.coefficients[0]=.04f;body.velocity[1]=-4;body.flags=0x8000003f;
+        CHECK(!rf_physics_solid_contact(&body,point,normal,gravity,.5f,0,&response));
+        CHECK(response==RF_SOLID_CONTACT_STOPPED && body.flags==0x1800003f && body.velocity[0]==0 && body.velocity[1]==0);
+        for(test=0;test<4;test++) {
+            body=before;response=(rf_physics_solid_response)777;point[0]=0;normal[1]=1;
+            if(test==0)body.flags=0x100;
+            if(test==1)body.flags=0x4000;
+            if(test==2)normal[1]=NAN;
+            if(test==3){point[0]=1;body.world_tensor[8]=-100;}
+            {rf_physics_body_state saved_body=body;
+             CHECK(rf_physics_solid_contact(&body,point,normal,gravity,.5f,0,&response)==(test<2?RF_NOT_FOUND:RF_RANGE));
+             CHECK(!memcmp(&body,&saved_body,sizeof(body)) && response==(rf_physics_solid_response)777);}
+        }
+    }
+    puts("PASS solid prediction/contact, settling, unsupported routes and atomic invalid/overflow rejection");return 0;
 }

@@ -916,6 +916,68 @@ int rf_physics_solid_angular_propose(rf_physics_body_state *state,float dt)
     for(i=0;i<9;i++)if(!isfinite(next[i]))return RF_RANGE;
     memcpy(state->mass_vector_d4,momentum,12);memcpy(state->vector_c8,angular,12);memcpy(state->next_orientation,next,36);return RF_OK;
 }
+int rf_physics_solid_contact(rf_physics_body_state *state,const float point[3],
+    const float normal[3],const float gravity[3],float elasticity,float friction,
+    rf_physics_solid_response *response)
+{
+    rf_physics_body_state value;float r[3],spin[3],vp[3],tp[3],tangent[3],jn[3],impulse[3],a[3],b[3];
+    float vn,gn,mu,e,j,budget,len,scale;long double dot,decay,denominator;uint32_t i;
+    if(!state || !point || !normal || !gravity || !response)return RF_RANGE;
+    value=*state;
+    if(value.word_164){value.word_164=0;value.state_124&=~0x1000u;*state=value;*response=RF_SOLID_CONTACT_IGNORED;return RF_OK;}
+    if(value.flags&0x200){*response=RF_SOLID_CONTACT_IGNORED;return RF_OK;}
+    if(value.flags&(0x4000|0x100))return RF_NOT_FOUND;
+    if(!isfinite(value.mass) || value.mass<=0 || !isfinite(elasticity) || elasticity<0 ||
+       !isfinite(friction) || friction<0 || !isfinite(value.coefficients[0]) || value.coefficients[0]<0 ||
+       !isfinite(value.coefficients[2]) || value.coefficients[2]<0)return RF_RANGE;
+    for(i=0;i<9;i++)if(!isfinite(value.world_tensor[i]))return RF_RANGE;
+    for(i=0;i<3;i++) {
+        if(!isfinite(point[i]) || !isfinite(normal[i]) || !isfinite(gravity[i]) || !isfinite(value.position[i]) ||
+           !isfinite(value.velocity[i]) || !isfinite(value.vector_c8[i]) || !isfinite(value.mass_vector_d4[i]))return RF_RANGE;
+        r[i]=(float)((double)point[i]-value.position[i]);
+        spin[i]=(float)(((long double)value.mass_vector_d4[2]*value.world_tensor[6+i]+(long double)value.mass_vector_d4[1]*value.world_tensor[3+i])+(long double)value.mass_vector_d4[0]*value.world_tensor[i]);
+    }
+    solid_cross(spin,r,a);
+    for(i=0;i<3;i++)vp[i]=(float)((double)value.velocity[i]+a[i]);
+    dot=player_contact_dot(normal,vp);if(!isfinite(dot))return RF_RANGE;
+    if(dot>0){*response=RF_SOLID_CONTACT_IGNORED;return RF_OK;}vn=(float)dot;
+    for(i=0;i<3;i++){volatile float n=(float)((double)normal[i]*vn);tp[i]=(float)((double)vp[i]-n);}
+    gn=(float)player_contact_dot(gravity,normal);mu=(float)(((double)friction+value.coefficients[2])*.5);
+    e=(float)((double)elasticity*value.coefficients[0]);decay=(long double)value.coefficients[0]*.8f;
+    value.coefficients[0]=(float)decay;
+    if(decay<.05f || (player_contact_dot(value.velocity,value.velocity)<.25f && player_contact_dot(value.vector_c8,value.vector_c8)<.5f)) {
+        value.flags=(value.flags&0x67ffffffu)|0x18000000u;
+        memset(value.velocity,0,12);memset(value.vector_c8,0,12);memset(value.mass_vector_d4,0,12);
+        *state=value;*response=RF_SOLID_CONTACT_STOPPED;return RF_OK;
+    }
+    solid_cross(r,normal,a);solid_transform(value.world_tensor,a,b);solid_cross(b,r,a);
+    denominator=1/(long double)value.mass+player_contact_dot(normal,a);
+    if(!isfinite(denominator) || denominator<=0)return RF_RANGE;
+    j=(float)(-((1+(long double)e)*vn)/denominator);if(!isfinite(j))return RF_RANGE;
+    for(i=0;i<3;i++)jn[i]=(float)((double)normal[i]*j);
+    budget=(float)(-(long double)mu*value.mass*gn);
+    dot=player_contact_dot(normal,value.velocity);vn=(float)dot;
+    for(i=0;i<3;i++){volatile float n=(float)((double)normal[i]*vn);tangent[i]=(float)((double)value.velocity[i]-n);}
+    len=(float)solid_length(tangent);memcpy(impulse,jn,12);
+    if(len>0) {
+        float cap=(float)((double)len*value.mass);if(!(budget<cap))budget=cap;
+        scale=(float)(-(long double)budget/len);
+        for(i=0;i<3;i++){volatile float f=(float)((double)tangent[i]*scale);impulse[i]=(float)((double)jn[i]+f);}
+    }
+    for(i=0;i<3;i++){volatile float change=(float)((double)impulse[i]/value.mass);value.velocity[i]=(float)((double)value.velocity[i]+change);}
+    len=(float)solid_length(tp);memcpy(impulse,jn,12);
+    if(len>0) {
+        float cap=(float)((double)len*value.mass),amount=budget<cap?budget:cap;
+        scale=(float)(-(long double)amount/len);
+        for(i=0;i<3;i++){volatile float f=(float)((double)tp[i]*scale);impulse[i]=(float)((double)jn[i]+f);}
+    }
+    solid_cross(r,impulse,a);
+    for(i=0;i<3;i++)value.mass_vector_d4[i]=(float)((double)value.mass_vector_d4[i]+a[i]);
+    solid_transform(value.world_tensor,value.mass_vector_d4,value.vector_c8);
+    for(i=0;i<3;i++)if(!isfinite(value.velocity[i]) || !isfinite(value.mass_vector_d4[i]) || !isfinite(value.vector_c8[i]))return RF_RANGE;
+    if(!isfinite(value.coefficients[0]) || !isfinite(budget))return RF_RANGE;
+    *state=value;*response=RF_SOLID_CONTACT_IMPULSE;return RF_OK;
+}
 void rf_physics_body_close(rf_physics_body *body)
 {
     if(body) {rf_physics_spheres_close(&body->spheres);memset(body,0,sizeof(*body));}
