@@ -2,11 +2,11 @@
 
 - USER Repository cleanup: Remove 22 obsolete test ISO/QCOW2 copies totaling30.17GiB listed in artifacts/cleanup-20260917.json; automated deletion is policy-blocked; both HDD harnesses now refuse runs exceeding an8GiB artifact budget before copying/staging, while reports/checkpoints must be preserved.
 
-- PRIORITY GeoMod jump/support: Verify landing and saved standing on intermediate rubble; false world-placement rejection after a deflected jump is fixed by bounded no-hit ray retries, while current jump lands beside the chunk and native acceptance remains open.
+- PRIORITY GeoMod jump/support: Verify intermediate-rubble standing on Xbox; ordinary jumping, saved standing, walking away after reload and missing-support rejection pass on PC with byte-exact continuations.
 
 - Player saves: Verify RFPLv2 residual velocity on Xbox and audit replay save boundaries; the post-jump PC continuation is byte-exact after preserving velocity and resuming input599 after a600-frame save, while legacy zero-velocity RFPLv1 remains compatible.
 
-- PRIORITY GeoMod player contacts: Verify intermediate-size rubble on Xbox and saved standing support; a naturally extracted radius0.530725 chunk produces44 sphere-route PC contacts and exact post-crossing save continuation; movement, ground and checkpoint shapes select spheres for(0.5,1] and polygons above1, with1080 original ground comparisons.
+- PRIORITY GeoMod player contacts: Broaden intermediate-size rubble beyond the tested radius0.530725chunk and verify Xbox behavior; PC standing produces670 sphere-route contacts with exact saved standing/walk-away continuation, while1080 original ground comparisons establish the shared sphere math.
 
 - GeoMod vehicle contacts: Verify admitted use-kind1 vehicle contacts with larger fragments;240 original cases confirm ordinary miner/AI-response kind9 is excluded, so humanoid rubble pushing is not a missing fidelity feature.
 

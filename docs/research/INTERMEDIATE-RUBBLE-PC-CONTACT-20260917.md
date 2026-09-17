@@ -106,3 +106,29 @@ before interpreting their transient-state equivalence.
 Current PC acceptance: jump collision, landing beside rubble, successful save/load,
 and exact continuation. Saved standing on top of rubble and nativeRFPLv2 acceptance
 remain open. No tolerance was added to the byte comparison.
+
+## Natural saved standing now verified on PC
+
+`tools/find_rubble_landing.py` varied only ordinary jump timing and forward input.
+Jump415 with forward input360–449 lands on the original extracted radius0.530725
+chunk. Later jumps420/425 did not pass placement validation; broader approach
+coverage remains open.
+
+`tools/check_intermediate_rubble_standing.py` verifies the complete positive case:
+
+- Saved player position(-4.656934,0.464791,2.634441),270 fragment contacts by frame600.
+- Resumed idle remains at that position with402 new support contacts; uninterrupted
+  frame800 has670 contacts and a byte-identical final RFCP.
+- Walking backwards on resumed frames20–99 leaves the chunk, ending at
+  (2.019286,-0.368479,2.634441). Its RFCP matches the uninterrupted walk-away control.
+- Retiring the sole supporting fragment in a copy of the saved RFCP causes load
+  rejection. The positive standing state therefore depends on fragment support.
+
+The resumed recording begins with the unconsumed input599; the continuous
+walk-away recording excludes the saved replay's unconsumed final input before
+appending the resumed recording. Neither comparison drops or duplicates a step.
+
+Evidence is in `artifacts/geomod-postedit-re/intermediate-rubble-standing/`.
+The PC endpoint image was inspected and shows the elevated first-person view,
+environment, weapon and HUD. This is not a frame-by-frame animation assessment.
+Xbox runtime, broader surfaces and larger chunks still require validation.
