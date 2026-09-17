@@ -20,6 +20,22 @@ static int valid_box(const rf_geomod_changed_box *b)
     uint32_t k;for(k=0;k<3;k++)if(!isfinite(b->minimum[k])||!isfinite(b->maximum[k])||b->minimum[k]>b->maximum[k])return 0;
     return 1;
 }
+int rf_geomod_notify_append_fragment_box(const rf_geomod_changed_box *fragment,
+    const float translation[3],rf_geomod_changed_box boxes[32],uint32_t *count)
+{
+    rf_geomod_changed_box value;uint32_t i;
+    if(!fragment || !translation || !boxes || !count || *count>32)return RF_RANGE;
+    if(!valid_box(fragment))return RF_FORMAT;
+    for(i=0;i<3;i++)if(!isfinite(translation[i]))return RF_FORMAT;
+    if(*count==32)return RF_OK;
+    for(i=0;i<3;i++) {
+        float low=(float)((double)fragment->minimum[i]+translation[i]);
+        float high=(float)((double)fragment->maximum[i]+translation[i]);
+        value.minimum[i]=(float)((double)low-.5);value.maximum[i]=(float)((double)high+.5);
+    }
+    if(!valid_box(&value))return RF_RANGE;
+    boxes[*count]=value;++*count;return RF_OK;
+}
 int rf_geomod_notify_changed_boxes(const rf_geomod_notify_object *object,const rf_geomod_notify_change *change,rf_geomod_notify_result *out)
 {
     rf_geomod_notify_result value;uint32_t i,k;

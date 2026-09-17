@@ -20,6 +20,23 @@ static int debris_cases(void)
  CHECK(rf_geomod_notify_debris(NULL,0,1,2,in+3,2,&age)==RF_RANGE && age==123);
  puts("PASS168 original settled-debris cleanup cases and invalid-input preservation");return 0;
 }
+static int fragment_box_cases(void)
+{
+ static const struct {uint32_t inputs[9],count,output[6];} cases[]={
+#include "fixtures/geomod_changed_box.inc"
+ };
+ rf_geomod_changed_box boxes[32],before[32],fragment;float values[9];uint32_t i,count;
+ for(i=0;i<sizeof(cases)/sizeof(cases[0]);i++) {
+  memset(boxes,0xa5,sizeof(boxes));memcpy(before,boxes,sizeof(boxes));memcpy(values,cases[i].inputs,36);memcpy(&fragment,values,24);count=cases[i].count;
+  CHECK(!rf_geomod_notify_append_fragment_box(&fragment,values+6,boxes,&count));
+  CHECK(count==(cases[i].count<32?cases[i].count+1:32));
+  if(cases[i].count<32)memcpy(before+cases[i].count,cases[i].output,24);
+  CHECK(!memcmp(before,boxes,sizeof(boxes)));
+ }
+ count=0;values[6]=NAN;memcpy(before,boxes,sizeof(boxes));
+ CHECK(rf_geomod_notify_append_fragment_box(&fragment,values+6,boxes,&count)==RF_FORMAT && count==0 && !memcmp(boxes,before,sizeof(boxes)));
+ puts("PASS27 original changed-fragment boxes and capacity/invalid-input preservation");return 0;
+}
 static int radial_cases(void)
 {
  const uint32_t kinds[]={0,1,4,4,4,7},physics[]={0,1,0x10,0x80},flags[]={0x400000,0x400004,0x404000};
@@ -78,5 +95,6 @@ int main(void)
  CHECK(rf_geomod_notify_changed_boxes(NULL,&change,&result)==RF_RANGE&&!memcmp(&result,&kept,sizeof(result)));
  CHECK(!radial_cases());
  CHECK(!debris_cases());
+ CHECK(!fragment_box_cases());
  printf("PASS %u original-derived changed-box rows plus parent/enable/multi-box/unsupported/rollback tests\n",cases);return 0;
 }

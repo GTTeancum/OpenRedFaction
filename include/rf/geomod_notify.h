@@ -2,6 +2,12 @@
 #define RF_GEOMOD_NOTIFY_H
 #include "rf/vpp.h"
 typedef struct rf_geomod_changed_box {float minimum[3],maximum[3];} rf_geomod_changed_box;
+/*466e0a..466ea6: append translated fragment bounds expanded by0.5 on each
+ * side. Translation is rounded before expansion. Capacity is exactly32;
+ * a full list is unchanged. Caller supplies actual extracted-fragment bounds,
+ * not whole-room or cutter bounds. Invalid input preserves list/count. */
+int rf_geomod_notify_append_fragment_box(const rf_geomod_changed_box *fragment,
+    const float translation[3],rf_geomod_changed_box boxes[32],uint32_t *count);
 typedef struct rf_geomod_notify_object {
     uint32_t kind,object_flags,physics_flags,parent_is_kind8;
     rf_geomod_changed_box bounds;
