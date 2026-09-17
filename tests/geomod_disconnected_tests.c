@@ -5,6 +5,56 @@
 #undef main
 #include <math.h>
 #include <float.h>
+#include "rf/geomod_solid_clip.h"
+
+static void cap_area(const rf_collision_face *solid,uint32_t faces,uint32_t axis,float at,double expected)
+{
+    static rf_geomod_vertex vertices[2][2048];static rf_geomod_fragment fragments[2][512];
+    rf_geomod_solid_clip_work work={{vertices[0],vertices[1]},{fragments[0],fragments[1]},2048,512};
+    rf_geomod_solid_clip_result result,kept;rf_geomod_vertex polygon[4]={0};
+    const int x[4]={-1,1,1,-1},y[4]={-1,-1,1,1};uint32_t i,j,k,mode,a=(axis+1)%3,b=(axis+2)%3;
+    for(i=0;i<4;i++){polygon[i].position[axis]=at;polygon[i].position[a]=(float)x[i]*15;polygon[i].position[b]=(float)y[i]*15;polygon[i].uv[0]=polygon[i].position[a];polygon[i].uv[1]=polygon[i].position[b];}
+    for(mode=0;mode<2;mode++) {
+        double area=0;
+        CHECK(!rf_geomod_polygon_clip_solid(polygon,4,solid,faces,mode,&work,&result));
+        for(i=0;i<result.fragment_count;i++) {
+            const rf_geomod_fragment *f=result.fragments+i;const rf_geomod_vertex *v=result.vertices+f->first;
+            for(j=1;j+1<f->count;j++)area+=fabs(((double)v[j].position[a]-v[0].position[a])*(v[j+1].position[b]-v[0].position[b])-((double)v[j].position[b]-v[0].position[b])*(v[j+1].position[a]-v[0].position[a]))*.5;
+            for(j=0;j<f->count;j++)for(k=0;k<2;k++)CHECK(fabs(v[j].uv[k]-v[j].position[k?b:a])<0.00001);
+        }
+        CHECK(fabs(area-(mode?expected:900-expected))<0.0001);
+    }
+    kept=result;work.vertex_capacity=4;
+    CHECK(rf_geomod_polygon_clip_solid(polygon,4,solid,faces,1,&work,&result)==RF_RANGE);
+    CHECK(!memcmp(&result,&kept,sizeof(result)));
+}
+
+static void concave_caps(void)
+{
+    rf_geomod_mesh_view source;rf_geomod_terrain *t;rf_geomod_terrain_view view;
+    float center[3]={9,9,0},extent[3]={2,2,12};
+    make_source(&source);t=open_terrain(&source,1024*1024,800);
+    CHECK(!rf_geomod_terrain_cut_box(t,center,extent,3));CHECK(!rf_geomod_terrain_get(t,&view));
+    cap_area(view.faces,view.mesh.face_count,2,0,391);
+    cap_area(view.faces,view.mesh.face_count,0,8,340);
+    cap_area(view.faces,view.mesh.face_count,0,6,400);
+    rf_geomod_terrain_close(&t);
+    t=open_terrain(&source,1024*1024,800);center[0]=center[1]=0;extent[2]=2;
+    CHECK(!rf_geomod_terrain_cut_box(t,center,extent,3));CHECK(!rf_geomod_terrain_get(t,&view));
+    cap_area(view.faces,view.mesh.face_count,2,0,384);
+    rf_geomod_terrain_close(&t);
+    {
+        uint32_t i;make_source(&source);
+        for(i=0;i<source.vertex_count;i++) {
+            float x=original_vertices[i].position[0],y=original_vertices[i].position[1];
+            original_vertices[i].position[0]=.6f*x-.8f*y;
+            original_vertices[i].position[1]=.8f*x+.6f*y;
+        }
+        t=open_terrain(&source,1024*1024,800);CHECK(!rf_geomod_terrain_get(t,&view));
+        cap_area(view.faces,view.mesh.face_count,2,0,400);
+        rf_geomod_terrain_close(&t);
+    }
+}
 
 static void shapes(void)
 {
@@ -65,6 +115,15 @@ static void extraction(const rf_geomod_terrain_view *view,const uint32_t *labels
             filter[i]=view->faces[old[offset+i]].filter;
         }
         CHECK(!rf_geomod_collision_faces(mesh,filter,positions,256,rebound,64));
+        if(part==0 && mesh->face_count==6) {
+            float lo[3]={FLT_MAX,FLT_MAX,FLT_MAX},hi[3]={-FLT_MAX,-FLT_MAX,-FLT_MAX};uint32_t axis;
+            for(i=0;i<mesh->vertex_count;i++)for(axis=0;axis<3;axis++){float p=mesh->vertices[i].position[axis];if(p<lo[axis])lo[axis]=p;if(p>hi[axis])hi[axis]=p;}
+            for(axis=0;axis<3;axis++) {
+                cap_area(rebound,6,axis,(lo[axis]+hi[axis])*.5,(double)(hi[(axis+1)%3]-lo[(axis+1)%3])*(hi[(axis+2)%3]-lo[(axis+2)%3]));
+                cap_area(rebound,6,axis,lo[axis]-2,0);
+                cap_area(rebound,6,axis,hi[axis]+2,0);
+            }
+        }
         for(i=0;i<mesh->face_count;i++) {
             const rf_collision_face *a=rebound+i,*b=view->faces+old[offset+i];
             CHECK(!memcmp(a->plane,b->plane,sizeof(a->plane)) && a->count==b->count);
@@ -169,6 +228,7 @@ int main(void)
 {
     uint32_t axis,bytes;rf_geomod_mesh_view source;
     shapes();
+    concave_caps();
     for(axis=0;axis<3;axis++) {
         rf_geomod_terrain *live,*reload;rf_geomod_terrain_view a,b;
         float center[3]={0},extent[3]={12,12,12};extent[axis]=1;
@@ -177,6 +237,7 @@ int main(void)
         CHECK(!rf_geomod_terrain_get(live,&a));inspect(&a,1);
         CHECK(!rf_geomod_terrain_cut_box(live,center,extent,3));
         CHECK(!rf_geomod_terrain_get(live,&a));inspect(&a,2);opening(&a,axis,0);
+        cap_area(a.faces,a.mesh.face_count,(axis+1)%3,0,360);
         CHECK(!rf_geomod_terrain_history_size(live,&bytes));
         CHECK(!rf_geomod_terrain_history_encode(live,encoded,bytes));
         CHECK(!rf_geomod_terrain_history_decode(reload,encoded,bytes));
@@ -186,6 +247,7 @@ int main(void)
         CHECK(!rf_geomod_terrain_cut_box(reload,center,extent,3));
         CHECK(!rf_geomod_terrain_get(live,&a));CHECK(!rf_geomod_terrain_get(reload,&b));
         compare(&a,&b);inspect(&a,3);inspect(&b,3);
+        cap_area(a.faces,a.mesh.face_count,(axis+1)%3,0,320);
         opening(&a,axis,0);opening(&a,axis,5);opening(&b,axis,0);opening(&b,axis,5);
         rf_geomod_terrain_close(&reload);rf_geomod_terrain_close(&live);
     }

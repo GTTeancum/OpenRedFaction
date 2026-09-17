@@ -522,6 +522,7 @@ endif()
 add_test(NAME scene_terrain_lighting_stage COMMAND rf_scene_terrain_lighting_stage_tests "${CMAKE_SOURCE_DIR}/Installed_Game/levelsm.vpp" "${CMAKE_SOURCE_DIR}/build/data/geomod-template.bin")
 
 target_sources(rf_core PRIVATE src/core/geomod_notify.c)
+target_sources(rf_core PRIVATE src/core/geomod_solid_clip.c)
 add_executable(rf_geomod_notify_tests tests/geomod_notify_tests.c)
 target_link_libraries(rf_geomod_notify_tests PRIVATE rf_core)
 add_test(NAME geomod_notify COMMAND rf_geomod_notify_tests)

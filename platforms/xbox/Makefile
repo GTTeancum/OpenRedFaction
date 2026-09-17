@@ -9,6 +9,7 @@ SHADER_OBJS = $(PROJECT_ROOT)/src/platform/xbox/particle_vertex.inl $(PROJECT_RO
 SHADER_OBJS += $(PROJECT_ROOT)/src/platform/xbox/solid_fragment.inl $(PROJECT_ROOT)/src/platform/xbox/world_vertex.inl $(PROJECT_ROOT)/src/platform/xbox/skinned_vertex.inl $(PROJECT_ROOT)/src/platform/xbox/rigid_vertex.inl
 SRCS += $(PROJECT_ROOT)/src/core/geomod.c
 SRCS += $(PROJECT_ROOT)/src/core/geomod_notify.c
+SRCS += $(PROJECT_ROOT)/src/core/geomod_solid_clip.c
 SRCS += $(PROJECT_ROOT)/src/core/debris_audio.c
 SRCS += $(PROJECT_ROOT)/src/core/collision_composition.c
 SRCS += $(PROJECT_ROOT)/src/core/geomod_publication.c
