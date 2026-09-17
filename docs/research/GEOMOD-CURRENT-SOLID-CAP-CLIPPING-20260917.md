@@ -21,7 +21,7 @@ Memory: two caller-owned banks of vertices and fragment ranges; no allocation,
 recursion or growth. Intermediate partition overflow returns RF_RANGE before
 changing the result descriptor. Scratch may change. Global face-plane
 partitioning may create many cells; production budget/performance measurement
-and supporting-plane ID propagation remain required before live hookup.
+and shared-corner reconstruction remain required before live hookup.
 
 PC geomod_disconnected verifies inside/outside area complements, UV interpolation
 and capacity failure for actual cut meshes: retained rectangular components,
@@ -36,3 +36,13 @@ The chronological builder does not call this primitive yet. Integration still
 needs retained-volume ownership, support provenance, component selection per
 prefix, save/reload reproduction, atlas transfer, rollback and body creation.
 No runtime resurrection fix or new visual behavior is claimed yet.
+
+Tracked follow-up: rf_geomod_polygon_clip_solid_tracked now propagates
+outgoing-edge support IDs through each plane split and final cell selection.
+Every fixture compares all corner/fragment bytes against the untracked path;
+both endpoints of every output edge lie on its recorded source/cut plane.
+Original perimeter IDs survive on retained input edges. Missing edge storage
+and capacity failures preserve result descriptors. The two optional edge banks
+add4 bytes per configured corner of scratch. PC checks and stock NXDK build
+pass; this tracks provenance but does not yet solve intersections from three
+planes or wire the primitive into chronological terrain reconstruction.

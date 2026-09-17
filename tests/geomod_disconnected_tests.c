@@ -10,22 +10,50 @@
 static void cap_area(const rf_collision_face *solid,uint32_t faces,uint32_t axis,float at,double expected)
 {
     static rf_geomod_vertex vertices[2][2048];static rf_geomod_fragment fragments[2][512];
-    rf_geomod_solid_clip_work work={{vertices[0],vertices[1]},{fragments[0],fragments[1]},2048,512};
+    static rf_geomod_vertex saved_vertices[2048];static rf_geomod_fragment saved_fragments[512];
+    static uint16_t edges[2][2048];uint16_t seed_edges[4]={60000,60001,60002,60003},planes[256];
+    rf_geomod_solid_clip_work work={{vertices[0],vertices[1]},{fragments[0],fragments[1]},2048,512,{edges[0],edges[1]}};
     rf_geomod_solid_clip_result result,kept;rf_geomod_vertex polygon[4]={0};
     const int x[4]={-1,1,1,-1},y[4]={-1,-1,1,1};uint32_t i,j,k,mode,a=(axis+1)%3,b=(axis+2)%3;
     for(i=0;i<4;i++){polygon[i].position[axis]=at;polygon[i].position[a]=(float)x[i]*15;polygon[i].position[b]=(float)y[i]*15;polygon[i].uv[0]=polygon[i].position[a];polygon[i].uv[1]=polygon[i].position[b];}
+    CHECK(faces<=256);for(i=0;i<faces;i++)planes[i]=(uint16_t)(100+i);
     for(mode=0;mode<2;mode++) {
         double area=0;
         CHECK(!rf_geomod_polygon_clip_solid(polygon,4,solid,faces,mode,&work,&result));
+        CHECK(!result.edges);kept=result;
+        memcpy(saved_vertices,result.vertices,result.vertex_count*sizeof(*saved_vertices));
+        memcpy(saved_fragments,result.fragments,result.fragment_count*sizeof(*saved_fragments));
+        CHECK(!rf_geomod_polygon_clip_solid_tracked(polygon,4,solid,faces,mode,seed_edges,planes,&work,&result));
+        CHECK(result.vertex_count==kept.vertex_count && result.fragment_count==kept.fragment_count);
+        CHECK(!memcmp(saved_vertices,result.vertices,result.vertex_count*sizeof(*saved_vertices)));
+        CHECK(!memcmp(saved_fragments,result.fragments,result.fragment_count*sizeof(*saved_fragments)));
         for(i=0;i<result.fragment_count;i++) {
             const rf_geomod_fragment *f=result.fragments+i;const rf_geomod_vertex *v=result.vertices+f->first;
             for(j=1;j+1<f->count;j++)area+=fabs(((double)v[j].position[a]-v[0].position[a])*(v[j+1].position[b]-v[0].position[b])-((double)v[j].position[b]-v[0].position[b])*(v[j+1].position[a]-v[0].position[a]))*.5;
             for(j=0;j<f->count;j++)for(k=0;k<2;k++)CHECK(fabs(v[j].uv[k]-v[j].position[k?b:a])<0.00001);
+            for(j=0;j<f->count;j++) {
+                uint16_t id=result.edges[f->first+j];uint32_t end;
+                for(end=0;end<2;end++) {
+                    const float *p=v[(j+end)%f->count].position;double distance;
+                    if(id>=60000) {
+                        CHECK(id<=60003);distance=(id==60000?p[b]+15:id==60001?p[a]-15:id==60002?p[b]-15:p[a]+15);
+                    } else {
+                        CHECK(id>=100 && (uint32_t)(id-100)<faces);distance=solid[id-100].plane[3];
+                        for(k=0;k<3;k++)distance+=(double)solid[id-100].plane[k]*p[k];
+                    }
+                    CHECK(fabs(distance)<0.0001);
+                }
+            }
         }
         CHECK(fabs(area-(mode?expected:900-expected))<0.0001);
     }
     kept=result;work.vertex_capacity=4;
     CHECK(rf_geomod_polygon_clip_solid(polygon,4,solid,faces,1,&work,&result)==RF_RANGE);
+    CHECK(!memcmp(&result,&kept,sizeof(result)));
+    CHECK(rf_geomod_polygon_clip_solid_tracked(polygon,4,solid,faces,1,seed_edges,planes,&work,&result)==RF_RANGE);
+    CHECK(!memcmp(&result,&kept,sizeof(result)));
+    work.vertex_capacity=2048;work.edges[1]=NULL;
+    CHECK(rf_geomod_polygon_clip_solid_tracked(polygon,4,solid,faces,1,seed_edges,planes,&work,&result)==RF_RANGE);
     CHECK(!memcmp(&result,&kept,sizeof(result)));
 }
 

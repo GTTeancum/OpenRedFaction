@@ -37,15 +37,18 @@ static int classify(const double point[3],const rf_collision_face *faces,uint32_
     if(!isfinite(angle) || fabs(angle-floor(angle+.5))>1e-4)return RF_FORMAT;
     *where=angle>.5;return RF_OK;
 }
-int rf_geomod_polygon_clip_solid(const rf_geomod_vertex *polygon,uint32_t n,
+static int clip_solid(const rf_geomod_vertex *polygon,uint32_t n,
     const rf_collision_face *solid,uint32_t faces,uint32_t inside,
+    const uint16_t *input_edges,const uint16_t *solid_planes,
     rf_geomod_solid_clip_work *work,rf_geomod_solid_clip_result *result)
 {
     uint32_t bank=0,nf=1,f,i,j,k;int status;
     rf_geomod_vertex front[64],back[64];
+    uint16_t front_edges[64],back_edges[64];
     if(!polygon || n<3 || n>64 || !solid || !faces || inside>1 || !work || !result ||
         !work->vertices[0] || !work->vertices[1] || !work->fragments[0] || !work->fragments[1] ||
         work->vertex_capacity<n || !work->fragment_capacity)return RF_RANGE;
+    if(input_edges && (!solid_planes || !work->edges[0] || !work->edges[1]))return RF_RANGE;
     for(i=0;i<n;i++) {
         for(k=0;k<3;k++)if(!isfinite(polygon[i].position[k]))return RF_FORMAT;
         for(k=0;k<2;k++)if(!isfinite(polygon[i].uv[k]))return RF_FORMAT;
@@ -59,15 +62,21 @@ int rf_geomod_polygon_clip_solid(const rf_geomod_vertex *polygon,uint32_t n,
         for(j=0;j<solid[f].count;j++)for(k=0;k<3;k++)if(!isfinite(solid[f].vertices[j][k]))return RF_FORMAT;
     }
     memcpy(work->vertices[0],polygon,n*sizeof(*polygon));work->fragments[0][0]=(rf_geomod_fragment){0,n};
+    if(input_edges)memcpy(work->edges[0],input_edges,n*sizeof(*input_edges));
     for(f=0;f<faces;f++) {
         uint32_t next=bank^1,used=0,parts=0;
         for(i=0;i<nf;i++) {
             const rf_geomod_fragment *fragment=work->fragments[bank]+i;uint32_t counts[2];
-            status=rf_geomod_polygon_split(work->vertices[bank]+fragment->first,fragment->count,
-                solid[f].plane,front,64,back,64,counts,counts+1);if(status)return status;
+            if(input_edges)status=rf_geomod_polygon_split_tracked(work->vertices[bank]+fragment->first,fragment->count,
+                solid[f].plane,work->edges[bank]+fragment->first,solid_planes[f],
+                front,front_edges,64,back,back_edges,64,counts,counts+1);
+            else status=rf_geomod_polygon_split(work->vertices[bank]+fragment->first,fragment->count,
+                solid[f].plane,front,64,back,64,counts,counts+1);
+            if(status)return status;
             for(j=0;j<2;j++)if(counts[j]) {
                 if(parts==work->fragment_capacity || counts[j]>work->vertex_capacity-used)return RF_RANGE;
                 memcpy(work->vertices[next]+used,j?back:front,counts[j]*sizeof(*front));
+                if(input_edges)memcpy(work->edges[next]+used,j?back_edges:front_edges,counts[j]*sizeof(*front_edges));
                 work->fragments[next][parts++]=(rf_geomod_fragment){used,counts[j]};used+=counts[j];
             }
         }
@@ -83,9 +92,22 @@ int rf_geomod_polygon_clip_solid(const rf_geomod_vertex *polygon,uint32_t n,
             status=classify(point,solid,faces,&where);if(status)return status;
             if(where!=inside)continue;
             memcpy(work->vertices[next]+used,v,fragment->count*sizeof(*v));
+            if(input_edges)memcpy(work->edges[next]+used,work->edges[bank]+fragment->first,fragment->count*sizeof(*input_edges));
             work->fragments[next][parts++]=(rf_geomod_fragment){used,fragment->count};used+=fragment->count;
         }
-        *result=(rf_geomod_solid_clip_result){work->vertices[next],work->fragments[next],used,parts};
+        *result=(rf_geomod_solid_clip_result){work->vertices[next],work->fragments[next],used,parts,input_edges?work->edges[next]:NULL};
     }
     return RF_OK;
+}
+int rf_geomod_polygon_clip_solid(const rf_geomod_vertex *polygon,uint32_t n,
+    const rf_collision_face *solid,uint32_t faces,uint32_t inside,
+    rf_geomod_solid_clip_work *work,rf_geomod_solid_clip_result *result)
+{return clip_solid(polygon,n,solid,faces,inside,NULL,NULL,work,result);}
+int rf_geomod_polygon_clip_solid_tracked(const rf_geomod_vertex *polygon,uint32_t n,
+    const rf_collision_face *solid,uint32_t faces,uint32_t inside,
+    const uint16_t *input_edges,const uint16_t *solid_planes,
+    rf_geomod_solid_clip_work *work,rf_geomod_solid_clip_result *result)
+{
+    if(!input_edges || !solid_planes)return RF_RANGE;
+    return clip_solid(polygon,n,solid,faces,inside,input_edges,solid_planes,work,result);
 }
