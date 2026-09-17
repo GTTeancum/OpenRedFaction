@@ -541,7 +541,7 @@ uint32_t rf_scene_terrain_atlas[8]; /* enabled,width,height,owned bytes,generati
 uint32_t rf_scene_terrain_shadows[4]; /* lighting refreshes, rays, blocked, cache hits */
 typedef struct scene_debris_chunk {
     rf_geomod_debris_mesh mesh;float position[3],velocity[3],radius,resistance,age;
-    uint32_t active,bounces,alpha,detail_marked,room,impact_flags;float axis[3],spin,angle;
+    uint32_t active,bounces,alpha,detail_marked,room,impact_flags;float axis[3],spin,basis[9];
 } scene_debris_chunk;
 typedef struct scene_debris_pool {
     scene_debris_chunk chunks[80];rf_random_state random;uint32_t next;
@@ -561,6 +561,7 @@ uint32_t rf_scene_debris_visibility[8]; /* hidden submissions,aged,last admitted
 uint32_t rf_scene_debris_motion[8]; /* moving steps,submerged steps,last room,flag,proposed hash,status,reserved,reserved */
 uint32_t rf_scene_debris_player_test_enabled,rf_scene_debris_player_test[8];
 uint32_t rf_scene_debris_blood[8]; /* requests,billboards,drops,exhausted,status,resident bytes,RNG,packet hash */
+uint32_t rf_scene_debris_rotation[4]; /* updates,last matrix hash,ordered matrix hash,status */
 uint32_t rf_scene_debris_player[8]; /* tests,overlaps,damage events,last amount,status,last flags,health,direction */
 uint32_t rf_scene_debris_splash_audio[9]; /* requests,selections,starts,loads,bytes,last sample,RNG,failures,name hash */
 uint32_t rf_scene_debris_crossing[8]; /* solid misses,wet entries,last room,point hash,size bits,status,reserved,reserved */
@@ -9435,7 +9436,7 @@ static int scene_terrain_open(scene_stream *s,const rf_level *level,rf_vpp *maps
     rf_scene_terrain_atlas[3]=2*512*512*2+64*64*2+SCENE_TERRAIN_FACES*(sizeof(*s->terrain_bindings)+sizeof(*s->terrain_tiles))+sizeof(rf_image)+sizeof(*s->terrain_noise);
     if(rf_scene_terrain_atlas[3]>SCENE_TERRAIN_ATLAS_BUDGET){printf("TERRAIN_ATLAS_BUDGET %u %u\n",rf_scene_terrain_atlas[3],SCENE_TERRAIN_ATLAS_BUDGET);return RF_RANGE;}
     s->debris=calloc(1,sizeof(*s->debris));if(!s->debris)return RF_IO;
-    s->debris->random.value=1;rf_debris_audio_init(&s->debris->audio);memset(rf_scene_debris_audio,0,sizeof(rf_scene_debris_audio));memset(rf_scene_debris,0,sizeof(rf_scene_debris));memset(rf_scene_debris_relaunch,0,sizeof(rf_scene_debris_relaunch));memset(rf_scene_debris_wet,0,sizeof(rf_scene_debris_wet));memset(rf_scene_debris_visibility,0,sizeof(rf_scene_debris_visibility));memset(rf_scene_debris_motion,0,sizeof(rf_scene_debris_motion));memset(rf_scene_debris_crossing,0,sizeof(rf_scene_debris_crossing));memset(rf_scene_debris_splash_audio,0,sizeof(rf_scene_debris_splash_audio));memset(rf_scene_debris_player,0,sizeof(rf_scene_debris_player));rf_scene_debris_wet[3]=UINT32_MAX;rf_scene_debris[6]=sizeof(*s->debris);
+    s->debris->random.value=1;rf_debris_audio_init(&s->debris->audio);memset(rf_scene_debris_audio,0,sizeof(rf_scene_debris_audio));memset(rf_scene_debris,0,sizeof(rf_scene_debris));memset(rf_scene_debris_relaunch,0,sizeof(rf_scene_debris_relaunch));memset(rf_scene_debris_wet,0,sizeof(rf_scene_debris_wet));memset(rf_scene_debris_visibility,0,sizeof(rf_scene_debris_visibility));memset(rf_scene_debris_motion,0,sizeof(rf_scene_debris_motion));memset(rf_scene_debris_crossing,0,sizeof(rf_scene_debris_crossing));memset(rf_scene_debris_splash_audio,0,sizeof(rf_scene_debris_splash_audio));memset(rf_scene_debris_player,0,sizeof(rf_scene_debris_player));memset(rf_scene_debris_rotation,0,sizeof(rf_scene_debris_rotation));rf_scene_debris_wet[3]=UINT32_MAX;rf_scene_debris[6]=sizeof(*s->debris);
     s->terrain_draw=calloc(1,sizeof(*s->terrain_draw));if(!s->terrain_draw)return RF_IO;
     memset(rf_scene_terrain_draw,0,sizeof(rf_scene_terrain_draw));
     s->terrain_ids=calloc(SCENE_TERRAIN_FACES,sizeof(*s->terrain_ids));if(!s->terrain_ids)return RF_IO;
@@ -10145,7 +10146,7 @@ static int scene_terrain_input(scene_stream *s,const float position[3],const flo
                 memset(rf_scene_terrain_bake,0,sizeof(rf_scene_terrain_bake));
                 scene_terrain_dirty(s,0,0,512,512);
             }
-            if(!status && s->debris){memset(s->debris,0,sizeof(*s->debris));s->debris->random.value=1;rf_debris_audio_init(&s->debris->audio);memset(rf_scene_debris_audio,0,sizeof(rf_scene_debris_audio));memset(rf_scene_debris,0,sizeof(rf_scene_debris));memset(rf_scene_debris_relaunch,0,sizeof(rf_scene_debris_relaunch));memset(rf_scene_debris_wet,0,sizeof(rf_scene_debris_wet));memset(rf_scene_debris_visibility,0,sizeof(rf_scene_debris_visibility));memset(rf_scene_debris_motion,0,sizeof(rf_scene_debris_motion));memset(rf_scene_debris_crossing,0,sizeof(rf_scene_debris_crossing));memset(rf_scene_debris_splash_audio,0,sizeof(rf_scene_debris_splash_audio));memset(rf_scene_debris_player,0,sizeof(rf_scene_debris_player));rf_scene_debris_wet[3]=UINT32_MAX;rf_scene_debris[6]=sizeof(*s->debris);}
+            if(!status && s->debris){memset(s->debris,0,sizeof(*s->debris));s->debris->random.value=1;rf_debris_audio_init(&s->debris->audio);memset(rf_scene_debris_audio,0,sizeof(rf_scene_debris_audio));memset(rf_scene_debris,0,sizeof(rf_scene_debris));memset(rf_scene_debris_relaunch,0,sizeof(rf_scene_debris_relaunch));memset(rf_scene_debris_wet,0,sizeof(rf_scene_debris_wet));memset(rf_scene_debris_visibility,0,sizeof(rf_scene_debris_visibility));memset(rf_scene_debris_motion,0,sizeof(rf_scene_debris_motion));memset(rf_scene_debris_crossing,0,sizeof(rf_scene_debris_crossing));memset(rf_scene_debris_splash_audio,0,sizeof(rf_scene_debris_splash_audio));memset(rf_scene_debris_player,0,sizeof(rf_scene_debris_player));memset(rf_scene_debris_rotation,0,sizeof(rf_scene_debris_rotation));rf_scene_debris_wet[3]=UINT32_MAX;rf_scene_debris[6]=sizeof(*s->debris);}
             if(!status)++rf_scene_geomod[7];
         } else {
         for(i=0;i<3;i++)delta[i]=orientation[2][i]*100;
@@ -10304,7 +10305,7 @@ static int scene_debris_spawn(scene_stream *s)
         c->radius=birth.radius;c->resistance=birth.resistance;c->bounces=birth.bounces;c->impact_flags=birth.flags;
         /*49001c assigns birth room. Movement/relaunch intentionally retain it. */
         c->room=p->selected_room.room;
-        memcpy(c->axis,birth.axis,12);c->spin=birth.spin;c->angle=0;
+        memcpy(c->axis,birth.axis,12);c->spin=birth.spin;memset(c->basis,0,sizeof(c->basis));c->basis[0]=c->basis[4]=c->basis[8]=1;
         status=rf_geomod_debris_build(c->radius,s->terrain_texture_width,s->terrain_texture_height,&p->random,&c->mesh);if(status)return status;
         status=rf_geomod_debris_launch(c->position,p->origin,c->radius,c->resistance,&p->random,c->velocity);if(status)return status;
         c->age=0;c->alpha=255;c->active=1;c->detail_marked=0;++rf_scene_debris[0];
@@ -10471,7 +10472,6 @@ static int scene_debris_tick(scene_stream *s,uint32_t frame)
         scene_debris_chunk *c=p->chunks+i;float delta[3],proposed[3];rf_geometry_world_hit hit;
         const rf_liquid_room *motion_room;uint32_t liquid_flag;
         if(!c->bounces){++rf_scene_debris[1];continue;}
-        c->angle+=c->spin/60.f;
         if(!s->liquid_rooms || c->room>=s->swim_room_count || !s->collision->contains_liquid)return RF_FORMAT;
         motion_room=s->liquid_rooms+c->room;liquid_flag=s->collision->contains_liquid[c->room];
         status=rf_geomod_debris_motion(c->position,c->velocity,1.f/60,liquid_flag,
@@ -10534,6 +10534,16 @@ static int scene_debris_tick(scene_stream *s,uint32_t frame)
         if(c->bounces) {
             status=rf_geomod_debris_gravity(c->velocity[1],scene_gravity.acceleration,1.f/60,&c->velocity[1]);
             if(status)return status;
+            {float before[9];if(rf_scene_combat_trace)memcpy(before,c->basis,36);
+             status=rf_geomod_debris_rotate(c->basis,c->axis,c->spin,1.f/60,c->basis);
+             rf_scene_debris_rotation[3]=(uint32_t)status;if(status)return status;
+             ++rf_scene_debris_rotation[0];rf_scene_debris_rotation[1]=npc_hash_bytes(2166136261u,c->basis,36);
+             rf_scene_debris_rotation[2]=npc_hash_bytes(rf_scene_debris_rotation[2]?rf_scene_debris_rotation[2]:2166136261u,c->basis,36);
+             if(rf_scene_combat_trace) {
+                float sample[23];uint32_t words[23],n;memcpy(sample,before,36);memcpy(sample+9,c->axis,12);
+                sample[12]=c->spin;sample[13]=1.f/60;memcpy(sample+14,c->basis,36);memcpy(words,sample,sizeof(words));
+                printf("DEBRIS_ROTATION_SAMPLE %u %u",frame,i);for(n=0;n<23;n++)printf(" %u",words[n]);puts("");
+             }}
             status=scene_debris_player_contact(s,c,frame);if(status)return status;
         }
         ++rf_scene_debris[1];
@@ -10550,7 +10560,7 @@ static int scene_debris_draw(scene_stream *s)
     status=scene_debris_visible_order(s,order,&count);if(status)return status;
     for(i=0;i<count;i++) {
         scene_debris_chunk *c=p->chunks+order[i];rf_geomod_mesh_view mesh={0};rf_preview_mesh emitted={0};
-        float cosine=cosf(c->angle),sine=sinf(c->angle);rf_geomod_debris_lifecycle life;
+        rf_geomod_debris_lifecycle life;
         /*48fd70 ages at draw submission;48f900 settling starts the fade. */
         status=rf_geomod_debris_age(c->age,c->mesh.lifetime,1.f/60,0,&life);
         if(status){printf("DEBRIS_DRAW_FAILURE age %u %d %.9g %.9g\n",order[i],status,c->age,c->mesh.lifetime);return status;}
@@ -10560,10 +10570,11 @@ static int scene_debris_draw(scene_stream *s)
         for(f=0;f<12;f++) {
             p->faces[f]=(rf_geomod_face){f*3,3,s->terrain_material,UINT32_MAX};
             for(j=0;j<3;j++) {
-                const float *v=c->mesh.positions[c->mesh.indices[f][j]];float dot=0;
-                for(k=0;k<3;k++)dot+=c->axis[k]*v[k];
-                for(k=0;k<3;k++)p->vertices[f*3+j].position[k]=c->position[k]+v[k]*cosine+
-                    (c->axis[(k+1)%3]*v[(k+2)%3]-c->axis[(k+2)%3]*v[(k+1)%3])*sine+c->axis[k]*dot*(1-cosine);
+                const float *v=c->mesh.positions[c->mesh.indices[f][j]];
+                for(k=0;k<3;k++) {
+                    float rotated=(float)(((double)v[2]*c->basis[6+k]+(double)v[1]*c->basis[3+k])+(double)v[0]*c->basis[k]);
+                    p->vertices[f*3+j].position[k]=rotated+c->position[k];
+                }
                 memcpy(p->vertices[f*3+j].uv,c->mesh.uv[f][j],8);
             }
         }

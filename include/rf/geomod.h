@@ -160,6 +160,10 @@ typedef struct rf_geomod_debris_liquid_hit {float fraction,point[3];} rf_geomod_
  * Invalid/nonfinite inputs preserve both outputs; no hit sets both to zero. */
 int rf_geomod_debris_actor_contact(const float position[3],const float velocity[3],float radius,
     const float actor_position[3],float actor_radius,uint32_t *hit,float *amount);
+/*48f64a..48f678 incremental rotation after collision/gravity, while moving.
+ * Stored float dt*spin, original half-angle matrix, then increment*basis in
+ *40ea80 order. Axis is not normalized here. Errors preserve output; alias OK. */
+int rf_geomod_debris_rotate(const float basis[9],const float axis[3],float spin,float dt,float result[9]);
 /*48f62f..48f647: after collision, only while bounce count stays positive.
  * Gravity*stored dt is subtracted before the single float store. Negative
  * gravity is supported; invalid/nonfinite results preserve output. */

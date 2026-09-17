@@ -469,6 +469,28 @@ int rf_geomod_debris_actor_contact(const float position[3],const float velocity[
     *hit=matched;*amount=value;return RF_OK;
 }
 
+int rf_geomod_debris_rotate(const float basis[9],const float axis[3],float spin,float dt,float result[9])
+{
+    static const unsigned char order[9][3]={{0,2,1},{2,1,0},{1,0,2},{2,1,0},{2,1,0},{0,1,2},{2,1,0},{2,0,1},{1,0,2}};
+    double angle,s,c,wz;float delta,x,y,z,xx,yy,zz,xy,xz,yz,wx,wy,r[9],out[9];uint32_t i,row,col;
+    if(!basis || !axis || !result || !isfinite(spin) || !isfinite(dt) || dt<0)return RF_RANGE;
+    for(i=0;i<9;i++)if(!isfinite(basis[i]))return RF_RANGE;
+    for(i=0;i<3;i++)if(!isfinite(axis[i]))return RF_RANGE;
+    delta=(float)((double)dt*spin);if(!isfinite(delta))return RF_RANGE;
+    angle=(double)delta*.5;s=sin(angle);c=cos(angle);
+    x=(float)(s*axis[0]);y=(float)(s*axis[1]);z=(float)(s*axis[2]);
+    xx=x*x;yy=y*y;zz=z*z;xy=x*y;xz=x*z;yz=y*z;wx=(float)(c*x);wy=(float)(c*y);wz=c*z;
+    r[0]=(float)((1.0-2.0*yy)-2.0*zz);r[1]=(float)(2.0*(wz+xy));r[2]=(float)(2.0*xz-2.0*wy);
+    r[3]=(float)(2.0*xy-2.0*wz);r[4]=(float)((1.0-2.0*xx)-2.0*zz);r[5]=(float)(2.0*((double)wx+yz));
+    r[6]=(float)(2.0*((double)wy+xz));r[7]=(float)(2.0*yz-2.0*wx);r[8]=(float)((1.0-2.0*xx)-2.0*yy);
+    for(row=0;row<3;row++)for(col=0;col<3;col++) {
+        const unsigned char *k=order[row*3+col];double v=(double)r[row*3+k[0]]*basis[k[0]*3+col];
+        for(i=1;i<3;i++)v+=(double)r[row*3+k[i]]*basis[k[i]*3+col];
+        out[row*3+col]=(float)v;if(!isfinite(out[row*3+col]))return RF_RANGE;
+    }
+    memcpy(result,out,36);return RF_OK;
+}
+
 int rf_geomod_debris_gravity(float velocity_y,float acceleration,float dt,float *out)
 {
     float value;

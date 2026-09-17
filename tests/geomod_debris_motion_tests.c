@@ -16,6 +16,9 @@ static const struct {uint32_t damage,packet[19];} blood_cases[]={
 #include "fixtures/debris_blood.inc"
 };
 #include "fixtures/blood_burst.inc"
+static const struct {uint32_t inputs[14],output[9];} rotation_cases[]={
+#include "fixtures/debris_rotation.inc"
+};
 int main(void)
 {
     uint32_t i;float input[11],output[3],before[3]={11,12,13};
@@ -54,6 +57,13 @@ int main(void)
         CHECK(!memcmp(&packet,blood_drop_words[i],76));
      }
      CHECK(random.value==blood_drop_seed);}
+    for(i=0;i<sizeof(rotation_cases)/sizeof(rotation_cases[0]);i++) {
+        float in[14],basis[9];memcpy(in,rotation_cases[i].inputs,sizeof(in));
+        CHECK(!rf_geomod_debris_rotate(in,in+9,in[12],in[13],basis));
+        CHECK(!memcmp(basis,rotation_cases[i].output,36));
+        CHECK(!rf_geomod_debris_rotate(in,in+9,in[12],in[13],in));
+        CHECK(!memcmp(in,rotation_cases[i].output,36));
+    }
     output[0]=11;
     CHECK(rf_geomod_debris_gravity(0,NAN,.1f,output)==RF_RANGE && output[0]==11);
     CHECK(rf_geomod_debris_gravity(0,1,-1,output)==RF_RANGE && output[0]==11);

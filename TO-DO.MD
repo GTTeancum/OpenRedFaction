@@ -14,7 +14,7 @@
 
 - GeoMod debris visibility: Verify live leave/return lifetime retention; room-filtered drawing passes synthetic hidden/return cases,138 binary fixtures and60 stock64MiB PC/Xbox checks.
 - GeoMod water crossing: Verify audible splash quality and broader liquid scenarios;35 positional splash starts and246 ripple vertices match PC/Xbox across63 stock64MiB comparisons.
-- GeoMod debris motion: Finish rotation fidelity and broaden contact scenarios; gravity and ordinary player damage are integrated and verified on PC/Xbox.
+- GeoMod debris motion: Broaden bounce/relaunch visual coverage; incremental rotation matches1353 original live updates and passes67 stock64MiB PC/Xbox comparisons.
 - GeoMod debris damage: Broaden repeated-blast and death coverage; two ordinary flying-fragment hits match original math and pass66 stock64MiB PC/Xbox comparisons without a fixture.
 - GeoMod impact blood: Verify live pool exhaustion and broader encounters; two ordinary contacts emit matching PC/Xbox blood effects, with prior visual and115-test acceptance retained.
 - GeoMod debris: Verify audible output and broader liquid scenarios; five live wet births match original math and the two-blast run passes59 stock64MiB PC/Xbox checks.
