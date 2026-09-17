@@ -616,3 +616,38 @@ Evidence: artifacts/authored-post-live/overlap-kernel/trace.log and guard.log
 (artifact-only instrumented builds), support-run-closure.log (shipping source,
 expected closure failure at14), support-run-full-tests.log,
 support-run-xbox-build.log and support-run-continuation/report.json.
+
+
+## Shared diagonal repair closes the fifteen-cut history
+
+The admission14 unmatched edge is a T-junction on recorded diagonal2163,
+face plane1480. Face1180 has the shortened segment while face1184 has the
+longer opposing segment. Their midpoint separation is1.06905975e-6, beyond
+the independent closure check's1e-6 threshold. Both faces exist; this is not
+a missing surface. The repair previously skipped all partition diagonals.
+
+Repair now includes exact retained points with the same face/diagonal ID,
+using the existing ordered insertion and face-local UV interpolation. No
+geometric proximity merge or tolerance increase is needed. A focused fixture
+checks insertion of a rounded crossing into the unsplit neighbor, with the
+receiving face retaining its UV seam. Unknown supports and self-plane supports
+remain excluded. The diagonal registry already provides stable edge identity.
+
+Shipping-source offline replay passes closure at every committed admission1..15
+and matches the captured cutter bytes and RNG. At15 the mesh has7942 vertices,
+1565 faces and a2041816-byte peak;16..18 return RF_RANGE, with2054752 peak.
+The capacity rejection is still open. This evidence is numeric history replay,
+not a new ordinary live run or stock64MiB Xbox runtime acceptance.
+
+Authored policy8 fingerprint:
+9f7a490e6c302611d8bf3293b59dc470c8d17f6f8fb889f3aacc2a0b5a7ae8b4.
+Validation:110 tests passed in the full run; the sole stale identity expectation
+was updated for policy8 and its targeted test then passed. Authored two-shot
+restart/next-blast matches uninterrupted RFCP/RGCH/RGP. NXDK builds successfully
+with the existing linker merge warning. Shipping capacity defaults remain8.
+
+Evidence: artifacts/authored-post-live/edge14/trace.log and repair.log,
+diagonal-repair-closure.log (exit0), diagonal-repair-full-tests.log,
+diagonal-repair-xbox-build.log and diagonal-repair-continuation/report.json.
+Next: rebuild the expanded ordinary PC scene, verify the long live geometry
+and save/reload, then assess native stock64MiB residency and cut16 capacity.

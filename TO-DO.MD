@@ -1,6 +1,6 @@
 # Red Faction Xbox / PC - open work
 
-- GeoMod topology: Fix the unmatched edge at cut14 after preserving straight support runs makes cuts1..13 pass closure; the sixteenth-cut capacity limit and expanded Xbox validation remain open.
+- GeoMod coverage: Validate the repaired fifteen-cut sequence in live PC/Xbox play and resolve the sixteenth-cut capacity limit; all15 committed cuts now pass offline closure.
 - GeoMod reload: Verify padded lightmap admission on stock Xbox; the long PC replay now restores all1347 map records, geometry and checkpoint bytes exactly.
 - GeoMod rollback: Make legacy DEV cavity lighting exhaustion transactional; the1024-map experiment aborted after core publication.
 

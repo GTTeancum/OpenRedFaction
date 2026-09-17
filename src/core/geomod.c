@@ -1824,7 +1824,7 @@ static int repair_cavity_pending_provenance(rf_geomod_storage *s,rf_geomod_multi
             uint16_t edge=work->compact_edges[face->first+e];
             double d[3],fractions[64];const rf_geomod_vertex *points[64];uint32_t axis=0,used=0,i,j;
             if(n==64)return RF_RANGE;polygon_edges[n]=edge;polygon[n++]=*a;
-            if(plane==UINT16_MAX || edge==UINT16_MAX || (provenance && (plane==edge || edge>=GEOMOD_DIAGONAL_BASE)))continue;
+            if(plane==UINT16_MAX || edge==UINT16_MAX || (provenance && plane==edge))continue;
             for(k=0;k<3;k++)d[k]=(double)b->position[k]-a->position[k];
             for(k=1;k<3;k++)if(fabs(d[k])>fabs(d[axis]))axis=k;
             if(d[axis]==0)return RF_FORMAT;
