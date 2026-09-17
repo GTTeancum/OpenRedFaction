@@ -808,3 +808,45 @@ Evidence: artifacts/geomod-9k-live/report.json, geomod-9k-restored/report.json,
 artifacts/authored-post-live/capacity9k-authored/report.json and
 capacity9k-reset/report.json, plus the native report above. Estimate remains
 ~50% overall/~72% GeoMod; wider shape/collision/fidelity work is still required.
+
+
+## Larger-profile native blasts pass; wall-sweep exposes new topology defect
+
+The full9216-vertex stock64MiB run passes58 checks through2500 frames at
+artifacts/xemu/render-20260916-220204/report.json. It commits16 cuts and exports
+the exact same135598-byte checkpoint as PC. Core peak2191764 bytes matches PC.
+Lowest sampled and endpoint free memory:7850 pages=30.6640625MiB. Native capture
+was inspected: room/floor, launcher/HUD and aimed dark crater are present.
+This validates the larger profile on the fixed-aim sequence; no general
+GeoMod fidelity or audio/animation acceptance follows. Owned XEMU exited and
+disc staging was restored. No image uploaded.
+
+The ordinary PC harness now supports --pattern wall-sweep: the existing initial
+yaw is retained, followed by30-frame yaw commands of0.3 at frames360,800,1240.
+Sixteen trigger pulses produce14 cuts through ordinary reload/fire behavior.
+The endpoint shows a broader connected crater near the wall corner. Numeric
+closure fails despite successful gameplay and checkpoint export. This is now
+a failing regression target, not an accepted fourteen-cut result.
+
+Independent prefix replay matches cutter bytes/RNG and finds cuts1..3 closed,
+first failure at4. Four-way edge coverage occurs around x=-16,y=-8.3585,z=8.3984.
+Artifact tracing shows a source triangle on face plane4 expands to four points
+before partitioning; two near-coincident points at(-16,-8.35877228,8.40160465)
+and(-16,-8.35877228,8.40160179) carry support436. Partition produces four pieces,
+including the thin overlap. One adjoining edge is recorded diagonal2084.
+Investigate the diagonal intersection and retained support point disagreement;
+no positional weld or tolerance relaxation has been applied.
+
+The live harness now runs the independent physical-mesh closure probe before
+reporting PASS, and records its log, exit code and binary hash. --closure-probe
+allows a checker built for larger geometry; its capacity must cover the capture.
+The wall-sweep correctly reports FAIL, while the known-good16-cut no-fire reload
+passes closure and exact checkpoint/mesh/atlas comparisons. Original fixed
+input generation is unchanged by default.
+
+Evidence: artifacts/geomod-wall-sweep-checked/report.json and closure.log,
+artifacts/geomod-closure-control/report.json, artifacts/authored-post-live/
+wall-sweep-prefix.log, sweep-prefix-04.mesh, sweep4/trace.log, and the native
+report above. Reproduce with tools/check_expanded_geomod_live.py --pattern
+wall-sweep --shots 16 --expected-cuts 14.
+Estimate remains ~50% overall/~72% GeoMod; focus is the broader topology failure.
