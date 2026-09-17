@@ -27,6 +27,14 @@ typedef struct rf_geomod_piece_shape {
  * No geometry or owner mutation. Invalid input preserves output. */
 int rf_geomod_piece_shape_get(const float minimum[3],const float maximum[3],
     float radius,uint32_t attempts,rf_geomod_piece_shape *out);
+typedef struct rf_geomod_piece_cutter {
+    float dimensions[3],basis[9],offset[3];
+} rf_geomod_piece_cutter;
+/*4667f4..4668b6 subdivision slab dimensions/pose. Positive principal unit axis
+ * and finite positive length required. Consumes three original RNG draws.
+ * No geometry allocation or CSG. Failures preserve random state and output. */
+int rf_geomod_piece_cutter_prepare(const float axis[3],float length,
+    rf_random_state *random,rf_geomod_piece_cutter *out);
 /*4d1330 vertex/bounds phase: pad bounds by float0.0001, use their stored
  * midpoint as origin, subtract it from vertices/bounds, derive radius from
  * float-stored maximum squared length. Nonempty finite input; outputs unchanged

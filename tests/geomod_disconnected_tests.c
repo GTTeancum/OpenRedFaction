@@ -252,8 +252,25 @@ static void opening(const rf_geomod_terrain_view *view,uint32_t axis,float locat
         CHECK(!matched);
     }
 }
+static int subdivision_cutter_cases(void)
+{
+    static const struct {uint32_t axis[3],length,seed,next,output[15];} rows[]={
+#include "fixtures/geomod_piece_cutter.inc"
+    };
+    uint32_t i;float axis[3],length;rf_geomod_piece_cutter out,kept;rf_random_state random;
+    for(i=0;i<sizeof(rows)/sizeof(rows[0]);i++) {
+        memcpy(axis,rows[i].axis,12);memcpy(&length,&rows[i].length,4);random.value=rows[i].seed;
+        CHECK(!rf_geomod_piece_cutter_prepare(axis,length,&random,&out));
+        CHECK(random.value==rows[i].next);CHECK(!memcmp(&out,rows[i].output,sizeof(out)));
+    }
+    kept=out;random.value=42;axis[0]=axis[1]=axis[2]=0;
+    CHECK(rf_geomod_piece_cutter_prepare(axis,length,&random,&out)==RF_RANGE);
+    CHECK(random.value==42 && !memcmp(&out,&kept,sizeof(out)));
+    printf("PASS %u original subdivision cutter poses and RNG states\n",i);return 0;
+}
 int main(void)
 {
+    CHECK(!subdivision_cutter_cases());
     uint32_t axis,bytes;rf_geomod_mesh_view source;
     shapes();
     concave_caps();

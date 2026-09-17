@@ -101,6 +101,32 @@ int rf_geomod_light_noise(unsigned char *rgb,uint32_t bytes,uint32_t pitch,
     *random=next;return RF_OK;
 }
 
+int rf_geomod_piece_cutter_prepare(const float axis[3],float length,
+    rf_random_state *random,rf_geomod_piece_cutter *out)
+{
+    rf_geomod_piece_cutter value={0};rf_random_state next;float *v=value.basis,low,high,offset;
+    uint32_t i,ones=0,draw;double inverse;int status;
+    if(!axis || !random || !out || !isfinite(length) || length<=0)return RF_RANGE;
+    for(i=0;i<3;i++){if(axis[i]==1)ones++;else if(axis[i]!=0)return RF_RANGE;}
+    if(ones!=1)return RF_RANGE;
+    value.dimensions[0]=value.dimensions[1]=(float)((double)length*2);value.dimensions[2]=.2f;
+    if(!isfinite(value.dimensions[0]))return RF_RANGE;
+    next=*random;status=rf_particle_cone_oriented(axis,.95f,&next,v+6);if(status)return status;
+    /* Original4fcfa0, retaining its vertical-axis branch and float stores. */
+    if(v[6]<.0001f && v[6]>-.0001f && v[8]<.0001f && v[8]>-.0001f) {
+        v[0]=1;v[6]=v[8]=0;v[7]=v[7]<0?-1.f:1.f;v[5]=-v[7];
+    } else {
+        v[0]=v[8];v[2]=-v[6];
+        inverse=1.0/sqrt(((double)v[0]*v[0]+(double)v[1]*v[1])+(double)v[2]*v[2]);
+        for(i=0;i<3;i++)v[i]=(float)((double)v[i]*inverse);
+        for(i=0;i<3;i++)v[3+i]=(float)((double)v[6+(i+1)%3]*v[(i+2)%3]-(double)v[6+(i+2)%3]*v[(i+1)%3]);
+    }
+    low=(float)((double)length*(double)-.1f);high=(float)((double)length*(double).1f);
+    rf_random_next(&next,&draw);offset=(float)(((double)draw/32768)*((double)high-low)+low);
+    for(i=0;i<3;i++)value.offset[i]=(float)((double)axis[i]*offset);
+    *out=value;*random=next;return RF_OK;
+}
+
 int rf_geomod_random_basis(rf_random_state *random,float basis[9])
 {
     rf_random_state next;float v[9]={0};double inverse;uint32_t i;int status;
