@@ -178,6 +178,67 @@ static int hollow_neighbor_occlusion(void) {
     CHECK(!memcmp(&out,&before,sizeof(out)));
     puts("PASS hollow neighbor occlusion: both boundary orientations/interior/above-void areas, strict collision, UV/provenance and invalid-owner rejection");return 0;
 }
+static int cut_neighbor_boundary(void) {
+    const float points[4][3]={{-1,-.9f,-1},{-1,-.9f,1},{1,-.9f,1},{1,-.9f,-1}};
+    rf_geomod_vertex v[8];rf_geomod_face f[2]={{0,4,3,549},{4,4,7,543}};
+    rf_geomod_publication_origin input[2]={{2,94,549,UINT32_MAX},{2,93,543,UINT32_MAX}};
+    rf_geomod_mesh_view mesh={v,f,8,2,19},out,before;
+    rf_geomod_publication_cut cuts[2];uint32_t i,j,pass;
+    for(i=0;i<8;i++){memcpy(v[i].position,points[i%4],12);v[i].uv[0]=points[i%4][0];v[i].uv[1]=points[i%4][2];}
+    make_cut(0,0);make_cut(1,0);
+    for(i=0;i<2;i++)cuts[i]=(rf_geomod_publication_cut){{cut_v[i],cut_f[i],36,12,0},{0,-.9f,0},1};
+    /* The rotated .3 by1.3 slice has area.39. Repeating the same star
+     * subtraction must not double-remove area or touch the other owner. */
+    for(pass=1;pass<=3;pass++) {
+        double selected=0,other=0;
+        if(pass==3){make_cut(1,.2f);cuts[1].kernel[0]=.2f;}
+        CHECK(!rf_geomod_publication_cut_neighbors(&mesh,input,94,cuts,pass==1?1:2,&work,ov,4096,of,768,origins,&out));
+        CHECK(out.generation==19);
+        {static rf_collision_face collision[768];static float positions[4096][3];
+         static rf_collision_face_filter filters[768];
+         CHECK(!rf_geomod_collision_faces(&out,filters,positions,4096,collision,768));}
+        for(i=0;i<out.face_count;i++) {
+            const rf_geomod_face *face=of+i;double a=0;
+            CHECK(origins[i].reference==UINT32_MAX && origins[i].kind==2);
+            CHECK(face->source_face==(origins[i].owner==94?549u:543u));
+            CHECK(face->material==(origins[i].owner==94?3u:7u));
+            for(j=0;j<face->count;j++) {
+                const rf_geomod_vertex *p=ov+face->first+j,*q=ov+face->first+(j+1)%face->count;
+                CHECK(fabsf(p->uv[0]-p->position[0])<1e-6f && fabsf(p->uv[1]-p->position[2])<1e-6f);
+                a+=(double)p->position[0]*q->position[2]-(double)p->position[2]*q->position[0];
+            }
+            if(origins[i].owner==94)selected+=fabs(a)*.5;else {CHECK(origins[i].owner==93);other+=fabs(a)*.5;}
+        }
+        CHECK(fabs(selected-(pass==3?3.3852:3.61))<1e-5 && fabs(other-4)<1e-5);
+        /* Independent inverse rotation classifies points against the cutter,
+         * then compares every surviving polygon, rejecting gaps/duplicates. */
+        for(i=0;i<61;i++)for(j=0;j<61;j++) {
+            float x=-.99f+1.98f*i/60,z=-.99f+1.98f*j/60;
+            float u=.8f*x-.6f*z,t=.6f*x+.8f*z,u2=u-.16f,t2=t-.12f;uint32_t face,hits=0;
+            if(fabsf(fabsf(u)-.15f)<1e-4f || fabsf(fabsf(t)-.65f)<1e-4f)continue;
+            if(pass==3 && (fabsf(fabsf(u2)-.15f)<1e-4f || fabsf(fabsf(t2)-.65f)<1e-4f))continue;
+            for(face=0;face<out.face_count;face++)if(origins[face].owner==94) {
+                const rf_geomod_face *f=of+face;uint32_t k,positive=0,negative=0,boundary=0;
+                for(k=0;k<f->count;k++) {
+                    const float *a=ov[f->first+k].position,*b=ov[f->first+(k+1)%f->count].position;
+                    float cross=(b[0]-a[0])*(z-a[2])-(b[2]-a[2])*(x-a[0]);
+                    positive|=cross>1e-6f;negative|=cross< -1e-6f;boundary|=fabsf(cross)<=1e-6f;
+                }
+                if(!(positive && negative)){if(boundary){hits=99;break;}hits++;}
+            }
+            if(hits!=99)CHECK(hits==(uint32_t)((fabsf(u)>.15f || fabsf(t)>.65f) && (pass!=3 || fabsf(u2)>.15f || fabsf(t2)>.65f)));
+        }
+    }
+    before=out;{rf_geomod_vertex saved=ov[0];rf_geomod_face saved_face=of[0];rf_geomod_publication_origin saved_origin=origins[0];
+    CHECK(rf_geomod_publication_cut_neighbors(&mesh,input,94,cuts,1,&work,ov,1,of,768,origins,&out)==RF_RANGE);
+    CHECK(!memcmp(&before,&out,sizeof(out)) && !memcmp(&saved,ov,sizeof(saved)) && !memcmp(&saved_face,of,sizeof(saved_face)) && !memcmp(&saved_origin,origins,sizeof(saved_origin)));
+    cuts[0].star=0;
+    CHECK(rf_geomod_publication_cut_neighbors(&mesh,input,94,cuts,1,&work,ov,4096,of,768,origins,&out)==RF_NOT_FOUND);
+    CHECK(!memcmp(&before,&out,sizeof(out)) && !memcmp(&saved,ov,sizeof(saved)));}
+    CHECK(!rf_geomod_publication_cut_neighbors(&mesh,input,94,NULL,0,&work,ov,4096,of,768,origins,&out));
+    CHECK(out.face_count==2 && out.vertex_count==8);
+    puts("PASS cut neighbor boundary: rotated star, repeated union, owner isolation, area/point coverage, UV/provenance and atomic failure");return 0;
+}
 int main(void) {
     float lo[3] = {-.25f, -1.5f, -.25f}, hi[3] = {.25f, 2, .25f}, fl[3] = {-10, -2, -10},
           fh[3] = {10, -1.25f, 10};
@@ -350,6 +411,7 @@ int main(void) {
     CHECK(!rounded_boundary());
     CHECK(!hollow_roof_boundary());
     CHECK(!hollow_neighbor_occlusion());
+    CHECK(!cut_neighbor_boundary());
     puts("PASS publication");
     return 0;
 }

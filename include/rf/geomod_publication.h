@@ -93,4 +93,14 @@ int rf_geomod_publication_clip_neighbors(const rf_geomod_mesh_view *,
     const rf_geomod_publication_origin *, const rf_geomod_publication_solid *, uint32_t,
     rf_geomod_publication_work *, rf_geomod_vertex *, uint32_t, rf_geomod_face *, uint32_t,
     rf_geomod_publication_origin *, rf_geomod_mesh_view *);
+/* Remove a selected neighbor owner's ordered star-cut union from its authored
+ * boundary. Other owners remain unchanged. This is the surface half of edited
+ * neighborhood reconstruction; callers must also update the occluding volume.
+ * Preserves UV/material/provenance and generation, allocates nothing, and uses
+ * the same bounded work buffer. All outputs remain unchanged on failure. */
+int rf_geomod_publication_cut_neighbors(const rf_geomod_mesh_view *,
+    const rf_geomod_publication_origin *, uint32_t owner,
+    const rf_geomod_publication_cut *, uint32_t count,
+    rf_geomod_publication_work *, rf_geomod_vertex *, uint32_t,
+    rf_geomod_face *, uint32_t, rf_geomod_publication_origin *, rf_geomod_mesh_view *);
 #endif

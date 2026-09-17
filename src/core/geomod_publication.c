@@ -464,3 +464,30 @@ int rf_geomod_publication_clip_neighbors(const rf_geomod_mesh_view *mesh,
     }
     return publication_copy(w,mesh->generation,vertices,vc,faces,fc,origins,out);
 }
+
+int rf_geomod_publication_cut_neighbors(const rf_geomod_mesh_view *mesh,
+    const rf_geomod_publication_origin *input_origins,uint32_t owner,
+    const rf_geomod_publication_cut *cuts,uint32_t count,
+    rf_geomod_publication_work *w,rf_geomod_vertex *vertices,uint32_t vc,
+    rf_geomod_face *faces,uint32_t fc,rf_geomod_publication_origin *origins,
+    rf_geomod_mesh_view *out) {
+    rf_geomod_publication_job job={0};uint32_t i,k,bank;int status;
+    if(!mesh || !w || !vertices || !faces || !origins || !out ||
+       owner==UINT32_MAX || (mesh->face_count && !input_origins) ||
+       (count && !cuts) || count>RF_GEOMOD_CUT_LIMIT)return RF_RANGE;
+    status=mesh_valid(mesh);if(status)return status;
+    job.cuts=cuts;job.cut_count=count;
+    status=prepare_cuts(&job,w);if(status)return status;
+    w->result.nv=w->result.nf=0;
+    for(i=0;i<mesh->face_count;i++) {
+        const rf_geomod_face *f=mesh->faces+i;
+        if(input_origins[i].owner==UINT32_MAX || input_origins[i].kind>RF_GEOMOD_PUBLICATION_NEIGHBOR)return RF_FORMAT;
+        bank=0;w->banks[0].nv=w->banks[0].nf=0;
+        status=append(w->banks,mesh->vertices+f->first,f->count,*f);if(status)return status;
+        if(input_origins[i].owner==owner)for(k=0;k<w->tetra_count;k++) {
+            status=subtract(w,&bank,w->tetra[k],4);if(status)return status;
+        }
+        status=emit_bank(w,bank,input_origins[i]);if(status)return status;
+    }
+    return publication_copy(w,mesh->generation,vertices,vc,faces,fc,origins,out);
+}
