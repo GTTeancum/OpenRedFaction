@@ -1,6 +1,6 @@
 # Red Faction Xbox / PC - open work
 
-- PRIORITY GeoMod Xbox stability: Fix connected reset-save/rocket debris parity; a 128KiB main stack prevents the reproduced native restart, but the completed301-frame run differs from PC in the second fragment's inertia and motion state.
+- GeoMod Xbox stability: Broaden connected debris histories after fixing stack exhaustion and cell-sampling precision; reset-save/rocket now passes76 native checks with exact PC continuation and13.50MiB endpoint headroom.
 
 - GeoMod source expansion: Broaden connected destruction histories and inspect exposed caps from above; a joint beam/post rocket plus Xbox-save reload/second rocket passes76/76 stock64MiB checks with exact PC checkpoints and13.87/12.98MiB endpoint headroom.
 

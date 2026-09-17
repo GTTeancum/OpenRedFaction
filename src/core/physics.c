@@ -33,8 +33,11 @@ int rf_physics_body_segment(const rf_physics_body *body,const float start[3],
 int rf_physics_solid_mass_prepare(const rf_collision_face *faces,uint32_t count,
     const float minimum[3],const float maximum[3],float density,rf_physics_solid_mass *result)
 {
-    rf_physics_solid_mass out={0};float extent[3],half,base,first,cell_mass,tensor[9]={0};
-    uint32_t i,j,k,x,y,z;float px,py;
+    rf_physics_solid_mass out={0};float extent[3],half,base,first,tensor[9]={0};
+    uint32_t i,j,k,x,y,z;volatile float px,py,cell_mass;
+    /* 4d1a80/87 round products through 40a070; 4d1a90/40a350 stores
+     * each accumulated component. Preserve these stores on x87 too. */
+    volatile float center_sum[3]={0};
     if(!faces || !count || !minimum || !maximum || !result || !isfinite(density) || density<0)return RF_RANGE;
     for(k=0;k<3;k++) {
         if(!isfinite(minimum[k]) || !isfinite(maximum[k]) || maximum[k]<=minimum[k])return RF_RANGE;
@@ -72,20 +75,22 @@ int rf_physics_solid_mass_prepare(const rf_collision_face *faces,uint32_t count,
             }
             for(z=0;z<4;z++) {
                 uint32_t bits=row[z]&15,n=(bits&1)+((bits>>1)&1)+((bits>>2)&1)+((bits>>3)&1);
-                float p[3]={px,py,0};double fraction=n*.25;
+                volatile float p[3]={px,py,0};double fraction=n*.25;
                 if(!n)continue;
                 p[2]=(float)((double)(2*z+1)*half+base);
                 out.mass=(float)((double)out.mass+fraction*cell_mass);
                 for(k=0;k<3;k++) {
-                    float weighted=(float)((double)p[k]*cell_mass);
+                    /* Preserve both original float stores before accumulation;
+                     * x87 can otherwise retain the first product across casts. */
+                    volatile float weighted=(float)((double)p[k]*cell_mass);
                     weighted=(float)((double)weighted*fraction);
-                    out.center[k]=(float)((double)out.center[k]+weighted);
+                    center_sum[k]=(float)((double)center_sum[k]+weighted);
                 }
             }
         }
     }
     for(k=0;k<3;k++) {
-        if(out.mass>0)out.center[k]=(float)((double)out.center[k]/out.mass);
+        out.center[k]=out.mass>0?(float)((double)center_sum[k]/out.mass):center_sum[k];
         out.origin[k]=(float)(((double)base+half)-out.center[k]);
     }
     for(i=0;i<64;i++) {

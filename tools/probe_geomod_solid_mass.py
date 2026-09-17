@@ -31,7 +31,8 @@ def main():
              ('wide', [((-4,-2,-1),(4,2,1))]),
              ('tall', [((-1,-2,-4),(1,2,4))]),
              ('offset_cut', [((-2,-2,-2),(.8,2,2))]),
-             ('split', [((-2,-2,-2),(-.5,2,2)),((.5,-2,-2),(2,2,2))])]
+             ('split', [((-2,-2,-2),(-.5,2,2)),((.5,-2,-2),(2,2,2))]),
+             ('fractional', [((-.23,-.5617,-.7),(.23,.5617,.7))])]
     rows=[]
     for name,boxes in configs:
       for density in [1,2.5,10]:
@@ -71,7 +72,7 @@ def main():
                  inverse_inertia=list(struct.unpack('<9f',u.mem_read(tensor,36))),**captured)
         assert row['mass']>0 and 'center' in row
         occupancy=sum((v&15).bit_count() for v in row['grid'])/4
-        expected_occupancy={'cube':64,'wide':8,'tall':0,'offset_cut':48,'split':64}[name]
+        expected_occupancy={'cube':64,'wide':8,'tall':0,'offset_cut':48,'split':64,'fractional':32}[name]
         assert occupancy==expected_occupancy,(name,occupancy)
         spacing=row['spacing_origin'][0]
         expected_mass=(occupancy*spacing**3*density if occupancy else
