@@ -93,6 +93,14 @@ void rf_geomod_piece_registry_commit(rf_geomod_piece_registry *);
 uint32_t rf_geomod_piece_registry_count(const rf_geomod_piece_registry *);
 uint32_t rf_geomod_piece_registry_bytes(const rf_geomod_piece_registry *);
 int rf_geomod_piece_registry_get(rf_geomod_piece_registry *,uint32_t,rf_geomod_piece_batch **);
+/* RFPB1 pointer-free little-endian body snapshot, paired with authenticated
+ * terrain history. Canonical prefix/ordinal/piece order must match rebuilt
+ * geometry. No allocation. Decode validates every record before any write.
+ * Only committed registries; no concurrent edits/callbacks or aliasing buffers.
+ * Immutable mass, local inertia, radius and material drag/friction must match. */
+int rf_geomod_piece_registry_state_size(const rf_geomod_piece_registry *,uint32_t *);
+int rf_geomod_piece_registry_state_encode(const rf_geomod_piece_registry *,void *,uint32_t);
+int rf_geomod_piece_registry_state_decode(rf_geomod_piece_registry *,const void *,uint32_t);
 int rf_geomod_piece_bank_get(const rf_geomod_piece_bank *,uint32_t index,rf_geomod_owned_piece *);
 uint32_t rf_geomod_piece_bank_count(const rf_geomod_piece_bank *);
 uint32_t rf_geomod_piece_bank_bytes(const rf_geomod_piece_bank *);

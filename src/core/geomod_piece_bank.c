@@ -306,3 +306,98 @@ uint32_t rf_geomod_piece_registry_count(const rf_geomod_piece_registry *r){retur
 uint32_t rf_geomod_piece_registry_bytes(const rf_geomod_piece_registry *r){return r?r->bytes:0;}
 int rf_geomod_piece_registry_get(rf_geomod_piece_registry *r,uint32_t i,rf_geomod_piece_batch **out)
 {if(!r || !out || i>=r->count)return RF_RANGE;*out=r->active[i].batch;return RF_OK;}
+
+#define PIECE_STATE_HEADER 16u
+#define PIECE_STATE_RECORD 320u
+static uint32_t piece_state_word(const unsigned char *p)
+{return (uint32_t)p[0]|((uint32_t)p[1]<<8)|((uint32_t)p[2]<<16)|((uint32_t)p[3]<<24);}
+static void piece_state_store(unsigned char *p,uint32_t v)
+{p[0]=(unsigned char)v;p[1]=(unsigned char)(v>>8);p[2]=(unsigned char)(v>>16);p[3]=(unsigned char)(v>>24);}
+/* Explicit fields, independent of host struct padding and pointer width. */
+static void piece_state_codec(rf_physics_body_state *s,unsigned char *p,uint32_t read)
+{
+    float *fields[]={s->coefficients,&s->mass,s->local_tensor,s->world_tensor,s->position,s->next_position,
+        s->orientation,s->next_orientation,s->velocity,s->vector_c8,s->mass_vector_d4,s->vector_e0,s->vector_ec,
+        &s->bounds.radius,s->bounds.minimum,s->bounds.maximum,s->vector_138,&s->scalar_144};
+    const uint32_t counts[]={3,1,9,9,3,3,9,9,3,3,3,3,3,1,3,3,3,1};uint32_t i,j,w;
+    uint32_t words[5];
+    for(i=0;i<18;i++)for(j=0;j<counts[i];j++,p+=4) {
+        if(read){w=piece_state_word(p);memcpy(fields[i]+j,&w,4);}
+        else {memcpy(&w,fields[i]+j,4);piece_state_store(p,w);}
+    }
+    if(read) {
+        for(i=0;i<5;i++)words[i]=piece_state_word(p+4*i);
+        s->flags=words[0];s->state_124=words[1];memcpy(&s->reference_15c,words+2,4);
+        s->word_164=words[3];s->word_168=words[4];
+    } else {
+        words[0]=s->flags;words[1]=s->state_124;memcpy(words+2,&s->reference_15c,4);
+        words[3]=s->word_164;words[4]=s->word_168;
+        for(i=0;i<5;i++)piece_state_store(p+4*i,words[i]);
+    }
+}
+static int piece_state_valid(const rf_physics_body_state *s,const rf_physics_body_state *birth)
+{
+    unsigned char encoded[308];rf_physics_body_state copy=*s;uint32_t i,j,k,w;float f,tensor[9];
+    piece_state_codec(&copy,encoded,0);
+    for(i=0;i<72;i++){w=piece_state_word(encoded+4*i);memcpy(&f,&w,4);if(!isfinite(f))return RF_FORMAT;}
+    if(s->mass<=0 || s->bounds.radius<0 || s->coefficients[1]<0 || s->coefficients[2]<0 ||
+       s->scalar_144<0 || s->scalar_144>1 || s->mass!=birth->mass || memcmp(s->local_tensor,birth->local_tensor,36) ||
+       s->bounds.radius!=birth->bounds.radius || s->coefficients[1]!=birth->coefficients[1] ||
+       s->coefficients[2]!=birth->coefficients[2] || s->coefficients[0]<0 || (s->flags&0x40000100u) ||
+       (s->flags&0x4000u) || s->reference_15c!=birth->reference_15c || s->word_168!=birth->word_168)return RF_FORMAT;
+    if(rf_physics_tensor_world(s->local_tensor,s->orientation,tensor))return RF_FORMAT;
+    for(i=0;i<9;i++)if(tensor[i]!=s->world_tensor[i])return RF_FORMAT;
+    for(i=0;i<3;i++)if(s->bounds.minimum[i]>s->bounds.maximum[i])return RF_FORMAT;
+    for(k=0;k<2;k++) {
+        const float *m=k?s->next_orientation:s->orientation;
+        for(i=0;i<3;i++)for(j=0;j<3;j++) {
+            double dot=(double)m[3*i]*m[3*j]+(double)m[3*i+1]*m[3*j+1]+(double)m[3*i+2]*m[3*j+2];
+            if(fabs(dot-(i==j?1:0))>.01)return RF_FORMAT;
+        }
+        if((double)m[0]*(m[4]*m[8]-m[5]*m[7])-(double)m[1]*(m[3]*m[8]-m[5]*m[6])+
+           (double)m[2]*(m[3]*m[7]-m[4]*m[6])<.99)return RF_FORMAT;
+    }
+    return RF_OK;
+}
+int rf_geomod_piece_registry_state_size(const rf_geomod_piece_registry *r,uint32_t *bytes)
+{
+    uint64_t n=PIECE_STATE_HEADER;uint32_t i;
+    if(!r || !bytes || r->begun)return RF_RANGE;
+    for(i=0;i<r->count;i++)n+=(uint64_t)r->active[i].batch->count*PIECE_STATE_RECORD;
+    if(n>UINT32_MAX)return RF_RANGE;*bytes=(uint32_t)n;return RF_OK;
+}
+int rf_geomod_piece_registry_state_encode(const rf_geomod_piece_registry *r,void *output,uint32_t bytes)
+{
+    unsigned char *p=output;uint32_t size,i,j;int status=rf_geomod_piece_registry_state_size(r,&size);
+    if(status)return status;if(!output || bytes!=size)return RF_RANGE;
+    for(i=0;i<r->count;i++)for(j=0;j<r->active[i].batch->count;j++) {
+        const rf_physics_body_state *s=&r->active[i].batch->bodies[j].state;
+        status=piece_state_valid(s,s);if(status)return status;
+    }
+    memcpy(p,"RFPB",4);piece_state_store(p+4,1);piece_state_store(p+8,size);
+    piece_state_store(p+12,(size-PIECE_STATE_HEADER)/PIECE_STATE_RECORD);p+=PIECE_STATE_HEADER;
+    for(i=0;i<r->count;i++)for(j=0;j<r->active[i].batch->count;j++,p+=PIECE_STATE_RECORD) {
+        rf_physics_body_state s=r->active[i].batch->bodies[j].state;
+        piece_state_store(p,r->active[i].prefix);piece_state_store(p+4,r->active[i].ordinal);piece_state_store(p+8,j);
+        piece_state_codec(&s,p+12,0);
+    }
+    return RF_OK;
+}
+int rf_geomod_piece_registry_state_decode(rf_geomod_piece_registry *r,const void *input,uint32_t bytes)
+{
+    const unsigned char *start=input,*p;uint32_t size,i,j,pass;int status=rf_geomod_piece_registry_state_size(r,&size);
+    if(status)return status;if(!input || bytes!=size || bytes<PIECE_STATE_HEADER)return RF_FORMAT;
+    if(memcmp(start,"RFPB",4) || piece_state_word(start+4)!=1 || piece_state_word(start+8)!=size ||
+       piece_state_word(start+12)!=(size-PIECE_STATE_HEADER)/PIECE_STATE_RECORD)return RF_FORMAT;
+    for(pass=0;pass<2;pass++) {
+        p=start+PIECE_STATE_HEADER;
+        for(i=0;i<r->count;i++)for(j=0;j<r->active[i].batch->count;j++,p+=PIECE_STATE_RECORD) {
+            rf_physics_body_state state={0},*target=&r->active[i].batch->bodies[j].state;
+            if(piece_state_word(p)!=r->active[i].prefix || piece_state_word(p+4)!=r->active[i].ordinal || piece_state_word(p+8)!=j)return RF_FORMAT;
+            piece_state_codec(&state,(unsigned char *)p+12,1);
+            if(!pass){status=piece_state_valid(&state,target);if(status)return status;}
+            else *target=state;
+        }
+    }
+    return RF_OK;
+}

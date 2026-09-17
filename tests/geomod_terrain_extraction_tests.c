@@ -89,6 +89,50 @@ static void registry_lifetime(const rf_geomod_mesh_view *mesh,const rf_collision
         CHECK(!rf_geomod_terrain_history_decode(t,encoded,size));
     }
     rf_geomod_piece_registry_commit(r);CHECK(rf_geomod_piece_registry_count(r)==2 && body->state.position[0]==moved);
+    {
+        unsigned char *snapshot,*bad,*check;uint32_t size;rf_physics_body_state saved_body;
+        body->state.velocity[1]=-2;body->state.mass_vector_d4[0]=.3f;body->state.vector_c8[0]=.4f;
+        body->state.vector_e0[2]=.7f;body->state.vector_ec[1]=.2f;body->state.coefficients[0]=.125f;
+        saved_body=body->state;
+        CHECK(!rf_geomod_piece_registry_state_size(r,&size));CHECK(size>336);
+        snapshot=malloc(size);bad=malloc(size);check=malloc(size);CHECK(snapshot && bad && check);
+        CHECK(!rf_geomod_piece_registry_state_encode(r,snapshot,size));
+        {
+            rf_geomod_terrain *restored=NULL;rf_geomod_piece_registry *restored_pieces=NULL;
+            unsigned char *history;uint32_t history_bytes;
+            CHECK(!rf_geomod_terrain_history_size(t,&history_bytes));history=malloc(history_bytes);CHECK(history);
+            CHECK(!rf_geomod_terrain_history_encode(t,history,history_bytes));
+            CHECK(!rf_geomod_terrain_open(mesh,filters,generated,0,4096,800,1179648,&restored));
+            CHECK(!rf_geomod_piece_registry_open(generated,7,2.5f,.5f,.25f,0,2097152,&restored_pieces));
+            CHECK(!rf_geomod_terrain_set_extraction(restored,rf_geomod_piece_registry_emit,restored_pieces));
+            CHECK(!rf_geomod_piece_registry_begin(restored_pieces,1));
+            CHECK(!rf_geomod_terrain_history_decode(restored,history,history_bytes));
+            rf_geomod_piece_registry_commit(restored_pieces);
+            CHECK(!rf_geomod_piece_registry_state_decode(restored_pieces,snapshot,size));
+            CHECK(!rf_geomod_piece_registry_state_encode(restored_pieces,check,size));
+            CHECK(!memcmp(snapshot,check,size));
+            rf_geomod_terrain_close(&restored);rf_geomod_piece_registry_close(&restored_pieces);free(history);
+        }
+        body->state.position[1]+=7;body->state.velocity[2]=3;
+        CHECK(!rf_geomod_piece_registry_state_decode(r,snapshot,size));
+        CHECK(!memcmp(&saved_body,&body->state,sizeof(saved_body)));
+        CHECK(!rf_geomod_piece_registry_state_encode(r,check,size));CHECK(!memcmp(snapshot,check,size));
+        for(uint32_t fault=0;fault<5;fault++) {
+            memcpy(bad,snapshot,size);body->state.position[1]=123;
+            if(fault==0)bad[0]='X';
+            if(fault==1)bad[size-320]^=1; /* Later identity, after earlier valid bodies. */
+            if(fault==2){bad[16+12+12]=0;bad[16+12+13]=0;bad[16+12+14]=128;bad[16+12+15]=63;} /* Wrong immutable mass. */
+            if(fault==3){bad[size-320+12]=0;bad[size-320+13]=0;bad[size-320+14]=192;bad[size-320+15]=127;} /* NaN. */
+            if(fault==4)memset(bad+16+12+28*4,0,36); /* Degenerate orientation. */
+            CHECK(rf_geomod_piece_registry_state_decode(r,bad,size)!=RF_OK);
+            CHECK(body->state.position[1]==123);
+        }
+        CHECK(rf_geomod_piece_registry_state_decode(r,snapshot,size-1)!=RF_OK);
+        CHECK(!rf_geomod_piece_registry_state_decode(r,snapshot,size));
+        CHECK(!rf_geomod_piece_registry_begin(r,0));
+        CHECK(rf_geomod_piece_registry_state_decode(r,snapshot,size)==RF_RANGE);
+        rf_geomod_piece_registry_abort(r);free(snapshot);free(bad);free(check);
+    }
     CHECK(!rf_geomod_piece_registry_begin(r,1));CHECK(!rf_geomod_terrain_reset(t));rf_geomod_piece_registry_commit(r);
     CHECK(!rf_geomod_piece_registry_count(r));
     rf_geomod_piece_registry_close(&r);rf_geomod_piece_registry_close(&r);rf_geomod_terrain_close(&t);
