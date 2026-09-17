@@ -696,6 +696,7 @@ typedef struct scene_stream {
     void *light_scratch_memory;rf_light_world_scratch light_scratch;
     rf_visibility_camera particle_camera;scene_particle_workspace *particle_workspace;uint32_t particle_frame;
 } scene_stream;
+#include "scene_detached_sources.inc"
 static scene_stream *particle_draw_stream;
 static scene_stream *scene_actor_collision_owner;
 unsigned char *rf_scene_geomod_checkpoint_data;
@@ -8435,7 +8436,7 @@ static int combat_shot_obstructed(scene_stream *stream,const float start[3],cons
     int status=rf_geometry_collision_ray(stream->collision,&campaign_movers,start,end,0x27,NULL,blocked);
     if(!status && !*blocked) {
         rf_geomod_registry_hit hit;uint32_t matched;
-        status=rf_geomod_piece_registry_sweep(stream->detached_pieces,0x460,start,delta,0,fraction,&hit,&matched);
+        status=scene_detached_sources_sweep(stream,0x460,start,delta,0,fraction,&hit,&matched);
         rf_scene_detached_hitscan[6]=(uint32_t)status;
         if(!status && matched){*blocked=1;++rf_scene_detached_hitscan[2];}
     }
@@ -10291,7 +10292,7 @@ static int scene_rocket_sweep(void *context,const float start[3],const float del
     if(status)return status;
     if(*matched){out->hit=hit.hit;out->room=hit.room;out->face=hit.face;out->object=UINT32_MAX;}
     ++rf_scene_detached_rocket[0];
-    status=rf_geomod_piece_registry_sweep(s->detached_pieces,query_flags,start,delta,radius,*matched?hit.hit.fraction:1,&piece,&found);
+    status=scene_detached_sources_sweep(s,query_flags,start,delta,radius,*matched?hit.hit.fraction:1,&piece,&found);
     rf_scene_detached_rocket[6]=(uint32_t)status;if(status)return status;
     if(rf_scene_combat_trace && rf_geomod_piece_registry_count(s->detached_pieces))
         printf("DETACHED_ROCKET_QUERY %u %.9g %.9g %.9g %.9g %.9g %.9g %.9g %u %.9g %u\n",query_flags,
@@ -10774,13 +10775,17 @@ static int scene_detached_query(const rf_physics_body_state *body,rf_physics_sol
 }
 static int scene_detached_tick(scene_stream *s)
 {
-    uint32_t b,i;int status;memset(rf_scene_detached_motion,0,sizeof(rf_scene_detached_motion));
+    uint32_t b,i,source,count;int status;memset(rf_scene_detached_motion,0,sizeof(rf_scene_detached_motion));
     memset(rf_scene_detached_pose,0,sizeof(rf_scene_detached_pose));
-    if(!s->detached_pieces)return RF_OK;
-    {uint32_t released;status=rf_geomod_piece_registry_collect_retired(s->detached_pieces,&released);if(status)goto failed;}
-    for(b=0;b<rf_geomod_piece_registry_count(s->detached_pieces);b++) {
+    if(s->terrain_source_count>4 || (s->terrain_source_count && !s->terrain_sources))return RF_RANGE;
+    count=s->terrain_source_count?s->terrain_source_count:1;
+    for(source=0;source<count;source++) {
+    rf_geomod_piece_registry *registry=scene_detached_source_registry(s,source);
+    if(!registry)continue;
+    {uint32_t released;status=rf_geomod_piece_registry_collect_retired(registry,&released);if(status)goto failed;}
+    for(b=0;b<rf_geomod_piece_registry_count(registry);b++) {
         rf_geomod_piece_batch *batch;
-        status=rf_geomod_piece_registry_get(s->detached_pieces,b,&batch);if(status)goto failed;
+        status=rf_geomod_piece_registry_get(registry,b,&batch);if(status)goto failed;
         for(i=0;i<rf_geomod_piece_batch_count(batch);i++) {
             rf_geomod_owned_piece piece;rf_physics_body *body;rf_physics_solid_step_report report;
             scene_detached_query_context query;uint32_t flags=0;float position[3],basis[9];
@@ -10796,6 +10801,7 @@ static int scene_detached_tick(scene_stream *s)
             memcpy(rf_scene_detached_pose,body->state.position,12);memcpy(rf_scene_detached_pose+3,body->state.velocity,12);
         }
     }
+    }
     return RF_OK;
 failed:rf_scene_detached_motion[6]=(uint32_t)status;return status;
 }
@@ -10803,14 +10809,18 @@ failed:rf_scene_detached_motion[6]=(uint32_t)status;return status;
 uint32_t rf_scene_detached_pieces[6]; /* active,batches,pieces,draw vertices,resident,status */
 static int scene_detached_draw(scene_stream *s)
 {
-    uint32_t b,i;int status;memset(rf_scene_detached_pieces,0,sizeof(rf_scene_detached_pieces));
-    if(!s->detached_pieces)return RF_OK;
+    uint32_t b,i,source,count;int status;memset(rf_scene_detached_pieces,0,sizeof(rf_scene_detached_pieces));
+    if(s->terrain_source_count>4 || (s->terrain_source_count && !s->terrain_sources))return RF_RANGE;
+    count=s->terrain_source_count?s->terrain_source_count:1;
+    for(source=0;source<count;source++) {
+    rf_geomod_piece_registry *registry=scene_detached_source_registry(s,source);
+    if(!registry)continue;
     rf_scene_detached_pieces[0]=1;
-    rf_scene_detached_pieces[1]=rf_geomod_piece_registry_count(s->detached_pieces);
-    rf_scene_detached_pieces[4]=rf_geomod_piece_registry_bytes(s->detached_pieces);
-    for(b=0;b<rf_scene_detached_pieces[1];b++) {
+    rf_scene_detached_pieces[1]+=rf_geomod_piece_registry_count(registry);
+    rf_scene_detached_pieces[4]+=rf_geomod_piece_registry_bytes(registry);
+    for(b=0;b<rf_geomod_piece_registry_count(registry);b++) {
         rf_geomod_piece_batch *batch;
-        status=rf_geomod_piece_registry_get(s->detached_pieces,b,&batch);if(status)goto failed;
+        status=rf_geomod_piece_registry_get(registry,b,&batch);if(status)goto failed;
         for(i=0;i<rf_geomod_piece_batch_count(batch);i++) {
             rf_geomod_owned_piece piece;rf_physics_body *body;rf_preview_mesh emitted={0};
             if(!rf_geomod_piece_batch_alive(batch,i))continue;
@@ -10822,6 +10832,7 @@ static int scene_detached_draw(scene_stream *s)
             s->mesh->count+=emitted.count;s->mesh->bytes+=emitted.bytes;
             rf_scene_detached_pieces[2]++;rf_scene_detached_pieces[3]+=emitted.count;
         }
+    }
     }
     return RF_OK;
 failed:
@@ -10953,7 +10964,7 @@ static int scene_rockets_tick(scene_stream *s,uint32_t frame)
             scene_impact_sound(event.contact.hit.point,frame);
             if(event.contact.object!=UINT32_MAX && (event.contact.object&0x80000000u)) {
                 uint32_t tag=event.contact.object;
-                status=rf_geomod_piece_registry_damage(s->detached_pieces,(tag>>16)&0x7fff,tag&0xffff,campaign_primary[4].damage);
+                status=scene_detached_sources_damage(s,(tag>>16)&0x7fff,tag&0xffff,campaign_primary[4].damage);
                 if(status)return status;
             }
             status=scene_rocket_blast(s,frame,&event.contact);rf_scene_rocket_blast[7]=(uint32_t)status;if(status)return status;
@@ -11220,7 +11231,7 @@ static int campaign_combat_tick(scene_stream *stream,uint32_t frame,const float 
     {
         rf_geomod_registry_hit hit;uint32_t matched;
         ++rf_scene_detached_hitscan[0];
-        status=rf_geomod_piece_registry_sweep(stream->detached_pieces,0x460,position,delta,0,nearest,&hit,&matched);
+        status=scene_detached_sources_sweep(stream,0x460,position,delta,0,nearest,&hit,&matched);
         rf_scene_detached_hitscan[6]=(uint32_t)status;if(status)return status;
         if(matched && (target==UINT32_MAX || hit.piece.hit.fraction<nearest)) {
             float end[3];uint32_t wall;
@@ -11228,7 +11239,7 @@ static int campaign_combat_tick(scene_stream *stream,uint32_t frame,const float 
             status=rf_geometry_collision_ray(stream->collision,&campaign_movers,position,end,0x27,NULL,&wall);if(status)return status;
             if(!wall) {
                 float damage=alt?(campaign_equipped_slot==2?campaign_pistol.alt_damage/60:campaign_pistol.alt_damage):campaign_pistol.damage;
-                status=rf_geomod_piece_registry_damage(stream->detached_pieces,hit.batch,hit.piece.piece,damage);
+                status=scene_detached_sources_damage(stream,hit.batch,hit.piece.piece,damage);
                 rf_scene_detached_hitscan[6]=(uint32_t)status;if(status)return status;
                 ++rf_scene_detached_hitscan[1];rf_scene_detached_hitscan[3]=hit.batch;rf_scene_detached_hitscan[4]=hit.piece.piece;
                 rf_scene_detached_hitscan[5]=npc_hash_bytes(2166136261u,hit.piece.hit.point,12);combat_surface_frame=frame;

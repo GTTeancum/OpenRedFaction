@@ -670,3 +670,7 @@ target_link_libraries(rf_check_authored_piece_extraction PRIVATE rf_core)
 add_executable(rf_physics_solid_propose_tests tests/physics_solid_propose_tests.c)
 target_link_libraries(rf_physics_solid_propose_tests PRIVATE rf_core)
 add_test(NAME physics_solid_propose COMMAND rf_physics_solid_propose_tests)
+
+add_executable(rf_scene_detached_sources_tests tests/scene_detached_sources_tests.c src/diagnostic/animation.c)
+target_link_libraries(rf_scene_detached_sources_tests PRIVATE rf_core)
+add_test(NAME scene_detached_sources COMMAND rf_scene_detached_sources_tests)

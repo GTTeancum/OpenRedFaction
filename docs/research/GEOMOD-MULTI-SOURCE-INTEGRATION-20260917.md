@@ -77,3 +77,15 @@ Selection synchronizes the active terrain and registry aliases back into their c
 The two-real-post scene test now uses heap-owned source assets and collection entries, exercises source selection, replaces the active core with a decoded equivalent, frees the old core and switches away/back to verify the new pointer survives. It then closes the entire collection and checks all ownership fields clear. Normal one-source publication retains the original reset and save behavior.
 
 PC build and121/121 tests pass; stock-profile NXDK build passes. The550-frame live97 run through collection startup and cleanup produces the identical2758-byte checkpoint (SHA256 d98a3c0e8b1c725e4924aaf82f7872e99ede438963d3b0e342f892a884f4aea0; `artifacts/source-lifetime-live`). Multi-source factory invocation beyond the scene fixture, live aggregate lighting, impact dispatch, all-registry contacts and multi-source saves remain unverified. The startup caller still requests one source; simultaneous gameplay has not been enabled.
+
+## Source-qualified rubble weapon queries
+
+The scene weapon sweep and fragment damage call sites now use source-collection adapters. Each source retains16 batch ID values, so source slots map to0..15,16..31,etc. This keeps a later source's transient contact ID stable when an earlier registry adds batches. These are scene-lifetime hit IDs, not a new save format. Selected registry aliases take precedence over stale collection entries after a committed load/edit.
+
+Weapon sweeps retain the nearest current-pose polygon hit across registries with stable source-order ties. Damage decodes the source-qualified batch and affects only that registry. Invalid source IDs reject; misses preserve hit output and errors preserve both outputs. Existing source0 IDs are unchanged.
+
+Rubble tick and draw loops now visit every registry, accumulate telemetry and collect retired payloads per source. Original fragment-fragment exclusion remains unchanged. Player and admitted vehicle queries still require separate multi-registry integration with their own shape/tie rules; generic weapon queries are not substituted for those paths.
+
+The new scene test uses two real registry-owned cube chunks, verifies a nearer hit in the later source, equal-time first-source retention, selected alias handling and isolated retirement with the other registry's encoded state unchanged. It checks misses/errors and verifies the actual scene tick visits two sleeping bodies. This does not prove dynamic multi-source contact or multi-source visual quality.
+
+PC build and122/122 tests pass; stock NXDK compilation passes. `tools/check_detached_rocket.py` passes through the updated scene: two real rockets, one terrain extraction, second hit retires the chunk,0 live/drawn pieces,1852 retained owner bytes and no motion errors. No new Xbox runtime or multi-source visual acceptance is claimed.
