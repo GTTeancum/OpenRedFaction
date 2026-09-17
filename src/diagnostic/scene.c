@@ -8343,6 +8343,7 @@ static int combat_obstructed(scene_stream *stream,const float start[3],const flo
     for(j=0;j<3;j++)end[j]=start[j]+delta[j];
     return rf_geometry_collision_ray(stream->collision,&campaign_movers,start,end,1,NULL,blocked);
 }
+uint32_t rf_scene_detached_hitscan[7]; /* player queries,hits,obstructions,batch,piece,point hash,status */
 static int combat_shot_obstructed(scene_stream *stream,const float start[3],const float delta[3],
     float fraction,uint32_t *blocked)
 {
@@ -8350,7 +8351,14 @@ static int combat_shot_obstructed(scene_stream *stream,const float start[3],cons
     for(j=0;j<3;j++)end[j]=start[j]+delta[j]*fraction;
     /* 0x26 maps to the existing bullet world flags0x460; bit0 requests any hit.
      * Only visibility is needed, avoiding the original wrapper's reused fractions. */
-    return rf_geometry_collision_ray(stream->collision,&campaign_movers,start,end,0x27,NULL,blocked);
+    int status=rf_geometry_collision_ray(stream->collision,&campaign_movers,start,end,0x27,NULL,blocked);
+    if(!status && !*blocked) {
+        rf_geomod_registry_hit hit;uint32_t matched;
+        status=rf_geomod_piece_registry_sweep(stream->detached_pieces,0x460,start,delta,0,fraction,&hit,&matched);
+        rf_scene_detached_hitscan[6]=(uint32_t)status;
+        if(!status && matched){*blocked=1;++rf_scene_detached_hitscan[2];}
+    }
+    return status;
 }
 /* First-pass death presentation; action audio remains a separate integration. */
 static int combat_death_sound(void *context,uint32_t handle,const char *name)
@@ -11114,6 +11122,23 @@ static int campaign_combat_tick(scene_stream *stream,uint32_t frame,const float 
                     center[0],center[1],center[2],sphere->radius,body->state.bounds.minimum[0],body->state.bounds.minimum[1],body->state.bounds.minimum[2],
                     body->state.bounds.maximum[0],body->state.bounds.maximum[1],body->state.bounds.maximum[2]);
             }
+        }
+    }
+    {
+        rf_geomod_registry_hit hit;uint32_t matched;
+        ++rf_scene_detached_hitscan[0];
+        status=rf_geomod_piece_registry_sweep(stream->detached_pieces,0x460,position,delta,0,nearest,&hit,&matched);
+        rf_scene_detached_hitscan[6]=(uint32_t)status;if(status)return status;
+        if(matched && (target==UINT32_MAX || hit.piece.hit.fraction<nearest)) {
+            float end[3];uint32_t wall;
+            for(i=0;i<3;i++)end[i]=position[i]+delta[i]*hit.piece.hit.fraction;
+            status=rf_geometry_collision_ray(stream->collision,&campaign_movers,position,end,0x27,NULL,&wall);if(status)return status;
+            if(!wall) {
+                ++rf_scene_detached_hitscan[1];rf_scene_detached_hitscan[3]=hit.batch;rf_scene_detached_hitscan[4]=hit.piece.piece;
+                rf_scene_detached_hitscan[5]=npc_hash_bytes(2166136261u,hit.piece.hit.point,12);combat_surface_frame=frame;
+                if(campaign_equipped_slot==2 && fire){combat_sound("Riot Impact Default",hit.piece.hit.point);++rf_scene_riot[4];}
+            }
+            continue; /* World or fragment blocks any farther NPC. */
         }
     }
     if(campaign_equipped_slot==2 && fire) {

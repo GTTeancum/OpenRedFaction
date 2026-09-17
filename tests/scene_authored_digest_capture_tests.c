@@ -110,6 +110,22 @@ int main(int argc,char **argv)
                 CHECK(!rf_geomod_piece_registry_get(s.detached_pieces,0,&batch));
                 CHECK(!rf_geomod_piece_batch_get(batch,0,&piece,&body));
                 body->state.position[0]+=.125f;body->state.velocity[1]=-2;body->state.coefficients[0]=.2f;
+                {
+                    rf_physics_body_state saved=body->state;rf_geomod_piece_registry *registry=s.detached_pieces;
+                    const rf_collision_face *face=piece.collision;float center[3]={0},start[3],delta[3];uint32_t blocked=99,k,n;
+                    /* Isolate the shared NPC/player obstruction path from static
+                     * world walls, using a real extracted polygon outside world bounds. */
+                    memset(body->state.orientation,0,36);body->state.orientation[0]=body->state.orientation[4]=body->state.orientation[8]=1;
+                    for(k=0;k<3;k++)body->state.position[k]=s.collision->maximum[k]+1000;
+                    for(n=0;n<face->count;n++)for(k=0;k<3;k++)center[k]+=face->vertices[n][k]/face->count;
+                    for(k=0;k<3;k++){start[k]=body->state.position[k]+center[k]+2*face->plane[k];delta[k]=-4*face->plane[k];}
+                    s.detached_pieces=NULL;CHECK(!combat_shot_obstructed(&s,start,delta,1,&blocked) && !blocked);
+                    s.detached_pieces=registry;
+                    CHECK(!combat_shot_obstructed(&s,start,delta,1,&blocked) && blocked);
+                    CHECK(!combat_shot_obstructed(&s,start,delta,.1f,&blocked) && !blocked);
+                    body->state=saved;
+                }
+
             }
             CHECK(save);CHECK(!scene_authored_checkpoint_write(&s,save,SCENE_CHECKPOINT_MAX,&bytes));
             CHECK(bytes>416 && !memcmp(save,"RFDS",4) && checkpoint_u32(save+4)==2);
