@@ -1,6 +1,6 @@
 # Red Faction Xbox / PC - open work
 
-- GeoMod capacity: Resolve duplicate triangles at cut16; retained diagonal endpoints fix cut14 and fifteen overlapping cuts pass, with the live eight-cut path verified in XEMU under reconstruction policy3.
+- GeoMod capacity: Integrate the verified sixteen-cut core into bounded live publication/save budgets and stock Xbox testing; mapped reload/next-cut now matches exactly, while the shipping profile remains eight cuts.
 
 - GeoMod UV seams: Broaden chronological reconstruction beyond current fixtures; all105 tests and48 axis-oriented UV cases pass, with live two-cut reload/next-blast passing58 stock64MiB Xbox checks.
 

@@ -6,9 +6,9 @@
 int main(int argc,char **argv)
 {
     static const char *names[6]={"maps1.vpp","maps2.vpp","maps3.vpp","maps4.vpp","maps_en.vpp","ui.vpp"};
-    /* Authored reconstruction policy3; earlier saves have a different identity. */
-    static const unsigned char known[32]={0x6f,0x3d,0x77,0x02,0xa0,0x1d,0xa7,0x4e,0x8a,0x81,0xa8,0x74,0x55,0x94,0xbd,0xca,
-        0x1c,0xba,0x9c,0x37,0x8f,0xfd,0xb9,0x66,0xdb,0xde,0x79,0x1c,0xd4,0xe9,0xaf,0xb1};
+    /* Authored reconstruction policy4; earlier saves have a different identity. */
+    static const unsigned char known[32]={0x27,0xe7,0x1b,0x14,0x88,0x96,0xe2,0xcc,0x58,0xd2,0x5f,0xd0,0x3b,0x67,0x45,0xf3,
+        0xc8,0x55,0x4c,0xaa,0x26,0x4e,0x3b,0xa8,0xc2,0x37,0x7d,0xb8,0xdd,0x78,0x8a,0x66};
     rf_vpp archive={0},maps[6]={{0}};rf_level level;rf_geometry geometry={0};rf_lightmap_rgb_owner rgb={0};
     rf_geomod_authored_post *owner=NULL;rf_geomod_authored_post_view asset;
     rf_geomod_digest_material materials[8],old_materials[8],substrate,old_substrate;
@@ -25,6 +25,7 @@ int main(int argc,char **argv)
     memset(&substrate,0xa5,sizeof(substrate));manifest.substrate=&substrate;
     manifest.materials=materials;manifest.material_capacity=8;manifest.references=references;manifest.reference_capacity=32;
     CHECK(!rf_geomod_authored_identity_capture_manifest(&level,&geometry,&asset,maps,6,&rgb,2*1024*1024,digest,&peak,&manifest));
+    if(memcmp(digest,known,32)){fprintf(stderr,"SOURCE_IDENTITY ");for(i=0;i<32;i++)fprintf(stderr,"%02x",digest[i]);fprintf(stderr,"\n");}
     CHECK(!memcmp(digest,known,32) && peak<=2*1024*1024 && manifest.material_count==2 && manifest.reference_count==19);
     CHECK(manifest.resident_bytes==sizeof(manifest)+sizeof(materials)+sizeof(references)+sizeof(substrate));
     CHECK(substrate.key==0 && substrate.prehashed==1 && !substrate.image.pixels &&

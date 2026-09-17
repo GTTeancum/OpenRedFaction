@@ -1850,7 +1850,31 @@ static int repair_cavity_pending_provenance(rf_geomod_storage *s,rf_geomod_multi
          if(provenance) {
              uint32_t child,v;
              for(child=first;child<output.nf;child++) {
-                 const rf_geomod_face *cf=output.faces+child;provenance->planes[child]=plane;
+                 const rf_geomod_face *cf=output.faces+child;uint32_t prior,duplicate=0;
+                 /* A repaired fragment can coincide exactly with a retained
+                  * fragment. Keep the first same-support/same-birth surface;
+                  * rounded UV interpolation alone must not duplicate geometry. */
+                 for(prior=0;prior<child && !duplicate;prior++) {
+                     const rf_geomod_face *pf=output.faces+prior;uint32_t offset,k;
+                     if(provenance->planes[prior]!=plane || pf->count!=cf->count ||
+                        pf->material!=cf->material || pf->source_face!=cf->source_face ||
+                        (lineage && lineage->repaired[prior]!=lineage->repaired[child]))continue;
+                     for(offset=0;offset<cf->count;offset++) {
+                         for(k=0;k<cf->count;k++)if(memcmp(output.vertices[cf->first+k].position,
+                             output.vertices[pf->first+(offset+k)%pf->count].position,12))break;
+                         if(k==cf->count){duplicate=1;break;}
+                     }
+                 }
+                 if(duplicate) {
+                     uint32_t first_vertex=cf->first,count=cf->count,k;
+                     memmove(output.vertices+first_vertex,output.vertices+first_vertex+count,
+                         (output.nv-first_vertex-count)*sizeof(*output.vertices));output.nv-=count;
+                     memmove(output.faces+child,output.faces+child+1,(output.nf-child-1)*sizeof(*output.faces));output.nf--;
+                     for(k=child;k<output.nf;k++)output.faces[k].first-=count;
+                     if(lineage)memmove(lineage->repaired+child,lineage->repaired+child+1,output.nf-child);
+                     child--;continue;
+                 }
+                 provenance->planes[child]=plane;
                  for(v=0;v<cf->count;v++) {
                      const rf_geomod_vertex *a=output.vertices+cf->first+v,*b=output.vertices+cf->first+(v+1)%cf->count;
                      uint32_t from,to,j;uint16_t support=plane;

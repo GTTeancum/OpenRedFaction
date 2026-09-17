@@ -76,6 +76,22 @@ int main(void)
         }
         free(d);
     }
+    for(unsigned variant=0;variant<5;variant++) {
+        geomod_step_support *provenance=calloc(1,sizeof(*provenance));rf_geomod_vertex first[4];
+        CHECK(provenance);quad(v,0);memcpy(first,v,sizeof(first));
+        CHECK(!rf_geomod_storage_open(&source,128,16,32768,&s) && !rf_geomod_storage_begin(s));
+        CHECK(!rf_geomod_storage_append(s,v,4,47,UINT32_MAX));tags->pending[0]=7;w->compact_planes[0]=0;
+        for(i=0;i<4;i++)w->compact_edges[i]=1;
+        v[1].uv[0]+=.000001f;
+        if(variant==4)for(i=0;i<2;i++){rf_geomod_vertex swap=v[i];v[i]=v[3-i];v[3-i]=swap;}
+        CHECK(!rf_geomod_storage_append(s,v,4,variant==1?48:47,UINT32_MAX));
+        tags->pending[1]=variant==2?8:7;w->compact_planes[1]=variant==3?2:0;
+        for(i=4;i<8;i++)w->compact_edges[i]=1;
+        CHECK(!repair_cavity_pending_provenance(s,w,tags,provenance));
+        CHECK(!rf_geomod_storage_pending(s,&pending) && pending.face_count==(variant?2u:1u));
+        CHECK(!memcmp(first,pending.vertices,sizeof(first)) && tags->pending[0]==7);
+        rf_geomod_storage_close(&s);free(provenance);
+    }
     free(tags);free(w);
     puts("PASS birth separation, same-birth merge/index movement, repair and concave partition propagation; original diagonal intersections across shortened edges");return 0;
 }

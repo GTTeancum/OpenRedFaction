@@ -245,3 +245,35 @@ No retail-parity/audio/extended-profile visual claim.
 
 Logs: partition14-origin.log, diagonal-origin-build.log, diagonal-live-eight.log,
 diagonal-full-build.log, diagonal-full-tests.log, diagonal-native.log.
+
+## Exact duplicate repair and sixteen-cut mapped continuation
+
+Cut16 repair emitted the same triangle twice under the same support plane,
+material, source face and birth tag, with slightly different interpolated UVs.
+Chronological repair now retains the first exact-position, same-winding cyclic
+copy. Different support/material/birth or reversed winding remains separate;
+there is no proximity weld. Compacted face offsets and lineage move together.
+Focused preservation controls pass and retained UV bytes stay unchanged.
+
+The expanded 8192-corner/2048-face/16-cut diagnostic passes all sixteen
+overlapping cuts, closed edge coverage, increasing excavated volume, ray
+coverage and light-grid containment. With 256x256 material mapping, peak core
+memory is2040896 bytes, below the2097152-byte budget. A fifteen-cut RGCH
+reload reproduces all mesh bytes; its sixteenth cut matches uninterrupted
+vertex/face/UV and19868-byte history output exactly. The initial continuation
+probe reused a collision-hit variable overwritten by junction queries; the
+probe now snapshots the original blast center before those queries.
+
+Source reconstruction policy is4, fingerprint
+27e71b148896e2cc58d25fd03b6745f3c8554caa264e3ba8c2377db8dd788a66.
+Older authored identities are intentionally rejected. Full PC build and all106
+registered tests pass. NXDK build passes (existing .edata merge warning).
+This is core capacity evidence, not live sixteen-cut Xbox acceptance: live
+publication, atlas, save limits and stock-memory integration remain open.
+No new native visual validation is claimed for policy4 in this update.
+
+Evidence: artifacts/authored-post-live/sixteen-mapped-restart-fixed.log,
+duplicate-full-build.log, duplicate-full-tests.log and duplicate-xbox-build.log.
+
+Policy4 live PC two-shot restart also passes: restored next-blast RFCP, RGCH
+and RGP match uninterrupted output (duplicate-restart.log).

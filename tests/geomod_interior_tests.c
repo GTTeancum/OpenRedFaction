@@ -1499,7 +1499,8 @@ int main(int argc,char **argv)
         }
         {
             rf_geomod_template shape;rf_random_state random={1};double previous_volume=0;unsigned junction_misses=0;
-            rf_geomod_terrain *uncached=NULL,*limited=NULL;rf_geomod_terrain_view reference;
+            rf_geomod_terrain *uncached=NULL,*limited=NULL,*restored=NULL;rf_geomod_terrain_view reference;
+            unsigned mapped=getenv("RF_GEOMOD_STRESS_MAPPING")!=NULL;
             const char *trace_cut=getenv("RF_GEOMOD_INTERSECTION_CUT");unsigned trace_index=0,stress_count=6;
             const char *stress=getenv("RF_GEOMOD_STRESS_COUNT"),*budget_text=getenv("RF_GEOMOD_STRESS_BUDGET");
             unsigned stress_budget=RF_GEOMOD_TEST_BUDGET,stress_faces=0;
@@ -1519,14 +1520,16 @@ int main(int argc,char **argv)
             CHECK(!rf_geomod_terrain_open(&source,original_filters,&generated,1,RF_GEOMOD_WORK_VERTICES,stress_faces?stress_faces:(stress_count>6?800:768),stress_budget,&terrain));
             CHECK(!rf_geomod_terrain_open(&source,original_filters,&generated,1,RF_GEOMOD_WORK_VERTICES,stress_faces?stress_faces+1:801,stress_budget,&uncached));
             if(stress_count==8)CHECK(!rf_geomod_terrain_open(&source,original_filters,&generated,1,RF_GEOMOD_WORK_VERTICES,768,stress_budget,&limited));
+            if(mapped){CHECK(!rf_geomod_terrain_set_mapping(terrain,256,256));CHECK(!rf_geomod_terrain_set_mapping(uncached,256,256));if(limited)CHECK(!rf_geomod_terrain_set_mapping(limited,256,256));}
             report_closure=getenv("RF_GEOMOD_CLOSURE_ALL")?2:1;
             {uint16_t edges[24];CHECK(!rf_geomod_seed_adjacency(&source,edges,24));}
             for(repeat=0;repeat<stress_count;repeat++) {
-                rf_collision_tree_hit hit;uint32_t matched;float basis[9],placement_delta[3];double total=0;
+                rf_collision_tree_hit hit;uint32_t matched;float basis[9],placement_delta[3],cut_center[3];double total=0;
                 CHECK(!rf_geomod_terrain_get(terrain,&live));
                 memcpy(placement_delta,delta,sizeof(placement_delta));terrain_extend_ray(&live.mesh,start,placement_delta);
                 CHECK(!rf_collision_thin_tree(live.tree->nodes,live.tree->node_count,live.tree->faces,live.tree->face_count,
                     0,start,placement_delta,1,live.tree->stack,live.tree->node_capacity,&hit,&matched) && matched);
+                memcpy(cut_center,hit.hit.point,sizeof(cut_center));
                 CHECK(!rf_geomod_random_basis(&random,basis));
                 {
                     FILE *trace=NULL,*compact_trace=NULL;const char *path=getenv("RF_GEOMOD_INTERSECTION_TRACE");
@@ -1660,9 +1663,36 @@ int main(int argc,char **argv)
                     printf("CRATER_LIGHT_GRID cut %u samples %u\n",repeat+1,samples);CHECK(samples>0);
                 }
                 CHECK(!terrain_ray_coverage(&live,repeat+1));
+                if(stress_count>8 && repeat==stress_count-2) {
+                    uint32_t bytes;unsigned char *history;rf_geomod_terrain_view loaded;
+                    CHECK(!rf_geomod_terrain_history_size(terrain,&bytes) && bytes<=RF_GEOMOD_HISTORY_MAX_BYTES);
+                    history=malloc(bytes);CHECK(history && !rf_geomod_terrain_history_encode(terrain,history,bytes));
+                    CHECK(!rf_geomod_terrain_open(&source,original_filters,&generated,1,RF_GEOMOD_WORK_VERTICES,
+                        stress_faces?stress_faces:800,stress_budget,&restored));
+                    if(mapped)CHECK(!rf_geomod_terrain_set_mapping(restored,256,256));
+                    CHECK(!rf_geomod_terrain_history_decode(restored,history,bytes));free(history);
+                    CHECK(!rf_geomod_terrain_get(restored,&loaded));
+                    CHECK(loaded.mesh.vertex_count==live.mesh.vertex_count && loaded.mesh.face_count==live.mesh.face_count);
+                    CHECK(!memcmp(loaded.mesh.vertices,live.mesh.vertices,live.mesh.vertex_count*sizeof(*live.mesh.vertices)));
+                    CHECK(!memcmp(loaded.mesh.faces,live.mesh.faces,live.mesh.face_count*sizeof(*live.mesh.faces)));
+                }
+                if(restored && repeat==stress_count-1) {
+                    rf_geomod_terrain_view loaded;uint32_t bytes,other;unsigned char *a,*b;
+                    CHECK(!rf_geomod_terrain_cut_template(restored,&shape,cut_center,basis,3.75f,77));
+                    CHECK(!rf_geomod_terrain_get(restored,&loaded));
+                    CHECK(loaded.mesh.vertex_count==live.mesh.vertex_count && loaded.mesh.face_count==live.mesh.face_count);
+                    CHECK(!memcmp(loaded.mesh.vertices,live.mesh.vertices,live.mesh.vertex_count*sizeof(*live.mesh.vertices)));
+                    CHECK(!memcmp(loaded.mesh.faces,live.mesh.faces,live.mesh.face_count*sizeof(*live.mesh.faces)));
+                    CHECK(!terrain_ray_coverage(&loaded,repeat+1));
+                    CHECK(!rf_geomod_terrain_history_size(terrain,&bytes) && !rf_geomod_terrain_history_size(restored,&other) && bytes==other);
+                    a=malloc(bytes);b=malloc(bytes);CHECK(a && b);
+                    CHECK(!rf_geomod_terrain_history_encode(terrain,a,bytes) && !rf_geomod_terrain_history_encode(restored,b,bytes) && !memcmp(a,b,bytes));
+                    free(a);free(b);printf("STRESS_RELOAD next_cut%u history%u mapped%u peak%u\n",repeat+1,bytes,mapped,loaded.peak_bytes);
+                }
                 CHECK(-total>previous_volume);previous_volume=-total;
             }
             rf_geomod_terrain_close(&terrain);
+            rf_geomod_terrain_close(&restored);
             rf_geomod_terrain_close(&uncached);
             rf_geomod_terrain_close(&limited);
             report_closure=0;
