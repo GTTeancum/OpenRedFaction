@@ -38,6 +38,7 @@ def main():
     parser.add_argument('--capture-ripple', action='store_true', help='Capture ordinary ripple vertices without injecting a fixture')
     parser.add_argument('--debris-player-test', action='store_true', help='Explicit scene damage fixture, not an ordinary fragment trajectory')
     parser.add_argument('--ripple-test', action='store_true', help='DEV render-only ripple fixture; no liquid collision claim')
+    parser.add_argument('--authored-source', type=int, choices=(93,94,96,97), help='Select one ctf06 developer destruction source on both platforms')
     parser.add_argument('--dev-room', action='store_true', help='Supply supported weapons in Glass House or the authored ctf06 post test')
     parser.add_argument('--player-checkpoint', action='store_true', help='Opt-in RFCP player plus destruction checkpoint mode')
     parser.add_argument('--shallow-oblique', action='store_true', help='Use an oblique second shallow-region limit')
@@ -71,6 +72,8 @@ def main():
     if args.terrain_texture_audit and not args.dev_room:parser.error('--terrain-texture-audit requires --dev-room')
     if args.terrain_map_limit is not None and (not args.dev_room or not 1<=args.terrain_map_limit<=(2048 if args.expanded_geomod else 1024) or not 1<=args.terrain_map_limit_until<=0xffffffff):
         parser.error('Map fault injection requires DEV mode and valid map/frame limits')
+    if args.authored_source is not None and (not args.dev_room or args.level!='ctf06.rfl'):
+        parser.error('--authored-source requires --dev-room --level ctf06.rfl')
     if args.player_checkpoint and not args.dev_room:parser.error('--player-checkpoint requires --dev-room')
     if args.lava_test and (args.swim_test or args.water_test or args.dev_room or not args.spawn or args.level!='L5S2.rfl' or args.archive!='levels1.vpp'):
         parser.error('--lava-test requires --spawn --level L5S2.rfl --archive levels1.vpp without other placement fixtures')
@@ -130,10 +133,12 @@ def main():
         scope='Authored section, player spawn or staged actor/pickup camera, process-local replay/setup commands, native framebuffer, '
               'phase timings and selected PC gameplay-state checks. No full campaign/parity claim.', samples=[])
     report['expanded_geomod']=args.expanded_geomod
+    report['authored_source']=args.authored_source if args.authored_source is not None else (94 if args.dev_room and args.level=='ctf06.rfl' else None)
     (run / 'inputs.bin').write_bytes(payload)
     env = {k: v for k, v in os.environ.items() if not k.startswith('RF_REPLAY_')}
     env.update(RF_REPLAY_LEVEL=args.level, RF_REPLAY_ARCHIVE=args.archive)
     if args.dev_room:env['RF_REPLAY_DEV_ROOM']='1'
+    if args.authored_source is not None:env['RF_REPLAY_AUTHORED_SOURCE']=str(args.authored_source)
     if args.terrain_texture_audit:env['RF_REPLAY_TERRAIN_MATERIAL_AUDIT']=str(run/'pc-terrain-material.bin')
     if args.terrain_map_limit is not None:
         env.update(RF_REPLAY_TERRAIN_MAP_LIMIT=str(args.terrain_map_limit),RF_REPLAY_TERRAIN_MAP_LIMIT_UNTIL=str(args.terrain_map_limit_until))
@@ -198,7 +203,7 @@ def main():
     saved[shallow_flag.name]=shallow_flag.read_bytes() if shallow_flag.exists() else None
     for name in ('geomod-checkpoint.bin','geomod-checkpoint-out.flag','ripple-test.flag','debris-player-test.flag','water-test.flag','swim-test.flag','player-checkpoint.flag',
                  'geomod-hdd-load.flag','geomod-hdd-save.flag','geomod-fallback-seed.flag','geomod-fallback-observe.flag',
-                 'geomod-fallback0.rfsg','geomod-fallback1.rfsg','terrain-map-limit.bin'):
+                 'geomod-fallback0.rfsg','geomod-fallback1.rfsg','terrain-map-limit.bin','authored-source.bin'):
         path=disc/name;saved[name]=path.read_bytes() if path.exists() else None
     # Persist restoration bytes before mutating the disc, including absent files.
     (run / 'disc-restore.json').write_text(json.dumps({
@@ -235,6 +240,7 @@ def main():
         else:ripple_flag.unlink(missing_ok=True)
         (disc / 'campaign-spawn.flag').write_bytes(b'')
         if args.dev_room:(disc/'dev-room.flag').write_bytes(b'')
+        if args.authored_source is not None:(disc/'authored-source.bin').write_bytes(struct.pack('<I',args.authored_source))
         if args.player_checkpoint:(disc/'player-checkpoint.flag').write_bytes(b'')
         if args.water_test:(disc/'water-test.flag').write_bytes(b'')
         if liquid_mode:(disc/'swim-test.flag').write_bytes(str(liquid_mode).encode('ascii'))

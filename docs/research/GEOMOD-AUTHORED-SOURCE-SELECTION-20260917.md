@@ -29,3 +29,13 @@ Run `python -B tools/check_selected_authored_sources.py`. Thirteen process-local
 The PC endpoint renders for93 and97 were inspected: broken post, detached textured chunk, room and weapon/HUD are visible.97 also shows low player health after the nearby blast. No full animation or audio acceptance is claimed. No images were uploaded to GitHub.
 
 All121 CTest tests pass and stock-profile NXDK build succeeds. Live selected-source Xbox execution remains unverified. The scene still owns one selected source, so simultaneous-source integration remains open. No source owner is swapped beneath a live scene or existing save.
+
+## Stock Xbox selection and continuation
+
+The XEMU harness now accepts `--authored-source 93|94|96|97`, restricted to ctf06 DEV setup. It applies the same source to PC reference and Xbox, saves/restores authored-source.bin alongside other staging files, and records the selected source in future reports.
+
+Selected97 fresh run `artifacts/xemu/render-20260917-105421` passes74 checks over550 frames. RAM is67108864 base/0 plugged bytes. One live18-triangle chunk has133108 resident registry bytes. Its2758-byte Xbox checkpoint matches PC and has SHA256 d98a3c0e8b1c725e4924aaf82f7872e99ede438963d3b0e342f892a884f4aea0.
+
+Run `artifacts/xemu/render-20260917-105630` loads that Xbox checkpoint and continues201 frames. It passes74 checks on the same stock RAM configuration. The resulting2758 bytes exactly match the uninterrupted PC97 control, SHA256 0577eebab204fd303cdfbfc5c78d92254faaa916aaeae19cf3124df2809090b3. Native framebuffer endpoints were inspected for both runs: room, broken post, detached textured chunk and weapon/HUD remain visible. This is endpoint/state acceptance, not full animation or audio acceptance.
+
+Both Red Faction sessions closed and restored staged disc files. No HDD/ISO test clones were retained and no GitHub images added. Selected93/96 have PC acceptance only; simultaneous sources remain open. See GEOMOD-MULTI-SOURCE-INTEGRATION-20260917.md for the room-composition and ownership boundaries identified during this validation.
