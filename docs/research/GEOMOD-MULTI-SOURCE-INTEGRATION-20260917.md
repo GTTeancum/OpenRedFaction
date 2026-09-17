@@ -89,3 +89,13 @@ Rubble tick and draw loops now visit every registry, accumulate telemetry and co
 The new scene test uses two real registry-owned cube chunks, verifies a nearer hit in the later source, equal-time first-source retention, selected alias handling and isolated retirement with the other registry's encoded state unchanged. It checks misses/errors and verifies the actual scene tick visits two sleeping bodies. This does not prove dynamic multi-source contact or multi-source visual quality.
 
 PC build and122/122 tests pass; stock NXDK compilation passes. `tools/check_detached_rocket.py` passes through the updated scene: two real rockets, one terrain extraction, second hit retires the chunk,0 live/drawn pieces,1852 retained owner bytes and no motion errors. No new Xbox runtime or multi-source visual acceptance is claimed.
+
+## Collection player and vehicle queries
+
+Player movement and ground call sites now query all source registries using their established size-dependent adapters. Each registry receives the original query limit; results are compared globally. Nearest contact wins, polygon contacts win exact ties with sphere-route contacts (matching the within-registry selection), and other equal-time ties retain source order. Source-qualified batch IDs use the same16-entry ranges as weapon queries. Outputs publish only after every query succeeds.
+
+Admitted vehicle contacts also compare all registries, retaining earliest contacts and source-qualified identities. Use-kind admission remains in the existing original-derived path: kind9 humanoid AI response stays excluded. The scene's early no-rubble gates now count all source registries instead of only the selected one.
+
+Tests use two real registry-owned intermediate-radius cubes, confirm later-source movement/ground contacts, first-source retention for identical contacts and the radius<=.5 exclusion. Vehicle use-kind1 reaches the later source; kind9 misses without overwriting contact or identity outputs. Invalid player query limits preserve output. The first fixture used a.1 actor sphere, whose combined sphere radius was too small to satisfy the original raw-normal-y<-.5 ground condition. The corrected fixture uses a.6 sphere; no runtime threshold was relaxed.
+
+PC build and122/122 tests pass, and stock NXDK compilation succeeds. `tools/check_intermediate_rubble_standing.py` passes after the integration: natural jump onto the intermediate fragment, exact standing and walk-away save continuations, and rejection of missing saved support. These remain single-source live controls. Multi-source checkpoint support providers and restore ownership are still unimplemented, and no new native or multi-source visual claim is made.

@@ -7075,18 +7075,18 @@ static int campaign_player_piece_query(const rf_geometry_collision_world *world,
 {
     scene_stream *s=scene_actor_collision_owner;rf_collision_body_query limited;
     rf_geomod_registry_body_hit hit;uint32_t found;int status;
-    if(!s || s->collision!=world || !rf_geomod_piece_registry_count(s->detached_pieces))return RF_OK;
+    if(!s || s->collision!=world || !scene_detached_sources_batch_count(s))return RF_OK;
     limited=*query;if(*matched)limited.limit=contact->contact.fraction;
     ++rf_scene_detached_player[0];
     if(motion) {
         rf_physics_body body=scene_actor_body;rf_collision_actor_general_response actor;rf_collision_contact_extra extra={0};
         body.state=*motion;status=rf_physics_body_prepare_sweep(&body.state);if(status)return status;
         status=collision_body_response(&body,&extra,campaign_player_object.handle,1,0,&actor);if(status)return status;
-        status=rf_geomod_piece_registry_player_motion(s->detached_pieces,&actor,&limited,1,&hit,&found);
+        status=scene_detached_sources_player(s,&actor,&limited,1,1,&hit,&found);
     } else {
         rf_collision_actor_general_response actor;rf_collision_contact_extra extra={0};
         status=collision_body_response(&scene_actor_body,&extra,campaign_player_object.handle,1,0,&actor);if(status)return status;
-        status=rf_geomod_piece_registry_player_ground(s->detached_pieces,&actor,limited.start,limited.end,limited.flags,limited.limit,1,&hit,&found);
+        status=scene_detached_sources_player(s,&actor,&limited,1,0,&hit,&found);
     }
     rf_scene_detached_player[6]=(uint32_t)status;if(status)return status;
     if(found && (!*matched || hit.contact.fraction<contact->contact.fraction)) {
@@ -7156,7 +7156,7 @@ int rf_scene_npc_body_sweep(const rf_geometry_collision_world *world,uint32_t ha
     if(rf_entity_lookup(&campaign_entities,(int32_t)handle)!=&owner->view || owner->view.type!=0)return RF_NOT_FOUND;
     status=campaign_physics_body_sweep(world,proposal,&owner->body.spheres,flags,scratch,capacity,&value,&found);
     if(status)return status;
-    if(stream && stream->collision==world && rf_geomod_piece_registry_count(stream->detached_pieces) &&
+    if(stream && stream->collision==world && scene_detached_sources_batch_count(stream) &&
        !(owner->object_flags&(2u|8u)) && owner->body.spheres.count) {
         if(!campaign_seeds.items || !campaign_seeds.classes || i>=campaign_seeds.records.count)return RF_RANGE;
         cls=campaign_seeds.items[i].class_index;if(cls>=campaign_seeds.class_count)return RF_RANGE;
@@ -7167,7 +7167,7 @@ int rf_scene_npc_body_sweep(const rf_geometry_collision_world *world,uint32_t ha
         status=collision_body_response(&candidate,&owner->collision_contact,handle,owner->collision_material,0,&actor);
         if(status)return status;
         actor.actor.contact.time=found?value.contact.fraction:1;
-        status=rf_geomod_piece_registry_npc_contact(stream->detached_pieces,&actor,1,1,&contact,&batch,&piece,&piece_found);
+        status=scene_detached_sources_npc(stream,&actor,1,1,&contact,&batch,&piece,&piece_found);
         if(status)return status;
         if(piece_found) {
             if(rf_scene_dev_npc_enabled)++scene_dev_npc_contacts;
