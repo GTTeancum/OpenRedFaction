@@ -38,6 +38,7 @@ def main():
     parser.add_argument('--capture-ripple', action='store_true', help='Capture ordinary ripple vertices without injecting a fixture')
     parser.add_argument('--debris-player-test', action='store_true', help='Explicit scene damage fixture, not an ordinary fragment trajectory')
     parser.add_argument('--ripple-test', action='store_true', help='DEV render-only ripple fixture; no liquid collision claim')
+    parser.add_argument('--authored-sources', type=int, choices=(1,2), default=1, help='Retain selected post and optional paired post; paired saves/reset not supported yet')
     parser.add_argument('--authored-source', type=int, choices=(93,94,96,97), help='Select one ctf06 developer destruction source on both platforms')
     parser.add_argument('--dev-room', action='store_true', help='Supply supported weapons in Glass House or the authored ctf06 post test')
     parser.add_argument('--player-checkpoint', action='store_true', help='Opt-in RFCP player plus destruction checkpoint mode')
@@ -74,6 +75,10 @@ def main():
         parser.error('Map fault injection requires DEV mode and valid map/frame limits')
     if args.authored_source is not None and (not args.dev_room or args.level!='ctf06.rfl'):
         parser.error('--authored-source requires --dev-room --level ctf06.rfl')
+    if args.authored_sources==2:
+        if not args.dev_room or args.level!='ctf06.rfl':parser.error('Paired sources require ctf06 DEV room')
+        if args.player_checkpoint or args.geomod_checkpoint_in or args.geomod_checkpoint_out:
+            parser.error('Paired-source checkpoints are not implemented')
     if args.player_checkpoint and not args.dev_room:parser.error('--player-checkpoint requires --dev-room')
     if args.lava_test and (args.swim_test or args.water_test or args.dev_room or not args.spawn or args.level!='L5S2.rfl' or args.archive!='levels1.vpp'):
         parser.error('--lava-test requires --spawn --level L5S2.rfl --archive levels1.vpp without other placement fixtures')
@@ -133,11 +138,13 @@ def main():
         scope='Authored section, player spawn or staged actor/pickup camera, process-local replay/setup commands, native framebuffer, '
               'phase timings and selected PC gameplay-state checks. No full campaign/parity claim.', samples=[])
     report['expanded_geomod']=args.expanded_geomod
+    report['authored_sources']=args.authored_sources
     report['authored_source']=args.authored_source if args.authored_source is not None else (94 if args.dev_room and args.level=='ctf06.rfl' else None)
     (run / 'inputs.bin').write_bytes(payload)
     env = {k: v for k, v in os.environ.items() if not k.startswith('RF_REPLAY_')}
     env.update(RF_REPLAY_LEVEL=args.level, RF_REPLAY_ARCHIVE=args.archive)
     if args.dev_room:env['RF_REPLAY_DEV_ROOM']='1'
+    env['RF_REPLAY_AUTHORED_SOURCES']=str(args.authored_sources)
     if args.authored_source is not None:env['RF_REPLAY_AUTHORED_SOURCE']=str(args.authored_source)
     if args.terrain_texture_audit:env['RF_REPLAY_TERRAIN_MATERIAL_AUDIT']=str(run/'pc-terrain-material.bin')
     if args.terrain_map_limit is not None:
@@ -203,7 +210,7 @@ def main():
     saved[shallow_flag.name]=shallow_flag.read_bytes() if shallow_flag.exists() else None
     for name in ('geomod-checkpoint.bin','geomod-checkpoint-out.flag','ripple-test.flag','debris-player-test.flag','water-test.flag','swim-test.flag','player-checkpoint.flag',
                  'geomod-hdd-load.flag','geomod-hdd-save.flag','geomod-fallback-seed.flag','geomod-fallback-observe.flag',
-                 'geomod-fallback0.rfsg','geomod-fallback1.rfsg','terrain-map-limit.bin','authored-source.bin'):
+                 'geomod-fallback0.rfsg','geomod-fallback1.rfsg','terrain-map-limit.bin','authored-source.bin','authored-count.bin'):
         path=disc/name;saved[name]=path.read_bytes() if path.exists() else None
     # Persist restoration bytes before mutating the disc, including absent files.
     (run / 'disc-restore.json').write_text(json.dumps({
@@ -241,6 +248,7 @@ def main():
         (disc / 'campaign-spawn.flag').write_bytes(b'')
         if args.dev_room:(disc/'dev-room.flag').write_bytes(b'')
         if args.authored_source is not None:(disc/'authored-source.bin').write_bytes(struct.pack('<I',args.authored_source))
+        if args.authored_sources==2:(disc/'authored-count.bin').write_bytes(struct.pack('<I',2))
         if args.player_checkpoint:(disc/'player-checkpoint.flag').write_bytes(b'')
         if args.water_test:(disc/'water-test.flag').write_bytes(b'')
         if liquid_mode:(disc/'swim-test.flag').write_bytes(str(liquid_mode).encode('ascii'))
@@ -553,6 +561,13 @@ dvd_path = '{root.as_posix()}/build/xbox/redfaction-diagnostic.iso'
                 assert equal,'TERRAIN_UPLOAD'
 
 
+
+            if args.dev_room and args.level=='ctf06.rfl':
+                expected=list(map(int,next(line for line in pc.stdout.splitlines() if line.startswith('AUTHORED_COLLECTION ')).split()[1:]))
+                actual=words(monitor,symbol('rf_scene_authored_collection'),6)
+                equal=actual[:5]==expected[:5]
+                report['checks']['AUTHORED_COLLECTION']=dict(equal=equal,xbox=actual,pc=expected,compared_indices=list(range(5)))
+                assert equal and actual[0]==args.authored_sources, 'Authored collection ownership mismatch'
 
             report.update(result='PASS', available_pages=d[44], diagnostic=d)
             with (run / 'performance.txt').open('w') as out:

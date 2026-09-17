@@ -1,4 +1,5 @@
 /* Asset initialization only. Never binds an isolated post as an entire room. */
+uint32_t rf_scene_authored_collection[6]; /* count, up to4 UIDs, resident source assets */
 static int scene_detached_open(scene_stream *s,const rf_collision_face_filter *generated,rf_geomod_piece_registry **out)
 {
     const rf_entity_material *material;
@@ -190,6 +191,15 @@ static int scene_terrain_sources_open(scene_stream *s,const rf_level *level,rf_v
     status=scene_terrain_sources_select(s,0); /* Already validated; cannot fail. */
     memcpy(rf_scene_authored_identity,sources[0].authored->source_identity,32);
     rf_scene_authored_identity[8]=sources[0].authored->identity_peak_bytes;rf_scene_authored_identity[9]=1;
+    memset(rf_scene_authored_collection,0,sizeof(rf_scene_authored_collection));
+    rf_scene_authored_collection[0]=count;
+    for(i=0;i<count;i++) {
+        rf_scene_authored_collection[1+i]=sources[i].authored->asset_view.source_uid;
+        rf_scene_authored_collection[5]+=sources[i].authored->resident_bytes;
+    }
+    printf("AUTHORED_COLLECTION %u %u %u %u %u %u\n",rf_scene_authored_collection[0],
+        rf_scene_authored_collection[1],rf_scene_authored_collection[2],rf_scene_authored_collection[3],
+        rf_scene_authored_collection[4],rf_scene_authored_collection[5]);
     free(staged);return status;
 fail:
     for(i=0;i<opened;i++) {
