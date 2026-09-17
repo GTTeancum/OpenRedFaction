@@ -332,6 +332,12 @@ static int run(uint32_t star)
     CHECK(decoded.count==stage.count && decoded.random.value==stage.random.value);
     for(uint32_t b=0;b<stage.count;b++)CHECK(rf_geomod_piece_batch_count(stage.batch[b])==rf_geomod_piece_batch_count(decoded.batch[b]));
     puts("PASS production extraction rejection rollback and checkpoint replay");
+    clear(&stage);
+    {const float center[3]={0,0,0},extent[3]={100,100,100};
+     CHECK(!rf_geomod_terrain_cut_box(t,center,extent,7));
+     CHECK(!rf_geomod_terrain_get(t,&after));
+     CHECK(!after.mesh.vertex_count && !after.mesh.face_count);
+     puts("PASS extraction accepts completely consumed retained terrain");}
     clear(&decoded);clear(&stage);rf_geomod_terrain_close(&reload);rf_geomod_terrain_close(&t);return 0;
 }
 

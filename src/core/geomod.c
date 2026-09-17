@@ -1953,6 +1953,9 @@ static inline int extract_replay_components(rf_geomod_storage *s,rf_geomod_multi
     if(!s || !provenance || !context || !scratch || !labels || !old_faces || !removed || s->editing)return RF_RANGE;
     status=rf_geomod_storage_view(s,&view);if(status)return status;
     if(view.face_count>context->face_capacity || view.vertex_count>context->vertex_capacity)return RF_RANGE;
+    /* A cut may consume the entire retained solid. There are then no
+     * disconnected components to classify or emit. */
+    if(!view.vertex_count && !view.face_count){*removed=0;return RF_OK;}
     status=rf_geomod_mesh_components(&view,context->filters,scratch,words,labels,&count,&largest);if(status)return status;
     if(count<2){*removed=0;return RF_OK;}
     status=rf_geomod_collision_faces(&view,context->filters,context->positions,context->vertex_capacity,
@@ -2578,7 +2581,9 @@ static int terrain_emit_piece(const rf_geomod_mesh_view *mesh,const uint32_t *ma
     const rf_collision_face_filter *filters,uint32_t count,uint32_t ordinal,void *opaque)
 {
     terrain_extraction_work *work=opaque;
-    return work->terrain->emit_piece(mesh,map,filters,count,work->prefix,ordinal,work->terrain->piece_context);
+    int status=work->terrain->emit_piece(mesh,map,filters,count,work->prefix,ordinal,work->terrain->piece_context);
+    if(status)printf("EXTRACTION_OWNER_REJECT %u %u %u %u %d\n",work->prefix,ordinal,mesh->vertex_count,mesh->face_count,status);
+    return status;
 }
 static int terrain_extraction_filters(rf_geomod_terrain *t,const rf_geomod_mesh_view *mesh,
     rf_collision_face_filter *filters)

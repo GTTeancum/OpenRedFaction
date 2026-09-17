@@ -24,19 +24,22 @@ def check_post_image(folder):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--case', choices=('two-shot', 'reset-zero', 'middle-shot', 'retired-piece'), default='two-shot')
+    parser.add_argument('--case', choices=('two-shot', 'reset-zero', 'middle-shot', 'retired-piece', 'support-loss'), default='two-shot')
     parser.add_argument('--build-dir', type=Path, default=ROOT / 'build/pc')
     parser.add_argument('--output-dir', type=Path)
     args = parser.parse_args()
     reset = args.case == 'reset-zero'
     middle = args.case == 'middle-shot'
     retired = args.case == 'retired-piece'
+    support = args.case == 'support-loss'
     folder = ROOT / ('artifacts/authored-post-live/solo-reset-continuation' if reset else
                      'artifacts/authored-post-live/solo-continuation')
     if middle:
         folder = ROOT / 'artifacts/authored-post-live/solo-middle-continuation'
     if retired:
         folder = ROOT / 'artifacts/geomod-postedit-re/detached-retirement-restart'
+    if support:
+        folder = ROOT / 'artifacts/geomod-postedit-re/detached-support-restart'
     if args.output_dir is not None:
         folder = args.output_dir.resolve()
     folder.mkdir(parents=True, exist_ok=True)
@@ -54,12 +57,12 @@ def main():
             struct.pack_into('<I', source, 8 + frame * 48 + 32, int(frame == 240))
         source = bytes(source)
         final_cuts = 1
-    if retired:
-        source = (ROOT / 'artifacts/geomod-postedit-re/detached-rocket/inputs.bin').read_bytes()
+    if retired or support:
+        source = (ROOT / ('artifacts/geomod-postedit-re/detached-support/inputs.bin' if support else 'artifacts/geomod-postedit-re/detached-rocket/inputs.bin')).read_bytes()
         split = (len(source)-8)//48
         source += bytes(200*48)
         frames = split+200
-        initial_cuts = final_cuts = 1
+        initial_cuts = final_cuts = 2 if support else 1
     recordings = {'saved': source[:8 + split * 48],
                   'continued': source[:8] + source[8 + split * 48:], 'control': source}
     env = {k: v for k, v in os.environ.items() if not k.startswith(("RF_REPLAY_", "RF_DEV_"))}
@@ -104,12 +107,12 @@ def main():
             trailer = checkpoint[-piece_bytes:]
             assert trailer[:4] == b'RFPB' and struct.unpack_from('<3I',trailer,4) == (2,344,1)
             health, flags = struct.unpack_from('<fI',trailer,16+320)
-            assert health < 0 and flags == 0x200002
+            assert health < 0 and flags == 0x6200002
             report['piece_health'] = health
             report['piece_flags'] = flags
             report['post_image'] = check_post_image(folder)
             report['scope'] = 'Real two-rocket chunk retirement, absent draw/motion, exact saved continuation and fixed-camera post pixels; no Xbox or audio acceptance'
-        if middle:
+        if middle or support:
             states = {}
             for name in recordings:
                 lines = (folder / (name + '.log')).read_text().splitlines()

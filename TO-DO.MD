@@ -1,6 +1,6 @@
 # Red Faction Xbox / PC - open work
 
-- GeoMod rubble wake: Verify actual support-loss motion; committed rocket edits now publish newly extracted component bounds and notify owned bodies, while current live shots do not yet prove a resting chunk falls after support removal.
+- GeoMod rubble wake: Broaden support-loss coverage beyond the dry post; removing its remaining support now wakes the chunk and drops it0.27units on PC/Xbox, with exact PC save continuation; broader support and native reload coverage remain open.
 
 - GeoMod traversal: Broaden tight-entrance and slope collision coverage; walking into and back out of the16-cut tunnel passes58 stock64MiB comparisons with exact PC body state.
 - GeoMod validation: Resolve thin-surface proximity ambiguity and broaden collision/nonintersection coverage; sweep/fixed craters pass10130/11422 independent volume samples and native state checks.
