@@ -643,3 +643,6 @@ target_link_libraries(rf_geomod_live_history_probe PRIVATE rf_core)
 # Read-only captured geometry component diagnostic.
 add_executable(rf_geomod_components_probe tools/geomod_components_probe.c)
 target_link_libraries(rf_geomod_components_probe PRIVATE rf_core)
+add_executable(rf_geomod_disconnected_tests tests/geomod_disconnected_tests.c)
+target_link_libraries(rf_geomod_disconnected_tests PRIVATE rf_core)
+add_test(NAME geomod_disconnected COMMAND rf_geomod_disconnected_tests)
