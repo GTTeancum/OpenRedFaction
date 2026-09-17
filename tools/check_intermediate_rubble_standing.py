@@ -3,15 +3,23 @@ import argparse,json,os,struct,subprocess
 from pathlib import Path
 parser=argparse.ArgumentParser(description=__doc__)
 parser.add_argument('--paired',action='store_true',help='Keep both authored sources and use collection checkpoints')
+parser.add_argument('--second-support',action='store_true',help='Walk to source93 and test support from collection slot1')
 args=parser.parse_args()
+if args.second_support:args.paired=True
 ROOT=Path(__file__).resolve().parents[1]
-folder=ROOT/('artifacts/paired-rubble-standing' if args.paired else 'artifacts/geomod-postedit-re/intermediate-rubble-standing')
+folder=ROOT/('artifacts/paired-second-support' if args.second_support else 'artifacts/paired-rubble-standing' if args.paired else 'artifacts/geomod-postedit-re/intermediate-rubble-standing')
 folder.mkdir(parents=True,exist_ok=True)
 source=(ROOT/'artifacts/geomod-postedit-re/intermediate-search/0.bin').read_bytes()
 data=bytearray(source[:8+350*48]+bytes(450*48))
 for frame in range(360,450):struct.pack_into('<f',data,8+frame*48+8,.8)
 struct.pack_into('<I',data,8+415*48+24,1)
-recordings={'saved':data[:8+600*48],'continued':data[:8]+data[8+599*48:],'control':data}
+saved_frame=600
+if args.second_support:
+ prefix=bytearray(180*48)
+ for frame in range(30,90):struct.pack_into('<f',prefix,frame*48,-5/6)
+ data=data[:8]+prefix+data[8:]
+ saved_frame+=180
+recordings={'saved':data[:8+saved_frame*48],'continued':data[:8]+data[8+(saved_frame-1)*48:],'control':data}
 retreat=bytearray(recordings['continued'])
 for frame in range(20,100):struct.pack_into('<f',retreat,8+frame*48+8,-.8)
 recordings['retreat']=retreat
@@ -27,13 +35,19 @@ def support_bank(checkpoint):
  directory=576+416
  assert checkpoint[directory:directory+4]==b'RFAS'
  assert struct.unpack_from('<I',checkpoint,directory+12)[0]==2
- uid,core_bytes,piece_bytes=struct.unpack_from('<III',checkpoint,directory+16)
- assert uid==94
- bank=directory+16+2*48+core_bytes
- assert checkpoint[bank:bank+4]==b'RFPB' and piece_bytes==344
- # One supporting body on source94; paired source93 remains intact.
- assert struct.unpack_from('<I',checkpoint,bank+12)[0]==1
- return bank,piece_bytes
+ cursor=directory+16+2*48
+ target=93 if args.second_support else 94
+ for slot in range(2):
+  uid,core_bytes,piece_bytes=struct.unpack_from('<III',checkpoint,directory+16+48*slot)
+  assert uid==[94,93][slot]
+  bank=cursor+core_bytes
+  assert checkpoint[bank:bank+4]==b'RFPB'
+  if uid==target:
+   assert piece_bytes==344 and struct.unpack_from('<I',checkpoint,bank+12)[0]==1
+   result=(bank,piece_bytes)
+  else:assert piece_bytes==16 and struct.unpack_from('<I',checkpoint,bank+12)[0]==0
+  cursor=bank+piece_bytes
+ return result
 report={}
 for name,recording in recordings.items():
  path=folder/name;path.with_suffix('.bin').write_bytes(recording);path.with_suffix('.rfcp').unlink(missing_ok=True)
@@ -64,5 +78,6 @@ with (folder/'missing-support.log').open('wb') as log:
  result=subprocess.run([str(ROOT/'build/pc/Release/rf_pc_play.exe'),'--spawn-replay',str(ROOT/'Installed_Game'),str(folder/'continued.bin'),str(folder/'missing-support.ppm')],cwd=ROOT,env=dict(env,RF_REPLAY_GEOMOD_CHECKPOINT_IN=str(folder/'missing-support.rfcp')),stdout=log,stderr=subprocess.STDOUT,timeout=180)
 assert result.returncode!=0 and 'GEOMOD_CHECKPOINT_ERROR load' in (folder/'missing-support.log').read_text(),'retired support accepted'
 report['paired_sources']=args.paired
+report['support_source']=93 if args.second_support else 94
 report['scope']='Ordinary jump lands on natural intermediate rubble; exact saved standing/walk-away continuation and retired-support rejection. Native and visual acceptance remain separate.'
 (folder/'report.json').write_text(json.dumps(report,indent=2)+'\n');print(json.dumps(report,indent=2))

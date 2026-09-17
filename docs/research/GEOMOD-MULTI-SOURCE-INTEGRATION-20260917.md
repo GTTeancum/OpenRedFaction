@@ -370,3 +370,13 @@ Saved, continued and retreat PC framebuffers were individually inspected. The sa
 
 
 Stock64MiB XEMU run artifacts/xemu/render-20260917-140819 loads that paired standing save and executes201 replay frames (200 updates) walking away. All76 checks pass; its2818-byte exported checkpoint is identical to the uninterrupted PC retreat control. Native framebuffer inspection shows the expected floor view, retained tilted fragment and weapon/HUD. Endpoint availability is3895 pages (15.21MiB), not a minimum measurement. Disc staging was restored and no HDD clone or GitHub image upload was created. Native rejection of the retired-support variant remains unverified.
+
+
+## Support from the second collection source
+
+The standing harness adds --second-support, implying paired sources. A180-frame ordinary-input prefix walks five units south before the same rocket/jump sequence, leaving source order [94,93] and selected source94 unchanged. The actual support now belongs to source93 in slot1. Saved player position is(-4.656772,0.465132,-2.365583), and the RFAS parser explicitly checks source94 has an empty body bank while source93 has the supporting body. This exercises source-qualified registry lookup rather than changing diagnostic selection to make that source slot0.
+
+Saved standing, fresh continued standing and fresh walk-away checkpoints pass exact uninterrupted-control comparisons on PC. The retired-support payload rejects; as in the earlier case, the load error alone does not isolate its rejection stage. Saved/continued/retreat native-format PC framebuffers were inspected individually and show the opposite-side elevated/retreated views with the intact other post. No host input or HDD image is used. Evidence: artifacts/paired-second-support and artifacts/paired-second-support-check.log. Both-destroyed-owner support remains separate coverage.
+
+
+Stock64MiB XEMU run artifacts/xemu/render-20260917-141354 passes76 checks after loading this standing save and replaying201 frames of walk-away input. Its2818-byte exported checkpoint matches the uninterrupted PC control exactly. Native image inspection confirms the expected opposite-side floor view, source93 fragment and intact source94. Endpoint availability is3847 pages (15.03MiB); disc staging was restored. The slot0 paired regression also passes after the generalized directory lookup. No claim is made for native invalid-support rejection or standing while both sources are destroyed.
