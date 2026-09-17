@@ -69,6 +69,64 @@ static int beam_capture(scene_stream *live,const rf_level *level,rf_vpp *maps,co
     rf_geometry_collision_overlay_close(&s->terrain_collision);scene_terrain_publication_close(&s->terrain_publication);
     rf_geomod_piece_registry_close(&s->detached_pieces);rf_geomod_terrain_close(&s->terrain);scene_terrain_authored_close(&s->terrain_authored);free(s);return 0;
 }
+static int connected_capture(scene_stream *live,const rf_level *level,rf_vpp *maps,const rf_geomod_template *shape) {
+    scene_stream *s=malloc(sizeof(*s));unsigned char *packet=malloc(SCENE_CHECKPOINT_MAX),*again=malloc(SCENE_CHECKPOINT_MAX);
+    rf_geomod_terrain_view view;rf_preview_surface_lightmap *bindings;scene_terrain_lighting_stage *lights=NULL;
+    float center[3]={-4.75f,2.25f,2.5f},basis[9]={1,0,0,0,1,0,0,0,1};uint32_t i,step,bytes,rewritten;
+    CHECK(s && packet && again);*s=*live;
+    s->terrain=NULL;s->terrain_authored=NULL;s->detached_pieces=NULL;s->terrain_publication=NULL;
+    s->terrain_sources=calloc(2,sizeof(*s->terrain_sources));CHECK(s->terrain_sources);s->terrain_source_count=2;
+    s->terrain_history_count=0;s->terrain_checkpoint_loaded=0;s->terrain_publication_serial=0;
+    memset(&s->terrain_collision,0,sizeof(s->terrain_collision));
+#define CONNECT_ALLOC(field,n) do{s->field=calloc((n),sizeof(*s->field));CHECK(s->field);}while(0)
+    CONNECT_ALLOC(terrain_noise,1);CONNECT_ALLOC(terrain_atlas_pixels,512*512*2);CONNECT_ALLOC(terrain_tile,64*64*2);
+    CONNECT_ALLOC(terrain_bindings,SCENE_TERRAIN_FACES);CONNECT_ALLOC(terrain_colors,SCENE_TERRAIN_DRAW_VERTICES);
+    CONNECT_ALLOC(terrain_light_cache,1);CONNECT_ALLOC(terrain_tiles,SCENE_TERRAIN_FACES);CONNECT_ALLOC(terrain_draw,1);
+#undef CONNECT_ALLOC
+    s->light_overlay_work=calloc(1100,sizeof(uint32_t)+sizeof(rf_vfx_light_source));CHECK(s->light_overlay_work);
+    for(i=0;i<2;i++) {
+        scene_stream owner=*s;owner.terrain_sources=NULL;owner.terrain_source_count=0;
+        CHECK(!scene_terrain_authored_open_source(&owner,level,maps,6,i?94:95));
+        s->terrain_sources[i]=(scene_terrain_source_owner){owner.terrain_authored,owner.terrain,owner.detached_pieces};
+    }
+    CHECK(!scene_terrain_sources_select(s,0));CHECK(!scene_terrain_publication_open(s));
+    CHECK(!scene_checkpoint_identity(s,level));
+    for(step=0;step<2;step++) {
+        scene_authored_collection_stage *restore=NULL;rf_authored_checkpoint_layout layout;
+        CHECK(!scene_terrain_sources_select(s,step));if(step)center[1]=1.9f;
+        CHECK(!rf_geomod_piece_registry_begin(s->detached_pieces,0));
+        CHECK(!rf_geomod_terrain_cut_template(s->terrain,shape,center,basis,1.05000007f,s->terrain_material));
+        rf_geomod_piece_registry_commit(s->detached_pieces);s->terrain_publication_serial=step+1;
+        CHECK(!scene_terrain_publication_prepare(s));CHECK(!scene_terrain_publication_candidate(s,&view,NULL,&bindings));
+        CHECK(!scene_terrain_lighting_stage_prepare(s,&view,bindings,0,&lights));CHECK(!scene_terrain_lighting_stage_draw(lights));
+        CHECK(!scene_terrain_publication_finish(s,lights->staged->terrain_bindings,view.mesh.face_count,s->light_rgb.count+1));
+        scene_terrain_lighting_stage_commit(lights);scene_terrain_lighting_stage_discard(&lights);
+        CHECK(!scene_authored_collection_checkpoint_write(s,packet,SCENE_CHECKPOINT_MAX,&bytes));
+        CHECK(!rf_authored_collection_layout_read(packet,bytes,&layout));CHECK(checkpoint_u32(packet+312)==2);
+        CHECK(!scene_authored_collection_stage_prepare(s,packet,bytes,&restore));
+        CHECK(!scene_authored_collection_stage_commit(restore,NULL));scene_authored_collection_stage_discard(&restore);
+        CHECK(!scene_authored_collection_checkpoint_write(s,again,SCENE_CHECKPOINT_MAX,&rewritten));
+        CHECK(bytes==rewritten && !memcmp(packet,again,bytes));
+        CHECK(!s->terrain_publication->has_pending && s->terrain_publication->connected);
+        checkpoint_put(packet+312,1);
+        CHECK(scene_authored_collection_stage_prepare(s,packet,bytes,&restore)!=RF_OK && !restore && !s->terrain_publication->has_pending);
+        checkpoint_put(packet+312,2);
+        for(i=0;i<layout.maps;i++)if(checkpoint_u32(packet+layout.map_offset+i*88+40))break;
+        CHECK(i<layout.maps);
+        {uint32_t offset=layout.map_offset+i*88+40,token=checkpoint_u32(packet+offset);
+         checkpoint_put(packet+offset,UINT32_MAX);
+         CHECK(scene_authored_collection_stage_prepare(s,packet,bytes,&restore)!=RF_OK && !restore && !s->terrain_publication->has_pending);
+         checkpoint_put(packet+offset,token);}
+        CHECK(!scene_authored_collection_checkpoint_write(s,again,SCENE_CHECKPOINT_MAX,&rewritten));
+        CHECK(bytes==rewritten && !memcmp(packet,again,bytes));
+        printf("CONNECTED_CHECKPOINT step%u bytes%u maps%u exact_rewrite\n",step+1,bytes,s->terrain_noise->count);
+    }
+    rf_geometry_collision_overlay_close(&s->terrain_collision);scene_terrain_publication_close(&s->terrain_publication);
+    scene_terrain_sources_close(s);
+    free(s->terrain_noise);free(s->terrain_atlas_pixels);free(s->terrain_tile);free(s->terrain_bindings);free(s->terrain_colors);
+    free(s->terrain_light_cache);free(s->terrain_tiles);free(s->terrain_draw);free(s->light_overlay_work);
+    free(s);free(packet);free(again);return 0;
+}
 int main(int argc,char **argv)
 {
     static const char *names[6]={"maps1.vpp","maps2.vpp","maps3.vpp","maps4.vpp","maps_en.vpp","ui.vpp"};
@@ -506,6 +564,7 @@ int main(int argc,char **argv)
         printf("PASS real paired source snapshot: verified source identities, exact cut meshes/body bytes and atomic rejection (%u bytes)\n",bytes);
     }
 
+    CHECK(!connected_capture(&s,&level,maps,&shape));
     CHECK(!beam_capture(&s,&level,maps,&shape));
     rf_geometry_collision_overlay_close(&s.terrain_collision);scene_terrain_publication_close(&s.terrain_publication);
     rf_geomod_piece_registry_close(&s.detached_pieces);free(campaign_surface_palette);campaign_surface_palette=NULL;

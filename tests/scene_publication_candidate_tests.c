@@ -370,9 +370,17 @@ static int connected_scene(const rf_level *level,rf_geometry *geometry,rf_geomet
     scene_stream s={0};scene_terrain_authored_assets assets[2]={{0}};scene_terrain_source_owner sources[2]={{0}};
     rf_materials materials={0};rf_geomod_template shape;rf_geomod_terrain_view view;
     const rf_geomod_publication_origin *origins;float basis[9]={1,0,0,0,1,0,0,0,1};
-    float center[3]={-4.75f,2.25f,2.5f};uint32_t i,k,hidden,first_faces;
+    float center[3]={-4.75f,2.25f,2.5f};uint32_t i,k,hidden,first_faces,first_maps=0;
+    scene_terrain_noise_map saved_maps[64];unsigned char *saved_pixels=malloc(512*512*2);CHECK(saved_pixels);
     s.collision=world;s.geometry=geometry;s.materials=&materials;materials.count=geometry->textures;
     s.light_rgb.count=3;s.terrain_sources=sources;s.terrain_source_count=2;
+#define CONNECTED_ALLOC(field,n) do{s.field=calloc((n),sizeof(*s.field));CHECK(s.field);}while(0)
+    CONNECTED_ALLOC(terrain_noise,1);CONNECTED_ALLOC(terrain_atlas_pixels,512*512*2);CONNECTED_ALLOC(terrain_tile,64*64*2);
+    CONNECTED_ALLOC(terrain_bindings,SCENE_TERRAIN_FACES);CONNECTED_ALLOC(terrain_colors,SCENE_TERRAIN_DRAW_VERTICES);
+    CONNECTED_ALLOC(terrain_light_cache,1);CONNECTED_ALLOC(terrain_tiles,SCENE_TERRAIN_FACES);CONNECTED_ALLOC(terrain_draw,1);
+#undef CONNECTED_ALLOC
+    s.light_overlay_work=calloc(1100,sizeof(uint32_t)+sizeof(rf_vfx_light_source));CHECK(s.light_overlay_work);
+    s.terrain_atlas_registered=1;s.terrain_atlas_index=2;
     CHECK(!rf_geomod_template_load(shape_path,&shape));
     for(i=0;i<2;i++) {
         rf_collision_face_filter generated;
@@ -381,6 +389,7 @@ static int connected_scene(const rf_level *level,rf_geometry *geometry,rf_geomet
         assets[i].source=assets[i].asset_view.source;assets[i].windows=assets[i].asset_view.windows;assets[i].neighbors=assets[i].asset_view.neighbors;
         CHECK(!references(assets+i,geometry));generated=assets[i].asset_view.source_filters[0];
         CHECK(!rf_geomod_terrain_open(&assets[i].source,assets[i].asset_view.source_filters,&generated,0,4096,768,1048576,&sources[i].terrain));
+        CHECK(!rf_geomod_terrain_set_mapping(sources[i].terrain,128,128));
         sources[i].authored=assets+i;
     }
     CHECK(!scene_terrain_sources_select(&s,0));CHECK(!scene_terrain_publication_open(&s));
@@ -396,11 +405,37 @@ static int connected_scene(const rf_level *level,rf_geometry *geometry,rf_geomet
         hidden=0;
         for(k=0;k<view.mesh.face_count;k++)if(origins[k].owner==94 && origins[k].source_face==549)hidden++;
         if(!i){CHECK(hidden>0);first_faces=view.mesh.face_count;}else CHECK(!hidden && view.mesh.face_count!=first_faces);
-        CHECK(s.terrain_publication->banks[s.terrain_publication->active].mesh.face_count==0);
+        CHECK(s.terrain_publication->banks[s.terrain_publication->active].mesh.face_count==(i?first_faces:0));
         scene_terrain_publication_abort(&s);CHECK(!s.terrain_publication->has_pending);
+        CHECK(!scene_terrain_publication_prepare(&s));CHECK(!finish_test_candidate(&s,&view));
+        CHECK(s.terrain_draw->view.face_count==view.mesh.face_count && s.terrain_noise->bake==s.terrain_noise->count);
+        {
+            float start[3]={-5,2.1f,2.5f},delta[3]={0,-.2f,0};rf_geometry_world_hit hit;uint32_t matched=0;
+            CHECK(!rf_geometry_collision_world_ray(&s.terrain_collision.world,0,start,delta,1,&hit,&matched));
+            if(!i)CHECK(matched && hit.face==geometry->faces+549 && fabsf(hit.hit.fraction-.5f)<1e-5f);
+            else CHECK(!matched);
+        }
+        if(!i) {
+            first_maps=s.terrain_noise->count;CHECK(first_maps>0 && first_maps<=64);
+            memcpy(saved_maps,s.terrain_noise->maps,first_maps*sizeof(*saved_maps));memcpy(saved_pixels,s.terrain_atlas_pixels,512*512*2);
+            for(k=0;k<view.mesh.face_count;k++)if(origins[k].reference==UINT32_MAX) {
+                CHECK(view.mesh.faces[k].material==3 && s.terrain_bindings[k].image==2);
+            }
+        } else {
+            CHECK(s.terrain_noise->count>first_maps && !memcmp(saved_maps,s.terrain_noise->maps,first_maps*sizeof(*saved_maps)));
+            for(k=0;k<first_maps;k++) {
+                const scene_terrain_noise_map *map=saved_maps+k;uint32_t row;
+                for(row=0;row<map->height;row++) {
+                    uint32_t offset=((map->y+row)*512+map->x)*2;
+                    CHECK(!memcmp(saved_pixels+offset,s.terrain_atlas_pixels+offset,map->width*2));
+                }
+            }
+        }
     }
-    printf("CONNECTED_SCENE faces%u peak%u owned%u\n",view.mesh.face_count,view.peak_bytes,scene_publication_owned_bytes(s.terrain_publication));
+    printf("CONNECTED_SCENE faces%u peak%u owned%u maps%u->%u draw%u cap_collision_removed\n",view.mesh.face_count,view.peak_bytes,scene_publication_owned_bytes(s.terrain_publication),first_maps,s.terrain_noise->count,s.terrain_draw->view.vertex_count);
     rf_geometry_collision_overlay_close(&s.terrain_collision);scene_terrain_publication_close(&s.terrain_publication);
+    free(saved_pixels);free(s.terrain_noise);free(s.terrain_atlas_pixels);free(s.terrain_tile);free(s.terrain_bindings);free(s.terrain_colors);
+    free(s.terrain_light_cache);free(s.terrain_tiles);free(s.terrain_draw);free(s.light_overlay_work);
     for(i=0;i<2;i++){rf_geomod_terrain_close(&sources[i].terrain);free(assets[i].references);rf_geomod_authored_post_close(&assets[i].asset);}return 0;
 }
 int main(int argc,char **argv)
