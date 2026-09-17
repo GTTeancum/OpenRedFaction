@@ -36,11 +36,13 @@ struct scene_terrain_publication_owner {
 };
 static uint32_t scene_publication_owned_bytes(const scene_terrain_publication_owner *p)
 {return (uint32_t)sizeof(*p)+(p->connected?(uint32_t)sizeof(*p->connected):0);}
-/* Connected edits reserve two old/clone cores and two independently bounded
- * debris registries. Keep a finite subsystem cap inside stock64MiB; native
+/* Connected edits reserve old/clone cores and independently bounded debris
+ * registries; the triple profile also retains its unchanged third owner.
+ * Keep a finite subsystem cap inside stock64MiB; native
  * headroom validation is separate from this worst-case reservation. */
 static uint32_t scene_destruction_budget(const scene_stream *s)
-{return s && s->terrain_publication && s->terrain_publication->connected?16u*1024u*1024u:SCENE_DESTRUCTION_BUDGET;}
+{return s && s->terrain_publication && s->terrain_publication->connected?
+    (s->terrain_source_count==3?17u:16u)*1024u*1024u:SCENE_DESTRUCTION_BUDGET;}
 uint32_t rf_scene_terrain_publication[8]; /* activefaces,vertices,cuts,generation,resident,peak,pending,status */
 static void scene_terrain_publication_close(scene_terrain_publication_owner **ptr)
 {

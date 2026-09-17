@@ -293,3 +293,19 @@ The thin piece has no sampled collision spheres. This follows the already-eviden
 Remaining work is proper thin/empty-grid collision in the product while preserving the recovered mass/sphere behavior and recording any deliberate port policy. No invented bounding sphere, frozen body, kill height or relaxed settling assertion was added. No new XEMU run was needed to rediscover the fall: the existing native checkpoint is byte-identical to the inspected PC checkpoint. Broader motion and native acceptance must follow the implementation.
 
 Follow-up: mesh-contained fallback spheres now resolve this reproduced fall-through, with airborne Xbox save and settled reload both passing76 checks and exact uninterrupted PC state. See [thin-fragment collision policy](GEOMOD-EMPTY-GRID-CONTACT-20260917.md) for the deliberate port improvement, unchanged original mass/inertia, native evidence, and broader-shape limitations.
+
+
+## Beam and both posts: three-source continuation
+
+The explicit ctf06 developer profile now admits the ordered collection [95,94,93]. Both platforms retain the beam and both supporting posts. Other three-source selections remain rejected before placement changes. This expands the existing connected publication path; it does not enable arbitrary campaign geometry.
+
+The factory reservation is7MiB for this profile (the previous6MiB rejected6997832bytes). Its bounded destruction reservation is17MiB: the first two-owner transaction with the unchanged third owner resident required17022792bytes, exceeding16MiB; the second transaction peaks at17024304bytes. Existing single/pair profile limits are unchanged. These are subsystem reservation checks, not additional Xbox RAM or a claim about instantaneous whole-machine peak allocation.
+
+`tools/check_beam_continuation.py --both-posts --next-shot` verifies a first joint rocket, save/reload and a rocket at the other joint against uninterrupted900-frame playback. Source cuts progress from [95:1,94:1,93:0] to [95:2,94:1,93:1]. The first checkpoint is4456bytes with one fragment and three wood material tokens; the final is7692bytes with two fragments and seven wood tokens. Reloaded and uninterrupted checkpoints are identical. The previous connected pair replay also passes. All123 PC tests pass (`artifacts/triple-beam-tests.log`); replay logs are `triple-beam-final-pc.log` and `triple-beam-pair-regression.log`.
+
+Stock64MiB NXDK/XEMU acceptance:
+
+- `artifacts/xemu/render-20260917-190753`:600frames,76 checks pass,4456-byte Xbox checkpoint exactly equals PC save. Endpoint3340 available pages =13.047MiB.
+- `artifacts/xemu/render-20260917-191001`:loads that Xbox-created save and runs301 replay records through the second blast;76 checks pass,7692-byte Xbox checkpoint exactly equals uninterrupted PC control. Endpoint3018 pages =11.789MiB.
+
+Both native framebuffers were inspected: first-joint damage and detached wood are visible initially; the resumed view shows damage at the other joint and retained wood debris, with the room, weapon and HUD present. These ground-level views do not qualify exposed caps from above or every fragment's long-term settling. Audio was disabled in the native harness, so audible quality is unverified. No XEMU process remained after the runs and no GitHub image was added. Broader cut histories, other connected geometry, player support and campaign integration remain open.

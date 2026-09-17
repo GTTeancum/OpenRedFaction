@@ -168,7 +168,8 @@ static int scene_terrain_sources_open(scene_stream *s,const rf_level *level,rf_v
     if(!s || !uids || !count || count>4 || s->terrain_sources || s->terrain || s->terrain_authored || s->detached_pieces)return RF_RANGE;
     for(i=0;i<count;i++) {
         if(uids[i]!=93 && uids[i]!=94 && uids[i]!=95 && uids[i]!=96 && uids[i]!=97)return RF_NOT_FOUND;
-        if(uids[i]==95 && count!=1 && (count!=2 || uids[0]!=95 || uids[1]!=94))return RF_RANGE;
+        if(uids[i]==95 && count!=1 &&
+           ((count!=2 && count!=3) || uids[0]!=95 || uids[1]!=94 || (count==3 && uids[2]!=93)))return RF_RANGE;
         for(j=0;j<i;j++)if(uids[i]==uids[j])return RF_FORMAT;
     }
     resident=(uint64_t)count*sizeof(*sources);
@@ -182,7 +183,7 @@ static int scene_terrain_sources_open(scene_stream *s,const rf_level *level,rf_v
     for(i=0;i<count;i++) {
         rf_geomod_terrain_view view;
         reserved=sizeof(*staged)+resident+2u*1024u*1024u+SCENE_TERRAIN_CORE_BUDGET+SCENE_DETACHED_BUDGET;
-        if(reserved>budget){status=RF_RANGE;goto fail;}
+        if(reserved>budget){printf("AUTHORED_OPEN_REJECT source %u reserved %u budget %u\n",i,(uint32_t)reserved,budget);status=RF_RANGE;goto fail;}
         status=scene_terrain_authored_open_source(staged,level,maps,map_count,uids[i]);if(status)goto fail;
         sources[i]=(scene_terrain_source_owner){staged->terrain_authored,staged->terrain,staged->detached_pieces};opened++;
         status=rf_geomod_terrain_get(staged->terrain,&view);if(status)goto fail;
@@ -214,7 +215,8 @@ fail:
 }
 static inline int scene_terrain_authored_open(scene_stream *s,const rf_level *level,rf_vpp *maps,uint32_t map_count)
 {
-    uint32_t uids[2]={scene_authored_source_uid,0};
+    uint32_t uids[3]={scene_authored_source_uid,0,93};
     uids[1]=uids[0]==95?94:uids[0]==93?94:uids[0]==94?93:uids[0]==96?97:96;
-    return scene_terrain_sources_open(s,level,maps,map_count,uids,scene_authored_source_count,6u*1024u*1024u);
+    return scene_terrain_sources_open(s,level,maps,map_count,uids,scene_authored_source_count,
+        (scene_authored_source_count==3?7u:6u)*1024u*1024u);
 }
