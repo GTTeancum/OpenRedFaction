@@ -454,6 +454,17 @@ int rf_geomod_terrain_cut_template_scale(rf_geomod_terrain *terrain,const rf_geo
 int rf_geomod_terrain_cut_template_limits(rf_geomod_terrain *terrain,const rf_geomod_template *shape,
     const float center[3],const float basis[9],float scale,uint32_t material,
     const rf_geomod_shallow_limit *limits,uint32_t count);
+/* Prepare the same cut, then invoke check before committing mesh/tree/history.
+ * Nonzero callback status aborts and preserves live geometry/collision/history;
+ * scratch and peak counters may change. Callback may stage external resources
+ * but must not publish them, mutate/retain candidate pointers, or reenter terrain.
+ * After RF_OK, the caller may commit its already prepared resources without any
+ * further fallible work. NULL check has the ordinary cut behavior. No clone or
+ * extra core allocation beyond the ordinary pending cut is introduced. */
+typedef int (*rf_geomod_terrain_check_fn)(const rf_geomod_terrain_view *,void *);
+int rf_geomod_terrain_cut_template_checked(rf_geomod_terrain *,const rf_geomod_template *,
+    const float center[3],const float basis[9],float scale,uint32_t material,
+    const rf_geomod_shallow_limit *limits,uint32_t count,rf_geomod_terrain_check_fn check,void *context);
 /* RGCH/version1 little-endian committed-cutter checkpoint, maximum RF_GEOMOD_HISTORY_MAX_BYTES.
  * Size query/encode allocate nothing; encode requires exactly the queried size.
  * Decode replaces successful cutter history and atomically rebuilds mesh/tree.

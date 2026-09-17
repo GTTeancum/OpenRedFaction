@@ -2161,12 +2161,22 @@ static int terrain_commit(rf_geomod_terrain *t,terrain_pending *pending)
     rf_collision_tree_close(&t->tree);t->tree=pending->tree;memset(&pending->tree,0,sizeof(pending->tree));
     t->bank=pending->bank;t->count=pending->count;return RF_OK;
 }
-static int terrain_publish(rf_geomod_terrain *t,uint32_t count)
+static int terrain_publish_checked(rf_geomod_terrain *t,uint32_t count,rf_geomod_terrain_check_fn check,void *context)
 {
     terrain_pending pending;int status=terrain_prepare(t,count,&pending);
+    if(!status && check) {
+        rf_geomod_terrain_view candidate;
+        candidate.mesh=pending.mesh;candidate.faces=t->faces[pending.bank];candidate.tree=&pending.tree;
+        candidate.cuts=count;candidate.resident_bytes=t->base_bytes+t->tree.allocated_bytes+pending.tree.allocated_bytes;
+        candidate.peak_bytes=t->peak_bytes;
+        status=check(&candidate,context);
+        if(status){terrain_abort(t,&pending);return status;}
+    }
     if(!status){status=terrain_commit(t,&pending);if(status)terrain_abort(t,&pending);}
     return status;
 }
+static int terrain_publish(rf_geomod_terrain *t,uint32_t count)
+{return terrain_publish_checked(t,count,NULL,NULL);}
 int rf_geomod_terrain_cut_box(rf_geomod_terrain *t,const float center[3],const float extent[3],uint32_t material)
 {
     float lo[3],hi[3];uint32_t axis,side,j,slot;
@@ -2223,8 +2233,8 @@ int rf_geomod_terrain_cut_crater(rf_geomod_terrain *t,const float center[3],floa
     t->cuts[slot]=(rf_geomod_mesh_view){t->cut_vertices[slot],t->cut_faces[slot],60,20,0};
     return terrain_publish(t,t->count+1);
 }
-int rf_geomod_terrain_cut_star(rf_geomod_terrain *t,
-    const rf_geomod_mesh_view *cutter,const float kernel[3])
+static int terrain_cut_star_checked(rf_geomod_terrain *t,
+    const rf_geomod_mesh_view *cutter,const float kernel[3],rf_geomod_terrain_check_fn check,void *context)
 {
     uint32_t slot,i;int status;
     if(!t || !cutter || !kernel || t->count==RF_GEOMOD_CUT_LIMIT ||
@@ -2237,8 +2247,10 @@ int rf_geomod_terrain_cut_star(rf_geomod_terrain *t,
     for(i=0;i<cutter->face_count;i++)t->cut_faces[slot][i].source_face=UINT32_MAX;
     memcpy(t->kernels[slot],kernel,12);t->star_mask|=1u<<slot;
     t->cuts[slot]=(rf_geomod_mesh_view){t->cut_vertices[slot],t->cut_faces[slot],cutter->vertex_count,cutter->face_count,0};
-    return terrain_publish(t,t->count+1);
+    return terrain_publish_checked(t,t->count+1,check,context);
 }
+int rf_geomod_terrain_cut_star(rf_geomod_terrain *t,const rf_geomod_mesh_view *cutter,const float kernel[3])
+{return terrain_cut_star_checked(t,cutter,kernel,NULL,NULL);}
 static uint32_t geomod_u32(const unsigned char *p)
 {return (uint32_t)p[0]|((uint32_t)p[1]<<8)|((uint32_t)p[2]<<16)|((uint32_t)p[3]<<24);}
 static float geomod_float(const unsigned char *p)
@@ -2271,9 +2283,9 @@ int rf_geomod_template_load(const char *path,rf_geomod_template *out)
     if(failed)return RF_IO;
     return rf_geomod_template_decode(data,(uint32_t)bytes,out);
 }
-int rf_geomod_terrain_cut_template_limits(rf_geomod_terrain *t,const rf_geomod_template *shape,
+int rf_geomod_terrain_cut_template_checked(rf_geomod_terrain *t,const rf_geomod_template *shape,
     const float center[3],const float basis[9],float scale,uint32_t material,
-    const rf_geomod_shallow_limit *limits,uint32_t limit_count)
+    const rf_geomod_shallow_limit *limits,uint32_t limit_count,rf_geomod_terrain_check_fn check,void *context)
 {
     rf_geomod_vertex vertices[60];rf_geomod_face faces[20];rf_geomod_mesh_view mesh;
     float kernel[3];uint32_t i,j,k;
@@ -2308,8 +2320,12 @@ int rf_geomod_terrain_cut_template_limits(rf_geomod_terrain *t,const rf_geomod_t
     }
     for(i=0;i<shape->face_count;i++)faces[i]=(rf_geomod_face){i*3,3,material,UINT32_MAX};
     mesh=(rf_geomod_mesh_view){vertices,faces,shape->face_count*3,shape->face_count,0};
-    return rf_geomod_terrain_cut_star(t,&mesh,kernel);
+    return terrain_cut_star_checked(t,&mesh,kernel,check,context);
 }
+int rf_geomod_terrain_cut_template_limits(rf_geomod_terrain *t,const rf_geomod_template *shape,
+    const float center[3],const float basis[9],float scale,uint32_t material,
+    const rf_geomod_shallow_limit *limits,uint32_t limit_count)
+{return rf_geomod_terrain_cut_template_checked(t,shape,center,basis,scale,material,limits,limit_count,NULL,NULL);}
 int rf_geomod_terrain_cut_template_scale(rf_geomod_terrain *t,const rf_geomod_template *shape,
     const float center[3],const float basis[9],float scale,uint32_t material)
 {return rf_geomod_terrain_cut_template_limits(t,shape,center,basis,scale,material,NULL,0);}
