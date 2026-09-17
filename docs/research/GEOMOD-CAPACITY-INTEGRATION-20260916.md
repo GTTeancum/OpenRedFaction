@@ -651,3 +651,41 @@ diagonal-repair-closure.log (exit0), diagonal-repair-full-tests.log,
 diagonal-repair-xbox-build.log and diagonal-repair-continuation/report.json.
 Next: rebuild the expanded ordinary PC scene, verify the long live geometry
 and save/reload, then assess native stock64MiB residency and cut16 capacity.
+
+
+## Ordinary PC gameplay reaches sixteen cuts with closed geometry
+
+Rebuilt the expanded scene from04fe1823 and executed20 trigger pulses over2500
+frames through the ordinary process-local rocket/DEV room path. Eighteen rockets
+produce16 committed cuts; the last2 reject at the configured16-cut history cap.
+The new impacts differ from the old history after geometry repairs, so this
+result does not mean the old sequence's capacity problem is solved.
+
+The original harness invocation expected15 and correctly flagged the count
+mismatch (actual16). Its report remains FAIL rather than being rewritten.
+Independent inspection of the physical mesh passes closure:7784 vertices,
+1541 faces. Replaying the new recorded history passes closure after each of
+all16 admissions and matches all cutter bytes and final RNG. This provides
+independent evidence for the actual16-cut outcome despite the stale harness
+expectation. Recorded live core peak is2056596 bytes; the offline probe peak
+is2035936. Treat these as different measured paths.
+
+A no-fire reload using expected16 and --compare-to passes:135598-byte RFDS,
+physical mesh and all1267 lightmap records match exactly. The restored report
+is PASS. The captured640x480 endpoint was inspected: textured room/floor,
+launcher, HUD and dark excavated area are present. This is endpoint inspection,
+not animation, audio or full visual fidelity acceptance. No screenshot was
+uploaded to GitHub and no native Xbox run was performed.
+
+Artifact-only tracing pinpoints the older geomod-fan-live history's rejection
+in append_compact_lineage:8192 stored vertices plus3 incoming vertices
+(faces1624), or plus5 on the later attempt. It is the vertex workspace guard,
+not the2048-face cap or an inferred general heap shortage. Limits remain
+unchanged pending a bounded solution and stock64MiB residency validation.
+
+Evidence: artifacts/geomod-diagonal-live (initial expected-count failure),
+artifacts/geomod-diagonal-restored/report.json (exact reload PASS),
+artifacts/authored-post-live/diagonal-live-closure.log,
+diagonal-new-history.log (all16 prefixes closed) and capacity16/trace.log.
+Estimate remains ~50% overall/~71% GeoMod pending native runtime and broader
+shape/material/collision coverage.
