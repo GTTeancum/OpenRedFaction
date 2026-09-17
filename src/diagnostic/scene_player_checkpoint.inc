@@ -151,7 +151,8 @@ static int scene_checkpoint_player_capture(scene_stream *s,rf_player_checkpoint 
         view.faces=composed.tree->faces;view.tree=composed.tree;view.mesh.face_count=composed.count;
     }
     {rf_checkpoint_placement_result fit;
-     status=rf_checkpoint_standing_check(&view,&placement,scene_step_seconds,rf_scene_actor_movement_values.speed,&fit);if(status){printf("PLAYER_CHECKPOINT_REJECT placement %d sphere%u reason%u retries%u\n",status,status==RF_NOT_FOUND?fit.sphere:UINT32_MAX,status==RF_NOT_FOUND?fit.reason:0,status==RF_NOT_FOUND?fit.retries:0);return status;}}
+     status=rf_checkpoint_standing_check_with_support(&view,&placement,scene_step_seconds,rf_scene_actor_movement_values.speed,rf_geomod_piece_registry_support,s->detached_pieces,&fit);if(status){printf("PLAYER_CHECKPOINT_REJECT placement %d sphere%u reason%u retries%u\n",status,status==RF_NOT_FOUND?fit.sphere:UINT32_MAX,status==RF_NOT_FOUND?fit.reason:0,status==RF_NOT_FOUND?fit.retries:0);return status;}}
 
+    status=rf_geomod_piece_registry_placement_check(s->detached_pieces,&placement);if(status)return status;
     rf_scene_player_checkpoint_state[6]=scene_actor_body.spheres.count;rf_scene_player_checkpoint_state[7]=1;return RF_OK;
 }
