@@ -67,6 +67,39 @@ static double area(const rf_geomod_mesh_view *m) {
         }
     return sum;
 }
+/* Live UID94 rocket at Y0.3: clipped boundary contains a tiny float bend.
+ * Its short edge violates convexity by about2.5e-5 world units. */
+static int rounded_boundary(void) {
+    static const float points[7][3]={{-5.25f,-.933783472f,2.75f},{-5.25f,-.901053548f,2.75f},
+        {-5.25f,-.868632793f,2.32153749f},{-5.25f,-.963883638f,2.30476499f},
+        {-5.25f,-1.24846113f,2.25465441f},{-5.25f,-1.25f,2.25438333f},{-5.25f,-1.25f,2.75f}};
+    float planes[1][4]={{1,0,0,5.25f}},positions[64][3];
+    rf_geomod_vertex v[7];rf_geomod_face f={0,7,3,UINT32_MAX};
+    rf_geomod_mesh_view mesh={v,&f,7,1,0},out;
+    rf_geomod_publication_job job={0};rf_collision_face bound[16];
+    rf_collision_face_filter filters[16]={{0}};uint32_t i,j,k;double before=0,after=0;
+    for(i=0;i<7;i++){memcpy(v[i].position,points[i],12);v[i].uv[0]=points[i][1];v[i].uv[1]=points[i][2];
+        before+=(double)points[i][1]*points[(i+1)%7][2]-(double)points[i][2]*points[(i+1)%7][1];}
+    CHECK(rf_geomod_collision_faces(&mesh,filters,positions,64,bound,16)==RF_FORMAT);
+    job.terrain=mesh;job.source_planes=planes;job.source_plane_count=1;
+    job.crater_origin=(rf_geomod_publication_origin){RF_GEOMOD_PUBLICATION_CRATER,94,UINT32_MAX,150};
+    CHECK(!rf_geomod_publication_build(&job,&work,ov,4096,of,768,origins,&out));
+    CHECK(out.face_count>1 && out.face_count<=16 && out.vertex_count<=64);
+    CHECK(!rf_geomod_collision_faces(&out,filters,positions,64,bound,16));
+    for(i=0;i<out.face_count;i++) {
+        const rf_geomod_face *face=out.faces+i;
+        CHECK(face->material==3 && face->source_face==UINT32_MAX);
+        CHECK(origins[i].owner==94 && origins[i].reference==150 && origins[i].kind==RF_GEOMOD_PUBLICATION_CRATER);
+        for(j=0;j<face->count;j++) {
+            const rf_geomod_vertex *a=out.vertices+face->first+j,*b=out.vertices+face->first+(j+1)%face->count;
+            CHECK(fabsf(a->uv[0]-a->position[1])<1e-6f && fabsf(a->uv[1]-a->position[2])<1e-6f);
+            after+=(double)a->position[1]*b->position[2]-(double)a->position[2]*b->position[1];
+        }
+    }
+    CHECK(fabs(before-after)<1e-9);
+    for(i=0;i<7;i++){for(k=0;k<out.vertex_count;k++)if(!memcmp(points[i],out.vertices[k].position,12))break;CHECK(k<out.vertex_count);}
+    puts("PASS publication rounded boundary: strict collision, preserved vertices/area/UV/provenance");return 0;
+}
 int main(void) {
     float lo[3] = {-.25f, -1.5f, -.25f}, hi[3] = {.25f, 2, .25f}, fl[3] = {-10, -2, -10},
           fh[3] = {10, -1.25f, 10};
@@ -236,6 +269,7 @@ int main(void) {
         CHECK(!memcmp(&out, &sentinel, sizeof(out)) && kernel[0] == 8 && star == 77);
     }
     rf_geomod_terrain_close(&terrain);
+    CHECK(!rounded_boundary());
     puts("PASS publication");
     return 0;
 }

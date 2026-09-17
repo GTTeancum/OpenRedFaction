@@ -74,13 +74,29 @@ static int append(rf_geomod_publication_bank *b, const rf_geomod_vertex *v, uint
 }
 static int result(rf_geomod_publication_work *w, const rf_geomod_vertex *v, uint32_t n, rf_geomod_face f,
                   rf_geomod_publication_origin origin) {
-    uint32_t index = w->result.nf;
-    int s = append(&w->result, v, n, f);
-    if (!s && w->result.nf != index) {
-        origin.source_face = f.source_face;
-        w->origins[index] = origin;
+    rf_geomod_mesh_view source, partitioned;
+    uint32_t first_vertex = w->result.nv, first_face = w->result.nf, i;
+    int s;
+    if (n < 3) return RF_OK;
+    if (first_vertex == RF_GEOMOD_PUBLICATION_VERTICES || first_face == RF_GEOMOD_PUBLICATION_FACES)
+        return RF_RANGE;
+    f.first = 0; f.count = n;
+    source = (rf_geomod_mesh_view){v, &f, n, 1, 0};
+    /* Neighbor/window clipping can bend a mathematically straight edge after
+     * float rounding. Preserve its vertices/UVs and partition for the same
+     * strict convex collision contract used by the terrain core. */
+    s = rf_geomod_partition_mesh(&source, w->result.vertices + first_vertex,
+        RF_GEOMOD_PUBLICATION_VERTICES - first_vertex, w->result.faces + first_face,
+        RF_GEOMOD_PUBLICATION_FACES - first_face, &partitioned);
+    if (s) return s;
+    origin.source_face = f.source_face;
+    for (i = 0; i < partitioned.face_count; i++) {
+        w->result.faces[first_face + i].first += first_vertex;
+        w->origins[first_face + i] = origin;
     }
-    return s;
+    w->result.nv += partitioned.vertex_count;
+    w->result.nf += partitioned.face_count;
+    return RF_OK;
 }
 /* Keep positive halfspace, including wholly coplanar polygons. */
 static int clip(rf_geomod_publication_work *w, uint32_t *n, const float p[4]) {

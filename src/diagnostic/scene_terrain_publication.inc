@@ -139,10 +139,10 @@ static int scene_terrain_publication_prepare_from(scene_stream *s,
             b->vertices,RF_GEOMOD_PUBLICATION_VERTICES,b->faces,RF_GEOMOD_PUBLICATION_FACES,b->origins,&b->mesh);
     } else status=rf_geomod_publication_build(&job,&p->work,b->vertices,RF_GEOMOD_PUBLICATION_VERTICES,
         b->faces,RF_GEOMOD_PUBLICATION_FACES,b->origins,&b->mesh);
-    if(status)return status;
+    if(status){if(rf_scene_combat_trace)printf("GEOMOD_PUBLICATION_REJECT build %d\n",status);return status;}
     b->mesh.generation=saved_serial;
     status=rf_geomod_publication_bind(&b->mesh,b->origins,p->references,p->reference_count,
-        RF_GEOMOD_BINDING_DEFER_GENERATED,b->corners,RF_GEOMOD_PUBLICATION_VERTICES,sizeof(b->corners),&pending);if(status)return status;
+        RF_GEOMOD_BINDING_DEFER_GENERATED,b->corners,RF_GEOMOD_PUBLICATION_VERTICES,sizeof(b->corners),&pending);if(status){if(rf_scene_combat_trace)printf("GEOMOD_PUBLICATION_REJECT bind %d\n",status);return status;}
     b->generated=pending;
     for(i=0;i<b->mesh.face_count;i++) {
         const rf_geomod_publication_origin *o=b->origins+i;const rf_geomod_publication_binding_reference *r=NULL;
@@ -163,8 +163,8 @@ static int scene_terrain_publication_prepare_from(scene_stream *s,
         if(b->faces[i].material>=s->materials->count)return RF_FORMAT;
     }
     status=rf_geomod_collision_faces(&b->mesh,b->filters,b->positions,RF_GEOMOD_PUBLICATION_VERTICES,
-        b->bound,RF_GEOMOD_PUBLICATION_FACES);if(status)return status;
-    status=rf_collision_composition_prepare(p->composition,b->bound,b->ids,b->mesh.face_count);if(status)return status;
+        b->bound,RF_GEOMOD_PUBLICATION_FACES);if(status){if(rf_scene_combat_trace)printf("GEOMOD_PUBLICATION_REJECT faces %d\n",status);return status;}
+    status=rf_collision_composition_prepare(p->composition,b->bound,b->ids,b->mesh.face_count);if(status){if(rf_scene_combat_trace)printf("GEOMOD_PUBLICATION_REJECT composition %d\n",status);return status;}
     p->has_pending=1;return RF_OK;
 }
 /* Existing ordinary-edit entry point: same active-core history and telemetry. */

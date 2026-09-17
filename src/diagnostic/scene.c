@@ -9509,15 +9509,16 @@ static int scene_terrain_authored_bind(scene_stream *s)
 {
     rf_geomod_terrain_view view;const rf_geomod_publication_origin *origins;
     rf_preview_surface_lightmap *bindings;scene_terrain_lighting_stage *stage=NULL;
-    int status=scene_terrain_publication_prepare(s);if(status)return status;
+    const char *step="geometry";
+    int status=scene_terrain_publication_prepare(s);if(status){if(rf_scene_combat_trace)printf("GEOMOD_PUBLICATION_REJECT %s %d\n",step,status);return status;}
     s->terrain_publication->banks[s->terrain_publication->pending].mesh.generation=s->terrain_publication_serial;
-    status=scene_terrain_publication_candidate(s,&view,&origins,&bindings);if(status)goto rejected;
+    step="candidate";status=scene_terrain_publication_candidate(s,&view,&origins,&bindings);if(status)goto rejected;
     if(view.mesh.face_count) {
-        status=scene_terrain_lighting_stage_prepare(s,&view,bindings,s->particle_frame,&stage);if(status)goto rejected;
-        status=scene_terrain_lighting_stage_draw(stage);if(status)goto rejected;
+        step="lighting_prepare";status=scene_terrain_lighting_stage_prepare(s,&view,bindings,s->particle_frame,&stage);if(status)goto rejected;
+        step="lighting_draw";status=scene_terrain_lighting_stage_draw(stage);if(status)goto rejected;
         bindings=stage->staged->terrain_bindings;
     }
-    status=scene_terrain_publication_finish(s,bindings,view.mesh.face_count,
+    step="finish";status=scene_terrain_publication_finish(s,bindings,view.mesh.face_count,
         s->light_rgb.count+s->terrain_atlas_registered);if(status)goto rejected;
     if(stage)scene_terrain_lighting_stage_commit(stage);
     scene_terrain_lighting_stage_discard(&stage);
@@ -9526,6 +9527,7 @@ static int scene_terrain_authored_bind(scene_stream *s)
     rf_scene_geomod[4]=s->terrain_publication->peak_bytes+s->terrain_authored->peak_bytes;
     return RF_OK;
 rejected:
+    if(rf_scene_combat_trace)printf("GEOMOD_PUBLICATION_REJECT %s %d\n",step,status);
     scene_terrain_lighting_stage_discard(&stage);scene_terrain_publication_abort(s);return status;
 }
 #include "scene_terrain_authored_edit.inc"

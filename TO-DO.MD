@@ -1,5 +1,7 @@
 # Red Faction Xbox / PC - open work
 
+- GeoMod publication: Validate the clipped-face partition fix in XEMU and broaden shot positions; a valid post shot previously rejected by strict collision now commits on PC while preserving boundary vertices, area, UVs and provenance.
+
 - GeoMod player saves: Verify live larger-fragment extraction and moving supports; eight synthetic polygon-path support/landing cases now pass, while both-post standing/save/walk-away passes76 native checks per run with exact PC continuation.
 
 - GeoMod fragment lifecycle: Investigate the generic object world-exit path before adding spatial retirement; recovered lifetime and debris paths do not justify an arbitrary kill height, and healthy terrain fragments have disabled lifetime timers.
