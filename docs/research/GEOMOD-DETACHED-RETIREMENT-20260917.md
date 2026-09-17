@@ -2,7 +2,7 @@
 
 Rocket contact now routes a tagged detached-piece hit through the shared kind3
 health helper before ordinary radial damage. The first rocket detaches the post;
-the second strikes its settled fragment, reducing birth health23.730438 to
+the second strikes its settled fragment, reducing birth health about23.73 to
 -376.269562 and marking object flags00200002. No radial damage enumeration,
 particle relaunch or speculative body impulse is added. This is whole-piece
 retirement, not recursive fragment subdivision or a new disintegration effect.

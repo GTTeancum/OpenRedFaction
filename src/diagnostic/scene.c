@@ -11166,6 +11166,9 @@ static int campaign_combat_tick(scene_stream *stream,uint32_t frame,const float 
             for(i=0;i<3;i++)end[i]=position[i]+delta[i]*hit.piece.hit.fraction;
             status=rf_geometry_collision_ray(stream->collision,&campaign_movers,position,end,0x27,NULL,&wall);if(status)return status;
             if(!wall) {
+                float damage=alt?(campaign_equipped_slot==2?campaign_pistol.alt_damage/60:campaign_pistol.alt_damage):campaign_pistol.damage;
+                status=rf_geomod_piece_registry_damage(stream->detached_pieces,hit.batch,hit.piece.piece,damage);
+                rf_scene_detached_hitscan[6]=(uint32_t)status;if(status)return status;
                 ++rf_scene_detached_hitscan[1];rf_scene_detached_hitscan[3]=hit.batch;rf_scene_detached_hitscan[4]=hit.piece.piece;
                 rf_scene_detached_hitscan[5]=npc_hash_bytes(2166136261u,hit.piece.hit.point,12);combat_surface_frame=frame;
                 if(campaign_equipped_slot==2 && fire){combat_sound("Riot Impact Default",hit.piece.hit.point);++rf_scene_riot[4];}
