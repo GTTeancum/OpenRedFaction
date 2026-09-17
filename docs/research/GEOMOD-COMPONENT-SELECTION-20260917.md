@@ -28,12 +28,12 @@ Observed contracts:
   components receive label-1; later labels are compacted. If there is only one
   component, the function returns0 before that relabel/filter pass, so its
   temporary label can remain0 despite there being nothing to extract.
-- The worker then calls4d0590(world,0) repeatedly for the returned count and
+- The worker then calls4d0590(world,index) for successive labels0..count-1 and
   obtains placement from4d1330 before publishing padded bounds. Raw4d0590
   decompilation shows face cloning/removal and mapping transfer, but that owner
   mutation has not been executed by this probe.
 
-Next: establish4e1180's geometric acceptance and4d1330's recentering, then map
+Follow-up:4e1180 classification and4d1330 vertex placement are now probed; map
 original shared-vertex ownership to the reconstructed terrain's face/corner
 representation. Do not use triangle count, volume, a whole-room box or broad
 coordinate welding as a substitute for the verified selection. No gameplay,
