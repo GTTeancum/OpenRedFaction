@@ -8,7 +8,7 @@ RFPB2 retains wake/transform bits06000000 alongside damage00200000 and retiremen
 
 Validation: all121 PC CTest cases passed before the additional later-body atomicity case; the rebuilt terrain extraction test passes that added case too. Tests cover near/far notification, malformed center, repeated wake, no impulse/position change, snapshot roundtrip, and a malformed later body preserving earlier bodies/output. Stock64MiB NXDK build succeeds (existing linker warning remains). Native runtime acceptance of this change is pending.
 
-Live PC investigation: artifacts/geomod-postedit-re/detached-support-cut contains ordinary550-frame two-rocket runs. First impact detaches the post chunk. Second aimY -1.6/-1.1 rejects with RF_FORMAT; -.95 rejects with RF_RANGE; -.8 directly retires the chunk; .4/.5/.6/.8 commit a second terrain edit but leave its settled pose unchanged and emit no DETACHED_WAKE. These are useful negative controls, not proof of support-loss motion. No original game or desktop input was used.
+Live PC investigation: artifacts/geomod-postedit-re/detached-support-cut contains ordinary550-frame two-rocket runs. First impact detaches the post chunk. Second aimY -1.6/-1.1 rejects with RF_NOT_FOUND; -.95 rejects with RF_RANGE; -.8 directly retires the chunk; .4/.5/.6/.8 commit a second terrain edit but leave its settled pose unchanged and emit no DETACHED_WAKE. These are useful negative controls, not proof of support-loss motion. No original game or desktop input was used.
 
 Next: publish the actual bounded changed-component boxes, then exercise a successful edit that removes a resting piece's support and verify its next physics steps and native checkpoint continuation. Do not enlarge the radius merely to force a visible result.
 
@@ -30,6 +30,14 @@ The lower aimY-.95 shot was rejected because extract_replay_components called th
 
 The stock-profile NXDK build and all121 freshly rebuilt PC tests pass. The separate direct-rocket retirement regression also passes. `tools/check_authored_restart.py --case support-loss` saves at550 and continues200 idle frames; it exactly matches the uninterrupted750-frame control in4044-byte RFCP,2508-byte terrain history and888-byte publication. The5320-pixel post region also matches. Existing retired-piece checkpoint expectations now retain the independently established06000000 notification flags.
 
-This closes the previously recorded empty-post rejection only. AimY-1.1/-1.6 had distinct RF_FORMAT failures and have not been explained by this fix. Broader materials, moving supports, pushing/crush and fragment-fragment collision remain open.
+This closes the previously recorded empty-post rejection only. AimY-1.1/-1.6 returned RF_NOT_FOUND (-3), not RF_FORMAT (-2); the lower-impact admission diagnosis is resolved below. Broader materials, moving supports, pushing/crush and fragment-fragment collision remain open.
 
 Stock64MiB native run render-20260917-081511 passes the550-frame support-loss replay, including matched detached pose/motion and checkpoint output comparisons. The actual native framebuffer was inspected: the remaining post stub is gone and the fragment region is near floor level but partly obscured by smoke, with surrounding room/weapon/HUD intact; the exact lower pose is established by native body-state comparisons. Native reload remains a separate open check. PC retired-piece save continuation also passes after retaining notification flags.
+
+## Native reload and lower-shot admission
+
+Stock64MiB reload run render-20260917-081823 passes74 comparisons over200 frames. The4044-byte native checkpoint SHA256989b6773ddf982b784342a3d0ca8503d1ccff0cbefa20818d9cf9763860d208d exactly matches PC continuation and the earlier uninterrupted control. Native pose/motion also match; no terrain resurrection occurs. The framebuffer was inspected after smoke cleared: chunk region, surrounding geometry, weapon and HUD remain rendered.
+
+A traced replay of aimY-1.1 reports ROCKET_IMPACT448 at(-4.75,-1.10057521,2.5), followed by GEOMOD_REJECT448 -3 before any admission/extraction. The authored ctf06 region census identifies region11228 with centerY2.0073585510253906 and height6: its lower edge isY-.9926414489746094. The other nearby box regions exclude this X coordinate. The shot is below this region and uses level default hardness100, which deliberately forbids destruction. The successful support shot atY-.981924057 lies above the boundary. This explains the different outcomes without weakening surface eligibility or widening the destruction radius. The earlier RF_FORMAT description was an error-code transcription mistake, now corrected.
+
+Evidence: artifacts/geomod-postedit-re/detached-support-cut/lower-trace.log, artifacts/crater-shading-re/campaign_geomod_regions.json, include/rf/vpp.h error constants, and rf_geomod_regions_prepare. No original executable UI or host input was used.
