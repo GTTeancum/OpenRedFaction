@@ -7,7 +7,7 @@ typedef struct edit_context {
     rf_geomod_mesh_view source;
     float center[3];int fail_create,fail_mutate,fail_publish,reset;
     uint32_t creates,mutations,publications,aborts,seen_serial;
-    rf_geomod_terrain *published;
+    rf_geomod_terrain *published;uint32_t detached;
 } edit_context;
 static int edit_create(void *p,uint32_t budget,rf_geomod_terrain **out)
 {
@@ -18,7 +18,8 @@ static int edit_create(void *p,uint32_t budget,rf_geomod_terrain **out)
 }
 static int edit_mutate(void *p,rf_geomod_terrain *t)
 {
-    edit_context *c=p;const float extent[3]={2,2,2};int status;c->mutations++;
+    edit_context *c=p;float extent[3]={2,2,2};int status;c->mutations++;
+    if(c->detached){extent[0]=1;extent[1]=extent[2]=12;}
     status=c->reset?rf_geomod_terrain_reset(t):rf_geomod_terrain_cut_box(t,c->center,extent,3);
     return status?status:(c->fail_mutate?RF_FORMAT:RF_OK);
 }
@@ -35,8 +36,36 @@ static void save_live(rf_geomod_terrain *live,rf_geomod_terrain_view *before,uin
     memcpy(saved_faces,before->mesh.faces,before->mesh.face_count*sizeof(*saved_faces));
     CHECK(!rf_geomod_terrain_history_size(live,bytes));CHECK(!rf_geomod_terrain_history_encode(live,kept,*bytes));
 }
+static void detached_transaction(void)
+{
+    edit_context c={0};rf_geomod_piece_registry *pieces=NULL;rf_geomod_piece_batch *batch,*same;
+    rf_geomod_owned_piece piece;rf_physics_body *body;rf_geomod_terrain *live=NULL,*old;
+    scene_terrain_edit_limits limits={8388608,2097152,1179648};
+    scene_terrain_edit_callbacks ops={edit_create,edit_mutate,edit_publish,edit_abort};
+    scene_terrain_edit_result result;uint32_t serial=0,bytes;
+    make_source(&c.source);c.detached=1;
+    CHECK(!edit_create(&c,1179648,&live));
+    CHECK(!rf_geomod_piece_registry_open(&generated,3,2.5f,.5f,.25f,0,2097152,&pieces));
+    bytes=rf_geomod_piece_registry_bytes(pieces);old=live;c.fail_publish=1;
+    CHECK(scene_terrain_edit_transaction_pieces(&live,&serial,&limits,&ops,&c,&result,pieces,0)==RF_IO);
+    CHECK(live==old && !serial && !rf_geomod_piece_registry_count(pieces) && rf_geomod_piece_registry_bytes(pieces)==bytes);
+    c.fail_publish=0;
+    CHECK(!scene_terrain_edit_transaction_pieces(&live,&serial,&limits,&ops,&c,&result,pieces,0));
+    CHECK(rf_geomod_piece_registry_count(pieces)==1);CHECK(!rf_geomod_piece_registry_get(pieces,0,&batch));
+    CHECK(!rf_geomod_piece_batch_get(batch,0,&piece,&body));body->state.position[0]=123;
+    c.detached=0;c.center[0]=5;
+    CHECK(!scene_terrain_edit_transaction_pieces(&live,&serial,&limits,&ops,&c,&result,pieces,0));
+    CHECK(rf_geomod_piece_registry_count(pieces)==1);CHECK(!rf_geomod_piece_registry_get(pieces,0,&same));
+    CHECK(same==batch && body->state.position[0]==123);
+    c.reset=1;
+    CHECK(!scene_terrain_edit_transaction_pieces(&live,&serial,&limits,&ops,&c,&result,pieces,1));
+    CHECK(!rf_geomod_piece_registry_count(pieces) && rf_geomod_piece_registry_bytes(pieces)==bytes);
+    rf_geomod_piece_registry_close(&pieces);rf_geomod_terrain_close(&live);
+    puts("PASS scene transaction stages bodies, rejects atomically, preserves moved body across clone/mutation and resets");
+}
 int main(void)
 {
+    detached_transaction();
     edit_context c={0};rf_geomod_terrain *live,*control,*original;
     rf_geomod_terrain_view before,a,b;uint32_t serial=17,bytes,i,creates;
     const float extent[3]={2,2,2};const float centers[3][3]={{-9,0,0},{9,0,0},{0,9,0}};

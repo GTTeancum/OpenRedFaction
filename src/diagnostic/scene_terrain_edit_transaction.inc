@@ -4,6 +4,7 @@
  * The caller owns admission/RNG/effects; do not change them before success.
  */
 #include "rf/geomod.h"
+#include "rf/geomod_piece_bank.h"
 #include <stdlib.h>
 #define SCENE_TERRAIN_EDIT_HISTORY_BYTES RF_GEOMOD_HISTORY_MAX_BYTES
 typedef struct scene_terrain_edit_limits {
@@ -32,9 +33,9 @@ typedef struct scene_terrain_edit_callbacks {
 typedef struct scene_terrain_edit_result {
     uint32_t reserved_peak_bytes,history_bytes,serial,core_generation;
 } scene_terrain_edit_result;
-static int scene_terrain_edit_transaction(rf_geomod_terrain **live,uint32_t *serial,
+static int scene_terrain_edit_transaction_pieces(rf_geomod_terrain **live,uint32_t *serial,
     const scene_terrain_edit_limits *limits,const scene_terrain_edit_callbacks *ops,
-    void *context,scene_terrain_edit_result *out)
+    void *context,scene_terrain_edit_result *out,rf_geomod_piece_registry *pieces,uint32_t replace_pieces)
 {
     rf_geomod_terrain *candidate=NULL,*old;rf_geomod_terrain_view before,after;
     scene_terrain_edit_result result;unsigned char *history=NULL;
@@ -49,12 +50,21 @@ static int scene_terrain_edit_transaction(rf_geomod_terrain **live,uint32_t *ser
     status=rf_geomod_terrain_history_size(*live,&bytes);if(status)return status;
     if(bytes>SCENE_TERRAIN_EDIT_HISTORY_BYTES)return RF_RANGE;
     history=malloc(SCENE_TERRAIN_EDIT_HISTORY_BYTES);if(!history)return RF_IO;
+    if(pieces){status=rf_geomod_piece_registry_begin(pieces,replace_pieces);if(status){free(history);return status;}}
     status=rf_geomod_terrain_history_encode(*live,history,bytes);if(status)goto rejected;
     status=ops->create(context,limits->clone_budget,&candidate);
     if(candidate==*live){candidate=NULL;status=RF_FORMAT;goto rejected;}
     if(status)goto rejected;
     if(!candidate){status=RF_FORMAT;goto rejected;}
+    if(pieces){status=rf_geomod_terrain_set_extraction(candidate,rf_geomod_piece_registry_emit,pieces);if(status)goto rejected;}
     status=rf_geomod_terrain_history_decode(candidate,history,bytes);if(status)goto rejected;
+    if(pieces) {
+        /* Clone decode emissions belong to the old history. Replacement/reset
+         * must stage only the final mutation's emissions, including none. */
+        if(replace_pieces){rf_geomod_piece_registry_abort(pieces);status=rf_geomod_piece_registry_begin(pieces,1);}
+        else status=rf_geomod_piece_registry_rewind(pieces);
+        if(status)goto rejected;
+    }
     status=ops->mutate(context,candidate);if(status)goto rejected;
     status=rf_geomod_terrain_get(candidate,&after);if(status)goto rejected;
     if(after.peak_bytes>limits->clone_budget){status=RF_RANGE;goto rejected;}
@@ -63,7 +73,16 @@ static int scene_terrain_edit_transaction(rf_geomod_terrain **live,uint32_t *ser
     status=ops->publish(context,candidate,next);if(status)goto rejected;
     /* No allocation, validation or other fallible operation after publication. */
     old=*live;*live=candidate;*serial=next;*out=result;
+    if(pieces)rf_geomod_piece_registry_commit(pieces);
     rf_geomod_terrain_close(&old);free(history);return RF_OK;
 rejected:
-    ops->abort(context);rf_geomod_terrain_close(&candidate);free(history);return status;
+    ops->abort(context);if(pieces)rf_geomod_piece_registry_abort(pieces);
+    rf_geomod_terrain_close(&candidate);free(history);return status;
 }
+
+/* Legacy edits retain the same transaction with no detached owner. Registry
+ * callers reserve its entire construction budget in external_peak_bytes. */
+static int scene_terrain_edit_transaction(rf_geomod_terrain **live,uint32_t *serial,
+    const scene_terrain_edit_limits *limits,const scene_terrain_edit_callbacks *ops,
+    void *context,scene_terrain_edit_result *out)
+{return scene_terrain_edit_transaction_pieces(live,serial,limits,ops,context,out,NULL,0);}

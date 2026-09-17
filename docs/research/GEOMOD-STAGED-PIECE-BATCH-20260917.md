@@ -119,3 +119,28 @@ while preserving the original body. Successful retry publishes the second batch.
 Reset empties the registry; double close is safe. PC Release test passes; stock
 NXDK build log: artifacts/geomod-postedit-re/piece-registry-xbox.log.
 The scene has not yet enabled this registry.
+
+## Shared scene transaction integration
+
+scene_terrain_edit_transaction_pieces now extends the actual authored scene
+clone/decode/mutate/publish wrapper with registry begin, extraction configuration,
+replay rewind, commit and abort. Legacy scene calls still use its NULL-registry
+wrapper; live activation remains pending drawing/material/budget integration.
+The caller must reserve the full registry budget in external_peak_bytes.
+
+The real-core scene transaction test splits a solid, stages bodies before its
+publication callback, rejects publication and verifies no active bodies/bytes
+leak, then retries successfully. Moving the retained body to X123 followed by
+clone decode and a new edit keeps the same batch pointer and position. Reset
+publishes no pieces and returns registry resident bytes to the empty baseline.
+
+That reset test exposed old-history emissions from clone decode surviving into
+an empty reset. Replacement transactions now discard clone-only staging before
+mutation, leaving the old live registry intact until successful publication.
+
+Release geomod_edit_transaction passes, including its pre-existing identity,
+generation, history and collision comparisons. Stock NXDK scene compilation and
+link pass: artifacts/geomod-postedit-re/piece-scene-transaction-xbox.log. The
+first incremental invocation skipped the changed .inc dependency; scene.c's
+mtime was then refreshed and actual scene.obj recompilation was verified.
+No live scene or rendering acceptance was performed.
