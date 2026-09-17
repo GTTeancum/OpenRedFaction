@@ -26,6 +26,7 @@ from verify_water_xbox import verify as verify_water_scenario
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--expanded-geomod', action='store_true', help='Opt-in matching sixteen-cut PC/NXDK profile on stock64MiB')
     parser.add_argument('--cpu-exceptions', action='store_true', help='Retain QEMU exception/reset diagnostics for guest crash analysis')
     parser.add_argument('--water-test', action='store_true', help='Authored dm03 water gameplay with DEV weapon supply')
     parser.add_argument('--swim-test', action='store_true', help='Authored L2S3 deep-pool movement fixture')
@@ -80,6 +81,7 @@ def main():
         parser.error('--terrain-test-light requires --dev-room')
     if (args.geomod_checkpoint_in or args.geomod_checkpoint_out) and not args.dev_room:
         parser.error('GeoMod checkpoints require --dev-room')
+    checkpoint_limit = 262144 if args.expanded_geomod else 110524
     checkpoint = args.geomod_checkpoint_in is not None or args.geomod_checkpoint_out
     payload = None
     if args.input:
@@ -108,6 +110,7 @@ def main():
         parser.error('Trigger-start requires --spawn, a positive UID and no exit-start placement')
     require_no_project_xemu(root)
     emulator = Path('C:/Games/Emulators/Xemu')
+    pc_build = 'build/pc-expanded' if args.expanded_geomod else 'build/pc'
     disc = root / 'build/xbox/disc'
     run = root / 'artifacts/xemu' / ('render-' + datetime.datetime.now().strftime('%Y%m%d-%H%M%S'))
     run.mkdir(parents=True)
@@ -116,6 +119,7 @@ def main():
         input_sha256=hashlib.sha256(payload).hexdigest(), setup_uids=args.setup_uid, trigger_start_uid=args.trigger_start_uid, exit_start_uid=args.exit_start_uid, exit_uid=args.exit_uid, return_exit_uid=args.return_exit_uid,
         scope='Authored section, player spawn or staged actor/pickup camera, process-local replay/setup commands, native framebuffer, '
               'phase timings and selected PC gameplay-state checks. No full campaign/parity claim.', samples=[])
+    report['expanded_geomod']=args.expanded_geomod
     (run / 'inputs.bin').write_bytes(payload)
     env = {k: v for k, v in os.environ.items() if not k.startswith('RF_REPLAY_')}
     env.update(RF_REPLAY_LEVEL=args.level, RF_REPLAY_ARCHIVE=args.archive)
@@ -155,14 +159,14 @@ def main():
     # Build the reference before capture; a new Xbox build must not be compared
     # against a stale PC executable after shared source/allocation changes.
     with (run / 'pc-build.log').open('w') as out:
-        subprocess.run(['cmake','--build','build/pc','--config','Release','--target','rf_pc_play'],
+        subprocess.run(['cmake','--build',pc_build,'--config','Release','--target','rf_pc_play'],
             cwd=root,stdout=out,stderr=subprocess.STDOUT,check=True)
-    pc = subprocess.run([str(root / 'build/pc/Release/rf_pc_play.exe'), '--spawn-replay',
+    pc = subprocess.run([str(root / pc_build / 'Release/rf_pc_play.exe'), '--spawn-replay',
         str(root / 'Installed_Game'), str(run / 'inputs.bin'), str(run / 'pc-final.ppm')],
         cwd=root, env=env, capture_output=True, text=True)
     (run / 'pc-reference.txt').write_text(pc.stdout + pc.stderr)
     pc.check_returncode()
-    report['pc_sha256'] = hashlib.sha256((root / 'build/pc/Release/rf_pc_play.exe').read_bytes()).hexdigest()
+    report['pc_sha256'] = hashlib.sha256((root / pc_build / 'Release/rf_pc_play.exe').read_bytes()).hexdigest()
     saved = {p.name: p.read_bytes() for p in disc.glob('campaign-*') if p.is_file()}
     for name in ('player-replay.bin', 'player-control-frames.txt', 'audio-output.flag', 'particle-step-fixtures.bin', 'renderer-cull-off.flag', 'renderer-cull-on.flag', 'renderer-batch-off.flag', 'renderer-world-off.flag'):
         p = disc / name
@@ -189,7 +193,7 @@ def main():
     def build():
         with (run / 'build.log').open('ab') as out:
             subprocess.run(['C:/msys64/usr/bin/bash.exe', '--noprofile', '--norc',
-                'tools/build-xbox.sh', '--repack'], cwd=root, env=dict(os.environ, MSYSTEM='CLANG64'),
+                'tools/build-xbox.sh', '--repack'], cwd=root, env=dict(os.environ, MSYSTEM='CLANG64', RF_GEOMOD_EXPANDED_PROFILE='1' if args.expanded_geomod else '0'),
                 stdout=out, stderr=subprocess.STDOUT, check=True)
 
     def symbol(name):
@@ -343,7 +347,7 @@ dvd_path = '{root.as_posix()}/build/xbox/redfaction-diagnostic.iso'
                 state=words(monitor,symbol('rf_scene_geomod_checkpoint_state'),4)
                 memory=words(monitor,symbol('rf_scene_geomod_checkpoint_memory'),2)
                 pointer=words(monitor,symbol('rf_scene_geomod_checkpoint_data'),1)[0]
-                assert state[0]==0 and state[3]==1 and 288<=state[1]<=110524 and pointer,'Checkpoint export failed'
+                assert state[0]==0 and state[3]==1 and 288<=state[1]<=checkpoint_limit and pointer,'Checkpoint export failed'
                 data=bytearray()
                 for offset in range(0,state[1],4096):
                     count=(min(4096,state[1]-offset)+3)//4
@@ -356,7 +360,7 @@ dvd_path = '{root.as_posix()}/build/xbox/redfaction-diagnostic.iso'
                 report['checks']['GEOMOD_CHECKPOINT']=dict(equal=data==expected,state=state,memory=memory,
                     sha256=hashlib.sha256(data).hexdigest(),pc_sha256=hashlib.sha256(expected).hexdigest())
                 assert value==state[2],'Checkpoint readback hash mismatch'
-                assert 0<memory[0]<=memory[1]<=110524,'Checkpoint external memory budget'
+                assert 0<memory[0]<=memory[1]<=checkpoint_limit,'Checkpoint external memory budget'
                 assert data==expected,'PC/Xbox destruction checkpoint differs'
             if args.ripple_test:
                 state=words(monitor,symbol('rf_scene_ripple_vertex_state'),5)
@@ -429,7 +433,7 @@ dvd_path = '{root.as_posix()}/build/xbox/redfaction-diagnostic.iso'
                 # Authored solid edits reserve old+clone core, two publication
                 # banks and private lighting staging. Match its explicit12MiB
                 # subsystem ceiling; keep the cavity profile's old ceiling.
-                terrain_budget=12*1024*1024 if args.level=='ctf06.rfl' and args.dev_room else 1024*1024+65536
+                terrain_budget=(16*1024*1024 if args.level=='ctf06.rfl' else 2*1024*1024+65536) if args.expanded_geomod else (12*1024*1024 if args.level=='ctf06.rfl' and args.dev_room else 1024*1024+65536)
                 budget_ok=all(0<=v[3]<=v[4]<=terrain_budget for v in (actual,expected))
                 report['checks']['GEOMOD']=dict(equal=equal,budget_ok=budget_ok,budget_bytes=terrain_budget,
                     compared_indices=indices,xbox=actual,pc=expected,
@@ -444,7 +448,7 @@ dvd_path = '{root.as_posix()}/build/xbox/redfaction-diagnostic.iso'
                 expected=list(map(int,next(line for line in pc.stdout.splitlines() if line.startswith('TERRAIN_ATLAS ')).split()[1:]))
                 actual=words(monitor,symbol('rf_scene_terrain_atlas'),8)
                 equal=actual==expected
-                budget_ok=actual[3]<=1280*1024
+                budget_ok=actual[3]<=(1536*1024 if args.expanded_geomod else 1280*1024)
                 report['checks']['TERRAIN_ATLAS']=dict(equal=equal,budget_ok=budget_ok,xbox=actual,pc=expected,
                     scope='Atlas dimensions, bounded ownership, generation and sampled texels; pixels checked separately')
                 assert equal and budget_ok,'TERRAIN_ATLAS'
@@ -460,13 +464,13 @@ dvd_path = '{root.as_posix()}/build/xbox/redfaction-diagnostic.iso'
                 equal=actual==expected
                 report['checks']['TERRAIN_DRAW']=dict(equal=equal,xbox=actual,pc=expected,
                     scope='Render-only subdivision counts, bounded ownership and generation; physical mesh remains separate')
-                assert equal and actual[1]<=8192 and actual[3]<=320*1024,'TERRAIN_DRAW'
+                assert equal and actual[1]<=(16384 if args.expanded_geomod else 8192) and actual[3]<=(1024*1024 if args.expanded_geomod else 320*1024),'TERRAIN_DRAW'
                 expected=list(map(int,next(line for line in pc.stdout.splitlines() if line.startswith('TERRAIN_NOISE ')).split()[1:]))
                 actual=words(monitor,symbol('rf_scene_terrain_noise'),8)
                 equal=actual==expected
                 report['checks']['TERRAIN_NOISE']=dict(equal=equal,xbox=actual,pc=expected,
                     scope='Persistent generated-face mappings, retained texel checks, bounded owner and generation')
-                assert equal and actual[0]==1 and actual[1]<=1024 and actual[6]<=128*1024,'TERRAIN_NOISE'
+                assert equal and actual[0]==1 and actual[1]<=(2048 if args.expanded_geomod else 1024) and actual[6]<=(256*1024 if args.expanded_geomod else 128*1024),'TERRAIN_NOISE'
                 expected=list(map(int,next(line for line in pc.stdout.splitlines() if line.startswith('DEBRIS ')).split()[1:]))
                 actual=words(monitor,symbol('rf_scene_debris'),8)
                 equal=actual==expected

@@ -1,7 +1,7 @@
 # Red Faction Xbox / PC - open work
 
-- GeoMod coverage: Validate the expanded profile on stock Xbox and address the old history's8192-vertex workspace limit; the new live PC sequence commits16 cuts with closure and exact reload.
-- GeoMod reload: Verify padded lightmap admission on stock Xbox; the latest16-cut PC replay restores all1267 map records, geometry and checkpoint bytes exactly.
+- GeoMod coverage: Repeat the full16-cut Xbox replay with corrected harness bounds and address the old history's8192-vertex limit; stock64MiB reload passes58 comparisons with an exact PC checkpoint.
+- GeoMod reload: Broaden native continuation coverage after16-cut stock64MiB reload passes58 checks; the135598-byte checkpoint matches PC exactly.
 - GeoMod rollback: Make legacy DEV cavity lighting exhaustion transactional; the1024-map experiment aborted after core publication.
 
 - GeoMod UV seams: Broaden chronological reconstruction beyond current fixtures; all105 tests and48 axis-oriented UV cases pass, with live two-cut reload/next-blast passing58 stock64MiB Xbox checks.

@@ -4,6 +4,14 @@ export NXDK_DIR="${NXDK_DIR:-/c/nxdk}"
 export PATH="$NXDK_DIR/bin:/clang64/bin:/mingw64/bin:/usr/bin:$PATH"
 root="$(cd "$(dirname "$0")/.." && pwd)"
 mkdir -p "$root/build/xbox"
+profile="${RF_GEOMOD_EXPANDED_PROFILE:-0}"
+case "$profile" in 0|1) ;; *) echo "RF_GEOMOD_EXPANDED_PROFILE must be 0 or 1" >&2; exit 1 ;; esac
+profile_stamp="$root/build/xbox/geomod-profile.stamp"
+if [[ ! -f "$profile_stamp" ]] || [[ "$(cat "$profile_stamp")" != "$profile" ]]; then
+    printf '%s\n' "$profile" > "$profile_stamp"
+fi
+export RF_GEOMOD_EXPANDED_PROFILE="$profile"
+
 # The scene streams authored controller samples from the local original archive.
 # Disc data remains ignored; the archive is never loaded wholesale into RAM.
 mkdir -p "$root/build/xbox/disc"

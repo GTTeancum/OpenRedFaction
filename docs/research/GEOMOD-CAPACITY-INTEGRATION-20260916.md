@@ -689,3 +689,43 @@ artifacts/authored-post-live/diagonal-live-closure.log,
 diagonal-new-history.log (all16 prefixes closed) and capacity16/trace.log.
 Estimate remains ~50% overall/~71% GeoMod pending native runtime and broader
 shape/material/collision coverage.
+
+
+## Expanded NXDK profile and first stock64MiB runtime evidence
+
+platforms/xbox/Makefile accepts RF_GEOMOD_EXPANDED_PROFILE=1 with the same15
+compile definitions as CMake. tools/build-xbox.sh validates0/1 and updates a
+profile stamp; all project objects depend on it so switching profiles rebuilds
+shared ABI users. Default remains0/eight cuts. The XEMU render harness accepts
+--expanded-geomod, builds the matching PC reference, selects the NXDK profile,
+and uses its checkpoint, terrain, atlas, draw and retained-map limits. The
+machine remains explicitly64MiB with a QMP memory-size assertion.
+
+The first2500-frame run completed in XEMU but its already-loaded harness still
+used the old110524-byte checkpoint assertion. It is correctly recorded FAIL:
+artifacts/xemu/render-20260916-214317. Endpoint7904 pages=30.875MiB free. The
+native framebuffer was inspected and shows the textured room, launcher/HUD,
+and dark crater matching the PC composition. Its checkpoint/export and later
+comparisons were not accepted because the harness stopped at that assertion.
+
+After correcting all profile-specific bounds, a32-frame no-fire reload of the
+16-cut PC checkpoint passes58 comparisons on stock64MiB:
+artifacts/xemu/render-20260916-214825/report.json. Both checkpoints are135598
+bytes, SHA2563e6b25d8b0ad55a92fbfb77583dbcb7f5e7ed9b7b385cbdeda77d75f6c7984bf.
+The restored terrain counters and budgets match PC;8128 pages=31.75MiB remain
+at endpoint. Its native capture was inspected: expected room, pickup weapons,
+pistol and HUD; the default view faces away from the crater. This does not
+verify destruction animations, audio or every geometry buffer on Xbox.
+
+Both harness-owned emulators exited and all staged disc files were restored.
+The preexisting Jedi Power Battles XEMU session was left untouched. No native
+images were uploaded. The expanded XBE remains the last built artifact; a
+normal build switches the stamp back to the default profile and recompiles.
+
+Validation: all15 PC/NXDK profile definitions match, Python harness compiles,
+NXDK expanded build succeeds with its existing merge warning, and the corrected
+reload run passes58 checks. Repeat the full replay with corrected assertions
+before claiming the entire sixteen-blast native sequence passes. Example:
+python tools/xemu_render_check.py --expanded-geomod --dev-room --spawn --level
+glass_house.rfl --archive levelsm.vpp --input artifacts/geomod-diagonal-live/input.bin
+--geomod-checkpoint-out --seconds 600.
