@@ -110,3 +110,12 @@ This exposed an aggregate cache invalidation defect: both independently cut sour
 The first cut creates6 atlas maps; the second expands to12 maps and prepares344 draw vertices across70 published faces. Every generated face binds the atlas image. The first35 face bindings, existing map descriptors and all pixel rows inside the first six maps remain byte-identical after the second cut. Both holes retain their previously verified room-collision behavior. This is actual CPU atlas/noise baking and draw preparation, with no enabled level-light fixture; it does not establish full lighting parity or GPU output.
 
 PC build and122/122 tests pass; stock-profile NXDK compilation succeeds. Logs: artifacts/grouped-lighting-build.log, artifacts/grouped-lighting-tests.log and artifacts/grouped-lighting-xbox.log. No new disk-image clone or native emulator session was created. Ordinary startup still selects one source: grouped live impact dispatch, source-indexed checkpoint restoration and native multi-object memory/visual acceptance remain open.
+
+
+## Multiple cuts per room commit
+
+Preparation previously required the sum of all source cut histories to be no greater than the room revision. This rejects a legitimate grouped edit: two newly cut sources both have one local cut, while the room has committed only once. Validation now checks each non-selected source history against the room revision independently, as already done for the selected candidate, and leaves the aggregate cut count as telemetry. Source count and per-source history caps still bound the sum.
+
+The installed-asset scene fixture republishes both one-cut source histories at room revision1 through real atlas preparation and collision commit. Both openings remain passable and the70-face publication reports two cuts with generation1. A separate private two-cut history in the non-selected source rejects at revision1 without pending publication or changes to the active room; the test then restores its original owner. This tests publication of a grouped result, not live blast dispatch or simultaneous core mutation.
+
+All122 PC tests pass and a forced scene recompilation completes under the stock NXDK profile. Logs are artifacts/grouped-revision-build.log, artifacts/grouped-revision-tests.log and artifacts/grouped-revision-xbox.log. Live dispatch still routes through the selected source, and post-edit changed-box/wake handling remains selected-registry-only. Those call sites must be connected to the existing grouped transaction before enabling multiple sources in gameplay.

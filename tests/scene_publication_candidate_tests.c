@@ -1,5 +1,5 @@
-/* Installed-asset CPU test of the scene publication adapter, not a save/load or
- * renderer test. Generated image2 below is test-owned binding metadata only. */
+/* Installed-asset CPU test of scene publication, atlas baking and draw
+ * preparation. It does not exercise GPU rendering or live save/load. */
 #include "../src/diagnostic/scene.c"
 #define CHECK(x) do{if(!(x)){fprintf(stderr,"publication candidate line%d: %s\n",__LINE__,#x);return 1;}}while(0)
 typedef struct candidate_snapshot {
@@ -137,6 +137,34 @@ static int grouped_scene(const rf_level *level,rf_geometry *geometry,rf_geometry
         }
         CHECK(!post_ray(&view,-2.5f,0));CHECK(!post_ray(&view,2.5f,i?0:1));
     }
+    /* The same two histories may result from one grouped room edit. A room
+     * revision counts commits, not the sum of all source cut histories. */
+    s.terrain_publication_serial=1;
+    CHECK(!scene_terrain_publication_prepare(&s));CHECK(!finish_test_candidate(&s,&view));
+    CHECK(view.cuts==2 && view.mesh.generation==1 && view.mesh.face_count==70);
+    CHECK(!post_ray(&view,-2.5f,0));CHECK(!post_ray(&view,2.5f,0));
+    /* Validate the non-selected source independently: two local cuts cannot
+     * fit into a single room revision, even when the selected source has one. */
+    {
+        rf_geomod_terrain *private_core=NULL,*old=sources[0].terrain;
+        rf_collision_face_filter generated=assets[0]->asset_view.source_filters[0];
+        unsigned char *history;uint32_t bytes;
+        float second[3]={-4.75f,.2f,-2.5f};
+        generated.query_flags=0;generated.face_flags=256;
+        CHECK(!rf_geomod_terrain_history_size(old,&bytes));history=malloc(bytes);CHECK(history);
+        CHECK(!rf_geomod_terrain_history_encode(old,history,bytes));
+        CHECK(!rf_geomod_terrain_open(&assets[0]->source,assets[0]->asset_view.source_filters,&generated,0,4096,800,1048576,&private_core));
+        CHECK(!rf_geomod_terrain_history_decode(private_core,history,bytes));free(history);
+        CHECK(!rf_geomod_terrain_cut_template(private_core,&shape,second,basis,1.05000007f,0));
+        sources[0].terrain=private_core;
+        CHECK(scene_terrain_publication_prepare(&s)==RF_RANGE);
+        CHECK(!s.terrain_publication->has_pending);
+        sources[0].terrain=old;rf_geomod_terrain_close(&private_core);
+        CHECK(!scene_terrain_publication_view(&s,&view));
+        CHECK(view.cuts==2 && view.mesh.generation==1);
+        CHECK(!post_ray(&view,-2.5f,0));CHECK(!post_ray(&view,2.5f,0));
+    }
+    puts("PASS two source cuts in one room revision; invalid later-source revision preserves active room");
     CHECK(view.tree->face_count==world->rooms[3].tree.face_count-8+70);
     /* Staged preparation must preserve the active overlay and both openings. */
     CHECK(!scene_terrain_publication_prepare(&s));scene_terrain_publication_abort(&s);

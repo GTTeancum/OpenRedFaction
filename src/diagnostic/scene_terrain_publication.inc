@@ -111,7 +111,7 @@ static int scene_terrain_publication_prepare_from(scene_stream *s,
             if(asset==a){jobs[source]=job;selected++;}
             else {
                 status=rf_geomod_terrain_get(owner->terrain,&view);if(status)return status;
-                if(view.cuts>RF_GEOMOD_CUT_LIMIT)return RF_RANGE;
+                if(view.cuts>RF_GEOMOD_CUT_LIMIT || view.cuts>saved_serial)return RF_RANGE;
                 memset(jobs+source,0,sizeof(*jobs));jobs[source].terrain=view.mesh;
                 jobs[source].windows=asset->windows;jobs[source].neighbors=asset->neighbors;
                 jobs[source].window_origins=asset->asset_view.window_origins;jobs[source].neighbor_origins=asset->asset_view.neighbor_origins;
@@ -127,7 +127,9 @@ static int scene_terrain_publication_prepare_from(scene_stream *s,
             }
             total+=jobs[source].cut_count;
         }
-        if(selected!=1 || total>saved_serial)return RF_FORMAT;
+        /* One room edit may cut several sources. Each source history is
+         * bounded by the revision; their sum need not be. */
+        if(selected!=1)return RF_FORMAT;
         b->cuts=total;
         status=rf_geomod_publication_build_groups(jobs,s->terrain_source_count,saved_serial,&p->work,
             b->vertices,RF_GEOMOD_PUBLICATION_VERTICES,b->faces,RF_GEOMOD_PUBLICATION_FACES,b->origins,&b->mesh);
