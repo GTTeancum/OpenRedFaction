@@ -1,0 +1,80 @@
+/* Complete private RFDS3 reconstruction. No live commit or player admission:
+ * callers must add those gates before enabling gameplay load. Pending banks are
+ * borrowed synchronously; no frame, other edit or renderer upload may intervene. */
+typedef struct scene_authored_collection_stage {
+    scene_stream candidate;
+    scene_terrain_source_owner owners[4];
+    scene_authored_sources_stage *sources;
+    scene_authored_checkpoint_stage shared;
+} scene_authored_collection_stage;
+static inline void scene_authored_collection_stage_discard(scene_authored_collection_stage **ptr)
+{
+    scene_authored_collection_stage *p;if(!ptr || !(p=*ptr))return;
+    scene_terrain_lighting_stage_discard(&p->shared.lighting);
+    if(p->shared.owns_pending)scene_terrain_publication_abort(&p->candidate);
+    scene_authored_sources_stage_discard(&p->sources);free(p);*ptr=NULL;
+}
+static inline int scene_authored_collection_stage_prepare(scene_stream *s,const void *input,uint32_t bytes,
+    scene_authored_collection_stage **out)
+{
+    const unsigned char *data=input;rf_authored_checkpoint_layout layout;
+    scene_authored_collection_stage *p=NULL;rf_geomod_terrain_view core;
+    rf_geomod_publication_cut cuts[RF_GEOMOD_CUT_LIMIT];rf_collision_composition_view composition;
+    uint64_t external;uint32_t serial,i;int status;
+    if(!s || !input || !out || *out || s->terrain_source_count<2 || s->terrain_source_count>4 || !s->terrain_sources ||
+       !s->terrain_publication || s->terrain_publication->has_pending || !s->geometry || !s->collision || s->terrain_shadow_reference)return RF_RANGE;
+    status=rf_authored_collection_layout_read(data,bytes,&layout);if(status)return status;
+    if(!s->terrain_sources[0].authored || strcmp(campaign_current_level,"ctf06.rfl") || strcmp((const char *)data+16,campaign_current_level) ||
+       memcmp(data+80,s->terrain_sources[0].authored->source_identity,32) || memcmp(data+112,s->terrain_checkpoint_identity+32,96) ||
+       checkpoint_u32(data+208)!=s->terrain_texture_width || checkpoint_u32(data+212)!=s->terrain_texture_height)return RF_FORMAT;
+    serial=checkpoint_u32(data+316);if(serial==UINT32_MAX)return RF_FORMAT;
+    external=(uint64_t)SCENE_PUBLICATION_BUDGET+SCENE_LIGHTING_STAGE_BUDGET+rf_scene_terrain_atlas[3]+
+        sizeof(*s->terrain_draw)+SCENE_TERRAIN_DRAW_VERTICES*sizeof(*s->terrain_colors)+sizeof(*s->terrain_light_cache)+
+        sizeof(*s->debris)+sizeof(*s->terrain_template)+(uint64_t)s->terrain_region_count*sizeof(*s->terrain_regions)+
+        1100u*(sizeof(uint32_t)+sizeof(rf_vfx_light_source))+SCENE_TERRAIN_FACES*sizeof(*s->terrain_ids)+
+        (uint64_t)s->geometry->faces*sizeof(uint32_t)+sizeof(*p)+SCENE_AUTHORED_DIGEST_BUDGET+SCENE_CHECKPOINT_MAX;
+    for(i=0;i<s->terrain_source_count;i++) {
+        const scene_terrain_source_owner *owner=s->terrain_sources+i;
+        if(!owner->authored)return RF_FORMAT;
+        status=rf_geomod_terrain_get(owner->authored==s->terrain_authored?s->terrain:owner->terrain,&core);if(status)return status;
+        external+=core.resident_bytes+owner->authored->resident_bytes+rf_geomod_piece_registry_bytes(scene_detached_source_registry(s,i));
+    }
+    if(external>=SCENE_DESTRUCTION_BUDGET)return RF_RANGE;
+    p=calloc(1,sizeof(*p));if(!p)return RF_IO;p->candidate=*s;p->shared.scene=s;p->shared.serial=serial;
+    status=scene_authored_collection_admission_import(data,&layout,s->terrain_history_minimum,s->terrain_history_maximum,&p->shared.admission);if(status)goto failed;
+    status=scene_authored_sources_stage_prepare(s,data+layout.core_offset,layout.core_bytes,serial,
+        (uint32_t)(SCENE_DESTRUCTION_BUDGET-external),&p->sources);if(status)goto failed;
+    p->shared.reserved_peak_bytes=(uint32_t)external+p->sources->reserved_bytes;
+    for(i=0;i<s->terrain_source_count;i++)p->owners[i]=(scene_terrain_source_owner){s->terrain_sources[i].authored,p->sources->cores[i],p->sources->pieces[i]};
+    p->candidate.terrain_publication_serial=serial;
+    p->candidate.terrain_sources=p->owners;p->candidate.terrain_authored=p->owners[0].authored;
+    p->candidate.terrain=p->owners[0].terrain;p->candidate.detached_pieces=p->owners[0].pieces;
+    p->candidate.terrain_fallback=p->owners[0].authored->asset_view.replaced_ids[0];
+    status=rf_geomod_terrain_get(p->candidate.terrain,&core);if(status)goto failed;
+    for(i=0;i<core.cuts;i++){status=rf_geomod_terrain_cutter_get(p->candidate.terrain,i,&cuts[i].mesh,cuts[i].kernel,&cuts[i].star);if(status)goto failed;}
+    status=scene_terrain_publication_prepare_from(&p->candidate,&core,cuts,core.cuts,serial);if(status)goto failed;
+    p->shared.owns_pending=1;
+    status=scene_terrain_publication_candidate(&p->candidate,&p->shared.publication,&p->shared.origins,&p->shared.source_bindings);if(status)goto failed;
+    p->shared.cuts=p->shared.publication.cuts;
+    if(p->shared.publication.mesh.face_count!=layout.faces){status=RF_FORMAT;goto failed;}
+    status=rf_collision_composition_pending(s->terrain_publication->composition,&composition);if(status)goto failed;
+    if(!p->shared.cuts) {
+        if(layout.maps || layout.faces || checkpoint_u32(data+260) || checkpoint_u32(data+264) || checkpoint_u32(data+268)){status=RF_FORMAT;goto failed;}
+        status=scene_terrain_lighting_stage_empty(&p->candidate,&p->shared.publication,serial,0,checkpoint_u32(data+256),&p->shared.lighting);if(status)goto failed;
+    } else {
+        status=scene_terrain_lighting_stage_clone(&p->candidate,&p->shared.publication,&p->shared.lighting);if(status)goto failed;
+        status=scene_authored_collection_journal_import(&p->candidate,p->shared.lighting,&layout,data,p->shared.origins,p->shared.source_bindings,serial,p->shared.cuts);if(status)goto failed;
+        status=scene_terrain_lighting_stage_bake(p->shared.lighting,p->shared.source_bindings,0);if(status)goto failed;
+        status=scene_terrain_lighting_stage_draw(p->shared.lighting);if(status)goto failed;
+    }
+    status=scene_authored_digest_capture(&p->candidate,&p->shared.publication,p->shared.origins,&composition,p->shared.lighting->staged,serial,
+        p->shared.face_maps,RF_GEOMOD_PUBLICATION_FACES,&p->shared.expected,&p->shared.digest_peak_bytes);if(status)goto failed;
+    for(i=0;i<layout.faces;i++) {
+        uint32_t at=layout.face_offset+i*2;
+        if(p->shared.face_maps[i]!=(uint32_t)(data[at]|((uint32_t)data[at+1]<<8))){status=RF_FORMAT;goto failed;}
+    }
+    status=rf_authored_owner_collection_decode(data+288,128,&p->shared.expected,s->terrain_source_count,p->shared.cuts,&p->shared.extension);if(status)goto failed;
+    *out=p;return RF_OK;
+failed:
+    scene_authored_collection_stage_discard(&p);return status;
+}

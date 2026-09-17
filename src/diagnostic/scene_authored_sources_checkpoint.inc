@@ -78,7 +78,7 @@ static inline int scene_authored_sources_stage_prepare(const scene_stream *s,con
 {
     const unsigned char *input=data;rf_authored_sources_layout layout;
     scene_authored_sources_stage *p=NULL;scene_stream *factory_scene=NULL;unsigned char *history=NULL;
-    uint32_t i,max_history=0;uint64_t reserved;int status;
+    uint32_t i,max_history=0;uint64_t reserved,fixed,resident=0;int status;
     if(!out || serial==UINT32_MAX || !s || (s->terrain_publication && s->terrain_publication->has_pending))return RF_RANGE;
     status=scene_authored_sources_match(s,data,bytes,&layout);if(status)return status;
     for(i=0;i<layout.count;i++) {
@@ -87,14 +87,19 @@ static inline int scene_authored_sources_stage_prepare(const scene_stream *s,con
         if(checkpoint_u32(input+span->core_offset+12)>serial)return RF_FORMAT;
         if(span->core_bytes>max_history)max_history=span->core_bytes;
     }
-    reserved=sizeof(*p)+sizeof(*factory_scene)+max_history+
-        (uint64_t)layout.count*(SCENE_TERRAIN_CORE_BUDGET+SCENE_DETACHED_BUDGET);
+    fixed=sizeof(*p)+sizeof(*factory_scene)+max_history;
+    /* Reconstruct sequentially: completed immutable owners retain actual bytes,
+     * only the current factory needs full core/registry construction ceilings. */
+    reserved=fixed+SCENE_TERRAIN_CORE_BUDGET+SCENE_DETACHED_BUDGET;
     if(reserved>budget)return RF_RANGE;
     p=calloc(1,sizeof(*p));factory_scene=malloc(sizeof(*factory_scene));history=malloc(max_history);
     if(!p || !factory_scene || !history){status=RF_IO;goto done;}
     p->count=layout.count;p->reserved_bytes=(uint32_t)reserved;*factory_scene=*s;
     for(i=0;i<layout.count;i++) {
-        const rf_authored_source_span *span=layout.sources+i;scene_authored_edit_context factory={0};
+        const rf_authored_source_span *span=layout.sources+i;scene_authored_edit_context factory={0};rf_geomod_terrain_view view;
+        reserved=fixed+resident+SCENE_TERRAIN_CORE_BUDGET+SCENE_DETACHED_BUDGET;
+        if(reserved>budget){status=RF_RANGE;goto done;}
+        if(reserved>p->reserved_bytes)p->reserved_bytes=(uint32_t)reserved;
         rf_collision_face_filter generated=s->terrain_sources[i].authored->asset_view.source_filters[0];
         factory_scene->terrain_authored=s->terrain_sources[i].authored;factory.scene=factory_scene;
         status=scene_authored_edit_create(&factory,SCENE_TERRAIN_CORE_BUDGET,&p->cores[i]);if(status)goto done;
@@ -109,6 +114,8 @@ static inline int scene_authored_sources_stage_prepare(const scene_stream *s,con
         if(span->piece_bytes) {
             status=rf_geomod_piece_registry_state_decode(p->pieces[i],input+span->piece_offset,span->piece_bytes);if(status)goto done;
         }
+        status=rf_geomod_terrain_get(p->cores[i],&view);if(status)goto done;
+        resident+=(uint64_t)view.resident_bytes+rf_geomod_piece_registry_bytes(p->pieces[i]);
     }
     *out=p;p=NULL;status=RF_OK;
 done:

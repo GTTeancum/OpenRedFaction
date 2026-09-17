@@ -368,6 +368,22 @@ int main(int argc,char **argv)
                     scene_terrain_lighting_stage_discard(&restored_lights);free(admission);
                     puts("PASS paired shared restore: exact atlas pixels, three digests and face bindings; malformed later map leaves live owner untouched");
                 }
+                {
+                    scene_authored_collection_stage *complete=NULL;rf_geomod_terrain *live_core=lights->staged->terrain;
+                    uint32_t active_bank=pair->terrain_publication->active;
+                    int prepared=scene_authored_collection_stage_prepare(lights->staged,packet,saved_bytes,&complete);
+                    if(prepared)printf("COLLECTION_STAGE_REJECT %d\n",prepared);
+                    CHECK(!prepared && complete && complete->shared.lighting->draw_ready);
+                    CHECK(!memcmp(&first,&complete->shared.expected,sizeof(first)));
+                    CHECK(!memcmp(lights->staged->terrain_atlas_pixels,complete->shared.lighting->staged->terrain_atlas_pixels,512u*512u*2u));
+                    CHECK(lights->staged->terrain==live_core && pair->terrain_publication->active==active_bank);
+                    printf("PASS complete paired private restore: digests/atlas exact, reserved%u bytes\n",complete->shared.reserved_peak_bytes);
+                    scene_authored_collection_stage_discard(&complete);CHECK(!pair->terrain_publication->has_pending);
+                    packet[288+96]^=1;
+                    CHECK(scene_authored_collection_stage_prepare(lights->staged,packet,saved_bytes,&complete)==RF_FORMAT);
+                    CHECK(!complete && !pair->terrain_publication->has_pending && pair->terrain_publication->active==active_bank && lights->staged->terrain==live_core);
+                    packet[288+96]^=1;
+                }
                 memcpy(kept,packet,SCENE_CHECKPOINT_MAX);encoded_bytes=777;
                 CHECK(scene_authored_collection_checkpoint_write(lights->staged,packet,saved_bytes-1,&encoded_bytes)==RF_RANGE);
                 CHECK(encoded_bytes==777 && !memcmp(packet,kept,SCENE_CHECKPOINT_MAX));
