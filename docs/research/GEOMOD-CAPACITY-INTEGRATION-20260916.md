@@ -576,3 +576,43 @@ save/reload then next blast matches uninterrupted RFCP(3884 bytes), RGCH(2508)
 and RGP(1376) exactly. No new native Xbox run, expanded live rerender or visual
 acceptance is claimed. Evidence: artifacts/authored-post-live/kernel-edge-*
 logs and kernel-edge-continuation/report.json.
+
+
+## Supporting-edge partition guard closes admission13
+
+Tracing the entire chronological reconstruction changes the earlier diagnosis:
+the remaining triangle predates the final repair, but an earlier repair in the
+same replay creates it. On face plane1480, repair expands4 corners to10. Three
+points along support1448 are slightly noncollinear after float storage. The
+numeric diagonal guard accepts a chord and emits that boundary chain as a
+thin triangle. Later repair reinserts its middle point into the neighboring
+face, causing three-way edge coverage.
+
+Partitioning with retained provenance now rejects candidate diagonals when
+either boundary chain has one known supporting edge distinct from the face
+plane. This uses the mathematical line identity, not a larger epsilon or
+area cutoff. Alternate partitions keep the original vertices and UVs. The
+legacy partition path without provenance retains its numeric behavior. A
+regression fixture contains the10 captured positions, requires no output face
+made solely from the straight run, checks valid pieces, and retains every
+original vertex including its UVs.
+
+The actual offline replay now passes closure for admissions1..13. Admission14
+has an unmatched0.194811786 edge from(-33.929184,-11.5151424,-4.45199156) to
+(-33.9995575,-11.400835,-4.59317589), continuing at15. At15 there are7930 vertices
+and1564 faces;16..18 still reject with RF_RANGE. All committed cutter bytes and
+final RNG match the captured history. Do not interpret this as a watertight
+15-cut result or native expanded-profile acceptance.
+
+Authored reconstruction policy7 fingerprint:
+f61d8e8261a9f499009a86cde7038f4fe735a3396bc83f07e2ac04b71dc45bfd.
+Default build completed;110 tests passed in the full run, with only the stale
+identity fingerprint failing. After updating that expected policy fingerprint,
+the manifest test passed too. PC authored restart/next-blast RFCP, RGCH and RGP
+match uninterrupted results. NXDK build succeeds with the existing merge
+warning. No new Xbox runtime or visual acceptance is claimed.
+
+Evidence: artifacts/authored-post-live/overlap-kernel/trace.log and guard.log
+(artifact-only instrumented builds), support-run-closure.log (shipping source,
+expected closure failure at14), support-run-full-tests.log,
+support-run-xbox-build.log and support-run-continuation/report.json.

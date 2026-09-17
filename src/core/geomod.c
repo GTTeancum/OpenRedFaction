@@ -1742,7 +1742,7 @@ static int partition_emit(partition_output *out,const rf_geomod_vertex *v,uint32
     memcpy(out->vertices+out->nv,v,n*sizeof(*v));
     out->faces[out->nf++]=(rf_geomod_face){out->nv,n,source->material,source->source_face};out->nv+=n;return 1;
 }
-static int partition_polygon(partition_output *out,const rf_geomod_vertex *v,const rf_geomod_face *source)
+static int partition_polygon_edges(partition_output *out,const rf_geomod_vertex *v,const rf_geomod_face *source,const uint16_t *edges,uint16_t face_plane)
 {
     rf_geomod_vertex part[64],center={0};double normal[3]={0},sum[5]={0};uint32_t n=source->count,i,j,k,c,na,nb;
     if(n<3 || n>64)return 0;
@@ -1750,6 +1750,17 @@ static int partition_polygon(partition_output *out,const rf_geomod_vertex *v,con
     for(i=0;i<n;i++)for(k=0;k<3;k++)normal[k]+=(double)v[i].position[(k+1)%3]*v[(i+1)%n].position[(k+2)%3]-(double)v[i].position[(k+2)%3]*v[(i+1)%n].position[(k+1)%3];
     for(i=0;i<n;i++)for(j=i+2;j<n;j++) {
         if(i==0 && j==n-1)continue;
+        /* Equal boundary supports describe one mathematical line even when
+         * stored float positions bend slightly. Never split that run into
+         * a separate face; retain its vertices in a nondegenerate piece. */
+        if(edges) {
+            uint32_t e;uint16_t support=edges[i];
+            for(e=i;e<j && edges[e]==support;e++);
+            if(e==j && support!=UINT16_MAX && support!=face_plane)continue;
+            support=edges[j];e=j;
+            do {if(edges[e]!=support)break;e=(e+1)%n;}while(e!=i);
+            if(e==i && support!=UINT16_MAX && support!=face_plane)continue;
+        }
         /* Do not turn a nearly collinear boundary chain into a thin extra
          * face: closure must distinguish the new diagonal from the boundary. */
         {
@@ -1794,6 +1805,8 @@ static int partition_polygon(partition_output *out,const rf_geomod_vertex *v,con
     }
     return 1;
 }
+static int partition_polygon(partition_output *out,const rf_geomod_vertex *v,const rf_geomod_face *source)
+{return partition_polygon_edges(out,v,source,NULL,UINT16_MAX);}
 /* Assemble only points carrying the same unordered pair of supporting planes.
  * Reuse clipping workspace after the final subtraction. The live bank and the
  * immutable source remain untouched, including when expansion exceeds capacity. */
@@ -1845,7 +1858,7 @@ static int repair_cavity_pending_provenance(rf_geomod_storage *s,rf_geomod_multi
         }
         {rf_geomod_face expanded=*face;uint32_t first=output.nf;
          expanded.first=0;expanded.count=n;
-         if(!partition_polygon(&output,polygon,&expanded))return output.status;
+         if(!partition_polygon_edges(&output,polygon,&expanded,provenance?polygon_edges:NULL,plane))return output.status;
          if(lineage)memset(lineage->repaired+first,lineage->pending[f],output.nf-first);
          if(provenance) {
              uint32_t child,v;

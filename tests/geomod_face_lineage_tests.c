@@ -128,6 +128,36 @@ int main(void)
         CHECK(point[0]==.55f && fabsf(point[1]-.05f)<1e-8f && point[1]==point[2]);
         ids[0]=35;ids[1]=33;{float reversed[3];CHECK(corner_seed_edge(&support,ids,reversed) && !memcmp(point,reversed,sizeof(point)));}
     }
+    {
+        /* Live cut13: rounding along support1448 must not create an ear. */
+        const float positions[10][3]={
+            {-33.2601585f,-11.8915567f,-3.80016947f},
+            {-33.2171555f,-11.8512983f,-3.82091951f},
+            {-33.258316f,-11.7935734f,-3.89462018f},
+            {-33.8134155f,-11.01509f,-4.88855505f},
+            {-34.1467819f,-10.5475664f,-5.48546934f},
+            {-34.4876213f,-11.0356483f,-5.15673876f},
+            {-34.5319481f,-11.0991201f,-5.11398983f},
+            {-34.5609932f,-11.1407175f,-5.08597326f},
+            {-35.0026855f,-11.7732162f,-4.65997601f},
+            {-33.7165184f,-11.8605642f,-4.02534914f}};
+        const uint16_t edges[10]={1368,1484,1484,1484,1448,1448,1448,1448,1500,1500};
+        rf_geomod_vertex polygon[10],result[64];rf_geomod_face faces[16],source={0,10,77,UINT32_MAX};
+        partition_output out={result,faces,64,16,0,0,RF_FORMAT};uint32_t r,k,j;
+        for(r=0;r<10;r++){memcpy(polygon[r].position,positions[r],12);polygon[r].uv[0]=(float)r;polygon[r].uv[1]=0;}
+        CHECK(partition_polygon_edges(&out,polygon,&source,edges,1480));
+        for(r=0;r<out.nf;r++) {
+            uint32_t on_run=0;
+            for(k=0;k<faces[r].count;k++)for(j=4;j<=8;j++)
+                if(!memcmp(result[faces[r].first+k].position,positions[j],12)){on_run++;break;}
+            CHECK(on_run<faces[r].count); /* No face consists solely of one boundary line. */
+            CHECK(partition_valid_piece(result+faces[r].first,faces[r].count,NULL));
+        }
+        for(r=0;r<10;r++) {
+            for(k=0;k<out.nv;k++)if(!memcmp(&polygon[r],result+k,sizeof(polygon[r])))break;
+            CHECK(k<out.nv); /* Boundary coordinates and texture seams are retained. */
+        }
+    }
     free(tags);free(w);
     puts("PASS birth separation, same-birth merge/index movement, repair and concave partition propagation; original diagonal intersections across shortened edges");return 0;
 }
