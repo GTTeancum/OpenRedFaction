@@ -2506,10 +2506,12 @@ int rf_geomod_terrain_set_extraction(rf_geomod_terrain *t,rf_geomod_terrain_piec
 }
 /* Bounded replay-only scratch, freed before collision-tree publication. */
 typedef struct terrain_extraction_work {
-    rf_geomod_vertex vertices[2][4096];rf_geomod_fragment fragments[2][1024];
-    uint16_t edges[2][4096];rf_collision_face faces[RF_GEOMOD_WORK_FACES];
-    rf_collision_face_filter filters[RF_GEOMOD_WORK_FACES];float positions[4096][3];
-    uint32_t scratch[16384+3*RF_GEOMOD_WORK_FACES],labels[RF_GEOMOD_WORK_FACES],map[RF_GEOMOD_WORK_FACES];
+    /* Clipping finishes before component classification starts. Neither phase
+     * retains these array contents across prefixes. Share their scratch storage. */
+    union {
+        struct {rf_geomod_vertex vertices[2][4096];rf_geomod_fragment fragments[2][1024];uint16_t edges[2][4096];} clip;
+        struct {uint32_t scratch[16384+3*RF_GEOMOD_WORK_FACES],labels[RF_GEOMOD_WORK_FACES],map[RF_GEOMOD_WORK_FACES];} graph;
+    } scratch;
     geomod_current_clip clip;rf_geomod_terrain *terrain;uint32_t prefix;
 } terrain_extraction_work;
 static int terrain_emit_piece(const rf_geomod_mesh_view *mesh,const uint32_t *map,
@@ -2668,15 +2670,15 @@ static inline int terrain_prepare_chronological_mesh(rf_geomod_terrain *t,uint32
         extraction=calloc(1,sizeof(*extraction));if(!extraction){status=RF_IO;goto done;}
         extraction->terrain=t;
         extraction->clip=(geomod_current_clip){
-            {{extraction->vertices[0],extraction->vertices[1]},
-             {extraction->fragments[0],extraction->fragments[1]},4096,1024,
-             {extraction->edges[0],extraction->edges[1]}},
-            extraction->faces,extraction->positions,extraction->filters,4096,RF_GEOMOD_WORK_FACES,0};
+            {{extraction->scratch.clip.vertices[0],extraction->scratch.clip.vertices[1]},
+             {extraction->scratch.clip.fragments[0],extraction->scratch.clip.fragments[1]},4096,1024,
+             {extraction->scratch.clip.edges[0],extraction->scratch.clip.edges[1]}},
+            t->faces[t->bank^1u],t->positions[t->bank^1u],t->filters,t->vc,t->fc,0};
     }
     for(c=1;c<=count;c++) {
         if(extraction) {
             status=rf_geomod_storage_view(replay,&result);if(status)goto done;
-            status=terrain_extraction_filters(t,&result,extraction->filters);if(status)goto done;
+            status=terrain_extraction_filters(t,&result,t->filters);if(status)goto done;
         }
         status=extraction?prepare_chronological_step_clipped(replay,t->cuts,c,&t->work,lineage,support,t->cavity,&extraction->clip):
             prepare_chronological_step(replay,t->cuts,c,&t->work,lineage,support,t->cavity);if(status)goto done;
@@ -2687,10 +2689,10 @@ static inline int terrain_prepare_chronological_mesh(rf_geomod_terrain *t,uint32
         if(extraction) {
             uint32_t removed;
             status=rf_geomod_storage_view(replay,&result);if(status)goto done;
-            status=terrain_extraction_filters(t,&result,extraction->filters);if(status)goto done;
+            status=terrain_extraction_filters(t,&result,t->filters);if(status)goto done;
             extraction->prefix=c;
-            status=extract_replay_components(replay,&t->work,&extraction->clip,extraction->scratch,
-                sizeof(extraction->scratch)/sizeof(uint32_t),extraction->labels,extraction->map,
+            status=extract_replay_components(replay,&t->work,&extraction->clip,extraction->scratch.graph.scratch,
+                sizeof(extraction->scratch.graph.scratch)/sizeof(uint32_t),extraction->scratch.graph.labels,extraction->scratch.graph.map,
                 &removed,terrain_emit_piece,extraction);if(status)goto done;
         }
     }

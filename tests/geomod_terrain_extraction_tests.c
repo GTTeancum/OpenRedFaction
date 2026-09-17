@@ -29,7 +29,24 @@ static double volume(const rf_geomod_mesh_view *m)
     }
     return sum;
 }
-int main(void)
+static int cut(rf_geomod_terrain *t,const float center[3],const float extent[3],uint32_t star)
+{
+    rf_geomod_vertex v[36]={0};rf_geomod_face f[12];rf_geomod_mesh_view mesh={v,f,36,12,0};
+    const int u[4]={-1,1,1,-1},w[4]={-1,-1,1,1};const uint32_t corners[2][3]={{0,1,2},{0,2,3}};
+    if(!star)return rf_geomod_terrain_cut_box(t,center,extent,7);
+    for(uint32_t axis=0;axis<3;axis++)for(uint32_t side=0;side<2;side++)for(uint32_t tri=0;tri<2;tri++) {
+        uint32_t face=(axis*2+side)*2+tri,a=(axis+1)%3,b=(axis+2)%3;
+        f[face]=(rf_geomod_face){face*3,3,7,UINT32_MAX};
+        for(uint32_t j=0;j<3;j++) {
+            uint32_t k=corners[tri][j];if(!side)k=3-k;
+            v[face*3+j].position[axis]=center[axis]+(side?extent[axis]:-extent[axis]);
+            v[face*3+j].position[a]=center[a]+u[k]*extent[a];
+            v[face*3+j].position[b]=center[b]+w[k]*extent[b];
+        }
+    }
+    return rf_geomod_terrain_cut_star(t,&mesh,center);
+}
+static int run(uint32_t star)
 {
     rf_geomod_vertex vertices[24]={0},saved[4096];rf_geomod_face faces[6],saved_faces[800];
     rf_collision_face_filter filters[6]={{0}},generated={0};rf_geomod_terrain *t=NULL,*reload=NULL;
@@ -43,7 +60,7 @@ int main(void)
         for(uint32_t j=0;j<4;j++) {uint32_t k=side?j:3-j;vertices[f*4+j].position[axis]=side?10:-10;
             vertices[f*4+j].position[a]=u[k]*10;vertices[f*4+j].position[b]=w[k]*10;}
     }
-    CHECK(!rf_geomod_terrain_open(&mesh,filters,&generated,0,4096,800,2097152,&t));
+    CHECK(!rf_geomod_terrain_open(&mesh,filters,&generated,0,4096,800,1179648,&t));
     CHECK(!rf_geomod_terrain_set_extraction(t,emit,&stage));
     for(uint32_t c=0;c<4;c++) {
         clear(&stage);
@@ -51,21 +68,21 @@ int main(void)
         memcpy(saved,view.mesh.vertices,view.mesh.vertex_count*sizeof(*saved));
         memcpy(saved_faces,view.mesh.faces,view.mesh.face_count*sizeof(*saved_faces));
         stage.reject=c==3?4:1;
-        CHECK(rf_geomod_terrain_cut_box(t,centers[c],extents[c],7)==RF_IO);
+        CHECK(cut(t,centers[c],extents[c],star)==RF_IO);
         CHECK(stage.count==(c==3?1u:0u));
         CHECK(!rf_geomod_terrain_get(t,&after));
         CHECK(after.cuts==c && after.mesh.vertex_count==view.mesh.vertex_count && after.mesh.face_count==view.mesh.face_count);
         CHECK(!memcmp(saved,after.mesh.vertices,view.mesh.vertex_count*sizeof(*saved)));
         CHECK(!memcmp(saved_faces,after.mesh.faces,view.mesh.face_count*sizeof(*saved_faces)));
         clear(&stage);
-        CHECK(!rf_geomod_terrain_cut_box(t,centers[c],extents[c],7));
+        CHECK(!cut(t,centers[c],extents[c],star));
         CHECK(!rf_geomod_terrain_get(t,&view));CHECK(fabs(volume(&view.mesh)-volumes[c])<.0001);
         CHECK(stage.count==(c==3?2u:1u));
-        printf("PASS production extraction cut%u volume%g batches%u peak%u\n",c+1,volume(&view.mesh),stage.count,view.peak_bytes);
+        printf("PASS production extraction star%u cut%u volume%g batches%u peak%u\n",star,c+1,volume(&view.mesh),stage.count,view.peak_bytes);
     }
     CHECK(rf_geomod_terrain_set_extraction(t,NULL,NULL)==RF_RANGE);
     CHECK(!rf_geomod_terrain_history_size(t,&bytes));CHECK(!rf_geomod_terrain_history_encode(t,encoded,bytes));
-    CHECK(!rf_geomod_terrain_open(&mesh,filters,&generated,0,4096,800,2097152,&reload));
+    CHECK(!rf_geomod_terrain_open(&mesh,filters,&generated,0,4096,800,1179648,&reload));
     CHECK(!rf_geomod_terrain_set_extraction(reload,emit,&decoded));
     CHECK(!rf_geomod_terrain_history_decode(reload,encoded,bytes));CHECK(!rf_geomod_terrain_get(reload,&after));
     CHECK(after.mesh.vertex_count==view.mesh.vertex_count && after.mesh.face_count==view.mesh.face_count);
@@ -76,3 +93,5 @@ int main(void)
     puts("PASS production extraction rejection rollback and checkpoint replay");
     clear(&decoded);clear(&stage);rf_geomod_terrain_close(&reload);rf_geomod_terrain_close(&t);return 0;
 }
+
+int main(void){CHECK(!run(0));CHECK(!run(1));return 0;}
