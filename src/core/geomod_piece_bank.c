@@ -158,9 +158,38 @@ static double piece_triangle_distance(const float p[3],const float a[3],const fl
     }
     return best;
 }
+/* A convex face's centroid is on its boundary. Follow its inward normal to
+ * the nearest other surface and sample the midpoint of that interior interval.
+ * The caller still validates winding and nearest-surface radius. */
+static int piece_face_seed(const rf_geomod_mesh_view *mesh,uint32_t index,float point[3])
+{
+    const rf_geomod_face *face=mesh->faces+index;double center[3]={0},direction[3]={0},nearest=DBL_MAX;
+    uint32_t i,j,k;
+    for(i=0;i<face->count;i++) {
+        const float *a=mesh->vertices[face->first+i].position,*b=mesh->vertices[face->first+(i+1)%face->count].position;
+        for(k=0;k<3;k++){center[k]+=(double)a[k]/face->count;direction[k]-=((double)a[(k+1)%3]-b[(k+1)%3])*((double)a[(k+2)%3]+b[(k+2)%3]);}
+    }
+    for(i=0;i<mesh->face_count;i++)if(i!=index) {
+        const rf_geomod_face *other=mesh->faces+i;const float *a=mesh->vertices[other->first].position;
+        for(j=1;j+1<other->count;j++) {
+            const float *b=mesh->vertices[other->first+j].position,*c=mesh->vertices[other->first+j+1].position;
+            double e[3],g[3],normal[3],den=0,num=0,aa=0,bb=0,cc=0,u=0,v=0,t,d;
+            for(k=0;k<3;k++){e[k]=(double)b[k]-a[k];g[k]=(double)c[k]-a[k];}
+            for(k=0;k<3;k++){normal[k]=e[(k+1)%3]*g[(k+2)%3]-e[(k+2)%3]*g[(k+1)%3];den+=normal[k]*direction[k];num+=normal[k]*((double)a[k]-center[k]);}
+            if(den==0)continue;t=num/den;if(t<=0 || t>=nearest)continue;
+            for(k=0;k<3;k++){double p=center[k]+direction[k]*t-a[k];aa+=e[k]*e[k];bb+=e[k]*g[k];cc+=g[k]*g[k];u+=p*e[k];v+=p*g[k];}
+            d=aa*cc-bb*bb;if(d<=0)continue;
+            {double s=(u*cc-v*bb)/d,q=(v*aa-u*bb)/d;if(s<0 || q<0 || s+q>1)continue;}
+            nearest=t;
+        }
+    }
+    if(nearest==DBL_MAX)return 0;
+    for(k=0;k<3;k++)point[k]=(float)(center[k]+direction[k]*nearest*.5);
+    return 1;
+}
 static int piece_empty_grid_spheres(const rf_geomod_owned_piece *piece,rf_physics_sphere spheres[64],uint32_t *count)
 {
-    uint32_t x,y,z,k,f,j,n=0;float low[3]={FLT_MAX,FLT_MAX,FLT_MAX},high[3]={-FLT_MAX,-FLT_MAX,-FLT_MAX};
+    uint32_t pass,sample,k,f,j,n=0;float low[3]={FLT_MAX,FLT_MAX,FLT_MAX},high[3]={-FLT_MAX,-FLT_MAX,-FLT_MAX};
     if(!piece->mesh.vertices || !piece->mesh.faces || !piece->mesh.vertex_count || !piece->mesh.face_count)return RF_RANGE;
     for(f=0;f<piece->mesh.face_count;f++) {
         const rf_geomod_face *face=piece->mesh.faces+f;
@@ -169,9 +198,10 @@ static int piece_empty_grid_spheres(const rf_geomod_owned_piece *piece,rf_physic
     for(j=0;j<piece->mesh.vertex_count;j++)for(k=0;k<3;k++) {
         float v=piece->mesh.vertices[j].position[k];if(!isfinite(v))return RF_FORMAT;if(v<low[k])low[k]=v;if(v>high[k])high[k]=v;
     }
-    for(x=0;x<4;x++)for(y=0;y<4;y++)for(z=0;z<4;z++) {
-        uint32_t index[3]={x,y,z};float p[3];double angle=0,nearest=DBL_MAX;
-        for(k=0;k<3;k++)p[k]=(float)((double)low[k]+((double)index[k]+.5)*((double)high[k]-low[k])*.25);
+    for(pass=0;pass<2 && !n;pass++)for(sample=0;sample<(pass?piece->mesh.face_count:64) && n<64;sample++) {
+        uint32_t index[3]={sample>>4,(sample>>2)&3,sample&3};float p[3];double angle=0,nearest=DBL_MAX;
+        if(pass){if(!piece_face_seed(&piece->mesh,sample,p))continue;}
+        else for(k=0;k<3;k++)p[k]=(float)((double)low[k]+((double)index[k]+.5)*((double)high[k]-low[k])*.25);
         for(f=0;f<piece->mesh.face_count;f++) {
             const rf_geomod_face *face=piece->mesh.faces+f;
             const float *a=piece->mesh.vertices[face->first].position;

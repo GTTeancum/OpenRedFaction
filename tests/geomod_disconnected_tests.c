@@ -487,8 +487,78 @@ static int subdivision_cutter_cases(void)
     CHECK(random.value==42 && !memcmp(&out,&kept,sizeof(out)));
     printf("PASS %u original subdivision cutter poses and RNG states\n",i);return 0;
 }
+static int thin_floor_query(const rf_physics_body_state *body,rf_physics_solid_hit *out,uint32_t *matched,void *opaque)
+{
+    const rf_physics_spheres *spheres=opaque;float delta[3],plane[4]={0,1,0,10},nearest=1;uint32_t i,k;
+    *matched=0;memset(out,0,sizeof(*out));
+    for(k=0;k<3;k++)delta[k]=body->next_position[k]-body->position[k];
+    for(i=0;i<spheres->count;i++) {
+        const rf_physics_sphere *sphere=spheres->items+i;float start[3],fraction,point[3];uint32_t found;int status;
+        for(k=0;k<3;k++)start[k]=(float)((double)body->position[k]+sphere->center[0]*body->orientation[k]+sphere->center[1]*body->orientation[3+k]+sphere->center[2]*body->orientation[6+k]);
+        status=rf_collision_sphere_plane(start,delta,sphere->radius,plane,&fraction,point,&found);if(status)return status;
+        if(found && fraction<nearest){nearest=fraction;out->fraction=fraction;memcpy(out->point,point,12);*matched=1;}
+    }
+    out->normal[1]=1;out->elasticity=.5f;out->friction=.25f;return RF_OK;
+}
+static void thin_concave_body(void)
+{
+    const float outline[6][2]={{0,0},{10,0},{10,.2f},{.2f,.2f},{.2f,10},{0,10}};
+    rf_geomod_vertex vertices[64]={0};rf_geomod_face faces[14];
+    rf_geomod_owned_piece piece={0};rf_physics_body body={0};uint32_t nf=0,nv=0,i,j,side,axis;
+    for(i=0;i<6;i++) {
+        uint32_t indices[4]={i,i,(i+1)%6,(i+1)%6};
+        faces[nf++]=(rf_geomod_face){nv,4,0,UINT32_MAX};
+        for(j=0;j<4;j++,nv++){vertices[nv].position[0]=outline[indices[j]][0]-5;vertices[nv].position[1]=(j==1 || j==2)?.05f:-.05f;vertices[nv].position[2]=outline[indices[j]][1]-5;}
+    }
+    for(side=0;side<2;side++)for(i=1;i<5;i++) {
+        uint32_t indices[3]={0,side?i+1:i,side?i:i+1};
+        faces[nf++]=(rf_geomod_face){nv,3,0,UINT32_MAX};
+        for(j=0;j<3;j++,nv++){vertices[nv].position[0]=outline[indices[j]][0]-5;vertices[nv].position[1]=side?.05f:-.05f;vertices[nv].position[2]=outline[indices[j]][1]-5;}
+    }
+    piece.mesh=(rf_geomod_mesh_view){vertices,faces,nv,nf,0};piece.mass_ready=1;
+    piece.mass.mass=1;piece.mass.spacing=2.5f;piece.birth_radius=8;
+    /* Both the original isotropic grid and the fallback's regular bbox grid
+     * miss these narrow arms. The whole L remains a valid closed solid. */
+    for(axis=0;axis<3;axis++) {
+    uint32_t arms=0;
+    CHECK(rf_geomod_piece_body_open(&piece,.5f,.25f,1,&body)==RF_RANGE);
+    CHECK(!body.allocated_bytes && !body.spheres.items);
+    CHECK(!rf_geomod_piece_body_open(&piece,.5f,.25f,4096,&body));
+    CHECK(body.spheres.count && body.spheres.count<=64);
+    for(i=0;i<body.spheres.count;i++) {
+        const rf_physics_sphere *s=body.spheres.items+i;double x=s->center[axis]+5,z=s->center[(axis+2)%3]+5,r=s->radius;
+        double dx=fmax(.2-x,0),dz=fmax(.2-z,0);
+        CHECK(r>0 && fabs(s->center[(axis+1)%3])+r<=.050002);
+        CHECK(x-r>=-.000002 && z-r>=-.000002 && x+r<=10.000002 && z+r<=10.000002);
+        CHECK((x<=.200002 || z<=.200002) && sqrt(dx*dx+dz*dz)+.000002>=r);
+        if(x>1)arms|=1;if(z>1)arms|=2;
+    }
+    CHECK(arms==3 && body.state.mass==1);
+    printf("THIN_SPHERES %u %u ",axis,body.spheres.count);
+    for(i=0;i<body.spheres.count*sizeof(*body.spheres.items);i++)printf("%02x",((const unsigned char *)body.spheres.items)[i]);
+    putchar('\n');
+    {
+        float position[3]={0},basis[9]={1,0,0,0,1,0,0,0,1};uint32_t frame,flags=0,contacts=0;
+        rf_physics_solid_step_report report;
+        for(frame=0;frame<600;frame++) {
+            CHECK(!rf_physics_solid_step(&body.state,1.f/60,9.8f,&flags,position,basis,thin_floor_query,&body.spheres,&report));
+            CHECK(!report.limited);contacts+=report.contacts;
+            for(i=0;i<body.spheres.count;i++) {
+                const rf_physics_sphere *sphere=body.spheres.items+i;
+                double height=body.state.position[1]+sphere->center[0]*body.state.orientation[1]+sphere->center[1]*body.state.orientation[4]+sphere->center[2]*body.state.orientation[7];
+                CHECK(height-sphere->radius>=-10.00002);
+            }
+            if(report.stopped)break;
+        }
+        CHECK(frame<600 && contacts && !(body.state.flags&0x80000000u));
+    }
+    rf_physics_body_close(&body);
+    for(i=0;i<nv;i++){float saved[3];memcpy(saved,vertices[i].position,12);for(j=0;j<3;j++)vertices[i].position[(j+1)%3]=saved[j];}
+    }
+}
 int main(void)
 {
+    thin_concave_body();
     CHECK(!subdivision_cutter_cases());
     subdivision_mesh_cuts();
     subdivision_worker();

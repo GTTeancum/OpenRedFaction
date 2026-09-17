@@ -75,3 +75,40 @@ Final123-test PC suite passes after mesh-input validation was added. Logs:
 `thin-fragment-settle-native.log`, and `thin-fragment-settle-final-pc.log`, all
 under artifacts. The replay additionally checks all three final center positions
 against this test room's floor, so byte equality alone cannot mask fall-through.
+
+## Concave shapes missed by both grids
+
+A new closed, thin L-shaped fixture has two10-unit arms only0.2 wide and0.1
+thick. All64 regular bounding-box sample points lie outside it; the previous
+fallback rejects body creation (`artifacts/thin-concave-before.log`). Its faces
+are outward convex quads/triangles, including a triangulated concave outline.
+
+When regular sampling admits no sphere, body creation now follows each convex
+face centroid's inward normal to the nearest other surface triangle. The
+midpoint of that interval is a candidate; the same signed winding and nearest
+surface checks must admit it. This preserves all existing regular-grid output
+and the64-sphere limit. The method does not replace concave geometry with its
+convex hull, increase mass, change inertia or disable collision failures.
+
+The L fixture yields14 contained spheres in each of three cyclic axis
+orientations. Analytical checks independently cover both arms, the re-entrant
+corner, the outer bounds and thickness. Insufficient budget leaves body
+ownership empty. Shared solid motion sweeps every generated sphere against a
+floor, checks no sphere penetrates on any step, and requires contact and sleep
+within600 frames in all three orientations. Full123-test suite passes; the
+subsequently expanded motion test also passes its focused CTest run.
+
+`tools/verify_thin_piece_spheres.py` executes compiled NXDK preparation under
+Unicorn, intercepting only the final owned-body allocation boundary to read its
+sphere arguments. All14 sphere records match PC byte-for-byte in all three
+orientations. This does not claim original-game behavior or native L-fragment
+motion. Logs: `thin-concave-tests.log`, `thin-concave-motion-ctest.log`, and
+`thin-concave-nxdk-final.log` under artifacts.
+
+The existing native beam continuation remains unchanged: run
+`artifacts/xemu/render-20260917-185838` passes76 checks, and its5096-byte checkpoint
+equals uninterrupted1450-frame PC control. Native framebuffer inspected with
+three resting pieces;3628 free pages (14.172MiB) at the endpoint. The harness
+restored the disc and exited. Log: `artifacts/thin-concave-regression-native.log`.
+No additional GitHub image was added. Broader irregular and moving contacts,
+and live native coverage of face-derived samples, remain open.

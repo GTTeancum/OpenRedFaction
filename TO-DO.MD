@@ -1,6 +1,6 @@
 # Red Faction Xbox / PC - open work
 
-- GeoMod thin fragments: Broaden mesh-contained fallback coverage to other shapes and contacts; the formerly falling beam chunk now lands, and airborne Xbox save/settled reload pass76/76 native checks with exact PC continuation.
+- GeoMod thin fragments: Broaden contact coverage beyond the beam and concave L fixtures; face-derived samples now rescue pieces missed by regular grids, while Xbox beam continuation still passes76 checks.
 
 - GeoMod Xbox stability: Broaden connected debris histories after fixing stack exhaustion and cell-sampling precision; reset-save/rocket now passes76 native checks with exact PC continuation and13.50MiB endpoint headroom.
 
