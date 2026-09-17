@@ -53,3 +53,23 @@ the reusable base and did not retain another HDD or ISO copy.
 
 Repeated new destruction after collection, partly live shared geometry and larger
 histories remain open; this validation covers one naturally extracted retired batch.
+
+## Later edits and mixed ownership
+
+`tools/check_post_retirement_cut.py` fires a third ordinary rocket after the
+previous two rockets have extracted and destroyed the chunk. Both aim heights1.25
+and.25 produce a second terrain edit. Each uninterrupted800-frame RFCP matches
+the251-frame continuation from the retired550-frame save exactly. The retired
+chunk remains absent and registry residency stays1852bytes. No new detached chunk
+is extracted in these two live cases; they prove later terrain editing, not live
+new-chunk allocation. Outputs are `post-retirement-cut/` and
+`post-retirement-cut-0.25/` under `artifacts/geomod-postedit-re/`. The default PC
+endpoint image was inspected for the room, edited post, weapon and HUD.
+
+The `geomod_disconnected` core test now exercises an11-piece subdivision batch:
+collect one retired member while retaining a live neighbor's geometry/body;
+replay its extraction identity without resurrection; append another batch;
+retire both batches, retaining8936bytes of history owners; stage/abort a third
+batch with exact accounting rollback; then create and commit the third batch.
+The focused test passes. This is synthetic geometry through the production
+registry/subdivision path, not an additional live gameplay or native acceptance.

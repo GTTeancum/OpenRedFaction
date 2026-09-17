@@ -428,6 +428,46 @@ static void subdivision_worker(void)
             CHECK(rf_geomod_piece_batch_open(&source,worker_filters,&worker_generated,7,2.5f,.5f,.25f,&batch_random,stats.peak_bytes-1,&batch)==RF_RANGE);
             CHECK(!batch && batch_random.value==seed*12345);
         }
+        if(seed==0) {
+            rf_geomod_piece_registry *registry=NULL;rf_geomod_piece_batch *mixed;
+            rf_geomod_owned_piece live_before,live_after;rf_physics_body *live_body;
+            rf_physics_body_state saved_live;uint32_t map[6]={0,1,2,3,4,5},count,released,before,retained;
+            CHECK(!rf_geomod_piece_registry_open(&worker_generated,7,2.5f,.5f,.25f,0,2097152,&registry));
+            CHECK(!rf_geomod_piece_registry_begin(registry,0));
+            CHECK(!rf_geomod_piece_registry_emit(&source,map,worker_filters,6,1,0,registry));
+            rf_geomod_piece_registry_commit(registry);
+            CHECK(!rf_geomod_piece_registry_get(registry,0,&mixed));count=rf_geomod_piece_batch_count(mixed);CHECK(count>1);
+            CHECK(!rf_geomod_piece_batch_get(mixed,1,&live_before,&live_body));saved_live=live_body->state;
+            before=rf_geomod_piece_registry_bytes(registry);
+            CHECK(!rf_geomod_piece_registry_damage(registry,0,0,100000));
+            CHECK(!rf_geomod_piece_registry_collect_retired(registry,&released));
+            CHECK(rf_geomod_piece_registry_bytes(registry)==before-released);
+            CHECK(!rf_geomod_piece_batch_get(mixed,1,&live_after,&live_body));
+            CHECK(live_before.mesh.vertices==live_after.mesh.vertices&&!memcmp(&saved_live,&live_body->state,sizeof(saved_live)));
+            CHECK(rf_geomod_piece_batch_alive(mixed,1)&&!rf_geomod_piece_batch_alive(mixed,0));
+            /* Historical replay must not revive the collected slot; a new
+             * extraction can still allocate and publish alongside it. */
+            CHECK(!rf_geomod_piece_registry_begin(registry,0));
+            CHECK(!rf_geomod_piece_registry_emit(&source,map,worker_filters,6,1,0,registry));
+            CHECK(!rf_geomod_piece_registry_emit(&source,map,worker_filters,6,2,0,registry));
+            rf_geomod_piece_registry_commit(registry);CHECK(rf_geomod_piece_registry_count(registry)==2);
+            CHECK(!rf_geomod_piece_batch_alive(mixed,0)&&rf_geomod_piece_batch_alive(mixed,1));
+            for(uint32_t b=0;b<2;b++) {
+                CHECK(!rf_geomod_piece_registry_get(registry,b,&mixed));
+                for(uint32_t j=0;j<rf_geomod_piece_batch_count(mixed);j++)CHECK(!rf_geomod_piece_registry_damage(registry,b,j,100000));
+            }
+            CHECK(!rf_geomod_piece_registry_collect_retired(registry,&released)&&released>0);
+            retained=rf_geomod_piece_registry_bytes(registry);CHECK(retained<before/2);
+            CHECK(!rf_geomod_piece_registry_begin(registry,0));
+            CHECK(!rf_geomod_piece_registry_emit(&source,map,worker_filters,6,3,0,registry));
+            rf_geomod_piece_registry_abort(registry);CHECK(rf_geomod_piece_registry_bytes(registry)==retained);
+            CHECK(!rf_geomod_piece_registry_begin(registry,0));
+            CHECK(!rf_geomod_piece_registry_emit(&source,map,worker_filters,6,3,0,registry));
+            rf_geomod_piece_registry_commit(registry);CHECK(rf_geomod_piece_registry_count(registry)==3);
+            CHECK(!rf_geomod_piece_registry_get(registry,2,&mixed)&&rf_geomod_piece_batch_alive(mixed,0));
+            printf("PASS mixed retirement/replay/new extraction count%u tombstone-bytes%u\n",count,retained);
+            rf_geomod_piece_registry_close(&registry);
+        }
         rf_geomod_piece_bank_close(&bank);
     }
 }
