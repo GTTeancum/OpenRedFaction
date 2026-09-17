@@ -31,7 +31,7 @@ static int scene_authored_checkpoint_stage_prepare(scene_stream *s,const void *i
     rf_geomod_terrain_view active,core,full;rf_geomod_publication_cut cuts[RF_GEOMOD_CUT_LIMIT];
     rf_collision_composition_view composition;unsigned char *history=NULL;
     uint64_t external,reserved;uint32_t serial,i;int status;
-    if(!s || !input || !out || *out || !s->terrain || !s->terrain_authored || !s->terrain_publication ||
+    if(!s || s->terrain_source_count>1 || !input || !out || *out || !s->terrain || !s->terrain_authored || !s->terrain_publication ||
        s->terrain_publication->has_pending || !s->geometry || !s->collision || s->terrain_shadow_reference)return RF_RANGE;
     status=rf_authored_checkpoint_layout_read(data,bytes,&layout);if(status)return status;
     if(strcmp(campaign_current_level,"ctf06.rfl") || strcmp((const char *)data+16,campaign_current_level) ||

@@ -73,6 +73,10 @@ static int post_ray(const rf_geomod_terrain_view *view,float z,uint32_t expected
 static int finish_test_candidate(scene_stream *s,rf_geomod_terrain_view *view) {
     rf_preview_surface_lightmap *bindings;scene_terrain_lighting_stage *stage=NULL;
     CHECK(!scene_terrain_publication_candidate(s,view,NULL,&bindings));
+    if(!view->mesh.face_count) {
+        CHECK(!scene_terrain_publication_finish(s,bindings,0,3));
+        CHECK(!scene_terrain_publication_view(s,view));return 0;
+    }
     CHECK(!scene_terrain_lighting_stage_prepare(s,view,bindings,0,&stage));
     CHECK(!scene_terrain_lighting_stage_draw(stage));
     CHECK(!scene_terrain_publication_finish(s,stage->staged->terrain_bindings,view->mesh.face_count,3));
@@ -110,7 +114,7 @@ static int grouped_scene(const rf_level *level,rf_geometry *geometry,rf_geometry
     CHECK(!scene_terrain_sources_select(&s,0));
     CHECK(!scene_terrain_publication_open(&s));CHECK(s.terrain_publication->replaced_count==8);
     CHECK(!scene_terrain_publication_prepare(&s));CHECK(!finish_test_candidate(&s,&view));
-    CHECK(view.mesh.face_count==8);CHECK(!post_ray(&view,-2.5f,1));CHECK(!post_ray(&view,2.5f,1));
+    CHECK(view.mesh.face_count==0);CHECK(!post_ray(&view,-2.5f,1));CHECK(!post_ray(&view,2.5f,1));
     for(i=0;i<2;i++) {
         float center[3]={-4.75f,-.9f,i?2.5f:-2.5f};
         uint32_t selected[4]={99,99,99,99},affected=99;

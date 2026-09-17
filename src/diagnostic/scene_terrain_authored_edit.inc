@@ -87,8 +87,9 @@ static int scene_terrain_authored_edit_group(scene_stream *s,const uint32_t *ind
         (uint64_t)s->geometry->faces*sizeof(uint32_t)+(uint64_t)s->terrain_source_count*sizeof(*s->terrain_sources);
     for(i=0;i<s->terrain_source_count;i++) {
         rf_geomod_terrain_view view;scene_terrain_source_owner *owner=s->terrain_sources+i;
-        external+=owner->authored->resident_bytes+(owner->pieces?SCENE_DETACHED_BUDGET:0);
+        external+=owner->authored->resident_bytes;
         for(j=0;j<count;j++)if(indices[j]==i)break;
+        external+=j==count?rf_geomod_piece_registry_bytes(owner->pieces):(owner->pieces?SCENE_DETACHED_BUDGET:0);
         /* Edited old cores are charged by the transaction. Unchanged owners
          * stay resident throughout and must also be included. */
         if(j==count) {
@@ -165,7 +166,7 @@ static int scene_terrain_authored_template_edit(scene_stream *s,const float cent
         for(i=0;i<n;i++) {
             /* Admission was prepared with the selected source's settings.
              * Mixed default hardness needs independent admission, not reuse. */
-            if(s->terrain_sources[indices[i]].authored->asset_view.settings.hardness!=s->terrain_default_hardness)return RF_NOT_FOUND;
+            if(s->terrain_sources[indices[i]].authored->asset_view.settings.hardness!=s->terrain_authored->asset_view.settings.hardness)return RF_NOT_FOUND;
             requests[i]=context;
         }
         return scene_terrain_authored_edit_group(s,indices,requests,n);

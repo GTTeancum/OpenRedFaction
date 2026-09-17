@@ -446,7 +446,9 @@ int main(int argc,char **argv)
             else if(!strcmp(source,"97"))uid=97;
             else CHECK(RF_FORMAT);
         }
-        CHECK(rf_scene_authored_post_place_source(&level,uid));
+        const char *sources=getenv("RF_REPLAY_AUTHORED_SOURCES");uint32_t count=1;
+        if(sources) {if(!strcmp(sources,"2"))count=2;else if(strcmp(sources,"1"))CHECK(RF_FORMAT);}
+        CHECK(rf_scene_authored_post_place_group(&level,uid,count));
     }
     if(spawn_profile)CHECK(rf_scene_set_campaign_spawn(&level));
     else CHECK(rf_scene_preview_route_camera(&level,9858));

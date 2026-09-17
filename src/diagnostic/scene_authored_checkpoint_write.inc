@@ -20,7 +20,7 @@ static inline int scene_authored_checkpoint_write(scene_stream *s,void *buffer,u
     rf_geomod_terrain_view view,core_view;rf_collision_composition_view composition;
     rf_authored_checkpoint_layout layout,checked;uint32_t core,i,j,k,at,peak,serial,piece_bytes=0;
     size_t name_length;int status;
-    if(!s || !buffer || !written || !s->terrain || !s->terrain_authored || !s->terrain_publication ||
+    if(!s || s->terrain_source_count>1 || !buffer || !written || !s->terrain || !s->terrain_authored || !s->terrain_publication ||
        !s->terrain_noise || s->terrain_publication->has_pending || s->terrain_shadow_reference ||
        !s->terrain_atlas_registered || s->terrain_checkpoint_loaded || s->terrain_history_count>128)return RF_RANGE;
     owner=s->terrain_noise;serial=s->terrain_publication_serial;

@@ -200,7 +200,7 @@ int rf_scene_swim_test_place(rf_level *level)
 /* Explicit ctf06 developer fixture: east of authored post94, facing west.
  * Standing body origin leaves .01848 clearance above floorY-1.25 using the
  * retained miner's lowest sphere; actual eye offset remains model-owned. */
-static uint32_t scene_authored_source_uid=94;
+static uint32_t scene_authored_source_uid=94,scene_authored_source_count=1;
 int rf_scene_authored_post_place_source(rf_level *level,uint32_t uid)
 {
     static const float position[3]={-2.75f,-.4f,2.5f};
@@ -210,8 +210,14 @@ int rf_scene_authored_post_place_source(rf_level *level,uint32_t uid)
     memcpy(level->player_position,position,12);memcpy(level->player_orientation,basis,36);
     if(uid>=96)level->player_position[0]+=11;
     if(uid==93 || uid==96)level->player_position[2]-=5;
-    scene_authored_source_uid=uid;
+    scene_authored_source_uid=uid;scene_authored_source_count=1;
     return RF_OK;
+}
+int rf_scene_authored_post_place_group(rf_level *level,uint32_t uid,uint32_t count)
+{
+    int status;if(count!=1 && count!=2)return RF_RANGE;
+    status=rf_scene_authored_post_place_source(level,uid);if(status)return status;
+    scene_authored_source_count=count;return RF_OK;
 }
 int rf_scene_authored_post_place(rf_level *level)
 {return rf_scene_authored_post_place_source(level,94);}
@@ -9560,8 +9566,8 @@ static int scene_terrain_open(scene_stream *s,const rf_level *level,rf_vpp *maps
         status=scene_terrain_publication_open(s);if(status)return status;
         status=scene_terrain_bind(s);if(status)return status;
         s->collision=&s->terrain_collision.world;
-        return scene_terrain_render_exclude(s,s->terrain_authored->asset_view.replaced_ids,
-            s->terrain_authored->asset_view.replaced_count);
+        return scene_terrain_render_exclude(s,s->terrain_publication->replaced_ids,
+            s->terrain_publication->replaced_count);
     }
     for(i=0;i<s->geometry->faces;i++) {
         rf_geometry_face f;status=rf_geometry_get_face(s->geometry,i,&f);if(status)return status;
@@ -11471,7 +11477,8 @@ static int actor_follow_view(void *context,uint32_t frame,const rf_motion_contro
      * can publish geometry before the next edit refreshes those counters. */
     if(stream->terrain) {
         rf_geomod_terrain_view terrain;
-        status=rf_geomod_terrain_get(stream->terrain,&terrain);if(status)return status;
+        status=stream->terrain_publication?scene_terrain_publication_view(stream,&terrain):
+            rf_geomod_terrain_get(stream->terrain,&terrain);if(status)return status;
         terrain_cuts=terrain.cuts;
     }
     render_world=terrain_cuts?&stream->terrain_render:actor_follow_world;

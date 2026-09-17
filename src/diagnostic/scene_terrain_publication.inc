@@ -131,6 +131,10 @@ static int scene_terrain_publication_prepare_from(scene_stream *s,
          * bounded by the revision; their sum need not be. */
         if(selected!=1)return RF_FORMAT;
         b->cuts=total;
+        if(!total) {
+            status=rf_collision_composition_prepare_reset(p->composition);if(status)return status;
+            p->has_pending=1;return RF_OK;
+        }
         status=rf_geomod_publication_build_groups(jobs,s->terrain_source_count,saved_serial,&p->work,
             b->vertices,RF_GEOMOD_PUBLICATION_VERTICES,b->faces,RF_GEOMOD_PUBLICATION_FACES,b->origins,&b->mesh);
     } else status=rf_geomod_publication_build(&job,&p->work,b->vertices,RF_GEOMOD_PUBLICATION_VERTICES,

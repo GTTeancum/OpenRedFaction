@@ -200,5 +200,7 @@ fail:
 }
 static inline int scene_terrain_authored_open(scene_stream *s,const rf_level *level,rf_vpp *maps,uint32_t map_count)
 {
-    return scene_terrain_sources_open(s,level,maps,map_count,&scene_authored_source_uid,1,6u*1024u*1024u);
+    uint32_t uids[2]={scene_authored_source_uid,0};
+    uids[1]=uids[0]==93?94:uids[0]==94?93:uids[0]==96?97:96;
+    return scene_terrain_sources_open(s,level,maps,map_count,uids,scene_authored_source_count,6u*1024u*1024u);
 }

@@ -566,7 +566,12 @@ static int scene_preview(rf_level *level,rf_preview_mesh *mesh)
             int valid=fread(&uid,1,4,source)==4 && fgetc(source)==EOF;fclose(source);
             if(!valid)return RF_FORMAT;
         }
-        status=rf_scene_authored_post_place_source(level,uid);if(status)return status;
+        uint32_t count=1;source=fopen("D:\\authored-count.bin","rb");
+        if(source) {
+            int valid=fread(&count,1,4,source)==4 && fgetc(source)==EOF;fclose(source);
+            if(!valid)return RF_FORMAT;
+        }
+        status=rf_scene_authored_post_place_group(level,uid,count);if(status)return status;
     }
     stream_flag=fopen("D:\\campaign-spawn.flag","rb");
     rf_scene_follow_level_exits=stream_flag!=NULL && !rf_scene_dev_room_enabled && !rf_scene_swim_test_enabled;
