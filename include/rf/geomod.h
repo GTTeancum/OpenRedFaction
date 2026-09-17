@@ -457,7 +457,9 @@ int rf_geomod_terrain_cut_template_limits(rf_geomod_terrain *terrain,const rf_ge
 /* Prepare the same cut, then invoke check before committing mesh/tree/history.
  * Nonzero callback status aborts and preserves live geometry/collision/history;
  * scratch and peak counters may change. Callback may stage external resources
- * but must not publish them, mutate/retain candidate pointers, or reenter terrain.
+ * but must not publish them, mutate the candidate, or reenter terrain. Candidate
+ * descriptors are callback-only; staged references to mesh/tree buffers become
+ * valid live references only on RF_OK and must be discarded on rejection.
  * After RF_OK, the caller may commit its already prepared resources without any
  * further fallible work. NULL check has the ordinary cut behavior. No clone or
  * extra core allocation beyond the ordinary pending cut is introduced. */

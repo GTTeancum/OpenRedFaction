@@ -629,6 +629,7 @@ typedef struct scene_stream {
     uint32_t player_checkpoint_started,player_checkpoint_look;
     rf_player_checkpoint player_checkpoint_value;
     scene_terrain_noise_owner *terrain_noise;uint32_t terrain_shadow_reference,terrain_test_light;
+    uint32_t terrain_map_limit,terrain_map_limit_until; /* PC fault injection; zero is unrestricted. */
     scene_terrain_draw_mesh *terrain_draw;
     scene_debris_pool *debris;
     rf_geomod_terrain *terrain;rf_geometry_collision_overlay terrain_collision;
@@ -9218,7 +9219,9 @@ static int scene_terrain_lighting(scene_stream *s,const rf_geomod_terrain_view *
             }
             if(!map) {
                 uint32_t axis=0,u,v,dims[2];float span[2],density[2]={4,4},adjusted[2];
-                if(owner->count>=RF_GEOMOD_LIGHTMAP_LIMIT)return RF_RANGE;map=owner->maps+owner->count;memset(map,0,sizeof(*map));
+                if(owner->count>=RF_GEOMOD_LIGHTMAP_LIMIT ||
+                   (s->terrain_map_limit && frame<s->terrain_map_limit_until && owner->count>=s->terrain_map_limit))return RF_RANGE;
+                map=owner->maps+owner->count;memset(map,0,sizeof(*map));
                 memcpy(map->plane,terrain->faces[f].plane,16);map->material=face->material;
                 for(k=0;k<3;k++){map->minimum[k]=INFINITY;map->maximum[k]=-INFINITY;}
                 /* All current fragments of the same source plane share one mapping. */
@@ -9341,6 +9344,7 @@ rejected:
     scene_terrain_lighting_stage_discard(&stage);scene_terrain_publication_abort(s);return status;
 }
 #include "scene_terrain_authored_edit.inc"
+#include "scene_terrain_legacy_edit.inc"
 static int scene_terrain_open(scene_stream *s,const rf_level *level,rf_vpp *maps,uint32_t map_count)
 {
     rf_geomod_vertex vertices[24];rf_geomod_face faces[6];rf_collision_face_filter filters[6],generated={0};
@@ -9399,6 +9403,11 @@ static int scene_terrain_open(scene_stream *s,const rf_level *level,rf_vpp *maps
 #ifndef RF_IMAGE_XBOX_NATIVE
     s->terrain_shadow_reference=getenv("RF_REPLAY_TERRAIN_SHADOW_REFERENCE")!=NULL;
     s->terrain_test_light=getenv("RF_REPLAY_TERRAIN_TEST_LIGHT")!=NULL;
+    {const char *value=getenv("RF_REPLAY_TERRAIN_MAP_LIMIT");char *end;
+     if(value){unsigned long limit=strtoul(value,&end,10);if(*end || !limit || limit>RF_GEOMOD_LIGHTMAP_LIMIT)return RF_RANGE;
+         s->terrain_map_limit=(uint32_t)limit;s->terrain_map_limit_until=UINT32_MAX;
+         value=getenv("RF_REPLAY_TERRAIN_MAP_LIMIT_UNTIL");
+         if(value){limit=strtoul(value,&end,10);if(*end || !limit)return RF_RANGE;s->terrain_map_limit_until=(uint32_t)limit;}}}
 #else
     {FILE *flag=fopen("D:\\terrain-test-light.flag","rb");s->terrain_test_light=flag!=NULL;if(flag)fclose(flag);}
 #endif
@@ -10575,13 +10584,13 @@ static int scene_rockets_tick(scene_stream *s,uint32_t frame)
                      status=scene_debris_prepare(s,&event.contact,hardness.scale*s->terrain_template->radius);if(status)return status;
                      scene_terrain_edit_mark(timing_row,3,&timing_clock);
                      status=s->terrain_authored?scene_terrain_authored_template_edit(s,adjusted,basis,
-                         hardness.scale,limits,limit_count):rf_geomod_terrain_cut_template_limits(s->terrain,s->terrain_template,adjusted,basis,
-                         hardness.scale,s->terrain_material,limits,limit_count);
+                         hardness.scale,limits,limit_count):scene_terrain_legacy_template_edit(s,adjusted,basis,
+                         hardness.scale,limits,limit_count);
                      scene_terrain_edit_mark(timing_row,1,&timing_clock);
                  }}
                 if(status && rf_scene_combat_trace)printf("GEOMOD_REJECT %u %d %u\n",frame,status,s->terrain_history_count);
                 rf_scene_geomod[5]=(uint32_t)status;
-                if(!status){status=s->terrain_authored?RF_OK:scene_terrain_bind(s);scene_terrain_edit_mark(timing_row,2,&timing_clock);if(status)return status;++rf_scene_geomod[7];++rf_scene_rockets[4];status=scene_debris_spawn(s);scene_terrain_edit_mark(timing_row,4,&timing_clock);if(status)return status;}
+                if(!status){scene_terrain_edit_mark(timing_row,2,&timing_clock);++rf_scene_geomod[7];++rf_scene_rockets[4];status=scene_debris_spawn(s);scene_terrain_edit_mark(timing_row,4,&timing_clock);if(status)return status;}
                 else {++rf_scene_rockets[5];if(status!=RF_RANGE && status!=RF_FORMAT && status!=RF_NOT_FOUND)return status;}
             }
         }

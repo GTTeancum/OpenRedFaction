@@ -23,11 +23,9 @@ history. All112 default CTests pass after the full PC build.
 The expanded NXDK build also succeeds with the existing .edata merge warning;
 this turn did not launch XEMU or validate the new callback on native hardware.
 
-**The legacy DEV lighting exhaustion bug is not yet fixed end-to-end.** The
-scene still calls the ordinary template API. Next integration must use its
-existing private lighting/draw stage in the callback, validate collision-overlay
-binding before publication, charge concurrent staging memory, and commit the
-overlay/stage only after core success. Preserve admission/RNG semantics for a
-rejected blast. Prove this with a deliberately exhausted map budget and a later
-successful edit, then run stock64MiB Xbox comparisons. No claim of runtime
-rollback or new visual behavior follows from the core primitive alone.
+The primitive alone did not fix live lighting exhaustion. Subsequent scene
+integration and injected partial-preparation/recovery evidence are recorded in
+GEOMOD-LEGACY-LIGHTING-ROLLBACK-20260916.md. That integration stages lighting,
+draw resources and collision binding before publication, budgets concurrent
+memory and preserves admission/RNG semantics for rejected blasts. Remaining
+native-failure and non-rocket scope is tracked there.
