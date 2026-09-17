@@ -7435,6 +7435,32 @@ static int actor_support_commit(rf_physics_body_state *state,const actor_ground_
         rf_physics_static_support(state,&ground->probe,ground->hit.hit.fraction);
     status=rf_physics_support_commit(&next,&ground->probe,ground->hit.hit.fraction,contact->solid!=UINT32_MAX,
         contact->contact.velocity[1],contact->contact.object_id,&handle);if(status)return status;
+    /* The original ground-sphere gate can skip a shallow normal and select
+     * deeper support. Constrain this port's support-position publication by
+     * the same full-body rubble sweep used for ordinary movement. */
+    if(scene_actor_collision_owner && next.position[1]<state->position[1] &&
+       scene_detached_sources_batch_count(scene_actor_collision_owner)) {
+        rf_physics_body body=scene_actor_body;rf_collision_actor_general_response actor;
+        rf_collision_contact_extra extra={0};rf_collision_body_query query={0};
+        rf_geomod_registry_body_hit hit;uint32_t found,k;
+        body.state=*state;memcpy(body.state.next_position,next.position,12);
+        status=rf_physics_body_prepare_sweep(&body.state);if(status)return status;
+        status=collision_body_response(&body,&extra,campaign_player_object.handle,1,0,&actor);if(status)return status;
+        memcpy(query.start,state->position,12);memcpy(query.end,next.position,12);
+        memcpy(query.matrix,state->orientation,36);query.radius=state->bounds.radius;
+        query.flags=state->state_124;query.limit=1;
+        /* Polygon queries need the same converted spheres as the player sweep. */
+        {rf_collision_body_sphere spheres[8];
+         if(body.spheres.count>8)return RF_RANGE;
+         for(k=0;k<body.spheres.count;k++){memcpy(spheres[k].center,body.spheres.items[k].center,12);spheres[k].radius=body.spheres.items[k].radius;}
+         query.spheres=spheres;query.count=body.spheres.count;
+         status=scene_detached_sources_player(scene_actor_collision_owner,&actor,&query,1,1,&hit,&found);if(status)return status;}
+        if(found) {
+            float y=(float)((double)state->position[1]+((double)next.position[1]-state->position[1])*hit.contact.fraction);
+            next.position[1]=next.next_position[1]=y;
+            next.bounds.minimum[1]=y-next.bounds.radius;next.bounds.maximum[1]=y+next.bounds.radius;
+        }
+    }
     if(landing) {
         status=rf_physics_landing_velocity(next.velocity,campaign_support_velocity,contact->contact.velocity,next.velocity);if(status)return status;
         next.velocity[1]=0;next.flags&=~0x200000u; /* Existing ordinary run transition. */

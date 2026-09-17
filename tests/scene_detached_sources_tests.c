@@ -137,7 +137,7 @@ int main(void) {
     scene.terrain_sources=sources;scene.terrain_source_count=2;scene.terrain_authored=assets;scene.detached_pieces=registries[0];
     sources[0].pieces=NULL; /* selected live alias wins over a stale collection entry */
     for(i=0;i<2;i++)bodies[i]->state.flags&=~0x80000000u;
-    CHECK(!scene_detached_tick(&scene));CHECK(rf_scene_detached_motion[0]==2 && rf_scene_detached_motion[3]==2);
+    CHECK(!scene_detached_tick(&scene,scene_step_seconds));CHECK(rf_scene_detached_motion[0]==2 && rf_scene_detached_motion[3]==2);
     CHECK(!scene_detached_sources_sweep(&scene,4,start,delta,0,1,&hit,&found));
     CHECK(found && hit.batch==16 && hit.piece.piece==0);
     bodies[0]->state.position[0]=4;

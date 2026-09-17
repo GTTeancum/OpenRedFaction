@@ -68,14 +68,14 @@ static int tiny_body_queries(rf_geometry_collision_world *world)
         rf_geometry_collision_flat flat={0};rf_collision_solid_view view={0};
         rf_group_attached_pose pose={0};rf_collision_body_mover scratch;
         make_face(&face,vertices,0,-2,0x80);flat.faces=&face;flat.count=1;
-        for(i=0;i<3;i++){pose.minimum[i]=-20;pose.maximum[i]=20;pose.input_matrix[i][i]=1;}
+        for(i=0;i<3;i++){pose.minimum[i]=-20;pose.maximum[i]=20;pose.input_matrix[i*4]=1;}
         pose.position[1]=1;view.object_id=42;
         movers.count=1;movers.owned=&flat;movers.poses=&pose;movers.views=&view;
         probe.status=0;probe.color=0;probe.calls=0;hit=sentinel;found=99;
-        CHECK(rf_geometry_collision_body_sweep_textured(&empty,&movers,&body,&scratch,1,mover_metadata,&calls,NULL,textures,&hit,&found)==RF_OK);
+        CHECK(rf_geometry_collision_body_sweep_textured(&empty,&movers,&body,&scratch,1,mover_metadata,&calls,textures,textures,&hit,&found)==RF_OK);
         CHECK(!found && probe.calls && !memcmp(&hit,&sentinel,sizeof(hit)));
         probe.color=0xff112233;
-        CHECK(rf_geometry_collision_body_sweep_textured(&empty,&movers,&body,&scratch,1,mover_metadata,&calls,NULL,textures,&hit,&found)==RF_OK);
+        CHECK(rf_geometry_collision_body_sweep_textured(&empty,&movers,&body,&scratch,1,mover_metadata,&calls,textures,textures,&hit,&found)==RF_OK);
         CHECK(found && hit.solid==0 && hit.contact.object_id==42 && hit.contact.material==9);
         CHECK(fabsf(hit.contact.fraction-(3-.004f)/6)<1e-6f);
     }
