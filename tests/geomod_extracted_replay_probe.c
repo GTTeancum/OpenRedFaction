@@ -5,7 +5,10 @@
 #undef main
 #include "rf/geomod_piece_bank.h"
 #define REQUIRE(x) do {if(!(x)){fprintf(stderr,"extracted replay line %d: %s\n",__LINE__,#x);exit(1);}}while(0)
-typedef struct capture_context {rf_geomod_piece_bank *bank;uint32_t prefix;} capture_context;
+typedef struct capture_context {
+    rf_geomod_piece_bank *bank;uint32_t prefix;
+    rf_geomod_piece_batch **batch;rf_random_state *random;
+} capture_context;
 static int capture_piece(const rf_geomod_mesh_view *mesh,const uint32_t *old_faces,
     const rf_collision_face_filter *filters,uint32_t source_count,uint32_t ordinal,void *opaque)
 {
@@ -19,6 +22,15 @@ static int capture_piece(const rf_geomod_mesh_view *mesh,const uint32_t *old_fac
         for(j=0;j<3;j++)REQUIRE(fabs((double)piece.mesh.vertices[i].position[j]+piece.placement.origin[j]-mesh->vertices[i].position[j])<0.00001);
     }
     for(i=0;i<mesh->face_count;i++)REQUIRE(piece.old_faces[i]==old_faces[i] && !memcmp(piece.filters+i,filters+old_faces[i],sizeof(*filters)));
+    if(context->batch) {
+        rf_collision_face_filter mapped[32],generated={0};
+        REQUIRE(mesh->face_count<=32);
+        for(i=0;i<mesh->face_count;i++)mapped[i]=filters[old_faces[i]];
+        status=rf_geomod_piece_batch_open(mesh,mapped,&generated,7,2.5f,.5f,.25f,
+            context->random,2097152,context->batch);
+        if(status)fprintf(stderr,"extraction batch prefix%u faces%u status%d\n",context->prefix,mesh->face_count,status);
+        if(status)return status;
+    }
     return RF_OK;
 }
 static double mesh_volume(const rf_geomod_mesh_view *mesh)
@@ -99,6 +111,7 @@ int main(void)
     static rf_geomod_vertex saved_vertices[4][256];static rf_geomod_face saved_faces[4][64];
     uint32_t saved_nv[4],saved_nf[4];
     rf_geomod_piece_bank *owned[2]={NULL,NULL},*tiny=NULL;
+    rf_geomod_piece_batch *batches[2][4]={{0}};rf_random_state batch_random[2]={{0},{0}};
     REQUIRE(!rf_geomod_piece_bank_open(1,6,1,4096,&tiny));
     REQUIRE(replay && tags && support);box(lo,hi,0,vertices,faces);
     REQUIRE(!rf_geomod_terrain_open(&source,filters,&generated,0,4096,800,1048576,&history));
@@ -128,7 +141,7 @@ int main(void)
             memset(clip_filters,0,sizeof(clip_filters));
             if(prefix==1 || prefix==4) {
                 rf_geomod_vertex before_vertices[256];rf_geomod_face before_faces[64];rf_geomod_mesh_view after;
-                capture_context rejected={tiny,prefix};removed=999;
+                capture_context rejected={tiny,prefix,NULL,NULL};removed=999;
                 REQUIRE(view.vertex_count<=256 && view.face_count<=64);
                 memcpy(before_vertices,view.vertices,view.vertex_count*sizeof(*view.vertices));
                 memcpy(before_faces,view.faces,view.face_count*sizeof(*view.faces));
@@ -139,7 +152,7 @@ int main(void)
                 REQUIRE(!memcmp(before_vertices,after.vertices,view.vertex_count*sizeof(*view.vertices)) && !memcmp(before_faces,after.faces,view.face_count*sizeof(*view.faces)));
             }
             {
-                capture_context accepted={owned[round],prefix};
+                capture_context accepted={owned[round],prefix,&batches[round][prefix-1],&batch_random[round]};
                 REQUIRE(!extract_replay_components(replay->mesh,&replay->work,&current_clip,scratch,words,labels,old_faces,&removed,capture_piece,&accepted));
             }
             REQUIRE(removed==((prefix==1 || prefix==4)?1u:0u));
@@ -163,6 +176,31 @@ int main(void)
     }
     rf_geomod_storage_close(&replay->mesh);
     REQUIRE(rf_geomod_piece_bank_count(owned[round])==2);
+    }
+    REQUIRE(batch_random[0].value==batch_random[1].value);
+    for(prefix=0;prefix<4;prefix++) {
+        uint32_t i,count=rf_geomod_piece_batch_count(batches[0][prefix]);
+        REQUIRE(count==rf_geomod_piece_batch_count(batches[1][prefix]));
+        REQUIRE(count==(prefix==0?1u:prefix==3?11u:0u));
+        for(i=0;i<count;i++) {
+            rf_geomod_owned_piece a,b;rf_physics_body *pa,*pb;
+            REQUIRE(!rf_geomod_piece_batch_get(batches[0][prefix],i,&a,&pa));
+            REQUIRE(!rf_geomod_piece_batch_get(batches[1][prefix],i,&b,&pb));
+            REQUIRE(a.mesh.vertex_count==b.mesh.vertex_count && a.mesh.face_count==b.mesh.face_count);
+            REQUIRE(!memcmp(a.mesh.vertices,b.mesh.vertices,a.mesh.vertex_count*sizeof(*a.mesh.vertices)));
+            REQUIRE(!memcmp(a.mesh.faces,b.mesh.faces,a.mesh.face_count*sizeof(*a.mesh.faces)));
+            REQUIRE(!memcmp(a.filters,b.filters,a.mesh.face_count*sizeof(*a.filters)));
+            {
+                uint16_t edges[2048];
+                REQUIRE(!rf_geomod_seed_adjacency(&a.mesh,edges,2048));
+            }
+            REQUIRE(!memcmp(&pa->state,&pb->state,sizeof(pa->state)));
+            REQUIRE(pa->spheres.count==pb->spheres.count);
+            if(pa->spheres.count)REQUIRE(!memcmp(pa->spheres.items,pb->spheres.items,pa->spheres.count*sizeof(*pa->spheres.items)));
+        }
+        if(count)printf("PASS extraction subdivision reload prefix%u pieces%u resident%u peak%u\n",prefix+1,count,
+            rf_geomod_piece_batch_bytes(batches[0][prefix]),rf_geomod_piece_batch_peak_bytes(batches[0][prefix]));
+        rf_geomod_piece_batch_close(&batches[0][prefix]);rf_geomod_piece_batch_close(&batches[1][prefix]);
     }
     for(prefix=0;prefix<2;prefix++) {
         rf_geomod_owned_piece a,b;

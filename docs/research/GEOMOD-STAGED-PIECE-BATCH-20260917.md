@@ -43,3 +43,28 @@ publication. Resolve source T-junctions, renderer material/lightmap lifetime,
 body scheduling and response, rollback under late allocation failure, actor
 notifications, save policy, and stock64MiB runtime verification. No new native
 visuals were produced by this change.
+
+## Extracted replay composition
+
+The owner is now exercised directly by the private extraction callback before
+retained terrain compaction. Four successive cuts, including checkpoint reload,
+produce one body at prefix1 and11 subdivided bodies at prefix4. Reload matches
+geometry, face metadata, filters, physics state, spheres and final RNG. Every
+terminal piece has exact closed-edge adjacency.
+
+This initially failed on the eight-face prefix4 detached slab. Its boundary
+contained long edges opposite multiple shorter coplanar-face edges. Subdivision
+input now inserts existing exactly collinear vertices along each edge in sorted
+segment order, interpolating that face's UVs. Positions are copied unchanged;
+there is no epsilon weld. Face metadata and filters retain source order. Fixed
+128-corner/32-face queue capacity and64-corner per-face limit still apply.
+Off-line near matches are not normalized. This is a practical topology adapter,
+not a claim about the original game's exact representation.
+
+Prefix1 batch resident/peak:131600/296472 PC bytes.
+Prefix4 batch resident/peak:139760/933636 PC bytes.
+Release geomod_disconnected and geomod_extracted_replay pass. Stock NXDK build
+passes in artifacts/geomod-postedit-re/extracted-piece-batch-xbox.log.
+Live scene extraction remains disabled: replay composition is evidence for the
+handoff, not native motion/rendering acceptance. Broader non-axis topology and
+late allocation rollback remain open.

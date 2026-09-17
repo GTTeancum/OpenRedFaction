@@ -21,9 +21,44 @@ static int copy_node(subdivision_node *node,const rf_geomod_mesh_view *mesh,
     const rf_collision_face_filter *filters)
 {
     if(mesh->vertex_count>VERTICES || mesh->face_count>FACES || !mesh->vertex_count || !mesh->face_count)return RF_RANGE;
-    memcpy(node->vertices,mesh->vertices,mesh->vertex_count*sizeof(*mesh->vertices));
-    memcpy(node->faces,mesh->faces,mesh->face_count*sizeof(*mesh->faces));
-    memcpy(node->filters,filters,mesh->face_count*sizeof(*filters));node->nv=mesh->vertex_count;node->nf=mesh->face_count;return RF_OK;
+    /* Split exact T-junctions using existing authored/cut positions. This is
+     * edge subdivision, not epsilon welding: no position is moved and a nearby
+     * off-edge vertex is never admitted. Interpolate only this face's UVs. */
+    node->nv=0;node->nf=mesh->face_count;
+    for(uint32_t f=0;f<mesh->face_count;f++) {
+        const rf_geomod_face *face=mesh->faces+f;uint32_t first=node->nv;
+        if(face->count<3 || face->count>64 || face->first>mesh->vertex_count ||
+            face->count>mesh->vertex_count-face->first)return RF_FORMAT;
+        node->faces[f]=*face;node->faces[f].first=first;node->filters[f]=filters[f];
+        for(uint32_t e=0;e<face->count;e++) {
+            const rf_geomod_vertex *a=mesh->vertices+face->first+e;
+            const rf_geomod_vertex *b=mesh->vertices+face->first+(e+1)%face->count;
+            double d[3],parameters[VERTICES];uint32_t indices[VERTICES],n=0,axis=0,k;
+            for(k=0;k<3;k++){d[k]=(double)b->position[k]-a->position[k];if(fabs(d[k])>fabs(d[axis]))axis=k;}
+            if(d[axis]==0)return RF_FORMAT;
+            for(uint32_t v=0;v<mesh->vertex_count;v++) {
+                double q[3],t;uint32_t j;
+                for(k=0;k<3;k++)q[k]=(double)mesh->vertices[v].position[k]-a->position[k];
+                t=q[axis]/d[axis];if(!(t>0 && t<1))continue;
+                for(k=0;k<3;k++)if(q[k]*d[axis]!=q[axis]*d[k])break;
+                if(k<3)continue;
+                for(j=0;j<n && parameters[j]<t;j++){}
+                if(j<n && parameters[j]==t)continue;
+                memmove(parameters+j+1,parameters+j,(n-j)*sizeof(*parameters));
+                memmove(indices+j+1,indices+j,(n-j)*sizeof(*indices));
+                parameters[j]=t;indices[j]=v;n++;
+            }
+            if(node->nv+1+n>VERTICES || node->nv+1+n-first>64)return RF_RANGE;
+            node->vertices[node->nv++]=*a;
+            for(k=0;k<n;k++) {
+                rf_geomod_vertex *v=node->vertices+node->nv++;
+                memcpy(v->position,mesh->vertices[indices[k]].position,sizeof(v->position));
+                for(uint32_t j=0;j<2;j++)v->uv[j]=(float)((double)a->uv[j]+parameters[k]*((double)b->uv[j]-a->uv[j]));
+            }
+        }
+        node->faces[f].count=node->nv-first;
+    }
+    return RF_OK;
 }
 int rf_geomod_piece_subdivide(const rf_geomod_mesh_view *source,const rf_collision_face_filter *filters,
     const rf_collision_face_filter *generated,uint32_t material,float density,
