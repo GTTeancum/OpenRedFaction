@@ -523,6 +523,7 @@ add_test(NAME scene_terrain_lighting_stage COMMAND rf_scene_terrain_lighting_sta
 
 target_sources(rf_core PRIVATE src/core/geomod_notify.c)
 target_sources(rf_core PRIVATE src/core/geomod_solid_clip.c)
+target_sources(rf_core PRIVATE src/core/geomod_piece_bank.c)
 add_executable(rf_geomod_notify_tests tests/geomod_notify_tests.c)
 target_link_libraries(rf_geomod_notify_tests PRIVATE rf_core)
 add_test(NAME geomod_notify COMMAND rf_geomod_notify_tests)

@@ -1706,9 +1706,11 @@ static inline int prepare_chronological_step(rf_geomod_storage *s,const rf_geomo
  * bounded arrays. On failure discard the private owner and external staging.
  * The live scene does not use this until piece ownership/rollback is wired. */
 #ifdef RF_GEOMOD_TEST_CURRENT_SOLID
+typedef int (*geomod_replay_piece_fn)(const rf_geomod_mesh_view *,const uint32_t *,
+    const rf_collision_face_filter *,uint32_t,uint32_t,void *);
 static inline int extract_replay_components(rf_geomod_storage *s,rf_geomod_multi_work *provenance,
     geomod_current_clip *context,uint32_t *scratch,uint32_t words,uint32_t *labels,
-    uint32_t *old_faces,uint32_t *removed)
+    uint32_t *old_faces,uint32_t *removed,geomod_replay_piece_fn emit,void *emit_context)
 {
     rf_geomod_mesh_view view;uint32_t count,largest,rank,id,i,k,n=0;int status;
     if(!s || !provenance || !context || !scratch || !labels || !old_faces || !removed || s->editing)return RF_RANGE;
@@ -1735,6 +1737,10 @@ static inline int extract_replay_components(rf_geomod_storage *s,rf_geomod_multi
         uint32_t bank=s->current,other=bank^1;rf_geomod_mesh_view retained,piece;
         status=rf_geomod_component_extract(&view,labels,scratch[rank],s->vertices[other],s->vertex_capacity,
             s->faces[other],s->face_capacity,old_faces,&retained,&piece);if(status)return status;
+        if(emit) {
+            status=emit(&piece,old_faces+retained.face_count,context->filters,view.face_count,n,emit_context);
+            if(status)return status;
+        }
         for(i=0;i<retained.face_count;i++) {
             const rf_geomod_face *old=view.faces+old_faces[i],*fresh=retained.faces+i;
             memmove(provenance->compact_edges+fresh->first,provenance->compact_edges+old->first,fresh->count*sizeof(uint16_t));

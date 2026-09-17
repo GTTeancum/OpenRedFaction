@@ -3,7 +3,24 @@
 #define main legacy_current_solid_main
 #include "geomod_chronological_solid_tests.c"
 #undef main
+#include "rf/geomod_piece_bank.h"
 #define REQUIRE(x) do {if(!(x)){fprintf(stderr,"extracted replay line %d: %s\n",__LINE__,#x);exit(1);}}while(0)
+typedef struct capture_context {rf_geomod_piece_bank *bank;uint32_t prefix;} capture_context;
+static int capture_piece(const rf_geomod_mesh_view *mesh,const uint32_t *old_faces,
+    const rf_collision_face_filter *filters,uint32_t source_count,uint32_t ordinal,void *opaque)
+{
+    capture_context *context=opaque;rf_geomod_owned_piece piece;uint32_t i,j;
+    int status=rf_geomod_piece_bank_append(context->bank,mesh,old_faces,filters,source_count,(context->prefix<<16)|ordinal);
+    if(status)return status;
+    REQUIRE(!rf_geomod_piece_bank_get(context->bank,rf_geomod_piece_bank_count(context->bank)-1,&piece));
+    REQUIRE(!memcmp(piece.mesh.faces,mesh->faces,mesh->face_count*sizeof(*mesh->faces)));
+    for(i=0;i<mesh->vertex_count;i++) {
+        REQUIRE(!memcmp(piece.mesh.vertices[i].uv,mesh->vertices[i].uv,8));
+        for(j=0;j<3;j++)REQUIRE(fabs((double)piece.mesh.vertices[i].position[j]+piece.placement.origin[j]-mesh->vertices[i].position[j])<0.00001);
+    }
+    for(i=0;i<mesh->face_count;i++)REQUIRE(piece.old_faces[i]==old_faces[i] && !memcmp(piece.filters+i,filters+old_faces[i],sizeof(*filters)));
+    return RF_OK;
+}
 static double mesh_volume(const rf_geomod_mesh_view *mesh)
 {
     double volume=0;uint32_t f,j;
@@ -27,6 +44,8 @@ int main(void)
     unsigned char encoded[RF_GEOMOD_HISTORY_MAX_BYTES];
     static rf_geomod_vertex saved_vertices[4][256];static rf_geomod_face saved_faces[4][64];
     uint32_t saved_nv[4],saved_nf[4];
+    rf_geomod_piece_bank *owned[2]={NULL,NULL},*tiny=NULL;
+    REQUIRE(!rf_geomod_piece_bank_open(1,6,1,4096,&tiny));
     REQUIRE(replay && tags && support);box(lo,hi,0,vertices,faces);
     REQUIRE(!rf_geomod_terrain_open(&source,filters,&generated,0,4096,800,1048576,&history));
     for(prefix=0;prefix<2;prefix++)REQUIRE(!rf_geomod_terrain_cut_box(history,center[prefix],extent[prefix],7));
@@ -34,6 +53,7 @@ int main(void)
     REQUIRE(!rf_geomod_terrain_history_encode(history,encoded,bytes));
     for(prefix=2;prefix<4;prefix++)REQUIRE(!rf_geomod_terrain_cut_box(history,center[prefix],extent[prefix],7));
     for(round=0;round<2;round++) {
+    REQUIRE(!rf_geomod_piece_bank_open(128,32,4,16384,owned+round));
     if(round) {
         rf_geomod_terrain_close(&history);
         REQUIRE(!rf_geomod_terrain_open(&source,filters,&generated,0,4096,800,1048576,&history));
@@ -52,7 +72,22 @@ int main(void)
             scratch=malloc(words*4);labels=malloc(view.face_count*4);old_faces=malloc(view.face_count*4);
             REQUIRE(scratch && labels && old_faces);
             memset(clip_filters,0,sizeof(clip_filters));
-            REQUIRE(!extract_replay_components(replay->mesh,&replay->work,&current_clip,scratch,words,labels,old_faces,&removed));
+            if(prefix==1 || prefix==4) {
+                rf_geomod_vertex before_vertices[256];rf_geomod_face before_faces[64];rf_geomod_mesh_view after;
+                capture_context rejected={tiny,prefix};removed=999;
+                REQUIRE(view.vertex_count<=256 && view.face_count<=64);
+                memcpy(before_vertices,view.vertices,view.vertex_count*sizeof(*view.vertices));
+                memcpy(before_faces,view.faces,view.face_count*sizeof(*view.faces));
+                REQUIRE(extract_replay_components(replay->mesh,&replay->work,&current_clip,scratch,words,labels,old_faces,&removed,capture_piece,&rejected)==RF_RANGE);
+                REQUIRE(removed==999 && !rf_geomod_piece_bank_count(tiny));
+                REQUIRE(!rf_geomod_storage_view(replay->mesh,&after));
+                REQUIRE(view.vertices==after.vertices && view.faces==after.faces && view.vertex_count==after.vertex_count && view.face_count==after.face_count);
+                REQUIRE(!memcmp(before_vertices,after.vertices,view.vertex_count*sizeof(*view.vertices)) && !memcmp(before_faces,after.faces,view.face_count*sizeof(*view.faces)));
+            }
+            {
+                capture_context accepted={owned[round],prefix};
+                REQUIRE(!extract_replay_components(replay->mesh,&replay->work,&current_clip,scratch,words,labels,old_faces,&removed,capture_piece,&accepted));
+            }
             REQUIRE(removed==((prefix==1 || prefix==4)?1u:0u));
             free(old_faces);free(labels);free(scratch);REQUIRE(!rf_geomod_storage_view(replay->mesh,&view));
         }
@@ -73,7 +108,30 @@ int main(void)
         printf("PASS extracted replay reload=%u prefix=%u volume=%.9g faces=%u\n",round,prefix,mesh_volume(&view),view.face_count);
     }
     rf_geomod_storage_close(&replay->mesh);
+    REQUIRE(rf_geomod_piece_bank_count(owned[round])==2);
     }
+    for(prefix=0;prefix<2;prefix++) {
+        rf_geomod_owned_piece a,b;
+        REQUIRE(!rf_geomod_piece_bank_get(owned[0],prefix,&a) && !rf_geomod_piece_bank_get(owned[1],prefix,&b));
+        REQUIRE(a.id==b.id && !memcmp(&a.placement,&b.placement,sizeof(a.placement)));
+        REQUIRE(a.mesh.vertex_count==b.mesh.vertex_count && a.mesh.face_count==b.mesh.face_count);
+        REQUIRE(!memcmp(a.mesh.vertices,b.mesh.vertices,a.mesh.vertex_count*sizeof(*a.mesh.vertices)));
+        REQUIRE(!memcmp(a.mesh.faces,b.mesh.faces,a.mesh.face_count*sizeof(*a.mesh.faces)));
+        REQUIRE(!memcmp(a.old_faces,b.old_faces,a.mesh.face_count*4));
+        REQUIRE(fabs(mesh_volume(&a.mesh)-(prefix?1200:3600))<0.0001);
+    }
+    printf("PASS owned extracted pieces survive replay scratch reuse; bank_bytes=%u\n",rf_geomod_piece_bank_bytes(owned[0]));
+    {
+        rf_geomod_piece_bank *budgeted=NULL;uint32_t bytes=rf_geomod_piece_bank_bytes(owned[0]);
+        rf_geomod_owned_piece piece;uint32_t before=rf_geomod_piece_bank_count(owned[0]);
+        REQUIRE(rf_geomod_piece_bank_open(128,32,4,bytes-1,&budgeted)==RF_RANGE && !budgeted);
+        REQUIRE(!rf_geomod_piece_bank_open(128,32,4,bytes,&budgeted));
+        REQUIRE(rf_geomod_piece_bank_bytes(budgeted)==bytes);rf_geomod_piece_bank_close(&budgeted);
+        REQUIRE(!rf_geomod_piece_bank_get(owned[0],0,&piece));
+        REQUIRE(rf_geomod_piece_bank_append(owned[0],&piece.mesh,piece.old_faces,piece.filters,piece.mesh.face_count,piece.id)==RF_FORMAT);
+        REQUIRE(rf_geomod_piece_bank_count(owned[0])==before);
+    }
+    rf_geomod_piece_bank_close(owned);rf_geomod_piece_bank_close(owned+1);rf_geomod_piece_bank_close(&tiny);
     free(replay);free(tags);free(support);rf_geomod_terrain_close(&history);
     return 0;
 }
