@@ -1340,8 +1340,10 @@ static int scripted_attack_check(void)
     campaign_npc_bodies=NULL;campaign_npc_body_count=0;campaign_seeds.records.items=NULL;campaign_player_object.handle=0;
     return 0;
 }
+#include "npc_rubble_tests.inc"
 int main(int argc,char **argv)
 {
+    CHECK(npc_rubble_movement_check()==0);
     {
         campaign_npc_body actor={0};float target[3]={0,0,5};actor.look.orientation[8]=1;
         CHECK(campaign_enemy_aim_aligned(&actor,target));target[0]=5;CHECK(!campaign_enemy_aim_aligned(&actor,target));

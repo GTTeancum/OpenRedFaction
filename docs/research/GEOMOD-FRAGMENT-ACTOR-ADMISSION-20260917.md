@@ -53,3 +53,18 @@ moved behind the rubble-presence gate and validated there.
 Adapter validation: all121 PC tests pass after the fix, and stock-profile NXDK
 XBE/ISO builds succeed. Logs are npc-movement-tests.log and npc-movement-xbox.log
 under artifacts/geomod-postedit-re. These checks do not prove live visual behavior.
+
+## Scene-adapter fixture
+
+`tests/npc_rubble_tests.inc`, included by the existing NPC residency test, creates
+an owned closed cube fragment through the registry emission transaction and a
+registered NPC with a finite one-sphere body. It calls the actual
+`rf_scene_npc_body_sweep` adapter against an empty world: crossing hits with an
+upward normal and a fraction strictly between0 and1; class use-kind0, a path moved
+20units sideways, and a retired fragment all miss and preserve the output packet.
+The crossing leaves both source and target body states byte-identical.
+
+This is a CPU scene fixture, not an authored live encounter, renderer check, or
+NPC locomotion/animation acceptance. It exercises the previously untested owned
+rubble branch without adding runtime hooks. The existing full suite remains the
+regression gate; native NPC/rubble execution still needs validation.
