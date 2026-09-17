@@ -586,6 +586,17 @@ int main(int argc,char **argv)
         }
         return ferror(stdin)?1:0;
     }
+    if(argc==2 && !strcmp(argv[1],"--solid-angular")) {
+        uint32_t flags;float v[29];
+        while(fread(&flags,4,1,stdin)==1) {
+            rf_physics_body_state state={0};if(fread(v,sizeof(v),1,stdin)!=1)return 2;
+            state.flags=flags;state.coefficients[1]=v[1];memcpy(state.vector_c8,v+2,12);memcpy(state.mass_vector_d4,v+5,12);
+            memcpy(state.vector_ec,v+8,12);memcpy(state.world_tensor,v+11,36);memcpy(state.orientation,v+20,36);
+            if(rf_physics_solid_angular_propose(&state,v[0]))return 3;
+            if(fwrite(state.mass_vector_d4,12,1,stdout)!=1 || fwrite(state.vector_c8,12,1,stdout)!=1 || fwrite(state.next_orientation,36,1,stdout)!=1)return 1;
+        }
+        return ferror(stdin)?1:0;
+    }
     if(argc==2 && !strcmp(argv[1],"--solid-propose")) {
         uint32_t flags[2];float values[16];
         while(fread(flags,sizeof(flags),1,stdin)==1) {

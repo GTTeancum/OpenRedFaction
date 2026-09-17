@@ -34,5 +34,31 @@ int main(void)
     }
     CHECK(rf_physics_solid_propose(NULL,0,0,0,acceleration)==RF_RANGE);
     CHECK(rf_physics_solid_propose(&body,0,0,0,NULL)==RF_RANGE);
-    puts("PASS solid free-flight, retained retry acceleration and atomic invalid/overflow rejection");return 0;
+    memset(&body,0,sizeof(body));body.mass=1;
+    body.orientation[0]=body.orientation[4]=body.orientation[8]=1;
+    body.world_tensor[0]=body.world_tensor[4]=body.world_tensor[8]=1;
+    body.mass_vector_d4[0]=100;before=body;
+    CHECK(!rf_physics_solid_angular_propose(&body,.1f));
+    CHECK(fabsf(body.vector_c8[0]-15)<2e-6f && body.mass_vector_d4[0]==body.vector_c8[0]);
+    CHECK(!memcmp(body.orientation,before.orientation,36) && !memcmp(body.world_tensor,before.world_tensor,36));
+    CHECK(fabsf(body.next_orientation[4]-cosf(1.5f))<1e-6f && fabsf(body.next_orientation[5]-sinf(1.5f))<1e-6f);
+    body.flags=0x1000000;body.vector_ec[0]=100;body.mass_vector_d4[0]=10;before=body;
+    CHECK(!rf_physics_solid_angular_propose(&body,0));
+    CHECK(!memcmp(body.mass_vector_d4,before.mass_vector_d4,12));
+    for(test=0;test<9;test++)CHECK(body.orientation[test]==body.next_orientation[test]);
+    for(test=0;test<5;test++) {
+        float dt=.1f;
+        memset(&body,0,sizeof(body));body.orientation[0]=body.orientation[4]=body.orientation[8]=1;
+        body.world_tensor[0]=body.world_tensor[4]=body.world_tensor[8]=1;
+        switch(test) {
+        case 0:dt=NAN;break;
+        case 1:body.world_tensor[8]=INFINITY;break;
+        case 2:body.orientation[8]=0;break;
+        case 3:body.orientation[4]=0;body.orientation[5]=1;break;
+        case 4:dt=2;body.vector_ec[2]=FLT_MAX;break;
+        }
+        before=body;CHECK(rf_physics_solid_angular_propose(&body,dt)==RF_RANGE);
+        CHECK(!memcmp(&body,&before,sizeof(body)));
+    }
+    puts("PASS solid translation/rotation, retry bypass, angular cap and atomic invalid/overflow rejection");return 0;
 }

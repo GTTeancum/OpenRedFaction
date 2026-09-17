@@ -229,6 +229,11 @@ int rf_physics_fall_propose(rf_physics_body_state *state,float dt,float gravity,
  * Finite inputs/positive mass required; errors preserve both outputs. */
 int rf_physics_solid_propose(rf_physics_body_state *,float dt,float gravity,
     uint32_t object_flags,float acceleration[3]);
+/* Generic49fbe6..49fd84 angular prediction. Updates momentum, angular velocity
+ * and next_orientation; current pose/tensor remain unchanged. Includes bit2
+ * damping, repeat preparation bypass and15-radian speed cap. Finite nondegenerate
+ * basis required. No contact or pose commit; errors preserve the body. */
+int rf_physics_solid_angular_propose(rf_physics_body_state *,float dt);
 /* 49e7ca..49e8b7 after class-acceleration scaling and movement transform.
  * Caller selects class speed or entity+1488 cap from flag200000. Updates X/Z
  * velocity only; repeat-pass flag1000000 preserves state. No transform,

@@ -3,6 +3,7 @@
 #include "rf/level.h"
 #include "rf/effect.h"
 #include "rf/entity.h"
+#include "rf/geomod.h"
 #include <math.h>
 #include <float.h>
 #include <stdlib.h>
@@ -870,6 +871,50 @@ int rf_physics_solid_propose(rf_physics_body_state *state,float dt,float gravity
         position[i]=(float)((double)base-correction);if(!isfinite(position[i]))return RF_RANGE;
     }
     memcpy(state->velocity,velocity,12);memcpy(state->next_position,position,12);memcpy(acceleration,a,12);return RF_OK;
+}
+static long double solid_length(const float v[3])
+{return sqrtl(((long double)v[0]*v[0]+(long double)v[1]*v[1])+(long double)v[2]*v[2]);}
+static void solid_transform(const float m[9],const float v[3],float out[3])
+{uint32_t i;for(i=0;i<3;i++)out[i]=(float)(((long double)v[2]*m[i*3+2]+(long double)v[1]*m[i*3+1])+(long double)v[0]*m[i*3]);}
+static void solid_cross(const float a[3],const float b[3],float out[3])
+{uint32_t i;for(i=0;i<3;i++){uint32_t j=(i+1)%3,k=(i+2)%3;out[i]=(float)((long double)a[j]*b[k]-(long double)a[k]*b[j]);}}
+int rf_physics_solid_angular_propose(rf_physics_body_state *state,float dt)
+{
+    float momentum[3],angular[3],delta[3],axis[3],basis[9],next[9],angle;long double length;uint32_t i;int status;
+    if(!state || !isfinite(dt) || dt<0 || !isfinite(state->coefficients[1]))return RF_RANGE;
+    for(i=0;i<9;i++)if(!isfinite(state->world_tensor[i]) || !isfinite(state->orientation[i]))return RF_RANGE;
+    for(i=0;i<3;i++)if(!isfinite(state->vector_c8[i]) || !isfinite(state->mass_vector_d4[i]) || !isfinite(state->vector_ec[i]))return RF_RANGE;
+    memcpy(momentum,state->mass_vector_d4,12);
+    if(!(state->flags&0x1000000)) {
+        float drag=(state->flags&2)?(float)(solid_length(state->vector_c8)*state->coefficients[1]):0;
+        if(!isfinite(drag))return RF_RANGE;
+        for(i=0;i<3;i++) {
+            volatile float resistance=(float)((double)drag*state->vector_c8[i]);
+            volatile float torque=(float)((double)state->vector_ec[i]-resistance),step=(float)((double)torque*dt);
+            momentum[i]=(float)((double)momentum[i]+step);if(!isfinite(momentum[i]))return RF_RANGE;
+        }
+    }
+    solid_transform(state->world_tensor,momentum,angular);length=solid_length(angular);
+    if(!isfinite(length))return RF_RANGE;
+    if(length>15) {
+        float scale=(float)(15/length);
+        for(i=0;i<3;i++){angular[i]=(float)((double)angular[i]*scale);momentum[i]=(float)((double)momentum[i]*scale);}
+    }
+    for(i=0;i<3;i++)delta[i]=(float)((double)angular[i]*dt);
+    solid_transform(state->orientation,delta,axis);angle=(float)solid_length(axis);
+    if(!isfinite(angle))return RF_RANGE;
+    if(angle>0)for(i=0;i<3;i++)axis[i]=(float)((double)axis[i]/angle);
+    status=rf_geomod_debris_rotate(state->orientation,axis,angle,1,basis);if(status)return status;
+    /*4fc960's ordinary valid-basis path: normalize forward/up, rebuild right/up. */
+    length=solid_length(basis+6);if(!isfinite(length) || length<=0)return RF_RANGE;
+    for(i=0;i<3;i++)next[6+i]=(float)((long double)basis[6+i]/length);
+    length=solid_length(basis+3);if(!isfinite(length) || length<=0)return RF_RANGE;
+    for(i=0;i<3;i++)next[3+i]=(float)((long double)basis[3+i]/length);
+    solid_cross(next+3,next+6,next);
+    if(solid_length(next)<=0)return RF_RANGE;
+    solid_cross(next+6,next,next+3);
+    for(i=0;i<9;i++)if(!isfinite(next[i]))return RF_RANGE;
+    memcpy(state->mass_vector_d4,momentum,12);memcpy(state->vector_c8,angular,12);memcpy(state->next_orientation,next,36);return RF_OK;
 }
 void rf_physics_body_close(rf_physics_body *body)
 {
