@@ -1,5 +1,5 @@
 """Execute original blast list dispatch and kind3 direct damage/lifecycle gates."""
-import hashlib,json,struct,sys
+import hashlib,json,struct,sys,re
 from pathlib import Path
 ROOT=Path(__file__).resolve().parents[1]
 sys.path.insert(0,str(ROOT/'local/python'))
@@ -62,8 +62,22 @@ for amount in (0,1,99.999,100,100.00001,200,400):
  assert word(B+0x1a8)==0x1800003f and bytes(u.mem_read(B+0x144,12))==f(0,0,0)
  mode='lifecycle';run(0x412ad0,w(B));retired=bool(word(B+0x7c)&2)
  assert retired==(health<=0)
- rows.append(dict(mode='direct_damage',amount=amount,health=health,retired=retired,body_woken=False));mode='damage'
+ rows.append(dict(mode='direct_damage',amount=amount,health=health,retired=retired,body_woken=False,object_flags=word(B+0x7c)));mode='damage'
+native_cases=0
+if '--nxdk' in sys.argv:
+ xp=pefile.PE(str(ROOT/'build/xbox/main.exe'));xi=xp.get_memory_mapped_image();xb=xp.OPTIONAL_HEADER.ImageBase
+ x=Uc(UC_ARCH_X86,UC_MODE_32);x.mem_map(xb,(len(xi)+4095)&~4095);x.mem_write(xb,xi);x.mem_map(B,0x100000)
+ symbols=(ROOT/'build/xbox/main.map').read_text()
+ entry=int(re.search(r'_rf_geomod_piece_life_damage\s+([0-9a-fA-F]+)',symbols)[1],16)
+ for row in rows:
+  if row['mode']!='direct_damage':continue
+  x.mem_write(B,f(250)+w(0));x.mem_write(STACK,w(STOP,B)+f(row['amount']))
+  x.reg_write(UC_X86_REG_ESP,STACK);x.reg_write(UC_X86_REG_FPCW,0x27f)
+  x.emu_start(entry,STOP,count=100000)
+  assert x.reg_read(UC_X86_REG_EIP)==STOP and x.reg_read(UC_X86_REG_EAX)==0
+  assert bytes(x.mem_read(B,8))==f(row['health'])+w(row['object_flags']),row
+  native_cases+=1
 folder=ROOT/'artifacts/geomod-postedit-re';folder.mkdir(parents=True,exist_ok=True)
-report=dict(result='PASS',original_sha256=sha,cases=rows,scope='Real488dc0 loops/AABB,4892c0 kind3 arithmetic,412ad0 life retirement. Registry/actor predicates and effect-mesh service supplied; no original game launch, no blast impulse or chunk subdivision proved.')
+report=dict(result='PASS',original_sha256=sha,cases=rows,nxdk_cases=native_cases,scope='Real488dc0 loops/AABB,4892c0 kind3 arithmetic,412ad0 life retirement. Registry/actor predicates and effect-mesh service supplied; no original game launch, no blast impulse or chunk subdivision proved.')
 (folder/'detached-blast-dispatch.json').write_text(json.dumps(report,indent=2)+'\n')
 print(json.dumps(report,indent=2))

@@ -42,3 +42,35 @@ Do not invent a universal blast wake or further subdivision based on particle
 behavior. Subsequent geometry cuts, support loss and other force paths remain
 separate open investigations. No runtime source changed; no new Xbox build or
 visual acceptance is claimed by these probes.
+
+## Shared health state and projectile contact follow-up
+
+`rf_geomod_piece_life_init/damage` now reconstruct bounded nonplayer kind3
+health state. Initialization uses birth radius times50. Direct damage delegates
+to existing rf_damage_dispatch_sp and then applies the health<=0 retirement
+flag. Object flags remain separate from physics flags. The helper does not
+wake bodies, allocate, cut geometry or publish scene removal. It stages a local
+damage object so numeric failures preserve the caller's state. Skipping
+already-retired objects and rejecting negative/nonfinite inputs are port policy.
+
+The extraction test checks the seven original damage boundary cases, two-hit
+health depletion, exact-zero retirement, immunity, repeated retired calls and
+invalid-input preservation. All121 tests pass. NXDK builds, and
+`python tools/probe_detached_blast_dispatch.py --nxdk` executes the compiled
+Xbox helper in Unicorn: all seven health/flag results match original4892c0
+plus412ad0 byte for byte. This is compiled-code evidence, not an XEMU run.
+
+`tools/probe_detached_rocket_contact.py` adapts the prior object-contact harness
+to a nonsticky, non-grenade type5 projectile and kind3 target. Supplied class
+values use installed Rocket Launcher damage400, radius5 and damage kind3;
+optional class flags remain0, so this is a rocket-style control rather than a
+claim that every authored class field is loaded. Complete4c4b50/4c59f0 executes.
+Direct damage requests400 against target456 before radial damage400/radius5;
+the projectile is then marked dead after impact presentation. Damage, registry
+and presentation providers are supplied, so target health is not mutated here.
+The generic direct-damage arithmetic is independently exercised above.
+
+Live registry ownership, saved health/retirement, and removal from drawing,
+collision and motion together are the next integration work. No live chunk
+removal is enabled by this helper-only commit. Timer-based disappearance and
+further subdivision are not added or claimed.

@@ -259,4 +259,24 @@ static int run(uint32_t star)
     clear(&decoded);clear(&stage);rf_geomod_terrain_close(&reload);rf_geomod_terrain_close(&t);return 0;
 }
 
-int main(void){CHECK(!run(0));CHECK(!run(1));return 0;}
+static void life_damage(void)
+{
+    const float amounts[]={0,1,99.999f,100,100.00001f,200,400};
+    const float expected[]={250,250,250,250,150,50,-150};
+    rf_geomod_piece_life life,saved;uint32_t i;
+    for(i=0;i<7;i++) {
+        CHECK(!rf_geomod_piece_life_init(5,&life));
+        CHECK(!rf_geomod_piece_life_damage(&life,amounts[i]));
+        CHECK(life.health==expected[i]);CHECK(!!(life.flags&2)==(i==6));
+        CHECK(!!(life.flags&0x200000)==(i!=0));
+    }
+    saved=life;CHECK(!rf_geomod_piece_life_damage(&life,400));CHECK(!memcmp(&life,&saved,sizeof(life)));
+    CHECK(!rf_geomod_piece_life_init(10,&life));
+    CHECK(!rf_geomod_piece_life_damage(&life,200));CHECK(life.health==300 && !(life.flags&2));
+    CHECK(!rf_geomod_piece_life_damage(&life,300));CHECK(life.health==0 && (life.flags&2));
+    saved=life;CHECK(rf_geomod_piece_life_damage(&life,NAN)==RF_FORMAT);CHECK(!memcmp(&life,&saved,sizeof(life)));
+    CHECK(rf_geomod_piece_life_init(INFINITY,&life)==RF_FORMAT);CHECK(!memcmp(&life,&saved,sizeof(life)));
+    CHECK(!rf_geomod_piece_life_init(5,&life));life.flags=4;
+    CHECK(!rf_geomod_piece_life_damage(&life,400));CHECK(life.health==250 && life.flags==(4|0x200000));
+}
+int main(void){life_damage();CHECK(!run(0));CHECK(!run(1));return 0;}

@@ -1,5 +1,7 @@
 #include "rf/geomod_piece_bank.h"
 #include "rf/checkpoint_placement.h"
+#include "rf/entity.h"
+#include <float.h>
 #include <stdlib.h>
 #include <string.h>
 #include <math.h>
@@ -475,4 +477,32 @@ int rf_geomod_piece_registry_placement_check(const rf_geomod_piece_registry *r,c
         }
     }
     return RF_OK;
+}
+
+static rf_damage_object *piece_life_lookup(void *context,uint32_t handle)
+{(void)handle;return context;}
+static uint32_t piece_life_predicate(void *context,uint32_t stage,uint32_t handle,const rf_damage_object *object)
+{(void)context;(void)stage;(void)handle;(void)object;return 0;}
+static float piece_life_effect(void *context,rf_damage_object *object,float amount,uint32_t source,int32_t kind,uint32_t extra)
+{(void)context;(void)object;(void)amount;(void)source;(void)kind;(void)extra;return 0;}
+int rf_geomod_piece_life_init(float radius,rf_geomod_piece_life *out)
+{
+    double health;
+    if(!out)return RF_RANGE;
+    if(!isfinite(radius) || radius<=0)return RF_FORMAT;
+    health=(double)radius*50;if(health>FLT_MAX)return RF_RANGE;
+    out->health=(float)health;out->flags=0;return RF_OK;
+}
+int rf_geomod_piece_life_damage(rf_geomod_piece_life *life,float amount)
+{
+    rf_damage_object object;rf_damage_request request={0};float ignored;int status;
+    rf_damage_backend backend={piece_life_lookup,piece_life_predicate,piece_life_effect,&object};
+    if(!life)return RF_RANGE;
+    if(!isfinite(life->health) || !isfinite(amount) || amount<0)return RF_FORMAT;
+    if(life->flags&2)return RF_OK;
+    object.type=3;object.flags=life->flags;object.health=life->health;
+    request.amount=amount;request.source=UINT32_MAX;request.kind=3;request.auxiliary_uid=UINT32_MAX;
+    status=rf_damage_dispatch_sp(0,&request,1,&backend,&ignored);if(status)return status;
+    if(object.health<=0)object.flags|=2;
+    life->health=object.health;life->flags=object.flags;return RF_OK;
 }

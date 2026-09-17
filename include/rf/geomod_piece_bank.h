@@ -2,6 +2,17 @@
 #define RF_GEOMOD_PIECE_BANK_H
 #include "rf/geomod.h"
 #include "rf/physics.h"
+/* Generic kind3 extracted-solid life. Object flags are separate from body
+ * simulation flags. Persistent owners must save both health and object flags. */
+typedef struct rf_geomod_piece_life {float health;uint32_t flags;} rf_geomod_piece_life;
+/* 413215: public birth radius times50, not mass or sampled sphere radius. */
+int rf_geomod_piece_life_init(float birth_radius,rf_geomod_piece_life *);
+/* Ordinary nonplayer SP direct damage through the shared4892c0 dispatcher,
+ * followed by412ad0's health<=0 retirement flag. Does not apply radial damage,
+ * wake/impulse, subdivision, free geometry, or expire a lifetime timer.
+ * Already-retired owners ignore later calls. Finite errors preserve state. */
+int rf_geomod_piece_life_damage(rf_geomod_piece_life *,float amount);
+
 typedef struct rf_geomod_piece_bank rf_geomod_piece_bank;
 typedef struct rf_geomod_owned_piece {
     rf_geomod_mesh_view mesh;
