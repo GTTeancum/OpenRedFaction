@@ -561,7 +561,12 @@ static int scene_preview(rf_level *level,rf_preview_mesh *mesh)
          status=rf_scene_swim_test_place(level);if(status)return status;}}
     if(rf_scene_dev_room_enabled && !strcmp(level->entry.name,"ctf06.rfl")) {
         if(rf_scene_water_test_enabled || rf_scene_swim_test_enabled)return RF_FORMAT;
-        status=rf_scene_authored_post_place(level);if(status)return status;
+        uint32_t uid=94;FILE *source=fopen("D:\\authored-source.bin","rb");
+        if(source) {
+            int valid=fread(&uid,1,4,source)==4 && fgetc(source)==EOF;fclose(source);
+            if(!valid)return RF_FORMAT;
+        }
+        status=rf_scene_authored_post_place_source(level,uid);if(status)return status;
     }
     stream_flag=fopen("D:\\campaign-spawn.flag","rb");
     rf_scene_follow_level_exits=stream_flag!=NULL && !rf_scene_dev_room_enabled && !rf_scene_swim_test_enabled;

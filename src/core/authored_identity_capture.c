@@ -169,7 +169,7 @@ int rf_geomod_authored_identity_capture_manifest(const rf_level *level,const rf_
             (uint64_t)manifest->reference_capacity*sizeof(*manifest->references)+(manifest->substrate?sizeof(*manifest->substrate):0);
         if(bytes>UINT32_MAX)return RF_RANGE;manifest_bytes=(uint32_t)bytes;
     }
-    if(level->version!=180 || strcmp(level->entry.name,"ctf06.rfl") || asset->source_uid!=94 || asset->room!=3 ||
+    if(level->version!=180 || strcmp(level->entry.name,"ctf06.rfl") || (asset->source_uid!=93 && asset->source_uid!=94 && asset->source_uid!=96 && asset->source_uid!=97) || asset->room!=3 ||
         asset->source.face_count!=6 || asset->solid_count!=3)return RF_NOT_FOUND;
     meshes[0]=&asset->source;meshes[1]=&asset->windows;meshes[2]=&asset->neighbors;
     origins[0]=asset->source_origins;origins[1]=asset->window_origins;origins[2]=asset->neighbor_origins;capacity=0;
@@ -192,7 +192,7 @@ int rf_geomod_authored_identity_capture_manifest(const rf_level *level,const rf_
     for(i=0;i<3;i++){status=mesh_capture(c,meshes[i],origins[i]);if(status)goto done;}
     c->input.asset=asset;strcpy(c->input.level,"ctf06.rfl");c->input.compiled_section=geometry->data;
     c->input.compiled_bytes=geometry->bytes;c->input.editor_section=c->editor;c->input.editor_bytes=editor->size;
-    /* Immutable view comes from the bounded loader, whose UID94 flags0 guard
+    /* Immutable view comes from the bounded loader, whose selected-source flags0 guard
      * proves original44d870 operation2. No trailing property inference. */
     c->input.source_operation=2;c->input.loader_policy=c->input.collision_policy=c->input.material_policy=1;
     /* Source reconstruction policy9 orders retained edge points using full-direction projection.

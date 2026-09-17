@@ -200,14 +200,21 @@ int rf_scene_swim_test_place(rf_level *level)
 /* Explicit ctf06 developer fixture: east of authored post94, facing west.
  * Standing body origin leaves .01848 clearance above floorY-1.25 using the
  * retained miner's lowest sphere; actual eye offset remains model-owned. */
-int rf_scene_authored_post_place(rf_level *level)
+static uint32_t scene_authored_source_uid=94;
+int rf_scene_authored_post_place_source(rf_level *level,uint32_t uid)
 {
     static const float position[3]={-2.75f,-.4f,2.5f};
     static const float basis[9]={0,0,1,0,1,0,-1,0,0};
     if(!level || strcmp(level->entry.name,"ctf06.rfl"))return RF_FORMAT;
+    if(uid!=93 && uid!=94 && uid!=96 && uid!=97)return RF_NOT_FOUND;
     memcpy(level->player_position,position,12);memcpy(level->player_orientation,basis,36);
+    if(uid>=96)level->player_position[0]+=11;
+    if(uid==93 || uid==96)level->player_position[2]-=5;
+    scene_authored_source_uid=uid;
     return RF_OK;
 }
+int rf_scene_authored_post_place(rf_level *level)
+{return rf_scene_authored_post_place_source(level,94);}
 int rf_scene_water_test_place(rf_level *level)
 {
     static const float position[3]={-226.5f,-38.25f,-80.f};

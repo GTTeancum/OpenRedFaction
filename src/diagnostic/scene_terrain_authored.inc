@@ -54,7 +54,7 @@ static inline int scene_terrain_authored_open(scene_stream *s,const rf_level *le
     if(!s || !level || !s->geometry || !s->collision || !actor_follow_world ||
        !actor_follow_world->slots || !s->materials || s->terrain || s->terrain_authored)return RF_RANGE;
     a=calloc(1,sizeof(*a));if(!a)return RF_IO;
-    status=rf_geomod_authored_post_open(level,s->geometry,2*1024*1024,&a->asset);if(status)goto fail;
+    status=rf_geomod_authored_post_open_source(level,s->geometry,scene_authored_source_uid,2*1024*1024,&a->asset);if(status)goto fail;
     status=rf_geomod_authored_post_get(a->asset,&a->asset_view);if(status)goto fail;
     /* Capture original asset identity before remapping face materials into
      * renderer slots. Temporary decode/repacking memory is released here. */

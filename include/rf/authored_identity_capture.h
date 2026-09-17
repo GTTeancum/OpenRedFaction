@@ -13,7 +13,7 @@ typedef struct rf_geomod_authored_identity_manifest {
     rf_geomod_digest_material *substrate; /* Optional separate settings.texture output; key0. */
     uint32_t resident_bytes; /* Full supplied capacities + this descriptor. */
 } rf_geomod_authored_identity_manifest;
-/* Capture the bounded ctf06/UID94 source identity before original resources
+/* Capture a bounded ctf06/UID93,94,96,97 source identity before original resources
  * close. Inputs remain borrowed; maps is an already-open contiguous array1..32
  * and rgb holds immutable ORIGINAL source RGB, never a dynamically lit atlas.
  * Asset materials must be the loader's unremapped compiled texture IDs.

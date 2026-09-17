@@ -3,6 +3,57 @@
 #include <stdlib.h>
 #include <string.h>
 #define CHECK(x) do{if(!(x)){fprintf(stderr,"FAIL line%d %s\n",__LINE__,#x);return 1;}}while(0)
+static int selected_identities(const rf_level *level,const rf_geometry *geometry,rf_vpp *maps,
+    const rf_lightmap_rgb_owner *rgb,const unsigned char known94[32])
+{
+    static const uint32_t uids[4]={93,94,96,97};
+    unsigned char digests[4][32],repeat[32],windows[4][32];uint32_t n,i,j,peak;
+    for(n=0;n<4;n++) {
+        rf_geomod_authored_post *owner=NULL;rf_geomod_authored_post_view asset;
+        rf_geomod_digest_material materials[8],substrate;
+        rf_geomod_authored_chart_identity refs[32];rf_geomod_digest_chart charts[32];
+        rf_geomod_authored_identity_manifest manifest={0};
+        rf_geomod_publication_digest_input publication={0};uint32_t face_charts[4];
+        CHECK(!rf_geomod_authored_post_open_source(level,geometry,uids[n],2*1024*1024,&owner));
+        CHECK(!rf_geomod_authored_post_get(owner,&asset));
+        manifest.materials=materials;manifest.material_capacity=8;
+        manifest.references=refs;manifest.reference_capacity=32;manifest.substrate=&substrate;
+        CHECK(!rf_geomod_authored_identity_capture_manifest(level,geometry,&asset,maps,6,rgb,
+            2*1024*1024,digests[n],&peak,&manifest));
+        CHECK(peak<=2*1024*1024 && manifest.material_count==2 && manifest.reference_count<=32);
+        CHECK(!rf_geomod_authored_identity_capture(level,geometry,&asset,maps,6,rgb,
+            2*1024*1024,repeat,&peak));
+        CHECK(!memcmp(digests[n],repeat,32));
+        if(uids[n]==94) CHECK(!memcmp(digests[n],known94,32));
+        for(i=0;i<n;i++) CHECK(memcmp(digests[n],digests[i],32));
+        CHECK(asset.windows.face_count==4);
+        for(i=0;i<4;i++) {
+            face_charts[i]=asset.window_origins[i].reference;
+            for(j=0;j<manifest.reference_count;j++) if(refs[j].reference==face_charts[i]) break;
+            CHECK(j<manifest.reference_count);
+        }
+        for(i=0;i<manifest.reference_count;i++) {
+            CHECK(!refs[i].chart.image.pixels);charts[i]=refs[i].chart;
+        }
+        publication.mesh=asset.windows;publication.origins=asset.window_origins;
+        publication.face_charts=face_charts;publication.materials=materials;
+        publication.material_count=manifest.material_count;publication.charts=charts;
+        publication.chart_count=manifest.reference_count;
+        publication.publication_policy=publication.material_policy=1;
+        CHECK(!rf_geomod_publication_digest(&publication,windows[n]));
+        for(i=0;i<n;i++) CHECK(memcmp(windows[n],windows[i],32));
+        printf("SOURCE_MANIFEST uid%u references%u resident%u peak%u sha",uids[n],
+            manifest.reference_count,manifest.resident_bytes,peak);
+        for(i=0;i<32;i++)printf("%02x",digests[n][i]);puts("");
+        /* Unsupported identity fails before publishing either output. */
+        asset.source_uid=79;memset(repeat,0xa5,sizeof(repeat));peak=123;
+        CHECK(rf_geomod_authored_identity_capture(level,geometry,&asset,maps,6,rgb,
+            2*1024*1024,repeat,&peak)==RF_NOT_FOUND && peak==123);
+        for(i=0;i<32;i++)CHECK(repeat[i]==0xa5);
+        rf_geomod_authored_post_close(&owner);
+    }
+    return 0;
+}
 int main(int argc,char **argv)
 {
     static const char *names[6]={"maps1.vpp","maps2.vpp","maps3.vpp","maps4.vpp","maps_en.vpp","ui.vpp"};
@@ -62,6 +113,7 @@ int main(int argc,char **argv)
      CHECK(!memcmp(&old_substrate,&substrate,sizeof(substrate)) && !memcmp(old_materials,materials,sizeof(materials)) && !memcmp(old_references,references,sizeof(references)) &&
         !memcmp(&old_manifest,&manifest,sizeof(manifest)) && !memcmp(old_digest,digest,32) && old_peak==peak);}
     CHECK(!rf_geomod_authored_identity_capture(&level,&geometry,&asset,maps,6,&rgb,2*1024*1024,again,&peak) && !memcmp(again,known,32));
+    CHECK(!selected_identities(&level,&geometry,maps,&rgb,known));
     for(i=0;i<6;i++)rf_vpp_close(maps+i);rf_geomod_authored_post_close(&owner);rf_lightmap_rgb_close(&rgb);
     rf_geometry_close(&geometry);rf_vpp_close(&archive);
     puts("PASS installed trusted manifest capture, no pixel borrow, real source windows, budget/capacity/ownership rollback, legacy SHA");return 0;

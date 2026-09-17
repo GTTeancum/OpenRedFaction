@@ -438,7 +438,15 @@ int main(int argc,char **argv)
     if(spawn_profile && !strcmp(level.entry.name,"ctf06.rfl") &&
        (dev_room || (p.headless && getenv("RF_REPLAY_DEV_ROOM")))) {
         if(rf_scene_water_test_enabled || rf_scene_swim_test_enabled)CHECK(RF_FORMAT);
-        CHECK(rf_scene_authored_post_place(&level));
+        const char *source=getenv("RF_REPLAY_AUTHORED_SOURCE");uint32_t uid=94;
+        if(source) {
+            if(!strcmp(source,"93"))uid=93;
+            else if(!strcmp(source,"94"))uid=94;
+            else if(!strcmp(source,"96"))uid=96;
+            else if(!strcmp(source,"97"))uid=97;
+            else CHECK(RF_FORMAT);
+        }
+        CHECK(rf_scene_authored_post_place_source(&level,uid));
     }
     if(spawn_profile)CHECK(rf_scene_set_campaign_spawn(&level));
     else CHECK(rf_scene_preview_route_camera(&level,9858));
