@@ -10803,7 +10803,7 @@ static int scene_detached_tick(scene_stream *s)
             status=rf_geomod_piece_batch_get(batch,i,&piece,&body);if(status)goto failed;
             query.scene=s;query.spheres=&body->spheres;memcpy(position,body->state.position,12);memcpy(basis,body->state.orientation,36);
             status=rf_physics_solid_step(&body->state,scene_step_seconds,scene_gravity.acceleration,&flags,
-                position,basis,scene_detached_query,&query,&report);if(status)goto failed;
+                position,basis,scene_detached_query,&query,&report);if(status){printf("DETACHED_STEP_FAILURE %u %u %u %d %u %.9g %.9g %.9g\n",source,b,i,status,body->state.flags,body->state.position[0],body->state.position[1],body->state.position[2]);printf("DETACHED_STEP_RADIUS %.9g\n",body->state.bounds.radius);goto failed;}
             ++rf_scene_detached_motion[0];rf_scene_detached_motion[1]+=report.steps;rf_scene_detached_motion[2]+=report.contacts;
             rf_scene_detached_motion[3]+=!(body->state.flags&0x80000000u);rf_scene_detached_motion[4]+=report.limited;
             rf_scene_detached_motion[5]=npc_hash_bytes(rf_scene_detached_motion[5]?rf_scene_detached_motion[5]:2166136261u,&body->state,sizeof(body->state));
@@ -10950,9 +10950,9 @@ static int scene_impacts_tick(scene_stream *s,uint32_t frame)
 static int scene_rockets_tick(scene_stream *s,uint32_t frame)
 {
     uint32_t i;int status;rf_scene_rockets[3]=0;
-    status=scene_detached_tick(s);if(status)return status;
-    status=scene_debris_tick(s,frame);if(status)return status;
-    status=scene_impacts_tick(s,frame);if(status)return status;
+    status=scene_detached_tick(s);if(status){printf("ROCKET_TICK_FAILURE detached %u %d\n",frame,status);return status;}
+    status=scene_debris_tick(s,frame);if(status){printf("ROCKET_TICK_FAILURE debris %u %d\n",frame,status);return status;}
+    status=scene_impacts_tick(s,frame);if(status){printf("ROCKET_TICK_FAILURE impacts %u %d\n",frame,status);return status;}
     for(i=0;i<SCENE_ROCKETS;i++)if(s->rockets[i].active) {
         rf_weapon_flight_event event;rf_weapon_flight_liquid_event movement;
         rf_weapon_flight_liquid_policy policy={0,0,-1,-1};

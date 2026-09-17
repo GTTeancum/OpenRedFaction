@@ -380,3 +380,14 @@ Saved standing, fresh continued standing and fresh walk-away checkpoints pass ex
 
 
 Stock64MiB XEMU run artifacts/xemu/render-20260917-141354 passes76 checks after loading this standing save and replaying201 frames of walk-away input. Its2818-byte exported checkpoint matches the uninterrupted PC control exactly. Native image inspection confirms the expected opposite-side floor view, source93 fragment and intact source94. Endpoint availability is3847 pages (15.03MiB); disc staging was restored. The slot0 paired regression also passes after the generalized directory lookup. No claim is made for native invalid-support rejection or standing while both sources are destroyed.
+
+
+## Two destroyed owners expose tiny-fragment collision failure
+
+The standing harness adds --both-destroyed, keeping source94's first extracted fragment, walking south, firing into source93 and attempting the ordinary jump. This new mode is a failing regression reproducer, not an accepted standing test. The first aim atY-0.1 created a radius0.3665 second fragment, correctly excluded by the original radius<=0.5 player-support rule. A lowerY-0.5 shot produces a tiny fragment and aborts scene simulation at frame619, before the attempted jump. Do not weaken support admission to make this pass.
+
+Error-only scene diagnostics identify source slot1, batch0, piece0 at(-4.7544775,-1.49791789,-2.74700379), radius0.00407280587, flags0x8000003f. rf_physics_solid_step returns RF_NOT_FOUND. Metadata tracing did not fire and was removed. Code explains the unsupported route: rf_collision_body_sweep adds query bit0x100 when body radius<0.05; geometry_body_query calls the untextured world sweep, which explicitly rejects texture-dependent flags. Existing textured scene queries and cached alpha bindings must be considered when implementing the missing body path, including regenerated collision after terrain publication. Simply stripping0x100 or treating RF_NOT_FOUND as no collision would change collision semantics.
+
+Reproduce with python -B tools/check_intermediate_rubble_standing.py --both-destroyed. Inputs/logs are artifacts/paired-both-support/saved.bin and saved.log. Runtime failure precedes checkpoint export; no success report or native acceptance follows. Next work is texture-aware small-body world/mover collision with correct current terrain bindings, followed by this reproducer and standing continuation. No HDD clone or emulator session was created for the failing case.
+
+The diagnostic-only runtime changes compile for PC and stock NXDK; all122 existing PC tests pass. That does not clear the newly exposed replay failure. Logs: artifacts/tiny-fragment-diagnostic-{build,tests,xbox}.log. The harness removes any old report before running so failed reruns cannot leave a stale PASS report.

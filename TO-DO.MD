@@ -1,5 +1,7 @@
 # Red Faction Xbox / PC - open work
 
+- PRIORITY GeoMod runtime: Fix tiny-fragment body sweeps requesting unsupported alpha collision; the two-post standing replay creates radius0.004073 rubble and aborts at frame619 before standing acceptance.
+
 - USER Repository cleanup: Delete the disposable artifacts/geomod-hdd root (about27GiB); remaining obsolete image paths are in artifacts/cleanup-20260917.json, and both HDD harnesses enforce an8GiB projected artifact budget.
 
 - GeoMod jump/support: Broaden standing to other rubble shapes and verify missing-support rejection natively; jumping onto radius0.530725rubble and walking away from an Xbox-created save pass74/74 stock64MiB checks with exact PC continuation, while missing-support rejection passes PC.

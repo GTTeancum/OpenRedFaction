@@ -1,14 +1,18 @@
 """Ordinary jump onto natural rubble, exact save continuation and missing-support rejection."""
 import argparse,json,os,struct,subprocess
 from pathlib import Path
+from replay_authored_post import pitch_commands,pitch_for
 parser=argparse.ArgumentParser(description=__doc__)
 parser.add_argument('--paired',action='store_true',help='Keep both authored sources and use collection checkpoints')
 parser.add_argument('--second-support',action='store_true',help='Walk to source93 and test support from collection slot1')
+parser.add_argument('--both-destroyed',action='store_true',help='Destroy both posts before standing on source93 rubble')
 args=parser.parse_args()
+if args.both_destroyed:args.second_support=True
 if args.second_support:args.paired=True
 ROOT=Path(__file__).resolve().parents[1]
-folder=ROOT/('artifacts/paired-second-support' if args.second_support else 'artifacts/paired-rubble-standing' if args.paired else 'artifacts/geomod-postedit-re/intermediate-rubble-standing')
+folder=ROOT/('artifacts/paired-both-support' if args.both_destroyed else 'artifacts/paired-second-support' if args.second_support else 'artifacts/paired-rubble-standing' if args.paired else 'artifacts/geomod-postedit-re/intermediate-rubble-standing')
 folder.mkdir(parents=True,exist_ok=True)
+(folder/'report.json').unlink(missing_ok=True)
 source=(ROOT/'artifacts/geomod-postedit-re/intermediate-search/0.bin').read_bytes()
 data=bytearray(source[:8+350*48]+bytes(450*48))
 for frame in range(360,450):struct.pack_into('<f',data,8+frame*48+8,.8)
@@ -17,8 +21,17 @@ saved_frame=600
 if args.second_support:
  prefix=bytearray(180*48)
  for frame in range(30,90):struct.pack_into('<f',prefix,frame*48,-5/6)
- data=data[:8]+prefix+data[8:]
- saved_frame+=180
+ if args.both_destroyed:
+  second_shot=bytearray(160*48)
+  commands,_=pitch_commands(-.050287704,pitch_for([4.450001,.3840414,-2.5],[-4.699,-.5,-2.5]))
+  for frame,value in enumerate(commands):struct.pack_into('<f',second_shot,frame*48+12,value)
+  struct.pack_into('<I',second_shot,60*48+32,1)
+  boundary=8+350*48
+  data=data[:boundary]+prefix+second_shot+data[boundary:]
+  saved_frame+=340
+ else:
+  data=data[:8]+prefix+data[8:]
+  saved_frame+=180
 recordings={'saved':data[:8+saved_frame*48],'continued':data[:8]+data[8+(saved_frame-1)*48:],'control':data}
 retreat=bytearray(recordings['continued'])
 for frame in range(20,100):struct.pack_into('<f',retreat,8+frame*48+8,-.8)
@@ -45,6 +58,7 @@ def support_bank(checkpoint):
   if uid==target:
    assert piece_bytes==344 and struct.unpack_from('<I',checkpoint,bank+12)[0]==1
    result=(bank,piece_bytes)
+  elif args.both_destroyed:assert piece_bytes==344 and struct.unpack_from('<I',checkpoint,bank+12)[0]==1
   else:assert piece_bytes==16 and struct.unpack_from('<I',checkpoint,bank+12)[0]==0
   cursor=bank+piece_bytes
  return result
@@ -59,7 +73,8 @@ for name,recording in recordings.items():
  lines=path.with_suffix('.log').read_text().splitlines()
  def values(label,kind=int):return list(map(kind,next(x for x in lines if x.startswith(label+' ')).split()[1:]))
  position=values('CAMPAIGN_FINAL_POSITION',float);pieces=values('DETACHED_PIECES');contacts=values('DETACHED_PLAYER')
- assert pieces[:3]==[1,1,1] and pieces[5]==0,(name,pieces)
+ expected_pieces=2 if args.both_destroyed else 1
+ assert pieces[:3]==[1,expected_pieces,expected_pieces] and pieces[5]==0,(name,pieces)
  assert contacts[0]>0 and contacts[6]==0,(name,contacts)
  assert contacts[1]>0 and contacts[2]==0xffffffff,(name,contacts)
  if name.startswith('retreat'):assert position[0]>-4 and position[1]<0,(name,position)
@@ -77,6 +92,7 @@ struct.pack_into('<fI',bad,bank+size-8,-1,0x200002)
 with (folder/'missing-support.log').open('wb') as log:
  result=subprocess.run([str(ROOT/'build/pc/Release/rf_pc_play.exe'),'--spawn-replay',str(ROOT/'Installed_Game'),str(folder/'continued.bin'),str(folder/'missing-support.ppm')],cwd=ROOT,env=dict(env,RF_REPLAY_GEOMOD_CHECKPOINT_IN=str(folder/'missing-support.rfcp')),stdout=log,stderr=subprocess.STDOUT,timeout=180)
 assert result.returncode!=0 and 'GEOMOD_CHECKPOINT_ERROR load' in (folder/'missing-support.log').read_text(),'retired support accepted'
+report['both_destroyed']=args.both_destroyed
 report['paired_sources']=args.paired
 report['support_source']=93 if args.second_support else 94
 report['scope']='Ordinary jump lands on natural intermediate rubble; exact saved standing/walk-away continuation and retired-support rejection. Native and visual acceptance remain separate.'
