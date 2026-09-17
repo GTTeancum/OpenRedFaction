@@ -568,6 +568,12 @@ dvd_path = '{root.as_posix()}/build/xbox/redfaction-diagnostic.iso'
                 equal=actual[:5]==expected[:5]
                 report['checks']['AUTHORED_COLLECTION']=dict(equal=equal,xbox=actual,pc=expected,compared_indices=list(range(5)))
                 assert equal and actual[0]==args.authored_sources, 'Authored collection ownership mismatch'
+                cut_rows=[line for line in pc.stdout.splitlines() if line.startswith('AUTHORED_SOURCE_CUTS ')]
+                if cut_rows:
+                    expected=list(map(int,cut_rows[-1].split()[1:]));actual=words(monitor,symbol('rf_scene_authored_source_cuts'),8)
+                    report['checks']['AUTHORED_SOURCE_CUTS']=dict(equal=actual==expected,xbox=actual,pc=expected)
+                    assert actual==expected,'Per-source cut history mismatch'
+
 
             report.update(result='PASS', available_pages=d[44], diagnostic=d)
             with (run / 'performance.txt').open('w') as out:

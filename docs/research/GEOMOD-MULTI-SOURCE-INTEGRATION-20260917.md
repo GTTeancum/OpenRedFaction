@@ -1,10 +1,10 @@
 # Multiple live authored sources: integration boundaries
 
-Current verified runtime supports one selected ctf06 source93/94/96/97. Multiple concurrent source ownership is still unimplemented. This document records source inspection, not acceptance of a new architecture.
+Current runtime supports opt-in paired ctf06 sources93/94 or96/97, shared room publication and per-source terrain/rubble ownership. Two separate real rockets damage both retained posts with matching PC/stock64MiB Xbox state and two settled fragments. Source-indexed saves/reset, simultaneous-blast budget acceptance and broader interacting geometry remain unfinished. The sections below preserve the implementation/evidence history; later acceptance sections supersede earlier boundaries.
 
 ## Required shared ownership
 
-`scene_stream` currently owns one terrain, authored asset, detached registry, history, publication, lighting atlas, draw mesh and collision overlay. `scene_terrain_publication_open` creates a composition from the original room tree and one source replacement list. Independently binding one overlay per post would overwrite the previous room replacement rather than compose both edits. Independently rebuilding each post from the original room would restore earlier holes in collision.
+The initial single-source implementation owned one terrain, authored asset, detached registry, history, publication, lighting atlas, draw mesh and collision overlay. Its `scene_terrain_publication_open` created a composition from the original room tree and one source replacement list. Independently binding one overlay per post would overwrite the previous room replacement rather than compose both edits. Independently rebuilding each post from the original room would restore earlier holes in collision.
 
 Use one room-level composition and retain the unchanged room faces exactly. Its replacement identity set must cover the union of participating source windows. Unedited sources must contribute their original windows until edited; otherwise registration itself creates invisible collision holes. Aggregate the current published geometry for all sources before binding one candidate room tree. Common atlas, draw/publication capacity and temporary work must have a shared ceiling; do not multiply the current whole-scene allocations by four.
 
@@ -14,7 +14,7 @@ Each source needs its own immutable UID, digest, source planes/neighborhood, cut
 
 Prepare every changed source plus aggregate room publication privately. Allocation, geometry, lighting or binding failure must retain all active source histories, piece registries and the old room tree. Publish only after the complete candidate is valid. Abort frees all newly staged owners. Retired-piece collection must preserve stable identities and cannot free borrowed geometry beneath the active draw/collision views.
 
-The existing RFCP single-source envelope binds one source digest and replay history. Multiple-source saves need explicit source count/UID/digest records, independent histories and unambiguous piece references; validate the entire candidate before restoring the player or publishing any geometry. Keep legacy one-source saves tied to their original94 identity. Merely relaxing identity checks would load geometry against the wrong immutable source.
+The existing RFCP single-source envelope binds one source digest and replay history. Multiple-source saves need explicit source count/UID/digest records, independent histories and unambiguous piece references; validate the entire candidate before restoring the player or publishing any geometry. Keep each legacy one-source save tied to its recorded source identity. Merely relaxing identity checks would load geometry against the wrong immutable source.
 
 ## Memory evidence
 
@@ -180,3 +180,14 @@ The550-frame native run artifacts/xemu/render-20260917-123126 passes74/74 compar
 The diagnostic reports16384 physical pages, with3802 available at the final endpoint (about14.85MiB). The retained xemu.toml has no expanded-memory setting and uses the existing pacing-base.qcow2; no HDD clone was created. This is endpoint headroom, not a measured minimum across the whole edit.
 
 The native framebuffer was inspected and shows the room, weapon/HUD, cut post and tilted detached chunk. It matches the expected PC endpoint content. Audio quality, both-source damage and simultaneous-cut memory remain unverified. The Red Faction test session closed and authored-count.bin was removed by restoration; other-project emulator sessions were not controlled. All122 PC tests pass after the telemetry addition. The paired source setting remains opt-in, with saves/reset still explicitly unsupported.
+
+
+## Two separate live source cuts on PC and Xbox
+
+The reproducible tools/check_paired_authored_cuts.py extends the measured single-shot input to850 frames, turns using ordinary look commands, fires a second rocket at source93, then returns the camera toward the middle. The selected source remains94 throughout. Aim uses the recorded settled eye and the original-derived pitch/yaw update math; there is no teleport, source switch, injected cut or host input. Impacts occur at frames268 and472, at z2.5 and approximately-2.501936. Both edits are accepted.
+
+Retained AUTHORED_SOURCE_CUTS telemetry reports UID/local-cut pairs after successful edits. It shows[94,1,93,0] followed by[94,1,93,1], establishing one cut per owner rather than two edits to the selected owner. The harness compares the final native array with the last PC report. The final shared publication contains18 faces/100 vertices, two total cuts and room revision2. Two fragments remain alive and settled, contributing30 triangles and266504 aggregate registry bytes. The PC edit reservation peaks at13065104 bytes, still below13MiB. This is two successive single-source transactions, not one simultaneous two-source blast.
+
+Native run artifacts/xemu/render-20260917-123854 passes75/75 comparisons, including per-source cut counts, aggregate publication, rocket counters and the full detached-motion words/hash. Physical pages remain16384;3653 pages are available at the endpoint (about14.27MiB). No worst-case minimum-headroom or simultaneous-edit claim follows from that endpoint.
+
+Both PC and native final framebuffers were inspected. The right damaged post/chunk is clearly visible; the left fragment is partly occluded by the retained red prop, so this endpoint is not complete visibility coverage of every fragment surface. Both views retain the room, weapon and HUD. No audible-quality acceptance is claimed. All122 PC tests pass, the harness builds the stock NXDK image, and no extra GitHub images or retained HDD clones were created. Source-indexed save/restore, paired reset/clearance, simultaneous-cut memory and broader topology remain unfinished.

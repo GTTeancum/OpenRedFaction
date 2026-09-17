@@ -37,6 +37,20 @@ static int scene_authored_edit_publish(void *opaque,rf_geomod_terrain *candidate
 }
 static void scene_authored_edit_abort(void *opaque)
 {scene_terrain_publication_abort(((scene_authored_edit_context *)opaque)->scene);}
+static void scene_authored_source_cut_report(scene_stream *s)
+{
+    uint32_t i,count=s->terrain_source_count?s->terrain_source_count:1;
+    memset(rf_scene_authored_source_cuts,0,sizeof(rf_scene_authored_source_cuts));
+    for(i=0;i<count && i<4;i++) {
+        scene_terrain_authored_assets *a=s->terrain_source_count?s->terrain_sources[i].authored:s->terrain_authored;
+        rf_geomod_terrain *core=a==s->terrain_authored?s->terrain:s->terrain_sources[i].terrain;
+        rf_geomod_terrain_view view;
+        if(a && !rf_geomod_terrain_get(core,&view)) {
+            rf_scene_authored_source_cuts[2*i]=a->asset_view.source_uid;rf_scene_authored_source_cuts[2*i+1]=view.cuts;
+        }
+    }
+    printf("AUTHORED_SOURCE_CUTS");for(i=0;i<8;i++)printf(" %u",rf_scene_authored_source_cuts[i]);printf("\n");
+}
 /* Temporarily borrow every candidate for one synchronous room bind. Restore
  * aliases even after success: the transaction owns the subsequent core commit. */
 typedef struct scene_authored_group_publication {
@@ -107,6 +121,7 @@ static int scene_terrain_authored_edit_group(scene_stream *s,const uint32_t *ind
     status=scene_terrain_edit_transaction_group(sources,count,&s->terrain_publication_serial,&budget,&publication,&context,result);
     /* The collection now owns replacement cores; do not sync a freed alias. */
     s->terrain=s->terrain_sources[active].terrain;s->detached_pieces=s->terrain_sources[active].pieces;
+    if(!status)scene_authored_source_cut_report(s);
     if(!status && result[0].reserved_peak_bytes>rf_scene_geomod[4])rf_scene_geomod[4]=result[0].reserved_peak_bytes;
     return status;
 }
@@ -133,6 +148,7 @@ static int scene_terrain_authored_edit_run(scene_authored_edit_context *context)
     status=s->detached_pieces?scene_terrain_edit_transaction_pieces(&s->terrain,&s->terrain_publication_serial,
         &budget,&ops,context,&result,s->detached_pieces,context->reset):
         scene_terrain_edit_transaction(&s->terrain,&s->terrain_publication_serial,&budget,&ops,context,&result);
+    if(!status)scene_authored_source_cut_report(s);
     if(!status && result.reserved_peak_bytes>rf_scene_geomod[4])rf_scene_geomod[4]=result.reserved_peak_bytes;
     return status;
 }

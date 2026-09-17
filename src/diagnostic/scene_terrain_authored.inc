@@ -1,4 +1,5 @@
 /* Asset initialization only. Never binds an isolated post as an entire room. */
+uint32_t rf_scene_authored_source_cuts[8]; /* UID/cut-count pairs, last committed source histories */
 uint32_t rf_scene_authored_collection[6]; /* count, up to4 UIDs, resident source assets */
 static int scene_detached_open(scene_stream *s,const rf_collision_face_filter *generated,rf_geomod_piece_registry **out)
 {
@@ -197,6 +198,8 @@ static int scene_terrain_sources_open(scene_stream *s,const rf_level *level,rf_v
         rf_scene_authored_collection[1+i]=sources[i].authored->asset_view.source_uid;
         rf_scene_authored_collection[5]+=sources[i].authored->resident_bytes;
     }
+    memset(rf_scene_authored_source_cuts,0,sizeof(rf_scene_authored_source_cuts));
+    for(i=0;i<count;i++)rf_scene_authored_source_cuts[2*i]=uids[i];
     printf("AUTHORED_COLLECTION %u %u %u %u %u %u\n",rf_scene_authored_collection[0],
         rf_scene_authored_collection[1],rf_scene_authored_collection[2],rf_scene_authored_collection[3],
         rf_scene_authored_collection[4],rf_scene_authored_collection[5]);
