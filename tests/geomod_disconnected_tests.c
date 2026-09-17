@@ -73,6 +73,27 @@ static void extraction(const rf_geomod_terrain_view *view,const uint32_t *labels
         offset+=mesh->face_count;
     }
     CHECK(offset==view->mesh.face_count);
+    {
+        rf_geomod_mesh_view *mesh=output+1;rf_geomod_piece_placement placement;
+        rf_collision_face rebound[64];rf_collision_face_filter filter[64];float positions[256][3];
+        rf_geomod_vertex *corners=vertices+output[0].vertex_count;
+        CHECK(!rf_geomod_mesh_recenter(corners,mesh->vertex_count,corners,&placement));
+        for(i=0;i<mesh->face_count;i++)filter[i]=view->faces[old[output[0].face_count+i]].filter;
+        CHECK(!rf_geomod_collision_faces(mesh,filter,positions,256,rebound,64));
+        for(i=0;i<mesh->face_count;i++) {
+            const rf_collision_face *before=view->faces+old[output[0].face_count+i];
+            const rf_geomod_face *face=mesh->faces+i;
+            const rf_geomod_vertex *original=view->mesh.vertices+view->mesh.faces[old[output[0].face_count+i]].first;
+            double distance=before->plane[3];uint32_t axis;
+            for(axis=0;axis<3;axis++)distance+=(double)before->plane[axis]*placement.origin[axis];
+            CHECK(!memcmp(rebound[i].plane,before->plane,12));
+            CHECK(fabs(rebound[i].plane[3]-distance)<0.00001);
+            for(j=0;j<face->count;j++) {
+                CHECK(!memcmp(mesh->vertices[face->first+j].uv,original[j].uv,8));
+                for(axis=0;axis<3;axis++)CHECK(fabs((double)mesh->vertices[face->first+j].position[axis]+placement.origin[axis]-original[j].position[axis])<0.00001);
+            }
+        }
+    }
 #undef UNCHANGED
 #undef EXTRACT
 }

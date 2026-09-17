@@ -63,18 +63,27 @@ static int placement_cases(void)
  static const struct {uint32_t inputs[24],output[34];} cases[]={
 #include "fixtures/geomod_piece_placement.inc"
  };
- float vertices[8][3],local[8][3],kept[8][3];rf_geomod_piece_placement placement,before;uint32_t i;
+ float vertices[8][3],local[8][3],kept[8][3];rf_geomod_piece_placement placement,before;uint32_t i,j;
+ rf_geomod_vertex corners[8],recentered[8],saved_corners[8];
  for(i=0;i<sizeof(cases)/sizeof(cases[0]);i++) {
   memcpy(vertices,cases[i].inputs,sizeof(vertices));
   CHECK(!rf_geomod_piece_recenter(vertices,8,local,&placement));
   {uint32_t actual[34],j;memcpy(actual,&placement,40);memcpy(actual+10,local,96);
    for(j=0;j<34;j++)if(actual[j]!=cases[i].output[j])fprintf(stderr,"placement case%u word%u actual%u expected%u\n",i,j,actual[j],cases[i].output[j]);}
   CHECK(!memcmp(&placement,cases[i].output,40) && !memcmp(local,cases[i].output+10,96));
+  for(j=0;j<8;j++){memcpy(corners[j].position,vertices[j],12);corners[j].uv[0]=(float)j/3;corners[j].uv[1]=-(float)j/7;}
+  CHECK(!rf_geomod_mesh_recenter(corners,8,recentered,&placement));
+  CHECK(!memcmp(&placement,cases[i].output,40));
+  for(j=0;j<8;j++)CHECK(!memcmp(recentered[j].position,local[j],12) && !memcmp(recentered[j].uv,corners[j].uv,8));
+  CHECK(!rf_geomod_mesh_recenter(corners,8,corners,&placement));
+  CHECK(!memcmp(corners,recentered,sizeof(corners)));
   CHECK(!rf_geomod_piece_recenter(vertices,8,vertices,&placement));
   CHECK(!memcmp(&placement,cases[i].output,40) && !memcmp(vertices,cases[i].output+10,96));
  }
  before=placement;memcpy(kept,local,sizeof(kept));vertices[7][2]=NAN;
  CHECK(rf_geomod_piece_recenter(vertices,8,local,&placement)==RF_FORMAT && !memcmp(&placement,&before,sizeof(before)) && !memcmp(local,kept,sizeof(kept)));
+ memcpy(saved_corners,recentered,sizeof(saved_corners));corners[7].position[2]=NAN;
+ CHECK(rf_geomod_mesh_recenter(corners,8,recentered,&placement)==RF_FORMAT && !memcmp(&placement,&before,sizeof(before)) && !memcmp(saved_corners,recentered,sizeof(recentered)));
  puts("PASS12 original piece placement cases, in-place operation and failure atomicity");return 0;
 }
 static int connectivity_cases(void)

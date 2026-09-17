@@ -288,6 +288,13 @@ typedef struct rf_geomod_mesh_view {
     const rf_geomod_vertex *vertices;const rf_geomod_face *faces;
     uint32_t vertex_count,face_count,generation;
 } rf_geomod_mesh_view;
+/* Same original placement arithmetic as piece_recenter, directly on mesh
+ * corners, preserving UV bytes. No extra position buffer or allocation.
+ * Exact in-place operation is allowed; other overlaps are forbidden. Errors
+ * preserve output corners/placement. Rebuild collision planes after success;
+ * separately owned lightmap projection data is not transformed here. */
+int rf_geomod_mesh_recenter(const rf_geomod_vertex *vertices,uint32_t count,
+    rf_geomod_vertex *local,rf_geomod_piece_placement *placement);
 /* Component grouping for the port's face-corner representation. Exact numeric
  * position equality defines shared vertices (including signed-zero equality),
  * consistent with seed adjacency; no epsilon welding or UV merging. Optional

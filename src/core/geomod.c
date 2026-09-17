@@ -469,14 +469,14 @@ int rf_geomod_debris_actor_contact(const float position[3],const float velocity[
     *hit=matched;*amount=value;return RF_OK;
 }
 
-int rf_geomod_piece_recenter(const float (*vertices)[3],uint32_t count,
-    float (*local)[3],rf_geomod_piece_placement *placement)
+static int piece_recenter_strided(const void *vertices,uint32_t count,
+    void *local,size_t stride,rf_geomod_piece_placement *placement)
 {
     rf_geomod_piece_placement value;float maximum_squared=0;uint32_t i,k;
-    if(!vertices || !local || !placement || !count || count>INT32_MAX)return RF_RANGE;
-    for(k=0;k<3;k++)value.minimum[k]=value.maximum[k]=vertices[0][k];
+    if(!vertices || !local || !placement || !count || count>INT32_MAX || count>SIZE_MAX/stride)return RF_RANGE;
+    for(k=0;k<3;k++)value.minimum[k]=value.maximum[k]=((const float *)vertices)[k];
     for(i=0;i<count;i++)for(k=0;k<3;k++) {
-        float v=vertices[i][k];if(!isfinite(v))return RF_FORMAT;
+        float v=((const float *)((const unsigned char *)vertices+(size_t)i*stride))[k];if(!isfinite(v))return RF_FORMAT;
         if(v<value.minimum[k])value.minimum[k]=v;
         if(v>value.maximum[k])value.maximum[k]=v;
     }
@@ -491,13 +491,29 @@ int rf_geomod_piece_recenter(const float (*vertices)[3],uint32_t count,
     }
     for(i=0;i<count;i++) {
         float v[3];double squared;
-        for(k=0;k<3;k++){v[k]=(float)((double)vertices[i][k]-value.origin[k]);if(!isfinite(v[k]))return RF_RANGE;}
+        const float *position=(const float *)((const unsigned char *)vertices+(size_t)i*stride);
+        for(k=0;k<3;k++){v[k]=(float)((double)position[k]-value.origin[k]);if(!isfinite(v[k]))return RF_RANGE;}
         squared=((double)v[0]*v[0]+(double)v[1]*v[1])+(double)v[2]*v[2];
         if(squared>maximum_squared)maximum_squared=(float)squared;
     }
     value.radius=(float)sqrt((double)maximum_squared);if(!isfinite(value.radius))return RF_RANGE;
-    for(i=0;i<count;i++)for(k=0;k<3;k++)local[i][k]=(float)((double)vertices[i][k]-value.origin[k]);
+    for(i=0;i<count;i++) {
+        const float *position=(const float *)((const unsigned char *)vertices+(size_t)i*stride);
+        float *out=(float *)((unsigned char *)local+(size_t)i*stride);
+        for(k=0;k<3;k++)out[k]=(float)((double)position[k]-value.origin[k]);
+    }
     *placement=value;return RF_OK;
+}
+int rf_geomod_piece_recenter(const float (*vertices)[3],uint32_t count,
+    float (*local)[3],rf_geomod_piece_placement *placement)
+{return piece_recenter_strided(vertices,count,local,sizeof(*vertices),placement);}
+int rf_geomod_mesh_recenter(const rf_geomod_vertex *vertices,uint32_t count,
+    rf_geomod_vertex *local,rf_geomod_piece_placement *placement)
+{
+    uint32_t i;int status=piece_recenter_strided(vertices,count,local,sizeof(*vertices),placement);
+    if(status)return status;
+    if(vertices!=local)for(i=0;i<count;i++)memcpy(local[i].uv,vertices[i].uv,sizeof(local[i].uv));
+    return RF_OK;
 }
 
 int rf_geomod_piece_shape_get(const float minimum[3],const float maximum[3],
