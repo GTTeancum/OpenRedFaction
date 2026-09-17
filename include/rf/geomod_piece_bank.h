@@ -7,9 +7,10 @@ typedef struct rf_geomod_owned_piece {
     rf_geomod_piece_placement placement;
     const uint32_t *old_faces;
     const rf_collision_face_filter *filters;
+    const rf_collision_face *collision; /* Owned local-space polygons. */
     uint32_t id;
 } rf_geomod_owned_piece;
-/* One fixed allocation containing local mesh corners, faces, owner mapping,
+/* One fixed allocation containing local mesh corners, collision polygons, owner mapping,
  * filters and placement descriptors. Byte budget includes the owner itself;
  * allocator overhead is external. No allocation during append. */
 int rf_geomod_piece_bank_open(uint32_t vertices,uint32_t faces,uint32_t pieces,

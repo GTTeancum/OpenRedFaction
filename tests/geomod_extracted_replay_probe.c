@@ -33,6 +33,36 @@ static double mesh_volume(const rf_geomod_mesh_view *mesh)
     }
     return volume;
 }
+static void piece_contacts(const rf_geomod_owned_piece *piece)
+{
+    const float matrices[2][3][3]={{{1,0,0},{0,1,0},{0,0,1}},{{.6f,.8f,0},{-.8f,.6f,0},{0,0,1}}};
+    uint32_t pose,face,sweep,k,j,hits=0;
+    for(pose=0;pose<2;pose++)for(face=0;face<piece->mesh.face_count;face++)for(sweep=0;sweep<2;sweep++) {
+        const rf_collision_face *f=piece->collision+face;float local[3]={0},delta[3],start[3],motion[3],origin[3];
+        rf_collision_sweep_tree_hit hit;rf_collision_ray_hit world;uint32_t matched;
+        for(j=0;j<f->count;j++)for(k=0;k<3;k++)local[k]+=f->vertices[j][k]/f->count;
+        for(k=0;k<3;k++){local[k]+=f->plane[k]*2;delta[k]=-f->plane[k]*4;origin[k]=piece->placement.origin[k]+(pose?20:0);}
+        for(k=0;k<3;k++) {
+            start[k]=origin[k];motion[k]=0;
+            for(j=0;j<3;j++){start[k]+=matrices[pose][j][k]*local[j];motion[k]+=matrices[pose][j][k]*delta[j];}
+        }
+        REQUIRE(!rf_collision_flat_faces(piece->collision,piece->mesh.face_count,0,start,motion,origin,matrices[pose],sweep?.25f:0,1,&hit,&matched));
+        REQUIRE(matched && hit.face_index==face && fabs(hit.hit.fraction-(sweep?.4375:.5))<0.00002);
+        REQUIRE(!rf_collision_contact_world(&hit.hit,origin,matrices[pose],&world));
+        for(k=0;k<3;k++) {
+            double normal=0;for(j=0;j<3;j++)normal+=(double)matrices[pose][j][k]*f->plane[j];
+            REQUIRE(fabs(world.normal[k]-normal)<0.00002);
+        }
+        hits++;
+    }
+    {
+        float start[3]={100,100,100},delta[3]={1,0,0};rf_collision_sweep_tree_hit hit,kept;uint32_t matched;
+        memset(&hit,0xa5,sizeof(hit));kept=hit;
+        REQUIRE(!rf_collision_flat_faces(piece->collision,piece->mesh.face_count,4,start,delta,NULL,NULL,0,1,&hit,&matched));
+        REQUIRE(!matched && !memcmp(&hit,&kept,sizeof(hit)));
+    }
+    printf("PASS owned piece %u: %u translated/rotated ray and sphere contacts plus miss\n",piece->id,hits);
+}
 int main(void)
 {
     rf_geomod_vertex vertices[24];rf_geomod_face faces[6];rf_collision_face_filter filters[6]={{0}},generated={0};
@@ -119,6 +149,7 @@ int main(void)
         REQUIRE(!memcmp(a.mesh.faces,b.mesh.faces,a.mesh.face_count*sizeof(*a.mesh.faces)));
         REQUIRE(!memcmp(a.old_faces,b.old_faces,a.mesh.face_count*4));
         REQUIRE(fabs(mesh_volume(&a.mesh)-(prefix?1200:3600))<0.0001);
+        piece_contacts(&a);piece_contacts(&b);
     }
     printf("PASS owned extracted pieces survive replay scratch reuse; bank_bytes=%u\n",rf_geomod_piece_bank_bytes(owned[0]));
     {
@@ -130,6 +161,23 @@ int main(void)
         REQUIRE(!rf_geomod_piece_bank_get(owned[0],0,&piece));
         REQUIRE(rf_geomod_piece_bank_append(owned[0],&piece.mesh,piece.old_faces,piece.filters,piece.mesh.face_count,piece.id)==RF_FORMAT);
         REQUIRE(rf_geomod_piece_bank_count(owned[0])==before);
+        {
+            rf_geomod_vertex malformed[256],preserved[256];uint32_t indices[64],i,k;
+            rf_geomod_mesh_view bad=piece.mesh;rf_geomod_owned_piece after;
+            REQUIRE(bad.vertex_count<=256 && bad.face_count<=64);
+            memcpy(malformed,bad.vertices,bad.vertex_count*sizeof(*malformed));
+            memcpy(preserved,bad.vertices,bad.vertex_count*sizeof(*preserved));bad.vertices=malformed;
+            for(i=0;i<bad.face_count;i++)indices[i]=i;
+            /* Break only one corner out of its quad plane. Collision binding
+             * fails after staging; already-owned geometry must remain intact. */
+            for(k=0;k<3;k++)malformed[0].position[k]+=.25f*piece.collision[0].plane[k];
+            REQUIRE(rf_geomod_piece_bank_append(owned[0],&bad,indices,piece.filters,bad.face_count,12345)==RF_FORMAT);
+            REQUIRE(rf_geomod_piece_bank_count(owned[0])==before);
+            REQUIRE(!rf_geomod_piece_bank_get(owned[0],0,&after));
+            REQUIRE(after.mesh.vertices==piece.mesh.vertices && after.collision==piece.collision);
+            REQUIRE(!memcmp(preserved,after.mesh.vertices,bad.vertex_count*sizeof(*preserved)));
+            piece_contacts(&after);
+        }
     }
     rf_geomod_piece_bank_close(owned);rf_geomod_piece_bank_close(owned+1);rf_geomod_piece_bank_close(&tiny);
     free(replay);free(tags);free(support);rf_geomod_terrain_close(&history);

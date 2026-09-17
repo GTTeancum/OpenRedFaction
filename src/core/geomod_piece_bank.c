@@ -5,17 +5,22 @@
 struct rf_geomod_piece_bank {
     rf_geomod_owned_piece *pieces;rf_geomod_vertex *vertices;rf_geomod_face *faces;
     uint32_t *old_faces;rf_collision_face_filter *filters;
+    rf_collision_face *collision;float (*positions)[3];
     uint32_t vc,fc,pc,nv,nf,np,bytes;
 };
 int rf_geomod_piece_bank_open(uint32_t vc,uint32_t fc,uint32_t pc,uint32_t budget,rf_geomod_piece_bank **out)
 {
     uint64_t bytes;rf_geomod_piece_bank *bank;unsigned char *p;
     if(!out || *out || !vc || !fc || !pc)return RF_RANGE;
-    bytes=sizeof(*bank)+(uint64_t)pc*sizeof(rf_geomod_owned_piece)+(uint64_t)vc*sizeof(rf_geomod_vertex)+
-        (uint64_t)fc*(sizeof(rf_geomod_face)+sizeof(uint32_t)+sizeof(rf_collision_face_filter));
+    bytes=sizeof(*bank)+(uint64_t)pc*sizeof(rf_geomod_owned_piece)+(uint64_t)vc*(sizeof(rf_geomod_vertex)+sizeof(*bank->positions))+
+        (uint64_t)fc*(sizeof(rf_geomod_face)+sizeof(uint32_t)+sizeof(rf_collision_face_filter)+sizeof(rf_collision_face));
     if(bytes>budget || bytes>UINT32_MAX)return RF_RANGE;
     bank=calloc(1,(size_t)bytes);if(!bank)return RF_IO;
     p=(unsigned char *)(bank+1);bank->pieces=(rf_geomod_owned_piece *)p;p+=pc*sizeof(*bank->pieces);
+    /* Pointer-bearing collision records precede float/word arrays so native
+     * alignment is retained on both32-bit Xbox and64-bit PC. */
+    bank->collision=(rf_collision_face *)p;p+=fc*sizeof(*bank->collision);
+    bank->positions=(float (*)[3])p;p+=vc*sizeof(*bank->positions);
     bank->vertices=(rf_geomod_vertex *)p;p+=vc*sizeof(*bank->vertices);
     bank->faces=(rf_geomod_face *)p;p+=fc*sizeof(*bank->faces);
     bank->old_faces=(uint32_t *)p;p+=fc*sizeof(*bank->old_faces);
@@ -54,6 +59,9 @@ int rf_geomod_piece_bank_append(rf_geomod_piece_bank *bank,const rf_geomod_mesh_
     for(i=0;i<mesh->face_count;i++)bank->filters[bank->nf+i]=filters[old_faces[i]];
     piece.mesh=(rf_geomod_mesh_view){bank->vertices+bank->nv,bank->faces+bank->nf,mesh->vertex_count,mesh->face_count,mesh->generation};
     piece.old_faces=bank->old_faces+bank->nf;piece.filters=bank->filters+bank->nf;piece.id=id;
+    status=rf_geomod_collision_faces(&piece.mesh,piece.filters,bank->positions+bank->nv,mesh->vertex_count,
+        bank->collision+bank->nf,mesh->face_count);if(status)return status;
+    piece.collision=bank->collision+bank->nf;
     bank->pieces[bank->np++]=piece;bank->nv+=mesh->vertex_count;bank->nf+=mesh->face_count;
     return RF_OK;
 }
