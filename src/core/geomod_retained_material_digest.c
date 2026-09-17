@@ -76,13 +76,26 @@ static int map_validate(const rf_geomod_retained_material_map *m)
     status=rf_geomod_lightmap_size(span,density,0,dims,adjusted);if(status)return status;
     return dims[0]==m->width && dims[1]==m->height?RF_OK:RF_FORMAT;
 }
-int rf_geomod_retained_material_digest(const rf_geomod_retained_material_input *v,unsigned char out[32])
+static int retained_digest(const rf_geomod_retained_material_input *v,
+    const rf_geomod_retained_material_source *sources,uint32_t source_count,unsigned char out[32])
 {
     identity_sha h;unsigned char digest[32],rgb[64*3],packed[64*2];rf_random_state chain={1};
     uint32_t i,j,x=0,y=0,row=0;int status;
-    if(!v || !out || !v->source_identity || !v->substrate_identity || v->map_count>RF_GEOMOD_LIGHTMAP_LIMIT || v->face_count>RF_GEOMOD_PUBLICATION_FACES ||
+    if(!v || !out || (!source_count && !v->source_identity) || !v->substrate_identity || v->map_count>RF_GEOMOD_LIGHTMAP_LIMIT || v->face_count>RF_GEOMOD_PUBLICATION_FACES ||
         (v->map_count && !v->maps) || (v->face_count && (!v->origins || !v->face_maps)))return RF_RANGE;
-    if(v->material_policy!=1 || v->owner==UINT32_MAX || v->serial==UINT32_MAX || v->cuts>RF_GEOMOD_CUT_LIMIT || v->cuts>v->serial ||
+    if(source_count) {
+        uint32_t cuts=0;
+        if(!sources || source_count>4)return RF_RANGE;
+        for(i=0;i<source_count;i++) {
+            uint32_t nonzero=0;
+            if(sources[i].uid==UINT32_MAX || !sources[i].identity || sources[i].cuts>RF_GEOMOD_CUT_LIMIT || sources[i].cuts>v->serial)return RF_FORMAT;
+            for(j=0;j<i;j++)if(sources[j].uid==sources[i].uid)return RF_FORMAT;
+            for(j=0;j<32;j++)nonzero|=sources[i].identity[j];if(!nonzero)return RF_FORMAT;
+            cuts+=sources[i].cuts;
+        }
+        if(v->cuts!=cuts || v->owner!=sources[0].uid)return RF_FORMAT;
+    }
+    if(v->material_policy!=1 || v->owner==UINT32_MAX || v->serial==UINT32_MAX || (!source_count && (v->cuts>RF_GEOMOD_CUT_LIMIT || v->cuts>v->serial)) ||
         v->baked!=v->map_count || v->sample || v->owner_cuts!=v->cuts)return RF_FORMAT;
     if(v->owner_generation!=v->serial && (v->owner_generation || v->cuts || v->map_count))return RF_FORMAT;
     if(!v->cuts && v->map_count)return RF_FORMAT; /* Authored reset clears its journal. */
@@ -90,8 +103,14 @@ int rf_geomod_retained_material_digest(const rf_geomod_retained_material_input *
         if(v->random>1 || (v->owner_generation && !v->random))return RF_FORMAT;
         chain.value=v->random;
     }
-    identity_sha_init(&h);identity_sha_add(&h,"RFRM",4);identity_sha_word(&h,1);identity_sha_word(&h,v->material_policy);
-    identity_sha_add(&h,v->source_identity,32);identity_sha_add(&h,v->substrate_identity,32);
+    identity_sha_init(&h);identity_sha_add(&h,"RFRM",4);identity_sha_word(&h,source_count?2:1);identity_sha_word(&h,v->material_policy);
+    if(source_count) {
+        identity_sha_word(&h,source_count);
+        for(i=0;i<source_count;i++) {
+            identity_sha_word(&h,sources[i].uid);identity_sha_word(&h,sources[i].cuts);identity_sha_add(&h,sources[i].identity,32);
+        }
+    } else identity_sha_add(&h,v->source_identity,32);
+    identity_sha_add(&h,v->substrate_identity,32);
     identity_sha_word(&h,v->owner);identity_sha_word(&h,v->serial);identity_sha_word(&h,v->cuts);
     identity_sha_word(&h,v->owner_generation);identity_sha_word(&h,v->owner_cuts);
     identity_sha_word(&h,v->map_count);identity_sha_word(&h,v->baked);identity_sha_word(&h,v->sample);
@@ -126,9 +145,22 @@ int rf_geomod_retained_material_digest(const rf_geomod_retained_material_input *
         const rf_geomod_publication_origin *o=v->origins+i;uint32_t map=v->face_maps[i];
         if(o->owner==UINT32_MAX || o->kind>RF_GEOMOD_PUBLICATION_NEIGHBOR)return RF_FORMAT;
         if(o->kind==RF_GEOMOD_PUBLICATION_CRATER) {
-            if(o->owner!=v->owner || o->source_face!=UINT32_MAX || map>=v->map_count)return RF_FORMAT;
+            if(source_count) {
+                for(j=0;j<source_count;j++)if(sources[j].uid==o->owner && sources[j].cuts)break;
+                if(j==source_count)return RF_FORMAT;
+            } else if(o->owner!=v->owner)return RF_FORMAT;
+            if(o->source_face!=UINT32_MAX || map>=v->map_count)return RF_FORMAT;
         } else if(o->source_face==UINT32_MAX || map!=65535)return RF_FORMAT;
         identity_sha_word(&h,o->kind);identity_sha_word(&h,o->owner);identity_sha_word(&h,o->source_face);identity_sha_word(&h,map);
     }
     identity_sha_end(&h,digest);memcpy(out,digest,32);return RF_OK;
+}
+
+int rf_geomod_retained_material_digest(const rf_geomod_retained_material_input *v,unsigned char out[32])
+{return retained_digest(v,NULL,0,out);}
+int rf_geomod_retained_material_collection_digest(const rf_geomod_retained_material_input *v,
+    const rf_geomod_retained_material_source *sources,uint32_t count,unsigned char out[32])
+{
+    if(!count || count>4 || !sources)return RF_RANGE;
+    return retained_digest(v,sources,count,out);
 }

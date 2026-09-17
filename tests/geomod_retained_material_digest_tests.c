@@ -55,6 +55,33 @@ int main(void)
     face_maps[1]=2;CHECK(rejected(&in));face_maps[1]=0;
     in.serial=UINT32_MAX;CHECK(rejected(&in));in.serial=2;
     CHECK(!rf_geomod_retained_material_digest(&in,again)&&!memcmp(digest,again,32));
+    {
+        rf_geomod_retained_material_input shared=in;
+        rf_geomod_retained_material_source sources[2]={{94,1,source},{93,1,substrate}};
+        rf_geomod_publication_origin faces[2]={{1,94,UINT32_MAX,149},{1,93,UINT32_MAX,150}};
+        uint16_t bindings[2]={0,1};unsigned char preserved[32];
+        shared.source_identity=NULL;shared.origins=faces;shared.face_maps=bindings;
+        shared.serial=shared.owner_generation=1; /* One simultaneous edit, two local cuts. */
+        CHECK(!rf_geomod_retained_material_collection_digest(&shared,sources,2,digest));
+        CHECK(!rf_geomod_retained_material_collection_digest(&shared,sources,2,again) && !memcmp(digest,again,32));
+        faces[1].owner=94;CHECK(!rf_geomod_retained_material_collection_digest(&shared,sources,2,again) && memcmp(digest,again,32));faces[1].owner=93;
+        sources[1].identity=source;CHECK(!rf_geomod_retained_material_collection_digest(&shared,sources,2,again) && memcmp(digest,again,32));sources[1].identity=substrate;
+#define COLLECTION_REJECT() do{memset(again,0xa5,32);memcpy(preserved,again,32);CHECK(rf_geomod_retained_material_collection_digest(&shared,sources,2,again)!=RF_OK && !memcmp(again,preserved,32));}while(0)
+        sources[1].uid=94;COLLECTION_REJECT();sources[1].uid=93;
+        sources[1].cuts=2;COLLECTION_REJECT();sources[1].cuts=1;
+        shared.cuts=shared.owner_cuts=1;COLLECTION_REJECT();shared.cuts=shared.owner_cuts=2;
+        faces[1].owner=97;COLLECTION_REJECT();faces[1].owner=93;
+        sources[1].identity=NULL;COLLECTION_REJECT();sources[1].identity=substrate;
+        shared.owner=93;COLLECTION_REJECT();shared.owner=94;
+        maps[1].base_seed^=1;COLLECTION_REJECT();maps[1].base_seed^=1;
+        sources[1].cuts=0;shared.cuts=shared.owner_cuts=1;COLLECTION_REJECT();
+        faces[1].owner=94;CHECK(!rf_geomod_retained_material_collection_digest(&shared,sources,2,again));
+        sources[0].cuts=shared.cuts=shared.owner_cuts=0;shared.map_count=shared.baked=shared.face_count=0;
+        shared.x=shared.row=0;shared.random=1;shared.serial=shared.owner_generation=3;
+        CHECK(!rf_geomod_retained_material_collection_digest(&shared,sources,2,again));
+#undef COLLECTION_REJECT
+        puts("PASS collection journal: two-source simultaneous cuts, owner binding, identities, reset and atomic malformed rejection");
+    }
     {rf_geomod_retained_material_input empty={0};empty.owner=94;empty.source_identity=source;empty.substrate_identity=substrate;empty.material_policy=1;
      CHECK(!rf_geomod_retained_material_digest(&empty,again));
      empty.serial=3;CHECK(!rf_geomod_retained_material_digest(&empty,again));

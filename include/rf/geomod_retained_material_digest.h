@@ -34,4 +34,14 @@ typedef struct rf_geomod_retained_material_input {
  * All failures preserve output. No allocation/input mutation. Disjoint output.
  * Call after private history/lightmap reconstruction and before publication. */
 int rf_geomod_retained_material_digest(const rf_geomod_retained_material_input *,unsigned char out[32]);
+/* RFRM v2 binds one shared journal to an ordered collection of1..4 verified
+ * immutable source identities and local cut counts. Aggregate cuts may exceed
+ * room serial after simultaneous edits; each local count must not. owner must
+ * equal the first UID. source_identity in the shared input is unused here.
+ * Crater owners must belong to a source with cuts. RFRM v1 stays unchanged. */
+typedef struct rf_geomod_retained_material_source {
+    uint32_t uid,cuts;const unsigned char *identity;
+} rf_geomod_retained_material_source;
+int rf_geomod_retained_material_collection_digest(const rf_geomod_retained_material_input *,
+    const rf_geomod_retained_material_source *,uint32_t count,unsigned char out[32]);
 #endif
