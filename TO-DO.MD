@@ -1,6 +1,6 @@
 # Red Faction Xbox / PC - open work
 
-- GeoMod publication: Validate the clipped-face partition fix in XEMU and broaden shot positions; a valid post shot previously rejected by strict collision now commits on PC while preserving boundary vertices, area, UVs and provenance.
+- GeoMod publication: Broaden clipped-face partition coverage across shot positions and repeated cuts; the previously rejected shot now passes76 native checks and Xbox-created save/reload passes75, with exact uninterrupted PC continuation and preserved geometry data.
 
 - GeoMod player saves: Verify live larger-fragment extraction and moving supports; eight synthetic polygon-path support/landing cases now pass, while both-post standing/save/walk-away passes76 native checks per run with exact PC continuation.
 

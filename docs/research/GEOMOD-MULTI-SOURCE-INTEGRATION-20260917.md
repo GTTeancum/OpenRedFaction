@@ -454,3 +454,13 @@ Publication now routes final clipped polygons through the existing rf_geomod_par
 The new captured-polygon regression first verifies the raw polygon fails strict collision, then verifies all published pieces pass. It checks retained original vertices, signed area (1e-9 tolerance), UV mapping, material and origin. After a checked full PC build, all122 tests pass. The actual Y0.3 replay now commits one cut and retains radius0.434212536 rubble. The final PC framebuffer was inspected: the targeted center post is visibly broken, with weapon/HUD and surrounding room retained; this is not a native visual acceptance claim. NXDK stock-profile compilation passes. Logs: artifacts/post-cut-partition-{build,tests,xbox}.log; live report/image: artifacts/post-cut-partition/. Native validation remains open.
 
 The existing --both-destroyed standing regression also passes after this change, including exact saved standing/walk-away continuation and retired-support rejection. Log: artifacts/post-cut-partition-standing.log. No HDD clones or GitHub images were created.
+
+
+## Native clipped-face cut and PC continuation
+
+Stock64MiB XEMU run artifacts/xemu/render-20260917-152132 completes600 frames and76 comparisons. The previously rejected Y0.3 shot commits one cut, retains the radius0.434212536 fragment and exports a2762-byte RFCP matching PC. Available memory at the endpoint is3989 pages (15.58MiB), not a peak/minimum guarantee. The native framebuffer was inspected: the center post is broken, the fragment is visible, and the surrounding room, weapon and HUD remain rendered. Disc staging was restored. No HDD clone or GitHub image was created.
+
+New tools/check_clipped_post_continuation.py reproduces this exact ordinary shot, saves at600 frames, reloads for121 frames (120 updates), and compares against720 uninterrupted frames. It requires one committed source94 cut and the expected retained fragment, then checks full checkpoint byte equality. The PC test passes. Log: artifacts/clipped-post-continuation.log. This tests deterministic reconstruction of the newly partitioned publication, beyond simply checking the initial frame rendered.
+
+
+Native reload artifacts/xemu/render-20260917-152342 loads the Xbox-created2762-byte RFCP and runs121 frames (120 updates), passing75 comparisons. Its final2762-byte export also matches the uninterrupted720-frame PC control exactly. The framebuffer was inspected and retains the broken post, visible fragment, surrounding room and weapon/HUD. Endpoint availability is4004 pages (15.64MiB); disc staging was restored and the harness exited its emulator. Log: artifacts/post-cut-partition-reload-native.log. This accepts the specific clipped-face cut/save/reload path, not broader source geometry or visual parity.
