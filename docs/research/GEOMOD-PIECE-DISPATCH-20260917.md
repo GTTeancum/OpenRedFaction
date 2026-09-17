@@ -34,3 +34,7 @@ budget a bounded piece pool, and preserve notifications independently of
 piece visibility/owner admission. Next work remains source-mesh removal,
 face/lightmap relocation, dynamic piece lifetime and chronological rebuild
 persistence. There is no new runtime implementation or Xbox acceptance here.
+
+Follow-up: GEOMOD-PIECE-SUBDIVISION-20260917.md identifies this pool as
+temporary subdivision work entries; terminal pieces go through466440 before
+the entry returns to the free pool. Do not use it as a persistent body pool.

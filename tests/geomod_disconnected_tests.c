@@ -6,6 +6,26 @@
 #include <math.h>
 #include <float.h>
 
+static void shapes(void)
+{
+    static const struct {uint32_t bounds[6],radius,attempts,shape[5],split;} rows[]={
+#include "fixtures/geomod_piece_shape.inc"
+    };
+    uint32_t i;rf_geomod_piece_shape result,kept;float bounds[6],radius;
+    for(i=0;i<sizeof(rows)/sizeof(rows[0]);i++) {
+        memcpy(bounds,rows[i].bounds,sizeof(bounds));memcpy(&radius,&rows[i].radius,4);
+        CHECK(!rf_geomod_piece_shape_get(bounds,bounds+3,radius,rows[i].attempts,&result));
+        CHECK(!memcmp(&result,rows[i].shape,20) && result.subdivide==rows[i].split);
+    }
+    kept=result;bounds[3]=bounds[0];
+    CHECK(rf_geomod_piece_shape_get(bounds,bounds+3,radius,0,&result)==RF_FORMAT);
+    CHECK(!memcmp(&result,&kept,sizeof(result)));
+    bounds[3]=NAN;
+    CHECK(rf_geomod_piece_shape_get(bounds,bounds+3,radius,0,&result)==RF_FORMAT);
+    CHECK(!memcmp(&result,&kept,sizeof(result)));
+    printf("PASS %u original piece shapes and split gates\n",i);
+}
+
 static void inspect(const rf_geomod_terrain_view *view, uint32_t expected)
 {
     uint32_t words,count,largest,i,j,k,c,n,solid;
@@ -75,6 +95,7 @@ static void opening(const rf_geomod_terrain_view *view,uint32_t axis,float locat
 int main(void)
 {
     uint32_t axis,bytes;rf_geomod_mesh_view source;
+    shapes();
     for(axis=0;axis<3;axis++) {
         rf_geomod_terrain *live,*reload;rf_geomod_terrain_view a,b;
         float center[3]={0},extent[3]={12,12,12};extent[axis]=1;

@@ -500,6 +500,27 @@ int rf_geomod_piece_recenter(const float (*vertices)[3],uint32_t count,
     *placement=value;return RF_OK;
 }
 
+int rf_geomod_piece_shape_get(const float minimum[3],const float maximum[3],
+    float radius,uint32_t attempts,rf_geomod_piece_shape *out)
+{
+    float d[3],small;uint32_t i,axis;rf_geomod_piece_shape value={0};
+    if(!minimum || !maximum || !out)return RF_RANGE;
+    if(!isfinite(radius) || radius<0)return RF_FORMAT;
+    for(i=0;i<3;i++) {
+        if(!isfinite(minimum[i]) || !isfinite(maximum[i]))return RF_FORMAT;
+        d[i]=(float)((double)maximum[i]-minimum[i]);
+        if(!isfinite(d[i]) || d[i]<=0)return RF_FORMAT;
+    }
+    axis=d[0]>d[1]?(d[0]>d[2]?0:2):(d[1]>d[2]?1:2);
+    small=d[0]<d[1]?d[0]:d[1];if(d[2]<small)small=d[2];
+    value.axis[axis]=1;value.length=d[axis];
+    value.aspect=(float)((double)value.length/small);
+    if(!isfinite(value.aspect))return RF_RANGE;
+    value.subdivide=radius>=1.5f && attempts<10 &&
+        (value.aspect>3 || (double)value.length/value.aspect>10);
+    *out=value;return RF_OK;
+}
+
 int rf_geomod_component_classify(const rf_collision_face *faces,const int32_t *labels,
     uint32_t count,int32_t selector,const rf_collision_bounds *bounds,uint32_t *solid)
 {

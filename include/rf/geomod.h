@@ -18,6 +18,15 @@ int rf_geomod_component_classify(const rf_collision_face *faces,const int32_t *l
 typedef struct rf_geomod_piece_placement {
     float origin[3],minimum[3],maximum[3],radius;
 } rf_geomod_piece_placement;
+typedef struct rf_geomod_piece_shape {
+    float axis[3],aspect,length;
+    uint32_t subdivide;
+} rf_geomod_piece_shape;
+/*466550 shape setup and4667a0 split admission. Positive nondegenerate bounds;
+ * radius is the stored piece radius, attempts the batch subdivision count.
+ * No geometry or owner mutation. Invalid input preserves output. */
+int rf_geomod_piece_shape_get(const float minimum[3],const float maximum[3],
+    float radius,uint32_t attempts,rf_geomod_piece_shape *out);
 /*4d1330 vertex/bounds phase: pad bounds by float0.0001, use their stored
  * midpoint as origin, subtract it from vertices/bounds, derive radius from
  * float-stored maximum squared length. Nonempty finite input; outputs unchanged
