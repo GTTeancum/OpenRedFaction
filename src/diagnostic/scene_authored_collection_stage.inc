@@ -1,5 +1,5 @@
-/* Complete private RFDS3 reconstruction with separate player admission. No live commit:
- * callers must add those gates before enabling gameplay load. Pending banks are
+/* RFDS3 reconstruction, separate player admission and synchronous commit.
+ * Gameplay dispatch must supply validated player state before enabling load. Pending banks are
  * borrowed synchronously; no frame, other edit or renderer upload may intervene. */
 typedef struct scene_authored_collection_stage {
     scene_stream candidate;
@@ -122,4 +122,52 @@ static inline int scene_authored_collection_stage_prepare(scene_stream *s,const 
     *out=p;return RF_OK;
 failed:
     scene_authored_collection_stage_discard(&p);return status;
+}
+
+/* Synchronous final publication. Optional player is mandatory for a gameplay
+ * load; NULL is for scene-only tools/tests. No callbacks or frames may occur
+ * between prepare, player validation and this ownership transfer. */
+static inline int scene_authored_collection_stage_commit(scene_authored_collection_stage *p,const rf_checkpoint_placement *player)
+{
+    scene_stream *s,*staged;rf_geomod_terrain *old_cores[4];rf_geomod_piece_registry *old_pieces[4];
+    uint32_t i,j,selected=UINT32_MAX,images,assets=0,asset_peak=0;int status;
+    if(!p || !p->sources || !p->shared.owns_pending || !p->shared.lighting ||
+       !p->shared.lighting->draw_ready || p->shared.lighting->committed)return RF_RANGE;
+    s=p->shared.scene;staged=p->shared.lighting->staged;
+    if(!s || !s->terrain_sources || s->terrain_source_count!=p->sources->count ||
+       !s->terrain_publication || !s->terrain_publication->has_pending || p->shared.lighting->owner!=&p->candidate)return RF_RANGE;
+    for(i=0;i<s->terrain_source_count;i++) {
+        const scene_terrain_source_owner *owner=s->terrain_sources+i;
+        if(owner->authored!=p->owners[i].authored || !p->sources->cores[i] || !p->sources->pieces[i])return RF_FORMAT;
+        old_cores[i]=owner->authored==s->terrain_authored?s->terrain:owner->terrain;
+        old_pieces[i]=scene_detached_source_registry(s,i);
+        if(!old_cores[i] || !old_pieces[i])return RF_FORMAT;
+        for(j=0;j<i;j++)if(old_cores[i]==old_cores[j] || old_pieces[i]==old_pieces[j])return RF_FORMAT;
+        if(owner->authored==s->terrain_authored){if(selected!=UINT32_MAX)return RF_FORMAT;selected=i;}
+        assets+=owner->authored->resident_bytes;asset_peak+=owner->authored->peak_bytes;
+    }
+    if(selected==UINT32_MAX)return RF_FORMAT;
+    if(player){status=scene_authored_collection_stage_player(p,player);if(status)return status;}
+    images=s->light_rgb.count;
+    if(s->terrain_atlas_registered || staged->terrain_checkpoint_loaded==2) {
+        if(staged->terrain_atlas_index>=256)return RF_RANGE;
+        if(images<=staged->terrain_atlas_index)images=staged->terrain_atlas_index+1;
+    }
+    status=scene_terrain_publication_finish(s,staged->terrain_bindings,p->shared.publication.mesh.face_count,images);if(status)return status;
+    /* No fallible work below: only bounded copies, pointer transfers and frees. */
+    p->shared.owns_pending=0;p->shared.lighting->owner=s;scene_terrain_lighting_stage_commit(p->shared.lighting);
+    for(i=0;i<s->terrain_source_count;i++) {
+        s->terrain_sources[i].terrain=p->sources->cores[i];s->terrain_sources[i].pieces=p->sources->pieces[i];
+        p->sources->cores[i]=NULL;p->sources->pieces[i]=NULL;
+    }
+    s->terrain=s->terrain_sources[selected].terrain;s->detached_pieces=s->terrain_sources[selected].pieces;
+    s->terrain_publication_serial=p->shared.serial;
+    memcpy(s->terrain_history,p->shared.admission.history,sizeof(s->terrain_history));
+    memcpy(s->terrain_requested,p->shared.admission.requested,sizeof(s->terrain_requested));
+    s->terrain_history_count=p->shared.admission.count;s->terrain_random=p->shared.admission.random;
+    s->terrain_atlas_index=staged->terrain_atlas_index;s->terrain_checkpoint_loaded=staged->terrain_checkpoint_loaded;
+    rf_scene_geomod[0]=1;rf_scene_geomod[1]=p->shared.cuts;rf_scene_geomod[2]=p->shared.serial;
+    rf_scene_geomod[3]=s->terrain_publication->resident_bytes+assets;rf_scene_geomod[4]=s->terrain_publication->peak_bytes+asset_peak;
+    for(i=0;i<s->terrain_source_count;i++){rf_geomod_terrain_close(old_cores+i);rf_geomod_piece_registry_close(old_pieces+i);}
+    scene_authored_source_cut_report(s);return RF_OK;
 }

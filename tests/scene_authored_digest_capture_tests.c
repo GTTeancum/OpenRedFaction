@@ -390,6 +390,7 @@ int main(int argc,char **argv)
                         CHECK(!scene_authored_collection_stage_player(complete,&player));
                         player.position[0]=-5;player.position[1]=1;player.position[2]=-2.5f;
                         CHECK(scene_authored_collection_stage_player(complete,&player)==RF_FORMAT);
+                        CHECK(scene_authored_collection_stage_commit(complete,&player)==RF_FORMAT);
                         rf_scene_actor_movement_values.speed=old_speed;
                     }
                     CHECK(!memcmp(lights->staged->terrain_atlas_pixels,complete->shared.lighting->staged->terrain_atlas_pixels,512u*512u*2u));
@@ -408,6 +409,34 @@ int main(int argc,char **argv)
                 CHECK(scene_authored_collection_checkpoint_write(lights->staged,packet,SCENE_CHECKPOINT_MAX,&encoded_bytes)==RF_FORMAT);
                 CHECK(encoded_bytes==777 && !memcmp(packet,kept,SCENE_CHECKPOINT_MAX));
                 lights->staged->terrain_noise->random.value^=1;
+                {
+                    scene_authored_collection_stage *commit=NULL;rf_geomod_terrain *prior[2];rf_geomod_piece_registry *prior_pieces[2];
+                    uint32_t active=pair->terrain_publication->active,face,image_before;
+                    CHECK(!scene_terrain_sources_select(lights->staged,1));
+                    for(i=0;i<2;i++){prior[i]=pair->terrain_sources[i].terrain;prior_pieces[i]=pair->terrain_sources[i].pieces;}
+                    CHECK(!scene_authored_collection_stage_prepare(lights->staged,packet,saved_bytes,&commit));
+                    for(face=0;face<commit->shared.publication.mesh.face_count;face++)if(commit->shared.origins[face].kind==RF_GEOMOD_PUBLICATION_CRATER)break;
+                    CHECK(face<commit->shared.publication.mesh.face_count);
+                    image_before=commit->shared.lighting->staged->terrain_bindings[face].image;
+                    commit->shared.lighting->staged->terrain_bindings[face].image=UINT32_MAX;
+                    CHECK(scene_authored_collection_stage_commit(commit,NULL)==RF_NOT_FOUND);
+                    CHECK(pair->terrain_publication->active==active && pair->terrain_publication->has_pending);
+                    for(i=0;i<2;i++)CHECK(prior[i]==pair->terrain_sources[i].terrain && prior_pieces[i]==pair->terrain_sources[i].pieces);
+                    commit->shared.lighting->staged->terrain_bindings[face].image=image_before;
+                    CHECK(!scene_authored_collection_stage_commit(commit,NULL));
+                    CHECK(!pair->terrain_publication->has_pending && pair->terrain_publication->active!=active);
+                    for(i=0;i<2;i++)CHECK(prior[i]!=pair->terrain_sources[i].terrain && prior_pieces[i]!=pair->terrain_sources[i].pieces && !commit->sources->cores[i] && !commit->sources->pieces[i]);
+                    CHECK(lights->staged->terrain==pair->terrain_sources[1].terrain && lights->staged->detached_pieces==pair->terrain_sources[1].pieces);
+                    CHECK(scene_authored_collection_stage_commit(commit,NULL)==RF_RANGE);
+                    scene_authored_collection_stage_discard(&commit);
+                    CHECK(!scene_authored_collection_checkpoint_write(lights->staged,kept,SCENE_CHECKPOINT_MAX,&encoded_bytes));
+                    CHECK(encoded_bytes==saved_bytes && !memcmp(packet,kept,saved_bytes));
+                    /* This fixture's outer shell shares the collection but had
+                     * its own active aliases/overlay before the tested commit. */
+                    pair->terrain_authored=lights->staged->terrain_authored;pair->terrain=lights->staged->terrain;
+                    pair->detached_pieces=lights->staged->detached_pieces;pair->terrain_collision=lights->staged->terrain_collision;
+                    puts("PASS paired atomic commit: binding rejection retains both owners, successful transfer preserves selection and exact save bytes");
+                }
                 printf("PASS paired RFDS3 writer: real histories/bodies, shared maps, extension validation and atomic failures (%u bytes)\n",saved_bytes);
             }
             scene_terrain_lighting_stage_discard(&lights);scene_terrain_publication_abort(pair);
