@@ -36,7 +36,9 @@ typedef struct rf_geomod_authored_identity_input {
     const rf_geomod_identity_material *materials;uint32_t material_count;
     const rf_geomod_identity_reference *references;uint32_t reference_count;
 } rf_geomod_authored_identity_input;
-/* Source identity domain RFAS v1, SHA256, canonical LE scalar/float words.
+/* Source identity domain RFAS v1 for solid-only assets, v2 for owner-bound
+ * convex neighbor voids; SHA256, canonical LE scalar/float words. Legacy v1
+ * bytes remain unchanged. Void order/ownership/planes are part of v2 identity.
  * No allocations or input mutation; output preserved on all failures.
  * All pointers/renderer slots/mesh generations/BVH ordering/opaque reference
  * numbers are excluded. Only immutable loader views with COMPILED materials

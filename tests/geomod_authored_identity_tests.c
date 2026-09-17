@@ -38,6 +38,26 @@ int main(void)
     CHECK(!rf_geomod_authored_identity(&in,original));
     CHECK(!memcmp(original,expected,32));
     printf("CANONICAL ");for(i=0;i<32;i++)printf("%02x",original[i]);puts("");
+    {
+        float hp[1][4]={{0,0,1,0}},copy_hp[1][4];
+        rf_geomod_publication_solid holes[2]={{hp,1,71},{hp,1,71}};
+        unsigned char hollow[32];
+        asset.neighbor_voids=holes;asset.neighbor_void_count=1;
+        CHECK(!rf_geomod_authored_identity(&in,hollow) && memcmp(original,hollow,32));
+        memcpy(copy_hp,hp,sizeof(hp));holes[0].planes=copy_hp;
+        CHECK(!rf_geomod_authored_identity(&in,out) && !memcmp(hollow,out,32));holes[0].planes=hp;
+        hp[0][3]=.25f;CHECK(!rf_geomod_authored_identity(&in,out) && memcmp(hollow,out,32));hp[0][3]=0;
+        hp[0][2]=-1;CHECK(!rf_geomod_authored_identity(&in,out) && memcmp(hollow,out,32));hp[0][2]=1;
+        holes[0].owner=94;CHECK(rejected(&in));holes[0].owner=71;
+        asset.neighbor_void_count=2;CHECK(rejected(&in));asset.neighbor_void_count=33;CHECK(rejected(&in));
+        asset.neighbor_void_count=1;asset.neighbor_voids=NULL;CHECK(rejected(&in));asset.neighbor_voids=holes;
+        holes[0].planes=NULL;CHECK(rejected(&in));holes[0].planes=hp;
+        hp[0][3]=NAN;CHECK(rejected(&in));hp[0][3]=0;
+        hp[0][2]=2;CHECK(rejected(&in));hp[0][2]=1;
+        asset.neighbor_void_count=0;asset.neighbor_voids=NULL;
+        CHECK(!rf_geomod_authored_identity(&in,out) && !memcmp(original,out,32));
+        puts("PASS hollow source identity: owner/plane sensitivity, pointer relocation, malformed atomic rejection and unchanged legacy v1");
+    }
     /* Numeric material/reference keys, pointer and mesh-generation relocation
      * have no effect when the corresponding immutable tables move together. */
     memcpy(copy,vertices,sizeof(copy));asset.source.vertices=copy;asset.source.generation=99;

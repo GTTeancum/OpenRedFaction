@@ -61,3 +61,14 @@ Installed-asset testing checks the eight compiled beam windows, real roof bottom
 Remaining live integration constraints are explicit: save-identity capture still admits only the four prior post profiles, and scene selection has not been enabled for95. Destroying the beam near its supports can reveal previously fully hidden post tops: authored face IDs543 and549 have no compiled references anywhere in the installed geometry. Their authored UV/material data exist, but the current compiled-reference-based lighting/identity path needs a deliberate representation for these exposed surfaces rather than a fabricated reference. The successful center cut does not settle these end-cut cases.
 
 Validation: checked full PC build, all122 tests and stock NXDK build pass. Logs: artifacts/beam-loader-{build,tests,full-build,full-tests,xbox}.log. No emulator or HDD clone/image was produced in this loader-only step.
+
+
+## Hollow-source identity and installed beam manifest
+
+Authored identity now uses RFAS digest domainv2 for assets with neighbor voids, hashing each void's owner, plane count and canonical float plane words. Domainv1 serialization remains byte-for-byte unchanged for existing solid-only assets. This changes the identity hash input, not the RFCP or collection directory wire format. Void ownership must resolve to an existing neighbor solid, each owner may appear once, planes must be finite/unit and the existing32-owner/32-plane limits apply. Invalid inputs preserve the caller's digest.
+
+The immutable capture path now admits the validated beam95 loader view, requiring exactly the roof80 void. Beam capture uses loader policy2/publication policy10, while the four prior post captures retain policy1/9. Installed manifest testing covers all five sources, checks repeatability and distinct identities, resolves all eight beam windows, and verifies unchanged known UID94 digest. The beam manifest has21 compiled reference rows,7584 resident bytes and1550527 peak capture bytes, under2MiB. Its measured digest is add83239d3f01ec42cc5b85648574a8e7b84d3313a6c6e0773f96dd1608d365f.
+
+Core tests verify that adding a void or changing its offset/orientation changes identity; relocating the same plane storage does not. Unknown owner, duplicate owner, missing pointer, over-limit count, nonfinite plane and non-unit normal reject without output mutation. Removing the optional void restores the original canonical v1 digest. All122 tests pass after a checked full build. This establishes immutable beam identity capture, not live checkpoint restore: scene binding and hidden post-cap rendering metadata remain to implement before enabling beam selection.
+
+Stock NXDK compilation also passes. Logs: artifacts/beam-identity-{build,full-build,tests,xbox}.log. No emulator, HDD clone or image was produced.

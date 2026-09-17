@@ -152,7 +152,8 @@ int rf_geomod_authored_identity(const rf_geomod_authored_identity_input *v,unsig
         v->compiled_bytes>64u*1024u*1024u || v->editor_bytes>64u*1024u*1024u ||
         !v->materials || !v->material_count || v->material_count>128 || !v->references ||
         !v->reference_count || v->reference_count>768 || !a->solids || !a->solid_count || a->solid_count>32 ||
-        !a->source_planes || !a->source_filters || !a->replaced_ids || !a->replaced_count || a->replaced_count>768)return RF_RANGE;
+        !a->source_planes || !a->source_filters || !a->replaced_ids || !a->replaced_count || a->replaced_count>768 ||
+        a->neighbor_void_count>32 || (a->neighbor_void_count && !a->neighbor_voids))return RF_RANGE;
     if(!name_valid(v->level) || !name_valid(a->settings.texture) || v->source_mode || v->source_operation!=2 ||
         v->material_domain!=RF_GEOMOD_IDENTITY_COMPILED_MATERIALS || !v->loader_policy || !v->publication_policy ||
         !v->collision_policy || !v->material_policy || a->source_uid==UINT32_MAX || a->room==UINT32_MAX)return RF_FORMAT;
@@ -164,7 +165,7 @@ int rf_geomod_authored_identity(const rf_geomod_authored_identity_input *v,unsig
         if(!reference_valid(v->references+i) || !material_find(v,v->references[i].compiled_material))return RF_FORMAT;
         for(j=0;j<i;j++)if(v->references[i].reference==v->references[j].reference)return RF_FORMAT;
     }
-    identity_sha_init(&h);identity_sha_add(&h,"RFAS",4);identity_sha_word(&h,1);name_hash(&h,v->level);
+    identity_sha_init(&h);identity_sha_add(&h,"RFAS",4);identity_sha_word(&h,a->neighbor_void_count?2:1);name_hash(&h,v->level);
     identity_sha_word(&h,v->compiled_bytes);identity_sha_add(&h,v->compiled_section,v->compiled_bytes);
     identity_sha_word(&h,v->editor_bytes);identity_sha_add(&h,v->editor_section,v->editor_bytes);
     identity_sha_word(&h,a->source_uid);identity_sha_word(&h,a->room);identity_sha_word(&h,v->source_operation);
@@ -187,6 +188,24 @@ int rf_geomod_authored_identity(const rf_geomod_authored_identity_input *v,unsig
         for(j=0;j<i;j++)if(s->owner==a->solids[j].owner)return RF_FORMAT;
         identity_sha_word(&h,s->owner);identity_sha_word(&h,s->count);
         for(j=0;j<s->count;j++)for(k=0;k<4;k++){if(!isfinite(s->planes[j][k]))return RF_FORMAT;identity_sha_float(&h,s->planes[j][k]);}
+    }
+    /* Preserve byte-for-byte v1 identities for existing solid-only sources. */
+    if(a->neighbor_void_count) {
+        identity_sha_add(&h,"VOID",4);identity_sha_word(&h,a->neighbor_void_count);
+        for(i=0;i<a->neighbor_void_count;i++) {
+            const rf_geomod_publication_solid *hole=a->neighbor_voids+i;
+            uint32_t found=0;
+            if(!hole->planes || !hole->count || hole->count>32)return RF_FORMAT;
+            for(j=0;j<a->solid_count;j++)found|=a->solids[j].owner==hole->owner;
+            if(!found)return RF_FORMAT;
+            for(j=0;j<i;j++)if(a->neighbor_voids[j].owner==hole->owner)return RF_FORMAT;
+            identity_sha_word(&h,hole->owner);identity_sha_word(&h,hole->count);
+            for(j=0;j<hole->count;j++) {
+                double norm=0;
+                for(k=0;k<4;k++){if(!isfinite(hole->planes[j][k]))return RF_FORMAT;identity_sha_float(&h,hole->planes[j][k]);if(k<3)norm+=(double)hole->planes[j][k]*hole->planes[j][k];}
+                if(fabs(norm-1)>1e-4)return RF_FORMAT;
+            }
+        }
     }
     /* Suppression IDs are runtime lookup keys; hash stable window ownership
      * in declared replacement order instead, preserving multiplicity/splits. */
