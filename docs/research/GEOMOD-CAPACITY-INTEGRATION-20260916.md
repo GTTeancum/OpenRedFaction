@@ -447,3 +447,29 @@ light-padding-tests.log and light-padding-xbox-build.log under authored-post-liv
 Default111 CTests pass, NXDK builds with existing linker warning. Native expanded
 profile still untested. Harness --compare-to now requires exact saved state,
 physical mesh and atlas equality when used for continuation/reload regression.
+
+## Offline live-admission reproduction
+
+Added rf_geomod_live_history_probe (diagnostic, not a passing geometry test).
+It reads an RFDS1 destruction checkpoint, the installed glass_house.rfl source
+and RFCT template, then replays every recorded admission with the original
+orientation RNG, including admissions whose CSG commit failed. It accepts only
+the unconstrained fixture (all shallow vectors zero). It uses the actual
+chronological implementation and checks every committed cutter's exact vertex/
+UV/kernel bytes against RGCH, plus final cutter count and saved RNG state.
+
+The initial probe mistakenly passed recorded scale to the radius convenience
+API; corrected to rf_geomod_terrain_cut_template_scale before drawing conclusions.
+The corrected probe reproduces live RF_FORMAT at admissions4 and15 and RF_RANGE
+at18, with15 committed cuts/7844 vertices/1542 faces. Re-running chronological
+preparation directly returns the same errors: these fail before collision bind.
+All serialized committed cutter bytes and the final RNG match the captured run.
+Probe memory peaks differ slightly from scene because source filter/material
+identities are reconstructed for geometry analysis, not a renderer binding.
+
+Command: build/pc/Release/rf_geomod_live_history_probe.exe Installed_Game
+build/data/geomod-template.bin artifacts/geomod-padding-control/state.rfds
+Evidence: artifacts/authored-post-live/history-probe-build.log and
+history-probe.log. No production geometry change or new native acceptance.
+Next investigation can isolate reconstruction stages on this seconds-long
+probe instead of rerunning2500 rendered frames for each candidate change.

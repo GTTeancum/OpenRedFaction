@@ -621,3 +621,8 @@ foreach(kind publication retained_material)
     target_link_libraries(rf_geomod_${kind}_capacity_digest_tests PRIVATE rf_core)
     add_test(NAME geomod_${kind}_capacity_digest COMMAND rf_geomod_${kind}_capacity_digest_tests)
 endforeach()
+
+# Offline captured-admission diagnostic, deliberately not a passing acceptance test.
+add_executable(rf_geomod_live_history_probe tools/probe_geomod_live_history.c)
+target_compile_definitions(rf_geomod_live_history_probe PRIVATE RF_GEOMOD_CUT_LIMIT=16 RF_GEOMOD_WORK_VERTICES=8192 RF_GEOMOD_WORK_FACES=2048)
+target_link_libraries(rf_geomod_live_history_probe PRIVATE rf_core)
