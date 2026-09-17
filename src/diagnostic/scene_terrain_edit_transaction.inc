@@ -39,7 +39,7 @@ static int scene_terrain_edit_transaction_pieces(rf_geomod_terrain **live,uint32
 {
     rf_geomod_terrain *candidate=NULL,*old;rf_geomod_terrain_view before,after;
     scene_terrain_edit_result result;unsigned char *history=NULL;
-    uint64_t reserved;uint32_t bytes,next;int status;
+    uint64_t reserved;uint32_t bytes,next,phase=0;int status;
     if(!live || !*live || !serial || !limits || !ops || !out ||
        !ops->create || !ops->mutate || !ops->publish || !ops->abort ||
        !limits->clone_budget || *serial==UINT32_MAX)return RF_RANGE;
@@ -57,7 +57,7 @@ static int scene_terrain_edit_transaction_pieces(rf_geomod_terrain **live,uint32
     if(status)goto rejected;
     if(!candidate){status=RF_FORMAT;goto rejected;}
     if(pieces){status=rf_geomod_terrain_set_extraction(candidate,rf_geomod_piece_registry_emit,pieces);if(status)goto rejected;}
-    status=rf_geomod_terrain_history_decode(candidate,history,bytes);if(status)goto rejected;
+    phase=1;status=rf_geomod_terrain_history_decode(candidate,history,bytes);if(status)goto rejected;
     if(pieces) {
         /* Clone decode emissions belong to the old history. Replacement/reset
          * must stage only the final mutation's emissions, including none. */
@@ -65,17 +65,18 @@ static int scene_terrain_edit_transaction_pieces(rf_geomod_terrain **live,uint32
         else status=rf_geomod_piece_registry_rewind(pieces);
         if(status)goto rejected;
     }
-    status=ops->mutate(context,candidate);if(status)goto rejected;
+    phase=2;status=ops->mutate(context,candidate);if(status)goto rejected;
     status=rf_geomod_terrain_get(candidate,&after);if(status)goto rejected;
     if(after.peak_bytes>limits->clone_budget){status=RF_RANGE;goto rejected;}
     next=*serial+1;result.reserved_peak_bytes=(uint32_t)reserved;
     result.history_bytes=bytes;result.serial=next;result.core_generation=after.mesh.generation;
-    status=ops->publish(context,candidate,next);if(status)goto rejected;
+    phase=3;status=ops->publish(context,candidate,next);if(status)goto rejected;
     /* No allocation, validation or other fallible operation after publication. */
     old=*live;*live=candidate;*serial=next;*out=result;
     if(pieces)rf_geomod_piece_registry_commit(pieces);
     rf_geomod_terrain_close(&old);free(history);return RF_OK;
 rejected:
+    if(pieces)printf("DETACHED_TRANSACTION_REJECT %u %d\n",phase,status);
     ops->abort(context);if(pieces)rf_geomod_piece_registry_abort(pieces);
     rf_geomod_terrain_close(&candidate);free(history);return status;
 }

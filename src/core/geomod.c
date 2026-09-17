@@ -1883,6 +1883,40 @@ done:
 
 /* Private replay transaction: caller supplies per-face eligibility filters and
  * bounded arrays. On failure discard the private owner and external staging. */
+/* Connectivity is only a candidate grouping: T-junctions can isolate a cap.
+ * Require every directed boundary interval to have exactly one reversed mate.
+ * Existing collinear subdivisions are accepted without moving any vertex. */
+static int component_closed_boundary(const rf_geomod_mesh_view *mesh,const uint32_t *labels,uint32_t id)
+{
+    uint32_t f,e,g,h,k,count=0;
+    for(f=0;f<mesh->face_count;f++)if(labels[f]==id)count++;
+    if(count<4)return 0;
+    for(f=0;f<mesh->face_count;f++)if(labels[f]==id)for(e=0;e<mesh->faces[f].count;e++) {
+        const rf_geomod_face *face=mesh->faces+f;
+        const float *a=mesh->vertices[face->first+e].position,*b=mesh->vertices[face->first+(e+1)%face->count].position;
+        double d[3],cursor=0;uint32_t axis=0,steps=0;
+        for(k=0;k<3;k++){d[k]=(double)b[k]-a[k];if(fabs(d[k])>fabs(d[axis]))axis=k;}
+        if(d[axis]==0)return 0;
+        while(cursor<1) {
+            double next=1;uint32_t covers=0;
+            if(++steps>mesh->vertex_count*2)return 0;
+            for(g=0;g<mesh->face_count;g++)if(g!=f && labels[g]==id)for(h=0;h<mesh->faces[g].count;h++) {
+                const rf_geomod_face *other=mesh->faces+g;
+                const float *c=mesh->vertices[other->first+h].position,*z=mesh->vertices[other->first+(h+1)%other->count].position;
+                double q[3],r[3],lo,hi;
+                for(k=0;k<3;k++){q[k]=(double)c[k]-a[k];r[k]=(double)z[k]-a[k];}
+                hi=q[axis]/d[axis];lo=r[axis]/d[axis];if(!(lo<hi) || hi<=0 || lo>=1)continue;
+                for(k=0;k<3;k++)if(q[k]*d[axis]!=q[axis]*d[k] || r[k]*d[axis]!=r[axis]*d[k])break;
+                if(k<3)continue;
+                if(lo<=cursor && hi>cursor){covers++;if(hi<next)next=hi;}
+                else if(lo>cursor && lo<next)next=lo;
+            }
+            if(covers!=1 || next<=cursor)return 0;
+            cursor=next;
+        }
+    }
+    return 1;
+}
 typedef int (*geomod_replay_piece_fn)(const rf_geomod_mesh_view *,const uint32_t *,
     const rf_collision_face_filter *,uint32_t,uint32_t,void *);
 static inline int extract_replay_components(rf_geomod_storage *s,rf_geomod_multi_work *provenance,
@@ -1908,7 +1942,7 @@ static inline int extract_replay_components(rf_geomod_storage *s,rf_geomod_multi
             if(context->faces[i].maximum[k]>bounds.maximum[k])bounds.maximum[k]=context->faces[i].maximum[k];
         }
         status=rf_geomod_component_classify(context->faces,(const int32_t *)labels,view.face_count,(int32_t)id,&bounds,&solid);if(status)return status;
-        scratch[rank]=solid?id:UINT32_MAX;
+        scratch[rank]=solid && component_closed_boundary(&view,labels,id)?id:UINT32_MAX;
     }
     for(rank=0;rank+1<count;rank++)if(scratch[rank]!=UINT32_MAX) {
         uint32_t bank=s->current,other=bank^1;rf_geomod_mesh_view retained,piece;
@@ -2681,7 +2715,7 @@ static inline int terrain_prepare_chronological_mesh(rf_geomod_terrain *t,uint32
             status=terrain_extraction_filters(t,&result,t->filters);if(status)goto done;
         }
         status=extraction?prepare_chronological_step_clipped(replay,t->cuts,c,&t->work,lineage,support,t->cavity,&extraction->clip):
-            prepare_chronological_step(replay,t->cuts,c,&t->work,lineage,support,t->cavity);if(status)goto done;
+            prepare_chronological_step(replay,t->cuts,c,&t->work,lineage,support,t->cavity);if(status){if(extraction)printf("EXTRACTION_CLIP_REJECT %u %d\n",c,status);goto done;}
         /* No callbacks occur while selecting this private mapping target. */
         t->mesh=replay;status=terrain_map_pending_lineage(t,lineage);t->mesh=live;
         if(status)goto done;
@@ -2693,7 +2727,7 @@ static inline int terrain_prepare_chronological_mesh(rf_geomod_terrain *t,uint32
             extraction->prefix=c;
             status=extract_replay_components(replay,&t->work,&extraction->clip,extraction->scratch.graph.scratch,
                 sizeof(extraction->scratch.graph.scratch)/sizeof(uint32_t),extraction->scratch.graph.labels,extraction->scratch.graph.map,
-                &removed,terrain_emit_piece,extraction);if(status)goto done;
+                &removed,terrain_emit_piece,extraction);if(status){printf("EXTRACTION_GROUP_REJECT %u %d\n",c,status);goto done;}
         }
     }
     status=rf_geomod_storage_view(replay,&result);if(status)goto done;

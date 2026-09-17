@@ -82,7 +82,9 @@ int rf_geomod_piece_registry_begin(rf_geomod_piece_registry *,uint32_t replace);
 /* Reset callback traversal before EACH full terrain reconstruction (including
  * clone decode followed by mutation). Retains pending batches for deduplication. */
 int rf_geomod_piece_registry_rewind(rf_geomod_piece_registry *);
-/* Matches rf_geomod_terrain_piece_fn; context is the registry. */
+/* Matches rf_geomod_terrain_piece_fn; context is the registry. Outside an edit,
+ * read-only history checks may revisit known keys without changing RNG/body state;
+ * unknown keys reject. This does not authorize mutation outside the transaction. */
 int rf_geomod_piece_registry_emit(const rf_geomod_mesh_view *,const uint32_t *,
     const rf_collision_face_filter *,uint32_t,uint32_t prefix,uint32_t ordinal,void *);
 void rf_geomod_piece_registry_abort(rf_geomod_piece_registry *);

@@ -37,7 +37,7 @@ int main(int argc,char **argv)
     rf_geomod_authored_post_view a;rf_geomod_template shape;rf_collision_face_filter generated;
     float lo[3]={1e20f,1e20f,1e20f},hi[3]={-1e20f,-1e20f,-1e20f},basis[9]={1,0,0,0,1,0,0,0,1};
     uint32_t failures=0,extracted=0;
-    if(argc!=3)return 2;
+    if(argc!=3 && argc!=4)return 2;
     CHECK(rf_vpp_open(&archive,argv[1]));CHECK(rf_level_open(&level,&archive,"ctf06.rfl"));
     CHECK(rf_geometry_open(&geometry,&level,8388608));CHECK(rf_geomod_authored_post_open(&level,&geometry,2097152,&asset));
     CHECK(rf_geomod_authored_post_get(asset,&a));CHECK(rf_geomod_template_load(argv[2],&shape));
@@ -46,6 +46,17 @@ int main(int argc,char **argv)
     }
     printf("SOURCE bounds %g %g %g / %g %g %g\n",lo[0],lo[1],lo[2],hi[0],hi[1],hi[2]);
     generated=a.source_filters[0];generated.query_flags=0;generated.face_flags=256;
+    if(argc==4) {
+        rf_geomod_terrain *terrain=NULL;capture c={0};unsigned char data[RF_GEOMOD_HISTORY_MAX_BYTES];FILE *f=fopen(argv[3],"rb");size_t bytes;
+        const float center[3]={-4.75f,1.00023937f,2.5f};
+        const float matrix[9]={-.907006145f,0,-.421117425f,.310208261f,.676294565f,-.668129086f,.284799427f,-.736631274f,-.61340332f};
+        if(!f)return 2;bytes=fread(data,1,sizeof(data),f);fclose(f);
+        CHECK(rf_geomod_terrain_open(&a.source,a.source_filters,&generated,0,4096,800,1179648,&terrain));
+        CHECK(rf_geomod_terrain_set_mapping(terrain,256,256));CHECK(rf_geomod_terrain_set_extraction(terrain,emit,&c));
+        CHECK(rf_geomod_terrain_history_decode(terrain,data,(uint32_t)bytes));memset(&c,0,sizeof(c));
+        CHECK(rf_geomod_terrain_cut_template_scale(terrain,&shape,center,matrix,7.96790504f,0));
+        rf_geomod_terrain_close(&terrain);puts("PASS recorded follow-up cut");return 0;
+    }
     for(uint32_t sample=0;sample<6;sample++) {
         rf_geomod_terrain *terrain=NULL;rf_geomod_terrain_view view;capture c={0};float center[3],radius=sample<3?1.05f:1.5f;int status;
         for(uint32_t k=0;k<3;k++)center[k]=(lo[k]+hi[k])*.5f;

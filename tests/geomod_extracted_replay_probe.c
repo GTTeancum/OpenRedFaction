@@ -201,6 +201,12 @@ int main(void)
     rf_geomod_piece_batch *batches[2][4]={{0}};rf_random_state batch_random[2]={{0},{0}};
     REQUIRE(!rf_geomod_piece_bank_open(1,6,1,4096,&tiny));
     REQUIRE(replay && tags && support);box(lo,hi,0,vertices,faces);
+    {
+        uint32_t labels[6]={0};rf_geomod_mesh_view open=source;
+        REQUIRE(component_closed_boundary(&source,labels,0));
+        open.face_count=5;REQUIRE(!component_closed_boundary(&open,labels,0));
+        open.face_count=1;REQUIRE(!component_closed_boundary(&open,labels,0));
+    }
     REQUIRE(!rf_geomod_terrain_open(&source,filters,&generated,0,4096,800,1048576,&history));
     for(prefix=0;prefix<2;prefix++)REQUIRE(!rf_geomod_terrain_cut_box(history,center[prefix],extent[prefix],7));
     REQUIRE(!rf_geomod_terrain_history_size(history,&bytes) && bytes<=sizeof(encoded));

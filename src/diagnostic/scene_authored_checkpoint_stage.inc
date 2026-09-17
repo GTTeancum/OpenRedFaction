@@ -4,7 +4,7 @@
  * renderer upload, reentry or second candidate may intervene. */
 #include "rf/authored_owner_extension.h"
 typedef struct scene_authored_checkpoint_stage {
-    scene_stream *scene;rf_geomod_terrain *core;
+    scene_stream *scene;rf_geomod_terrain *core;rf_geomod_piece_registry *pieces;
     scene_terrain_lighting_stage *lighting;
     scene_authored_admission_state admission;
     rf_geomod_terrain_view publication;
@@ -21,7 +21,7 @@ static void scene_authored_checkpoint_stage_discard(scene_authored_checkpoint_st
      * Abort publication before closing candidate core. No live core is owned. */
     scene_terrain_lighting_stage_discard(&p->lighting);
     if(p->owns_pending)scene_terrain_publication_abort(p->scene);
-    rf_geomod_terrain_close(&p->core);free(p);*ptr=NULL;
+    rf_geomod_piece_registry_close(&p->pieces);rf_geomod_terrain_close(&p->core);free(p);*ptr=NULL;
 }
 static int scene_authored_checkpoint_stage_prepare(scene_stream *s,const void *input,uint32_t bytes,
     const rf_checkpoint_placement *player,scene_authored_checkpoint_stage **out)
@@ -41,22 +41,30 @@ static int scene_authored_checkpoint_stage_prepare(scene_stream *s,const void *i
     serial=checkpoint_u32(data+316);if(serial==UINT32_MAX)return RF_FORMAT;
     status=scene_checkpoint_materials_mode(data+layout.core_offset,layout.core_bytes,0,0,0);if(status)return status;
     status=rf_geomod_terrain_get(s->terrain,&active);if(status)return status;
-    /* Same conservative12MiB destruction ceiling as live authored edit, plus
+    /* Same conservative13MiB destruction ceiling as live authored edit, plus
      * explicit restore-only owners/scratch. This is not total-game free RAM. */
-    external=(uint64_t)SCENE_PUBLICATION_BUDGET+SCENE_LIGHTING_STAGE_BUDGET+
+    external=(uint64_t)SCENE_PUBLICATION_BUDGET+SCENE_LIGHTING_STAGE_BUDGET+SCENE_DETACHED_BUDGET+
+        rf_geomod_piece_registry_bytes(s->detached_pieces)+
         rf_scene_terrain_atlas[3]+s->terrain_authored->resident_bytes+sizeof(*s->terrain_draw)+
         SCENE_TERRAIN_DRAW_VERTICES*sizeof(*s->terrain_colors)+sizeof(*s->terrain_light_cache)+
         sizeof(*s->debris)+sizeof(*s->terrain_template)+(uint64_t)s->terrain_region_count*sizeof(*s->terrain_regions)+
         1100u*(sizeof(uint32_t)+sizeof(rf_vfx_light_source))+SCENE_TERRAIN_FACES*sizeof(*s->terrain_ids)+
         (uint64_t)s->geometry->faces*sizeof(uint32_t)+sizeof(*p)+SCENE_AUTHORED_DIGEST_BUDGET+SCENE_CHECKPOINT_MAX;
     reserved=external+active.resident_bytes+SCENE_TERRAIN_CORE_BUDGET+layout.core_bytes;
-    if(reserved>SCENE_DESTRUCTION_BUDGET)return RF_RANGE;
+    if(reserved>SCENE_DESTRUCTION_BUDGET){printf("DETACHED_RESTORE_BUDGET %u %u\n",(uint32_t)reserved,SCENE_DESTRUCTION_BUDGET);return RF_RANGE;}
     p=calloc(1,sizeof(*p));if(!p)return RF_IO;p->scene=s;p->serial=serial;p->reserved_peak_bytes=(uint32_t)reserved;
     status=scene_authored_admission_import(data,&layout,s->terrain_history_minimum,s->terrain_history_maximum,&p->admission);if(status)goto failed;
     history=malloc(layout.core_bytes);if(!history){status=RF_IO;goto failed;}
     memcpy(history,data+layout.core_offset,layout.core_bytes);
     status=scene_checkpoint_materials(history,layout.core_bytes,0,s->terrain_material);if(status)goto failed;
     factory.scene=s;status=scene_authored_edit_create(&factory,SCENE_TERRAIN_CORE_BUDGET,&p->core);if(status)goto failed;
+    {
+        rf_collision_face_filter generated=s->terrain_authored->asset_view.source_filters[0];
+        generated.query_flags=0;generated.face_flags=256;
+        status=scene_detached_open(s,&generated,&p->pieces);if(status)goto failed;
+        status=rf_geomod_piece_registry_begin(p->pieces,1);if(status)goto failed;
+        status=rf_geomod_terrain_set_extraction(p->core,rf_geomod_piece_registry_emit,p->pieces);if(status)goto failed;
+    }
     status=rf_geomod_terrain_history_decode(p->core,history,layout.core_bytes);if(status)goto failed;
     free(history);history=NULL;
     status=rf_geomod_terrain_get(p->core,&core);if(status)goto failed;
@@ -125,6 +133,8 @@ static int scene_authored_checkpoint_stage_commit(scene_authored_checkpoint_stag
     p->owns_pending=0;
     scene_terrain_lighting_stage_commit(p->lighting);
     old=s->terrain;s->terrain=p->core;p->core=NULL;
+    rf_geomod_piece_registry_commit(p->pieces);
+    rf_geomod_piece_registry_close(&s->detached_pieces);s->detached_pieces=p->pieces;p->pieces=NULL;
     s->terrain_publication_serial=p->serial;
     memcpy(s->terrain_history,p->admission.history,sizeof(s->terrain_history));
     memcpy(s->terrain_requested,p->admission.requested,sizeof(s->terrain_requested));

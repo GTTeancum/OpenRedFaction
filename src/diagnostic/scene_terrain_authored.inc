@@ -1,4 +1,13 @@
 /* Asset initialization only. Never binds an isolated post as an entire room. */
+static int scene_detached_open(scene_stream *s,const rf_collision_face_filter *generated,rf_geomod_piece_registry **out)
+{
+    const rf_entity_material *material;
+    if(!campaign_surface_palette || !s->materials || s->terrain_material>=s->materials->count)return RF_RANGE;
+    /* Extracted-solid descriptor uses physical material index1 (486da0). */
+    material=campaign_surface_palette->materials+1;
+    return rf_geomod_piece_registry_open(generated,s->terrain_material,material->density,material->elasticity,
+        material->friction,1,SCENE_DETACHED_BUDGET,out);
+}
 static void scene_terrain_authored_close(scene_terrain_authored_assets **owner)
 {
     scene_terrain_authored_assets *a;
@@ -39,7 +48,7 @@ static int scene_terrain_authored_reference(scene_stream *s,scene_terrain_author
  * slots. Exposed-neighbor refs do not imply a generated crater lightmap. */
 static inline int scene_terrain_authored_open(scene_stream *s,const rf_level *level,rf_vpp *maps,uint32_t map_count)
 {
-    scene_terrain_authored_assets *a=NULL;rf_geomod_terrain *terrain=NULL;
+    scene_terrain_authored_assets *a=NULL;rf_geomod_terrain *terrain=NULL;rf_geomod_piece_registry *pieces=NULL;
     rf_geomod_mesh_view *views[3];rf_collision_face_filter generated;
     uint32_t count,capacity,i,j,at=0;int status;
     if(!s || !level || !s->geometry || !s->collision || !actor_follow_world ||
@@ -91,6 +100,8 @@ static inline int scene_terrain_authored_open(scene_stream *s,const rf_level *le
     status=rf_geomod_terrain_open(&a->source,a->asset_view.source_filters,&generated,0,
         SCENE_TERRAIN_SOURCE_VERTICES,SCENE_TERRAIN_FACES,SCENE_TERRAIN_CORE_BUDGET,&terrain);if(status)goto fail;
     status=rf_geomod_terrain_set_mapping(terrain,s->terrain_texture_width,s->terrain_texture_height);if(status)goto fail;
+    status=scene_detached_open(s,&generated,&pieces);if(status)goto fail;
+    status=rf_geomod_terrain_set_extraction(terrain,rf_geomod_piece_registry_emit,pieces);if(status)goto fail;
     a->resident_bytes=sizeof(*a)+a->asset_view.resident_bytes+count*sizeof(*a->face_storage)+capacity*sizeof(*a->references);
     /* Manifest descriptor lives inside *a; only its caller-owned arrays add
      * resident memory. Capture peak already includes descriptor and capacities. */
@@ -99,7 +110,7 @@ static inline int scene_terrain_authored_open(scene_stream *s,const rf_level *le
     if(sizeof(*a)+a->asset_view.resident_bytes+a->identity_peak_bytes>a->peak_bytes)
         a->peak_bytes=sizeof(*a)+a->asset_view.resident_bytes+a->identity_peak_bytes;
     if(a->resident_bytes>a->peak_bytes)a->peak_bytes=a->resident_bytes;
-    s->terrain_authored=a;s->terrain=terrain;
+    s->terrain_authored=a;s->terrain=terrain;s->detached_pieces=pieces;
     memcpy(rf_scene_authored_identity,a->source_identity,32);
     rf_scene_authored_identity[8]=a->identity_peak_bytes;rf_scene_authored_identity[9]=1;
     s->terrain_fallback=a->asset_view.replaced_ids[0];s->terrain_default_hardness=a->asset_view.settings.hardness;
@@ -110,5 +121,5 @@ static inline int scene_terrain_authored_open(scene_stream *s,const rf_level *le
         a->identity_manifest.reference_count,a->identity_manifest.resident_bytes);
     return RF_OK;
 fail:
-    rf_geomod_terrain_close(&terrain);scene_terrain_authored_close(&a);return status;
+    rf_geomod_piece_registry_close(&pieces);rf_geomod_terrain_close(&terrain);scene_terrain_authored_close(&a);return status;
 }

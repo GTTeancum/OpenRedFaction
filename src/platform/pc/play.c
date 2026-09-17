@@ -869,6 +869,7 @@ run_scene:
     printf("TERRAIN_PUBLICATION");for(i=0;i<8;++i)printf(" %u",rf_scene_terrain_publication[i]);puts("");
     printf("AUTHORED_IDENTITY");for(i=0;i<10;++i)printf(" %u",rf_scene_authored_identity[i]);puts("");
     printf("GEOMOD");for(i=0;i<8;++i)printf(" %u",rf_scene_geomod[i]);puts("");
+    {extern uint32_t rf_scene_detached_pieces[6];printf("DETACHED_PIECES");for(i=0;i<6;i++)printf(" %u",rf_scene_detached_pieces[i]);puts("");}
     printf("TERRAIN_UPLOAD");for(i=0;i<4;++i)printf(" %u",rf_scene_terrain_upload[i]);puts("");
     printf("TERRAIN_NOISE");for(i=0;i<8;++i)printf(" %u",rf_scene_terrain_noise[i]);puts("");
     printf("TERRAIN_DRAW");for(i=0;i<5;++i)printf(" %u",rf_scene_terrain_draw[i]);puts("");

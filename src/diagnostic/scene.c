@@ -572,10 +572,11 @@ uint32_t rf_scene_debris_crossing[8]; /* solid misses,wet entries,last room,poin
 #define SCENE_TERRAIN_ATLAS_BUDGET (1280u*1024u)
 #endif
 #ifndef SCENE_TERRAIN_CORE_BUDGET
-#define SCENE_TERRAIN_CORE_BUDGET (1024u*1024u)
+#define SCENE_TERRAIN_CORE_BUDGET (1152u*1024u)
 #endif
+#define SCENE_DETACHED_BUDGET (2u*1024u*1024u)
 #ifndef SCENE_DESTRUCTION_BUDGET
-#define SCENE_DESTRUCTION_BUDGET (12u*1024u*1024u)
+#define SCENE_DESTRUCTION_BUDGET (13u*1024u*1024u)
 #endif
 #ifndef SCENE_AUTHORED_WRITER_BUDGET
 #define SCENE_AUTHORED_WRITER_BUDGET (1024u*1024u)
@@ -10029,7 +10030,7 @@ static int scene_checkpoint_capture(scene_stream *s)
         status=scene_checkpoint_player_capture(s,&player,&catalog);if(status)goto done;
         status=scene_checkpoint_allocate(SCENE_CHECKPOINT_MAX);if(status)goto done;
         p=rf_scene_geomod_checkpoint_data+prefix;
-        status=scene_authored_checkpoint_write(s,p,SCENE_CHECKPOINT_MAX-prefix,&bytes);if(status)goto done;
+        status=scene_authored_checkpoint_write(s,p,SCENE_CHECKPOINT_MAX-prefix,&bytes);if(status){printf("DETACHED_SAVE_WRITER %d\n",status);goto done;}
         goto compose_checkpoint;
     }
     status=rf_geomod_terrain_get(s->terrain,&view);if(status)goto done;

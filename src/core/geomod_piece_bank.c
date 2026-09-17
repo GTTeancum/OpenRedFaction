@@ -268,8 +268,14 @@ int rf_geomod_piece_registry_emit(const rf_geomod_mesh_view *mesh,const uint32_t
 {
     rf_geomod_piece_registry *r=opaque;piece_registry_entry *entry;
     rf_collision_face_filter mapped[32];uint32_t i,pass;int status;
-    if(!r || !r->begun || !mesh || !map || !filters || !prefix ||
-       prefix<r->last_prefix || (prefix==r->last_prefix && ordinal<=r->last_ordinal))return RF_RANGE;
+    if(!r || !mesh || !map || !filters || !prefix)return RF_RANGE;
+    /* Read-only history validation can revisit already committed pieces without
+     * opening an edit or touching body/RNG state. New identities still reject. */
+    if(!r->begun) {
+        for(i=0;i<r->count;i++)if(r->active[i].prefix==prefix && r->active[i].ordinal==ordinal)return RF_OK;
+        return RF_NOT_FOUND;
+    }
+    if(prefix<r->last_prefix || (prefix==r->last_prefix && ordinal<=r->last_ordinal))return RF_RANGE;
     for(pass=0;pass<2;pass++) {
         piece_registry_entry *entries=pass?r->pending:r->active;
         uint32_t count=pass?r->staged:(r->replace?0:r->count);

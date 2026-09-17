@@ -18,8 +18,12 @@ static int scene_authored_edit_mutate(void *opaque,rf_geomod_terrain *candidate)
 {
     scene_authored_edit_context *c=opaque;scene_stream *s=c->scene;
     if(c->reset)return rf_geomod_terrain_reset(candidate);
-    return rf_geomod_terrain_cut_template_limits(candidate,s->terrain_template,c->center,c->basis,
-        c->scale,s->terrain_material,c->limits,c->count);
+    {
+        int status=rf_geomod_terrain_cut_template_limits(candidate,s->terrain_template,c->center,c->basis,
+            c->scale,s->terrain_material,c->limits,c->count);
+        if(status){uint32_t i;printf("DETACHED_CUT_REJECT %d %.9g",status,c->scale);for(i=0;i<3;i++)printf(" %.9g",c->center[i]);for(i=0;i<9;i++)printf(" %.9g",c->basis[i]);printf(" %u\n",c->count);}
+        return status;
+    }
 }
 static int scene_authored_edit_publish(void *opaque,rf_geomod_terrain *candidate,uint32_t serial)
 {
@@ -40,14 +44,16 @@ static int scene_terrain_authored_edit_run(scene_authored_edit_context *context)
     scene_terrain_edit_limits budget;scene_terrain_edit_result result;uint64_t external;int status;
     /* Destruction subsystem ceiling, not a claim that other game owners are free.
      * Actual whole-game stock64MiB headroom is checked in native runs. */
-    external=(uint64_t)SCENE_PUBLICATION_BUDGET+SCENE_LIGHTING_STAGE_BUDGET+
+    external=(uint64_t)SCENE_PUBLICATION_BUDGET+SCENE_LIGHTING_STAGE_BUDGET+SCENE_DETACHED_BUDGET+
         rf_scene_terrain_atlas[3]+s->terrain_authored->resident_bytes+sizeof(*s->terrain_draw)+
         SCENE_TERRAIN_DRAW_VERTICES*sizeof(*s->terrain_colors)+sizeof(*s->terrain_light_cache)+
         sizeof(*s->debris)+sizeof(*s->terrain_template)+(uint64_t)s->terrain_region_count*sizeof(*s->terrain_regions)+
         1100u*(sizeof(uint32_t)+sizeof(rf_vfx_light_source))+SCENE_TERRAIN_FACES*sizeof(*s->terrain_ids)+(uint64_t)s->geometry->faces*sizeof(uint32_t);
     if(external>UINT32_MAX)return RF_RANGE;
     budget=(scene_terrain_edit_limits){SCENE_DESTRUCTION_BUDGET,(uint32_t)external,SCENE_TERRAIN_CORE_BUDGET};
-    status=scene_terrain_edit_transaction(&s->terrain,&s->terrain_publication_serial,&budget,&ops,context,&result);
+    status=s->detached_pieces?scene_terrain_edit_transaction_pieces(&s->terrain,&s->terrain_publication_serial,
+        &budget,&ops,context,&result,s->detached_pieces,context->reset):
+        scene_terrain_edit_transaction(&s->terrain,&s->terrain_publication_serial,&budget,&ops,context,&result);
     if(!status && result.reserved_peak_bytes>rf_scene_geomod[4])rf_scene_geomod[4]=result.reserved_peak_bytes;
     return status;
 }
