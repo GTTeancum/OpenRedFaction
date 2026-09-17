@@ -10,7 +10,7 @@ static int capture_piece(const rf_geomod_mesh_view *mesh,const uint32_t *old_fac
     const rf_collision_face_filter *filters,uint32_t source_count,uint32_t ordinal,void *opaque)
 {
     capture_context *context=opaque;rf_geomod_owned_piece piece;uint32_t i,j;
-    int status=rf_geomod_piece_bank_append(context->bank,mesh,old_faces,filters,source_count,(context->prefix<<16)|ordinal);
+    int status=rf_geomod_piece_bank_append_physical(context->bank,mesh,old_faces,filters,source_count,(context->prefix<<16)|ordinal,2.5f);
     if(status)return status;
     REQUIRE(!rf_geomod_piece_bank_get(context->bank,rf_geomod_piece_bank_count(context->bank)-1,&piece));
     REQUIRE(!memcmp(piece.mesh.faces,mesh->faces,mesh->face_count*sizeof(*mesh->faces)));
@@ -63,8 +63,32 @@ static void piece_contacts(const rf_geomod_owned_piece *piece)
     }
     printf("PASS owned piece %u: %u translated/rotated ray and sphere contacts plus miss\n",piece->id,hits);
 }
+static void asymmetric_mass_owner(void)
+{
+    rf_geomod_vertex vertices[48];rf_geomod_face faces[12];rf_collision_face_filter filters[12]={{0}};
+    const float lo[2][3]={{-4,-2,-2},{1,-1.5f,-1}},hi[2][3]={{-1,2,2},{4,1.5f,1}};
+    uint32_t map[12],i,k;rf_geomod_mesh_view mesh={vertices,faces,48,12,0};
+    rf_geomod_piece_bank *bank=NULL;rf_geomod_owned_piece piece;
+    box(lo[0],hi[0],0,vertices,faces);box(lo[1],hi[1],0,vertices+24,faces+6);
+    for(i=0;i<12;i++){map[i]=i;if(i>=6)faces[i].first+=24;}
+    REQUIRE(!rf_geomod_piece_bank_open(48,12,1,8192,&bank));
+    REQUIRE(rf_geomod_piece_bank_append_physical(bank,&mesh,map,filters,12,1,-1)==RF_RANGE);
+    REQUIRE(!rf_geomod_piece_bank_count(bank));
+    REQUIRE(!rf_geomod_piece_bank_append_physical(bank,&mesh,map,filters,12,1,2.5f));
+    REQUIRE(!rf_geomod_piece_bank_get(bank,0,&piece));
+    REQUIRE(fabs(piece.mass.center[0])>.5);
+    for(i=0;i<48;i++)for(k=0;k<3;k++)
+        REQUIRE(fabs((double)piece.mesh.vertices[i].position[k]+piece.placement.origin[k]-vertices[i].position[k])<.00001);
+    for(i=0;i<12;i++)for(k=0;k<faces[i].count;k++) {
+        const float *v=piece.collision[i].vertices[k],*p=piece.collision[i].plane;
+        REQUIRE(fabs((double)v[0]*p[0]+(double)v[1]*p[1]+(double)v[2]*p[2]+p[3])<.00001);
+    }
+    printf("PASS asymmetric mass center shift %g preserves world geometry and collision planes\n",piece.mass.center[0]);
+    rf_geomod_piece_bank_close(&bank);
+}
 int main(void)
 {
+    asymmetric_mass_owner();
     rf_geomod_vertex vertices[24];rf_geomod_face faces[6];rf_collision_face_filter filters[6]={{0}},generated={0};
     const float lo[3]={-10,-10,-10},hi[3]={10,10,10};
     const float center[4][3]={{0,0,0},{5,0,0},{-1,0,0},{-6,0,0}},extent[4][3]={{1,12,12},{2,2,2},{2,2,2},{1,12,12}};
@@ -143,12 +167,35 @@ int main(void)
     for(prefix=0;prefix<2;prefix++) {
         rf_geomod_owned_piece a,b;
         REQUIRE(!rf_geomod_piece_bank_get(owned[0],prefix,&a) && !rf_geomod_piece_bank_get(owned[1],prefix,&b));
+        REQUIRE(a.mass_ready && b.mass_ready && !memcmp(&a.mass,&b.mass,sizeof(a.mass)));
         REQUIRE(a.id==b.id && !memcmp(&a.placement,&b.placement,sizeof(a.placement)));
         REQUIRE(a.mesh.vertex_count==b.mesh.vertex_count && a.mesh.face_count==b.mesh.face_count);
         REQUIRE(!memcmp(a.mesh.vertices,b.mesh.vertices,a.mesh.vertex_count*sizeof(*a.mesh.vertices)));
         REQUIRE(!memcmp(a.mesh.faces,b.mesh.faces,a.mesh.face_count*sizeof(*a.mesh.faces)));
         REQUIRE(!memcmp(a.old_faces,b.old_faces,a.mesh.face_count*4));
         REQUIRE(fabs(mesh_volume(&a.mesh)-(prefix?1200:3600))<0.0001);
+        {
+            rf_physics_body first={0},second={0},rejected={0};uint32_t i;
+            REQUIRE(rf_geomod_piece_body_open(&a,.5f,.25f,1,&rejected)==RF_RANGE);
+            REQUIRE(!rejected.allocated_bytes && !rejected.spheres.items);
+            REQUIRE(!rf_geomod_piece_body_open(&a,.5f,.25f,4096,&first));
+            REQUIRE(!rf_geomod_piece_body_open(&b,.5f,.25f,4096,&second));
+            REQUIRE(first.spheres.count==(prefix?0u:32u) && first.spheres.count==second.spheres.count);
+            if(prefix)for(i=0;i<9;i++)REQUIRE(first.state.local_tensor[i]==0);
+            REQUIRE(!memcmp(&first.state,&second.state,sizeof(first.state)));
+            if(first.spheres.count)REQUIRE(!memcmp(first.spheres.items,second.spheres.items,first.spheres.count*sizeof(*first.spheres.items)));
+            REQUIRE(!memcmp(first.state.position,a.placement.origin,12));
+            REQUIRE(first.state.mass==a.mass.mass);
+            REQUIRE(!memcmp(first.state.local_tensor,a.mass.inverse_tensor,36));
+            for(i=0;i<first.spheres.count;i++) {
+                const rf_physics_sphere *sphere=first.spheres.items+i;
+                uint32_t k;
+                for(k=0;k<3;k++)REQUIRE(sphere->center[k]>=a.placement.minimum[k]-.0001f &&
+                    sphere->center[k]<=a.placement.maximum[k]+.0001f);
+            }
+            printf("PASS piece%u mass=%g spheres=%u body_bytes=%u\n",a.id,a.mass.mass,first.spheres.count,first.allocated_bytes);
+            rf_physics_body_close(&first);rf_physics_body_close(&second);
+        }
         piece_contacts(&a);piece_contacts(&b);
     }
     printf("PASS owned extracted pieces survive replay scratch reuse; bank_bytes=%u\n",rf_geomod_piece_bank_bytes(owned[0]));

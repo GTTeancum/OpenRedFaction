@@ -1,6 +1,7 @@
 #ifndef RF_GEOMOD_PIECE_BANK_H
 #define RF_GEOMOD_PIECE_BANK_H
 #include "rf/geomod.h"
+#include "rf/physics.h"
 typedef struct rf_geomod_piece_bank rf_geomod_piece_bank;
 typedef struct rf_geomod_owned_piece {
     rf_geomod_mesh_view mesh;
@@ -8,7 +9,8 @@ typedef struct rf_geomod_owned_piece {
     const uint32_t *old_faces;
     const rf_collision_face_filter *filters;
     const rf_collision_face *collision; /* Owned local-space polygons. */
-    uint32_t id;
+    uint32_t id,mass_ready;
+    float birth_radius;rf_physics_solid_mass mass;
 } rf_geomod_owned_piece;
 /* One fixed allocation containing local mesh corners, collision polygons, owner mapping,
  * filters and placement descriptors. Byte budget includes the owner itself;
@@ -23,6 +25,15 @@ void rf_geomod_piece_bank_close(rf_geomod_piece_bank **);
 int rf_geomod_piece_bank_append(rf_geomod_piece_bank *,const rf_geomod_mesh_view *,
     const uint32_t *old_faces,const rf_collision_face_filter *source_filters,
     uint32_t source_count,uint32_t id);
+/* Stages mass and recenters mesh/collision around its sampled center before
+ * publishing the entry. Density is already resolved from the debris material. */
+int rf_geomod_piece_bank_append_physical(rf_geomod_piece_bank *,const rf_geomod_mesh_view *,
+    const uint32_t *old_faces,const rf_collision_face_filter *source_filters,
+    uint32_t source_count,uint32_t id,float density);
+/* Creates an independently owned body from a prepared piece. Geometry remains
+ * bank-owned. Caller closes the body and handles scene registration/rendering. */
+int rf_geomod_piece_body_open(const rf_geomod_owned_piece *,float elasticity,float friction,
+    uint32_t budget,rf_physics_body *body);
 int rf_geomod_piece_bank_get(const rf_geomod_piece_bank *,uint32_t index,rf_geomod_owned_piece *);
 uint32_t rf_geomod_piece_bank_count(const rf_geomod_piece_bank *);
 uint32_t rf_geomod_piece_bank_bytes(const rf_geomod_piece_bank *);

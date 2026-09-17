@@ -38,8 +38,8 @@ int rf_geomod_piece_bank_get(const rf_geomod_piece_bank *bank,uint32_t index,rf_
     if(!bank || !piece || index>=bank->np)return RF_RANGE;
     *piece=bank->pieces[index];return RF_OK;
 }
-int rf_geomod_piece_bank_append(rf_geomod_piece_bank *bank,const rf_geomod_mesh_view *mesh,
-    const uint32_t *old_faces,const rf_collision_face_filter *filters,uint32_t source_count,uint32_t id)
+static int append_piece(rf_geomod_piece_bank *bank,const rf_geomod_mesh_view *mesh,
+    const uint32_t *old_faces,const rf_collision_face_filter *filters,uint32_t source_count,uint32_t id,const float *density)
 {
     rf_geomod_owned_piece piece;uint32_t i,j,packed=0;int status;
     if(!bank || !mesh || !mesh->vertices || !mesh->faces || !old_faces || !filters || !mesh->vertex_count || !mesh->face_count)return RF_RANGE;
@@ -62,6 +62,46 @@ int rf_geomod_piece_bank_append(rf_geomod_piece_bank *bank,const rf_geomod_mesh_
     status=rf_geomod_collision_faces(&piece.mesh,piece.filters,bank->positions+bank->nv,mesh->vertex_count,
         bank->collision+bank->nf,mesh->face_count);if(status)return status;
     piece.collision=bank->collision+bank->nf;
+    piece.birth_radius=piece.placement.radius;
+    if(density) {
+        status=rf_physics_solid_mass_prepare(piece.collision,mesh->face_count,piece.placement.minimum,
+            piece.placement.maximum,*density,&piece.mass);if(status)return status;
+        for(i=0;i<mesh->vertex_count;i++)for(j=0;j<3;j++)
+            bank->vertices[bank->nv+i].position[j]=(float)((double)bank->vertices[bank->nv+i].position[j]-piece.mass.center[j]);
+        for(j=0;j<3;j++) {
+            piece.placement.origin[j]=(float)((double)piece.placement.origin[j]+piece.mass.center[j]);
+            piece.placement.minimum[j]=(float)((double)piece.placement.minimum[j]-piece.mass.center[j]);
+            piece.placement.maximum[j]=(float)((double)piece.placement.maximum[j]-piece.mass.center[j]);
+            if(!isfinite(piece.placement.origin[j]))return RF_RANGE;
+        }
+        piece.placement.radius=(float)((double)piece.placement.radius+sqrt(
+            ((double)piece.mass.center[0]*piece.mass.center[0]+(double)piece.mass.center[1]*piece.mass.center[1])+
+            (double)piece.mass.center[2]*piece.mass.center[2]));
+        if(!isfinite(piece.placement.radius))return RF_RANGE;
+        status=rf_geomod_collision_faces(&piece.mesh,piece.filters,bank->positions+bank->nv,mesh->vertex_count,
+            bank->collision+bank->nf,mesh->face_count);if(status)return status;
+        piece.mass_ready=1;
+    }
     bank->pieces[bank->np++]=piece;bank->nv+=mesh->vertex_count;bank->nf+=mesh->face_count;
     return RF_OK;
+}
+
+int rf_geomod_piece_bank_append(rf_geomod_piece_bank *bank,const rf_geomod_mesh_view *mesh,
+    const uint32_t *old_faces,const rf_collision_face_filter *filters,uint32_t source_count,uint32_t id)
+{return append_piece(bank,mesh,old_faces,filters,source_count,id,NULL);}
+int rf_geomod_piece_bank_append_physical(rf_geomod_piece_bank *bank,const rf_geomod_mesh_view *mesh,
+    const uint32_t *old_faces,const rf_collision_face_filter *filters,uint32_t source_count,uint32_t id,float density)
+{return append_piece(bank,mesh,old_faces,filters,source_count,id,&density);}
+int rf_geomod_piece_body_open(const rf_geomod_owned_piece *piece,float elasticity,float friction,
+    uint32_t budget,rf_physics_body *body)
+{
+    rf_physics_body_parameters p={0};rf_physics_sphere spheres[64];uint32_t count;float radius;int status;
+    if(!piece || !piece->mass_ready || !body)return RF_RANGE;
+    status=rf_physics_grid_spheres(piece->mass.cells,piece->mass.spacing,piece->mass.origin,spheres,64,&count,&radius);
+    if(status)return status;
+    p.coefficients[0]=elasticity;p.coefficients[1]=(float)((double)piece->birth_radius*(double).2f);p.coefficients[2]=friction;
+    p.mass=piece->mass.mass;p.flags=0x8000003f;
+    memcpy(p.local_tensor,piece->mass.inverse_tensor,36);memcpy(p.position,piece->placement.origin,12);
+    p.orientation[0]=p.orientation[4]=p.orientation[8]=1;
+    return rf_physics_body_open(&p,spheres,count,budget,body);
 }
