@@ -49,13 +49,13 @@ static inline int scene_authored_checkpoint_write(scene_stream *s,void *buffer,u
     }
     status=rf_geomod_terrain_history_size(s->terrain,&core);if(status)return status;
     status=rf_authored_checkpoint_layout_size(core,s->terrain_history_count,owner->count,view.mesh.face_count,&layout);if(status)return status;
-    if(capacity<layout.bytes || (uint64_t)sizeof(*w)+layout.bytes+512u*1024u>1024u*1024u)return RF_RANGE;
+    if(capacity<layout.bytes || (uint64_t)sizeof(*w)+layout.bytes+SCENE_AUTHORED_DIGEST_BUDGET>SCENE_AUTHORED_WRITER_BUDGET)return RF_RANGE;
     w=calloc(1,sizeof(*w));if(!w)return RF_IO;p=calloc(1,layout.bytes);if(!p){status=RF_IO;goto done;}
     w->lighting=*s;
     if(!view.cuts){w->empty.random.value=owner->random.value;w->lighting.terrain_noise=&w->empty;}
     status=scene_authored_digest_capture(s,&view,bank->origins,&composition,&w->lighting,serial,
         w->face_maps,RF_GEOMOD_PUBLICATION_FACES,&w->expected,&peak);if(status)goto done;
-    if((uint64_t)sizeof(*w)+layout.bytes+peak>1024u*1024u){status=RF_RANGE;goto done;}
+    if((uint64_t)sizeof(*w)+layout.bytes+peak>SCENE_AUTHORED_WRITER_BUDGET){status=RF_RANGE;goto done;}
     memcpy(p,"RFDS",4);checkpoint_put(p+4,2);checkpoint_put(p+8,layout.bytes);
     memcpy(p+16,campaign_current_level,name_length);memcpy(p+80,s->terrain_checkpoint_identity,128);
     checkpoint_put(p+208,s->terrain_texture_width);checkpoint_put(p+212,s->terrain_texture_height);

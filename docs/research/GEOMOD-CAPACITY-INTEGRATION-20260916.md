@@ -349,3 +349,39 @@ capacity-digest-xbox-build.log under artifacts/authored-post-live.
 Shipping remains8 cuts. Next: coordinate expanded core/publication owners,
 measure atlas and concurrent reload scratch, then validate actual extended
 craters on PC and stock64MiB XEMU before activating the larger live profile.
+
+## Integrated opt-in profile: live authored continuation passes
+
+CMake RF_GEOMOD_EXPANDED_PROFILE=ON now compiles the full PC executable and core
+consistently:16 cuts,8192 core/publication vertices,2048 faces,128KiB transport,
+2MiB core budget,1MiB draw/digest budgets,2MiB writer ceiling and16MiB conservative
+destruction ceiling. Default profile remains unchanged. Scene core creation,
+edit clones, checkpoint restore and reservation checks share these configured
+budgets; source vertex capacity also enters the existing scene checkpoint ID.
+This experimental ceiling is not a claim of stock Xbox free RAM.
+
+The first full level load exposed the atlas owner budget: larger face tables
+require1335352 bytes, beyond the old1280KiB allowance. Expanded profile now
+allows1536KiB while preserving512x512 atlas images,1024 journal maps and material
+sampling rules. No extra atlas page or altered visual policy was introduced.
+
+Build: cmake -S . -B build/pc-expanded -G "Visual Studio 17 2022" -A Win32
+-DRF_GEOMOD_EXPANDED_PROFILE=ON, then build rf_pc_play Release.
+check_authored_restart.py accepts --build-dir and --output-dir so experiments
+use separate executables/results without disturbing ordinary test artifacts.
+Expanded two-shot and reset-zero continuation both match uninterrupted RFCP,
+RGCH and publication bytes. One-cut measured publication peak3150281 bytes,
+draw663572 bytes and conservative destruction reservation12229376 bytes.
+These small authored cases prove integration, not sixteen live crater acceptance.
+
+Inspected native PC raster artifacts saved.png/control.png in
+artifacts/authored-post-live/expanded-continuation: textured hall/beams, water,
+post destruction/debris, weapon and HUD are present. Blast smoke obscures some
+of the saved view. No original screenshots, host input, audio or Xbox visual
+claim. No GitHub images added. Expanded-reset-continuation holds reset results.
+All111 default CTests pass and default NXDK builds (existing merge warning).
+Logs: integrated-capacity-build2.log, integrated-capacity-restart2.log,
+integrated-capacity-reset.log, integrated-default-tests.log and
+integrated-default-xbox.log under artifacts/authored-post-live.
+Next: longer live blast coverage, atlas exhaustion/rollback, and expanded
+stock64MiB XEMU memory/visual/save acceptance before enabling by default.

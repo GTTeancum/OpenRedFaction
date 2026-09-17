@@ -557,6 +557,18 @@ uint32_t rf_scene_debris[8]; /* spawned,active,bounces,expired,vertices,hash,byt
 uint32_t rf_scene_debris_relaunch[8]; /* passes,candidates,relaunched,settled resumed,state hash,seed before,seed after,last slot */
 uint32_t rf_scene_debris_wet[8]; /* solid misses,wet tests,accepted,last room,fraction bits,point hash,last status,presence */
 
+#ifndef SCENE_TERRAIN_ATLAS_BUDGET
+#define SCENE_TERRAIN_ATLAS_BUDGET (1280u*1024u)
+#endif
+#ifndef SCENE_TERRAIN_CORE_BUDGET
+#define SCENE_TERRAIN_CORE_BUDGET (1024u*1024u)
+#endif
+#ifndef SCENE_DESTRUCTION_BUDGET
+#define SCENE_DESTRUCTION_BUDGET (12u*1024u*1024u)
+#endif
+#ifndef SCENE_AUTHORED_WRITER_BUDGET
+#define SCENE_AUTHORED_WRITER_BUDGET (1024u*1024u)
+#endif
 #ifndef SCENE_TERRAIN_FACES
 #define SCENE_TERRAIN_FACES 800
 #endif
@@ -9375,7 +9387,7 @@ static int scene_terrain_open(scene_stream *s,const rf_level *level,rf_vpp *maps
     if(!s->terrain_atlas_pixels || !s->terrain_tile || !s->terrain_bindings || !s->terrain_tiles)return RF_IO;
     rf_scene_terrain_atlas[0]=1;rf_scene_terrain_atlas[1]=rf_scene_terrain_atlas[2]=512;
     rf_scene_terrain_atlas[3]=2*512*512*2+64*64*2+SCENE_TERRAIN_FACES*(sizeof(*s->terrain_bindings)+sizeof(*s->terrain_tiles))+sizeof(rf_image)+sizeof(*s->terrain_noise);
-    if(rf_scene_terrain_atlas[3]>1280*1024)return RF_RANGE;
+    if(rf_scene_terrain_atlas[3]>SCENE_TERRAIN_ATLAS_BUDGET){printf("TERRAIN_ATLAS_BUDGET %u %u\n",rf_scene_terrain_atlas[3],SCENE_TERRAIN_ATLAS_BUDGET);return RF_RANGE;}
     s->debris=calloc(1,sizeof(*s->debris));if(!s->debris)return RF_IO;
     s->debris->random.value=1;rf_debris_audio_init(&s->debris->audio);memset(rf_scene_debris_audio,0,sizeof(rf_scene_debris_audio));memset(rf_scene_debris,0,sizeof(rf_scene_debris));memset(rf_scene_debris_relaunch,0,sizeof(rf_scene_debris_relaunch));memset(rf_scene_debris_wet,0,sizeof(rf_scene_debris_wet));rf_scene_debris_wet[3]=UINT32_MAX;rf_scene_debris[6]=sizeof(*s->debris);
     s->terrain_draw=calloc(1,sizeof(*s->terrain_draw));if(!s->terrain_draw)return RF_IO;
@@ -9417,7 +9429,7 @@ static int scene_terrain_open(scene_stream *s,const rf_level *level,rf_vpp *maps
     }
     if(s->terrain_fallback==UINT32_MAX)return RF_FORMAT;
     source=(rf_geomod_mesh_view){vertices,faces,24,6,0};generated.face_flags=256;
-    status=rf_geomod_terrain_open(&source,filters,&generated,1,4096,SCENE_TERRAIN_FACES,1024*1024,&s->terrain);if(status)return status;
+    status=rf_geomod_terrain_open(&source,filters,&generated,1,SCENE_TERRAIN_SOURCE_VERTICES,SCENE_TERRAIN_FACES,SCENE_TERRAIN_CORE_BUDGET,&s->terrain);if(status)return status;
     status=rf_geomod_terrain_set_mapping(s->terrain,s->terrain_texture_width,s->terrain_texture_height);if(status)return status;
     status=rf_geometry_collision_overlay_open(s->collision,0,SCENE_TERRAIN_FACES,65536,&s->terrain_collision);if(status)return status;
     status=scene_terrain_bind(s);if(status)return status;
@@ -9505,7 +9517,7 @@ static int scene_checkpoint_identity(scene_stream *s,const rf_level *level)
         checkpoint_sha_word(&h,f.query_flags);checkpoint_sha_word(&h,f.face_flags);checkpoint_sha_word(&h,(uint32_t)f.property_34);
         checkpoint_sha_word(&h,f.owner_present);checkpoint_sha_word(&h,f.owner_kind);checkpoint_sha_word(&h,f.owner_state);
     }
-    checkpoint_sha_word(&h,256);checkpoint_sha_word(&h,4096);checkpoint_sha_word(&h,SCENE_TERRAIN_FACES);
+    checkpoint_sha_word(&h,256);checkpoint_sha_word(&h,SCENE_TERRAIN_SOURCE_VERTICES);checkpoint_sha_word(&h,SCENE_TERRAIN_FACES);
     checkpoint_sha_end(&h,s->terrain_checkpoint_identity);
     }
     checkpoint_sha_init(&h);checkpoint_sha_add(&h,"RFCT",4);checkpoint_sha_word(&h,1);checkpoint_sha_word(&h,s->terrain_template->face_count);

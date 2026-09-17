@@ -12,10 +12,14 @@ ROOT = Path(__file__).resolve().parents[1]
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--case', choices=('two-shot', 'reset-zero'), default='two-shot')
+    parser.add_argument('--build-dir', type=Path, default=ROOT / 'build/pc')
+    parser.add_argument('--output-dir', type=Path)
     args = parser.parse_args()
     reset = args.case == 'reset-zero'
     folder = ROOT / ('artifacts/authored-post-live/solo-reset-continuation' if reset else
                      'artifacts/authored-post-live/solo-continuation')
+    if args.output_dir is not None:
+        folder = args.output_dir.resolve()
     folder.mkdir(parents=True, exist_ok=True)
     source = (ROOT / 'artifacts/authored-post-live' /
               ('reset-recut.bin' if reset else 'two-shot.bin')).read_bytes()
@@ -39,7 +43,7 @@ def main():
             if name == "continued":
                 local["RF_REPLAY_GEOMOD_CHECKPOINT_IN"] = str(folder / "saved.rfcp")
             with path.with_suffix(".log").open("wb") as log:
-                result = subprocess.run([str(ROOT / "build/pc/Release/rf_pc_play.exe"), "--spawn-replay",
+                result = subprocess.run([str(args.build_dir.resolve() / "Release/rf_pc_play.exe"), "--spawn-replay",
                                          str(ROOT / "Installed_Game"), str(path.with_suffix(".bin")),
                                          str(path.with_suffix(".ppm"))], cwd=ROOT, env=local,
                                         stdout=log, stderr=subprocess.STDOUT, timeout=180)

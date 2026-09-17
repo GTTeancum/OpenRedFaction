@@ -11,7 +11,7 @@ static int scene_authored_edit_create(void *opaque,uint32_t budget,rf_geomod_ter
     rf_collision_face_filter generated=a->asset_view.source_filters[0];int status;
     generated.query_flags=0;generated.face_flags=256;
     status=rf_geomod_terrain_open(&a->source,a->asset_view.source_filters,&generated,0,
-        4096,SCENE_TERRAIN_FACES,budget,out);if(status)return status;
+        SCENE_TERRAIN_SOURCE_VERTICES,SCENE_TERRAIN_FACES,budget,out);if(status)return status;
     return rf_geomod_terrain_set_mapping(*out,s->terrain_texture_width,s->terrain_texture_height);
 }
 static int scene_authored_edit_mutate(void *opaque,rf_geomod_terrain *candidate)
@@ -46,7 +46,7 @@ static int scene_terrain_authored_edit_run(scene_authored_edit_context *context)
         sizeof(*s->debris)+sizeof(*s->terrain_template)+(uint64_t)s->terrain_region_count*sizeof(*s->terrain_regions)+
         1100u*(sizeof(uint32_t)+sizeof(rf_vfx_light_source))+SCENE_TERRAIN_FACES*sizeof(*s->terrain_ids)+(uint64_t)s->geometry->faces*sizeof(uint32_t);
     if(external>UINT32_MAX)return RF_RANGE;
-    budget=(scene_terrain_edit_limits){12u*1024u*1024u,(uint32_t)external,1024u*1024u};
+    budget=(scene_terrain_edit_limits){SCENE_DESTRUCTION_BUDGET,(uint32_t)external,SCENE_TERRAIN_CORE_BUDGET};
     status=scene_terrain_edit_transaction(&s->terrain,&s->terrain_publication_serial,&budget,&ops,context,&result);
     if(!status && result.reserved_peak_bytes>rf_scene_geomod[4])rf_scene_geomod[4]=result.reserved_peak_bytes;
     return status;

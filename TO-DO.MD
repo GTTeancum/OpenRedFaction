@@ -1,6 +1,6 @@
 # Red Faction Xbox / PC - open work
 
-- GeoMod capacity: Finish atlas residency/reload budgets and stock Xbox integration for sixteen cuts; core, expanded saves,4500-vertex subdivision and2048-face save hashes pass, while shipping remains eight cuts.
+- GeoMod capacity: Verify longer live destruction and stock Xbox memory in the opt-in sixteen-cut profile; integrated PC two-blast and reset reloads pass, while shipping remains eight cuts.
 
 - GeoMod UV seams: Broaden chronological reconstruction beyond current fixtures; all105 tests and48 axis-oriented UV cases pass, with live two-cut reload/next-blast passing58 stock64MiB Xbox checks.
 

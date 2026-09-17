@@ -89,7 +89,7 @@ static inline int scene_terrain_authored_open(scene_stream *s,const rf_level *le
     }
     generated=a->asset_view.source_filters[0];generated.query_flags=0;generated.face_flags=256;
     status=rf_geomod_terrain_open(&a->source,a->asset_view.source_filters,&generated,0,
-        4096,SCENE_TERRAIN_FACES,1024*1024,&terrain);if(status)goto fail;
+        SCENE_TERRAIN_SOURCE_VERTICES,SCENE_TERRAIN_FACES,SCENE_TERRAIN_CORE_BUDGET,&terrain);if(status)goto fail;
     status=rf_geomod_terrain_set_mapping(terrain,s->terrain_texture_width,s->terrain_texture_height);if(status)goto fail;
     a->resident_bytes=sizeof(*a)+a->asset_view.resident_bytes+count*sizeof(*a->face_storage)+capacity*sizeof(*a->references);
     /* Manifest descriptor lives inside *a; only its caller-owned arrays add

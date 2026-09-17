@@ -48,15 +48,15 @@ static int scene_authored_checkpoint_stage_prepare(scene_stream *s,const void *i
         SCENE_TERRAIN_DRAW_VERTICES*sizeof(*s->terrain_colors)+sizeof(*s->terrain_light_cache)+
         sizeof(*s->debris)+sizeof(*s->terrain_template)+(uint64_t)s->terrain_region_count*sizeof(*s->terrain_regions)+
         1100u*(sizeof(uint32_t)+sizeof(rf_vfx_light_source))+SCENE_TERRAIN_FACES*sizeof(*s->terrain_ids)+
-        (uint64_t)s->geometry->faces*sizeof(uint32_t)+sizeof(*p)+512u*1024u+SCENE_CHECKPOINT_MAX;
-    reserved=external+active.resident_bytes+1024u*1024u+layout.core_bytes;
-    if(reserved>12u*1024u*1024u)return RF_RANGE;
+        (uint64_t)s->geometry->faces*sizeof(uint32_t)+sizeof(*p)+SCENE_AUTHORED_DIGEST_BUDGET+SCENE_CHECKPOINT_MAX;
+    reserved=external+active.resident_bytes+SCENE_TERRAIN_CORE_BUDGET+layout.core_bytes;
+    if(reserved>SCENE_DESTRUCTION_BUDGET)return RF_RANGE;
     p=calloc(1,sizeof(*p));if(!p)return RF_IO;p->scene=s;p->serial=serial;p->reserved_peak_bytes=(uint32_t)reserved;
     status=scene_authored_admission_import(data,&layout,s->terrain_history_minimum,s->terrain_history_maximum,&p->admission);if(status)goto failed;
     history=malloc(layout.core_bytes);if(!history){status=RF_IO;goto failed;}
     memcpy(history,data+layout.core_offset,layout.core_bytes);
     status=scene_checkpoint_materials(history,layout.core_bytes,0,s->terrain_material);if(status)goto failed;
-    factory.scene=s;status=scene_authored_edit_create(&factory,1024u*1024u,&p->core);if(status)goto failed;
+    factory.scene=s;status=scene_authored_edit_create(&factory,SCENE_TERRAIN_CORE_BUDGET,&p->core);if(status)goto failed;
     status=rf_geomod_terrain_history_decode(p->core,history,layout.core_bytes);if(status)goto failed;
     free(history);history=NULL;
     status=rf_geomod_terrain_get(p->core,&core);if(status)goto failed;
