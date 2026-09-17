@@ -328,8 +328,31 @@ int main(int argc,char **argv)
             CHECK(!reject_atomic(pair,&view,pair_origins,&composed,lights->staged,view.mesh.generation));
             lights->staged->terrain_noise->random.value^=1;
             printf("PASS real paired scene digests: source selection invariant, second identity bound, shared atlas%u maps, faces%u\n",lights->staged->terrain_noise->count,view.mesh.face_count);
+            CHECK(!scene_terrain_lighting_stage_draw(lights));
+            CHECK(!scene_terrain_publication_finish(pair,lights->staged->terrain_bindings,view.mesh.face_count,pair->light_rgb.count+1));
+            lights->staged->terrain_publication_serial=view.mesh.generation;
+            {
+                rf_authored_checkpoint_layout saved_layout;rf_authored_owner_extension extension;scene_authored_sources_stage *rebuilt=NULL;
+                uint32_t saved_bytes=0;
+                CHECK(scene_authored_checkpoint_write(lights->staged,packet,SCENE_CHECKPOINT_MAX,&saved_bytes)==RF_RANGE && !saved_bytes);
+                CHECK(!scene_authored_collection_checkpoint_write(lights->staged,packet,SCENE_CHECKPOINT_MAX,&saved_bytes));
+                CHECK(!rf_authored_collection_layout_read(packet,saved_bytes,&saved_layout));
+                CHECK(!rf_authored_owner_collection_decode(packet+288,128,&first,2,view.cuts,&extension) && extension.mode==1);
+                CHECK(rf_authored_owner_extension_decode(packet+288,128,&first,view.cuts,&extension)==RF_FORMAT);
+                CHECK(!scene_authored_sources_stage_prepare(pair,packet+saved_layout.core_offset,saved_layout.core_bytes,view.mesh.generation,8u*1024u*1024u,&rebuilt));
+                scene_authored_sources_stage_discard(&rebuilt);
+                CHECK(saved_layout.maps==4 && saved_layout.faces==36 && !saved_layout.piece_bytes);
+                memcpy(kept,packet,SCENE_CHECKPOINT_MAX);encoded_bytes=777;
+                CHECK(scene_authored_collection_checkpoint_write(lights->staged,packet,saved_bytes-1,&encoded_bytes)==RF_RANGE);
+                CHECK(encoded_bytes==777 && !memcmp(packet,kept,SCENE_CHECKPOINT_MAX));
+                lights->staged->terrain_noise->random.value^=1;
+                CHECK(scene_authored_collection_checkpoint_write(lights->staged,packet,SCENE_CHECKPOINT_MAX,&encoded_bytes)==RF_FORMAT);
+                CHECK(encoded_bytes==777 && !memcmp(packet,kept,SCENE_CHECKPOINT_MAX));
+                lights->staged->terrain_noise->random.value^=1;
+                printf("PASS paired RFDS3 writer: real histories/bodies, shared maps, extension validation and atomic failures (%u bytes)\n",saved_bytes);
+            }
             scene_terrain_lighting_stage_discard(&lights);scene_terrain_publication_abort(pair);
-            scene_terrain_publication_close(&pair->terrain_publication);
+            rf_geometry_collision_overlay_close(&pair->terrain_collision);scene_terrain_publication_close(&pair->terrain_publication);
         }
         scene_terrain_sources_close(pair);free(pair);free(packet);free(kept);
         printf("PASS real paired source snapshot: verified source identities, exact cut meshes/body bytes and atomic rejection (%u bytes)\n",bytes);

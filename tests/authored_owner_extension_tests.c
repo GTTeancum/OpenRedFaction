@@ -52,5 +52,22 @@ int main(void)
     value.serial=3;CHECK(!rf_authored_owner_extension_encode(&value,&expected,0,encoded,128));
     CHECK(!rf_authored_owner_extension_decode(encoded,128,&expected,0,&decoded) && decoded.serial==3);
     CHECK(encode_reject(&value,&expected,4,128));
+    {
+        rf_authored_owner_extension collection=value,old;rf_authored_owner_expected owners=expected;
+        collection.mode=1;collection.serial=1;collection.source_count=owners.source_count=12;
+        collection.neighbor_count=owners.neighbor_count=6;
+        CHECK(!rf_authored_owner_collection_encode(&collection,&owners,2,2,encoded,128));
+        CHECK(!rf_authored_owner_collection_decode(encoded,128,&owners,2,2,&decoded) && decoded.mode==1);
+        CHECK(decode_reject(encoded,128,&owners,2));
+        memset(&decoded,0xa5,sizeof(decoded));old=decoded;
+        CHECK(rf_authored_owner_collection_decode(encoded,128,&owners,2,3,&decoded)==RF_FORMAT && !memcmp(&decoded,&old,sizeof(old)));
+        CHECK(rf_authored_owner_collection_decode(encoded,128,&owners,1,2,&decoded)==RF_RANGE && !memcmp(&decoded,&old,sizeof(old)));
+        for(i=0;i<128;i++)CHECK(rf_authored_owner_collection_decode(encoded,i,&owners,2,2,&decoded)!=RF_OK && !memcmp(&decoded,&old,sizeof(old)));
+        memcpy(bad,encoded,128);bad[96]^=1;
+        CHECK(rf_authored_owner_collection_decode(bad,128,&owners,2,2,&decoded)==RF_FORMAT && !memcmp(&decoded,&old,sizeof(old)));
+        collection.serial=3;CHECK(!rf_authored_owner_collection_encode(&collection,&owners,2,0,encoded,128));
+        CHECK(!rf_authored_owner_collection_decode(encoded,128,&owners,2,0,&decoded));
+        puts("PASS collection extension: mode separation, simultaneous cut sum, reset and atomic rejection");
+    }
     puts("PASS authored owner extension exact128 LE vector, identity/policy gates, serial/reset, atomic failures");return 0;
 }

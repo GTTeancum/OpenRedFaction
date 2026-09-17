@@ -33,4 +33,12 @@ int rf_authored_owner_extension_encode(const rf_authored_owner_extension *,
     const rf_authored_owner_expected *,uint32_t cuts,void *out,uint32_t bytes);
 int rf_authored_owner_extension_decode(const void *,uint32_t bytes,
     const rf_authored_owner_expected *,uint32_t cuts,rf_authored_owner_extension *out);
+/* RFDS3 collection extension: mode1, same128-byte layout; count2..4 comes
+ * from the independently verified source directory. Counts aggregate owners.
+ * Each local cut must be checked separately; this gate only bounds their sum.
+ * Legacy mode0 routines reject collection mode. Same atomic-output contract. */
+int rf_authored_owner_collection_encode(const rf_authored_owner_extension *,
+    const rf_authored_owner_expected *,uint32_t count,uint32_t cuts,void *,uint32_t bytes);
+int rf_authored_owner_collection_decode(const void *,uint32_t bytes,
+    const rf_authored_owner_expected *,uint32_t count,uint32_t cuts,rf_authored_owner_extension *);
 #endif

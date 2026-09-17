@@ -1,8 +1,9 @@
 /* Include after checkpoint_* helpers and scene_authored_digest_capture.inc.
- * RFDS2 only: caller owns RFCP/player/transport framing. Main-thread synchronous
+ * RFDS2 or explicit RFDS3 collection payload: caller owns RFCP/player/transport framing. Main-thread synchronous
  * snapshot; input scene must not mutate. Buffer/written are disjoint from scene
  * and each other. Entire output is staged, so every failure preserves outputs.
- * Additional peak: sizeof(writer)+payload<=109948+digest<512KiB, bounded1MiB.
+ * Additional peak is bounded1MiB: collection snapshot uses at most three
+ * transport buffers; later directory+writer+payload+digest are reserved together.
  * No GPU, global diagnostics, owner pointers, RNG or live state are changed.
  */
 #include "rf/authored_checkpoint_layout.h"
@@ -13,21 +14,22 @@ typedef struct scene_authored_checkpoint_writer {
     rf_authored_owner_expected expected;
     rf_authored_owner_extension extension;
 } scene_authored_checkpoint_writer;
-static inline int scene_authored_checkpoint_write(scene_stream *s,void *buffer,uint32_t capacity,uint32_t *written)
+static inline int scene_authored_checkpoint_write_mode(scene_stream *s,void *buffer,uint32_t capacity,uint32_t *written,uint32_t collection)
 {
-    scene_authored_checkpoint_writer *w=NULL;unsigned char *p=NULL;
+    scene_authored_checkpoint_writer *w=NULL;unsigned char *p=NULL,*source_data=NULL;
     const scene_terrain_noise_owner *owner;scene_publication_bank *bank;
     rf_geomod_terrain_view view,core_view;rf_collision_composition_view composition;
     rf_authored_checkpoint_layout layout,checked;uint32_t core,i,j,k,at,peak,serial,piece_bytes=0;
+    uint32_t directory_storage=collection?RF_COMPOSED_CHECKPOINT_RFDS_MAX:0;
     size_t name_length;int status;
-    if(!s || s->terrain_source_count>1 || !buffer || !written || !s->terrain || !s->terrain_authored || !s->terrain_publication ||
+    if(!s || s->terrain_source_count>4 || !buffer || !written || !s->terrain || !s->terrain_authored || !s->terrain_publication ||
        !s->terrain_noise || s->terrain_publication->has_pending || s->terrain_shadow_reference ||
        !s->terrain_atlas_registered || s->terrain_checkpoint_loaded || s->terrain_history_count>128)return RF_RANGE;
     owner=s->terrain_noise;serial=s->terrain_publication_serial;
     if(serial==UINT32_MAX || owner->count>RF_GEOMOD_LIGHTMAP_LIMIT || owner->bake!=owner->count || owner->sample)return RF_FORMAT;
     status=scene_terrain_publication_view(s,&view);if(status)return status;
     status=rf_geomod_terrain_get(s->terrain,&core_view);if(status)return status;
-    if(view.cuts!=core_view.cuts || view.mesh.generation!=serial || owner->cuts!=view.cuts)return RF_FORMAT;
+    if((!collection && view.cuts!=core_view.cuts) || view.mesh.generation!=serial || owner->cuts!=view.cuts)return RF_FORMAT;
     bank=s->terrain_publication->banks+s->terrain_publication->active;
     status=rf_collision_composition_get(s->terrain_publication->composition,&composition);if(status)return status;
     if(view.cuts) {if(owner->generation!=serial)return RF_FORMAT;}
@@ -47,20 +49,28 @@ static inline int scene_authored_checkpoint_write(scene_stream *s,void *buffer,u
             for(k=0;k<2;k++)if(!isfinite(h->vectors[k][j]))return RF_FORMAT;
         }
     }
-    status=rf_geomod_terrain_history_size(s->terrain,&core);if(status)return status;
-    if(rf_geomod_piece_registry_count(s->detached_pieces)) {
-        status=rf_geomod_piece_registry_state_size(s->detached_pieces,&piece_bytes);if(status)return status;
+    if(collection) {
+        if((uint64_t)directory_storage*3>SCENE_AUTHORED_WRITER_BUDGET)return RF_RANGE;
+        source_data=malloc(directory_storage);if(!source_data)return RF_IO;
+        status=scene_authored_sources_write(s,source_data,directory_storage,&core);if(status)goto done;
+        status=rf_authored_collection_layout_size(core,s->terrain_history_count,owner->count,view.mesh.face_count,&layout);if(status)goto done;
+    } else {
+        status=rf_geomod_terrain_history_size(s->terrain,&core);if(status)return status;
+        if(rf_geomod_piece_registry_count(s->detached_pieces)) {
+            status=rf_geomod_piece_registry_state_size(s->detached_pieces,&piece_bytes);if(status)return status;
+        }
+        status=rf_authored_checkpoint_layout_size_pieces(core,s->terrain_history_count,owner->count,view.mesh.face_count,piece_bytes,&layout);if(status)return status;
     }
-    status=rf_authored_checkpoint_layout_size_pieces(core,s->terrain_history_count,owner->count,view.mesh.face_count,piece_bytes,&layout);if(status)return status;
-    if(capacity<layout.bytes || (uint64_t)sizeof(*w)+layout.bytes+SCENE_AUTHORED_DIGEST_BUDGET>SCENE_AUTHORED_WRITER_BUDGET)return RF_RANGE;
-    w=calloc(1,sizeof(*w));if(!w)return RF_IO;p=calloc(1,layout.bytes);if(!p){status=RF_IO;goto done;}
+    if(capacity<layout.bytes || (uint64_t)directory_storage+sizeof(*w)+layout.bytes+SCENE_AUTHORED_DIGEST_BUDGET>SCENE_AUTHORED_WRITER_BUDGET){status=RF_RANGE;goto done;}
+    w=calloc(1,sizeof(*w));if(!w){status=RF_IO;goto done;}p=calloc(1,layout.bytes);if(!p){status=RF_IO;goto done;}
     w->lighting=*s;
     if(!view.cuts){w->empty.random.value=owner->random.value;w->lighting.terrain_noise=&w->empty;}
     status=scene_authored_digest_capture(s,&view,bank->origins,&composition,&w->lighting,serial,
         w->face_maps,RF_GEOMOD_PUBLICATION_FACES,&w->expected,&peak);if(status)goto done;
-    if((uint64_t)sizeof(*w)+layout.bytes+peak>SCENE_AUTHORED_WRITER_BUDGET){status=RF_RANGE;goto done;}
-    memcpy(p,"RFDS",4);checkpoint_put(p+4,2);checkpoint_put(p+8,layout.bytes);checkpoint_put(p+12,piece_bytes);
+    if((uint64_t)directory_storage+sizeof(*w)+layout.bytes+peak>SCENE_AUTHORED_WRITER_BUDGET){status=RF_RANGE;goto done;}
+    memcpy(p,"RFDS",4);checkpoint_put(p+4,collection?3:2);checkpoint_put(p+8,layout.bytes);checkpoint_put(p+12,piece_bytes);
     memcpy(p+16,campaign_current_level,name_length);memcpy(p+80,s->terrain_checkpoint_identity,128);
+    if(collection)memcpy(p+80,s->terrain_sources[0].authored->source_identity,32);
     checkpoint_put(p+208,s->terrain_texture_width);checkpoint_put(p+212,s->terrain_texture_height);
     for(i=0;i<3;i++){checkpoint_put_float(p+216+i*4,s->terrain_history_minimum[i]);checkpoint_put_float(p+228+i*4,s->terrain_history_maximum[i]);}
     checkpoint_put(p+240,s->terrain_history_count);checkpoint_put(p+244,s->terrain_random.value);
@@ -71,9 +81,14 @@ static inline int scene_authored_checkpoint_write(scene_stream *s,void *buffer,u
     w->extension.publication_policy=w->extension.collision_policy=w->extension.material_policy=1;w->extension.serial=serial;
     memcpy(w->extension.publication_digest,w->expected.publication_digest,32);
     memcpy(w->extension.collision_digest,w->expected.collision_digest,32);memcpy(w->extension.material_digest,w->expected.material_digest,32);
-    status=rf_authored_owner_extension_encode(&w->extension,&w->expected,view.cuts,p+288,128);if(status)goto done;
-    status=rf_geomod_terrain_history_encode(s->terrain,p+layout.core_offset,core);if(status)goto done;
-    status=scene_checkpoint_materials(p+layout.core_offset,core,s->terrain_material,0);if(status)goto done;
+    w->extension.mode=collection?1:0;
+    status=collection?rf_authored_owner_collection_encode(&w->extension,&w->expected,s->terrain_source_count,view.cuts,p+288,128):
+        rf_authored_owner_extension_encode(&w->extension,&w->expected,view.cuts,p+288,128);if(status)goto done;
+    if(collection)memcpy(p+layout.core_offset,source_data,core);
+    else {
+        status=rf_geomod_terrain_history_encode(s->terrain,p+layout.core_offset,core);if(status)goto done;
+        status=scene_checkpoint_materials(p+layout.core_offset,core,s->terrain_material,0);if(status)goto done;
+    }
     at=layout.admission_offset;
     for(i=0;i<layout.admissions;i++,at+=48) {
         const rf_geomod_shallow_history *h=s->terrain_history+i;
@@ -95,9 +110,16 @@ static inline int scene_authored_checkpoint_write(scene_stream *s,void *buffer,u
     if(piece_bytes) {
         status=rf_geomod_piece_registry_state_encode(s->detached_pieces,p+layout.piece_offset,piece_bytes);if(status)goto done;
     }
-    status=rf_authored_checkpoint_layout_read(p,layout.bytes,&checked);if(status)goto done;
+    status=collection?rf_authored_collection_layout_read(p,layout.bytes,&checked):rf_authored_checkpoint_layout_read(p,layout.bytes,&checked);if(status)goto done;
     if(memcmp(&checked,&layout,sizeof(layout))){status=RF_FORMAT;goto done;}
     memcpy(buffer,p,layout.bytes);*written=layout.bytes;status=RF_OK;
 done:
-    free(p);free(w);return status;
+    free(source_data);free(p);free(w);return status;
 }
+
+/* Gameplay dispatch remains single-source until the collection restore commits
+ * shared atlas/player state. Explicit collection writer is used by CPU tests. */
+static inline int scene_authored_checkpoint_write(scene_stream *s,void *buffer,uint32_t capacity,uint32_t *written)
+{if(!s || s->terrain_source_count>1)return RF_RANGE;return scene_authored_checkpoint_write_mode(s,buffer,capacity,written,0);}
+static inline int scene_authored_collection_checkpoint_write(scene_stream *s,void *buffer,uint32_t capacity,uint32_t *written)
+{if(!s || s->terrain_source_count<2)return RF_RANGE;return scene_authored_checkpoint_write_mode(s,buffer,capacity,written,1);}
