@@ -42,4 +42,10 @@ typedef struct rf_geomod_notify_radial {
  * registry mutations or global auxiliary42e4a0/42e560 dispatch are performed. */
 int rf_geomod_notify_object_change(const rf_geomod_notify_object *,const rf_geomod_notify_change *,
     const rf_geomod_notify_radial *,rf_geomod_notify_result *);
+/*490900: settled (signed bounce count<=0) fragments strictly inside radius
+ * start fading by copying lifetime to age. Radius is squared/stored as float;
+ * finite negative radii retain original squared-radius behavior. No deletion,
+ * velocity/pose changes or detail-marker gate. Invalid inputs preserve output. */
+int rf_geomod_notify_debris(const float position[3],int32_t bounces,float age,float lifetime,
+    const float center[3],float radius,float *out_age);
 #endif

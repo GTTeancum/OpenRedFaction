@@ -3,6 +3,23 @@
 #include <stdio.h>
 #include <string.h>
 #define CHECK(x) do{if(!(x)){fprintf(stderr,"notify line%d: %s\n",__LINE__,#x);return 1;}}while(0)
+static int debris_cases(void)
+{
+ static const struct {uint32_t inputs[9];int32_t bounces;uint32_t output;} cases[]={
+#include "fixtures/debris_postedit.inc"
+ };
+ uint32_t i;float in[9],age;
+ for(i=0;i<sizeof(cases)/sizeof(cases[0]);i++) {
+  memcpy(in,cases[i].inputs,sizeof(in));age=-99;
+  CHECK(!rf_geomod_notify_debris(in,cases[i].bounces,in[7],in[8],in+3,in[6],&age));
+  CHECK(!memcmp(&age,&cases[i].output,4));
+ }
+ age=123;in[0]=NAN;
+ CHECK(rf_geomod_notify_debris(in,0,1,2,in+3,2,&age)==RF_FORMAT && age==123);
+ in[0]=0;CHECK(rf_geomod_notify_debris(in,0,1,2,in+3,INFINITY,&age)==RF_FORMAT && age==123);
+ CHECK(rf_geomod_notify_debris(NULL,0,1,2,in+3,2,&age)==RF_RANGE && age==123);
+ puts("PASS168 original settled-debris cleanup cases and invalid-input preservation");return 0;
+}
 static int radial_cases(void)
 {
  const uint32_t kinds[]={0,1,4,4,4,7},physics[]={0,1,0x10,0x80},flags[]={0x400000,0x400004,0x404000};
@@ -60,5 +77,6 @@ int main(void)
  boxes[0].minimum[0]=2;BAD(RF_FORMAT);boxes[0].minimum[0]=-1;object.bounds.maximum[1]=INFINITY;BAD(RF_FORMAT);object.bounds.maximum[1]=1;
  CHECK(rf_geomod_notify_changed_boxes(NULL,&change,&result)==RF_RANGE&&!memcmp(&result,&kept,sizeof(result)));
  CHECK(!radial_cases());
+ CHECK(!debris_cases());
  printf("PASS %u original-derived changed-box rows plus parent/enable/multi-box/unsupported/rollback tests\n",cases);return 0;
 }

@@ -1,5 +1,20 @@
 #include "rf/geomod_notify.h"
 #include <math.h>
+int rf_geomod_notify_debris(const float position[3],int32_t bounces,float age,float lifetime,
+    const float center[3],float radius,float *out_age)
+{
+    float d[3],limit;double distance;uint32_t i;
+    if(!position || !center || !out_age)return RF_RANGE;
+    if(!isfinite(age) || !isfinite(lifetime) || !isfinite(radius))return RF_FORMAT;
+    for(i=0;i<3;i++) {
+        if(!isfinite(position[i]) || !isfinite(center[i]))return RF_FORMAT;
+        d[i]=(float)((double)center[i]-position[i]);
+        if(!isfinite(d[i]))return RF_RANGE;
+    }
+    limit=(float)((double)radius*radius);if(!isfinite(limit))return RF_RANGE;
+    distance=((double)d[0]*d[0]+(double)d[1]*d[1])+(double)d[2]*d[2];
+    *out_age=bounces<=0 && distance<limit?lifetime:age;return RF_OK;
+}
 static int valid_box(const rf_geomod_changed_box *b)
 {
     uint32_t k;for(k=0;k<3;k++)if(!isfinite(b->minimum[k])||!isfinite(b->maximum[k])||b->minimum[k]>b->maximum[k])return 0;
