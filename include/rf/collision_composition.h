@@ -40,6 +40,23 @@ int rf_collision_composition_get(const rf_collision_composition *, rf_collision_
  * No external overlay/render state is changed. */
 int rf_collision_composition_prepare(rf_collision_composition *, const rf_collision_face *,
                                      const uint32_t *metadata_ids, uint32_t count);
+/* A complete current publication for one source; an unedited source supplies
+ * its original windows, while a fully removed source supplies zero faces.
+ * Groups partition the owner's replaced IDs exactly once. Omitted/duplicate
+ * ownership rejects the candidate rather than silently removing another source.
+ * Replacement metadata may reference retained neighbors, as for single-source
+ * publication. Vertices retain the same borrow lifetime as prepare(). */
+typedef struct rf_collision_composition_group {
+    const uint32_t *replaced_ids;
+    uint32_t replaced_count;
+    const rf_collision_face *faces;
+    const uint32_t *metadata_ids;
+    uint32_t face_count;
+} rf_collision_composition_group;
+/* Uses one room tree, one bounded scratch allocation and one pending commit.
+ * All groups describe the complete current state, not incremental deltas. */
+int rf_collision_composition_prepare_groups(rf_collision_composition *,
+    const rf_collision_composition_group *, uint32_t group_count);
 int rf_collision_composition_prepare_reset(rf_collision_composition *);
 int rf_collision_composition_pending(const rf_collision_composition *, rf_collision_composition_view *);
 /* First bind pending.tree/face_ids to the overlay, then commit, so no live

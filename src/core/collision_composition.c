@@ -154,23 +154,38 @@ int rf_collision_composition_pending(const rf_collision_composition *o, rf_colli
     *view = v;
     return RF_OK;
 }
-int rf_collision_composition_prepare(rf_collision_composition *o, const rf_collision_face *replacement,
-                                     const uint32_t *ids, uint32_t count) {
-    uint64_t total, work_bytes, used;
-    uint32_t n, i, j, scratch_bytes;
+int rf_collision_composition_prepare_groups(rf_collision_composition *o,
+    const rf_collision_composition_group *groups, uint32_t group_count) {
+    uint64_t total, work_bytes, used, count = 0, owned = 0;
+    uint32_t n, i, j, k, g, matches, scratch_bytes;
     unsigned char *work;
     rf_collision_face *faces;
     rf_collision_tree tree = {0};
     int status;
-    if (!o || o->pending_kind || (count && (!replacement || !ids)))
+    if (!o || o->pending_kind || (group_count && !groups) || group_count > o->base_count + 1ull)
         return RF_RANGE;
+    for (g = 0; g < group_count; g++) {
+        const rf_collision_composition_group *part = groups + g;
+        if ((part->replaced_count && !part->replaced_ids) ||
+            (part->face_count && (!part->faces || !part->metadata_ids))) return RF_RANGE;
+        count += part->face_count; owned += part->replaced_count;
+    }
     total = (uint64_t)o->base_count - o->replaced_count + count;
-    if (total > o->capacity)
-        return RF_RANGE;
+    if (total > o->capacity) return RF_RANGE;
+    if (owned != o->replaced_count) return RF_FORMAT;
+    /* Equal cardinality plus one occurrence of every registered ID proves a
+     * complete disjoint partition, including rejection of unknown IDs. */
+    for (i = 0; i < o->replaced_count; i++) {
+        matches = 0;
+        for (g = 0; g < group_count; g++)
+            for (k = 0; k < groups[g].replaced_count; k++)
+                matches += groups[g].replaced_ids[k] == o->replaced[i];
+        if (matches != 1) return RF_FORMAT;
+    }
     n = (uint32_t)total;
-    for (i = 0; i < count; i++)
-        if (ids[i] == UINT32_MAX)
-            return RF_FORMAT;
+    for (g = 0; g < group_count; g++)
+        for (i = 0; i < groups[g].face_count; i++)
+            if (groups[g].metadata_ids[i] == UINT32_MAX) return RF_FORMAT;
     work_bytes = (uint64_t)n * (2 * sizeof(rf_collision_face) + sizeof(uint32_t) + 1);
     used = resident(o);
     /* Non-null scratch is required even for an empty tree. */
@@ -190,10 +205,11 @@ int rf_collision_composition_prepare(rf_collision_composition *o, const rf_colli
         faces[j] = o->base.faces[index];
         o->pending_ids[j++] = o->base_ids[index];
     }
-    for (i = 0; i < count; i++) {
-        faces[j] = replacement[i];
-        o->pending_ids[j++] = ids[i];
-    }
+    for (g = 0; g < group_count; g++)
+        for (i = 0; i < groups[g].face_count; i++) {
+            faces[j] = groups[g].faces[i];
+            o->pending_ids[j++] = groups[g].metadata_ids[i];
+        }
     scratch_bytes = n * (uint32_t)(sizeof(rf_collision_face) + sizeof(uint32_t) + 1);
     status = rf_collision_tree_open_scratch(faces, n, o->budget - (uint32_t)(used + work_bytes), &tree,
                                             work + (size_t)n * sizeof(rf_collision_face), scratch_bytes);
@@ -206,6 +222,13 @@ int rf_collision_composition_prepare(rf_collision_composition *o, const rf_colli
     if (used > o->peak_bytes)
         o->peak_bytes = (uint32_t)used;
     return RF_OK;
+}
+int rf_collision_composition_prepare(rf_collision_composition *o, const rf_collision_face *replacement,
+                                     const uint32_t *ids, uint32_t count) {
+    rf_collision_composition_group group;
+    if (!o) return RF_RANGE;
+    group = (rf_collision_composition_group){o->replaced, o->replaced_count, replacement, ids, count};
+    return rf_collision_composition_prepare_groups(o, &group, 1);
 }
 int rf_collision_composition_prepare_reset(rf_collision_composition *o) {
     if (!o || o->pending_kind)

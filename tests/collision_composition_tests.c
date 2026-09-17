@@ -60,6 +60,57 @@ static int query(const rf_collision_composition_view *v, const float p[3], const
         *y = h.hit.point[1];
     return 1;
 }
+static int multi_source(const rf_collision_tree *base,const uint32_t *tree_ids) {
+    uint32_t replaced_ids[2]={149,150};
+    rf_collision_composition_group groups[2]={
+        {replaced_ids,1,faces+6,replaced_ids,1},
+        {replaced_ids+1,1,faces+1,replaced_ids+1,1}};
+    rf_collision_composition *owner=NULL;
+    rf_collision_composition_view view,saved;
+    allocation_state alloc={0};
+    rf_collision_composition_allocator allocator={test_allocate,test_release,&alloc};
+    float east[3]={2,0,0},west[3]={-2,0,0},left[3]={-1.5f,0,0},right[3]={1.5f,0,0};
+    float ground[3]={0,0,0},water[3]={6,-1,0},down[3]={0,-3,0},y;
+    CHECK(!rf_collision_composition_open(base,tree_ids,replaced_ids,2,8,100000,&allocator,&owner));
+    CHECK(!rf_collision_composition_prepare_groups(owner,groups,2));
+    CHECK(!rf_collision_composition_pending(owner,&view));
+    CHECK(query(&view,east,left,4,0,0,NULL));
+    CHECK(query(&view,west,right,4,1,150,NULL)); /* unedited second source */
+    CHECK(!rf_collision_composition_commit(owner));
+    /* Cut the second source completely; first hole and its upper remnant persist. */
+    groups[1].face_count=0;groups[1].faces=NULL;groups[1].metadata_ids=NULL;
+    CHECK(!rf_collision_composition_prepare_groups(owner,groups,2));
+    CHECK(!rf_collision_composition_pending(owner,&view));
+    CHECK(query(&view,east,left,4,0,0,NULL));
+    CHECK(query(&view,west,right,4,0,0,NULL));
+    east[1]=.75f;CHECK(query(&view,east,left,4,1,149,NULL));east[1]=0;
+    CHECK(query(&view,ground,down,4,1,171,&y) && y==-1);
+    CHECK(query(&view,water,down,0x1004,1,6656,&y) && y==-2);
+    CHECK(query(&view,water,down,4,0,0,NULL));
+    CHECK(!rf_collision_composition_commit(owner));
+    CHECK(!rf_collision_composition_get(owner,&saved));
+    CHECK(saved.generation==2 && saved.count==5);
+    CHECK(rf_collision_composition_prepare_groups(owner,groups,1)==RF_FORMAT); /* omitted source */
+    groups[1].replaced_ids=replaced_ids;
+    CHECK(rf_collision_composition_prepare_groups(owner,groups,2)==RF_FORMAT); /* duplicated source */
+    groups[1].replaced_ids=replaced_ids+1;
+    {uint32_t invalid=999;groups[1].replaced_ids=&invalid;
+     CHECK(rf_collision_composition_prepare_groups(owner,groups,2)==RF_FORMAT);}
+    groups[1].replaced_ids=replaced_ids+1;
+    alloc.fail=1;CHECK(rf_collision_composition_prepare_groups(owner,groups,2)==RF_IO);
+    CHECK(!rf_collision_composition_get(owner,&view));
+    CHECK(view.tree==saved.tree && view.generation==saved.generation && view.resident_bytes==saved.resident_bytes);
+    CHECK(query(&view,east,left,4,0,0,NULL) && query(&view,west,right,4,0,0,NULL));
+    /* Abort a candidate that would restore the west source. */
+    groups[1].face_count=1;groups[1].faces=faces+1;groups[1].metadata_ids=replaced_ids+1;
+    CHECK(!rf_collision_composition_prepare_groups(owner,groups,2));
+    rf_collision_composition_abort(owner);
+    CHECK(!rf_collision_composition_get(owner,&view));
+    CHECK(query(&view,west,right,4,0,0,NULL) && view.generation==2);
+    printf("PASS multi-source collision: sequential edits, retained upper remnant/floor/liquid, ownership rejection and rollback; peak%u\n",view.peak_bytes);
+    rf_collision_composition_close(&owner);CHECK(!owner && !alloc.live);
+    return 0;
+}
 int main(void) {
     static const float points[7][4][3] = {{{1, -1, -1}, {1, 1, -1}, {1, 1, 1}, {1, -1, 1}},
                                           {{-1, -1, -1}, {-1, -1, 1}, {-1, 1, 1}, {-1, 1, -1}},
@@ -176,6 +227,7 @@ int main(void) {
     rf_geometry_collision_overlay_close(&overlay);
     rf_collision_composition_close(&owner);
     CHECK(!owner && alloc.live == 0);
+    CHECK(!multi_source(&base,tree_ids));
     rf_collision_tree_close(&base);
     return 0;
 }
