@@ -127,6 +127,34 @@ int rf_geomod_piece_cutter_prepare(const float axis[3],float length,
     *out=value;*random=next;return RF_OK;
 }
 
+int rf_geomod_piece_cutter_mesh(const rf_geomod_piece_cutter *cutter,uint32_t material,
+    rf_geomod_vertex vertices[24],rf_geomod_face faces[6])
+{
+    rf_geomod_vertex v[24]={0};rf_geomod_face f[6];float half[3];uint32_t axis,side,j,k;
+    static const int u[4]={-1,1,1,-1},w[4]={-1,-1,1,1};
+    if(!cutter || !vertices || !faces)return RF_RANGE;
+    for(k=0;k<3;k++) {
+        if(!isfinite(cutter->dimensions[k]) || cutter->dimensions[k]<=0 || !isfinite(cutter->offset[k]))return RF_RANGE;
+        half[k]=(float)((double)cutter->dimensions[k]*.5);
+    }
+    for(k=0;k<9;k++)if(!isfinite(cutter->basis[k]))return RF_RANGE;
+    for(axis=0;axis<3;axis++)for(side=0;side<2;side++) {
+        uint32_t face=axis*2+side,a=(axis+1)%3,b=(axis+2)%3;
+        f[face]=(rf_geomod_face){face*4,4,material,UINT32_MAX};
+        for(j=0;j<4;j++) {
+            uint32_t corner=side?j:3-j;float local[3];rf_geomod_vertex *p=v+face*4+j;
+            local[axis]=side?half[axis]:-half[axis];local[a]=u[corner]*half[a];local[b]=w[corner]*half[b];
+            for(k=0;k<3;k++) {
+                float rotated=(float)(((double)local[2]*cutter->basis[6+k]+(double)local[1]*cutter->basis[3+k])+
+                    (double)local[0]*cutter->basis[k]);
+                p->position[k]=(float)((double)rotated+cutter->offset[k]);if(!isfinite(p->position[k]))return RF_RANGE;
+            }
+            p->uv[0]=(u[corner]+1)*.5f;p->uv[1]=(w[corner]+1)*.5f;
+        }
+    }
+    memcpy(vertices,v,sizeof(v));memcpy(faces,f,sizeof(f));return RF_OK;
+}
+
 int rf_geomod_random_basis(rf_random_state *random,float basis[9])
 {
     rf_random_state next;float v[9]={0};double inverse;uint32_t i;int status;
@@ -2581,6 +2609,20 @@ int rf_geomod_terrain_cut_box_checked(rf_geomod_terrain *t,const float center[3]
 }
 int rf_geomod_terrain_cut_box(rf_geomod_terrain *t,const float center[3],const float extent[3],uint32_t material)
 {return rf_geomod_terrain_cut_box_checked(t,center,extent,material,NULL,NULL);}
+int rf_geomod_terrain_cut_convex(rf_geomod_terrain *t,const rf_geomod_mesh_view *cutter)
+{
+    float planes[32][4];uint32_t slot,i;int status;
+    if(!t || !cutter || t->count==RF_GEOMOD_CUT_LIMIT || cutter->face_count>20 || cutter->vertex_count>60)return RF_RANGE;
+    status=convex_mesh_planes(cutter,planes);if(status)return status;
+    for(i=0;i<cutter->face_count;i++)if(cutter->faces[i].material==UINT32_MAX)return RF_FORMAT;
+    slot=t->count;
+    memcpy(t->cut_vertices[slot],cutter->vertices,cutter->vertex_count*sizeof(*cutter->vertices));
+    memcpy(t->cut_faces[slot],cutter->faces,cutter->face_count*sizeof(*cutter->faces));
+    for(i=0;i<cutter->face_count;i++)t->cut_faces[slot][i].source_face=UINT32_MAX;
+    t->star_mask&=~(1u<<slot);
+    t->cuts[slot]=(rf_geomod_mesh_view){t->cut_vertices[slot],t->cut_faces[slot],cutter->vertex_count,cutter->face_count,0};
+    return terrain_publish(t,t->count+1);
+}
 /* Inscribed twenty-face sphere approximation: bounded and deliberately faceted.
  * Reuses the same transactional union history as box excavation. */
 int rf_geomod_terrain_cut_crater(rf_geomod_terrain *t,const float center[3],float radius,uint32_t material)

@@ -252,6 +252,56 @@ static void opening(const rf_geomod_terrain_view *view,uint32_t axis,float locat
         CHECK(!matched);
     }
 }
+static void subdivision_mesh_cuts(void)
+{
+    uint32_t axis,seed;
+    for(axis=0;axis<3;axis++)for(seed=0;seed<5;seed++) {
+        rf_geomod_mesh_view source,cut,result;rf_geomod_terrain *terrain=NULL;rf_geomod_terrain_view view;
+        rf_geomod_vertex vertices[24];rf_geomod_face faces[6];rf_geomod_piece_cutter pose;
+        rf_random_state random={seed*12345};
+        float direction[3]={0};uint32_t f,j,k,words,count,largest,*work,*labels;double volume=0;
+        direction[axis]=1;make_source(&source);
+        CHECK(!rf_geomod_piece_cutter_prepare(direction,20,&random,&pose));
+        CHECK(!rf_geomod_piece_cutter_mesh(&pose,7,vertices,faces));cut=(rf_geomod_mesh_view){vertices,faces,24,6,0};
+        terrain=open_terrain(&source,1024*1024,800);
+        {int status=rf_geomod_terrain_cut_convex(terrain,&cut);if(status)fprintf(stderr,"convex axis%u seed%u status%d\n",axis,seed,status);CHECK(!status);}
+        CHECK(!rf_geomod_terrain_get(terrain,&view));result=view.mesh;
+        for(f=0;f<result.face_count;f++) {
+            const rf_geomod_face *face=result.faces+f;const float *a=result.vertices[face->first].position;
+            for(j=1;j+1<face->count;j++) {
+                const float *b=result.vertices[face->first+j].position,*c=result.vertices[face->first+j+1].position;
+                for(k=0;k<3;k++)volume+=(double)a[k]*((double)b[(k+1)%3]*c[(k+2)%3]-(double)b[(k+2)%3]*c[(k+1)%3])/6;
+            }
+        }
+        CHECK(fabs(volume-(8000-80/pose.basis[6+axis]))<.01);
+        CHECK(!rf_geomod_component_work_size(&result,&words));work=malloc(words*4);labels=malloc(result.face_count*4);
+        CHECK(work && labels && !rf_geomod_mesh_components(&result,NULL,work,words,labels,&count,&largest));
+        if(count!=2)fprintf(stderr,"slab axis%u seed%u groups%u faces%u\n",axis,seed,count,result.face_count);
+        CHECK(count==2);
+        {uint16_t neighbors[1024];CHECK(!rf_geomod_seed_adjacency(&result,neighbors,1024));}
+        {
+            rf_collision_tree_hit hit;uint32_t matched,side;float start[3],delta[3];
+            for(side=0;side<2;side++) {
+                for(k=0;k<3;k++){start[k]=pose.offset[k];delta[k]=pose.basis[6+k]*(side?20:-20);}
+                CHECK(!rf_collision_thin_tree(view.tree->nodes,view.tree->node_count,view.tree->faces,view.tree->face_count,
+                    0,start,delta,1,query_stack,8192,&hit,&matched));
+                CHECK(matched && fabs(hit.hit.fraction-.005)<.00001);
+            }
+            for(k=0;k<3;k++){start[k]=pose.offset[k]-pose.basis[k]*30;delta[k]=pose.basis[k]*60;}
+            CHECK(!rf_collision_thin_tree(view.tree->nodes,view.tree->node_count,view.tree->faces,view.tree->face_count,
+                0,start,delta,1,query_stack,8192,&hit,&matched));CHECK(!matched);
+        }
+        {
+            rf_geomod_terrain *reloaded=open_terrain(&source,1024*1024,800);rf_geomod_terrain_view restored;uint32_t bytes;
+            CHECK(!rf_geomod_terrain_history_size(terrain,&bytes));CHECK(bytes<=sizeof(encoded));
+            CHECK(!rf_geomod_terrain_history_encode(terrain,encoded,bytes));
+            CHECK(!rf_geomod_terrain_history_decode(reloaded,encoded,bytes));CHECK(!rf_geomod_terrain_get(reloaded,&restored));
+            compare(&view,&restored);rf_geomod_terrain_close(&reloaded);
+        }
+        free(work);free(labels);rf_geomod_terrain_close(&terrain);
+    }
+    printf("PASS 15 tilted slab cuts: analytic volume and two extracted groups\n");
+}
 static int subdivision_cutter_cases(void)
 {
     static const struct {uint32_t axis[3],length,seed,next,output[15];} rows[]={
@@ -271,6 +321,7 @@ static int subdivision_cutter_cases(void)
 int main(void)
 {
     CHECK(!subdivision_cutter_cases());
+    subdivision_mesh_cuts();
     uint32_t axis,bytes;rf_geomod_mesh_view source;
     shapes();
     concave_caps();

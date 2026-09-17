@@ -296,6 +296,11 @@ typedef struct rf_geomod_mesh_view {
     const rf_geomod_vertex *vertices;const rf_geomod_face *faces;
     uint32_t vertex_count,face_count,generation;
 } rf_geomod_mesh_view;
+/* Build the recovered slab pose as six outward quads. Practical mesh adapter:
+ * caller supplies24 corners and6 faces; output UVs are normalized face UVs,
+ * not original material mapping. No allocation or CSG. Errors preserve outputs. */
+int rf_geomod_piece_cutter_mesh(const rf_geomod_piece_cutter *,uint32_t material,
+    rf_geomod_vertex vertices[24],rf_geomod_face faces[6]);
 /* Same original placement arithmetic as piece_recenter, directly on mesh
  * corners, preserving UV bytes. No extra position buffer or allocation.
  * Exact in-place operation is allowed; other overlaps are forbidden. Errors
@@ -508,6 +513,10 @@ int rf_geomod_terrain_set_mapping(rf_geomod_terrain *terrain,uint32_t width,uint
  * history and collision. No game eligibility/weapon policy is implied. */
 int rf_geomod_terrain_cut_box(rf_geomod_terrain *terrain,const float center[3],
     const float half_extent[3],uint32_t material);
+/* Copy a closed outward convex cutter (up to20 faces/60 corners) into the
+ * ordinary chronological history. Preserves transactional mesh/tree publication.
+ * Uses supplied face materials; original surface IDs are not retained. */
+int rf_geomod_terrain_cut_convex(rf_geomod_terrain *,const rf_geomod_mesh_view *);
 /* Inscribed icosahedral crater; shares bounded atomic history with box cuts. */
 int rf_geomod_terrain_cut_crater(rf_geomod_terrain *,const float center[3],float radius,uint32_t material);
 /* Copy and atomically publish a closed outward triangular star cutter.
