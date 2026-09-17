@@ -1,8 +1,13 @@
 /* Test-only geometric edge coverage; copied from the established interior
  * fixture. T-junction subdivision uses1e-6 distance, never welds production. */
+#ifndef SNAPSHOT_VERTICES
 #define SNAPSHOT_VERTICES 4096
+#endif
+#ifndef SNAPSHOT_FACES
+#define SNAPSHOT_FACES 1024
+#endif
 static rf_geomod_vertex surface[SNAPSHOT_VERTICES];
-static rf_geomod_fragment polygons[1024];
+static rf_geomod_fragment polygons[SNAPSHOT_FACES];
 static unsigned surface_count,polygon_count;
 static int report_closure;
 static int lineage_closed_impl(void)
@@ -61,7 +66,7 @@ static int lineage_closed_impl(void)
 }
 static int lineage_closed(const rf_geomod_mesh_view *mesh)
 {
-    unsigned i;if(mesh->vertex_count>4096 || mesh->face_count>1024)return 0;
+    unsigned i;if(mesh->vertex_count>SNAPSHOT_VERTICES || mesh->face_count>SNAPSHOT_FACES)return 0;
     surface_count=mesh->vertex_count;polygon_count=mesh->face_count;
     memcpy(surface,mesh->vertices,surface_count*sizeof(*surface));
     for(i=0;i<polygon_count;i++)polygons[i]=(rf_geomod_fragment){mesh->faces[i].first,mesh->faces[i].count};

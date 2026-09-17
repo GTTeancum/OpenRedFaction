@@ -507,3 +507,36 @@ core-trace/trace.log, fan-lineage-build.log, fan-four-closure.log, fan-closure.l
 fan-prior-closure.log, fan-restored.log, fan-full-tests.log,
 fan-authored-restart.log and fan-xbox-build.log. Live artifacts use geomod-fan-*
 folders. Source geometry guards and tolerances were not relaxed.
+
+## First live closure failure isolated at admission13
+
+Offline live-history replay can export each committed RGM1 with
+RF_GEOMOD_PROBE_MESH_PREFIX and run the established numeric coverage check after
+every admission with RF_GEOMOD_PROBE_CLOSURE=1. Coverage storage is configurable
+for8192 vertices/2048 faces without changing default tests or tolerances. The
+probe still validates all committed cutter bytes and final RNG; requested
+closure failure returns exit2, rather than reporting a successful capture as
+geometrically correct. This is diagnostic-only, not a shipping geometry change.
+
+Both sequential independent snapshot checks and integrated prefix checks find
+cuts1..12 closed and13..15 nonclosed. At13, face1107 is an isolated triangle with
+edges3.20e-6..1.14e-5 long near(-35.36415,-10.33717,-4.23164). A second defect has
+three-way edge coverage around faces1110/1111/1168/1170. These differ from the
+exact same-position duplicate triangle case repaired earlier.
+
+Artifact-only instrumentation of repair inputs shows isolated triangle source
+face1107 already arrives with3 corners, support plane1444 and edges1569,1573,
+1610. The overlapping source face1168 already arrives as a triangle, plane1480,
+edges1448,1448,2154, emitting output1170. Its vertices are
+(-34.4876213,-11.0356483,-5.15673876),
+(-34.5319481,-11.0991201,-5.11398983),
+(-34.5609932,-11.1407175,-5.08597326).
+Thus repair/partition does not first create these two triangles; investigate
+tracked clipping/compaction input and supporting-plane intersections next.
+No epsilon weld, area cutoff, guard relaxation or speculative deletion added.
+
+Evidence under artifacts/authored-post-live: prefix-01..15.mesh,
+prefix-01..13-closure.log, closure-prefix-combined.log (expected exit2),
+overlap13/trace.log. Rebuilt dependent solid/public-UV regressions both pass.
+No new Xbox build or visual acceptance is needed/claimed for this probe-only
+change. Live defect remains open despite successful ordinary replay completion.
