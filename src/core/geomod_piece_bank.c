@@ -150,7 +150,7 @@ int rf_geomod_piece_body_open(const rf_geomod_owned_piece *piece,float elasticit
 }
 
 struct rf_geomod_piece_batch {
-    rf_geomod_piece_bank *geometry;rf_physics_body *bodies;rf_geomod_piece_life *life;
+    rf_geomod_piece_bank *geometry;rf_physics_body *bodies;rf_geomod_piece_life *life;float *birth_health;
     uint32_t count,bytes,peak_bytes;
 };
 void rf_geomod_piece_batch_close(rf_geomod_piece_batch **owner)
@@ -173,6 +173,7 @@ int rf_geomod_piece_batch_get(rf_geomod_piece_batch *batch,uint32_t index,
 {
     rf_geomod_owned_piece value;int status;
     if(!batch || !piece || !body || index>=batch->count)return RF_RANGE;
+    if(!batch->geometry || !batch->bodies[index].allocated_bytes)return RF_NOT_FOUND;
     status=rf_geomod_piece_bank_get(batch->geometry,index,&value);if(status)return status;
     *piece=value;*body=batch->bodies+index;return RF_OK;
 }
@@ -185,16 +186,18 @@ int rf_geomod_piece_batch_open(const rf_geomod_mesh_view *source,const rf_collis
     if(!out || *out || !random || !isfinite(elasticity) || !isfinite(friction))return RF_RANGE;
     next=*random;
     status=rf_geomod_piece_subdivide(source,filters,generated,material,density,&next,budget,&geometry,&stats);if(status)return status;
-    count=rf_geomod_piece_bank_count(geometry);owner_bytes=sizeof(*batch)+(uint64_t)count*(sizeof(rf_physics_body)+sizeof(rf_geomod_piece_life));
+    count=rf_geomod_piece_bank_count(geometry);owner_bytes=sizeof(*batch)+(uint64_t)count*(sizeof(rf_physics_body)+sizeof(rf_geomod_piece_life)+sizeof(float));
     resident=owner_bytes+rf_geomod_piece_bank_bytes(geometry);
     if(resident>budget){status=RF_RANGE;goto failed;}
     batch=calloc(1,(size_t)owner_bytes);if(!batch){status=RF_IO;goto failed;}
     batch->geometry=geometry;geometry=NULL;batch->bodies=(rf_physics_body *)(batch+1);batch->life=(rf_geomod_piece_life *)(batch->bodies+count);
+    batch->birth_health=(float *)(batch->life+count);
     batch->bytes=(uint32_t)resident;batch->peak_bytes=stats.peak_bytes;
     for(i=0;i<count;i++) {
         rf_geomod_owned_piece piece;
         status=rf_geomod_piece_bank_get(batch->geometry,i,&piece);if(status)goto failed;
         status=rf_geomod_piece_life_init(piece.birth_radius,batch->life+i);if(status)goto failed;
+        batch->birth_health[i]=batch->life[i].health;
         /* The body record is already in the fixed owner allocation. Only its
          * separately allocated spheres increase the concurrent resident bytes. */
         status=rf_geomod_piece_body_open(&piece,elasticity,friction,budget-batch->bytes+sizeof(rf_physics_body),batch->bodies+i);
@@ -428,13 +431,14 @@ int rf_geomod_piece_registry_state_decode(rf_geomod_piece_registry *r,const void
         for(i=0;i<r->count;i++)for(j=0;j<r->active[i].batch->count;j++,p+=stride) {
             rf_geomod_piece_batch *batch=r->active[i].batch;
             rf_physics_body_state state={0},*target=&batch->bodies[j].state;
-            rf_geomod_piece_life life,birth;rf_geomod_owned_piece piece;uint32_t bits;
+            rf_geomod_piece_life life,birth;uint32_t bits;
             if(piece_state_word(p)!=r->active[i].prefix || piece_state_word(p+4)!=r->active[i].ordinal || piece_state_word(p+8)!=j)return RF_FORMAT;
-            status=rf_geomod_piece_bank_get(batch->geometry,j,&piece);if(status)return status;
-            status=rf_geomod_piece_life_init(piece.birth_radius,&birth);if(status)return status;life=birth;
+            birth.health=batch->birth_health[j];birth.flags=0;life=birth;
             if(version==2){bits=piece_state_word(p+320);memcpy(&life.health,&bits,4);life.flags=piece_state_word(p+324);}
             if(!isfinite(life.health) || life.health>birth.health || (life.flags&~0x6200002u) ||
                (life.health<=0 && !(life.flags&2)))return RF_FORMAT;
+            /* Revival needs a history-rebuilt owner, not a collected tombstone. */
+            if(!(life.flags&2) && !batch->bodies[j].allocated_bytes)return RF_FORMAT;
             piece_state_codec(&state,(unsigned char *)p+12,1);
             if(!pass){status=piece_state_valid(&state,target);if(status)return status;}
             else {*target=state;batch->life[j]=life;}
@@ -446,6 +450,29 @@ int rf_geomod_piece_registry_damage(rf_geomod_piece_registry *r,uint32_t batch,u
 {
     if(!r || r->begun || batch>=r->count || piece>=r->active[batch].batch->count)return RF_RANGE;
     return rf_geomod_piece_life_damage(r->active[batch].batch->life+piece,amount);
+}
+
+int rf_geomod_piece_registry_collect_retired(rf_geomod_piece_registry *r,uint32_t *released)
+{
+    uint32_t b,i,total=0;
+    if(!r || !released || r->begun)return RF_RANGE;
+    for(b=0;b<r->count;b++) {
+        rf_geomod_piece_batch *batch=r->active[b].batch;uint32_t live=0,freed=0;
+        for(i=0;i<batch->count;i++) {
+            rf_physics_body *body=batch->bodies+i;
+            if(rf_geomod_piece_batch_alive(batch,i)){live++;continue;}
+            if(body->allocated_bytes) {
+                freed+=body->allocated_bytes-sizeof(*body);
+                rf_physics_spheres_close(&body->spheres);body->allocated_bytes=0;
+            }
+        }
+        if(!live && batch->geometry) {
+            freed+=rf_geomod_piece_bank_bytes(batch->geometry);
+            rf_geomod_piece_bank_close(&batch->geometry);
+        }
+        batch->bytes-=freed;r->bytes-=freed;total+=freed;
+    }
+    *released=total;return RF_OK;
 }
 
 static int piece_registry_sweep_except(const rf_geomod_piece_registry *r,uint32_t excluded_batch,uint32_t excluded_piece,float minimum_body_radius,uint32_t flags,

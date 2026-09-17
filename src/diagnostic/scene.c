@@ -10764,6 +10764,7 @@ static int scene_detached_tick(scene_stream *s)
     uint32_t b,i;int status;memset(rf_scene_detached_motion,0,sizeof(rf_scene_detached_motion));
     memset(rf_scene_detached_pose,0,sizeof(rf_scene_detached_pose));
     if(!s->detached_pieces)return RF_OK;
+    {uint32_t released;status=rf_geomod_piece_registry_collect_retired(s->detached_pieces,&released);if(status)goto failed;}
     for(b=0;b<rf_geomod_piece_registry_count(s->detached_pieces);b++) {
         rf_geomod_piece_batch *batch;
         status=rf_geomod_piece_registry_get(s->detached_pieces,b,&batch);if(status)goto failed;

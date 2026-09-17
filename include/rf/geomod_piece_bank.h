@@ -68,12 +68,13 @@ int rf_geomod_piece_batch_open(const rf_geomod_mesh_view *,const rf_collision_fa
     rf_random_state *,uint32_t budget,rf_geomod_piece_batch **);
 void rf_geomod_piece_batch_close(rf_geomod_piece_batch **);
 /* Count/get preserve retired slots for stable history identity. Live callers
- * must check alive; storage is released with the owning batch/reset. */
+ * must check alive; explicit collection may release retired resources. */
 uint32_t rf_geomod_piece_batch_count(const rf_geomod_piece_batch *);
 uint32_t rf_geomod_piece_batch_alive(const rf_geomod_piece_batch *,uint32_t index);
 uint32_t rf_geomod_piece_batch_bytes(const rf_geomod_piece_batch *);
 uint32_t rf_geomod_piece_batch_peak_bytes(const rf_geomod_piece_batch *);
-/* Geometry and mutable simulation body remain valid until batch close. */
+/* Borrowed views remain valid until batch close or retired collection.
+ * Collected retired slots return RF_NOT_FOUND; identity/count remain stable. */
 int rf_geomod_piece_batch_get(rf_geomod_piece_batch *,uint32_t index,
     rf_geomod_owned_piece *,rf_physics_body **);
 typedef struct rf_geomod_piece_hit {
@@ -179,6 +180,12 @@ struct rf_geomod_notify_change;
 int rf_geomod_piece_registry_notify(rf_geomod_piece_registry *,const struct rf_geomod_notify_change *,
     const float center[3],uint32_t *woken);
 int rf_geomod_piece_registry_damage(rf_geomod_piece_registry *,uint32_t batch,uint32_t piece,float amount);
+/* Call between uses of borrowed views, outside edit transactions. No allocation:
+ * free retired sphere arrays and geometry of wholly retired batches, retaining
+ * body/life/birth identity for snapshots. Healthy pieces never expire. Collected
+ * slots cannot revive via in-place decode; restore into history-rebuilt owners.
+ * released counts actual owned payload bytes; repeated collection releases0. */
+int rf_geomod_piece_registry_collect_retired(rf_geomod_piece_registry *,uint32_t *released);
 /* RFPB2 pointer-free little-endian body snapshot, paired with authenticated
  * terrain history. Version1 loads birth health; version2 retains health/retirement.
  * Canonical prefix/ordinal/piece order must match rebuilt

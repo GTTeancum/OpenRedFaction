@@ -12,7 +12,7 @@
 
 - GeoMod object interactions: Broaden admitted fragment contacts with actors/props;128 original pair cases prove terrain fragments deliberately exclude one another, so fragment stacking is not a missing fidelity feature.
 
-- GeoMod rubble memory: Reclaim retired resources safely while preserving save/history identity; original terminal terrain fragments explicitly disable lifetime expiry, so healthy rubble must not be deleted on a timer.
+- GeoMod rubble memory: Verify retired-resource collection on Xbox and broaden mixed-batch coverage; PC rocket destruction reduces retained rubble bytes133780→1852 with exact save continuation, while healthy chunks never expire and historical slot limits remain open.
 
 - GeoMod rubble wake: Broaden support-loss coverage beyond the dry post; removing its remaining support now wakes the chunk and drops it0.27units on PC/Xbox, with exact PC save continuation and74 native reload comparisons; broader surfaces and moving supports remain open; original fragment-fragment exclusion is verified.
 

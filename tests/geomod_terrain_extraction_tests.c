@@ -342,6 +342,9 @@ static void registry_lifetime(const rf_geomod_mesh_view *mesh,const rf_collision
         body->state.vector_e0[2]=.7f;body->state.vector_ec[1]=.2f;body->state.coefficients[0]=.125f;
         saved_body=body->state;
         CHECK(rf_geomod_piece_batch_alive(first,0));
+        {uint32_t released=999,before=rf_geomod_piece_registry_bytes(r);
+         CHECK(!rf_geomod_piece_registry_collect_retired(r,&released)&&released==0);
+         CHECK(rf_geomod_piece_registry_bytes(r)==before);}
         CHECK(!rf_geomod_piece_registry_damage(r,0,0,100000));
         CHECK(!rf_geomod_piece_batch_alive(first,0));
         {
@@ -402,7 +405,28 @@ static void registry_lifetime(const rf_geomod_mesh_view *mesh,const rf_collision
         }
         CHECK(!rf_geomod_piece_registry_begin(r,0));
         CHECK(rf_geomod_piece_registry_state_decode(r,snapshot,size)==RF_RANGE);
-        rf_geomod_piece_registry_abort(r);free(snapshot);free(bad);free(check);
+        rf_geomod_piece_registry_abort(r);
+        {
+            uint32_t released=0,before=rf_geomod_piece_registry_bytes(r),same_size;
+            rf_geomod_owned_piece absent;rf_physics_body *absent_body=NULL;
+            CHECK(!rf_geomod_piece_registry_collect_retired(r,&released)&&released>0);
+            CHECK(rf_geomod_piece_registry_bytes(r)==before-released);
+            CHECK(rf_geomod_piece_batch_get(first,0,&absent,&absent_body)==RF_NOT_FOUND&&absent_body==NULL);
+            CHECK(!rf_geomod_piece_registry_state_size(r,&same_size)&&same_size==size);
+            CHECK(!rf_geomod_piece_registry_state_encode(r,check,size)&&!memcmp(snapshot,check,size));
+            CHECK(!rf_geomod_piece_registry_state_decode(r,snapshot,size));
+            CHECK(!rf_geomod_piece_registry_collect_retired(r,&released)&&released==0);
+            /* Legacy revival into a collected owner must fail atomically. */
+            {uint32_t n=(size-16)/328,old_size=16+n*320,version=1;
+             memcpy(bad,snapshot,16);memcpy(bad+4,&version,4);memcpy(bad+8,&old_size,4);
+             for(uint32_t j=0;j<n;j++)memcpy(bad+16+j*320,snapshot+16+j*328,320);
+             CHECK(rf_geomod_piece_registry_state_decode(r,bad,old_size)==RF_FORMAT);
+             CHECK(!rf_geomod_piece_registry_state_encode(r,check,size)&&!memcmp(snapshot,check,size));}
+            CHECK(!rf_geomod_piece_registry_begin(r,0));released=999;
+            CHECK(rf_geomod_piece_registry_collect_retired(r,&released)==RF_RANGE&&released==999);
+            rf_geomod_piece_registry_abort(r);
+        }
+        free(snapshot);free(bad);free(check);
     }
     CHECK(!rf_geomod_piece_registry_begin(r,1));CHECK(!rf_geomod_terrain_reset(t));rf_geomod_piece_registry_commit(r);
     CHECK(!rf_geomod_piece_registry_count(r));
