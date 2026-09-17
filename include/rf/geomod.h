@@ -542,6 +542,10 @@ typedef struct rf_geomod_template {
 } rf_geomod_template;
 int rf_geomod_template_decode(const void *data,uint32_t bytes,rf_geomod_template *out);
 int rf_geomod_template_load(const char *path,rf_geomod_template *out);
+/* Conservative source broadphase using the exact transformed/shallow-deformed
+ * cutter vertices used by CSG. Validates the cutter; errors preserve bounds. */
+int rf_geomod_template_bounds(const rf_geomod_template *,const float center[3],const float basis[9],
+    float scale,const rf_geomod_shallow_limit *,uint32_t count,float minimum[3],float maximum[3]);
 /* Original radius normalization, supplied proper orthonormal row basis,
  * translated kernel, retained UVs. Material supplied by level settings. */
 int rf_geomod_terrain_cut_template(rf_geomod_terrain *terrain,const rf_geomod_template *shape,

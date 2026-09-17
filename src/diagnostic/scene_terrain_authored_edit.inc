@@ -135,10 +135,41 @@ static int scene_terrain_authored_edit_run(scene_authored_edit_context *context)
     if(!status && result.reserved_peak_bytes>rf_scene_geomod[4])rf_scene_geomod[4]=result.reserved_peak_bytes;
     return status;
 }
+static int scene_terrain_authored_affected(scene_stream *s,const float center[3],const float basis[9],
+    float scale,const rf_geomod_shallow_limit *limits,uint32_t count,uint32_t indices[4],uint32_t *affected)
+{
+    float minimum[3],maximum[3];uint32_t values[4],n=0,i,j,k;int status;
+    if(!s || !indices || !affected || !s->terrain_sources || !s->terrain_source_count || s->terrain_source_count>4)return RF_RANGE;
+    status=rf_geomod_template_bounds(s->terrain_template,center,basis,scale,limits,count,minimum,maximum);if(status)return status;
+    for(i=0;i<s->terrain_source_count;i++) {
+        const scene_terrain_authored_assets *a=s->terrain_sources[i].authored;float lo[3],hi[3];
+        if(!a || !a->source.vertices || !a->source.vertex_count)return RF_FORMAT;
+        memcpy(lo,a->source.vertices[0].position,12);memcpy(hi,lo,12);
+        for(j=0;j<a->source.vertex_count;j++)for(k=0;k<3;k++) {
+            float v=a->source.vertices[j].position[k];if(!isfinite(v))return RF_FORMAT;
+            if(v<lo[k])lo[k]=v;if(v>hi[k])hi[k]=v;
+        }
+        for(k=0;k<3;k++)if(maximum[k]<lo[k] || minimum[k]>hi[k])break;
+        if(k==3)values[n++]=i;
+    }
+    memcpy(indices,values,n*sizeof(*values));*affected=n;return RF_OK;
+}
 static int scene_terrain_authored_template_edit(scene_stream *s,const float center[3],const float basis[9],
     float scale,const rf_geomod_shallow_limit *limits,uint32_t count)
 {
     scene_authored_edit_context context={s,center,basis,scale,limits,count,0,NULL};
+    if(s->terrain_source_count>1) {
+        scene_authored_edit_context requests[4];uint32_t indices[4],n,i;int status;
+        status=scene_terrain_authored_affected(s,center,basis,scale,limits,count,indices,&n);if(status)return status;
+        if(!n)return RF_NOT_FOUND;
+        for(i=0;i<n;i++) {
+            /* Admission was prepared with the selected source's settings.
+             * Mixed default hardness needs independent admission, not reuse. */
+            if(s->terrain_sources[indices[i]].authored->asset_view.settings.hardness!=s->terrain_default_hardness)return RF_NOT_FOUND;
+            requests[i]=context;
+        }
+        return scene_terrain_authored_edit_group(s,indices,requests,n);
+    }
     return scene_terrain_authored_edit_run(&context);
 }
 /* Called only AFTER the original-room collision and zero-cut publication commit.

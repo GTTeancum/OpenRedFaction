@@ -96,6 +96,7 @@ static int grouped_scene(const rf_level *level,rf_geometry *geometry,rf_geometry
     s.light_overlay_work=calloc(1100,sizeof(uint32_t)+sizeof(rf_vfx_light_source));CHECK(s.light_overlay_work);
     s.terrain_atlas_registered=1;s.terrain_atlas_index=2;
     CHECK(!rf_geomod_template_load(shape_path,&shape));
+    s.terrain_template=&shape;s.terrain_texture_width=s.terrain_texture_height=128;
     for(i=0;i<2;i++) {
         rf_collision_face_filter generated;assets[i]=calloc(1,sizeof(*assets[i]));CHECK(assets[i]);
         CHECK(!rf_geomod_authored_post_open_source(level,geometry,93+i,2*1024*1024,&assets[i]->asset));
@@ -112,9 +113,23 @@ static int grouped_scene(const rf_level *level,rf_geometry *geometry,rf_geometry
     CHECK(view.mesh.face_count==8);CHECK(!post_ray(&view,-2.5f,1));CHECK(!post_ray(&view,2.5f,1));
     for(i=0;i<2;i++) {
         float center[3]={-4.75f,-.9f,i?2.5f:-2.5f};
-        CHECK(!rf_geomod_terrain_cut_template(sources[i].terrain,&shape,center,basis,1.05000007f,0));
-        CHECK(!scene_terrain_sources_select(&s,i));s.terrain_publication_serial=i+1;
-        CHECK(!scene_terrain_publication_prepare(&s));CHECK(!finish_test_candidate(&s,&view));
+        uint32_t selected[4]={99,99,99,99},affected=99;
+        CHECK(!scene_terrain_sources_select(&s,1-i)); /* The other post is selected. */
+        CHECK(!scene_terrain_authored_affected(&s,center,basis,1.05000007f/shape.radius,NULL,0,selected,&affected));
+        CHECK(affected==1 && selected[0]==i);
+        CHECK(!scene_terrain_authored_template_edit(&s,center,basis,1.05000007f/shape.radius,NULL,0));
+        CHECK(!scene_terrain_sources_select(&s,i));CHECK(s.terrain_publication_serial==i+1);
+        CHECK(!scene_terrain_publication_view(&s,&view));
+        {
+            rf_geomod_mesh_view cutter;float kernel[3],lo[3],hi[3],actual_lo[3],actual_hi[3];uint32_t star,v,k;
+            CHECK(!rf_geomod_terrain_cutter_get(sources[i].terrain,0,&cutter,kernel,&star));
+            CHECK(!rf_geomod_template_bounds(&shape,center,basis,1.05000007f/shape.radius,NULL,0,lo,hi));
+            memcpy(actual_lo,cutter.vertices[0].position,12);memcpy(actual_hi,actual_lo,12);
+            for(v=0;v<cutter.vertex_count;v++)for(k=0;k<3;k++) {
+                float p=cutter.vertices[v].position[k];if(p<actual_lo[k])actual_lo[k]=p;if(p>actual_hi[k])actual_hi[k]=p;
+            }
+            CHECK(!memcmp(lo,actual_lo,12) && !memcmp(hi,actual_hi,12));
+        }
         CHECK(view.mesh.face_count==(i?70:39) && view.cuts==i+1 && view.mesh.generation==i+1);
         CHECK(s.terrain_draw->view.face_count==view.mesh.face_count && s.terrain_noise->bake==s.terrain_noise->count);
         for(j=0;j<view.mesh.face_count;j++)if(view.mesh.faces[j].source_face==UINT32_MAX)
@@ -167,6 +182,16 @@ static int grouped_scene(const rf_level *level,rf_geometry *geometry,rf_geometry
         CHECK(!post_ray(&view,-2.5f,0));CHECK(!post_ray(&view,2.5f,0));
     }
     puts("PASS two source cuts in one room revision; invalid later-source revision preserves active room");
+    {
+        float far[3]={100,100,100},middle[3]={-4.75f,-.9f,0};uint32_t selected[4]={99,99,99,99},affected=99;
+        CHECK(!scene_terrain_authored_affected(&s,middle,basis,4/shape.radius,NULL,0,selected,&affected));
+        CHECK(affected==2 && selected[0]==0 && selected[1]==1);
+        CHECK(!scene_terrain_authored_affected(&s,far,basis,1,NULL,0,selected,&affected) && !affected);
+        CHECK(scene_terrain_authored_template_edit(&s,far,basis,1,NULL,0)==RF_NOT_FOUND);
+        affected=99;selected[0]=99;
+        CHECK(scene_terrain_authored_affected(&s,far,basis,NAN,NULL,0,selected,&affected)==RF_FORMAT);
+        CHECK(affected==99 && selected[0]==99);
+    }
     CHECK(view.tree->face_count==world->rooms[3].tree.face_count-8+70);
     /* Staged preparation must preserve the active overlay and both openings. */
     CHECK(!scene_terrain_publication_prepare(&s));scene_terrain_publication_abort(&s);
@@ -207,6 +232,13 @@ static int grouped_scene(const rf_level *level,rf_geometry *geometry,rf_geometry
         CHECK(!post_ray(&view,-2.5f,0));CHECK(!post_ray(&view,2.5f,0));
         for(i=0;i<2;i++){rf_geomod_terrain_view local;CHECK(!rf_geomod_terrain_get(sources[i].terrain,&local));CHECK(local.cuts==2);}
         printf("PASS real scene grouped edit: four local cuts, room revision%u; mutation/publication failures preserve both owners and atlas\n",s.terrain_publication_serial);
+        {
+            float middle[3]={-4.75f,-.9f,0};
+            CHECK(!scene_terrain_authored_template_edit(&s,middle,basis,4/shape.radius,NULL,0));
+            CHECK(!scene_terrain_publication_view(&s,&view));CHECK(view.cuts==6 && view.mesh.generation==serial+2);
+            for(i=0;i<2;i++){rf_geomod_terrain_view local;CHECK(!rf_geomod_terrain_get(sources[i].terrain,&local));CHECK(local.cuts==3);}
+            puts("PASS template dispatch: unselected post, shared cutter across both sources, far miss and invalid-query preservation");
+        }
         free(first_history);free(before);
     }
     rf_geometry_collision_overlay_close(&s.terrain_collision);scene_terrain_publication_close(&s.terrain_publication);
