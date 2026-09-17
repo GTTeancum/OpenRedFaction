@@ -7,19 +7,29 @@
  * its private contents may be partially rebuilt. No live/global/file mutation.
  */
 #include "rf/authored_checkpoint_layout.h"
-static int scene_authored_journal_import(scene_stream *live,
+static int scene_authored_journal_import_mode(scene_stream *live,
     scene_terrain_lighting_stage *stage,const rf_authored_checkpoint_layout *layout,
     const unsigned char *data,const rf_geomod_publication_origin *origins,
-    const rf_preview_surface_lightmap *source_bindings,uint32_t serial,uint32_t cuts)
+    const rf_preview_surface_lightmap *source_bindings,uint32_t serial,uint32_t cuts,uint32_t collection)
 {
     rf_authored_checkpoint_layout checked;scene_stream *s;scene_terrain_noise_owner *owner;
     const rf_geomod_terrain_view *v;rf_random_state chain={1};uint32_t i,j,k,x=0,y=0,row=0,texels=0,index;
     int status;
     if(!live || !stage || !layout || !data || !origins || !source_bindings ||
        stage->owner!=live || stage->staged!=&stage->clone || stage->committed ||
-       stage->bake_ready || stage->draw_ready || !cuts || cuts>RF_GEOMOD_CUT_LIMIT || cuts>serial || serial==UINT32_MAX)return RF_RANGE;
-    status=rf_authored_checkpoint_layout_read(data,layout->bytes,&checked);if(status)return status;
+       stage->bake_ready || stage->draw_ready || !cuts || (!collection && (cuts>RF_GEOMOD_CUT_LIMIT || cuts>serial)) || serial==UINT32_MAX)return RF_RANGE;
+    status=collection?rf_authored_collection_layout_read(data,layout->bytes,&checked):rf_authored_checkpoint_layout_read(data,layout->bytes,&checked);if(status)return status;
     if(memcmp(&checked,layout,sizeof(checked)))return RF_FORMAT;
+    if(collection) {
+        rf_authored_sources_layout sources;uint32_t total=0;
+        status=rf_authored_sources_read(data+layout->core_offset,layout->core_bytes,&sources);if(status)return status;
+        if(sources.count!=live->terrain_source_count || sources.count<2)return RF_FORMAT;
+        for(i=0;i<sources.count;i++) {
+            uint32_t local=checkpoint_u32(data+layout->core_offset+sources.sources[i].core_offset+12);
+            if(local>serial)return RF_FORMAT;total+=local;
+        }
+        if(total!=cuts)return RF_FORMAT;
+    }
     s=stage->staged;owner=s->terrain_noise;v=&stage->candidate;
     if(!owner || owner==live->terrain_noise || s->terrain_atlas_pixels==live->terrain_atlas_pixels ||
        s->terrain_bindings==live->terrain_bindings || s->terrain_light_cache==live->terrain_light_cache ||
@@ -76,3 +86,12 @@ static int scene_authored_journal_import(scene_stream *live,
     stage->telemetry.atlas[4]=serial;stage->telemetry.atlas[5]=texels;stage->telemetry.atlas[6]=layout->maps;
     return RF_OK;
 }
+
+static int scene_authored_journal_import(scene_stream *live,scene_terrain_lighting_stage *stage,
+    const rf_authored_checkpoint_layout *layout,const unsigned char *data,const rf_geomod_publication_origin *origins,
+    const rf_preview_surface_lightmap *bindings,uint32_t serial,uint32_t cuts)
+{return scene_authored_journal_import_mode(live,stage,layout,data,origins,bindings,serial,cuts,0);}
+static inline int scene_authored_collection_journal_import(scene_stream *live,scene_terrain_lighting_stage *stage,
+    const rf_authored_checkpoint_layout *layout,const unsigned char *data,const rf_geomod_publication_origin *origins,
+    const rf_preview_surface_lightmap *bindings,uint32_t serial,uint32_t cuts)
+{return scene_authored_journal_import_mode(live,stage,layout,data,origins,bindings,serial,cuts,1);}

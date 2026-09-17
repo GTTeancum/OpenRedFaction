@@ -330,6 +330,7 @@ int main(int argc,char **argv)
             printf("PASS real paired scene digests: source selection invariant, second identity bound, shared atlas%u maps, faces%u\n",lights->staged->terrain_noise->count,view.mesh.face_count);
             CHECK(!scene_terrain_lighting_stage_draw(lights));
             CHECK(!scene_terrain_publication_finish(pair,lights->staged->terrain_bindings,view.mesh.face_count,pair->light_rgb.count+1));
+            CHECK(!scene_terrain_publication_view(pair,&view));
             lights->staged->terrain_publication_serial=view.mesh.generation;
             {
                 rf_authored_checkpoint_layout saved_layout;rf_authored_owner_extension extension;scene_authored_sources_stage *rebuilt=NULL;
@@ -342,6 +343,31 @@ int main(int argc,char **argv)
                 CHECK(!scene_authored_sources_stage_prepare(pair,packet+saved_layout.core_offset,saved_layout.core_bytes,view.mesh.generation,8u*1024u*1024u,&rebuilt));
                 scene_authored_sources_stage_discard(&rebuilt);
                 CHECK(saved_layout.maps==4 && saved_layout.faces==36 && !saved_layout.piece_bytes);
+                {
+                    scene_terrain_lighting_stage *restored_lights=NULL;scene_authored_admission_state *admission=malloc(sizeof(*admission));
+                    rf_authored_owner_expected restored_digest;uint16_t restored_maps[768];uint32_t restored_peak;
+                    CHECK(admission);
+                    CHECK(!scene_authored_collection_admission_import(packet,&saved_layout,pair->terrain_history_minimum,pair->terrain_history_maximum,admission));
+                    CHECK(admission->count==pair->terrain_history_count && admission->random.value==pair->terrain_random.value);
+                    CHECK(!scene_terrain_lighting_stage_clone(pair,&view,&restored_lights));
+                    CHECK(!scene_authored_collection_journal_import(pair,restored_lights,&saved_layout,packet,pair_origins,pair_bindings,view.mesh.generation,view.cuts));
+                    CHECK(!scene_terrain_lighting_stage_bake(restored_lights,pair_bindings,0));
+                    CHECK(!scene_terrain_lighting_stage_draw(restored_lights));
+                    CHECK(!rf_collision_composition_get(pair->terrain_publication->composition,&composed));
+                    CHECK(!scene_authored_digest_capture(pair,&view,pair_origins,&composed,restored_lights->staged,view.mesh.generation,restored_maps,768,&restored_digest,&restored_peak));
+                    CHECK(!memcmp(&first,&restored_digest,sizeof(first)) && !memcmp(maps_first,restored_maps,view.mesh.face_count*sizeof(*maps_first)));
+                    CHECK(!memcmp(lights->staged->terrain_atlas_pixels,restored_lights->staged->terrain_atlas_pixels,512u*512u*2u));
+                    CHECK(!pair->terrain_noise->count); /* live empty atlas owner was untouched */
+                    scene_terrain_lighting_stage_discard(&restored_lights);
+                    /* A malformed last map may dirty the private stage, but
+                     * cannot alter the live owner or the saved input. */
+                    CHECK(!scene_terrain_lighting_stage_clone(pair,&view,&restored_lights));
+                    packet[saved_layout.map_offset+3*88+60]^=1;
+                    CHECK(scene_authored_collection_journal_import(pair,restored_lights,&saved_layout,packet,pair_origins,pair_bindings,view.mesh.generation,view.cuts)==RF_FORMAT);
+                    CHECK(!pair->terrain_noise->count);packet[saved_layout.map_offset+3*88+60]^=1;
+                    scene_terrain_lighting_stage_discard(&restored_lights);free(admission);
+                    puts("PASS paired shared restore: exact atlas pixels, three digests and face bindings; malformed later map leaves live owner untouched");
+                }
                 memcpy(kept,packet,SCENE_CHECKPOINT_MAX);encoded_bytes=777;
                 CHECK(scene_authored_collection_checkpoint_write(lights->staged,packet,saved_bytes-1,&encoded_bytes)==RF_RANGE);
                 CHECK(encoded_bytes==777 && !memcmp(packet,kept,SCENE_CHECKPOINT_MAX));

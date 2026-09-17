@@ -12,16 +12,16 @@ typedef struct scene_authored_admission_state {
     uint16_t requested[128][3];
     uint32_t count;rf_random_state random;
 } scene_authored_admission_state;
-static int scene_authored_admission_import(const unsigned char *data,
+static int scene_authored_admission_import_mode(const unsigned char *data,
     const rf_authored_checkpoint_layout *layout,const float minimum[3],
-    const float maximum[3],scene_authored_admission_state *out)
+    const float maximum[3],scene_authored_admission_state *out,uint32_t collection)
 {
     rf_authored_checkpoint_layout checked;uint32_t i,j,k;uintptr_t input,output;int status;
     if(!data || !layout || !minimum || !maximum || !out)return RF_RANGE;
     input=(uintptr_t)data;output=(uintptr_t)out;
     if(input>UINTPTR_MAX-layout->bytes || output>UINTPTR_MAX-sizeof(*out) ||
        (input<output+sizeof(*out) && output<input+layout->bytes))return RF_RANGE;
-    status=rf_authored_checkpoint_layout_read(data,layout->bytes,&checked);if(status)return status;
+    status=collection?rf_authored_collection_layout_read(data,layout->bytes,&checked):rf_authored_checkpoint_layout_read(data,layout->bytes,&checked);if(status)return status;
     if(memcmp(&checked,layout,sizeof(checked)))return RF_FORMAT;
     for(i=0;i<3;i++) {
         if(!isfinite(minimum[i]) || !isfinite(maximum[i]) || maximum[i]<=minimum[i] ||
@@ -47,3 +47,10 @@ static int scene_authored_admission_import(const unsigned char *data,
     }
     out->count=layout->admissions;out->random.value=checkpoint_u32(data+244);return RF_OK;
 }
+
+static int scene_authored_admission_import(const unsigned char *data,const rf_authored_checkpoint_layout *layout,
+    const float minimum[3],const float maximum[3],scene_authored_admission_state *out)
+{return scene_authored_admission_import_mode(data,layout,minimum,maximum,out,0);}
+static inline int scene_authored_collection_admission_import(const unsigned char *data,const rf_authored_checkpoint_layout *layout,
+    const float minimum[3],const float maximum[3],scene_authored_admission_state *out)
+{return scene_authored_admission_import_mode(data,layout,minimum,maximum,out,1);}
