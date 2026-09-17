@@ -126,6 +126,11 @@ int rf_geomod_piece_registry_body_sweep(const rf_geomod_piece_registry *,
     const rf_collision_body_query *,uint32_t surface_material,
     rf_geomod_registry_body_hit *,uint32_t *matched);
 struct rf_checkpoint_placement;
+struct rf_checkpoint_support_hit;
+/* Read-only ground provider for checkpoint standing composition. Only sleeping
+ * zero-velocity/zero-angular-velocity pieces are stable restore support. */
+int rf_geomod_piece_registry_support(void *,const rf_physics_ground_probe *,float limit,
+    struct rf_checkpoint_support_hit *,uint32_t *matched);
 /* Extra fit gate after validating the player placement against candidate world.
  * Tests current chunk poses without moving/allocating owners. RF_NOT_FOUND is
  * overlap/inside/ambiguous; no support eligibility or player relocation. */

@@ -526,3 +526,21 @@ int rf_geomod_piece_life_damage(rf_geomod_piece_life *life,float amount)
     if(object.health<=0)object.flags|=2;
     life->health=object.health;life->flags=object.flags;return RF_OK;
 }
+
+int rf_geomod_piece_registry_support(void *context,const rf_physics_ground_probe *probe,float limit,
+    rf_checkpoint_support_hit *out,uint32_t *matched)
+{
+    const rf_geomod_piece_registry *r=context;rf_geomod_registry_hit hit;rf_checkpoint_support_hit result;
+    const rf_physics_body_state *body;float start[3],delta[3];uint32_t i,found;int status;
+    if(!probe || !out || !matched)return RF_RANGE;
+    for(i=0;i<3;i++){start[i]=(float)((double)probe->start[i]+probe->sphere.center[i]);delta[i]=(float)((double)probe->end[i]-probe->start[i]);}
+    status=rf_geomod_piece_registry_sweep(r,probe->query_flags,start,delta,probe->sphere.radius,limit,&hit,&found);if(status)return status;
+    if(found) {
+        body=&r->active[hit.batch].batch->bodies[hit.piece.piece].state;
+        result.fraction=hit.piece.hit.fraction;memcpy(result.normal,hit.piece.hit.normal,12);
+        result.stable=!(body->flags&0x80000000u);
+        for(i=0;i<3;i++)if(body->velocity[i]!=0 || body->vector_c8[i]!=0)result.stable=0;
+        *out=result;
+    }
+    *matched=found;return RF_OK;
+}

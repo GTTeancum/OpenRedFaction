@@ -141,6 +141,22 @@ static void registry_lifetime(const rf_geomod_mesh_view *mesh,const rf_collision
          CHECK(rf_checkpoint_solid_sphere_check(piece.collision,piece.mesh.face_count,0,test_center,.1f,&value)!=RF_OK);
          CHECK(!memcmp(&value,&saved,sizeof(value)));}
     }
+    {
+        rf_physics_ground_probe probe={0};rf_checkpoint_support_hit hit,kept;uint32_t matched,k,n;
+        rf_physics_body_state saved=body->state;const rf_collision_face *face=piece.collision;float center[3]={0};
+        for(n=0;n<face->count;n++)for(k=0;k<3;k++)center[k]+=face->vertices[n][k]/face->count;
+        for(k=0;k<3;k++){probe.start[k]=body->state.position[k]+center[k]+2*face->plane[k];probe.end[k]=probe.start[k]-4*face->plane[k];}
+        probe.sphere.radius=.1f;
+        CHECK(!rf_geomod_piece_registry_support(r,&probe,1,&hit,&matched));CHECK(matched && !hit.stable);
+        body->state.flags&=~0x80000000u;
+        CHECK(!rf_geomod_piece_registry_support(r,&probe,1,&hit,&matched));CHECK(matched && hit.stable);
+        body->state.velocity[0]=1;
+        CHECK(!rf_geomod_piece_registry_support(r,&probe,1,&hit,&matched));CHECK(matched && !hit.stable);
+        body->state.velocity[0]=0;body->state.vector_c8[0]=1;
+        CHECK(!rf_geomod_piece_registry_support(r,&probe,1,&hit,&matched));CHECK(matched && !hit.stable);
+        kept=hit;CHECK(!rf_geomod_piece_registry_support(NULL,&probe,1,&hit,&matched));CHECK(!matched && !memcmp(&hit,&kept,sizeof(hit)));
+        body->state=saved;
+    }
     bytes=rf_geomod_piece_registry_bytes(r);
     CHECK(!rf_geomod_piece_registry_begin(r,0));
     CHECK(rf_geomod_terrain_cut_box_checked(t,center[3],extent[3],7,reject_candidate,NULL)==RF_IO);

@@ -148,9 +148,10 @@ rejected:
     if(out)*out=result;return RF_NOT_FOUND;
 }
 
-int rf_checkpoint_standing_check(const rf_geomod_terrain_view *candidate,const rf_checkpoint_placement *p,float dt,float class_speed,rf_checkpoint_placement_result *out)
+int rf_checkpoint_standing_check_with_support(const rf_geomod_terrain_view *candidate,const rf_checkpoint_placement *p,float dt,float class_speed,
+    rf_checkpoint_support_query query,void *context,rf_checkpoint_placement_result *out)
 {
-    placement_work w;rf_checkpoint_placement_result result;int status;
+    placement_work w;rf_checkpoint_placement_result result;uint32_t stable=1;int status;
     if(!isfinite(dt)||dt<=0||!isfinite(class_speed)||class_speed<0)return RF_RANGE;
     status=rf_checkpoint_placement_check(candidate,p,&result);
     if(status){if(status==RF_NOT_FOUND&&out)*out=result;return status;}
@@ -158,9 +159,22 @@ int rf_checkpoint_standing_check(const rf_geomod_terrain_view *candidate,const r
     memset(&w,0,sizeof(w));w.candidate=candidate;w.placement=p;w.mode=3;w.fraction=1;
     status=rf_physics_ground_prepare(p->spheres,p->count,p->position,p->query_flags,0,dt,class_speed,0,&w.ground);if(status)return status;
     status=visit_world(&w);if(status)return status;
-    if(w.fraction>=1||w.normal[1]<.5f){result.sphere=w.ground.sphere_index;result.reason=RF_CHECKPOINT_PLACEMENT_UNSUPPORTED;if(out)*out=result;return RF_NOT_FOUND;}
+    if(query) {
+        rf_checkpoint_support_hit hit;uint32_t matched=0,i;
+        status=query(context,&w.ground,w.fraction,&hit,&matched);if(status)return status;
+        if(matched>1)return RF_FORMAT;
+        if(matched) {
+            if(!isfinite(hit.fraction)||hit.fraction<0||hit.fraction>w.fraction||hit.stable>1)return RF_FORMAT;
+            for(i=0;i<3;i++)if(!isfinite(hit.normal[i]))return RF_FORMAT;
+            if(hit.fraction<w.fraction){w.fraction=hit.fraction;memcpy(w.normal,hit.normal,12);stable=hit.stable;}
+        }
+    }
+    if(!stable||w.fraction>=1||w.normal[1]<.5f){result.sphere=w.ground.sphere_index;result.reason=RF_CHECKPOINT_PLACEMENT_UNSUPPORTED;if(out)*out=result;return RF_NOT_FOUND;}
     if(out)*out=result;return RF_OK;
 }
+
+int rf_checkpoint_standing_check(const rf_geomod_terrain_view *candidate,const rf_checkpoint_placement *p,float dt,float class_speed,rf_checkpoint_placement_result *out)
+{return rf_checkpoint_standing_check_with_support(candidate,p,dt,class_speed,NULL,NULL,out);}
 
 int rf_checkpoint_solid_sphere_check(const rf_collision_face *faces,uint32_t count,
     uint32_t flags,const float center[3],float radius,rf_checkpoint_placement_result *out)

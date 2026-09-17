@@ -3,6 +3,13 @@
 #include "scene_checkpoint_placement_probe.c"
 #undef main
 #include "rf/checkpoint_placement.h"
+typedef struct extra_support {uint32_t stable,tie,calls;float up;int error;} extra_support;
+static int support(void *opaque,const rf_physics_ground_probe *probe,float limit,rf_checkpoint_support_hit *out,uint32_t *matched)
+{
+ extra_support *c=opaque;(void)probe;c->calls++;if(c->error)return c->error;
+ out->fraction=c->tie?limit:limit*.5f;out->normal[0]=out->normal[2]=0;out->normal[1]=c->up;
+ out->stable=c->stable;*matched=1;return RF_OK;
+}
 int main(void)
 {
  const float zero[3]={0,0,0},box[3]={-4,0,0};rf_geomod_mesh_view source,base;
@@ -39,6 +46,18 @@ int main(void)
  p.position[1]=-9.45f;CHECK(!rf_checkpoint_standing_check(&view,&p,1.0f/60,5,&out));
  p.position[1]=-9.5f;CHECK(!rf_checkpoint_standing_check(&view,&p,1.0f/60,5,&out));
  p.position[1]=0;CHECK(rf_checkpoint_standing_check(&view,&p,1.0f/60,5,&out)==RF_NOT_FOUND&&out.reason==RF_CHECKPOINT_PLACEMENT_UNSUPPORTED);
+ {
+  extra_support extra={1,0,0,1,0};
+  CHECK(!rf_checkpoint_standing_check_with_support(&view,&p,1.0f/60,5,support,&extra,&out));
+  extra.stable=0;CHECK(rf_checkpoint_standing_check_with_support(&view,&p,1.0f/60,5,support,&extra,&out)==RF_NOT_FOUND&&out.reason==RF_CHECKPOINT_PLACEMENT_UNSUPPORTED);
+  extra.stable=1;extra.up=.4f;CHECK(rf_checkpoint_standing_check_with_support(&view,&p,1.0f/60,5,support,&extra,&out)==RF_NOT_FOUND);
+  memset(&out,0xa5,sizeof(out));kept=out;extra.up=NAN;
+  CHECK(rf_checkpoint_standing_check_with_support(&view,&p,1.0f/60,5,support,&extra,&out)==RF_FORMAT&&!memcmp(&out,&kept,sizeof(out)));
+  extra.error=RF_IO;CHECK(rf_checkpoint_standing_check_with_support(&view,&p,1.0f/60,5,support,&extra,&out)==RF_IO&&!memcmp(&out,&kept,sizeof(out)));
+  extra.error=0;extra.up=1;extra.stable=0;extra.tie=1;p.position[1]=-9.45f;
+  CHECK(!rf_checkpoint_standing_check_with_support(&view,&p,1.0f/60,5,support,&extra,&out)); /* Static tie wins. */
+  p.position[1]=0;
+ }
  /* Authored detail top supplies support even though the replaced outer floor is far below. */
  p.position[0]=-4;p.position[1]=1.55f;CHECK(!rf_checkpoint_standing_check(&view,&p,1.0f/60,5,&out));
  for(i=0;i<6;i++)obstacle[i].filter.face_flags|=4;

@@ -33,6 +33,13 @@ int rf_checkpoint_placement_check(const rf_geomod_terrain_view *,const rf_checkp
  * Full fit runs first. Same pure rollback/output rules; requires standing yaw-only
  * basis (upright Y). This is static support eligibility, not moving-platform state. */
 int rf_checkpoint_standing_check(const rf_geomod_terrain_view *,const rf_checkpoint_placement *,float dt,float class_speed,rf_checkpoint_placement_result *);
+typedef struct rf_checkpoint_support_hit {float fraction,normal[3];uint32_t stable;} rf_checkpoint_support_hit;
+/* Optional read-only support provider, queried with the static-world nearest
+ * limit. A nearer unstable surface rejects; static geometry wins exact ties.
+ * Provider returns RF_OK and matched0/1, or an error without publishing state. */
+typedef int (*rf_checkpoint_support_query)(void *,const rf_physics_ground_probe *,float limit,rf_checkpoint_support_hit *,uint32_t *matched);
+int rf_checkpoint_standing_check_with_support(const rf_geomod_terrain_view *,const rf_checkpoint_placement *,
+    float dt,float class_speed,rf_checkpoint_support_query,void *,rf_checkpoint_placement_result *);
 /* Closed outward solid, local-space sphere. Shared .002 clearance tolerance;
  * rejects surface overlap, interior centers and unresolved edge ambiguity.
  * Uses nearest polygon/edge distance plus original-derived face classification,

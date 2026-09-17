@@ -125,6 +125,40 @@ int main(int argc,char **argv)
                     CHECK(!combat_shot_obstructed(&s,start,delta,.1f,&blocked) && !blocked);
                     body->state=saved;
                 }
+                {
+                    rf_physics_body_state saved=body->state;rf_checkpoint_placement player={0};
+                    rf_physics_sphere sphere={0};float old_speed=rf_scene_actor_movement_values.speed;
+                    float delta[3],center[3]={0};const rf_collision_face *top=NULL;uint32_t k,n;
+                    for(n=0;n<piece.mesh.face_count;n++)if(piece.collision[n].plane[1]>.5f){top=piece.collision+n;break;}
+                    CHECK(top && save);
+                    for(n=0;n<top->count;n++)for(k=0;k<3;k++)center[k]+=top->vertices[n][k]/top->count;
+                    delta[0]=4.45f-body->state.position[0];delta[1]=-.5f-body->state.position[1];delta[2]=2.5f-body->state.position[2];
+                    for(k=0;k<3;k++) {
+                        body->state.position[k]+=delta[k];body->state.next_position[k]+=delta[k];
+                        body->state.bounds.minimum[k]+=delta[k];body->state.bounds.maximum[k]+=delta[k];
+                        body->state.velocity[k]=body->state.vector_c8[k]=body->state.mass_vector_d4[k]=0;
+                        player.position[k]=body->state.position[k]+center[k]+.101f*top->plane[k];
+                    }
+                    body->state.flags&=~0x80000000u;
+                    player.world=&world;player.replaced_room=s.terrain_collision.room;player.query_flags=4;
+                    player.spheres=&sphere;player.count=1;sphere.radius=.1f;
+                    player.basis[0]=player.basis[4]=player.basis[8]=1;
+                    rf_scene_actor_movement_values.speed=5;
+                    CHECK(!scene_authored_checkpoint_write(&s,save,SCENE_CHECKPOINT_MAX,&bytes));
+                    CHECK(!scene_authored_checkpoint_stage_prepare(&s,save,bytes,&player,&restore));
+                    scene_authored_checkpoint_stage_discard(&restore);CHECK(!restore && s.terrain==live);
+                    /* Identical geometry with active motion cannot be save support. */
+                    body->state.flags|=0x80000000u;
+                    CHECK(!scene_authored_checkpoint_write(&s,save,SCENE_CHECKPOINT_MAX,&bytes));
+                    CHECK(scene_authored_checkpoint_stage_prepare(&s,save,bytes,&player,&restore)==RF_FORMAT);
+                    CHECK(!restore && s.terrain==live && !s.terrain_publication->has_pending);
+                    body->state.flags&=~0x80000000u;
+                    CHECK(!scene_authored_checkpoint_write(&s,save,SCENE_CHECKPOINT_MAX,&bytes));
+                    for(k=0;k<3;k++)player.position[k]-=.08f*top->plane[k];
+                    CHECK(scene_authored_checkpoint_stage_prepare(&s,save,bytes,&player,&restore)==RF_FORMAT);
+                    CHECK(!restore && s.terrain==live && !s.terrain_publication->has_pending);
+                    body->state=saved;rf_scene_actor_movement_values.speed=old_speed;
+                }
 
             }
             CHECK(save);CHECK(!scene_authored_checkpoint_write(&s,save,SCENE_CHECKPOINT_MAX,&bytes));
