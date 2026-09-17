@@ -1,4 +1,5 @@
 #include "rf/geomod_notify.h"
+#include "rf/geomod.h"
 #include <math.h>
 #include <stdio.h>
 #include <string.h>
@@ -36,6 +37,26 @@ static int fragment_box_cases(void)
  count=0;values[6]=NAN;memcpy(before,boxes,sizeof(boxes));
  CHECK(rf_geomod_notify_append_fragment_box(&fragment,values+6,boxes,&count)==RF_FORMAT && count==0 && !memcmp(boxes,before,sizeof(boxes)));
  puts("PASS27 original changed-fragment boxes and capacity/invalid-input preservation");return 0;
+}
+static int component_cases(void)
+{
+ static const struct {uint32_t words[102];int32_t selector;uint32_t result;} cases[]={
+#include "fixtures/geomod_component_classify.inc"
+ };
+ rf_collision_face faces[6];rf_collision_bounds bounds;int32_t labels[6]={0};float values[102];uint32_t i,j,k,solid;
+ for(i=0;i<sizeof(cases)/sizeof(cases[0]);i++) {
+  memcpy(values,cases[i].words,sizeof(values));memcpy(&bounds,values,24);memset(faces,0,sizeof(faces));
+  for(j=0;j<6;j++) {
+   float *src=values+6+j*16;rf_collision_bounds b;
+   memcpy(faces[j].plane,src,16);faces[j].vertices=(const float (*)[3])(src+4);faces[j].count=4;
+   CHECK(!rf_collision_vertex_bounds(faces[j].vertices,4,&b));
+   for(k=0;k<3;k++){faces[j].minimum[k]=b.minimum[k];faces[j].maximum[k]=b.maximum[k];}
+  }
+  solid=99;CHECK(!rf_geomod_component_classify(faces,labels,6,cases[i].selector,&bounds,&solid));CHECK(solid==cases[i].result);
+ }
+ solid=99;bounds.minimum[0]=NAN;
+ CHECK(rf_geomod_component_classify(faces,labels,6,0,&bounds,&solid)==RF_FORMAT && solid==99);
+ puts("PASS24 original component orientation classifications");return 0;
 }
 static int radial_cases(void)
 {
@@ -96,5 +117,6 @@ int main(void)
  CHECK(!radial_cases());
  CHECK(!debris_cases());
  CHECK(!fragment_box_cases());
+ CHECK(!component_cases());
  printf("PASS %u original-derived changed-box rows plus parent/enable/multi-box/unsupported/rollback tests\n",cases);return 0;
 }

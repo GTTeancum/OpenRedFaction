@@ -7,6 +7,14 @@
 #include "rf/level.h"
 #include "rf/effect.h"
 #define RF_GEOMOD_POLYGON_LIMIT 64
+/*4e1180 component orientation classification. Ordered faces and component
+ * labels are caller-owned; selector<0 includes all faces. Bounds must describe
+ * the selected component. Face-centroid rays retry on ambiguous edge contact;
+ * the first nonambiguous ray accepts only a front-side selected surface.
+ * This is an orientation classifier, not a watertightness validator.
+ * No topology extraction, allocation or mutation; errors preserve solid. */
+int rf_geomod_component_classify(const rf_collision_face *faces,const int32_t *labels,
+    uint32_t count,int32_t selector,const rf_collision_bounds *bounds,uint32_t *solid);
 /* Practical shared-corner construction, not recovered original code. Three
  * unit-normal planes must identify the actual corner. Order and simultaneous
  * normal/distance sign flips do not change output bits. Rejects singular or

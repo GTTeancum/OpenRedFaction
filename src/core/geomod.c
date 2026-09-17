@@ -469,6 +469,40 @@ int rf_geomod_debris_actor_contact(const float position[3],const float velocity[
     *hit=matched;*amount=value;return RF_OK;
 }
 
+int rf_geomod_component_classify(const rf_collision_face *faces,const int32_t *labels,
+    uint32_t count,int32_t selector,const rf_collision_bounds *bounds,uint32_t *solid)
+{
+    uint32_t i,j,k;float span,length;
+    if(!faces || !labels || !bounds || !solid || count==UINT32_MAX)return RF_RANGE;
+    for(k=0;k<3;k++)if(!isfinite(bounds->minimum[k]) || !isfinite(bounds->maximum[k]) || bounds->minimum[k]>bounds->maximum[k])return RF_FORMAT;
+    span=(float)(((double)bounds->maximum[0]-bounds->minimum[0])+((double)bounds->maximum[1]-bounds->minimum[1])+((double)bounds->maximum[2]-bounds->minimum[2]));
+    length=(float)((double)span+1);if(!isfinite(span) || !isfinite(length))return RF_RANGE;
+    for(i=0;i<count;i++)if(selector<0 || labels[i]==selector) {
+        const rf_collision_face *face=faces+i;rf_collision_room_query query={0};
+        float center[3]={0},reciprocal;uint32_t retry=0;int status;
+        if(!face->vertices || face->count<3)return RF_FORMAT;
+        for(j=0;j<face->count;j++)for(k=0;k<3;k++) {
+            if(!isfinite(face->vertices[j][k]))return RF_FORMAT;
+            center[k]=(float)((double)center[k]+face->vertices[j][k]);
+        }
+        reciprocal=(float)(1.0/face->count);
+        for(k=0;k<3;k++) {
+            float offset,step;
+            if(!isfinite(face->plane[k]))return RF_FORMAT;
+            center[k]=(float)((double)center[k]*reciprocal);
+            offset=(float)((double)face->plane[k]*span);
+            query.start[k]=(float)((double)center[k]+offset);query.direction[k]=-face->plane[k];
+            step=(float)((double)query.direction[k]*length);query.endpoint[k]=(float)((double)query.start[k]+step);
+        }
+        for(j=0;j<count;j++)if(selector<0 || labels[j]==selector) {
+            status=rf_collision_room_query_face(&query,faces+j,j+1,&retry);if(status)return status;
+            if(retry)break;
+        }
+        if(!retry){*solid=query.selected_face && query.front;return RF_OK;}
+    }
+    *solid=0;return RF_OK;
+}
+
 int rf_geomod_debris_rotate(const float basis[9],const float axis[3],float spin,float dt,float result[9])
 {
     static const unsigned char order[9][3]={{0,2,1},{2,1,0},{1,0,2},{2,1,0},{2,1,0},{0,1,2},{2,1,0},{2,0,1},{1,0,2}};
