@@ -29,6 +29,8 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--expanded-geomod', action='store_true', help='Opt-in matching sixteen-cut PC/NXDK profile on stock64MiB')
     parser.add_argument('--terrain-texture-audit', action='store_true', help='Read live Xbox substrate texture bytes and compare the PC owner')
+    parser.add_argument('--terrain-map-limit',type=int,help='Explicit DEV fault injection: maximum new-map admission count')
+    parser.add_argument('--terrain-map-limit-until',type=int,default=0xffffffff,help='Frame when injected map limit expires')
     parser.add_argument('--cpu-exceptions', action='store_true', help='Retain QEMU exception/reset diagnostics for guest crash analysis')
     parser.add_argument('--water-test', action='store_true', help='Authored dm03 water gameplay with DEV weapon supply')
     parser.add_argument('--swim-test', action='store_true', help='Authored L2S3 deep-pool movement fixture')
@@ -65,6 +67,8 @@ def main():
     parser.add_argument('--unsorted', action='store_true', help='Reference source-order world draw ranges')
     args = parser.parse_args()
     if args.terrain_texture_audit and not args.dev_room:parser.error('--terrain-texture-audit requires --dev-room')
+    if args.terrain_map_limit is not None and (not args.dev_room or not 1<=args.terrain_map_limit<=(2048 if args.expanded_geomod else 1024) or not 1<=args.terrain_map_limit_until<=0xffffffff):
+        parser.error('Map fault injection requires DEV mode and valid map/frame limits')
     if args.player_checkpoint and not args.dev_room:parser.error('--player-checkpoint requires --dev-room')
     if args.lava_test and (args.swim_test or args.water_test or args.dev_room or not args.spawn or args.level!='L5S2.rfl' or args.archive!='levels1.vpp'):
         parser.error('--lava-test requires --spawn --level L5S2.rfl --archive levels1.vpp without other placement fixtures')
@@ -128,6 +132,9 @@ def main():
     env.update(RF_REPLAY_LEVEL=args.level, RF_REPLAY_ARCHIVE=args.archive)
     if args.dev_room:env['RF_REPLAY_DEV_ROOM']='1'
     if args.terrain_texture_audit:env['RF_REPLAY_TERRAIN_MATERIAL_AUDIT']=str(run/'pc-terrain-material.bin')
+    if args.terrain_map_limit is not None:
+        env.update(RF_REPLAY_TERRAIN_MAP_LIMIT=str(args.terrain_map_limit),RF_REPLAY_TERRAIN_MAP_LIMIT_UNTIL=str(args.terrain_map_limit_until))
+        report['terrain_map_fault']=dict(limit=args.terrain_map_limit,until_frame=args.terrain_map_limit_until)
     if args.player_checkpoint:env['RF_REPLAY_PLAYER_CHECKPOINT']='1'
     if args.water_test:env['RF_REPLAY_WATER_TEST']='1'
     if liquid_mode:env['RF_REPLAY_SWIM_TEST']=str(liquid_mode)
@@ -187,7 +194,7 @@ def main():
     saved[shallow_flag.name]=shallow_flag.read_bytes() if shallow_flag.exists() else None
     for name in ('geomod-checkpoint.bin','geomod-checkpoint-out.flag','ripple-test.flag','water-test.flag','swim-test.flag','player-checkpoint.flag',
                  'geomod-hdd-load.flag','geomod-hdd-save.flag','geomod-fallback-seed.flag','geomod-fallback-observe.flag',
-                 'geomod-fallback0.rfsg','geomod-fallback1.rfsg'):
+                 'geomod-fallback0.rfsg','geomod-fallback1.rfsg','terrain-map-limit.bin'):
         path=disc/name;saved[name]=path.read_bytes() if path.exists() else None
     # Persist restoration bytes before mutating the disc, including absent files.
     (run / 'disc-restore.json').write_text(json.dumps({
@@ -228,6 +235,7 @@ def main():
         if args.geomod_checkpoint_in:(disc/'geomod-checkpoint.bin').write_bytes(args.geomod_checkpoint_in.read_bytes())
         if args.shallow_fixture:(disc/'shallow-fixture.flag').write_bytes(b'3' if args.shallow_oblique else b'2' if args.shallow_two_limits else b'')
         if args.terrain_test_light:(disc/'terrain-test-light.flag').write_bytes(b'')
+        if args.terrain_map_limit is not None:(disc/'terrain-map-limit.bin').write_bytes(struct.pack('<2I',args.terrain_map_limit,args.terrain_map_limit_until))
         (disc / 'campaign-level.bin').write_bytes(args.archive.encode().ljust(64, b'\0') + args.level.encode().ljust(64, b'\0'))
         if args.goal_uid:(disc/'campaign-goal.bin').write_bytes(struct.pack('<I',args.goal_uid))
         if not args.spawn:(disc / ('campaign-item.bin' if args.item_uid else 'campaign-actor.bin')).write_bytes(struct.pack('<I', args.item_uid or args.actor))

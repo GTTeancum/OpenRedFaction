@@ -3,7 +3,7 @@
 - GeoMod traversal: Broaden tight-entrance and slope collision coverage; walking into and back out of the16-cut tunnel passes58 stock64MiB comparisons with exact PC body state.
 - GeoMod validation: Resolve thin-surface proximity ambiguity and broaden collision/nonintersection coverage; sweep/fixed craters pass10130/11422 independent volume samples and native state checks.
 - GeoMod reload: Broaden native continuation coverage after16-cut stock64MiB reload passes58 checks; the135598-byte checkpoint matches PC exactly.
-- GeoMod rollback: Extend native fault injection and non-rocket coverage after live DEV rocket lighting-exhaustion rollback/recovery passes PC controls and normal16-cut Xbox play passes58 checks.
+- GeoMod rollback: Broaden allocation-failure and non-rocket coverage; injected lighting exhaustion now preserves traversal and allows later destruction on stock64MiB Xbox, with both native scenarios passing58 checks.
 
 - GeoMod UV seams: Broaden chronological reconstruction beyond current fixtures; all105 tests and48 axis-oriented UV cases pass, with live two-cut reload/next-blast passing58 stock64MiB Xbox checks.
 

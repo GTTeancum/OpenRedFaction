@@ -44,8 +44,8 @@ bytes differ, with maximum numeric delta4.76837158203125e-7. No visual differenc
 is claimed or introduced to hide this result. A current-build reload reproduces
 the staged run's checkpoint, physical mesh and atlas exactly.
 
-Remaining scope: injected failure on native Xbox, allocation-failure coverage,
-and non-rocket legacy diagnostic cut/reset entry points. This is not a claim
+Remaining scope: broader allocation-failure coverage and non-rocket legacy
+diagnostic cut/reset entry points. This is not a claim
 that every scene operation or later debris-spawn failure is transactional.
 
 Native normal-path verification: stock64MiB XEMU run
@@ -57,3 +57,29 @@ framebuffer was inspected: textured room, dark crater, rocket launcher and HUD
 remain present with the prior appearance. No new visual-fidelity acceptance;
 audio was disabled, and intermediate frames were not individually inspected.
 The owned emulator exited and disc staging was restored.
+
+## Native capacity-failure recovery
+
+The harness now accepts --terrain-map-limit and --terrain-map-limit-until,
+staging an explicit8-byte terrain-map-limit.bin descriptor for Xbox and matching
+PC environment values. Xbox rejects malformed size, zero/out-of-profile map
+counts and zero frame limits. The descriptor is included in normal disc backup,
+removal and restoration; it is absent during ordinary runs.
+
+Stock64MiB `artifacts/xemu/render-20260916-232028` restores the one-cut seed,
+permits one additional map before exhaustion (limit16), rejects the first blast,
+then allows the next blast after frame300. It completes750 frames and passes58
+checks. Both targets report exactly one rejection and one successful new cut,
+ending with two cuts. The complete Xbox checkpoint matches both its paired PC
+reference and the independent PC recovery replay. Endpoint8071 free pages
+(31.52734375MiB). The native endpoint image was inspected: room, crater, weapon
+and HUD are present. No audio or every-frame visual claim is made.
+
+Native traversal after rejection also passes58 checks in
+`artifacts/xemu/render-20260916-232200` (850frames,8071 free pages). It reports
+one rejected blast and no new cut. All77 player-body words match PC, including
+the position inside the preserved crater X=-17.523134. The full checkpoint
+matches the independent walk_rejected PC replay. Endpoint inspection shows
+the player inside the dark textured excavation, with weapon/HUD visible.
+The owned emulator exited; all saved disc entries were checked restored,
+including removal of the normally absent terrain-map-limit.bin descriptor.

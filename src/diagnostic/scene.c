@@ -629,7 +629,7 @@ typedef struct scene_stream {
     uint32_t player_checkpoint_started,player_checkpoint_look;
     rf_player_checkpoint player_checkpoint_value;
     scene_terrain_noise_owner *terrain_noise;uint32_t terrain_shadow_reference,terrain_test_light;
-    uint32_t terrain_map_limit,terrain_map_limit_until; /* PC fault injection; zero is unrestricted. */
+    uint32_t terrain_map_limit,terrain_map_limit_until; /* Explicit fault injection; zero is unrestricted. */
     scene_terrain_draw_mesh *terrain_draw;
     scene_debris_pool *debris;
     rf_geomod_terrain *terrain;rf_geometry_collision_overlay terrain_collision;
@@ -9410,6 +9410,11 @@ static int scene_terrain_open(scene_stream *s,const rf_level *level,rf_vpp *maps
          if(value){limit=strtoul(value,&end,10);if(*end || !limit)return RF_RANGE;s->terrain_map_limit_until=(uint32_t)limit;}}}
 #else
     {FILE *flag=fopen("D:\\terrain-test-light.flag","rb");s->terrain_test_light=flag!=NULL;if(flag)fclose(flag);}
+    {FILE *flag=fopen("D:\\terrain-map-limit.bin","rb");
+     if(flag){uint32_t values[2];int valid=fread(values,sizeof(values),1,flag)==1;
+         if(fgetc(flag)!=EOF || ferror(flag))valid=0;if(fclose(flag))valid=0;
+         if(!valid || !values[0] || values[0]>RF_GEOMOD_LIGHTMAP_LIMIT || !values[1])return RF_RANGE;
+         s->terrain_map_limit=values[0];s->terrain_map_limit_until=values[1];}}
 #endif
     s->terrain_atlas.width=s->terrain_atlas.height=512;s->terrain_atlas.bytes=512*512*2;s->terrain_atlas.source_format=5;
     status=rf_image_allocate_pixels(&s->terrain_atlas);if(status)return status;
