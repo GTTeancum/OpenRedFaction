@@ -10406,6 +10406,14 @@ static int scene_debris_player_contact(scene_stream *s,scene_debris_chunk *c,uin
     status=rf_geomod_debris_actor_contact(c->position,c->velocity,c->radius,scene_actor_body.state.position,
         campaign_player_geometry.model_radius,&hit,&amount);
     if(status)return status;if(!hit)return RF_OK;
+    if(rf_scene_combat_trace) {
+        float sample[12];uint32_t words[12],slot=UINT32_MAX,n;
+        for(n=0;n<80;n++)if(c==s->debris->chunks+n){slot=n;break;}
+        memcpy(sample,c->position,12);memcpy(sample+3,c->velocity,12);sample[6]=c->radius;
+        memcpy(sample+7,scene_actor_body.state.position,12);sample[10]=campaign_player_geometry.model_radius;sample[11]=amount;
+        memcpy(words,sample,sizeof(words));printf("DEBRIS_PLAYER_HIT %u %u %u %u",frame,slot,c->room,c->impact_flags);
+        for(n=0;n<12;n++)printf(" %u",words[n]);puts("");
+    }
     c->impact_flags|=2;++rf_scene_debris_player[1];rf_scene_debris_player[5]=c->impact_flags;
     request.amount=amount;memcpy(&bits,&seconds,4);
     status=rf_scene_player_damage(campaign_player_object.handle,&request,1,bits,&effects,&applied);
