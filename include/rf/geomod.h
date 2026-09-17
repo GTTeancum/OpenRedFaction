@@ -309,6 +309,7 @@ typedef struct rf_geomod_multi_work {
     rf_geomod_fragment fragments[2][RF_GEOMOD_WORK_FRAGMENTS];
     float source_planes[32][4],cut_planes[RF_GEOMOD_CUT_LIMIT][32][4];
     float star_planes[RF_GEOMOD_CUT_LIMIT][32][4][4];
+    float star_kernels[RF_GEOMOD_CUT_LIMIT][3];
     uint32_t star_count[RF_GEOMOD_CUT_LIMIT];
     /* Supporting-plane IDs parallel to cavity clipping vertices (28 KiB). */
     uint16_t edges[2][RF_GEOMOD_WORK_VERTICES];

@@ -813,8 +813,8 @@ static int corner_seed_edge(const geomod_corner_support *support,const uint16_t 
         for(i=0;i<2;i++) {
             uint32_t local=(ids[i?b:a]-32)%128,face=local/4,side=local%4;
             const rf_geomod_vertex *v=support->cutters[cutter].vertices+support->cutters[cutter].faces[face].first;
-            counts[i]=side?2:3;
-            for(j=0;j<counts[i];j++)points[i][j]=v[side?(side-1+j)%3:j].position;
+            counts[i]=3;
+            for(j=0;j<3;j++)points[i][j]=(side && j==2)?support->work->star_kernels[cutter]:v[side?(side-1+j)%3:j].position;
         }
         for(i=0;i<counts[0];i++)for(j=0;j<counts[1];j++) {
             for(k=0;k<3 && points[0][i][k]==points[1][j][k];k++);
@@ -1679,7 +1679,7 @@ int rf_geomod_storage_prepare_star_cuts(rf_geomod_storage *s,
     if(!s || !work || s->editing || cavity>1 || count>RF_GEOMOD_CUT_LIMIT || (count && (!cutters || !kernels)))return RF_RANGE;
     for(c=0;c<count;c++) {
         status=star_mesh_planes(cutters+c,kernels[c],work->star_planes[c]);if(status)return status;
-        work->star_count[c]=cutters[c].face_count;
+        work->star_count[c]=cutters[c].face_count;memcpy(work->star_kernels[c],kernels[c],12);
     }
     return cavity?prepare_cavity_cuts(s,cutters,count,work,1):prepare_cuts(s,cutters,count,work,1);
 }
@@ -2117,7 +2117,7 @@ static int terrain_prepare(rf_geomod_terrain *t,uint32_t count,terrain_pending *
     for(c=0;c<count;c++) {
         if(t->star_mask&(1u<<c)) {
             status=star_mesh_planes(t->cuts+c,t->kernels[c],t->work.star_planes[c]);
-            t->work.star_count[c]=t->cuts[c].face_count;
+            t->work.star_count[c]=t->cuts[c].face_count;memcpy(t->work.star_kernels[c],t->kernels[c],12);
         } else {
             status=convex_mesh_planes(t->cuts+c,t->work.cut_planes[c]);t->work.star_count[c]=0;
         }

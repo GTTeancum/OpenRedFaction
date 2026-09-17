@@ -86,6 +86,7 @@ static int run(unsigned cavity,float roof,float split,unsigned *comparisons,unsi
         memcpy(replay->work.cut_planes,t->work.cut_planes,sizeof(t->work.cut_planes));
         memcpy(replay->work.star_planes,t->work.star_planes,sizeof(t->work.star_planes));
         memcpy(replay->work.star_count,t->work.star_count,sizeof(t->work.star_count));
+        memcpy(replay->work.star_kernels,t->work.star_kernels,sizeof(t->work.star_kernels));
         for(prefix=1;!status && prefix<=2;prefix++) {
             status=prepare_chronological_step(replay->mesh,t->cuts,prefix,&replay->work,tags,provenance,cavity);
             if(!status)status=terrain_map_pending_lineage(replay,tags);

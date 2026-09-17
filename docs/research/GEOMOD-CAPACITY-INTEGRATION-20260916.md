@@ -540,3 +540,39 @@ prefix-01..13-closure.log, closure-prefix-combined.log (expected exit2),
 overlap13/trace.log. Rebuilt dependent solid/public-UV regressions both pass.
 No new Xbox build or visual acceptance is needed/claimed for this probe-only
 change. Live defect remains open despite successful ordinary replay completion.
+
+
+## Exact internal cutter edges remove the isolated cut13 triangle
+
+Internal tetrahedron faces include the stored cutter kernel as their third
+vertex. Previously corner_seed_edge retained only their two outer vertices,
+so two internal faces sharing an outer vertex and kernel could not recover
+their exact common edge. Retaining the kernel lets the existing canonical
+line/plane intersection replace a rounded three-plane solve. No clipping
+threshold, area cutoff or proximity weld was added.
+
+The work owner grows by96 bytes for the default8-cut profile and192 bytes for
+16 cuts; existing sizeof-based accounting includes this storage. Both public
+star preparation and terrain replay populate it. The manual chronological
+solid test replay now copies the kernel alongside planes and counts.
+A focused regression checks the internal edge intersection and bit-identical
+results when supporting face order is reversed.
+
+Offline replay of geomod-fan-live/state.rfds still matches every committed
+cutter position/UV/kernel and final RNG. Cuts1..12 pass closure. The isolated
+triangle is removed, but cut13 still fails three-way edge coverage around
+(-34.51,-11.07,-5.14). At15 the output is7927 vertices/1562 faces; admissions
+16..18 remain RF_RANGE. This is a partial topology fix, not acceptance of the
+long replay. The next investigation is tracked clipping of the remaining
+near-collinear triangle with repeated supporting edge1448.
+
+Authored reconstruction policy6 fingerprint:
+3717136524d694fbba2e429c5a921633853f1a7a1f422cf293f8b6c7283f764c.
+Earlier authored saves are intentionally rejected by source identity.
+
+Validation: default PC build and all111 tests pass; NXDK produces default.xbe
+and the ISO with the existing .edata merge warning. PC authored two-shot
+save/reload then next blast matches uninterrupted RFCP(3884 bytes), RGCH(2508)
+and RGP(1376) exactly. No new native Xbox run, expanded live rerender or visual
+acceptance is claimed. Evidence: artifacts/authored-post-live/kernel-edge-*
+logs and kernel-edge-continuation/report.json.

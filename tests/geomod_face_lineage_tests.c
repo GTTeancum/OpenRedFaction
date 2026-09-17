@@ -117,6 +117,17 @@ int main(void)
         }
         rf_geomod_storage_close(&s);free(provenance);
     }
+    {
+        rf_geomod_vertex triangle[3]={{{1,0,0},{0,0}},{{0,1,0},{0,0}},{{0,0,1},{0,0}}};
+        rf_geomod_face face={0,3,0,UINT32_MAX};rf_geomod_mesh_view cutter={triangle,&face,3,1,0};
+        geomod_corner_support support={w,0,&cutter,NULL};uint16_t ids[3]={33,35,0};float point[3];
+        const float a[4]={1,1,8,-1},b[4]={1,8,1,-1},cut[4]={1,0,0,-.55f};
+        w->star_count[0]=1;w->star_kernels[0][0]=w->star_kernels[0][1]=w->star_kernels[0][2]=.1f;
+        memcpy(w->star_planes[0][0][1],a,sizeof(a));memcpy(w->star_planes[0][0][3],b,sizeof(b));memcpy(w->source_planes[0],cut,sizeof(cut));
+        CHECK(corner_seed_edge(&support,ids,point));
+        CHECK(point[0]==.55f && fabsf(point[1]-.05f)<1e-8f && point[1]==point[2]);
+        ids[0]=35;ids[1]=33;{float reversed[3];CHECK(corner_seed_edge(&support,ids,reversed) && !memcmp(point,reversed,sizeof(point)));}
+    }
     free(tags);free(w);
     puts("PASS birth separation, same-birth merge/index movement, repair and concave partition propagation; original diagonal intersections across shortened edges");return 0;
 }
