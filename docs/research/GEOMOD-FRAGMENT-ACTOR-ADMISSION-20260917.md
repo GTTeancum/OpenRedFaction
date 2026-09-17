@@ -112,3 +112,41 @@ chunk therefore cannot substantiate original-compatible player standing.
 Historical standing/save tests prove internal consistency of the implemented
 behavior, not its fidelity. Player movement, ground support and checkpoint
 support must be audited together when correcting this routing.
+
+## Small-fragment player rejection implemented
+
+Player movement and ground sweeps now use an admission-filtered polygon query
+that excludes body radius<=0.5. Checkpoint obstruction and support apply the same
+cutoff. Generic weapon queries still hit the small fragment. Boundary tests cover
+radius0.5 rejection,0.5001 admission, generic-query retention, checkpoint clearance
+and support miss/output preservation. Intermediate(0.5,1] sphere shape selection
+is explicitly still open; admitted pieces currently use polygons.
+
+Original49b900 traverses the existing pair list, not all world fragments. Its
+polygon/sphere routes therefore inherit admission from48be00; it is not evidence
+for allowing small fragments to support a player. The authored checkpoint test
+now correctly rejects a player standing on its actual sub0.5 fragment rather
+than treating the earlier self-consistent behavior as fidelity.
+
+`tools/check_small_rubble_admission.py` executes the earlier jump/walk sequence
+with the corrected gate. The player ends at(-7.702166,-0.618479,2.5); the chunk
+remains live and zero player fragment contacts occur. The600-frame save plus
+200-frame continuation matches the800-frame uninterrupted checkpoint exactly.
+The inspected PC endpoint shows the player beyond the broken-post location,
+facing another intact post, with room and weapon present. The chunk is behind
+the camera; retained state, not that endpoint image, proves its continued life.
+The old check_rubble_standing.py and check_detached_player.py acceptance assertions
+are historical and superseded for this sub0.5 fragment. Their old artifacts are
+retained as evidence of the previous behavior, not current acceptance.
+
+All121 PC tests pass and stock-profile NXDK XBE/ISO builds succeed. Native
+execution is tracked separately below.
+
+Native600-frame acceptance: artifacts/xemu/render-20260917-091803 passes all74
+comparisons on stock64MiB. DETACHED_PLAYER is[897,0,0,0,0,0,0] on both platforms.
+The2760-byte checkpoint hash is329bc22e37c19164698da5d313f757a384719e7cf109d7cae7f16533b0224b93
+on both PC and Xbox. The native endpoint capture was inspected: room, weapon
+and intact post match the expected endpoint; no claim of an on-screen chunk at
+that camera angle. Native continuation from this newly corrected save remains
+separate from the verified PC continuation. The harness exited and restored disc
+files after the owned emulator run.

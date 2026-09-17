@@ -145,9 +145,12 @@ int main(int argc,char **argv)
                     player.basis[0]=player.basis[4]=player.basis[8]=1;
                     rf_scene_actor_movement_values.speed=5;
                     CHECK(!scene_authored_checkpoint_write(&s,save,SCENE_CHECKPOINT_MAX,&bytes));
-                    CHECK(!scene_authored_checkpoint_stage_prepare(&s,save,bytes,&player,&restore));
-                    scene_authored_checkpoint_stage_discard(&restore);CHECK(!restore && s.terrain==live);
-                    /* Identical geometry with active motion cannot be save support. */
+                    /* This actual extracted fragment is below original player
+                     * admission size; even sleeping geometry cannot support a save. */
+                    CHECK(body->state.bounds.radius<=.5f);
+                    CHECK(scene_authored_checkpoint_stage_prepare(&s,save,bytes,&player,&restore)==RF_FORMAT);
+                    CHECK(!restore && s.terrain==live && !s.terrain_publication->has_pending);
+                    /* Active motion also cannot turn excluded geometry into support. */
                     body->state.flags|=0x80000000u;
                     CHECK(!scene_authored_checkpoint_write(&s,save,SCENE_CHECKPOINT_MAX,&bytes));
                     CHECK(scene_authored_checkpoint_stage_prepare(&s,save,bytes,&player,&restore)==RF_FORMAT);

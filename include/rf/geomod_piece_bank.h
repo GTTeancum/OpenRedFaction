@@ -137,6 +137,11 @@ int rf_geomod_piece_registry_body_sweep(const rf_geomod_piece_registry *,
 int rf_geomod_piece_registry_body_sweep_excluding(const rf_geomod_piece_registry *,
     uint32_t excluded_batch,uint32_t excluded_piece,const rf_collision_body_query *,
     uint32_t surface_material,rf_geomod_registry_body_hit *,uint32_t *matched);
+/* Player admission filter: ignores body radius<=0.5. Polygon geometry for
+ * admitted pieces; intermediate (0.5,1] sphere routing remains separate work.
+ * Generic weapon/body queries deliberately retain their own eligibility. */
+int rf_geomod_piece_registry_player_admitted_sweep(const rf_geomod_piece_registry *,
+    const rf_collision_body_query *,uint32_t material,rf_geomod_registry_body_hit *,uint32_t *matched);
 /* Non-player kind0/use-kind1 (vehicle) versus live terrain fragments: sphere-pair
  * route. Read-only proposals; selected target retains registry identity instead
  * of inventing an entity handle. Caller owns subsequent response/publication.

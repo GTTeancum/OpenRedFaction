@@ -93,6 +93,14 @@ static void registry_lifetime(const rf_geomod_mesh_view *mesh,const rf_collision
         CHECK(fabsf(hit.contact.fraction-.225f)<.0001f && hit.contact.material==1 && hit.contact.velocity[2]==3);
         CHECK(hit.contact.object_id==UINT32_MAX && hit.contact.face_token==UINT32_MAX);
         before=hit;
+        {float saved_radius=body->state.bounds.radius;
+         body->state.bounds.radius=.5f;
+         CHECK(!rf_geomod_piece_registry_player_admitted_sweep(r,&query,1,&hit,&matched));
+         CHECK(!matched && !memcmp(&hit,&before,sizeof(hit)));
+         CHECK(!rf_geomod_piece_registry_body_sweep(r,&query,1,&hit,&matched) && matched);
+         body->state.bounds.radius=.5001f;
+         CHECK(!rf_geomod_piece_registry_player_admitted_sweep(r,&query,1,&hit,&matched) && matched);
+         body->state.bounds.radius=saved_radius;}
         CHECK(!rf_geomod_piece_registry_body_sweep_excluding(r,0,0,&query,1,&hit,&matched));
         CHECK(!matched && !memcmp(&hit,&before,sizeof(hit)));
         matched=999;
@@ -127,6 +135,8 @@ static void registry_lifetime(const rf_geomod_mesh_view *mesh,const rf_collision
         placement.basis[0]=placement.basis[4]=placement.basis[8]=1;
         for(k=0;k<3;k++)placement.position[k]=body->state.position[k]+center[k]-.3f*face->plane[k];
         CHECK(rf_geomod_piece_registry_placement_check(r,&placement)==RF_NOT_FOUND);
+        {float saved_radius=body->state.bounds.radius;body->state.bounds.radius=.5f;
+         CHECK(!rf_geomod_piece_registry_placement_check(r,&placement));body->state.bounds.radius=saved_radius;}
         for(k=0;k<3;k++)placement.position[k]=body->state.position[k]+center[k]+face->plane[k];
         CHECK(!rf_geomod_piece_registry_placement_check(r,&placement));
         /* Tilt the solid and rotate an offset player sphere independently.
@@ -162,6 +172,9 @@ static void registry_lifetime(const rf_geomod_mesh_view *mesh,const rf_collision
         for(k=0;k<3;k++){probe.start[k]=body->state.position[k]+center[k]+2*face->plane[k];probe.end[k]=probe.start[k]-4*face->plane[k];}
         probe.sphere.radius=.1f;
         CHECK(!rf_geomod_piece_registry_support(r,&probe,1,&hit,&matched));CHECK(matched && !hit.stable);
+        {float saved_radius=body->state.bounds.radius;kept=hit;body->state.bounds.radius=.5f;
+         CHECK(!rf_geomod_piece_registry_support(r,&probe,1,&hit,&matched));CHECK(!matched && !memcmp(&kept,&hit,sizeof(hit)));
+         body->state.bounds.radius=saved_radius;}
         body->state.flags&=~0x80000000u;
         CHECK(!rf_geomod_piece_registry_support(r,&probe,1,&hit,&matched));CHECK(matched && hit.stable);
         body->state.velocity[0]=1;

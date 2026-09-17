@@ -1,6 +1,6 @@
 # Red Faction Xbox / PC - open work
 
-- PRIORITY GeoMod player contacts: Apply original fragment size routing: reject radius<=0.5, sphere pairs through radius1, and polygon contacts above1; current all-polygon movement and small-rubble standing need correction.
+- PRIORITY GeoMod player contacts: Implement sphere routing for fragment radii(0.5,1]; radius<=0.5 now rejects player movement and checkpoint support, with exact PC save continuation and74 stock64MiB native traversal/save comparisons.
 
 - GeoMod vehicle contacts: Verify admitted use-kind1 vehicle contacts with larger fragments;240 original cases confirm ordinary miner/AI-response kind9 is excluded, so humanoid rubble pushing is not a missing fidelity feature.
 

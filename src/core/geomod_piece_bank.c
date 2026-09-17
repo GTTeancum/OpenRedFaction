@@ -207,7 +207,7 @@ failed:
     rf_geomod_piece_bank_close(&geometry);rf_geomod_piece_batch_close(&batch);return status;
 }
 
-static int piece_batch_sweep_except(const rf_geomod_piece_batch *batch,uint32_t excluded,uint32_t flags,
+static int piece_batch_sweep_except(const rf_geomod_piece_batch *batch,uint32_t excluded,float minimum_body_radius,uint32_t flags,
     const float start[3],const float delta[3],float radius,float limit,
     rf_geomod_piece_hit *result,uint32_t *matched)
 {
@@ -218,7 +218,7 @@ static int piece_batch_sweep_except(const rf_geomod_piece_batch *batch,uint32_t 
     for(i=0;i<batch->count;i++) {
         rf_geomod_owned_piece piece;rf_collision_sweep_tree_hit local;uint32_t hit;
         const rf_physics_body_state *body=&batch->bodies[i].state;
-        if(i==excluded || !rf_geomod_piece_batch_alive(batch,i))continue;
+        if(i==excluded || !rf_geomod_piece_batch_alive(batch,i) || !(body->bounds.radius>minimum_body_radius))continue;
         status=rf_geomod_piece_bank_get(batch->geometry,i,&piece);if(status)return status;
         status=rf_collision_flat_faces(piece.collision,piece.mesh.face_count,flags&~4u,start,delta,
             body->position,(const float (*)[3])body->orientation,radius,nearest,&local,&hit);
@@ -236,7 +236,7 @@ static int piece_batch_sweep_except(const rf_geomod_piece_batch *batch,uint32_t 
 int rf_geomod_piece_batch_sweep(const rf_geomod_piece_batch *batch,uint32_t flags,
     const float start[3],const float delta[3],float radius,float limit,
     rf_geomod_piece_hit *result,uint32_t *matched)
-{return piece_batch_sweep_except(batch,UINT32_MAX,flags,start,delta,radius,limit,result,matched);}
+{return piece_batch_sweep_except(batch,UINT32_MAX,-1,flags,start,delta,radius,limit,result,matched);}
 
 typedef struct piece_registry_entry {
     rf_geomod_piece_batch *batch;uint32_t prefix,ordinal,before,after;
@@ -448,7 +448,7 @@ int rf_geomod_piece_registry_damage(rf_geomod_piece_registry *r,uint32_t batch,u
     return rf_geomod_piece_life_damage(r->active[batch].batch->life+piece,amount);
 }
 
-static int piece_registry_sweep_except(const rf_geomod_piece_registry *r,uint32_t excluded_batch,uint32_t excluded_piece,uint32_t flags,
+static int piece_registry_sweep_except(const rf_geomod_piece_registry *r,uint32_t excluded_batch,uint32_t excluded_piece,float minimum_body_radius,uint32_t flags,
     const float start[3],const float delta[3],float radius,float limit,
     rf_geomod_registry_hit *out,uint32_t *matched)
 {
@@ -458,7 +458,7 @@ static int piece_registry_sweep_except(const rf_geomod_piece_registry *r,uint32_
     if(r && r->begun)return RF_RANGE;
     for(i=0;r && i<r->count;i++) {
         rf_geomod_piece_hit hit;uint32_t candidate;
-        status=piece_batch_sweep_except(r->active[i].batch,i==excluded_batch?excluded_piece:UINT32_MAX,flags,start,delta,radius,nearest,&hit,&candidate);if(status)return status;
+        status=piece_batch_sweep_except(r->active[i].batch,i==excluded_batch?excluded_piece:UINT32_MAX,minimum_body_radius,flags,start,delta,radius,nearest,&hit,&candidate);if(status)return status;
         if(!candidate || (found && hit.hit.fraction>=nearest))continue;
         best.piece=hit;best.batch=i;nearest=hit.hit.fraction;found=1;
     }
@@ -468,18 +468,18 @@ static int piece_registry_sweep_except(const rf_geomod_piece_registry *r,uint32_
 int rf_geomod_piece_registry_sweep(const rf_geomod_piece_registry *r,uint32_t flags,
     const float start[3],const float delta[3],float radius,float limit,
     rf_geomod_registry_hit *out,uint32_t *matched)
-{return piece_registry_sweep_except(r,UINT32_MAX,UINT32_MAX,flags,start,delta,radius,limit,out,matched);}
+{return piece_registry_sweep_except(r,UINT32_MAX,UINT32_MAX,-1,flags,start,delta,radius,limit,out,matched);}
 
 typedef struct piece_body_query_context {
     const rf_geomod_piece_registry *registry;uint32_t material,excluded_batch,excluded_piece;
-    rf_geomod_registry_hit selected;uint32_t sphere;float velocity[3];
+    rf_geomod_registry_hit selected;uint32_t sphere;float velocity[3],minimum_body_radius;
 } piece_body_query_context;
 static int piece_body_query(void *opaque,const rf_collision_body_request *request,
     rf_collision_body_candidate *candidate,uint32_t *matched)
 {
     piece_body_query_context *context=opaque;rf_geomod_registry_hit hit;
     const rf_geomod_piece_batch *batch;rf_geomod_owned_piece piece;int status;
-    status=piece_registry_sweep_except(context->registry,context->excluded_batch,context->excluded_piece,request->flags,request->start,request->delta,
+    status=piece_registry_sweep_except(context->registry,context->excluded_batch,context->excluded_piece,context->minimum_body_radius,request->flags,request->start,request->delta,
         request->radius,request->limit,&hit,matched);if(status || !*matched)return status;
     batch=context->registry->active[hit.batch].batch;
     status=rf_geomod_piece_bank_get(batch->geometry,hit.piece.piece,&piece);if(status)return status;
@@ -489,8 +489,8 @@ static int piece_body_query(void *opaque,const rf_collision_body_request *reques
     context->selected=hit;context->sphere=request->sphere;
     memcpy(context->velocity,batch->bodies[hit.piece.piece].state.velocity,12);return RF_OK;
 }
-int rf_geomod_piece_registry_body_sweep_excluding(const rf_geomod_piece_registry *registry,
-    uint32_t excluded_batch,uint32_t excluded_piece,
+static int piece_body_sweep_filtered(const rf_geomod_piece_registry *registry,
+    uint32_t excluded_batch,uint32_t excluded_piece,float minimum_body_radius,
     const rf_collision_body_query *query,uint32_t material,rf_geomod_registry_body_hit *out,uint32_t *matched)
 {
     piece_body_query_context context={0};rf_geomod_registry_body_hit result={0};uint32_t found;int status;
@@ -498,7 +498,7 @@ int rf_geomod_piece_registry_body_sweep_excluding(const rf_geomod_piece_registry
     if(excluded_batch!=UINT32_MAX && (!registry || excluded_batch>=registry->count ||
        excluded_piece>=registry->active[excluded_batch].batch->count))return RF_RANGE;
     context.registry=registry;context.material=material;
-    context.excluded_batch=excluded_batch;context.excluded_piece=excluded_piece;
+    context.excluded_batch=excluded_batch;context.excluded_piece=excluded_piece;context.minimum_body_radius=minimum_body_radius;
     status=rf_collision_body_sweep(query,NULL,0,piece_body_query,&context,&result.contact,&found);if(status)return status;
     if(found) {
         result.batch=context.selected.batch;result.piece=context.selected.piece.piece;
@@ -507,6 +507,15 @@ int rf_geomod_piece_registry_body_sweep_excluding(const rf_geomod_piece_registry
     }
     *matched=found;return RF_OK;
 }
+
+int rf_geomod_piece_registry_body_sweep_excluding(const rf_geomod_piece_registry *registry,
+    uint32_t batch,uint32_t piece,const rf_collision_body_query *query,uint32_t material,
+    rf_geomod_registry_body_hit *out,uint32_t *matched)
+{return piece_body_sweep_filtered(registry,batch,piece,-1,query,material,out,matched);}
+
+int rf_geomod_piece_registry_player_admitted_sweep(const rf_geomod_piece_registry *registry,
+    const rf_collision_body_query *query,uint32_t material,rf_geomod_registry_body_hit *out,uint32_t *matched)
+{return piece_body_sweep_filtered(registry,UINT32_MAX,UINT32_MAX,.5f,query,material,out,matched);}
 
 int rf_geomod_piece_registry_body_sweep(const rf_geomod_piece_registry *registry,
     const rf_collision_body_query *query,uint32_t material,rf_geomod_registry_body_hit *out,uint32_t *matched)
@@ -519,7 +528,7 @@ int rf_geomod_piece_registry_placement_check(const rf_geomod_piece_registry *r,c
     for(b=0;r && b<r->count;b++)for(i=0;i<r->active[b].batch->count;i++) {
         const rf_geomod_piece_batch *batch=r->active[b].batch;rf_geomod_owned_piece piece;
         const rf_physics_body_state *body=&batch->bodies[i].state;
-        if(!rf_geomod_piece_batch_alive(batch,i))continue;
+        if(!rf_geomod_piece_batch_alive(batch,i) || !(body->bounds.radius>.5f))continue;
         status=rf_geomod_piece_bank_get(batch->geometry,i,&piece);if(status)return status;
         for(n=0;n<p->count;n++) {
             double world[3];float local[3];
@@ -571,7 +580,7 @@ int rf_geomod_piece_registry_support(void *context,const rf_physics_ground_probe
     const rf_physics_body_state *body;float start[3],delta[3];uint32_t i,found;int status;
     if(!probe || !out || !matched)return RF_RANGE;
     for(i=0;i<3;i++){start[i]=(float)((double)probe->start[i]+probe->sphere.center[i]);delta[i]=(float)((double)probe->end[i]-probe->start[i]);}
-    status=rf_geomod_piece_registry_sweep(r,probe->query_flags,start,delta,probe->sphere.radius,limit,&hit,&found);if(status)return status;
+    status=piece_registry_sweep_except(r,UINT32_MAX,UINT32_MAX,.5f,probe->query_flags,start,delta,probe->sphere.radius,limit,&hit,&found);if(status)return status;
     if(found) {
         body=&r->active[hit.batch].batch->bodies[hit.piece.piece].state;
         result.fraction=hit.piece.hit.fraction;memcpy(result.normal,hit.piece.hit.normal,12);

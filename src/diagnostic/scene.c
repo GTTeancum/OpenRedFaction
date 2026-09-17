@@ -7064,7 +7064,7 @@ static int campaign_player_piece_query(const rf_geometry_collision_world *world,
     if(!s || s->collision!=world || !rf_geomod_piece_registry_count(s->detached_pieces))return RF_OK;
     limited=*query;if(*matched)limited.limit=contact->contact.fraction;
     ++rf_scene_detached_player[0];
-    status=rf_geomod_piece_registry_body_sweep(s->detached_pieces,&limited,1,&hit,&found);
+    status=rf_geomod_piece_registry_player_admitted_sweep(s->detached_pieces,&limited,1,&hit,&found);
     rf_scene_detached_player[6]=(uint32_t)status;if(status)return status;
     if(found && (!*matched || hit.contact.fraction<contact->contact.fraction)) {
         rf_geometry_body_hit value={0};value.contact=hit.contact;value.solid=UINT32_MAX;
