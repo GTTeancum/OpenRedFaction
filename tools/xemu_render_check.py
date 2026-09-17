@@ -35,6 +35,7 @@ def main():
     parser.add_argument('--water-test', action='store_true', help='Authored dm03 water gameplay with DEV weapon supply')
     parser.add_argument('--swim-test', action='store_true', help='Authored L2S3 deep-pool movement fixture')
     parser.add_argument('--lava-test', choices=('wet','dry'), help='Authored L5S2 lava exposure or same-room dry control')
+    parser.add_argument('--capture-ripple', action='store_true', help='Capture ordinary ripple vertices without injecting a fixture')
     parser.add_argument('--ripple-test', action='store_true', help='DEV render-only ripple fixture; no liquid collision claim')
     parser.add_argument('--dev-room', action='store_true', help='Supply supported weapons in Glass House or the authored ctf06 post test')
     parser.add_argument('--player-checkpoint', action='store_true', help='Opt-in RFCP player plus destruction checkpoint mode')
@@ -139,7 +140,7 @@ def main():
     if args.water_test:env['RF_REPLAY_WATER_TEST']='1'
     if liquid_mode:env['RF_REPLAY_SWIM_TEST']=str(liquid_mode)
     if args.ripple_test:env['RF_REPLAY_RIPPLE_TEST']='1'
-    if args.ripple_test:env['RF_REPLAY_RIPPLE_VERTICES']=str(run/'pc-ripple-vertices.bin')
+    if args.ripple_test or args.capture_ripple:env['RF_REPLAY_RIPPLE_VERTICES']=str(run/'pc-ripple-vertices.bin')
     if checkpoint:env['RF_REPLAY_GEOMOD_CHECKPOINT_OUT']=str(run/'pc-checkpoint.rfds')
     if args.geomod_checkpoint_in:env['RF_REPLAY_GEOMOD_CHECKPOINT_IN']=str(args.geomod_checkpoint_in.resolve())
     if args.terrain_test_light:env['RF_REPLAY_TERRAIN_TEST_LIGHT']='1'
@@ -384,13 +385,13 @@ dvd_path = '{root.as_posix()}/build/xbox/redfaction-diagnostic.iso'
                 assert value==state[2],'Checkpoint readback hash mismatch'
                 assert 0<memory[0]<=memory[1]<=checkpoint_limit,'Checkpoint external memory budget'
                 assert data==expected,'PC/Xbox destruction checkpoint differs'
-            if args.ripple_test:
+            if args.ripple_test or args.capture_ripple:
                 state=words(monitor,symbol('rf_scene_ripple_vertex_state'),5)
                 assert state[2]<=384 and state[3]==56 and state[4]==0,'Ripple vertex capture overflow'
                 data=struct.pack('<5I',*state)
                 count=state[2]*14
                 if count:data+=struct.pack('<'+'I'*count,*words(monitor,symbol('rf_scene_ripple_vertices'),count))
-                for name,count in [('rf_scene_ripple_camera',12),('rf_scene_ripple_sources',96),('rf_scene_ripple_input_count',1),('rf_scene_ripple_input',240),('rf_scene_ripple_fp_state',4)]:
+                for name,count in [('rf_scene_ripple_camera',12),('rf_scene_ripple_sources',96),('rf_scene_ripple_input_count',1),('rf_scene_ripple_input',240),('rf_scene_ripple_fp_state',4),('rf_scene_ripple_local',240)]:
                     data+=struct.pack('<'+'I'*count,*words(monitor,symbol(name),count))
                 (run/'xbox-ripple-vertices.bin').write_bytes(data)
             transition_rows=[line.split()[1:] for line in pc.stdout.splitlines() if line.startswith('LEVEL_TRANSITION ')]
@@ -419,7 +420,7 @@ dvd_path = '{root.as_posix()}/build/xbox/redfaction-diagnostic.iso'
                     ('rf_scene_player_ammo', 'PLAYER_AMMO', 8), ('rf_scene_combat', 'COMBAT', 8),
                     ('rf_scene_script_movement', 'SCRIPT_MOVE', 8), ('rf_scene_enemy_combat', 'ENEMY_COMBAT', 8),
                     ('rf_scene_rotating_doors', 'ROTATING_DOORS', 8), ('rf_scene_script_attack', 'SCRIPT_ATTACK', 12), ('rf_scene_attack_recovery', 'ATTACK_RECOVERY', 4), ('rf_scene_enemy_damage_kinds', 'ENEMY_DAMAGE_KINDS', 10), ('rf_scene_enemy_melee', 'ENEMY_MELEE', 4), ('rf_scene_enemy_spread', 'ENEMY_SPREAD', 8), ('rf_scene_combat_pain', 'COMBAT_PAIN', 8), ('rf_scene_pain_attack_gate', 'PAIN_ATTACK_GATE', 6), ('rf_scene_weapon_drops', 'WEAPON_DROPS', 8), ('rf_scene_rifle_alt', 'RIFLE_ALT', 8), ('rf_scene_shotgun', 'SHOTGUN', 8), ('rf_scene_rockets', 'ROCKETS', 8), ('rf_scene_rocket_blast', 'ROCKET_BLAST', 8), ('rf_scene_rocket_visual', 'ROCKET_VISUAL', 8), ('rf_scene_ripple_visual', 'RIPPLE_VISUAL', 8), ('rf_scene_ripple_lifecycle', 'RIPPLE_LIFECYCLE', 4), ('rf_scene_rocket_liquid', 'ROCKET_LIQUID_STATE', 4), ('rf_scene_enemy_fire', 'ENEMY_FIRE', 6),
-                    ('rf_scene_use_reach', 'USE_REACH', 4), ('rf_scene_debris_wet','DEBRIS_WET_STATE',8), ('rf_scene_debris_visibility','DEBRIS_VISIBILITY',8), ('rf_scene_debris_motion','DEBRIS_MOTION',8),
+                    ('rf_scene_use_reach', 'USE_REACH', 4), ('rf_scene_debris_wet','DEBRIS_WET_STATE',8), ('rf_scene_debris_visibility','DEBRIS_VISIBILITY',8), ('rf_scene_debris_motion','DEBRIS_MOTION',8), ('rf_scene_debris_crossing','DEBRIS_CROSSING',8),
                     ('rf_scene_particles_summary', 'SCENE_PARTICLES', 8), ('rf_scene_live_motion', 'LIVE_MOTION', 8), ('rf_scene_airlock', 'AIRLOCK', 6), ('rf_scene_script_animation', 'SCRIPT_ANIMATION', 10), ('rf_scene_alarm', 'ALARM', 12), ('rf_scene_switch_runtime', 'SWITCH_RUNTIME', 8), ('rf_scene_switch_detail', 'SWITCH_DETAIL', 8), ('rf_scene_switch_history', 'SWITCH_HISTORY', 4), ('rf_scene_trigger_history', 'TRIGGER_HISTORY', 4), ('rf_scene_startup_inventory', 'STARTUP_INVENTORY', 4), ('rf_scene_pickups', 'PICKUPS', 8), ('rf_scene_pickup_vitals', 'PICKUP_VITALS', 4), ('rf_scene_riot', 'RIOT_STICK', 8), ('rf_scene_weapon_selection', 'WEAPON_SELECTION', 8),
                     ('rf_scene_player_weapon', 'PLAYER_WEAPON', 8), ('rf_scene_weapon_audio', 'WEAPON_AUDIO', 9), ('rf_scene_impact_audio', 'IMPACT_AUDIO', 9),
                     ('rf_scene_combat_death', 'COMBAT_DEATH', 8)]:

@@ -856,6 +856,7 @@ run_scene:
          failed|=fwrite(rf_scene_ripple_camera,4,12,f)!=12 || fwrite(rf_scene_ripple_sources,4,96,f)!=96 ||
             fwrite(&rf_scene_ripple_input_count,4,1,f)!=1 || fwrite(rf_scene_ripple_input,4,240,f)!=240;}
         {extern uint32_t rf_scene_ripple_fp_state[4];failed|=fwrite(rf_scene_ripple_fp_state,4,4,f)!=4;}
+        {extern float rf_scene_ripple_local[240];failed|=fwrite(rf_scene_ripple_local,4,240,f)!=240;}
         if(fclose(f))failed=1;if(failed)CHECK(RF_IO);
     }
     printf("RIPPLE_VISUAL");for(i=0;i<8;++i)printf(" %u",rf_scene_ripple_visual[i]);puts("");
@@ -872,6 +873,8 @@ run_scene:
     printf("TERRAIN_DRAW");for(i=0;i<5;++i)printf(" %u",rf_scene_terrain_draw[i]);puts("");
     printf("DEBRIS_AUDIO");for(i=0;i<14;++i)printf(" %u",rf_scene_debris_audio[i]);puts("");
     printf("DEBRIS");for(i=0;i<8;++i)printf(" %u",rf_scene_debris[i]);puts("");
+    {extern uint32_t rf_scene_debris_crossing[8];
+     printf("DEBRIS_CROSSING");for(i=0;i<8;++i)printf(" %u",rf_scene_debris_crossing[i]);puts("");}
     {extern uint32_t rf_scene_debris_motion[8];
      printf("DEBRIS_MOTION");for(i=0;i<8;++i)printf(" %u",rf_scene_debris_motion[i]);puts("");}
     {extern uint32_t rf_scene_debris_visibility[8];

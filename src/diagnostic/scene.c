@@ -559,6 +559,7 @@ uint32_t rf_scene_debris_relaunch[8]; /* passes,candidates,relaunched,settled re
 uint32_t rf_scene_debris_wet[8]; /* solid misses,wet tests,accepted,last room,fraction bits,point hash,last status,presence */
 uint32_t rf_scene_debris_visibility[8]; /* hidden submissions,aged,last admitted/hidden,hidden age hashes before/after,room tests/rejects */
 uint32_t rf_scene_debris_motion[8]; /* moving steps,submerged steps,last room,flag,proposed hash,status,reserved,reserved */
+uint32_t rf_scene_debris_crossing[8]; /* solid misses,wet entries,last room,point hash,size bits,status,reserved,reserved */
 
 #ifndef SCENE_TERRAIN_ATLAS_BUDGET
 #define SCENE_TERRAIN_ATLAS_BUDGET (1280u*1024u)
@@ -9429,7 +9430,7 @@ static int scene_terrain_open(scene_stream *s,const rf_level *level,rf_vpp *maps
     rf_scene_terrain_atlas[3]=2*512*512*2+64*64*2+SCENE_TERRAIN_FACES*(sizeof(*s->terrain_bindings)+sizeof(*s->terrain_tiles))+sizeof(rf_image)+sizeof(*s->terrain_noise);
     if(rf_scene_terrain_atlas[3]>SCENE_TERRAIN_ATLAS_BUDGET){printf("TERRAIN_ATLAS_BUDGET %u %u\n",rf_scene_terrain_atlas[3],SCENE_TERRAIN_ATLAS_BUDGET);return RF_RANGE;}
     s->debris=calloc(1,sizeof(*s->debris));if(!s->debris)return RF_IO;
-    s->debris->random.value=1;rf_debris_audio_init(&s->debris->audio);memset(rf_scene_debris_audio,0,sizeof(rf_scene_debris_audio));memset(rf_scene_debris,0,sizeof(rf_scene_debris));memset(rf_scene_debris_relaunch,0,sizeof(rf_scene_debris_relaunch));memset(rf_scene_debris_wet,0,sizeof(rf_scene_debris_wet));memset(rf_scene_debris_visibility,0,sizeof(rf_scene_debris_visibility));memset(rf_scene_debris_motion,0,sizeof(rf_scene_debris_motion));rf_scene_debris_wet[3]=UINT32_MAX;rf_scene_debris[6]=sizeof(*s->debris);
+    s->debris->random.value=1;rf_debris_audio_init(&s->debris->audio);memset(rf_scene_debris_audio,0,sizeof(rf_scene_debris_audio));memset(rf_scene_debris,0,sizeof(rf_scene_debris));memset(rf_scene_debris_relaunch,0,sizeof(rf_scene_debris_relaunch));memset(rf_scene_debris_wet,0,sizeof(rf_scene_debris_wet));memset(rf_scene_debris_visibility,0,sizeof(rf_scene_debris_visibility));memset(rf_scene_debris_motion,0,sizeof(rf_scene_debris_motion));memset(rf_scene_debris_crossing,0,sizeof(rf_scene_debris_crossing));rf_scene_debris_wet[3]=UINT32_MAX;rf_scene_debris[6]=sizeof(*s->debris);
     s->terrain_draw=calloc(1,sizeof(*s->terrain_draw));if(!s->terrain_draw)return RF_IO;
     memset(rf_scene_terrain_draw,0,sizeof(rf_scene_terrain_draw));
     s->terrain_ids=calloc(SCENE_TERRAIN_FACES,sizeof(*s->terrain_ids));if(!s->terrain_ids)return RF_IO;
@@ -10139,7 +10140,7 @@ static int scene_terrain_input(scene_stream *s,const float position[3],const flo
                 memset(rf_scene_terrain_bake,0,sizeof(rf_scene_terrain_bake));
                 scene_terrain_dirty(s,0,0,512,512);
             }
-            if(!status && s->debris){memset(s->debris,0,sizeof(*s->debris));s->debris->random.value=1;rf_debris_audio_init(&s->debris->audio);memset(rf_scene_debris_audio,0,sizeof(rf_scene_debris_audio));memset(rf_scene_debris,0,sizeof(rf_scene_debris));memset(rf_scene_debris_relaunch,0,sizeof(rf_scene_debris_relaunch));memset(rf_scene_debris_wet,0,sizeof(rf_scene_debris_wet));memset(rf_scene_debris_visibility,0,sizeof(rf_scene_debris_visibility));memset(rf_scene_debris_motion,0,sizeof(rf_scene_debris_motion));rf_scene_debris_wet[3]=UINT32_MAX;rf_scene_debris[6]=sizeof(*s->debris);}
+            if(!status && s->debris){memset(s->debris,0,sizeof(*s->debris));s->debris->random.value=1;rf_debris_audio_init(&s->debris->audio);memset(rf_scene_debris_audio,0,sizeof(rf_scene_debris_audio));memset(rf_scene_debris,0,sizeof(rf_scene_debris));memset(rf_scene_debris_relaunch,0,sizeof(rf_scene_debris_relaunch));memset(rf_scene_debris_wet,0,sizeof(rf_scene_debris_wet));memset(rf_scene_debris_visibility,0,sizeof(rf_scene_debris_visibility));memset(rf_scene_debris_motion,0,sizeof(rf_scene_debris_motion));memset(rf_scene_debris_crossing,0,sizeof(rf_scene_debris_crossing));rf_scene_debris_wet[3]=UINT32_MAX;rf_scene_debris[6]=sizeof(*s->debris);}
             if(!status)++rf_scene_geomod[7];
         } else {
         for(i=0;i<3;i++)delta[i]=orientation[2][i]*100;
@@ -10389,7 +10390,31 @@ static int scene_debris_tick(scene_stream *s,uint32_t frame)
                 if(status)return status;
                 memcpy(c->velocity,bounce.velocity,12);memcpy(c->axis,bounce.spin_axis,12);c->spin=bounce.spin_rate;
             }
-        } else memcpy(c->position,proposed,sizeof(proposed));
+        } else {
+            rf_geomod_debris_liquid_hit wet;uint32_t accepted;float size=.2f;
+            ++rf_scene_debris_crossing[0];
+            status=rf_geomod_debris_liquid_miss(c->position,proposed,liquid_flag,
+                motion_room->depth,motion_room->minimum_y,&wet,&accepted);
+            rf_scene_debris_crossing[5]=(uint32_t)status;if(status)return status;
+            if(accepted) {
+                ++rf_scene_debris_crossing[1];rf_scene_debris_crossing[2]=c->room;
+                rf_scene_debris_crossing[3]=npc_hash_bytes(2166136261u,wet.point,12);
+                memcpy(rf_scene_debris_crossing+4,&size,4);
+                /*48f9b6 requests the ripple at the reverse-interpolated hit,
+                 * then48f9d8 commits the proposed endpoint, not that hit point.
+                 * The VFX wrapper uses unit animation scale; size0.2 belongs
+                 * to the generic effect request, not a mesh scale override. */
+                scene_ripple_start(s,wet.point,frame,0);
+                if(rf_scene_combat_trace) {
+                    float sample[15];uint32_t words[15],n;
+                    memcpy(sample,c->position,12);memcpy(sample+3,c->velocity,12);
+                    sample[6]=1.f/60;sample[7]=motion_room->depth;sample[8]=motion_room->minimum_y;
+                    memcpy(sample+9,proposed,12);memcpy(sample+12,wet.point,12);memcpy(words,sample,sizeof(words));
+                    printf("DEBRIS_CROSS_SAMPLE %u",liquid_flag);for(n=0;n<15;n++)printf(" %u",words[n]);puts("");
+                }
+            }
+            memcpy(c->position,proposed,sizeof(proposed));
+        }
         if(c->bounces)c->velocity[1]-=scene_gravity.acceleration/60.f;++rf_scene_debris[1];
     }
     /* Original48f4e0 skips its dispatch tail when the debris list is empty. */
@@ -12623,6 +12648,7 @@ uint32_t rf_scene_ripple_vertex_state[5]; /* frame, total, copied, stride, overf
 float rf_scene_ripple_camera[12]; /* position XYZ, then right/up/forward rows */
 float rf_scene_ripple_sources[SCENE_RIPPLES][6]; /* center XYZ, age frames, effect time, active */
 float rf_scene_ripple_input[240]; /* First live ripple: face-order interleaved world XYZ, UV. */
+float rf_scene_ripple_local[240]; /* Matching pre-placement local XYZ and UV. */
 uint32_t rf_scene_ripple_input_count; /* Valid float count; capacity240, independent of emitted faces. */
 uint32_t rf_scene_ripple_fp_state[4]; /* frame+1, x87 control, MXCSR, supported. */
 static void scene_ripple_fp_capture(uint32_t frame)
@@ -12652,7 +12678,7 @@ static int scene_ripples_draw(scene_stream *s,uint32_t frame)
     memcpy(rf_scene_ripple_camera+3,s->rocket_camera.player_orientation,36);
     memset(rf_scene_ripple_sources,0,sizeof(rf_scene_ripple_sources));
     memset(rf_scene_ripple_fp_state,0,sizeof(rf_scene_ripple_fp_state));
-    memset(rf_scene_ripple_input,0,sizeof(rf_scene_ripple_input));rf_scene_ripple_input_count=0;
+    memset(rf_scene_ripple_input,0,sizeof(rf_scene_ripple_input));memset(rf_scene_ripple_local,0,sizeof(rf_scene_ripple_local));rf_scene_ripple_input_count=0;
     if(!v)return RF_OK;
     rf_scene_ripple_visual[5]=sizeof(*v)+v->geometry->resident_bytes+v->materials->resident_bytes;
     if(rf_scene_ripple_test_enabled && frame==0) {
@@ -12702,11 +12728,15 @@ static int scene_ripples_draw(scene_stream *s,uint32_t frame)
                 if(status && status!=RF_NOT_FOUND)return status;
                 opacity_byte=(uint32_t)(255.f*fminf(1.f,fmaxf(0.f,opacity)));if(!opacity_byte)continue;
                 status=rf_vfx_material_color(v->materials->views+material,lighting,brightness,source->edges.mesh_flags,rgb);if(status)return status;
+                /* Keep placement rounding independent of preceding x87-to-SSE
+                 * conversion paths; one final binary32 store matches PC/native. */
                 for(j=0;j<3;j++)for(k=0;k<3;k++)
-                    triangle[j*3+k]=s->ripple_position[shot][k]+instance->vertices[face.indices[j]*3+k];
+                    {volatile double placed=(double)s->ripple_position[shot][k]+instance->vertices[face.indices[j]*3+k];triangle[j*3+k]=(float)placed;}
                 if(shot==input_shot && m<4 && f<4 && rf_scene_ripple_input_count<=240-15) {
                     for(j=0;j<3;j++) {
                         float *input=rf_scene_ripple_input+rf_scene_ripple_input_count;
+                        float *local=rf_scene_ripple_local+rf_scene_ripple_input_count;
+                        memcpy(local,instance->vertices+face.indices[j]*3,12);local[3]=instance->uv[f*6+j];local[4]=instance->uv[f*6+3+j];
                         memcpy(input,triangle+j*3,12);input[3]=instance->uv[f*6+j];input[4]=instance->uv[f*6+3+j];
                         rf_scene_ripple_input_count+=5;
                     }
