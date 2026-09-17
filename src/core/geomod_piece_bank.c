@@ -135,6 +135,65 @@ int rf_geomod_piece_bank_append(rf_geomod_piece_bank *bank,const rf_geomod_mesh_
 int rf_geomod_piece_bank_append_physical(rf_geomod_piece_bank *bank,const rf_geomod_mesh_view *mesh,
     const uint32_t *old_faces,const rf_collision_face_filter *filters,uint32_t source_count,uint32_t id,float density)
 {return append_piece(bank,mesh,old_faces,filters,source_count,id,&density);}
+/* Port policy for an empty original occupancy grid: sample the actual closed
+ * mesh, never a bounding-sphere substitute. Signed solid angle admits interior
+ * samples of concave pieces; distance to all surface triangles bounds radius. */
+static double piece_triangle_distance(const float p[3],const float a[3],const float b[3],const float c[3])
+{
+    double ab[3],ac[3],ap[3],normal[3],length=0,dot=0,best=DBL_MAX;uint32_t k,e;
+    for(k=0;k<3;k++){ab[k]=(double)b[k]-a[k];ac[k]=(double)c[k]-a[k];ap[k]=(double)p[k]-a[k];}
+    for(k=0;k<3;k++){normal[k]=ab[(k+1)%3]*ac[(k+2)%3]-ab[(k+2)%3]*ac[(k+1)%3];length+=normal[k]*normal[k];dot+=normal[k]*ap[k];}
+    if(length>0) {
+        double point[3],u=0,v=0,aa=0,bb=0,cc=0,den;
+        for(k=0;k<3;k++){point[k]=ap[k]-normal[k]*dot/length;aa+=ab[k]*ab[k];bb+=ab[k]*ac[k];cc+=ac[k]*ac[k];u+=point[k]*ab[k];v+=point[k]*ac[k];}
+        den=aa*cc-bb*bb;
+        if(den>0){double s=(u*cc-v*bb)/den,t=(v*aa-u*bb)/den;if(s>=0 && t>=0 && s+t<=1)best=dot*dot/length;}
+    }
+    for(e=0;e<3;e++) {
+        const float *x=e==0?a:e==1?b:c,*y=e==0?b:e==1?c:a;double n=0,t=0,error=0;
+        for(k=0;k<3;k++){double d=(double)y[k]-x[k];n+=d*d;t+=((double)p[k]-x[k])*d;}
+        t=n?t/n:0;if(t<0)t=0;if(t>1)t=1;
+        for(k=0;k<3;k++){double d=(double)p[k]-x[k]-t*((double)y[k]-x[k]);error+=d*d;}
+        if(error<best)best=error;
+    }
+    return best;
+}
+static int piece_empty_grid_spheres(const rf_geomod_owned_piece *piece,rf_physics_sphere spheres[64],uint32_t *count)
+{
+    uint32_t x,y,z,k,f,j,n=0;float low[3]={FLT_MAX,FLT_MAX,FLT_MAX},high[3]={-FLT_MAX,-FLT_MAX,-FLT_MAX};
+    if(!piece->mesh.vertices || !piece->mesh.faces || !piece->mesh.vertex_count || !piece->mesh.face_count)return RF_RANGE;
+    for(f=0;f<piece->mesh.face_count;f++) {
+        const rf_geomod_face *face=piece->mesh.faces+f;
+        if(face->count<3 || face->first>piece->mesh.vertex_count || face->count>piece->mesh.vertex_count-face->first)return RF_RANGE;
+    }
+    for(j=0;j<piece->mesh.vertex_count;j++)for(k=0;k<3;k++) {
+        float v=piece->mesh.vertices[j].position[k];if(!isfinite(v))return RF_FORMAT;if(v<low[k])low[k]=v;if(v>high[k])high[k]=v;
+    }
+    for(x=0;x<4;x++)for(y=0;y<4;y++)for(z=0;z<4;z++) {
+        uint32_t index[3]={x,y,z};float p[3];double angle=0,nearest=DBL_MAX;
+        for(k=0;k<3;k++)p[k]=(float)((double)low[k]+((double)index[k]+.5)*((double)high[k]-low[k])*.25);
+        for(f=0;f<piece->mesh.face_count;f++) {
+            const rf_geomod_face *face=piece->mesh.faces+f;
+            const float *a=piece->mesh.vertices[face->first].position;
+            for(j=1;j+1<face->count;j++) {
+                const float *b=piece->mesh.vertices[face->first+j].position,*c=piece->mesh.vertices[face->first+j+1].position;
+                double u[3],v[3],w[3],lu=0,lv=0,lw=0,uv=0,vw=0,wu=0,det=0,distance;
+                for(k=0;k<3;k++){u[k]=(double)a[k]-p[k];v[k]=(double)b[k]-p[k];w[k]=(double)c[k]-p[k];lu+=u[k]*u[k];lv+=v[k]*v[k];lw+=w[k]*w[k];uv+=u[k]*v[k];vw+=v[k]*w[k];wu+=w[k]*u[k];}
+                for(k=0;k<3;k++)det+=u[k]*(v[(k+1)%3]*w[(k+2)%3]-v[(k+2)%3]*w[(k+1)%3]);
+                lu=sqrt(lu);lv=sqrt(lv);lw=sqrt(lw);angle+=2*atan2(det,lu*lv*lw+uv*lw+vw*lu+wu*lv);
+                distance=piece_triangle_distance(p,a,b,c);if(distance<nearest)nearest=distance;
+            }
+        }
+        if(fabs(angle)>6.283185307179586 && nearest>0 && isfinite(nearest)) {
+            float radius=(float)sqrt(nearest);uint32_t bits;
+            /* Positive IEEE binary32 predecessor; NXDK nextafterf is a stub. */
+            if(!isfinite(radius))return RF_RANGE;
+            memcpy(&bits,&radius,4);if(bits)--bits;memcpy(&radius,&bits,4);
+            if(radius>0){memset(spheres+n,0,sizeof(*spheres));memcpy(spheres[n].center,p,12);spheres[n].radius=radius;spheres[n].parameter_10=-1;n++;}
+        }
+    }
+    if(!n)return RF_NOT_FOUND;*count=n;return RF_OK;
+}
 int rf_geomod_piece_body_open(const rf_geomod_owned_piece *piece,float elasticity,float friction,
     uint32_t budget,rf_physics_body *body)
 {
@@ -142,6 +201,7 @@ int rf_geomod_piece_body_open(const rf_geomod_owned_piece *piece,float elasticit
     if(!piece || !piece->mass_ready || !body)return RF_RANGE;
     status=rf_physics_grid_spheres(piece->mass.cells,piece->mass.spacing,piece->mass.origin,spheres,64,&count,&radius);
     if(status)return status;
+    if(!count){status=piece_empty_grid_spheres(piece,spheres,&count);if(status)return status;}
     p.coefficients[0]=elasticity;p.coefficients[1]=(float)((double)piece->birth_radius*(double).2f);p.coefficients[2]=friction;
     p.mass=piece->mass.mass;p.flags=0x8000003f;
     memcpy(p.local_tensor,piece->mass.inverse_tensor,36);memcpy(p.position,piece->placement.origin,12);

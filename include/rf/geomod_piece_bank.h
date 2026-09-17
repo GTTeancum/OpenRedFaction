@@ -43,7 +43,9 @@ int rf_geomod_piece_bank_append_physical(rf_geomod_piece_bank *,const rf_geomod_
     const uint32_t *old_faces,const rf_collision_face_filter *source_filters,
     uint32_t source_count,uint32_t id,float density);
 /* Creates an independently owned body from a prepared piece. Geometry remains
- * bank-owned. Caller closes the body and handles scene registration/rendering. */
+ * bank-owned. Caller closes the body and handles scene registration/rendering.
+ * Port policy: empty original grids receive up to64 mesh-contained spheres;
+ * mass/inertia remain original-derived. A mesh with no admitted sample rejects. */
 int rf_geomod_piece_body_open(const rf_geomod_owned_piece *,float elasticity,float friction,
     uint32_t budget,rf_physics_body *body);
 typedef struct rf_geomod_subdivision_stats {

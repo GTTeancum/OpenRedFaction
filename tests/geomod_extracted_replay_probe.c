@@ -344,7 +344,16 @@ int main(void)
             REQUIRE(!rejected.allocated_bytes && !rejected.spheres.items);
             REQUIRE(!rf_geomod_piece_body_open(&a,.5f,.25f,4096,&first));
             REQUIRE(!rf_geomod_piece_body_open(&b,.5f,.25f,4096,&second));
-            REQUIRE(first.spheres.count==(prefix?0u:32u) && first.spheres.count==second.spheres.count);
+            REQUIRE(first.spheres.count==(prefix?64u:32u) && first.spheres.count==second.spheres.count);
+            if(prefix)for(i=0;i<first.spheres.count;i++) {
+                const rf_physics_sphere *sphere=first.spheres.items+i;uint32_t face,k;
+                REQUIRE(sphere->radius>0);
+                for(face=0;face<a.mesh.face_count;face++) {
+                    double distance=a.collision[face].plane[3];
+                    for(k=0;k<3;k++)distance+=(double)a.collision[face].plane[k]*sphere->center[k];
+                    REQUIRE(distance+sphere->radius<=0.000002);
+                }
+            }
             if(prefix)for(i=0;i<9;i++)REQUIRE(first.state.local_tensor[i]==0);
             REQUIRE(!memcmp(&first.state,&second.state,sizeof(first.state)));
             if(first.spheres.count)REQUIRE(!memcmp(first.spheres.items,second.spheres.items,first.spheres.count*sizeof(*first.spheres.items)));

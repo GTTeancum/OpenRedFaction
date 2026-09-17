@@ -263,12 +263,13 @@ int main(int argc,char **argv)
                     player.basis[0]=player.basis[4]=player.basis[8]=1;
                     rf_scene_actor_movement_values.speed=5;
                     CHECK(!scene_authored_checkpoint_write(&s,save,SCENE_CHECKPOINT_MAX,&bytes));
-                    /* This actual extracted fragment is below original player
-                     * admission size; even sleeping geometry cannot support a save. */
-                    CHECK(body->state.bounds.radius<=.5f);
-                    CHECK(scene_authored_checkpoint_stage_prepare(&s,save,bytes,&player,&restore)==RF_FORMAT);
+                    /* Empty-grid fallback now gives this long fragment a real
+                     * body bound; its sleeping geometry can support a save. */
+                    CHECK(body->state.bounds.radius>.5f);
+                    CHECK(!scene_authored_checkpoint_stage_prepare(&s,save,bytes,&player,&restore));
+                    scene_authored_checkpoint_stage_discard(&restore);
                     CHECK(!restore && s.terrain==live && !s.terrain_publication->has_pending);
-                    /* Active motion also cannot turn excluded geometry into support. */
+                    /* The existing moving-support rejection still applies. */
                     body->state.flags|=0x80000000u;
                     CHECK(!scene_authored_checkpoint_write(&s,save,SCENE_CHECKPOINT_MAX,&bytes));
                     CHECK(scene_authored_checkpoint_stage_prepare(&s,save,bytes,&player,&restore)==RF_FORMAT);
