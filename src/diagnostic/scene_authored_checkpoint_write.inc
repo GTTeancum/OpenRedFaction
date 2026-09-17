@@ -117,8 +117,8 @@ done:
     free(source_data);free(p);free(w);return status;
 }
 
-/* Gameplay dispatch remains single-source until the collection restore commits
- * shared atlas/player state. Explicit collection writer is used by CPU tests. */
+/* Keep single-source and profile3 collection writers explicit so callers cannot
+ * silently discard owners by selecting the legacy entry point. */
 static inline int scene_authored_checkpoint_write(scene_stream *s,void *buffer,uint32_t capacity,uint32_t *written)
 {if(!s || s->terrain_source_count>1)return RF_RANGE;return scene_authored_checkpoint_write_mode(s,buffer,capacity,written,0);}
 static inline int scene_authored_collection_checkpoint_write(scene_stream *s,void *buffer,uint32_t capacity,uint32_t *written)

@@ -1,5 +1,5 @@
 """Opt-in paired-source live PC startup and one actual rocket, no desktop input."""
-import json, os, subprocess
+import json, os, struct, subprocess
 from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 folder = ROOT / 'artifacts/paired-startup'
@@ -25,16 +25,18 @@ assert publication[0] > 0 and publication[2:4] == [1, 1], publication
 assert pieces[1:3] == [1, 1] and pieces[5] == 0, pieces
 report = dict(result='PASS', sources=sources, rockets=rockets, geomod=geomod,
               publication=publication, pieces=pieces,
-              scope='Two retained sources; one rocket cuts selected94 and creates rubble. Source93 uncut. No multi-source save/reset or native acceptance. Inspect final.ppm for visuals.')
-# A legacy single-source checkpoint must never silently omit the second owner.
-save_path = folder/'unsupported.rfcp'
+              scope='Two retained sources; one rocket cuts selected94 and creates rubble. Source93 uncut. Collection save checked; no reload or native acceptance in this harness. Inspect final.ppm for visuals.')
+# Collection profile3 must retain the uncut second owner as well as the cut first.
+save_path = folder/'paired.rfcp'
 save_path.unlink(missing_ok=True)
 save_env = dict(env, RF_REPLAY_PLAYER_CHECKPOINT='1', RF_REPLAY_GEOMOD_CHECKPOINT_OUT=str(save_path))
-save_command = command[:-1] + [str(folder/'save-rejected.ppm')]
-with (folder/'save-rejected.log').open('wb') as log:
-    rejected = subprocess.run(save_command, cwd=ROOT, env=save_env, stdout=log, stderr=subprocess.STDOUT, timeout=180)
-assert rejected.returncode != 0 and not save_path.exists(), 'Paired state must not use single-source saves'
-assert 'DETACHED_SAVE_WRITER -4' in (folder/'save-rejected.log').read_text()
-report['single_source_save_rejected'] = True
+save_command = command[:-1] + [str(folder/'saved.ppm')]
+with (folder/'saved.log').open('wb') as log:
+    capture = subprocess.run(save_command, cwd=ROOT, env=save_env, stdout=log, stderr=subprocess.STDOUT, timeout=180)
+assert capture.returncode == 0 and save_path.exists(), 'Collection save must preserve both owners'
+saved = save_path.read_bytes()
+assert saved[:4] == b'RFCP' and struct.unpack_from('<I',saved,16)[0] == 3
+assert saved[992:996] == b'RFAS' and struct.unpack_from('<I',saved,1004)[0] == 2
+report['collection_save_bytes'] = len(saved)
 (folder/'report.json').write_text(json.dumps(report, indent=2)+'\n')
 print(json.dumps(report, indent=2))

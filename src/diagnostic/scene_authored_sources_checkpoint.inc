@@ -91,14 +91,14 @@ static inline int scene_authored_sources_stage_prepare(const scene_stream *s,con
     /* Reconstruct sequentially: completed immutable owners retain actual bytes,
      * only the current factory needs full core/registry construction ceilings. */
     reserved=fixed+SCENE_TERRAIN_CORE_BUDGET+SCENE_DETACHED_BUDGET;
-    if(reserved>budget)return RF_RANGE;
+    if(reserved>budget){printf("COLLECTION_SOURCE_BUDGET %u %u 0\n",(uint32_t)reserved,budget);return RF_RANGE;}
     p=calloc(1,sizeof(*p));factory_scene=malloc(sizeof(*factory_scene));history=malloc(max_history);
     if(!p || !factory_scene || !history){status=RF_IO;goto done;}
     p->count=layout.count;p->reserved_bytes=(uint32_t)reserved;*factory_scene=*s;
     for(i=0;i<layout.count;i++) {
         const rf_authored_source_span *span=layout.sources+i;scene_authored_edit_context factory={0};rf_geomod_terrain_view view;
         reserved=fixed+resident+SCENE_TERRAIN_CORE_BUDGET+SCENE_DETACHED_BUDGET;
-        if(reserved>budget){status=RF_RANGE;goto done;}
+        if(reserved>budget){printf("COLLECTION_SOURCE_BUDGET %u %u %u\n",(uint32_t)reserved,budget,i);status=RF_RANGE;goto done;}
         if(reserved>p->reserved_bytes)p->reserved_bytes=(uint32_t)reserved;
         rf_collision_face_filter generated=s->terrain_sources[i].authored->asset_view.source_filters[0];
         factory_scene->terrain_authored=s->terrain_sources[i].authored;factory.scene=factory_scene;

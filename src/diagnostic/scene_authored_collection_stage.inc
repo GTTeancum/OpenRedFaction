@@ -65,7 +65,7 @@ static inline int scene_authored_collection_stage_prepare(scene_stream *s,const 
     const unsigned char *data=input;rf_authored_checkpoint_layout layout;
     scene_authored_collection_stage *p=NULL;rf_geomod_terrain_view core;
     rf_geomod_publication_cut cuts[RF_GEOMOD_CUT_LIMIT];rf_collision_composition_view composition;
-    uint64_t external;uint32_t serial,i;int status;
+    uint64_t external,reconstruction_external,retained;uint32_t serial,i;int status;
     if(!s || !input || !out || *out || s->terrain_source_count<2 || s->terrain_source_count>4 || !s->terrain_sources ||
        !s->terrain_publication || s->terrain_publication->has_pending || !s->geometry || !s->collision || s->terrain_shadow_reference)return RF_RANGE;
     status=rf_authored_collection_layout_read(data,bytes,&layout);if(status)return status;
@@ -87,9 +87,19 @@ static inline int scene_authored_collection_stage_prepare(scene_stream *s,const 
     if(external>=SCENE_DESTRUCTION_BUDGET)return RF_RANGE;
     p=calloc(1,sizeof(*p));if(!p)return RF_IO;p->candidate=*s;p->shared.scene=s;p->shared.serial=serial;
     status=scene_authored_collection_admission_import(data,&layout,s->terrain_history_minimum,s->terrain_history_maximum,&p->shared.admission);if(status)goto failed;
+    /* Atlas clone and digest scratch do not exist during source reconstruction.
+     * Publication capacity remains reserved in both phases. */
+    reconstruction_external=external-SCENE_LIGHTING_STAGE_BUDGET-SCENE_AUTHORED_DIGEST_BUDGET;
     status=scene_authored_sources_stage_prepare(s,data+layout.core_offset,layout.core_bytes,serial,
-        (uint32_t)(SCENE_DESTRUCTION_BUDGET-external),&p->sources);if(status)goto failed;
-    p->shared.reserved_peak_bytes=(uint32_t)external+p->sources->reserved_bytes;
+        (uint32_t)(SCENE_DESTRUCTION_BUDGET-reconstruction_external),&p->sources);if(status)goto failed;
+    p->shared.reserved_peak_bytes=(uint32_t)reconstruction_external+p->sources->reserved_bytes;
+    retained=sizeof(*p->sources);
+    for(i=0;i<p->sources->count;i++) {
+        status=rf_geomod_terrain_get(p->sources->cores[i],&core);if(status)goto failed;
+        retained+=core.resident_bytes+rf_geomod_piece_registry_bytes(p->sources->pieces[i]);
+    }
+    if(external+retained>SCENE_DESTRUCTION_BUDGET){status=RF_RANGE;goto failed;}
+    if(external+retained>p->shared.reserved_peak_bytes)p->shared.reserved_peak_bytes=(uint32_t)(external+retained);
     for(i=0;i<s->terrain_source_count;i++)p->owners[i]=(scene_terrain_source_owner){s->terrain_sources[i].authored,p->sources->cores[i],p->sources->pieces[i]};
     p->candidate.terrain_publication_serial=serial;
     p->candidate.terrain_sources=p->owners;p->candidate.terrain_authored=p->owners[0].authored;

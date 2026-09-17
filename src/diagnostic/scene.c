@@ -10122,13 +10122,15 @@ static int scene_checkpoint_capture(scene_stream *s)
 #else
     file=fopen("D:\\geomod-checkpoint-out.flag","rb");if(!file && !scene_checkpoint_hdd_save)return RF_OK;if(file)fclose(file);
 #endif
-    if(!s->terrain || !owner || s->terrain_shadow_reference || !s->terrain_atlas_registered || owner->bake!=owner->count || owner->sample || s->terrain_checkpoint_loaded){status=RF_RANGE;goto done;}
+    if(!s->terrain || !owner || s->terrain_shadow_reference || !s->terrain_atlas_registered || owner->bake!=owner->count || owner->sample || s->terrain_checkpoint_loaded){printf("CHECKPOINT_OWNER_GATE %u %u %u %u %u %u %u\n",s->terrain!=NULL,s->terrain_shadow_reference,s->terrain_atlas_registered,owner?owner->bake:0,owner?owner->count:0,owner?owner->sample:0,s->terrain_checkpoint_loaded);status=RF_RANGE;goto done;}
     if(s->terrain_authored) {
         if(!prefix){status=RF_RANGE;goto done;}
         status=scene_checkpoint_player_capture(s,&player,&catalog);if(status)goto done;
         status=scene_checkpoint_allocate(SCENE_CHECKPOINT_MAX);if(status)goto done;
         p=rf_scene_geomod_checkpoint_data+prefix;
-        status=scene_authored_checkpoint_write(s,p,SCENE_CHECKPOINT_MAX-prefix,&bytes);if(status){printf("DETACHED_SAVE_WRITER %d\n",status);goto done;}
+        if(s->terrain_source_count>1 && !rf_scene_player_checkpoint_enabled){status=RF_RANGE;goto done;}
+        status=s->terrain_source_count>1?scene_authored_collection_checkpoint_write(s,p,SCENE_CHECKPOINT_MAX-prefix,&bytes):
+            scene_authored_checkpoint_write(s,p,SCENE_CHECKPOINT_MAX-prefix,&bytes);if(status){printf("DETACHED_SAVE_WRITER %d\n",status);goto done;}
         goto compose_checkpoint;
     }
     status=rf_geomod_terrain_get(s->terrain,&view);if(status)goto done;
@@ -10176,7 +10178,7 @@ compose_checkpoint:
         uint32_t total;
         status=rf_composed_checkpoint_encode(scene_checkpoint_profile(s),&player,&catalog,p,bytes,rf_scene_geomod_checkpoint_data,bytes+prefix,&total);if(status)goto done;
         rf_scene_player_checkpoint_state[5]=bytes;bytes=total;p=rf_scene_geomod_checkpoint_data;
-        status=scene_checkpoint_dispatch_validate(p,bytes,s);if(status)goto done;
+        status=scene_checkpoint_dispatch_validate(p,bytes,s);if(status){printf("CHECKPOINT_VALIDATE_REJECT %d\n",status);goto done;}
     }
 #ifndef RF_IMAGE_XBOX_NATIVE
     {
