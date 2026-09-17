@@ -94,7 +94,7 @@ int main(int argc,char **argv)
         }
         CHECK(!rf_authored_checkpoint_layout_size(28,0,stage->staged->terrain_noise->count,candidate.mesh.face_count,&layout));
         data=calloc(1,layout.bytes);CHECK(data);memcpy(data,"RFDS",4);checkpoint_put(data+4,2);checkpoint_put(data+8,layout.bytes);
-        memcpy(data+16,"ctf06.rfl",10);checkpoint_put(data+276,416);checkpoint_put(data+280,128);checkpoint_put(data+284,2);
+        memcpy(data+16,"ctf06.rfl",10);checkpoint_put(data+276,416);checkpoint_put(data+280,128);checkpoint_put(data+284,2);checkpoint_put(data+312,1);
         checkpoint_put(data+252,28);checkpoint_put(data+248,layout.maps);checkpoint_put(data+272,layout.faces);
         checkpoint_put(data+256,stage->staged->terrain_noise->random.value);checkpoint_put(data+260,stage->staged->terrain_noise->x);
         checkpoint_put(data+264,stage->staged->terrain_noise->y);checkpoint_put(data+268,stage->staged->terrain_noise->row);

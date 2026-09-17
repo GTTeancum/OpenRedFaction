@@ -48,6 +48,32 @@ static inline int scene_authored_digest_generated(scene_authored_digest_work *w,
     status=rf_geomod_image_content_digest(&chart->image,chart->content_digest);if(status)return status;
     chart->image.pixels=NULL;chart->prehashed=1;return RF_OK;
 }
+/* Logical checkpoint map tokens are verified against immutable manifests,
+ * never interpreted as renderer slots. Zero is reserved for cut substrate. */
+static int scene_authored_material_resolve(const scene_stream *s,uint32_t value,uint32_t encode,uint32_t *out) {
+    uint32_t n,i,j,best=UINT32_MAX;
+    if(!s || !out)return RF_RANGE;
+    if((encode && value==s->terrain_material) || (!encode && !value)){*out=encode?0:s->terrain_material;return RF_OK;}
+    if(!s->geometry || !actor_follow_world || !actor_follow_world->slots)return RF_RANGE;
+    n=s->terrain_source_count?s->terrain_source_count:1;
+    if(n>4 || (s->terrain_source_count && !s->terrain_sources))return RF_RANGE;
+    for(i=0;i<n;i++) {
+        const scene_terrain_authored_assets *a=s->terrain_source_count?s->terrain_sources[i].authored:s->terrain_authored;
+        if(!a || !a->identity_manifest.materials)return RF_FORMAT;
+        for(j=0;j<a->identity_manifest.material_count;j++) {
+            uint32_t t=a->identity_manifest.materials[j].key,slot;
+            if(t>=s->geometry->textures || t>=UINT32_MAX-1)return RF_FORMAT;slot=actor_follow_world->slots[t];
+            if(encode){if(slot==value && t+1<best)best=t+1;}
+            else if(t+1==value){*out=slot;return RF_OK;}
+        }
+    }
+    if(best==UINT32_MAX)return RF_NOT_FOUND;*out=best;return RF_OK;
+}
+static uint32_t scene_authored_material_policy(const scene_stream *s) {
+    uint32_t i;if(s->terrain_authored && s->terrain_authored->asset_view.source_uid==95)return 2;
+    for(i=0;i<s->terrain_source_count;i++)if(s->terrain_sources[i].authored->asset_view.source_uid==95)return 2;
+    return 1;
+}
 static inline int scene_authored_digest_capture(const scene_stream *s,
     const rf_geomod_terrain_view *publication,const rf_geomod_publication_origin *origins,
     const rf_collision_composition_view *composition,const scene_stream *lighting,uint32_t serial,
@@ -176,6 +202,7 @@ static inline int scene_authored_digest_capture(const scene_stream *s,
         result.source_count=result.neighbor_count=0;
         for(i=0;i<source_count;i++){result.source_count+=s->terrain_sources[i].authored->asset_view.source.face_count;result.neighbor_count+=s->terrain_sources[i].authored->asset_view.solid_count;}
     }
+    result.material_policy=material_policy;
     retained.source_identity=a->source_identity;retained.substrate_identity=manifest->substrate->content_digest;
     retained.maps=w->maps;retained.map_count=noise->count;retained.origins=origins;retained.face_maps=w->face_maps;
     retained.face_count=publication->mesh.face_count;retained.owner=result.uid;retained.serial=serial;retained.cuts=publication->cuts;

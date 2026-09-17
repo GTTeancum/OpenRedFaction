@@ -157,3 +157,14 @@ Hidden collision rows now resolve their runtime IDs against the scene-owned regi
 The installed beam capture test uses production authored asset setup, piece-extraction registration, real template end cut and private lighting. It captures49 faces/eight hidden cap fragments/eight maps across publication, composed collision and retained material domains, repeats them exactly, and verifies atomic rejection when a wood cap map is substituted with substrate or its seed is corrupted. Peak digest scratch is335040 bytes under512KiB. Full checked PC build, all123 tests and stock NXDK build pass. Logs: artifacts/beam-digest-{build,tests,xbox}.log.
 
 This verifies capture only. RFCP extension policy admission, logical map serialization and reconstruction must still be updated before a beam save can round-trip; live source selection remains gated. No GPU/XEMU run or screenshot was made.
+
+
+## Beam checkpoint writer and reconstruction round-trip
+
+The128-byte owner extension keeps its wire layout and now accepts material policy2 only when the independently reconstructed expected record explicitly requires2. A zero expected policy retains legacy1 compatibility; unknown policies and policy mismatches reject. Scene capture sets this expectation from the loaded source profile. Checkpoint map+40 now writes logical substrate0 or a trusted manifest-derived authored texture token, never a renderer slot.
+
+Journal import checks the expected profile policy, resolves authored tokens through original material manifests, validates the existing88-byte map geometry/projection via a private token-neutral copy, and reconstructs the correct runtime material. Hidden cap faces require valid authored identity, absent compiled reference and exact material/plane/containment matches; crater and ordinary source paths retain their previous restrictions. The trusted lookup handles substrate0 without needing authored texture context, preserving the standalone legacy journal adapter. Its synthetic fixture now declares policy1 explicitly.
+
+The production beam-end fixture writes a2486-byte RFDS payload, reconstructs a private scene, compares all three expected digests, commits it and rewrites exactly the same2486 bytes. Its cap map stores token4 (compiled texture3). Unknown tokenUINTMAX and policy downgrade reject without leaving a pending candidate. Core extension tests independently verify explicit policy2 opt-in and legacy/unknown-policy rejection. This is CPU checkpoint acceptance, not RFCP/player transport or XEMU acceptance.
+
+Full checked PC build, all123 tests and stock NXDK build pass. The existing actual post cut/save/reload replay remains byte-identical to uninterrupted continuation. Logs: artifacts/beam-checkpoint-{build,tests,xbox,post-regression}.log. Next: enable scoped beam95 source selection, update its finalized immutable policy revision, and verify rendered PC/native behavior and continued edits. No new capture or emulator session was made.

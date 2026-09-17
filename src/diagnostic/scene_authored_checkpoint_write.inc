@@ -78,7 +78,7 @@ static inline int scene_authored_checkpoint_write_mode(scene_stream *s,void *buf
     checkpoint_put(p+260,owner->x);checkpoint_put(p+264,owner->y);checkpoint_put(p+268,owner->row);checkpoint_put(p+272,view.mesh.face_count);
     checkpoint_put(p+276,416);checkpoint_put(p+280,128);checkpoint_put(p+284,2);
     w->extension.uid=w->expected.uid;w->extension.source_count=w->expected.source_count;w->extension.neighbor_count=w->expected.neighbor_count;
-    w->extension.publication_policy=w->extension.collision_policy=w->extension.material_policy=1;w->extension.serial=serial;
+    w->extension.publication_policy=w->extension.collision_policy=1;w->extension.material_policy=w->expected.material_policy;w->extension.serial=serial;
     memcpy(w->extension.publication_digest,w->expected.publication_digest,32);
     memcpy(w->extension.collision_digest,w->expected.collision_digest,32);memcpy(w->extension.material_digest,w->expected.material_digest,32);
     w->extension.mode=collection?1:0;
@@ -101,7 +101,7 @@ static inline int scene_authored_checkpoint_write_mode(scene_stream *s,void *buf
         const scene_terrain_noise_map *m=owner->maps+i;
         for(j=0;j<4;j++)checkpoint_put_float(p+at+j*4,m->plane[j]);
         for(j=0;j<3;j++){checkpoint_put_float(p+at+16+j*4,m->minimum[j]);checkpoint_put_float(p+at+28+j*4,m->maximum[j]);}
-        /* +40 is canonical substrate token0 from calloc, never runtime slot. */
+        {uint32_t token;status=scene_authored_material_resolve(s,m->material,1,&token);if(status)goto done;checkpoint_put(p+at+40,token);}
         checkpoint_put(p+at+44,m->x);checkpoint_put(p+at+48,m->y);checkpoint_put(p+at+52,m->width);checkpoint_put(p+at+56,m->height);checkpoint_put(p+at+60,m->base_seed);
         for(j=0;j<2;j++){checkpoint_put(p+at+64+j*4,m->binding.projection.axes[j]);checkpoint_put_float(p+at+72+j*4,m->binding.projection.scale[j]);checkpoint_put_float(p+at+80+j*4,m->binding.projection.offset[j]);}
     }

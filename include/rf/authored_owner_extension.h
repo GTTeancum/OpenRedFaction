@@ -19,9 +19,11 @@ typedef struct rf_authored_owner_extension {
 typedef struct rf_authored_owner_expected {
     uint32_t uid,source_count,neighbor_count;
     unsigned char publication_digest[32],collision_digest[32],material_digest[32];
+    uint32_t material_policy; /*0 defaults to legacy1;2 explicitly permits authored cap maps.*/
 } rf_authored_owner_expected;
 /* Exact128-byte span required even for encode (not a minimum capacity).
- * Known outward mode0 and all three policy revisions1 only. Source count4..32,
+ * Known outward mode0, publication/collision policy1, material policy1 or2
+ * matching the independently reconstructed expectation. Source count4..32,
  * neighbors1..32; UID cannot beUINT32_MAX. cuts0..8 and cuts<=serial; serial
  * UINT32_MAX rejects. Zero-cut serial>0 is valid after reset.
  * Pure/no allocation. All failures preserve caller output byte-for-byte.

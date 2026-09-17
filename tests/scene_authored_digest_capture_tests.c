@@ -41,6 +41,30 @@ static int beam_capture(scene_stream *live,const rf_level *level,rf_vpp *maps,co
     CHECK(!reject_atomic(s,&view,origins,&composition,stage->staged,view.mesh.generation));
     stage->staged->terrain_noise->maps[map].base_seed^=1;
     printf("BEAM_DIGEST faces%u hidden%u maps%u scratch%u three_domains_verified\n",view.mesh.face_count,hidden,stage->staged->terrain_noise->count,peak);
+    CHECK(!scene_terrain_lighting_stage_draw(stage));
+    CHECK(!scene_terrain_publication_finish(s,stage->staged->terrain_bindings,view.mesh.face_count,s->light_rgb.count+1));
+    scene_terrain_lighting_stage_commit(stage);scene_terrain_lighting_stage_discard(&stage);
+    s->terrain_publication_serial=view.mesh.generation;s->terrain_history_count=0;
+    CHECK(!scene_checkpoint_identity(s,level));
+    {
+        unsigned char *packet=malloc(SCENE_CHECKPOINT_MAX),*again_bytes=malloc(SCENE_CHECKPOINT_MAX);
+        uint32_t bytes=0,rewritten=0,token;rf_authored_checkpoint_layout layout;scene_authored_checkpoint_stage *restore=NULL;
+        CHECK(packet && again_bytes);CHECK(!scene_authored_checkpoint_write(s,packet,SCENE_CHECKPOINT_MAX,&bytes));
+        CHECK(checkpoint_u32(packet+312)==2);CHECK(!rf_authored_checkpoint_layout_read(packet,bytes,&layout));
+        token=checkpoint_u32(packet+layout.map_offset+map*88+40);CHECK(token==4);
+        CHECK(!scene_authored_checkpoint_stage_prepare(s,packet,bytes,NULL,&restore));
+        CHECK(!memcmp(&expected,&restore->expected,sizeof(expected)) && restore->extension.material_policy==2);
+        CHECK(restore->lighting->staged->terrain_noise->maps[map].material==material);
+        CHECK(!scene_authored_checkpoint_stage_commit(restore));scene_authored_checkpoint_stage_discard(&restore);
+        CHECK(!scene_authored_checkpoint_write(s,again_bytes,SCENE_CHECKPOINT_MAX,&rewritten));
+        CHECK(bytes==rewritten && !memcmp(packet,again_bytes,bytes));
+        checkpoint_put(packet+layout.map_offset+map*88+40,UINT32_MAX);
+        CHECK(scene_authored_checkpoint_stage_prepare(s,packet,bytes,NULL,&restore)!=RF_OK && !restore && !s->terrain_publication->has_pending);
+        checkpoint_put(packet+layout.map_offset+map*88+40,token);checkpoint_put(packet+312,1);
+        CHECK(scene_authored_checkpoint_stage_prepare(s,packet,bytes,NULL,&restore)!=RF_OK && !restore && !s->terrain_publication->has_pending);
+        printf("BEAM_CHECKPOINT bytes%u material_token%u exact_rewrite_and_rejection_verified\n",bytes,token);
+        free(packet);free(again_bytes);
+    }
     scene_terrain_lighting_stage_discard(&stage);scene_terrain_publication_abort(s);
     rf_geometry_collision_overlay_close(&s->terrain_collision);scene_terrain_publication_close(&s->terrain_publication);
     rf_geomod_piece_registry_close(&s->detached_pieces);rf_geomod_terrain_close(&s->terrain);scene_terrain_authored_close(&s->terrain_authored);free(s);return 0;

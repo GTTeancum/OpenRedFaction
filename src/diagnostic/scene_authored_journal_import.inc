@@ -30,6 +30,7 @@ static int scene_authored_journal_import_mode(scene_stream *live,
         }
         if(total!=cuts)return RF_FORMAT;
     }
+    if(checkpoint_u32(data+312)!=scene_authored_material_policy(live))return RF_FORMAT;
     s=stage->staged;owner=s->terrain_noise;v=&stage->candidate;
     if(!owner || owner==live->terrain_noise || s->terrain_atlas_pixels==live->terrain_atlas_pixels ||
        s->terrain_bindings==live->terrain_bindings || s->terrain_light_cache==live->terrain_light_cache ||
@@ -42,7 +43,14 @@ static int scene_authored_journal_import_mode(scene_stream *live,
     memset(s->terrain_light_cache,0,sizeof(*s->terrain_light_cache));
     for(i=0;i<layout->maps;i++) {
         scene_terrain_noise_map *m=owner->maps+i;
-        status=scene_checkpoint_map_read(data+layout->map_offset+i*88,m,live->terrain_material);if(status)return status;
+        {
+            const unsigned char *record=data+layout->map_offset+i*88;unsigned char local[88];
+            uint32_t token=checkpoint_u32(record+40),material;
+            if(token && scene_authored_material_policy(live)!=2)return RF_FORMAT;
+            status=scene_authored_material_resolve(live,token,0,&material);if(status)return status;
+            memcpy(local,record,88);checkpoint_put(local+40,0);
+            status=scene_checkpoint_map_read(local,m,material);if(status)return status;
+        }
         if(x+m->width>512){y+=row;x=row=0;}
         if(m->x!=x || m->y!=y)return RF_FORMAT;
         x+=m->width;if(m->height>row)row=m->height;
@@ -56,7 +64,7 @@ static int scene_authored_journal_import_mode(scene_stream *live,
         uint32_t at=layout->face_offset+i*2,map=data[at]|((uint32_t)data[at+1]<<8);
         if(o->kind>RF_GEOMOD_PUBLICATION_NEIGHBOR || f->count<3 || f->first>v->mesh.vertex_count ||
            f->count>v->mesh.vertex_count-f->first)return RF_FORMAT;
-        if(o->kind!=RF_GEOMOD_PUBLICATION_CRATER) {
+        if(o->kind!=RF_GEOMOD_PUBLICATION_CRATER && o->reference!=UINT32_MAX) {
             if(map!=65535 || f->source_face==UINT32_MAX || o->source_face==UINT32_MAX ||
                o->reference!=f->source_face)return RF_FORMAT;
             if(source_bindings[i].image!=UINT32_MAX) {
@@ -66,8 +74,12 @@ static int scene_authored_journal_import_mode(scene_stream *live,
             }
             s->terrain_bindings[i]=source_bindings[i];continue;
         }
-        if(o->source_face!=UINT32_MAX || f->source_face!=UINT32_MAX || map>=layout->maps ||
-           f->material!=live->terrain_material || !scene_terrain_noise_plane(owner->maps[map].plane,v->faces[i].plane))return RF_FORMAT;
+        if(f->source_face!=UINT32_MAX || map>=layout->maps || f->material!=owner->maps[map].material ||
+           !scene_terrain_noise_plane(owner->maps[map].plane,v->faces[i].plane))return RF_FORMAT;
+        if(o->kind==RF_GEOMOD_PUBLICATION_CRATER) {
+            if(o->source_face!=UINT32_MAX || f->material!=live->terrain_material)return RF_FORMAT;
+        } else if(scene_authored_material_policy(live)!=2 || o->kind!=RF_GEOMOD_PUBLICATION_NEIGHBOR ||
+            o->reference!=UINT32_MAX || o->source_face==UINT32_MAX || f->material==live->terrain_material)return RF_FORMAT;
         for(j=0;j<f->count;j++)for(k=0;k<3;k++) {
             float value=v->mesh.vertices[f->first+j].position[k];
             if(!isfinite(value) || value<owner->maps[map].minimum[k]-1e-4f || value>owner->maps[map].maximum[k]+1e-4f)return RF_FORMAT;

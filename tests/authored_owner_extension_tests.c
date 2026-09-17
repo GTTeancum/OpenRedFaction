@@ -69,5 +69,11 @@ int main(void)
         CHECK(!rf_authored_owner_collection_decode(encoded,128,&owners,2,0,&decoded));
         puts("PASS collection extension: mode separation, simultaneous cut sum, reset and atomic rejection");
     }
+    value.material_policy=2;expected.material_policy=0;
+    CHECK(encode_reject(&value,&expected,0,128));expected.material_policy=2;
+    CHECK(!rf_authored_owner_extension_encode(&value,&expected,0,encoded,128));
+    CHECK(!rf_authored_owner_extension_decode(encoded,128,&expected,0,&decoded) && decoded.material_policy==2);
+    expected.material_policy=1;CHECK(decode_reject(encoded,128,&expected,0));
+    expected.material_policy=3;CHECK(encode_reject(&value,&expected,0,128));
     puts("PASS authored owner extension exact128 LE vector, identity/policy gates, serial/reset, atomic failures");return 0;
 }

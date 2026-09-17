@@ -1,6 +1,6 @@
 # Red Faction Xbox / PC - open work
 
-- GeoMod source expansion: Finish beam checkpoint read/write/reconstruction and enable beam95; its installed end cut now passes all three scene digests with authored cap maps, while beam save/reload and GPU/XEMU acceptance remain open.
+- GeoMod source expansion: Enable beam95 in the testbed and verify PC/XEMU visuals and continuation; its2486-byte checkpoint now reconstructs and rewrites exactly with authored cap materials, while live/GPU acceptance remains open.
 
 - GeoMod publication: Broaden clipped-face partition coverage to other source geometry; the repaired shot, save/reload and subsequent rocket now pass76/75/76 native checks, with exact uninterrupted PC checkpoints, while broader histories remain open.
 
