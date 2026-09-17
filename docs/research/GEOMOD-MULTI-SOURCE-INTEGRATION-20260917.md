@@ -1,6 +1,6 @@
 # Multiple live authored sources: integration boundaries
 
-Current runtime supports opt-in paired ctf06 sources93/94 or96/97, shared room publication and per-source terrain/rubble ownership. Two separate real rockets damage both retained posts with matching PC/stock64MiB Xbox state and two settled fragments. Source-indexed saves/reset, simultaneous-blast budget acceptance and broader interacting geometry remain unfinished. The sections below preserve the implementation/evidence history; later acceptance sections supersede earlier boundaries.
+Current runtime supports opt-in paired ctf06 sources93/94 or96/97, shared room publication and per-source terrain/rubble ownership. Two separate real rockets damage both retained posts with matching PC/stock64MiB Xbox state and two settled fragments. Safe paired reset and later unselected-source recut also pass stock Xbox validation. Source-indexed saves, broader reset cases, simultaneous-blast budget acceptance and broader interacting geometry remain unfinished. The sections below preserve the implementation/evidence history; later acceptance sections supersede earlier boundaries.
 
 ## Required shared ownership
 
@@ -191,3 +191,18 @@ Retained AUTHORED_SOURCE_CUTS telemetry reports UID/local-cut pairs after succes
 Native run artifacts/xemu/render-20260917-123854 passes75/75 comparisons, including per-source cut counts, aggregate publication, rocket counters and the full detached-motion words/hash. Physical pages remain16384;3653 pages are available at the endpoint (about14.27MiB). No worst-case minimum-headroom or simultaneous-edit claim follows from that endpoint.
 
 Both PC and native final framebuffers were inspected. The right damaged post/chunk is clearly visible; the left fragment is partly occluded by the retained red prop, so this endpoint is not complete visibility coverage of every fragment surface. Both views retain the room, weapon and HUD. No audible-quality acceptance is claimed. All122 PC tests pass, the harness builds the stock NXDK image, and no extra GitHub images or retained HDD clones were created. Source-indexed save/restore, paired reset/clearance, simultaneous-cut memory and broader topology remain unfinished.
+
+
+## Paired reset and recut
+
+The DEV reset now checks the actual standing/crouched body against every restored source's planes and the original full-room collision before staging any change. It then resets all source owners in one grouped transaction and performs shared admission/atlas/draw/debris cleanup once, after commit. The single-source reset path remains unchanged.
+
+Grouped transactions support an explicit fresh-source request for reset. Such requests recreate the immutable source with its mapping, skip old history encode/replay, and stage an empty replacement registry. They cannot retain an existing registry without replacement. If every source is fresh, no history scratch buffer is allocated or reserved. Reset reservations charge existing registry bytes because no fragment reconstruction occurs; ordinary edits still reserve the full edited-registry construction ceiling. The13MiB subsystem budget is unchanged.
+
+Tests inject second-source creation/mutation failures and final publication failure during fresh reset. Both old cores, two-cut histories and moved body owners survive; successful reset clears both registries and reports zero replay-history bytes. Installed clearance coverage now checks safe floor admission and restored-post interior rejection for all four supported source UIDs. These are mathematical/transaction controls; a live unsafe paired-reset replay remains separate work.
+
+The reproducible tools/check_paired_authored_reset.py starts with both rocket cuts, issues ordinary crouch/use/alt input at frame750, and checks both source histories return to zero at room revision3. A1150-frame continuation then fires at unselected93: final pairs are[94,0,93,1], publication16 faces/80 vertices, one cut at revision4, and one66-triangle fragment. The existing cut RNG is intentionally not reset. PC reset-only and reset/recut frames were inspected: both posts restore, then only the left/unselected one is damaged again; its fragment is partly occluded by the retained prop.
+
+Native artifacts/xemu/render-20260917-124824 passes75/75 checks after the entire1150-frame sequence. Per-source histories, three accepted rockets, publication and settled-fragment state/hash match PC. It reports16384 physical pages and3687 available at the endpoint (about14.40MiB). The final native framebuffer was inspected and agrees with the expected recut scene. All122 PC tests pass, including the additional fresh-reset controls; the expanded all-four-source clearance test also passes. The harness builds the stock NXDK profile, restores disc staging and does not create a retained HDD clone.
+
+Paired save writing/restoration still reject until source-indexed persistence is implemented. Unsafe live reset, simultaneous multi-registry cuts and broader shared-neighbor topology are not established by the safe reset run.

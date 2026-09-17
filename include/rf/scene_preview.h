@@ -814,7 +814,7 @@ int rf_scene_swim_test_place(rf_level *level);
 int rf_scene_authored_post_place(rf_level *level);
 /* Developer setup before opening scene resources; selects one authored post. */
 int rf_scene_authored_post_place_source(rf_level *level,uint32_t uid);
-/* Opt-in paired-post developer setup; collection checkpoint/reset pending. */
+/* Opt-in paired-post developer setup; collection checkpoint support pending. */
 int rf_scene_authored_post_place_group(rf_level *level,uint32_t uid,uint32_t count);
 extern uint32_t rf_scene_player_spawn_diagnostic[19];
 extern uint32_t rf_scene_watch_test_uid,rf_scene_watch_test[4],rf_scene_death_watches[97];

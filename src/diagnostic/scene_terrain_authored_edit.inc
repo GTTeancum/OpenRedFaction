@@ -103,7 +103,7 @@ static int scene_terrain_authored_edit_group(scene_stream *s,const uint32_t *ind
         rf_geomod_terrain_view view;scene_terrain_source_owner *owner=s->terrain_sources+i;
         external+=owner->authored->resident_bytes;
         for(j=0;j<count;j++)if(indices[j]==i)break;
-        external+=j==count?rf_geomod_piece_registry_bytes(owner->pieces):(owner->pieces?SCENE_DETACHED_BUDGET:0);
+        external+=(j==count || requests[j].reset)?rf_geomod_piece_registry_bytes(owner->pieces):(owner->pieces?SCENE_DETACHED_BUDGET:0);
         /* Edited old cores are charged by the transaction. Unchanged owners
          * stay resident throughout and must also be included. */
         if(j==count) {
@@ -115,7 +115,7 @@ static int scene_terrain_authored_edit_group(scene_stream *s,const uint32_t *ind
     for(i=0;i<count;i++) {
         scene_terrain_source_owner *owner=s->terrain_sources+indices[i];
         contexts[i]=requests[i];contexts[i].authored=owner->authored;
-        sources[i]=(scene_terrain_edit_source){&owner->terrain,&ops,contexts+i,owner->pieces,contexts[i].reset};
+        sources[i]=(scene_terrain_edit_source){&owner->terrain,&ops,contexts+i,owner->pieces,contexts[i].reset,contexts[i].reset};
     }
     budget=(scene_terrain_edit_limits){SCENE_DESTRUCTION_BUDGET,(uint32_t)external,SCENE_TERRAIN_CORE_BUDGET};
     status=scene_terrain_edit_transaction_group(sources,count,&s->terrain_publication_serial,&budget,&publication,&context,result);
@@ -228,9 +228,8 @@ static inline void scene_terrain_authored_reset_cleanup(scene_stream *s)
 static inline int scene_terrain_authored_reset(scene_stream *s,rf_checkpoint_placement_result *fit)
 {
     rf_checkpoint_placement p={0};rf_checkpoint_placement_result result={UINT32_MAX,RF_CHECKPOINT_PLACEMENT_UNSUPPORTED,0};
-    scene_authored_edit_context context={s,NULL,NULL,0,NULL,0,1,NULL};int status;
-    /* Shared atlas cleanup requires a separately validated whole-collection reset. */
-    if(!s || s->terrain_source_count>1 || !s->terrain || !s->terrain_authored || !s->terrain_publication ||
+    scene_authored_edit_context context={s,NULL,NULL,0,NULL,0,1,NULL};uint32_t i,count;int status;
+    if(!s || s->terrain_source_count>4 || (s->terrain_source_count && !s->terrain_sources) || !s->terrain || !s->terrain_authored || !s->terrain_publication ||
        !s->terrain_publication->base || s->terrain_publication->has_pending || !s->collision ||
        !s->terrain_noise || !s->terrain_atlas_pixels || !s->terrain_tile || !s->terrain_light_cache ||
        !s->terrain_tiles || !s->terrain_bindings || !s->terrain_draw || !s->terrain_colors ||
@@ -241,12 +240,21 @@ static inline int scene_terrain_authored_reset(scene_stream *s,rf_checkpoint_pla
     p.query_flags=(scene_actor_body.state.state_124&~0x1000u)|4u;
     p.spheres=scene_actor_body.spheres.items;p.count=scene_actor_body.spheres.count;
     memcpy(p.position,scene_actor_body.state.position,12);memcpy(p.basis,scene_actor_body.state.orientation,36);
-    status=rf_authored_reset_standing_check(s->terrain_publication->base,
-        s->terrain_authored->asset_view.source_planes,s->terrain_authored->source.face_count,
-        &p,scene_step_seconds,rf_scene_actor_movement_values.speed,&result);
-    if(status){if(status==RF_NOT_FOUND && fit)*fit=result;return status;}
+    count=s->terrain_source_count?s->terrain_source_count:1;
+    for(i=0;i<count;i++) {
+        scene_terrain_authored_assets *a=s->terrain_source_count?s->terrain_sources[i].authored:s->terrain_authored;
+        if(!a)return RF_RANGE;
+        status=rf_authored_reset_standing_check(s->terrain_publication->base,
+            a->asset_view.source_planes,a->source.face_count,&p,scene_step_seconds,rf_scene_actor_movement_values.speed,&result);
+        if(status){if(status==RF_NOT_FOUND && fit)*fit=result;return status;}
+    }
     /* No admission/cache/RNG/debris bytes change before this fallible operation.
      * Zero cuts publish the immutable original-room tree and empty render bank. */
-    status=scene_terrain_authored_edit_run(&context);if(status)return status;
+    if(count>1) {
+        uint32_t indices[4];scene_authored_edit_context requests[4];
+        for(i=0;i<count;i++){indices[i]=i;requests[i]=context;}
+        status=scene_terrain_authored_edit_group(s,indices,requests,count);
+    } else status=scene_terrain_authored_edit_run(&context);
+    if(status)return status;
     scene_terrain_authored_reset_cleanup(s);if(fit)*fit=result;return RF_OK;
 }

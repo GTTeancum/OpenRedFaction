@@ -38,7 +38,7 @@ def main():
     parser.add_argument('--capture-ripple', action='store_true', help='Capture ordinary ripple vertices without injecting a fixture')
     parser.add_argument('--debris-player-test', action='store_true', help='Explicit scene damage fixture, not an ordinary fragment trajectory')
     parser.add_argument('--ripple-test', action='store_true', help='DEV render-only ripple fixture; no liquid collision claim')
-    parser.add_argument('--authored-sources', type=int, choices=(1,2), default=1, help='Retain selected post and optional paired post; paired saves/reset not supported yet')
+    parser.add_argument('--authored-sources', type=int, choices=(1,2), default=1, help='Retain selected post and optional paired post; paired saves not supported yet')
     parser.add_argument('--authored-source', type=int, choices=(93,94,96,97), help='Select one ctf06 developer destruction source on both platforms')
     parser.add_argument('--dev-room', action='store_true', help='Supply supported weapons in Glass House or the authored ctf06 post test')
     parser.add_argument('--player-checkpoint', action='store_true', help='Opt-in RFCP player plus destruction checkpoint mode')

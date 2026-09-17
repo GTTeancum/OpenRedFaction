@@ -64,14 +64,14 @@ static void detached_transaction(void)
     puts("PASS scene transaction stages bodies, rejects atomically, preserves moved body across clone/mutation and resets");
 }
 typedef struct group_context {
-    rf_geomod_terrain **live;rf_geomod_terrain *old[2];uint32_t calls,aborts,fail;
+    rf_geomod_terrain **live;rf_geomod_terrain *old[2];uint32_t calls,aborts,fail,reset;
 } group_context;
 static int group_publish(void *opaque,rf_geomod_terrain *const *candidates,uint32_t count,uint32_t serial) {
     group_context *g=opaque;uint32_t i;rf_geomod_terrain_view view;
     CHECK(count==2 && serial>0);g->calls++;
     for(i=0;i<2;i++) {
         CHECK(g->live[i]==g->old[i] && candidates[i]!=g->old[i]);
-        CHECK(!rf_geomod_terrain_get(candidates[i],&view) && view.cuts>0);
+        CHECK(!rf_geomod_terrain_get(candidates[i],&view));CHECK(g->reset?!view.cuts:view.cuts>0);
     }
     return g->fail?RF_IO:RF_OK;
 }
@@ -129,8 +129,33 @@ static void grouped_transaction(void) {
         rf_geomod_piece_batch *same;
         CHECK(!rf_geomod_piece_registry_get(pieces[i],0,&same));
         CHECK(same==batches[i] && bodies[i]->state.position[0]==123.f+i);
+        group.old[i]=live[i];c[i].reset=1;
+    }
+    sources[0].fresh=1;
+    CHECK(scene_terrain_edit_transaction_group(sources,2,&serial,&limits,&ops,&group,result)==RF_RANGE);
+    group.reset=1;
+    for(i=0;i<2;i++)sources[i].fresh=sources[i].replace_pieces=1;
+    for(case_id=0;case_id<3;case_id++) {
+        c[1].fail_create=case_id==0;c[1].fail_mutate=case_id==1;group.fail=case_id==2;
+        memcpy(result,sentinel,sizeof(result));
+        CHECK(scene_terrain_edit_transaction_group(sources,2,&serial,&limits,&ops,&group,result)!=RF_OK);
+        CHECK(serial==2 && !memcmp(result,sentinel,sizeof(result)));
+        for(i=0;i<2;i++) {
+            rf_geomod_piece_batch *same;rf_geomod_terrain_view view;
+            CHECK(live[i]==group.old[i]);CHECK(!rf_geomod_terrain_get(live[i],&view) && view.cuts==2);
+            CHECK(!rf_geomod_piece_registry_get(pieces[i],0,&same) && same==batches[i]);
+            CHECK(bodies[i]->state.position[0]==123.f+i);
+        }
+    }
+    c[1].fail_create=c[1].fail_mutate=group.fail=0;
+    CHECK(!scene_terrain_edit_transaction_group(sources,2,&serial,&limits,&ops,&group,result));CHECK(serial==3);
+    for(i=0;i<2;i++) {
+        rf_geomod_terrain_view view;CHECK(!rf_geomod_terrain_get(live[i],&view) && !view.cuts);
+        CHECK(!result[i].history_bytes && !rf_geomod_piece_registry_count(pieces[i]));
+        CHECK(rf_geomod_piece_registry_bytes(pieces[i])==bytes[i]);
         rf_geomod_piece_registry_close(pieces+i);rf_geomod_terrain_close(live+i);
     }
+    puts("PASS fresh grouped reset: failure retains both histories/moved bodies; success clears both without history replay");
     puts("PASS grouped transaction: second-source and publication rejection roll back both cores/registries; one room commit; independent moved bodies survive replay");
 }
 int main(void)

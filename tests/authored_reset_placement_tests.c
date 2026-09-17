@@ -29,6 +29,20 @@ static int installed(const char *archive_path,const char *body_path)
     CHECK(!rf_authored_reset_standing_check(&world.rooms[a.room].tree,a.source_planes,a.source.face_count,&p,1.f/60,5,&result));
     p.position[1]+=.5f;
     CHECK(rf_authored_reset_standing_check(&world.rooms[a.room].tree,a.source_planes,a.source.face_count,&p,1.f/60,5,&result)==RF_NOT_FOUND);
+    {
+        const uint32_t uids[3]={93,96,97};uint32_t i;
+        for(i=0;i<3;i++) {
+            rf_geomod_authored_post_close(&asset);
+            CHECK(!rf_geomod_authored_post_open_source(&level,&geometry,uids[i],2*1024*1024,&asset));
+            CHECK(!rf_geomod_authored_post_get(asset,&a));
+            p.position[0]=uids[i]>=96?8.25f:-2.75f;p.position[1]=-.4013611376285553f;
+            p.position[2]=uids[i]==97?2.5f:-2.5f;
+            CHECK(!rf_authored_reset_standing_check(&world.rooms[a.room].tree,a.source_planes,a.source.face_count,&p,1.f/60,5,&result));
+            p.position[0]=uids[i]>=96?6.f:-5.f;
+            CHECK(rf_authored_reset_standing_check(&world.rooms[a.room].tree,a.source_planes,a.source.face_count,&p,1.f/60,5,&result)==RF_NOT_FOUND);
+        }
+        puts("PASS all four source reset bounds: safe floor admitted, restored solid occupancy rejected");
+    }
     rf_geomod_authored_post_close(&asset);rf_geometry_collision_world_close(&world);rf_geometry_close(&geometry);rf_vpp_close(&archive);
     puts("PASS installed post reset actual body union, initial/retreated floor support, inside rejection");return 0;
 }

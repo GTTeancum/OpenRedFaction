@@ -43,6 +43,7 @@ typedef struct scene_terrain_edit_source {
     void *context;
     rf_geomod_piece_registry *pieces;
     uint32_t replace_pieces;
+    uint32_t fresh; /* Explicit reset: recreate immutable source, omit old history. */
 } scene_terrain_edit_source;
 typedef struct scene_terrain_edit_group_callbacks {
     int (*publish)(void *,rf_geomod_terrain *const *,uint32_t count,uint32_t serial);
@@ -54,31 +55,35 @@ static int scene_terrain_edit_transaction_group(const scene_terrain_edit_source 
 {
     rf_geomod_terrain *candidate[4]={0},*old[4]={0};rf_geomod_terrain_view before,after;
     scene_terrain_edit_result result[4];unsigned char *history=NULL;
-    uint64_t reserved;uint32_t bytes,i,j,next,begun[4]={0};int status;
+    uint64_t reserved;uint32_t bytes,i,j,next,history_needed=0,begun[4]={0};int status;
     if(!sources || !count || count>4 || !serial || *serial==UINT32_MAX || !limits ||
        !limits->clone_budget || !ops || !ops->publish || !ops->abort || !out)return RF_RANGE;
-    reserved=(uint64_t)limits->external_peak_bytes+SCENE_TERRAIN_EDIT_HISTORY_BYTES+
+    reserved=(uint64_t)limits->external_peak_bytes+
         (uint64_t)count*limits->clone_budget;
     for(i=0;i<count;i++) {
         const scene_terrain_edit_source *source=sources+i;
+        if(source->fresh>1 || (source->fresh && source->pieces && !source->replace_pieces))return RF_RANGE;
+        if(!source->fresh)history_needed=1;
         if(!source->live || !*source->live || !source->ops || !source->ops->create || !source->ops->mutate)return RF_RANGE;
         for(j=0;j<i;j++)if(*source->live==old[j] ||
             (source->pieces && source->pieces==sources[j].pieces))return RF_RANGE;
         old[i]=*source->live;status=rf_geomod_terrain_get(old[i],&before);if(status)return status;
         reserved+=before.resident_bytes;
     }
+    if(history_needed)reserved+=SCENE_TERRAIN_EDIT_HISTORY_BYTES;
     if(reserved>limits->total_budget)return RF_RANGE;
-    history=malloc(SCENE_TERRAIN_EDIT_HISTORY_BYTES);if(!history)return RF_IO;
+    if(history_needed){history=malloc(SCENE_TERRAIN_EDIT_HISTORY_BYTES);if(!history)return RF_IO;}
     for(i=0;i<count;i++) {
         const scene_terrain_edit_source *source=sources+i;
-        status=rf_geomod_terrain_history_size(old[i],&bytes);if(status)goto rejected;
+        bytes=0;
+        if(!source->fresh){status=rf_geomod_terrain_history_size(old[i],&bytes);if(status)goto rejected;}
         if(bytes>SCENE_TERRAIN_EDIT_HISTORY_BYTES){status=RF_RANGE;goto rejected;}
         result[i].history_bytes=bytes;
         if(source->pieces) {
             status=rf_geomod_piece_registry_begin(source->pieces,source->replace_pieces);if(status)goto rejected;
             begun[i]=1;
         }
-        status=rf_geomod_terrain_history_encode(old[i],history,bytes);if(status)goto rejected;
+        if(!source->fresh){status=rf_geomod_terrain_history_encode(old[i],history,bytes);if(status)goto rejected;}
         status=source->ops->create(source->context,limits->clone_budget,candidate+i);
         for(j=0;j<count;j++)if(candidate[i]==old[j]){candidate[i]=NULL;status=RF_FORMAT;break;}
         for(j=0;j<i;j++)if(candidate[i] && candidate[i]==candidate[j]){candidate[i]=NULL;status=RF_FORMAT;break;}
@@ -88,8 +93,8 @@ static int scene_terrain_edit_transaction_group(const scene_terrain_edit_source 
             status=rf_geomod_terrain_set_extraction(candidate[i],rf_geomod_piece_registry_emit,source->pieces);
             if(status)goto rejected;
         }
-        status=rf_geomod_terrain_history_decode(candidate[i],history,bytes);if(status)goto rejected;
-        if(source->pieces) {
+        if(!source->fresh){status=rf_geomod_terrain_history_decode(candidate[i],history,bytes);if(status)goto rejected;}
+        if(source->pieces && !source->fresh) {
             if(source->replace_pieces) {
                 rf_geomod_piece_registry_abort(source->pieces);begun[i]=0;
                 status=rf_geomod_piece_registry_begin(source->pieces,1);if(!status)begun[i]=1;
@@ -134,7 +139,7 @@ static int scene_terrain_edit_transaction_pieces(rf_geomod_terrain **live,uint32
     const scene_terrain_edit_limits *limits,const scene_terrain_edit_callbacks *ops,
     void *context,scene_terrain_edit_result *out,rf_geomod_piece_registry *pieces,uint32_t replace_pieces)
 {
-    scene_terrain_edit_source source={live,ops,context,pieces,replace_pieces};
+    scene_terrain_edit_source source={live,ops,context,pieces,replace_pieces,0};
     scene_terrain_single_publication publication={ops,context};
     scene_terrain_edit_group_callbacks group={scene_terrain_single_publish,scene_terrain_single_abort};
     if(!ops || !ops->publish || !ops->abort)return RF_RANGE;
