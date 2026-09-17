@@ -221,6 +221,14 @@ int rf_physics_run_propose(rf_physics_body_state *state,float dt,float speed,flo
  * mass and finite inputs required; errors preserve the state. */
 int rf_physics_fall_propose(rf_physics_body_state *state,float dt,float gravity,
     const float support_velocity[3]);
+/* Generic solid translation49f9c3..49fbe6, before angular prediction.
+ * Body bit1 enables gravity; bit2 plus object80000 enables quadratic liquid
+ * drag using coefficient1 and a midpoint acceleration evaluation. acceleration
+ * is caller-owned scratch retained across repeat passes (body01000000), when
+ * velocity is preserved. No pose commit, rotation, query or contact response.
+ * Finite inputs/positive mass required; errors preserve both outputs. */
+int rf_physics_solid_propose(rf_physics_body_state *,float dt,float gravity,
+    uint32_t object_flags,float acceleration[3]);
 /* 49e7ca..49e8b7 after class-acceleration scaling and movement transform.
  * Caller selects class speed or entity+1488 cap from flag200000. Updates X/Z
  * velocity only; repeat-pass flag1000000 preserves state. No transform,

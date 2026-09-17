@@ -666,3 +666,7 @@ add_test(NAME geomod_terrain_extraction COMMAND rf_geomod_terrain_extraction_tes
 
 add_executable(rf_check_authored_piece_extraction tools/check_authored_piece_extraction.c)
 target_link_libraries(rf_check_authored_piece_extraction PRIVATE rf_core)
+
+add_executable(rf_physics_solid_propose_tests tests/physics_solid_propose_tests.c)
+target_link_libraries(rf_physics_solid_propose_tests PRIVATE rf_core)
+add_test(NAME physics_solid_propose COMMAND rf_physics_solid_propose_tests)

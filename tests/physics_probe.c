@@ -586,6 +586,18 @@ int main(int argc,char **argv)
         }
         return ferror(stdin)?1:0;
     }
+    if(argc==2 && !strcmp(argv[1],"--solid-propose")) {
+        uint32_t flags[2];float values[16];
+        while(fread(flags,sizeof(flags),1,stdin)==1) {
+            rf_physics_body_state state={0};
+            if(fread(values,sizeof(values),1,stdin)!=1)return 2;
+            state.flags=flags[0];state.mass=values[0];state.coefficients[1]=values[3];
+            memcpy(state.position,values+4,12);memcpy(state.velocity,values+7,12);memcpy(state.vector_e0,values+10,12);
+            if(rf_physics_solid_propose(&state,values[1],values[2],flags[1],values+13))return 3;
+            if(fwrite(state.velocity,12,1,stdout)!=1 || fwrite(state.next_position,12,1,stdout)!=1 || fwrite(values+13,12,1,stdout)!=1)return 1;
+        }
+        return ferror(stdin)?1:0;
+    }
     if(argc==2 && (!strcmp(argv[1],"--fall") || !strcmp(argv[1],"--fall-repeat"))) {
         float values[15];
         while(fread(values,sizeof(values),1,stdin)==1) {

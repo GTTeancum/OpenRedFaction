@@ -832,6 +832,45 @@ int rf_physics_fall_propose(rf_physics_body_state *state,float dt,float gravity,
     }
     memcpy(state->velocity,velocity,sizeof(velocity));memcpy(state->next_position,position,sizeof(position));return RF_OK;
 }
+int rf_physics_solid_propose(rf_physics_body_state *state,float dt,float gravity,
+    uint32_t object_flags,float acceleration[3])
+{
+    float velocity[3],position[3],a[3],midpoint[3];uint32_t i,pass;
+    volatile float half_dt_squared;
+    if(!state || !acceleration || !isfinite(dt) || dt<0 || !isfinite(gravity) ||
+       !isfinite(state->mass) || state->mass<=0 || !isfinite(state->coefficients[1]))return RF_RANGE;
+    half_dt_squared=(float)((double)dt*dt*.5);
+    if(!isfinite(half_dt_squared))return RF_RANGE;
+    for(i=0;i<3;i++) {
+        if(!isfinite(state->position[i]) || !isfinite(state->velocity[i]) ||
+           !isfinite(state->vector_e0[i]) || !isfinite(acceleration[i]))return RF_RANGE;
+        velocity[i]=midpoint[i]=state->velocity[i];a[i]=acceleration[i];
+    }
+    if(!(state->flags&0x1000000))for(pass=0;pass<2;pass++) {
+        float drag=0;
+        if((state->flags&2) && (object_flags&0x80000)) {
+            long double speed=sqrtl(((long double)midpoint[0]*midpoint[0]+(long double)midpoint[1]*midpoint[1])+(long double)midpoint[2]*midpoint[2]);
+            drag=(float)(speed*state->coefficients[1]*2);
+            if(!isfinite(drag))return RF_RANGE;
+        }
+        for(i=0;i<3;i++) {
+            volatile float resistance=(float)((double)drag*midpoint[i]);
+            volatile float force=(float)((double)state->vector_e0[i]-resistance),increment;
+            a[i]=(float)((double)force/state->mass);
+            if(i==1 && (state->flags&1))a[i]=(float)((double)a[i]-gravity);
+            increment=(float)((double)a[i]*dt);
+            if(!pass){volatile float half=(float)((double)increment*.5);midpoint[i]=(float)((double)velocity[i]+half);}
+            else velocity[i]=(float)((double)velocity[i]+increment);
+            if(!isfinite(a[i]) || !isfinite(midpoint[i]) || !isfinite(velocity[i]))return RF_RANGE;
+        }
+    }
+    for(i=0;i<3;i++) {
+        volatile float travel=(float)((double)velocity[i]*dt),base=(float)((double)state->position[i]+travel);
+        volatile float correction=(float)((double)a[i]*half_dt_squared);
+        position[i]=(float)((double)base-correction);if(!isfinite(position[i]))return RF_RANGE;
+    }
+    memcpy(state->velocity,velocity,12);memcpy(state->next_position,position,12);memcpy(acceleration,a,12);return RF_OK;
+}
 void rf_physics_body_close(rf_physics_body *body)
 {
     if(body) {rf_physics_spheres_close(&body->spheres);memset(body,0,sizeof(*body));}
