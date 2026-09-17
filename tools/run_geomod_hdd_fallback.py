@@ -8,7 +8,7 @@ from pathlib import Path
 from xemu_smoke import Monitor
 from xemu_guest_snapshot import words
 from xemu_session_guard import require_no_project_xemu
-from verify_geomod_hdd_restart import ROOT,LIMIT,NAMES,digest,replay,symbol,owned_copy
+from verify_geomod_hdd_restart import ROOT,LIMIT,NAMES,digest,replay,symbol,owned_copy,require_hdd_storage_budget
 from verify_geomod_hdd_fallback import fnv,envelope
 
 def checkpoint_format(data,player_checkpoint):
@@ -165,6 +165,7 @@ def main():
   if not path.is_file():raise FileNotFoundError(path)
  if not a.run:print('Preflight ready; no staging, copy or launch.');return
  require_no_project_xemu(ROOT)
+ require_hdd_storage_budget(base,3)
  # Reuse the isolation helper's strict artifacts/geomod-hdd/<unique>/ destination.
  run=ROOT/'artifacts/geomod-hdd'/('fallback-'+datetime.datetime.now().strftime('%Y%m%d-%H%M%S-%f'));run.mkdir(parents=True)
  report=dict(result='FAIL',player_checkpoint=a.player_checkpoint,scope='Native pure-validator fallback, protected-envelope hash and exact DEV player/destruction restart; no physical power-loss claim',base=str(base),base_sha256=digest(base),expected_sha256=hashlib.sha256(expected).hexdigest(),xbe_sha256=digest(ROOT/'build/xbox/disc/default.xbe'))

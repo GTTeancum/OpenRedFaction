@@ -52,6 +52,22 @@ def owned_copy(base,destination):
  shutil.copyfile(base,destination)
  if digest(base)!=digest(destination):raise RuntimeError('Private HDD copy differs')
 
+def require_hdd_storage_budget(base,phases):
+ """Refuse another large run before copying/staging; never delete evidence."""
+ folder=ROOT/'artifacts/geomod-hdd'
+ retained=sum(p.stat().st_size for p in folder.rglob('*') if p.is_file()) if folder.exists() else 0
+ disc=ROOT/'build/xbox/disc'
+ # Include ISO alignment/metadata slack and guest writes to the private HDD.
+ disc_bytes=sum(p.stat().st_size for p in disc.rglob('*') if p.is_file())
+ projected=base.stat().st_size+phases*(disc_bytes+64*1024*1024)+256*1024*1024
+ limit=8*1024**3
+ if retained+projected>limit:
+  raise RuntimeError(f'HDD artifact budget exceeded: {retained/1024**3:.2f} GiB retained + '
+                     f'{projected/1024**3:.2f} GiB estimated run > 8 GiB. '
+                     'Archive or remove obsolete test disk images first; preserve reports and checkpoints.')
+ if shutil.disk_usage(ROOT).free<projected+2*1024**3:
+  raise RuntimeError('Insufficient free space for estimated HDD run plus 2 GiB reserve')
+
 def iso_stage(run,phase,inputs,shallow,packer,player_checkpoint=False):
  disc=ROOT/'build/xbox/disc';names=set(NAMES)|{p.name for p in disc.glob('campaign-*') if p.is_file()}
  names.update(('campaign-spawn.flag','campaign-level.bin'))
@@ -179,6 +195,7 @@ def main():
   if not path.is_file():raise FileNotFoundError(path)
  if not args.run:print('Preflight inputs/symbols available. No launch, staging or HDD copy performed. Scene flag semantics still require source review.');return
  require_no_project_xemu(ROOT)
+ require_hdd_storage_budget(base,2)
  run=ROOT/'artifacts/geomod-hdd'/datetime.datetime.now().strftime('%Y%m%d-%H%M%S-%f');run.mkdir(parents=True)
  report=dict(result='FAIL',scope='Exact settled DEV RFCP restart persistence; no full campaign or power-loss claim' if args.player_checkpoint else 'Exact DEV RFDS restart persistence only; no visual/fullsave/power-loss claim',base=str(base),base_sha256=digest(base),expected_sha256=hashlib.sha256(expected).hexdigest(),xbe_sha256=digest(ROOT/'build/xbox/disc/default.xbe'))
  try:
