@@ -10434,7 +10434,11 @@ static int scene_debris_tick(scene_stream *s,uint32_t frame)
             }
             memcpy(c->position,proposed,sizeof(proposed));
         }
-        if(c->bounces)c->velocity[1]-=scene_gravity.acceleration/60.f;++rf_scene_debris[1];
+        if(c->bounces) {
+            status=rf_geomod_debris_gravity(c->velocity[1],scene_gravity.acceleration,1.f/60,&c->velocity[1]);
+            if(status)return status;
+        }
+        ++rf_scene_debris[1];
     }
     /* Original48f4e0 skips its dispatch tail when the debris list is empty. */
     return rf_scene_debris[1]?scene_debris_audio_flush(s,frame):RF_OK;

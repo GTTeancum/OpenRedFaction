@@ -449,6 +449,15 @@ int rf_geomod_debris_select_room(const float center[3],const float normal[3],flo
     *random=next;*out=value;return RF_OK;
 }
 
+int rf_geomod_debris_gravity(float velocity_y,float acceleration,float dt,float *out)
+{
+    float value;
+    if(!out || !isfinite(velocity_y) || !isfinite(acceleration) || !isfinite(dt) || dt<0)return RF_RANGE;
+    value=(float)((double)velocity_y-(double)acceleration*dt);
+    if(!isfinite(value))return RF_RANGE;
+    *out=value;return RF_OK;
+}
+
 int rf_geomod_debris_motion(const float start[3],const float velocity[3],float dt,
     uint32_t liquid_flag,float depth,float bottom,float proposed[3])
 {

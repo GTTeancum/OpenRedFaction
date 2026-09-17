@@ -154,6 +154,10 @@ int rf_geomod_debris_select_room(const float center[3],const float normal[3],flo
     uint32_t fallback_room,rf_geomod_debris_room_query query,void *context,
     rf_random_state *random,rf_geomod_debris_burst_room *out);
 typedef struct rf_geomod_debris_liquid_hit {float fraction,point[3];} rf_geomod_debris_liquid_hit;
+/*48f62f..48f647: after collision, only while bounce count stays positive.
+ * Gravity*stored dt is subtracted before the single float store. Negative
+ * gravity is supported; invalid/nonfinite results preserve output. */
+int rf_geomod_debris_gravity(float velocity_y,float acceleration,float dt,float *out);
 /*48f932..48f98b proposed motion: velocity*dt rounded, then water scale
  * rounded, then added to start. Only liquid byte1 and inclusive raw water
  * height select0.2; other flags use1. No gravity, collision or room mutation.
