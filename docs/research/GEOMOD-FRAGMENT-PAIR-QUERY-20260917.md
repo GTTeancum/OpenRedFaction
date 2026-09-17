@@ -1,0 +1,7 @@
+# Fragment collision query groundwork
+
+The new rf_geomod_piece_registry_body_sweep_excluding performs the existing body-sphere/polygon sweep while excluding exactly one source batch/piece identity. Other pieces remain eligible, including those in the same batch. UINT32_MAX batch means no exclusion; invalid source identities preserve outputs. Existing player/body queries retain their previous all-piece behavior through a wrapper. No allocation or registry ownership changes are introduced.
+
+The query retains stable nearest-hit ordering, actual current-pose polygons, retirement filtering, source sphere identity, target batch/piece/face and target linear velocity. The extraction test verifies excluded self geometry cannot win, a distinct extracted body remains hittable with its actual velocity, invalid exclusions preserve outputs, and the old all-piece query produces the identical result. All121 freshly rebuilt PC tests pass. Stock64MiB NXDK compilation/link succeeds; no native gameplay change is claimed.
+
+The current scene_detached_query still queries terrain only. Its rf_physics_solid_step response accepts no moving counterpart, so merely feeding it a second fragment would incorrectly treat that fragment as a static wall. Correct two-body admission/response, angular contact velocity, counterpart wake/impulse and bounded scheduling remain open before live rubble piles can be claimed. This query is a prerequisite, not an implemented pair solver.

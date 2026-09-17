@@ -131,6 +131,12 @@ typedef struct rf_geomod_registry_body_hit {
 int rf_geomod_piece_registry_body_sweep(const rf_geomod_piece_registry *,
     const rf_collision_body_query *,uint32_t surface_material,
     rf_geomod_registry_body_hit *,uint32_t *matched);
+/* Same query excluding exactly one source chunk; other chunks in its batch
+ * remain candidates. UINT32_MAX batch excludes none. Invalid source identity
+ * preserves outputs. Contact detection only, not two-body impulse response. */
+int rf_geomod_piece_registry_body_sweep_excluding(const rf_geomod_piece_registry *,
+    uint32_t excluded_batch,uint32_t excluded_piece,const rf_collision_body_query *,
+    uint32_t surface_material,rf_geomod_registry_body_hit *,uint32_t *matched);
 struct rf_checkpoint_placement;
 struct rf_checkpoint_support_hit;
 /* Read-only ground provider for checkpoint standing composition. Only sleeping

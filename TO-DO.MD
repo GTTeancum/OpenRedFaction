@@ -1,5 +1,7 @@
 # Red Faction Xbox / PC - open work
 
+- GeoMod rubble piles: Implement and validate two-body response and scheduling; a self-excluding chunk query now returns other fragments and their velocity, but live chunks still collide only with terrain.
+
 - GeoMod rubble memory: Reclaim retired resources safely while preserving save/history identity; original terminal terrain fragments explicitly disable lifetime expiry, so healthy rubble must not be deleted on a timer.
 
 - GeoMod rubble wake: Broaden support-loss coverage beyond the dry post; removing its remaining support now wakes the chunk and drops it0.27units on PC/Xbox, with exact PC save continuation and74 native reload comparisons; broader surfaces, moving supports and fragment-fragment collision remain open.

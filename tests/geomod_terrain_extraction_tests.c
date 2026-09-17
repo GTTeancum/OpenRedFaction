@@ -93,6 +93,13 @@ static void registry_lifetime(const rf_geomod_mesh_view *mesh,const rf_collision
         CHECK(fabsf(hit.contact.fraction-.225f)<.0001f && hit.contact.material==1 && hit.contact.velocity[2]==3);
         CHECK(hit.contact.object_id==UINT32_MAX && hit.contact.face_token==UINT32_MAX);
         before=hit;
+        CHECK(!rf_geomod_piece_registry_body_sweep_excluding(r,0,0,&query,1,&hit,&matched));
+        CHECK(!matched && !memcmp(&hit,&before,sizeof(hit)));
+        matched=999;
+        CHECK(rf_geomod_piece_registry_body_sweep_excluding(r,0,UINT32_MAX,&query,1,&hit,&matched)==RF_RANGE);
+        CHECK(matched==999 && !memcmp(&hit,&before,sizeof(hit)));
+        CHECK(!rf_geomod_piece_registry_body_sweep_excluding(r,UINT32_MAX,UINT32_MAX,&query,1,&hit,&matched));
+        CHECK(matched && !memcmp(&hit,&before,sizeof(hit)));
         memset(query.matrix,0,sizeof(query.matrix));query.matrix[0][1]=1;query.matrix[1][0]=-1;query.matrix[2][2]=1;
         spheres[1].center[0]=-face->plane[1];spheres[1].center[1]=face->plane[0];spheres[1].center[2]=-face->plane[2];
         CHECK(!rf_geomod_piece_registry_body_sweep(r,&query,1,&hit,&matched));
@@ -189,6 +196,28 @@ static void registry_lifetime(const rf_geomod_mesh_view *mesh,const rf_collision
     CHECK(rf_geomod_piece_registry_count(r)==2 && body->state.position[0]==moved);
     CHECK(!rf_geomod_piece_registry_changed_boxes(r,1,boxes,&box_count) && box_count==1);
     CHECK(memcmp(boxes,initial_boxes,sizeof(*boxes)));
+    /* Excluding the source must still find a distinct chunk and its velocity. */
+    {
+        rf_geomod_piece_batch *second;rf_geomod_owned_piece target;rf_physics_body *other;
+        rf_collision_body_query query={0};rf_collision_body_sphere sphere={0};
+        rf_geomod_registry_body_hit hit,kept;uint32_t k,n,matched;float saved_velocity[3];
+        CHECK(!rf_geomod_piece_registry_get(r,1,&second));
+        CHECK(!rf_geomod_piece_batch_get(second,0,&target,&other));
+        memcpy(saved_velocity,other->state.velocity,12);other->state.velocity[2]=3;
+        for(k=0;k<3;k++) {
+            float center=0;const rf_collision_face *face=target.collision;
+            for(n=0;n<face->count;n++)center+=face->vertices[n][k]/face->count;
+            query.start[k]=other->state.position[k]+center+2*face->plane[k];
+            query.end[k]=query.start[k]-4*face->plane[k];query.matrix[k][k]=1;
+        }
+        sphere.radius=.1f;query.spheres=&sphere;query.count=1;query.radius=2;query.limit=1;
+        CHECK(!rf_geomod_piece_registry_body_sweep_excluding(r,0,0,&query,1,&hit,&matched));
+        CHECK(matched && hit.batch==1 && hit.piece==0 && hit.contact.velocity[2]==3);
+        kept=hit;
+        CHECK(!rf_geomod_piece_registry_body_sweep_excluding(r,1,0,&query,1,&hit,&matched));
+        CHECK(!matched && !memcmp(&hit,&kept,sizeof(hit)));
+        memcpy(other->state.velocity,saved_velocity,12);
+    }
     /* A later invalid body must not wake an earlier valid sleeping body. */
     {
         rf_geomod_piece_batch *second;rf_geomod_owned_piece view;rf_physics_body *later;
