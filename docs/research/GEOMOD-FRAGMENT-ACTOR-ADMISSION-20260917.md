@@ -1,0 +1,11 @@
+# Actor/fragment pair admission
+
+`python tools/probe_fragment_actor_admission.py` passes144 full original48be00 cases without hooks. Both argument orders cross player flag0/1, actor class physics use-kind0/1/3, fragment geometry pointer absent/present, and fragment body radii.49/.5/.5001/1/1.0001/3. Real4895d0,429990 and486c90 execute. Both objects remain byte-identical; output pair flags are checked.
+
+For ordinary visible SP actors with collision participation enabled, admission requires fragment body radius strictly greater than0.5 and either (player flag plus fragment geometry present) or actor class physics use-kind1. Radius exactly0.5 rejects. The class selector is actor+294->1b4, not current movement mode+858->4; initial inspection conflated those fields and the executable probe corrected it.
+
+If the actor is a player, fragment geometry exists and radius is strictly greater than1, pair bit8 or16 selects the fragment side by argument order. Radius exactly1 does not select that route. NPC use-kind1 admission leaves those bits clear. Original48ca60 dispatch inspection sends the flagged kind3 side to49b570 (polygon solid) and unflagged ordinary contacts to49a420 (body sphere pairs). Merely enabling the existing polygon-only player adapter for NPCs would therefore skip the demonstrated shape selection.
+
+Scope: this probe proves admission and route bits, not execution of49a420/49b570, continuous relative motion, contact response scheduling or live NPC behavior. Other object flags, network policy and other entity types are outside this grid. The existing NPC terrain-only body query remains unchanged until the appropriate sphere-pair route is implemented. Player polygon-only rubble querying also requires this size-policy audit for smaller chunks. NPC ground probing has a separate original path and should not inherit player-only49b900 behavior automatically.
+
+Next: implement the admitted sphere-pair query with source/target body poses, select sphere versus polygon contacts using the recovered policy, then validate NPC movement in the DEV testbed. Evidence: tools/probe_fragment_actor_admission.py and artifacts/geomod-postedit-re/fragment-actor-admission.json. Original binary SHA is asserted. No original game UI or host input was used.

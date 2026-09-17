@@ -1,5 +1,7 @@
 # Red Faction Xbox / PC - open work
 
+- GeoMod actor collision: Implement size- and class-selected fragment contacts;144 original cases establish NPC physics-type1 admission above radius0.5 and a sphere route distinct from larger player polygon contacts.
+
 - GeoMod object interactions: Broaden admitted fragment contacts with actors/props;128 original pair cases prove terrain fragments deliberately exclude one another, so fragment stacking is not a missing fidelity feature.
 
 - GeoMod rubble memory: Reclaim retired resources safely while preserving save/history identity; original terminal terrain fragments explicitly disable lifetime expiry, so healthy rubble must not be deleted on a timer.
