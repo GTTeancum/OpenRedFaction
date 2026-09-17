@@ -144,3 +144,58 @@ int rf_geomod_piece_body_open(const rf_geomod_owned_piece *piece,float elasticit
     p.orientation[0]=p.orientation[4]=p.orientation[8]=1;
     return rf_physics_body_open(&p,spheres,count,budget,body);
 }
+
+struct rf_geomod_piece_batch {
+    rf_geomod_piece_bank *geometry;rf_physics_body *bodies;
+    uint32_t count,bytes,peak_bytes;
+};
+void rf_geomod_piece_batch_close(rf_geomod_piece_batch **owner)
+{
+    uint32_t i;rf_geomod_piece_batch *batch;
+    if(!owner || !*owner)return;batch=*owner;
+    for(i=0;i<batch->count;i++)rf_physics_body_close(batch->bodies+i);
+    rf_geomod_piece_bank_close(&batch->geometry);free(batch);*owner=NULL;
+}
+uint32_t rf_geomod_piece_batch_count(const rf_geomod_piece_batch *batch)
+{return batch?batch->count:0;}
+uint32_t rf_geomod_piece_batch_bytes(const rf_geomod_piece_batch *batch)
+{return batch?batch->bytes:0;}
+uint32_t rf_geomod_piece_batch_peak_bytes(const rf_geomod_piece_batch *batch)
+{return batch?batch->peak_bytes:0;}
+int rf_geomod_piece_batch_get(rf_geomod_piece_batch *batch,uint32_t index,
+    rf_geomod_owned_piece *piece,rf_physics_body **body)
+{
+    rf_geomod_owned_piece value;int status;
+    if(!batch || !piece || !body || index>=batch->count)return RF_RANGE;
+    status=rf_geomod_piece_bank_get(batch->geometry,index,&value);if(status)return status;
+    *piece=value;*body=batch->bodies+index;return RF_OK;
+}
+int rf_geomod_piece_batch_open(const rf_geomod_mesh_view *source,const rf_collision_face_filter *filters,
+    const rf_collision_face_filter *generated,uint32_t material,float density,float elasticity,float friction,
+    rf_random_state *random,uint32_t budget,rf_geomod_piece_batch **out)
+{
+    rf_geomod_piece_bank *geometry=NULL;rf_geomod_piece_batch *batch=NULL;
+    rf_geomod_subdivision_stats stats;rf_random_state next;uint32_t count,i;uint64_t owner_bytes,resident;int status;
+    if(!out || *out || !random || !isfinite(elasticity) || !isfinite(friction))return RF_RANGE;
+    next=*random;
+    status=rf_geomod_piece_subdivide(source,filters,generated,material,density,&next,budget,&geometry,&stats);if(status)return status;
+    count=rf_geomod_piece_bank_count(geometry);owner_bytes=sizeof(*batch)+(uint64_t)count*sizeof(rf_physics_body);
+    resident=owner_bytes+rf_geomod_piece_bank_bytes(geometry);
+    if(resident>budget){status=RF_RANGE;goto failed;}
+    batch=calloc(1,(size_t)owner_bytes);if(!batch){status=RF_IO;goto failed;}
+    batch->geometry=geometry;geometry=NULL;batch->bodies=(rf_physics_body *)(batch+1);
+    batch->bytes=(uint32_t)resident;batch->peak_bytes=stats.peak_bytes;
+    for(i=0;i<count;i++) {
+        rf_geomod_owned_piece piece;
+        status=rf_geomod_piece_bank_get(batch->geometry,i,&piece);if(status)goto failed;
+        /* The body record is already in the fixed owner allocation. Only its
+         * separately allocated spheres increase the concurrent resident bytes. */
+        status=rf_geomod_piece_body_open(&piece,elasticity,friction,budget-batch->bytes+sizeof(rf_physics_body),batch->bodies+i);
+        if(status)goto failed;
+        batch->count++;batch->bytes+=batch->bodies[i].allocated_bytes-sizeof(rf_physics_body);
+    }
+    if(batch->bytes>batch->peak_bytes)batch->peak_bytes=batch->bytes;
+    *random=next;*out=batch;return RF_OK;
+failed:
+    rf_geomod_piece_bank_close(&geometry);rf_geomod_piece_batch_close(&batch);return status;
+}

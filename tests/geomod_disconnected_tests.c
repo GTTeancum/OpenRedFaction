@@ -405,6 +405,29 @@ static void subdivision_worker(void)
             CHECK(rf_geomod_piece_subdivide(&source,worker_filters,&worker_generated,7,2.5f,&replay_random,stats.peak_bytes-1,&again,&other)==RF_RANGE);
             CHECK(!again && replay_random.value==seed*12345 && !memcmp(&other,&sentinel,sizeof(other)));
         }
+        {
+            rf_geomod_piece_batch *batch=NULL;rf_random_state batch_random={seed*12345};uint32_t count;
+            CHECK(!rf_geomod_piece_batch_open(&source,worker_filters,&worker_generated,7,2.5f,.5f,.25f,&batch_random,2097152,&batch));
+            count=rf_geomod_piece_batch_count(batch);CHECK(count==stats.terminal && batch_random.value==random.value);
+            CHECK(rf_geomod_piece_batch_bytes(batch)>=rf_geomod_piece_bank_bytes(bank));
+            CHECK(rf_geomod_piece_batch_peak_bytes(batch)<=2097152);
+            for(i=0;i<count;i++) {
+                rf_geomod_owned_piece actual,expected;rf_physics_body *body=NULL,reference={0};
+                CHECK(!rf_geomod_piece_batch_get(batch,i,&actual,&body));CHECK(!rf_geomod_piece_bank_get(bank,i,&expected));
+                CHECK(!rf_geomod_piece_body_open(&expected,.5f,.25f,4096,&reference));
+                CHECK(!memcmp(&body->state,&reference.state,sizeof(body->state)));
+                CHECK(body->spheres.count==reference.spheres.count);
+                if(body->spheres.count)CHECK(!memcmp(body->spheres.items,reference.spheres.items,body->spheres.count*sizeof(*body->spheres.items)));
+                CHECK(actual.mesh.vertex_count==expected.mesh.vertex_count && actual.mesh.face_count==expected.mesh.face_count);
+                CHECK(!memcmp(actual.mesh.vertices,expected.mesh.vertices,actual.mesh.vertex_count*sizeof(*actual.mesh.vertices)));
+                rf_physics_body_close(&reference);
+            }
+            printf("PASS staged batch seed%u pieces%u resident%u peak%u\n",seed,count,rf_geomod_piece_batch_bytes(batch),rf_geomod_piece_batch_peak_bytes(batch));
+            rf_geomod_piece_batch_close(&batch);CHECK(!batch);rf_geomod_piece_batch_close(&batch);
+            batch_random.value=seed*12345;
+            CHECK(rf_geomod_piece_batch_open(&source,worker_filters,&worker_generated,7,2.5f,.5f,.25f,&batch_random,stats.peak_bytes-1,&batch)==RF_RANGE);
+            CHECK(!batch && batch_random.value==seed*12345);
+        }
         rf_geomod_piece_bank_close(&bank);
     }
 }

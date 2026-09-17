@@ -46,6 +46,21 @@ typedef struct rf_geomod_subdivision_stats {
 int rf_geomod_piece_subdivide(const rf_geomod_mesh_view *,const rf_collision_face_filter *,
     const rf_collision_face_filter *generated,uint32_t material,float density,
     rf_random_state *,uint32_t budget,rf_geomod_piece_bank **,rf_geomod_subdivision_stats *);
+typedef struct rf_geomod_piece_batch rf_geomod_piece_batch;
+/* All-or-nothing geometry and body preparation for a scene edit. Owns the
+ * returned bank and every body's sphere allocation. Budget covers simultaneous
+ * ownership/worker peaks; allocator overhead excluded. RNG/output commit only
+ * after all bodies exist. Does not publish a terrain edit or schedule motion. */
+int rf_geomod_piece_batch_open(const rf_geomod_mesh_view *,const rf_collision_face_filter *,
+    const rf_collision_face_filter *generated,uint32_t material,float density,float elasticity,float friction,
+    rf_random_state *,uint32_t budget,rf_geomod_piece_batch **);
+void rf_geomod_piece_batch_close(rf_geomod_piece_batch **);
+uint32_t rf_geomod_piece_batch_count(const rf_geomod_piece_batch *);
+uint32_t rf_geomod_piece_batch_bytes(const rf_geomod_piece_batch *);
+uint32_t rf_geomod_piece_batch_peak_bytes(const rf_geomod_piece_batch *);
+/* Geometry and mutable simulation body remain valid until batch close. */
+int rf_geomod_piece_batch_get(rf_geomod_piece_batch *,uint32_t index,
+    rf_geomod_owned_piece *,rf_physics_body **);
 int rf_geomod_piece_bank_get(const rf_geomod_piece_bank *,uint32_t index,rf_geomod_owned_piece *);
 uint32_t rf_geomod_piece_bank_count(const rf_geomod_piece_bank *);
 uint32_t rf_geomod_piece_bank_bytes(const rf_geomod_piece_bank *);
