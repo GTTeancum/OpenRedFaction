@@ -872,6 +872,8 @@ run_scene:
     printf("TERRAIN_DRAW");for(i=0;i<5;++i)printf(" %u",rf_scene_terrain_draw[i]);puts("");
     printf("DEBRIS_AUDIO");for(i=0;i<14;++i)printf(" %u",rf_scene_debris_audio[i]);puts("");
     printf("DEBRIS");for(i=0;i<8;++i)printf(" %u",rf_scene_debris[i]);puts("");
+    {extern uint32_t rf_scene_debris_visibility[8];
+     printf("DEBRIS_VISIBILITY");for(i=0;i<8;++i)printf(" %u",rf_scene_debris_visibility[i]);puts("");}
     {extern uint32_t rf_scene_debris_wet[8];
      printf("DEBRIS_WET_STATE");for(i=0;i<8;++i)printf(" %u",rf_scene_debris_wet[i]);puts("");}
     {extern uint32_t rf_scene_debris_relaunch[8];

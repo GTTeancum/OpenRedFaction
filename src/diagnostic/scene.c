@@ -27,6 +27,7 @@
 #include <string.h>
 #include <math.h>
 #include "rf/visibility.h"
+#include "rf/debris_visibility.h"
 #include "rf/level_particles.h"
 /* Choose the thin horizontal box axis, approaching from the authored spawn side.
  * Fixture setup only: the normal collision and trigger runtime handles movement. */
@@ -556,6 +557,7 @@ static int32_t campaign_debris_sound_group=-1;
 uint32_t rf_scene_debris[8]; /* spawned,active,bounces,expired,vertices,hash,bytes,replaced */
 uint32_t rf_scene_debris_relaunch[8]; /* passes,candidates,relaunched,settled resumed,state hash,seed before,seed after,last slot */
 uint32_t rf_scene_debris_wet[8]; /* solid misses,wet tests,accepted,last room,fraction bits,point hash,last status,presence */
+uint32_t rf_scene_debris_visibility[8]; /* hidden submissions,aged,last admitted/hidden,hidden age hashes before/after,room tests/rejects */
 
 #ifndef SCENE_TERRAIN_ATLAS_BUDGET
 #define SCENE_TERRAIN_ATLAS_BUDGET (1280u*1024u)
@@ -9426,7 +9428,7 @@ static int scene_terrain_open(scene_stream *s,const rf_level *level,rf_vpp *maps
     rf_scene_terrain_atlas[3]=2*512*512*2+64*64*2+SCENE_TERRAIN_FACES*(sizeof(*s->terrain_bindings)+sizeof(*s->terrain_tiles))+sizeof(rf_image)+sizeof(*s->terrain_noise);
     if(rf_scene_terrain_atlas[3]>SCENE_TERRAIN_ATLAS_BUDGET){printf("TERRAIN_ATLAS_BUDGET %u %u\n",rf_scene_terrain_atlas[3],SCENE_TERRAIN_ATLAS_BUDGET);return RF_RANGE;}
     s->debris=calloc(1,sizeof(*s->debris));if(!s->debris)return RF_IO;
-    s->debris->random.value=1;rf_debris_audio_init(&s->debris->audio);memset(rf_scene_debris_audio,0,sizeof(rf_scene_debris_audio));memset(rf_scene_debris,0,sizeof(rf_scene_debris));memset(rf_scene_debris_relaunch,0,sizeof(rf_scene_debris_relaunch));memset(rf_scene_debris_wet,0,sizeof(rf_scene_debris_wet));rf_scene_debris_wet[3]=UINT32_MAX;rf_scene_debris[6]=sizeof(*s->debris);
+    s->debris->random.value=1;rf_debris_audio_init(&s->debris->audio);memset(rf_scene_debris_audio,0,sizeof(rf_scene_debris_audio));memset(rf_scene_debris,0,sizeof(rf_scene_debris));memset(rf_scene_debris_relaunch,0,sizeof(rf_scene_debris_relaunch));memset(rf_scene_debris_wet,0,sizeof(rf_scene_debris_wet));memset(rf_scene_debris_visibility,0,sizeof(rf_scene_debris_visibility));rf_scene_debris_wet[3]=UINT32_MAX;rf_scene_debris[6]=sizeof(*s->debris);
     s->terrain_draw=calloc(1,sizeof(*s->terrain_draw));if(!s->terrain_draw)return RF_IO;
     memset(rf_scene_terrain_draw,0,sizeof(rf_scene_terrain_draw));
     s->terrain_ids=calloc(SCENE_TERRAIN_FACES,sizeof(*s->terrain_ids));if(!s->terrain_ids)return RF_IO;
@@ -10136,7 +10138,7 @@ static int scene_terrain_input(scene_stream *s,const float position[3],const flo
                 memset(rf_scene_terrain_bake,0,sizeof(rf_scene_terrain_bake));
                 scene_terrain_dirty(s,0,0,512,512);
             }
-            if(!status && s->debris){memset(s->debris,0,sizeof(*s->debris));s->debris->random.value=1;rf_debris_audio_init(&s->debris->audio);memset(rf_scene_debris_audio,0,sizeof(rf_scene_debris_audio));memset(rf_scene_debris,0,sizeof(rf_scene_debris));memset(rf_scene_debris_relaunch,0,sizeof(rf_scene_debris_relaunch));memset(rf_scene_debris_wet,0,sizeof(rf_scene_debris_wet));rf_scene_debris_wet[3]=UINT32_MAX;rf_scene_debris[6]=sizeof(*s->debris);}
+            if(!status && s->debris){memset(s->debris,0,sizeof(*s->debris));s->debris->random.value=1;rf_debris_audio_init(&s->debris->audio);memset(rf_scene_debris_audio,0,sizeof(rf_scene_debris_audio));memset(rf_scene_debris,0,sizeof(rf_scene_debris));memset(rf_scene_debris_relaunch,0,sizeof(rf_scene_debris_relaunch));memset(rf_scene_debris_wet,0,sizeof(rf_scene_debris_wet));memset(rf_scene_debris_visibility,0,sizeof(rf_scene_debris_visibility));rf_scene_debris_wet[3]=UINT32_MAX;rf_scene_debris[6]=sizeof(*s->debris);}
             if(!status)++rf_scene_geomod[7];
         } else {
         for(i=0;i<3;i++)delta[i]=orientation[2][i]*100;
@@ -10383,17 +10385,12 @@ static int scene_debris_tick(scene_stream *s,uint32_t frame)
     return rf_scene_debris[1]?scene_debris_audio_flush(s,frame):RF_OK;
 }
 #include "scene_debris_render_plane.inc"
+#include "scene_debris_visibility.inc"
 static int scene_debris_draw(scene_stream *s)
 {
-    scene_debris_pool *p=s->debris;uint32_t order[80],count=0,i,f,j,k,start=s->mesh->count;float depths[80];int status;
+    scene_debris_pool *p=s->debris;uint32_t order[80],count=0,i,f,j,k,start=s->mesh->count;int status;
     if(!p)return RF_OK;
-    /* Back-to-front chunk centers keep fading foreground fragments from
-     * overwriting later opaque chunks behind them. Bounded80-entry scratch. */
-    for(i=0;i<80;i++)if(p->chunks[i].active) {
-        float depth=0;for(k=0;k<3;k++)depth+=(p->chunks[i].position[k]-s->rocket_camera.player_position[k])*s->rocket_camera.player_orientation[2][k];
-        j=count;while(j && depths[j-1]<depth){depths[j]=depths[j-1];order[j]=order[j-1];--j;}
-        depths[j]=depth;order[j]=i;++count;
-    }
+    status=scene_debris_visible_order(s,order,&count);if(status)return status;
     for(i=0;i<count;i++) {
         scene_debris_chunk *c=p->chunks+order[i];rf_geomod_mesh_view mesh={0};rf_preview_mesh emitted={0};
         float cosine=cosf(c->angle),sine=sinf(c->angle);rf_geomod_debris_lifecycle life;
@@ -10427,6 +10424,12 @@ static int scene_debris_draw(scene_stream *s)
         }
         s->mesh->count+=emitted.count;s->mesh->bytes+=emitted.bytes;
     }
+    rf_scene_debris_visibility[5]=2166136261u;
+    for(i=0;i<80;i++)if(p->chunks[i].active) {
+        uint32_t submitted=0;for(j=0;j<count;j++)if(order[j]==i)submitted=1;
+        if(!submitted)rf_scene_debris_visibility[5]=npc_hash_bytes(rf_scene_debris_visibility[5],&p->chunks[i].age,4);
+    }
+    if(rf_scene_debris_visibility[4]!=rf_scene_debris_visibility[5])return RF_FORMAT;
     rf_scene_debris[1]=0;for(i=0;i<80;i++)rf_scene_debris[1]+=p->chunks[i].active!=0;
     rf_scene_debris[4]=s->mesh->count-start;
     rf_scene_debris[5]=npc_hash_bytes(2166136261u,s->mesh->vertices+start,rf_scene_debris[4]*sizeof(rf_preview_vertex));return RF_OK;
