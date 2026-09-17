@@ -136,6 +136,12 @@ int rf_geomod_piece_registry_support(void *,const rf_physics_ground_probe *,floa
  * overlap/inside/ambiguous; no support eligibility or player relocation. */
 int rf_geomod_piece_registry_placement_check(const rf_geomod_piece_registry *,
     const struct rf_checkpoint_placement *);
+struct rf_geomod_notify_change;
+/* Apply only after collision/render publication. Registry members are scoped
+ * to this scene and have no parent; resolves existing kind3 notification math.
+ * Validates the entire live set before writes. Does not add blast impulse. */
+int rf_geomod_piece_registry_notify(rf_geomod_piece_registry *,const struct rf_geomod_notify_change *,
+    const float center[3],uint32_t *woken);
 int rf_geomod_piece_registry_damage(rf_geomod_piece_registry *,uint32_t batch,uint32_t piece,float amount);
 /* RFPB2 pointer-free little-endian body snapshot, paired with authenticated
  * terrain history. Version1 loads birth health; version2 retains health/retirement.

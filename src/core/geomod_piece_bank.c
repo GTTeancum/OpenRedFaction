@@ -1,6 +1,7 @@
 #include "rf/geomod_piece_bank.h"
 #include "rf/checkpoint_placement.h"
 #include "rf/entity.h"
+#include "rf/geomod_notify.h"
 #include <float.h>
 #include <stdlib.h>
 #include <string.h>
@@ -409,8 +410,8 @@ int rf_geomod_piece_registry_state_decode(rf_geomod_piece_registry *r,const void
             status=rf_geomod_piece_bank_get(batch->geometry,j,&piece);if(status)return status;
             status=rf_geomod_piece_life_init(piece.birth_radius,&birth);if(status)return status;life=birth;
             if(version==2){bits=piece_state_word(p+320);memcpy(&life.health,&bits,4);life.flags=piece_state_word(p+324);}
-            if(!isfinite(life.health) || life.health>birth.health || (life.flags&~0x200002u) ||
-               ((life.health<=0)!=!!(life.flags&2)))return RF_FORMAT;
+            if(!isfinite(life.health) || life.health>birth.health || (life.flags&~0x6200002u) ||
+               (life.health<=0 && !(life.flags&2)))return RF_FORMAT;
             piece_state_codec(&state,(unsigned char *)p+12,1);
             if(!pass){status=piece_state_valid(&state,target);if(status)return status;}
             else {*target=state;batch->life[j]=life;}
@@ -543,4 +544,29 @@ int rf_geomod_piece_registry_support(void *context,const rf_physics_ground_probe
         *out=result;
     }
     *matched=found;return RF_OK;
+}
+
+int rf_geomod_piece_registry_notify(rf_geomod_piece_registry *r,const rf_geomod_notify_change *change,
+    const float center[3],uint32_t *woken)
+{
+    uint32_t pass,b,i,k,count=0;int status;
+    if(!change || !center || !woken || (r && r->begun))return RF_RANGE;
+    if(!isfinite(change->radius) || change->count>32 || (change->count&&!change->boxes))return RF_FORMAT;
+    for(k=0;k<3;k++)if(!isfinite(center[k]))return RF_FORMAT;
+    for(i=0;i<change->count;i++)for(k=0;k<3;k++)if(!isfinite(change->boxes[i].minimum[k]) ||
+        !isfinite(change->boxes[i].maximum[k]) || change->boxes[i].minimum[k]>change->boxes[i].maximum[k])return RF_FORMAT;
+    for(pass=0;pass<2;pass++)for(b=0;r && b<r->count;b++)for(i=0;i<r->active[b].batch->count;i++) {
+        rf_geomod_piece_batch *batch=r->active[b].batch;rf_physics_body_state *body=&batch->bodies[i].state;
+        rf_geomod_notify_object object={0};rf_geomod_notify_radial radial={0};rf_geomod_notify_result result;
+        if(!rf_geomod_piece_batch_alive(batch,i))continue;
+        object.kind=3;object.object_flags=batch->life[i].flags|0x400000u;object.physics_flags=body->flags;
+        memcpy(object.bounds.minimum,body->bounds.minimum,12);memcpy(object.bounds.maximum,body->bounds.maximum,12);
+        memcpy(radial.center,center,12);memcpy(radial.position,body->position,12);radial.body_radius=body->bounds.radius;
+        status=rf_geomod_notify_object_change(&object,change,&radial,&result);if(status)return status;
+        if(pass) {
+            if(!(body->flags&0x80000000u) && (result.physics_flags&0x80000000u))count++;
+            body->flags=result.physics_flags;batch->life[i].flags=result.object_flags&~0x400000u;
+        }
+    }
+    *woken=count;return RF_OK;
 }

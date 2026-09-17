@@ -1,4 +1,5 @@
 #include "rf/checkpoint_placement.h"
+#include "rf/geomod_notify.h"
 #include "rf/geomod_piece_bank.h"
 #include <stdio.h>
 #include <stdlib.h>
@@ -157,6 +158,18 @@ static void registry_lifetime(const rf_geomod_mesh_view *mesh,const rf_collision
         kept=hit;CHECK(!rf_geomod_piece_registry_support(NULL,&probe,1,&hit,&matched));CHECK(!matched && !memcmp(&hit,&kept,sizeof(hit)));
         body->state=saved;
     }
+    {
+        rf_geomod_notify_change change={0};rf_physics_body_state saved=body->state;uint32_t woke=999;
+        float center[3];memcpy(center,body->state.position,12);change.radius=1;
+        body->state.flags&=~0x80000000u;center[0]+=1000;
+        CHECK(!rf_geomod_piece_registry_notify(r,&change,center,&woke) && !woke && !(body->state.flags&0x80000000u));
+        center[0]=NAN;woke=999;CHECK(rf_geomod_piece_registry_notify(r,&change,center,&woke)==RF_FORMAT && woke==999 && !(body->state.flags&0x80000000u));
+        memcpy(center,body->state.position,12);
+        CHECK(!rf_geomod_piece_registry_notify(r,&change,center,&woke) && woke==1 && (body->state.flags&0x80000000u));
+        CHECK(!memcmp(body->state.velocity,saved.velocity,12) && !memcmp(body->state.position,saved.position,12));
+        CHECK(!rf_geomod_piece_registry_notify(r,&change,center,&woke) && !woke);
+        body->state=saved;
+    }
     bytes=rf_geomod_piece_registry_bytes(r);
     CHECK(!rf_geomod_piece_registry_begin(r,0));
     CHECK(rf_geomod_terrain_cut_box_checked(t,center[3],extent[3],7,reject_candidate,NULL)==RF_IO);
@@ -166,6 +179,19 @@ static void registry_lifetime(const rf_geomod_mesh_view *mesh,const rf_collision
     CHECK(!rf_geomod_piece_registry_begin(r,0));
     CHECK(!rf_geomod_terrain_cut_box(t,center[3],extent[3],7));rf_geomod_piece_registry_commit(r);
     CHECK(rf_geomod_piece_registry_count(r)==2 && body->state.position[0]==moved);
+    /* A later invalid body must not wake an earlier valid sleeping body. */
+    {
+        rf_geomod_piece_batch *second;rf_geomod_owned_piece view;rf_physics_body *later;
+        rf_geomod_notify_change change={0};rf_physics_body_state saved=body->state,later_saved;
+        float wake_center[3];uint32_t woke=999;
+        CHECK(!rf_geomod_piece_registry_get(r,1,&second));
+        CHECK(!rf_geomod_piece_batch_get(second,0,&view,&later));later_saved=later->state;
+        memcpy(wake_center,body->state.position,12);change.radius=1000;
+        body->state.flags&=~0x80000000u;later->state.position[0]=NAN;
+        CHECK(rf_geomod_piece_registry_notify(r,&change,wake_center,&woke)==RF_FORMAT);
+        CHECK(woke==999 && !(body->state.flags&0x80000000u));
+        body->state=saved;later->state=later_saved;
+    }
     /* Clone decode + mutate invokes separate traversals; rewind must preserve
      * live bodies and never construct duplicates for either traversal. */
     CHECK(!rf_geomod_piece_registry_begin(r,0));

@@ -10949,7 +10949,9 @@ static int scene_rockets_tick(scene_stream *s,uint32_t frame)
                  }}
                 if(status && rf_scene_combat_trace)printf("GEOMOD_REJECT %u %d %u\n",frame,status,s->terrain_history_count);
                 rf_scene_geomod[5]=(uint32_t)status;
-                if(!status){scene_terrain_edit_mark(timing_row,2,&timing_clock);++rf_scene_geomod[7];++rf_scene_rockets[4];status=scene_debris_spawn(s);if(!status)status=scene_debris_postedit(s,cleanup_center,cleanup_radius,frame);scene_terrain_edit_mark(timing_row,4,&timing_clock);if(status)return status;}
+                if(!status){scene_terrain_edit_mark(timing_row,2,&timing_clock);++rf_scene_geomod[7];++rf_scene_rockets[4];status=scene_debris_spawn(s);if(!status)status=scene_debris_postedit(s,cleanup_center,cleanup_radius,frame);if(!status){rf_geomod_notify_change change={0};uint32_t woken=0;change.radius=cleanup_radius;
+                    status=rf_geomod_piece_registry_notify(s->detached_pieces,&change,cleanup_center,&woken);
+                    if(woken)printf("DETACHED_WAKE %u %u\n",frame,woken);}scene_terrain_edit_mark(timing_row,4,&timing_clock);if(status)return status;}
                 else {++rf_scene_rockets[5];if(status!=RF_RANGE && status!=RF_FORMAT && status!=RF_NOT_FOUND)return status;}
             }
         }
