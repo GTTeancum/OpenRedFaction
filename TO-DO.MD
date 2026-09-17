@@ -1,10 +1,10 @@
 # Red Faction Xbox / PC - open work
 
-- GeoMod rubble piles: Resolve original pair admission and scheduling, then connect fragment queries;27 binary cases confirm admitted kind3 contacts use the existing one-body response without counterpart impulse.
+- GeoMod object interactions: Broaden admitted fragment contacts with actors/props;128 original pair cases prove terrain fragments deliberately exclude one another, so fragment stacking is not a missing fidelity feature.
 
 - GeoMod rubble memory: Reclaim retired resources safely while preserving save/history identity; original terminal terrain fragments explicitly disable lifetime expiry, so healthy rubble must not be deleted on a timer.
 
-- GeoMod rubble wake: Broaden support-loss coverage beyond the dry post; removing its remaining support now wakes the chunk and drops it0.27units on PC/Xbox, with exact PC save continuation and74 native reload comparisons; broader surfaces, moving supports and fragment-fragment collision remain open.
+- GeoMod rubble wake: Broaden support-loss coverage beyond the dry post; removing its remaining support now wakes the chunk and drops it0.27units on PC/Xbox, with exact PC save continuation and74 native reload comparisons; broader surfaces and moving supports remain open; original fragment-fragment exclusion is verified.
 
 - GeoMod traversal: Broaden tight-entrance and slope collision coverage; walking into and back out of the16-cut tunnel passes58 stock64MiB comparisons with exact PC body state.
 - GeoMod validation: Resolve thin-surface proximity ambiguity and broaden collision/nonintersection coverage; sweep/fixed craters pass10130/11422 independent volume samples and native state checks.
@@ -28,7 +28,7 @@
 - GeoMod authored extraction: Broaden piece-aware scene transactions beyond the dry post; ownership, drawing, falling/settling and native checkpoint continuation are verified for that testbed.
 - GeoMod terrain extraction: Broaden integrated scene ownership/rendering beyond the dry post; live motion and native reload are verified, with the terrain core retained within1152KiB.
 - GeoMod piece subdivision: Publish staged geometry/body batches with live extraction; tested10-11-piece batches retain140372-143024 PC bytes under0.9MiB temporary peak and build for Xbox, while exact T-junction splitting now passes extracted replay and broader topology, scene scheduling and rendering remain open.
-- GeoMod detached collision: Broaden current-body-pose collision beyond verified weapons/player contacts; fragment-fragment and NPC locomotion collision remain open.
+- GeoMod detached collision: Broaden current-body-pose collision beyond verified weapons/player contacts; NPC locomotion collision remains open; original fragment-fragment exclusion is verified.
 - GeoMod body notifications: Integrate live extracted-piece bodies and actor wake; owned pieces now preserve mass-center geometry/collision and replay-identical bodies, while subdivision, motion scheduling and rendering remain open.
 - GeoMod post-edit cleanup: Extend notifications to actors/props/glass and other edit producers; rocket-cut settled-debris fading passes41 live original samples and67 stock64MiB PC/Xbox checks, with rejected-edit controls.
 - GeoMod debris motion: Review bounce/relaunch animation visually; ordinary settled-fragment reactivation preserves orientation and passes66 stock64MiB PC/Xbox checks plus2096 original rotation samples.

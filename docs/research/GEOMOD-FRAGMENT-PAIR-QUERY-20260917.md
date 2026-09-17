@@ -15,3 +15,13 @@ Memory-read hooks cover contact counterpart fields+1d4..+1e7 and the valid mappe
 Limits: the probe supplies an admitted contact. It does not execute the preceding collision query or prove that every kind3 pair is admitted, that no earlier response modifies the counterpart, or that scheduling is order-independent. The next task is the original pair-admission and scheduling path. The existing single-body response may be the appropriate downstream solver if those gates admit a pair; no new symmetric impulse should be invented without evidence.
 
 Evidence: tools/probe_fragment_contact_dispatch.py and artifacts/geomod-postedit-re/fragment-contact-dispatch.json; original SHA is checked by the script. No production source or emulator change in this investigation.
+
+## Pair admission resolved: terrain fragments exclude each other
+
+`python tools/probe_fragment_pair_admission.py` executes complete original48be00 without hooks or substituted callees.128 cases cross kind3/3 versus kind3/4, four physics flag combinations per body (awake, settled, scheduler-marked, no collision bits) and four radii. All64 kind3/3 cases reject. Of64 kind3/4 controls,60 admit; the four cases with neither body carrying physics bit20 reject. All source/counterpart bytes and pair flags are verified unchanged.
+
+The type3 dispatch at48c488 subtracts the counterpart kind to test0,2,4; counterpart3 falls through with nonzero result to48c170, which branches to rejection48c77c. Pair creation48bd80 tests48be00's return byte and returns without allocation when it is1. Thus the omission is a deliberate pair policy, not missing geometry detection or an unimplemented impulse solver.
+
+Implementation consequence: do not connect fragment-to-fragment collision or invent rubble stacking/pushing between terrain chunks. Existing terrain-only fragment collision preserves this exclusion. The self-excluding query remains a reusable primitive for future admitted object interactions, but it is not authorization to add excluded pairs. Contacts with players, other entity classes, movers and ordinary world terrain have separate policies. Those and broader destruction geometry remain the useful next work.
+
+Evidence: tools/probe_fragment_pair_admission.py, artifacts/geomod-postedit-re/fragment-pair-admission.json, raw48be00 instruction dispatch and48bd80 caller. Existing one-body response findings remain valid for contacts that are actually admitted. This supersedes earlier open items describing rubble piles/two-body fragment response as required original behavior.
