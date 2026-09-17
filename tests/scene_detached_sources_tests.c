@@ -122,6 +122,49 @@ static int player_sources(void) {
     for(i=0;i<2;i++)rf_geomod_piece_registry_close(r+i);
     puts("PASS collection player motion/ground: later source, stable equal hits, original small-body exclusion; vehicle admission retained");return 0;
 }
+/* Deliberately synthetic large fragments: validates polygon-path support
+ * publication, not a claim that the live post replay extracts these cubes. */
+static int large_support_snap(void) {
+    scene_stream scene={0};scene_terrain_source_owner sources[2]={{0}};
+    rf_geomod_piece_registry *r[2]={0};rf_geomod_piece_batch *batch;
+    rf_geomod_owned_piece piece;rf_physics_body *body;
+    rf_physics_sphere sphere={{0,0,0},.6f};
+    actor_ground_record ground={0};rf_geometry_body_hit contact={0};
+    uint32_t slot,landing,clear,k;rf_physics_body_state state;
+    CHECK(!cube(0,.8f,r));CHECK(!cube(4,.8f,r+1));
+    for(slot=0;slot<2;slot++) {
+        sources[slot].pieces=r[slot];CHECK(!rf_geomod_piece_registry_get(r[slot],0,&batch));
+        CHECK(!rf_geomod_piece_batch_get(batch,0,&piece,&body));
+        CHECK(body->state.bounds.radius>1); /* Actual polygon dispatch boundary. */
+        body->state.flags&=~0x80000000u;
+    }
+    scene.terrain_sources=sources;scene.terrain_source_count=2;
+    campaign_spawn=1;scene_actor_collision_owner=&scene;
+    memset(&scene_actor_body,0,sizeof(scene_actor_body));
+    scene_actor_body.allocated_bytes=sizeof(scene_actor_body);
+    scene_actor_body.spheres.items=&sphere;scene_actor_body.spheres.count=1;
+    ground.probe.start[1]=2;ground.probe.end[1]=-2;ground.hit.hit.fraction=.5f;
+    contact.solid=UINT32_MAX;
+    for(slot=0;slot<2;slot++)for(landing=0;landing<2;landing++)for(clear=0;clear<2;clear++) {
+        memset(&state,0,sizeof(state));state.mass=10;state.flags=0x8000003f;
+        state.position[0]=state.next_position[0]=4.0f*slot;
+        state.position[1]=state.next_position[1]=2;
+        state.position[2]=state.next_position[2]=clear?2:0;
+        state.bounds.radius=.6f;
+        for(k=0;k<3;k++)state.orientation[k*3+k]=state.next_orientation[k*3+k]=1;
+        CHECK(!rf_physics_body_prepare_sweep(&state));
+        CHECK(!actor_support_commit(&state,&ground,&contact,landing));
+        /* Exact flat surface height + player sphere radius, or unobstructed
+         * original support proposal. Bounds and pending pose must agree. */
+        CHECK(fabsf(state.position[1]-(clear?.05f:1.4f))<.0001f);
+        CHECK(state.next_position[1]==state.position[1]);
+        CHECK(fabsf(state.bounds.minimum[1]-(state.position[1]-.6f))<.0001f);
+        CHECK(fabsf(state.bounds.maximum[1]-(state.position[1]+.6f))<.0001f);
+    }
+    scene_actor_collision_owner=NULL;campaign_spawn=0;memset(&scene_actor_body,0,sizeof(scene_actor_body));
+    for(slot=0;slot<2;slot++)rf_geomod_piece_registry_close(r+slot);
+    puts("PASS large-fragment polygon support snap: both source slots, landing/support and unobstructed descent controls");return 0;
+}
 int main(void) {
     rf_geomod_piece_registry *registries[2]={0};scene_terrain_authored_assets assets[2]={{0}};
     scene_terrain_source_owner sources[2];scene_stream scene={0};rf_geomod_registry_hit hit,sentinel;
@@ -156,6 +199,6 @@ int main(void) {
     found=77;CHECK(scene_detached_sources_sweep(&scene,4,start,delta,0,NAN,&hit,&found)!=RF_OK);
     CHECK(found==77 && !memcmp(&hit,&sentinel,sizeof(hit)));
     free(before);free(after);for(i=0;i<2;i++)rf_geomod_piece_registry_close(registries+i);
-    CHECK(!player_sources());CHECK(!notify_sources());
+    CHECK(!player_sources());CHECK(!notify_sources());CHECK(!large_support_snap());
     puts("PASS multi-source weapon queries: nearer later source, stable ties, selected alias, isolated damage and atomic misses/errors");return 0;
 }
