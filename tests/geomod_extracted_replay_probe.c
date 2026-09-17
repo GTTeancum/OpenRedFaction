@@ -4,6 +4,7 @@
 #include "geomod_chronological_solid_tests.c"
 #undef main
 #include "rf/geomod_piece_bank.h"
+#include "rf/preview.h"
 #define REQUIRE(x) do {if(!(x)){fprintf(stderr,"extracted replay line %d: %s\n",__LINE__,#x);exit(1);}}while(0)
 typedef struct capture_context {
     rf_geomod_piece_bank *bank;uint32_t prefix;
@@ -74,6 +75,43 @@ static void piece_contacts(const rf_geomod_owned_piece *piece)
         REQUIRE(!matched && !memcmp(&hit,&kept,sizeof(hit)));
     }
     printf("PASS owned piece %u: %u translated/rotated ray and sphere contacts plus miss\n",piece->id,hits);
+}
+static void piece_draw_pose(rf_geomod_piece_batch *batch)
+{
+    rf_geomod_owned_piece piece;rf_physics_body *body;rf_level camera={0};
+    static rf_preview_vertex actual[4096],expected[4096],kept[4096];
+    rf_geomod_vertex world_vertices[2048];rf_collision_face bound[512];float positions[2048][3],colors[2048][3];
+    const float matrices[2][3][3]={{{1,0,0},{0,1,0},{0,0,1}},{{0,1,0},{-1,0,0},{0,0,1}}};
+    uint32_t pose,i,k,j,total=0;
+    REQUIRE(!rf_geomod_piece_batch_get(batch,0,&piece,&body));
+    REQUIRE(piece.mesh.vertex_count<=2048 && piece.mesh.face_count<=512);
+    camera.player_orientation[0][0]=camera.player_orientation[1][1]=camera.player_orientation[2][2]=1;
+    for(i=0;i<piece.mesh.vertex_count;i++){colors[i][0]=1;colors[i][1]=.5f;colors[i][2]=.25f;}
+    for(pose=0;pose<2;pose++)for(uint32_t near=0;near<2;near++) {
+        rf_geomod_mesh_view world=piece.mesh;rf_preview_mesh a={actual,0,0},b={expected,0,0};
+        float origin[3]={body->state.position[0]+3,body->state.position[1]-4,body->state.position[2]+5};
+        world.vertices=world_vertices;camera.player_position[2]=near?origin[2]-9.95f:-50;
+        for(i=0;i<piece.mesh.vertex_count;i++) {
+            world_vertices[i]=piece.mesh.vertices[i];
+            for(k=0;k<3;k++) {
+                double value=0;for(j=0;j<3;j++)value+=(double)piece.mesh.vertices[i].position[j]*matrices[pose][j][k];
+                world_vertices[i].position[k]=(float)(value+origin[k]);
+            }
+        }
+        REQUIRE(!rf_geomod_collision_faces(&world,piece.filters,positions,2048,bound,512));
+        REQUIRE(!rf_preview_geomod_vertex_lit(&b,sizeof(expected),&world,bound,8,&camera,colors));
+        REQUIRE(!rf_preview_geomod_pose(&a,sizeof(actual),&piece.mesh,piece.collision,8,&camera,origin,matrices[pose],colors));
+        REQUIRE(a.count==b.count && a.bytes==b.bytes);
+        if(!near)REQUIRE(a.count);
+        REQUIRE(!memcmp(actual,expected,a.bytes));total+=a.count;
+        memcpy(kept,actual,a.bytes);
+        if(a.bytes) {
+            rf_preview_mesh before=a;
+            REQUIRE(rf_preview_geomod_pose(&a,a.bytes-1,&piece.mesh,piece.collision,8,&camera,origin,matrices[pose],colors)==RF_RANGE);
+            REQUIRE(!memcmp(&a,&before,sizeof(a)) && !memcmp(actual,kept,a.bytes));
+        }
+    }
+    printf("PASS detached draw %u projected vertices: translated/rotated poses, clipping, UV/material/color parity and capacity rollback\n",total);
 }
 static void moving_batch_contacts(rf_geomod_piece_batch *batch)
 {
@@ -226,6 +264,7 @@ int main(void)
     rf_geomod_storage_close(&replay->mesh);
     REQUIRE(rf_geomod_piece_bank_count(owned[round])==2);
     }
+    piece_draw_pose(batches[0][0]);
     moving_batch_contacts(batches[0][0]);
     moving_batch_contacts(batches[0][3]);
     REQUIRE(batch_random[0].value==batch_random[1].value);

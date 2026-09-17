@@ -1,4 +1,5 @@
 #include "rf/resource_budget.h"
+#include "rf/geomod_piece_bank.h"
 #include "rf/composed_checkpoint.h"
 #include "rf/checkpoint_placement.h"
 #include "rf/eye.h"
@@ -641,7 +642,7 @@ typedef struct scene_stream {
     scene_terrain_noise_owner *terrain_noise;uint32_t terrain_shadow_reference,terrain_test_light;
     uint32_t terrain_map_limit,terrain_map_limit_until; /* Explicit fault injection; zero is unrestricted. */
     scene_terrain_draw_mesh *terrain_draw;
-    scene_debris_pool *debris;
+    scene_debris_pool *debris;rf_geomod_piece_registry *detached_pieces;
     rf_geomod_terrain *terrain;rf_geometry_collision_overlay terrain_collision;
     rf_geomod_template *terrain_template;rf_random_state terrain_random;uint32_t terrain_texture_width,terrain_texture_height;float (*terrain_colors)[3];
     scene_terrain_light_cache *terrain_light_cache;
@@ -10647,6 +10648,33 @@ static int scene_debris_draw(scene_stream *s)
     rf_scene_debris[5]=npc_hash_bytes(2166136261u,s->mesh->vertices+start,rf_scene_debris[4]*sizeof(rf_preview_vertex));return RF_OK;
 }
 
+uint32_t rf_scene_detached_pieces[6]; /* active,batches,pieces,draw vertices,resident,status */
+static int scene_detached_draw(scene_stream *s)
+{
+    uint32_t b,i;int status;memset(rf_scene_detached_pieces,0,sizeof(rf_scene_detached_pieces));
+    if(!s->detached_pieces)return RF_OK;
+    rf_scene_detached_pieces[0]=1;
+    rf_scene_detached_pieces[1]=rf_geomod_piece_registry_count(s->detached_pieces);
+    rf_scene_detached_pieces[4]=rf_geomod_piece_registry_bytes(s->detached_pieces);
+    for(b=0;b<rf_scene_detached_pieces[1];b++) {
+        rf_geomod_piece_batch *batch;
+        status=rf_geomod_piece_registry_get(s->detached_pieces,b,&batch);if(status)goto failed;
+        for(i=0;i<rf_geomod_piece_batch_count(batch);i++) {
+            rf_geomod_owned_piece piece;rf_physics_body *body;rf_preview_mesh emitted={0};
+            status=rf_geomod_piece_batch_get(batch,i,&piece,&body);if(status)goto failed;
+            emitted.vertices=s->mesh->vertices+s->mesh->count;
+            status=rf_preview_geomod_pose(&emitted,s->capacity-s->mesh->bytes,&piece.mesh,piece.collision,
+                s->materials->count,&s->rocket_camera,body->state.position,(const float (*)[3])body->state.orientation,NULL);
+            if(status)goto failed;
+            s->mesh->count+=emitted.count;s->mesh->bytes+=emitted.bytes;
+            rf_scene_detached_pieces[2]++;rf_scene_detached_pieces[3]+=emitted.count;
+        }
+    }
+    return RF_OK;
+failed:
+    rf_scene_detached_pieces[5]=(uint32_t)status;return status;
+}
+
 uint32_t rf_scene_rocket_blast[8]; /* explosions, candidates, damaged, NPC kills, self hits, last amount bits, occluded, status */
 /* Ordinary489010 victim: cover ray to physics position with CF5, then falloff.
  * Bullet rays intentionally retain their distinct CF0x27 policy. */
@@ -13519,6 +13547,7 @@ static int scene_frame(void *context,uint32_t frame,rf_preview_mesh *actor)
         status=scene_pickups_draw(stream);presentation_mark(3,&presentation_clock);if(status){rf_scene_profile_stage[1]=204;return status;}
         status=scene_rockets_draw(stream,frame);rf_scene_rocket_visual[6]=(uint32_t)status;if(status){rf_scene_profile_stage[1]=207;return status;}
         status=scene_debris_draw(stream);if(status){rf_scene_profile_stage[1]=208;return status;}
+        status=scene_detached_draw(stream);if(status){rf_scene_profile_stage[1]=209;return status;}
         status=scene_ripples_draw(stream,frame);rf_scene_ripple_visual[6]=(uint32_t)status;if(status){rf_scene_profile_stage[1]=209;return status;}
         status=scene_player_weapon_draw(stream,frame);presentation_mark(4,&presentation_clock);if(status){rf_scene_profile_stage[1]=205;return status;}
         particle_draw_stream=stream;
@@ -14487,6 +14516,7 @@ done:
     if(!stream->terrain_atlas_registered)rf_image_close(&stream->terrain_atlas);
     if(status && stream->terrain_noise)printf("NOISE_FAILURE %d %u %u %u %u %u %u\n",status,stream->terrain_noise->count,stream->terrain_noise->bake,stream->terrain_noise->sample,stream->terrain_noise->x,stream->terrain_noise->y,stream->terrain_noise->generation);
     free(stream->terrain_noise);free(stream->terrain_atlas_pixels);free(stream->terrain_tile);free(stream->terrain_bindings);free(stream->terrain_tiles);
+    rf_geomod_piece_registry_close(&stream->detached_pieces);
     free(stream->terrain_face_offsets);rf_geometry_collision_overlay_close(&stream->terrain_collision);scene_terrain_publication_close(&stream->terrain_publication);rf_geomod_terrain_close(&stream->terrain);scene_terrain_authored_close(&stream->terrain_authored);free(stream->terrain_template);free(stream->terrain_colors);free(stream->terrain_regions);free(stream->terrain_light_cache);free(stream->terrain_ids);free(stream->terrain_draw);free(stream->debris);
     free(stream->liquid_rooms);free(stream->surface_indices);free(states);if(motions_opened)rf_vpp_close(&motions);
     free(vertices);free(items);rf_preview_close(&actor);rf_model_materials_close(&bundle);

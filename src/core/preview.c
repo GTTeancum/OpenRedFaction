@@ -177,6 +177,14 @@ static int generate_source(rf_preview_mesh *mesh, const rf_geometry *g, const rf
         /* Static cached-solid branch rejects nonpositive camera/plane distance.
          * Mover-local camera preparation remains separate. */
         if(!origin && !rf_preview_plane_visible(face.plane,level->player_position))continue;
+        if(origin && generated) {
+            float local_camera[3];uint32_t axis,k;
+            for(axis=0;axis<3;axis++) {
+                double value=0;for(k=0;k<3;k++)value+=((double)level->player_position[k]-origin[k])*matrix[axis][k];
+                local_camera[axis]=(float)value;
+            }
+            if(!rf_preview_plane_visible(face.plane,local_camera))continue;
+        }
         if(origin) {
             rf_collision_ray_hit local={0},world;memcpy(local.normal,face.plane,12);
             status=rf_collision_contact_world(&local,origin,matrix,&world);if(status)return status;memcpy(face.plane,world.normal,12);
@@ -256,13 +264,18 @@ static int generate(rf_preview_mesh *mesh,const rf_geometry *g,const rf_level *l
 {
     return generate_source(mesh,g,level,capacity,origin,matrix,material_base,visibility,NULL,NULL,NULL,NULL,NULL,NULL);
 }
-static int geomod_lit(rf_preview_mesh *mesh,uint32_t capacity_bytes,
+static int geomod_pose_lit(rf_preview_mesh *mesh,uint32_t capacity_bytes,
     const rf_geomod_mesh_view *source,const rf_collision_face *bound,
-    uint32_t material_count,const rf_level *level,const float (*face_colors)[3],const float (*vertex_colors)[3],const rf_geometry *authored,const rf_preview_surface_lightmap *bindings)
+    uint32_t material_count,const rf_level *level,const float (*face_colors)[3],const float (*vertex_colors)[3],const rf_geometry *authored,const rf_preview_surface_lightmap *bindings,const float *origin,const float matrix[3][3])
 {
     rf_geometry metadata={0};rf_preview_mesh next={0};uint32_t i,j;int status;
     if(!mesh || !source || !level || (capacity_bytes && !mesh->vertices) ||
        (source->vertex_count && !source->vertices) || (source->face_count && (!source->faces || !bound)))return RF_RANGE;
+    if((origin==NULL)!=(matrix==NULL))return RF_RANGE;
+    if(origin)for(i=0;i<3;i++) {
+        if(!isfinite(origin[i]))return RF_FORMAT;
+        for(j=0;j<3;j++)if(!isfinite(matrix[i][j]))return RF_FORMAT;
+    }
     for(i=0;i<3;i++) {
         if(!isfinite(level->player_position[i]))return RF_FORMAT;
         for(j=0;j<3;j++)if(!isfinite(level->player_orientation[i][j]))return RF_FORMAT;
@@ -285,12 +298,24 @@ static int geomod_lit(rf_preview_mesh *mesh,uint32_t capacity_bytes,
         for(j=0;j<4;j++)if(!isfinite(bound[i].plane[j]))return RF_FORMAT;
     }
     metadata.faces=source->face_count;metadata.textures=material_count;
-    status=generate_source(&next,&metadata,level,capacity_bytes/sizeof(rf_preview_vertex),NULL,NULL,0,NULL,source,bound,face_colors,vertex_colors,authored,bindings);
+    status=generate_source(&next,&metadata,level,capacity_bytes/sizeof(rf_preview_vertex),origin,matrix,0,NULL,source,bound,face_colors,vertex_colors,authored,bindings);
     if(status)return status;
     next.vertices=mesh->vertices;
-    status=generate_source(&next,&metadata,level,capacity_bytes/sizeof(rf_preview_vertex),NULL,NULL,0,NULL,source,bound,face_colors,vertex_colors,authored,bindings);
+    status=generate_source(&next,&metadata,level,capacity_bytes/sizeof(rf_preview_vertex),origin,matrix,0,NULL,source,bound,face_colors,vertex_colors,authored,bindings);
     if(status)return status;
     next.bytes=next.count*sizeof(rf_preview_vertex);*mesh=next;return RF_OK;
+}
+static int geomod_lit(rf_preview_mesh *mesh,uint32_t capacity_bytes,
+    const rf_geomod_mesh_view *source,const rf_collision_face *bound,
+    uint32_t material_count,const rf_level *level,const float (*face_colors)[3],const float (*vertex_colors)[3],
+    const rf_geometry *authored,const rf_preview_surface_lightmap *bindings)
+{return geomod_pose_lit(mesh,capacity_bytes,source,bound,material_count,level,face_colors,vertex_colors,authored,bindings,NULL,NULL);}
+int rf_preview_geomod_pose(rf_preview_mesh *mesh,uint32_t capacity_bytes,
+    const rf_geomod_mesh_view *source,const rf_collision_face *bound,uint32_t material_count,
+    const rf_level *camera,const float origin[3],const float matrix[3][3],const float (*colors)[3])
+{
+    if(!origin || !matrix)return RF_RANGE;
+    return geomod_pose_lit(mesh,capacity_bytes,source,bound,material_count,camera,NULL,colors,NULL,NULL,origin,matrix);
 }
 int rf_preview_geomod_lit(rf_preview_mesh *mesh,uint32_t capacity_bytes,
     const rf_geomod_mesh_view *source,const rf_collision_face *bound,uint32_t material_count,

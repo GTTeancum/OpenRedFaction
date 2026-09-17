@@ -144,3 +144,32 @@ link pass: artifacts/geomod-postedit-re/piece-scene-transaction-xbox.log. The
 first incremental invocation skipped the changed .inc dependency; scene.c's
 mtime was then refreshed and actual scene.obj recompilation was verified.
 No live scene or rendering acceptance was performed.
+
+## Pose-based drawing path
+
+rf_preview_geomod_pose projects local piece polygons at the supplied body
+position/orientation through the shared clipping and draw-vertex generator.
+No geometry copies or heap allocations are needed. Backface selection transforms
+the camera into local space. UV/material slots remain corner/face-owned; supplied
+vertex RGB follows the piece. NULL colors retain diagnostic directional tint,
+not final world lighting or detached lightmap ownership.
+
+scene_stream now has a nullable detached_pieces registry and its regular draw
+path submits every active batch using each body's current pose. Scene shutdown
+closes the registry. rf_scene_detached_pieces reports active/batches/pieces/draw
+vertices/resident/status. No scene factory allocates or enables it yet, so this
+is compiled draw integration, not a visible gameplay change.
+
+The extracted replay test compares the complete projected output against an
+independently transformed world mesh and rebuilt collision planes. Identity and
+90-degree rotated poses, translation and near-camera clipping produce33 visible
+vertices total; one close pose correctly has no front-facing visible output.
+All projected position, UV/material, color and lightmap fields match exactly.
+Insufficient output capacity preserves prior bytes and counts. These tests do
+not establish rendered appearance.
+
+Release extracted_replay and interior_faces pass. The full PC preview scene
+build passes (artifacts/geomod-postedit-re/detached-draw-pc.log). Stock NXDK build
+passes (artifacts/geomod-postedit-re/detached-draw-xbox.log). Live ownership
+activation, material resolution, total budgets, checkpoint behavior, motion,
+collision registration and visual inspection remain unfinished.

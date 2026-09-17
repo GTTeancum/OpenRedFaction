@@ -30,6 +30,13 @@ typedef struct rf_preview_mesh { rf_preview_vertex *vertices; uint32_t count, by
 int rf_preview_geomod(rf_preview_mesh *mesh,uint32_t capacity_bytes,
     const rf_geomod_mesh_view *source,const rf_collision_face *bound,
     uint32_t material_count,const rf_level *camera);
+/* Detached local geometry at an orthonormal body pose. No geometry copy or heap
+ * allocation. Uses local-space backface selection, world-space clipping and
+ * preserved corner UV/material slots. Optional local-corner RGB follows the
+ * piece; NULL uses diagnostic directional shading. No atlas ownership. */
+int rf_preview_geomod_pose(rf_preview_mesh *,uint32_t capacity_bytes,
+    const rf_geomod_mesh_view *,const rf_collision_face *,uint32_t material_count,
+    const rf_level *camera,const float origin[3],const float matrix[3][3],const float (*colors)[3]);
 /* Explicit linear RGB per face, validated in[0,1]; no preview tint. */
 /* Per-source-corner colors survive frustum clipping; hard face normals remain
  * the caller's responsibility. Invalid RGB preserves the destination mesh. */
