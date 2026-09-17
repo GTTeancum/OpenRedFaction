@@ -31,3 +31,25 @@ not yet validated. Shared geometry in partly live batches remains allocated;
 per-piece geometry compaction and the historical sixteen-batch limit remain open.
 This collection changes storage lifetime only, not damage, healthy expiry, physics
 shape, or save identity semantics.
+
+## Stock64MiB native validation
+
+`artifacts/xemu/render-20260917-102743` runs the550-frame two-rocket destruction
+sequence. All74 checks pass. Native retained rubble residency is1852bytes, with
+zero live/drawn chunks and a2760-byte checkpoint identical to PC. Its SHA256 is
+`4733d79800840a340087cb474604ae5caefcf449b03e21e0b51bca8a224fbb7b`.
+
+`artifacts/xemu/render-20260917-102925` loads that Xbox-created checkpoint in a
+fresh owned process and continues for201 rendered frames. All74 checks pass;
+the retired chunk remains absent and retained residency stays1852bytes. The
+final checkpoint also matches uninterrupted PC continuation byte-for-byte:
+`020de8f1f631b4d514cd708a43979efcd9b0b622de361f433f86e7158cb4e5f1`.
+
+Both memory reports show67108864 base bytes and zero added memory. Native endpoint
+framebuffers were inspected: the room, weapon and HUD render, and the retired
+chunk is absent in both. This does not establish complete animation/audio fidelity.
+Owned emulator processes closed and the build disc was restored. The harness used
+the reusable base and did not retain another HDD or ISO copy.
+
+Repeated new destruction after collection, partly live shared geometry and larger
+histories remain open; this validation covers one naturally extracted retired batch.
