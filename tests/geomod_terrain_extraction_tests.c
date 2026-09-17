@@ -265,13 +265,35 @@ static void registry_lifetime(const rf_geomod_mesh_view *mesh,const rf_collision
             CHECK(!rf_geomod_piece_registry_player_motion(r,&actor,&query,1,&movement,&matched));
             CHECK(matched && movement.face==UINT32_MAX && movement.sphere==UINT32_MAX);
             CHECK(movement.contact.fraction==hit.time && movement.contact.normal[1]>0);
+            CHECK(!rf_geomod_piece_registry_player_ground(r,&actor,query.start,query.end,0,1,1,&movement,&matched));
+            CHECK(matched && movement.face==UINT32_MAX && movement.contact.normal[1]>0);
+            {rf_checkpoint_placement placement={0};rf_physics_sphere sources[2]={{0}};rf_physics_ground_probe probe={0};
+             rf_geomod_player_support_context context={r,&placement};rf_checkpoint_support_hit support;uint32_t j;
+             placement.spheres=sources;placement.count=2;sources[0].radius=sources[1].radius=.1f;sources[0].center[0]=100;
+             for(j=0;j<3;j++)placement.basis[j*3+j]=1;
+             memcpy(probe.start,query.start,12);memcpy(probe.end,query.end,12);probe.sphere=sources[0];probe.bounds.radius=100.1f;
+             /* The lowest/index-zero sphere misses; the full body still has support. */
+             CHECK(!rf_geomod_piece_registry_support(r,&probe,1,&support,&matched) && !matched);
+             CHECK(!rf_geomod_piece_registry_player_support(&context,&probe,1,&support,&matched) && matched);
+             CHECK(support.normal[1]>0 && support.fraction>0 && support.fraction<1);}
+            {rf_checkpoint_placement placement={0};rf_physics_sphere local={0};uint32_t j;
+             placement.spheres=&local;placement.count=1;local.radius=.1f;
+             for(j=0;j<3;j++){placement.basis[j*3+j]=1;placement.position[j]=body->state.position[j]+body->spheres.items[0].center[j];}
+             CHECK(rf_geomod_piece_registry_placement_check(r,&placement)==RF_NOT_FOUND);
+             placement.position[1]+=100;CHECK(!rf_geomod_piece_registry_placement_check(r,&placement));}
             body->state.bounds.radius=1.0001f;
             CHECK(!rf_geomod_piece_registry_player_motion(r,&actor,&query,1,&movement,&matched));
             CHECK(matched && movement.face!=UINT32_MAX && movement.sphere==0);
+            CHECK(!rf_geomod_piece_registry_player_ground(r,&actor,query.start,query.end,0,1,1,&movement,&matched));
+            CHECK(matched && movement.face!=UINT32_MAX);
             kept=movement;body->state.bounds.radius=.5f;
             CHECK(!rf_geomod_piece_registry_player_motion(r,&actor,&query,1,&movement,&matched));
             CHECK(!matched && !memcmp(&movement,&kept,sizeof(kept)));
+            CHECK(!rf_geomod_piece_registry_player_ground(r,&actor,query.start,query.end,0,1,1,&movement,&matched));
+            CHECK(!matched && !memcmp(&movement,&kept,sizeof(kept)));
             body->state.bounds.radius=1;query.limit=0;
+            CHECK(!rf_geomod_piece_registry_player_ground(r,&actor,query.start,query.end,0,0,1,&movement,&matched));
+            CHECK(!matched && !memcmp(&movement,&kept,sizeof(kept)));
             CHECK(!rf_geomod_piece_registry_player_motion(r,&actor,&query,1,&movement,&matched));
             CHECK(!matched && !memcmp(&movement,&kept,sizeof(kept)));
             body->state.bounds.radius=radius;

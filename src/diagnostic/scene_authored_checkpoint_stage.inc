@@ -106,12 +106,13 @@ static int scene_authored_checkpoint_stage_prepare(scene_stream *s,const void *i
     status=rf_authored_owner_extension_decode(data+288,128,&p->expected,p->cuts,&p->extension);if(status)goto failed;
     if(p->extension.serial!=serial){status=RF_FORMAT;goto failed;}
     if(player) {
+        rf_geomod_player_support_context support={p->pieces,player};
         /* Only this composed tree replaces the full room. The publication
          * mesh is a subset and cannot provide cavity-style player admission. */
         full=p->publication;full.faces=composition.tree->faces;full.tree=p->lighting->candidate.tree;
         full.mesh.face_count=composition.count;
         status=rf_checkpoint_standing_check_with_support(&full,player,scene_step_seconds,rf_scene_actor_movement_values.speed,
-            rf_geomod_piece_registry_support,p->pieces,NULL);
+            rf_geomod_piece_registry_player_support,&support,NULL);
         if(!status) {
             status=rf_geomod_piece_registry_placement_check(p->pieces,player);
             if(status)printf("DETACHED_PLAYER_RESTORE_REJECT %d\n",status);

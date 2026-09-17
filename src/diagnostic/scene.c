@@ -7069,7 +7069,11 @@ static int campaign_player_piece_query(const rf_geometry_collision_world *world,
         body.state=*motion;status=rf_physics_body_prepare_sweep(&body.state);if(status)return status;
         status=collision_body_response(&body,&extra,campaign_player_object.handle,1,0,&actor);if(status)return status;
         status=rf_geomod_piece_registry_player_motion(s->detached_pieces,&actor,&limited,1,&hit,&found);
-    } else status=rf_geomod_piece_registry_player_admitted_sweep(s->detached_pieces,&limited,1,&hit,&found);
+    } else {
+        rf_collision_actor_general_response actor;rf_collision_contact_extra extra={0};
+        status=collision_body_response(&scene_actor_body,&extra,campaign_player_object.handle,1,0,&actor);if(status)return status;
+        status=rf_geomod_piece_registry_player_ground(s->detached_pieces,&actor,limited.start,limited.end,limited.flags,limited.limit,1,&hit,&found);
+    }
     rf_scene_detached_player[6]=(uint32_t)status;if(status)return status;
     if(found && (!*matched || hit.contact.fraction<contact->contact.fraction)) {
         rf_geometry_body_hit value={0};value.contact=hit.contact;value.solid=UINT32_MAX;

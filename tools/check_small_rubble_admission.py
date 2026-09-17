@@ -25,5 +25,5 @@ for name,recording in recordings.items():
  assert position[1]<0,(name,position)
  report[name]=dict(position=position,pieces=pieces,contacts=contacts)
 assert (folder/'continued.rfcp').read_bytes()==(folder/'control.rfcp').read_bytes(),'continuation differs'
-report['scope']='Small real post chunk stays present but does not collide with or support player; save continuation exact. Intermediate-radius sphere routing and native execution remain open.'
+report['scope']='Small real post chunk stays present but does not collide with or support player; save continuation exact. Live intermediate-radius verification remains open; native small-fragment acceptance is recorded separately.'
 (folder/'report.json').write_text(json.dumps(report,indent=2)+'\n');print(json.dumps(report,indent=2))

@@ -201,3 +201,29 @@ Ghidra export artifacts/analysis/rf_b8fb9ab4c9bf/499670.c.txt.
 
 Scene ground/support integration is still pending; adding this primitive alone
 does not change what a player can stand on in the live build.
+
+## Ground/support and checkpoint integration
+
+`rf_geomod_piece_registry_player_ground` now composes original499670 sphere
+queries for body radius(0.5,1] with polygon queries above1. The live player
+adapter passes the full player sphere list and fixed orientation, with the ground
+probe's start/end translations. It does not silently reduce the fragment pair
+query to the single lowest sphere used for the static-world ground query.
+Scratch contacts hide original499670's rejected-candidate normal writes; misses
+preserve output. Nearest polygons win exact ties with sphere candidates.
+
+Checkpoint capture and restore now pass the complete player shape through
+`rf_geomod_player_support_context`. Intermediate-size placement checks use
+sphere/sphere overlap with the existing0.002 clearance tolerance; larger shapes
+retain polygon containment. Sleeping/zero-motion support eligibility remains.
+The old single-sphere support adapter is retained for direct probe callers and
+now uses the same size-selected ground query.
+
+Tests cover sphere/polygon routes, the0.5 cutoff, zero-limit output preservation,
+intermediate sphere overlap/clearance, and a full-body support case where the
+first sphere misses but the second hits. All121 PC tests pass. The rebuilt stock
+NXDK XBE/ISO succeeds and all1080 original/NXDK ground packet comparisons remain
+exact. The live small-fragment jump/walk/save control still passes with identical
+checkpoint continuation. Positive natural intermediate-size contact and native
+execution of that positive path remain unverified; the earlier small-fragment
+native run cannot prove those branches.

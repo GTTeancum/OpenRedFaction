@@ -138,7 +138,7 @@ int rf_geomod_piece_registry_body_sweep_excluding(const rf_geomod_piece_registry
     uint32_t excluded_batch,uint32_t excluded_piece,const rf_collision_body_query *,
     uint32_t surface_material,rf_geomod_registry_body_hit *,uint32_t *matched);
 /* Player admission filter: ignores body radius<=0.5. Polygon geometry for
- * admitted pieces; retained for ground probing pending its sphere route.
+ * admitted pieces; use player_ground/player_motion for size-selected shapes.
  * Generic weapon/body queries deliberately retain their own eligibility. */
 int rf_geomod_piece_registry_player_admitted_sweep(const rf_geomod_piece_registry *,
     const rf_collision_body_query *,uint32_t material,rf_geomod_registry_body_hit *,uint32_t *matched);
@@ -191,4 +191,15 @@ int rf_geomod_piece_registry_state_decode(rf_geomod_piece_registry *,const void 
 int rf_geomod_piece_bank_get(const rf_geomod_piece_bank *,uint32_t index,rf_geomod_owned_piece *);
 uint32_t rf_geomod_piece_bank_count(const rf_geomod_piece_bank *);
 uint32_t rf_geomod_piece_bank_bytes(const rf_geomod_piece_bank *);
+
+/* Ground prequery: full player sphere set at fixed orientation, overridden
+ * start/end translations. Size-selected sphere/polygon routes; atomic misses. */
+int rf_geomod_piece_registry_player_ground(const rf_geomod_piece_registry *,
+    const rf_collision_actor_general_response *,const float start[3],const float end[3],
+    uint32_t flags,float limit,uint32_t material,rf_geomod_registry_body_hit *,uint32_t *matched);
+typedef struct rf_geomod_player_support_context {
+    const rf_geomod_piece_registry *registry;const struct rf_checkpoint_placement *player;
+} rf_geomod_player_support_context;
+int rf_geomod_piece_registry_player_support(void *,const rf_physics_ground_probe *,float,
+    struct rf_checkpoint_support_hit *,uint32_t *);
 #endif
