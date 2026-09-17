@@ -705,6 +705,7 @@ typedef struct scene_stream {
 #include "scene_detached_sources.inc"
 static scene_stream *particle_draw_stream;
 static scene_stream *scene_actor_collision_owner;
+static int scene_runtime_material_rows(scene_stream *,const rf_geometry_runtime_surface **,uint32_t *);
 unsigned char *rf_scene_geomod_checkpoint_data;
 uint32_t rf_scene_geomod_checkpoint_state[4]; /* status,bytes,FNV1a,ready; retained native output. */
 uint32_t rf_scene_geomod_checkpoint_memory[2]; /* external blob resident/peak, excludes core charged scratch. */
@@ -2797,6 +2798,7 @@ static rf_geometry_materials campaign_alpha_mapping;
 static int32_t *campaign_alpha_overlay_bitmaps;
 static rf_collision_indexed_texture_backend *campaign_alpha_body_backends;
 static rf_geometry_material_collision campaign_alpha_overlay_view;
+static rf_geometry_material_runtime campaign_alpha_runtime_view;
 static uint32_t campaign_alpha_overlay_capacity,campaign_alpha_overlay_room=UINT32_MAX;
 static rf_geometry_texture_workspace campaign_alpha_work;
 static const rf_geometry_collision_world *campaign_alpha_world;
@@ -2822,6 +2824,18 @@ static int campaign_alpha_sample(void *context,uint32_t index,const rf_collision
     if(status)return status;
     record[0]=view->geometry_index;record[1]=view->source_indices?view->source_indices[index]:index;
     memcpy(record+2,point,12);record[5]=*color;
+    rf_scene_geometry_textures[10]=npc_hash_bytes(rf_scene_geometry_textures[10],record,sizeof(record));return RF_OK;
+}
+static int campaign_alpha_runtime_sample(void *context,uint32_t index,const rf_collision_face *face,
+    int32_t bitmap,const float point[3],uint32_t *color) {
+    const rf_geometry_material_runtime *runtime=context;const rf_geometry_material_collision *view=runtime->base;
+    uint32_t id,record[6];int status;
+    if(index>=view->face_count)return RF_RANGE;id=view->source_indices?view->source_indices[index]:index;
+    if(id<view->geometry->faces)return campaign_alpha_sample((void *)view,index,face,bitmap,point,color);
+    ++rf_scene_geometry_textures[7];status=rf_geometry_material_runtime_sample(context,index,face,bitmap,point,color);
+    if(campaign_alpha_query_active){++rf_scene_geometry_alpha_contacts[0];++rf_scene_geometry_alpha_contacts[status?3:(*color>>24)<128?1:2];}
+    if(status)return status;
+    record[0]=view->geometry_index;record[1]=id;memcpy(record+2,point,12);record[5]=*color;
     rf_scene_geometry_textures[10]=npc_hash_bytes(rf_scene_geometry_textures[10],record,sizeof(record));return RF_OK;
 }
 static int campaign_alpha_open(const rf_geometry_collision_world *world,const rf_materials *materials)
@@ -2890,9 +2904,16 @@ static int campaign_alpha_refresh_overlay(const rf_geometry_collision_world *wor
         if(campaign_alpha_overlay_room!=UINT32_MAX && campaign_alpha_overlay_room!=i)return RF_RANGE;
         if(tree->face_count>campaign_alpha_overlay_capacity)return RF_RANGE;
         candidate.source_indices=tree->source_indices;candidate.face_count=tree->face_count;
-        status=rf_geometry_material_collision_bind(&candidate,campaign_alpha_overlay_bitmaps,campaign_alpha_overlay_capacity,&backend);
+        campaign_alpha_overlay_view=candidate;campaign_alpha_runtime_view.base=&campaign_alpha_overlay_view;
+        status=scene_runtime_material_rows(scene_actor_collision_owner,&campaign_alpha_runtime_view.surfaces,&campaign_alpha_runtime_view.count);if(status)return status;
+        if(campaign_alpha_runtime_view.count) {
+            status=rf_geometry_material_runtime_bind(&campaign_alpha_runtime_view,campaign_alpha_overlay_bitmaps,campaign_alpha_overlay_capacity,&backend);
+            if(!status)backend.sample=campaign_alpha_runtime_sample;
+        } else {
+            status=rf_geometry_material_collision_bind(&campaign_alpha_overlay_view,campaign_alpha_overlay_bitmaps,campaign_alpha_overlay_capacity,&backend);
+            backend.context=&campaign_alpha_overlay_view;backend.sample=campaign_alpha_sample;
+        }
         if(status)return status;
-        campaign_alpha_overlay_view=candidate;backend.context=&campaign_alpha_overlay_view;backend.sample=campaign_alpha_sample;
         campaign_alpha_body_backends[i]=backend;campaign_alpha_overlay_room=i;
     }
     return RF_OK;
@@ -7097,6 +7118,23 @@ static int actor_movement_select(void *context,uint32_t frame,rf_motion_controll
     record[9]=(uint32_t)controller->current;record[10]=(uint32_t)controller->next;
     memcpy(record+11,&controller->duration,4);return RF_OK;
 }
+/* Runtime caps resolve their own material; movers and compiled faces retain
+ * the original callback. The publication owner holds immutable polygon rows. */
+static int campaign_body_surface(void *context,uint32_t solid,uint32_t face,uint32_t *texture,uint32_t *material) {
+    const rf_geometry_body_surfaces *c=context;scene_stream *s=scene_actor_collision_owner;
+    rf_geometry_material_collision base={0};rf_geometry_material_runtime runtime={0};
+    rf_geometry_materials mapping;uint32_t compiled,slot,value;int status;
+    if(!c || !c->count || !c->geometries || !c->geometries[0])return RF_RANGE;
+    if(solid!=UINT32_MAX || face<c->geometries[0]->faces)return rf_geometry_body_surface(context,solid,face,texture,material);
+    if(!s || !s->materials || !s->surface_indices || !c->mapping || !texture || !material)return RF_RANGE;
+    mapping=*c->mapping;mapping.textures.items=s->materials->items;
+    base.geometry=c->geometries[0];base.materials=&mapping;runtime.base=&base;
+    status=scene_runtime_material_rows(s,&runtime.surfaces,&runtime.count);if(status)return status;
+    status=rf_geometry_material_runtime_lookup(&runtime,face,&compiled,&slot);if(status)return status;
+    if(compiled==UINT32_MAX)value=0;
+    else {if(compiled>=base.geometry->textures)return RF_FORMAT;value=s->surface_indices[compiled];}
+    *texture=slot;*material=value;return RF_OK;
+}
 static int campaign_body_query(const rf_geometry_collision_world *world,const rf_collision_body_query *query,
     rf_geometry_body_hit *contact,uint32_t *matched)
 {
@@ -7110,11 +7148,11 @@ static int campaign_body_query(const rf_geometry_collision_world *world,const rf
         int status;
         status=campaign_alpha_refresh_overlay(world);if(status){printf("BODY_ALPHA_REFRESH %d %u %u\n",status,campaign_alpha_overlay_room,campaign_alpha_overlay_capacity);return status;}
         return rf_geometry_collision_body_sweep_textured(world,&campaign_movers,query,campaign_sweep_scratch,
-            campaign_movers.count,rf_geometry_body_surface,&surfaces,campaign_alpha_body_backends,
+            campaign_movers.count,campaign_body_surface,&surfaces,campaign_alpha_body_backends,
             campaign_alpha_body_backends+world->room_count,contact,matched);
     }
     return rf_geometry_collision_body_sweep(world,&campaign_movers,query,campaign_sweep_scratch,
-        campaign_movers.count,rf_geometry_body_surface,&surfaces,contact,matched);
+        campaign_movers.count,campaign_body_surface,&surfaces,contact,matched);
 }
 uint32_t rf_scene_detached_player[7]; /* queries,hits,sphere,batch,piece,point hash,status */
 static int campaign_player_piece_query(const rf_geometry_collision_world *world,const rf_collision_body_query *query,

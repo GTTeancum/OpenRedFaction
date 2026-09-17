@@ -5,6 +5,34 @@
 #include <string.h>
 #include "../src/diagnostic/scene.c"
 #define CHECK(x) do{if(!(x)){fprintf(stderr,"FAIL line%d %s\n",__LINE__,#x);return 1;}}while(0)
+static int runtime_surfaces(void) {
+    scene_terrain_publication_owner *p=calloc(1,sizeof(*p));scene_stream scene={0};
+    rf_geometry geometry={0};rf_geomod_authored_post_view asset={0};
+    rf_geomod_vertex vertices[3]={{{0,0,1},{0,0}},{{1,0,1},{1,0}},{{0,1,1},{0,1}}};
+    rf_geomod_face face={0,3,1,549};rf_geomod_publication_origin origin={2,94,549,UINT32_MAX};
+    rf_collision_face_filter filter={0,256,-1,1,0,0};
+    uint32_t offsets[2]={0,2},slots[2]={1,0},texture=99,material=99,count;
+    unsigned char indices[2]={7,3};rf_material items[2]={0};rf_materials materials={0};
+    rf_geometry_materials mapping={0};const rf_geometry *geometries[1]={&geometry};
+    rf_geometry_body_surfaces body={0};const rf_geometry_runtime_surface *rows=NULL;
+    scene_stream *old=scene_actor_collision_owner;
+    CHECK(p);geometry.faces=10;geometry.textures=2;
+    asset.neighbors=(rf_geomod_mesh_view){vertices,&face,3,1,0};asset.neighbor_origins=&origin;asset.neighbor_filters=&filter;
+    CHECK(!scene_publication_runtime_import(p,&geometry,&asset));CHECK(p->runtime_count==1 && p->runtime_vertices==3);
+    CHECK(!scene_publication_runtime_import(p,&geometry,&asset));CHECK(p->runtime_count==1);
+    origin.owner=93;CHECK(scene_publication_runtime_import(p,&geometry,&asset)==RF_FORMAT);origin.owner=94;
+    scene.terrain_publication=p;scene.geometry=&geometry;scene.surface_indices=indices;
+    materials.items=items;materials.count=2;scene.materials=&materials;scene_actor_collision_owner=&scene;
+    mapping.offsets=offsets;mapping.slots=slots;mapping.count=1;mapping.textures.count=2;
+    body.geometries=geometries;body.count=1;body.mapping=&mapping;
+    CHECK(!scene_runtime_material_rows(&scene,&rows,&count) && count==1 && rows[0].id==559);
+    CHECK(!campaign_body_surface(&body,UINT32_MAX,559,&texture,&material));CHECK(texture==0 && material==3);
+    texture=material=99;CHECK(campaign_body_surface(&body,UINT32_MAX,560,&texture,&material)==RF_NOT_FOUND);
+    CHECK(texture==99 && material==99);
+    vertices[0].position[0]=7;vertices[0].uv[0]=8;CHECK(rows[0].vertices[0][0]==0 && rows[0].uv[0][0]==0);
+    CHECK(p->runtime_filters[0].face_flags==256 && p->runtime_filters[0].property_34==-1);
+    scene_actor_collision_owner=old;free(p);return 0;
+}
 static int cube(float x,float extent,rf_geomod_piece_registry **out) {
     static const float p[8][3]={{-1,-1,-1},{1,-1,-1},{1,1,-1},{-1,1,-1},{-1,-1,1},{1,-1,1},{1,1,1},{-1,1,1}};
     static const uint32_t indices[6][4]={{1,2,6,5},{0,4,7,3},{3,7,6,2},{0,1,5,4},{4,5,6,7},{0,3,2,1}};
@@ -199,6 +227,6 @@ int main(void) {
     found=77;CHECK(scene_detached_sources_sweep(&scene,4,start,delta,0,NAN,&hit,&found)!=RF_OK);
     CHECK(found==77 && !memcmp(&hit,&sentinel,sizeof(hit)));
     free(before);free(after);for(i=0;i<2;i++)rf_geomod_piece_registry_close(registries+i);
-    CHECK(!player_sources());CHECK(!notify_sources());CHECK(!large_support_snap());
+    CHECK(!runtime_surfaces());CHECK(!player_sources());CHECK(!notify_sources());CHECK(!large_support_snap());
     puts("PASS multi-source weapon queries: nearer later source, stable ties, selected alias, isolated damage and atomic misses/errors");return 0;
 }

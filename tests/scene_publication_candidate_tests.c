@@ -322,7 +322,9 @@ int main(int argc,char **argv)
     CHECK(!rf_geomod_terrain_set_mapping(live,256,256));CHECK(!rf_geomod_terrain_set_mapping(private_core,256,256));
     CHECK(!rf_geomod_template_load(argv[2],&shape));CHECK(!rf_geomod_terrain_cut_template(live,&shape,first,basis,1.05000007f,0));
     s.terrain=live;s.terrain_authored=&asset;s.collision=&world;s.materials=&materials;materials.count=geometry.textures;
-    s.light_rgb.count=3;s.terrain_fallback=149;CHECK(!scene_terrain_publication_open(&s));
+    s.light_rgb.count=3;s.terrain_fallback=149;
+    CHECK(scene_terrain_publication_open(&s)==RF_RANGE && !s.terrain_publication);
+    s.geometry=&geometry;CHECK(!scene_terrain_publication_open(&s));
     CHECK(!scene_terrain_publication_prepare(&s));CHECK(rf_scene_terrain_publication[6]==1);
     CHECK(!scene_terrain_publication_candidate(&s,&pending,NULL,&bindings));
     for(i=0;i<pending.mesh.face_count;i++)if(pending.mesh.faces[i].source_face==UINT32_MAX){

@@ -26,6 +26,11 @@ struct scene_terrain_publication_owner {
     rf_collision_composition *composition;const rf_collision_tree *base;
     rf_geomod_publication_binding_reference references[256];
     uint32_t replaced_ids[256],reference_count,replaced_count;
+    rf_geometry_runtime_surface runtime_surfaces[128];
+    rf_geomod_publication_origin runtime_origins[128];
+    rf_collision_face_filter runtime_filters[128];
+    float runtime_positions[512][3],runtime_uv[512][2];
+    uint32_t runtime_count,runtime_vertices;
     uint32_t active,pending,has_pending,resident_bytes,peak_bytes;
 };
 uint32_t rf_scene_terrain_publication[8]; /* activefaces,vertices,cuts,generation,resident,peak,pending,status */
@@ -34,10 +39,45 @@ static void scene_terrain_publication_close(scene_terrain_publication_owner **pt
     scene_terrain_publication_owner *p;if(!ptr || !*ptr)return;p=*ptr;
     rf_collision_composition_close(&p->composition);free(p);*ptr=NULL;
 }
+static int scene_runtime_material_rows(scene_stream *s,const rf_geometry_runtime_surface **rows,uint32_t *count) {
+    if(!rows || !count)return RF_RANGE;
+    *rows=s && s->terrain_publication?s->terrain_publication->runtime_surfaces:NULL;
+    *count=s && s->terrain_publication?s->terrain_publication->runtime_count:0;return RF_OK;
+}
+static int scene_publication_runtime_import(scene_terrain_publication_owner *p,const rf_geometry *geometry,
+    const rf_geomod_authored_post_view *a) {
+    uint32_t i,j,k;int status;
+    for(i=0;i<a->neighbors.face_count;i++)if(a->neighbor_origins[i].reference==UINT32_MAX) {
+        const rf_geomod_publication_origin *o=a->neighbor_origins+i;
+        const rf_geomod_face *f=a->neighbors.faces+i;rf_geomod_face local=*f;
+        rf_geomod_mesh_view mesh={a->neighbors.vertices+f->first,&local,f->count,1,0};
+        rf_collision_face collision;rf_geometry_runtime_surface *r;uint32_t id;
+        if(!a->neighbor_filters || o->source_face>=UINT32_MAX-geometry->faces)return RF_FORMAT;
+        id=geometry->faces+o->source_face;
+        for(j=0;j<p->runtime_count;j++)if(p->runtime_surfaces[j].id==id)break;
+        if(j<p->runtime_count) {
+            r=p->runtime_surfaces+j;
+            if(p->runtime_origins[j].owner!=o->owner || r->texture!=f->material || r->count!=f->count ||
+                memcmp(p->runtime_filters+j,a->neighbor_filters+i,sizeof(*p->runtime_filters)))return RF_FORMAT;
+            for(k=0;k<f->count;k++)if(memcmp(r->vertices[k],mesh.vertices[k].position,12) || memcmp(r->uv[k],mesh.vertices[k].uv,8))return RF_FORMAT;
+            continue;
+        }
+        if(p->runtime_count==128 || f->count>512-p->runtime_vertices)return RF_RANGE;
+        local.first=0;
+        status=rf_geomod_collision_faces(&mesh,a->neighbor_filters+i,p->runtime_positions+p->runtime_vertices,
+            512-p->runtime_vertices,&collision,1);if(status)return status;
+        r=p->runtime_surfaces+p->runtime_count;r->id=id;r->texture=f->material;r->count=f->count;
+        memcpy(r->plane,collision.plane,16);r->vertices=p->runtime_positions+p->runtime_vertices;r->uv=p->runtime_uv+p->runtime_vertices;
+        for(k=0;k<f->count;k++)memcpy(p->runtime_uv[p->runtime_vertices+k],mesh.vertices[k].uv,8);
+        p->runtime_origins[p->runtime_count]=*o;p->runtime_filters[p->runtime_count]=a->neighbor_filters[i];
+        p->runtime_count++;p->runtime_vertices+=f->count;
+    }
+    return RF_OK;
+}
 static inline int scene_terrain_publication_open(scene_stream *s)
 {
     scene_terrain_publication_owner *p;rf_collision_composition_view cv;uint32_t room,capacity,i,j,k,n;int status;
-    if(!s || !s->terrain_authored || !s->collision || s->terrain_publication || s->terrain_collision.storage)return RF_RANGE;
+    if(!s || !s->geometry || !s->terrain_authored || !s->collision || s->terrain_publication || s->terrain_collision.storage)return RF_RANGE;
     room=s->terrain_authored->asset_view.room;if(room>=s->collision->room_count)return RF_FORMAT;
     p=calloc(1,sizeof(*p));if(!p)return RF_IO;
     p->base=&s->collision->rooms[room].tree;capacity=p->base->face_count+RF_GEOMOD_PUBLICATION_FACES;
@@ -47,6 +87,7 @@ static inline int scene_terrain_publication_open(scene_stream *s)
     for(i=0;i<n;i++) {
         scene_terrain_authored_assets *a=s->terrain_source_count?s->terrain_sources[i].authored:s->terrain_authored;
         if(!a || a->asset_view.room!=room){status=RF_FORMAT;goto failed;}
+        status=scene_publication_runtime_import(p,s->geometry,&a->asset_view);if(status)goto failed;
         if(a->asset_view.replaced_count>256-p->replaced_count){status=RF_RANGE;goto failed;}
         for(j=0;j<a->asset_view.replaced_count;j++)p->replaced_ids[p->replaced_count++]=a->asset_view.replaced_ids[j];
         for(j=0;j<a->reference_count;j++) {
