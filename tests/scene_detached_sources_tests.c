@@ -20,6 +20,38 @@ static int cube(float x,float extent,rf_geomod_piece_registry **out) {
     CHECK(!rf_geomod_piece_registry_emit(&mesh,map,filters,6,1,0,*out));
     rf_geomod_piece_registry_commit(*out);return 0;
 }
+static int notify_sources(void) {
+    scene_stream scene={0};scene_terrain_source_owner sources[2]={{0}};rf_geomod_piece_registry *r[2]={0};
+    rf_geomod_piece_batch *batch;rf_geomod_owned_piece piece;rf_physics_body *body[2];
+    uint32_t prior[4],i,woken=777;float center[3]={2,0,0};rf_geomod_changed_box original;
+    CHECK(!cube(0,.4f,r));CHECK(!cube(4,.4f,r+1));
+    for(i=0;i<2;i++) {
+        sources[i].pieces=r[i];CHECK(!rf_geomod_piece_registry_get(r[i],0,&batch));
+        CHECK(!rf_geomod_piece_batch_get(batch,0,&piece,body+i));body[i]->state.flags&=~0x80000000u;
+    }
+    scene.terrain_sources=sources;scene.terrain_source_count=2;
+    CHECK(!scene_detached_sources_counts(&scene,prior));CHECK(prior[0]==1 && prior[1]==1 && !prior[2] && !prior[3]);
+    original=(rf_geomod_changed_box){{0},{0}};
+    memcpy(original.minimum,body[1]->state.bounds.minimum,12);memcpy(original.maximum,body[1]->state.bounds.maximum,12);
+    /* Only source0 has a new changed box; source1's sleeping body overlaps it. */
+    memcpy(body[1]->state.bounds.minimum,body[0]->state.bounds.minimum,12);
+    memcpy(body[1]->state.bounds.maximum,body[0]->state.bounds.maximum,12);prior[0]=0;
+    CHECK(!scene_detached_sources_notify(&scene,prior,center,0,&woken));CHECK(woken==2);
+    for(i=0;i<2;i++)CHECK(body[i]->state.flags&0x80000000u);
+    CHECK(!scene_detached_sources_notify(&scene,prior,center,0,&woken) && !woken);
+    for(i=0;i<2;i++)body[i]->state.flags&=~0x80000000u;
+    memcpy(body[1]->state.bounds.minimum,original.minimum,12);memcpy(body[1]->state.bounds.maximum,original.maximum,12);
+    prior[0]=1; /* No new boxes: original radial fallback still visits both owners. */
+    body[1]->state.bounds.minimum[0]=NAN;woken=777;
+    CHECK(scene_detached_sources_notify(&scene,prior,center,3,&woken)==RF_FORMAT);
+    CHECK(woken==777);for(i=0;i<2;i++)CHECK(!(body[i]->state.flags&0x80000000u));
+    body[1]->state.bounds.minimum[0]=original.minimum[0];
+    prior[1]=2;CHECK(scene_detached_sources_notify(&scene,prior,center,3,&woken)==RF_RANGE);
+    CHECK(woken==777);for(i=0;i<2;i++)CHECK(!(body[i]->state.flags&0x80000000u));
+    prior[1]=1;CHECK(!scene_detached_sources_notify(&scene,prior,center,3,&woken) && woken==2);
+    for(i=0;i<2;i++)rf_geomod_piece_registry_close(r+i);
+    puts("PASS collection wake: cross-source changed box, radial fallback, repeated wake and late-owner error without partial writes");return 0;
+}
 static int player_sources(void) {
     scene_stream scene={0};scene_terrain_source_owner sources[2]={{0}};rf_geomod_piece_registry *r[2]={0};
     rf_geomod_piece_batch *batch;rf_geomod_owned_piece piece;rf_physics_body *body[2];
@@ -103,6 +135,6 @@ int main(void) {
     found=77;CHECK(scene_detached_sources_sweep(&scene,4,start,delta,0,NAN,&hit,&found)!=RF_OK);
     CHECK(found==77 && !memcmp(&hit,&sentinel,sizeof(hit)));
     free(before);free(after);for(i=0;i<2;i++)rf_geomod_piece_registry_close(registries+i);
-    CHECK(!player_sources());
+    CHECK(!player_sources());CHECK(!notify_sources());
     puts("PASS multi-source weapon queries: nearer later source, stable ties, selected alias, isolated damage and atomic misses/errors");return 0;
 }

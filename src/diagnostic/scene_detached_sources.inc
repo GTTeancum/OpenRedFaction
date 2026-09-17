@@ -84,3 +84,39 @@ static int scene_detached_sources_npc(const scene_stream *s,const rf_collision_a
     }
     if(found){*out=best;*batch=best_batch;*piece=best_piece;}*matched=found;return RF_OK;
 }
+
+/* Capture before editing, then broadcast the bounded original changed-box list
+ * after a successful room commit. Source order defines append order; the
+ * original list retains its first32 entries and ignores further appends. */
+static int scene_detached_sources_counts(const scene_stream *s,uint32_t counts[4])
+{
+    uint32_t i,n,values[4]={0};
+    if(!s || !counts || s->terrain_source_count>4 || (s->terrain_source_count && !s->terrain_sources))return RF_RANGE;
+    n=s->terrain_source_count?s->terrain_source_count:1;
+    for(i=0;i<n;i++)values[i]=rf_geomod_piece_registry_count(scene_detached_source_registry(s,i));
+    memcpy(counts,values,sizeof(values));return RF_OK;
+}
+static int scene_detached_sources_notify(scene_stream *s,const uint32_t prior[4],
+    const float center[3],float radius,uint32_t *woken)
+{
+    rf_geomod_changed_box boxes[32],source_boxes[32];rf_geomod_notify_change change={boxes,0,1,radius};
+    uint32_t i,j,n,count,total=0,local;int status;
+    if(!s || !prior || !woken || s->terrain_source_count>4 || (s->terrain_source_count && !s->terrain_sources))return RF_RANGE;
+    n=s->terrain_source_count?s->terrain_source_count:1;
+    for(i=0;i<n;i++) {
+        status=rf_geomod_piece_registry_changed_boxes(scene_detached_source_registry(s,i),prior[i],source_boxes,&count);
+        if(status)return status;
+        for(j=0;j<count && change.count<32;j++)boxes[change.count++]=source_boxes[j];
+    }
+    for(i=0;i<n;i++) {
+        status=rf_geomod_piece_registry_notify_check(scene_detached_source_registry(s,i),&change,center);
+        if(status)return status;
+    }
+    /* No callbacks, frames or owner replacement between preflight and apply. */
+    for(i=0;i<n;i++) {
+        status=rf_geomod_piece_registry_notify(scene_detached_source_registry(s,i),&change,center,&local);
+        if(status)return status;
+        total+=local;
+    }
+    *woken=total;return RF_OK;
+}

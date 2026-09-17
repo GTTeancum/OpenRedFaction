@@ -10974,8 +10974,9 @@ static int scene_rockets_tick(scene_stream *s,uint32_t frame)
              * and authored surface eligibility remain separate. */
             /* Original4670c3 gates requested radius before hardness scaling. */
             if(s->terrain && event.contact.object==UINT32_MAX && event.contact.room==s->terrain_collision.room && campaign_rocket.crater_radius>=1.0f) {
-                uint32_t prior_pieces=rf_geomod_piece_registry_count(s->detached_pieces);
+                uint32_t prior_pieces[4];
                 uint32_t timing_row=rf_scene_geomod[6]%8,timing_clock=0;float cleanup_center[3],cleanup_radius=0;
+                status=scene_detached_sources_counts(s,prior_pieces);if(status)return status;
                 memset(rf_scene_terrain_edit_times[timing_row],0,sizeof(rf_scene_terrain_edit_times[0]));rf_scene_terrain_edit_times[timing_row][0]=frame;
                 ++rf_scene_geomod[6];
                 {float basis[9],adjusted[3];rf_geomod_region_result prepared;
@@ -11018,9 +11019,8 @@ static int scene_rockets_tick(scene_stream *s,uint32_t frame)
                  }}
                 if(status && rf_scene_combat_trace)printf("GEOMOD_REJECT %u %d %u\n",frame,status,s->terrain_history_count);
                 rf_scene_geomod[5]=(uint32_t)status;
-                if(!status){scene_terrain_edit_mark(timing_row,2,&timing_clock);++rf_scene_geomod[7];++rf_scene_rockets[4];status=scene_debris_spawn(s);if(!status)status=scene_debris_postedit(s,cleanup_center,cleanup_radius,frame);if(!status){rf_geomod_notify_change change={0};rf_geomod_changed_box boxes[32];uint32_t woken=0;change.radius=cleanup_radius;change.boxes=boxes;change.retirement_enabled=1;
-                    status=rf_geomod_piece_registry_changed_boxes(s->detached_pieces,prior_pieces,boxes,&change.count);if(status)return status;
-                    status=rf_geomod_piece_registry_notify(s->detached_pieces,&change,cleanup_center,&woken);
+                if(!status){scene_terrain_edit_mark(timing_row,2,&timing_clock);++rf_scene_geomod[7];++rf_scene_rockets[4];status=scene_debris_spawn(s);if(!status)status=scene_debris_postedit(s,cleanup_center,cleanup_radius,frame);if(!status){uint32_t woken=0;
+                    status=scene_detached_sources_notify(s,prior_pieces,cleanup_center,cleanup_radius,&woken);
                     if(woken)printf("DETACHED_WAKE %u %u\n",frame,woken);}scene_terrain_edit_mark(timing_row,4,&timing_clock);if(status)return status;}
                 else {++rf_scene_rockets[5];if(status!=RF_RANGE && status!=RF_FORMAT && status!=RF_NOT_FOUND)return status;}
             }

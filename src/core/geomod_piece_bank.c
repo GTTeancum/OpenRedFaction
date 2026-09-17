@@ -643,8 +643,8 @@ int rf_geomod_piece_registry_player_support(void *context,const rf_physics_groun
     return piece_support(c->registry,&source,probe,limit,out,matched);
 }
 
-int rf_geomod_piece_registry_notify(rf_geomod_piece_registry *r,const rf_geomod_notify_change *change,
-    const float center[3],uint32_t *woken)
+static int piece_registry_notify(rf_geomod_piece_registry *r,const rf_geomod_notify_change *change,
+    const float center[3],uint32_t *woken,uint32_t apply)
 {
     uint32_t pass,b,i,k,count=0;int status;
     if(!change || !center || !woken || (r && r->begun))return RF_RANGE;
@@ -652,7 +652,7 @@ int rf_geomod_piece_registry_notify(rf_geomod_piece_registry *r,const rf_geomod_
     for(k=0;k<3;k++)if(!isfinite(center[k]))return RF_FORMAT;
     for(i=0;i<change->count;i++)for(k=0;k<3;k++)if(!isfinite(change->boxes[i].minimum[k]) ||
         !isfinite(change->boxes[i].maximum[k]) || change->boxes[i].minimum[k]>change->boxes[i].maximum[k])return RF_FORMAT;
-    for(pass=0;pass<2;pass++)for(b=0;r && b<r->count;b++)for(i=0;i<r->active[b].batch->count;i++) {
+    for(pass=0;pass<(apply?2u:1u);pass++)for(b=0;r && b<r->count;b++)for(i=0;i<r->active[b].batch->count;i++) {
         rf_geomod_piece_batch *batch=r->active[b].batch;rf_physics_body_state *body=&batch->bodies[i].state;
         rf_geomod_notify_object object={0};rf_geomod_notify_radial radial={0};rf_geomod_notify_result result;
         if(!rf_geomod_piece_batch_alive(batch,i))continue;
@@ -667,6 +667,13 @@ int rf_geomod_piece_registry_notify(rf_geomod_piece_registry *r,const rf_geomod_
     }
     *woken=count;return RF_OK;
 }
+
+int rf_geomod_piece_registry_notify_check(rf_geomod_piece_registry *r,const rf_geomod_notify_change *change,
+    const float center[3])
+{uint32_t ignored;return piece_registry_notify(r,change,center,&ignored,0);}
+int rf_geomod_piece_registry_notify(rf_geomod_piece_registry *r,const rf_geomod_notify_change *change,
+    const float center[3],uint32_t *woken)
+{return piece_registry_notify(r,change,center,woken,1);}
 
 static const float *piece_no_extra_velocity(void *context,uint32_t handle)
 {(void)context;(void)handle;return NULL;}

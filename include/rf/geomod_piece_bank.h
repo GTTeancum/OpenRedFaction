@@ -177,6 +177,10 @@ struct rf_geomod_notify_change;
 /* Apply only after collision/render publication. Registry members are scoped
  * to this scene and have no parent; resolves existing kind3 notification math.
  * Validates the entire live set before writes. Does not add blast impulse. */
+/* Read-only preflight of the same notification. Collection callers validate
+ * all owners before applying any writes, without intervening simulation. */
+int rf_geomod_piece_registry_notify_check(rf_geomod_piece_registry *,const struct rf_geomod_notify_change *,
+    const float center[3]);
 int rf_geomod_piece_registry_notify(rf_geomod_piece_registry *,const struct rf_geomod_notify_change *,
     const float center[3],uint32_t *woken);
 int rf_geomod_piece_registry_damage(rf_geomod_piece_registry *,uint32_t batch,uint32_t piece,float amount);
