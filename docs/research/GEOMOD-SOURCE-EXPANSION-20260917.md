@@ -72,3 +72,12 @@ The immutable capture path now admits the validated beam95 loader view, requirin
 Core tests verify that adding a void or changing its offset/orientation changes identity; relocating the same plane storage does not. Unknown owner, duplicate owner, missing pointer, over-limit count, nonfinite plane and non-unit normal reject without output mutation. Removing the optional void restores the original canonical v1 digest. All122 tests pass after a checked full build. This establishes immutable beam identity capture, not live checkpoint restore: scene binding and hidden post-cap rendering metadata remain to implement before enabling beam selection.
 
 Stock NXDK compilation also passes. Logs: artifacts/beam-identity-{build,full-build,tests,xbox}.log. No emulator, HDD clone or image was produced.
+
+
+## Hidden authored cap binding
+
+The publication binder now has explicit DEFER_AUTHORED opt-in, admitting NEIGHBOR faces whose compiled reference is absent while requiring a valid authored owner, source face and material. It preserves authored base UVs and provenance and returns GENERATED_PENDING lighting with sentinel map/image. The origin kind distinguishes these authored surfaces from crater faces: callers must generate lighting without replacing their authored texture mapping. Existing policies still reject hidden faces. Missing non-sentinel references and retained faces without references remain errors; validation precedes output writes.
+
+An installed beam end cut at (-4.75,2.25,2.5), radius1.05000007, produces49 faces including eight pieces of previously hidden post94 top549. Each cap passes the new binding policy, retains its actual UV/material/provenance and rejects the old crater-only policy. The earlier center-cut case still produces41 faces without hidden references. Synthetic tests also exercise rejection atomicity, invalid ownership and missing-reference distinctions.
+
+Validation: full checked PC build, all122 tests, and stock NXDK build pass (artifacts/hidden-cap-{build,tests,xbox}.log). This is core binding evidence only; the live scene still needs explicit collision identity and generated lighting for these authored caps before beam95 can be enabled. No emulator session or capture was made.

@@ -278,6 +278,26 @@ int main(void)
  CHECK(rf_geomod_publication_bind(&mesh,changed,refs,refcount,0,out,128,sizeof(out),&pending)==RF_NOT_FOUND);CHECK(!memcmp(out,saved,sizeof(out)));
  CHECK(!rf_geomod_publication_bind(&mesh,changed,refs,refcount,1,out,128,sizeof(out),&pending));CHECK(pending==faces[0].count);
  for(i=0;i<faces[0].count;i++)CHECK(out[i].status==RF_GEOMOD_BINDING_GENERATED_PENDING && out[i].mapping==UINT32_MAX && out[i].image==UINT32_MAX && !out[i].lightmap_uv[0] && !out[i].lightmap_uv[1]);
+ /* Hidden authored caps need explicit opt-in, retaining wood UV/provenance. */
+ memcpy(changed,origins,sizeof(origins));changed[0].kind=RF_GEOMOD_PUBLICATION_NEIGHBOR;changed[0].reference=UINT32_MAX;
+ memcpy(saved,out,sizeof(out));pending=55;
+ CHECK(rf_geomod_publication_bind(&mesh,changed,refs,refcount,1,out,128,sizeof(out),&pending)==RF_NOT_FOUND);
+ CHECK(!memcmp(out,saved,sizeof(out)) && pending==55);
+ CHECK(!rf_geomod_publication_bind(&mesh,changed,refs,refcount,2,out,128,sizeof(out),&pending));CHECK(pending==faces[0].count);
+ for(i=0;i<faces[0].count;i++) {
+  CHECK(out[i].status==RF_GEOMOD_BINDING_GENERATED_PENDING && out[i].material==faces[0].material);
+  CHECK(out[i].mapping==UINT32_MAX && out[i].image==UINT32_MAX && !out[i].lightmap_uv[0] && !out[i].lightmap_uv[1]);
+  CHECK(!memcmp(out[i].uv,vertices[i].uv,8) && !memcmp(&out[i].origin,changed,sizeof(*changed)));
+ }
+ memcpy(saved,out,sizeof(out));pending=55;changed[0].owner=UINT32_MAX;
+ CHECK(rf_geomod_publication_bind(&mesh,changed,refs,refcount,2,out,128,sizeof(out),&pending)==RF_FORMAT);
+ CHECK(!memcmp(out,saved,sizeof(out)) && pending==55);
+ changed[0]=origins[0];changed[0].reference=UINT32_MAX;changed[0].kind=RF_GEOMOD_PUBLICATION_RETAINED;
+ CHECK(rf_geomod_publication_bind(&mesh,changed,refs,refcount,2,out,128,sizeof(out),&pending)==RF_NOT_FOUND);
+ CHECK(!memcmp(out,saved,sizeof(out)) && pending==55);
+ changed[0].kind=RF_GEOMOD_PUBLICATION_NEIGHBOR;changed[0].reference=999;
+ CHECK(rf_geomod_publication_bind(&mesh,changed,refs,refcount,2,out,128,sizeof(out),&pending)==RF_NOT_FOUND);
+ CHECK(!memcmp(out,saved,sizeof(out)) && pending==55);
  /* Explicit source with no lightmap is distinguishable from pending crater. */
  refs[0].mapping=refs[0].image=UINT32_MAX;
  CHECK(!rf_geomod_publication_bind(&mesh,origins,refs,refcount,0,out,128,sizeof(out),&pending));CHECK(!pending && out[0].status==RF_GEOMOD_BINDING_UNLIT);

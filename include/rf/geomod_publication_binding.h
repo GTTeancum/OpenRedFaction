@@ -12,7 +12,7 @@ typedef struct rf_geomod_publication_binding_reference {
     rf_lightmap_projection projection;
 } rf_geomod_publication_binding_reference;
 enum { RF_GEOMOD_BINDING_SOURCE=0,RF_GEOMOD_BINDING_UNLIT=1,RF_GEOMOD_BINDING_GENERATED_PENDING=2 };
-enum { RF_GEOMOD_BINDING_REJECT_GENERATED=0,RF_GEOMOD_BINDING_DEFER_GENERATED=1 };
+enum { RF_GEOMOD_BINDING_REJECT_GENERATED=0,RF_GEOMOD_BINDING_DEFER_GENERATED=1,RF_GEOMOD_BINDING_DEFER_AUTHORED=2 };
 typedef struct rf_geomod_publication_bound_corner {
     float uv[2],lightmap_uv[2];
     uint32_t material,mapping,image,status;
@@ -26,6 +26,9 @@ typedef struct rf_geomod_publication_bound_corner {
  * GENERATED_PENDING preserves baseUV/material/provenance but deliberately has
  * sentinel map/image and zero LMUV. Caller MUST finish its independent crater
  * mapping before publishing to a renderer; it is never an unlit fallback.
+ * DEFER_AUTHORED also admits NEIGHBOR surfaces with sentinel reference and
+ * valid authored owner/source/material. These retain authored UVs and require
+ * a new lighting chart, not crater texture mapping. Other missing refs reject.
  * Projected sourceUV follows original4e49d0 using the copied mapping, preserving
  * explicit binary32 stores. This is not a four-channel CSG interpolation API.
  */

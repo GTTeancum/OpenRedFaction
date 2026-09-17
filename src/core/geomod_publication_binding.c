@@ -14,7 +14,7 @@ int rf_geomod_publication_bind(const rf_geomod_mesh_view *mesh,const rf_geomod_p
     rf_geomod_publication_bound_corner *out,uint32_t capacity,uint32_t budget,uint32_t *out_pending)
 {
     uint32_t pass,i,j,k,cursor=0,pending=0;
-    if(!mesh || !out_pending || policy>RF_GEOMOD_BINDING_DEFER_GENERATED ||
+    if(!mesh || !out_pending || policy>RF_GEOMOD_BINDING_DEFER_AUTHORED ||
        (mesh->vertex_count && (!mesh->vertices || !out)) || (mesh->face_count && (!mesh->faces || !origins)) ||
        (ref_count && !refs) || mesh->vertex_count>capacity ||
        (uint64_t)mesh->vertex_count*sizeof(*out)>budget)return RF_RANGE;
@@ -33,9 +33,12 @@ int rf_geomod_publication_bind(const rf_geomod_mesh_view *mesh,const rf_geomod_p
         const rf_geomod_face *face=mesh->faces+i;const rf_geomod_publication_origin *origin=origins+i;
         const rf_geomod_publication_binding_reference *ref=NULL;
         uint32_t generated=origin->kind==RF_GEOMOD_PUBLICATION_CRATER;
+        uint32_t hidden=origin->kind==RF_GEOMOD_PUBLICATION_NEIGHBOR && origin->reference==UINT32_MAX;
+        uint32_t deferred=generated || hidden;
         if(origin->kind>RF_GEOMOD_PUBLICATION_NEIGHBOR)return RF_FORMAT;
-        if(generated) {
-            if(policy!=RF_GEOMOD_BINDING_DEFER_GENERATED)return RF_NOT_FOUND;
+        if(deferred) {
+            if(policy<RF_GEOMOD_BINDING_DEFER_GENERATED || (hidden && policy!=RF_GEOMOD_BINDING_DEFER_AUTHORED))return RF_NOT_FOUND;
+            if(hidden && (origin->owner==UINT32_MAX || origin->source_face==UINT32_MAX || face->source_face!=origin->source_face))return RF_FORMAT;
             if(face->material==UINT32_MAX)return RF_FORMAT;
             if(!pass)pending+=face->count;
         } else {
@@ -48,9 +51,9 @@ int rf_geomod_publication_bind(const rf_geomod_mesh_view *mesh,const rf_geomod_p
             for(k=0;k<3;k++)if(!isfinite(v->position[k]))return RF_FORMAT;
             for(k=0;k<2;k++)if(!isfinite(v->uv[k]))return RF_FORMAT;
             memcpy(value.uv,v->uv,8);value.origin=*origin;
-            value.material=generated?face->material:ref->material;
-            value.mapping=generated?UINT32_MAX:ref->mapping;value.image=generated?UINT32_MAX:ref->image;
-            value.status=generated?RF_GEOMOD_BINDING_GENERATED_PENDING:(ref->mapping==UINT32_MAX?RF_GEOMOD_BINDING_UNLIT:RF_GEOMOD_BINDING_SOURCE);
+            value.material=deferred?face->material:ref->material;
+            value.mapping=deferred?UINT32_MAX:ref->mapping;value.image=deferred?UINT32_MAX:ref->image;
+            value.status=deferred?RF_GEOMOD_BINDING_GENERATED_PENDING:(ref->mapping==UINT32_MAX?RF_GEOMOD_BINDING_UNLIT:RF_GEOMOD_BINDING_SOURCE);
             if(value.status==RF_GEOMOD_BINDING_SOURCE){status=rf_lightmap_project(&ref->projection,v->position,value.lightmap_uv);if(status)return status;}
             if(pass)out[face->first+j]=value;
         }

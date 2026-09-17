@@ -1,4 +1,5 @@
 #include "rf/geomod_authored_post.h"
+#include "rf/geomod_publication_binding.h"
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -202,6 +203,33 @@ static int beam_source(const rf_level *level,const rf_geometry *geometry,const c
         CHECK(output_origins[i].reference!=UINT32_MAX);
     }
     printf("BEAM_LOADER resident%u peak%u neighbor_faces%u roof_area%.9g center_cut_faces%u\n",a.resident_bytes,a.peak_bytes,a.neighbors.face_count,roof_area,output.face_count);
+    rf_geomod_terrain_close(&terrain);
+    CHECK(!rf_geomod_terrain_open(&a.source,a.source_filters,&generated,0,4096,768,1048576,&terrain));
+    center[2]=2.5f;
+    CHECK(!rf_geomod_terrain_cut_template(terrain,&shape,center,basis,1.05000007f,0));
+    CHECK(!rf_geomod_terrain_get(terrain,&view));
+    CHECK(!rf_geomod_terrain_cutter_get(terrain,0,&cut.mesh,cut.kernel,&cut.star));job.terrain=view.mesh;
+    CHECK(!rf_geomod_publication_build(&job,&publication_work,output_vertices,4096,output_faces,768,output_origins,&output));
+    {
+        uint32_t hidden=0;
+        for(i=0;i<output.face_count;i++)if(output_origins[i].reference==UINT32_MAX) {
+            rf_geomod_face face=output.faces[i];rf_geomod_mesh_view cap={0};
+            rf_geomod_publication_bound_corner bound[64];uint32_t pending=0;
+            CHECK(output_origins[i].kind==RF_GEOMOD_PUBLICATION_NEIGHBOR);
+            CHECK(output_origins[i].owner==94 && output_origins[i].source_face==549);
+            cap.vertices=output.vertices+face.first;face.first=0;cap.faces=&face;cap.vertex_count=face.count;cap.face_count=1;
+            CHECK(rf_geomod_publication_bind(&cap,output_origins+i,NULL,0,RF_GEOMOD_BINDING_DEFER_GENERATED,bound,64,sizeof(bound),&pending)==RF_NOT_FOUND);
+            CHECK(!rf_geomod_publication_bind(&cap,output_origins+i,NULL,0,RF_GEOMOD_BINDING_DEFER_AUTHORED,bound,64,sizeof(bound),&pending));
+            CHECK(pending==face.count);
+            for(k=0;k<face.count;k++) {
+                CHECK(bound[k].material==face.material && bound[k].status==RF_GEOMOD_BINDING_GENERATED_PENDING);
+                CHECK(!memcmp(bound[k].uv,cap.vertices[k].uv,8));
+                CHECK(!memcmp(&bound[k].origin,output_origins+i,sizeof(*output_origins)));
+            }
+            hidden++;
+        }
+        CHECK(hidden>0);printf("BEAM_END_CUT faces%u hidden_caps%u\n",output.face_count,hidden);
+    }
     rf_geomod_terrain_close(&terrain);rf_geomod_authored_post_close(&owner);return 0;
 }
 static int selected_sources(const rf_level *level, const rf_geometry *geometry, const char *shape) {
