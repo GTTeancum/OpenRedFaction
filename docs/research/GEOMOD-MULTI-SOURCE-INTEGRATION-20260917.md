@@ -55,3 +55,15 @@ Grouped transaction tests exercise failure creating the second source, failure a
 PC build and121/121 tests pass; stock NXDK build passes. A fresh550-frame PC97 rocket replay through the new shared transaction produces the unchanged2758-byte checkpoint, SHA256 d98a3c0e8b1c725e4924aaf82f7872e99ede438963d3b0e342f892a884f4aea0 (`artifacts/grouped-transaction-live`). This establishes existing live-state compatibility; no new native or multi-source visual acceptance is claimed.
 
 Remaining scene work is source collection ownership, aggregate drawing/lightmap references, all-affected-source impact dispatch, queries over every detached registry and source-indexed save restoration. Do not report grouped live gameplay as complete until those paths use this transaction and pass the acceptance sequence above.
+
+## Scene publication collection wiring
+
+`scene_stream` now has a source-owner collection view (authored assets, terrain and registry per entry). The existing scene publication adapter accepts up to four entries, validates their common room, copies/merges up to256 immutable binding references, and registers the union of their replaced compiled face IDs in one collision composition. Conflicting shared reference records reject. The existing no-collection path retains single-source behavior.
+
+Preparation uses the selected private candidate and the other owners' current terrain histories to build one grouped mesh with a shared room revision. Intact sources publish their original windows instead of taking the single-source whole-room reset shortcut. The bank carries total cut count and resolves all source charts from the merged reference table. All sources continue to share the existing bounded publication work, double banks, collision composition and overlay.
+
+The actual scene adapter test opens real ctf06 sources93/94, initially publishes8 windows and confirms collision at both posts. Sequential cuts produce39 then70 publication faces. Rays through both cuts miss after the second commit; the full room tree has852 faces (790 original minus8 replaced plus70 published). A staged candidate followed by abort retains both openings. This test reports1757172 resident/1890936 peak publication bytes on PC. Generated lightmap image2 is explicitly test-owned metadata, not a tested GPU atlas.
+
+PC build and121/121 tests pass; stock NXDK build passes. Existing live97 replay still emits the unchanged2758-byte checkpoint SHA256 d98a3c0e8b1c725e4924aaf82f7872e99ede438963d3b0e342f892a884f4aea0 (`artifacts/grouped-scene-live`).
+
+The collection view is currently populated by this scene-level integration test. Ordinary scene startup still creates one selected source. A playable multi-source developer mode is not enabled yet: source collection allocation/lifetime, aggregate real lighting, hit dispatch, queries over every registry and multi-source saves remain required. This update establishes the actual scene publication/collision path, not live multi-object visual acceptance.

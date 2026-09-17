@@ -636,9 +636,15 @@ typedef struct scene_terrain_authored_assets {
     unsigned char source_identity[32];uint32_t identity_peak_bytes;
     rf_geomod_authored_identity_manifest identity_manifest;
 } scene_terrain_authored_assets;
+typedef struct scene_terrain_source_owner {
+    scene_terrain_authored_assets *authored;
+    rf_geomod_terrain *terrain;
+    rf_geomod_piece_registry *pieces;
+} scene_terrain_source_owner;
 uint32_t rf_scene_authored_identity[10]; /* SHA256 LE words, capture scratch peak, ready */
 
 typedef struct scene_stream {
+    scene_terrain_source_owner *terrain_sources;uint32_t terrain_source_count;
     scene_terrain_authored_assets *terrain_authored;
     scene_terrain_publication_owner *terrain_publication;
     uint32_t terrain_publication_serial;

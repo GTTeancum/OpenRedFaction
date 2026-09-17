@@ -24,6 +24,8 @@ typedef struct scene_publication_bank {
 struct scene_terrain_publication_owner {
     rf_geomod_publication_work work;scene_publication_bank banks[2];
     rf_collision_composition *composition;const rf_collision_tree *base;
+    rf_geomod_publication_binding_reference references[256];
+    uint32_t replaced_ids[256],reference_count,replaced_count;
     uint32_t active,pending,has_pending,resident_bytes,peak_bytes;
 };
 uint32_t rf_scene_terrain_publication[8]; /* activefaces,vertices,cuts,generation,resident,peak,pending,status */
@@ -34,14 +36,32 @@ static void scene_terrain_publication_close(scene_terrain_publication_owner **pt
 }
 static inline int scene_terrain_publication_open(scene_stream *s)
 {
-    scene_terrain_publication_owner *p;rf_collision_composition_view cv;uint32_t room,capacity;int status;
+    scene_terrain_publication_owner *p;rf_collision_composition_view cv;uint32_t room,capacity,i,j,k,n;int status;
     if(!s || !s->terrain_authored || !s->collision || s->terrain_publication || s->terrain_collision.storage)return RF_RANGE;
     room=s->terrain_authored->asset_view.room;if(room>=s->collision->room_count)return RF_FORMAT;
     p=calloc(1,sizeof(*p));if(!p)return RF_IO;
     p->base=&s->collision->rooms[room].tree;capacity=p->base->face_count+RF_GEOMOD_PUBLICATION_FACES;
     if(capacity<p->base->face_count || sizeof(*p)>=SCENE_PUBLICATION_BUDGET){status=RF_RANGE;goto failed;}
+    n=s->terrain_source_count?s->terrain_source_count:1;
+    if(n>4 || (s->terrain_source_count && !s->terrain_sources)){status=RF_RANGE;goto failed;}
+    for(i=0;i<n;i++) {
+        scene_terrain_authored_assets *a=s->terrain_source_count?s->terrain_sources[i].authored:s->terrain_authored;
+        if(!a || a->asset_view.room!=room){status=RF_FORMAT;goto failed;}
+        if(a->asset_view.replaced_count>256-p->replaced_count){status=RF_RANGE;goto failed;}
+        for(j=0;j<a->asset_view.replaced_count;j++)p->replaced_ids[p->replaced_count++]=a->asset_view.replaced_ids[j];
+        for(j=0;j<a->reference_count;j++) {
+            const rf_geomod_publication_binding_reference *r=a->references+j;
+            for(k=0;k<p->reference_count;k++)if(p->references[k].reference==r->reference)break;
+            if(k<p->reference_count) {
+                if(memcmp(p->references+k,r,sizeof(*r))){status=RF_FORMAT;goto failed;}
+            } else {
+                if(p->reference_count==256){status=RF_RANGE;goto failed;}
+                p->references[p->reference_count++]=*r;
+            }
+        }
+    }
     status=rf_collision_composition_open(p->base,p->base->source_indices,
-        s->terrain_authored->asset_view.replaced_ids,s->terrain_authored->asset_view.replaced_count,
+        p->replaced_ids,p->replaced_count,
         capacity,SCENE_PUBLICATION_BUDGET-(uint32_t)sizeof(*p),NULL,&p->composition);if(status)goto failed;
     status=rf_geometry_collision_overlay_open(s->collision,room,capacity,128*1024,&s->terrain_collision);if(status)goto failed;
     status=rf_collision_composition_get(p->composition,&cv);if(status)goto failed_overlay;
@@ -74,16 +94,48 @@ static int scene_terrain_publication_prepare_from(scene_stream *s,
     terrain=*candidate;
     p->pending=p->active^1u;b=p->banks+p->pending;b->cuts=terrain.cuts;b->generated=0;
     b->mesh=(rf_geomod_mesh_view){b->vertices,b->faces,0,0,saved_serial};
-    if(!terrain.cuts){status=rf_collision_composition_prepare_reset(p->composition);if(status)return status;p->has_pending=1;return RF_OK;}
+    if(!terrain.cuts && !s->terrain_source_count){status=rf_collision_composition_prepare_reset(p->composition);if(status)return status;p->has_pending=1;return RF_OK;}
     job.terrain=terrain.mesh;job.windows=a->windows;job.neighbors=a->neighbors;
     job.window_origins=a->asset_view.window_origins;job.neighbor_origins=a->asset_view.neighbor_origins;
     job.crater_origin=(rf_geomod_publication_origin){RF_GEOMOD_PUBLICATION_CRATER,a->asset_view.source_uid,UINT32_MAX,s->terrain_fallback};
     job.source_planes=a->asset_view.source_planes;job.source_plane_count=a->source.face_count;
     job.solids=a->asset_view.solids;job.solid_count=a->asset_view.solid_count;job.cuts=cuts;job.cut_count=terrain.cuts;
-    status=rf_geomod_publication_build(&job,&p->work,b->vertices,RF_GEOMOD_PUBLICATION_VERTICES,
-        b->faces,RF_GEOMOD_PUBLICATION_FACES,b->origins,&b->mesh);if(status)return status;
+    if(s->terrain_source_count) {
+        rf_geomod_publication_job jobs[4];rf_geomod_publication_cut other_cuts[4][RF_GEOMOD_CUT_LIMIT];
+        uint32_t source,cut,total=0,selected=0;
+        if(s->terrain_source_count>4 || !s->terrain_sources)return RF_RANGE;
+        for(source=0;source<s->terrain_source_count;source++) {
+            scene_terrain_source_owner *owner=s->terrain_sources+source;
+            scene_terrain_authored_assets *asset=owner->authored;rf_geomod_terrain_view view;
+            if(!asset || !owner->terrain)return RF_RANGE;
+            if(asset==a){jobs[source]=job;selected++;}
+            else {
+                status=rf_geomod_terrain_get(owner->terrain,&view);if(status)return status;
+                if(view.cuts>RF_GEOMOD_CUT_LIMIT)return RF_RANGE;
+                memset(jobs+source,0,sizeof(*jobs));jobs[source].terrain=view.mesh;
+                jobs[source].windows=asset->windows;jobs[source].neighbors=asset->neighbors;
+                jobs[source].window_origins=asset->asset_view.window_origins;jobs[source].neighbor_origins=asset->asset_view.neighbor_origins;
+                jobs[source].source_planes=asset->asset_view.source_planes;jobs[source].source_plane_count=asset->source.face_count;
+                jobs[source].solids=asset->asset_view.solids;jobs[source].solid_count=asset->asset_view.solid_count;
+                jobs[source].crater_origin=(rf_geomod_publication_origin){RF_GEOMOD_PUBLICATION_CRATER,
+                    asset->asset_view.source_uid,UINT32_MAX,asset->asset_view.replaced_ids[0]};
+                jobs[source].cuts=other_cuts[source];jobs[source].cut_count=view.cuts;
+                for(cut=0;cut<view.cuts;cut++) {
+                    rf_geomod_publication_cut *c=other_cuts[source]+cut;
+                    status=rf_geomod_terrain_cutter_get(owner->terrain,cut,&c->mesh,c->kernel,&c->star);if(status)return status;
+                }
+            }
+            total+=jobs[source].cut_count;
+        }
+        if(selected!=1 || total>saved_serial)return RF_FORMAT;
+        b->cuts=total;
+        status=rf_geomod_publication_build_groups(jobs,s->terrain_source_count,saved_serial,&p->work,
+            b->vertices,RF_GEOMOD_PUBLICATION_VERTICES,b->faces,RF_GEOMOD_PUBLICATION_FACES,b->origins,&b->mesh);
+    } else status=rf_geomod_publication_build(&job,&p->work,b->vertices,RF_GEOMOD_PUBLICATION_VERTICES,
+        b->faces,RF_GEOMOD_PUBLICATION_FACES,b->origins,&b->mesh);
+    if(status)return status;
     b->mesh.generation=saved_serial;
-    status=rf_geomod_publication_bind(&b->mesh,b->origins,a->references,a->reference_count,
+    status=rf_geomod_publication_bind(&b->mesh,b->origins,p->references,p->reference_count,
         RF_GEOMOD_BINDING_DEFER_GENERATED,b->corners,RF_GEOMOD_PUBLICATION_VERTICES,sizeof(b->corners),&pending);if(status)return status;
     b->generated=pending;
     for(i=0;i<b->mesh.face_count;i++) {
@@ -96,7 +148,7 @@ static int scene_terrain_publication_prepare_from(scene_stream *s,
         if(o->kind==RF_GEOMOD_PUBLICATION_CRATER) {
             b->faces[i].source_face=UINT32_MAX;b->filters[i].face_flags=256;
         } else {
-            for(j=0;j<a->reference_count;j++)if(a->references[j].reference==o->reference){r=a->references+j;break;}
+            for(j=0;j<p->reference_count;j++)if(p->references[j].reference==o->reference){r=p->references+j;break;}
             if(!r)return RF_NOT_FOUND;
             b->faces[i].source_face=o->reference; /* existing draw/lighting expects compiled IDs */
             b->bindings[i].image=r->image;b->bindings[i].projection=r->projection;
