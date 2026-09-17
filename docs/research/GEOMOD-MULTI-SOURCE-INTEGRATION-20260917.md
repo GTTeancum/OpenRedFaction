@@ -464,3 +464,11 @@ New tools/check_clipped_post_continuation.py reproduces this exact ordinary shot
 
 
 Native reload artifacts/xemu/render-20260917-152342 loads the Xbox-created2762-byte RFCP and runs121 frames (120 updates), passing75 comparisons. Its final2762-byte export also matches the uninterrupted720-frame PC control exactly. The framebuffer was inspected and retains the broken post, visible fragment, surrounding room and weapon/HUD. Endpoint availability is4004 pages (15.64MiB); disc staging was restored and the harness exited its emulator. Log: artifacts/post-cut-partition-reload-native.log. This accepts the specific clipped-face cut/save/reload path, not broader source geometry or visual parity.
+
+
+## Second rocket after clipped-face save
+
+Extended tools/check_clipped_post_continuation.py with --next-shot. After the600-frame Y0.3 save, an ordinary30-frame pitch adjustment aims at the retained upper post Y1.5 and fires once at resumed frame60. The241-frame resumed run executes240 updates; the uninterrupted control executes840 frames with the same subsequent inputs. Both require two committed cuts, and the final4050-byte RFCP matches exactly. The original radius0.434212536 fragment is retained; this is not a new-fragment extraction claim. PC image inspected: the retained upper post is further cut, with the lower remnant/rubble, room and HUD present. Log: artifacts/clipped-post-next-shot.log. Native next-shot acceptance follows below.
+
+
+Native artifacts/xemu/render-20260917-152745 loads the prior Xbox-created save and executes241 frames including the second rocket. It passes76 comparisons; its4050-byte checkpoint equals the uninterrupted840-frame PC control exactly. Native framebuffer inspected and confirms the further-cut upper post, retained lower remnant/rubble, room and HUD. Endpoint availability is3796 pages (14.83MiB), not minimum memory. Disc staging restored; no HDD clone or GitHub upload. Log: artifacts/clipped-post-next-shot-native.log. The repaired shot -> save -> reload -> next-cut path is accepted on stock64MiB; other authored source geometry and broader histories remain open.

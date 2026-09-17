@@ -1,6 +1,6 @@
 # Red Faction Xbox / PC - open work
 
-- GeoMod publication: Broaden clipped-face partition coverage across shot positions and repeated cuts; the previously rejected shot now passes76 native checks and Xbox-created save/reload passes75, with exact uninterrupted PC continuation and preserved geometry data.
+- GeoMod publication: Broaden clipped-face partition coverage to other source geometry; the repaired shot, save/reload and subsequent rocket now pass76/75/76 native checks, with exact uninterrupted PC checkpoints, while broader histories remain open.
 
 - GeoMod player saves: Verify live larger-fragment extraction and moving supports; eight synthetic polygon-path support/landing cases now pass, while both-post standing/save/walk-away passes76 native checks per run with exact PC continuation.
 
