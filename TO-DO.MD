@@ -1,6 +1,6 @@
 # Red Faction Xbox / PC - open work
 
-- GeoMod traversal: Broaden entrance/slope and return-path collision coverage; ordinary walking into the16-cut tunnel passes58 stock64MiB comparisons against an intact-wall PC control.
+- GeoMod traversal: Broaden tight-entrance and slope collision coverage; walking into and back out of the16-cut tunnel passes58 stock64MiB comparisons with exact PC body state.
 - GeoMod validation: Resolve thin-surface proximity ambiguity and broaden collision/nonintersection coverage; sweep/fixed craters pass10130/11422 independent volume samples and native state checks.
 - GeoMod reload: Broaden native continuation coverage after16-cut stock64MiB reload passes58 checks; the135598-byte checkpoint matches PC exactly.
 - GeoMod rollback: Make legacy DEV cavity lighting exhaustion transactional; the1024-map experiment aborted after core publication.

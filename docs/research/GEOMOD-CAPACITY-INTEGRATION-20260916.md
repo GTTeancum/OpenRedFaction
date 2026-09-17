@@ -1040,3 +1040,39 @@ The generated input can be passed to xemu_render_check.py with --expanded-geomod
 Estimate ~50% overall/~73% GeoMod after direct excavated-volume traversal is
 verified. Next broaden entrance/slope/return-path collision and improve crater
 readability while retaining the open thin-surface verifier ambiguity.
+
+
+## Ordinary tunnel round trip passes PC and Xbox
+
+check_geomod_cavity_walk.py now accepts --round-trip. After the existing entry
+and60-frame settle, it applies360 frames of ordinary backward movement followed
+by60 neutral frames (930 total). No jump, teleport, forced stance or camera
+placement is used. The intact-wall PC control receives exactly the same input.
+The original510-frame default remains unchanged.
+
+The cut player enters across x=-16 at284 and returns across it at707. Final
+position(-5.97919369,-11.1184788,13.5053873) is in the original room, at the same
+floor height as the intact-wall control. The final30 frames are stable within
+0.01 units. All post-initialization frames are present and the approach still
+matches the control through270. PC report and inputs are under
+artifacts/geomod-cavity-roundtrip; input SHA256
+dbf1ff90af47d23169363b747fc8e84e1590dce80d0f0786576f9b3781804026.
+
+Stock64MiB XEMU passes58 comparisons through930 frames:
+artifacts/xemu/render-20260916-223727/report.json. All77 body-state words match
+PC, and destruction checkpoint bytes match. Endpoint8090 pages=31.6015625MiB
+free. Native endpoint capture inspected: player is back on the room floor facing
+the crater, pistol/HUD visible. The uncut comparison is PC-only. This proves
+one ordinary entry/exit route, not all slopes/openings or audio/animation
+fidelity. Owned emulator exited, disc staging restored, no GitHub image added.
+
+Command: python tools/check_geomod_cavity_walk.py --round-trip --checkpoint
+artifacts/geomod-9k-live/state.rfds --output-dir artifacts/geomod-cavity-roundtrip.
+The corresponding native command uses the generated input, --expanded-geomod,
+--dev-room --spawn --level glass_house.rfl --archive levelsm.vpp and the same
+checkpoint. No production source changed. Estimate remains~50%/~73% GeoMod.
+
+Reviewed CRATER-LIVE-MATERIAL-UV-AUDIT-20260915.md for the next readability task:
+its tested material ownership and126 original-binary UV cases provide no basis
+for an arbitrary texture swap or brightness gain. Inspect the current lighting
+and sampling path with numeric evidence before changing crater appearance.
