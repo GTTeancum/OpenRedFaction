@@ -14,6 +14,7 @@
 
 - GeoMod debris visibility: Verify live leave/return lifetime retention; room-filtered drawing passes synthetic hidden/return cases,138 binary fixtures and60 stock64MiB PC/Xbox checks.
 - GeoMod water crossing: Verify audible splash quality and broader liquid scenarios;35 positional splash starts and246 ripple vertices match PC/Xbox across63 stock64MiB comparisons.
+- GeoMod authored extraction: Retain detached bodies in scene transactions without replay duplicates; six installed-post/template cases plus follow-up blasts and reloads pass, while material-resolved body settings and native acceptance remain open.
 - GeoMod terrain extraction: Wire the opt-in production extraction callback into scene ownership/rendering; box and triangulated-star-path removal/reload pass under a1152KiB test budget, while scene budget integration, live motion and stock64MiB runtime acceptance remain open.
 - GeoMod piece subdivision: Publish staged geometry/body batches with live extraction; tested10-11-piece batches retain140372-143024 PC bytes under0.9MiB temporary peak and build for Xbox, while exact T-junction splitting now passes extracted replay and broader topology, scene scheduling and rendering remain open.
 - GeoMod detached collision: Connect current-body-pose batch queries to scene movement and weapons;52 transformed ray/sphere contacts pass, while automatic motion, scene registration and rendering remain open.

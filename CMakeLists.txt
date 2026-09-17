@@ -663,3 +663,6 @@ add_test(NAME geomod_grid_physics COMMAND rf_geomod_grid_physics_tests)
 add_executable(rf_geomod_terrain_extraction_tests tests/geomod_terrain_extraction_tests.c)
 target_link_libraries(rf_geomod_terrain_extraction_tests PRIVATE rf_core)
 add_test(NAME geomod_terrain_extraction COMMAND rf_geomod_terrain_extraction_tests)
+
+add_executable(rf_check_authored_piece_extraction tools/check_authored_piece_extraction.c)
+target_link_libraries(rf_check_authored_piece_extraction PRIVATE rf_core)
