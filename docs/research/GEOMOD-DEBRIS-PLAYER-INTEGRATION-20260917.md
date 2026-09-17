@@ -47,3 +47,8 @@ vertices and input sections remain bit-exact with PC. Native endpoint inspection
 confirms the room, damaged post, weapon and HUD; no claim is made for transient
 impact particles or damage-flash appearance from that endpoint. Disc restoration
 completed and the owned emulator exited; other projects were left untouched.
+
+Correction: the earlier room3/room4 explanation compared zero-based fragment
+indices with one-based actor handles. The later blood integration fixes this;
+the ordinary control now performs321 contact checks and has zero overlaps by
+distance. See GEOMOD-DEBRIS-BLOOD-EFFECT-20260917.md. Blood effects are now wired.

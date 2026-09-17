@@ -611,6 +611,34 @@ int rf_particle_frame_index(const rf_particle *particle,uint32_t *frame)
     value=floor(value);if(value<0)value=0;if(value>=count)value=count-1;
     *frame=(uint32_t)value;return RF_OK;
 }
+static float blood_range(rf_random_state *random,float minimum,float maximum)
+{
+    uint32_t draw;rf_random_next(random,&draw);
+    return (float)((double)minimum+((double)maximum-minimum)*((double)draw/32768.0));
+}
+int rf_particle_blood_drop_prepare(const rf_particle_definition *d,
+    const float position[3],uint32_t bitmap,rf_random_state *random,rf_particle_spawn *result)
+{
+    rf_particle_spawn value={0};rf_random_state next;float speed;uint32_t i;int status;
+    const float axis[3]={0,0,1};
+    if(!d || !position || !random || !result)return RF_RANGE;
+    if(d->direction[0]!=0 || d->direction[1]!=0 || d->direction[2]!=1 || d->spawn_radius!=0 ||
+       d->position[0]!=0 || d->position[1]!=0 || d->position[2]!=0 || (d->flags.emitter&8))return RF_FORMAT;
+    for(i=0;i<3;i++)if(!isfinite(position[i]))return RF_RANGE;
+    if(!isfinite(d->min_velocity) || !isfinite(d->max_velocity) || !isfinite(d->min_radius) ||
+       !isfinite(d->max_radius) || !isfinite(d->min_life) || !isfinite(d->max_life) ||
+       !isfinite(d->growth) || !isfinite(d->acceleration) || !isfinite(d->gravity_scale))return RF_RANGE;
+    next=*random;status=rf_particle_cone_oriented(axis,d->direction_random,&next,value.velocity);if(status)return status;
+    speed=blood_range(&next,d->min_velocity,d->max_velocity);
+    for(i=0;i<3;i++){value.position[i]=position[i];value.velocity[i]=(float)((double)value.velocity[i]*speed);if(!isfinite(value.velocity[i]))return RF_RANGE;}
+    value.radius=blood_range(&next,d->min_radius,d->max_radius);value.life=blood_range(&next,d->min_life,d->max_life);
+    if(!isfinite(value.radius) || !isfinite(value.life))return RF_RANGE;
+    value.growth=d->growth;value.acceleration=d->acceleration;value.gravity_scale=d->gravity_scale;
+    value.bitmap=bitmap;value.frame_count=1;memcpy(&value.color,d->color,4);memcpy(&value.color_destination,d->color_destination,4);
+    value.flags=d->flags.particle; /* Original burst clears secondary; inactive age/copy words are port-zero. */
+    *result=value;*random=next;return RF_OK;
+}
+
 int rf_particle_blood_prepare(const float position[3],float damage,uint32_t bitmap,
     uint32_t frame_count,rf_particle_spawn *result)
 {

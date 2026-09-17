@@ -15,6 +15,7 @@ static const struct {uint32_t inputs[11],hit,amount;} actor_cases[]={
 static const struct {uint32_t damage,packet[19];} blood_cases[]={
 #include "fixtures/debris_blood.inc"
 };
+#include "fixtures/blood_burst.inc"
 int main(void)
 {
     uint32_t i;float input[11],output[3],before[3]={11,12,13};
@@ -45,6 +46,14 @@ int main(void)
         {rf_particle_spawn before=packet;
          CHECK(rf_particle_blood_prepare(position,-1,37,6,&packet)==RF_RANGE && !memcmp(&packet,&before,76));}
     }
+    {rf_particle_definition definition;rf_random_state random={1};float position[3]={1,2,3};
+     CHECK(sizeof(definition)==sizeof(blood_definition_words));memcpy(&definition,blood_definition_words,sizeof(definition));
+     for(i=0;i<sizeof(blood_drop_words)/sizeof(blood_drop_words[0]);i++) {
+        rf_particle_spawn packet;
+        CHECK(!rf_particle_blood_drop_prepare(&definition,position,37,&random,&packet));
+        CHECK(!memcmp(&packet,blood_drop_words[i],76));
+     }
+     CHECK(random.value==blood_drop_seed);}
     output[0]=11;
     CHECK(rf_geomod_debris_gravity(0,NAN,.1f,output)==RF_RANGE && output[0]==11);
     CHECK(rf_geomod_debris_gravity(0,1,-1,output)==RF_RANGE && output[0]==11);

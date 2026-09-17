@@ -876,6 +876,8 @@ run_scene:
     printf("DEBRIS");for(i=0;i<8;++i)printf(" %u",rf_scene_debris[i]);puts("");
     {extern uint32_t rf_scene_debris_player_test[8];
      printf("DEBRIS_PLAYER_TEST");for(i=0;i<8;++i)printf(" %u",rf_scene_debris_player_test[i]);puts("");}
+    {extern uint32_t rf_scene_debris_blood[8];
+     printf("DEBRIS_BLOOD");for(i=0;i<8;++i)printf(" %u",rf_scene_debris_blood[i]);puts("");}
     {extern uint32_t rf_scene_debris_player[8];
      printf("DEBRIS_PLAYER");for(i=0;i<8;++i)printf(" %u",rf_scene_debris_player[i]);puts("");}
     {extern uint32_t rf_scene_debris_splash_audio[9];

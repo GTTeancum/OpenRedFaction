@@ -11,8 +11,11 @@ def verify(report):
         # Controls reject wrong room, prior suppression, then next-frame repeat.
         assert test==[1120403456,1120324813,1120318259,2,1,1,32768,1],(platform,test)
         live=checks['DEBRIS_PLAYER'][platform]
-        assert live==[1,1,1,1067450368,0,2,1120324813,4],(platform,live)
-    return dict(result='PASS',scope='Explicit scene contact fixture: health/armor, room/flag gates, repeat suppression and player direction. Ordinary flying-fragment contact and impact particles remain unverified.')
+        assert live[0]>=1 and live[1:]==[1,1,1067450368,0,2,1120324813,4],(platform,live)
+        if "DEBRIS_BLOOD" in checks:
+            blood=checks["DEBRIS_BLOOD"][platform]
+            assert blood[:5]==[1,1,22,0,0] and 0<blood[5]<=512*1024,(platform,blood)
+    return dict(result='PASS',scope='Explicit scene contact fixture: health/armor, room/flag gates, repeat suppression and player direction. Ordinary flying-fragment contact remains unverified; blood emission counts checked when present.')
 
 if __name__=='__main__':
     print(json.dumps(verify(json.loads(Path(sys.argv[1]).read_text())),indent=2))

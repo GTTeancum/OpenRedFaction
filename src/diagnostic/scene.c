@@ -560,6 +560,7 @@ uint32_t rf_scene_debris_wet[8]; /* solid misses,wet tests,accepted,last room,fr
 uint32_t rf_scene_debris_visibility[8]; /* hidden submissions,aged,last admitted/hidden,hidden age hashes before/after,room tests/rejects */
 uint32_t rf_scene_debris_motion[8]; /* moving steps,submerged steps,last room,flag,proposed hash,status,reserved,reserved */
 uint32_t rf_scene_debris_player_test_enabled,rf_scene_debris_player_test[8];
+uint32_t rf_scene_debris_blood[8]; /* requests,billboards,drops,exhausted,status,resident bytes,RNG,packet hash */
 uint32_t rf_scene_debris_player[8]; /* tests,overlaps,damage events,last amount,status,last flags,health,direction */
 uint32_t rf_scene_debris_splash_audio[9]; /* requests,selections,starts,loads,bytes,last sample,RNG,failures,name hash */
 uint32_t rf_scene_debris_crossing[8]; /* solid misses,wet entries,last room,point hash,size bits,status,reserved,reserved */
@@ -608,7 +609,7 @@ typedef struct scene_terrain_noise_owner {
 } scene_terrain_noise_owner;
 uint32_t rf_scene_terrain_noise[8]; /* mode,mappings,reused bindings,texels,stable checks,new mappings,bytes,generation */
 typedef struct scene_impact_owner {
-    rf_explosion_materials materials;
+    rf_explosion_materials materials;rf_vclip_definition blood;rf_particle_animation blood_images[2];
     struct {rf_explosion_clock clock;uint32_t slots[6];} instances[8];
 } scene_impact_owner;
 typedef struct scene_terrain_publication_owner scene_terrain_publication_owner;
@@ -836,8 +837,9 @@ static int scene_particle_draw_one(scene_stream *stream,uint32_t index,rf_scene_
         animation=&stream->particles.materials.textures[p->bitmap].animation;
     else {
         uint32_t texture=p->bitmap-stream->particles.materials.texture_count;
-        if(!stream->impact || texture>=stream->impact->materials.count)return RF_RANGE;
-        animation=stream->impact->materials.animations+texture;
+        if(!stream->impact)return RF_RANGE;
+        if(texture<stream->impact->materials.count)animation=stream->impact->materials.animations+texture;
+        else {texture-=stream->impact->materials.count;if(texture>=2)return RF_RANGE;animation=stream->impact->blood_images+texture;}
     }
     status=rf_particle_frame_index(p,&frame);if(status)return status;
     if(frame>=animation->count)return RF_RANGE;
@@ -10369,9 +10371,28 @@ static void scene_debris_splash_sound(scene_debris_pool *p,const float point[3])
     rf_scene_debris_splash_audio[6]=p->random.value;
     if(status)++rf_scene_debris_splash_audio[7];
 }
+static int scene_debris_blood_start(scene_stream *s,const float position[3],uint32_t room,float amount)
+{
+    rf_particle_spawn spawn;uint32_t bitmap,index,i;int status;rf_random_state *random;
+    if(!s->impact || !s->particles.state || !s->debris)return RF_OK;
+    ++rf_scene_debris_blood[0];random=&s->debris->random;
+    bitmap=s->particles.materials.texture_count+s->impact->materials.count;
+    status=rf_particle_blood_prepare(position,amount,bitmap,s->impact->blood_images[0].count,&spawn);if(status)return status;
+    status=rf_particle_pool_create(&s->particles.state->particles,0,&spawn,0,room+1,0,random,&index);
+    if(status==RF_NOT_FOUND)++rf_scene_debris_blood[3];else if(status)return status;else ++rf_scene_debris_blood[1];
+    /* Installed bloodsplat count85 at contact scale.25 -> ceil(21.25)=22.
+     * Keep consuming/preparing drops after pool exhaustion, as original. */
+    for(i=0;i<22;i++) {
+        status=rf_particle_blood_drop_prepare(&s->impact->blood.particle,position,bitmap+1,random,&spawn);if(status)return status;
+        rf_scene_debris_blood[7]=npc_hash_bytes(rf_scene_debris_blood[7]?rf_scene_debris_blood[7]:2166136261u,&spawn,sizeof(spawn));
+        status=rf_particle_pool_create(&s->particles.state->particles,0,&spawn,UINT32_MAX,room+1,0,random,&index);
+        if(status==RF_NOT_FOUND)++rf_scene_debris_blood[3];else if(status)return status;else ++rf_scene_debris_blood[2];
+    }
+    rf_scene_debris_blood[6]=random->value;return RF_OK;
+}
 /*48f678 iterates players only. Single-player adapter uses the retained
- * player body/model and existing damage owner. Particle42e3d0 remains open. */
-static int scene_debris_player_contact(scene_debris_chunk *c,uint32_t frame)
+ * player body/model and existing damage owner plus recovered blood effects. */
+static int scene_debris_player_contact(scene_stream *s,scene_debris_chunk *c,uint32_t frame)
 {
     extern rf_entity_room_state rf_scene_actor_room_state;
     uint32_t hit,bits,direction=0,k;float amount,applied=0,seconds=(float)frame/60,normal[3];double length;
@@ -10380,7 +10401,7 @@ static int scene_debris_player_contact(scene_debris_chunk *c,uint32_t frame)
     rf_damage_request request={0,UINT32_MAX,1,0,UINT32_MAX,0};int status;
     if((c->impact_flags&2) || !scene_actor_body.allocated_bytes ||
        rf_entity_lookup(&campaign_entities,(int32_t)campaign_player_object.handle)!=&campaign_player_view ||
-       c->room!=rf_scene_actor_room_state.room)return RF_OK;
+       c->room+1!=rf_scene_actor_room_state.room)return RF_OK;
     ++rf_scene_debris_player[0];
     status=rf_geomod_debris_actor_contact(c->position,c->velocity,c->radius,scene_actor_body.state.position,
         campaign_player_geometry.model_radius,&hit,&amount);
@@ -10394,6 +10415,7 @@ static int scene_debris_player_contact(scene_debris_chunk *c,uint32_t frame)
         ++rf_scene_debris_player[2];memcpy(rf_scene_debris_player+3,&applied,4);
         campaign_combat_event(frame,1,campaign_player_object.handle,applied,campaign_player_damage.state.effects.health);
     }
+    status=scene_debris_blood_start(s,c->position,c->room,amount);rf_scene_debris_blood[4]=(uint32_t)status;if(status)return status;
     memcpy(rf_scene_debris_player+6,&campaign_player_damage.state.effects.health,4);
     length=sqrt((double)c->velocity[0]*c->velocity[0]+(double)c->velocity[1]*c->velocity[1]+(double)c->velocity[2]*c->velocity[2]);
     /* Zero speed still consumes impact eligibility; finite zero direction is
@@ -10405,25 +10427,28 @@ static int scene_debris_player_contact(scene_debris_chunk *c,uint32_t frame)
 }
 /* Explicit diagnostic fixture: no fabricated chunk enters the render pool.
  * Exercise the actual scene damage adapter with a controlled nearby fragment. */
-static int scene_debris_player_check(uint32_t frame)
+static int scene_debris_player_check(scene_stream *s,uint32_t frame)
 {
     extern rf_entity_room_state rf_scene_actor_room_state;
     scene_debris_chunk c={0};float before=campaign_player_damage.state.effects.health;int status;
-    memcpy(c.position,scene_actor_body.state.position,12);c.velocity[0]=3;c.velocity[1]=4;c.radius=.5f;
-    c.room=rf_scene_actor_room_state.room+1;c.bounces=1;
+    memcpy(c.position,scene_actor_body.state.position,12);
+    {uint32_t k;for(k=0;k<3;k++)c.position[k]=s->particle_camera.view.origin[k]+s->particle_camera.view.basis[6+k];c.position[1]-=.1f;}
+    c.velocity[0]=3;c.velocity[1]=4;c.radius=.5f;
+    c.room=rf_scene_actor_room_state.room;c.bounces=1;
     memset(rf_scene_debris_player_test,0,sizeof(rf_scene_debris_player_test));
     memcpy(rf_scene_debris_player_test,&before,4);
-    status=scene_debris_player_contact(&c,frame);if(status)return status;
+    status=scene_debris_player_contact(s,&c,frame);if(status)return status;
     if(c.impact_flags || campaign_player_damage.state.effects.health!=before)return RF_FORMAT;
-    c.room=rf_scene_actor_room_state.room;c.impact_flags=2;
-    status=scene_debris_player_contact(&c,frame);if(status)return status;
+    if(!rf_scene_actor_room_state.room)return RF_FORMAT;
+    c.room=rf_scene_actor_room_state.room-1;c.impact_flags=2;
+    status=scene_debris_player_contact(s,&c,frame);if(status)return status;
     if(campaign_player_damage.state.effects.health!=before)return RF_FORMAT;
-    c.impact_flags=0;status=scene_debris_player_contact(&c,frame);if(status)return status;
+    c.impact_flags=0;status=scene_debris_player_contact(s,&c,frame);if(status)return status;
     if(!(c.impact_flags&2) || campaign_player_damage.state.effects.health>=before)return RF_FORMAT;
     memcpy(rf_scene_debris_player_test+1,&campaign_player_damage.state.effects.health,4);
     memcpy(rf_scene_debris_player_test+2,&campaign_player_damage.state.effects.armor,4);
     before=campaign_player_damage.state.effects.health;
-    status=scene_debris_player_contact(&c,frame+1);if(status)return status;
+    status=scene_debris_player_contact(s,&c,frame+1);if(status)return status;
     if(campaign_player_damage.state.effects.health!=before)return RF_FORMAT;
     rf_scene_debris_player_test[3]=c.impact_flags;rf_scene_debris_player_test[4]=rf_scene_debris_player[1];
     rf_scene_debris_player_test[5]=rf_scene_debris_player[2];rf_scene_debris_player_test[6]=campaign_player_contact_flags;
@@ -10433,7 +10458,7 @@ static int scene_debris_tick(scene_stream *s,uint32_t frame)
 {
     scene_debris_pool *p=s->debris;uint32_t i,k,matched;int status;
     if(!p)return RF_OK;rf_scene_debris[1]=0;
-    if(rf_scene_debris_player_test_enabled && frame==100){status=scene_debris_player_check(frame);if(status)return status;}
+    if(rf_scene_debris_player_test_enabled && frame==100){status=scene_debris_player_check(s,frame);if(status)return status;}
     for(i=0;i<80;i++)if(p->chunks[i].active) {
         scene_debris_chunk *c=p->chunks+i;float delta[3],proposed[3];rf_geometry_world_hit hit;
         const rf_liquid_room *motion_room;uint32_t liquid_flag;
@@ -10501,7 +10526,7 @@ static int scene_debris_tick(scene_stream *s,uint32_t frame)
         if(c->bounces) {
             status=rf_geomod_debris_gravity(c->velocity[1],scene_gravity.acceleration,1.f/60,&c->velocity[1]);
             if(status)return status;
-            status=scene_debris_player_contact(c,frame);if(status)return status;
+            status=scene_debris_player_contact(s,c,frame);if(status)return status;
         }
         ++rf_scene_debris[1];
     }
@@ -14169,6 +14194,18 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
             if(rf_scene_dev_room_enabled) {
                 stream->impact=calloc(1,sizeof(*stream->impact));if(!stream->impact){status=RF_RANGE;goto done;}
                 status=rf_explosion_materials_open(&stream->impact->materials,&campaign_rocket_impact,maps,map_count,128*1024);if(status)goto done;
+                {rf_vpp tables={0};rf_particle_definition billboard={0};uint32_t budget=512*1024;
+                 memset(rf_scene_debris_blood,0,sizeof(rf_scene_debris_blood));
+                 status=rf_vpp_open(&tables,tables_path);if(status)goto done;
+                 status=rf_vclip_definition_load(&tables,"bloodsplat",65536,&stream->impact->blood);rf_vpp_close(&tables);if(status)goto done;
+                 if(stream->impact->blood.particle_count!=85 || stream->impact->blood.flags || !stream->impact->blood.has_particle){status=RF_FORMAT;goto done;}
+                 strcpy(billboard.bitmap,"bloodsplat.vbm");
+                 status=rf_particle_animation_open(stream->impact->blood_images,&billboard,maps,map_count,budget);if(status)goto done;
+                 budget-=stream->impact->blood_images[0].resident_bytes;
+                 status=rf_particle_animation_open(stream->impact->blood_images+1,&stream->impact->blood.particle,maps,map_count,budget);if(status)goto done;
+                 if(stream->impact->blood_images[1].count!=1){status=RF_FORMAT;goto done;}
+                 rf_scene_debris_blood[5]=stream->impact->blood_images[0].resident_bytes+stream->impact->blood_images[1].resident_bytes;}
+
             }
             if(campaign_spawn) {
                 rf_random_state *rng=stream->particles.state?&stream->particles.state->random:NULL;
@@ -14303,7 +14340,7 @@ done:
     rf_visibility_light_storage_close(&stream->light_storage);
     rf_level_owned_lights_close(&stream->lights);
     rf_level_particles_close(&stream->particles);
-    if(stream->impact){rf_explosion_materials_close(&stream->impact->materials);free(stream->impact);}
+    if(stream->impact){rf_particle_animation_close(stream->impact->blood_images);rf_particle_animation_close(stream->impact->blood_images+1);rf_explosion_materials_close(&stream->impact->materials);free(stream->impact);}
     free(stream->particle_workspace);particle_draw_stream=NULL;
     campaign_close_movers();
     rf_physics_forces_close(&campaign_forces);

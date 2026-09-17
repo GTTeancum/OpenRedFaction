@@ -546,6 +546,12 @@ typedef struct rf_particle_spawn {
  * authored bloodsplat burst. Errors preserve output. */
 int rf_particle_blood_prepare(const float position[3],float damage,uint32_t bitmap,
     uint32_t frame_count,rf_particle_spawn *result);
+/* Authored bloodsplat burst subset of4c1bac..4c1cc4: unit +Z direction,
+ * zero authored offset/spawn radius and no projected velocity flag. One drop
+ * consumes five draws; allocation remains separate and may fail afterward.
+ * Caller supplies resolved bitmap; errors preserve RNG/output. */
+int rf_particle_blood_drop_prepare(const rf_particle_definition *definition,
+    const float position[3],uint32_t bitmap,rf_random_state *random,rf_particle_spawn *result);
 typedef struct rf_particle {
     uint32_t next,previous,owner;
     float position[3],velocity[3],age;
