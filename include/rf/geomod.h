@@ -464,6 +464,10 @@ int rf_geomod_terrain_cut_template_limits(rf_geomod_terrain *terrain,const rf_ge
  * further fallible work. NULL check has the ordinary cut behavior. No clone or
  * extra core allocation beyond the ordinary pending cut is introduced. */
 typedef int (*rf_geomod_terrain_check_fn)(const rf_geomod_terrain_view *,void *);
+/* Same precommit callback contract for diagnostic box cuts and reset. */
+int rf_geomod_terrain_cut_box_checked(rf_geomod_terrain *,const float center[3],const float half_extent[3],
+    uint32_t material,rf_geomod_terrain_check_fn check,void *context);
+int rf_geomod_terrain_reset_checked(rf_geomod_terrain *,rf_geomod_terrain_check_fn check,void *context);
 int rf_geomod_terrain_cut_template_checked(rf_geomod_terrain *,const rf_geomod_template *,
     const float center[3],const float basis[9],float scale,uint32_t material,
     const rf_geomod_shallow_limit *limits,uint32_t count,rf_geomod_terrain_check_fn check,void *context);

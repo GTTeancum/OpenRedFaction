@@ -10123,7 +10123,7 @@ static int scene_terrain_input(scene_stream *s,const float position[3],const flo
                     if(!isfinite(distance) || distance<sphere->radius-.002){status=RF_NOT_FOUND;break;}
                 }
             }
-            if(!status)status=rf_geomod_terrain_reset(s->terrain);
+            if(!status)status=scene_terrain_legacy_reset(s);
             if(!status) {
                 s->terrain_history_count=0;
                 /* Reset can return to the same cut count on the next blast.
@@ -10137,14 +10137,14 @@ static int scene_terrain_input(scene_stream *s,const float position[3],const flo
                 scene_terrain_dirty(s,0,0,512,512);
             }
             if(!status && s->debris){memset(s->debris,0,sizeof(*s->debris));s->debris->random.value=1;rf_debris_audio_init(&s->debris->audio);memset(rf_scene_debris_audio,0,sizeof(rf_scene_debris_audio));memset(rf_scene_debris,0,sizeof(rf_scene_debris));memset(rf_scene_debris_relaunch,0,sizeof(rf_scene_debris_relaunch));memset(rf_scene_debris_wet,0,sizeof(rf_scene_debris_wet));rf_scene_debris_wet[3]=UINT32_MAX;rf_scene_debris[6]=sizeof(*s->debris);}
-            if(!status){status=scene_terrain_bind(s);if(status)return status;++rf_scene_geomod[7];}
+            if(!status)++rf_scene_geomod[7];
         } else {
         for(i=0;i<3;i++)delta[i]=orientation[2][i]*100;
         status=rf_geometry_collision_world_ray(s->collision,0x460,position,delta,1,&hit,&matched);
         if(status)return status;
         if(matched && hit.room==s->terrain_collision.room) {
-            status=rf_geomod_terrain_cut_box(s->terrain,hit.hit.point,extent,s->terrain_material);
-            if(!status){status=scene_terrain_bind(s);if(status)return status;++rf_scene_geomod[7];}
+            status=scene_terrain_legacy_box_edit(s,hit.hit.point,extent);
+            if(!status)++rf_scene_geomod[7];
         }
         }
         rf_scene_geomod[5]=(uint32_t)status;

@@ -44,8 +44,9 @@ bytes differ, with maximum numeric delta4.76837158203125e-7. No visual differenc
 is claimed or introduced to hide this result. A current-build reload reproduces
 the staged run's checkpoint, physical mesh and atlas exactly.
 
-Remaining scope: broader allocation-failure coverage and non-rocket legacy
-diagnostic cut/reset entry points. This is not a claim
+Remaining scope includes broader allocation-failure coverage. Non-rocket legacy
+controls are covered by the subsequent GEOMOD-TRANSACTIONAL-DEV-CONTROLS-20260916.md.
+This is not a claim
 that every scene operation or later debris-spawn failure is transactional.
 
 Native normal-path verification: stock64MiB XEMU run

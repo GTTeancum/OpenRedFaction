@@ -29,15 +29,21 @@ static int scene_legacy_edit_check(const rf_geomod_terrain_view *candidate,void 
     p->peak=candidate->peak_bytes+s->terrain_collision.resident_bytes;
     return RF_OK;
 }
-static int scene_terrain_legacy_template_edit(scene_stream *s,const float center[3],const float basis[9],
-    float scale,const rf_geomod_shallow_limit *limits,uint32_t count)
+typedef struct scene_legacy_request {
+    const float *center,*basis,*extent;float scale;
+    const rf_geomod_shallow_limit *limits;uint32_t count,reset;
+} scene_legacy_request;
+static int scene_terrain_legacy_edit(scene_stream *s,const scene_legacy_request *request)
 {
     scene_legacy_edit *p=calloc(1,sizeof(*p));rf_geomod_terrain_view before;uint32_t room;int status;
     if(!p)return RF_IO;p->scene=s;
     status=rf_geomod_terrain_get(s->terrain,&before);if(status){free(p);return status;}
     p->old_tree_bytes=before.tree->allocated_bytes;
-    status=rf_geomod_terrain_cut_template_checked(s->terrain,s->terrain_template,center,basis,scale,
-        s->terrain_material,limits,count,scene_legacy_edit_check,p);
+    if(request->reset)status=rf_geomod_terrain_reset_checked(s->terrain,scene_legacy_edit_check,p);
+    else if(request->extent)status=rf_geomod_terrain_cut_box_checked(s->terrain,request->center,request->extent,
+        s->terrain_material,scene_legacy_edit_check,p);
+    else status=rf_geomod_terrain_cut_template_checked(s->terrain,s->terrain_template,request->center,request->basis,request->scale,
+        s->terrain_material,request->limits,request->count,scene_legacy_edit_check,p);
     if(!status) {
         rf_geometry_collision_overlay *live=&s->terrain_collision;
         /* Everything below is a nonfailing copy into existing live owners.
@@ -59,3 +65,10 @@ static int scene_terrain_legacy_template_edit(scene_stream *s,const float center
     rf_geometry_collision_overlay_close(&p->overlay);
     scene_terrain_lighting_stage_discard(&p->lighting);free(p);return status;
 }
+static int scene_terrain_legacy_template_edit(scene_stream *s,const float center[3],const float basis[9],
+    float scale,const rf_geomod_shallow_limit *limits,uint32_t count)
+{scene_legacy_request request={center,basis,NULL,scale,limits,count,0};return scene_terrain_legacy_edit(s,&request);}
+static int scene_terrain_legacy_box_edit(scene_stream *s,const float center[3],const float extent[3])
+{scene_legacy_request request={center,NULL,extent,0,NULL,0,0};return scene_terrain_legacy_edit(s,&request);}
+static int scene_terrain_legacy_reset(scene_stream *s)
+{scene_legacy_request request={0};request.reset=1;return scene_terrain_legacy_edit(s,&request);}

@@ -2177,7 +2177,8 @@ static int terrain_publish_checked(rf_geomod_terrain *t,uint32_t count,rf_geomod
 }
 static int terrain_publish(rf_geomod_terrain *t,uint32_t count)
 {return terrain_publish_checked(t,count,NULL,NULL);}
-int rf_geomod_terrain_cut_box(rf_geomod_terrain *t,const float center[3],const float extent[3],uint32_t material)
+int rf_geomod_terrain_cut_box_checked(rf_geomod_terrain *t,const float center[3],const float extent[3],uint32_t material,
+    rf_geomod_terrain_check_fn check,void *context)
 {
     float lo[3],hi[3];uint32_t axis,side,j,slot;
     const int u[4]={-1,1,1,-1},v[4]={-1,-1,1,1};
@@ -2200,8 +2201,10 @@ int rf_geomod_terrain_cut_box(rf_geomod_terrain *t,const float center[3],const f
         }
     }
     t->cuts[slot]=(rf_geomod_mesh_view){t->cut_vertices[slot],t->cut_faces[slot],24,6,0};
-    return terrain_publish(t,t->count+1);
+    return terrain_publish_checked(t,t->count+1,check,context);
 }
+int rf_geomod_terrain_cut_box(rf_geomod_terrain *t,const float center[3],const float extent[3],uint32_t material)
+{return rf_geomod_terrain_cut_box_checked(t,center,extent,material,NULL,NULL);}
 /* Inscribed twenty-face sphere approximation: bounded and deliberately faceted.
  * Reuses the same transactional union history as box excavation. */
 int rf_geomod_terrain_cut_crater(rf_geomod_terrain *t,const float center[3],float radius,uint32_t material)
@@ -2467,6 +2470,8 @@ int rf_geomod_terrain_history_check_cuts(rf_geomod_terrain *t,const void *data,u
 {if(!check)return RF_RANGE;return terrain_history_import(t,data,bytes,NULL,check,context,0);}
 int rf_geomod_terrain_reset(rf_geomod_terrain *t)
 {return t?terrain_publish(t,0):RF_RANGE;}
+int rf_geomod_terrain_reset_checked(rf_geomod_terrain *t,rf_geomod_terrain_check_fn check,void *context)
+{return t?terrain_publish_checked(t,0,check,context):RF_RANGE;}
 int rf_geomod_terrain_get(const rf_geomod_terrain *t,rf_geomod_terrain_view *out)
 {
     rf_geomod_terrain_view value;if(!t || !out)return RF_RANGE;
