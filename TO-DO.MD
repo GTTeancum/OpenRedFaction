@@ -1,6 +1,8 @@
 # Red Faction Xbox / PC - open work
 
-- GeoMod actor collision: Add an eligible actor and larger fragment to the DEV contact test; the live miner1/class9 and radius0.471 chunk correctly reject contacts, while positive live contacts and two-object response remain open.
+- PRIORITY GeoMod player contacts: Apply original fragment size routing: reject radius<=0.5, sphere pairs through radius1, and polygon contacts above1; current all-polygon movement and small-rubble standing need correction.
+
+- GeoMod vehicle contacts: Verify admitted use-kind1 vehicle contacts with larger fragments;240 original cases confirm ordinary miner/AI-response kind9 is excluded, so humanoid rubble pushing is not a missing fidelity feature.
 
 - GeoMod object interactions: Broaden admitted fragment contacts with actors/props;128 original pair cases prove terrain fragments deliberately exclude one another, so fragment stacking is not a missing fidelity feature.
 

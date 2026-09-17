@@ -1,6 +1,6 @@
 # Actor/fragment pair admission
 
-`python tools/probe_fragment_actor_admission.py` passes144 full original48be00 cases without hooks. Both argument orders cross player flag0/1, actor class physics use-kind0/1/3, fragment geometry pointer absent/present, and fragment body radii.49/.5/.5001/1/1.0001/3. Real4895d0,429990 and486c90 execute. Both objects remain byte-identical; output pair flags are checked.
+`python tools/probe_fragment_actor_admission.py` passes240 full original48be00 cases without hooks. Both argument orders cross player flag0/1, actor class use-kind0/1/3/9/10, fragment geometry pointer absent/present, and fragment body radii.49/.5/.5001/1/1.0001/3. Real4895d0,429990 and486c90 execute. Both objects remain byte-identical; output pair flags are checked.
 
 For ordinary visible SP actors with collision participation enabled, admission requires fragment body radius strictly greater than0.5 and either (player flag plus fragment geometry present) or actor class physics use-kind1. Radius exactly0.5 rejects. The class selector is actor+294->1b4, not current movement mode+858->4; initial inspection conflated those fields and the executable probe corrected it.
 
@@ -14,7 +14,7 @@ Next: implement the admitted sphere-pair query with source/target body poses, se
 
 `rf_geomod_piece_registry_npc_contact` now assembles live fragment body poses and
 sphere lists for the existing original-derived `rf_collision_actors_general_response`
-(49a420). It selects the earliest contact for an ordinary NPC kind0/use-kind1,
+(49a420). It selects the earliest contact for an non-player vehicle actor kind0/use-kind1,
 requires target radius strictly above0.5 and collision participation bit0x20,
 and skips retired fragments. It uses caller bounds, both current/next poses,
 masses and linear velocities without allocating or modifying either owner.
@@ -91,3 +91,24 @@ launcher and room visible. No movement animation sequence or audio was reviewed.
 This run also exposed a startup diagnostic that failed every one-NPC scene
 because its aim probe required a second NPC. That unavailable pair is now skipped;
 ordinary weapon aiming is unchanged. Native execution of this fixture is pending.
+
+## Meaning of use-kind and priority correction
+
+The selector is the class **use interaction**, not a physics simulation mode.
+`rf_entity_class_physics_read` maps authored `$Use: "vehicle"` to1 and
+`$Use: "ai response"` to9; the type's name had obscured that distinction in
+previous notes. Original486c90 reads the class field at1b4. The expanded
+original48be00 probe now explicitly executes kinds9 and10 as well as0/1/3:
+all240 cases pass, including kind9 rejection at every tested fragment size.
+The installed table's vehicle classes are sub, APC, Jeep01, Fighter01,
+masako_fighter, Shuttle and Driller01. These are future vehicle contact cases,
+not a reason to change a miner's authored class to force a positive result.
+
+The higher-priority discrepancy is the current player adapter, which queries
+all fragment polygons regardless of body radius. Original admission rejects
+radius<=0.5 even for a player; admitted player fragments through radius1 use
+sphere pairs, with polygons only above1. The current radius0.471438289 post
+chunk therefore cannot substantiate original-compatible player standing.
+Historical standing/save tests prove internal consistency of the implemented
+behavior, not its fidelity. Player movement, ground support and checkpoint
+support must be audited together when correcting this routing.

@@ -11,7 +11,7 @@ w=lambda *v:struct.pack('<'+'I'*len(v),*(x&0xffffffff for x in v));f=lambda *v:s
 rows=[]
 for reverse in [0,1]:
  for player in [0,1]:
-  for mode in [0,1,3]:
+  for mode in [0,1,3,9,10]:
    for mesh in [0,1]:
     for radius in [.49,.5,.5001,1,1.0001,3]:
      u=Uc(UC_ARCH_X86,UC_MODE_32);u.mem_map(0x400000,(len(im)+4095)&~4095);u.mem_write(0x400000,im);u.mem_map(B,0x10000)
