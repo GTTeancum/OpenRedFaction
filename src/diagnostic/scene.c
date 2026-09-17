@@ -9527,11 +9527,14 @@ static int scene_terrain_material_audit(scene_stream *s,const char *path)
         if(fwrite(rf_image_pixel(image,x,y),1,4,file)!=4){failed=1;break;}
     if(fclose(file))failed=1;return failed?RF_IO:RF_OK;
 }
+static inline int scene_terrain_publication_view(scene_stream *s,rf_geomod_terrain_view *out);
 static int scene_terrain_base_audit(scene_stream *s,const char *path)
 {
     scene_terrain_noise_owner *owner=s->terrain_noise;FILE *file;uint32_t i,x,y;int failed;rf_geomod_terrain_view terrain;
     if(!owner || owner->bake!=owner->count || s->terrain_shadow_reference)return RF_RANGE;
-    if(rf_geomod_terrain_get(s->terrain,&terrain))return RF_RANGE;
+    if(s->terrain_authored) {
+        if(scene_terrain_publication_view(s,&terrain))return RF_RANGE;
+    } else if(rf_geomod_terrain_get(s->terrain,&terrain))return RF_RANGE;
     file=fopen(path,"wb");if(!file)return RF_IO;
     fprintf(file,"map,seed,width,height,packed,material,image,atlas_x,atlas_y,faces,nx,ny,nz,d,min_x,min_y,min_z,max_x,max_y,max_z,corners,min_pixel_u,min_pixel_v,max_pixel_u,max_pixel_v\n");
     for(i=0;i<owner->count;i++) {

@@ -344,3 +344,12 @@ The apparent dark polygon behind the far joint is pre-existing floor detail. The
 Unprojecting pixel(375,275) with the exported camera and the raster's actual forward-depth mapping gives approximately(-12.20267,-1.99949,-7.99304), on floorY=-2 and well beyond the damaged post near(-5,2,-2.5). This rules out the suspected destruction-created floating patch in this view. It does not establish full floor material fidelity. No production geometry or lighting change was required.
 
 The four destroyed-state camera checkpoints remain identical; the fifth, uncut control intentionally has a different gameplay checkpoint. The harness asserts the unoccluded color/depth equality and floor depth and writes them to artifacts/geomod-cap-views/report.json. Run passes in artifacts/cap-inspection-pc.log. Cap darkness/material quality remains an independent open item; this finding closes only the ambiguous-patch question. No new Xbox run was necessary for this PC render-source diagnosis.
+
+
+### Connected cap lightmap audit corrected
+
+The existing base-lightmap audit was reading only the selected source terrain while its binding array described the full connected publication. This incorrectly reported post-cap maps2/5/6 as unused. The host-only audit now reads the active composed publication for authored terrain, retaining the old single terrain path for other cases. Rendering, map generation and Xbox runtime behavior are unchanged.
+
+The cap-view harness exports mesh/lightmap audits and checks all seven maps. Each binds one published face; their corner counts are4,4,7,8,5,5,3. Every projected corner stays within its atlas tile, all maps use material slot80, and their packed5-bit RGB channels range4..11 with no zero channels. The existing destroyed-camera checkpoints remain identical and the uncut floor color/depth control still passes. These checks rule out missing maps and out-of-tile projected coordinates in this fixture, not all interpolation or broader lighting issues. The observed cap darkness has not been proved erroneous or corrected; no arbitrary brightness multiplier was introduced.
+
+PC build and the integrated cap-view run pass (`artifacts/cap-light-audit-build.log`, `artifacts/cap-light-audit.log`). Since the C change is within the PC-only audit block, no new Xbox build/run is claimed. The next appearance investigation should compare the intended generated-light/material calculation rather than treating the old zero-face diagnostic as a rendering defect.

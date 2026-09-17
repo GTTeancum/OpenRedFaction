@@ -1,5 +1,5 @@
 """Inspect real saved beam joint cuts from elevated render-only views."""
-import json,os,struct,subprocess
+import csv,json,os,struct,subprocess
 from pathlib import Path
 from PIL import Image
 ROOT=Path(__file__).resolve().parents[1];folder=ROOT/'artifacts/geomod-cap-views';folder.mkdir(parents=True,exist_ok=True)
@@ -11,7 +11,7 @@ views={'baseline':None,'near-cap':'-3,2.25,0,-5,1.5,2.5','far-cap':'-3,2.25,0,-5
 report={};baseline=None
 for name,camera in views.items():
  checkpoint=folder/(name+'.rfcp');checkpoint.unlink(missing_ok=True)
- local=dict(env,RF_REPLAY_GEOMOD_CHECKPOINT_OUT=str(checkpoint),RF_REPLAY_DEPTH_OUT=str(folder/(name+'.depth')))
+ local=dict(env,RF_REPLAY_GEOMOD_CHECKPOINT_OUT=str(checkpoint),RF_REPLAY_DEPTH_OUT=str(folder/(name+'.depth')),RF_REPLAY_TERRAIN_BASE_AUDIT=str(folder/(name+'-lightmaps.csv')),RF_REPLAY_TERRAIN_MESH_AUDIT=str(folder/(name+'-mesh.csv')))
  if camera:local['RF_REPLAY_INSPECTION_CAMERA']=camera
  if name=='uncut-far':local.pop('RF_REPLAY_GEOMOD_CHECKPOINT_IN')
  with (folder/(name+'.log')).open('wb') as log:
@@ -40,5 +40,18 @@ view=((x+.5-320)*z/320,(240-y-.5)*z/320,z)
 world=[pose[k]+sum(view[j]*pose[3+j*3+k] for j in range(3)) for k in range(3)]
 assert abs(world[1]+2)<.002,('patch is not on expected floor',world)
 report['floor_patch']=dict(region=region,color_and_depth_identical=True,pixel=[x,y],world=world,scope='Pre-existing floor detail, not a destruction-created floating polygon')
-report.update(result='PASS' ,scope='Checkpoint-invariant render camera; visual inspection is separate, not playable elevated player placement')
+lightmaps=[]
+for row in csv.DictReader((folder/'far-cap-lightmaps.csv').open(encoding='utf-8')):
+ packed=bytes.fromhex(row['packed']);pixels=struct.unpack('<'+'H'*(len(packed)//2),packed)
+ channels=[(p>>shift)&31 for p in pixels for shift in (10,5,0)]
+ assert int(row['faces'])>0 and int(row['corners'])>=3,('unused connected map',row['map'])
+ for axis,dimension in [('u','width'),('v','height')]:
+  origin=int(row['atlas_x' if axis=='u' else 'atlas_y'])
+  assert float(row['min_pixel_'+axis])>=origin-.001
+  assert float(row['max_pixel_'+axis])<=origin+int(row[dimension])-1+.001
+ assert min(channels)>0,('black texels',row['map'])
+ lightmaps.append(dict(map=int(row['map']),faces=int(row['faces']),corners=int(row['corners']),material=int(row['material']),channel_min=min(channels),channel_max=max(channels)))
+assert len(lightmaps)==7
+report['connected_lightmaps']=lightmaps
+report.update(result='PASS'  ,scope='Checkpoint-invariant render camera; visual inspection is separate, not playable elevated player placement')
 (folder/'report.json').write_text(json.dumps(report,indent=2)+'\n',encoding='utf-8');print(json.dumps(report,indent=2))
