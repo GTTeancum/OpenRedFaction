@@ -7119,13 +7119,41 @@ int rf_scene_npc_body_sweep(const rf_geometry_collision_world *world,uint32_t ha
     const rf_physics_body_state *proposal,uint32_t flags,rf_collision_body_sphere *scratch,
     uint32_t capacity,rf_geometry_body_hit *hit,uint32_t *matched)
 {
-    uint32_t i;campaign_npc_body *owner;
+    uint32_t i,cls,found,piece_found,batch,piece;campaign_npc_body *owner;int status;
+    scene_stream *stream=scene_actor_collision_owner;rf_geometry_body_hit value={0};
+    rf_collision_actor_general_response actor;rf_collision_actor_contact contact;
+    rf_physics_body candidate;
     if(!proposal || !hit || !matched)return RF_RANGE;
     for(i=0;i<campaign_npc_body_count;++i)if(campaign_npc_bodies[i].registration.view &&
         campaign_npc_bodies[i].registration.handle==handle)break;
     if(i==campaign_npc_body_count)return RF_NOT_FOUND;owner=campaign_npc_bodies+i;
     if(rf_entity_lookup(&campaign_entities,(int32_t)handle)!=&owner->view || owner->view.type!=0)return RF_NOT_FOUND;
-    return campaign_physics_body_sweep(world,proposal,&owner->body.spheres,flags,scratch,capacity,hit,matched);
+    status=campaign_physics_body_sweep(world,proposal,&owner->body.spheres,flags,scratch,capacity,&value,&found);
+    if(status)return status;
+    if(stream && stream->collision==world && rf_geomod_piece_registry_count(stream->detached_pieces) &&
+       !(owner->object_flags&(2u|8u)) && owner->body.spheres.count) {
+        if(!campaign_seeds.items || !campaign_seeds.classes || i>=campaign_seeds.records.count)return RF_RANGE;
+        cls=campaign_seeds.items[i].class_index;if(cls>=campaign_seeds.class_count)return RF_RANGE;
+        if(campaign_seeds.classes[cls].physics.use_kind!=1){if(found)*hit=value;*matched=found;return RF_OK;}
+        candidate=owner->body;candidate.state=*proposal;
+        /* Clearance callers can change endpoints without updating sweep bounds. */
+        status=rf_physics_body_prepare_sweep(&candidate.state);if(status)return status;
+        status=collision_body_response(&candidate,&owner->collision_contact,handle,owner->collision_material,0,&actor);
+        if(status)return status;
+        actor.actor.contact.time=found?value.contact.fraction:1;
+        status=rf_geomod_piece_registry_npc_contact(stream->detached_pieces,&actor,1,1,&contact,&batch,&piece,&piece_found);
+        if(status)return status;
+        if(piece_found) {
+            memset(&value,0,sizeof(value));
+            memcpy(value.contact.point,contact.point,12);memcpy(value.contact.normal,contact.normal,12);
+            memcpy(value.contact.velocity,contact.velocity,12);value.contact.fraction=contact.time;
+            value.contact.material=contact.material;value.contact.object_id=UINT32_MAX;
+            value.contact.face_token=UINT32_MAX;value.contact.texture=UINT32_MAX;
+            value.solid=value.sphere=value.face=UINT32_MAX;value.room=stream->terrain_collision.room;value.hits=1;
+            found=1;
+        }
+    }
+    if(found)*hit=value;*matched=found;return RF_OK;
 }
 typedef struct campaign_npc_stand_context {
     const rf_geometry_collision_world *world;campaign_npc_body *owner;

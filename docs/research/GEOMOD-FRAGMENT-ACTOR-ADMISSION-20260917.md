@@ -34,3 +34,22 @@ Validation: all121 PC CTest cases pass; the stock-profile NXDK XBE and ISO build
 succeeds (existing linker merge warning). Native execution of this new query is
 not yet verified. Logs: artifacts/geomod-postedit-re/npc-contact-pc-tests.log and
 npc-contact-xbox-build.log.
+
+## NPC movement adapter
+
+`rf_scene_npc_body_sweep` now merges admitted fragment sphere contacts with the
+existing terrain/mover result. Static geometry wins equal-time contacts. A copied
+proposal receives fresh sweep bounds before querying; class data is required only
+when owned rubble is present. No actor or fragment state is modified by the query.
+The existing scripted movement/fall consumers already clamp movement at the
+returned fraction. The separate NPC ground probe remains unchanged.
+
+This integrates contact selection, not the full original two-object scheduler:
+fragment counterpart contacts, deferred response flags, pushing and crushing are
+still open. No live NPC/rubble encounter has been exercised yet. The broad suite
+caught a null class-data access in the metadata-free NPC fixture; class lookup was
+moved behind the rubble-presence gate and validated there.
+
+Adapter validation: all121 PC tests pass after the fix, and stock-profile NXDK
+XBE/ISO builds succeed. Logs are npc-movement-tests.log and npc-movement-xbox.log
+under artifacts/geomod-postedit-re. These checks do not prove live visual behavior.

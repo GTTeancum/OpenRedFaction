@@ -1,6 +1,6 @@
 # Red Faction Xbox / PC - open work
 
-- GeoMod actor collision: Integrate the new NPC sphere-contact query into movement and response scheduling; class/type and radius admission are covered, while live NPC/rubble behavior and player size-based shape selection remain open.
+- GeoMod actor collision: Verify NPC movement against rubble in the DEV testbed; body sweeps now select nearer admitted sphere contacts, while two-object response scheduling and player size-based shape selection remain open.
 
 - GeoMod object interactions: Broaden admitted fragment contacts with actors/props;128 original pair cases prove terrain fragments deliberately exclude one another, so fragment stacking is not a missing fidelity feature.
 
