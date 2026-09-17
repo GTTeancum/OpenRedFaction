@@ -306,6 +306,31 @@ int main(int argc,char **argv)
          CHECK(!scene_authored_sources_write(pair,packet,SCENE_CHECKPOINT_MAX,&encoded_bytes));
          CHECK(!pair->terrain_sources[1].terrain && encoded_bytes==bytes && !memcmp(packet,kept,bytes));
          pair->terrain_sources[1].terrain=core;}
+        {
+            rf_geomod_terrain_view view;const rf_geomod_publication_origin *pair_origins;rf_preview_surface_lightmap *pair_bindings;
+            rf_collision_composition_view composed;scene_terrain_lighting_stage *lights=NULL;
+            rf_authored_owner_expected first,second;uint16_t maps_first[768],maps_second[768];uint32_t bytes_first,bytes_second;
+            memset(&pair->terrain_collision,0,sizeof(pair->terrain_collision));
+            CHECK(!scene_terrain_publication_open(pair));CHECK(!scene_terrain_publication_prepare(pair));
+            CHECK(!scene_terrain_publication_candidate(pair,&view,&pair_origins,&pair_bindings));
+            CHECK(!scene_terrain_lighting_stage_prepare(pair,&view,pair_bindings,0,&lights));
+            CHECK(!rf_collision_composition_pending(pair->terrain_publication->composition,&composed));
+            CHECK(!scene_authored_digest_capture(pair,&view,pair_origins,&composed,lights->staged,view.mesh.generation,maps_first,768,&first,&bytes_first));
+            CHECK(!scene_terrain_sources_select(pair,0));
+            CHECK(!scene_authored_digest_capture(pair,&view,pair_origins,&composed,lights->staged,view.mesh.generation,maps_second,768,&second,&bytes_second));
+            CHECK(!memcmp(&first,&second,sizeof(first)) && bytes_first==bytes_second);
+            CHECK(!memcmp(maps_first,maps_second,view.mesh.face_count*sizeof(*maps_first)));
+            pair->terrain_sources[1].authored->source_identity[0]^=1;
+            CHECK(!scene_authored_digest_capture(pair,&view,pair_origins,&composed,lights->staged,view.mesh.generation,maps_second,768,&second,&bytes_second));
+            CHECK(memcmp(first.material_digest,second.material_digest,32) && memcmp(first.collision_digest,second.collision_digest,32));
+            pair->terrain_sources[1].authored->source_identity[0]^=1;
+            lights->staged->terrain_noise->random.value^=1;
+            CHECK(!reject_atomic(pair,&view,pair_origins,&composed,lights->staged,view.mesh.generation));
+            lights->staged->terrain_noise->random.value^=1;
+            printf("PASS real paired scene digests: source selection invariant, second identity bound, shared atlas%u maps, faces%u\n",lights->staged->terrain_noise->count,view.mesh.face_count);
+            scene_terrain_lighting_stage_discard(&lights);scene_terrain_publication_abort(pair);
+            scene_terrain_publication_close(&pair->terrain_publication);
+        }
         scene_terrain_sources_close(pair);free(pair);free(packet);free(kept);
         printf("PASS real paired source snapshot: verified source identities, exact cut meshes/body bytes and atomic rejection (%u bytes)\n",bytes);
     }
