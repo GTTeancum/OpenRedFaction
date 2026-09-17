@@ -1022,6 +1022,7 @@ typedef struct geomod_corner_support {
     uint16_t face;
     const rf_geomod_mesh_view *cutters;
     const geomod_diagonals *diagonals;
+    const rf_geomod_mesh_view *source;const uint16_t *source_planes,*source_edges;
 } geomod_corner_support;
 static const float *corner_support_plane(const geomod_corner_support *support,uint16_t id)
 {
@@ -1036,6 +1037,33 @@ static const float *corner_support_plane(const geomod_corner_support *support,ui
 static int corner_seed_edge(const geomod_corner_support *support,const uint16_t ids[3],float position[3])
 {
     uint32_t pair,a,b,other,i,j,k;
+    if(support->source)for(pair=0;pair<3;pair++) {
+        a=pair;b=(pair+1)%3;other=(pair+2)%3;
+        if(ids[a]>=32 || ids[b]>=32 || ids[a]==ids[b])continue;
+        for(i=0;i<support->source->face_count;i++) {
+            const rf_geomod_face *face=support->source->faces+i;uint16_t fp=support->source_planes[i];
+            if(fp!=ids[a] && fp!=ids[b])continue;
+            for(j=0;j<face->count;j++) {
+                uint16_t ep=support->source_edges[face->first+j];const float *first,*last,*plane;double da,db,t;
+                first=support->source->vertices[face->first+j].position;last=support->source->vertices[face->first+(j+1)%face->count].position;
+                if(!((fp==ids[a] && ep==ids[b]) || (fp==ids[b] && ep==ids[a]))) {
+                    double d0,d1;const float *boundary;
+                    if(ep<GEOMOD_DIAGONAL_BASE || ep==UINT16_MAX)continue;
+                    boundary=corner_support_plane(support,fp==ids[a]?ids[b]:ids[a]);d0=d1=boundary[3];
+                    for(k=0;k<3;k++){d0+=(double)boundary[k]*first[k];d1+=(double)boundary[k]*last[k];}
+                    if(fabs(d0)>1e-5 || fabs(d1)>1e-5)continue;
+                }
+                for(k=0;k<3 && first[k]==last[k];k++) {}
+                if(k==3)continue;
+                if(first[k]>last[k]){const float *swap=first;first=last;last=swap;}
+                plane=corner_support_plane(support,ids[other]);da=db=plane[3];
+                for(k=0;k<3;k++){da+=(double)plane[k]*first[k];db+=(double)plane[k]*last[k];}
+                if(da==db)continue;t=da/(da-db);if(t<0 || t>1)continue;
+                for(k=0;k<3;k++)position[k]=(float)((1-t)*first[k]+t*last[k]);
+                return 1;
+            }
+        }
+    }
     for(pair=0;pair<3;pair++) {
         const float *points[2][3],*shared[2],*plane;uint32_t counts[2],found=0,cutter;
         double da,db,t;const float *first,*last;
@@ -1537,6 +1565,7 @@ static int compact_separated(const float a[6],const float b[6])
 typedef struct geomod_face_lineage {
     uint8_t pending[RF_GEOMOD_WORK_FACES],repaired[RF_GEOMOD_WORK_FACES];
     geomod_diagonals *diagonals;
+    const rf_geomod_mesh_view *source;const uint16_t *source_planes,*source_edges;
 } geomod_face_lineage;
 /* Previous chronological bank's exact clipping-plane ownership. */
 typedef struct geomod_step_support {
@@ -1601,7 +1630,8 @@ static int subtract_history_face_range(rf_geomod_storage *s,const rf_geomod_vert
     const rf_geomod_mesh_view *cutters,uint32_t cutter_count,rf_geomod_multi_work *work,const uint16_t *edges,uint16_t face_id,uint32_t first_cutter,geomod_face_lineage *lineage,uint8_t birth)
 {
     uint32_t bank=0,pieces=1,c,i,j;int status;
-    geomod_corner_support support={work,face_id,cutters,lineage?lineage->diagonals:NULL};
+    geomod_corner_support support={work,face_id,cutters,lineage?lineage->diagonals:NULL,
+        lineage?lineage->source:NULL,lineage?lineage->source_planes:NULL,lineage?lineage->source_edges:NULL};
     memcpy(work->vertices[0],vertices,count*sizeof(*vertices));
     if(edges)memcpy(work->edges[0],edges,count*sizeof(*edges));
     work->fragments[0][0]=(rf_geomod_fragment){0,count};
@@ -1661,7 +1691,7 @@ static int subtract_history_face(rf_geomod_storage *s,const rf_geomod_vertex *ve
 typedef struct geomod_current_clip {
     rf_geomod_solid_clip_work work;
     rf_collision_face *faces;float (*positions)[3];rf_collision_face_filter *filters;
-    uint32_t vertex_capacity,face_capacity;
+    uint32_t vertex_capacity,face_capacity,source_is_current;
 } geomod_current_clip;
 static inline int prepare_chronological_step_clipped(rf_geomod_storage *s,const rf_geomod_mesh_view *cutters,
     uint32_t count,rf_geomod_multi_work *work,geomod_face_lineage *lineage,geomod_step_support *previous,uint32_t cavity,
@@ -1671,21 +1701,61 @@ static inline int prepare_chronological_step_clipped(rf_geomod_storage *s,const 
     if(!s || !work || !lineage || !previous || !cutters || !count || count>RF_GEOMOD_CUT_LIMIT || s->editing || s->vertex_capacity>RF_GEOMOD_WORK_VERTICES || s->face_capacity>RF_GEOMOD_WORK_FACES || cavity>1)return RF_RANGE;
     lineage->diagonals=&previous->diagonals;if(count==1)previous->diagonals.count=0;
     source=(rf_geomod_mesh_view){s->vertices[2],s->faces[2],s->nv[2],s->nf[2],0};
-    status=convex_mesh_planes_oriented(&source,work->source_planes,(int)cavity);if(status)return status;
+    if(!clip_context || !clip_context->source_is_current) {
+        status=convex_mesh_planes_oriented(&source,work->source_planes,(int)cavity);if(status)return status;
+    } else if(count!=1 || cavity || source.face_count>32)return RF_RANGE;
     status=rf_geomod_storage_view(s,&old);if(status)return status;
     if(clip_context) {
         status=rf_geomod_collision_faces(&old,clip_context->filters,clip_context->positions,clip_context->vertex_capacity,
             clip_context->faces,clip_context->face_capacity);if(status)return status;
+        if(clip_context->source_is_current)for(i=0;i<old.face_count;i++)
+            memcpy(work->source_planes[i],clip_context->faces[i].plane,16);
     }
     c=count-1;
     if(!c) {
         status=rf_geomod_seed_adjacency(&source,previous->edges,RF_GEOMOD_WORK_VERTICES);if(status)return status;
         for(i=0;i<source.face_count;i++)previous->planes[i]=(uint16_t)i;
+        if(clip_context && clip_context->source_is_current) {
+            uint32_t pass;
+            /* Adjacent coplanar faces describe one support plane even when
+             * independently rebuilt float normals differ. Preserve exact edge
+             * coordinates; internal seams become endpoint-backed diagonals. */
+            for(pass=0;pass<source.face_count;pass++)for(i=0;i<source.face_count;i++) {
+                const rf_geomod_face *face=source.faces+i;
+                for(j=0;j<face->count;j++) {
+                    uint16_t neighbor=previous->edges[face->first+j];uint32_t v,coplanar=1;
+                    const rf_geomod_face *other=source.faces+neighbor;double alignment=0;
+                    const float *plane=work->source_planes[previous->planes[i]],*op=work->source_planes[previous->planes[neighbor]];
+                    if(previous->planes[neighbor]>=previous->planes[i])continue;
+                    for(k=0;k<3;k++)alignment+=(double)plane[k]*op[k];if(alignment<.999999)continue;
+                    for(v=0;v<other->count && coplanar;v++) {
+                        double d=plane[3];for(k=0;k<3;k++)d+=(double)plane[k]*source.vertices[other->first+v].position[k];
+                        if(fabs(d)>1e-5)coplanar=0;
+                    }
+                    if(coplanar)previous->planes[i]=previous->planes[neighbor];
+                }
+            }
+            for(i=0;i<source.face_count;i++) {
+                const rf_geomod_face *face=source.faces+i;
+                memcpy(clip_context->faces[i].plane,work->source_planes[previous->planes[i]],16);
+                for(j=0;j<face->count;j++) {
+                    uint16_t neighbor=previous->edges[face->first+j];
+                    if(previous->planes[i]==previous->planes[neighbor]) {
+                        status=diagonal_register(&previous->diagonals,source.vertices[face->first+j].position,
+                            source.vertices[face->first+(j+1)%face->count].position,previous->edges+face->first+j);
+                        if(status)goto failed;
+                    } else previous->edges[face->first+j]=previous->planes[neighbor];
+                }
+            }
+        }
     } else {
         memcpy(previous->edges,work->compact_edges,old.vertex_count*sizeof(uint16_t));
         memcpy(previous->planes,work->compact_planes,old.face_count*sizeof(uint16_t));
     }
     status=rf_geomod_storage_begin(s);if(status)return status;
+    if(clip_context && clip_context->source_is_current) {
+        lineage->source=&source;lineage->source_planes=previous->planes;lineage->source_edges=previous->edges;
+    }
     for(i=0;i<old.face_count;i++) {
         const rf_geomod_face *f=old.faces+i;
         status=subtract_history_face_range(s,old.vertices+f->first,f->count,f->material,
@@ -1698,7 +1768,7 @@ static inline int prepare_chronological_step_clipped(rf_geomod_storage *s,const 
         const rf_geomod_face *f=cutters[c].faces+i;
         rf_geomod_vertex *current=work->seed.vertices,*front=current+64,*back=current+128;
         uint16_t *current_edges=work->seed_edges,*front_edges=current_edges+64,*back_edges=current_edges+128;
-        geomod_corner_support support={work,(uint16_t)(32+c*128+i*(work->star_count[c]?4:1)),cutters,lineage->diagonals};
+        geomod_corner_support support={work,(uint16_t)(32+c*128+i*(work->star_count[c]?4:1)),cutters,lineage->diagonals,lineage->source,lineage->source_planes,lineage->source_edges};
         if(clip_context) {
             rf_geomod_solid_clip_result clipped;uint32_t part;
             status=rf_geomod_polygon_clip_solid_tracked(cutters[c].vertices+f->first,f->count,
@@ -1706,6 +1776,17 @@ static inline int prepare_chronological_step_clipped(rf_geomod_storage *s,const 
                 &clip_context->work,&clipped);if(status)goto failed;
             for(part=0;part<clipped.fragment_count;part++) {
                 const rf_geomod_fragment *piece=clipped.fragments+part;
+                if(clip_context->source_is_current) {
+                    /* Resolve each cap corner from its actual face/edge supports,
+                     * keeping equal coordinates across independently clipped faces. */
+                    for(j=0;j<piece->count;j++) {
+                        uint16_t ids[3]={support.face,clipped.edges[piece->first+j],clipped.edges[piece->first+(j+piece->count-1)%piece->count]};
+                        float planes[3][4],point[3];uint32_t q;
+                        for(q=0;q<3;q++)memcpy(planes[q],corner_support_plane(&support,ids[q]),16);
+                        if(corner_seed_edge(&support,ids,point) || !rf_geomod_plane_corner(planes,point))
+                            memcpy(((rf_geomod_vertex *)clipped.vertices)[piece->first+j].position,point,12);
+                    }
+                }
                 status=subtract_history_face_range(s,clipped.vertices+piece->first,piece->count,
                     f->material,UINT32_MAX,c,cutters,count,work,clipped.edges+piece->first,support.face,
                     count,lineage,1);if(status)goto failed;
@@ -1746,7 +1827,23 @@ static inline int prepare_chronological_step_clipped(rf_geomod_storage *s,const 
             c,cutters,count,work,current_edges,support.face,0,lineage,1);
         if(status)goto failed;
     }
-    if(cavity){status=repair_cavity_pending_provenance(s,work,lineage,previous);if(status)goto failed;}
+    if(clip_context && clip_context->source_is_current) {
+        uint32_t bank=s->current^1;
+        geomod_corner_support support={work,0,cutters,lineage->diagonals,lineage->source,lineage->source_planes,lineage->source_edges};
+        for(i=0;i<s->nf[bank];i++) {
+            const rf_geomod_face *face=s->faces[bank]+i;
+            for(j=0;j<face->count;j++) {
+                uint16_t ids[3]={work->compact_planes[i],work->compact_edges[face->first+j],work->compact_edges[face->first+(j+face->count-1)%face->count]};
+                float planes[3][4],point[3];uint32_t q,cut=0;
+                for(q=0;q<3;q++){if(ids[q]>=64)break;if(ids[q]>=32)cut=1;}
+                if(q!=3 || !cut || ids[0]==ids[1] || ids[0]==ids[2] || ids[1]==ids[2])continue;
+                for(q=0;q<3;q++)memcpy(planes[q],corner_support_plane(&support,ids[q]),16);
+                if(corner_seed_edge(&support,ids,point) || !rf_geomod_plane_corner(planes,point))
+                    memcpy(s->vertices[bank][face->first+j].position,point,12);
+            }
+        }
+    }
+    if(cavity || (clip_context && clip_context->source_is_current)){status=repair_cavity_pending_provenance(s,work,lineage,previous);if(status)goto failed;}
     return RF_OK;
 failed:
     rf_geomod_storage_abort(s);return status;
@@ -1755,6 +1852,34 @@ failed:
 static inline int prepare_chronological_step(rf_geomod_storage *s,const rf_geomod_mesh_view *cutters,
     uint32_t count,rf_geomod_multi_work *work,geomod_face_lineage *lineage,geomod_step_support *previous,uint32_t cavity)
 {return prepare_chronological_step_clipped(s,cutters,count,work,lineage,previous,cavity,NULL);}
+
+typedef struct geomod_solid_cut_scratch {
+    rf_geomod_multi_work work;geomod_face_lineage lineage;geomod_step_support support;
+    rf_geomod_vertex clip_vertices[2][4096];rf_geomod_fragment clip_fragments[2][512];
+    uint16_t clip_edges[2][4096];rf_collision_face faces[32];
+    float positions[2048][3];rf_collision_face_filter filters[32];
+} geomod_solid_cut_scratch;
+int rf_geomod_storage_prepare_solid_cut(rf_geomod_storage *s,const rf_geomod_mesh_view *cutter,
+    uint32_t scratch_budget,uint32_t *scratch_bytes)
+{
+    geomod_solid_cut_scratch *scratch;geomod_current_clip clip={0};rf_geomod_storage proxy;
+    int status;uint32_t current,next;
+    if(!s || !cutter || !scratch_bytes || s->editing || sizeof(*scratch)>scratch_budget)return RF_RANGE;
+    current=s->current;next=current^1;
+    if(s->nf[current]>32 || s->nv[current]>2048)return RF_RANGE;
+    scratch=calloc(1,sizeof(*scratch));if(!scratch)return RF_IO;
+    status=convex_mesh_planes(cutter,scratch->work.cut_planes[0]);if(status)goto done;
+    clip.work=(rf_geomod_solid_clip_work){{scratch->clip_vertices[0],scratch->clip_vertices[1]},
+        {scratch->clip_fragments[0],scratch->clip_fragments[1]},4096,512,{scratch->clip_edges[0],scratch->clip_edges[1]}};
+    clip.faces=scratch->faces;clip.positions=scratch->positions;clip.filters=scratch->filters;
+    clip.vertex_capacity=2048;clip.face_capacity=32;clip.source_is_current=1;
+    proxy=*s;proxy.vertices[2]=s->vertices[current];proxy.faces[2]=s->faces[current];
+    proxy.nv[2]=s->nv[current];proxy.nf[2]=s->nf[current];
+    status=prepare_chronological_step_clipped(&proxy,cutter,1,&scratch->work,&scratch->lineage,&scratch->support,0,&clip);
+    if(!status){s->nv[next]=proxy.nv[next];s->nf[next]=proxy.nf[next];s->editing=1;*scratch_bytes=(uint32_t)sizeof(*scratch);}
+done:
+    free(scratch);return status;
+}
 
 /* Private replay only: caller supplies current per-face eligibility filters and
  * bounded arrays. On failure discard the private owner and external staging.
@@ -1867,7 +1992,7 @@ static int prepare_cavity_cuts(rf_geomod_storage *s,
             /* Keep cutter boundaries outside the original empty room. Contact
              * between cavity and cutter is internal, for either plane orientation. */
             rf_geomod_edge_tracking tracking={work->initial_edges+f->first,source_ids,work->seed_edges};
-            geomod_corner_support support={work,(uint16_t)(32+c*128+i*(work->star_count[c]?4:1)),cutters,NULL};
+            geomod_corner_support support={work,(uint16_t)(32+c*128+i*(work->star_count[c]?4:1)),cutters,NULL,NULL,NULL,NULL};
             status=polygon_subtract_tracked_policy(cutters[c].vertices+f->first,f->count,
                 work->source_planes,source.face_count,work->seed.vertices,64*32,
                 work->seed.fragments,32,&n,&pieces,1,&tracking,&support);if(status)goto failed;

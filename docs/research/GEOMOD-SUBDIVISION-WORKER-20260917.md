@@ -57,3 +57,6 @@ Queue exhaustion/radius-discard branches need broader cases. Atlas ownership,
 live physics scheduling/response, notifications, dynamic rendering and saving
 moving pieces are separate unfinished integration work. No campaign or visual
 completion claim follows from these tests.
+
+Follow-up: GEOMOD-NONCONVEX-SUBDIVISION-20260917.md supersedes the convex-only
+restriction and peak figures above for the new current-solid worker path.

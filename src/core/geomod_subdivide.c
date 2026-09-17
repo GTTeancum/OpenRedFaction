@@ -14,6 +14,7 @@ typedef struct subdivision_work {
     rf_geomod_vertex local[VERTICES],cutter_vertices[24],extracted[1024];
     rf_geomod_face cutter_faces[6],extracted_faces[256],source_faces[FACES];
     uint32_t source_ids[FACES];
+    rf_collision_face bound_faces[256];rf_collision_face_filter bound_filters[256];float positions[1024][3];
     uint32_t labels[256],map[256],scratch[9000],identity[FACES];
 } subdivision_work;
 static int copy_node(subdivision_node *node,const rf_geomod_mesh_view *mesh,
@@ -28,7 +29,7 @@ int rf_geomod_piece_subdivide(const rf_geomod_mesh_view *source,const rf_collisi
     const rf_collision_face_filter *generated,uint32_t material,float density,
     rf_random_state *random,uint32_t budget,rf_geomod_piece_bank **out,rf_geomod_subdivision_stats *stats)
 {
-    subdivision_work *work=NULL;rf_geomod_piece_bank *bank=NULL;rf_geomod_terrain *terrain=NULL;
+    subdivision_work *work=NULL;rf_geomod_piece_bank *bank=NULL;rf_geomod_storage *storage=NULL;
     rf_geomod_subdivision_stats totals={0};rf_random_state next;uint32_t head=0,queued=1,resident,i;int status;
     if(!source || !source->vertices || !source->faces || !filters || !generated || !random || !out || *out || !stats ||
        !isfinite(density) || density<0 || material==UINT32_MAX || budget<=sizeof(*work))return RF_RANGE;
@@ -53,15 +54,25 @@ int rf_geomod_piece_subdivide(const rf_geomod_mesh_view *source,const rf_collisi
             for(i=0;i<3;i++)pose.offset[i]=(float)((double)pose.offset[i]+placement.origin[i]);
             status=rf_geomod_piece_cutter_mesh(&pose,material,work->cutter_vertices,work->cutter_faces);if(status)goto done;
             cutter=(rf_geomod_mesh_view){work->cutter_vertices,work->cutter_faces,24,6,0};
-            /* Temporary terrain IDs must be unique and non-generated. Preserve
+            /* Temporary source IDs identify per-face filters. Preserve
              * the external surface identity separately across every subdivision. */
             for(i=0;i<mesh.face_count;i++){work->source_faces[i]=mesh.faces[i];work->source_ids[i]=mesh.faces[i].source_face;work->source_faces[i].source_face=i;}
             mesh.faces=work->source_faces;
-            status=rf_geomod_terrain_open(&mesh,node->filters,generated,0,1024,256,budget-resident,&terrain);if(status)goto done;
+            status=rf_geomod_storage_open(&mesh,1024,256,budget-resident,&storage);if(status)goto done;
             totals.attempts++;
-            status=rf_geomod_terrain_cut_convex(terrain,&cutter);if(status)goto done;
-            status=rf_geomod_terrain_get(terrain,&view);if(status)goto done;
-            if(resident+view.peak_bytes>totals.peak_bytes)totals.peak_bytes=resident+view.peak_bytes;
+            {
+                uint32_t scratch_bytes,storage_bytes=rf_geomod_storage_bytes(storage),j;
+                status=rf_geomod_storage_prepare_solid_cut(storage,&cutter,budget-resident-storage_bytes,&scratch_bytes);if(status)goto done;
+                if(resident+storage_bytes+scratch_bytes>totals.peak_bytes)totals.peak_bytes=resident+storage_bytes+scratch_bytes;
+                status=rf_geomod_storage_commit(storage);if(status)goto done;
+                status=rf_geomod_storage_view(storage,&view.mesh);if(status)goto done;
+                for(j=0;j<view.mesh.face_count;j++) {
+                    uint32_t id=view.mesh.faces[j].source_face;
+                    work->bound_filters[j]=id==UINT32_MAX?*generated:node->filters[id];
+                }
+                status=rf_geomod_collision_faces(&view.mesh,work->bound_filters,work->positions,1024,work->bound_faces,256);if(status)goto done;
+                view.faces=work->bound_faces;
+            }
             status=rf_geomod_component_work_size(&view.mesh,&words);if(status)goto done;
             if(words>9000){status=RF_RANGE;goto done;}
             status=rf_geomod_mesh_components(&view.mesh,NULL,work->scratch,words,work->labels,&components,&largest);if(status)goto done;
@@ -76,7 +87,7 @@ int rf_geomod_piece_subdivide(const rf_geomod_mesh_view *source,const rf_collisi
                 status=rf_geomod_mesh_recenter(piece.vertices,piece.vertex_count,work->local,&placement);if(status)goto done;
                 if(placement.radius>parent_radius || queued==QUEUE){totals.discarded++;continue;}
                 child=work->nodes+(head+queued)%QUEUE;offset=kept.face_count;
-                /* Terrain owns a copy, so reusing a freed queue slot is safe. */
+                /* Storage owns a copy, so reusing a freed queue slot is safe. */
                 memcpy(child->vertices,piece.vertices,piece.vertex_count*sizeof(*piece.vertices));
                 memcpy(child->faces,piece.faces,piece.face_count*sizeof(*piece.faces));
                 child->nv=piece.vertex_count;child->nf=piece.face_count;
@@ -87,10 +98,10 @@ int rf_geomod_piece_subdivide(const rf_geomod_mesh_view *source,const rf_collisi
                 }
                 queued++;
             }
-            rf_geomod_terrain_close(&terrain);
+            rf_geomod_storage_close(&storage);
         }
     }
     *out=bank;bank=NULL;*random=next;*stats=totals;status=RF_OK;
 done:
-    rf_geomod_terrain_close(&terrain);rf_geomod_piece_bank_close(&bank);free(work);return status;
+    rf_geomod_storage_close(&storage);rf_geomod_piece_bank_close(&bank);free(work);return status;
 }

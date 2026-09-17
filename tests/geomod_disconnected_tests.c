@@ -303,6 +303,67 @@ static void subdivision_mesh_cuts(void)
     }
     printf("PASS 15 tilted slab cuts: analytic volume and two extracted groups\n");
 }
+static void nonconvex_subdivision(void)
+{
+    uint32_t seed;
+    for(seed=0;seed<3;seed++) {
+        rf_geomod_mesh_view source,cutter,output;
+        rf_geomod_vertex source_vertices[48];rf_geomod_face source_faces[14];
+        rf_geomod_storage *storage=NULL;rf_geomod_vertex vertices[24];rf_geomod_face faces[6];
+        rf_geomod_piece_cutter pose;rf_random_state random={seed*12345};
+        const float polygon[6][2]={{-10,-10},{10,-10},{10,7},{7,7},{7,10},{-10,10}},axis[3]={0,0,1};
+        uint32_t bytes=0,words,count,largest,*work,*labels,f,j,k;uint16_t neighbors[1024];double volume=0;
+        {
+            uint32_t n=0,nf=0,side,q,r;
+            memset(source_vertices,0,sizeof(source_vertices));
+            for(side=0;side<2;side++)for(q=1;q<5;q++) {
+                uint32_t ids[3]={0,side?q:q+1,side?q+1:q};
+                source_faces[nf]=(rf_geomod_face){n,3,2,nf};nf++;
+                for(r=0;r<3;r++,n++){source_vertices[n].position[0]=polygon[ids[r]][0];source_vertices[n].position[1]=polygon[ids[r]][1];source_vertices[n].position[2]=side?10:-10;}
+            }
+            for(q=0;q<6;q++) {
+                uint32_t ids[4]={q,(q+1)%6,(q+1)%6,q};
+                source_faces[nf]=(rf_geomod_face){n,4,2,nf};nf++;
+                for(r=0;r<4;r++,n++){source_vertices[n].position[0]=polygon[ids[r]][0];source_vertices[n].position[1]=polygon[ids[r]][1];source_vertices[n].position[2]=r<2?-10:10;}
+            }
+            source=(rf_geomod_mesh_view){source_vertices,source_faces,n,nf,0};
+        }
+        CHECK(!rf_geomod_seed_adjacency(&source,neighbors,1024));
+        CHECK(!rf_geomod_storage_open(&source,1024,256,100000,&storage));
+        CHECK(!rf_geomod_piece_cutter_prepare(axis,20,&random,&pose));
+        CHECK(!rf_geomod_piece_cutter_mesh(&pose,7,vertices,faces));cutter=(rf_geomod_mesh_view){vertices,faces,24,6,0};
+        {int status=rf_geomod_storage_prepare_solid_cut(storage,&cutter,1048576,&bytes);
+         if(status)fprintf(stderr,"nonconvex seed%u status%d\n",seed,status);CHECK(!status);}
+        CHECK(bytes>0 && bytes<=1048576);CHECK(!rf_geomod_storage_commit(storage));CHECK(!rf_geomod_storage_view(storage,&output));
+        CHECK(!rf_geomod_seed_adjacency(&output,neighbors,1024));
+        CHECK(!rf_geomod_component_work_size(&output,&words));work=malloc(words*4);labels=malloc(output.face_count*4);
+        CHECK(work && labels && !rf_geomod_mesh_components(&output,NULL,work,words,labels,&count,&largest));CHECK(count==2);
+        for(f=0;f<output.face_count;f++) {
+            const rf_geomod_face *face=output.faces+f;const float *a=output.vertices[face->first].position;
+            for(j=1;j+1<face->count;j++) {
+                const float *b=output.vertices[face->first+j].position,*c=output.vertices[face->first+j+1].position;
+                for(k=0;k<3;k++)volume+=(double)a[k]*((double)b[(k+1)%3]*c[(k+2)%3]-(double)b[(k+2)%3]*c[(k+1)%3])/6;
+            }
+        }
+        CHECK(fabs(volume-(7820-78.2/pose.basis[8]))<.01);
+        printf("PASS nonconvex seed%u groups%u volume%g scratch%u\n",seed,count,volume,bytes);
+        {
+            rf_geomod_piece_bank *bank=NULL;rf_geomod_subdivision_stats stats;rf_random_state rng={seed*12345};
+            rf_collision_face_filter source_filters[14]={{0}},generated_filter={0};uint32_t p;
+            int status=rf_geomod_piece_subdivide(&source,source_filters,&generated_filter,7,2.5f,&rng,2097152,&bank,&stats);
+            if(status)fprintf(stderr,"nonconvex worker seed%u status%d\n",seed,status);CHECK(!status);
+            CHECK(stats.attempts<=10 && stats.terminal>1 && stats.peak_bytes<=2097152);
+            for(p=0;p<stats.terminal;p++) {
+                rf_geomod_owned_piece piece;rf_physics_body body={0};
+                CHECK(!rf_geomod_piece_bank_get(bank,p,&piece));CHECK(!rf_geomod_seed_adjacency(&piece.mesh,neighbors,1024));
+                CHECK(!rf_geomod_piece_body_open(&piece,.5f,.25f,4096,&body));rf_physics_body_close(&body);
+            }
+            printf("PASS nonconvex recursive seed%u pieces%u attempts%u peak%u\n",seed,stats.terminal,stats.attempts,stats.peak_bytes);
+            rf_geomod_piece_bank_close(&bank);
+        }
+        free(work);free(labels);rf_geomod_storage_close(&storage);
+    }
+}
 static void subdivision_worker(void)
 {
     uint32_t seed,i;rf_geomod_mesh_view source;
@@ -368,6 +429,7 @@ int main(void)
     CHECK(!subdivision_cutter_cases());
     subdivision_mesh_cuts();
     subdivision_worker();
+    nonconvex_subdivision();
     uint32_t axis,bytes;rf_geomod_mesh_view source;
     shapes();
     concave_caps();

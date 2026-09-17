@@ -37,12 +37,12 @@ int rf_geomod_piece_body_open(const rf_geomod_owned_piece *,float elasticity,flo
 typedef struct rf_geomod_subdivision_stats {
     uint32_t attempts,terminal,discarded,peak_bytes;
 } rf_geomod_subdivision_stats;
-/* Bounded practical worker for a closed convex piece (max128 corners/32 faces).
+/* Bounded practical worker for a closed outward piece (max128 corners/32 faces).
  * FIFO requeue, original admission/cutter math, ten attempts per batch. Returns
  * a new private bank of mass-prepared terminal pieces. No scene publication.
- * Budget covers worker, output bank and all temporary terrain owners, excluding
- * allocator overhead. RNG/output/stats commit only on success. Concave input is
- * currently rejected by the underlying terrain owner. */
+ * Budget covers worker, output bank and all temporary cut owners, excluding
+ * allocator overhead. RNG/output/stats commit only on success. Convex planar faces
+ * with exact closed-edge topology are required; the solid may be concave. */
 int rf_geomod_piece_subdivide(const rf_geomod_mesh_view *,const rf_collision_face_filter *,
     const rf_collision_face_filter *generated,uint32_t material,float density,
     rf_random_state *,uint32_t budget,rf_geomod_piece_bank **,rf_geomod_subdivision_stats *);

@@ -38,6 +38,43 @@ int rf_geomod_piece_bank_get(const rf_geomod_piece_bank *bank,uint32_t index,rf_
     if(!bank || !piece || index>=bank->np)return RF_RANGE;
     *piece=bank->pieces[index];return RF_OK;
 }
+/* A float center translation can bend an almost-collinear polygon past the
+ * convex-face gate. Preserve its exact boundary by partitioning only rejected
+ * polygons into center-fan triangles; never weld or move the boundary corners. */
+static int rebind_translated_piece(rf_geomod_piece_bank *bank,rf_geomod_owned_piece *piece)
+{
+    uint8_t split[RF_GEOMOD_WORK_FACES]={0};uint32_t i,j,k,nv=0,nf=0,total_faces;int status;
+    rf_geomod_vertex *vertices=bank->vertices+bank->nv;rf_geomod_face *faces=bank->faces+bank->nf;
+    rf_collision_face_filter *filters=bank->filters+bank->nf;uint32_t *old=bank->old_faces+bank->nf;
+    if(piece->mesh.face_count>RF_GEOMOD_WORK_FACES)return RF_RANGE;
+    for(i=0;i<piece->mesh.face_count;i++) {
+        rf_geomod_face f=faces[i];rf_collision_face bound;rf_geomod_mesh_view one={vertices+f.first,&f,f.count,1,0};f.first=0;
+        status=rf_geomod_collision_faces(&one,filters+i,bank->positions+bank->nv,f.count,&bound,1);
+        if(status && (status!=RF_FORMAT || f.count<4))return status;
+        split[i]=status!=0;nv+=split[i]?3*f.count:f.count;nf+=split[i]?f.count:1;
+    }
+    if(nv>bank->vc-bank->nv || nf>bank->fc-bank->nf)return RF_RANGE;
+    piece->mesh.vertex_count=nv;total_faces=nf;
+    for(i=piece->mesh.face_count;i-->0;) {
+        rf_geomod_face f=faces[i];rf_collision_face_filter filter=filters[i];uint32_t old_face=old[i];
+        if(split[i]) {
+            rf_geomod_vertex original[64],center={0};double sum[5]={0};
+            memcpy(original,vertices+f.first,f.count*sizeof(*original));
+            for(j=0;j<f.count;j++){for(k=0;k<3;k++)sum[k]+=original[j].position[k];for(k=0;k<2;k++)sum[k+3]+=original[j].uv[k];}
+            for(k=0;k<3;k++)center.position[k]=(float)(sum[k]/f.count);for(k=0;k<2;k++)center.uv[k]=(float)(sum[k+3]/f.count);
+            nv-=3*f.count;nf-=f.count;
+            for(j=0;j<f.count;j++) {
+                uint32_t at=nv+3*j;vertices[at]=center;vertices[at+1]=original[j];vertices[at+2]=original[(j+1)%f.count];
+                faces[nf+j]=(rf_geomod_face){at,3,f.material,f.source_face};filters[nf+j]=filter;old[nf+j]=old_face;
+            }
+        } else {
+            nv-=f.count;nf--;memmove(vertices+nv,vertices+f.first,f.count*sizeof(*vertices));f.first=nv;faces[nf]=f;filters[nf]=filter;old[nf]=old_face;
+        }
+    }
+    piece->mesh.face_count=total_faces;
+    return rf_geomod_collision_faces(&piece->mesh,filters,bank->positions+bank->nv,piece->mesh.vertex_count,
+        bank->collision+bank->nf,piece->mesh.face_count);
+}
 static int append_piece(rf_geomod_piece_bank *bank,const rf_geomod_mesh_view *mesh,
     const uint32_t *old_faces,const rf_collision_face_filter *filters,uint32_t source_count,uint32_t id,const float *density)
 {
@@ -79,10 +116,12 @@ static int append_piece(rf_geomod_piece_bank *bank,const rf_geomod_mesh_view *me
             (double)piece.mass.center[2]*piece.mass.center[2]));
         if(!isfinite(piece.placement.radius))return RF_RANGE;
         status=rf_geomod_collision_faces(&piece.mesh,piece.filters,bank->positions+bank->nv,mesh->vertex_count,
-            bank->collision+bank->nf,mesh->face_count);if(status)return status;
+            bank->collision+bank->nf,mesh->face_count);
+        if(status==RF_FORMAT)status=rebind_translated_piece(bank,&piece);
+        if(status)return status;
         piece.mass_ready=1;
     }
-    bank->pieces[bank->np++]=piece;bank->nv+=mesh->vertex_count;bank->nf+=mesh->face_count;
+    bank->pieces[bank->np++]=piece;bank->nv+=piece.mesh.vertex_count;bank->nf+=piece.mesh.face_count;
     return RF_OK;
 }
 

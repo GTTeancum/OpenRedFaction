@@ -377,6 +377,13 @@ typedef struct rf_geomod_cut_work {
  * cutter and interior source_face is UINT32_MAX. Work must not alias inputs. */
 int rf_geomod_storage_prepare_convex_cut(rf_geomod_storage *storage,
     const rf_geomod_mesh_view *cutter,rf_geomod_cut_work *work);
+/* Subtract a convex cutter from the current closed outward solid, including
+ * concave/disconnected shapes with at most32 convex planar faces. Allocates
+ * bounded temporary work under scratch_budget (storage ownership is external).
+ * Success leaves a pending edit and reports temporary bytes; failure preserves
+ * the committed bank and bytes output. Exact closed-edge source required. */
+int rf_geomod_storage_prepare_solid_cut(rf_geomod_storage *,const rf_geomod_mesh_view *,
+    uint32_t scratch_budget,uint32_t *scratch_bytes);
 /* Bounded scratch for rebuilding original convex terrain minus a union of
  * cutters. Retain on heap and include sizeof(*work) in the Xbox memory budget. */
 #ifndef RF_GEOMOD_WORK_VERTICES
