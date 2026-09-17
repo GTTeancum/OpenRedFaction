@@ -11,6 +11,8 @@ def main():
     samples=[list(map(int,l.split()[1:])) for l in lines if l.startswith('DEBRIS_CROSS_SAMPLE ')]
     state=list(map(int,next(l for l in lines if l.startswith('DEBRIS_CROSSING ')).split()[1:]))
     assert len(samples)==state[1] and samples and state[5]==0
+    audio=list(map(int,next(l for l in lines if l.startswith('DEBRIS_SPLASH_AUDIO ')).split()[1:]))
+    assert audio[:3]==[state[1]]*3 and audio[7]==0, audio
     original=ROOT/'Installed_Game/RF.exe';sha=hashlib.sha256(original.read_bytes()).hexdigest()
     assert sha=='b8fb9ab4c9bfc6f2868c30839d6cfc69f84b8c25d7e54eee1325f5b633c9b836'
     pe=pefile.PE(str(original));image=pe.get_memory_mapped_image();base=pe.OPTIONAL_HEADER.ImageBase
@@ -46,7 +48,7 @@ def main():
         rows.append(dict(flag=flag,words=v))
     out=ROOT/'artifacts/debris-motion/live-crossing.json'
     out.write_text(json.dumps(dict(result='PASS',original_sha256=sha,log_sha256=hashlib.sha256(log.read_bytes()).hexdigest(),
-        state=state,cases=rows,scope='Actual live crossings versus original48f900, real liquid predicate/math/48fc10. Solid miss supplied; effect recorded, not rendered or heard.'),indent=2)+'\n')
-    print('PASS',len(rows),'live crossing endpoints and ripple request positions bit-exact; size0.2, velocity and room retained')
+        state=state,splash_audio=audio,cases=rows,scope='Actual live crossings versus original48f900, real liquid predicate/math/48fc10. Solid miss supplied; effect recorded, not rendered or heard.'),indent=2)+'\n')
+    print('PASS',len(rows),'live crossing endpoints and ripple request positions bit-exact; all positional splash requests started; audible output unverified')
 
 if __name__=='__main__':main()

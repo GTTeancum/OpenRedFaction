@@ -559,6 +559,7 @@ uint32_t rf_scene_debris_relaunch[8]; /* passes,candidates,relaunched,settled re
 uint32_t rf_scene_debris_wet[8]; /* solid misses,wet tests,accepted,last room,fraction bits,point hash,last status,presence */
 uint32_t rf_scene_debris_visibility[8]; /* hidden submissions,aged,last admitted/hidden,hidden age hashes before/after,room tests/rejects */
 uint32_t rf_scene_debris_motion[8]; /* moving steps,submerged steps,last room,flag,proposed hash,status,reserved,reserved */
+uint32_t rf_scene_debris_splash_audio[9]; /* requests,selections,starts,loads,bytes,last sample,RNG,failures,name hash */
 uint32_t rf_scene_debris_crossing[8]; /* solid misses,wet entries,last room,point hash,size bits,status,reserved,reserved */
 
 #ifndef SCENE_TERRAIN_ATLAS_BUDGET
@@ -9430,7 +9431,7 @@ static int scene_terrain_open(scene_stream *s,const rf_level *level,rf_vpp *maps
     rf_scene_terrain_atlas[3]=2*512*512*2+64*64*2+SCENE_TERRAIN_FACES*(sizeof(*s->terrain_bindings)+sizeof(*s->terrain_tiles))+sizeof(rf_image)+sizeof(*s->terrain_noise);
     if(rf_scene_terrain_atlas[3]>SCENE_TERRAIN_ATLAS_BUDGET){printf("TERRAIN_ATLAS_BUDGET %u %u\n",rf_scene_terrain_atlas[3],SCENE_TERRAIN_ATLAS_BUDGET);return RF_RANGE;}
     s->debris=calloc(1,sizeof(*s->debris));if(!s->debris)return RF_IO;
-    s->debris->random.value=1;rf_debris_audio_init(&s->debris->audio);memset(rf_scene_debris_audio,0,sizeof(rf_scene_debris_audio));memset(rf_scene_debris,0,sizeof(rf_scene_debris));memset(rf_scene_debris_relaunch,0,sizeof(rf_scene_debris_relaunch));memset(rf_scene_debris_wet,0,sizeof(rf_scene_debris_wet));memset(rf_scene_debris_visibility,0,sizeof(rf_scene_debris_visibility));memset(rf_scene_debris_motion,0,sizeof(rf_scene_debris_motion));memset(rf_scene_debris_crossing,0,sizeof(rf_scene_debris_crossing));rf_scene_debris_wet[3]=UINT32_MAX;rf_scene_debris[6]=sizeof(*s->debris);
+    s->debris->random.value=1;rf_debris_audio_init(&s->debris->audio);memset(rf_scene_debris_audio,0,sizeof(rf_scene_debris_audio));memset(rf_scene_debris,0,sizeof(rf_scene_debris));memset(rf_scene_debris_relaunch,0,sizeof(rf_scene_debris_relaunch));memset(rf_scene_debris_wet,0,sizeof(rf_scene_debris_wet));memset(rf_scene_debris_visibility,0,sizeof(rf_scene_debris_visibility));memset(rf_scene_debris_motion,0,sizeof(rf_scene_debris_motion));memset(rf_scene_debris_crossing,0,sizeof(rf_scene_debris_crossing));memset(rf_scene_debris_splash_audio,0,sizeof(rf_scene_debris_splash_audio));rf_scene_debris_wet[3]=UINT32_MAX;rf_scene_debris[6]=sizeof(*s->debris);
     s->terrain_draw=calloc(1,sizeof(*s->terrain_draw));if(!s->terrain_draw)return RF_IO;
     memset(rf_scene_terrain_draw,0,sizeof(rf_scene_terrain_draw));
     s->terrain_ids=calloc(SCENE_TERRAIN_FACES,sizeof(*s->terrain_ids));if(!s->terrain_ids)return RF_IO;
@@ -10140,7 +10141,7 @@ static int scene_terrain_input(scene_stream *s,const float position[3],const flo
                 memset(rf_scene_terrain_bake,0,sizeof(rf_scene_terrain_bake));
                 scene_terrain_dirty(s,0,0,512,512);
             }
-            if(!status && s->debris){memset(s->debris,0,sizeof(*s->debris));s->debris->random.value=1;rf_debris_audio_init(&s->debris->audio);memset(rf_scene_debris_audio,0,sizeof(rf_scene_debris_audio));memset(rf_scene_debris,0,sizeof(rf_scene_debris));memset(rf_scene_debris_relaunch,0,sizeof(rf_scene_debris_relaunch));memset(rf_scene_debris_wet,0,sizeof(rf_scene_debris_wet));memset(rf_scene_debris_visibility,0,sizeof(rf_scene_debris_visibility));memset(rf_scene_debris_motion,0,sizeof(rf_scene_debris_motion));memset(rf_scene_debris_crossing,0,sizeof(rf_scene_debris_crossing));rf_scene_debris_wet[3]=UINT32_MAX;rf_scene_debris[6]=sizeof(*s->debris);}
+            if(!status && s->debris){memset(s->debris,0,sizeof(*s->debris));s->debris->random.value=1;rf_debris_audio_init(&s->debris->audio);memset(rf_scene_debris_audio,0,sizeof(rf_scene_debris_audio));memset(rf_scene_debris,0,sizeof(rf_scene_debris));memset(rf_scene_debris_relaunch,0,sizeof(rf_scene_debris_relaunch));memset(rf_scene_debris_wet,0,sizeof(rf_scene_debris_wet));memset(rf_scene_debris_visibility,0,sizeof(rf_scene_debris_visibility));memset(rf_scene_debris_motion,0,sizeof(rf_scene_debris_motion));memset(rf_scene_debris_crossing,0,sizeof(rf_scene_debris_crossing));memset(rf_scene_debris_splash_audio,0,sizeof(rf_scene_debris_splash_audio));rf_scene_debris_wet[3]=UINT32_MAX;rf_scene_debris[6]=sizeof(*s->debris);}
             if(!status)++rf_scene_geomod[7];
         } else {
         for(i=0;i<3;i++)delta[i]=orientation[2][i]*100;
@@ -10349,6 +10350,23 @@ static int scene_debris_audio_flush(scene_stream *s,uint32_t frame)
         request.position[0],request.position[1],request.position[2],request.gain,status);
     return RF_OK; /* Missing PCM/device voices cannot stop destruction. */
 }
+/* Original4c16e0 dispatches Foley434da0/positional5056a0 before visual
+ * allocation. Borrow the debris RNG; playback failure must not cancel the
+ * crossing, rewind selection, or prevent the ripple/endpoint publication. */
+static void scene_debris_splash_sound(scene_debris_pool *p,const float point[3])
+{
+    int32_t group,sample;int status;
+    campaign_pain_audio_context audio={&p->random,0,rf_scene_debris_splash_audio,0};
+    ++rf_scene_debris_splash_audio[0];
+    status=rf_foley_find(&campaign_foley,"Medium Water Splash",&group);
+    if(!status) {
+        sample=campaign_pain_audio_resolve(&audio,group);
+        if(!audio.status)campaign_pain_audio_play(&audio,point,sample);
+        status=audio.status;
+    }
+    rf_scene_debris_splash_audio[6]=p->random.value;
+    if(status)++rf_scene_debris_splash_audio[7];
+}
 static int scene_debris_tick(scene_stream *s,uint32_t frame)
 {
     scene_debris_pool *p=s->debris;uint32_t i,k,matched;int status;
@@ -10404,6 +10422,7 @@ static int scene_debris_tick(scene_stream *s,uint32_t frame)
                  * then48f9d8 commits the proposed endpoint, not that hit point.
                  * The VFX wrapper uses unit animation scale; size0.2 belongs
                  * to the generic effect request, not a mesh scale override. */
+                scene_debris_splash_sound(p,wet.point);
                 scene_ripple_start(s,wet.point,frame,0);
                 if(rf_scene_combat_trace) {
                     float sample[15];uint32_t words[15],n;
