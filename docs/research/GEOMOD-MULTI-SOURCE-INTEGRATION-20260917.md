@@ -360,3 +360,13 @@ PC save/resume/control framebuffers were inspected individually: both posts are 
 
 
 Stock64MiB XEMU run artifacts/xemu/render-20260917-140406 then loaded the1192-byte PC reset checkpoint and completed301 replay frames (300 updates), passing all76 comparisons. Its3016-byte exported checkpoint matches the uninterrupted PC control exactly (SHA256 2a6a41ec2a68537d028ebe660771c0d77e08c99d89344ff47db4f21c57d50e55). Native framebuffer inspection confirms the left damaged post and intact right post with weapon/HUD present. The endpoint reports3764 available pages (14.70MiB), not a measured minimum. Disc staging was restored; no HDD clone was made. This tests reload of a PC-created reset save on Xbox, not creation of that reset save on Xbox or HDD persistence.
+
+
+## Actual player standing with collection checkpoints
+
+The existing intermediate-rubble standing harness now accepts --paired, retaining both source94 and source93 and exercising RFCP profile3. It locates the supporting source94 RFPB through the RFAS directory, rather than assuming the final body trailer belongs to the supporting source. Its600-frame ordinary jump lands at(-4.656934,0.464791,2.634441) on the natural radius0.530725 fragment. Fresh restored standing and walk-away runs both produce byte-identical checkpoints to their uninterrupted controls. A payload with that body retired rejects loading; the error log does not identify the precise rejection stage, so this is not isolated proof of player-support admission. The unchanged single-source mode also passes after the harness extension.
+
+Saved, continued and retreat PC framebuffers were individually inspected. The saved/resumed view is elevated close to the post, while the retreat shows the room and tilted fragment from the floor. The fragment beneath the standing camera is outside that view; standing acceptance depends on position/contact state and exact continuation, not the image alone. Evidence: artifacts/paired-rubble-standing and artifacts/single-standing-regression.log. This covers one destroyed owner with the second source intact; standing amid two destroyed owners, support from collection slot1 and broader shapes remain open.
+
+
+Stock64MiB XEMU run artifacts/xemu/render-20260917-140819 loads that paired standing save and executes201 replay frames (200 updates) walking away. All76 checks pass; its2818-byte exported checkpoint is identical to the uninterrupted PC retreat control. Native framebuffer inspection shows the expected floor view, retained tilted fragment and weapon/HUD. Endpoint availability is3895 pages (15.21MiB), not a minimum measurement. Disc staging was restored and no HDD clone or GitHub image upload was created. Native rejection of the retired-support variant remains unverified.

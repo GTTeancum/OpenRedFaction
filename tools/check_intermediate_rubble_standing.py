@@ -1,7 +1,12 @@
 """Ordinary jump onto natural rubble, exact save continuation and missing-support rejection."""
-import json,os,struct,subprocess
+import argparse,json,os,struct,subprocess
 from pathlib import Path
-ROOT=Path(__file__).resolve().parents[1];folder=ROOT/'artifacts/geomod-postedit-re/intermediate-rubble-standing';folder.mkdir(parents=True,exist_ok=True)
+parser=argparse.ArgumentParser(description=__doc__)
+parser.add_argument('--paired',action='store_true',help='Keep both authored sources and use collection checkpoints')
+args=parser.parse_args()
+ROOT=Path(__file__).resolve().parents[1]
+folder=ROOT/('artifacts/paired-rubble-standing' if args.paired else 'artifacts/geomod-postedit-re/intermediate-rubble-standing')
+folder.mkdir(parents=True,exist_ok=True)
 source=(ROOT/'artifacts/geomod-postedit-re/intermediate-search/0.bin').read_bytes()
 data=bytearray(source[:8+350*48]+bytes(450*48))
 for frame in range(360,450):struct.pack_into('<f',data,8+frame*48+8,.8)
@@ -13,6 +18,22 @@ recordings['retreat']=retreat
 recordings['retreat-control']=recordings['saved'][:-48]+retreat[8:]
 env={k:v for k,v in os.environ.items() if not k.startswith(('RF_REPLAY_','RF_DEV_'))}
 env.update(RF_REPLAY_LEVEL='ctf06.rfl',RF_REPLAY_ARCHIVE='levelsm.vpp',RF_REPLAY_DEV_ROOM='1',RF_REPLAY_PLAYER_CHECKPOINT='1')
+if args.paired:env['RF_REPLAY_AUTHORED_SOURCES']='2'
+def support_bank(checkpoint):
+ if not args.paired:
+  bank=checkpoint.rfind(b'RFPB');assert bank>=0
+  return bank,struct.unpack_from('<I',checkpoint,bank+8)[0]
+ assert struct.unpack_from('<I',checkpoint,16)[0]==3
+ directory=576+416
+ assert checkpoint[directory:directory+4]==b'RFAS'
+ assert struct.unpack_from('<I',checkpoint,directory+12)[0]==2
+ uid,core_bytes,piece_bytes=struct.unpack_from('<III',checkpoint,directory+16)
+ assert uid==94
+ bank=directory+16+2*48+core_bytes
+ assert checkpoint[bank:bank+4]==b'RFPB' and piece_bytes==344
+ # One supporting body on source94; paired source93 remains intact.
+ assert struct.unpack_from('<I',checkpoint,bank+12)[0]==1
+ return bank,piece_bytes
 report={}
 for name,recording in recordings.items():
  path=folder/name;path.with_suffix('.bin').write_bytes(recording);path.with_suffix('.rfcp').unlink(missing_ok=True)
@@ -29,18 +50,19 @@ for name,recording in recordings.items():
  assert contacts[1]>0 and contacts[2]==0xffffffff,(name,contacts)
  if name.startswith('retreat'):assert position[0]>-4 and position[1]<0,(name,position)
  else:assert -5.6<position[0]<-4.4 and position[1]>.2,(name,position)
- checkpoint=path.with_suffix('.rfcp').read_bytes();bank=checkpoint.rfind(b'RFPB')
- assert bank>=0
+ checkpoint=path.with_suffix('.rfcp').read_bytes();bank,_=support_bank(checkpoint)
  radius=struct.unpack_from('<f',checkpoint,bank+16+256)[0]
  assert .5<radius<=1,(name,radius)
  report[name]=dict(position=position,pieces=pieces,contacts=contacts)
 assert (folder/'continued.rfcp').read_bytes()==(folder/'control.rfcp').read_bytes(),'continuation differs'
 assert (folder/'retreat.rfcp').read_bytes()==(folder/'retreat-control.rfcp').read_bytes(),'walk-away continuation differs'
 # Counterfactual: same saved player pose, but retire its sole supporting chunk.
-bad=bytearray((folder/'saved.rfcp').read_bytes());struct.pack_into('<fI',bad,len(bad)-8,-1,0x200002)
+bad=bytearray((folder/'saved.rfcp').read_bytes());bank,size=support_bank(bad)
+struct.pack_into('<fI',bad,bank+size-8,-1,0x200002)
 (folder/'missing-support.rfcp').write_bytes(bad)
 with (folder/'missing-support.log').open('wb') as log:
  result=subprocess.run([str(ROOT/'build/pc/Release/rf_pc_play.exe'),'--spawn-replay',str(ROOT/'Installed_Game'),str(folder/'continued.bin'),str(folder/'missing-support.ppm')],cwd=ROOT,env=dict(env,RF_REPLAY_GEOMOD_CHECKPOINT_IN=str(folder/'missing-support.rfcp')),stdout=log,stderr=subprocess.STDOUT,timeout=180)
 assert result.returncode!=0 and 'GEOMOD_CHECKPOINT_ERROR load' in (folder/'missing-support.log').read_text(),'retired support accepted'
+report['paired_sources']=args.paired
 report['scope']='Ordinary jump lands on natural intermediate rubble; exact saved standing/walk-away continuation and retired-support rejection. Native and visual acceptance remain separate.'
 (folder/'report.json').write_text(json.dumps(report,indent=2)+'\n');print(json.dumps(report,indent=2))
