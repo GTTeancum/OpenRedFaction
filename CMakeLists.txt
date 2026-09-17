@@ -591,3 +591,13 @@ add_test(NAME geomod_light_grid_boundary COMMAND rf_geomod_light_grid_boundary_t
 # Historical malformed partition snapshot; diagonal provenance prevents its creation.
 add_executable(rf_geomod_partition_capacity_probe tests/geomod_partition_capacity_probe.c)
 target_link_libraries(rf_geomod_partition_capacity_probe PRIVATE rf_core)
+
+# Complete save-envelope bounds for the prospective sixteen-cut live profile.
+add_executable(rf_authored_capacity_layout_tests tests/authored_checkpoint_layout_tests.c src/core/authored_checkpoint_layout.c)
+target_compile_definitions(rf_authored_capacity_layout_tests PRIVATE RF_GEOMOD_CUT_LIMIT=16 RF_GEOMOD_PUBLICATION_FACES=2048 RF_CHECKPOINT_FILE_MAX=131072)
+target_link_libraries(rf_authored_capacity_layout_tests PRIVATE rf_core)
+add_test(NAME authored_capacity_layout COMMAND rf_authored_capacity_layout_tests)
+add_executable(rf_checkpoint_capacity_file_tests tests/checkpoint_file_tests.c src/core/checkpoint_file.c)
+target_compile_definitions(rf_checkpoint_capacity_file_tests PRIVATE RF_CHECKPOINT_FILE_MAX=131072)
+target_link_libraries(rf_checkpoint_capacity_file_tests PRIVATE rf_core)
+add_test(NAME checkpoint_capacity_file COMMAND rf_checkpoint_capacity_file_tests rf-checkpoint-capacity-file-test)

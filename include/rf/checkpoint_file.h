@@ -8,7 +8,11 @@ extern "C" {
 /* Two-slot transport for bounded caller-owned checkpoint bytes. No allocation.
  * Validation must be pure: it may not publish scene state or alter data.
  * RF_FORMAT/RF_RANGE reject a candidate; other errors abort selection. */
-enum { RF_CHECKPOINT_FILE_MAX=110524, RF_CHECKPOINT_FILE_HEADER=24 };
+/* Build-wide transport profile; every producer/consumer must agree. */
+#ifndef RF_CHECKPOINT_FILE_MAX
+#define RF_CHECKPOINT_FILE_MAX 110524
+#endif
+enum { RF_CHECKPOINT_FILE_HEADER=24 };
 typedef int (*rf_checkpoint_file_validate)(const void *data,uint32_t bytes,void *context);
 typedef struct rf_checkpoint_file_selection {
     uint32_t ready,slot,generation,bytes,checksum;

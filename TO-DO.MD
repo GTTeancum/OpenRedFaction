@@ -1,6 +1,6 @@
 # Red Faction Xbox / PC - open work
 
-- GeoMod capacity: Integrate the verified sixteen-cut core into bounded live publication/save budgets and stock Xbox testing; mapped reload/next-cut now matches exactly, while the shipping profile remains eight cuts.
+- GeoMod capacity: Integrate live rendering/atlas budgets and stock Xbox testing for sixteen cuts; mapped core reload and the expanded128KiB save envelope pass, while shipping remains eight cuts.
 
 - GeoMod UV seams: Broaden chronological reconstruction beyond current fixtures; all105 tests and48 axis-oriented UV cases pass, with live two-cut reload/next-blast passing58 stock64MiB Xbox checks.
 

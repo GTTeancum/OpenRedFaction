@@ -8,6 +8,13 @@
 #if RF_GEOMOD_CUT_LIMIT < 1 || RF_GEOMOD_CUT_LIMIT > 32
 #error GeoMod cutter mask requires a limit from1 through32
 #endif
+/* Publication and checkpoint readers must share the configured face bound. */
+#ifndef RF_GEOMOD_PUBLICATION_FACES
+#define RF_GEOMOD_PUBLICATION_FACES 768
+#endif
+#ifndef RF_GEOMOD_PUBLICATION_VERTICES
+#define RF_GEOMOD_PUBLICATION_VERTICES 4096
+#endif
 #define RF_GEOMOD_HISTORY_HEADER_BYTES 28u
 /* Per cutter:24 metadata +60 vertices*20 bytes +20 faces*16 bytes. */
 #define RF_GEOMOD_HISTORY_CUT_MAX_BYTES 1544u

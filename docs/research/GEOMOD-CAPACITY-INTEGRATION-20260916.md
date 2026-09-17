@@ -277,3 +277,26 @@ duplicate-full-build.log, duplicate-full-tests.log and duplicate-xbox-build.log.
 
 Policy4 live PC two-shot restart also passes: restored next-blast RFCP, RGCH
 and RGP match uninterrupted output (duplicate-restart.log).
+
+## Expanded save-envelope capacity prerequisite
+
+Publication face/vertex limits now live in geomod_limits.h and can be configured
+consistently across a build. Authored layout validation uses that face limit.
+RF_CHECKPOINT_FILE_MAX is likewise configurable, retaining110524 by default.
+Isolated tests compile the actual layout/transport implementations with16 cuts,
+2048 publication faces and131072 transport bytes; production defaults stay put.
+
+The maximum RGCH24732 bytes plus128 admission rows,1024 map rows and2048 face
+bindings occupies125500 RFDS bytes, or126076 including the576-byte composed
+header/player record. This cannot fit the old110524-byte transport. The new
+128KiB test profile admits and reads that entire layout, rejects excess counts
+without changing output, and tests full-size disk payload store/load, truncation,
+corruption fallback and write failures. Transport testing uses synthetic TEST
+payload bytes; it does not prove live authored content or Xbox restart validity.
+All108 registered tests pass. Evidence: capacity-save-full-build.log and
+capacity-save-full-tests.log under artifacts/authored-post-live.
+
+Remaining live dependencies: scene source vertex/sorted-index capacity, render
+face and insertion budgets, atlas map residency, publication/digest buffers,
+collision composition, reload staging, tooling transport bounds and stock Xbox
+memory/visual acceptance. No shipping16-cut or native expanded-save claim.

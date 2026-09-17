@@ -1,4 +1,5 @@
 #include "rf/authored_checkpoint_layout.h"
+#include "rf/geomod_limits.h"
 #include <stdio.h>
 #include <string.h>
 #define CHECK(x) do{if(!(x)){fprintf(stderr,"layout line%d %s\n",__LINE__,#x);return 1;}}while(0)
@@ -30,8 +31,25 @@ int main(void)
     payload[79]=1;CHECK(rejected(bytes));payload[79]=0;
     memset(payload+16,'x',64);CHECK(rejected(bytes));memset(payload+16,0,64);CHECK(rejected(bytes));memcpy(payload+16,"ctf06.rfl",10);
     CHECK(!rf_authored_checkpoint_layout_read(payload,bytes,&b));
-    b=v;CHECK(rf_authored_checkpoint_layout_size(12380,128,1024,768,&b)!=RF_OK && !memcmp(&b,&v,sizeof(v)));
-    CHECK(!rf_authored_checkpoint_layout_size(12380,128,1024,448,&b) && b.bytes==109948);
-    CHECK(rf_authored_checkpoint_layout_size(12380,128,1024,449,&b)!=RF_OK);
+    {
+        uint32_t core=RF_GEOMOD_HISTORY_MAX_BYTES;
+        uint32_t base=416+core+128*48+1024*88;
+        uint32_t fit;CHECK(base<=RF_COMPOSED_CHECKPOINT_RFDS_MAX);
+        fit=(RF_COMPOSED_CHECKPOINT_RFDS_MAX-base)/2;
+        b=v;
+        CHECK(rf_authored_checkpoint_layout_size(core+1,0,0,0,&b)!=RF_OK && !memcmp(&b,&v,sizeof(v)));
+        CHECK(rf_authored_checkpoint_layout_size(core,128,1024,RF_GEOMOD_PUBLICATION_FACES+1,&b)!=RF_OK && !memcmp(&b,&v,sizeof(v)));
+        if(fit<RF_GEOMOD_PUBLICATION_FACES) {
+            CHECK(!rf_authored_checkpoint_layout_size(core,128,1024,fit,&b) && b.bytes==base+fit*2);
+            v=b;CHECK(rf_authored_checkpoint_layout_size(core,128,1024,fit+1,&b)!=RF_OK && !memcmp(&b,&v,sizeof(v)));
+        } else {
+            CHECK(!rf_authored_checkpoint_layout_size(core,128,1024,RF_GEOMOD_PUBLICATION_FACES,&b));
+            CHECK(b.bytes==base+RF_GEOMOD_PUBLICATION_FACES*2);
+            memset(payload,0,sizeof(payload));memcpy(payload,"RFDS",4);put(4,2);put(8,b.bytes);memcpy(payload+16,"ctf06.rfl",10);
+            put(240,128);put(248,1024);put(252,core);put(272,RF_GEOMOD_PUBLICATION_FACES);put(276,416);put(280,128);put(284,2);
+            CHECK(!rf_authored_checkpoint_layout_read(payload,b.bytes,&v) && !memcmp(&v,&b,sizeof(v)));
+            printf("MAX_LAYOUT cuts%u faces%u core%u rfds%u transport%u\n",RF_GEOMOD_CUT_LIMIT,RF_GEOMOD_PUBLICATION_FACES,core,b.bytes,RF_CHECKPOINT_FILE_MAX);
+        }
+    }
     puts("PASS authored layout exact spans, transport boundary, all truncated prefixes, counts, reserved fields and atomic rejection");return 0;
 }
