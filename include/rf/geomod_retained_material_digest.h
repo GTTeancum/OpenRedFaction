@@ -16,6 +16,7 @@ typedef struct rf_geomod_retained_material_input {
     const uint16_t *face_maps;uint32_t face_count;
     uint32_t owner,serial,cuts,owner_generation,owner_cuts;
     uint32_t baked,sample,random,x,y,row,material_policy;
+    const uint32_t *authored_material_tokens;uint32_t authored_material_count;
 } rf_geomod_retained_material_input;
 /* RFRM v1 SHA256 over the complete settled noise journal, not current atlas
  * appearance. Includes historical unreferenced maps in retained order, every
@@ -31,6 +32,14 @@ typedef struct rf_geomod_retained_material_input {
  * an initialized nonzero generation requires RNG1 even when empty.
  * nonempty chain starts1 and verifies every base_seed and final random value.
  * Every generated face requires map<map_count; source faces require65535.
+ * Policy2 uses RFRM v3 (single)/v4 (collection) and additionally admits hidden
+ * NEIGHBOR faces with completed maps. Token0 remains crater substrate; nonzero
+ * tokens are compiled texture index+1, qualified by verified immutable source
+ * identities and a caller-captured allowlist (<=128, unique, nonzero/nonMAX).
+ * Never read that allowlist from the save. Hidden faces require an authored
+ * token and absent compiled reference; crater maps must still use token0.
+ * Historical unused authored maps remain part of the journal. Policy1 encoding
+ * and hashes stay unchanged and reject a supplied authored allowlist.
  * All failures preserve output. No allocation/input mutation. Disjoint output.
  * Call after private history/lightmap reconstruction and before publication. */
 int rf_geomod_retained_material_digest(const rf_geomod_retained_material_input *,unsigned char out[32]);

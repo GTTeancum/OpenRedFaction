@@ -30,6 +30,33 @@ int main(void)
     CHECK(!memcmp(digest,expected,32));
     printf("CANONICAL ");for(i=0;i<32;i++)printf("%02x",digest[i]);printf(" second_seed%u continuation%u\n",maps[1].base_seed,in.random);
     CHECK(!rf_geomod_retained_material_digest(&in,again)&&!memcmp(digest,again,32));
+    {
+        rf_geomod_retained_material_input hidden=in;rf_geomod_publication_origin saved=origins[0];
+        uint32_t tokens[2]={4,9};unsigned char cap_digest[32],collection_digest[32];
+        rf_geomod_retained_material_source sources[1]={{94,2,source}};
+        hidden.material_policy=2;hidden.authored_material_tokens=tokens;hidden.authored_material_count=2;
+        maps[1].material_token=4;origins[0]=(rf_geomod_publication_origin){2,93,543,UINT32_MAX};face_maps[0]=1;
+        CHECK(!rf_geomod_retained_material_digest(&hidden,cap_digest));CHECK(memcmp(cap_digest,digest,32));
+        CHECK(!rf_geomod_retained_material_collection_digest(&hidden,sources,1,collection_digest));CHECK(memcmp(cap_digest,collection_digest,32));
+        tokens[0]=9;tokens[1]=4;CHECK(!rf_geomod_retained_material_digest(&hidden,again) && !memcmp(cap_digest,again,32));
+        hidden.authored_material_count=1;CHECK(rejected(&hidden));hidden.authored_material_count=2;
+        tokens[0]=4;CHECK(rejected(&hidden));tokens[0]=9;
+        hidden.authored_material_tokens=NULL;CHECK(rejected(&hidden));hidden.authored_material_tokens=tokens;
+        tokens[0]=0;CHECK(rejected(&hidden));tokens[0]=UINT32_MAX;CHECK(rejected(&hidden));tokens[0]=9;
+        hidden.material_policy=1;CHECK(rejected(&hidden));hidden.material_policy=2;
+        face_maps[0]=0;CHECK(rejected(&hidden));face_maps[0]=1;
+        face_maps[1]=1;CHECK(rejected(&hidden));face_maps[1]=0;
+        origins[0].reference=150;CHECK(rejected(&hidden));origins[0].reference=UINT32_MAX;
+        origins[0].source_face=UINT32_MAX;CHECK(rejected(&hidden));origins[0].source_face=543;
+        origins[0].kind=RF_GEOMOD_PUBLICATION_RETAINED;CHECK(rejected(&hidden));origins[0].kind=RF_GEOMOD_PUBLICATION_NEIGHBOR;
+        maps[1].material_token=9;CHECK(!rf_geomod_retained_material_digest(&hidden,again) && memcmp(cap_digest,again,32));maps[1].material_token=4;
+        /* Unreferenced authored charts still retain their material identity. */
+        hidden.face_count=0;CHECK(!rf_geomod_retained_material_digest(&hidden,again));hidden.face_count=2;
+        maps[1].base_seed^=1;CHECK(rejected(&hidden));maps[1].base_seed^=1;
+        CHECK(!rf_geomod_retained_material_digest(&hidden,again) && !memcmp(cap_digest,again,32));
+        origins[0]=saved;face_maps[0]=65535;maps[1].material_token=0;
+        CHECK(!rf_geomod_retained_material_digest(&in,again) && !memcmp(digest,again,32));
+    }
     /* Map1 is retained but unused by either final face. Removing it while
      * repairing cursor/RNG is a different valid history and must hash apart. */
     in.map_count=in.baked=1;in.x=4;in.random=maps[1].base_seed;
