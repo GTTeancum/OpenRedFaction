@@ -46,7 +46,7 @@ static int scene_terrain_authored_reference(scene_stream *s,scene_terrain_author
  * owns its own candidate banks/composition and must retain them until rebind.
  * Asset meshes/material indices remain immutable; face copies below use render
  * slots. Exposed-neighbor refs do not imply a generated crater lightmap. */
-static inline int scene_terrain_authored_open(scene_stream *s,const rf_level *level,rf_vpp *maps,uint32_t map_count)
+static int scene_terrain_authored_open_source(scene_stream *s,const rf_level *level,rf_vpp *maps,uint32_t map_count,uint32_t uid)
 {
     scene_terrain_authored_assets *a=NULL;rf_geomod_terrain *terrain=NULL;rf_geomod_piece_registry *pieces=NULL;
     rf_geomod_mesh_view *views[3];rf_collision_face_filter generated;
@@ -54,7 +54,7 @@ static inline int scene_terrain_authored_open(scene_stream *s,const rf_level *le
     if(!s || !level || !s->geometry || !s->collision || !actor_follow_world ||
        !actor_follow_world->slots || !s->materials || s->terrain || s->terrain_authored)return RF_RANGE;
     a=calloc(1,sizeof(*a));if(!a)return RF_IO;
-    status=rf_geomod_authored_post_open_source(level,s->geometry,scene_authored_source_uid,2*1024*1024,&a->asset);if(status)goto fail;
+    status=rf_geomod_authored_post_open_source(level,s->geometry,uid,2*1024*1024,&a->asset);if(status)goto fail;
     status=rf_geomod_authored_post_get(a->asset,&a->asset_view);if(status)goto fail;
     /* Capture original asset identity before remapping face materials into
      * renderer slots. Temporary decode/repacking memory is released here. */
@@ -122,4 +122,83 @@ static inline int scene_terrain_authored_open(scene_stream *s,const rf_level *le
     return RF_OK;
 fail:
     rf_geomod_piece_registry_close(&pieces);rf_geomod_terrain_close(&terrain);scene_terrain_authored_close(&a);return status;
+}
+
+/* Active aliases may be replaced by a committed cut or checkpoint load. Capture
+ * their current owners before switching or closing the collection. */
+static void scene_terrain_sources_sync(scene_stream *s)
+{
+    uint32_t i;
+    for(i=0;i<s->terrain_source_count;i++)if(s->terrain_sources[i].authored==s->terrain_authored) {
+        s->terrain_sources[i].terrain=s->terrain;s->terrain_sources[i].pieces=s->detached_pieces;return;
+    }
+}
+static int scene_terrain_sources_select(scene_stream *s,uint32_t index)
+{
+    scene_terrain_source_owner *source;
+    if(!s || !s->terrain_sources || index>=s->terrain_source_count)return RF_RANGE;
+    source=s->terrain_sources+index;
+    if(!source->authored || !source->terrain)return RF_FORMAT;
+    scene_terrain_sources_sync(s);
+    s->terrain_authored=source->authored;s->terrain=source->terrain;s->detached_pieces=source->pieces;
+    s->terrain_fallback=source->authored->asset_view.replaced_ids[0];
+    s->terrain_default_hardness=source->authored->asset_view.settings.hardness;
+    return RF_OK;
+}
+/* Overlay/publication borrowers must be closed before this owned collection. */
+static void scene_terrain_sources_close(scene_stream *s)
+{
+    uint32_t i;if(!s || !s->terrain_sources)return;
+    scene_terrain_sources_sync(s);
+    for(i=0;i<s->terrain_source_count;i++) {
+        rf_geomod_piece_registry_close(&s->terrain_sources[i].pieces);
+        rf_geomod_terrain_close(&s->terrain_sources[i].terrain);
+        scene_terrain_authored_close(&s->terrain_sources[i].authored);
+    }
+    free(s->terrain_sources);s->terrain_sources=NULL;s->terrain_source_count=0;
+    s->terrain_authored=NULL;s->terrain=NULL;s->detached_pieces=NULL;
+}
+static int scene_terrain_sources_open(scene_stream *s,const rf_level *level,rf_vpp *maps,uint32_t map_count,
+    const uint32_t *uids,uint32_t count,uint32_t budget)
+{
+    scene_stream *staged;scene_terrain_source_owner *sources;uint32_t i,j,opened=0;
+    uint32_t identity_before[10];uint64_t resident,reserved;int status=RF_RANGE;
+    if(!s || !uids || !count || count>4 || s->terrain_sources || s->terrain || s->terrain_authored || s->detached_pieces)return RF_RANGE;
+    for(i=0;i<count;i++) {
+        if(uids[i]!=93 && uids[i]!=94 && uids[i]!=96 && uids[i]!=97)return RF_NOT_FOUND;
+        for(j=0;j<i;j++)if(uids[i]==uids[j])return RF_FORMAT;
+    }
+    resident=(uint64_t)count*sizeof(*sources);
+    /* Reserve full decoder, core and registry ceilings before each factory call.
+     * Shared scene resources are borrowed and charged by their existing owner. */
+    reserved=sizeof(*staged)+resident+2u*1024u*1024u+SCENE_TERRAIN_CORE_BUDGET+SCENE_DETACHED_BUDGET;
+    if(reserved>budget)return RF_RANGE;
+    staged=malloc(sizeof(*staged));sources=calloc(count,sizeof(*sources));
+    if(!staged || !sources){free(staged);free(sources);return RF_IO;}
+    *staged=*s;memcpy(identity_before,rf_scene_authored_identity,sizeof(identity_before));
+    for(i=0;i<count;i++) {
+        rf_geomod_terrain_view view;
+        reserved=sizeof(*staged)+resident+2u*1024u*1024u+SCENE_TERRAIN_CORE_BUDGET+SCENE_DETACHED_BUDGET;
+        if(reserved>budget){status=RF_RANGE;goto fail;}
+        status=scene_terrain_authored_open_source(staged,level,maps,map_count,uids[i]);if(status)goto fail;
+        sources[i]=(scene_terrain_source_owner){staged->terrain_authored,staged->terrain,staged->detached_pieces};opened++;
+        status=rf_geomod_terrain_get(staged->terrain,&view);if(status)goto fail;
+        resident+=sources[i].authored->resident_bytes+view.resident_bytes+rf_geomod_piece_registry_bytes(sources[i].pieces);
+        staged->terrain_authored=NULL;staged->terrain=NULL;staged->detached_pieces=NULL;
+    }
+    s->terrain_sources=sources;s->terrain_source_count=count;
+    status=scene_terrain_sources_select(s,0); /* Already validated; cannot fail. */
+    memcpy(rf_scene_authored_identity,sources[0].authored->source_identity,32);
+    rf_scene_authored_identity[8]=sources[0].authored->identity_peak_bytes;rf_scene_authored_identity[9]=1;
+    free(staged);return status;
+fail:
+    for(i=0;i<opened;i++) {
+        rf_geomod_piece_registry_close(&sources[i].pieces);rf_geomod_terrain_close(&sources[i].terrain);
+        scene_terrain_authored_close(&sources[i].authored);
+    }
+    memcpy(rf_scene_authored_identity,identity_before,sizeof(identity_before));free(sources);free(staged);return status;
+}
+static inline int scene_terrain_authored_open(scene_stream *s,const rf_level *level,rf_vpp *maps,uint32_t map_count)
+{
+    return scene_terrain_sources_open(s,level,maps,map_count,&scene_authored_source_uid,1,6u*1024u*1024u);
 }

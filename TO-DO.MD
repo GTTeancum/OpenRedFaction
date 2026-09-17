@@ -23,7 +23,7 @@
 
 - GeoMod UV seams: Broaden chronological reconstruction beyond current fixtures; all105 tests and48 axis-oriented UV cases pass, with live two-cut reload/next-blast passing58 stock64MiB Xbox checks.
 
-- PRIORITY GeoMod coverage: Instantiate live source collections and connect lighting, impact dispatch, rubble queries and saves; the actual scene adapter now publishes/collides two real cut posts together in CPU tests, with default live97 state unchanged.
+- PRIORITY GeoMod coverage: Enable simultaneous gameplay dispatch, aggregate lighting, rubble queries and saves; source collection allocation/switching/cleanup now serves live single-post startup, and two-source scene publication/collision passes CPU tests.
 
 - Movement: Extend verified quiet swimming to authored liquid hazards and underwater presentation; entry, surfacing, re-entry and harmless ordinary water pass44 PC/Xbox comparisons.
 - Movement: Finish underwater presentation; authored lava damage and harmless dry control now pass44/45 PC/Xbox checks on stock64MiB.

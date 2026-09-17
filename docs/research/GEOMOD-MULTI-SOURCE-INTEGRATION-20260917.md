@@ -67,3 +67,13 @@ The actual scene adapter test opens real ctf06 sources93/94, initially publishes
 PC build and121/121 tests pass; stock NXDK build passes. Existing live97 replay still emits the unchanged2758-byte checkpoint SHA256 d98a3c0e8b1c725e4924aaf82f7872e99ede438963d3b0e342f892a884f4aea0 (`artifacts/grouped-scene-live`).
 
 The collection view is currently populated by this scene-level integration test. Ordinary scene startup still creates one selected source. A playable multi-source developer mode is not enabled yet: source collection allocation/lifetime, aggregate real lighting, hit dispatch, queries over every registry and multi-source saves remain required. This update establishes the actual scene publication/collision path, not live multi-object visual acceptance.
+
+## Owned collection lifetime in scene startup
+
+Ordinary authored scene startup now calls the source collection factory with one selected UID. The factory accepts up to four distinct supported UIDs, stages assets/cores/registries privately, and reserves decoder/core/registry ceilings plus staging context and prior resident owners before each source construction. Its current caller supplies a6MiB construction ceiling; this is not extra RAM or a claim that shared scene resources are free. Those remain separately owned and charged. Failure closes staged owners and restores source identity telemetry before returning.
+
+Selection synchronizes the active terrain and registry aliases back into their collection entry before changing source. This matters because a committed cut or load replaces the core pointer: a stale collection entry must never be freed later or selected again. Cleanup closes overlay/publication borrowers first, synchronizes the current owner and then closes all registries, cores and assets. Repeated collection cleanup is harmless.
+
+The two-real-post scene test now uses heap-owned source assets and collection entries, exercises source selection, replaces the active core with a decoded equivalent, frees the old core and switches away/back to verify the new pointer survives. It then closes the entire collection and checks all ownership fields clear. Normal one-source publication retains the original reset and save behavior.
+
+PC build and121/121 tests pass; stock-profile NXDK build passes. The550-frame live97 run through collection startup and cleanup produces the identical2758-byte checkpoint (SHA256 d98a3c0e8b1c725e4924aaf82f7872e99ede438963d3b0e342f892a884f4aea0; `artifacts/source-lifetime-live`). Multi-source factory invocation beyond the scene fixture, live aggregate lighting, impact dispatch, all-registry contacts and multi-source saves remain unverified. The startup caller still requests one source; simultaneous gameplay has not been enabled.

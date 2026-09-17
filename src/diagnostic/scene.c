@@ -14753,8 +14753,9 @@ done:
     if(!stream->terrain_atlas_registered)rf_image_close(&stream->terrain_atlas);
     if(status && stream->terrain_noise)printf("NOISE_FAILURE %d %u %u %u %u %u %u\n",status,stream->terrain_noise->count,stream->terrain_noise->bake,stream->terrain_noise->sample,stream->terrain_noise->x,stream->terrain_noise->y,stream->terrain_noise->generation);
     free(stream->terrain_noise);free(stream->terrain_atlas_pixels);free(stream->terrain_tile);free(stream->terrain_bindings);free(stream->terrain_tiles);
-    rf_geomod_piece_registry_close(&stream->detached_pieces);
-    free(stream->terrain_face_offsets);rf_geometry_collision_overlay_close(&stream->terrain_collision);scene_terrain_publication_close(&stream->terrain_publication);rf_geomod_terrain_close(&stream->terrain);scene_terrain_authored_close(&stream->terrain_authored);free(stream->terrain_template);free(stream->terrain_colors);free(stream->terrain_regions);free(stream->terrain_light_cache);free(stream->terrain_ids);free(stream->terrain_draw);free(stream->debris);
+    rf_geometry_collision_overlay_close(&stream->terrain_collision);scene_terrain_publication_close(&stream->terrain_publication);
+    scene_terrain_sources_close(stream);rf_geomod_piece_registry_close(&stream->detached_pieces);
+    free(stream->terrain_face_offsets);rf_geomod_terrain_close(&stream->terrain);scene_terrain_authored_close(&stream->terrain_authored);free(stream->terrain_template);free(stream->terrain_colors);free(stream->terrain_regions);free(stream->terrain_light_cache);free(stream->terrain_ids);free(stream->terrain_draw);free(stream->debris);
     free(stream->liquid_rooms);free(stream->surface_indices);free(states);if(motions_opened)rf_vpp_close(&motions);
     free(vertices);free(items);rf_preview_close(&actor);rf_model_materials_close(&bundle);
     free(stream->checkpoint_clutter);

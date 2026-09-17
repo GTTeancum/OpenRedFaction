@@ -94,13 +94,13 @@ static int scene_terrain_publication_prepare_from(scene_stream *s,
     terrain=*candidate;
     p->pending=p->active^1u;b=p->banks+p->pending;b->cuts=terrain.cuts;b->generated=0;
     b->mesh=(rf_geomod_mesh_view){b->vertices,b->faces,0,0,saved_serial};
-    if(!terrain.cuts && !s->terrain_source_count){status=rf_collision_composition_prepare_reset(p->composition);if(status)return status;p->has_pending=1;return RF_OK;}
+    if(!terrain.cuts && s->terrain_source_count<=1){status=rf_collision_composition_prepare_reset(p->composition);if(status)return status;p->has_pending=1;return RF_OK;}
     job.terrain=terrain.mesh;job.windows=a->windows;job.neighbors=a->neighbors;
     job.window_origins=a->asset_view.window_origins;job.neighbor_origins=a->asset_view.neighbor_origins;
     job.crater_origin=(rf_geomod_publication_origin){RF_GEOMOD_PUBLICATION_CRATER,a->asset_view.source_uid,UINT32_MAX,s->terrain_fallback};
     job.source_planes=a->asset_view.source_planes;job.source_plane_count=a->source.face_count;
     job.solids=a->asset_view.solids;job.solid_count=a->asset_view.solid_count;job.cuts=cuts;job.cut_count=terrain.cuts;
-    if(s->terrain_source_count) {
+    if(s->terrain_source_count>1) {
         rf_geomod_publication_job jobs[4];rf_geomod_publication_cut other_cuts[4][RF_GEOMOD_CUT_LIMIT];
         uint32_t source,cut,total=0,selected=0;
         if(s->terrain_source_count>4 || !s->terrain_sources)return RF_RANGE;
