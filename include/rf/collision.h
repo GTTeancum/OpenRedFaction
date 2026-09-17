@@ -604,6 +604,14 @@ typedef struct rf_collision_solid_response_backend {
     void (*query)(void *,uint32_t,const rf_collision_solid_response_query *,rf_collision_solid_response_hit *);
     void (*finish)(void *);void *context;
 } rf_collision_solid_response_backend;
+/* Original499670 ground sphere query at fixed body orientations/target pose.
+ * Finite caller-owned data; start/end override source position. Preserves the
+ * original unnormalized normal dot threshold<-0.5. A rejected candidate can
+ * write normal; callers needing atomic misses must use a scratch packet.
+ * Only point/normal/time and final two contact words are modified. */
+uint32_t rf_collision_actors_ground_spheres(const float start[3],const float end[3],
+    const rf_collision_actor_general_response *,const rf_collision_actor_general_response *,
+    rf_collision_actor_contact *);
 /* Original49b570 orchestration; cache4df7e0, query4df1c0 and release4dfb00
  * supplied. Query sets count on each call and carries the time limit forward;
  * positive count supplies local point/normal/face. Owners remain stable. */

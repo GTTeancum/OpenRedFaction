@@ -2899,6 +2899,43 @@ uint32_t rf_collision_actors_general_response(rf_collision_actor_general_respons
     return changed;
 }
 
+uint32_t rf_collision_actors_ground_spheres(const float start[3],const float end_position[3],
+    const rf_collision_actor_general_response *source,const rf_collision_actor_general_response *target,
+    rf_collision_actor_contact *contact)
+{
+    float relative[3],next_relative[3],ray[6],end[3],world[3],travel[3],hit[3],length,fraction,scaled;
+    double magnitude,inverse,dot;uint32_t i,changed=0;int32_t j,k;
+    for(i=0;i<3;i++){relative[i]=(float)((double)start[i]-target->actor.position[i]);next_relative[i]=(float)((double)end_position[i]-target->actor.position[i]);}
+    for(j=0;j<source->actor.sphere_count;j++) {
+        memcpy(ray,source->actor.spheres[j].center,12);response_rotate(ray,source->orientation,1);
+        for(i=0;i<3;i++){world[i]=(float)((double)ray[i]+start[i]);ray[i]=(float)((double)ray[i]+relative[i]);}
+        response_rotate(ray,target->orientation,0);
+        memcpy(end,source->actor.spheres[j].center,12);response_rotate(end,source->orientation,1);
+        for(i=0;i<3;i++){travel[i]=(float)((double)end[i]+end_position[i]);travel[i]=(float)((double)travel[i]-world[i]);end[i]=(float)((double)end[i]+next_relative[i]);}
+        response_rotate(end,target->orientation,0);
+        for(i=0;i<3;i++)ray[i+3]=(float)((double)end[i]-ray[i]);
+        magnitude=response_length(ray+3);length=(float)magnitude;if(!(magnitude>0))continue;
+        inverse=1.0/length;for(i=0;i<3;i++)ray[i+3]=(float)((double)ray[i+3]*inverse);
+        for(k=0;k<target->actor.sphere_count;k++) {
+            const rf_physics_sphere *sphere=target->actor.spheres+k;
+            if(!rf_collision_ray_sphere(ray,length,sphere->center,(float)((double)sphere->radius+source->actor.spheres[j].radius),hit,&fraction))continue;
+            if(fraction==0){float normal[3];for(i=0;i<3;i++)normal[i]=(float)((double)sphere->center[i]-hit[i]);
+                dot=(double)ray[5]*normal[2];dot+=(double)ray[4]*normal[1];dot+=(double)ray[3]*normal[0];if(dot<0)continue;}
+            if(fraction<0 || !(fraction<contact->time))continue;
+            for(i=0;i<3;i++)contact->normal[i]=(float)((double)hit[i]-sphere->center[i]);
+            dot=(double)contact->normal[2]*ray[5];dot+=(double)contact->normal[1]*ray[4];dot+=(double)contact->normal[0]*ray[3];
+            if(!(dot<-.5))continue;
+            changed=1;contact->time=fraction;inverse=1.0/response_length(contact->normal);
+            for(i=0;i<3;i++)contact->normal[i]=(float)((double)contact->normal[i]*inverse);
+            response_rotate(contact->normal,target->orientation,1);
+            for(i=0;i<3;i++){scaled=(float)((double)travel[i]*fraction);contact->point[i]=(float)((double)world[i]+scaled);
+                scaled=(float)((double)contact->normal[i]*source->actor.spheres[j].radius);contact->point[i]=(float)((double)contact->point[i]-scaled);}
+            contact->word_1f0=contact->word_1f4=0;
+        }
+    }
+    return changed;
+}
+
 uint32_t rf_collision_actor_solid_response(rf_collision_actor_general_response *actor,
     rf_collision_actor_general_response *solid_actor,uint32_t solid,const rf_collision_solid_response_backend *backend)
 {

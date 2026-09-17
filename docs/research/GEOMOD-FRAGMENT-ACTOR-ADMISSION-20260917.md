@@ -175,3 +175,29 @@ placement/support still need intermediate-radius sphere shapes. Original499670
 is the distinct ground sphere routine reached through49b900; movement49a420
 must not be silently substituted for it. A naturally extracted intermediate-size
 fragment and native execution of that positive movement route remain open.
+
+## Original ground sphere routine499670
+
+`rf_collision_actors_ground_spheres` reconstructs the distinct ground query with
+fixed source/target orientations and target position; supplied start/end positions
+replace the source translation. Unlike49a420, it does not choose a smaller sphere
+list or publish counterpart contact fields. It checks the unnormalized local
+contact normal dotted with the normalized ray direction against strictly-0.5,
+then normalizes and transforms accepted normals. Even a rejected grazing candidate
+can overwrite the packet normal; atomic registry wrappers must use scratch storage.
+Other packet fields remain unchanged except point, normal, time and the two final
+words. The zero-time separating gate is retained as observed in the original.
+
+`python tools/probe_ground_sphere.py --nxdk` executes original499670 with its real
+vector/ray helpers and the compiled NXDK reconstruction, without hooks. All1080
+cases compare the return byte and complete68-byte contact packet exactly, with74
+hits. Twelve pose configurations include translation, rotations and offset sphere
+centers; radii, grazing offsets and limits vary. Source bodies remain byte-identical.
+The identity vertical cases independently check the radius-dependent threshold
+and analytical time-of-impact. This is compiled Xbox code under Unicorn, not a
+native XEMU runtime test. The grid includes one/two-sphere lists and initial-overlap cases; broader
+continuous pose and authored support coverage remain open. Evidence: artifacts/geomod-postedit-re/ground-sphere.json and the raw
+Ghidra export artifacts/analysis/rf_b8fb9ab4c9bf/499670.c.txt.
+
+Scene ground/support integration is still pending; adding this primitive alone
+does not change what a player can stand on in the live build.

@@ -1,6 +1,6 @@
 # Red Faction Xbox / PC - open work
 
-- PRIORITY GeoMod player contacts: Implement intermediate-radius ground/support shapes and verify live contacts; movement now uses spheres for(0.5,1] and polygons above1, while the small-fragment rejection has74 native comparisons.
+- PRIORITY GeoMod player contacts: Integrate recovered ground sphere queries and checkpoint shapes for(0.5,1]; the Xbox-compiled ground routine matches1080 original cases, while movement routing is implemented and live intermediate-size verification remains open.
 
 - GeoMod vehicle contacts: Verify admitted use-kind1 vehicle contacts with larger fragments;240 original cases confirm ordinary miner/AI-response kind9 is excluded, so humanoid rubble pushing is not a missing fidelity feature.
 
