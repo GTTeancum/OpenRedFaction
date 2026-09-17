@@ -1,4 +1,5 @@
 #include "rf/composed_checkpoint.h"
+#include "rf/authored_checkpoint_layout.h"
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -84,5 +85,41 @@ int main(void)
  /* Version2 cannot exploit the smaller legacy minimum. */
  memcpy(changed,encoded,n);put(changed+8,rfds_at+415);put(changed+24,415);put(changed+rfds_at+8,415);
  reject(changed,rfds_at+415,RF_COMPOSED_PROFILE_AUTHORED,&c);
+ /* Collection profile carries two independent cores and one shared journal.
+  * Synthetic payloads establish framing only, not owner/atlas semantics. */
+ {
+  unsigned char core[28]={0},body[16]={0};rf_authored_source_blob sources[2]={{0}};
+  rf_authored_checkpoint_layout layout,readback;uint32_t directory,bytes,collection=RF_COMPOSED_PROFILE_AUTHORED_COLLECTION;
+  memcpy(core,"RGCH",4);put(core+4,1);put(core+8,sizeof(core));
+  memcpy(body,"RFPB",4);put(body+4,2);put(body+8,sizeof(body));
+  for(i=0;i<2;i++) {sources[i].uid=94-i;memset(sources[i].identity,i+1,32);sources[i].core=core;sources[i].core_bytes=sizeof(core);}
+  sources[1].pieces=body;sources[1].piece_bytes=sizeof(body);
+  CHECK(!rf_authored_sources_size(sources,2,&directory));
+  CHECK(!rf_authored_collection_layout_size(directory,2,3,12,&layout));bytes=layout.bytes;
+  CHECK(layout.core_offset==416 && layout.admission_offset==416+directory && layout.map_offset==512+directory);
+  CHECK(layout.face_offset==776+directory && layout.bytes==800+directory && !layout.piece_bytes);
+  memset(terrain,0,bytes);memcpy(terrain,"RFDS",4);put(terrain+4,3);put(terrain+8,bytes);
+  memcpy(terrain+16,"ctf06.rfl",10);put(terrain+240,2);put(terrain+248,3);put(terrain+252,directory);
+  put(terrain+272,12);put(terrain+276,416);put(terrain+280,128);put(terrain+284,2);
+  CHECK(!rf_authored_sources_pack(sources,2,terrain+416,directory,&written));
+  CHECK(!rf_authored_collection_layout_read(terrain,bytes,&readback) && !memcmp(&layout,&readback,sizeof(layout)));
+  CHECK(rf_authored_checkpoint_layout_read(terrain,bytes,&readback)==RF_FORMAT);
+  CHECK(!rf_composed_checkpoint_encode(collection,&p,&c,terrain,bytes,encoded,sizeof(encoded),&n));
+  CHECK(!rf_composed_checkpoint_preflight(encoded,n,collection,&c,&out) && out.rfds_bytes==bytes);
+  CHECK(!memcmp(out.rfds,terrain,bytes));reject(encoded,n,RF_COMPOSED_PROFILE_AUTHORED,&c);reject(encoded,n,profile,&c);
+  for(i=0;i<n;i++)reject(encoded,i,collection,&c);reject(encoded,n+1,collection,&c);
+  {const uint32_t offsets[]={12,240,248,252,272,276,280,284,416+12,416+64,416+76};
+   for(i=0;i<sizeof(offsets)/sizeof(offsets[0]);i++) {
+    memcpy(changed,encoded,n);put(changed+rfds_at+offsets[i],UINT32_MAX);reject(changed,n,collection,&c);
+   }
+  }
+  /* A duplicate later source rejects even when outer lengths are intact. */
+  put(terrain+416+64,94);memset(changed,0xa5,sizeof(changed));memcpy(saved,changed,sizeof(saved));written=777;
+  CHECK(rf_composed_checkpoint_encode(collection,&p,&c,terrain,bytes,changed,sizeof(changed),&written)==RF_FORMAT);
+  CHECK(written==777 && !memcmp(changed,saved,sizeof(saved)));
+  readback=layout;CHECK(rf_authored_collection_layout_size(RF_COMPOSED_CHECKPOINT_RFDS_MAX,0,0,0,&readback)==RF_RANGE);
+  CHECK(!memcmp(&layout,&readback,sizeof(layout)));
+  puts("PASS collection RFDS3/RFCP framing: two owners, shared tables, legacy separation and nested atomic rejection");
+ }
  puts("PASS RFCP envelope/player preflight, borrowed unchanged RFDS, truncation/malformed/profile/cap/rollback; authored version dispatch");return 0;
 }

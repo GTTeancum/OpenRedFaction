@@ -10,8 +10,12 @@ static int rfds_header(const void *data,uint32_t bytes,uint32_t profile)
     const unsigned char *p=data;
     if(!p)return RF_RANGE;
     if(bytes<RF_COMPOSED_CHECKPOINT_RFDS_MIN||bytes>RF_COMPOSED_CHECKPOINT_RFDS_MAX)return RF_RANGE;
-    if(profile!=RF_COMPOSED_PROFILE_CAVITY && profile!=RF_COMPOSED_PROFILE_AUTHORED)return RF_FORMAT;
+    if(profile!=RF_COMPOSED_PROFILE_CAVITY && profile!=RF_COMPOSED_PROFILE_AUTHORED && profile!=RF_COMPOSED_PROFILE_AUTHORED_COLLECTION)return RF_FORMAT;
     if(memcmp(p,"RFDS",4)||read32(p+4)!=profile||read32(p+8)!=bytes)return RF_FORMAT;
+    if(profile==RF_COMPOSED_PROFILE_AUTHORED_COLLECTION) {
+        rf_authored_checkpoint_layout layout;
+        return rf_authored_collection_layout_read(data,bytes,&layout);
+    }
     if(profile==RF_COMPOSED_PROFILE_AUTHORED) {
         rf_authored_checkpoint_layout layout;
         return rf_authored_checkpoint_layout_read(data,bytes,&layout);

@@ -5,6 +5,7 @@
 enum {
     RF_COMPOSED_PROFILE_CAVITY=1,
     RF_COMPOSED_PROFILE_AUTHORED=2,
+    RF_COMPOSED_PROFILE_AUTHORED_COLLECTION=3,
     RF_COMPOSED_CHECKPOINT_HEADER=32,
     RF_COMPOSED_CHECKPOINT_RFDS_MIN=288,
     RF_COMPOSED_CHECKPOINT_RFDS_MAX=RF_CHECKPOINT_FILE_MAX-RF_COMPOSED_CHECKPOINT_HEADER-RF_PLAYER_CHECKPOINT_BYTES
@@ -17,6 +18,8 @@ typedef struct rf_composed_checkpoint {
  * RFDS bytes,reserved0), RFPL544 then unchanged RFDS bytes. No checksum: RFSG
  * transport owns it. profile1 requires RFDSv1; profile2 requires RFDSv2 with
  * its416-byte header/128-byte extension and exact bounded variable-table spans.
+ * Profile3 requires RFDSv3 with an RFAS1 directory instead of one core,
+ * shared tables once, and no global body trailer. Scene restore remains a caller gate.
  * Unknown or crossed profiles reject;
  * full source/level identity remains the existing RFDS identity/level checks.
  * This is bounded settled DEV player+destruction state, NOT a full-game save.

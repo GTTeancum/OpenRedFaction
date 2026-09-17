@@ -23,7 +23,7 @@
 
 - GeoMod UV seams: Broaden chronological reconstruction beyond current fixtures; all105 tests and48 axis-oriented UV cases pass, with live two-cut reload/next-blast passing58 stock64MiB Xbox checks.
 
-- PRIORITY GeoMod coverage: Integrate paired-source save/restore with shared atlas, rubble and player support; the bounded source directory reconstructs both real cut histories exactly, while live paired saves remain disabled; two-post cuts/reset/recut pass75 stock64MiB Xbox checks.
+- PRIORITY GeoMod coverage: Integrate paired-source save/restore with shared atlas, rubble and player support; RFDS3/RFCP framing now carries the bounded source directory and shared tables, while live paired saves remain disabled; two-post cuts/reset/recut pass75 stock64MiB Xbox checks.
 
 - Movement: Extend verified quiet swimming to authored liquid hazards and underwater presentation; entry, surfacing, re-entry and harmless ordinary water pass44 PC/Xbox comparisons.
 - Movement: Finish underwater presentation; authored lava damage and harmless dry control now pass44/45 PC/Xbox checks on stock64MiB.

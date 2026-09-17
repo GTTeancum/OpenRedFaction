@@ -219,3 +219,14 @@ Tests cover two/four entries, optional body state, every truncated prefix, later
 All122 PC tests pass and the stock-profile NXDK build produces default.xbe and the diagnostic ISO. Logs are artifacts/source-save-directory-build.log, artifacts/source-save-directory-tests.log and artifacts/source-save-directory-xbox.log. No native session or retained HDD clone was needed for this codec-only addition.
 
 Live paired save writing/restoration remain explicitly disabled. Next integration must version the enclosing save, bind authentic per-source identities, persist the shared atlas/admission journal once, stage every core and registry under the Xbox memory budget, validate player placement/support against the staged collection, and commit the entire collection atomically. Legacy single-source formats must retain their source identity semantics. Unsafe live reset, simultaneous-cut memory and mixed-hardness coverage also remain open.
+
+
+## Collection save framing
+
+The shared codec now accepts an explicit RFCP profile3 carrying RFDS3. Its416-byte header retains the128-byte owner-extension slot and version marker2 for that extension; the old core span instead contains the complete RFAS1 directory. Admission records, atlas maps and face-map indices follow once. Header word12 must be zero: detached-body state belongs to each RFAS source entry, never a global trailer. This defines structural framing only; the collection-specific owner digest and live scene adapter still need implementation.
+
+A separate collection-layout reader checks every outer span before reading the nested directory. Legacy RFDS2 readers and mismatched RFCP profiles reject collection data. The existing file capacity, table limits and player encoding are unchanged. The collection directory itself consumes part of that same capacity, so a valid standalone RFAS packet can still be too large for a complete save and must reject.
+
+The composed-save fixture exercises two source entries, optional per-source RFPB, shared table offsets, every truncated prefix, crossed versions/profiles, corrupt nested directory fields, duplicate later source UID and output preservation. It intentionally supplies synthetic histories/body envelopes and does not establish semantic restore. All122 PC tests pass and stock NXDK produces the XBE/ISO; logs: artifacts/collection-envelope-build.log, artifacts/collection-envelope-tests.log and artifacts/collection-envelope-xbox.log. No native session or HDD clone was created.
+
+Live multi-source writing and restoration remain disabled. Authentic identities, aggregate material/collision digests, all-source private reconstruction, rubble/player support validation and atomic live publication are the next required integration work.

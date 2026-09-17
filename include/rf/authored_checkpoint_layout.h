@@ -22,6 +22,14 @@ int rf_authored_checkpoint_layout_size_pieces(uint32_t core_bytes,uint32_t admis
  * No checksum: RFSG transport supplies it. Inputs/output must be disjoint. */
 int rf_authored_checkpoint_layout_read(const void *data,uint32_t bytes,
     rf_authored_checkpoint_layout *out);
+/* RFDS3 collection framing: core span holds RFAS1, shared admission/map/face
+ * tables follow once; word12 must be zero (bodies belong to source entries).
+ * Header/owner-extension sizes remain416/128; semantic validation is separate.
+ * Legacy RFDS2 readers reject this version. Errors preserve outputs. */
+int rf_authored_collection_layout_size(uint32_t directory_bytes,uint32_t admissions,
+    uint32_t maps,uint32_t faces,rf_authored_checkpoint_layout *out);
+int rf_authored_collection_layout_read(const void *data,uint32_t bytes,
+    rf_authored_checkpoint_layout *out);
 /* RFAS1 source directory for the upcoming collection save payload. This is not
  * a complete RFDS/RFCP save and does not enable multi-source restore by itself.
  * Source order is retained (scene hit/support IDs depend on it). All integers LE.
