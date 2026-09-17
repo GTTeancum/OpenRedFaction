@@ -366,6 +366,43 @@ static int beam_scene(const rf_level *level,rf_geometry *geometry,rf_geometry_co
     free(s.terrain_noise);free(s.terrain_atlas_pixels);free(s.terrain_tile);free(s.terrain_bindings);free(s.terrain_colors);
     free(s.terrain_light_cache);free(s.terrain_tiles);free(s.terrain_draw);free(s.light_overlay_work);return 0;
 }
+static int connected_scene(const rf_level *level,rf_geometry *geometry,rf_geometry_collision_world *world,const char *shape_path) {
+    scene_stream s={0};scene_terrain_authored_assets assets[2]={{0}};scene_terrain_source_owner sources[2]={{0}};
+    rf_materials materials={0};rf_geomod_template shape;rf_geomod_terrain_view view;
+    const rf_geomod_publication_origin *origins;float basis[9]={1,0,0,0,1,0,0,0,1};
+    float center[3]={-4.75f,2.25f,2.5f};uint32_t i,k,hidden,first_faces;
+    s.collision=world;s.geometry=geometry;s.materials=&materials;materials.count=geometry->textures;
+    s.light_rgb.count=3;s.terrain_sources=sources;s.terrain_source_count=2;
+    CHECK(!rf_geomod_template_load(shape_path,&shape));
+    for(i=0;i<2;i++) {
+        rf_collision_face_filter generated;
+        CHECK(!rf_geomod_authored_post_open_source(level,geometry,i?94:95,2*1024*1024,&assets[i].asset));
+        CHECK(!rf_geomod_authored_post_get(assets[i].asset,&assets[i].asset_view));
+        assets[i].source=assets[i].asset_view.source;assets[i].windows=assets[i].asset_view.windows;assets[i].neighbors=assets[i].asset_view.neighbors;
+        CHECK(!references(assets+i,geometry));generated=assets[i].asset_view.source_filters[0];
+        CHECK(!rf_geomod_terrain_open(&assets[i].source,assets[i].asset_view.source_filters,&generated,0,4096,768,1048576,&sources[i].terrain));
+        sources[i].authored=assets+i;
+    }
+    CHECK(!scene_terrain_sources_select(&s,0));CHECK(!scene_terrain_publication_open(&s));
+    CHECK(s.terrain_publication->connected && scene_publication_owned_bytes(s.terrain_publication)==sizeof(*s.terrain_publication)+sizeof(*s.terrain_publication->connected));
+    CHECK(!rf_geomod_terrain_cut_template(sources[0].terrain,&shape,center,basis,1.05000007f,0));
+    s.terrain_publication_serial=1;
+    for(i=0;i<2;i++) {
+        if(i){center[1]=1.9f;CHECK(!rf_geomod_terrain_cut_template(sources[1].terrain,&shape,center,basis,1.05000007f,0));s.terrain_publication_serial=2;}
+        /* Select the post even while the beam exposes a hidden authored cap. */
+        CHECK(!scene_terrain_sources_select(&s,1));CHECK(!scene_terrain_publication_prepare(&s));
+        CHECK(!scene_terrain_publication_candidate(&s,&view,&origins,NULL));
+        CHECK(view.peak_bytes<SCENE_PUBLICATION_BUDGET && view.resident_bytes>=scene_publication_owned_bytes(s.terrain_publication));
+        hidden=0;
+        for(k=0;k<view.mesh.face_count;k++)if(origins[k].owner==94 && origins[k].source_face==549)hidden++;
+        if(!i){CHECK(hidden>0);first_faces=view.mesh.face_count;}else CHECK(!hidden && view.mesh.face_count!=first_faces);
+        CHECK(s.terrain_publication->banks[s.terrain_publication->active].mesh.face_count==0);
+        scene_terrain_publication_abort(&s);CHECK(!s.terrain_publication->has_pending);
+    }
+    printf("CONNECTED_SCENE faces%u peak%u owned%u\n",view.mesh.face_count,view.peak_bytes,scene_publication_owned_bytes(s.terrain_publication));
+    rf_geometry_collision_overlay_close(&s.terrain_collision);scene_terrain_publication_close(&s.terrain_publication);
+    for(i=0;i<2;i++){rf_geomod_terrain_close(&sources[i].terrain);free(assets[i].references);rf_geomod_authored_post_close(&assets[i].asset);}return 0;
+}
 int main(int argc,char **argv)
 {
     rf_vpp archive={0};rf_level level;rf_geometry geometry={0};rf_geometry_collision_world world={0};
@@ -428,6 +465,7 @@ int main(int argc,char **argv)
     rf_geomod_terrain_close(&private_core);rf_geomod_terrain_close(&live);free(asset.references);rf_geomod_authored_post_close(&asset.asset);
     CHECK(!grouped_scene(&level,&geometry,&world,argv[2]));
     CHECK(!beam_scene(&level,&geometry,&world,argv[2]));
+    CHECK(!connected_scene(&level,&geometry,&world,argv[2]));
     rf_geometry_collision_world_close(&world);rf_geometry_close(&geometry);rf_vpp_close(&archive);free(snapshot);
     puts("PASS private decoded publication, visitor rejection, active rollback, reset and recut serials");return 0;
 }

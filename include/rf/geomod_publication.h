@@ -115,4 +115,17 @@ int rf_geomod_publication_occlude_neighbor(const rf_geomod_mesh_view *,
     const rf_geomod_publication_cut *, uint32_t count,
     rf_geomod_publication_work *, rf_geomod_vertex *, uint32_t,
     rf_geomod_face *, uint32_t, rf_geomod_publication_origin *, rf_geomod_mesh_view *);
+/* Connected sources have disjoint original interiors and may share boundaries.
+ * Their current histories replace static neighbor occlusion and clip exposed
+ * neighbor surfaces owned by another selected source. Uses two bounded filter
+ * banks and a separate filter work area; caller owns/charges this workspace.
+ * Existing independent build_groups behavior and workspace stay unchanged. */
+typedef struct rf_geomod_publication_connected_work {
+    rf_geomod_publication_work publication,filter;
+    rf_geomod_publication_bank banks[2];
+    rf_geomod_publication_origin origins[2][RF_GEOMOD_PUBLICATION_FACES];
+} rf_geomod_publication_connected_work;
+int rf_geomod_publication_build_connected(const rf_geomod_publication_job *, uint32_t count,
+    uint32_t generation, rf_geomod_publication_connected_work *, rf_geomod_vertex *, uint32_t,
+    rf_geomod_face *, uint32_t, rf_geomod_publication_origin *, rf_geomod_mesh_view *);
 #endif

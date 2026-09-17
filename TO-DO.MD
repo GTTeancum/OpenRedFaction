@@ -1,6 +1,6 @@
 # Red Faction Xbox / PC - open work
 
-- GeoMod source expansion: Wire edited-neighbor boundary and occlusion primitives into connected beam/post updates and checkpoints; both now pass geometric/collision checks, while single-beam cut/save/reload/second-rocket passes76/75/76 stock64MiB checks and above-cap visual inspection remains open.
+- GeoMod source expansion: Complete connected beam/post lighting, checkpoint and live admission; installed-geometry and staged scene publication now remove destroyed shared caps within the4MiB budget, while single-beam cut/save/reload/second-rocket passes76/75/76 stock64MiB checks.
 
 - GeoMod publication: Broaden clipped-face partition coverage to other source geometry; the repaired shot, save/reload and subsequent rocket now pass76/75/76 native checks, with exact uninterrupted PC checkpoints, while broader histories remain open.
 

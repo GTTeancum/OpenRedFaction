@@ -243,7 +243,17 @@ static int prepare_cuts(const rf_geomod_publication_job *j, rf_geomod_publicatio
     }
     return RF_OK;
 }
-static int publication_append(const rf_geomod_publication_job *j, rf_geomod_publication_work *w) {
+typedef struct connected_context {
+    const rf_geomod_publication_job *jobs,*current;
+    uint32_t count;
+    rf_geomod_publication_connected_work *work;
+} connected_context;
+static const rf_geomod_publication_job *connected_owner(const connected_context *c,uint32_t owner) {
+    uint32_t i;if(c)for(i=0;i<c->count;i++)if(c->jobs[i].crater_origin.owner==owner)return c->jobs+i;
+    return NULL;
+}
+static int emit_connected(rf_geomod_publication_work *,uint32_t,rf_geomod_publication_origin,const connected_context *);
+static int publication_append(const rf_geomod_publication_job *j, rf_geomod_publication_work *w,const connected_context *context) {
     uint32_t i, k, a, b, n, bank;
     int s;
     if (!j || !w ||
@@ -291,6 +301,7 @@ static int publication_append(const rf_geomod_publication_job *j, rf_geomod_publ
             if (s)
                 return s;
             for (k = 0; k < j->solid_count; k++) {
+                if(connected_owner(context,j->solids[k].owner))continue;
                 s = subtract_neighbor(w, &bank, j->solids+k, j);
                 if (s)
                     return s;
@@ -298,7 +309,7 @@ static int publication_append(const rf_geomod_publication_job *j, rf_geomod_publ
             {
                 rf_geomod_publication_origin o = j->crater_origin;
                 o.kind = RF_GEOMOD_PUBLICATION_CRATER;
-                s = emit_bank(w, bank, o);
+                s = emit_connected(w, bank, o, context);
                 if (s)
                     return s;
             }
@@ -379,6 +390,7 @@ static int publication_append(const rf_geomod_publication_job *j, rf_geomod_publ
                 return s;
             for (a = 0; a < j->solid_count; a++)
                 if (j->solids[a].owner != origin.owner) {
+                    if(connected_owner(context,j->solids[a].owner))continue;
                     s = subtract_neighbor(w, &bank, j->solids+a, j);
                     if (s)
                         return s;
@@ -388,7 +400,7 @@ static int publication_append(const rf_geomod_publication_job *j, rf_geomod_publ
                 if (s)
                     return s;
             }
-            s = emit_bank(w, bank, origin);
+            s = emit_connected(w, bank, origin, context);
             if (s)
                 return s;
         }
@@ -413,7 +425,7 @@ int rf_geomod_publication_build(const rf_geomod_publication_job *j, rf_geomod_pu
     int status;
     if (!j || !w || !vertices || !faces || !origins || !out) return RF_RANGE;
     w->result.nv = w->result.nf = 0;
-    status = publication_append(j, w);
+    status = publication_append(j, w, NULL);
     if (status) return status;
     return publication_copy(w, j->terrain.generation, vertices, vc, faces, fc, origins, out);
 }
@@ -430,7 +442,7 @@ int rf_geomod_publication_build_groups(const rf_geomod_publication_job *jobs, ui
     }
     w->result.nv = w->result.nf = 0;
     for (i = 0; i < count; i++) {
-        status = publication_append(jobs + i, w);
+        status = publication_append(jobs + i, w, NULL);
         if (status) return status;
     }
     return publication_copy(w, generation, vertices, vc, faces, fc, origins, out);
@@ -543,4 +555,56 @@ int rf_geomod_publication_occlude_neighbor(const rf_geomod_mesh_view *mesh,
         }
     }
     return publication_copy(w,mesh->generation,vertices,vc,faces,fc,origins,out);
+}
+
+static int emit_connected(rf_geomod_publication_work *w,uint32_t bank,
+    rf_geomod_publication_origin origin,const connected_context *c) {
+    uint32_t i,k,a;int status;
+    if(!c)return emit_bank(w,bank,origin);
+    for(i=0;i<w->banks[bank].nf;i++) {
+        const rf_geomod_face *f=w->banks[bank].faces+i;
+        rf_geomod_publication_connected_work *cw=c->work;
+        rf_geomod_mesh_view mesh;uint32_t current=0;
+        const rf_geomod_publication_job *owner=connected_owner(c,origin.owner);
+        cw->banks[0].nv=cw->banks[0].nf=0;
+        status=append(cw->banks,w->banks[bank].vertices+f->first,f->count,*f);if(status)return status;
+        cw->origins[0][0]=origin;cw->origins[0][0].source_face=f->source_face;
+        mesh=(rf_geomod_mesh_view){cw->banks[0].vertices,cw->banks[0].faces,f->count,1,0};
+        if(origin.kind==RF_GEOMOD_PUBLICATION_NEIGHBOR && owner && owner->cut_count) {
+            status=rf_geomod_publication_cut_neighbors(&mesh,cw->origins[current],origin.owner,owner->cuts,owner->cut_count,
+                &cw->filter,cw->banks[1].vertices,RF_GEOMOD_PUBLICATION_VERTICES,cw->banks[1].faces,
+                RF_GEOMOD_PUBLICATION_FACES,cw->origins[1],&mesh);if(status)return status;current=1;
+        }
+        for(k=0;k<c->current->solid_count;k++) {
+            const rf_geomod_publication_solid *solid=c->current->solids+k,*hole=NULL;
+            const rf_geomod_publication_job *other=connected_owner(c,solid->owner);
+            uint32_t next=1-current;
+            if(!other || (origin.kind==RF_GEOMOD_PUBLICATION_NEIGHBOR && solid->owner==origin.owner))continue;
+            for(a=0;a<c->current->neighbor_void_count;a++)if(c->current->neighbor_voids[a].owner==solid->owner)hole=c->current->neighbor_voids+a;
+            status=rf_geomod_publication_occlude_neighbor(&mesh,cw->origins[current],solid,hole,other->cuts,other->cut_count,
+                &cw->filter,cw->banks[next].vertices,RF_GEOMOD_PUBLICATION_VERTICES,cw->banks[next].faces,
+                RF_GEOMOD_PUBLICATION_FACES,cw->origins[next],&mesh);if(status)return status;current=next;
+        }
+        for(k=0;k<mesh.face_count;k++) {
+            const rf_geomod_face *face=mesh.faces+k;
+            status=result(w,mesh.vertices+face->first,face->count,*face,cw->origins[current][k]);if(status)return status;
+        }
+    }
+    return RF_OK;
+}
+int rf_geomod_publication_build_connected(const rf_geomod_publication_job *jobs,uint32_t count,
+    uint32_t generation,rf_geomod_publication_connected_work *w,rf_geomod_vertex *vertices,uint32_t vc,
+    rf_geomod_face *faces,uint32_t fc,rf_geomod_publication_origin *origins,rf_geomod_mesh_view *out) {
+    connected_context context={jobs,NULL,count,w};uint32_t i,j;int status;
+    if(!jobs || !count || count>4 || !w || !vertices || !faces || !origins || !out)return RF_RANGE;
+    for(i=0;i<count;i++) {
+        if(jobs[i].crater_origin.owner==UINT32_MAX)return RF_FORMAT;
+        for(j=0;j<i;j++)if(jobs[j].crater_origin.owner==jobs[i].crater_origin.owner)return RF_FORMAT;
+    }
+    w->publication.result.nv=w->publication.result.nf=0;
+    for(i=0;i<count;i++) {
+        context.current=jobs+i;
+        status=publication_append(jobs+i,&w->publication,&context);if(status)return status;
+    }
+    return publication_copy(&w->publication,generation,vertices,vc,faces,fc,origins,out);
 }
