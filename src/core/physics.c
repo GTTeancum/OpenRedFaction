@@ -29,6 +29,85 @@ int rf_physics_body_segment(const rf_physics_body *body,const float start[3],
     }
     if(hit)*fraction=(float)nearest;return hit;
 }
+int rf_physics_solid_mass_prepare(const rf_collision_face *faces,uint32_t count,
+    const float minimum[3],const float maximum[3],float density,rf_physics_solid_mass *result)
+{
+    rf_physics_solid_mass out={0};float extent[3],half,base,first,cell_mass,tensor[9]={0};
+    uint32_t i,j,k,x,y,z;float px,py;
+    if(!faces || !count || !minimum || !maximum || !result || !isfinite(density) || density<0)return RF_RANGE;
+    for(k=0;k<3;k++) {
+        if(!isfinite(minimum[k]) || !isfinite(maximum[k]) || maximum[k]<=minimum[k])return RF_RANGE;
+        extent[k]=(float)((double)maximum[k]-minimum[k]);
+        if(!isfinite(extent[k]))return RF_RANGE;
+        if(extent[k]>out.spacing)out.spacing=extent[k];
+    }
+    out.spacing=(float)((double)out.spacing*.25);half=(float)((double)out.spacing*.5);
+    if(half<=0)return RF_RANGE;
+    base=(float)((double)half*-4);first=(float)((double)half*-3);
+    cell_mass=(float)((double)out.spacing*out.spacing*out.spacing*density);
+    if(!isfinite(cell_mass))return RF_RANGE;
+    for(x=0,px=first;px<maximum[0];x++,px=(float)((double)px+out.spacing)) {
+        if(x==4)return RF_RANGE;
+        for(y=0,py=first;py<maximum[1];y++,py=(float)((double)py+out.spacing)) {
+            float start[3]={px,py,base},end[3]={px,py,0},delta[3]={0,0,0};
+            uint8_t *row=out.cells+16*x+4*y;
+            if(y==4)return RF_RANGE;
+            end[2]=(float)((double)out.spacing*4+base);delta[2]=(float)((double)end[2]-base);
+            for(i=0;i<count;i++) {
+                float scratch[3],hit[4],scaled;uint32_t accepted,cell,bit;int status;
+                status=rf_collision_segment_box(faces[i].minimum,faces[i].maximum,start,end,scratch,&accepted);
+                if(status)return status;if(!accepted)continue;
+                if(!rf_collision_model_ray_plane(start,delta,faces[i].plane,hit))continue;
+                status=rf_collision_polygon_contains(faces[i].plane,hit,faces[i].vertices,faces[i].count,&accepted);
+                if(status)return status;if(!accepted)continue;
+                scaled=(float)((double)hit[3]*4);cell=(uint32_t)floor((double)hit[3]*4);
+                bit=(uint32_t)floor(((double)scaled-cell)*4);
+                /* The original assumes padded bounds keep hits below the top endpoint. */
+                if(cell>=4 || bit>=4)return RF_RANGE;
+                row[cell]|=(uint8_t)(1u<<(bit+(faces[i].plane[2]>0?4:0)));
+            }
+            for(z=0;z<4;z++)for(j=1;j<=8;j<<=1)if((row[z]&j) && !(row[z]&(j<<4))) {
+                if(j<8)row[z]|=(uint8_t)(j<<1);else if(z<3)row[z+1]|=1;
+            }
+            for(z=0;z<4;z++) {
+                uint32_t bits=row[z]&15,n=(bits&1)+((bits>>1)&1)+((bits>>2)&1)+((bits>>3)&1);
+                float p[3]={px,py,0};double fraction=n*.25;
+                if(!n)continue;
+                p[2]=(float)((double)(2*z+1)*half+base);
+                out.mass=(float)((double)out.mass+fraction*cell_mass);
+                for(k=0;k<3;k++) {
+                    float weighted=(float)((double)p[k]*cell_mass);
+                    weighted=(float)((double)weighted*fraction);
+                    out.center[k]=(float)((double)out.center[k]+weighted);
+                }
+            }
+        }
+    }
+    for(k=0;k<3;k++) {
+        if(out.mass>0)out.center[k]=(float)((double)out.center[k]/out.mass);
+        out.origin[k]=(float)(((double)base+half)-out.center[k]);
+    }
+    for(i=0;i<64;i++) {
+        uint32_t bits=out.cells[i]&15,n=(bits&1)+((bits>>1)&1)+((bits>>2)&1)+((bits>>3)&1);
+        float p[3],yy,xx,mz,xz;double m,zz,xy;
+        if(!n)continue;m=n*.25*cell_mass;
+        for(k=0;k<3;k++)p[k]=(float)((double)((i>>(4-2*k))&3)*out.spacing+out.origin[k]);
+        zz=(double)p[2]*p[2];yy=(float)((double)p[1]*p[1]);xx=(float)((double)p[0]*p[0]);
+        tensor[0]=(float)((double)tensor[0]+m*((double)p[1]*p[1]+zz));
+        xy=m*p[1]*p[0];tensor[1]=(float)((double)tensor[1]-xy);tensor[3]=(float)((double)tensor[3]-xy);
+        mz=(float)(m*p[2]);xz=(float)(m*p[2]*p[0]);
+        tensor[2]=(float)((double)tensor[2]-xz);tensor[6]=(float)((double)tensor[6]-xz);
+        tensor[4]=(float)((double)tensor[4]+m*((double)p[0]*p[0]+zz));
+        tensor[5]=(float)((double)tensor[5]-(double)mz*p[1]);tensor[7]=(float)((double)tensor[7]-(double)mz*p[1]);
+        tensor[8]=(float)((double)tensor[8]+m*((double)xx+yy));
+    }
+    if(out.mass<=0)out.mass=(float)((double)extent[0]*extent[1]*extent[2]*density*.5);
+    if(!isfinite(out.mass))return RF_RANGE;
+    for(k=0;k<3;k++)if(!isfinite(out.center[k]) || !isfinite(out.origin[k]))return RF_RANGE;
+    {int status=rf_physics_tensor_inverse(tensor,out.inverse_tensor);if(status)return status;}
+    *result=out;return RF_OK;
+}
+
 int rf_physics_grid_spheres(const uint8_t cells[64],float spacing,const float origin[3],
     rf_physics_sphere *spheres,uint32_t capacity,uint32_t *count,float *radius)
 {

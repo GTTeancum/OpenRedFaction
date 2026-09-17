@@ -89,6 +89,14 @@ def main():
         rows.append(row)
     out=ROOT/'artifacts/geomod-postedit-re/solid-mass.json'
     out.write_text(json.dumps(dict(original_sha256=sha,cases=rows,scope=__doc__),indent=2)+'\n')
+    def words(values):
+        return ','.join(str(v)+'u' for v in struct.unpack('<'+'I'*len(values),struct.pack('<'+'f'*len(values),*values)))
+    fixture=[]
+    for r in rows:
+        bounds=[v for b in r['boxes'] for side in b for v in side]
+        output=r['spacing_origin']+r['center']+[r['mass']]+r['inverse_inertia']
+        fixture.append(' {'+str(len(r['boxes']))+'u,{'+words(bounds)+'},'+words([r['density']])+', {'+','.join(str(v) for v in r['grid'])+'},{'+words(output)+'}},')
+    (ROOT/'tests/fixtures/geomod_solid_mass.inc').write_text('/* Original4d1700; only mesh recenter mutation intercepted. */\n'+'\n'.join(fixture)+'\n')
     for r in rows:print(r['name'],r['density'],'mass',r['mass'],'center',r['center'])
     print('PASS',len(rows),'original solid-grid mass/inertia executions')
 if __name__=='__main__':main()

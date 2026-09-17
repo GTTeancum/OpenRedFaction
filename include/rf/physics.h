@@ -41,6 +41,17 @@ typedef struct rf_physics_spheres {
  * allocation. Outputs must be disjoint from inputs; errors preserve them. */
 int rf_physics_grid_spheres(const uint8_t cells[64],float spacing,const float origin[3],
     rf_physics_sphere *spheres,uint32_t capacity,uint32_t *count,float *radius);
+struct rf_collision_face;
+typedef struct rf_physics_solid_mass {
+    uint8_t cells[64];float spacing,origin[3],center[3],mass,inverse_tensor[9];
+} rf_physics_solid_mass;
+/* Original4d1700 centered-solid grid, mass and inverse inertia. Caller supplies
+ * finite ordered bounds and closed outward polygon faces in centered local space.
+ * No allocation or mesh mutation: caller must subtract returned center from mesh
+ * and add it to placement before publication. Empty sampling retains zero tensor
+ * and returns half-bounds-volume mass. Errors preserve output. */
+int rf_physics_solid_mass_prepare(const struct rf_collision_face *faces,uint32_t count,
+    const float minimum[3],const float maximum[3],float density,rf_physics_solid_mass *result);
 /* Copies ordered records into one exact-sized allocation. Budget includes the
  * owner and records, excluding allocator overhead. Empty destination required;
  * source may be released after success. Rejects nonfinite centers/radii and

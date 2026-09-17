@@ -45,8 +45,17 @@ coarse sampling, not exact solid-volume estimates.
 
 ## Integration remaining
 
-Reconstruct this grid/mass path in shared C and compare against these executions;
-connect center shift, generated collision spheres, body registration and dynamic
+The shared `rf_physics_solid_mass_prepare` now matches all 15 original executions
+byte for byte for the 64 grid bytes, spacing/origin, center, mass and inverse
+tensor. The existing `geomod_grid_physics` test also retains all 96 original
+grid-to-sphere cases. No heap allocation is used. Invalid inputs or unsupported
+grid indices preserve caller output. Caller supplies centered solid bounds and
+closed outward polygon faces; mesh recentering is deliberately caller-owned.
+
+Connect center shift, generated collision spheres, body registration and dynamic
 piece rendering. Preserve a deliberate zero-inertia/no-sphere handling contract.
 The existing no-geometric-solid physics fallback is not interchangeable with this
-path. No Xbox runtime behavior or visuals changed in this probe-only step.
+path. No Xbox runtime behavior or visuals changed in this shared-core step.
+
+Stock-profile NXDK build succeeds (solid-mass-xbox.log); this is build evidence,
+not native runtime or visual acceptance.
