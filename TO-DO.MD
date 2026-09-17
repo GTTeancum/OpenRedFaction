@@ -2,7 +2,7 @@
 
 - USER Repository cleanup: Remove 22 obsolete test ISO/QCOW2 copies totaling30.17GiB listed in artifacts/cleanup-20260917.json; automated deletion is policy-blocked; both HDD harnesses now refuse runs exceeding an8GiB artifact budget before copying/staging, while reports/checkpoints must be preserved.
 
-- PRIORITY GeoMod standing penetration: Fix the intermediate rubble movement/support path before native acceptance; stopping after an ordinary jump leaves0.424338units of sphere overlap and correctly rejects saving, so do not loosen the checkpoint tolerance.
+- PRIORITY GeoMod jump/support: Resolve world-placement rejection after jumping against intermediate rubble; unknown sphere indices no longer discard real motion hits, ordinary walking now blocks and saves/reloads exactly, while jump/standing and native acceptance remain open.
 
 - PRIORITY GeoMod player contacts: Verify intermediate-size rubble on Xbox and saved standing support; a naturally extracted radius0.530725 chunk produces44 sphere-route PC contacts and exact post-crossing save continuation; movement, ground and checkpoint shapes select spheres for(0.5,1] and polygons above1, with1080 original ground comparisons.
 

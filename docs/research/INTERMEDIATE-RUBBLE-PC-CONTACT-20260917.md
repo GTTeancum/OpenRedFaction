@@ -41,3 +41,26 @@ current source-contact adapter permits a penetrated standing state. The exact
 cause is not yet isolated. Numerical logs are in
 `artifacts/geomod-postedit-re/intermediate-rubble-support/`; no visual acceptance
 is claimed. The newly added rejection diagnostic runs only when placement fails.
+
+## Hit-presence fix
+
+The player movement callers incorrectly interpreted source sphere UINT32_MAX as
+no hit. Original actor-pair response produces a valid fraction and normal without
+identifying the source sphere; the registry intentionally preserves that unknown
+index. The callers now use fraction < 1 for hit presence, including locomotion,
+stance clearance, headroom and support motion checks. No collision radius or save
+tolerance was changed.
+
+The previous contact-count-only acceptance did not prove collision response.
+`tools/check_intermediate_rubble_blocking.py` now verifies ordinary forward walking
+actually stops before the chunk: final position (-4.112841,-0.401362,2.495630), one
+sphere-route contact, valid save, and byte-identical idle continuation versus an
+uninterrupted800-frame run. The PC endpoint capture was inspected: environment,
+post, weapon and HUD are present; an endpoint image does not verify motion quality.
+Xbox compilation and121 existing tests pass; native behavior remains unverified.
+
+The jump reproduction now takes a different path, with final position
+(-2.343695,-0.392197,4.056082), and fails world placement (sphere1, reason2), before
+the rubble-placement check. The former0.424338 overlap is historical pre-fix
+evidence. Saved standing acceptance remains open; do not report the old crossing
+or standing scripts as current acceptance without rerunning them.

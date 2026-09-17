@@ -7407,6 +7407,8 @@ static int actor_sweep(const rf_geometry_collision_world *world,const rf_physics
     float normal[3],float *fraction,uint32_t *sphere,uint32_t query_flags)
 {
     float delta[3],start[3];uint32_t i,k,matched;
+    /* Original actor-pair contacts need not identify a source sphere.
+     * A fraction below one denotes a hit; UINT32_MAX may mean unknown index. */
     *fraction=1;*sphere=UINT32_MAX;
     for(k=0;k<3;++k)delta[k]=state->next_position[k]-state->position[k];
     if(delta[0]==0 && delta[1]==0 && delta[2]==0)return RF_OK; /* 4df1c0 zero-displacement exit */
@@ -7466,7 +7468,7 @@ static int actor_stand_clearance(void *context,const float start[3],const float 
     status=actor_sweep(c->world,&probe,normal,&fraction,&sphere,probe.state_124|4);
     if(status)printf("STAND_CLEARANCE_FAILURE %d %d %u %.9g %.9g %.9g %.9g %.9g %.9g\n",
         c->frame,status,probe.state_124|4,start[0],start[1],start[2],end[0],end[1],end[2]);
-    if(!status)*blocked=sphere!=UINT32_MAX;return status;
+    if(!status)*blocked=fraction<1;return status;
 }
 static int actor_stand_ground(void *context)
 {
@@ -7696,7 +7698,7 @@ static int actor_clearance_check(const rf_geometry_collision_world *world)
     scene_actor_body.state.next_position[1]=scene_actor_body.state.position[1]+64;
     status=actor_sweep(world,&scene_actor_body.state,normal,&fraction,&sphere,scene_actor_body.state.state_124|4);
     if(status)goto done;
-    if(sphere==UINT32_MAX || normal[1]>=0) {status=RF_NOT_FOUND;goto done;}
+    if(fraction>=1 || normal[1]>=0) {status=RF_NOT_FOUND;goto done;}
     ceiling=scene_actor_body.state.position[1]+fraction*64;
     for(i=0;i<2;++i) {
         float *q=rf_scene_actor_clearance_queries[i];rf_physics_body_state probe;
@@ -7705,7 +7707,7 @@ static int actor_clearance_check(const rf_geometry_collision_world *world)
         status=rf_physics_stand_endpoint(probe.position,rf_scene_actor_stance_cache.height_difference,probe.next_position);if(status)goto done;
         status=actor_sweep(world,&probe,normal,&fraction,&sphere,probe.state_124|4);if(status)goto done;
         memcpy(q,probe.position,12);memcpy(q+3,probe.next_position,12);
-        if(sphere!=UINT32_MAX)memcpy(q+6,normal,12);
+        if(fraction<1)memcpy(q+6,normal,12);
         q[9]=fraction;q[10]=sphere==UINT32_MAX?-1:(float)sphere;
         before=actor_stance_hash();
         status=actor_stance_update(world,0,&blocked,-1);if(status)goto done;
@@ -7750,7 +7752,7 @@ int rf_scene_actor_fall_check(const rf_geometry_collision_world *world,uint32_t 
         proposal=current;
         {int status=rf_physics_fall_propose(&proposal,1.0f/60,scene_gravity.acceleration,support);if(status)return status;}
         {int status=actor_sweep(world,&proposal,normal,&fraction,&sphere,0x460);if(status)return status;}
-        if(sphere!=UINT32_MAX) {
+        if(fraction<1) {
             /* Stationary non-liquid floor, no rotating actor predicate.
              * Continued substeps and actor pose/room commit remain separate. */
             int status=rf_physics_contact_advance(&proposal,1.0f/60,fraction,rf_scene_actor_contact_time+1);if(status)return status;
@@ -7766,7 +7768,7 @@ int rf_scene_actor_fall_check(const rf_geometry_collision_world *world,uint32_t 
                     float hit_fraction,impact;uint32_t hit_sphere;
                     status=rf_physics_fall_propose(&current,remaining,scene_gravity.acceleration,support);if(status)return status;
                     status=actor_sweep(world,&current,normal,&hit_fraction,&hit_sphere,0x460);if(status)return status;
-                    if(hit_sphere==UINT32_MAX) {
+                    if(hit_fraction>=1) {
                         memcpy(current.position,current.next_position,sizeof(current.position));current.scalar_144=1;remaining=0;
                     } else {
                         status=rf_physics_contact_advance(&current,remaining,hit_fraction,&remaining);if(status)return status;
@@ -7888,7 +7890,7 @@ static int actor_tick(const rf_geometry_collision_world *world,rf_physics_body_s
         if(status)return status;
         status=rf_physics_body_prepare_sweep(state);if(status)return status;
         status=actor_sweep(world,state,normal,&fraction,&sphere,0x460);if(status)return status;
-        if(sphere==UINT32_MAX) {
+        if(fraction>=1) {
             memcpy(state->position,state->next_position,sizeof(state->position));state->scalar_144=1;remaining=0;
         } else {
             uint32_t scratch[25],*record=scratch;
