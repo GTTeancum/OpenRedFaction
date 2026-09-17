@@ -212,7 +212,7 @@ int rf_geomod_piece_batch_sweep(const rf_geomod_piece_batch *batch,uint32_t flag
         rf_geomod_owned_piece piece;rf_collision_sweep_tree_hit local;uint32_t hit;
         const rf_physics_body_state *body=&batch->bodies[i].state;
         status=rf_geomod_piece_bank_get(batch->geometry,i,&piece);if(status)return status;
-        status=rf_collision_flat_faces(piece.collision,piece.mesh.face_count,flags,start,delta,
+        status=rf_collision_flat_faces(piece.collision,piece.mesh.face_count,flags&~4u,start,delta,
             body->position,(const float (*)[3])body->orientation,radius,nearest,&local,&hit);
         if(status)return status;
         if(!hit || (found && local.hit.fraction>=nearest))continue;
@@ -400,4 +400,21 @@ int rf_geomod_piece_registry_state_decode(rf_geomod_piece_registry *r,const void
         }
     }
     return RF_OK;
+}
+
+int rf_geomod_piece_registry_sweep(const rf_geomod_piece_registry *r,uint32_t flags,
+    const float start[3],const float delta[3],float radius,float limit,
+    rf_geomod_registry_hit *out,uint32_t *matched)
+{
+    rf_geomod_registry_hit best={0};uint32_t i,k,found=0;float nearest=limit;int status;
+    if(!start || !delta || !out || !matched || !isfinite(radius) || radius<0 || !isfinite(limit) || limit<0 || limit>1)return RF_RANGE;
+    for(k=0;k<3;k++)if(!isfinite(start[k]) || !isfinite(delta[k]))return RF_RANGE;
+    if(r && r->begun)return RF_RANGE;
+    for(i=0;r && i<r->count;i++) {
+        rf_geomod_piece_hit hit;uint32_t candidate;
+        status=rf_geomod_piece_batch_sweep(r->active[i].batch,flags,start,delta,radius,nearest,&hit,&candidate);if(status)return status;
+        if(!candidate || (found && hit.hit.fraction>=nearest))continue;
+        best.piece=hit;best.batch=i;nearest=hit.hit.fraction;found=1;
+    }
+    if(found)*out=best;*matched=found;return RF_OK;
 }

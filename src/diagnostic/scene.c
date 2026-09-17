@@ -10191,13 +10191,33 @@ static void scene_ripple_start(scene_stream *s,const float point[3],uint32_t fra
     ++rf_scene_ripple_lifecycle[0];rf_scene_ripple_lifecycle[3]+=fixture!=0;
 }
 uint32_t rf_scene_rocket_liquid[4]; /* entries, query flags, remaining float bits, effect size bits */
+/* Rocket-local owner tags; never passed as handles to the object registry. */
+#define SCENE_DETACHED_ROCKET_OWNER 0x80000000u
+uint32_t rf_scene_detached_rocket[7]; /* queries,hits,batch,piece,face,point hash,status */
 static int scene_rocket_sweep(void *context,const float start[3],const float delta[3],float radius,uint32_t query_flags,
     rf_weapon_flight_contact *out,uint32_t *is_liquid,uint32_t *matched)
 {
-    scene_stream *s=context;rf_geometry_world_sweep_hit hit;int status;
+    scene_stream *s=context;rf_geometry_world_sweep_hit hit;rf_geomod_registry_hit piece;uint32_t found;int status;
     status=rf_geometry_collision_world_sweep_liquid(s->collision,query_flags,start,delta,radius,1,&hit,matched,is_liquid);
-    if(!status && *matched){out->hit=hit.hit;out->room=hit.room;out->face=hit.face;out->object=UINT32_MAX;}
-    return status;
+    if(status)return status;
+    if(*matched){out->hit=hit.hit;out->room=hit.room;out->face=hit.face;out->object=UINT32_MAX;}
+    ++rf_scene_detached_rocket[0];
+    status=rf_geomod_piece_registry_sweep(s->detached_pieces,query_flags,start,delta,radius,*matched?hit.hit.fraction:1,&piece,&found);
+    rf_scene_detached_rocket[6]=(uint32_t)status;if(status)return status;
+    if(rf_scene_combat_trace && rf_geomod_piece_registry_count(s->detached_pieces))
+        printf("DETACHED_ROCKET_QUERY %u %.9g %.9g %.9g %.9g %.9g %.9g %.9g %u %.9g %u\n",query_flags,
+            start[0],start[1],start[2],delta[0],delta[1],delta[2],radius,*matched,*matched?hit.hit.fraction:1,found);
+
+    if(found && (!*matched || piece.piece.hit.fraction<hit.hit.fraction)) {
+        rf_collision_room_location room;
+        status=rf_geometry_collision_world_locate(s->collision,piece.piece.hit.point,&room);if(status)return status;
+        out->hit=piece.piece.hit;out->room=room.room==UINT32_MAX?s->terrain_collision.room:room.room;
+        out->face=piece.piece.face;out->object=SCENE_DETACHED_ROCKET_OWNER|(piece.batch<<16)|piece.piece.piece;
+        *matched=1;*is_liquid=0;++rf_scene_detached_rocket[1];rf_scene_detached_rocket[2]=piece.batch;
+        rf_scene_detached_rocket[3]=piece.piece.piece;rf_scene_detached_rocket[4]=piece.piece.face;
+        rf_scene_detached_rocket[5]=npc_hash_bytes(2166136261u,piece.piece.hit.point,12);
+    }
+    return RF_OK;
 }
 /* DEV integration: recovered chunk/count/launch helpers with provisional
  * point-sweep bounce, spin and recovered age/fade; sound/material parity remains open. */
@@ -10845,7 +10865,7 @@ static int scene_rockets_tick(scene_stream *s,uint32_t frame)
             /* Original concave crater template in the explicit DEV cavity. Impact effects
              * and authored surface eligibility remain separate. */
             /* Original4670c3 gates requested radius before hardness scaling. */
-            if(s->terrain && event.contact.room==s->terrain_collision.room && campaign_rocket.crater_radius>=1.0f) {
+            if(s->terrain && event.contact.object==UINT32_MAX && event.contact.room==s->terrain_collision.room && campaign_rocket.crater_radius>=1.0f) {
                 uint32_t timing_row=rf_scene_geomod[6]%8,timing_clock=0;float cleanup_center[3],cleanup_radius=0;
                 memset(rf_scene_terrain_edit_times[timing_row],0,sizeof(rf_scene_terrain_edit_times[0]));rf_scene_terrain_edit_times[timing_row][0]=frame;
                 ++rf_scene_geomod[6];

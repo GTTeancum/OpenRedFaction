@@ -65,7 +65,9 @@ typedef struct rf_geomod_piece_hit {
     rf_collision_ray_hit hit;uint32_t piece,face,edge;
 } rf_geomod_piece_hit;
 /* Query owned polygons at current body poses. Returns nearest world-space
- * contact; equal fractions retain the earlier piece. No allocation or mutation.
+ * contact; equal fractions retain the earlier piece. Inputs are always world
+ * space, so query bit4 (already-local) is cleared before each body transform.
+ * No allocation or mutation.
  * Misses preserve result; errors preserve both result and matched. */
 int rf_geomod_piece_batch_sweep(const rf_geomod_piece_batch *,uint32_t flags,
     const float start[3],const float delta[3],float radius,float limit,
@@ -93,6 +95,12 @@ void rf_geomod_piece_registry_commit(rf_geomod_piece_registry *);
 uint32_t rf_geomod_piece_registry_count(const rf_geomod_piece_registry *);
 uint32_t rf_geomod_piece_registry_bytes(const rf_geomod_piece_registry *);
 int rf_geomod_piece_registry_get(rf_geomod_piece_registry *,uint32_t,rf_geomod_piece_batch **);
+typedef struct rf_geomod_registry_hit {rf_geomod_piece_hit piece;uint32_t batch;} rf_geomod_registry_hit;
+/* Nearest current-pose polygon contact across committed batches. Stable ties
+ * retain earlier batch/piece. Empty/NULL registry misses. Atomic outputs. */
+int rf_geomod_piece_registry_sweep(const rf_geomod_piece_registry *,uint32_t flags,
+    const float start[3],const float delta[3],float radius,float limit,
+    rf_geomod_registry_hit *,uint32_t *matched);
 /* RFPB1 pointer-free little-endian body snapshot, paired with authenticated
  * terrain history. Canonical prefix/ordinal/piece order must match rebuilt
  * geometry. No allocation. Decode validates every record before any write.

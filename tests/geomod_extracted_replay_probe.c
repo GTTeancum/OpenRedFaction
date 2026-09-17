@@ -142,6 +142,10 @@ static void moving_batch_contacts(rf_geomod_piece_batch *batch)
             }
             REQUIRE(!rf_geomod_piece_batch_sweep(batch,0,start,delta,sweep?.25f:0,1,&hit,&matched));
             REQUIRE(matched && hit.piece==target && hit.face==f);
+            {rf_geomod_piece_hit world_hit=hit;uint32_t world_matched=matched;
+             REQUIRE(!rf_geomod_piece_batch_sweep(batch,4,start,delta,sweep?.25f:0,1,&hit,&matched));
+             REQUIRE(matched==world_matched && !memcmp(&hit,&world_hit,sizeof(hit)));}
+
             REQUIRE(fabs(hit.hit.fraction-(sweep?.4375:.5))<.00002);
             for(k=0;k<3;k++) {
                 double normal=0;for(j=0;j<3;j++)normal+=face->plane[j]*body->state.orientation[j*3+k];

@@ -464,6 +464,10 @@ dvd_path = '{root.as_posix()}/build/xbox/redfaction-diagnostic.iso'
             actual_pose=words(monitor,symbol('rf_scene_detached_pose'),6)
             report['checks']['DETACHED_POSE']=dict(equal=actual_pose==pose_bits,xbox=actual_pose,pc=pose_bits)
             assert actual_pose==pose_bits,'Detached pose mismatch'
+            expected=list(map(int,next(line for line in pc.stdout.splitlines() if line.startswith('DETACHED_ROCKET ')).split()[1:]))
+            actual=words(monitor,symbol('rf_scene_detached_rocket'),7)
+            report['checks']['DETACHED_ROCKET']=dict(equal=actual==expected,xbox=actual,pc=expected)
+            assert actual==expected and actual[6]==0,'Detached rocket contact mismatch'
             if args.debris_player_test:
                 from verify_debris_player_scenario import verify
                 report['debris_player_scenario']=verify(report)
