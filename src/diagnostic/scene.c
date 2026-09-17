@@ -216,7 +216,6 @@ int rf_scene_authored_post_place_source(rf_level *level,uint32_t uid)
 int rf_scene_authored_post_place_group(rf_level *level,uint32_t uid,uint32_t count)
 {
     int status;if(count!=1 && count!=2)return RF_RANGE;
-    if(uid==95 && count!=1)return RF_RANGE;
     status=rf_scene_authored_post_place_source(level,uid);if(status)return status;
     scene_authored_source_count=count;return RF_OK;
 }

@@ -117,8 +117,13 @@ static int scene_terrain_authored_edit_group(scene_stream *s,const uint32_t *ind
         contexts[i]=requests[i];contexts[i].authored=owner->authored;
         sources[i]=(scene_terrain_edit_source){&owner->terrain,&ops,contexts+i,owner->pieces,contexts[i].reset,contexts[i].reset};
     }
-    budget=(scene_terrain_edit_limits){SCENE_DESTRUCTION_BUDGET,(uint32_t)external,SCENE_TERRAIN_CORE_BUDGET};
+    budget=(scene_terrain_edit_limits){scene_destruction_budget(s),(uint32_t)external,SCENE_TERRAIN_CORE_BUDGET};
     status=scene_terrain_edit_transaction_group(sources,count,&s->terrain_publication_serial,&budget,&publication,&context,result);
+    if(status && rf_scene_combat_trace) {
+        uint64_t reserved=external+(uint64_t)count*SCENE_TERRAIN_CORE_BUDGET+SCENE_TERRAIN_EDIT_HISTORY_BYTES;
+        for(i=0;i<count;i++){rf_geomod_terrain_view v;if(!rf_geomod_terrain_get(*sources[i].live,&v))reserved+=v.resident_bytes;}
+        printf("AUTHORED_GROUP_REJECT status%d sources%u reserved%u budget%u external%u\n",status,count,(uint32_t)reserved,budget.total_budget,(uint32_t)external);
+    }
     /* The collection now owns replacement cores; do not sync a freed alias. */
     s->terrain=s->terrain_sources[active].terrain;s->detached_pieces=s->terrain_sources[active].pieces;
     if(!status)scene_authored_source_cut_report(s);
@@ -144,7 +149,7 @@ static int scene_terrain_authored_edit_run(scene_authored_edit_context *context)
         sizeof(*s->debris)+sizeof(*s->terrain_template)+(uint64_t)s->terrain_region_count*sizeof(*s->terrain_regions)+
         1100u*(sizeof(uint32_t)+sizeof(rf_vfx_light_source))+SCENE_TERRAIN_FACES*sizeof(*s->terrain_ids)+(uint64_t)s->geometry->faces*sizeof(uint32_t);
     if(external>UINT32_MAX)return RF_RANGE;
-    budget=(scene_terrain_edit_limits){SCENE_DESTRUCTION_BUDGET,(uint32_t)external,SCENE_TERRAIN_CORE_BUDGET};
+    budget=(scene_terrain_edit_limits){scene_destruction_budget(s),(uint32_t)external,SCENE_TERRAIN_CORE_BUDGET};
     status=s->detached_pieces?scene_terrain_edit_transaction_pieces(&s->terrain,&s->terrain_publication_serial,
         &budget,&ops,context,&result,s->detached_pieces,context->reset):
         scene_terrain_edit_transaction(&s->terrain,&s->terrain_publication_serial,&budget,&ops,context,&result);

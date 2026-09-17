@@ -75,8 +75,6 @@ def main():
         parser.error('Map fault injection requires DEV mode and valid map/frame limits')
     if args.authored_source is not None and (not args.dev_room or args.level!='ctf06.rfl'):
         parser.error('--authored-source requires --dev-room --level ctf06.rfl')
-    if args.authored_source==95 and args.authored_sources!=1:
-        parser.error('Beam95 currently requires a single source')
     if args.authored_sources==2:
         if not args.dev_room or args.level!='ctf06.rfl':parser.error('Paired sources require ctf06 DEV room')
         if (args.geomod_checkpoint_in or args.geomod_checkpoint_out) and not args.player_checkpoint:
@@ -509,9 +507,11 @@ dvd_path = '{root.as_posix()}/build/xbox/redfaction-diagnostic.iso'
                 indices=[0,1,2,5,6,7]
                 equal=all(actual[i]==expected[i] for i in indices)
                 # Authored solid edits reserve old+clone core, two publication
-                # banks, piece registry and private lighting staging. Match its explicit13MiB
-                # subsystem ceiling; keep the cavity profile's old ceiling.
+                # banks, piece registries and private lighting staging. Default13MiB;
+                # connected and expanded profiles explicitly reserve16MiB.
                 terrain_budget=(16*1024*1024 if args.level=='ctf06.rfl' else 2359296+65536) if args.expanded_geomod else (13*1024*1024 if args.level=='ctf06.rfl' and args.dev_room else 1024*1024+65536)
+                if args.level=='ctf06.rfl' and args.authored_source==95 and args.authored_sources==2:
+                    terrain_budget=16*1024*1024  # Connected profile: two independently bounded debris registries.
                 budget_ok=all(0<=v[3]<=v[4]<=terrain_budget for v in (actual,expected))
                 report['checks']['GEOMOD']=dict(equal=equal,budget_ok=budget_ok,budget_bytes=terrain_budget,
                     compared_indices=indices,xbox=actual,pc=expected,

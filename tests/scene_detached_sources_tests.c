@@ -199,8 +199,10 @@ static int beam_selection(void) {
     CHECK(!rf_scene_authored_post_place_group(&level,95,1));
     CHECK(scene_authored_source_uid==95 && scene_authored_source_count==1);
     memcpy(before,level.player_position,sizeof(before));
-    CHECK(rf_scene_authored_post_place_group(&level,95,2)==RF_RANGE);
-    CHECK(!memcmp(before,level.player_position,sizeof(before)) && scene_authored_source_count==1);
+    CHECK(!rf_scene_authored_post_place_group(&level,95,2));
+    CHECK(scene_authored_source_uid==95 && scene_authored_source_count==2);
+    CHECK(rf_scene_authored_post_place_group(&level,95,3)==RF_RANGE);
+    CHECK(!memcmp(before,level.player_position,sizeof(before)) && scene_authored_source_count==2);
     CHECK(!rf_scene_authored_post_place(&level));
     CHECK(scene_authored_source_uid==94 && scene_authored_source_count==1);
     return 0;
