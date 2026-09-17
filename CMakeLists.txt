@@ -587,3 +587,7 @@ target_link_libraries(rf_geomod_capacity_stress_probe PRIVATE rf_core)
 add_executable(rf_geomod_light_grid_boundary_tests tests/geomod_light_grid_boundary_tests.c)
 target_link_libraries(rf_geomod_light_grid_boundary_tests PRIVATE rf_core)
 add_test(NAME geomod_light_grid_boundary COMMAND rf_geomod_light_grid_boundary_tests)
+
+# Unresolved captured partition case; diagnostic only, not registered in CTest.
+add_executable(rf_geomod_partition_capacity_probe tests/geomod_partition_capacity_probe.c)
+target_link_libraries(rf_geomod_partition_capacity_probe PRIVATE rf_core)

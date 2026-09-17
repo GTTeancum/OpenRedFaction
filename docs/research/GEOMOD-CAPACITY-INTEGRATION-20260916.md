@@ -167,3 +167,35 @@ profile or native visual acceptance claimed.
 
 Full PC rebuild and all106 registered CTests pass; see
 light-rounding-full-build.log and light-rounding-full-tests.log.
+
+
+## Isolated cut14 partition and rejected guard removal
+
+Added rf_geomod_partition_capacity_probe (not CTest). It embeds the actual
+seven vertices/UVs from failing face1248 and invokes the real partitioner;
+exit2 reproduces the unresolved rejection. It enumerates valid ordered
+vertex subsets to distinguish face validation from diagonal admission.
+Current partition can write four pending pieces before rejecting; this is
+disposable staging and the live edit still aborts atomically.
+
+Corners4/5 share x=-41.7388382 and y=-8.34592628, with z=-8.83713913 and
+-8.83714104. Parent support1596; outgoing edges1440,1720,1720,1720,1720,
+1596,1440. Edge5 therefore denotes an earlier artificial partition diagonal.
+These facts do NOT prove the two positions are one mathematical corner;
+distance-only welding remains unjustified. Support1720 is plane
+(0.545082092,0.831822276,0.104676485,30.6184616), parent1596 is
+(-0.701539516,0.607983351,-0.371750712,-27.4924736).
+
+The six-corner subset excluding5 and triangle4/5/6 independently pass the
+face validator, but their proposed diagonal lies within the protected near-
+boundary band. An experiment replacing the1e-12 squared-distance guard with
+exact-zero rejection breaks edge closure on the FIRST original-template
+stress crater. Restored the guard and rebuilt both normal and experimental
+binaries; default interior/repeated-cut tests pass. No production source
+change is included in this investigation.
+
+Retained logs under artifacts/authored-post-live: partition14-capture.log,
+partition14-support.log, partition14-subsets.log, partition14-diagonal.log,
+partition14-isolated.log and partition14-restored-build.log. Next step: trace
+which supporting edges generated the near-adjacent pair and preserve their
+shared topology through clipping/repair rather than admitting thin slivers.

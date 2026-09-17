@@ -1,6 +1,6 @@
 # Red Faction Xbox / PC - open work
 
-- GeoMod capacity: Resolve fourteenth-cut polygon partition rejection; thirteen overlapping original-template cuts pass the larger probe, while live remains eight pending16-cut geometry/save/Xbox acceptance.
+- GeoMod capacity: Resolve captured cut14 near-adjacent corners using support provenance; removing the diagonal guard breaks first-cut closure, and live remains eight pending16-cut geometry/save/Xbox acceptance.
 
 - GeoMod UV seams: Broaden chronological reconstruction beyond current fixtures; all105 tests and48 axis-oriented UV cases pass, with live two-cut reload/next-blast passing58 stock64MiB Xbox checks.
 
