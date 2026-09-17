@@ -682,6 +682,7 @@ typedef struct scene_stream {
     rf_visibility_camera particle_camera;scene_particle_workspace *particle_workspace;uint32_t particle_frame;
 } scene_stream;
 static scene_stream *particle_draw_stream;
+static scene_stream *scene_actor_collision_owner;
 unsigned char *rf_scene_geomod_checkpoint_data;
 uint32_t rf_scene_geomod_checkpoint_state[4]; /* status,bytes,FNV1a,ready; retained native output. */
 uint32_t rf_scene_geomod_checkpoint_memory[2]; /* external blob resident/peak, excludes core charged scratch. */
@@ -7051,6 +7052,26 @@ static int campaign_body_query(const rf_geometry_collision_world *world,const rf
     return rf_geometry_collision_body_sweep(world,&campaign_movers,query,campaign_sweep_scratch,
         campaign_movers.count,rf_geometry_body_surface,&surfaces,contact,matched);
 }
+uint32_t rf_scene_detached_player[7]; /* queries,hits,sphere,batch,piece,point hash,status */
+static int campaign_player_piece_query(const rf_geometry_collision_world *world,const rf_collision_body_query *query,
+    rf_geometry_body_hit *contact,uint32_t *matched)
+{
+    scene_stream *s=scene_actor_collision_owner;rf_collision_body_query limited;
+    rf_geomod_registry_body_hit hit;uint32_t found;int status;
+    if(!s || s->collision!=world || !rf_geomod_piece_registry_count(s->detached_pieces))return RF_OK;
+    limited=*query;if(*matched)limited.limit=contact->contact.fraction;
+    ++rf_scene_detached_player[0];
+    status=rf_geomod_piece_registry_body_sweep(s->detached_pieces,&limited,1,&hit,&found);
+    rf_scene_detached_player[6]=(uint32_t)status;if(status)return status;
+    if(found && (!*matched || hit.contact.fraction<contact->contact.fraction)) {
+        rf_geometry_body_hit value={0};value.contact=hit.contact;value.solid=UINT32_MAX;
+        value.sphere=hit.sphere;value.room=s->terrain_collision.room;value.face=UINT32_MAX;value.hits=1;
+        *contact=value;*matched=1;++rf_scene_detached_player[1];rf_scene_detached_player[2]=hit.sphere;
+        rf_scene_detached_player[3]=hit.batch;rf_scene_detached_player[4]=hit.piece;
+        rf_scene_detached_player[5]=npc_hash_bytes(2166136261u,hit.contact.point,12);
+    }
+    return RF_OK;
+}
 int rf_scene_npc_ground_query(const rf_geometry_collision_world *world,uint32_t handle,float elapsed,
     rf_physics_ground_probe *probe,rf_collision_actor_contact *contact,uint32_t *matched)
 {
@@ -7089,6 +7110,9 @@ static int campaign_physics_body_sweep(const rf_geometry_collision_world *world,
     memcpy(query.matrix,state->orientation,36);query.radius=state->bounds.radius;
     query.flags=flags;query.spheres=scratch;query.count=source->count;query.limit=1;
     status=campaign_body_query(world,&query,&value,&found);if(status)return status;
+    if(source==&scene_actor_body.spheres) {
+        status=campaign_player_piece_query(world,&query,&value,&found);if(status)return status;
+    }
     if(found)*hit=value;*matched=found;return RF_OK;
 }
 int rf_scene_npc_body_sweep(const rf_geometry_collision_world *world,uint32_t handle,
@@ -7280,6 +7304,7 @@ static int actor_ground_query_state(const rf_geometry_collision_world *world,con
         for(k=0;k<3;k++)query.matrix[k][k]=1;
         query.radius=r->probe.bounds.radius;query.flags=r->probe.query_flags;query.spheres=&sphere;query.count=1;query.limit=1;
         status=campaign_body_query(world,&query,contact,&r->matched);
+        if(!status)status=campaign_player_piece_query(world,&query,contact,&r->matched);
         ++rf_scene_actor_ground_queries[0];rf_scene_actor_ground_queries[3]=(uint32_t)status;
         if(status)return status;
         if(r->matched) {
@@ -13959,6 +13984,7 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
     if(sink && (uint64_t)mesh->bytes+1024*1024>mesh_budget)return RF_RANGE;
     status=rf_vpp_open(&archive,meshes_path);if(status)return status;
     stream=calloc(1,sizeof(*stream));if(!stream){rf_vpp_close(&archive);return RF_RANGE;}
+    scene_actor_collision_owner=stream;memset(rf_scene_detached_player,0,sizeof(rf_scene_detached_player));
     stream->world=mesh->count;stream->base=materials->count;stream->geometry=geometry;
     status=campaign_swim_open(stream,geometry);if(status)goto done;
     if(campaign_spawn) {
@@ -14615,6 +14641,7 @@ done:
     free(stream->liquid_rooms);free(stream->surface_indices);free(states);if(motions_opened)rf_vpp_close(&motions);
     free(vertices);free(items);rf_preview_close(&actor);rf_model_materials_close(&bundle);
     free(stream->checkpoint_clutter);
+    if(scene_actor_collision_owner==stream)scene_actor_collision_owner=NULL;
     rf_vpp_close(&archive);free(stream);return status;
 }
 int rf_scene_preview_miner(const rf_level *level,int32_t uid,const char *meshes_path,

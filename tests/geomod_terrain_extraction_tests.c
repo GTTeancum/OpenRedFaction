@@ -69,6 +69,36 @@ static void registry_lifetime(const rf_geomod_mesh_view *mesh,const rf_collision
         CHECK(rf_geomod_piece_registry_count(r)==1);CHECK(!rf_geomod_piece_registry_get(r,0,&again));
         CHECK(first==again && body->state.position[0]==moved);
     }
+    {
+        rf_collision_body_query query={0};rf_collision_body_sphere spheres[2]={0};
+        rf_geomod_registry_body_hit hit,before;const rf_collision_face *face=piece.collision;
+        float center[3]={0};uint32_t k,n,matched;
+        for(n=0;n<face->count;n++)for(k=0;k<3;k++)center[k]+=face->vertices[n][k]/face->count;
+        for(k=0;k<3;k++) {
+            query.matrix[k][k]=1;query.start[k]=body->state.position[k]+center[k]+2*face->plane[k];
+            query.end[k]=query.start[k]-4*face->plane[k];spheres[1].center[k]=-face->plane[k];
+        }
+        spheres[0].radius=spheres[1].radius=.1f;query.radius=2;query.spheres=spheres;query.count=2;query.limit=1;
+        body->state.velocity[2]=3;
+        CHECK(!rf_geomod_piece_registry_body_sweep(r,&query,1,&hit,&matched));
+        CHECK(matched && hit.batch==0 && hit.piece==0 && hit.face==0 && hit.sphere==1);
+        CHECK(fabsf(hit.contact.fraction-.225f)<.0001f && hit.contact.material==1 && hit.contact.velocity[2]==3);
+        CHECK(hit.contact.object_id==UINT32_MAX && hit.contact.face_token==UINT32_MAX);
+        before=hit;
+        memset(query.matrix,0,sizeof(query.matrix));query.matrix[0][1]=1;query.matrix[1][0]=-1;query.matrix[2][2]=1;
+        spheres[1].center[0]=-face->plane[1];spheres[1].center[1]=face->plane[0];spheres[1].center[2]=-face->plane[2];
+        CHECK(!rf_geomod_piece_registry_body_sweep(r,&query,1,&hit,&matched));
+        CHECK(matched && !memcmp(&hit,&before,sizeof(hit)));
+        CHECK(!rf_geomod_piece_registry_body_sweep(NULL,&query,1,&hit,&matched));
+        CHECK(!matched && !memcmp(&hit,&before,sizeof(hit)));
+
+        before=hit;matched=99;query.limit=.1f;
+        CHECK(!rf_geomod_piece_registry_body_sweep(r,&query,1,&hit,&matched));
+        CHECK(!matched && !memcmp(&hit,&before,sizeof(hit)));
+        query.limit=1;query.matrix[0][0]=NAN;matched=99;
+        CHECK(rf_geomod_piece_registry_body_sweep(r,&query,1,&hit,&matched)!=RF_OK);
+        CHECK(matched==99 && !memcmp(&hit,&before,sizeof(hit)));body->state.velocity[2]=0;
+    }
     bytes=rf_geomod_piece_registry_bytes(r);
     CHECK(!rf_geomod_piece_registry_begin(r,0));
     CHECK(rf_geomod_terrain_cut_box_checked(t,center[3],extent[3],7,reject_candidate,NULL)==RF_IO);

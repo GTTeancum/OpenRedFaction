@@ -101,6 +101,16 @@ typedef struct rf_geomod_registry_hit {rf_geomod_piece_hit piece;uint32_t batch;
 int rf_geomod_piece_registry_sweep(const rf_geomod_piece_registry *,uint32_t flags,
     const float start[3],const float delta[3],float radius,float limit,
     rf_geomod_registry_hit *,uint32_t *matched);
+typedef struct rf_geomod_registry_body_hit {
+    rf_collision_body_hit contact;uint32_t batch,piece,face,sphere;
+} rf_geomod_registry_body_hit;
+/* Actor-body spheres against current chunk polygons, using the shared body
+ * transform/ordering rules. Caller resolves physical material. Output carries
+ * chunk velocity but no object-registry handle or static-world face token.
+ * No simulation, registration or allocation; failures preserve outputs. */
+int rf_geomod_piece_registry_body_sweep(const rf_geomod_piece_registry *,
+    const rf_collision_body_query *,uint32_t surface_material,
+    rf_geomod_registry_body_hit *,uint32_t *matched);
 /* RFPB1 pointer-free little-endian body snapshot, paired with authenticated
  * terrain history. Canonical prefix/ordinal/piece order must match rebuilt
  * geometry. No allocation. Decode validates every record before any write.

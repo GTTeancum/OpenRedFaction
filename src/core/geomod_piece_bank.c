@@ -418,3 +418,37 @@ int rf_geomod_piece_registry_sweep(const rf_geomod_piece_registry *r,uint32_t fl
     }
     if(found)*out=best;*matched=found;return RF_OK;
 }
+
+typedef struct piece_body_query_context {
+    const rf_geomod_piece_registry *registry;uint32_t material;
+    rf_geomod_registry_hit selected;uint32_t sphere;float velocity[3];
+} piece_body_query_context;
+static int piece_body_query(void *opaque,const rf_collision_body_request *request,
+    rf_collision_body_candidate *candidate,uint32_t *matched)
+{
+    piece_body_query_context *context=opaque;rf_geomod_registry_hit hit;
+    const rf_geomod_piece_batch *batch;rf_geomod_owned_piece piece;int status;
+    status=rf_geomod_piece_registry_sweep(context->registry,request->flags,request->start,request->delta,
+        request->radius,request->limit,&hit,matched);if(status || !*matched)return status;
+    batch=context->registry->active[hit.batch].batch;
+    status=rf_geomod_piece_bank_get(batch->geometry,hit.piece.piece,&piece);if(status)return status;
+    candidate->hit=hit.piece.hit;candidate->material=context->material;
+    candidate->texture=piece.mesh.faces[hit.piece.face].material;
+    candidate->face_flags=piece.filters[hit.piece.face].face_flags;candidate->face_token=UINT32_MAX;
+    context->selected=hit;context->sphere=request->sphere;
+    memcpy(context->velocity,batch->bodies[hit.piece.piece].state.velocity,12);return RF_OK;
+}
+int rf_geomod_piece_registry_body_sweep(const rf_geomod_piece_registry *registry,
+    const rf_collision_body_query *query,uint32_t material,rf_geomod_registry_body_hit *out,uint32_t *matched)
+{
+    piece_body_query_context context={0};rf_geomod_registry_body_hit result={0};uint32_t found;int status;
+    if(!out || !matched || (registry && registry->begun))return RF_RANGE;
+    context.registry=registry;context.material=material;
+    status=rf_collision_body_sweep(query,NULL,0,piece_body_query,&context,&result.contact,&found);if(status)return status;
+    if(found) {
+        result.batch=context.selected.batch;result.piece=context.selected.piece.piece;
+        result.face=context.selected.piece.face;result.sphere=context.sphere;
+        memcpy(result.contact.velocity,context.velocity,12);*out=result;
+    }
+    *matched=found;return RF_OK;
+}

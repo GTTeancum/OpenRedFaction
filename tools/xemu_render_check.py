@@ -472,6 +472,10 @@ dvd_path = '{root.as_posix()}/build/xbox/redfaction-diagnostic.iso'
             actual=words(monitor,symbol('rf_scene_detached_hitscan'),7)
             report['checks']['DETACHED_HITSCAN']=dict(equal=actual==expected,xbox=actual,pc=expected)
             assert actual==expected and actual[6]==0,'Detached hitscan contact mismatch'
+            expected=list(map(int,next(line for line in pc.stdout.splitlines() if line.startswith('DETACHED_PLAYER ')).split()[1:]))
+            actual=words(monitor,symbol('rf_scene_detached_player'),7)
+            report['checks']['DETACHED_PLAYER']=dict(equal=actual==expected,xbox=actual,pc=expected)
+            assert actual==expected and actual[6]==0,'Detached player contact mismatch'
             if args.debris_player_test:
                 from verify_debris_player_scenario import verify
                 report['debris_player_scenario']=verify(report)
