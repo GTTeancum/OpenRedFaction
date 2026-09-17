@@ -1702,6 +1702,54 @@ static inline int prepare_chronological_step(rf_geomod_storage *s,const rf_geomo
     uint32_t count,rf_geomod_multi_work *work,geomod_face_lineage *lineage,geomod_step_support *previous,uint32_t cavity)
 {return prepare_chronological_step_clipped(s,cutters,count,work,lineage,previous,cavity,NULL);}
 
+/* Private replay only: caller supplies current per-face eligibility filters and
+ * bounded arrays. On failure discard the private owner and external staging.
+ * The live scene does not use this until piece ownership/rollback is wired. */
+#ifdef RF_GEOMOD_TEST_CURRENT_SOLID
+static inline int extract_replay_components(rf_geomod_storage *s,rf_geomod_multi_work *provenance,
+    geomod_current_clip *context,uint32_t *scratch,uint32_t words,uint32_t *labels,
+    uint32_t *old_faces,uint32_t *removed)
+{
+    rf_geomod_mesh_view view;uint32_t count,largest,rank,id,i,k,n=0;int status;
+    if(!s || !provenance || !context || !scratch || !labels || !old_faces || !removed || s->editing)return RF_RANGE;
+    status=rf_geomod_storage_view(s,&view);if(status)return status;
+    if(view.face_count>context->face_capacity || view.vertex_count>context->vertex_capacity)return RF_RANGE;
+    status=rf_geomod_mesh_components(&view,context->filters,scratch,words,labels,&count,&largest);if(status)return status;
+    if(count<2){*removed=0;return RF_OK;}
+    status=rf_geomod_collision_faces(&view,context->filters,context->positions,context->vertex_capacity,
+        context->faces,context->face_capacity);if(status)return status;
+    /* The graph scratch is no longer needed; reuse it for the acceptance plan.
+     * Largest is swapped with the last raw label before ordered extraction. */
+    for(rank=0;rank+1<count;rank++) {
+        rf_collision_bounds bounds={0};uint32_t solid;
+        id=rank==largest?count-1:rank;
+        for(k=0;k<3;k++){bounds.minimum[k]=FLT_MAX;bounds.maximum[k]=-FLT_MAX;}
+        for(i=0;i<view.face_count;i++)if(labels[i]==id)for(k=0;k<3;k++) {
+            if(context->faces[i].minimum[k]<bounds.minimum[k])bounds.minimum[k]=context->faces[i].minimum[k];
+            if(context->faces[i].maximum[k]>bounds.maximum[k])bounds.maximum[k]=context->faces[i].maximum[k];
+        }
+        status=rf_geomod_component_classify(context->faces,(const int32_t *)labels,view.face_count,(int32_t)id,&bounds,&solid);if(status)return status;
+        scratch[rank]=solid?id:UINT32_MAX;
+    }
+    for(rank=0;rank+1<count;rank++)if(scratch[rank]!=UINT32_MAX) {
+        uint32_t bank=s->current,other=bank^1;rf_geomod_mesh_view retained,piece;
+        status=rf_geomod_component_extract(&view,labels,scratch[rank],s->vertices[other],s->vertex_capacity,
+            s->faces[other],s->face_capacity,old_faces,&retained,&piece);if(status)return status;
+        for(i=0;i<retained.face_count;i++) {
+            const rf_geomod_face *old=view.faces+old_faces[i],*fresh=retained.faces+i;
+            memmove(provenance->compact_edges+fresh->first,provenance->compact_edges+old->first,fresh->count*sizeof(uint16_t));
+            provenance->compact_planes[i]=provenance->compact_planes[old_faces[i]];
+            labels[i]=labels[old_faces[i]];context->filters[i]=context->filters[old_faces[i]];
+        }
+        memcpy(s->vertices[bank],retained.vertices,retained.vertex_count*sizeof(*retained.vertices));
+        memcpy(s->faces[bank],retained.faces,retained.face_count*sizeof(*retained.faces));
+        s->nv[bank]=retained.vertex_count;s->nf[bank]=retained.face_count;n++;
+        status=rf_geomod_storage_view(s,&view);if(status)return status;
+    }
+    *removed=n;return RF_OK;
+}
+#endif
+
 static int prepare_cuts(rf_geomod_storage *s,
     const rf_geomod_mesh_view *cutters,uint32_t count,rf_geomod_multi_work *work,int prepared)
 {
