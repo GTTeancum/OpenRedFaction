@@ -73,3 +73,12 @@ retire both batches, retaining8936bytes of history owners; stage/abort a third
 batch with exact accounting rollback; then create and commit the third batch.
 The focused test passes. This is synthetic geometry through the production
 registry/subdivision path, not an additional live gameplay or native acceptance.
+
+
+## Mixed-batch geometry compaction
+
+Retired collection now also attempts to repack live geometry when a batch contains both live and retired pieces. It retains the original piece-slot array and body/life/birth records, but copies only live vertex, face, filter, provenance and collision arrays into a smaller bank. Collision planes and coordinates are copied verbatim; only owned pointers are rebound. Borrowed geometry views must be reacquired after collection. This extends the previous no-allocation collector contract, now documented in the public header.
+
+Allocation is bounded by the registry's remaining budget while old geometry remains resident. Allocation/capacity failure simply retains the original bank. A replacement is published only when smaller, with no subsequent fallible work; old geometry is then freed. Healthy bodies never expire, historical IDs are not reused, and encoded state is unchanged. The sixteen historical batch slots remain a separate limitation; this change reclaims storage rather than erasing identities.
+
+The existing eleven-piece synthetic extraction case retires one piece and now reduces registry payload from142588 to30108bytes, releasing112480bytes (including retired physics and spare geometry capacity). The test verifies exact serialized snapshots across collection, surviving body state, vertex and face bytes, rebound collision coordinates, idempotent subsequent collection, historical replay without resurrection, later extraction, all-retired collection, and transaction rollback. All123 PC tests pass, and the stock-profile NXDK build/link/XBE/ISO passes. Logs: artifacts/rubble-compact-build.log, rubble-compact-tests.log and rubble-compact-xbox.log. This is core validation and an Xbox build, not native mixed-batch gameplay acceptance; low-headroom allocation failure is handled conservatively but was not fault-injected in this test.

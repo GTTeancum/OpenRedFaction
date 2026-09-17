@@ -24,7 +24,7 @@
 
 - GeoMod object interactions: Broaden admitted fragment contacts with actors/props;128 original pair cases prove terrain fragments deliberately exclude one another, so fragment stacking is not a missing fidelity feature.
 
-- GeoMod rubble memory: Verify live new-chunk extraction after collection and broader Xbox histories; PC later terrain cuts continue exactly after reload, and an11-piece core fixture passes mixed retirement/new allocation/rollback, while historical slot limits remain open.
+- GeoMod rubble memory: Verify mixed-batch compaction in live Xbox gameplay and under allocation failure; the11-piece fixture now releases112480bytes while preserving saves, collision and later extraction, but historical slot limits remain open.
 
 - GeoMod rubble wake: Broaden support-loss coverage beyond the dry post; removing its remaining support now wakes the chunk and drops it0.27units on PC/Xbox, with exact PC save continuation and74 native reload comparisons; broader surfaces and moving supports remain open; original fragment-fragment exclusion is verified.
 

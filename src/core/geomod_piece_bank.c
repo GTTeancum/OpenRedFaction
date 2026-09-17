@@ -542,6 +542,38 @@ int rf_geomod_piece_registry_damage(rf_geomod_piece_registry *r,uint32_t batch,u
     return rf_geomod_piece_life_damage(r->active[batch].batch->life+piece,amount);
 }
 
+/* Keep stable piece slots while repacking only live geometry. This is
+ * optional: insufficient simultaneous old/new budget leaves the bank intact. */
+static uint32_t piece_batch_compact(rf_geomod_piece_batch *batch,uint32_t budget)
+{
+    rf_geomod_piece_bank *old=batch->geometry,*next=NULL;uint32_t i,j,nv=0,nf=0,saved;
+    if(!old)return 0;
+    for(i=0;i<batch->count;i++)if(rf_geomod_piece_batch_alive(batch,i)) {
+        nv+=old->pieces[i].mesh.vertex_count;nf+=old->pieces[i].mesh.face_count;
+    }
+    if(!nv || !nf || (nv==old->vc && nf==old->fc))return 0;
+    if(rf_geomod_piece_bank_open(nv,nf,old->pc,budget,&next))return 0;
+    if(next->bytes>=old->bytes){rf_geomod_piece_bank_close(&next);return 0;}
+    for(i=0;i<batch->count;i++)if(rf_geomod_piece_batch_alive(batch,i)) {
+        const rf_geomod_owned_piece *source=old->pieces+i;rf_geomod_owned_piece *dest=next->pieces+i;
+        uint32_t v=source->mesh.vertex_count,f=source->mesh.face_count;
+        const float (*positions)[3]=old->positions+(source->mesh.vertices-old->vertices);
+        *dest=*source;
+        memcpy(next->vertices+next->nv,source->mesh.vertices,v*sizeof(*next->vertices));
+        memcpy(next->positions+next->nv,positions,v*sizeof(*next->positions));
+        memcpy(next->faces+next->nf,source->mesh.faces,f*sizeof(*next->faces));
+        memcpy(next->filters+next->nf,source->filters,f*sizeof(*next->filters));
+        memcpy(next->old_faces+next->nf,source->old_faces,f*sizeof(*next->old_faces));
+        memcpy(next->collision+next->nf,source->collision,f*sizeof(*next->collision));
+        for(j=0;j<f;j++)next->collision[next->nf+j].vertices=next->positions+next->nv+(source->collision[j].vertices-positions);
+        dest->mesh.vertices=next->vertices+next->nv;dest->mesh.faces=next->faces+next->nf;
+        dest->filters=next->filters+next->nf;dest->old_faces=next->old_faces+next->nf;dest->collision=next->collision+next->nf;
+        next->nv+=v;next->nf+=f;
+    }
+    next->np=old->np;saved=old->bytes-next->bytes;
+    if(batch->bytes+next->bytes>batch->peak_bytes)batch->peak_bytes=batch->bytes+next->bytes;
+    batch->geometry=next;rf_geomod_piece_bank_close(&old);return saved;
+}
 int rf_geomod_piece_registry_collect_retired(rf_geomod_piece_registry *r,uint32_t *released)
 {
     uint32_t b,i,total=0;
@@ -560,6 +592,7 @@ int rf_geomod_piece_registry_collect_retired(rf_geomod_piece_registry *r,uint32_
             freed+=rf_geomod_piece_bank_bytes(batch->geometry);
             rf_geomod_piece_bank_close(&batch->geometry);
         }
+        if(live && live<batch->count)freed+=piece_batch_compact(batch,r->budget-r->bytes);
         batch->bytes-=freed;r->bytes-=freed;total+=freed;
     }
     *released=total;return RF_OK;

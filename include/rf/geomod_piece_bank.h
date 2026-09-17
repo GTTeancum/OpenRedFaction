@@ -186,8 +186,11 @@ int rf_geomod_piece_registry_notify_check(rf_geomod_piece_registry *,const struc
 int rf_geomod_piece_registry_notify(rf_geomod_piece_registry *,const struct rf_geomod_notify_change *,
     const float center[3],uint32_t *woken);
 int rf_geomod_piece_registry_damage(rf_geomod_piece_registry *,uint32_t batch,uint32_t piece,float amount);
-/* Call between uses of borrowed views, outside edit transactions. No allocation:
- * free retired sphere arrays and geometry of wholly retired batches, retaining
+/* Call between uses of borrowed views, outside edit transactions. Frees
+ * retired spheres and wholly retired geometry. Mixed batches opportunistically
+ * repack live geometry within the simultaneous old/new registry budget; allocation
+ * failure leaves that geometry intact. All borrowed geometry views may change.
+ * Retains
  * body/life/birth identity for snapshots. Healthy pieces never expire. Collected
  * slots cannot revive via in-place decode; restore into history-rebuilt owners.
  * released counts actual owned payload bytes; repeated collection releases0. */

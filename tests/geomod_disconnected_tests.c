@@ -438,12 +438,34 @@ static void subdivision_worker(void)
             rf_geomod_piece_registry_commit(registry);
             CHECK(!rf_geomod_piece_registry_get(registry,0,&mixed));count=rf_geomod_piece_batch_count(mixed);CHECK(count>1);
             CHECK(!rf_geomod_piece_batch_get(mixed,1,&live_before,&live_body));saved_live=live_body->state;
+            rf_geomod_vertex *saved_vertices=malloc(live_before.mesh.vertex_count*sizeof(*saved_vertices));
+            rf_geomod_face *saved_faces=malloc(live_before.mesh.face_count*sizeof(*saved_faces));
+            CHECK(saved_vertices && saved_faces);
+            memcpy(saved_vertices,live_before.mesh.vertices,live_before.mesh.vertex_count*sizeof(*saved_vertices));
+            memcpy(saved_faces,live_before.mesh.faces,live_before.mesh.face_count*sizeof(*saved_faces));
             before=rf_geomod_piece_registry_bytes(registry);
             CHECK(!rf_geomod_piece_registry_damage(registry,0,0,100000));
+            uint32_t snapshot_size;unsigned char *snapshot_before,*snapshot_after;
+            CHECK(!rf_geomod_piece_registry_state_size(registry,&snapshot_size));
+            snapshot_before=malloc(snapshot_size);snapshot_after=malloc(snapshot_size);CHECK(snapshot_before && snapshot_after);
+            CHECK(!rf_geomod_piece_registry_state_encode(registry,snapshot_before,snapshot_size));
             CHECK(!rf_geomod_piece_registry_collect_retired(registry,&released));
             CHECK(rf_geomod_piece_registry_bytes(registry)==before-released);
+            CHECK(!rf_geomod_piece_registry_state_encode(registry,snapshot_after,snapshot_size));
+            CHECK(!memcmp(snapshot_before,snapshot_after,snapshot_size));free(snapshot_before);free(snapshot_after);
+            printf("COMPACT mixed before%u after%u released%u\n",before,rf_geomod_piece_registry_bytes(registry),released);
             CHECK(!rf_geomod_piece_batch_get(mixed,1,&live_after,&live_body));
-            CHECK(live_before.mesh.vertices==live_after.mesh.vertices&&!memcmp(&saved_live,&live_body->state,sizeof(saved_live)));
+            CHECK(!memcmp(&saved_live,&live_body->state,sizeof(saved_live)));
+            CHECK(!memcmp(saved_vertices,live_after.mesh.vertices,live_after.mesh.vertex_count*sizeof(*saved_vertices)));
+            CHECK(!memcmp(saved_faces,live_after.mesh.faces,live_after.mesh.face_count*sizeof(*saved_faces)));
+            for(uint32_t f=0;f<live_after.mesh.face_count;f++) {
+                const rf_geomod_face *face=live_after.mesh.faces+f;
+                const rf_collision_face *collision=live_after.collision+f;
+                CHECK(collision->count==face->count);
+                for(uint32_t v=0;v<face->count;v++)CHECK(!memcmp(collision->vertices[v],saved_vertices[face->first+v].position,12));
+            }
+            free(saved_vertices);free(saved_faces);
+            CHECK(!rf_geomod_piece_registry_collect_retired(registry,&released) && released==0);
             CHECK(rf_geomod_piece_batch_alive(mixed,1)&&!rf_geomod_piece_batch_alive(mixed,0));
             /* Historical replay must not revive the collected slot; a new
              * extraction can still allocate and publish alongside it. */
