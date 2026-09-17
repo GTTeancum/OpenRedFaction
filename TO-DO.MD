@@ -1,6 +1,6 @@
 # Red Faction Xbox / PC - open work
 
-- GeoMod rubble piles: Implement and validate two-body response and scheduling; a self-excluding chunk query now returns other fragments and their velocity, but live chunks still collide only with terrain.
+- GeoMod rubble piles: Resolve original pair admission and scheduling, then connect fragment queries;27 binary cases confirm admitted kind3 contacts use the existing one-body response without counterpart impulse.
 
 - GeoMod rubble memory: Reclaim retired resources safely while preserving save/history identity; original terminal terrain fragments explicitly disable lifetime expiry, so healthy rubble must not be deleted on a timer.
 
