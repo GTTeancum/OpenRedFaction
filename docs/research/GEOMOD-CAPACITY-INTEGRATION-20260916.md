@@ -1004,3 +1004,39 @@ artifacts/geomod-9k-live/volume.json (PASS). Source probe rebuild/replay passes;
 controls pass. Estimate remains ~50% overall/~72% GeoMod. Next investigate
 crater readability and player collision with a demonstrated excavated volume,
 while retaining the open geometric nonintersection/precision checks.
+
+
+## Player walks into the excavated tunnel with an intact-wall control
+
+Added tools/check_geomod_cavity_walk.py:90 frames of the existing yaw command,
+360 forward frames,60 neutral frames. It compares identical process-local
+inputs against uncut Glass House and the fixed-aim16-cut checkpoint. No forced
+placement, teleport or host input. Paths match exactly through frame270, before
+wall contact. The uncut player stops/slides at x=-15.34 on the room side of the
+original x=-16 wall. The cut player crosses at frame284 and settles at
+(-28.3070316,-11.9198713,-0.07472935), more than12 units beyond the original wall.
+Both settle checks pass. Cut-path vertical/lateral bounds exclude a runaway
+fall or escape; this is one bounded route, not comprehensive movement coverage.
+
+PC endpoint captures were inspected: uncut faces the intact wall; cut is inside
+a rock-lined tunnel with weapon/HUD visible. The tunnel is visibly dark and
+faceted; collision success is not material/lighting/shape polish acceptance.
+PC report: artifacts/geomod-cavity-walk/report.json. Inputs reproduce the earlier
+probe exactly (SHA256cb17045012fb5558786a82e1b8ff4895d5601a924668c06f7a1b5d2f934de882).
+
+Stock64MiB native cut traversal passes58 comparisons over510 frames:
+artifacts/xemu/render-20260916-223305/report.json. All77 body-state words match
+PC exactly, as does the destruction checkpoint. Endpoint8090 pages=31.6015625MiB
+free. Native framebuffer inspected: inside the same rock-lined tunnel, pistol
+and HUD present. The intact-wall control was PC-only this turn; no broader
+native movement control is claimed. Owned emulator exited and staged disc
+state was restored. No GitHub image added.
+
+Run the PC comparison with:
+python tools/check_geomod_cavity_walk.py --checkpoint artifacts/geomod-9k-live/state.rfds
+The generated input can be passed to xemu_render_check.py with --expanded-geomod,
+--dev-room --spawn --level glass_house.rfl --archive levelsm.vpp and the same
+--geomod-checkpoint-in path. No production source change this turn.
+Estimate ~50% overall/~73% GeoMod after direct excavated-volume traversal is
+verified. Next broaden entrance/slope/return-path collision and improve crater
+readability while retaining the open thin-surface verifier ambiguity.
