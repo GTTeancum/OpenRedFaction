@@ -8,7 +8,7 @@ int rf_authored_checkpoint_layout_size_pieces(uint32_t core,uint32_t admissions,
 {
     rf_authored_checkpoint_layout v={0};uint64_t end;
     if(!out)return RF_RANGE;
-    if(pieces && (pieces<16 || (pieces-16)%320))return RF_FORMAT;
+    if(pieces && (pieces<16 || ((pieces-16)%320 && (pieces-16)%328)))return RF_FORMAT;
     /* RGCH1:28-byte header and at most RF_GEOMOD_CUT_LIMIT bounded cutters. */
     if(core<28 || core>RF_GEOMOD_HISTORY_MAX_BYTES || admissions>128 || maps>RF_GEOMOD_LIGHTMAP_LIMIT || faces>RF_GEOMOD_PUBLICATION_FACES)return RF_FORMAT;
     end=(uint64_t)RF_AUTHORED_CHECKPOINT_HEADER+core+(uint64_t)admissions*48+(uint64_t)maps*88+(uint64_t)faces*2;
@@ -36,8 +36,9 @@ int rf_authored_checkpoint_layout_read(const void *data,uint32_t bytes,
     if(status)return status;if(v.bytes!=bytes)return RF_FORMAT;
     if(v.piece_bytes) {
         const unsigned char *tail=p+v.piece_offset;
-        if(memcmp(tail,"RFPB",4) || word(tail+4)!=1 || word(tail+8)!=v.piece_bytes ||
-           word(tail+12)!=(v.piece_bytes-16)/320)return RF_FORMAT;
+        uint32_t stride=word(tail+4)==1?320:word(tail+4)==2?328:0;
+        if(!stride || memcmp(tail,"RFPB",4) || word(tail+8)!=v.piece_bytes ||
+           (uint64_t)word(tail+12)*stride+16!=v.piece_bytes)return RF_FORMAT;
     }
     *out=v;return RF_OK;
 }

@@ -27,6 +27,10 @@ int main(void)
         put(tail+12,2);CHECK(rejected(extended.bytes));put(tail+12,1);
         put(tail+4,2);CHECK(rejected(extended.bytes));put(tail+4,1);
         CHECK(rejected(extended.bytes-1));put(12,UINT32_MAX);CHECK(rejected(extended.bytes));
+        CHECK(!rf_authored_checkpoint_layout_size_pieces(3116,2,3,12,344,&extended));
+        put(8,extended.bytes);put(12,344);put(tail+4,2);put(tail+8,344);put(tail+12,1);
+        CHECK(!rf_authored_checkpoint_layout_read(payload,extended.bytes,&b));
+        put(tail+4,1);CHECK(rejected(extended.bytes));
         put(12,0);put(8,bytes);
     }
     /* Every truncated prefix rejects without exposing partial offsets. */

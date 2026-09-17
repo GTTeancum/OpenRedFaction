@@ -66,7 +66,10 @@ int rf_geomod_piece_batch_open(const rf_geomod_mesh_view *,const rf_collision_fa
     const rf_collision_face_filter *generated,uint32_t material,float density,float elasticity,float friction,
     rf_random_state *,uint32_t budget,rf_geomod_piece_batch **);
 void rf_geomod_piece_batch_close(rf_geomod_piece_batch **);
+/* Count/get preserve retired slots for stable history identity. Live callers
+ * must check alive; storage is released with the owning batch/reset. */
 uint32_t rf_geomod_piece_batch_count(const rf_geomod_piece_batch *);
+uint32_t rf_geomod_piece_batch_alive(const rf_geomod_piece_batch *,uint32_t index);
 uint32_t rf_geomod_piece_batch_bytes(const rf_geomod_piece_batch *);
 uint32_t rf_geomod_piece_batch_peak_bytes(const rf_geomod_piece_batch *);
 /* Geometry and mutable simulation body remain valid until batch close. */
@@ -128,8 +131,10 @@ struct rf_checkpoint_placement;
  * overlap/inside/ambiguous; no support eligibility or player relocation. */
 int rf_geomod_piece_registry_placement_check(const rf_geomod_piece_registry *,
     const struct rf_checkpoint_placement *);
-/* RFPB1 pointer-free little-endian body snapshot, paired with authenticated
- * terrain history. Canonical prefix/ordinal/piece order must match rebuilt
+int rf_geomod_piece_registry_damage(rf_geomod_piece_registry *,uint32_t batch,uint32_t piece,float amount);
+/* RFPB2 pointer-free little-endian body snapshot, paired with authenticated
+ * terrain history. Version1 loads birth health; version2 retains health/retirement.
+ * Canonical prefix/ordinal/piece order must match rebuilt
  * geometry. No allocation. Decode validates every record before any write.
  * Only committed registries; no concurrent edits/callbacks or aliasing buffers.
  * Immutable mass, local inertia, radius and material drag/friction must match. */

@@ -166,6 +166,18 @@ static void registry_lifetime(const rf_geomod_mesh_view *mesh,const rf_collision
         body->state.velocity[1]=-2;body->state.mass_vector_d4[0]=.3f;body->state.vector_c8[0]=.4f;
         body->state.vector_e0[2]=.7f;body->state.vector_ec[1]=.2f;body->state.coefficients[0]=.125f;
         saved_body=body->state;
+        CHECK(rf_geomod_piece_batch_alive(first,0));
+        CHECK(!rf_geomod_piece_registry_damage(r,0,0,100000));
+        CHECK(!rf_geomod_piece_batch_alive(first,0));
+        {
+            rf_geomod_piece_hit hit;float start[3]={0},delta[3];uint32_t matched,k,n;
+            const rf_collision_face *face=piece.collision;
+            for(k=0;k<3;k++) {
+                for(n=0;n<face->count;n++)start[k]+=face->vertices[n][k]/face->count;
+                start[k]+=body->state.position[k]+face->plane[k]*2;delta[k]=-4*face->plane[k];
+            }
+            CHECK(!rf_geomod_piece_batch_sweep(first,0,start,delta,.1f,1,&hit,&matched));CHECK(!matched);
+        }
         CHECK(!rf_geomod_piece_registry_state_size(r,&size));CHECK(size>336);
         snapshot=malloc(size);bad=malloc(size);check=malloc(size);CHECK(snapshot && bad && check);
         CHECK(!rf_geomod_piece_registry_state_encode(r,snapshot,size));
@@ -183,24 +195,36 @@ static void registry_lifetime(const rf_geomod_mesh_view *mesh,const rf_collision
             CHECK(!rf_geomod_piece_registry_state_decode(restored_pieces,snapshot,size));
             CHECK(!rf_geomod_piece_registry_state_encode(restored_pieces,check,size));
             CHECK(!memcmp(snapshot,check,size));
+            {rf_geomod_piece_batch *rb;CHECK(!rf_geomod_piece_registry_get(restored_pieces,0,&rb));CHECK(!rf_geomod_piece_batch_alive(rb,0));}
             rf_geomod_terrain_close(&restored);rf_geomod_piece_registry_close(&restored_pieces);free(history);
         }
         body->state.position[1]+=7;body->state.velocity[2]=3;
         CHECK(!rf_geomod_piece_registry_state_decode(r,snapshot,size));
         CHECK(!memcmp(&saved_body,&body->state,sizeof(saved_body)));
         CHECK(!rf_geomod_piece_registry_state_encode(r,check,size));CHECK(!memcmp(snapshot,check,size));
-        for(uint32_t fault=0;fault<5;fault++) {
+        for(uint32_t fault=0;fault<8;fault++) {
             memcpy(bad,snapshot,size);body->state.position[1]=123;
             if(fault==0)bad[0]='X';
-            if(fault==1)bad[size-320]^=1; /* Later identity, after earlier valid bodies. */
+            if(fault==1)bad[size-328]^=1; /* Later identity, after earlier valid bodies. */
             if(fault==2){bad[16+12+12]=0;bad[16+12+13]=0;bad[16+12+14]=128;bad[16+12+15]=63;} /* Wrong immutable mass. */
-            if(fault==3){bad[size-320+12]=0;bad[size-320+13]=0;bad[size-320+14]=192;bad[size-320+15]=127;} /* NaN. */
+            if(fault==3){bad[size-328+12]=0;bad[size-328+13]=0;bad[size-328+14]=192;bad[size-328+15]=127;} /* NaN. */
             if(fault==4)memset(bad+16+12+28*4,0,36); /* Degenerate orientation. */
+            if(fault==5){uint32_t nan=0x7fc00000;memcpy(bad+16+320,&nan,4);}
+            if(fault==6)memset(bad+16+324,0,4); /* Dead health cannot become live. */
+            if(fault==7){uint32_t unknown=0x400000;memcpy(bad+size-4,&unknown,4);}
             CHECK(rf_geomod_piece_registry_state_decode(r,bad,size)!=RF_OK);
             CHECK(body->state.position[1]==123);
         }
         CHECK(rf_geomod_piece_registry_state_decode(r,snapshot,size-1)!=RF_OK);
         CHECK(!rf_geomod_piece_registry_state_decode(r,snapshot,size));
+        {
+            uint32_t n=(size-16)/328,old_size=16+n*320,version=1;
+            memcpy(bad,snapshot,16);memcpy(bad+4,&version,4);memcpy(bad+8,&old_size,4);
+            for(uint32_t j=0;j<n;j++)memcpy(bad+16+j*320,snapshot+16+j*328,320);
+            CHECK(!rf_geomod_piece_registry_state_decode(r,bad,old_size));
+            CHECK(rf_geomod_piece_batch_alive(first,0)); /* Legacy means birth health. */
+            CHECK(!rf_geomod_piece_registry_state_decode(r,snapshot,size));CHECK(!rf_geomod_piece_batch_alive(first,0));
+        }
         CHECK(!rf_geomod_piece_registry_begin(r,0));
         CHECK(rf_geomod_piece_registry_state_decode(r,snapshot,size)==RF_RANGE);
         rf_geomod_piece_registry_abort(r);free(snapshot);free(bad);free(check);

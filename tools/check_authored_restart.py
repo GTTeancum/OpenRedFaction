@@ -24,16 +24,19 @@ def check_post_image(folder):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--case', choices=('two-shot', 'reset-zero', 'middle-shot'), default='two-shot')
+    parser.add_argument('--case', choices=('two-shot', 'reset-zero', 'middle-shot', 'retired-piece'), default='two-shot')
     parser.add_argument('--build-dir', type=Path, default=ROOT / 'build/pc')
     parser.add_argument('--output-dir', type=Path)
     args = parser.parse_args()
     reset = args.case == 'reset-zero'
     middle = args.case == 'middle-shot'
+    retired = args.case == 'retired-piece'
     folder = ROOT / ('artifacts/authored-post-live/solo-reset-continuation' if reset else
                      'artifacts/authored-post-live/solo-continuation')
     if middle:
         folder = ROOT / 'artifacts/authored-post-live/solo-middle-continuation'
+    if retired:
+        folder = ROOT / 'artifacts/geomod-postedit-re/detached-retirement-restart'
     if args.output_dir is not None:
         folder = args.output_dir.resolve()
     folder.mkdir(parents=True, exist_ok=True)
@@ -51,6 +54,12 @@ def main():
             struct.pack_into('<I', source, 8 + frame * 48 + 32, int(frame == 240))
         source = bytes(source)
         final_cuts = 1
+    if retired:
+        source = (ROOT / 'artifacts/geomod-postedit-re/detached-rocket/inputs.bin').read_bytes()
+        split = (len(source)-8)//48
+        source += bytes(200*48)
+        frames = split+200
+        initial_cuts = final_cuts = 1
     recordings = {'saved': source[:8 + split * 48],
                   'continued': source[:8] + source[8 + split * 48:], 'control': source}
     env = {k: v for k, v in os.environ.items() if not k.startswith(("RF_REPLAY_", "RF_DEV_"))}
@@ -82,6 +91,24 @@ def main():
         for name, cuts in (("saved", initial_cuts), ("continued", final_cuts), ("control", final_cuts)):
             data = (folder / (name + ".rgch")).read_bytes()
             assert struct.unpack_from("<I", data, 12)[0] == cuts, name + " did not produce expected destruction"
+        if retired:
+            for name in recordings:
+                lines = (folder / (name + '.log')).read_text().splitlines()
+                pieces = list(map(int, next(x for x in lines if x.startswith('DETACHED_PIECES ')).split()[1:]))
+                motion = list(map(int, next(x for x in lines if x.startswith('DETACHED_MOTION ')).split()[1:]))
+                assert pieces[:4] == [1,1,0,0] and pieces[5] == 0, pieces
+                assert motion == [0]*8, motion
+                assert 0 < pieces[4] <= 2*1024*1024
+            checkpoint = (folder / 'continued.rfcp').read_bytes()
+            piece_bytes = struct.unpack_from('<I', checkpoint, 576+12)[0]
+            trailer = checkpoint[-piece_bytes:]
+            assert trailer[:4] == b'RFPB' and struct.unpack_from('<3I',trailer,4) == (2,344,1)
+            health, flags = struct.unpack_from('<fI',trailer,16+320)
+            assert health < 0 and flags == 0x200002
+            report['piece_health'] = health
+            report['piece_flags'] = flags
+            report['post_image'] = check_post_image(folder)
+            report['scope'] = 'Real two-rocket chunk retirement, absent draw/motion, exact saved continuation and fixed-camera post pixels; no Xbox or audio acceptance'
         if middle:
             states = {}
             for name in recordings:

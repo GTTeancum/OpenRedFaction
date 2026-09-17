@@ -149,7 +149,7 @@ int rf_geomod_piece_body_open(const rf_geomod_owned_piece *piece,float elasticit
 }
 
 struct rf_geomod_piece_batch {
-    rf_geomod_piece_bank *geometry;rf_physics_body *bodies;
+    rf_geomod_piece_bank *geometry;rf_physics_body *bodies;rf_geomod_piece_life *life;
     uint32_t count,bytes,peak_bytes;
 };
 void rf_geomod_piece_batch_close(rf_geomod_piece_batch **owner)
@@ -161,6 +161,8 @@ void rf_geomod_piece_batch_close(rf_geomod_piece_batch **owner)
 }
 uint32_t rf_geomod_piece_batch_count(const rf_geomod_piece_batch *batch)
 {return batch?batch->count:0;}
+uint32_t rf_geomod_piece_batch_alive(const rf_geomod_piece_batch *batch,uint32_t index)
+{return batch && index<batch->count && !(batch->life[index].flags&2);}
 uint32_t rf_geomod_piece_batch_bytes(const rf_geomod_piece_batch *batch)
 {return batch?batch->bytes:0;}
 uint32_t rf_geomod_piece_batch_peak_bytes(const rf_geomod_piece_batch *batch)
@@ -182,15 +184,16 @@ int rf_geomod_piece_batch_open(const rf_geomod_mesh_view *source,const rf_collis
     if(!out || *out || !random || !isfinite(elasticity) || !isfinite(friction))return RF_RANGE;
     next=*random;
     status=rf_geomod_piece_subdivide(source,filters,generated,material,density,&next,budget,&geometry,&stats);if(status)return status;
-    count=rf_geomod_piece_bank_count(geometry);owner_bytes=sizeof(*batch)+(uint64_t)count*sizeof(rf_physics_body);
+    count=rf_geomod_piece_bank_count(geometry);owner_bytes=sizeof(*batch)+(uint64_t)count*(sizeof(rf_physics_body)+sizeof(rf_geomod_piece_life));
     resident=owner_bytes+rf_geomod_piece_bank_bytes(geometry);
     if(resident>budget){status=RF_RANGE;goto failed;}
     batch=calloc(1,(size_t)owner_bytes);if(!batch){status=RF_IO;goto failed;}
-    batch->geometry=geometry;geometry=NULL;batch->bodies=(rf_physics_body *)(batch+1);
+    batch->geometry=geometry;geometry=NULL;batch->bodies=(rf_physics_body *)(batch+1);batch->life=(rf_geomod_piece_life *)(batch->bodies+count);
     batch->bytes=(uint32_t)resident;batch->peak_bytes=stats.peak_bytes;
     for(i=0;i<count;i++) {
         rf_geomod_owned_piece piece;
         status=rf_geomod_piece_bank_get(batch->geometry,i,&piece);if(status)goto failed;
+        status=rf_geomod_piece_life_init(piece.birth_radius,batch->life+i);if(status)goto failed;
         /* The body record is already in the fixed owner allocation. Only its
          * separately allocated spheres increase the concurrent resident bytes. */
         status=rf_geomod_piece_body_open(&piece,elasticity,friction,budget-batch->bytes+sizeof(rf_physics_body),batch->bodies+i);
@@ -214,6 +217,7 @@ int rf_geomod_piece_batch_sweep(const rf_geomod_piece_batch *batch,uint32_t flag
     for(i=0;i<batch->count;i++) {
         rf_geomod_owned_piece piece;rf_collision_sweep_tree_hit local;uint32_t hit;
         const rf_physics_body_state *body=&batch->bodies[i].state;
+        if(!rf_geomod_piece_batch_alive(batch,i))continue;
         status=rf_geomod_piece_bank_get(batch->geometry,i,&piece);if(status)return status;
         status=rf_collision_flat_faces(piece.collision,piece.mesh.face_count,flags&~4u,start,delta,
             body->position,(const float (*)[3])body->orientation,radius,nearest,&local,&hit);
@@ -311,7 +315,7 @@ int rf_geomod_piece_registry_get(rf_geomod_piece_registry *r,uint32_t i,rf_geomo
 {if(!r || !out || i>=r->count)return RF_RANGE;*out=r->active[i].batch;return RF_OK;}
 
 #define PIECE_STATE_HEADER 16u
-#define PIECE_STATE_RECORD 320u
+#define PIECE_STATE_RECORD 328u
 static uint32_t piece_state_word(const unsigned char *p)
 {return (uint32_t)p[0]|((uint32_t)p[1]<<8)|((uint32_t)p[2]<<16)|((uint32_t)p[3]<<24);}
 static void piece_state_store(unsigned char *p,uint32_t v)
@@ -377,32 +381,47 @@ int rf_geomod_piece_registry_state_encode(const rf_geomod_piece_registry *r,void
         const rf_physics_body_state *s=&r->active[i].batch->bodies[j].state;
         status=piece_state_valid(s,s);if(status)return status;
     }
-    memcpy(p,"RFPB",4);piece_state_store(p+4,1);piece_state_store(p+8,size);
+    memcpy(p,"RFPB",4);piece_state_store(p+4,2);piece_state_store(p+8,size);
     piece_state_store(p+12,(size-PIECE_STATE_HEADER)/PIECE_STATE_RECORD);p+=PIECE_STATE_HEADER;
     for(i=0;i<r->count;i++)for(j=0;j<r->active[i].batch->count;j++,p+=PIECE_STATE_RECORD) {
         rf_physics_body_state s=r->active[i].batch->bodies[j].state;
         piece_state_store(p,r->active[i].prefix);piece_state_store(p+4,r->active[i].ordinal);piece_state_store(p+8,j);
         piece_state_codec(&s,p+12,0);
+        {uint32_t health;memcpy(&health,&r->active[i].batch->life[j].health,4);piece_state_store(p+320,health);piece_state_store(p+324,r->active[i].batch->life[j].flags);}
     }
     return RF_OK;
 }
 int rf_geomod_piece_registry_state_decode(rf_geomod_piece_registry *r,const void *input,uint32_t bytes)
 {
-    const unsigned char *start=input,*p;uint32_t size,i,j,pass;int status=rf_geomod_piece_registry_state_size(r,&size);
-    if(status)return status;if(!input || bytes!=size || bytes<PIECE_STATE_HEADER)return RF_FORMAT;
-    if(memcmp(start,"RFPB",4) || piece_state_word(start+4)!=1 || piece_state_word(start+8)!=size ||
-       piece_state_word(start+12)!=(size-PIECE_STATE_HEADER)/PIECE_STATE_RECORD)return RF_FORMAT;
+    const unsigned char *start=input,*p;uint32_t size,i,j,pass,version,stride,count;int status=rf_geomod_piece_registry_state_size(r,&size);
+    if(status)return status;if(!input || bytes<PIECE_STATE_HEADER)return RF_FORMAT;
+    version=piece_state_word(start+4);stride=version==1?320:version==2?328:0;
+    count=(size-PIECE_STATE_HEADER)/PIECE_STATE_RECORD;
+    if(!stride || bytes!=PIECE_STATE_HEADER+(uint64_t)count*stride || memcmp(start,"RFPB",4) ||
+       piece_state_word(start+8)!=bytes || piece_state_word(start+12)!=count)return RF_FORMAT;
     for(pass=0;pass<2;pass++) {
         p=start+PIECE_STATE_HEADER;
-        for(i=0;i<r->count;i++)for(j=0;j<r->active[i].batch->count;j++,p+=PIECE_STATE_RECORD) {
-            rf_physics_body_state state={0},*target=&r->active[i].batch->bodies[j].state;
+        for(i=0;i<r->count;i++)for(j=0;j<r->active[i].batch->count;j++,p+=stride) {
+            rf_geomod_piece_batch *batch=r->active[i].batch;
+            rf_physics_body_state state={0},*target=&batch->bodies[j].state;
+            rf_geomod_piece_life life,birth;rf_geomod_owned_piece piece;uint32_t bits;
             if(piece_state_word(p)!=r->active[i].prefix || piece_state_word(p+4)!=r->active[i].ordinal || piece_state_word(p+8)!=j)return RF_FORMAT;
+            status=rf_geomod_piece_bank_get(batch->geometry,j,&piece);if(status)return status;
+            status=rf_geomod_piece_life_init(piece.birth_radius,&birth);if(status)return status;life=birth;
+            if(version==2){bits=piece_state_word(p+320);memcpy(&life.health,&bits,4);life.flags=piece_state_word(p+324);}
+            if(!isfinite(life.health) || life.health>birth.health || (life.flags&~0x200002u) ||
+               ((life.health<=0)!=!!(life.flags&2)))return RF_FORMAT;
             piece_state_codec(&state,(unsigned char *)p+12,1);
             if(!pass){status=piece_state_valid(&state,target);if(status)return status;}
-            else *target=state;
+            else {*target=state;batch->life[j]=life;}
         }
     }
     return RF_OK;
+}
+int rf_geomod_piece_registry_damage(rf_geomod_piece_registry *r,uint32_t batch,uint32_t piece,float amount)
+{
+    if(!r || r->begun || batch>=r->count || piece>=r->active[batch].batch->count)return RF_RANGE;
+    return rf_geomod_piece_life_damage(r->active[batch].batch->life+piece,amount);
 }
 
 int rf_geomod_piece_registry_sweep(const rf_geomod_piece_registry *r,uint32_t flags,
@@ -463,6 +482,7 @@ int rf_geomod_piece_registry_placement_check(const rf_geomod_piece_registry *r,c
     for(b=0;r && b<r->count;b++)for(i=0;i<r->active[b].batch->count;i++) {
         const rf_geomod_piece_batch *batch=r->active[b].batch;rf_geomod_owned_piece piece;
         const rf_physics_body_state *body=&batch->bodies[i].state;
+        if(!rf_geomod_piece_batch_alive(batch,i))continue;
         status=rf_geomod_piece_bank_get(batch->geometry,i,&piece);if(status)return status;
         for(n=0;n<p->count;n++) {
             double world[3];float local[3];

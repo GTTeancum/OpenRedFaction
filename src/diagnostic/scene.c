@@ -10727,6 +10727,7 @@ static int scene_detached_tick(scene_stream *s)
         for(i=0;i<rf_geomod_piece_batch_count(batch);i++) {
             rf_geomod_owned_piece piece;rf_physics_body *body;rf_physics_solid_step_report report;
             scene_detached_query_context query;uint32_t flags=0;float position[3],basis[9];
+            if(!rf_geomod_piece_batch_alive(batch,i))continue;
             status=rf_geomod_piece_batch_get(batch,i,&piece,&body);if(status)goto failed;
             query.scene=s;query.spheres=&body->spheres;memcpy(position,body->state.position,12);memcpy(basis,body->state.orientation,36);
             status=rf_physics_solid_step(&body->state,scene_step_seconds,scene_gravity.acceleration,&flags,
@@ -10755,6 +10756,7 @@ static int scene_detached_draw(scene_stream *s)
         status=rf_geomod_piece_registry_get(s->detached_pieces,b,&batch);if(status)goto failed;
         for(i=0;i<rf_geomod_piece_batch_count(batch);i++) {
             rf_geomod_owned_piece piece;rf_physics_body *body;rf_preview_mesh emitted={0};
+            if(!rf_geomod_piece_batch_alive(batch,i))continue;
             status=rf_geomod_piece_batch_get(batch,i,&piece,&body);if(status)goto failed;
             emitted.vertices=s->mesh->vertices+s->mesh->count;
             status=rf_preview_geomod_pose(&emitted,s->capacity-s->mesh->bytes,&piece.mesh,piece.collision,
@@ -10892,6 +10894,11 @@ static int scene_rockets_tick(scene_stream *s,uint32_t frame)
             ++rf_scene_rockets[1];
             status=scene_impact_start(s,&event.contact,frame);if(status)return status;
             scene_impact_sound(event.contact.hit.point,frame);
+            if(event.contact.object!=UINT32_MAX && (event.contact.object&0x80000000u)) {
+                uint32_t tag=event.contact.object;
+                status=rf_geomod_piece_registry_damage(s->detached_pieces,(tag>>16)&0x7fff,tag&0xffff,campaign_primary[4].damage);
+                if(status)return status;
+            }
             status=scene_rocket_blast(s,frame,&event.contact);rf_scene_rocket_blast[7]=(uint32_t)status;if(status)return status;
             if(rf_scene_combat_trace)printf("ROCKET_IMPACT %u %u %.9g %.9g %.9g\n",frame,event.contact.room,
                 event.contact.hit.point[0],event.contact.hit.point[1],event.contact.hit.point[2]);

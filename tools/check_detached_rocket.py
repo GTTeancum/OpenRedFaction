@@ -23,5 +23,8 @@ hits=values('DETACHED_ROCKET');rockets=values('ROCKETS');impact=values('IMPACT_A
 assert hits[1]==1 and hits[6]==0,hits
 assert rockets[0]==2 and rockets[1]==2 and rockets[4]==1,rockets
 assert impact[0]==2,impact
-report=dict(result='PASS',detached_rocket=hits,rockets=rockets,impact_audio=impact,scope='Two actual rockets; second hits settled chunk and plays impact, with only initial terrain edit; audible quality and Xbox unverified')
+pieces=values('DETACHED_PIECES');motion=values('DETACHED_MOTION')
+assert pieces[:4]==[1,1,0,0] and pieces[5]==0,pieces
+assert motion==[0]*8,motion
+report=dict(result='PASS',detached_rocket=hits,rockets=rockets,impact_audio=impact,detached_pieces=pieces,detached_motion=motion,scope='Two actual rockets; second retires settled chunk from draw/motion, with only initial terrain edit; audible quality and Xbox unverified')
 (folder/'report.json').write_text(json.dumps(report,indent=2)+'\n');print(json.dumps(report,indent=2))

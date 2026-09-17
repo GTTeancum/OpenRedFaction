@@ -6,7 +6,7 @@ source=ROOT/'artifacts/geomod-postedit-re/detached-placement-restart'
 data=bytearray((source/'saved.rfcp').read_bytes());assert data[:4]==b'RFCP' and data[32:36]==b'RFPL'
 player=struct.unpack_from('<3f',data,64);rfds=576;assert data[rfds:rfds+4]==b'RFDS'
 size=struct.unpack_from('<I',data,rfds+8)[0];pieces=struct.unpack_from('<I',data,rfds+12)[0]
-trailer=rfds+size-pieces;assert data[trailer:trailer+4]==b'RFPB' and pieces==336
+trailer=rfds+size-pieces;assert data[trailer:trailer+4]==b'RFPB' and pieces in (336,344)
 body=trailer+16+12;old=struct.unpack_from('<3f',data,body+88);delta=[player[i]-old[i] for i in range(3)]
 for offset in [88,100,248,260]:
  values=struct.unpack_from('<3f',data,body+offset);struct.pack_into('<3f',data,body+offset,*[values[i]+delta[i] for i in range(3)])
