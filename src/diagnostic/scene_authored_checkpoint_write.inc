@@ -24,7 +24,7 @@ static inline int scene_authored_checkpoint_write(scene_stream *s,void *buffer,u
        !s->terrain_noise || s->terrain_publication->has_pending || s->terrain_shadow_reference ||
        !s->terrain_atlas_registered || s->terrain_checkpoint_loaded || s->terrain_history_count>128)return RF_RANGE;
     owner=s->terrain_noise;serial=s->terrain_publication_serial;
-    if(serial==UINT32_MAX || owner->count>1024 || owner->bake!=owner->count || owner->sample)return RF_FORMAT;
+    if(serial==UINT32_MAX || owner->count>RF_GEOMOD_LIGHTMAP_LIMIT || owner->bake!=owner->count || owner->sample)return RF_FORMAT;
     status=scene_terrain_publication_view(s,&view);if(status)return status;
     status=rf_geomod_terrain_get(s->terrain,&core_view);if(status)return status;
     if(view.cuts!=core_view.cuts || view.mesh.generation!=serial || owner->cuts!=view.cuts)return RF_FORMAT;

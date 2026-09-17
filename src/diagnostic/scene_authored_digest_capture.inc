@@ -14,9 +14,9 @@
 typedef struct scene_authored_digest_work {
     rf_geomod_digest_material materials[128];
     rf_geomod_digest_chart charts[RF_GEOMOD_PUBLICATION_FACES];
-    rf_geomod_retained_material_map maps[1024];
+    rf_geomod_retained_material_map maps[RF_GEOMOD_LIGHTMAP_LIMIT];
     rf_geomod_collision_digest_row rows[SCENE_AUTHORED_COLLISION_ROWS];
-    uint32_t face_charts[RF_GEOMOD_PUBLICATION_FACES],map_charts[1024];
+    uint32_t face_charts[RF_GEOMOD_PUBLICATION_FACES],map_charts[RF_GEOMOD_LIGHTMAP_LIMIT];
     uint16_t face_maps[RF_GEOMOD_PUBLICATION_FACES];
     unsigned char packed[64*64*2],rgb[64*3];
 } scene_authored_digest_work;
@@ -63,7 +63,7 @@ static inline int scene_authored_digest_capture(const scene_stream *s,
        (publication->mesh.face_count && (!origins || !face_maps || !lighting->terrain_bindings || !publication->faces || !publication->mesh.faces || !publication->mesh.vertices)) ||
        face_map_capacity<publication->mesh.face_count || serial==UINT32_MAX || publication->cuts>serial)return RF_RANGE;
     a=s->terrain_authored;manifest=&a->identity_manifest;noise=lighting->terrain_noise;base=s->terrain_publication->base;
-    if(!base || !base->source_indices || noise->count>1024 || !manifest->substrate ||
+    if(!base || !base->source_indices || noise->count>RF_GEOMOD_LIGHTMAP_LIMIT || !manifest->substrate ||
        !manifest->materials || !manifest->references || !manifest->material_count || manifest->material_count>=128 ||
        manifest->reference_count>768 || manifest->substrate->prehashed!=1 || manifest->substrate->image.pixels)return RF_FORMAT;
     peak=(uint32_t)sizeof(*w)+8192;if(peak>SCENE_AUTHORED_DIGEST_BUDGET)return RF_RANGE;

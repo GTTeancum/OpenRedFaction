@@ -80,7 +80,7 @@ int rf_geomod_retained_material_digest(const rf_geomod_retained_material_input *
 {
     identity_sha h;unsigned char digest[32],rgb[64*3],packed[64*2];rf_random_state chain={1};
     uint32_t i,j,x=0,y=0,row=0;int status;
-    if(!v || !out || !v->source_identity || !v->substrate_identity || v->map_count>1024 || v->face_count>RF_GEOMOD_PUBLICATION_FACES ||
+    if(!v || !out || !v->source_identity || !v->substrate_identity || v->map_count>RF_GEOMOD_LIGHTMAP_LIMIT || v->face_count>RF_GEOMOD_PUBLICATION_FACES ||
         (v->map_count && !v->maps) || (v->face_count && (!v->origins || !v->face_maps)))return RF_RANGE;
     if(v->material_policy!=1 || v->owner==UINT32_MAX || v->serial==UINT32_MAX || v->cuts>RF_GEOMOD_CUT_LIMIT || v->cuts>v->serial ||
         v->baked!=v->map_count || v->sample || v->owner_cuts!=v->cuts)return RF_FORMAT;

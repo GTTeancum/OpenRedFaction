@@ -24,7 +24,7 @@ static int scene_authored_journal_import(scene_stream *live,
     if(!owner || owner==live->terrain_noise || s->terrain_atlas_pixels==live->terrain_atlas_pixels ||
        s->terrain_bindings==live->terrain_bindings || s->terrain_light_cache==live->terrain_light_cache ||
        layout->faces!=v->mesh.face_count || v->cuts!=cuts || v->mesh.generation!=serial ||
-       !v->mesh.vertices || !v->mesh.faces || !v->faces || layout->maps>1024)return RF_FORMAT;
+       !v->mesh.vertices || !v->mesh.faces || !v->faces || layout->maps>RF_GEOMOD_LIGHTMAP_LIMIT)return RF_FORMAT;
     if(!live->light_rgb.images || (!live->terrain_atlas_registered && live->light_rgb.count>=256) ||
        (live->terrain_atlas_registered && live->terrain_atlas_index>=256))return RF_RANGE;
     index=live->terrain_atlas_registered?live->terrain_atlas_index:live->light_rgb.count;

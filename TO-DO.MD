@@ -1,6 +1,8 @@
 # Red Faction Xbox / PC - open work
 
-- GeoMod capacity: Verify longer live destruction and stock Xbox memory in the opt-in sixteen-cut profile; integrated PC two-blast and reset reloads pass, while shipping remains eight cuts.
+- GeoMod capacity: Resolve live cut rejections after15 committed cuts and verify stock Xbox memory; expanded2048-map journal and141400-byte reload work, while shipping remains eight cuts.
+- GeoMod reload: Explain seven retained lightmap pixel differences after the long replay reload; checkpoint/physical mesh and upper world pixels match exactly.
+- GeoMod rollback: Make legacy DEV cavity lighting exhaustion transactional; the1024-map experiment aborted after core publication.
 
 - GeoMod UV seams: Broaden chronological reconstruction beyond current fixtures; all105 tests and48 axis-oriented UV cases pass, with live two-cut reload/next-blast passing58 stock64MiB Xbox checks.
 

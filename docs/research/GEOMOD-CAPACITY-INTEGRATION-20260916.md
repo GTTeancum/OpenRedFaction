@@ -385,3 +385,38 @@ integrated-capacity-reset.log, integrated-default-tests.log and
 integrated-default-xbox.log under artifacts/authored-post-live.
 Next: longer live blast coverage, atlas exhaustion/rollback, and expanded
 stock64MiB XEMU memory/visual/save acceptance before enabling by default.
+
+## Ordinary live rockets: journal exhaustion fixed, fifteen cuts reached
+
+check_expanded_geomod_live.py generates ordinary process-local DEV rocket input,
+records executable SHA, input, trace, RFDS, physical mesh and atlas audit, and
+requires the requested committed count. The16-press run launched14 rockets and
+committed13 cuts. A20-press run with the1024-map profile aborted when map count
+hit1024 (atlas cursor410,143, so image area was not the limiting resource).
+Legacy cavity edits publish core before lighting; failed atlas binding therefore
+aborts the run rather than preserving the prior complete scene. This remains
+an explicit rollback task, not a solved property of the expanded profile.
+
+Added shared RF_GEOMOD_LIGHTMAP_LIMIT, default1024, for scene, authored import,
+layout and material validation. The opt-in profile now uses2048 records and a
+256KiB transport;512x512 atlas image remains unchanged. Expanded maximum layout
+and transport tests follow these settings. Atlas owner measures1433656 bytes.
+
+Twenty presses now complete2500 frames:18 rockets/admissions,15 committed cuts,
+1347 map records,7844 physical and7856 draw vertices. Core peak2056404 bytes.
+Rejections: frame517 RF_FORMAT/admission4, frame1994 RF_FORMAT/admission15,
+frame2333 RF_RANGE/admission18. The sixteen-cut target remains FAIL. Retain
+artifacts/geomod-expanded-maps for further topology/capacity investigation.
+
+A no-fire fresh-process replay reloads all15 cuts/18 admissions. RFDS141400
+bytes and physical mesh181564 bytes match exactly, and upper640x320 world
+pixels match. Atlas audit metadata matches but seven maps differ in packed
+pixels; this is unresolved (do not claim complete atlas equality). Comparison
+JSON and restored artifacts: artifacts/geomod-expanded-maps-restored.
+Inspected final PC frame: enclosing textured room, dark crater opening, launcher,
+pickups and HUD present; crater readability/lighting parity is not established.
+
+Default111 tests pass and NXDK builds with existing merge warning. Logs under
+artifacts/authored-post-live: expanded-map-live.log, expanded-map-restore.log,
+expanded-map-default-tests.log, expanded-map-xbox-build.log. No new native
+expanded-profile execution or GitHub screenshots. Production stays8 cuts.

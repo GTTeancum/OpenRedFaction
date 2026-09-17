@@ -596,7 +596,7 @@ typedef struct scene_terrain_noise_map {
     rf_preview_surface_lightmap binding;
 } scene_terrain_noise_map;
 typedef struct scene_terrain_noise_owner {
-    scene_terrain_noise_map maps[1024];uint32_t count,x,y,row,bake,sample,generation,cuts;
+    scene_terrain_noise_map maps[RF_GEOMOD_LIGHTMAP_LIMIT];uint32_t count,x,y,row,bake,sample,generation,cuts;
     rf_random_state random;
 } scene_terrain_noise_owner;
 uint32_t rf_scene_terrain_noise[8]; /* mode,mappings,reused bindings,texels,stable checks,new mappings,bytes,generation */
@@ -9209,7 +9209,7 @@ static int scene_terrain_lighting(scene_stream *s,const rf_geomod_terrain_view *
             }
             if(!map) {
                 uint32_t axis=0,u,v,dims[2];float span[2],density[2]={4,4},adjusted[2];
-                if(owner->count>=1024)return RF_RANGE;map=owner->maps+owner->count;memset(map,0,sizeof(*map));
+                if(owner->count>=RF_GEOMOD_LIGHTMAP_LIMIT)return RF_RANGE;map=owner->maps+owner->count;memset(map,0,sizeof(*map));
                 memcpy(map->plane,terrain->faces[f].plane,16);map->material=face->material;
                 for(k=0;k<3;k++){map->minimum[k]=INFINITY;map->maximum[k]=-INFINITY;}
                 /* All current fragments of the same source plane share one mapping. */
@@ -9671,7 +9671,7 @@ static int scene_checkpoint_validate_player(const void *input,uint32_t bytes,voi
     if(checkpoint_u32(data+208)!=s->terrain_texture_width || checkpoint_u32(data+212)!=s->terrain_texture_height)return RF_FORMAT;
     for(i=0;i<3;i++)if(checkpoint_float(data+216+i*4)!=s->terrain_history_minimum[i] || checkpoint_float(data+228+i*4)!=s->terrain_history_maximum[i])return RF_FORMAT;
     admission=checkpoint_u32(data+240);maps=checkpoint_u32(data+248);core=checkpoint_u32(data+252);faces=checkpoint_u32(data+272);
-    if(admission>128 || maps>1024 || core<28 || core>RF_GEOMOD_HISTORY_MAX_BYTES || faces>SCENE_TERRAIN_FACES)return RF_FORMAT;
+    if(admission>128 || maps>RF_GEOMOD_LIGHTMAP_LIMIT || core<28 || core>RF_GEOMOD_HISTORY_MAX_BYTES || faces>SCENE_TERRAIN_FACES)return RF_FORMAT;
     for(i=276;i<288;i++)if(data[i])return RF_FORMAT;
     expected=SCENE_CHECKPOINT_HEADER+(uint64_t)core+admission*48+(uint64_t)maps*88+faces*2;
     if(expected!=bytes)return RF_FORMAT;
@@ -9788,7 +9788,7 @@ static int scene_checkpoint_restore(scene_stream *s,unsigned char *data,uint32_t
     if(checkpoint_u32(data+208)!=s->terrain_texture_width || checkpoint_u32(data+212)!=s->terrain_texture_height)return RF_FORMAT;
     for(i=0;i<3;i++)if(checkpoint_float(data+216+i*4)!=s->terrain_history_minimum[i] || checkpoint_float(data+228+i*4)!=s->terrain_history_maximum[i])return RF_FORMAT;
     admission=checkpoint_u32(data+240);maps=checkpoint_u32(data+248);core=checkpoint_u32(data+252);faces=checkpoint_u32(data+272);
-    if(admission>128 || maps>1024 || core<28 || core>RF_GEOMOD_HISTORY_MAX_BYTES || faces>SCENE_TERRAIN_FACES)return RF_FORMAT;
+    if(admission>128 || maps>RF_GEOMOD_LIGHTMAP_LIMIT || core<28 || core>RF_GEOMOD_HISTORY_MAX_BYTES || faces>SCENE_TERRAIN_FACES)return RF_FORMAT;
     for(i=276;i<288;i++)if(data[i])return RF_FORMAT;
     expected=SCENE_CHECKPOINT_HEADER+(uint64_t)core+admission*48+(uint64_t)maps*88+faces*2;
     if(expected!=bytes)return RF_FORMAT;
@@ -9976,7 +9976,7 @@ static int scene_checkpoint_capture(scene_stream *s)
     }
     status=rf_geomod_terrain_get(s->terrain,&view);if(status)goto done;
     status=rf_geomod_terrain_history_size(s->terrain,&core);if(status)goto done;
-    if(s->terrain_history_count>128 || owner->count>1024 || view.mesh.face_count>SCENE_TERRAIN_FACES){status=RF_RANGE;goto done;}
+    if(s->terrain_history_count>128 || owner->count>RF_GEOMOD_LIGHTMAP_LIMIT || view.mesh.face_count>SCENE_TERRAIN_FACES){status=RF_RANGE;goto done;}
     bytes=SCENE_CHECKPOINT_HEADER+core+s->terrain_history_count*48+owner->count*88+view.mesh.face_count*2;
     if(prefix){
         if(bytes>RF_COMPOSED_CHECKPOINT_RFDS_MAX){status=RF_RANGE;goto done;}
@@ -10556,6 +10556,7 @@ static int scene_rockets_tick(scene_stream *s,uint32_t frame)
                          hardness.scale,s->terrain_material,limits,limit_count);
                      scene_terrain_edit_mark(timing_row,1,&timing_clock);
                  }}
+                if(status && rf_scene_combat_trace)printf("GEOMOD_REJECT %u %d %u\n",frame,status,s->terrain_history_count);
                 rf_scene_geomod[5]=(uint32_t)status;
                 if(!status){status=s->terrain_authored?RF_OK:scene_terrain_bind(s);scene_terrain_edit_mark(timing_row,2,&timing_clock);if(status)return status;++rf_scene_geomod[7];++rf_scene_rockets[4];status=scene_debris_spawn(s);scene_terrain_edit_mark(timing_row,4,&timing_clock);if(status)return status;}
                 else {++rf_scene_rockets[5];if(status!=RF_RANGE && status!=RF_FORMAT && status!=RF_NOT_FOUND)return status;}
