@@ -1,6 +1,6 @@
 # Red Faction Xbox / PC - open work
 
-- GeoMod source expansion: Resolve roof80/air85 neighbor subtraction before admitting the eight-unit beam95; a37-candidate room census and exact authored/compiled beam ownership are available, but live beam destruction is not implemented.
+- GeoMod source expansion: Implement the subtracted roof neighbor boundary before admitting beam95; compiled geometry confirms only1 of4 square units touches the roof and25600 boundary checks pass, while live beam destruction remains unimplemented.
 
 - GeoMod publication: Broaden clipped-face partition coverage to other source geometry; the repaired shot, save/reload and subsequent rocket now pass76/75/76 native checks, with exact uninterrupted PC checkpoints, while broader histories remain open.
 

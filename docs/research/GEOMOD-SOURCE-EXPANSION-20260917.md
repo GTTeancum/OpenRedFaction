@@ -13,3 +13,14 @@ Its flags-zero neighbors are roof80 and posts93/94, all touching at boundary-onl
 Next implementation boundary: resolve the roof80-minus-air85 neighbor representation and retain the actual compiled beam windows/provenance before adding a beam profile. Verify uncut reconstruction against compiled geometry and then cut across the beam/post contact, including collision and support. Do not remove source/neighborhood guards globally or use repaired caps as a shortcut. This can extend core gameplay in the same enemy-free room without advancing the campaign.
 
 Validation this turn: census agrees with all four current source profiles; beam export passes exact parse, closure and convexity and retains direct compiled ownership. No game source behavior changed, no build/emulator ran, and no new HDD/image was created. Larger live fragments remain unverified.
+
+
+## Roof interface resolved from compiled geometry
+
+Authored roof80 is an outward triangular prism with bottom Y2.5, peak Y3.5 at Z0 and span Z[-4,4]. Air85 is an inward triangular prism with bottom Y2.5, peak approximatelyY3 at Z0 and span Z[-3,3]. The solid-only export utility correctly rejects air85's inward orientation; it is not malformed or suitable for pretending to be an additive neighbor.
+
+At beam95's top planeY2.5, air85 removes the roof center for Z(-3,3). Only the two end strips Z[-4,-3] and Z[3,4] meet the beam. Total beam top area is4, exposed top area is2.9999998807907104, and geometric roof contact area is1. This is geometry contact, not a recovered dynamic-support rule. Compiled beam top face168 (authored556) explicitly covers the open middle. Compiled roof underside faces164..167 (authored478) cover7 square units: the8-unit outer roof strips minus the1-unit beam contact. No raw32-unit roof bottom may be published over the hollow center.
+
+New tools/check_geomod_beam_roof_boundary.py loads installed geometry directly, checks the exact compiled face identities/plane and areas, then compares25600 point classifications against separate exposed-beam and exposed-roof masks. Points are cell centers chosen away from the relevant edges; this does not claim every boundary float is exact. All checks pass. Report artifacts/geomod-beam-roof-boundary.json includes geometry hash6437d8f2fc5fc9535cabb928c29e48b8428d6a3a22a414b3be88aef39fe7117b.
+
+The scene publisher currently exposes raw neighboring brush faces after a cut. Beam admission therefore needs the already-subtracted roof boundary (or an equivalent proven ordered-Boolean representation), including the correct UV/provenance for newly uncovered end patches. The boundary audit supplies a concrete uncut reference and rejects the tempting but incorrect full-roof-bottom approximation. Full volume representation, allocation budget, beam/player collision, live extraction and Xbox acceptance are still open. No gameplay change or emulator launch occurred in this audit.
