@@ -91,7 +91,7 @@ static int scene_checkpoint_dispatch_restore(scene_stream *s,unsigned char *data
     status=rf_composed_checkpoint_preflight(data,bytes,scene_checkpoint_profile(s),&catalog,&candidate);if(status)return status;
     status=rf_player_checkpoint_validate(&candidate.player,&catalog,basis,eye);if(status)return status;
     body=scene_actor_body.state;memcpy(body.position,candidate.player.position,12);memcpy(body.next_position,body.position,12);
-    memcpy(body.orientation,basis,36);memcpy(body.next_orientation,basis,36);memset(body.velocity,0,sizeof(body.velocity));
+    memcpy(body.orientation,basis,36);memcpy(body.next_orientation,basis,36);memcpy(body.velocity,candidate.player.velocity,12);
     status=rf_physics_spheres_bounds(scene_actor_body.spheres.items,scene_actor_body.spheres.count,body.position,&body.bounds);if(status)return status;
     status=rf_physics_tensor_world(body.local_tensor,basis,body.world_tensor);if(status)return status;
     /* Existing RFDS semantic validator and candidate body fit have succeeded.
@@ -119,7 +119,7 @@ static void scene_checkpoint_player_locomotion(void)
     if(!rf_scene_player_checkpoint_enabled || !rf_scene_player_checkpoint_state[1])return;
     rf_scene_actor_landing[1]=1;rf_scene_actor_landing[2]=0;
     scene_actor_body.state.flags&=~(0x200000u|0x400000u);
-    memset(scene_actor_body.state.velocity,0,sizeof(scene_actor_body.state.velocity));
+    /* Restore already supplied the saved residual velocity (zero for RFPL v1). */
     campaign_support_handle=0;memset(campaign_support_velocity,0,sizeof(campaign_support_velocity));
 }
 static int scene_checkpoint_player_capture(scene_stream *s,rf_player_checkpoint *player,rf_player_checkpoint_catalog *catalog)
@@ -142,6 +142,7 @@ static int scene_checkpoint_player_capture(scene_stream *s,rf_player_checkpoint 
     if(!campaign_player_inventory.owned[campaign_selected_weapon()])player->player.weapon=UINT32_MAX;
     player->player.catalog_hash=rf_scene_weapon_supply[3];memcpy(player->position,scene_actor_body.state.position,12);
     memcpy(player->body_angles,actor_look.state.body_angles,12);memcpy(player->eye_angles,actor_look.state.eye_angles,12);
+    memcpy(player->velocity,scene_actor_body.state.velocity,12);
     status=rf_player_checkpoint_validate(player,catalog,body,NULL);if(status){printf("PLAYER_CHECKPOINT_REJECT player %d health %.9g/%.9g armor %.9g/%.9g\n",status,(double)player->player.health,(double)catalog->health_capacity,(double)player->player.armor,(double)catalog->armor_capacity);return status;}
     scene_checkpoint_placement(s,player,body,&placement);status=rf_geomod_terrain_get(s->terrain,&view);if(status)return status;
     if(s->terrain_authored) {

@@ -85,3 +85,24 @@ velocity below.001, while restore resets velocity to zero. This residual-motion
 policy mismatch remains open; no equality tolerance was added and no standing-on-
 rubble claim is made. Optional RF_CHECKPOINT_PLACEMENT_TRACE logs classification
 evidence on PC without altering validation outcomes.
+
+## Residual velocity and replay boundary fixed
+
+RFPLv2 stores finite residual standing velocity in the former reserved bytes68–79,
+within the existing544-byte section and existing per-axis.001 admission bound.
+OldRFPLv1 decodes to zero velocity, and the encoder retains v1 for bitwise zero
+velocity. Capture and restore preserve the residual vector; ordinary restored
+locomotion initialization no longer clears it. Malformed/nonfinite/out-of-scope
+velocity rejects without publishing decoded state. This is a port format extension.
+
+The replay renders before stepping and omits the step after its final frame.
+A600-frame save therefore contains599 steps and has not consumed input599.
+The resumed recording now starts with input599 and renders201 frames, executing
+the200 steps needed to reach the800-frame uninterrupted control. Its full RFCP
+is byte-identical, including the residual velocity. The former zero-velocity
+fixtures hid this one-step test error; other continuation fixtures need auditing
+before interpreting their transient-state equivalence.
+
+Current PC acceptance: jump collision, landing beside rubble, successful save/load,
+and exact continuation. Saved standing on top of rubble and nativeRFPLv2 acceptance
+remain open. No tolerance was added to the byte comparison.

@@ -3,12 +3,12 @@
 #include "rf/campaign.h"
 #define RF_PLAYER_CHECKPOINT_BYTES 544u
 /* Same-level, living, standing, settled player only. No transient actions,
- * velocities, timers, resources, attachments, world/mission state or physical
+ * timers, resources, attachments, world/mission state or physical
  * fit test. Caller must validate supported gameplay mode and restored-world
  * body clearance before publication. Not the original game's save ABI. */
 typedef struct rf_player_checkpoint {
     rf_campaign_player_state player;
-    float position[3],body_angles[3],eye_angles[3];
+    float position[3],body_angles[3],eye_angles[3],velocity[3];
 } rf_player_checkpoint;
 typedef struct rf_player_checkpoint_catalog {
     uint32_t hash,count;
@@ -21,6 +21,9 @@ typedef struct rf_player_checkpoint_catalog {
  * No allocation; errors leave outputs unchanged. All buffers/owners disjoint.
  * Canonical standing pose stores body yaw in[-2pi,2pi], eye pitch in[-pi/2,pi/2],
  * other angle components zero. No normalization/clamping of malformed input.
+ * Residual standing velocity must be finite and <=.001 per axis. RFPL v2 uses
+ * reserved bytes68..79 for it; v1 remains readable with zero velocity. The
+ * encoder retains v1 for bitwise zero velocity, preserving existing fixtures.
  * Derived bases optional (both may be NULL), each9 row-major floats. */
 int rf_player_checkpoint_validate(const rf_player_checkpoint *,const rf_player_checkpoint_catalog *,float body[9],float eye[9]);
 int rf_player_checkpoint_encode(const rf_player_checkpoint *,const rf_player_checkpoint_catalog *,void *,uint32_t);

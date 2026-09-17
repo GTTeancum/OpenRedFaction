@@ -49,5 +49,12 @@ int main(void)
  for(i=0;i<6;i++){bad_catalog=c;if(i==0)bad_catalog.count=0;if(i==1)bad_catalog.count=65;if(i==2)bad_catalog.supported[0]=2;if(i==3)bad_catalog.weapons[63].ammo_type=32;if(i==4)bad_catalog.reserve_capacity[31]=-1;if(i==5)bad_catalog.health_capacity=NAN;CHECK(rf_player_checkpoint_validate(&v,&bad_catalog,NULL,NULL)==RF_RANGE);}
  bad_catalog=c;bad_catalog.count=63;CHECK(rf_player_checkpoint_validate(&v,&bad_catalog,NULL,NULL)==RF_RANGE);
  CHECK(rf_player_checkpoint_encode(&v,&c,bytes,543)==RF_RANGE);CHECK(rf_player_checkpoint_decode(NULL,544,&c,&decoded)==RF_RANGE);
- puts("PASS RFPL roundtrip/truncation/pose/catalog/ammo/rollback boundaries");return 0;
+ bad=v;bad.velocity[0]=.001f;bad.velocity[2]=-.00001f;
+ CHECK(!rf_player_checkpoint_encode(&bad,&c,changed,544)&&changed[4]==2);
+ CHECK(!rf_player_checkpoint_decode(changed,544,&c,&decoded)&&!memcmp(bad.velocity,decoded.velocity,12));
+ CHECK(!rf_player_checkpoint_encode(&decoded,&c,encoded,544)&&!memcmp(changed,encoded,544));
+ for(i=0;i<3;i++)for(j=0;j<3;j++){memcpy(encoded,changed,544);put(encoded+68+i*4,j==0?0x7fc00000u:j==1?0x7f800000u:0x3f800000u);reject(encoded,544,&c);}
+ bad.velocity[0]=nextafterf(.001f,INFINITY);CHECK(rf_player_checkpoint_validate(&bad,&c,NULL,NULL)==RF_FORMAT);
+ CHECK(!rf_player_checkpoint_decode(bytes,544,&c,&decoded)&&decoded.velocity[0]==0&&decoded.velocity[1]==0&&decoded.velocity[2]==0);
+ puts("PASS RFPL v1/v2 roundtrip/residual velocity/truncation/pose/catalog/ammo/rollback boundaries");return 0;
 }

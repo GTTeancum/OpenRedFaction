@@ -71,10 +71,10 @@ int main(void)
  }
  rf_scene_player_checkpoint_enabled=1;rf_scene_player_checkpoint_state[1]=1;
  rf_scene_actor_landing[1]=3;scene_actor_body.state.flags=0x20600001u;
- campaign_support_handle=99;campaign_support_velocity[1]=1;scene_actor_body.state.velocity[1]=-1;
+ campaign_support_handle=99;campaign_support_velocity[1]=1;scene_actor_body.state.velocity[1]=.001f;
  scene_checkpoint_player_locomotion();
  CHECK(rf_scene_actor_landing[1]==1&&rf_scene_actor_landing[2]==0);
- CHECK(scene_actor_body.state.flags==0x20000001u&&!campaign_support_handle&&campaign_support_velocity[1]==0&&scene_actor_body.state.velocity[1]==0);
+ CHECK(scene_actor_body.state.flags==0x20000001u&&!campaign_support_handle&&campaign_support_velocity[1]==0&&scene_actor_body.state.velocity[1]==.001f);
  rf_scene_player_checkpoint_enabled=0;rf_scene_actor_landing[1]=3;scene_checkpoint_player_locomotion();CHECK(rf_scene_actor_landing[1]==3);
  rf_scene_player_checkpoint_enabled=1;rf_scene_player_checkpoint_state[1]=0;scene_checkpoint_player_locomotion();CHECK(rf_scene_actor_landing[1]==3);
  rf_scene_player_checkpoint_enabled=0;

@@ -1,8 +1,8 @@
 """Jump against natural rubble and save after landing beside it.
 Originally exposed ignored collision and no-boundary-ray save bugs. This route
 does not land on top of the chunk; saved rubble standing remains unverified.
-Known remaining failure: strict continuation equality detects residual velocity
-discarded by RFPL restore (only position X/Z differ, about9e-6 world units total).
+The save is after rendered frame599, before consuming input599; replay that
+input as the first resumed frame so both paths execute the same200 steps.
 No host input.
 """
 import json,os,struct,subprocess
@@ -12,7 +12,7 @@ source=(ROOT/'artifacts/geomod-postedit-re/intermediate-search/0.bin').read_byte
 data=bytearray(source[:8+350*48]+bytes(450*48))
 for frame in range(360,471):struct.pack_into('<f',data,8+frame*48+8,.8)
 struct.pack_into('<I',data,8+470*48+24,1)
-recordings={'saved':data[:8+600*48],'continued':data[:8]+data[8+600*48:],'control':data}
+recordings={'saved':data[:8+600*48],'continued':data[:8]+data[8+599*48:],'control':data}
 env={k:v for k,v in os.environ.items() if not k.startswith(('RF_REPLAY_','RF_DEV_'))}
 env.update(RF_REPLAY_LEVEL='ctf06.rfl',RF_REPLAY_ARCHIVE='levelsm.vpp',RF_REPLAY_DEV_ROOM='1',RF_REPLAY_PLAYER_CHECKPOINT='1')
 report={}

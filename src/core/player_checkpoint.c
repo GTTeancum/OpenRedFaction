@@ -42,6 +42,7 @@ int rf_player_checkpoint_validate(const rf_player_checkpoint *v,const rf_player_
  for(i=0;i<32;i++)if(v->player.inventory.reserve[i]<0 || v->player.inventory.reserve[i]>c->reserve_capacity[i] || (!used[i] && v->player.inventory.reserve[i]))return RF_FORMAT;
  if(v->player.weapon!=UINT32_MAX && (v->player.weapon>=c->count || !c->supported[v->player.weapon] || !v->player.inventory.owned[v->player.weapon]))return RF_FORMAT;
  for(i=0;i<3;i++)if(!isfinite(v->position[i]) || !isfinite(v->body_angles[i]) || !isfinite(v->eye_angles[i]))return RF_FORMAT;
+ for(i=0;i<3;i++)if(!isfinite(v->velocity[i]) || fabsf(v->velocity[i])>.001f)return RF_FORMAT;
  if(v->body_angles[0]!=0 || v->body_angles[2]!=0 || v->eye_angles[1]!=0 || v->eye_angles[2]!=0)return RF_FORMAT;
  if(v->body_angles[1]<-6.2831854820251465f || v->body_angles[1]>6.2831854820251465f ||
     v->eye_angles[0]<-1.5707963705062866f || v->eye_angles[0]>1.5707963705062866f)return RF_FORMAT;
@@ -55,9 +56,11 @@ int rf_player_checkpoint_encode(const rf_player_checkpoint *v,const rf_player_ch
 {
  unsigned char *p=data;uint32_t i;int status;if(!data || bytes!=RF_PLAYER_CHECKPOINT_BYTES)return RF_RANGE;
  status=rf_player_checkpoint_validate(v,c,NULL,NULL);if(status)return status;
- memset(p,0,bytes);memcpy(p,"RFPL",4);put32(p+4,1);put32(p+8,bytes);
+ {static const float zero[3]={0};
+ memset(p,0,bytes);memcpy(p,"RFPL",4);put32(p+4,memcmp(v->velocity,zero,12)?2:1);put32(p+8,bytes);}
  put32(p+16,v->player.catalog_hash);put32(p+20,v->player.weapon);put_float(p+24,v->player.health);put_float(p+28,v->player.armor);
  for(i=0;i<3;i++){put_float(p+32+i*4,v->position[i]);put_float(p+44+i*4,v->body_angles[i]);put_float(p+56+i*4,v->eye_angles[i]);}
+ for(i=0;i<3;i++)put_float(p+68+i*4,v->velocity[i]);
  memcpy(p+80,v->player.inventory.owned,64);
  for(i=0;i<32;i++)put32(p+144+i*4,(uint32_t)v->player.inventory.reserve[i]);
  for(i=0;i<64;i++)put32(p+272+i*4,(uint32_t)v->player.inventory.loaded[i]);return RF_OK;
@@ -66,10 +69,11 @@ int rf_player_checkpoint_decode(const void *data,uint32_t bytes,const rf_player_
 {
  const unsigned char *p=data;rf_player_checkpoint v={0};uint32_t i,n;int status;
  if(!data || !out)return RF_RANGE;
- if(bytes!=RF_PLAYER_CHECKPOINT_BYTES || memcmp(p,"RFPL",4) || read32(p+4)!=1 || read32(p+8)!=bytes || read32(p+12))return RF_FORMAT;
- for(i=68;i<80;i++)if(p[i])return RF_FORMAT;for(i=528;i<544;i++)if(p[i])return RF_FORMAT;
+ if(bytes!=RF_PLAYER_CHECKPOINT_BYTES || memcmp(p,"RFPL",4) || (read32(p+4)!=1 && read32(p+4)!=2) || read32(p+8)!=bytes || read32(p+12))return RF_FORMAT;
+ if(read32(p+4)==1)for(i=68;i<80;i++)if(p[i])return RF_FORMAT;for(i=528;i<544;i++)if(p[i])return RF_FORMAT;
  v.player.catalog_hash=read32(p+16);v.player.weapon=read32(p+20);v.player.health=read_float(p+24);v.player.armor=read_float(p+28);
  for(i=0;i<3;i++){v.position[i]=read_float(p+32+i*4);v.body_angles[i]=read_float(p+44+i*4);v.eye_angles[i]=read_float(p+56+i*4);}
+ if(read32(p+4)==2)for(i=0;i<3;i++)v.velocity[i]=read_float(p+68+i*4);
  memcpy(v.player.inventory.owned,p+80,64);
  for(i=0;i<32;i++){n=read32(p+144+i*4);if(n>INT32_MAX)return RF_FORMAT;v.player.inventory.reserve[i]=(int32_t)n;}
  for(i=0;i<64;i++){n=read32(p+272+i*4);if(n>INT32_MAX)return RF_FORMAT;v.player.inventory.loaded[i]=(int32_t)n;}

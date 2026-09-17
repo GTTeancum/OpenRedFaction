@@ -3,7 +3,7 @@ Three bounded launches: seed absent slots; load+save via actual pure scene selec
 fresh load. Full RFSG hashes prove previous-slot preservation; exact RFDS/RFCP proves
 restored DEV state. No screenshot, host input, or existing HDD modification.
 """
-import argparse,datetime,hashlib,json,os,shutil,socket,struct,subprocess,time
+import argparse,datetime,hashlib,json,math,os,shutil,socket,struct,subprocess,time
 from pathlib import Path
 from xemu_smoke import Monitor
 from xemu_guest_snapshot import words
@@ -16,8 +16,10 @@ def checkpoint_format(data,player_checkpoint):
   raise ValueError('Unexpected checkpoint format/version/length')
  if player_checkpoint:
   if len(data)<864 or struct.unpack_from('<8I',data,0)!=(int.from_bytes(b'RFCP','little'),1,len(data),0,1,544,len(data)-576,0):raise ValueError('Invalid RFCP envelope')
-  if data[32:36]!=b'RFPL' or struct.unpack_from('<III',data,36)!=(1,544,0):raise ValueError('Invalid RFPL header')
-  if any(data[100:112]) or any(data[560:576]):raise ValueError('Invalid RFPL reserved bytes')
+  version,size,flags=struct.unpack_from('<III',data,36)
+  if data[32:36]!=b'RFPL' or version not in (1,2) or size!=544 or flags:raise ValueError('Invalid RFPL header')
+  if (version==1 and any(data[100:112])) or any(data[560:576]):raise ValueError('Invalid RFPL reserved bytes')
+  if version==2 and any(not math.isfinite(v) or abs(v)>struct.unpack('<f',struct.pack('<f',.001))[0] for v in struct.unpack_from('<3f',data,100)):raise ValueError('Invalid RFPL residual velocity')
   checkpoint_format(data[576:],False)
  return '.rfcp' if player_checkpoint else '.rfds'
 

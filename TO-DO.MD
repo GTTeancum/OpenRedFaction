@@ -4,7 +4,7 @@
 
 - PRIORITY GeoMod jump/support: Verify landing and saved standing on intermediate rubble; false world-placement rejection after a deflected jump is fixed by bounded no-hit ray retries, while current jump lands beside the chunk and native acceptance remains open.
 
-- Player saves: Preserve small residual velocity or define a consistent settled-state policy; the post-jump save reloads successfully but differs from uninterrupted continuation by about9e-6world units because restore zeros admitted sub-.001velocity.
+- Player saves: Verify RFPLv2 residual velocity on Xbox and audit replay save boundaries; the post-jump PC continuation is byte-exact after preserving velocity and resuming input599 after a600-frame save, while legacy zero-velocity RFPLv1 remains compatible.
 
 - PRIORITY GeoMod player contacts: Verify intermediate-size rubble on Xbox and saved standing support; a naturally extracted radius0.530725 chunk produces44 sphere-route PC contacts and exact post-crossing save continuation; movement, ground and checkpoint shapes select spheres for(0.5,1] and polygons above1, with1080 original ground comparisons.
 
