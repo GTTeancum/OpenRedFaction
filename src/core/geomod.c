@@ -449,6 +449,24 @@ int rf_geomod_debris_select_room(const float center[3],const float normal[3],flo
     *random=next;*out=value;return RF_OK;
 }
 
+int rf_geomod_debris_motion(const float start[3],const float velocity[3],float dt,
+    uint32_t liquid_flag,float depth,float bottom,float proposed[3])
+{
+    float value[3],scale=1;uint32_t i;
+    if(!start || !velocity || !proposed || !isfinite(dt) || dt<0)return RF_RANGE;
+    for(i=0;i<3;i++)if(!isfinite(start[i]) || !isfinite(velocity[i]))return RF_RANGE;
+    if((liquid_flag&255u)==1) {
+        if(!isfinite(depth) || !isfinite(bottom))return RF_RANGE;
+        if((double)start[1]<=(double)depth+(double)bottom)scale=.2f;
+    }
+    for(i=0;i<3;i++) {
+        float step=(float)((double)velocity[i]*dt);
+        step=(float)((double)step*scale);value[i]=start[i]+step;
+        if(!isfinite(value[i]))return RF_RANGE;
+    }
+    memcpy(proposed,value,sizeof(value));return RF_OK;
+}
+
 int rf_geomod_debris_liquid_miss(const float start[3],const float end[3],
     uint32_t liquid_flag,float depth,float bottom,rf_geomod_debris_liquid_hit *hit,uint32_t *matched)
 {

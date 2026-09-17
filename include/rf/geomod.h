@@ -154,6 +154,12 @@ int rf_geomod_debris_select_room(const float center[3],const float normal[3],flo
     uint32_t fallback_room,rf_geomod_debris_room_query query,void *context,
     rf_random_state *random,rf_geomod_debris_burst_room *out);
 typedef struct rf_geomod_debris_liquid_hit {float fraction,point[3];} rf_geomod_debris_liquid_hit;
+/*48f932..48f98b proposed motion: velocity*dt rounded, then water scale
+ * rounded, then added to start. Only liquid byte1 and inclusive raw water
+ * height select0.2; other flags use1. No gravity, collision or room mutation.
+ * Output unchanged on invalid/nonfinite input. Start/output may alias. */
+int rf_geomod_debris_motion(const float start[3],const float velocity[3],float dt,
+    uint32_t liquid_flag,float depth,float bottom,float proposed[3]);
 /*48fc6e..48fd19, only after solid miss. Retained birth-room raw depth and
  * bottom remain separate; low byte liquid_flag enables strict crossing at
  * float(trunc(depth+bottom+.5)). Preserves original reverse interpolation.

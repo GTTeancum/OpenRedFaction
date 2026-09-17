@@ -558,6 +558,7 @@ uint32_t rf_scene_debris[8]; /* spawned,active,bounces,expired,vertices,hash,byt
 uint32_t rf_scene_debris_relaunch[8]; /* passes,candidates,relaunched,settled resumed,state hash,seed before,seed after,last slot */
 uint32_t rf_scene_debris_wet[8]; /* solid misses,wet tests,accepted,last room,fraction bits,point hash,last status,presence */
 uint32_t rf_scene_debris_visibility[8]; /* hidden submissions,aged,last admitted/hidden,hidden age hashes before/after,room tests/rejects */
+uint32_t rf_scene_debris_motion[8]; /* moving steps,submerged steps,last room,flag,proposed hash,status,reserved,reserved */
 
 #ifndef SCENE_TERRAIN_ATLAS_BUDGET
 #define SCENE_TERRAIN_ATLAS_BUDGET (1280u*1024u)
@@ -9428,7 +9429,7 @@ static int scene_terrain_open(scene_stream *s,const rf_level *level,rf_vpp *maps
     rf_scene_terrain_atlas[3]=2*512*512*2+64*64*2+SCENE_TERRAIN_FACES*(sizeof(*s->terrain_bindings)+sizeof(*s->terrain_tiles))+sizeof(rf_image)+sizeof(*s->terrain_noise);
     if(rf_scene_terrain_atlas[3]>SCENE_TERRAIN_ATLAS_BUDGET){printf("TERRAIN_ATLAS_BUDGET %u %u\n",rf_scene_terrain_atlas[3],SCENE_TERRAIN_ATLAS_BUDGET);return RF_RANGE;}
     s->debris=calloc(1,sizeof(*s->debris));if(!s->debris)return RF_IO;
-    s->debris->random.value=1;rf_debris_audio_init(&s->debris->audio);memset(rf_scene_debris_audio,0,sizeof(rf_scene_debris_audio));memset(rf_scene_debris,0,sizeof(rf_scene_debris));memset(rf_scene_debris_relaunch,0,sizeof(rf_scene_debris_relaunch));memset(rf_scene_debris_wet,0,sizeof(rf_scene_debris_wet));memset(rf_scene_debris_visibility,0,sizeof(rf_scene_debris_visibility));rf_scene_debris_wet[3]=UINT32_MAX;rf_scene_debris[6]=sizeof(*s->debris);
+    s->debris->random.value=1;rf_debris_audio_init(&s->debris->audio);memset(rf_scene_debris_audio,0,sizeof(rf_scene_debris_audio));memset(rf_scene_debris,0,sizeof(rf_scene_debris));memset(rf_scene_debris_relaunch,0,sizeof(rf_scene_debris_relaunch));memset(rf_scene_debris_wet,0,sizeof(rf_scene_debris_wet));memset(rf_scene_debris_visibility,0,sizeof(rf_scene_debris_visibility));memset(rf_scene_debris_motion,0,sizeof(rf_scene_debris_motion));rf_scene_debris_wet[3]=UINT32_MAX;rf_scene_debris[6]=sizeof(*s->debris);
     s->terrain_draw=calloc(1,sizeof(*s->terrain_draw));if(!s->terrain_draw)return RF_IO;
     memset(rf_scene_terrain_draw,0,sizeof(rf_scene_terrain_draw));
     s->terrain_ids=calloc(SCENE_TERRAIN_FACES,sizeof(*s->terrain_ids));if(!s->terrain_ids)return RF_IO;
@@ -10138,7 +10139,7 @@ static int scene_terrain_input(scene_stream *s,const float position[3],const flo
                 memset(rf_scene_terrain_bake,0,sizeof(rf_scene_terrain_bake));
                 scene_terrain_dirty(s,0,0,512,512);
             }
-            if(!status && s->debris){memset(s->debris,0,sizeof(*s->debris));s->debris->random.value=1;rf_debris_audio_init(&s->debris->audio);memset(rf_scene_debris_audio,0,sizeof(rf_scene_debris_audio));memset(rf_scene_debris,0,sizeof(rf_scene_debris));memset(rf_scene_debris_relaunch,0,sizeof(rf_scene_debris_relaunch));memset(rf_scene_debris_wet,0,sizeof(rf_scene_debris_wet));memset(rf_scene_debris_visibility,0,sizeof(rf_scene_debris_visibility));rf_scene_debris_wet[3]=UINT32_MAX;rf_scene_debris[6]=sizeof(*s->debris);}
+            if(!status && s->debris){memset(s->debris,0,sizeof(*s->debris));s->debris->random.value=1;rf_debris_audio_init(&s->debris->audio);memset(rf_scene_debris_audio,0,sizeof(rf_scene_debris_audio));memset(rf_scene_debris,0,sizeof(rf_scene_debris));memset(rf_scene_debris_relaunch,0,sizeof(rf_scene_debris_relaunch));memset(rf_scene_debris_wet,0,sizeof(rf_scene_debris_wet));memset(rf_scene_debris_visibility,0,sizeof(rf_scene_debris_visibility));memset(rf_scene_debris_motion,0,sizeof(rf_scene_debris_motion));rf_scene_debris_wet[3]=UINT32_MAX;rf_scene_debris[6]=sizeof(*s->debris);}
             if(!status)++rf_scene_geomod[7];
         } else {
         for(i=0;i<3;i++)delta[i]=orientation[2][i]*100;
@@ -10352,10 +10353,20 @@ static int scene_debris_tick(scene_stream *s,uint32_t frame)
     scene_debris_pool *p=s->debris;uint32_t i,k,matched;int status;
     if(!p)return RF_OK;rf_scene_debris[1]=0;
     for(i=0;i<80;i++)if(p->chunks[i].active) {
-        scene_debris_chunk *c=p->chunks+i;float delta[3];rf_geometry_world_hit hit;
+        scene_debris_chunk *c=p->chunks+i;float delta[3],proposed[3];rf_geometry_world_hit hit;
+        const rf_liquid_room *motion_room;uint32_t liquid_flag;
         if(!c->bounces){++rf_scene_debris[1];continue;}
         c->angle+=c->spin/60.f;
-        for(k=0;k<3;k++)delta[k]=c->velocity[k]/60.f;
+        if(!s->liquid_rooms || c->room>=s->swim_room_count || !s->collision->contains_liquid)return RF_FORMAT;
+        motion_room=s->liquid_rooms+c->room;liquid_flag=s->collision->contains_liquid[c->room];
+        status=rf_geomod_debris_motion(c->position,c->velocity,1.f/60,liquid_flag,
+            motion_room->depth,motion_room->minimum_y,proposed);
+        rf_scene_debris_motion[5]=(uint32_t)status;if(status)return status;
+        ++rf_scene_debris_motion[0];
+        if(liquid_flag==1 && (double)c->position[1]<=(double)motion_room->depth+motion_room->minimum_y)++rf_scene_debris_motion[1];
+        rf_scene_debris_motion[2]=c->room;rf_scene_debris_motion[3]=liquid_flag;
+        rf_scene_debris_motion[4]=npc_hash_bytes(2166136261u,proposed,12);
+        for(k=0;k<3;k++)delta[k]=proposed[k]-c->position[k];
         status=rf_geometry_collision_world_ray(s->collision,0x460,c->position,delta,1,&hit,&matched);if(status)return status;
         if(matched) {
             uint32_t wet=0,contributed=0;const rf_liquid_room *room;
@@ -10378,7 +10389,7 @@ static int scene_debris_tick(scene_stream *s,uint32_t frame)
                 if(status)return status;
                 memcpy(c->velocity,bounce.velocity,12);memcpy(c->axis,bounce.spin_axis,12);c->spin=bounce.spin_rate;
             }
-        } else for(k=0;k<3;k++)c->position[k]+=delta[k];
+        } else memcpy(c->position,proposed,sizeof(proposed));
         if(c->bounces)c->velocity[1]-=scene_gravity.acceleration/60.f;++rf_scene_debris[1];
     }
     /* Original48f4e0 skips its dispatch tail when the debris list is empty. */

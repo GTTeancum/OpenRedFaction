@@ -13,6 +13,7 @@
 - Movement: Finish underwater presentation; authored lava damage and harmless dry control now pass44/45 PC/Xbox checks on stock64MiB.
 
 - GeoMod debris visibility: Verify live leave/return lifetime retention; room-filtered drawing passes synthetic hidden/return cases,138 binary fixtures and60 stock64MiB PC/Xbox checks.
+- GeoMod debris motion: Recover remaining wet contact, ripple and force behavior; corrected submerged displacement passes72 exact binary cases and61 Xbox comparisons with585 submerged steps.
 - GeoMod debris: Verify audible output and broader liquid scenarios; five live wet births match original math and the two-blast run passes59 stock64MiB PC/Xbox checks.
 - GeoMod saves: Broaden authored save coverage after both one-cut and reset reload/next-blast paths pass58 stock64MiB Xbox checks with identical uninterrupted checkpoint bytes; malformed live restart coverage remains open.
 
