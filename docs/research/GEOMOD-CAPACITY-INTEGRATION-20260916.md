@@ -850,3 +850,40 @@ wall-sweep-prefix.log, sweep-prefix-04.mesh, sweep4/trace.log, and the native
 report above. Reproduce with tools/check_expanded_geomod_live.py --pattern
 wall-sweep --shots 16 --expected-cuts 14.
 Estimate remains ~50% overall/~72% GeoMod; focus is the broader topology failure.
+
+
+## Exact edge audit distinguishes the sweep sliver from a later seam
+
+Further tracing corrects the previous cut4 diagnosis. The two points are
+intersections of different constructions: face4/diagonal2084/cut436 gives
+(-16,-8.35877228,8.40160465), while face436/source4/cut180 gives
+(-16,-8.35877228,8.40160179). Diagonal2084 is an actual internal partition chord
+from(-16,-9.54946709,14.9137316) to(-16,-8.35660934,8.38977623), not an incorrectly
+labelled straight boundary. The resulting thin triangle has exact opposite
+partners for all its edges. The1e-6 proximity checker counts its distinct sides
+together and reports four-way coverage. That report alone does not prove a
+duplicated surface; do not delete this triangle based on proximity.
+
+Added tools/audit_geomod_exact_edges.py to audit RGM1 directed-edge pairing
+without welding or tolerance matching. It validates bounded input lengths,
+finite vertices and face windows, records unmatched edge owners, and explicitly
+makes no self-intersection/fidelity claim. Closed tetrahedron, missing face,
+duplicate shell, zero-length edge and truncated-input controls were checked.
+
+All edges pair exactly for sweep admissions1..5. At6, four directed edges
+remain unmatched through14. Their common near-vertex differs only in z:
+(-19.115341186523438,-8.482861518859863,6.634522914886475) versus
+(-19.115341186523438,-8.482861518859863,6.634523391723633).
+This4.76837158203125e-7 difference is one float step. It lies between common
+outer endpoints(-19.10662078857422,-8.485000610351562,6.633979797363281) and
+(-19.276233673095703,-8.443381309509277,6.64454984664917).
+Investigate the clipping/support provenance for this later seam next.
+
+No production geometry or acceptance tolerance changed. The ordinary sweep
+remains unaccepted; exact pairing alone would not establish nonintersection
+or correct crater volume. Existing proximity failure is retained pending a
+proper verifier treatment of distinct thin surfaces. Evidence:
+artifacts/authored-post-live/sweep-prefix-01..14.exact.json,
+sweep4/intersections.log and sweep4/registration.log. Estimate remains
+~50% overall/~72% GeoMod. This is a diagnostic correction, not another claimed
+GeoMod geometry fix.
