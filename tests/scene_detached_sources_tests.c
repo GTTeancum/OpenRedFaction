@@ -81,6 +81,27 @@ static int player_sources(void) {
         CHECK(!scene_detached_sources_player(&scene,&actor,&query,1,motion,&hit,&found));
         CHECK(found && hit.batch==16 && hit.face==UINT32_MAX && hit.contact.normal[1]>0);
     }
+    {
+        rf_checkpoint_placement placement={0};rf_physics_ground_probe probe={0};rf_checkpoint_support_hit support,expected,old;
+        scene_collection_support_context context={&scene,&placement};rf_geomod_player_support_context single={r[1],&placement};
+        uint32_t selected=0;
+        placement.spheres=&sphere;placement.count=1;memcpy(placement.basis,actor.orientation,36);
+        memcpy(probe.start,query.start,12);memcpy(probe.end,query.end,12);probe.bounds.radius=.6f;
+        for(i=0;i<2;i++){body[i]->state.flags&=~0x80000000u;memset(body[i]->state.velocity,0,12);memset(body[i]->state.vector_c8,0,12);}
+        CHECK(!rf_geomod_piece_registry_player_support(&single,&probe,1,&expected,&selected) && selected && expected.stable);
+        CHECK(!scene_collection_player_support(&context,&probe,1,&support,&selected) && selected && support.stable);
+        CHECK(!memcmp(&support,&expected,sizeof(support)));
+        body[1]->state.velocity[0]=1;
+        CHECK(!scene_collection_player_support(&context,&probe,1,&support,&selected) && selected && !support.stable);
+        body[1]->state.velocity[0]=0;
+        memcpy(placement.position,body[1]->state.position,12);
+        CHECK(scene_collection_player_placement(&scene,&placement)==RF_NOT_FOUND);
+        placement.position[0]=20;CHECK(!scene_collection_player_placement(&scene,&placement));
+        old=support;selected=777;CHECK(!rf_geomod_piece_registry_begin(r[1],0));
+        CHECK(scene_collection_player_support(&context,&probe,1,&support,&selected)!=RF_OK);
+        CHECK(selected==777 && !memcmp(&support,&old,sizeof(old)));rf_geomod_piece_registry_abort(r[1]);
+        puts("PASS collection checkpoint support: second source, stable/moving body distinction, overlap rejection and atomic later-registry failure");
+    }
     CHECK(!scene_detached_sources_npc(&scene,&actor,1,1,&npc,&b,&p,&found));CHECK(found && b==16 && p==0);
     saved_npc=npc;b=p=777;
     CHECK(!scene_detached_sources_npc(&scene,&actor,9,1,&npc,&b,&p,&found));

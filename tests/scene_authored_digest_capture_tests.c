@@ -375,6 +375,23 @@ int main(int argc,char **argv)
                     if(prepared)printf("COLLECTION_STAGE_REJECT %d\n",prepared);
                     CHECK(!prepared && complete && complete->shared.lighting->draw_ready);
                     CHECK(!memcmp(&first,&complete->shared.expected,sizeof(first)));
+                    {
+                        rf_checkpoint_placement player={0};rf_physics_sphere sphere={0};float old_speed=rf_scene_actor_movement_values.speed;
+                        rf_scene_actor_movement_values.speed=5;
+                        player.world=&world;player.replaced_room=3;player.query_flags=4;player.spheres=&sphere;player.count=1;sphere.radius=.1f;
+                        player.basis[0]=player.basis[4]=player.basis[8]=1;
+                        player.position[0]=-2.75f;player.position[1]=0;player.position[2]=2.5f;
+                        {
+                            const rf_collision_tree *tree=complete->shared.lighting->candidate.tree;
+                            rf_collision_tree_hit ground={0};float down[3]={0,-8,0};uint32_t found=0;
+                            CHECK(!rf_collision_thin_tree(tree->nodes,tree->node_count,tree->faces,tree->face_count,4,player.position,down,1,tree->stack,tree->node_capacity,&ground,&found) && found);
+                            player.position[1]=down[1]*ground.hit.fraction+.101f;
+                        }
+                        CHECK(!scene_authored_collection_stage_player(complete,&player));
+                        player.position[0]=-5;player.position[1]=1;player.position[2]=-2.5f;
+                        CHECK(scene_authored_collection_stage_player(complete,&player)==RF_FORMAT);
+                        rf_scene_actor_movement_values.speed=old_speed;
+                    }
                     CHECK(!memcmp(lights->staged->terrain_atlas_pixels,complete->shared.lighting->staged->terrain_atlas_pixels,512u*512u*2u));
                     CHECK(lights->staged->terrain==live_core && pair->terrain_publication->active==active_bank);
                     printf("PASS complete paired private restore: digests/atlas exact, reserved%u bytes\n",complete->shared.reserved_peak_bytes);

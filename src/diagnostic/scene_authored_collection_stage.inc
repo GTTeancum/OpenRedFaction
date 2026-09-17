@@ -1,4 +1,4 @@
-/* Complete private RFDS3 reconstruction. No live commit or player admission:
+/* Complete private RFDS3 reconstruction with separate player admission. No live commit:
  * callers must add those gates before enabling gameplay load. Pending banks are
  * borrowed synchronously; no frame, other edit or renderer upload may intervene. */
 typedef struct scene_authored_collection_stage {
@@ -7,6 +7,51 @@ typedef struct scene_authored_collection_stage {
     scene_authored_sources_stage *sources;
     scene_authored_checkpoint_stage shared;
 } scene_authored_collection_stage;
+typedef struct scene_collection_support_context {
+    const scene_stream *scene;const rf_checkpoint_placement *player;
+} scene_collection_support_context;
+static inline int scene_collection_player_support(void *opaque,const rf_physics_ground_probe *probe,float limit,
+    rf_checkpoint_support_hit *out,uint32_t *matched)
+{
+    const scene_collection_support_context *c=opaque;rf_collision_actor_general_response actor={0};
+    rf_collision_body_query query={0};rf_geomod_registry_body_hit hit;rf_checkpoint_support_hit result;
+    rf_geomod_piece_batch *batch;rf_geomod_owned_piece piece;rf_physics_body *body;uint32_t found,i;int status;
+    if(!c || !c->scene || !c->player || !probe || !out || !matched || c->player->count>8)return RF_RANGE;
+    actor.actor.spheres=c->player->spheres;actor.actor.sphere_count=(int32_t)c->player->count;actor.actor.mass=1;
+    actor.extent=probe->bounds.radius;memcpy(actor.orientation,c->player->basis,36);memcpy(actor.next_orientation,c->player->basis,36);
+    memcpy(query.start,probe->start,12);memcpy(query.end,probe->end,12);query.flags=probe->query_flags;query.limit=limit;
+    status=scene_detached_sources_player(c->scene,&actor,&query,1,0,&hit,&found);if(status)return status;
+    if(found) {
+        rf_geomod_piece_registry *registry=scene_detached_source_registry(c->scene,hit.batch/SCENE_DETACHED_BATCH_STRIDE);
+        status=rf_geomod_piece_registry_get(registry,hit.batch%SCENE_DETACHED_BATCH_STRIDE,&batch);if(status)return status;
+        status=rf_geomod_piece_batch_get(batch,hit.piece,&piece,&body);if(status)return status;
+        result.fraction=hit.contact.fraction;memcpy(result.normal,hit.contact.normal,12);result.stable=!(body->state.flags&0x80000000u);
+        for(i=0;i<3;i++)if(body->state.velocity[i]!=0 || body->state.vector_c8[i]!=0)result.stable=0;
+        *out=result;
+    }
+    *matched=found;return RF_OK;
+}
+static inline int scene_collection_player_placement(const scene_stream *s,const rf_checkpoint_placement *player)
+{
+    uint32_t i;int status;
+    if(!s || !player || !s->terrain_sources || s->terrain_source_count<2 || s->terrain_source_count>4)return RF_RANGE;
+    for(i=0;i<s->terrain_source_count;i++) {
+        status=rf_geomod_piece_registry_placement_check(scene_detached_source_registry(s,i),player);if(status)return status;
+    }
+    return RF_OK;
+}
+static inline int scene_authored_collection_stage_player(scene_authored_collection_stage *p,const rf_checkpoint_placement *player)
+{
+    rf_geomod_terrain_view full;rf_collision_composition_view composition;scene_collection_support_context support;int status;
+    if(!p || !player || !p->shared.owns_pending || !p->shared.lighting || !p->shared.lighting->draw_ready)return RF_RANGE;
+    status=rf_collision_composition_pending(p->candidate.terrain_publication->composition,&composition);if(status)return status;
+    full=p->shared.publication;full.faces=composition.tree->faces;full.tree=p->shared.lighting->candidate.tree;full.mesh.face_count=composition.count;
+    support=(scene_collection_support_context){&p->candidate,player};
+    status=rf_checkpoint_standing_check_with_support(&full,player,scene_step_seconds,rf_scene_actor_movement_values.speed,
+        scene_collection_player_support,&support,NULL);
+    if(!status)status=scene_collection_player_placement(&p->candidate,player);
+    return status==RF_NOT_FOUND?RF_FORMAT:status;
+}
 static inline void scene_authored_collection_stage_discard(scene_authored_collection_stage **ptr)
 {
     scene_authored_collection_stage *p;if(!ptr || !(p=*ptr))return;
