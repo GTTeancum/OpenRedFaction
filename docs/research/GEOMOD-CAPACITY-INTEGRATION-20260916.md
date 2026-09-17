@@ -300,3 +300,27 @@ Remaining live dependencies: scene source vertex/sorted-index capacity, render
 face and insertion budgets, atlas map residency, publication/digest buffers,
 collision composition, reload staging, tooling transport bounds and stock Xbox
 memory/visual acceptance. No shipping16-cut or native expanded-save claim.
+
+## Expanded actual scene subdivision
+
+The scene draw adapter now has configurable source-vertex, face, output-vertex
+and byte bounds, with the existing shipping values unchanged. Sorted indices,
+preflight, publication and lighting-stage source checks share the source limit;
+a compile-time guard preserves uint16 indexing and output >= input capacity.
+
+An isolated CPU test executes scene.c with8192 source vertices,2048 faces,
+16384 output vertices and1MiB draw budget. A4500-vertex/1500-face input includes
+a late-index T-junction on the first face. Preflight leaves the draw owner
+unchanged; publication emits4501 vertices, interpolates the owning face UV to
+0.5 (not the unrelated source UV99), preserves all other polygons/materials/
+source IDs and source bytes, sorts every input index, and clears borrowed
+collision vertex pointers. Over-capacity rejection preserves the prior owner.
+Actual configured draw accounting is663572 bytes on this PC build. This is not
+a total scene/staging budget or an Xbox allocation measurement.
+
+All109 CTests pass; default NXDK build succeeds with its existing linker merge
+warning. Logs: capacity-draw-build.log, capacity-draw-full-build.log,
+capacity-draw-full-tests.log and capacity-draw-xbox-build.log under
+artifacts/authored-post-live. No frame/GPU/native visual claim for this CPU test.
+Atlas mapping, digest tables, terrain owner budgets and reload coexistence still
+need coordinated expansion before enabling the larger profile in gameplay.

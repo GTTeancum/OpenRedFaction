@@ -557,11 +557,25 @@ uint32_t rf_scene_debris[8]; /* spawned,active,bounces,expired,vertices,hash,byt
 uint32_t rf_scene_debris_relaunch[8]; /* passes,candidates,relaunched,settled resumed,state hash,seed before,seed after,last slot */
 uint32_t rf_scene_debris_wet[8]; /* solid misses,wet tests,accepted,last room,fraction bits,point hash,last status,presence */
 
-enum { SCENE_TERRAIN_FACES=800, SCENE_TERRAIN_DRAW_VERTICES=8192, SCENE_TERRAIN_DRAW_BUDGET=320*1024 };
+#ifndef SCENE_TERRAIN_FACES
+#define SCENE_TERRAIN_FACES 800
+#endif
+#ifndef SCENE_TERRAIN_SOURCE_VERTICES
+#define SCENE_TERRAIN_SOURCE_VERTICES 4096
+#endif
+#ifndef SCENE_TERRAIN_DRAW_VERTICES
+#define SCENE_TERRAIN_DRAW_VERTICES (2*SCENE_TERRAIN_SOURCE_VERTICES)
+#endif
+#ifndef SCENE_TERRAIN_DRAW_BUDGET
+#define SCENE_TERRAIN_DRAW_BUDGET (320*1024)
+#endif
+#if SCENE_TERRAIN_SOURCE_VERTICES > 65535 || SCENE_TERRAIN_DRAW_VERTICES < SCENE_TERRAIN_SOURCE_VERTICES
+#error Terrain subdivision requires bounded uint16 source indices and room for original vertices
+#endif
 typedef struct scene_terrain_draw_mesh {
     rf_geomod_vertex vertices[SCENE_TERRAIN_DRAW_VERTICES];rf_geomod_face faces[SCENE_TERRAIN_FACES];rf_collision_face bound[SCENE_TERRAIN_FACES];
     rf_geomod_mesh_view view;
-    uint16_t sorted[3][4096]; /* Coordinate indices, bounded and reused per edit. */
+    uint16_t sorted[3][SCENE_TERRAIN_SOURCE_VERTICES]; /* Coordinate indices, bounded and reused per edit. */
 } scene_terrain_draw_mesh;
 uint32_t rf_scene_terrain_draw[5]; /* source vertices,render vertices,insertions,owned bytes,generation */
 typedef struct scene_terrain_noise_map {
@@ -8777,8 +8791,8 @@ static int scene_terrain_subdivide_mode(scene_stream *s,const rf_geomod_terrain_
     scene_terrain_draw_mesh *draw=s->terrain_draw;const rf_geomod_mesh_view *mesh=&source->mesh;
     uint32_t f,e,i,k,n=mesh->vertex_count,inserted=0,written=0,face_count;
     rf_geomod_vertex polygon[64];
-    if(!draw || n>4096 || mesh->face_count>SCENE_TERRAIN_FACES ||
-       sizeof(*draw)+(SCENE_TERRAIN_DRAW_VERTICES-4096)*sizeof(*s->terrain_colors)>SCENE_TERRAIN_DRAW_BUDGET)return RF_RANGE;
+    if(!draw || n>SCENE_TERRAIN_SOURCE_VERTICES || mesh->face_count>SCENE_TERRAIN_FACES ||
+       sizeof(*draw)+(SCENE_TERRAIN_DRAW_VERTICES-SCENE_TERRAIN_SOURCE_VERTICES)*sizeof(*s->terrain_colors)>SCENE_TERRAIN_DRAW_BUDGET)return RF_RANGE;
     if(publish)for(k=0;k<3;k++) {
         uint32_t gap;
         for(i=0;i<n;i++)draw->sorted[k][i]=(uint16_t)i;
@@ -8860,7 +8874,7 @@ static int scene_terrain_subdivide_mode(scene_stream *s,const rf_geomod_terrain_
     if(!publish)return RF_OK;
     draw->view=(rf_geomod_mesh_view){draw->vertices,draw->faces,n,mesh->face_count,mesh->generation};
     rf_scene_terrain_draw[0]=mesh->vertex_count;rf_scene_terrain_draw[1]=n;rf_scene_terrain_draw[2]=inserted;
-    rf_scene_terrain_draw[3]=sizeof(*draw)+(SCENE_TERRAIN_DRAW_VERTICES-4096)*sizeof(*s->terrain_colors);rf_scene_terrain_draw[4]=mesh->generation;return RF_OK;
+    rf_scene_terrain_draw[3]=sizeof(*draw)+(SCENE_TERRAIN_DRAW_VERTICES-SCENE_TERRAIN_SOURCE_VERTICES)*sizeof(*s->terrain_colors);rf_scene_terrain_draw[4]=mesh->generation;return RF_OK;
 }
 static int scene_terrain_subdivide(scene_stream *s,const rf_geomod_terrain_view *source)
 {return scene_terrain_subdivide_mode(s,source,1);}
@@ -9050,7 +9064,7 @@ static int scene_terrain_shadow_lighting(scene_stream *s,const rf_geomod_terrain
     uint32_t i,j,k,count=0,*ids=s->light_overlay_work;rf_vfx_light_source *sources;
     float lo[3],hi[3],ambient[3];unsigned char room[4];uint32_t modes[63];int status;
     scene_terrain_light_cache *cache=s->terrain_light_cache;
-    if(!s->terrain_colors || !cache || !s->lights || !ids || terrain->mesh.face_count>SCENE_TERRAIN_FACES || terrain->mesh.vertex_count>4096 || !terrain->mesh.vertex_count)return RF_RANGE;
+    if(!s->terrain_colors || !cache || !s->lights || !ids || terrain->mesh.face_count>SCENE_TERRAIN_FACES || terrain->mesh.vertex_count>SCENE_TERRAIN_SOURCE_VERTICES || !terrain->mesh.vertex_count)return RF_RANGE;
     sources=(rf_vfx_light_source *)(ids+1100);
     status=rf_geometry_room_ambient(s->geometry,0,room);if(status)return status;
     for(k=0;k<3;k++)ambient[k]=.5f*(room[0]==1?(float)((double)room[k+1]*0.003921568859368563):s->light_ambient[k]);

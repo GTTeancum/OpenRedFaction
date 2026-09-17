@@ -50,7 +50,7 @@ static inline int scene_terrain_lighting_stage_clone_mode(scene_stream *live,
     if(!live || !candidate || !out ||
        (!empty && (!candidate->mesh.face_count || !candidate->mesh.vertices || !candidate->mesh.faces || !candidate->faces)) ||
        (empty && (candidate->cuts || candidate->mesh.face_count || candidate->mesh.vertex_count)) ||
-       candidate->mesh.face_count>SCENE_TERRAIN_FACES || candidate->mesh.vertex_count>4096 ||
+       candidate->mesh.face_count>SCENE_TERRAIN_FACES || candidate->mesh.vertex_count>SCENE_TERRAIN_SOURCE_VERTICES ||
        !candidate->tree || !candidate->tree->nodes || !candidate->tree->node_count ||
        candidate->tree->node_count>candidate->tree->node_capacity ||
        candidate->tree->node_capacity>SCENE_LIGHTING_STAGE_BUDGET/sizeof(uint32_t))return RF_RANGE;
