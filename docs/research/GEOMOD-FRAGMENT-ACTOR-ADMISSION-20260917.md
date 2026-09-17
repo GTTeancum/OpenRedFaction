@@ -68,3 +68,26 @@ This is a CPU scene fixture, not an authored live encounter, renderer check, or
 NPC locomotion/animation acceptance. It exercises the previously untested owned
 rubble branch without adding runtime hooks. The existing full suite remains the
 regression gate; native NPC/rubble execution still needs validation.
+
+## Live DEV miner rejection control
+
+Opt-in `RF_REPLAY_DEV_NPC=1` on PC or `D:\dev-npc.flag` on Xbox loads one
+installed L1S1 miner1 seed into the ctf06 DEV room, retains its owned raw storage
+and allocation accounting, relocates its decoded spawn, and disables enemy attack
+updates for this single-actor fixture. At frame400 it receives a scripted move
+request; normal motion, body sweep, animation and drawing run afterward.
+It is not a general NPC spawning interface. No original assets are modified.
+
+The first800-frame PC run completes with the miner moving from z5.5 to1.25.
+The actual class physics use-kind is9, not1, and the real detached chunk body
+radius is0.471438289, below the strict0.5 admission threshold. Zero fragment
+contacts are therefore expected and observed. The visible height change near
+the post is not evidence of fragment contact. `tools/check_dev_npc_rubble.py`
+records these facts as a rejection control; it must not claim positive collision.
+An eligible class and a larger naturally extracted fragment remain required.
+The inspected endpoint shows the miner beside the broken post, with the rocket
+launcher and room visible. No movement animation sequence or audio was reviewed.
+
+This run also exposed a startup diagnostic that failed every one-NPC scene
+because its aim probe required a second NPC. That unavailable pair is now skipped;
+ordinary weapon aiming is unchanged. Native execution of this fixture is pending.

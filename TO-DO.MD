@@ -1,6 +1,6 @@
 # Red Faction Xbox / PC - open work
 
-- GeoMod actor collision: Verify a visible NPC/rubble DEV encounter after scene-adapter crossing, class rejection, miss and retired-fragment controls; two-object response scheduling and player size-based shape selection remain open.
+- GeoMod actor collision: Add an eligible actor and larger fragment to the DEV contact test; the live miner1/class9 and radius0.471 chunk correctly reject contacts, while positive live contacts and two-object response remain open.
 
 - GeoMod object interactions: Broaden admitted fragment contacts with actors/props;128 original pair cases prove terrain fragments deliberately exclude one another, so fragment stacking is not a missing fidelity feature.
 

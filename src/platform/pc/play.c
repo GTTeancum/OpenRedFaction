@@ -493,6 +493,7 @@ int main(int argc,char **argv)
     {extern uint32_t rf_scene_debris_player_test_enabled;rf_scene_debris_player_test_enabled=p.headless && getenv("RF_REPLAY_DEBRIS_PLAYER_TEST")!=NULL;}
     rf_scene_ripple_test_enabled=p.headless && getenv("RF_REPLAY_RIPPLE_TEST")!=NULL;
     rf_scene_dev_room_enabled=dev_room || (p.headless && (getenv("RF_REPLAY_DEV_ROOM")!=NULL || getenv("RF_REPLAY_WATER_TEST")!=NULL));
+    rf_scene_dev_npc_enabled=p.headless && getenv("RF_REPLAY_DEV_NPC")!=NULL;
     rf_scene_player_checkpoint_enabled=p.headless && getenv("RF_REPLAY_PLAYER_CHECKPOINT")!=NULL;
     if(rf_scene_player_checkpoint_enabled && (!spawn_profile || !rf_scene_dev_room_enabled || strcmp(getenv("RF_REPLAY_PLAYER_CHECKPOINT"),"1")))CHECK(RF_FORMAT);
     rf_scene_follow_level_exits=spawn_profile && !rf_scene_dev_room_enabled && !rf_scene_swim_test_enabled;

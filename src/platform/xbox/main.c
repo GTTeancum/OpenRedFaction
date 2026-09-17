@@ -542,6 +542,7 @@ static int scene_preview(rf_level *level,rf_preview_mesh *mesh)
      rf_scene_debris_player_test_enabled=flag!=NULL;if(flag)fclose(flag);}
     {extern uint32_t rf_scene_ripple_test_enabled;FILE *ripple_flag=fopen("D:\\ripple-test.flag","rb");
      rf_scene_ripple_test_enabled=ripple_flag!=NULL;if(ripple_flag)fclose(ripple_flag);}
+    stream_flag=fopen("D:\\dev-npc.flag","rb");rf_scene_dev_npc_enabled=stream_flag!=NULL;if(stream_flag)fclose(stream_flag);
     stream_flag=fopen("D:\\dev-room.flag","rb");rf_scene_dev_room_enabled=stream_flag!=NULL;
     if(stream_flag)fclose(stream_flag);
     stream_flag=fopen("D:\\player-checkpoint.flag","rb");rf_scene_player_checkpoint_enabled=stream_flag!=NULL;

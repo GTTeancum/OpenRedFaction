@@ -18,6 +18,7 @@
 extern uint32_t rf_scene_follow_level_exits;
 /* Explicit developer loadout for the validated GlassHouse, ctf06 and water fixtures. */
 extern uint32_t rf_scene_dev_room_enabled;
+extern uint32_t rf_scene_dev_npc_enabled;
 /* Explicit same-level player + destruction checkpoint mode; legacy mode stays RFDS. */
 extern uint32_t rf_scene_player_checkpoint_enabled;
 extern uint32_t rf_scene_player_checkpoint_state[8];

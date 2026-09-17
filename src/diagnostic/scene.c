@@ -181,6 +181,8 @@ static uint32_t player_frame_limit;
 static rf_scene_input player_input;
 static uint32_t campaign_spawn;
 uint32_t rf_scene_dev_room_enabled;
+uint32_t rf_scene_dev_npc_enabled; /* Explicit harmless authored miner fixture. */
+static uint32_t scene_dev_npc_contacts;
 uint32_t rf_scene_water_test_enabled; /* Explicit authored dm03 water test; no terrain fixture. */
 uint32_t rf_scene_swim_test_enabled;
 int rf_scene_swim_test_place(rf_level *level)
@@ -5504,7 +5506,8 @@ static int campaign_weapon_aim_probe(void)
         campaign_npc_body *owner=campaign_npc_bodies+i;
         saved=owner->pain.selected_action;++rf_scene_weapon_aim[0];
         for(j=0;j<campaign_npc_body_count;++j)if(j!=i && campaign_npc_bodies[j].registration.view)break;
-        if(j==campaign_npc_body_count)return RF_NOT_FOUND;
+        /* A one-actor scene has no NPC target for this diagnostic pair. */
+        if(j==campaign_npc_body_count)continue;
         memcpy(muzzle,owner->eye_position,12);
         for(k=0;k<2;++k) {
             memcpy(basis,campaign_model_owners[i].basis,36);owner->pain.selected_action=45;
@@ -7144,6 +7147,7 @@ int rf_scene_npc_body_sweep(const rf_geometry_collision_world *world,uint32_t ha
         status=rf_geomod_piece_registry_npc_contact(stream->detached_pieces,&actor,1,1,&contact,&batch,&piece,&piece_found);
         if(status)return status;
         if(piece_found) {
+            if(rf_scene_dev_npc_enabled)++scene_dev_npc_contacts;
             memset(&value,0,sizeof(value));
             memcpy(value.contact.point,contact.point,12);memcpy(value.contact.normal,contact.normal,12);
             memcpy(value.contact.velocity,contact.velocity,12);value.contact.fraction=contact.time;
@@ -11096,7 +11100,7 @@ static int campaign_combat_tick(scene_stream *stream,uint32_t frame,const float 
     rf_scene_weapon_selection[0]=campaign_equipped_slot;rf_scene_weapon_selection[2]=(uint32_t)campaign_rifle_id;
     rf_scene_weapon_selection[3]=campaign_player_inventory.owned[campaign_rifle_id];rf_scene_weapon_selection[4]=campaign_player_inventory.loaded[campaign_rifle_id];
     rf_scene_weapon_selection[5]=campaign_player_inventory.reserve[campaign_weapon_supply.definitions[campaign_rifle_id].ammo_type];
-    status=campaign_enemy_tick(stream,frame,position);rf_scene_enemy_combat[7]=(uint32_t)status;if(status)return status;
+    status=rf_scene_dev_npc_enabled?RF_OK:campaign_enemy_tick(stream,frame,position);rf_scene_enemy_combat[7]=(uint32_t)status;if(status)return status;
     memcpy(rf_scene_pickup_vitals,&campaign_player_damage.state.effects.health,4);memcpy(rf_scene_pickup_vitals+1,&campaign_player_damage.state.effects.armor,4);
     rf_scene_riot[0]=0;
     if(campaign_explicit_unarmed || !campaign_player_inventory.owned[campaign_selected_weapon()])return RF_OK;
@@ -13831,6 +13835,19 @@ static int scene_frame(void *context,uint32_t frame,rf_preview_mesh *actor)
             step_profile_mark(4,&step_clock);
             if(campaign_spawn) {
                 uint32_t npc_clock=profile_clock && profile_active?profile_clock():0;
+                if(rf_scene_dev_npc_enabled && campaign_npc_body_count==1) {
+                    campaign_npc_body *npc=campaign_npc_bodies;
+                    npc->combat_alert=npc->combat_scripted=0;
+                    if(frame==400){
+                        rf_geomod_piece_batch *batch;rf_geomod_owned_piece part;rf_physics_body *body;
+                        if(!rf_geomod_piece_registry_get(stream->detached_pieces,0,&batch) &&
+                           !rf_geomod_piece_batch_get(batch,0,&part,&body))
+                            printf("DEV_NPC_POLICY %u %.9g %u %u\n",campaign_seeds.classes[0].physics.use_kind,body->state.bounds.radius,npc->body.state.flags,body->state.flags);
+                        npc->script_move.active=1;npc->script_move.follow=0;
+                        npc->script_move.target[0]=-4.97f;npc->script_move.target[1]=-.4f;npc->script_move.target[2]=1;
+                        npc->script_move.retry=UINT32_MAX;}
+                    if(frame%60==0)printf("DEV_NPC %u %.9g %.9g %.9g %u\n",frame,npc->body.state.position[0],npc->body.state.position[1],npc->body.state.position[2],scene_dev_npc_contacts);
+                }
                 status=campaign_script_step(stream,scene_step_seconds);
                 rf_scene_script_movement[7]=(uint32_t)status;if(status)return status;
                 npc_step_profile_mark(0,&npc_clock);
@@ -13998,6 +14015,36 @@ static int scene_pickup_resources_open(scene_stream *stream,const char *tables_p
 done:
     free(file);rf_vpp_close(&tables);return status;
 }
+/* Keep raw authored storage owned; compact only the selected seed/class views.
+ * All original allocation bytes remain budgeted until ordinary scene teardown. */
+static int scene_dev_npc_seeds(const char *tables_path,rf_vpp *tables)
+{
+    char path[1024];uint32_t n,prefix=0,i,cls;rf_vpp levels={0};rf_level source;int status;
+    for(n=0;tables_path[n];n++)if(tables_path[n]=='/' || tables_path[n]=='\\')prefix=n+1;
+    if(prefix+sizeof("levels1.vpp")>sizeof(path))return RF_RANGE;
+    memcpy(path,tables_path,prefix);memcpy(path+prefix,"levels1.vpp",sizeof("levels1.vpp"));
+    scene_dev_npc_contacts=0;
+    status=rf_vpp_open(&levels,path);if(status)return status;
+    status=rf_level_open(&source,&levels,"L1S1.rfl");
+    if(!status)status=rf_entity_seeds_open(&source,tables,1024*1024,&campaign_seeds);
+    rf_vpp_close(&levels);printf("DEV_NPC_SEEDS %d %u\n",status,campaign_seeds.records.count);if(status)return status;
+    for(i=0;i<campaign_seeds.records.count;i++)if(!strcmp(campaign_seeds.records.items[i].record.class_name,"miner1") || !strcmp(campaign_seeds.records.items[i].record.class_name,"Miner1"))break;
+    if(i==campaign_seeds.records.count){for(i=0;i<campaign_seeds.records.count;i++)printf("DEV_NPC_CLASS %s\n",campaign_seeds.records.items[i].record.class_name);return RF_NOT_FOUND;}
+    printf("DEV_NPC_SELECTED %s\n",campaign_seeds.records.items[i].record.class_name);
+    cls=campaign_seeds.items[i].class_index;
+    campaign_seeds.records.items[0]=campaign_seeds.records.items[i];campaign_seeds.items[0]=campaign_seeds.items[i];
+    campaign_seeds.classes[0]=campaign_seeds.classes[cls];campaign_seeds.classes[0].record_index=0;
+    campaign_seeds.items[0].class_index=0;campaign_seeds.records.count=campaign_seeds.class_count=1;
+    campaign_seeds.items[0].spawn.creation_flags=0;
+    campaign_seeds.records.items[0].record.uid=0x70000001;
+    campaign_seeds.records.items[0].record.position[0]=-4.97f;
+    campaign_seeds.records.items[0].record.position[1]=-.4f;
+    campaign_seeds.records.items[0].record.position[2]=5.5f;
+    memset(campaign_seeds.records.items[0].record.orientation,0,36);
+    for(i=0;i<3;i++)campaign_seeds.records.items[0].record.orientation[i][i]=1;
+    campaign_seeds.records.items[0].record.script_name[0]=campaign_seeds.records.items[0].record.state_animation[0]=0;
+    return RF_OK;
+}
 static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path,
     const char *motions_path,const char *tables_path,rf_vpp *maps,uint32_t map_count,
     rf_preview_mesh *mesh,rf_materials *materials,uint32_t mesh_budget,uint32_t material_budget,
@@ -14074,7 +14121,10 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
             for(mode=0;mode<16 && !status;++mode)status=rf_movement_descriptor_load(&tables,mode,65536,campaign_modes+mode);
         }
         /* Authored empty test/MP rooms can omit the NPC section entirely. */
-        if(!status && collision && campaign_spawn && rf_level_find(level,0x30000))status=rf_entity_seeds_open(level,&tables,1024*1024,&campaign_seeds);
+        if(!status && collision && campaign_spawn && rf_scene_dev_npc_enabled) {
+            if(!rf_scene_dev_room_enabled || strcmp(level->entry.name,"ctf06.rfl"))status=RF_FORMAT;
+            else status=scene_dev_npc_seeds(tables_path,&tables);
+        } else if(!status && collision && campaign_spawn && rf_level_find(level,0x30000))status=rf_entity_seeds_open(level,&tables,1024*1024,&campaign_seeds);
         if(!status && collision && campaign_spawn)status=rf_entity_skeletons_open(&campaign_seeds,&archive,256*1024,&campaign_skeletons);
         if(!status && collision && campaign_spawn)status=rf_entity_poses_open(&campaign_seeds,&campaign_skeletons,1024*1024,&campaign_poses);
         if(!status && collision && campaign_spawn)status=rf_entity_render_models_open(&campaign_skeletons,&archive,1024*1024,&campaign_render_models);
