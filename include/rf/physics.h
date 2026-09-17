@@ -33,6 +33,14 @@ typedef struct rf_physics_sphere {
 typedef struct rf_physics_spheres {
     rf_physics_sphere *items;uint32_t count,allocated_bytes;
 } rf_physics_spheres;
+/*49ee3d..49efa4: convert the already-generated4x4x4 solid grid into ordered
+ * collision spheres. Cells are X-major/Y/Z-minor; only low4 bits participate.
+ * Occupancy with at least2 bits produces a sphere; parameter10=-1 and the
+ * original unspecified opaque word is port-initialized0. Returns the original
+ * max(center squared + radius squared) bound. No mass/grid generation or heap
+ * allocation. Outputs must be disjoint from inputs; errors preserve them. */
+int rf_physics_grid_spheres(const uint8_t cells[64],float spacing,const float origin[3],
+    rf_physics_sphere *spheres,uint32_t capacity,uint32_t *count,float *radius);
 /* Copies ordered records into one exact-sized allocation. Budget includes the
  * owner and records, excluding allocator overhead. Empty destination required;
  * source may be released after success. Rejects nonfinite centers/radii and

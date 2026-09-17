@@ -26,7 +26,7 @@ branch through4d1700, rather than the existing no-model sphere fallback.
 
 The branch iterates a4x4x4 byte grid at solid30c, using each cell's low nibble.
 Table589cfc maps the nibble to popcount(low4)/4. Grid spacing is solid34c and
-origin350..358. Nonzero occupancy contributes a generated collision sphere;
+origin350..358. Occupancy greater than0.25 contributes a collision sphere;
 mass/tensor and center adjustment come through4d1700. This grid-to-body stage,
 including how the grid is populated and how spacing/center are updated, still
 needs execution/reconstruction. These observations do not establish body motion

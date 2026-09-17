@@ -29,6 +29,33 @@ int rf_physics_body_segment(const rf_physics_body *body,const float start[3],
     }
     if(hit)*fraction=(float)nearest;return hit;
 }
+int rf_physics_grid_spheres(const uint8_t cells[64],float spacing,const float origin[3],
+    rf_physics_sphere *spheres,uint32_t capacity,uint32_t *count,float *radius)
+{
+    rf_physics_sphere output[64]={{0}};uint32_t i,k,n=0;float half,maximum=0,bound;
+    if(!cells || !origin || !spheres || !count || !radius || !isfinite(spacing) || spacing<=0)return RF_RANGE;
+    for(k=0;k<3;k++)if(!isfinite(origin[k]))return RF_RANGE;
+    half=(float)((double)spacing*.5);
+    for(i=0;i<64;i++) {
+        uint32_t bits=cells[i]&15,occupancy=(bits&1)+((bits>>1)&1)+((bits>>2)&1)+((bits>>3)&1);
+        double squared;rf_physics_sphere *sphere;
+        if(occupancy<2)continue;
+        if(n==capacity)return RF_RANGE;
+        sphere=output+n++;
+        for(k=0;k<3;k++) {
+            uint32_t coordinate=(i>>(4-2*k))&3;
+            sphere->center[k]=(float)((double)coordinate*spacing+origin[k]);
+            if(!isfinite(sphere->center[k]))return RF_RANGE;
+        }
+        sphere->radius=(float)((double)half*(occupancy*.25));sphere->parameter_10=-1;
+        squared=(((double)sphere->center[0]*sphere->center[0]+(double)sphere->center[1]*sphere->center[1])+
+            (double)sphere->center[2]*sphere->center[2])+(double)sphere->radius*sphere->radius;
+        if(squared>maximum)maximum=(float)squared;
+    }
+    bound=(float)sqrt((double)maximum);if(!isfinite(bound))return RF_RANGE;
+    memcpy(spheres,output,n*sizeof(*spheres));*count=n;*radius=bound;return RF_OK;
+}
+
 int rf_physics_creation_body_open(const rf_physics_creation_seed *seed,float elasticity,float friction,
     float density,uint32_t budget,rf_physics_body *result)
 {
