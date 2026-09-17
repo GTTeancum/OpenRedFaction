@@ -7,6 +7,7 @@ parser=argparse.ArgumentParser(description=__doc__)
 parser.add_argument('--next-shot',action='store_true',help='Shoot the other end of the beam after reload')
 parser.add_argument('--connected',action='store_true',help='Include attached post94 and require the first blast to cut both owners')
 parser.add_argument('--both-posts',action='store_true',help='Include both attached posts94/93 with the beam')
+parser.add_argument('--settle',action='store_true',help='Continue debris for 600 updates after the saved blast and compare uninterrupted state')
 parser.add_argument('--trace',action='store_true',help='Retain detailed process-local gameplay diagnostics')
 args=parser.parse_args()
 if args.both_posts:args.connected=True
@@ -28,6 +29,9 @@ if args.next_shot:
   for i,value in enumerate(commands):struct.pack_into('<f',resume,8+48*(10+i)+offset,value)
  struct.pack_into('<I',resume,8+100*48+32,1)
 inputs={'save':save,'resume':resume,'control':save+resume[8+48:]}
+if args.settle:
+ inputs['settle']=source[:8]+bytes(601*48)
+ inputs['settle-control']=inputs['control']+bytes(600*48)
 env={k:v for k,v in os.environ.items() if not k.startswith(('RF_REPLAY_','RF_DEV_'))}
 env.update(RF_REPLAY_LEVEL='ctf06.rfl',RF_REPLAY_ARCHIVE='levelsm.vpp',RF_REPLAY_DEV_ROOM='1',RF_REPLAY_PLAYER_CHECKPOINT='1',RF_REPLAY_AUTHORED_SOURCE='95')
 if args.connected:env['RF_REPLAY_AUTHORED_SOURCES']='3' if args.both_posts else '2'
@@ -37,6 +41,7 @@ for name,data in inputs.items():
  path=folder/name;path.with_suffix('.bin').write_bytes(data);path.with_suffix('.rfcp').unlink(missing_ok=True)
  local=dict(env,RF_REPLAY_GEOMOD_CHECKPOINT_OUT=str(path.with_suffix('.rfcp')))
  if name=='resume':local['RF_REPLAY_GEOMOD_CHECKPOINT_IN']=str(folder/'save.rfcp')
+ if name=='settle':local['RF_REPLAY_GEOMOD_CHECKPOINT_IN']=str(folder/'resume.rfcp')
  with path.with_suffix('.log').open('wb') as log:
   result=subprocess.run([str(ROOT/'build/pc/Release/rf_pc_play.exe'),'--spawn-replay',str(ROOT/'Installed_Game'),str(path.with_suffix('.bin')),str(path.with_suffix('.ppm'))],cwd=ROOT,env=local,stdout=log,stderr=subprocess.STDOUT,timeout=180)
  assert result.returncode==0 and path.with_suffix('.rfcp').exists(),(name,result.returncode)
@@ -64,5 +69,28 @@ for name,data in inputs.items():
  report[name]=dict(bytes=len(checkpoint),geomod=geomod,material_tokens=tokens)
  print(name,report[name],flush=True)
 assert (folder/'resume.rfcp').read_bytes()==(folder/'control.rfcp').read_bytes(),'beam continuation differs'
+if args.settle:
+ settled=(folder/'settle.rfcp').read_bytes()
+ assert settled==(folder/'settle-control.rfcp').read_bytes(),'settled continuation differs'
+ lines=(folder/'settle.log').read_text(encoding='utf-8').splitlines()
+ motion=list(map(int,[line for line in lines if line.startswith('DETACHED_MOTION ')][-1].split()[1:]))
+ expected=2 if args.next_shot else 1
+ assert motion[0]==expected and motion[3]==expected and motion[6]==0,('fragments did not settle',motion)
+ # Validate all serialized piece banks, not only the first source's bank.
+ positions=[];offset=0
+ while True:
+  offset=settled.find(b'RFPB',offset)
+  if offset<0:break
+  version,size,count=struct.unpack_from('<III',settled,offset+4)
+  assert version==2 and size==16+328*count
+  for i in range(count):
+   position=struct.unpack_from('<3f',settled,offset+16+i*328+12+88)
+   assert all(math.isfinite(v) for v in position) and position[1]>=-1.5,('fragment below floor',position)
+   positions.append(position)
+  offset+=size
+ assert len(positions)==expected
+ before_lines=(folder/'resume.log').read_text(encoding='utf-8').splitlines()
+ before=list(map(int,[line for line in before_lines if line.startswith('DETACHED_MOTION ')][-1].split()[1:]))
+ report['settling']=dict(before=before,motion=motion,positions=positions,updates=600,scope='Settled retention when bodies already sleep at reload; does not require an airborne save')
 report.update(result='PASS',next_shot=args.next_shot,connected=args.connected,both_posts=args.both_posts,scope='Actual beam rocket, optional second cut after reload, retained wood charts/fragments and exact PC player/destruction continuation; visual and Xbox acceptance separate')
 (folder/'report.json').write_text(json.dumps(report,indent=2)+'\n');print(json.dumps(report,indent=2))

@@ -309,3 +309,10 @@ Stock64MiB NXDK/XEMU acceptance:
 - `artifacts/xemu/render-20260917-191001`:loads that Xbox-created save and runs301 replay records through the second blast;76 checks pass,7692-byte Xbox checkpoint exactly equals uninterrupted PC control. Endpoint3018 pages =11.789MiB.
 
 Both native framebuffers were inspected: first-joint damage and detached wood are visible initially; the resumed view shows damage at the other joint and retained wood debris, with the room, weapon and HUD present. These ground-level views do not qualify exposed caps from above or every fragment's long-term settling. Audio was disabled in the native harness, so audible quality is unverified. No XEMU process remained after the runs and no GitHub image was added. Broader cut histories, other connected geometry, player support and campaign integration remain open.
+
+
+### Longer three-source debris retention
+
+`check_beam_continuation.py --both-posts --next-shot --settle` adds600 neutral updates after the second-blast checkpoint and compares against uninterrupted1500-record control. It requires both fragments to remain present and asleep without a motion error, checks every serialized piece bank for finite positions above the room floor (Y=-1.5), and retains exact checkpoint equality. Both pieces were already asleep at the starting save: this is settled retention, not a new airborne-to-rest test. Final centers are approximately(-5.00185,-1.03106,3.71288) and(-5.01239,-0.91389,-3.79586).
+
+Stock64MiB run `artifacts/xemu/render-20260917-191535` loads the previous Xbox-created second-blast save, runs601 input records, and passes76 checks. Its7692-byte checkpoint equals uninterrupted PC control exactly;3336 available pages give13.031MiB endpoint headroom. The native framebuffer was inspected and retains both damaged joints and visible resting wood, room, weapon and HUD. Native audio remains disabled. Logs: `artifacts/triple-beam-settle-pc.log` and `artifacts/triple-beam-settle-native.log`. No new gameplay implementation or full-history coverage is claimed by this regression.
