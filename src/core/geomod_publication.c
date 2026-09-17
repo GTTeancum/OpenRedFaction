@@ -190,12 +190,10 @@ static int prepare_cuts(const rf_geomod_publication_job *j, rf_geomod_publicatio
     }
     return RF_OK;
 }
-int rf_geomod_publication_build(const rf_geomod_publication_job *j, rf_geomod_publication_work *w,
-                                rf_geomod_vertex *vertices, uint32_t vc, rf_geomod_face *faces, uint32_t fc,
-                                rf_geomod_publication_origin *origins, rf_geomod_mesh_view *out) {
+static int publication_append(const rf_geomod_publication_job *j, rf_geomod_publication_work *w) {
     uint32_t i, k, a, b, n, bank;
     int s;
-    if (!j || !w || !vertices || !faces || !origins || !out ||
+    if (!j || !w ||
         j->solid_count > RF_GEOMOD_PUBLICATION_NEIGHBORS || j->cut_count > RF_GEOMOD_CUT_LIMIT ||
         (j->solid_count && !j->solids) || (j->cut_count && !j->cuts) ||
         (j->windows.face_count && !j->window_origins) || (j->neighbors.face_count && !j->neighbor_origins))
@@ -223,7 +221,6 @@ int rf_geomod_publication_build(const rf_geomod_publication_job *j, rf_geomod_pu
     s = prepare_cuts(j, w);
     if (s)
         return s;
-    w->result.nv = w->result.nf = 0;
     for (i = 0; i < j->terrain.face_count; i++) {
         rf_geomod_face f = j->terrain.faces[i];
         if (f.source_face == UINT32_MAX) {
@@ -335,11 +332,45 @@ int rf_geomod_publication_build(const rf_geomod_publication_job *j, rf_geomod_pu
                 return s;
         }
     }
+    return RF_OK;
+}
+static int publication_copy(rf_geomod_publication_work *w, uint32_t generation,
+    rf_geomod_vertex *vertices, uint32_t vc, rf_geomod_face *faces, uint32_t fc,
+    rf_geomod_publication_origin *origins, rf_geomod_mesh_view *out) {
     if (w->result.nv > vc || w->result.nf > fc)
         return RF_RANGE;
     memcpy(vertices, w->result.vertices, w->result.nv * sizeof(*vertices));
     memcpy(faces, w->result.faces, w->result.nf * sizeof(*faces));
     memcpy(origins, w->origins, w->result.nf * sizeof(*origins));
-    *out = (rf_geomod_mesh_view){vertices, faces, w->result.nv, w->result.nf, j->terrain.generation};
+    *out = (rf_geomod_mesh_view){vertices, faces, w->result.nv, w->result.nf, generation};
     return RF_OK;
+}
+
+int rf_geomod_publication_build(const rf_geomod_publication_job *j, rf_geomod_publication_work *w,
+    rf_geomod_vertex *vertices, uint32_t vc, rf_geomod_face *faces, uint32_t fc,
+    rf_geomod_publication_origin *origins, rf_geomod_mesh_view *out) {
+    int status;
+    if (!j || !w || !vertices || !faces || !origins || !out) return RF_RANGE;
+    w->result.nv = w->result.nf = 0;
+    status = publication_append(j, w);
+    if (status) return status;
+    return publication_copy(w, j->terrain.generation, vertices, vc, faces, fc, origins, out);
+}
+int rf_geomod_publication_build_groups(const rf_geomod_publication_job *jobs, uint32_t count,
+    uint32_t generation, rf_geomod_publication_work *w,
+    rf_geomod_vertex *vertices, uint32_t vc, rf_geomod_face *faces, uint32_t fc,
+    rf_geomod_publication_origin *origins, rf_geomod_mesh_view *out) {
+    uint32_t i, k; int status;
+    if (!jobs || !count || count > 32 || !w || !vertices || !faces || !origins || !out) return RF_RANGE;
+    for (i = 0; i < count; i++) {
+        if (jobs[i].crater_origin.owner == UINT32_MAX) return RF_FORMAT;
+        for (k = 0; k < i; k++)
+            if (jobs[i].crater_origin.owner == jobs[k].crater_origin.owner) return RF_FORMAT;
+    }
+    w->result.nv = w->result.nf = 0;
+    for (i = 0; i < count; i++) {
+        status = publication_append(jobs + i, w);
+        if (status) return status;
+    }
+    return publication_copy(w, generation, vertices, vc, faces, fc, origins, out);
 }

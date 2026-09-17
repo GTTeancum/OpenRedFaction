@@ -33,3 +33,13 @@ The implementation concatenates groups directly into the existing single bounded
 The core fixture first cuts an east-facing source while preserving the west-facing source. It then removes the west source and checks both openings, the east upper remnant, floor height, liquid height and solid-query water exclusion. Omitted/duplicate/unknown ownership, injected allocation failure and an aborted candidate leave the active generation and queried geometry unchanged. The grouped fixture reports4126 peak bytes; this small synthetic fixture does not predict full-room memory usage.
 
 PC build and121/121 tests pass; stock NXDK build passes with the existing .edata merge warning. These are core collision tests, not simultaneous live-post acceptance. Scene source ownership, grouped rendering/lightmaps, cross-source support, multiple-source checkpoints and stock Xbox runtime remain the next integration requirements.
+
+## Implemented grouped authored publication
+
+`rf_geomod_publication_build_groups` aggregates1..32 independently evaluated source jobs using the existing single work buffer and aggregate vertex/face ceilings. Every source has a unique crater owner; the room revision is explicit. The existing single-source builder shares the same append/copy implementation. No additional owner allocation or per-source work buffer is introduced.
+
+All jobs finish inside the work buffer before output publication. A malformed later job, duplicate source owner or aggregate capacity failure preserves all caller output arrays and the output view. Source interactions remain caller-owned: this API does not solve cross-source Boolean operations or mutable neighboring support by concatenation.
+
+The installed ctf06 integration test opens real sources93 and94 together. Uncut publication has8 faces/32 vertices. After cutting93, aggregate output has39 faces/166 vertices and94 retains its four original windows. After cutting94, output has70 faces/300 vertices. The first source's150 vertices,35 faces and35 provenance records remain byte-identical after the second cut. The test checks output rollback for insufficient face capacity, duplicate source UID and invalid planes in the second job.
+
+PC build and121/121 tests pass; stock-profile NXDK compilation passes. These are production publication calls exercised with real assets, not live scene acceptance. The scene still needs multiple retained source owners, aggregate drawing/lightmap binding, impact dispatch and source-indexed saves. No new visual or native gameplay claim is made for grouped publication.

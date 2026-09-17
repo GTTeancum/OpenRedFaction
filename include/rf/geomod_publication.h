@@ -66,4 +66,14 @@ typedef struct rf_geomod_publication_work {
 int rf_geomod_publication_build(const rf_geomod_publication_job *, rf_geomod_publication_work *,
                                 rf_geomod_vertex *, uint32_t, rf_geomod_face *, uint32_t,
                                 rf_geomod_publication_origin *, rf_geomod_mesh_view *);
+/* Aggregate1..32 independent source publications into one bounded candidate.
+ * Source owner IDs must be unique. Caller supplies current neighborhoods and
+ * resolves interactions between edited sources; this is not cross-source CSG.
+ * Unedited sources use original terrain/windows and zero cuts. One shared work
+ * buffer/capacity serves all sources; no per-source allocation. Outputs remain
+ * unchanged if any source or aggregate capacity fails. Input order determines
+ * output order; generation is the caller's aggregate room revision. */
+int rf_geomod_publication_build_groups(const rf_geomod_publication_job *, uint32_t count,
+    uint32_t generation, rf_geomod_publication_work *, rf_geomod_vertex *, uint32_t,
+    rf_geomod_face *, uint32_t, rf_geomod_publication_origin *, rf_geomod_mesh_view *);
 #endif
