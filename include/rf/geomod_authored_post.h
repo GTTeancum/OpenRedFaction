@@ -39,6 +39,17 @@ int rf_geomod_authored_post_open(const rf_level *, const rf_geometry *, uint32_t
 int rf_geomod_authored_post_decode(const void *, uint32_t, const rf_geometry *,
                                    const rf_level_geomod_settings *, uint32_t budget,
                                    rf_geomod_authored_post **);
+/* Explicit ctf06 room3 source selection: UID93/94 require beam95;
+ * UID96/97 require beam98. All require earlier air66 and floor/ground71/70.
+ * Other UIDs return RF_NOT_FOUND. Full neighborhood, convexity, eligibility,
+ * material and ownership validation still applies. This selects one owner;
+ * it does not implement simultaneous scene sources or general editor CSG. */
+int rf_geomod_authored_post_open_source(const rf_level *, const rf_geometry *,
+                                        uint32_t source_uid, uint32_t budget,
+                                        rf_geomod_authored_post **);
+int rf_geomod_authored_post_decode_source(const void *, uint32_t, const rf_geometry *,
+                                          const rf_level_geomod_settings *, uint32_t source_uid,
+                                          uint32_t budget, rf_geomod_authored_post **);
 int rf_geomod_authored_post_get(const rf_geomod_authored_post *, rf_geomod_authored_post_view *);
 void rf_geomod_authored_post_close(rf_geomod_authored_post **);
 #endif

@@ -1,6 +1,6 @@
 # Red Faction Xbox / PC - open work
 
-- USER Repository cleanup: Remove 22 obsolete test ISO/QCOW2 copies totaling30.17GiB listed in artifacts/cleanup-20260917.json; automated deletion is policy-blocked; both HDD harnesses now refuse runs exceeding an8GiB artifact budget before copying/staging, while reports/checkpoints must be preserved.
+- USER Repository cleanup: Delete the disposable artifacts/geomod-hdd root (about27GiB); remaining obsolete image paths are in artifacts/cleanup-20260917.json, and both HDD harnesses enforce an8GiB projected artifact budget.
 
 - GeoMod jump/support: Broaden standing to other rubble shapes and verify missing-support rejection natively; jumping onto radius0.530725rubble and walking away from an Xbox-created save pass74/74 stock64MiB checks with exact PC continuation, while missing-support rejection passes PC.
 
@@ -23,7 +23,7 @@
 
 - GeoMod UV seams: Broaden chronological reconstruction beyond current fixtures; all105 tests and48 axis-oriented UV cases pass, with live two-cut reload/next-blast passing58 stock64MiB Xbox checks.
 
-- PRIORITY GeoMod coverage: Expand verified authored-post destruction beyond the bounded profile; two cuts pass56 stock64MiB PC/Xbox checks and the player crosses the opened post on PC, while authored saves and broader destruction coverage remain open.
+- PRIORITY GeoMod coverage: Integrate multiple live authored sources and their saves; ctf06 posts93/94/96/97 now pass source loading and crater publication checks with their actual neighbors, while the scene still uses only94.
 
 - Movement: Extend verified quiet swimming to authored liquid hazards and underwater presentation; entry, surfacing, re-entry and harmless ordinary water pass44 PC/Xbox comparisons.
 - Movement: Finish underwater presentation; authored lava damage and harmless dry control now pass44/45 PC/Xbox checks on stock64MiB.
@@ -3316,7 +3316,7 @@ values remain explicit fixture defaults pending their live lifecycle integration
 See tools/verify_player_stance_gate.py and docs/CAMERA.md.
 
 The original release handler now passes 162 execution fixtures covering blocked
-and clear query results, 0–8 spheres, absent/matching/nonmatching player lists,
+and clear query results, 0â€“8 spheres, absent/matching/nonmatching player lists,
 and zero/nonzero crouch bytes. A blocked result preserves the full actor, player
 and sphere records and skips ground/speed updates. The query result is supplied;
 this does not close the live low-ceiling campaign traversal check.
@@ -4652,7 +4652,7 @@ this evidence. See `docs/CAMERA.md` for addresses and remaining uncertainties.
 - XEMU is the primary emulator; CXBX-R may assist with diagnosis.
 - Never control the desktop or send host input; use source, files, logs, non-interactive commands, and process-contained test harnesses.
 
-## Milestone 0 — evidence and toolchains
+## Milestone 0 â€” evidence and toolchains
 
 - [x] Set the persistent project goal.
 - [x] Inspect the initial workspace: only an empty Git repository was present.
@@ -4662,7 +4662,7 @@ this evidence. See `docs/CAMERA.md` for addresses and remaining uncertainties.
 - [x] Evaluate Open Faction and Dash Faction as references, recording provenance and reuse terms.
 - [x] Compile and validate minimal PC and Xbox artifacts; distinguish scaffolding from recovered game behavior.
 
-## Milestone 1 — reconstruction foundation
+## Milestone 1 â€” reconstruction foundation
 
 - [x] Create a reproducible headless Ghidra project from a hash-identified executable.
 - [ ] Map startup, filesystem/archive loading, memory allocation, game loop, rendering, audio, input, and level transitions.
@@ -4674,14 +4674,14 @@ this evidence. See `docs/CAMERA.md` for addresses and remaining uncertainties.
 - [ ] Establish native emulator visual capture without any desktop capture or window input.
 - [ ] Establish memory accounting that includes executable, heaps, stacks, GPU surfaces, audio, and transient loads.
 
-## Milestone 2 — playable campaign slice
+## Milestone 2 â€” playable campaign slice
 
 - [ ] Load and draw the first campaign area on both platforms.
 - [ ] Restore collision, player movement, controller mapping, weapons, enemies, events, and Geo-Mod.
 - [ ] Restore HUD, sound, dialogue, cutscenes, saves, and level transitions needed by that slice.
 - [ ] Compare matched PS2 scenes and capture native emulator output for review.
 
-## Milestone 3 — campaign completion and validation
+## Milestone 3 â€” campaign completion and validation
 
 - [ ] Extend subsystem coverage through every campaign level and document completion evidence.
 - [ ] Run memory stress, loading, save/reload, destruction, AI, and frame-time regression scenarios.

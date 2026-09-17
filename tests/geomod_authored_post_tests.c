@@ -114,6 +114,13 @@ static int exercise_publication(const rf_geomod_authored_post *owner, const char
     float center[3] = {-4.75f, -.9f, 2.5f}, basis[9] = {1, 0, 0, 0, 1, 0, 0, 0, 1};
     uint32_t i, floors = 0;
     CHECK(!rf_geomod_authored_post_get(owner, &a));
+    center[0] = a.source.vertices[0].position[0];
+    center[2] = 0;
+    for (i = 0; i < a.source.vertex_count; i++) {
+        if (a.source.vertices[i].position[0] > center[0])
+            center[0] = a.source.vertices[i].position[0];
+        center[2] += a.source.vertices[i].position[2] / a.source.vertex_count;
+    }
     generated = a.source_filters[0];
     CHECK(!rf_geomod_terrain_open(&a.source, a.source_filters, &generated, 0, 4096, 768, 1048576, &terrain));
     CHECK(!rf_geomod_template_load(template_path, &shape));
@@ -134,20 +141,61 @@ static int exercise_publication(const rf_geomod_authored_post *owner, const char
     job.cut_count = 1;
     CHECK(!rf_geomod_publication_build(&job, &publication_work, output_vertices, 4096, output_faces, 768,
                                        output_origins, &output));
-    CHECK(output.face_count == 35 && output.vertex_count == 150);
+    CHECK(output.face_count > a.windows.face_count);
+    if (a.source_uid == 94)
+        CHECK(output.face_count == 35 && output.vertex_count == 150);
     for (i = 0; i < output.face_count; i++) {
         CHECK(output_origins[i].reference != UINT32_MAX);
-        CHECK(output_faces[i].source_face != 548 && output_faces[i].source_face != 549);
+        uint32_t cap;
+        for (cap = 0; cap < a.source.face_count; cap++)
+            if (a.source_planes[cap][1] < -.99f || a.source_planes[cap][1] > .99f)
+                CHECK(output_faces[i].source_face != a.source.faces[cap].source_face);
         if (output_origins[i].kind == 2) {
             CHECK(output_origins[i].owner == 71 && output_faces[i].source_face == 415 &&
                   output_faces[i].material == 10 && output_origins[i].reference == 141);
             floors++;
         }
     }
-    CHECK(floors == 8);
+    CHECK(floors > 0);
+    if (a.source_uid == 94) CHECK(floors == 8);
     printf("DIRECT_PUBLICATION faces%u vertices%u floorpieces%u\n", output.face_count, output.vertex_count,
            floors);
     rf_geomod_terrain_close(&terrain);
+    return 0;
+}
+static int selected_sources(const rf_level *level, const rf_geometry *geometry, const char *shape) {
+    static const uint32_t uids[] = {93, 94, 96, 97};
+    uint32_t n, i, k;
+    for (n = 0; n < 4; n++) {
+        rf_geomod_authored_post *owner = NULL;
+        rf_geomod_authored_post_view v;
+        float lo[3] = {1e9f, 1e9f, 1e9f}, hi[3] = {-1e9f, -1e9f, -1e9f};
+        CHECK(!rf_geomod_authored_post_open_source(level, geometry, uids[n], 2 * 1024 * 1024, &owner));
+        CHECK(!rf_geomod_authored_post_get(owner, &v));
+        CHECK(v.source_uid == uids[n] && v.room == 3 && v.source.face_count == 6);
+        CHECK(v.windows.face_count == 4 && v.solid_count == 3);
+        for (i = 0; i < v.source.vertex_count; i++)
+            for (k = 0; k < 3; k++) {
+                float x = v.source.vertices[i].position[k];
+                if (x < lo[k]) lo[k] = x;
+                if (x > hi[k]) hi[k] = x;
+            }
+        CHECK(lo[0] == (n < 2 ? -5.25f : 5.75f));
+        CHECK(hi[0] == (n < 2 ? -4.75f : 6.25f));
+        CHECK(lo[1] == -1.5f && hi[1] == 2);
+        CHECK(lo[2] == (n % 2 ? 2.25f : -2.75f));
+        CHECK(hi[2] == (n % 2 ? 2.75f : -2.25f));
+        for (i = 0; i < v.source.face_count; i++) CHECK(v.source_origins[i].owner == uids[n]);
+        for (i = 0; i < v.windows.face_count; i++) CHECK(v.window_origins[i].owner == uids[n]);
+        CHECK(!exercise_publication(owner, shape));
+        printf("SELECTED_SOURCE uid%u resident%u peak%u\n", uids[n], v.resident_bytes, v.peak_bytes);
+        rf_geomod_authored_post_close(&owner);
+    }
+    {
+        rf_geomod_authored_post *owner = NULL;
+        CHECK(rf_geomod_authored_post_open_source(level, geometry, 79, 2 * 1024 * 1024, &owner) == RF_NOT_FOUND);
+        CHECK(!owner);
+    }
     return 0;
 }
 int main(int argc, char **argv) {
@@ -215,6 +263,7 @@ int main(int argc, char **argv) {
               !other);
         free(payload);
     }
+    CHECK(!selected_sources(&level, &geometry, argc > 2 ? argv[2] : "build/data/geomod-template.bin"));
     rf_geometry_close(&geometry);
     rf_vpp_close(&archive);
     {

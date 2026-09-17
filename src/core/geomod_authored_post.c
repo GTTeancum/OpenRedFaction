@@ -351,8 +351,8 @@ static void *chunk(unsigned char *base, uint64_t *at, uint32_t n, size_t size) {
     *at += (uint64_t)n * size;
     return p;
 }
-int rf_geomod_authored_post_decode(const void *input, uint32_t bytes, const rf_geometry *g,
-                                   const rf_level_geomod_settings *settings, uint32_t budget,
+int rf_geomod_authored_post_decode_source(const void *input, uint32_t bytes, const rf_geometry *g,
+                                   const rf_level_geomod_settings *settings, uint32_t source_uid, uint32_t budget,
                                    rf_geomod_authored_post **out) {
     const unsigned char *data = input;
     cursor c = {data, bytes, 0};
@@ -372,6 +372,8 @@ int rf_geomod_authored_post_decode(const void *input, uint32_t bytes, const rf_g
     int s = RF_FORMAT;
     if (!input || !g || !g->data || !settings || !out || *out)
         return RF_RANGE;
+    if (source_uid != 93 && source_uid != 94 && source_uid != 96 && source_uid != 97)
+        return RF_NOT_FOUND;
     if (bytes < 4)
         return RF_FORMAT;
     if (!memchr(settings->texture, 0, sizeof(settings->texture)))
@@ -400,7 +402,7 @@ int rf_geomod_authored_post_decode(const void *input, uint32_t bytes, const rf_g
                 s = RF_FORMAT;
                 goto done;
             }
-        if (records[i].uid == 94)
+        if (records[i].uid == source_uid)
             source_index = i;
     }
     if (c.at != bytes || source_index == UINT32_MAX) {
@@ -419,7 +421,7 @@ int rf_geomod_authored_post_decode(const void *input, uint32_t bytes, const rf_g
                 air++;
                 continue;
             }
-            if ((b->uid != 71 && b->uid != 95 && b->uid != 70) || b->flags || b->faces < 4 || b->faces > 32 ||
+            if ((b->uid != 71 && b->uid != (source_uid <= 94 ? 95u : 98u) && b->uid != 70) || b->flags || b->faces < 4 || b->faces > 32 ||
                 nnear == 3) {
                 s = RF_NOT_FOUND;
                 goto done;
@@ -540,7 +542,7 @@ int rf_geomod_authored_post_decode(const void *input, uint32_t bytes, const rf_g
     o->view.neighbor_origins = no;
     o->view.source_filters = filters;
     o->view.replaced_ids = replaced;
-    o->view.source_uid = 94;
+    o->view.source_uid = source_uid;
     o->view.room = 3;
     o->view.solid_count = nnear;
     o->view.replaced_count = wfaces;
@@ -587,7 +589,7 @@ int rf_geomod_authored_post_decode(const void *input, uint32_t bytes, const rf_g
             }
         }
         wf[k] = (rf_geomod_face){j, f.corners, f.texture, id};
-        wo[k] = (rf_geomod_publication_origin){0, 94, id, i};
+        wo[k] = (rf_geomod_publication_origin){0, source_uid, id, i};
         replaced[k++] = i;
         for (t = 0; t < f.corners; t++) {
             rf_geometry_corner corner;
@@ -610,7 +612,8 @@ done:
     free(records);
     return s;
 }
-int rf_geomod_authored_post_open(const rf_level *level, const rf_geometry *geometry, uint32_t budget,
+int rf_geomod_authored_post_open_source(const rf_level *level, const rf_geometry *geometry,
+                                        uint32_t source_uid, uint32_t budget,
                                  rf_geomod_authored_post **out) {
     const rf_level_section *section;
     rf_level_geomod_settings settings;
@@ -633,9 +636,19 @@ int rf_geomod_authored_post_open(const rf_level *level, const rf_geometry *geome
         return RF_IO;
     status = rf_level_read(level, section, 0, data, section->size);
     if (!status)
-        status = rf_geomod_authored_post_decode(data, section->size, geometry, &settings, budget, out);
+        status = rf_geomod_authored_post_decode_source(data, section->size, geometry, &settings, source_uid, budget, out);
     free(data);
     return status;
+}
+/* Existing scene/checkpoint profile remains UID94. */
+int rf_geomod_authored_post_decode(const void *input, uint32_t bytes, const rf_geometry *geometry,
+                                   const rf_level_geomod_settings *settings, uint32_t budget,
+                                   rf_geomod_authored_post **out) {
+    return rf_geomod_authored_post_decode_source(input, bytes, geometry, settings, 94, budget, out);
+}
+int rf_geomod_authored_post_open(const rf_level *level, const rf_geometry *geometry, uint32_t budget,
+                                 rf_geomod_authored_post **out) {
+    return rf_geomod_authored_post_open_source(level, geometry, 94, budget, out);
 }
 int rf_geomod_authored_post_get(const rf_geomod_authored_post *o, rf_geomod_authored_post_view *v) {
     if (!o || !v)
