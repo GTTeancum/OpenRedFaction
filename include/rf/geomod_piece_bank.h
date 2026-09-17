@@ -137,6 +137,17 @@ int rf_geomod_piece_registry_body_sweep(const rf_geomod_piece_registry *,
 int rf_geomod_piece_registry_body_sweep_excluding(const rf_geomod_piece_registry *,
     uint32_t excluded_batch,uint32_t excluded_piece,const rf_collision_body_query *,
     uint32_t surface_material,rf_geomod_registry_body_hit *,uint32_t *matched);
+/* NPC kind0/use-kind1 versus live terrain fragments: original sphere-pair
+ * route. Read-only proposals; selected target retains registry identity instead
+ * of inventing an entity handle. Caller owns subsequent response/publication.
+ * Misses preserve contact/identity outputs; errors preserve all outputs.
+ * Source supplies finite bounds/poses/spheres and positive mass. Velocities
+ * exclude optional external contributions. This query does not publish either
+ * contact packet or deferred response flags; it is not a pair scheduler.
+ * No player polygon route or ground-query override. */
+int rf_geomod_piece_registry_npc_contact(const rf_geomod_piece_registry *,
+    const rf_collision_actor_general_response *,uint32_t use_kind,uint32_t material,
+    rf_collision_actor_contact *,uint32_t *batch,uint32_t *piece,uint32_t *matched);
 struct rf_checkpoint_placement;
 struct rf_checkpoint_support_hit;
 /* Read-only ground provider for checkpoint standing composition. Only sleeping

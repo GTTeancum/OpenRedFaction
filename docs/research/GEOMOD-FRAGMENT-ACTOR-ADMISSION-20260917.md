@@ -9,3 +9,28 @@ If the actor is a player, fragment geometry exists and radius is strictly greate
 Scope: this probe proves admission and route bits, not execution of49a420/49b570, continuous relative motion, contact response scheduling or live NPC behavior. Other object flags, network policy and other entity types are outside this grid. The existing NPC terrain-only body query remains unchanged until the appropriate sphere-pair route is implemented. Player polygon-only rubble querying also requires this size-policy audit for smaller chunks. NPC ground probing has a separate original path and should not inherit player-only49b900 behavior automatically.
 
 Next: implement the admitted sphere-pair query with source/target body poses, select sphere versus polygon contacts using the recovered policy, then validate NPC movement in the DEV testbed. Evidence: tools/probe_fragment_actor_admission.py and artifacts/geomod-postedit-re/fragment-actor-admission.json. Original binary SHA is asserted. No original game UI or host input was used.
+
+## Shared registry query
+
+`rf_geomod_piece_registry_npc_contact` now assembles live fragment body poses and
+sphere lists for the existing original-derived `rf_collision_actors_general_response`
+(49a420). It selects the earliest contact for an ordinary NPC kind0/use-kind1,
+requires target radius strictly above0.5 and collision participation bit0x20,
+and skips retired fragments. It uses caller bounds, both current/next poses,
+masses and linear velocities without allocating or modifying either owner.
+
+The result carries stable batch/piece identity separately from the contact packet;
+its entity handle is UINT32_MAX because fragments are not campaign entities.
+Callers must not resolve that value through the actor registry. The query excludes
+optional external velocity contributions and does not publish target contacts or
+deferred body flags. A complete actor/fragment pair scheduler and live NPC response
+remain integration work; this helper alone does not establish gameplay collision.
+
+The extracted-terrain test exercises an admitted crossing, class rejection, exact
+radius0.5 rejection, an existing time-zero contact, malformed sphere data, output
+preservation and byte-identical target body state. No new visual claim is made.
+
+Validation: all121 PC CTest cases pass; the stock-profile NXDK XBE and ISO build
+succeeds (existing linker merge warning). Native execution of this new query is
+not yet verified. Logs: artifacts/geomod-postedit-re/npc-contact-pc-tests.log and
+npc-contact-xbox-build.log.

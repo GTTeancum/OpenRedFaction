@@ -606,3 +606,45 @@ int rf_geomod_piece_registry_notify(rf_geomod_piece_registry *r,const rf_geomod_
     }
     *woken=count;return RF_OK;
 }
+
+static const float *piece_no_extra_velocity(void *context,uint32_t handle)
+{(void)context;(void)handle;return NULL;}
+int rf_geomod_piece_registry_npc_contact(const rf_geomod_piece_registry *r,
+    const rf_collision_actor_general_response *source,uint32_t use_kind,uint32_t material,
+    rf_collision_actor_contact *out,uint32_t *batch_index,uint32_t *piece_index,uint32_t *matched)
+{
+    rf_collision_actor_contact best;uint32_t b,i,k,found=0,best_batch=0,best_piece=0;
+    if(!source || !out || !batch_index || !piece_index || !matched || source->kind!=0 ||
+       (r && r->begun) || source->actor.sphere_count<0 ||
+       (source->actor.sphere_count && !source->actor.spheres))return RF_RANGE;
+    if(!isfinite(source->actor.contact.time) || source->actor.contact.time<0 || source->actor.contact.time>1 ||
+       !isfinite(source->actor.mass) || source->actor.mass<=0)return RF_FORMAT;
+    if(!isfinite(source->extent) || source->extent<0)return RF_FORMAT;
+    for(k=0;k<3;k++)if(!isfinite(source->actor.minimum[k]) || !isfinite(source->actor.maximum[k]) ||
+        source->actor.minimum[k]>source->actor.maximum[k] || !isfinite(source->actor.position[k]) ||
+        !isfinite(source->actor.next_position[k]) || !isfinite(source->actor.velocity[k]))return RF_FORMAT;
+    for(k=0;k<9;k++)if(!isfinite(source->orientation[k]) || !isfinite(source->next_orientation[k]))return RF_FORMAT;
+    for(i=0;i<(uint32_t)source->actor.sphere_count;i++) {
+        const rf_physics_sphere *sphere=source->actor.spheres+i;
+        if(!isfinite(sphere->radius) || sphere->radius<0)return RF_FORMAT;
+        for(k=0;k<3;k++)if(!isfinite(sphere->center[k]))return RF_FORMAT;
+    }
+    best=source->actor.contact;
+    if(use_kind==1)for(b=0;r && b<r->count;b++)for(i=0;i<r->active[b].batch->count;i++) {
+        const rf_geomod_piece_batch *batch=r->active[b].batch;const rf_physics_body *body=batch->bodies+i;
+        const rf_physics_body_state *state=&body->state;rf_collision_actor_general_response actor=*source,target={0};
+        if(!rf_geomod_piece_batch_alive(batch,i) || !(state->bounds.radius>.5f) ||
+           !((source->actor.body_flags|state->flags)&0x20u))continue;
+        actor.actor.contact=best;
+        memcpy(target.actor.minimum,state->bounds.minimum,12);memcpy(target.actor.maximum,state->bounds.maximum,12);
+        memcpy(target.actor.position,state->position,12);memcpy(target.actor.next_position,state->next_position,12);
+        memcpy(target.actor.velocity,state->velocity,12);target.actor.mass=state->mass;
+        target.actor.handle=UINT32_MAX;target.actor.material=material;target.actor.body_flags=state->flags;
+        target.actor.sphere_count=(int32_t)body->spheres.count;target.actor.spheres=body->spheres.items;target.actor.contact.time=1;
+        memcpy(target.orientation,state->orientation,36);memcpy(target.next_orientation,state->next_orientation,36);
+        target.extent=state->bounds.radius;target.kind=3;
+        rf_collision_actors_general_response(&actor,&target,piece_no_extra_velocity,NULL);
+        if(actor.actor.contact.time<best.time){best=actor.actor.contact;best_batch=b;best_piece=i;found=1;}
+    }
+    if(found){*out=best;*batch_index=best_batch;*piece_index=best_piece;}*matched=found;return RF_OK;
+}

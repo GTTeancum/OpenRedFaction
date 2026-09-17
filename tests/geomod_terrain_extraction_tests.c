@@ -218,6 +218,44 @@ static void registry_lifetime(const rf_geomod_mesh_view *mesh,const rf_collision
         CHECK(!matched && !memcmp(&hit,&kept,sizeof(hit)));
         memcpy(other->state.velocity,saved_velocity,12);
     }
+    {
+        rf_collision_actor_general_response actor={0};rf_physics_sphere sphere={0};
+        rf_collision_actor_contact hit={0},saved;rf_physics_body_state target_saved=body->state,prepared;
+        uint32_t matched=999,b=999,p=999,k;
+        sphere.radius=.1f;actor.actor.sphere_count=1;actor.actor.spheres=&sphere;
+        actor.actor.mass=10;actor.actor.body_flags=0x8000003f;actor.actor.contact.time=1;actor.extent=.1f;
+        for(k=0;k<3;k++) {
+            actor.actor.minimum[k]=-100;actor.actor.maximum[k]=100;
+            actor.actor.position[k]=actor.actor.next_position[k]=body->state.position[k];
+            actor.orientation[k*3+k]=actor.next_orientation[k*3+k]=1;
+        }
+        for(k=0;k<3;k++) {
+            actor.actor.position[k]+=body->spheres.items[0].center[k];
+            actor.actor.next_position[k]=actor.actor.position[k];
+        }
+        actor.actor.position[1]+=20;actor.actor.next_position[1]-=20;
+        memcpy(body->state.next_position,body->state.position,12);
+        prepared=body->state;saved=hit;
+        CHECK(!rf_geomod_piece_registry_npc_contact(r,&actor,0,1,&hit,&b,&p,&matched));
+        CHECK(!matched && b==999 && p==999 && !memcmp(&hit,&saved,sizeof(hit)));
+        CHECK(!rf_geomod_piece_registry_npc_contact(r,&actor,1,1,&hit,&b,&p,&matched));
+        CHECK(matched && b==0 && p==0 && hit.time>0 && hit.time<1 && hit.normal[1]>0);
+        CHECK(hit.inverse_mass>0 && hit.handle==UINT32_MAX);
+        CHECK(!memcmp(&body->state,&prepared,sizeof(prepared)) && actor.actor.contact.time==1);
+        saved=hit;matched=999;b=999;p=999;
+        sphere.center[0]=NAN;
+        CHECK(rf_geomod_piece_registry_npc_contact(r,&actor,1,1,&hit,&b,&p,&matched)==RF_FORMAT);
+        CHECK(matched==999 && b==999 && p==999 && !memcmp(&hit,&saved,sizeof(hit)));
+        sphere.center[0]=0;
+        actor.actor.contact.time=0;
+        CHECK(!rf_geomod_piece_registry_npc_contact(r,&actor,1,1,&hit,&b,&p,&matched));
+        CHECK(!matched && b==999 && p==999 && !memcmp(&hit,&saved,sizeof(hit)));
+        actor.actor.contact.time=1;
+        body->state.bounds.radius=.5f;
+        CHECK(!rf_geomod_piece_registry_npc_contact(r,&actor,1,1,&hit,&b,&p,&matched));
+        CHECK(!matched && b==999 && p==999 && !memcmp(&hit,&saved,sizeof(hit)));
+        body->state=target_saved;
+    }
     /* A later invalid body must not wake an earlier valid sleeping body. */
     {
         rf_geomod_piece_batch *second;rf_geomod_owned_piece view;rf_physics_body *later;
