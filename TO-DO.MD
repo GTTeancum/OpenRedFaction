@@ -1,6 +1,6 @@
 # Red Faction Xbox / PC - open work
 
-- GeoMod rubble wake: Verify actual support removal and changed-box publication; committed rocket edits now notify owned bodies, but current live shots either reject, hit the chunk, or cut outside its wake range.
+- GeoMod rubble wake: Verify actual support-loss motion; committed rocket edits now publish newly extracted component bounds and notify owned bodies, while current live shots do not yet prove a resting chunk falls after support removal.
 
 - GeoMod traversal: Broaden tight-entrance and slope collision coverage; walking into and back out of the16-cut tunnel passes58 stock64MiB comparisons with exact PC body state.
 - GeoMod validation: Resolve thin-surface proximity ambiguity and broaden collision/nonintersection coverage; sweep/fixed craters pass10130/11422 independent volume samples and native state checks.
@@ -3302,7 +3302,7 @@ values remain explicit fixture defaults pending their live lifecycle integration
 See tools/verify_player_stance_gate.py and docs/CAMERA.md.
 
 The original release handler now passes 162 execution fixtures covering blocked
-and clear query results, 0â€“8 spheres, absent/matching/nonmatching player lists,
+and clear query results, 0–8 spheres, absent/matching/nonmatching player lists,
 and zero/nonzero crouch bytes. A blocked result preserves the full actor, player
 and sphere records and skips ground/speed updates. The query result is supplied;
 this does not close the live low-ceiling campaign traversal check.
@@ -4638,7 +4638,7 @@ this evidence. See `docs/CAMERA.md` for addresses and remaining uncertainties.
 - XEMU is the primary emulator; CXBX-R may assist with diagnosis.
 - Never control the desktop or send host input; use source, files, logs, non-interactive commands, and process-contained test harnesses.
 
-## Milestone 0 â€” evidence and toolchains
+## Milestone 0 — evidence and toolchains
 
 - [x] Set the persistent project goal.
 - [x] Inspect the initial workspace: only an empty Git repository was present.
@@ -4648,7 +4648,7 @@ this evidence. See `docs/CAMERA.md` for addresses and remaining uncertainties.
 - [x] Evaluate Open Faction and Dash Faction as references, recording provenance and reuse terms.
 - [x] Compile and validate minimal PC and Xbox artifacts; distinguish scaffolding from recovered game behavior.
 
-## Milestone 1 â€” reconstruction foundation
+## Milestone 1 — reconstruction foundation
 
 - [x] Create a reproducible headless Ghidra project from a hash-identified executable.
 - [ ] Map startup, filesystem/archive loading, memory allocation, game loop, rendering, audio, input, and level transitions.
@@ -4660,14 +4660,14 @@ this evidence. See `docs/CAMERA.md` for addresses and remaining uncertainties.
 - [ ] Establish native emulator visual capture without any desktop capture or window input.
 - [ ] Establish memory accounting that includes executable, heaps, stacks, GPU surfaces, audio, and transient loads.
 
-## Milestone 2 â€” playable campaign slice
+## Milestone 2 — playable campaign slice
 
 - [ ] Load and draw the first campaign area on both platforms.
 - [ ] Restore collision, player movement, controller mapping, weapons, enemies, events, and Geo-Mod.
 - [ ] Restore HUD, sound, dialogue, cutscenes, saves, and level transitions needed by that slice.
 - [ ] Compare matched PS2 scenes and capture native emulator output for review.
 
-## Milestone 3 â€” campaign completion and validation
+## Milestone 3 — campaign completion and validation
 
 - [ ] Extend subsystem coverage through every campaign level and document completion evidence.
 - [ ] Run memory stress, loading, save/reload, destruction, AI, and frame-time regression scenarios.

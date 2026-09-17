@@ -235,6 +235,7 @@ int rf_geomod_piece_batch_sweep(const rf_geomod_piece_batch *batch,uint32_t flag
 
 typedef struct piece_registry_entry {
     rf_geomod_piece_batch *batch;uint32_t prefix,ordinal,before,after;
+    rf_geomod_changed_box changed_box;
 } piece_registry_entry;
 struct rf_geomod_piece_registry {
     piece_registry_entry active[16],pending[16];uint32_t count,staged,begun,replace;
@@ -295,6 +296,15 @@ int rf_geomod_piece_registry_emit(const rf_geomod_mesh_view *mesh,const uint32_t
     if(mesh->face_count>32 || r->staged+(r->replace?0:r->count)>=16)return RF_RANGE;
     for(i=0;i<mesh->face_count;i++){if(map[i]>=source_count)return RF_FORMAT;mapped[i]=filters[map[i]];}
     entry=r->pending+r->staged;entry->before=r->random.value;
+    {
+        rf_geomod_vertex local[128];rf_geomod_piece_placement placement;
+        rf_geomod_changed_box bounds,boxes[32];uint32_t count=0;
+        if(mesh->vertex_count>128)return RF_RANGE;
+        status=rf_geomod_mesh_recenter(mesh->vertices,mesh->vertex_count,local,&placement);if(status)return status;
+        memcpy(bounds.minimum,placement.minimum,12);memcpy(bounds.maximum,placement.maximum,12);
+        status=rf_geomod_notify_append_fragment_box(&bounds,placement.origin,boxes,&count);if(status)return status;
+        entry->changed_box=boxes[0];
+    }
     status=rf_geomod_piece_batch_open(mesh,mapped,&r->generated,r->material,r->density,r->elasticity,r->friction,
         &r->random,r->budget-r->bytes,&entry->batch);if(status)return status;
     entry->prefix=prefix;entry->ordinal=ordinal;entry->after=r->random.value;
@@ -311,6 +321,14 @@ void rf_geomod_piece_registry_commit(rf_geomod_piece_registry *r)
     memset(r->pending,0,sizeof(r->pending));r->staged=r->begun=r->replace=0;
 }
 uint32_t rf_geomod_piece_registry_count(const rf_geomod_piece_registry *r){return r?r->count:0;}
+int rf_geomod_piece_registry_changed_boxes(const rf_geomod_piece_registry *r,uint32_t first,
+    rf_geomod_changed_box boxes[32],uint32_t *count)
+{
+    uint32_t i,n=r?r->count:0;
+    if(!boxes || !count || first>n || (r && r->begun))return RF_RANGE;
+    for(i=first;i<n;i++)boxes[i-first]=r->active[i].changed_box;
+    *count=n-first;return RF_OK;
+}
 uint32_t rf_geomod_piece_registry_bytes(const rf_geomod_piece_registry *r){return r?r->bytes:0;}
 int rf_geomod_piece_registry_get(rf_geomod_piece_registry *r,uint32_t i,rf_geomod_piece_batch **out)
 {if(!r || !out || i>=r->count)return RF_RANGE;*out=r->active[i].batch;return RF_OK;}

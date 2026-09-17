@@ -55,6 +55,7 @@ static void registry_lifetime(const rf_geomod_mesh_view *mesh,const rf_collision
 {
     rf_geomod_terrain *t=NULL;rf_geomod_piece_registry *r=NULL;rf_geomod_piece_batch *first,*again;
     rf_geomod_owned_piece piece;rf_physics_body *body;float moved;uint32_t bytes;
+    rf_geomod_changed_box initial_boxes[32],boxes[32];uint32_t box_count;
     const float center[4][3]={{0,0,0},{5,0,0},{-1,0,0},{-6,0,0}},extent[4][3]={{1,12,12},{2,2,2},{2,2,2},{1,12,12}};
     CHECK(!rf_geomod_terrain_open(mesh,filters,generated,0,4096,800,1179648,&t));
     CHECK(!rf_geomod_piece_registry_open(generated,7,2.5f,.5f,.25f,0,2097152,&r));
@@ -63,6 +64,9 @@ static void registry_lifetime(const rf_geomod_mesh_view *mesh,const rf_collision
     CHECK(!rf_geomod_terrain_cut_box(t,center[0],extent[0],7));
     CHECK(!rf_geomod_piece_registry_count(r));rf_geomod_piece_registry_commit(r);
     CHECK(rf_geomod_piece_registry_count(r)==1);CHECK(!rf_geomod_piece_registry_get(r,0,&first));
+    CHECK(!rf_geomod_piece_registry_changed_boxes(r,0,initial_boxes,&box_count) && box_count==1);
+    CHECK(!rf_geomod_piece_registry_changed_boxes(r,1,boxes,&box_count) && !box_count);
+    box_count=999;CHECK(rf_geomod_piece_registry_changed_boxes(r,2,boxes,&box_count)==RF_RANGE && box_count==999);
     CHECK(!rf_geomod_piece_batch_get(first,0,&piece,&body));body->state.position[0]+=17;moved=body->state.position[0];
     for(uint32_t i=1;i<3;i++) {
         CHECK(!rf_geomod_piece_registry_begin(r,0));
@@ -70,6 +74,8 @@ static void registry_lifetime(const rf_geomod_mesh_view *mesh,const rf_collision
         rf_geomod_piece_registry_commit(r);
         CHECK(rf_geomod_piece_registry_count(r)==1);CHECK(!rf_geomod_piece_registry_get(r,0,&again));
         CHECK(first==again && body->state.position[0]==moved);
+        CHECK(!rf_geomod_piece_registry_changed_boxes(r,0,boxes,&box_count) && box_count==1);
+        CHECK(!memcmp(boxes,initial_boxes,sizeof(*boxes)));
     }
     {
         rf_collision_body_query query={0};rf_collision_body_sphere spheres[2]={0};
@@ -175,10 +181,14 @@ static void registry_lifetime(const rf_geomod_mesh_view *mesh,const rf_collision
     CHECK(rf_geomod_terrain_cut_box_checked(t,center[3],extent[3],7,reject_candidate,NULL)==RF_IO);
     CHECK(rf_geomod_piece_registry_bytes(r)>bytes && rf_geomod_piece_registry_count(r)==1);
     rf_geomod_piece_registry_abort(r);CHECK(rf_geomod_piece_registry_bytes(r)==bytes);
+    CHECK(!rf_geomod_piece_registry_changed_boxes(r,0,boxes,&box_count) && box_count==1);
+    CHECK(!memcmp(boxes,initial_boxes,sizeof(*boxes)));
     CHECK(body->state.position[0]==moved);
     CHECK(!rf_geomod_piece_registry_begin(r,0));
     CHECK(!rf_geomod_terrain_cut_box(t,center[3],extent[3],7));rf_geomod_piece_registry_commit(r);
     CHECK(rf_geomod_piece_registry_count(r)==2 && body->state.position[0]==moved);
+    CHECK(!rf_geomod_piece_registry_changed_boxes(r,1,boxes,&box_count) && box_count==1);
+    CHECK(memcmp(boxes,initial_boxes,sizeof(*boxes)));
     /* A later invalid body must not wake an earlier valid sleeping body. */
     {
         rf_geomod_piece_batch *second;rf_geomod_owned_piece view;rf_physics_body *later;

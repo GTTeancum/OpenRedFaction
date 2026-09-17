@@ -28,7 +28,8 @@ for name,height in [('hit',-.25),('miss',1.5)]:
  checkpoint=(folder/(name+'.rfcp')).read_bytes();piece_bytes=struct.unpack_from('<I',checkpoint,588)[0]
  trailer=checkpoint[-piece_bytes:];assert trailer[:4]==b'RFPB' and struct.unpack_from('<3I',trailer,4)==(2,344,1)
  health,flags=struct.unpack_from('<fI',trailer,336)
- assert health>0 and flags==(0x200000 if name=='hit' else 0),(health,flags)
+ # The successful extraction notification marks transform/wake flags on both cases.
+ assert health>0 and flags==(0x6000000 | (0x200000 if name=='hit' else 0)),(health,flags)
  report[name]=dict(hitscan=hits,selection=selection,combat=combat,rockets=rockets,health=health,flags=flags,pieces=pieces)
 assert report['hit']['health']==report['miss']['health'], 'Below-threshold pistol damage must preserve health'
 report.update(result='PASS',scope='Actual pistol hit reaches kind3 damage without health loss; above-fragment miss leaves flags unchanged; no decals, NPC cover or Xbox claim')

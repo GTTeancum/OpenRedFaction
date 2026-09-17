@@ -2,6 +2,7 @@
 #define RF_GEOMOD_PIECE_BANK_H
 #include "rf/geomod.h"
 #include "rf/physics.h"
+#include "rf/geomod_notify.h"
 /* Generic kind3 extracted-solid life. Object flags are separate from body
  * simulation flags. Persistent owners must save both health and object flags. */
 typedef struct rf_geomod_piece_life {float health;uint32_t flags;} rf_geomod_piece_life;
@@ -107,6 +108,11 @@ void rf_geomod_piece_registry_abort(rf_geomod_piece_registry *);
 /* No allocation or fallible work; call only after successful outer publication. */
 void rf_geomod_piece_registry_commit(rf_geomod_piece_registry *);
 uint32_t rf_geomod_piece_registry_count(const rf_geomod_piece_registry *);
+/* Original recentered component bounds, before subdivision/body motion, padded
+ * by0.5. Copies committed batches [first,count); no historical blast replay.
+ * Caller supplies32 entries. Errors preserve output/count. */
+int rf_geomod_piece_registry_changed_boxes(const rf_geomod_piece_registry *,uint32_t first,
+    rf_geomod_changed_box boxes[32],uint32_t *count);
 uint32_t rf_geomod_piece_registry_bytes(const rf_geomod_piece_registry *);
 int rf_geomod_piece_registry_get(rf_geomod_piece_registry *,uint32_t,rf_geomod_piece_batch **);
 typedef struct rf_geomod_registry_hit {rf_geomod_piece_hit piece;uint32_t batch;} rf_geomod_registry_hit;
