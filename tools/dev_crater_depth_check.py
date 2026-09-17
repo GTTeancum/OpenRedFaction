@@ -14,6 +14,8 @@ def main():
     parser=argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--input',type=Path,help='Three-cut RFI6 replay; intact control clears fire bits only')
     parser.add_argument('--out',type=Path,default=ROOT/'artifacts/destruction/depth-audit')
+    parser.add_argument('--build-dir',type=Path,default=ROOT/'build/pc')
+    parser.add_argument('--expected-cuts',type=int,default=3)
     args=parser.parse_args()
     folder=args.out;folder.mkdir(parents=True,exist_ok=True)
     original=recording('approach')+b''.join(struct.pack('<5f7I',0,0,0,0,0,0,0,0,int(i==520),0,0,0) for i in range(500,900))
@@ -28,11 +30,11 @@ def main():
         env={k:v for k,v in os.environ.items() if not k.startswith('RF_REPLAY_')};env['RF_REPLAY_DEPTH_OUT']=str(folder/(kind+'.depth'))
         env['RF_REPLAY_MESH_OUT']=str(folder/(kind+'.mesh'))
         env['RF_REPLAY_TERRAIN_MESH_AUDIT']=str(folder/(kind+'.terrain.csv'))
-        r=subprocess.run([str(ROOT/'build/pc/Release/rf_pc_play.exe'),'--dev-room-replay',str(ROOT/'Installed_Game'),str(path),str(folder/(kind+'.ppm'))],cwd=ROOT,env=env,capture_output=True,text=True)
+        r=subprocess.run([str(args.build_dir.resolve()/'Release/rf_pc_play.exe'),'--dev-room-replay',str(ROOT/'Installed_Game'),str(path),str(folder/(kind+'.ppm'))],cwd=ROOT,env=env,capture_output=True,text=True,timeout=300)
         (folder/(kind+'.log')).write_text(r.stdout+r.stderr);r.check_returncode()
         row=lambda label:next(l.split()[1:] for l in r.stdout.splitlines() if l.startswith(label+' '))
         cameras[kind]=list(map(int,row('DEPTH_CAMERA')))
-        assert int(row('GEOMOD')[1])==(3 if kind=='cut' else 0)
+        assert int(row('GEOMOD')[1])==(args.expected_cuts if kind=='cut' else 0)
         assert int(row('DEBRIS')[1])==0 and int(row('PLAYER_LIFE')[0])==0
         raw=(folder/(kind+'.depth')).read_bytes();assert raw[:4]==b'RFD1'
         w,h=struct.unpack_from('<II',raw,4);assert len(raw)==12+w*h*4
