@@ -9306,7 +9306,7 @@ static int scene_terrain_base_audit(scene_stream *s,const char *path)
     if(!owner || owner->bake!=owner->count || s->terrain_shadow_reference)return RF_RANGE;
     if(rf_geomod_terrain_get(s->terrain,&terrain))return RF_RANGE;
     file=fopen(path,"wb");if(!file)return RF_IO;
-    fprintf(file,"map,seed,width,height,packed,material,image,atlas_x,atlas_y,faces,nx,ny,nz,d,min_x,min_y,min_z,max_x,max_y,max_z\n");
+    fprintf(file,"map,seed,width,height,packed,material,image,atlas_x,atlas_y,faces,nx,ny,nz,d,min_x,min_y,min_z,max_x,max_y,max_z,corners,min_pixel_u,min_pixel_v,max_pixel_u,max_pixel_v\n");
     for(i=0;i<owner->count;i++) {
         const scene_terrain_noise_map *map=owner->maps+i;
         fprintf(file,"%u,%u,%u,%u,",i,map->base_seed,map->width,map->height);
@@ -9315,12 +9315,21 @@ static int scene_terrain_base_audit(scene_stream *s,const char *path)
             fprintf(file,"%02x%02x",p[0],p[1]);
         }
         {
-            uint32_t f,used=0;
+            uint32_t f,used=0,corners=0;float lo[2]={INFINITY,INFINITY},hi[2]={-INFINITY,-INFINITY};
             for(f=0;f<terrain.mesh.face_count;f++)if(s->terrain_bindings[f].image==map->binding.image &&
-                !memcmp(&s->terrain_bindings[f].projection,&map->binding.projection,sizeof(map->binding.projection)))used++;
-            fprintf(file,",%u,%u,%u,%u,%u,%.9g,%.9g,%.9g,%.9g,%.9g,%.9g,%.9g,%.9g,%.9g,%.9g\n",
+                !memcmp(&s->terrain_bindings[f].projection,&map->binding.projection,sizeof(map->binding.projection))) {
+                const rf_geomod_face *face=terrain.mesh.faces+f;uint32_t c,k;++used;
+                for(c=0;c<face->count;c++) {
+                    float uv[2];int status=rf_lightmap_project(&map->binding.projection,terrain.mesh.vertices[face->first+c].position,uv);
+                    if(status){fclose(file);return status;}
+                    for(k=0;k<2;k++){float pixel=uv[k]*512.f-.5f;lo[k]=fminf(lo[k],pixel);hi[k]=fmaxf(hi[k],pixel);}
+                    ++corners;
+                }
+            }
+            if(!corners)lo[0]=lo[1]=hi[0]=hi[1]=0;
+            fprintf(file,",%u,%u,%u,%u,%u,%.9g,%.9g,%.9g,%.9g,%.9g,%.9g,%.9g,%.9g,%.9g,%.9g,%u,%.9g,%.9g,%.9g,%.9g\n",
                 map->material,map->binding.image,map->x,map->y,used,map->plane[0],map->plane[1],map->plane[2],map->plane[3],
-                map->minimum[0],map->minimum[1],map->minimum[2],map->maximum[0],map->maximum[1],map->maximum[2]);
+                map->minimum[0],map->minimum[1],map->minimum[2],map->maximum[0],map->maximum[1],map->maximum[2],corners,lo[0],lo[1],hi[0],hi[1]);
         }
     }
     failed=ferror(file);if(fclose(file))failed=1;return failed?RF_IO:RF_OK;
