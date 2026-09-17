@@ -22,11 +22,13 @@ from xemu_guest_snapshot import words
 from xemu_smoke import Monitor
 from xemu_session_guard import require_no_project_xemu
 from verify_water_xbox import verify as verify_water_scenario
+from xemu_texture_audit import capture as capture_texture
 
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--expanded-geomod', action='store_true', help='Opt-in matching sixteen-cut PC/NXDK profile on stock64MiB')
+    parser.add_argument('--terrain-texture-audit', action='store_true', help='Read live Xbox substrate texture bytes and compare the PC owner')
     parser.add_argument('--cpu-exceptions', action='store_true', help='Retain QEMU exception/reset diagnostics for guest crash analysis')
     parser.add_argument('--water-test', action='store_true', help='Authored dm03 water gameplay with DEV weapon supply')
     parser.add_argument('--swim-test', action='store_true', help='Authored L2S3 deep-pool movement fixture')
@@ -62,6 +64,7 @@ def main():
     parser.add_argument('--unbatched', action='store_true', help='Reference tiny GPU command submission blocks')
     parser.add_argument('--unsorted', action='store_true', help='Reference source-order world draw ranges')
     args = parser.parse_args()
+    if args.terrain_texture_audit and not args.dev_room:parser.error('--terrain-texture-audit requires --dev-room')
     if args.player_checkpoint and not args.dev_room:parser.error('--player-checkpoint requires --dev-room')
     if args.lava_test and (args.swim_test or args.water_test or args.dev_room or not args.spawn or args.level!='L5S2.rfl' or args.archive!='levels1.vpp'):
         parser.error('--lava-test requires --spawn --level L5S2.rfl --archive levels1.vpp without other placement fixtures')
@@ -124,6 +127,7 @@ def main():
     env = {k: v for k, v in os.environ.items() if not k.startswith('RF_REPLAY_')}
     env.update(RF_REPLAY_LEVEL=args.level, RF_REPLAY_ARCHIVE=args.archive)
     if args.dev_room:env['RF_REPLAY_DEV_ROOM']='1'
+    if args.terrain_texture_audit:env['RF_REPLAY_TERRAIN_MATERIAL_AUDIT']=str(run/'pc-terrain-material.bin')
     if args.player_checkpoint:env['RF_REPLAY_PLAYER_CHECKPOINT']='1'
     if args.water_test:env['RF_REPLAY_WATER_TEST']='1'
     if liquid_mode:env['RF_REPLAY_SWIM_TEST']=str(liquid_mode)
@@ -314,6 +318,13 @@ dvd_path = '{root.as_posix()}/build/xbox/redfaction-diagnostic.iso'
                 if (d[2]==1 or (d[2]==2 and d[37]==0)) and any(sample['phase']==2 and sample['frame']>0 for sample in report['samples']) and not words(monitor,symbol('rf_xbox_level_transitions'),1)[0]:
                     raise RuntimeError('Guest restarted after entering gameplay')
                 report['samples'].append(dict(time=time.monotonic(), phase=d[2], frame=d[37], pages=d[44]))
+                if args.terrain_texture_audit and d[2]==2 and d[37]>0 and 'terrain_texture' not in report:
+                    monitor.command('stop')
+                    try:
+                        report['terrain_texture']=capture_texture(monitor,symbol,run/'pc-terrain-material.bin',run/'xbox-terrain-material.bin')
+                        report['terrain_texture']['frame']=d[37]
+                    finally:
+                        monitor.command('cont')
                 current = (d[2], d[37] // 30)
                 if current != previous:
                     if d[2]==2 and d[37]>0:
@@ -343,6 +354,9 @@ dvd_path = '{root.as_posix()}/build/xbox/redfaction-diagnostic.iso'
             edits=snap['symbols']['rf_scene_terrain_edit_times']['words']
             (run/'terrain-edit-times.json').write_text(json.dumps([dict(zip(('frame','cut_ms','bind_ms','debris_prepare_ms','debris_spawn_ms'),edits[i:i+5])) for i in range(0,40,5) if edits[i]],indent=2)+'\n')
             report['checks'] = {}
+            if args.terrain_texture_audit:
+                assert 'terrain_texture' in report, 'No live frame available for texture audit'
+                report['checks']['TERRAIN_TEXTURE']=report['terrain_texture']
             if checkpoint:
                 state=words(monitor,symbol('rf_scene_geomod_checkpoint_state'),4)
                 memory=words(monitor,symbol('rf_scene_geomod_checkpoint_memory'),2)
