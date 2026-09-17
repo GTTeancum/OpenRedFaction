@@ -91,7 +91,8 @@ int rf_geomod_piece_batch_sweep(const rf_geomod_piece_batch *,uint32_t flags,
     const float start[3],const float delta[3],float radius,float limit,
     rf_geomod_piece_hit *result,uint32_t *matched);
 typedef struct rf_geomod_piece_registry rf_geomod_piece_registry;
-/* Sixteen retained batches plus sixteen staged replacements. Budget includes
+#define RF_GEOMOD_PIECE_BATCH_LIMIT 32u
+/* Thirty-two retained batches plus thirty-two staged replacements. Budget includes
  * registry and simultaneous old/new batch ownership and subdivision scratch.
  * Caller separately budgets terrain/render resources. Parameters are resolved
  * once per terrain owner. Append requires unchanged historical extraction. */

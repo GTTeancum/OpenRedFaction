@@ -33,7 +33,7 @@ static int runtime_surfaces(void) {
     CHECK(p->runtime_filters[0].face_flags==256 && p->runtime_filters[0].property_34==-1);
     scene_actor_collision_owner=old;free(p);return 0;
 }
-static int cube(float x,float extent,rf_geomod_piece_registry **out) {
+static int cube_batches(float x,float extent,uint32_t batches,rf_geomod_piece_registry **out) {
     static const float p[8][3]={{-1,-1,-1},{1,-1,-1},{1,1,-1},{-1,1,-1},{-1,-1,1},{1,-1,1},{1,1,1},{-1,1,1}};
     static const uint32_t indices[6][4]={{1,2,6,5},{0,4,7,3},{3,7,6,2},{0,1,5,4},{4,5,6,7},{0,3,2,1}};
     rf_geomod_vertex vertices[24]={0};rf_geomod_face faces[6];rf_collision_face_filter filters[6],generated={0,256,-1,1,0,0};
@@ -44,9 +44,52 @@ static int cube(float x,float extent,rf_geomod_piece_registry **out) {
     }
     mesh=(rf_geomod_mesh_view){vertices,faces,24,6,0};
     CHECK(!rf_geomod_piece_registry_open(&generated,0,2.5f,.5f,.25f,1,2*1024*1024,out));
-    CHECK(!rf_geomod_piece_registry_begin(*out,0));
-    CHECK(!rf_geomod_piece_registry_emit(&mesh,map,filters,6,1,0,*out));
-    rf_geomod_piece_registry_commit(*out);return 0;
+    for(i=0;i<batches;i++) {
+        uint32_t released;
+        CHECK(!rf_geomod_piece_registry_begin(*out,0));
+        for(j=0;j<=i;j++)CHECK(!rf_geomod_piece_registry_emit(&mesh,map,filters,6,1,j,*out));
+        if(i==31)CHECK(rf_geomod_piece_registry_emit(&mesh,map,filters,6,2,0,*out)==RF_RANGE);
+        rf_geomod_piece_registry_commit(*out);
+        /* Exercise historical growth under the existing2MiB cap, retaining
+         * batches16/31 for the two extended-range targeting controls. */
+        if(i && i-1!=16) {
+            CHECK(!rf_geomod_piece_registry_damage(*out,i-1,0,400));
+            CHECK(!rf_geomod_piece_registry_collect_retired(*out,&released));
+        }
+    }
+    return 0;
+}
+static int cube(float x,float extent,rf_geomod_piece_registry **out)
+{return cube_batches(x,extent,1,out);}
+static int extended_batches(void) {
+    rf_geomod_piece_registry *r=NULL;scene_stream scene={0};scene_terrain_source_owner sources[2]={{0}};
+    rf_geomod_registry_hit hit;float start[3]={2,0,0},delta[3]={-4,0,0};uint32_t found,i;
+    CHECK(!cube_batches(0,.25f,32,&r));sources[1].pieces=r;scene.terrain_sources=sources;scene.terrain_source_count=2;
+    CHECK(rf_geomod_piece_registry_count(r)==32);
+    {
+        uint32_t size,count=99;unsigned char *snapshot;
+        rf_geomod_changed_box boxes[33],sentinel;
+        memset(&sentinel,0xa5,sizeof(sentinel));boxes[32]=sentinel;
+        CHECK(!rf_geomod_piece_registry_changed_boxes(r,0,boxes,&count) && count==32);
+        CHECK(!memcmp(boxes+32,&sentinel,sizeof(sentinel)));
+        CHECK(!rf_geomod_piece_registry_state_size(r,&size));snapshot=malloc(size);CHECK(snapshot);
+        CHECK(!rf_geomod_piece_registry_state_encode(r,snapshot,size));
+        CHECK(!rf_geomod_piece_registry_state_decode(r,snapshot,size));free(snapshot);
+    }
+    for(i=0;i<16;i++)CHECK(!rf_geomod_piece_registry_damage(r,i,0,400));
+    CHECK(!scene_detached_sources_sweep(&scene,4,start,delta,0,1,&hit,&found));CHECK(found && hit.batch==80);
+    CHECK(!scene_detached_sources_damage(&scene,hit.batch,0,400));
+    for(i=17;i<31;i++)CHECK(!rf_geomod_piece_registry_damage(r,i,0,400));
+    CHECK(!scene_detached_sources_sweep(&scene,4,start,delta,0,1,&hit,&found));CHECK(found && hit.batch==95);
+    CHECK(!scene_detached_sources_damage(&scene,hit.batch,0,400));
+    CHECK(!scene_detached_sources_sweep(&scene,4,start,delta,0,1,&hit,&found) && !found);
+    CHECK(scene_detached_sources_damage(&scene,128,0,400)==RF_RANGE);
+    for(i=0;i<4;i++)for(uint32_t b=0;b<32;b++) {
+        uint32_t tag=scene_detached_batch_tag(i,b);
+        CHECK(scene_detached_tag_source(tag)==i && scene_detached_tag_batch(tag)==b);
+        if(b<16)CHECK(tag==i*16+b);
+    }
+    rf_geomod_piece_registry_close(&r);return 0;
 }
 static int enemy_fragment_shots(void) {
     scene_stream scene={0};rf_geometry_collision_world world={0};
@@ -279,6 +322,6 @@ int main(void) {
     found=77;CHECK(scene_detached_sources_sweep(&scene,4,start,delta,0,NAN,&hit,&found)!=RF_OK);
     CHECK(found==77 && !memcmp(&hit,&sentinel,sizeof(hit)));
     free(before);free(after);for(i=0;i<2;i++)rf_geomod_piece_registry_close(registries+i);
-    CHECK(!enemy_fragment_shots());CHECK(!beam_selection());CHECK(!runtime_surfaces());CHECK(!player_sources());CHECK(!notify_sources());CHECK(!large_support_snap());
+    CHECK(!extended_batches());CHECK(!enemy_fragment_shots());CHECK(!beam_selection());CHECK(!runtime_surfaces());CHECK(!player_sources());CHECK(!notify_sources());CHECK(!large_support_snap());
     puts("PASS multi-source weapon queries: nearer later source, stable ties, selected alias, isolated damage and atomic misses/errors");return 0;
 }

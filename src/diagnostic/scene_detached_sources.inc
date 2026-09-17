@@ -1,6 +1,11 @@
-/* Source-qualified transient weapon hit IDs. Registry batch indices occupy
- * sixteen values; source slots stay fixed for the lifetime of a scene. */
-#define SCENE_DETACHED_BATCH_STRIDE 16u
+/* Preserve existing source/batch tags0..63. Batches16..31 occupy the next
+ * four-source page, so old saved/contact identities retain their meanings. */
+static uint32_t scene_detached_batch_tag(uint32_t source,uint32_t batch)
+{return (batch/16u)*64u+source*16u+batch%16u;}
+static uint32_t scene_detached_tag_source(uint32_t tag)
+{return (tag/16u)%4u;}
+static uint32_t scene_detached_tag_batch(uint32_t tag)
+{return (tag/64u)*16u+tag%16u;}
 static rf_geomod_piece_registry *scene_detached_source_registry(const scene_stream *s,uint32_t index)
 {
     const scene_terrain_source_owner *source;
@@ -22,19 +27,19 @@ static int scene_detached_sources_sweep(const scene_stream *s,uint32_t flags,con
         status=rf_geomod_piece_registry_sweep(scene_detached_source_registry(s,source),flags,start,delta,radius,nearest,&hit,&yes);
         if(status)return status;
         if(!yes || (found && hit.piece.hit.fraction>=nearest))continue;
-        if(hit.batch>=SCENE_DETACHED_BATCH_STRIDE)return RF_RANGE;
-        best=hit;best.batch+=source*SCENE_DETACHED_BATCH_STRIDE;
+        if(hit.batch>=RF_GEOMOD_PIECE_BATCH_LIMIT)return RF_RANGE;
+        best=hit;best.batch=scene_detached_batch_tag(source,hit.batch);
         nearest=hit.piece.hit.fraction;found=1;
     }
     if(found)*out=best;*matched=found;return RF_OK;
 }
 static int scene_detached_sources_damage(scene_stream *s,uint32_t batch,uint32_t piece,float amount)
 {
-    uint32_t count,source=batch/SCENE_DETACHED_BATCH_STRIDE;
+    uint32_t count,source=scene_detached_tag_source(batch);
     if(!s || s->terrain_source_count>4 || (s->terrain_source_count && !s->terrain_sources))return RF_RANGE;
     count=s->terrain_source_count?s->terrain_source_count:1;
-    if(source>=count)return RF_RANGE;
-    return rf_geomod_piece_registry_damage(scene_detached_source_registry(s,source),batch%SCENE_DETACHED_BATCH_STRIDE,piece,amount);
+    if(source>=count || scene_detached_tag_batch(batch)>=RF_GEOMOD_PIECE_BATCH_LIMIT)return RF_RANGE;
+    return rf_geomod_piece_registry_damage(scene_detached_source_registry(s,source),scene_detached_tag_batch(batch),piece,amount);
 }
 
 static uint32_t scene_detached_sources_batch_count(const scene_stream *s)
@@ -63,8 +68,8 @@ static int scene_detached_sources_player(const scene_stream *s,const rf_collisio
         if(status)return status;
         if(!yes || (found && !(hit.contact.fraction<best.contact.fraction ||
             (hit.contact.fraction==best.contact.fraction && hit.face!=UINT32_MAX && best.face==UINT32_MAX))))continue;
-        if(hit.batch>=SCENE_DETACHED_BATCH_STRIDE)return RF_RANGE;
-        best=hit;best.batch+=source*SCENE_DETACHED_BATCH_STRIDE;found=1;
+        if(hit.batch>=RF_GEOMOD_PIECE_BATCH_LIMIT)return RF_RANGE;
+        best=hit;best.batch=scene_detached_batch_tag(source,hit.batch);found=1;
     }
     if(found)*out=best;*matched=found;return RF_OK;
 }
@@ -79,8 +84,8 @@ static int scene_detached_sources_npc(const scene_stream *s,const rf_collision_a
         status=rf_geomod_piece_registry_npc_contact(scene_detached_source_registry(s,source),actor,use_kind,material,&hit,&b,&p,&yes);
         if(status)return status;
         if(!yes || (found && hit.time>=best.time))continue;
-        if(b>=SCENE_DETACHED_BATCH_STRIDE)return RF_RANGE;
-        best=hit;best_batch=b+source*SCENE_DETACHED_BATCH_STRIDE;best_piece=p;found=1;
+        if(b>=RF_GEOMOD_PIECE_BATCH_LIMIT)return RF_RANGE;
+        best=hit;best_batch=scene_detached_batch_tag(source,b);best_piece=p;found=1;
     }
     if(found){*out=best;*batch=best_batch;*piece=best_piece;}*matched=found;return RF_OK;
 }

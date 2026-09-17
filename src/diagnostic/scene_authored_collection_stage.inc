@@ -22,8 +22,8 @@ static inline int scene_collection_player_support(void *opaque,const rf_physics_
     memcpy(query.start,probe->start,12);memcpy(query.end,probe->end,12);query.flags=probe->query_flags;query.limit=limit;
     status=scene_detached_sources_player(c->scene,&actor,&query,1,0,&hit,&found);if(status)return status;
     if(found) {
-        rf_geomod_piece_registry *registry=scene_detached_source_registry(c->scene,hit.batch/SCENE_DETACHED_BATCH_STRIDE);
-        status=rf_geomod_piece_registry_get(registry,hit.batch%SCENE_DETACHED_BATCH_STRIDE,&batch);if(status)return status;
+        rf_geomod_piece_registry *registry=scene_detached_source_registry(c->scene,scene_detached_tag_source(hit.batch));
+        status=rf_geomod_piece_registry_get(registry,scene_detached_tag_batch(hit.batch),&batch);if(status)return status;
         status=rf_geomod_piece_batch_get(batch,hit.piece,&piece,&body);if(status)return status;
         result.fraction=hit.contact.fraction;memcpy(result.normal,hit.contact.normal,12);result.stable=!(body->state.flags&0x80000000u);
         for(i=0;i<3;i++)if(body->state.velocity[i]!=0 || body->state.vector_c8[i]!=0)result.stable=0;

@@ -336,7 +336,7 @@ typedef struct piece_registry_entry {
     rf_geomod_changed_box changed_box;
 } piece_registry_entry;
 struct rf_geomod_piece_registry {
-    piece_registry_entry active[16],pending[16];uint32_t count,staged,begun,replace;
+    piece_registry_entry active[RF_GEOMOD_PIECE_BATCH_LIMIT],pending[RF_GEOMOD_PIECE_BATCH_LIMIT];uint32_t count,staged,begun,replace;
     uint32_t seed,budget,bytes,material,last_prefix,last_ordinal;rf_random_state random;
     float density,elasticity,friction;rf_collision_face_filter generated;
 };
@@ -391,7 +391,7 @@ int rf_geomod_piece_registry_emit(const rf_geomod_mesh_view *mesh,const uint32_t
             r->random.value=entries[i].after;r->last_prefix=prefix;r->last_ordinal=ordinal;return RF_OK;
         }
     }
-    if(mesh->face_count>32 || r->staged+(r->replace?0:r->count)>=16)return RF_RANGE;
+    if(mesh->face_count>32 || r->staged+(r->replace?0:r->count)>=RF_GEOMOD_PIECE_BATCH_LIMIT)return RF_RANGE;
     for(i=0;i<mesh->face_count;i++){if(map[i]>=source_count)return RF_FORMAT;mapped[i]=filters[map[i]];}
     entry=r->pending+r->staged;entry->before=r->random.value;
     {
