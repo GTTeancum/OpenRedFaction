@@ -92,6 +92,31 @@ int main(void)
         CHECK(!memcmp(first,pending.vertices,sizeof(first)) && tags->pending[0]==7);
         rf_geomod_storage_close(&s);free(provenance);
     }
+    {
+        /* Captured admission4 polygon requires the center-fan fallback. */
+        rf_geomod_vertex polygon[7]={
+            {{-22.0769176f,-11.6484413f,5.15037346f},{0.576053143f,0.537973881f}},
+            {{-22.414629f,-11.1988411f,5.2013998f},{0.667458534f,0.509026885f}},
+            {{-22.1631241f,-10.2872276f,5.54866076f},{0.677046061f,0.364985287f}},
+            {{-22.0758324f,-10.9216585f,5.37529659f},{0.621132135f,0.441316336f}},
+            {{-22.0758495f,-10.9327126f,5.37187481f},{0.620446503f,0.442786455f}},
+            {{-22.0768509f,-11.6044664f,5.16398239f},{0.578780711f,0.532125473f}},
+            {{-22.0769043f,-11.6392584f,5.15321541f},{0.576622725f,0.536752582f}}};
+        geomod_step_support *provenance=calloc(1,sizeof(*provenance));CHECK(provenance);
+        CHECK(!rf_geomod_storage_open(&source,128,16,32768,&s) && !rf_geomod_storage_begin(s));
+        CHECK(!rf_geomod_storage_append(s,polygon,7,47,UINT32_MAX));tags->pending[0]=7;w->compact_planes[0]=0;
+        for(i=0;i<7;i++)w->compact_edges[i]=0;
+        CHECK(!repair_cavity_pending_provenance(s,w,tags,provenance));
+        CHECK(!rf_geomod_storage_pending(s,&pending) && pending.face_count==7 && pending.vertex_count==21);
+        CHECK(provenance->diagonals.count==7);
+        for(i=0;i<7;i++) {
+            uint32_t first=pending.faces[i].first;
+            CHECK(tags->pending[i]==7 && provenance->planes[i]==0);
+            CHECK(provenance->edges[first]>=GEOMOD_DIAGONAL_BASE && provenance->edges[first+1]==0 && provenance->edges[first+2]>=GEOMOD_DIAGONAL_BASE);
+            CHECK(provenance->edges[first+2]==provenance->edges[pending.faces[(i+1)%7].first]);
+        }
+        rf_geomod_storage_close(&s);free(provenance);
+    }
     free(tags);free(w);
     puts("PASS birth separation, same-birth merge/index movement, repair and concave partition propagation; original diagonal intersections across shortened edges");return 0;
 }

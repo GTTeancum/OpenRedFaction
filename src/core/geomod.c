@@ -1880,12 +1880,17 @@ static int repair_cavity_pending_provenance(rf_geomod_storage *s,rf_geomod_multi
                      uint32_t from,to,j;uint16_t support=plane;
                      for(from=0;from<n;from++)if(!memcmp(a->position,polygon[from].position,12))break;
                      for(to=0;to<n;to++)if(!memcmp(b->position,polygon[to].position,12))break;
-                     if(from==n || to==n)return RF_FORMAT;
-                     /* Boundary runs retain their original supporting plane.
-                      * Partition diagonals retain their original endpoints. */
-                     support=polygon_edges[from];j=(from+1)%n;
-                     while(j!=to && polygon_edges[j]==support)j=(j+1)%n;
-                     if(j!=to){int status=diagonal_register(&provenance->diagonals,a->position,b->position,&support);if(status)return status;}
+                     /* A center-fan partition introduces an interior vertex.
+                      * Its spokes are diagonals, not original boundary runs. */
+                     if(from==n || to==n) {
+                         int status=diagonal_register(&provenance->diagonals,a->position,b->position,&support);if(status)return status;
+                     } else {
+                         /* Boundary runs retain their original supporting plane.
+                          * Partition diagonals retain their original endpoints. */
+                         support=polygon_edges[from];j=(from+1)%n;
+                         while(j!=to && polygon_edges[j]==support)j=(j+1)%n;
+                         if(j!=to){int status=diagonal_register(&provenance->diagonals,a->position,b->position,&support);if(status)return status;}
+                     }
                      provenance->edges[cf->first+v]=support;
                  }
              }

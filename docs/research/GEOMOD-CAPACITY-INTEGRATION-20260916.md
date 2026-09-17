@@ -473,3 +473,37 @@ Evidence: artifacts/authored-post-live/history-probe-build.log and
 history-probe.log. No production geometry change or new native acceptance.
 Next investigation can isolate reconstruction stages on this seconds-long
 probe instead of rerunning2500 rendered frames for each candidate change.
+
+## Center-fan partition provenance fixed; long-sequence closure still open
+
+Offline instrumentation (artifact-only copy of geomod.c) localizes both
+RF_FORMAT failures to repair requiring every emitted corner to occur in the
+original polygon. The partition fallback legitimately creates an interior
+center and triangular spokes. Captured face357 has7 boundary corners and new
+center(-22.1371574,-11.1760864,5.28068638); face1179 has14 corners and center
+(-33.4668045,-10.6334944,-4.51836681). Missing boundary membership is not malformed
+geometry in these cases. Repair now registers either interior-endpoint edge as
+a retained-endpoint diagonal; boundary edge handling is unchanged.
+
+Focused captured7-corner regression emits7 triangles/21 vertices, keeps birth7
+and support plane0, and verifies all7 shared spoke IDs match across opposite
+triangle sides. First4 ordinary live cuts now commit; saved mesh1932vertices/
+383faces passes independent closed-edge coverage. Inspecting the native PC
+raster confirms the room, crater opening, launcher/pickups/HUD, without claiming
+retail-quality crater lighting or full gameplay parity.
+
+The20-press run commits its first15 admissions, then rejects16..18 with RF_RANGE;
+no RF_FORMAT remains in this run. It has7929 vertices/1563faces. Critically, its
+snapshot FAILS closure with overlapping edges near faces1110/1180/1185. The prior
+unfixed fifteen-cut capture also FAILS closure. Neither long sequence is accepted
+as watertight; this is the next topology task. Reload exactly matches141618-byte
+RFDS, physical mesh and1349-map atlas audit (--compare-to checks all three).
+
+Authored reconstruction policy5 fingerprint:
+2ba1d56eceb5220d02787435e3580d05bc02d43a80a8a609b9ada67d3d6c095b.
+Default111 tests and authored two-shot restart pass; NXDK builds with existing
+merge warning. No expanded native run. Logs under authored-post-live:
+core-trace/trace.log, fan-lineage-build.log, fan-four-closure.log, fan-closure.log,
+fan-prior-closure.log, fan-restored.log, fan-full-tests.log,
+fan-authored-restart.log and fan-xbox-build.log. Live artifacts use geomod-fan-*
+folders. Source geometry guards and tolerances were not relaxed.
