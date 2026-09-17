@@ -54,6 +54,28 @@ int main(void)
         CHECK(!rf_geomod_storage_pending(s,&pending) && pending.face_count==capacity);
         rf_geomod_storage_close(&s);
     }
+    {
+        geomod_diagonals *d=calloc(1,sizeof(*d));uint16_t id,reverse,edges[3];
+        const float a[3]={-42.3562775f,-8.54142284f,-7.99167967f};
+        const float b[3]={-41.3957748f,-8.23730373f,-9.30689907f};
+        const float short_a[3]={-41.7697449f,-8.35571194f,-8.79481888f};
+        const float cut_plane[4]={.545082092f,.831822276f,.104676485f,30.6184616f};
+        geomod_corner_support support={w,0,NULL,d};float expected[3];unsigned variant;
+        CHECK(d && !diagonal_register(d,a,b,&id) && !diagonal_register(d,b,a,&reverse));
+        CHECK(id==reverse && d->count==1 && !diagonal_intersection(d,id,cut_plane,expected));
+        memcpy(w->source_planes[0],(float[4]){-.701539516f,.607983351f,-.371750712f,-27.4924736f},16);
+        memcpy(w->source_planes[1],cut_plane,16);edges[0]=id;edges[1]=edges[2]=0;
+        for(variant=0;variant<2;variant++) {
+            rf_geomod_vertex triangle[3]={0},front[64],back[64];uint16_t fe[64],be[64];uint32_t nf,nb,found=0;
+            memcpy(triangle[0].position,variant?short_a:a,12);memcpy(triangle[1].position,b,12);
+            memcpy(triangle[2].position,(float[3]){-41.9889717f,-8.21230984f,-8.14658356f},12);
+            CHECK(!polygon_split_edges(triangle,3,cut_plane,front,64,back,64,&nf,&nb,edges,1,fe,be,&support));
+            for(i=0;i<nf;i++)if(!memcmp(front[i].position,expected,12))found++;
+            for(i=0;i<nb;i++)if(!memcmp(back[i].position,expected,12))found++;
+            CHECK(found==2);
+        }
+        free(d);
+    }
     free(tags);free(w);
-    puts("PASS birth separation, same-birth merge/index movement, repair and concave partition propagation; optional scratch2048bytes");return 0;
+    puts("PASS birth separation, same-birth merge/index movement, repair and concave partition propagation; original diagonal intersections across shortened edges");return 0;
 }

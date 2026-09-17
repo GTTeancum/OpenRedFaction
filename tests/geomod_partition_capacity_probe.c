@@ -1,4 +1,4 @@
-/* Diagnostic for cut14 face1248, not a passing acceptance test.
+/* Historical pre-provenance cut14 face1248, not a passing acceptance test.
  * Captured parent support1596; outgoing edge supports:
  * 1440,1720,1720,1720,1720,1596,1440.
  * Support1596 on an edge denotes a partition diagonal in this implementation.

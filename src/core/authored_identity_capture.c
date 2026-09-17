@@ -195,9 +195,9 @@ int rf_geomod_authored_identity_capture_manifest(const rf_level *level,const rf_
     /* Immutable view comes from the bounded loader, whose UID94 flags0 guard
      * proves original44d870 operation2. No trailing property inference. */
     c->input.source_operation=2;c->input.loader_policy=c->input.collision_policy=c->input.material_policy=1;
-    /* Source reconstruction policy2 retains chronological cut UVs/topology.
+    /* Source reconstruction policy3 retains chronological cut UVs/topology.
      * Digest wire schemas stay1; old authored saves fail source identity. */
-    c->input.publication_policy=2;
+    c->input.publication_policy=3;
     c->input.material_domain=RF_GEOMOD_IDENTITY_COMPILED_MATERIALS;
     c->input.materials=c->materials;c->input.material_count=c->material_count;
     c->input.references=c->references;c->input.reference_count=c->reference_count;

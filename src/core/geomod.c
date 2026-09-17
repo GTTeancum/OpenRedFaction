@@ -755,10 +755,40 @@ static rf_geomod_intersection_observer intersection_observer;
 static void *intersection_context;
 void rf_geomod_observe_intersections(rf_geomod_intersection_observer observer,void *context)
 {intersection_observer=observer;intersection_context=context;}
+/* Original endpoints give every subdivision of a partition diagonal the
+ * same future clipping intersection. IDs occupy a separate support domain. */
+#define GEOMOD_DIAGONAL_BASE (32u+RF_GEOMOD_CUT_LIMIT*128u)
+typedef struct geomod_diagonals {
+    float endpoints[RF_GEOMOD_WORK_FACES][2][3];uint32_t count;
+} geomod_diagonals;
+static int diagonal_register(geomod_diagonals *d,const float a[3],const float b[3],uint16_t *id)
+{
+    const float *first=a,*last=b;uint32_t i,k;
+    for(k=0;k<3 && a[k]==b[k];k++);
+    if(k==3)return RF_FORMAT;
+    if(a[k]>b[k]){first=b;last=a;}
+    for(i=0;i<d->count;i++)if(!memcmp(d->endpoints[i][0],first,12) && !memcmp(d->endpoints[i][1],last,12))break;
+    if(i==d->count) {
+        if(i==RF_GEOMOD_WORK_FACES || GEOMOD_DIAGONAL_BASE+i>=UINT16_MAX)return RF_RANGE;
+        memcpy(d->endpoints[i][0],first,12);memcpy(d->endpoints[i][1],last,12);d->count++;
+    }
+    *id=(uint16_t)(GEOMOD_DIAGONAL_BASE+i);return RF_OK;
+}
+static int diagonal_intersection(const geomod_diagonals *d,uint16_t id,const float plane[4],float out[3])
+{
+    const float *a,*b;double da=plane[3],db=plane[3],t;uint32_t k,index=id-GEOMOD_DIAGONAL_BASE;
+    if(!d || index>=d->count)return RF_FORMAT;
+    a=d->endpoints[index][0];b=d->endpoints[index][1];
+    for(k=0;k<3;k++){da+=(double)plane[k]*a[k];db+=(double)plane[k]*b[k];}
+    if(da==db)return RF_FORMAT;t=da/(da-db);if(!isfinite(t))return RF_FORMAT;
+    for(k=0;k<3;k++){out[k]=(float)((1-t)*a[k]+t*b[k]);if(!isfinite(out[k]))return RF_FORMAT;}
+    return RF_OK;
+}
 typedef struct geomod_corner_support {
     const rf_geomod_multi_work *work;
     uint16_t face;
     const rf_geomod_mesh_view *cutters;
+    const geomod_diagonals *diagonals;
 } geomod_corner_support;
 static const float *corner_support_plane(const geomod_corner_support *support,uint16_t id)
 {
@@ -861,7 +891,10 @@ static int polygon_split_edges(const rf_geomod_vertex *vertices,uint32_t count,
             cut.position[j]=(float)((1-t)*vertices[first].position[j]+t*vertices[last].position[j]);
             if(!isfinite(cut.position[j]))return RF_FORMAT;
         }
-        if(support && edges) {
+        if(support && edges && edges[i]>=GEOMOD_DIAGONAL_BASE && edges[i]!=UINT16_MAX) {
+            int status=diagonal_intersection(support->diagonals,edges[i],plane,cut.position);
+            if(status)return status;
+        } else if(support && edges) {
             float planes[3][4],position[3];
             memcpy(planes[0],corner_support_plane(support,support->face),sizeof(planes[0]));
             memcpy(planes[1],corner_support_plane(support,edges[i]),sizeof(planes[1]));
@@ -1270,10 +1303,12 @@ static int compact_separated(const float a[6],const float b[6])
  * that field identifies original material/collision ownership. */
 typedef struct geomod_face_lineage {
     uint8_t pending[RF_GEOMOD_WORK_FACES],repaired[RF_GEOMOD_WORK_FACES];
+    geomod_diagonals *diagonals;
 } geomod_face_lineage;
 /* Previous chronological bank's exact clipping-plane ownership. */
 typedef struct geomod_step_support {
     uint16_t edges[RF_GEOMOD_WORK_VERTICES],planes[RF_GEOMOD_WORK_FACES];
+    geomod_diagonals diagonals;
 } geomod_step_support;
 static int repair_cavity_pending_provenance(rf_geomod_storage *,rf_geomod_multi_work *,geomod_face_lineage *,geomod_step_support *);
 
@@ -1333,7 +1368,7 @@ static int subtract_history_face_range(rf_geomod_storage *s,const rf_geomod_vert
     const rf_geomod_mesh_view *cutters,uint32_t cutter_count,rf_geomod_multi_work *work,const uint16_t *edges,uint16_t face_id,uint32_t first_cutter,geomod_face_lineage *lineage,uint8_t birth)
 {
     uint32_t bank=0,pieces=1,c,i,j;int status;
-    geomod_corner_support support={work,face_id,cutters};
+    geomod_corner_support support={work,face_id,cutters,lineage?lineage->diagonals:NULL};
     memcpy(work->vertices[0],vertices,count*sizeof(*vertices));
     if(edges)memcpy(work->edges[0],edges,count*sizeof(*edges));
     work->fragments[0][0]=(rf_geomod_fragment){0,count};
@@ -1395,6 +1430,7 @@ static inline int prepare_chronological_step(rf_geomod_storage *s,const rf_geomo
 {
     rf_geomod_mesh_view old,source;uint32_t i,n,c,j,k;int status;
     if(!s || !work || !lineage || !previous || !cutters || !count || count>RF_GEOMOD_CUT_LIMIT || s->editing || s->vertex_capacity>RF_GEOMOD_WORK_VERTICES || s->face_capacity>RF_GEOMOD_WORK_FACES || cavity>1)return RF_RANGE;
+    lineage->diagonals=&previous->diagonals;if(count==1)previous->diagonals.count=0;
     source=(rf_geomod_mesh_view){s->vertices[2],s->faces[2],s->nv[2],s->nf[2],0};
     status=convex_mesh_planes_oriented(&source,work->source_planes,(int)cavity);if(status)return status;
     status=rf_geomod_storage_view(s,&old);if(status)return status;
@@ -1419,7 +1455,7 @@ static inline int prepare_chronological_step(rf_geomod_storage *s,const rf_geomo
         const rf_geomod_face *f=cutters[c].faces+i;
         rf_geomod_vertex *current=work->seed.vertices,*front=current+64,*back=current+128;
         uint16_t *current_edges=work->seed_edges,*front_edges=current_edges+64,*back_edges=current_edges+128;
-        geomod_corner_support support={work,(uint16_t)(32+c*128+i*(work->star_count[c]?4:1)),cutters};
+        geomod_corner_support support={work,(uint16_t)(32+c*128+i*(work->star_count[c]?4:1)),cutters,lineage->diagonals};
         if(cavity) {
             uint16_t source_ids[32];uint32_t pieces,part;
             rf_geomod_edge_tracking tracking={work->initial_edges+f->first,source_ids,work->seed_edges};
@@ -1517,7 +1553,7 @@ static int prepare_cavity_cuts(rf_geomod_storage *s,
             /* Keep cutter boundaries outside the original empty room. Contact
              * between cavity and cutter is internal, for either plane orientation. */
             rf_geomod_edge_tracking tracking={work->initial_edges+f->first,source_ids,work->seed_edges};
-            geomod_corner_support support={work,(uint16_t)(32+c*128+i*(work->star_count[c]?4:1)),cutters};
+            geomod_corner_support support={work,(uint16_t)(32+c*128+i*(work->star_count[c]?4:1)),cutters,NULL};
             status=polygon_subtract_tracked_policy(cutters[c].vertices+f->first,f->count,
                 work->source_planes,source.face_count,work->seed.vertices,64*32,
                 work->seed.fragments,32,&n,&pieces,1,&tracking,&support);if(status)goto failed;
@@ -1775,7 +1811,7 @@ static int repair_cavity_pending_provenance(rf_geomod_storage *s,rf_geomod_multi
             uint16_t edge=work->compact_edges[face->first+e];
             double d[3],fractions[64];const rf_geomod_vertex *points[64];uint32_t axis=0,used=0,i,j;
             if(n==64)return RF_RANGE;polygon_edges[n]=edge;polygon[n++]=*a;
-            if(plane==UINT16_MAX || edge==UINT16_MAX || (provenance && plane==edge))continue;
+            if(plane==UINT16_MAX || edge==UINT16_MAX || (provenance && (plane==edge || edge>=GEOMOD_DIAGONAL_BASE)))continue;
             for(k=0;k<3;k++)d[k]=(double)b->position[k]-a->position[k];
             for(k=1;k<3;k++)if(fabs(d[k])>fabs(d[axis]))axis=k;
             if(d[axis]==0)return RF_FORMAT;
@@ -1822,10 +1858,10 @@ static int repair_cavity_pending_provenance(rf_geomod_storage *s,rf_geomod_multi
                      for(to=0;to<n;to++)if(!memcmp(b->position,polygon[to].position,12))break;
                      if(from==n || to==n)return RF_FORMAT;
                      /* Boundary runs retain their original supporting plane.
-                      * Partition diagonals lie in this face's own plane. */
+                      * Partition diagonals retain their original endpoints. */
                      support=polygon_edges[from];j=(from+1)%n;
                      while(j!=to && polygon_edges[j]==support)j=(j+1)%n;
-                     if(j!=to)support=plane;
+                     if(j!=to){int status=diagonal_register(&provenance->diagonals,a->position,b->position,&support);if(status)return status;}
                      provenance->edges[cf->first+v]=support;
                  }
              }

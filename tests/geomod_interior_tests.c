@@ -35,7 +35,7 @@ static double volume(const rf_geomod_vertex *p,unsigned n)
 }
 /* Host snapshot inspection may measure candidates larger than runtime owners. */
 #define SNAPSHOT_VERTICES 8192
-#define SNAPSHOT_FACES 1536
+#define SNAPSHOT_FACES (RF_GEOMOD_WORK_FACES>1536?RF_GEOMOD_WORK_FACES:1536)
 static rf_geomod_vertex surface[SNAPSHOT_VERTICES];
 static rf_geomod_fragment polygons[SNAPSHOT_FACES];
 static unsigned surface_count,polygon_count;

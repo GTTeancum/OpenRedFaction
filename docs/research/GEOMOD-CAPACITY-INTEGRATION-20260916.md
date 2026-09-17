@@ -199,3 +199,49 @@ partition14-support.log, partition14-subsets.log, partition14-diagonal.log,
 partition14-isolated.log and partition14-restored-build.log. Next step: trace
 which supporting edges generated the near-adjacent pair and preserve their
 shared topology through clipping/repair rather than admitting thin slivers.
+
+
+## Retained diagonal origins: cut14 fixed, fifteen cuts pass
+
+Origin tracing shows both near-adjacent points come from the SAME artificial
+diagonal, with one clipping call using its original span and the other using
+a previously shortened span. Both have face/edge1596 and cut1720. Rounded
+subdivision endpoints produce distinct intersections despite lexicographic
+endpoint ordering. This establishes common construction, beyond mere proximity.
+
+Added a bounded replay-local diagonal registry, exact canonical endpoint-pair
+keys and separate uint16 support IDs. Repair assigns IDs to newly introduced
+diagonals; later splits use the retained original endpoints and cut plane.
+Edges inherited across repair retain the ID. Original material-plane support
+and UV interpolation remain separate; no distance weld or diagonal-guard
+relaxation. Registry storage is charged through the existing replay scratch
+budget and freed before final collision binding. Default1024-record storage
+is24580 bytes, extended2048-record storage49156 bytes, excluding its enclosing
+support arrays/tag pointer. Capacity failure remains transactional.
+
+An internal regression clips the captured long and shortened spans and proves
+the generated position is bit-identical, with reverse endpoint registration
+reusing the same ID. Public UV and legacy collision comparisons pass. Eight
+original-template cuts pass the default1MiB budget (peak1021840). Fifteen
+overlapping cuts pass the2MiB experimental profile (cut15 peak2023928).
+
+Cut16 now commits but fails closed coverage: faces1512/1513 contain identical
+three positions, with a small UV difference at one corner, and share an edge
+in the same direction against face1382. Saved diagonal-sixteen-mesh.csv and
+diagonal-sixteen-capture.log. This is the next open issue; do not claim16-cut
+acceptance. The diagnostic snapshot partition probe remains historical: the
+new construction prevents that old seven-corner face from being generated.
+
+Reconstruction source policy advanced to3, fingerprint
+6f3d7702a01da74e8a81a8745594bdca1cba9c378ffdb966dbde791cd4e9afb1.
+All106 registered CTests pass after full rebuild. PC two-shot save/reload/
+next-blast equals uninterrupted RFCP/RGCH/RGP. NXDK build passes.
+Native render-20260916-201642 passes58 checks over200 frames;3884-byte Xbox
+checkpoint equals uninterrupted PC, SHA256
+5010a58fcb37b173fc9b0b01f0c496eda98478b9a7b550e32e3179f9b2a1ec41.
+Endpoint free16.25390625MiB; disc restoration succeeded. Inspected framebuffer
+contains textured hall/roof/supports, damaged post, water, launcher and HUD.
+No retail-parity/audio/extended-profile visual claim.
+
+Logs: partition14-origin.log, diagonal-origin-build.log, diagonal-live-eight.log,
+diagonal-full-build.log, diagonal-full-tests.log, diagonal-native.log.
