@@ -10274,6 +10274,14 @@ static int scene_debris_spawn(scene_stream *s)
                 status=rf_geomod_debris_liquid_miss(p->origin,c->position,1,room->depth,room->minimum_y,&wet,&accepted);
                 rf_scene_debris_wet[6]=(uint32_t)status;if(status)return status;
                 if(accepted) {
+                    if(rf_scene_combat_trace) {
+                        uint32_t words[12],n;float inputs[12];
+                        memcpy(inputs,p->origin,12);memcpy(inputs+3,c->position,12);
+                        inputs[6]=room->depth;inputs[7]=room->minimum_y;inputs[8]=wet.fraction;
+                        memcpy(inputs+9,wet.point,12);memcpy(words,inputs,sizeof(words));
+                        printf("DEBRIS_WET_SAMPLE %u",p->selected_room.room);
+                        for(n=0;n<12;n++)printf(" %u",words[n]);puts("");
+                    }
                     ++rf_scene_debris_wet[2];memcpy(rf_scene_debris_wet+4,&wet.fraction,4);
                     rf_scene_debris_wet[5]=npc_hash_bytes(2166136261u,wet.point,12);
                     /*49002a..490036 copies this historical reverse-interpolated
