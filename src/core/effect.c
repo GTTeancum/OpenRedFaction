@@ -611,6 +611,18 @@ int rf_particle_frame_index(const rf_particle *particle,uint32_t *frame)
     value=floor(value);if(value<0)value=0;if(value>=count)value=count-1;
     *frame=(uint32_t)value;return RF_OK;
 }
+int rf_particle_blood_prepare(const float position[3],float damage,uint32_t bitmap,
+    uint32_t frame_count,rf_particle_spawn *result)
+{
+    rf_particle_spawn value={0};uint32_t i;
+    if(!position || !result || !isfinite(damage) || damage<0 || !frame_count)return RF_RANGE;
+    for(i=0;i<3;i++)if(!isfinite(position[i]))return RF_RANGE;
+    memcpy(value.position,position,12);value.radius=(float)(sqrt((double)damage)*(double).05f);
+    if(!isfinite(value.radius))return RF_RANGE;
+    value.life=.5f;value.bitmap=bitmap;value.frame_count=frame_count;value.color=0xff7f7f7fu;
+    *result=value;return RF_OK;
+}
+
 int rf_particle_initialize(const rf_particle_spawn *spawn,uint32_t pool,
     uint32_t owner,uint32_t room,uint32_t emitter,rf_random_state *random,
     rf_particle *particle)

@@ -540,6 +540,12 @@ typedef struct rf_particle_spawn {
     float age_to_finish_vbm;
     uint32_t copied_48;
 } rf_particle_spawn;
+/*42e3d0 single blood billboard. Resolved bitmap/frame count supplied by caller.
+ * Radius=sqrt(damage)*float0.05; life0.5, stationary gray particle. Unwritten
+ * original stack fields are zeroed explicitly. Does not emit the accompanying
+ * authored bloodsplat burst. Errors preserve output. */
+int rf_particle_blood_prepare(const float position[3],float damage,uint32_t bitmap,
+    uint32_t frame_count,rf_particle_spawn *result);
 typedef struct rf_particle {
     uint32_t next,previous,owner;
     float position[3],velocity[3],age;

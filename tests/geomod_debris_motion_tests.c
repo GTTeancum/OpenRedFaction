@@ -12,6 +12,9 @@ static const struct {uint32_t inputs[3],output;} gravity_cases[]={
 static const struct {uint32_t inputs[11],hit,amount;} actor_cases[]={
 #include "fixtures/debris_actor.inc"
 };
+static const struct {uint32_t damage,packet[19];} blood_cases[]={
+#include "fixtures/debris_blood.inc"
+};
 int main(void)
 {
     uint32_t i;float input[11],output[3],before[3]={11,12,13};
@@ -34,6 +37,14 @@ int main(void)
     }
     {uint32_t hit=99;output[0]=11;
      CHECK(rf_geomod_debris_actor_contact(input,input+3,-1,input+7,1,&hit,output)==RF_RANGE && hit==99 && output[0]==11);}
+    for(i=0;i<sizeof(blood_cases)/sizeof(blood_cases[0]);i++) {
+        rf_particle_spawn packet;float position[3]={1,2,3},damage;
+        memcpy(&damage,&blood_cases[i].damage,4);
+        CHECK(!rf_particle_blood_prepare(position,damage,37,6,&packet));
+        CHECK(sizeof(packet)==76 && !memcmp(&packet,blood_cases[i].packet,76));
+        {rf_particle_spawn before=packet;
+         CHECK(rf_particle_blood_prepare(position,-1,37,6,&packet)==RF_RANGE && !memcmp(&packet,&before,76));}
+    }
     output[0]=11;
     CHECK(rf_geomod_debris_gravity(0,NAN,.1f,output)==RF_RANGE && output[0]==11);
     CHECK(rf_geomod_debris_gravity(0,1,-1,output)==RF_RANGE && output[0]==11);
@@ -41,5 +52,5 @@ int main(void)
     CHECK(rf_geomod_debris_motion(input,input+3,.1f,0,0,0,output)==RF_RANGE && !memcmp(output,before,12));
     input[0]=0;CHECK(rf_geomod_debris_motion(input,input+3,.1f,1,NAN,0,output)==RF_RANGE && !memcmp(output,before,12));
     CHECK(rf_geomod_debris_motion(input,input+3,-1,0,0,0,output)==RF_RANGE && !memcmp(output,before,12));
-    puts("PASS72 motion vectors and140 gravity results plus9 actor contacts bit-exact against original, aliasing and atomic guards");return 0;
+    puts("PASS72 motion vectors and140 gravity results plus9 actor contacts and4 blood packets bit-exact against original, aliasing and atomic guards");return 0;
 }
