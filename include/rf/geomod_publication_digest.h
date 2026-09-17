@@ -31,7 +31,7 @@ int rf_geomod_image_content_digest(const rf_geomod_identity_image *,unsigned cha
  * generation do not change the digest. Face order/corner order DO matter.
  * source_domain validates core authored tokens vs scene compiled-reference
  * face.source_face; only origins supply the hashed stable authored token.
- * Policies1 only; max768 faces/4096 corners,128 materials/768 charts.
+ * Policies1 only; configured publication faces/corners,128 materials; charts <= face limit.
  * Zero faces/corners/materials/charts encode an empty replacement publication
  * after reset; original source/collision must still be checked separately.
  * Source/unlit chart owner/token must match the face and retained_mapUINTMAX.

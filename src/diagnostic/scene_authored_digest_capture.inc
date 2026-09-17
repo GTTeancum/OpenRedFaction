@@ -6,13 +6,18 @@
 #include "rf/geomod_collision_digest.h"
 #include "rf/geomod_retained_material_digest.h"
 #include "rf/authored_owner_extension.h"
+/* Preserve the existing1280-face allowance for unchanged room geometry. */
+#define SCENE_AUTHORED_COLLISION_ROWS (1280+RF_GEOMOD_PUBLICATION_FACES)
+#ifndef SCENE_AUTHORED_DIGEST_BUDGET
+#define SCENE_AUTHORED_DIGEST_BUDGET (512*1024)
+#endif
 typedef struct scene_authored_digest_work {
     rf_geomod_digest_material materials[128];
-    rf_geomod_digest_chart charts[768];
+    rf_geomod_digest_chart charts[RF_GEOMOD_PUBLICATION_FACES];
     rf_geomod_retained_material_map maps[1024];
-    rf_geomod_collision_digest_row rows[2048];
-    uint32_t face_charts[768],map_charts[1024];
-    uint16_t face_maps[768];
+    rf_geomod_collision_digest_row rows[SCENE_AUTHORED_COLLISION_ROWS];
+    uint32_t face_charts[RF_GEOMOD_PUBLICATION_FACES],map_charts[1024];
+    uint16_t face_maps[RF_GEOMOD_PUBLICATION_FACES];
     unsigned char packed[64*64*2],rgb[64*3];
 } scene_authored_digest_work;
 static inline int scene_authored_digest_generated(scene_authored_digest_work *w,
@@ -54,14 +59,14 @@ static inline int scene_authored_digest_capture(const scene_stream *s,
     if(!s || !publication || !composition || !lighting || !out || !peak_bytes ||
        !s->terrain_authored || !s->terrain_publication || !s->geometry || !actor_follow_world ||
        !actor_follow_world->slots || !lighting->terrain_noise || !composition->tree || !composition->face_ids ||
-       publication->mesh.face_count>768 || composition->count>2048 || composition->count<publication->mesh.face_count ||
+       publication->mesh.face_count>RF_GEOMOD_PUBLICATION_FACES || composition->count>SCENE_AUTHORED_COLLISION_ROWS || composition->count<publication->mesh.face_count ||
        (publication->mesh.face_count && (!origins || !face_maps || !lighting->terrain_bindings || !publication->faces || !publication->mesh.faces || !publication->mesh.vertices)) ||
        face_map_capacity<publication->mesh.face_count || serial==UINT32_MAX || publication->cuts>serial)return RF_RANGE;
     a=s->terrain_authored;manifest=&a->identity_manifest;noise=lighting->terrain_noise;base=s->terrain_publication->base;
     if(!base || !base->source_indices || noise->count>1024 || !manifest->substrate ||
        !manifest->materials || !manifest->references || !manifest->material_count || manifest->material_count>=128 ||
        manifest->reference_count>768 || manifest->substrate->prehashed!=1 || manifest->substrate->image.pixels)return RF_FORMAT;
-    peak=(uint32_t)sizeof(*w)+8192;if(peak>512*1024)return RF_RANGE;
+    peak=(uint32_t)sizeof(*w)+8192;if(peak>SCENE_AUTHORED_DIGEST_BUDGET)return RF_RANGE;
     w=calloc(1,sizeof(*w));if(!w)return RF_IO;
     memset(w->map_charts,0xff,sizeof(w->map_charts));memset(w->face_maps,0xff,sizeof(w->face_maps));
     materials=manifest->material_count+1;
@@ -83,7 +88,7 @@ static inline int scene_authored_digest_capture(const scene_stream *s,
         if(face->first>publication->mesh.vertex_count || face->count>publication->mesh.vertex_count-face->first || face->count<3)goto done;
         if(o->kind!=RF_GEOMOD_PUBLICATION_CRATER) {
             for(i=0;i<manifest->reference_count;i++)if(manifest->references[i].reference==o->reference)break;
-            if(i==manifest->reference_count || charts==768)goto done;
+            if(i==manifest->reference_count || charts==RF_GEOMOD_PUBLICATION_FACES)goto done;
             if(manifest->references[i].compiled_material>=s->geometry->textures ||
                actor_follow_world->slots[manifest->references[i].compiled_material]!=face->material)goto done;
             for(j=0;j<a->reference_count;j++)if(a->references[j].reference==o->reference)break;
@@ -107,7 +112,7 @@ static inline int scene_authored_digest_capture(const scene_stream *s,
             if(found==UINT32_MAX || face->material!=s->terrain_material)goto done;
             w->face_maps[f]=(uint16_t)found;
             if(w->map_charts[found]==UINT32_MAX) {
-                if(charts==768)goto done;
+                if(charts==RF_GEOMOD_PUBLICATION_FACES)goto done;
                 status=scene_authored_digest_generated(w,noise->maps+found,o->owner,found,w->charts+charts);if(status)goto done;
                 status=RF_FORMAT;w->charts[charts].key=charts;w->map_charts[found]=charts++;
             }

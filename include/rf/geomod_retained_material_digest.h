@@ -25,7 +25,7 @@ typedef struct rf_geomod_retained_material_input {
  * local64-pixel chunks; no live atlas, GPU image handles, dynamic lights/cache,
  * or dynamic map.hash/FNV is an input. Source/substrate identities must already
  * be verified. This does not validate visible face geometry against its map.
- * Policy1,512x512 row packing, density4, <=1024maps/768faces, <=8cuts.
+ * Policy1,512x512 row packing, density4, <=1024 maps, configured publication faces and cutter limit.
  * Requires baked==map_count/sample0, cuts<=serial, serial!=UINTMAX and owner
  * continuation consistency. Empty zero-cut generation0 permits lazy RNG0 or1;
  * an initialized nonzero generation requires RNG1 even when empty.

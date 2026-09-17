@@ -324,3 +324,28 @@ capacity-draw-full-tests.log and capacity-draw-xbox-build.log under
 artifacts/authored-post-live. No frame/GPU/native visual claim for this CPU test.
 Atlas mapping, digest tables, terrain owner budgets and reload coexistence still
 need coordinated expansion before enabling the larger profile in gameplay.
+
+## Expanded publication/material save validation
+
+Publication digest limits now use configured face/vertex limits; retained
+material digest uses the same face bound. Scene digest chart/face tables and
+checkpoint writer/reload face-map tails use that bound too. Collision digest
+scratch retains1280 extra rows beyond the configured publication capacity
+(default total2048 unchanged). Digest scratch budget is explicitly configurable
+but stays512KiB by default: expanded owners must still pass a measured budget.
+
+Isolated2048-face/8192-vertex digest builds process2048 faces and6144 corners.
+Changing the last UV changes the publication hash; an invalid final chart
+rejects without modifying output. Changing the final retained map binding
+changes the material hash, while an invalid binding or excessive face count
+rejects atomically. Existing independent canonical hashes still pass for both
+profiles. These are synthetic capacity/validation tests, not authored geometry
+or texture residency acceptance. The1024-map atlas journal remains unchanged.
+
+All111 registered tests pass after full build. Default NXDK builds successfully
+with the known linker merge warning. Logs: capacity-digest-build.log,
+capacity-digest-full-build.log, capacity-digest-full-tests.log and
+capacity-digest-xbox-build.log under artifacts/authored-post-live.
+Shipping remains8 cuts. Next: coordinate expanded core/publication owners,
+measure atlas and concurrent reload scratch, then validate actual extended
+craters on PC and stock64MiB XEMU before activating the larger live profile.

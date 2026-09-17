@@ -1,4 +1,5 @@
 #include "rf/geomod_publication_digest.h"
+#include <stdlib.h>
 #include <math.h>
 #include <stdio.h>
 #include <string.h>
@@ -85,5 +86,21 @@ int main(void)
      CHECK(!rf_geomod_publication_digest(&empty,again)&&memcmp(digest,again,32));
      empty.mesh.vertex_count=1;CHECK(rejected(&empty));empty.mesh.vertex_count=0;
      empty.chart_count=1;CHECK(rejected(&empty));}
+
+    {
+        uint32_t count=RF_GEOMOD_PUBLICATION_FACES,n;rf_geomod_publication_digest_input large=in;
+        rf_geomod_vertex *v=malloc(count*3*sizeof(*v));rf_geomod_face *f=malloc(count*sizeof(*f));
+        rf_geomod_publication_origin *o=malloc(count*sizeof(*o));uint32_t *k=malloc(count*sizeof(*k));
+        CHECK(v && f && o && k);
+        for(n=0;n<count;n++){memcpy(v+n*3,vertices+(n%2)*3,3*sizeof(*v));f[n]=faces[n%2];f[n].first=n*3;o[n]=origins[n%2];k[n]=keys[n%2];}
+        large.mesh=(rf_geomod_mesh_view){v,f,count*3,count,0};large.origins=o;large.face_charts=k;
+        CHECK(!rf_geomod_publication_digest(&large,digest));
+        v[count*3-1].uv[0]+=.125f;CHECK(!rf_geomod_publication_digest(&large,again) && memcmp(digest,again,32));
+        k[count-1]=UINT32_MAX;CHECK(rejected(&large));k[count-1]=keys[(count-1)%2];
+        large.mesh.face_count=count+1;CHECK(rejected(&large));large.mesh.face_count=count;
+        large.mesh.vertex_count=RF_GEOMOD_PUBLICATION_VERTICES+1;CHECK(rejected(&large));
+        printf("CAPACITY publication faces%u vertices%u tail mutation/rejection verified\n",count,count*3);
+        free(k);free(o);free(f);free(v);
+    }
     puts("PASS publication digest stable lookup identity, ordered output, content/provenance gates, atomic failures");return 0;
 }

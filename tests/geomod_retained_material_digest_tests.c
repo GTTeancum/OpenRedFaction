@@ -1,5 +1,6 @@
 #include "rf/geomod_retained_material_digest.h"
 #include <math.h>
+#include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
 #define CHECK(x) do{if(!(x)){fprintf(stderr,"FAIL line%d %s\n",__LINE__,#x);return 1;}}while(0)
@@ -62,5 +63,18 @@ int main(void)
      empty.owner_generation=2;CHECK(rejected(&empty));empty.owner_generation=3;
      CHECK(!rf_geomod_retained_material_digest(&empty,again));
      empty.random=0;CHECK(rejected(&empty));}
+
+    {
+        uint32_t count=RF_GEOMOD_PUBLICATION_FACES,n;rf_geomod_retained_material_input large=in;
+        rf_geomod_publication_origin *o=malloc(count*sizeof(*o));uint16_t *m=malloc(count*sizeof(*m));CHECK(o && m);
+        for(n=0;n<count;n++){o[n]=origins[n%2];m[n]=face_maps[n%2];}
+        large.origins=o;large.face_maps=m;large.face_count=count;
+        CHECK(!rf_geomod_retained_material_digest(&large,digest));
+        m[count-1]=1;CHECK(!rf_geomod_retained_material_digest(&large,again) && memcmp(digest,again,32));
+        m[count-1]=2;CHECK(rejected(&large));m[count-1]=0;
+        large.face_count=count+1;CHECK(rejected(&large));
+        printf("CAPACITY retained material faces%u tail binding/rejection verified\n",count);
+        free(m);free(o);
+    }
     puts("PASS retained material journal historical maps, exact seed continuation, packing, base noise, visibility, rollback");return 0;
 }

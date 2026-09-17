@@ -131,8 +131,8 @@ int rf_geomod_publication_digest(const rf_geomod_publication_digest_input *v,uns
         identity_sha_word(&h,0);identity_sha_word(&h,0);identity_sha_end(&h,digest);memcpy(out,digest,32);return RF_OK;
     }
     if(!v->mesh.vertices || !v->mesh.faces || !v->origins || !v->face_charts ||
-        !v->mesh.face_count || v->mesh.face_count>768 || !v->mesh.vertex_count || v->mesh.vertex_count>4096 ||
-        !v->materials || !v->material_count || v->material_count>128 || !v->charts || !v->chart_count || v->chart_count>768)return RF_RANGE;
+        !v->mesh.face_count || v->mesh.face_count>RF_GEOMOD_PUBLICATION_FACES || !v->mesh.vertex_count || v->mesh.vertex_count>RF_GEOMOD_PUBLICATION_VERTICES ||
+        !v->materials || !v->material_count || v->material_count>128 || !v->charts || !v->chart_count || v->chart_count>RF_GEOMOD_PUBLICATION_FACES)return RF_RANGE;
     for(i=0;i<v->material_count;i++) {
         if(v->materials[i].key==UINT32_MAX || !resource_valid(&v->materials[i].image,v->materials[i].prehashed))return RF_FORMAT;
         for(j=0;j<i;j++)if(v->materials[i].key==v->materials[j].key)return RF_FORMAT;

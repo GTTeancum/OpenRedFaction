@@ -9,7 +9,7 @@
 typedef struct scene_authored_checkpoint_writer {
     scene_stream lighting;
     scene_terrain_noise_owner empty;
-    uint16_t face_maps[768];
+    uint16_t face_maps[RF_GEOMOD_PUBLICATION_FACES];
     rf_authored_owner_expected expected;
     rf_authored_owner_extension extension;
 } scene_authored_checkpoint_writer;
@@ -54,7 +54,7 @@ static inline int scene_authored_checkpoint_write(scene_stream *s,void *buffer,u
     w->lighting=*s;
     if(!view.cuts){w->empty.random.value=owner->random.value;w->lighting.terrain_noise=&w->empty;}
     status=scene_authored_digest_capture(s,&view,bank->origins,&composition,&w->lighting,serial,
-        w->face_maps,768,&w->expected,&peak);if(status)goto done;
+        w->face_maps,RF_GEOMOD_PUBLICATION_FACES,&w->expected,&peak);if(status)goto done;
     if((uint64_t)sizeof(*w)+layout.bytes+peak>1024u*1024u){status=RF_RANGE;goto done;}
     memcpy(p,"RFDS",4);checkpoint_put(p+4,2);checkpoint_put(p+8,layout.bytes);
     memcpy(p+16,campaign_current_level,name_length);memcpy(p+80,s->terrain_checkpoint_identity,128);

@@ -606,3 +606,10 @@ add_executable(rf_scene_terrain_draw_capacity_tests tests/scene_terrain_draw_cap
 target_compile_definitions(rf_scene_terrain_draw_capacity_tests PRIVATE SCENE_TERRAIN_SOURCE_VERTICES=8192 SCENE_TERRAIN_FACES=2048 SCENE_TERRAIN_DRAW_BUDGET=1048576 _CRT_SECURE_NO_WARNINGS)
 target_link_libraries(rf_scene_terrain_draw_capacity_tests PRIVATE rf_core)
 add_test(NAME scene_terrain_draw_capacity COMMAND rf_scene_terrain_draw_capacity_tests)
+
+foreach(kind publication retained_material)
+    add_executable(rf_geomod_${kind}_capacity_digest_tests tests/geomod_${kind}_digest_tests.c src/core/geomod_${kind}_digest.c)
+    target_compile_definitions(rf_geomod_${kind}_capacity_digest_tests PRIVATE RF_GEOMOD_PUBLICATION_FACES=2048 RF_GEOMOD_PUBLICATION_VERTICES=8192 RF_GEOMOD_CUT_LIMIT=16)
+    target_link_libraries(rf_geomod_${kind}_capacity_digest_tests PRIVATE rf_core)
+    add_test(NAME geomod_${kind}_capacity_digest COMMAND rf_geomod_${kind}_capacity_digest_tests)
+endforeach()

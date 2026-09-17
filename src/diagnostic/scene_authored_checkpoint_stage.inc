@@ -11,7 +11,7 @@ typedef struct scene_authored_checkpoint_stage {
     const rf_geomod_publication_origin *origins;
     rf_preview_surface_lightmap *source_bindings;
     rf_authored_owner_expected expected;rf_authored_owner_extension extension;
-    uint16_t face_maps[768];
+    uint16_t face_maps[RF_GEOMOD_PUBLICATION_FACES];
     uint32_t serial,cuts,reserved_peak_bytes,digest_peak_bytes,owns_pending;
 } scene_authored_checkpoint_stage;
 static void scene_authored_checkpoint_stage_discard(scene_authored_checkpoint_stage **ptr)
@@ -84,7 +84,7 @@ static int scene_authored_checkpoint_stage_prepare(scene_stream *s,const void *i
         status=scene_terrain_lighting_stage_draw(p->lighting);if(status)goto failed;
     }
     status=scene_authored_digest_capture(s,&p->publication,p->origins,&composition,p->lighting->staged,serial,
-        p->face_maps,768,&p->expected,&p->digest_peak_bytes);if(status)goto failed;
+        p->face_maps,RF_GEOMOD_PUBLICATION_FACES,&p->expected,&p->digest_peak_bytes);if(status)goto failed;
     for(i=0;i<layout.faces;i++) {
         uint32_t at=layout.face_offset+i*2,map=data[at]|((uint32_t)data[at+1]<<8);
         if(p->face_maps[i]!=map){status=RF_FORMAT;goto failed;}
