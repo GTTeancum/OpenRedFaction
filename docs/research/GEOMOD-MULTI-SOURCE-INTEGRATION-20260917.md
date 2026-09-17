@@ -336,3 +336,15 @@ The first actual two-rocket capture was rejected because reconstruction was char
 New tools/check_paired_authored_checkpoint.py uses the actual850-frame two-rocket input, captures a4724-byte composed save, reloads into a fresh gameplay scene and runs199 updates. Its uninterrupted control runs the matching total update count. Final composed checkpoint bytes match exactly, including actual player state, both histories, rubble registries, shared atlas journal and scene digests. The one-cut paired startup harness now also verifies profile3 retains the untouched second owner; that save is2924 bytes.
 
 Resumed/control PC framebuffers were inspected: both show the expected room, two damaged post areas, retained rubble and weapon/HUD; the left fragment is partly occluded by the red prop. No pixel-perfect animation or audible-quality claim follows. All122 PC tests pass, the updated startup harness passes and stock NXDK builds. Logs: artifacts/paired-dispatch-build.log, artifacts/paired-dispatch-tests.log, artifacts/paired-dispatch-startup.log, artifacts/paired-dispatch-xbox.log and artifacts/paired-checkpoint/{save,resume,control}.log. Native collection save/reload, actual-player standing on paired rubble, reset saves and broader histories remain unverified. No emulator session, disk clone or GitHub screenshot upload was created.
+
+
+## Native paired gameplay save and reload acceptance
+
+The XEMU render harness now admits paired collection checkpoints when player-checkpoint mode is enabled; raw paired destruction checkpoints remain rejected. Two completed stock64MiB runs pass all76 comparisons each:
+
+- artifacts/xemu/render-20260917-135439 loads the PC-created paired save and executes200 replay frames (199 updates).
+- artifacts/xemu/render-20260917-135624 executes the850-frame two-rocket replay and creates a new composed checkpoint on Xbox.
+
+Both runs export4724-byte RFCP payloads identical to their PC references and to artifacts/paired-checkpoint/save.rfcp (SHA256 6ea361e45a2b8db33693c47c8877fdb373ba17fce814e400d1773600d47c6d32). The two source histories retain one cut each, with shared atlas and detached-body state preserved. The save run ends with3650 available4KiB pages (14.26MiB); reload ends with3799 (14.84MiB). These are endpoint availability measurements, not whole-run minimum free memory.
+
+Native framebuffers were inspected: the room, weapon/HUD, damaged post areas and tilted right fragment are visible; the left fragment is partly occluded by a red prop. Both reports confirm disc staging restored. Native output is a bounded guest-memory checkpoint export, not an HDD persistence test. No new HDD clone or GitHub image upload was created. Actual-player standing on paired rubble, reset-save continuation, broader cut histories and audible quality remain unverified by these runs.

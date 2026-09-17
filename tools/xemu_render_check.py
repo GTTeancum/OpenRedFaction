@@ -38,7 +38,7 @@ def main():
     parser.add_argument('--capture-ripple', action='store_true', help='Capture ordinary ripple vertices without injecting a fixture')
     parser.add_argument('--debris-player-test', action='store_true', help='Explicit scene damage fixture, not an ordinary fragment trajectory')
     parser.add_argument('--ripple-test', action='store_true', help='DEV render-only ripple fixture; no liquid collision claim')
-    parser.add_argument('--authored-sources', type=int, choices=(1,2), default=1, help='Retain selected post and optional paired post; paired saves not supported yet')
+    parser.add_argument('--authored-sources', type=int, choices=(1,2), default=1, help='Retain selected post and optional paired post; paired checkpoints require player mode')
     parser.add_argument('--authored-source', type=int, choices=(93,94,96,97), help='Select one ctf06 developer destruction source on both platforms')
     parser.add_argument('--dev-room', action='store_true', help='Supply supported weapons in Glass House or the authored ctf06 post test')
     parser.add_argument('--player-checkpoint', action='store_true', help='Opt-in RFCP player plus destruction checkpoint mode')
@@ -77,8 +77,8 @@ def main():
         parser.error('--authored-source requires --dev-room --level ctf06.rfl')
     if args.authored_sources==2:
         if not args.dev_room or args.level!='ctf06.rfl':parser.error('Paired sources require ctf06 DEV room')
-        if args.player_checkpoint or args.geomod_checkpoint_in or args.geomod_checkpoint_out:
-            parser.error('Paired-source checkpoints are not implemented')
+        if (args.geomod_checkpoint_in or args.geomod_checkpoint_out) and not args.player_checkpoint:
+            parser.error('Paired-source checkpoints require --player-checkpoint')
     if args.player_checkpoint and not args.dev_room:parser.error('--player-checkpoint requires --dev-room')
     if args.lava_test and (args.swim_test or args.water_test or args.dev_room or not args.spawn or args.level!='L5S2.rfl' or args.archive!='levels1.vpp'):
         parser.error('--lava-test requires --spawn --level L5S2.rfl --archive levels1.vpp without other placement fixtures')
