@@ -99,3 +99,14 @@ Admitted vehicle contacts also compare all registries, retaining earliest contac
 Tests use two real registry-owned intermediate-radius cubes, confirm later-source movement/ground contacts, first-source retention for identical contacts and the radius<=.5 exclusion. Vehicle use-kind1 reaches the later source; kind9 misses without overwriting contact or identity outputs. Invalid player query limits preserve output. The first fixture used a.1 actor sphere, whose combined sphere radius was too small to satisfy the original raw-normal-y<-.5 ground condition. The corrected fixture uses a.6 sphere; no runtime threshold was relaxed.
 
 PC build and122/122 tests pass, and stock NXDK compilation succeeds. `tools/check_intermediate_rubble_standing.py` passes after the integration: natural jump onto the intermediate fragment, exact standing and walk-away save continuations, and rejection of missing saved support. These remain single-source live controls. Multi-source checkpoint support providers and restore ownership are still unimplemented, and no new native or multi-source visual claim is made.
+
+
+## Real aggregate atlas preparation
+
+The real93/94 scene fixture now runs the production lighting-stage prepare, draw, commit and discard sequence instead of assigning synthetic image2 bindings. It allocates the normal bounded atlas/noise/draw storage, publishes the first cut and then the second source cut, and reacquires the active publication view after committing each stage.
+
+This exposed an aggregate cache invalidation defect: both independently cut source cores can have local generation1. The collection publication entry point now uses the room publication serial when more than one source exists, preserving local generation behavior for the single-source path. Without this change the second source's new generated faces can retain unbound image metadata because the lighting stage sees an unchanged generation. The fixture explicitly verifies room generations1 and2.
+
+The first cut creates6 atlas maps; the second expands to12 maps and prepares344 draw vertices across70 published faces. Every generated face binds the atlas image. The first35 face bindings, existing map descriptors and all pixel rows inside the first six maps remain byte-identical after the second cut. Both holes retain their previously verified room-collision behavior. This is actual CPU atlas/noise baking and draw preparation, with no enabled level-light fixture; it does not establish full lighting parity or GPU output.
+
+PC build and122/122 tests pass; stock-profile NXDK compilation succeeds. Logs: artifacts/grouped-lighting-build.log, artifacts/grouped-lighting-tests.log and artifacts/grouped-lighting-xbox.log. No new disk-image clone or native emulator session was created. Ordinary startup still selects one source: grouped live impact dispatch, source-indexed checkpoint restoration and native multi-object memory/visual acceptance remain open.

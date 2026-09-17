@@ -173,7 +173,10 @@ static int scene_terrain_publication_prepare(scene_stream *s)
         status=rf_geomod_terrain_cutter_get(s->terrain,i,&cuts[i].mesh,cuts[i].kernel,&cuts[i].star);
         if(status)return status;
     }
-    status=scene_terrain_publication_prepare_from(s,&terrain,cuts,terrain.cuts,terrain.mesh.generation);
+    /* Different sources can share a local core generation. Lighting/draw caches
+     * must observe the aggregate room revision after every committed edit. */
+    status=scene_terrain_publication_prepare_from(s,&terrain,cuts,terrain.cuts,
+        s->terrain_source_count>1?s->terrain_publication_serial:terrain.mesh.generation);
     if(!status && terrain.cuts)rf_scene_terrain_publication[6]=1;
     return status;
 }
