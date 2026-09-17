@@ -916,6 +916,30 @@ int rf_physics_solid_angular_propose(rf_physics_body_state *state,float dt)
     for(i=0;i<9;i++)if(!isfinite(next[i]))return RF_RANGE;
     memcpy(state->mass_vector_d4,momentum,12);memcpy(state->vector_c8,angular,12);memcpy(state->next_orientation,next,36);return RF_OK;
 }
+int rf_physics_solid_advance(rf_physics_body_state *state,float dt,float fraction,
+    float published_basis[9],float *remaining)
+{
+    rf_physics_body_state value;float left=0;uint32_t i;int status;
+    if(!state || !published_basis || !remaining || !isfinite(dt) || dt<0 ||
+       !isfinite(fraction) || fraction<0 || fraction>1 || (state->flags&0x4000))return RF_RANGE;
+    value=*state;
+    if(fraction<1) {
+        status=rf_physics_weapon_contact_advance(&value,dt,fraction,&left);if(status)return status;
+    } else {
+        if(!isfinite(value.bounds.radius) || value.bounds.radius<0)return RF_RANGE;
+        for(i=0;i<3;i++) {
+            float p=value.next_position[i],r=value.bounds.radius;
+            if(!isfinite(p))return RF_RANGE;
+            value.position[i]=p;value.bounds.minimum[i]=p-r;value.bounds.maximum[i]=p+r;
+            if(!isfinite(value.bounds.minimum[i]) || !isfinite(value.bounds.maximum[i]))return RF_RANGE;
+        }
+        value.scalar_144=1;
+    }
+    memcpy(value.orientation,value.next_orientation,36);
+    status=rf_physics_tensor_world(value.local_tensor,value.orientation,value.world_tensor);if(status)return status;
+    if(fraction==1)memcpy(published_basis,value.orientation,36);
+    *state=value;*remaining=left;return RF_OK;
+}
 int rf_physics_solid_contact(rf_physics_body_state *state,const float point[3],
     const float normal[3],const float gravity[3],float elasticity,float friction,
     rf_physics_solid_response *response)

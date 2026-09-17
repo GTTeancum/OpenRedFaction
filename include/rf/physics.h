@@ -234,6 +234,14 @@ int rf_physics_solid_propose(rf_physics_body_state *,float dt,float gravity,
  * damping, repeat preparation bypass and15-radian speed cap. Finite nondegenerate
  * basis required. No contact or pose commit; errors preserve the body. */
 int rf_physics_solid_angular_propose(rf_physics_body_state *,float dt);
+/* Accept a collision-tested prediction (49d280 / ordinary4a01b0).
+ * next_orientation must be the unchanged prediction for the supplied full dt:
+ * partial contact consumes fractional translation time but the full rotation.
+ * Full acceptance publishes basis and rebuilds bounds; partial acceptance keeps
+ * published basis and swept bounds. Refreshes world tensor before response.
+ * No contact response, position publication or scene scheduling. Atomic errors. */
+int rf_physics_solid_advance(rf_physics_body_state *,float dt,float fraction,
+    float published_basis[9],float *remaining);
 typedef enum rf_physics_solid_response {
     RF_SOLID_CONTACT_IGNORED=0,RF_SOLID_CONTACT_IMPULSE=1,RF_SOLID_CONTACT_STOPPED=2
 } rf_physics_solid_response;

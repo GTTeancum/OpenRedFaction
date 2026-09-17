@@ -83,5 +83,32 @@ int main(void)
              CHECK(!memcmp(&body,&saved_body,sizeof(body)) && response==(rf_physics_solid_response)777);}
         }
     }
+    {
+        float published[9]={1,0,0,0,1,0,0,0,1},old_basis[9],left;
+        memset(&body,0,sizeof(body));body.mass=1;body.bounds.radius=.25f;
+        body.local_tensor[0]=2;body.local_tensor[4]=3;body.local_tensor[8]=4;
+        body.next_position[0]=2;body.next_position[1]=4;
+        body.next_orientation[1]=1;body.next_orientation[3]=-1;body.next_orientation[8]=1;
+        body.bounds.minimum[0]=-99;body.bounds.maximum[0]=99;
+        before=body;memcpy(old_basis,published,36);
+        CHECK(!rf_physics_solid_advance(&body,.1f,.5f,published,&left));
+        CHECK(left==.05f && body.position[0]>0 && body.position[0]<1);
+        CHECK(body.bounds.minimum[0]==-99 && body.bounds.maximum[0]==99);
+        CHECK(!memcmp(published,old_basis,36) && !memcmp(body.orientation,body.next_orientation,36));
+        CHECK(body.world_tensor[0]==3 && body.world_tensor[4]==2 && body.world_tensor[8]==4);
+        body=before;CHECK(!rf_physics_solid_advance(&body,.1f,1,published,&left));
+        CHECK(left==0 && body.position[0]==2 && body.position[1]==4 && body.scalar_144==1);
+        CHECK(body.bounds.minimum[0]==1.75f && body.bounds.maximum[1]==4.25f);
+        CHECK(!memcmp(published,body.orientation,36));
+        for(test=0;test<3;test++) {
+            body=before;left=123;memcpy(published,old_basis,36);
+            if(test==0)body.next_orientation[0]=NAN;
+            if(test==1){body.next_position[0]=FLT_MAX;body.bounds.radius=FLT_MAX;}
+            if(test==2)body.flags=0x4000;
+            {rf_physics_body_state unchanged=body;
+             CHECK(rf_physics_solid_advance(&body,.1f,1,published,&left)!=RF_OK);
+             CHECK(!memcmp(&body,&unchanged,sizeof(body)) && left==123 && !memcmp(published,old_basis,36));}
+        }
+    }
     puts("PASS solid prediction/contact, settling, unsupported routes and atomic invalid/overflow rejection");return 0;
 }
