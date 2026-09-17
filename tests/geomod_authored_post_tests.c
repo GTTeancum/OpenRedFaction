@@ -100,6 +100,31 @@ static int eligibility_cases(unsigned char *payload, uint32_t bytes, rf_geometry
     printf("ELIGIBILITY %u rejections;10 non-permission variants;published owner preserved\n", rejected);
     return 0;
 }
+static int neighbor_filter_cases(unsigned char *payload,uint32_t bytes,const rf_geometry *geometry,
+    const rf_level_geomod_settings *settings) {
+    uint32_t offsets[6],flags,portal,i,found=0;rf_geomod_authored_post *owner=NULL;
+    rf_geomod_authored_post_view view;
+    CHECK(!source_offsets(payload,bytes,offsets));
+    flags=word(payload+offsets[1]+40);portal=word(payload+offsets[1]+36);
+    /* Top549 is hidden under beam95; vary its own fields independently of
+     * all compiled faces to detect accidental use of borrowed surface flags. */
+    put_word(payload+offsets[1]+40,flags^64u);
+    put_word(payload+offsets[1]+36,(portal&0xffff0000u)|65529u);
+    CHECK(!rf_geomod_authored_post_decode_source(payload,bytes,geometry,settings,95,2*1024*1024,&owner));
+    CHECK(!rf_geomod_authored_post_get(owner,&view));CHECK(view.neighbor_filters);
+    for(i=0;i<view.neighbors.face_count;i++)if(view.neighbor_origins[i].owner==94 && view.neighbor_origins[i].source_face==549) {
+        const rf_collision_face_filter *f=view.neighbor_filters+i;
+        CHECK(view.neighbor_origins[i].reference==UINT32_MAX);
+        CHECK(f->face_flags==(flags^64u) && f->property_34==-7);
+        CHECK(f->owner_present==1 && !f->owner_kind && !f->query_flags);found++;
+    }
+    CHECK(found==1);
+    put_word(payload+offsets[1]+40,flags);put_word(payload+offsets[1]+36,portal);
+    /* Decoded rows are owned, not aliases into the now-restored payload. */
+    for(i=0;i<view.neighbors.face_count;i++)if(view.neighbor_origins[i].source_face==549)
+        CHECK(view.neighbor_filters[i].property_34==-7);
+    rf_geomod_authored_post_close(&owner);return 0;
+}
 static rf_geomod_publication_work publication_work;
 static rf_geomod_vertex output_vertices[4096];
 static rf_geomod_face output_faces[768];
@@ -175,6 +200,17 @@ static int beam_source(const rf_level *level,const rf_geometry *geometry,const c
     CHECK(!rf_geomod_authored_post_get(owner,&a));
     CHECK(a.source_uid==95 && a.windows.face_count==8 && a.source.face_count==6 && a.solid_count==3);
     CHECK(a.neighbor_void_count==1 && a.neighbor_voids[0].owner==80 && a.neighbor_voids[0].count==5);
+    CHECK(a.neighbor_filters);
+    {
+        rf_geomod_authored_post *post=NULL;rf_geomod_authored_post_view p;uint32_t j,matched=0;
+        CHECK(!rf_geomod_authored_post_open_source(level,geometry,94,2*1024*1024,&post));
+        CHECK(!rf_geomod_authored_post_get(post,&p));
+        for(i=0;i<a.neighbors.face_count;i++)if(a.neighbor_origins[i].owner==94) {
+            for(j=0;j<p.source.face_count;j++)if(p.source_origins[j].source_face==a.neighbor_origins[i].source_face)break;
+            CHECK(j<p.source.face_count);CHECK(!memcmp(a.neighbor_filters+i,p.source_filters+j,sizeof(*p.source_filters)));matched++;
+        }
+        CHECK(matched==6);rf_geomod_authored_post_close(&post);
+    }
     for(i=0;i<a.neighbors.face_count;i++)if(a.neighbor_origins[i].source_face==478) {
         const rf_geomod_face *f=a.neighbors.faces+i;double area=0;
         for(k=0;k<f->count;k++) {
@@ -381,6 +417,7 @@ int main(int argc, char **argv) {
                                              2 * 1024 * 1024, &other) == RF_FORMAT &&
               !other);
         CHECK(!eligibility_cases(payload, section->size, &geometry, &settings, owner));
+        CHECK(!neighbor_filter_cases(payload,section->size,&geometry,&settings));
         payload[4] = 94;
         payload[5] = payload[6] = payload[7] = 0;
         CHECK(rf_geomod_authored_post_decode(payload, section->size, &geometry, &settings, 2 * 1024 * 1024,

@@ -15,6 +15,7 @@ typedef struct rf_geomod_authored_post_view {
     rf_level_geomod_settings settings;
     const rf_geomod_publication_solid *neighbor_voids;
     uint32_t neighbor_void_count;
+    const rf_collision_face_filter *neighbor_filters; /* One owned row per neighbor face, including clipped children. */
 } rf_geomod_authored_post_view;
 /* Scoped, proven ctf06/UID94 profile. Reads v180 editor brush section and real
  * compiled face+24 ownership. This is not a general editor CSG evaluator.
@@ -28,6 +29,9 @@ typedef struct rf_geomod_authored_post_view {
  * not a lightmap assignment; absent compiled counterparts use UINT32_MAX.
  * Source hidden-cap collision filters inherit owning-room state from a visible
  * source face while retaining their actual authored flags/portal field.
+ * Neighbor filters use the same rule with a visible face of that neighbor
+ * brush; clipped children retain the parent row. They do not supply a compiled
+ * collision metadata ID or authorize hidden-surface scene publication.
  *
  * Budget includes output owner, parsing payload, index records and face-map
  * scratch; excludes caller-owned geometry, allocator overhead and small stack.

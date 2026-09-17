@@ -352,6 +352,24 @@ static int import_brush(const unsigned char *data,const brush_record *b,const rf
     float (*planes)[4],rf_collision_face_filter *filters,uint32_t fallback) {
     return import_brush_oriented(data,b,g,v,f,origins,planes,filters,fallback,0);
 }
+/* Hidden caps inherit room state from their own brush's visible surface,
+ * retaining their authored flags/portal. Clipping copies this immutable row. */
+static int import_neighbor_filters(const unsigned char *data,const brush_record *b,const rf_geometry *g,
+    const rf_geomod_publication_origin *origins,rf_collision_face_filter *out) {
+    uint32_t i,at=b->face_offset,fallback=UINT32_MAX;int status;
+    for(i=0;i<b->faces;i++)if(origins[i].reference!=UINT32_MAX){fallback=origins[i].reference;break;}
+    if(fallback==UINT32_MAX)return RF_NOT_FOUND;
+    for(i=0;i<b->faces;i++) {
+        const unsigned char *p=data+at;uint32_t portal=u32(p+36)&65535;
+        status=rf_geometry_initial_collision_filter(g,origins[i].reference==UINT32_MAX?fallback:origins[i].reference,0,out+i);
+        if(status)return status;
+        out[i].face_flags=u32(p+40);
+        out[i].property_34=portal>=32768?(int32_t)portal-65536:(int32_t)portal;
+        {uint32_t accepted;status=rf_collision_face_accept(out+i,&accepted);if(status)return status;}
+        at+=56+u32(p+52)*(u32(p+20)==UINT32_MAX?12:20);
+    }
+    return RF_OK;
+}
 static uint64_t aligned(uint64_t n) { return (n + sizeof(void *) - 1) & ~((uint64_t)sizeof(void *) - 1); }
 static void *chunk(unsigned char *base, uint64_t *at, uint32_t n, size_t size) {
     void *p;
@@ -375,7 +393,7 @@ int rf_geomod_authored_post_decode_source(const void *input, uint32_t bytes, con
     rf_geomod_vertex *sv, *wv, *nv;
     rf_geomod_face *sf, *wf, *nf;
     rf_geomod_publication_origin *so, *wo, *no;
-    rf_collision_face_filter *filters;
+    rf_collision_face_filter *filters,*neighbor_filters,*clipped_filters;
     rf_geomod_publication_solid *solids;
     float (*sp)[4], (*np)[4];
     uint32_t *replaced;
@@ -533,6 +551,8 @@ int rf_geomod_authored_post_decode_source(const void *input, uint32_t bytes, con
     wo = chunk(base, &at, wfaces, sizeof(*wo));                                                              \
     no = chunk(base, &at, nfaces, sizeof(*no));                                                              \
     filters = chunk(base, &at, source->faces, sizeof(*filters));                                             \
+    neighbor_filters = chunk(base, &at, nfaces, sizeof(*neighbor_filters));                                 \
+    clipped_filters = chunk(base, &at, roof_air?128:0, sizeof(*clipped_filters));                             \
     replaced = chunk(base, &at, wfaces, sizeof(*replaced));                                               \
     clipped_vertices = chunk(base, &at, roof_air?512:0, sizeof(*clipped_vertices));                          \
     clipped_faces = chunk(base, &at, roof_air?128:0, sizeof(*clipped_faces));                                 \
@@ -564,6 +584,7 @@ int rf_geomod_authored_post_decode_source(const void *input, uint32_t bytes, con
     o->view.window_origins = wo;
     o->view.neighbor_origins = no;
     o->view.source_filters = filters;
+    o->view.neighbor_filters = neighbor_filters;
     o->view.replaced_ids = replaced;
     o->view.source_uid = source_uid;
     o->view.room = 3;
@@ -581,6 +602,7 @@ int rf_geomod_authored_post_decode_source(const void *input, uint32_t bytes, con
         s = import_brush(data, near[i], g, nv + j, nf + k, no + k, np + k, NULL, 0);
         if (s)
             goto done;
+        s=import_neighbor_filters(data,near[i],g,no+k,neighbor_filters+k);if(s)goto done;
         solids[i] = (rf_geomod_publication_solid){np + k, near[i]->faces, near[i]->uid};
         for (f = 0; f < near[i]->faces; f++)
             nf[k + f].first += j;
@@ -639,7 +661,12 @@ int rf_geomod_authored_post_decode_source(const void *input, uint32_t bytes, con
         clip_work=malloc(sizeof(*clip_work));if(!clip_work){s=RF_IO;goto done;}
         s=rf_geomod_publication_clip_neighbors(&o->view.neighbors,o->view.neighbor_origins,
             void_owner,1,clip_work,clipped_vertices,512,clipped_faces,128,clipped_origins,&clipped);if(s)goto done;
-        o->view.neighbors=clipped;o->view.neighbor_origins=clipped_origins;
+        for(i=0;i<clipped.face_count;i++) {
+            for(j=0;j<nfaces;j++)if(no[j].owner==clipped_origins[i].owner && no[j].source_face==clipped_origins[i].source_face)break;
+            if(j==nfaces){s=RF_FORMAT;goto done;}
+            clipped_filters[i]=neighbor_filters[j];
+        }
+        o->view.neighbors=clipped;o->view.neighbor_origins=clipped_origins;o->view.neighbor_filters=clipped_filters;
         o->view.neighbor_voids=void_owner;o->view.neighbor_void_count=1;
         peak+=sizeof(av)+sizeof(af)+sizeof(ao);if(clip_peak>peak)peak=clip_peak;
         o->view.peak_bytes=(uint32_t)peak;
