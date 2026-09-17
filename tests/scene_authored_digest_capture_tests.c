@@ -27,6 +27,15 @@ int main(int argc,char **argv)
     for(i=0;i<geometry.textures;i++)render.slots[i]=i;render.world=&geometry;render.material_count=geometry.textures;
     actor_follow_world=&render;s.geometry=&geometry;s.collision=&world;s.materials=&materials;materials.count=geometry.textures+1;
     s.terrain_material=geometry.textures;s.terrain_texture_width=s.terrain_texture_height=256;
+    /* Production authored ownership now requires the physical material table. */
+    {
+        rf_vpp tables={0};rf_vpp_entry entry;void *text;
+        snprintf(path,sizeof(path),"%s/tables.vpp",argv[1]);CHECK(!rf_vpp_open(&tables,path));
+        CHECK(!rf_vpp_find(&tables,"materials.tbl",&entry));text=malloc(entry.size);CHECK(text);
+        campaign_surface_palette=malloc(sizeof(*campaign_surface_palette));CHECK(campaign_surface_palette);
+        CHECK(!rf_vpp_read(&tables,&entry,0,text,entry.size));
+        CHECK(!rf_surface_materials_read(text,entry.size,campaign_surface_palette));free(text);rf_vpp_close(&tables);
+    }
     CHECK(!scene_terrain_authored_open(&s,&level,maps,6));CHECK(s.terrain_authored->identity_manifest.substrate);
     CHECK(!scene_terrain_publication_open(&s));CHECK(!rf_geomod_template_load(argv[2],&shape));
 #define ALLOC(field,n) do{s.field=calloc((n),sizeof(*s.field));CHECK(s.field);}while(0)
@@ -41,7 +50,9 @@ int main(int argc,char **argv)
     CHECK(!scene_checkpoint_identity(&s,&level));
 
     for(step=1;step<=2;step++) {
+        CHECK(!rf_geomod_piece_registry_begin(s.detached_pieces,0));
         CHECK(!rf_geomod_terrain_cut_template(s.terrain,&shape,centers[step-1],basis,1.05000007f,s.terrain_material));
+        rf_geomod_piece_registry_commit(s.detached_pieces);
         CHECK(!scene_terrain_publication_prepare(&s));CHECK(!scene_terrain_publication_candidate(&s,&candidate,&origins,&bindings));
         CHECK(candidate.cuts==step && candidate.tree->face_count==786+candidate.mesh.face_count);
         s.terrain_publication_serial=candidate.mesh.generation;
@@ -126,7 +137,8 @@ int main(int argc,char **argv)
 
     }
     /* Reset restores all790 original rows, with explicitly cleared journal. */
-    CHECK(!rf_geomod_terrain_reset(s.terrain));CHECK(!scene_terrain_publication_prepare(&s));
+    CHECK(!rf_geomod_piece_registry_begin(s.detached_pieces,1));
+    CHECK(!rf_geomod_terrain_reset(s.terrain));rf_geomod_piece_registry_commit(s.detached_pieces);CHECK(!scene_terrain_publication_prepare(&s));
     CHECK(!scene_terrain_publication_candidate(&s,&candidate,&origins,&bindings));CHECK(!candidate.cuts && !candidate.mesh.face_count);
     CHECK(!rf_collision_composition_pending(s.terrain_publication->composition,&cv) && cv.count==790);
     CHECK(!scene_terrain_lighting_stage_clone_mode(&s,&candidate,1,&clone));memset(clone->staged->terrain_noise,0,sizeof(*s.terrain_noise));
@@ -153,6 +165,7 @@ int main(int argc,char **argv)
     }
 
     rf_geometry_collision_overlay_close(&s.terrain_collision);scene_terrain_publication_close(&s.terrain_publication);
+    rf_geomod_piece_registry_close(&s.detached_pieces);free(campaign_surface_palette);campaign_surface_palette=NULL;
     rf_geomod_terrain_close(&s.terrain);scene_terrain_authored_close(&s.terrain_authored);
     free(s.terrain_noise);free(s.terrain_atlas_pixels);free(s.terrain_tile);free(s.terrain_bindings);free(s.terrain_colors);
     free(s.terrain_light_cache);free(s.terrain_tiles);free(s.terrain_draw);free(s.light_overlay_work);

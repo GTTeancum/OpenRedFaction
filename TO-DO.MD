@@ -14,10 +14,10 @@
 
 - GeoMod debris visibility: Verify live leave/return lifetime retention; room-filtered drawing passes synthetic hidden/return cases,138 binary fixtures and60 stock64MiB PC/Xbox checks.
 - GeoMod water crossing: Verify audible splash quality and broader liquid scenarios;35 positional splash starts and246 ripple vertices match PC/Xbox across63 stock64MiB comparisons.
-- PRIORITY GeoMod detached topology: Repair real blast component boundaries before spawning bodies; open cap candidates now remain terrain, restoring second-blast/reload correctness, but six authored probes emit no accepted closed pieces.
+- PRIORITY GeoMod detached topology: Extend exact cutter-corner repair to recorded rocket blasts; four of six axis-oriented authored probes now emit closed pieces with repeat-cut/reload parity, while the live two-shot recording still emits none.
 - GeoMod detached drawing: Validate the enabled authored-post registry and drawing on Xbox; PC two-shot and reset checkpoint continuation pass, while accepted real closed pieces, motion, collision registration and lighting remain open.
-- GeoMod authored extraction: Enable the piece-aware scene transaction after adding drawing and material-resolved settings; clone/mutate publication preserves moved bodies, rejected edits roll back and reset clears old emissions, while live/native acceptance remains open.
-- GeoMod terrain extraction: Wire the opt-in production extraction callback into scene ownership/rendering; box and triangulated-star-path removal/reload pass under a1152KiB test budget, while scene budget integration, live motion and stock64MiB runtime acceptance remain open.
+- GeoMod authored extraction: Validate the enabled piece-aware scene transaction with real detached chunks; ownership, drawing and material settings are wired, while body motion and live/native acceptance remain open.
+- GeoMod terrain extraction: Validate integrated scene ownership/rendering on stock64MiB Xbox; box and triangulated-star-path removal/reload pass under a1152KiB test budget, while live motion and native runtime acceptance remain open.
 - GeoMod piece subdivision: Publish staged geometry/body batches with live extraction; tested10-11-piece batches retain140372-143024 PC bytes under0.9MiB temporary peak and build for Xbox, while exact T-junction splitting now passes extracted replay and broader topology, scene scheduling and rendering remain open.
 - GeoMod detached collision: Connect current-body-pose batch queries to scene movement and weapons;52 transformed ray/sphere contacts pass, while automatic motion, scene registration and rendering remain open.
 - GeoMod body notifications: Integrate live extracted-piece bodies and actor wake; owned pieces now preserve mass-center geometry/collision and replay-identical bodies, while subdivision, motion scheduling and rendering remain open.
@@ -3297,7 +3297,7 @@ values remain explicit fixture defaults pending their live lifecycle integration
 See tools/verify_player_stance_gate.py and docs/CAMERA.md.
 
 The original release handler now passes 162 execution fixtures covering blocked
-and clear query results, 0�8 spheres, absent/matching/nonmatching player lists,
+and clear query results, 0–8 spheres, absent/matching/nonmatching player lists,
 and zero/nonzero crouch bytes. A blocked result preserves the full actor, player
 and sphere records and skips ground/speed updates. The query result is supplied;
 this does not close the live low-ceiling campaign traversal check.
@@ -4633,7 +4633,7 @@ this evidence. See `docs/CAMERA.md` for addresses and remaining uncertainties.
 - XEMU is the primary emulator; CXBX-R may assist with diagnosis.
 - Never control the desktop or send host input; use source, files, logs, non-interactive commands, and process-contained test harnesses.
 
-## Milestone 0 — evidence and toolchains
+## Milestone 0 â€” evidence and toolchains
 
 - [x] Set the persistent project goal.
 - [x] Inspect the initial workspace: only an empty Git repository was present.
@@ -4643,7 +4643,7 @@ this evidence. See `docs/CAMERA.md` for addresses and remaining uncertainties.
 - [x] Evaluate Open Faction and Dash Faction as references, recording provenance and reuse terms.
 - [x] Compile and validate minimal PC and Xbox artifacts; distinguish scaffolding from recovered game behavior.
 
-## Milestone 1 — reconstruction foundation
+## Milestone 1 â€” reconstruction foundation
 
 - [x] Create a reproducible headless Ghidra project from a hash-identified executable.
 - [ ] Map startup, filesystem/archive loading, memory allocation, game loop, rendering, audio, input, and level transitions.
@@ -4655,14 +4655,14 @@ this evidence. See `docs/CAMERA.md` for addresses and remaining uncertainties.
 - [ ] Establish native emulator visual capture without any desktop capture or window input.
 - [ ] Establish memory accounting that includes executable, heaps, stacks, GPU surfaces, audio, and transient loads.
 
-## Milestone 2 — playable campaign slice
+## Milestone 2 â€” playable campaign slice
 
 - [ ] Load and draw the first campaign area on both platforms.
 - [ ] Restore collision, player movement, controller mapping, weapons, enemies, events, and Geo-Mod.
 - [ ] Restore HUD, sound, dialogue, cutscenes, saves, and level transitions needed by that slice.
 - [ ] Compare matched PS2 scenes and capture native emulator output for review.
 
-## Milestone 3 — campaign completion and validation
+## Milestone 3 â€” campaign completion and validation
 
 - [ ] Extend subsystem coverage through every campaign level and document completion evidence.
 - [ ] Run memory stress, loading, save/reload, destruction, AI, and frame-time regression scenarios.

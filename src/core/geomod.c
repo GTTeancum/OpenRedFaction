@@ -1037,6 +1037,26 @@ static const float *corner_support_plane(const geomod_corner_support *support,ui
 static int corner_seed_edge(const geomod_corner_support *support,const uint16_t ids[3],float position[3])
 {
     uint32_t pair,a,b,other,i,j,k;
+    /* Three supports from one star may meet at an authored vertex. Preserve
+     * that vertex exactly instead of independently solving rounded planes. */
+    if(ids[0]>=32 && ids[1]>=32 && ids[2]>=32 &&
+       (ids[0]-32)/128==(ids[1]-32)/128 && (ids[0]-32)/128==(ids[2]-32)/128) {
+        uint32_t cutter=(ids[0]-32)/128,found=0;const float *points[3][3],*shared=NULL;
+        if(support->work->star_count[cutter]) {
+            for(i=0;i<3;i++) {
+                uint32_t local=(ids[i]-32)%128,face=local/4,side=local%4;
+                const rf_geomod_vertex *v=support->cutters[cutter].vertices+support->cutters[cutter].faces[face].first;
+                for(j=0;j<3;j++)points[i][j]=(side && j==2)?support->work->star_kernels[cutter]:v[side?(side-1+j)%3:j].position;
+            }
+            for(i=0;i<3;i++) {
+                for(j=0;j<3;j++)if(!memcmp(points[0][i],points[1][j],12))break;
+                if(j==3)continue;
+                for(j=0;j<3;j++)if(!memcmp(points[0][i],points[2][j],12))break;
+                if(j<3){shared=points[0][i];found++;}
+            }
+            if(found==1){memcpy(position,shared,12);return 1;}
+        }
+    }
     if(support->source)for(pair=0;pair<3;pair++) {
         a=pair;b=(pair+1)%3;other=(pair+2)%3;
         if(ids[a]>=32 || ids[b]>=32 || ids[a]==ids[b])continue;
@@ -1827,7 +1847,7 @@ static inline int prepare_chronological_step_clipped(rf_geomod_storage *s,const 
             c,cutters,count,work,current_edges,support.face,0,lineage,1);
         if(status)goto failed;
     }
-    if(clip_context && clip_context->source_is_current) {
+    if(clip_context) {
         uint32_t bank=s->current^1;
         geomod_corner_support support={work,0,cutters,lineage->diagonals,lineage->source,lineage->source_planes,lineage->source_edges};
         for(i=0;i<s->nf[bank];i++) {
@@ -1835,7 +1855,13 @@ static inline int prepare_chronological_step_clipped(rf_geomod_storage *s,const 
             for(j=0;j<face->count;j++) {
                 uint16_t ids[3]={work->compact_planes[i],work->compact_edges[face->first+j],work->compact_edges[face->first+(j+face->count-1)%face->count]};
                 float planes[3][4],point[3];uint32_t q,cut=0;
-                for(q=0;q<3;q++){if(ids[q]>=64)break;if(ids[q]>=32)cut=1;}
+                for(q=0;q<3;q++) {
+                    if(ids[q]>=32) {
+                        uint32_t ci=(ids[q]-32)/128,local=(ids[q]-32)%128;
+                        if(ci>=count || local>=(work->star_count[ci]?work->star_count[ci]*4:cutters[ci].face_count))break;
+                        cut=1;
+                    }
+                }
                 if(q!=3 || !cut || ids[0]==ids[1] || ids[0]==ids[2] || ids[1]==ids[2])continue;
                 for(q=0;q<3;q++)memcpy(planes[q],corner_support_plane(&support,ids[q]),16);
                 if(corner_seed_edge(&support,ids,point) || !rf_geomod_plane_corner(planes,point))
@@ -1843,7 +1869,7 @@ static inline int prepare_chronological_step_clipped(rf_geomod_storage *s,const 
             }
         }
     }
-    if(cavity || (clip_context && clip_context->source_is_current)){status=repair_cavity_pending_provenance(s,work,lineage,previous);if(status)goto failed;}
+    if(cavity || clip_context){status=repair_cavity_pending_provenance(s,work,lineage,previous);if(status)goto failed;}
     return RF_OK;
 failed:
     rf_geomod_storage_abort(s);return status;

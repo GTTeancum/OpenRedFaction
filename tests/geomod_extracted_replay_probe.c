@@ -185,8 +185,34 @@ static void asymmetric_mass_owner(void)
     printf("PASS asymmetric mass center shift %g preserves world geometry and collision planes\n",piece.mass.center[0]);
     rf_geomod_piece_bank_close(&bank);
 }
+/* Support identity, including all permutations, must preserve authored
+ * floating-point vertices exactly; two shared endpoints remain ambiguous. */
+static void exact_star_corners(void)
+{
+    rf_geomod_multi_work *work=calloc(1,sizeof(*work));
+    rf_geomod_vertex vertices[3]={0};rf_geomod_face face={0,3,0,0};
+    rf_geomod_mesh_view mesh={vertices,&face,3,1,1};
+    const float points[3][3]={{.1234567f,1.234567f,2.345678f},{3.456789f,.2345678f,1.345678f},{1.456789f,3.567891f,.3456789f}};
+    const float kernel[3]={.4567891f,.5678912f,.6789123f};
+    const uint16_t triples[2][3]={{32,33,35},{33,34,35}};
+    const unsigned permutations[6][3]={{0,1,2},{0,2,1},{1,0,2},{1,2,0},{2,0,1},{2,1,0}};
+    geomod_corner_support support={0};float output[3];uint16_t ids[3];unsigned c,p,k;
+    REQUIRE(work);work->star_count[0]=1;memcpy(work->star_kernels[0],kernel,12);
+    for(k=0;k<3;k++)memcpy(vertices[k].position,points[k],12);
+    support.work=work;support.cutters=&mesh;
+    for(c=0;c<2;c++)for(p=0;p<6;p++) {
+        for(k=0;k<3;k++)ids[k]=triples[c][permutations[p][k]];
+        REQUIRE(corner_seed_edge(&support,ids,output));
+        REQUIRE(!memcmp(output,c?kernel:points[0],12));
+    }
+    ids[0]=32;ids[1]=33;ids[2]=32;
+    REQUIRE(!corner_seed_edge(&support,ids,output));
+    free(work);
+}
+
 int main(void)
 {
+    exact_star_corners();
     asymmetric_mass_owner();
     rf_geomod_vertex vertices[24];rf_geomod_face faces[6];rf_collision_face_filter filters[6]={{0}},generated={0};
     const float lo[3]={-10,-10,-10},hi[3]={10,10,10};
