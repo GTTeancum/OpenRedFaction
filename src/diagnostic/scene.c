@@ -10649,6 +10649,46 @@ static int scene_debris_draw(scene_stream *s)
     rf_scene_debris[5]=npc_hash_bytes(2166136261u,s->mesh->vertices+start,rf_scene_debris[4]*sizeof(rf_preview_vertex));return RF_OK;
 }
 
+uint32_t rf_scene_detached_motion[8]; /* bodies,steps,contacts,stopped,limited,pose hash,status,spheres */
+float rf_scene_detached_pose[6]; /* last body's position and velocity */
+typedef struct scene_detached_query_context {scene_stream *scene;const rf_physics_spheres *spheres;} scene_detached_query_context;
+static int scene_detached_query(const rf_physics_body_state *body,rf_physics_solid_hit *out,uint32_t *matched,void *opaque)
+{
+    scene_detached_query_context *c=opaque;rf_collision_body_sphere scratch[64];rf_geometry_body_hit hit;int status;
+    status=campaign_physics_body_sweep(c->scene->collision,body,c->spheres,0x460,scratch,64,&hit,matched);
+    if(status || !*matched)return status;
+    if(hit.contact.fraction>=1){*matched=0;return RF_OK;}
+    if(!campaign_surface_palette || hit.contact.material>=campaign_surface_palette->count)return RF_FORMAT;
+    out->fraction=hit.contact.fraction;memcpy(out->point,hit.contact.point,12);memcpy(out->normal,hit.contact.normal,12);
+    out->elasticity=campaign_surface_palette->materials[hit.contact.material].elasticity;
+    out->friction=campaign_surface_palette->materials[hit.contact.material].friction;return RF_OK;
+}
+static int scene_detached_tick(scene_stream *s)
+{
+    uint32_t b,i;int status;memset(rf_scene_detached_motion,0,sizeof(rf_scene_detached_motion));
+    memset(rf_scene_detached_pose,0,sizeof(rf_scene_detached_pose));
+    if(!s->detached_pieces)return RF_OK;
+    for(b=0;b<rf_geomod_piece_registry_count(s->detached_pieces);b++) {
+        rf_geomod_piece_batch *batch;
+        status=rf_geomod_piece_registry_get(s->detached_pieces,b,&batch);if(status)goto failed;
+        for(i=0;i<rf_geomod_piece_batch_count(batch);i++) {
+            rf_geomod_owned_piece piece;rf_physics_body *body;rf_physics_solid_step_report report;
+            scene_detached_query_context query;uint32_t flags=0;float position[3],basis[9];
+            status=rf_geomod_piece_batch_get(batch,i,&piece,&body);if(status)goto failed;
+            query.scene=s;query.spheres=&body->spheres;memcpy(position,body->state.position,12);memcpy(basis,body->state.orientation,36);
+            status=rf_physics_solid_step(&body->state,scene_step_seconds,scene_gravity.acceleration,&flags,
+                position,basis,scene_detached_query,&query,&report);if(status)goto failed;
+            ++rf_scene_detached_motion[0];rf_scene_detached_motion[1]+=report.steps;rf_scene_detached_motion[2]+=report.contacts;
+            rf_scene_detached_motion[3]+=!(body->state.flags&0x80000000u);rf_scene_detached_motion[4]+=report.limited;
+            rf_scene_detached_motion[5]=npc_hash_bytes(rf_scene_detached_motion[5]?rf_scene_detached_motion[5]:2166136261u,&body->state,sizeof(body->state));
+            rf_scene_detached_motion[7]+=body->spheres.count;
+            memcpy(rf_scene_detached_pose,body->state.position,12);memcpy(rf_scene_detached_pose+3,body->state.velocity,12);
+        }
+    }
+    return RF_OK;
+failed:rf_scene_detached_motion[6]=(uint32_t)status;return status;
+}
+
 uint32_t rf_scene_detached_pieces[6]; /* active,batches,pieces,draw vertices,resident,status */
 static int scene_detached_draw(scene_stream *s)
 {
@@ -10777,6 +10817,7 @@ static int scene_impacts_tick(scene_stream *s,uint32_t frame)
 static int scene_rockets_tick(scene_stream *s,uint32_t frame)
 {
     uint32_t i;int status;rf_scene_rockets[3]=0;
+    status=scene_detached_tick(s);if(status)return status;
     status=scene_debris_tick(s,frame);if(status)return status;
     status=scene_impacts_tick(s,frame);if(status)return status;
     for(i=0;i<SCENE_ROCKETS;i++)if(s->rockets[i].active) {

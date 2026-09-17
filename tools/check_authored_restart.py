@@ -91,9 +91,19 @@ def main():
                 assert 0 < state[4] <= 2 * 1024 * 1024, name + ' detached budget'
                 states[name] = state
             assert states['continued'] == states['control'], 'Detached ownership/draw differs after reload'
+            motion = {}
+            for name in recordings:
+                lines = (folder / (name + '.log')).read_text().splitlines()
+                values = list(map(int, next(line for line in lines if line.startswith('DETACHED_MOTION ')).split()[1:]))
+                pose = list(map(float, next(line for line in lines if line.startswith('DETACHED_POSE ')).split()[1:]))
+                assert values[0] == 1 and values[4] == 0 and values[6] == 0 and values[7] == 60
+                motion[name] = dict(state=values, pose=pose)
+            assert motion['continued'] == motion['control']
+            assert motion['control']['state'][3] == 1 and motion['control']['pose'][1] < 0
+            report['motion'] = motion
             report['detached'] = states
             report['post_image'] = check_post_image(folder)
-            report['scope'] = 'PC real rocket separation and birth-pose ownership/drawing across reload; fixed-camera post-region parity only; no motion or Xbox acceptance'
+            report['scope'] = 'PC real rocket separation, falling/settled state and checkpoint continuation; fixed-camera post-region parity; no Xbox or audio acceptance'
         report["result"] = "PASS"
     finally:
         (folder / "report.json").write_text(json.dumps(report, indent=2) + "\n")

@@ -455,6 +455,15 @@ dvd_path = '{root.as_posix()}/build/xbox/redfaction-diagnostic.iso'
                 compared_indices=indices,xbox=actual,pc=expected,
                 scope='Ownership and posed draw counts, not motion or pixel fidelity')
             assert equal and budget_ok and actual[5]==0,'Detached ownership/draw mismatch'
+            expected=list(map(int,next(line for line in pc.stdout.splitlines() if line.startswith('DETACHED_MOTION ')).split()[1:]))
+            actual=words(monitor,symbol('rf_scene_detached_motion'),8)
+            report['checks']['DETACHED_MOTION']=dict(equal=actual==expected,xbox=actual,pc=expected)
+            assert actual==expected and actual[6]==0,'Detached motion mismatch'
+            expected_pose=list(map(float,next(line for line in pc.stdout.splitlines() if line.startswith('DETACHED_POSE ')).split()[1:]))
+            pose_bits=list(struct.unpack('<6I',struct.pack('<6f',*expected_pose)))
+            actual_pose=words(monitor,symbol('rf_scene_detached_pose'),6)
+            report['checks']['DETACHED_POSE']=dict(equal=actual_pose==pose_bits,xbox=actual_pose,pc=pose_bits)
+            assert actual_pose==pose_bits,'Detached pose mismatch'
             if args.debris_player_test:
                 from verify_debris_player_scenario import verify
                 report['debris_player_scenario']=verify(report)

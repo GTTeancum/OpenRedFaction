@@ -14,8 +14,8 @@
 
 - GeoMod debris visibility: Verify live leave/return lifetime retention; room-filtered drawing passes synthetic hidden/return cases,138 binary fixtures and60 stock64MiB PC/Xbox checks.
 - GeoMod water crossing: Verify audible splash quality and broader liquid scenarios;35 positional splash starts and246 ripple vertices match PC/Xbox across63 stock64MiB comparisons.
-- PRIORITY GeoMod detached motion: Connect bounded fragment simulation to level collision; body snapshots now round-trip through scene checkpoints and legacy saves load, while live fragments still remain at birth poses and native continuation remains open.
-- GeoMod detached drawing: Improve lighting and broaden scene coverage after a real middle-post rocket draws one extracted upper fragment on PC/Xbox; motion, collision registration and active-pose saves remain open.
+- PRIORITY GeoMod detached motion: Broaden live detached motion beyond the dry developer post; real extracted chunks now fall/rotate/settle with body-sphere collision and checkpoint continuation, while player/weapon registration, moving supports and liquid behavior remain open.
+- GeoMod detached drawing: Improve fragment lighting and broaden scene coverage; a real post chunk now visibly falls and rests tilted, with player/weapon collision registration still open.
 - GeoMod authored extraction: Validate the enabled piece-aware scene transaction with real detached chunks; ownership, drawing and material settings are wired, while body motion and live/native acceptance remain open.
 - GeoMod terrain extraction: Validate integrated scene ownership/rendering on stock64MiB Xbox; box and triangulated-star-path removal/reload pass under a1152KiB test budget, while live motion and native runtime acceptance remain open.
 - GeoMod piece subdivision: Publish staged geometry/body batches with live extraction; tested10-11-piece batches retain140372-143024 PC bytes under0.9MiB temporary peak and build for Xbox, while exact T-junction splitting now passes extracted replay and broader topology, scene scheduling and rendering remain open.
