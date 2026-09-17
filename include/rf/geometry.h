@@ -435,6 +435,14 @@ int rf_geometry_collision_body_sweep(const rf_geometry_collision_world *world,
     const rf_geometry_collision_movers *movers,const rf_collision_body_query *body,
     rf_collision_body_mover *scratch,uint32_t capacity,rf_geometry_body_metadata metadata,
     void *context,rf_geometry_body_hit *result,uint32_t *matched);
+/* Optional texture-aware body route. Arrays have room_count/mover count entries
+ * with CURRENT tree/flat ordering; caller retains all tables and sample contexts.
+ * NULL preserves the legacy unsupported-alpha gate. No query-time allocation. */
+int rf_geometry_collision_body_sweep_textured(const rf_geometry_collision_world *world,
+    const rf_geometry_collision_movers *movers,const rf_collision_body_query *body,
+    rf_collision_body_mover *scratch,uint32_t capacity,rf_geometry_body_metadata metadata,
+    void *context,const rf_collision_indexed_texture_backend *rooms,
+    const rf_collision_indexed_texture_backend *moving,rf_geometry_body_hit *result,uint32_t *matched);
 /* Ordered initial movers then static world, using geometric 498e80 semantics.
  * Static hits map tree indices to file face IDs; mover indices remain file
  * creation order and their face indices remain file order. Runtime handles

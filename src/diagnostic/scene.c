@@ -2794,6 +2794,10 @@ static void *campaign_alpha_storage;
 static rf_geometry_material_collision *campaign_alpha_views;
 static rf_collision_indexed_texture_backend *campaign_alpha_backends;
 static rf_geometry_materials campaign_alpha_mapping;
+static int32_t *campaign_alpha_overlay_bitmaps;
+static rf_collision_indexed_texture_backend *campaign_alpha_body_backends;
+static rf_geometry_material_collision campaign_alpha_overlay_view;
+static uint32_t campaign_alpha_overlay_capacity,campaign_alpha_overlay_room=UINT32_MAX;
 static rf_geometry_texture_workspace campaign_alpha_work;
 static const rf_geometry_collision_world *campaign_alpha_world;
 static const rf_materials *campaign_alpha_materials;
@@ -2802,6 +2806,7 @@ static void campaign_alpha_close(void)
     if(campaign_alpha_storage)++rf_scene_geometry_textures[12];
     free(campaign_alpha_storage);campaign_alpha_storage=NULL;campaign_alpha_views=NULL;campaign_alpha_backends=NULL;
     campaign_alpha_world=NULL;campaign_alpha_materials=NULL;
+    campaign_alpha_overlay_bitmaps=NULL;campaign_alpha_body_backends=NULL;campaign_alpha_overlay_capacity=0;campaign_alpha_overlay_room=UINT32_MAX;
     memset(&campaign_alpha_mapping,0,sizeof(campaign_alpha_mapping));memset(&campaign_alpha_work,0,sizeof(campaign_alpha_work));
 }
 static int campaign_alpha_sample(void *context,uint32_t index,const rf_collision_face *face,
@@ -2821,7 +2826,7 @@ static int campaign_alpha_sample(void *context,uint32_t index,const rf_collision
 }
 static int campaign_alpha_open(const rf_geometry_collision_world *world,const rf_materials *materials)
 {
-    uint64_t refs=0,bytes;uint32_t n,i,j,maximum=3;unsigned char *cursor;int32_t *bitmaps;int status;
+    uint64_t refs=0,bytes;uint32_t n,i,j,maximum=3,overlay_capacity=RF_GEOMOD_PUBLICATION_FACES;unsigned char *cursor;int32_t *bitmaps;int status;
     if(campaign_alpha_storage || !world || !materials || !actor_follow_world || !campaign_surface_sources ||
         materials->count<actor_follow_world->material_count)return RF_RANGE;
     n=world->room_count+campaign_movers.count;
@@ -2830,14 +2835,18 @@ static int campaign_alpha_open(const rf_geometry_collision_world *world,const rf
         const rf_collision_face *faces=i<world->room_count?world->rooms[i].tree.faces:campaign_movers.owned[i-world->room_count].faces;
         uint32_t count=i<world->room_count?world->rooms[i].tree.face_count:campaign_movers.owned[i-world->room_count].count;
         if(count>=65535)return RF_RANGE;
+        if(i<world->room_count && count+RF_GEOMOD_PUBLICATION_FACES>overlay_capacity)overlay_capacity=count+RF_GEOMOD_PUBLICATION_FACES;
         refs+=count;for(j=0;j<count;++j)if(faces[j].count>maximum)maximum=faces[j].count;
     }
-    bytes=(uint64_t)n*(sizeof(*campaign_alpha_views)+sizeof(*campaign_alpha_backends))+refs*4+(uint64_t)maximum*20;
+    bytes=(uint64_t)n*(sizeof(*campaign_alpha_views)+2*sizeof(*campaign_alpha_backends))+refs*4+(uint64_t)overlay_capacity*4+(uint64_t)maximum*20;
     if(bytes>128*1024 || maximum>65536)return RF_RANGE;
     cursor=calloc(1,(size_t)bytes);if(!cursor)return RF_RANGE;campaign_alpha_storage=cursor;
     campaign_alpha_views=(rf_geometry_material_collision *)cursor;cursor+=n*sizeof(*campaign_alpha_views);
     campaign_alpha_backends=(rf_collision_indexed_texture_backend *)cursor;cursor+=n*sizeof(*campaign_alpha_backends);
+    campaign_alpha_body_backends=(rf_collision_indexed_texture_backend *)cursor;cursor+=n*sizeof(*campaign_alpha_body_backends);
     bitmaps=(int32_t *)cursor;cursor+=(size_t)refs*4;
+    campaign_alpha_overlay_bitmaps=(int32_t *)cursor;cursor+=(size_t)overlay_capacity*4;
+    campaign_alpha_overlay_capacity=overlay_capacity;campaign_alpha_overlay_room=UINT32_MAX;
     campaign_alpha_work.vertices=(float (*)[3])cursor;cursor+=maximum*12;
     campaign_alpha_work.coordinates=(float (*)[2])cursor;campaign_alpha_work.capacity=maximum;
     campaign_alpha_mapping.offsets=actor_follow_world->offsets;campaign_alpha_mapping.slots=actor_follow_world->slots;
@@ -2862,6 +2871,31 @@ static int campaign_alpha_open(const rf_geometry_collision_world *world,const rf
         rf_scene_geometry_textures[5]=npc_hash_bytes(rf_scene_geometry_textures[5],bitmaps,view->face_count*4);bitmaps+=view->face_count;
     }
     campaign_alpha_world=world;campaign_alpha_materials=materials;return RF_OK;
+}
+/* One generated terrain room is published by this scene. Its tree ordering can
+ * change on every edit; never reuse the initial authored bitmap order. */
+static int campaign_alpha_refresh_overlay(const rf_geometry_collision_world *world)
+{
+    uint32_t i;int status;
+    if(!campaign_alpha_world || !campaign_alpha_materials || !world || world->room_count!=campaign_alpha_world->room_count)return RF_RANGE;
+    memcpy(campaign_alpha_body_backends,campaign_alpha_backends,(world->room_count+campaign_movers.count)*sizeof(*campaign_alpha_backends));
+    campaign_alpha_overlay_room=UINT32_MAX;
+    campaign_alpha_mapping.textures=*campaign_alpha_materials;
+    campaign_alpha_mapping.textures.count=actor_follow_world->material_count;
+    for(i=0;i<world->room_count;i++) {
+        const rf_collision_tree *tree=&world->rooms[i].tree;
+        rf_geometry_material_collision candidate=campaign_alpha_views[i];
+        rf_collision_indexed_texture_backend backend;
+        if(i!=campaign_alpha_overlay_room && candidate.source_indices==tree->source_indices && candidate.face_count==tree->face_count)continue;
+        if(campaign_alpha_overlay_room!=UINT32_MAX && campaign_alpha_overlay_room!=i)return RF_RANGE;
+        if(tree->face_count>campaign_alpha_overlay_capacity)return RF_RANGE;
+        candidate.source_indices=tree->source_indices;candidate.face_count=tree->face_count;
+        status=rf_geometry_material_collision_bind(&candidate,campaign_alpha_overlay_bitmaps,campaign_alpha_overlay_capacity,&backend);
+        if(status)return status;
+        campaign_alpha_overlay_view=candidate;backend.context=&campaign_alpha_overlay_view;backend.sample=campaign_alpha_sample;
+        campaign_alpha_body_backends[i]=backend;campaign_alpha_overlay_room=i;
+    }
+    return RF_OK;
 }
 typedef struct campaign_alpha_preferred_context {
     const rf_collision_indexed_texture_backend *backend;uint32_t index;
@@ -7072,6 +7106,13 @@ static int campaign_body_query(const rf_geometry_collision_world *world,const rf
     mapping.count=actor_follow_world->geometry_count;mapping.textures.count=actor_follow_world->material_count;
     surfaces.geometries=campaign_surface_sources;surfaces.count=mapping.count;
     surfaces.mapping=&mapping;surfaces.palette=campaign_surface_palette;
+    if(query->radius<.05f || (query->flags&0x180u)) {
+        int status;
+        status=campaign_alpha_refresh_overlay(world);if(status){printf("BODY_ALPHA_REFRESH %d %u %u\n",status,campaign_alpha_overlay_room,campaign_alpha_overlay_capacity);return status;}
+        return rf_geometry_collision_body_sweep_textured(world,&campaign_movers,query,campaign_sweep_scratch,
+            campaign_movers.count,rf_geometry_body_surface,&surfaces,campaign_alpha_body_backends,
+            campaign_alpha_body_backends+world->room_count,contact,matched);
+    }
     return rf_geometry_collision_body_sweep(world,&campaign_movers,query,campaign_sweep_scratch,
         campaign_movers.count,rf_geometry_body_surface,&surfaces,contact,matched);
 }
@@ -10783,7 +10824,7 @@ static int scene_detached_query(const rf_physics_body_state *body,rf_physics_sol
     out->elasticity=campaign_surface_palette->materials[hit.contact.material].elasticity;
     out->friction=campaign_surface_palette->materials[hit.contact.material].friction;return RF_OK;
 }
-static int scene_detached_tick(scene_stream *s)
+static int scene_detached_tick(scene_stream *s,float seconds)
 {
     uint32_t b,i,source,count;int status;memset(rf_scene_detached_motion,0,sizeof(rf_scene_detached_motion));
     memset(rf_scene_detached_pose,0,sizeof(rf_scene_detached_pose));
@@ -10802,7 +10843,7 @@ static int scene_detached_tick(scene_stream *s)
             if(!rf_geomod_piece_batch_alive(batch,i))continue;
             status=rf_geomod_piece_batch_get(batch,i,&piece,&body);if(status)goto failed;
             query.scene=s;query.spheres=&body->spheres;memcpy(position,body->state.position,12);memcpy(basis,body->state.orientation,36);
-            status=rf_physics_solid_step(&body->state,scene_step_seconds,scene_gravity.acceleration,&flags,
+            status=rf_physics_solid_step(&body->state,seconds,scene_gravity.acceleration,&flags,
                 position,basis,scene_detached_query,&query,&report);if(status){printf("DETACHED_STEP_FAILURE %u %u %u %d %u %.9g %.9g %.9g\n",source,b,i,status,body->state.flags,body->state.position[0],body->state.position[1],body->state.position[2]);printf("DETACHED_STEP_RADIUS %.9g\n",body->state.bounds.radius);goto failed;}
             ++rf_scene_detached_motion[0];rf_scene_detached_motion[1]+=report.steps;rf_scene_detached_motion[2]+=report.contacts;
             rf_scene_detached_motion[3]+=!(body->state.flags&0x80000000u);rf_scene_detached_motion[4]+=report.limited;
@@ -10950,7 +10991,8 @@ static int scene_impacts_tick(scene_stream *s,uint32_t frame)
 static int scene_rockets_tick(scene_stream *s,uint32_t frame)
 {
     uint32_t i;int status;rf_scene_rockets[3]=0;
-    status=scene_detached_tick(s);if(status){printf("ROCKET_TICK_FAILURE detached %u %d\n",frame,status);return status;}
+    /* Replay frame0 publishes restored state; player simulation also starts at1. */
+    status=scene_detached_tick(s,frame?scene_step_seconds:0);if(status){printf("ROCKET_TICK_FAILURE detached %u %d\n",frame,status);return status;}
     status=scene_debris_tick(s,frame);if(status){printf("ROCKET_TICK_FAILURE debris %u %d\n",frame,status);return status;}
     status=scene_impacts_tick(s,frame);if(status){printf("ROCKET_TICK_FAILURE impacts %u %d\n",frame,status);return status;}
     for(i=0;i<SCENE_ROCKETS;i++)if(s->rockets[i].active) {

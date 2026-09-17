@@ -1,6 +1,6 @@
 # Red Faction Xbox / PC - open work
 
-- PRIORITY GeoMod runtime: Fix tiny-fragment body sweeps requesting unsupported alpha collision; the two-post standing replay creates radius0.004073 rubble and aborts at frame619 before standing acceptance.
+- PRIORITY GeoMod runtime: Add below-world fragment retirement and finish two-destroyed-source standing; tiny-fragment alpha sweeps now survive the former frame619 crash and pass76 native checks, with moving-save frame0 timing fixed and Xbox-created reload matching uninterrupted PC through76 further checks.
 
 - USER Repository cleanup: Delete the disposable artifacts/geomod-hdd root (about27GiB); remaining obsolete image paths are in artifacts/cleanup-20260917.json, and both HDD harnesses enforce an8GiB projected artifact budget.
 

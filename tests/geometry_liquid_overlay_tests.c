@@ -27,6 +27,61 @@ static int body_metadata(void *context,uint32_t solid,uint32_t face,uint32_t *te
     uint32_t *calls=context;if(solid!=UINT32_MAX)return RF_FORMAT;
     ++*calls;*texture=100+face;*material=200+face;return RF_OK;
 }
+typedef struct alpha_probe {uint32_t color,calls;int status;} alpha_probe;
+static int body_alpha(void *context,uint32_t index,const rf_collision_face *face,
+    int32_t bitmap,const float point[3],uint32_t *color)
+{
+    alpha_probe *p=context;(void)index;(void)face;(void)point;
+    if(bitmap!=7)return RF_FORMAT;++p->calls;if(p->status)return p->status;
+    *color=p->color;return RF_OK;
+}
+static int mover_metadata(void *context,uint32_t solid,uint32_t face,uint32_t *texture,uint32_t *material)
+{
+    uint32_t *calls=context;if(solid!=0 || face!=0)return RF_FORMAT;
+    ++*calls;*texture=7;*material=9;return RF_OK;
+}
+static int tiny_body_queries(rf_geometry_collision_world *world)
+{
+    rf_geometry_collision_movers movers={0};rf_collision_body_sphere sphere={{0,0,0},.004f};
+    rf_collision_body_query body={0};rf_geometry_body_hit hit,sentinel;
+    int32_t bitmaps[2]={7,7};alpha_probe probe={0,0,0};
+    rf_collision_indexed_texture_backend textures[2]={{bitmaps,body_alpha,&probe},{bitmaps,body_alpha,&probe}};
+    uint32_t i,found,calls=0,saved[2];
+    body.matrix[0][0]=body.matrix[1][1]=body.matrix[2][2]=1;
+    body.radius=.004f;body.limit=1;body.flags=4;body.spheres=&sphere;body.count=1;
+    body.start[1]=2;body.end[1]=-4;
+    for(i=0;i<2;i++){saved[i]=world->rooms[0].tree.faces[i].filter.face_flags;
+        if(world->rooms[0].tree.source_indices[i]==0)world->rooms[0].tree.faces[i].filter.face_flags|=0x80;}
+    memset(&sentinel,0xa5,sizeof(sentinel));hit=sentinel;found=99;
+    CHECK(rf_geometry_collision_body_sweep(world,&movers,&body,NULL,0,body_metadata,&calls,&hit,&found)==RF_NOT_FOUND);
+    CHECK(found==99 && !memcmp(&hit,&sentinel,sizeof(hit)));
+    CHECK(rf_geometry_collision_body_sweep_textured(world,&movers,&body,NULL,0,body_metadata,&calls,textures,NULL,&hit,&found)==RF_OK);
+    CHECK(!found && probe.calls && !memcmp(&hit,&sentinel,sizeof(hit)));
+    probe.color=0xff112233;probe.calls=0;
+    CHECK(rf_geometry_collision_body_sweep_textured(world,&movers,&body,NULL,0,body_metadata,&calls,textures,NULL,&hit,&found)==RF_OK);
+    CHECK(found && probe.calls && hit.face==0 && fabsf(hit.contact.fraction-(4-.004f)/6)<1e-6f);
+    probe.status=RF_RANGE;hit=sentinel;found=99;
+    CHECK(rf_geometry_collision_body_sweep_textured(world,&movers,&body,NULL,0,body_metadata,&calls,textures,NULL,&hit,&found)==RF_RANGE);
+    CHECK(found==99 && !memcmp(&hit,&sentinel,sizeof(hit)));
+    {
+        rf_geometry_collision_world empty={0};rf_collision_face face;float vertices[4][3];
+        rf_geometry_collision_flat flat={0};rf_collision_solid_view view={0};
+        rf_group_attached_pose pose={0};rf_collision_body_mover scratch;
+        make_face(&face,vertices,0,-2,0x80);flat.faces=&face;flat.count=1;
+        for(i=0;i<3;i++){pose.minimum[i]=-20;pose.maximum[i]=20;pose.input_matrix[i][i]=1;}
+        pose.position[1]=1;view.object_id=42;
+        movers.count=1;movers.owned=&flat;movers.poses=&pose;movers.views=&view;
+        probe.status=0;probe.color=0;probe.calls=0;hit=sentinel;found=99;
+        CHECK(rf_geometry_collision_body_sweep_textured(&empty,&movers,&body,&scratch,1,mover_metadata,&calls,NULL,textures,&hit,&found)==RF_OK);
+        CHECK(!found && probe.calls && !memcmp(&hit,&sentinel,sizeof(hit)));
+        probe.color=0xff112233;
+        CHECK(rf_geometry_collision_body_sweep_textured(&empty,&movers,&body,&scratch,1,mover_metadata,&calls,NULL,textures,&hit,&found)==RF_OK);
+        CHECK(found && hit.solid==0 && hit.contact.object_id==42 && hit.contact.material==9);
+        CHECK(fabsf(hit.contact.fraction-(3-.004f)/6)<1e-6f);
+    }
+    for(i=0;i<2;i++)world->rooms[0].tree.faces[i].filter.face_flags=saved[i];
+    return 0;
+}
 static int body_queries(rf_geometry_collision_world *world)
 {
     rf_geometry_collision_movers movers={0};rf_collision_body_sphere sphere={{0,0,0},.25f};
@@ -95,6 +150,7 @@ int main(void)
     base.minimum[0]=base.minimum[2]=-10;base.minimum[1]=-2;
     base.maximum[0]=50;base.maximum[1]=2;base.maximum[2]=10;
     CHECK(!body_queries(&base));
+    CHECK(!tiny_body_queries(&base));
     CHECK(rf_geometry_collision_overlay_open(&base,0,2,65536,&overlay)==RF_OK);
     CHECK(overlay.world.views[0].tree==&overlay.world.rooms[0].tree);
     CHECK(overlay.world.views[1].tree==&overlay.world.rooms[1].tree);
