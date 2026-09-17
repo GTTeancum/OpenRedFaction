@@ -1,6 +1,6 @@
 # Red Faction Xbox / PC - open work
 
-- GeoMod source expansion: Integrate the tested owner-scoped roof-boundary clipper and resolve remaining neighbor occlusion before admitting beam95; boundary geometry, UVs and atomic failure checks pass, while live beam destruction remains unimplemented.
+- GeoMod source expansion: Integrate beam95 with its clipped roof boundary and tested hollow-neighbor occluder; both winding orientations and interior slices now pass core checks, while live beam destruction and new save identity remain unimplemented.
 
 - GeoMod publication: Broaden clipped-face partition coverage to other source geometry; the repaired shot, save/reload and subsequent rocket now pass76/75/76 native checks, with exact uninterrupted PC checkpoints, while broader histories remain open.
 

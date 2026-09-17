@@ -37,3 +37,14 @@ The C regression uses the actual roof80 bottom coordinates and air85 triangular-
 Scene-loader wiring, complete neighbor representation and stock64MiB runtime validation remain open; the source whitelist is unchanged.
 
 Validation: checked full PC build and all122 tests pass; stock-profile NXDK build passes. Logs: artifacts/roof-boundary-{full-build,tests,xbox}.log. No emulator launch or new HDD/image was needed for this unintegrated core addition.
+
+
+## Hollow neighbor occlusion
+
+Publication jobs now optionally associate one outward convex void with each neighbor solid owner. Occlusion uses P minus (solid minus void): retain the polygon outside the solid plus the portion inside both solid and void. Both regions use existing bounded scratch, and final pieces pass the same strict partition/collision rules. Unknown void owners, repeated void owners and invalid planes reject before output publication. This is intentionally one convex void per owner, sufficient for the measured roof80/air85 relationship; it is not a general ordered editor CSG engine.
+
+The first boundary fixture caught duplicate coplanar area. Existing subtraction preserves opposite-facing contact; adding the void intersection again was wrong on that boundary. The implementation now detects that preserved contact and avoids re-emitting its area. Six cases cover both winding orientations at the roof bottom, inside the hollow prism, and above it. For a6-by8 query rectangle, opposite-facing bottom contact retains48 units, same-facing bottom clipping retains40, the Y2.75 interior slice retains28, and the Y3.25 slice retains16. Tests verify strict collision conversion, UV/material/provenance and malformed owner handling. The prior clipped-boundary tests remain separate evidence for the exposed roof strips.
+
+This optional job data is not yet populated by the scene loader. Callers must provide the effective neighbor surface boundary, including cavity walls where relevant, and capture the new source identity before accepting saves. Current post jobs have zero voids and continue through the original subtraction path. The next integration step is constructing beam95's validated owner/neighborhood and wiring its clipped roof surfaces plus hollow occluder together; no live beam behavior is claimed yet.
+
+Validation: checked full PC build and all122 tests pass; stock NXDK build passes. Logs: artifacts/roof-occlusion-{full-build,tests,xbox}.log. No emulator run, HDD clone or image was produced for this core-only change.

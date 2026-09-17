@@ -139,6 +139,45 @@ static int hollow_roof_boundary(void) {
     CHECK(out.face_count==2 && out.vertex_count==8);
     puts("PASS hollow roof boundary: real air-prism slice, strict collision, owner isolation, UV/provenance and atomic rejection");return 0;
 }
+static int hollow_neighbor_occlusion(void) {
+    float solid_planes[6][4]={{1,0,0,4},{-1,0,0,-8},{0,1,0,-3.5f},{0,-1,0,2.5f},{0,0,1,-4},{0,0,-1,-4}};
+    float air_planes[5][4]={{1,0,0,4},{-1,0,0,-8},{0,-1,0,2.5f},{0,6,1,-18},{0,6,-1,-18}};
+    const float ys[3]={2.5f,2.75f,3.25f};const double expected[3]={48,28,16};
+    rf_geomod_vertex v[4];rf_geomod_face face={0,4,3,UINT32_MAX};
+    rf_geomod_publication_solid solid={solid_planes,6,80},holes[2]={{air_planes,5,80},{air_planes,5,80}};
+    rf_geomod_publication_job job={0};rf_geomod_mesh_view out,before;
+    rf_collision_face bound[16];rf_collision_face_filter filters[16]={{0}};float positions[128][3];
+    uint32_t sample,i,k,flip;double sum;
+    for(i=3;i<5;i++)for(k=0;k<4;k++)air_planes[i][k]/=sqrtf(37);
+    job.terrain=(rf_geomod_mesh_view){v,&face,4,1,19};job.source_planes=solid_planes;job.source_plane_count=6;
+    job.solids=&solid;job.solid_count=1;job.neighbor_voids=holes;job.neighbor_void_count=1;
+    job.crater_origin=(rf_geomod_publication_origin){1,95,UINT32_MAX,157};
+    for(flip=0;flip<2;flip++)for(sample=0;sample<3;sample++) {
+        const float p[4][3]={{-9,0,-4},{-9,0,4},{-3,0,4},{-3,0,-4}};
+        for(i=0;i<4;i++){uint32_t index=flip?3-i:i;memcpy(v[i].position,p[index],12);v[i].position[1]=ys[sample];v[i].uv[0]=p[index][0];v[i].uv[1]=p[index][2];}
+        CHECK(!rf_geomod_publication_build(&job,&work,ov,4096,of,768,origins,&out));
+        CHECK(out.face_count<=16 && out.vertex_count<=128 && out.generation==19);
+        CHECK(!rf_geomod_collision_faces(&out,filters,positions,128,bound,16));
+        sum=0;
+        for(i=0;i<out.face_count;i++) {
+            const rf_geomod_face *f=of+i;double a=0;
+            CHECK(origins[i].owner==95 && origins[i].reference==157 && f->material==3);
+            for(k=0;k<f->count;k++) {
+                const rf_geomod_vertex *x=ov+f->first+k,*y=ov+f->first+(k+1)%f->count;
+                a+=(double)x->position[0]*y->position[2]-(double)x->position[2]*y->position[0];
+                CHECK(fabsf(x->uv[0]-x->position[0])<1e-6f && fabsf(x->uv[1]-x->position[2])<1e-6f);
+            }
+            sum+=fabs(a)*.5;
+        }
+        CHECK(fabs(sum-((sample==0 && flip)?40:expected[sample]))<1e-4);
+    }
+    before=out;holes[0].owner=777;
+    CHECK(rf_geomod_publication_build(&job,&work,ov,4096,of,768,origins,&out)==RF_FORMAT);
+    CHECK(!memcmp(&out,&before,sizeof(out)));holes[0].owner=80;job.neighbor_void_count=2;
+    CHECK(rf_geomod_publication_build(&job,&work,ov,4096,of,768,origins,&out)==RF_FORMAT);
+    CHECK(!memcmp(&out,&before,sizeof(out)));
+    puts("PASS hollow neighbor occlusion: both boundary orientations/interior/above-void areas, strict collision, UV/provenance and invalid-owner rejection");return 0;
+}
 int main(void) {
     float lo[3] = {-.25f, -1.5f, -.25f}, hi[3] = {.25f, 2, .25f}, fl[3] = {-10, -2, -10},
           fh[3] = {10, -1.25f, 10};
@@ -310,6 +349,7 @@ int main(void) {
     rf_geomod_terrain_close(&terrain);
     CHECK(!rounded_boundary());
     CHECK(!hollow_roof_boundary());
+    CHECK(!hollow_neighbor_occlusion());
     puts("PASS publication");
     return 0;
 }

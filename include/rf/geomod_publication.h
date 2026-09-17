@@ -29,6 +29,11 @@ typedef struct rf_geomod_publication_job {
     uint32_t solid_count;
     const rf_geomod_publication_cut *cuts;
     uint32_t cut_count;
+    /* Optional convex void per neighbor owner: occluder is solid minus void.
+     * Caller supplies the effective neighbor boundary, including void walls
+     * where relevant. This does not replay general ordered editor CSG. */
+    const rf_geomod_publication_solid *neighbor_voids;
+    uint32_t neighbor_void_count;
 } rf_geomod_publication_job;
 typedef struct rf_geomod_publication_bank {
     rf_geomod_vertex vertices[RF_GEOMOD_PUBLICATION_VERTICES];

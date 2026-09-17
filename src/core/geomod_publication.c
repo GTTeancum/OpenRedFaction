@@ -144,6 +144,43 @@ static int subtract(rf_geomod_publication_work *w, uint32_t *bank, const float (
     *bank = 1 - *bank;
     return RF_OK;
 }
+/* P minus (solid minus void) = (P minus solid) union (P intersect
+ * solid intersect void). The two retained regions have disjoint interiors. */
+static int subtract_neighbor(rf_geomod_publication_work *w,uint32_t *bank,
+    const rf_geomod_publication_solid *solid,const rf_geomod_publication_job *job) {
+    const rf_geomod_publication_solid *hole=NULL;
+    rf_geomod_publication_bank *a=w->banks+*bank,*b=w->banks+1-*bank;
+    uint32_t i,j,n,nv,nf;int status;
+    for(i=0;i<job->neighbor_void_count;i++)if(job->neighbor_voids[i].owner==solid->owner)hole=job->neighbor_voids+i;
+    if(!hole)return subtract(w,bank,solid->planes,solid->count);
+    b->nv=b->nf=0;
+    for(i=0;i<a->nf;i++) {
+        rf_geomod_face f=a->faces[i];
+        status=rf_geomod_polygon_subtract(a->vertices+f.first,f.count,solid->planes,solid->count,
+            w->split_vertices,2048,w->fragments,128,&nv,&nf);if(status)return status;
+        for(j=0;j<nf;j++) {
+            status=append(b,w->split_vertices+w->fragments[j].first,w->fragments[j].count,f);if(status)return status;
+        }
+        /* Existing subtraction retains opposite-facing coplanar contact.
+         * It already includes the opening in that case; adding it again
+         * would duplicate area on the shared boundary. */
+        {float surface[4];uint32_t q,k,kept_contact=0;
+         status=plane(a->vertices+f.first,f.count,surface);if(status)return status;
+         for(q=0;q<solid->count && !kept_contact;q++) {
+             double dot=0;uint32_t coplanar=1;
+             for(k=0;k<3;k++)dot+=(double)surface[k]*solid->planes[q][k];
+             if(dot>=0)continue;
+             for(k=0;k<f.count;k++)if(fabsf(distance(solid->planes[q],a->vertices[f.first+k].position))>1e-5f){coplanar=0;break;}
+             kept_contact=coplanar;
+         }
+         if(kept_contact)continue;}
+        n=f.count;memcpy(w->polygon[0],a->vertices+f.first,n*sizeof(rf_geomod_vertex));
+        status=clip_negative(w,&n,solid->planes,solid->count);if(status)return status;
+        status=clip_negative(w,&n,hole->planes,hole->count);if(status)return status;
+        status=append(b,w->polygon[0],n,f);if(status)return status;
+    }
+    *bank=1-*bank;return RF_OK;
+}
 static int emit_bank(rf_geomod_publication_work *w, uint32_t bank, rf_geomod_publication_origin origin) {
     uint32_t i;
     int s;
@@ -211,6 +248,7 @@ static int publication_append(const rf_geomod_publication_job *j, rf_geomod_publ
     int s;
     if (!j || !w ||
         j->solid_count > RF_GEOMOD_PUBLICATION_NEIGHBORS || j->cut_count > RF_GEOMOD_CUT_LIMIT ||
+        j->neighbor_void_count > RF_GEOMOD_PUBLICATION_NEIGHBORS || (j->neighbor_void_count && !j->neighbor_voids) ||
         (j->solid_count && !j->solids) || (j->cut_count && !j->cuts) ||
         (j->windows.face_count && !j->window_origins) || (j->neighbors.face_count && !j->neighbor_origins))
         return RF_RANGE;
@@ -234,6 +272,13 @@ static int publication_append(const rf_geomod_publication_job *j, rf_geomod_publ
             if (j->solids[k].owner == j->solids[i].owner)
                 return RF_FORMAT;
     }
+    for(i=0;i<j->neighbor_void_count;i++) {
+        uint32_t found=0;
+        s=planes_valid(j->neighbor_voids[i].planes,j->neighbor_voids[i].count);if(s)return s;
+        for(k=0;k<j->solid_count;k++)found|=j->solids[k].owner==j->neighbor_voids[i].owner;
+        if(!found)return RF_FORMAT;
+        for(k=0;k<i;k++)if(j->neighbor_voids[k].owner==j->neighbor_voids[i].owner)return RF_FORMAT;
+    }
     s = prepare_cuts(j, w);
     if (s)
         return s;
@@ -246,7 +291,7 @@ static int publication_append(const rf_geomod_publication_job *j, rf_geomod_publ
             if (s)
                 return s;
             for (k = 0; k < j->solid_count; k++) {
-                s = subtract(w, &bank, j->solids[k].planes, j->solids[k].count);
+                s = subtract_neighbor(w, &bank, j->solids+k, j);
                 if (s)
                     return s;
             }
@@ -334,7 +379,7 @@ static int publication_append(const rf_geomod_publication_job *j, rf_geomod_publ
                 return s;
             for (a = 0; a < j->solid_count; a++)
                 if (j->solids[a].owner != origin.owner) {
-                    s = subtract(w, &bank, j->solids[a].planes, j->solids[a].count);
+                    s = subtract_neighbor(w, &bank, j->solids+a, j);
                     if (s)
                         return s;
                 }
