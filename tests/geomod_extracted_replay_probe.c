@@ -75,6 +75,55 @@ static void piece_contacts(const rf_geomod_owned_piece *piece)
     }
     printf("PASS owned piece %u: %u translated/rotated ray and sphere contacts plus miss\n",piece->id,hits);
 }
+static void moving_batch_contacts(rf_geomod_piece_batch *batch)
+{
+    rf_geomod_owned_piece piece;rf_physics_body *body;rf_physics_body_state saved[16];
+    uint32_t count=rf_geomod_piece_batch_count(batch),target=count-1;
+    const float basis[9]={.6f,.8f,0,-.8f,.6f,0,0,0,1};uint32_t pose,f,sweep,k,j,total=0;
+    REQUIRE(count && count<=16);
+    for(k=0;k<count;k++) {
+        REQUIRE(!rf_geomod_piece_batch_get(batch,k,&piece,&body));saved[k]=body->state;
+        if(k!=target)body->state.position[0]+=10000*(k+1);
+    }
+    REQUIRE(!rf_geomod_piece_batch_get(batch,target,&piece,&body));
+    for(pose=0;pose<2;pose++) {
+        if(pose) {
+            memcpy(body->state.orientation,basis,sizeof(basis));
+            body->state.position[0]+=31;body->state.position[1]-=17;body->state.position[2]+=9;
+        }
+        for(f=0;f<piece.mesh.face_count;f++)for(sweep=0;sweep<2;sweep++) {
+            const rf_collision_face *face=piece.collision+f;float center[3]={0},start[3],delta[3];
+            rf_geomod_piece_hit hit;uint32_t matched;
+            for(j=0;j<face->count;j++)for(k=0;k<3;k++)center[k]+=face->vertices[j][k]/face->count;
+            for(k=0;k<3;k++) {
+                start[k]=body->state.position[k];delta[k]=0;
+                for(j=0;j<3;j++) {
+                    start[k]+=(center[j]+2*face->plane[j])*body->state.orientation[j*3+k];
+                    delta[k]-=4*face->plane[j]*body->state.orientation[j*3+k];
+                }
+            }
+            REQUIRE(!rf_geomod_piece_batch_sweep(batch,0,start,delta,sweep?.25f:0,1,&hit,&matched));
+            REQUIRE(matched && hit.piece==target && hit.face==f);
+            REQUIRE(fabs(hit.hit.fraction-(sweep?.4375:.5))<.00002);
+            for(k=0;k<3;k++) {
+                double normal=0;for(j=0;j<3;j++)normal+=face->plane[j]*body->state.orientation[j*3+k];
+                REQUIRE(fabs(hit.hit.normal[k]-normal)<.00002);
+            }
+            total++;
+        }
+    }
+    {
+        float start[3]={1000,1000,1000},delta[3]={1,0,0};rf_geomod_piece_hit hit,before;uint32_t matched=99;
+        memset(&hit,0xa5,sizeof(hit));before=hit;
+        REQUIRE(!rf_geomod_piece_batch_sweep(batch,0,start,delta,0,1,&hit,&matched));
+        REQUIRE(!matched && !memcmp(&hit,&before,sizeof(hit)));
+        matched=99;
+        REQUIRE(rf_geomod_piece_batch_sweep(batch,0,start,delta,-1,1,&hit,&matched)==RF_RANGE);
+        REQUIRE(matched==99 && !memcmp(&hit,&before,sizeof(hit)));
+    }
+    for(k=0;k<count;k++){REQUIRE(!rf_geomod_piece_batch_get(batch,k,&piece,&body));body->state=saved[k];}
+    printf("PASS moving batch %u world ray/sphere contacts, miss and rejected query\n",total);
+}
 static void asymmetric_mass_owner(void)
 {
     rf_geomod_vertex vertices[48];rf_geomod_face faces[12];rf_collision_face_filter filters[12]={{0}};
@@ -177,6 +226,8 @@ int main(void)
     rf_geomod_storage_close(&replay->mesh);
     REQUIRE(rf_geomod_piece_bank_count(owned[round])==2);
     }
+    moving_batch_contacts(batches[0][0]);
+    moving_batch_contacts(batches[0][3]);
     REQUIRE(batch_random[0].value==batch_random[1].value);
     for(prefix=0;prefix<4;prefix++) {
         uint32_t i,count=rf_geomod_piece_batch_count(batches[0][prefix]);

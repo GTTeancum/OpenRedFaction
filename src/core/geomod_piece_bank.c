@@ -199,3 +199,28 @@ int rf_geomod_piece_batch_open(const rf_geomod_mesh_view *source,const rf_collis
 failed:
     rf_geomod_piece_bank_close(&geometry);rf_geomod_piece_batch_close(&batch);return status;
 }
+
+int rf_geomod_piece_batch_sweep(const rf_geomod_piece_batch *batch,uint32_t flags,
+    const float start[3],const float delta[3],float radius,float limit,
+    rf_geomod_piece_hit *result,uint32_t *matched)
+{
+    rf_geomod_piece_hit best={0};uint32_t found=0,i,k;float nearest=limit;int status;
+    if(!batch || !start || !delta || !result || !matched || !isfinite(radius) || radius<0 ||
+        !isfinite(limit) || limit<0 || limit>1)return RF_RANGE;
+    for(k=0;k<3;k++)if(!isfinite(start[k]) || !isfinite(delta[k]))return RF_RANGE;
+    for(i=0;i<batch->count;i++) {
+        rf_geomod_owned_piece piece;rf_collision_sweep_tree_hit local;uint32_t hit;
+        const rf_physics_body_state *body=&batch->bodies[i].state;
+        status=rf_geomod_piece_bank_get(batch->geometry,i,&piece);if(status)return status;
+        status=rf_collision_flat_faces(piece.collision,piece.mesh.face_count,flags,start,delta,
+            body->position,(const float (*)[3])body->orientation,radius,nearest,&local,&hit);
+        if(status)return status;
+        if(!hit || (found && local.hit.fraction>=nearest))continue;
+        status=rf_collision_contact_world(&local.hit,body->position,(const float (*)[3])body->orientation,&best.hit);
+        if(status)return status;
+        best.piece=i;best.face=local.face_index;best.edge=local.edge;
+        nearest=local.hit.fraction;found=1;
+    }
+    if(found)*result=best;
+    *matched=found;return RF_OK;
+}

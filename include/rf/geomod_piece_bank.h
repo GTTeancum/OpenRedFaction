@@ -61,6 +61,15 @@ uint32_t rf_geomod_piece_batch_peak_bytes(const rf_geomod_piece_batch *);
 /* Geometry and mutable simulation body remain valid until batch close. */
 int rf_geomod_piece_batch_get(rf_geomod_piece_batch *,uint32_t index,
     rf_geomod_owned_piece *,rf_physics_body **);
+typedef struct rf_geomod_piece_hit {
+    rf_collision_ray_hit hit;uint32_t piece,face,edge;
+} rf_geomod_piece_hit;
+/* Query owned polygons at current body poses. Returns nearest world-space
+ * contact; equal fractions retain the earlier piece. No allocation or mutation.
+ * Misses preserve result; errors preserve both result and matched. */
+int rf_geomod_piece_batch_sweep(const rf_geomod_piece_batch *,uint32_t flags,
+    const float start[3],const float delta[3],float radius,float limit,
+    rf_geomod_piece_hit *result,uint32_t *matched);
 int rf_geomod_piece_bank_get(const rf_geomod_piece_bank *,uint32_t index,rf_geomod_owned_piece *);
 uint32_t rf_geomod_piece_bank_count(const rf_geomod_piece_bank *);
 uint32_t rf_geomod_piece_bank_bytes(const rf_geomod_piece_bank *);

@@ -68,3 +68,23 @@ passes in artifacts/geomod-postedit-re/extracted-piece-batch-xbox.log.
 Live scene extraction remains disabled: replay composition is evidence for the
 handoff, not native motion/rendering acceptance. Broader non-axis topology and
 late allocation rollback remain open.
+
+## Current-pose collision queries
+
+`rf_geomod_piece_batch_sweep` queries each owned polygon set at the physics
+body's current position/orientation, limits subsequent tests to the nearest
+fraction, and transforms the accepted contact back to world space. Equal
+fractions retain the earlier piece. It allocates nothing. Misses preserve the
+contact; invalid queries preserve both contact and matched outputs.
+
+The extracted replay test moves and rotates the one-piece batch and the last
+piece of the11-piece batch (other pieces are placed far away). Across52 ray and
+sphere contacts it checks face identity, analytical contact fraction and world
+normal; miss and negative-radius controls verify unchanged outputs. Body poses
+are restored before reload comparisons. This does not yet exercise overlapping
+pieces, texture-alpha queries or scene collision registration.
+
+Release geomod_extracted_replay passes. Stock NXDK build is recorded in
+artifacts/geomod-postedit-re/moving-piece-query-xbox.log. No simulation scheduler
+or live rendering was added; this connects owned collision geometry to mutable
+body poses so scene movement/weapons can consume it next.
