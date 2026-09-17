@@ -48,3 +48,16 @@ The first boundary fixture caught duplicate coplanar area. Existing subtraction 
 This optional job data is not yet populated by the scene loader. Callers must provide the effective neighbor surface boundary, including cavity walls where relevant, and capture the new source identity before accepting saves. Current post jobs have zero voids and continue through the original subtraction path. The next integration step is constructing beam95's validated owner/neighborhood and wiring its clipped roof surfaces plus hollow occluder together; no live beam behavior is claimed yet.
 
 Validation: checked full PC build and all122 tests pass; stock NXDK build passes. Logs: artifacts/roof-occlusion-{full-build,tests,xbox}.log. No emulator run, HDD clone or image was produced for this core-only change.
+
+
+## Beam95 authored loader integrated
+
+The scoped authored decoder now accepts UID95 in addition to the four posts. It requires the actual earlier air66, earlier air85 (five faces/eighteen corners), and exactly roof80/posts93/94 as flags-zero neighbors. The beam's upper Y bound must equal air85's lower bound. Other source IDs and unexpected neighborhoods remain rejected. It imports air85 with reversed winding and validates the resulting outward closed convex plane set; authored vertices/UVs are retained, rather than using the analytical fixture's idealized normals.
+
+The owned asset view now exposes neighbor_voids/count. Beam loading retains the actual roof80 convex occluder paired with air85's void, and clips the neighbor surface mesh through the prior boundary routine. Parse owner/brush tables are freed before allocating publication clipping scratch. The measured asset is18876 resident bytes with1248463 peak bytes, within the existing2MiB loader budget. Peak-minus-one rejects without publishing an owner. All source, clipped neighbor and void-plane pointers remain owner-backed after parsing ends.
+
+Installed-asset testing checks the eight compiled beam windows, real roof bottom strips (7.99999905 area before beam footprint exclusion), one owner80 void, and a real template center cut. Publication produces41 faces with resolvable references and no false exposed roof patch across the center opening. This is direct loader/core publication validation, not scene rendering, detached-body or save acceptance. The existing four-post and paired publication cases remain passing.
+
+Remaining live integration constraints are explicit: save-identity capture still admits only the four prior post profiles, and scene selection has not been enabled for95. Destroying the beam near its supports can reveal previously fully hidden post tops: authored face IDs543 and549 have no compiled references anywhere in the installed geometry. Their authored UV/material data exist, but the current compiled-reference-based lighting/identity path needs a deliberate representation for these exposed surfaces rather than a fabricated reference. The successful center cut does not settle these end-cut cases.
+
+Validation: checked full PC build, all122 tests and stock NXDK build pass. Logs: artifacts/beam-loader-{build,tests,full-build,full-tests,xbox}.log. No emulator or HDD clone/image was produced in this loader-only step.

@@ -1,4 +1,5 @@
 #include "rf/geomod_authored_post.h"
+#include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -163,6 +164,46 @@ static int exercise_publication(const rf_geomod_authored_post *owner, const char
     rf_geomod_terrain_close(&terrain);
     return 0;
 }
+static int beam_source(const rf_level *level,const rf_geometry *geometry,const char *shape_path) {
+    rf_geomod_authored_post *owner=NULL,*rejected=NULL;rf_geomod_authored_post_view a;
+    rf_geomod_template shape;rf_geomod_terrain *terrain=NULL;rf_geomod_terrain_view view;
+    rf_geomod_publication_job job={0};rf_geomod_publication_cut cut;rf_geomod_mesh_view output;
+    rf_collision_face_filter generated;float center[3]={-4.75f,2.25f,0},basis[9]={1,0,0,0,1,0,0,0,1};
+    uint32_t i,k;double roof_area=0;
+    CHECK(!rf_geomod_authored_post_open_source(level,geometry,95,2*1024*1024,&owner));
+    CHECK(!rf_geomod_authored_post_get(owner,&a));
+    CHECK(a.source_uid==95 && a.windows.face_count==8 && a.source.face_count==6 && a.solid_count==3);
+    CHECK(a.neighbor_void_count==1 && a.neighbor_voids[0].owner==80 && a.neighbor_voids[0].count==5);
+    for(i=0;i<a.neighbors.face_count;i++)if(a.neighbor_origins[i].source_face==478) {
+        const rf_geomod_face *f=a.neighbors.faces+i;double area=0;
+        for(k=0;k<f->count;k++) {
+            const float *p=a.neighbors.vertices[f->first+k].position,*q=a.neighbors.vertices[f->first+(k+1)%f->count].position;
+            CHECK(fabsf(p[2])>=3-1e-5f);area+=(double)p[0]*q[2]-(double)p[2]*q[0];
+        }
+        roof_area+=fabs(area)*.5;
+    }
+    CHECK(fabs(roof_area-8)<1e-5);
+    CHECK(rf_geomod_authored_post_open_source(level,geometry,95,a.peak_bytes-1,&rejected)==RF_RANGE && !rejected);
+    generated=a.source_filters[0];
+    CHECK(!rf_geomod_terrain_open(&a.source,a.source_filters,&generated,0,4096,768,1048576,&terrain));
+    CHECK(!rf_geomod_template_load(shape_path,&shape));
+    CHECK(!rf_geomod_terrain_cut_template(terrain,&shape,center,basis,1.05000007f,0));
+    CHECK(!rf_geomod_terrain_get(terrain,&view));
+    CHECK(!rf_geomod_terrain_cutter_get(terrain,0,&cut.mesh,cut.kernel,&cut.star));
+    job.terrain=view.mesh;job.windows=a.windows;job.neighbors=a.neighbors;
+    job.window_origins=a.window_origins;job.neighbor_origins=a.neighbor_origins;
+    job.source_planes=a.source_planes;job.source_plane_count=a.source.face_count;
+    job.solids=a.solids;job.solid_count=a.solid_count;job.neighbor_voids=a.neighbor_voids;job.neighbor_void_count=a.neighbor_void_count;
+    job.crater_origin=(rf_geomod_publication_origin){1,95,UINT32_MAX,a.replaced_ids[0]};job.cuts=&cut;job.cut_count=1;
+    CHECK(!rf_geomod_publication_build(&job,&publication_work,output_vertices,4096,output_faces,768,output_origins,&output));
+    CHECK(output.face_count>0);
+    for(i=0;i<output.face_count;i++) {
+        CHECK(output_origins[i].kind!=2 || output_origins[i].owner!=80);
+        CHECK(output_origins[i].reference!=UINT32_MAX);
+    }
+    printf("BEAM_LOADER resident%u peak%u neighbor_faces%u roof_area%.9g center_cut_faces%u\n",a.resident_bytes,a.peak_bytes,a.neighbors.face_count,roof_area,output.face_count);
+    rf_geomod_terrain_close(&terrain);rf_geomod_authored_post_close(&owner);return 0;
+}
 static int selected_sources(const rf_level *level, const rf_geometry *geometry, const char *shape) {
     static const uint32_t uids[] = {93, 94, 96, 97};
     uint32_t n, i, k;
@@ -319,6 +360,7 @@ int main(int argc, char **argv) {
               !other);
         free(payload);
     }
+    CHECK(!beam_source(&level,&geometry,argc > 2 ? argv[2] : "build/data/geomod-template.bin"));
     CHECK(!selected_sources(&level, &geometry, argc > 2 ? argv[2] : "build/data/geomod-template.bin"));
     CHECK(!grouped_posts(&level,&geometry,argc > 2 ? argv[2] : "build/data/geomod-template.bin"));
     rf_geometry_close(&geometry);

@@ -295,9 +295,9 @@ static int plane_mesh(const rf_geomod_mesh_view *m, float (*planes)[4]) {
 static int ordinary_source(const rf_collision_face_filter *f) {
     return f->owner_present && !f->owner_kind && !(f->face_flags & 12u) && f->property_34 <= 0;
 }
-static int import_brush(const unsigned char *data, const brush_record *b, const rf_geometry *g,
+static int import_brush_oriented(const unsigned char *data, const brush_record *b, const rf_geometry *g,
                         rf_geomod_vertex *v, rf_geomod_face *f, rf_geomod_publication_origin *origins,
-                        float (*planes)[4], rf_collision_face_filter *filters, uint32_t fallback) {
+                        float (*planes)[4], rf_collision_face_filter *filters, uint32_t fallback, uint32_t reverse) {
     uint32_t i, j, at = b->face_offset, nv = 0;
     rf_geomod_mesh_view mesh;
     int s;
@@ -340,8 +340,17 @@ static int import_brush(const unsigned char *data, const brush_record *b, const 
         nv += count;
         at += count * stride;
     }
+    if(reverse)for(i=0;i<b->faces;i++)for(j=0;j<f[i].count/2;j++) {
+        rf_geomod_vertex temp=v[f[i].first+j];
+        v[f[i].first+j]=v[f[i].first+f[i].count-1-j];v[f[i].first+f[i].count-1-j]=temp;
+    }
     mesh = (rf_geomod_mesh_view){v, f, nv, b->faces, 0};
     return plane_mesh(&mesh, planes);
+}
+static int import_brush(const unsigned char *data,const brush_record *b,const rf_geometry *g,
+    rf_geomod_vertex *v,rf_geomod_face *f,rf_geomod_publication_origin *origins,
+    float (*planes)[4],rf_collision_face_filter *filters,uint32_t fallback) {
+    return import_brush_oriented(data,b,g,v,f,origins,planes,filters,fallback,0);
 }
 static uint64_t aligned(uint64_t n) { return (n + sizeof(void *) - 1) & ~((uint64_t)sizeof(void *) - 1); }
 static void *chunk(unsigned char *base, uint64_t *at, uint32_t n, size_t size) {
@@ -356,7 +365,11 @@ int rf_geomod_authored_post_decode_source(const void *input, uint32_t bytes, con
                                    rf_geomod_authored_post **out) {
     const unsigned char *data = input;
     cursor c = {data, bytes, 0};
-    brush_record *records = NULL, *source = NULL, *near[3] = {0};
+    brush_record *records = NULL, *source = NULL, *near[3] = {0}, *roof_air=NULL;
+    rf_geomod_publication_work *clip_work=NULL;
+    rf_geomod_vertex *clipped_vertices=NULL;rf_geomod_face *clipped_faces=NULL;
+    rf_geomod_publication_origin *clipped_origins=NULL;
+    rf_geomod_publication_solid *void_owner=NULL;float (*void_planes)[4]=NULL;
     face_owner *owners = NULL;
     rf_geomod_authored_post *o = NULL;
     rf_geomod_vertex *sv, *wv, *nv;
@@ -372,7 +385,7 @@ int rf_geomod_authored_post_decode_source(const void *input, uint32_t bytes, con
     int s = RF_FORMAT;
     if (!input || !g || !g->data || !settings || !out || *out)
         return RF_RANGE;
-    if (source_uid != 93 && source_uid != 94 && source_uid != 96 && source_uid != 97)
+    if (source_uid != 93 && source_uid != 94 && source_uid != 95 && source_uid != 96 && source_uid != 97)
         return RF_NOT_FOUND;
     if (bytes < 4)
         return RF_FORMAT;
@@ -421,7 +434,12 @@ int rf_geomod_authored_post_decode_source(const void *input, uint32_t bytes, con
                 air++;
                 continue;
             }
-            if ((b->uid != 71 && b->uid != (source_uid <= 94 ? 95u : 98u) && b->uid != 70) || b->flags || b->faces < 4 || b->faces > 32 ||
+            if(source_uid==95 && b->uid==85 && b->flags==2 && b->index<source_index) {
+                if(roof_air || b->faces!=5 || b->corners!=18 || source->maximum[1]!=b->minimum[1]){s=RF_NOT_FOUND;goto done;}
+                roof_air=b;continue;
+            }
+            if ((source_uid==95 ? (b->uid!=80 && b->uid!=93 && b->uid!=94) :
+                 (b->uid != 71 && b->uid != (source_uid <= 94 ? 95u : 98u) && b->uid != 70)) || b->flags || b->faces < 4 || b->faces > 32 ||
                 nnear == 3) {
                 s = RF_NOT_FOUND;
                 goto done;
@@ -430,7 +448,7 @@ int rf_geomod_authored_post_decode_source(const void *input, uint32_t bytes, con
             nfaces += b->faces;
             ncorners += b->corners;
         }
-    if (air != 1 || nnear != 3) {
+    if (air != 1 || nnear != 3 || (source_uid==95 && !roof_air)) {
         s = RF_NOT_FOUND;
         goto done;
     }
@@ -515,7 +533,12 @@ int rf_geomod_authored_post_decode_source(const void *input, uint32_t bytes, con
     wo = chunk(base, &at, wfaces, sizeof(*wo));                                                              \
     no = chunk(base, &at, nfaces, sizeof(*no));                                                              \
     filters = chunk(base, &at, source->faces, sizeof(*filters));                                             \
-    replaced = chunk(base, &at, wfaces, sizeof(*replaced));
+    replaced = chunk(base, &at, wfaces, sizeof(*replaced));                                               \
+    clipped_vertices = chunk(base, &at, roof_air?512:0, sizeof(*clipped_vertices));                          \
+    clipped_faces = chunk(base, &at, roof_air?128:0, sizeof(*clipped_faces));                                 \
+    clipped_origins = chunk(base, &at, roof_air?128:0, sizeof(*clipped_origins));                             \
+    void_planes = chunk(base, &at, roof_air?5:0, sizeof(*void_planes));                                      \
+    void_owner = chunk(base, &at, roof_air?1:0, sizeof(*void_owner));
     ALLOCATE_FIELDS(NULL);
     peak = scratch + at;
     if (peak > budget || at > UINT32_MAX) {
@@ -603,10 +626,29 @@ int rf_geomod_authored_post_decode_source(const void *input, uint32_t bytes, con
         }
         j += f.corners;
     }
+    if(roof_air) {
+        rf_geomod_vertex av[18];rf_geomod_face af[5];rf_geomod_publication_origin ao[5];
+        rf_geomod_mesh_view clipped;
+        uint64_t clip_peak=(uint64_t)bytes+o->view.resident_bytes+sizeof(*clip_work)+sizeof(av)+sizeof(af)+sizeof(ao);
+        /* Import air before freeing the parse tables; subsequent clipping no
+         * longer needs either table, so their allocations do not overlap. */
+        if(peak+sizeof(av)+sizeof(af)+sizeof(ao)>budget || clip_peak>budget){s=RF_RANGE;goto done;}
+        s=import_brush_oriented(data,roof_air,g,av,af,ao,void_planes,NULL,0,1);if(s)goto done;
+        *void_owner=(rf_geomod_publication_solid){void_planes,5,80};
+        free(owners);owners=NULL;free(records);records=NULL;
+        clip_work=malloc(sizeof(*clip_work));if(!clip_work){s=RF_IO;goto done;}
+        s=rf_geomod_publication_clip_neighbors(&o->view.neighbors,o->view.neighbor_origins,
+            void_owner,1,clip_work,clipped_vertices,512,clipped_faces,128,clipped_origins,&clipped);if(s)goto done;
+        o->view.neighbors=clipped;o->view.neighbor_origins=clipped_origins;
+        o->view.neighbor_voids=void_owner;o->view.neighbor_void_count=1;
+        peak+=sizeof(av)+sizeof(af)+sizeof(ao);if(clip_peak>peak)peak=clip_peak;
+        o->view.peak_bytes=(uint32_t)peak;
+    }
     *out = o;
     o = NULL;
     s = RF_OK;
 done:
+    free(clip_work);
     free(o);
     free(owners);
     free(records);

@@ -13,6 +13,8 @@ typedef struct rf_geomod_authored_post_view {
     uint32_t source_uid, room, solid_count, replaced_count, brush_count, authored_face_count;
     uint32_t resident_bytes, peak_bytes;
     rf_level_geomod_settings settings;
+    const rf_geomod_publication_solid *neighbor_voids;
+    uint32_t neighbor_void_count;
 } rf_geomod_authored_post_view;
 /* Scoped, proven ctf06/UID94 profile. Reads v180 editor brush section and real
  * compiled face+24 ownership. This is not a general editor CSG evaluator.
@@ -41,7 +43,9 @@ int rf_geomod_authored_post_decode(const void *, uint32_t, const rf_geometry *,
                                    rf_geomod_authored_post **);
 /* Explicit ctf06 room3 source selection: UID93/94 require beam95;
  * UID96/97 require beam98. All require earlier air66 and floor/ground71/70.
- * Other UIDs return RF_NOT_FOUND. Full neighborhood, convexity, eligibility,
+ * UID95 imports beam95 with roof80 clipped by earlier air85 and posts93/94.
+ * Its hollow-neighbor data must be supplied to publication; existing scene/save
+ * selection remains separately gated. Other UIDs return RF_NOT_FOUND. Full neighborhood, convexity, eligibility,
  * material and ownership validation still applies. This selects one owner;
  * it does not implement simultaneous scene sources or general editor CSG. */
 int rf_geomod_authored_post_open_source(const rf_level *, const rf_geometry *,
