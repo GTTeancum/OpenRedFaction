@@ -490,6 +490,7 @@ int main(int argc,char **argv)
         if(fclose(f))failed=1;if(failed)CHECK(RF_FORMAT);
         CHECK(rf_scene_campaign_player_set(&state));
     }
+    {extern uint32_t rf_scene_debris_player_test_enabled;rf_scene_debris_player_test_enabled=p.headless && getenv("RF_REPLAY_DEBRIS_PLAYER_TEST")!=NULL;}
     rf_scene_ripple_test_enabled=p.headless && getenv("RF_REPLAY_RIPPLE_TEST")!=NULL;
     rf_scene_dev_room_enabled=dev_room || (p.headless && (getenv("RF_REPLAY_DEV_ROOM")!=NULL || getenv("RF_REPLAY_WATER_TEST")!=NULL));
     rf_scene_player_checkpoint_enabled=p.headless && getenv("RF_REPLAY_PLAYER_CHECKPOINT")!=NULL;
@@ -873,6 +874,10 @@ run_scene:
     printf("TERRAIN_DRAW");for(i=0;i<5;++i)printf(" %u",rf_scene_terrain_draw[i]);puts("");
     printf("DEBRIS_AUDIO");for(i=0;i<14;++i)printf(" %u",rf_scene_debris_audio[i]);puts("");
     printf("DEBRIS");for(i=0;i<8;++i)printf(" %u",rf_scene_debris[i]);puts("");
+    {extern uint32_t rf_scene_debris_player_test[8];
+     printf("DEBRIS_PLAYER_TEST");for(i=0;i<8;++i)printf(" %u",rf_scene_debris_player_test[i]);puts("");}
+    {extern uint32_t rf_scene_debris_player[8];
+     printf("DEBRIS_PLAYER");for(i=0;i<8;++i)printf(" %u",rf_scene_debris_player[i]);puts("");}
     {extern uint32_t rf_scene_debris_splash_audio[9];
      printf("DEBRIS_SPLASH_AUDIO");for(i=0;i<9;++i)printf(" %u",rf_scene_debris_splash_audio[i]);puts("");}
     {extern uint32_t rf_scene_debris_crossing[8];

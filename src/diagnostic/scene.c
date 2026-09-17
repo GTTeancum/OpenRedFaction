@@ -541,7 +541,7 @@ uint32_t rf_scene_terrain_atlas[8]; /* enabled,width,height,owned bytes,generati
 uint32_t rf_scene_terrain_shadows[4]; /* lighting refreshes, rays, blocked, cache hits */
 typedef struct scene_debris_chunk {
     rf_geomod_debris_mesh mesh;float position[3],velocity[3],radius,resistance,age;
-    uint32_t active,bounces,alpha,detail_marked,room;float axis[3],spin,angle;
+    uint32_t active,bounces,alpha,detail_marked,room,impact_flags;float axis[3],spin,angle;
 } scene_debris_chunk;
 typedef struct scene_debris_pool {
     scene_debris_chunk chunks[80];rf_random_state random;uint32_t next;
@@ -559,6 +559,8 @@ uint32_t rf_scene_debris_relaunch[8]; /* passes,candidates,relaunched,settled re
 uint32_t rf_scene_debris_wet[8]; /* solid misses,wet tests,accepted,last room,fraction bits,point hash,last status,presence */
 uint32_t rf_scene_debris_visibility[8]; /* hidden submissions,aged,last admitted/hidden,hidden age hashes before/after,room tests/rejects */
 uint32_t rf_scene_debris_motion[8]; /* moving steps,submerged steps,last room,flag,proposed hash,status,reserved,reserved */
+uint32_t rf_scene_debris_player_test_enabled,rf_scene_debris_player_test[8];
+uint32_t rf_scene_debris_player[8]; /* tests,overlaps,damage events,last amount,status,last flags,health,direction */
 uint32_t rf_scene_debris_splash_audio[9]; /* requests,selections,starts,loads,bytes,last sample,RNG,failures,name hash */
 uint32_t rf_scene_debris_crossing[8]; /* solid misses,wet entries,last room,point hash,size bits,status,reserved,reserved */
 
@@ -9431,7 +9433,7 @@ static int scene_terrain_open(scene_stream *s,const rf_level *level,rf_vpp *maps
     rf_scene_terrain_atlas[3]=2*512*512*2+64*64*2+SCENE_TERRAIN_FACES*(sizeof(*s->terrain_bindings)+sizeof(*s->terrain_tiles))+sizeof(rf_image)+sizeof(*s->terrain_noise);
     if(rf_scene_terrain_atlas[3]>SCENE_TERRAIN_ATLAS_BUDGET){printf("TERRAIN_ATLAS_BUDGET %u %u\n",rf_scene_terrain_atlas[3],SCENE_TERRAIN_ATLAS_BUDGET);return RF_RANGE;}
     s->debris=calloc(1,sizeof(*s->debris));if(!s->debris)return RF_IO;
-    s->debris->random.value=1;rf_debris_audio_init(&s->debris->audio);memset(rf_scene_debris_audio,0,sizeof(rf_scene_debris_audio));memset(rf_scene_debris,0,sizeof(rf_scene_debris));memset(rf_scene_debris_relaunch,0,sizeof(rf_scene_debris_relaunch));memset(rf_scene_debris_wet,0,sizeof(rf_scene_debris_wet));memset(rf_scene_debris_visibility,0,sizeof(rf_scene_debris_visibility));memset(rf_scene_debris_motion,0,sizeof(rf_scene_debris_motion));memset(rf_scene_debris_crossing,0,sizeof(rf_scene_debris_crossing));memset(rf_scene_debris_splash_audio,0,sizeof(rf_scene_debris_splash_audio));rf_scene_debris_wet[3]=UINT32_MAX;rf_scene_debris[6]=sizeof(*s->debris);
+    s->debris->random.value=1;rf_debris_audio_init(&s->debris->audio);memset(rf_scene_debris_audio,0,sizeof(rf_scene_debris_audio));memset(rf_scene_debris,0,sizeof(rf_scene_debris));memset(rf_scene_debris_relaunch,0,sizeof(rf_scene_debris_relaunch));memset(rf_scene_debris_wet,0,sizeof(rf_scene_debris_wet));memset(rf_scene_debris_visibility,0,sizeof(rf_scene_debris_visibility));memset(rf_scene_debris_motion,0,sizeof(rf_scene_debris_motion));memset(rf_scene_debris_crossing,0,sizeof(rf_scene_debris_crossing));memset(rf_scene_debris_splash_audio,0,sizeof(rf_scene_debris_splash_audio));memset(rf_scene_debris_player,0,sizeof(rf_scene_debris_player));rf_scene_debris_wet[3]=UINT32_MAX;rf_scene_debris[6]=sizeof(*s->debris);
     s->terrain_draw=calloc(1,sizeof(*s->terrain_draw));if(!s->terrain_draw)return RF_IO;
     memset(rf_scene_terrain_draw,0,sizeof(rf_scene_terrain_draw));
     s->terrain_ids=calloc(SCENE_TERRAIN_FACES,sizeof(*s->terrain_ids));if(!s->terrain_ids)return RF_IO;
@@ -10141,7 +10143,7 @@ static int scene_terrain_input(scene_stream *s,const float position[3],const flo
                 memset(rf_scene_terrain_bake,0,sizeof(rf_scene_terrain_bake));
                 scene_terrain_dirty(s,0,0,512,512);
             }
-            if(!status && s->debris){memset(s->debris,0,sizeof(*s->debris));s->debris->random.value=1;rf_debris_audio_init(&s->debris->audio);memset(rf_scene_debris_audio,0,sizeof(rf_scene_debris_audio));memset(rf_scene_debris,0,sizeof(rf_scene_debris));memset(rf_scene_debris_relaunch,0,sizeof(rf_scene_debris_relaunch));memset(rf_scene_debris_wet,0,sizeof(rf_scene_debris_wet));memset(rf_scene_debris_visibility,0,sizeof(rf_scene_debris_visibility));memset(rf_scene_debris_motion,0,sizeof(rf_scene_debris_motion));memset(rf_scene_debris_crossing,0,sizeof(rf_scene_debris_crossing));memset(rf_scene_debris_splash_audio,0,sizeof(rf_scene_debris_splash_audio));rf_scene_debris_wet[3]=UINT32_MAX;rf_scene_debris[6]=sizeof(*s->debris);}
+            if(!status && s->debris){memset(s->debris,0,sizeof(*s->debris));s->debris->random.value=1;rf_debris_audio_init(&s->debris->audio);memset(rf_scene_debris_audio,0,sizeof(rf_scene_debris_audio));memset(rf_scene_debris,0,sizeof(rf_scene_debris));memset(rf_scene_debris_relaunch,0,sizeof(rf_scene_debris_relaunch));memset(rf_scene_debris_wet,0,sizeof(rf_scene_debris_wet));memset(rf_scene_debris_visibility,0,sizeof(rf_scene_debris_visibility));memset(rf_scene_debris_motion,0,sizeof(rf_scene_debris_motion));memset(rf_scene_debris_crossing,0,sizeof(rf_scene_debris_crossing));memset(rf_scene_debris_splash_audio,0,sizeof(rf_scene_debris_splash_audio));memset(rf_scene_debris_player,0,sizeof(rf_scene_debris_player));rf_scene_debris_wet[3]=UINT32_MAX;rf_scene_debris[6]=sizeof(*s->debris);}
             if(!status)++rf_scene_geomod[7];
         } else {
         for(i=0;i<3;i++)delta[i]=orientation[2][i]*100;
@@ -10297,7 +10299,7 @@ static int scene_debris_spawn(scene_stream *s)
                 }
             }
         }
-        c->radius=birth.radius;c->resistance=birth.resistance;c->bounces=birth.bounces;
+        c->radius=birth.radius;c->resistance=birth.resistance;c->bounces=birth.bounces;c->impact_flags=birth.flags;
         /*49001c assigns birth room. Movement/relaunch intentionally retain it. */
         c->room=p->selected_room.room;
         memcpy(c->axis,birth.axis,12);c->spin=birth.spin;c->angle=0;
@@ -10367,10 +10369,71 @@ static void scene_debris_splash_sound(scene_debris_pool *p,const float point[3])
     rf_scene_debris_splash_audio[6]=p->random.value;
     if(status)++rf_scene_debris_splash_audio[7];
 }
+/*48f678 iterates players only. Single-player adapter uses the retained
+ * player body/model and existing damage owner. Particle42e3d0 remains open. */
+static int scene_debris_player_contact(scene_debris_chunk *c,uint32_t frame)
+{
+    extern rf_entity_room_state rf_scene_actor_room_state;
+    uint32_t hit,bits,direction=0,k;float amount,applied=0,seconds=(float)frame/60,normal[3];double length;
+    combat_feedback feedback={(int32_t)((uint64_t)frame*1000/60),0};
+    rf_damage_effect_backend effects={combat_predicate,combat_uid,combat_source,combat_burn,combat_random,combat_notify,combat_playing,combat_play,&feedback};
+    rf_damage_request request={0,UINT32_MAX,1,0,UINT32_MAX,0};int status;
+    if((c->impact_flags&2) || !scene_actor_body.allocated_bytes ||
+       rf_entity_lookup(&campaign_entities,(int32_t)campaign_player_object.handle)!=&campaign_player_view ||
+       c->room!=rf_scene_actor_room_state.room)return RF_OK;
+    ++rf_scene_debris_player[0];
+    status=rf_geomod_debris_actor_contact(c->position,c->velocity,c->radius,scene_actor_body.state.position,
+        campaign_player_geometry.model_radius,&hit,&amount);
+    if(status)return status;if(!hit)return RF_OK;
+    c->impact_flags|=2;++rf_scene_debris_player[1];rf_scene_debris_player[5]=c->impact_flags;
+    request.amount=amount;memcpy(&bits,&seconds,4);
+    status=rf_scene_player_damage(campaign_player_object.handle,&request,1,bits,&effects,&applied);
+    if(!status)status=feedback.status;
+    rf_scene_debris_player[4]=(uint32_t)status;if(status)return status;
+    if(applied>0) {
+        ++rf_scene_debris_player[2];memcpy(rf_scene_debris_player+3,&applied,4);
+        campaign_combat_event(frame,1,campaign_player_object.handle,applied,campaign_player_damage.state.effects.health);
+    }
+    memcpy(rf_scene_debris_player+6,&campaign_player_damage.state.effects.health,4);
+    length=sqrt((double)c->velocity[0]*c->velocity[0]+(double)c->velocity[1]*c->velocity[1]+(double)c->velocity[2]*c->velocity[2]);
+    /* Zero speed still consumes impact eligibility; finite zero direction is
+     * a port guard instead of passing the original normalization's NaNs. */
+    for(k=0;k<3;k++)normal[k]=length>0?-(float)((double)c->velocity[k]*(1.0/length)):0;
+    status=rf_player_contact_direction(normal,scene_actor_body.state.orientation,&direction);
+    if(!status){rf_player_contact_mark(&campaign_player_contact_flags,direction);rf_scene_debris_player[7]=direction;}
+    rf_scene_debris_player[4]=(uint32_t)status;return status;
+}
+/* Explicit diagnostic fixture: no fabricated chunk enters the render pool.
+ * Exercise the actual scene damage adapter with a controlled nearby fragment. */
+static int scene_debris_player_check(uint32_t frame)
+{
+    extern rf_entity_room_state rf_scene_actor_room_state;
+    scene_debris_chunk c={0};float before=campaign_player_damage.state.effects.health;int status;
+    memcpy(c.position,scene_actor_body.state.position,12);c.velocity[0]=3;c.velocity[1]=4;c.radius=.5f;
+    c.room=rf_scene_actor_room_state.room+1;c.bounces=1;
+    memset(rf_scene_debris_player_test,0,sizeof(rf_scene_debris_player_test));
+    memcpy(rf_scene_debris_player_test,&before,4);
+    status=scene_debris_player_contact(&c,frame);if(status)return status;
+    if(c.impact_flags || campaign_player_damage.state.effects.health!=before)return RF_FORMAT;
+    c.room=rf_scene_actor_room_state.room;c.impact_flags=2;
+    status=scene_debris_player_contact(&c,frame);if(status)return status;
+    if(campaign_player_damage.state.effects.health!=before)return RF_FORMAT;
+    c.impact_flags=0;status=scene_debris_player_contact(&c,frame);if(status)return status;
+    if(!(c.impact_flags&2) || campaign_player_damage.state.effects.health>=before)return RF_FORMAT;
+    memcpy(rf_scene_debris_player_test+1,&campaign_player_damage.state.effects.health,4);
+    memcpy(rf_scene_debris_player_test+2,&campaign_player_damage.state.effects.armor,4);
+    before=campaign_player_damage.state.effects.health;
+    status=scene_debris_player_contact(&c,frame+1);if(status)return status;
+    if(campaign_player_damage.state.effects.health!=before)return RF_FORMAT;
+    rf_scene_debris_player_test[3]=c.impact_flags;rf_scene_debris_player_test[4]=rf_scene_debris_player[1];
+    rf_scene_debris_player_test[5]=rf_scene_debris_player[2];rf_scene_debris_player_test[6]=campaign_player_contact_flags;
+    rf_scene_debris_player_test[7]=1;return RF_OK;
+}
 static int scene_debris_tick(scene_stream *s,uint32_t frame)
 {
     scene_debris_pool *p=s->debris;uint32_t i,k,matched;int status;
     if(!p)return RF_OK;rf_scene_debris[1]=0;
+    if(rf_scene_debris_player_test_enabled && frame==100){status=scene_debris_player_check(frame);if(status)return status;}
     for(i=0;i<80;i++)if(p->chunks[i].active) {
         scene_debris_chunk *c=p->chunks+i;float delta[3],proposed[3];rf_geometry_world_hit hit;
         const rf_liquid_room *motion_room;uint32_t liquid_flag;
@@ -10399,6 +10462,7 @@ static int scene_debris_tick(scene_stream *s,uint32_t frame)
             if(status)return status;rf_scene_debris_audio[0]+=contributed;
             for(k=0;k<3;k++)c->position[k]=hit.hit.point[k]+hit.hit.normal[k]*.002f;
             ++rf_scene_debris[2];
+            if(hit.hit.normal[1]>=.7f)c->impact_flags|=2;
             if(hit.hit.normal[1]>=.7f && c->bounces && !--c->bounces) {
                 /* Original terminal floor contact consumes no bounce RNG. */
                 memset(c->velocity,0,sizeof(c->velocity));c->age=c->mesh.lifetime;
@@ -10437,6 +10501,7 @@ static int scene_debris_tick(scene_stream *s,uint32_t frame)
         if(c->bounces) {
             status=rf_geomod_debris_gravity(c->velocity[1],scene_gravity.acceleration,1.f/60,&c->velocity[1]);
             if(status)return status;
+            status=scene_debris_player_contact(c,frame);if(status)return status;
         }
         ++rf_scene_debris[1];
     }

@@ -15,7 +15,7 @@
 - GeoMod debris visibility: Verify live leave/return lifetime retention; room-filtered drawing passes synthetic hidden/return cases,138 binary fixtures and60 stock64MiB PC/Xbox checks.
 - GeoMod water crossing: Verify audible splash quality and broader liquid scenarios;35 positional splash starts and246 ripple vertices match PC/Xbox across63 stock64MiB comparisons.
 - GeoMod debris motion: Finish rotation and actor interaction after gravity correction;72 displacement and140 gravity cases match original instructions.
-- GeoMod debris damage: Connect verified player-contact math to live health and feedback;144 original loop cases establish player-only targeting, while live integration remains open.
+- GeoMod debris damage: Verify ordinary fragment hits and add impact particles; live player damage/direction and repeat suppression pass an explicit fixture with65 stock64MiB comparisons.
 - GeoMod debris: Verify audible output and broader liquid scenarios; five live wet births match original math and the two-blast run passes59 stock64MiB PC/Xbox checks.
 - GeoMod saves: Broaden authored save coverage after both one-cut and reset reload/next-blast paths pass58 stock64MiB Xbox checks with identical uninterrupted checkpoint bytes; malformed live restart coverage remains open.
 
