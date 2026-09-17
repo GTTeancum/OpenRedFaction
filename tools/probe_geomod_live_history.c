@@ -23,6 +23,12 @@ int main(int argc,char **argv)
         for(j=0;j<4;j++){rf_geometry_corner c;CHECK(!rf_geometry_get_corner(&geometry,i,j,&c));CHECK(!rf_geometry_vertex(&geometry,c.vertex,vertices[i*4+j].position));memcpy(vertices[i*4+j].uv,c.uv,8);}
     }
     source=(rf_geomod_mesh_view){vertices,faces,24,6,0};generated.face_flags=256;
+    if(getenv("RF_GEOMOD_PROBE_SOURCE_MESH")) {
+        uint32_t counts[2]={source.vertex_count,source.face_count};FILE *out=fopen(getenv("RF_GEOMOD_PROBE_SOURCE_MESH"),"wb");
+        CHECK(out && fwrite("RGM1",1,4,out)==4 && fwrite(counts,4,2,out)==2);
+        CHECK(fwrite(source.vertices,sizeof(*source.vertices),counts[0],out)==counts[0]);
+        CHECK(fwrite(source.faces,sizeof(*source.faces),counts[1],out)==counts[1]);CHECK(!fclose(out));
+    }
     CHECK(!rf_geomod_template_load(argv[2],&shape));
     CHECK(!rf_geomod_terrain_open(&source,filters,&generated,1,8192,2048,2097152,&terrain));
     CHECK(!rf_geomod_terrain_set_mapping(terrain,geomod_u32(data+208),geomod_u32(data+212)));

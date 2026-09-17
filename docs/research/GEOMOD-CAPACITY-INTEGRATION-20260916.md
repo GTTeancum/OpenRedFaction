@@ -963,3 +963,44 @@ artifacts/geomod-topology-report/report.json, tests/test_geomod_exact_edges.py,
 and the native report above. No production source/geometry changed this turn.
 Estimate remains ~50% overall/~72% GeoMod; next work is geometric validity and
 crater-volume/readability validation rather than further capacity increases.
+
+
+## Independent sampled cavity-volume audit
+
+Added tools/audit_geomod_cavity_volume.py (NumPy, host-only) and an opt-in
+RF_GEOMOD_PROBE_SOURCE_MESH export from the existing C history probe. The
+source export captures the actual first6 room0 quads from installed Glass House;
+no source box is guessed from screenshots or inferred from excavated output.
+The auditor validates convex source planes, reads the recorded star cutters
+from RFDS/RGCH, and independently classifies membership in source union cutter
+tetrahedra using barycentric coordinates. It compares that with the output
+mesh's signed solid-angle winding, requiring the source's inward orientation.
+
+Samples include2048 deterministic random points (seed2001) around the cutters
+and both sides of every nonzero-area output fan triangle, offset0.02 units
+along its normal. Collinear retained boundary vertices produce zero-area fan
+triangles that contribute no winding; an entirely degenerate face is rejected.
+Controls verify analytic tetrahedron membership/orientation, source-versus-added
+cutter disagreement and winding2 for a duplicated shell. Run
+python tests/test_geomod_cavity_volume.py (3 tests PASS).
+
+Repaired14-cut sweep:10130 samples,224 tetrahedra,0 mismatches. Source signed
+volume-30720; output-31176.25010192266; added cavity456.25010192265836 units^3.
+Fixed16-cut control:11422 samples,256 tetrahedra,0 mismatches. Output signed
+volume-31070.9841161967; added cavity350.9841161967015 units^3. Both have inward
+winding-1 inside,0 outside to roughly1e-13 residual. This supports excavation
+into surrounding solid and the recorded cutter union, rather than a protruding
+solid mound. Readability/lighting/material issues can remain despite this.
+
+These are sampled membership checks, not a proof of all triangle intersections,
+sub-micron surface separation, game collision behavior, or original GeoMod
+visual fidelity. In particular0.02-unit offsets do not resolve the earlier
+thin-surface proximity ambiguity. Existing acceptance gates remain unchanged.
+No production geometry, game binary or native runtime changed this turn.
+
+Evidence: artifacts/authored-post-live/glass-house-source.mesh,
+artifacts/geomod-projected-sweep/volume.json (PASS),
+artifacts/geomod-9k-live/volume.json (PASS). Source probe rebuild/replay passes;
+controls pass. Estimate remains ~50% overall/~72% GeoMod. Next investigate
+crater readability and player collision with a demonstrated excavated volume,
+while retaining the open geometric nonintersection/precision checks.
