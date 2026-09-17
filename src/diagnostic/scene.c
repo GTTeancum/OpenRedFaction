@@ -10001,6 +10001,7 @@ static int scene_checkpoint_restore(scene_stream *s,unsigned char *data,uint32_t
 #include "scene_authored_admission_import.inc"
 #include "scene_authored_journal_import.inc"
 #include "scene_authored_checkpoint_stage.inc"
+#include "scene_authored_sources_checkpoint.inc"
 #include "scene_authored_checkpoint_write.inc"
 #include "scene_player_checkpoint.inc"
 #ifdef RF_IMAGE_XBOX_NATIVE
