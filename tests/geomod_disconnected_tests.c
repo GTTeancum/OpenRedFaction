@@ -5,6 +5,7 @@
 #undef main
 #include <math.h>
 #include <float.h>
+#include "rf/geomod_piece_bank.h"
 #include "rf/geomod_solid_clip.h"
 
 static void cap_area(const rf_collision_face *solid,uint32_t faces,uint32_t axis,float at,double expected)
@@ -302,6 +303,50 @@ static void subdivision_mesh_cuts(void)
     }
     printf("PASS 15 tilted slab cuts: analytic volume and two extracted groups\n");
 }
+static void subdivision_worker(void)
+{
+    uint32_t seed,i;rf_geomod_mesh_view source;
+    for(seed=0;seed<3;seed++) {
+        rf_geomod_piece_bank *bank=NULL;rf_geomod_subdivision_stats stats={0};rf_random_state random={seed*12345};
+        rf_collision_face_filter worker_filters[6],worker_generated;
+        make_source(&source);memcpy(worker_filters,filters,sizeof(worker_filters));worker_generated=generated;
+        for(i=0;i<6;i++)worker_filters[i].owner_kind=i+1;worker_generated.owner_kind=77;
+        {int status=rf_geomod_piece_subdivide(&source,worker_filters,&worker_generated,7,2.5f,&random,2097152,&bank,&stats);
+         if(status)fprintf(stderr,"worker seed%u status%d\n",seed,status);CHECK(!status);}
+        CHECK(stats.attempts>0 && stats.attempts<=10 && stats.terminal==rf_geomod_piece_bank_count(bank));
+        CHECK(stats.terminal>1 && stats.peak_bytes<=2097152);
+        for(i=0;i<stats.terminal;i++) {
+            rf_geomod_owned_piece piece;rf_physics_body body={0};uint16_t neighbors[128];
+            CHECK(!rf_geomod_piece_bank_get(bank,i,&piece));CHECK(piece.mass_ready && piece.mass.mass>0);
+            CHECK(!rf_geomod_seed_adjacency(&piece.mesh,neighbors,128));
+            CHECK(!rf_geomod_piece_body_open(&piece,.5f,.25f,4096,&body));rf_physics_body_close(&body);
+        }
+        printf("PASS recursive worker seed%u attempts%u terminal%u discarded%u peak%u\n",seed,stats.attempts,stats.terminal,stats.discarded,stats.peak_bytes);
+        {
+            rf_geomod_piece_bank *again=NULL;rf_geomod_subdivision_stats other={0},sentinel;
+            rf_random_state replay_random={seed*12345};
+            CHECK(!rf_geomod_piece_subdivide(&source,worker_filters,&worker_generated,7,2.5f,&replay_random,2097152,&again,&other));
+            CHECK(replay_random.value==random.value && !memcmp(&stats,&other,sizeof(stats)));
+            for(i=0;i<stats.terminal;i++) {
+                rf_geomod_owned_piece a,b;uint32_t f;
+                CHECK(!rf_geomod_piece_bank_get(bank,i,&a) && !rf_geomod_piece_bank_get(again,i,&b));
+                CHECK(!memcmp(&a.mass,&b.mass,sizeof(a.mass)) && !memcmp(&a.placement,&b.placement,sizeof(a.placement)));
+                CHECK(a.mesh.vertex_count==b.mesh.vertex_count && a.mesh.face_count==b.mesh.face_count);
+                CHECK(!memcmp(a.mesh.vertices,b.mesh.vertices,a.mesh.vertex_count*sizeof(*a.mesh.vertices)));
+                CHECK(!memcmp(a.mesh.faces,b.mesh.faces,a.mesh.face_count*sizeof(*a.mesh.faces)));
+                for(f=0;f<a.mesh.face_count;f++) {
+                    uint32_t id=a.mesh.faces[f].source_face;CHECK(id<6 || id==UINT32_MAX);
+                    CHECK(!memcmp(a.filters+f,id==UINT32_MAX?&worker_generated:worker_filters+id,sizeof(*worker_filters)));
+                }
+            }
+            rf_geomod_piece_bank_close(&again);replay_random.value=seed*12345;
+            memset(&other,0xa5,sizeof(other));sentinel=other;
+            CHECK(rf_geomod_piece_subdivide(&source,worker_filters,&worker_generated,7,2.5f,&replay_random,stats.peak_bytes-1,&again,&other)==RF_RANGE);
+            CHECK(!again && replay_random.value==seed*12345 && !memcmp(&other,&sentinel,sizeof(other)));
+        }
+        rf_geomod_piece_bank_close(&bank);
+    }
+}
 static int subdivision_cutter_cases(void)
 {
     static const struct {uint32_t axis[3],length,seed,next,output[15];} rows[]={
@@ -322,6 +367,7 @@ int main(void)
 {
     CHECK(!subdivision_cutter_cases());
     subdivision_mesh_cuts();
+    subdivision_worker();
     uint32_t axis,bytes;rf_geomod_mesh_view source;
     shapes();
     concave_caps();

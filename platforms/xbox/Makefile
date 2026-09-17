@@ -11,6 +11,7 @@ SRCS += $(PROJECT_ROOT)/src/core/geomod.c
 SRCS += $(PROJECT_ROOT)/src/core/geomod_notify.c
 SRCS += $(PROJECT_ROOT)/src/core/geomod_solid_clip.c
 SRCS += $(PROJECT_ROOT)/src/core/geomod_piece_bank.c
+SRCS += $(PROJECT_ROOT)/src/core/geomod_subdivide.c
 SRCS += $(PROJECT_ROOT)/src/core/debris_audio.c
 SRCS += $(PROJECT_ROOT)/src/core/collision_composition.c
 SRCS += $(PROJECT_ROOT)/src/core/geomod_publication.c

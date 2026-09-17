@@ -34,6 +34,18 @@ int rf_geomod_piece_bank_append_physical(rf_geomod_piece_bank *,const rf_geomod_
  * bank-owned. Caller closes the body and handles scene registration/rendering. */
 int rf_geomod_piece_body_open(const rf_geomod_owned_piece *,float elasticity,float friction,
     uint32_t budget,rf_physics_body *body);
+typedef struct rf_geomod_subdivision_stats {
+    uint32_t attempts,terminal,discarded,peak_bytes;
+} rf_geomod_subdivision_stats;
+/* Bounded practical worker for a closed convex piece (max128 corners/32 faces).
+ * FIFO requeue, original admission/cutter math, ten attempts per batch. Returns
+ * a new private bank of mass-prepared terminal pieces. No scene publication.
+ * Budget covers worker, output bank and all temporary terrain owners, excluding
+ * allocator overhead. RNG/output/stats commit only on success. Concave input is
+ * currently rejected by the underlying terrain owner. */
+int rf_geomod_piece_subdivide(const rf_geomod_mesh_view *,const rf_collision_face_filter *,
+    const rf_collision_face_filter *generated,uint32_t material,float density,
+    rf_random_state *,uint32_t budget,rf_geomod_piece_bank **,rf_geomod_subdivision_stats *);
 int rf_geomod_piece_bank_get(const rf_geomod_piece_bank *,uint32_t index,rf_geomod_owned_piece *);
 uint32_t rf_geomod_piece_bank_count(const rf_geomod_piece_bank *);
 uint32_t rf_geomod_piece_bank_bytes(const rf_geomod_piece_bank *);
