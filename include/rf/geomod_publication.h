@@ -76,4 +76,16 @@ int rf_geomod_publication_build(const rf_geomod_publication_job *, rf_geomod_pub
 int rf_geomod_publication_build_groups(const rf_geomod_publication_job *, uint32_t count,
     uint32_t generation, rf_geomod_publication_work *, rf_geomod_vertex *, uint32_t,
     rf_geomod_face *, uint32_t, rf_geomod_publication_origin *, rf_geomod_mesh_view *);
+/* Clip existing neighbor surfaces by earlier convex voids. A void's owner
+ * selects the input origin.owner it affects; other owners remain unchanged.
+ * Planes are outward/unit, negative inside (reverse inward authored air planes).
+ * This does not generate cavity walls or describe the remaining solid volume.
+ * Caller must separately provide those surfaces/occluders when required.
+ * UV/material/source identity survive splitting; generation is unchanged.
+ * No allocation; reuse a budgeted publication work buffer. Inputs/work/outputs
+ * must be disjoint. Output arrays/view remain unchanged on failure. */
+int rf_geomod_publication_clip_neighbors(const rf_geomod_mesh_view *,
+    const rf_geomod_publication_origin *, const rf_geomod_publication_solid *, uint32_t,
+    rf_geomod_publication_work *, rf_geomod_vertex *, uint32_t, rf_geomod_face *, uint32_t,
+    rf_geomod_publication_origin *, rf_geomod_mesh_view *);
 #endif

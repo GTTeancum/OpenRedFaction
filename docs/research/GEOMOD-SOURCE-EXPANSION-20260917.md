@@ -24,3 +24,16 @@ At beam95's top planeY2.5, air85 removes the roof center for Z(-3,3). Only the t
 New tools/check_geomod_beam_roof_boundary.py loads installed geometry directly, checks the exact compiled face identities/plane and areas, then compares25600 point classifications against separate exposed-beam and exposed-roof masks. Points are cell centers chosen away from the relevant edges; this does not claim every boundary float is exact. All checks pass. Report artifacts/geomod-beam-roof-boundary.json includes geometry hash6437d8f2fc5fc9535cabb928c29e48b8428d6a3a22a414b3be88aef39fe7117b.
 
 The scene publisher currently exposes raw neighboring brush faces after a cut. Beam admission therefore needs the already-subtracted roof boundary (or an equivalent proven ordered-Boolean representation), including the correct UV/provenance for newly uncovered end patches. The boundary audit supplies a concrete uncut reference and rejects the tempting but incorrect full-roof-bottom approximation. Full volume representation, allocation budget, beam/player collision, live extraction and Xbox acceptance are still open. No gameplay change or emulator launch occurred in this audit.
+
+
+## Shared C boundary-clipping implementation
+
+Added rf_geomod_publication_clip_neighbors. It subtracts convex void volumes from selected existing neighbor surfaces, matching each void's owner to the surface origin.owner. It reuses the existing bounded publication work banks, polygon subtraction and strict partitioner, preserving generation, material, UVs and source provenance. It allocates nothing; callers must budget/provide the existing351124-byte work buffer and disjoint outputs. All outputs remain unchanged on validation, clipping or capacity failure.
+
+The API deliberately does not generate interior cavity surfaces or a representation of the remaining solid volume. The caller must supply these separately wherever needed. This distinction matters for roof80-minus-air85: clipping its bottom produces the exposed end strips, but does not by itself solve the complete roof Boolean or justify treating its whole original prism as a valid occluder.
+
+The C regression uses the actual roof80 bottom coordinates and air85 triangular-prism cross-section. It produces8 square units of roof-end strips before subtracting the beam footprint, corresponding to the measured7 visible plus1 beam-contact units. It verifies every roof vertex stays outside the open Z(-3,3) band, all output faces satisfy strict collision conversion, UVs/provenance/materials survive, an unrelated owner retains all32 square units, zero voids preserve both source faces, and capacity/malformed-plane errors leave all output arrays and the output view byte-identical. This is a targeted reconstructed boundary operation, not evidence of general editor CSG or live beam support.
+
+Scene-loader wiring, complete neighbor representation and stock64MiB runtime validation remain open; the source whitelist is unchanged.
+
+Validation: checked full PC build and all122 tests pass; stock-profile NXDK build passes. Logs: artifacts/roof-boundary-{full-build,tests,xbox}.log. No emulator launch or new HDD/image was needed for this unintegrated core addition.

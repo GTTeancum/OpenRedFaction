@@ -100,6 +100,45 @@ static int rounded_boundary(void) {
     for(i=0;i<7;i++){for(k=0;k<out.vertex_count;k++)if(!memcmp(points[i],out.vertices[k].position,12))break;CHECK(k<out.vertex_count);}
     puts("PASS publication rounded boundary: strict collision, preserved vertices/area/UV/provenance");return 0;
 }
+static int hollow_roof_boundary(void) {
+    /* Actual roof80 bottom: the earlier air85 prism opens its center. */
+    const float points[4][3]={{-4,2.5f,-4},{-4,2.5f,4},{-8,2.5f,4},{-8,2.5f,-4}};
+    float planes[5][4]={{1,0,0,4},{-1,0,0,-8},{0,-1,0,2.5f},{0,6,1,-18},{0,6,-1,-18}};
+    rf_geomod_vertex v[8],output[64],saved_v[64];rf_geomod_face f[2]={{0,4,10,478},{4,4,3,900}},faces[16],saved_f[16];
+    rf_geomod_publication_origin input[2]={{2,80,478,164},{2,999,900,200}},out_origins[16],saved_o[16];
+    rf_geomod_mesh_view mesh={v,f,8,2,17},out,before;
+    rf_geomod_publication_solid air={planes,5,80};
+    rf_collision_face bound[16];rf_collision_face_filter filters[16]={{0}};float positions[64][3];
+    uint32_t i,j;double roof_area=0,other_area=0;
+    for(i=3;i<5;i++)for(j=0;j<4;j++)planes[i][j]/=sqrtf(37);
+    for(i=0;i<8;i++){memcpy(v[i].position,points[i%4],12);v[i].uv[0]=points[i%4][0];v[i].uv[1]=points[i%4][2];}
+    memset(output,0xa5,sizeof(output));memset(faces,0xa5,sizeof(faces));memset(out_origins,0xa5,sizeof(out_origins));
+    CHECK(!rf_geomod_publication_clip_neighbors(&mesh,input,&air,1,&work,output,64,faces,16,out_origins,&out));
+    CHECK(out.generation==17 && out.face_count==3);
+    CHECK(!rf_geomod_collision_faces(&out,filters,positions,64,bound,16));
+    for(i=0;i<out.face_count;i++) {
+        const rf_geomod_face *face=faces+i;double a=0;
+        for(j=0;j<face->count;j++) {
+            const rf_geomod_vertex *p=output+face->first+j,*q=output+face->first+(j+1)%face->count;
+            CHECK(fabsf(p->uv[0]-p->position[0])<1e-6f && fabsf(p->uv[1]-p->position[2])<1e-6f);
+            a+=(double)p->position[0]*q->position[2]-(double)p->position[2]*q->position[0];
+            if(out_origins[i].owner==80)CHECK(fabsf(p->position[2])>=3-1e-5f);
+        }
+        if(out_origins[i].owner==80){roof_area+=fabs(a)*.5;CHECK(face->material==10 && face->source_face==478 && out_origins[i].reference==164);}
+        else {other_area+=fabs(a)*.5;CHECK(out_origins[i].owner==999 && face->material==3 && face->source_face==900);}
+    }
+    CHECK(fabs(roof_area-8)<1e-5 && fabs(other_area-32)<1e-5);
+    /* Output exhaustion and malformed planes must not partially publish. */
+    memcpy(saved_v,output,sizeof(output));memcpy(saved_f,faces,sizeof(faces));memcpy(saved_o,out_origins,sizeof(out_origins));before=out;
+    CHECK(rf_geomod_publication_clip_neighbors(&mesh,input,&air,1,&work,output,1,faces,16,out_origins,&out)==RF_RANGE);
+    CHECK(!memcmp(saved_v,output,sizeof(output)) && !memcmp(saved_f,faces,sizeof(faces)) && !memcmp(saved_o,out_origins,sizeof(out_origins)) && !memcmp(&before,&out,sizeof(out)));
+    planes[4][0]=NAN;
+    CHECK(rf_geomod_publication_clip_neighbors(&mesh,input,&air,1,&work,output,64,faces,16,out_origins,&out)==RF_FORMAT);
+    CHECK(!memcmp(saved_v,output,sizeof(output)) && !memcmp(saved_f,faces,sizeof(faces)) && !memcmp(saved_o,out_origins,sizeof(out_origins)) && !memcmp(&before,&out,sizeof(out)));
+    CHECK(!rf_geomod_publication_clip_neighbors(&mesh,input,NULL,0,&work,output,64,faces,16,out_origins,&out));
+    CHECK(out.face_count==2 && out.vertex_count==8);
+    puts("PASS hollow roof boundary: real air-prism slice, strict collision, owner isolation, UV/provenance and atomic rejection");return 0;
+}
 int main(void) {
     float lo[3] = {-.25f, -1.5f, -.25f}, hi[3] = {.25f, 2, .25f}, fl[3] = {-10, -2, -10},
           fh[3] = {10, -1.25f, 10};
@@ -270,6 +309,7 @@ int main(void) {
     }
     rf_geomod_terrain_close(&terrain);
     CHECK(!rounded_boundary());
+    CHECK(!hollow_roof_boundary());
     puts("PASS publication");
     return 0;
 }
