@@ -153,6 +153,30 @@ static int scene_checkpoint_player_capture(scene_stream *s,rf_player_checkpoint 
     {rf_checkpoint_placement_result fit;rf_geomod_player_support_context support={s->detached_pieces,&placement};
      status=rf_checkpoint_standing_check_with_support(&view,&placement,scene_step_seconds,rf_scene_actor_movement_values.speed,rf_geomod_piece_registry_player_support,&support,&fit);if(status){printf("PLAYER_CHECKPOINT_REJECT placement %d sphere%u reason%u retries%u\n",status,status==RF_NOT_FOUND?fit.sphere:UINT32_MAX,status==RF_NOT_FOUND?fit.reason:0,status==RF_NOT_FOUND?fit.retries:0);return status;}}
 
-    status=rf_geomod_piece_registry_placement_check(s->detached_pieces,&placement);if(status)return status;
+    status=rf_geomod_piece_registry_placement_check(s->detached_pieces,&placement);if(status){
+        uint32_t b,n,q,k,j;double minimum=1e30;uint32_t source_index=UINT32_MAX,target_index=UINT32_MAX;
+        for(b=0;b<rf_geomod_piece_registry_count(s->detached_pieces);b++) {
+            rf_geomod_piece_batch *batch=NULL;uint32_t piece_index;
+            if(rf_geomod_piece_registry_get(s->detached_pieces,b,&batch))continue;
+            for(piece_index=0;piece_index<rf_geomod_piece_batch_count(batch);piece_index++) {
+                rf_geomod_owned_piece piece;rf_physics_body *target=NULL;
+                if(!rf_geomod_piece_batch_alive(batch,piece_index) || rf_geomod_piece_batch_get(batch,piece_index,&piece,&target))continue;
+                if(!(target->state.bounds.radius>.5f && target->state.bounds.radius<=1))continue;
+                for(n=0;n<placement.count;n++)for(q=0;q<target->spheres.count;q++) {
+                    double distance=0;
+                    for(k=0;k<3;k++) {
+                        double delta=(double)placement.position[k]-target->state.position[k];
+                        for(j=0;j<3;j++)delta+=(double)placement.spheres[n].center[j]*placement.basis[j*3+k]-(double)target->spheres.items[q].center[j]*target->state.orientation[j*3+k];
+                        distance+=delta*delta;
+                    }
+                    distance=sqrt(distance)-placement.spheres[n].radius-target->spheres.items[q].radius;
+                    if(distance<minimum){minimum=distance;source_index=n;target_index=q;}
+                }
+            }
+        }
+        printf("PLAYER_CHECKPOINT_REJECT rubble %d clearance %.9g source%u target%u position %.9g %.9g %.9g\n",status,minimum,source_index,target_index,
+            (double)placement.position[0],(double)placement.position[1],(double)placement.position[2]);
+        return status;
+    }
     rf_scene_player_checkpoint_state[6]=scene_actor_body.spheres.count;rf_scene_player_checkpoint_state[7]=1;return RF_OK;
 }
