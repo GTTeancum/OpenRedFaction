@@ -17,3 +17,15 @@ PC build and121/121 CTest tests pass. A subsequent focused rebuild/test passes t
 ## Next integration
 
 Replace the scene's single authored terrain owner with bounded multiple ownership and dispatch cuts by the actual impacted source. Preserve per-source identity in checkpoints, rollback and retirement accounting. Then exercise new live chunk extraction after earlier rubble collection. Current source-selection coverage alone does not prove that flow.
+
+## Live selected-source integration
+
+Developer setup now calls rf_scene_authored_post_place_source before opening scene resources. PC accepts RF_REPLAY_AUTHORED_SOURCE=93/94/96/97 in ctf06 DEV setup. Xbox accepts optional four-byte little-endian authored-source.bin on D:, rejecting unsupported values and non-four-byte files. Absence retains94. This translates the existing test spawn by authored post offsets; it is a developer fixture, not original player-start reconstruction.
+
+Identity tests prove repeatability, pairwise-distinct source and published-window hashes, valid chart references, unchanged original94 digest and atomic unsupported-source rejection. Original materials/charts are captured before renderer remapping.
+
+Run `python -B tools/check_selected_authored_sources.py`. Thirteen process-local PC runs cover a rocket cut on each source,201-frame resumed runs versus uninterrupted control (dropping the unconsumed final input at the save boundary), and a93 save rejected in97 setup with `GEOMOD_CHECKPOINT_ERROR load -2`. All four complete checkpoints match their uninterrupted controls exactly. Each creates one live chunk without registry errors;93/94 report12 drawn triangles and133780 resident piece bytes;96/97 report18 triangles and133108 bytes. Individual authored owners report15060 resident bytes and1894363 peak setup bytes.
+
+The PC endpoint renders for93 and97 were inspected: broken post, detached textured chunk, room and weapon/HUD are visible.97 also shows low player health after the nearby blast. No full animation or audio acceptance is claimed. No images were uploaded to GitHub.
+
+All121 CTest tests pass and stock-profile NXDK build succeeds. Live selected-source Xbox execution remains unverified. The scene still owns one selected source, so simultaneous-source integration remains open. No source owner is swapped beneath a live scene or existing save.

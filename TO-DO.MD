@@ -23,7 +23,7 @@
 
 - GeoMod UV seams: Broaden chronological reconstruction beyond current fixtures; all105 tests and48 axis-oriented UV cases pass, with live two-cut reload/next-blast passing58 stock64MiB Xbox checks.
 
-- PRIORITY GeoMod coverage: Integrate multiple live authored sources and their saves; ctf06 posts93/94/96/97 now pass source loading and crater publication checks with their actual neighbors, while the scene still uses only94.
+- PRIORITY GeoMod coverage: Add simultaneous authored sources and native selection validation; posts93/94/96/97 each pass live PC rocket cuts, exact saved continuation and cross-source rejection, with Xbox compilation passing.
 
 - Movement: Extend verified quiet swimming to authored liquid hazards and underwater presentation; entry, surfacing, re-entry and harmless ordinary water pass44 PC/Xbox comparisons.
 - Movement: Finish underwater presentation; authored lava damage and harmless dry control now pass44/45 PC/Xbox checks on stock64MiB.
