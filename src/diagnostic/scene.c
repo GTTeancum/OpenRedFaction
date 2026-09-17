@@ -8553,6 +8553,26 @@ static int combat_shot_obstructed(scene_stream *stream,const float start[3],cons
     }
     return status;
 }
+/* Actual fired NPC ray, separate from visibility/pickup probes. A missed
+ * actor still permits a nearer fragment hit. Test world only up to that
+ * fragment so a wall behind the chunk cannot suppress its direct damage. */
+static int combat_enemy_fragment_shot(scene_stream *stream,const float start[3],const float delta[3],
+    float fraction,float damage,uint32_t *blocked)
+{
+    rf_geomod_registry_hit hit;uint32_t matched,j,wall;float end[3];int status;
+    status=scene_detached_sources_sweep(stream,0x460,start,delta,0,fraction,&hit,&matched);
+    rf_scene_detached_hitscan[6]=(uint32_t)status;if(status)return status;
+    if(matched)fraction=hit.piece.hit.fraction;
+    for(j=0;j<3;j++)end[j]=start[j]+delta[j]*fraction;
+    status=rf_geometry_collision_ray(stream->collision,&campaign_movers,start,end,0x27,NULL,&wall);
+    if(status)return status;
+    if(matched && !wall) {
+        status=scene_detached_sources_damage(stream,hit.batch,hit.piece.piece,damage);
+        rf_scene_detached_hitscan[6]=(uint32_t)status;if(status)return status;
+        ++rf_scene_detached_hitscan[2];
+    }
+    *blocked=wall || matched;return RF_OK;
+}
 /* First-pass death presentation; action audio remains a separate integration. */
 static int combat_death_sound(void *context,uint32_t handle,const char *name)
 {(void)context;(void)handle;(void)name;return RF_OK;}
@@ -8891,11 +8911,14 @@ static int campaign_enemy_tick(scene_stream *stream,uint32_t frame,const float p
             rf_scene_enemy_spread[7]=(uint32_t)status;if(status)return status;
             if(definition && definition->ai_spread_degrees>0)++rf_scene_enemy_spread[1];
             rf_scene_enemy_spread[5]=campaign_enemy_spread_random.value;
-            if(!combat_body(owner->eye_position,spread_ray,victim?&victim->body:&scene_actor_body,1,&fraction)) {
-                ++rf_scene_enemy_spread[3];goto enemy_shot_done;
-            }
-            status=combat_shot_obstructed(stream,owner->eye_position,spread_ray,fraction,&blocked);if(status)return status;
+            /* Keep the existing provisional NPC amount10 for both actor and
+             * fragment targets; authored damage balancing is separate work. */
+            fraction=1;
+            uint32_t target_hit=combat_body(owner->eye_position,spread_ray,victim?&victim->body:&scene_actor_body,1,&fraction);
+            if(!target_hit)fraction=1;
+            status=combat_enemy_fragment_shot(stream,owner->eye_position,spread_ray,fraction,10,&blocked);if(status)return status;
             if(blocked){++rf_scene_enemy_spread[4];goto enemy_shot_done;}
+            if(!target_hit){++rf_scene_enemy_spread[3];goto enemy_shot_done;}
             ++rf_scene_enemy_spread[2];
         }
         {int32_t kind=definition?definition->damage_kind:0;

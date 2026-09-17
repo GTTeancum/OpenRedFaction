@@ -48,6 +48,41 @@ static int cube(float x,float extent,rf_geomod_piece_registry **out) {
     CHECK(!rf_geomod_piece_registry_emit(&mesh,map,filters,6,1,0,*out));
     rf_geomod_piece_registry_commit(*out);return 0;
 }
+static int enemy_fragment_shots(void) {
+    scene_stream scene={0};rf_geometry_collision_world world={0};
+    rf_geomod_piece_registry *registry=NULL;rf_geomod_piece_batch *batch;
+    float start[3]={2,0,0},delta[3]={-4,0,0};uint32_t blocked,size;unsigned char *before,*after;
+    CHECK(!cube(0,.25f,&registry));scene.detached_pieces=registry;scene.collision=&world;
+    CHECK(!rf_geomod_piece_registry_get(registry,0,&batch));
+    CHECK(!rf_geomod_piece_registry_state_size(registry,&size));before=malloc(size);after=malloc(size);CHECK(before && after);
+    CHECK(!rf_geomod_piece_registry_state_encode(registry,before,size));
+    /* Visibility and a nearer actor must never damage the chunk. */
+    CHECK(!combat_shot_obstructed(&scene,start,delta,1,&blocked) && blocked);
+    CHECK(!combat_enemy_fragment_shot(&scene,start,delta,.1f,400,&blocked) && !blocked);
+    CHECK(!rf_geomod_piece_registry_state_encode(registry,after,size));CHECK(!memcmp(before,after,size));
+    /* A front wall protects the fragment; a rear wall must not protect it. */
+    for(uint32_t rear=0;rear<2;rear++) {
+        float x=rear?-1:1,vertices[4][3]={{x,-2,-2},{x,2,-2},{x,2,2},{x,-2,2}};
+        rf_collision_face face={0};rf_geometry_collision_room room={0};rf_collision_room_view view={0};uint32_t primary=0;
+        face.vertices=vertices;face.count=4;face.plane[0]=1;face.plane[3]=-x;
+        face.minimum[0]=face.maximum[0]=x;face.minimum[1]=face.minimum[2]=-2;face.maximum[1]=face.maximum[2]=2;
+        CHECK(!rf_collision_tree_open(&face,1,65536,&room.tree));view.tree=&room.tree;
+        memcpy(view.minimum,room.tree.nodes[0].minimum,12);memcpy(view.maximum,room.tree.nodes[0].maximum,12);
+        world.rooms=&room;world.views=&view;world.room_count=world.primary_count=1;world.primary=&primary;
+        CHECK(!combat_enemy_fragment_shot(&scene,start,delta,1,10,&blocked) && blocked);
+        CHECK(!rf_geomod_piece_registry_state_encode(registry,after,size));
+        CHECK(rear?memcmp(before,after,size)!=0:memcmp(before,after,size)==0);
+        rf_collision_tree_close(&room.tree);memset(&world,0,sizeof(world));
+    }
+
+    CHECK(rf_geomod_piece_batch_alive(batch,0));
+    CHECK(!rf_geomod_piece_registry_state_encode(registry,after,size));CHECK(memcmp(before,after,size));
+    /* A high direct hit retires; the next ray passes through the removed piece. */
+    CHECK(!combat_enemy_fragment_shot(&scene,start,delta,1,400,&blocked) && blocked);
+    CHECK(!rf_geomod_piece_batch_alive(batch,0));
+    CHECK(!combat_enemy_fragment_shot(&scene,start,delta,1,400,&blocked) && !blocked);
+    free(before);free(after);rf_geomod_piece_registry_close(&registry);return 0;
+}
 static int notify_sources(void) {
     scene_stream scene={0};scene_terrain_source_owner sources[2]={{0}};rf_geomod_piece_registry *r[2]={0};
     rf_geomod_piece_batch *batch;rf_geomod_owned_piece piece;rf_physics_body *body[2];
@@ -244,6 +279,6 @@ int main(void) {
     found=77;CHECK(scene_detached_sources_sweep(&scene,4,start,delta,0,NAN,&hit,&found)!=RF_OK);
     CHECK(found==77 && !memcmp(&hit,&sentinel,sizeof(hit)));
     free(before);free(after);for(i=0;i<2;i++)rf_geomod_piece_registry_close(registries+i);
-    CHECK(!beam_selection());CHECK(!runtime_surfaces());CHECK(!player_sources());CHECK(!notify_sources());CHECK(!large_support_snap());
+    CHECK(!enemy_fragment_shots());CHECK(!beam_selection());CHECK(!runtime_surfaces());CHECK(!player_sources());CHECK(!notify_sources());CHECK(!large_support_snap());
     puts("PASS multi-source weapon queries: nearer later source, stable ties, selected alias, isolated damage and atomic misses/errors");return 0;
 }
