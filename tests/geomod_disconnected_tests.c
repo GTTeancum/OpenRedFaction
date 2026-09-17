@@ -7,6 +7,18 @@
 #include <float.h>
 #include "rf/geomod_piece_bank.h"
 #include "rf/geomod_solid_clip.h"
+/* Compile this owner here so allocation failure stays local to its bank;
+ * no global allocator replacement or production fault-injection API. */
+static uint32_t fail_piece_allocation,failed_piece_allocations;
+static void *piece_test_calloc(size_t count,size_t size)
+{
+    if(fail_piece_allocation){++failed_piece_allocations;return NULL;}
+    return calloc(count,size);
+}
+#define calloc piece_test_calloc
+#include "../src/core/geomod_piece_bank.c"
+#undef calloc
+
 
 static void cap_area(const rf_collision_face *solid,uint32_t faces,uint32_t axis,float at,double expected)
 {
@@ -449,6 +461,27 @@ static void subdivision_worker(void)
             CHECK(!rf_geomod_piece_registry_state_size(registry,&snapshot_size));
             snapshot_before=malloc(snapshot_size);snapshot_after=malloc(snapshot_size);CHECK(snapshot_before && snapshot_after);
             CHECK(!rf_geomod_piece_registry_state_encode(registry,snapshot_before,snapshot_size));
+            {
+                uint32_t original_budget=registry->budget;
+                rf_geomod_piece_bank *original_geometry=mixed->geometry;
+                registry->budget=registry->bytes; /* No simultaneous replacement headroom. */
+                CHECK(!rf_geomod_piece_registry_collect_retired(registry,&released));
+                CHECK(mixed->geometry==original_geometry);
+                CHECK(registry->bytes==before-released);
+                CHECK(!rf_geomod_piece_registry_state_encode(registry,snapshot_after,snapshot_size));
+                CHECK(!memcmp(snapshot_before,snapshot_after,snapshot_size));
+                registry->budget=original_budget;before=registry->bytes;
+                fail_piece_allocation=1;failed_piece_allocations=0;
+                CHECK(!rf_geomod_piece_registry_collect_retired(registry,&released));
+                fail_piece_allocation=0;
+                CHECK(failed_piece_allocations==1 && released==0 && mixed->geometry==original_geometry);
+                CHECK(registry->bytes==before);
+                CHECK(!rf_geomod_piece_registry_state_encode(registry,snapshot_after,snapshot_size));
+                CHECK(!memcmp(snapshot_before,snapshot_after,snapshot_size));
+                CHECK(!rf_geomod_piece_batch_get(mixed,1,&live_after,&live_body));
+                CHECK(live_after.mesh.vertices==live_before.mesh.vertices);
+                CHECK(!memcmp(&saved_live,&live_body->state,sizeof(saved_live)));
+            }
             CHECK(!rf_geomod_piece_registry_collect_retired(registry,&released));
             CHECK(rf_geomod_piece_registry_bytes(registry)==before-released);
             CHECK(!rf_geomod_piece_registry_state_encode(registry,snapshot_after,snapshot_size));
