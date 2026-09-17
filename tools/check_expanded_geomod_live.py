@@ -8,6 +8,7 @@ def main():
     parser.add_argument('--expected-cuts', type=int, default=16)
     parser.add_argument('--checkpoint-in', type=Path)
     parser.add_argument('--no-fire', action='store_true')
+    parser.add_argument('--compare-to', type=Path, help='Require exact checkpoint, mesh and retained atlas equality')
     parser.add_argument('--build-dir', type=Path, default=ROOT/'build/pc-expanded')
     parser.add_argument('--output-dir', type=Path, default=ROOT/'artifacts/geomod-expanded-live')
     args = parser.parse_args()
@@ -36,6 +37,10 @@ def main():
         blob=state.read_bytes();assert blob[:4]==b'RFDS' and struct.unpack_from('<I',blob,4)[0]==1
         report.update(cuts=struct.unpack_from('<I',blob,300)[0],admissions=struct.unpack_from('<I',blob,240)[0],save_bytes=len(blob))
         assert report['cuts']==args.expected_cuts, f"Only {report['cuts']} of {args.expected_cuts} expected cuts committed"
+        if args.compare_to:
+            prior=args.compare_to.resolve()
+            report['exact']={name:(folder/name).read_bytes()==(prior/name).read_bytes() for name in ('state.rfds','physical.mesh','atlas.csv')}
+            assert all(report['exact'].values()),'Restored state differs: '+str(report['exact'])
         report['result']='PASS'
     finally:
         (folder/'report.json').write_text(json.dumps(report,indent=2)+'\n')

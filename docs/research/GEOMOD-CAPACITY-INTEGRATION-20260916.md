@@ -420,3 +420,30 @@ Default111 tests pass and NXDK builds with existing merge warning. Logs under
 artifacts/authored-post-live: expanded-map-live.log, expanded-map-restore.log,
 expanded-map-default-tests.log, expanded-map-xbox-build.log. No new native
 expanded-profile execution or GitHub screenshots. Production stays8 cuts.
+
+## Long-reload lightmap mismatch fixed: include padding in light admission
+
+Dynamic light selection used only polygon min/max, but pixel evaluation samples
+an affine rectangle with padding beyond those bounds. A transient light could
+cause a map refresh that also picked up a steady light outside the polygon's
+bounds. Fresh reload selection skipped that same map, making retained pixels
+history-dependent. Selection now unions the original bounds with the four
+actual sample-rectangle corner positions from rf_lightmap_sample_position.
+The affine image/plane mapping makes those corners sufficient for its bounds.
+Old/new lights still use the existing mark predicate; pixel math, UVs, atlas
+placement, seeds and geometry are unchanged.
+
+Repeated the identical20-press/15-committed-cut run and fresh no-fire reload.
+All1347 atlas CSV records now match byte-for-byte, as do141400-byte RFDS and
+181564-byte physical mesh; upper640x320 world pixels are equal. Inspected the
+restored native PC raster: enclosing room textures, dark crater opening,
+weapon/pickups/HUD are present. Different weapon ammo is expected because RFDS
+is destruction-only; no claim of whole-player state continuity or visual parity.
+The two RF_FORMAT rejections and final RF_RANGE rejection remain open.
+
+Evidence: artifacts/geomod-padding-control and geomod-padding-restored, including
+comparison.json; light-padding-live.log, light-padding-restored.log,
+light-padding-tests.log and light-padding-xbox-build.log under authored-post-live.
+Default111 CTests pass, NXDK builds with existing linker warning. Native expanded
+profile still untested. Harness --compare-to now requires exact saved state,
+physical mesh and atlas equality when used for continuation/reload regression.

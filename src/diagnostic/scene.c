@@ -9162,17 +9162,26 @@ static int scene_terrain_dynamic_lighting(scene_stream *s,const rf_geomod_terrai
     if(cache->valid && cache->generation==owner->generation && cache->count==count && !memcmp(cache->sources,sources,count*sizeof(*sources)))return RF_OK;
     for(i=0;i<owner->bake;i++) {
         scene_terrain_noise_map *map=owner->maps+i;unsigned char dirty=0;rf_lightmap_sample_lighting lighting={0};
-        for(j=0;j<count+cache->count && !dirty;j++) {
-            const rf_vfx_light_source *light=j<count?sources+j:cache->sources+j-count;
-            if(light->type==4){dirty=1;break;} /* Conservative admission for segment sources. */
-            status=rf_lightmap_mark_dynamic((int32_t)i,&dirty,map->minimum,map->maximum,light->position,light->radius);if(status)return status;
-        }
-        if(!dirty)continue;
+        float minimum[3],maximum[3];
         lighting.width=map->width;lighting.height=map->height;lighting.lights=sources;lighting.light_count=count;lighting.directional_scale=.25f;
         lighting.sample.image_width=lighting.sample.image_height=512;lighting.sample.x=map->x;lighting.sample.y=map->y;
         lighting.sample.u_axis=map->binding.projection.axes[0];lighting.sample.normal_axis=3-map->binding.projection.axes[0]-map->binding.projection.axes[1];
         memcpy(lighting.sample.scale,map->binding.projection.scale,sizeof(lighting.sample.scale));
         memcpy(lighting.sample.offset,map->binding.projection.offset,sizeof(lighting.sample.offset));memcpy(lighting.sample.plane,map->plane,sizeof(map->plane));
+        /* Padding samples extend beyond the polygon bounds. Include their
+         * affine rectangle so admission and pixel evaluation cover the same area. */
+        memcpy(minimum,map->minimum,sizeof(minimum));memcpy(maximum,map->maximum,sizeof(maximum));
+        for(j=0;j<4;j++) {
+            float point[3];
+            status=rf_lightmap_sample_position(&lighting.sample,(j&1)?map->width-1:0,(j&2)?map->height-1:0,point);if(status)return status;
+            for(k=0;k<3;k++){minimum[k]=fminf(minimum[k],point[k]);maximum[k]=fmaxf(maximum[k],point[k]);}
+        }
+        for(j=0;j<count+cache->count && !dirty;j++) {
+            const rf_vfx_light_source *light=j<count?sources+j:cache->sources+j-count;
+            if(light->type==4){dirty=1;break;} /* Conservative admission for segment sources. */
+            status=rf_lightmap_mark_dynamic((int32_t)i,&dirty,minimum,maximum,light->position,light->radius);if(status)return status;
+        }
+        if(!dirty)continue;
         status=rf_lightmap_noise_live_rectangle(&lighting,map->base_seed,s->terrain_tile,map->width*2,64*64*2);if(status)return status;
         for(k=0;k<map->height;k++)memcpy(s->terrain_atlas_pixels+((map->y+k)*512+map->x)*2,s->terrain_tile+k*map->width*2,map->width*2);
         map->hash=scene_terrain_noise_hash(s,map);scene_terrain_dirty(s,map->x,map->y,map->width,map->height);
