@@ -134,3 +134,36 @@ no16-cut success or expanded live readiness is claimed.
 
 Logs: light-boundary-fixed-build.log, capacity-fixed-boundary.log,
 capacity-eleven-capture.log, light-boundary-xbox-build.log.
+
+
+## Rounding-aware sample containment; thirteen cuts
+
+Extended the small boundary regression with the five actual vertices of
+eleventh-cut face1049. It reproduces the full stress failure exactly before
+correction. The sampler now tests its rounded point against face halfspaces.
+An outlying point moves toward the polygon centroid by the required
+intersection fraction plus a float relative-error bound for the final store.
+Mesh vertices, UVs, collision and test tolerances are unchanged. Samples
+already inside all halfspaces are unchanged. Both captured grids and the
+default interior/repeated coverage tests pass.
+
+The larger probe clears thirteen overlapping original-template cuts: closed
+geometry,4225 junction ray/body probes,1734 independent nearest/short rays,
+all light-grid containment checks and increasing excavation volume per cut.
+At13 peak1940664 bytes; generated light sample count55872. These are core
+allocations, not full scene memory or native acceptance. The placement ray
+also now extends beyond the live mesh AABB, using the same helper as coverage
+rays; its former fixed endpoint becomes interior after twelve cuts.
+
+Cut14 rejects RF_FORMAT during cavity repair partition_polygon on face1248,
+seven vertices. Temporary instrumentation reports collision_mesh_face edge
+halfspace rejection (line1686 at this revision); no debug instrumentation
+remains. Next work is to retain that actual polygon and diagnose its plane/
+partition geometry without weakening collision tolerance.
+
+Logs: light-rounding-build.log, capacity-placement.log, capacity14-trace.log,
+light-rounding-xbox-build.log. NXDK default build passes; no expanded live
+profile or native visual acceptance claimed.
+
+Full PC rebuild and all106 registered CTests pass; see
+light-rounding-full-build.log and light-rounding-full-tests.log.

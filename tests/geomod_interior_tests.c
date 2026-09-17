@@ -302,13 +302,21 @@ static double terrain_reference(const rf_geomod_mesh_view *mesh,const float star
     }
     return best;
 }
+static void terrain_extend_ray(const rf_geomod_mesh_view *mesh,const float start[3],float delta[3])
+{
+    unsigned q,j;double exit=1e30;
+    float lo[3]={1e30f,1e30f,1e30f},hi[3]={-1e30f,-1e30f,-1e30f};
+    for(q=0;q<mesh->vertex_count;q++)for(j=0;j<3;j++) {
+        float x=mesh->vertices[q].position[j];if(x<lo[j])lo[j]=x;if(x>hi[j])hi[j]=x;
+    }
+    for(j=0;j<3;j++)if(delta[j]) {
+        double t=((delta[j]>0?hi[j]:lo[j])-start[j])/delta[j];if(t<exit)exit=t;
+    }
+    if(exit>=1)for(j=0;j<3;j++)delta[j]=(float)(delta[j]*(exit+1));
+}
 static int terrain_ray_coverage(const rf_geomod_terrain_view *live,unsigned cut)
 {
     const float start[3]={0,-10,12},extent[3]={32,24,40};unsigned axis,side,u,v,j,probes=0;
-    float lo[3]={1e30f,1e30f,1e30f},hi[3]={-1e30f,-1e30f,-1e30f};unsigned q;
-    for(q=0;q<live->mesh.vertex_count;q++)for(j=0;j<3;j++) {
-        float x=live->mesh.vertices[q].position[j];if(x<lo[j])lo[j]=x;if(x>hi[j])hi[j]=x;
-    }
     for(axis=0;axis<3;axis++)for(side=0;side<2;side++)for(u=0;u<17;u++)for(v=0;v<17;v++) {
         float end[3]={0},delta[3];double expected;rf_collision_tree_hit hit;unsigned matched;
         end[axis]=(side?1:-1)*extent[axis];
@@ -317,12 +325,7 @@ static int terrain_ray_coverage(const rf_geomod_terrain_view *live,unsigned cut)
         for(j=0;j<3;j++)delta[j]=end[j]-start[j];
         /* Keep existing directions/endpoints unless destruction has grown
          * past the endpoint. Every coverage segment must leave the mesh AABB. */
-        {double exit=1e30;
-         for(j=0;j<3;j++)if(delta[j]) {
-             double t=((delta[j]>0?hi[j]:lo[j])-start[j])/delta[j];
-             if(t<exit)exit=t;
-         }
-         if(exit>=1)for(j=0;j<3;j++)delta[j]=(float)(delta[j]*(exit+1));}
+        terrain_extend_ray(&live->mesh,start,delta);
         expected=terrain_reference(&live->mesh,start,delta);
         CHECK(expected<=1);
         CHECK(!rf_collision_thin_tree(live->tree->nodes,live->tree->node_count,live->tree->faces,
@@ -1519,10 +1522,11 @@ int main(int argc,char **argv)
             report_closure=getenv("RF_GEOMOD_CLOSURE_ALL")?2:1;
             {uint16_t edges[24];CHECK(!rf_geomod_seed_adjacency(&source,edges,24));}
             for(repeat=0;repeat<stress_count;repeat++) {
-                rf_collision_tree_hit hit;uint32_t matched;float basis[9];double total=0;
+                rf_collision_tree_hit hit;uint32_t matched;float basis[9],placement_delta[3];double total=0;
                 CHECK(!rf_geomod_terrain_get(terrain,&live));
+                memcpy(placement_delta,delta,sizeof(placement_delta));terrain_extend_ray(&live.mesh,start,placement_delta);
                 CHECK(!rf_collision_thin_tree(live.tree->nodes,live.tree->node_count,live.tree->faces,live.tree->face_count,
-                    0,start,delta,1,live.tree->stack,live.tree->node_capacity,&hit,&matched) && matched);
+                    0,start,placement_delta,1,live.tree->stack,live.tree->node_capacity,&hit,&matched) && matched);
                 CHECK(!rf_geomod_random_basis(&random,basis));
                 {
                     FILE *trace=NULL,*compact_trace=NULL;const char *path=getenv("RF_GEOMOD_INTERSECTION_TRACE");
