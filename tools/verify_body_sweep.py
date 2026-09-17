@@ -27,7 +27,7 @@ def geometry(m,a,size,context):
 x.hook_add(UC_HOOK_CODE,geometry,begin=callback,end=callback)
 commands=bytearray();expected=[]
 for fixture,original in zip(evidence['fixtures'],evidence['results']):
- name,heights,flags,winner=fixture;n=2 if name=='two spheres' else 1
+ name,heights,flags,winner=fixture;n=0 if name=='empty spheres' else 2 if name=='two spheres' else 1
  commands.extend(f(*(0 if z is None else z for z in heights))+w(*(z is not None for z in heights),flags,n))
  raw=bytearray.fromhex(original['output'])
  if winner is not None:struct.pack_into('<I',raw,60,winner+1)

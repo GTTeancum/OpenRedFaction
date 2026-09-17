@@ -14,6 +14,7 @@ import subprocess
 ROOT = Path(__file__).resolve().parents[1]
 parser = argparse.ArgumentParser(description=__doc__)
 parser.add_argument('--connected', action='store_true', help='Reset beam95/post94 after a shared rocket blast')
+parser.add_argument('--settle', action='store_true', help='Reload the recut debris and compare 300 further neutral frames')
 args = parser.parse_args()
 folder = ROOT / ('artifacts/connected-reset-checkpoint' if args.connected else 'artifacts/paired-reset-checkpoint')
 folder.mkdir(parents=True, exist_ok=True)
@@ -85,5 +86,19 @@ for label in final:
 report = dict(result='PASS', connected=args.connected, save_bytes=len(saved), continuation_bytes=len(resumed),
               reset=initial, recut=final,
               scope='PC paired reset save/reload and subsequent real rocket match uninterrupted composed state exactly; native coverage is separate.')
+if args.settle:
+    continued, state = run('settle', reset[:8] + bytes(301 * 48), folder / 'resume.rfcp')
+    uninterrupted, _ = run('settle-control', recut + bytes(300 * 48))
+    assert continued == uninterrupted, 'Moving-debris save continuation differs'
+    def motion(name):
+        lines = (folder / (name + '.log')).read_text(encoding='utf-8').splitlines()
+        return list(map(int, [line for line in lines if line.startswith('DETACHED_MOTION ')][-1].split()[1:]))
+    before, after = motion('resume'), motion('settle')
+    assert after[0] == before[0], 'Debris disappeared during continuation'
+    assert after[6] == 0, 'Debris motion failed'
+    if args.connected:
+        assert before[0] == 3 and before[3] == 2, 'Expected a moving third fragment at save'
+        assert after[3] == 3, 'Not all three fragments settled'
+    report['settle'] = dict(bytes=len(continued), before=before, after=after, state=state)
 (folder / 'report.json').write_text(json.dumps(report, indent=2) + '\n', encoding='utf-8')
 print(json.dumps(report, indent=2))

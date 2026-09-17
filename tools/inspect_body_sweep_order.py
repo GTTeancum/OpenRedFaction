@@ -16,10 +16,10 @@ def observe(m,a,s,c):
  sp=m.reg_read(UC_X86_REG_ESP);query,result=struct.unpack('<2I',m.mem_read(sp+4,8))
  trace.append(dict(solid=(m.reg_read(UC_X86_REG_ECX)-base-0x400)//0x2000,start=list(struct.unpack('<3f',m.mem_read(query+0x34,12))),delta=list(struct.unpack('<3f',m.mem_read(query+0x40,12))),radius=struct.unpack('<f',m.mem_read(query+0x4c,4))[0],flags=struct.unpack('<I',m.mem_read(query+0x50,4))[0],limit=struct.unpack('<f',m.mem_read(result+4,4))[0]))
 u.hook_add(UC_HOOK_CODE,observe,begin=0x4df1c0,end=0x4df1c0)
-fixtures=[('mover only',[0,None,None],0,0),('later nearer',[0,4,None],0,1),('later farther',[4,0,None],0,0),('world nearer',[0,4,6],0,2),('world farther',[4,None,0],0,0),('equal mover',[0,0,None],0,1),('equal world',[0,None,0],0,2),('disabled mover',[4,0,None],0x40000,1),('static only',[None,None,0],0,2),('all miss',[None,None,None],0,None),('two spheres',[0,4,6],0,2)]
+fixtures=[('mover only',[0,None,None],0,0),('later nearer',[0,4,None],0,1),('later farther',[4,0,None],0,0),('world nearer',[0,4,6],0,2),('world farther',[4,None,0],0,0),('equal mover',[0,0,None],0,1),('equal world',[0,None,0],0,2),('disabled mover',[4,0,None],0x40000,1),('static only',[None,None,0],0,2),('all miss',[None,None,None],0,None),('two spheres',[0,4,6],0,2),('empty spheres',[0,4,6],0,None)]
 results=[]
 for name,heights,first_flags,winner in fixtures:
- sphere_count=2 if name=='two spheres' else 1
+ sphere_count=0 if name=='empty spheres' else 2 if name=='two spheres' else 1
  u.mem_write(base,bytes(0x6000))
  for i,z in enumerate(heights):
   block=base+i*0x2000;solid=block+0x400;face=block+0xa00;vertices=block+0xc00;edges=block+0xe00
@@ -41,10 +41,11 @@ for name,heights,first_flags,winner in fixtures:
  expected_order=[0,1,2]
  if name in ('later farther','world farther'):expected_order=[0,2]
  if name=='disabled mover':expected_order=[1,2]
+ if not sphere_count:expected_order=[]
  if sphere_count==2:expected_order=[0,0,1,1,2,2]
  assert [q['solid'] for q in trace]==expected_order,(name,trace)
  if sphere_count==2:assert [q['start'][0] for q in trace]==[0,1,0,1,0,1]
  results.append(dict(name=name,winner=winner,queries=list(trace),output=raw.hex()))
-report=dict(result='PASS',cases=len(results),original_sha256=digest,scope='Full original499ed0 and geometry/material/transform callees, read-only query-entry hook. One/two spheres, two ordered movers and static zero-room plane solids; ordinary uncached query flags. Original execution only, no C/NXDK equivalence yet.',results=results)
+report=dict(result='PASS',cases=len(results),original_sha256=digest,scope='Full original499ed0 and geometry/material/transform callees, read-only query-entry hook. Zero/one/two spheres, two ordered movers and static zero-room plane solids; ordinary uncached query flags. Original execution only, no C/NXDK equivalence yet.',results=results)
 (root/'artifacts/body-sweep-order.json').write_text(json.dumps(report,indent=2)+'\n');print({k:v for k,v in report.items() if k!='results'})
 for result in results:print(result['name'],[(q['solid'],q['limit']) for q in result['queries']])

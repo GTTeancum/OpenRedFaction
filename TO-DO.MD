@@ -1,5 +1,7 @@
 # Red Faction Xbox / PC - open work
 
+- PRIORITY GeoMod thin fragments: Add proper collision handling for empty-grid pieces; the connected recut produces a zero-radius fragment that falls through the floor, and the new settling regression fails despite exact save continuation.
+
 - GeoMod Xbox stability: Broaden connected debris histories after fixing stack exhaustion and cell-sampling precision; reset-save/rocket now passes76 native checks with exact PC continuation and13.50MiB endpoint headroom.
 
 - GeoMod source expansion: Broaden connected destruction histories and inspect exposed caps from above; a joint beam/post rocket plus Xbox-save reload/second rocket passes76/76 stock64MiB checks with exact PC checkpoints and13.87/12.98MiB endpoint headroom.
