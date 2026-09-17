@@ -8,11 +8,13 @@ parser.add_argument('--next-shot',action='store_true',help='Shoot the other end 
 parser.add_argument('--connected',action='store_true',help='Include attached post94 and require the first blast to cut both owners')
 parser.add_argument('--both-posts',action='store_true',help='Include both attached posts94/93 with the beam')
 parser.add_argument('--settle',action='store_true',help='Continue debris for 600 updates after the saved blast and compare uninterrupted state')
+parser.add_argument('--airborne',action='store_true',help='Save the second blast earlier and require moving debris before settling')
 parser.add_argument('--trace',action='store_true',help='Retain detailed process-local gameplay diagnostics')
 args=parser.parse_args()
+if args.airborne:args.next_shot=True;args.settle=True
 if args.both_posts:args.connected=True
 prefix='triple-beam' if args.both_posts else 'connected-beam' if args.connected else 'beam'
-folder=ROOT/'artifacts'/(prefix+('-next-shot' if args.next_shot else '-live'))
+folder=ROOT/'artifacts'/(prefix+('-airborne' if args.airborne else '-next-shot' if args.next_shot else '-live'))
 folder.mkdir(parents=True,exist_ok=True)
 (folder/'report.json').unlink(missing_ok=True)
 source=(ROOT/'artifacts/geomod-postedit-re/detached-live-verified/control.bin').read_bytes()
@@ -21,7 +23,7 @@ eye=json.loads((ROOT/'artifacts/authored-post-live/post-recipe.json').read_text(
 save=bytearray(source[:8+350*48]+bytes(250*48))
 commands,first_pitch=pitch_commands(0,pitch_for(eye,[-4.699,2.25,2.5]))
 for i,value in enumerate(commands):struct.pack_into('<f',save,8+48*(190+i)+12,value)
-resume=bytearray(source[:8]+bytes((301 if args.next_shot else 121)*48))
+resume=bytearray(source[:8]+bytes((181 if args.airborne else 301 if args.next_shot else 121)*48))
 if args.next_shot:
  target=[-4.699,2.25,-2.5]
  for offset,start,end in [(12,first_pitch,pitch_for(eye,target)),(16,-math.pi/2,math.atan2(target[0]-eye[0],target[2]-eye[2]))]:
@@ -91,6 +93,7 @@ if args.settle:
  assert len(positions)==expected
  before_lines=(folder/'resume.log').read_text(encoding='utf-8').splitlines()
  before=list(map(int,[line for line in before_lines if line.startswith('DETACHED_MOTION ')][-1].split()[1:]))
- report['settling']=dict(before=before,motion=motion,positions=positions,updates=600,scope='Settled retention when bodies already sleep at reload; does not require an airborne save')
-report.update(result='PASS',next_shot=args.next_shot,connected=args.connected,both_posts=args.both_posts,scope='Actual beam rocket, optional second cut after reload, retained wood charts/fragments and exact PC player/destruction continuation; visual and Xbox acceptance separate')
+ if args.airborne:assert before[0]==expected and before[3]<expected and before[6]==0,('expected moving debris at save',before)
+ report['settling']=dict(before=before,motion=motion,positions=positions,updates=600,scope='Moving debris save through landing' if args.airborne else 'Settled retention when bodies already sleep at reload; does not require an airborne save')
+report.update(result='PASS',airborne=args.airborne,next_shot=args.next_shot,connected=args.connected,both_posts=args.both_posts,scope='Actual beam rocket, optional second cut after reload, retained wood charts/fragments and exact PC player/destruction continuation; visual and Xbox acceptance separate')
 (folder/'report.json').write_text(json.dumps(report,indent=2)+'\n');print(json.dumps(report,indent=2))

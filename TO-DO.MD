@@ -4,7 +4,7 @@
 
 - GeoMod Xbox stability: Broaden connected debris histories after fixing stack exhaustion and cell-sampling precision; reset-save/rocket now passes76 native checks with exact PC continuation and13.50MiB endpoint headroom.
 
-- GeoMod source expansion: Broaden connected destruction histories and inspect exposed caps from above; beam plus both posts supports blasts at both joints and600-update settled retention across Xbox save/reload, passing76 checks per run with exact PC checkpoints; broader histories and airborne three-source saves remain open.
+- GeoMod source expansion: Broaden connected destruction histories and inspect exposed caps from above; beam plus both posts supports joint blasts, airborne-save landing and settled retention on stock64MiB Xbox with76 checks per run and exact PC checkpoints; broader geometry and gameplay interactions remain open.
 
 - GeoMod publication: Broaden clipped-face partition coverage to other source geometry; the repaired shot, save/reload and subsequent rocket now pass76/75/76 native checks, with exact uninterrupted PC checkpoints, while broader histories remain open.
 
