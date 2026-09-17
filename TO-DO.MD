@@ -1,5 +1,7 @@
 # Red Faction Xbox / PC - open work
 
+- GeoMod source expansion: Resolve roof80/air85 neighbor subtraction before admitting the eight-unit beam95; a37-candidate room census and exact authored/compiled beam ownership are available, but live beam destruction is not implemented.
+
 - GeoMod publication: Broaden clipped-face partition coverage to other source geometry; the repaired shot, save/reload and subsequent rocket now pass76/75/76 native checks, with exact uninterrupted PC checkpoints, while broader histories remain open.
 
 - GeoMod player saves: Verify live larger-fragment extraction and moving supports; eight synthetic polygon-path support/landing cases now pass, while both-post standing/save/walk-away passes76 native checks per run with exact PC continuation.
