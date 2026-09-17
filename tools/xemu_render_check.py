@@ -39,7 +39,7 @@ def main():
     parser.add_argument('--debris-player-test', action='store_true', help='Explicit scene damage fixture, not an ordinary fragment trajectory')
     parser.add_argument('--ripple-test', action='store_true', help='DEV render-only ripple fixture; no liquid collision claim')
     parser.add_argument('--authored-sources', type=int, choices=(1,2), default=1, help='Retain selected post and optional paired post; paired checkpoints require player mode')
-    parser.add_argument('--authored-source', type=int, choices=(93,94,96,97), help='Select one ctf06 developer destruction source on both platforms')
+    parser.add_argument('--authored-source', type=int, choices=(93,94,95,96,97), help='Select one ctf06 developer destruction source on both platforms')
     parser.add_argument('--dev-room', action='store_true', help='Supply supported weapons in Glass House or the authored ctf06 post test')
     parser.add_argument('--player-checkpoint', action='store_true', help='Opt-in RFCP player plus destruction checkpoint mode')
     parser.add_argument('--shallow-oblique', action='store_true', help='Use an oblique second shallow-region limit')
@@ -75,6 +75,8 @@ def main():
         parser.error('Map fault injection requires DEV mode and valid map/frame limits')
     if args.authored_source is not None and (not args.dev_room or args.level!='ctf06.rfl'):
         parser.error('--authored-source requires --dev-room --level ctf06.rfl')
+    if args.authored_source==95 and args.authored_sources!=1:
+        parser.error('Beam95 currently requires a single source')
     if args.authored_sources==2:
         if not args.dev_room or args.level!='ctf06.rfl':parser.error('Paired sources require ctf06 DEV room')
         if (args.geomod_checkpoint_in or args.geomod_checkpoint_out) and not args.player_checkpoint:

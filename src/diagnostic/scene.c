@@ -206,7 +206,7 @@ int rf_scene_authored_post_place_source(rf_level *level,uint32_t uid)
     static const float position[3]={-2.75f,-.4f,2.5f};
     static const float basis[9]={0,0,1,0,1,0,-1,0,0};
     if(!level || strcmp(level->entry.name,"ctf06.rfl"))return RF_FORMAT;
-    if(uid!=93 && uid!=94 && uid!=96 && uid!=97)return RF_NOT_FOUND;
+    if(uid!=93 && uid!=94 && uid!=95 && uid!=96 && uid!=97)return RF_NOT_FOUND;
     memcpy(level->player_position,position,12);memcpy(level->player_orientation,basis,36);
     if(uid>=96)level->player_position[0]+=11;
     if(uid==93 || uid==96)level->player_position[2]-=5;
@@ -216,6 +216,7 @@ int rf_scene_authored_post_place_source(rf_level *level,uint32_t uid)
 int rf_scene_authored_post_place_group(rf_level *level,uint32_t uid,uint32_t count)
 {
     int status;if(count!=1 && count!=2)return RF_RANGE;
+    if(uid==95 && count!=1)return RF_RANGE;
     status=rf_scene_authored_post_place_source(level,uid);if(status)return status;
     scene_authored_source_count=count;return RF_OK;
 }

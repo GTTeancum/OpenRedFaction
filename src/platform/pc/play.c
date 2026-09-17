@@ -442,6 +442,7 @@ int main(int argc,char **argv)
         if(source) {
             if(!strcmp(source,"93"))uid=93;
             else if(!strcmp(source,"94"))uid=94;
+            else if(!strcmp(source,"95"))uid=95;
             else if(!strcmp(source,"96"))uid=96;
             else if(!strcmp(source,"97"))uid=97;
             else CHECK(RF_FORMAT);

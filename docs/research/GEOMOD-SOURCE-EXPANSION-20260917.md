@@ -168,3 +168,16 @@ Journal import checks the expected profile policy, resolves authored tokens thro
 The production beam-end fixture writes a2486-byte RFDS payload, reconstructs a private scene, compares all three expected digests, commits it and rewrites exactly the same2486 bytes. Its cap map stores token4 (compiled texture3). Unknown tokenUINTMAX and policy downgrade reject without leaving a pending candidate. Core extension tests independently verify explicit policy2 opt-in and legacy/unknown-policy rejection. This is CPU checkpoint acceptance, not RFCP/player transport or XEMU acceptance.
 
 Full checked PC build, all123 tests and stock NXDK build pass. The existing actual post cut/save/reload replay remains byte-identical to uninterrupted continuation. Logs: artifacts/beam-checkpoint-{build,tests,xbox,post-regression}.log. Next: enable scoped beam95 source selection, update its finalized immutable policy revision, and verify rendered PC/native behavior and continued edits. No new capture or emulator session was made.
+
+
+## Live beam95 admission and native rocket (2026-09-17)
+
+Enabled explicit source95 selection in PC and the native harness. The default remains94; beam collections are rejected before placement/owner allocation because shared beam/post edits are not integrated. Loader3/publication11 now identify the live beam contract (hollow roof, inherited neighbor filters and authored cap charts); the established post policies and identities are unchanged.
+
+`tools/check_beam_continuation.py` uses the measured retreat eye and sphere-contact aim at(-4.699,2.25,2.5). A normal rocket produces one committed cut, one detached piece and a2954-byte RFCP. The retained lightmap journal has tokens[0,0,4]: crater substrate plus the exposed authored wood surface, under material policy2. Saving after600frames and reloading for120updates reproduces the uninterrupted720-frame checkpoint byte for byte. This checks the player and destruction together, beyond the previous CPU-only beam fixture.
+
+All123 PC tests and NXDK build pass. Native stock64MiB run `artifacts/xemu/render-20260917-171736` passes76 checks with an exact PC/Xbox checkpoint. Its native framebuffer and the PC output were inspected: a cut in the upper crossbeam and a detached chunk below, with the adjacent post, roof and weapon still present.3982 free pages at the endpoint is about15.55MiB; this is not a minimum-memory measurement. No screenshot was published to GitHub.
+
+Logs: `artifacts/beam-live-{build,tests,xbox,replay,native}.log`; replay report `artifacts/beam-live/report.json`. Broader cuts, the next rocket after restore, closer cap visual inspection and combined beam/post destruction remain open. This run does not establish general architectural destruction fidelity.
+
+Native reload `artifacts/xemu/render-20260917-171927` passes75 checks. It loads the Xbox-created checkpoint and advances121 replay frames (120updates); the resulting RFCP matches uninterrupted PC control bytes exactly. The native restored framebuffer was inspected and retains the beam opening, fallen chunk and surrounding scene.3997 free pages at the endpoint is about15.61MiB. Both harness sessions exited and restored the staged disc; no XEMU process remained. Reload log: `artifacts/beam-live-native-reload.log`.

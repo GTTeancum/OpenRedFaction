@@ -193,6 +193,18 @@ static int large_support_snap(void) {
     for(slot=0;slot<2;slot++)rf_geomod_piece_registry_close(r+slot);
     puts("PASS large-fragment polygon support snap: both source slots, landing/support and unobstructed descent controls");return 0;
 }
+static int beam_selection(void) {
+    rf_level level={0};float before[3];
+    strcpy(level.entry.name,"ctf06.rfl");
+    CHECK(!rf_scene_authored_post_place_group(&level,95,1));
+    CHECK(scene_authored_source_uid==95 && scene_authored_source_count==1);
+    memcpy(before,level.player_position,sizeof(before));
+    CHECK(rf_scene_authored_post_place_group(&level,95,2)==RF_RANGE);
+    CHECK(!memcmp(before,level.player_position,sizeof(before)) && scene_authored_source_count==1);
+    CHECK(!rf_scene_authored_post_place(&level));
+    CHECK(scene_authored_source_uid==94 && scene_authored_source_count==1);
+    return 0;
+}
 int main(void) {
     rf_geomod_piece_registry *registries[2]={0};scene_terrain_authored_assets assets[2]={{0}};
     scene_terrain_source_owner sources[2];scene_stream scene={0};rf_geomod_registry_hit hit,sentinel;
@@ -227,6 +239,6 @@ int main(void) {
     found=77;CHECK(scene_detached_sources_sweep(&scene,4,start,delta,0,NAN,&hit,&found)!=RF_OK);
     CHECK(found==77 && !memcmp(&hit,&sentinel,sizeof(hit)));
     free(before);free(after);for(i=0;i<2;i++)rf_geomod_piece_registry_close(registries+i);
-    CHECK(!runtime_surfaces());CHECK(!player_sources());CHECK(!notify_sources());CHECK(!large_support_snap());
+    CHECK(!beam_selection());CHECK(!runtime_surfaces());CHECK(!player_sources());CHECK(!notify_sources());CHECK(!large_support_snap());
     puts("PASS multi-source weapon queries: nearer later source, stable ties, selected alias, isolated damage and atomic misses/errors");return 0;
 }

@@ -167,7 +167,8 @@ static int scene_terrain_sources_open(scene_stream *s,const rf_level *level,rf_v
     uint32_t identity_before[10];uint64_t resident,reserved;int status=RF_RANGE;
     if(!s || !uids || !count || count>4 || s->terrain_sources || s->terrain || s->terrain_authored || s->detached_pieces)return RF_RANGE;
     for(i=0;i<count;i++) {
-        if(uids[i]!=93 && uids[i]!=94 && uids[i]!=96 && uids[i]!=97)return RF_NOT_FOUND;
+        if(uids[i]!=93 && uids[i]!=94 && uids[i]!=95 && uids[i]!=96 && uids[i]!=97)return RF_NOT_FOUND;
+        if(uids[i]==95 && count!=1)return RF_RANGE;
         for(j=0;j<i;j++)if(uids[i]==uids[j])return RF_FORMAT;
     }
     resident=(uint64_t)count*sizeof(*sources);

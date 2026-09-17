@@ -197,9 +197,10 @@ int rf_geomod_authored_identity_capture_manifest(const rf_level *level,const rf_
      * proves original44d870 operation2. No trailing property inference. */
     c->input.source_operation=2;c->input.loader_policy=c->input.collision_policy=c->input.material_policy=1;
     /* Existing posts retain reconstruction policy9 and RFAS identity v1.
-     * Beam policy10 uses clipped neighbors and the v2 hollow-volume domain. */
-    c->input.publication_policy=asset->source_uid==95?10:9;
-    if(asset->source_uid==95)c->input.loader_policy=2;
+     * Beam policy11 includes hollow-volume neighbors, inherited collision filters
+     * and authored-material cap charts; loader3 fixes this live profile. */
+    c->input.publication_policy=asset->source_uid==95?11:9;
+    if(asset->source_uid==95)c->input.loader_policy=3;
     c->input.material_domain=RF_GEOMOD_IDENTITY_COMPILED_MATERIALS;
     c->input.materials=c->materials;c->input.material_count=c->material_count;
     c->input.references=c->references;c->input.reference_count=c->reference_count;
