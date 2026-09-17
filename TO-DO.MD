@@ -1,6 +1,6 @@
 # Red Faction Xbox / PC - open work
 
-- GeoMod source expansion: Verify repeated beam cuts, close-up cap appearance and combined beam/post destruction; live beam95 rocket/save/reload now passes76/75 stock64MiB checks with inspected native visuals and exact uninterrupted PC checkpoint continuity.
+- GeoMod source expansion: Integrate connected beam/post destruction and verify exposed caps from above; beam95 cut/save/reload/second-rocket passes76/75/76 stock64MiB checks with two retained fragments and exact uninterrupted PC checkpoint continuity.
 
 - GeoMod publication: Broaden clipped-face partition coverage to other source geometry; the repaired shot, save/reload and subsequent rocket now pass76/75/76 native checks, with exact uninterrupted PC checkpoints, while broader histories remain open.
 
