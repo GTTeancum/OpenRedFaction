@@ -659,3 +659,7 @@ add_test(NAME geomod_extracted_replay COMMAND rf_geomod_extracted_replay_probe)
 add_executable(rf_geomod_grid_physics_tests tests/geomod_grid_physics_tests.c)
 target_link_libraries(rf_geomod_grid_physics_tests PRIVATE rf_core)
 add_test(NAME geomod_grid_physics COMMAND rf_geomod_grid_physics_tests)
+
+add_executable(rf_geomod_terrain_extraction_tests tests/geomod_terrain_extraction_tests.c)
+target_link_libraries(rf_geomod_terrain_extraction_tests PRIVATE rf_core)
+add_test(NAME geomod_terrain_extraction COMMAND rf_geomod_terrain_extraction_tests)

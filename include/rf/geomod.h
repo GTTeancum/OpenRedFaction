@@ -555,6 +555,16 @@ int rf_geomod_terrain_cut_template_scale(rf_geomod_terrain *terrain,const rf_geo
 int rf_geomod_terrain_cut_template_limits(rf_geomod_terrain *terrain,const rf_geomod_template *shape,
     const float center[3],const float basis[9],float scale,uint32_t material,
     const rf_geomod_shallow_limit *limits,uint32_t count);
+/* Opt-in detached-solid replay for outward terrain, configured before the first
+ * cut. Every rebuild emits accepted pieces from every prefix in replay order;
+ * prefix is one-based. Callback data is borrowed for the call only. Stage owned
+ * copies and publish only after the outer edit succeeds; discard ALL staging on
+ * failure or a read-only history check. Callback allocations are caller-budgeted.
+ * The same policy must be configured before checkpoint decode. Does not save
+ * active piece motion. NULL callback disables extraction. No reentry allowed. */
+typedef int (*rf_geomod_terrain_piece_fn)(const rf_geomod_mesh_view *,const uint32_t *old_faces,
+    const rf_collision_face_filter *,uint32_t source_count,uint32_t prefix,uint32_t ordinal,void *);
+int rf_geomod_terrain_set_extraction(rf_geomod_terrain *,rf_geomod_terrain_piece_fn,void *);
 /* Prepare the same cut, then invoke check before committing mesh/tree/history.
  * Nonzero callback status aborts and preserves live geometry/collision/history;
  * scratch and peak counters may change. Callback may stage external resources

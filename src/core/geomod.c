@@ -1881,10 +1881,8 @@ done:
     free(scratch);return status;
 }
 
-/* Private replay only: caller supplies current per-face eligibility filters and
- * bounded arrays. On failure discard the private owner and external staging.
- * The live scene does not use this until piece ownership/rollback is wired. */
-#ifdef RF_GEOMOD_TEST_CURRENT_SOLID
+/* Private replay transaction: caller supplies per-face eligibility filters and
+ * bounded arrays. On failure discard the private owner and external staging. */
 typedef int (*geomod_replay_piece_fn)(const rf_geomod_mesh_view *,const uint32_t *,
     const rf_collision_face_filter *,uint32_t,uint32_t,void *);
 static inline int extract_replay_components(rf_geomod_storage *s,rf_geomod_multi_work *provenance,
@@ -1933,7 +1931,6 @@ static inline int extract_replay_components(rf_geomod_storage *s,rf_geomod_multi
     }
     *removed=n;return RF_OK;
 }
-#endif
 
 static int prepare_cuts(rf_geomod_storage *s,
     const rf_geomod_mesh_view *cutters,uint32_t count,rf_geomod_multi_work *work,int prepared)
@@ -2500,7 +2497,40 @@ struct rf_geomod_terrain {
     rf_collision_face_filter original_filters[32],generated_filter,*filters;
     rf_collision_face *faces[2];float (*positions[2])[3];rf_collision_tree tree;
     uint32_t bank,count,cavity,vc,fc,base_bytes,budget,peak_bytes;
+    rf_geomod_terrain_piece_fn emit_piece;void *piece_context;
 };
+int rf_geomod_terrain_set_extraction(rf_geomod_terrain *t,rf_geomod_terrain_piece_fn emit,void *context)
+{
+    if(!t || t->count || t->mesh->editing || (emit && t->cavity))return RF_RANGE;
+    t->emit_piece=emit;t->piece_context=context;return RF_OK;
+}
+/* Bounded replay-only scratch, freed before collision-tree publication. */
+typedef struct terrain_extraction_work {
+    rf_geomod_vertex vertices[2][4096];rf_geomod_fragment fragments[2][1024];
+    uint16_t edges[2][4096];rf_collision_face faces[RF_GEOMOD_WORK_FACES];
+    rf_collision_face_filter filters[RF_GEOMOD_WORK_FACES];float positions[4096][3];
+    uint32_t scratch[16384+3*RF_GEOMOD_WORK_FACES],labels[RF_GEOMOD_WORK_FACES],map[RF_GEOMOD_WORK_FACES];
+    geomod_current_clip clip;rf_geomod_terrain *terrain;uint32_t prefix;
+} terrain_extraction_work;
+static int terrain_emit_piece(const rf_geomod_mesh_view *mesh,const uint32_t *map,
+    const rf_collision_face_filter *filters,uint32_t count,uint32_t ordinal,void *opaque)
+{
+    terrain_extraction_work *work=opaque;
+    return work->terrain->emit_piece(mesh,map,filters,count,work->prefix,ordinal,work->terrain->piece_context);
+}
+static int terrain_extraction_filters(rf_geomod_terrain *t,const rf_geomod_mesh_view *mesh,
+    rf_collision_face_filter *filters)
+{
+    uint32_t i,j;
+    for(i=0;i<mesh->face_count;i++) {
+        uint32_t id=mesh->faces[i].source_face;filters[i]=t->generated_filter;
+        if(id==UINT32_MAX)continue;
+        for(j=0;j<t->mesh->nf[2];j++)if(t->mesh->faces[2][j].source_face==id)break;
+        if(j==t->mesh->nf[2])return RF_FORMAT;
+        filters[i]=t->original_filters[j];
+    }
+    return RF_OK;
+}
 static int terrain_bind(rf_geomod_terrain *t,const rf_geomod_mesh_view *mesh,uint32_t bank,
     rf_collision_tree *tree)
 {
@@ -2609,10 +2639,11 @@ static inline int terrain_prepare_chronological_mesh(rf_geomod_terrain *t,uint32
 {
     rf_geomod_storage *live=t->mesh,*replay=NULL;
     rf_geomod_mesh_view source={live->vertices[2],live->faces[2],live->nv[2],live->nf[2],0},result;
-    geomod_face_lineage *lineage=NULL;geomod_step_support *support=NULL;
+    geomod_face_lineage *lineage=NULL;geomod_step_support *support=NULL;terrain_extraction_work *extraction=NULL;
     uint64_t used=(uint64_t)t->base_bytes+t->tree.allocated_bytes+sizeof(*lineage)+sizeof(*support);
     uint32_t c,i;int status;
     if(!count || count>RF_GEOMOD_CUT_LIMIT || live->editing)return RF_RANGE;
+    if(t->emit_piece)used+=sizeof(*extraction);
     if(used>=t->budget)return RF_RANGE;
     {
         uint64_t bytes=sizeof(*replay)+(uint64_t)t->vc*sizeof(rf_geomod_vertex)+(uint64_t)t->fc*sizeof(rf_geomod_face);
@@ -2633,12 +2664,35 @@ static inline int terrain_prepare_chronological_mesh(rf_geomod_terrain *t,uint32
     used+=rf_geomod_storage_bytes(replay);if(used>t->peak_bytes)t->peak_bytes=(uint32_t)used;
     lineage=calloc(1,sizeof(*lineage));support=calloc(1,sizeof(*support));
     if(!lineage || !support){status=RF_IO;goto done;}
+    if(t->emit_piece) {
+        extraction=calloc(1,sizeof(*extraction));if(!extraction){status=RF_IO;goto done;}
+        extraction->terrain=t;
+        extraction->clip=(geomod_current_clip){
+            {{extraction->vertices[0],extraction->vertices[1]},
+             {extraction->fragments[0],extraction->fragments[1]},4096,1024,
+             {extraction->edges[0],extraction->edges[1]}},
+            extraction->faces,extraction->positions,extraction->filters,4096,RF_GEOMOD_WORK_FACES,0};
+    }
     for(c=1;c<=count;c++) {
-        status=prepare_chronological_step(replay,t->cuts,c,&t->work,lineage,support,t->cavity);if(status)goto done;
+        if(extraction) {
+            status=rf_geomod_storage_view(replay,&result);if(status)goto done;
+            status=terrain_extraction_filters(t,&result,extraction->filters);if(status)goto done;
+        }
+        status=extraction?prepare_chronological_step_clipped(replay,t->cuts,c,&t->work,lineage,support,t->cavity,&extraction->clip):
+            prepare_chronological_step(replay,t->cuts,c,&t->work,lineage,support,t->cavity);if(status)goto done;
         /* No callbacks occur while selecting this private mapping target. */
         t->mesh=replay;status=terrain_map_pending_lineage(t,lineage);t->mesh=live;
         if(status)goto done;
         status=rf_geomod_storage_commit(replay);if(status)goto done;
+        if(extraction) {
+            uint32_t removed;
+            status=rf_geomod_storage_view(replay,&result);if(status)goto done;
+            status=terrain_extraction_filters(t,&result,extraction->filters);if(status)goto done;
+            extraction->prefix=c;
+            status=extract_replay_components(replay,&t->work,&extraction->clip,extraction->scratch,
+                sizeof(extraction->scratch)/sizeof(uint32_t),extraction->labels,extraction->map,
+                &removed,terrain_emit_piece,extraction);if(status)goto done;
+        }
     }
     status=rf_geomod_storage_view(replay,&result);if(status)goto done;
     status=rf_geomod_storage_begin(live);if(status)goto done;
@@ -2647,7 +2701,7 @@ static inline int terrain_prepare_chronological_mesh(rf_geomod_terrain *t,uint32
     if(result.faces!=live->faces[i])memcpy(live->faces[i],result.faces,result.face_count*sizeof(*result.faces));
     live->nv[i]=result.vertex_count;live->nf[i]=result.face_count;
 done:
-    free(support);free(lineage);rf_geomod_storage_close(&replay);return status;
+    free(extraction);free(support);free(lineage);rf_geomod_storage_close(&replay);return status;
 }
 
 typedef struct terrain_pending {
