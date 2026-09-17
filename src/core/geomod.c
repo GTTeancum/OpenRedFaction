@@ -469,6 +469,37 @@ int rf_geomod_debris_actor_contact(const float position[3],const float velocity[
     *hit=matched;*amount=value;return RF_OK;
 }
 
+int rf_geomod_piece_recenter(const float (*vertices)[3],uint32_t count,
+    float (*local)[3],rf_geomod_piece_placement *placement)
+{
+    rf_geomod_piece_placement value;float maximum_squared=0;uint32_t i,k;
+    if(!vertices || !local || !placement || !count || count>INT32_MAX)return RF_RANGE;
+    for(k=0;k<3;k++)value.minimum[k]=value.maximum[k]=vertices[0][k];
+    for(i=0;i<count;i++)for(k=0;k<3;k++) {
+        float v=vertices[i][k];if(!isfinite(v))return RF_FORMAT;
+        if(v<value.minimum[k])value.minimum[k]=v;
+        if(v>value.maximum[k])value.maximum[k]=v;
+    }
+    for(k=0;k<3;k++) {
+        float sum;
+        value.minimum[k]=(float)((double)value.minimum[k]-(double).0001f);
+        value.maximum[k]=(float)((double)value.maximum[k]+(double).0001f);
+        sum=(float)((double)value.minimum[k]+value.maximum[k]);value.origin[k]=(float)((double)sum*.5);
+        value.minimum[k]=(float)((double)value.minimum[k]-value.origin[k]);
+        value.maximum[k]=(float)((double)value.maximum[k]-value.origin[k]);
+        if(!isfinite(value.origin[k]) || !isfinite(value.minimum[k]) || !isfinite(value.maximum[k]))return RF_RANGE;
+    }
+    for(i=0;i<count;i++) {
+        float v[3];double squared;
+        for(k=0;k<3;k++){v[k]=(float)((double)vertices[i][k]-value.origin[k]);if(!isfinite(v[k]))return RF_RANGE;}
+        squared=((double)v[0]*v[0]+(double)v[1]*v[1])+(double)v[2]*v[2];
+        if(squared>maximum_squared)maximum_squared=(float)squared;
+    }
+    value.radius=(float)sqrt((double)maximum_squared);if(!isfinite(value.radius))return RF_RANGE;
+    for(i=0;i<count;i++)for(k=0;k<3;k++)local[i][k]=(float)((double)vertices[i][k]-value.origin[k]);
+    *placement=value;return RF_OK;
+}
+
 int rf_geomod_component_classify(const rf_collision_face *faces,const int32_t *labels,
     uint32_t count,int32_t selector,const rf_collision_bounds *bounds,uint32_t *solid)
 {

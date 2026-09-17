@@ -15,6 +15,16 @@
  * No topology extraction, allocation or mutation; errors preserve solid. */
 int rf_geomod_component_classify(const rf_collision_face *faces,const int32_t *labels,
     uint32_t count,int32_t selector,const rf_collision_bounds *bounds,uint32_t *solid);
+typedef struct rf_geomod_piece_placement {
+    float origin[3],minimum[3],maximum[3],radius;
+} rf_geomod_piece_placement;
+/*4d1330 vertex/bounds phase: pad bounds by float0.0001, use their stored
+ * midpoint as origin, subtract it from vertices/bounds, derive radius from
+ * float-stored maximum squared length. Nonempty finite input; outputs unchanged
+ * on error. Exact vertex in-place alias supported; placement must be disjoint.
+ * Face-plane and lightmap relocation are separate, not performed here. */
+int rf_geomod_piece_recenter(const float (*vertices)[3],uint32_t count,
+    float (*local)[3],rf_geomod_piece_placement *placement);
 /* Practical shared-corner construction, not recovered original code. Three
  * unit-normal planes must identify the actual corner. Order and simultaneous
  * normal/distance sign flips do not change output bits. Rejects singular or

@@ -58,6 +58,25 @@ static int component_cases(void)
  CHECK(rf_geomod_component_classify(faces,labels,6,0,&bounds,&solid)==RF_FORMAT && solid==99);
  puts("PASS24 original component orientation classifications");return 0;
 }
+static int placement_cases(void)
+{
+ static const struct {uint32_t inputs[24],output[34];} cases[]={
+#include "fixtures/geomod_piece_placement.inc"
+ };
+ float vertices[8][3],local[8][3],kept[8][3];rf_geomod_piece_placement placement,before;uint32_t i;
+ for(i=0;i<sizeof(cases)/sizeof(cases[0]);i++) {
+  memcpy(vertices,cases[i].inputs,sizeof(vertices));
+  CHECK(!rf_geomod_piece_recenter(vertices,8,local,&placement));
+  {uint32_t actual[34],j;memcpy(actual,&placement,40);memcpy(actual+10,local,96);
+   for(j=0;j<34;j++)if(actual[j]!=cases[i].output[j])fprintf(stderr,"placement case%u word%u actual%u expected%u\n",i,j,actual[j],cases[i].output[j]);}
+  CHECK(!memcmp(&placement,cases[i].output,40) && !memcmp(local,cases[i].output+10,96));
+  CHECK(!rf_geomod_piece_recenter(vertices,8,vertices,&placement));
+  CHECK(!memcmp(&placement,cases[i].output,40) && !memcmp(vertices,cases[i].output+10,96));
+ }
+ before=placement;memcpy(kept,local,sizeof(kept));vertices[7][2]=NAN;
+ CHECK(rf_geomod_piece_recenter(vertices,8,local,&placement)==RF_FORMAT && !memcmp(&placement,&before,sizeof(before)) && !memcmp(local,kept,sizeof(kept)));
+ puts("PASS12 original piece placement cases, in-place operation and failure atomicity");return 0;
+}
 static int radial_cases(void)
 {
  const uint32_t kinds[]={0,1,4,4,4,7},physics[]={0,1,0x10,0x80},flags[]={0x400000,0x400004,0x404000};
@@ -118,5 +137,6 @@ int main(void)
  CHECK(!debris_cases());
  CHECK(!fragment_box_cases());
  CHECK(!component_cases());
+ CHECK(!placement_cases());
  printf("PASS %u original-derived changed-box rows plus parent/enable/multi-box/unsupported/rollback tests\n",cases);return 0;
 }
