@@ -253,6 +253,25 @@ int rf_physics_solid_contact(rf_physics_body_state *,const float point[3],
     const float normal[3],const float gravity[3],float elasticity,float friction,
     rf_physics_solid_response *);
 
+/* Bounded port scheduler joining the recovered nonrigid helpers. Query is
+ * read-only and resolves the earliest terrain contact and material coefficients
+ * for the body's actual sphere set, supplied through context. No host input.
+ * No hit means fraction1; matched contacts require fraction in [0,1).
+ * Ten substeps maximum; stop immediately on settled response (port policy).
+ * Inactive bodies (no80000000) and dt0 are unchanged. On errors no caller state
+ * or report is committed; query callbacks must not publish side effects. */
+typedef struct rf_physics_solid_hit {
+    float fraction,point[3],normal[3],elasticity,friction;
+} rf_physics_solid_hit;
+typedef int (*rf_physics_solid_query_fn)(const rf_physics_body_state *,
+    rf_physics_solid_hit *,uint32_t *matched,void *context);
+typedef struct rf_physics_solid_step_report {
+    uint32_t steps,contacts,stopped,limited;float remaining;
+} rf_physics_solid_step_report;
+int rf_physics_solid_step(rf_physics_body_state *,float dt,float gravity,
+    uint32_t *object_flags,float published_position[3],float published_basis[9],
+    rf_physics_solid_query_fn,void *,rf_physics_solid_step_report *);
+
 /* 49e7ca..49e8b7 after class-acceleration scaling and movement transform.
  * Caller selects class speed or entity+1488 cap from flag200000. Updates X/Z
  * velocity only; repeat-pass flag1000000 preserves state. No transform,

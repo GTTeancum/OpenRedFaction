@@ -14,7 +14,7 @@
 
 - GeoMod debris visibility: Verify live leave/return lifetime retention; room-filtered drawing passes synthetic hidden/return cases,138 binary fixtures and60 stock64MiB PC/Xbox checks.
 - GeoMod water crossing: Verify audible splash quality and broader liquid scenarios;35 positional splash starts and246 ripple vertices match PC/Xbox across63 stock64MiB comparisons.
-- PRIORITY GeoMod detached motion: Connect verified prediction, pose acceptance and contact response to live collision queries and active-pose saves; full acceptance passes128 original/NXDK cases and live fragments still remain at birth poses.
+- PRIORITY GeoMod detached motion: Wire the bounded fragment simulation into level collision and active-pose saves; shared falling/bouncing/settling and rollback tests pass, while live fragments still remain at birth poses.
 - GeoMod detached drawing: Improve lighting and broaden scene coverage after a real middle-post rocket draws one extracted upper fragment on PC/Xbox; motion, collision registration and active-pose saves remain open.
 - GeoMod authored extraction: Validate the enabled piece-aware scene transaction with real detached chunks; ownership, drawing and material settings are wired, while body motion and live/native acceptance remain open.
 - GeoMod terrain extraction: Validate integrated scene ownership/rendering on stock64MiB Xbox; box and triangulated-star-path removal/reload pass under a1152KiB test budget, while live motion and native runtime acceptance remain open.

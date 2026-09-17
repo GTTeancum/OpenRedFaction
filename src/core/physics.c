@@ -940,6 +940,43 @@ int rf_physics_solid_advance(rf_physics_body_state *state,float dt,float fractio
     if(fraction==1)memcpy(published_basis,value.orientation,36);
     *state=value;*remaining=left;return RF_OK;
 }
+int rf_physics_solid_step(rf_physics_body_state *state,float dt,float gravity,
+    uint32_t *object_flags,float published_position[3],float published_basis[9],
+    rf_physics_solid_query_fn query,void *context,rf_physics_solid_step_report *report)
+{
+    rf_physics_body_state value;rf_physics_solid_step_report result={0};
+    float acceleration[3]={0},position[3],basis[9],left=dt,g[3]={0,0,0};
+    uint32_t flags;int status;
+    if(!state || !object_flags || !published_position || !published_basis || !query || !report ||
+       !isfinite(dt) || dt<0 || !isfinite(gravity))return RF_RANGE;
+    if(dt==0 || !(state->flags&0x80000000u)){*report=result;return RF_OK;}
+    if(state->flags&(0x4000|0x100))return RF_NOT_FOUND;
+    value=*state;flags=*object_flags;memcpy(basis,published_basis,36);g[1]=-gravity;
+    value.flags&=~0x01000000u;
+    while(left>0 && result.steps<10) {
+        rf_physics_solid_hit hit={0};rf_physics_solid_response response;uint32_t found=0;
+        status=rf_physics_solid_propose(&value,left,gravity,flags,acceleration);if(status)return status;
+        status=rf_physics_solid_angular_propose(&value,left);if(status)return status;
+        status=rf_physics_body_prepare_sweep(&value);if(status)return status;
+        if(value.position[0]!=value.next_position[0] || value.position[1]!=value.next_position[1] ||
+           value.position[2]!=value.next_position[2]) {
+            status=query(&value,&hit,&found,context);if(status)return status;
+        }
+        if(found && (!isfinite(hit.fraction) || hit.fraction<0 || hit.fraction>=1))return RF_RANGE;
+        status=rf_physics_solid_advance(&value,left,found?hit.fraction:1,basis,&left);if(status)return status;
+        result.steps++;
+        if(found) {
+            status=rf_physics_solid_contact(&value,hit.point,hit.normal,g,hit.elasticity,hit.friction,&response);
+            if(status)return status;
+            result.contacts++;
+            if(response==RF_SOLID_CONTACT_STOPPED){result.stopped=1;left=0;break;}
+        }
+    }
+    result.remaining=left;result.limited=left>0;
+    status=rf_physics_publish_position(&value,position,&flags);if(status)return status;
+    *state=value;*object_flags=flags;memcpy(published_position,position,12);
+    memcpy(published_basis,basis,36);*report=result;return RF_OK;
+}
 int rf_physics_solid_contact(rf_physics_body_state *state,const float point[3],
     const float normal[3],const float gravity[3],float elasticity,float friction,
     rf_physics_solid_response *response)

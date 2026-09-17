@@ -1,9 +1,34 @@
 #include "rf/physics.h"
+#include "rf/collision.h"
 #include <math.h>
 #include <float.h>
 #include <stdio.h>
 #include <string.h>
 #define CHECK(x) do {if(!(x)){fprintf(stderr,"solid propose line%d: %s\n",__LINE__,#x);return 1;}}while(0)
+typedef struct floor_query_context {unsigned calls,mode;} floor_query_context;
+static int floor_query(const rf_physics_body_state *body,rf_physics_solid_hit *hit,uint32_t *found,void *context)
+{
+    floor_query_context *c=context;float delta[3],plane[4]={0,1,0,0};unsigned i;int status;
+    c->calls++;
+    if(c->mode==1 && c->calls==2)return RF_IO;
+    if(c->mode==2) {
+        hit->fraction=0;memcpy(hit->point,body->position,12);hit->normal[1]=-1;
+        hit->elasticity=.5f;*found=1;return RF_OK;
+    }
+    for(i=0;i<3;i++)delta[i]=body->next_position[i]-body->position[i];
+    status=rf_collision_sphere_plane(body->position,delta,body->bounds.radius,plane,
+        &hit->fraction,hit->point,found);if(status)return status;
+    if(*found && hit->fraction>=1)*found=0;
+    hit->normal[1]=1;hit->elasticity=.5f;hit->friction=.2f;return RF_OK;
+}
+static rf_physics_body_state falling_body(void)
+{
+    rf_physics_body_state body={0};body.mass=1;body.bounds.radius=.25f;
+    body.position[1]=2;body.flags=0x8000003f;body.coefficients[0]=.8f;body.coefficients[2]=.2f;
+    body.orientation[0]=body.orientation[4]=body.orientation[8]=1;
+    body.local_tensor[0]=body.local_tensor[4]=body.local_tensor[8]=1;
+    body.world_tensor[0]=body.world_tensor[4]=body.world_tensor[8]=1;return body;
+}
 int main(void)
 {
     rf_physics_body_state body={0},before;float acceleration[3]={1,2,3},saved[3];unsigned test;
@@ -109,6 +134,34 @@ int main(void)
              CHECK(rf_physics_solid_advance(&body,.1f,1,published,&left)!=RF_OK);
              CHECK(!memcmp(&body,&unchanged,sizeof(body)) && left==123 && !memcmp(published,old_basis,36));}
         }
+    }
+    {
+        floor_query_context context={0};rf_physics_solid_step_report report;
+        float position[3]={0,2,0},basis[9]={1,0,0,0,1,0,0,0,1};uint32_t flags=0,contacts=0,bounced=0;
+        body=falling_body();
+        for(test=0;test<300;test++) {
+            CHECK(!rf_physics_solid_step(&body,1.f/60,9.8f,&flags,position,basis,floor_query,&context,&report));
+            CHECK(body.position[1]>=.25f && !report.limited);
+            contacts+=report.contacts;if(body.velocity[1]>0)bounced=1;
+            CHECK(!memcmp(position,body.position,12));
+            if(report.stopped)break;
+        }
+        CHECK(test<300 && contacts>=2 && bounced && !(body.flags&0x80000000u));
+        before=body;context.calls=0;
+        CHECK(!rf_physics_solid_step(&body,1.f/60,9.8f,&flags,position,basis,floor_query,&context,&report));
+        CHECK(!context.calls && !report.steps && !memcmp(&before,&body,sizeof(body)));
+        /* Failure on a later substep must roll back earlier accepted contact. */
+        body=falling_body();body.position[1]=.3f;body.velocity[1]=-4;before=body;
+        context=(floor_query_context){0,1};flags=17;
+        {float saved_position[3],saved_basis[9];rf_physics_solid_step_report saved_report;
+         memcpy(saved_position,position,12);memcpy(saved_basis,basis,36);
+         memset(&report,0xa5,sizeof(report));saved_report=report;
+         CHECK(rf_physics_solid_step(&body,.1f,9.8f,&flags,position,basis,floor_query,&context,&report)==RF_IO);
+         CHECK(context.calls==2 && flags==17 && !memcmp(&before,&body,sizeof(body)));
+         CHECK(!memcmp(position,saved_position,12) && !memcmp(basis,saved_basis,36) && !memcmp(&report,&saved_report,sizeof(report)));}
+        body=falling_body();context=(floor_query_context){0,2};
+        CHECK(!rf_physics_solid_step(&body,.1f,9.8f,&flags,position,basis,floor_query,&context,&report));
+        CHECK(context.calls==10 && report.steps==10 && report.limited && report.remaining==.1f);
     }
     puts("PASS solid prediction/contact, settling, unsupported routes and atomic invalid/overflow rejection");return 0;
 }
