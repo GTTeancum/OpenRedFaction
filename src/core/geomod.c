@@ -1,6 +1,7 @@
 #include "rf/geomod.h"
 #include "rf/effect.h"
 #include "rf/lightmap.h"
+#include "rf/geomod_solid_clip.h"
 #include <math.h>
 #include <float.h>
 #include <string.h>
@@ -1603,8 +1604,14 @@ static int subtract_history_face(rf_geomod_storage *s,const rf_geomod_vertex *ve
  * committed surfaces retain interpolated UV; only the newest cutter creates
  * birth-tag1 surfaces. Plane caches for the entire prefix are caller prepared.
  * Mapping and commit follow separately; exact support IDs survive each step. */
-static inline int prepare_chronological_step(rf_geomod_storage *s,const rf_geomod_mesh_view *cutters,
-    uint32_t count,rf_geomod_multi_work *work,geomod_face_lineage *lineage,geomod_step_support *previous,uint32_t cavity)
+typedef struct geomod_current_clip {
+    rf_geomod_solid_clip_work work;
+    rf_collision_face *faces;float (*positions)[3];rf_collision_face_filter *filters;
+    uint32_t vertex_capacity,face_capacity;
+} geomod_current_clip;
+static inline int prepare_chronological_step_clipped(rf_geomod_storage *s,const rf_geomod_mesh_view *cutters,
+    uint32_t count,rf_geomod_multi_work *work,geomod_face_lineage *lineage,geomod_step_support *previous,uint32_t cavity,
+    geomod_current_clip *clip_context)
 {
     rf_geomod_mesh_view old,source;uint32_t i,n,c,j,k;int status;
     if(!s || !work || !lineage || !previous || !cutters || !count || count>RF_GEOMOD_CUT_LIMIT || s->editing || s->vertex_capacity>RF_GEOMOD_WORK_VERTICES || s->face_capacity>RF_GEOMOD_WORK_FACES || cavity>1)return RF_RANGE;
@@ -1612,6 +1619,10 @@ static inline int prepare_chronological_step(rf_geomod_storage *s,const rf_geomo
     source=(rf_geomod_mesh_view){s->vertices[2],s->faces[2],s->nv[2],s->nf[2],0};
     status=convex_mesh_planes_oriented(&source,work->source_planes,(int)cavity);if(status)return status;
     status=rf_geomod_storage_view(s,&old);if(status)return status;
+    if(clip_context) {
+        status=rf_geomod_collision_faces(&old,clip_context->filters,clip_context->positions,clip_context->vertex_capacity,
+            clip_context->faces,clip_context->face_capacity);if(status)return status;
+    }
     c=count-1;
     if(!c) {
         status=rf_geomod_seed_adjacency(&source,previous->edges,RF_GEOMOD_WORK_VERTICES);if(status)return status;
@@ -1634,6 +1645,19 @@ static inline int prepare_chronological_step(rf_geomod_storage *s,const rf_geomo
         rf_geomod_vertex *current=work->seed.vertices,*front=current+64,*back=current+128;
         uint16_t *current_edges=work->seed_edges,*front_edges=current_edges+64,*back_edges=current_edges+128;
         geomod_corner_support support={work,(uint16_t)(32+c*128+i*(work->star_count[c]?4:1)),cutters,lineage->diagonals};
+        if(clip_context) {
+            rf_geomod_solid_clip_result clipped;uint32_t part;
+            status=rf_geomod_polygon_clip_solid_tracked(cutters[c].vertices+f->first,f->count,
+                clip_context->faces,old.face_count,!cavity,work->initial_edges+f->first,previous->planes,
+                &clip_context->work,&clipped);if(status)goto failed;
+            for(part=0;part<clipped.fragment_count;part++) {
+                const rf_geomod_fragment *piece=clipped.fragments+part;
+                status=subtract_history_face_range(s,clipped.vertices+piece->first,piece->count,
+                    f->material,UINT32_MAX,c,cutters,count,work,clipped.edges+piece->first,support.face,
+                    count,lineage,1);if(status)goto failed;
+            }
+            continue;
+        }
         if(cavity) {
             uint16_t source_ids[32];uint32_t pieces,part;
             rf_geomod_edge_tracking tracking={work->initial_edges+f->first,source_ids,work->seed_edges};
@@ -1673,6 +1697,10 @@ static inline int prepare_chronological_step(rf_geomod_storage *s,const rf_geomo
 failed:
     rf_geomod_storage_abort(s);return status;
 }
+
+static inline int prepare_chronological_step(rf_geomod_storage *s,const rf_geomod_mesh_view *cutters,
+    uint32_t count,rf_geomod_multi_work *work,geomod_face_lineage *lineage,geomod_step_support *previous,uint32_t cavity)
+{return prepare_chronological_step_clipped(s,cutters,count,work,lineage,previous,cavity,NULL);}
 
 static int prepare_cuts(rf_geomod_storage *s,
     const rf_geomod_mesh_view *cutters,uint32_t count,rf_geomod_multi_work *work,int prepared)

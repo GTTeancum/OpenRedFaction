@@ -8,6 +8,17 @@
 #include <string.h>
 #include "geomod_lineage_coverage.inc"
 #include "geomod_lineage_collision.inc"
+#ifdef RF_GEOMOD_TEST_CURRENT_SOLID
+static rf_geomod_vertex clip_vertices[2][4096];
+static rf_geomod_fragment clip_fragments[2][1024];
+static uint16_t clip_edges[2][4096];
+static rf_collision_face clip_faces[800];
+static rf_collision_face_filter clip_filters[800];
+static float clip_positions[4096][3];
+static geomod_current_clip current_clip={
+    {{clip_vertices[0],clip_vertices[1]},{clip_fragments[0],clip_fragments[1]},4096,1024,{clip_edges[0],clip_edges[1]}},
+    clip_faces,clip_positions,clip_filters,4096,800};
+#endif
 
 static void box(const float lo[3],const float hi[3],int inward,
     rf_geomod_vertex *v,rf_geomod_face *f)
@@ -88,7 +99,11 @@ static int run(unsigned cavity,float roof,float split,unsigned *comparisons,unsi
         memcpy(replay->work.star_count,t->work.star_count,sizeof(t->work.star_count));
         memcpy(replay->work.star_kernels,t->work.star_kernels,sizeof(t->work.star_kernels));
         for(prefix=1;!status && prefix<=2;prefix++) {
+#ifdef RF_GEOMOD_TEST_CURRENT_SOLID
+            status=prepare_chronological_step_clipped(replay->mesh,t->cuts,prefix,&replay->work,tags,provenance,cavity,&current_clip);
+#else
             status=prepare_chronological_step(replay->mesh,t->cuts,prefix,&replay->work,tags,provenance,cavity);
+#endif
             if(!status)status=terrain_map_pending_lineage(replay,tags);
             if(!status)status=rf_geomod_storage_commit(replay->mesh);
         }
@@ -104,9 +119,15 @@ static int run(unsigned cavity,float roof,float split,unsigned *comparisons,unsi
             if(!status && (unchanged.vertices!=view.mesh.vertices || unchanged.generation!=view.mesh.generation || t->mesh->editing))status=RF_FORMAT;
             if(!status)status=terrain_prepare_chronological_mesh(t,2);
             if(!status)status=rf_geomod_storage_pending(t->mesh,&pending);
+#ifdef RF_GEOMOD_TEST_CURRENT_SOLID
+            /* Current-volume partitioning intentionally changes cap tessellation.
+             * Compare collision coverage; retained UV bytes are checked below. */
+            if(!status)status=lineage_collision_equal(&pending,&reconstructed);
+#else
             if(!status && (pending.vertex_count!=reconstructed.vertex_count || pending.face_count!=reconstructed.face_count ||
                 memcmp(pending.vertices,reconstructed.vertices,pending.vertex_count*sizeof(*pending.vertices)) ||
                 memcmp(pending.faces,reconstructed.faces,pending.face_count*sizeof(*pending.faces))))status=RF_FORMAT;
+#endif
             rf_geomod_storage_abort(t->mesh);
         }
 
