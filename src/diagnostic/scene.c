@@ -9273,6 +9273,20 @@ static int scene_terrain_lighting(scene_stream *s,const rf_geomod_terrain_view *
     return scene_terrain_dynamic_lighting(s,terrain,frame);
 }
 #ifndef RF_IMAGE_XBOX_NATIVE
+static int scene_terrain_material_audit(scene_stream *s,const char *path)
+{
+    const rf_image *image;FILE *file;uint32_t header[5],x,y;int failed=0;
+    if(!s->materials || s->terrain_material>=s->materials->count)return RF_RANGE;
+    image=&s->materials->items[s->terrain_material].image;
+    if(!image->rgba || (uint64_t)image->width*image->height*4!=image->bytes || rf_image_is_packed_1555(image))return RF_FORMAT;
+    header[0]=s->terrain_material;header[1]=image->width;header[2]=image->height;
+    header[3]=image->source_format;header[4]=image->bytes;
+    file=fopen(path,"wb");if(!file)return RF_IO;
+    if(fwrite("RFT1",1,4,file)!=4 || fwrite(header,sizeof(header),1,file)!=1)failed=1;
+    for(y=0;y<image->height && !failed;y++)for(x=0;x<image->width;x++)
+        if(fwrite(rf_image_pixel(image,x,y),1,4,file)!=4){failed=1;break;}
+    if(fclose(file))failed=1;return failed?RF_IO:RF_OK;
+}
 static int scene_terrain_base_audit(scene_stream *s,const char *path)
 {
     scene_terrain_noise_owner *owner=s->terrain_noise;FILE *file;uint32_t i,x,y;int failed;rf_geomod_terrain_view terrain;
@@ -14210,6 +14224,8 @@ done:
     }
     if(!status && getenv("RF_REPLAY_TERRAIN_BASE_AUDIT"))
         status=scene_terrain_base_audit(stream,getenv("RF_REPLAY_TERRAIN_BASE_AUDIT"));
+    if(!status && getenv("RF_REPLAY_TERRAIN_MATERIAL_AUDIT"))
+        status=scene_terrain_material_audit(stream,getenv("RF_REPLAY_TERRAIN_MATERIAL_AUDIT"));
     if(!status && stream->terrain_shadow_reference && getenv("RF_REPLAY_TERRAIN_LIGHT_AUDIT"))
         status=scene_terrain_light_audit(stream,getenv("RF_REPLAY_TERRAIN_LIGHT_AUDIT"));
 #endif

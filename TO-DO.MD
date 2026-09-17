@@ -18,7 +18,7 @@
 - Explosions: Extend verified actor-position blast falloff and CF5 cover to broader encounters; nearby self-damage and recovered debris bounces now pass50 stock64MiB Xbox comparisons.
 - GeoMod collisions: Resolve active-ripple precision and verify wet audio/safer visual placement; authored water entry, floor impact and ripple expiry now pass42 PC/Xbox comparisons on stock64MiB.
 - GeoMod fidelity: Use binary-derived geometry, material, lighting and collision calculations; original-game screenshot comparisons are excluded by user direction.
-- GeoMod visuals: Verify live base-texture binding and sampling after all81848 saved crater lightmap texels match recovered idle noise/packing; readability and later lighting lifecycle remain open.
+- GeoMod visuals: Verify Xbox texture upload and later lighting lifecycle after exact live rock02 bytes,2614 generated-face material references and81848 idle lightmap texels pass numeric audits; readability remains open.
 - PRIORITY GeoMod: Match original destruction shape, exposed materials, lighting, debris, collision and repeated blasts before returning to other systems; a visible hole alone is not acceptance.
 - GeoMod: Improve crater readability and expand destruction coverage; eight-cut live/Xbox repair passes, and side-view nearer pixels trace to floor projection rounding, while broader shapes and visual parity remain open.
 - GeoMod: Reduce remaining terrain-cut stalls; the latest native eighth edit measures 239ms CSG and 29ms binding, subject to host timing variation.
