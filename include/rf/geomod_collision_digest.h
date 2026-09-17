@@ -6,6 +6,7 @@ enum {RF_GEOMOD_COLLISION_AUTHORED=0,RF_GEOMOD_COLLISION_COMPILED=1,RF_GEOMOD_CO
 typedef struct rf_geomod_collision_digest_row {
     uint32_t canonical_order,domain,fragment,material;
     rf_geomod_publication_origin origin;
+    uint32_t metadata_id; /* Only for published hidden NEIGHBOR with referenceUINTMAX. */
 } rf_geomod_collision_digest_row;
 typedef struct rf_geomod_collision_digest_input {
     const rf_collision_composition_view *composition;
@@ -16,6 +17,10 @@ typedef struct rf_geomod_collision_digest_input {
 } rf_geomod_collision_digest_input;
 /* RFAC v1 SHA256 over the FULL room. rows are indexed by composition source
  * order, not tree order; origin.reference MUST join composition.face_ids.
+ * Hidden published NEIGHBOR rows retain referenceUINTMAX and a valid authored
+ * token; metadata_id instead joins the non-UINTMAX runtime collision ID.
+ * Hidden IDs cannot alias other surfaces; split fragments of the same authored
+ * owner/token/material may share one. These lookup IDs are never hashed.
  * tree.source_indices and row.canonical_order must both be permutations0..N-1.
  * Canonical order = unchanged compiled input faces in ascending reference
  * order, then published faces in publication order (fragment0..published-1).

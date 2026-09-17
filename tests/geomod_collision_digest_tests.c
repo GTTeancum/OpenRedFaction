@@ -85,6 +85,31 @@ int main(void)
     composed.count=2;CHECK(rejected(&in));composed.count=3;
     in.collision_policy=2;CHECK(rejected(&in));in.collision_policy=1;
     CHECK(!rf_geomod_collision_digest(&in,again)&&!memcmp(digest,again,32));
+    {
+        rf_geomod_collision_digest_row saved[3];unsigned char hidden[32];memcpy(saved,rows,sizeof(rows));
+        rows[1].origin=(rf_geomod_publication_origin){RF_GEOMOD_PUBLICATION_NEIGHBOR,94,549,UINT32_MAX};
+        rows[1].metadata_id=ids[1]=40000;
+        CHECK(!rf_geomod_collision_digest(&in,hidden) && memcmp(hidden,digest,32));
+        rows[1].metadata_id=ids[1]=50000;
+        CHECK(!rf_geomod_collision_digest(&in,again) && !memcmp(hidden,again,32));
+        ids[1]=50001;CHECK(rejected(&in));ids[1]=50000;
+        rows[1].metadata_id=ids[1]=UINT32_MAX;CHECK(rejected(&in));rows[1].metadata_id=ids[1]=50000;
+        rows[1].origin.source_face=UINT32_MAX;CHECK(rejected(&in));rows[1].origin.source_face=549;
+        rows[1].domain=RF_GEOMOD_COLLISION_AUTHORED;CHECK(rejected(&in));rows[1].domain=RF_GEOMOD_COLLISION_PUBLISHED;
+        rows[1].metadata_id=ids[1]=ids[0];CHECK(rejected(&in));rows[1].metadata_id=ids[1]=50000;
+        rows[1].metadata_id=ids[1]=ids[2];CHECK(rejected(&in));rows[1].metadata_id=ids[1]=50000;
+        /* Two clipped children may share one real authored surface token. */
+        rows[2].origin=rows[1].origin;rows[2].metadata_id=ids[2]=50000;
+        CHECK(!rf_geomod_collision_digest(&in,again));
+        rows[2].origin.source_face=550;CHECK(rejected(&in));rows[2].origin.source_face=549;
+        rows[2].origin.owner=93;CHECK(rejected(&in));rows[2].origin.owner=94;
+        rows[2].material=8;CHECK(rejected(&in));rows[2].material=7;
+        CHECK(!rf_geomod_collision_digest(&in,hidden));
+        faces[0].filter.property_34=-7;
+        CHECK(!rf_geomod_collision_digest(&in,again) && memcmp(hidden,again,32));faces[0].filter.property_34=-1;
+        memcpy(rows,saved,sizeof(rows));ids[1]=ids[2]=149;
+        CHECK(!rf_geomod_collision_digest(&in,again) && !memcmp(digest,again,32));
+    }
     CHECK(stack==0x12345678);
     puts("PASS full collision digest canonical order, BVH/source permutation, distinct fragments, identity/filter geometry, atomic failure");return 0;
 }

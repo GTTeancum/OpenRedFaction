@@ -100,8 +100,10 @@ int rf_geomod_collision_digest(const rf_geomod_collision_digest_input *v,unsigne
     }
     for(i=0;i<n;i++) {
         const rf_geomod_collision_digest_row *r=v->rows+i;
+        uint32_t hidden=r->domain==RF_GEOMOD_COLLISION_PUBLISHED && r->origin.kind==RF_GEOMOD_PUBLICATION_NEIGHBOR && r->origin.reference==UINT32_MAX;
+        uint32_t id=hidden?r->metadata_id:r->origin.reference;
         if(tree->source_indices[i]>=n || r->canonical_order>=n || r->domain>RF_GEOMOD_COLLISION_PUBLISHED ||
-            r->origin.reference==UINT32_MAX || r->origin.reference!=v->composition->face_ids[i] ||
+            id==UINT32_MAX || id!=v->composition->face_ids[i] ||
             r->origin.owner==UINT32_MAX || r->fragment==UINT32_MAX || r->origin.kind>RF_GEOMOD_PUBLICATION_NEIGHBOR)return RF_FORMAT;
         if(r->domain!=RF_GEOMOD_COLLISION_PUBLISHED) {
             if(r->origin.kind!=RF_GEOMOD_PUBLICATION_RETAINED || r->origin.source_face==UINT32_MAX)return RF_FORMAT;
@@ -110,6 +112,10 @@ int rf_geomod_collision_digest(const rf_geomod_collision_digest_input *v,unsigne
         } else if((r->origin.kind==RF_GEOMOD_PUBLICATION_CRATER)!=(r->origin.source_face==UINT32_MAX))return RF_FORMAT;
         for(j=0;j<i;j++) {
             const rf_geomod_collision_digest_row *p=v->rows+j;
+            uint32_t other_hidden=p->domain==RF_GEOMOD_COLLISION_PUBLISHED && p->origin.kind==RF_GEOMOD_PUBLICATION_NEIGHBOR && p->origin.reference==UINT32_MAX;
+            uint32_t other_id=other_hidden?p->metadata_id:p->origin.reference;
+            if(id==other_id && (hidden || other_hidden) &&
+                (!hidden || !other_hidden || r->origin.owner!=p->origin.owner || r->origin.source_face!=p->origin.source_face || r->material!=p->material))return RF_FORMAT;
             if(tree->source_indices[j]==tree->source_indices[i] || p->canonical_order==r->canonical_order)return RF_FORMAT;
             if(p->domain==r->domain && p->origin.kind==r->origin.kind && p->origin.owner==r->origin.owner &&
                 p->origin.source_face==r->origin.source_face && p->fragment==r->fragment)return RF_FORMAT;
