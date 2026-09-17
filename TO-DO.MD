@@ -1,6 +1,6 @@
 # Red Faction Xbox / PC - open work
 
-- GeoMod player saves: Broaden support-adjustment collision coverage to larger fragments and moving supports; both-post standing/save/walk-away now passes76 native checks per run with exact PC continuation after preventing support snap from entering rubble.
+- GeoMod player saves: Verify live larger-fragment extraction and moving supports; eight synthetic polygon-path support/landing cases now pass, while both-post standing/save/walk-away passes76 native checks per run with exact PC continuation.
 
 - GeoMod fragment lifecycle: Investigate the generic object world-exit path before adding spatial retirement; recovered lifetime and debris paths do not justify an arbitrary kill height, and healthy terrain fragments have disabled lifetime timers.
 
