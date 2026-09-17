@@ -729,3 +729,40 @@ before claiming the entire sixteen-blast native sequence passes. Example:
 python tools/xemu_render_check.py --expanded-geomod --dev-room --spawn --level
 glass_house.rfl --archive levelsm.vpp --input artifacts/geomod-diagonal-live/input.bin
 --geomod-checkpoint-out --seconds 600.
+
+
+## Full sixteen-cut Xbox replay passes corrected harness
+
+artifacts/xemu/render-20260916-215053/report.json is PASS with58 comparisons
+through all2500 frames. Stock64MiB is asserted by QMP. PC and Xbox both commit
+16 cuts, reject the final2 admissions at the16-cut history ceiling, and export
+identical135598-byte RFDS checkpoints with SHA256
+3e6b25d8b0ad55a92fbfb77583dbcb7f5e7ed9b7b385cbdeda77d75f6c7984bf.
+Core counters match, including2056596-byte reported peak. Lowest sampled and
+endpoint free memory is7904 pages=30.875MiB; this is not a continuous allocation
+watermark. The earlier32-frame reload already passed58 comparisons separately.
+
+Native framebuffer was inspected: expected room/floor, rocket launcher and
+HUD, and the dark crater at the aimed wall. No assertion of full destruction
+animation/audio fidelity follows from an endpoint capture. Physical geometry
+closure was independently verified on the corresponding PC16-cut result;
+this run compares shared checkpoint/history plus reported gameplay/render
+state, not every Xbox mesh byte. Harness-owned XEMU exited and disc state was
+restored. The unrelated emulator was left untouched; no GitHub image added.
+
+In parallel, artifact-only capacity experiments replayed the older15-cut
+history with its rejected16th admission. A12288-vertex workspace/3MiB budget
+accepts16 with8370 vertices/1649 faces and2595424 peak. Reducing to9216 vertices
+and2359296-byte budget also accepts16 with all prefix closure checks passing,
+peak2189920. Both experiments compare the original15 committed cutter records
+and final RNG; the new16th cutter has no stored successful-record counterpart
+in that old capture. The probe explicitly distinguishes this extra capacity
+result. Evidence: artifacts/authored-post-live/capacity12k/trace.log and
+capacity9k/trace.log. These are unintegrated PC-only candidates, not changed
+shipping/expanded NXDK limits. The existing8-cut default and8192-vertex opt-in
+profile remain unchanged.
+
+Next: integrate a coherent bounded capacity change only with matching core,
+scene, transport, draw and native memory validation; broaden crater appearance
+and collision testing beyond this repeated wall-blast path. Estimate ~50%
+overall/~72% GeoMod after the bounded full native sequence is now verified.
