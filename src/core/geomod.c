@@ -477,7 +477,14 @@ int rf_geomod_debris_liquid_miss(const float start[3],const float end[3],
     if(!isfinite(depth) || !isfinite(bottom))return RF_RANGE;
     raw=(double)depth+(double)bottom+.5;
     if(raw<=-2147483649.0 || raw>=2147483648.0)return RF_RANGE;
-    height=(float)(int32_t)raw;
+    /* Bounded IEEE double truncation without a temporary x87 rounding-mode
+     * switch. Keep the liquid query from perturbing following SSE simulation
+     * on the Xbox emulator's mixed x87/SSE path. */
+    {uint64_t bits,magnitude;int exponent;int32_t truncated;
+     memcpy(&bits,&raw,sizeof(bits));exponent=(int)((bits>>52)&2047u)-1023;
+     magnitude=exponent<0?0:((bits&UINT64_C(0xfffffffffffff))|UINT64_C(0x10000000000000))>>(52-exponent);
+     truncated=(int32_t)((bits>>63)?-(int64_t)magnitude:(int64_t)magnitude);
+     height=(float)truncated;}
     if(!(end[1]<height && start[1]>height)){*matched=0;return RF_OK;}
     value.fraction=(float)(((double)start[1]-(double)height)/((double)start[1]-(double)end[1]));
     /*48fcd8..48fd0b deliberately use start-end, not end-start. */
