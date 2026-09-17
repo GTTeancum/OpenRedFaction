@@ -1,5 +1,7 @@
 # Red Faction Xbox / PC - open work
 
+- GeoMod rubble memory: Reclaim retired resources safely while preserving save/history identity; original terminal terrain fragments explicitly disable lifetime expiry, so healthy rubble must not be deleted on a timer.
+
 - GeoMod rubble wake: Broaden support-loss coverage beyond the dry post; removing its remaining support now wakes the chunk and drops it0.27units on PC/Xbox, with exact PC save continuation and74 native reload comparisons; broader surfaces, moving supports and fragment-fragment collision remain open.
 
 - GeoMod traversal: Broaden tight-entrance and slope collision coverage; walking into and back out of the16-cut tunnel passes58 stock64MiB comparisons with exact PC body state.

@@ -58,3 +58,5 @@ remains absent. Its5320 post-region pixels exactly match the uninterrupted
 native run (SHA256062305bcc4d28d1d65e6d1304da75ef483f9852f6255765c7c1eb0b840911686).
 PC/native2760-byte checkpoint outputs match, including retired health/flags.
 Both native harnesses restored the disc and exited their own processes.
+
+Lifetime follow-up: GEOMOD-DETACHED-LIFETIME-20260917.md executes the original terminal terrain-fragment factory and proves its lifetime is disabled. Automatic expiry is not missing behavior for that producer; safe retired-resource reclamation remains open.
