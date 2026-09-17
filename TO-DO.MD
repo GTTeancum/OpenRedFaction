@@ -1,6 +1,6 @@
 # Red Faction Xbox / PC - open work
 
-- GeoMod validation: Resolve thin-surface proximity ambiguity and verify the projection repair on Xbox; the live14-cut wall sweep now has exact edge pairing throughout.
+- GeoMod validation: Resolve thin-surface proximity ambiguity and verify crater volume/nonintersection; the repaired14-cut wall sweep passes exact edge/vertex topology and58 stock64MiB Xbox comparisons.
 - GeoMod reload: Broaden native continuation coverage after16-cut stock64MiB reload passes58 checks; the135598-byte checkpoint matches PC exactly.
 - GeoMod rollback: Make legacy DEV cavity lighting exhaustion transactional; the1024-map experiment aborted after core publication.
 

@@ -22,6 +22,7 @@ def audit(data):
         raise ValueError('Nonfinite vertex')
     edges = Counter()
     owners = {}
+    links = {}
     for face in range(nf):
         first, count, _, _ = struct.unpack_from('<4I', data, 12+nv*20+face*16)
         if not 3 <= count <= 64 or first+count > nv:
@@ -30,14 +31,34 @@ def audit(data):
             edge = vertices[first+i][:3], vertices[first+(i+1)%count][:3]
             edges[edge] += 1
             owners.setdefault(edge, []).append([face, i])
+            previous = vertices[first+(i-1)%count][:3]
+            link = links.setdefault(edge[0], {})
+            link.setdefault(previous, Counter())[edge[1]] += 1
+            link.setdefault(edge[1], Counter())[previous] += 1
     bad = []
     for (a, b), count in edges.items():
         reverse = edges[b, a]
         if a == b or count != 1 or reverse != 1:
             bad.append(dict(start=a, end=b, forward=count, reverse=reverse, owners=owners[a, b]))
-    return dict(exact_pairs=not bad, vertices=nv, faces=nf, directed_edges=sum(edges.values()),
+    bad_vertices = []
+    for vertex, link in links.items():
+        seen, pending = set(), [next(iter(link))]
+        while pending:
+            node = pending.pop()
+            if node in seen:
+                continue
+            seen.add(node)
+            pending.extend(link[node])
+        # A closed manifold vertex has one cyclic link, not two shells touching
+        # at a point. Preserve multiplicity when checking the link's degrees.
+        if vertex in link or len(seen) != len(link) or any(sum(v.values()) != 2 for v in link.values()):
+            bad_vertices.append(dict(position=vertex, neighbors=len(link), connected=len(seen)))
+    return dict(exact_pairs=not bad, vertex_manifold=not bad_vertices,
+                combinatorial_closed=not bad and not bad_vertices,
+                nonmanifold_vertices=bad_vertices,
+                vertices=nv, faces=nf, directed_edges=sum(edges.values()),
                 unmatched_count=len(bad), unmatched=bad,
-                scope='Exact edge pairing only; T-junctions and float discrepancies remain unmatched. No self-intersection or fidelity claim.')
+                scope='Exact edge pairs and cyclic vertex links; T-junctions and float discrepancies remain unmatched. No self-intersection, volume or fidelity claim.')
 
 
 def main():
@@ -50,7 +71,7 @@ def main():
     if args.output:
         args.output.write_text(text)
     print(text)
-    return 0 if result['exact_pairs'] else 2
+    return 0 if result['combinatorial_closed'] else 2
 
 
 if __name__ == '__main__':

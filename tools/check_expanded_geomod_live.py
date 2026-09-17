@@ -1,6 +1,7 @@
 """Ordinary process-local rockets against the DEV room; no host input."""
 import argparse, hashlib, json, os, struct, subprocess
 from pathlib import Path
+from audit_geomod_exact_edges import audit as audit_exact_topology
 ROOT = Path(__file__).resolve().parents[1]
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
@@ -44,10 +45,14 @@ def main():
         blob=state.read_bytes();assert blob[:4]==b'RFDS' and struct.unpack_from('<I',blob,4)[0]==1
         report.update(cuts=struct.unpack_from('<I',blob,300)[0],admissions=struct.unpack_from('<I',blob,240)[0],save_bytes=len(blob))
         assert report['cuts']==args.expected_cuts, f"Only {report['cuts']} of {args.expected_cuts} expected cuts committed"
+        topology=audit_exact_topology((folder/'physical.mesh').read_bytes())
+        (folder/'topology.json').write_text(json.dumps(topology,indent=2)+'\n')
+        report['topology']={key:topology[key] for key in ('exact_pairs','vertex_manifold','combinatorial_closed','unmatched_count')}
         closure=subprocess.run([str(args.closure_probe.resolve()), '--mesh', str(folder/'physical.mesh')],
             cwd=ROOT, capture_output=True, text=True, timeout=120)
         (folder/'closure.log').write_text(closure.stdout+closure.stderr)
         report['closure']={'returncode':closure.returncode,'probe_sha256':hashlib.sha256(args.closure_probe.read_bytes()).hexdigest()}
+        assert topology['combinatorial_closed'],'Exact topology failed; inspect topology.json'
         assert closure.returncode==0,'Physical mesh closure failed; inspect closure.log'
         if args.compare_to:
             prior=args.compare_to.resolve()

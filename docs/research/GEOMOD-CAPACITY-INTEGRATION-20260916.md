@@ -927,3 +927,39 @@ projected-edge-continuation/report.json, projected-edge-xbox-build.log;
 artifacts/geomod-projected-sweep/exact.json and closure.log. Estimate remains
 ~50% overall/~72% GeoMod. Next distinguish exact thin-surface topology from
 proximity-check ambiguity without accepting actual duplicate surfaces.
+
+
+## Repaired sweep verified on Xbox; exact audit now checks vertex links
+
+artifacts/xemu/render-20260916-222001/report.json passes58 checks over2060
+frames/14 cuts on stock64MiB. PC and Xbox export identical116434-byte RFDS,
+SHA25664edd389898cab801a8d52ba56a6e29a3e0dcf9f2b460bc73c46a7a4b155742f.
+Core reported peak2144052 bytes matches PC. Endpoint7914 pages=30.9140625MiB
+free. The native endpoint capture was inspected: broad connected crater at the
+wall corner, textured room/floor, launcher and HUD. No audio or destruction
+animation acceptance is inferred from that endpoint. Harness-owned emulator
+exited and staged disc state was restored; no GitHub image uploaded.
+
+The independent exact audit now verifies each vertex has one cyclic link in
+addition to exactly paired opposite edges. This catches two closed shells
+touching at a single point, which edge pairing alone misses. It preserves
+multiplicity for degree checks and does not weld nearby vertices. Five unittest
+controls cover closed/thin shells, missing/duplicate faces, point-touching
+shells, separated closed shells, zero edges and truncated input. Run:
+python tests/test_geomod_exact_edges.py.
+
+All14 repaired saved prefixes pass exact edge/vertex closure; the original
+cut6 fixture still fails with4 unmatched edges. The ordinary replay harness
+records topology.json and compact exact-topology status separately from the
+proximity probe, and requires both gates. The projected sweep's exact topology
+passes but its proximity result remains FAIL. This distinction is deliberate:
+closed combinatorial topology does not establish no self-intersections or
+correct cavity volume, and the thin-surface ambiguity must be assessed without
+silently accepting duplicate surfaces.
+
+Evidence: artifacts/authored-post-live/projected-topology-prefixes.json,
+artifacts/geomod-projected-sweep/topology.json,
+artifacts/geomod-topology-report/report.json, tests/test_geomod_exact_edges.py,
+and the native report above. No production source/geometry changed this turn.
+Estimate remains ~50% overall/~72% GeoMod; next work is geometric validity and
+crater-volume/readability validation rather than further capacity increases.
