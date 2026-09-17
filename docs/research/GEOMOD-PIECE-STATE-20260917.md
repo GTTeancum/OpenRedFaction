@@ -36,5 +36,33 @@ identity corruption and NaN, immutable mass mismatch, degenerate basis, bad
 magic, truncation and decode during an edit. A changed first live body remains
 unchanged after a later-record rejection.
 
-Live scene checkpoint encoding/decoding is not connected yet. Neither moving
-fragments nor native save continuation is claimed by these core checks.
+## Scene integration
+
+RFDS profile2 now uses header word12 as an optional RFPB trailer byte length.
+Zero preserves the prior exact layout. Nonzero length must be16+320*n; the
+trailer follows the face-map array and its own magic/version/length/count are
+checked before offsets are exposed. The existing RFCP/RFSG envelope remains
+unchanged, including transport integrity checks and size ceilings.
+
+The scene writer includes snapshots when retained batches exist. Restore
+reconstructs a private registry from terrain history, commits that private
+registry, then validates/applies its snapshot before any scene publication.
+Later failures discard the private bodies with the rest of the candidate.
+Legacy saves without a trailer intentionally reconstruct the old birth state.
+
+Scene tests alter body position/velocity/elasticity, prepare/commit restore and
+require exact re-encoding. Corrupted body data rejects without publishing any
+candidate terrain or changing the live serial. Full121-test PC suite passes;
+the additional altered-body/corruption scene test also passes. NXDK builds.
+
+Real middle-shot replay: saved/reloaded and uninterrupted2752-byte RFCP files
+match SHA256209b38bcb45ebbd3133aeec3561f1c06081ada5971de277a150ba5e675eaff3c.
+All5320 fixed-camera post-region pixels match; both native PC output images
+were inspected. Room, weapon/HUD and post presentation are retained. A prior
+body-less saved checkpoint also loads and produces that same new continuation.
+Evidence: artifacts/geomod-postedit-re/piece-checkpoint-restart.
+
+Motion is not scheduled in the live scene yet. This verifies stationary real
+fragment continuity and modified-body scene fixtures, not moving-fragment
+native continuation or new destruction visual quality. Xbox runtime acceptance
+remains open.

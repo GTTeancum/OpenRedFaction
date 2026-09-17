@@ -67,6 +67,12 @@ static int scene_authored_checkpoint_stage_prepare(scene_stream *s,const void *i
     }
     status=rf_geomod_terrain_history_decode(p->core,history,layout.core_bytes);if(status)goto failed;
     free(history);history=NULL;
+    /* This registry is private until the final scene publication. Closing it on
+     * any later failure rolls back both reconstructed geometry and body poses. */
+    rf_geomod_piece_registry_commit(p->pieces);
+    if(layout.piece_bytes) {
+        status=rf_geomod_piece_registry_state_decode(p->pieces,data+layout.piece_offset,layout.piece_bytes);if(status)goto failed;
+    }
     status=rf_geomod_terrain_get(p->core,&core);if(status)goto failed;
     p->cuts=core.cuts;if(p->cuts>RF_GEOMOD_CUT_LIMIT || p->cuts>serial){status=RF_FORMAT;goto failed;}
     for(i=0;i<p->cuts;i++) {

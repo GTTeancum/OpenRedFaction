@@ -18,7 +18,7 @@ static inline int scene_authored_checkpoint_write(scene_stream *s,void *buffer,u
     scene_authored_checkpoint_writer *w=NULL;unsigned char *p=NULL;
     const scene_terrain_noise_owner *owner;scene_publication_bank *bank;
     rf_geomod_terrain_view view,core_view;rf_collision_composition_view composition;
-    rf_authored_checkpoint_layout layout,checked;uint32_t core,i,j,k,at,peak,serial;
+    rf_authored_checkpoint_layout layout,checked;uint32_t core,i,j,k,at,peak,serial,piece_bytes=0;
     size_t name_length;int status;
     if(!s || !buffer || !written || !s->terrain || !s->terrain_authored || !s->terrain_publication ||
        !s->terrain_noise || s->terrain_publication->has_pending || s->terrain_shadow_reference ||
@@ -48,7 +48,10 @@ static inline int scene_authored_checkpoint_write(scene_stream *s,void *buffer,u
         }
     }
     status=rf_geomod_terrain_history_size(s->terrain,&core);if(status)return status;
-    status=rf_authored_checkpoint_layout_size(core,s->terrain_history_count,owner->count,view.mesh.face_count,&layout);if(status)return status;
+    if(rf_geomod_piece_registry_count(s->detached_pieces)) {
+        status=rf_geomod_piece_registry_state_size(s->detached_pieces,&piece_bytes);if(status)return status;
+    }
+    status=rf_authored_checkpoint_layout_size_pieces(core,s->terrain_history_count,owner->count,view.mesh.face_count,piece_bytes,&layout);if(status)return status;
     if(capacity<layout.bytes || (uint64_t)sizeof(*w)+layout.bytes+SCENE_AUTHORED_DIGEST_BUDGET>SCENE_AUTHORED_WRITER_BUDGET)return RF_RANGE;
     w=calloc(1,sizeof(*w));if(!w)return RF_IO;p=calloc(1,layout.bytes);if(!p){status=RF_IO;goto done;}
     w->lighting=*s;
@@ -56,7 +59,7 @@ static inline int scene_authored_checkpoint_write(scene_stream *s,void *buffer,u
     status=scene_authored_digest_capture(s,&view,bank->origins,&composition,&w->lighting,serial,
         w->face_maps,RF_GEOMOD_PUBLICATION_FACES,&w->expected,&peak);if(status)goto done;
     if((uint64_t)sizeof(*w)+layout.bytes+peak>SCENE_AUTHORED_WRITER_BUDGET){status=RF_RANGE;goto done;}
-    memcpy(p,"RFDS",4);checkpoint_put(p+4,2);checkpoint_put(p+8,layout.bytes);
+    memcpy(p,"RFDS",4);checkpoint_put(p+4,2);checkpoint_put(p+8,layout.bytes);checkpoint_put(p+12,piece_bytes);
     memcpy(p+16,campaign_current_level,name_length);memcpy(p+80,s->terrain_checkpoint_identity,128);
     checkpoint_put(p+208,s->terrain_texture_width);checkpoint_put(p+212,s->terrain_texture_height);
     for(i=0;i<3;i++){checkpoint_put_float(p+216+i*4,s->terrain_history_minimum[i]);checkpoint_put_float(p+228+i*4,s->terrain_history_maximum[i]);}
@@ -88,7 +91,10 @@ static inline int scene_authored_checkpoint_write(scene_stream *s,void *buffer,u
         for(j=0;j<2;j++){checkpoint_put(p+at+64+j*4,m->binding.projection.axes[j]);checkpoint_put_float(p+at+72+j*4,m->binding.projection.scale[j]);checkpoint_put_float(p+at+80+j*4,m->binding.projection.offset[j]);}
     }
     for(i=0;i<layout.faces;i++,at+=2){p[at]=(unsigned char)w->face_maps[i];p[at+1]=(unsigned char)(w->face_maps[i]>>8);}
-    if(at!=layout.bytes){status=RF_FORMAT;goto done;}
+    if(at!=layout.piece_offset){status=RF_FORMAT;goto done;}
+    if(piece_bytes) {
+        status=rf_geomod_piece_registry_state_encode(s->detached_pieces,p+layout.piece_offset,piece_bytes);if(status)goto done;
+    }
     status=rf_authored_checkpoint_layout_read(p,layout.bytes,&checked);if(status)goto done;
     if(memcmp(&checked,&layout,sizeof(layout))){status=RF_FORMAT;goto done;}
     memcpy(buffer,p,layout.bytes);*written=layout.bytes;status=RF_OK;

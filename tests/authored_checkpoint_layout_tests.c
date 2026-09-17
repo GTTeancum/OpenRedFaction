@@ -17,6 +17,18 @@ int main(void)
     memcpy(payload,"RFDS",4);put(4,2);put(8,bytes);memcpy(payload+16,"ctf06.rfl",10);
     put(240,2);put(248,3);put(252,3116);put(272,12);put(276,416);put(280,128);put(284,2);
     CHECK(!rf_authored_checkpoint_layout_read(payload,bytes,&b) && !memcmp(&b,&v,sizeof(v)));
+    {
+        rf_authored_checkpoint_layout extended;uint32_t tail=bytes;
+        CHECK(!rf_authored_checkpoint_layout_size_pieces(3116,2,3,12,336,&extended));
+        CHECK(extended.piece_offset==bytes && extended.piece_bytes==336 && extended.bytes==bytes+336);
+        put(8,extended.bytes);put(12,336);memcpy(payload+tail,"RFPB",4);
+        put(tail+4,1);put(tail+8,336);put(tail+12,1);
+        CHECK(!rf_authored_checkpoint_layout_read(payload,extended.bytes,&b) && !memcmp(&b,&extended,sizeof(b)));
+        put(tail+12,2);CHECK(rejected(extended.bytes));put(tail+12,1);
+        put(tail+4,2);CHECK(rejected(extended.bytes));put(tail+4,1);
+        CHECK(rejected(extended.bytes-1));put(12,UINT32_MAX);CHECK(rejected(extended.bytes));
+        put(12,0);put(8,bytes);
+    }
     /* Every truncated prefix rejects without exposing partial offsets. */
     for(i=0;i<bytes;i++)CHECK(rejected(i));CHECK(rejected(bytes+1));
     put(240,UINT32_MAX);CHECK(rejected(bytes));put(240,2);

@@ -105,6 +105,12 @@ int main(int argc,char **argv)
             unsigned char *save=malloc(SCENE_CHECKPOINT_MAX);uint32_t bytes=0;
             scene_authored_checkpoint_stage *restore=NULL;rf_geomod_terrain *live=s.terrain;
             uint32_t live_serial=s.terrain_publication_serial;
+            if(rf_geomod_piece_registry_count(s.detached_pieces)) {
+                rf_geomod_piece_batch *batch;rf_geomod_owned_piece piece;rf_physics_body *body;
+                CHECK(!rf_geomod_piece_registry_get(s.detached_pieces,0,&batch));
+                CHECK(!rf_geomod_piece_batch_get(batch,0,&piece,&body));
+                body->state.position[0]+=.125f;body->state.velocity[1]=-2;body->state.coefficients[0]=.2f;
+            }
             CHECK(save);CHECK(!scene_authored_checkpoint_write(&s,save,SCENE_CHECKPOINT_MAX,&bytes));
             CHECK(bytes>416 && !memcmp(save,"RFDS",4) && checkpoint_u32(save+4)==2);
             {unsigned char guard[32],before[32];uint32_t written=0x12345678;
@@ -118,6 +124,14 @@ int main(int argc,char **argv)
             CHECK(s.terrain==live && s.terrain_publication_serial==live_serial);
             scene_authored_checkpoint_stage_discard(&restore);
             CHECK(!restore && !s.terrain_publication->has_pending && s.terrain==live);
+            if(checkpoint_u32(save+12)>16) {
+                uint32_t offset=bytes-checkpoint_u32(save+12)+16+12;
+                uint32_t old=checkpoint_u32(save+offset);
+                checkpoint_put(save+offset,0x7fc00000u);
+                CHECK(scene_authored_checkpoint_stage_prepare(&s,save,bytes,NULL,&restore)!=RF_OK);
+                CHECK(!restore && !s.terrain_publication->has_pending && s.terrain==live);
+                CHECK(s.terrain_publication_serial==live_serial);checkpoint_put(save+offset,old);
+            }
             save[320]^=1; /* Publication digest corruption must reject atomically. */
             CHECK(scene_authored_checkpoint_stage_prepare(&s,save,bytes,NULL,&restore)!=RF_OK);
             CHECK(!restore && !s.terrain_publication->has_pending && s.terrain==live);
