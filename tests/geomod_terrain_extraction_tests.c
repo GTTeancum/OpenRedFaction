@@ -255,6 +255,27 @@ static void registry_lifetime(const rf_geomod_mesh_view *mesh,const rf_collision
         CHECK(matched && b==0 && p==0 && hit.time>0 && hit.time<1 && hit.normal[1]>0);
         CHECK(hit.inverse_mass>0 && hit.handle==UINT32_MAX);
         CHECK(!memcmp(&body->state,&prepared,sizeof(prepared)) && actor.actor.contact.time==1);
+        {
+            rf_collision_body_sphere q_sphere={0};rf_collision_body_query query={0};
+            rf_geomod_registry_body_hit movement={0},kept;float radius=body->state.bounds.radius;
+            q_sphere.radius=sphere.radius;query.spheres=&q_sphere;query.count=1;query.limit=1;query.radius=actor.extent;
+            memcpy(query.start,actor.actor.position,12);memcpy(query.end,actor.actor.next_position,12);
+            for(k=0;k<3;k++)query.matrix[k][k]=1;
+            body->state.bounds.radius=1;
+            CHECK(!rf_geomod_piece_registry_player_motion(r,&actor,&query,1,&movement,&matched));
+            CHECK(matched && movement.face==UINT32_MAX && movement.sphere==UINT32_MAX);
+            CHECK(movement.contact.fraction==hit.time && movement.contact.normal[1]>0);
+            body->state.bounds.radius=1.0001f;
+            CHECK(!rf_geomod_piece_registry_player_motion(r,&actor,&query,1,&movement,&matched));
+            CHECK(matched && movement.face!=UINT32_MAX && movement.sphere==0);
+            kept=movement;body->state.bounds.radius=.5f;
+            CHECK(!rf_geomod_piece_registry_player_motion(r,&actor,&query,1,&movement,&matched));
+            CHECK(!matched && !memcmp(&movement,&kept,sizeof(kept)));
+            body->state.bounds.radius=1;query.limit=0;
+            CHECK(!rf_geomod_piece_registry_player_motion(r,&actor,&query,1,&movement,&matched));
+            CHECK(!matched && !memcmp(&movement,&kept,sizeof(kept)));
+            body->state.bounds.radius=radius;
+        }
         saved=hit;matched=999;b=999;p=999;
         sphere.center[0]=NAN;
         CHECK(rf_geomod_piece_registry_npc_contact(r,&actor,1,1,&hit,&b,&p,&matched)==RF_FORMAT);

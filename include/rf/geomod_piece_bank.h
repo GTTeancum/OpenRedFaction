@@ -138,10 +138,18 @@ int rf_geomod_piece_registry_body_sweep_excluding(const rf_geomod_piece_registry
     uint32_t excluded_batch,uint32_t excluded_piece,const rf_collision_body_query *,
     uint32_t surface_material,rf_geomod_registry_body_hit *,uint32_t *matched);
 /* Player admission filter: ignores body radius<=0.5. Polygon geometry for
- * admitted pieces; intermediate (0.5,1] sphere routing remains separate work.
+ * admitted pieces; retained for ground probing pending its sphere route.
  * Generic weapon/body queries deliberately retain their own eligibility. */
 int rf_geomod_piece_registry_player_admitted_sweep(const rf_geomod_piece_registry *,
     const rf_collision_body_query *,uint32_t material,rf_geomod_registry_body_hit *,uint32_t *matched);
+/* Player movement: (0.5,1] uses original49a420 sphere contacts, >1 polygons.
+ * Source/query must describe the same proposed player motion. Query limit is
+ * authoritative; polygon wins equal-time ties. Read-only; no pair scheduling.
+ * Sphere-route face/sphere indices are UINT32_MAX, not invented identities.
+ * Ground probing and checkpoint support have separate shape routing. */
+int rf_geomod_piece_registry_player_motion(const rf_geomod_piece_registry *,
+    const rf_collision_actor_general_response *,const rf_collision_body_query *,uint32_t material,
+    rf_geomod_registry_body_hit *,uint32_t *matched);
 /* Non-player kind0/use-kind1 (vehicle) versus live terrain fragments: sphere-pair
  * route. Read-only proposals; selected target retains registry identity instead
  * of inventing an entity handle. Caller owns subsequent response/publication.

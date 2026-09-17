@@ -618,8 +618,8 @@ int rf_geomod_piece_registry_notify(rf_geomod_piece_registry *r,const rf_geomod_
 
 static const float *piece_no_extra_velocity(void *context,uint32_t handle)
 {(void)context;(void)handle;return NULL;}
-int rf_geomod_piece_registry_npc_contact(const rf_geomod_piece_registry *r,
-    const rf_collision_actor_general_response *source,uint32_t use_kind,uint32_t material,
+static int piece_actor_sphere_contact(const rf_geomod_piece_registry *r,
+    const rf_collision_actor_general_response *source,uint32_t admitted,float maximum_radius,uint32_t material,
     rf_collision_actor_contact *out,uint32_t *batch_index,uint32_t *piece_index,uint32_t *matched)
 {
     rf_collision_actor_contact best;uint32_t b,i,k,found=0,best_batch=0,best_piece=0;
@@ -639,10 +639,10 @@ int rf_geomod_piece_registry_npc_contact(const rf_geomod_piece_registry *r,
         for(k=0;k<3;k++)if(!isfinite(sphere->center[k]))return RF_FORMAT;
     }
     best=source->actor.contact;
-    if(use_kind==1)for(b=0;r && b<r->count;b++)for(i=0;i<r->active[b].batch->count;i++) {
+    if(admitted)for(b=0;r && b<r->count;b++)for(i=0;i<r->active[b].batch->count;i++) {
         const rf_geomod_piece_batch *batch=r->active[b].batch;const rf_physics_body *body=batch->bodies+i;
         const rf_physics_body_state *state=&body->state;rf_collision_actor_general_response actor=*source,target={0};
-        if(!rf_geomod_piece_batch_alive(batch,i) || !(state->bounds.radius>.5f) ||
+        if(!rf_geomod_piece_batch_alive(batch,i) || !(state->bounds.radius>.5f) || state->bounds.radius>maximum_radius ||
            !((source->actor.body_flags|state->flags)&0x20u))continue;
         actor.actor.contact=best;
         memcpy(target.actor.minimum,state->bounds.minimum,12);memcpy(target.actor.maximum,state->bounds.maximum,12);
@@ -656,4 +656,32 @@ int rf_geomod_piece_registry_npc_contact(const rf_geomod_piece_registry *r,
         if(actor.actor.contact.time<best.time){best=actor.actor.contact;best_batch=b;best_piece=i;found=1;}
     }
     if(found){*out=best;*batch_index=best_batch;*piece_index=best_piece;}*matched=found;return RF_OK;
+}
+
+int rf_geomod_piece_registry_npc_contact(const rf_geomod_piece_registry *r,
+    const rf_collision_actor_general_response *source,uint32_t use_kind,uint32_t material,
+    rf_collision_actor_contact *out,uint32_t *batch,uint32_t *piece,uint32_t *matched)
+{return piece_actor_sphere_contact(r,source,use_kind==1,FLT_MAX,material,out,batch,piece,matched);}
+
+int rf_geomod_piece_registry_player_motion(const rf_geomod_piece_registry *r,
+    const rf_collision_actor_general_response *source,const rf_collision_body_query *query,uint32_t material,
+    rf_geomod_registry_body_hit *out,uint32_t *matched)
+{
+    rf_geomod_registry_body_hit result={0};rf_collision_actor_general_response limited;
+    rf_collision_actor_contact contact;uint32_t found,sphere_found,batch,piece;int status;
+    if(!source || !query || !out || !matched)return RF_RANGE;
+    limited=*source;limited.actor.contact.time=query->limit;
+    /* Validate actor data even if an earlier polygon hit would hide it. */
+    status=piece_actor_sphere_contact(NULL,&limited,1,1,material,&contact,&batch,&piece,&sphere_found);if(status)return status;
+    status=piece_body_sweep_filtered(r,UINT32_MAX,UINT32_MAX,1,query,material,&result,&found);if(status)return status;
+    if(found)limited.actor.contact.time=result.contact.fraction;
+    status=piece_actor_sphere_contact(r,&limited,1,1,material,&contact,&batch,&piece,&sphere_found);if(status)return status;
+    if(sphere_found) {
+        memset(&result,0,sizeof(result));result.batch=batch;result.piece=piece;result.sphere=result.face=UINT32_MAX;
+        memcpy(result.contact.point,contact.point,12);memcpy(result.contact.normal,contact.normal,12);
+        result.contact.fraction=contact.time;result.contact.material=contact.material;
+        memcpy(&result.contact.reserved_20,&contact.inverse_mass,4);memcpy(result.contact.velocity,contact.velocity,12);
+        result.contact.object_id=result.contact.texture=result.contact.face_token=UINT32_MAX;found=1;
+    }
+    if(found)*out=result;*matched=found;return RF_OK;
 }

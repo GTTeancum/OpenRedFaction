@@ -11,7 +11,7 @@ env={k:v for k,v in os.environ.items() if not k.startswith(('RF_REPLAY_','RF_DEV
 env.update(RF_REPLAY_LEVEL='ctf06.rfl',RF_REPLAY_ARCHIVE='levelsm.vpp',RF_REPLAY_DEV_ROOM='1',RF_REPLAY_PLAYER_CHECKPOINT='1')
 report={}
 for name,recording in recordings.items():
- path=folder/name;path.with_suffix('.bin').write_bytes(recording)
+ path=folder/name;path.with_suffix('.bin').write_bytes(recording);path.with_suffix('.rfcp').unlink(missing_ok=True)
  local=dict(env,RF_REPLAY_GEOMOD_CHECKPOINT_OUT=str(path.with_suffix('.rfcp')))
  if name=='continued':local['RF_REPLAY_GEOMOD_CHECKPOINT_IN']=str(folder/'saved.rfcp')
  with path.with_suffix('.log').open('wb') as log:

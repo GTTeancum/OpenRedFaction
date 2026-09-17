@@ -150,3 +150,28 @@ and intact post match the expected endpoint; no claim of an on-screen chunk at
 that camera angle. Native continuation from this newly corrected save remains
 separate from the verified PC continuation. The harness exited and restored disc
 files after the owned emulator run.
+
+## Player movement shape selection
+
+`rf_geomod_piece_registry_player_motion` now composes two disjoint size routes:
+body radius(0.5,1] uses the existing original49a420 general sphere-pair response,
+and radius>1 uses the polygon body query. Both reject smaller fragments. The
+scene supplies actual player current/next body poses and rebuilt sweep bounds.
+The geometry-query limit remains authoritative; an equal-time sphere contact
+retains the polygon result. Sphere contacts keep batch/piece identity but mark
+face and source sphere index UINT32_MAX because49a420 does not expose them.
+No entity handle, target contact publication or two-object scheduler is invented.
+
+The existing extracted-body test now drives the same crossing at radius1
+(sphere route),1.0001 (polygon route),0.5 (reject) and limit0 (preserved miss).
+This verifies route selection with controlled size metadata, not natural
+extraction at those sizes. All121 tests pass and the stock NXDK build succeeds.
+The small-fragment live save/continuation control is also rerun. Its harness now
+removes only its own prior output checkpoint files before each run, since the
+application correctly refuses to overwrite them.
+
+Ground probing still uses the admission-filtered polygon query and checkpoint
+placement/support still need intermediate-radius sphere shapes. Original499670
+is the distinct ground sphere routine reached through49b900; movement49a420
+must not be silently substituted for it. A naturally extracted intermediate-size
+fragment and native execution of that positive movement route remain open.
