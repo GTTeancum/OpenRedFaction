@@ -12,6 +12,7 @@
 - Movement: Extend verified quiet swimming to authored liquid hazards and underwater presentation; entry, surfacing, re-entry and harmless ordinary water pass44 PC/Xbox comparisons.
 - Movement: Finish underwater presentation; authored lava damage and harmless dry control now pass44/45 PC/Xbox checks on stock64MiB.
 
+- GeoMod debris visibility: Integrate retained-room filtering and draw-time aging; the shared room gate and perspective rectangle adapter pass114 admission and8 original rectangle fixtures.
 - GeoMod debris: Verify audible output and broader liquid scenarios; five live wet births match original math and the two-blast run passes59 stock64MiB PC/Xbox checks.
 - GeoMod saves: Broaden authored save coverage after both one-cut and reset reload/next-blast paths pass58 stock64MiB Xbox checks with identical uninterrupted checkpoint bytes; malformed live restart coverage remains open.
 
