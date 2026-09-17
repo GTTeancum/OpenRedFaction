@@ -43,3 +43,15 @@ All jobs finish inside the work buffer before output publication. A malformed la
 The installed ctf06 integration test opens real sources93 and94 together. Uncut publication has8 faces/32 vertices. After cutting93, aggregate output has39 faces/166 vertices and94 retains its four original windows. After cutting94, output has70 faces/300 vertices. The first source's150 vertices,35 faces and35 provenance records remain byte-identical after the second cut. The test checks output rollback for insufficient face capacity, duplicate source UID and invalid planes in the second job.
 
 PC build and121/121 tests pass; stock-profile NXDK compilation passes. These are production publication calls exercised with real assets, not live scene acceptance. The scene still needs multiple retained source owners, aggregate drawing/lightmap binding, impact dispatch and source-indexed saves. No new visual or native gameplay claim is made for grouped publication.
+
+## Grouped terrain and rubble transaction
+
+The scene edit transaction now stages up to four independently owned terrain/registry pairs under one room publication callback. Existing single-source edits call this same implementation through a one-source adapter. Source callbacks only create and mutate; their individual publication callbacks are not called by a grouped transaction.
+
+The reservation charges every old core and clone budget, one reused history scratch buffer and the caller's total external reservation. All clones and staged registries must succeed before room publication. The one successful room callback is the commit point: source pointers, registries and serial then commit without fallible work. Duplicate terrain or registry ownership is rejected before mutation. Abort discards every begun registry and candidate. The output result array and shared serial change only on success.
+
+Grouped transaction tests exercise failure creating the second source, failure after mutating it and failure at aggregate publication. Both original cores and empty registry ownership/memory remain unchanged. Successful two-source commits create independent rubble owners; a later clone/edit retains moved body positions123 and124 in their respective batches. Duplicate source/registry and insufficient aggregate budget controls reject. These are synthetic real-core transaction fixtures, not concurrent live-post rendering.
+
+PC build and121/121 tests pass; stock NXDK build passes. A fresh550-frame PC97 rocket replay through the new shared transaction produces the unchanged2758-byte checkpoint, SHA256 d98a3c0e8b1c725e4924aaf82f7872e99ede438963d3b0e342f892a884f4aea0 (`artifacts/grouped-transaction-live`). This establishes existing live-state compatibility; no new native or multi-source visual acceptance is claimed.
+
+Remaining scene work is source collection ownership, aggregate drawing/lightmap references, all-affected-source impact dispatch, queries over every detached registry and source-indexed save restoration. Do not report grouped live gameplay as complete until those paths use this transaction and pass the acceptance sequence above.
