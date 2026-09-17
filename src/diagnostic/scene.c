@@ -10211,12 +10211,19 @@ static int scene_debris_prepare(scene_stream *s,const rf_weapon_flight_contact *
         status=rf_geomod_debris_relaunch(c->position,contact->hit.point,radius,c->radius,resistance,
             c->detail_marked,&p->random,&result,&matched);if(status)return status;
         if(matched) {
-            uint32_t evidence[8];evidence[0]=old_count;evidence[1]=result.bounces;memcpy(evidence+2,&c->age,4);
+            uint32_t evidence[8],prior_basis[9];if(rf_scene_combat_trace)memcpy(prior_basis,c->basis,36);
+            evidence[0]=old_count;evidence[1]=result.bounces;memcpy(evidence+2,&c->age,4);
             memcpy(evidence+3,result.velocity,12);evidence[6]=old_seed;evidence[7]=p->random.value;
             ++rf_scene_debris_relaunch[2];rf_scene_debris_relaunch[3]+=old_count==0 && (result.velocity[0]!=0 || result.velocity[1]!=0 || result.velocity[2]!=0);
             rf_scene_debris_relaunch[4]=npc_hash_bytes(rf_scene_debris_relaunch[4]?rf_scene_debris_relaunch[4]:2166136261u,evidence,sizeof(evidence));
             rf_scene_debris_relaunch[7]=(p->next+i)%80;
             memcpy(c->velocity,result.velocity,12);c->bounces=result.bounces;
+            if(rf_scene_combat_trace) {
+                uint32_t current_basis[9],n;memcpy(current_basis,c->basis,36);
+                printf("DEBRIS_RELAUNCH_ROTATION %u %u %u",(p->next+i)%80,old_count,c->bounces);
+                for(n=0;n<9;n++)printf(" %u",prior_basis[n]);
+                for(n=0;n<9;n++)printf(" %u",current_basis[n]);puts("");
+            }
         }
     }
     rf_scene_debris_relaunch[6]=p->random.value;

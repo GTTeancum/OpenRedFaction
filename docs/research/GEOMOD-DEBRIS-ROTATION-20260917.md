@@ -46,3 +46,30 @@ fixture injection remains disabled. The endpoint capture shows the approached
 post, surrounding geometry, weapon and reduced health HUD; it does not prove
 all intervening bounce visuals. The disc was restored and the owned emulator
 exited. All 115 PC CTests pass (`rotation-full-ctest.log`).
+
+
+## Repeated-blast continuation
+
+`python tools/check_debris_relaunch_rotation.py --run` generates the ordinary
+`glass_house.rfl` two-shot route, clears fixture/replay environment overrides,
+and verifies the opt-in live trace. Slot 0's last moving update is frame 412;
+it rests through frame 472 and resumes at frame 473. Its nine orientation words
+are unchanged across relaunch and are the next update's exact input. The next
+output changes, establishing resumed rotation. This is a state check, not a
+claim that every frame has been visually inspected.
+
+All 2,096 rotation samples in `artifacts/debris-relaunch/rotation.log` also
+match original instructions via `tools/probe_debris_rotation.py --live-log`.
+The current authored-post two-shot route does not relaunch settled fragments;
+new-fragment generation alone must not be accepted for this requirement.
+
+Stock 64 MiB run `artifacts/xemu/render-20260917-013918` passes 66 comparisons
+at 550 frames, with 8,322 free pages (32.508 MiB) in this smaller test level.
+Relaunch state is `[2,3,1,1,228786469,3892924275,75152948,0]` and rotation
+state is `[2096,72323296,1827719996,0]` on both platforms. The independent
+`tools/verify_debris_relaunch.py` positive-reactivation check passes. Input SHA:
+`0ee89c4d7d321f8a7e2dba2a898f08683b6fd2652461bac9597d309944f0fcbb`.
+Disc restoration succeeds and the owned emulator exits. The inspected native
+endpoint shows the double-cut crater, residual smoke, weapon and intact HUD;
+dark crater readability remains unresolved. This trace-only follow-up changes
+no gameplay math; the preceding 115-test acceptance remains applicable.
