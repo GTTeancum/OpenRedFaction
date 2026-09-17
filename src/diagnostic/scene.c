@@ -11258,7 +11258,7 @@ static int actor_follow_view(void *context,uint32_t frame,const rf_motion_contro
 {
     scene_stream *stream=context;float position[3],orientation[3][3];
     const rf_scene_world_geometry *render_world;
-    uint32_t *r=rf_scene_actor_follow_frames[frame%64];int status;
+    uint32_t *r=rf_scene_actor_follow_frames[frame%64],terrain_cuts=0;int status;
     uint32_t world_clock=0;profile_mark(1);
     if(!frame && rf_scene_player_checkpoint_enabled){
         if(!stream->player_checkpoint_level)return RF_RANGE;
@@ -11274,7 +11274,14 @@ static int actor_follow_view(void *context,uint32_t frame,const rf_motion_contro
     }
     if(profile_clock && profile_active)world_clock=profile_clock();
     status=actor_listener_pose(stream,frame,controller,position,orientation);if(status){rf_scene_profile_stage[1]=101;return status;}
-    render_world=stream->terrain && rf_scene_geomod[1]?&stream->terrain_render:actor_follow_world;
+    /* Rendering follows the committed owner, never diagnostic counters: reload
+     * can publish geometry before the next edit refreshes those counters. */
+    if(stream->terrain) {
+        rf_geomod_terrain_view terrain;
+        status=rf_geomod_terrain_get(stream->terrain,&terrain);if(status)return status;
+        terrain_cuts=terrain.cuts;
+    }
+    render_world=terrain_cuts?&stream->terrain_render:actor_follow_world;
     if(campaign_spawn && stream->particles.state) {
         uint32_t active;uint64_t elapsed=(uint64_t)frame*1000/60;
         int32_t now=(int32_t)(elapsed?((elapsed-1)%RF_TIMER_PERIOD)+1:0);
@@ -11356,7 +11363,7 @@ static int actor_follow_view(void *context,uint32_t frame,const rf_motion_contro
             status=scene_world_dispatch_camera(render_world,campaign_movers.poses,campaign_movers.count,position,orientation,&world_mesh,stream->capacity-(campaign_spawn?1024*1024:0),NULL,0,stream->visibility.storage?&stream->visibility.state:NULL);
      }
      if(status){rf_scene_profile_stage[1]=108;return status;}
-     if(stream->terrain && rf_scene_geomod[1]) {
+     if(terrain_cuts) {
         rf_geomod_terrain_view terrain;rf_preview_mesh generated={0};rf_level camera={0};
         status=stream->terrain_authored?scene_terrain_publication_view(stream,&terrain):rf_geomod_terrain_get(stream->terrain,&terrain);if(status)return status;
         if(world_mesh.bytes>stream->capacity-1024*1024)return RF_RANGE;

@@ -64,3 +64,7 @@ Disc staging is restored and the owned emulator exits.
 
 Remaining: resolve the restored post visual discrepancy, then body motion/contact response, scene query registration, active-state
 saves, fragment lighting, broader cuts and subdivision.
+
+Follow-up: the specific visual reload discrepancy is fixed and verified in
+GEOMOD-RELOAD-RENDER-STATE-20260917.md; earlier captures above retain the failure
+as regression evidence.

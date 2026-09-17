@@ -9,6 +9,19 @@ import subprocess
 
 ROOT = Path(__file__).resolve().parents[1]
 
+def check_post_image(folder):
+    from PIL import Image
+    # Fixed measured middle-shot camera. Exclude weapon/HUD, whose animation
+    # clocks restart; include the entire projected post and surrounding gap.
+    box = (300, 180, 338, 320)
+    images = [Image.open(folder / (name + '.ppm')).convert('RGB') for name in ('continued', 'control')]
+    assert all(image.size == (640, 480) for image in images), 'Unexpected post capture size'
+    pixels = [image.crop(box).tobytes() for image in images]
+    assert pixels[0] == pixels[1], 'Post rendering differs after reload despite matching state'
+    return {'box': box, 'pixels': 38 * 140, 'sha256': hashlib.sha256(pixels[0]).hexdigest(),
+            'scope': 'Exact fixed-camera post region; no whole-frame, motion or audio acceptance'}
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--case', choices=('two-shot', 'reset-zero', 'middle-shot'), default='two-shot')
@@ -79,7 +92,8 @@ def main():
                 states[name] = state
             assert states['continued'] == states['control'], 'Detached ownership/draw differs after reload'
             report['detached'] = states
-            report['scope'] = 'PC real rocket separation and birth-pose ownership/drawing across reload; no motion or visual/Xbox acceptance'
+            report['post_image'] = check_post_image(folder)
+            report['scope'] = 'PC real rocket separation and birth-pose ownership/drawing across reload; fixed-camera post-region parity only; no motion or Xbox acceptance'
         report["result"] = "PASS"
     finally:
         (folder / "report.json").write_text(json.dumps(report, indent=2) + "\n")

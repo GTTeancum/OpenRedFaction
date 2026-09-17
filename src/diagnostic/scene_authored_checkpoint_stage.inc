@@ -141,5 +141,8 @@ static int scene_authored_checkpoint_stage_commit(scene_authored_checkpoint_stag
     s->terrain_history_count=p->admission.count;s->terrain_random=p->admission.random;
     s->terrain_atlas_index=staged->terrain_atlas_index;
     s->terrain_checkpoint_loaded=staged->terrain_checkpoint_loaded;
+    rf_scene_geomod[0]=1;rf_scene_geomod[1]=p->cuts;rf_scene_geomod[2]=p->serial;
+    rf_scene_geomod[3]=s->terrain_publication->resident_bytes+s->terrain_authored->resident_bytes;
+    rf_scene_geomod[4]=s->terrain_publication->peak_bytes+s->terrain_authored->peak_bytes;
     rf_geomod_terrain_close(&old);return RF_OK;
 }
