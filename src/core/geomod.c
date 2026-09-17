@@ -449,6 +449,26 @@ int rf_geomod_debris_select_room(const float center[3],const float normal[3],flo
     *random=next;*out=value;return RF_OK;
 }
 
+int rf_geomod_debris_actor_contact(const float position[3],const float velocity[3],float radius,
+    const float actor_position[3],float actor_radius,uint32_t *hit,float *amount)
+{
+    float delta[3],combined,value=0;double distance,speed;uint32_t i,matched;
+    if(!position || !velocity || !actor_position || !hit || !amount ||
+       !isfinite(radius) || radius<0 || !isfinite(actor_radius) || actor_radius<0)return RF_RANGE;
+    for(i=0;i<3;i++) {
+        if(!isfinite(position[i]) || !isfinite(velocity[i]) || !isfinite(actor_position[i]))return RF_RANGE;
+        delta[i]=actor_position[i]-position[i];if(!isfinite(delta[i]))return RF_RANGE;
+    }
+    combined=actor_radius+radius;if(!isfinite(combined))return RF_RANGE;
+    distance=(double)delta[0]*delta[0]+(double)delta[1]*delta[1]+(double)delta[2]*delta[2];
+    matched=distance<(double)combined*combined;
+    if(matched) {
+        speed=sqrt((double)velocity[0]*velocity[0]+(double)velocity[1]*velocity[1]+(double)velocity[2]*velocity[2]);
+        value=(float)(speed*radius*.5);if(!isfinite(value))return RF_RANGE;
+    }
+    *hit=matched;*amount=value;return RF_OK;
+}
+
 int rf_geomod_debris_gravity(float velocity_y,float acceleration,float dt,float *out)
 {
     float value;

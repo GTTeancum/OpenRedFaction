@@ -46,3 +46,7 @@ endpoint retains room, damaged post, weapon and HUD; exact animated rotation,
 actor interactions and audible output are not established by this endpoint.
 The harness restored the disc and exited. Other projects' emulators were
 left untouched.
+
+Follow-up: GEOMOD-DEBRIS-ACTOR-CONTACT-20260917.md identifies the candidate
+list as players, not arbitrary NPCs; the two final calls mark player contact
+direction rather than applying physical knockback.

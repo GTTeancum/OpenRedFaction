@@ -154,6 +154,12 @@ int rf_geomod_debris_select_room(const float center[3],const float normal[3],flo
     uint32_t fallback_room,rf_geomod_debris_room_query query,void *context,
     rf_random_state *random,rf_geomod_debris_burst_room *out);
 typedef struct rf_geomod_debris_liquid_hit {float fraction,point[3];} rf_geomod_debris_liquid_hit;
+/*48f6cb..48f71a math only. Caller admits player actors by retained room,
+ * checks the pass-entry suppression flag and commits flag2 on overlap.
+ * Strict sphere overlap; damage is speed*fragment radius*0.5, stored once.
+ * Invalid/nonfinite inputs preserve both outputs; no hit sets both to zero. */
+int rf_geomod_debris_actor_contact(const float position[3],const float velocity[3],float radius,
+    const float actor_position[3],float actor_radius,uint32_t *hit,float *amount);
 /*48f62f..48f647: after collision, only while bounce count stays positive.
  * Gravity*stored dt is subtracted before the single float store. Negative
  * gravity is supported; invalid/nonfinite results preserve output. */
