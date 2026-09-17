@@ -505,6 +505,13 @@ int main(int argc,char **argv)
     rf_scene_ripple_test_enabled=p.headless && getenv("RF_REPLAY_RIPPLE_TEST")!=NULL;
     rf_scene_dev_room_enabled=dev_room || (p.headless && (getenv("RF_REPLAY_DEV_ROOM")!=NULL || getenv("RF_REPLAY_WATER_TEST")!=NULL));
     rf_scene_dev_npc_enabled=p.headless && getenv("RF_REPLAY_DEV_NPC")!=NULL;
+    if(getenv("RF_REPLAY_INSPECTION_CAMERA")) {
+        float eye[3],target[3];char extra;
+        if(!p.headless || !rf_scene_dev_room_enabled)CHECK(RF_RANGE);
+        if(sscanf(getenv("RF_REPLAY_INSPECTION_CAMERA"),"%f,%f,%f,%f,%f,%f%c",
+            eye,eye+1,eye+2,target,target+1,target+2,&extra)!=6)CHECK(RF_FORMAT);
+        CHECK(rf_scene_inspection_camera(eye,target));
+    }
     rf_scene_player_checkpoint_enabled=p.headless && getenv("RF_REPLAY_PLAYER_CHECKPOINT")!=NULL;
     if(rf_scene_player_checkpoint_enabled && (!spawn_profile || !rf_scene_dev_room_enabled || strcmp(getenv("RF_REPLAY_PLAYER_CHECKPOINT"),"1")))CHECK(RF_FORMAT);
     rf_scene_follow_level_exits=spawn_profile && !rf_scene_dev_room_enabled && !rf_scene_swim_test_enabled;

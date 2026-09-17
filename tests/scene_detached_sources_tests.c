@@ -288,6 +288,20 @@ static int beam_selection(void) {
     CHECK(scene_authored_source_uid==94 && scene_authored_source_count==1);
     return 0;
 }
+static int inspection_camera(void) {
+    float eye[3]={-3,2.25f,0},target[3]={-5,1.5f,2.5f},saved[3][3];
+    CHECK(!rf_scene_inspection_camera(eye,target) && scene_inspection_enabled);
+    memcpy(saved,scene_inspection_basis,sizeof(saved));
+    for(uint32_t i=0;i<3;i++)for(uint32_t j=0;j<3;j++) {
+        float dot=0;for(uint32_t k=0;k<3;k++)dot+=saved[i][k]*saved[j][k];
+        CHECK(fabsf(dot-(i==j?1.0f:0.0f))<1e-6f);
+    }
+    CHECK(rf_scene_inspection_camera(eye,eye)==RF_RANGE);
+    CHECK(rf_scene_inspection_camera(NULL,target)==RF_RANGE);
+    target[0]=NAN;CHECK(rf_scene_inspection_camera(eye,target)==RF_RANGE);
+    CHECK(!memcmp(saved,scene_inspection_basis,sizeof(saved)) && scene_inspection_enabled);
+    CHECK(!rf_scene_inspection_camera(NULL,NULL) && !scene_inspection_enabled);return 0;
+}
 int main(void) {
     rf_geomod_piece_registry *registries[2]={0};scene_terrain_authored_assets assets[2]={{0}};
     scene_terrain_source_owner sources[2];scene_stream scene={0};rf_geomod_registry_hit hit,sentinel;
@@ -322,6 +336,6 @@ int main(void) {
     found=77;CHECK(scene_detached_sources_sweep(&scene,4,start,delta,0,NAN,&hit,&found)!=RF_OK);
     CHECK(found==77 && !memcmp(&hit,&sentinel,sizeof(hit)));
     free(before);free(after);for(i=0;i<2;i++)rf_geomod_piece_registry_close(registries+i);
-    CHECK(!extended_batches());CHECK(!enemy_fragment_shots());CHECK(!beam_selection());CHECK(!runtime_surfaces());CHECK(!player_sources());CHECK(!notify_sources());CHECK(!large_support_snap());
+    CHECK(!inspection_camera());CHECK(!extended_batches());CHECK(!enemy_fragment_shots());CHECK(!beam_selection());CHECK(!runtime_surfaces());CHECK(!player_sources());CHECK(!notify_sources());CHECK(!large_support_snap());
     puts("PASS multi-source weapon queries: nearer later source, stable ties, selected alias, isolated damage and atomic misses/errors");return 0;
 }

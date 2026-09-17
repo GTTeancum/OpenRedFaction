@@ -11566,6 +11566,28 @@ int rf_scene_draw_combat_hud(rf_scene_particle_sink sink,void *context)
     return RF_OK;
 }
 uint32_t rf_scene_follow_npc_uid;
+static uint32_t scene_inspection_enabled;
+static float scene_inspection_eye[3],scene_inspection_basis[3][3];
+int rf_scene_inspection_camera(const float eye[3],const float target[3])
+{
+    float forward[3],right[3],up[3];double length=0,horizontal;uint32_t i;
+    if(!eye && !target){scene_inspection_enabled=0;return RF_OK;}
+    if(!eye || !target)return RF_RANGE;
+    for(i=0;i<3;i++) {
+        if(!isfinite(eye[i]) || !isfinite(target[i]))return RF_RANGE;
+        forward[i]=target[i]-eye[i];length+=(double)forward[i]*forward[i];
+    }
+    if(!isfinite(length) || length<1e-12)return RF_RANGE;
+    length=sqrt(length);for(i=0;i<3;i++)forward[i]=(float)(forward[i]/length);
+    horizontal=sqrt((double)forward[0]*forward[0]+(double)forward[2]*forward[2]);
+    if(horizontal<1e-6)return RF_RANGE;
+    right[0]=(float)(forward[2]/horizontal);right[1]=0;right[2]=(float)(-forward[0]/horizontal);
+    up[0]=forward[1]*right[2];up[1]=forward[2]*right[0]-forward[0]*right[2];up[2]=-forward[1]*right[0];
+    memcpy(scene_inspection_eye,eye,12);memcpy(scene_inspection_basis[0],right,12);
+    memcpy(scene_inspection_basis[1],up,12);memcpy(scene_inspection_basis[2],forward,12);
+    scene_inspection_enabled=1;return RF_OK;
+}
+
 static int campaign_inspect_camera(scene_stream *stream,float position[3],float orientation[3][3])
 {
     uint32_t i,j,found;int status;
@@ -11645,6 +11667,9 @@ static int actor_follow_view(void *context,uint32_t frame,const rf_motion_contro
             const float inspection_basis[3][3]={{1,0,0},{0,.7071067811865475f,.7071067811865475f},{0,-.7071067811865475f,.7071067811865475f}};
             position[1]+=4;position[2]-=4;memcpy(orientation,inspection_basis,sizeof(inspection_basis));
         }
+    }
+    if(scene_inspection_enabled) {
+        memcpy(position,scene_inspection_eye,12);memcpy(orientation,scene_inspection_basis,36);
     }
     world_profile_mark(2,&world_clock);
     if(stream->visibility.storage) {
