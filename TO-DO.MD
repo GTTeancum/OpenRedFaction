@@ -4,7 +4,7 @@
 
 - GeoMod Xbox stability: Broaden connected debris histories after fixing stack exhaustion and cell-sampling precision; reset-save/rocket now passes76 native checks with exact PC continuation and13.50MiB endpoint headroom.
 
-- GeoMod source expansion: Trace the ambiguous dark polygon near the far joint and improve cap appearance; elevated views now expose wood-textured caps without changing gameplay saves, while broader geometry and gameplay interactions remain open.
+- GeoMod source expansion: Improve exposed cap lighting/material quality and broaden geometry/gameplay interactions; elevated inspection preserves saves, and the suspected floating polygon is confirmed as unchanged floor detail by uncut color/depth comparison.
 
 - GeoMod publication: Broaden clipped-face partition coverage to other source geometry; the repaired shot, save/reload and subsequent rocket now pass76/75/76 native checks, with exact uninterrupted PC checkpoints, while broader histories remain open.
 
