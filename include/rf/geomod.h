@@ -279,6 +279,17 @@ typedef struct rf_geomod_mesh_view {
     const rf_geomod_vertex *vertices;const rf_geomod_face *faces;
     uint32_t vertex_count,face_count,generation;
 } rf_geomod_mesh_view;
+/* Component grouping for the port's face-corner representation. Exact numeric
+ * position equality defines shared vertices (including signed-zero equality),
+ * consistent with seed adjacency; no epsilon welding or UV merging. Optional
+ * filters exclude face flags0x0c/property34>0. Original pointer identity and
+ * region exclusion must be resolved by the caller before choosing this adapter.
+ * Caller-owned uint32 scratch may change on failure; other outputs do not.
+ * Labels are first-face order, excluded=UINT32_MAX; largest ties choose first.
+ * These are raw groups, before solid classification/extraction. */
+int rf_geomod_component_work_size(const rf_geomod_mesh_view *,uint32_t *words);
+int rf_geomod_mesh_components(const rf_geomod_mesh_view *,const rf_collision_face_filter *,
+    uint32_t *work,uint32_t work_words,uint32_t *labels,uint32_t *count,uint32_t *largest);
 /* Optional synchronous diagnostic for bounded tracked cavity assembly. Views
  * and ID arrays are borrowed for this call only; callbacks must not mutate or
  * reenter geometry. Null disables observation. Not a publication notification. */

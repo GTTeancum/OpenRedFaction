@@ -639,3 +639,7 @@ endforeach()
 add_executable(rf_geomod_live_history_probe tools/probe_geomod_live_history.c)
 target_compile_definitions(rf_geomod_live_history_probe PRIVATE RF_GEOMOD_CUT_LIMIT=16 RF_GEOMOD_WORK_VERTICES=8192 RF_GEOMOD_WORK_FACES=2048)
 target_link_libraries(rf_geomod_live_history_probe PRIVATE rf_core)
+
+# Read-only captured geometry component diagnostic.
+add_executable(rf_geomod_components_probe tools/geomod_components_probe.c)
+target_link_libraries(rf_geomod_components_probe PRIVATE rf_core)

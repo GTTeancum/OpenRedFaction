@@ -1726,6 +1726,59 @@ int rf_geomod_storage_prepare_cavity_cuts(rf_geomod_storage *s,
 
 static int same_position(const float a[3],const float b[3])
 {return a[0]==b[0] && a[1]==b[1] && a[2]==b[2];}
+int rf_geomod_component_work_size(const rf_geomod_mesh_view *mesh,uint32_t *words)
+{
+    uint64_t slots=1,total;
+    if(!mesh || !words || !mesh->face_count || !mesh->vertex_count)return RF_RANGE;
+    while(slots<(uint64_t)mesh->vertex_count*2)slots*=2;
+    total=slots*2+(uint64_t)mesh->face_count*3;
+    if(total>UINT32_MAX/sizeof(uint32_t))return RF_RANGE;
+    *words=(uint32_t)total;return RF_OK;
+}
+static uint32_t component_root(uint32_t *parent,uint32_t face)
+{
+    while(parent[face]!=face){parent[face]=parent[parent[face]];face=parent[face];}return face;
+}
+int rf_geomod_mesh_components(const rf_geomod_mesh_view *mesh,const rf_collision_face_filter *filters,
+    uint32_t *work,uint32_t work_words,uint32_t *labels,uint32_t *count,uint32_t *largest)
+{
+    uint32_t words,slots,*table,*parent,*sizes,*ids,f,j,k,groups=0,biggest=UINT32_MAX,best_size=0;int status;
+    if(!mesh || !mesh->vertices || !mesh->faces || !work || !labels || !count || !largest)return RF_RANGE;
+    status=rf_geomod_component_work_size(mesh,&words);if(status)return status;
+    if(work_words<words)return RF_RANGE;
+    slots=(words-mesh->face_count*3)/2;table=work;parent=table+slots*2;sizes=parent+mesh->face_count;ids=sizes+mesh->face_count;
+    for(f=0;f<mesh->face_count;f++) {
+        const rf_geomod_face *face=mesh->faces+f;
+        if(face->count<3 || face->first>mesh->vertex_count || face->count>mesh->vertex_count-face->first)return RF_FORMAT;
+        if(filters && (filters[f].property_34<INT16_MIN || filters[f].property_34>INT16_MAX))return RF_FORMAT;
+        for(j=0;j<face->count;j++)for(k=0;k<3;k++)if(!isfinite(mesh->vertices[face->first+j].position[k]))return RF_FORMAT;
+    }
+    for(k=0;k<slots*2;k++)table[k]=UINT32_MAX;
+    for(f=0;f<mesh->face_count;f++){parent[f]=f;sizes[f]=0;ids[f]=UINT32_MAX;}
+    for(f=0;f<mesh->face_count;f++) {
+        const rf_geomod_face *face=mesh->faces+f;
+        if(filters && ((filters[f].face_flags&12) || filters[f].property_34>0)){parent[f]=UINT32_MAX;continue;}
+        for(j=0;j<face->count;j++) {
+            uint32_t vertex=face->first+j,hash=2166136261u,slot;
+            const float *point=mesh->vertices[vertex].position;
+            for(k=0;k<3;k++){uint32_t bits=0;if(point[k]!=0)memcpy(&bits,point+k,4);hash=(hash^bits)*16777619u;}
+            slot=hash&(slots-1);
+            while(table[slot*2]!=UINT32_MAX && !same_position(point,mesh->vertices[table[slot*2]].position))slot=(slot+1)&(slots-1);
+            if(table[slot*2]==UINT32_MAX){table[slot*2]=vertex;table[slot*2+1]=f;}
+            else {
+                uint32_t a=component_root(parent,f),b=component_root(parent,table[slot*2+1]);
+                if(a!=b)parent[a]=b;
+            }
+        }
+    }
+    for(f=0;f<mesh->face_count;f++)if(parent[f]!=UINT32_MAX)++sizes[component_root(parent,f)];
+    for(f=0;f<mesh->face_count;f++)if(parent[f]!=UINT32_MAX) {
+        uint32_t root=component_root(parent,f);
+        if(ids[root]==UINT32_MAX){ids[root]=groups++;if(sizes[root]>best_size){best_size=sizes[root];biggest=ids[root];}}
+    }
+    for(f=0;f<mesh->face_count;f++)labels[f]=parent[f]==UINT32_MAX?UINT32_MAX:ids[component_root(parent,f)];
+    *count=groups;*largest=biggest;return RF_OK;
+}
 int rf_geomod_seed_adjacency(const rf_geomod_mesh_view *mesh,uint16_t *neighbors,uint32_t capacity)
 {
     uint32_t pass,f,e,g,h,packed=0,i;int status;

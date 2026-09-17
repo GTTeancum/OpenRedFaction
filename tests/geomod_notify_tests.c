@@ -77,6 +77,30 @@ static int placement_cases(void)
  CHECK(rf_geomod_piece_recenter(vertices,8,local,&placement)==RF_FORMAT && !memcmp(&placement,&before,sizeof(before)) && !memcmp(local,kept,sizeof(kept)));
  puts("PASS12 original piece placement cases, in-place operation and failure atomicity");return 0;
 }
+static int connectivity_cases(void)
+{
+ static const struct {uint32_t faces,vertices[9],excluded,count,largest,labels[3];} cases[]={
+#include "fixtures/geomod_components.inc"
+ };
+ rf_geomod_vertex vertices[9];rf_geomod_face faces[3];rf_collision_face_filter filters[3];
+ rf_geomod_mesh_view mesh={vertices,faces,0,0,0};uint32_t work[128],labels[3],count,largest,words,i,j;
+ for(i=0;i<sizeof(cases)/sizeof(cases[0]);i++) {
+  memset(vertices,0,sizeof(vertices));memset(filters,0,sizeof(filters));mesh.face_count=cases[i].faces;mesh.vertex_count=mesh.face_count*3;
+  for(j=0;j<mesh.vertex_count;j++){float v=(float)cases[i].vertices[j];vertices[j].position[0]=v;vertices[j].position[1]=v*v;vertices[j].position[2]=(j&1)?-0.0f:0.0f;vertices[j].uv[0]=(float)j;}
+  for(j=0;j<mesh.face_count;j++){faces[j]=(rf_geomod_face){j*3,3,0,0};if(cases[i].excluded&(1u<<j))filters[j].face_flags=4;}
+  CHECK(!rf_geomod_component_work_size(&mesh,&words) && words<=128);
+  CHECK(!rf_geomod_mesh_components(&mesh,filters,work,128,labels,&count,&largest));
+  CHECK(count==cases[i].count && largest==cases[i].largest && !memcmp(labels,cases[i].labels,mesh.face_count*4));
+ }
+ for(j=0;j<mesh.face_count;j++)filters[j].face_flags=4;
+ CHECK(!rf_geomod_mesh_components(&mesh,filters,work,128,labels,&count,&largest) && count==0 && largest==UINT32_MAX);
+ for(j=0;j<mesh.face_count;j++)CHECK(labels[j]==UINT32_MAX);
+ labels[0]=123;count=456;largest=789;
+ CHECK(rf_geomod_mesh_components(&mesh,filters,work,words-1,labels,&count,&largest)==RF_RANGE && labels[0]==123 && count==456 && largest==789);
+ vertices[0].position[0]=NAN;
+ CHECK(rf_geomod_mesh_components(&mesh,filters,work,128,labels,&count,&largest)==RF_FORMAT && labels[0]==123 && count==456 && largest==789);
+ puts("PASS6 original-derived component graphs with distinct corner UV and failure preservation");return 0;
+}
 static int radial_cases(void)
 {
  const uint32_t kinds[]={0,1,4,4,4,7},physics[]={0,1,0x10,0x80},flags[]={0x400000,0x400004,0x404000};
@@ -138,5 +162,6 @@ int main(void)
  CHECK(!fragment_box_cases());
  CHECK(!component_cases());
  CHECK(!placement_cases());
+ CHECK(!connectivity_cases());
  printf("PASS %u original-derived changed-box rows plus parent/enable/multi-box/unsupported/rollback tests\n",cases);return 0;
 }

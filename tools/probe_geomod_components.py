@@ -59,10 +59,16 @@ def main():
                 values={labels[i] for i in component};assert len(values)==1
                 assert (next(iter(values))==-1)==(component==retained or not accept)
         for i in excluded:assert labels[i]==-1
-        rows.append(dict(name=name,graph=graph,excluded=excluded,classifier_accept=accept,labels=labels,returned=count,classifier_calls=classifier))
+        raw_labels=[next((n for n,c in enumerate(components) if i in c),0xffffffff) for i in range(len(graph))]
+        rows.append(dict(name=name,graph=graph,excluded=excluded,classifier_accept=accept,labels=labels,returned=count,classifier_calls=classifier,
+                         raw_labels=raw_labels,raw_count=len(components),largest=components.index(retained)))
     out=ROOT/'artifacts/geomod-postedit-re/components.json'
     out.write_text(json.dumps(dict(result='PASS',original_sha256=sha,cases=rows,
         scope='Full4d0990 with real array access, eligibility and graph walk. Linked iterators, allocation, region predicate and downstream4e1180 classification supplied; no full CSG/extraction claim.'),indent=2)+'\n')
+    (ROOT/'tests/fixtures/geomod_components.inc').write_text('/* Graph cases independently checked against original4d0990. */\n'+''.join(
+        ' {'+str(len(r['graph']))+'u,{'+','.join(str(v)+'u' for v in sum(r['graph'],[])+[0]*(9-3*len(r['graph'])))+'},'+
+        str(sum(1<<i for i in r['excluded']))+'u,'+str(r['raw_count'])+'u,'+str(r['largest'])+'u,{'+
+        ','.join(str(v)+'u' for v in r['raw_labels']+[0]*(3-len(r['graph'])))+'}},\n' for r in rows if r['classifier_accept']))
     print('PASS',len(rows),'original connectivity/selection cases')
 
 if __name__=='__main__':main()
