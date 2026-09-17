@@ -2,7 +2,7 @@
 #define RF_GEOMOD_PUBLICATION_DIGEST_H
 #include "rf/geomod_authored_identity.h"
 enum {RF_GEOMOD_DIGEST_AUTHORED_SOURCE=0,RF_GEOMOD_DIGEST_COMPILED_SOURCE=1};
-enum {RF_GEOMOD_DIGEST_UNLIT=0,RF_GEOMOD_DIGEST_SOURCE_CHART=1,RF_GEOMOD_DIGEST_GENERATED_CHART=2};
+enum {RF_GEOMOD_DIGEST_UNLIT=0,RF_GEOMOD_DIGEST_SOURCE_CHART=1,RF_GEOMOD_DIGEST_GENERATED_CHART=2,RF_GEOMOD_DIGEST_AUTHORED_CHART=3};
 typedef struct rf_geomod_digest_material {
     uint32_t key; /* Lookup only; never serialized. */
     rf_geomod_identity_image image;
@@ -40,6 +40,10 @@ int rf_geomod_image_content_digest(const rf_geomod_identity_image *,unsigned cha
  * identity, never a GPU mapping handle. Generated image/projection must use
  * canonical LOCAL tile coordinates and pixels (not atlas packing/whole atlas).
  * Generated tiles are4..64 per axis, source format5, packed1555 two-byte pixels.
+ * AUTHORED_CHART requires a NEIGHBOR with absent compiled reference, a valid
+ * authored source token, and a completed generated tile/retained-map ordinal.
+ * In compiled source domain its face.source_face is UINTMAX; the origin keeps
+ * its authored token. It never admits unlit or pending hidden surfaces.
  * A generated(owner,retained_map) pair has one chart row shared by its faces;
  * duplicate semantic rows reject even if their lookup keys differ.
  * prehashed0 hashes raw image pixels; prehashed1 requires pixelsNULL and a

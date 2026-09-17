@@ -81,3 +81,12 @@ The publication binder now has explicit DEFER_AUTHORED opt-in, admitting NEIGHBO
 An installed beam end cut at (-4.75,2.25,2.5), radius1.05000007, produces49 faces including eight pieces of previously hidden post94 top549. Each cap passes the new binding policy, retains its actual UV/material/provenance and rejects the old crater-only policy. The earlier center-cut case still produces41 faces without hidden references. Synthetic tests also exercise rejection atomicity, invalid ownership and missing-reference distinctions.
 
 Validation: full checked PC build, all122 tests, and stock NXDK build pass (artifacts/hidden-cap-{build,tests,xbox}.log). This is core binding evidence only; the live scene still needs explicit collision identity and generated lighting for these authored caps before beam95 can be enabled. No emulator session or capture was made.
+
+
+## Completed hidden-cap chart identity
+
+Scene-path inspection found an additional prerequisite: RFAP publication validation previously required a compiled reference for every non-crater surface and admitted generated lighting only for crater origins. The digest now supports AUTHORED_CHART, a distinct chart kind for a hidden NEIGHBOR with valid authored source token and absent compiled reference. It requires a completed canonical local 1555 tile and retained-map ordinal; absent lighting and unlit fallback reject. The origin retains authored identity, while compiled-domain mesh faces use the absent-reference sentinel. The new chart kind is serialized explicitly; existing RFAP canonical hashes are unchanged.
+
+Generated chart ownership is unique across both crater and authored chart kinds for each owner/retained-map pair. Tests cover authored/compiled-domain equality, raw/prehashed tile equality, changed UV/projection sensitivity, absent pixels, invalid source token, retained-face misuse, fabricated compiled reference, missing map ordinal, duplicate chart identity and atomic rejection. Full checked PC build, all122 tests and stock NXDK build pass. Logs: artifacts/hidden-cap-digest-{build,tests,xbox}.log.
+
+Live integration remains open: scene publication still requires compiled IDs for collision lookup; hidden neighbor filters need explicit ownership, scene chart capture must emit the new kind, and beam hollow-neighbor data must reach publication jobs. The existing generated-lighting stage selects absent-reference faces, which can serve hidden caps once these metadata paths are wired. No live rendering or save/reload acceptance is claimed by these digest tests.

@@ -82,6 +82,35 @@ int main(void)
     vertices[0].position[0]=NAN;CHECK(rejected(&in));vertices[0].position[0]=0;
     in.material_policy=2;CHECK(rejected(&in));in.material_policy=1;
     CHECK(!rf_geomod_publication_digest(&in,again)&&!memcmp(digest,again,32));
+    /* Hidden wood caps have generated lighting but retain authored identity. */
+    {
+        rf_geomod_digest_chart saved_chart=charts[0];rf_geomod_publication_origin saved_origin=origins[0];
+        unsigned char hidden_digest[32];
+        origins[0].kind=RF_GEOMOD_PUBLICATION_NEIGHBOR;origins[0].reference=UINT32_MAX;
+        CHECK(rejected(&in)); /* No unlit fallback for a hidden authored cap. */
+        charts[0]=charts[1];charts[0].key=keys[0];charts[0].kind=RF_GEOMOD_DIGEST_AUTHORED_CHART;
+        charts[0].source_face=origins[0].source_face;charts[0].retained_map=1;
+        CHECK(!rf_geomod_publication_digest(&in,hidden_digest) && memcmp(hidden_digest,digest,32));
+        in.source_domain=RF_GEOMOD_DIGEST_COMPILED_SOURCE;faces[0].source_face=UINT32_MAX;
+        CHECK(!rf_geomod_publication_digest(&in,again) && !memcmp(again,hidden_digest,32));
+        faces[0].source_face=550;in.source_domain=RF_GEOMOD_DIGEST_AUTHORED_SOURCE;
+        origins[0].reference=149;CHECK(rejected(&in));origins[0].reference=UINT32_MAX;
+        origins[0].kind=RF_GEOMOD_PUBLICATION_RETAINED;CHECK(rejected(&in));origins[0].kind=RF_GEOMOD_PUBLICATION_NEIGHBOR;
+        charts[0].source_face=UINT32_MAX;CHECK(rejected(&in));charts[0].source_face=550;
+        charts[0].retained_map=UINT32_MAX;CHECK(rejected(&in));charts[0].retained_map=1;
+        charts[0].image.pixels=NULL;CHECK(rejected(&in));charts[0].image.pixels=chart_pixels;
+        charts[0].retained_map=charts[1].retained_map;CHECK(rejected(&in));charts[0].retained_map=1;
+        charts[2]=charts[0];charts[2].key=33;in.chart_count=3;CHECK(rejected(&in));in.chart_count=2;
+        charts[0].projection.offset[0]=.25f;
+        CHECK(!rf_geomod_publication_digest(&in,again) && memcmp(again,hidden_digest,32));charts[0].projection.offset[0]=0;
+        vertices[0].uv[0]=.25f;
+        CHECK(!rf_geomod_publication_digest(&in,again) && memcmp(again,hidden_digest,32));vertices[0].uv[0]=0;
+        CHECK(!rf_geomod_image_content_digest(&charts[0].image,charts[0].content_digest));
+        charts[0].prehashed=1;charts[0].image.pixels=NULL;
+        CHECK(!rf_geomod_publication_digest(&in,again) && !memcmp(again,hidden_digest,32));
+        charts[0]=saved_chart;origins[0]=saved_origin;
+        CHECK(!rf_geomod_publication_digest(&in,again) && !memcmp(again,digest,32));
+    }
     {rf_geomod_publication_digest_input empty={0};empty.publication_policy=empty.material_policy=1;
      CHECK(!rf_geomod_publication_digest(&empty,again)&&memcmp(digest,again,32));
      empty.mesh.vertex_count=1;CHECK(rejected(&empty));empty.mesh.vertex_count=0;

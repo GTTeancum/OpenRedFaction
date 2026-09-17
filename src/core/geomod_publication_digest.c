@@ -88,9 +88,9 @@ int rf_geomod_image_content_digest(const rf_geomod_identity_image *image,unsigne
 static int chart_valid(const rf_geomod_digest_chart *c)
 {
     uint32_t i;
-    if(c->key==UINT32_MAX || c->owner==UINT32_MAX || c->kind>RF_GEOMOD_DIGEST_GENERATED_CHART)return 0;
-    if(c->kind==RF_GEOMOD_DIGEST_GENERATED_CHART) {
-        if(c->source_face!=UINT32_MAX || c->retained_map==UINT32_MAX)return 0;
+    if(c->key==UINT32_MAX || c->owner==UINT32_MAX || c->kind>RF_GEOMOD_DIGEST_AUTHORED_CHART)return 0;
+    if(c->kind==RF_GEOMOD_DIGEST_GENERATED_CHART || c->kind==RF_GEOMOD_DIGEST_AUTHORED_CHART) {
+        if((c->kind==RF_GEOMOD_DIGEST_GENERATED_CHART)!=(c->source_face==UINT32_MAX) || c->retained_map==UINT32_MAX)return 0;
         if(c->image.width<4 || c->image.width>64 || c->image.height<4 || c->image.height>64 ||
             c->image.format!=5 || c->image.bytes_per_pixel!=2)return 0;
     } else if(c->source_face==UINT32_MAX || c->retained_map!=UINT32_MAX)return 0;
@@ -142,7 +142,7 @@ int rf_geomod_publication_digest(const rf_geomod_publication_digest_input *v,uns
         for(j=0;j<i;j++) {
             const rf_geomod_digest_chart *a=v->charts+i,*b=v->charts+j;
             if(a->key==b->key)return RF_FORMAT;
-            if(a->kind==RF_GEOMOD_DIGEST_GENERATED_CHART && b->kind==RF_GEOMOD_DIGEST_GENERATED_CHART &&
+            if(a->kind>=RF_GEOMOD_DIGEST_GENERATED_CHART && b->kind>=RF_GEOMOD_DIGEST_GENERATED_CHART &&
                 a->owner==b->owner && a->retained_map==b->retained_map)return RF_FORMAT;
         }
     }
@@ -151,13 +151,14 @@ int rf_geomod_publication_digest(const rf_geomod_publication_digest_input *v,uns
     identity_sha_word(&h,v->mesh.face_count);identity_sha_word(&h,v->mesh.vertex_count);
     for(i=0;i<v->mesh.face_count;i++) {
         const rf_geomod_face *f=v->mesh.faces+i;const rf_geomod_publication_origin *o=v->origins+i;
-        const rf_geomod_digest_material *m=NULL;const rf_geomod_digest_chart *c=NULL;uint32_t expected_source;unsigned char resource[32];
+        const rf_geomod_digest_material *m=NULL;const rf_geomod_digest_chart *c=NULL;uint32_t expected_source,hidden;unsigned char resource[32];
         if(f->first!=next || f->count<3 || f->count>64 || f->first>v->mesh.vertex_count ||
             f->count>v->mesh.vertex_count-f->first || o->kind>RF_GEOMOD_PUBLICATION_NEIGHBOR || o->owner==UINT32_MAX)return RF_FORMAT;
+        hidden=o->kind==RF_GEOMOD_PUBLICATION_NEIGHBOR && o->reference==UINT32_MAX;
         if(o->kind==RF_GEOMOD_PUBLICATION_CRATER) {
             if(o->source_face!=UINT32_MAX)return RF_FORMAT;expected_source=UINT32_MAX;
         } else {
-            if(o->source_face==UINT32_MAX || o->reference==UINT32_MAX)return RF_FORMAT;
+            if(o->source_face==UINT32_MAX || (o->reference==UINT32_MAX && !hidden))return RF_FORMAT;
             expected_source=v->source_domain==RF_GEOMOD_DIGEST_AUTHORED_SOURCE?o->source_face:o->reference;
         }
         if(f->source_face!=expected_source)return RF_FORMAT;
@@ -165,6 +166,7 @@ int rf_geomod_publication_digest(const rf_geomod_publication_digest_input *v,uns
         for(j=0;j<v->chart_count;j++)if(v->charts[j].key==v->face_charts[i]){c=v->charts+j;break;}
         if(!m || !c || c->owner!=o->owner || c->source_face!=o->source_face)return RF_FORMAT;
         if((o->kind==RF_GEOMOD_PUBLICATION_CRATER)!=(c->kind==RF_GEOMOD_DIGEST_GENERATED_CHART))return RF_FORMAT;
+        if(hidden!=(c->kind==RF_GEOMOD_DIGEST_AUTHORED_CHART))return RF_FORMAT;
         identity_sha_word(&h,o->kind);identity_sha_word(&h,o->owner);identity_sha_word(&h,o->source_face);
         identity_sha_word(&h,f->count);resource_digest(&m->image,m->prehashed,m->content_digest,resource);
         identity_sha_add(&h,resource,32);chart_hash(&h,c);
