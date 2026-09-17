@@ -9,6 +9,42 @@ static int reject_atomic(scene_stream *s,const rf_geomod_terrain_view *v,const r
     CHECK(scene_authored_digest_capture(s,v,o,cv,lighting,serial,tail,768,&output,&peak)!=RF_OK);
     CHECK(!memcmp(&output,&old,sizeof(old)) && !memcmp(tail,saved,sizeof(tail)) && peak==0xabcdef01);return 0;
 }
+static int beam_capture(scene_stream *live,const rf_level *level,rf_vpp *maps,const rf_geomod_template *shape) {
+    scene_stream *s=malloc(sizeof(*s));scene_terrain_lighting_stage *stage=NULL;
+    rf_geomod_terrain_view view;const rf_geomod_publication_origin *origins;rf_preview_surface_lightmap *bindings;
+    rf_collision_composition_view composition;rf_authored_owner_expected expected,again;
+    uint16_t tail[768],other[768];uint32_t peak,peak2,i,cap=UINT32_MAX,hidden=0,map,material;
+    float center[3]={-4.75f,2.25f,2.5f},basis[9]={1,0,0,0,1,0,0,0,1};
+    CHECK(s);*s=*live;s->terrain=NULL;s->terrain_authored=NULL;s->terrain_publication=NULL;s->detached_pieces=NULL;
+    s->terrain_sources=NULL;s->terrain_source_count=0;memset(&s->terrain_collision,0,sizeof(s->terrain_collision));
+    CHECK(!scene_terrain_authored_open_source(s,level,maps,6,95));CHECK(!scene_terrain_publication_open(s));
+    CHECK(!rf_geomod_piece_registry_begin(s->detached_pieces,0));
+    CHECK(!rf_geomod_terrain_cut_template(s->terrain,shape,center,basis,1.05000007f,s->terrain_material));
+    rf_geomod_piece_registry_commit(s->detached_pieces);
+    CHECK(!scene_terrain_publication_prepare(s));CHECK(!scene_terrain_publication_candidate(s,&view,&origins,&bindings));
+    CHECK(!rf_collision_composition_pending(s->terrain_publication->composition,&composition));
+    CHECK(!scene_terrain_lighting_stage_prepare(s,&view,bindings,0,&stage));
+    CHECK(!scene_authored_digest_capture(s,&view,origins,&composition,stage->staged,view.mesh.generation,tail,768,&expected,&peak));
+    CHECK(expected.uid==95 && peak<512*1024);
+    for(i=0;i<view.mesh.face_count;i++)if(origins[i].reference==UINT32_MAX) {
+        CHECK(origins[i].kind==RF_GEOMOD_PUBLICATION_NEIGHBOR && tail[i]<stage->staged->terrain_noise->count);
+        CHECK(stage->staged->terrain_noise->maps[tail[i]].material==view.mesh.faces[i].material);cap=i;hidden++;
+    }
+    CHECK(hidden && cap!=UINT32_MAX);map=tail[cap];material=stage->staged->terrain_noise->maps[map].material;
+    CHECK(material!=s->terrain_material);
+    CHECK(!scene_authored_digest_capture(s,&view,origins,&composition,stage->staged,view.mesh.generation,other,768,&again,&peak2));
+    CHECK(!memcmp(&expected,&again,sizeof(expected)) && peak==peak2 && !memcmp(tail,other,view.mesh.face_count*2));
+    stage->staged->terrain_noise->maps[map].material=s->terrain_material;
+    CHECK(!reject_atomic(s,&view,origins,&composition,stage->staged,view.mesh.generation));
+    stage->staged->terrain_noise->maps[map].material=material;
+    stage->staged->terrain_noise->maps[map].base_seed^=1;
+    CHECK(!reject_atomic(s,&view,origins,&composition,stage->staged,view.mesh.generation));
+    stage->staged->terrain_noise->maps[map].base_seed^=1;
+    printf("BEAM_DIGEST faces%u hidden%u maps%u scratch%u three_domains_verified\n",view.mesh.face_count,hidden,stage->staged->terrain_noise->count,peak);
+    scene_terrain_lighting_stage_discard(&stage);scene_terrain_publication_abort(s);
+    rf_geometry_collision_overlay_close(&s->terrain_collision);scene_terrain_publication_close(&s->terrain_publication);
+    rf_geomod_piece_registry_close(&s->detached_pieces);rf_geomod_terrain_close(&s->terrain);scene_terrain_authored_close(&s->terrain_authored);free(s);return 0;
+}
 int main(int argc,char **argv)
 {
     static const char *names[6]={"maps1.vpp","maps2.vpp","maps3.vpp","maps4.vpp","maps_en.vpp","ui.vpp"};
@@ -446,6 +482,7 @@ int main(int argc,char **argv)
         printf("PASS real paired source snapshot: verified source identities, exact cut meshes/body bytes and atomic rejection (%u bytes)\n",bytes);
     }
 
+    CHECK(!beam_capture(&s,&level,maps,&shape));
     rf_geometry_collision_overlay_close(&s.terrain_collision);scene_terrain_publication_close(&s.terrain_publication);
     rf_geomod_piece_registry_close(&s.detached_pieces);free(campaign_surface_palette);campaign_surface_palette=NULL;
     rf_geomod_terrain_close(&s.terrain);scene_terrain_authored_close(&s.terrain_authored);
