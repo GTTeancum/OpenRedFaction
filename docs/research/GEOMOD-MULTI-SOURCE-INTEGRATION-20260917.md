@@ -206,3 +206,16 @@ The reproducible tools/check_paired_authored_reset.py starts with both rocket cu
 Native artifacts/xemu/render-20260917-124824 passes75/75 checks after the entire1150-frame sequence. Per-source histories, three accepted rockets, publication and settled-fragment state/hash match PC. It reports16384 physical pages and3687 available at the endpoint (about14.40MiB). The final native framebuffer was inspected and agrees with the expected recut scene. All122 PC tests pass, including the additional fresh-reset controls; the expanded all-four-source clearance test also passes. The harness builds the stock NXDK profile, restores disc staging and does not create a retained HDD clone.
 
 Paired save writing/restoration still reject until source-indexed persistence is implemented. Unsafe live reset, simultaneous multi-registry cuts and broader shared-neighbor topology are not established by the safe reset run.
+
+
+## Source-indexed persistence directory foundation
+
+RFAS1 now provides a bounded, allocation-free directory for one to four authored source histories and optional detached-body payloads. It retains source order because scene hit/support batch IDs depend on the source slot. Each entry carries its UID, a32-byte identity and exact RGCH/RFPB lengths; payloads follow the complete directory without padding. This is a new reconstruction format, not an original-game save format.
+
+The codec rejects duplicate/sentinel UIDs, zero identities, unsupported envelopes, malformed lengths/counts, reserved words, truncated spans and trailing data. Packing validates all entries and capacity before writing, and reading publishes its output only after complete validation. Input and output buffers must be disjoint. These are envelope checks, not authentication or deep body/history validation: callers must compare actual source identities and decode each payload privately before committing.
+
+Tests cover two/four entries, optional body state, every truncated prefix, later-entry corruption and unchanged outputs on rejection. The real93/94 scene fixture packs its two three-cut histories into7608 bytes, recreates both cores and compares every reconstructed mesh vertex and face byte with the originals. That fixture intentionally uses synthetic identity bytes and no detached-body registries; it does not establish scene restore, identity authentication or rubble continuation.
+
+All122 PC tests pass and the stock-profile NXDK build produces default.xbe and the diagnostic ISO. Logs are artifacts/source-save-directory-build.log, artifacts/source-save-directory-tests.log and artifacts/source-save-directory-xbox.log. No native session or retained HDD clone was needed for this codec-only addition.
+
+Live paired save writing/restoration remain explicitly disabled. Next integration must version the enclosing save, bind authentic per-source identities, persist the shared atlas/admission journal once, stage every core and registry under the Xbox memory budget, validate player placement/support against the staged collection, and commit the entire collection atomically. Legacy single-source formats must retain their source identity semantics. Unsafe live reset, simultaneous-cut memory and mixed-hardness coverage also remain open.

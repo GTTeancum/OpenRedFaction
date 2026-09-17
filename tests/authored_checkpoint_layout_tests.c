@@ -8,9 +8,58 @@ static void put(uint32_t offset,uint32_t x)
 {unsigned char *p=payload+offset;p[0]=(unsigned char)x;p[1]=(unsigned char)(x>>8);p[2]=(unsigned char)(x>>16);p[3]=(unsigned char)(x>>24);}
 static int rejected(uint32_t bytes)
 {rf_authored_checkpoint_layout a,b;memset(&a,0xa5,sizeof(a));b=a;return rf_authored_checkpoint_layout_read(payload,bytes,&a)!=RF_OK && !memcmp(&a,&b,sizeof(a));}
+static void source_put(unsigned char *p,uint32_t offset,uint32_t v)
+{p[offset]=(unsigned char)v;p[offset+1]=(unsigned char)(v>>8);p[offset+2]=(unsigned char)(v>>16);p[offset+3]=(unsigned char)(v>>24);}
+static int source_rejected(const unsigned char *p,uint32_t bytes)
+{rf_authored_sources_layout out,kept;memset(&out,0xa5,sizeof(out));kept=out;return rf_authored_sources_read(p,bytes,&out)!=RF_OK && !memcmp(&out,&kept,sizeof(out));}
+static int source_directory(void)
+{
+    unsigned char history[28]={0},pieces[344]={0},empty[16]={0},packet[1024],saved[1024];
+    rf_authored_source_blob sources[4]={{0}};rf_authored_sources_layout layout;uint32_t i,n,written;
+    memcpy(history,"RGCH",4);source_put(history,4,1);source_put(history,8,28);
+    memcpy(pieces,"RFPB",4);source_put(pieces,4,2);source_put(pieces,8,344);source_put(pieces,12,1);
+    memcpy(empty,"RFPB",4);source_put(empty,4,2);source_put(empty,8,16);
+    for(i=0;i<4;i++) {
+        sources[i].uid=94-i;memset(sources[i].identity,(int)i+1,32);
+        sources[i].core=history;sources[i].core_bytes=28;
+    }
+    sources[0].pieces=pieces;sources[0].piece_bytes=344;sources[1].pieces=empty;sources[1].piece_bytes=16;
+    memset(packet,0xa5,sizeof(packet));
+    CHECK(!rf_authored_sources_size(sources,2,&n) && n==528);
+    CHECK(!rf_authored_sources_pack(sources,2,packet,sizeof(packet),&written) && written==n);
+    CHECK(!rf_authored_sources_read(packet,n,&layout) && layout.count==2 && layout.bytes==n);
+    CHECK(layout.sources[0].uid==94 && layout.sources[1].uid==93);
+    CHECK(layout.sources[0].core_offset==112 && layout.sources[0].piece_offset==140);
+    CHECK(layout.sources[1].core_offset==484 && layout.sources[1].piece_offset==512);
+    for(i=0;i<2;i++) {
+        CHECK(!memcmp(layout.sources[i].identity,sources[i].identity,32));
+        CHECK(!memcmp(packet+layout.sources[i].core_offset,history,28));
+        CHECK(!memcmp(packet+layout.sources[i].piece_offset,sources[i].pieces,sources[i].piece_bytes));
+    }
+    memcpy(saved,packet,sizeof(saved));
+    for(i=0;i<n;i++)CHECK(source_rejected(packet,i));CHECK(source_rejected(packet,n+1));
+#define SOURCE_BAD(offset,value) do{source_put(packet,offset,value);CHECK(source_rejected(packet,n));memcpy(packet,saved,sizeof(packet));}while(0)
+    SOURCE_BAD(4,2);SOURCE_BAD(12,0);SOURCE_BAD(12,5);SOURCE_BAD(16,UINT32_MAX);
+    SOURCE_BAD(64,94);SOURCE_BAD(20,UINT32_MAX);SOURCE_BAD(24,UINT32_MAX);SOURCE_BAD(76,1);
+    SOURCE_BAD(144,3);SOURCE_BAD(152,2);SOURCE_BAD(116,2);SOURCE_BAD(124,RF_GEOMOD_CUT_LIMIT+1);
+#undef SOURCE_BAD
+    memset(packet+80,0,32);CHECK(source_rejected(packet,n));memcpy(packet,saved,sizeof(packet));
+    written=777;CHECK(rf_authored_sources_pack(sources,2,packet,n-1,&written)==RF_RANGE);
+    CHECK(written==777 && !memcmp(packet,saved,sizeof(packet)));
+    sources[1].uid=94;CHECK(rf_authored_sources_pack(sources,2,packet,sizeof(packet),&written)==RF_FORMAT);
+    CHECK(written==777 && !memcmp(packet,saved,sizeof(packet)));sources[1].uid=93;
+    source_put(empty,12,1);CHECK(rf_authored_sources_pack(sources,2,packet,sizeof(packet),&written)==RF_FORMAT);
+    CHECK(written==777 && !memcmp(packet,saved,sizeof(packet)));source_put(empty,12,0);
+    sources[1].piece_bytes=0;sources[1].pieces=NULL;
+    CHECK(!rf_authored_sources_pack(sources,4,packet,sizeof(packet),&written));
+    CHECK(!rf_authored_sources_read(packet,written,&layout) && layout.count==4 && !layout.sources[1].piece_bytes);
+    n=777;CHECK(rf_authored_sources_size(sources,5,&n)==RF_RANGE && n==777);
+    puts("PASS source directory: independent identities/core/body spans, four owners, truncated/duplicate/malformed rejection and atomic packing");return 0;
+}
 int main(void)
 {
     rf_authored_checkpoint_layout v,b;uint32_t bytes,i;
+    CHECK(!source_directory());
     CHECK(!rf_authored_checkpoint_layout_size(28,0,0,0,&v));CHECK(v.bytes==444 && v.face_offset==444);
     CHECK(!rf_authored_checkpoint_layout_size(3116,2,3,12,&v));bytes=v.bytes;
     CHECK(bytes==3916 && v.core_offset==416 && v.admission_offset==3532 && v.map_offset==3628 && v.face_offset==3892);

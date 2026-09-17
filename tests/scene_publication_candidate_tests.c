@@ -245,6 +245,38 @@ static int grouped_scene(const rf_level *level,rf_geometry *geometry,rf_geometry
         }
         free(first_history);free(before);
     }
+    {
+        rf_authored_source_blob blobs[2]={{0}};rf_authored_sources_layout layout;
+        unsigned char *history[2]={0},*packet;uint32_t bytes,written;
+        for(i=0;i<2;i++) {
+            blobs[i].uid=assets[i]->asset_view.source_uid;
+            /* Directory test identities only; production identity authentication
+             * belongs to the upcoming scene save/restore integration. */
+            memset(blobs[i].identity,(int)blobs[i].uid,32);
+            CHECK(!rf_geomod_terrain_history_size(sources[i].terrain,&blobs[i].core_bytes));
+            history[i]=malloc(blobs[i].core_bytes);CHECK(history[i]);blobs[i].core=history[i];
+            CHECK(!rf_geomod_terrain_history_encode(sources[i].terrain,history[i],blobs[i].core_bytes));
+        }
+        CHECK(!rf_authored_sources_size(blobs,2,&bytes));packet=malloc(bytes);CHECK(packet);
+        CHECK(!rf_authored_sources_pack(blobs,2,packet,bytes,&written) && written==bytes);
+        CHECK(!rf_authored_sources_read(packet,bytes,&layout));
+        for(i=0;i<2;i++) {
+            rf_geomod_terrain *decoded=NULL;rf_geomod_terrain_view original,restored;
+            rf_collision_face_filter generated=assets[i]->asset_view.source_filters[0];
+            generated.query_flags=0;generated.face_flags=256;
+            CHECK(layout.sources[i].uid==blobs[i].uid && !layout.sources[i].piece_bytes);
+            CHECK(!rf_geomod_terrain_open(&assets[i]->source,assets[i]->asset_view.source_filters,&generated,0,4096,800,1048576,&decoded));
+            CHECK(!rf_geomod_terrain_set_mapping(decoded,128,128));
+            CHECK(!rf_geomod_terrain_history_decode(decoded,packet+layout.sources[i].core_offset,layout.sources[i].core_bytes));
+            CHECK(!rf_geomod_terrain_get(sources[i].terrain,&original));CHECK(!rf_geomod_terrain_get(decoded,&restored));
+            CHECK(original.cuts==restored.cuts && original.mesh.vertex_count==restored.mesh.vertex_count && original.mesh.face_count==restored.mesh.face_count);
+            CHECK(!memcmp(original.mesh.vertices,restored.mesh.vertices,original.mesh.vertex_count*sizeof(*original.mesh.vertices)));
+            CHECK(!memcmp(original.mesh.faces,restored.mesh.faces,original.mesh.face_count*sizeof(*original.mesh.faces)));
+            rf_geomod_terrain_close(&decoded);free(history[i]);
+        }
+        printf("PASS indexed directory: two real three-cut source histories reconstruct identical meshes from%u bytes\n",bytes);
+        free(packet);
+    }
     rf_geometry_collision_overlay_close(&s.terrain_collision);scene_terrain_publication_close(&s.terrain_publication);
     /* A successful edit replaces the active core alias. Switching must retain
      * the new owner, never a freed core left in the collection entry. */

@@ -22,4 +22,28 @@ int rf_authored_checkpoint_layout_size_pieces(uint32_t core_bytes,uint32_t admis
  * No checksum: RFSG transport supplies it. Inputs/output must be disjoint. */
 int rf_authored_checkpoint_layout_read(const void *data,uint32_t bytes,
     rf_authored_checkpoint_layout *out);
+/* RFAS1 source directory for the upcoming collection save payload. This is not
+ * a complete RFDS/RFCP save and does not enable multi-source restore by itself.
+ * Source order is retained (scene hit/support IDs depend on it). All integers LE.
+ * Each48-byte entry: UID, core length, piece length, reserved0, identity32.
+ * Then each entry's RGCH core and optional RFPB state, without padding. */
+typedef struct rf_authored_source_blob {
+    uint32_t uid;unsigned char identity[32];
+    const void *core,*pieces;uint32_t core_bytes,piece_bytes;
+} rf_authored_source_blob;
+typedef struct rf_authored_source_span {
+    uint32_t uid;unsigned char identity[32];
+    uint32_t core_offset,core_bytes,piece_offset,piece_bytes;
+} rf_authored_source_span;
+typedef struct rf_authored_sources_layout {
+    uint32_t bytes,count;rf_authored_source_span sources[4];
+} rf_authored_sources_layout;
+/* Envelope checks only: unique non-sentinel UIDs, nonzero identities, bounded
+ * exact spans and RGCH/RFPB headers. Source identity comparison, core/body
+ * semantics, aggregate reconstruction and player fit remain caller gates.
+ * No allocation. Buffers/output parameters must be disjoint from inputs.
+ * All errors preserve outputs, including pack's buffer and written count. */
+int rf_authored_sources_size(const rf_authored_source_blob *,uint32_t count,uint32_t *bytes);
+int rf_authored_sources_pack(const rf_authored_source_blob *,uint32_t count,void *buffer,uint32_t capacity,uint32_t *written);
+int rf_authored_sources_read(const void *data,uint32_t bytes,rf_authored_sources_layout *out);
 #endif
