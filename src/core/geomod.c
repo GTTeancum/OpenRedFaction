@@ -1822,12 +1822,11 @@ static int repair_cavity_pending_provenance(rf_geomod_storage *s,rf_geomod_multi
             const rf_geomod_vertex *a=s->vertices[bank]+face->first+e;
             const rf_geomod_vertex *b=s->vertices[bank]+face->first+(e+1)%face->count;
             uint16_t edge=work->compact_edges[face->first+e];
-            double d[3],fractions[64];const rf_geomod_vertex *points[64];uint32_t axis=0,used=0,i,j;
+            double d[3],length=0,fractions[64];const rf_geomod_vertex *points[64];uint32_t used=0,i,j;
             if(n==64)return RF_RANGE;polygon_edges[n]=edge;polygon[n++]=*a;
             if(plane==UINT16_MAX || edge==UINT16_MAX || (provenance && plane==edge))continue;
-            for(k=0;k<3;k++)d[k]=(double)b->position[k]-a->position[k];
-            for(k=1;k<3;k++)if(fabs(d[k])>fabs(d[axis]))axis=k;
-            if(d[axis]==0)return RF_FORMAT;
+            for(k=0;k<3;k++){d[k]=(double)b->position[k]-a->position[k];length+=d[k]*d[k];}
+            if(length==0)return RF_FORMAT;
             for(q=0;q<s->nf[bank];q++) {
                 const rf_geomod_face *other=s->faces[bank]+q;uint16_t op=work->compact_planes[q];
                 if(op!=plane && op!=edge)continue;
@@ -1836,7 +1835,10 @@ static int repair_cavity_pending_provenance(rf_geomod_storage *s,rf_geomod_multi
                     if(!((op==plane && oe==edge)||(op==edge && oe==plane)))continue;
                     for(endpoint=0;endpoint<2;endpoint++) {
                         const rf_geomod_vertex *p=s->vertices[bank]+other->first+(r+endpoint)%other->count;
-                        double t=((double)p->position[axis]-a->position[axis])/d[axis];
+                        /* Distinct rounded endpoints can tie on the dominant axis.
+                         * Project on the complete retained edge before ordering. */
+                        double t=0;for(k=0;k<3;k++)t+=((double)p->position[k]-a->position[k])*d[k];
+                        t/=length;
                         if(t<=0 || t>=1)continue;
                         for(i=0;i<used;i++)if(!memcmp(points[i]->position,p->position,12))break;
                         if(i<used)continue;

@@ -887,3 +887,43 @@ artifacts/authored-post-live/sweep-prefix-01..14.exact.json,
 sweep4/intersections.log and sweep4/registration.log. Estimate remains
 ~50% overall/~72% GeoMod. This is a diagnostic correction, not another claimed
 GeoMod geometry fix.
+
+
+## Full-direction edge projection repairs the cut6 seam
+
+Tracing cut6 identifies face296/diagonal2090/cut672 versus face672/edge296/cut310.
+The two retained points differ by one z float step but share the dominant-axis
+coordinate. Repair previously used only that dominant coordinate to decide
+whether a point lies inside an edge and to order insertion. It could therefore
+classify the distinct point as an endpoint and skip it.
+
+Repair now projects along the complete edge direction using double arithmetic,
+then retains the existing point positions exactly. UV interpolation uses the
+same projected parameter on the receiving face. No positional snap, proximity
+weld or acceptance tolerance changed. A focused regression has a point sharing
+the endpoint's x coordinate but strictly interior along the complete direction;
+it must be inserted and keep the receiver's interpolated UV. The previous
+rounded midpoint UV fixture now expects the full-direction parameter.
+
+All14 saved sweep prefixes now have exact reversed-edge pairing, including6
+onward; the fixed16-cut history still passes the existing proximity closure
+check. A rebuilt ordinary PC wall-sweep commits14 and yields6588 vertices/1259
+faces with zero unmatched exact edges. The combined harness still reports FAIL
+because the existing proximity checker conflates distinct sides of the thin
+cut4 triangle. That gate remains unchanged, so this is a repaired exact seam,
+not full acceptance of the sweep or a general nonintersection proof.
+
+Authored reconstruction policy9 fingerprint:
+589361acbfa856a9076dd61290bbf2d9321e7dbd4718cb0d2312c586c70de641.
+Default PC full run passed109 tests; after updating the policy fingerprint and
+correcting the new endpoint fixture, both remaining targeted tests pass.
+Authored two-shot save/reload/next-blast exactly matches uninterrupted state.
+Expanded NXDK build passes with the existing linker warning. No native runtime,
+new visual inspection or audio acceptance is claimed for this change.
+
+Evidence: artifacts/authored-post-live/sweep6/trace.log, projected-sweep.log,
+projected-sweep-01..14.mesh, projected-fixed.log, projected-edge-full-tests.log,
+projected-edge-continuation/report.json, projected-edge-xbox-build.log;
+artifacts/geomod-projected-sweep/exact.json and closure.log. Estimate remains
+~50% overall/~72% GeoMod. Next distinguish exact thin-surface topology from
+proximity-check ambiguity without accepting actual duplicate surfaces.

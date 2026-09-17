@@ -1,6 +1,6 @@
 # Red Faction Xbox / PC - open work
 
-- GeoMod topology: Resolve the wall-sweep's cut6 one-float-step seam and investigate proximity-check ambiguity at cut4; exact edge pairing passes cuts1..5, while the fixed-aim Xbox sequence passes58 checks.
+- GeoMod validation: Resolve thin-surface proximity ambiguity and verify the projection repair on Xbox; the live14-cut wall sweep now has exact edge pairing throughout.
 - GeoMod reload: Broaden native continuation coverage after16-cut stock64MiB reload passes58 checks; the135598-byte checkpoint matches PC exactly.
 - GeoMod rollback: Make legacy DEV cavity lighting exhaustion transactional; the1024-map experiment aborted after core publication.
 

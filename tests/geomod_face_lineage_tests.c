@@ -175,9 +175,28 @@ int main(void)
         CHECK(!rf_geomod_storage_pending(s,&result));
         for(j=0;j<result.faces[0].count;j++) {
             const rf_geomod_vertex *p=result.vertices+result.faces[0].first+j;
-            if(!memcmp(p->position,b[1].position,12)){CHECK(p->uv[0]==.5f && p->uv[1]==0);found++;}
+            if(!memcmp(p->position,b[1].position,12)){CHECK(p->uv[0]==(float)(((double)b[1].position[0]+b[1].position[1])*.5) && p->uv[1]==0);found++;}
         }
         CHECK(found==1);rf_geomod_storage_close(&s);free(provenance);
+    }
+    {
+        rf_geomod_vertex a[3]={{{0,0,0},{0,0}},{{1,1,0},{1,0}},{{0,1,0},{0,1}}};
+        rf_geomod_vertex b[3]={{{1,.99999988f,0},{8,8}},{{0,0,0},{7,7}},{{1,0,0},{6,6}}};
+        rf_geomod_face face={0,3,77,UINT32_MAX};rf_geomod_mesh_view mesh={a,&face,3,1,0},result;
+        geomod_step_support *provenance=calloc(1,sizeof(*provenance));uint16_t diagonal;uint32_t j,found=0;
+        CHECK(provenance && !diagonal_register(&provenance->diagonals,a[0].position,a[1].position,&diagonal));
+        CHECK(!rf_geomod_storage_open(&mesh,128,16,32768,&s));CHECK(!rf_geomod_storage_begin(s));
+        CHECK(!rf_geomod_storage_append(s,a,3,77,UINT32_MAX));CHECK(!rf_geomod_storage_append(s,b,3,77,UINT32_MAX));
+        w->compact_planes[0]=w->compact_planes[1]=0;
+        w->compact_edges[0]=diagonal;w->compact_edges[1]=1;w->compact_edges[2]=2;
+        w->compact_edges[3]=diagonal;w->compact_edges[4]=3;w->compact_edges[5]=4;
+        CHECK(!repair_cavity_pending_provenance(s,w,NULL,provenance));CHECK(!rf_geomod_storage_pending(s,&result));
+        for(j=0;j<result.faces[0].count;j++) {
+            const rf_geomod_vertex *p=result.vertices+result.faces[0].first+j;
+            if(!memcmp(p->position,b[0].position,12)){CHECK(p->uv[0]<1 && p->uv[0]>.99f && p->uv[1]==0);found++;}
+        }
+        CHECK(found==1); /* Dominant x equals the endpoint; full projection is interior. */
+        rf_geomod_storage_close(&s);free(provenance);
     }
     free(tags);free(w);
     puts("PASS birth separation, same-birth merge/index movement, repair and concave partition propagation; original diagonal intersections across shortened edges");return 0;
