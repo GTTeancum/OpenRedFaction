@@ -47,6 +47,7 @@ static inline int scene_authored_sources_write(const scene_stream *s,void *buffe
     for(i=0;i<s->terrain_source_count;i++) {
         blobs[i].core=scratch+at;
         status=rf_geomod_terrain_history_encode(cores[i],scratch+at,blobs[i].core_bytes);if(status)goto done;
+        status=scene_checkpoint_materials(scratch+at,blobs[i].core_bytes,s->terrain_material,0);if(status)goto done;
         at+=blobs[i].core_bytes;blobs[i].pieces=scratch+at;
         status=rf_geomod_piece_registry_state_encode(pieces[i],scratch+at,blobs[i].piece_bytes);if(status)goto done;
         at+=blobs[i].piece_bytes;
@@ -57,4 +58,59 @@ static inline int scene_authored_sources_write(const scene_stream *s,void *buffe
     memcpy(buffer,packet,bytes);*written=bytes;
 done:
     free(packet);free(scratch);return status;
+}
+
+/* Privately reconstructed owners; never attached to a live publication here.
+ * Caller must reserve the rest of the live scene + shared publication work
+ * separately, then validate shared digests and player support before commit. */
+typedef struct scene_authored_sources_stage {
+    uint32_t count,reserved_bytes;
+    rf_geomod_terrain *cores[4];rf_geomod_piece_registry *pieces[4];
+} scene_authored_sources_stage;
+static inline void scene_authored_sources_stage_discard(scene_authored_sources_stage **owner)
+{
+    uint32_t i;scene_authored_sources_stage *p;if(!owner || !(p=*owner))return;
+    for(i=0;i<p->count;i++){rf_geomod_terrain_close(&p->cores[i]);rf_geomod_piece_registry_close(&p->pieces[i]);}
+    free(p);*owner=NULL;
+}
+static inline int scene_authored_sources_stage_prepare(const scene_stream *s,const void *data,uint32_t bytes,
+    uint32_t serial,uint32_t budget,scene_authored_sources_stage **out)
+{
+    const unsigned char *input=data;rf_authored_sources_layout layout;
+    scene_authored_sources_stage *p=NULL;scene_stream *factory_scene=NULL;unsigned char *history=NULL;
+    uint32_t i,max_history=0;uint64_t reserved;int status;
+    if(!out || serial==UINT32_MAX || !s || (s->terrain_publication && s->terrain_publication->has_pending))return RF_RANGE;
+    status=scene_authored_sources_match(s,data,bytes,&layout);if(status)return status;
+    for(i=0;i<layout.count;i++) {
+        const rf_authored_source_span *span=layout.sources+i;
+        status=scene_checkpoint_materials_mode(input+span->core_offset,span->core_bytes,0,0,0);if(status)return status;
+        if(checkpoint_u32(input+span->core_offset+12)>serial)return RF_FORMAT;
+        if(span->core_bytes>max_history)max_history=span->core_bytes;
+    }
+    reserved=sizeof(*p)+sizeof(*factory_scene)+max_history+
+        (uint64_t)layout.count*(SCENE_TERRAIN_CORE_BUDGET+SCENE_DETACHED_BUDGET);
+    if(reserved>budget)return RF_RANGE;
+    p=calloc(1,sizeof(*p));factory_scene=malloc(sizeof(*factory_scene));history=malloc(max_history);
+    if(!p || !factory_scene || !history){status=RF_IO;goto done;}
+    p->count=layout.count;p->reserved_bytes=(uint32_t)reserved;*factory_scene=*s;
+    for(i=0;i<layout.count;i++) {
+        const rf_authored_source_span *span=layout.sources+i;scene_authored_edit_context factory={0};
+        rf_collision_face_filter generated=s->terrain_sources[i].authored->asset_view.source_filters[0];
+        factory_scene->terrain_authored=s->terrain_sources[i].authored;factory.scene=factory_scene;
+        status=scene_authored_edit_create(&factory,SCENE_TERRAIN_CORE_BUDGET,&p->cores[i]);if(status)goto done;
+        generated.query_flags=0;generated.face_flags=256;
+        status=scene_detached_open(factory_scene,&generated,&p->pieces[i]);if(status)goto done;
+        status=rf_geomod_piece_registry_begin(p->pieces[i],1);if(status)goto done;
+        status=rf_geomod_terrain_set_extraction(p->cores[i],rf_geomod_piece_registry_emit,p->pieces[i]);if(status)goto done;
+        memcpy(history,input+span->core_offset,span->core_bytes);
+        status=scene_checkpoint_materials(history,span->core_bytes,0,s->terrain_material);if(status)goto done;
+        status=rf_geomod_terrain_history_decode(p->cores[i],history,span->core_bytes);if(status)goto done;
+        rf_geomod_piece_registry_commit(p->pieces[i]);
+        if(span->piece_bytes) {
+            status=rf_geomod_piece_registry_state_decode(p->pieces[i],input+span->piece_offset,span->piece_bytes);if(status)goto done;
+        }
+    }
+    *out=p;p=NULL;status=RF_OK;
+done:
+    free(history);free(factory_scene);scene_authored_sources_stage_discard(&p);return status;
 }

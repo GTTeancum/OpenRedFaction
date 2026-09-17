@@ -233,6 +233,7 @@ int main(int argc,char **argv)
 
     {
         scene_stream *pair=malloc(sizeof(*pair));unsigned char *packet=malloc(SCENE_CHECKPOINT_MAX),*kept=malloc(SCENE_CHECKPOINT_MAX);
+        scene_authored_sources_stage *staged_sources=NULL,*failed_sources;
         rf_authored_sources_layout layout,old;uint32_t uids[2]={94,93},bytes=0,encoded_bytes;CHECK(pair && packet && kept);
         *pair=s;pair->terrain=NULL;pair->terrain_authored=NULL;pair->detached_pieces=NULL;
         pair->terrain_sources=NULL;pair->terrain_source_count=0;pair->terrain_publication=NULL;
@@ -247,9 +248,10 @@ int main(int argc,char **argv)
         memset(packet,0xa5,SCENE_CHECKPOINT_MAX);
         CHECK(!scene_authored_sources_write(pair,packet,SCENE_CHECKPOINT_MAX,&bytes));
         CHECK(!scene_authored_sources_match(pair,packet,bytes,&layout) && layout.count==2);
+        CHECK(!scene_authored_sources_stage_prepare(pair,packet,bytes,1,8u*1024u*1024u,&staged_sources));
         for(i=0;i<2;i++) {
-            rf_geomod_terrain *decoded=NULL;rf_geomod_terrain_view before,after;
-            rf_geomod_piece_registry *restored_pieces=NULL;scene_authored_edit_context factory={0};rf_collision_face_filter generated;
+            rf_geomod_terrain *decoded=staged_sources->cores[i];rf_geomod_terrain_view before,after;
+            rf_geomod_piece_registry *restored_pieces=staged_sources->pieces[i];
             scene_terrain_authored_assets *asset=pair->terrain_sources[i].authored;
             CHECK(!memcmp(layout.sources[i].identity,asset->source_identity,32));
             CHECK(layout.sources[i].uid==uids[i] && layout.sources[i].piece_bytes>16);
@@ -259,23 +261,38 @@ int main(int argc,char **argv)
             CHECK(!rf_geomod_piece_registry_state_encode(pair->terrain_sources[i].pieces,kept,encoded_bytes));
             CHECK(!memcmp(kept,packet+layout.sources[i].piece_offset,encoded_bytes));
             CHECK(!scene_terrain_sources_select(pair,i));
-            factory.scene=pair;CHECK(!scene_authored_edit_create(&factory,SCENE_TERRAIN_CORE_BUDGET,&decoded));
-            generated=asset->asset_view.source_filters[0];generated.query_flags=0;generated.face_flags=256;
-            CHECK(!scene_detached_open(pair,&generated,&restored_pieces));
-            CHECK(!rf_geomod_piece_registry_begin(restored_pieces,1));
-            CHECK(!rf_geomod_terrain_set_extraction(decoded,rf_geomod_piece_registry_emit,restored_pieces));
-            CHECK(!rf_geomod_terrain_history_decode(decoded,packet+layout.sources[i].core_offset,layout.sources[i].core_bytes));
-            rf_geomod_piece_registry_commit(restored_pieces);
-            CHECK(!rf_geomod_piece_registry_state_decode(restored_pieces,packet+layout.sources[i].piece_offset,layout.sources[i].piece_bytes));
             CHECK(!rf_geomod_piece_registry_state_encode(restored_pieces,kept,encoded_bytes));
             CHECK(!memcmp(kept,packet+layout.sources[i].piece_offset,encoded_bytes));
             CHECK(!rf_geomod_terrain_get(pair->terrain,&before));CHECK(!rf_geomod_terrain_get(decoded,&after));
             CHECK(before.cuts==1 && after.cuts==1 && before.mesh.face_count==after.mesh.face_count && before.mesh.vertex_count==after.mesh.vertex_count);
             CHECK(!memcmp(before.mesh.faces,after.mesh.faces,before.mesh.face_count*sizeof(*before.mesh.faces)));
             CHECK(!memcmp(before.mesh.vertices,after.mesh.vertices,before.mesh.vertex_count*sizeof(*before.mesh.vertices)));
-            rf_geomod_terrain_close(&decoded);rf_geomod_piece_registry_close(&restored_pieces);
+
         }
         memcpy(kept,packet,SCENE_CHECKPOINT_MAX);old=layout;
+        failed_sources=staged_sources;
+        CHECK(scene_authored_sources_stage_prepare(pair,packet,bytes,1,staged_sources->reserved_bytes-1,&failed_sources)==RF_RANGE);
+        CHECK(failed_sources==staged_sources);
+        CHECK(scene_authored_sources_stage_prepare(pair,packet,bytes,0,8u*1024u*1024u,&failed_sources)==RF_FORMAT);
+        /* Corrupt later-source health after the first source has reconstructed. */
+        checkpoint_put(packet+layout.sources[1].piece_offset+16+320,0x7fc00000u);
+        CHECK(scene_authored_sources_stage_prepare(pair,packet,bytes,1,8u*1024u*1024u,&failed_sources)==RF_FORMAT);
+        CHECK(failed_sources==staged_sources);memcpy(packet,kept,SCENE_CHECKPOINT_MAX);
+        scene_authored_sources_stage_discard(&staged_sources);
+        /* Different runtime slot: histories remain canonical, and restored
+         * extraction bodies retain exactly the saved state. */
+        pair->terrain_material--;
+        CHECK(!scene_authored_sources_stage_prepare(pair,packet,bytes,1,8u*1024u*1024u,&staged_sources));
+        for(i=0;i<2;i++) {
+            CHECK(!rf_geomod_terrain_history_encode(staged_sources->cores[i],kept,layout.sources[i].core_bytes));
+            CHECK(!scene_checkpoint_materials(kept,layout.sources[i].core_bytes,pair->terrain_material,0));
+            CHECK(!memcmp(kept,packet+layout.sources[i].core_offset,layout.sources[i].core_bytes));
+            CHECK(!rf_geomod_piece_registry_state_encode(staged_sources->pieces[i],kept,layout.sources[i].piece_bytes));
+            CHECK(!memcmp(kept,packet+layout.sources[i].piece_offset,layout.sources[i].piece_bytes));
+        }
+        printf("PASS private source restore: later-body rollback, canonical material remap, reservation%u bytes\n",staged_sources->reserved_bytes);
+        scene_authored_sources_stage_discard(&staged_sources);pair->terrain_material++;
+        memcpy(kept,packet,SCENE_CHECKPOINT_MAX);
         packet[16+48+16]^=1;CHECK(scene_authored_sources_match(pair,packet,bytes,&layout)==RF_FORMAT);
         CHECK(!memcmp(&old,&layout,sizeof(old)));memcpy(packet,kept,SCENE_CHECKPOINT_MAX);
         encoded_bytes=777;CHECK(scene_authored_sources_write(pair,packet,bytes-1,&encoded_bytes)==RF_RANGE);
