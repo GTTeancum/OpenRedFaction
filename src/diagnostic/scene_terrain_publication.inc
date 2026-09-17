@@ -141,6 +141,7 @@ static int scene_terrain_publication_prepare_from(scene_stream *s,
     job.crater_origin=(rf_geomod_publication_origin){RF_GEOMOD_PUBLICATION_CRATER,a->asset_view.source_uid,UINT32_MAX,s->terrain_fallback};
     job.source_planes=a->asset_view.source_planes;job.source_plane_count=a->source.face_count;
     job.solids=a->asset_view.solids;job.solid_count=a->asset_view.solid_count;job.cuts=cuts;job.cut_count=terrain.cuts;
+    job.neighbor_voids=a->asset_view.neighbor_voids;job.neighbor_void_count=a->asset_view.neighbor_void_count;
     if(s->terrain_source_count>1) {
         rf_geomod_publication_job jobs[4];rf_geomod_publication_cut other_cuts[4][RF_GEOMOD_CUT_LIMIT];
         uint32_t source,cut,total=0,selected=0;
@@ -158,6 +159,7 @@ static int scene_terrain_publication_prepare_from(scene_stream *s,
                 jobs[source].window_origins=asset->asset_view.window_origins;jobs[source].neighbor_origins=asset->asset_view.neighbor_origins;
                 jobs[source].source_planes=asset->asset_view.source_planes;jobs[source].source_plane_count=asset->source.face_count;
                 jobs[source].solids=asset->asset_view.solids;jobs[source].solid_count=asset->asset_view.solid_count;
+                jobs[source].neighbor_voids=asset->asset_view.neighbor_voids;jobs[source].neighbor_void_count=asset->asset_view.neighbor_void_count;
                 jobs[source].crater_origin=(rf_geomod_publication_origin){RF_GEOMOD_PUBLICATION_CRATER,
                     asset->asset_view.source_uid,UINT32_MAX,asset->asset_view.replaced_ids[0]};
                 jobs[source].cuts=other_cuts[source];jobs[source].cut_count=view.cuts;
@@ -183,12 +185,20 @@ static int scene_terrain_publication_prepare_from(scene_stream *s,
     if(status){if(rf_scene_combat_trace)printf("GEOMOD_PUBLICATION_REJECT build %d\n",status);return status;}
     b->mesh.generation=saved_serial;
     status=rf_geomod_publication_bind(&b->mesh,b->origins,p->references,p->reference_count,
-        RF_GEOMOD_BINDING_DEFER_GENERATED,b->corners,RF_GEOMOD_PUBLICATION_VERTICES,sizeof(b->corners),&pending);if(status){if(rf_scene_combat_trace)printf("GEOMOD_PUBLICATION_REJECT bind %d\n",status);return status;}
+        a->asset_view.source_uid==95?RF_GEOMOD_BINDING_DEFER_AUTHORED:RF_GEOMOD_BINDING_DEFER_GENERATED,b->corners,RF_GEOMOD_PUBLICATION_VERTICES,sizeof(b->corners),&pending);if(status){if(rf_scene_combat_trace)printf("GEOMOD_PUBLICATION_REJECT bind %d\n",status);return status;}
     b->generated=pending;
     for(i=0;i<b->mesh.face_count;i++) {
         const rf_geomod_publication_origin *o=b->origins+i;const rf_geomod_publication_binding_reference *r=NULL;
         b->ids[i]=o->reference;b->bindings[i].image=UINT32_MAX;
-        if(o->reference==UINT32_MAX)return RF_FORMAT;
+        if(o->reference==UINT32_MAX) {
+            if(o->kind!=RF_GEOMOD_PUBLICATION_NEIGHBOR)return RF_FORMAT;
+            for(j=0;j<p->runtime_count;j++)if(p->runtime_origins[j].owner==o->owner && p->runtime_origins[j].source_face==o->source_face)break;
+            if(j==p->runtime_count)return RF_NOT_FOUND;
+            b->ids[i]=p->runtime_surfaces[j].id;b->filters[i]=p->runtime_filters[j];b->filters[i].query_flags=0;
+            b->faces[i].source_face=UINT32_MAX; /* New lighting, authored base material/UV retained. */
+            if(b->faces[i].material>=s->materials->count)return RF_FORMAT;
+            continue;
+        }
         for(j=0;j<p->base->face_count;j++)if(p->base->source_indices[j]==o->reference)break;
         if(j==p->base->face_count)return RF_NOT_FOUND;
         b->filters[i]=p->base->faces[j].filter;b->filters[i].query_flags=0;
@@ -252,7 +262,7 @@ static int scene_terrain_publication_finish(scene_stream *s,const rf_preview_sur
     if(count!=b->mesh.face_count || (count && !complete))return RF_RANGE;
     for(i=0;i<count;i++) {
         const rf_preview_surface_lightmap *lm=complete+i;
-        if(b->origins[i].kind!=RF_GEOMOD_PUBLICATION_CRATER) {
+        if(b->corners[b->faces[i].first].status!=RF_GEOMOD_BINDING_GENERATED_PENDING) {
             if(memcmp(lm,b->bindings+i,sizeof(*lm)))return RF_FORMAT;
         } else if(lm->image==UINT32_MAX)return RF_NOT_FOUND;
         if(lm->image!=UINT32_MAX) {
