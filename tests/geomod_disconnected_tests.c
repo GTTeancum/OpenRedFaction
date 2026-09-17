@@ -26,6 +26,57 @@ static void shapes(void)
     printf("PASS %u original piece shapes and split gates\n",i);
 }
 
+static void extraction(const rf_geomod_terrain_view *view,const uint32_t *labels,uint32_t selected)
+{
+    rf_geomod_vertex vertices[256],saved_v[256];rf_geomod_face faces[64],saved_f[64];
+    uint32_t old[64],saved_old[64],i,j,part,offset=0;uint16_t neighbors[256];
+    rf_geomod_mesh_view output[2],saved_output[2];
+    CHECK(view->mesh.vertex_count<=256 && view->mesh.face_count<=64);
+    memset(vertices,0xa5,sizeof(vertices));memset(faces,0xa5,sizeof(faces));
+    memset(old,0xa5,sizeof(old));memset(output,0xa5,sizeof(output));
+    memcpy(saved_v,vertices,sizeof(vertices));memcpy(saved_f,faces,sizeof(faces));
+    memcpy(saved_old,old,sizeof(old));memcpy(saved_output,output,sizeof(output));
+#define EXTRACT(label,vc,fc) rf_geomod_component_extract(&view->mesh,labels,label,vertices,vc,faces,fc,old,output,output+1)
+#define UNCHANGED() CHECK(!memcmp(vertices,saved_v,sizeof(vertices)) && !memcmp(faces,saved_f,sizeof(faces)) && !memcmp(old,saved_old,sizeof(old)) && !memcmp(output,saved_output,sizeof(output)))
+    CHECK(EXTRACT(selected,0,64)==RF_RANGE);UNCHANGED();
+    CHECK(EXTRACT(selected,256,0)==RF_RANGE);UNCHANGED();
+    CHECK(EXTRACT(1000,256,64)==RF_NOT_FOUND);UNCHANGED();
+    {
+        rf_geomod_vertex bad_vertices[256];rf_geomod_mesh_view bad=view->mesh;
+        memcpy(bad_vertices,bad.vertices,bad.vertex_count*sizeof(*bad_vertices));
+        bad.vertices=bad_vertices;bad_vertices[bad.vertex_count-1].uv[1]=NAN;
+        CHECK(rf_geomod_component_extract(&bad,labels,selected,vertices,256,faces,64,old,output,output+1)==RF_FORMAT);
+        UNCHANGED();
+    }
+    CHECK(!EXTRACT(selected,256,64));
+    CHECK(output[0].face_count+output[1].face_count==view->mesh.face_count);
+    CHECK(output[0].vertex_count+output[1].vertex_count==view->mesh.vertex_count);
+    for(part=0;part<2;part++) {
+        const rf_geomod_mesh_view *mesh=output+part;
+        rf_collision_face rebound[64];rf_collision_face_filter filter[64];float positions[256][3];
+        if(!mesh->face_count)continue;
+        CHECK(!rf_geomod_seed_adjacency(mesh,neighbors,256));
+        for(i=0;i<mesh->face_count;i++) {
+            const rf_geomod_face *a=mesh->faces+i,*b=view->mesh.faces+old[offset+i];
+            CHECK((labels[old[offset+i]]==selected)==part);
+            CHECK(a->count==b->count && a->material==b->material && a->source_face==b->source_face);
+            CHECK(!memcmp(mesh->vertices+a->first,view->mesh.vertices+b->first,a->count*sizeof(*vertices)));
+            if(i)CHECK(old[offset+i]>old[offset+i-1]);
+            filter[i]=view->faces[old[offset+i]].filter;
+        }
+        CHECK(!rf_geomod_collision_faces(mesh,filter,positions,256,rebound,64));
+        for(i=0;i<mesh->face_count;i++) {
+            const rf_collision_face *a=rebound+i,*b=view->faces+old[offset+i];
+            CHECK(!memcmp(a->plane,b->plane,sizeof(a->plane)) && a->count==b->count);
+            for(j=0;j<a->count;j++)CHECK(!memcmp(a->vertices[j],b->vertices[j],12));
+        }
+        offset+=mesh->face_count;
+    }
+    CHECK(offset==view->mesh.face_count);
+#undef UNCHANGED
+#undef EXTRACT
+}
+
 static void inspect(const rf_geomod_terrain_view *view, uint32_t expected)
 {
     uint32_t words,count,largest,i,j,k,c,n,solid;
@@ -40,6 +91,7 @@ static void inspect(const rf_geomod_terrain_view *view, uint32_t expected)
     CHECK(work && labels && signed_labels && points && local);
     CHECK(!rf_geomod_mesh_components(&view->mesh,NULL,work,words,labels,&count,&largest));
     CHECK(count==expected && largest<count);
+    extraction(view,labels,count==1?0:(largest+1)%count);
     for(i=0;i<view->mesh.face_count;i++)signed_labels[i]=(int32_t)labels[i];
     for(c=0;c<count;c++) {
         rf_collision_bounds bounds={0};rf_geomod_piece_placement placement;double volume=0;

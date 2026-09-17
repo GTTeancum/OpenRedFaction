@@ -1800,6 +1800,43 @@ int rf_geomod_mesh_components(const rf_geomod_mesh_view *mesh,const rf_collision
     for(f=0;f<mesh->face_count;f++)labels[f]=parent[f]==UINT32_MAX?UINT32_MAX:ids[component_root(parent,f)];
     *count=groups;*largest=biggest;return RF_OK;
 }
+int rf_geomod_component_extract(const rf_geomod_mesh_view *mesh,const uint32_t *labels,
+    uint32_t selected,rf_geomod_vertex *vertices,uint32_t vertex_capacity,
+    rf_geomod_face *faces,uint32_t face_capacity,uint32_t *old_faces,
+    rf_geomod_mesh_view *retained,rf_geomod_mesh_view *piece)
+{
+    uint64_t nv[2]={0,0};uint32_t nf[2]={0,0},f,j,k,part,vo=0,fo=0;
+    rf_geomod_mesh_view result[2];
+    if(!mesh || !mesh->vertices || !mesh->faces || !labels || !vertices || !faces ||
+        !old_faces || !retained || !piece || selected==UINT32_MAX)return RF_RANGE;
+    if(mesh->face_count>face_capacity || mesh->face_count>UINT32_MAX/sizeof(*faces))return RF_RANGE;
+    /* Preflight everything before touching caller staging or view descriptors. */
+    for(f=0;f<mesh->face_count;f++) {
+        const rf_geomod_face *face=mesh->faces+f;
+        if(face->count<3 || face->first>mesh->vertex_count || face->count>mesh->vertex_count-face->first)return RF_FORMAT;
+        for(j=0;j<face->count;j++) {
+            const rf_geomod_vertex *v=mesh->vertices+face->first+j;
+            for(k=0;k<3;k++)if(!isfinite(v->position[k]))return RF_FORMAT;
+            for(k=0;k<2;k++)if(!isfinite(v->uv[k]))return RF_FORMAT;
+        }
+        part=labels[f]==selected;nv[part]+=face->count;nf[part]++;
+    }
+    if(!nf[1])return RF_NOT_FOUND;
+    if(nv[0]+nv[1]>vertex_capacity || nv[0]+nv[1]>UINT32_MAX/sizeof(*vertices))return RF_RANGE;
+    for(part=0;part<2;part++) {
+        uint32_t v=0,n=0;
+        for(f=0;f<mesh->face_count;f++)if((labels[f]==selected)==(part!=0)) {
+            const rf_geomod_face *face=mesh->faces+f;
+            memcpy(vertices+vo+v,mesh->vertices+face->first,face->count*sizeof(*vertices));
+            faces[fo+n]=*face;faces[fo+n].first=v;old_faces[fo+n]=f;
+            v+=face->count;n++;
+        }
+        result[part]=(rf_geomod_mesh_view){vertices+vo,faces+fo,v,n,mesh->generation};
+        vo+=v;fo+=n;
+    }
+    *retained=result[0];*piece=result[1];return RF_OK;
+}
+
 int rf_geomod_seed_adjacency(const rf_geomod_mesh_view *mesh,uint16_t *neighbors,uint32_t capacity)
 {
     uint32_t pass,f,e,g,h,packed=0,i;int status;

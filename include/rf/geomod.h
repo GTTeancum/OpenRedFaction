@@ -299,6 +299,18 @@ typedef struct rf_geomod_mesh_view {
 int rf_geomod_component_work_size(const rf_geomod_mesh_view *,uint32_t *words);
 int rf_geomod_mesh_components(const rf_geomod_mesh_view *,const rf_collision_face_filter *,
     uint32_t *work,uint32_t work_words,uint32_t *labels,uint32_t *count,uint32_t *largest);
+/* Stable staged extraction for the port's face-corner mesh. Pack retained
+ * faces/corners first, selected component second; each returned view has local
+ * face indices. Preserve world positions, UVs, materials and source_face IDs.
+ * old_faces (face_capacity entries) maps packed faces to input face indices for
+ * filter/lightmap ownership transfer. UINT32_MAX labels always remain terrain.
+ * No allocation or live mutation. All buffers, views and inputs must be
+ * disjoint. Errors preserve every output. Missing selector returns NOT_FOUND.
+ * Caller still owns classification, recentering, tree/atlas rebuild and commit. */
+int rf_geomod_component_extract(const rf_geomod_mesh_view *,const uint32_t *labels,
+    uint32_t selected,rf_geomod_vertex *vertices,uint32_t vertex_capacity,
+    rf_geomod_face *faces,uint32_t face_capacity,uint32_t *old_faces,
+    rf_geomod_mesh_view *retained,rf_geomod_mesh_view *piece);
 /* Optional synchronous diagnostic for bounded tracked cavity assembly. Views
  * and ID arrays are borrowed for this call only; callbacks must not mutate or
  * reenter geometry. Null disables observation. Not a publication notification. */
