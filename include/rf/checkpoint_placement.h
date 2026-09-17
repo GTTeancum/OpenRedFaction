@@ -24,6 +24,8 @@ typedef struct rf_checkpoint_placement_result {uint32_t sphere,reason,retries;} 
  * >.002. Existing DEV .002 clearance tolerance accepts exact surface tangency.
  * Uses original-derived4e3800 nearest-face classification including physical
  * details, not a zero-motion sweep or a recovered original save ABI.
+ * Port save policy retries inconclusive no-boundary rays through openings within
+ * the same16-direction cap; actual back-face hits and out-of-bounds centers fail.
  * RF_OK=fit; RF_NOT_FOUND=surface/solid/ambiguous (16 retries). Optional result
  * is published for either outcome; all other failures preserve result.
  * Geometry views must stay valid and unchanged throughout; no output aliasing. */

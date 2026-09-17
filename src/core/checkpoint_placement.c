@@ -2,11 +2,16 @@
 #include <float.h>
 #include <math.h>
 #include <string.h>
+#ifndef RF_IMAGE_XBOX_NATIVE
+#include <stdio.h>
+#include <stdlib.h>
+#endif
 typedef struct placement_work {
     const rf_geomod_terrain_view *candidate;const rf_checkpoint_placement *placement;
     double minimum[3],maximum[3],center[3],distance;
     rf_collision_room_query query;uint32_t mode,retry,faces,replaced;
     rf_physics_ground_probe ground;float fraction,normal[3];
+    const rf_collision_face *classification_face;
 } placement_work;
 static double dot3(const double a[3],const double b[3])
 {return a[0]*b[0]+a[1]*b[1]+a[2]*b[2];}
@@ -72,8 +77,9 @@ static int visit_faces(placement_work *w,const rf_collision_face *faces,uint32_t
             status=rf_collision_sweep_face(&face,start,delta,delta,w->ground.sphere.radius,w->fraction,&hit,&matched);if(status)return status;
             if(matched){w->fraction=hit.hit.fraction;memcpy(w->normal,hit.hit.normal,12);}
         }else{
-            uint32_t retry;
+            uint32_t retry,previous_hits=w->query.hits;
             status=rf_collision_room_query_face(&w->query,f,1,&retry);if(status)return status;
+            if(w->query.hits!=previous_hits)w->classification_face=f;
             if(retry)w->retry=1;
         }
     }
@@ -127,24 +133,39 @@ int rf_checkpoint_placement_check(const rf_geomod_terrain_view *candidate,const 
             length+=fmax(fabs(w.center[j]-w.minimum[j]),fabs(w.center[j]-w.maximum[j]));
         }
         if(!isfinite(length)||length>FLT_MAX)return RF_RANGE;
+        for(j=0;j<3;j++)if(w.center[j]<w.minimum[j] || w.center[j]>w.maximum[j]) {
+            result.reason=RF_CHECKPOINT_PLACEMENT_SOLID;goto rejected;
+        }
         w.mode=1;w.distance=DBL_MAX;status=visit_world(&w);if(status)return status;
         if(w.distance<r*r){result.reason=RF_CHECKPOINT_PLACEMENT_SURFACE;goto rejected;}
         for(attempt=0;attempt<16;attempt++){
             status=rf_collision_room_direction(direction,cosine,direction);if(status)return status;
-            memset(&w.query,0,sizeof(w.query));w.retry=0;
+            memset(&w.query,0,sizeof(w.query));w.retry=0;w.classification_face=NULL;
             for(j=0;j<3;j++){
                 volatile float part=direction[j]*(float)length;
                 w.query.start[j]=(float)w.center[j];w.query.direction[j]=direction[j];w.query.endpoint[j]=w.query.start[j]+part;
                 if(!isfinite(w.query.endpoint[j]))return RF_RANGE;
             }
-            w.mode=2;status=visit_world(&w);if(status)return status;if(!w.retry)break;
+            w.mode=2;status=visit_world(&w);if(status)return status;
+            /* A ray through an opening is inconclusive, not evidence of solid.
+             * Retry direction, but never retry away an actual back-face hit. */
+            if(!w.retry && w.query.selected_face)break;
             result.retries++;cosine-=.13579f;if(cosine<-1)cosine=-1;
         }
-        if(w.retry){result.reason=RF_CHECKPOINT_PLACEMENT_AMBIGUOUS;goto rejected;}
+        if(w.retry || !w.query.selected_face){result.reason=RF_CHECKPOINT_PLACEMENT_AMBIGUOUS;goto rejected;}
         if(!w.query.selected_face||!w.query.front){result.reason=RF_CHECKPOINT_PLACEMENT_SOLID;goto rejected;}
     }
     result.sphere=UINT32_MAX;if(out)*out=result;return RF_OK;
 rejected:
+#ifndef RF_IMAGE_XBOX_NATIVE
+    if(getenv("RF_CHECKPOINT_PLACEMENT_TRACE") && result.reason==RF_CHECKPOINT_PLACEMENT_SOLID) {
+        const rf_collision_face *face=w.classification_face;
+        printf("PLACEMENT_SOLID_TRACE sphere%u selected%u front%u distance %.9g center %.9g %.9g %.9g endpoint %.9g %.9g %.9g plane %.9g %.9g %.9g %.9g\n",
+            result.sphere,w.query.selected_face,w.query.front,(double)w.query.distance,w.center[0],w.center[1],w.center[2],
+            (double)w.query.endpoint[0],(double)w.query.endpoint[1],(double)w.query.endpoint[2],
+            face?(double)face->plane[0]:0,face?(double)face->plane[1]:0,face?(double)face->plane[2]:0,face?(double)face->plane[3]:0);
+    }
+#endif
     if(out)*out=result;return RF_NOT_FOUND;
 }
 

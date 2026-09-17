@@ -26,6 +26,18 @@ int main(void)
  world.views=rooms;world.primary=roots;world.primary_count=1;world.children=children;world.child_count=1;world.room_count=2;
  p.world=&world;p.spheres=spheres;p.count=2;p.query_flags=4;p.basis[0]=p.basis[4]=p.basis[8]=1;
  CHECK(!rf_checkpoint_placement_check(&view,&p,&out)&&out.sphere==UINT32_MAX&&out.reason==RF_CHECKPOINT_PLACEMENT_FITS);
+ /* An initial ray through an open ceiling is inconclusive; other directions
+  * can prove interior space. Exterior centers and real solid hits still fail. */
+ {
+  rf_collision_face open_faces[6];rf_geomod_terrain_view opened=view;
+  memcpy(open_faces,view.faces,sizeof(open_faces));opened.faces=open_faces;
+  for(i=0;i<6;i++)if(open_faces[i].plane[1]<-.99f)open_faces[i].filter.face_flags|=4;
+  CHECK(!rf_checkpoint_placement_check(&opened,&p,&out)&&out.retries>0);
+  p.position[1]=20;CHECK(rf_checkpoint_placement_check(&opened,&p,&out)==RF_NOT_FOUND);
+  p.position[1]=0;p.position[0]=-4;
+  CHECK(rf_checkpoint_placement_check(&opened,&p,&out)==RF_NOT_FOUND&&out.reason==RF_CHECKPOINT_PLACEMENT_SOLID);
+  p.position[0]=0;
+ }
  p.position[1]=7.5f;CHECK(!rf_checkpoint_placement_check(&view,&p,&out));p.position[1]=7.51f;
  CHECK(rf_checkpoint_placement_check(&view,&p,&out)==RF_NOT_FOUND&&out.sphere==1&&out.reason==RF_CHECKPOINT_PLACEMENT_SURFACE);
  p.position[1]=0;p.position[0]=-4;CHECK(rf_checkpoint_placement_check(&view,&p,&out)==RF_NOT_FOUND&&out.sphere==0&&out.reason==RF_CHECKPOINT_PLACEMENT_SOLID);

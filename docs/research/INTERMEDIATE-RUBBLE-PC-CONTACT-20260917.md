@@ -64,3 +64,24 @@ The jump reproduction now takes a different path, with final position
 the rubble-placement check. The former0.424338 overlap is historical pre-fix
 evidence. Saved standing acceptance remains open; do not report the old crossing
 or standing scripts as current acceptance without rerunning them.
+
+## Open-boundary classification correction
+
+The post-jump placement trace actually selected no face for player sphere1:
+center(-2.3436954,0.0276969671,4.05608225), ray endpoint
+(52.4216003,242.570068,-0.202106953). It was not a detected back-face or surface
+overlap. The port checkpoint policy now retries inconclusive no-boundary rays
+within its existing16-direction budget. Real back-face hits still reject
+immediately, all-miss exhaustion rejects as ambiguous, and centers outside the
+eligible world bounds reject. This is port save validation, not a claim that the
+original4e3800 routine retries missing boundaries. Tests cover an open ceiling,
+outside-world rejection and solid child geometry; all121 tests pass and NXDK builds.
+
+The jump replay now saves and reloads, but its strict continuation comparison
+still fails: only RFCP float words64(X) and72(Z) differ. Saved/reloaded position
+is(-2.3436954021453857,-0.392197,4.056082248687744); uninterrupted800-frame position
+is(-2.343688488006592,-0.392197,4.056087493896484). The capture scope accepts
+velocity below.001, while restore resets velocity to zero. This residual-motion
+policy mismatch remains open; no equality tolerance was added and no standing-on-
+rubble claim is made. Optional RF_CHECKPOINT_PLACEMENT_TRACE logs classification
+evidence on PC without altering validation outcomes.
