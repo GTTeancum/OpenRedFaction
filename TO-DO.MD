@@ -1,6 +1,6 @@
 # Red Faction Xbox / PC - open work
 
-- GeoMod coverage: Broaden destruction shapes and resolve the old history's8192-vertex limit; full16-cut stock64MiB replay and reload both pass58 checks with exact PC checkpoints.
+- GeoMod coverage: Broaden shapes and run full Xbox blasts on the9216-vertex opt-in profile; it removes the older history's workspace rejection in the core probe and passes58 native reload checks.
 - GeoMod reload: Broaden native continuation coverage after16-cut stock64MiB reload passes58 checks; the135598-byte checkpoint matches PC exactly.
 - GeoMod rollback: Make legacy DEV cavity lighting exhaustion transactional; the1024-map experiment aborted after core publication.
 

@@ -433,7 +433,7 @@ dvd_path = '{root.as_posix()}/build/xbox/redfaction-diagnostic.iso'
                 # Authored solid edits reserve old+clone core, two publication
                 # banks and private lighting staging. Match its explicit12MiB
                 # subsystem ceiling; keep the cavity profile's old ceiling.
-                terrain_budget=(16*1024*1024 if args.level=='ctf06.rfl' else 2*1024*1024+65536) if args.expanded_geomod else (12*1024*1024 if args.level=='ctf06.rfl' and args.dev_room else 1024*1024+65536)
+                terrain_budget=(16*1024*1024 if args.level=='ctf06.rfl' else 2359296+65536) if args.expanded_geomod else (12*1024*1024 if args.level=='ctf06.rfl' and args.dev_room else 1024*1024+65536)
                 budget_ok=all(0<=v[3]<=v[4]<=terrain_budget for v in (actual,expected))
                 report['checks']['GEOMOD']=dict(equal=equal,budget_ok=budget_ok,budget_bytes=terrain_budget,
                     compared_indices=indices,xbox=actual,pc=expected,
@@ -464,7 +464,7 @@ dvd_path = '{root.as_posix()}/build/xbox/redfaction-diagnostic.iso'
                 equal=actual==expected
                 report['checks']['TERRAIN_DRAW']=dict(equal=equal,xbox=actual,pc=expected,
                     scope='Render-only subdivision counts, bounded ownership and generation; physical mesh remains separate')
-                assert equal and actual[1]<=(16384 if args.expanded_geomod else 8192) and actual[3]<=(1024*1024 if args.expanded_geomod else 320*1024),'TERRAIN_DRAW'
+                assert equal and actual[1]<=(18432 if args.expanded_geomod else 8192) and actual[3]<=(1024*1024 if args.expanded_geomod else 320*1024),'TERRAIN_DRAW'
                 expected=list(map(int,next(line for line in pc.stdout.splitlines() if line.startswith('TERRAIN_NOISE ')).split()[1:]))
                 actual=words(monitor,symbol('rf_scene_terrain_noise'),8)
                 equal=actual==expected

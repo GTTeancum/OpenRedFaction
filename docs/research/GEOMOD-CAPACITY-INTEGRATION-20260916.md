@@ -766,3 +766,45 @@ Next: integrate a coherent bounded capacity change only with matching core,
 scene, transport, draw and native memory validation; broaden crater appearance
 and collision testing beyond this repeated wall-blast path. Estimate ~50%
 overall/~72% GeoMod after the bounded full native sequence is now verified.
+
+
+## Integrate the measured9216-vertex opt-in profile
+
+The expanded CMake and NXDK profiles now use9216 core/publication/source
+vertices,2048 faces and2359296 bytes for the terrain core. Render subdivision
+capacity derives18432 vertices under the existing1MiB draw budget. The XEMU
+harness uses the matching vertex/core bounds. Default8-cut behavior and the
+existing8192-vertex diagnostic targets remain unchanged. No clipping or
+geometry algorithm change accompanies this capacity integration.
+
+The measured older history needs8370 final vertices at cut16. The prior9k
+core probe covers it with closure at every admission and2189920 peak; the
+larger capacity is therefore based on a failing fixture rather than an
+unbounded allocation increase. Full legacy-history scene/native playback
+still needs validation; do not promote the core-only result to that claim.
+
+Ordinary expanded PC gameplay commits16 in2500 frames. Physical mesh and atlas
+CSV are byte-identical to the previous8192-profile passing run. No-fire reload
+matches checkpoint, physical mesh and atlas exactly. Authored-post two-shot
+restart and reset-zero/re-cut both match uninterrupted RFCP/RGCH/RGP.
+
+Stock64MiB32-frame reload passes58 comparisons:
+artifacts/xemu/render-20260916-215845/report.json. PC/Xbox135598-byte checkpoint
+SHA256520bbcf7f246acb03077cdfb31bdd064f8b09a3591bbbb2349d095901c978bfc matches.
+Endpoint8090 pages=31.6015625MiB free,38 pages/152KiB less than the previous
+profile's corresponding reload. Draw workspace722964 bytes matches PC.
+Native endpoint capture was inspected: room, floor, pickup weapons, pistol
+and HUD present; this view faces away from the crater. Native full-blast
+acceptance remains on the preceding8192 profile until rerun. The owned emulator
+exited and staged disc state was restored.
+
+Capacity participates in checkpoint source identity, so prior-profile saves
+are intentionally incompatible. Wire size/schema remain unchanged. The
+expanded PC and NXDK definitions were checked equal; Python harness compiles.
+PC build retains existing scene uninitialized-variable warnings and NXDK its
+existing linker merge warning. No claim of warning-free builds.
+
+Evidence: artifacts/geomod-9k-live/report.json, geomod-9k-restored/report.json,
+artifacts/authored-post-live/capacity9k-authored/report.json and
+capacity9k-reset/report.json, plus the native report above. Estimate remains
+~50% overall/~72% GeoMod; wider shape/collision/fidelity work is still required.
