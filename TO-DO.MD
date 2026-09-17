@@ -14,7 +14,7 @@
 
 - GeoMod debris visibility: Verify live leave/return lifetime retention; room-filtered drawing passes synthetic hidden/return cases,138 binary fixtures and60 stock64MiB PC/Xbox checks.
 - GeoMod water crossing: Verify audible splash quality and broader liquid scenarios;35 positional splash starts and246 ripple vertices match PC/Xbox across63 stock64MiB comparisons.
-- GeoMod post-edit cleanup: Connect settled-debris fading to successful geometry publication; the shared490900 operation passes168 original-code cases, while actor/prop/glass notifications remain open.
+- GeoMod post-edit cleanup: Extend notifications to actors/props/glass and other edit producers; rocket-cut settled-debris fading passes41 live original samples and67 stock64MiB PC/Xbox checks, with rejected-edit controls.
 - GeoMod debris motion: Review bounce/relaunch animation visually; ordinary settled-fragment reactivation preserves orientation and passes66 stock64MiB PC/Xbox checks plus2096 original rotation samples.
 - GeoMod debris damage: Broaden repeated-blast and death coverage; two ordinary flying-fragment hits match original math and pass66 stock64MiB PC/Xbox comparisons without a fixture.
 - GeoMod impact blood: Verify live pool exhaustion and broader encounters; two ordinary contacts emit matching PC/Xbox blood effects, with prior visual and115-test acceptance retained.
