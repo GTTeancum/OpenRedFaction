@@ -250,6 +250,33 @@ int rf_geometry_material_collision_bind(const rf_geometry_material_collision *vi
     int32_t *bitmaps,uint32_t capacity,rf_collision_indexed_texture_backend *backend);
 int rf_geometry_material_collision_sample(void *view,uint32_t index,const rf_collision_face *face,
     int32_t bitmap,const float point[3],uint32_t *color);
+/* Borrowed metadata for a newly exposed authored polygon. Runtime IDs must
+ * be outside the compiled face range, unique, and non-UINTMAX. texture is a
+ * compiled texture index, not a renderer slot. Parent polygons may serve
+ * clipped children; collision geometry still determines the actual contact. */
+typedef struct rf_geometry_runtime_surface {
+    uint32_t id,texture,count;
+    float plane[4];
+    const float (*vertices)[3];
+    const float (*uv)[2];
+} rf_geometry_runtime_surface;
+typedef struct rf_geometry_material_runtime {
+    const rf_geometry_material_collision *base;
+    const rf_geometry_runtime_surface *surfaces;uint32_t count;
+} rf_geometry_material_runtime;
+/* Explicit opt-in wrapper; old geometry APIs remain compiled-only. No heap
+ * allocation. Bind validates every borrowed runtime row (up to1024) before
+ * publishing a backend; bitmap scratch may change on failure. Keep all rows,
+ * polygons, images and base/work alive and immutable for backend lifetime.
+ * Sampling uses the runtime polygon's authored UVs and the original shared
+ * texture-coordinate/image sampler. Lookup returns compiled texture and render
+ * slot for material-response consumers; both outputs are atomic on failure. */
+int rf_geometry_material_runtime_lookup(const rf_geometry_material_runtime *,uint32_t id,
+    uint32_t *texture,uint32_t *slot);
+int rf_geometry_material_runtime_bind(const rf_geometry_material_runtime *,int32_t *bitmaps,
+    uint32_t capacity,rf_collision_indexed_texture_backend *);
+int rf_geometry_material_runtime_sample(void *,uint32_t,const rf_collision_face *,int32_t,
+    const float point[3],uint32_t *color);
 typedef struct rf_geometry_body_surfaces {
     const rf_geometry *const *geometries;uint32_t count; /* World first, then movers. */
     const rf_geometry_materials *mapping;const rf_surface_materials *palette;

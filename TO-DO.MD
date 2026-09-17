@@ -1,6 +1,6 @@
 # Red Faction Xbox / PC - open work
 
-- GeoMod source expansion: Integrate hidden-cap runtime material lookup and lighting, then wire beam95 into scene selection/checkpoints; authored collision properties, separate collision-ID validation, cap bindings and completed-chart digests pass, but live beam destruction remains unverified.
+- GeoMod source expansion: Wire runtime cap materials and lighting into scene queries/checkpoints, then enable beam95; mixed compiled/runtime texture lookup now samples authored cap UVs correctly, while live beam destruction remains unverified.
 
 - GeoMod publication: Broaden clipped-face partition coverage to other source geometry; the repaired shot, save/reload and subsequent rocket now pass76/75/76 native checks, with exact uninterrupted PC checkpoints, while broader histories remain open.
 

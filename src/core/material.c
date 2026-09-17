@@ -1,5 +1,6 @@
 #include "rf/material.h"
 #include <stdlib.h>
+#include <math.h>
 #include <string.h>
 static int geometry_material_slot(const rf_geometry_materials *materials,uint32_t geometry_index,
     const rf_geometry *geometry,uint32_t face,uint32_t *slot)
@@ -70,6 +71,70 @@ int rf_geometry_material_collision_bind(const rf_geometry_material_collision *vi
     }
     backend->bitmaps=bitmaps;backend->sample=rf_geometry_material_collision_sample;backend->context=(void *)view;
     return RF_OK;
+}
+
+static int runtime_view_valid(const rf_geometry_material_runtime *v) {
+    return v && v->base && v->base->geometry && v->base->materials && v->count<=1024 && (!v->count || v->surfaces);
+}
+static const rf_geometry_runtime_surface *runtime_surface(const rf_geometry_material_runtime *v,uint32_t id) {
+    uint32_t i;for(i=0;i<v->count;i++)if(v->surfaces[i].id==id)return v->surfaces+i;return NULL;
+}
+int rf_geometry_material_runtime_lookup(const rf_geometry_material_runtime *v,uint32_t id,uint32_t *texture,uint32_t *slot) {
+    const rf_geometry_material_collision *b;const rf_geometry_runtime_surface *r;
+    const rf_geometry_materials *m;uint32_t first,last,t,value;int status;
+    if(!runtime_view_valid(v) || !texture || !slot)return RF_RANGE;b=v->base;m=b->materials;
+    if(id<b->geometry->faces) {
+        rf_geometry_face f;status=rf_geometry_get_face(b->geometry,id,&f);if(status)return status;t=f.texture;
+    } else {
+        if(id==UINT32_MAX)return RF_NOT_FOUND;
+        r=runtime_surface(v,id);if(!r)return RF_NOT_FOUND;t=r->texture;
+    }
+    if(!m->offsets || b->geometry_index>=m->count)return RF_RANGE;
+    if(t==UINT32_MAX){*texture=t;*slot=UINT32_MAX;return RF_OK;}
+    first=m->offsets[b->geometry_index];last=m->offsets[b->geometry_index+1];
+    if(last<first || last-first!=b->geometry->textures || t>=b->geometry->textures || !m->slots)return RF_FORMAT;
+    value=m->slots[first+t];if(value>=m->textures.count || !m->textures.items)return RF_FORMAT;
+    *texture=t;*slot=value;return RF_OK;
+}
+int rf_geometry_material_runtime_sample(void *context,uint32_t index,const rf_collision_face *face,
+    int32_t bitmap,const float point[3],uint32_t *color) {
+    const rf_geometry_material_runtime *v=context;const rf_geometry_material_collision *b;
+    const rf_geometry_runtime_surface *r;const rf_material *m;uint32_t id,texture,slot,matched;float uv[2];int status;
+    if(!runtime_view_valid(v) || !face || !point || !color)return RF_RANGE;b=v->base;
+    if(index>=b->face_count)return RF_RANGE;id=b->source_indices?b->source_indices[index]:index;
+    if(id<b->geometry->faces)return rf_geometry_material_collision_sample((void *)b,index,face,bitmap,point,color);
+    status=rf_geometry_material_runtime_lookup(v,id,&texture,&slot);if(status)return status;
+    if(slot==UINT32_MAX)return RF_NOT_FOUND;
+    if(slot>INT32_MAX || bitmap<0 || (uint32_t)bitmap!=slot)return RF_FORMAT;
+    r=runtime_surface(v,id);if(!r)return RF_NOT_FOUND;
+    m=b->materials->textures.items+slot;if(m->status)return m->status;
+    status=rf_collision_texture_coordinates(r->plane,point,r->vertices,r->uv,r->count,uv,&matched);if(status)return status;
+    if(!matched)return RF_NOT_FOUND;
+    return rf_image_sample_owned(&m->image,uv[0],uv[1],color);
+}
+int rf_geometry_material_runtime_bind(const rf_geometry_material_runtime *v,int32_t *bitmaps,
+    uint32_t capacity,rf_collision_indexed_texture_backend *backend) {
+    const rf_geometry_material_collision *b;uint32_t i,j,k,texture,slot;int status;
+    if(!runtime_view_valid(v) || !backend)return RF_RANGE;b=v->base;
+    if(!b->work || capacity<b->face_count || (b->face_count && !bitmaps))return RF_RANGE;
+    for(i=0;i<v->count;i++) {
+        const rf_geometry_runtime_surface *r=v->surfaces+i;double norm=0;
+        if(r->id<b->geometry->faces || r->id==UINT32_MAX || r->count<3 || r->count>256 || !r->vertices || !r->uv)return RF_FORMAT;
+        for(j=0;j<i;j++)if(v->surfaces[j].id==r->id)return RF_FORMAT;
+        for(j=0;j<4;j++){if(!isfinite(r->plane[j]))return RF_FORMAT;if(j<3)norm+=(double)r->plane[j]*r->plane[j];}
+        if(fabs(norm-1)>1e-4)return RF_FORMAT;
+        for(j=0;j<r->count;j++) {
+            for(k=0;k<3;k++)if(!isfinite(r->vertices[j][k]))return RF_FORMAT;
+            for(k=0;k<2;k++)if(!isfinite(r->uv[j][k]))return RF_FORMAT;
+        }
+        status=rf_geometry_material_runtime_lookup(v,r->id,&texture,&slot);if(status)return status;
+    }
+    for(i=0;i<b->face_count;i++) {
+        uint32_t id=b->source_indices?b->source_indices[i]:i;
+        status=rf_geometry_material_runtime_lookup(v,id,&texture,&slot);if(status)return status;
+        if(slot!=UINT32_MAX && slot>INT32_MAX)return RF_RANGE;bitmaps[i]=(int32_t)slot;
+    }
+    backend->bitmaps=bitmaps;backend->sample=rf_geometry_material_runtime_sample;backend->context=(void *)v;return RF_OK;
 }
 
 int rf_geometry_body_surface(void *context,uint32_t solid,uint32_t face,
