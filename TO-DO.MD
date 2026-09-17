@@ -1,6 +1,6 @@
 # Red Faction Xbox / PC - open work
 
-- GeoMod source expansion: Integrate edited-neighbor occlusion and connected beam/post destruction; owner-specific cap clipping now passes geometric/collision checks, while beam95 cut/save/reload/second-rocket passes76/75/76 stock64MiB checks and above-cap visual inspection remains open.
+- GeoMod source expansion: Wire edited-neighbor boundary and occlusion primitives into connected beam/post updates and checkpoints; both now pass geometric/collision checks, while single-beam cut/save/reload/second-rocket passes76/75/76 stock64MiB checks and above-cap visual inspection remains open.
 
 - GeoMod publication: Broaden clipped-face partition coverage to other source geometry; the repaired shot, save/reload and subsequent rocket now pass76/75/76 native checks, with exact uninterrupted PC checkpoints, while broader histories remain open.
 

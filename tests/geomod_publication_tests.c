@@ -239,6 +239,79 @@ static int cut_neighbor_boundary(void) {
     CHECK(out.face_count==2 && out.vertex_count==8);
     puts("PASS cut neighbor boundary: rotated star, repeated union, owner isolation, area/point coverage, UV/provenance and atomic failure");return 0;
 }
+static int edited_neighbor_occlusion(void) {
+    float bounds[6][4]={{1,0,0,-.8f},{-1,0,0,-.8f},{0,1,0,0},{0,-1,0,-2},{0,0,1,-.8f},{0,0,-1,-.8f}};
+    float void_planes[6][4]={{1,0,0,-.1f},{-1,0,0,-.1f},{0,1,0,-1},{0,-1,0,-2},{0,0,1,-.1f},{0,0,-1,-.1f}};
+    rf_geomod_publication_solid solid={bounds,6,94},hole={void_planes,6,94};
+    const float points[4][3]={{-1,-.9f,-1},{-1,-.9f,1},{1,-.9f,1},{1,-.9f,-1}};
+    rf_geomod_vertex v[4];rf_geomod_face f={0,4,9,UINT32_MAX};
+    rf_geomod_publication_origin input={1,95,UINT32_MAX,157};
+    rf_geomod_mesh_view mesh={v,&f,4,1,23},out,before;rf_geomod_publication_cut cuts[2];
+    uint32_t i,j,pass;
+    for(i=0;i<4;i++){memcpy(v[i].position,points[i],12);v[i].uv[0]=points[i][0];v[i].uv[1]=points[i][2];}
+    for(pass=0;pass<7;pass++) {
+        uint32_t count=pass==0 || pass==6?0:pass==1?1:2;double sum=0;
+        double expected=pass==0?1.44:pass<=2?1.83:pass<=4?2.0548:pass==5?2.0948:1.48;
+        make_cut(0,0);make_cut(1,pass>=3?.2f:0);
+        for(i=0;i<2;i++)cuts[i]=(rf_geomod_publication_cut){{cut_v[i],cut_f[i],36,12,0},{i && pass>=3?.2f:0,-.9f,0},1};
+        if(pass>=5){void_planes[0][3]=.5f;void_planes[1][3]=-.7f;void_planes[4][3]=-.7f;void_planes[5][3]=.5f;}
+        CHECK(!rf_geomod_publication_occlude_neighbor(&mesh,&input,&solid,pass>=4?&hole:NULL,cuts,count,&work,ov,4096,of,768,origins,&out));
+        CHECK(out.generation==23);
+        {static rf_collision_face collision[768];static float positions[4096][3];static rf_collision_face_filter filters[768];
+         CHECK(!rf_geomod_collision_faces(&out,filters,positions,4096,collision,768));}
+        for(i=0;i<out.face_count;i++) {
+            double a=0;const rf_geomod_face *face=of+i;
+            CHECK(!memcmp(origins+i,&input,sizeof(input)) && face->material==9 && face->source_face==UINT32_MAX);
+            for(j=0;j<face->count;j++) {
+                const rf_geomod_vertex *p=ov+face->first+j,*q=ov+face->first+(j+1)%face->count;
+                CHECK(fabsf(p->uv[0]-p->position[0])<1e-6f && fabsf(p->uv[1]-p->position[2])<1e-6f);
+                a+=(double)p->position[0]*q->position[2]-(double)p->position[2]*q->position[0];
+            }
+            sum+=fabs(a)*.5;
+        }
+        CHECK(fabs(sum-expected)<2e-5);
+        for(i=0;i<61;i++)for(j=0;j<61;j++) {
+            float x=-.987f+1.97f*i/60,z=-.986f+1.973f*j/60;
+            float u=.8f*x-.6f*z,t=.6f*x+.8f*z;uint32_t k,inside_cut=0,visible,hits=0;
+            for(k=0;k<count;k++){float shift=k && pass>=3?.2f:0;inside_cut|=fabsf(u-.8f*shift)<.15f && fabsf(t-.6f*shift)<.65f;}
+            visible=fabsf(x)>.8f || fabsf(z)>.8f || inside_cut;
+            if(pass==4)visible|=fabsf(x)<.1f && fabsf(z)<.1f;
+            if(pass>=5)visible|=x>-.7f && x<-.5f && z>.5f && z<.7f;
+            for(k=0;k<out.face_count;k++) {
+                const rf_geomod_face *face=of+k;uint32_t a,positive=0,negative=0,boundary=0;
+                for(a=0;a<face->count;a++) {
+                    const float *p=ov[face->first+a].position,*q=ov[face->first+(a+1)%face->count].position;
+                    float cross=(q[0]-p[0])*(z-p[2])-(q[2]-p[2])*(x-p[0]);
+                    positive|=cross>1e-6f;negative|=cross< -1e-6f;boundary|=fabsf(cross)<=1e-6f;
+                }
+                if(!(positive && negative)){if(boundary){hits=99;break;}hits++;}
+            }
+            if(hits!=99)CHECK(hits==visible);
+        }
+    }
+    /* A reverse-facing contact survives once, including its void region. */
+    for(i=0;i<4;i++)v[i].position[1]=0;
+    for(pass=0;pass<2;pass++) {
+     double sum=0;
+     if(pass){rf_geomod_vertex swap=v[1];v[1]=v[3];v[3]=swap;}
+     CHECK(!rf_geomod_publication_occlude_neighbor(&mesh,&input,&solid,&hole,NULL,0,&work,ov,4096,of,768,origins,&out));
+     for(i=0;i<out.face_count;i++) {
+         const rf_geomod_face *face=of+i;double a=0;
+         for(j=0;j<face->count;j++) {
+             const float *p=ov[face->first+j].position,*q=ov[face->first+(j+1)%face->count].position;
+             a+=(double)p[0]*q[2]-(double)p[2]*q[0];
+         }
+         sum+=fabs(a)*.5;
+     }
+     CHECK(fabs(sum-(pass?4:1.48))<1e-5);}
+    before=out;{rf_geomod_vertex saved=ov[0];
+    CHECK(rf_geomod_publication_occlude_neighbor(&mesh,&input,&solid,&hole,NULL,0,&work,ov,1,of,768,origins,&out)==RF_RANGE);
+    CHECK(!memcmp(&before,&out,sizeof(out)) && !memcmp(&saved,ov,sizeof(saved)));
+    hole.owner=93;
+    CHECK(rf_geomod_publication_occlude_neighbor(&mesh,&input,&solid,&hole,NULL,0,&work,ov,4096,of,768,origins,&out)==RF_FORMAT);
+    CHECK(!memcmp(&before,&out,sizeof(out)) && !memcmp(&saved,ov,sizeof(saved)));}
+    puts("PASS edited neighbor occlusion: solid/void/cut unions, overlapping cuts, area/point coverage, collision and contact convention");return 0;
+}
 int main(void) {
     float lo[3] = {-.25f, -1.5f, -.25f}, hi[3] = {.25f, 2, .25f}, fl[3] = {-10, -2, -10},
           fh[3] = {10, -1.25f, 10};
@@ -412,6 +485,7 @@ int main(void) {
     CHECK(!hollow_roof_boundary());
     CHECK(!hollow_neighbor_occlusion());
     CHECK(!cut_neighbor_boundary());
+    CHECK(!edited_neighbor_occlusion());
     puts("PASS publication");
     return 0;
 }

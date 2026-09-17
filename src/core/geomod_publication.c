@@ -491,3 +491,56 @@ int rf_geomod_publication_cut_neighbors(const rf_geomod_mesh_view *mesh,
     }
     return publication_copy(w,mesh->generation,vertices,vc,faces,fc,origins,out);
 }
+
+int rf_geomod_publication_occlude_neighbor(const rf_geomod_mesh_view *mesh,
+    const rf_geomod_publication_origin *input_origins,const rf_geomod_publication_solid *solid,
+    const rf_geomod_publication_solid *hole,const rf_geomod_publication_cut *cuts,uint32_t count,
+    rf_geomod_publication_work *w,rf_geomod_vertex *vertices,uint32_t vc,
+    rf_geomod_face *faces,uint32_t fc,rf_geomod_publication_origin *origins,rf_geomod_mesh_view *out) {
+    rf_geomod_publication_job job={0};uint32_t i,k,q,n,bank;int status;
+    if(!mesh || !solid || !w || !vertices || !faces || !origins || !out ||
+       (mesh->face_count && !input_origins) || (count && !cuts) || count>RF_GEOMOD_CUT_LIMIT)return RF_RANGE;
+    if(solid->owner==UINT32_MAX || (hole && hole->owner!=solid->owner))return RF_FORMAT;
+    status=mesh_valid(mesh);if(status)return status;
+    status=planes_valid(solid->planes,solid->count);if(status)return status;
+    if(hole){status=planes_valid(hole->planes,hole->count);if(status)return status;}
+    job.cuts=cuts;job.cut_count=count;status=prepare_cuts(&job,w);if(status)return status;
+    w->result.nv=w->result.nf=0;
+    for(i=0;i<mesh->face_count;i++) {
+        const rf_geomod_face *f=mesh->faces+i;uint32_t kept_contact=0;float surface[4];
+        if(input_origins[i].owner==UINT32_MAX || input_origins[i].kind>RF_GEOMOD_PUBLICATION_NEIGHBOR)return RF_FORMAT;
+        bank=0;w->banks[0].nv=w->banks[0].nf=0;
+        status=append(w->banks,mesh->vertices+f->first,f->count,*f);if(status)return status;
+        status=subtract(w,&bank,solid->planes,solid->count);if(status)return status;
+        status=emit_bank(w,bank,input_origins[i]);if(status)return status;
+        /* Opposite-facing contact is already retained by subtraction. */
+        status=plane(mesh->vertices+f->first,f->count,surface);if(status)return status;
+        for(q=0;q<solid->count && !kept_contact;q++) {
+            double dot=0;uint32_t coplanar=1;
+            for(k=0;k<3;k++)dot+=(double)surface[k]*solid->planes[q][k];
+            if(dot>=0)continue;
+            for(k=0;k<f->count;k++)if(fabsf(distance(solid->planes[q],mesh->vertices[f->first+k].position))>1e-5f){coplanar=0;break;}
+            kept_contact=coplanar;
+        }
+        if(kept_contact)continue;
+        if(hole) {
+            n=f->count;memcpy(w->polygon[0],mesh->vertices+f->first,n*sizeof(rf_geomod_vertex));
+            status=clip_negative(w,&n,solid->planes,solid->count);if(status)return status;
+            status=clip_negative(w,&n,hole->planes,hole->count);if(status)return status;
+            status=result(w,w->polygon[0],n,*f,input_origins[i]);if(status)return status;
+        }
+        /* First tetrahedron wins: disjoint union of openings inside the solid,
+         * excluding the authored void and all earlier cutter tetrahedra. */
+        for(q=0;q<w->tetra_count;q++) {
+            n=f->count;memcpy(w->polygon[0],mesh->vertices+f->first,n*sizeof(rf_geomod_vertex));
+            status=clip_negative(w,&n,solid->planes,solid->count);if(status)return status;
+            status=clip_negative(w,&n,w->tetra[q],4);if(status)return status;
+            bank=0;w->banks[0].nv=w->banks[0].nf=0;
+            status=append(w->banks,w->polygon[0],n,*f);if(status)return status;
+            if(hole){status=subtract(w,&bank,hole->planes,hole->count);if(status)return status;}
+            for(k=0;k<q;k++){status=subtract(w,&bank,w->tetra[k],4);if(status)return status;}
+            status=emit_bank(w,bank,input_origins[i]);if(status)return status;
+        }
+    }
+    return publication_copy(w,mesh->generation,vertices,vc,faces,fc,origins,out);
+}

@@ -103,4 +103,16 @@ int rf_geomod_publication_cut_neighbors(const rf_geomod_mesh_view *,
     const rf_geomod_publication_cut *, uint32_t count,
     rf_geomod_publication_work *, rf_geomod_vertex *, uint32_t,
     rf_geomod_face *, uint32_t, rf_geomod_publication_origin *, rf_geomod_mesh_view *);
+/* Keep portions outside an edited neighbor: solid minus optional authored void
+ * minus ordered star cuts. Void and solid owner must agree. Input surfaces are
+ * caller-selected (this does not filter by their origin.owner). Opposite-facing
+ * coplanar contacts follow the existing polygon subtraction convention. Cut and
+ * void overlaps are emitted once. No allocation; disjoint inputs/work/outputs,
+ * preserved provenance/generation, and atomic output on failure. */
+int rf_geomod_publication_occlude_neighbor(const rf_geomod_mesh_view *,
+    const rf_geomod_publication_origin *, const rf_geomod_publication_solid *,
+    const rf_geomod_publication_solid *void_volume,
+    const rf_geomod_publication_cut *, uint32_t count,
+    rf_geomod_publication_work *, rf_geomod_vertex *, uint32_t,
+    rf_geomod_face *, uint32_t, rf_geomod_publication_origin *, rf_geomod_mesh_view *);
 #endif
