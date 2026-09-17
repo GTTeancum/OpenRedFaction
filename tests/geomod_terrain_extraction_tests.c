@@ -46,6 +46,54 @@ static int cut(rf_geomod_terrain *t,const float center[3],const float extent[3],
     }
     return rf_geomod_terrain_cut_star(t,&mesh,center);
 }
+static int reject_candidate(const rf_geomod_terrain_view *view,void *context)
+{(void)view;(void)context;return RF_IO;}
+static void registry_lifetime(const rf_geomod_mesh_view *mesh,const rf_collision_face_filter *filters,
+    const rf_collision_face_filter *generated)
+{
+    rf_geomod_terrain *t=NULL;rf_geomod_piece_registry *r=NULL;rf_geomod_piece_batch *first,*again;
+    rf_geomod_owned_piece piece;rf_physics_body *body;float moved;uint32_t bytes;
+    const float center[4][3]={{0,0,0},{5,0,0},{-1,0,0},{-6,0,0}},extent[4][3]={{1,12,12},{2,2,2},{2,2,2},{1,12,12}};
+    CHECK(!rf_geomod_terrain_open(mesh,filters,generated,0,4096,800,1179648,&t));
+    CHECK(!rf_geomod_piece_registry_open(generated,7,2.5f,.5f,.25f,0,2097152,&r));
+    CHECK(!rf_geomod_terrain_set_extraction(t,rf_geomod_piece_registry_emit,r));
+    CHECK(!rf_geomod_piece_registry_begin(r,0));
+    CHECK(!rf_geomod_terrain_cut_box(t,center[0],extent[0],7));
+    CHECK(!rf_geomod_piece_registry_count(r));rf_geomod_piece_registry_commit(r);
+    CHECK(rf_geomod_piece_registry_count(r)==1);CHECK(!rf_geomod_piece_registry_get(r,0,&first));
+    CHECK(!rf_geomod_piece_batch_get(first,0,&piece,&body));body->state.position[0]+=17;moved=body->state.position[0];
+    for(uint32_t i=1;i<3;i++) {
+        CHECK(!rf_geomod_piece_registry_begin(r,0));
+        CHECK(!rf_geomod_terrain_cut_box(t,center[i],extent[i],7));
+        rf_geomod_piece_registry_commit(r);
+        CHECK(rf_geomod_piece_registry_count(r)==1);CHECK(!rf_geomod_piece_registry_get(r,0,&again));
+        CHECK(first==again && body->state.position[0]==moved);
+    }
+    bytes=rf_geomod_piece_registry_bytes(r);
+    CHECK(!rf_geomod_piece_registry_begin(r,0));
+    CHECK(rf_geomod_terrain_cut_box_checked(t,center[3],extent[3],7,reject_candidate,NULL)==RF_IO);
+    CHECK(rf_geomod_piece_registry_bytes(r)>bytes && rf_geomod_piece_registry_count(r)==1);
+    rf_geomod_piece_registry_abort(r);CHECK(rf_geomod_piece_registry_bytes(r)==bytes);
+    CHECK(body->state.position[0]==moved);
+    CHECK(!rf_geomod_piece_registry_begin(r,0));
+    CHECK(!rf_geomod_terrain_cut_box(t,center[3],extent[3],7));rf_geomod_piece_registry_commit(r);
+    CHECK(rf_geomod_piece_registry_count(r)==2 && body->state.position[0]==moved);
+    /* Clone decode + mutate invokes separate traversals; rewind must preserve
+     * live bodies and never construct duplicates for either traversal. */
+    CHECK(!rf_geomod_piece_registry_begin(r,0));
+    {
+        unsigned char encoded[RF_GEOMOD_HISTORY_MAX_BYTES];uint32_t size;
+        CHECK(!rf_geomod_terrain_history_size(t,&size));CHECK(!rf_geomod_terrain_history_encode(t,encoded,size));
+        CHECK(!rf_geomod_terrain_history_decode(t,encoded,size));
+        CHECK(!rf_geomod_piece_registry_rewind(r));
+        CHECK(!rf_geomod_terrain_history_decode(t,encoded,size));
+    }
+    rf_geomod_piece_registry_commit(r);CHECK(rf_geomod_piece_registry_count(r)==2 && body->state.position[0]==moved);
+    CHECK(!rf_geomod_piece_registry_begin(r,1));CHECK(!rf_geomod_terrain_reset(t));rf_geomod_piece_registry_commit(r);
+    CHECK(!rf_geomod_piece_registry_count(r));
+    rf_geomod_piece_registry_close(&r);rf_geomod_piece_registry_close(&r);rf_geomod_terrain_close(&t);
+    puts("PASS registry deduplication, moved-body retention, rejected-edit cleanup, replay rewind and reset");
+}
 static int run(uint32_t star)
 {
     rf_geomod_vertex vertices[24]={0},saved[4096];rf_geomod_face faces[6],saved_faces[800];
@@ -60,6 +108,7 @@ static int run(uint32_t star)
         for(uint32_t j=0;j<4;j++) {uint32_t k=side?j:3-j;vertices[f*4+j].position[axis]=side?10:-10;
             vertices[f*4+j].position[a]=u[k]*10;vertices[f*4+j].position[b]=w[k]*10;}
     }
+    if(!star)registry_lifetime(&mesh,filters,&generated);
     CHECK(!rf_geomod_terrain_open(&mesh,filters,&generated,0,4096,800,1179648,&t));
     CHECK(!rf_geomod_terrain_set_extraction(t,emit,&stage));
     for(uint32_t c=0;c<4;c++) {

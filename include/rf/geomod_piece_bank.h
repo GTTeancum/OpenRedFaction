@@ -70,6 +70,27 @@ typedef struct rf_geomod_piece_hit {
 int rf_geomod_piece_batch_sweep(const rf_geomod_piece_batch *,uint32_t flags,
     const float start[3],const float delta[3],float radius,float limit,
     rf_geomod_piece_hit *result,uint32_t *matched);
+typedef struct rf_geomod_piece_registry rf_geomod_piece_registry;
+/* Sixteen retained batches plus sixteen staged replacements. Budget includes
+ * registry and simultaneous old/new batch ownership and subdivision scratch.
+ * Caller separately budgets terrain/render resources. Parameters are resolved
+ * once per terrain owner. Append requires unchanged historical extraction. */
+int rf_geomod_piece_registry_open(const rf_collision_face_filter *generated,uint32_t material,
+    float density,float elasticity,float friction,uint32_t seed,uint32_t budget,rf_geomod_piece_registry **);
+void rf_geomod_piece_registry_close(rf_geomod_piece_registry **);
+int rf_geomod_piece_registry_begin(rf_geomod_piece_registry *,uint32_t replace);
+/* Reset callback traversal before EACH full terrain reconstruction (including
+ * clone decode followed by mutation). Retains pending batches for deduplication. */
+int rf_geomod_piece_registry_rewind(rf_geomod_piece_registry *);
+/* Matches rf_geomod_terrain_piece_fn; context is the registry. */
+int rf_geomod_piece_registry_emit(const rf_geomod_mesh_view *,const uint32_t *,
+    const rf_collision_face_filter *,uint32_t,uint32_t prefix,uint32_t ordinal,void *);
+void rf_geomod_piece_registry_abort(rf_geomod_piece_registry *);
+/* No allocation or fallible work; call only after successful outer publication. */
+void rf_geomod_piece_registry_commit(rf_geomod_piece_registry *);
+uint32_t rf_geomod_piece_registry_count(const rf_geomod_piece_registry *);
+uint32_t rf_geomod_piece_registry_bytes(const rf_geomod_piece_registry *);
+int rf_geomod_piece_registry_get(rf_geomod_piece_registry *,uint32_t,rf_geomod_piece_batch **);
 int rf_geomod_piece_bank_get(const rf_geomod_piece_bank *,uint32_t index,rf_geomod_owned_piece *);
 uint32_t rf_geomod_piece_bank_count(const rf_geomod_piece_bank *);
 uint32_t rf_geomod_piece_bank_bytes(const rf_geomod_piece_bank *);

@@ -224,3 +224,79 @@ int rf_geomod_piece_batch_sweep(const rf_geomod_piece_batch *batch,uint32_t flag
     if(found)*result=best;
     *matched=found;return RF_OK;
 }
+
+typedef struct piece_registry_entry {
+    rf_geomod_piece_batch *batch;uint32_t prefix,ordinal,before,after;
+} piece_registry_entry;
+struct rf_geomod_piece_registry {
+    piece_registry_entry active[16],pending[16];uint32_t count,staged,begun,replace;
+    uint32_t seed,budget,bytes,material,last_prefix,last_ordinal;rf_random_state random;
+    float density,elasticity,friction;rf_collision_face_filter generated;
+};
+int rf_geomod_piece_registry_open(const rf_collision_face_filter *generated,uint32_t material,
+    float density,float elasticity,float friction,uint32_t seed,uint32_t budget,rf_geomod_piece_registry **out)
+{
+    rf_geomod_piece_registry *r;
+    if(!out || *out || !generated || budget<sizeof(*r) || material==UINT32_MAX ||
+       !isfinite(density) || density<0 || !isfinite(elasticity) || !isfinite(friction))return RF_RANGE;
+    r=calloc(1,sizeof(*r));if(!r)return RF_IO;
+    r->generated=*generated;r->material=material;r->density=density;r->elasticity=elasticity;r->friction=friction;
+    r->seed=seed;r->budget=budget;r->bytes=sizeof(*r);*out=r;return RF_OK;
+}
+void rf_geomod_piece_registry_abort(rf_geomod_piece_registry *r)
+{
+    uint32_t i;if(!r)return;
+    for(i=0;i<r->staged;i++){r->bytes-=rf_geomod_piece_batch_bytes(r->pending[i].batch);rf_geomod_piece_batch_close(&r->pending[i].batch);}
+    memset(r->pending,0,sizeof(r->pending));r->staged=r->begun=r->replace=0;
+}
+void rf_geomod_piece_registry_close(rf_geomod_piece_registry **owner)
+{
+    rf_geomod_piece_registry *r;uint32_t i;if(!owner || !*owner)return;r=*owner;
+    rf_geomod_piece_registry_abort(r);
+    for(i=0;i<r->count;i++)rf_geomod_piece_batch_close(&r->active[i].batch);
+    free(r);*owner=NULL;
+}
+int rf_geomod_piece_registry_rewind(rf_geomod_piece_registry *r)
+{if(!r || !r->begun)return RF_RANGE;r->random.value=r->seed;r->last_prefix=r->last_ordinal=0;return RF_OK;}
+int rf_geomod_piece_registry_begin(rf_geomod_piece_registry *r,uint32_t replace)
+{
+    if(!r || r->begun || replace>1)return RF_RANGE;
+    r->begun=1;r->replace=replace;return rf_geomod_piece_registry_rewind(r);
+}
+int rf_geomod_piece_registry_emit(const rf_geomod_mesh_view *mesh,const uint32_t *map,
+    const rf_collision_face_filter *filters,uint32_t source_count,uint32_t prefix,uint32_t ordinal,void *opaque)
+{
+    rf_geomod_piece_registry *r=opaque;piece_registry_entry *entry;
+    rf_collision_face_filter mapped[32];uint32_t i,pass;int status;
+    if(!r || !r->begun || !mesh || !map || !filters || !prefix ||
+       prefix<r->last_prefix || (prefix==r->last_prefix && ordinal<=r->last_ordinal))return RF_RANGE;
+    for(pass=0;pass<2;pass++) {
+        piece_registry_entry *entries=pass?r->pending:r->active;
+        uint32_t count=pass?r->staged:(r->replace?0:r->count);
+        for(i=0;i<count;i++)if(entries[i].prefix==prefix && entries[i].ordinal==ordinal) {
+            if(entries[i].before!=r->random.value)return RF_FORMAT;
+            r->random.value=entries[i].after;r->last_prefix=prefix;r->last_ordinal=ordinal;return RF_OK;
+        }
+    }
+    if(mesh->face_count>32 || r->staged+(r->replace?0:r->count)>=16)return RF_RANGE;
+    for(i=0;i<mesh->face_count;i++){if(map[i]>=source_count)return RF_FORMAT;mapped[i]=filters[map[i]];}
+    entry=r->pending+r->staged;entry->before=r->random.value;
+    status=rf_geomod_piece_batch_open(mesh,mapped,&r->generated,r->material,r->density,r->elasticity,r->friction,
+        &r->random,r->budget-r->bytes,&entry->batch);if(status)return status;
+    entry->prefix=prefix;entry->ordinal=ordinal;entry->after=r->random.value;
+    r->bytes+=rf_geomod_piece_batch_bytes(entry->batch);r->staged++;r->last_prefix=prefix;r->last_ordinal=ordinal;return RF_OK;
+}
+void rf_geomod_piece_registry_commit(rf_geomod_piece_registry *r)
+{
+    uint32_t i;if(!r || !r->begun)return;
+    if(r->replace) {
+        for(i=0;i<r->count;i++){r->bytes-=rf_geomod_piece_batch_bytes(r->active[i].batch);rf_geomod_piece_batch_close(&r->active[i].batch);}
+        memset(r->active,0,sizeof(r->active));r->count=0;
+    }
+    memcpy(r->active+r->count,r->pending,r->staged*sizeof(*r->pending));r->count+=r->staged;
+    memset(r->pending,0,sizeof(r->pending));r->staged=r->begun=r->replace=0;
+}
+uint32_t rf_geomod_piece_registry_count(const rf_geomod_piece_registry *r){return r?r->count:0;}
+uint32_t rf_geomod_piece_registry_bytes(const rf_geomod_piece_registry *r){return r?r->bytes:0;}
+int rf_geomod_piece_registry_get(rf_geomod_piece_registry *r,uint32_t i,rf_geomod_piece_batch **out)
+{if(!r || !out || i>=r->count)return RF_RANGE;*out=r->active[i].batch;return RF_OK;}

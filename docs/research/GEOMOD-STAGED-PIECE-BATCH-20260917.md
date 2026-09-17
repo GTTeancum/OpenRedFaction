@@ -88,3 +88,34 @@ Release geomod_extracted_replay passes. Stock NXDK build is recorded in
 artifacts/geomod-postedit-re/moving-piece-query-xbox.log. No simulation scheduler
 or live rendering was added; this connects owned collision geometry to mutable
 body poses so scene movement/weapons can consume it next.
+
+## Retained registry and edit staging
+
+rf_geomod_piece_registry holds up to16 active batches and16 replacement-stage
+batches. Append keeps the historical prefix/ordinal identity and RNG before/after
+states for each batch. A replay emission reuses the owned batch and restores its
+post-construction RNG state instead of creating a duplicate or resetting body
+motion. Append assumes unchanged historical extraction; replacing history must
+use replacement mode. This is scoped to one terrain owner.
+
+Begin/rewind/emit stage changes. Rewind is required before each full terrain
+reconstruction, including clone decode followed by mutation, and retains pending
+batches for duplicate suppression. Abort frees only pending batches. Commit is
+infallible and transfers pointers after the outer terrain/render publication;
+replacement commit then frees old batches. Empty replacement supports reset.
+Close releases both sets. Borrowed batch pointers remain live until replacement
+commit or close; there is no individual retirement API yet.
+
+The registry budget includes its allocation, old and staged resident batches,
+and concurrent new batch construction scratch. Terrain/render allocations are
+external and must be included by the scene's total-budget reservation. Material
+parameters are supplied by the caller. This does not implement scheduling,
+drawing or active-body save serialization.
+
+The production terrain extraction test verifies a moved body keeps its pointer
+and position through later cuts and two reconstruction traversals. A rejected
+fourth edit allocates a new batch, then abort restores registry bytes exactly
+while preserving the original body. Successful retry publishes the second batch.
+Reset empties the registry; double close is safe. PC Release test passes; stock
+NXDK build log: artifacts/geomod-postedit-re/piece-registry-xbox.log.
+The scene has not yet enabled this registry.
