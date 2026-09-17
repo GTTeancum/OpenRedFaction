@@ -132,3 +132,25 @@ Evidence is in `artifacts/geomod-postedit-re/intermediate-rubble-standing/`.
 The PC endpoint image was inspected and shows the elevated first-person view,
 environment, weapon and HUD. This is not a frame-by-frame animation assessment.
 Xbox runtime, broader surfaces and larger chunks still require validation.
+
+## Stock64MiB Xbox acceptance
+
+- `artifacts/xemu/render-20260917-101612`:600-frame natural jump/standing run,
+  all74 checks pass,270 fragment contacts match PC. The2654-byte Xbox-created
+  RFCP matches PC exactly; SHA256
+  `34bea2de5d5ad2c39eabed5854299fe64b6d3b72b90397f9444237fd94426384`.
+- `artifacts/xemu/render-20260917-101755`:201-frame reload/walk-away using the
+  preceding Xbox checkpoint, all74 checks pass,54 fragment contacts match PC.
+  Final RFCP also matches uninterrupted PC walk-away exactly; SHA256
+  `0a723e19c8b540720e7388e715b38c3e1717f97f667479e6bbc005759b0aaf56`.
+
+Both report base-memory67108864 and plugged-memory0. The standing checkpoint
+containsRFPLv2, including its small nonzero residual velocity, so native v2
+encoding and decoding are exercised. Native framebuffer images were inspected:
+the elevated standing view and lower retreat view contain the expected room,
+post/debris, first-person weapon and HUD. This is endpoint inspection, not a
+complete animation or audio assessment. Both owned sessions closed and their
+disc contents were restored. No HDD copy or retained test ISO was created.
+
+Broader shapes, native missing-support rejection, larger residual velocities,
+and visual/animation fidelity remain separate work.

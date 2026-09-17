@@ -2,11 +2,11 @@
 
 - USER Repository cleanup: Remove 22 obsolete test ISO/QCOW2 copies totaling30.17GiB listed in artifacts/cleanup-20260917.json; automated deletion is policy-blocked; both HDD harnesses now refuse runs exceeding an8GiB artifact budget before copying/staging, while reports/checkpoints must be preserved.
 
-- PRIORITY GeoMod jump/support: Verify intermediate-rubble standing on Xbox; ordinary jumping, saved standing, walking away after reload and missing-support rejection pass on PC with byte-exact continuations.
+- GeoMod jump/support: Broaden standing to other rubble shapes and verify missing-support rejection natively; jumping onto radius0.530725rubble and walking away from an Xbox-created save pass74/74 stock64MiB checks with exact PC continuation, while missing-support rejection passes PC.
 
-- Player saves: Verify RFPLv2 residual velocity on Xbox and audit replay save boundaries; the post-jump PC continuation is byte-exact after preserving velocity and resuming input599 after a600-frame save, while legacy zero-velocity RFPLv1 remains compatible.
+- Player saves: Audit other replay save boundaries and broaden residual-velocity coverage; RFPLv2 standing save/reload passes74/74 stock64MiB checks and exact walk-away continuation, while legacy zero-velocity RFPLv1 remains compatible.
 
-- PRIORITY GeoMod player contacts: Broaden intermediate-size rubble beyond the tested radius0.530725chunk and verify Xbox behavior; PC standing produces670 sphere-route contacts with exact saved standing/walk-away continuation, while1080 original ground comparisons establish the shared sphere math.
+- GeoMod player contacts: Broaden intermediate-size rubble beyond the tested radius0.530725chunk; PC/Xbox standing and saved walk-away pass with exact checkpoints, while1080 original ground comparisons establish the shared sphere math.
 
 - GeoMod vehicle contacts: Verify admitted use-kind1 vehicle contacts with larger fragments;240 original cases confirm ordinary miner/AI-response kind9 is excluded, so humanoid rubble pushing is not a missing fidelity feature.
 
