@@ -103,6 +103,7 @@ static int grouped_scene(const rf_level *level,rf_geometry *geometry,rf_geometry
         assets[i]->source=assets[i]->asset_view.source;assets[i]->windows=assets[i]->asset_view.windows;assets[i]->neighbors=assets[i]->asset_view.neighbors;
         CHECK(!references(assets[i],geometry));generated=assets[i]->asset_view.source_filters[0];generated.query_flags=0;generated.face_flags=256;
         CHECK(!rf_geomod_terrain_open(&assets[i]->source,assets[i]->asset_view.source_filters,&generated,0,4096,800,1048576,&sources[i].terrain));
+        CHECK(!rf_geomod_terrain_set_mapping(sources[i].terrain,128,128));
         sources[i].authored=assets[i];
     }
     CHECK(!scene_terrain_sources_select(&s,0));
@@ -154,6 +155,7 @@ static int grouped_scene(const rf_level *level,rf_geometry *geometry,rf_geometry
         CHECK(!rf_geomod_terrain_history_size(old,&bytes));history=malloc(bytes);CHECK(history);
         CHECK(!rf_geomod_terrain_history_encode(old,history,bytes));
         CHECK(!rf_geomod_terrain_open(&assets[0]->source,assets[0]->asset_view.source_filters,&generated,0,4096,800,1048576,&private_core));
+        CHECK(!rf_geomod_terrain_set_mapping(private_core,128,128));
         CHECK(!rf_geomod_terrain_history_decode(private_core,history,bytes));free(history);
         CHECK(!rf_geomod_terrain_cut_template(private_core,&shape,second,basis,1.05000007f,0));
         sources[0].terrain=private_core;
@@ -170,6 +172,43 @@ static int grouped_scene(const rf_level *level,rf_geometry *geometry,rf_geometry
     CHECK(!scene_terrain_publication_prepare(&s));scene_terrain_publication_abort(&s);
     CHECK(!scene_terrain_publication_view(&s,&view));CHECK(!post_ray(&view,-2.5f,0));CHECK(!post_ray(&view,2.5f,0));
     printf("PASS grouped scene publication: replaced8, both cuts70, composed room%u faces, resident%u peak%u\n",view.tree->face_count,s.terrain_publication->resident_bytes,s.terrain_publication->peak_bytes);
+    printf("PASS grouped real atlas bake: first%u final%u maps; first bindings/base pixels unchanged; draw%u vertices\n",
+        first_maps,s.terrain_noise->count,s.terrain_draw->view.vertex_count);
+    {
+        const uint32_t indices[2]={0,1};float centers[2][3]={{-4.75f,.2f,-2.5f},{-4.75f,.2f,2.5f}};
+        scene_authored_edit_context edits[2]={{0}};rf_geomod_terrain *old[2]={sources[0].terrain,sources[1].terrain};
+        candidate_snapshot *before=malloc(sizeof(*before));uint32_t atlas_hash,serial=s.terrain_publication_serial;
+        unsigned char *first_history;uint32_t first_bytes;
+        CHECK(before);CHECK(!snapshot_take(&s,before));
+        CHECK(!rf_geomod_terrain_history_size(old[0],&first_bytes));first_history=malloc(first_bytes);CHECK(first_history);
+        CHECK(!rf_geomod_terrain_history_encode(old[0],first_history,first_bytes));
+        atlas_hash=npc_hash_bytes(2166136261u,s.terrain_atlas_pixels,512*512*2);
+        s.terrain_template=&shape;s.terrain_texture_width=s.terrain_texture_height=128;
+        for(i=0;i<2;i++)edits[i]=(scene_authored_edit_context){&s,centers[i],basis,1.05000007f,NULL,0,0,NULL};
+        edits[1].scale=-1;
+        CHECK(scene_terrain_authored_edit_group(&s,indices,edits,2)!=RF_OK);
+        CHECK(!snapshot_same(&s,before));
+        CHECK(sources[0].terrain==old[0] && sources[1].terrain==old[1] && s.terrain_publication_serial==serial);
+        {
+            unsigned char *after=malloc(first_bytes);CHECK(after);
+            CHECK(!rf_geomod_terrain_history_encode(sources[0].terrain,after,first_bytes));
+            CHECK(!memcmp(first_history,after,first_bytes));free(after);
+        }
+        CHECK(atlas_hash==npc_hash_bytes(2166136261u,s.terrain_atlas_pixels,512*512*2));
+        edits[1].scale=1.05000007f;
+        s.light_rgb.count=0; /* Late publication rejection, after both mutations. */
+        CHECK(scene_terrain_authored_edit_group(&s,indices,edits,2)!=RF_OK);s.light_rgb.count=3;
+        CHECK(!snapshot_same(&s,before));CHECK(sources[0].terrain==old[0] && sources[1].terrain==old[1]);
+        CHECK(s.terrain_publication_serial==serial && atlas_hash==npc_hash_bytes(2166136261u,s.terrain_atlas_pixels,512*512*2));
+        CHECK(!scene_terrain_authored_edit_group(&s,indices,edits,2));
+        CHECK(sources[0].terrain!=old[0] && sources[1].terrain!=old[1] && s.terrain==sources[1].terrain);
+        CHECK(s.terrain_publication_serial==serial+1);CHECK(!scene_terrain_publication_view(&s,&view));
+        CHECK(view.cuts==4 && view.mesh.generation==serial+1);
+        CHECK(!post_ray(&view,-2.5f,0));CHECK(!post_ray(&view,2.5f,0));
+        for(i=0;i<2;i++){rf_geomod_terrain_view local;CHECK(!rf_geomod_terrain_get(sources[i].terrain,&local));CHECK(local.cuts==2);}
+        printf("PASS real scene grouped edit: four local cuts, room revision%u; mutation/publication failures preserve both owners and atlas\n",s.terrain_publication_serial);
+        free(first_history);free(before);
+    }
     rf_geometry_collision_overlay_close(&s.terrain_collision);scene_terrain_publication_close(&s.terrain_publication);
     /* A successful edit replaces the active core alias. Switching must retain
      * the new owner, never a freed core left in the collection entry. */
@@ -180,13 +219,12 @@ static int grouped_scene(const rf_level *level,rf_geometry *geometry,rf_geometry
         CHECK(!rf_geomod_terrain_history_size(old,&bytes));history=malloc(bytes);CHECK(history);
         CHECK(!rf_geomod_terrain_history_encode(old,history,bytes));
         CHECK(!rf_geomod_terrain_open(&assets[1]->source,assets[1]->asset_view.source_filters,&generated,0,4096,800,1048576,&replacement));
+        CHECK(!rf_geomod_terrain_set_mapping(replacement,128,128));
         CHECK(!rf_geomod_terrain_history_decode(replacement,history,bytes));free(history);
         s.terrain=replacement;rf_geomod_terrain_close(&old);
         CHECK(!scene_terrain_sources_select(&s,0));CHECK(sources[1].terrain==replacement);
         CHECK(!scene_terrain_sources_select(&s,1));CHECK(s.terrain==replacement);
     }
-    printf("PASS grouped real atlas bake: first%u final%u maps; first bindings/base pixels unchanged; draw%u vertices\n",
-        first_maps,s.terrain_noise->count,s.terrain_draw->view.vertex_count);
     free(saved_pixels);free(s.terrain_noise);free(s.terrain_atlas_pixels);free(s.terrain_tile);
     free(s.terrain_bindings);free(s.terrain_colors);free(s.terrain_light_cache);free(s.terrain_tiles);free(s.terrain_draw);free(s.light_overlay_work);
     scene_terrain_sources_close(&s);
