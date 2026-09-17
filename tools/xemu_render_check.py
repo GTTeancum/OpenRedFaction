@@ -446,6 +446,15 @@ dvd_path = '{root.as_posix()}/build/xbox/redfaction-diagnostic.iso'
                     report['pickup_cpu_vertices']=dict(xbox=actual[6],pc=expected[6],
                         scope='Backend-specific rendering count; excluded from gameplay parity')
                 assert equal, label
+            expected=list(map(int,next(line for line in pc.stdout.splitlines() if line.startswith('DETACHED_PIECES ')).split()[1:]))
+            actual=words(monitor,symbol('rf_scene_detached_pieces'),6)
+            indices=[0,1,2,3,5] # Resident owner size depends on pointer width.
+            equal=all(actual[i]==expected[i] for i in indices)
+            budget_ok=all(0<=v[4]<=2*1024*1024 for v in (actual,expected))
+            report['checks']['DETACHED_PIECES']=dict(equal=equal,budget_ok=budget_ok,
+                compared_indices=indices,xbox=actual,pc=expected,
+                scope='Ownership and posed draw counts, not motion or pixel fidelity')
+            assert equal and budget_ok and actual[5]==0,'Detached ownership/draw mismatch'
             if args.debris_player_test:
                 from verify_debris_player_scenario import verify
                 report['debris_player_scenario']=verify(report)
@@ -463,9 +472,9 @@ dvd_path = '{root.as_posix()}/build/xbox/redfaction-diagnostic.iso'
                 indices=[0,1,2,5,6,7]
                 equal=all(actual[i]==expected[i] for i in indices)
                 # Authored solid edits reserve old+clone core, two publication
-                # banks and private lighting staging. Match its explicit12MiB
+                # banks, piece registry and private lighting staging. Match its explicit13MiB
                 # subsystem ceiling; keep the cavity profile's old ceiling.
-                terrain_budget=(16*1024*1024 if args.level=='ctf06.rfl' else 2359296+65536) if args.expanded_geomod else (12*1024*1024 if args.level=='ctf06.rfl' and args.dev_room else 1024*1024+65536)
+                terrain_budget=(16*1024*1024 if args.level=='ctf06.rfl' else 2359296+65536) if args.expanded_geomod else (13*1024*1024 if args.level=='ctf06.rfl' and args.dev_room else 1024*1024+65536)
                 budget_ok=all(0<=v[3]<=v[4]<=terrain_budget for v in (actual,expected))
                 report['checks']['GEOMOD']=dict(equal=equal,budget_ok=budget_ok,budget_bytes=terrain_budget,
                     compared_indices=indices,xbox=actual,pc=expected,

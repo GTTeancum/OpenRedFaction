@@ -11,13 +11,16 @@ ROOT = Path(__file__).resolve().parents[1]
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--case', choices=('two-shot', 'reset-zero'), default='two-shot')
+    parser.add_argument('--case', choices=('two-shot', 'reset-zero', 'middle-shot'), default='two-shot')
     parser.add_argument('--build-dir', type=Path, default=ROOT / 'build/pc')
     parser.add_argument('--output-dir', type=Path)
     args = parser.parse_args()
     reset = args.case == 'reset-zero'
+    middle = args.case == 'middle-shot'
     folder = ROOT / ('artifacts/authored-post-live/solo-reset-continuation' if reset else
                      'artifacts/authored-post-live/solo-continuation')
+    if middle:
+        folder = ROOT / 'artifacts/authored-post-live/solo-middle-continuation'
     if args.output_dir is not None:
         folder = args.output_dir.resolve()
     folder.mkdir(parents=True, exist_ok=True)
@@ -25,6 +28,16 @@ def main():
               ('reset-recut.bin' if reset else 'two-shot.bin')).read_bytes()
     frames, split, initial_cuts, final_cuts = (840, 640, 0, 1) if reset else (550, 350, 1, 2)
     assert source[:8] == b'RFI6' + struct.pack('<I', 48) and len(source) == 8 + frames * 48
+    if middle:
+        from replay_authored_post import pitch_commands, pitch_for
+        recipe = json.loads((ROOT / 'artifacts/authored-post-live/post-recipe.json').read_text())
+        pitch, _ = pitch_commands(0, pitch_for(recipe['eye'], [-4.699, .25, 2.5]))
+        source = bytearray(source)
+        for frame in range(frames):
+            struct.pack_into('<f', source, 8 + frame * 48 + 12, pitch[frame-190] if 190 <= frame < 220 else 0)
+            struct.pack_into('<I', source, 8 + frame * 48 + 32, int(frame == 240))
+        source = bytes(source)
+        final_cuts = 1
     recordings = {'saved': source[:8 + split * 48],
                   'continued': source[:8] + source[8 + split * 48:], 'control': source}
     env = {k: v for k, v in os.environ.items() if not k.startswith(("RF_REPLAY_", "RF_DEV_"))}
@@ -56,6 +69,17 @@ def main():
         for name, cuts in (("saved", initial_cuts), ("continued", final_cuts), ("control", final_cuts)):
             data = (folder / (name + ".rgch")).read_bytes()
             assert struct.unpack_from("<I", data, 12)[0] == cuts, name + " did not produce expected destruction"
+        if middle:
+            states = {}
+            for name in recordings:
+                lines = (folder / (name + '.log')).read_text().splitlines()
+                state = list(map(int, next(line for line in lines if line.startswith('DETACHED_PIECES ')).split()[1:]))
+                assert state[0:3] == [1, 1, 1] and state[3] > 0 and state[5] == 0, name + ' missing detached piece'
+                assert 0 < state[4] <= 2 * 1024 * 1024, name + ' detached budget'
+                states[name] = state
+            assert states['continued'] == states['control'], 'Detached ownership/draw differs after reload'
+            report['detached'] = states
+            report['scope'] = 'PC real rocket separation and birth-pose ownership/drawing across reload; no motion or visual/Xbox acceptance'
         report["result"] = "PASS"
     finally:
         (folder / "report.json").write_text(json.dumps(report, indent=2) + "\n")

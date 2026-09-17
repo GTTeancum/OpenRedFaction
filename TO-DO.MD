@@ -14,8 +14,8 @@
 
 - GeoMod debris visibility: Verify live leave/return lifetime retention; room-filtered drawing passes synthetic hidden/return cases,138 binary fixtures and60 stock64MiB PC/Xbox checks.
 - GeoMod water crossing: Verify audible splash quality and broader liquid scenarios;35 positional splash starts and246 ripple vertices match PC/Xbox across63 stock64MiB comparisons.
-- PRIORITY GeoMod detached topology: Extend exact cutter-corner repair to recorded rocket blasts; four of six axis-oriented authored probes now emit closed pieces with repeat-cut/reload parity, while the live two-shot recording still emits none.
-- GeoMod detached drawing: Validate the enabled authored-post registry and drawing on Xbox; PC two-shot and reset checkpoint continuation pass, while accepted real closed pieces, motion, collision registration and lighting remain open.
+- PRIORITY GeoMod detached reload: Resolve the more-intact-looking post after reload despite matching checkpoint bytes and69 native checks; a real rocket now creates one closed piece, while visual restore correctness, motion and active-pose saves remain open.
+- GeoMod detached drawing: Improve lighting and broaden scene coverage after a real middle-post rocket draws one extracted upper fragment on PC/Xbox; motion, collision registration and active-pose saves remain open.
 - GeoMod authored extraction: Validate the enabled piece-aware scene transaction with real detached chunks; ownership, drawing and material settings are wired, while body motion and live/native acceptance remain open.
 - GeoMod terrain extraction: Validate integrated scene ownership/rendering on stock64MiB Xbox; box and triangulated-star-path removal/reload pass under a1152KiB test budget, while live motion and native runtime acceptance remain open.
 - GeoMod piece subdivision: Publish staged geometry/body batches with live extraction; tested10-11-piece batches retain140372-143024 PC bytes under0.9MiB temporary peak and build for Xbox, while exact T-junction splitting now passes extracted replay and broader topology, scene scheduling and rendering remain open.
@@ -4633,7 +4633,7 @@ this evidence. See `docs/CAMERA.md` for addresses and remaining uncertainties.
 - XEMU is the primary emulator; CXBX-R may assist with diagnosis.
 - Never control the desktop or send host input; use source, files, logs, non-interactive commands, and process-contained test harnesses.
 
-## Milestone 0 â€” evidence and toolchains
+## Milestone 0 — evidence and toolchains
 
 - [x] Set the persistent project goal.
 - [x] Inspect the initial workspace: only an empty Git repository was present.
@@ -4643,7 +4643,7 @@ this evidence. See `docs/CAMERA.md` for addresses and remaining uncertainties.
 - [x] Evaluate Open Faction and Dash Faction as references, recording provenance and reuse terms.
 - [x] Compile and validate minimal PC and Xbox artifacts; distinguish scaffolding from recovered game behavior.
 
-## Milestone 1 â€” reconstruction foundation
+## Milestone 1 — reconstruction foundation
 
 - [x] Create a reproducible headless Ghidra project from a hash-identified executable.
 - [ ] Map startup, filesystem/archive loading, memory allocation, game loop, rendering, audio, input, and level transitions.
@@ -4655,14 +4655,14 @@ this evidence. See `docs/CAMERA.md` for addresses and remaining uncertainties.
 - [ ] Establish native emulator visual capture without any desktop capture or window input.
 - [ ] Establish memory accounting that includes executable, heaps, stacks, GPU surfaces, audio, and transient loads.
 
-## Milestone 2 â€” playable campaign slice
+## Milestone 2 — playable campaign slice
 
 - [ ] Load and draw the first campaign area on both platforms.
 - [ ] Restore collision, player movement, controller mapping, weapons, enemies, events, and Geo-Mod.
 - [ ] Restore HUD, sound, dialogue, cutscenes, saves, and level transitions needed by that slice.
 - [ ] Compare matched PS2 scenes and capture native emulator output for review.
 
-## Milestone 3 â€” campaign completion and validation
+## Milestone 3 — campaign completion and validation
 
 - [ ] Extend subsystem coverage through every campaign level and document completion evidence.
 - [ ] Run memory stress, loading, save/reload, destruction, AI, and frame-time regression scenarios.
