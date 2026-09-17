@@ -23,7 +23,7 @@ if args.second_support:
  for frame in range(30,90):struct.pack_into('<f',prefix,frame*48,-5/6)
  if args.both_destroyed:
   second_shot=bytearray(160*48)
-  commands,_=pitch_commands(-.050287704,pitch_for([4.450001,.3840414,-2.5],[-4.699,-.5,-2.5]))
+  commands,_=pitch_commands(-.050287704,pitch_for([4.450001,.3840414,-2.5],[-4.699,-.3,-2.5]))
   for frame,value in enumerate(commands):struct.pack_into('<f',second_shot,frame*48+12,value)
   struct.pack_into('<I',second_shot,60*48+32,1)
   boundary=8+350*48

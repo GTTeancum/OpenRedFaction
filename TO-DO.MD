@@ -1,6 +1,8 @@
 # Red Faction Xbox / PC - open work
 
-- PRIORITY GeoMod runtime: Add below-world fragment retirement and finish two-destroyed-source standing; tiny-fragment alpha sweeps now survive the former frame619 crash and pass76 native checks, with moving-save frame0 timing fixed and Xbox-created reload matching uninterrupted PC through76 further checks.
+- PRIORITY GeoMod player saves: Resolve live standing versus saved-placement disagreement with both posts destroyed; the player settles on source93 but capture detects0.02491 sphere overlap and rejects, while prior tiny-fragment collision and moving-save fixes pass76 native checks each.
+
+- GeoMod fragment lifecycle: Investigate the generic object world-exit path before adding spatial retirement; recovered lifetime and debris paths do not justify an arbitrary kill height, and healthy terrain fragments have disabled lifetime timers.
 
 - USER Repository cleanup: Delete the disposable artifacts/geomod-hdd root (about27GiB); remaining obsolete image paths are in artifacts/cleanup-20260917.json, and both HDD harnesses enforce an8GiB projected artifact budget.
 

@@ -169,11 +169,13 @@ static int scene_checkpoint_player_capture(scene_stream *s,rf_player_checkpoint 
          s->terrain_source_count>1?(void *)&collection_support:(void *)&support,&fit);if(status){printf("PLAYER_CHECKPOINT_REJECT placement %d sphere%u reason%u retries%u\n",status,status==RF_NOT_FOUND?fit.sphere:UINT32_MAX,status==RF_NOT_FOUND?fit.reason:0,status==RF_NOT_FOUND?fit.retries:0);return status;}}
 
     status=s->terrain_source_count>1?scene_collection_player_placement(s,&placement):rf_geomod_piece_registry_placement_check(s->detached_pieces,&placement);if(status){
-        if(s->terrain_source_count>1){printf("PLAYER_CHECKPOINT_REJECT collection rubble %d\n",status);return status;}
+        uint32_t source_slot;
+        for(source_slot=0;source_slot<(s->terrain_source_count?s->terrain_source_count:1);source_slot++) {
+        rf_geomod_piece_registry *registry=scene_detached_source_registry(s,source_slot);
         uint32_t b,n,q,k,j;double minimum=1e30;uint32_t source_index=UINT32_MAX,target_index=UINT32_MAX;
-        for(b=0;b<rf_geomod_piece_registry_count(s->detached_pieces);b++) {
+        for(b=0;b<rf_geomod_piece_registry_count(registry);b++) {
             rf_geomod_piece_batch *batch=NULL;uint32_t piece_index;
-            if(rf_geomod_piece_registry_get(s->detached_pieces,b,&batch))continue;
+            if(rf_geomod_piece_registry_get(registry,b,&batch))continue;
             for(piece_index=0;piece_index<rf_geomod_piece_batch_count(batch);piece_index++) {
                 rf_geomod_owned_piece piece;rf_physics_body *target=NULL;
                 if(!rf_geomod_piece_batch_alive(batch,piece_index) || rf_geomod_piece_batch_get(batch,piece_index,&piece,&target))continue;
@@ -192,6 +194,8 @@ static int scene_checkpoint_player_capture(scene_stream *s,rf_player_checkpoint 
         }
         printf("PLAYER_CHECKPOINT_REJECT rubble %d clearance %.9g source%u target%u position %.9g %.9g %.9g\n",status,minimum,source_index,target_index,
             (double)placement.position[0],(double)placement.position[1],(double)placement.position[2]);
+        printf("PLAYER_CHECKPOINT_REJECT source_slot %u\n",source_slot);
+        }
         return status;
     }
     rf_scene_player_checkpoint_state[6]=scene_actor_body.spheres.count;rf_scene_player_checkpoint_state[7]=1;return RF_OK;
