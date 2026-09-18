@@ -2,6 +2,7 @@
 #include "rf/geomod_piece_bank.h"
 #include "rf/composed_checkpoint.h"
 #include "rf/vehicle_checkpoint.h"
+#include "scene_vehicle_checkpoint_record.inc"
 #include "rf/remote_checkpoint.h"
 #include "rf/checkpoint_placement.h"
 #include "rf/eye.h"
@@ -746,7 +747,7 @@ typedef struct scene_stream {
     scene_weapon_custom_actions *machine_custom[2];uint32_t machine_transition_ticks[2];
     scene_driller_cockpit *driller_cockpit;
     scene_driller_runtime *driller_runtime;
-    rf_vehicle_checkpoint vehicle_checkpoint;uint32_t vehicle_checkpoint_pending;
+    rf_vehicle_checkpoint vehicle_checkpoint;scene_vehicle_checkpoint_record vehicle_record;uint32_t vehicle_checkpoint_pending;
     scene_driller_bit_animation *driller_bits;uint32_t driller_bit_base,driller_bit_textures;scene_driller_damage driller_damage_prototype;scene_driller_weapon driller_weapon;scene_apc_primary_state apc_primary;scene_apc_secondary_state apc_secondary;
     scene_vehicle_aim apc_aim;rf_entity_eye_limits apc_aim_limits;float apc_aim_eye[3],apc_aim_basis[9];uint32_t apc_aim_active;
     scene_jeep_gun_resources *jeep_gun;float jeep_gun_pose[12],jeep_muzzle_pose[12];uint32_t jeep_gun_base,jeep_gun_textures;
@@ -10712,9 +10713,9 @@ static void scene_remote_checkpoint_discard(void);
 static void scene_remote_checkpoint_frame0(void);
 static int scene_vehicle_checkpoint_capture(scene_stream *,void *,uint32_t *);
 static int scene_vehicle_checkpoint_player_capture(scene_stream *,rf_player_checkpoint *,rf_player_checkpoint_catalog *);
-static int scene_vehicle_checkpoint_player_placement(const scene_stream *,const rf_vehicle_checkpoint *,const rf_player_checkpoint *,rf_checkpoint_placement *);
-static int scene_vehicle_checkpoint_read(scene_stream *,const void *,uint32_t,rf_vehicle_checkpoint *);
-static int scene_vehicle_checkpoint_fit(scene_stream *,scene_authored_collection_stage *,scene_authored_checkpoint_stage *,const rf_vehicle_checkpoint *,const rf_checkpoint_placement *);
+static int scene_vehicle_checkpoint_player_placement(const scene_stream *,const scene_vehicle_checkpoint_record *,const rf_player_checkpoint *,rf_checkpoint_placement *,rf_physics_sphere *);
+static int scene_vehicle_checkpoint_read(scene_stream *,const void *,uint32_t,scene_vehicle_checkpoint_record *);
+static int scene_vehicle_checkpoint_fit(scene_stream *,scene_authored_collection_stage *,scene_authored_checkpoint_stage *,const scene_vehicle_checkpoint_record *,const rf_checkpoint_placement *);
 #include "scene_player_checkpoint.inc"
 #ifdef RF_IMAGE_XBOX_NATIVE
 static rf_xbox_checkpoint_storage scene_checkpoint_hdd;
@@ -10830,7 +10831,7 @@ static int scene_checkpoint_capture(scene_stream *s)
     uint32_t core,bytes,at,i,j,k,prefix=rf_scene_player_checkpoint_enabled?SCENE_PLAYER_CHECKPOINT_PREFIX:0;unsigned char *p;int status=RF_OK;
     rf_player_checkpoint player;rf_player_checkpoint_catalog catalog;
     static unsigned char remote_blob[RF_REMOTE_CHECKPOINT_MAX];uint32_t remote_bytes=0;
-    unsigned char vehicle_blob[RF_VEHICLE_CHECKPOINT_BYTES];uint32_t vehicle_bytes=0;
+    unsigned char vehicle_blob[RF_JEEP_CHECKPOINT_BYTES];uint32_t vehicle_bytes=0;
 #ifndef RF_IMAGE_XBOX_NATIVE
     const char *path=getenv("RF_REPLAY_GEOMOD_CHECKPOINT_OUT");if(!path || !*path)return RF_OK;
 #else
@@ -13122,10 +13123,13 @@ static void scene_vehicle_hud_values(const scene_stream *s,float *health,int32_t
 }
 #include "scene_driller_flame.inc"
 #include "scene_driller_checkpoint_adapter.inc"
+#include "scene_vehicle_combat_restore.inc"
+#include "scene_vehicle_combat_checkpoint.inc"
 #include "scene_driller_checkpoint_placement.inc"
 #include "scene_driller_checkpoint_publish.inc"
 #include "scene_driller_checkpoint_occupancy.inc"
 #include "scene_driller_checkpoint_seat.inc"
+#include "scene_vehicle_combat_seat.inc"
 #include "scene_driller_checkpoint_live.inc"
 static int actor_follow_view(void *context,uint32_t frame,const rf_motion_controller *controller,rf_model_projection *view)
 {
@@ -13148,16 +13152,7 @@ static int actor_follow_view(void *context,uint32_t frame,const rf_motion_contro
     if(profile_clock && profile_active)world_clock=profile_clock();
     if(stream->vehicle_checkpoint_pending){
         status=scene_driller_runtime_open(stream);if(status)return status;
-        {rf_vehicle_checkpoint parked=stream->vehicle_checkpoint;parked.player_occupied=0;
-         status=scene_driller_checkpoint_apply_parked(stream,&parked);if(status){printf("VEHICLE_CHECKPOINT_FAIL parked %d\n",status);return status;}}
-        if(stream->vehicle_checkpoint.player_occupied){
-            memset(&actor_look,0,sizeof(actor_look));
-            memcpy(actor_look.state.body_angles,stream->player_checkpoint_value.body_angles,12);
-            memcpy(actor_look.state.eye_angles,stream->player_checkpoint_value.eye_angles,12);
-            status=rf_look_update_pose(&actor_look.state,1.0f,scene_step_seconds,&actor_look);if(status){printf("VEHICLE_CHECKPOINT_FAIL look %d\n",status);return status;}
-            stream->player_checkpoint_look=0;
-            status=scene_driller_checkpoint_restore_occupancy(stream,&stream->vehicle_checkpoint);if(status){printf("VEHICLE_CHECKPOINT_FAIL seat %d\n",status);return status;}
-        }
+        status=scene_vehicle_checkpoint_publish(stream);if(status){printf("VEHICLE_CHECKPOINT_FAIL publish %d\n",status);return status;}
         stream->vehicle_checkpoint_pending=0;
         printf("VEHICLE_CHECKPOINT_LOAD %.9g %u\n",(double)stream->vehicle_checkpoint.health,stream->vehicle_checkpoint.accepted_drill_cuts);
     }

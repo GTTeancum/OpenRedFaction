@@ -21,7 +21,7 @@ static int scene_driller_checkpoint_seat_admit(void *context,uint32_t player,uin
     *allowed=entry->host.alive&&campaign_player_damage.state.effects.health>0;
     return RF_OK;
 }
-static int scene_driller_checkpoint_restore_occupancy(scene_stream *stream,const rf_vehicle_checkpoint *record)
+static int scene_driller_checkpoint_restore_occupancy_validated(scene_stream *stream,const rf_vehicle_checkpoint *record)
 {
     scene_driller_runtime *runtime;scene_driller_entry_exit *entry;
     scene_vehicle_possession next_session={0},old_session;
@@ -31,7 +31,6 @@ static int scene_driller_checkpoint_restore_occupancy(scene_stream *stream,const
     scene_vehicle_possession_ops ops;scene_vehicle_pose seat;
     int32_t old_linked,old_occupant;uint32_t entered=0,old_held,i;float distance=0;int status;
     if(!stream||!record)return RF_RANGE;
-    status=rf_vehicle_checkpoint_validate(record);if(status)return status;
     if(!record->player_occupied||!record->alive)return RF_RANGE;
     runtime=stream->driller_runtime;
     if(!runtime||!scene_driller_damage_runtime_valid(&runtime->damage)||
@@ -86,5 +85,10 @@ static int scene_driller_checkpoint_restore_occupancy(scene_stream *stream,const
     runtime->damage.eject_pending=0;runtime->last_frame=UINT32_MAX;
     rf_scene_vehicle_state[3]=1;
     return RF_OK;
+}
+static int scene_driller_checkpoint_restore_occupancy(scene_stream *s,const rf_vehicle_checkpoint *r)
+{
+    int status=rf_vehicle_checkpoint_validate(r);if(status)return status;
+    return scene_driller_checkpoint_restore_occupancy_validated(s,r);
 }
 #endif

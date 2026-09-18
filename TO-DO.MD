@@ -1,15 +1,15 @@
 # Red Faction Xbox / PC - open work
 
-Completion basis (user direction,2026-09-18): working late-alpha/early-beta code implementation. Overall approximately74%; GeoMod100% for the first playable milestone, accepted by the user. GeoMod items below are deferred refinement and coverage, not prerequisites to moving on. This does not assert retail polish, complete campaign integration or resolution of every known defect.
+Completion basis (user direction,2026-09-18): working late-alpha/early-beta code implementation. Overall approximately75%; GeoMod100% for the first playable milestone, accepted by the user. GeoMod items below are deferred refinement and coverage, not prerequisites to moving on. This does not assert retail polish, complete campaign integration or resolution of every known defect.
 
 
 - Player impacts: Real fall/high-speed collision damage now passes PC/Xbox with shared health/armor handling; relocation and duplicate-contact guards pass focused checks; broader moving-object contacts remain.
 
-- Vehicle saves: Shared RFCP now accepts actual Driller/APC/Jeep records; typed APC/Jeep capture and restore staging preserve ammo, aiming and Jeep role/reference with focused checks passing; connect these adapters to live terrain/player/vehicle load publication next.
+- Vehicle saves: Live APC/Jeep DEV save/load now retains motion, ammo, RNG, aiming and Jeep seat/reference; PC reload/exit passes for both, native Jeep seated restore and APC restore/exit produce identical PC/Xbox checkpoint bytes with11.97/11.15MiB free; general campaign persistence and native Jeep exit remain.
 
-- Jeep: Driver/gunner roles, parked seat switching, independent gunner camera, mounted gun aiming and real finite-ammo fire now pass PC/Xbox with12.18MiB free; PC return-to-driver/exit passes; vehicle saves, native exit, live NPC combat, destruction coverage and campaign placement remain (see docs/JEEP-FIRST-PASS.md).
+- Jeep: Driver/gunner roles, parked seat switching, independent gunner camera, mounted gun aiming and real finite-ammo fire now pass PC/Xbox with12.18MiB free; PC return-to-driver/exit passes; native exit, live NPC combat, live destruction coverage and campaign placement remain (see docs/JEEP-FIRST-PASS.md).
 
-- APC: Driving, primary fire, seated aiming, ballistic mortar impacts/GeoMod and vehicle HUD now pass PC/Xbox with three mortar impacts, two accepted cuts and 10.30 MiB free; live NPC damage, APC saves, campaign placement and articulated gun visuals remain.
+- APC: Driving, primary fire, seated aiming, ballistic mortar impacts/GeoMod and vehicle HUD now pass PC/Xbox with three mortar impacts, two accepted cuts and 10.30 MiB free; live NPC damage, campaign persistence, campaign placement and articulated gun visuals remain.
 
 - Vehicles: Driller driving, entry/exit, chassis collision and cockpit work on PC/Xbox; seated drilling now cuts actual DEV wall/floor geometry and animates separate bit models on PC/Xbox, with exact native drill/vehicle state agreement and12.14MiB free; ordinary gunfire/rocket/blast damage and destruction now pass PC/Xbox with11.83MiB free; NPC shotgun, player sniper/rail and direct flame vehicle hits now pass focused cover/damage checks and PC/Xbox builds; parked vehicle checkpoint save/restore now passes PC/Xbox with identical saved bytes and11.75MiB free, with seated saves now passing PC/Xbox capture/restore/exit; remaining special-weapon coverage, other vehicle classes and campaign integration are open.
 

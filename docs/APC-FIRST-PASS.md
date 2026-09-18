@@ -10,7 +10,7 @@ Primary fire uses muzzle_1, 150 armor-piercing damage, speed 250, lifetime 0.5, 
 
 PC evidence: 420 frames, one entry/exit, seven launches and wall contacts, reserve 992 and health 5000. Seated cockpit and on-foot endpoint framebuffers inspected. Six focused resource, physics, material, scheduler/flight and rocket-resource tests pass. NXDK build passes. Native run `artifacts/xemu/render-20260918-150747` passes420 frames on64MiB with2904 free pages (11.34MiB), matching vehicle/damage/primary counters. Final on-foot native framebuffer inspected; seated native cockpit was subsequently verified by the combat run below; moving tracer visuals remain unverified. The harness closed its emulator and restored the disc.
 
-Not claimed: articulated exterior turret animation, live NPC damage, standalone shield silhouette collision, APC saves, campaign placement, other vehicle classes or final visual/audio fidelity. Driller checkpoint paths explicitly reject APC state.
+Not claimed: articulated exterior turret animation, live NPC damage, standalone shield silhouette collision, general campaign saves, campaign placement, other vehicle classes or final visual/audio fidelity. The live checkpoint dispatcher now handles the APC through its own validated class record.
 
 ## Ballistic secondary and seated aiming
 
@@ -20,4 +20,10 @@ Seated look is separate from the saved on-foot look. Authored APC pitch limits[-
 
 `tools/check_apc_combat_replay.py` produces a480-frame seated combat replay. PC passes with seven primary shots, three mortar launches/impacts/detonations, ammo992/12 and two accepted GeoMod cuts. The third terrain request is rejected by current geometry handling; detonation and gameplay continue. Cockpit, changed aim, HUD and destruction endpoint inspected. Three focused aim, actual secondary gravity/contact and mortar resource/draw tests pass. NXDK builds. Native combat run `artifacts/xemu/render-20260918-151820` passes480 frames with matching vehicle, primary/secondary and terrain publication state, 2636 free pages (10.30 MiB), and restored disc. Its seated cockpit/HUD/destruction framebuffer was inspected. Moving projectile appearance, audio and live NPC damage remain unverified.
 
-Jeep gun attachment is now live-integrated; see JEEP-FIRST-PASS.md. Public APC checkpoint encode/decode/validation is implemented with focused checks, but remains preparatory until connected to live save/restore.
+Jeep gun attachment is now live-integrated; see JEEP-FIRST-PASS.md. Public APC checkpoint encode/decode/validation is connected to live DEV save/restore.
+
+## Live DEV save/restore
+
+The live checkpoint path now retains APC health, rigid motion, both ammunition reserves, primary RNG and seated pitch. It uses the actual5000HP class record, validates the chassis/player against restored terrain before publication, and rebuilds occupancy through current registry handles. Shared read-only admission rejects active rounds/cooldowns and invalid ownership before terrain/player state can change; focused rejection/publication checks pass.
+
+PC script `tools/check_combat_vehicle_checkpoint.py --vehicle apc --run` passes occupied capture after primary/mortar firing,60-frame seated reload and180-frame reload/exit. It retains health5000, ammo992/14 and RNG/aim. Resumed cockpit/HUD inspected. NXDK builds. Native run `artifacts/xemu/render-20260918-155701` passes180-frame reload/exit with identical1244-byte PC/Xbox checkpoints, retained992/14ammo and11.15MiB free. On-foot native endpoint inspected; harness closed XEMU and restored the disc. This remains the authored enemy-free DEV profile, not general campaign persistence.

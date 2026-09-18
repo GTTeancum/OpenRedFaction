@@ -1265,3 +1265,13 @@ add_executable(rf_scene_vehicle_combat_restore_tests tests/scene_vehicle_combat_
 target_link_libraries(rf_scene_vehicle_combat_restore_tests PRIVATE rf_core)
 add_test(NAME scene_vehicle_combat_restore COMMAND rf_scene_vehicle_combat_restore_tests)
 set_tests_properties(scene_vehicle_combat_restore PROPERTIES WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}")
+
+add_executable(rf_scene_vehicle_combat_seat_tests tests/scene_vehicle_combat_seat_tests.c src/diagnostic/animation.c)
+target_link_libraries(rf_scene_vehicle_combat_seat_tests PRIVATE rf_core)
+add_test(NAME scene_vehicle_combat_seat COMMAND rf_scene_vehicle_combat_seat_tests)
+set_tests_properties(scene_vehicle_combat_seat PROPERTIES WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}")
+
+add_executable(rf_scene_vehicle_combat_publish_tests tests/scene_vehicle_combat_publish_tests.c src/diagnostic/animation.c)
+target_link_libraries(rf_scene_vehicle_combat_publish_tests PRIVATE rf_core)
+add_test(NAME scene_vehicle_combat_publish COMMAND rf_scene_vehicle_combat_publish_tests)
+set_tests_properties(scene_vehicle_combat_publish PROPERTIES WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}")
