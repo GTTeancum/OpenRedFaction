@@ -14,11 +14,15 @@ static int precision_record_damage(uint32_t handle,const rf_damage_request *requ
     precision_published[precision_count++]=handle;*amount=0;return RF_OK;
 }
 /* Compile the same adapter against one explicit publication seam. */
+#define scene_precision_contact fixture_precision_contact
+#define scene_precision_insert fixture_precision_insert
 #define scene_precision_fire fixture_precision_fire
 #define rf_scene_npc_damage precision_record_damage
 #include "../src/diagnostic/scene_precision_gameplay.inc"
 #undef rf_scene_npc_damage
 #undef scene_precision_fire
+#undef scene_precision_insert
+#undef scene_precision_contact
 int main(void)
 {
     scene_stream scene={0};rf_geometry_collision_world world={0};

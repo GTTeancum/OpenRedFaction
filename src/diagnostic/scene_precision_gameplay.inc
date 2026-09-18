@@ -21,6 +21,7 @@ static int scene_precision_fire(scene_stream *stream,uint32_t frame,
 {
     scene_precision_contact hits[RF_WEAPON_PRECISION_HITS];uint32_t count=0,i;
     float delta[3],end[3],nearest=1;int status;
+    rf_weapon_flight_contact vehicle_contact;uint32_t vehicle_selected=0;
     for(i=0;i<3;++i){delta[i]=forward[i]*100.0f;end[i]=position[i]+delta[i];}
     /* One borrowed candidate at a time avoids an actor-count-sized allocation.
      * Retain globally nearest hits even if a far actor was enumerated first. */
@@ -57,12 +58,18 @@ static int scene_precision_fire(scene_stream *stream,uint32_t frame,
         if(hit.actor.matched)scene_precision_insert(hits,&count,capacity,&hit);
     }
     if(count)nearest=hits[0].actor.fraction;
+    /* Sniper stops at its nearest target; authored rail pierces world and all
+     * retained targets, including this additional single vehicle candidate. */
+    status=scene_driller_firearm_select(campaign_player_object.handle,position,delta,
+        rail?1:nearest,&vehicle_contact,&vehicle_selected);if(status)return status;
+    if(vehicle_selected&&!rail)nearest=vehicle_contact.hit.fraction;
     {
         rf_geomod_registry_hit hit;uint32_t matched,wall=0;float end[3];
         ++rf_scene_detached_hitscan[0];
         status=scene_detached_sources_sweep(stream,0x460,position,delta,0,rail?1:nearest,&hit,&matched);
         rf_scene_detached_hitscan[6]=(uint32_t)status;if(status)return status;
-        if(matched && (rail || !count || hit.piece.hit.fraction<nearest)){
+        if(matched && (rail || (!count&&!vehicle_selected) || hit.piece.hit.fraction<nearest ||
+           (vehicle_selected&&hit.piece.hit.fraction==nearest))){
             if(!rail){
                 for(i=0;i<3;++i)end[i]=position[i]+delta[i]*hit.piece.hit.fraction;
                 status=rf_geometry_collision_ray(stream->collision,&campaign_movers,position,end,0x27,NULL,&wall);
@@ -78,6 +85,14 @@ static int scene_precision_fire(scene_stream *stream,uint32_t frame,
             }
             if(!rail)return RF_OK;
         }
+    }
+    if(vehicle_selected){uint32_t blocked=0,handled;float applied;
+        if(!rail){status=combat_shot_obstructed(stream,position,delta,vehicle_contact.hit.fraction,&blocked);if(status)return status;}
+        if(!blocked){
+            status=scene_driller_projectile_damage(&vehicle_contact,campaign_player_object.handle,
+                campaign_pistol.damage,campaign_pistol.damage_kind,frame,&handled,&applied);if(status)return status;
+        }
+        if(!rail)return RF_OK;
     }
     for(i=0;i<count;++i){
         campaign_npc_body *owner=campaign_npc_bodies+hits[i].actor.index;
