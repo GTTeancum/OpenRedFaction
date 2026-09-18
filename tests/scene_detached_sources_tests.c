@@ -230,6 +230,65 @@ static int player_sources(void) {
 }
 /* Deliberately synthetic large fragments: validates polygon-path support
  * publication, not a claim that the live post replay extracts these cubes. */
+static int moving_piece_support(void) {
+    scene_stream scene={0};scene_terrain_source_owner sources[2]={{0}};
+    rf_geomod_piece_registry *registry=NULL;rf_geomod_piece_batch *batch;
+    rf_geomod_owned_piece piece;rf_physics_body *body;scene_piece_support support;
+    rf_physics_body_state state={0};actor_ground_record ground={0};rf_geometry_body_hit contact={0};
+    CHECK(!cube(4,.8f,&registry));sources[1].pieces=registry;
+    scene.terrain_sources=sources;scene.terrain_source_count=2;scene.terrain_publication_serial=7;
+    scene_actor_collision_owner=&scene;campaign_spawn=1;
+    CHECK(!rf_geomod_piece_registry_get(registry,0,&batch));
+    CHECK(!rf_geomod_piece_batch_get(batch,0,&piece,&body));
+    {
+        rf_geometry_collision_world world={0};rf_collision_body_query query={0};
+        rf_collision_body_sphere query_sphere={{0,0,0},.6f};rf_physics_sphere sphere={{0,0,0},.6f};uint32_t k,found=0;
+        scene.collision=&world;memset(&scene_actor_body,0,sizeof(scene_actor_body));
+        scene_actor_body.allocated_bytes=sizeof(scene_actor_body);scene_actor_body.spheres.items=&sphere;scene_actor_body.spheres.count=1;
+        scene_actor_body.state.mass=10;scene_actor_body.state.bounds.radius=.6f;scene_actor_body.state.flags=0x8000003f;
+        query.start[0]=query.end[0]=4;query.start[1]=2;query.end[1]=-2;
+        query.spheres=&query_sphere;query.count=1;query.limit=1;query.radius=.6f;
+        for(k=0;k<3;k++)scene_actor_body.state.orientation[k*3+k]=scene_actor_body.state.next_orientation[k*3+k]=query.matrix[k][k]=1;
+        memcpy(scene_actor_body.state.position,query.start,12);memcpy(scene_actor_body.state.next_position,query.end,12);
+        CHECK(!rf_physics_body_prepare_sweep(&scene_actor_body.state));
+        memset(&support,0,sizeof(support));
+        CHECK(!campaign_player_piece_query(&world,&query,NULL,&contact,&found,&support));
+        CHECK(found && support.tag==17 && support.piece==0 && support.serial==7 && support.registry==registry);
+        memset(&scene_actor_body,0,sizeof(scene_actor_body));scene.collision=NULL;
+    }
+    CHECK(campaign_piece_support_body(&support)==body);
+    body->state.velocity[0]=.25f;body->state.velocity[1]=.5f;body->state.velocity[2]=-.125f;
+    state.position[0]=state.next_position[0]=4;state.position[1]=state.next_position[1]=-1;state.bounds.radius=.6f;
+    ground.probe.start[1]=2;ground.probe.end[1]=-2;ground.hit.hit.fraction=.5f;
+    contact.solid=UINT32_MAX;memcpy(contact.contact.velocity,body->state.velocity,12);
+    CHECK(!actor_support_commit(&state,&ground,&contact,0,&support));
+    CHECK(state.position[1]==.05f && (state.flags&0x400000u));
+    CHECK(campaign_piece_support.tag==17 && campaign_support_handle==0);
+    body->state.velocity[0]=1.25f;body->state.velocity[1]=-.25f;
+    campaign_player_support_refresh(&state,1);
+    CHECK(!memcmp(campaign_support_velocity,body->state.velocity,12));
+    CHECK(state.flags&0x80000000u);
+    {
+        rf_physics_body_state carried=state,stationary=state;float zero[3]={0},normal[3]={0,1,0};uint32_t k;
+        carried.mass=stationary.mass=10;
+        CHECK(!rf_physics_run_propose(&carried,.125f,5,10,1,zero,normal,campaign_support_velocity));
+        CHECK(!rf_physics_run_propose(&stationary,.125f,5,10,1,zero,normal,zero));
+        for(k=0;k<3;k++)CHECK(fabsf(carried.next_position[k]-stationary.next_position[k]-.125f*campaign_support_velocity[k])<.000001f);
+    }
+    memset(body->state.velocity,0,12);campaign_player_support_refresh(&state,1);
+    CHECK(campaign_support_velocity[0]==0 && campaign_support_velocity[1]==0 && campaign_support_velocity[2]==0);
+    /* Unrelated edits/owner replacement cannot revive a borrowed support ID. */
+    scene.terrain_publication_serial=8;campaign_player_support_refresh(&state,1);
+    CHECK(!campaign_piece_support.tag && !campaign_piece_support_body(&support));
+    scene.terrain_publication_serial=7;support.registry=NULL;CHECK(!campaign_piece_support_body(&support));
+    support.registry=registry;campaign_piece_support=support;
+    CHECK(!rf_geomod_piece_registry_damage(registry,0,0,400));
+    campaign_player_support_refresh(&state,1);CHECK(!campaign_piece_support.tag);
+    CHECK(!campaign_piece_support_body(&support));
+    scene_actor_collision_owner=NULL;campaign_spawn=0;memset(&campaign_piece_support,0,sizeof(campaign_piece_support));
+    memset(campaign_support_velocity,0,sizeof(campaign_support_velocity));rf_geomod_piece_registry_close(&registry);
+    puts("PASS moving rubble support: rising commit, refreshed carry, stopped velocity, retired and replaced identity");return 0;
+}
 static int large_support_snap(void) {
     scene_stream scene={0};scene_terrain_source_owner sources[2]={{0}};
     rf_geomod_piece_registry *r[2]={0};rf_geomod_piece_batch *batch;
@@ -259,7 +318,7 @@ static int large_support_snap(void) {
         state.bounds.radius=.6f;
         for(k=0;k<3;k++)state.orientation[k*3+k]=state.next_orientation[k*3+k]=1;
         CHECK(!rf_physics_body_prepare_sweep(&state));
-        CHECK(!actor_support_commit(&state,&ground,&contact,landing));
+        CHECK(!actor_support_commit(&state,&ground,&contact,landing,NULL));
         /* Exact flat surface height + player sphere radius, or unobstructed
          * original support proposal. Bounds and pending pose must agree. */
         CHECK(fabsf(state.position[1]-(clear?.05f:1.4f))<.0001f);
@@ -336,6 +395,6 @@ int main(void) {
     found=77;CHECK(scene_detached_sources_sweep(&scene,4,start,delta,0,NAN,&hit,&found)!=RF_OK);
     CHECK(found==77 && !memcmp(&hit,&sentinel,sizeof(hit)));
     free(before);free(after);for(i=0;i<2;i++)rf_geomod_piece_registry_close(registries+i);
-    CHECK(!inspection_camera());CHECK(!extended_batches());CHECK(!enemy_fragment_shots());CHECK(!beam_selection());CHECK(!runtime_surfaces());CHECK(!player_sources());CHECK(!notify_sources());CHECK(!large_support_snap());
+    CHECK(!inspection_camera());CHECK(!extended_batches());CHECK(!enemy_fragment_shots());CHECK(!beam_selection());CHECK(!runtime_surfaces());CHECK(!player_sources());CHECK(!notify_sources());CHECK(!large_support_snap());CHECK(!moving_piece_support());
     puts("PASS multi-source weapon queries: nearer later source, stable ties, selected alias, isolated damage and atomic misses/errors");return 0;
 }

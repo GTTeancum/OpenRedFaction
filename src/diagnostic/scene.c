@@ -6593,6 +6593,40 @@ actor_ground_record rf_scene_actor_ground_records[64];
 rf_geometry_body_hit rf_scene_actor_ground_contacts[64];
 static float campaign_support_velocity[3];
 static uint32_t campaign_support_handle;
+/* Runtime-only identity; saved standing still requires settled support. Keep
+ * this beside, not inside, the fixed-layout ground diagnostic records. */
+typedef struct scene_piece_support {
+    uint32_t tag,piece,serial;rf_geomod_piece_registry *registry;
+} scene_piece_support;
+static scene_piece_support campaign_piece_support,scene_ground_piece_support[64];
+static rf_physics_body *campaign_piece_support_body(const scene_piece_support *ref)
+{
+    scene_stream *s=scene_actor_collision_owner;rf_geomod_piece_registry *registry;
+    rf_geomod_piece_batch *batch;rf_geomod_owned_piece piece;rf_physics_body *body;uint32_t tag;
+    if(!s || !ref || !ref->tag || ref->tag>4*RF_GEOMOD_PIECE_BATCH_LIMIT || ref->serial!=s->terrain_publication_serial)return NULL;
+    tag=ref->tag-1;registry=scene_detached_source_registry(s,scene_detached_tag_source(tag));
+    if(!registry || registry!=ref->registry || rf_geomod_piece_registry_get(registry,scene_detached_tag_batch(tag),&batch) ||
+       !rf_geomod_piece_batch_alive(batch,ref->piece) || rf_geomod_piece_batch_get(batch,ref->piece,&piece,&body))return NULL;
+    return body;
+}
+static void campaign_player_support_refresh(rf_physics_body_state *state,uint32_t mode)
+{
+    const float *velocity=NULL;
+    if(campaign_piece_support.tag) {
+        rf_physics_body *body=campaign_piece_support_body(&campaign_piece_support);
+        if(body) {
+            velocity=body->state.velocity;
+            /* Settled fragments need no additional wake; a moving or newly
+             * stopped support must refresh the actor's cached carry velocity. */
+            if(!velocity[0] && !velocity[1] && !velocity[2] && !memcmp(velocity,campaign_support_velocity,12))return;
+        } else memset(&campaign_piece_support,0,sizeof(campaign_piece_support));
+    } else {
+        rf_group_registered_mover *support=rf_object_registry_lookup(&campaign_registry,campaign_support_handle);
+        if(support && support->object_kind==9)velocity=support->pose->velocity;
+    }
+    rf_physics_support_refresh(mode,velocity,campaign_support_velocity,&state->flags,&rf_scene_actor_pose.flags);
+}
+
 static rf_collision_contact_extra campaign_player_contact;
 static uint32_t campaign_player_material;
 const float *rf_scene_collision_extra_velocity(void *context,uint32_t handle)
@@ -7156,7 +7190,7 @@ static int campaign_body_query(const rf_geometry_collision_world *world,const rf
 }
 uint32_t rf_scene_detached_player[7]; /* queries,hits,sphere,batch,piece,point hash,status */
 static int campaign_player_piece_query(const rf_geometry_collision_world *world,const rf_collision_body_query *query,
-    const rf_physics_body_state *motion,rf_geometry_body_hit *contact,uint32_t *matched)
+    const rf_physics_body_state *motion,rf_geometry_body_hit *contact,uint32_t *matched,scene_piece_support *support)
 {
     scene_stream *s=scene_actor_collision_owner;rf_collision_body_query limited;
     rf_geomod_registry_body_hit hit;uint32_t found;int status;
@@ -7177,6 +7211,8 @@ static int campaign_player_piece_query(const rf_geometry_collision_world *world,
     if(found && (!*matched || hit.contact.fraction<contact->contact.fraction)) {
         rf_geometry_body_hit value={0};value.contact=hit.contact;value.solid=UINT32_MAX;
         value.sphere=hit.sphere;value.room=s->terrain_collision.room;value.face=UINT32_MAX;value.hits=1;
+        if(support)*support=(scene_piece_support){hit.batch+1,hit.piece,s->terrain_publication_serial,
+            scene_detached_source_registry(s,scene_detached_tag_source(hit.batch))};
         *contact=value;*matched=1;++rf_scene_detached_player[1];rf_scene_detached_player[2]=hit.sphere;
         rf_scene_detached_player[3]=hit.batch;rf_scene_detached_player[4]=hit.piece;
         rf_scene_detached_player[5]=npc_hash_bytes(2166136261u,hit.contact.point,12);
@@ -7222,7 +7258,7 @@ static int campaign_physics_body_sweep(const rf_geometry_collision_world *world,
     query.flags=flags;query.spheres=scratch;query.count=source->count;query.limit=1;
     status=campaign_body_query(world,&query,&value,&found);if(status)return status;
     if(source==&scene_actor_body.spheres) {
-        status=campaign_player_piece_query(world,&query,state,&value,&found);if(status)return status;
+        status=campaign_player_piece_query(world,&query,state,&value,&found,NULL);if(status)return status;
     }
     if(found)*hit=value;*matched=found;return RF_OK;
 }
@@ -7427,11 +7463,12 @@ done:
     rf_scene_npc_support[8]=npc_hash_bytes(rf_scene_npc_support[8],record,sizeof(record));
 }
 static int actor_ground_query_state(const rf_geometry_collision_world *world,const rf_physics_body_state *state,
-    actor_ground_record *r,rf_geometry_body_hit *contact)
+    actor_ground_record *r,rf_geometry_body_hit *contact,scene_piece_support *support)
 {
     float start[3],delta[3];uint32_t k;int status;
     memset(r,0,sizeof(*r));
     memset(contact,0,sizeof(*contact));contact->solid=UINT32_MAX;
+    if(support)memset(support,0,sizeof(*support));
     /* Original falling/grounded depths and retained support velocity. Queries
      * are retained every frame; commits obey the grounded movement gate. */
     status=rf_physics_ground_prepare(scene_actor_body.spheres.items,scene_actor_body.spheres.count,
@@ -7444,7 +7481,7 @@ static int actor_ground_query_state(const rf_geometry_collision_world *world,con
         for(k=0;k<3;k++)query.matrix[k][k]=1;
         query.radius=r->probe.bounds.radius;query.flags=r->probe.query_flags;query.spheres=&sphere;query.count=1;query.limit=1;
         status=campaign_body_query(world,&query,contact,&r->matched);
-        if(!status)status=campaign_player_piece_query(world,&query,NULL,contact,&r->matched);
+        if(!status)status=campaign_player_piece_query(world,&query,NULL,contact,&r->matched,support);
         ++rf_scene_actor_ground_queries[0];rf_scene_actor_ground_queries[3]=(uint32_t)status;
         if(status)return status;
         if(r->matched) {
@@ -7463,15 +7500,16 @@ static int actor_ground_query_state(const rf_geometry_collision_world *world,con
     if(status)return status;
     return RF_OK;
 }
-static int actor_ground_query(const rf_geometry_collision_world *world,actor_ground_record *r,rf_geometry_body_hit *contact)
-{return actor_ground_query_state(world,&scene_actor_body.state,r,contact);}
+static int actor_ground_query(const rf_geometry_collision_world *world,actor_ground_record *r,rf_geometry_body_hit *contact,scene_piece_support *support)
+{return actor_ground_query_state(world,&scene_actor_body.state,r,contact,support);}
 static int actor_support_commit(rf_physics_body_state *state,const actor_ground_record *ground,
-    const rf_geometry_body_hit *contact,uint32_t landing)
+    const rf_geometry_body_hit *contact,uint32_t landing,const scene_piece_support *support)
 {
-    rf_physics_body_state next=*state;uint32_t handle;int status;
+    rf_physics_body_state next=*state;uint32_t handle;int status;rf_physics_body *piece_body=campaign_piece_support_body(support);
     if(!campaign_spawn)return landing?rf_physics_static_land(state,&ground->probe,ground->hit.hit.fraction):
         rf_physics_static_support(state,&ground->probe,ground->hit.hit.fraction);
-    status=rf_physics_support_commit(&next,&ground->probe,ground->hit.hit.fraction,contact->solid!=UINT32_MAX,
+    status=rf_physics_support_commit(&next,&ground->probe,ground->hit.hit.fraction,contact->solid!=UINT32_MAX || (piece_body &&
+        (contact->contact.velocity[0]!=0 || contact->contact.velocity[1]!=0 || contact->contact.velocity[2]!=0)),
         contact->contact.velocity[1],contact->contact.object_id,&handle);if(status)return status;
     /* The original ground-sphere gate can skip a shallow normal and select
      * deeper support. Constrain this port's support-position publication by
@@ -7503,7 +7541,9 @@ static int actor_support_commit(rf_physics_body_state *state,const actor_ground_
         status=rf_physics_landing_velocity(next.velocity,campaign_support_velocity,contact->contact.velocity,next.velocity);if(status)return status;
         next.velocity[1]=0;next.flags&=~0x200000u; /* Existing ordinary run transition. */
     }
-    *state=next;campaign_support_handle=handle;memcpy(campaign_support_velocity,contact->contact.velocity,12);return RF_OK;
+    *state=next;campaign_support_handle=piece_body?0:handle;
+    if(piece_body)campaign_piece_support=*support;else memset(&campaign_piece_support,0,sizeof(campaign_piece_support));
+    memcpy(campaign_support_velocity,contact->contact.velocity,12);return RF_OK;
 }
 static int actor_ground_check(const rf_geometry_collision_world *world,uint32_t frame)
 {
@@ -7514,7 +7554,7 @@ static int actor_ground_check(const rf_geometry_collision_world *world,uint32_t 
         rf_scene_actor_ground_stats[5]=2166136261u;rf_scene_actor_ground_stats[6]=sizeof(*r);
     }
     rf_scene_actor_ground_modes[frame%64]=rf_scene_actor_landing[1];
-    status=actor_ground_query(world,r,rf_scene_actor_ground_contacts+(frame%64));if(status)return status;
+    status=actor_ground_query(world,r,rf_scene_actor_ground_contacts+(frame%64),scene_ground_piece_support+(frame%64));if(status)return status;
     ++rf_scene_actor_ground_stats[1];
     if(r->matched && r->hit.hit.fraction<1) {
         ++rf_scene_actor_ground_stats[2];
@@ -7563,19 +7603,19 @@ actor_ground_record rf_scene_actor_stance_ground[64];
 uint32_t rf_scene_actor_stance_support[64][9]; /* query, mode before/after, position before/after */
 static int actor_stance_ground_commit(const rf_geometry_collision_world *world,uint32_t frame)
 {
-    actor_ground_record *r=rf_scene_actor_stance_ground+(frame%64);rf_geometry_body_hit contact;
+    actor_ground_record *r=rf_scene_actor_stance_ground+(frame%64);rf_geometry_body_hit contact;scene_piece_support support;
     uint32_t *d=rf_scene_actor_stance_support[frame%64];int status,walkable;
     d[0]=1;d[1]=rf_scene_actor_landing[1];memcpy(d+3,scene_actor_body.state.position,12);
-    status=actor_ground_query(world,r,&contact);
+    status=actor_ground_query(world,r,&contact,&support);
     if(status){printf("STANCE_GROUND_FAILURE %u %d %u %u\n",frame,status,scene_actor_body.state.state_124,r->probe.query_flags);return status;}
     walkable=r->matched && r->hit.hit.fraction<1 && r->hit.hit.normal[1]>=.5f;
     if(walkable) {
         if(rf_scene_actor_landing[1]==3) {
-            status=actor_support_commit(&scene_actor_body.state,r,&contact,1);if(status)return status;
+            status=actor_support_commit(&scene_actor_body.state,r,&contact,1,&support);if(status)return status;
             rf_scene_actor_landing[1]=1;rf_scene_actor_landing[2]=frame;
             ++rf_scene_actor_landing[3];rf_scene_actor_landing[5]=1;
         } else {
-            status=actor_support_commit(&scene_actor_body.state,r,&contact,0);if(status)return status;
+            status=actor_support_commit(&scene_actor_body.state,r,&contact,0,&support);if(status)return status;
             ++rf_scene_actor_landing[6];
         }
     } else if(rf_scene_actor_landing[1]==1) {
@@ -8052,21 +8092,22 @@ static int actor_routes(scene_stream *stream)
     rf_physics_body_state saved=scene_actor_body.state;
     uint32_t landing[8],ticks[8],material=rf_scene_actor_ground_material,route,step;
     float traction=rf_scene_actor_run_traction,saved_support[3];uint32_t saved_handle=campaign_support_handle;
+    scene_piece_support saved_piece_support=campaign_piece_support;
     memcpy(saved_support,campaign_support_velocity,12);
     memcpy(landing,rf_scene_actor_landing,sizeof(landing));memcpy(ticks,rf_scene_actor_tick_stats,sizeof(ticks));
     memset(rf_scene_actor_routes,0,sizeof(rf_scene_actor_routes));actor_trace_contacts=0;
     for(route=0;route<8;++route) {
         uint32_t *out=rf_scene_actor_routes[route],hash=2166136261u;int status=RF_OK;float previous[3];
         memcpy(previous,saved.position,12);
-        memcpy(campaign_support_velocity,saved_support,12);campaign_support_handle=saved_handle;
+        memcpy(campaign_support_velocity,saved_support,12);campaign_support_handle=saved_handle;campaign_piece_support=saved_piece_support;
         scene_actor_body.state=saved;memcpy(rf_scene_actor_landing,landing,sizeof(landing));
         memset(rf_scene_actor_tick_stats,0,sizeof(rf_scene_actor_tick_stats));
         rf_scene_actor_run_traction=traction;rf_scene_actor_ground_material=material;out[14]=UINT32_MAX;
         for(step=0;step<600;++step) {
-            actor_ground_record ground;rf_geometry_body_hit contact;rf_physics_body_state next=scene_actor_body.state;rf_group_attached_pose pose=rf_scene_actor_pose;
+            actor_ground_record ground;rf_geometry_body_hit contact;scene_piece_support support;rf_physics_body_state next=scene_actor_body.state;rf_group_attached_pose pose=rf_scene_actor_pose;
             int walkable,moved=memcmp(previous,next.position,12)!=0;uint32_t before=rf_scene_actor_landing[1],i;
             memcpy(previous,next.position,12);
-            status=actor_ground_query(stream->collision,&ground,&contact);if(status)break;
+            status=actor_ground_query(stream->collision,&ground,&contact,&support);if(status)break;
             walkable=ground.matched && ground.hit.hit.fraction<1 && ground.hit.hit.normal[1]>=.5f;
             if(walkable) {
                 rf_geometry_face face;
@@ -8077,9 +8118,9 @@ static int actor_routes(scene_stream *stream)
                 rf_scene_actor_ground_material=stream->surface_indices[face.texture];
                 }
                 rf_scene_actor_run_traction=rf_scene_actor_surface_values[rf_scene_actor_ground_material].traction;
-                if(before==3) {status=actor_support_commit(&next,&ground,&contact,1);
+                if(before==3) {status=actor_support_commit(&next,&ground,&contact,1,&support);
                     rf_scene_actor_landing[1]=1;++out[2];out[15]=step;
-                } else if(moved)status=actor_support_commit(&next,&ground,&contact,0);
+                } else if(moved)status=actor_support_commit(&next,&ground,&contact,0,&support);
                 if(status)break;
             } else if(before==1 && moved) {
                 next.flags|=1;rf_scene_actor_landing[1]=3;++out[3];if(out[14]==UINT32_MAX)out[14]=step;
@@ -8098,7 +8139,7 @@ static int actor_routes(scene_stream *stream)
     }
     scene_actor_body.state=saved;memcpy(rf_scene_actor_landing,landing,sizeof(landing));
     memcpy(rf_scene_actor_tick_stats,ticks,sizeof(ticks));rf_scene_actor_ground_material=material;
-    memcpy(campaign_support_velocity,saved_support,12);campaign_support_handle=saved_handle;
+    memcpy(campaign_support_velocity,saved_support,12);campaign_support_handle=saved_handle;campaign_piece_support=saved_piece_support;
     rf_scene_actor_run_traction=traction;actor_trace_contacts=1;return RF_OK;
 }
 int rf_scene_actor_world_check(const rf_geometry_collision_world *world,uint32_t out[8])
@@ -13933,7 +13974,8 @@ static int scene_frame(void *context,uint32_t frame,rf_preview_mesh *actor)
             rf_physics_body_state next=scene_actor_body.state;
             const actor_ground_record *ground=rf_scene_actor_ground_records+(frame%64);
             int walkable=ground->matched && ground->hit.hit.fraction<1 && ground->hit.hit.normal[1]>=.5f;
-            actor_ground_record post_ground;rf_geometry_body_hit post_contact;
+            actor_ground_record post_ground;rf_geometry_body_hit post_contact;scene_piece_support post_support;
+            const scene_piece_support *piece_support=scene_ground_piece_support+(frame%64);
             const rf_geometry_body_hit *contact=rf_scene_actor_ground_contacts+(frame%64);uint32_t route=RF_PLAYER_SUPPORT_QUERY;
             int moved=0;uint32_t axis;
             if(stream->particles.state) {
@@ -13944,17 +13986,13 @@ static int scene_frame(void *context,uint32_t frame,rf_preview_mesh *actor)
             if(campaign_spawn) {
                 /* 433520 -> 433260: input, physics, then 487e00 support.
                  * The owned local-player fixture has object bit 8 and no parent. */
-                rf_group_registered_mover *support;
                 status=campaign_force_tick(&next,&stream->particles,particle_now);
                 rf_scene_force_ticks[11]=(uint32_t)status;if(status)return status;
                 status=campaign_controller_tick(particle_now,&stream->particles,next.position);
                 rf_scene_live_motion[7]=(uint32_t)status;if(status)return status;
                 status=campaign_npc_refresh_support_fixture(frame);if(status)return status;
                 status=campaign_npc_refresh_support_tick();if(status)return status;
-                support=rf_object_registry_lookup(&campaign_registry,campaign_support_handle);
-                rf_physics_support_refresh(rf_scene_actor_landing[1],
-                    support && support->object_kind==9?support->pose->velocity:NULL,
-                    campaign_support_velocity,&next.flags,&rf_scene_actor_pose.flags);
+                campaign_player_support_refresh(&next,rf_scene_actor_landing[1]);
                 status=actor_tick(stream->collision,&next,rf_scene_actor_input_frames[frame%64],ground->hit.hit.normal);if(status)return status;
                 status=campaign_controller_commit();
                 rf_scene_live_motion[7]=(uint32_t)status;if(status)return status;
@@ -13962,8 +14000,8 @@ static int scene_frame(void *context,uint32_t frame,rf_preview_mesh *actor)
                 {rf_player_support_input input={rf_scene_actor_landing[1],rf_scene_actor_stance_flags,
                     0,-1,-1,(uint32_t)moved,next.flags,8};route=rf_player_support_route(&input);}
                 if(route==RF_PLAYER_SUPPORT_QUERY) {
-                    status=actor_ground_query_state(stream->collision,&next,&post_ground,&post_contact);if(status)return status;
-                    ground=&post_ground;contact=&post_contact;walkable=ground->matched && ground->hit.hit.fraction<1 && ground->hit.hit.normal[1]>=.5f;
+                    status=actor_ground_query_state(stream->collision,&next,&post_ground,&post_contact,&post_support);if(status)return status;
+                    ground=&post_ground;contact=&post_contact;piece_support=&post_support;walkable=ground->matched && ground->hit.hit.fraction<1 && ground->hit.hit.normal[1]>=.5f;
                 }
             } else if(frame)for(axis=0;axis<3;++axis) {
                 float previous;memcpy(&previous,rf_scene_actor_render_frames[(frame-1)%64]+2+axis,4);
@@ -13973,12 +14011,12 @@ static int scene_frame(void *context,uint32_t frame,rf_preview_mesh *actor)
                 next.flags|=1;rf_scene_actor_landing[1]=3;
             } else if(route==RF_PLAYER_SUPPORT_QUERY) {
                 if(rf_scene_actor_landing[1]==3 && walkable) {
-                    status=actor_support_commit(&next,ground,contact,1);if(status)return status;
+                    status=actor_support_commit(&next,ground,contact,1,piece_support);if(status)return status;
                     rf_scene_actor_landing[1]=1;rf_scene_actor_landing[2]=frame;
                     ++rf_scene_actor_landing[3];rf_scene_actor_landing[5]=1;
                 } else if(rf_scene_actor_landing[1]==1 && (campaign_spawn || moved)) {
                     if(walkable) {
-                        status=actor_support_commit(&next,ground,contact,0);if(status)return status;
+                        status=actor_support_commit(&next,ground,contact,0,piece_support);if(status)return status;
                         ++rf_scene_actor_landing[6];
                     } else {
                         next.flags|=1;rf_scene_actor_landing[1]=3;++rf_scene_actor_landing[7];
@@ -14280,6 +14318,7 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
     status=rf_vpp_open(&archive,meshes_path);if(status)return status;
     stream=calloc(1,sizeof(*stream));if(!stream){rf_vpp_close(&archive);return RF_RANGE;}
     scene_actor_collision_owner=stream;memset(rf_scene_detached_player,0,sizeof(rf_scene_detached_player));
+    memset(&campaign_piece_support,0,sizeof(campaign_piece_support));memset(scene_ground_piece_support,0,sizeof(scene_ground_piece_support));
     stream->world=mesh->count;stream->base=materials->count;stream->geometry=geometry;
     status=campaign_swim_open(stream,geometry);if(status)goto done;
     if(campaign_spawn) {

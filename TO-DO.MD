@@ -18,7 +18,7 @@
 
 - Player saves: Audit other replay save boundaries and broaden residual-velocity coverage; RFPLv2 standing save/reload passes74/74 stock64MiB checks and exact walk-away continuation, while legacy zero-velocity RFPLv1 remains compatible.
 
-- GeoMod player contacts: Broaden moving and larger rubble interactions; radius0.471 traversal now passes76 native checks without contact, while radius0.530725 standing/reload remains passing and the obsolete small-rubble standing test is replaced.
+- GeoMod player contacts: Verify live moving-rubble carry; the scene now retains checked fragment support identity and refreshes velocity, with123 PC tests and75 native saved-walk-away checks passing, while a full moving-fragment gameplay case remains open.
 
 - GeoMod vehicle contacts: Verify admitted use-kind1 vehicle contacts with larger fragments;240 original cases confirm ordinary miner/AI-response kind9 is excluded, so humanoid rubble pushing is not a missing fidelity feature.
 
