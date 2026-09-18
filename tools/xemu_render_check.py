@@ -53,6 +53,7 @@ def main():
     parser.add_argument('--player-checkpoint', action='store_true', help='Opt-in RFCP player plus destruction checkpoint mode')
     parser.add_argument('--shallow-oblique', action='store_true', help='Use an oblique second shallow-region limit')
     parser.add_argument('--shallow-two-limits', action='store_true', help='Use two intersecting authored shallow-region fixtures')
+    parser.add_argument('--cavity-seam-test', action='store_true', help='Explicit source66 floor-seam hardness fixture')
     parser.add_argument('--shallow-fixture', action='store_true', help='DEV depth.75 authored-region fixture shared with PC')
     parser.add_argument('--geomod-checkpoint-in', type=Path, help='Load a DEV destruction checkpoint before playback')
     parser.add_argument('--geomod-checkpoint-out', action='store_true', help='Capture bounded PC/Xbox destruction checkpoints and compare bytes')
@@ -115,6 +116,8 @@ def main():
     if args.debris_player_test and not args.dev_room:parser.error('--debris-player-test requires --dev-room')
     if args.ripple_test and not args.dev_room:parser.error('--ripple-test requires --dev-room')
     if args.shallow_oblique:args.shallow_two_limits=True
+    if args.cavity_seam_test and (not args.dev_room or args.authored_source!=66):
+        parser.error('--cavity-seam-test requires source66 developer mode')
     if args.shallow_two_limits:args.shallow_fixture=True
     if args.shallow_fixture and not args.dev_room:
         parser.error('--shallow-fixture requires --dev-room')
@@ -194,6 +197,8 @@ def main():
     if checkpoint:env['RF_REPLAY_GEOMOD_CHECKPOINT_OUT']=str(run/'pc-checkpoint.rfds')
     if args.geomod_checkpoint_in:env['RF_REPLAY_GEOMOD_CHECKPOINT_IN']=str(args.geomod_checkpoint_in.resolve())
     if args.terrain_test_light:env['RF_REPLAY_TERRAIN_TEST_LIGHT']='1'
+    if args.cavity_seam_test:env['RF_REPLAY_CAVITY_SEAM_TEST']='1'
+    report['cavity_seam_test']=args.cavity_seam_test
     if args.shallow_fixture:env['RF_REPLAY_SHALLOW_FIXTURE']='3' if args.shallow_oblique else '2' if args.shallow_two_limits else '1'
     report['shallow_fixture']=args.shallow_fixture
     report['water_test']=args.water_test
@@ -243,7 +248,7 @@ def main():
     saved[light_flag.name]=light_flag.read_bytes() if light_flag.exists() else None
     shallow_flag=disc/'shallow-fixture.flag'
     saved[shallow_flag.name]=shallow_flag.read_bytes() if shallow_flag.exists() else None
-    for name in ('geomod-checkpoint.bin','geomod-checkpoint-out.flag','ripple-test.flag','debris-player-test.flag','water-test.flag','swim-test.flag','player-checkpoint.flag','moving-support-test.flag','dev-npc.flag',
+    for name in ('cavity-seam.flag','geomod-checkpoint.bin','geomod-checkpoint-out.flag','ripple-test.flag','debris-player-test.flag','water-test.flag','swim-test.flag','player-checkpoint.flag','moving-support-test.flag','dev-npc.flag',
                  'geomod-hdd-load.flag','geomod-hdd-save.flag','geomod-fallback-seed.flag','geomod-fallback-observe.flag',
                  'geomod-fallback0.rfsg','geomod-fallback1.rfsg','terrain-map-limit.bin','authored-source.bin','authored-count.bin'):
         path=disc/name;saved[name]=path.read_bytes() if path.exists() else None
@@ -293,6 +298,7 @@ def main():
         if liquid_mode:(disc/'swim-test.flag').write_bytes(str(liquid_mode).encode('ascii'))
         if checkpoint:(disc/'geomod-checkpoint-out.flag').write_bytes(b'')
         if args.geomod_checkpoint_in:(disc/'geomod-checkpoint.bin').write_bytes(args.geomod_checkpoint_in.read_bytes())
+        if args.cavity_seam_test:(disc/'cavity-seam.flag').write_bytes(b'')
         if args.shallow_fixture:(disc/'shallow-fixture.flag').write_bytes(b'3' if args.shallow_oblique else b'2' if args.shallow_two_limits else b'')
         if args.terrain_test_light:(disc/'terrain-test-light.flag').write_bytes(b'')
         if args.terrain_map_limit is not None:(disc/'terrain-map-limit.bin').write_bytes(struct.pack('<2I',args.terrain_map_limit,args.terrain_map_limit_until))

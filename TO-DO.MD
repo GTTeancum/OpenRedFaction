@@ -1,6 +1,6 @@
 # Red Faction Xbox / PC - open work
 
-- PRIORITY GeoMod ordinary walls: Verify seam-spanning cuts live and broaden neighboring geometry; convex adjacent-window admission now passes real floor-seam area/collision controls while pillar/gap boundaries reject, and low-crater traversal plus Xbox-created-save walk-out remain verified with77/76 checks.
+- PRIORITY GeoMod ordinary walls: Broaden multi-window and neighboring-brush CSG; a live floor-seam rocket now passes77 stock64MiB checks with exact PC/Xbox save bytes and fixture-off/mismatched-save rejection controls, alongside verified wall depth and player traversal.
 
 - GeoMod opposite beam: Broaden destruction beyond the two validated assemblies; east beam98/posts97/96 now pass two-shot destruction plus settled and moving-debris reloads with77 stock64MiB checks each and exact uninterrupted PC checkpoints, while broader histories and general geometry remain open.
 

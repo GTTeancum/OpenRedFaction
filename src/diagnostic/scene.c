@@ -9722,6 +9722,23 @@ static int scene_terrain_open(scene_stream *s,const rf_level *level,rf_vpp *maps
         patch->position[0]=-33;patch->position[1]=4;patch->position[2]=8;patch->radius=4;
         free(s->terrain_regions);s->terrain_regions=regions;++s->terrain_region_count;
         printf("DEV_CAVITY_PATCH -33 4 8 4 65\n");
+        {
+            uint32_t seam=0;
+#ifndef RF_IMAGE_XBOX_NATIVE
+            seam=getenv("RF_REPLAY_CAVITY_SEAM_TEST")!=NULL;
+#else
+            FILE *flag=fopen("D:\\cavity-seam.flag","rb");if(flag){seam=1;fclose(flag);}
+#endif
+            if(seam) {
+                rf_geo_region *expanded=calloc(s->terrain_region_count+1,sizeof(*expanded));
+                if(!expanded)return RF_IO;
+                memcpy(expanded,s->terrain_regions,s->terrain_region_count*sizeof(*expanded));
+                patch=expanded+s->terrain_region_count;patch->flags=2;patch->hardness=65;
+                patch->position[0]=-29;patch->position[1]=-2;patch->position[2]=.5f;patch->radius=2;
+                free(s->terrain_regions);s->terrain_regions=expanded;++s->terrain_region_count;
+                printf("DEV_CAVITY_SEAM -29 -2 .5 2 65\n");
+            }
+        }
     }
     {
         uint32_t shallow_fixture=0;
