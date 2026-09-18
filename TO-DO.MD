@@ -5,6 +5,8 @@ Completion basis (user direction,2026-09-18): working late-alpha/early-beta code
 
 - Player impacts: Real fall/high-speed collision damage now passes PC/Xbox with shared health/armor handling; relocation and duplicate-contact guards pass focused checks; broader moving-object contacts remain.
 
+- Vehicle saves: Shared RFCP now accepts actual Driller/APC/Jeep records; typed APC/Jeep capture and restore staging preserve ammo, aiming and Jeep role/reference with focused checks passing; connect these adapters to live terrain/player/vehicle load publication next.
+
 - Jeep: Driver/gunner roles, parked seat switching, independent gunner camera, mounted gun aiming and real finite-ammo fire now pass PC/Xbox with12.18MiB free; PC return-to-driver/exit passes; vehicle saves, native exit, live NPC combat, destruction coverage and campaign placement remain (see docs/JEEP-FIRST-PASS.md).
 
 - APC: Driving, primary fire, seated aiming, ballistic mortar impacts/GeoMod and vehicle HUD now pass PC/Xbox with three mortar impacts, two accepted cuts and 10.30 MiB free; live NPC damage, APC saves, campaign placement and articulated gun visuals remain.

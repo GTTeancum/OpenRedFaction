@@ -29,7 +29,7 @@ typedef struct rf_player_checkpoint_catalog {
 int rf_player_checkpoint_validate(const rf_player_checkpoint *,const rf_player_checkpoint_catalog *,float body[9],float eye[9]);
 int rf_player_checkpoint_encode(const rf_player_checkpoint *,const rf_player_checkpoint_catalog *,void *,uint32_t);
 int rf_player_checkpoint_decode(const void *,uint32_t,const rf_player_checkpoint_catalog *,rf_player_checkpoint *);
-/* RFPL3 driver-only representation: same544 bytes, version3 and word12=1.
+/* RFPL3 seated-player representation: same544 bytes, version3 and word12=1.
  * Never contains a registry handle. Requires a structurally valid occupied
  * RFVC, including a dead host awaiting safe exit. Living player and existing
  * inventory rules still apply. Independent player velocity must be zero;
@@ -42,4 +42,15 @@ int rf_player_checkpoint_decode(const void *,uint32_t,const rf_player_checkpoint
 int rf_player_checkpoint_seated_validate(const rf_player_checkpoint *,const rf_player_checkpoint_catalog *,const rf_vehicle_checkpoint *);
 int rf_player_checkpoint_seated_encode(const rf_player_checkpoint *,const rf_player_checkpoint_catalog *,const rf_vehicle_checkpoint *,void *,uint32_t);
 int rf_player_checkpoint_seated_decode(const void *,uint32_t,const rf_player_checkpoint_catalog *,const rf_vehicle_checkpoint *,rf_player_checkpoint *);
+/* Explicit class-aware pairing. profile1 record is rf_vehicle_checkpoint,
+ * profile2 rf_apc_checkpoint, profile3 rf_jeep_checkpoint (headers named after
+ * those types). Caller must pass the corresponding complete typed object;
+ * never reinterpret a base vehicle pointer as a larger profile. Each actual
+ * class validator runs, without health normalization. Unknown profiles reject.
+ * Jeep role remains in its vehicle record; RFPL stores no attachment handle.
+ * Existing seated functions above remain profile1 wrappers. */
+int rf_player_checkpoint_vehicle_profile_validate(uint32_t profile,const void *record,uint32_t *occupied);
+int rf_player_checkpoint_seated_profile_validate(const rf_player_checkpoint *,const rf_player_checkpoint_catalog *,uint32_t profile,const void *record);
+int rf_player_checkpoint_seated_profile_encode(const rf_player_checkpoint *,const rf_player_checkpoint_catalog *,uint32_t profile,const void *record,void *,uint32_t);
+int rf_player_checkpoint_seated_profile_decode(const void *,uint32_t,const rf_player_checkpoint_catalog *,uint32_t profile,const void *record,rf_player_checkpoint *);
 #endif
