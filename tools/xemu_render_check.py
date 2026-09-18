@@ -28,6 +28,7 @@ from xemu_draw_audit import capture as capture_draws
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--npc-rubble-test', action='store_true', help='Opt-in armed NPC versus live extracted held cover')
     parser.add_argument('--moving-support-test', action='store_true', help='Process-local saved rubble lift/stop/retire fixture')
     parser.add_argument('--release-support-test', action='store_true', help='Lift saved support then release to ordinary debris gravity/contact')
     parser.add_argument('--rotate-support-test', action='store_true', help='Release lifted support with a single angular impulse')
@@ -77,6 +78,8 @@ def main():
     parser.add_argument('--unbatched', action='store_true', help='Reference tiny GPU command submission blocks')
     parser.add_argument('--unsorted', action='store_true', help='Reference source-order world draw ranges')
     args = parser.parse_args()
+    if args.npc_rubble_test and (not args.dev_room or args.level!='ctf06.rfl' or args.player_checkpoint or args.geomod_checkpoint_in):
+        parser.error('--npc-rubble-test requires ctf06 DEV room with live extraction, no player checkpoint')
     if args.tip_support_test:args.rotate_support_test=True
     if args.release_support_test or args.rotate_support_test:args.moving_support_test=True
     if args.moving_support_test and not (args.dev_room and args.player_checkpoint and args.geomod_checkpoint_in):
@@ -131,6 +134,8 @@ def main():
         parser.error('Require32..60000 frames,30..3600 seconds and a positive actor UID')
     if payload is None:
         payload = b'RFI5' + struct.pack('<I', 44) + bytes(args.frames * 44)
+    if args.npc_rubble_test and (args.frames<962 or not args.input or args.authored_source!=95 or args.authored_sources!=3):
+        parser.error('--npc-rubble-test requires the962-frame live extraction replay and authored sources95/94/93')
     if args.moving_support_test and (args.frames < 242 or any(payload[8:] if payload[:4] in (b'RFI2',b'RFI3',b'RFI4',b'RFI5',b'RFI6') else payload)):
         parser.error('--moving-support-test requires at least242 neutral input records')
     if args.terrain_atlas_audit and any(payload[8:] if payload[:4] in (b'RFI2',b'RFI3',b'RFI4',b'RFI5',b'RFI6') else payload):
@@ -157,11 +162,13 @@ def main():
         input_sha256=hashlib.sha256(payload).hexdigest(), setup_uids=args.setup_uid, trigger_start_uid=args.trigger_start_uid, exit_start_uid=args.exit_start_uid, exit_uid=args.exit_uid, return_exit_uid=args.return_exit_uid,
         scope='Authored section, player spawn or staged actor/pickup camera, process-local replay/setup commands, native framebuffer, '
               'phase timings and selected PC gameplay-state checks. No full campaign/parity claim.', samples=[])
+    report['npc_rubble_test']=args.npc_rubble_test
     report['expanded_geomod']=args.expanded_geomod
     report['authored_sources']=args.authored_sources
     report['authored_source']=args.authored_source if args.authored_source is not None else (94 if args.dev_room and args.level=='ctf06.rfl' else None)
     (run / 'inputs.bin').write_bytes(payload)
     env = {k: v for k, v in os.environ.items() if not k.startswith('RF_REPLAY_')}
+    if args.npc_rubble_test:env['RF_REPLAY_DEV_NPC']='2'
     env.update(RF_REPLAY_LEVEL=args.level, RF_REPLAY_ARCHIVE=args.archive)
     if args.dev_room:env['RF_REPLAY_DEV_ROOM']='1'
     support_mode='4' if args.tip_support_test else '3' if args.rotate_support_test else '2' if args.release_support_test else '1'
@@ -231,7 +238,7 @@ def main():
     saved[light_flag.name]=light_flag.read_bytes() if light_flag.exists() else None
     shallow_flag=disc/'shallow-fixture.flag'
     saved[shallow_flag.name]=shallow_flag.read_bytes() if shallow_flag.exists() else None
-    for name in ('geomod-checkpoint.bin','geomod-checkpoint-out.flag','ripple-test.flag','debris-player-test.flag','water-test.flag','swim-test.flag','player-checkpoint.flag','moving-support-test.flag',
+    for name in ('geomod-checkpoint.bin','geomod-checkpoint-out.flag','ripple-test.flag','debris-player-test.flag','water-test.flag','swim-test.flag','player-checkpoint.flag','moving-support-test.flag','dev-npc.flag',
                  'geomod-hdd-load.flag','geomod-hdd-save.flag','geomod-fallback-seed.flag','geomod-fallback-observe.flag',
                  'geomod-fallback0.rfsg','geomod-fallback1.rfsg','terrain-map-limit.bin','authored-source.bin','authored-count.bin'):
         path=disc/name;saved[name]=path.read_bytes() if path.exists() else None
@@ -270,6 +277,8 @@ def main():
         else:ripple_flag.unlink(missing_ok=True)
         (disc / 'campaign-spawn.flag').write_bytes(b'')
         if args.dev_room:(disc/'dev-room.flag').write_bytes(b'')
+        if args.npc_rubble_test:(disc/'dev-npc.flag').write_bytes(b'2')
+        else:(disc/'dev-npc.flag').unlink(missing_ok=True)
         if args.terrain_draw_audit:(disc/'renderer-draw-audit.flag').write_bytes(b'')
         if args.authored_source is not None:(disc/'authored-source.bin').write_bytes(struct.pack('<I',args.authored_source))
         if args.authored_sources>1:(disc/'authored-count.bin').write_bytes(struct.pack('<I',args.authored_sources))
@@ -410,6 +419,7 @@ dvd_path = '{root.as_posix()}/build/xbox/redfaction-diagnostic.iso'
                 'rf_scene_presentation_profile', 'rf_scene_world_profile', 'rf_scene_step_profile',
                 'rf_scene_npc_step_profile', 'rf_scene_npc_playback_profile')]
             fields.append(('rf_scene_terrain_edit_times',40))
+            if args.npc_rubble_test:fields.append(('rf_scene_dev_npc_cover',48))
             if args.moving_support_test:fields.append(('rf_scene_moving_support_test',160))
             if args.rotate_support_test:fields.append(('rf_scene_rotating_support_test',120))
             snap = dict(symbols={name: dict(words=words(monitor, symbol(name), count)) for name, count in fields})
@@ -465,6 +475,17 @@ dvd_path = '{root.as_posix()}/build/xbox/redfaction-diagnostic.iso'
                 assert len(transition_rows)==1 and int(transition_rows[0][2])==args.exit_start_uid, 'Walk did not reach its exit'
 
             goal_words=words(monitor,symbol('rf_scene_mission_goals'),4225)
+            if args.npc_rubble_test:
+                expected=[int(value) for line in pc.stdout.splitlines() if line.startswith('DEV_NPC_COVER ') for value in line.split()[1:]]
+                actual=snap['symbols']['rf_scene_dev_npc_cover']['words']
+                assert len(expected)==48 and expected==actual, 'NPC cover sequence missing or differs on Xbox'
+                for i in range(6):
+                    row=actual[i*8:i*8+8]
+                    assert row[0]==660+i*60 and row[1]==i+1
+                    assert row[2:4]==([0,i+1] if i<3 else [i-2,3]) and row[5]==int(i<3)
+                    health=struct.unpack('<f',struct.pack('<I',row[4]))[0]
+                    assert health==100 if i<3 else health<100
+                report['checks']['DEV_NPC_COVER']=dict(pc=expected,xbox=actual,equal=True)
             if args.moving_support_test:
                 expected=[int(value) for line in pc.stdout.splitlines() if line.startswith('MOVING_SUPPORT ') for value in line.split()[1:]]
                 actual=snap['symbols']['rf_scene_moving_support_test']['words']

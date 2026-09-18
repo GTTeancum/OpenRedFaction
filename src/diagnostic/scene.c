@@ -181,7 +181,7 @@ static uint32_t player_frame_limit;
 static rf_scene_input player_input;
 static uint32_t campaign_spawn;
 uint32_t rf_scene_dev_room_enabled;
-uint32_t rf_scene_dev_npc_enabled; /* Explicit harmless authored miner fixture. */
+uint32_t rf_scene_dev_npc_enabled; /* Opt-in:1 harmless walking miner;2 armed rubble-cover fixture. */
 static uint32_t scene_dev_npc_contacts;
 uint32_t rf_scene_water_test_enabled; /* Explicit authored dm03 water test; no terrain fixture. */
 uint32_t rf_scene_swim_test_enabled;
@@ -8883,6 +8883,7 @@ static float combat_enemy_primary_damage(const rf_weapon_primary_definition *def
 {
     return definition?definition->damage*definition->ai_damage_scale[0]:10;
 }
+#include "scene_npc_rubble_test.inc"
 static int campaign_enemy_tick(scene_stream *stream,uint32_t frame,const float player_eye[3])
 {
     uint32_t i,j,blocked,clock_bits;float seconds=(float)frame/60;
@@ -11363,7 +11364,9 @@ static int campaign_combat_tick(scene_stream *stream,uint32_t frame,const float 
     rf_scene_weapon_selection[0]=campaign_equipped_slot;rf_scene_weapon_selection[2]=(uint32_t)campaign_rifle_id;
     rf_scene_weapon_selection[3]=campaign_player_inventory.owned[campaign_rifle_id];rf_scene_weapon_selection[4]=campaign_player_inventory.loaded[campaign_rifle_id];
     rf_scene_weapon_selection[5]=campaign_player_inventory.reserve[campaign_weapon_supply.definitions[campaign_rifle_id].ammo_type];
-    status=rf_scene_dev_npc_enabled?RF_OK:campaign_enemy_tick(stream,frame,position);rf_scene_enemy_combat[7]=(uint32_t)status;if(status)return status;
+    status=scene_npc_rubble_stimulus(stream,frame,position);if(status)return status;
+    status=(rf_scene_dev_npc_enabled==1 || (rf_scene_dev_npc_enabled==2 && frame<600))?RF_OK:campaign_enemy_tick(stream,frame,position);rf_scene_enemy_combat[7]=(uint32_t)status;if(status)return status;
+    status=scene_npc_rubble_record(stream,frame);if(status)return status;
     memcpy(rf_scene_pickup_vitals,&campaign_player_damage.state.effects.health,4);memcpy(rf_scene_pickup_vitals+1,&campaign_player_damage.state.effects.armor,4);
     rf_scene_riot[0]=0;
     if(campaign_explicit_unarmed || !campaign_player_inventory.owned[campaign_selected_weapon()])return RF_OK;
@@ -14124,7 +14127,7 @@ static int scene_frame(void *context,uint32_t frame,rf_preview_mesh *actor)
             step_profile_mark(4,&step_clock);
             if(campaign_spawn) {
                 uint32_t npc_clock=profile_clock && profile_active?profile_clock():0;
-                if(rf_scene_dev_npc_enabled && campaign_npc_body_count==1) {
+                if(rf_scene_dev_npc_enabled==1 && campaign_npc_body_count==1) {
                     campaign_npc_body *npc=campaign_npc_bodies;
                     npc->combat_alert=npc->combat_scripted=0;
                     if(frame==400){
@@ -14317,7 +14320,8 @@ static int scene_dev_npc_seeds(const char *tables_path,rf_vpp *tables)
     status=rf_level_open(&source,&levels,"L1S1.rfl");
     if(!status)status=rf_entity_seeds_open(&source,tables,1024*1024,&campaign_seeds);
     rf_vpp_close(&levels);printf("DEV_NPC_SEEDS %d %u\n",status,campaign_seeds.records.count);if(status)return status;
-    for(i=0;i<campaign_seeds.records.count;i++)if(!strcmp(campaign_seeds.records.items[i].record.class_name,"miner1") || !strcmp(campaign_seeds.records.items[i].record.class_name,"Miner1"))break;
+    for(i=0;i<campaign_seeds.records.count;i++)if(rf_scene_dev_npc_enabled==2?campaign_seeds.records.items[i].record.uid==8456:
+        (!strcmp(campaign_seeds.records.items[i].record.class_name,"miner1") || !strcmp(campaign_seeds.records.items[i].record.class_name,"Miner1")))break;
     if(i==campaign_seeds.records.count){for(i=0;i<campaign_seeds.records.count;i++)printf("DEV_NPC_CLASS %s\n",campaign_seeds.records.items[i].record.class_name);return RF_NOT_FOUND;}
     printf("DEV_NPC_SELECTED %s\n",campaign_seeds.records.items[i].record.class_name);
     cls=campaign_seeds.items[i].class_index;
@@ -14331,6 +14335,12 @@ static int scene_dev_npc_seeds(const char *tables_path,rf_vpp *tables)
     campaign_seeds.records.items[0].record.position[2]=5.5f;
     memset(campaign_seeds.records.items[0].record.orientation,0,36);
     for(i=0;i<3;i++)campaign_seeds.records.items[0].record.orientation[i][i]=1;
+    if(rf_scene_dev_npc_enabled==2) {
+        rf_level_entity *record=&campaign_seeds.records.items[0].record;
+        record->position[0]=-1.5f;record->position[1]=-.4f;record->position[2]=8;
+        memset(record->orientation,0,36);record->orientation[0][2]=-1;
+        record->orientation[1][1]=1;record->orientation[2][0]=1;
+    }
     campaign_seeds.records.items[0].record.script_name[0]=campaign_seeds.records.items[0].record.state_animation[0]=0;
     return RF_OK;
 }

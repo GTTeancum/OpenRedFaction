@@ -38,3 +38,5 @@ owned emulator closed. This run contains no live NPC rubble impact.
 
 Reproduce PC acceptance with `python -B tools/check_npc_authored_damage.py`.
 The replay uses neutral input and verifies no liquid-damage contamination.
+
+Live NPC rubble qualification now passes for the controlled held-beam encounter: three blocked shots, removal, three player hits,76 stock64MiB comparisons. See [live cover qualification](GEOMOD-NPC-RUBBLE-COVER-20260917.md) for fixture limits and remaining natural-cover work.
