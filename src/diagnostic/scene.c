@@ -8460,6 +8460,7 @@ static int campaign_set_invulnerable(void *context,uint32_t handle,uint32_t enab
     }
     return RF_NOT_FOUND;
 }
+#include "scene_nano_shield.inc"
 static int campaign_set_visible(void *context,uint32_t handle,uint32_t visible)
 {
     uint32_t i;(void)context;
@@ -9018,6 +9019,7 @@ static float combat_enemy_primary_damage(const rf_weapon_primary_definition *def
 #include "scene_ai_weapon_selection.inc"
 #include "scene_ai_reload.inc"
 #include "scene_ai_shotgun.inc"
+#include "scene_ai_melee_contact.inc"
 static int campaign_enemy_tick(scene_stream *stream,uint32_t frame,const float player_eye[3])
 {
     uint32_t i,j,blocked,clock_bits;float seconds=(float)frame/60;
@@ -9151,6 +9153,13 @@ static int campaign_enemy_tick(scene_stream *stream,uint32_t frame,const float p
                 definition,delta,attack_range,clock_bits,&effects,&feedback,&amount);
             if(status)return status;
             goto enemy_shot_done;
+        }
+        if(melee) {
+            uint32_t contact;
+            status=campaign_enemy_melee_contact(stream,owner->eye_position,delta,attack_range,
+                victim?&victim->body:&scene_actor_body,shot_damage,&contact);
+            if(status)return status;
+            if(!contact)goto enemy_shot_done;
         }
         if(!melee) {
             float ray[3],spread_ray[3],fraction;
@@ -15406,6 +15415,7 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
             campaign_alarm_voice=campaign_alarm_deadline=-1;
             memset(rf_scene_alarm,0,sizeof(rf_scene_alarm));rf_scene_alarm[5]=UINT32_MAX;
             campaign_triggers.set_invulnerable=campaign_set_invulnerable;
+            campaign_triggers.set_nano_shield=campaign_set_nano_shield;campaign_triggers.nano_shield_context=NULL;
             campaign_triggers.remove_object=campaign_remove_object;
             campaign_triggers.show_message=campaign_show_message;campaign_triggers.message_context=(void*)level;
             campaign_subtitle_deadline=-1;memset(&campaign_subtitle,0,sizeof(campaign_subtitle));
@@ -16007,3 +16017,5 @@ int rf_scene_stream_miner_body(const rf_level *level,int32_t uid,const char *mes
     return scene_miner(level,uid,meshes_path,motions_path,tables_path,maps,map_count,
         mesh,materials,mesh_budget,material_budget,sink,context,1,collision,geometry);
 }
+
+

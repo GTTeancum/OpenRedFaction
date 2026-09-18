@@ -3,6 +3,12 @@
 Completion basis (user direction,2026-09-18): working late-alpha/early-beta code implementation. Overall approximately63%; GeoMod100% for the first playable milestone, accepted by the user. GeoMod items below are deferred refinement and coverage, not prerequisites to moving on. This does not assert retail polish, complete campaign integration or resolution of every known defect.
 
 
+- Remote charges: Shared flight, sticking, owner detonation and moving-host transport now compile on PC/Xbox and pass focused checks; player selection, launch/render/explosion scene integration is next.
+
+- Shield events: Activate_Capek_Shield now toggles registered actor damage immunity through immediate/delayed event dispatch; focused runtime/scene checks and PC/Xbox builds pass; shield presentation, hit armor consumption and live authored scenario remain.
+
+- AI melee: Strikes now require target body contact and respect nearer world/rubble obstruction; focused reach/miss/mover checks and PC/Xbox builds pass; live rubble encounter remains unverified.
+
 - PRIORITY Precision weapons: Sniper/rail selection, primary firing, ammo and authored view offsets are integrated; PC shots and scene cover/penetration checks pass; functional sniper zoom now passes PC/Xbox with unchanged weapon/HUD; NPC sniper/rail damage and ammo checks pass; rail scanner markers now work in live PC with no ammo debit; Xbox builds; silhouette scanner presentation, scope overlay, trails and broader live targets remain.
 
 - Scripted thresholds: Health/armor monitors now read live player/NPC values and dispatch one-shot event/mover/trigger effects; focused runtime checks pass; in-memory revisit latch retention now passes focused checks; disk persistence and live authored scenarios remain.
@@ -5613,4 +5619,5 @@ A crossed beam/floor fixture proves both sets of vertex casts miss; new shared l
 ## 2026-09-18 fragment edge integration
 
 World and committed-mover fragment queries now include bounded edge/edge CCD, with128-edge scratch and complete overflow fallback. Crossed-beam world/translated/rotated-mover and metadata-error fixtures agree in96 native words across80 checks. All124 PC tests, both connected histories and both0.005 floor-contact gates pass. Save/framebuffer unchanged. Added coverage costs approximately6ms per active debris update (34.203ms to40.595ms),3315 free pages. [Scope and evidence](docs/research/GEOMOD-FRAGMENT-EDGE-INTEGRATION-20260918.md). Next rotation/coplanar and mover-relative cases. Estimate approximately51% overall /92% GeoMod; focus debris collision coverage.
+
 

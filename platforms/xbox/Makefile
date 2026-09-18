@@ -86,6 +86,7 @@ endif
 # cxbe copies the PE stack reserve into the XBE stack commit on stock 64 MiB.
 LDFLAGS += -map:main.map -entry:rf_diagnostic_start -stack:131072
 SRCS += $(PROJECT_ROOT)/src/core/player_weapon.c
+SRCS += $(PROJECT_ROOT)/src/core/remote_charge.c
 include $(NXDK_DIR)/Makefile
 $(APU_SRCS:.c=.obj): CFLAGS += -std=c23 -Wno-unused-function -I$(APU_BACKEND)/include
 $(PROJECT_ROOT)/src/platform/xbox/audio.obj: CFLAGS += -std=c23 -I$(APU_BACKEND)/include
@@ -106,3 +107,5 @@ $(PROJECT_ROOT)/src/diagnostic/scene.obj: $(wildcard $(PROJECT_ROOT)/src/diagnos
 
 # Profile switches invalidate all project objects, including shared ABI users.
 $(filter %.obj,$(SRCS:.c=.obj)): $(PROJECT_ROOT)/build/xbox/geomod-profile.stamp
+
+

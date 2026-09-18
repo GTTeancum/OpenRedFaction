@@ -633,6 +633,18 @@ static void startup_event_action(void *context,rf_event_state *state,uint32_t ac
             startup_target(c,c->event->links+i,source,actor,(mode&255u)==1);
         return;
     }
+    if(state->type==76) {
+        if(!c->triggers->set_nano_shield){++c->report->unsupported_actions;return;}
+        for(i=0;i<c->event->authored->record.link_count;i++) {
+            const rf_level_link_target *link=c->event->links+i;int status;
+            if(link->kind!=1 && link->kind!=2)continue;
+            if(!rf_object_registry_lookup(c->triggers->registry,link->value))continue;
+            status=c->triggers->set_nano_shield(c->triggers->nano_shield_context,link->value,action==1);
+            if(status==RF_NOT_FOUND){++c->report->other_targets;continue;}
+            if(status){c->status=status;return;}
+        }
+        return;
+    }
     if(state->type==20) {
         c->status=rf_event_cycle_enable(&c->event->cycle,action==1);return;
     }
@@ -1070,6 +1082,7 @@ int rf_runtime_events_tick(rf_runtime_events *events,rf_runtime_triggers *trigge
            !(event->state.type==19 && triggers->give_item) &&
            !(event->state.type==30 && triggers->set_friendliness) &&
            !(event->state.type==24 && triggers->set_invulnerable) &&
+           !(event->state.type==76 && triggers->set_nano_shield) &&
            !(event->state.type==38 && triggers->attack_npc) &&
            !(event->state.type==46 && triggers->alarm) &&
            !((event->state.type==11 || event->state.type==12) && triggers->play_animation) &&

@@ -367,6 +367,9 @@ typedef struct rf_runtime_triggers {
     /* Live entity health(0)/armor(1); NOT_FOUND skips unavailable handles. */
     int (*query_vitals)(void *,uint32_t handle,uint32_t armor,float *value);
     void *query_vitals_context;
+    /* Event76 actor814 bit20 toggle; no armor refill or generic invulnerability. */
+    int (*set_nano_shield)(void *,uint32_t handle,uint32_t enabled);
+    void *nano_shield_context;
 } rf_runtime_triggers;
 /* Declare authored goals before any startup trigger runs. */
 int rf_runtime_goals_initialize(const rf_runtime_events *events,rf_campaign_goals *goals);
