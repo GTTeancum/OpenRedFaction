@@ -181,7 +181,7 @@ static uint32_t player_frame_limit;
 static rf_scene_input player_input;
 static uint32_t campaign_spawn;
 uint32_t rf_scene_dev_room_enabled;
-uint32_t rf_scene_fragment_platform_enabled,rf_scene_fragment_platform_audit[27];
+uint32_t rf_scene_fragment_platform_enabled,rf_scene_fragment_platform_audit[30];
 uint32_t rf_scene_dev_npc_enabled; /* Opt-in:1 harmless walking miner;2 armed rubble-cover fixture. */
 static uint32_t scene_dev_npc_contacts;
 uint32_t rf_scene_water_test_enabled; /* Explicit authored dm03 water test; no terrain fixture. */
@@ -2777,11 +2777,14 @@ static int campaign_controller_commit(void)
             memset(pose->input_matrix,0,36);pose->input_matrix[0]=pose->input_matrix[4]=c;
             pose->input_matrix[1]=-s;pose->input_matrix[3]=s;pose->input_matrix[8]=1;
             memcpy(pose->pending_matrix,pose->input_matrix,36);memcpy(pose->output_matrix,pose->input_matrix,36);
+        } else if(rf_scene_fragment_platform_enabled==3 || rf_scene_fragment_platform_enabled==4) {
+            pose->position[1]=.55f+steps*(rf_scene_fragment_platform_enabled==3?(1.f/120):.025f);pose->pending[1]=pose->public_position[1]=pose->position[1];
         } else {
             pose->position[0]=9.449f+steps*.05f;pose->pending[0]=pose->public_position[0]=pose->position[0];
         }
         for(uint32_t k=0;k<3;k++){pose->minimum[k]=pose->position[k]-pose->radius;pose->maximum[k]=pose->position[k]+pose->radius;}
         pose->velocity[0]=(rf_scene_fragment_platform_enabled==1 && frame>=420 && frame<480)?3.f:0;
+        pose->velocity[1]=(frame>=420 && frame<480)?(rf_scene_fragment_platform_enabled==3?.5f:rf_scene_fragment_platform_enabled==4?1.5f:0):0;
         rf_scene_fragment_platform_audit[1]+=frame>=420 && frame<480;
         memcpy(rf_scene_fragment_platform_audit+3,pose->position,12);
         memcpy(rf_scene_fragment_platform_audit+16,pose->input_matrix,36);
@@ -11531,6 +11534,10 @@ static int scene_detached_query(const rf_physics_body_state *body,rf_physics_sol
     out->friction=campaign_surface_palette->materials[hit.contact.material].friction;
     out->moving_surface=campaign_mover_interval_seconds>0 && hit.solid!=UINT32_MAX &&
         hit.solid<campaign_movers.count && campaign_mover_intervals[hit.solid].changed!=0;
+    if(out->moving_surface && campaign_mover_intervals[hit.solid].changed==1) {
+        const scene_mover_interval *interval=campaign_mover_intervals+hit.solid;
+        for(uint32_t k=0;k<3;k++)out->surface_velocity[k]=(interval->end[k]-interval->start[k])/campaign_mover_interval_seconds;
+    }
     if(out->moving_surface && out->fraction==0) {
         status=scene_detached_recovery(c,body,&hit,&out->recovery_distance);if(status)return status;
     }
@@ -11678,6 +11685,18 @@ static int scene_detached_tick(scene_stream *s,float seconds)
                 for(uint32_t v=0;v<piece.mesh.vertex_count;v++) {
                     float point[3];scene_piece_world_point(&body->state,piece.mesh.vertices[v].position,point);
                     if(point[1]<bottom)bottom=point[1];
+                }
+                if(rf_scene_fragment_platform_audit[0]==599) {
+                    rf_physics_body_state probe;rf_geometry_body_hit support={0};uint32_t found=0;
+                    scene_fragment_support_probe(&body->state,&probe);
+                    probe.position[1]=body->state.position[1]+.25f;probe.next_position[1]=body->state.position[1]-.25f;
+                    status=scene_fragment_shape_mover_sweep(&piece.mesh,&probe,&campaign_movers,1,&support,&found);if(status)goto failed;
+#ifndef RF_IMAGE_XBOX_NATIVE
+                    printf("DETACHED_PLATFORM_SUPPORT %u %.9g %.9g\n",found,found?support.contact.fraction:0,found?support.contact.point[1]:0);
+#endif
+                    rf_scene_fragment_platform_audit[27]=found && support.contact.normal[1]>=.5f && fabsf((support.contact.fraction-.5f)*.5f)<=.01f;
+                    if(found){float gap=(support.contact.fraction-.5f)*.5f;memcpy(rf_scene_fragment_platform_audit+29,&gap,4);}
+                    if(found)memcpy(rf_scene_fragment_platform_audit+28,support.contact.point+1,4);
                 }
                 if(rf_scene_fragment_platform_audit[0]==420)memcpy(rf_scene_fragment_platform_audit+6,&bottom,4);
                 memcpy(rf_scene_fragment_platform_audit+7,&bottom,4);

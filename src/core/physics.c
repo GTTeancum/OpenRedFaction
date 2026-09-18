@@ -1020,9 +1020,17 @@ static int solid_step_policy(rf_physics_body_state *state,float dt,float gravity
             rf_physics_solid_advance(&value,left,found?hit.fraction:1,basis,&left);if(status)return status;
         result.steps++;
         if(found) {
+            if(fragment && hit.moving_surface)for(uint32_t k=0;k<3;k++) {
+                if(!isfinite(hit.surface_velocity[k]))return RF_RANGE;
+                value.velocity[k]=(float)((double)value.velocity[k]-hit.surface_velocity[k]);
+            }
             status=solid_contact_policy(&value,hit.point,hit.normal,g,hit.elasticity,hit.friction,
                 &response,!(fragment && (hit.moving_surface || hit.normal[1]<.5f)));
             if(status)return status;
+            if(fragment && hit.moving_surface)for(uint32_t k=0;k<3;k++) {
+                value.velocity[k]=(float)((double)value.velocity[k]+hit.surface_velocity[k]);
+                if(!isfinite(value.velocity[k]))return RF_RANGE;
+            }
             result.contacts++;
             if(response==RF_SOLID_CONTACT_STOPPED){result.stopped=1;left=0;break;}
         }

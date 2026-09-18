@@ -836,5 +836,5 @@ extern uint32_t rf_scene_airlock[6];
 extern uint32_t rf_scene_script_animation[10];
 extern uint32_t rf_scene_rotating_doors[8];
 extern uint32_t rf_scene_use_reach[4];
-extern uint32_t rf_scene_fragment_platform_enabled,rf_scene_fragment_platform_audit[27];
+extern uint32_t rf_scene_fragment_platform_enabled,rf_scene_fragment_platform_audit[30];
 #endif

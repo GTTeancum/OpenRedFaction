@@ -527,6 +527,8 @@ int main(int argc,char **argv)
     if(rf_scene_dev_npc_enabled && !strcmp(getenv("RF_REPLAY_DEV_NPC"),"2"))rf_scene_dev_npc_enabled=2;
     rf_scene_fragment_platform_enabled=p.headless && getenv("RF_REPLAY_FRAGMENT_PLATFORM_TEST")!=NULL;
     if(rf_scene_fragment_platform_enabled && !strcmp(getenv("RF_REPLAY_FRAGMENT_PLATFORM_TEST"),"2"))rf_scene_fragment_platform_enabled=2;
+    if(rf_scene_fragment_platform_enabled && !strcmp(getenv("RF_REPLAY_FRAGMENT_PLATFORM_TEST"),"3"))rf_scene_fragment_platform_enabled=3;
+    if(rf_scene_fragment_platform_enabled && !strcmp(getenv("RF_REPLAY_FRAGMENT_PLATFORM_TEST"),"4"))rf_scene_fragment_platform_enabled=4;
     rf_scene_moving_support_enabled=p.headless && getenv("RF_REPLAY_MOVING_SUPPORT_TEST")!=NULL;
     if(rf_scene_moving_support_enabled && !strcmp(getenv("RF_REPLAY_MOVING_SUPPORT_TEST"),"2"))rf_scene_moving_support_enabled=2;
     if(rf_scene_moving_support_enabled && !strcmp(getenv("RF_REPLAY_MOVING_SUPPORT_TEST"),"3"))rf_scene_moving_support_enabled=3;
@@ -921,7 +923,7 @@ run_scene:
     {extern uint32_t rf_scene_detached_motion[8];extern float rf_scene_detached_pose[6];
      printf("FRAGMENT_PROFILE");for(i=0;i<24;i++)printf(" %u",rf_scene_fragment_profile[i]);puts("");
      printf("DETACHED_MOTION");for(i=0;i<8;i++)printf(" %u",rf_scene_detached_motion[i]);puts("");
-    if(rf_scene_fragment_platform_enabled){printf("FRAGMENT_PLATFORM");for(uint32_t k=0;k<27;k++)printf(" %u",rf_scene_fragment_platform_audit[k]);printf("\n");}
+    if(rf_scene_fragment_platform_enabled){printf("FRAGMENT_PLATFORM");for(uint32_t k=0;k<30;k++)printf(" %u",rf_scene_fragment_platform_audit[k]);printf("\n");}
      printf("DETACHED_POSE");for(i=0;i<6;i++)printf(" %.9g",rf_scene_detached_pose[i]);puts("");}
     {extern uint32_t rf_scene_detached_pieces[6];printf("DETACHED_PIECES");for(i=0;i<6;i++)printf(" %u",rf_scene_detached_pieces[i]);puts("");}
     printf("TERRAIN_UPLOAD");for(i=0;i<4;++i)printf(" %u",rf_scene_terrain_upload[i]);puts("");

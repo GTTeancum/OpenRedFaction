@@ -31,7 +31,8 @@ static int query(const rf_physics_body_state *body,float remaining,
         *found=f->mode==5 || n==0;hit->fraction=0;
         hit->normal[f->mode==6?0:1]=1;memcpy(hit->point,body->position,12);
         hit->moving_surface=f->mode!=6;
-        if(f->mode>=8)hit->recovery_distance=f->mode==9?NAN:.5f;
+        if(f->mode>=8 && f->mode<=10)hit->recovery_distance=f->mode==9?NAN:.5f;
+        if(f->mode>=11)hit->surface_velocity[1]=f->mode==12?NAN:1;
         return RF_OK;
     }
     *found=f->mode==2 || n<2;
@@ -116,5 +117,11 @@ int main(void)
         CHECK(flags==17 && !memcmp(&body,&before,sizeof(body)));
         CHECK(!memcmp(position,saved_position,12) && !memcmp(basis,saved_basis,36) && !memcmp(&report,&saved_report,sizeof(report)));
     }
+    body=initial();body.flags=0x9800003fu;f=(fixture){0,11,{0}};
+    CHECK(!rf_physics_fragment_step_timed(&body,.125f,0,&flags,position,basis,query,&f,&report));
+    CHECK(body.velocity[1]==1 && body.position[1]==1.125f && !report.stopped);
+    body=initial();body.flags=0x9800003fu;before=body;f=(fixture){0,12,{0}};
+    CHECK(rf_physics_fragment_step_timed(&body,.125f,0,&flags,position,basis,query,&f,&report)==RF_RANGE);
+    CHECK(!memcmp(&body,&before,sizeof(body)));
     puts("PASS timed fragment repeats, stationary moving-surface query, bounded retries and rollback");return 0;
 }
