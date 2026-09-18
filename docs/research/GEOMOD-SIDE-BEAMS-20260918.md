@@ -50,3 +50,14 @@ The explicit source92 selector uses an enemy-free body spawn(-2.75,-.4,0), facin
 The other seven side beams retain tested core/identity support but are not live selectors yet. Side-beam attached posts, mixed-neighbor edits and broad history remain open. Existing source66 and93..98 selectors are unchanged.
 
 Native side-beam92 evidence: `artifacts/xemu/render-20260918-003428`,900frames,77checks passing,3877free pages at endpoint. Xbox's4556-byte checkpoint matches uninterrupted PC exactly. Native framebuffer inspected and confirms the missing beam section and fallen piece. Stock NXDK build succeeds; harness restores disc and closes emulator. Native reload of the side-beam-created checkpoint remains a separate follow-up.
+
+
+## Opposite live side beam: UID108
+
+Source108 now uses the mirrored open-room-side spawn(3.75,-.4,0), facing east. Like92, it is single-source only and retains actual roof81/air87 ownership. The replay accepts `--source 92|108`, derives its aim from the measured settled eye and uses the corresponding surfaceX rather than copying geometry or material state between beams.
+
+PC108 settles at(3.75,-.401361,0), writes a3178-byte first-shot save and continues after reload to two cuts with three settled pieces. Its5070-byte final save equals uninterrupted play. Retained publication is17faces/94vertices; this differs from92 because the actual cutter/boundaries and resulting fragments differ. The framebuffer was inspected: missing beam material and a tilted extracted chunk appear under the opposite roof with neighboring supports/hall/launcher/HUD retained. No original-game screenshots or host input were used.
+
+`python -B tools/check_side_beam.py --source 108` validates the new continuation; the default92 replay is rerun as a regression after parameterizing the tool. Remaining six side-beam profiles have core/identity support but no live selection. Attached-post interactions and native reload of the Xbox-created108 endpoint remain separate extensions.
+
+Native108 reload/next-shot evidence: `artifacts/xemu/render-20260918-003832`,301frames,77checks passing,3685free pages at endpoint. The5070-byte Xbox output matches uninterrupted PC exactly. Native framebuffer inspected. Stock NXDK build succeeds; harness restored disc and closed emulator.
