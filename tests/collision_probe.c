@@ -918,6 +918,15 @@ int main(int argc,char **argv)
         }
         return ferror(stdin)?2:0;
     }
+    if(argc==2 && !strcmp(argv[1],"--mover-relative")) {
+        rf_collision_mover_motion input;struct {int32_t status;rf_collision_mover_relative value;} output;
+        while(fread(&input,sizeof(input),1,stdin)==1) {
+            memset(&output,0xa5,sizeof(output));
+            output.status=rf_collision_mover_relative_sphere(&input,&output.value);
+            fwrite(&output,sizeof(output),1,stdout);
+        }
+        return ferror(stdin)?2:0;
+    }
     if(argc==2 && !strcmp(argv[1],"--mover-sphere-local")) {
         float input[30];struct {int32_t status;float values[6];} output;
         while(fread(input,sizeof(input),1,stdin)==1) {

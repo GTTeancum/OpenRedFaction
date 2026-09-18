@@ -682,3 +682,6 @@ add_test(NAME runtime_surface_material COMMAND rf_runtime_surface_material_tests
 add_executable(rf_collision_swept_edge_tests tests/collision_swept_edge_tests.c)
 target_link_libraries(rf_collision_swept_edge_tests PRIVATE rf_core)
 add_test(NAME collision_swept_edges COMMAND rf_collision_swept_edge_tests)
+add_executable(rf_collision_mover_motion_tests tests/collision_mover_motion_tests.c)
+target_link_libraries(rf_collision_mover_motion_tests PRIVATE rf_core)
+add_test(NAME collision_mover_motion COMMAND rf_collision_mover_motion_tests)

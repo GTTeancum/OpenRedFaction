@@ -697,6 +697,42 @@ int rf_collision_mover_sphere_local(const float center[3],const float body_matri
     }
     memcpy(local_start,a,12);memcpy(local_delta,b,12);return RF_OK;
 }
+int rf_collision_mover_relative_sphere(const rf_collision_mover_motion *motion,
+    rf_collision_mover_relative *result)
+{
+    rf_collision_mover_relative value;float first[3],last[3],ratio;uint32_t i,j;
+    if(!motion || !result)return RF_RANGE;
+    if(!isfinite(motion->body_remaining) || !isfinite(motion->mover_remaining) ||
+       motion->body_remaining<0 || motion->mover_remaining<=0 ||
+       motion->body_remaining>motion->mover_remaining)return RF_FORMAT;
+    for(i=0;i<3;i++) {
+        if(!isfinite(motion->center[i]) || !isfinite(motion->start[i]) ||
+           !isfinite(motion->end[i]) || !isfinite(motion->mover_start[i]) ||
+           !isfinite(motion->mover_end[i]))return RF_FORMAT;
+        for(j=0;j<3;j++)if(!isfinite(motion->body_matrix[i][j]) ||
+           !isfinite(motion->next_body_matrix[i][j]) || !isfinite(motion->mover_matrix[i][j]))return RF_FORMAT;
+    }
+    {volatile float quotient=motion->body_remaining/motion->mover_remaining;ratio=1.0f-quotient;}
+    for(i=0;i<3;i++) {
+        float a[3]={motion->body_matrix[0][i],motion->body_matrix[1][i],motion->body_matrix[2][i]};
+        float b[3]={motion->next_body_matrix[0][i],motion->next_body_matrix[1][i],motion->next_body_matrix[2][i]};
+        volatile float displacement=motion->mover_end[i]-motion->mover_start[i];
+        volatile float part=displacement*ratio;
+        volatile float offset,end_offset;
+        value.origin[i]=motion->mover_start[i]+part;
+        offset=motion->start[i]-value.origin[i];end_offset=motion->end[i]-motion->mover_end[i];
+        first[i]=edge_dot(motion->center,a,1,NULL)+offset;
+        last[i]=edge_dot(motion->center,b,1,NULL)+end_offset;
+        if(!isfinite(value.origin[i]) || !isfinite(first[i]) || !isfinite(last[i]))return RF_FORMAT;
+    }
+    for(i=0;i<3;i++) {
+        volatile float end=edge_dot(last,motion->mover_matrix[i],1,NULL);
+        value.start[i]=edge_dot(first,motion->mover_matrix[i],1,NULL);
+        value.delta[i]=end-value.start[i];
+        if(!isfinite(value.start[i]) || !isfinite(value.delta[i]))return RF_FORMAT;
+    }
+    *result=value;return RF_OK;
+}
 static int body_bounds(const rf_collision_body_query *body,const float end[3],float lo[3],float hi[3])
 {
     uint32_t i;

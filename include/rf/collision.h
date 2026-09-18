@@ -385,6 +385,22 @@ int rf_collision_mover_sphere_local(const float center[3],const float body_matri
     const float start[3],const float end[3],const float origin[3],const float mover_matrix[3][3],
     float local_start[3],float local_delta[3]);
 
+typedef struct rf_collision_mover_motion {
+    float center[3],body_matrix[3][3],next_body_matrix[3][3];
+    float start[3],end[3],mover_start[3],mover_end[3],mover_matrix[3][3];
+    float body_remaining,mover_remaining;
+} rf_collision_mover_motion;
+typedef struct rf_collision_mover_relative {
+    float origin[3],start[3],delta[3];
+} rf_collision_mover_relative;
+/* 49bb70 mover query preparation: align the mover's start to the body's
+ * remaining interval, transform each body sphere endpoint with its own basis,
+ * then subtract the corresponding mover origin. Fixed mover basis, positive
+ * mover time and body time in [0,mover time]. No geometry, wake or response.
+ * No allocation. Invalid inputs/overflow preserve the complete output. */
+int rf_collision_mover_relative_sphere(const rf_collision_mover_motion *motion,
+    rf_collision_mover_relative *result);
+
 typedef struct rf_collision_solid_view {
     const rf_collision_room_view *rooms;uint32_t room_count;
     const uint32_t *primary;uint32_t primary_count;
