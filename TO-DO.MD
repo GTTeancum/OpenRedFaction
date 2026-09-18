@@ -1,6 +1,6 @@
 # Red Faction Xbox / PC - open work
 
-- PRIORITY GeoMod ordinary walls: Add traversal and broader neighboring geometry; three rockets now dig progressively deeper with77 stock64MiB Xbox checks, exact24076-byte PC/Xbox saves and matching PC reload continuation, while cross-window/neighbor edits remain conservatively rejected.
+- PRIORITY GeoMod ordinary walls: Broaden tunnel clearance and neighboring geometry; low-crater jump entry, inside save and Xbox-created-save walk-out pass77/77 stock64MiB checks with exact uninterrupted PC state, alongside three-shot depth, while cross-window/neighbor edits remain conservatively rejected.
 
 - GeoMod opposite beam: Broaden destruction beyond the two validated assemblies; east beam98/posts97/96 now pass two-shot destruction plus settled and moving-debris reloads with77 stock64MiB checks each and exact uninterrupted PC checkpoints, while broader histories and general geometry remain open.
 
