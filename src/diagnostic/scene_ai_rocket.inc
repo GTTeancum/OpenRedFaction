@@ -64,7 +64,12 @@ static int scene_ai_rocket_tick(scene_stream *stream,uint32_t frame)
                 if(tag!=SCENE_AI_PROJECTILE_PLAYER && campaign_npc_bodies[index].damage.effects.health<=0){
                     status=rf_scene_npc_death_entry(target,&entered);if(status)return status;if(entered){status=combat_death_start(index);if(status)return status;}}
             }
-            status=scene_explosion_blast_source(stream,frame,contact->hit.point,shot->damage,campaign_rocket.damage_radius,shot->source,3);if(status)return status;
+            {float origin[3];uint32_t k;
+             /* Match player rockets: move the radial origin off the contacted
+              * surface so it does not occlude its own cover rays. */
+             for(k=0;k<3;k++)origin[k]=contact->hit.point[k]+contact->hit.normal[k]*.01f;
+             status=scene_explosion_blast_source(stream,frame,origin,shot->damage,campaign_rocket.damage_radius,shot->source,3);if(status)return status;}
+
             status=scene_explosion_terrain(stream,frame,contact,campaign_rocket.crater_radius);if(status)return status;
         }
         if(shot->flight.active)++rf_scene_ai_rockets[3];

@@ -787,6 +787,7 @@ extern uint32_t rf_scene_terrain_noise[8];
 extern uint32_t rf_scene_rockets[8];
 extern uint32_t rf_scene_grenades[8];
 extern uint32_t rf_scene_ai_grenades[5];
+extern uint32_t rf_scene_ai_rockets[5];
 extern uint32_t rf_scene_remote[8];
 extern uint32_t rf_scene_flame_visual[6];
 extern uint32_t rf_scene_flame_canister[5];
@@ -847,3 +848,4 @@ extern uint32_t rf_scene_rotating_doors[8];
 extern uint32_t rf_scene_use_reach[4];
 extern uint32_t rf_scene_fragment_platform_enabled,rf_scene_fragment_platform_audit[32];
 #endif
+

@@ -12294,12 +12294,15 @@ static int campaign_combat_tick(scene_stream *stream,uint32_t frame,const float 
         memset(rf_scene_enemy_combat,0,sizeof(rf_scene_enemy_combat));combat_initial_health=campaign_player_damage.state.effects.health;
         memset(rf_scene_player_ammo,0,sizeof(rf_scene_player_ammo));memset(&campaign_player_inventory,0,sizeof(campaign_player_inventory));
         status=campaign_ammo_reset();if(status)return status;
-        if(rf_scene_dev_npc_enabled==3 && campaign_npc_body_count==1){
-            campaign_npc_body *npc=campaign_npc_bodies;int32_t ammo=campaign_weapon_supply.definitions[campaign_grenade_id].ammo_type;
-            npc->inventory.owned[campaign_grenade_id]=1;npc->inventory.reserve[ammo]=3;
-            npc->view.weapons[0]=campaign_grenade_id;
+        if((rf_scene_dev_npc_enabled==3 || rf_scene_dev_npc_enabled==4) && campaign_npc_body_count==1){
+            campaign_npc_body *npc=campaign_npc_bodies;
+            int32_t weapon=rf_scene_dev_npc_enabled==4?campaign_rocket_id:campaign_grenade_id;
+            int32_t ammo=campaign_weapon_supply.definitions[weapon].ammo_type;
+            npc->inventory.owned[weapon]=1;npc->inventory.reserve[ammo]=3;
+            if(rf_scene_dev_npc_enabled==4)npc->inventory.loaded[weapon]=1;
+            npc->view.weapons[0]=weapon;
             status=rf_entity_motion_selection_weapon(&campaign_motion_catalog,&campaign_base_motions,
-                campaign_seeds.items[0].class_index,campaign_grenade_id,&npc->selection);if(status)return status;
+                campaign_seeds.items[0].class_index,weapon,&npc->selection);if(status)return status;
         }
         campaign_export_valid=0;
         campaign_import_applied=0;
@@ -12307,7 +12310,7 @@ static int campaign_combat_tick(scene_stream *stream,uint32_t frame,const float 
         for(i=0;i<campaign_npc_body_count;i++){campaign_pursuit_stop(campaign_npc_bodies+i);campaign_npc_bodies[i].combat_navigation_due=0;campaign_npc_bodies[i].combat_scripted=campaign_npc_bodies[i].combat_target=campaign_npc_bodies[i].combat_alert=campaign_npc_bodies[i].combat_burst_remaining=campaign_npc_bodies[i].combat_due=0;}
 }
     status=campaign_inventory_initialize();if(status)return status;
-    if(!frame && rf_scene_dev_npc_enabled==3 && campaign_npc_body_count==1){campaign_npc_bodies[0].combat_alert=1;campaign_npc_bodies[0].combat_due=120;}
+    if(!frame && (rf_scene_dev_npc_enabled==3 || rf_scene_dev_npc_enabled==4) && campaign_npc_body_count==1){campaign_npc_bodies[0].combat_alert=1;campaign_npc_bodies[0].combat_due=120;}
     if(rf_scene_dev_room_enabled) {
         uint32_t refill=player_input.use && player_input.reload;
         if(refill && !dev_refill_held) {

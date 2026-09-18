@@ -538,6 +538,7 @@ int main(int argc,char **argv)
     rf_scene_dev_npc_enabled=p.headless && getenv("RF_REPLAY_DEV_NPC")!=NULL;
     if(rf_scene_dev_npc_enabled && !strcmp(getenv("RF_REPLAY_DEV_NPC"),"2"))rf_scene_dev_npc_enabled=2;
     if(rf_scene_dev_npc_enabled && !strcmp(getenv("RF_REPLAY_DEV_NPC"),"3"))rf_scene_dev_npc_enabled=3;
+    if(rf_scene_dev_npc_enabled && !strcmp(getenv("RF_REPLAY_DEV_NPC"),"4"))rf_scene_dev_npc_enabled=4;
     rf_scene_fragment_platform_enabled=p.headless && getenv("RF_REPLAY_FRAGMENT_PLATFORM_TEST")!=NULL;
     if(rf_scene_fragment_platform_enabled && !strcmp(getenv("RF_REPLAY_FRAGMENT_PLATFORM_TEST"),"2"))rf_scene_fragment_platform_enabled=2;
     if(rf_scene_fragment_platform_enabled && !strcmp(getenv("RF_REPLAY_FRAGMENT_PLATFORM_TEST"),"3"))rf_scene_fragment_platform_enabled=3;
@@ -926,6 +927,7 @@ run_scene:
     printf("ROCKET_VISUAL");for(i=0;i<8;++i)printf(" %u",rf_scene_rocket_visual[i]);puts("");
     printf("ROCKET_BLAST");for(i=0;i<8;++i)printf(" %u",rf_scene_rocket_blast[i]);puts("");
     printf("SCANNER");for(i=0;i<4;++i)printf(" %u",rf_scene_scanner[i]);puts("");
+    printf("AI_ROCKETS");for(i=0;i<5;++i)printf(" %u",rf_scene_ai_rockets[i]);puts("");
     printf("AI_GRENADES");for(i=0;i<5;++i)printf(" %u",rf_scene_ai_grenades[i]);puts("");
     printf("GRENADES");for(i=0;i<8;++i)printf(" %u",rf_scene_grenades[i]);puts("");
     printf("BURNING_VISUAL");for(i=0;i<5;++i)printf(" %u",rf_scene_burning_visual[i]);puts("");

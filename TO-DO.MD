@@ -3,7 +3,9 @@
 Completion basis (user direction,2026-09-18): working late-alpha/early-beta code implementation. Overall approximately65%; GeoMod100% for the first playable milestone, accepted by the user. GeoMod items below are deferred refinement and coverage, not prerequisites to moving on. This does not assert retail polish, complete campaign integration or resolution of every known defect.
 
 
-- NPC rockets: Real finite-ammo flight, source-aware actor collision, direct/blast damage and drawing are wired in the DEV room with PC/Xbox builds passing; focused real-flight/collision and scheduler checks pass; live encounter verification and campaign resources remain.
+- Riot shields: Physical held-mesh contact, authored durability and break fallback helpers pass standalone checks; live scene wiring, player ownership and persistence remain.
+
+- NPC rockets: Real finite-ammo flight, source-aware actor collision, direct/blast damage and drawing are wired in the DEV room with PC/Xbox builds passing; focused real-flight/collision and scheduler checks pass; live PC guard fires three real rockets with lethal blasts; native650-frame encounter passes with matching launches/impacts and lethal blasts; subsequent splash-origin offset passes PC replay and both builds, native offset rerun and campaign resources remain.
 
 - NPC grenades: Enemy attacks now launch finite-ammo ballistic grenades with bounce/fuse, rendering and source-attributed blast/GeoMod; scheduler checks and initial native replay pass; corrected shooter-excluding/player-inclusive collision now produces lethal PC blasts, corrected650-frame native replay passes with matching lethal blasts; campaign resource loading, authored throw-marker timing and broader targets remain.
 
