@@ -258,10 +258,13 @@ int rf_physics_solid_contact(rf_physics_body_state *,const float point[3],
  * for the body's actual sphere set, supplied through context. No host input.
  * No hit means fraction1; matched contacts require fraction in [0,1).
  * Ten substeps maximum; stop immediately on settled response (port policy).
+ * Fragment scheduling permits sleep only on stationary upward support (normal Y >= .5);
+ * moving/steep contacts retain impulse response. The standalone recovered response is unchanged.
  * Inactive bodies (no80000000) and dt0 are unchanged. On errors no caller state
  * or report is committed; query callbacks must not publish side effects. */
 typedef struct rf_physics_solid_hit {
     float fraction,point[3],normal[3],elasticity,friction;
+    uint32_t moving_surface; /* Port fragment policy: suppress sleep on a moving contact; zero for static. */
 } rf_physics_solid_hit;
 typedef int (*rf_physics_solid_query_fn)(const rf_physics_body_state *,
     rf_physics_solid_hit *,uint32_t *matched,void *context);

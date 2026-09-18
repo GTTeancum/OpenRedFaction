@@ -484,7 +484,7 @@ dvd_path = '{root.as_posix()}/build/xbox/redfaction-diagnostic.iso'
                 expected=[int(v) for line in pc.stdout.splitlines() if line.startswith('FRAGMENT_PLATFORM ') for v in line.split()[1:]]
                 actual=snap['symbols']['rf_scene_fragment_platform_audit']['words']
                 assert len(expected)==25 and expected==actual and actual[:2]==[599,60], 'Platform sequence differs or incomplete'
-                assert 1<=actual[2]<=60 if args.tip_platform_test else actual[2]==1
+                assert actual[2]==1, 'Repeated sleep/wake while platform moves'
                 basis=struct.unpack('<9f',struct.pack('<9I',*actual[16:25]))
                 assert basis==((0,-1,0,1,0,0,0,0,1) if args.tip_platform_test else (1,0,0,0,1,0,0,0,1))
                 initial,final=struct.unpack('<2f',struct.pack('<2I',*actual[6:8]))

@@ -11500,6 +11500,8 @@ static int scene_detached_query(const rf_physics_body_state *body,rf_physics_sol
     out->fraction=hit.contact.fraction;memcpy(out->point,hit.contact.point,12);memcpy(out->normal,hit.contact.normal,12);
     out->elasticity=campaign_surface_palette->materials[hit.contact.material].elasticity;
     out->friction=campaign_surface_palette->materials[hit.contact.material].friction;
+    out->moving_surface=campaign_mover_interval_seconds>0 && hit.solid!=UINT32_MAX &&
+        hit.solid<campaign_movers.count && campaign_mover_intervals[hit.solid].changed!=0;
 #ifndef RF_IMAGE_XBOX_NATIVE
     if(c->trace) {
         printf("DETACHED_QUERY_HIT %u %u %u %u %u %.9g %.9g %.9g %.9g %.9g %.9g %.9g\n",c->source,c->batch,c->piece,hit.solid,hit.face,

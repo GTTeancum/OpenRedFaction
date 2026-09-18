@@ -38,7 +38,7 @@ report['mesh_bottoms']=[r[8] for r in support]
 if args.moving:
     report['platform']=row('FRAGMENT_PLATFORM')
     assert report['platform'][:2]==[599,60],report['platform']
-    assert 1<=report['platform'][2]<=60 if args.tipping else report['platform'][2]==1
+    assert report['platform'][2]==1, 'Repeated sleep/wake while platform moves'
     assert len(report['platform'])==25
     bottom=struct.unpack('<2f',struct.pack('<2I',*report['platform'][6:8]))
     assert abs(bottom[0]-.65)<.005 and abs(bottom[1]+1.5)<.005

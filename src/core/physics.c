@@ -977,6 +977,8 @@ static int fragment_advance(rf_physics_body_state *state,float dt,float fraction
     status=rf_physics_tensor_world(state->local_tensor,state->orientation,state->world_tensor);if(status)return status;
     state->scalar_144=fraction;*remaining=dt*(1-fraction);return RF_OK;
 }
+static int solid_contact_policy(rf_physics_body_state *,const float [3],const float [3],const float [3],
+    float,float,rf_physics_solid_response *,int);
 static int solid_step_policy(rf_physics_body_state *state,float dt,float gravity,
     uint32_t *object_flags,float published_position[3],float published_basis[9],
     rf_physics_solid_query_fn query,void *context,rf_physics_solid_step_report *report,int fragment,
@@ -1007,7 +1009,8 @@ static int solid_step_policy(rf_physics_body_state *state,float dt,float gravity
             rf_physics_solid_advance(&value,left,found?hit.fraction:1,basis,&left);if(status)return status;
         result.steps++;
         if(found) {
-            status=rf_physics_solid_contact(&value,hit.point,hit.normal,g,hit.elasticity,hit.friction,&response);
+            status=solid_contact_policy(&value,hit.point,hit.normal,g,hit.elasticity,hit.friction,
+                &response,!(fragment && (hit.moving_surface || hit.normal[1]<.5f)));
             if(status)return status;
             result.contacts++;
             if(response==RF_SOLID_CONTACT_STOPPED){result.stopped=1;left=0;break;}
@@ -1030,9 +1033,9 @@ int rf_physics_fragment_step_timed(rf_physics_body_state *state,float dt,float g
     uint32_t *flags,float position[3],float basis[9],rf_physics_fragment_timed_query_fn query,
     void *context,rf_physics_solid_step_report *report)
 {return solid_step_policy(state,dt,gravity,flags,position,basis,NULL,context,report,1,query);}
-int rf_physics_solid_contact(rf_physics_body_state *state,const float point[3],
+static int solid_contact_policy(rf_physics_body_state *state,const float point[3],
     const float normal[3],const float gravity[3],float elasticity,float friction,
-    rf_physics_solid_response *response)
+    rf_physics_solid_response *response,int allow_sleep)
 {
     rf_physics_body_state value;float r[3],spin[3],vp[3],tp[3],tangent[3],jn[3],impulse[3],a[3],b[3];
     float vn,gn,mu,e,j,budget,len,scale;long double dot,decay,denominator;uint32_t i;
@@ -1059,7 +1062,7 @@ int rf_physics_solid_contact(rf_physics_body_state *state,const float point[3],
     gn=(float)player_contact_dot(gravity,normal);mu=(float)(((double)friction+value.coefficients[2])*.5);
     e=(float)((double)elasticity*value.coefficients[0]);decay=(long double)value.coefficients[0]*.8f;
     value.coefficients[0]=(float)decay;
-    if(decay<.05f || (player_contact_dot(value.velocity,value.velocity)<.25f && player_contact_dot(value.vector_c8,value.vector_c8)<.5f)) {
+    if(allow_sleep && (decay<.05f || (player_contact_dot(value.velocity,value.velocity)<.25f && player_contact_dot(value.vector_c8,value.vector_c8)<.5f))) {
         value.flags=(value.flags&0x67ffffffu)|0x18000000u;
         memset(value.velocity,0,12);memset(value.vector_c8,0,12);memset(value.mass_vector_d4,0,12);
         *state=value;*response=RF_SOLID_CONTACT_STOPPED;return RF_OK;
@@ -1092,6 +1095,9 @@ int rf_physics_solid_contact(rf_physics_body_state *state,const float point[3],
     if(!isfinite(value.coefficients[0]) || !isfinite(budget))return RF_RANGE;
     *state=value;*response=RF_SOLID_CONTACT_IMPULSE;return RF_OK;
 }
+int rf_physics_solid_contact(rf_physics_body_state *state,const float point[3],
+    const float normal[3],const float gravity[3],float elasticity,float friction,rf_physics_solid_response *response)
+{return solid_contact_policy(state,point,normal,gravity,elasticity,friction,response,1);}
 void rf_physics_body_close(rf_physics_body *body)
 {
     if(body) {rf_physics_spheres_close(&body->spheres);memset(body,0,sizeof(*body));}
