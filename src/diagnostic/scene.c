@@ -4336,6 +4336,7 @@ static int campaign_remove_object(void *context,uint32_t handle)
     }
     return RF_NOT_FOUND;
 }
+#include "scene_ai_mode_persistence.inc"
 static int campaign_actors_restore(void)
 {
     uint32_t i;int status;
@@ -4361,6 +4362,9 @@ static int campaign_actors_restore(void)
             owner->damage.effects.affiliation=rf_scene_defeated_actors.mission[owner->persistence_slot].affiliation;
             owner->object_flags=(owner->object_flags&~0x4004u)|(rf_scene_defeated_actors.mission[owner->persistence_slot].flags&0x4004u);
             owner->view.flags_7c=owner->room.flags=owner->object_flags;
+        }
+        if(!rf_scene_defeated_actors.items[owner->persistence_slot].retired){
+            status=campaign_ai_mode_restore(owner,0);if(status && status!=RF_NOT_FOUND)return status;
         }
     }
     return RF_OK;
@@ -4391,6 +4395,7 @@ static void campaign_actors_capture(void)
     for(i=0;i<campaign_npc_body_count;i++) {
         const campaign_npc_body *owner=campaign_npc_bodies+i;
         if(owner->persistence_registered && owner->registration.view && owner->damage.effects.health>0) {
+            campaign_ai_mode_capture(owner);
             rf_scene_defeated_actors.vitals[owner->persistence_slot].valid=1;
             rf_scene_defeated_actors.vitals[owner->persistence_slot].health=owner->damage.effects.health;
             rf_scene_defeated_actors.vitals[owner->persistence_slot].armor=owner->damage.effects.armor;
@@ -15490,7 +15495,7 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
             if(status)goto done;
             if(rf_scene_follow_level_exits && rf_scene_level_transition.pending)
                 status=rf_campaign_goals_next_section(&rf_scene_mission_goals);
-            else {campaign_event_history_reset();memset(&campaign_switch_history,0,sizeof(campaign_switch_history));memset(campaign_switch_saved,0,sizeof(campaign_switch_saved));memset(&campaign_trigger_history,0,sizeof(campaign_trigger_history));memset(&campaign_local_goals,0,sizeof(campaign_local_goals));memset(&campaign_startup_inventory,0,sizeof(campaign_startup_inventory));memset(&rf_scene_mission_goals,0,sizeof(rf_scene_mission_goals));memset(&rf_scene_campaign_pickups,0,sizeof(rf_scene_campaign_pickups));memset(&rf_scene_defeated_actors,0,sizeof(rf_scene_defeated_actors));}
+            else {campaign_ai_modes_reset();campaign_event_history_reset();memset(&campaign_switch_history,0,sizeof(campaign_switch_history));memset(campaign_switch_saved,0,sizeof(campaign_switch_saved));memset(&campaign_trigger_history,0,sizeof(campaign_trigger_history));memset(&campaign_local_goals,0,sizeof(campaign_local_goals));memset(&campaign_startup_inventory,0,sizeof(campaign_startup_inventory));memset(&rf_scene_mission_goals,0,sizeof(rf_scene_mission_goals));memset(&rf_scene_campaign_pickups,0,sizeof(rf_scene_campaign_pickups));memset(&rf_scene_defeated_actors,0,sizeof(rf_scene_defeated_actors));}
             if(!status)status=rf_runtime_goals_initialize(&campaign_events,&rf_scene_mission_goals);
             if(!status)status=rf_campaign_local_goals_restore(&campaign_local_goals,campaign_current_level,&rf_scene_mission_goals);
             if(status)goto done;

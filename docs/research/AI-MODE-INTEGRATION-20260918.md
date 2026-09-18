@@ -14,3 +14,9 @@ Waypoint4 now resumes only an existing Follow_Waypoints binding retained by the 
 - No new native authored Set_AI_Mode encounter or visible campaign scenario was run; these checks establish code integration and focused scheduler behavior, not full campaign scripting coverage.
 
 Waypoint extension: focused adapter checks additionally pass resuming the second node after catatonic, retaining ping-pong/reverse state, target-coordinate publication, autonomous combat suppression and invalid-cursor nonmutation. PC and Xbox builds pass. This verifies route admission into the existing movement implementation, not a new live traversal capture.
+
+## In-memory revisit retention
+
+The normal actor capture/restore lifecycle now stores stable AI actions beside the existing actor slot and level/UID key. Bound routes store section-relative offsets, count/cursor, loop mode/direction and a section-content hash. Revisit validates the newly loaded section and node bounds, then rebinds the route to the new buffer; no process pointers, old handles or old timestamps are saved. New-campaign reset clears the parallel store. Unsupported or mismatched records are not restored. Retired actors retain existing retirement behavior.
+
+Fixed storage is32bytes for each of2048 actor slots (64KiB). The focused helper check passes mode retention, route reconstruction at a different buffer address, cursor/loop/direction preservation, changed-section rejection, mismatched actor identity and reset. PC/Xbox builds pass. No new live two-level round trip or disk-save support is claimed; that runtime route remains to be exercised after the core testbed work.

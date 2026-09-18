@@ -880,3 +880,7 @@ add_test(NAME scene_flame_canister COMMAND rf_scene_flame_canister_tests)
 add_executable(rf_scene_burning_tests tests/scene_burning_tests.c)
 target_link_libraries(rf_scene_burning_tests PRIVATE rf_core)
 add_test(NAME scene_burning COMMAND rf_scene_burning_tests)
+
+add_executable(rf_scene_ai_mode_persistence_tests tests/scene_ai_mode_persistence_tests.c src/diagnostic/animation.c)
+target_link_libraries(rf_scene_ai_mode_persistence_tests PRIVATE rf_core)
+add_test(NAME scene_ai_mode_persistence COMMAND rf_scene_ai_mode_persistence_tests)
