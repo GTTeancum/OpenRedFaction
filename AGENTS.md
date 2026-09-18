@@ -31,3 +31,9 @@
 - Keep testing proportional: use focused checks to establish that changed behavior works and catch material regressions; do not repeatedly run broad suites or expand edge-case testing without a concrete need.
 - Do not let exhaustive validation, minor fidelity details or isolated edge cases monopolize progress on missing engine systems. Record remaining issues in TO-DO.MD and continue integration unless they block basic gameplay, stability or the stock 64 MiB Xbox target.
 - GeoMod remains a core priority, but its polish and exhaustive coverage must not delay assembling the rest of the engine.
+
+# Completion reporting
+
+- User update (2026-09-18): Report completion against code implementation and working late-alpha/early-beta functionality, not exhaustive validation, retail parity or polish. Tester feedback will drive subsequent refinement.
+- GeoMod is accepted as complete for the first playable implementation (100% on that milestone). Retain known limitations in TO-DO.MD as deferred refinement; do not reopen it as the primary workstream unless a concrete blocker prevents core gameplay or the user requests it.
+- Overall implementation estimate is approximately60% as of this update. It is a rough engineering estimate, not a measured test-coverage or retail-readiness percentage. Keep per-turn percentages and a very high-level current-system report.

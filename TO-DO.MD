@@ -1,12 +1,15 @@
 # Red Faction Xbox / PC - open work
 
+Completion basis (user direction,2026-09-18): working late-alpha/early-beta code implementation. Overall approximately60%; GeoMod100% for the first playable milestone, accepted by the user. GeoMod items below are deferred refinement and coverage, not prerequisites to moving on. This does not assert retail polish, complete campaign integration or resolution of every known defect.
+
+
 - PRIORITY Core gameplay: Integrate remaining weapon behavior in the DEV testbed, starting with thrown grenades; use retained helper findings and focused gameplay checks, deferring polish and exhaustive GeoMod edge cases.
 
 - DEFERRED GeoMod crush: Resolve confined moving-platform overlap and controller admission after core integration; separating static contact is fixed and passes78 Xbox checks, but the ceiling stress still has17 limited frames.
 
 - Doors: Replace the stale close/reopen fixture with an unoccupied route when revisiting door coverage; live tracing confirms NPC/player occupancy holds the doors open, so the failing cycle assertion does not establish a controller defect.
 
-- PRIORITY GeoMod ordinary walls: Broaden multi-window and neighboring-brush CSG; a live floor-seam rocket now passes77 stock64MiB checks with exact PC/Xbox save bytes and fixture-off/mismatched-save rejection controls, alongside verified wall depth and player traversal.
+- Deferred GeoMod ordinary walls: Broaden multi-window and neighboring-brush CSG; a live floor-seam rocket now passes77 stock64MiB checks with exact PC/Xbox save bytes and fixture-off/mismatched-save rejection controls, alongside verified wall depth and player traversal.
 
 - GeoMod source expansion: Broaden connected histories and fragment contact shapes; both groups pass PC destruction at both junctions and repeated reload, with native108 second-junction destruction passing77 stock64MiB checks and exact PC state alongside group92 guarded continuation.
 
@@ -45,14 +48,14 @@
 
 - GeoMod UV seams: Broaden chronological reconstruction beyond current fixtures; all105 tests and48 axis-oriented UV cases pass, with live two-cut reload/next-blast passing58 stock64MiB Xbox checks.
 
-- PRIORITY GeoMod coverage: Integrate paired-source save/restore with shared atlas, rubble and player support; private paired restore now verifies identities, remaps materials and reconstructs cut meshes/rubble with rollback, the complete paired writer now passes with real histories/rubble and all three scene digests, shared atlas restore now matches pixels/bindings/digests exactly, combined private reconstruction now passes within the13MiB subsystem reservation, collection player support/fit gates now pass targeted controls, paired PC gameplay save/reload now preserves exact player/destruction continuation, native paired save/reload and reset-save/next-rocket continuation now pass76 checks each with byte-identical PC checkpoints, paired standing-save/walk-away from either source now passes76 native checks with one destroyed source, both-destroyed-source standing and saved walk-away now also pass76 native checks each, while broader histories remain unfinished; two-post cuts/reset/recut pass75 stock64MiB Xbox checks.
+- Deferred GeoMod coverage: Integrate paired-source save/restore with shared atlas, rubble and player support; private paired restore now verifies identities, remaps materials and reconstructs cut meshes/rubble with rollback, the complete paired writer now passes with real histories/rubble and all three scene digests, shared atlas restore now matches pixels/bindings/digests exactly, combined private reconstruction now passes within the13MiB subsystem reservation, collection player support/fit gates now pass targeted controls, paired PC gameplay save/reload now preserves exact player/destruction continuation, native paired save/reload and reset-save/next-rocket continuation now pass76 checks each with byte-identical PC checkpoints, paired standing-save/walk-away from either source now passes76 native checks with one destroyed source, both-destroyed-source standing and saved walk-away now also pass76 native checks each, while broader histories remain unfinished; two-post cuts/reset/recut pass75 stock64MiB Xbox checks.
 
 - Movement: Extend verified quiet swimming to authored liquid hazards and underwater presentation; entry, surfacing, re-entry and harmless ordinary water pass44 PC/Xbox comparisons.
 - Movement: Finish underwater presentation; authored lava damage and harmless dry control now pass44/45 PC/Xbox checks on stock64MiB.
 
 - GeoMod debris visibility: Verify live leave/return lifetime retention; room-filtered drawing passes synthetic hidden/return cases,138 binary fixtures and60 stock64MiB PC/Xbox checks.
 - GeoMod water crossing: Verify audible splash quality and broader liquid scenarios;35 positional splash starts and246 ripple vertices match PC/Xbox across63 stock64MiB comparisons.
-- PRIORITY GeoMod detached motion: Broaden live detached motion beyond the dry developer post; real extracted chunks now fall/rotate/settle with body-sphere collision and checkpoint continuation, while fragment break/wake, pushing/crush, moving supports and liquid behavior remain open.
+- Deferred GeoMod detached motion: Broaden live detached motion beyond the dry developer post; real extracted chunks now fall/rotate/settle with body-sphere collision and checkpoint continuation, while fragment break/wake, pushing/crush, moving supports and liquid behavior remain open.
 - GeoMod fragment damage: Broaden direct-hit health/retirement beyond the tested rocket chunk; live removal and saved continuation pass on PC and stock64MiB Xbox with74/74 checks, while later-blast wake/subdivision require separate evidence.
 - GeoMod fragment weapon hits: Broaden naturally resting cover and NPC weapon classes; live rocket-extracted cover now blocks three NPC shots before removal admits three player hits, passing76 stock64MiB checks and48 exact PC fixture words with11.75MiB endpoint headroom.
 - GeoMod rubble traversal: Broaden player contact beyond the angled post chunk; walking into it produces contact/sideways sliding and permits retreat; ordinary jumping onto rubble, saving and continuing pass on PC; native standing and walk-away reloads pass74/74 checks, while moving support attachment and broader surfaces remain open.
@@ -74,7 +77,7 @@
 - GeoMod fidelity: Use binary-derived geometry, material, lighting and collision calculations; original-game screenshot comparisons are excluded by user direction.
 - GeoMod mapping: Broaden live atlas-footprint coverage; all500 corners of the current103-face crater stay inside owned tiles, while original mapping grouping remains unverified.
 - GeoMod visuals: Resolve crater silhouette/readability; the16-cut view has4056 recessed rock pixels and7 nearer authored-floor pixels, and the idle crater stays dark after smoke clears with unchanged camera/material/geometry/atlas, while GPU texture and idle-lightmap audits pass; strict depth gate and visual parity remain open.
-- PRIORITY GeoMod: Match original destruction shape, exposed materials, lighting, debris, collision and repeated blasts before returning to other systems; a visible hole alone is not acceptance.
+- Deferred GeoMod: Match original destruction shape, exposed materials, lighting, debris, collision and repeated blasts before returning to other systems; a visible hole alone is not acceptance.
 - GeoMod: Improve crater readability and expand destruction coverage; eight-cut live/Xbox repair passes, and side-view nearer pixels trace to floor projection rounding, while broader shapes and visual parity remain open.
 - GeoMod: Reduce remaining terrain-cut stalls; the latest native eighth edit measures 239ms CSG and 29ms binding, subject to host timing variation.
 - GeoMod: Diagnose the 425 PC/Xbox capture pixels differing by more than one color level; the shared dark crater appearance remains the main fidelity issue.
