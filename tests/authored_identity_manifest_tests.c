@@ -6,27 +6,28 @@
 static int selected_identities(const rf_level *level,const rf_geometry *geometry,rf_vpp *maps,
     const rf_lightmap_rgb_owner *rgb,const unsigned char known94[32])
 {
-    static const uint32_t uids[6]={93,94,96,97,95,98};
-    unsigned char digests[6][32],repeat[32],windows[6][32];uint32_t n,i,j,peak;
-    for(n=0;n<6;n++) {
+    static const uint32_t uids[7]={93,94,96,97,95,98,66};
+    unsigned char digests[7][32],repeat[32],windows[7][32];uint32_t n,i,j,peak;
+    for(n=0;n<7;n++) {
         rf_geomod_authored_post *owner=NULL;rf_geomod_authored_post_view asset;
         rf_geomod_digest_material materials[8],substrate;
-        rf_geomod_authored_chart_identity refs[32];rf_geomod_digest_chart charts[32];
+        rf_geomod_authored_chart_identity refs[160];rf_geomod_digest_chart charts[160];
         rf_geomod_authored_identity_manifest manifest={0};
-        rf_geomod_publication_digest_input publication={0};uint32_t face_charts[8];
-        CHECK(!rf_geomod_authored_post_open_source(level,geometry,uids[n],2*1024*1024,&owner));
+        rf_geomod_publication_digest_input publication={0};uint32_t face_charts[140];
+        if(uids[n]==66)CHECK(!rf_geomod_authored_cavity_open(level,geometry,2*1024*1024,&owner));
+        else CHECK(!rf_geomod_authored_post_open_source(level,geometry,uids[n],2*1024*1024,&owner));
         CHECK(!rf_geomod_authored_post_get(owner,&asset));
         manifest.materials=materials;manifest.material_capacity=8;
-        manifest.references=refs;manifest.reference_capacity=32;manifest.substrate=&substrate;
-        CHECK(!rf_geomod_authored_identity_capture_manifest(level,geometry,&asset,maps,6,rgb,
-            2*1024*1024,digests[n],&peak,&manifest));
-        CHECK(peak<=2*1024*1024 && manifest.material_count>=1 && manifest.material_count<=8 && manifest.reference_count<=32);
+        manifest.references=refs;manifest.reference_capacity=160;manifest.substrate=&substrate;
+        {int status=rf_geomod_authored_identity_capture_manifest(level,geometry,&asset,maps,6,rgb,
+            2*1024*1024,digests[n],&peak,&manifest);printf("MANIFEST_CAPTURE uid%u status%d\n",uids[n],status);CHECK(!status);}
+        CHECK(peak<=2*1024*1024 && manifest.material_count>=1 && manifest.material_count<=8 && manifest.reference_count<=160);
         CHECK(!rf_geomod_authored_identity_capture(level,geometry,&asset,maps,6,rgb,
             2*1024*1024,repeat,&peak));
         CHECK(!memcmp(digests[n],repeat,32));
         if(uids[n]==94) CHECK(!memcmp(digests[n],known94,32));
         for(i=0;i<n;i++) CHECK(memcmp(digests[n],digests[i],32));
-        CHECK(asset.windows.face_count==((uids[n]==95 || uids[n]==98)?8:4));
+        CHECK(asset.windows.face_count==(uids[n]==66?134:(uids[n]==95 || uids[n]==98)?8:4));
         for(i=0;i<asset.windows.face_count;i++) {
             face_charts[i]=asset.window_origins[i].reference;
             for(j=0;j<manifest.reference_count;j++) if(refs[j].reference==face_charts[i]) break;

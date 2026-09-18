@@ -145,6 +145,16 @@ static int manifest_prepare(identity_capture *c,const rf_geomod_authored_identit
             r->chart.image.pixels=NULL;r->chart.prehashed=1;
         }
     }
+    /* Identity and manifest hashes are complete. None of these input pixels
+     * escape; release them before the substrate's decode/copy peak. */
+    for(i=0;i<c->material_count;i++)if(c->materials[i].image.pixels) {
+        c->used-=c->materials[i].image.bytes;
+        free((void *)c->materials[i].image.pixels);c->materials[i].image.pixels=NULL;
+    }
+    for(i=0;i<c->rgb->count;i++)if(c->chart_pixels[i]) {
+        c->used-=c->rgb->images[i].width*c->rgb->images[i].height*4;
+        free(c->chart_pixels[i]);c->chart_pixels[i]=NULL;
+    }
     if(manifest->substrate) {
         status=resource_capture(c,c->input.asset->settings.texture,&c->substrate_pixels);if(status)return status;
         c->manifest_substrate.image=c->substrate_pixels;
@@ -169,12 +179,13 @@ int rf_geomod_authored_identity_capture_manifest(const rf_level *level,const rf_
             (uint64_t)manifest->reference_capacity*sizeof(*manifest->references)+(manifest->substrate?sizeof(*manifest->substrate):0);
         if(bytes>UINT32_MAX)return RF_RANGE;manifest_bytes=(uint32_t)bytes;
     }
-    if(level->version!=180 || strcmp(level->entry.name,"ctf06.rfl") || (asset->source_uid!=93 && asset->source_uid!=94 && asset->source_uid!=95 && asset->source_uid!=96 && asset->source_uid!=97 && asset->source_uid!=98) || asset->room!=3 ||
-        asset->source.face_count!=6 || asset->solid_count!=3)return RF_NOT_FOUND;
+    if(level->version!=180 || strcmp(level->entry.name,"ctf06.rfl") || (asset->source_uid!=66 && asset->source_uid!=93 && asset->source_uid!=94 && asset->source_uid!=95 && asset->source_uid!=96 && asset->source_uid!=97 && asset->source_uid!=98) || asset->room!=3 ||
+        asset->source.face_count!=(asset->source_uid==66?14u:6u) || asset->solid_count!=(asset->source_uid==66?0u:3u))return RF_NOT_FOUND;
     if((asset->source_uid==95 || asset->source_uid==98) && (asset->neighbor_void_count!=1 || !asset->neighbor_voids || asset->neighbor_voids[0].owner!=(asset->source_uid==95?80u:82u)))return RF_NOT_FOUND;
     meshes[0]=&asset->source;meshes[1]=&asset->windows;meshes[2]=&asset->neighbors;
     origins[0]=asset->source_origins;origins[1]=asset->window_origins;origins[2]=asset->neighbor_origins;capacity=0;
     for(i=0;i<3;i++) {
+        if(i==2 && asset->source_uid==66 && !meshes[i]->face_count && !meshes[i]->vertex_count)continue;
         if(!meshes[i]->faces || !meshes[i]->vertices || !origins[i] || !meshes[i]->face_count || meshes[i]->face_count>768 ||
             !meshes[i]->vertex_count || meshes[i]->vertex_count>4096)return RF_RANGE;
         capacity+=meshes[i]->face_count;
@@ -201,6 +212,12 @@ int rf_geomod_authored_identity_capture_manifest(const rf_level *level,const rf_
      * and authored-material cap charts; loader3 fixes this live profile. */
     c->input.publication_policy=(asset->source_uid==95 || asset->source_uid==98)?12:9;
     if((asset->source_uid==95 || asset->source_uid==98))c->input.loader_policy=3;
+    /* Original44d870 flags2 select air operation1. Explicit inward geometry
+     * and compiled-window cavity publication must never match a solid save. */
+    if(asset->source_uid==66) {
+        c->input.source_mode=1;c->input.source_operation=1;
+        c->input.loader_policy=4;c->input.publication_policy=13;
+    }
     c->input.material_domain=RF_GEOMOD_IDENTITY_COMPILED_MATERIALS;
     c->input.materials=c->materials;c->input.material_count=c->material_count;
     c->input.references=c->references;c->input.reference_count=c->reference_count;

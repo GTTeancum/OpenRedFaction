@@ -129,3 +129,38 @@ runtime admission are still pending. No live wall screenshot is claimed.
 
 Publication validation: all123 PC tests pass and stock NXDK compile/link/XBE/ISO
 passes. Logs: artifacts/cavity-publication-{all-build,tests,xbox}.log.
+
+
+## Cavity source identity and capture lifetime
+
+The level-level cavity opener now checks ctf06/v180 and owns the editor decode.
+Immutable identity capture admits UID66's14-face inward source,134 ordinary
+windows and empty neighbor set. Original44d870 maps flags2 to operation1;
+source_mode1 and operation1 are hashed separately from solid mode0/operation2.
+Loader policy4/publication policy13 distinguish this implementation. The pure
+identity helper rejects mixed mode/operation and any cavity with solid neighbors.
+The old six solid-source identities and the pinned UID94 identity remain exact.
+
+Installed manifest capture verifies all seven sources, repeated captures and
+cross-owner distinction. Cavity identity is
+8ab755fd3d28b87ee0b0c6114570b818e1b1f00651c3755fb5f69f3d4977e325;
+it retains134 reference/chart descriptors and no borrowed decoded pixels.
+The measured PC capture peak is1839103 bytes under the unchanged2MiB cap for
+the test's8-material/160-reference manifest allocation. This does not measure
+the complete live scene footprint.
+
+The first cavity attempt hit the cap during substrate capture because already
+hashed source materials and charts remained allocated. Manifest preparation
+now releases those input pixels after both source identity and manifest content
+hashes are complete, before decoding the rock substrate. Pointers are cleared
+for normal/error cleanup and used-byte accounting decreases by the original
+allocation sizes. Caller outputs still commit only after complete success.
+UID94 capture peak in its existing installed fixture drops from1888359 to
+1556623 bytes without changing source/window/substrate content identities.
+
+This is immutable source identification, not a completed cavity checkpoint or
+live scene integration. Spatial cut admission, scene atlas hookup and cavity
+restore/create factories remain to be connected.
+
+Identity validation: all123 PC tests and stock NXDK compile/link/XBE/ISO pass.
+Logs: artifacts/cavity-identity-{all-build,tests,xbox}.log.

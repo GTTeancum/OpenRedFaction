@@ -113,6 +113,9 @@ static int mesh_hash(identity_sha *h,const rf_geomod_authored_identity_input *v,
     const rf_geomod_mesh_view *mesh,const rf_geomod_publication_origin *origins,uint32_t kind)
 {
     uint32_t i,j,k,next=0;
+    if(kind==2 && v->source_mode==1 && !mesh->face_count && !mesh->vertex_count) {
+        identity_sha_word(h,kind);identity_sha_word(h,0);identity_sha_word(h,0);return RF_OK;
+    }
     if(!mesh->faces || !mesh->vertices || !origins || !mesh->face_count || mesh->face_count>768 ||
         !mesh->vertex_count || mesh->vertex_count>4096)return RF_RANGE;
     identity_sha_word(h,kind);identity_sha_word(h,mesh->face_count);identity_sha_word(h,mesh->vertex_count);
@@ -151,12 +154,13 @@ int rf_geomod_authored_identity(const rf_geomod_authored_identity_input *v,unsig
     if(!v->compiled_section || !v->editor_section || !v->compiled_bytes || !v->editor_bytes ||
         v->compiled_bytes>64u*1024u*1024u || v->editor_bytes>64u*1024u*1024u ||
         !v->materials || !v->material_count || v->material_count>128 || !v->references ||
-        !v->reference_count || v->reference_count>768 || !a->solids || !a->solid_count || a->solid_count>32 ||
+        !v->reference_count || v->reference_count>768 || (a->solid_count && !a->solids) || (!v->source_mode && !a->solid_count) || a->solid_count>32 ||
         !a->source_planes || !a->source_filters || !a->replaced_ids || !a->replaced_count || a->replaced_count>768 ||
         a->neighbor_void_count>32 || (a->neighbor_void_count && !a->neighbor_voids))return RF_RANGE;
-    if(!name_valid(v->level) || !name_valid(a->settings.texture) || v->source_mode || v->source_operation!=2 ||
+    if(!name_valid(v->level) || !name_valid(a->settings.texture) || v->source_mode>1 || v->source_operation!=(v->source_mode?1u:2u) ||
         v->material_domain!=RF_GEOMOD_IDENTITY_COMPILED_MATERIALS || !v->loader_policy || !v->publication_policy ||
         !v->collision_policy || !v->material_policy || a->source_uid==UINT32_MAX || a->room==UINT32_MAX)return RF_FORMAT;
+    if(v->source_mode && (a->solid_count || a->neighbors.face_count || a->neighbors.vertex_count || a->neighbor_void_count))return RF_FORMAT;
     for(i=0;i<v->material_count;i++) {
         if(v->materials[i].compiled_material==UINT32_MAX || !image_valid(&v->materials[i].image))return RF_FORMAT;
         for(j=0;j<i;j++)if(v->materials[i].compiled_material==v->materials[j].compiled_material)return RF_FORMAT;

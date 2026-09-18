@@ -722,8 +722,8 @@ int rf_geomod_authored_cavity_decode(const void *input,uint32_t bytes,const rf_g
     const rf_level_geomod_settings *settings,uint32_t budget,rf_geomod_authored_post **out) {
     return decode_profile(input,bytes,geometry,settings,66,1,budget,out);
 }
-int rf_geomod_authored_post_open_source(const rf_level *level, const rf_geometry *geometry,
-                                        uint32_t source_uid, uint32_t budget,
+static int open_profile(const rf_level *level, const rf_geometry *geometry,
+                                        uint32_t source_uid,uint32_t cavity, uint32_t budget,
                                  rf_geomod_authored_post **out) {
     const rf_level_section *section;
     rf_level_geomod_settings settings;
@@ -746,9 +746,17 @@ int rf_geomod_authored_post_open_source(const rf_level *level, const rf_geometry
         return RF_IO;
     status = rf_level_read(level, section, 0, data, section->size);
     if (!status)
-        status = rf_geomod_authored_post_decode_source(data, section->size, geometry, &settings, source_uid, budget, out);
+        status = decode_profile(data, section->size, geometry, &settings, source_uid,cavity, budget, out);
     free(data);
     return status;
+}
+int rf_geomod_authored_post_open_source(const rf_level *level,const rf_geometry *geometry,
+    uint32_t uid,uint32_t budget,rf_geomod_authored_post **out) {
+    return open_profile(level,geometry,uid,0,budget,out);
+}
+int rf_geomod_authored_cavity_open(const rf_level *level,const rf_geometry *geometry,
+    uint32_t budget,rf_geomod_authored_post **out) {
+    return open_profile(level,geometry,66,1,budget,out);
 }
 /* Existing scene/checkpoint profile remains UID94. */
 int rf_geomod_authored_post_decode(const void *input, uint32_t bytes, const rf_geometry *geometry,

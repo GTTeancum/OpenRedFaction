@@ -1,6 +1,6 @@
 # Red Faction Xbox / PC - open work
 
-- PRIORITY GeoMod ordinary walls: Connect authored cavity geometry to compiled wall publication and collision; air66 cavity publication now preserves all134 window areas before cutting and656 unselected room collision faces afterward, with an open crater ray and blocked distant control, while scene/atlas/save integration and native wall admission remain open.
+- PRIORITY GeoMod ordinary walls: Connect authored cavity geometry to compiled wall publication and collision; air66 cavity publication now preserves all134 window areas before cutting and656 unselected room collision faces afterward, with an open crater ray and blocked distant control, and cavity source/chart identity now fits the unchanged2MiB capture cap without changing solid identities, while scene/atlas/checkpoint integration and native wall admission remain open.
 
 - GeoMod opposite beam: Broaden destruction beyond the two validated assemblies; east beam98/posts97/96 now pass two-shot destruction plus settled and moving-debris reloads with77 stock64MiB checks each and exact uninterrupted PC checkpoints, while broader histories and general geometry remain open.
 

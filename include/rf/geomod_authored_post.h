@@ -44,6 +44,7 @@ int rf_geomod_authored_post_open(const rf_level *, const rf_geometry *, uint32_t
  * Neighbors/solids are empty: this is NOT spatial eligibility or authorization
  * to replace the room with this shell. Scene/identity admission stays disabled.
  * Same owned lifetime, budget and no-output-on-error contract as above. */
+int rf_geomod_authored_cavity_open(const rf_level *,const rf_geometry *,uint32_t,rf_geomod_authored_post **);
 int rf_geomod_authored_cavity_decode(const void *,uint32_t,const rf_geometry *,
     const rf_level_geomod_settings *,uint32_t,rf_geomod_authored_post **);
 /* Same v180/profile decoder for retained section bytes. Peak conservatively

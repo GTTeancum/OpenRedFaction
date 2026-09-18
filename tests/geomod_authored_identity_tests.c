@@ -76,6 +76,11 @@ int main(void)
     refs[1].owner=95;CHECK(rejected(&in));refs[1].owner=71;
     materials[1].compiled_material=7;CHECK(rejected(&in));materials[1].compiled_material=8;
     in.material_domain=0;CHECK(rejected(&in));in.material_domain=1;
+    in.source_mode=2;CHECK(rejected(&in));in.source_mode=0;
+    in.source_operation=1;CHECK(rejected(&in));in.source_operation=2;
+    in.source_mode=1;CHECK(rejected(&in));in.source_operation=1;
+    CHECK(rejected(&in)); /* Cavity profile cannot inherit solid neighbors. */
+    in.source_mode=0;in.source_operation=2;
     vertices[0].position[0]=NAN;CHECK(rejected(&in));vertices[0].position[0]=0;
     replace=141;CHECK(rejected(&in));replace=149;
     wo.reference=UINT32_MAX;CHECK(rejected(&in));wo.reference=149;
