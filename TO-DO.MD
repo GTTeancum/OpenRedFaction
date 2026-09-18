@@ -1,5 +1,7 @@
 # Red Faction Xbox / PC - open work
 
+- PRIORITY GeoMod ordinary walls: Connect authored cavity geometry to compiled wall publication and collision; air66 is proven closed/inward-convex with140 matching compiled faces and an isolated wall-cut candidate, but runtime wall admission remains unimplemented.
+
 - GeoMod opposite beam: Broaden destruction beyond the two validated assemblies; east beam98/posts97/96 now pass two-shot destruction plus settled and moving-debris reloads with77 stock64MiB checks each and exact uninterrupted PC checkpoints, while broader histories and general geometry remain open.
 
 - GeoMod thin fragments: Broaden contact coverage beyond the beam and concave L fixtures; face-derived samples now rescue pieces missed by regular grids, while Xbox beam continuation still passes76 checks.

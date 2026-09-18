@@ -32,7 +32,7 @@ for b in brushes:
   textures=b['textures'],closed=t['closed_oriented'],convex=c['convex'],
   nonzero_brushes=[neighbor(n) for n in nonzero],
   solid=[neighbor(n) for n in solid],
-  current_profile=b['uid'] in [93,94,96,97]))
+  current_profile=b['uid'] in [93,94,95,96,97,98]))
 report=dict(scope='Exact authored face ownership and transformed AABB overlap census; not general ordered CSG, support or gameplay admission',geometry_sha256=meta['geometry_sha256'],brush_census_sha256=hashlib.sha256(brush_file.read_bytes()).hexdigest(),rows=rows)
 out=ROOT/'artifacts/geomod-source-candidates.json';out.write_text(json.dumps(report,indent=2)+'\n',encoding='utf-8')
 for r in sorted(rows,key=lambda r:len(r['solid'])+len(r['nonzero_brushes'])):
