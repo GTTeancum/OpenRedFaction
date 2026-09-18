@@ -5,6 +5,74 @@
 #include <string.h>
 #include "../src/diagnostic/scene.c"
 #define CHECK(x) do{if(!(x)){fprintf(stderr,"FAIL line%d %s\n",__LINE__,#x);return 1;}}while(0)
+static int fragment_test_material(void *context,uint32_t solid,uint32_t face,uint32_t *texture,uint32_t *material) {
+    if(context)return RF_IO;
+    if(solid!=UINT32_MAX || face!=17)return RF_FORMAT;
+    *texture=9;*material=3;return RF_OK;
+}
+static int fragment_thin_obstacle(void) {
+    rf_geomod_vertex vertices[4]={{{-.5f,-.5f,-.5f},{0,0}},{{.5f,-.5f,-.5f},{0,0}},
+        {{.5f,-.5f,.5f},{0,0}},{{-.5f,-.5f,.5f},{0,0}}};
+    rf_geomod_face face={0,4,0,0};rf_geomod_mesh_view mesh={vertices,&face,4,1,0};
+    float patch[4][3]={{-.02f,0,-.02f},{-.02f,0,.02f},{.02f,0,.02f},{.02f,0,-.02f}};
+    rf_collision_face obstacle={0};rf_physics_body_state body={0};
+    rf_collision_ray_hit contact;uint32_t i,j,hit;float delta[3]={0,-2,0};
+    obstacle.vertices=patch;obstacle.count=4;obstacle.plane[1]=1;
+    for(i=0;i<3;i++){obstacle.minimum[i]=-.0201f;obstacle.maximum[i]=.0201f;}
+    body.position[1]=1;body.next_position[1]=-1;
+    for(i=0;i<3;i++)body.orientation[i*4]=body.next_orientation[i*4]=1;
+    /* Eight fully occupied half-unit grid spheres still have gaps between
+     * them. A 0.04-wide finite patch is inside the face, outside every sweep. */
+    for(i=0;i<8;i++) {
+        float start[3];rf_collision_sweep_hit sphere;
+        for(j=0;j<3;j++)start[j]=((i>>j)&1)?.25f:-.25f;start[1]+=1;
+        CHECK(!rf_collision_sweep_face(&obstacle,start,delta,delta,.25f,1,&sphere,&hit));CHECK(!hit);
+    }
+    for(i=0;i<4;i++) {
+        float start[3];for(j=0;j<3;j++)start[j]=vertices[i].position[j]+body.position[j];
+        CHECK(!rf_collision_thin_face(&obstacle,start,delta,1,&contact,&hit));CHECK(!hit);
+    }
+    for(i=0;i<4;i++) {
+        CHECK(!scene_detached_vertex_sweep(&mesh,&body,patch[i],1,&contact,&hit));
+        CHECK(hit && fabsf(contact.fraction-.25f)<1e-6f && contact.normal[1]>.999f);
+        CHECK(!memcmp(contact.point,patch[i],12));
+    }
+    CHECK(!scene_detached_vertex_sweep(&mesh,&body,patch[0],.2f,&contact,&hit));CHECK(!hit);
+    {float outside[3]={2,0,0};CHECK(!scene_detached_vertex_sweep(&mesh,&body,outside,1,&contact,&hit));CHECK(!hit);}
+    {
+        rf_geometry_collision_world world={0};rf_geometry_collision_room room={0};rf_collision_room_view view={0};
+        scene_stream scene={0};scene_detached_query_context query={0};rf_geometry_body_hit result={0},saved;
+        uint32_t primary=0,found=0;
+        CHECK(!rf_collision_tree_open(&obstacle,1,65536,&room.tree));room.tree.source_indices[0]=17;
+        view.tree=&room.tree;for(i=0;i<3;i++){view.minimum[i]=-3;view.maximum[i]=3;}
+        world.rooms=&room;world.views=&view;world.room_count=1;world.primary=&primary;world.primary_count=1;
+        scene.collision=&world;query.scene=&scene;query.mesh=&mesh;body.bounds.radius=.001f; /* Proxy bound deliberately smaller than the mesh. */
+        CHECK(!rf_physics_body_prepare_sweep(&body));
+        CHECK(!scene_detached_world_vertex_sweep(&query,&body,&result,&found,fragment_test_material,NULL));
+        CHECK(found && fabsf(result.contact.fraction-.25f)<1e-6f && result.contact.normal[1]>.999f);
+        CHECK(result.face==17 && result.room==0 && result.contact.texture==9 && result.contact.material==3);
+        /* Room suppression and authored non-solid flags must match body casts. */
+        found=0;view.skip=1;
+        CHECK(!scene_detached_world_vertex_sweep(&query,&body,&result,&found,fragment_test_material,NULL));CHECK(!found);
+        view.skip=0;room.tree.faces[0].filter.face_flags=0x40;
+        CHECK(!scene_detached_world_vertex_sweep(&query,&body,&result,&found,fragment_test_material,NULL));CHECK(!found);
+        room.tree.faces[0].filter.face_flags=0;saved=result;
+        CHECK(scene_detached_world_vertex_sweep(&query,&body,&result,&found,fragment_test_material,&found)==RF_IO);
+        CHECK(!found && !memcmp(&saved,&result,sizeof(result)));
+        rf_collision_tree_close(&room.tree);
+    }
+    body.next_position[1]=2;
+    CHECK(!scene_detached_vertex_sweep(&mesh,&body,patch[0],1,&contact,&hit));CHECK(!hit);
+    /* Stationary center, 60-degree roll: the obstacle enters the face interior
+     * in the third angular interval, not through a translation-only ray. */
+    body.position[1]=body.next_position[1]=.6f;
+    body.next_orientation[0]=body.next_orientation[4]=.5f;
+    body.next_orientation[1]=.866025404f;body.next_orientation[3]=-.866025404f;
+    {float origin[3]={0,0,0};
+     CHECK(!scene_detached_vertex_sweep(&mesh,&body,origin,1,&contact,&hit));
+     CHECK(hit && contact.fraction>.5f && contact.fraction<.6f && contact.normal[1]>.8f);}
+    return 0;
+}
 static int fragment_plane_side(void) {
     rf_geomod_vertex vertices[3]={{{0,0,0},{0,0}},{{1,-1,0},{0,0}},{{0,-1,1},{0,0}}};
     rf_geomod_mesh_view mesh={0};float position[3]={0,0,0},point[3]={0,0,0},normal[3]={0,1,0};
@@ -514,6 +582,6 @@ int main(void) {
     found=77;CHECK(scene_detached_sources_sweep(&scene,4,start,delta,0,NAN,&hit,&found)!=RF_OK);
     CHECK(found==77 && !memcmp(&hit,&sentinel,sizeof(hit)));
     free(before);free(after);for(i=0;i<2;i++)rf_geomod_piece_registry_close(registries+i);
-    CHECK(!fragment_plane_side());CHECK(!inspection_camera());CHECK(!extended_batches());CHECK(!enemy_fragment_shots());CHECK(!rocket_object_contacts());CHECK(!beam_selection());CHECK(!runtime_surfaces());CHECK(!player_sources());CHECK(!notify_sources());CHECK(!rotated_support_clearance());CHECK(!large_support_snap());CHECK(!moving_piece_support());
+    CHECK(!fragment_thin_obstacle());CHECK(!fragment_plane_side());CHECK(!inspection_camera());CHECK(!extended_batches());CHECK(!enemy_fragment_shots());CHECK(!rocket_object_contacts());CHECK(!beam_selection());CHECK(!runtime_surfaces());CHECK(!player_sources());CHECK(!notify_sources());CHECK(!rotated_support_clearance());CHECK(!large_support_snap());CHECK(!moving_piece_support());
     puts("PASS multi-source weapon queries: nearer later source, stable ties, selected alias, isolated damage and atomic misses/errors");return 0;
 }
