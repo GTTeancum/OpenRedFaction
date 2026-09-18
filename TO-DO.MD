@@ -3,6 +3,10 @@
 Completion basis (user direction,2026-09-18): working late-alpha/early-beta code implementation. Overall approximately65%; GeoMod100% for the first playable milestone, accepted by the user. GeoMod items below are deferred refinement and coverage, not prerequisites to moving on. This does not assert retail polish, complete campaign integration or resolution of every known defect.
 
 
+- NPC rockets: Real finite-ammo flight, source-aware actor collision, direct/blast damage and drawing are wired in the DEV room with PC/Xbox builds passing; focused real-flight/collision and scheduler checks pass; live encounter verification and campaign resources remain.
+
+- NPC grenades: Enemy attacks now launch finite-ammo ballistic grenades with bounce/fuse, rendering and source-attributed blast/GeoMod; scheduler checks and initial native replay pass; corrected shooter-excluding/player-inclusive collision now produces lethal PC blasts, corrected650-frame native replay passes with matching lethal blasts; campaign resource loading, authored throw-marker timing and broader targets remain.
+
 - Flamethrower: Primary stream and alternate delayed canister now work in the DEV room; native primary/alternate replays pass79/80 comparisons with9.70/9.49MiB endpoint headroom and correct tank replacement; persistent NPC burns now continue after trigger release through death/drop on PC, and authored flamethrower/Napalm pickups grant and retain collection state; authored canister central emitters now pass81 native checks with8.93MiB endpoint headroom; attached burn sprites now follow NPCs and clear on death in PC, but remain visually faint; stronger burn presentation, trails, continuous audio, native burn encounter and campaign selection availability remain.
 
 - Hit-triggered events: When_Hit now observes registered actor/clutter hit signals and dispatches event/mover links before shared clearing; focused runtime/scene checks and PC/Xbox builds pass; live authored button scenario remains.

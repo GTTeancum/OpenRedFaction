@@ -884,3 +884,11 @@ add_test(NAME scene_burning COMMAND rf_scene_burning_tests)
 add_executable(rf_scene_ai_mode_persistence_tests tests/scene_ai_mode_persistence_tests.c src/diagnostic/animation.c)
 target_link_libraries(rf_scene_ai_mode_persistence_tests PRIVATE rf_core)
 add_test(NAME scene_ai_mode_persistence COMMAND rf_scene_ai_mode_persistence_tests)
+
+add_executable(rf_scene_ai_grenade_tests tests/scene_ai_grenade_tests.c src/diagnostic/animation.c)
+target_link_libraries(rf_scene_ai_grenade_tests PRIVATE rf_core)
+add_test(NAME scene_ai_grenade COMMAND rf_scene_ai_grenade_tests)
+
+add_executable(rf_scene_ai_rocket_tests tests/scene_ai_rocket_tests.c src/diagnostic/animation.c)
+target_link_libraries(rf_scene_ai_rocket_tests PRIVATE rf_core)
+add_test(NAME scene_ai_rocket COMMAND rf_scene_ai_rocket_tests)
