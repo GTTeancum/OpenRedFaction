@@ -551,7 +551,9 @@ typedef struct scene_particle_workspace {
     uint32_t order[2048];float distances[2048];
 } scene_particle_workspace;
 enum { SCENE_WEAPON_SLOTS=12, SCENE_ROCKETS=50, SCENE_RIPPLES=16 };
-static uint32_t scene_weapon_slots(void){return rf_scene_dev_room_enabled?(rf_scene_dev_npc_enabled==6?SCENE_WEAPON_SLOTS:11):4;}
+uint32_t rf_scene_player_shield_resources;
+static uint32_t scene_weapon_slots(void){return rf_scene_player_shield_resources || (rf_scene_dev_room_enabled && rf_scene_dev_npc_enabled==6)?SCENE_WEAPON_SLOTS:rf_scene_dev_room_enabled?11:4;}
+static uint32_t scene_weapon_available(uint32_t slot){return slot<(rf_scene_dev_room_enabled?11u:4u) || (slot==11 && scene_weapon_slots()==SCENE_WEAPON_SLOTS);}
 static const char *campaign_weapon_names[SCENE_WEAPON_SLOTS]={"12mm handgun","Assault Rifle","Riot Stick","Shotgun","Rocket Launcher","Grenade","Sniper Rifle","rail_gun","Remote Charge","Remote Charge Detonator","Flamethrower","riot shield"};
 #include "scene_pickup_class_names.inc"
 typedef struct scene_pickup_resource {
@@ -1868,6 +1870,7 @@ static uint32_t scene_flame_active;
 static uint32_t scene_ai_grenade_pending(void);
 static uint32_t scene_ai_rocket_pending(void);
 static uint32_t scene_player_shield_damage_save_pending(void);
+static int scene_player_shield_damage_sync(void);
 static uint32_t scene_burning_create(uint32_t,uint32_t);
 static void scene_burning_extinguish(uint32_t);
 static void scene_burning_release_all(void);
@@ -3728,7 +3731,6 @@ static int campaign_clutter_open(const char *tables_path,const rf_level *level)
     if(!status && rf_scene_dev_room_enabled)status=rf_weapon_primary_load(&tables,"Remote Charge Detonator",128*1024,&campaign_primary[9]);
     if(!status && rf_scene_dev_room_enabled)status=rf_weapon_explosive_load(&tables,"Remote Charge",128*1024,&campaign_remote);
     if(!status && rf_scene_dev_room_enabled)status=rf_weapon_primary_load(&tables,"Flamethrower",128*1024,&campaign_primary[10]);
-    if(!status && rf_scene_dev_room_enabled && rf_scene_dev_npc_enabled==6)status=rf_weapon_primary_load(&tables,"riot shield",128*1024,&campaign_primary[11]);
     if(!status && rf_scene_dev_room_enabled)status=scene_flame_visual_open(&tables);
     if(!status && rf_scene_dev_room_enabled) {
         rf_vclip_definition clip;
@@ -8616,6 +8618,7 @@ static void campaign_ammo_publish(void)
     if(campaign_explicit_unarmed){rf_scene_player_ammo[0]=UINT32_MAX;rf_scene_player_ammo[1]=rf_scene_player_ammo[2]=rf_scene_combat[5]=0;rf_scene_player_ammo[6]=sizeof(campaign_player_inventory);return;}
     if(!campaign_player_inventory.owned[campaign_selected_weapon()])for(slot=0;slot<scene_weapon_slots();slot++) {
         int32_t id=campaign_slot_weapon(slot);
+        if(!scene_weapon_available(slot))continue;
         if(id>=0 && campaign_player_inventory.owned[id]){campaign_select_primary(slot);break;}
     }
     const rf_weapon_acquire_definition *d=campaign_weapon_supply.definitions+campaign_selected_weapon();
@@ -8908,22 +8911,25 @@ static int32_t campaign_item_charge(int32_t weapon,int32_t quantity,uint32_t giv
     }
     return quantity;
 }
+#include "scene_player_shield_pickup.inc"
 static int campaign_apply_item_grant(const campaign_item_grant *request)
 {
     if(request->weapon==-1) {
         memset(&campaign_player_inventory,0,sizeof(campaign_player_inventory));
         riot_charge_remainder=0;rf_scene_riot[0]=0;
         memset(&combat_trigger,0,sizeof(combat_trigger));combat_trigger.held=!!player_input.fire;
-        rf_scene_combat[6]=0;campaign_ammo_publish();return RF_OK;
+        rf_scene_combat[6]=0;campaign_ammo_publish();return scene_player_shield_damage_sync();
     }
     const rf_weapon_acquire_definition *d=campaign_weapon_supply.definitions+request->weapon;
     int32_t quantity=campaign_item_charge(request->weapon,request->quantity,request->gives_weapon);
-    rf_weapon_pickup_grant grant={0};int status=rf_weapon_pickup_grant_sp(&campaign_player_inventory,d,request->weapon,quantity,request->gives_weapon,&grant);
+    rf_weapon_pickup_grant grant={0};int status=request->weapon==campaign_shield_id?
+        scene_player_shield_pickup_grant(&campaign_player_inventory,d,request->weapon,quantity,request->gives_weapon,&grant):
+        rf_weapon_pickup_grant_sp(&campaign_player_inventory,d,request->weapon,quantity,request->gives_weapon,&grant);
     rf_scene_script_grants[7]=(uint32_t)status;if(status)return status;
     ++rf_scene_script_grants[0];rf_scene_script_grants[1]+=grant.acquired;rf_scene_script_grants[2]+=grant.rounds;
     rf_scene_script_grants[3]=(uint32_t)request->weapon;rf_scene_script_grants[4]=campaign_player_inventory.owned[request->weapon];
-    rf_scene_script_grants[5]=(uint32_t)campaign_player_inventory.loaded[request->weapon];rf_scene_script_grants[6]=(uint32_t)campaign_player_inventory.reserve[d->ammo_type];
-    campaign_ammo_publish();return RF_OK;
+    rf_scene_script_grants[5]=(uint32_t)campaign_player_inventory.loaded[request->weapon];rf_scene_script_grants[6]=d->ammo_type>=0 && d->ammo_type<32?(uint32_t)campaign_player_inventory.reserve[d->ammo_type]:0;
+    campaign_ammo_publish();return request->weapon==campaign_shield_id?scene_player_shield_damage_sync():RF_OK;
 }
 static int campaign_strip_weapons(void *context)
 {
@@ -9071,6 +9077,7 @@ static float combat_enemy_primary_damage(const rf_weapon_primary_definition *def
 #include "scene_riot_shield_gameplay.inc"
 #include "scene_riot_shield_query.inc"
 #include "scene_riot_shield_body_order.inc"
+#include "scene_ai_shield_ray.inc"
 #include "scene_riot_shield_history.inc"
 #include "scene_player_shield_lifecycle.inc"
 #include "scene_player_shield_contact.inc"
@@ -9263,7 +9270,8 @@ static int campaign_enemy_tick(scene_stream *stream,uint32_t frame,const float p
             if(!contact)goto enemy_shot_done;
         }
         if(!melee) {
-            float ray[3],spread_ray[3],fraction;
+            float ray[3],spread_ray[3],fraction,body_fraction,end[3];
+            scene_ai_shield_ray_selection npc_shield={0};
             ++rf_scene_enemy_spread[0];if(!definition)++rf_scene_enemy_spread[6];
             for(j=0;j<3;j++)ray[j]=delta[j]*(attack_range/(float)sqrt(distance));
             status=rf_weapon_spread_ray(ray,definition?definition->ai_spread_degrees:0,&campaign_enemy_spread_random,spread_ray);
@@ -9273,7 +9281,9 @@ static int campaign_enemy_tick(scene_stream *stream,uint32_t frame,const float p
             /* Actor and fragment targets share the same authored base amount. */
             fraction=1;
             uint32_t target_hit=combat_body(owner->eye_position,spread_ray,victim?&victim->body:&scene_actor_body,1,&fraction);
-            if(!target_hit)fraction=1;
+            if(!target_hit)fraction=1;body_fraction=fraction;
+            for(j=0;j<3;j++)end[j]=owner->eye_position[j]+spread_ray[j];
+            if(victim){status=scene_ai_shield_ray_select(victim_slot,owner->eye_position,end,target_hit,body_fraction,&npc_shield);if(status)return status;fraction=npc_shield.fraction;}
             scene_player_shield_candidate player_shield;uint32_t shield_hit=0;
             if(!victim){float end[3];for(j=0;j<3;j++)end[j]=owner->eye_position[j]+spread_ray[j];
                 status=scene_player_shield_query(stream,player_eye,actor_look.eye_orientation,owner->eye_position,end,1,&player_shield,&shield_hit);if(status)return status;
@@ -9286,14 +9296,14 @@ static int campaign_enemy_tick(scene_stream *stream,uint32_t frame,const float p
                 status=scene_player_shield_commit(&player_shield,&request,&accepted,&broken);if(status)return status;
                 if(accepted)goto enemy_shot_done;
             }
+            if(victim && npc_shield.kind==SCENE_AI_SHIELD_RAY_SHIELD){
+                uint32_t accepted,broken;rf_damage_request request={shot_damage,owner->registration.handle,definition?definition->damage_kind:0,0,UINT32_MAX,0};
+                status=scene_ai_shield_ray_commit(&npc_shield,owner->eye_position,end,&request,&accepted,&broken);if(status)return status;
+                if(accepted)goto enemy_shot_done;
+                if(target_hit && !selected.penetrates_world){status=combat_shot_obstructed(stream,owner->eye_position,spread_ray,body_fraction,&blocked);if(status)return status;if(blocked)goto enemy_shot_done;}
+            }
             if(!target_hit){++rf_scene_enemy_spread[3];goto enemy_shot_done;}
             ++rf_scene_enemy_spread[2];
-            if(victim && scene_npc_shields.owners){
-                float end[3];uint32_t accepted,broken;
-                for(j=0;j<3;j++)end[j]=owner->eye_position[j]+spread_ray[j];
-                status=scene_npc_shield_receive(victim_slot,owner->eye_position,end,fraction,shot_damage,definition->damage_kind,&accepted,&broken);if(status)return status;
-                if(accepted)goto enemy_shot_done;
-            }
         }
         {int32_t kind=definition?definition->damage_kind:0;
          /* Unsupported weapon classes retain the provisional fallback. */
@@ -9385,8 +9395,12 @@ static int campaign_pickups_tick(scene_stream *stream,const float eye[3])
             int32_t slot=scene_pickup_weapon_slot(kind),id;
             if(slot<0)return RF_FORMAT;id=campaign_slot_weapon((uint32_t)slot);
             if(id<0 || id>=64)return RF_FORMAT;
-            status=rf_weapon_pickup_grant_sp(&campaign_player_inventory,campaign_weapon_supply.definitions+id,
-                id,campaign_item_charge(id,item->quantity,definition->gives_weapon),definition->gives_weapon,&grant);if(status)return status;
+            status=id==campaign_shield_id?
+                scene_player_shield_pickup_grant(&campaign_player_inventory,campaign_weapon_supply.definitions+id,
+                    id,item->quantity,definition->gives_weapon,&grant):
+                rf_weapon_pickup_grant_sp(&campaign_player_inventory,campaign_weapon_supply.definitions+id,
+                    id,campaign_item_charge(id,item->quantity,definition->gives_weapon),definition->gives_weapon,&grant);if(status)return status;
+            if(id==campaign_shield_id){status=scene_player_shield_damage_sync();if(status)return status;}
             if(!grant.rounds && !grant.acquired)continue;
         }
         stream->pickup_taken[i]=1;rf_scene_campaign_pickups.items[stream->pickup_slots[i]].retired=1;
@@ -12261,7 +12275,7 @@ static int campaign_player_import_apply(void)
     rf_campaign_player_state imported;uint32_t slot=0,i;int found=0,status;
     status=rf_campaign_player_copy(&imported,&campaign_player_import,rf_scene_weapon_supply[3]);if(status)return status;
     if(imported.weapon==UINT32_MAX)found=1;
-    else for(i=0;i<scene_weapon_slots();i++)if(imported.weapon==(uint32_t)campaign_slot_weapon(i)){slot=i;found=1;break;}
+    else for(i=0;i<scene_weapon_slots();i++)if(scene_weapon_available(i) && imported.weapon==(uint32_t)campaign_slot_weapon(i)){slot=i;found=1;break;}
     if(!found)return RF_FORMAT;
     campaign_player_inventory=imported.inventory;
     campaign_player_damage.state.effects.health=imported.health;
@@ -12283,7 +12297,7 @@ static uint32_t campaign_cycle_primary(void)
     uint32_t step;
     for(step=1;step<=scene_weapon_slots();step++){
         uint32_t candidate=(campaign_equipped_slot+step)%scene_weapon_slots();int32_t id=campaign_slot_weapon(candidate);
-        if(campaign_player_inventory.owned[id] && (candidate!=campaign_equipped_slot || campaign_explicit_unarmed)){
+        if(scene_weapon_available(candidate) && campaign_player_inventory.owned[id] && (candidate!=campaign_equipped_slot || campaign_explicit_unarmed)){
             campaign_select_primary(candidate);return 1;
         }
     }
@@ -12301,6 +12315,7 @@ static int campaign_inventory_initialize(void)
                (rf_scene_water_test_enabled || strcmp(campaign_current_level,"ctf06.rfl")))return RF_FORMAT;
             /* Developer supply only: ordinary weapon limits, firing and reloads. */
             for(i=0;i<scene_weapon_slots();i++) {
+                if(!scene_weapon_available(i))continue;
                 int32_t id=campaign_slot_weapon(i);
                 const rf_weapon_acquire_definition *d=campaign_weapon_supply.definitions+id;
                 if(i==11){if(rf_scene_dev_npc_enabled==6){campaign_player_inventory.owned[id]=1;campaign_player_inventory.loaded[id]=0;}continue;}
@@ -12367,6 +12382,7 @@ static int campaign_combat_tick(scene_stream *stream,uint32_t frame,const float 
         uint32_t refill=player_input.use && player_input.reload;
         if(refill && !dev_refill_held) {
             for(i=0;i<scene_weapon_slots();i++) {
+                if(!scene_weapon_available(i))continue;
                 int32_t id=campaign_slot_weapon(i);
                 const rf_weapon_acquire_definition *d=campaign_weapon_supply.definitions+id;
                 if(i==11)continue;
@@ -12446,7 +12462,7 @@ static int campaign_combat_tick(scene_stream *stream,uint32_t frame,const float 
          status=scene_flame_visual_tick(stream,frame,muzzle,orientation[2],length,scene_flame_active);if(status){printf("FLAME_VISUAL_ERROR %u %d\n",frame,status);return status;}}
         if(campaign_equipped_slot==5 || campaign_equipped_slot==8 || campaign_equipped_slot==9 || campaign_equipped_slot==10 || campaign_equipped_slot==11)return RF_OK;
     }
-    if(campaign_explicit_unarmed || !campaign_player_inventory.owned[campaign_selected_weapon()])return RF_OK;
+    if(campaign_equipped_slot==11 || campaign_explicit_unarmed || !campaign_player_inventory.owned[campaign_selected_weapon()])return RF_OK;
     alt=(campaign_equipped_slot==1 || campaign_equipped_slot==2 || campaign_equipped_slot==3) && player_input.alt_fire && !player_input.fire;
     /* Rifle alternate is authored continuous fire, not the primary burst.
      * Switching to it cancels pending burst rounds but retains cooldown. */
@@ -15528,6 +15544,9 @@ static int scene_dev_npc_seeds(const char *tables_path,rf_vpp *tables)
     campaign_seeds.records.items[0].record.script_name[0]=campaign_seeds.records.items[0].record.state_animation[0]=0;
     return RF_OK;
 }
+#include "scene_weapon_resource_demand.inc"
+static int scene_weapon_demand_resolve(void *context,const char *name,rf_item_definition *out)
+{return rf_item_definition_load((rf_vpp *)context,name,128*1024,out);}
 static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path,
     const char *motions_path,const char *tables_path,rf_vpp *maps,uint32_t map_count,
     rf_preview_mesh *mesh,rf_materials *materials,uint32_t mesh_budget,uint32_t material_budget,
@@ -15546,7 +15565,7 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
        !rf_scene_actor_look_enabled || !rf_scene_actor_turn_enabled || !collision || !sink))return RF_RANGE;
     if(actor_follow_world && (!sink || !collision || actor_follow_world->world!=geometry ||
         actor_follow_world->material_count!=materials->count))return RF_RANGE;
-    campaign_export_valid=0;
+    campaign_export_valid=0;rf_scene_player_shield_resources=0;
     memset(campaign_current_level,0,sizeof(campaign_current_level));
     memcpy(campaign_current_level,level->entry.name,sizeof(level->entry.name));
     memset(rf_scene_light_owner,0,sizeof(rf_scene_light_owner));
@@ -15814,7 +15833,15 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
             rf_scene_campaign_load_stage=26;status=campaign_weapon_materials_open(maps,map_count);if(status)goto done;
             {rf_vpp tables={0};rf_weapon_view_definition view;
              status=rf_vpp_open(&tables,tables_path);if(status)goto done;
+             {scene_weapon_resource_demand demand;
+              status=scene_weapon_resources_plan(rf_scene_dev_room_enabled?0x7ffu:0xfu,1u<<11,
+                  campaign_weapon_names,SCENE_WEAPON_SLOTS,&campaign_weapon_supply.names,
+                  campaign_import_pending?&campaign_player_import.inventory:NULL,&stream->pickups,&campaign_events.decoded,
+                  scene_weapon_demand_resolve,&tables,&demand);
+              if(!status){rf_scene_player_shield_resources=!!(demand.mask&(1u<<11)) || (rf_scene_dev_room_enabled && rf_scene_dev_npc_enabled==6);
+                  if(rf_scene_player_shield_resources)status=rf_weapon_primary_load(&tables,"riot shield",128*1024,&campaign_primary[11]);}}
              for(i=0;i<scene_weapon_slots() && !status;i++) {
+                 if(!scene_weapon_available(i))continue;
                  status=rf_weapon_view_load(&tables,campaign_weapon_names[i],128*1024,&view);
                  /* Rifle loop adds5152bytes; allow one bounded8KiB extension. */
                  if(!status && i==0)view.clips[3][0]=0;
@@ -15915,6 +15942,7 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
         materials->loaded+=textures->loaded;materials->missing+=textures->missing;materials->allocated_bytes+=textures->allocated_bytes;
         free(textures->items);memset(textures,0,sizeof(*textures));
         for(i=0;i<scene_weapon_slots();i++) {
+        if(!scene_weapon_available(i))continue;
         textures=&stream->player_weapon[i]->materials.textures;
         stream->player_weapon_base[i]=materials->count;stream->player_weapon_textures[i]=textures->count;
         if((uint64_t)materials->count+textures->count>RF_CAMPAIGN_TEXTURE_SLOTS){status=RF_RANGE;goto done;}

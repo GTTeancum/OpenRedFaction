@@ -287,7 +287,7 @@ static int present(void *context,uint32_t frame,const rf_preview_mesh *mesh,
     status=rf_scene_prepare_lightmaps(&p->lightmaps);if(status)return status;
     for(i=0;i<materials->count;i++)image_bytes+=materials->items[i].image.bytes;
     for(i=0;i<p->lightmaps.count;i++)image_bytes+=p->lightmaps.images[i].bytes;
-    {uint32_t budget=rf_scene_dev_npc_enabled==6?RF_PLAYER_SHIELD_IMAGE_BUDGET:RF_CAMPAIGN_IMAGE_BUDGET;
+    {uint32_t budget=rf_scene_player_shield_resources?RF_PLAYER_SHIELD_IMAGE_BUDGET:RF_CAMPAIGN_IMAGE_BUDGET;
      if(image_bytes>budget){fprintf(stderr,"Scene image budget %llu exceeds %u\n",(unsigned long long)image_bytes,budget);return RF_RANGE;}}
     status=rf_scene_update_lightmaps(&p->lightmaps);if(status)return status;
     /* Recorded-input diagnosis projects every tick, rasterizes only the last. */

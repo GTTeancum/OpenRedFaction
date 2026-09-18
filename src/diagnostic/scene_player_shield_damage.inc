@@ -22,6 +22,7 @@ static int scene_player_shield_damage_sync(void)
     if(campaign_shield_id<0){scene_player_shield_reset(&scene_player_shield_damage_state);return RF_OK;}
     if(campaign_shield_id>=64)return RF_RANGE;
     owned=campaign_player_inventory.owned[campaign_shield_id]!=0;
+    if(!owned){scene_player_shield_reset(&scene_player_shield_damage_state);return RF_OK;}
     selected=owned && campaign_equipped_slot==11 && !campaign_explicit_unarmed && campaign_player_damage.state.effects.health>0;
     return scene_player_shield_sync(&scene_player_shield_damage_state,&scene_npc_shields.definition,owned,selected);
 }
@@ -67,7 +68,7 @@ static int scene_player_shield_commit(const scene_player_shield_candidate *candi
         /* Publish selects an existing supported weapon. Explicitly unarm if
          * none is owned; do not leave the destroyed shield selected. */
         for(i=0;i<scene_weapon_slots();i++){int32_t weapon=campaign_slot_weapon(i);
-            if(weapon>=0 && weapon<64 && campaign_player_inventory.owned[weapon]){any=1;break;}}
+            if(scene_weapon_available(i) && weapon>=0 && weapon<64 && campaign_player_inventory.owned[weapon]){any=1;break;}}
         if(!any)campaign_explicit_unarmed=1;
         campaign_ammo_publish();
         status=scene_player_shield_sync(&scene_player_shield_damage_state,&scene_npc_shields.definition,0,0);if(status)return status;

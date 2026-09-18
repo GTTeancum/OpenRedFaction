@@ -12,6 +12,6 @@
  * L2S3 references18,677,764 bytes including lightmaps and fallback; the old
  *16MiB sum rejected already loaded assets before any GPU allocation. */
 #define RF_CAMPAIGN_IMAGE_BUDGET (20u*1024u*1024u)
-/* Opt-in player shield view profile; still subject to stock64MiB admission. */
+/* Demand-loaded player shield view profile; still subject to stock64MiB admission. */
 #define RF_PLAYER_SHIELD_IMAGE_BUDGET (21u*1024u*1024u)
 #endif

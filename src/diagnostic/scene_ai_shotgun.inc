@@ -19,7 +19,8 @@ static int campaign_enemy_shotgun_fire(scene_stream *stream,campaign_npc_body *o
     if(!isfinite(damage) || damage<0)return RF_RANGE;
     for(j=0;j<3;j++)ray[j]=delta[j]*(range/sqrtf(distance));
     for(pellet=0;pellet<definition->projectiles;pellet++) {
-        float spread[3],fraction=1,applied=0;uint32_t blocked,hit;
+        float spread[3],fraction=1,applied=0,body_fraction,end[3];uint32_t blocked,hit;
+        scene_ai_shield_ray_selection npc_shield={0};
         if((victim?victim->damage.effects.health:campaign_player_damage.state.effects.health)<=0)break;
         ++rf_scene_enemy_spread[0];
         status=rf_weapon_spread_ray(ray,definition->ai_spread_degrees,&campaign_enemy_spread_random,spread);
@@ -27,7 +28,9 @@ static int campaign_enemy_shotgun_fire(scene_stream *stream,campaign_npc_body *o
         if(definition->ai_spread_degrees>0)++rf_scene_enemy_spread[1];
         rf_scene_enemy_spread[5]=campaign_enemy_spread_random.value;
         hit=combat_body(owner->eye_position,spread,victim?&victim->body:&scene_actor_body,1,&fraction);
-        if(!hit)fraction=1;
+        if(!hit)fraction=1;body_fraction=fraction;
+        for(j=0;j<3;j++)end[j]=owner->eye_position[j]+spread[j];
+        if(victim){status=scene_ai_shield_ray_select(victim_slot,owner->eye_position,end,hit,body_fraction,&npc_shield);if(status)return status;fraction=npc_shield.fraction;}
         scene_player_shield_candidate player_shield;uint32_t shield_hit=0;
         if(!victim){float eye[3],end[3];for(j=0;j<3;j++){eye[j]=owner->eye_position[j]+delta[j];end[j]=owner->eye_position[j]+spread[j];}
             status=scene_player_shield_query(stream,eye,actor_look.eye_orientation,owner->eye_position,end,1,&player_shield,&shield_hit);if(status)return status;
@@ -39,17 +42,17 @@ static int campaign_enemy_shotgun_fire(scene_stream *stream,campaign_npc_body *o
             status=scene_player_shield_commit(&player_shield,&request,&accepted,&broken);if(status)return status;
             if(accepted)continue;
         }
+        if(victim && npc_shield.kind==SCENE_AI_SHIELD_RAY_SHIELD){
+            uint32_t accepted,broken;rf_damage_request request={damage,owner->registration.handle,definition->damage_kind,0,UINT32_MAX,0};
+            status=scene_ai_shield_ray_commit(&npc_shield,owner->eye_position,end,&request,&accepted,&broken);if(status)return status;
+            if(accepted)continue;
+            if(hit){status=combat_shot_obstructed(stream,owner->eye_position,spread,body_fraction,&blocked);if(status)return status;if(blocked)continue;}
+        }
         if(!hit){++rf_scene_enemy_spread[3];continue;}
         ++rf_scene_enemy_spread[2];++rf_scene_enemy_damage_kinds[definition->damage_kind];
         rf_damage_request request={damage,owner->registration.handle,definition->damage_kind,0,UINT32_MAX,0};
         if(victim) {
             uint32_t entered;
-            if(scene_npc_shields.owners){
-                float end[3];uint32_t accepted,broken;
-                for(j=0;j<3;j++)end[j]=owner->eye_position[j]+spread[j];
-                status=scene_npc_shield_receive(victim_slot,owner->eye_position,end,fraction,request.amount,request.kind,&accepted,&broken);if(status)return status;
-                if(accepted)continue;
-            }
             status=rf_scene_npc_damage(victim->registration.handle,&request,1,clock_bits,effects,&applied);
             if(!status)status=feedback->status;if(status)return status;
             if(victim->damage.effects.health<=0) {
