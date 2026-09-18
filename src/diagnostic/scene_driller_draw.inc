@@ -30,7 +30,7 @@ static int scene_driller_draw(scene_stream *stream,const scene_driller_resources
        !stream->npc_memory || !stream->npc_indices || !stream->npc_pool || !texture_count ||
        (uint64_t)material_base+texture_count>RF_CAMPAIGN_TEXTURE_SLOTS)return RF_RANGE;
     *submissions=*vertices=0;r=&owner->render;initial=stream->mesh->count;
-    status=rf_model_local_view(&stream->npc_view,position,basis,&view);if(status)return status;
+    status=rf_model_local_view(&stream->npc_view,position,basis,&view);if(status){fprintf(stderr,"DRILLER_DRAW_ERROR line%d status%d\n",__LINE__,status);return status;}
     buffers.cache=stream->npc_memory;buffers.clip=(float(*)[3])((uint8_t*)stream->npc_memory+4096*32);
     buffers.second=(float(*)[3])((uint8_t*)stream->npc_memory+4096*44);
     buffers.vertices=(uint8_t(*)[40])((uint8_t*)stream->npc_memory+4096*56);buffers.capacity=4096;
@@ -49,10 +49,10 @@ static int scene_driller_draw(scene_stream *stream,const scene_driller_resources
             status=scene_model_retain(stream,g,batch,NULL,0,&view,material_base+slot);
             if(status==RF_OK){++count;continue;}
             if(status!=RF_NOT_FOUND)return status;
-            status=scene_model_scratch_prepare(&buffers,b->vertices);if(status)return status;
-            status=rf_model_geometry_render_static_batch(g,batch,&view,&lights,&attributes,NULL,&buffers);if(status)return status;
+            status=scene_model_scratch_prepare(&buffers,b->vertices);if(status){fprintf(stderr,"DRILLER_DRAW_ERROR line%d status%d\n",__LINE__,status);return status;}
+            status=rf_model_geometry_render_static_batch(g,batch,&view,&lights,&attributes,NULL,&buffers);if(status){fprintf(stderr,"DRILLER_DRAW_ERROR line%d status%d\n",__LINE__,status);return status;}
             status=rf_preview_static_model_emit(g,batch,&buffers,stream->npc_indices,stream->npc_pool,&view,&planes,&projection,
-                &attributes,stream->mesh,stream->capacity,&emitted,lod->planes+b->first_triangle,NULL);if(status)return status;
+                &attributes,stream->mesh,stream->capacity,&emitted,lod->planes+b->first_triangle,NULL);if(status){fprintf(stderr,"DRILLER_DRAW_ERROR line%d status%d\n",__LINE__,status);return status;}
             for(k=start;k<stream->mesh->count;k++)stream->mesh->vertices[k].material=material_base+slot;
             ++count;
         }

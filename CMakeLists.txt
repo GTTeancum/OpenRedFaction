@@ -1076,3 +1076,12 @@ add_executable(rf_scene_driller_physics_tests tests/scene_driller_physics_tests.
 target_link_libraries(rf_scene_driller_physics_tests PRIVATE rf_core)
 add_test(NAME scene_driller_physics COMMAND rf_scene_driller_physics_tests)
 set_tests_properties(scene_driller_physics PROPERTIES WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
+
+add_executable(rf_scene_driller_live_support_tests tests/scene_driller_live_support_tests.c src/diagnostic/animation.c)
+target_link_libraries(rf_scene_driller_live_support_tests PRIVATE rf_core)
+add_test(NAME scene_driller_live_support COMMAND rf_scene_driller_live_support_tests)
+set_tests_properties(scene_driller_live_support PROPERTIES WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
+add_executable(rf_scene_driller_damage_tests tests/scene_driller_damage_tests.c)
+target_link_libraries(rf_scene_driller_damage_tests PRIVATE rf_core)
+add_test(NAME scene_driller_damage COMMAND rf_scene_driller_damage_tests)
+set_tests_properties(scene_driller_damage PROPERTIES WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})

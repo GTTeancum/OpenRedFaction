@@ -40,11 +40,11 @@
 #include "rf/level_particles.h"
 /* Choose the thin horizontal box axis, approaching from the authored spawn side.
  * Fixture setup only: the normal collision and trigger runtime handles movement. */
-/* Explicit ctf06 vehicle fixture: floor6091 y=-2, x26..34/z.5..26.5.
- * Authored chassis bounds fit at(30,-.08189,13), clear of static solids. */
+/* Explicit ctf06 vehicle fixture on actual collision floor677 y4.
+ * The renderer-only sky platform is deliberately not used as a floor. */
 int rf_scene_vehicle_test_place(rf_level *level)
 {
-    static const float position[3]={30,-1,25},basis[9]={-1,0,0,0,1,0,0,0,-1};
+    static const float position[3]={30,5,-158.5f},basis[9]={-1,0,0,0,1,0,0,0,-1};
     if(!level || strcmp(level->entry.name,"ctf06.rfl"))return RF_RANGE;
     memcpy(level->player_position,position,12);memcpy(level->player_orientation,basis,36);return RF_OK;
 }
@@ -694,6 +694,7 @@ typedef struct scene_terrain_source_owner {
 } scene_terrain_source_owner;
 uint32_t rf_scene_authored_identity[10]; /* SHA256 LE words, capture scratch peak, ready */
 
+typedef struct scene_driller_runtime scene_driller_runtime;
 typedef struct scene_stream {
     scene_terrain_source_owner *terrain_sources;uint32_t terrain_source_count;
     scene_terrain_authored_assets *terrain_authored;
@@ -733,6 +734,7 @@ typedef struct scene_stream {
     float ripple_position[SCENE_RIPPLES][3];uint32_t ripple_born[SCENE_RIPPLES];uint8_t ripple_active[SCENE_RIPPLES];
     scene_impact_owner *impact;
     scene_weapon_custom_actions *machine_custom[2];uint32_t machine_transition_ticks[2];
+    scene_driller_runtime *driller_runtime;
     scene_driller_resources *driller;float driller_position[3],driller_basis[9];uint32_t driller_base,driller_textures;
     scene_undercover_resources *undercover;uint32_t undercover_base,undercover_textures,undercover_alt_held;
     rf_player_weapon *player_weapon[SCENE_WEAPON_SLOTS];uint32_t player_weapon_base[SCENE_WEAPON_SLOTS],player_weapon_textures[SCENE_WEAPON_SLOTS],player_shots,player_reload,player_slot,player_pose_frame;
@@ -750,6 +752,7 @@ typedef struct scene_stream {
     void *light_scratch_memory;rf_light_world_scratch light_scratch;
     rf_visibility_camera particle_camera;scene_particle_workspace *particle_workspace;uint32_t particle_frame;
 } scene_stream;
+static uint32_t scene_driller_active(const scene_stream *);
 #include "scene_flame_effects_resources.inc"
 #include "scene_fusion_effects_resources.inc"
 #include "scene_detached_sources.inc"
@@ -8081,6 +8084,7 @@ static int campaign_jump_update(uint32_t frame)
 }
 static int actor_player_stance(void *context,uint32_t frame,rf_motion_controller *controller,const int32_t motions[23])
 {
+    if(scene_driller_active((scene_stream*)context))return RF_OK;
     int update_status=campaign_climb_update((scene_stream*)context,frame);if(update_status)return update_status;
     update_status=campaign_swim_update((scene_stream*)context,frame,controller);rf_scene_player_swim[11]=(uint32_t)update_status;if(update_status)return update_status;
     rf_motion_stance_decision decision={0,RF_MOTION_STANCE_NONE};
@@ -12524,6 +12528,7 @@ static int campaign_combat_tick(scene_stream *stream,uint32_t frame,const float 
         for(i=0;i<campaign_npc_body_count;i++){campaign_pursuit_stop(campaign_npc_bodies+i);campaign_npc_bodies[i].combat_navigation_due=0;campaign_npc_bodies[i].combat_scripted=campaign_npc_bodies[i].combat_target=campaign_npc_bodies[i].combat_alert=campaign_npc_bodies[i].combat_burst_remaining=campaign_npc_bodies[i].combat_due=0;}
 }
     status=campaign_inventory_initialize();if(status)return status;
+    if(scene_driller_active(stream))return RF_OK;
     if(!frame && scene_npc_shields.owners){status=scene_npc_shield_history_restore();if(status)return status;}
     if(!frame && rf_scene_dev_npc_enabled==6)campaign_select_primary(11);
     if(!frame && rf_scene_dev_room_enabled && rf_scene_fusion_enabled)campaign_select_primary(12);
@@ -12619,6 +12624,7 @@ static int campaign_combat_tick(scene_stream *stream,uint32_t frame,const float 
          status=scene_flame_visual_tick(stream,frame,muzzle,orientation[2],length,scene_flame_active);if(status){printf("FLAME_VISUAL_ERROR %u %d\n",frame,status);return status;}}
         if(campaign_equipped_slot==5 || campaign_equipped_slot==8 || campaign_equipped_slot==9 || campaign_equipped_slot==10 || campaign_equipped_slot==11 || campaign_equipped_slot==12)return RF_OK;
     }
+    if(scene_driller_active(stream))return RF_OK;
     if(campaign_equipped_slot==13 && campaign_machine_mode.pending)return RF_OK;
     if(campaign_equipped_slot==16 && stream->undercover && !scene_undercover_mode_can_fire(&stream->undercover->mode))return RF_OK;
     if(campaign_equipped_slot==11 || campaign_explicit_unarmed || !campaign_player_inventory.owned[campaign_slot_weapon(campaign_equipped_slot)])return RF_OK;
@@ -13009,6 +13015,7 @@ static int campaign_inspect_camera(scene_stream *stream,float position[3],float 
     }
     return RF_NOT_FOUND;
 }
+#include "scene_driller_runtime.inc"
 static int actor_follow_view(void *context,uint32_t frame,const rf_motion_controller *controller,rf_model_projection *view)
 {
     scene_stream *stream=context;float position[3],orientation[3][3];
@@ -13028,7 +13035,8 @@ static int actor_follow_view(void *context,uint32_t frame,const rf_motion_contro
         stream->initial_swim_controller=*controller;stream->initial_swim_controller_ready=1;
     }
     if(profile_clock && profile_active)world_clock=profile_clock();
-    status=actor_listener_pose(stream,frame,controller,position,orientation);if(status){rf_scene_profile_stage[1]=101;return status;}
+    status=scene_driller_runtime_tick(stream,frame);if(status)return status;
+    status=scene_driller_active(stream)?scene_driller_player_camera(&stream->driller_runtime->entry,position,orientation):actor_listener_pose(stream,frame,controller,position,orientation);if(status){rf_scene_profile_stage[1]=101;return status;}
     /* Rendering follows the committed owner, never diagnostic counters: reload
      * can publish geometry before the next edit refreshes those counters. */
     if(stream->terrain) {
@@ -14538,7 +14546,7 @@ static int scene_weapon_submit(void *context,uint32_t model,const rf_weapon_hand
     rf_model_projection view;uint32_t part,batch,k,first;int status;
     if(!model || model>campaign_weapon_models.count || !(draw_state[0]&0x80))return RF_RANGE;
     r=c->resource?&c->resource->model:&campaign_weapon_models.items[model-1].render;first=c->resource?0:campaign_weapon_material_offsets[model-1];
-    status=rf_model_local_view(&stream->npc_view,pose->position,pose->basis,&view);if(status)return status;
+    status=rf_model_local_view(&stream->npc_view,pose->position,pose->basis,&view);if(status){fprintf(stderr,"WORLD_WEAPON_DRAW_ERROR line%d status%d count%u cap%u\n",__LINE__,status,stream->mesh->count,stream->capacity);return status;}
     if(!c->pickup)++rf_scene_weapon_draw[2];
     /* Shared diagnostic lighting/highest LOD policy; original material-state
      * lighting and distance LOD are still required for final visual parity. */
@@ -14553,10 +14561,10 @@ static int scene_weapon_submit(void *context,uint32_t model,const rf_weapon_hand
             status=scene_model_retain(stream,g,batch,NULL,0,&view,(c->resource?c->resource->base:stream->weapon_base)+slot);
             if(status==RF_OK)continue;
             if(status!=RF_NOT_FOUND)return status;
-            status=scene_model_scratch_prepare(&c->buffers,b->vertices);if(status)return status;
-            status=rf_model_geometry_render_static_batch(g,batch,&view,&c->lights,&c->attributes,NULL,&c->buffers);if(status)return status;
+            status=scene_model_scratch_prepare(&c->buffers,b->vertices);if(status){fprintf(stderr,"WORLD_WEAPON_DRAW_ERROR line%d status%d count%u cap%u\n",__LINE__,status,stream->mesh->count,stream->capacity);return status;}
+            status=rf_model_geometry_render_static_batch(g,batch,&view,&c->lights,&c->attributes,NULL,&c->buffers);if(status){fprintf(stderr,"WORLD_WEAPON_DRAW_ERROR line%d status%d count%u cap%u\n",__LINE__,status,stream->mesh->count,stream->capacity);return status;}
             status=rf_preview_static_model_emit(g,batch,&c->buffers,stream->npc_indices,stream->npc_pool,&view,&c->planes,&c->projection,
-                &c->attributes,stream->mesh,stream->capacity,&emitted,lod->planes+b->first_triangle,NULL);if(status)return status;
+                &c->attributes,stream->mesh,stream->capacity,&emitted,lod->planes+b->first_triangle,NULL);if(status){fprintf(stderr,"WORLD_WEAPON_DRAW_ERROR line%d status%d count%u cap%u\n",__LINE__,status,stream->mesh->count,stream->capacity);return status;}
             for(k=start;k<stream->mesh->count;++k)stream->mesh->vertices[k].material=(c->resource?c->resource->base:stream->weapon_base)+slot;
         }
     }
@@ -14915,7 +14923,12 @@ static int scene_pickups_draw(scene_stream *stream)
     c.planes.near_depth=.1f;c.planes.far_depth=1000;c.projection.scale[0]=320;c.projection.scale[1]=240;c.projection.clamp=1;
     for(i=0;i<stream->pickups.count;i++)if(!stream->pickup_taken[i]) {
         int kind=pickup_class(stream->pickups.items[i].class_name);rf_weapon_hand_placement pose={0};
-        if(kind<0)continue;c.resource=kind?stream->pickup_resources+kind-1:NULL;memcpy(pose.position,stream->pickups.items[i].position,12);memcpy(pose.basis,stream->pickups.items[i].orientation,36);
+        if(kind<0)continue;
+        if(stream->visibility.storage){rf_collision_room_location room;
+            status=rf_geometry_collision_world_locate(stream->collision,stream->pickups.items[i].position,&room);if(status)return status;
+            if(room.room<stream->visibility.state.count && !stream->visibility.state.rooms[room.room].visible)continue;
+        }
+        c.resource=kind?stream->pickup_resources+kind-1:NULL;memcpy(pose.position,stream->pickups.items[i].position,12);memcpy(pose.basis,stream->pickups.items[i].orientation,36);
         status=scene_weapon_submit(&c,model,&pose,state);if(status)return status;
     }
     c.resource=NULL;
@@ -15409,7 +15422,7 @@ static int scene_frame(void *context,uint32_t frame,rf_preview_mesh *actor)
             v->position[0]=320+(v->position[0]-320)*rf_scene_scope_projection;
             v->position[1]=240+(v->position[1]-240)*rf_scene_scope_projection;
         }
-        status=scene_player_weapon_draw(stream,frame);presentation_mark(4,&presentation_clock);if(status){rf_scene_profile_stage[1]=205;return status;}
+        status=scene_driller_active(stream)?RF_OK:scene_player_weapon_draw(stream,frame);presentation_mark(4,&presentation_clock);if(status){rf_scene_profile_stage[1]=205;return status;}
         status=scene_undercover_draw(stream);if(status){rf_scene_profile_stage[1]=206;return status;}
         particle_draw_stream=stream;
         status=stream->sink(stream->context,frame,stream->mesh,stream->materials,stream->world);
@@ -15432,7 +15445,7 @@ static int scene_frame(void *context,uint32_t frame,rf_preview_mesh *actor)
                     particle_now,NULL,NULL,&stream->particle_first);if(status)return status;
             }
             step_profile_mark(0,&step_clock);
-            if(campaign_spawn) {
+            if(campaign_spawn && !scene_driller_active(stream)) {
                 /* 433520 -> 433260: input, physics, then 487e00 support.
                  * The owned local-player fixture has object bit 8 and no parent. */
                 status=campaign_force_tick(&next,&stream->particles,particle_now);
@@ -15453,10 +15466,11 @@ static int scene_frame(void *context,uint32_t frame,rf_preview_mesh *actor)
                     status=actor_ground_query_state(stream->collision,&next,&post_ground,&post_contact,&post_support);if(status)return status;
                     ground=&post_ground;contact=&post_contact;piece_support=&post_support;walkable=ground->matched && ground->hit.hit.fraction<1 && ground->hit.hit.normal[1]>=.5f;
                 }
-            } else if(frame)for(axis=0;axis<3;++axis) {
+            } else if(!campaign_spawn && frame)for(axis=0;axis<3;++axis) {
                 float previous;memcpy(&previous,rf_scene_actor_render_frames[(frame-1)%64]+2+axis,4);
                 if(previous!=next.position[axis])moved=1;
             }
+            if(scene_driller_active(stream))route=UINT32_MAX;
             if(route==RF_PLAYER_SUPPORT_FALL) {
                 next.flags|=1;rf_scene_actor_landing[1]=3;
             } else if(route==RF_PLAYER_SUPPORT_QUERY) {
@@ -16061,7 +16075,7 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
              if(!status && rf_scene_vehicle_enabled) {
                  if(!rf_scene_dev_room_enabled)status=RF_RANGE;
                  else status=scene_driller_resources_open(tables_path,&archive,maps,map_count,1024*1024,&stream->driller);
-                 stream->driller_position[0]=30;stream->driller_position[1]=-.08189f;stream->driller_position[2]=13;
+                 stream->driller_position[0]=30;stream->driller_position[1]=5.4f;stream->driller_position[2]=-167;
                  stream->driller_basis[0]=stream->driller_basis[4]=stream->driller_basis[8]=1;
                  if(!status){float seat[12];status=scene_driller_seat_pose(stream->driller,stream->driller_position,stream->driller_basis,seat);}
              }
@@ -16376,6 +16390,7 @@ done:
         if(!status)status=scene_npc_shield_history_capture();
         if(!status)campaign_actors_capture();
     }
+    {int closed=scene_driller_runtime_close(stream);if(closed && !status)status=closed;}
     scene_driller_resources_close(&stream->driller);
     {int closed=scene_undercover_close(stream);if(closed && !status)status=closed;}
     for(i=0;i<2;i++)if(stream->machine_custom[i]){int closed=scene_weapon_custom_actions_close(&stream->machine_custom[i],stream->player_weapon[i?17:13]);if(closed && !status)status=closed;}

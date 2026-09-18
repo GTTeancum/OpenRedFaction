@@ -1,11 +1,11 @@
 # Red Faction Xbox / PC - open work
 
-Completion basis (user direction,2026-09-18): working late-alpha/early-beta code implementation. Overall approximately70%; GeoMod100% for the first playable milestone, accepted by the user. GeoMod items below are deferred refinement and coverage, not prerequisites to moving on. This does not assert retail polish, complete campaign integration or resolution of every known defect.
+Completion basis (user direction,2026-09-18): working late-alpha/early-beta code implementation. Overall approximately71%; GeoMod100% for the first playable milestone, accepted by the user. GeoMod items below are deferred refinement and coverage, not prerequisites to moving on. This does not assert retail polish, complete campaign integration or resolution of every known defect.
 
 
 - Player impacts: Real fall/high-speed collision damage now passes PC/Xbox with shared health/armor handling; relocation and duplicate-contact guards pass focused checks; broader moving-object contacts remain.
 
-- Vehicles: Authored driller chassis now renders in a quiet PC DEV courtyard; resource, rigid motion, six-spring suspension, collision and possession foundations pass focused checks, but live driving/control integration remains; the parked PC/Xbox fixture passes with14.16MiB free on Xbox.
+- Vehicles: Driller entry, spring-supported driving, seated camera and safe exit now run in the PC DEV fixture; the matching Xbox gameplay check passes with14.14MiB free; vehicle weapons, on-foot host collision, cockpit presentation and campaign integration remain.
 
 - Conventional firearms: Machine Pistol, Heavy Machine Gun, Precision Rifle and Undercover handgun primary firing now work in a bounded DEV profile, including HMG alternate and rifle zoom; PC visuals pass and native HMG shot/ammo state matches with11.59MiB free; Machine Pistol magazine switching now passes PC/Xbox; Undercover suppressor attach/remove now passes PC/Xbox; authored Machine Pistol/HMG/precision pickups and sparse views are now wired, with MP session mode carry; broader live AI encounters, full live level handoffs and general saves remain.
 
@@ -5732,9 +5732,20 @@ World and committed-mover fragment queries now include bounded edge/edge CCD, wi
 ## Driller vehicle first pass (2026-09-18)
 
 - Added actual Driller01 chassis/material/tag/physics resources, bounded to1MiB for the fixture (about742KiB retained on PC), with shared PC/NXDK rigid/suspension sources.
-- PC90-frame parked fixture renders the actual chassis at(30,-.08189,13), on ctf06 floor6091 y=-2. Player starts(30,-1,25), facing-Z. The previous post94 location intersected the large13.16m chassis and was replaced. Parking clearance used static level geometry bounds; this is not proof of dynamic collision/vehicle gameplay.
+- PC90-frame parked fixture renders the actual chassis at(30,-.08189,13), on ctf06 floor6091 y=-2. Player starts(30,-1,25), facing-Z. The previous post94 location intersected the large13.16m chassis and was replaced. That initial visual-bounds parking assessment was insufficient: an actual collision sphere overlapped a crate, so it was unsuitable for driving and has been replaced. The later elevated raw-polygon candidate at(92,35.4,-3) also failed actual collision-world support queries and was rejected.
 - Opt-in RF_REPLAY_VEHICLE / vehicle-test.flag / xemu_render_check.py --vehicle-test uses the enemy-free DEV profile and four base view weapons to preserve the existing image budget. No memory ceiling was raised.
 - Focused checks cover installed resource ownership, chassis software submission, actual authored physics initialization, rigid proposal/commit, six-spring force/torque, full host-sphere wall slide and blocked rotation, and transactional entry/exit. These helper checks do not establish live driving.
 - Integrate support/world collision callbacks into the frame loop, Use possession and safe exit, seated camera/controls, host damage, idle audio and vehicle persistence. Rotation currently sweeps sphere-center endpoint chords; actor/detached-piece collision and impact impulses are deferred beyond first basic driving. Cockpit effects/animation remain open.
 
 - Xbox parked fixture: artifacts/xemu/render-20260918-130405 PASS90,3624freepages(14.15625MiB), native chassis framebuffer inspected against the reconstructed PC output; disc restored and harness XEMU closed. This is a parked render/resource result, not a drivable vehicle acceptance.
+
+
+### Live driller integration
+
+- Current vehicle fixture uses actual ctf06 collision floor677 y4: vehicle(30,5.4,-167), player(30,5,-158.5), identity host basis. Actual collision-world probes find all six spring supports and clear5m forward sweeps for all eight host spheres.
+- Shared runtime now owns the registered vehicle, actual model spheres/inertia, six-spring world/mover support, bounded rigid proposal/contact commit, Use edge possession, seat-tag camera, safe exit, ordinary-player movement/weapon suppression while seated, and authored idle ambient slot lifecycle. Audio dispatch is wired; audible output has not been inspected.
+- PC360frame replay artifacts/flame-live/driller-drive.bin: Use20, throttle60..179, exit290. One entry/one exit, about9m forward/coast movement, six supports retained, no runtime error. Exit publishes a clear body placement with walkable support and restores ordinary controls. No live turning/reverse or damage/destruction claim yet.
+- Seated view exposed unculled world pickups overflowing the existing3MiB software mesh; pickup draw now respects the owning room visibility before submission, like clutter. Memory budgets remain unchanged.
+- Isolated source-attributed vehicle damage helper and installed-resource check pass, but live hit/occupant-destruction wiring remains open. On-foot player collision with host, cockpit rendering, vehicle attack, saves and additional vehicle classes remain.
+
+- Xbox live driver run: artifacts/xemu/render-20260918-132322 PASS360. All16vehicle words exactly match PC:1entry/1exit,6supports,8.94347m forward displacement,0runtime errors.3620freepages=14.140625MiB, final on-foot native image inspected, disc restored/harness closed. Shared pose tolerance remains1cm in harness, though this run was bit-identical. Vehicle implementation estimate~40%, overall~71%; live drilling/cockpit/collision with on-foot actors remain substantial work.
