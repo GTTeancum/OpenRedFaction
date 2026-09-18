@@ -181,6 +181,7 @@ static uint32_t player_frame_limit;
 static rf_scene_input player_input;
 static uint32_t campaign_spawn;
 uint32_t rf_scene_dev_room_enabled;
+uint32_t rf_scene_fragment_platform_enabled,rf_scene_fragment_platform_audit[8];
 uint32_t rf_scene_dev_npc_enabled; /* Opt-in:1 harmless walking miner;2 armed rubble-cover fixture. */
 static uint32_t scene_dev_npc_contacts;
 uint32_t rf_scene_water_test_enabled; /* Explicit authored dm03 water test; no terrain fixture. */
@@ -2763,6 +2764,18 @@ static int campaign_controller_commit(void)
         status=rf_group_commit_positions(&entry->translation.motion.flags,&entry->pose,campaign_controller_views+i,campaign_pose_slots,RF_OBJECT_CAPACITY);if(status)return status;
         memcpy(entry->translation.position,entry->pose.position,12);memcpy(entry->translation.pending,entry->pose.pending,12);
     }
+    if(rf_scene_fragment_platform_enabled) {
+        /* Explicit generated developer platform: kinematic input only. Ordinary
+         * mover synchronization, fragment wake, gravity and rendering follow. */
+        rf_group_attached_pose *pose;uint32_t frame=rf_scene_fragment_platform_audit[0]++,steps;
+        if(!rf_scene_dev_room_enabled || campaign_movers.count!=1 || campaign_movers.uids[0]!=900001)return RF_FORMAT;
+        pose=campaign_movers.poses;steps=frame<420?0:frame<480?frame-419:60;
+        pose->position[0]=9.449f+steps*.05f;pose->pending[0]=pose->public_position[0]=pose->position[0];
+        for(uint32_t k=0;k<3;k++){pose->minimum[k]=pose->position[k]-pose->radius;pose->maximum[k]=pose->position[k]+pose->radius;}
+        pose->velocity[0]=(frame>=420 && frame<480)?3.f:0;
+        rf_scene_fragment_platform_audit[1]+=frame>=420 && frame<480;
+        memcpy(rf_scene_fragment_platform_audit+3,pose->position,12);
+    }
     status=rf_geometry_collision_movers_sync(&campaign_movers);if(status)return status;
     status=scene_mover_intervals_capture(&campaign_movers,campaign_mover_intervals,campaign_mover_count,1);if(status)return status;
     for(i=0;i<campaign_movers.count;++i) {
@@ -4653,6 +4666,10 @@ static int campaign_open_movers(const rf_geometry_movers *source)
 {
     uint32_t i,*handles=NULL;int status=RF_RANGE;
     if(!source || source->count>campaign_registry.count)return RF_RANGE;
+    if(rf_scene_fragment_platform_enabled) {
+        if(!rf_scene_dev_room_enabled || source->count!=1 || source->items[0].uid!=900001)return RF_FORMAT;
+        memset(rf_scene_fragment_platform_audit,0,sizeof(rf_scene_fragment_platform_audit));
+    }
     memset(rf_scene_mover_visibility,0,sizeof(rf_scene_mover_visibility));rf_scene_mover_visibility[1]=2166136261u;
     if(!source->count) {memset(rf_scene_campaign_movers,0,sizeof(rf_scene_campaign_movers));return RF_OK;}
     campaign_mover_wrappers=calloc(source->count,sizeof(*campaign_mover_wrappers));
@@ -11584,7 +11601,7 @@ static int scene_detached_tick(scene_stream *s,float seconds)
             if(campaign_mover_interval_seconds>0 && campaign_mover_changed_count && seconds>0) {
                 if(!(next.flags&0x80000000u)) {
                     status=scene_detached_support_loss(&query,&next,&wake);if(status)goto failed;
-                    if(wake)next.flags|=0x80000000u;
+                    if(wake){next.flags|=0x80000000u;if(rf_scene_fragment_platform_enabled)rf_scene_fragment_platform_audit[2]++;}
                 }
                 if(wake || !campaign_mover_translation_count) {
                     /* A new wake integrates from the committed scene without
