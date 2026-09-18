@@ -107,11 +107,11 @@ static int rocket_object_contacts(void) {
     CHECK(fabsf(hit.fraction-(3-.7f)/6)<.000001f && fabsf(hit.point[0]-.5f)<.000001f && hit.normal[0]==1);
     start[1]=.6f;CHECK(!rf_physics_body_segment(&npc.body,start,delta,1,&hit.fraction));
     CHECK(scene_rocket_body_hit(&npc.body,start,delta,.2f,1,&hit));start[1]=0;
-    CHECK(!scene_rocket_sweep(&scene,start,delta,.2f,0x460,&contact,&liquid,&matched));
+    CHECK(!scene_rocket_sweep(&scene,start,delta,.2f,0x1004,&contact,&liquid,&matched));
     CHECK(matched && !liquid && contact.object==SCENE_ACTOR_ROCKET_OWNER);
     for(uint32_t i=0;i<3;i++) {
         npc.object_flags=i==0?2:i==1?0x4000:0;npc.damage.effects.health=i==2?0:100;
-        CHECK(!scene_rocket_sweep(&scene,start,delta,.2f,0x460,&contact,&liquid,&matched) && !matched);
+        CHECK(!scene_rocket_sweep(&scene,start,delta,.2f,0x1004,&contact,&liquid,&matched) && !matched);
     }
     npc.object_flags=0;npc.damage.effects.health=100;
     face.vertices=vertices;face.count=4;face.plane[0]=1;face.plane[3]=-1;
@@ -119,14 +119,32 @@ static int rocket_object_contacts(void) {
     mover.flat_faces=&face;mover.flat_count=1;
     for(uint32_t k=0;k<3;k++){mover.input_matrix[k][k]=mover.output_matrix[k][k]=1;mover.minimum[k]=-2;mover.maximum[k]=2;}
     campaign_movers.views=&mover;campaign_movers.count=1;
-    CHECK(!scene_rocket_sweep(&scene,start,delta,.2f,0x460,&contact,&liquid,&matched));
+    CHECK(!scene_rocket_sweep(&scene,start,delta,.2f,0x1004,&contact,&liquid,&matched));
     CHECK(matched && contact.object==SCENE_MOVER_ROCKET_OWNER && fabsf(contact.hit.point[0]-1)<.000001f);
     mover.input_origin[1]=mover.output_origin[1]=5;
-    CHECK(!scene_rocket_sweep(&scene,start,delta,.2f,0x460,&contact,&liquid,&matched));
+    CHECK(!scene_rocket_sweep(&scene,start,delta,.2f,0x1004,&contact,&liquid,&matched));
     CHECK(matched && contact.object==SCENE_ACTOR_ROCKET_OWNER); /* Raised door no longer blocks. */
     mover.input_origin[1]=mover.output_origin[1]=0;
+    /* Actual rocket flags1004 mean WORLD coordinates. The mover adapter must
+     * clear bit4 before querying local geometry, then transform contact back. */
+    for(uint32_t angle=0;angle<16;angle++) {
+        float radians=(float)(angle*6.283185307179586/16),c=cosf(radians),sn=sinf(radians);
+        float rotated_start[3]={7+3*c,-2,3-3*sn},rotated_delta[3]={-6*c,0,6*sn};
+        memset(mover.input_matrix,0,36);mover.input_matrix[0][0]=c;mover.input_matrix[0][2]=-sn;
+        mover.input_matrix[1][1]=1;mover.input_matrix[2][0]=sn;mover.input_matrix[2][2]=c;
+        memcpy(mover.output_matrix,mover.input_matrix,36);
+        mover.input_origin[0]=mover.output_origin[0]=7;mover.input_origin[1]=mover.output_origin[1]=-2;
+        mover.input_origin[2]=mover.output_origin[2]=3;
+        CHECK(!scene_rocket_sweep(&scene,rotated_start,rotated_delta,.2f,0x1004,&contact,&liquid,&matched));
+        CHECK(matched && contact.object==SCENE_MOVER_ROCKET_OWNER && !liquid);
+        CHECK(fabsf(contact.hit.fraction-.3f)<.00001f);
+        CHECK(fabsf(contact.hit.point[0]-(7+c))<.00001f && fabsf(contact.hit.point[1]+2)<.00001f && fabsf(contact.hit.point[2]-(3-sn))<.00001f);
+        CHECK(fabsf(contact.hit.normal[0]-c)<.00001f && fabsf(contact.hit.normal[1])<.00001f && fabsf(contact.hit.normal[2]+sn)<.00001f);
+    }
+    memset(mover.input_origin,0,12);memset(mover.output_origin,0,12);memset(mover.input_matrix,0,36);
+    for(uint32_t k=0;k<3;k++)mover.input_matrix[k][k]=1;memcpy(mover.output_matrix,mover.input_matrix,36);
     CHECK(!cube(1.8f,.25f,&pieces));scene.detached_pieces=pieces;
-    CHECK(!scene_rocket_sweep(&scene,start,delta,.2f,0x460,&contact,&liquid,&matched));
+    CHECK(!scene_rocket_sweep(&scene,start,delta,.2f,0x1004,&contact,&liquid,&matched));
     CHECK(matched && contact.object==SCENE_DETACHED_ROCKET_OWNER); /* Rubble precedes door/actor. */
     {rf_geometry_collision_room room={0};rf_collision_room_view view={0};uint32_t primary=0;
      float wall_vertices[4][3]={{2.5f,-2,-2},{2.5f,2,-2},{2.5f,2,2},{2.5f,-2,2}};
@@ -135,7 +153,7 @@ static int rocket_object_contacts(void) {
      CHECK(!rf_collision_tree_open(&wall,1,65536,&room.tree));view.tree=&room.tree;
      memcpy(view.minimum,room.tree.nodes[0].minimum,12);memcpy(view.maximum,room.tree.nodes[0].maximum,12);
      world.rooms=&room;world.views=&view;world.room_count=world.primary_count=1;world.primary=&primary;
-     CHECK(!scene_rocket_sweep(&scene,start,delta,.2f,0x460,&contact,&liquid,&matched));
+     CHECK(!scene_rocket_sweep(&scene,start,delta,.2f,0x1004,&contact,&liquid,&matched));
      CHECK(matched && contact.object==UINT32_MAX && fabsf(contact.hit.point[0]-2.5f)<.000001f);
      rf_collision_tree_close(&room.tree);}
     rf_geomod_piece_registry_close(&pieces);campaign_npc_bodies=NULL;campaign_npc_body_count=0;

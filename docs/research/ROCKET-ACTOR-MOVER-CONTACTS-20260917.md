@@ -61,6 +61,28 @@ match exactly. The native framebuffer was inspected: dying guard, impact smoke,
 room/launcher/HUD visible. This is an endpoint view, not sequential inspection
 of every death-animation frame. Endpoint free memory3008 pages (11.75MiB) on
 stock64MiB. Disc restored; owned XEMU closed. Emulator audio was disabled.
-Remaining: native moving-door encounter, rotated mover coverage, animated model
+Remaining: native moving-door encounter, animated model
 hit locations, broader actor shapes and projectile types. No full weapon parity
 or audible-quality claim.
+
+## Mover transform correction
+
+The first mover regression used query flags0x460, while live rockets use0x1004
+(with optional0x100 for very small radii). Bit0x4 tells the solid query that
+coordinates are already local. Forwarding it from the static-world query to a
+mover skipped that mover's translation and rotation, leaving a raised door
+blocking at its old location. Switching the regression to the actual rocket
+flags reproduced the raised-door failure before the correction.
+
+The mover adapter now clears0x4 alongside the world-only liquid bit0x1000.
+All other query bits remain intact. Sixteen translated/rotated door cases check
+analytic contact fraction0.3, world-space point and normal at22.5-degree steps;
+the raised-door, actor, nearer rubble and nearer world controls also pass with
+live rocket flags. All123 PC tests pass and stock NXDK compilation, linking,
+XBE conversion and ISO creation succeed. Logs are
+artifacts/rocket-mover-transform-{build,tests,xbox}.log.
+
+This correction has PC behavioral coverage and Xbox build coverage. The prior
+77-check native actor encounter did not exercise moving doors, and is not
+native behavioral evidence for this correction. Live moving-door validation
+remains open.
