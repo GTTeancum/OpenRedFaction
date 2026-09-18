@@ -5,6 +5,17 @@
 #include <string.h>
 #include "../src/diagnostic/scene.c"
 #define CHECK(x) do{if(!(x)){fprintf(stderr,"FAIL line%d %s\n",__LINE__,#x);return 1;}}while(0)
+/* Standalone numerical fixture entry; gameplay shares preparation across all
+ * reciprocal vertices in each world/mover query. */
+static int scene_detached_vertex_sweep(const rf_geomod_mesh_view *mesh,
+    const rf_physics_body_state *body,const float point[3],float limit,
+    rf_collision_ray_hit *out,uint32_t *matched)
+{
+    scene_fragment_path path;int status;
+    status=scene_fragment_path_prepare(body,&path);if(status)return status;
+    status=scene_fragment_shape_prepare(mesh,&scene_fragment_shape_scratch);if(status)return status;
+    return scene_detached_vertex_sweep_prepared(mesh,body,point,limit,out,matched,&path,&scene_fragment_shape_scratch);
+}
 static int fragment_test_material(void *context,uint32_t solid,uint32_t face,uint32_t *texture,uint32_t *material) {
     if(context)return RF_IO;
     if(solid!=UINT32_MAX || face!=17)return RF_FORMAT;
@@ -122,6 +133,26 @@ static int fragment_mover_contact(void) {
         CHECK(found && fabsf(result.contact.fraction-.125f)<1e-6f);
         for(i=0;i<3;i++)pose.position[i]-=.25f*pose.input_matrix[3+i];
     }
+    return 0;
+}
+static int fragment_cache_fallback(void) {
+    rf_geomod_vertex vertices[129*3]={0};rf_geomod_face faces[129];
+    rf_geomod_mesh_view mesh={vertices,faces,129*3,129,0};rf_physics_body_state body={0};
+    rf_collision_ray_hit hit;uint32_t i,j,found;
+    const float triangle[3][3]={{-.5f,-.5f,-.5f},{.5f,-.5f,-.5f},{0,-.5f,.5f}};
+    const float point[3]={0,0,0};
+    for(i=0;i<129;i++) {
+        faces[i]=(rf_geomod_face){i*3,3,0,i};
+        for(j=0;j<3;j++){memcpy(vertices[i*3+j].position,triangle[j],12);if(i<128)vertices[i*3+j].position[0]+=10;}
+    }
+    for(i=0;i<3;i++)body.orientation[i*4]=body.next_orientation[i*4]=1;
+    body.position[1]=1;body.next_position[1]=-1;
+    CHECK(!scene_detached_vertex_sweep(&mesh,&body,point,1,&hit,&found));
+    CHECK(!scene_fragment_shape_scratch.complete && found && fabsf(hit.fraction-.25f)<1e-6f);
+    /* Only the uncached 129th triangle can hit. Reusing storage after an edit
+     * must not retain the previous prepared geometry. */
+    for(j=0;j<3;j++)vertices[128*3+j].position[0]+=20;
+    CHECK(!scene_detached_vertex_sweep(&mesh,&body,point,1,&hit,&found));CHECK(!found);
     return 0;
 }
 static int fragment_plane_side(void) {
@@ -633,6 +664,6 @@ int main(void) {
     found=77;CHECK(scene_detached_sources_sweep(&scene,4,start,delta,0,NAN,&hit,&found)!=RF_OK);
     CHECK(found==77 && !memcmp(&hit,&sentinel,sizeof(hit)));
     free(before);free(after);for(i=0;i<2;i++)rf_geomod_piece_registry_close(registries+i);
-    CHECK(!rf_scene_fragment_contact_check());CHECK(rf_scene_fragment_contact_audit[1]==7 && rf_scene_fragment_contact_audit[3]==1);CHECK(!fragment_mover_contact());CHECK(!fragment_thin_obstacle());CHECK(!fragment_plane_side());CHECK(!inspection_camera());CHECK(!extended_batches());CHECK(!enemy_fragment_shots());CHECK(!rocket_object_contacts());CHECK(!beam_selection());CHECK(!runtime_surfaces());CHECK(!player_sources());CHECK(!notify_sources());CHECK(!rotated_support_clearance());CHECK(!large_support_snap());CHECK(!moving_piece_support());
+    CHECK(!rf_scene_fragment_contact_check());CHECK(rf_scene_fragment_contact_audit[1]==7 && rf_scene_fragment_contact_audit[3]==1);CHECK(!fragment_cache_fallback());CHECK(!fragment_mover_contact());CHECK(!fragment_thin_obstacle());CHECK(!fragment_plane_side());CHECK(!inspection_camera());CHECK(!extended_batches());CHECK(!enemy_fragment_shots());CHECK(!rocket_object_contacts());CHECK(!beam_selection());CHECK(!runtime_surfaces());CHECK(!player_sources());CHECK(!notify_sources());CHECK(!rotated_support_clearance());CHECK(!large_support_snap());CHECK(!moving_piece_support());
     puts("PASS multi-source weapon queries: nearer later source, stable ties, selected alias, isolated damage and atomic misses/errors");return 0;
 }

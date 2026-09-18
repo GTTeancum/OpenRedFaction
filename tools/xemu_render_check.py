@@ -435,6 +435,7 @@ dvd_path = '{root.as_posix()}/build/xbox/redfaction-diagnostic.iso'
                 'rf_scene_presentation_profile', 'rf_scene_world_profile', 'rf_scene_step_profile',
                 'rf_scene_npc_step_profile', 'rf_scene_npc_playback_profile')]
             fields.append(('rf_scene_terrain_edit_times',40))
+            fields.append(('rf_scene_fragment_profile',24))
             if args.fragment_contact_test:fields.append(('rf_scene_fragment_contact_audit',64))
             if args.npc_rubble_test:fields.append(('rf_scene_dev_npc_cover',48))
             if args.moving_support_test:fields.append(('rf_scene_moving_support_test',160))
@@ -444,6 +445,16 @@ dvd_path = '{root.as_posix()}/build/xbox/redfaction-diagnostic.iso'
             edits=snap['symbols']['rf_scene_terrain_edit_times']['words']
             (run/'terrain-edit-times.json').write_text(json.dumps([dict(zip(('frame','cut_ms','bind_ms','debris_prepare_ms','debris_spawn_ms'),edits[i:i+5])) for i in range(0,40,5) if edits[i]],indent=2)+'\n')
             report['checks'] = {}
+            fragment_pc=[int(v) for line in pc.stdout.splitlines() if line.startswith('FRAGMENT_PROFILE ') for v in line.split()[1:]]
+            fragment_xbox=snap['symbols']['rf_scene_fragment_profile']['words']
+            work_indices=list(range(10))+[15,19,20,21,22]
+            assert len(fragment_pc)==24 and fragment_xbox[0]==2
+            assert all(fragment_pc[i]==fragment_xbox[i] for i in work_indices), 'Fragment collision work differs on Xbox'
+            report['checks']['FRAGMENT_PROFILE_WORK']=dict(pc=fragment_pc,xbox=fragment_xbox,compared_indices=work_indices,equal=True)
+            profile_names=('version','ticks','active_ticks','active_bodies_total','max_active_bodies','queries','corner_casts','reciprocal_vertices','triangle_tests','pose_evaluations','total_ms','active_ms','max_tick_ms','max_tick_frame','max_active_tick_ms','max_queries_per_tick','max_active_tick_frame','bodies_at_peak','queries_at_peak','triangle_preparations','local_rejections','shape_preparations','cache_fallbacks','reserved')
+            report['fragment_profile']=dict(zip(profile_names,fragment_xbox))
+            report['fragment_profile']['mean_active_tick_ms']=fragment_xbox[11]/fragment_xbox[2] if fragment_xbox[2] else None
+
             if args.fragment_contact_test:
                 expected=[int(v) for line in pc.stdout.splitlines() if line.startswith('FRAGMENT_CONTACT_AUDIT ') for v in line.split()[1:]]
                 actual=snap['symbols']['rf_scene_fragment_contact_audit']['words']

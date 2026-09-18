@@ -263,6 +263,7 @@ int rf_scene_set_campaign_spawn(const rf_level *level)
     rf_scene_player_spawn_diagnostic[0]=1;memcpy(rf_scene_player_spawn_diagnostic+1,campaign_position,12);
     memcpy(rf_scene_player_spawn_diagnostic+4,campaign_orientation,36);campaign_spawn=1;return RF_OK;
 }
+uint32_t rf_scene_fragment_profile[24]; /* v,ticks,active ticks,bodies,max bodies,queries,corners,reciprocal,triangles,poses,total ms,active ms,max ms,frame,max active ms,max queries,active peak frame,bodies,queries,triangle builds,local rejects,shape builds,fallbacks,reserved */
 static uint32_t (*profile_clock)(void);
 static uint32_t profile_last,profile_active;
 /* View failures101..108: listener, camera effect, ambient, camera setup,
@@ -333,7 +334,8 @@ static int player_begin_frame(void *context,uint32_t frame)
 {
     rf_scene_input value={0};uint32_t i,*r=rf_scene_player_input_frames[frame%64];int status;(void)context;
     if(frame && rf_scene_follow_level_exits && rf_scene_level_transition.pending)return RF_NOT_FOUND;
-    if(!frame)memset(rf_scene_player_input_frames,0,sizeof(rf_scene_player_input_frames));
+    if(!frame){memset(rf_scene_player_input_frames,0,sizeof(rf_scene_player_input_frames));
+        memset(rf_scene_fragment_profile,0,sizeof(rf_scene_fragment_profile));rf_scene_fragment_profile[0]=2;}
     status=player_poll(player_context,frame,&value);if(status)return status;
     for(i=0;i<3;++i)if(!isfinite(value.move[i]) || fabsf(value.move[i])>1)return RF_FORMAT;
     for(i=0;i<2;++i)if(!isfinite(value.look[i]) || fabsf(value.look[i])>1)return RF_FORMAT;
@@ -11095,6 +11097,7 @@ static int scene_detached_mesh_sweep(const scene_detached_query_context *c,
 {
     float positions[5][3],bases[5][9];uint32_t step,q,prior,k,j;int status;
     for(step=0;step<=4;step++) {
+        if(profile_active)rf_scene_fragment_profile[9]++;
         status=rf_physics_fragment_pose(body,step*.25f,positions[step],bases[step]);if(status)return status;
     }
     for(q=0;q<c->mesh->vertex_count;q++) {
@@ -11115,6 +11118,7 @@ static int scene_detached_mesh_sweep(const scene_detached_query_context *c,
                 query.start[k]=(float)a;query.end[k]=(float)b;
             }
             if(!memcmp(query.start,query.end,12))continue;
+            if(profile_active)rf_scene_fragment_profile[6]++;
             status=campaign_body_query(c->scene->collision,&query,&hit,&yes);if(status)return status;
             if(yes) {
                 /* A shared birth vertex may leave the BACK of a neighbor face.
@@ -11129,52 +11133,105 @@ static int scene_detached_mesh_sweep(const scene_detached_query_context *c,
     }
     return RF_OK;
 }
-/* Reciprocal vertex/face test: a narrow world polygon can enter a broad
- * fragment face while missing every fragment corner and occupancy sphere.
- * Inverse-transform the world vertex through four accepted-pose intervals. */
-static int scene_detached_vertex_sweep(const rf_geomod_mesh_view *mesh,
-    const rf_physics_body_state *body,const float point[3],float limit,
-    rf_collision_ray_hit *out,uint32_t *matched)
+/* Query-local prepared poses and a bounded shared triangle workspace. Scene
+ * collision is serialized; nothing persists across geometry publication. */
+typedef struct scene_fragment_path {float position[5][3],basis[5][9];} scene_fragment_path;
+#define SCENE_FRAGMENT_TRIANGLE_CAPACITY 128
+typedef struct scene_fragment_shape {
+    rf_collision_face triangles[SCENE_FRAGMENT_TRIANGLE_CAPACITY];
+    float vertices[SCENE_FRAGMENT_TRIANGLE_CAPACITY][3][3];
+    float minimum[3],maximum[3];uint32_t count,complete;
+} scene_fragment_shape;
+/* Serialized scene collision scratch: rebuilt per query, never retained across
+ * terrain publication. Overflow uses the complete uncached triangle traversal. */
+static scene_fragment_shape scene_fragment_shape_scratch;
+static int scene_fragment_path_prepare(const rf_physics_body_state *body,scene_fragment_path *path)
 {
-    float positions[5][3],bases[5][9],local[5][3];uint32_t step,i,j,f,t,k,found=0;int status;
-    rf_collision_ray_hit best={0};
+    uint32_t step;int status;
     for(step=0;step<=4;step++) {
-        status=rf_physics_fragment_pose(body,step*.25f,positions[step],bases[step]);if(status)return status;
-        for(i=0;i<3;i++) {
-            double v=0;for(j=0;j<3;j++)v+=((double)point[j]-positions[step][j])*bases[step][i*3+j];
-            local[step][i]=(float)v;
+        if(profile_active)rf_scene_fragment_profile[9]++;
+        status=rf_physics_fragment_pose(body,step*.25f,path->position[step],path->basis[step]);if(status)return status;
+    }
+    return RF_OK;
+}
+static int scene_fragment_triangle_prepare(const rf_geomod_mesh_view *mesh,const rf_geomod_face *face,
+    uint32_t t,rf_collision_face *triangle,float vertices[3][3],uint32_t *valid)
+{
+    float a[3],b[3],normal[3],length;uint32_t i,j,k;
+    if(profile_active)rf_scene_fragment_profile[19]++;
+    memset(triangle,0,sizeof(*triangle));
+    memcpy(vertices[0],mesh->vertices[face->first].position,12);
+    memcpy(vertices[1],mesh->vertices[face->first+t].position,12);
+    memcpy(vertices[2],mesh->vertices[face->first+t+1].position,12);
+    for(i=0;i<3;i++){a[i]=vertices[1][i]-vertices[0][i];b[i]=vertices[2][i]-vertices[0][i];}
+    for(i=0;i<3;i++){j=(i+1)%3;k=(i+2)%3;normal[i]=a[j]*b[k]-a[k]*b[j];}
+    length=sqrtf(normal[0]*normal[0]+normal[1]*normal[1]+normal[2]*normal[2]);
+    if(!isfinite(length))return RF_FORMAT;
+    *valid=length>1e-10f;if(!*valid)return RF_OK;
+    for(i=0;i<3;i++) {
+        triangle->plane[i]=normal[i]/length;triangle->plane[3]-=triangle->plane[i]*vertices[0][i];
+        triangle->minimum[i]=fminf(vertices[0][i],fminf(vertices[1][i],vertices[2][i]))-.0001f;
+        triangle->maximum[i]=fmaxf(vertices[0][i],fmaxf(vertices[1][i],vertices[2][i]))+.0001f;
+    }
+    triangle->vertices=vertices;triangle->count=3;triangle->triangle_surface=1;return RF_OK;
+}
+static int scene_fragment_shape_prepare(const rf_geomod_mesh_view *mesh,scene_fragment_shape *shape)
+{
+    uint32_t i,k,f,t,valid;int status;
+    if(!mesh->vertex_count || !mesh->vertices || (mesh->face_count && !mesh->faces))return RF_FORMAT;
+    if(profile_active)rf_scene_fragment_profile[21]++;
+    shape->count=0;shape->complete=1;
+    memcpy(shape->minimum,mesh->vertices[0].position,12);memcpy(shape->maximum,shape->minimum,12);
+    for(i=0;i<mesh->vertex_count;i++)for(k=0;k<3;k++) {
+        float v=mesh->vertices[i].position[k];if(!isfinite(v))return RF_FORMAT;if(v<shape->minimum[k])shape->minimum[k]=v;if(v>shape->maximum[k])shape->maximum[k]=v;
+    }
+    for(k=0;k<3;k++){shape->minimum[k]-=.0001f;shape->maximum[k]+=.0001f;}
+    for(f=0;f<mesh->face_count;f++) {
+        const rf_geomod_face *face=mesh->faces+f;
+        if(face->first>mesh->vertex_count || face->count>mesh->vertex_count-face->first)return RF_FORMAT;
+        for(t=1;t+1<face->count;t++) {
+            if(shape->count==SCENE_FRAGMENT_TRIANGLE_CAPACITY){shape->complete=0;if(profile_active)rf_scene_fragment_profile[22]++;return RF_OK;}
+            status=scene_fragment_triangle_prepare(mesh,face,t,shape->triangles+shape->count,shape->vertices[shape->count],&valid);if(status)return status;
+            if(valid)shape->count++;
         }
     }
+    return RF_OK;
+}
+static int scene_detached_vertex_sweep_prepared(const rf_geomod_mesh_view *mesh,
+    const rf_physics_body_state *body,const float point[3],float limit,
+    rf_collision_ray_hit *out,uint32_t *matched,const scene_fragment_path *path,const scene_fragment_shape *shape)
+{
+    float local[5][3];uint32_t step,i,j,f,t,found=0;int status;rf_collision_ray_hit best={0};
+    if(profile_active)rf_scene_fragment_profile[7]++;
+    for(step=0;step<=4;step++)for(i=0;i<3;i++) {
+        double v=0;for(j=0;j<3;j++)v+=((double)point[j]-path->position[step][j])*path->basis[step][i*3+j];
+        local[step][i]=(float)v;
+    }
     for(step=0;step<4 && step*.25f<limit;step++) {
-        float delta[3];for(i=0;i<3;i++)delta[i]=local[step+1][i]-local[step][i];
-        for(f=0;f<mesh->face_count;f++) {
-            const rf_geomod_face *face=mesh->faces+f;
-            if(face->first>mesh->vertex_count || face->count>mesh->vertex_count-face->first)return RF_FORMAT;
-            for(t=1;t+1<face->count;t++) {
-                float vertices[3][3],a[3],b[3],normal[3],length,pose[3],basis[9];
-                rf_collision_face triangle={0};rf_collision_ray_hit hit;uint32_t yes;
-                memcpy(vertices[0],mesh->vertices[face->first].position,12);
-                memcpy(vertices[1],mesh->vertices[face->first+t].position,12);
-                memcpy(vertices[2],mesh->vertices[face->first+t+1].position,12);
-                for(i=0;i<3;i++){a[i]=vertices[1][i]-vertices[0][i];b[i]=vertices[2][i]-vertices[0][i];}
-                for(i=0;i<3;i++){j=(i+1)%3;k=(i+2)%3;normal[i]=a[j]*b[k]-a[k]*b[j];}
-                length=sqrtf(normal[0]*normal[0]+normal[1]*normal[1]+normal[2]*normal[2]);
-                if(length<=1e-10f)continue;
-                for(i=0;i<3;i++) {
-                    triangle.plane[i]=normal[i]/length;triangle.plane[3]-=triangle.plane[i]*vertices[0][i];
-                    triangle.minimum[i]=fminf(vertices[0][i],fminf(vertices[1][i],vertices[2][i]))-.0001f;
-                    triangle.maximum[i]=fmaxf(vertices[0][i],fmaxf(vertices[1][i],vertices[2][i]))+.0001f;
+        float delta[3],scratch[3];uint32_t overlaps;
+        status=rf_collision_segment_box(shape->minimum,shape->maximum,local[step],local[step+1],scratch,&overlaps);if(status)return status;
+        if(!overlaps){if(profile_active)rf_scene_fragment_profile[20]++;continue;}
+        for(i=0;i<3;i++)delta[i]=local[step+1][i]-local[step][i];
+        for(f=0;f<(shape->complete?shape->count:mesh->face_count);f++) {
+            const rf_geomod_face *face=shape->complete?NULL:mesh->faces+f;
+            if(face && (face->first>mesh->vertex_count || face->count>mesh->vertex_count-face->first))return RF_FORMAT;
+            for(t=1;face?t+1<face->count:t<2;t++) {
+                float vertices[3][3],pose[3],basis[9];rf_collision_face temporary;rf_collision_ray_hit hit;
+                const rf_collision_face *triangle;uint32_t yes,valid;
+                if(shape->complete)triangle=shape->triangles+f;
+                else {
+                    status=scene_fragment_triangle_prepare(mesh,face,t,&temporary,vertices,&valid);if(status)return status;if(!valid)continue;
+                    triangle=&temporary;
                 }
-                triangle.vertices=vertices;triangle.count=3;triangle.triangle_surface=1;
-                status=rf_collision_thin_face(&triangle,local[step],delta,fminf(1,(limit-step*.25f)*4),&hit,&yes);
+                if(profile_active)rf_scene_fragment_profile[8]++;
+                status=rf_collision_thin_face(triangle,local[step],delta,fminf(1,(limit-step*.25f)*4),&hit,&yes);
                 if(status)return status;if(!yes)continue;
-                hit.fraction=step*.25f+hit.fraction*.25f;
-                if(hit.fraction>=limit)continue;
+                hit.fraction=step*.25f+hit.fraction*.25f;if(hit.fraction>=limit)continue;
+                if(profile_active)rf_scene_fragment_profile[9]++;
                 status=rf_physics_fragment_pose(body,hit.fraction,pose,basis);if(status)return status;
                 memcpy(hit.point,point,12);
                 for(i=0;i<3;i++) {
-                    double n=0;for(j=0;j<3;j++)n-=(double)triangle.plane[j]*basis[j*3+i];
-                    hit.normal[i]=(float)n;
+                    double n=0;for(j=0;j<3;j++)n-=(double)triangle->plane[j]*basis[j*3+i];hit.normal[i]=(float)n;
                 }
                 limit=hit.fraction;best=hit;found=1;
             }
@@ -11182,6 +11239,7 @@ static int scene_detached_vertex_sweep(const rf_geomod_mesh_view *mesh,
     }
     if(found)*out=best;*matched=found;return RF_OK;
 }
+
 static int scene_detached_box_overlap(const float a[3],const float b[3],
     const float lo[3],const float hi[3])
 {uint32_t k;for(k=0;k<3;k++)if(a[k]>hi[k] || b[k]<lo[k])return 0;return 1;}
@@ -11211,9 +11269,11 @@ static int scene_detached_world_vertex_sweep(const scene_detached_query_context 
     rf_geometry_body_metadata metadata,void *material_context)
 {
     const rf_geometry_collision_world *world=c->scene->collision;
-    uint32_t p,child,changed=0;int status;rf_geometry_body_hit value=*best;
+    uint32_t p,child,changed=0;int status;rf_geometry_body_hit value=*best;scene_fragment_path path;
     float limit=*matched?best->contact.fraction:1,lo[3],hi[3];
     status=scene_detached_mesh_bounds(c->mesh,body,lo,hi);if(status)return status;
+    status=scene_fragment_path_prepare(body,&path);if(status)return status;
+    status=scene_fragment_shape_prepare(c->mesh,&scene_fragment_shape_scratch);if(status)return status;
     for(p=0;p<world->primary_count;p++) {
         uint32_t parent_index=world->primary[p];const rf_collision_room_view *parent;
         if(parent_index>=world->room_count)return RF_FORMAT;parent=world->views+parent_index;
@@ -11240,7 +11300,7 @@ static int scene_detached_world_vertex_sweep(const scene_detached_query_context 
                     for(v=0;v<face->count;v++) {
                         rf_collision_ray_hit hit;uint32_t yes,k;float alignment=0;
                         if(!scene_detached_box_overlap(face->vertices[v],face->vertices[v],lo,hi))continue;
-                        status=scene_detached_vertex_sweep(c->mesh,body,face->vertices[v],limit,&hit,&yes);if(status)return status;if(!yes)continue;
+                        status=scene_detached_vertex_sweep_prepared(c->mesh,body,face->vertices[v],limit,&hit,&yes,&path,&scene_fragment_shape_scratch);if(status)return status;if(!yes)continue;
                         for(k=0;k<3;k++)alignment+=hit.normal[k]*face->plane[k];
                         if(alignment<=0)continue; /* One-sided finite world surface. */
                         memset(&value,0,sizeof(value));memcpy(value.contact.point,hit.point,12);memcpy(value.contact.normal,hit.normal,12);
@@ -11267,11 +11327,13 @@ static int scene_detached_mover_vertex_sweep(const rf_geomod_mesh_view *mesh,
     const rf_physics_body_state *body,const rf_geometry_collision_movers *movers,
     rf_geometry_body_hit *best,uint32_t *matched,rf_geometry_body_metadata metadata,void *context)
 {
-    rf_geometry_body_hit value=*best;float lo[3],hi[3],limit=*matched?best->contact.fraction:1;
+    scene_fragment_path path;rf_geometry_body_hit value=*best;float lo[3],hi[3],limit=*matched?best->contact.fraction:1;
     uint32_t m,f,v,k,changed=0;int status;
     if(movers->count && (!movers->poses || !movers->views || !movers->owned))return RF_RANGE;
     if(!movers->count)return RF_OK;
     status=scene_detached_mesh_bounds(mesh,body,lo,hi);if(status)return status;
+    status=scene_fragment_path_prepare(body,&path);if(status)return status;
+    status=scene_fragment_shape_prepare(mesh,&scene_fragment_shape_scratch);if(status)return status;
     for(m=0;m<movers->count;m++) {
         const rf_group_attached_pose *pose=movers->poses+m;
         const rf_geometry_collision_flat *flat=movers->owned+m;
@@ -11285,7 +11347,7 @@ static int scene_detached_mover_vertex_sweep(const rf_geomod_mesh_view *mesh,
                 memcpy(local.point,face->vertices[v],12);memcpy(local.normal,face->plane,12);
                 status=rf_collision_contact_world(&local,pose->position,(const float(*)[3])pose->input_matrix,&world);if(status)return status;
                 if(!scene_detached_box_overlap(world.point,world.point,lo,hi))continue;
-                status=scene_detached_vertex_sweep(mesh,body,world.point,limit,&hit,&yes);if(status)return status;if(!yes)continue;
+                status=scene_detached_vertex_sweep_prepared(mesh,body,world.point,limit,&hit,&yes,&path,&scene_fragment_shape_scratch);if(status)return status;if(!yes)continue;
                 for(k=0;k<3;k++)alignment+=hit.normal[k]*world.normal[k];if(alignment<=0)continue;
                 memset(&value,0,sizeof(value));memcpy(value.contact.point,hit.point,12);memcpy(value.contact.normal,hit.normal,12);
                 value.contact.fraction=limit=hit.fraction;value.solid=m;value.room=UINT32_MAX;value.face=f;value.hits=1;
@@ -11313,10 +11375,12 @@ static int scene_detached_contact_material(void *context,uint32_t solid,uint32_t
 static int scene_detached_query(const rf_physics_body_state *body,rf_physics_solid_hit *out,uint32_t *matched,void *opaque)
 {
     scene_detached_query_context *c=opaque;rf_collision_body_sphere scratch[64];rf_geometry_body_hit hit={0};int status;
+    if(profile_active)rf_scene_fragment_profile[5]++;
     status=campaign_physics_body_sweep(c->scene->collision,body,c->spheres,0x460,scratch,64,&hit,matched);
     if(status)return status;
     if(*matched) {
         float position[3],basis[9],opposite[3],minimum;uint32_t k;
+        if(profile_active)rf_scene_fragment_profile[9]++;
         status=rf_physics_fragment_pose(body,hit.contact.fraction,position,basis);if(status)return status;
         for(k=0;k<3;k++)opposite[k]=-hit.contact.normal[k];
         minimum=-scene_detached_plane_extent(c->mesh,position,basis,hit.contact.point,opposite);
@@ -11403,7 +11467,8 @@ int rf_scene_detached_support_audit(void) {
 }
 static int scene_detached_tick(scene_stream *s,float seconds)
 {
-    uint32_t b,i,source,count;int status;memset(rf_scene_detached_motion,0,sizeof(rf_scene_detached_motion));
+    uint32_t b,i,source,count,active=0,queries_before=rf_scene_fragment_profile[5];
+    uint32_t started=profile_clock && profile_active?profile_clock():0;int status;memset(rf_scene_detached_motion,0,sizeof(rf_scene_detached_motion));
     memset(rf_scene_detached_pose,0,sizeof(rf_scene_detached_pose));
     if(s->terrain_source_count>4 || (s->terrain_source_count && !s->terrain_sources))return RF_RANGE;
     count=s->terrain_source_count?s->terrain_source_count:1;
@@ -11419,6 +11484,7 @@ static int scene_detached_tick(scene_stream *s,float seconds)
             scene_detached_query_context query;uint32_t flags=0;float position[3],basis[9];
             if(!rf_geomod_piece_batch_alive(batch,i))continue;
             status=rf_geomod_piece_batch_get(batch,i,&piece,&body);if(status)goto failed;
+            if(seconds>0 && (body->state.flags&0x80000000u))active++;
             query.scene=s;query.spheres=&body->spheres;query.mesh=&piece.mesh;memcpy(position,body->state.position,12);memcpy(basis,body->state.orientation,36);
 #ifndef RF_IMAGE_XBOX_NATIVE
             query.source=source;query.batch=b;query.piece=i;
@@ -11433,6 +11499,15 @@ static int scene_detached_tick(scene_stream *s,float seconds)
             memcpy(rf_scene_detached_pose,body->state.position,12);memcpy(rf_scene_detached_pose+3,body->state.velocity,12);
         }
     }
+    }
+    if(profile_active) {
+        uint32_t *p=rf_scene_fragment_profile,queries=p[5]-queries_before;
+        p[1]++;p[2]+=active!=0;p[3]+=active;if(active>p[4])p[4]=active;if(queries>p[15])p[15]=queries;
+        if(profile_clock) {
+            uint32_t elapsed=profile_clock()-started;p[10]+=elapsed;if(active)p[11]+=elapsed;
+            if(elapsed>p[12]){p[12]=elapsed;p[13]=rf_scene_profile_stage[0];}
+            if(active && elapsed>p[14]){p[14]=elapsed;p[16]=rf_scene_profile_stage[0];p[17]=active;p[18]=queries;}
+        }
     }
     return RF_OK;
 failed:rf_scene_detached_motion[6]=(uint32_t)status;return status;

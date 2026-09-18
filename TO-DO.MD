@@ -1,6 +1,6 @@
 # Red Faction Xbox / PC - open work
 
-- PRIORITY GeoMod fragment contacts: Add edge/edge coverage, mover wake/relative response and cost measurements after narrow static/translated/rotated-mover fixtures pass all64 result words on Xbox and78 stock64MiB harness checks with unchanged gameplay saves.
+- PRIORITY GeoMod fragment contacts: Profile remaining sphere/corner traversal cost and add edge/edge plus mover-relative coverage; cached reciprocal geometry cuts measured Xbox active debris time17% (125ms to104ms), with79 native checks and unchanged save/framebuffer, but final performance remains open.
 
 - PRIORITY GeoMod ordinary walls: Broaden multi-window and neighboring-brush CSG; a live floor-seam rocket now passes77 stock64MiB checks with exact PC/Xbox save bytes and fixture-off/mismatched-save rejection controls, alongside verified wall depth and player traversal.
 
@@ -5549,3 +5549,8 @@ The new mover path uses committed position/input_matrix, bounds, face filters an
 ### 2026-09-18 — Executed narrow contact fixtures directly on Xbox
 
 Added a shared opt-in contact audit with seven result records and a64-word guest-memory ledger. It demonstrates sphere/corner misses, correct finite static contact, translated and rotated committed-mover contact, updated-pose timing, disabled-mover rejection and metadata-failure rollback using the production query functions. PC/Xbox activation requires DEV mode; fixture geometry is isolated and freed, with no live room mutation. All123 PC tests pass. Native render-20260918-023556 passes78 checks, all64 exact PC/Xbox words,3329freepages on stock64MiB, and the same5300-byte gameplay checkpoint as fixture-off; framebuffer equals the already inspected image. Harness disc/flag restoration succeeds and emulator closes. No duplicate image or GitHub screenshot was added. See docs/research/GEOMOD-FRAGMENT-NATIVE-CONTACT-AUDIT-20260918.md. Edge/edge, continuous mover response/wake/carry/crush and performance remain open. Estimates unchanged: overall51%, GeoMod91%. Current action: GeoMod collision validation.
+
+
+## 2026-09-18 fragment contact performance
+
+Prepared reciprocal triangle planes/poses and local path rejection preserve both connected destruction histories,123 PC tests, strict first/second-cut floor gates, and79 native checks. Xbox source108 first-cut active debris updates improve125.253ms to103.734ms (17.18%); peak243ms to230ms. Still too expensive; isolate sphere/corner/world traversal cost next, then broaden edge/edge and moving-support behavior. See [performance evidence](docs/research/GEOMOD-FRAGMENT-CONTACT-PERFORMANCE-20260918.md). Estimate remains approximately51% overall /91% GeoMod; focus collision/performance.
