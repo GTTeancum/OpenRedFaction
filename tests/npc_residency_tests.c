@@ -1095,36 +1095,40 @@ static int actor_retirement_check(void)
 }
 static int npc_door_occupancy_check(void)
 {
-    campaign_npc_body owners[2]={0};rf_trigger_volume volume={0};uint32_t occupied;
+    campaign_npc_body owners[2]={0};rf_trigger_volume volume={0};uint32_t occupied,handles[2];
     campaign_npc_bodies=owners;campaign_npc_body_count=2;
     volume.radius=2;
-    owners[0].registration.view=&owners[0].view;owners[0].registration.handle=100;
-    owners[1].registration.view=&owners[1].view;owners[1].registration.handle=101;
+    rf_object_registry_init(&campaign_registry);memset(&campaign_entities,0,sizeof(campaign_entities));
+    CHECK(rf_entity_view_register(&campaign_registry,&campaign_entities,&owners[0].view,&owners[0].registration)==RF_OK);
+    CHECK(rf_entity_view_register(&campaign_registry,&campaign_entities,&owners[1].view,&owners[1].registration)==RF_OK);
+    handles[0]=owners[0].registration.handle;handles[1]=owners[1].registration.handle;
     owners[0].damage.effects.health=owners[1].damage.effects.health=75;
     owners[0].published[0]=10; /* First actor outside must not mask the second. */
-    CHECK(campaign_set_invulnerable(NULL,101,1)==RF_OK && (owners[1].object_flags&4));
+    CHECK(campaign_set_invulnerable(NULL,handles[1],1)==RF_OK && (owners[1].object_flags&4));
     CHECK((owners[1].view.flags_7c&4) && (owners[1].room.flags&4));
-    CHECK(campaign_set_invulnerable(NULL,101,0)==RF_OK && !(owners[1].object_flags&4));
+    CHECK(campaign_set_invulnerable(NULL,handles[1],0)==RF_OK && !(owners[1].object_flags&4));
     CHECK(campaign_set_invulnerable(NULL,999,1)==RF_NOT_FOUND);
     CHECK(campaign_npc_door_occupied(&volume,&occupied)==RF_OK && occupied);
     owners[1].object_flags=0x4000; /* Authored hidden, even though alive. */
     CHECK(campaign_npc_door_occupied(&volume,&occupied)==RF_OK && !occupied);
-    CHECK(campaign_set_visible(NULL,101,1)==RF_OK);
+    CHECK(campaign_set_visible(NULL,handles[1],1)==RF_OK);
     CHECK(!(owners[1].view.flags_7c&0x4000) && !(owners[1].room.flags&0x4000));
     CHECK(campaign_npc_door_occupied(&volume,&occupied)==RF_OK && occupied);
-    CHECK(campaign_set_visible(NULL,101,0)==RF_OK);
+    CHECK(campaign_set_visible(NULL,handles[1],0)==RF_OK);
     CHECK(campaign_npc_door_occupied(&volume,&occupied)==RF_OK && !occupied);
     owners[1].damage.effects.health=0;
-    CHECK(campaign_set_visible(NULL,101,1)==RF_OK && (owners[1].object_flags&0x4000));
+    CHECK(campaign_set_visible(NULL,handles[1],1)==RF_OK && (owners[1].object_flags&0x4000));
     owners[1].object_flags=0;owners[1].damage.effects.health=0;
     CHECK(campaign_npc_door_occupied(&volume,&occupied)==RF_OK && !occupied);
     owners[1].damage.effects.health=75;owners[1].registration.view=NULL;
     CHECK(campaign_npc_door_occupied(&volume,&occupied)==RF_OK && !occupied);
     owners[1].registration.view=&owners[1].view;
-    *campaign_controller_actor_slot(100)=12;*campaign_controller_actor_slot(101)=24;
+    *campaign_controller_actor_slot(handles[0])=12;*campaign_controller_actor_slot(handles[1])=24;
     CHECK(owners[0].controller_handle==12 && owners[1].controller_handle==24);
     CHECK(campaign_controller_actor_slot(999)==&campaign_actor_controller);
     CHECK(campaign_npc_door_occupied(NULL,&occupied)==RF_OK && !occupied);
+    CHECK(rf_entity_view_unregister(&campaign_registry,&campaign_entities,&owners[0].registration)==RF_OK);
+    CHECK(rf_entity_view_unregister(&campaign_registry,&campaign_entities,&owners[1].registration)==RF_OK);
     campaign_npc_bodies=NULL;campaign_npc_body_count=0;return 0;
 }
 static int script_locomotion_check(void)

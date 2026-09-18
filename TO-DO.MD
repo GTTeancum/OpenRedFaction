@@ -59,7 +59,9 @@ Completion basis (user direction,2026-09-18): working late-alpha/early-beta code
 
 - AI combat: Authored handgun cadence, rifle bursts and finite magazine/reload logic are integrated; live handgun firing and focused burst/reload checks pass, with Xbox build passing; shotgun pellet damage, cover and death cutoff are integrated; authored NPC reload animations now start with reloads and focused checks pass; live tuning remains.
 
-- Scripted visibility: Switch object links hide/show registered NPCs with focused routing checks passing; other renderable classes remain.
+- Scripted visibility: Switch links now resolve/hide/show registered props as well as NPCs, including attached-effect suppression; real lamp hide/show passes PC and NXDK builds, while native verification, persistence and other object families remain (docs/SCRIPTED-PROP-VISIBILITY.md).
+
+- NPC regression: Broader npc_residency combat fixture fails its expected health decrease before visibility checks; investigate separately from passing focused prop visibility checks.
 
 - Scripted interactions: Switch-controlled doors/platforms now integrate start/stop/restart with focused checks and Xbox build passing; authored live switch verification remains.
 

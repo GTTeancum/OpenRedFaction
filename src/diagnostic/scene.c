@@ -3481,6 +3481,7 @@ int rf_scene_clutter_collision_query(uint32_t handle,rf_collision_model_part_que
     for(i=0;i<campaign_clutter_records.count;++i)if(campaign_clutter_bodies && campaign_clutter_bodies[i] &&
         registered==&campaign_clutter_bodies[i]->state && campaign_clutter_bodies[i]->state.handle==handle)break;
     if(i==campaign_clutter_records.count)return RF_NOT_FOUND;
+    if(campaign_clutter_bodies[i]->state.flags&(2u|0x4000u)){*accepted=0;return RF_OK;}
     model=campaign_clutter_model_slots[i];if(model>=campaign_clutter_model_count)return RF_FORMAT;
     if(campaign_clutter_bodies[i]->attachment.model!=(uint32_t)(uintptr_t)(campaign_clutter_shared+model))return RF_FORMAT;
     view.kind=1;view.geometry=&campaign_clutter_models[model].collision;
@@ -4987,7 +4988,9 @@ uint32_t rf_scene_npc_links[4]; /* UID objects, temporary bytes, trigger NPC lin
 static int campaign_resolve_trigger_links(void)
 {
     uint32_t i,j,n=campaign_events.count+campaign_triggers.count+campaign_group_registration.count+campaign_mover_count+rf_scene_npc_registration[0];
-    rf_level_uid_object *objects=n?malloc((size_t)n*sizeof(*objects)):NULL;int status;
+    rf_level_uid_object *objects;int status;
+    for(j=0;campaign_clutter_bodies && j<campaign_clutter_records.count;j++)if(campaign_clutter_bodies[j])++n;
+    objects=n?malloc((size_t)n*sizeof(*objects)):NULL;
     if(n && !objects)return RF_RANGE;
     for(i=0;i<campaign_events.count;++i) {
         objects[i].uid=campaign_events.items[i].authored->record.uid;
@@ -5005,6 +5008,12 @@ static int campaign_resolve_trigger_links(void)
         objects[i].handle=campaign_npc_bodies[j].registration.handle;
         objects[i].flags=campaign_npc_bodies[j].view.flags_7c;++i;
     }
+    for(j=0;campaign_clutter_bodies && j<campaign_clutter_records.count;j++)if(campaign_clutter_bodies[j]) {
+        const rf_clutter_base_owner *owner=campaign_clutter_bodies[j];
+        if(rf_object_registry_lookup(&campaign_registry,owner->state.handle)!=&owner->state){free(objects);return RF_FORMAT;}
+        objects[i].uid=campaign_clutter_records.items[j].uid;objects[i].handle=owner->state.handle;
+        objects[i].flags=owner->state.flags;++i;
+    }
     if(i!=n){free(objects);return RF_FORMAT;}
     /* Verify UID lookup reaches the exact registered owner, including generation.
      * Duplicate authored IDs must not silently bind a different actor. */
@@ -5019,8 +5028,8 @@ static int campaign_resolve_trigger_links(void)
     }
     memset(rf_scene_npc_links,0,sizeof(rf_scene_npc_links));
     rf_scene_npc_links[0]=n;rf_scene_npc_links[1]=n*sizeof(*objects);
-    /* Port setup order: events, triggers, controllers, movers, skeletal NPCs.
-     * Original whole-world factory order and non-skeletal owners remain open. */
+    /* Port setup order: events, triggers, controllers, movers, skeletal NPCs, static clutter.
+     * Original whole-world factory order and other object families remain open. */
     status=rf_runtime_triggers_resolve(&campaign_triggers,objects,n,
         campaign_group_registration.keys,campaign_group_registration.key_count);
     memset(rf_scene_npc_backlinks,0,sizeof(rf_scene_npc_backlinks));
@@ -8640,15 +8649,24 @@ static int campaign_set_invulnerable(void *context,uint32_t handle,uint32_t enab
 #include "scene_nano_shield.inc"
 static int campaign_set_visible(void *context,uint32_t handle,uint32_t visible)
 {
-    uint32_t i;(void)context;
+    uint32_t i;void *registered;(void)context;
+    if(visible>1)return RF_RANGE;
+    registered=rf_object_registry_lookup(&campaign_registry,handle);
+    if(!registered)return RF_NOT_FOUND;
     for(i=0;i<campaign_npc_body_count;i++) {
         campaign_npc_body *owner=campaign_npc_bodies+i;
-        if(!owner->registration.view || owner->registration.handle!=handle)continue;
-        /* Practical SP visibility transition; no resurrection or host input.
-         * Original proximity/appearance eligibility and non-NPC targets remain. */
+        if(!owner->registration.view || owner->registration.handle!=handle || registered!=&owner->registration)continue;
+        /* Practical SP visibility transition; never resurrect dead owners. */
         if(owner->damage.effects.health<=0 || (owner->object_flags&2))return RF_OK;
         if(visible)owner->object_flags&=~0x4000u;else owner->object_flags|=0x4000u;
         owner->view.flags_7c=owner->room.flags=owner->object_flags;
+        return RF_OK;
+    }
+    for(i=0;campaign_clutter_bodies && i<campaign_clutter_records.count;i++) {
+        rf_clutter_base_owner *owner=campaign_clutter_bodies[i];
+        if(!owner || owner->state.handle!=handle || registered!=&owner->state)continue;
+        if(owner->state.health<=0 || (owner->state.flags&2u))return RF_OK;
+        if(visible)owner->state.flags&=~0x4000u;else owner->state.flags|=0x4000u;
         return RF_OK;
     }
     return RF_NOT_FOUND;
@@ -15245,6 +15263,7 @@ static int scene_corona_parent(void *context,uint32_t handle,uint32_t *visible)
 {
     scene_corona_context *c=context;const rf_glare_visibility_object *parent;uint32_t room;int status;
     status=scene_glare_lookup(&c->snapshot,handle,&parent);if(status)return status;*visible=1;if(!parent)return RF_OK;
+    if(parent->geometry.flags&(2u|0x4000u)){*visible=0;return RF_OK;}
     status=scene_glare_room(&c->snapshot,parent,&room);if(status)return status;
     if(room){if(room>c->stream->visibility.state.count)return RF_RANGE;*visible=c->stream->visibility.state.rooms[room-1].visible!=0;}
     return RF_OK;

@@ -11,7 +11,8 @@ int main(void)
 {
     campaign_npc_body owner={0};rf_switch_target target;rf_switch_request request={0};
     rf_switch_state state={0};rf_event_state event={0};rf_event_links links={0};
-    uint32_t handle,other,unrelated=8;
+    rf_clutter_base_owner clutter={0},*clutter_slots[1]={&clutter};
+    uint32_t handle,other,clutter_handle,unrelated=8;
     rf_object_registry_init(&campaign_registry);
     campaign_npc_bodies=&owner;campaign_npc_body_count=1;
     owner.registration.view=&owner.view;owner.damage.effects.health=100;
@@ -39,5 +40,49 @@ int main(void)
     request.family=RF_SWITCH_OBJECT;request.token=handle;request.enabled=1;
     CHECK(campaign_switch_object_dispatch(&request)==RF_OK);
     CHECK(owner.object_flags==0x4006);
-    puts("Switch NPC hide/show, shared flags, dead target and stale handle checks passed");return 0;
+    campaign_clutter_bodies=clutter_slots;campaign_clutter_records.count=1;
+    clutter.state.flags=4;clutter.state.health=50;
+    CHECK(rf_object_registry_insert(&campaign_registry,&clutter.state,&clutter_handle)==RF_OK);
+    clutter.state.handle=clutter_handle;
+    CHECK(campaign_switch_object_lookup(RF_SWITCH_OBJECT,clutter_handle,&target)==RF_OK);
+    CHECK(target.renderable && target.token==clutter_handle);
+    links.handles=&clutter_handle;state.disabled=1;
+    CHECK(rf_event_switch_links(&state,&event,&links,0,objects_lookup,objects_dispatch,NULL)==RF_OK);
+    CHECK(clutter.state.flags==0x4004 && clutter.state.health==50);
+    {
+        rf_collision_model_part_query query={0};rf_collision_model_response_hit hit,sentinel_hit;uint32_t accepted=99;
+        memset(&sentinel_hit,0xa5,sizeof(sentinel_hit));hit=sentinel_hit;
+        /* No model fixture is needed: hidden admission precedes model lookup. */
+        CHECK(rf_scene_clutter_collision_query(clutter_handle,&query,&hit,1,&accepted)==RF_OK);
+        CHECK(!accepted && !memcmp(&hit,&sentinel_hit,sizeof(hit)));
+    }
+    state.disabled=0;
+    CHECK(rf_event_switch_links(&state,&event,&links,0,objects_lookup,objects_dispatch,NULL)==RF_OK);
+    CHECK(clutter.state.flags==4 && clutter.state.health==50);
+    clutter.state.flags=0x4006;clutter.state.health=0;
+    CHECK(rf_event_switch_links(&state,&event,&links,0,objects_lookup,objects_dispatch,NULL)==RF_OK);
+    CHECK(clutter.state.flags==0x4006 && clutter.state.health==0);
+    {
+        scene_corona_context context={0};rf_glare_visibility_object object={0};uint32_t facts[1][3]={{0}},visible=99;
+        context.snapshot.objects=&object;context.snapshot.facts=facts;context.snapshot.count=1;object.handle=clutter_handle;
+        object.geometry.flags=0x4000;
+        CHECK(scene_corona_parent(&context,clutter_handle,&visible)==RF_OK && !visible);
+        object.geometry.flags=2;visible=99;
+        CHECK(scene_corona_parent(&context,clutter_handle,&visible)==RF_OK && !visible);
+        object.geometry.flags=0;visible=99;
+        CHECK(scene_corona_parent(&context,clutter_handle,&visible)==RF_OK && visible==1);
+    }
+    /* A correct pointer with the wrong owner handle must not route. */
+    clutter.state.handle=other;
+    CHECK(campaign_switch_object_lookup(RF_SWITCH_OBJECT,clutter_handle,&target)==RF_NOT_FOUND);
+    clutter.state.handle=clutter_handle;
+    CHECK(rf_object_registry_remove(&campaign_registry,clutter_handle)==RF_OK);
+    CHECK(campaign_switch_object_lookup(RF_SWITCH_OBJECT,clutter_handle,&target)==RF_NOT_FOUND);
+    request.token=clutter_handle;
+    CHECK(campaign_switch_object_dispatch(&request)==RF_OK && clutter.state.flags==0x4006);
+    /* Forging an owner handle cannot turn an unrelated registry pointer into clutter. */
+    clutter.state.handle=other;
+    CHECK(campaign_switch_object_lookup(RF_SWITCH_OBJECT,other,&target)==RF_NOT_FOUND);
+    campaign_clutter_bodies=NULL;campaign_clutter_records.count=0;
+    puts("Switch NPC/clutter hide/show, dead target, registry identity and stale handle checks passed");return 0;
 }

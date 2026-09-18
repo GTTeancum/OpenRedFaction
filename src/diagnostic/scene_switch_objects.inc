@@ -1,6 +1,6 @@
 #ifndef RF_SCENE_SWITCH_OBJECTS_INC
 #define RF_SCENE_SWITCH_OBJECTS_INC
-/* Switch4bc340 object-family routing. Practical NPC-only visibility backend:
+/* Switch4bc340 object-family routing. Practical NPC/clutter visibility backend:
  * use the existing shared render/combat/collision suppression bit; other
  * renderable object classes and original proximity eligibility are deferred.
  * Include immediately after campaign_set_visible. */
@@ -15,6 +15,12 @@ static int campaign_switch_object_lookup(uint32_t family,uint32_t handle,rf_swit
         campaign_npc_body *owner=campaign_npc_bodies+i;
         if(!owner->registration.view || owner->registration.handle!=handle ||
            registered!=&owner->registration)continue;
+        memset(target,0,sizeof(*target));target->token=handle;target->renderable=1;
+        return RF_OK;
+    }
+    for(i=0;campaign_clutter_bodies && i<campaign_clutter_records.count;i++) {
+        rf_clutter_base_owner *owner=campaign_clutter_bodies[i];
+        if(!owner || owner->state.handle!=handle || registered!=&owner->state)continue;
         memset(target,0,sizeof(*target));target->token=handle;target->renderable=1;
         return RF_OK;
     }
