@@ -2525,16 +2525,48 @@ int rf_vfx_light_pool_color(rf_vfx_light_pool *pool,uint32_t id,float intensity,
     if(!visibility)++pool->generation;*visibility_update=visibility;return RF_OK;
 }
 
+void rf_vfx_dummy_close(rf_vfx_dummy **out)
+{if(out){free(*out);*out=NULL;}}
+int rf_vfx_dummy_open(const void *data,uint32_t bytes,uint32_t version,uint32_t budget,rf_vfx_dummy **out)
+{
+    const unsigned char *p=data,*end;rf_vfx_dummy value={0},*owner;
+    uint32_t at=0,n,i,j,word;uint64_t total;float f;
+    if(!data || !out || *out)return RF_RANGE;
+    if(version!=0x40006u)return RF_FORMAT;
+    for(i=0;i<2;i++){
+        if(at>=bytes)return RF_FORMAT;
+        end=memchr(p+at,0,bytes-at);if(!end)return RF_FORMAT;
+        n=(uint32_t)(end-(p+at));if(!n || n>64)return RF_FORMAT;
+        memcpy(i?value.parent:value.name,p+at,n);at+=n+1;
+    }
+    if(bytes-at<33)return RF_FORMAT;
+    value.flag=p[at++];
+    for(i=0;i<7;i++){word=vfx_word(p+at);at+=4;memcpy(&value.base[i],&word,4);if(!isfinite(value.base[i]))return RF_FORMAT;}
+    value.count=vfx_word(p+at);at+=4;
+    if((uint64_t)value.count*28!=bytes-at)return RF_FORMAT;
+    total=sizeof(*owner)+(uint64_t)value.count*28;if(total>budget || total>SIZE_MAX)return RF_RANGE;
+    /* Validate before allocation/publication, including every retained sample. */
+    for(i=0;i<value.count;i++)for(j=0;j<7;j++){
+        word=vfx_word(p+at+i*28+j*4);memcpy(&f,&word,4);if(!isfinite(f))return RF_FORMAT;
+    }
+    owner=malloc((size_t)total);if(!owner)return RF_IO;
+    *owner=value;owner->allocated_bytes=(uint32_t)total;owner->poses=(float *)(owner+1);
+    for(i=0;i<value.count;i++)for(j=0;j<7;j++){
+        word=vfx_word(p+at+i*28+j*4);memcpy(owner->poses+i*7+j,&word,4);
+    }
+    *out=owner;return RF_OK;
+}
 void rf_vfx_geometry_asset_close(rf_vfx_geometry_asset **out)
 {
     uint32_t i;rf_vfx_geometry_asset *a;if(!out || !(a=*out))return;
     for(i=0;i<RF_VFX_ASSET_MESH_CAPACITY;i++){rf_vfx_instance_close(a->instances+i);rf_vfx_mesh_close(a->meshes+i);}
+    for(i=0;i<RF_VFX_ASSET_DUMMY_CAPACITY;i++)rf_vfx_dummy_close(a->dummies+i);
     rf_vfx_material_bank_close(&a->material_bank);free(a);*out=NULL;
 }
 int rf_vfx_geometry_asset_open(rf_vpp *archive,const char *name,uint32_t budget,rf_vfx_geometry_asset **out)
 {
     rf_vfx_directory directory={0};rf_vfx_geometry_asset *a=NULL;unsigned char *scratch=NULL;
-    uint32_t i,used=sizeof(*a),temporary,maximum=0,mesh_count=0,global_materials=0,version4;int status;
+    uint32_t i,used=sizeof(*a),temporary,maximum=0,mesh_count=0,global_materials=0,dummy_count=0,version4;int status;
     if(!archive || !name || !out || *out || budget<used)return RF_RANGE;
     status=rf_vfx_directory_open(archive,name,budget-used,&directory);if(status)return status;
     if(directory.header.version<0x3000a || !directory.count){status=RF_FORMAT;goto done;}
@@ -2543,10 +2575,14 @@ int rf_vfx_geometry_asset_open(rf_vpp *archive,const char *name,uint32_t budget,
         if(directory.chunks[i].type==0x4f584653u) {
             if(++mesh_count>RF_VFX_ASSET_MESH_CAPACITY){status=RF_FORMAT;goto done;}
             if(directory.chunks[i].bytes>maximum)maximum=directory.chunks[i].bytes;
+        } else if(directory.header.version==0x40006u && directory.chunks[i].type==0x594d4d44u){
+            if(++dummy_count>RF_VFX_ASSET_DUMMY_CAPACITY){status=RF_RANGE;goto done;}
+            if(directory.chunks[i].bytes>maximum)maximum=directory.chunks[i].bytes;
         } else if(version4 && directory.chunks[i].type==0x4c54414du)++global_materials;
         else {status=RF_FORMAT;goto done;}
     }
     if(!mesh_count || (version4 && directory.header.values[2]!=mesh_count)){status=RF_FORMAT;goto done;}
+    if(directory.header.version==0x40006u && directory.header.values[4]!=dummy_count){status=RF_FORMAT;goto done;}
     if((uint64_t)used+directory.allocated_bytes+maximum>budget){status=RF_RANGE;goto done;}
     temporary=directory.allocated_bytes+maximum;
     a=calloc(1,sizeof(*a));if(!a){status=RF_IO;goto done;}
@@ -2562,6 +2598,7 @@ int rf_vfx_geometry_asset_open(rf_vpp *archive,const char *name,uint32_t budget,
         status=rf_vfx_chunk_read(&directory,i,0,scratch,directory.chunks[i].bytes);if(status)goto done;
         status=rf_vfx_mesh_open(scratch,directory.chunks[i].bytes,directory.header.version,global_materials,NULL,budget-used-temporary,a->meshes+index);if(status)goto done;
         used+=a->meshes[index]->allocated_bytes;
+        if(dummy_count && strcmp(a->meshes[index]->prefix.parent,"Scene Root")){status=RF_FORMAT;goto done;}
         /* Retain disabled helper transforms/keys and original mesh indexing,
          * but do not allocate an instance that draw consumers could submit. */
         if(a->meshes[index]->prefix.vertices &&
@@ -2570,6 +2607,13 @@ int rf_vfx_geometry_asset_open(rf_vpp *archive,const char *name,uint32_t budget,
             used+=a->instances[index]->allocated_bytes;
         }
         ++a->count;
+    }
+    for(i=0;i<directory.count;i++)if(directory.chunks[i].type==0x594d4d44u){
+        uint32_t index=a->dummy_count;
+        status=rf_vfx_chunk_read(&directory,i,0,scratch,directory.chunks[i].bytes);if(status)goto done;
+        status=rf_vfx_dummy_open(scratch,directory.chunks[i].bytes,directory.header.version,budget-used-temporary,a->dummies+index);if(status)goto done;
+        used+=a->dummies[index]->allocated_bytes;++a->dummy_count;
+        if(strcmp(a->dummies[index]->parent,"Scene Root")){status=RF_FORMAT;goto done;}
     }
     a->resident_bytes=used;a->peak_bytes=used+temporary;*out=a;a=NULL;status=RF_OK;
 done:

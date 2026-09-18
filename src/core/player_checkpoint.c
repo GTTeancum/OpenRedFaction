@@ -2,6 +2,7 @@
 #include "rf/eye.h"
 #include "rf/apc_checkpoint.h"
 #include "rf/jeep_checkpoint.h"
+#include "rf/submarine_checkpoint.h"
 #include <math.h>
 #include <string.h>
 _Static_assert(sizeof(float)==4,"RFPL requires binary32 storage");
@@ -89,6 +90,7 @@ int rf_player_checkpoint_vehicle_profile_validate(uint32_t profile,const void *r
  case 1:status=rf_vehicle_checkpoint_validate(record);value=((const rf_vehicle_checkpoint*)record)->player_occupied;break;
  case 2:status=rf_apc_checkpoint_validate(record);value=((const rf_apc_checkpoint*)record)->vehicle.player_occupied;break;
  case 3:status=rf_jeep_checkpoint_validate(record);value=((const rf_jeep_checkpoint*)record)->vehicle.player_occupied;break;
+ case 4:status=rf_submarine_checkpoint_validate(record);value=((const rf_submarine_checkpoint*)record)->vehicle.player_occupied;break;
  default:return RF_FORMAT;
  }
  if(status)return status;

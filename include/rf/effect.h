@@ -422,18 +422,31 @@ int rf_vfx_directory_open(rf_vpp *,const char *name,uint32_t budget,rf_vfx_direc
 /* Read within a single indexed payload; no reads into neighboring records. */
 int rf_vfx_chunk_read(const rf_vfx_directory *,uint32_t index,uint32_t offset,void *,uint32_t bytes);
 void rf_vfx_directory_close(rf_vfx_directory *);
-/* Bounded legacy mesh-only VFX composition for live projectile presentation.
+/* Retained version0x40006 DMMY marker: nameZ,parentZ, opaque flag byte,
+ * seven-float base pose, sample count and seven-float poses. No interpolation,
+ * attachment evaluation or inferred flag semantics. One allocation; finite
+ * floats and exact payload length required. Errors preserve output. */
+typedef struct rf_vfx_dummy {
+    char name[65],parent[65];uint32_t flag,count,allocated_bytes;
+    float base[7];float *poses; /* count consecutive seven-float samples. */
+} rf_vfx_dummy;
+int rf_vfx_dummy_open(const void *,uint32_t,uint32_t,uint32_t,rf_vfx_dummy **);
+void rf_vfx_dummy_close(rf_vfx_dummy **);
+/* Bounded VFX composition for live projectile/cockpit presentation.
  * Owns up to96 decoded meshes and mutable geometry instances; archives may
  * close after success. Version4 also owns its global MATL bank and validates
- * mesh material references against its count. Legacy SFXO-only loading is
- * preserved. No textures, parent hierarchy or rendering yet.
+ * mesh material references against its count. Version0x40006 additionally
+ * retains up to32 DMMY markers; these and meshes must be Scene Root children
+ * when DMMY exists because parent-chain evaluation is not implemented.
+ * Legacy SFXO-only loading is preserved. No textures or rendering yet.
  * Rejects unsupported record types/versions rather than omitting content.
  * Budget covers retained owners, temporary chunk and directory accounting. */
-enum { RF_VFX_ASSET_MESH_CAPACITY=96 };
+enum { RF_VFX_ASSET_MESH_CAPACITY=96, RF_VFX_ASSET_DUMMY_CAPACITY=32 };
 typedef struct rf_vfx_geometry_asset {
     rf_vfx_mesh *meshes[RF_VFX_ASSET_MESH_CAPACITY];rf_vfx_instance *instances[RF_VFX_ASSET_MESH_CAPACITY];
     uint32_t count,resident_bytes,peak_bytes,version;
     struct rf_vfx_material_bank *material_bank; /* Owned global MATL bank; NULL for legacy. */
+    rf_vfx_dummy *dummies[RF_VFX_ASSET_DUMMY_CAPACITY];uint32_t dummy_count;
 } rf_vfx_geometry_asset;
 int rf_vfx_geometry_asset_open(rf_vpp *,const char *,uint32_t,rf_vfx_geometry_asset **);
 void rf_vfx_geometry_asset_close(rf_vfx_geometry_asset **);

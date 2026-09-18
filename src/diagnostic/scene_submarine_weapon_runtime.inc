@@ -1,11 +1,12 @@
 #ifndef SCENE_SUBMARINE_WEAPON_RUNTIME_INC
 #define SCENE_SUBMARINE_WEAPON_RUNTIME_INC
 #include "scene_submarine_projectile_collision.inc"
+#include "scene_submarine_homing.inc"
 /* Definition follows later with the common static projectile renderer. */
 static int scene_apc_secondary_visual_draw(const scene_driller_resources *,scene_stream *,
     const float[3],const float[3],uint32_t,uint32_t,uint32_t *,uint32_t *);
-/* Include after APC runtime and secondary visual helpers. Straight torpedo
- * first pass: authored homing constants are retained, acquisition unresolved.
+/* Include after APC runtime and secondary visual helpers. Torpedo guidance
+ * uses the shared explicit first-pass homing policies and live actor ownership.
  * Shared impact appearance is provisional, not charge_explode asset parity. */
 uint32_t rf_scene_submarine_weapon[8]; /* ticks,launches,contacts,expired,live,liquid-stops,detonations,reserve */
 static inline uint32_t scene_submarine_weapon_pending(const scene_stream *s)
@@ -25,6 +26,35 @@ static int scene_submarine_weapon_muzzle_wet(void *context,const float point[3],
     if(isfinite(surface)&&point[1]<=surface)*wet=1;
     return RF_OK;
 }
+/* First-pass player vehicle policy: affiliation0 is hostile, matching ordinary
+ * player-directed enemy awareness. Hidden/dead actors and dry aim points are
+ * excluded before LOS; generation-bearing handles remain the target identity. */
+static int scene_submarine_homing_read(void *context,uint32_t index,scene_submarine_homing_candidate *out)
+{
+    scene_stream *s=context;const campaign_npc_body *npc;uint32_t wet;int status;
+    if(index>=campaign_npc_body_count)return RF_RANGE;
+    npc=campaign_npc_bodies+index;
+    if(!npc->registration.view || !npc->body.allocated_bytes || npc->damage.effects.health<=0 ||
+       npc->damage.effects.affiliation!=0 || (npc->object_flags&(2u|0x4000u)) || (npc->view.flags_810&1u))return RF_OK;
+    if(rf_entity_lookup(&campaign_entities,(int32_t)npc->registration.handle)!=&npc->view)return RF_OK;
+    status=scene_submarine_weapon_muzzle_wet(s,npc->eye_position,&wet);if(status)return status;
+    out->handle=npc->registration.handle;out->alive=out->hostile=1;out->submerged=wet;
+    memcpy(out->position,npc->eye_position,12);return RF_OK;
+}
+static int scene_submarine_homing_sight(void *context,const float start[3],const float end[3],
+    uint32_t target,uint32_t source,uint32_t driver,uint32_t *clear)
+{
+    scene_stream *s=context;scene_apc_primary_query query={s,source,driver};
+    rf_weapon_flight_contact contact={0};float delta[3];uint32_t i,found=0,liquid=0;int status;
+    for(i=0;i<3;i++)delta[i]=end[i]-start[i];
+    status=scene_apc_primary_sweep_all(&query,start,delta,0,0x1004u,&contact,&liquid,&found);if(status)return status;
+    *clear=!found;
+    if(found && !liquid && (contact.object&0xffff0000u)==SCENE_ACTOR_ROCKET_OWNER){
+        i=contact.object&0xffffu;
+        if(i<campaign_npc_body_count && campaign_npc_bodies[i].registration.handle==target)*clear=1;
+    }
+    return RF_OK;
+}
 static int scene_submarine_weapon_tick(scene_stream *s,uint32_t frame,uint32_t held,uint32_t allowed,const float *aim)
 {
     scene_submarine_weapon_state *state;scene_driller_runtime *runtime;uint32_t i,k,fired=0,free_slot;
@@ -39,6 +69,9 @@ static int scene_submarine_weapon_tick(scene_stream *s,uint32_t frame,uint32_t h
         scene_submarine_weapon_round *round=state->rounds+i;rf_weapon_flight_liquid_event event;
         scene_apc_primary_query composed;scene_submarine_projectile_query query;float end[3],origin[3];
         if(!round->flight.active)continue;
+        {uint32_t target;
+         status=scene_submarine_homing_scan(round,&state->definition,dt,scene_submarine_homing_read,s,
+            campaign_npc_body_count,scene_submarine_homing_sight,s,&target);if(status)return status;}
         composed.stream=s;composed.source=round->source;composed.driver=round->driver;
         query.world=s->collision;query.composed=scene_apc_primary_sweep_all;query.context=&composed;
         for(k=0;k<3;k++)end[k]=round->flight.position[k]+round->flight.velocity[k]*fminf(dt,(float)round->flight.remaining);

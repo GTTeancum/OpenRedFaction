@@ -8,7 +8,7 @@ The installed `sub` class uses `Sub_Mini01.v3m`, `sub.vfx`, movement kind7, mass
 
 The cockpit has19 mesh records. Disabled materialless `Sphere01` has26 vertices/48 faces and no-material face sentinels; it is fully parsed and retained with keys, without a render instance. The other18 meshes keep render instances. Hull, cockpit and torpedo resource test reports1,921,594 resident bytes and1,930,486 peak bytes on PC; these figures exclude allocator overhead and are not a full Xbox memory measurement.
 
-Torpedo uses actual model `torpedo01.v3m`, damage200, speed7, lifetime10seconds, radius0.15, blast/crater radius5, reserve20 and3second cadence. Target acquisition/homing is still open. Liquid boundary expiration is distinct from a solid-impact explosion.
+Torpedo uses actual model `torpedo01.v3m`, damage200, speed7, lifetime10seconds, radius0.15, blast/crater radius5, reserve20 and3second cadence. Guidance now scans generation-bearing live hostile NPC handles with underwater aim points and actual collision LOS. The turn-time-as-full-revolution and full-cone interpretations are explicit first-pass policies; live enemy tracking remains unverified in the enemy-free fixture. Liquid boundary expiration is distinct from a solid-impact explosion.
 
 ## Implementation policies
 
@@ -29,6 +29,13 @@ Water admission checks actual posed hull spheres against wet rooms, their liquid
 
 ## Remaining
 
-Native300-frame run `artifacts/xemu/render-20260918-162608` also passes: one boarding, one swimming exit, one torpedo launch/solid impact/detonation,19rounds remaining; all vehicle words and all eight torpedo counters match PC exactly. Native external hull/on-foot weapon frame inspected;21.43MiB free and harness disc restoration confirmed. Submarine saves, homing, articulated/propulsion visuals, full audio and campaign placement remain open. The underwater fixture uses actual static world geometry; it does not yet install an editable terrain owner, so the torpedo terrain dispatch is wired but underwater GeoMod is not demonstrated. Live NPC torpedo damage is also unverified in this enemy-free fixture.
+Native300-frame run `artifacts/xemu/render-20260918-162608` also passes: one boarding, one swimming exit, one torpedo launch/solid impact/detonation,19rounds remaining; all vehicle words and all eight torpedo counters match PC exactly. Native external hull/on-foot weapon frame inspected;21.43MiB free and harness disc restoration confirmed. Submarine live saves, enemy guidance verification/tuning, articulated/propulsion visuals, full audio and campaign placement remain open. The underwater fixture uses actual static world geometry; it does not yet install an editable terrain owner, so the torpedo terrain dispatch is wired but underwater GeoMod is not demonstrated. Live NPC torpedo damage is also unverified in this enemy-free fixture.
 
 The dark cave and cockpit appearance are first-pass visuals. The generic vehicle HUD still uses ground-vehicle control hints; submarine controls are forward/strafe, look to rotate, jump/crouch to rise/dive, use to board/exit, primary fire for torpedoes.
+
+
+## Save and guidance follow-up
+
+RFVC4/profile4 stores common vehicle pose/motion/occupancy/700HP plus torpedo reserve and remaining cooldown. Shared RFCP3 transport and seated player pairing now admit this typed record; codec, cross-profile rejection and pure capture/restore staging checks pass. Safe restore staging requires fresh ownership plus separate hull and player admission callbacks, and rejects active shots or unsupported effects. This is not live submarine save/load: the live save path still depends on editable terrain and does not yet support the static underwater fixture. Its explicit frontend rejection remains in place.
+
+Guidance performs allocation-free candidate scanning, source/driver exclusion, wet-target filtering, collision LOS and bounded speed-preserving steering before the liquid flight step. Focused candidate/LOS/wakeup/turn/error checks pass; the existing300-frame enemy-free PC drive/fire/exit replay also passes after integration. It does not demonstrate pursuit of a live enemy. Current parser ownership adds132 PC bytes to the earlier submarine resource aggregate (now1,921,726 resident/1,930,618 peak).

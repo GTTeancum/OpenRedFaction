@@ -33,7 +33,7 @@ static int scene_vehicle_primary_read(const void *bytes,uint32_t length,const ch
 {
     const unsigned char *text=bytes;scene_vehicle_primary_definition v={0};uint32_t at=0,mask=0;int selected=0,found=0;
     if(!bytes||!out||!name)return RF_RANGE;
-    if(strcmp(name,"APC Minigun")&&strcmp(name,"Jeep Gun"))return RF_NOT_FOUND;
+    if(strcmp(name,"APC Minigun")&&strcmp(name,"Jeep Gun")&&strcmp(name,"Fighter Minigun"))return RF_NOT_FOUND;
     while(at<length){char line[512],*p,*end,*value;uint32_t n=0,bit=0;float *number=NULL;int quoted=0,status;
         while(at<length&&text[at]!='\r'&&text[at]!='\n'){
             if(n+1>=sizeof(line))return RF_RANGE;

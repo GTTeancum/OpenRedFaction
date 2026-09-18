@@ -3,7 +3,11 @@
 Completion basis (user direction,2026-09-18): working late-alpha/early-beta code implementation. Overall approximately76%; GeoMod100% for the first playable milestone, accepted by the user. GeoMod items below are deferred refinement and coverage, not prerequisites to moving on. This does not assert retail polish, complete campaign integration or resolution of every known defect.
 
 
-- Submarine: Boarding, underwater movement/ascent, torpedo launch/impact/blast and swimming exit now pass PC/Xbox with identical vehicle/torpedo state and21.43MiB free; saves, homing, underwater GeoMod, campaign placement and visual/audio refinement remain (docs/SUBMARINE-FIRST-PASS.md).
+- Fighter: Authored hull/cockpit markers, dry hover movement and finite minigun/rocket components pass PC checks; live flight/fire/exit, actual rocket VFX, Xbox acceptance and campaign placement remain (docs/FIGHTER-FIRST-PASS.md).
+
+- Submarine saves/guidance: RFVC4 transport and pure restore staging pass focused checks; live saves still need static-world support; guidance is wired to wet hostile NPCs/LOS but enemy pursuit remains unverified.
+
+- Submarine: Boarding, underwater movement/ascent, torpedo launch/impact/blast and swimming exit now pass PC/Xbox with identical vehicle/torpedo state and21.43MiB free; live saves, enemy guidance verification, underwater GeoMod, campaign placement and visual/audio refinement remain (docs/SUBMARINE-FIRST-PASS.md).
 
 - Player impacts: Real fall/high-speed collision damage now passes PC/Xbox with shared health/armor handling; relocation and duplicate-contact guards pass focused checks; broader moving-object contacts remain.
 
