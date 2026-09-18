@@ -68,7 +68,7 @@ typedef struct scene_fighter_weapon_state {
     scene_vehicle_primary_state primary_fire,rocket_fire;
     scene_submarine_weapon_definition rocket;
     int32_t primary_reserve,rocket_reserve,primary_muzzle,rocket_muzzle;
-    scene_submarine_weapon_round rockets[4];uint32_t driver;
+    scene_submarine_weapon_round rockets[4],bullets[48];uint32_t driver;
 } scene_fighter_weapon_state;
 static int scene_fighter_weapon_open(rf_vpp *tables,const rf_static_model_tags *tags,
     const char *primary_tag,const char *rocket_tag,uint32_t budget,scene_fighter_weapon_state *out)

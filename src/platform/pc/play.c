@@ -373,11 +373,11 @@ int main(int argc,char **argv)
     else if(argc==2)directory=argv[1];
     else {fprintf(stderr,"Usage: rf_pc_play <Installed_Game>\n       rf_pc_play --campaign <Installed_Game>\n       rf_pc_play --dev-room <Installed_Game>\n       rf_pc_play --dev-room-replay <Installed_Game> <inputs.bin> <output.ppm>\n       rf_pc_play --headless <Installed_Game> <frames 1..60000> <output.ppm>\n       rf_pc_play --replay <Installed_Game> <inputs.bin> <output.ppm>\n       rf_pc_play --spawn-replay <Installed_Game> <inputs.bin> <output.ppm>\n");return 2;}
 #define CHECK(call) do {status=(call);if(status){fprintf(stderr,"%s failed (%d)\n",#call,status);goto cleanup;}} while(0)
-    /* No RFVC submarine profile exists yet: reject before scene/state mutation. */
-    if(p.headless && getenv("RF_REPLAY_VEHICLE") && !strcmp(getenv("RF_REPLAY_VEHICLE"),"sub") &&
+    /* Unsupported live vehicle saves reject before scene/state mutation. */
+    if(p.headless && getenv("RF_REPLAY_VEHICLE") && (!strcmp(getenv("RF_REPLAY_VEHICLE"),"sub") || !strcmp(getenv("RF_REPLAY_VEHICLE"),"fighter")) &&
        (getenv("RF_REPLAY_PLAYER_CHECKPOINT") || getenv("RF_REPLAY_GEOMOD_CHECKPOINT_IN") ||
         getenv("RF_REPLAY_GEOMOD_CHECKPOINT_OUT"))){
-        fprintf(stderr,"Submarine checkpoints are not implemented\n");CHECK(RF_RANGE);
+        fprintf(stderr,"This vehicle checkpoint profile is not integrated\n");CHECK(RF_RANGE);
     }
     p.trace_from=UINT32_MAX;
     if(p.headless && getenv("RF_REPLAY_AIM")) {
@@ -483,6 +483,7 @@ int main(int argc,char **argv)
     }
     if(p.headless && getenv("RF_REPLAY_VEHICLE")){
         uint32_t submarine=!strcmp(getenv("RF_REPLAY_VEHICLE"),"sub");
+        if(!strcmp(getenv("RF_REPLAY_VEHICLE"),"fighter"))rf_scene_vehicle_enabled=5;
         if(submarine && strcmp(level.entry.name,"L5S3.rfl"))CHECK(RF_RANGE);
         if(!submarine && strcmp(level.entry.name,"ctf06.rfl"))CHECK(RF_RANGE);
         CHECK(rf_scene_vehicle_test_place(&level));
@@ -553,6 +554,7 @@ int main(int argc,char **argv)
     if(rf_scene_vehicle_enabled && !strcmp(getenv("RF_REPLAY_VEHICLE"),"apc"))rf_scene_vehicle_enabled=2;
     if(rf_scene_vehicle_enabled && !strcmp(getenv("RF_REPLAY_VEHICLE"),"jeep"))rf_scene_vehicle_enabled=3;
     if(rf_scene_vehicle_enabled && !strcmp(getenv("RF_REPLAY_VEHICLE"),"sub"))rf_scene_vehicle_enabled=4;
+    if(rf_scene_vehicle_enabled && !strcmp(getenv("RF_REPLAY_VEHICLE"),"fighter"))rf_scene_vehicle_enabled=5;
     rf_scene_fusion_enabled=p.headless && getenv("RF_REPLAY_FUSION")!=NULL;
     rf_scene_dev_npc_enabled=p.headless && getenv("RF_REPLAY_DEV_NPC")!=NULL;
     if(rf_scene_dev_npc_enabled && !strcmp(getenv("RF_REPLAY_DEV_NPC"),"2"))rf_scene_dev_npc_enabled=2;
@@ -955,6 +957,7 @@ run_scene:
     {extern uint32_t rf_scene_apc_secondary[8];printf("APC_SECONDARY");for(i=0;i<8;++i)printf(" %u",rf_scene_apc_secondary[i]);puts("");}
     {extern uint32_t rf_scene_apc_primary[8];printf("APC_PRIMARY");for(i=0;i<8;++i)printf(" %u",rf_scene_apc_primary[i]);puts("");}
     {extern uint32_t rf_scene_submarine_weapon[8];printf("SUBMARINE_WEAPON");for(i=0;i<8;++i)printf(" %u",rf_scene_submarine_weapon[i]);puts("");}
+    {extern uint32_t rf_scene_fighter_weapon[8];printf("FIGHTER_WEAPON");for(i=0;i<8;++i)printf(" %u",rf_scene_fighter_weapon[i]);puts("");}
     printf("VEHICLE_DAMAGE");for(i=0;i<8;++i)printf(" %u",rf_scene_vehicle_damage[i]);puts("");
     printf("DRILL");for(i=0;i<8;++i)printf(" %u",rf_scene_drill_state[i]);puts("");
     printf("VEHICLE");for(i=0;i<16;++i)printf(" %u",rf_scene_vehicle_state[i]);puts("");

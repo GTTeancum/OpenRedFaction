@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include "../src/diagnostic/scene_fighter_resources.inc"
+#include "../src/diagnostic/scene_fighter_weapon.inc"
 #define CHECK(x) do{if(!(x)){fprintf(stderr,"Fighter resources line%d: %s\n",__LINE__,#x);return 1;}}while(0)
 int main(void)
 {
@@ -51,6 +52,37 @@ int main(void)
     rf_vpp_close(&meshes);for(i=0;i<4;i++)rf_vpp_close(maps+i);
     CHECK(!scene_driller_seat_pose(o->chassis,position,basis,pose));
     CHECK(!rf_static_model_tag_place(&o->chassis->tags,o->secondary[1],basis,position,pose));
+    {int32_t indices[4]={o->chassis->seat,o->muzzle,o->secondary[0],o->secondary[1]};uint32_t n;
+     for(n=0;n<4;n++){
+        CHECK(!rf_static_model_tag_place(&o->chassis->tags,indices[n],basis,position,pose));
+        printf("FIGHTER_TAG %s position %.7g %.7g %.7g forward %.7g %.7g %.7g\n",
+            o->chassis->tags.items[indices[n]].name,pose[9],pose[10],pose[11],pose[6],pose[7],pose[8]);
+     }}
+    {
+        rf_vpp tables={0};scene_fighter_weapon_state weapon;
+        const float orientations[2][9]={{1,0,0,0,1,0,0,0,1},{0,0,-1,0,1,0,1,0,0}};
+        uint32_t orientation,side,k,fired;float primary[12],secondary[12];
+        CHECK(!rf_vpp_open(&tables,"Installed_Game/tables.vpp"));
+        CHECK(!scene_fighter_weapon_open(&tables,&o->chassis->tags,"muzzle_1","secondary_1",2*1024*1024,&weapon));
+        rf_vpp_close(&tables);
+        for(orientation=0;orientation<2;orientation++)for(side=0;side<2;side++){
+            scene_fighter_weapon_state shot=weapon;
+            CHECK(!rf_static_model_tag_place(&o->chassis->tags,o->muzzle,orientations[orientation],position,primary));
+            CHECK(!rf_static_model_tag_place(&o->chassis->tags,o->secondary[side],orientations[orientation],position,secondary));
+            /* Both actual secondary attachment forwards point down, including
+             * a yawed host. They identify the launch position, not gun aim. */
+            CHECK(secondary[7]<-.999f && fabsf(secondary[6])<.001f && fabsf(secondary[8])<.001f);
+            for(k=0;k<3;k++)CHECK(fabsf(primary[6+k]-orientations[orientation][6+k])<.001f);
+            shot.rocket_muzzle=o->secondary[side];shot.rocket_reserve=20;
+            CHECK(!scene_fighter_weapon_fire(&shot,&o->chassis->tags,position,orientations[orientation],primary+6,
+                1,2,1,1,1,1.f/60,NULL,NULL,&fired));
+            CHECK(fired && shot.rocket_reserve==19 && shot.rockets[0].flight.active);
+            for(k=0;k<3;k++){
+                CHECK(fabsf(shot.rockets[0].flight.position[k]-secondary[9+k])<1e-6f);
+                CHECK(fabsf(shot.rockets[0].flight.velocity[k]-primary[6+k]*weapon.rocket.speed)<.001f);
+            }
+        }
+    }
     scene_fighter_resources_close(&o);CHECK(!o);
     return 0;
 }

@@ -41,6 +41,7 @@
 #include "scene_apc_primary_state.inc"
 #include "scene_apc_secondary_state.inc"
 #include "scene_submarine_weapon.inc"
+#include "scene_fighter_weapon.inc"
 #include "scene_vehicle_aim.inc"
 #include "scene_jeep_gun_aim.inc"
 #include "scene_driller_damage.inc"
@@ -54,6 +55,7 @@
  * Fixture setup only: the normal collision and trigger runtime handles movement. */
 /* Explicit ctf06 vehicle fixture on actual collision floor677 y4.
  * The renderer-only sky platform is deliberately not used as a floor. */
+extern uint32_t rf_scene_vehicle_enabled;
 int rf_scene_vehicle_test_place(rf_level *level)
 {
     static const float position[3]={30,5,-158.5f},basis[9]={-1,0,0,0,1,0,0,0,-1};
@@ -64,6 +66,10 @@ int rf_scene_vehicle_test_place(rf_level *level)
         memcpy(level->player_position,wet,12);memcpy(level->player_orientation,basis,36);return RF_OK;
     }
     if(strcmp(level->entry.name,"ctf06.rfl"))return RF_RANGE;
+    if(rf_scene_vehicle_enabled==5){
+        const float side[3]={33,5,-160},look[9]={0,0,1,0,1,0,-1,0,0};
+        memcpy(level->player_position,side,12);memcpy(level->player_orientation,look,36);return RF_OK;
+    }
     memcpy(level->player_position,position,12);memcpy(level->player_orientation,basis,36);return RF_OK;
 }
 int rf_scene_stage_exit(rf_level *level,uint32_t uid)
@@ -748,12 +754,12 @@ typedef struct scene_stream {
     uint32_t weapon_base,weapon_textures;
     rf_level_owned_items pickups;uint8_t *pickup_taken;uint32_t *pickup_slots;rf_item_definition handgun_pickup;scene_pickup_resource *pickup_resources;
     rf_weapon_flight rockets[SCENE_ROCKETS];rf_weapon_flight_liquid_state rocket_liquid[SCENE_ROCKETS];float rocket_basis[SCENE_ROCKETS][9];
-    scene_rocket_visual *rocket_visual,*ripple_visual,*fusion_visual;rf_level rocket_camera;
+    scene_rocket_visual *rocket_visual,*ripple_visual,*fusion_visual,*fighter_rocket_visual;rf_level rocket_camera;
     float ripple_position[SCENE_RIPPLES][3];uint32_t ripple_born[SCENE_RIPPLES];uint8_t ripple_active[SCENE_RIPPLES];
     scene_impact_owner *impact;
     scene_weapon_custom_actions *machine_custom[2];uint32_t machine_transition_ticks[2];
     scene_driller_cockpit *driller_cockpit;
-    scene_submarine_weapon_state submarine_weapon;
+    scene_submarine_weapon_state submarine_weapon;scene_fighter_weapon_state fighter_weapon;
     scene_driller_resources *submarine_torpedo;uint32_t submarine_torpedo_base,submarine_torpedo_textures;
     scene_driller_runtime *driller_runtime;
     rf_vehicle_checkpoint vehicle_checkpoint;scene_vehicle_checkpoint_record vehicle_record;uint32_t vehicle_checkpoint_pending;
@@ -10189,7 +10195,7 @@ static int scene_terrain_open(scene_stream *s,const rf_level *level,rf_vpp *maps
             }
         }
     }
-    if(rf_scene_vehicle_enabled && rf_scene_vehicle_enabled<=3) {
+    if(rf_scene_vehicle_enabled && (rf_scene_vehicle_enabled<=3 || rf_scene_vehicle_enabled==5)) {
         rf_geo_region *regions=calloc(s->terrain_region_count+1,sizeof(*regions));
         rf_geo_region *patch;if(!regions)return RF_IO;
         memcpy(regions,s->terrain_regions,s->terrain_region_count*sizeof(*regions));
@@ -13120,6 +13126,7 @@ static int campaign_inspect_camera(scene_stream *stream,float position[3],float 
 #include "scene_apc_secondary_runtime.inc"
 #include "scene_apc_primary_draw.inc"
 #include "scene_submarine_weapon_runtime.inc"
+#include "scene_fighter_weapon_runtime.inc"
 static const char *scene_vehicle_hud_label(const scene_stream *s)
 {
     if(rf_scene_vehicle_enabled==3)return scene_jeep_can_fire(&s->driller_runtime->jeep_seat)?"GUNNER":"DRIVER";
@@ -13131,7 +13138,8 @@ static void scene_vehicle_hud_values(const scene_stream *s,float *health,int32_t
     float maximum=s->driller_damage_prototype.state.effects.class_health;
     *health=maximum>0?r->damage.damage.state.effects.health/maximum:0;
     ammo[0]=ammo[1]=-1;
-    if(rf_scene_vehicle_enabled==4)ammo[0]=s->submarine_weapon.reserve;
+    if(rf_scene_vehicle_enabled==5){ammo[0]=s->fighter_weapon.primary_reserve;ammo[1]=s->fighter_weapon.rocket_reserve;}
+    else if(rf_scene_vehicle_enabled==4)ammo[0]=s->submarine_weapon.reserve;
     else if(rf_scene_vehicle_enabled>=2){ammo[0]=s->apc_primary.reserve;ammo[1]=rf_scene_vehicle_enabled==2?s->apc_secondary.reserve:-1;}
 }
 #include "scene_driller_flame.inc"
@@ -13175,6 +13183,7 @@ static int actor_follow_view(void *context,uint32_t frame,const rf_motion_contro
     status=scene_apc_primary_tick(stream,frame);if(status){printf("APC_TICK_ERROR %u %d\n",frame,status);return status;}
     status=scene_apc_secondary_tick(stream,frame,player_input.alt_fire,1,NULL);if(status){printf("APC_SECONDARY_ERROR %u %d\n",frame,status);return status;}
     status=scene_submarine_weapon_tick(stream,frame,player_input.fire,1,NULL);if(status){printf("SUBMARINE_WEAPON_ERROR %u %d\n",frame,status);return status;}
+    status=scene_fighter_weapon_tick(stream,frame);if(status)return status;
     status=scene_driller_active(stream)?scene_driller_player_camera(&stream->driller_runtime->entry,position,orientation):actor_listener_pose(stream,frame,controller,position,orientation);if(status){rf_scene_profile_stage[1]=101;return status;}
     if(stream->apc_aim_active){memcpy(position,stream->apc_aim_eye,12);memcpy(orientation,stream->apc_aim_basis,36);}
     /* Rendering follows the committed owner, never diagnostic counters: reload
@@ -14745,19 +14754,22 @@ static int scene_rockets_draw(scene_stream *s,uint32_t frame)
 {
     scene_rocket_visual *v=s->rocket_visual;uint32_t shot,m,f,j,k,start=s->mesh->count;int status;
     memset(rf_scene_rocket_visual,0,sizeof(rf_scene_rocket_visual));rf_scene_rocket_visual[0]=frame+1;
-    if(!v && !s->fusion_visual)return RF_OK;
+    if(!v && !s->fusion_visual && !s->fighter_rocket_visual)return RF_OK;
     rf_scene_rocket_visual[5]=v?sizeof(*v)+v->geometry->resident_bytes+v->materials->resident_bytes:0;
     if(s->fusion_visual)rf_scene_rocket_visual[5]+=sizeof(*s->fusion_visual)+s->fusion_visual->geometry->resident_bytes+s->fusion_visual->materials->resident_bytes;
-    for(shot=0;shot<SCENE_ROCKETS+SCENE_AI_ROCKET_CAPACITY+SCENE_FUSION_CAPACITY;shot++) {
-        uint32_t fusion=shot>=SCENE_ROCKETS+SCENE_AI_ROCKET_CAPACITY;
-        uint32_t index=fusion?shot-SCENE_ROCKETS-SCENE_AI_ROCKET_CAPACITY:0;
-        const rf_weapon_flight *flight=fusion?&scene_fusion_projectiles[index].flight:shot<SCENE_ROCKETS?s->rockets+shot:&scene_ai_rockets[shot-SCENE_ROCKETS].flight;
-        const float *basis=fusion?scene_fusion_projectiles[index].basis:shot<SCENE_ROCKETS?s->rocket_basis[shot]:scene_ai_rockets[shot-SCENE_ROCKETS].basis;
-        v=fusion?s->fusion_visual:s->rocket_visual;
+    if(s->fighter_rocket_visual)rf_scene_rocket_visual[5]+=sizeof(*s->fighter_rocket_visual)+s->fighter_rocket_visual->geometry->resident_bytes+s->fighter_rocket_visual->materials->resident_bytes;
+    for(shot=0;shot<SCENE_ROCKETS+SCENE_AI_ROCKET_CAPACITY+SCENE_FUSION_CAPACITY+4;shot++) {
+        uint32_t fighter=shot>=SCENE_ROCKETS+SCENE_AI_ROCKET_CAPACITY+SCENE_FUSION_CAPACITY;
+        uint32_t fusion=!fighter && shot>=SCENE_ROCKETS+SCENE_AI_ROCKET_CAPACITY;
+        uint32_t index=fighter?shot-SCENE_ROCKETS-SCENE_AI_ROCKET_CAPACITY-SCENE_FUSION_CAPACITY:fusion?shot-SCENE_ROCKETS-SCENE_AI_ROCKET_CAPACITY:0;
+        const rf_weapon_flight *flight=fighter?&s->fighter_weapon.rockets[index].flight:fusion?&scene_fusion_projectiles[index].flight:shot<SCENE_ROCKETS?s->rockets+shot:&scene_ai_rockets[shot-SCENE_ROCKETS].flight;
+        float fighter_basis[9];const float *basis=fighter?fighter_basis:fusion?scene_fusion_projectiles[index].basis:shot<SCENE_ROCKETS?s->rocket_basis[shot]:scene_ai_rockets[shot-SCENE_ROCKETS].basis;
+        v=fighter?s->fighter_rocket_visual:fusion?s->fusion_visual:s->rocket_visual;
         if(!flight->active || !v)continue;
-        /* ShellTest has an unresolved external Dummy23 parent: attach its
-         * authored local animation to the flight basis as first-pass policy. */
-        float time=fmodf((float)((fusion?scene_fusion_projectiles[index].definition.lifetime:campaign_rocket.lifetime)-flight->remaining)*15,fusion?30.f:16.f);
+        if(fighter){status=scene_apc_secondary_visual_basis(flight->velocity,fighter_basis);if(status)return status;}
+        /* Fighter uses the actual DrillMissile01 animation with current flight
+         * direction, including homing changes. ShellTest keeps its own clock. */
+        float time=fmodf((float)((fighter?s->fighter_weapon.rocket.lifetime:fusion?scene_fusion_projectiles[index].definition.lifetime:campaign_rocket.lifetime)-flight->remaining)*15,fusion?30.f:16.f);
         rf_level camera=s->rocket_camera;++rf_scene_rocket_visual[1];
         /* Bind tiny animated triangles near their own origin: world-space plane
          * constants lose precision at distant authored level coordinates.
@@ -15570,6 +15582,7 @@ static int scene_frame(void *context,uint32_t frame,rf_preview_mesh *actor)
         }
         status=scene_apc_primary_draw(stream);if(status){printf("APC_DRAW_ERROR %u %d\n",frame,status);return status;}
         status=scene_submarine_weapon_draw(stream);if(status)return status;
+        status=scene_fighter_weapon_draw(stream);if(status)return status;
         status=scene_remote_draw(stream);if(status)return status;
         status=scene_flame_canister_draw(stream,scene_flame_canister_model);if(status)return status;
         status=scene_rockets_draw(stream,frame);rf_scene_rocket_visual[6]=(uint32_t)status;if(status){rf_scene_profile_stage[1]=207;return status;}
@@ -16244,11 +16257,11 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
              if(!status)status=scene_undercover_open(stream,&archive,&motions,maps,map_count);
              if(!status && rf_scene_vehicle_enabled) {
                  if(!rf_scene_dev_room_enabled)status=RF_RANGE;
-                 else if(rf_scene_vehicle_enabled>=2)status=scene_vehicle_resources_open(tables_path,rf_scene_vehicle_enabled==4?"sub":rf_scene_vehicle_enabled==3?"Jeep01":"APC","interface_1",&archive,maps,map_count,2*1024*1024,&stream->driller);
+                 else if(rf_scene_vehicle_enabled>=2)status=scene_vehicle_resources_open(tables_path,rf_scene_vehicle_enabled==5?"Fighter01":rf_scene_vehicle_enabled==4?"sub":rf_scene_vehicle_enabled==3?"Jeep01":"APC","interface_1",&archive,maps,map_count,2*1024*1024,&stream->driller);
                  else status=scene_driller_resources_open(tables_path,&archive,maps,map_count,1024*1024,&stream->driller);
                  if(status)printf("VEHICLE_RESOURCE_FAIL chassis %d\n",status);
                  if(!status && rf_scene_vehicle_enabled==1)status=scene_driller_bit_animation_open(&stream->driller->tags,&archive,maps,map_count,512*1024,&stream->driller_bits);
-                 if(!status)status=rf_scene_vehicle_enabled>=2?scene_vehicle_cockpit_open(rf_scene_vehicle_enabled==4?"sub.vfx":rf_scene_vehicle_enabled==3?"jeep.vfx":"APC.vfx",&archive,maps,map_count,2*1024*1024,&stream->driller_cockpit):scene_driller_cockpit_open(&archive,maps,map_count,2*1024*1024,&stream->driller_cockpit);
+                 if(!status)status=rf_scene_vehicle_enabled>=2?scene_vehicle_cockpit_open(rf_scene_vehicle_enabled==5?"fighter01.vfx":rf_scene_vehicle_enabled==4?"sub.vfx":rf_scene_vehicle_enabled==3?"jeep.vfx":"APC.vfx",&archive,maps,map_count,2*1024*1024,&stream->driller_cockpit):scene_driller_cockpit_open(&archive,maps,map_count,2*1024*1024,&stream->driller_cockpit);
                  if(status)printf("VEHICLE_RESOURCE_FAIL cockpit %d\n",status);
                  stream->driller_position[0]=30;stream->driller_position[1]=5.4f;stream->driller_position[2]=-167;
                  stream->driller_basis[2]=-1;stream->driller_basis[4]=stream->driller_basis[6]=1;
@@ -16256,6 +16269,16 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
                      stream->driller_position[0]=-25;stream->driller_position[1]=-15;stream->driller_position[2]=0;
                      memset(stream->driller_basis,0,sizeof(stream->driller_basis));
                      stream->driller_basis[0]=stream->driller_basis[4]=stream->driller_basis[8]=1;
+                 }
+                 if(rf_scene_vehicle_enabled==5){
+                     stream->driller_position[0]=30;stream->driller_position[1]=7;stream->driller_position[2]=-160;
+                     memset(stream->driller_basis,0,sizeof(stream->driller_basis));
+                     stream->driller_basis[0]=stream->driller_basis[4]=stream->driller_basis[8]=1;
+                 }
+                 if(!status && rf_scene_vehicle_enabled==5){
+                     status=scene_fighter_weapon_open(&tables,&stream->driller->tags,"muzzle_1","secondary_1",512*1024,&stream->fighter_weapon);
+                     if(!status){stream->fighter_weapon.primary_reserve=(int32_t)stream->fighter_weapon.primary.capacity;
+                         stream->fighter_weapon.rocket_reserve=(int32_t)stream->fighter_weapon.rocket.capacity;}
                  }
                  if(!status && rf_scene_vehicle_enabled==2){
                      status=scene_vehicle_primary_apc_open(&tables,&stream->driller->tags,512*1024,
@@ -16283,7 +16306,7 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
                      stream->apc_primary.random.value=1;memset(rf_scene_apc_primary,0,sizeof(rf_scene_apc_primary));
                      if(!status)status=scene_vehicle_aim_limits_load(&tables,"Jeep01",512*1024,&stream->apc_aim_limits);
                  }
-                 if(!status)status=rf_scene_vehicle_enabled>=2?scene_vehicle_damage_open(rf_scene_vehicle_enabled==4?"sub":rf_scene_vehicle_enabled==3?"Jeep01":"APC",&stream->driller_damage_prototype,&tables,stream->driller,0,0,0,512*1024):scene_driller_damage_open(&stream->driller_damage_prototype,&tables,stream->driller,0,0,0,512*1024);
+                 if(!status)status=rf_scene_vehicle_enabled>=2?scene_vehicle_damage_open(rf_scene_vehicle_enabled==5?"Fighter01":rf_scene_vehicle_enabled==4?"sub":rf_scene_vehicle_enabled==3?"Jeep01":"APC",&stream->driller_damage_prototype,&tables,stream->driller,0,0,0,512*1024):scene_driller_damage_open(&stream->driller_damage_prototype,&tables,stream->driller,0,0,0,512*1024);
                  if(!status){float seat[12];status=scene_driller_seat_pose(stream->driller,stream->driller_position,stream->driller_basis,seat);}
              }
              rf_vpp_close(&tables);if(status)goto done;}
@@ -16400,10 +16423,11 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
             status=scene_driller_cockpit_merge(stream->driller_cockpit,materials,RF_CAMPAIGN_TEXTURE_SLOTS);if(status)goto done;}
         if(rf_scene_dev_room_enabled) {
             uint32_t visual;
-            for(visual=0;visual<(rf_scene_fusion_enabled?3u:2u);visual++) {
+            for(visual=0;visual<(rf_scene_vehicle_enabled==5?4u:rf_scene_fusion_enabled?3u:2u);visual++) {
+            if(visual==2 && !rf_scene_fusion_enabled)continue;
             scene_rocket_visual *v=calloc(1,sizeof(*v));rf_material *combined;uint32_t n;
-            if(!v){status=RF_IO;goto done;}if(visual==2)stream->fusion_visual=v;else if(visual){stream->ripple_visual=v;memset(rf_scene_ripple_lifecycle,0,sizeof(rf_scene_ripple_lifecycle));}else stream->rocket_visual=v;
-            status=rf_vfx_geometry_asset_open(&archive,visual==2?"ShellTest.vfx":visual?"WaterRipple01.vfx":"DrillMissile01.vfx",128*1024,&v->geometry);if(status)goto done;
+            if(!v){status=RF_IO;goto done;}if(visual==3)stream->fighter_rocket_visual=v;else if(visual==2)stream->fusion_visual=v;else if(visual){stream->ripple_visual=v;memset(rf_scene_ripple_lifecycle,0,sizeof(rf_scene_ripple_lifecycle));}else stream->rocket_visual=v;
+            status=rf_vfx_geometry_asset_open(&archive,visual==2?"ShellTest.vfx":visual==1?"WaterRipple01.vfx":"DrillMissile01.vfx",128*1024,&v->geometry);if(status)goto done;
             status=rf_vfx_asset_materials_open(v->geometry,maps,map_count,128*1024,&v->materials);if(status)goto done;
             n=v->materials->textures.texture_count;if(materials->count+n>RF_CAMPAIGN_TEXTURE_SLOTS){status=RF_RANGE;goto done;}
             for(i=0;i<v->geometry->count;i++)if(strcmp(v->geometry->meshes[i]->prefix.parent,"Scene Root") && !(visual==2 && !strcmp(v->geometry->meshes[i]->prefix.parent,"Dummy23"))){status=RF_FORMAT;goto done;}
@@ -16613,6 +16637,7 @@ done:
     for(i=0;i<2;i++)if(stream->machine_custom[i]){int closed=scene_weapon_custom_actions_close(&stream->machine_custom[i],stream->player_weapon[i?17:13]);if(closed && !status)status=closed;}
     for(i=0;i<SCENE_WEAPON_SLOTS;i++)rf_player_weapon_close(&stream->player_weapon[i]);
     if(stream->fusion_visual){rf_vfx_asset_materials_close(&stream->fusion_visual->materials);rf_vfx_geometry_asset_close(&stream->fusion_visual->geometry);free(stream->fusion_visual);}
+    if(stream->fighter_rocket_visual){rf_vfx_asset_materials_close(&stream->fighter_rocket_visual->materials);rf_vfx_geometry_asset_close(&stream->fighter_rocket_visual->geometry);free(stream->fighter_rocket_visual);}
     if(stream->rocket_visual){rf_vfx_asset_materials_close(&stream->rocket_visual->materials);rf_vfx_geometry_asset_close(&stream->rocket_visual->geometry);free(stream->rocket_visual);}
     if(stream->ripple_visual){rf_vfx_asset_materials_close(&stream->ripple_visual->materials);rf_vfx_geometry_asset_close(&stream->ripple_visual->geometry);free(stream->ripple_visual);}
     if(stream->pickup_resources){for(i=0;i<SCENE_PICKUP_CLASSES-1;i++){rf_static_render_resource_close(&stream->pickup_resources[i].model);rf_model_materials_close(&stream->pickup_resources[i].materials);}free(stream->pickup_resources);}

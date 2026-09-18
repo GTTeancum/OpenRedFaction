@@ -5,6 +5,7 @@
 #include "scene_vehicle_possession.inc"
 #include "scene_vehicle_collision.inc"
 #include "scene_submarine_motion.inc"
+#include "scene_fighter_motion.inc"
 #include "scene_driller_support.inc"
 #include "scene_driller_entry_exit.inc"
 #include "scene_driller_player_adapter.inc"
@@ -15,7 +16,7 @@
 #include "scene_driller_projectile_contact.inc"
 struct scene_driller_runtime {
     scene_driller_physics physics;scene_vehicle_collision collision;scene_jeep_seat_state jeep_seat;
-    scene_submarine_motion submarine;rf_liquid_rooms submarine_liquids;
+    scene_submarine_motion submarine;scene_fighter_motion fighter;rf_liquid_rooms submarine_liquids;
     rf_vehicle_submersible_parameters submarine_parameters;
     scene_driller_support_context support;scene_driller_entry_exit entry;
     scene_driller_damage_runtime damage;scene_driller_audio audio;rf_geomod_template shapes[2];scene_driller_live_contact contact;
@@ -87,7 +88,7 @@ static int scene_driller_runtime_open(scene_stream *s)
 #endif
     if(status)goto fail;
     }
-    stage=1;if(rf_scene_vehicle_enabled==4)status=scene_vehicle_body_physics_initialize("sub",&s->driller->physics,&s->driller->movement,&s->driller->rotation,&s->driller->render,s->driller_position,s->driller_basis,0,&r->physics);
+    stage=1;if(rf_scene_vehicle_enabled==4 || rf_scene_vehicle_enabled==5)status=scene_vehicle_body_physics_initialize(rf_scene_vehicle_enabled==5?"Fighter01":"sub",&s->driller->physics,&s->driller->movement,&s->driller->rotation,&s->driller->render,s->driller_position,s->driller_basis,0,&r->physics);
     else if(rf_scene_vehicle_enabled>=2)status=scene_ground_vehicle_physics_initialize(rf_scene_vehicle_enabled==3?"Jeep01":"APC",&s->driller->physics,&s->driller->movement,&s->driller->rotation,&s->driller->render,s->driller_position,s->driller_basis,scene_gravity.acceleration,&r->physics);
     else status=scene_driller_physics_initialize(s->driller,s->driller_position,s->driller_basis,scene_gravity.acceleration,&r->physics);
     if(status)goto fail;
@@ -95,9 +96,10 @@ static int scene_driller_runtime_open(scene_stream *s)
     r->collision.spheres=r->physics.collision;r->collision.count=r->physics.sphere_count;
     r->collision.radius=r->physics.radius;r->collision.flags=4;
     stage=2;
-    if(rf_scene_vehicle_enabled==4){
+    if(rf_scene_vehicle_enabled==4 || rf_scene_vehicle_enabled==5){
         r->submarine_liquids.items=s->liquid_rooms;r->submarine_liquids.count=s->swim_room_count;r->submarine_liquids.bytes=s->swim_bytes;
         r->submarine.collision=r->collision;r->submarine.liquids=&r->submarine_liquids;
+        r->fighter.collision=r->collision;r->fighter.liquids=&r->submarine_liquids;
         r->submarine_parameters=(rf_vehicle_submersible_parameters){s->driller->physics.authored.mass,
             s->driller->movement.speed,s->driller->movement.acceleration,s->driller->rotation.maximum_velocity,
             s->driller->rotation.acceleration,2};
@@ -135,9 +137,10 @@ static int scene_driller_runtime_tick(scene_stream *s,uint32_t frame)
     backend.context=r;backend.support=scene_driller_runtime_support;backend.resolve=scene_driller_runtime_resolve;
     r->physics.parameters.gravity=scene_gravity.acceleration;
     stage=2;if(frame){
-        if(rf_scene_vehicle_enabled==4){
+        if(rf_scene_vehicle_enabled==4 || rf_scene_vehicle_enabled==5){
             rf_vehicle_submersible_command sub={0};rf_vehicle_submersible_result result;
             rf_vehicle_submersible_backend wet_backend={&r->submarine,scene_submarine_motion_water_path,scene_submarine_motion_resolve};
+            if(rf_scene_vehicle_enabled==5){wet_backend.context=&r->fighter;wet_backend.water_path=scene_fighter_motion_air_path;wet_backend.resolve=scene_fighter_motion_resolve;}
             sub.controlled=command.controlled;
             if(sub.controlled){sub.throttle=player_input.move[2];sub.strafe=player_input.move[0];
                 sub.rise=(float)player_input.jump-(float)player_input.crouch;
