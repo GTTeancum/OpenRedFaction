@@ -1,6 +1,6 @@
 # Red Faction Xbox / PC - open work
 
-- PRIORITY GeoMod fragment contacts: Finish edge/edge and mover-relative coverage after ordered face-block pruning halves measured Xbox debris updates68ms to34ms, with79 native checks and identical saves/visuals; broader performance remains open.
+- PRIORITY GeoMod fragment contacts: Integrate the Xbox-verified swept-edge primitive into bounded world/mover queries, then finish mover-relative response; crossed-beam vertex misses are proven, while live edge coverage remains open and the34ms optimized baseline is preserved.
 
 - PRIORITY GeoMod ordinary walls: Broaden multi-window and neighboring-brush CSG; a live floor-seam rocket now passes77 stock64MiB checks with exact PC/Xbox save bytes and fixture-off/mismatched-save rejection controls, alongside verified wall depth and player traversal.
 
@@ -5576,3 +5576,8 @@ Native32-word counter agreement identifies2.53M sphere-stage face checks,2.19M b
 ## 2026-09-18 ordered face-block pruning
 
 Static world-tree face checks dominate the measured candidate workload; a PC flat-mover counter probe records zero attempts for this replay. Conservative groups of16 consecutive faces preserve ordering and errors while reducing native active update time67.544ms to34.203ms (49.36%) and peak139ms to69ms.79 stock64MiB native checks pass, identical save/framebuffer,3324 free pages. All123 PC tests and both connected destruction histories pass. [Evidence](docs/research/GEOMOD-FRAGMENT-FACE-BLOCKS-20260918.md). Return to missing edge/edge and mover-relative collision behavior; approximately51% overall /91% GeoMod.
+
+
+## 2026-09-18 swept edge primitive
+
+A crossed beam/floor fixture proves both sets of vertex casts miss; new shared linear-endpoint edge CCD detects the missing isolated contact.124 PC tests pass, including quadratic root order, strict limits, reversal and invalid-input controls. Native version2/eight-case fixture passes79 checks with64 exact words and unchanged gameplay save/framebuffer. This is a tested primitive, not yet ordinary gameplay integration. [Math, scope and evidence](docs/research/GEOMOD-SWEPT-EDGE-PRIMITIVE-20260918.md). Approximately51% overall /91% GeoMod; focus debris collision coverage.

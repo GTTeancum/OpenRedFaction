@@ -28,7 +28,7 @@ int rf_scene_fragment_contact_check(void)
     uint32_t i,j,mode,found=0,primary=0;int status=RF_OK,control;
 #define CONTACT_AUDIT_CALL(x) do {status=(x);if(status)goto done;} while(0)
 #define CONTACT_AUDIT_TEST(x) do {if(!(x)){status=RF_FORMAT;goto done;}} while(0)
-    memset(rf_scene_fragment_contact_audit,0,sizeof(rf_scene_fragment_contact_audit));rf_scene_fragment_contact_audit[0]=1;
+    memset(rf_scene_fragment_contact_audit,0,sizeof(rf_scene_fragment_contact_audit));rf_scene_fragment_contact_audit[0]=2;
     scene=calloc(1,sizeof(*scene));if(!scene){status=RF_IO;goto done;}
     face.vertices=patch;face.count=4;face.plane[1]=1;
     for(i=0;i<3;i++){face.minimum[i]=-.0201f;face.maximum[i]=.0201f;body.orientation[i*4]=body.next_orientation[i*4]=1;}
@@ -81,7 +81,16 @@ int rf_scene_fragment_contact_check(void)
     CONTACT_AUDIT_TEST(control==RF_IO && !found && !memcmp(&hit,&saved,sizeof(hit)));
     rf_scene_fragment_contact_audit[52]=6;rf_scene_fragment_contact_audit[53]=(uint32_t)control;
     rf_scene_fragment_contact_audit[54]=!memcmp(&hit,&saved,sizeof(hit));rf_scene_fragment_contact_audit[55]=found;
-    rf_scene_fragment_contact_audit[1]=7;rf_scene_fragment_contact_audit[3]=1;
+    {
+        float a0[3]={-1,.5f,-.25f},b0[3]={1,.5f,-.25f},a1[3]={-1,-1.5f,-.25f},b1[3]={1,-1.5f,-.25f};
+        float c[3]={-.25f,0,-1},d[3]={-.25f,0,1};rf_collision_ray_hit edge;
+        CONTACT_AUDIT_CALL(rf_collision_swept_edge(a0,b0,a1,b1,c,d,1,&edge,&found));
+        CONTACT_AUDIT_TEST(found && edge.fraction==.25f && edge.point[0]==-.25f && edge.point[1]==0 && edge.point[2]==-.25f);
+        CONTACT_AUDIT_TEST(edge.normal[0]==0 && edge.normal[1]==1 && edge.normal[2]==0);
+        rf_scene_fragment_contact_audit[60]=7;rf_scene_fragment_contact_audit[61]=found;
+        memcpy(rf_scene_fragment_contact_audit+62,&edge.fraction,4);memcpy(rf_scene_fragment_contact_audit+63,edge.normal+1,4);
+    }
+    rf_scene_fragment_contact_audit[1]=8;rf_scene_fragment_contact_audit[3]=1;
 done:
     rf_collision_tree_close(&room.tree);free(scene);rf_scene_fragment_contact_audit[2]=(uint32_t)status;
 #undef CONTACT_AUDIT_CALL

@@ -869,6 +869,60 @@ int rf_collision_sphere_edge(const float start[3],const float delta[3],float rad
     if(limit>1)return RF_FORMAT;
     return sphere_edge_query(start,delta,radius,a,b,limit,fraction,point,hit);
 }
+static double swept_edge_dot(const double a[3],const double b[3])
+{return a[0]*b[0]+a[1]*b[1]+a[2]*b[2];}
+static void swept_edge_cross(const double a[3],const double b[3],double out[3])
+{
+    out[0]=a[1]*b[2]-a[2]*b[1];out[1]=a[2]*b[0]-a[0]*b[2];out[2]=a[0]*b[1]-a[1]*b[0];
+}
+int rf_collision_swept_edge(const float a0[3],const float b0[3],const float a1[3],const float b1[3],
+    const float c[3],const float d[3],float limit,rf_collision_ray_hit *result,uint32_t *matched)
+{
+    double e[3],de[3],f[3],r[3],da[3],n0[3],dn[3],roots[2],qa,qb,qc;uint32_t i,k,count=0;
+    if(!a0 || !b0 || !a1 || !b1 || !c || !d || !result || !matched)return RF_RANGE;
+    if(!isfinite(limit) || limit<0 || limit>1)return RF_FORMAT;
+    for(i=0;i<3;i++) {
+        if(!isfinite(a0[i]) || !isfinite(b0[i]) || !isfinite(a1[i]) || !isfinite(b1[i]) ||
+           !isfinite(c[i]) || !isfinite(d[i]))return RF_FORMAT;
+        da[i]=(double)a1[i]-a0[i];e[i]=(double)b0[i]-a0[i];
+        de[i]=((double)b1[i]-a1[i])-e[i];f[i]=(double)d[i]-c[i];r[i]=(double)c[i]-a0[i];
+    }
+    swept_edge_cross(e,f,n0);swept_edge_cross(de,f,dn);
+    qa=-swept_edge_dot(da,dn);qb=swept_edge_dot(r,dn)-swept_edge_dot(da,n0);qc=swept_edge_dot(r,n0);
+    if(qa==0) {if(qb!=0)roots[count++]=-qc/qb;}
+    else {
+        double discriminant=qb*qb-4*qa*qc;
+        if(discriminant>=0) {
+            double q=-.5*(qb+copysign(sqrt(discriminant),qb));
+            if(q==0)roots[count++]=-qb/(2*qa);
+            else {roots[count++]=q/qa;roots[count++]=qc/q;}
+        }
+    }
+    if(count==2 && roots[1]<roots[0]){double swap=roots[0];roots[0]=roots[1];roots[1]=swap;}
+    for(k=0;k<count;k++) {
+        double t=roots[k],edge[3],offset[3],normal[3],cross[3],velocity[3],difference[3],n2,u,v,speed,length;
+        rf_collision_ray_hit hit;
+        if(!isfinite(t) || t<0 || t>=limit)continue;
+        for(i=0;i<3;i++){edge[i]=e[i]+t*de[i];offset[i]=r[i]-t*da[i];}
+        swept_edge_cross(edge,f,normal);n2=swept_edge_dot(normal,normal);if(!(n2>0))continue;
+        swept_edge_cross(offset,f,cross);u=swept_edge_dot(cross,normal)/n2;
+        swept_edge_cross(offset,edge,cross);v=swept_edge_dot(cross,normal)/n2;
+        if(!(u>=0 && u<=1 && v>=0 && v<=1))continue;
+        for(i=0;i<3;i++) {
+            difference[i]=u*edge[i]-v*f[i]-offset[i];velocity[i]=da[i]+u*de[i];
+        }
+        if(swept_edge_dot(difference,difference)>1e-12*(1+swept_edge_dot(edge,edge)+swept_edge_dot(f,f)))continue;
+        speed=swept_edge_dot(normal,velocity);if(speed==0)continue;
+        length=sqrt(n2);hit.fraction=t==0?0:(float)t;if(hit.fraction>=limit)continue;
+        for(i=0;i<3;i++) {
+            hit.point[i]=(float)((double)c[i]+v*f[i]);hit.normal[i]=(float)(normal[i]/length*(speed<0?1:-1));
+            if(hit.point[i]==0)hit.point[i]=0;if(hit.normal[i]==0)hit.normal[i]=0;
+        }
+        *result=hit;*matched=1;return RF_OK;
+    }
+    *matched=0;return RF_OK;
+}
+
 uint32_t rf_collision_model_sphere_edges(const float start[3],const float delta[3],float radius,
     int32_t count,const float (*vertices)[3],float *fraction,float point[3])
 {

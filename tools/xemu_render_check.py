@@ -462,7 +462,7 @@ dvd_path = '{root.as_posix()}/build/xbox/redfaction-diagnostic.iso'
                 expected=[int(v) for line in pc.stdout.splitlines() if line.startswith('FRAGMENT_CONTACT_AUDIT ') for v in line.split()[1:]]
                 actual=snap['symbols']['rf_scene_fragment_contact_audit']['words']
                 assert len(expected)==64 and expected==actual, 'Fragment contact fixture differs on Xbox'
-                assert actual[:4]==[1,7,0,1] and actual[4:7]==[0,8,4], 'Incomplete contact fixture or missing baseline misses'
+                assert actual[:4]==[2,8,0,1] and actual[4:7]==[0,8,4], 'Incomplete contact fixture or missing baseline misses'
                 for row,fraction,identity,material in ((1,.25,17,3),(2,.25,77,7),(3,.25,77,7),(4,.125,77,7)):
                     words_=actual[4+row*8:12+row*8]
                     assert words_[:2]==[row,1] and struct.unpack('<f',struct.pack('<I',words_[2]))[0]==fraction
@@ -470,7 +470,8 @@ dvd_path = '{root.as_posix()}/build/xbox/redfaction-diagnostic.iso'
                     assert normal==((0.,1.,0.) if row<3 else (-1.,0.,0.)) and words_[6:]==[identity,material]
                 assert actual[44:46]==[5,0] and actual[50]==77
                 assert actual[52]==6 and actual[53]!=0 and actual[54:56]==[1,0]
-                report['checks']['FRAGMENT_CONTACT_AUDIT']=dict(pc=expected,xbox=actual,equal=True,cases=7)
+                assert actual[60:62]==[7,1] and struct.unpack('<2f',struct.pack('<2I',*actual[62:64]))==(.25,1.)
+                report['checks']['FRAGMENT_CONTACT_AUDIT']=dict(pc=expected,xbox=actual,equal=True,cases=8)
 
             if args.terrain_texture_audit:
                 assert 'terrain_texture' in report, 'No live frame available for texture audit'

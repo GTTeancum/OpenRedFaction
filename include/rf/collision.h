@@ -128,6 +128,13 @@ int rf_collision_room_query_face(rf_collision_room_query *query,
     const rf_collision_face *face,uint32_t token,uint32_t *retry);
 
 typedef struct rf_collision_ray_hit {float fraction,point[3],normal[3];} rf_collision_ray_hit;
+/* Port continuous edge primitive: endpoints a/b move linearly from 0 to 1
+ * against stationary segment c/d. Earliest isolated nonparallel crossing,
+ * strict limit, unit normal opposing contact velocity. Persistent coplanar
+ * or grazing/parallel motion is left to vertex/face and overlap handling.
+ * No allocation. Miss preserves result; malformed inputs preserve both. */
+int rf_collision_swept_edge(const float a0[3],const float b0[3],const float a1[3],const float b1[3],
+    const float c[3],const float d[3],float limit,rf_collision_ray_hit *result,uint32_t *matched);
 /* Geometric output conversion of 498e80: matrix columns dot local point and
  * normal, then translate the stored point. No normal normalization. Caller
  * supplies output pose (moving solid +e4/+fc), distinct from query input pose.
