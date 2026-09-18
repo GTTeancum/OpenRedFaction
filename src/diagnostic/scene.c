@@ -1131,6 +1131,7 @@ static rf_level_owned_groups campaign_groups;
 static rf_group_runtime_collection campaign_group_runtime;
 static rf_group_registration campaign_group_registration;
 static rf_geometry_collision_movers campaign_movers;
+#include "scene_mover_intervals.inc"
 static rf_group_registered_mover *campaign_mover_wrappers;
 static rf_level_uid_object *campaign_mover_objects;
 static rf_group_object *campaign_mover_bindings;
@@ -2646,6 +2647,7 @@ uint32_t rf_scene_rotating_doors[8]; /* active ticks, arrivals, last key, angle 
 static int campaign_controller_tick(int32_t now,rf_level_particles *particles,const float player_position[3])
 {
     uint32_t i,j;int status;rf_trigger_occupant actor;
+    campaign_mover_interval_seconds=0;
     actor.handle=(uint32_t)campaign_player_view.handle;actor.flags=campaign_player_view.flags_7c;
     memcpy(actor.position,player_position,12);
     for(i=0;i<campaign_group_runtime.count;++i) {
@@ -2745,6 +2747,8 @@ int rf_scene_mover_visibility_view(uint32_t handle,rf_glare_visibility_object *r
 static int campaign_controller_commit(void)
 {
     uint32_t i;int status;
+    campaign_mover_interval_seconds=0;
+    status=scene_mover_intervals_capture(&campaign_movers,campaign_mover_intervals,campaign_mover_count,0);if(status)return status;
     for(i=0;i<campaign_group_runtime.count;++i) {
         rf_group_runtime_entry *entry=campaign_group_runtime.items+i;
         if(entry->kind==RF_GROUP_RUNTIME_EMPTY)continue;
@@ -2760,6 +2764,7 @@ static int campaign_controller_commit(void)
         memcpy(entry->translation.position,entry->pose.position,12);memcpy(entry->translation.pending,entry->pose.pending,12);
     }
     status=rf_geometry_collision_movers_sync(&campaign_movers);if(status)return status;
+    status=scene_mover_intervals_capture(&campaign_movers,campaign_mover_intervals,campaign_mover_count,1);if(status)return status;
     for(i=0;i<campaign_movers.count;++i) {
         rf_glare_visibility_object object;
         status=rf_scene_mover_visibility_view(campaign_mover_wrappers[i].handle,&object);
@@ -2792,6 +2797,7 @@ static int campaign_controller_commit(void)
     rf_scene_live_audio[6]+=800;
     if(campaign_audio_sink)campaign_audio_sink(campaign_audio_context,campaign_audio_frame,800);
     if(campaign_audio_events.poll)campaign_audio_events.poll(campaign_audio_events_context);
+    campaign_mover_interval_seconds=scene_step_seconds;
     ++rf_scene_live_motion[0];return RF_OK;
 }
 static rf_collision_body_mover *campaign_sweep_scratch;
@@ -4628,6 +4634,7 @@ static void campaign_close_movers(void)
     free(campaign_mover_wrappers);free(campaign_mover_objects);
     campaign_mover_wrappers=NULL;campaign_mover_objects=NULL;campaign_mover_count=0;
     rf_geometry_collision_movers_close(&campaign_movers);
+    free(campaign_mover_intervals);campaign_mover_intervals=NULL;campaign_mover_interval_seconds=0;
     free(campaign_sweep_scratch);campaign_sweep_scratch=NULL;
     free(campaign_surface_sources);campaign_surface_sources=NULL;
     free(campaign_surface_palette);campaign_surface_palette=NULL;
@@ -4641,8 +4648,9 @@ static int campaign_open_movers(const rf_geometry_movers *source)
     campaign_mover_wrappers=calloc(source->count,sizeof(*campaign_mover_wrappers));
     campaign_mover_objects=calloc(source->count,sizeof(*campaign_mover_objects));
     campaign_mover_bindings=calloc(source->count,sizeof(*campaign_mover_bindings));
+    campaign_mover_intervals=calloc(source->count,sizeof(*campaign_mover_intervals));
     handles=malloc(source->count*sizeof(*handles));
-    if(!campaign_mover_wrappers || !campaign_mover_objects || !campaign_mover_bindings || !handles)goto failed;
+    if(!campaign_mover_wrappers || !campaign_mover_objects || !campaign_mover_bindings || !campaign_mover_intervals || !handles)goto failed;
     for(i=0;i<source->count;i++) {
         rf_group_registered_mover *m=campaign_mover_wrappers+i;m->object_kind=9;
         status=rf_object_registry_insert(&campaign_registry,m,&m->handle);if(status)goto failed;
@@ -4656,7 +4664,7 @@ static int campaign_open_movers(const rf_geometry_movers *source)
         campaign_mover_bindings[i]=(rf_group_object){campaign_movers.uids[i],9,handles[i],UINT32_MAX,campaign_movers.poses[i].flags};
     }
     rf_scene_campaign_movers[0]=campaign_mover_count;rf_scene_campaign_movers[1]=campaign_movers.allocated_bytes;
-    rf_scene_campaign_movers[2]=campaign_mover_count*(sizeof(*campaign_mover_wrappers)+sizeof(*campaign_mover_objects)+sizeof(*campaign_mover_bindings));
+    rf_scene_campaign_movers[2]=campaign_mover_count*(sizeof(*campaign_mover_wrappers)+sizeof(*campaign_mover_objects)+sizeof(*campaign_mover_bindings)+sizeof(*campaign_mover_intervals));
     free(handles);return RF_OK;
  failed:
     free(handles);campaign_close_movers();return status;

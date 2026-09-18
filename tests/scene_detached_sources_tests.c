@@ -5,6 +5,45 @@
 #include <string.h>
 #include "../src/diagnostic/scene.c"
 #define CHECK(x) do{if(!(x)){fprintf(stderr,"FAIL line%d %s\n",__LINE__,#x);return 1;}}while(0)
+static int mover_intervals(void)
+{
+    rf_group_attached_pose poses[2]={{0}};rf_collision_solid_view views[2]={{0}};
+    rf_geometry_collision_movers movers={0};scene_mover_interval items[2],saved[2];uint32_t i,j;
+    movers.count=2;movers.poses=poses;movers.views=views;
+    for(i=0;i<2;i++) {
+        views[i].object_id=77+i;poses[i].position[0]=(float)i;
+        for(j=0;j<3;j++)poses[i].input_matrix[j*4]=1;
+        poses[i].pending[0]=999;poses[i].public_position[0]=-999;
+    }
+    CHECK(!scene_mover_intervals_capture(&movers,items,2,0));
+    CHECK(items[0].handle==77 && items[1].handle==78 && !items[0].changed && !items[1].changed);
+    poses[0].position[0]=2;poses[1].input_matrix[0]=poses[1].input_matrix[4]=0;
+    poses[1].input_matrix[1]=1;poses[1].input_matrix[3]=-1;
+    CHECK(!scene_mover_intervals_capture(&movers,items,2,1));
+    CHECK(items[0].start[0]==0 && items[0].end[0]==2 && items[0].changed==1);
+    CHECK(items[1].changed==2 && items[1].matrix[0]==1 && items[1].end_matrix[0]==0);
+    {
+        rf_collision_mover_motion motion={0};rf_collision_mover_relative relative;
+        memcpy(motion.mover_start,items[0].start,12);memcpy(motion.mover_end,items[0].end,12);
+        memcpy(motion.mover_matrix,items[0].matrix,36);
+        for(j=0;j<3;j++)motion.body_matrix[j][j]=motion.next_body_matrix[j][j]=1;
+        motion.body_remaining=.0625f;motion.mover_remaining=.125f;motion.start[0]=motion.end[0]=3;
+        CHECK(!rf_collision_mover_relative_sphere(&motion,&relative));
+        CHECK(relative.origin[0]==1 && relative.start[0]==2 && relative.delta[0]==-1);
+    }
+    memcpy(saved,items,sizeof(items));views[1].object_id=79;poses[0].position[0]=3;
+    CHECK(scene_mover_intervals_capture(&movers,items,2,1)==RF_FORMAT && !memcmp(saved,items,sizeof(items)));
+    views[1].object_id=78;poses[1].input_matrix[2]=NAN;
+    CHECK(scene_mover_intervals_capture(&movers,items,2,0)==RF_FORMAT && !memcmp(saved,items,sizeof(items)));
+    poses[1].input_matrix[2]=0;
+    CHECK(scene_mover_intervals_capture(&movers,items,1,0)==RF_RANGE && !memcmp(saved,items,sizeof(items)));
+    CHECK(!scene_mover_intervals_capture(&movers,items,2,0));poses[0].position[0]=2;
+    CHECK(!scene_mover_intervals_capture(&movers,items,2,1));
+    CHECK(items[0].start[0]==3 && items[0].end[0]==2 && items[0].changed==1);
+    CHECK(!scene_mover_intervals_capture(&movers,items,2,0));
+    CHECK(!scene_mover_intervals_capture(&movers,items,2,1) && !items[0].changed);
+    movers.count=0;CHECK(!scene_mover_intervals_capture(&movers,NULL,0,0));return 0;
+}
 /* Standalone numerical fixture entry; gameplay shares preparation across all
  * reciprocal vertices in each world/mover query. */
 static int scene_detached_vertex_sweep(const rf_geomod_mesh_view *mesh,
@@ -661,6 +700,7 @@ static int inspection_camera(void) {
     CHECK(!rf_scene_inspection_camera(NULL,NULL) && !scene_inspection_enabled);return 0;
 }
 int main(void) {
+    CHECK(!mover_intervals());
     rf_geomod_piece_registry *registries[2]={0};scene_terrain_authored_assets assets[2]={{0}};
     scene_terrain_source_owner sources[2];scene_stream scene={0};rf_geomod_registry_hit hit,sentinel;
     rf_geomod_piece_batch *batches[2];rf_geomod_owned_piece piece;rf_physics_body *bodies[2];
