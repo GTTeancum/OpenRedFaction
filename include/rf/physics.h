@@ -280,6 +280,15 @@ int rf_physics_fragment_pose(const rf_physics_body_state *,float fraction,
 int rf_physics_fragment_step(rf_physics_body_state *,float dt,float gravity,
     uint32_t *object_flags,float published_position[3],float published_basis[9],
     rf_physics_solid_query_fn,void *,rf_physics_solid_step_report *);
+/* Same fragment policy with explicit remaining time on every query. Active
+ * stationary bodies also query, so a moving counterpart can cross them.
+ * Inactive bodies still require explicit wake admission by the scene.
+ * Callback timing/state are speculative until the whole step succeeds. */
+typedef int (*rf_physics_fragment_timed_query_fn)(const rf_physics_body_state *,
+    float remaining,rf_physics_solid_hit *,uint32_t *matched,void *context);
+int rf_physics_fragment_step_timed(rf_physics_body_state *,float dt,float gravity,
+    uint32_t *object_flags,float published_position[3],float published_basis[9],
+    rf_physics_fragment_timed_query_fn,void *,rf_physics_solid_step_report *);
 
 /* 49e7ca..49e8b7 after class-acceleration scaling and movement transform.
  * Caller selects class speed or entity+1488 cap from flag200000. Updates X/Z
