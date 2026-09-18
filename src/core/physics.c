@@ -1005,6 +1005,17 @@ static int solid_step_policy(rf_physics_body_state *state,float dt,float gravity
             if(status)return status;
         }
         if(found && (!isfinite(hit.fraction) || hit.fraction<0 || hit.fraction>=1))return RF_RANGE;
+        if(fragment && found && hit.recovery_distance!=0) {
+            uint32_t k;
+            if(!hit.moving_surface || hit.fraction!=0 || !isfinite(hit.recovery_distance) || hit.recovery_distance<0)return RF_RANGE;
+            for(k=0;k<3;k++) {
+                value.position[k]+=hit.normal[k]*hit.recovery_distance;
+                if(!isfinite(value.position[k]))return RF_RANGE;
+                value.bounds.minimum[k]=value.position[k]-value.bounds.radius;
+                value.bounds.maximum[k]=value.position[k]+value.bounds.radius;
+            }
+            result.steps++;result.contacts++;continue;
+        }
         status=fragment?fragment_advance(&value,left,found?hit.fraction:1,basis,&left):
             rf_physics_solid_advance(&value,left,found?hit.fraction:1,basis,&left);if(status)return status;
         result.steps++;

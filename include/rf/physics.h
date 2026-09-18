@@ -265,6 +265,7 @@ int rf_physics_solid_contact(rf_physics_body_state *,const float point[3],
 typedef struct rf_physics_solid_hit {
     float fraction,point[3],normal[3],elasticity,friction;
     uint32_t moving_surface; /* Port fragment policy: suppress sleep on a moving contact; zero for static. */
+    float recovery_distance; /* Query-validated clearance along unit normal; only zero-time moving overlaps. */
 } rf_physics_solid_hit;
 typedef int (*rf_physics_solid_query_fn)(const rf_physics_body_state *,
     rf_physics_solid_hit *,uint32_t *matched,void *context);

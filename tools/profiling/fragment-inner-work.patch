@@ -123,7 +123,7 @@ index 43ec325f..0f8fe8d3 100644
          memset(rf_scene_fragment_stage_ms,0,sizeof(rf_scene_fragment_stage_ms));
          memset(rf_scene_fragment_profile,0,sizeof(rf_scene_fragment_profile));rf_scene_fragment_profile[0]=2;}
      status=player_poll(player_context,frame,&value);if(status)return status;
-@@ -11389,9 +11391,16 @@ static void scene_fragment_stage_record(uint32_t stage,uint32_t started) {
+@@ -11389,34 +11391,41 @@ static void scene_fragment_stage_record(uint32_t stage,uint32_t started) {
          if(elapsed>rf_scene_fragment_stage_ms[stage*2+1])rf_scene_fragment_stage_ms[stage*2+1]=elapsed;
      }
  }
@@ -133,6 +133,31 @@ index 43ec325f..0f8fe8d3 100644
 +        before[i]=rf_collision_sweep_work[i];
 +    }
 +}
+ /* Port recovery: sweep the actual mesh away from an intruding mover face.
+  * World and other movers can shorten the correction; no time is consumed. */
+ static int scene_detached_recovery(const scene_detached_query_context *c,const rf_physics_body_state *body,
+     const rf_geometry_body_hit *contact,float *distance)
+ {
+     rf_physics_body_state path=*body;scene_detached_query_context query=*c;
+     rf_geometry_collision_movers empty={0};rf_geometry_body_hit obstacle={0};
+     float opposite[3],depth,limit=1;uint32_t k,m,found=0;int status;
+     for(k=0;k<3;k++)opposite[k]=-contact->contact.normal[k];
+     depth=scene_detached_plane_extent(c->mesh,body->position,body->orientation,contact->contact.point,opposite);
+     if(depth<=0){*distance=0;return RF_OK;}depth+=.0001f;
+     for(k=0;k<3;k++)path.next_position[k]=path.position[k]+contact->contact.normal[k]*depth;
+     memcpy(path.next_orientation,path.orientation,36);query.movers=&empty;
+     status=scene_detached_mesh_sweep(&query,&path,&obstacle,&found);if(status)return status;
+     status=scene_detached_world_vertex_sweep(&query,&path,&obstacle,&found,scene_fragment_mover_metadata_unused,NULL);if(status)return status;
+     if(found)limit=obstacle.contact.fraction;
+     for(m=0;m<campaign_movers.count;m++) {
+         rf_geometry_collision_movers one=campaign_movers;uint32_t yes=0;
+         if(m==contact->solid || (campaign_movers.poses[m].flags&0x40000u))continue;
+         one.count=1;one.poses+=m;one.views+=m;one.owned+=m;
+         status=scene_fragment_shape_mover_sweep(c->mesh,&path,&one,limit,&obstacle,&yes);if(status)return status;
+         if(yes)limit=obstacle.contact.fraction;
+     }
+     *distance=limit<1?fmaxf(0,depth*limit-.0001f):depth;return RF_OK;
+ }
  static int scene_detached_query(const rf_physics_body_state *body,rf_physics_solid_hit *out,uint32_t *matched,void *opaque)
  {
 -    scene_detached_query_context *c=opaque;rf_collision_body_sphere scratch[64];rf_geometry_body_hit hit={0};int status;uint32_t started=scene_fragment_clock();
@@ -141,9 +166,10 @@ index 43ec325f..0f8fe8d3 100644
      if(profile_active)rf_scene_fragment_profile[5]++;
      status=campaign_physics_body_sweep_for(c->scene->collision,body,c->spheres,0x460,scratch,64,&hit,matched,c->movers?c->movers:&campaign_movers);
      if(status)return status;
-@@ -11405,20 +11414,21 @@ static int scene_detached_query(const rf_physics_body_state *body,rf_physics_sol
+@@ -11405,21 +11414,22 @@ static int scene_detached_query(const rf_physics_body_state *body,rf_physics_sol
           * that empty padding; corner sweeps supply the later real contact. */
-         if(minimum>.002f)*matched=0;
+         if(minimum>.002f || (minimum>0 && hit.contact.fraction==0 && hit.solid<campaign_movers.count &&
+             campaign_mover_interval_seconds>0 && campaign_mover_intervals[hit.solid].changed))*matched=0;
      }
  #ifndef RF_IMAGE_XBOX_NATIVE
      if(c->trace)printf("DETACHED_QUERY_START %u %u %u %u %u %.9g\n",rf_scene_fragment_platform_audit[0],c->source,c->batch,c->piece,*matched,*matched?hit.contact.fraction:1);
@@ -178,7 +204,7 @@ index 369cd193..4e47ddf3 100644
 +     printf("FRAGMENT_STAGE_WORK");for(i=0;i<32;i++)printf(" %u",rf_scene_fragment_stage_work[i]);puts("");
       printf("FRAGMENT_PROFILE");for(i=0;i<24;i++)printf(" %u",rf_scene_fragment_profile[i]);puts("");
       printf("DETACHED_MOTION");for(i=0;i<8;i++)printf(" %u",rf_scene_detached_motion[i]);puts("");
-     if(rf_scene_fragment_platform_enabled){printf("FRAGMENT_PLATFORM");for(uint32_t k=0;k<25;k++)printf(" %u",rf_scene_fragment_platform_audit[k]);printf("\n");}
+     if(rf_scene_fragment_platform_enabled){printf("FRAGMENT_PLATFORM");for(uint32_t k=0;k<27;k++)printf(" %u",rf_scene_fragment_platform_audit[k]);printf("\n");}
       printf("DETACHED_POSE");for(i=0;i<6;i++)printf(" %.9g",rf_scene_detached_pose[i]);puts("");}
 diff --git a/tools/xemu_render_check.py b/tools/xemu_render_check.py
 index f2e3d221..4505c0f8 100644
@@ -190,7 +216,7 @@ index f2e3d221..4505c0f8 100644
              fields.append(('rf_scene_fragment_stage_ms',8))
 +            fields.append(('rf_scene_fragment_stage_work',32))
              if args.fragment_contact_test:fields.extend((('rf_scene_fragment_contact_audit',64),('rf_scene_fragment_edge_audit',32),('rf_scene_fragment_moving_audit',16),('rf_scene_fragment_support_audit',16)))
-             if args.fragment_platform_test:fields.append(('rf_scene_fragment_platform_audit',25))
+             if args.fragment_platform_test:fields.append(('rf_scene_fragment_platform_audit',27))
              if args.npc_rubble_test:fields.append(('rf_scene_dev_npc_cover',48))
              if args.moving_support_test:fields.append(('rf_scene_moving_support_test',160))
 @@ -454,6 +455,12 @@ dvd_path = '{root.as_posix()}/build/xbox/redfaction-diagnostic.iso'

@@ -181,7 +181,7 @@ static uint32_t player_frame_limit;
 static rf_scene_input player_input;
 static uint32_t campaign_spawn;
 uint32_t rf_scene_dev_room_enabled;
-uint32_t rf_scene_fragment_platform_enabled,rf_scene_fragment_platform_audit[25];
+uint32_t rf_scene_fragment_platform_enabled,rf_scene_fragment_platform_audit[27];
 uint32_t rf_scene_dev_npc_enabled; /* Opt-in:1 harmless walking miner;2 armed rubble-cover fixture. */
 static uint32_t scene_dev_npc_contacts;
 uint32_t rf_scene_water_test_enabled; /* Explicit authored dm03 water test; no terrain fixture. */
@@ -11468,6 +11468,31 @@ static void scene_fragment_stage_record(uint32_t stage,uint32_t started) {
         if(elapsed>rf_scene_fragment_stage_ms[stage*2+1])rf_scene_fragment_stage_ms[stage*2+1]=elapsed;
     }
 }
+/* Port recovery: sweep the actual mesh away from an intruding mover face.
+ * World and other movers can shorten the correction; no time is consumed. */
+static int scene_detached_recovery(const scene_detached_query_context *c,const rf_physics_body_state *body,
+    const rf_geometry_body_hit *contact,float *distance)
+{
+    rf_physics_body_state path=*body;scene_detached_query_context query=*c;
+    rf_geometry_collision_movers empty={0};rf_geometry_body_hit obstacle={0};
+    float opposite[3],depth,limit=1;uint32_t k,m,found=0;int status;
+    for(k=0;k<3;k++)opposite[k]=-contact->contact.normal[k];
+    depth=scene_detached_plane_extent(c->mesh,body->position,body->orientation,contact->contact.point,opposite);
+    if(depth<=0){*distance=0;return RF_OK;}depth+=.0001f;
+    for(k=0;k<3;k++)path.next_position[k]=path.position[k]+contact->contact.normal[k]*depth;
+    memcpy(path.next_orientation,path.orientation,36);query.movers=&empty;
+    status=scene_detached_mesh_sweep(&query,&path,&obstacle,&found);if(status)return status;
+    status=scene_detached_world_vertex_sweep(&query,&path,&obstacle,&found,scene_fragment_mover_metadata_unused,NULL);if(status)return status;
+    if(found)limit=obstacle.contact.fraction;
+    for(m=0;m<campaign_movers.count;m++) {
+        rf_geometry_collision_movers one=campaign_movers;uint32_t yes=0;
+        if(m==contact->solid || (campaign_movers.poses[m].flags&0x40000u))continue;
+        one.count=1;one.poses+=m;one.views+=m;one.owned+=m;
+        status=scene_fragment_shape_mover_sweep(c->mesh,&path,&one,limit,&obstacle,&yes);if(status)return status;
+        if(yes)limit=obstacle.contact.fraction;
+    }
+    *distance=limit<1?fmaxf(0,depth*limit-.0001f):depth;return RF_OK;
+}
 static int scene_detached_query(const rf_physics_body_state *body,rf_physics_solid_hit *out,uint32_t *matched,void *opaque)
 {
     scene_detached_query_context *c=opaque;rf_collision_body_sphere scratch[64];rf_geometry_body_hit hit={0};int status;uint32_t started=scene_fragment_clock();
@@ -11482,7 +11507,8 @@ static int scene_detached_query(const rf_physics_body_state *body,rf_physics_sol
         minimum=-scene_detached_plane_extent(c->mesh,position,basis,hit.contact.point,opposite);
         /* Grid radii can protrude beyond the visible mesh. Do not settle on
          * that empty padding; corner sweeps supply the later real contact. */
-        if(minimum>.002f)*matched=0;
+        if(minimum>.002f || (minimum>0 && hit.contact.fraction==0 && hit.solid<campaign_movers.count &&
+            campaign_mover_interval_seconds>0 && campaign_mover_intervals[hit.solid].changed))*matched=0;
     }
 #ifndef RF_IMAGE_XBOX_NATIVE
     if(c->trace)printf("DETACHED_QUERY_START %u %u %u %u %u %.9g\n",rf_scene_fragment_platform_audit[0],c->source,c->batch,c->piece,*matched,*matched?hit.contact.fraction:1);
@@ -11505,6 +11531,9 @@ static int scene_detached_query(const rf_physics_body_state *body,rf_physics_sol
     out->friction=campaign_surface_palette->materials[hit.contact.material].friction;
     out->moving_surface=campaign_mover_interval_seconds>0 && hit.solid!=UINT32_MAX &&
         hit.solid<campaign_movers.count && campaign_mover_intervals[hit.solid].changed!=0;
+    if(out->moving_surface && out->fraction==0) {
+        status=scene_detached_recovery(c,body,&hit,&out->recovery_distance);if(status)return status;
+    }
 #ifndef RF_IMAGE_XBOX_NATIVE
     if(c->trace) {
         printf("DETACHED_QUERY_HIT %u %u %u %u %u %.9g %.9g %.9g %.9g %.9g %.9g %.9g\n",c->source,c->batch,c->piece,hit.solid,hit.face,
@@ -11643,6 +11672,9 @@ static int scene_detached_tick(scene_stream *s,float seconds)
             body->state=next;
             if(rf_scene_fragment_platform_enabled && source==0 && b==0 && i==1) {
                 float bottom=INFINITY;
+                if(rf_scene_fragment_platform_audit[0]>=420 && rf_scene_fragment_platform_audit[0]<=480) {
+                    rf_scene_fragment_platform_audit[25]++;rf_scene_fragment_platform_audit[26]+=report.limited;
+                }
                 for(uint32_t v=0;v<piece.mesh.vertex_count;v++) {
                     float point[3];scene_piece_world_point(&body->state,piece.mesh.vertices[v].position,point);
                     if(point[1]<bottom)bottom=point[1];

@@ -459,7 +459,7 @@ dvd_path = '{root.as_posix()}/build/xbox/redfaction-diagnostic.iso'
             fields.append(('rf_scene_fragment_profile',24))
             fields.append(('rf_scene_fragment_stage_ms',8))
             if args.fragment_contact_test:fields.extend((('rf_scene_fragment_contact_audit',64),('rf_scene_fragment_edge_audit',32),('rf_scene_fragment_moving_audit',16),('rf_scene_fragment_support_audit',16)))
-            if args.fragment_platform_test:fields.append(('rf_scene_fragment_platform_audit',25))
+            if args.fragment_platform_test:fields.append(('rf_scene_fragment_platform_audit',27))
             if args.npc_rubble_test:fields.append(('rf_scene_dev_npc_cover',48))
             if args.moving_support_test:fields.append(('rf_scene_moving_support_test',160))
             if args.rotate_support_test:fields.append(('rf_scene_rotating_support_test',120))
@@ -483,8 +483,9 @@ dvd_path = '{root.as_posix()}/build/xbox/redfaction-diagnostic.iso'
             if args.fragment_platform_test:
                 expected=[int(v) for line in pc.stdout.splitlines() if line.startswith('FRAGMENT_PLATFORM ') for v in line.split()[1:]]
                 actual=snap['symbols']['rf_scene_fragment_platform_audit']['words']
-                assert len(expected)==25 and expected==actual and actual[:2]==[599,60], 'Platform sequence differs or incomplete'
+                assert len(expected)==27 and expected==actual and actual[:2]==[599,60], 'Platform sequence differs or incomplete'
                 assert actual[2]==1, 'Repeated sleep/wake while platform moves'
+                if args.tip_platform_test:assert actual[25:27]==[61,0], 'Tipping exhausted collision substeps'
                 basis=struct.unpack('<9f',struct.pack('<9I',*actual[16:25]))
                 assert basis==((0,-1,0,1,0,0,0,0,1) if args.tip_platform_test else (1,0,0,0,1,0,0,0,1))
                 initial,final=struct.unpack('<2f',struct.pack('<2I',*actual[6:8]))

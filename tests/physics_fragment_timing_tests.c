@@ -1,3 +1,4 @@
+#include <math.h>
 #include "rf/physics.h"
 #include "rf/collision.h"
 #include <stdio.h>
@@ -10,7 +11,7 @@ static int query(const rf_physics_body_state *body,float remaining,
     fixture *f=opaque;unsigned n=f->calls++;
     if(n>=10)return RF_RANGE;
     f->times[n]=remaining;
-    if((f->mode==1 || f->mode==7) && n==1)return RF_IO;
+    if((f->mode==1 || f->mode==7 || f->mode==10) && n==1)return RF_IO;
     if(f->mode==3) {
         rf_collision_mover_motion m={0};rf_collision_mover_relative relative;
         float vertices[4][3]={{-2,0,-2},{-2,0,2},{2,0,2},{2,0,-2}};
@@ -29,7 +30,9 @@ static int query(const rf_physics_body_state *body,float remaining,
     if(f->mode>=4) {
         *found=f->mode==5 || n==0;hit->fraction=0;
         hit->normal[f->mode==6?0:1]=1;memcpy(hit->point,body->position,12);
-        hit->moving_surface=f->mode!=6;return RF_OK;
+        hit->moving_surface=f->mode!=6;
+        if(f->mode>=8)hit->recovery_distance=f->mode==9?NAN:.5f;
+        return RF_OK;
     }
     *found=f->mode==2 || n<2;
     hit->fraction=f->mode==2?0:(n==0?.25f:.5f);
@@ -101,5 +104,17 @@ int main(void)
     CHECK(rf_physics_fragment_step_timed(&body,.125f,9.8f,&flags,position,basis,query,&f,&report)==RF_IO);
     CHECK(f.calls==2 && flags==17 && !memcmp(&body,&before,sizeof(body)));
     CHECK(!memcmp(position,saved_position,12) && !memcmp(basis,saved_basis,36) && !memcmp(&report,&saved_report,sizeof(report)));
+    /* Recovery consumes a query, not time; a subsequent miss advances normally. */
+    body=initial();body.flags=0x9800003fu;body.velocity[0]=2;f=(fixture){0,8,{0}};
+    CHECK(!rf_physics_fragment_step_timed(&body,.125f,0,&flags,position,basis,query,&f,&report));
+    CHECK(body.position[1]==1.5f && body.position[0]==.25f && report.steps==2 && report.contacts==1);
+    CHECK(f.times[0]==.125f && f.times[1]==.125f && !report.limited && !report.stopped);
+    for(unsigned mode=9;mode<=10;mode++) {
+        body=initial();body.flags=0x9800003fu;before=body;f=(fixture){0,mode,{0}};flags=17;
+        memcpy(saved_position,position,12);memcpy(saved_basis,basis,36);memset(&report,0xa5,sizeof(report));saved_report=report;
+        CHECK(rf_physics_fragment_step_timed(&body,.125f,0,&flags,position,basis,query,&f,&report)==(mode==9?RF_RANGE:RF_IO));
+        CHECK(flags==17 && !memcmp(&body,&before,sizeof(body)));
+        CHECK(!memcmp(position,saved_position,12) && !memcmp(basis,saved_basis,36) && !memcmp(&report,&saved_report,sizeof(report)));
+    }
     puts("PASS timed fragment repeats, stationary moving-surface query, bounded retries and rollback");return 0;
 }

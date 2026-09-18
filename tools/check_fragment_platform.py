@@ -20,6 +20,7 @@ env.update(RF_REPLAY_LEVEL='ctf06.rfl',RF_REPLAY_ARCHIVE='levelsm.vpp',RF_REPLAY
            RF_REPLAY_AUTHORED_SOURCE='108',RF_REPLAY_AUTHORED_SOURCES='3')
 if args.moving:env['RF_REPLAY_FRAGMENT_PLATFORM_TEST']='2' if args.tipping else '1'
 env['RF_REPLAY_FRAGMENT_SUPPORT_AUDIT']='1'
+if args.tipping:env['RF_REPLAY_FRAGMENT_CONTACT_TRACE']='1'
 with (OUT/(name+'.log')).open('w') as log:
     result=subprocess.run([str(ROOT/'build/pc/Release/rf_pc_play.exe'),'--spawn-replay',str(OUT/'game'),
                            str(ROOT/'artifacts/side-group108/shot.bin'),str(OUT/(name+'.ppm'))],
@@ -39,7 +40,7 @@ if args.moving:
     report['platform']=row('FRAGMENT_PLATFORM')
     assert report['platform'][:2]==[599,60],report['platform']
     assert report['platform'][2]==1, 'Repeated sleep/wake while platform moves'
-    assert len(report['platform'])==25
+    assert len(report['platform'])==27
     bottom=struct.unpack('<2f',struct.pack('<2I',*report['platform'][6:8]))
     assert abs(bottom[0]-.65)<.005 and abs(bottom[1]+1.5)<.005
     assert 420<report['platform'][8]<=480 and report['platform'][9]==1
@@ -52,6 +53,14 @@ if args.moving:
     assert all(abs(y+1.5)<.005 for y in report['mesh_bottoms']),report
     assert stationary['mesh_bottoms'][1]-report['mesh_bottoms'][1]>2.1
     assert report['motion'][3]==3 and stationary['motion'][3]==3
+    if args.tipping:
+        steps=[l.split() for l in lines if l.startswith('DETACHED_STEP_TRACE ')]
+        steps=[w for w in steps if w[2:5]==['0','0','1'] and 420<=int(w[1])<=480]
+        assert len(steps)==61, 'Missing per-frame tipping evidence'
+        limited=[int(w[1]) for w in steps if int(w[7])]
+        assert not limited, ('Tipping exhausted collision substeps',limited)
+        report['tipping_motion']={'sampled_frames':len(steps),'limited_frames':limited,
+                                  'max_substeps':max(int(w[5]) for w in steps)}
     report['mode']='tip' if args.tipping else 'translate'
     report['scope']='Rocket-generated rubble rests on explicit platform; 60 kinematic mover steps withdraw support, support is revalidated and all three settle on the floor. PC only; saves intentionally disabled.'
 else:

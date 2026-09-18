@@ -1,6 +1,6 @@
 # Red Faction Xbox / PC - open work
 
-- PRIORITY GeoMod fragment contacts: Fix rotating-mover overlap recovery and swept contacts; the tipping trace proves38 frames exhaust all10 contacts at zero time, beginning in the sphere query, while carry/crush also remain open.
+- PRIORITY GeoMod fragment contacts: Broaden angular swept contacts and carry/crush; mesh-based overlap recovery removes all38 zero-time tipping stalls, with61 nonlimited frames and27 exact PC/Xbox audit words across78 stock64MiB checks;126 PC tests pass.
 
 - Doors: Investigate the existing420-frame close/reopen replay failure reproduced on both current and prior scene code;180-frame opening and player traversal still pass.
 

@@ -151,6 +151,49 @@ static int moving_surface_contacts(void)
     }
     return 0;
 }
+static int fragment_overlap_recovery(void)
+{
+    rf_geomod_vertex vertices[4]={{{-.5f,-.25f,-.5f},{0,0}},{{.5f,-.25f,-.5f},{0,0}},
+        {{.5f,-.25f,.5f},{0,0}},{{-.5f,-.25f,.5f},{0,0}}};
+    rf_geomod_face face={0,4,0,0};rf_geomod_mesh_view mesh={vertices,&face,4,1,0};
+    rf_geometry_collision_world world={0};scene_stream scene={0};scene_detached_query_context query={0};
+    rf_physics_body_state body={0};rf_geometry_body_hit contact={0};float distance;
+    rf_geometry_collision_movers saved=campaign_movers;rf_group_attached_pose pose={0};
+    rf_collision_solid_view view={0};rf_geometry_collision_flat flat={0};rf_collision_face ceiling={0};
+    float points[4][3]={{-2,-.125f,-2},{2,-.125f,-2},{2,-.125f,2},{-2,-.125f,2}};uint32_t k;
+    rf_scene_world_geometry empty_render={0};rf_surface_materials empty_palette={0};const rf_geometry *empty_geometry=NULL;
+    const rf_scene_world_geometry *saved_render=actor_follow_world;
+    rf_surface_materials *saved_palette=campaign_surface_palette;const rf_geometry **saved_sources=campaign_surface_sources;
+    actor_follow_world=&empty_render;campaign_surface_palette=&empty_palette;campaign_surface_sources=&empty_geometry;
+    scene.collision=&world;query.scene=&scene;query.mesh=&mesh;contact.solid=99;contact.contact.normal[1]=1;
+    for(k=0;k<3;k++)body.orientation[k*4]=body.next_orientation[k*4]=pose.input_matrix[k*4]=1;
+    memset(&campaign_movers,0,sizeof(campaign_movers));
+    CHECK(!scene_detached_recovery(&query,&body,&contact,&distance));CHECK(fabsf(distance-.2501f)<1e-6f);
+    ceiling.vertices=points;ceiling.count=4;ceiling.plane[1]=-1;ceiling.plane[3]=-.125f;
+    for(k=0;k<3;k++){ceiling.minimum[k]=pose.minimum[k]=-2;ceiling.maximum[k]=pose.maximum[k]=2;}
+    flat.faces=&ceiling;flat.count=1;campaign_movers.poses=&pose;campaign_movers.views=&view;
+    campaign_movers.owned=&flat;campaign_movers.count=1;
+    CHECK(!scene_detached_recovery(&query,&body,&contact,&distance));CHECK(fabsf(distance-.1249f)<1e-5f);
+    contact.solid=0;CHECK(!scene_detached_recovery(&query,&body,&contact,&distance));CHECK(fabsf(distance-.2501f)<1e-6f);
+    contact.solid=99;pose.flags=0x40000u;CHECK(!scene_detached_recovery(&query,&body,&contact,&distance));CHECK(fabsf(distance-.2501f)<1e-6f);
+    pose.flags=0;pose.position[0]=4;CHECK(!scene_detached_recovery(&query,&body,&contact,&distance));CHECK(fabsf(distance-.2501f)<1e-6f);
+    pose.position[0]=0;flat.faces=NULL;distance=77;
+    CHECK(scene_detached_recovery(&query,&body,&contact,&distance)==RF_FORMAT && distance==77);
+    /* A finite world patch catches the face interior despite missing every corner. */
+    {
+        rf_geometry_collision_room room={0};rf_collision_room_view room_view={0};uint32_t primary=0;
+        campaign_movers.count=0;flat.faces=&ceiling;
+        {rf_geomod_vertex swap=vertices[1];vertices[1]=vertices[3];vertices[3]=swap;} /* Upward-facing sheet. */
+        for(k=0;k<4;k++){points[k][0]*=.01f;points[k][2]*=.01f;}
+        CHECK(!rf_collision_tree_open(&ceiling,1,65536,&room.tree));
+        room_view.tree=&room.tree;for(k=0;k<3;k++){room_view.minimum[k]=-3;room_view.maximum[k]=3;}
+        world.rooms=&room;world.views=&room_view;world.room_count=1;world.primary=&primary;world.primary_count=1;
+        CHECK(!scene_detached_recovery(&query,&body,&contact,&distance));CHECK(fabsf(distance-.1249f)<1e-5f);
+        room_view.skip=1;CHECK(!scene_detached_recovery(&query,&body,&contact,&distance));CHECK(fabsf(distance-.2501f)<1e-6f);
+        rf_collision_tree_close(&room.tree);
+    }
+    campaign_movers=saved;actor_follow_world=saved_render;campaign_surface_palette=saved_palette;campaign_surface_sources=saved_sources;return 0;
+}
 static int mover_intervals(void)
 {
     rf_group_attached_pose poses[2]={{0}};rf_collision_solid_view views[2]={{0}};
@@ -901,6 +944,7 @@ static int inspection_camera(void) {
     CHECK(!rf_scene_inspection_camera(NULL,NULL) && !scene_inspection_enabled);return 0;
 }
 int main(void) {
+    CHECK(!fragment_overlap_recovery());
     CHECK(!moving_surface_contacts());
     CHECK(!support_loss_scene_tick());
     CHECK(!mover_intervals());
