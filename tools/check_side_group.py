@@ -69,6 +69,26 @@ check_impact(guarded,.25)
 assert any(l.startswith('GEOMOD_PUBLICATION_REJECT geometry -3') for l in guarded)
 assert values(guarded,'AUTHORED_SOURCE_CUTS')[:6]==[args.source,1,79 if args.source==92 else 103,1,75 if args.source==92 else 99,0]
 assert guarded_bytes==guard_control_bytes,'Rejected saved blast changed connected continuation'
-report=dict(source=args.source,body=body,accepted_impact=accepted_impact,rejected_impact=rejected_impact,protected_trim_rejection=True,first_save_bytes=len(save),continued_save_bytes=len(resumed_bytes),continuation_equal=True,reloaded_guard_rejection=True,
+# Cut the opposite junction after reload: both supports now have history.
+second=bytearray(header+bytes(501*48))
+second_yaw=math.atan2(target_x-eye[0],-target_z-eye[2])
+commands,_=pitch_commands(yaw,second_yaw,60)
+for i,v in enumerate(commands):struct.pack_into('<f',second,8+48*(10+i)+16,v)
+struct.pack_into('<I',second,8+48*100+32,1)
+second_lines,second_bytes=run('second',second,'shot')
+second_impact=values(second_lines,'ROCKET_IMPACT',float)[2:]
+assert abs(second_impact[0]-(target_x+(-.051 if args.source==92 else .051)))<.002 and abs(second_impact[1]-1.5)<.002 and abs(second_impact[2]+target_z)<.002,second_impact
+expected_cuts=[args.source,2,79 if args.source==92 else 103,1,75 if args.source==92 else 99,1]
+assert values(second_lines,'AUTHORED_SOURCE_CUTS')[:6]==expected_cuts
+full=data+second[8+48:]
+_,second_control=run('second-control',full)
+assert second_bytes==second_control,'Second joint cut differs after reload'
+settle=header+bytes(301*48)
+settled,settled_bytes=run('second-reload',settle,'second')
+_,settled_control=run('second-reload-control',full+settle[8+48:])
+assert values(settled,'AUTHORED_SOURCE_CUTS')[:6]==expected_cuts
+assert settled_bytes==settled_control,'Both-supports-cut continuation differs after reload'
+report=dict(source=args.source,body=body,second_impact=second_impact,second_save_bytes=len(second_bytes),second_reload_equal=True,
+            second_publication=values(second_lines,'TERRAIN_PUBLICATION'),second_pieces=values(second_lines,'DETACHED_MOTION'),accepted_impact=accepted_impact,rejected_impact=rejected_impact,protected_trim_rejection=True,first_save_bytes=len(save),continued_save_bytes=len(resumed_bytes),continuation_equal=True,reloaded_guard_rejection=True,
             publication=values(resumed,'TERRAIN_PUBLICATION'),pieces=values(resumed,'DETACHED_MOTION'))
 (folder/'report.json').write_text(json.dumps(report,indent=2)+'\n');print(json.dumps(report,indent=2))

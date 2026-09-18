@@ -2,7 +2,7 @@
 
 - PRIORITY GeoMod ordinary walls: Broaden multi-window and neighboring-brush CSG; a live floor-seam rocket now passes77 stock64MiB checks with exact PC/Xbox save bytes and fixture-off/mismatched-save rejection controls, alongside verified wall depth and player traversal.
 
-- GeoMod source expansion: Broaden joint side-beam/post histories and native opposite-side coverage; both connected groups pass PC save/reload and atomic trim rejection, while group92 shot/Xbox-created-save blocked-blast continuation pass77/77 stock64MiB checks with exact PC state.
+- GeoMod source expansion: Broaden connected histories and fragment contact shapes; both groups pass PC destruction at both junctions and repeated reload, with native108 second-junction destruction passing77 stock64MiB checks and exact PC state alongside group92 guarded continuation.
 
 - GeoMod thin fragments: Broaden contact coverage beyond the beam and concave L fixtures; face-derived samples now rescue pieces missed by regular grids, while Xbox beam continuation still passes76 checks.
 
@@ -5507,3 +5507,8 @@ Enabled single-source DEV selectors75/79/99/103 with an offset spawn that avoids
 ### 2026-09-18: Connected side beam/post destruction
 
 Enabled exact beam92/post79/post75 and beam108/post103/post99 collections via shared profile metadata, retaining existing pair/triple memory ceilings. Publication and collection restore check every owner's prepared cutter history against protected detail, including non-selected members. Both PC groups pass joint beam/post cuts, untouched opposite-post controls, atomic trim rejection, saved neutral continuation and saved rejected-next-blast continuation. Native92 joint shot and Xbox-created-save/blocked-next-blast pass77/77 checks with exact uninterrupted PC checkpoints; free endpoint pages3334/3303. Both captures inspected, disc restored and emulator closed. All123 PC tests and NXDK build pass. Native108, repeated successful joint cuts and intentional detail-geometry interactions remain open. Rough estimates: overall~51%, GeoMod~90%. See docs/research/GEOMOD-SIDE-BEAMS-20260918.md.
+
+
+### 2026-09-18: Both beam/post junctions destroyed and replayed
+
+Extended the connected replay to shoot the opposite junction after reload, requiring beam:2/high-post:1/low-post:1 and exact uninterrupted checkpoint comparison; a further301-frame restore also matches for PC92 and108. Saves are7702/8016bytes, with2/3settled pieces. Native108 loaded its first-junction checkpoint and completed the second shot in501frames:77checks,3076free pages, exact8016-byte uninterrupted PC/Xbox checkpoint. PC and native captures inspected; Red Faction XEMU closed/disc restored. Runtime source unchanged; replay/docs only. Native reload of this both-junctions endpoint, broader fragment contacts and general multi-brush walls remain open. Overall~51%; GeoMod~90%.

@@ -159,3 +159,19 @@ The connected replay also now reloads the nonempty save and fires aY.25 trim-con
 Connected92 Xbox-created-save/rejected-next-blast evidence: `artifacts/xemu/render-20260918-011338`,301frames,77 checks,3303free pages. The output4514-byte checkpoint matches uninterrupted PC exactly (SHA2568fbf588a9ba1c6c79672e6ec1ad134ed76db5b117c2d94d6de67951972563477). Source counts remain92:1/79:1/75:0, rejection status isRF_NOT_FOUND, and detached piece count/pose/motion words match the initial native endpoint. The full save need not equal the initial save because the player fired/changed aim and ordinary gameplay continued; the authoritative comparison is uninterrupted play with the same input. The restored native framebuffer was inspected, including the cut junction, retained post and ground fragment. Harness restored the disc and closed XEMU.
 
 The added reload-and-reject control also passes for PC108. Native108, broader repeated successful cuts and destruction that intentionally modifies detail geometry remain open. This milestone brings the rough GeoMod estimate to~90%, with overall~51%; these remain heuristic scope estimates, not coverage or fidelity percentages.
+
+
+## Repeated cuts at both junctions
+
+The connected replay now restores the first-junction save, aims across toZ-2.5 and fires at the opposite beam/post junction atY1.5. The input runs501frames with the second shot at100. Impact traces verify the actual surface and target; source counts must become beam:2/high-post:1/low-post:1. Both groups then restore that second save for301 neutral frames. Both second-shot and later-restoration checkpoints must equal uninterrupted play with the same input.
+
+| Group | Second save bytes | Published faces/vertices | Settled piece count |
+|---|---|---|---|
+|92,79,75|7702|45/248|2|
+|108,103,99|8016|38/191|3|
+
+Both groups pass all new comparisons and retain the earlier successful/rejected first-shot controls. Group108's second shot wakes existing fragments; three visible pieces are not three additional births. Its PC second-shot image was inspected: the damaged junction, three large tilted fragments, room, neighboring spans and weapon/HUD remain visible. Exact body/support contact fidelity across these broader shapes remains a separate concern from matching replay state.
+
+Native108 loaded the first-junction PC checkpoint and performed the opposite shot (`artifacts/xemu/render-20260918-011823`):501frames,77checks,3076free pages at endpoint. Counts108:2/103:1/99:1 and fragment motion words match PC. The8016-byte Xbox checkpoint equals uninterrupted PC, SHA2567e024db32fe00dcecc7e13937b193ea6b63cdfd934f3cbd15bd388b8f6c0cc50. Native framebuffer inspected; disc restored and the Red Faction emulator closed. Other projects' emulator sessions were left untouched.
+
+This turn changes only the replay and documentation; it uses the already-built shared runtime from the connected-source implementation. No redundant C/C++ rebuild or unit-suite rerun was needed. Further native reload of the both-junctions-cut endpoint, broader fragment contact shapes and general multi-brush wall coverage remain open. Estimates remain overall~51%, GeoMod~90%.
