@@ -1,6 +1,6 @@
 # Red Faction Xbox / PC - open work
 
-- PRIORITY GeoMod fragment floor contacts: Implement rotation-aware fragment contact correction for verified0.107/0.062unit floor penetration; added corner spheres worsened contact and were removed, and the strict finite-floor gate intentionally fails until fixed.
+- PRIORITY GeoMod fragment floor contacts: Correct rotation-aware fragment contacts; read-only traces now prove rotation introduces floor penetration at both west junctions, while the strict resting-contact gate remains red and the shared binary-derived advance contract stays unchanged.
 
 - PRIORITY GeoMod ordinary walls: Broaden multi-window and neighboring-brush CSG; a live floor-seam rocket now passes77 stock64MiB checks with exact PC/Xbox save bytes and fixture-off/mismatched-save rejection controls, alongside verified wall depth and player traversal.
 
@@ -5524,3 +5524,8 @@ Added opt-in endpoint mesh/sphere/floor measurements and a two-group replay driv
 ### 2026-09-18: Reject translational corner-sphere fix; enforce real contact gate
 
 Tested actual mesh-corner contact spheres through the existing world/mover route. Replay/save comparisons passed but actual mesh-floor penetration worsened to0.117/0.485units, so the candidate was removed. Confirmed the existing sweep uses current orientation while binary-verified fractional advance commits full proposed rotation; a complete pose-aware policy is needed. Restored the original runtime and regenerated92 histories; replay passes and both audit checkpoints remain identical to baseline. The new --max-penetration .005 gate correctly reports the original two floor failures and exits1. No gameplay fix or Xbox candidate build shipped. Contact correction remains open. See docs/research/GEOMOD-FRAGMENT-FLOOR-AUDIT-20260918.md. Overall~51%; GeoMod~90%.
+
+
+### 2026-09-18 — Isolated fragment rotation at finite-floor contacts
+
+Solo work resumed. Added PC-only contact tracing and a four-replay baseline comparison. Actual contact translation uses the original backoff on a private state copy. West first/second-junction contact gaps change from +0.008570/+0.009124 to -0.058115/-0.053567 solely on proposed rotation at the same position; all four checkpoint comparisons remain byte-identical. This confirms an angular contribution without claiming a complete collision solver or correction. All123 PC tests and the stock NXDK build pass. See docs/research/GEOMOD-FRAGMENT-FLOOR-AUDIT-20260918.md. Runtime contact correction and native validation remain open. Overall estimate remains ~51%; GeoMod ~90%. Current action: GeoMod debris collision.

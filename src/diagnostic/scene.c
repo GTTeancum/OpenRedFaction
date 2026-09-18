@@ -11034,7 +11034,44 @@ static int scene_debris_draw(scene_stream *s)
 
 uint32_t rf_scene_detached_motion[8]; /* bodies,steps,contacts,stopped,limited,pose hash,status,spheres */
 float rf_scene_detached_pose[6]; /* last body's position and velocity */
-typedef struct scene_detached_query_context {scene_stream *scene;const rf_physics_spheres *spheres;} scene_detached_query_context;
+typedef struct scene_detached_query_context {
+    scene_stream *scene;const rf_physics_spheres *spheres;
+#ifndef RF_IMAGE_XBOX_NATIVE
+    const rf_geomod_mesh_view *mesh;uint32_t source,batch,piece,trace;
+#endif
+} scene_detached_query_context;
+#ifndef RF_IMAGE_XBOX_NATIVE
+/* Read-only finite-floor measurements at the exact partial-contact translation.
+ * Separate the old and proposed orientations; do not extrapolate a hit plane. */
+static int scene_detached_contact_trace(const scene_detached_query_context *c,
+    const rf_physics_body_state *body,float fraction) {
+    float minimum[3]={1e9f,1e9f,1e9f},remaining;uint32_t counts[3]={0},pose,q,k,j;
+    rf_physics_body_state translated=*body;int advance_status;
+    /* Reuse the real contact backoff, including its float store boundaries. */
+    advance_status=rf_physics_contact_advance(&translated,1,fraction,&remaining);
+    if(advance_status)return advance_status;
+    for(pose=0;pose<3;pose++)for(q=0;q<c->mesh->vertex_count;q++) {
+        const float *basis=pose==2?body->next_orientation:body->orientation;
+        const float *local=c->mesh->vertices[q].position;
+        float world[3],above[3],down[3]={0,-1,0};rf_geometry_world_hit hit;uint32_t yes;int status;
+        for(k=0;k<3;k++) {
+            double value=pose?translated.position[k]:body->position[k];
+            for(j=0;j<3;j++)value+=(double)local[j]*basis[j*3+k];
+            world[k]=(float)value;above[k]=world[k];
+        }
+        above[1]+=.5f;
+        status=rf_geometry_collision_world_ray(c->scene->collision,0x460,above,down,1,&hit,&yes);
+        if(status)return status;
+        if(yes && hit.hit.normal[1]>.5f) {
+            float gap=0;for(k=0;k<3;k++)gap+=(world[k]-hit.hit.point[k])*hit.hit.normal[k];
+            if(gap<minimum[pose])minimum[pose]=gap;counts[pose]++;
+        }
+    }
+    printf("DETACHED_CONTACT_TRACE %u %u %u %.9g %u %.9g %u %.9g %u %.9g\n",
+        c->source,c->batch,c->piece,fraction,counts[0],minimum[0],counts[1],minimum[1],counts[2],minimum[2]);
+    return RF_OK;
+}
+#endif
 static int scene_detached_query(const rf_physics_body_state *body,rf_physics_solid_hit *out,uint32_t *matched,void *opaque)
 {
     scene_detached_query_context *c=opaque;rf_collision_body_sphere scratch[64];rf_geometry_body_hit hit;int status;
@@ -11044,7 +11081,11 @@ static int scene_detached_query(const rf_physics_body_state *body,rf_physics_sol
     if(!campaign_surface_palette || hit.contact.material>=campaign_surface_palette->count)return RF_FORMAT;
     out->fraction=hit.contact.fraction;memcpy(out->point,hit.contact.point,12);memcpy(out->normal,hit.contact.normal,12);
     out->elasticity=campaign_surface_palette->materials[hit.contact.material].elasticity;
-    out->friction=campaign_surface_palette->materials[hit.contact.material].friction;return RF_OK;
+    out->friction=campaign_surface_palette->materials[hit.contact.material].friction;
+#ifndef RF_IMAGE_XBOX_NATIVE
+    if(c->trace)return scene_detached_contact_trace(c,body,out->fraction);
+#endif
+    return RF_OK;
 }
 static void scene_piece_world_point(const rf_physics_body_state *body,const float local[3],float world[3]) {
     uint32_t k,j;for(k=0;k<3;k++) {
@@ -11125,6 +11166,10 @@ static int scene_detached_tick(scene_stream *s,float seconds)
             if(!rf_geomod_piece_batch_alive(batch,i))continue;
             status=rf_geomod_piece_batch_get(batch,i,&piece,&body);if(status)goto failed;
             query.scene=s;query.spheres=&body->spheres;memcpy(position,body->state.position,12);memcpy(basis,body->state.orientation,36);
+#ifndef RF_IMAGE_XBOX_NATIVE
+            query.mesh=&piece.mesh;query.source=source;query.batch=b;query.piece=i;
+            query.trace=getenv("RF_REPLAY_FRAGMENT_CONTACT_TRACE")!=NULL;
+#endif
             status=rf_physics_solid_step(&body->state,seconds,scene_gravity.acceleration,&flags,
                 position,basis,scene_detached_query,&query,&report);if(status){printf("DETACHED_STEP_FAILURE %u %u %u %d %u %.9g %.9g %.9g\n",source,b,i,status,body->state.flags,body->state.position[0],body->state.position[1],body->state.position[2]);printf("DETACHED_STEP_RADIUS %.9g\n",body->state.bounds.radius);goto failed;}
             ++rf_scene_detached_motion[0];rf_scene_detached_motion[1]+=report.steps;rf_scene_detached_motion[2]+=report.contacts;

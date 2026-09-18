@@ -32,3 +32,21 @@ The body sweep uses the current orientation and translation; it does not sweep c
 `tools/check_fragment_support_audit.py --max-penetration .005` is now an explicit acceptance gate. It writes the complete diagnostic report first, then exits1 for missing actual vertex-floor evidence or any vertex below its finite floor surface beyond the supplied tolerance. This gate checks penetration only, not positive hovering gaps or arbitrary polygon contacts. Its default diagnostic-only behavior remains available. Nonfinite/negative tolerances reject.
 
 After reverting the candidate, the complete92 connected replay again passes, the audit preserves both groups' prior save bytes, and the strict gate reproduces exactly the original two failures (-0.106614828 and-0.0618112087). Thus the new gate is intentionally red until a real correction passes. No gameplay fix ships in this turn, and the Xbox runtime was never rebuilt with the rejected candidate. Next work requires a fragment-specific contact policy that accounts for proposed angular pose and finite surfaces, with collision/state/restore verification; a render-only lift or unconditional floor snap is not an acceptable substitute.
+
+
+## Contact-step rotation isolation
+
+Added a PC-only, opt-in `RF_REPLAY_FRAGMENT_CONTACT_TRACE` diagnostic at the fragment query callback. It measures each mesh vertex against finite upward-facing world surfaces using the same bounded vertical rays as the endpoint audit. Three poses are sampled: incoming pose, real backed-off contact translation with incoming orientation, and the same translation with the full proposed orientation. Translation is obtained by calling `rf_physics_contact_advance` on a private body copy, preserving the original 0.05-unit backoff and float store boundaries. The trace does not modify the simulation body, contact material, fraction, or shared advance routine. It is excluded from the native Xbox compile.
+
+`tools/check_fragment_contact_trace.py` runs the existing first/second-junction inputs for both groups, comparing each output checkpoint byte-for-byte with its untraced baseline. All four comparisons pass. The report and individual contact records are in `artifacts/fragment-contact-trace/report.json`.
+
+| Replay | Contacts | Incoming minimum gap | After translation | After proposed rotation |
+|---|---:|---:|---:|---:|
+|92 first junction, largest rotation drop|17|0.008570433|0.008570433|-0.058114529|
+|92 second junction, largest rotation drop|18|0.009123564|0.009123564|-0.053566933|
+|108 first junction, largest rotation drop|34|0.157274127|0.157274127|0.024361014|
+|108 second junction, only contact|1|0.001445651|0.001445651|0.001445651|
+
+The contact fractions of the two west examples are0.513414979 and0.217607647. Contact backoff leaves their translations unchanged, while applying proposed rotation introduces actual finite-floor penetration. This directly demonstrates an angular contribution in these sampled contacts, rather than merely inferring it from endpoint images or sphere extents. The minima can belong to different vertices, and the bounded ray sample count can change as vertices rotate into range; these measurements are not a continuous angular sweep or full polygon intersection proof. They do not establish that rotation explains all final penetration or every shape.
+
+Validation: four traced PC replays preserve exact baseline saves; all123 PC tests pass; stock NXDK build/link/XBE/ISO succeeds. No new XEMU session or visual correctness claim is made. No gameplay correction ships here. Next implementation remains a fragment-specific full-pose contact policy with finite-surface handling and saved-continuation validation, preserving the separately verified shared solid-advance contract.
