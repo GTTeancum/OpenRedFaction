@@ -11185,6 +11185,24 @@ static int scene_detached_vertex_sweep(const rf_geomod_mesh_view *mesh,
 static int scene_detached_box_overlap(const float a[3],const float b[3],
     const float lo[3],const float hi[3])
 {uint32_t k;for(k=0;k<3;k++)if(a[k]>hi[k] || b[k]<lo[k])return 0;return 1;}
+static int scene_detached_mesh_bounds(const rf_geomod_mesh_view *mesh,
+    const rf_physics_body_state *body,float lo[3],float hi[3])
+{
+    float radius;double squared=0,scale=3;uint32_t v,k;
+    /* The occupancy-grid bound is not a mesh bound. A Frobenius-norm bound
+     * covers both endpoint bases and the normalized intermediate rotations. */
+    for(v=0;v<mesh->vertex_count;v++) {
+        double length=0;for(k=0;k<3;k++)length+=(double)mesh->vertices[v].position[k]*mesh->vertices[v].position[k];
+        if(length>squared)squared=length;
+    }
+    for(v=0;v<2;v++) {
+        const float *basis=v?body->next_orientation:body->orientation;double norm=0;
+        for(k=0;k<9;k++)norm+=(double)basis[k]*basis[k];if(norm>scale)scale=norm;
+    }
+    radius=(float)sqrt(squared*scale)+.0001f;if(!isfinite(radius))return RF_RANGE;
+    for(k=0;k<3;k++){lo[k]=fminf(body->position[k],body->next_position[k])-radius;hi[k]=fmaxf(body->position[k],body->next_position[k])+radius;}
+    return RF_OK;
+}
 /* Static-world reciprocal contacts use the same primary/child room ownership
  * and face admission as ordinary body queries. Existing tree stacks are
  * borrowed serially; no retained memory or per-frame allocation. */
@@ -11194,19 +11212,8 @@ static int scene_detached_world_vertex_sweep(const scene_detached_query_context 
 {
     const rf_geometry_collision_world *world=c->scene->collision;
     uint32_t p,child,changed=0;int status;rf_geometry_body_hit value=*best;
-    float limit=*matched?best->contact.fraction:1,lo[3],hi[3],radius;double squared=0,scale=3;uint32_t v,k;
-    /* The occupancy-grid bound is not a mesh bound. A Frobenius-norm bound
-     * covers both endpoint bases and the normalized intermediate rotations. */
-    for(v=0;v<c->mesh->vertex_count;v++) {
-        double length=0;for(k=0;k<3;k++)length+=(double)c->mesh->vertices[v].position[k]*c->mesh->vertices[v].position[k];
-        if(length>squared)squared=length;
-    }
-    for(v=0;v<2;v++) {
-        const float *basis=v?body->next_orientation:body->orientation;double norm=0;
-        for(k=0;k<9;k++)norm+=(double)basis[k]*basis[k];if(norm>scale)scale=norm;
-    }
-    radius=(float)sqrt(squared*scale)+.0001f;if(!isfinite(radius))return RF_RANGE;
-    for(k=0;k<3;k++){lo[k]=fminf(body->position[k],body->next_position[k])-radius;hi[k]=fmaxf(body->position[k],body->next_position[k])+radius;}
+    float limit=*matched?best->contact.fraction:1,lo[3],hi[3];
+    status=scene_detached_mesh_bounds(c->mesh,body,lo,hi);if(status)return status;
     for(p=0;p<world->primary_count;p++) {
         uint32_t parent_index=world->primary[p];const rf_collision_room_view *parent;
         if(parent_index>=world->room_count)return RF_FORMAT;parent=world->views+parent_index;
@@ -11253,7 +11260,47 @@ static int scene_detached_world_vertex_sweep(const scene_detached_query_context 
     }
     return RF_OK;
 }
-static int scene_detached_world_material(void *context,uint32_t solid,uint32_t face,uint32_t *texture,uint32_t *material)
+/* Body collision uses committed position/input_matrix, not the ray-facing
+ * public_position/output_matrix. Mover motion prediction is deliberately not
+ * invented here; geometry and metadata match the existing sphere route. */
+static int scene_detached_mover_vertex_sweep(const rf_geomod_mesh_view *mesh,
+    const rf_physics_body_state *body,const rf_geometry_collision_movers *movers,
+    rf_geometry_body_hit *best,uint32_t *matched,rf_geometry_body_metadata metadata,void *context)
+{
+    rf_geometry_body_hit value=*best;float lo[3],hi[3],limit=*matched?best->contact.fraction:1;
+    uint32_t m,f,v,k,changed=0;int status;
+    if(movers->count && (!movers->poses || !movers->views || !movers->owned))return RF_RANGE;
+    if(!movers->count)return RF_OK;
+    status=scene_detached_mesh_bounds(mesh,body,lo,hi);if(status)return status;
+    for(m=0;m<movers->count;m++) {
+        const rf_group_attached_pose *pose=movers->poses+m;
+        const rf_geometry_collision_flat *flat=movers->owned+m;
+        if((pose->flags&0x40000u) || !scene_detached_box_overlap(pose->minimum,pose->maximum,lo,hi))continue;
+        if(flat->count && !flat->faces)return RF_FORMAT;
+        for(f=0;f<flat->count;f++) {
+            const rf_collision_face *face=flat->faces+f;rf_collision_face_filter filter=face->filter;uint32_t admitted;
+            filter.query_flags=0x464;status=rf_collision_face_accept(&filter,&admitted);if(status)return status;if(!admitted)continue;
+            for(v=0;v<face->count;v++) {
+                rf_collision_ray_hit local={0},world,hit;float alignment=0;uint32_t yes;
+                memcpy(local.point,face->vertices[v],12);memcpy(local.normal,face->plane,12);
+                status=rf_collision_contact_world(&local,pose->position,(const float(*)[3])pose->input_matrix,&world);if(status)return status;
+                if(!scene_detached_box_overlap(world.point,world.point,lo,hi))continue;
+                status=scene_detached_vertex_sweep(mesh,body,world.point,limit,&hit,&yes);if(status)return status;if(!yes)continue;
+                for(k=0;k<3;k++)alignment+=hit.normal[k]*world.normal[k];if(alignment<=0)continue;
+                memset(&value,0,sizeof(value));memcpy(value.contact.point,hit.point,12);memcpy(value.contact.normal,hit.normal,12);
+                value.contact.fraction=limit=hit.fraction;value.solid=m;value.room=UINT32_MAX;value.face=f;value.hits=1;
+                memcpy(value.contact.velocity,pose->velocity,12);value.contact.object_id=movers->views[m].object_id;
+                value.contact.face_token=f;value.contact.face_flag=(face->filter.face_flags>>2)&1u;changed=1;
+            }
+        }
+    }
+    if(changed) {
+        status=metadata(context,value.solid,value.face,&value.contact.texture,&value.contact.material);if(status)return status;
+        *best=value;*matched=1;
+    }
+    return RF_OK;
+}
+static int scene_detached_contact_material(void *context,uint32_t solid,uint32_t face,uint32_t *texture,uint32_t *material)
 {
     rf_geometry_materials mapping={0};rf_geometry_body_surfaces surfaces;(void)context;
     if(!actor_follow_world || !campaign_surface_palette || !campaign_surface_sources)return RF_RANGE;
@@ -11277,7 +11324,8 @@ static int scene_detached_query(const rf_physics_body_state *body,rf_physics_sol
         if(minimum>.002f)*matched=0;
     }
     status=scene_detached_mesh_sweep(c,body,&hit,matched);if(status)return status;
-    status=scene_detached_world_vertex_sweep(c,body,&hit,matched,scene_detached_world_material,NULL);if(status || !*matched)return status;
+    status=scene_detached_mover_vertex_sweep(c->mesh,body,&campaign_movers,&hit,matched,scene_detached_contact_material,NULL);if(status)return status;
+    status=scene_detached_world_vertex_sweep(c,body,&hit,matched,scene_detached_contact_material,NULL);if(status || !*matched)return status;
     if(hit.contact.fraction>=1){*matched=0;return RF_OK;}
     if(!campaign_surface_palette || hit.contact.material>=campaign_surface_palette->count)return RF_FORMAT;
     out->fraction=hit.contact.fraction;memcpy(out->point,hit.contact.point,12);memcpy(out->normal,hit.contact.normal,12);

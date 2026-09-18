@@ -73,6 +73,57 @@ static int fragment_thin_obstacle(void) {
      CHECK(hit && contact.fraction>.5f && contact.fraction<.6f && contact.normal[1]>.8f);}
     return 0;
 }
+static int fragment_mover_material(void *context,uint32_t solid,uint32_t face,uint32_t *texture,uint32_t *material) {
+    if(context)return RF_IO;
+    if(solid!=0 || face!=0)return RF_FORMAT;
+    *texture=11;*material=7;return RF_OK;
+}
+static int fragment_mover_contact(void) {
+    rf_geomod_vertex vertices[4]={{{-.5f,-.5f,-.5f},{0,0}},{{.5f,-.5f,-.5f},{0,0}},
+        {{.5f,-.5f,.5f},{0,0}},{{-.5f,-.5f,.5f},{0,0}}};
+    rf_geomod_face polygon={0,4,0,0};rf_geomod_mesh_view mesh={vertices,&polygon,4,1,0};
+    float patch[4][3]={{-.02f,0,-.02f},{-.02f,0,.02f},{.02f,0,.02f},{.02f,0,-.02f}};
+    rf_collision_face face={0};rf_geometry_collision_flat flat={0};rf_group_attached_pose pose={0};
+    rf_collision_solid_view view={0};rf_geometry_collision_movers movers={0};rf_physics_body_state body={0};
+    rf_geometry_body_hit result={0},saved;uint32_t i,mode,found=0;
+    face.vertices=patch;face.count=4;face.plane[1]=1;flat.faces=&face;flat.count=1;
+    movers.count=1;movers.owned=&flat;movers.views=&view;movers.poses=&pose;view.object_id=77;
+    pose.position[0]=3;pose.position[1]=2;
+    for(i=0;i<3;i++){pose.minimum[i]=-10;pose.maximum[i]=10;pose.velocity[i]=(float)(i+1);pose.public_position[i]=99;pose.output_matrix[i*4]=-1;}
+    for(mode=0;mode<2;mode++) {
+        memset(pose.input_matrix,0,36);
+        if(!mode)for(i=0;i<3;i++)pose.input_matrix[i*4]=1;
+        else {pose.input_matrix[1]=1;pose.input_matrix[3]=-1;pose.input_matrix[8]=1;}
+        memcpy(body.orientation,pose.input_matrix,36);memcpy(body.next_orientation,pose.input_matrix,36);
+        for(i=0;i<3;i++){body.position[i]=pose.position[i]+pose.input_matrix[3+i];body.next_position[i]=pose.position[i]-pose.input_matrix[3+i];}
+        found=0;
+        CHECK(!scene_detached_mover_vertex_sweep(&mesh,&body,&movers,&result,&found,fragment_mover_material,NULL));
+        CHECK(found && fabsf(result.contact.fraction-.25f)<1e-6f && result.solid==0 && result.room==UINT32_MAX);
+        CHECK(result.face==0 && result.contact.object_id==77 && result.contact.texture==11 && result.contact.material==7);
+        CHECK(!memcmp(result.contact.velocity,pose.velocity,12));
+        CHECK(mode?result.contact.normal[0]<-.999f:result.contact.normal[1]>.999f);
+        CHECK(fabsf(result.contact.point[mode?0:1]-pose.position[mode?0:1])<1e-6f);
+        saved=result;found=0;pose.flags=0x40000;
+        CHECK(!scene_detached_mover_vertex_sweep(&mesh,&body,&movers,&result,&found,fragment_mover_material,NULL));
+        CHECK(!found && !memcmp(&saved,&result,sizeof(result)));pose.flags=0;
+        face.filter.face_flags=0x40;
+        CHECK(!scene_detached_mover_vertex_sweep(&mesh,&body,&movers,&result,&found,fragment_mover_material,NULL));CHECK(!found);
+        face.filter.face_flags=0;
+        CHECK(scene_detached_mover_vertex_sweep(&mesh,&body,&movers,&result,&found,fragment_mover_material,&found)==RF_IO);
+        CHECK(!found && !memcmp(&saved,&result,sizeof(result)));
+        /* A preexisting nearer contact wins without changing its identity. */
+        result.contact.fraction=.1f;saved=result;found=1;
+        CHECK(!scene_detached_mover_vertex_sweep(&mesh,&body,&movers,&result,&found,fragment_mover_material,NULL));
+        CHECK(found && !memcmp(&saved,&result,sizeof(result)));
+        /* Updating the committed pose changes contact time; unrelated ray pose
+         * and velocity values must not be used to extrapolate geometry. */
+        for(i=0;i<3;i++)pose.position[i]+=.25f*pose.input_matrix[3+i];found=0;
+        CHECK(!scene_detached_mover_vertex_sweep(&mesh,&body,&movers,&result,&found,fragment_mover_material,NULL));
+        CHECK(found && fabsf(result.contact.fraction-.125f)<1e-6f);
+        for(i=0;i<3;i++)pose.position[i]-=.25f*pose.input_matrix[3+i];
+    }
+    return 0;
+}
 static int fragment_plane_side(void) {
     rf_geomod_vertex vertices[3]={{{0,0,0},{0,0}},{{1,-1,0},{0,0}},{{0,-1,1},{0,0}}};
     rf_geomod_mesh_view mesh={0};float position[3]={0,0,0},point[3]={0,0,0},normal[3]={0,1,0};
@@ -582,6 +633,6 @@ int main(void) {
     found=77;CHECK(scene_detached_sources_sweep(&scene,4,start,delta,0,NAN,&hit,&found)!=RF_OK);
     CHECK(found==77 && !memcmp(&hit,&sentinel,sizeof(hit)));
     free(before);free(after);for(i=0;i<2;i++)rf_geomod_piece_registry_close(registries+i);
-    CHECK(!fragment_thin_obstacle());CHECK(!fragment_plane_side());CHECK(!inspection_camera());CHECK(!extended_batches());CHECK(!enemy_fragment_shots());CHECK(!rocket_object_contacts());CHECK(!beam_selection());CHECK(!runtime_surfaces());CHECK(!player_sources());CHECK(!notify_sources());CHECK(!rotated_support_clearance());CHECK(!large_support_snap());CHECK(!moving_piece_support());
+    CHECK(!fragment_mover_contact());CHECK(!fragment_thin_obstacle());CHECK(!fragment_plane_side());CHECK(!inspection_camera());CHECK(!extended_batches());CHECK(!enemy_fragment_shots());CHECK(!rocket_object_contacts());CHECK(!beam_selection());CHECK(!runtime_surfaces());CHECK(!player_sources());CHECK(!notify_sources());CHECK(!rotated_support_clearance());CHECK(!large_support_snap());CHECK(!moving_piece_support());
     puts("PASS multi-source weapon queries: nearer later source, stable ties, selected alias, isolated damage and atomic misses/errors");return 0;
 }
