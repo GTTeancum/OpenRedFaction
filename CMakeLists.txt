@@ -1124,3 +1124,8 @@ add_executable(rf_driller_cavity_half_probe tests/driller_cavity_half_probe.c)
 target_link_libraries(rf_driller_cavity_half_probe PRIVATE rf_core)
 add_test(NAME driller_cavity_half COMMAND rf_driller_cavity_half_probe)
 set_tests_properties(driller_cavity_half PROPERTIES WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
+
+add_executable(rf_scene_driller_damage_runtime_tests tests/scene_driller_damage_runtime_tests.c src/diagnostic/animation.c)
+target_link_libraries(rf_scene_driller_damage_runtime_tests PRIVATE rf_core)
+add_test(NAME scene_driller_damage_runtime COMMAND rf_scene_driller_damage_runtime_tests)
+set_tests_properties(scene_driller_damage_runtime PROPERTIES WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})

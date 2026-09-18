@@ -52,6 +52,11 @@ static int scene_ai_rocket_tick(scene_stream *stream,uint32_t frame)
             if(tag!=UINT32_MAX && (tag&SCENE_DETACHED_ROCKET_OWNER)){
                 status=scene_detached_sources_damage(stream,(tag>>16)&0x7fff,tag&0xffff,shot->damage);if(status)return status;
             }
+            {
+                uint32_t handled=0;float applied=0;
+                status=scene_driller_projectile_damage(contact,shot->source,shot->damage,3,frame,&handled,&applied);
+                if(status)return status;
+            }
             if(tag==SCENE_AI_PROJECTILE_PLAYER || (tag&0xffff0000u)==SCENE_ACTOR_ROCKET_OWNER){
                 uint32_t target,index=tag&0xffffu,entered,bits;float amount=0,seconds=(float)frame/60;
                 combat_feedback feedback={(int32_t)((uint64_t)frame*1000/60),0};

@@ -38,7 +38,7 @@ static int scene_ai_projectile_sweep(void *context,const float *start,const floa
         if(!scene_rocket_body_hit(body,start,delta,radius,*matched?out->hit.fraction:1,&body_hit) || (*matched && body_hit.fraction>=out->hit.fraction))continue;
         out->hit=body_hit;out->object=tag;out->room=room;out->face=UINT32_MAX;*matched=1;*liquid=0;
     }
-    return RF_OK;
+    return scene_driller_projectile_compose(q->source,start,delta,radius,out,liquid,matched);
 }
 static int scene_ai_projectile_solid_sweep(void *context,const float *start,const float *delta,float radius,
     rf_weapon_flight_contact *contact,uint32_t *matched)

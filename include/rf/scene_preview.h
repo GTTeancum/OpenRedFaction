@@ -25,6 +25,7 @@ extern uint32_t rf_scene_firearms_enabled;
 extern uint32_t rf_scene_vehicle_enabled;
 extern uint32_t rf_scene_vehicle_state[16];
 extern uint32_t rf_scene_drill_state[8];
+extern uint32_t rf_scene_vehicle_damage[8];
 int rf_scene_vehicle_test_place(rf_level *level);
 extern uint32_t rf_scene_fusion_projectiles[5];
 extern uint32_t rf_scene_machine_mode[8];

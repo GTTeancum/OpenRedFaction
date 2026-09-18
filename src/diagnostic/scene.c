@@ -35,6 +35,7 @@
 #include "scene_undercover_mode.inc"
 #include "scene_driller_resources.inc"
 #include "scene_driller_weapon.inc"
+#include "scene_driller_damage.inc"
 #include "scene_driller_bit_animation.inc"
 #include "scene_driller_cockpit.inc"
 #include "scene_player_shot_hearing.inc"
@@ -572,11 +573,11 @@ uint32_t rf_scene_vehicle_enabled;
 static uint32_t scene_extra_pickups_available(uint32_t);
 static uint32_t scene_extra_pickups_selection_limit(void);
 static uint32_t scene_extra_pickups_resource_limit(void);
-static uint32_t scene_weapon_slots(void){if(rf_scene_vehicle_enabled)return 4;uint32_t base=rf_scene_dev_room_enabled && rf_scene_firearms_enabled?17:rf_scene_dev_room_enabled && rf_scene_fusion_enabled?13:rf_scene_player_shield_resources || (rf_scene_dev_room_enabled && rf_scene_dev_npc_enabled==6)?12:rf_scene_dev_room_enabled?11:4;
+static uint32_t scene_weapon_slots(void){if(rf_scene_vehicle_enabled)return 5;uint32_t base=rf_scene_dev_room_enabled && rf_scene_firearms_enabled?17:rf_scene_dev_room_enabled && rf_scene_fusion_enabled?13:rf_scene_player_shield_resources || (rf_scene_dev_room_enabled && rf_scene_dev_npc_enabled==6)?12:rf_scene_dev_room_enabled?11:4;
     uint32_t extra=scene_extra_pickups_selection_limit();return base>extra?base:extra;}
-static uint32_t scene_weapon_resource_slots(void){if(rf_scene_vehicle_enabled)return 4;uint32_t base=rf_scene_dev_room_enabled && rf_scene_firearms_enabled?18:scene_weapon_slots();
+static uint32_t scene_weapon_resource_slots(void){if(rf_scene_vehicle_enabled)return 5;uint32_t base=rf_scene_dev_room_enabled && rf_scene_firearms_enabled?18:scene_weapon_slots();
     uint32_t extra=scene_extra_pickups_resource_limit();return base>extra?base:extra;}
-static uint32_t scene_weapon_available(uint32_t slot){if(rf_scene_vehicle_enabled)return slot<4;return slot<(rf_scene_dev_room_enabled && !rf_scene_firearms_enabled?11u:4u) ||
+static uint32_t scene_weapon_available(uint32_t slot){if(rf_scene_vehicle_enabled)return slot<5;return slot<(rf_scene_dev_room_enabled && !rf_scene_firearms_enabled?11u:4u) ||
     (slot==11 && (rf_scene_player_shield_resources || (rf_scene_dev_room_enabled && rf_scene_dev_npc_enabled==6))) ||
     (slot==12 && rf_scene_dev_room_enabled && rf_scene_fusion_enabled) ||
     (slot>=13 && slot<=17 && rf_scene_dev_room_enabled && rf_scene_firearms_enabled) || scene_extra_pickups_available(slot);}
@@ -739,7 +740,7 @@ typedef struct scene_stream {
     scene_weapon_custom_actions *machine_custom[2];uint32_t machine_transition_ticks[2];
     scene_driller_cockpit *driller_cockpit;
     scene_driller_runtime *driller_runtime;
-    scene_driller_bit_animation *driller_bits;uint32_t driller_bit_base,driller_bit_textures;scene_driller_weapon driller_weapon;scene_driller_resources *driller;float driller_position[3],driller_basis[9];uint32_t driller_base,driller_textures;
+    scene_driller_bit_animation *driller_bits;uint32_t driller_bit_base,driller_bit_textures;scene_driller_damage driller_damage_prototype;scene_driller_weapon driller_weapon;scene_driller_resources *driller;float driller_position[3],driller_basis[9];uint32_t driller_base,driller_textures;
     scene_undercover_resources *undercover;uint32_t undercover_base,undercover_textures,undercover_alt_held;
     rf_player_weapon *player_weapon[SCENE_WEAPON_SLOTS];uint32_t player_weapon_base[SCENE_WEAPON_SLOTS],player_weapon_textures[SCENE_WEAPON_SLOTS],player_shots,player_reload,player_slot,player_pose_frame;
     rf_model_projection npc_view;void *npc_memory;uint16_t *npc_indices;rf_model_clip_pool *npc_pool;
@@ -756,6 +757,12 @@ typedef struct scene_stream {
     void *light_scratch_memory;rf_light_world_scratch light_scratch;
     rf_visibility_camera particle_camera;scene_particle_workspace *particle_workspace;uint32_t particle_frame;
 } scene_stream;
+static int scene_driller_damage_source(uint32_t,uint32_t *);
+static int scene_driller_projectile_compose(uint32_t,const float *,const float *,float,rf_weapon_flight_contact *,uint32_t *,uint32_t *);
+static int scene_driller_firearm_select(uint32_t,const float *,const float *,float,rf_weapon_flight_contact *,uint32_t *);
+static int scene_driller_projectile_damage(const rf_weapon_flight_contact *,uint32_t,float,int32_t,uint32_t,uint32_t *,float *);
+static int scene_driller_blast(scene_stream *,uint32_t,const float *,float,float,uint32_t,int32_t);
+
 static uint32_t scene_driller_active(const scene_stream *);
 static int scene_driller_player_collision(scene_stream *,const rf_collision_body_query *,rf_geometry_body_hit *,uint32_t *);
 #include "scene_flame_effects_resources.inc"
@@ -8794,6 +8801,7 @@ static uint32_t combat_uid(void *c,int32_t uid)
 {uint32_t i;(void)c;for(i=0;i<campaign_npc_body_count;i++)if((uint32_t)campaign_seeds.records.items[i].record.uid==(uint32_t)uid)return campaign_npc_bodies[i].registration.handle;return UINT32_MAX;}
 static int combat_source(void *c,uint32_t handle,uint32_t *affiliation)
 {
+    if(scene_driller_damage_source(handle,affiliation))return 1;
     uint32_t i;(void)c;
     if(campaign_player_object.view && handle==campaign_player_object.handle){*affiliation=campaign_player_damage.state.effects.affiliation;return 1;}
     for(i=0;i<campaign_npc_body_count;i++)if(campaign_npc_bodies[i].registration.view && campaign_npc_bodies[i].registration.handle==handle) {
@@ -9376,7 +9384,7 @@ static int campaign_enemy_tick(scene_stream *stream,uint32_t frame,const float p
         }
         if(!melee) {
             float ray[3],spread_ray[3],fraction,body_fraction,end[3];
-            scene_ai_shield_ray_selection npc_shield={0};
+            scene_ai_shield_ray_selection npc_shield={0};rf_weapon_flight_contact vehicle_contact;uint32_t vehicle_hit=0;
             ++rf_scene_enemy_spread[0];if(!definition)++rf_scene_enemy_spread[6];
             for(j=0;j<3;j++)ray[j]=delta[j]*(attack_range/(float)sqrt(distance));
             status=rf_weapon_spread_ray(ray,definition?definition->ai_spread_degrees:0,&campaign_enemy_spread_random,spread_ray);
@@ -9394,9 +9402,17 @@ static int campaign_enemy_tick(scene_stream *stream,uint32_t frame,const float p
                 status=scene_player_shield_query(stream,player_eye,actor_look.eye_orientation,owner->eye_position,end,1,&player_shield,&shield_hit);if(status)return status;
                 if(shield_hit)fraction=player_shield.hit.time;
             }
+            status=scene_driller_firearm_select(owner->registration.handle,owner->eye_position,spread_ray,fraction,&vehicle_contact,&vehicle_hit);if(status)return status;
+            if(vehicle_hit)fraction=vehicle_contact.hit.fraction;
             blocked=0;
             if(!selected.penetrates_world){status=combat_enemy_fragment_shot(stream,owner->eye_position,spread_ray,fraction,shot_damage,&blocked);if(status)return status;}
             if(blocked){++rf_scene_enemy_spread[4];goto enemy_shot_done;}
+            if(vehicle_hit){uint32_t handled;float applied;
+                if(!selected.penetrates_world){status=combat_shot_obstructed(stream,owner->eye_position,spread_ray,fraction,&blocked);if(status)return status;}
+                if(!blocked){status=scene_driller_projectile_damage(&vehicle_contact,owner->registration.handle,shot_damage,
+                    definition?definition->damage_kind:0,frame,&handled,&applied);if(status)return status;}
+                goto enemy_shot_done;
+            }
             if(shield_hit){uint32_t accepted,broken;rf_damage_request request={shot_damage,owner->registration.handle,definition->damage_kind,0,UINT32_MAX,0};
                 status=scene_player_shield_commit(&player_shield,&request,&accepted,&broken);if(status)return status;
                 if(accepted)goto enemy_shot_done;
@@ -10998,6 +11014,7 @@ static int scene_rocket_sweep(void *context,const float start[3],const float del
         rf_scene_detached_rocket[3]=piece.piece.piece;rf_scene_detached_rocket[4]=piece.piece.face;
         rf_scene_detached_rocket[5]=npc_hash_bytes(2166136261u,piece.piece.hit.point,12);
     }
+    status=scene_driller_projectile_compose(campaign_player_object.handle,start,delta,radius,out,is_liquid,matched);if(status)return status;
     if(*matched && (out->object&0xffff0000u)==SCENE_ACTOR_ROCKET_OWNER)++rf_scene_rocket_contacts[1];
     if(*matched && (out->object&0xffff0000u)==SCENE_MOVER_ROCKET_OWNER)++rf_scene_rocket_contacts[2];
     return RF_OK;
@@ -12175,6 +12192,7 @@ static int scene_explosion_blast_source(scene_stream *s,uint32_t frame,const flo
 {
     float seconds=(float)frame/60;uint32_t i,bits;int status;
     ++rf_scene_rocket_blast[0];if(damage<=0 || radius<=.1f)return RF_OK;
+    status=scene_driller_blast(s,frame,origin,damage,radius,source,kind);if(status)return status;
     memcpy(&bits,&seconds,4);
     for(i=0;i<=campaign_npc_body_count;i++) {
         uint32_t player=i==campaign_npc_body_count,entered=0;float amount=0,applied=0;
@@ -12359,6 +12377,8 @@ static int scene_rockets_tick(scene_stream *s,uint32_t frame)
                 status=scene_detached_sources_damage(s,(tag>>16)&0x7fff,tag&0xffff,campaign_primary[4].damage);
                 if(status)return status;
             }
+            {uint32_t handled;float applied;
+             status=scene_driller_projectile_damage(&event.contact,campaign_player_object.handle,campaign_primary[4].damage,3,frame,&handled,&applied);if(status)return status;}
             if((event.contact.object&0xffff0000u)==SCENE_ACTOR_ROCKET_OWNER) {
                 uint32_t index=event.contact.object&0xffffu,entered=0,bits;float applied=0,seconds=(float)frame/60;
                 combat_feedback feedback={(int32_t)((uint64_t)frame*1000/60),0};
@@ -12715,7 +12735,7 @@ static int campaign_combat_tick(scene_stream *stream,uint32_t frame,const float 
     if(alt && campaign_equipped_slot==1)++rf_scene_rifle_alt[0];
     if(campaign_equipped_slot==3){++rf_scene_shotgun[0];if(alt)++rf_scene_shotgun[4];}
     for(uint32_t pellet=0;pellet<(campaign_equipped_slot==3?campaign_pistol.projectiles:1);pellet++) {
-    scene_npc_shield_candidate shield_candidate={0};uint32_t shield_selected=0;
+    scene_npc_shield_candidate shield_candidate={0};uint32_t shield_selected=0,vehicle_selected=0;rf_weapon_flight_contact vehicle_contact;
     nearest=1;target=UINT32_MAX;
     for(i=0;i<3;i++)delta[i]=orientation[2][i]*(campaign_equipped_slot==2?2.6f:100.0f);
     if(campaign_equipped_slot==3) {
@@ -12746,6 +12766,8 @@ static int campaign_combat_tick(scene_stream *stream,uint32_t frame,const float 
             if(hit && (target==i || candidate.hit.time<nearest)){nearest=candidate.hit.time;target=i;shield_candidate=candidate;shield_selected=1;}
         }
     }
+    status=scene_driller_firearm_select(campaign_player_object.handle,position,delta,nearest,&vehicle_contact,&vehicle_selected);if(status)return status;
+    if(vehicle_selected)nearest=vehicle_contact.hit.fraction;
     if(rf_scene_combat_trace) {
         uint32_t uid=target==UINT32_MAX?UINT32_MAX:campaign_seeds.records.items[target].record.uid;
         printf("SHOT_RAY %u %u %u %u %.9g %.9g %.9g %.9g %.9g %.9g %.9g\n",frame,campaign_equipped_slot,pellet,uid,nearest,
@@ -12781,6 +12803,13 @@ static int campaign_combat_tick(scene_stream *stream,uint32_t frame,const float 
             }
             continue; /* World or fragment blocks any farther NPC. */
         }
+    }
+    if(vehicle_selected){uint32_t handled;float applied;
+        status=combat_shot_obstructed(stream,position,delta,nearest,&blocked);if(status)return status;
+        if(!blocked){float damage=alt?(campaign_equipped_slot==2?campaign_pistol.alt_damage/60:campaign_pistol.alt_damage):campaign_pistol.damage;
+            status=scene_driller_projectile_damage(&vehicle_contact,campaign_player_object.handle,damage,
+                alt && campaign_equipped_slot==2?6:campaign_pistol.damage_kind,frame,&handled,&applied);if(status)return status;}
+        continue;
     }
     if(campaign_equipped_slot==2 && fire) {
         rf_collision_solid_hit surface;float end[3];uint32_t matched=0;
@@ -16087,7 +16116,7 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
             {rf_vpp tables={0};rf_weapon_view_definition view;
              status=rf_vpp_open(&tables,tables_path);if(status)goto done;
              {scene_weapon_resource_demand demand;
-              status=scene_extra_pickups_resources_prepare(stream,&tables,rf_scene_dev_room_enabled && !rf_scene_vehicle_enabled?0x7ffu:0xfu,1u<<11,&demand);
+              status=scene_extra_pickups_resources_prepare(stream,&tables,rf_scene_dev_room_enabled && !rf_scene_vehicle_enabled?0x7ffu:(rf_scene_vehicle_enabled?0x1fu:0xfu),1u<<11,&demand);
               if(!status){rf_scene_player_shield_resources=!!(demand.mask&(1u<<11)) || (rf_scene_dev_room_enabled && rf_scene_dev_npc_enabled==6);
                   if(rf_scene_player_shield_resources)status=rf_weapon_primary_load(&tables,"riot shield",128*1024,&campaign_primary[11]);}}
              scene_machine_pistol_mode_reset(&campaign_machine_mode);memset(rf_scene_machine_mode,0,sizeof(rf_scene_machine_mode));
@@ -16109,6 +16138,7 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
                  stream->driller_position[0]=30;stream->driller_position[1]=5.4f;stream->driller_position[2]=-167;
                  stream->driller_basis[2]=-1;stream->driller_basis[4]=stream->driller_basis[6]=1;
                  if(!status)status=scene_driller_weapon_open(&tables,&stream->driller->tags,512*1024,&stream->driller_weapon);
+                 if(!status)status=scene_driller_damage_open(&stream->driller_damage_prototype,&tables,stream->driller,0,0,0,512*1024);
                  if(!status){float seat[12];status=scene_driller_seat_pose(stream->driller,stream->driller_position,stream->driller_basis,seat);}
              }
              rf_vpp_close(&tables);if(status)goto done;}
