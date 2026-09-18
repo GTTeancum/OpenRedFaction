@@ -416,12 +416,20 @@ static const beam_profile *find_beam_profile(uint32_t uid) {
 uint32_t rf_geomod_authored_beam_roof(uint32_t uid) {
     const beam_profile *profile=find_beam_profile(uid);return profile?profile->roof:0;
 }
+typedef struct post_profile {uint32_t uid,beam,detail,room;} post_profile;
+static const post_profile post_profiles[]={{75,92,11179,65},{79,92,11178,64},
+    {99,108,11181,67},{103,108,11180,66}};
+static const post_profile *find_post_profile(uint32_t uid) {
+    uint32_t i;for(i=0;i<sizeof(post_profiles)/sizeof(*post_profiles);i++)
+        if(post_profiles[i].uid==uid)return post_profiles+i;
+    return NULL;
+}
 static int decode_profile(const void *input, uint32_t bytes, const rf_geometry *g,
                                    const rf_level_geomod_settings *settings, uint32_t source_uid, uint32_t cavity, uint32_t budget,
                                    rf_geomod_authored_post **out) {
     const unsigned char *data = input;
     cursor c = {data, bytes, 0};
-    brush_record *records = NULL, *source = NULL, *near[3] = {0}, *roof_air=NULL;
+    brush_record *records = NULL, *source = NULL, *near[3] = {0}, *roof_air=NULL, *detail=NULL;
     rf_geomod_publication_work *clip_work=NULL;
     rf_geomod_vertex *clipped_vertices=NULL;rf_geomod_face *clipped_faces=NULL;
     rf_geomod_publication_origin *clipped_origins=NULL;
@@ -439,10 +447,13 @@ static int decode_profile(const void *input, uint32_t bytes, const rf_geometry *
                              wfaces = 0, wcorners = 0, fallback = UINT32_MAX, air = 0;
     uint64_t scratch, at, peak;
     const beam_profile *beam=find_beam_profile(source_uid);
+    const post_profile *post=find_post_profile(source_uid);
+    rf_geomod_authored_detail_guard guard={0},*stored_guard=NULL;
+    uint32_t detail_faces=0;
     int s = RF_FORMAT;
     if (!input || !g || !g->data || !settings || !out || *out)
         return RF_RANGE;
-    if (cavity ? source_uid!=66 : (!beam && source_uid != 93 && source_uid != 94 && source_uid != 96 && source_uid != 97))
+    if (cavity ? source_uid!=66 : (!beam && !post && source_uid != 93 && source_uid != 94 && source_uid != 96 && source_uid != 97))
         return RF_NOT_FOUND;
     if (bytes < 4)
         return RF_FORMAT;
@@ -495,9 +506,16 @@ static int decode_profile(const void *input, uint32_t bytes, const rf_geometry *
                 if(roof_air || b->faces!=5 || b->corners!=18 || source->maximum[1]!=b->minimum[1]){s=RF_NOT_FOUND;goto done;}
                 roof_air=b;continue;
             }
+            if(post && b->uid==post->detail) {
+                if(detail || b->flags!=4 || b->minimum[2]!=b->maximum[2]) {s=RF_NOT_FOUND;goto done;}
+                detail=b;guard.uid=b->uid;guard.room=post->room;
+                memcpy(guard.minimum,b->minimum,12);memcpy(guard.maximum,b->maximum,12);
+                continue;
+            }
             if ((beam ?
                  (b->uid!=beam->roof && b->uid!=beam->posts[0] && b->uid!=beam->posts[1]) :
-                 (b->uid != 71 && b->uid != (source_uid <= 94 ? 95u : 98u) && b->uid != 70)) || b->flags || b->faces < 4 || b->faces > 32 ||
+                 (post ? (b->uid!=70 && b->uid!=post->beam) :
+                 (b->uid != 71 && b->uid != (source_uid <= 94 ? 95u : 98u) && b->uid != 70))) || b->flags || b->faces < 4 || b->faces > 32 ||
                 nnear == 3) {
                 s = RF_NOT_FOUND;
                 goto done;
@@ -506,7 +524,7 @@ static int decode_profile(const void *input, uint32_t bytes, const rf_geometry *
             nfaces += b->faces;
             ncorners += b->corners;
         }
-    if (!cavity && (air != 1 || nnear != 3 || (beam && !roof_air))) {
+    if (!cavity && (air != 1 || nnear != (post?2u:3u) || (post && !detail) || (beam && !roof_air))) {
         s = RF_NOT_FOUND;
         goto done;
     }
@@ -550,6 +568,24 @@ static int decode_profile(const void *input, uint32_t bytes, const rf_geometry *
             s = RF_FORMAT;
             goto done;
         }
+        if(detail && owner && owner->brush==detail->index) {
+            rf_collision_face_filter filter;
+            s=rf_geometry_initial_collision_filter(g,i,0,&filter);if(s)goto done;
+            if(detail_faces==2 || f.room!=post->room || f.flags!=0x1c8 ||
+               !filter.owner_present || filter.owner_kind!=1 || filter.owner_state!=1) {
+                s=RF_NOT_FOUND;goto done;
+            }
+            for(j=0;j<f.corners;j++) {
+                rf_geometry_corner corner;float position[3];uint32_t axis;
+                s=rf_geometry_get_corner(g,i,j,&corner);if(s)goto done;
+                s=rf_geometry_vertex(g,corner.vertex,position);if(s)goto done;
+                for(axis=0;axis<3;axis++)if(!isfinite(position[axis]) ||
+                    position[axis]<guard.minimum[axis]-1e-5f || position[axis]>guard.maximum[axis]+1e-5f) {
+                    s=RF_NOT_FOUND;goto done;
+                }
+            }
+            guard.compiled_ids[detail_faces++]=i;
+        }
         if (!owner || owner->brush != source_index)
             continue;
         if(cavity && f.room!=3)continue;
@@ -573,6 +609,7 @@ static int decode_profile(const void *input, uint32_t bytes, const rf_geometry *
         wfaces++;
         wcorners += f.corners;
     }
+    if(post && detail_faces!=2){s=RF_NOT_FOUND;goto done;}
     if (!wfaces || wfaces > 256 || source->corners > 2048 || ncorners > 6144 || wcorners > 16384) {
         s = RF_RANGE;
         goto done;
@@ -600,7 +637,8 @@ static int decode_profile(const void *input, uint32_t bytes, const rf_geometry *
     clipped_faces = chunk(base, &at, roof_air?128:0, sizeof(*clipped_faces));                                 \
     clipped_origins = chunk(base, &at, roof_air?128:0, sizeof(*clipped_origins));                             \
     void_planes = chunk(base, &at, roof_air?5:0, sizeof(*void_planes));                                      \
-    void_owner = chunk(base, &at, roof_air?1:0, sizeof(*void_owner));
+    void_owner = chunk(base, &at, roof_air?1:0, sizeof(*void_owner));                                      \
+    stored_guard = chunk(base, &at, post?1:0, sizeof(*stored_guard));
     ALLOCATE_FIELDS(NULL);
     if(cavity)chunk(NULL,&at,count-1,sizeof(float[2][3]));
     peak = scratch + at;
@@ -625,6 +663,7 @@ static int decode_profile(const void *input, uint32_t bytes, const rf_geometry *
         }
     }
 #undef ALLOCATE_FIELDS
+    if(post){*stored_guard=guard;o->view.detail_guards=stored_guard;o->view.detail_guard_count=1;}
     o->view.source = (rf_geomod_mesh_view){sv, sf, source->corners, source->faces, 0};
     o->view.windows = (rf_geomod_mesh_view){wv, wf, wcorners, wfaces, 0};
     o->view.neighbors = (rf_geomod_mesh_view){nv, nf, ncorners, nfaces, 0};
@@ -825,6 +864,19 @@ static int cavity_window_pair(const rf_geomod_authored_post_view *a,uint32_t fir
         skip[0]=i;skip[1]=j;return 1;
     }
     return 0;
+}
+int rf_geomod_authored_post_admit(const rf_geomod_authored_post *o,const float minimum[3],
+    const float maximum[3]) {
+    uint32_t i,k;
+    if(!o || !minimum || !maximum)return RF_RANGE;
+    for(k=0;k<3;k++)if(!isfinite(minimum[k]) || !isfinite(maximum[k]) || minimum[k]>maximum[k])return RF_RANGE;
+    if(!find_post_profile(o->view.source_uid) || o->view.detail_guard_count!=1)return RF_NOT_FOUND;
+    for(i=0;i<o->view.detail_guard_count;i++) {
+        const rf_geomod_authored_detail_guard *g=o->view.detail_guards+i;
+        for(k=0;k<3;k++)if(maximum[k]<g->minimum[k]-1e-5f || minimum[k]>g->maximum[k]+1e-5f)break;
+        if(k==3)return RF_NOT_FOUND;
+    }
+    return RF_OK;
 }
 int rf_geomod_authored_cavity_admit(const rf_geomod_authored_post *o,const float minimum[3],
     const float maximum[3],uint32_t *reference) {

@@ -81,3 +81,21 @@ Room protection is decoded from the same fields as `rf_geometry_initial_collisio
 Implementation still required: admit the two actual structural neighbors through explicit post profiles; retain and identify the separate detail owners; reject cuts that intersect protected detail until a supported interaction policy exists; include that retained geometry in identity/save validation; then verify post cuts and shared beam/post blasts. The current runtime still rejects these unsupported post neighborhoods, and the cavity pillar guard remains intact. No new playable behavior or native validation is claimed by this audit.
 
 Validation: `python -B tools/inspect_geomod_solid_neighborhoods.py` passes all installed-data assertions and writes `artifacts/geomod-solid-neighborhoods.json` with input hashes. Results remain955 brushes,41 ordinary room3 owners,340 compiled structural faces and41 closed convex authored sources. No build or emulator run is needed for this read-only research change.
+
+
+## Guarded side-post core decoding
+
+The decoder now admits explicit post profiles75/79/99/103 with ground70, beam92 or108, earlier air66 and the exact expected detail owner. Unknown overlapping brushes still reject. Each profile imports two solid neighbors instead of the old posts' three. The trim is retained as a separate owned guard containing its UID, room, two compiled face IDs and authored bounds; it is never imported as a solid or included in replaced IDs. Decoder qualification requires two faces with flags0x1c8, the expected detail room, owner kind1 and initial protection1, and verifies all compiled corners lie inside the retained bounds.
+
+`rf_geomod_authored_post_admit` validates finite ordered cutter bounds and rejects overlap or contact with the trim (1e-5 tolerance). Callers must use the bounds from the exact prepared cutter before a cut. This is a conservative guard, not an implementation of breakable detail or permission to alter adjacent sources. Existing scene selectors and identity capture still reject these four sources until guard provenance is incorporated into their policy.
+
+Installed-data tests open each post, confirm four compiled windows/two solid neighbors/one guard, prove a transverse ray blocked before cutting and clear after the original-template cut, build publication, reset, and prove collision restored. Trim overlap, exact boundary contact and NaN bounds reject; changing the compiled owner's detail byte also rejects decoding without publishing an owner. Tests verify neither trim face appears among replaced IDs. The normalized original-template radius is1.05000007; bounds and CSG use the same derived scale. An initial unnormalized-scale test did not clear the whole post, and the test was corrected to use the actual template radius conversion.
+
+| Post | Published faces | Published vertices | Decoded resident bytes | Decode peak bytes |
+|---|---|---|---|---|
+|75|36|178|3480|1037727|
+|79|37|180|3480|1037727|
+|99|39|184|3480|1037727|
+|103|37|180|3480|1037727|
+
+All123 PC tests pass (`artifacts/side-post-tests.log`), including existing identity and checkpoint tests. Stock NXDK compile/link/XBE/ISO succeeds (`artifacts/side-post-xbox.log`). No native gameplay run or visual acceptance is claimed for these decoder-only profiles. Next: retain guard identity across scene/save admission, apply the guard to prepared gameplay cutters, enable the post selector, and verify repeated cuts/reload before shared beam/post transactions.

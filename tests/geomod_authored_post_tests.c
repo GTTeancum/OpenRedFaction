@@ -500,8 +500,57 @@ static int side_beams(const rf_level *level,const rf_geometry *geometry,const ch
     }
     return 0;
 }
+static int side_posts(const rf_level *level,const rf_geometry *geometry,const char *path) {
+    static const uint32_t uids[]={75,79,99,103};uint32_t n,i,visible;
+    rf_geomod_template shape;float basis[9]={1,0,0,0,1,0,0,0,1};CHECK(!rf_geomod_template_load(path,&shape));
+    for(n=0;n<4;n++) {
+        rf_geomod_authored_post *owner=NULL;rf_geomod_authored_post_view a;
+        rf_geomod_terrain *terrain=NULL;rf_geomod_terrain_view view;rf_geomod_publication_cut cut;
+        rf_geomod_publication_job job={0};rf_geomod_mesh_view output;
+        float lo=1e9f,hi=-1e9f,center[3]={0,0.25f,0},start[3],end[3],cut_lo[3],cut_hi[3];
+        CHECK(!rf_geomod_authored_post_open_source(level,geometry,uids[n],2*1024*1024,&owner));
+        CHECK(!rf_geomod_authored_post_get(owner,&a));
+        CHECK(a.source.face_count==6 && a.windows.face_count==4 && a.solid_count==2 && !a.neighbor_void_count && a.detail_guard_count==1);
+        for(i=0;i<a.source.vertex_count;i++){float x=a.source.vertices[i].position[0];if(x<lo)lo=x;if(x>hi)hi=x;}
+        center[2]=(n%2)?2.5f:-2.5f;
+        CHECK(a.detail_guards[0].minimum[2]==center[2]);
+        for(i=0;i<a.replaced_count;i++)CHECK(a.replaced_ids[i]!=a.detail_guards[0].compiled_ids[0] && a.replaced_ids[i]!=a.detail_guards[0].compiled_ids[1]);
+        CHECK(rf_geomod_authored_post_admit(owner,a.detail_guards[0].minimum,a.detail_guards[0].maximum)==RF_NOT_FOUND);
+        memcpy(cut_lo,a.detail_guards[0].minimum,12);memcpy(cut_hi,a.detail_guards[0].maximum,12);
+        cut_lo[1]=cut_hi[1];cut_hi[1]+=.1f; /* Exact touching also rejects. */
+        CHECK(rf_geomod_authored_post_admit(owner,cut_lo,cut_hi)==RF_NOT_FOUND);
+        cut_lo[1]=NAN;CHECK(rf_geomod_authored_post_admit(owner,cut_lo,cut_hi)==RF_RANGE);
+        {
+            rf_geometry bad=*geometry;rf_geomod_authored_post *rejected=NULL;
+            bad.data=malloc(bad.bytes);CHECK(bad.data);memcpy(bad.data,geometry->data,bad.bytes);
+            bad.data[bad.room_offsets[a.detail_guards[0].room]+34]=0;
+            CHECK(rf_geomod_authored_post_open_source(level,&bad,uids[n],2097152,&rejected)==RF_NOT_FOUND && !rejected);
+            free(bad.data);
+        }
+        center[0]=(lo+hi)*.5f;memcpy(start,center,12);memcpy(end,center,12);start[0]=hi+1;end[0]=lo-1;
+        CHECK(!rf_geomod_terrain_open(&a.source,a.source_filters,a.source_filters,0,4096,768,1048576,&terrain));
+        CHECK(!rf_geomod_terrain_get(terrain,&view));CHECK(!rf_geomod_light_visible(&view,start,end,&visible) && !visible);
+        CHECK(!rf_geomod_template_bounds(&shape,center,basis,1.05000007f/shape.radius,NULL,0,cut_lo,cut_hi));
+        CHECK(!rf_geomod_authored_post_admit(owner,cut_lo,cut_hi));
+        CHECK(!rf_geomod_terrain_cut_template_scale(terrain,&shape,center,basis,1.05000007f/shape.radius,0));
+        CHECK(!rf_geomod_terrain_get(terrain,&view));CHECK(!rf_geomod_light_visible(&view,start,end,&visible) && visible);
+        CHECK(!rf_geomod_terrain_cutter_get(terrain,0,&cut.mesh,cut.kernel,&cut.star));
+        job.terrain=view.mesh;job.windows=a.windows;job.window_origins=a.window_origins;
+        job.neighbors=a.neighbors;job.neighbor_origins=a.neighbor_origins;job.source_planes=a.source_planes;job.source_plane_count=a.source.face_count;
+        job.solids=a.solids;job.solid_count=a.solid_count;job.neighbor_voids=a.neighbor_voids;job.neighbor_void_count=a.neighbor_void_count;
+        job.cuts=&cut;job.cut_count=1;job.crater_origin=(rf_geomod_publication_origin){RF_GEOMOD_PUBLICATION_CRATER,a.source_uid,UINT32_MAX,a.replaced_ids[0]};
+        CHECK(!rf_geomod_publication_build(&job,&publication_work,output_vertices,4096,output_faces,768,output_origins,&output));
+        CHECK(output.face_count>a.windows.face_count);
+        CHECK(!rf_geomod_terrain_reset(terrain));CHECK(!rf_geomod_terrain_get(terrain,&view));
+        CHECK(!rf_geomod_light_visible(&view,start,end,&visible) && !visible);
+        printf("SIDE_POST uid%u faces%u vertices%u resident%u peak%u\n",uids[n],output.face_count,output.vertex_count,a.resident_bytes,a.peak_bytes);
+        rf_geomod_terrain_close(&terrain);rf_geomod_authored_post_close(&owner);
+    }
+    return 0;
+}
 static int selected_sources(const rf_level *level, const rf_geometry *geometry, const char *shape) {
     CHECK(!side_beams(level,geometry,shape));
+    CHECK(!side_posts(level,geometry,shape));
     static const uint32_t uids[] = {93, 94, 96, 97};
     uint32_t n, i, k;
     for (n = 0; n < 4; n++) {
@@ -531,7 +580,7 @@ static int selected_sources(const rf_level *level, const rf_geometry *geometry, 
     }
     {
         rf_geomod_authored_post *owner = NULL;
-        CHECK(rf_geomod_authored_post_open_source(level, geometry, 79, 2 * 1024 * 1024, &owner) == RF_NOT_FOUND);
+        CHECK(rf_geomod_authored_post_open_source(level, geometry, 73, 2 * 1024 * 1024, &owner) == RF_NOT_FOUND);
         CHECK(!owner);
     }
     return 0;

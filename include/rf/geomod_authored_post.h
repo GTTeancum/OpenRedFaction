@@ -6,8 +6,14 @@ typedef struct rf_geomod_authored_post rf_geomod_authored_post;
 /* Immutable decoder profile metadata, not geometry validation. Zero means no
  * admitted beam profile. Consumers share this table for identity/material policy. */
 uint32_t rf_geomod_authored_beam_roof(uint32_t uid);
+typedef struct rf_geomod_authored_detail_guard {
+    uint32_t uid, room, compiled_ids[2];
+    float minimum[3], maximum[3];
+} rf_geomod_authored_detail_guard;
 typedef struct rf_geomod_authored_post_view {
     rf_geomod_mesh_view source, windows, neighbors;
+    const rf_geomod_authored_detail_guard *detail_guards;
+    uint32_t detail_guard_count;
     const float (*source_planes)[4];
     const rf_geomod_publication_solid *solids;
     const rf_geomod_publication_origin *source_origins, *window_origins, *neighbor_origins;
@@ -58,6 +64,11 @@ int rf_geomod_authored_cavity_decode(const void *,uint32_t,const rf_geometry *,
  * metadata are retained by the cavity owner; no allocation or scene mutation. */
 int rf_geomod_authored_cavity_admit(const rf_geomod_authored_post *,const float minimum[3],
     const float maximum[3],uint32_t *reference);
+/* Guarded side-post cut admission: cutter bounds must avoid retained detail
+ * bounds (including contact). Does not authorize shared-source/scene edits.
+ * Only available for the four qualified side-post profiles; no allocation. */
+int rf_geomod_authored_post_admit(const rf_geomod_authored_post *,const float minimum[3],
+    const float maximum[3]);
 /* Same v180/profile decoder for retained section bytes. Peak conservatively
  * includes supplied payload bytes even though decode borrows them. settings
  * must be read from the same level's section900. No payload borrow escapes. */
@@ -71,6 +82,9 @@ int rf_geomod_authored_post_decode(const void *, uint32_t, const rf_geometry *,
  * Side beams89..92 use roof69/air88 and their actual post pairs;107..110
  * use roof81/air87 and their actual post pairs. All retain the same bounded
  * roof clipping and neighborhood qualification.
+ * Side posts75/79/99/103 retain two structural neighbors and one protected
+ * detail guard. Call post_admit before each cut; their scene/save integration
+ * is not enabled by decoding. Guard faces must remain in the static scene.
  * Hollow-neighbor data must be supplied to publication; existing scene/save
  * selection remains separately gated. Other UIDs return RF_NOT_FOUND. Full neighborhood, convexity, eligibility,
  * material and ownership validation still applies. This selects one owner;
