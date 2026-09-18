@@ -997,3 +997,20 @@ set_tests_properties(weapon_custom_actions PROPERTIES WORKING_DIRECTORY ${CMAKE_
 add_executable(rf_scene_ai_extra_weapons_integration_tests tests/scene_ai_extra_weapons_integration_tests.c src/diagnostic/animation.c)
 target_link_libraries(rf_scene_ai_extra_weapons_integration_tests PRIVATE rf_core)
 add_test(NAME scene_ai_extra_weapons_integration COMMAND rf_scene_ai_extra_weapons_integration_tests ${CMAKE_SOURCE_DIR}/Installed_Game/tables.vpp)
+
+add_executable(rf_scene_ai_waypoint_acquire_tests tests/scene_ai_waypoint_acquire_tests.c src/diagnostic/animation.c)
+target_link_libraries(rf_scene_ai_waypoint_acquire_tests PRIVATE rf_core)
+add_test(NAME scene_ai_waypoint_acquire COMMAND rf_scene_ai_waypoint_acquire_tests)
+
+add_executable(rf_scene_undercover_mode_tests tests/scene_undercover_mode_tests.c)
+target_link_libraries(rf_scene_undercover_mode_tests PRIVATE rf_core)
+add_test(NAME scene_undercover_mode COMMAND rf_scene_undercover_mode_tests)
+set_tests_properties(scene_undercover_mode PROPERTIES WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
+
+add_executable(rf_scene_machine_pistol_carry_tests tests/scene_machine_pistol_carry_tests.c)
+target_link_libraries(rf_scene_machine_pistol_carry_tests PRIVATE rf_core)
+add_test(NAME scene_machine_pistol_carry COMMAND rf_scene_machine_pistol_carry_tests ${CMAKE_SOURCE_DIR}/Installed_Game/tables.vpp)
+
+add_executable(rf_scene_extra_pickups_tests tests/scene_extra_pickups_tests.c)
+target_link_libraries(rf_scene_extra_pickups_tests PRIVATE rf_core)
+add_test(NAME scene_extra_pickups COMMAND rf_scene_extra_pickups_tests ${CMAKE_SOURCE_DIR}/Installed_Game/tables.vpp)

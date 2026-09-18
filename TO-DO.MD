@@ -3,7 +3,7 @@
 Completion basis (user direction,2026-09-18): working late-alpha/early-beta code implementation. Overall approximately68%; GeoMod100% for the first playable milestone, accepted by the user. GeoMod items below are deferred refinement and coverage, not prerequisites to moving on. This does not assert retail polish, complete campaign integration or resolution of every known defect.
 
 
-- Conventional firearms: Machine Pistol, Heavy Machine Gun, Precision Rifle and Undercover handgun primary firing now work in a bounded DEV profile, including HMG alternate and rifle zoom; PC visuals pass and native HMG shot/ammo state matches with11.59MiB free; custom magazine/silencer modes, campaign access and broader live AI encounters remain.
+- Conventional firearms: Machine Pistol, Heavy Machine Gun, Precision Rifle and Undercover handgun primary firing now work in a bounded DEV profile, including HMG alternate and rifle zoom; PC visuals pass and native HMG shot/ammo state matches with11.59MiB free; Machine Pistol magazine switching now passes PC/Xbox; silencer integration, campaign access and broader live AI encounters remain.
 
 - Fusion launcher: Authored primary fire, real flight, single-shell reload, blast/self-damage, central explosion emitters and GeoMod now work in the DEV room; PC and stock64MiB Xbox destruction match with7.04MiB free; campaign pickup/selection, save state, full audio, glow and remaining effect fidelity are open.
 
@@ -5684,3 +5684,11 @@ World and committed-mover fragment queries now include bounded edge/edge CCD, wi
 - Registered and passed installed-asset Machine Pistol transition and custom-animation ownership tests; separate ammunition pools, authored switch duration, cancellation, playback and cleanup are established at helper level. Live firing/view integration is still in progress.
 - New actual NPC scheduler test passes for all four added firearms: finite timed reload, exhausted-handgun replacement before riot stick, inventory preservation and scripted Attack veto. Synthetic motion fixtures do not establish live attachment/rendering or bullet contact.
 - Three implementation agents are active on live Machine Pistol mode integration, separate silencer resources/state, and authored conventional-weapon pickups. Waypoint acquisition helper is delivered and awaits scene wiring/check. No new overall completion credit until integration works.
+
+### Machine Pistol modes and waypoint acquisition (2026-09-18)
+
+- Integrated authored Machine Pistol base/AP switching with114-tick animation, blocked firing during transition, separately retained magazines/reserves, actual special firing metadata and scoped reload authorization without special ownership. Special resource slot is not independently cyclable. DEV supply is explicit; campaign resources and mode carry remain pending.
+- PC470-frame replay completes two switches, one AP reload and10shots; final base magazine23/reserve125, AP reserve197. Native artifacts/xemu/render-20260918-121638 PASS470 matches all8 MACHINE_MODE words and combat/ammo;2678freepages=10.46MiB endpoint. PC mid-switch pose and native final weapon/environment/HUD inspected; full transition sequence and audible playback not separately inspected. Native disc restored and harness closed its process.
+- Set_AI_Mode Waypoints can acquire a unique authored Follow_Waypoints route linked to the actor. Existing routes resume; ambiguous/invalid routes preserve state. Focused actual scene test and PC/Xbox builds pass; live authored locomotion remains unverified. This acquisition rule is explicit port policy.
+- Silencer owner/state and actual attachment resources pass installed-asset test; gameplay wrapper is delivered but not yet integrated. Finite authored pickup/resource-demand helper and in-memory MP carry sidecar pass focused tests, also awaiting wiring.
+- Overall implementation estimate remains approximately68%; current weapons approximately86%. Next: integrate playable silencer, authored firearm pickup resources and mode carry.
