@@ -1,7 +1,9 @@
 # Red Faction Xbox / PC - open work
 
-Completion basis (user direction,2026-09-18): working late-alpha/early-beta code implementation. Overall approximately66%; GeoMod100% for the first playable milestone, accepted by the user. GeoMod items below are deferred refinement and coverage, not prerequisites to moving on. This does not assert retail polish, complete campaign integration or resolution of every known defect.
+Completion basis (user direction,2026-09-18): working late-alpha/early-beta code implementation. Overall approximately67%; GeoMod100% for the first playable milestone, accepted by the user. GeoMod items below are deferred refinement and coverage, not prerequisites to moving on. This does not assert retail polish, complete campaign integration or resolution of every known defect.
 
+
+- Fusion launcher: Authored primary fire, real flight, single-shell reload, blast/self-damage, central explosion emitters and GeoMod now work in the DEV room; PC and stock64MiB Xbox destruction match with7.04MiB free; campaign pickup/selection, save state, full audio, glow and remaining effect fidelity are open.
 
 - Player shield: Direct gunfire blocking/break/fallback works; authored delayed bash now connects animation, finite melee contact, cover, source-attributed damage and death; focused actual damage/cover/range checks and PC/Xbox builds pass, PC replay shows attack pose; world/script shield pickups and demand-based view resources are now wired; native bash view now passes175frames with7.05MiB free; broader attacks, saves and native break continuation remain.
 
@@ -5654,3 +5656,12 @@ World and committed-mover fragment queries now include bounded edge/edge CCD, wi
 - Live campaign pickup/selection and level carry remain unverified; no claim of shield disk persistence.
 
 - Native validation: artifacts/xemu/render-20260918-113907 PASS,175frames,1805 free4KiB pages (7.05MiB), inspected native framebuffer displays actual shield-bash pose with enemy and environment. This confirms native animation/runtime and compared state, not a close-range native bash hit; actual10HP melee arithmetic is covered by the focused integration check. Harness restored disc and closed its own XEMU.
+
+### Fusion launcher first playable pass (2026-09-18)
+
+- Installed shoulder_cannon metadata supplies damage1000, speed20, lifetime15, collision radius.051, blast radius25, crater radius7, clip1, reserve capacity5, firewait.8s and reload1s. No alternate attack is authored. Four real flights retain shooter attribution; failed pool admission consumes no ammunition. Input/death/selection cancellation and real reload transfer are integrated.
+- Added slot12 in an opt-in enemy-free DEV profile (RF_REPLAY_FUSION / fusion-test.flag; harness --fusion-test). Default profiles retain previous weapon selection/resource loading. General campaign availability and RFCP support are not claimed; owned/live Fusion is rejected by the current checkpoint profile.
+- Actual fp_shol model uses authored camera offset/FOV68, idle/fire/reload;1077272 resident bytes,1088868 peak, within1152KiB view allowance. Actual ShellTest planes/materials use full30-frame period. Its file names unresolved external parent Dummy23; binding that parent to projectile flight basis is explicit first-pass attachment policy, not proven original parent placement.
+- Authored shoulder_cannon_explode central3emitters use147740 resident material bytes and four bounded impact owners. Glow/light, sparks/trails and explosion/flight sound coverage remain open; launch/reload audio is dispatched. PC flight replay shows model/reload and one real projectile impact; direct blast reduces player health. Close-range destruction replay produces one successful GeoMod cut and lethal self-damage.
+- Focused installed resource/action, input/ammo/cadence and flight/source/admission tests pass; PC and NXDK builds pass. Native artifacts/xemu/render-20260918-115225 passes240frames on64MiB, with exact Fusion[1,1,0,0,0], blast and GeoMod state matching PC;1801freepages=7.04MiB endpoint headroom. Native framebuffer inspected for changed geometry; it does not establish complete flight/explosion visual fidelity. Harness restored disc and closed its XEMU.
+- Overall first-playable implementation estimate approximately67%; current high-level weapons implementation approximately80%. Next integration: remaining conventional firearms. Shield first-pass coverage stays usable; its open persistence/broader-attack work remains listed separately.

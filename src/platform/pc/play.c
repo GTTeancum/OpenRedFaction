@@ -287,7 +287,7 @@ static int present(void *context,uint32_t frame,const rf_preview_mesh *mesh,
     status=rf_scene_prepare_lightmaps(&p->lightmaps);if(status)return status;
     for(i=0;i<materials->count;i++)image_bytes+=materials->items[i].image.bytes;
     for(i=0;i<p->lightmaps.count;i++)image_bytes+=p->lightmaps.images[i].bytes;
-    {uint32_t budget=rf_scene_player_shield_resources?RF_PLAYER_SHIELD_IMAGE_BUDGET:RF_CAMPAIGN_IMAGE_BUDGET;
+    {uint32_t budget=(rf_scene_player_shield_resources || rf_scene_fusion_enabled)?RF_PLAYER_SHIELD_IMAGE_BUDGET:RF_CAMPAIGN_IMAGE_BUDGET;
      if(image_bytes>budget){fprintf(stderr,"Scene image budget %llu exceeds %u\n",(unsigned long long)image_bytes,budget);return RF_RANGE;}}
     status=rf_scene_update_lightmaps(&p->lightmaps);if(status)return status;
     /* Recorded-input diagnosis projects every tick, rasterizes only the last. */
@@ -536,6 +536,7 @@ int main(int argc,char **argv)
         printf("FRAGMENT_SUPPORT_AUDIT");for(word=0;word<16;word++)printf(" %u",rf_scene_fragment_support_audit[word]);puts("");
         printf("FRAGMENT_CONTACT_AUDIT");for(word=0;word<64;word++)printf(" %u",rf_scene_fragment_contact_audit[word]);puts("");
     }
+    rf_scene_fusion_enabled=p.headless && getenv("RF_REPLAY_FUSION")!=NULL;
     rf_scene_dev_npc_enabled=p.headless && getenv("RF_REPLAY_DEV_NPC")!=NULL;
     if(rf_scene_dev_npc_enabled && !strcmp(getenv("RF_REPLAY_DEV_NPC"),"2"))rf_scene_dev_npc_enabled=2;
     if(rf_scene_dev_npc_enabled && !strcmp(getenv("RF_REPLAY_DEV_NPC"),"3"))rf_scene_dev_npc_enabled=3;
@@ -930,6 +931,7 @@ run_scene:
     printf("ROCKET_VISUAL");for(i=0;i<8;++i)printf(" %u",rf_scene_rocket_visual[i]);puts("");
     printf("ROCKET_BLAST");for(i=0;i<8;++i)printf(" %u",rf_scene_rocket_blast[i]);puts("");
     printf("SCANNER");for(i=0;i<4;++i)printf(" %u",rf_scene_scanner[i]);puts("");
+    printf("FUSION_PROJECTILES");for(i=0;i<5;++i)printf(" %u",rf_scene_fusion_projectiles[i]);puts("");
     printf("PLAYER_SHIELD");for(i=0;i<4;++i)printf(" %u",rf_scene_player_shield[i]);puts("");
     printf("RIOT_SHIELD");for(i=0;i<4;++i)printf(" %u",rf_scene_riot_shield[i]);puts("");
     printf("AI_ROCKETS");for(i=0;i<5;++i)printf(" %u",rf_scene_ai_rockets[i]);puts("");

@@ -20,6 +20,8 @@ extern uint32_t rf_scene_follow_level_exits;
 extern uint32_t rf_scene_dev_room_enabled;
 extern uint32_t rf_scene_dev_npc_enabled;
 extern uint32_t rf_scene_player_shield_resources;
+extern uint32_t rf_scene_fusion_enabled;
+extern uint32_t rf_scene_fusion_projectiles[5];
 extern uint32_t rf_scene_moving_support_enabled,rf_scene_moving_support_test[10][16];
 /* Explicit same-level player + destruction checkpoint mode; legacy mode stays RFDS. */
 extern uint32_t rf_scene_player_checkpoint_enabled;
