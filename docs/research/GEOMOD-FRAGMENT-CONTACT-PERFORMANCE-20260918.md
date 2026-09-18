@@ -31,3 +31,21 @@ Active fragment time fell from9895ms to8195ms over the same79 active ticks: mean
 The Xbox checkpoint matches PC and baseline exactly (SHA above). Native framebuffer SHA256 `ad18ceadb48c89b8c98548d169a7e9bc51b785197a4ac223c326bcc9bab41ca3` is byte-identical to the previously inspected `render-20260918-020011/framebuffer.png`; no changed visual content or new GitHub image. Remaining active update cost (~104ms average) is still unacceptable as a final target. Next measure the sphere/corner/world traversal portions before choosing another optimization.
 
 The first native build attempt (`render-20260918-025428`) stopped before launch because the test-only standalone wrapper was unused in production under NXDK's warnings-as-errors. Moving that wrapper into the unit test fixed the build; the final PC executable and focused tests were rebuilt and passed afterward.
+
+
+## Stage attribution
+
+`artifacts/xemu/render-20260918-025903` measures sum/maximum-per-query guest milliseconds for the four contact stages in a separate8-word `rf_scene_fragment_stage_ms` ledger. It is reset with the other frame-zero counters and neither serialized nor used by simulation. Sphere time includes the visible-mesh qualification of a sphere hit; corner time includes pose preparation and supporting-side admission. Times are millisecond-resolution and may vary between emulator runs.
+
+| Stage | Total ms | Maximum per query ms |
+| --- | ---: | ---: |
+| Sphere sweep and mesh qualification | 5245 | 31 |
+| Mesh corner sweep | 2415 | 27 |
+| Reciprocal committed mover vertices | 0 | 0 |
+| Reciprocal world vertices | 129 | 2 |
+
+Active fragment updates total7856ms across79 ticks (~99.443ms each); sphere and corner stages account for approximately67% and31% respectively. Zero mover time in this authored replay does not establish mover-query performance. Do not claim the difference from the prior103.734ms mean as another optimization: this pass only adds instrumentation, and run-to-run timing varies.
+
+All79 checks pass, the deterministic work ledger is unchanged, and save and framebuffer are byte-identical to the prior optimized native run. Endpoint memory remains3325 pages; the disc was restored and the owned emulator closed. All123 PC tests also pass.
+
+Inspection shows `collision_sweep_tree` validates every node before each traversal, while `sweep_rooms_prepared` revalidates the complete room/child lists for each sphere. `rf_collision_body_sweep` calls that route independently for each sphere. This is a candidate cause, not yet a measured attribution within the sphere stage. Next implement or instrument bounded query-local reuse of immutable world/tree validation across sphere sweeps; preserve public malformed-input checks, candidate ordering and exact contact results, and never retain validation across terrain publication or mover updates. Re-measure against this run before claiming an improvement.

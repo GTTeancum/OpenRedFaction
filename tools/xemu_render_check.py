@@ -436,6 +436,7 @@ dvd_path = '{root.as_posix()}/build/xbox/redfaction-diagnostic.iso'
                 'rf_scene_npc_step_profile', 'rf_scene_npc_playback_profile')]
             fields.append(('rf_scene_terrain_edit_times',40))
             fields.append(('rf_scene_fragment_profile',24))
+            fields.append(('rf_scene_fragment_stage_ms',8))
             if args.fragment_contact_test:fields.append(('rf_scene_fragment_contact_audit',64))
             if args.npc_rubble_test:fields.append(('rf_scene_dev_npc_cover',48))
             if args.moving_support_test:fields.append(('rf_scene_moving_support_test',160))
@@ -453,6 +454,8 @@ dvd_path = '{root.as_posix()}/build/xbox/redfaction-diagnostic.iso'
             report['checks']['FRAGMENT_PROFILE_WORK']=dict(pc=fragment_pc,xbox=fragment_xbox,compared_indices=work_indices,equal=True)
             profile_names=('version','ticks','active_ticks','active_bodies_total','max_active_bodies','queries','corner_casts','reciprocal_vertices','triangle_tests','pose_evaluations','total_ms','active_ms','max_tick_ms','max_tick_frame','max_active_tick_ms','max_queries_per_tick','max_active_tick_frame','bodies_at_peak','queries_at_peak','triangle_preparations','local_rejections','shape_preparations','cache_fallbacks','reserved')
             report['fragment_profile']=dict(zip(profile_names,fragment_xbox))
+            stage_words=snap['symbols']['rf_scene_fragment_stage_ms']['words']
+            report['fragment_stage_ms']={name:dict(total=stage_words[i*2],max_query=stage_words[i*2+1]) for i,name in enumerate(('spheres','corners','mover_vertices','world_vertices'))}
             report['fragment_profile']['mean_active_tick_ms']=fragment_xbox[11]/fragment_xbox[2] if fragment_xbox[2] else None
 
             if args.fragment_contact_test:

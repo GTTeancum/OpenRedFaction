@@ -57,6 +57,7 @@ int rf_scene_detached_support_audit(void);
 extern uint32_t rf_scene_fragment_contact_audit[64];
 /* Fragment CPU work counters and guest millisecond timings; never serialized. */
 extern uint32_t rf_scene_fragment_profile[24];
+extern uint32_t rf_scene_fragment_stage_ms[8];
 int rf_scene_fragment_contact_check(void);
 /* Read-only NPC snapshot: UID,handle,weapon,flags,alert,scripted,target,follow;
  * values are body position, eye position, health. No pointers escape. */

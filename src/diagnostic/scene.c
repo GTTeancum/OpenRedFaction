@@ -263,6 +263,7 @@ int rf_scene_set_campaign_spawn(const rf_level *level)
     rf_scene_player_spawn_diagnostic[0]=1;memcpy(rf_scene_player_spawn_diagnostic+1,campaign_position,12);
     memcpy(rf_scene_player_spawn_diagnostic+4,campaign_orientation,36);campaign_spawn=1;return RF_OK;
 }
+uint32_t rf_scene_fragment_stage_ms[8]; /* sum/max pairs: spheres,corners,mover vertices,world vertices */
 uint32_t rf_scene_fragment_profile[24]; /* v,ticks,active ticks,bodies,max bodies,queries,corners,reciprocal,triangles,poses,total ms,active ms,max ms,frame,max active ms,max queries,active peak frame,bodies,queries,triangle builds,local rejects,shape builds,fallbacks,reserved */
 static uint32_t (*profile_clock)(void);
 static uint32_t profile_last,profile_active;
@@ -335,6 +336,7 @@ static int player_begin_frame(void *context,uint32_t frame)
     rf_scene_input value={0};uint32_t i,*r=rf_scene_player_input_frames[frame%64];int status;(void)context;
     if(frame && rf_scene_follow_level_exits && rf_scene_level_transition.pending)return RF_NOT_FOUND;
     if(!frame){memset(rf_scene_player_input_frames,0,sizeof(rf_scene_player_input_frames));
+        memset(rf_scene_fragment_stage_ms,0,sizeof(rf_scene_fragment_stage_ms));
         memset(rf_scene_fragment_profile,0,sizeof(rf_scene_fragment_profile));rf_scene_fragment_profile[0]=2;}
     status=player_poll(player_context,frame,&value);if(status)return status;
     for(i=0;i<3;++i)if(!isfinite(value.move[i]) || fabsf(value.move[i])>1)return RF_FORMAT;
@@ -11372,9 +11374,16 @@ static int scene_detached_contact_material(void *context,uint32_t solid,uint32_t
     return campaign_body_surface(&surfaces,solid,face,texture,material);
 }
 #include "scene_fragment_contact_audit.inc"
+static uint32_t scene_fragment_clock(void) {return profile_active && profile_clock?profile_clock():0;}
+static void scene_fragment_stage_record(uint32_t stage,uint32_t started) {
+    if(profile_active && profile_clock) {
+        uint32_t elapsed=profile_clock()-started;rf_scene_fragment_stage_ms[stage*2]+=elapsed;
+        if(elapsed>rf_scene_fragment_stage_ms[stage*2+1])rf_scene_fragment_stage_ms[stage*2+1]=elapsed;
+    }
+}
 static int scene_detached_query(const rf_physics_body_state *body,rf_physics_solid_hit *out,uint32_t *matched,void *opaque)
 {
-    scene_detached_query_context *c=opaque;rf_collision_body_sphere scratch[64];rf_geometry_body_hit hit={0};int status;
+    scene_detached_query_context *c=opaque;rf_collision_body_sphere scratch[64];rf_geometry_body_hit hit={0};int status;uint32_t started=scene_fragment_clock();
     if(profile_active)rf_scene_fragment_profile[5]++;
     status=campaign_physics_body_sweep(c->scene->collision,body,c->spheres,0x460,scratch,64,&hit,matched);
     if(status)return status;
@@ -11388,9 +11397,12 @@ static int scene_detached_query(const rf_physics_body_state *body,rf_physics_sol
          * that empty padding; corner sweeps supply the later real contact. */
         if(minimum>.002f)*matched=0;
     }
-    status=scene_detached_mesh_sweep(c,body,&hit,matched);if(status)return status;
-    status=scene_detached_mover_vertex_sweep(c->mesh,body,&campaign_movers,&hit,matched,scene_detached_contact_material,NULL);if(status)return status;
-    status=scene_detached_world_vertex_sweep(c,body,&hit,matched,scene_detached_contact_material,NULL);if(status || !*matched)return status;
+    scene_fragment_stage_record(0,started);started=scene_fragment_clock();
+    status=scene_detached_mesh_sweep(c,body,&hit,matched);scene_fragment_stage_record(1,started);if(status)return status;
+    started=scene_fragment_clock();
+    status=scene_detached_mover_vertex_sweep(c->mesh,body,&campaign_movers,&hit,matched,scene_detached_contact_material,NULL);scene_fragment_stage_record(2,started);if(status)return status;
+    started=scene_fragment_clock();
+    status=scene_detached_world_vertex_sweep(c,body,&hit,matched,scene_detached_contact_material,NULL);scene_fragment_stage_record(3,started);if(status || !*matched)return status;
     if(hit.contact.fraction>=1){*matched=0;return RF_OK;}
     if(!campaign_surface_palette || hit.contact.material>=campaign_surface_palette->count)return RF_FORMAT;
     out->fraction=hit.contact.fraction;memcpy(out->point,hit.contact.point,12);memcpy(out->normal,hit.contact.normal,12);
