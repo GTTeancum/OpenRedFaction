@@ -11484,6 +11484,9 @@ static int scene_detached_query(const rf_physics_body_state *body,rf_physics_sol
          * that empty padding; corner sweeps supply the later real contact. */
         if(minimum>.002f)*matched=0;
     }
+#ifndef RF_IMAGE_XBOX_NATIVE
+    if(c->trace)printf("DETACHED_QUERY_START %u %u %u %u %u %.9g\n",rf_scene_fragment_platform_audit[0],c->source,c->batch,c->piece,*matched,*matched?hit.contact.fraction:1);
+#endif
     scene_fragment_stage_record(0,started);started=scene_fragment_clock();
     status=scene_detached_mesh_sweep(c,body,&hit,matched);scene_fragment_stage_record(1,started);if(status)return status;
     started=scene_fragment_clock();
@@ -11632,6 +11635,11 @@ static int scene_detached_tick(scene_stream *s,float seconds)
             }
             if(status){printf("DETACHED_STEP_FAILURE %u %u %u %d %u %.9g %.9g %.9g\n",source,b,i,status,body->state.flags,body->state.position[0],body->state.position[1],body->state.position[2]);printf("DETACHED_STEP_RADIUS %.9g\n",body->state.bounds.radius);goto failed;}
             if(seconds>0 && ((body->state.flags&0x80000000u) || wake))active++;
+#ifndef RF_IMAGE_XBOX_NATIVE
+            if(query.trace)printf("DETACHED_STEP_TRACE %u %u %u %u %u %u %u %.9g %.9g %.9g %.9g %.9g %.9g %.9g\n",
+                rf_scene_fragment_platform_audit[0],source,b,i,report.steps,report.contacts,report.limited,
+                report.remaining,next.position[0],next.position[1],next.position[2],next.velocity[0],next.velocity[1],next.velocity[2]);
+#endif
             body->state=next;
             if(rf_scene_fragment_platform_enabled && source==0 && b==0 && i==1) {
                 float bottom=INFINITY;
