@@ -1,6 +1,6 @@
 # Red Faction Xbox / PC - open work
 
-- PRIORITY GeoMod fragment contacts: Reduce broad-phase candidate work (2.53M sphere-stage face checks versus10.3K plane tests), then finish edge/edge and mover-relative coverage;80 native profiling checks confirm counts, with profiling overhead removed from normal builds.
+- PRIORITY GeoMod fragment contacts: Finish edge/edge and mover-relative coverage after ordered face-block pruning halves measured Xbox debris updates68ms to34ms, with79 native checks and identical saves/visuals; broader performance remains open.
 
 - PRIORITY GeoMod ordinary walls: Broaden multi-window and neighboring-brush CSG; a live floor-seam rocket now passes77 stock64MiB checks with exact PC/Xbox save bytes and fixture-off/mismatched-save rejection controls, alongside verified wall depth and player traversal.
 
@@ -5571,3 +5571,8 @@ Shared validation across one fragment corner sweep cuts corner-stage time2411ms 
 ## 2026-09-18 inner collision work attribution
 
 Native32-word counter agreement identifies2.53M sphere-stage face checks,2.19M box checks, but only10260 plane and4300 edge tests. Corner sweeps add1.19M face checks. Target candidate pruning and distinguish tree/flat-mover lists before changing math.80 native checks pass with identical save/framebuffer. Expensive counters are retained only as an optional patch; normal source restored to prior accepted revision. [Evidence](docs/research/GEOMOD-FRAGMENT-INNER-WORK-20260918.md). Approximately51% overall /91% GeoMod.
+
+
+## 2026-09-18 ordered face-block pruning
+
+Static world-tree face checks dominate the measured candidate workload; a PC flat-mover counter probe records zero attempts for this replay. Conservative groups of16 consecutive faces preserve ordering and errors while reducing native active update time67.544ms to34.203ms (49.36%) and peak139ms to69ms.79 stock64MiB native checks pass, identical save/framebuffer,3324 free pages. All123 PC tests and both connected destruction histories pass. [Evidence](docs/research/GEOMOD-FRAGMENT-FACE-BLOCKS-20260918.md). Return to missing edge/edge and mover-relative collision behavior; approximately51% overall /91% GeoMod.

@@ -1605,6 +1605,45 @@ static int collision_indexed_sample(void *context,const rf_collision_face *face,
     if(!c->texture->sample)return RF_NOT_FOUND;
     return c->texture->sample(c->texture->context,c->index,face,bitmap,point,color);
 }
+/* Conservative groups preserve original face order. Cache only immutable
+ * bounds/filter decisions; malformed groups fall through to the original
+ * per-face route, preserving error/early-hit order. No vertices are touched. */
+static int sweep_block_miss(rf_collision_sweep_batch *batch,const rf_collision_face *faces,
+    uint32_t count,uint32_t flags,const float start[3],const float end[3],float radius)
+{
+    uintptr_t key=(uintptr_t)faces;uint32_t slot=(uint32_t)((key>>4)^(key>>12))&63u,i,j;
+    if(!batch || count<4 || (flags&0x180u))return 0;
+    if(batch->blocks[slot].faces!=faces || batch->blocks[slot].count!=count || batch->blocks[slot].flags!=flags) {
+        uint32_t state=1; /* empty; 2=bounded, 3=uncacheable */
+        batch->blocks[slot].faces=faces;batch->blocks[slot].count=count;batch->blocks[slot].flags=flags;
+        for(i=0;i<count;i++) {
+            rf_collision_face_filter filter=faces[i].filter;uint32_t accepted;filter.query_flags=flags;
+            if(rf_collision_face_accept(&filter,&accepted)){state=3;break;}
+            if(!accepted)continue;
+            for(j=0;j<3;j++)if(!isfinite(faces[i].minimum[j]) || !isfinite(faces[i].maximum[j]) ||
+                faces[i].minimum[j]>faces[i].maximum[j])break;
+            if(j!=3){state=3;break;}
+            for(j=0;j<3;j++) {
+                if(state==1 || faces[i].minimum[j]<batch->blocks[slot].minimum[j])batch->blocks[slot].minimum[j]=faces[i].minimum[j];
+                if(state==1 || faces[i].maximum[j]>batch->blocks[slot].maximum[j])batch->blocks[slot].maximum[j]=faces[i].maximum[j];
+            }
+            state=2;
+        }
+        batch->blocks[slot].state=state;
+    }
+    if(batch->blocks[slot].state==1)return 1;
+    if(batch->blocks[slot].state==2) {
+        float lo[3],hi[3];uint32_t outside=0;
+        for(j=0;j<3;j++) {
+            lo[j]=batch->blocks[slot].minimum[j]-radius;hi[j]=batch->blocks[slot].maximum[j]+radius;
+            if(!isfinite(lo[j]) || !isfinite(hi[j]))return 0;
+            if((start[j]<lo[j] && end[j]<lo[j]) || (start[j]>hi[j] && end[j]>hi[j]))outside=1;
+        }
+        return outside;
+    }
+    return 0;
+}
+
 static int collision_sweep_tree(const rf_collision_node *nodes,uint32_t node_count,
     const rf_collision_face *faces,uint32_t face_count,uint32_t query_flags,
     const float start[3],const float displacement[3],const float normal_displacement[3],float radius,float limit,
@@ -1634,6 +1673,10 @@ static int collision_sweep_tree(const rf_collision_node *nodes,uint32_t node_cou
         status=rf_collision_segment_box(lo,hi,start,end,scratch,&hit);if(status)return status;
         if(!hit)continue;
         for(i=0;i<n->face_count;i++) {
+            if(batch && !(i&15u)) {
+                uint32_t group=n->face_count-i;if(group>16)group=16;
+                if(sweep_block_miss(batch,faces+n->first_face+i,group,query_flags,start,end,radius)){i+=group-1;continue;}
+            }
             uint32_t index=n->first_face+i;rf_collision_face face=faces[index];rf_collision_sweep_hit candidate;
             face.filter.query_flags=query_flags;
             if(texture) {

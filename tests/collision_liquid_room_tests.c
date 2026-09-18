@@ -58,9 +58,43 @@ static int batch_validation_test(void)
      CHECK(rf_collision_sweep_rooms_batch(rooms,17,&invalid,1,NULL,0,0,start,delta,0,1,&batch,&actual,&b)==RF_RANGE);}
     return 0;
 }
+static int block_pruning_test(void)
+{
+    rf_collision_face faces[64];float vertices[64][4][3];rf_collision_node node={0};
+    rf_collision_tree tree={0};rf_collision_room_view room={0};rf_collision_sweep_batch batch={0};
+    rf_collision_sweep_room_hit expected,actual;uint32_t stack,primary=0,i,j,a,b;
+    float start[3]={0,2,0},delta[3]={0,-4,0};
+    for(i=0;i<64;i++) {
+        face_make(faces+i,vertices[i],0,0);
+        if(i<32){faces[i].minimum[0]+=100;faces[i].maximum[0]+=100;for(j=0;j<4;j++)vertices[i][j][0]+=100;}
+    }
+    for(j=0;j<3;j++){node.minimum[j]=room.minimum[j]=-10;node.maximum[j]=room.maximum[j]=110;}
+    node.face_count=64;node.left=node.right=UINT32_MAX;
+    tree.nodes=&node;tree.node_count=tree.node_capacity=1;tree.faces=faces;tree.face_count=64;tree.stack=&stack;room.tree=&tree;
+    for(i=0;i<32;i++) {
+        float radius=(i%2)*.25f,limit=(i%4)*.25f;uint32_t flags=(i/4)&1;
+        memset(&expected,0xa5,sizeof(expected));actual=expected;a=b=99;
+        CHECK(!rf_collision_sweep_rooms(&room,1,&primary,1,NULL,0,flags,start,delta,radius,limit,&expected,&a));
+        CHECK(!rf_collision_sweep_rooms_batch(&room,1,&primary,1,NULL,0,flags,start,delta,radius,limit,&batch,&actual,&b));
+        CHECK(a==b && !memcmp(&expected,&actual,sizeof(actual)));
+    }
+    /* Distant malformed groups cannot hide the existing error. */
+    memset(&batch,0,sizeof(batch));faces[0].filter.owner_present=2;
+    CHECK(rf_collision_sweep_rooms_batch(&room,1,&primary,1,NULL,0,0,start,delta,0,1,&batch,&actual,&b)==RF_RANGE);
+    faces[0].filter.owner_present=0;faces[0].minimum[0]=faces[0].maximum[0]+1;memset(&batch,0,sizeof(batch));
+    CHECK(rf_collision_sweep_rooms_batch(&room,1,&primary,1,NULL,0,0,start,delta,0,1,&batch,&actual,&b)==RF_FORMAT);
+    /* Preparation must not report a later error before an earlier first hit. */
+    face_make(faces,vertices[0],0,0);faces[15].filter.owner_present=2;memset(&batch,0,sizeof(batch));
+    memset(&expected,0,sizeof(expected));actual=expected;
+    CHECK(!rf_collision_sweep_rooms(&room,1,&primary,1,NULL,0,1,start,delta,0,1,&expected,&a));
+    CHECK(!rf_collision_sweep_rooms_batch(&room,1,&primary,1,NULL,0,1,start,delta,0,1,&batch,&actual,&b));
+    CHECK(a==b && a && !memcmp(&expected,&actual,sizeof(actual)));
+    return 0;
+}
 int main(void)
 {
     CHECK(!batch_validation_test());
+    CHECK(!block_pruning_test());
     rf_collision_face faces[3],detail;float vertices[4][4][3];
     rf_collision_node nodes[2];rf_collision_tree trees[2];rf_collision_room_view rooms[2];
     rf_collision_room_liquid_view water[2];rf_collision_sweep_liquid_room_hit result,saved;

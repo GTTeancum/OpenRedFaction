@@ -338,6 +338,8 @@ typedef struct rf_collision_sweep_batch {
     const rf_collision_room_view *rooms;const uint32_t *primary,*children;
     uint32_t room_count,primary_count,child_count,ready,tree_count;
     struct {const rf_collision_node *nodes;uint32_t node_count,face_count;} trees[16];
+    struct {const rf_collision_face *faces;uint32_t count,flags,state;
+        float minimum[3],maximum[3];} blocks[64];
 } rf_collision_sweep_batch;
 int rf_collision_sweep_rooms_batch(const rf_collision_room_view *rooms,uint32_t room_count,
     const uint32_t *primary,uint32_t primary_count,const uint32_t *children,uint32_t child_count,
