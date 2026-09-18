@@ -393,6 +393,8 @@ int rf_geomod_storage_prepare_solid_cut(rf_geomod_storage *,const rf_geomod_mesh
 #define RF_GEOMOD_WORK_FACES 1024
 #endif
 #define RF_GEOMOD_WORK_FRAGMENTS 512
+/* Star templates may contain 64 triangular faces; convex/source clipping
+ * remains separately bounded to 32 planes. No change to the eight-cut limit. */
 typedef struct rf_geomod_multi_work {
     rf_geomod_cut_work split;
     rf_geomod_cut_work seed;
@@ -405,7 +407,7 @@ typedef struct rf_geomod_multi_work {
     };
     rf_geomod_fragment fragments[2][RF_GEOMOD_WORK_FRAGMENTS];
     float source_planes[32][4],cut_planes[RF_GEOMOD_CUT_LIMIT][32][4];
-    float star_planes[RF_GEOMOD_CUT_LIMIT][32][4][4];
+    float star_planes[RF_GEOMOD_CUT_LIMIT][RF_GEOMOD_STAR_FACE_LIMIT][4][4];
     float star_kernels[RF_GEOMOD_CUT_LIMIT][3];
     uint32_t star_count[RF_GEOMOD_CUT_LIMIT];
     /* Supporting-plane IDs parallel to cavity clipping vertices (28 KiB). */
@@ -434,7 +436,7 @@ int rf_geomod_storage_prepare_cuts(rf_geomod_storage *storage,
 int rf_geomod_storage_prepare_cavity_cuts(rf_geomod_storage *storage,
     const rf_geomod_mesh_view *cutters,uint32_t count,rf_geomod_multi_work *work);
 /* Closed outward triangular star-shaped cutters, each with a strict interior
- * kernel visible from every face. Up to32 triangles per cutter. Edge pairing,
+ * kernel visible from every face. Up to64 triangles per cutter. Edge pairing,
  * winding and kernel half-spaces are checked; non-self-intersection is a caller
  * precondition. Internal tetrahedron faces are never emitted. The same full
  * history, bounded scratch and transactional contract applies. cavity selects
@@ -527,7 +529,7 @@ int rf_geomod_terrain_cut_convex(rf_geomod_terrain *,const rf_geomod_mesh_view *
 /* Inscribed icosahedral crater; shares bounded atomic history with box cuts. */
 int rf_geomod_terrain_cut_crater(rf_geomod_terrain *,const float center[3],float radius,uint32_t material);
 /* Copy and atomically publish a closed outward triangular star cutter.
- * Up to20 faces/60 corners; kernel is strictly inside and visible from every
+ * Up to64 faces/192 corners; kernel is strictly inside and visible from every
  * face. Materials come from the supplied faces. No input pointers are retained.
  * Supports mixed history with boxes and prototype craters. */
 int rf_geomod_terrain_cut_star(rf_geomod_terrain *terrain,
@@ -537,7 +539,7 @@ int rf_geomod_terrain_cut_star(rf_geomod_terrain *terrain,
  * Decode/load preserve output on malformed input. No original executable is
  * needed by the runtime; pack the verified local asset during preparation. */
 typedef struct rf_geomod_template {
-    rf_geomod_vertex vertices[60];rf_geomod_face faces[20];
+    rf_geomod_vertex vertices[RF_GEOMOD_STAR_VERTEX_LIMIT];rf_geomod_face faces[RF_GEOMOD_STAR_FACE_LIMIT];
     uint32_t face_count;float radius,kernel[3];
 } rf_geomod_template;
 int rf_geomod_template_decode(const void *data,uint32_t bytes,rf_geomod_template *out);

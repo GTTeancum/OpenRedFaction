@@ -44,11 +44,11 @@ typedef struct rf_geomod_publication_bank {
 typedef struct rf_geomod_publication_work {
     rf_geomod_publication_bank result, banks[2];
     rf_geomod_publication_origin origins[RF_GEOMOD_PUBLICATION_FACES];
-    float tetra[RF_GEOMOD_CUT_LIMIT * 20][4][4];
+    float tetra[RF_GEOMOD_CUT_LIMIT * RF_GEOMOD_STAR_FACE_LIMIT][4][4];
     uint32_t tetra_count;
     rf_geomod_vertex polygon[3][64], split_vertices[2048];
     rf_geomod_fragment fragments[128];
-    uint16_t adjacency[60];
+    uint16_t adjacency[RF_GEOMOD_STAR_VERTEX_LIMIT];
 } rf_geomod_publication_work;
 /* Port publication adapter, not an original executable wrapper. The final
  * terrain comes from an outward convex source minus ordered star cuts. Windows
@@ -62,7 +62,7 @@ typedef struct rf_geomod_publication_work {
  * compiled indices. reference is opaque caller metadata; no lightmap remapping.
  * Output UV/material/provenance follows windows, crater terrain, or neighbors.
  * Shared-edge rounding remains the polygon primitive's 1e-5 tolerance contract.
- * Nonstar histories return RF_NOT_FOUND. At most8 cuts/20 triangles each.
+ * Nonstar histories return RF_NOT_FOUND. At most RF_GEOMOD_CUT_LIMIT cuts / RF_GEOMOD_STAR_FACE_LIMIT triangles each.
  *
  * No allocation. All inputs, work and outputs must be disjoint. Work may change
  * on failure; output arrays, origins and out_view remain unchanged. Successful

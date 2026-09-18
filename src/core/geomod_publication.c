@@ -200,7 +200,7 @@ static int prepare_cuts(const rf_geomod_publication_job *j, rf_geomod_publicatio
         const rf_geomod_publication_cut *cut = j->cuts + c;
         if (!cut->star)
             return RF_NOT_FOUND;
-        if (cut->mesh.face_count > 20 || cut->mesh.vertex_count > 60 || cut->mesh.face_count < 4)
+        if (cut->mesh.face_count > RF_GEOMOD_STAR_FACE_LIMIT || cut->mesh.vertex_count > RF_GEOMOD_STAR_VERTEX_LIMIT || cut->mesh.face_count < 4)
             return RF_RANGE;
         s = mesh_valid(&cut->mesh);
         if (s)
@@ -208,7 +208,7 @@ static int prepare_cuts(const rf_geomod_publication_job *j, rf_geomod_publicatio
         for (k = 0; k < 3; k++)
             if (!isfinite(cut->kernel[k]))
                 return RF_FORMAT;
-        s = rf_geomod_seed_adjacency(&cut->mesh, w->adjacency, 60);
+        s = rf_geomod_seed_adjacency(&cut->mesh, w->adjacency, RF_GEOMOD_STAR_VERTEX_LIMIT);
         if (s)
             return s;
         for (f = 0; f < cut->mesh.face_count; f++) {

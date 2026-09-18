@@ -990,7 +990,8 @@ void rf_geomod_observe_intersections(rf_geomod_intersection_observer observer,vo
 {intersection_observer=observer;intersection_context=context;}
 /* Original endpoints give every subdivision of a partition diagonal the
  * same future clipping intersection. IDs occupy a separate support domain. */
-#define GEOMOD_DIAGONAL_BASE (32u+RF_GEOMOD_CUT_LIMIT*128u)
+#define GEOMOD_CUT_SUPPORT_STRIDE (RF_GEOMOD_STAR_FACE_LIMIT*4u)
+#define GEOMOD_DIAGONAL_BASE (32u+RF_GEOMOD_CUT_LIMIT*GEOMOD_CUT_SUPPORT_STRIDE)
 typedef struct geomod_diagonals {
     float endpoints[RF_GEOMOD_WORK_FACES][2][3];uint32_t count;
 } geomod_diagonals;
@@ -1028,7 +1029,7 @@ static const float *corner_support_plane(const geomod_corner_support *support,ui
 {
     uint32_t cutter,local;
     if(id<32)return support->work->source_planes[id];
-    cutter=(id-32)/128;local=(id-32)%128;
+    cutter=(id-32)/GEOMOD_CUT_SUPPORT_STRIDE;local=(id-32)%GEOMOD_CUT_SUPPORT_STRIDE;
     return support->work->star_count[cutter]?support->work->star_planes[cutter][local/4][local%4]:support->work->cut_planes[cutter][local];
 }
 /* Resolve intersections on an actual shared star-cutter edge before using
@@ -1040,11 +1041,11 @@ static int corner_seed_edge(const geomod_corner_support *support,const uint16_t 
     /* Three supports from one star may meet at an authored vertex. Preserve
      * that vertex exactly instead of independently solving rounded planes. */
     if(ids[0]>=32 && ids[1]>=32 && ids[2]>=32 &&
-       (ids[0]-32)/128==(ids[1]-32)/128 && (ids[0]-32)/128==(ids[2]-32)/128) {
-        uint32_t cutter=(ids[0]-32)/128,found=0;const float *points[3][3],*shared=NULL;
+       (ids[0]-32)/GEOMOD_CUT_SUPPORT_STRIDE==(ids[1]-32)/GEOMOD_CUT_SUPPORT_STRIDE && (ids[0]-32)/GEOMOD_CUT_SUPPORT_STRIDE==(ids[2]-32)/GEOMOD_CUT_SUPPORT_STRIDE) {
+        uint32_t cutter=(ids[0]-32)/GEOMOD_CUT_SUPPORT_STRIDE,found=0;const float *points[3][3],*shared=NULL;
         if(support->work->star_count[cutter]) {
             for(i=0;i<3;i++) {
-                uint32_t local=(ids[i]-32)%128,face=local/4,side=local%4;
+                uint32_t local=(ids[i]-32)%GEOMOD_CUT_SUPPORT_STRIDE,face=local/4,side=local%4;
                 const rf_geomod_vertex *v=support->cutters[cutter].vertices+support->cutters[cutter].faces[face].first;
                 for(j=0;j<3;j++)points[i][j]=(side && j==2)?support->work->star_kernels[cutter]:v[side?(side-1+j)%3:j].position;
             }
@@ -1088,11 +1089,11 @@ static int corner_seed_edge(const geomod_corner_support *support,const uint16_t 
         const float *points[2][3],*shared[2],*plane;uint32_t counts[2],found=0,cutter;
         double da,db,t;const float *first,*last;
         a=pair;b=(pair+1)%3;other=(pair+2)%3;
-        if(ids[a]<32 || ids[b]<32 || (ids[a]-32)/128!=(ids[b]-32)/128)continue;
-        cutter=(ids[a]-32)/128;
-        if(!support->work->star_count[cutter] || (ids[other]>=32 && (ids[other]-32)/128==cutter))continue;
+        if(ids[a]<32 || ids[b]<32 || (ids[a]-32)/GEOMOD_CUT_SUPPORT_STRIDE!=(ids[b]-32)/GEOMOD_CUT_SUPPORT_STRIDE)continue;
+        cutter=(ids[a]-32)/GEOMOD_CUT_SUPPORT_STRIDE;
+        if(!support->work->star_count[cutter] || (ids[other]>=32 && (ids[other]-32)/GEOMOD_CUT_SUPPORT_STRIDE==cutter))continue;
         for(i=0;i<2;i++) {
-            uint32_t local=(ids[i?b:a]-32)%128,face=local/4,side=local%4;
+            uint32_t local=(ids[i?b:a]-32)%GEOMOD_CUT_SUPPORT_STRIDE,face=local/4,side=local%4;
             const rf_geomod_vertex *v=support->cutters[cutter].vertices+support->cutters[cutter].faces[face].first;
             counts[i]=3;
             for(j=0;j<3;j++)points[i][j]=(side && j==2)?support->work->star_kernels[cutter]:v[side?(side-1+j)%3:j].position;
@@ -1664,7 +1665,7 @@ static int subtract_history_face_range(rf_geomod_storage *s,const rf_geomod_vert
             const float (*planes)[4]=work->star_count[c]?work->star_planes[c][part]:work->cut_planes[c];
             uint32_t plane_count=work->star_count[c]?4:cutters[c].face_count;
             uint16_t plane_ids[32];
-            if(edges)for(j=0;j<plane_count;j++)plane_ids[j]=(uint16_t)(32+c*128+(work->star_count[c]?part*4+j:j));
+            if(edges)for(j=0;j<plane_count;j++)plane_ids[j]=(uint16_t)(32+c*GEOMOD_CUT_SUPPORT_STRIDE+(work->star_count[c]?part*4+j:j));
             for(i=0;i<pieces;i++) {
                 const rf_geomod_fragment *face=work->fragments[bank]+i;uint32_t n,nf;
                 rf_geomod_edge_tracking tracking={work->edges[bank]+face->first,plane_ids,work->split_edges};
@@ -1783,12 +1784,12 @@ static inline int prepare_chronological_step_clipped(rf_geomod_storage *s,const 
         if(status)goto failed;
     }
     status=rf_geomod_seed_adjacency(cutters+c,work->initial_edges,64*32);if(status)goto failed;
-    for(i=0;i<cutters[c].vertex_count;i++)work->initial_edges[i]=(uint16_t)(32+c*128+work->initial_edges[i]*(work->star_count[c]?4:1));
+    for(i=0;i<cutters[c].vertex_count;i++)work->initial_edges[i]=(uint16_t)(32+c*GEOMOD_CUT_SUPPORT_STRIDE+work->initial_edges[i]*(work->star_count[c]?4:1));
     for(i=0;i<cutters[c].face_count;i++) {
         const rf_geomod_face *f=cutters[c].faces+i;
         rf_geomod_vertex *current=work->seed.vertices,*front=current+64,*back=current+128;
         uint16_t *current_edges=work->seed_edges,*front_edges=current_edges+64,*back_edges=current_edges+128;
-        geomod_corner_support support={work,(uint16_t)(32+c*128+i*(work->star_count[c]?4:1)),cutters,lineage->diagonals,lineage->source,lineage->source_planes,lineage->source_edges};
+        geomod_corner_support support={work,(uint16_t)(32+c*GEOMOD_CUT_SUPPORT_STRIDE+i*(work->star_count[c]?4:1)),cutters,lineage->diagonals,lineage->source,lineage->source_planes,lineage->source_edges};
         if(clip_context) {
             rf_geomod_solid_clip_result clipped;uint32_t part;
             status=rf_geomod_polygon_clip_solid_tracked(cutters[c].vertices+f->first,f->count,
@@ -1857,7 +1858,7 @@ static inline int prepare_chronological_step_clipped(rf_geomod_storage *s,const 
                 float planes[3][4],point[3];uint32_t q,cut=0;
                 for(q=0;q<3;q++) {
                     if(ids[q]>=32) {
-                        uint32_t ci=(ids[q]-32)/128,local=(ids[q]-32)%128;
+                        uint32_t ci=(ids[q]-32)/GEOMOD_CUT_SUPPORT_STRIDE,local=(ids[q]-32)%GEOMOD_CUT_SUPPORT_STRIDE;
                         if(ci>=count || local>=(work->star_count[ci]?work->star_count[ci]*4:cutters[ci].face_count))break;
                         cut=1;
                     }
@@ -2030,7 +2031,7 @@ static int prepare_cavity_cuts(rf_geomod_storage *s,
     const rf_geomod_mesh_view *cutters,uint32_t count,rf_geomod_multi_work *work,int prepared)
 {
     rf_geomod_mesh_view source;uint32_t i,c,j,n,pieces;int status;
-    /* IDs0..31 name source planes; each cutter owns128 IDs, four per star part. */
+    /* IDs0..31 name source planes; each cutter owns256 IDs, four per star part. */
     uint16_t source_ids[32];
     if(!s || !work || s->editing || count>RF_GEOMOD_CUT_LIMIT || (count && !cutters))return RF_RANGE;
     source=(rf_geomod_mesh_view){s->vertices[2],s->faces[2],s->nv[2],s->nf[2],0};
@@ -2046,13 +2047,13 @@ static int prepare_cavity_cuts(rf_geomod_storage *s,
     }
     for(c=0;c<count;c++) {
         status=rf_geomod_seed_adjacency(cutters+c,work->initial_edges,64*32);if(status)goto failed;
-        for(i=0;i<cutters[c].vertex_count;i++)work->initial_edges[i]=(uint16_t)(32+c*128+work->initial_edges[i]*(work->star_count[c]?4:1));
+        for(i=0;i<cutters[c].vertex_count;i++)work->initial_edges[i]=(uint16_t)(32+c*GEOMOD_CUT_SUPPORT_STRIDE+work->initial_edges[i]*(work->star_count[c]?4:1));
         for(i=0;i<cutters[c].face_count;i++) {
             const rf_geomod_face *f=cutters[c].faces+i;
             /* Keep cutter boundaries outside the original empty room. Contact
              * between cavity and cutter is internal, for either plane orientation. */
             rf_geomod_edge_tracking tracking={work->initial_edges+f->first,source_ids,work->seed_edges};
-            geomod_corner_support support={work,(uint16_t)(32+c*128+i*(work->star_count[c]?4:1)),cutters,NULL,NULL,NULL,NULL};
+            geomod_corner_support support={work,(uint16_t)(32+c*GEOMOD_CUT_SUPPORT_STRIDE+i*(work->star_count[c]?4:1)),cutters,NULL,NULL,NULL,NULL};
             status=polygon_subtract_tracked_policy(cutters[c].vertices+f->first,f->count,
                 work->source_planes,source.face_count,work->seed.vertices,64*32,
                 work->seed.fragments,32,&n,&pieces,1,&tracking,&support);if(status)goto failed;
@@ -2177,7 +2178,7 @@ int rf_geomod_component_extract(const rf_geomod_mesh_view *mesh,const uint32_t *
 int rf_geomod_seed_adjacency(const rf_geomod_mesh_view *mesh,uint16_t *neighbors,uint32_t capacity)
 {
     uint32_t pass,f,e,g,h,packed=0,i;int status;
-    if(!mesh || !neighbors || !mesh->faces || mesh->face_count<4 || mesh->face_count>32 || capacity<mesh->vertex_count)return RF_RANGE;
+    if(!mesh || !neighbors || !mesh->faces || mesh->face_count<4 || mesh->face_count>RF_GEOMOD_STAR_FACE_LIMIT || capacity<mesh->vertex_count)return RF_RANGE;
     status=storage_vertices(mesh->vertices,mesh->vertex_count);if(status)return status;
     for(f=0;f<mesh->face_count;f++) {
         const rf_geomod_face *face=mesh->faces+f;
@@ -2203,10 +2204,10 @@ int rf_geomod_seed_adjacency(const rf_geomod_mesh_view *mesh,uint16_t *neighbors
 }
 /* Every triangle and the strict kernel bound one tetrahedron. The union
  * preserves the supplied concave boundary; no convex hull is substituted. */
-static int star_mesh_planes(const rf_geomod_mesh_view *mesh,const float kernel[3],float out[32][4][4])
+static int star_mesh_planes(const rf_geomod_mesh_view *mesh,const float kernel[3],float out[RF_GEOMOD_STAR_FACE_LIMIT][4][4])
 {
     uint32_t i,j,k,other,e;int status;
-    if(!mesh || !mesh->faces || mesh->face_count<4 || mesh->face_count>32)return RF_RANGE;
+    if(!mesh || !mesh->faces || mesh->face_count<4 || mesh->face_count>RF_GEOMOD_STAR_FACE_LIMIT)return RF_RANGE;
     status=storage_vertices(mesh->vertices,mesh->vertex_count);if(status)return status;
     for(k=0;k<3;k++)if(!isfinite(kernel[k]))return RF_FORMAT;
     for(i=0;i<mesh->face_count;i++) {
@@ -2553,8 +2554,8 @@ int rf_geomod_collision_faces(const rf_geomod_mesh_view *mesh,
 
 struct rf_geomod_terrain {
     rf_geomod_storage *mesh;rf_geomod_multi_work work;
-    rf_geomod_vertex cut_vertices[RF_GEOMOD_CUT_LIMIT][60];
-    rf_geomod_face cut_faces[RF_GEOMOD_CUT_LIMIT][20];
+    rf_geomod_vertex cut_vertices[RF_GEOMOD_CUT_LIMIT][RF_GEOMOD_STAR_VERTEX_LIMIT];
+    rf_geomod_face cut_faces[RF_GEOMOD_CUT_LIMIT][RF_GEOMOD_STAR_FACE_LIMIT];
     rf_geomod_mesh_view cuts[RF_GEOMOD_CUT_LIMIT];
     float kernels[RF_GEOMOD_CUT_LIMIT][3];uint32_t star_mask,mapping_width,mapping_height;
     rf_collision_face_filter original_filters[32],generated_filter,*filters;
@@ -2905,7 +2906,7 @@ static int terrain_cut_star_checked(rf_geomod_terrain *t,
 {
     uint32_t slot,i;int status;
     if(!t || !cutter || !kernel || t->count==RF_GEOMOD_CUT_LIMIT ||
-       cutter->face_count>20 || cutter->vertex_count>60)return RF_RANGE;
+       cutter->face_count>RF_GEOMOD_STAR_FACE_LIMIT || cutter->vertex_count>RF_GEOMOD_STAR_VERTEX_LIMIT)return RF_RANGE;
     slot=t->count;
     status=star_mesh_planes(cutter,kernel,t->work.star_planes[slot]);if(status)return status;
     for(i=0;i<cutter->face_count;i++)if(cutter->faces[i].material==UINT32_MAX)return RF_FORMAT;
@@ -2929,7 +2930,7 @@ int rf_geomod_template_decode(const void *data,uint32_t bytes,rf_geomod_template
     if(!data || !out)return RF_RANGE;
     if(bytes<28 || memcmp(p,"RFCT",4) || geomod_u32(p+4)!=1)return RF_FORMAT;
     value.face_count=geomod_u32(p+8);value.radius=geomod_float(p+12);
-    if(value.face_count<4 || value.face_count>20 || bytes!=28+value.face_count*60 ||
+    if(value.face_count<4 || value.face_count>RF_GEOMOD_STAR_FACE_LIMIT || bytes!=28+value.face_count*60 ||
        !isfinite(value.radius) || value.radius<=0)return RF_FORMAT;
     for(i=0;i<3;i++)value.kernel[i]=geomod_float(p+16+i*4);
     for(i=0;i<value.face_count;i++)value.faces[i]=(rf_geomod_face){i*3,3,0,UINT32_MAX};
@@ -2943,7 +2944,7 @@ int rf_geomod_template_decode(const void *data,uint32_t bytes,rf_geomod_template
 }
 int rf_geomod_template_load(const char *path,rf_geomod_template *out)
 {
-    unsigned char data[1229];FILE *file;size_t bytes;int failed;
+    unsigned char data[28+RF_GEOMOD_STAR_VERTEX_LIMIT*20+1];FILE *file;size_t bytes;int failed;
     if(!path || !out)return RF_RANGE;
     file=fopen(path,"rb");if(!file)return RF_IO;
     bytes=fread(data,1,sizeof(data),file);failed=ferror(file);if(fclose(file))failed=1;
@@ -2952,10 +2953,10 @@ int rf_geomod_template_load(const char *path,rf_geomod_template *out)
 }
 static int template_prepare(const rf_geomod_template *shape,const float center[3],const float basis[9],
     float scale,uint32_t material,const rf_geomod_shallow_limit *limits,uint32_t limit_count,
-    rf_geomod_vertex vertices[60],rf_geomod_face faces[20],float kernel[3])
+    rf_geomod_vertex vertices[RF_GEOMOD_STAR_VERTEX_LIMIT],rf_geomod_face faces[RF_GEOMOD_STAR_FACE_LIMIT],float kernel[3])
 {
     uint32_t i,j,k;
-    if(!shape || !center || !basis || material==UINT32_MAX || shape->face_count<4 || shape->face_count>20)return RF_RANGE;
+    if(!shape || !center || !basis || material==UINT32_MAX || shape->face_count<4 || shape->face_count>RF_GEOMOD_STAR_FACE_LIMIT)return RF_RANGE;
     if(limit_count>2 || (limit_count && !limits))return RF_RANGE;
     if(!isfinite(scale) || scale<=0 || !isfinite(shape->radius) || shape->radius<=0)return RF_FORMAT;
     for(i=0;i<9;i++)if(!isfinite(basis[i]))return RF_FORMAT;
@@ -2990,7 +2991,7 @@ static int template_prepare(const rf_geomod_template *shape,const float center[3
 int rf_geomod_template_bounds(const rf_geomod_template *shape,const float center[3],const float basis[9],
     float scale,const rf_geomod_shallow_limit *limits,uint32_t limit_count,float minimum[3],float maximum[3])
 {
-    rf_geomod_vertex vertices[60];rf_geomod_face faces[20];rf_geomod_mesh_view mesh;
+    rf_geomod_vertex vertices[RF_GEOMOD_STAR_VERTEX_LIMIT];rf_geomod_face faces[RF_GEOMOD_STAR_FACE_LIMIT];rf_geomod_mesh_view mesh;
     float kernel[3],lo[3],hi[3];uint32_t i,k;int status;
     if(!minimum || !maximum)return RF_RANGE;
     status=template_prepare(shape,center,basis,scale,0,limits,limit_count,vertices,faces,kernel);if(status)return status;
@@ -3007,7 +3008,7 @@ int rf_geomod_terrain_cut_template_checked(rf_geomod_terrain *t,const rf_geomod_
     const float center[3],const float basis[9],float scale,uint32_t material,
     const rf_geomod_shallow_limit *limits,uint32_t limit_count,rf_geomod_terrain_check_fn check,void *context)
 {
-    rf_geomod_vertex vertices[60];rf_geomod_face faces[20];rf_geomod_mesh_view mesh;float kernel[3];int status;
+    rf_geomod_vertex vertices[RF_GEOMOD_STAR_VERTEX_LIMIT];rf_geomod_face faces[RF_GEOMOD_STAR_FACE_LIMIT];rf_geomod_mesh_view mesh;float kernel[3];int status;
     if(!t)return RF_RANGE;
     status=template_prepare(shape,center,basis,scale,material,limits,limit_count,vertices,faces,kernel);if(status)return status;
     mesh=(rf_geomod_mesh_view){vertices,faces,shape->face_count*3,shape->face_count,0};
@@ -3028,8 +3029,8 @@ int rf_geomod_terrain_cut_template(rf_geomod_terrain *t,const rf_geomod_template
 }
 /* Portable committed-cutter checkpoint. Scratch doubles as rollback storage. */
 typedef struct terrain_history_copy {
-    rf_geomod_vertex vertices[RF_GEOMOD_CUT_LIMIT][60];
-    rf_geomod_face faces[RF_GEOMOD_CUT_LIMIT][20];
+    rf_geomod_vertex vertices[RF_GEOMOD_CUT_LIMIT][RF_GEOMOD_STAR_VERTEX_LIMIT];
+    rf_geomod_face faces[RF_GEOMOD_CUT_LIMIT][RF_GEOMOD_STAR_FACE_LIMIT];
     float kernels[RF_GEOMOD_CUT_LIMIT][3];
     uint32_t vc[RF_GEOMOD_CUT_LIMIT],fc[RF_GEOMOD_CUT_LIMIT],mask,count;
 } terrain_history_copy;
@@ -3102,7 +3103,7 @@ static int terrain_history_import(rf_geomod_terrain *t,const void *data,uint32_t
         rf_geomod_mesh_view mesh;uint32_t star,n;
         if(left<24){status=RF_FORMAT;goto done;}
         star=geomod_u32(p);h->vc[i]=geomod_u32(p+4);h->fc[i]=geomod_u32(p+8);
-        if(star>1 || !h->vc[i] || h->vc[i]>60 || h->fc[i]<4 || h->fc[i]>20){status=RF_FORMAT;goto done;}
+        if(star>1 || !h->vc[i] || h->vc[i]>(star?RF_GEOMOD_STAR_VERTEX_LIMIT:60u) || h->fc[i]<4 || h->fc[i]>(star?RF_GEOMOD_STAR_FACE_LIMIT:20u)){status=RF_FORMAT;goto done;}
         for(k=0;k<3;k++) {
             h->kernels[i][k]=geomod_float(p+12+k*4);
             if(!isfinite(h->kernels[i][k]) || (!star && h->kernels[i][k]!=0)){status=RF_FORMAT;goto done;}
