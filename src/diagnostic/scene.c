@@ -9013,6 +9013,7 @@ static float combat_enemy_primary_damage(const rf_weapon_primary_definition *def
 }
 #include "scene_npc_rubble_test.inc"
 #include "scene_ai_gameplay.inc"
+#include "scene_ai_ammo_fallback.inc"
 #include "scene_ai_target_liveness.inc"
 #include "scene_ai_weapon_selection.inc"
 #include "scene_ai_reload.inc"
@@ -9110,6 +9111,12 @@ static int campaign_enemy_tick(scene_stream *stream,uint32_t frame,const float p
             if(event==1){owner->combat_burst_remaining=0;
                 status=campaign_enemy_reload_presentation(i);if(status && status!=RF_NOT_FOUND)return status;}
             if(rf_scene_combat_trace && (event==1 || event==2))printf("ENEMY_RELOAD_TRACE %u %u %u %d\n",frame,campaign_seeds.records.items[i].record.uid,event,owner->inventory.loaded[weapon]);
+            if(event==3){
+                uint32_t changed;status=campaign_enemy_ammo_fallback(i,&changed);
+                if(status && status!=RF_NOT_FOUND)return status;
+                if(changed && rf_scene_combat_trace)printf("ENEMY_WEAPON_FALLBACK %u %u %d %d\n",frame,campaign_seeds.records.items[i].record.uid,weapon,owner->view.weapons[0]);
+                continue; /* Selected definition belongs to the old weapon until next tick. */
+            }
             if(!ready)continue;
         }
         if(frame<owner->combat_due)continue;

@@ -790,3 +790,7 @@ add_test(NAME scene_scanner COMMAND rf_scene_scanner_tests)
 add_executable(rf_scene_event_history_tests tests/scene_event_history_tests.c src/diagnostic/animation.c)
 target_link_libraries(rf_scene_event_history_tests PRIVATE rf_core)
 add_test(NAME scene_event_history COMMAND rf_scene_event_history_tests)
+
+add_executable(rf_scene_ai_ammo_fallback_tests tests/scene_ai_ammo_fallback_tests.c src/diagnostic/animation.c)
+target_link_libraries(rf_scene_ai_ammo_fallback_tests PRIVATE rf_core)
+add_test(NAME scene_ai_ammo_fallback COMMAND rf_scene_ai_ammo_fallback_tests)

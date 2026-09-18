@@ -25,3 +25,8 @@ Rail alternate now toggles a world-independent living-NPC center scanner. Fixed3
 weapon_scanner and actual scene_scanner collection checks pass. Live PC scanner.bin rotates toward the quiet developer guard, toggles at195, ends at240 with SCANNER [1,1,0,0], loaded1/reserve10 and zero shots. Captured framebuffer inspected: green brackets surround the guard center; no occluded-target visual claim. Native scanner runtime remains unverified; NXDK build passes. Scope/rail prior native acceptance remains separate.
 
 Overall rough implementation63%; precision weapons approximately85% first pass.
+
+## Enemy ammunition fallback
+Ordinary and retaliating enemies with exhausted ammunition now choose an owned usable ranged weapon, then an owned riot stick. Explicit scripted Attack orders retain their chosen weapon. This preference order is port policy; it grants no weapons or ammunition.
+
+The scene adapter stages the new motion selection, resets retained firing state, publishes the equipped weapon and motion/sound mapping, and clears old burst/reload/navigation deadlines. The focused scene_ai_ammo_fallback test executes this adapter with real selection/reset functions and synthetic resource mappings: equipment, mapping, firing reset and unchanged inventory pass. PC and Xbox scene builds pass. Rendered model switching is not yet verified.
