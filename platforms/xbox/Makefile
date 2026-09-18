@@ -39,6 +39,7 @@ $(error Run python tools/build_apu_probe.py --backend-only before the Xbox build
 endif
 APU_SRCS = $(APU_BACKEND)/audio_core.c $(APU_BACKEND)/audio_buffer.c $(APU_BACKEND)/audio_voice.c
 SRCS += $(APU_SRCS)
+SRCS += $(PROJECT_ROOT)/src/core/event_cycle.c
 SRCS += $(PROJECT_ROOT)/src/core/event.c
 SRCS += $(PROJECT_ROOT)/src/core/campaign.c
 SRCS += $(PROJECT_ROOT)/src/core/frame_clock.c
@@ -60,6 +61,7 @@ SRCS += $(PROJECT_ROOT)/src/core/entity.c
 SRCS += $(PROJECT_ROOT)/src/core/player.c
 SRCS += $(PROJECT_ROOT)/src/core/physics.c
 SRCS += $(PROJECT_ROOT)/src/core/grenade_flight.c $(PROJECT_ROOT)/src/core/grenade_throw.c
+SRCS += $(PROJECT_ROOT)/src/core/hitscan_select.c $(PROJECT_ROOT)/src/core/weapon_precision.c
 SRCS += $(PROJECT_ROOT)/src/core/weapon.c
 SRCS += $(PROJECT_ROOT)/src/core/effect.c
 SRCS += $(PROJECT_ROOT)/src/core/particle_pool.c

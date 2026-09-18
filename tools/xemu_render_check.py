@@ -745,7 +745,8 @@ dvd_path = '{root.as_posix()}/build/xbox/redfaction-diagnostic.iso'
                 equal=actual==expected
                 report['checks']['TERRAIN_NOISE']=dict(equal=equal,xbox=actual,pc=expected,
                     scope='Persistent generated-face mappings, retained texel checks, bounded owner and generation')
-                assert equal and actual[0]==1 and actual[1]<=(2048 if args.expanded_geomod else 1024) and actual[6]<=(256*1024 if args.expanded_geomod else 128*1024),'TERRAIN_NOISE'
+                # No generated faces means this lazy owner has never been allocated.
+                assert equal and (actual==[0]*8 or (actual[0]==1 and actual[1]<=(2048 if args.expanded_geomod else 1024) and actual[6]<=(256*1024 if args.expanded_geomod else 128*1024))),'TERRAIN_NOISE'
                 expected=list(map(int,next(line for line in pc.stdout.splitlines() if line.startswith('DEBRIS ')).split()[1:]))
                 actual=words(monitor,symbol('rf_scene_debris'),8)
                 equal=actual==expected

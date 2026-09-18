@@ -3,6 +3,10 @@
 Completion basis (user direction,2026-09-18): working late-alpha/early-beta code implementation. Overall approximately61%; GeoMod100% for the first playable milestone, accepted by the user. GeoMod items below are deferred refinement and coverage, not prerequisites to moving on. This does not assert retail polish, complete campaign integration or resolution of every known defect.
 
 
+- PRIORITY Precision weapons: Sniper/rail selection, primary firing, ammo and authored view offsets are integrated; PC shots and scene cover/penetration checks pass; scope/scanner, trails and broader live targets remain.
+
+- Scripted timers: Cyclic_Timer is integrated with finite/unlimited event/mover pulses and focused runtime checks passing; same-level checkpoint persistence remains.
+
 - AI hearing: Player gunfire now alerts nearby hostile guards without replacing scripted targets; focused checks pass, live encounter tuning remains.
 
 - AI combat: Authored handgun cadence, rifle bursts and finite magazine/reload logic are integrated; live handgun firing and focused burst/reload checks pass, with Xbox build passing; shotgun pellet damage, cover and death cutoff are integrated; authored NPC reload animations now start with reloads and focused checks pass; live tuning remains.

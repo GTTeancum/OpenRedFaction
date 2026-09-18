@@ -633,6 +633,9 @@ static void startup_event_action(void *context,rf_event_state *state,uint32_t ac
             startup_target(c,c->event->links+i,source,actor,(mode&255u)==1);
         return;
     }
+    if(state->type==20) {
+        c->status=rf_event_cycle_enable(&c->event->cycle,action==1);return;
+    }
     if(state->type==63) {
         int status;if(action!=1)return;
         if(!c->triggers->teleport_player){++c->report->unsupported_actions;return;}
@@ -1004,6 +1007,29 @@ int rf_runtime_events_tick(rf_runtime_events *events,rf_runtime_triggers *trigge
             }
             status=runtime_death_poll(&context,event);if(status)return status;continue;
         }
+        if(event->state.type==20) {
+            uint32_t pulse,j;context.event=event;
+            /* Original4bb7b0 services the common delayed action first. */
+            if(event->state.deadline>=0) {
+                status=rf_event_tick(&event->state,now,startup_event_action,&context);
+                if(status)return status;if(context.status)return context.status;
+            }
+            if(event->retired)continue;
+            status=rf_event_cycle_tick(&event->cycle,now,&pulse);if(status)return status;
+            if(pulse)for(j=0;j<event->authored->record.link_count;j++) {
+                const rf_level_link_target *link=event->links+j;void *object;uint32_t kind;
+                if(link->kind!=1 && link->kind!=2)continue;
+                object=rf_object_registry_lookup(events->registry,link->value);if(!object)continue;
+                memcpy(&kind,object,4);
+                /* Typed registry makes these independent original lookups
+                 * mutually exclusive. Cyclic pulses do not enable triggers. */
+                if(kind==6)startup_target(&context,link,UINT32_MAX,UINT32_MAX,1);
+                else if(kind==8)startup_target(&context,link,event->state.source,event->state.actor,1);
+                if(context.status)return context.status;
+                if(event->retired)break;
+            }
+            continue;
+        }
         if(event->state.deadline<0)continue;
         if(event->state.type!=2 && event->state.type!=3 && event->state.type!=44 && event->state.type!=48 &&
            !(event->state.type==39 && particles && particles->state) &&
@@ -1161,6 +1187,12 @@ int rf_runtime_events_open(const rf_level *level,rf_object_registry *registry,
             const rf_level_event *record=&item->authored->record;
             item->switch_state=switch_cursor++;
             status=rf_event_switch_init(item->switch_state,record->words[0],(int32_t)record->words[1],record->values[0],record->flags[0]);
+            if(status)goto failed;
+        }
+        if(item->state.type==20) {
+            const rf_level_event *record=&item->authored->record;
+            /* Existing scene simulation starts at zero before startup events. */
+            status=rf_event_cycle_init(&item->cycle,record->values[0],(int32_t)record->words[0],record->flags[0],0);
             if(status)goto failed;
         }
         /* Generic creator clears flags; actor/source/mode start deterministically
