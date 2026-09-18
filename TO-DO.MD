@@ -1,5 +1,7 @@
 # Red Faction Xbox / PC - open work
 
+- PRIORITY GeoMod fragment floor contacts: Correct verified resting mesh penetration of0.107/0.062units in west-side fragments and qualify small east-side gaps; the read-only pose/floor audit preserves exact checkpoints but does not fix contact.
+
 - PRIORITY GeoMod ordinary walls: Broaden multi-window and neighboring-brush CSG; a live floor-seam rocket now passes77 stock64MiB checks with exact PC/Xbox save bytes and fixture-off/mismatched-save rejection controls, alongside verified wall depth and player traversal.
 
 - GeoMod source expansion: Broaden connected histories and fragment contact shapes; both groups pass PC destruction at both junctions and repeated reload, with native108 second-junction destruction passing77 stock64MiB checks and exact PC state alongside group92 guarded continuation.
@@ -5512,3 +5514,8 @@ Enabled exact beam92/post79/post75 and beam108/post103/post99 collections via sh
 ### 2026-09-18: Both beam/post junctions destroyed and replayed
 
 Extended the connected replay to shoot the opposite junction after reload, requiring beam:2/high-post:1/low-post:1 and exact uninterrupted checkpoint comparison; a further301-frame restore also matches for PC92 and108. Saves are7702/8016bytes, with2/3settled pieces. Native108 loaded its first-junction checkpoint and completed the second shot in501frames:77checks,3076free pages, exact8016-byte uninterrupted PC/Xbox checkpoint. PC and native captures inspected; Red Faction XEMU closed/disc restored. Runtime source unchanged; replay/docs only. Native reload of this both-junctions endpoint, broader fragment contacts and general multi-brush walls remain open. Overall~51%; GeoMod~90%.
+
+
+### 2026-09-18: Actual fragment resting-contact audit
+
+Added opt-in endpoint mesh/sphere/floor measurements and a two-group replay driver. Rays at actual posed vertex positions confirm west fragments penetrate floor faces1333/1334 by0.106615/0.061811units. East mesh gaps are0.001446/0.039094/0.016676units, with two sphere approximations slightly penetrating. All five pieces sleep; both audited output checkpoints exactly match unaudited continuation. This is a real geometry/contact discrepancy despite PC/Xbox state agreement, not a fixed issue. Next: distinguish proxy approximation from integration penetration and implement a finite-surface-aware correction with state/save validation. All123 PC tests and stock NXDK build pass; no new native run. See docs/research/GEOMOD-FRAGMENT-FLOOR-AUDIT-20260918.md. Overall~51%; GeoMod~90%.

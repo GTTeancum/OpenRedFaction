@@ -51,6 +51,8 @@ extern uint32_t rf_scene_campaign_load_stage;
 int rf_scene_campaign_player_get(rf_campaign_player_state *);
 /* Entity origin and combined body/eye facing; copy before starting a new scene. */
 int rf_scene_campaign_pose_get(float position[3],float orientation[9]);
+/* Read-only diagnostic of live fragment mesh/sphere clearance to downward floor rays. */
+int rf_scene_detached_support_audit(void);
 /* Read-only NPC snapshot: UID,handle,weapon,flags,alert,scripted,target,follow;
  * values are body position, eye position, health. No pointers escape. */
 int rf_scene_npc_combat_row(uint32_t index,uint32_t row[8],float values[7]);

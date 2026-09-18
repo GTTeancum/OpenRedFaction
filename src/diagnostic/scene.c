@@ -11046,6 +11046,66 @@ static int scene_detached_query(const rf_physics_body_state *body,rf_physics_sol
     out->elasticity=campaign_surface_palette->materials[hit.contact.material].elasticity;
     out->friction=campaign_surface_palette->materials[hit.contact.material].friction;return RF_OK;
 }
+static void scene_piece_world_point(const rf_physics_body_state *body,const float local[3],float world[3]) {
+    uint32_t k,j;for(k=0;k<3;k++) {
+        double value=body->position[k];for(j=0;j<3;j++)value+=(double)local[j]*body->orientation[j*3+k];
+        world[k]=(float)value;
+    }
+}
+int rf_scene_detached_support_audit(void) {
+    scene_stream *s=scene_actor_collision_owner;uint32_t source,b,i,n;int status;
+    if(!s || !s->collision)return RF_NOT_FOUND;
+    if(s->terrain_source_count>4 || (s->terrain_source_count && !s->terrain_sources))return RF_RANGE;
+    n=s->terrain_source_count?s->terrain_source_count:1;
+    for(source=0;source<n;source++) {
+        rf_geomod_piece_registry *registry=scene_detached_source_registry(s,source);
+        if(!registry)continue;
+        for(b=0;b<rf_geomod_piece_registry_count(registry);b++) {
+            rf_geomod_piece_batch *batch;status=rf_geomod_piece_registry_get(registry,b,&batch);if(status)return status;
+            for(i=0;i<rf_geomod_piece_batch_count(batch);i++) {
+                rf_geomod_owned_piece piece;rf_physics_body *body;uint32_t q,k,found=0,face=UINT32_MAX,vertex_face=UINT32_MAX;
+                float best=1e9f,mesh_gap=1e9f,sphere_gap=1e9f,plane[4]={0},mesh_y=1e9f,sphere_y=1e9f,vertex_floor_gap=1e9f;
+                if(!rf_geomod_piece_batch_alive(batch,i))continue;
+                status=rf_geomod_piece_batch_get(batch,i,&piece,&body);if(status)return status;
+                for(q=0;q<body->spheres.count;q++) {
+                    const rf_physics_sphere *sphere=body->spheres.items+q;
+                    float center[3],down[3]={0,-8,0},gap;rf_geometry_world_hit hit;uint32_t yes;
+                    scene_piece_world_point(&body->state,sphere->center,center);
+                    if(center[1]-sphere->radius<sphere_y)sphere_y=center[1]-sphere->radius;
+                    status=rf_geometry_collision_world_ray(s->collision,0x460,center,down,1,&hit,&yes);if(status)return status;
+                    if(!yes || hit.hit.normal[1]<.5f)continue;
+                    gap=-sphere->radius;for(k=0;k<3;k++)gap+=(center[k]-hit.hit.point[k])*hit.hit.normal[k];
+                    if(fabsf(gap)<fabsf(best)) {
+                        best=gap;face=hit.face;found=1;plane[3]=0;
+                        for(k=0;k<3;k++){plane[k]=hit.hit.normal[k];plane[3]-=plane[k]*hit.hit.point[k];}
+                    }
+                }
+                for(q=0;q<piece.mesh.vertex_count;q++) {
+                    float world[3],gap=plane[3];scene_piece_world_point(&body->state,piece.mesh.vertices[q].position,world);
+                    if(world[1]<mesh_y)mesh_y=world[1];
+                    for(k=0;k<3;k++)gap+=plane[k]*world[k];if(gap<mesh_gap)mesh_gap=gap;
+                    {
+                        float above[3]={world[0],world[1]+.5f,world[2]},down[3]={0,-1,0};rf_geometry_world_hit hit;uint32_t yes;
+                        status=rf_geometry_collision_world_ray(s->collision,0x460,above,down,1,&hit,&yes);if(status)return status;
+                        if(yes && hit.hit.normal[1]>.5f) {
+                            float actual=0;for(k=0;k<3;k++)actual+=(world[k]-hit.hit.point[k])*hit.hit.normal[k];
+                            if(actual<vertex_floor_gap){vertex_floor_gap=actual;vertex_face=hit.face;}
+                        }
+                    }
+                }
+                for(q=0;q<body->spheres.count;q++) {
+                    float world[3],gap=plane[3]-body->spheres.items[q].radius;
+                    scene_piece_world_point(&body->state,body->spheres.items[q].center,world);
+                    for(k=0;k<3;k++)gap+=plane[k]*world[k];if(gap<sphere_gap)sphere_gap=gap;
+                }
+                printf("DETACHED_SUPPORT_AUDIT %u %u %u %u %u %u %u %u %.9g %.9g %.9g %.9g %.9g %.9g %.9g %.9g %.9g %.9g %u\n",
+                    source,b,i,body->state.flags,piece.mesh.vertex_count,body->spheres.count,found,face,
+                    mesh_y,sphere_y,best,mesh_gap,plane[0],plane[1],plane[2],plane[3],sphere_gap,vertex_floor_gap,vertex_face);
+            }
+        }
+    }
+    return RF_OK;
+}
 static int scene_detached_tick(scene_stream *s,float seconds)
 {
     uint32_t b,i,source,count;int status;memset(rf_scene_detached_motion,0,sizeof(rf_scene_detached_motion));

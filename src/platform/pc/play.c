@@ -198,6 +198,9 @@ static int input(void *context,uint32_t frame,rf_scene_input *out)
                 h->contact.normal[0],h->contact.normal[1],h->contact.normal[2],h->contact.fraction,
                 scene_actor_body.state.state_124,scene_actor_body.state.velocity[0],scene_actor_body.state.velocity[1],scene_actor_body.state.velocity[2]);
         }
+        if(p->replay && p->frames+1==p->replay_count && getenv("RF_REPLAY_FRAGMENT_SUPPORT_AUDIT")) {
+            int audit=rf_scene_detached_support_audit();if(audit){fprintf(stderr,"Fragment support audit failed (%d)\n",audit);return audit;}
+        }
         if(p->replay && p->frames+1==p->replay_count && getenv("RF_REPLAY_TRACE")) {
             printf("NPC_COMBAT_FRAME %u\n",p->frames);
             for(uint32_t k=0;k<rf_scene_npc_bodies[0];++k) {
