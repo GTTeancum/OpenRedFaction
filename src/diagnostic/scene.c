@@ -8151,6 +8151,8 @@ done:
     scene_actor_body=saved;rf_scene_actor_movement_settings=settings;rf_scene_actor_stance_flags=flags;
     return status;
 }
+static int scene_player_impact_contact(const rf_physics_body_state *,uint32_t,int32_t,float);
+static void scene_player_impact_relocated(void);
 static int actor_contact(rf_physics_body_state *state,const float normal[3],const float support[3],
     const float direction[3],uint32_t mode,float *impact)
 {
@@ -8327,6 +8329,7 @@ static int actor_tick(const rf_geometry_collision_world *world,rf_physics_body_s
             ++contacts;
             status=rf_physics_contact_advance(state,remaining,fraction,&remaining);if(status)return status;
             status=actor_contact(state,normal,support,command,rf_scene_actor_landing[1],&impact);if(status)return status;
+            if(campaign_spawn){status=scene_player_impact_contact(state,rf_scene_actor_landing[1],rf_scene_actor_body_contact.contact.material,impact);if(status)return status;}
             memcpy(record+18,state->velocity,24);memcpy(record+24,&impact,4);
         }
         if((pass>3 && remaining<.25f) || pass>9) {++pass;break;}
@@ -8747,6 +8750,7 @@ static int campaign_life_input(uint32_t frame,rf_scene_input *input)
     ++rf_scene_player_life[6];memset(input,0,sizeof(*input));
     if(!pressed || frame-rf_scene_player_life[3]<60)return RF_OK;
     if(scene_actor_body.spheres.count!=life_start.count)return RF_RANGE;
+    scene_player_impact_relocated();
     scene_actor_body.state=life_start.body;rf_scene_actor_pose=life_start.pose;actor_look=life_start.look;
     campaign_player_damage=life_start.damage;campaign_player_view=life_start.view;
     rf_scene_actor_movement_settings=life_start.movement;campaign_climb=life_start.climb;
@@ -8927,6 +8931,7 @@ static int combat_death_start(uint32_t slot)
     return status;
 }
 #include "scene_burning.inc"
+#include "scene_player_impact_gameplay.inc"
 uint32_t rf_scene_liquid_damage[8]; /* ticks,requests,room,type,material,amount,health,status */
 static int campaign_liquid_damage_tick(scene_stream *s,uint32_t frame,int32_t now)
 {
@@ -10670,6 +10675,7 @@ static int scene_checkpoint_hdd_close(void)
 #endif
 static int scene_checkpoint_begin(scene_stream *s,const rf_level *level)
 {
+    scene_player_impact_relocated();
     const char *path=NULL;FILE *file;long length=0;int status,tail;uint32_t hash;
     if(rf_scene_player_checkpoint_enabled && !s->player_checkpoint_started){
         scene_checkpoint_release();s->player_checkpoint_level=level;memset(rf_scene_player_checkpoint_state,0,sizeof(rf_scene_player_checkpoint_state));
@@ -15301,6 +15307,7 @@ static int scene_frame(void *context,uint32_t frame,rf_preview_mesh *actor)
             /* The first physics tick must consume initialized cached room/wet
              * state, just as later ticks consume the preceding refresh. */
         }
+        if(campaign_teleport_pending)scene_player_impact_relocated();
         status=campaign_teleport_begin();if(status)return status;
         /* Save initialized locomotion and pose, not the earlier camera-preparation state. */
         if(campaign_spawn){status=campaign_life_capture();if(status)return status;}
@@ -15419,6 +15426,7 @@ static int scene_frame(void *context,uint32_t frame,rf_preview_mesh *actor)
                 status=campaign_npc_refresh_support_fixture(frame);if(status)return status;
                 status=campaign_npc_refresh_support_tick();if(status)return status;
                 campaign_player_support_refresh(&next,rf_scene_actor_landing[1]);
+                scene_player_impact_frame_begin(frame,0);
                 status=actor_tick(stream->collision,&next,rf_scene_actor_input_frames[frame%64],ground->hit.hit.normal);if(status)return status;
                 status=campaign_controller_commit();
                 rf_scene_live_motion[7]=(uint32_t)status;if(status)return status;
@@ -15460,6 +15468,7 @@ static int scene_frame(void *context,uint32_t frame,rf_preview_mesh *actor)
             memcpy(next.position,rf_scene_actor_pose.position,12);memcpy(next.next_position,rf_scene_actor_pose.pending,12);
             memcpy(next.bounds.minimum,rf_scene_actor_pose.minimum,12);memcpy(next.bounds.maximum,rf_scene_actor_pose.maximum,12);
             scene_actor_body.state=next;
+            if(campaign_spawn){status=scene_player_impact_frame_end(frame,particle_now);if(status)return status;}
             scene_moving_support_record(frame);
             if(campaign_spawn){status=campaign_liquid_damage_tick(stream,frame,particle_now);if(status)return status;}
             step_profile_mark(1,&step_clock);
@@ -15539,6 +15548,7 @@ static int scene_frame(void *context,uint32_t frame,rf_preview_mesh *actor)
                 npc_step_profile_mark(6,&npc_clock);
             }
         }
+        if(campaign_teleport_pending)scene_player_impact_relocated();
         status=campaign_teleport_begin();if(status)return status;
         step_profile_mark(5,&step_clock);
         if(campaign_spawn && stream->collision) {int status=campaign_collision_views_check(frame);if(status)return status;status=campaign_alpha_check(frame);if(status)return status;

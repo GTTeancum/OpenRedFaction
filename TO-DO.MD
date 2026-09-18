@@ -1,7 +1,11 @@
 # Red Faction Xbox / PC - open work
 
-Completion basis (user direction,2026-09-18): working late-alpha/early-beta code implementation. Overall approximately69%; GeoMod100% for the first playable milestone, accepted by the user. GeoMod items below are deferred refinement and coverage, not prerequisites to moving on. This does not assert retail polish, complete campaign integration or resolution of every known defect.
+Completion basis (user direction,2026-09-18): working late-alpha/early-beta code implementation. Overall approximately70%; GeoMod100% for the first playable milestone, accepted by the user. GeoMod items below are deferred refinement and coverage, not prerequisites to moving on. This does not assert retail polish, complete campaign integration or resolution of every known defect.
 
+
+- Player impacts: Real fall/high-speed collision damage now passes PC/Xbox with shared health/armor handling; relocation and duplicate-contact guards pass focused checks; broader moving-object contacts remain.
+
+- Vehicles: Bring up one authored driller in the DEV testbed with bounded resources, driver entry/exit and basic driving; implementation helpers are underway, no playable vehicle yet.
 
 - Conventional firearms: Machine Pistol, Heavy Machine Gun, Precision Rifle and Undercover handgun primary firing now work in a bounded DEV profile, including HMG alternate and rifle zoom; PC visuals pass and native HMG shot/ammo state matches with11.59MiB free; Machine Pistol magazine switching now passes PC/Xbox; Undercover suppressor attach/remove now passes PC/Xbox; authored Machine Pistol/HMG/precision pickups and sparse views are now wired, with MP session mode carry; broader live AI encounters, full live level handoffs and general saves remain.
 
@@ -5715,3 +5719,11 @@ World and committed-mover fragment queries now include bounded edge/edge CCD, wi
 - Shared ammo above a remaining weapon's capacity survives removal of the higher-capacity weapon, bounded by catalog capacity. Pickups grant zero while surplus remains and refill only to owned capacity after spending below it. Removal/negative/corrupt-state regression passes.
 - Player fall/high-speed impact aggregation helper passes existing-core damage, duplicate-contact, grounded-motion, relocation-disabled, immunity and lethal checks. Gameplay adapter is ready but not wired yet; no player fall-damage completion credit.
 - Overall implementation approximately69%; weapons approximately89%. Current next work: player movement/impact damage.
+
+### Live player impact damage (2026-09-18)
+
+- Real local-player collision responses now feed existing impact damage arithmetic and shared player damage/audio/feedback. Strongest eligible contact per frame avoids duplicate sphere/substep injury. Ordinary support/camera updates are excluded; frame0, respawn, teleport and checkpoint relocation use a consumed skip latch. No position-delta damage heuristic.
+- Focused actual collision/shared-damage test verifies unarmored100->64, duplicate/grounded-motion rejection, relocation/invulnerability protection and lethal contact. PC/NXDK builds pass. Quiet ordinary ctf06 Medical Kit11497 stage, settle then right-strafe replay produces one damaging contact and no repeated injury during the remainder.
+- Native artifacts/xemu/render-20260918-124721 PASS300: PLAYER_IMPACT[1,1,0,1,1103040152,1118900923,1,0] and vitals exactly match PC; total applied23.8821, remaining health88.5366 with armor sharing the damage. Endpoint4269freepages=16.68MiB; native scene/HUD inspected. Harness restored disc/closed XEMU. Audible feedback and broader moving-object impacts remain unverified.
+- Existing binary/table evidence supports lava/acid damage but no oxygen timer was found; no speculative drowning mechanic added.
+- Overall first-playable estimate approximately70%; movement approximately90%. Next major implementation: vehicle foundation in the DEV testbed.
