@@ -18,7 +18,7 @@ static int scene_driller_support_initialize(scene_driller_support_context *conte
 {
     scene_driller_support_context value={0};
     if(!context||!stream||!collision||!physics||!stream->collision||collision->world!=stream->collision||
-       physics->spring_count!=6||!campaign_surface_palette)return RF_RANGE;
+       (!physics->spring_count || physics->spring_count>RF_VEHICLE_SUSPENSION_CAPACITY)||!campaign_surface_palette)return RF_RANGE;
     value.stream=stream;value.collision=collision;value.physics=physics;
     value.material=-1;value.support_handle=UINT32_MAX;*context=value;return RF_OK;
 }

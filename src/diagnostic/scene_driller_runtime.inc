@@ -1,6 +1,7 @@
 #ifndef SCENE_DRILLER_RUNTIME_INC
 #define SCENE_DRILLER_RUNTIME_INC
 #include "scene_driller_physics.inc"
+#include "scene_ground_vehicle_physics.inc"
 #include "scene_vehicle_possession.inc"
 #include "scene_vehicle_collision.inc"
 #include "scene_driller_support.inc"
@@ -60,11 +61,12 @@ static int scene_driller_runtime_resolve(void *context,const rf_vehicle_rigid_st
 {return scene_vehicle_collision_resolve(&((scene_driller_runtime*)context)->collision,state,proposal,out);}
 static int scene_driller_runtime_open(scene_stream *s)
 {
-    scene_driller_runtime *r;int status;
+    scene_driller_runtime *r;int status;uint32_t stage=0;
     if(!s->driller)return RF_OK;
     if(s->driller_runtime)return RF_OK;
     if(!rf_scene_dev_room_enabled || rf_scene_dev_npc_enabled)return RF_RANGE;
     r=calloc(1,sizeof(*r));if(!r)return RF_IO;r->last_frame=UINT32_MAX;
+    if(rf_scene_vehicle_enabled==1){
 #ifdef RF_IMAGE_XBOX_NATIVE
     status=rf_geomod_template_load("D:\\driller-single.bin",r->shapes);
     if(!status)status=rf_geomod_template_load("D:\\driller-double.bin",r->shapes+1);
@@ -73,19 +75,22 @@ static int scene_driller_runtime_open(scene_stream *s)
     if(!status)status=rf_geomod_template_load("build/data/driller-double.bin",r->shapes+1);
 #endif
     if(status)goto fail;
-    status=scene_driller_physics_initialize(s->driller,s->driller_position,s->driller_basis,scene_gravity.acceleration,&r->physics);
+    }
+    stage=1;if(rf_scene_vehicle_enabled==2)status=scene_ground_vehicle_physics_initialize("APC",&s->driller->physics,&s->driller->movement,&s->driller->rotation,&s->driller->render,s->driller_position,s->driller_basis,scene_gravity.acceleration,&r->physics);
+    else status=scene_driller_physics_initialize(s->driller,s->driller_position,s->driller_basis,scene_gravity.acceleration,&r->physics);
     if(status)goto fail;
     r->collision.world=s->collision;r->collision.movers=&campaign_movers;
     r->collision.spheres=r->physics.collision;r->collision.count=r->physics.sphere_count;
     r->collision.radius=r->physics.radius;r->collision.flags=4;
-    status=scene_driller_support_initialize(&r->support,s,&r->collision,&r->physics);if(status)goto fail;
-    status=scene_driller_entry_exit_open(&r->entry,&campaign_registry,&campaign_entities,&campaign_player_view,
+    stage=2;status=scene_driller_support_initialize(&r->support,s,&r->collision,&r->physics);if(status)goto fail;
+    stage=3;status=scene_driller_entry_exit_open(&r->entry,&campaign_registry,&campaign_entities,&campaign_player_view,
         &scene_actor_body,s->driller,&r->physics,&r->collision,scene_driller_player_eye_offset());if(status)goto fail;
-    status=scene_driller_damage_runtime_open(&r->damage,&r->entry,&r->player,&s->driller_damage_prototype);if(status)goto fail;
+    stage=4;status=scene_driller_damage_runtime_open(&r->damage,&r->entry,&r->player,&s->driller_damage_prototype);if(status)goto fail;
     /* Audio unavailable/full slots must not prevent driving. */
-    (void)scene_driller_audio_open(&r->audio,r->physics.state.position);
+    if(rf_scene_vehicle_enabled==2)(void)scene_vehicle_audio_open(&r->audio,r->physics.state.position,"APC_idle.wav",.5f,.4f);
+    else (void)scene_driller_audio_open(&r->audio,r->physics.state.position);
     s->driller_runtime=r;memset(rf_scene_drill_state,0,sizeof(rf_scene_drill_state));memset(rf_scene_vehicle_state,0,sizeof(rf_scene_vehicle_state));return RF_OK;
-fail:scene_driller_damage_runtime_close(&r->damage);(void)scene_driller_entry_exit_close(&r->entry,1);free(r);return status;
+fail:fprintf(stderr,"VEHICLE_OPEN_ERROR stage%u status%d\n",stage,status);scene_driller_damage_runtime_close(&r->damage);(void)scene_driller_entry_exit_close(&r->entry,1);free(r);return status;
 }
 static int scene_driller_runtime_tick(scene_stream *s,uint32_t frame)
 {
@@ -108,7 +113,7 @@ static int scene_driller_runtime_tick(scene_stream *s,uint32_t frame)
     stage=4;if(r->audio.active){status=scene_driller_audio_tick(&r->audio,r->physics.state.position,r->physics.state.velocity,r->physics.parameters.maximum_speed,!r->entry.host.alive);if(status)goto fail;}
     stage=5;
     r->contact.stream=s;r->contact.frame=frame;r->contact.source=r->entry.host.handle;r->contact.has_world=0;
-    {scene_driller_weapon_backend weapon_backend={&r->contact,scene_driller_live_trace,scene_driller_live_damage,scene_driller_runtime_cut};
+    if(rf_scene_vehicle_enabled==1){scene_driller_weapon_backend weapon_backend={&r->contact,scene_driller_live_trace,scene_driller_live_damage,scene_driller_runtime_cut};
      status=scene_driller_weapon_tick(&s->driller_weapon,&s->driller->tags,r->physics.state.position,
         r->physics.state.orientation,r->entry.host.handle,r->entry.session.active && r->entry.host.alive && player_input.fire,
         frame?scene_step_seconds:0,&weapon_backend);if(status)goto fail;}

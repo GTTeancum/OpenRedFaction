@@ -728,12 +728,17 @@ int rf_vfx_asset_materials_open(const rf_vfx_geometry_asset *asset,rf_vpp *maps,
     uint32_t budget,rf_vfx_asset_materials **out)
 {
     rf_vfx_asset_materials *m;uint32_t i,j,at;int status;
-    if(!asset || !maps || !map_count || !out || *out || asset->count>32 || budget<sizeof(*m))return RF_RANGE;
+    if(!asset || !maps || !map_count || !out || *out || asset->count>RF_VFX_ASSET_MESH_CAPACITY || budget<sizeof(*m))return RF_RANGE;
     m=calloc(1,sizeof(*m));if(!m)return RF_IO;
+    if(asset->version>=0x40000) {
+        const rf_vfx_material_bank *bank=asset->material_bank;
+        if(!bank || !bank->views || bank->count>64){status=RF_FORMAT;goto done;}
+        m->count=bank->count;
+        for(i=0;i<m->count;i++){m->views[i]=bank->views[i];m->colors[i]=0xffffffffu;}
+    }
     for(i=0;i<asset->count;i++) {
         const rf_vfx_mesh *mesh=asset->meshes[i];
         if(!mesh){status=RF_FORMAT;goto done;}
-        if(mesh->materials>64-m->count){status=RF_RANGE;goto done;}
         m->first[i]=m->count;at=mesh->material_offset;
         if(mesh->version>=0x40000) {
             const rf_vfx_material_bank *bank=asset->material_bank;
@@ -742,13 +747,10 @@ int rf_vfx_asset_materials_open(const rf_vfx_geometry_asset *asset,rf_vpp *maps,
                 const unsigned char *p=mesh->data+at+j*4;
                 uint32_t id=(uint32_t)p[0]|(uint32_t)p[1]<<8|(uint32_t)p[2]<<16|(uint32_t)p[3]<<24;
                 if(id>=bank->count){status=RF_FORMAT;goto done;}
-                m->views[m->count]=bank->views[id];
-                /* V4 has no embedded RGB word. Runtime must sample brightness
-                 * and opacity tracks from the geometry owner's material bank. */
-                m->colors[m->count++]=0xffffffffu;
             }
             continue;
         }
+        if(mesh->materials>64-m->count){status=RF_RANGE;goto done;}
         for(j=0;j<mesh->materials;j++) {
             rf_vfx_embedded_material_view view;
             if(at>mesh->bytes){status=RF_FORMAT;goto done;}
@@ -764,6 +766,25 @@ int rf_vfx_asset_materials_open(const rf_vfx_geometry_asset *asset,rf_vpp *maps,
     *out=m;m=NULL;status=RF_OK;
 done:
     rf_vfx_asset_materials_close(&m);return status;
+}
+
+int rf_vfx_asset_material_index(const rf_vfx_geometry_asset *asset,const rf_vfx_asset_materials *materials,
+    uint32_t mesh_index,uint32_t local_material,uint32_t *index)
+{
+    const rf_vfx_mesh *mesh;uint32_t id;
+    if(!asset || !materials || !index || asset->count>RF_VFX_ASSET_MESH_CAPACITY || mesh_index>=asset->count)return RF_RANGE;
+    mesh=asset->meshes[mesh_index];if(!mesh || local_material>=mesh->materials)return RF_FORMAT;
+    if(mesh->version>=0x40000) {
+        const unsigned char *p;uint64_t offset=(uint64_t)mesh->material_offset+(uint64_t)local_material*4;
+        if(!mesh->data || offset+4>mesh->bytes)return RF_FORMAT;
+        p=mesh->data+(uint32_t)offset;
+        id=(uint32_t)p[0]|(uint32_t)p[1]<<8|(uint32_t)p[2]<<16|(uint32_t)p[3]<<24;
+    } else {
+        if(materials->first[mesh_index]>materials->count || local_material>=materials->count-materials->first[mesh_index])return RF_FORMAT;
+        id=materials->first[mesh_index]+local_material;
+    }
+    if(id>=materials->count)return RF_FORMAT;
+    *index=id;return RF_OK;
 }
 
 void rf_explosion_materials_close(rf_explosion_materials *owner)

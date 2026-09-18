@@ -19,15 +19,15 @@ static void scene_driller_cockpit_close(scene_driller_cockpit **owner)
     scene_driller_cockpit *o;if(!owner || !(o=*owner))return;
     rf_vfx_asset_materials_close(&o->materials);rf_vfx_geometry_asset_close(&o->geometry);free(o);*owner=NULL;
 }
-static int scene_driller_cockpit_open(rf_vpp *meshes,rf_vpp *maps,uint32_t map_count,uint32_t budget,scene_driller_cockpit **out)
+static int scene_vehicle_cockpit_open(const char *name,rf_vpp *meshes,rf_vpp *maps,uint32_t map_count,uint32_t budget,scene_driller_cockpit **out)
 {
     scene_driller_cockpit *o;rf_vfx_directory d={0};uint32_t used,i;int status;
-    if(!meshes || !maps || !map_count || !out || *out || budget<sizeof(*o))return RF_RANGE;
+    if(!name || !meshes || !maps || !map_count || !out || *out || budget<sizeof(*o))return RF_RANGE;
     o=calloc(1,sizeof(*o));if(!o)return RF_IO;used=sizeof(*o);
-    status=rf_vfx_directory_open(meshes,"driller01.vfx",budget-used,&d);if(status)goto fail;
+    status=rf_vfx_directory_open(meshes,name,budget-used,&d);if(status)goto fail;
     o->endpoint=d.header.values[1];o->peak_bytes=used+d.allocated_bytes;rf_vfx_directory_close(&d);
-    if(o->endpoint!=26){status=RF_FORMAT;goto fail;}
-    status=rf_vfx_geometry_asset_open(meshes,"driller01.vfx",budget-used,&o->geometry);if(status)goto fail;
+    if(!o->endpoint){status=RF_FORMAT;goto fail;}
+    status=rf_vfx_geometry_asset_open(meshes,name,budget-used,&o->geometry);if(status)goto fail;
     if(o->peak_bytes<used+o->geometry->peak_bytes)o->peak_bytes=used+o->geometry->peak_bytes;
     used+=o->geometry->resident_bytes;
     for(i=0;i<o->geometry->count;i++)if(strcmp(o->geometry->meshes[i]->prefix.parent,"Scene Root")){status=RF_FORMAT;goto fail;}
@@ -38,6 +38,8 @@ static int scene_driller_cockpit_open(rf_vpp *meshes,rf_vpp *maps,uint32_t map_c
     *out=o;return RF_OK;
 fail:rf_vfx_directory_close(&d);scene_driller_cockpit_close(&o);return status;
 }
+static int scene_driller_cockpit_open(rf_vpp *meshes,rf_vpp *maps,uint32_t map_count,uint32_t budget,scene_driller_cockpit **out)
+{return scene_vehicle_cockpit_open("driller01.vfx",meshes,maps,map_count,budget,out);}
 /* Transfer pixels into scene material owner before renderer texture upload.
  * Retained empty image descriptors still select authored VBM frame indices. */
 static int scene_driller_cockpit_merge(scene_driller_cockpit *o,rf_materials *materials,uint32_t capacity)
@@ -69,6 +71,7 @@ static int scene_driller_cockpit_draw(scene_driller_cockpit *o,float seconds,con
     for(k=0;k<3;k++)local_camera.player_position[k]-=eye[k];
     for(m=0;m<o->geometry->count;m++) {
         rf_vfx_mesh *source=o->geometry->meshes[m];rf_vfx_instance *instance=o->geometry->instances[m];
+        if(!instance)continue;
         status=rf_vfx_instance_update(instance,phase);if(status)return status;if(!instance->active)continue;
         for(f=0;f<source->prefix.faces;f++) {
             rf_vfx_face face;const rf_image *image;rf_geomod_vertex vertices[3];rf_geomod_face gf;
@@ -77,7 +80,7 @@ static int scene_driller_cockpit_draw(scene_driller_cockpit *o,float seconds,con
             uint32_t offset=source->prefix.face_offset+f*(source->version<0x3000d?120:96);
             float opacity=1,brightness=0;unsigned char rgb[3];
             status=rf_vfx_face_read(source->data+offset,source->bytes-offset,source->version,&face);if(status)return status;
-            material=o->materials->first[m]+face.material;if(material>=o->materials->count)return RF_FORMAT;
+            status=rf_vfx_asset_material_index(o->geometry,o->materials,m,face.material,&material);if(status)return status;
             slot=o->materials->textures.bindings[material][0];if(slot==UINT32_MAX)continue;
             status=rf_vfx_material_texture_sample(&o->materials->textures,o->materials->views+material,material,0,phase,0,&image);if(status)return status;
             frame=(uint32_t)(image-o->materials->textures.textures[slot].animation.images);

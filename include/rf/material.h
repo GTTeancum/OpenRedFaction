@@ -82,20 +82,23 @@ typedef rf_glare_materials rf_vfx_material_textures;
 int rf_vfx_material_textures_open(rf_vfx_material_textures *,const rf_vfx_material_view *,
     uint32_t count,rf_vpp *archives,uint32_t archive_count,uint32_t budget);
 void rf_vfx_material_textures_close(rf_vfx_material_textures *);
-/* Flatten embedded legacy or bank-referenced V4 asset materials and deduplicate textures.
+/* Retain embedded legacy materials or one shared V4 bank and deduplicate textures.
  * Geometry/archives may close after success. Views retain texture/render
  * fields only; serialized track offsets must not be used without mesh data.
- * first[mesh]..first[mesh+1] maps local material IDs into views/bindings.
+ * first[mesh]..first[mesh+1] maps legacy local material IDs only.
+ * Use rf_vfx_asset_material_index with live geometry to resolve either version.
  * V4 colors are neutral white; callers sample original brightness/opacity
  * tracks from the geometry material bank while that owner remains alive.
  * Fixed64-material bound; budget covers owner and retained texture storage,
  * excluding decoder stack/allocator metadata. Empty output required. */
 typedef struct rf_vfx_asset_materials {
-    rf_vfx_material_view views[64];uint32_t first[33],colors[64],count,resident_bytes;
+    rf_vfx_material_view views[64];uint32_t first[RF_VFX_ASSET_MESH_CAPACITY+1],colors[64],count,resident_bytes;
     rf_vfx_material_textures textures;
 } rf_vfx_asset_materials;
 int rf_vfx_asset_materials_open(const rf_vfx_geometry_asset *,rf_vpp *,uint32_t,uint32_t,rf_vfx_asset_materials **);
 void rf_vfx_asset_materials_close(rf_vfx_asset_materials **);
+int rf_vfx_asset_material_index(const rf_vfx_geometry_asset *,const rf_vfx_asset_materials *,
+    uint32_t mesh_index,uint32_t local_material,uint32_t *index);
 
 /* Select retained primary(slot0)/secondary(slot1) image using authored clock
  * fields and original bitmap metadata rounding. Missing/original-map slots

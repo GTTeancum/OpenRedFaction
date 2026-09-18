@@ -2524,7 +2524,7 @@ int rf_vfx_light_pool_color(rf_vfx_light_pool *pool,uint32_t id,float intensity,
 void rf_vfx_geometry_asset_close(rf_vfx_geometry_asset **out)
 {
     uint32_t i;rf_vfx_geometry_asset *a;if(!out || !(a=*out))return;
-    for(i=0;i<32;i++){rf_vfx_instance_close(a->instances+i);rf_vfx_mesh_close(a->meshes+i);}
+    for(i=0;i<RF_VFX_ASSET_MESH_CAPACITY;i++){rf_vfx_instance_close(a->instances+i);rf_vfx_mesh_close(a->meshes+i);}
     rf_vfx_material_bank_close(&a->material_bank);free(a);*out=NULL;
 }
 int rf_vfx_geometry_asset_open(rf_vpp *archive,const char *name,uint32_t budget,rf_vfx_geometry_asset **out)
@@ -2537,7 +2537,7 @@ int rf_vfx_geometry_asset_open(rf_vpp *archive,const char *name,uint32_t budget,
     version4=directory.header.version>=0x40000;
     for(i=0;i<directory.count;i++) {
         if(directory.chunks[i].type==0x4f584653u) {
-            if(++mesh_count>32){status=RF_FORMAT;goto done;}
+            if(++mesh_count>RF_VFX_ASSET_MESH_CAPACITY){status=RF_FORMAT;goto done;}
             if(directory.chunks[i].bytes>maximum)maximum=directory.chunks[i].bytes;
         } else if(version4 && directory.chunks[i].type==0x4c54414du)++global_materials;
         else {status=RF_FORMAT;goto done;}

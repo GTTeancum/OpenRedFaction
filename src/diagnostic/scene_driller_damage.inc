@@ -9,17 +9,17 @@ typedef struct scene_driller_damage {
     uint32_t destroyed,destruction_pending;
 } scene_driller_damage;
 typedef int (*scene_driller_destroyed)(void *,uint32_t host,uint32_t responsible);
-static int scene_driller_damage_open(scene_driller_damage *owner,rf_vpp *tables,
+static int scene_vehicle_damage_open(const char *class_name,scene_driller_damage *owner,rf_vpp *tables,
     const scene_driller_resources *resources,uint32_t handle,uint32_t object_flags,
     uint32_t affiliation,uint32_t scratch_budget)
 {
     scene_driller_damage value={0};rf_entity_creation_vitals_state vitals={0};rf_vpp_entry entry;void *text;int status;
-    if(!owner || !tables || !resources || handle==UINT32_MAX)return RF_RANGE;
+    if(!class_name || !owner || !tables || !resources || handle==UINT32_MAX)return RF_RANGE;
     status=rf_vpp_find(tables,"entity.tbl",&entry);if(status)return status;
     if(entry.size>scratch_budget)return RF_RANGE;
     text=malloc(entry.size);if(!text)return RF_IO;
     status=rf_vpp_read(tables,&entry,0,text,entry.size);
-    if(!status)status=rf_entity_damage_factors_read(text,entry.size,"Driller01",value.factors);
+    if(!status)status=rf_entity_damage_factors_read(text,entry.size,class_name,value.factors);
     free(text);if(status)return status;
     rf_entity_creation_vitals(&vitals,&resources->vitals,0);
     value.state.effects.health=vitals.health;value.state.effects.armor=vitals.armor;
@@ -30,6 +30,10 @@ static int scene_driller_damage_open(scene_driller_damage *owner,rf_vpp *tables,
     value.object_flags=object_flags|vitals.object_flags;value.class_flags=resources->physics.authored.flags;
     *owner=value;return RF_OK;
 }
+static int scene_driller_damage_open(scene_driller_damage *owner,rf_vpp *tables,const scene_driller_resources *resources,
+    uint32_t handle,uint32_t flags,uint32_t affiliation,uint32_t budget)
+{return scene_vehicle_damage_open("Driller01",owner,tables,resources,handle,flags,affiliation,budget);}
+
 typedef struct scene_driller_damage_context {
     scene_driller_damage *owner;rf_damage_object object;const rf_damage_effect_backend *effects;
     uint32_t clock,linked_player;int status;

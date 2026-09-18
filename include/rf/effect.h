@@ -423,14 +423,15 @@ int rf_vfx_directory_open(rf_vpp *,const char *name,uint32_t budget,rf_vfx_direc
 int rf_vfx_chunk_read(const rf_vfx_directory *,uint32_t index,uint32_t offset,void *,uint32_t bytes);
 void rf_vfx_directory_close(rf_vfx_directory *);
 /* Bounded legacy mesh-only VFX composition for live projectile presentation.
- * Owns up to32 decoded meshes and mutable geometry instances; archives may
+ * Owns up to96 decoded meshes and mutable geometry instances; archives may
  * close after success. Version4 also owns its global MATL bank and validates
  * mesh material references against its count. Legacy SFXO-only loading is
  * preserved. No textures, parent hierarchy or rendering yet.
  * Rejects unsupported record types/versions rather than omitting content.
  * Budget covers retained owners, temporary chunk and directory accounting. */
+enum { RF_VFX_ASSET_MESH_CAPACITY=96 };
 typedef struct rf_vfx_geometry_asset {
-    rf_vfx_mesh *meshes[32];rf_vfx_instance *instances[32];
+    rf_vfx_mesh *meshes[RF_VFX_ASSET_MESH_CAPACITY];rf_vfx_instance *instances[RF_VFX_ASSET_MESH_CAPACITY];
     uint32_t count,resident_bytes,peak_bytes,version;
     struct rf_vfx_material_bank *material_bank; /* Owned global MATL bank; NULL for legacy. */
 } rf_vfx_geometry_asset;

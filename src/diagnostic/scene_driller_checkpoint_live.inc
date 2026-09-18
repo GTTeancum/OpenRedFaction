@@ -5,6 +5,7 @@ static int scene_vehicle_checkpoint_capture(scene_stream *s,void *blob,uint32_t 
     rf_vehicle_checkpoint record;int status;
     if(!s||!blob||!bytes)return RF_RANGE;
     *bytes=0;if(!s->driller)return RF_OK;
+    if(rf_scene_vehicle_enabled!=1)return RF_RANGE;
     if(!s->terrain_authored)return RF_RANGE;
     status=scene_driller_checkpoint_capture(s,&record);if(status)return status;
     if(record.player_occupied && !record.alive)return RF_RANGE;
@@ -17,6 +18,7 @@ static int scene_vehicle_checkpoint_read(scene_stream *s,const void *blob,uint32
     scene_driller_physics physics;scene_driller_checkpoint_candidate staged;rf_vehicle_checkpoint record;int status;
     if(!s||!out)return RF_RANGE;
     if(!bytes)return s->driller?RF_FORMAT:RF_OK;
+    if(rf_scene_vehicle_enabled!=1)return RF_FORMAT;
     if(!s->driller||!s->terrain_authored||strcmp(campaign_current_level,"ctf06.rfl"))return RF_FORMAT;
     if(s->driller_runtime && !scene_driller_active(s)){const scene_driller_runtime *r=s->driller_runtime;
         if(!scene_driller_damage_runtime_valid(&r->damage)||r->damage.entry!=&r->entry||r->entry.physics!=&r->physics||
@@ -69,7 +71,7 @@ static int scene_vehicle_checkpoint_player_capture(scene_stream *s,rf_player_che
     if(!r || !r->entry.session.active || !r->player.saved || !r->entry.host.alive ||
        campaign_player_damage.state.effects.health<=0 || campaign_crouched || campaign_climb.region ||
        combat_trigger.cooldown || combat_trigger.remaining || combat_trigger.delay || combat_trigger.held || rf_scene_combat[6] ||
-       riot_charge_remainder || rf_scene_rockets[3] || scene_ai_grenade_pending() || scene_ai_rocket_pending() ||
+       riot_charge_remainder || rf_scene_rockets[3] || scene_apc_primary_pending(s) || scene_ai_grenade_pending() || scene_ai_rocket_pending() ||
        scene_fusion_projectile_pending() || scene_burning_save_pending() || scene_flame_input_pending() || scene_flame_canister_save_pending())return RF_RANGE;
     status=scene_driller_checkpoint_capture(s,&vehicle);if(status)return status;
     status=scene_checkpoint_player_catalog(catalog);if(status)return status;
