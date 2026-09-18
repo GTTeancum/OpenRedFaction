@@ -1,6 +1,8 @@
 /* Explicit lift of an actually extracted saved support. Mode1 stops/retires it;
- * mode2 releases it to ordinary gravity/contact. The lift itself is kinematic. */
+ * mode2 releases it; mode3 also seeds angular momentum once. Physics owns motion
+ * after release. The initial lift and impulse are test stimuli, not weapon claims. */
 uint32_t rf_scene_moving_support_enabled,rf_scene_moving_support_test[10][16];
+uint32_t rf_scene_rotating_support_test[10][12];
 static scene_piece_support moving_support_target;
 static float moving_support_origin[3];
 static uint32_t moving_support_ready;
@@ -12,6 +14,7 @@ static int scene_moving_support_stimulus(uint32_t frame)
     if(!frame) {
         moving_support_ready=0;memset(&moving_support_target,0,sizeof(moving_support_target));
         memset(rf_scene_moving_support_test,0,sizeof(rf_scene_moving_support_test));
+        memset(rf_scene_rotating_support_test,0,sizeof(rf_scene_rotating_support_test));
     }
     if(frame<30 || frame>120)return RF_OK;
     if(frame==30) {
@@ -21,10 +24,16 @@ static int scene_moving_support_stimulus(uint32_t frame)
         memcpy(moving_support_origin,body->state.position,12);moving_support_ready=1;
     }
     if(!moving_support_ready)return RF_FORMAT;
-    if(rf_scene_moving_support_enabled==2 && frame>=90) {
+    if(rf_scene_moving_support_enabled>=2 && frame>=90) {
         if(frame!=90)return RF_OK;
         body=campaign_piece_support_body(&moving_support_target);if(!body)return RF_NOT_FOUND;
         memset(body->state.velocity,0,12);
+        if(rf_scene_moving_support_enabled==3) {
+            float inertia[9];int status=rf_physics_tensor_inverse(body->state.world_tensor,inertia);
+            if(status)return status;
+            for(k=0;k<3;k++)body->state.mass_vector_d4[k]=3*inertia[3+k];
+            memset(body->state.vector_c8,0,12);body->state.vector_c8[1]=3;
+        }
         body->state.flags|=0x80000000u;
         return RF_OK; /* Release once; ordinary gravity/contact owns all later poses. */
     }
@@ -44,16 +53,18 @@ static void scene_moving_support_record(uint32_t frame)
     static const uint32_t released_frames[10]={29,30,59,89,90,96,102,119,150,240};
     uint32_t i;rf_physics_body *body;
     if(!rf_scene_moving_support_enabled)return;
-    for(i=0;i<10;i++)if((rf_scene_moving_support_enabled==2?released_frames[i]:frames[i])==frame) {
+    for(i=0;i<10;i++)if((rf_scene_moving_support_enabled>=2?released_frames[i]:frames[i])==frame) {
         uint32_t *row=rf_scene_moving_support_test[i];
         row[0]=frame;row[1]=frame<30?0:frame<90?1:frame<120?2:3;
-        if(rf_scene_moving_support_enabled==2 && frame>=90)row[1]=4;
+        if(rf_scene_moving_support_enabled>=2 && frame>=90)row[1]=rf_scene_moving_support_enabled+2;
         row[2]=rf_scene_actor_landing[1];row[3]=campaign_piece_support.tag;
         memcpy(row+4,scene_actor_body.state.position,12);
         body=campaign_piece_support_body(moving_support_ready?&moving_support_target:&campaign_piece_support);
         if(body){memcpy(row+7,body->state.position,12);memcpy(row+15,body->state.velocity+1,4);}
         memcpy(row+10,campaign_support_velocity,12);row[13]=body!=NULL;row[14]=moving_support_ready;
         printf("MOVING_SUPPORT");for(uint32_t k=0;k<16;k++)printf(" %u",row[k]);printf("\n");
+        if(body){memcpy(rf_scene_rotating_support_test[i],body->state.orientation,36);memcpy(rf_scene_rotating_support_test[i]+9,body->state.vector_c8,12);}
+        if(rf_scene_moving_support_enabled==3){printf("ROTATING_SUPPORT");for(uint32_t k=0;k<12;k++)printf(" %u",rf_scene_rotating_support_test[i][k]);printf("\n");}
         return;
     }
 }
