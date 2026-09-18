@@ -448,3 +448,34 @@ Disc restored, owned emulator exited, no GitHub image added. Log:
 artifacts/cap-native-atlas.log. Runtime source unchanged. Actual executed draw
 bindings and sampling remain the next boundary; base and chart allocation byte
 identity are now established for this fixture.
+
+
+### Independent cap pixel calculation
+
+The cap-view harness now retains the actual projected far-cap draw mesh through
+RF_REPLAY_MESH_OUT. tools/audit_geomod_cap_pixels.py independently evaluates its
+perspective-correct UVs, bilinear wrapped rock02 samples, bilinear clamped1555
+lightmap samples and doubled modulation against the final PC framebuffer. It
+uses the retained material bytes and complete allocated chart bytes, not a
+replacement texture or renderer-generated expected color. Every light sample's
+four-pixel footprint must remain inside allocated chart storage.
+
+Four submitted cap triangles contain12 vertices with material80/image41, white
+vertex RGB and matching positive base/lightmap reciprocal depth. All813 visible
+interior pixels match exactly (maximum RGB difference0, though the check permits
+one code for float rounding). Observed channel values range1..41 out of255. This
+proves that their darkness follows the intended recovered calculation in this
+view; it does not prove every possible original lighting contribution is present.
+An intentionally all-black framebuffer replacement is rejected at(345,275):
+expected[21,20,19], observed[0,0,0]. No live inputs or stored image were modified
+for that negative control.
+
+The independent check excludes edge coverage (barycentric weights below0.05)
+and occluded samples (depth difference above2 units in24-bit depth). It is not a
+full image-parity or Xbox executed-command test. The complete five-view harness
+still passes all existing asset/chart/checkpoint/floor controls. Far-cap image
+was inspected directly: damaged beam/post, detached wood, room and launcher
+remain visible; the tops remain dark. Other views were not individually
+re-inspected in this turn. Log: artifacts/cap-pixel-audit.log; quantitative
+result is cap_pixels in artifacts/geomod-cap-views/report.json. No runtime code
+change, new Xbox run, audio claim or GitHub screenshot upload.

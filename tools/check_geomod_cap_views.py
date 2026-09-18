@@ -2,6 +2,7 @@
 import csv,hashlib,json,os,struct,subprocess
 from audit_geomod_idle_lighting import audit as audit_idle_lighting
 from check_geomod_material_owner import decode_tga
+from audit_geomod_cap_pixels import audit as audit_cap_pixels
 from pathlib import Path
 from PIL import Image
 ROOT=Path(__file__).resolve().parents[1];folder=ROOT/'artifacts/geomod-cap-views';folder.mkdir(parents=True,exist_ok=True)
@@ -15,7 +16,7 @@ for name,camera in views.items():
  checkpoint=folder/(name+'.rfcp');checkpoint.unlink(missing_ok=True)
  local=dict(env,RF_REPLAY_GEOMOD_CHECKPOINT_OUT=str(checkpoint),RF_REPLAY_DEPTH_OUT=str(folder/(name+'.depth')),RF_REPLAY_TERRAIN_BASE_AUDIT=str(folder/(name+'-lightmaps.csv')),RF_REPLAY_TERRAIN_MESH_AUDIT=str(folder/(name+'-mesh.csv')))
  if name=='far-cap':
-  local.update(RF_REPLAY_TERRAIN_MATERIAL_AUDIT=str(folder/'cap-material.bin'))
+  local.update(RF_REPLAY_TERRAIN_MATERIAL_AUDIT=str(folder/'cap-material.bin'),RF_REPLAY_MESH_OUT=str(folder/'far-cap-draw.bin'))
  if camera:local['RF_REPLAY_INSPECTION_CAMERA']=camera
  if name=='uncut-far':local.pop('RF_REPLAY_GEOMOD_CHECKPOINT_IN')
  with (folder/(name+'.log')).open('wb') as log:
@@ -73,5 +74,6 @@ with (ROOT/'Installed_Game/ui.vpp').open('rb') as source:
 ew,eh,expected=decode_tga(tga)
 assert (width,height)==(ew,eh) and live[24:]==expected, 'cap image differs from level substrate rock02'
 report['cap_material']=dict(asset='ui.vpp/rock02.tga',material=material,width=width,height=height,source_format=fmt,rgba_bytes=size,rgba_sha256=hashlib.sha256(expected).hexdigest(),asset_sha256=hashlib.sha256(tga).hexdigest(),scope='Actual retained CPU image and all seven cap-map material IDs; GPU upload, filtering and final appearance remain separate')
+report['cap_pixels']=audit_cap_pixels(folder)
 report.update(result='PASS'  ,scope='Checkpoint-invariant render camera; visual inspection is separate, not playable elevated player placement')
 (folder/'report.json').write_text(json.dumps(report,indent=2)+'\n',encoding='utf-8');print(json.dumps(report,indent=2))
