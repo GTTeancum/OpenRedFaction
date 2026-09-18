@@ -959,6 +959,21 @@ static int runtime_death_poll(startup_context *c,rf_runtime_event *event)
         startup_target(c,event->links+i,UINT32_MAX,UINT32_MAX,1);
     return c->status;
 }
+static int runtime_threshold_query(void *context,uint32_t handle,uint32_t armor,float *value)
+{
+    startup_context *c=context;
+    if(!rf_object_registry_lookup(c->triggers->registry,handle))return RF_NOT_FOUND;
+    return c->triggers->query_vitals(c->triggers->query_vitals_context,handle,armor,value);
+}
+static int runtime_threshold_effect(void *context,uint32_t handle)
+{
+    startup_context *c=context;void *object;uint32_t kind;rf_level_link_target link={handle,1,0};
+    if(c->event->retired)return RF_OK;
+    object=rf_object_registry_lookup(c->triggers->registry,handle);if(!object)return RF_NOT_FOUND;
+    memcpy(&kind,object,4);
+    if(kind!=5 && kind!=6 && kind!=8)return RF_NOT_FOUND;
+    startup_target(c,&link,UINT32_MAX,UINT32_MAX,1);return c->status;
+}
 static int runtime_unhide_target(void *context,uint32_t uid,int visible)
 {
     startup_context *c=context;uint32_t i;
@@ -1006,6 +1021,18 @@ int rf_runtime_events_tick(rf_runtime_events *events,rf_runtime_triggers *trigge
                 if(status)return status;if(context.status)return context.status;
             }
             status=runtime_death_poll(&context,event);if(status)return status;continue;
+        }
+        if(event->state.type==87 || event->state.type==88) {
+            /* Original4bd400/4bd500 ignore base disabled/delay state. */
+            if(event->threshold.fired)continue;
+            if(!triggers->query_vitals){++*unsupported_pending;continue;}
+            context.event=event;
+            status=rf_event_threshold_poll(&event->threshold,event->state.type==88,
+                event->links,event->authored->record.link_count,
+                runtime_threshold_query,runtime_threshold_effect,&context);
+            if(status)return status;
+            if(event->threshold.fired)++report->events;
+            continue;
         }
         if(event->state.type==20) {
             uint32_t pulse,j;context.event=event;
@@ -1189,6 +1216,8 @@ int rf_runtime_events_open(const rf_level *level,rf_object_registry *registry,
             status=rf_event_switch_init(item->switch_state,record->words[0],(int32_t)record->words[1],record->values[0],record->flags[0]);
             if(status)goto failed;
         }
+        if(item->state.type==87 || item->state.type==88)
+            item->threshold.threshold=(int32_t)item->authored->record.words[0];
         if(item->state.type==20) {
             const rf_level_event *record=&item->authored->record;
             /* Existing scene simulation starts at zero before startup events. */

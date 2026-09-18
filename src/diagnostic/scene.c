@@ -8894,6 +8894,23 @@ static int campaign_give_item(void *context,const char *name)
     }
     return campaign_apply_item_grant(&request);
 }
+/* Threshold monitors read retained living or dead owners; they never mutate vitals. */
+static int campaign_query_vitals(void *context,uint32_t handle,uint32_t armor,float *value)
+{
+    const rf_damage_effect_state *vitals=NULL;void *object;uint32_t i;(void)context;
+    if(!value || armor>1)return RF_RANGE;
+    object=rf_object_registry_lookup(&campaign_registry,handle);if(!object)return RF_NOT_FOUND;
+    if(campaign_player_object.view && handle==campaign_player_object.handle && object==&campaign_player_object)
+        vitals=&campaign_player_damage.state.effects;
+    else for(i=0;i<campaign_npc_body_count;i++){
+        const campaign_npc_body *owner=campaign_npc_bodies+i;
+        if(owner->registration.view && owner->registration.handle==handle && object==&owner->registration){
+            vitals=&owner->damage.effects;break;
+        }
+    }
+    if(!vitals)return RF_NOT_FOUND;
+    *value=armor?vitals->armor:vitals->health;return RF_OK;
+}
 static int campaign_adjust_vitals(void *context,uint32_t handle,int32_t amount,uint32_t armor)
 {
     rf_damage_effect_state *vitals=NULL;campaign_npc_body *owner=NULL;uint32_t i,slot=0;float value,limit;
@@ -8991,6 +9008,7 @@ static float combat_enemy_primary_damage(const rf_weapon_primary_definition *def
 }
 #include "scene_npc_rubble_test.inc"
 #include "scene_ai_gameplay.inc"
+#include "scene_ai_target_liveness.inc"
 #include "scene_ai_weapon_selection.inc"
 #include "scene_ai_reload.inc"
 #include "scene_ai_shotgun.inc"
@@ -9002,8 +9020,9 @@ static int campaign_enemy_tick(scene_stream *stream,uint32_t frame,const float p
     combat_feedback feedback={(int32_t)((uint64_t)frame*1000/60),0};
     rf_damage_effect_backend effects={combat_predicate,combat_uid,combat_source,combat_burn,combat_random,combat_notify,combat_playing,combat_play,&feedback};
     memcpy(&clock_bits,&seconds,4);++rf_scene_enemy_combat[0];
-    for(i=0;i<campaign_npc_body_count && campaign_player_damage.state.effects.health>0;i++) {
+    for(i=0;i<campaign_npc_body_count;i++) {
         campaign_npc_body *owner=campaign_npc_bodies+i;float delta[3],distance=0,amount=0;int status;
+        if(!campaign_enemy_target_living(owner,campaign_player_object.handle,campaign_player_damage.state.effects.health))continue;
         const int32_t weapon=owner->view.weapons[0];
         const int32_t ids[8]={campaign_pistol_id,campaign_rifle_id,campaign_riot_id,campaign_shotgun_id,
             campaign_rocket_id,campaign_grenade_id,campaign_sniper_id,campaign_rail_id};
@@ -9040,6 +9059,7 @@ static int campaign_enemy_tick(scene_stream *stream,uint32_t frame,const float p
                 target_eye=victim->eye_position;
             }
         }
+        if(!campaign_enemy_target_living(owner,campaign_player_object.handle,campaign_player_damage.state.effects.health))continue;
         for(j=0;j<3;j++){delta[j]=target_eye[j]-owner->eye_position[j];distance+=delta[j]*delta[j];}
         if(!owner->combat_alert) {
             float forward=0;
@@ -15342,6 +15362,7 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
             if(status)goto done;
             campaign_teleport_ready=campaign_teleport_pending=0;
             campaign_triggers.teleport_player=campaign_teleport_player;campaign_triggers.teleport_context=NULL;
+            campaign_triggers.query_vitals=campaign_query_vitals;campaign_triggers.query_vitals_context=NULL;
             campaign_triggers.set_friendliness=campaign_set_friendliness;campaign_triggers.adjust_vitals=campaign_adjust_vitals;campaign_triggers.give_item=campaign_give_item;campaign_triggers.strip_weapons=campaign_strip_weapons;campaign_triggers.give_item_context=(void *)tables_path;
             campaign_triggers.switch_backend=&campaign_switch_backend;
             campaign_triggers.set_visible=campaign_set_visible;

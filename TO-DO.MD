@@ -5,6 +5,10 @@ Completion basis (user direction,2026-09-18): working late-alpha/early-beta code
 
 - PRIORITY Precision weapons: Sniper/rail selection, primary firing, ammo and authored view offsets are integrated; PC shots and scene cover/penetration checks pass; functional sniper zoom now passes PC/Xbox with unchanged weapon/HUD; NPC sniper/rail damage and ammo checks pass; scope overlay, rail scanner, trails and broader live targets remain.
 
+- Scripted thresholds: Health/armor monitors now read live player/NPC values and dispatch one-shot event/mover/trigger effects; focused runtime checks pass; latch persistence and live authored scenarios remain.
+
+- AI target lifecycle: Player death stops player-directed pursuit while independent NPC combat continues; focused state checks pass, live encounter coverage remains.
+
 - Scripted timers: Cyclic_Timer is integrated with finite/unlimited event/mover pulses and focused runtime checks passing; same-level checkpoint persistence remains.
 
 - AI hearing: Player gunfire now alerts nearby hostile guards without replacing scripted targets; focused checks pass, live encounter tuning remains.

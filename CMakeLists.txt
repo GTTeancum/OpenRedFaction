@@ -760,3 +760,20 @@ add_executable(rf_scene_ai_precision_tests tests/scene_ai_precision_tests.c src/
 target_link_libraries(rf_scene_ai_precision_tests PRIVATE rf_core)
 add_test(NAME scene_ai_precision COMMAND rf_scene_ai_precision_tests)
 set_tests_properties(scene_ai_precision PROPERTIES WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}")
+
+target_sources(rf_core PRIVATE src/core/event_threshold.c)
+add_executable(rf_event_threshold_tests tests/event_threshold_tests.c)
+target_link_libraries(rf_event_threshold_tests PRIVATE rf_core)
+add_test(NAME event_threshold COMMAND rf_event_threshold_tests)
+
+add_executable(rf_scene_vitals_query_tests tests/scene_vitals_query_tests.c src/diagnostic/animation.c)
+target_link_libraries(rf_scene_vitals_query_tests PRIVATE rf_core)
+add_test(NAME scene_vitals_query COMMAND rf_scene_vitals_query_tests)
+
+add_executable(rf_scene_ai_target_liveness_tests tests/scene_ai_target_liveness_tests.c src/diagnostic/animation.c)
+target_link_libraries(rf_scene_ai_target_liveness_tests PRIVATE rf_core)
+add_test(NAME scene_ai_target_liveness COMMAND rf_scene_ai_target_liveness_tests)
+
+add_executable(rf_runtime_threshold_tests tests/runtime_threshold_tests.c)
+target_link_libraries(rf_runtime_threshold_tests PRIVATE rf_core)
+add_test(NAME runtime_threshold COMMAND rf_runtime_threshold_tests)

@@ -2,6 +2,7 @@
 #define RF_EVENT_H
 #include "rf/timer.h"
 #include "rf/event_cycle.h"
+#include "rf/event_threshold.h"
 #include "rf/entity.h"
 #include "rf/physics.h"
 #include "rf/level.h"
@@ -127,6 +128,7 @@ typedef struct rf_runtime_event {
     uint32_t death_fired,death_time; /* When_Dead one-shot poll, per scene. */
     rf_unhide_state unhide;
     rf_event_cycle cycle; /* Type20: scene-clock-zero initialization; checkpoint separately. */
+    rf_event_threshold threshold; /* Types87/88 one-shot monitor; per scene. */
     uint32_t retired; /* Storage retained after Remove_Object until scene close. */
 } rf_runtime_event;
 typedef struct rf_runtime_events {
@@ -362,6 +364,9 @@ typedef struct rf_runtime_triggers {
      * RF_NOT_FOUND skips unavailable player/vehicle owners. */
     int (*teleport_player)(void *context,const rf_level_event *event);
     void *teleport_context;
+    /* Live entity health(0)/armor(1); NOT_FOUND skips unavailable handles. */
+    int (*query_vitals)(void *,uint32_t handle,uint32_t armor,float *value);
+    void *query_vitals_context;
 } rf_runtime_triggers;
 /* Declare authored goals before any startup trigger runs. */
 int rf_runtime_goals_initialize(const rf_runtime_events *events,rf_campaign_goals *goals);

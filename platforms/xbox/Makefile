@@ -40,6 +40,7 @@ endif
 APU_SRCS = $(APU_BACKEND)/audio_core.c $(APU_BACKEND)/audio_buffer.c $(APU_BACKEND)/audio_voice.c
 SRCS += $(APU_SRCS)
 SRCS += $(PROJECT_ROOT)/src/core/event_cycle.c
+SRCS += $(PROJECT_ROOT)/src/core/event_threshold.c
 SRCS += $(PROJECT_ROOT)/src/core/event.c
 SRCS += $(PROJECT_ROOT)/src/core/campaign.c
 SRCS += $(PROJECT_ROOT)/src/core/frame_clock.c
