@@ -1341,3 +1341,7 @@ target_sources(rf_core PRIVATE src/core/fighter_checkpoint.c)
 add_executable(rf_fighter_checkpoint_tests tests/fighter_checkpoint_tests.c)
 target_link_libraries(rf_fighter_checkpoint_tests PRIVATE rf_core)
 add_test(NAME fighter_checkpoint COMMAND rf_fighter_checkpoint_tests)
+
+add_executable(rf_scene_clutter_damage_live_tests tests/scene_clutter_damage_live_tests.c)
+target_link_libraries(rf_scene_clutter_damage_live_tests PRIVATE rf_core)
+add_test(NAME scene_clutter_damage_live COMMAND rf_scene_clutter_damage_live_tests)

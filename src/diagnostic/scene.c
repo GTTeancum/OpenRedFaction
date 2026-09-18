@@ -2055,6 +2055,10 @@ uint32_t rf_scene_weapon_reset_catalog[4]; /* weapons,resolved stop sounds,bytes
 uint32_t rf_scene_weapon_supply[4]; /* count,primary count,retained bytes,catalog hash */
 static struct {rf_vclip_definition definitions[2];int32_t effects[2],foley[2];} campaign_contact_splashes;
 uint32_t rf_scene_contact_splash_assets[8]; /* IDs2,Foley2,owned bytes,metadata hash,flags2 */
+#include "scene_clutter_damage_live.inc"
+static scene_clutter_damage_profile *campaign_clutter_damage_profiles;
+static scene_clutter_damage_binding *campaign_clutter_damage_bindings;
+uint32_t rf_scene_clutter_damage[8]; /* queries,hits,applied,retired,lastUID,healthbits,profilebytes,bindingbytes */
 static rf_clutter_classes campaign_clutter_classes;
 static rf_glare_classes campaign_glare_classes;
 static rf_glare_materials campaign_glare_materials;
@@ -3311,6 +3315,7 @@ static int campaign_clutter_bodies_close(void)
     rf_scene_clutter_bodies[8]=0;
     if(campaign_clutter_shared)for(i=0;i<campaign_clutter_model_count;++i)rf_scene_clutter_bodies[8]+=campaign_clutter_shared[i].references;
     if(rf_scene_clutter_bodies[8]){++rf_scene_clutter_bodies[9];return RF_RANGE;}
+    free(campaign_clutter_damage_bindings);campaign_clutter_damage_bindings=NULL;
     free(campaign_clutter_bodies);campaign_clutter_bodies=NULL;free(campaign_clutter_shared);campaign_clutter_shared=NULL;return RF_OK;
 }
 uint32_t rf_scene_clutter_tag_queries[5]; /* lookups, matches, poses, hash, errors */
@@ -3557,12 +3562,15 @@ static int campaign_clutter_bodies_open(const rf_geometry_collision_world *world
     /* Authored ctf06 has506 collidable lanterns sharing3 models: the32-bit
      * base owners plus fallback spheres retain283416 bytes. Keep all props;
      * audited in tools/audit_ctf06_clutter_budget.py. No eager budget allocation. */
-    const uint32_t budget=288*1024;uint64_t bytes,peak;uint32_t i,j,hash=2166136261u;int status;
+    const uint32_t budget=320*1024;uint64_t bytes,peak;uint32_t i,j,hash=2166136261u;int status;
     if(!world || !campaign_surface_palette || campaign_clutter_bodies || campaign_clutter_shared)return RF_RANGE;
     memset(rf_scene_clutter_bodies,0,sizeof(rf_scene_clutter_bodies));rf_object_list_init(&campaign_clutter_objects);campaign_clutter_uid_cursor=UINT32_MAX;
-    bytes=(uint64_t)campaign_clutter_records.count*sizeof(*campaign_clutter_bodies)+
+    bytes=(uint64_t)campaign_clutter_records.count*(sizeof(*campaign_clutter_bodies)+sizeof(*campaign_clutter_damage_bindings))+
         (uint64_t)campaign_clutter_model_count*sizeof(*campaign_clutter_shared)+sizeof(campaign_clutter_objects)+sizeof(campaign_clutter_uid_cursor);
     if(bytes>budget)return RF_RANGE;peak=bytes;
+    if(campaign_clutter_records.count){campaign_clutter_damage_bindings=calloc(campaign_clutter_records.count,sizeof(*campaign_clutter_damage_bindings));
+        if(!campaign_clutter_damage_bindings)return RF_IO;}
+    rf_scene_clutter_damage[7]=campaign_clutter_records.count*sizeof(*campaign_clutter_damage_bindings);
     if(campaign_clutter_records.count)campaign_clutter_bodies=calloc(campaign_clutter_records.count,sizeof(*campaign_clutter_bodies));
     if(campaign_clutter_model_count)campaign_clutter_shared=calloc(campaign_clutter_model_count,sizeof(*campaign_clutter_shared));
     if((campaign_clutter_records.count && !campaign_clutter_bodies) || (campaign_clutter_model_count && !campaign_clutter_shared)){status=RF_IO;goto fail;}
@@ -3593,6 +3601,7 @@ static int campaign_clutter_bodies_open(const rf_geometry_collision_world *world
         owner=campaign_clutter_bodies[i];if(!owner){status=RF_RANGE;goto fail;}
         owner->uid=record->uid;
         owner->state.class_index=(int32_t)j;owner->state.definition=campaign_clutter_classes.items+j;
+        status=scene_clutter_damage_bind(&campaign_registry,owner,campaign_clutter_damage_profiles+j,campaign_clutter_damage_bindings+i);if(status)goto fail;
         if(bytes+owner->peak_bytes>peak)peak=bytes+owner->peak_bytes;bytes+=owner->allocated_bytes;
         ++rf_scene_clutter_bodies[0];rf_scene_clutter_bodies[1]+=!!(owner->state.physics_flags&0x20);rf_scene_clutter_bodies[2]+=owner->body.spheres.count;
         hash=npc_hash_bytes(hash,&owner->uid,4);hash=npc_hash_bytes(hash,&owner->state.handle,4);
@@ -3898,6 +3907,17 @@ static int campaign_clutter_open(const char *tables_path,const rf_level *level)
     rf_scene_contact_splash_assets[5]=npc_hash_bytes(2166136261u,campaign_contact_splashes.definitions,sizeof(campaign_contact_splashes.definitions));
     if(!status)status=rf_clutter_classes_load(&tables,&campaign_clutter_catalogs.names,
         256*1024-campaign_clutter_catalogs.allocated_bytes,&campaign_clutter_classes,&peak);
+    memset(rf_scene_clutter_damage,0,sizeof(rf_scene_clutter_damage));
+    if(!status){rf_vpp_entry entry;void *raw=NULL;
+        status=rf_vpp_find(&tables,"clutter.tbl",&entry);
+        if(!status && entry.size>512*1024)status=RF_RANGE;
+        if(!status){raw=malloc(entry.size);if(!raw)status=RF_IO;}
+        if(!status)status=rf_vpp_read(&tables,&entry,0,raw,entry.size);
+        if(!status){campaign_clutter_damage_profiles=calloc(campaign_clutter_classes.count,sizeof(*campaign_clutter_damage_profiles));
+            if(campaign_clutter_classes.count && !campaign_clutter_damage_profiles)status=RF_IO;}
+        for(i=0;!status && i<campaign_clutter_classes.count;i++)status=scene_clutter_damage_profile_read(raw,entry.size,campaign_clutter_classes.items[i].name,campaign_clutter_damage_profiles+i);
+        free(raw);rf_scene_clutter_damage[6]=campaign_clutter_classes.count*sizeof(*campaign_clutter_damage_profiles);
+    }
     campaign_riot_shield_class=-1;
     for(i=0;!status && i<campaign_clutter_classes.count;++i)if(rf_emitter_name_lookup(&campaign_clutter_classes.items[i].name,1,"riot_shield")==0){campaign_riot_shield_class=(int32_t)i;break;}
     rf_vpp_close(&tables);if(status)return status;
@@ -3906,7 +3926,7 @@ static int campaign_clutter_open(const char *tables_path,const rf_level *level)
     rf_scene_clutter[0]=campaign_clutter_classes.count;rf_scene_clutter[1]=campaign_clutter_records.count;
     rf_scene_clutter[3]=campaign_clutter_classes.allocated_bytes;
     rf_scene_clutter[4]=campaign_clutter_records.allocated_bytes;
-    rf_scene_clutter[5]=rf_scene_clutter[3]+rf_scene_clutter[4]+campaign_clutter_catalogs.allocated_bytes;
+    rf_scene_clutter[5]=rf_scene_clutter[3]+rf_scene_clutter[4]+campaign_clutter_catalogs.allocated_bytes+rf_scene_clutter_damage[6];
     rf_scene_clutter[6]=peak+campaign_clutter_catalogs.allocated_bytes;
     if(rf_scene_clutter[6]<rf_scene_clutter[5])rf_scene_clutter[6]=rf_scene_clutter[5];
     for(i=0;i<campaign_clutter_classes.count;++i) {
@@ -4825,6 +4845,7 @@ static void campaign_close_movers(void)
     rf_glare_classes_close(&campaign_glare_classes);
     campaign_clutter_render_close();
     rf_level_owned_clutter_close(&campaign_clutter_records);
+    free(campaign_clutter_damage_profiles);campaign_clutter_damage_profiles=NULL;
     rf_clutter_classes_close(&campaign_clutter_classes);
     rf_clutter_catalogs_close(&campaign_clutter_catalogs);
     campaign_models_close();
@@ -8925,6 +8946,35 @@ static int combat_body(const float start[3],const float delta[3],const rf_physic
         rf_physics_body_segment(body,start,delta,limit,fraction);
 }
 /* Reuse retained moving/static geometry for line-of-sight obstruction. */
+/* Select actual prop model geometry before applying world/rubble cover. */
+static int campaign_clutter_firearm_select(const float start[3],const float delta[3],float limit,uint32_t *slot,float *fraction)
+{
+    uint32_t i,accepted;int status;*slot=UINT32_MAX;*fraction=limit;++rf_scene_clutter_damage[0];
+    for(i=0;campaign_clutter_bodies && i<campaign_clutter_records.count;i++){
+        rf_clutter_base_owner *owner=campaign_clutter_bodies[i];rf_collision_model_part_query query={0};
+        rf_collision_model_response_hit hit={0};float broad;
+        if(!owner || (owner->state.flags&(2u|0x4000u)) || !owner->state.definition || !(owner->state.definition->flags&2u))continue;
+        if(!combat_box(start,delta,&owner->body.state.bounds,*fraction,&broad))continue;
+        memcpy(query.input.start,start,12);memcpy(query.input.displacement,delta,12);
+        memcpy(query.input.origin,owner->state.position,12);memcpy(query.input.matrix,owner->matrix,36);
+        status=rf_scene_clutter_collision_query(owner->state.handle,&query,&hit,1,&accepted);if(status)return status;
+        if(accepted && hit.time>=0 && hit.time<*fraction){*slot=i;*fraction=hit.time;}
+    }
+    return RF_OK;
+}
+static int campaign_clutter_firearm_damage(uint32_t slot,float damage,int32_t kind)
+{
+    rf_clutter_base_owner *owner;scene_clutter_damage_live_result result;int status;
+    if(slot>=campaign_clutter_records.count || !campaign_clutter_bodies || !(owner=campaign_clutter_bodies[slot]) ||
+       !campaign_clutter_damage_profiles || !campaign_clutter_damage_bindings || owner->state.class_index<0 ||
+       (uint32_t)owner->state.class_index>=campaign_clutter_classes.count)return RF_RANGE;
+    status=scene_clutter_damage_receive_live(&campaign_registry,owner,campaign_clutter_damage_profiles+owner->state.class_index,
+        campaign_clutter_damage_bindings+slot,damage,kind,0,&result);if(status)return status;
+    ++rf_scene_clutter_damage[1];rf_scene_clutter_damage[2]+=result.applied;rf_scene_clutter_damage[3]+=result.retired;
+    rf_scene_clutter_damage[4]=campaign_clutter_records.items[slot].uid;memcpy(rf_scene_clutter_damage+5,&result.health_after,4);
+    printf("CLUTTER_HIT uid%u damage%.9g health%.9g retired%u\n",rf_scene_clutter_damage[4],damage,result.health_after,result.retired);
+    return RF_OK;
+}
 static int combat_obstructed(scene_stream *stream,const float start[3],const float delta[3],uint32_t *blocked)
 {
     float end[3];uint32_t j;
@@ -12798,7 +12848,7 @@ static int campaign_combat_tick(scene_stream *stream,uint32_t frame,const float 
     if(alt && campaign_equipped_slot==1)++rf_scene_rifle_alt[0];
     if(campaign_equipped_slot==3){++rf_scene_shotgun[0];if(alt)++rf_scene_shotgun[4];}
     for(uint32_t pellet=0;pellet<(campaign_equipped_slot==3?campaign_pistol.projectiles:1);pellet++) {
-    scene_npc_shield_candidate shield_candidate={0};uint32_t shield_selected=0,vehicle_selected=0;rf_weapon_flight_contact vehicle_contact;
+    scene_npc_shield_candidate shield_candidate={0};uint32_t shield_selected=0,vehicle_selected=0,clutter_selected=UINT32_MAX;rf_weapon_flight_contact vehicle_contact;
     nearest=1;target=UINT32_MAX;
     for(i=0;i<3;i++)delta[i]=orientation[2][i]*(campaign_equipped_slot==2?2.6f:100.0f);
     if(campaign_equipped_slot==3) {
@@ -12831,6 +12881,7 @@ static int campaign_combat_tick(scene_stream *stream,uint32_t frame,const float 
     }
     status=scene_driller_firearm_select(campaign_player_object.handle,position,delta,nearest,&vehicle_contact,&vehicle_selected);if(status)return status;
     if(vehicle_selected)nearest=vehicle_contact.hit.fraction;
+    status=campaign_clutter_firearm_select(position,delta,nearest,&clutter_selected,&nearest);if(status)return status;
     if(rf_scene_combat_trace) {
         uint32_t uid=target==UINT32_MAX?UINT32_MAX:campaign_seeds.records.items[target].record.uid;
         printf("SHOT_RAY %u %u %u %u %.9g %.9g %.9g %.9g %.9g %.9g %.9g\n",frame,campaign_equipped_slot,pellet,uid,nearest,
@@ -12866,6 +12917,12 @@ static int campaign_combat_tick(scene_stream *stream,uint32_t frame,const float 
             }
             continue; /* World or fragment blocks any farther NPC. */
         }
+    }
+    if(clutter_selected!=UINT32_MAX){
+        status=combat_shot_obstructed(stream,position,delta,nearest,&blocked);if(status)return status;
+        if(!blocked){float damage=alt?(campaign_equipped_slot==2?campaign_pistol.alt_damage/60:campaign_pistol.alt_damage):campaign_pistol.damage;
+            status=campaign_clutter_firearm_damage(clutter_selected,damage,alt && campaign_equipped_slot==2?6:campaign_pistol.damage_kind);if(status)return status;}
+        continue;
     }
     if(vehicle_selected){uint32_t handled;float applied;
         status=combat_shot_obstructed(stream,position,delta,nearest,&blocked);if(status)return status;

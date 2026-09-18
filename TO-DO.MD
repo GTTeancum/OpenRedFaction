@@ -1,7 +1,9 @@
 # Red Faction Xbox / PC - open work
 
-Completion basis (user direction,2026-09-18): working late-alpha/early-beta code implementation. Overall approximately77%; GeoMod100% for the first playable milestone, accepted by the user. GeoMod items below are deferred refinement and coverage, not prerequisites to moving on. This does not assert retail polish, complete campaign integration or resolution of every known defect.
+Completion basis (user direction,2026-09-18): working late-alpha/early-beta code implementation. Overall approximately78%; GeoMod100% for the first playable milestone, accepted by the user. GeoMod items below are deferred refinement and coverage, not prerequisites to moving on. This does not assert retail polish, complete campaign integration or resolution of every known defect.
 
+
+- Destructible props: Ordinary player hitscan now uses exact prop models and authored health/damage factors; a real lamp takes80→40→0 and retires in PC, with NXDK builds passing; debris/explosions, other damage paths, physics, saves and native verification remain (docs/CLUTTER-DAMAGE-FIRST-PASS.md).
 
 - Fighter: Boarding, hover flight, cockpit, finite minigun/forward rockets and exit pass PC/Xbox with exact gameplay state and11.64MiB free; live seated save/reload/exit now passes PC/Xbox with identical1228-byte checkpoints and11.57MiB free; campaign placement, broader combat, malformed submerged-save admission and effect polish remain (docs/FIGHTER-FIRST-PASS.md).
 
@@ -60,8 +62,6 @@ Completion basis (user direction,2026-09-18): working late-alpha/early-beta code
 - AI combat: Authored handgun cadence, rifle bursts and finite magazine/reload logic are integrated; live handgun firing and focused burst/reload checks pass, with Xbox build passing; shotgun pellet damage, cover and death cutoff are integrated; authored NPC reload animations now start with reloads and focused checks pass; live tuning remains.
 
 - Scripted visibility: Switch links now resolve/hide/show registered props as well as NPCs, including attached-effect suppression; real lamp hide/show passes PC and NXDK builds, while native verification, persistence and other object families remain (docs/SCRIPTED-PROP-VISIBILITY.md).
-
-- NPC regression: Broader npc_residency combat fixture fails its expected health decrease before visibility checks; investigate separately from passing focused prop visibility checks.
 
 - Scripted interactions: Switch-controlled doors/platforms now integrate start/stop/restart with focused checks and Xbox build passing; authored live switch verification remains.
 

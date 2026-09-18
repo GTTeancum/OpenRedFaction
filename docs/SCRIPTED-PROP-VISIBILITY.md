@@ -19,3 +19,5 @@ The broader `rf_npc_residency_tests` run fails in `scripted_attack_damage_check`
 ## Remaining
 
 Live authored UnHide sequence coverage, other object families, state retention across scene revisits/disk saves, broader prop gameplay and native scene verification remain. Existing immutable-clutter checkpoint admission continues rejecting changed hidden flags rather than silently dropping them.
+
+Follow-up: both stale NPC test fixtures were corrected during prop-damage integration; the complete rf_npc_residency_tests executable now passes (artifacts/clutter-damage-live/npc.log).

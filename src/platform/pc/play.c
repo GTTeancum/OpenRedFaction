@@ -958,6 +958,7 @@ run_scene:
     {extern uint32_t rf_scene_apc_primary[8];printf("APC_PRIMARY");for(i=0;i<8;++i)printf(" %u",rf_scene_apc_primary[i]);puts("");}
     {extern uint32_t rf_scene_submarine_weapon[8];printf("SUBMARINE_WEAPON");for(i=0;i<8;++i)printf(" %u",rf_scene_submarine_weapon[i]);puts("");}
     {extern uint32_t rf_scene_fighter_weapon[8];printf("FIGHTER_WEAPON");for(i=0;i<8;++i)printf(" %u",rf_scene_fighter_weapon[i]);puts("");}
+    {extern uint32_t rf_scene_clutter_damage[8];printf("CLUTTER_DAMAGE");for(i=0;i<8;i++)printf(" %u",rf_scene_clutter_damage[i]);puts("");}
     printf("VEHICLE_DAMAGE");for(i=0;i<8;++i)printf(" %u",rf_scene_vehicle_damage[i]);puts("");
     printf("DRILL");for(i=0;i<8;++i)printf(" %u",rf_scene_drill_state[i]);puts("");
     printf("VEHICLE");for(i=0;i<16;++i)printf(" %u",rf_scene_vehicle_state[i]);puts("");

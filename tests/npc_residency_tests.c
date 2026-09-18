@@ -918,12 +918,15 @@ static int combat_shot_geometry_check(void)
         rf_level_item item={0};uint8_t taken=0;uint32_t pickup_slot;float eye[3]={1,-1,4};
         rf_weapon_inventory saved_inventory=campaign_player_inventory;
         rf_weapon_acquire_definition saved_definition=campaign_weapon_supply.definitions[3];
+        uint32_t saved_supply_count=campaign_weapon_supply.names.count;
         int32_t saved_id=campaign_pistol_id;float saved_health=campaign_player_damage.state.effects.health,saved_position[3];
         uint32_t saved_pickups[8],saved_ammo[8],saved_combat[8];
         memcpy(saved_position,scene_actor_body.state.position,12);memcpy(saved_pickups,rf_scene_pickups,sizeof(saved_pickups));
         memcpy(saved_ammo,rf_scene_player_ammo,sizeof(saved_ammo));memcpy(saved_combat,rf_scene_combat,sizeof(saved_combat));
         memset(rf_scene_pickups,0,sizeof(rf_scene_pickups));memset(&campaign_player_inventory,0,sizeof(campaign_player_inventory));
         campaign_pistol_id=3;campaign_weapon_supply.definitions[3]=(rf_weapon_acquire_definition){0,125,16};
+        /* Shared-ammo grants validate that the fixture weapon belongs to its catalog. */
+        campaign_weapon_supply.names.count=4;
         campaign_player_inventory.owned[3]=1;campaign_player_inventory.loaded[3]=16;campaign_player_inventory.reserve[0]=100;
         campaign_player_damage.state.effects.health=100;memcpy(scene_actor_body.state.position,eye,12);
         strcpy(item.class_name,"Handgun");item.uid=777;item.quantity=16;item.position[0]=1;item.position[1]=-1;item.position[2]=6;
@@ -963,6 +966,7 @@ static int combat_shot_geometry_check(void)
         }
         solid.input_origin[0]=0;solid.minimum[0]-=20;solid.maximum[0]-=20;
         campaign_player_inventory=saved_inventory;campaign_weapon_supply.definitions[3]=saved_definition;campaign_pistol_id=saved_id;
+        campaign_weapon_supply.names.count=saved_supply_count;
         campaign_player_damage.state.effects.health=saved_health;memcpy(scene_actor_body.state.position,saved_position,12);
         memcpy(rf_scene_pickups,saved_pickups,sizeof(saved_pickups));memcpy(rf_scene_player_ammo,saved_ammo,sizeof(saved_ammo));memcpy(rf_scene_combat,saved_combat,sizeof(saved_combat));
     }
@@ -1162,6 +1166,10 @@ static int script_locomotion_check(void)
 }
 static int scripted_attack_damage_check(void)
 {
+    int32_t saved_pistol_id=campaign_pistol_id;
+    uint32_t saved_weapon_count=campaign_weapon_supply.names.count;
+    rf_weapon_primary_definition saved_primary=campaign_primary[0];
+    rf_weapon_acquire_definition saved_ammo=campaign_weapon_supply.definitions[0];
     campaign_npc_body owners[2]={0};rf_entity_seed seeds[2]={0};rf_entity_seed_class cls={0};
     rf_physics_sphere victim_sphere={0};
     rf_entity_pose poses[2]={0};rf_entity_playback_model models[1]={{0}};
@@ -1173,6 +1181,16 @@ static int scripted_attack_damage_check(void)
     rf_geometry_collision_world world={0};scene_stream stream={0};float eye[3]={0,0,20},saved_health=campaign_player_damage.state.effects.health,health;
     uint32_t i;
     rf_object_registry_init(&campaign_registry);memset(&campaign_entities,0,sizeof(campaign_entities));
+    /* This fixture previously depended on unsupported weapon0 falling through
+     * to generic10-damage hitscan. Supply an explicit supported, finite-ammo
+     * handgun fixture now that live AI correctly rejects unsupported items. */
+    campaign_pistol_id=0;campaign_weapon_supply.names.count=1;
+    campaign_weapon_supply.definitions[0]=(rf_weapon_acquire_definition){0,100,16};
+    memset(campaign_primary,0,sizeof(campaign_primary[0]));
+    campaign_primary[0].magazine=16;campaign_primary[0].reload_seconds=1;
+    campaign_primary[0].fire_seconds=1;campaign_primary[0].damage=10;
+    campaign_primary[0].burst_count=campaign_primary[0].projectiles=1;
+    campaign_primary[0].ai_damage_scale[0]=campaign_primary[0].ai_damage_scale[1]=1;
     campaign_npc_bodies=owners;campaign_npc_body_count=2;campaign_seeds.items=seeds;campaign_seeds.classes=&cls;campaign_seeds.class_count=1;
     stream.collision=&world;campaign_player_damage.state.effects.health=100;campaign_player_object.handle=999;cls.damage_factors[0]=1;
     /* Legitimate absent-action/absent-Foley policy, with valid registered pose
@@ -1192,6 +1210,7 @@ static int scripted_attack_damage_check(void)
         owners[i].view.linked_handle=-1;owners[i].view.weapons[0]=-1;owners[i].damage.effects.health=owners[i].damage.effects.class_health=100;
         CHECK(rf_entity_view_register(&campaign_registry,&campaign_entities,&owners[i].view,&owners[i].registration)==RF_OK);
         owners[i].damage.effects.handle=owners[i].registration.handle;
+        owners[i].inventory.owned[0]=1;owners[i].inventory.loaded[0]=16;
     }
     owners[0].look.orientation[8]=1;owners[0].view.weapons[0]=0;owners[0].combat_scripted=owners[0].combat_alert=1;owners[0].combat_target=owners[1].registration.handle;
     owners[1].eye_position[2]=5;
@@ -1279,6 +1298,8 @@ static int scripted_attack_damage_check(void)
     campaign_poses=old_poses;campaign_playback_resources=old_resources;campaign_model_owners=old_models;
     campaign_model_head=old_head;campaign_model_owner_count=old_model_count;
     campaign_motion_catalog.class_count=old_catalog_count;campaign_base_motions.class_count=old_base_count;campaign_pain_groups=old_groups;
+    campaign_pistol_id=saved_pistol_id;campaign_weapon_supply.names.count=saved_weapon_count;
+    campaign_primary[0]=saved_primary;campaign_weapon_supply.definitions[0]=saved_ammo;
     return 0;
 }
 static int player_death_pursuit_check(void)
