@@ -49,8 +49,8 @@ int rf_geomod_authored_cavity_decode(const void *,uint32_t,const rf_geometry *,
     const rf_level_geomod_settings *,uint32_t,rf_geomod_authored_post **);
 /* Conservative local cavity admission. Exact cutter AABB must avoid every
  * other authored brush AABB and its projection must fit one ordinary compiled
- * wall window; the entire corridor back to that plane must also avoid brushes.
- * Deep cutters may lie wholly behind the plane. Cross-window/neighbor/portal edits reject; this is not general
+ * wall window or a convex pair sharing an exact reversed full edge; the entire corridor back to that plane must also avoid brushes.
+ * Deep cutters may lie wholly behind the plane. Unproven unions/neighbor/portal edits reject; this is not general
  * ordered CSG. The reference output is unchanged on rejection. Bounds and
  * metadata are retained by the cavity owner; no allocation or scene mutation. */
 int rf_geomod_authored_cavity_admit(const rf_geomod_authored_post *,const float minimum[3],

@@ -777,6 +777,41 @@ int rf_geomod_authored_post_open(const rf_level *level, const rf_geometry *geome
                                  rf_geomod_authored_post **out) {
     return rf_geomod_authored_post_open_source(level, geometry, 94, budget, out);
 }
+/* A pair may be treated as one region only across an exact reversed full
+ * edge and only when every exterior edge bounds a convex union. This neither
+ * fills gaps nor assumes that arbitrary coplanar windows form a solid wall. */
+static int cavity_window_contains(const rf_geomod_authored_post_view *a,uint32_t index,
+    uint32_t skip,const float plane[4],const double point[3]) {
+    const rf_geomod_face *f=a->windows.faces+index;uint32_t j,k;
+    for(j=0;j<f->count;j++)if(j!=skip) {
+        const float *x=a->windows.vertices[f->first+j].position;
+        const float *y=a->windows.vertices[f->first+(j+1)%f->count].position;
+        double edge[3],offset[3],side=0,length=0;
+        for(k=0;k<3;k++){edge[k]=(double)y[k]-x[k];offset[k]=point[k]-x[k];length+=edge[k]*edge[k];}
+        for(k=0;k<3;k++)side+=plane[k]*(edge[(k+1)%3]*offset[(k+2)%3]-edge[(k+2)%3]*offset[(k+1)%3]);
+        if(side< -1e-5*sqrt(length))return 0;
+    }
+    return 1;
+}
+static int cavity_window_pair(const rf_geomod_authored_post_view *a,uint32_t first,uint32_t second,
+    const float plane[4],uint32_t skip[2]) {
+    const rf_geomod_face *x=a->windows.faces+first,*y=a->windows.faces+second;uint32_t i,j,k,n;
+    if(x->source_face!=y->source_face)return 0;
+    for(i=0;i<x->count;i++)for(j=0;j<y->count;j++) {
+        const float *p=a->windows.vertices[x->first+i].position,*q=a->windows.vertices[x->first+(i+1)%x->count].position;
+        const float *r=a->windows.vertices[y->first+j].position,*t=a->windows.vertices[y->first+(j+1)%y->count].position;
+        if(memcmp(p,t,12) || memcmp(q,r,12))continue;
+        for(n=0;n<2;n++) {
+            const rf_geomod_face *f=n?y:x;
+            for(k=0;k<f->count;k++) {
+                const float *v=a->windows.vertices[f->first+k].position;double point[3]={v[0],v[1],v[2]};
+                if(!cavity_window_contains(a,first,i,plane,point) || !cavity_window_contains(a,second,j,plane,point))return 0;
+            }
+        }
+        skip[0]=i;skip[1]=j;return 1;
+    }
+    return 0;
+}
 int rf_geomod_authored_cavity_admit(const rf_geomod_authored_post *o,const float minimum[3],
     const float maximum[3],uint32_t *reference) {
     const rf_geomod_authored_post_view *a;uint32_t i,j,k,corner;
@@ -794,20 +829,24 @@ int rf_geomod_authored_cavity_admit(const rf_geomod_authored_post *o,const float
         memcpy(corridor[0],minimum,12);memcpy(corridor[1],maximum,12);
         for(k=0;k<3;k++)lo+=(double)plane[k]*(plane[k]<0?maximum[k]:minimum[k]);
         if(lo>0)continue; /* Cutter must reach the solid side, possibly behind an earlier cut. */
-        for(corner=0;corner<8 && accepted;corner++) {
-            double point[3],d=plane[3];
-            for(k=0;k<3;k++){point[k]=(corner&(1u<<k))?maximum[k]:minimum[k];d+=plane[k]*point[k];}
-            for(k=0;k<3;k++){point[k]-=d*plane[k];
-                if(point[k]<corridor[0][k])corridor[0][k]=(float)point[k];
-                if(point[k]>corridor[1][k])corridor[1][k]=(float)point[k];
+        {
+            double projected[8][3];uint32_t partner;
+            for(corner=0;corner<8;corner++) {
+                double d=plane[3];
+                for(k=0;k<3;k++){projected[corner][k]=(corner&(1u<<k))?maximum[k]:minimum[k];d+=plane[k]*projected[corner][k];}
+                for(k=0;k<3;k++) {
+                    double v=projected[corner][k]-d*plane[k];projected[corner][k]=v;
+                    if(v<corridor[0][k])corridor[0][k]=(float)v;
+                    if(v>corridor[1][k])corridor[1][k]=(float)v;
+                }
+                if(!cavity_window_contains(a,i,UINT32_MAX,plane,projected[corner]))accepted=0;
             }
-            for(j=0;j<window->count;j++) {
-                const float *x=a->windows.vertices[window->first+j].position;
-                const float *y=a->windows.vertices[window->first+(j+1)%window->count].position;
-                double edge[3],offset[3],side=0,length=0;
-                for(k=0;k<3;k++){edge[k]=(double)y[k]-x[k];offset[k]=point[k]-x[k];length+=edge[k]*edge[k];}
-                for(k=0;k<3;k++)side+=plane[k]*(edge[(k+1)%3]*offset[(k+2)%3]-edge[(k+2)%3]*offset[(k+1)%3]);
-                if(side< -1e-5*sqrt(length)){accepted=0;break;}
+            for(partner=i+1;!accepted && partner<a->windows.face_count;partner++) {
+                uint32_t skip[2];if(!cavity_window_pair(a,i,partner,plane,skip))continue;
+                accepted=1;
+                for(corner=0;corner<8 && accepted;corner++)
+                    if(!cavity_window_contains(a,i,skip[0],plane,projected[corner]) ||
+                       !cavity_window_contains(a,partner,skip[1],plane,projected[corner]))accepted=0;
             }
         }
         /* A deep cutter cannot jump past an intervening authored brush. */

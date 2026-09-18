@@ -297,7 +297,7 @@ static int cavity_window_areas(const rf_geomod_authored_post_view *a,const rf_ge
                 }
             }
         }
-        if(cut && a->window_origins[i].reference==5964)CHECK(actual<expected-.1 && actual>0);
+        if(cut && ((cut==1 && a->window_origins[i].reference==5964) || (cut==2 && (a->window_origins[i].reference==6093 || a->window_origins[i].reference==6094))))CHECK(actual<expected-.1 && actual>0);
         else {if(fabs(actual-expected)>=.001)printf("CAVITY_AREA ref%u source%u expected%.9g actual%.9g\n",a->window_origins[i].reference,a->window_origins[i].source_face,expected,actual);CHECK(fabs(actual-expected)<.001);}
     }
     for(i=0;i<mesh->face_count;i++)if(origins[i].kind==RF_GEOMOD_PUBLICATION_CRATER) {
@@ -376,7 +376,13 @@ static int cavity_source(const void *payload,uint32_t bytes,const rf_geometry *g
         lo[0]=-6;hi[0]=-4;lo[1]=1;hi[1]=3;lo[2]=2;hi[2]=3;
         CHECK(rf_geomod_authored_cavity_admit(owner,lo,hi,&reference)==RF_NOT_FOUND && reference==99);
         lo[0]=-34.1f;hi[0]=-31.9f;lo[1]=2.9f;hi[1]=5.1f;lo[2]=-.5f;hi[2]=1.5f;
+        CHECK(rf_geomod_authored_cavity_admit(owner,lo,hi,&reference)==RF_NOT_FOUND && reference==99); /* Pillar12815. */
+        lo[2]=25.5f;hi[2]=27.5f;reference=99;
         CHECK(rf_geomod_authored_cavity_admit(owner,lo,hi,&reference)==RF_NOT_FOUND && reference==99);
+        lo[0]=-30.1f;hi[0]=-27.9f;lo[1]=-3.1f;hi[1]=-.9f;lo[2]=-.6f;hi[2]=1.6f;
+        CHECK(!rf_geomod_authored_cavity_admit(owner,lo,hi,&reference) && reference==6093);
+        reference=99;lo[0]=-34.1f;hi[0]=-31.9f;
+        CHECK(rf_geomod_authored_cavity_admit(owner,lo,hi,&reference)==RF_NOT_FOUND && reference==99); /* Beyond union edge. */
         lo[0]=NAN;CHECK(rf_geomod_authored_cavity_admit(owner,lo,hi,&reference)==RF_RANGE && reference==99);
     }
     CHECK(rf_geomod_authored_cavity_decode(payload,bytes,geometry,settings,a.peak_bytes-1,&rejected)==RF_RANGE && !rejected);
@@ -449,6 +455,18 @@ static int cavity_source(const void *payload,uint32_t bytes,const rf_geometry *g
     CHECK(!cavity_window_areas(&a,&published,output_origins,1));
     CHECK(!cavity_composition(geometry,&a,&published,output_origins,-35.4f));
     printf("CAVITY_DEEP cuts%u faces%u vertices%u\n",view.cuts,published.face_count,published.vertex_count);
+    CHECK(!rf_geomod_terrain_reset(terrain));center[0]=-29;center[1]=-2;center[2]=.5f;
+    CHECK(!rf_geomod_terrain_cut_template(terrain,&shape,center,basis,1.05000007f,0));
+    CHECK(!rf_geomod_terrain_get(terrain,&view));job.terrain=view.mesh;
+    CHECK(!rf_geomod_publication_build_cavity(&job,&publication_work,output_vertices,4096,output_faces,768,output_origins,&published));
+    CHECK(!cavity_window_areas(&a,&published,output_origins,2));
+    inside[0]=outside[0]=-29;inside[2]=outside[2]=.5f;inside[1]=-1.9f;outside[1]=-2.1f;
+    CHECK(!rf_geomod_light_visible(&view,inside,outside,&visible) && visible);
+    inside[2]=outside[2]=4;
+    CHECK(!rf_geomod_light_visible(&view,inside,outside,&visible) && !visible);
+
+    printf("CAVITY_SEAM faces%u vertices%u\n",published.face_count,published.vertex_count);
+
     rf_geomod_terrain_close(&terrain);rf_geomod_authored_post_close(&owner);return 0;
 }
 static int selected_sources(const rf_level *level, const rf_geometry *geometry, const char *shape) {
