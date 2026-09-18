@@ -934,3 +934,7 @@ add_test(NAME scene_player_shield_contact COMMAND rf_scene_player_shield_contact
 add_executable(rf_scene_player_shield_bash_tests tests/scene_player_shield_bash_tests.c)
 target_link_libraries(rf_scene_player_shield_bash_tests PRIVATE rf_core)
 add_test(NAME scene_player_shield_bash COMMAND rf_scene_player_shield_bash_tests ${CMAKE_SOURCE_DIR}/Installed_Game/tables.vpp)
+
+add_executable(rf_scene_player_shield_melee_tests tests/scene_player_shield_melee_tests.c src/diagnostic/animation.c)
+target_link_libraries(rf_scene_player_shield_melee_tests PRIVATE rf_core)
+add_test(NAME scene_player_shield_melee COMMAND rf_scene_player_shield_melee_tests ${CMAKE_SOURCE_DIR}/Installed_Game/tables.vpp)

@@ -3728,6 +3728,7 @@ static int campaign_clutter_open(const char *tables_path,const rf_level *level)
     if(!status && rf_scene_dev_room_enabled)status=rf_weapon_primary_load(&tables,"Remote Charge Detonator",128*1024,&campaign_primary[9]);
     if(!status && rf_scene_dev_room_enabled)status=rf_weapon_explosive_load(&tables,"Remote Charge",128*1024,&campaign_remote);
     if(!status && rf_scene_dev_room_enabled)status=rf_weapon_primary_load(&tables,"Flamethrower",128*1024,&campaign_primary[10]);
+    if(!status && rf_scene_dev_room_enabled && rf_scene_dev_npc_enabled==6)status=rf_weapon_primary_load(&tables,"riot shield",128*1024,&campaign_primary[11]);
     if(!status && rf_scene_dev_room_enabled)status=scene_flame_visual_open(&tables);
     if(!status && rf_scene_dev_room_enabled) {
         rf_vclip_definition clip;
@@ -12328,6 +12329,8 @@ static int scene_remote_input(scene_stream *,uint32_t,const float[3],const float
 #include "scene_burning_visual.inc"
 #include "scene_flame_canister.inc"
 static int scene_player_weapon_advance(scene_stream *,uint32_t);
+#include "scene_player_shield_bash.inc"
+#include "scene_player_shield_melee.inc"
 static int campaign_combat_tick(scene_stream *stream,uint32_t frame,const float position[3],const float orientation[3][3])
 {
     float delta[3],nearest=1,amount;uint32_t i,target=UINT32_MAX,blocked,fire,alt,active=0;int status;
@@ -12412,6 +12415,7 @@ static int campaign_combat_tick(scene_stream *stream,uint32_t frame,const float 
     status=scene_burning_tick(stream,frame);if(status)return status;
     status=scene_burning_visual_tick(stream,frame);if(status)return status;
     status=scene_npc_rubble_stimulus(stream,frame,position);if(status)return status;
+    status=scene_player_shield_bash_input(stream,frame,position,orientation[2]);if(status)return status;
     if(campaign_equipped_slot==11){status=scene_player_weapon_advance(stream,frame);if(status)return status;}
     status=(rf_scene_dev_npc_enabled==1 || (rf_scene_dev_npc_enabled==2 && frame<600))?RF_OK:campaign_enemy_tick(stream,frame,position);rf_scene_enemy_combat[7]=(uint32_t)status;if(status)return status;
     status=scene_npc_rubble_record(stream,frame);if(status)return status;
@@ -14582,7 +14586,7 @@ static int scene_player_weapon_advance(scene_stream *stream,uint32_t frame)
     if(!frame)memset(rf_scene_player_weapon,0,sizeof(rf_scene_player_weapon));
     if(campaign_explicit_unarmed || !campaign_player_inventory.owned[campaign_selected_weapon()]){rf_scene_player_weapon[2]=0;stream->player_slot=UINT32_MAX;return RF_OK;}
     if(!w)return RF_OK;
-    if(!frame || stream->player_slot!=campaign_equipped_slot)request=0;
+    if(!frame || stream->player_slot!=campaign_equipped_slot)request=campaign_equipped_slot==11 && rf_scene_combat[0]!=stream->player_shots?1:0;
     else if(rf_scene_combat[6]>stream->player_reload)request=2;
     else if(campaign_equipped_slot==2 && rf_scene_riot[0]){if(w->current!=3)request=3;}
     else if(w->current==3 && campaign_equipped_slot==2)request=0;
