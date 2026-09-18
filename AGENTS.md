@@ -24,3 +24,10 @@
 - Do not use original-game screenshots as visual references or pursue disc-dependent capture sessions; use binary-derived mathematical evidence and reconstructed PC/Xbox validation for fidelity.
 
 - User update (2026-09-16): Work solo on resumption; keep local sub-agents and the secondary helper coordinator paused until the user explicitly reauthorizes delegation.
+
+# Delivery and testing priority
+
+- User update (2026-09-18): Prioritize a working, integrated engine and core gameplay; polish comes after the engine is assembled.
+- Keep testing proportional: use focused checks to establish that changed behavior works and catch material regressions; do not repeatedly run broad suites or expand edge-case testing without a concrete need.
+- Do not let exhaustive validation, minor fidelity details or isolated edge cases monopolize progress on missing engine systems. Record remaining issues in TO-DO.MD and continue integration unless they block basic gameplay, stability or the stock 64 MiB Xbox target.
+- GeoMod remains a core priority, but its polish and exhaustive coverage must not delay assembling the rest of the engine.
