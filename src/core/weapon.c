@@ -5,6 +5,26 @@
 #include <string.h>
 #include <math.h>
 #include <float.h>
+int rf_grenade_lifecycle_tick(rf_grenade_lifecycle *state,float dt,uint32_t *detonate)
+{
+    rf_grenade_lifecycle next;uint32_t fire=0;
+    if(!state || !detonate || !isfinite(dt) || dt<0 || !isfinite(state->fuse) || !isfinite(state->life))return RF_RANGE;
+    next=*state;
+    if(next.active) {
+        if(!(next.class_flags&0x40u))next.fuse=(float)((double)next.fuse-dt);
+        if(!isfinite(next.fuse))return RF_RANGE;
+        if(next.fuse<=0 || next.life<=0){next.active=0;fire=1;}
+    }
+    *state=next;*detonate=fire;return RF_OK;
+}
+int rf_grenade_lifecycle_contact(rf_grenade_lifecycle *state,uint32_t *response)
+{
+    if(!state || !response || !isfinite(state->fuse) || !isfinite(state->life))return RF_RANGE;
+    if(!state->active){*response=0;return RF_OK;}
+    if(state->instance_flags&0x10u){state->life=-1;*response=1;}
+    else *response=2;
+    return RF_OK;
+}
 /* Ordinary entity branch489010: stored float delta, extended intermediates,
  * no subtraction of collision-sphere radius. Cover belongs to the caller. */
 int rf_weapon_blast_amount(const float origin[3],const float position[3],float damage,float radius,float *out)

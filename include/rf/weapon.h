@@ -30,6 +30,19 @@ int rf_weapon_flight_launch(rf_weapon_flight *,const float position[3],const flo
     float speed,float lifetime,float radius);
 int rf_weapon_flight_step(rf_weapon_flight *,float dt,rf_weapon_flight_sweep,void *,rf_weapon_flight_event *);
 
+/* Grenade lifecycle is independent of physics/sleep eligibility. Recovered
+ * 4c69a0 fuse/life gates and 4c52bf contact mode, with a port once-only guard.
+ * Initialize active=1, authored fuse, life=10; alt throw sets instance bit0x10.
+ * tick emits detonate=1 exactly once, including dt0 expiry; it creates no effects.
+ * Caller stages a copy if downstream effect publication can fail.
+ * contact returns response0 inactive,1 defer detonation without bounce,2 bounce.
+ * Finite inputs required; failures preserve outputs/state. No allocations. */
+typedef struct rf_grenade_lifecycle {
+    float fuse,life;uint32_t active,class_flags,instance_flags;
+} rf_grenade_lifecycle;
+int rf_grenade_lifecycle_tick(rf_grenade_lifecycle *,float dt,uint32_t *detonate);
+int rf_grenade_lifecycle_contact(rf_grenade_lifecycle *,uint32_t *response);
+
 typedef struct rf_weapon_liquid_state {
     float life;
     uint32_t is_liquid,query_flags;

@@ -23,7 +23,7 @@
 
 - Do not use original-game screenshots as visual references or pursue disc-dependent capture sessions; use binary-derived mathematical evidence and reconstructed PC/Xbox validation for fidelity.
 
-- User update (2026-09-16): Work solo on resumption; keep local sub-agents and the secondary helper coordinator paused until the user explicitly reauthorizes delegation.
+- User update (2026-09-18): Three implementation agents are authorized again for independent weapons, enemy AI and scripted gameplay work. Parent owns shared scene wiring, builds and Xbox validation. Assign separate files and bounded working-code deliverables; do not keep agents occupied generating speculative RE reports. The earlier helper pause is superseded; do not restart the separate coordinator automatically.
 
 # Delivery and testing priority
 

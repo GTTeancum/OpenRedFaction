@@ -4,6 +4,22 @@
 #include <string.h>
 #include <math.h>
 #define CHECK(x) do {if(!(x)){fprintf(stderr,"explosive line %d\n",__LINE__);return 1;}} while(0)
+static int grenade_lifecycle(void)
+{
+    rf_grenade_lifecycle g={.125f,10,1,0,0},before;uint32_t event=99;
+    CHECK(!rf_grenade_lifecycle_contact(&g,&event) && event==2 && g.fuse==.125f && g.life==10);
+    CHECK(!rf_grenade_lifecycle_tick(&g,.25f,&event) && event==1 && !g.active && g.fuse==-.125f);
+    CHECK(!rf_grenade_lifecycle_tick(&g,.25f,&event) && !event && g.fuse==-.125f);
+    g=(rf_grenade_lifecycle){5,10,1,0,0x10};
+    CHECK(!rf_grenade_lifecycle_contact(&g,&event) && event==1 && g.life==-1 && g.active);
+    CHECK(!rf_grenade_lifecycle_tick(&g,0,&event) && event==1 && !g.active);
+    g=(rf_grenade_lifecycle){5,10,1,0x40,0};
+    CHECK(!rf_grenade_lifecycle_tick(&g,10,&event) && !event && g.fuse==5);
+    g.fuse=0;CHECK(!rf_grenade_lifecycle_tick(&g,0,&event) && event==1);
+    before=g;event=99;
+    CHECK(rf_grenade_lifecycle_tick(&g,NAN,&event)==RF_RANGE && event==99 && !memcmp(&before,&g,sizeof(g)));
+    return 0;
+}
 typedef struct sweep_context {const rf_geometry_collision_world *world;uint32_t calls;int fail,bad;} sweep_context;
 static int sweep(void *context,const float start[3],const float delta[3],float radius,
     rf_weapon_flight_contact *out,uint32_t *matched)
@@ -90,6 +106,7 @@ static int liquid_flight_tests(void)
 }
 int main(int argc,char **argv)
 {
+    CHECK(!grenade_lifecycle());
     CHECK(!liquid_flight_tests());
     /* Original verify_projectile_liquid_contact.py: six complete contact-dispatch cases.
      * Selector/clamp boundaries additionally exercise the 4c4e30 contract. */
