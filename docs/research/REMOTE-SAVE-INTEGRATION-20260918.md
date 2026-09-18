@@ -1,0 +1,12 @@
+# Remote-charge checkpoint integration
+
+RFCP2 now carries an RFRM1 remote snapshot in the existing player/GeoMod save flow. Capture preserves active charge state, throw scheduler and charge-versus-detonator selection. Player checkpoint catalog admission includes the nine implemented base weapons; the detonator still shares charge ownership/ammo rather than becoming a separate inventory item.
+
+Remote preflight decodes into bounded static staging and remaps durable player/NPC/mover identities before any scene publication. RFDS/player validation remains in place. Remote publication occurs only after successful terrain commit; failure discards the remote candidate. Frame-zero initialization consumes a restore guard and reapplies selected control mode after inventory import, so it does not erase planted charges. Legacy RFCP1 loads stage an empty remote pool. Existing stationary DEV checkpoint scope is preserved: this change does not enable general campaign, NPC/mover-containing or arbitrary moving-player saves. Unknown fragment attachments reject save rather than recording unstable runtime identities.
+
+PC proof: artifacts/remote-save/save.bin plants a charge, retreats, selects detonator and settles. The1296-byte RFCP2 file contains444bytes of pristine authored RFDS and276bytes of RFRM (one active charge). Loading planted.rfcp with resume.bin restores detonator slot9 and19reserve rounds; one fire input produces REMOTE[0,0,0,1,0,0,0,0] and one successful GeoMod cut. No new throw or ammo debit occurs.
+
+Focused checks pass: nine-weapon catalog, remote codec and scene adapter. The adapter fixture verifies remapped player handles, reordered mover UID resolution, missing-host rejection, staged publication, legacy empty restoration and selected-mode/frame-zero handling. The live save scope remains narrower than the adapter's tested mapping capability.
+
+## Native verification
+Stock64MiB run render-20260918-093058 passes79checks and produces a1296-byte Xbox checkpoint exactly equal to PC (SHA256 e98c5be4075af40710a2eecb2afe85bd62de093c80c025ed81bb1454481a4e0d). Run render-20260918-093303 loads that Xbox-produced file and passes80checks: REMOTE[0,0,0,1,0,0,0,0], one successful cut, detonator selected,19reserve retained. Native continuation framebuffer inspected: held detonator,19ammo and blast/debris at the saved charge location. Endpoint headroom2533pages (9.89453125MiB), not peak usage. Both runs restore the prior disc. No extra GitHub image uploaded.

@@ -4,13 +4,12 @@ static uint32_t scene_checkpoint_profile(const scene_stream *s)
 {return s->terrain_authored?(s->terrain_source_count>1?RF_COMPOSED_PROFILE_AUTHORED_COLLECTION:RF_COMPOSED_PROFILE_AUTHORED):SCENE_PLAYER_CHECKPOINT_PROFILE;}
 static int scene_checkpoint_player_catalog(rf_player_checkpoint_catalog *c)
 {
-    static const char *const names[5]={"12mm handgun","Assault Rifle","Riot Stick","Shotgun","Rocket Launcher"};
     uint32_t i;memset(c,0,sizeof(*c));c->hash=rf_scene_weapon_supply[3];c->count=campaign_weapon_supply.names.count;
     if(!c->count||c->count>64)return RF_FORMAT;
     memcpy(c->weapons,campaign_weapon_supply.definitions,sizeof(c->weapons));
     c->health_capacity=campaign_player_damage.state.effects.class_health;c->armor_capacity=campaign_player_damage.state.effects.class_armor;
-    for(i=0;i<5;i++){
-        int32_t id=rf_weapon_name_find(&campaign_weapon_supply.names,names[i]);const rf_weapon_acquire_definition *d;
+    for(i=0;i<9;i++){
+        int32_t id=rf_weapon_name_find(&campaign_weapon_supply.names,campaign_weapon_names[i]);const rf_weapon_acquire_definition *d;
         if(id<0||(uint32_t)id>=c->count)return RF_FORMAT;c->supported[id]=1;d=c->weapons+id;
         if(d->ammo_type<0||d->ammo_type>=32||d->capacity<0)return RF_FORMAT;
         if(d->capacity>c->reserve_capacity[d->ammo_type])c->reserve_capacity[d->ammo_type]=d->capacity;
@@ -52,12 +51,14 @@ static int scene_checkpoint_player_semantic_status(int status)
 {return status==RF_NOT_FOUND?RF_FORMAT:status;}
 static int scene_checkpoint_dispatch_validate_once(const void *data,uint32_t bytes,void *context)
 {
-    scene_stream *s=context;rf_player_checkpoint_catalog catalog;rf_composed_checkpoint candidate;rf_checkpoint_placement placement;
+    scene_stream *s=context;rf_player_checkpoint_catalog catalog;rf_composed_checkpoint candidate;rf_composed_checkpoint_v2 composed;rf_checkpoint_placement placement;
     float body[9];int status;
     if(!rf_scene_player_checkpoint_enabled)return scene_checkpoint_validate(data,bytes,s);
     status=scene_checkpoint_player_scope(s,0);if(status)return status;
     status=scene_checkpoint_player_catalog(&catalog);if(status)return status;
-    status=rf_composed_checkpoint_preflight(data,bytes,scene_checkpoint_profile(s),&catalog,&candidate);if(status)return status;
+    status=rf_composed_checkpoint_preflight_v2(data,bytes,scene_checkpoint_profile(s),&catalog,
+        scene_remote_checkpoint_level_hash(),scene_remote_checkpoint_catalog_hash(),&composed);if(status)return status;
+    candidate=composed.base;
     status=rf_player_checkpoint_validate(&candidate.player,&catalog,body,NULL);if(status)return status;
     scene_checkpoint_placement(s,&candidate.player,body,&placement);
     if(s->terrain_authored && s->terrain_source_count>1) {
@@ -70,6 +71,8 @@ static int scene_checkpoint_dispatch_validate_once(const void *data,uint32_t byt
         status=scene_authored_checkpoint_stage_prepare(s,candidate.rfds,candidate.rfds_bytes,&placement,&stage);
         scene_authored_checkpoint_stage_discard(&stage);
     } else status=scene_checkpoint_validate_player(candidate.rfds,candidate.rfds_bytes,s,&placement);
+    if(!status)status=scene_remote_checkpoint_preflight(s,composed.remote,composed.remote_bytes);
+    scene_remote_checkpoint_discard();
     return scene_checkpoint_player_semantic_status(status);
 }
 static int scene_checkpoint_dispatch_validate(const void *data,uint32_t bytes,void *context)
@@ -89,16 +92,19 @@ static int scene_checkpoint_dispatch_validate(const void *data,uint32_t bytes,vo
 }
 static int scene_checkpoint_dispatch_restore(scene_stream *s,unsigned char *data,uint32_t bytes)
 {
-    rf_player_checkpoint_catalog catalog;rf_composed_checkpoint candidate;rf_physics_body_state body;float basis[9],eye[9];int status;
+    rf_player_checkpoint_catalog catalog;rf_composed_checkpoint candidate;rf_composed_checkpoint_v2 composed;rf_physics_body_state body;float basis[9],eye[9];int status;
     if(!rf_scene_player_checkpoint_enabled)return scene_checkpoint_restore(s,data,bytes);
     status=scene_checkpoint_dispatch_validate(data,bytes,s);if(status)return status;
     status=scene_checkpoint_player_catalog(&catalog);if(status)return status;
-    status=rf_composed_checkpoint_preflight(data,bytes,scene_checkpoint_profile(s),&catalog,&candidate);if(status)return status;
+    status=rf_composed_checkpoint_preflight_v2(data,bytes,scene_checkpoint_profile(s),&catalog,
+        scene_remote_checkpoint_level_hash(),scene_remote_checkpoint_catalog_hash(),&composed);if(status)return status;
+    candidate=composed.base;
     status=rf_player_checkpoint_validate(&candidate.player,&catalog,basis,eye);if(status)return status;
     body=scene_actor_body.state;memcpy(body.position,candidate.player.position,12);memcpy(body.next_position,body.position,12);
     memcpy(body.orientation,basis,36);memcpy(body.next_orientation,basis,36);memcpy(body.velocity,candidate.player.velocity,12);
     status=rf_physics_spheres_bounds(scene_actor_body.spheres.items,scene_actor_body.spheres.count,body.position,&body.bounds);if(status)return status;
     status=rf_physics_tensor_world(body.local_tensor,basis,body.world_tensor);if(status)return status;
+    status=scene_remote_checkpoint_preflight(s,composed.remote,composed.remote_bytes);if(status)return status;
     /* Existing RFDS semantic validator and candidate body fit have succeeded.
      * Prepare all fallible player work before RFDS publication; only assignments follow. */
     if(s->terrain_authored && s->terrain_source_count>1) {
@@ -114,7 +120,8 @@ static int scene_checkpoint_dispatch_restore(scene_stream *s,unsigned char *data
         if(!status)status=scene_authored_checkpoint_stage_commit(stage);
         scene_authored_checkpoint_stage_discard(&stage);
     } else status=scene_checkpoint_restore(s,(unsigned char *)candidate.rfds,candidate.rfds_bytes);
-    if(status)return status;
+    if(status){scene_remote_checkpoint_discard();return status;}
+    scene_remote_checkpoint_publish();
     scene_actor_body.state=body;s->player_checkpoint_value=candidate.player;s->player_checkpoint_look=1;
     memcpy(s->actor_spawn,body.position,12);memcpy(campaign_position,body.position,12);memcpy(campaign_orientation,eye,36);
     campaign_player_import=candidate.player.player;campaign_import_pending=1;campaign_item_pending_count=0;

@@ -13,3 +13,5 @@ Native run render-20260918-091615 passes 79 checks over330 frames on stock64MiB.
 
 ## Save format preparation
 RFRM1 explicitly encodes at most32active charges and throw timing in at most7344bytes, with durable identity keys for later host/owner resolution. RFCP2 adds an optional validated RFRM chunk to the existing player/GeoMod container. Its new preflight also accepts RFCP1 as remote-absent; legacy APIs remain unchanged. Total RFSG size cap is unchanged. Focused remote roundtrip/rejection, legacy composed codec and composed-remote tests pass. This is format preparation only: scene save/restore publication and durable key remapping are not connected yet, so active remote charges still are not persisted by gameplay saves.
+
+Follow-up: live stationary DEV RFCP2 save/restore is now connected; see REMOTE-SAVE-INTEGRATION-20260918.md. General campaign saves remain outside the current checkpoint scope.

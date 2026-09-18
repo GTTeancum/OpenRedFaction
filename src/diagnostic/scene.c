@@ -1,6 +1,7 @@
 #include "rf/resource_budget.h"
 #include "rf/geomod_piece_bank.h"
 #include "rf/composed_checkpoint.h"
+#include "rf/remote_checkpoint.h"
 #include "rf/checkpoint_placement.h"
 #include "rf/eye.h"
 #include "rf/scene_preview.h"
@@ -10436,6 +10437,13 @@ static int scene_checkpoint_restore(scene_stream *s,unsigned char *data,uint32_t
 #include "scene_authored_sources_checkpoint.inc"
 #include "scene_authored_checkpoint_write.inc"
 #include "scene_authored_collection_stage.inc"
+static uint32_t scene_remote_checkpoint_level_hash(void);
+static uint32_t scene_remote_checkpoint_catalog_hash(void);
+static int scene_remote_checkpoint_capture(void *,uint32_t,uint32_t *);
+static int scene_remote_checkpoint_preflight(scene_stream *,const void *,uint32_t);
+static void scene_remote_checkpoint_publish(void);
+static void scene_remote_checkpoint_discard(void);
+static void scene_remote_checkpoint_frame0(void);
 #include "scene_player_checkpoint.inc"
 #ifdef RF_IMAGE_XBOX_NATIVE
 static rf_xbox_checkpoint_storage scene_checkpoint_hdd;
@@ -10549,20 +10557,22 @@ static int scene_checkpoint_capture(scene_stream *s)
     FILE *file;scene_terrain_noise_owner *owner=s->terrain_noise;rf_geomod_terrain_view view;
     uint32_t core,bytes,at,i,j,k,prefix=rf_scene_player_checkpoint_enabled?SCENE_PLAYER_CHECKPOINT_PREFIX:0;unsigned char *p;int status=RF_OK;
     rf_player_checkpoint player;rf_player_checkpoint_catalog catalog;
+    static unsigned char remote_blob[RF_REMOTE_CHECKPOINT_MAX];uint32_t remote_bytes=0;
 #ifndef RF_IMAGE_XBOX_NATIVE
     const char *path=getenv("RF_REPLAY_GEOMOD_CHECKPOINT_OUT");if(!path || !*path)return RF_OK;
 #else
     file=fopen("D:\\geomod-checkpoint-out.flag","rb");if(!file && !scene_checkpoint_hdd_save)return RF_OK;if(file)fclose(file);
 #endif
     if(!s->terrain || !owner || s->terrain_shadow_reference || !s->terrain_atlas_registered || owner->bake!=owner->count || owner->sample || s->terrain_checkpoint_loaded){printf("CHECKPOINT_OWNER_GATE %u %u %u %u %u %u %u\n",s->terrain!=NULL,s->terrain_shadow_reference,s->terrain_atlas_registered,owner?owner->bake:0,owner?owner->count:0,owner?owner->sample:0,s->terrain_checkpoint_loaded);status=RF_RANGE;goto done;}
+    if(prefix){status=scene_remote_checkpoint_capture(remote_blob,sizeof(remote_blob),&remote_bytes);if(status)goto done;}
     if(s->terrain_authored) {
         if(!prefix){status=RF_RANGE;goto done;}
         status=scene_checkpoint_player_capture(s,&player,&catalog);if(status)goto done;
         status=scene_checkpoint_allocate(SCENE_CHECKPOINT_MAX);if(status)goto done;
         p=rf_scene_geomod_checkpoint_data+prefix;
         if(s->terrain_source_count>1 && !rf_scene_player_checkpoint_enabled){status=RF_RANGE;goto done;}
-        status=s->terrain_source_count>1?scene_authored_collection_checkpoint_write(s,p,SCENE_CHECKPOINT_MAX-prefix,&bytes):
-            scene_authored_checkpoint_write(s,p,SCENE_CHECKPOINT_MAX-prefix,&bytes);if(status){printf("DETACHED_SAVE_WRITER %d\n",status);goto done;}
+        status=s->terrain_source_count>1?scene_authored_collection_checkpoint_write(s,p,SCENE_CHECKPOINT_MAX-prefix-remote_bytes,&bytes):
+            scene_authored_checkpoint_write(s,p,SCENE_CHECKPOINT_MAX-prefix-remote_bytes,&bytes);if(status){printf("DETACHED_SAVE_WRITER %d\n",status);goto done;}
         goto compose_checkpoint;
     }
     status=rf_geomod_terrain_get(s->terrain,&view);if(status)goto done;
@@ -10573,7 +10583,7 @@ static int scene_checkpoint_capture(scene_stream *s)
         if(bytes>RF_COMPOSED_CHECKPOINT_RFDS_MAX){status=RF_RANGE;goto done;}
         status=scene_checkpoint_player_capture(s,&player,&catalog);if(status)goto done;
     }
-    status=scene_checkpoint_allocate(bytes+prefix);if(status)goto done;p=rf_scene_geomod_checkpoint_data+prefix;memset(p,0,bytes);
+    status=scene_checkpoint_allocate(bytes+prefix+remote_bytes);if(status)goto done;p=rf_scene_geomod_checkpoint_data+prefix;memset(p,0,bytes);
     memcpy(p,"RFDS",4);checkpoint_put(p+4,1);checkpoint_put(p+8,bytes);
     if(strlen(campaign_current_level)>=64){status=RF_RANGE;goto done;}memcpy(p+16,campaign_current_level,strlen(campaign_current_level));memcpy(p+80,s->terrain_checkpoint_identity,128);
     checkpoint_put(p+208,s->terrain_texture_width);checkpoint_put(p+212,s->terrain_texture_height);
@@ -10608,7 +10618,8 @@ static int scene_checkpoint_capture(scene_stream *s)
 compose_checkpoint:
     if(prefix){
         uint32_t total;
-        status=rf_composed_checkpoint_encode(scene_checkpoint_profile(s),&player,&catalog,p,bytes,rf_scene_geomod_checkpoint_data,bytes+prefix,&total);if(status)goto done;
+        status=rf_composed_checkpoint_encode_v2(scene_checkpoint_profile(s),&player,&catalog,p,bytes,remote_blob,remote_bytes,
+            scene_remote_checkpoint_level_hash(),scene_remote_checkpoint_catalog_hash(),rf_scene_geomod_checkpoint_data,bytes+prefix+remote_bytes,&total);if(status)goto done;
         rf_scene_player_checkpoint_state[5]=bytes;bytes=total;p=rf_scene_geomod_checkpoint_data;
         status=scene_checkpoint_dispatch_validate(p,bytes,s);if(status){printf("CHECKPOINT_VALIDATE_REJECT %d\n",status);goto done;}
     }
@@ -12268,7 +12279,7 @@ static int campaign_combat_tick(scene_stream *stream,uint32_t frame,const float 
         status=scene_grenades_tick(stream,frame,position,orientation[2],
             campaign_equipped_slot==5 && !campaign_explicit_unarmed && campaign_player_inventory.owned[campaign_grenade_id] && campaign_player_damage.state.effects.health>0,
             (player_input.fire?1u:0u)|(player_input.alt_fire?2u:0u));if(status)return status;
-        if(!frame)scene_remote_reset();
+        if(!frame)scene_remote_checkpoint_frame0();
         status=scene_remote_tick(stream,frame);if(status)return status;
         status=scene_remote_input(stream,frame,position,orientation[2],
             !campaign_explicit_unarmed && campaign_player_damage.state.effects.health>0 && campaign_player_inventory.owned[campaign_selected_weapon()]?
@@ -14179,6 +14190,7 @@ static int scene_weapon_submit(void *context,uint32_t model,const rf_weapon_hand
     return RF_OK;
 }
 #include "scene_remote_gameplay.inc"
+#include "scene_remote_checkpoint.inc"
 static int scene_grenades_draw(scene_stream *stream)
 {
     scene_weapon_context c={0};uint32_t i,state[20]={0},model;int status;

@@ -7,7 +7,7 @@ Completion basis (user direction,2026-09-18): working late-alpha/early-beta code
 
 - AI mode events: Core callback routing is implemented, but live scheduler binding, mode13 cleanup and vehicle propagation remain; do not count the unbound state adapter as working AI behavior.
 
-- Remote charges: Charge/detonator selection, shared ammo, throw/place, sticking, rendering and blast/GeoMod are integrated; PC and stock64MiB XEMU throw/detonate replay pass with one terrain cut; detached-fragment transport, persistence, placement fidelity and dedicated explosion presentation remain.
+- Remote charges: Charge/detonator selection, shared ammo, throw/place, sticking, rendering and blast/GeoMod are integrated; PC and stock64MiB XEMU throw/detonate replay pass with one terrain cut; planted-charge RFCP2 save/load passes79/80native checks with exact PC/Xbox save bytes and restored detonation; detached-fragment transport, general campaign saves, placement fidelity and explosion presentation remain.
 
 - Shield events: Activate_Capek_Shield now toggles registered actor damage immunity through immediate/delayed event dispatch; focused runtime/scene checks and PC/Xbox builds pass; shield presentation, hit armor consumption and live authored scenario remain.
 

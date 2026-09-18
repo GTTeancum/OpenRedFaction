@@ -17,7 +17,7 @@ int main(void)
     memcpy(source.charges[31].contact.hit.point,p,12);source.charges[31].contact.hit.normal[2]=1;
     host.found=1;host.handle=77;host.orientation[0]=host.orientation[4]=host.orientation[8]=1;
     CHECK(!rf_remote_charge_bind_host(source.charges+31,&host));source.host_keys[31]=123;source.tags[31]=0x20000003;
-    source.held=1;source.pending=1;source.delay=12;
+    source.held=1;source.pending=1;source.delay=12;source.selected_mode=2;
     CHECK(!rf_remote_checkpoint_encode(&source,10,20,bytes,sizeof(bytes),&written));CHECK(written==48+2*228);
     CHECK(!rf_remote_checkpoint_decode(bytes,written,10,20,&decoded));CHECK(!memcmp(&source,&decoded,sizeof(source)));
     CHECK(!rf_remote_checkpoint_encode(&decoded,10,20,saved,sizeof(saved),&again));CHECK(again==written && !memcmp(bytes,saved,written));
