@@ -388,3 +388,30 @@ in this turn. Logs: artifacts/cap-material-build.log and cap-material-audit.log;
 full report: artifacts/geomod-cap-views/report.json. Runtime source is unchanged.
 No new Xbox, audio or visual-parity acceptance is claimed. The next useful
 boundary is actual native upload/binding/sampling, not another CPU fill replay.
+
+
+### Native connected-cap substrate upload
+
+Stock64MiB run artifacts/xemu/render-20260917-204704 restores the existing
+three-source Xbox checkpoint, advances121 neutral input records and passes all77
+checks. The existing --terrain-texture-audit reads the actual renderer texture
+table while the guest is paused at frame13, then reads its GPU-visible physical
+allocation through QMP. Material80 is256x256, opaque swizzled A8B8G8R8, one mip
+level; all262144 bytes exactly equal independently swizzled PC owner bytes.
+Combined with the prior independent installed-asset comparison, this establishes
+the live native rock02 allocation for this connected fixture. Its swizzled SHA256
+is f4ad8635af17ecde55bd1bd054aaa2cbb6dbb78b9313fabcef5d8a5367a88228.
+
+The7692-byte Xbox checkpoint equals the PC reference exactly. Endpoint3335 free
+pages is13.027MiB of headroom, not an arbitrary-history peak guarantee. The native
+framebuffer was inspected: both damaged joints, resting wood debris, room,
+launcher and HUD are visible. This ground-level view does not qualify all cap
+surfaces from above. Audio was disabled. Disc restoration succeeded and the owned
+emulator exited. Log: artifacts/cap-native-texture.log. No GitHub image added.
+
+Source inspection still finds base wrap, lightmap clamp, linear min/mag and a
+single-level texture descriptor, consistent with the prior recovered sampler
+report. This source check is not observation of executed GPU command state.
+Generated-atlas upload and actual draw-time bindings/sampling remain open; the
+base-texture allocation no longer needs another identical byte-comparison run.
+No runtime implementation changed in this qualification.
