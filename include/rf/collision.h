@@ -329,6 +329,20 @@ int rf_collision_sweep_rooms(const rf_collision_room_view *rooms,uint32_t room_c
     const uint32_t *primary,uint32_t primary_count,const uint32_t *children,uint32_t child_count,
     uint32_t query_flags,const float start[3],const float displacement[3],float radius,float limit,
     rf_collision_sweep_room_hit *result,uint32_t *matched);
+/* Bounded validation reuse for a batch of dry sweeps over IMMUTABLE owners.
+ * Zero initialize before the batch; discard/reset before any room/list/node
+ * mutation, including terrain publication. No retained contacts or allocation.
+ * Overflow validates normally. All per-sweep inputs and traversed faces remain
+ * checked. The ordinary sweep API always performs full validation. */
+typedef struct rf_collision_sweep_batch {
+    const rf_collision_room_view *rooms;const uint32_t *primary,*children;
+    uint32_t room_count,primary_count,child_count,ready,tree_count;
+    struct {const rf_collision_node *nodes;uint32_t node_count,face_count;} trees[16];
+} rf_collision_sweep_batch;
+int rf_collision_sweep_rooms_batch(const rf_collision_room_view *rooms,uint32_t room_count,
+    const uint32_t *primary,uint32_t primary_count,const uint32_t *children,uint32_t child_count,
+    uint32_t query_flags,const float start[3],const float displacement[3],float radius,float limit,
+    rf_collision_sweep_batch *batch,rf_collision_sweep_room_hit *result,uint32_t *matched);
 /* Alpha-aware local hierarchy. textures has room_count entries, each with
  * its tree's ordered bitmap table and source-face-aware sampler context.
  * Same room order, skip flags, hit accumulation and scratch contract as

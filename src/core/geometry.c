@@ -1168,6 +1168,7 @@ int rf_geometry_collision_world_sweep_liquid(const rf_geometry_collision_world *
 }
 
 typedef struct geometry_body_context {
+    rf_collision_sweep_batch batch;
     const rf_geometry_collision_world *world;const rf_geometry_collision_movers *movers;
     rf_geometry_body_metadata metadata;void *context;rf_geometry_body_hit value;
     const rf_collision_indexed_texture_backend *room_textures,*mover_textures;
@@ -1188,9 +1189,9 @@ static int geometry_body_query(void *context,const rf_collision_body_request *re
         else if(c->room_textures)status=rf_collision_sweep_rooms_textured(c->world->views,c->world->room_count,
             c->world->primary,c->world->primary_count,c->world->children,c->world->child_count,
             request->flags,request->start,request->delta,request->radius,request->limit,c->room_textures,&world_hit.room,&found);
-        else status=rf_collision_sweep_rooms(c->world->views,c->world->room_count,
+        else status=rf_collision_sweep_rooms_batch(c->world->views,c->world->room_count,
             c->world->primary,c->world->primary_count,c->world->children,c->world->child_count,
-            request->flags,request->start,request->delta,request->radius,request->limit,&world_hit.room,&found);
+            request->flags,request->start,request->delta,request->radius,request->limit,&c->batch,&world_hit.room,&found);
         if(status)return status;if(!found){*matched=0;return RF_OK;}
         room=world_hit.room.room;if(room>=c->world->room_count)return RF_FORMAT;
         tree=&c->world->rooms[room].tree;hit=world_hit.room.tree;

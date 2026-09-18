@@ -1,6 +1,6 @@
 # Red Faction Xbox / PC - open work
 
-- PRIORITY GeoMod fragment contacts: Optimize shared sphere-query work (67% of measured debris cost) and corner sweeps (31%), then add edge/edge and mover-relative coverage; native stage profiling passes79 checks with unchanged state, while active debris updates remain about100ms.
+- PRIORITY GeoMod fragment contacts: Share validation across corner sweeps and reduce remaining sphere cost, then add edge/edge and mover-relative coverage; per-body batching cuts measured active Xbox debris updates99ms to76ms with79 native checks and unchanged saves/visuals.
 
 - PRIORITY GeoMod ordinary walls: Broaden multi-window and neighboring-brush CSG; a live floor-seam rocket now passes77 stock64MiB checks with exact PC/Xbox save bytes and fixture-off/mismatched-save rejection controls, alongside verified wall depth and player traversal.
 
@@ -5556,3 +5556,8 @@ Added a shared opt-in contact audit with seven result records and a64-word guest
 Prepared reciprocal triangle planes/poses and local path rejection preserve both connected destruction histories,123 PC tests, strict first/second-cut floor gates, and79 native checks. Xbox source108 first-cut active debris updates improve125.253ms to103.734ms (17.18%); peak243ms to230ms. Still too expensive; isolate sphere/corner/world traversal cost next, then broaden edge/edge and moving-support behavior. See [performance evidence](docs/research/GEOMOD-FRAGMENT-CONTACT-PERFORMANCE-20260918.md). Estimate remains approximately51% overall /91% GeoMod; focus collision/performance.
 
 Stage timing follow-up: native `render-20260918-025903` isolates5245ms sphere work,2415ms corner work and129ms reciprocal world work across79 active ticks. Repeated room/tree validation is a candidate for query-local reuse, not yet proven as the inner bottleneck.79 native checks, identical save/framebuffer,3325 free pages.
+
+
+## 2026-09-18 scoped sphere-query optimization
+
+Bounded per-body room/tree validation reuse reduces Xbox active debris updates99.443ms to75.532ms (24.05%), sphere time5245ms to3338ms, and peak218ms to159ms. All123 PC tests, both connected histories and floor gates, and79 native checks pass; endpoint memory remains3325 pages and saves/framebuffer are identical. See [query batch evidence](docs/research/GEOMOD-FRAGMENT-QUERY-BATCH-20260918.md). Next share validation across corner sweeps; approximately51% overall /91% GeoMod, focus destruction collision/performance.

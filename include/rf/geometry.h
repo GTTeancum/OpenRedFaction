@@ -431,6 +431,9 @@ typedef int (*rf_geometry_body_metadata)(void *context,uint32_t solid,uint32_t f
  * identity; contact.face_token is that face index (qualified by solid).
  * Serialize shared tree scratch. No static cache, generated faces or response.
  * Errors preserve result/matched; scratch and metadata callbacks may change. */
+/* World geometry and list/node storage must remain immutable for the complete
+ * call, including metadata callbacks. A bounded stack-local validation batch
+ * is discarded on return; no state survives terrain publication. */
 int rf_geometry_collision_body_sweep(const rf_geometry_collision_world *world,
     const rf_geometry_collision_movers *movers,const rf_collision_body_query *body,
     rf_collision_body_mover *scratch,uint32_t capacity,rf_geometry_body_metadata metadata,

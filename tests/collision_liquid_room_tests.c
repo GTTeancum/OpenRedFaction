@@ -14,8 +14,53 @@ static void face_make(rf_collision_face *f,float v[4][3],float height,uint32_t f
 static int fail_sample(void *context,uint32_t index,const rf_collision_face *face,
     int32_t bitmap,const float point[3],uint32_t *color)
 {(void)context;(void)index;(void)face;(void)bitmap;(void)point;(void)color;return RF_IO;}
+static int batch_validation_test(void)
+{
+    rf_collision_face faces[17];float vertices[17][4][3];rf_collision_node nodes[17];
+    rf_collision_tree trees[17];rf_collision_room_view rooms[17];uint32_t stack[17],primary[17],a,b,i,j;
+    rf_collision_sweep_batch batch={0};rf_collision_sweep_room_hit expected,actual,saved;
+    float start[3]={0,2,0},delta[3]={0,-4,0};
+    memset(nodes,0,sizeof(nodes));memset(trees,0,sizeof(trees));memset(rooms,0,sizeof(rooms));
+    for(i=0;i<17;i++) {
+        face_make(faces+i,vertices[i],0,0);primary[i]=i;
+        for(j=0;j<3;j++){nodes[i].minimum[j]=rooms[i].minimum[j]=-10;nodes[i].maximum[j]=rooms[i].maximum[j]=10;}
+        nodes[i].face_count=1;nodes[i].left=nodes[i].right=UINT32_MAX;
+        trees[i].nodes=nodes+i;trees[i].node_count=trees[i].node_capacity=1;
+        trees[i].faces=faces+i;trees[i].face_count=1;trees[i].stack=stack+i;rooms[i].tree=trees+i;
+    }
+    /* Repeated, different query inputs; equal-time ordering, miss, first hit,
+     * and cache overflow must all match the fully checked route. */
+    for(i=0;i<48;i++) {
+        float radius=(i%3)*.1f,limit=(i%4)*.25f;uint32_t flags=i&1;
+        memset(&expected,0,sizeof(expected));memset(&actual,0,sizeof(actual));a=b=99;
+        CHECK(!rf_collision_sweep_rooms(rooms,17,primary,17,NULL,0,flags,start,delta,radius,limit,&expected,&a));
+        CHECK(!rf_collision_sweep_rooms_batch(rooms,17,primary,17,NULL,0,flags,start,delta,radius,limit,&batch,&actual,&b));
+        CHECK(a==b && !memcmp(&expected,&actual,sizeof(expected)));
+    }
+    CHECK(batch.tree_count==16);saved=actual;
+    /* Mutable query inputs are never cached. */
+    CHECK(rf_collision_sweep_rooms_batch(rooms,17,primary,17,NULL,0,0,start,delta,-1,1,&batch,&actual,&b)==RF_FORMAT);
+    CHECK(!memcmp(&saved,&actual,sizeof(actual)));
+    /* The uncached seventeenth tree remains checked on every encounter. */
+    nodes[16].first_face=2;
+    CHECK(rf_collision_sweep_rooms_batch(rooms,17,primary,17,NULL,0,0,start,delta,0,1,&batch,&actual,&b)==RF_RANGE);
+    nodes[16].first_face=0;
+    /* A new batch cannot retain validation from geometry before an edit. */
+    memset(&batch,0,sizeof(batch));nodes[0].first_face=2;
+    CHECK(rf_collision_sweep_rooms_batch(rooms,17,primary,17,NULL,0,0,start,delta,0,1,&batch,&actual,&b)==RF_RANGE);
+    nodes[0].first_face=0;memset(&batch,0,sizeof(batch));
+    rooms[16].minimum[0]=11;
+    CHECK(rf_collision_sweep_rooms_batch(rooms,17,primary,17,NULL,0,0,start,delta,0,1,&batch,&actual,&b)==RF_FORMAT);
+    rooms[16].minimum[0]=-10;memset(&batch,0,sizeof(batch));
+    CHECK(!rf_collision_sweep_rooms_batch(rooms,17,primary,17,NULL,0,0,start,delta,0,1,&batch,&actual,&b));
+    /* Changing list identity invalidates validation without caller reset. */
+    {uint32_t invalid=17;
+     CHECK(rf_collision_sweep_rooms_batch(rooms,17,&invalid,1,NULL,0,0,start,delta,0,1,&batch,&actual,&b)==RF_RANGE);}
+    return 0;
+}
 int main(void)
 {
+    CHECK(!batch_validation_test());
     rf_collision_face faces[3],detail;float vertices[4][4][3];
     rf_collision_node nodes[2];rf_collision_tree trees[2];rf_collision_room_view rooms[2];
     rf_collision_room_liquid_view water[2];rf_collision_sweep_liquid_room_hit result,saved;

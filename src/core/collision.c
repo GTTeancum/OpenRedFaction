@@ -1608,17 +1608,23 @@ static int collision_indexed_sample(void *context,const rf_collision_face *face,
 static int collision_sweep_tree(const rf_collision_node *nodes,uint32_t node_count,
     const rf_collision_face *faces,uint32_t face_count,uint32_t query_flags,
     const float start[3],const float displacement[3],const float normal_displacement[3],float radius,float limit,
-    uint32_t *stack,uint32_t capacity,const rf_collision_indexed_texture_backend *texture,rf_collision_sweep_tree_hit *result,uint32_t *matched)
+    uint32_t *stack,uint32_t capacity,const rf_collision_indexed_texture_backend *texture,rf_collision_sweep_tree_hit *result,uint32_t *matched,rf_collision_sweep_batch *batch)
 {
-    rf_collision_sweep_tree_hit value;float end[3],scratch[3],lo[3],hi[3];uint32_t i,j,used=0,visited=0,hit;int status;
+    rf_collision_sweep_tree_hit value;float end[3],scratch[3],lo[3],hi[3];uint32_t i,j,used=0,visited=0,hit,cached=0;int status;
     if(!start || !displacement || !normal_displacement || !result || !matched || (node_count && (!nodes || !stack || capacity<node_count)) || (face_count && !faces))return RF_RANGE;
     if(!isfinite(radius) || radius<0 || !isfinite(limit) || limit<0 || limit>1)return RF_FORMAT;
     for(j=0;j<3;j++) {if(!isfinite(start[j]) || !isfinite(displacement[j]) || !isfinite(normal_displacement[j]))return RF_FORMAT;end[j]=start[j]+displacement[j];if(!isfinite(end[j]))return RF_FORMAT;}
-    for(i=0;i<node_count;i++) {
+    if(batch)for(i=0;i<batch->tree_count;i++)if(batch->trees[i].nodes==nodes &&
+        batch->trees[i].node_count==node_count && batch->trees[i].face_count==face_count){cached=1;break;}
+    if(!cached)for(i=0;i<node_count;i++) {
         const rf_collision_node *n=nodes+i;
         if(n->first_face>face_count || n->face_count>face_count-n->first_face ||
            (n->left!=UINT32_MAX && n->left>=node_count) || (n->right!=UINT32_MAX && n->right>=node_count))return RF_RANGE;
         for(j=0;j<3;j++)if(!isfinite(n->minimum[j]) || !isfinite(n->maximum[j]) || n->minimum[j]>n->maximum[j])return RF_FORMAT;
+    }
+    if(batch && !cached && batch->tree_count<16) {
+        i=batch->tree_count++;batch->trees[i].nodes=nodes;
+        batch->trees[i].node_count=node_count;batch->trees[i].face_count=face_count;
     }
     value.hits=0;if(node_count)stack[used++]=0;
     while(used) {
@@ -1657,7 +1663,7 @@ int rf_collision_sweep_tree(const rf_collision_node *nodes,uint32_t node_count,
     uint32_t *stack,uint32_t capacity,rf_collision_sweep_tree_hit *result,uint32_t *matched)
 {
     return collision_sweep_tree(nodes,node_count,faces,face_count,query_flags,start,displacement,
-        normal_displacement,radius,limit,stack,capacity,NULL,result,matched);
+        normal_displacement,radius,limit,stack,capacity,NULL,result,matched,NULL);
 }
 int rf_collision_sweep_tree_textured(const rf_collision_node *nodes,uint32_t node_count,
     const rf_collision_face *faces,uint32_t face_count,uint32_t query_flags,
@@ -1667,7 +1673,7 @@ int rf_collision_sweep_tree_textured(const rf_collision_node *nodes,uint32_t nod
 {
     if(!texture || (face_count && !texture->bitmaps))return RF_RANGE;
     return collision_sweep_tree(nodes,node_count,faces,face_count,query_flags,start,displacement,
-        normal_displacement,radius,limit,stack,capacity,texture,result,matched);
+        normal_displacement,radius,limit,stack,capacity,texture,result,matched,NULL);
 }
 
 static uint32_t split_axis(const float *lo,const float *hi)
@@ -1788,7 +1794,7 @@ static int sweep_rooms_prepared(const rf_collision_room_view *rooms,uint32_t roo
     const uint32_t *primary,uint32_t primary_count,const uint32_t *children,uint32_t child_count,
     uint32_t query_flags,const float start[3],const float displacement[3],const float normal_displacement[3],uint32_t active,float radius,float limit,
     const rf_collision_indexed_texture_backend *textures,const rf_collision_room_liquid_view *liquids,
-    rf_collision_sweep_room_hit *result,uint32_t *matched,uint32_t *is_liquid)
+    rf_collision_sweep_room_hit *result,uint32_t *matched,uint32_t *is_liquid,rf_collision_sweep_batch *batch)
 {
     float lo[3],hi[3];uint32_t i,j,k,hits=0,liquid_hit=0,solid_flags=liquids?(query_flags&~0x1000u):query_flags;rf_collision_sweep_room_hit value;int status;
     if(!start || !displacement || !normal_displacement || !result || !matched || (room_count && !rooms) ||
@@ -1802,6 +1808,10 @@ static int sweep_rooms_prepared(const rf_collision_room_view *rooms,uint32_t roo
         lo[j]=(start[j]<end?start[j]:end)-radius;hi[j]=(start[j]<end?end:start[j])+radius;
         if(!isfinite(lo[j]) || !isfinite(hi[j]))return RF_FORMAT;
     }
+    if(batch && (batch->rooms!=rooms || batch->room_count!=room_count ||
+        batch->primary!=primary || batch->primary_count!=primary_count ||
+        batch->children!=children || batch->child_count!=child_count))memset(batch,0,sizeof(*batch));
+    if(!batch || !batch->ready) {
     for(i=0;i<room_count;i++) {
         const rf_collision_room_view *room=rooms+i;
         if(!room->tree || room->skip>255 || room->first_child>child_count || room->child_count>child_count-room->first_child)return RF_RANGE;
@@ -1814,6 +1824,11 @@ static int sweep_rooms_prepared(const rf_collision_room_view *rooms,uint32_t roo
     }
     for(i=0;i<primary_count;i++)if(primary[i]>=room_count)return RF_RANGE;
     for(i=0;i<child_count;i++)if(children[i]>=room_count)return RF_RANGE;
+    if(batch) {
+        batch->rooms=rooms;batch->room_count=room_count;batch->primary=primary;batch->primary_count=primary_count;
+        batch->children=children;batch->child_count=child_count;batch->ready=1;
+    }
+    }
     if(!active) {*matched=0;return RF_OK;}
     for(i=0;i<primary_count;i++) {
         const rf_collision_room_view *parent=rooms+primary[i];
@@ -1824,8 +1839,8 @@ static int sweep_rooms_prepared(const rf_collision_room_view *rooms,uint32_t roo
             if(room_overlaps(room,lo,hi)) {
                 if(textures)status=rf_collision_sweep_tree_textured(tree->nodes,tree->node_count,tree->faces,tree->face_count,solid_flags,
                     start,displacement,normal_displacement,radius,limit,tree->stack,tree->node_capacity,textures+index,&value.tree,&hit);
-                else status=rf_collision_sweep_tree(tree->nodes,tree->node_count,tree->faces,tree->face_count,solid_flags,
-                    start,displacement,normal_displacement,radius,limit,tree->stack,tree->node_capacity,&value.tree,&hit);
+                else status=collision_sweep_tree(tree->nodes,tree->node_count,tree->faces,tree->face_count,solid_flags,
+                    start,displacement,normal_displacement,radius,limit,tree->stack,tree->node_capacity,NULL,&value.tree,&hit,batch);
                 if(status)return status;
                 if(hit) {
                     if(value.tree.hits>UINT32_MAX-hits)return RF_RANGE;
@@ -1868,7 +1883,17 @@ int rf_collision_sweep_rooms(const rf_collision_room_view *rooms,uint32_t room_c
 {
     uint32_t active=displacement && (displacement[0]!=0 || displacement[1]!=0 || displacement[2]!=0);
     return sweep_rooms_prepared(rooms,room_count,primary,primary_count,children,child_count,
-        query_flags,start,displacement,displacement,active,radius,limit,NULL,NULL,result,matched,NULL);
+        query_flags,start,displacement,displacement,active,radius,limit,NULL,NULL,result,matched,NULL,NULL);
+}
+int rf_collision_sweep_rooms_batch(const rf_collision_room_view *rooms,uint32_t room_count,
+    const uint32_t *primary,uint32_t primary_count,const uint32_t *children,uint32_t child_count,
+    uint32_t query_flags,const float start[3],const float displacement[3],float radius,float limit,
+    rf_collision_sweep_batch *batch,rf_collision_sweep_room_hit *result,uint32_t *matched)
+{
+    uint32_t active=displacement && (displacement[0]!=0 || displacement[1]!=0 || displacement[2]!=0);
+    if(!batch || batch->tree_count>16)return RF_RANGE;
+    return sweep_rooms_prepared(rooms,room_count,primary,primary_count,children,child_count,
+        query_flags,start,displacement,displacement,active,radius,limit,NULL,NULL,result,matched,NULL,batch);
 }
 int rf_collision_sweep_rooms_liquid(const rf_collision_room_view *rooms,uint32_t room_count,
     const uint32_t *primary,uint32_t primary_count,const uint32_t *children,uint32_t child_count,
@@ -1880,7 +1905,7 @@ int rf_collision_sweep_rooms_liquid(const rf_collision_room_view *rooms,uint32_t
     uint32_t active=displacement && (displacement[0]!=0 || displacement[1]!=0 || displacement[2]!=0);
     if(!result || !matched || !liquids)return RF_RANGE;
     status=sweep_rooms_prepared(rooms,room_count,primary,primary_count,children,child_count,
-        query_flags,start,displacement,displacement,active,radius,limit,textures,liquids,&value.room,&found,&value.is_liquid);
+        query_flags,start,displacement,displacement,active,radius,limit,textures,liquids,&value.room,&found,&value.is_liquid,NULL);
     if(status)return status;
     if(found)*result=value;
     *matched=found;return RF_OK;
@@ -1894,7 +1919,7 @@ static int collision_transformed_rooms(const rf_collision_room_view *rooms,uint3
     status=rf_collision_query_local(start,displacement,origin,matrix,query_flags,local_start,local_delta,&active);if(status)return status;
     if(!active) {memcpy(local_start,start,12);memcpy(local_delta,displacement,12);}
     return sweep_rooms_prepared(rooms,room_count,primary,primary_count,children,child_count,
-        query_flags,local_start,local_delta,displacement,active,radius,limit,textures,NULL,result,matched,NULL);
+        query_flags,local_start,local_delta,displacement,active,radius,limit,textures,NULL,result,matched,NULL,NULL);
 }
 int rf_collision_transformed_rooms(const rf_collision_room_view *rooms,uint32_t room_count,
     const uint32_t *primary,uint32_t primary_count,const uint32_t *children,uint32_t child_count,
@@ -1922,7 +1947,7 @@ int rf_collision_sweep_rooms_textured(const rf_collision_room_view *rooms,uint32
     uint32_t active=displacement && (displacement[0]!=0 || displacement[1]!=0 || displacement[2]!=0);
     if(!textures)return RF_RANGE;
     return sweep_rooms_prepared(rooms,room_count,primary,primary_count,children,child_count,
-        query_flags,start,displacement,displacement,active,radius,limit,textures,NULL,result,matched,NULL);
+        query_flags,start,displacement,displacement,active,radius,limit,textures,NULL,result,matched,NULL,NULL);
 }
 static int collision_tree_open(const rf_collision_face *faces,uint32_t count,uint32_t budget,rf_collision_tree *tree,void *workspace,uint32_t workspace_bytes)
 {
