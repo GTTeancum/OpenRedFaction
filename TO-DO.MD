@@ -2,7 +2,7 @@
 
 - PRIORITY GeoMod ordinary walls: Broaden multi-window and neighboring-brush CSG; a live floor-seam rocket now passes77 stock64MiB checks with exact PC/Xbox save bytes and fixture-off/mismatched-save rejection controls, alongside verified wall depth and player traversal.
 
-- GeoMod source expansion: Broaden side-beam attached-post interaction and remaining selectors;92 two-shot destruction and108 reload/next-shot now pass77/77 stock64MiB checks with exact uninterrupted PC/Xbox state, while six more profiles have core/identity support pending live selection.
+- GeoMod source expansion: Implement guarded attached-post profiles using the audited two structural neighbors and separate protected detail owners; broaden remaining selectors;92 two-shot destruction and108 reload/next-shot now pass77/77 stock64MiB checks with exact uninterrupted PC/Xbox state, while six more profiles have core/identity support pending live selection.
 
 - GeoMod thin fragments: Broaden contact coverage beyond the beam and concave L fixtures; face-derived samples now rescue pieces missed by regular grids, while Xbox beam continuation still passes76 checks.
 
@@ -5482,3 +5482,8 @@ pass, including private journal/admission import, reset lighting parity and
 full-room digest adapter. Authored live save/load dispatch is still open.
 The separate UV lineage probe intentionally fails12 changed old corners;
 it is a diagnostic target, not a passing regression-suite claim.
+
+
+### 2026-09-18: Attached-post detail ownership correction
+
+Extended the read-only solid-neighborhood census to record compiled room owners, protection fields and parent links. Posts75/79/99/103 each have two structural neighbors plus a protected flat detail trim; the audit now derives all four detail IDs and catches the previously omitted11181. Corrected the side-beam research note: pillar12815 owns ten compiled faces in detail room166, not zero compiled faces. Existing runtime rejection and cavity obstacle protection remain unchanged. Installed-data assertions pass; guarded post profiles, detail identity/save coverage and joint beam/post destruction remain open. See docs/research/GEOMOD-SIDE-BEAMS-20260918.md. Overall estimate remains~51%; GeoMod~89%.

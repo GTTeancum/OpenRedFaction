@@ -4,7 +4,7 @@ The read-only `tools/inspect_geomod_solid_neighborhoods.py` census transforms re
 
 The955-brush export has41 flags0 structural owners with340 compiled room3 faces. All41 authored sources are closed, oriented and convex. Some cross rooms; many overlap detail/portal/air records. Convexity alone does not authorize publication. The census reproduces all six previously admitted post/beam neighborhoods exactly before reporting additional candidates.
 
-Pillar12815 is flags4 (detail), not an ordinary flags0 structural source. It has no face ownership in the parsed static compiled geometry. This does not prove it is absent from other detail representations or can be discarded. Existing binary evidence in TERRAIN-DETAIL-FACE-CLASSIFICATION-20260915.md distinguishes detail-owner byte from invincibility and does not establish a general delete/preserve rule. The cavity obstacle guard remains conservative for it.
+Pillar12815 is flags4 (detail), not an ordinary flags0 structural source. It owns ten compiled faces (2704..2713) in detail room166, whose parent is room3. The earlier claim that it had no compiled ownership was incorrect: the structural room3 census excluded its separate detail room. Its authored life is-1 and initial protection is set; it cannot be discarded on the basis of that census. Existing binary evidence in TERRAIN-DETAIL-FACE-CLASSIFICATION-20260915.md distinguishes detail-owner byte from invincibility and does not establish a general delete/preserve rule. The cavity obstacle guard remains conservative for it.
 
 ## Added source profiles
 
@@ -61,3 +61,23 @@ PC108 settles at(3.75,-.401361,0), writes a3178-byte first-shot save and continu
 `python -B tools/check_side_beam.py --source 108` validates the new continuation; the default92 replay is rerun as a regression after parameterizing the tool. Remaining six side-beam profiles have core/identity support but no live selection. Attached-post interactions and native reload of the Xbox-created108 endpoint remain separate extensions.
 
 Native108 reload/next-shot evidence: `artifacts/xemu/render-20260918-003832`,301frames,77checks passing,3685free pages at endpoint. The5070-byte Xbox output matches uninterrupted PC exactly. Native framebuffer inspected. Stock NXDK build succeeds; harness restored disc and closed emulator.
+
+
+## Attached-post detail ownership audit
+
+The census now reads the installed room records and parent links, reports compiled IDs and room metadata for every neighboring brush, and derives the relevant detail IDs from all four candidate posts. It checks the old six admitted neighborhoods and the four candidate post neighborhoods before writing the report. This is offline ownership evidence, not new runtime destruction support.
+
+| Post | Structural neighbors | Detail UID | Compiled faces | Detail room |
+|---|---|---|---|---|
+|75|70,92|11179|1565,1566|65|
+|79|70,92|11178|1563,1564|64|
+|99|70,108|11181|1569,1570|67|
+|103|70,108|11180|1567,1568|66|
+
+All four also overlap earlier air66. Each trim has flags4, two compiled faces with flags0x1c8, and a zero-thickness authored Z extent at either-2.5 or2.5. Each owner room has detail byte1, life-1, initial protection set and parent3. These are thin detail surfaces touching the post at its lower outer edge, spanning Y-1.5..-.75. The previous hand-selected detail list missed11181; deriving it from the post relationships removes that assumption.
+
+Room protection is decoded from the same fields as `rf_geometry_initial_collision_filter`: room byte34 is owner kind, and float+36 greater than zero clears initial protection. Binary evidence at4e36a0 and the CSG candidate gates is recorded in GEOMOD-ELIGIBILITY-DETAIL-COLLISION-20260915.md and TERRAIN-DETAIL-FACE-CLASSIFICATION-20260915.md. Protection and detail classification are distinct; neither authorizes blindly deleting these faces or treating their flat bounds as solid terrain.
+
+Implementation still required: admit the two actual structural neighbors through explicit post profiles; retain and identify the separate detail owners; reject cuts that intersect protected detail until a supported interaction policy exists; include that retained geometry in identity/save validation; then verify post cuts and shared beam/post blasts. The current runtime still rejects these unsupported post neighborhoods, and the cavity pillar guard remains intact. No new playable behavior or native validation is claimed by this audit.
+
+Validation: `python -B tools/inspect_geomod_solid_neighborhoods.py` passes all installed-data assertions and writes `artifacts/geomod-solid-neighborhoods.json` with input hashes. Results remain955 brushes,41 ordinary room3 owners,340 compiled structural faces and41 closed convex authored sources. No build or emulator run is needed for this read-only research change.
