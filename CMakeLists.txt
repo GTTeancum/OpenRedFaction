@@ -721,3 +721,7 @@ add_test(NAME scene_ai_hearing COMMAND rf_scene_ai_hearing_tests)
 add_executable(rf_scene_switch_objects_tests tests/scene_switch_objects_tests.c src/diagnostic/animation.c)
 target_link_libraries(rf_scene_switch_objects_tests PRIVATE rf_core)
 add_test(NAME scene_switch_objects COMMAND rf_scene_switch_objects_tests)
+
+add_executable(rf_scene_ai_reload_tests tests/scene_ai_reload_tests.c src/diagnostic/animation.c)
+target_link_libraries(rf_scene_ai_reload_tests PRIVATE rf_core)
+add_test(NAME scene_ai_reload COMMAND rf_scene_ai_reload_tests)

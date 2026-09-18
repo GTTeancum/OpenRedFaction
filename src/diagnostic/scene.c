@@ -8982,6 +8982,7 @@ static float combat_enemy_primary_damage(const rf_weapon_primary_definition *def
 }
 #include "scene_npc_rubble_test.inc"
 #include "scene_ai_gameplay.inc"
+#include "scene_ai_reload.inc"
 #include "scene_ai_shotgun.inc"
 static int campaign_enemy_tick(scene_stream *stream,uint32_t frame,const float player_eye[3])
 {
@@ -9067,7 +9068,8 @@ static int campaign_enemy_tick(scene_stream *stream,uint32_t frame,const float p
             uint32_t ready,event;
             status=campaign_enemy_ammo_ready(&owner->inventory,campaign_weapon_supply.definitions+weapon,
                 definition,weapon,frame,&owner->combat_reload_due,&owner->combat_reload_weapon,&ready,&event);if(status)return status;
-            if(event==1)owner->combat_burst_remaining=0;
+            if(event==1){owner->combat_burst_remaining=0;
+                status=campaign_enemy_reload_presentation(i);if(status && status!=RF_NOT_FOUND)return status;}
             if(rf_scene_combat_trace && (event==1 || event==2))printf("ENEMY_RELOAD_TRACE %u %u %u %d\n",frame,campaign_seeds.records.items[i].record.uid,event,owner->inventory.loaded[weapon]);
             if(!ready)continue;
         }

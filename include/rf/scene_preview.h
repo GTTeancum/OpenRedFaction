@@ -785,6 +785,7 @@ extern uint32_t rf_scene_authored_identity[10];
 extern uint32_t rf_scene_terrain_draw[5];
 extern uint32_t rf_scene_terrain_noise[8];
 extern uint32_t rf_scene_rockets[8];
+extern uint32_t rf_scene_grenades[8];
 extern uint32_t rf_scene_rocket_blast[8];
 extern uint32_t rf_scene_rocket_visual[8];
 /* Poll once before stance/animation/physics. RF_NOT_FOUND ends the stream cleanly.

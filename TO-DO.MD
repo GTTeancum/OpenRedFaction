@@ -5,7 +5,7 @@ Completion basis (user direction,2026-09-18): working late-alpha/early-beta code
 
 - AI hearing: Player gunfire now alerts nearby hostile guards without replacing scripted targets; focused checks pass, live encounter tuning remains.
 
-- AI combat: Authored handgun cadence, rifle bursts and finite magazine/reload logic are integrated; live handgun firing and focused burst/reload checks pass, with Xbox build passing; shotgun pellet damage, cover and death cutoff are now integrated and focused checks pass; live tuning remains.
+- AI combat: Authored handgun cadence, rifle bursts and finite magazine/reload logic are integrated; live handgun firing and focused burst/reload checks pass, with Xbox build passing; shotgun pellet damage, cover and death cutoff are integrated; authored NPC reload animations now start with reloads and focused checks pass; live tuning remains.
 
 - Scripted visibility: Switch object links hide/show registered NPCs with focused routing checks passing; other renderable classes remain.
 
@@ -13,7 +13,7 @@ Completion basis (user direction,2026-09-18): working late-alpha/early-beta code
 
 - Scripted interactions: Teleport_Player is integrated with queued frame-boundary relocation and focused runtime/pose checks passing; Xbox builds, while live authored-event behavior and vehicle teleport remain unverified.
 
-- PRIORITY Weapons: Grenade selection, reserve ammo, primary/alternate animations, flight, model drawing and explosions are integrated; live PC timed/impact throws pass with an impact GeoMod cut, and Xbox builds; XEMU validation, water/support behavior and grenade-specific effects remain.
+- PRIORITY Weapons: Grenade selection, reserve ammo, primary/alternate animations, flight, model drawing and explosions are integrated; live PC timed/impact throws pass with an impact GeoMod cut, and Xbox builds; stock64MiB XEMU impact throw/cut now matches PC across78 checks with14.47MiB endpoint headroom; water/support behavior, world-flight visual review and grenade-specific effects remain.
 
 - DEFERRED GeoMod crush: Resolve confined moving-platform overlap and controller admission after core integration; separating static contact is fixed and passes78 Xbox checks, but the ceiling stress still has17 limited frames.
 

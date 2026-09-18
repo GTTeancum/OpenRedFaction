@@ -27,3 +27,11 @@ Live PC ordinary input: artifacts/grenade-live/throw.bin selects five times, sta
 AI firearm hearing and Switch NPC visibility also integrated; focused scene_ai_hearing and scene_switch_objects pass. No visual/live encounter claim for these two helpers.
 
 Overall rough implementation61%; current weapons work (grenade first pass) approximately75%. Remaining grenade work includes native memory/runtime validation, world-flight visual confirmation, water/support handling and separate effects. Report current-system percentage instead of GeoMod going forward.
+
+## Native grenade acceptance and NPC reload
+
+artifacts/xemu/render-20260918-080706 completes240 frames on stock64MiB,78 checks PASS. GRENADES exactly matches PC [1,1,1,1,0,0,0,0]: start/release/contact/detonation, no live projectile or failures at end. GeoMod has one successful edit and zero error; budget12,138,664 bytes <=13,631,488. Endpoint3704 free pages (14.47MiB), not a peak-memory measurement. Native framebuffer inspected: grenade first-person view, smoke/debris and ammo7 match expected endpoint. Smoke obscures cut shape; no whole-flight visual claim. Harness exited its owned emulator and restored the disc.
+
+Added native grenade diagnostics comparison to the retained harness. Authored NPC reload action39 now starts on finite-ammo reload begin, using actor weapon-specific mapping/sound; missing clips remain optional. Focused scene_ai_reload passes and both platforms build; this reload change postdates the native grenade run and has no new live acceptance.
+
+Grenade first-pass estimate85%; overall remains61%. Prioritize missing weapons/systems over remaining grenade polish.
