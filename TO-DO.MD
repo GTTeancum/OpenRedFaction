@@ -8,7 +8,7 @@
 
 - GeoMod publication: Broaden clipped-face partition coverage to other source geometry; the repaired shot, save/reload and subsequent rocket now pass76/75/76 native checks, with exact uninterrupted PC checkpoints, while broader histories remain open.
 
-- GeoMod player saves: Verify live larger-fragment extraction and moving supports; eight synthetic polygon-path support/landing cases now pass, while both-post standing/save/walk-away passes76 native checks per run with exact PC continuation.
+- GeoMod player saves: Verify native reload and walk-away from large-fragment support; a real radius1.213922 beam section now admits ordinary jump/standing with330 polygon contacts and76 stock64MiB checks, while standing-save continuation matches exactly on PC.
 
 - GeoMod fragment lifecycle: Investigate the generic object world-exit path before adding spatial retirement; recovered lifetime and debris paths do not justify an arbitrary kill height, and healthy terrain fragments have disabled lifetime timers.
 
@@ -18,7 +18,7 @@
 
 - Player saves: Audit other replay save boundaries and broaden residual-velocity coverage; RFPLv2 standing save/reload passes74/74 stock64MiB checks and exact walk-away continuation, while legacy zero-velocity RFPLv1 remains compatible.
 
-- GeoMod player contacts: Broaden support to rotating and larger fragments; lift/stop/retire and release to ordinary gravity both pass76 stock64MiB checks with exact160-word PC motion samples and final saves, and Xbox builds now correctly rebuild changed scene includes.
+- GeoMod player contacts: Broaden rotating-fragment and shape coverage; real large-fragment standing, lift/stop/retire and gravity release each pass76 stock64MiB checks with exact PC state, and Xbox builds correctly rebuild changed scene includes.
 
 - GeoMod vehicle contacts: Verify admitted use-kind1 vehicle contacts with larger fragments;240 original cases confirm ordinary miner/AI-response kind9 is excluded, so humanoid rubble pushing is not a missing fidelity feature.
 
