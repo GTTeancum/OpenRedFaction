@@ -78,6 +78,17 @@ int main(void)
         owner.uid=67;cavity.uid=67;CHECK(encode_reject(&cavity,&owner,1,128));
         owner.uid=cavity.uid=66;owner.source_count=cavity.source_count=13;
         CHECK(encode_reject(&cavity,&owner,1,128));
+        cavity.uid=owner.uid=148;cavity.source_count=owner.source_count=22;
+        CHECK(!rf_authored_owner_extension_encode(&cavity,&owner,0,encoded,128));
+        CHECK(!rf_authored_owner_extension_decode(encoded,128,&owner,0,&decoded));
+        CHECK(decoded.uid==148 && decoded.source_count==22 && !decoded.neighbor_count);
+        CHECK(!rf_authored_owner_extension_encode(&cavity,&owner,1,encoded,128));
+        CHECK(!rf_authored_owner_extension_decode(encoded,128,&owner,1,&decoded));
+        owner.source_count=cavity.source_count=21;CHECK(encode_reject(&cavity,&owner,1,128));
+        owner.source_count=cavity.source_count=14;CHECK(encode_reject(&cavity,&owner,1,128));
+        owner.source_count=cavity.source_count=22;owner.uid=cavity.uid=147;CHECK(encode_reject(&cavity,&owner,1,128));
+        owner.uid=cavity.uid=148;cavity.mode=1;
+        CHECK(rf_authored_owner_collection_encode(&cavity,&owner,2,0,encoded,128)==RF_FORMAT);
         puts("PASS cavity zero-neighbor owner: exact UID/face profile and atomic rejection");
     }
     value.material_policy=2;expected.material_policy=0;

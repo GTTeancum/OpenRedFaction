@@ -5,7 +5,7 @@ Completion basis (user direction,2026-09-18): working late-alpha/early-beta code
 
 - Player impacts: Real fall/high-speed collision damage now passes PC/Xbox with shared health/armor handling; relocation and duplicate-contact guards pass focused checks; broader moving-object contacts remain.
 
-- Vehicles: Driller driving, entry/exit, chassis collision and cockpit work on PC/Xbox; seated drilling now cuts actual DEV wall/floor geometry and animates separate bit models on PC/Xbox, with exact native drill/vehicle state agreement and12.14MiB free; ordinary gunfire/rocket/blast damage and destruction now pass PC/Xbox with11.83MiB free; NPC shotgun, player sniper/rail and direct flame vehicle hits now pass focused cover/damage checks and PC/Xbox builds; the save codec and staged inertia conversion pass focused checks, but live persistence, remaining special-weapon coverage, other vehicle classes and campaign integration are open.
+- Vehicles: Driller driving, entry/exit, chassis collision and cockpit work on PC/Xbox; seated drilling now cuts actual DEV wall/floor geometry and animates separate bit models on PC/Xbox, with exact native drill/vehicle state agreement and12.14MiB free; ordinary gunfire/rocket/blast damage and destruction now pass PC/Xbox with11.83MiB free; NPC shotgun, player sniper/rail and direct flame vehicle hits now pass focused cover/damage checks and PC/Xbox builds; parked vehicle checkpoint save/restore now passes PC/Xbox with identical saved bytes and11.75MiB free, with occupied saves, remaining special-weapon coverage, other vehicle classes and campaign integration open.
 
 - Conventional firearms: Machine Pistol, Heavy Machine Gun, Precision Rifle and Undercover handgun primary firing now work in a bounded DEV profile, including HMG alternate and rifle zoom; PC visuals pass and native HMG shot/ammo state matches with11.59MiB free; Machine Pistol magazine switching now passes PC/Xbox; Undercover suppressor attach/remove now passes PC/Xbox; authored Machine Pistol/HMG/precision pickups and sparse views are now wired, with MP session mode carry; broader live AI encounters, full live level handoffs and general saves remain.
 
@@ -5794,3 +5794,16 @@ World and committed-mover fragment queries now include bounded edge/edge CCD, wi
 
 - Direct player flame pulses now use the actual posed chassis sphere union, authored fire damage, world/rubble occlusion and host/occupant exclusions. Chassis also occludes flame toward NPCs; one pulse causes one vehicle dose. Actual-resource focused check and PC/Xbox builds pass. No new live Xbox flame replay; persistent vehicle burns remain open.
 - RFCP3 can carry the validated RFVC block after existing player/terrain/remote-charge data, preserving the fixed storage cap and backward reads of RFCP1/2. Focused format/compatibility tests pass. Live save dispatch still uses RFCP2 until candidate-world placement and driver publication are wired.
+
+
+### Parked Driller checkpoint integration (2026-09-18)
+
+- Live checkpoint capture writes RFCP3 with RFVC when the Driller is present; nonvehicle saves keep RFCP2. Restore admits the actual eight-sphere chassis against the pending complete terrain and staged rubble, also rejecting overlap with the saved on-foot player. Registration identity remains current; rigid pose/motion, health, destroyed state and drill counters restore before simulation.
+- Extended exact cavity checkpoint profile admission to UID148/22 planes/zero neighbors and restored it without a fabricated extracted-solid registry. Existing cavity66 and solid/collection rules remain.
+- Focused placement/publication and cavity-format checks pass. PC save/resume/control replay passes: altered checkpoint health850 restores and resaves850, position continuation delta0.00002432, basis0.0001131, velocity0.00001911, angular velocity0.0005279. Actual resumed framebuffer inspected: chassis, test room and player weapon remain visible. PC/Xbox builds pass.
+- Scope: parked/unoccupied DEV Driller, zero-cut live continuation currently verified. Occupied saves still rejected; drilling-history continuation and campaign vehicle persistence require follow-up. Vehicles approximately58%; overall approximately72%.
+
+- Native parked restore passes artifacts/xemu/render-20260918-143505:60frames, exact PC/Xbox1196-byte save agreement,3008freepages (11.75MiB), disc restored. Native framebuffer inspected with chassis/world/player weapon intact. XEMU closed by harness.
+- Found and corrected legacy20-face/60-vertex bounds in the scene checkpoint material pass: star cutters now use the core192-vertex/64-face limits; convex limits stay unchanged. This unblocks encoding actual drill geometry; live post-drilling save continuation remains a separate check.
+
+- Actual cutter-history regression passes: single78vertices/26faces and double192vertices/64faces encode then remap materials and return byte-exact; convex20-face cap remains enforced.

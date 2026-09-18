@@ -1,6 +1,7 @@
 #include "rf/resource_budget.h"
 #include "rf/geomod_piece_bank.h"
 #include "rf/composed_checkpoint.h"
+#include "rf/vehicle_checkpoint.h"
 #include "rf/remote_checkpoint.h"
 #include "rf/checkpoint_placement.h"
 #include "rf/eye.h"
@@ -740,6 +741,7 @@ typedef struct scene_stream {
     scene_weapon_custom_actions *machine_custom[2];uint32_t machine_transition_ticks[2];
     scene_driller_cockpit *driller_cockpit;
     scene_driller_runtime *driller_runtime;
+    rf_vehicle_checkpoint vehicle_checkpoint;uint32_t vehicle_checkpoint_pending;
     scene_driller_bit_animation *driller_bits;uint32_t driller_bit_base,driller_bit_textures;scene_driller_damage driller_damage_prototype;scene_driller_weapon driller_weapon;scene_driller_resources *driller;float driller_position[3],driller_basis[9];uint32_t driller_base,driller_textures;
     scene_undercover_resources *undercover;uint32_t undercover_base,undercover_textures,undercover_alt_held;
     rf_player_weapon *player_weapon[SCENE_WEAPON_SLOTS];uint32_t player_weapon_base[SCENE_WEAPON_SLOTS],player_weapon_textures[SCENE_WEAPON_SLOTS],player_shots,player_reload,player_slot,player_pose_frame;
@@ -10399,8 +10401,10 @@ static int scene_checkpoint_materials_mode(const unsigned char *data,uint32_t by
     if(bytes<28 || memcmp(data,"RGCH",4) || checkpoint_u32(data+4)!=1 || checkpoint_u32(data+8)!=bytes)return RF_FORMAT;
     count=checkpoint_u32(data+12);if(count>RF_GEOMOD_CUT_LIMIT)return RF_FORMAT;
     for(i=0;i<count;i++) {
-        uint32_t nv,nf;if(bytes-at<24)return RF_FORMAT;nv=checkpoint_u32(data+at+4);nf=checkpoint_u32(data+at+8);
-        if(!nv || nv>60 || nf<4 || nf>20 || bytes-at-24<nv*20+nf*16)return RF_FORMAT;at+=24+nv*20;
+        uint32_t nv,nf,star;if(bytes-at<24)return RF_FORMAT;star=checkpoint_u32(data+at);nv=checkpoint_u32(data+at+4);nf=checkpoint_u32(data+at+8);
+        if(star>1 || !nv || nv>(star?RF_GEOMOD_STAR_VERTEX_LIMIT:60u) || nf<4 ||
+           nf>(star?RF_GEOMOD_STAR_FACE_LIMIT:20u) || bytes-at-24<nv*20+nf*16)return RF_FORMAT;
+        at+=24+nv*20;
         for(j=0;j<nf;j++,at+=16){if(checkpoint_u32(data+at+8)!=from)return RF_FORMAT;if(publish)checkpoint_put((unsigned char *)data+at+8,to);}
     }
     return at==bytes?RF_OK:RF_FORMAT;
@@ -10693,6 +10697,9 @@ static int scene_remote_checkpoint_preflight(scene_stream *,const void *,uint32_
 static void scene_remote_checkpoint_publish(void);
 static void scene_remote_checkpoint_discard(void);
 static void scene_remote_checkpoint_frame0(void);
+static int scene_vehicle_checkpoint_capture(scene_stream *,void *,uint32_t *);
+static int scene_vehicle_checkpoint_read(scene_stream *,const void *,uint32_t,rf_vehicle_checkpoint *);
+static int scene_vehicle_checkpoint_fit(scene_stream *,scene_authored_collection_stage *,scene_authored_checkpoint_stage *,const rf_vehicle_checkpoint *,const rf_checkpoint_placement *);
 #include "scene_player_checkpoint.inc"
 #ifdef RF_IMAGE_XBOX_NATIVE
 static rf_xbox_checkpoint_storage scene_checkpoint_hdd;
@@ -10808,6 +10815,7 @@ static int scene_checkpoint_capture(scene_stream *s)
     uint32_t core,bytes,at,i,j,k,prefix=rf_scene_player_checkpoint_enabled?SCENE_PLAYER_CHECKPOINT_PREFIX:0;unsigned char *p;int status=RF_OK;
     rf_player_checkpoint player;rf_player_checkpoint_catalog catalog;
     static unsigned char remote_blob[RF_REMOTE_CHECKPOINT_MAX];uint32_t remote_bytes=0;
+    unsigned char vehicle_blob[RF_VEHICLE_CHECKPOINT_BYTES];uint32_t vehicle_bytes=0;
 #ifndef RF_IMAGE_XBOX_NATIVE
     const char *path=getenv("RF_REPLAY_GEOMOD_CHECKPOINT_OUT");if(!path || !*path)return RF_OK;
 #else
@@ -10815,14 +10823,15 @@ static int scene_checkpoint_capture(scene_stream *s)
 #endif
     if(!s->terrain || !owner || s->terrain_shadow_reference || !s->terrain_atlas_registered || owner->bake!=owner->count || owner->sample || s->terrain_checkpoint_loaded){printf("CHECKPOINT_OWNER_GATE %u %u %u %u %u %u %u\n",s->terrain!=NULL,s->terrain_shadow_reference,s->terrain_atlas_registered,owner?owner->bake:0,owner?owner->count:0,owner?owner->sample:0,s->terrain_checkpoint_loaded);status=RF_RANGE;goto done;}
     if(prefix){status=scene_remote_checkpoint_capture(remote_blob,sizeof(remote_blob),&remote_bytes);if(status)goto done;}
+    if(prefix){status=scene_vehicle_checkpoint_capture(s,vehicle_blob,&vehicle_bytes);if(status)goto done;}
     if(s->terrain_authored) {
         if(!prefix){status=RF_RANGE;goto done;}
         status=scene_checkpoint_player_capture(s,&player,&catalog);if(status)goto done;
         status=scene_checkpoint_allocate(SCENE_CHECKPOINT_MAX);if(status)goto done;
         p=rf_scene_geomod_checkpoint_data+prefix;
         if(s->terrain_source_count>1 && !rf_scene_player_checkpoint_enabled){status=RF_RANGE;goto done;}
-        status=s->terrain_source_count>1?scene_authored_collection_checkpoint_write(s,p,SCENE_CHECKPOINT_MAX-prefix-remote_bytes,&bytes):
-            scene_authored_checkpoint_write(s,p,SCENE_CHECKPOINT_MAX-prefix-remote_bytes,&bytes);if(status){printf("DETACHED_SAVE_WRITER %d\n",status);goto done;}
+        status=s->terrain_source_count>1?scene_authored_collection_checkpoint_write(s,p,SCENE_CHECKPOINT_MAX-prefix-remote_bytes-vehicle_bytes,&bytes):
+            scene_authored_checkpoint_write(s,p,SCENE_CHECKPOINT_MAX-prefix-remote_bytes-vehicle_bytes,&bytes);if(status){printf("DETACHED_SAVE_WRITER %d\n",status);goto done;}
         goto compose_checkpoint;
     }
     status=rf_geomod_terrain_get(s->terrain,&view);if(status)goto done;
@@ -10833,7 +10842,7 @@ static int scene_checkpoint_capture(scene_stream *s)
         if(bytes>RF_COMPOSED_CHECKPOINT_RFDS_MAX){status=RF_RANGE;goto done;}
         status=scene_checkpoint_player_capture(s,&player,&catalog);if(status)goto done;
     }
-    status=scene_checkpoint_allocate(bytes+prefix+remote_bytes);if(status)goto done;p=rf_scene_geomod_checkpoint_data+prefix;memset(p,0,bytes);
+    status=scene_checkpoint_allocate(bytes+prefix+remote_bytes+vehicle_bytes);if(status)goto done;p=rf_scene_geomod_checkpoint_data+prefix;memset(p,0,bytes);
     memcpy(p,"RFDS",4);checkpoint_put(p+4,1);checkpoint_put(p+8,bytes);
     if(strlen(campaign_current_level)>=64){status=RF_RANGE;goto done;}memcpy(p+16,campaign_current_level,strlen(campaign_current_level));memcpy(p+80,s->terrain_checkpoint_identity,128);
     checkpoint_put(p+208,s->terrain_texture_width);checkpoint_put(p+212,s->terrain_texture_height);
@@ -10868,8 +10877,11 @@ static int scene_checkpoint_capture(scene_stream *s)
 compose_checkpoint:
     if(prefix){
         uint32_t total;
-        status=rf_composed_checkpoint_encode_v2(scene_checkpoint_profile(s),&player,&catalog,p,bytes,remote_blob,remote_bytes,
-            scene_remote_checkpoint_level_hash(),scene_remote_checkpoint_catalog_hash(),rf_scene_geomod_checkpoint_data,bytes+prefix+remote_bytes,&total);if(status)goto done;
+        if(vehicle_bytes)status=rf_composed_checkpoint_encode_v3(scene_checkpoint_profile(s),&player,&catalog,p,bytes,remote_blob,remote_bytes,
+            scene_remote_checkpoint_level_hash(),scene_remote_checkpoint_catalog_hash(),vehicle_blob,vehicle_bytes,rf_scene_geomod_checkpoint_data,bytes+prefix+remote_bytes+vehicle_bytes,&total);
+        else status=rf_composed_checkpoint_encode_v2(scene_checkpoint_profile(s),&player,&catalog,p,bytes,remote_blob,remote_bytes,
+            scene_remote_checkpoint_level_hash(),scene_remote_checkpoint_catalog_hash(),rf_scene_geomod_checkpoint_data,bytes+prefix+remote_bytes,&total);
+        if(status)goto done;
         rf_scene_player_checkpoint_state[5]=bytes;bytes=total;p=rf_scene_geomod_checkpoint_data;
         status=scene_checkpoint_dispatch_validate(p,bytes,s);if(status){printf("CHECKPOINT_VALIDATE_REJECT %d\n",status);goto done;}
     }
@@ -13062,6 +13074,10 @@ static int campaign_inspect_camera(scene_stream *stream,float position[3],float 
 #include "scene_driller_live_contact.inc"
 #include "scene_driller_runtime.inc"
 #include "scene_driller_flame.inc"
+#include "scene_driller_checkpoint_adapter.inc"
+#include "scene_driller_checkpoint_placement.inc"
+#include "scene_driller_checkpoint_publish.inc"
+#include "scene_driller_checkpoint_live.inc"
 static int actor_follow_view(void *context,uint32_t frame,const rf_motion_controller *controller,rf_model_projection *view)
 {
     scene_stream *stream=context;float position[3],orientation[3][3];
@@ -13081,6 +13097,12 @@ static int actor_follow_view(void *context,uint32_t frame,const rf_motion_contro
         stream->initial_swim_controller=*controller;stream->initial_swim_controller_ready=1;
     }
     if(profile_clock && profile_active)world_clock=profile_clock();
+    if(stream->vehicle_checkpoint_pending){
+        status=scene_driller_runtime_open(stream);if(status)return status;
+        status=scene_driller_checkpoint_apply_parked(stream,&stream->vehicle_checkpoint);if(status)return status;
+        stream->vehicle_checkpoint_pending=0;
+        printf("VEHICLE_CHECKPOINT_LOAD %.9g %u\n",(double)stream->vehicle_checkpoint.health,stream->vehicle_checkpoint.accepted_drill_cuts);
+    }
     status=scene_driller_runtime_tick(stream,frame);if(status)return status;
     status=scene_driller_active(stream)?scene_driller_player_camera(&stream->driller_runtime->entry,position,orientation):actor_listener_pose(stream,frame,controller,position,orientation);if(status){rf_scene_profile_stage[1]=101;return status;}
     /* Rendering follows the committed owner, never diagnostic counters: reload
