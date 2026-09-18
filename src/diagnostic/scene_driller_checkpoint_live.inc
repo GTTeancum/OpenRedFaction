@@ -71,7 +71,7 @@ static int scene_vehicle_checkpoint_player_capture(scene_stream *s,rf_player_che
     if(!r || !r->entry.session.active || !r->player.saved || !r->entry.host.alive ||
        campaign_player_damage.state.effects.health<=0 || campaign_crouched || campaign_climb.region ||
        combat_trigger.cooldown || combat_trigger.remaining || combat_trigger.delay || combat_trigger.held || rf_scene_combat[6] ||
-       riot_charge_remainder || rf_scene_rockets[3] || scene_apc_primary_pending(s) || scene_ai_grenade_pending() || scene_ai_rocket_pending() ||
+       riot_charge_remainder || rf_scene_rockets[3] || scene_apc_primary_pending(s) || scene_apc_secondary_pending(s) || scene_ai_grenade_pending() || scene_ai_rocket_pending() ||
        scene_fusion_projectile_pending() || scene_burning_save_pending() || scene_flame_input_pending() || scene_flame_canister_save_pending())return RF_RANGE;
     status=scene_driller_checkpoint_capture(s,&vehicle);if(status)return status;
     status=scene_checkpoint_player_catalog(catalog);if(status)return status;

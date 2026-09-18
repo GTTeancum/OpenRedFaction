@@ -17,6 +17,12 @@ static int scene_apc_primary_launch(void *context,uint32_t source,const scene_ve
     *accepted=0;
     for(i=0;i<SCENE_APC_PRIMARY_CAPACITY&&state->rounds[i].flight.active;i++){}
     if(i==SCENE_APC_PRIMARY_CAPACITY){++rf_scene_apc_primary[5];return RF_OK;}
+    if(c->stream->apc_aim_active){
+        status=scene_apc_aim_direction(c->stream,pose+9,spread);
+        if(status==RF_NOT_FOUND)return RF_OK;
+        if(status)return status;
+        direction=spread;
+    }
     status=rf_weapon_spread_ray(direction,definition->spread,&random,spread);if(status)return status;
     status=rf_weapon_flight_launch(&round.flight,pose+9,spread,definition->speed,definition->lifetime,definition->radius);if(status)return status;
     round.source=source;round.driver=c->driver;round.damage=definition->damage;round.kind=definition->damage_kind;
@@ -42,8 +48,10 @@ static int scene_apc_primary_damage(scene_stream *stream,uint32_t frame,const sc
         index=tag&0xffffu;if(index>=campaign_npc_body_count)return RF_RANGE;
         target=campaign_npc_bodies[index].registration.handle;
         if(target==round->driver||target==round->source)return RF_OK;
-        status=scene_npc_shield_receive(index,start,end,contact->hit.fraction,request.amount,request.kind,&accepted,&broken);if(status)return status;
-        if(accepted)return RF_OK;
+        if(round->kind==1 || round->kind==2){
+            status=scene_npc_shield_receive(index,start,end,contact->hit.fraction,request.amount,request.kind,&accepted,&broken);if(status)return status;
+            if(accepted)return RF_OK;
+        }
         status=rf_scene_npc_damage(target,&request,1,bits,&effects,&amount);
         if(!status&&campaign_npc_bodies[index].damage.effects.health<=0){
             status=rf_scene_npc_death_entry(target,&entered);

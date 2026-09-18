@@ -1,11 +1,11 @@
 # Red Faction Xbox / PC - open work
 
-Completion basis (user direction,2026-09-18): working late-alpha/early-beta code implementation. Overall approximately72%; GeoMod100% for the first playable milestone, accepted by the user. GeoMod items below are deferred refinement and coverage, not prerequisites to moving on. This does not assert retail polish, complete campaign integration or resolution of every known defect.
+Completion basis (user direction,2026-09-18): working late-alpha/early-beta code implementation. Overall approximately73%; GeoMod100% for the first playable milestone, accepted by the user. GeoMod items below are deferred refinement and coverage, not prerequisites to moving on. This does not assert retail polish, complete campaign integration or resolution of every known defect.
 
 
 - Player impacts: Real fall/high-speed collision damage now passes PC/Xbox with shared health/armor handling; relocation and duplicate-contact guards pass focused checks; broader moving-object contacts remain.
 
-- APC: DEV entry, ground driving, seven primary shots/wall impacts with finite ammo, and exit now pass PC/Xbox with 11.34 MiB free; cockpit renders in PC, native seated capture remains; secondary rockets, turret aiming, NPC damage encounters, APC saves and campaign placement remain.
+- APC: Driving, primary fire, seated aiming, ballistic mortar impacts/GeoMod and vehicle HUD now pass PC/Xbox with three mortar impacts, two accepted cuts and 10.30 MiB free; live NPC damage, APC saves, campaign placement and articulated gun visuals remain.
 
 - Vehicles: Driller driving, entry/exit, chassis collision and cockpit work on PC/Xbox; seated drilling now cuts actual DEV wall/floor geometry and animates separate bit models on PC/Xbox, with exact native drill/vehicle state agreement and12.14MiB free; ordinary gunfire/rocket/blast damage and destruction now pass PC/Xbox with11.83MiB free; NPC shotgun, player sniper/rail and direct flame vehicle hits now pass focused cover/damage checks and PC/Xbox builds; parked vehicle checkpoint save/restore now passes PC/Xbox with identical saved bytes and11.75MiB free, with seated saves now passing PC/Xbox capture/restore/exit; remaining special-weapon coverage, other vehicle classes and campaign integration are open.
 
