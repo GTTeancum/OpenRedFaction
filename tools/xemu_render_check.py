@@ -29,8 +29,8 @@ from xemu_draw_audit import capture as capture_draws
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--npc-projectile-test', action='store_true', help='Rubble-cover fixture followed by a rocket striking the guard')
-    parser.add_argument('--vehicle-test', action='store_true', help='Load authored driller in enemy-free DEV testbed')
-    parser.add_argument('--vehicle-class', choices=('driller','apc','jeep'), default='driller', help='Vehicle class for --vehicle-test')
+    parser.add_argument('--vehicle-test', action='store_true', help='Load an authored vehicle in its enemy-free DEV testbed')
+    parser.add_argument('--vehicle-class', choices=('driller','apc','jeep','sub'), default='driller', help='Vehicle class for --vehicle-test')
     parser.add_argument('--firearms-test', type=int, choices=(1,2,3,4), help='DEV remaining firearms: MP/HMG/precision/undercover')
     parser.add_argument('--fusion-test', action='store_true', help='DEV Fusion launcher with enemy-free weapon fixture')
     parser.add_argument('--player-shield-test', action='store_true', help='DEV player holding authored first-person shield')
@@ -99,7 +99,16 @@ def main():
         parser.error('--fragment-platform-test requires source108/three-source CTF06 DEV rocket input without checkpoints')
     if args.fragment_contact_test and not args.dev_room:parser.error('--fragment-contact-test requires --dev-room')
     if args.npc_projectile_test:args.npc_rubble_test=True
-    if args.vehicle_test and (not args.dev_room or args.level!='ctf06.rfl'):parser.error('--vehicle-test requires ctf06 DEV')
+    submarine=args.vehicle_test and args.vehicle_class=='sub'
+    if submarine:
+        if not (args.dev_room and args.spawn and args.level=='L5S3.rfl' and args.archive=='levels1.vpp'):
+            parser.error('Submarine requires --vehicle-test --vehicle-class sub --dev-room --spawn --level L5S3.rfl --archive levels1.vpp')
+        if args.player_checkpoint or args.geomod_checkpoint_in or args.geomod_checkpoint_out:
+            parser.error('Submarine checkpoints are not supported yet')
+        if args.setup_uid or args.exit_uid or args.return_exit_uid or args.goal_uid or args.item_uid or args.exit_start_uid or args.trigger_start_uid:
+            parser.error('Submarine DEV requires its enemy-free placement without campaign setup or relocation')
+    elif args.vehicle_test and (not args.dev_room or args.level!='ctf06.rfl'):
+        parser.error('--vehicle-test requires ctf06 DEV unless --vehicle-class sub')
     if args.vehicle_class!='driller' and not args.vehicle_test:parser.error('--vehicle-class requires --vehicle-test')
     if args.firearms_test and (not args.dev_room or args.level!='ctf06.rfl' or args.fusion_test or args.player_shield_test or args.npc_shield_test or args.npc_rocket_test or args.npc_grenade_test or args.npc_rubble_test or args.player_checkpoint):parser.error('--firearms-test requires enemy-free ctf06 DEV without other fixtures/checkpoints')
     if args.fusion_test and (not args.dev_room or args.level!='ctf06.rfl' or args.player_shield_test or args.npc_shield_test or args.npc_rocket_test or args.npc_grenade_test or args.npc_rubble_test or args.player_checkpoint):parser.error('--fusion-test requires enemy-free ctf06 DEV without other fixtures/checkpoints')
@@ -137,7 +146,7 @@ def main():
         parser.error('--swim-test requires --spawn --level L2S3.rfl --archive levels1.vpp without other placement fixtures')
     if args.water_test and (args.dev_room or args.level!='dm03.rfl' or args.archive!='levelsm.vpp' or not args.spawn):
         parser.error('--water-test requires --spawn --level dm03.rfl --archive levelsm.vpp without --dev-room')
-    if args.dev_room and (args.level not in ('glass_house.rfl','ctf06.rfl') or args.archive != 'levelsm.vpp' or not args.spawn):
+    if args.dev_room and not submarine and (args.level not in ('glass_house.rfl','ctf06.rfl') or args.archive != 'levelsm.vpp' or not args.spawn):
         parser.error('Developer room requires --spawn --level glass_house.rfl or ctf06.rfl --archive levelsm.vpp')
     if args.debris_player_test and not args.dev_room:parser.error('--debris-player-test requires --dev-room')
     if args.ripple_test and not args.dev_room:parser.error('--ripple-test requires --dev-room')
@@ -208,7 +217,7 @@ def main():
     report['npc_grenade_test']=args.npc_grenade_test
     report['expanded_geomod']=args.expanded_geomod
     report['authored_sources']=args.authored_sources
-    report['authored_source']=148 if args.vehicle_test else (args.authored_source if args.authored_source is not None else (94 if args.dev_room and args.level=='ctf06.rfl' else None))
+    report['authored_source']=148 if args.vehicle_test and not submarine else (args.authored_source if args.authored_source is not None else (94 if args.dev_room and args.level=='ctf06.rfl' else None))
     (run / 'inputs.bin').write_bytes(payload)
     env = {k: v for k, v in os.environ.items() if not k.startswith('RF_REPLAY_')}
     if args.fragment_contact_test:env['RF_REPLAY_FRAGMENT_CONTACT_TEST']='1'
@@ -349,7 +358,7 @@ def main():
         if args.fragment_platform_test:
             (disc/'fragment-platform-test.flag').write_bytes(b'4' if args.ceiling_platform_test else b'3' if args.lift_platform_test else b'2' if args.tip_platform_test else b'1')
             shutil.copyfile(pc_game/'levelsm.vpp',disc/'fragment-platform.vpp')
-        if args.vehicle_test:(disc/'vehicle-test.flag').write_text({'driller':'1','apc':'2','jeep':'3'}[args.vehicle_class])
+        if args.vehicle_test:(disc/'vehicle-test.flag').write_text({'driller':'1','apc':'2','jeep':'3','sub':'4'}[args.vehicle_class])
         else:(disc/'vehicle-test.flag').unlink(missing_ok=True)
         if args.firearms_test:(disc/'firearms-test.flag').write_text(str(args.firearms_test))
         else:(disc/'firearms-test.flag').unlink(missing_ok=True)
@@ -674,7 +683,7 @@ dvd_path = '{root.as_posix()}/build/xbox/redfaction-diagnostic.iso'
             for name, label, count in [('rf_scene_authored_identity', 'AUTHORED_IDENTITY', 10), ('rf_scene_terrain_publication', 'TERRAIN_PUBLICATION', 8), ('rf_scene_debris_audio', 'DEBRIS_AUDIO', 14), ('rf_scene_player_checkpoint_state', 'PLAYER_CHECKPOINT', 8), ('rf_scene_liquid_damage', 'LIQUID_DAMAGE', 8), ('rf_scene_player_swim', 'PLAYER_SWIM', 12), ('scene_actor_body', 'PC_PLAY_BODY', 77),
                     ('rf_scene_player_ammo', 'PLAYER_AMMO', 8), ('rf_scene_combat', 'COMBAT', 8),
                     ('rf_scene_script_movement', 'SCRIPT_MOVE', 8), ('rf_scene_enemy_combat', 'ENEMY_COMBAT', 8),
-                    ('rf_scene_rotating_doors', 'ROTATING_DOORS', 8), ('rf_scene_script_attack', 'SCRIPT_ATTACK', 12), ('rf_scene_attack_recovery', 'ATTACK_RECOVERY', 4), ('rf_scene_enemy_damage_kinds', 'ENEMY_DAMAGE_KINDS', 10), ('rf_scene_enemy_melee', 'ENEMY_MELEE', 4), ('rf_scene_enemy_spread', 'ENEMY_SPREAD', 8), ('rf_scene_combat_pain', 'COMBAT_PAIN', 8), ('rf_scene_pain_attack_gate', 'PAIN_ATTACK_GATE', 6), ('rf_scene_weapon_drops', 'WEAPON_DROPS', 8), ('rf_scene_rifle_alt', 'RIFLE_ALT', 8), ('rf_scene_shotgun', 'SHOTGUN', 8), ('rf_scene_grenades', 'GRENADES', 8), ('rf_scene_ai_grenades', 'AI_GRENADES', 5), ('rf_scene_ai_rockets', 'AI_ROCKETS', 5), ('rf_scene_riot_shield', 'RIOT_SHIELD', 4), ('rf_scene_player_shield', 'PLAYER_SHIELD', 4), ('rf_scene_fusion_projectiles', 'FUSION_PROJECTILES', 5), ('rf_scene_machine_mode', 'MACHINE_MODE', 8), ('rf_scene_undercover', 'UNDERCOVER', 8), ('rf_scene_vehicle_state', 'VEHICLE', 16), ('rf_scene_drill_state', 'DRILL', 8), ('rf_scene_vehicle_damage', 'VEHICLE_DAMAGE', 8), ('rf_scene_apc_primary', 'APC_PRIMARY', 8), ('rf_scene_apc_secondary', 'APC_SECONDARY', 8), ('rf_scene_jeep_seats', 'JEEP_SEATS', 8), ('rf_scene_player_impact', 'PLAYER_IMPACT', 8), ('rf_scene_remote', 'REMOTE', 8), ('rf_scene_flame_visual', 'FLAME_VISUAL', 6), ('rf_scene_flame_canister', 'FLAME_CANISTER', 5), ('rf_scene_burning', 'BURNING', 5), ('rf_scene_burning_visual', 'BURNING_VISUAL', 5), ('rf_scene_rockets', 'ROCKETS', 8), ('rf_scene_rocket_blast', 'ROCKET_BLAST', 8), ('rf_scene_rocket_visual', 'ROCKET_VISUAL', 8), ('rf_scene_ripple_visual', 'RIPPLE_VISUAL', 8), ('rf_scene_ripple_lifecycle', 'RIPPLE_LIFECYCLE', 4), ('rf_scene_rocket_liquid', 'ROCKET_LIQUID_STATE', 4), ('rf_scene_enemy_fire', 'ENEMY_FIRE', 6),
+                    ('rf_scene_rotating_doors', 'ROTATING_DOORS', 8), ('rf_scene_script_attack', 'SCRIPT_ATTACK', 12), ('rf_scene_attack_recovery', 'ATTACK_RECOVERY', 4), ('rf_scene_enemy_damage_kinds', 'ENEMY_DAMAGE_KINDS', 10), ('rf_scene_enemy_melee', 'ENEMY_MELEE', 4), ('rf_scene_enemy_spread', 'ENEMY_SPREAD', 8), ('rf_scene_combat_pain', 'COMBAT_PAIN', 8), ('rf_scene_pain_attack_gate', 'PAIN_ATTACK_GATE', 6), ('rf_scene_weapon_drops', 'WEAPON_DROPS', 8), ('rf_scene_rifle_alt', 'RIFLE_ALT', 8), ('rf_scene_shotgun', 'SHOTGUN', 8), ('rf_scene_grenades', 'GRENADES', 8), ('rf_scene_ai_grenades', 'AI_GRENADES', 5), ('rf_scene_ai_rockets', 'AI_ROCKETS', 5), ('rf_scene_riot_shield', 'RIOT_SHIELD', 4), ('rf_scene_player_shield', 'PLAYER_SHIELD', 4), ('rf_scene_fusion_projectiles', 'FUSION_PROJECTILES', 5), ('rf_scene_machine_mode', 'MACHINE_MODE', 8), ('rf_scene_undercover', 'UNDERCOVER', 8), ('rf_scene_vehicle_state', 'VEHICLE', 16), ('rf_scene_drill_state', 'DRILL', 8), ('rf_scene_vehicle_damage', 'VEHICLE_DAMAGE', 8), ('rf_scene_apc_primary', 'APC_PRIMARY', 8), ('rf_scene_apc_secondary', 'APC_SECONDARY', 8), ('rf_scene_submarine_weapon', 'SUBMARINE_WEAPON', 8), ('rf_scene_jeep_seats', 'JEEP_SEATS', 8), ('rf_scene_player_impact', 'PLAYER_IMPACT', 8), ('rf_scene_remote', 'REMOTE', 8), ('rf_scene_flame_visual', 'FLAME_VISUAL', 6), ('rf_scene_flame_canister', 'FLAME_CANISTER', 5), ('rf_scene_burning', 'BURNING', 5), ('rf_scene_burning_visual', 'BURNING_VISUAL', 5), ('rf_scene_rockets', 'ROCKETS', 8), ('rf_scene_rocket_blast', 'ROCKET_BLAST', 8), ('rf_scene_rocket_visual', 'ROCKET_VISUAL', 8), ('rf_scene_ripple_visual', 'RIPPLE_VISUAL', 8), ('rf_scene_ripple_lifecycle', 'RIPPLE_LIFECYCLE', 4), ('rf_scene_rocket_liquid', 'ROCKET_LIQUID_STATE', 4), ('rf_scene_enemy_fire', 'ENEMY_FIRE', 6),
                     ('rf_scene_use_reach', 'USE_REACH', 4), ('rf_scene_debris_wet','DEBRIS_WET_STATE',8), ('rf_scene_debris_visibility','DEBRIS_VISIBILITY',8), ('rf_scene_debris_motion','DEBRIS_MOTION',8), ('rf_scene_debris_crossing','DEBRIS_CROSSING',8), ('rf_scene_debris_splash_audio','DEBRIS_SPLASH_AUDIO',9), ('rf_scene_debris_player','DEBRIS_PLAYER',8), ('rf_scene_debris_rotation','DEBRIS_ROTATION',4), ('rf_scene_debris_cleanup','DEBRIS_CLEANUP',8), ('rf_scene_debris_blood','DEBRIS_BLOOD',8), ('rf_scene_debris_player_test','DEBRIS_PLAYER_TEST',8),
                     ('rf_scene_particles_summary', 'SCENE_PARTICLES', 8), ('rf_scene_live_motion', 'LIVE_MOTION', 8), ('rf_scene_airlock', 'AIRLOCK', 6), ('rf_scene_script_animation', 'SCRIPT_ANIMATION', 10), ('rf_scene_alarm', 'ALARM', 12), ('rf_scene_switch_runtime', 'SWITCH_RUNTIME', 8), ('rf_scene_switch_detail', 'SWITCH_DETAIL', 8), ('rf_scene_switch_history', 'SWITCH_HISTORY', 4), ('rf_scene_trigger_history', 'TRIGGER_HISTORY', 4), ('rf_scene_startup_inventory', 'STARTUP_INVENTORY', 4), ('rf_scene_pickups', 'PICKUPS', 8), ('rf_scene_pickup_vitals', 'PICKUP_VITALS', 4), ('rf_scene_riot', 'RIOT_STICK', 8), ('rf_scene_weapon_selection', 'WEAPON_SELECTION', 8),
                     ('rf_scene_player_weapon', 'PLAYER_WEAPON', 8), ('rf_scene_weapon_audio', 'WEAPON_AUDIO', 9), ('rf_scene_impact_audio', 'IMPACT_AUDIO', 9),

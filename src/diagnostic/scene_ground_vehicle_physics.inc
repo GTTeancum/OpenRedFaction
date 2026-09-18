@@ -4,7 +4,7 @@
 #include "rf/vehicle_suspension.h"
 #include "rf/collision.h"
 #include <math.h>
-/* Include after entity/model metadata headers. APC, Jeep01 and Driller01 only.
+/* Include after entity/model metadata headers. APC, Jeep01, Driller01 and sub.
  * Uses the same core sphere/body/tensor services and inertia policy as Driller.
  * Spring coefficients remain authored, including unequal Jeep front/rear pairs.
  * Retains no model/archive pointer.
@@ -12,9 +12,11 @@
  * First-pass inertia policy: sphere-generated inertia scaled to positive class
  * mass. Recovered accumulation omits sphere self-inertia; use the existing
  * inverse operation and reject degenerate geometry, rather than zero tensor.
- * A generated-mass class uses sphere density mass directly. */
+ * A generated-mass class uses sphere density mass directly. The submarine
+ * adds solid-sphere self-inertia to avoid a singular single-sphere tensor;
+ * this explicit first-pass policy does not alter the ground vehicle tensor. */
 #include "scene_driller_physics.inc"
-static int scene_ground_vehicle_physics_initialize(const char *class_name,const rf_entity_physics_config *physics,
+static int scene_vehicle_body_physics_initialize(const char *class_name,const rf_entity_physics_config *physics,
     const rf_entity_movement_values *movement,const rf_entity_rotation_values *rotation,
     const rf_static_render_resource *render,
     const float position[3],const float basis[9],float gravity,scene_driller_physics *out)
@@ -26,9 +28,10 @@ static int scene_ground_vehicle_physics_initialize(const char *class_name,const 
     uint32_t i,j,expected_springs;float scale;int status;
     if(!class_name||!physics||!movement||!rotation||!render||!position||!basis||!out||!render->spheres||!render->sphere_count||
        render->sphere_count>8||!isfinite(gravity)||gravity<0)return RF_RANGE;
-    if(physics->authored.use_kind!=1||physics->authored.movement_index!=5)return RF_FORMAT;
+    if(physics->authored.use_kind!=1||physics->authored.movement_index!=(!strcmp(class_name,"sub")?7:5))return RF_FORMAT;
     if(!strcmp(class_name,"Driller01"))expected_springs=6;
     else if(!strcmp(class_name,"APC") || !strcmp(class_name,"Jeep01"))expected_springs=4;
+    else if(!strcmp(class_name,"sub"))expected_springs=0;
     else return RF_FORMAT;
     value.sphere_count=render->sphere_count;
     for(i=0;i<value.sphere_count;i++){
@@ -60,6 +63,15 @@ static int scene_ground_vehicle_physics_initialize(const char *class_name,const 
     if(value.spring_count!=expected_springs)return RF_FORMAT;
     status=rf_physics_spheres_accumulate(value.spheres,value.sphere_count,physics->material.density,&initial,&generated);if(status)return status;
     if(!isfinite(generated.mass)||generated.mass<=0)return RF_FORMAT;
+    /* Actual sub model has one collision sphere despite seven named table
+     * overrides. A point-mass-only tensor is singular. First-pass submarine
+     * policy includes solid-sphere self inertia; ground behavior stays exact. */
+    if(!strcmp(class_name,"sub"))for(i=0;i<value.sphere_count;i++){
+        double radius=value.spheres[i].radius;
+        double mass=radius*radius*radius*physics->material.density*4.18879032135009765625;
+        float self=(float)(.4*mass*radius*radius);
+        for(j=0;j<3;j++)generated.tensor[j*3+j]+=self;
+    }
     config=*physics;
     if(!isfinite(config.authored.mass))return RF_FORMAT;
     if(config.authored.mass<=0)config.authored.mass=generated.mass;
@@ -78,5 +90,14 @@ static int scene_ground_vehicle_physics_initialize(const char *class_name,const 
     value.parameters.maximum_turn=rotation->maximum_velocity;value.parameters.turn_acceleration=rotation->acceleration;
     status=rf_vehicle_rigid_propose(&value.state,&value.parameters,&command,&support,0,&probe);if(status)return status;
     *out=value;return RF_OK;
+}
+/* Ground compatibility wrapper; the shared initializer also supplies authored
+ * submarine hull/inertia but never selects its movement solver. */
+static int scene_ground_vehicle_physics_initialize(const char *name,const rf_entity_physics_config *physics,
+    const rf_entity_movement_values *movement,const rf_entity_rotation_values *rotation,
+    const rf_static_render_resource *render,const float position[3],const float basis[9],float gravity,scene_driller_physics *out)
+{
+    if(!name || (!strcmp(name,"sub")))return RF_FORMAT;
+    return scene_vehicle_body_physics_initialize(name,physics,movement,rotation,render,position,basis,gravity,out);
 }
 #endif

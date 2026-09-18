@@ -13,6 +13,11 @@ typedef struct scene_driller_entry_exit {
     scene_vehicle_possession session;scene_vehicle_player_control player;
     scene_vehicle_host_control host;int32_t occupant;
     uint32_t held;float eye_offset[3];
+    /* Sub-only admission; provider checks every actual player sphere and the
+     * swept wet path. Missing provider rejects boarding/exit, never flies dry. */
+    int (*water_path)(void *,const rf_collision_body_sphere *,uint32_t,
+        const scene_vehicle_pose *,const scene_vehicle_pose *,uint32_t *);
+    void *water_context;
 } scene_driller_entry_exit;
 static void scene_driller_point(const float origin[3],const float basis[9],const float local[3],float out[3])
 {
@@ -64,6 +69,13 @@ static int scene_driller_entry_allowed(void *context,uint32_t player,uint32_t ho
     if(!isfinite(range) || range<=0 || d2>range*range)return RF_OK;
     status=scene_driller_entry_seat(c,host,&seat);if(status)return status;
     status=scene_driller_player_shape(c,&query,spheres);if(status)return status;
+    if(c->resource->physics.authored.movement_index==7){
+        scene_vehicle_pose from;uint32_t wet=0;
+        if(!c->water_path)return RF_RANGE;
+        memcpy(from.position,c->player_body->state.position,12);memcpy(from.basis,c->player_body->state.orientation,36);
+        status=c->water_path(c->water_context,spheres,query.count,&from,&seat,&wet);
+        if(status || !wet)return status;
+    }
     if(!strcmp(c->resource->model,"Jeep01.v3m")){
         scene_vehicle_pose from;memcpy(from.position,c->player_body->state.position,12);memcpy(from.basis,c->player_body->state.orientation,36);
         status=scene_vehicle_seated_path(c,&from,&seat,allowed);
@@ -111,6 +123,16 @@ static int scene_driller_exit_pose(void *context,uint32_t player,uint32_t host,s
         }
         printf("DRILLER_EXIT_PATH %u candidate %.6g %.6g %.6g blocked %u fraction %.6g normal %.6g %.6g %.6g sphere %u\n",direction,candidate.position[0],candidate.position[1],candidate.position[2],found,hit.contact.fraction,hit.contact.normal[0],hit.contact.normal[1],hit.contact.normal[2],hit.sphere);
         if(found)continue;
+        if(c->resource->physics.authored.movement_index==7){
+            uint32_t wet=0;
+            if(!c->water_path)return RF_RANGE;
+            status=c->water_path(c->water_context,spheres,body.count,&seat,&candidate,&wet);
+            if(status)return status;
+            if(!wet || !scene_driller_excludes_host(c,&body,&candidate))continue;
+            /* Swimming exit needs clear submerged body space, not a floor.
+             * The ordinary swim update reacquires liquid after publication. */
+            *pose=candidate;*clear=1;return RF_OK;
+        }
         /* Bounded full-body downward sweep establishes walkable support before
          * publishing an exit. No floor means no exit, never a blind teleport. */
         memcpy(end,candidate.position,12);drop=c->physics->radius*2+4;end[1]-=drop;

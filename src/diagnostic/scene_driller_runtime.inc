@@ -4,6 +4,7 @@
 #include "scene_ground_vehicle_physics.inc"
 #include "scene_vehicle_possession.inc"
 #include "scene_vehicle_collision.inc"
+#include "scene_submarine_motion.inc"
 #include "scene_driller_support.inc"
 #include "scene_driller_entry_exit.inc"
 #include "scene_driller_player_adapter.inc"
@@ -14,6 +15,8 @@
 #include "scene_driller_projectile_contact.inc"
 struct scene_driller_runtime {
     scene_driller_physics physics;scene_vehicle_collision collision;scene_jeep_seat_state jeep_seat;
+    scene_submarine_motion submarine;rf_liquid_rooms submarine_liquids;
+    rf_vehicle_submersible_parameters submarine_parameters;
     scene_driller_support_context support;scene_driller_entry_exit entry;
     scene_driller_damage_runtime damage;scene_driller_audio audio;rf_geomod_template shapes[2];scene_driller_live_contact contact;
     scene_driller_player_adapter player;uint32_t last_frame;float driver_seconds;
@@ -61,6 +64,12 @@ static int scene_driller_runtime_support(void *context,const rf_vehicle_rigid_st
 {return scene_driller_support_sample(&((scene_driller_runtime*)context)->support,state,out);}
 static int scene_driller_runtime_resolve(void *context,const rf_vehicle_rigid_state *state,const rf_vehicle_rigid_proposal *proposal,rf_vehicle_rigid_proposal *out)
 {return scene_vehicle_collision_resolve(&((scene_driller_runtime*)context)->collision,state,proposal,out);}
+static int scene_submarine_player_water(void *context,const rf_collision_body_sphere *spheres,uint32_t count,
+    const scene_vehicle_pose *from,const scene_vehicle_pose *to,uint32_t *allowed)
+{
+    return scene_submarine_water_body_path(context,spheres,count,
+        from->position,from->basis,to->position,to->basis,allowed);
+}
 static int scene_driller_runtime_open(scene_stream *s)
 {
     scene_driller_runtime *r;int status;uint32_t stage=0;
@@ -78,15 +87,24 @@ static int scene_driller_runtime_open(scene_stream *s)
 #endif
     if(status)goto fail;
     }
-    stage=1;if(rf_scene_vehicle_enabled>=2)status=scene_ground_vehicle_physics_initialize(rf_scene_vehicle_enabled==3?"Jeep01":"APC",&s->driller->physics,&s->driller->movement,&s->driller->rotation,&s->driller->render,s->driller_position,s->driller_basis,scene_gravity.acceleration,&r->physics);
+    stage=1;if(rf_scene_vehicle_enabled==4)status=scene_vehicle_body_physics_initialize("sub",&s->driller->physics,&s->driller->movement,&s->driller->rotation,&s->driller->render,s->driller_position,s->driller_basis,0,&r->physics);
+    else if(rf_scene_vehicle_enabled>=2)status=scene_ground_vehicle_physics_initialize(rf_scene_vehicle_enabled==3?"Jeep01":"APC",&s->driller->physics,&s->driller->movement,&s->driller->rotation,&s->driller->render,s->driller_position,s->driller_basis,scene_gravity.acceleration,&r->physics);
     else status=scene_driller_physics_initialize(s->driller,s->driller_position,s->driller_basis,scene_gravity.acceleration,&r->physics);
     if(status)goto fail;
     r->collision.world=s->collision;r->collision.movers=&campaign_movers;
     r->collision.spheres=r->physics.collision;r->collision.count=r->physics.sphere_count;
     r->collision.radius=r->physics.radius;r->collision.flags=4;
-    stage=2;status=scene_driller_support_initialize(&r->support,s,&r->collision,&r->physics);if(status)goto fail;
+    stage=2;
+    if(rf_scene_vehicle_enabled==4){
+        r->submarine_liquids.items=s->liquid_rooms;r->submarine_liquids.count=s->swim_room_count;r->submarine_liquids.bytes=s->swim_bytes;
+        r->submarine.collision=r->collision;r->submarine.liquids=&r->submarine_liquids;
+        r->submarine_parameters=(rf_vehicle_submersible_parameters){s->driller->physics.authored.mass,
+            s->driller->movement.speed,s->driller->movement.acceleration,s->driller->rotation.maximum_velocity,
+            s->driller->rotation.acceleration,2};
+    }else{status=scene_driller_support_initialize(&r->support,s,&r->collision,&r->physics);if(status)goto fail;}
     stage=3;status=scene_driller_entry_exit_open(&r->entry,&campaign_registry,&campaign_entities,&campaign_player_view,
         &scene_actor_body,s->driller,&r->physics,&r->collision,scene_driller_player_eye_offset());if(status)goto fail;
+    if(rf_scene_vehicle_enabled==4){r->entry.water_context=&r->submarine;r->entry.water_path=scene_submarine_player_water;}
     if(rf_scene_vehicle_enabled==3){status=scene_jeep_seats_open(&r->jeep_seat,s->driller);if(status)goto fail;}
     stage=4;status=scene_driller_damage_runtime_open(&r->damage,&r->entry,&r->player,&s->driller_damage_prototype);if(status)goto fail;
     /* Audio unavailable/full slots must not prevent driving. */
@@ -116,7 +134,18 @@ static int scene_driller_runtime_tick(scene_stream *s,uint32_t frame)
     command.turn=command.controlled?player_input.move[0]:0;
     backend.context=r;backend.support=scene_driller_runtime_support;backend.resolve=scene_driller_runtime_resolve;
     r->physics.parameters.gravity=scene_gravity.acceleration;
-    stage=2;if(frame){status=rf_vehicle_rigid_step(&r->physics.state,&r->physics.parameters,&command,scene_step_seconds,&backend);if(status)goto fail;}
+    stage=2;if(frame){
+        if(rf_scene_vehicle_enabled==4){
+            rf_vehicle_submersible_command sub={0};rf_vehicle_submersible_result result;
+            rf_vehicle_submersible_backend wet_backend={&r->submarine,scene_submarine_motion_water_path,scene_submarine_motion_resolve};
+            sub.controlled=command.controlled;
+            if(sub.controlled){sub.throttle=player_input.move[2];sub.strafe=player_input.move[0];
+                sub.rise=(float)player_input.jump-(float)player_input.crouch;
+                sub.yaw=player_input.look[1];sub.pitch=player_input.look[0];}
+            status=rf_vehicle_submersible_step(&r->physics.state,&r->submarine_parameters,&sub,scene_step_seconds,&wet_backend,&result);
+        }else status=rf_vehicle_rigid_step(&r->physics.state,&r->physics.parameters,&command,scene_step_seconds,&backend);
+        if(status)goto fail;
+    }
     stage=3;status=scene_driller_player_publish(&r->player,&r->entry,changed);if(status)goto fail;
     if(rf_scene_vehicle_enabled==3 && was && !r->entry.session.active){status=scene_jeep_seats_open(&r->jeep_seat,s->driller);if(status)goto fail;}
     stage=4;if(r->audio.active){status=scene_driller_audio_tick(&r->audio,r->physics.state.position,r->physics.state.velocity,r->physics.parameters.maximum_speed,!r->entry.host.alive);if(status)goto fail;}

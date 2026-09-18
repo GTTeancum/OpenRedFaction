@@ -1382,7 +1382,11 @@ int rf_vfx_mesh_open(const void *data,uint32_t bytes,uint32_t version,
     for(i=0;i<prefix.faces;++i) {
         uint32_t pos=prefix.face_offset+i*face_bytes;
         status=rf_vfx_face_read(v->data+pos,bytes-pos,version,&face);if(status)goto failed;
-        if(face.material>=v->materials){status=RF_FORMAT;goto failed;}
+        /* Disabled, materialless helper geometry uses the no-material sentinel
+         * (installed sub.vfx Sphere01). Keep validating every edge, frame and
+         * key; this exception never admits an invalid visible material. */
+        if(face.material>=v->materials && !(!(prefix.timing.flags&1u) &&
+           !v->materials && face.material==UINT32_MAX)){status=RF_FORMAT;goto failed;}
         for(j=1;j<4;++j)if(face.words_80[j]>=v->edges.count){status=RF_FORMAT;goto failed;}
     }
     cfg.version=version;cfg.flags=v->edges.flags;cfg.mesh_flags=v->edges.mesh_flags;cfg.vertices=prefix.vertices;cfg.faces=prefix.faces;
@@ -2558,7 +2562,10 @@ int rf_vfx_geometry_asset_open(rf_vpp *archive,const char *name,uint32_t budget,
         status=rf_vfx_chunk_read(&directory,i,0,scratch,directory.chunks[i].bytes);if(status)goto done;
         status=rf_vfx_mesh_open(scratch,directory.chunks[i].bytes,directory.header.version,global_materials,NULL,budget-used-temporary,a->meshes+index);if(status)goto done;
         used+=a->meshes[index]->allocated_bytes;
-        if(a->meshes[index]->prefix.vertices) {
+        /* Retain disabled helper transforms/keys and original mesh indexing,
+         * but do not allocate an instance that draw consumers could submit. */
+        if(a->meshes[index]->prefix.vertices &&
+           ((a->meshes[index]->prefix.timing.flags&1u) || a->meshes[index]->materials)) {
             status=rf_vfx_instance_open(a->meshes[index],budget-used-temporary,a->instances+index);if(status)goto done;
             used+=a->instances[index]->allocated_bytes;
         }
