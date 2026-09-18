@@ -70,8 +70,8 @@ static int scene_authored_material_resolve(const scene_stream *s,uint32_t value,
     if(best==UINT32_MAX)return RF_NOT_FOUND;*out=best;return RF_OK;
 }
 static uint32_t scene_authored_material_policy(const scene_stream *s) {
-    uint32_t i;if(s->terrain_authored && (s->terrain_authored->asset_view.source_uid==95 || s->terrain_authored->asset_view.source_uid==98))return 2;
-    for(i=0;i<s->terrain_source_count;i++)if((s->terrain_sources[i].authored->asset_view.source_uid==95 || s->terrain_sources[i].authored->asset_view.source_uid==98))return 2;
+    uint32_t i;if(s->terrain_authored && (rf_geomod_authored_beam_roof(s->terrain_authored->asset_view.source_uid)!=0))return 2;
+    for(i=0;i<s->terrain_source_count;i++)if((rf_geomod_authored_beam_roof(s->terrain_sources[i].authored->asset_view.source_uid)!=0))return 2;
     return 1;
 }
 static inline int scene_authored_digest_capture(const scene_stream *s,
@@ -106,7 +106,7 @@ static inline int scene_authored_digest_capture(const scene_stream *s,
         const scene_terrain_authored_assets *asset=collection?s->terrain_sources[source_index].authored:a;
         const rf_geomod_authored_identity_manifest *m;
         if(!asset || asset->asset_view.room!=a->asset_view.room)goto done;m=&asset->identity_manifest;
-        if((asset->asset_view.source_uid==95 || asset->asset_view.source_uid==98))material_policy=2;
+        if((rf_geomod_authored_beam_roof(asset->asset_view.source_uid)!=0))material_policy=2;
         if(!m->materials || !m->references || !m->substrate || !m->material_count || m->material_count>=128 ||
            m->reference_count>768 || m->substrate->prehashed!=1 || m->substrate->image.pixels ||
            memcmp(m->substrate->content_digest,manifest->substrate->content_digest,32))goto done;

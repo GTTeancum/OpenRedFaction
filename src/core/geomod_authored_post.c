@@ -413,6 +413,9 @@ static const beam_profile *find_beam_profile(uint32_t uid) {
     uint32_t i;for(i=0;i<sizeof(beam_profiles)/sizeof(*beam_profiles);i++)if(beam_profiles[i].uid==uid)return beam_profiles+i;
     return NULL;
 }
+uint32_t rf_geomod_authored_beam_roof(uint32_t uid) {
+    const beam_profile *profile=find_beam_profile(uid);return profile?profile->roof:0;
+}
 static int decode_profile(const void *input, uint32_t bytes, const rf_geometry *g,
                                    const rf_level_geomod_settings *settings, uint32_t source_uid, uint32_t cavity, uint32_t budget,
                                    rf_geomod_authored_post **out) {

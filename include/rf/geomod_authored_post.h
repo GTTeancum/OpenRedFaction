@@ -3,6 +3,9 @@
 #include "rf/geometry.h"
 #include "rf/geomod_publication.h"
 typedef struct rf_geomod_authored_post rf_geomod_authored_post;
+/* Immutable decoder profile metadata, not geometry validation. Zero means no
+ * admitted beam profile. Consumers share this table for identity/material policy. */
+uint32_t rf_geomod_authored_beam_roof(uint32_t uid);
 typedef struct rf_geomod_authored_post_view {
     rf_geomod_mesh_view source, windows, neighbors;
     const float (*source_planes)[4];

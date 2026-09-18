@@ -179,9 +179,9 @@ int rf_geomod_authored_identity_capture_manifest(const rf_level *level,const rf_
             (uint64_t)manifest->reference_capacity*sizeof(*manifest->references)+(manifest->substrate?sizeof(*manifest->substrate):0);
         if(bytes>UINT32_MAX)return RF_RANGE;manifest_bytes=(uint32_t)bytes;
     }
-    if(level->version!=180 || strcmp(level->entry.name,"ctf06.rfl") || (asset->source_uid!=66 && asset->source_uid!=93 && asset->source_uid!=94 && asset->source_uid!=95 && asset->source_uid!=96 && asset->source_uid!=97 && asset->source_uid!=98) || asset->room!=3 ||
+    if(level->version!=180 || strcmp(level->entry.name,"ctf06.rfl") || (!rf_geomod_authored_beam_roof(asset->source_uid) && asset->source_uid!=66 && asset->source_uid!=93 && asset->source_uid!=94 && asset->source_uid!=96 && asset->source_uid!=97) || asset->room!=3 ||
         asset->source.face_count!=(asset->source_uid==66?14u:6u) || asset->solid_count!=(asset->source_uid==66?0u:3u))return RF_NOT_FOUND;
-    if((asset->source_uid==95 || asset->source_uid==98) && (asset->neighbor_void_count!=1 || !asset->neighbor_voids || asset->neighbor_voids[0].owner!=(asset->source_uid==95?80u:82u)))return RF_NOT_FOUND;
+    if((rf_geomod_authored_beam_roof(asset->source_uid)!=0) && (asset->neighbor_void_count!=1 || !asset->neighbor_voids || asset->neighbor_voids[0].owner!=rf_geomod_authored_beam_roof(asset->source_uid)))return RF_NOT_FOUND;
     meshes[0]=&asset->source;meshes[1]=&asset->windows;meshes[2]=&asset->neighbors;
     origins[0]=asset->source_origins;origins[1]=asset->window_origins;origins[2]=asset->neighbor_origins;capacity=0;
     for(i=0;i<3;i++) {
@@ -210,8 +210,8 @@ int rf_geomod_authored_identity_capture_manifest(const rf_level *level,const rf_
     /* Existing posts retain reconstruction policy9 and RFAS identity v1.
      * Beam policy12 qualifies connected-neighbor publication as well as inherited filters
      * and authored-material cap charts; loader3 fixes this live profile. */
-    c->input.publication_policy=(asset->source_uid==95 || asset->source_uid==98)?12:9;
-    if((asset->source_uid==95 || asset->source_uid==98))c->input.loader_policy=3;
+    c->input.publication_policy=(rf_geomod_authored_beam_roof(asset->source_uid)!=0)?12:9;
+    if((rf_geomod_authored_beam_roof(asset->source_uid)!=0))c->input.loader_policy=3;
     /* Original44d870 flags2 select air operation1. Explicit inward geometry
      * and compiled-window cavity publication must never match a solid save. */
     if(asset->source_uid==66) {
