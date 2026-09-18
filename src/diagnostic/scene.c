@@ -704,7 +704,7 @@ typedef struct scene_stream {
     scene_rocket_visual *rocket_visual,*ripple_visual;rf_level rocket_camera;
     float ripple_position[SCENE_RIPPLES][3];uint32_t ripple_born[SCENE_RIPPLES];uint8_t ripple_active[SCENE_RIPPLES];
     scene_impact_owner *impact;
-    rf_player_weapon *player_weapon[SCENE_WEAPON_SLOTS];uint32_t player_weapon_base[SCENE_WEAPON_SLOTS],player_weapon_textures[SCENE_WEAPON_SLOTS],player_shots,player_reload,player_slot;
+    rf_player_weapon *player_weapon[SCENE_WEAPON_SLOTS];uint32_t player_weapon_base[SCENE_WEAPON_SLOTS],player_weapon_textures[SCENE_WEAPON_SLOTS],player_shots,player_reload,player_slot,player_pose_frame;
     rf_model_projection npc_view;void *npc_memory;uint16_t *npc_indices;rf_model_clip_pool *npc_pool;
     const rf_geometry_collision_world *collision;
     const rf_geometry *geometry;unsigned char *surface_indices;float actor_spawn[3];uint32_t eye_flags;
@@ -1867,6 +1867,7 @@ static uint32_t campaign_equipped_slot,weapon_cycle_held;static int32_t campaign
 static uint32_t scene_flame_active;
 static uint32_t scene_ai_grenade_pending(void);
 static uint32_t scene_ai_rocket_pending(void);
+static uint32_t scene_player_shield_damage_save_pending(void);
 static uint32_t scene_burning_create(uint32_t,uint32_t);
 static void scene_burning_extinguish(uint32_t);
 static void scene_burning_release_all(void);
@@ -9070,6 +9071,9 @@ static float combat_enemy_primary_damage(const rf_weapon_primary_definition *def
 #include "scene_riot_shield_query.inc"
 #include "scene_riot_shield_body_order.inc"
 #include "scene_riot_shield_history.inc"
+#include "scene_player_shield_lifecycle.inc"
+#include "scene_player_shield_contact.inc"
+#include "scene_player_shield_damage.inc"
 static int scene_npc_shields_load(const char *path)
 {
     rf_vpp archive={0};rf_vpp_entry entry;void *text=NULL;int status;
@@ -9269,9 +9273,18 @@ static int campaign_enemy_tick(scene_stream *stream,uint32_t frame,const float p
             fraction=1;
             uint32_t target_hit=combat_body(owner->eye_position,spread_ray,victim?&victim->body:&scene_actor_body,1,&fraction);
             if(!target_hit)fraction=1;
+            scene_player_shield_candidate player_shield;uint32_t shield_hit=0;
+            if(!victim){float end[3];for(j=0;j<3;j++)end[j]=owner->eye_position[j]+spread_ray[j];
+                status=scene_player_shield_query(stream,player_eye,actor_look.eye_orientation,owner->eye_position,end,1,&player_shield,&shield_hit);if(status)return status;
+                if(shield_hit)fraction=player_shield.hit.time;
+            }
             blocked=0;
             if(!selected.penetrates_world){status=combat_enemy_fragment_shot(stream,owner->eye_position,spread_ray,fraction,shot_damage,&blocked);if(status)return status;}
             if(blocked){++rf_scene_enemy_spread[4];goto enemy_shot_done;}
+            if(shield_hit){uint32_t accepted,broken;rf_damage_request request={shot_damage,owner->registration.handle,definition->damage_kind,0,UINT32_MAX,0};
+                status=scene_player_shield_commit(&player_shield,&request,&accepted,&broken);if(status)return status;
+                if(accepted)goto enemy_shot_done;
+            }
             if(!target_hit){++rf_scene_enemy_spread[3];goto enemy_shot_done;}
             ++rf_scene_enemy_spread[2];
             if(victim && scene_npc_shields.owners){
@@ -12314,6 +12327,7 @@ static int scene_remote_input(scene_stream *,uint32_t,const float[3],const float
 #include "scene_flame_visual.inc"
 #include "scene_burning_visual.inc"
 #include "scene_flame_canister.inc"
+static int scene_player_weapon_advance(scene_stream *,uint32_t);
 static int campaign_combat_tick(scene_stream *stream,uint32_t frame,const float position[3],const float orientation[3][3])
 {
     float delta[3],nearest=1,amount;uint32_t i,target=UINT32_MAX,blocked,fire,alt,active=0;int status;
@@ -12345,7 +12359,7 @@ static int campaign_combat_tick(scene_stream *stream,uint32_t frame,const float 
     status=campaign_inventory_initialize();if(status)return status;
     if(!frame && scene_npc_shields.owners){status=scene_npc_shield_history_restore();if(status)return status;}
     if(!frame && rf_scene_dev_npc_enabled==6)campaign_select_primary(11);
-    if(!frame && (rf_scene_dev_npc_enabled==3 || rf_scene_dev_npc_enabled==4) && campaign_npc_body_count==1){campaign_npc_bodies[0].combat_alert=1;campaign_npc_bodies[0].combat_due=120;}
+    if(!frame && (rf_scene_dev_npc_enabled==3 || rf_scene_dev_npc_enabled==4 || rf_scene_dev_npc_enabled==6) && campaign_npc_body_count==1){campaign_npc_bodies[0].combat_alert=1;campaign_npc_bodies[0].combat_due=120;}
     if(rf_scene_dev_room_enabled) {
         uint32_t refill=player_input.use && player_input.reload;
         if(refill && !dev_refill_held) {
@@ -12398,6 +12412,7 @@ static int campaign_combat_tick(scene_stream *stream,uint32_t frame,const float 
     status=scene_burning_tick(stream,frame);if(status)return status;
     status=scene_burning_visual_tick(stream,frame);if(status)return status;
     status=scene_npc_rubble_stimulus(stream,frame,position);if(status)return status;
+    if(campaign_equipped_slot==11){status=scene_player_weapon_advance(stream,frame);if(status)return status;}
     status=(rf_scene_dev_npc_enabled==1 || (rf_scene_dev_npc_enabled==2 && frame<600))?RF_OK:campaign_enemy_tick(stream,frame,position);rf_scene_enemy_combat[7]=(uint32_t)status;if(status)return status;
     status=scene_npc_rubble_record(stream,frame);if(status)return status;
     memcpy(rf_scene_pickup_vitals,&campaign_player_damage.state.effects.health,4);memcpy(rf_scene_pickup_vitals+1,&campaign_player_damage.state.effects.armor,4);
@@ -14560,13 +14575,10 @@ static int scene_ripples_draw(scene_stream *s,uint32_t frame)
         rf_scene_ripple_vertex_state[2]*sizeof(rf_preview_vertex));
     return RF_OK;
 }
-static int scene_player_weapon_draw(scene_stream *stream,uint32_t frame)
+static int scene_player_weapon_advance(scene_stream *stream,uint32_t frame)
 {
-    rf_player_weapon *w=stream->player_weapon[campaign_equipped_slot];rf_model_projection view={0};
-    rf_model_render_buffers buffers={0};rf_model_lighting lights={0};
-    rf_model_render_output attributes={1,{255,255,255},255,1,1};
-    rf_model_clip_planes planes={0};rf_model_clip_projection projection={0};
-    uint32_t batch,k,start;int status,request=-1;
+    rf_player_weapon *w=stream->player_weapon[campaign_equipped_slot];int status,request=-1;
+    if(stream->player_pose_frame==frame+1 && stream->player_slot==campaign_equipped_slot)return RF_OK;
     if(!frame)memset(rf_scene_player_weapon,0,sizeof(rf_scene_player_weapon));
     if(campaign_explicit_unarmed || !campaign_player_inventory.owned[campaign_selected_weapon()]){rf_scene_player_weapon[2]=0;stream->player_slot=UINT32_MAX;return RF_OK;}
     if(!w)return RF_OK;
@@ -14585,10 +14597,21 @@ static int scene_player_weapon_draw(scene_stream *stream,uint32_t frame)
         else if(w->current==1)request=0;
     }
     stream->player_slot=campaign_equipped_slot;stream->player_shots=rf_scene_combat[0];stream->player_reload=rf_scene_combat[6];
-    status=rf_player_weapon_step(w,request,1.0f/60);if(status)goto done;
+    status=rf_player_weapon_step(w,request,1.0f/60);if(status)return status;
     rf_scene_player_weapon[0]=frame+1;rf_scene_player_weapon[1]=w->current;
     rf_scene_player_weapon[2]=0;rf_scene_player_weapon[3]=w->resident_bytes;rf_scene_player_weapon[4]=w->peak_bytes;
     rf_scene_player_weapon[5]=npc_hash_bytes(2166136261u,w->prepared,w->bone_count*48);
+    stream->player_pose_frame=frame+1;return RF_OK;
+}
+static int scene_player_weapon_draw(scene_stream *stream,uint32_t frame)
+{
+    rf_player_weapon *w=stream->player_weapon[campaign_equipped_slot];rf_model_projection view={0};
+    rf_model_render_buffers buffers={0};rf_model_lighting lights={0};
+    rf_model_render_output attributes={1,{255,255,255},255,1,1};
+    rf_model_clip_planes planes={0};rf_model_clip_projection projection={0};
+    uint32_t batch,k,start;int status;
+    status=scene_player_weapon_advance(stream,frame);if(status)return status;
+    if(campaign_explicit_unarmed || !campaign_player_inventory.owned[campaign_selected_weapon()] || !w)return RF_OK;
     if(campaign_player_damage.state.effects.health<=0)return RF_OK;
     /* First-pass camera-space presentation; shared65-degree FOV and fitted
      * per-weapon camera offsets. Rifle pose extends behind the model origin.
@@ -15613,7 +15636,7 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
             if(status)goto done;
             if(rf_scene_follow_level_exits && rf_scene_level_transition.pending)
                 status=rf_campaign_goals_next_section(&rf_scene_mission_goals);
-            else {scene_npc_shield_history_reset();campaign_ai_modes_reset();campaign_event_history_reset();memset(&campaign_switch_history,0,sizeof(campaign_switch_history));memset(campaign_switch_saved,0,sizeof(campaign_switch_saved));memset(&campaign_trigger_history,0,sizeof(campaign_trigger_history));memset(&campaign_local_goals,0,sizeof(campaign_local_goals));memset(&campaign_startup_inventory,0,sizeof(campaign_startup_inventory));memset(&rf_scene_mission_goals,0,sizeof(rf_scene_mission_goals));memset(&rf_scene_campaign_pickups,0,sizeof(rf_scene_campaign_pickups));memset(&rf_scene_defeated_actors,0,sizeof(rf_scene_defeated_actors));}
+            else {scene_player_shield_damage_reset();scene_npc_shield_history_reset();campaign_ai_modes_reset();campaign_event_history_reset();memset(&campaign_switch_history,0,sizeof(campaign_switch_history));memset(campaign_switch_saved,0,sizeof(campaign_switch_saved));memset(&campaign_trigger_history,0,sizeof(campaign_trigger_history));memset(&campaign_local_goals,0,sizeof(campaign_local_goals));memset(&campaign_startup_inventory,0,sizeof(campaign_startup_inventory));memset(&rf_scene_mission_goals,0,sizeof(rf_scene_mission_goals));memset(&rf_scene_campaign_pickups,0,sizeof(rf_scene_campaign_pickups));memset(&rf_scene_defeated_actors,0,sizeof(rf_scene_defeated_actors));}
             if(!status)status=rf_runtime_goals_initialize(&campaign_events,&rf_scene_mission_goals);
             if(!status)status=rf_campaign_local_goals_restore(&campaign_local_goals,campaign_current_level,&rf_scene_mission_goals);
             if(status)goto done;

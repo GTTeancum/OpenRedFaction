@@ -28,8 +28,17 @@ static int campaign_enemy_shotgun_fire(scene_stream *stream,campaign_npc_body *o
         rf_scene_enemy_spread[5]=campaign_enemy_spread_random.value;
         hit=combat_body(owner->eye_position,spread,victim?&victim->body:&scene_actor_body,1,&fraction);
         if(!hit)fraction=1;
+        scene_player_shield_candidate player_shield;uint32_t shield_hit=0;
+        if(!victim){float eye[3],end[3];for(j=0;j<3;j++){eye[j]=owner->eye_position[j]+delta[j];end[j]=owner->eye_position[j]+spread[j];}
+            status=scene_player_shield_query(stream,eye,actor_look.eye_orientation,owner->eye_position,end,1,&player_shield,&shield_hit);if(status)return status;
+            if(shield_hit)fraction=player_shield.hit.time;
+        }
         status=combat_enemy_fragment_shot(stream,owner->eye_position,spread,fraction,damage,&blocked);if(status)return status;
         if(blocked){++rf_scene_enemy_spread[4];continue;}
+        if(shield_hit){uint32_t accepted,broken;rf_damage_request request={damage,owner->registration.handle,definition->damage_kind,0,UINT32_MAX,0};
+            status=scene_player_shield_commit(&player_shield,&request,&accepted,&broken);if(status)return status;
+            if(accepted)continue;
+        }
         if(!hit){++rf_scene_enemy_spread[3];continue;}
         ++rf_scene_enemy_spread[2];++rf_scene_enemy_damage_kinds[definition->damage_kind];
         rf_damage_request request={damage,owner->registration.handle,definition->damage_kind,0,UINT32_MAX,0};

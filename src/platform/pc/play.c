@@ -930,6 +930,7 @@ run_scene:
     printf("ROCKET_VISUAL");for(i=0;i<8;++i)printf(" %u",rf_scene_rocket_visual[i]);puts("");
     printf("ROCKET_BLAST");for(i=0;i<8;++i)printf(" %u",rf_scene_rocket_blast[i]);puts("");
     printf("SCANNER");for(i=0;i<4;++i)printf(" %u",rf_scene_scanner[i]);puts("");
+    printf("PLAYER_SHIELD");for(i=0;i<4;++i)printf(" %u",rf_scene_player_shield[i]);puts("");
     printf("RIOT_SHIELD");for(i=0;i<4;++i)printf(" %u",rf_scene_riot_shield[i]);puts("");
     printf("AI_ROCKETS");for(i=0;i<5;++i)printf(" %u",rf_scene_ai_rockets[i]);puts("");
     printf("AI_GRENADES");for(i=0;i<5;++i)printf(" %u",rf_scene_ai_grenades[i]);puts("");

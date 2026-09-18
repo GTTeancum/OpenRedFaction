@@ -29,6 +29,7 @@ from xemu_draw_audit import capture as capture_draws
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--npc-projectile-test', action='store_true', help='Rubble-cover fixture followed by a rocket striking the guard')
+    parser.add_argument('--player-shield-test', action='store_true', help='DEV player holding authored first-person shield')
     parser.add_argument('--npc-shield-test', action='store_true', help='DEV miner with authored riot shield stance')
     parser.add_argument('--npc-rocket-test', action='store_true', help='DEV guard with finite live rockets')
     parser.add_argument('--npc-grenade-test', action='store_true', help='DEV guard with three finite ballistic grenades')
@@ -94,6 +95,7 @@ def main():
         parser.error('--fragment-platform-test requires source108/three-source CTF06 DEV rocket input without checkpoints')
     if args.fragment_contact_test and not args.dev_room:parser.error('--fragment-contact-test requires --dev-room')
     if args.npc_projectile_test:args.npc_rubble_test=True
+    if args.player_shield_test and (not args.dev_room or args.level!='ctf06.rfl' or args.npc_shield_test or args.npc_rocket_test or args.npc_grenade_test or args.npc_rubble_test or args.player_checkpoint):parser.error('--player-shield-test requires ctf06 DEV without other NPC fixtures/checkpoints')
     if args.npc_shield_test and (not args.dev_room or args.level!='ctf06.rfl' or args.npc_rocket_test or args.npc_grenade_test or args.npc_rubble_test or args.player_checkpoint):parser.error('--npc-shield-test requires ctf06 DEV without other NPC fixtures/checkpoints')
     if args.npc_rocket_test and (not args.dev_room or args.level!='ctf06.rfl' or args.npc_grenade_test or args.npc_rubble_test or args.player_checkpoint):parser.error('--npc-rocket-test requires ctf06 DEV without other NPC fixtures/checkpoints')
     if args.npc_grenade_test and (not args.dev_room or args.level!='ctf06.rfl' or args.npc_rubble_test or args.player_checkpoint):parser.error('--npc-grenade-test requires ctf06 DEV without rubble fixture/checkpoints')
@@ -188,6 +190,7 @@ def main():
     report['fragment_contact_test']=args.fragment_contact_test
     report['npc_rubble_test']=args.npc_rubble_test
     report['npc_projectile_test']=args.npc_projectile_test
+    report['player_shield_test']=args.player_shield_test
     report['npc_shield_test']=args.npc_shield_test
     report['npc_rocket_test']=args.npc_rocket_test
     report['npc_grenade_test']=args.npc_grenade_test
@@ -202,6 +205,7 @@ def main():
     if args.npc_grenade_test:env['RF_REPLAY_DEV_NPC']='3'
     if args.npc_rocket_test:env['RF_REPLAY_DEV_NPC']='4'
     if args.npc_shield_test:env['RF_REPLAY_DEV_NPC']='5'
+    if args.player_shield_test:env['RF_REPLAY_DEV_NPC']='6'
     env.update(RF_REPLAY_LEVEL=args.level, RF_REPLAY_ARCHIVE=args.archive)
     if args.dev_room:env['RF_REPLAY_DEV_ROOM']='1'
     support_mode='4' if args.tip_support_test else '3' if args.rotate_support_test else '2' if args.release_support_test else '1'
@@ -328,7 +332,8 @@ def main():
         if args.fragment_platform_test:
             (disc/'fragment-platform-test.flag').write_bytes(b'4' if args.ceiling_platform_test else b'3' if args.lift_platform_test else b'2' if args.tip_platform_test else b'1')
             shutil.copyfile(pc_game/'levelsm.vpp',disc/'fragment-platform.vpp')
-        if args.npc_shield_test:(disc/'dev-npc.flag').write_bytes(b'5')
+        if args.player_shield_test:(disc/'dev-npc.flag').write_bytes(b'6')
+        elif args.npc_shield_test:(disc/'dev-npc.flag').write_bytes(b'5')
         elif args.npc_rocket_test:(disc/'dev-npc.flag').write_bytes(b'4')
         elif args.npc_grenade_test:(disc/'dev-npc.flag').write_bytes(b'3')
         elif args.npc_rubble_test:(disc/'dev-npc.flag').write_bytes(b'2')
@@ -646,7 +651,7 @@ dvd_path = '{root.as_posix()}/build/xbox/redfaction-diagnostic.iso'
             for name, label, count in [('rf_scene_authored_identity', 'AUTHORED_IDENTITY', 10), ('rf_scene_terrain_publication', 'TERRAIN_PUBLICATION', 8), ('rf_scene_debris_audio', 'DEBRIS_AUDIO', 14), ('rf_scene_player_checkpoint_state', 'PLAYER_CHECKPOINT', 8), ('rf_scene_liquid_damage', 'LIQUID_DAMAGE', 8), ('rf_scene_player_swim', 'PLAYER_SWIM', 12), ('scene_actor_body', 'PC_PLAY_BODY', 77),
                     ('rf_scene_player_ammo', 'PLAYER_AMMO', 8), ('rf_scene_combat', 'COMBAT', 8),
                     ('rf_scene_script_movement', 'SCRIPT_MOVE', 8), ('rf_scene_enemy_combat', 'ENEMY_COMBAT', 8),
-                    ('rf_scene_rotating_doors', 'ROTATING_DOORS', 8), ('rf_scene_script_attack', 'SCRIPT_ATTACK', 12), ('rf_scene_attack_recovery', 'ATTACK_RECOVERY', 4), ('rf_scene_enemy_damage_kinds', 'ENEMY_DAMAGE_KINDS', 10), ('rf_scene_enemy_melee', 'ENEMY_MELEE', 4), ('rf_scene_enemy_spread', 'ENEMY_SPREAD', 8), ('rf_scene_combat_pain', 'COMBAT_PAIN', 8), ('rf_scene_pain_attack_gate', 'PAIN_ATTACK_GATE', 6), ('rf_scene_weapon_drops', 'WEAPON_DROPS', 8), ('rf_scene_rifle_alt', 'RIFLE_ALT', 8), ('rf_scene_shotgun', 'SHOTGUN', 8), ('rf_scene_grenades', 'GRENADES', 8), ('rf_scene_ai_grenades', 'AI_GRENADES', 5), ('rf_scene_ai_rockets', 'AI_ROCKETS', 5), ('rf_scene_riot_shield', 'RIOT_SHIELD', 4), ('rf_scene_remote', 'REMOTE', 8), ('rf_scene_flame_visual', 'FLAME_VISUAL', 6), ('rf_scene_flame_canister', 'FLAME_CANISTER', 5), ('rf_scene_burning', 'BURNING', 5), ('rf_scene_burning_visual', 'BURNING_VISUAL', 5), ('rf_scene_rockets', 'ROCKETS', 8), ('rf_scene_rocket_blast', 'ROCKET_BLAST', 8), ('rf_scene_rocket_visual', 'ROCKET_VISUAL', 8), ('rf_scene_ripple_visual', 'RIPPLE_VISUAL', 8), ('rf_scene_ripple_lifecycle', 'RIPPLE_LIFECYCLE', 4), ('rf_scene_rocket_liquid', 'ROCKET_LIQUID_STATE', 4), ('rf_scene_enemy_fire', 'ENEMY_FIRE', 6),
+                    ('rf_scene_rotating_doors', 'ROTATING_DOORS', 8), ('rf_scene_script_attack', 'SCRIPT_ATTACK', 12), ('rf_scene_attack_recovery', 'ATTACK_RECOVERY', 4), ('rf_scene_enemy_damage_kinds', 'ENEMY_DAMAGE_KINDS', 10), ('rf_scene_enemy_melee', 'ENEMY_MELEE', 4), ('rf_scene_enemy_spread', 'ENEMY_SPREAD', 8), ('rf_scene_combat_pain', 'COMBAT_PAIN', 8), ('rf_scene_pain_attack_gate', 'PAIN_ATTACK_GATE', 6), ('rf_scene_weapon_drops', 'WEAPON_DROPS', 8), ('rf_scene_rifle_alt', 'RIFLE_ALT', 8), ('rf_scene_shotgun', 'SHOTGUN', 8), ('rf_scene_grenades', 'GRENADES', 8), ('rf_scene_ai_grenades', 'AI_GRENADES', 5), ('rf_scene_ai_rockets', 'AI_ROCKETS', 5), ('rf_scene_riot_shield', 'RIOT_SHIELD', 4), ('rf_scene_player_shield', 'PLAYER_SHIELD', 4), ('rf_scene_remote', 'REMOTE', 8), ('rf_scene_flame_visual', 'FLAME_VISUAL', 6), ('rf_scene_flame_canister', 'FLAME_CANISTER', 5), ('rf_scene_burning', 'BURNING', 5), ('rf_scene_burning_visual', 'BURNING_VISUAL', 5), ('rf_scene_rockets', 'ROCKETS', 8), ('rf_scene_rocket_blast', 'ROCKET_BLAST', 8), ('rf_scene_rocket_visual', 'ROCKET_VISUAL', 8), ('rf_scene_ripple_visual', 'RIPPLE_VISUAL', 8), ('rf_scene_ripple_lifecycle', 'RIPPLE_LIFECYCLE', 4), ('rf_scene_rocket_liquid', 'ROCKET_LIQUID_STATE', 4), ('rf_scene_enemy_fire', 'ENEMY_FIRE', 6),
                     ('rf_scene_use_reach', 'USE_REACH', 4), ('rf_scene_debris_wet','DEBRIS_WET_STATE',8), ('rf_scene_debris_visibility','DEBRIS_VISIBILITY',8), ('rf_scene_debris_motion','DEBRIS_MOTION',8), ('rf_scene_debris_crossing','DEBRIS_CROSSING',8), ('rf_scene_debris_splash_audio','DEBRIS_SPLASH_AUDIO',9), ('rf_scene_debris_player','DEBRIS_PLAYER',8), ('rf_scene_debris_rotation','DEBRIS_ROTATION',4), ('rf_scene_debris_cleanup','DEBRIS_CLEANUP',8), ('rf_scene_debris_blood','DEBRIS_BLOOD',8), ('rf_scene_debris_player_test','DEBRIS_PLAYER_TEST',8),
                     ('rf_scene_particles_summary', 'SCENE_PARTICLES', 8), ('rf_scene_live_motion', 'LIVE_MOTION', 8), ('rf_scene_airlock', 'AIRLOCK', 6), ('rf_scene_script_animation', 'SCRIPT_ANIMATION', 10), ('rf_scene_alarm', 'ALARM', 12), ('rf_scene_switch_runtime', 'SWITCH_RUNTIME', 8), ('rf_scene_switch_detail', 'SWITCH_DETAIL', 8), ('rf_scene_switch_history', 'SWITCH_HISTORY', 4), ('rf_scene_trigger_history', 'TRIGGER_HISTORY', 4), ('rf_scene_startup_inventory', 'STARTUP_INVENTORY', 4), ('rf_scene_pickups', 'PICKUPS', 8), ('rf_scene_pickup_vitals', 'PICKUP_VITALS', 4), ('rf_scene_riot', 'RIOT_STICK', 8), ('rf_scene_weapon_selection', 'WEAPON_SELECTION', 8),
                     ('rf_scene_player_weapon', 'PLAYER_WEAPON', 8), ('rf_scene_weapon_audio', 'WEAPON_AUDIO', 9), ('rf_scene_impact_audio', 'IMPACT_AUDIO', 9),

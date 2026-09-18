@@ -27,6 +27,7 @@ static int scene_checkpoint_player_scope(const scene_stream *s,uint32_t live)
         if(strcmp(campaign_current_level,"ctf06.rfl") || !s->checkpoint_clutter ||
            scene_authored_clutter_baseline_check(s->terrain_source_count>1?s->terrain_sources[0].authored->source_identity:s->terrain_authored->source_identity,0,s->checkpoint_clutter))return RF_RANGE;
     } else if(strcmp(campaign_current_level,"glass_house.rfl") || rf_scene_clutter_bodies[1])return RF_RANGE;
+    if(scene_player_shield_damage_save_pending())return RF_RANGE;
     if(campaign_shield_id>=0 && campaign_player_inventory.owned[campaign_shield_id])return RF_RANGE; /* Shield durability is not in RFCP yet. */
     if(!live)return RF_OK;
     if(campaign_player_damage.state.effects.health<=0||campaign_crouched||(rf_scene_actor_stance_flags&0x400u)||
