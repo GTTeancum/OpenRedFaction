@@ -37,6 +37,16 @@ if [[ "$root/build/data/geomod-template.bin" -nt "$root/build/xbox/disc/geomod-t
     cp "$root/build/data/geomod-template.bin" "$root/build/xbox/disc/geomod-template.bin"
     rm -f "$root/build/xbox/redfaction-diagnostic.iso"
 fi
+for shape in driller-single driller-double; do
+    if [[ ! -f "$root/build/data/$shape.bin" ]]; then
+        echo "Run python tools/pack_driller_templates.py first." >&2
+        exit 1
+    fi
+    if [[ "$root/build/data/$shape.bin" -nt "$root/build/xbox/disc/$shape.bin" ]]; then
+        cp "$root/build/data/$shape.bin" "$root/build/xbox/disc/$shape.bin"
+        rm -f "$root/build/xbox/redfaction-diagnostic.iso"
+    fi
+done
 cd "$root/build/xbox"
 # Repack changed disc flags without make -W default.xbe, which can suppress
 # rebuilding that XBE even when compilation produces a newer main.exe.

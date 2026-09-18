@@ -34,6 +34,8 @@
 #include "scene_machine_pistol_mode.inc"
 #include "scene_undercover_mode.inc"
 #include "scene_driller_resources.inc"
+#include "scene_driller_weapon.inc"
+#include "scene_driller_bit_animation.inc"
 #include "scene_driller_cockpit.inc"
 #include "scene_player_shot_hearing.inc"
 #include "rf/visibility.h"
@@ -737,7 +739,7 @@ typedef struct scene_stream {
     scene_weapon_custom_actions *machine_custom[2];uint32_t machine_transition_ticks[2];
     scene_driller_cockpit *driller_cockpit;
     scene_driller_runtime *driller_runtime;
-    scene_driller_resources *driller;float driller_position[3],driller_basis[9];uint32_t driller_base,driller_textures;
+    scene_driller_bit_animation *driller_bits;uint32_t driller_bit_base,driller_bit_textures;scene_driller_weapon driller_weapon;scene_driller_resources *driller;float driller_position[3],driller_basis[9];uint32_t driller_base,driller_textures;
     scene_undercover_resources *undercover;uint32_t undercover_base,undercover_textures,undercover_alt_held;
     rf_player_weapon *player_weapon[SCENE_WEAPON_SLOTS];uint32_t player_weapon_base[SCENE_WEAPON_SLOTS],player_weapon_textures[SCENE_WEAPON_SLOTS],player_shots,player_reload,player_slot,player_pose_frame;
     rf_model_projection npc_view;void *npc_memory;uint16_t *npc_indices;rf_model_clip_pool *npc_pool;
@@ -10146,6 +10148,14 @@ static int scene_terrain_open(scene_stream *s,const rf_level *level,rf_vpp *maps
             }
         }
     }
+    if(rf_scene_vehicle_enabled) {
+        rf_geo_region *regions=calloc(s->terrain_region_count+1,sizeof(*regions));
+        rf_geo_region *patch;if(!regions)return RF_IO;
+        memcpy(regions,s->terrain_regions,s->terrain_region_count*sizeof(*regions));
+        patch=regions+s->terrain_region_count;patch->flags=2;patch->hardness=65;
+        patch->position[0]=41.3125f;patch->position[1]=7;patch->position[2]=-167;patch->radius=7;
+        free(s->terrain_regions);s->terrain_regions=regions;++s->terrain_region_count;
+    }
     {
         uint32_t shallow_fixture=0;
 #ifndef RF_IMAGE_XBOX_NATIVE
@@ -13019,6 +13029,8 @@ static int campaign_inspect_camera(scene_stream *stream,float position[3],float 
     }
     return RF_NOT_FOUND;
 }
+#include "scene_driller_excavation.inc"
+#include "scene_driller_live_contact.inc"
 #include "scene_driller_runtime.inc"
 static int actor_follow_view(void *context,uint32_t frame,const rf_motion_controller *controller,rf_model_projection *view)
 {
@@ -15412,6 +15424,14 @@ static int scene_frame(void *context,uint32_t frame,rf_preview_mesh *actor)
             status=scene_driller_draw(stream,stream->driller,stream->driller_position,stream->driller_basis,stream->driller_base,stream->driller_textures,&submissions,&vertices);
             if(status)return status;
         }
+        if(stream->driller_bits){uint32_t bit,submissions,vertices;
+            for(bit=0;bit<2;bit++){float pose[12];
+                status=scene_driller_bit_animation_pose(stream->driller_bits,&stream->driller->tags,
+                    stream->driller_position,stream->driller_basis,bit,stream->driller_weapon.phase,pose);if(status)return status;
+                status=scene_driller_draw(stream,&stream->driller_bits->model,pose+9,pose,
+                    stream->driller_bit_base,stream->driller_bit_textures,&submissions,&vertices);if(status)return status;
+            }
+        }
         status=scene_grenades_draw(stream);if(status)return status;
         status=scene_remote_draw(stream);if(status)return status;
         status=scene_flame_canister_draw(stream,scene_flame_canister_model);if(status)return status;
@@ -16084,9 +16104,11 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
              if(!status && rf_scene_vehicle_enabled) {
                  if(!rf_scene_dev_room_enabled)status=RF_RANGE;
                  else status=scene_driller_resources_open(tables_path,&archive,maps,map_count,1024*1024,&stream->driller);
+                 if(!status)status=scene_driller_bit_animation_open(&stream->driller->tags,&archive,maps,map_count,512*1024,&stream->driller_bits);
                  if(!status)status=scene_driller_cockpit_open(&archive,maps,map_count,2*1024*1024,&stream->driller_cockpit);
                  stream->driller_position[0]=30;stream->driller_position[1]=5.4f;stream->driller_position[2]=-167;
-                 stream->driller_basis[0]=stream->driller_basis[4]=stream->driller_basis[8]=1;
+                 stream->driller_basis[2]=-1;stream->driller_basis[4]=stream->driller_basis[6]=1;
+                 if(!status)status=scene_driller_weapon_open(&tables,&stream->driller->tags,512*1024,&stream->driller_weapon);
                  if(!status){float seat[12];status=scene_driller_seat_pose(stream->driller,stream->driller_position,stream->driller_basis,seat);}
              }
              rf_vpp_close(&tables);if(status)goto done;}
@@ -16196,6 +16218,7 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
         }
         status=scene_undercover_merge(stream,materials);if(status)goto done;
         if(stream->driller){status=scene_driller_materials_merge(stream->driller,materials,&stream->driller_base,&stream->driller_textures);if(status)goto done;
+            status=scene_driller_materials_merge(&stream->driller_bits->model,materials,&stream->driller_bit_base,&stream->driller_bit_textures);if(status)goto done;
             status=scene_driller_cockpit_merge(stream->driller_cockpit,materials,RF_CAMPAIGN_TEXTURE_SLOTS);if(status)goto done;}
         if(rf_scene_dev_room_enabled) {
             uint32_t visual;
@@ -16403,6 +16426,7 @@ done:
     }
     {int closed=scene_driller_runtime_close(stream);if(closed && !status)status=closed;}
     scene_driller_cockpit_close(&stream->driller_cockpit);
+    scene_driller_bit_animation_close(&stream->driller_bits);
     scene_driller_resources_close(&stream->driller);
     {int closed=scene_undercover_close(stream);if(closed && !status)status=closed;}
     for(i=0;i<2;i++)if(stream->machine_custom[i]){int closed=scene_weapon_custom_actions_close(&stream->machine_custom[i],stream->player_weapon[i?17:13]);if(closed && !status)status=closed;}

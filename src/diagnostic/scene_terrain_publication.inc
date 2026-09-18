@@ -141,7 +141,7 @@ static inline void scene_terrain_publication_abort(scene_stream *s)
 static int scene_authored_cuts_admit(const scene_terrain_authored_assets *a,
     const rf_geomod_publication_cut *cuts,uint32_t count) {
     uint32_t i;int status;
-    if(a->asset_view.source_uid==66 || a->asset_view.detail_guard_count)for(i=0;i<count;i++) {
+    if(a->asset_view.source_uid==66 || a->asset_view.source_uid==148 || a->asset_view.detail_guard_count)for(i=0;i<count;i++) {
         const rf_geomod_mesh_view *cut=&cuts[i].mesh;float lo[3],hi[3];uint32_t vertex,axis,reference;
         if(!cut->vertex_count || !cut->vertices)return RF_FORMAT;
         memcpy(lo,cut->vertices[0].position,12);memcpy(hi,lo,12);
@@ -215,7 +215,7 @@ static int scene_terrain_publication_prepare_from(scene_stream *s,
             b->vertices,RF_GEOMOD_PUBLICATION_VERTICES,b->faces,RF_GEOMOD_PUBLICATION_FACES,b->origins,&b->mesh);
         else status=rf_geomod_publication_build_groups(jobs,s->terrain_source_count,saved_serial,&p->work,
             b->vertices,RF_GEOMOD_PUBLICATION_VERTICES,b->faces,RF_GEOMOD_PUBLICATION_FACES,b->origins,&b->mesh);
-    } else if(a->asset_view.source_uid==66)status=rf_geomod_publication_build_cavity(&job,&p->work,b->vertices,RF_GEOMOD_PUBLICATION_VERTICES,
+    } else if(a->asset_view.source_uid==66 || a->asset_view.source_uid==148)status=rf_geomod_publication_build_cavity(&job,&p->work,b->vertices,RF_GEOMOD_PUBLICATION_VERTICES,
         b->faces,RF_GEOMOD_PUBLICATION_FACES,b->origins,&b->mesh);
     else status=rf_geomod_publication_build(&job,&p->work,b->vertices,RF_GEOMOD_PUBLICATION_VERTICES,
         b->faces,RF_GEOMOD_PUBLICATION_FACES,b->origins,&b->mesh);

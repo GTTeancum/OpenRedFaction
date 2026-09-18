@@ -213,15 +213,15 @@ int rf_geomod_authored_identity_capture_manifest(const rf_level *level,const rf_
             (uint64_t)manifest->reference_capacity*sizeof(*manifest->references)+(manifest->substrate?sizeof(*manifest->substrate):0);
         if(bytes>UINT32_MAX)return RF_RANGE;manifest_bytes=(uint32_t)bytes;
     }
-    if(level->version!=180 || strcmp(level->entry.name,"ctf06.rfl") || (!rf_geomod_authored_post_detail(asset->source_uid,NULL) && !rf_geomod_authored_beam_roof(asset->source_uid) && asset->source_uid!=66 && asset->source_uid!=93 && asset->source_uid!=94 && asset->source_uid!=96 && asset->source_uid!=97) || asset->room!=3 ||
-        asset->source.face_count!=(asset->source_uid==66?14u:6u) || asset->solid_count!=(asset->source_uid==66?0u:rf_geomod_authored_post_detail(asset->source_uid,NULL)?2u:3u))return RF_NOT_FOUND;
+    if(level->version!=180 || strcmp(level->entry.name,"ctf06.rfl") || (!rf_geomod_authored_post_detail(asset->source_uid,NULL) && !rf_geomod_authored_beam_roof(asset->source_uid) && asset->source_uid!=66 && asset->source_uid!=148 && asset->source_uid!=93 && asset->source_uid!=94 && asset->source_uid!=96 && asset->source_uid!=97) || asset->room!=(asset->source_uid==148?0u:3u) ||
+        asset->source.face_count!=(asset->source_uid==148?22u:asset->source_uid==66?14u:6u) || asset->solid_count!=((asset->source_uid==66 || asset->source_uid==148)?0u:rf_geomod_authored_post_detail(asset->source_uid,NULL)?2u:3u))return RF_NOT_FOUND;
     if((rf_geomod_authored_beam_roof(asset->source_uid)!=0) && (asset->neighbor_void_count!=1 || !asset->neighbor_voids || asset->neighbor_voids[0].owner!=rf_geomod_authored_beam_roof(asset->source_uid)))return RF_NOT_FOUND;
     if(asset->detail_guard_count && (!asset->replaced_ids || asset->replaced_count>768))return RF_RANGE;
     status=detail_guard_validate(geometry,asset);if(status)return status;
     meshes[0]=&asset->source;meshes[1]=&asset->windows;meshes[2]=&asset->neighbors;
     origins[0]=asset->source_origins;origins[1]=asset->window_origins;origins[2]=asset->neighbor_origins;capacity=0;
     for(i=0;i<3;i++) {
-        if(i==2 && asset->source_uid==66 && !meshes[i]->face_count && !meshes[i]->vertex_count)continue;
+        if(i==2 && (asset->source_uid==66 || asset->source_uid==148) && !meshes[i]->face_count && !meshes[i]->vertex_count)continue;
         if(!meshes[i]->faces || !meshes[i]->vertices || !origins[i] || !meshes[i]->face_count || meshes[i]->face_count>768 ||
             !meshes[i]->vertex_count || meshes[i]->vertex_count>4096)return RF_RANGE;
         capacity+=meshes[i]->face_count;
@@ -235,9 +235,11 @@ int rf_geomod_authored_identity_capture_manifest(const rf_level *level,const rf_
     status=allocate(c,c->material_capacity*sizeof(*c->materials),&memory);if(status)goto done;c->materials=memory;
     status=allocate(c,capacity*sizeof(*c->references),&memory);if(status)goto done;c->references=memory;
     status=allocate(c,rgb->count*sizeof(*c->chart_pixels),&memory);if(status)goto done;c->chart_pixels=memory;
+    /* Editor bytes are required only for the final identity hash. Keep the
+     *877943-byte ctf06 section out of texture decode + logical-copy peaks. */
+    for(i=0;i<3;i++){status=mesh_capture(c,meshes[i],origins[i]);if(status)goto done;}
     status=allocate(c,editor->size,&memory);if(status)goto done;c->editor=memory;
     status=rf_level_read(level,editor,0,c->editor,editor->size);if(status)goto done;
-    for(i=0;i<3;i++){status=mesh_capture(c,meshes[i],origins[i]);if(status)goto done;}
     c->input.asset=asset;strcpy(c->input.level,"ctf06.rfl");c->input.compiled_section=geometry->data;
     c->input.compiled_bytes=geometry->bytes;c->input.editor_section=c->editor;c->input.editor_bytes=editor->size;
     /* Immutable view comes from the bounded loader, whose selected-source flags0 guard
@@ -250,7 +252,7 @@ int rf_geomod_authored_identity_capture_manifest(const rf_level *level,const rf_
     if((rf_geomod_authored_beam_roof(asset->source_uid)!=0))c->input.loader_policy=3;
     /* Original44d870 flags2 select air operation1. Explicit inward geometry
      * and compiled-window cavity publication must never match a solid save. */
-    if(asset->source_uid==66) {
+    if(asset->source_uid==66 || asset->source_uid==148) {
         c->input.source_mode=1;c->input.source_operation=1;
         c->input.loader_policy=4;c->input.publication_policy=13;
     }
@@ -259,6 +261,8 @@ int rf_geomod_authored_identity_capture_manifest(const rf_level *level,const rf_
     c->input.materials=c->materials;c->input.material_count=c->material_count;
     c->input.references=c->references;c->input.reference_count=c->reference_count;
     status=rf_geomod_authored_identity(&c->input,result);if(status)goto done;
+    /* Neither manifest hashing nor substrate decode needs the editor again. */
+    free(c->editor);c->editor=NULL;c->used-=editor->size;c->input.editor_section=NULL;
     if(manifest){status=manifest_prepare(c,manifest);if(status)goto done;}
     if(manifest) {
         memcpy(manifest->materials,c->manifest_materials,c->material_count*sizeof(*manifest->materials));

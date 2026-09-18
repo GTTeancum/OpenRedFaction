@@ -56,7 +56,7 @@ static int scene_terrain_authored_open_source(scene_stream *s,const rf_level *le
     if(!s || !level || !s->geometry || !s->collision || !actor_follow_world ||
        !actor_follow_world->slots || !s->materials || s->terrain || s->terrain_authored)return RF_RANGE;
     a=calloc(1,sizeof(*a));if(!a)return RF_IO;
-    status=uid==66?rf_geomod_authored_cavity_open(level,s->geometry,2*1024*1024,&a->asset):
+    status=(uid==66 || uid==148)?rf_geomod_authored_cavity_open_source(level,s->geometry,uid,2*1024*1024,&a->asset):
         rf_geomod_authored_post_open_source(level,s->geometry,uid,2*1024*1024,&a->asset);if(status)goto fail;
     status=rf_geomod_authored_post_get(a->asset,&a->asset_view);if(status)goto fail;
     /* Capture original asset identity before remapping face materials into
@@ -70,7 +70,7 @@ static int scene_terrain_authored_open_source(scene_stream *s,const rf_level *le
     a->identity_manifest.substrate=calloc(1,sizeof(*a->identity_manifest.substrate));
     if(!a->identity_manifest.materials || !a->identity_manifest.references || !a->identity_manifest.substrate){status=RF_IO;goto fail;}
     status=rf_geomod_authored_identity_capture_manifest(level,s->geometry,&a->asset_view,
-        maps,map_count,&s->light_rgb,2u*1024u*1024u,a->source_identity,&a->identity_peak_bytes,&a->identity_manifest);
+        maps,map_count,&s->light_rgb,(uid==148?3u:2u)*1024u*1024u,a->source_identity,&a->identity_peak_bytes,&a->identity_manifest);
     if(status){printf("AUTHORED_IDENTITY_ERROR %d\n",status);goto fail;}
     if(a->asset_view.room>=s->collision->room_count || !a->asset_view.replaced_count){status=RF_FORMAT;goto fail;}
     a->source=a->asset_view.source;a->windows=a->asset_view.windows;a->neighbors=a->asset_view.neighbors;
@@ -100,10 +100,10 @@ static int scene_terrain_authored_open_source(scene_stream *s,const rf_level *le
         if(status)goto fail;
     }
     generated=a->asset_view.source_filters[0];generated.query_flags=0;generated.face_flags=256;
-    status=rf_geomod_terrain_open(&a->source,a->asset_view.source_filters,&generated,uid==66,
+    status=rf_geomod_terrain_open(&a->source,a->asset_view.source_filters,&generated,(uid==66 || uid==148),
         SCENE_TERRAIN_SOURCE_VERTICES,SCENE_TERRAIN_FACES,SCENE_TERRAIN_CORE_BUDGET,&terrain);if(status)goto fail;
     status=rf_geomod_terrain_set_mapping(terrain,s->terrain_texture_width,s->terrain_texture_height);if(status)goto fail;
-    if(uid!=66) {
+    if(uid!=66 && uid!=148) {
         status=scene_detached_open(s,&generated,&pieces);if(status)goto fail;
         status=rf_geomod_terrain_set_extraction(terrain,rf_geomod_piece_registry_emit,pieces);if(status)goto fail;
     }
@@ -170,9 +170,9 @@ static int scene_terrain_sources_open(scene_stream *s,const rf_level *level,rf_v
     uint32_t identity_before[10];uint64_t resident,reserved;int status=RF_RANGE;
     if(!s || !uids || !count || count>4 || s->terrain_sources || s->terrain || s->terrain_authored || s->detached_pieces)return RF_RANGE;
     for(i=0;i<count;i++) {
-        if(uids[i]==66 && count!=1)return RF_RANGE;
+        if((uids[i]==66 || uids[i]==148) && count!=1)return RF_RANGE;
         if(rf_geomod_authored_post_detail(uids[i],NULL) && count!=1 && uids[0]!=92 && uids[0]!=108)return RF_RANGE;
-        if(!rf_geomod_authored_post_detail(uids[i],NULL) && uids[i]!=108 && uids[i]!=92 && uids[i]!=66 && uids[i]!=93 && uids[i]!=94 && uids[i]!=95 && uids[i]!=96 && uids[i]!=97 && uids[i]!=98)return RF_NOT_FOUND;
+        if(!rf_geomod_authored_post_detail(uids[i],NULL) && uids[i]!=108 && uids[i]!=92 && uids[i]!=66 && !(uids[i]==148 && rf_scene_vehicle_enabled) && uids[i]!=93 && uids[i]!=94 && uids[i]!=95 && uids[i]!=96 && uids[i]!=97 && uids[i]!=98)return RF_NOT_FOUND;
         if(rf_geomod_authored_beam_roof(uids[i]) && count!=1) {
             uint32_t posts[2];
             if(!rf_geomod_authored_beam_posts(uids[i],posts) || (count!=2 && count!=3) ||
@@ -183,14 +183,14 @@ static int scene_terrain_sources_open(scene_stream *s,const rf_level *level,rf_v
     resident=(uint64_t)count*sizeof(*sources);
     /* Reserve full decoder, core and registry ceilings before each factory call.
      * Shared scene resources are borrowed and charged by their existing owner. */
-    reserved=sizeof(*staged)+resident+2u*1024u*1024u+SCENE_TERRAIN_CORE_BUDGET+SCENE_DETACHED_BUDGET;
+    reserved=sizeof(*staged)+resident+(uids[0]==148?3u:2u)*1024u*1024u+SCENE_TERRAIN_CORE_BUDGET+(uids[0]==148?0:SCENE_DETACHED_BUDGET);
     if(reserved>budget)return RF_RANGE;
     staged=malloc(sizeof(*staged));sources=calloc(count,sizeof(*sources));
     if(!staged || !sources){free(staged);free(sources);return RF_IO;}
     *staged=*s;memcpy(identity_before,rf_scene_authored_identity,sizeof(identity_before));
     for(i=0;i<count;i++) {
         rf_geomod_terrain_view view;
-        reserved=sizeof(*staged)+resident+2u*1024u*1024u+SCENE_TERRAIN_CORE_BUDGET+SCENE_DETACHED_BUDGET;
+        reserved=sizeof(*staged)+resident+(uids[0]==148?3u:2u)*1024u*1024u+SCENE_TERRAIN_CORE_BUDGET+(uids[0]==148?0:SCENE_DETACHED_BUDGET);
         if(reserved>budget){printf("AUTHORED_OPEN_REJECT source %u reserved %u budget %u\n",i,(uint32_t)reserved,budget);status=RF_RANGE;goto fail;}
         status=scene_terrain_authored_open_source(staged,level,maps,map_count,uids[i]);if(status)goto fail;
         sources[i]=(scene_terrain_source_owner){staged->terrain_authored,staged->terrain,staged->detached_pieces};opened++;
@@ -225,6 +225,7 @@ static inline int scene_terrain_authored_open(scene_stream *s,const rf_level *le
 {
     uint32_t uids[3]={scene_authored_source_uid,0,93};
     uint32_t posts[2];
+    if(rf_scene_vehicle_enabled){uids[0]=148;return scene_terrain_sources_open(s,level,maps,map_count,uids,1,6u*1024u*1024u);}
     if(rf_geomod_authored_beam_posts(uids[0],posts)){uids[1]=posts[1];uids[2]=posts[0];}
     else uids[1]=uids[0]==93?94:uids[0]==94?93:uids[0]==96?97:96;
     return scene_terrain_sources_open(s,level,maps,map_count,uids,scene_authored_source_count,

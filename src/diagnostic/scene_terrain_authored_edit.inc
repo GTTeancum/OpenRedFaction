@@ -11,7 +11,7 @@ static int scene_authored_edit_create(void *opaque,uint32_t budget,rf_geomod_ter
     scene_terrain_authored_assets *a=c->authored?c->authored:s->terrain_authored;
     rf_collision_face_filter generated=a->asset_view.source_filters[0];int status;
     generated.query_flags=0;generated.face_flags=256;
-    status=rf_geomod_terrain_open(&a->source,a->asset_view.source_filters,&generated,a->asset_view.source_uid==66,
+    status=rf_geomod_terrain_open(&a->source,a->asset_view.source_filters,&generated,(a->asset_view.source_uid==66 || a->asset_view.source_uid==148),
         SCENE_TERRAIN_SOURCE_VERTICES,SCENE_TERRAIN_FACES,budget,out);if(status)return status;
     return rf_geomod_terrain_set_mapping(*out,s->terrain_texture_width,s->terrain_texture_height);
 }

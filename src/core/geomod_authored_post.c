@@ -321,7 +321,7 @@ static int import_brush_oriented(const unsigned char *data, const brush_record *
                 s=geometry_source(g,candidate,&id);if(s)return s;
                 if(id!=source)continue;
                 s=rf_geometry_get_face(g,candidate,&visible);if(s)return s;
-                if(visible.room!=3)continue;
+                if(visible.room!=(b->uid==148?0u:3u))continue;
                 s=rf_geometry_initial_collision_filter(g,candidate,0,&filter);if(s)return s;
                 if(ordinary_source(&filter)){ref=candidate;break;}
             }
@@ -454,6 +454,7 @@ static int decode_profile(const void *input, uint32_t bytes, const rf_geometry *
     uint32_t count, i, j, k, total_faces = 0, source_index = UINT32_MAX, nnear = 0, nfaces = 0, ncorners = 0,
                              wfaces = 0, wcorners = 0, fallback = UINT32_MAX, air = 0;
     uint64_t scratch, at, peak;
+    uint32_t source_room=source_uid==148?0u:3u;
     const beam_profile *beam=find_beam_profile(source_uid);
     const post_profile *post=find_post_profile(source_uid);
     rf_geomod_authored_detail_guard guard={0},*stored_guard=NULL;
@@ -461,7 +462,7 @@ static int decode_profile(const void *input, uint32_t bytes, const rf_geometry *
     int s = RF_FORMAT;
     if (!input || !g || !g->data || !settings || !out || *out)
         return RF_RANGE;
-    if (cavity ? source_uid!=66 : (!beam && !post && source_uid != 93 && source_uid != 94 && source_uid != 96 && source_uid != 97))
+    if (cavity ? (source_uid!=66 && source_uid!=148) : (!beam && !post && source_uid != 93 && source_uid != 94 && source_uid != 96 && source_uid != 97))
         return RF_NOT_FOUND;
     if (bytes < 4)
         return RF_FORMAT;
@@ -596,8 +597,8 @@ static int decode_profile(const void *input, uint32_t bytes, const rf_geometry *
         }
         if (!owner || owner->brush != source_index)
             continue;
-        if(cavity && f.room!=3)continue;
-        if (f.room != 3 || f.corners < 3 || f.corners > 64) {
+        if(cavity && f.room!=source_room)continue;
+        if (f.room != source_room || f.corners < 3 || f.corners > 64) {
             s = RF_NOT_FOUND;
             goto done;
         }
@@ -684,7 +685,7 @@ static int decode_profile(const void *input, uint32_t bytes, const rf_geometry *
     o->view.neighbor_filters = neighbor_filters;
     o->view.replaced_ids = replaced;
     o->view.source_uid = source_uid;
-    o->view.room = 3;
+    o->view.room = source_room;
     o->view.solid_count = nnear;
     o->view.replaced_count = wfaces;
     o->view.brush_count = count;
@@ -722,7 +723,7 @@ static int decode_profile(const void *input, uint32_t bytes, const rf_geometry *
             goto done;
         if(cavity) {
             rf_collision_face_filter filter;
-            if(f.room!=3)continue;
+            if(f.room!=source_room)continue;
             s=rf_geometry_initial_collision_filter(g,i,0,&filter);if(s)goto done;
             if(!ordinary_source(&filter))continue;
         }
@@ -824,6 +825,10 @@ int rf_geomod_authored_post_open_source(const rf_level *level,const rf_geometry 
     uint32_t uid,uint32_t budget,rf_geomod_authored_post **out) {
     return open_profile(level,geometry,uid,0,budget,out);
 }
+int rf_geomod_authored_cavity_open_source(const rf_level *level,const rf_geometry *geometry,
+    uint32_t uid,uint32_t budget,rf_geomod_authored_post **out) {
+    return open_profile(level,geometry,uid,1,budget,out);
+}
 int rf_geomod_authored_cavity_open(const rf_level *level,const rf_geometry *geometry,
     uint32_t budget,rf_geomod_authored_post **out) {
     return open_profile(level,geometry,66,1,budget,out);
@@ -873,6 +878,59 @@ static int cavity_window_pair(const rf_geomod_authored_post_view *a,uint32_t fir
     }
     return 0;
 }
+/* UID148 may cut the actual wall/floor corner. Clip each authored surface
+ * against the cutter bounds and prove ALL affected surface patches lie in
+ * retained compiled windows. No cap, shifted cutter or flattened floor is
+ * introduced. Other-brush rejection remains the caller's first guard. */
+static int cavity_surface_box_admit(const rf_geomod_authored_post_view *a,
+    const float minimum[3],const float maximum[3],uint32_t *touched,uint32_t *reference) {
+    double points[2][80][3];uint32_t face,found=0,first=UINT32_MAX;
+    *touched=0;
+    for(face=0;face<a->source.face_count;face++) {
+        const rf_geomod_face *f=a->source.faces+face;const float *plane=a->source_planes[face];
+        uint32_t n=f->count,bank=0,axis,side,i,k,w,accepted=0;double area[3]={0};
+        if(n<3 || n>64)return RF_RANGE;
+        for(i=0;i<n;i++)for(k=0;k<3;k++)points[0][i][k]=a->source.vertices[f->first+i].position[k];
+        for(axis=0;axis<3 && n;axis++)for(side=0;side<2 && n;side++) {
+            uint32_t out=0;double boundary=side?maximum[axis]:minimum[axis];
+            for(i=0;i<n;i++) {
+                const double *p=points[bank][i],*q=points[bank][(i+1)%n];
+                double d=side?boundary-p[axis]:p[axis]-boundary;
+                double e=side?boundary-q[axis]:q[axis]-boundary;
+                if(d>=0){if(out==80)return RF_RANGE;memcpy(points[bank^1][out++],p,3*sizeof(double));}
+                if((d<0)!=(e<0)) {
+                    double t=d/(d-e);if(out==80)return RF_RANGE;
+                    for(k=0;k<3;k++)points[bank^1][out][k]=p[k]+t*(q[k]-p[k]);
+                    out++;
+                }
+            }
+            n=out;bank^=1;
+        }
+        if(n<3)continue;
+        for(i=1;i+1<n;i++)for(k=0;k<3;k++) {
+            uint32_t u=(k+1)%3,v=(k+2)%3;
+            area[k]+=(points[bank][i][u]-points[bank][0][u])*(points[bank][i+1][v]-points[bank][0][v])-
+                (points[bank][i][v]-points[bank][0][v])*(points[bank][i+1][u]-points[bank][0][u]);
+        }
+        if(area[0]*area[0]+area[1]*area[1]+area[2]*area[2]<1e-12)continue;
+        *touched=1;
+        for(w=0;w<a->windows.face_count && !accepted;w++)if(a->windows.faces[w].source_face==f->source_face) {
+            uint32_t partner;accepted=1;
+            for(i=0;i<n && accepted;i++)accepted=cavity_window_contains(a,w,UINT32_MAX,plane,points[bank][i]);
+            for(partner=w+1;!accepted && partner<a->windows.face_count;partner++) {
+                uint32_t skip[2];if(!cavity_window_pair(a,w,partner,plane,skip))continue;
+                accepted=1;
+                for(i=0;i<n && accepted;i++)accepted=cavity_window_contains(a,w,skip[0],plane,points[bank][i]) &&
+                    cavity_window_contains(a,partner,skip[1],plane,points[bank][i]);
+            }
+            if(accepted && first==UINT32_MAX)first=a->window_origins[w].reference;
+        }
+        if(!accepted)return RF_NOT_FOUND;
+        found++;
+    }
+    if(!found)return RF_NOT_FOUND;
+    *reference=first;return RF_OK;
+}
 int rf_geomod_authored_post_admit(const rf_geomod_authored_post *o,const float minimum[3],
     const float maximum[3]) {
     uint32_t i,k;
@@ -890,11 +948,17 @@ int rf_geomod_authored_cavity_admit(const rf_geomod_authored_post *o,const float
     const float maximum[3],uint32_t *reference) {
     const rf_geomod_authored_post_view *a;uint32_t i,j,k,corner;
     if(!o || !minimum || !maximum || !reference)return RF_RANGE;
-    a=&o->view;if(a->source_uid!=66 || !o->cavity_obstacles || !o->cavity_obstacle_count)return RF_NOT_FOUND;
+    a=&o->view;if((a->source_uid!=66 && a->source_uid!=148) || !o->cavity_obstacles || !o->cavity_obstacle_count)return RF_NOT_FOUND;
     for(k=0;k<3;k++)if(!isfinite(minimum[k]) || !isfinite(maximum[k]) || minimum[k]>maximum[k])return RF_RANGE;
     for(i=0;i<o->cavity_obstacle_count;i++) {
         for(k=0;k<3;k++)if(maximum[k]<o->cavity_obstacles[i][0][k]-1e-5f || minimum[k]>o->cavity_obstacles[i][1][k]+1e-5f)break;
         if(k==3)return RF_NOT_FOUND;
+    }
+    if(a->source_uid==148) {
+        uint32_t touched=0,ref;int status=cavity_surface_box_admit(a,minimum,maximum,&touched,&ref);
+        if(!status){*reference=ref;return RF_OK;}
+        if(touched || status!=RF_NOT_FOUND)return status;
+        /* Wholly behind an existing wall: retain the original corridor proof. */
     }
     for(i=0;i<a->windows.face_count;i++) {
         const rf_geomod_face *window=a->windows.faces+i;const float *plane;double lo;float corridor[2][3];uint32_t accepted=1;
