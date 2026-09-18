@@ -2693,6 +2693,9 @@ static int campaign_controller_tick(int32_t now,rf_level_particles *particles,co
                 if(delay<0 || delay>RF_TIMER_PERIOD)return RF_RANGE;
                 status=rf_timer_set(&runtime->deadline,now,(int32_t)delay);if(status)return status;
                 ++rf_scene_live_motion[2];
+#ifndef RF_IMAGE_XBOX_NATIVE
+                if(getenv("RF_REPLAY_DOOR_TRACE"))printf("DOOR_HOLD %u %d %d %.9g %.9g %.9g %u\n",i,now,runtime->deadline,actor.position[0],actor.position[1],actor.position[2],rf_scene_npc_triggers[4]);
+#endif
             } else if(occupied && tick.step.timing!=0 && !(runtime->motion.flags&1) &&
                       tick.step.distance<tick.progress.length && runtime->motion.next_key==0) {
                 status=rf_group_translation_reverse(runtime,entry->source->keys,entry->source->record.key_count);if(status)return status;

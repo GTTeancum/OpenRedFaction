@@ -1,8 +1,10 @@
 # Red Faction Xbox / PC - open work
 
+- PRIORITY Core gameplay: Integrate remaining weapon behavior in the DEV testbed, starting with thrown grenades; use retained helper findings and focused gameplay checks, deferring polish and exhaustive GeoMod edge cases.
+
 - DEFERRED GeoMod crush: Resolve confined moving-platform overlap and controller admission after core integration; separating static contact is fixed and passes78 Xbox checks, but the ceiling stress still has17 limited frames.
 
-- PRIORITY Doors: Restore reliable closing and reopening in the gameplay loop; the420-frame cycle replay fails while opening and traversal pass.
+- Doors: Replace the stale close/reopen fixture with an unoccupied route when revisiting door coverage; live tracing confirms NPC/player occupancy holds the doors open, so the failing cycle assertion does not establish a controller defect.
 
 - PRIORITY GeoMod ordinary walls: Broaden multi-window and neighboring-brush CSG; a live floor-seam rocket now passes77 stock64MiB checks with exact PC/Xbox save bytes and fixture-off/mismatched-save rejection controls, alongside verified wall depth and player traversal.
 
