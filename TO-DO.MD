@@ -1,6 +1,6 @@
 # Red Faction Xbox / PC - open work
 
-- PRIORITY GeoMod fragment contacts: Broaden rotating/coplanar edge cases and finish mover-relative response after live world/mover edge coverage passes80 native checks and both resting-floor gates; measured active debris cost is now about41ms.
+- PRIORITY GeoMod fragment contacts: Broaden rotating/coplanar edge cases and investigate mover callback/wake behavior;1536 original cases show ordinary response ignores counterpart velocity, while live edge coverage passes80 native checks with about41ms active debris cost.
 
 - PRIORITY GeoMod ordinary walls: Broaden multi-window and neighboring-brush CSG; a live floor-seam rocket now passes77 stock64MiB checks with exact PC/Xbox save bytes and fixture-off/mismatched-save rejection controls, alongside verified wall depth and player traversal.
 
