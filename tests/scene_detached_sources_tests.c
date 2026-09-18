@@ -117,16 +117,26 @@ static int moving_surface_contacts(void)
         }
         memset(interval.start,0,12);memset(interval.end,0,12);memset(pose.position,0,12);
         pose.minimum[1]=-.001f;pose.maximum[1]=.001f;
+        /* Rotating-only support: yaw keeps the crossed support, tipping removes it. */
+        for(uint32_t tipped=0;tipped<2;tipped++) {
+            memset(pose.input_matrix,0,36);
+            if(tipped){pose.input_matrix[1]=1;pose.input_matrix[3]=-1;pose.input_matrix[8]=1;}
+            else {pose.input_matrix[2]=1;pose.input_matrix[4]=1;pose.input_matrix[6]=-1;}
+            memcpy(interval.end_matrix,pose.input_matrix,36);interval.changed=2;
+            pose.minimum[0]=pose.minimum[1]=pose.minimum[2]=-1;
+            pose.maximum[0]=pose.maximum[1]=pose.maximum[2]=1;floor=pose;
+            CHECK(!scene_fragment_support_loss(&mesh,&body,&movers,&interval,current_support_query,&fixture,&wake));
+            CHECK(wake==tipped && !memcmp(&body,&before,sizeof(body)));
+        }
+        memcpy(pose.input_matrix,interval.matrix,36);memcpy(interval.end_matrix,interval.matrix,36);interval.changed=1;
         /* A distant mover must not wake this body or even call the world query. */
         interval.start[0]=20;interval.end[0]=pose.position[0]=22;
         pose.minimum[0]=21.75f;pose.maximum[0]=22.25f;floor=pose;fixture.error=1;
         CHECK(!scene_fragment_support_loss(&mesh,&body,&movers,&interval,current_support_query,&fixture,&wake));CHECK(!wake);
-        /* Excluded, unchanged and rotating intervals do not enter translation wake. */
+        /* Excluded and unchanged intervals do not enter wake. */
         interval.start[0]=0;pose.flags=0x40000u;
         CHECK(!scene_fragment_support_loss(&mesh,&body,&movers,&interval,current_support_query,&fixture,&wake));CHECK(!wake);
         pose.flags=0;interval.changed=0;
-        CHECK(!scene_fragment_support_loss(&mesh,&body,&movers,&interval,current_support_query,&fixture,&wake));CHECK(!wake);
-        interval.changed=2;
         CHECK(!scene_fragment_support_loss(&mesh,&body,&movers,&interval,current_support_query,&fixture,&wake));CHECK(!wake);
         interval.changed=1;interval.handle=78;wake=77;
         CHECK(scene_fragment_support_loss(&mesh,&body,&movers,&interval,current_support_query,&fixture,&wake)==RF_FORMAT);
@@ -431,7 +441,7 @@ static int support_loss_scene_tick(void) {
     scene_mover_interval *saved_intervals=campaign_mover_intervals;
     rf_group_attached_pose *saved_filtered=campaign_fragment_mover_poses;
     float saved_duration=campaign_mover_interval_seconds,saved_gravity=scene_gravity.acceleration;
-    uint32_t saved_count=campaign_mover_translation_count;rf_physics_body_state before;
+    uint32_t saved_count=campaign_mover_translation_count,saved_changed=campaign_mover_changed_count;rf_physics_body_state before,initial;
     rf_scene_world_geometry empty_render={0};rf_surface_materials empty_palette={0};const rf_geometry *empty_geometry=NULL;
     const rf_scene_world_geometry *saved_render=actor_follow_world;
     rf_surface_materials *saved_palette=campaign_surface_palette;const rf_geometry **saved_sources=campaign_surface_sources;
@@ -439,7 +449,7 @@ static int support_loss_scene_tick(void) {
     actor_follow_world=&empty_render;campaign_surface_palette=&empty_palette;campaign_surface_sources=&empty_geometry;campaign_sweep_scratch=&scratch;
     CHECK(!cube(0,.25f,&registry));scene.detached_pieces=registry;scene.collision=&world;
     CHECK(!rf_geomod_piece_registry_get(registry,0,&batch));CHECK(!rf_geomod_piece_batch_get(batch,0,&piece,&body));
-    body->state.flags&=~0x80000000u;before=body->state;
+    body->state.flags&=~0x80000000u;before=body->state;initial=before;
     face.vertices=points;face.count=4;face.plane[1]=1;
     face.minimum[0]=face.minimum[2]=-2;face.maximum[0]=face.maximum[2]=2;
     flat.faces=&face;flat.count=1;view.object_id=77;
@@ -451,7 +461,7 @@ static int support_loss_scene_tick(void) {
     pose.position[1]=-2;pose.minimum[1]=-2.001f;pose.maximum[1]=-1.999f;
     CHECK(!scene_mover_intervals_capture(&campaign_movers,&interval,1,1));
     filtered=pose;filtered.flags|=0x40000u;campaign_fragment_mover_poses=&filtered;
-    campaign_mover_intervals=&interval;campaign_mover_interval_seconds=1.f/60;campaign_mover_translation_count=1;
+    campaign_mover_intervals=&interval;campaign_mover_interval_seconds=1.f/60;campaign_mover_translation_count=1;campaign_mover_changed_count=1;
     scene_gravity.acceleration=9.8f;
     interval.handle=78;
     CHECK(scene_detached_tick(&scene,1.f/60)==RF_FORMAT);
@@ -462,8 +472,17 @@ static int support_loss_scene_tick(void) {
     /* A later ordinary frame must continue falling rather than re-settling. */
     before=body->state;campaign_mover_interval_seconds=0;campaign_mover_translation_count=0;
     CHECK(!scene_detached_tick(&scene,1.f/60));CHECK(body->state.position[1]<before.position[1]);
+    /* Rotating-only frames must reach wake admission without translation count. */
+    body->state=initial;pose.position[1]=-.25f;
+    CHECK(!scene_mover_intervals_capture(&campaign_movers,&interval,1,0));
+    memset(pose.input_matrix,0,36);pose.input_matrix[1]=1;pose.input_matrix[3]=-1;pose.input_matrix[8]=1;
+    pose.minimum[0]=-.001f;pose.maximum[0]=.001f;pose.minimum[1]=-2.25f;pose.maximum[1]=1.75f;
+    CHECK(!scene_mover_intervals_capture(&campaign_movers,&interval,1,1));
+    CHECK(interval.changed==2);campaign_mover_interval_seconds=1.f/60;campaign_mover_changed_count=1;
+    CHECK(!scene_detached_tick(&scene,1.f/60));
+    CHECK((body->state.flags&0x80000000u) && body->state.position[1]<initial.position[1]);
     campaign_movers=saved_movers;campaign_mover_intervals=saved_intervals;campaign_fragment_mover_poses=saved_filtered;
-    campaign_mover_interval_seconds=saved_duration;campaign_mover_translation_count=saved_count;scene_gravity.acceleration=saved_gravity;
+    campaign_mover_interval_seconds=saved_duration;campaign_mover_translation_count=saved_count;campaign_mover_changed_count=saved_changed;scene_gravity.acceleration=saved_gravity;
     actor_follow_world=saved_render;campaign_surface_palette=saved_palette;campaign_surface_sources=saved_sources;campaign_sweep_scratch=saved_scratch;
     rf_geomod_piece_registry_close(&registry);return 0;
 }

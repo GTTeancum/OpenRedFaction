@@ -487,10 +487,11 @@ dvd_path = '{root.as_posix()}/build/xbox/redfaction-diagnostic.iso'
                 report['checks']['FRAGMENT_MOVING_AUDIT']=dict(pc=moving_pc,xbox=moving_xbox,equal=True,cases=3)
                 support_pc=[int(v) for line in pc.stdout.splitlines() if line.startswith('FRAGMENT_SUPPORT_AUDIT ') for v in line.split()[1:]]
                 support_xbox=snap['symbols']['rf_scene_fragment_support_audit']['words']
-                assert support_pc==support_xbox and support_pc[:8]==[1,3,0,1,1,0,0xffffffff,1]
+                assert support_pc==support_xbox and support_pc[:8]==[1,5,0,1,1,0,0xffffffff,1]
                 before,after,velocity=struct.unpack('<3f',struct.pack('<3I',*support_pc[8:11]))
                 assert before==.25 and after<before and velocity<0 and support_pc[11]&0x80000000
-                report['checks']['FRAGMENT_SUPPORT_AUDIT']=dict(pc=support_pc,xbox=support_xbox,equal=True,cases=3)
+                assert support_pc[12:]==[0,1,1,2]
+                report['checks']['FRAGMENT_SUPPORT_AUDIT']=dict(pc=support_pc,xbox=support_xbox,equal=True,cases=5)
 
 
 

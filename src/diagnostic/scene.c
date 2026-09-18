@@ -2797,9 +2797,10 @@ static int campaign_controller_commit(void)
     rf_scene_live_audio[6]+=800;
     if(campaign_audio_sink)campaign_audio_sink(campaign_audio_context,campaign_audio_frame,800);
     if(campaign_audio_events.poll)campaign_audio_events.poll(campaign_audio_events_context);
-    campaign_mover_translation_count=0;
+    campaign_mover_translation_count=0;campaign_mover_changed_count=0;
     for(i=0;i<campaign_movers.count;i++) {
         campaign_fragment_mover_poses[i]=campaign_movers.poses[i];
+        if(campaign_mover_intervals[i].changed && !(campaign_movers.poses[i].flags&0x40000u))campaign_mover_changed_count++;
         if(campaign_mover_intervals[i].changed==1) {
             campaign_fragment_mover_poses[i].flags|=0x40000u;
             if(!(campaign_movers.poses[i].flags&0x40000u))campaign_mover_translation_count++;
@@ -11580,14 +11581,15 @@ static int scene_detached_tick(scene_stream *s,float seconds)
             query.source=source;query.batch=b;query.piece=i;
             query.trace=getenv("RF_REPLAY_FRAGMENT_CONTACT_TRACE")!=NULL;
 #endif
-            if(campaign_mover_interval_seconds>0 && campaign_mover_translation_count && seconds>0) {
+            if(campaign_mover_interval_seconds>0 && campaign_mover_changed_count && seconds>0) {
                 if(!(next.flags&0x80000000u)) {
                     status=scene_detached_support_loss(&query,&next,&wake);if(status)goto failed;
                     if(wake)next.flags|=0x80000000u;
                 }
-                if(wake) {
-                    /* Support was lost at the committed pose: integrate from
-                     * that scene state, without replaying the departed support. */
+                if(wake || !campaign_mover_translation_count) {
+                    /* A new wake integrates from the committed scene without
+                     * replaying departed support. Rotation-only frames likewise
+                     * retain the existing committed-pose collision path. */
                     status=rf_physics_fragment_step(&next,seconds,scene_gravity.acceleration,&flags,
                         position,basis,scene_detached_query,&query,&report);
                 } else {

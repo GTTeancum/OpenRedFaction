@@ -1,6 +1,6 @@
 # Fragment wake after translating support leaves
 
-The scene now checks inactive extracted fragments when an enabled mover has a valid translating-only interval. A short vertical mesh sweep from 0.005 units above to 0.005 units below the settled pose identifies an old upward support (normal Y >= 0.5). The previous mover pose is reconstructed locally from the retained interval; current global geometry is never changed. If that mover no longer supplies support, the production scene query checks current world and mover geometry before admitting wake.
+The scene now checks inactive extracted fragments when an enabled mover has a valid changed-pose interval (translation or rotation). A short vertical mesh sweep from 0.005 units above to 0.005 units below the settled pose identifies an old upward support (normal Y >= 0.5). The previous mover pose is reconstructed locally from the retained interval; current global geometry is never changed. If that mover no longer supplies support, the production scene query checks current world and mover geometry before admitting wake.
 
 This is an explicit port policy, not a recovered original fragment wake producer. The original activation and scheduler evidence in GEOMOD-MOVER-WAKE-BOUNDARY-20260918.md still applies. The narrow support band and normal threshold are policy choices.
 
@@ -22,8 +22,18 @@ The optional inner-work profiler patch still applies and remains disabled.
 
 ## Lateral and scene-update acceptance
 
-The expanded PC fixture tests positive/negative sideways withdrawal, overlap retention, and gradual 0.001-unit motion. Its crossed rectangles retain support through small lateral offsets and wake at the 1.25-unit edge boundary; gradual downward motion wakes at the 0.005-unit probe boundary. Distant, disabled, unchanged and rotating-only intervals do not call the current-world fallback or wake the body. Invalid retained identity preserves the output sentinel and body.
+The expanded PC fixture tests positive/negative sideways withdrawal, overlap retention, and gradual 0.001-unit motion. Its crossed rectangles retain support through small lateral offsets and wake at the 1.25-unit edge boundary; gradual downward motion wakes at the 0.005-unit probe boundary. The original lateral tests checked distant, disabled and unchanged intervals without calling the current-world fallback or waking the body; rotating-only admission was added subsequently below. Invalid retained identity preserves the output sentinel and body.
 
 A separate extracted-cube registry fixture now exercises scene_detached_tick with a complete minimal collision context. A valid departing mover wakes the registered chunk, ordinary gravity lowers it without contact, and the following frame continues falling. Invalid mover identity returns RF_FORMAT before body mutation. This checks production scene routing and state publication, not merely the isolated predicate. An initial fixture attempt lacked required scene material/render context and returned an error; providing that context resolved the fixture setup without changing production code.
 
 All 126 PC tests pass in artifacts/fragment-support-lateral-ctest.log. These additions change tests only; native runtime is unchanged from the accepted 82-check run. Lateral cases and the new scene fixture have not been independently executed as Xbox audit fixtures. No new visual claim is made.
+
+## Rotation-only support loss
+
+Wake admission now counts all enabled changed movers separately from the translating-only collision count. A rotation-only frame can therefore wake an inactive piece. The old pose uses the retained initial orientation and position. For rotated movers, its conservative bounds are rebuilt from the local face vertices transformed by that old pose; translating the final AABB alone would be incorrect for a rotated shape. This uses no heap allocation or persistent per-mover storage. Current support still must be absent before wake is admitted.
+
+PC fixtures check a 90-degree yaw that preserves support, a 90-degree tip that removes it, and an extracted registry body through the production scene update on a frame with zero translating movers. The body wakes and falls. All 126 PC tests pass (artifacts/fragment-support-rotation-ctest.log). The native audit now has five cases; its final four words are [0,1,1,2] for retained yaw support, lost tipped support, body preservation and the two rotation controls.
+
+This is endpoint support-loss policy only. Rotational swept collision, carrying, crushing, and support acquired/lost between endpoints remain open. The selected CTF06 developer room has zero authored movers (CAMPAIGN_MOVERS 0 0 0); the existing L1S1 door replay has authored movers but no reconstructed developer destruction setup. A visible joint scenario still needs an explicit platform fixture or integration of destruction with an appropriate authored moving structure. The current numerical audits do not substitute for that visual/gameplay acceptance.
+
+Native rotation acceptance: artifacts/xemu/render-20260918-045729 passes all 82 checks over 600 frames, including all five support-loss cases and exact 16-word PC/Xbox audit equality. Stock memory is 64 MiB with no plugged memory and 3312 available pages (12.94 MiB). Checkpoint and framebuffer hashes are unchanged from the accepted run above. The disc was restored and the owned emulator closed. Mean active debris time is 40.15 ms in this regression, not a rotation performance claim. No new visual was posted.

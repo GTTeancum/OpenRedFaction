@@ -1,6 +1,6 @@
 # Translating mover contacts for active fragments
 
-The scene now routes active fragment queries through the retained mover interval when an enabled mover translates without changing orientation. The timed fragment callback supplies the real remaining substep duration. Other frames retain the old query path. A subsequent bounded support-loss policy wakes settled fragments when translating support leaves and no current support remains (see GEOMOD-FRAGMENT-MOVER-SUPPORT-LOSS-20260918.md). Rotating movers continue using their prior committed-pose collision path.
+The scene now routes active fragment queries through the retained mover interval when an enabled mover translates without changing orientation. The timed fragment callback supplies the real remaining substep duration. Other frames retain the old query path. A subsequent bounded support-loss policy wakes settled fragments when translating or rotating support leaves and no current support remains (see GEOMOD-FRAGMENT-MOVER-SUPPORT-LOSS-20260918.md). Rotating movers continue using their prior committed-pose collision path.
 
 ## Geometry and ownership
 

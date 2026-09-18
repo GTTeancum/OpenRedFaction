@@ -82,7 +82,7 @@ static int scene_fragment_moving_sweep(const rf_geomod_mesh_view *mesh,const rf_
     return RF_OK;
 }
 /* Port support-loss policy: a short vertical mesh sweep identifies an old
- * upward support that this translating mover no longer provides. The scene
+ * upward support that this mover no longer provides. The scene
  * must still check all current world/mover support before waking the piece. */
 static void scene_fragment_support_probe(const rf_physics_body_state *body,rf_physics_body_state *probe)
 {
@@ -99,11 +99,28 @@ static int scene_fragment_departing_support(const rf_geomod_mesh_view *mesh,cons
         const scene_mover_interval *interval=intervals+m;const rf_group_attached_pose *current=movers->poses+m;
         rf_group_attached_pose previous=*current;rf_geometry_collision_movers one=*movers;
         rf_geometry_body_hit contact={0};uint32_t found;float lo[3],hi[3];
-        if(interval->changed!=1 || (current->flags&0x40000u))continue;
+        if(!interval->changed || (current->flags&0x40000u))continue;
         if(interval->handle!=movers->views[m].object_id || memcmp(interval->end,current->position,12) ||
            memcmp(interval->end_matrix,current->input_matrix,36))return RF_FORMAT;
         memcpy(previous.position,interval->start,12);memcpy(previous.input_matrix,interval->matrix,36);
-        for(k=0;k<3;k++){float delta=interval->start[k]-interval->end[k];previous.minimum[k]+=delta;previous.maximum[k]+=delta;}
+        if(interval->changed&2) {
+            const rf_geometry_collision_flat *flat=movers->owned+m;uint32_t f,v,j,seen=0;
+            for(f=0;f<flat->count;f++)for(v=0;v<flat->faces[f].count;v++) {
+                const float *local=flat->faces[f].vertices[v];
+                for(k=0;k<3;k++) {
+                    double point=previous.position[k];
+                    for(j=0;j<3;j++)point+=(double)local[j]*previous.input_matrix[j*3+k];
+                    if(!isfinite(point))return RF_FORMAT;
+                    if(!seen || point<previous.minimum[k])previous.minimum[k]=(float)point;
+                    if(!seen || point>previous.maximum[k])previous.maximum[k]=(float)point;
+                }
+                seen=1;
+            }
+            if(!seen)continue;
+            for(k=0;k<3;k++){previous.minimum[k]-=.0001f;previous.maximum[k]+=.0001f;}
+        } else {
+            for(k=0;k<3;k++){float delta=interval->start[k]-interval->end[k];previous.minimum[k]+=delta;previous.maximum[k]+=delta;}
+        }
         status=scene_detached_mesh_bounds(mesh,&probe,lo,hi);if(status)return status;
         if(!scene_detached_box_overlap(previous.minimum,previous.maximum,lo,hi))continue;
         one.count=1;one.poses=&previous;one.views=movers->views+m;one.owned=movers->owned+m;
@@ -198,7 +215,19 @@ static int scene_fragment_moving_check(void)
         if(!(body.position[1]<before.position[1]) || !(body.velocity[1]<0) || report.contacts){status=RF_FORMAT;goto done;}
         memcpy(rf_scene_fragment_support_audit+8,before.position+1,4);memcpy(rf_scene_fragment_support_audit+9,body.position+1,4);
         memcpy(rf_scene_fragment_support_audit+10,body.velocity+1,4);rf_scene_fragment_support_audit[11]=body.flags;
-        rf_scene_fragment_support_audit[1]=3;rf_scene_fragment_support_audit[3]=1;
+        body=before;interval.end[1]=pose.position[1]=0;
+        for(mode=0;mode<2;mode++) {
+            memset(pose.input_matrix,0,36);
+            if(mode){pose.input_matrix[1]=1;pose.input_matrix[3]=-1;pose.input_matrix[8]=1;}
+            else {pose.input_matrix[2]=1;pose.input_matrix[4]=1;pose.input_matrix[6]=-1;}
+            memcpy(interval.end_matrix,pose.input_matrix,36);interval.changed=2;
+            for(i=0;i<3;i++){pose.minimum[i]=-1;pose.maximum[i]=1;}floor=pose;
+            status=scene_fragment_support_loss(&mesh,&body,&movers,&interval,scene_fragment_support_fixture_query,&fixture,&wake);if(status)goto done;
+            if(wake!=mode || memcmp(&body,&before,sizeof(body))){status=RF_FORMAT;goto done;}
+            rf_scene_fragment_support_audit[12+mode]=wake;
+        }
+        rf_scene_fragment_support_audit[14]=1;rf_scene_fragment_support_audit[15]=2;
+        rf_scene_fragment_support_audit[1]=5;rf_scene_fragment_support_audit[3]=1;
     }
 done:rf_scene_fragment_moving_audit[2]=(uint32_t)status;rf_scene_fragment_support_audit[2]=(uint32_t)status;return status;
 }
