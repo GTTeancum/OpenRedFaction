@@ -37,6 +37,21 @@ int main(int argc,char **argv)
         CHECK(rf_weapon_primary_read(bad,(uint32_t)strlen(bad),"pistol",&d)==RF_RANGE && !memcmp(&d,&saved,sizeof(d)));
         CHECK(rf_weapon_primary_read(valid,(uint32_t)strlen(valid),"missing",&d)==RF_NOT_FOUND && !memcmp(&d,&saved,sizeof(d)));
         CHECK(d.ai_attack_range==0 && d.ai_spread_degrees==0);
+        CHECK(d.ai_damage_scale[0]==1 && d.ai_damage_scale[1]==1);
+        {char table[1024];const char *end=strstr(valid,"#End");
+         const char *invalid[]={"-1 1","1 -1","1000001 1","1 1000001","nan 1","1 inf",".4",".4 .8 $AI Damage Scale: 1 1"};
+         snprintf(table,sizeof(table),"%.*s $AI Damage Scale: .4 .8 #End",(int)(end-valid),valid);
+         CHECK(!rf_weapon_primary_read(table,(uint32_t)strlen(table),"pistol",&d));
+         CHECK(d.ai_damage_scale[0]==.4f && d.ai_damage_scale[1]==.8f);
+         snprintf(table,sizeof(table),"%.*s $AI Damage Scale: 0 0 #End",(int)(end-valid),valid);
+         CHECK(!rf_weapon_primary_read(table,(uint32_t)strlen(table),"pistol",&d));
+         CHECK(d.ai_damage_scale[0]==0 && d.ai_damage_scale[1]==0);
+         d=saved;
+         for(unsigned k=0;k<sizeof(invalid)/sizeof(*invalid);k++) {
+             snprintf(table,sizeof(table),"%.*s $AI Damage Scale: %s #End",(int)(end-valid),valid,invalid[k]);
+             CHECK(rf_weapon_primary_read(table,(uint32_t)strlen(table),"pistol",&d)!=RF_OK && !memcmp(&d,&saved,sizeof(d)));
+         }}
+
         CHECK(d.projectiles==1 && d.spread_degrees==0 && d.alt_spread_degrees==0);
         {char table[1024];const char *end=strstr(valid,"#End");
          const char *invalid[]={"$Num Projectiles: 0","$Num Projectiles: 33","$Num Projectiles: -1",
@@ -230,10 +245,12 @@ int main(int argc,char **argv)
             CHECK(riot->clip_count==4 && riot->peak_bytes<=1024*1024);
             {rf_weapon_primary_definition baton;
              CHECK(!rf_weapon_primary_load(&tables,"Riot Stick",128*1024,&baton));
+             CHECK(baton.ai_damage_scale[0]==.1f && baton.ai_damage_scale[1]==.1f);
              CHECK(baton.alt_fire_seconds==.5f && baton.alt_damage==120 && baton.drain_seconds==2.5f && baton.reload_drain_seconds==1.3f && baton.magazine==100 && baton.ai_attack_range==2.6f);}
         }
         {rf_weapon_primary_definition rifle,saved;
          CHECK(rf_weapon_primary_load(&tables,"Assault Rifle",128*1024,&rifle)==RF_OK);
+         CHECK(rifle.ai_damage_scale[0]==.4f && rifle.ai_damage_scale[1]==.4f);
          CHECK(rifle.burst_count==3 && rifle.burst_seconds==.1f && rifle.magazine==42 && rifle.fire_seconds==.75f && rifle.damage==60 && rifle.damage_kind==2 && rifle.ai_attack_range==30 && rifle.ai_spread_degrees==2);
          saved=rifle;
          {const char *bad="$Name: \"test\" $Clip Size: 42 42 $Clip Reload Time: 1.35 $Fire Wait: .75 $Damage: 60 $Damage Type: \"bullet\" $Burst Mode: true +Burst Count: 3";
@@ -247,6 +264,7 @@ int main(int argc,char **argv)
         }
         rf_vpp_close(&tables);
         CHECK(d.damage_kind==1 && d.magazine==16 && d.semi_automatic==1 && d.damage==40 && d.fire_seconds==.5f && d.reload_seconds==1.1f);CHECK(d.ai_attack_range==20 && d.ai_spread_degrees==3);
+        CHECK(d.ai_damage_scale[0]==1 && d.ai_damage_scale[1]==1);
         printf("Primary definition PASS magazine=%u semi=%u damage=%g reload=%g fire=%g\n",d.magazine,d.semi_automatic,d.damage,d.reload_seconds,d.fire_seconds);
     }
     CHECK(w->bone_count && w->geometry.vertex_count && w->materials.count && w->peak_bytes<=1024*1024);

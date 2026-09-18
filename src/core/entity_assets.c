@@ -531,7 +531,7 @@ int rf_weapon_primary_read(const void *text,uint32_t bytes,const char *name,rf_w
     lexer l={text,bytes,0};rf_weapon_primary_definition v={0};char t[256];
     uint32_t mask=0,bit,other,burst_enabled=0,burst_alt=0;int selected=0,found=0,q,status;
     if(!text || !name || !*name || !result)return RF_RANGE;
-    v.burst_count=1;v.projectiles=1;
+    v.burst_count=1;v.projectiles=1;v.ai_damage_scale[0]=v.ai_damage_scale[1]=1;
     while((status=token(&l,t,&q))==RF_OK) {
         if(q)continue;
         if(same(t,"$Name:")) {
@@ -559,6 +559,13 @@ int rf_weapon_primary_read(const void *text,uint32_t bytes,const char *name,rf_w
                 bit=16384;if(mask&bit)return RF_FORMAT;
                 if(sphere_number(&l,&v.ai_attack_range) || sphere_number(&l,&paired))return RF_FORMAT;
                 if(!(v.ai_attack_range>0 && v.ai_attack_range<=1000000 && paired>0 && paired<=1000000))return RF_RANGE;
+            } else if(same(t,"Damage")) {
+                if(token(&l,t,&q) || q || !same(t,"Scale:"))return RF_FORMAT;
+                bit=524288;if(mask&bit)return RF_FORMAT;
+                if(sphere_number(&l,&v.ai_damage_scale[0]) || sphere_number(&l,&v.ai_damage_scale[1]))return RF_FORMAT;
+                /* Port input bounds; the original parser only establishes the pair/default. */
+                if(!(v.ai_damage_scale[0]>=0 && v.ai_damage_scale[0]<=1000000 &&
+                     v.ai_damage_scale[1]>=0 && v.ai_damage_scale[1]<=1000000))return RF_RANGE;
             } else if(same(t,"Spread")) {
                 if(token(&l,t,&q) || q || !same(t,"Degrees:"))return RF_FORMAT;
                 bit=32768;if(mask&bit)return RF_FORMAT;
