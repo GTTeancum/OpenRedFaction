@@ -1168,7 +1168,7 @@ int rf_geometry_collision_world_sweep_liquid(const rf_geometry_collision_world *
 }
 
 typedef struct geometry_body_context {
-    rf_collision_sweep_batch batch;
+    rf_collision_sweep_batch batch,*validation;
     const rf_geometry_collision_world *world;const rf_geometry_collision_movers *movers;
     rf_geometry_body_metadata metadata;void *context;rf_geometry_body_hit value;
     const rf_collision_indexed_texture_backend *room_textures,*mover_textures;
@@ -1191,7 +1191,7 @@ static int geometry_body_query(void *context,const rf_collision_body_request *re
             request->flags,request->start,request->delta,request->radius,request->limit,c->room_textures,&world_hit.room,&found);
         else status=rf_collision_sweep_rooms_batch(c->world->views,c->world->room_count,
             c->world->primary,c->world->primary_count,c->world->children,c->world->child_count,
-            request->flags,request->start,request->delta,request->radius,request->limit,&c->batch,&world_hit.room,&found);
+            request->flags,request->start,request->delta,request->radius,request->limit,c->validation,&world_hit.room,&found);
         if(status)return status;if(!found){*matched=0;return RF_OK;}
         room=world_hit.room.room;if(room>=c->world->room_count)return RF_FORMAT;
         tree=&c->world->rooms[room].tree;hit=world_hit.room.tree;
@@ -1215,11 +1215,11 @@ static int geometry_body_query(void *context,const rf_collision_body_request *re
     c->value.solid=request->solid;c->value.sphere=request->sphere;c->value.room=room;
     c->value.face=source;c->value.hits=hit.hits;c->value.edge=hit.edge;*matched=1;return RF_OK;
 }
-int rf_geometry_collision_body_sweep_textured(const rf_geometry_collision_world *world,
+static int geometry_collision_body_sweep(const rf_geometry_collision_world *world,
     const rf_geometry_collision_movers *movers,const rf_collision_body_query *body,
     rf_collision_body_mover *scratch,uint32_t capacity,rf_geometry_body_metadata metadata,
     void *context,const rf_collision_indexed_texture_backend *rooms,
-    const rf_collision_indexed_texture_backend *moving,rf_geometry_body_hit *result,uint32_t *matched)
+    const rf_collision_indexed_texture_backend *moving,rf_geometry_body_hit *result,uint32_t *matched,rf_collision_sweep_batch *batch)
 {
     geometry_body_context c;uint32_t i,found;int status;
     if(!world || !movers || !body || !metadata || !result || !matched ||
@@ -1231,9 +1231,27 @@ int rf_geometry_collision_body_sweep_textured(const rf_geometry_collision_world 
         memcpy(m->origin,pose->position,12);memcpy(m->matrix,pose->input_matrix,36);
         memcpy(m->velocity,pose->velocity,12);m->flags=pose->flags;m->object_id=movers->views[i].object_id;
     }
-    memset(&c,0,sizeof(c));c.world=world;c.movers=movers;c.metadata=metadata;c.context=context;c.room_textures=rooms;c.mover_textures=moving;
+    memset(&c,0,sizeof(c));c.validation=batch?batch:&c.batch;c.world=world;c.movers=movers;c.metadata=metadata;c.context=context;c.room_textures=rooms;c.mover_textures=moving;
     status=rf_collision_body_sweep(body,scratch,movers->count,geometry_body_query,&c,&c.value.contact,&found);
     if(status)return status;if(found)*result=c.value;*matched=found;return RF_OK;
+}
+int rf_geometry_collision_body_sweep_textured(const rf_geometry_collision_world *world,
+    const rf_geometry_collision_movers *movers,const rf_collision_body_query *body,
+    rf_collision_body_mover *scratch,uint32_t capacity,rf_geometry_body_metadata metadata,
+    void *context,const rf_collision_indexed_texture_backend *rooms,
+    const rf_collision_indexed_texture_backend *moving,rf_geometry_body_hit *result,uint32_t *matched)
+{
+    return geometry_collision_body_sweep(world,movers,body,scratch,capacity,metadata,context,
+        rooms,moving,result,matched,NULL);
+}
+int rf_geometry_collision_body_sweep_batch(const rf_geometry_collision_world *world,
+    const rf_geometry_collision_movers *movers,const rf_collision_body_query *body,
+    rf_collision_body_mover *scratch,uint32_t capacity,rf_geometry_body_metadata metadata,
+    void *context,rf_collision_sweep_batch *batch,rf_geometry_body_hit *result,uint32_t *matched)
+{
+    if(!batch)return RF_RANGE;
+    return geometry_collision_body_sweep(world,movers,body,scratch,capacity,metadata,context,
+        NULL,NULL,result,matched,batch);
 }
 int rf_geometry_collision_body_sweep(const rf_geometry_collision_world *world,
     const rf_geometry_collision_movers *movers,const rf_collision_body_query *body,

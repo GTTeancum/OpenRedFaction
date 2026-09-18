@@ -1,6 +1,6 @@
 # Red Faction Xbox / PC - open work
 
-- PRIORITY GeoMod fragment contacts: Share validation across corner sweeps and reduce remaining sphere cost, then add edge/edge and mover-relative coverage; per-body batching cuts measured active Xbox debris updates99ms to76ms with79 native checks and unchanged saves/visuals.
+- PRIORITY GeoMod fragment contacts: Reduce remaining sphere narrow-phase cost, then add edge/edge and mover-relative coverage; scoped corner batching brings measured Xbox debris updates76ms to68ms, with79 native checks and unchanged saves/visuals.
 
 - PRIORITY GeoMod ordinary walls: Broaden multi-window and neighboring-brush CSG; a live floor-seam rocket now passes77 stock64MiB checks with exact PC/Xbox save bytes and fixture-off/mismatched-save rejection controls, alongside verified wall depth and player traversal.
 
@@ -5561,3 +5561,8 @@ Stage timing follow-up: native `render-20260918-025903` isolates5245ms sphere wo
 ## 2026-09-18 scoped sphere-query optimization
 
 Bounded per-body room/tree validation reuse reduces Xbox active debris updates99.443ms to75.532ms (24.05%), sphere time5245ms to3338ms, and peak218ms to159ms. All123 PC tests, both connected histories and floor gates, and79 native checks pass; endpoint memory remains3325 pages and saves/framebuffer are identical. See [query batch evidence](docs/research/GEOMOD-FRAGMENT-QUERY-BATCH-20260918.md). Next share validation across corner sweeps; approximately51% overall /91% GeoMod, focus destruction collision/performance.
+
+
+## 2026-09-18 scoped corner-query optimization
+
+Shared validation across one fragment corner sweep cuts corner-stage time2411ms to1636ms and mean active Xbox debris time75.532ms to67.544ms; peak159ms to139ms. All123 PC tests, both connected histories,79 native checks and identical save/framebuffer pass. Endpoint3325 free pages is unchanged. See [corner batch evidence](docs/research/GEOMOD-FRAGMENT-CORNER-BATCH-20260918.md). Remaining sphere work is the performance priority; edge/edge and mover-relative fidelity remain open. Approximately51% overall /91% GeoMod.

@@ -110,6 +110,21 @@ static int body_queries(rf_geometry_collision_world *world)
         CHECK(hit.contact.texture==100+hit.face && hit.contact.material==200+hit.face);
         CHECK(fabsf(hit.contact.fraction-((i?3.75f:1.75f)/6))<1e-6f);
     }
+    {
+        rf_collision_sweep_batch batch={0};rf_geometry_body_hit expected,actual;
+        uint32_t a,b,expected_calls,actual_calls;
+        body.flags=4;
+        for(i=0;i<32;i++) {
+            body.start[0]=body.end[0]=(i%3)*20.0f;body.limit=(i%4)*.25f;
+            sphere.radius=(i%2)*.25f;
+            expected=actual=sentinel;a=b=99;expected_calls=actual_calls=0;
+            CHECK(!rf_geometry_collision_body_sweep(world,&movers,&body,NULL,0,body_metadata,&expected_calls,&expected,&a));
+            CHECK(!rf_geometry_collision_body_sweep_batch(world,&movers,&body,NULL,0,body_metadata,&actual_calls,&batch,&actual,&b));
+            CHECK(a==b && expected_calls==actual_calls && !memcmp(&expected,&actual,sizeof(actual)));
+        }
+        CHECK(batch.ready && batch.tree_count);
+        body.start[0]=body.end[0]=0;body.limit=1;sphere.radius=.25f;
+    }
     /* No texture backend was added: alpha queries retain explicit refusal. */
     body.flags=flags|0x80;hit=sentinel;found=99;calls=0;
     CHECK(rf_geometry_collision_body_sweep(world,&movers,&body,NULL,0,body_metadata,&calls,&hit,&found)==RF_NOT_FOUND);

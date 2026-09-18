@@ -7185,8 +7185,8 @@ static int campaign_body_surface(void *context,uint32_t solid,uint32_t face,uint
     else {if(compiled>=base.geometry->textures)return RF_FORMAT;value=s->surface_indices[compiled];}
     *texture=slot;*material=value;return RF_OK;
 }
-static int campaign_body_query(const rf_geometry_collision_world *world,const rf_collision_body_query *query,
-    rf_geometry_body_hit *contact,uint32_t *matched)
+static int campaign_body_query_batch(const rf_geometry_collision_world *world,const rf_collision_body_query *query,
+    rf_geometry_body_hit *contact,uint32_t *matched,rf_collision_sweep_batch *batch)
 {
     rf_geometry_materials mapping={0};rf_geometry_body_surfaces surfaces;
     if(!actor_follow_world || !campaign_surface_palette || !campaign_surface_sources)return RF_RANGE;
@@ -7201,8 +7201,15 @@ static int campaign_body_query(const rf_geometry_collision_world *world,const rf
             campaign_movers.count,campaign_body_surface,&surfaces,campaign_alpha_body_backends,
             campaign_alpha_body_backends+world->room_count,contact,matched);
     }
+    if(batch)return rf_geometry_collision_body_sweep_batch(world,&campaign_movers,query,campaign_sweep_scratch,
+        campaign_movers.count,campaign_body_surface,&surfaces,batch,contact,matched);
     return rf_geometry_collision_body_sweep(world,&campaign_movers,query,campaign_sweep_scratch,
         campaign_movers.count,campaign_body_surface,&surfaces,contact,matched);
+}
+static int campaign_body_query(const rf_geometry_collision_world *world,const rf_collision_body_query *query,
+    rf_geometry_body_hit *contact,uint32_t *matched)
+{
+    return campaign_body_query_batch(world,query,contact,matched,NULL);
 }
 uint32_t rf_scene_detached_player[7]; /* queries,hits,sphere,batch,piece,point hash,status */
 static int campaign_player_piece_query(const rf_geometry_collision_world *world,const rf_collision_body_query *query,
@@ -11097,6 +11104,7 @@ static float scene_detached_plane_extent(const rf_geomod_mesh_view *mesh,
 static int scene_detached_mesh_sweep(const scene_detached_query_context *c,
     const rf_physics_body_state *body,rf_geometry_body_hit *best,uint32_t *matched)
 {
+    rf_collision_sweep_batch batch={0}; /* Geometry stays immutable throughout this corner sweep. */
     float positions[5][3],bases[5][9];uint32_t step,q,prior,k,j;int status;
     for(step=0;step<=4;step++) {
         if(profile_active)rf_scene_fragment_profile[9]++;
@@ -11121,7 +11129,7 @@ static int scene_detached_mesh_sweep(const scene_detached_query_context *c,
             }
             if(!memcmp(query.start,query.end,12))continue;
             if(profile_active)rf_scene_fragment_profile[6]++;
-            status=campaign_body_query(c->scene->collision,&query,&hit,&yes);if(status)return status;
+            status=campaign_body_query_batch(c->scene->collision,&query,&hit,&yes,&batch);if(status)return status;
             if(yes) {
                 /* A shared birth vertex may leave the BACK of a neighbor face.
                  * Such a plane is not supporting this piece: require some mesh

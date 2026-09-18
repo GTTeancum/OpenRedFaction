@@ -438,6 +438,14 @@ int rf_geometry_collision_body_sweep(const rf_geometry_collision_world *world,
     const rf_geometry_collision_movers *movers,const rf_collision_body_query *body,
     rf_collision_body_mover *scratch,uint32_t capacity,rf_geometry_body_metadata metadata,
     void *context,rf_geometry_body_hit *result,uint32_t *matched);
+/* Caller-scoped dry-world validation reuse across multiple body sweeps.
+ * Initialize batch to zero and keep all world geometry immutable until the
+ * batch is discarded; see rf_collision_sweep_batch. Movers are still freshly
+ * prepared each call. No contact, material or mover results are cached. */
+int rf_geometry_collision_body_sweep_batch(const rf_geometry_collision_world *world,
+    const rf_geometry_collision_movers *movers,const rf_collision_body_query *body,
+    rf_collision_body_mover *scratch,uint32_t capacity,rf_geometry_body_metadata metadata,
+    void *context,rf_collision_sweep_batch *batch,rf_geometry_body_hit *result,uint32_t *matched);
 /* Optional texture-aware body route. Arrays have room_count/mover count entries
  * with CURRENT tree/flat ordering; caller retains all tables and sample contexts.
  * NULL preserves the legacy unsupported-alpha gate. No query-time allocation. */
