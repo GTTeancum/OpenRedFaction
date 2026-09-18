@@ -34,6 +34,7 @@
 #include "scene_machine_pistol_mode.inc"
 #include "scene_undercover_mode.inc"
 #include "scene_driller_resources.inc"
+#include "scene_driller_cockpit.inc"
 #include "scene_player_shot_hearing.inc"
 #include "rf/visibility.h"
 #include "rf/debris_visibility.h"
@@ -734,6 +735,7 @@ typedef struct scene_stream {
     float ripple_position[SCENE_RIPPLES][3];uint32_t ripple_born[SCENE_RIPPLES];uint8_t ripple_active[SCENE_RIPPLES];
     scene_impact_owner *impact;
     scene_weapon_custom_actions *machine_custom[2];uint32_t machine_transition_ticks[2];
+    scene_driller_cockpit *driller_cockpit;
     scene_driller_runtime *driller_runtime;
     scene_driller_resources *driller;float driller_position[3],driller_basis[9];uint32_t driller_base,driller_textures;
     scene_undercover_resources *undercover;uint32_t undercover_base,undercover_textures,undercover_alt_held;
@@ -753,6 +755,7 @@ typedef struct scene_stream {
     rf_visibility_camera particle_camera;scene_particle_workspace *particle_workspace;uint32_t particle_frame;
 } scene_stream;
 static uint32_t scene_driller_active(const scene_stream *);
+static int scene_driller_player_collision(scene_stream *,const rf_collision_body_query *,rf_geometry_body_hit *,uint32_t *);
 #include "scene_flame_effects_resources.inc"
 #include "scene_fusion_effects_resources.inc"
 #include "scene_detached_sources.inc"
@@ -7490,6 +7493,7 @@ static int campaign_physics_body_sweep_for(const rf_geometry_collision_world *wo
     status=campaign_body_query_batch_for(world,&query,&value,&found,NULL,movers);if(status)return status;
     if(source==&scene_actor_body.spheres) {
         status=campaign_player_piece_query(world,&query,state,&value,&found,NULL);if(status)return status;
+        status=scene_driller_player_collision(scene_actor_collision_owner,&query,&value,&found);if(status)return status;
     }
     if(found)*hit=value;*matched=found;return RF_OK;
 }
@@ -15404,7 +15408,7 @@ static int scene_frame(void *context,uint32_t frame,rf_preview_mesh *actor)
         status=scene_clutter_draw(stream,frame);presentation_mark(1,&presentation_clock);if(status){rf_scene_profile_stage[1]=202;return status;}
         status=scene_weapon_draw(stream,frame);presentation_mark(2,&presentation_clock);if(status){rf_scene_profile_stage[1]=203;return status;}
         status=scene_pickups_draw(stream);presentation_mark(3,&presentation_clock);if(status){rf_scene_profile_stage[1]=204;return status;}
-        if(stream->driller){uint32_t submissions,vertices;
+        if(stream->driller && !scene_driller_active(stream)){uint32_t submissions,vertices;
             status=scene_driller_draw(stream,stream->driller,stream->driller_position,stream->driller_basis,stream->driller_base,stream->driller_textures,&submissions,&vertices);
             if(status)return status;
         }
@@ -15423,6 +15427,11 @@ static int scene_frame(void *context,uint32_t frame,rf_preview_mesh *actor)
             v->position[1]=240+(v->position[1]-240)*rf_scene_scope_projection;
         }
         status=scene_driller_active(stream)?RF_OK:scene_player_weapon_draw(stream,frame);presentation_mark(4,&presentation_clock);if(status){rf_scene_profile_stage[1]=205;return status;}
+        if(scene_driller_active(stream)){uint32_t faces;const unsigned char lighting[3]={200,200,200};
+            status=scene_driller_cockpit_draw(stream->driller_cockpit,stream->driller_runtime->driver_seconds,stream->rocket_camera.player_position,
+                scene_actor_body.state.orientation,&stream->rocket_camera,stream->mesh,stream->capacity,stream->materials->count,lighting,&faces);
+            if(status){rf_scene_profile_stage[1]=211;return status;}
+        }
         status=scene_undercover_draw(stream);if(status){rf_scene_profile_stage[1]=206;return status;}
         particle_draw_stream=stream;
         status=stream->sink(stream->context,frame,stream->mesh,stream->materials,stream->world);
@@ -16075,6 +16084,7 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
              if(!status && rf_scene_vehicle_enabled) {
                  if(!rf_scene_dev_room_enabled)status=RF_RANGE;
                  else status=scene_driller_resources_open(tables_path,&archive,maps,map_count,1024*1024,&stream->driller);
+                 if(!status)status=scene_driller_cockpit_open(&archive,maps,map_count,2*1024*1024,&stream->driller_cockpit);
                  stream->driller_position[0]=30;stream->driller_position[1]=5.4f;stream->driller_position[2]=-167;
                  stream->driller_basis[0]=stream->driller_basis[4]=stream->driller_basis[8]=1;
                  if(!status){float seat[12];status=scene_driller_seat_pose(stream->driller,stream->driller_position,stream->driller_basis,seat);}
@@ -16185,7 +16195,8 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
         free(textures->items);memset(textures,0,sizeof(*textures));
         }
         status=scene_undercover_merge(stream,materials);if(status)goto done;
-        if(stream->driller){status=scene_driller_materials_merge(stream->driller,materials,&stream->driller_base,&stream->driller_textures);if(status)goto done;}
+        if(stream->driller){status=scene_driller_materials_merge(stream->driller,materials,&stream->driller_base,&stream->driller_textures);if(status)goto done;
+            status=scene_driller_cockpit_merge(stream->driller_cockpit,materials,RF_CAMPAIGN_TEXTURE_SLOTS);if(status)goto done;}
         if(rf_scene_dev_room_enabled) {
             uint32_t visual;
             for(visual=0;visual<(rf_scene_fusion_enabled?3u:2u);visual++) {
@@ -16391,6 +16402,7 @@ done:
         if(!status)campaign_actors_capture();
     }
     {int closed=scene_driller_runtime_close(stream);if(closed && !status)status=closed;}
+    scene_driller_cockpit_close(&stream->driller_cockpit);
     scene_driller_resources_close(&stream->driller);
     {int closed=scene_undercover_close(stream);if(closed && !status)status=closed;}
     for(i=0;i<2;i++)if(stream->machine_custom[i]){int closed=scene_weapon_custom_actions_close(&stream->machine_custom[i],stream->player_weapon[i?17:13]);if(closed && !status)status=closed;}

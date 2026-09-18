@@ -5,7 +5,7 @@ Completion basis (user direction,2026-09-18): working late-alpha/early-beta code
 
 - Player impacts: Real fall/high-speed collision damage now passes PC/Xbox with shared health/armor handling; relocation and duplicate-contact guards pass focused checks; broader moving-object contacts remain.
 
-- Vehicles: Driller entry, spring-supported driving, seated camera and safe exit now run in the PC DEV fixture; the matching Xbox gameplay check passes with14.14MiB free; vehicle weapons, on-foot host collision, cockpit presentation and campaign integration remain.
+- Vehicles: Driller entry, spring-supported driving, seated camera and safe exit now run in the PC DEV fixture; the matching Xbox gameplay check passes with14.14MiB free; on-foot chassis collision and the authored cockpit now pass the combined PC/Xbox check with13.11MiB free; drill operation and campaign integration remain open.
 
 - Conventional firearms: Machine Pistol, Heavy Machine Gun, Precision Rifle and Undercover handgun primary firing now work in a bounded DEV profile, including HMG alternate and rifle zoom; PC visuals pass and native HMG shot/ammo state matches with11.59MiB free; Machine Pistol magazine switching now passes PC/Xbox; Undercover suppressor attach/remove now passes PC/Xbox; authored Machine Pistol/HMG/precision pickups and sparse views are now wired, with MP session mode carry; broader live AI encounters, full live level handoffs and general saves remain.
 
@@ -5749,3 +5749,13 @@ World and committed-mover fragment queries now include bounded edge/edge CCD, wi
 - Isolated source-attributed vehicle damage helper and installed-resource check pass, but live hit/occupant-destruction wiring remains open. On-foot player collision with host, cockpit rendering, vehicle attack, saves and additional vehicle classes remain.
 
 - Xbox live driver run: artifacts/xemu/render-20260918-132322 PASS360. All16vehicle words exactly match PC:1entry/1exit,6supports,8.94347m forward displacement,0runtime errors.3620freepages=14.140625MiB, final on-foot native image inspected, disc restored/harness closed. Shared pose tolerance remains1cm in harness, though this run was bit-identical. Vehicle implementation estimate~40%, overall~71%; live drilling/cockpit/collision with on-foot actors remain substantial work.
+
+
+### Driller contact and cockpit
+
+- Added actual player-body versus posed vehicle sphere collision to the player movement path, preserving closer world/GeoMod contacts and excluding the driver. PC200-frame walk replay records188host contacts and stops the player at(30.013,4.855,-161.851), ahead of the parked vehicle. Stationary-player pushing and roof riding remain separate work.
+- Authored driller01.vfx cockpit resources use6meshes/226faces,14textures/15frames, about1004KiB retained. Installed-resource/projection check passes. The live seated view renders the green glass/frame/display with body-relative placement and driver-active animation time; local exterior chassis and handheld gun are hidden while seated. Exact glass depth/alpha behavior remains deferred.
+- Combined420-frame PC replay blocks forward walking at the chassis, boards at160, drives180..259, exits320 and boards360:2entries/1exit,6supports,149host contact responses,0runtime errors. Final seated image inspected.
+- Drill scheduler/metadata helper and exact original-factory single/double cutter packer are ready, not live yet. Real cutter shapes have26/64faces, exceeding the previous20face template capacity; a bounded STAR-template/history extension is being implemented. Keep the stock cutcount and scene budgets. Drill flags0x3e force effective geometric scale1;10/20 request values must not multiply raw cutter vertices.
+
+- Xbox combined contact/cockpit run: artifacts/xemu/render-20260918-133107 PASS420, all16vehicle words exactly match PC,2entries/1exit,6supports,149host contacts and0runtime errors.3357freepages=13.11328125MiB; native cockpit image inspected, disc restored and harness closed. Overall~71%; vehicles~45%. Actual drilling remains the next integration task.

@@ -1085,3 +1085,12 @@ add_executable(rf_scene_driller_damage_tests tests/scene_driller_damage_tests.c)
 target_link_libraries(rf_scene_driller_damage_tests PRIVATE rf_core)
 add_test(NAME scene_driller_damage COMMAND rf_scene_driller_damage_tests)
 set_tests_properties(scene_driller_damage PROPERTIES WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
+
+add_executable(rf_scene_driller_actor_collision_tests tests/scene_driller_actor_collision_tests.c)
+target_link_libraries(rf_scene_driller_actor_collision_tests PRIVATE rf_core)
+add_test(NAME scene_driller_actor_collision COMMAND rf_scene_driller_actor_collision_tests)
+
+add_executable(rf_scene_driller_cockpit_tests tests/scene_driller_cockpit_tests.c)
+target_link_libraries(rf_scene_driller_cockpit_tests PRIVATE rf_core)
+add_test(NAME scene_driller_cockpit COMMAND rf_scene_driller_cockpit_tests)
+set_tests_properties(scene_driller_cockpit PROPERTIES WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})

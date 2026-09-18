@@ -7,15 +7,34 @@
 #include "scene_driller_entry_exit.inc"
 #include "scene_driller_player_adapter.inc"
 #include "scene_driller_audio.inc"
+#include "scene_driller_actor_collision.inc"
 struct scene_driller_runtime {
     scene_driller_physics physics;scene_vehicle_collision collision;
     scene_driller_support_context support;scene_driller_entry_exit entry;
     scene_driller_audio audio;
-    scene_driller_player_adapter player;uint32_t last_frame;
+    scene_driller_player_adapter player;uint32_t last_frame;float driver_seconds;
 };
 uint32_t rf_scene_vehicle_state[16];
 static uint32_t scene_driller_active(const scene_stream *s)
 {return s && s->driller_runtime && s->driller_runtime->entry.session.active;}
+/* Player movement is queried against the committed host pose, not the whole
+ * previous frame displacement on every solver substep. Roof riding and host
+ * pushing a stationary actor require a separate pair scheduler. */
+static int scene_driller_player_collision(scene_stream *s,const rf_collision_body_query *query,
+    rf_geometry_body_hit *hit,uint32_t *matched)
+{
+    scene_driller_actor_collision host={0};scene_driller_runtime *r;int status;
+    if(!s || !(r=s->driller_runtime))return RF_OK;
+    host.spheres=r->physics.collision;host.count=r->physics.sphere_count;
+    host.handle=r->entry.host.handle;host.driver=r->entry.host.driver;host.material=s->driller->physics.material.index;
+    memcpy(host.position,r->physics.state.position,12);memcpy(host.next_position,host.position,12);
+    memcpy(host.orientation,r->physics.state.orientation,36);memcpy(host.next_orientation,host.orientation,36);
+    memcpy(host.velocity,r->physics.state.velocity,12);
+    ++rf_scene_vehicle_state[14];
+    status=scene_driller_actor_compose(&host,campaign_player_object.handle,(uint32_t)campaign_player_view.linked_handle,query,hit,matched);
+    if(!status && *matched && hit->contact.object_id==host.handle)++rf_scene_vehicle_state[15];
+    return status;
+}
 static int scene_driller_runtime_support(void *context,const rf_vehicle_rigid_state *state,rf_vehicle_rigid_support *out)
 {return scene_driller_support_sample(&((scene_driller_runtime*)context)->support,state,out);}
 static int scene_driller_runtime_resolve(void *context,const rf_vehicle_rigid_state *state,const rf_vehicle_rigid_proposal *proposal,rf_vehicle_rigid_proposal *out)
@@ -50,6 +69,7 @@ static int scene_driller_runtime_tick(scene_stream *s,uint32_t frame)
     was=r->entry.session.active;
     stage=1;status=scene_driller_entry_exit_use(&r->entry,player_input.use,campaign_player_damage.state.effects.health>0,&changed);if(status)goto fail;
     if(changed){if(r->entry.session.active)++rf_scene_vehicle_state[1];else ++rf_scene_vehicle_state[2];}
+    if(frame && r->entry.session.active)r->driver_seconds+=scene_step_seconds;
     command.controlled=r->entry.session.active;command.throttle=command.controlled?player_input.move[2]:0;
     command.turn=command.controlled?player_input.move[0]:0;
     backend.context=r;backend.support=scene_driller_runtime_support;backend.resolve=scene_driller_runtime_resolve;
