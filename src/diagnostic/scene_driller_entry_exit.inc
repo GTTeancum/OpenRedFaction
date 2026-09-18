@@ -18,12 +18,23 @@ static void scene_driller_point(const float origin[3],const float basis[9],const
 {
     uint32_t i,j;for(i=0;i<3;++i){out[i]=origin[i];for(j=0;j<3;++j)out[i]+=local[j]*basis[j*3+i];}
 }
+/* Binary occupant basis-lock: interface_2 supplies position, not orientation.
+ * Keep the player's independent body basis while the host moves underneath. */
+static void scene_driller_seat_basis(const scene_driller_entry_exit *c,int32_t seat,
+    const float tag[12],float basis[9])
+{
+    if(!strcmp(c->resource->model,"Jeep01.v3m") && seat>=0 &&
+       (uint32_t)seat<c->resource->tags.count &&
+       !strcmp(c->resource->tags.items[seat].name,"interface_2"))
+        memcpy(basis,c->player_body->state.orientation,36);
+    else memcpy(basis,tag,36);
+}
 static int scene_driller_entry_seat(void *context,uint32_t host,scene_vehicle_pose *pose)
 {
     scene_driller_entry_exit *c=context;float tag[12],offset[3];uint32_t i;int status;
     if(host!=c->registration.handle || rf_entity_lookup(c->entities,(int32_t)host)!=&c->view)return RF_NOT_FOUND;
     status=scene_driller_seat_pose(c->resource,c->physics->state.position,c->physics->state.orientation,tag);if(status)return status;
-    memcpy(pose->basis,tag,36);memcpy(pose->position,tag+9,12);
+    scene_driller_seat_basis(c,c->resource->seat,tag,pose->basis);memcpy(pose->position,tag+9,12);
     scene_driller_point((const float[3]){0,0,0},pose->basis,c->eye_offset,offset);
     for(i=0;i<3;++i)pose->position[i]-=offset[i];
     return RF_OK;
@@ -41,6 +52,7 @@ static int scene_driller_player_shape(scene_driller_entry_exit *c,scene_vehicle_
     query->spheres=spheres;query->count=c->player_body->spheres.count;query->radius=r;
     return scene_vehicle_collision_valid(query);
 }
+#include "scene_vehicle_seated_clearance.inc"
 static int scene_driller_entry_allowed(void *context,uint32_t player,uint32_t host,uint32_t *allowed)
 {
     scene_driller_entry_exit *c=context;scene_vehicle_pose seat;scene_vehicle_collision query;
@@ -48,10 +60,16 @@ static int scene_driller_entry_allowed(void *context,uint32_t player,uint32_t ho
     *allowed=0;
     if(rf_entity_lookup(c->entities,(int32_t)player)!=c->player_view || host!=c->registration.handle)return RF_NOT_FOUND;
     for(i=0;i<3;++i){float d=c->player_body->state.position[i]-c->physics->state.position[i];d2+=d*d;}
+    if(!strcmp(c->resource->model,"Jeep01.v3m"))printf("JEEP_USE distance %.6g radius %.6g player %.6g %.6g %.6g host %.6g %.6g %.6g\n",sqrtf(d2),range,c->player_body->state.position[0],c->player_body->state.position[1],c->player_body->state.position[2],c->physics->state.position[0],c->physics->state.position[1],c->physics->state.position[2]);
     if(!isfinite(range) || range<=0 || d2>range*range)return RF_OK;
     status=scene_driller_entry_seat(c,host,&seat);if(status)return status;
     status=scene_driller_player_shape(c,&query,spheres);if(status)return status;
-    return scene_vehicle_collision_exit_path(&query,c->player_body->state.position,seat.position,c->player_body->state.orientation,allowed);
+    if(!strcmp(c->resource->model,"Jeep01.v3m")){
+        scene_vehicle_pose from;memcpy(from.position,c->player_body->state.position,12);memcpy(from.basis,c->player_body->state.orientation,36);
+        status=scene_vehicle_seated_path(c,&from,&seat,allowed);
+    }else status=scene_vehicle_collision_exit_path(&query,c->player_body->state.position,seat.position,c->player_body->state.orientation,allowed);
+    if(!strcmp(c->resource->model,"Jeep01.v3m"))printf("JEEP_ENTRY_SWEEP %d %u target %.6g %.6g %.6g\n",status,*allowed,seat.position[0],seat.position[1],seat.position[2]);
+    return status;
 }
 static int scene_driller_excludes_host(scene_driller_entry_exit *c,const scene_vehicle_collision *body,const scene_vehicle_pose *pose)
 {
@@ -79,8 +97,18 @@ static int scene_driller_exit_pose(void *context,uint32_t player,uint32_t host,s
         local[axis]=sign*(extent+body.radius+.15f);
         scene_driller_point(c->physics->state.position,c->physics->state.orientation,local,candidate.position);
         candidate.position[1]=seat.position[1];
-        scene_vehicle_collision_body(&body,seat.position,candidate.position,candidate.basis,&q);
-        status=scene_vehicle_collision_query(&body,&q,&hit,&found);if(status)return status;
+        if(!strcmp(c->resource->model,"Jeep01.v3m")){
+            uint32_t head_clear;
+            /* Low seated body origins are below standing floor height. Probe
+             * a standing exit from seat-eye height, then establish full-body
+             * floor support below; head transit still rejects walls/ceilings. */
+            candidate.position[1]+=fabsf(c->eye_offset[1]);
+            status=scene_vehicle_seated_path(c,&seat,&candidate,&head_clear);if(status)return status;
+            found=!head_clear;
+        }else{
+            scene_vehicle_collision_body(&body,seat.position,candidate.position,candidate.basis,&q);
+            status=scene_vehicle_collision_query(&body,&q,&hit,&found);if(status)return status;
+        }
         printf("DRILLER_EXIT_PATH %u candidate %.6g %.6g %.6g blocked %u fraction %.6g normal %.6g %.6g %.6g sphere %u\n",direction,candidate.position[0],candidate.position[1],candidate.position[2],found,hit.contact.fraction,hit.contact.normal[0],hit.contact.normal[1],hit.contact.normal[2],hit.sphere);
         if(found)continue;
         /* Bounded full-body downward sweep establishes walkable support before
@@ -141,7 +169,7 @@ static int scene_driller_entry_exit_pose(scene_driller_entry_exit *c,scene_vehic
     int status;if(!c || !body || !camera || !c->session.active)return RF_NOT_FOUND;
     status=scene_driller_entry_seat(c,c->host.handle,body);if(status)return status;
     status=scene_driller_seat_pose(c->resource,c->physics->state.position,c->physics->state.orientation,camera);if(status)return status;
-    c->player.pose=*body;return RF_OK;
+    memcpy(camera,body->basis,36);c->player.pose=*body;return RF_OK;
 }
 /* Teardown only after safe exit/death, or when the whole level is discarded.
  * It never supplies a living player's in-level exit position. */

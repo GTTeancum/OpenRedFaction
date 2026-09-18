@@ -13,10 +13,10 @@
 typedef struct scene_driller_audio {
     int32_t slot,sample;uint32_t active,file_bytes;float minimum_volume;
 } scene_driller_audio;
-static int scene_vehicle_audio_open(scene_driller_audio *owner,const float position[3],const char *name,float start,float minimum)
+static int scene_vehicle_audio_open(scene_driller_audio *owner,const float position[3],const char *name,float near_distance,float start,float minimum)
 {
     const rf_sound_metadata *metadata;rf_vpp_entry entry;scene_driller_audio value={0};uint32_t sample,i;int status;
-    if(!owner || !position || !name || owner->active || !isfinite(start) || !isfinite(minimum) || minimum<0 || minimum>1 || start<0 || start>1)return RF_RANGE;
+    if(!owner || !position || !name || owner->active || !isfinite(near_distance) || near_distance<=0 || !isfinite(start) || !isfinite(minimum) || minimum<0 || minimum>1 || start<0 || start>1)return RF_RANGE;
     for(i=0;i<3;i++)if(!isfinite(position[i]))return RF_RANGE;
     /* Bound this additional source independently of the shared bank ceiling;
      * current installed file21530bytes. No separate PCM allocation/mixer. */
@@ -24,13 +24,13 @@ static int scene_vehicle_audio_open(scene_driller_audio *owner,const float posit
     if(entry.size>32768)return RF_RANGE;
     metadata=rf_sound_metadata_find(campaign_audio_metadata.rows,campaign_audio_metadata.order,name);
     if(!metadata || !(metadata->loop_flags&(1u<<30)))return RF_FORMAT;
-    status=rf_audio_bank_declare(&campaign_audio_bank,name,8,1,1,&sample);if(status)return status;
+    status=rf_audio_bank_declare(&campaign_audio_bank,name,near_distance,1,1,&sample);if(status)return status;
     value.sample=(int32_t)sample;value.slot=rf_ambient_slot_start(campaign_ambient_slots,1,value.sample,position,start);
     if(value.slot<0)return RF_NOT_FOUND;
     value.active=1;value.file_bytes=entry.size;value.minimum_volume=minimum;*owner=value;return RF_OK;
 }
 static int scene_driller_audio_open(scene_driller_audio *owner,const float position[3])
-{return scene_vehicle_audio_open(owner,position,"Driller_Idle.wav",.7f,.6f);}
+{return scene_vehicle_audio_open(owner,position,"Driller_Idle.wav",8,.7f,.6f);}
 static int scene_driller_audio_tick(scene_driller_audio *owner,const float position[3],
     const float velocity[3],float base_speed,uint32_t muted)
 {

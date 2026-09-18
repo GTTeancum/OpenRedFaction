@@ -122,7 +122,7 @@ static int scene_apc_primary_tick(scene_stream *stream,uint32_t frame)
 {
     scene_apc_primary_state *state=&stream->apc_primary;scene_driller_runtime *runtime=stream->driller_runtime;
     uint32_t i,k,fired;float dt=frame?scene_step_seconds:0;int status;
-    if(rf_scene_vehicle_enabled!=2||!runtime)return RF_OK;
+    if((rf_scene_vehicle_enabled!=2&&rf_scene_vehicle_enabled!=3)||!runtime)return RF_OK;
     ++rf_scene_apc_primary[0];rf_scene_apc_primary[4]=0;
     for(i=0;i<SCENE_APC_PRIMARY_CAPACITY;i++){
         scene_apc_primary_round *round=state->rounds+i;rf_weapon_flight_event event;float end[3];scene_apc_primary_query query;
@@ -137,9 +137,14 @@ static int scene_apc_primary_tick(scene_stream *stream,uint32_t frame)
     }
     {
         scene_apc_primary_launch_context launch={stream,runtime->entry.host.driver};
-        uint32_t allowed=runtime->entry.session.active&&runtime->entry.host.alive&&campaign_player_damage.state.effects.health>0;
-        status=scene_vehicle_primary_tick(&state->scheduler,&state->definition,&stream->driller->tags,state->muzzle,
-            runtime->physics.state.position,runtime->physics.state.orientation,NULL,runtime->entry.host.handle,
+        uint32_t jeep=rf_scene_vehicle_enabled==3;
+        uint32_t allowed=runtime->entry.session.active&&runtime->entry.host.alive&&campaign_player_damage.state.effects.health>0&&
+            (!jeep||scene_jeep_can_fire(&runtime->jeep_seat));
+        const rf_static_model_tags *tags=jeep?&stream->jeep_gun->model->tags:&stream->driller->tags;
+        const float *position=jeep?stream->jeep_gun_pose+9:runtime->physics.state.position;
+        const float *basis=jeep?stream->jeep_gun_pose:runtime->physics.state.orientation;
+        status=scene_vehicle_primary_tick(&state->scheduler,&state->definition,tags,state->muzzle,
+            position,basis,NULL,runtime->entry.host.handle,
             player_input.fire,allowed,dt,&state->reserve,scene_apc_primary_launch,&launch,&fired);
         if(status)return status;
         rf_scene_apc_primary[4]+=fired;

@@ -12,7 +12,7 @@ static int scene_apc_primary_draw(scene_stream *stream)
 {
     uint32_t i,j,k,first,total=0;rf_particle_screen_polygon polygons[SCENE_APC_PRIMARY_CAPACITY];int status;
     if(!stream||!stream->mesh||!stream->mesh->vertices)return RF_RANGE;
-    if(rf_scene_vehicle_enabled!=2)return RF_OK;
+    if(rf_scene_vehicle_enabled!=2&&rf_scene_vehicle_enabled!=3)return RF_OK;
     if(stream->mesh->count>stream->capacity/sizeof(rf_preview_vertex)||
        stream->mesh->bytes!=stream->mesh->count*sizeof(rf_preview_vertex))return RF_RANGE;
     memset(polygons,0,sizeof(polygons));

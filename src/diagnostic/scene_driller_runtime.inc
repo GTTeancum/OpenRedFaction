@@ -7,18 +7,20 @@
 #include "scene_driller_support.inc"
 #include "scene_driller_entry_exit.inc"
 #include "scene_driller_player_adapter.inc"
+#include "scene_jeep_seats.inc"
 #include "scene_driller_audio.inc"
 #include "scene_driller_actor_collision.inc"
 #include "scene_driller_damage_runtime.inc"
 #include "scene_driller_projectile_contact.inc"
 struct scene_driller_runtime {
-    scene_driller_physics physics;scene_vehicle_collision collision;
+    scene_driller_physics physics;scene_vehicle_collision collision;scene_jeep_seat_state jeep_seat;
     scene_driller_support_context support;scene_driller_entry_exit entry;
     scene_driller_damage_runtime damage;scene_driller_audio audio;rf_geomod_template shapes[2];scene_driller_live_contact contact;
     scene_driller_player_adapter player;uint32_t last_frame;float driver_seconds;
 };
 #include "scene_driller_blast.inc"
 uint32_t rf_scene_vehicle_state[16];
+uint32_t rf_scene_jeep_seats[8]; /* ticks,driver frames,gunner frames,switches,role,seat,steer,fire */
 uint32_t rf_scene_vehicle_damage[8]; /* health bits,amount bits,calls,destroyed,pending,exits,source,alive */
 uint32_t rf_scene_drill_state[8]; /* ticks,contacts,damage,cuts,requests,rejections,postwork,status */
 static int scene_driller_runtime_cut(void *context,const float *center,const float *basis,
@@ -76,7 +78,7 @@ static int scene_driller_runtime_open(scene_stream *s)
 #endif
     if(status)goto fail;
     }
-    stage=1;if(rf_scene_vehicle_enabled==2)status=scene_ground_vehicle_physics_initialize("APC",&s->driller->physics,&s->driller->movement,&s->driller->rotation,&s->driller->render,s->driller_position,s->driller_basis,scene_gravity.acceleration,&r->physics);
+    stage=1;if(rf_scene_vehicle_enabled>=2)status=scene_ground_vehicle_physics_initialize(rf_scene_vehicle_enabled==3?"Jeep01":"APC",&s->driller->physics,&s->driller->movement,&s->driller->rotation,&s->driller->render,s->driller_position,s->driller_basis,scene_gravity.acceleration,&r->physics);
     else status=scene_driller_physics_initialize(s->driller,s->driller_position,s->driller_basis,scene_gravity.acceleration,&r->physics);
     if(status)goto fail;
     r->collision.world=s->collision;r->collision.movers=&campaign_movers;
@@ -85,11 +87,13 @@ static int scene_driller_runtime_open(scene_stream *s)
     stage=2;status=scene_driller_support_initialize(&r->support,s,&r->collision,&r->physics);if(status)goto fail;
     stage=3;status=scene_driller_entry_exit_open(&r->entry,&campaign_registry,&campaign_entities,&campaign_player_view,
         &scene_actor_body,s->driller,&r->physics,&r->collision,scene_driller_player_eye_offset());if(status)goto fail;
+    if(rf_scene_vehicle_enabled==3){status=scene_jeep_seats_open(&r->jeep_seat,s->driller);if(status)goto fail;}
     stage=4;status=scene_driller_damage_runtime_open(&r->damage,&r->entry,&r->player,&s->driller_damage_prototype);if(status)goto fail;
     /* Audio unavailable/full slots must not prevent driving. */
-    if(rf_scene_vehicle_enabled==2)(void)scene_vehicle_audio_open(&r->audio,r->physics.state.position,"APC_idle.wav",.5f,.4f);
-    else (void)scene_driller_audio_open(&r->audio,r->physics.state.position);
-    s->driller_runtime=r;memset(rf_scene_drill_state,0,sizeof(rf_scene_drill_state));memset(rf_scene_vehicle_state,0,sizeof(rf_scene_vehicle_state));return RF_OK;
+    if(rf_scene_vehicle_enabled==2)(void)scene_vehicle_audio_open(&r->audio,r->physics.state.position,"APC_idle.wav",8,.5f,.4f);
+    else if(rf_scene_vehicle_enabled==3)(void)scene_vehicle_audio_open(&r->audio,r->physics.state.position,"Jeep_idle.wav",6,.8f,.6f);
+    else if(rf_scene_vehicle_enabled==1)(void)scene_driller_audio_open(&r->audio,r->physics.state.position);
+    s->driller_runtime=r;memset(rf_scene_jeep_seats,0,sizeof(rf_scene_jeep_seats));memset(rf_scene_drill_state,0,sizeof(rf_scene_drill_state));memset(rf_scene_vehicle_state,0,sizeof(rf_scene_vehicle_state));return RF_OK;
 fail:fprintf(stderr,"VEHICLE_OPEN_ERROR stage%u status%d\n",stage,status);scene_driller_damage_runtime_close(&r->damage);(void)scene_driller_entry_exit_close(&r->entry,1);free(r);return status;
 }
 static int scene_driller_runtime_tick(scene_stream *s,uint32_t frame)
@@ -103,13 +107,18 @@ static int scene_driller_runtime_tick(scene_stream *s,uint32_t frame)
     stage=1;status=scene_driller_damage_runtime_tick(&r->damage,&changed);if(status)goto fail;
     if(r->entry.host.alive){status=scene_driller_entry_exit_use(&r->entry,player_input.use,campaign_player_damage.state.effects.health>0,&changed);if(status)goto fail;}
     if(changed){if(r->entry.session.active)++rf_scene_vehicle_state[1];else ++rf_scene_vehicle_state[2];}
+    if(rf_scene_vehicle_enabled==3){uint32_t seat_changed=0;
+        status=scene_jeep_seats_tick(&r->jeep_seat,s->driller,&r->entry,&r->player,player_input.cycle_weapon,&seat_changed);if(status)goto fail;
+        if(seat_changed){s->apc_aim_active=0;++rf_scene_jeep_seats[3];}
+    }
     if(frame && r->entry.session.active)r->driver_seconds+=scene_step_seconds;
-    command.controlled=r->entry.session.active && r->entry.host.alive;command.throttle=command.controlled?player_input.move[2]:0;
+    command.controlled=r->entry.session.active && r->entry.host.alive && (rf_scene_vehicle_enabled!=3 || scene_jeep_can_steer(&r->jeep_seat));command.throttle=command.controlled?player_input.move[2]:0;
     command.turn=command.controlled?player_input.move[0]:0;
     backend.context=r;backend.support=scene_driller_runtime_support;backend.resolve=scene_driller_runtime_resolve;
     r->physics.parameters.gravity=scene_gravity.acceleration;
     stage=2;if(frame){status=rf_vehicle_rigid_step(&r->physics.state,&r->physics.parameters,&command,scene_step_seconds,&backend);if(status)goto fail;}
     stage=3;status=scene_driller_player_publish(&r->player,&r->entry,changed);if(status)goto fail;
+    if(rf_scene_vehicle_enabled==3 && was && !r->entry.session.active){status=scene_jeep_seats_open(&r->jeep_seat,s->driller);if(status)goto fail;}
     stage=4;if(r->audio.active){status=scene_driller_audio_tick(&r->audio,r->physics.state.position,r->physics.state.velocity,r->physics.parameters.maximum_speed,!r->entry.host.alive);if(status)goto fail;}
     stage=5;
     r->contact.stream=s;r->contact.frame=frame;r->contact.source=r->entry.host.handle;r->contact.has_world=0;
@@ -125,6 +134,13 @@ static int scene_driller_runtime_tick(scene_stream *s,uint32_t frame)
     rf_scene_vehicle_damage[3]=r->damage.damage.destroyed;rf_scene_vehicle_damage[4]=r->damage.eject_pending;
     rf_scene_vehicle_damage[5]=r->damage.exit_count;rf_scene_vehicle_damage[6]=r->damage.damage.state.responsible_handle;
     rf_scene_vehicle_damage[7]=r->entry.host.alive;
+    if(rf_scene_vehicle_enabled==3){
+        ++rf_scene_jeep_seats[0];
+        if(r->entry.session.active)++rf_scene_jeep_seats[scene_jeep_can_fire(&r->jeep_seat)?2:1];
+        rf_scene_jeep_seats[4]=r->jeep_seat.role;rf_scene_jeep_seats[5]=(uint32_t)s->driller->seat;
+        rf_scene_jeep_seats[6]=command.controlled;
+        rf_scene_jeep_seats[7]=r->entry.session.active&&r->entry.host.alive&&scene_jeep_can_fire(&r->jeep_seat);
+    }
     r->last_frame=frame;++rf_scene_vehicle_state[0];rf_scene_vehicle_state[3]=r->entry.session.active;
     rf_scene_vehicle_state[4]=r->support.hits;rf_scene_vehicle_state[5]=0;
     memcpy(rf_scene_vehicle_state+6,r->physics.state.position,12);memcpy(rf_scene_vehicle_state+9,r->physics.state.velocity,12);

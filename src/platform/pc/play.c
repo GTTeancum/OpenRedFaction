@@ -540,6 +540,7 @@ int main(int argc,char **argv)
     if(p.headless && getenv("RF_REPLAY_FIREARMS")){int mode=atoi(getenv("RF_REPLAY_FIREARMS"));if(mode<1 || mode>4)return 2;rf_scene_firearms_enabled=(uint32_t)mode;}
     rf_scene_vehicle_enabled=p.headless && getenv("RF_REPLAY_VEHICLE")!=NULL;
     if(rf_scene_vehicle_enabled && !strcmp(getenv("RF_REPLAY_VEHICLE"),"apc"))rf_scene_vehicle_enabled=2;
+    if(rf_scene_vehicle_enabled && !strcmp(getenv("RF_REPLAY_VEHICLE"),"jeep"))rf_scene_vehicle_enabled=3;
     rf_scene_fusion_enabled=p.headless && getenv("RF_REPLAY_FUSION")!=NULL;
     rf_scene_dev_npc_enabled=p.headless && getenv("RF_REPLAY_DEV_NPC")!=NULL;
     if(rf_scene_dev_npc_enabled && !strcmp(getenv("RF_REPLAY_DEV_NPC"),"2"))rf_scene_dev_npc_enabled=2;
@@ -938,6 +939,7 @@ run_scene:
     printf("FUSION_PROJECTILES");for(i=0;i<5;++i)printf(" %u",rf_scene_fusion_projectiles[i]);puts("");
     printf("MACHINE_MODE");for(i=0;i<8;++i)printf(" %u",rf_scene_machine_mode[i]);puts("");
     printf("UNDERCOVER");for(i=0;i<8;++i)printf(" %u",rf_scene_undercover[i]);puts("");
+    {extern uint32_t rf_scene_jeep_seats[8];printf("JEEP_SEATS");for(i=0;i<8;++i)printf(" %u",rf_scene_jeep_seats[i]);puts("");}
     {extern uint32_t rf_scene_apc_secondary[8];printf("APC_SECONDARY");for(i=0;i<8;++i)printf(" %u",rf_scene_apc_secondary[i]);puts("");}
     {extern uint32_t rf_scene_apc_primary[8];printf("APC_PRIMARY");for(i=0;i<8;++i)printf(" %u",rf_scene_apc_primary[i]);puts("");}
     printf("VEHICLE_DAMAGE");for(i=0;i<8;++i)printf(" %u",rf_scene_vehicle_damage[i]);puts("");

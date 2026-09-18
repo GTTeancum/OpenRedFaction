@@ -1,9 +1,11 @@
 # Red Faction Xbox / PC - open work
 
-Completion basis (user direction,2026-09-18): working late-alpha/early-beta code implementation. Overall approximately73%; GeoMod100% for the first playable milestone, accepted by the user. GeoMod items below are deferred refinement and coverage, not prerequisites to moving on. This does not assert retail polish, complete campaign integration or resolution of every known defect.
+Completion basis (user direction,2026-09-18): working late-alpha/early-beta code implementation. Overall approximately74%; GeoMod100% for the first playable milestone, accepted by the user. GeoMod items below are deferred refinement and coverage, not prerequisites to moving on. This does not assert retail polish, complete campaign integration or resolution of every known defect.
 
 
 - Player impacts: Real fall/high-speed collision damage now passes PC/Xbox with shared health/armor handling; relocation and duplicate-contact guards pass focused checks; broader moving-object contacts remain.
+
+- Jeep: Driver/gunner roles, parked seat switching, independent gunner camera, mounted gun aiming and real finite-ammo fire now pass PC/Xbox with12.18MiB free; PC return-to-driver/exit passes; vehicle saves, native exit, live NPC combat, destruction coverage and campaign placement remain (see docs/JEEP-FIRST-PASS.md).
 
 - APC: Driving, primary fire, seated aiming, ballistic mortar impacts/GeoMod and vehicle HUD now pass PC/Xbox with three mortar impacts, two accepted cuts and 10.30 MiB free; live NPC damage, APC saves, campaign placement and articulated gun visuals remain.
 

@@ -40,6 +40,7 @@
 #include "scene_apc_primary_state.inc"
 #include "scene_apc_secondary_state.inc"
 #include "scene_vehicle_aim.inc"
+#include "scene_jeep_gun_aim.inc"
 #include "scene_driller_damage.inc"
 #include "scene_driller_bit_animation.inc"
 #include "scene_driller_cockpit.inc"
@@ -748,6 +749,7 @@ typedef struct scene_stream {
     rf_vehicle_checkpoint vehicle_checkpoint;uint32_t vehicle_checkpoint_pending;
     scene_driller_bit_animation *driller_bits;uint32_t driller_bit_base,driller_bit_textures;scene_driller_damage driller_damage_prototype;scene_driller_weapon driller_weapon;scene_apc_primary_state apc_primary;scene_apc_secondary_state apc_secondary;
     scene_vehicle_aim apc_aim;rf_entity_eye_limits apc_aim_limits;float apc_aim_eye[3],apc_aim_basis[9];uint32_t apc_aim_active;
+    scene_jeep_gun_resources *jeep_gun;float jeep_gun_pose[12],jeep_muzzle_pose[12];uint32_t jeep_gun_base,jeep_gun_textures;
     scene_driller_resources *apc_mortar;uint32_t apc_mortar_base,apc_mortar_textures;scene_driller_resources *driller;float driller_position[3],driller_basis[9];uint32_t driller_base,driller_textures;
     scene_undercover_resources *undercover;uint32_t undercover_base,undercover_textures,undercover_alt_held;
     rf_player_weapon *player_weapon[SCENE_WEAPON_SLOTS];uint32_t player_weapon_base[SCENE_WEAPON_SLOTS],player_weapon_textures[SCENE_WEAPON_SLOTS],player_shots,player_reload,player_slot,player_pose_frame;
@@ -774,6 +776,7 @@ static int scene_driller_blast(scene_stream *,uint32_t,const float *,float,float
 static uint32_t scene_driller_active(const scene_stream *);
 static int scene_apc_aim_direction(scene_stream *,const float [3],float [3]);
 static void scene_vehicle_hud_values(const scene_stream *,float *,int32_t [2]);
+static const char *scene_vehicle_hud_label(const scene_stream *);
 static int scene_driller_player_collision(scene_stream *,const rf_collision_body_query *,rf_geometry_body_hit *,uint32_t *);
 #include "scene_flame_effects_resources.inc"
 #include "scene_fusion_effects_resources.inc"
@@ -13018,10 +13021,11 @@ int rf_scene_draw_combat_hud(rf_scene_particle_sink sink,void *context)
      if(armor>0){status=combat_hud_rect(sink,context,26,462,128*armor,4,0xff609cdd);if(status)return status;}}
     if(vehicle){
         char primary[24],secondary[24];
-        status=combat_hud_text(sink,context,26,422,"VEHICLE",0xffeeeeee);if(status)return status;
+        status=combat_hud_text(sink,context,26,422,scene_vehicle_hud_label(particle_draw_stream),0xffeeeeee);if(status)return status;
         if(vehicle_ammo[0]>=0){
             snprintf(primary,sizeof(primary),"GUN %d",vehicle_ammo[0]);
-            snprintf(secondary,sizeof(secondary),"ROCKET %d",vehicle_ammo[1]);
+            if(vehicle_ammo[1]>=0)snprintf(secondary,sizeof(secondary),"ROCKET %d",vehicle_ammo[1]);
+            else snprintf(secondary,sizeof(secondary),"TAB/D-RIGHT");
             status=combat_hud_rect(sink,context,452,418,170,44,0xff101010);if(status)return status;
             status=combat_hud_text(sink,context,458,422,primary,vehicle_ammo[0]?0xffeeeeee:0xffee6060);if(status)return status;
             status=combat_hud_text(sink,context,458,442,secondary,vehicle_ammo[1]?0xffeeeeee:0xffee6060);if(status)return status;
@@ -13103,13 +13107,18 @@ static int campaign_inspect_camera(scene_stream *stream,float position[3],float 
 #include "scene_apc_aim_runtime.inc"
 #include "scene_apc_secondary_runtime.inc"
 #include "scene_apc_primary_draw.inc"
+static const char *scene_vehicle_hud_label(const scene_stream *s)
+{
+    if(rf_scene_vehicle_enabled==3)return scene_jeep_can_fire(&s->driller_runtime->jeep_seat)?"GUNNER":"DRIVER";
+    return "VEHICLE";
+}
 static void scene_vehicle_hud_values(const scene_stream *s,float *health,int32_t ammo[2])
 {
     const scene_driller_runtime *r=s->driller_runtime;
     float maximum=s->driller_damage_prototype.state.effects.class_health;
     *health=maximum>0?r->damage.damage.state.effects.health/maximum:0;
     ammo[0]=ammo[1]=-1;
-    if(rf_scene_vehicle_enabled==2){ammo[0]=s->apc_primary.reserve;ammo[1]=s->apc_secondary.reserve;}
+    if(rf_scene_vehicle_enabled>=2){ammo[0]=s->apc_primary.reserve;ammo[1]=rf_scene_vehicle_enabled==2?s->apc_secondary.reserve:-1;}
 }
 #include "scene_driller_flame.inc"
 #include "scene_driller_checkpoint_adapter.inc"
@@ -13154,6 +13163,7 @@ static int actor_follow_view(void *context,uint32_t frame,const rf_motion_contro
     }
     status=scene_driller_runtime_tick(stream,frame);if(status)return status;
     status=scene_apc_aim_tick(stream,frame);if(status)return status;
+    status=scene_jeep_gun_tick(stream);if(status)return status;
     status=scene_apc_primary_tick(stream,frame);if(status){printf("APC_TICK_ERROR %u %d\n",frame,status);return status;}
     status=scene_apc_secondary_tick(stream,frame,player_input.alt_fire,1,NULL);if(status){printf("APC_SECONDARY_ERROR %u %d\n",frame,status);return status;}
     status=scene_driller_active(stream)?scene_driller_player_camera(&stream->driller_runtime->entry,position,orientation):actor_listener_pose(stream,frame,controller,position,orientation);if(status){rf_scene_profile_stage[1]=101;return status;}
@@ -15526,9 +15536,13 @@ static int scene_frame(void *context,uint32_t frame,rf_preview_mesh *actor)
         status=scene_clutter_draw(stream,frame);presentation_mark(1,&presentation_clock);if(status){rf_scene_profile_stage[1]=202;return status;}
         status=scene_weapon_draw(stream,frame);presentation_mark(2,&presentation_clock);if(status){rf_scene_profile_stage[1]=203;return status;}
         status=scene_pickups_draw(stream);presentation_mark(3,&presentation_clock);if(status){rf_scene_profile_stage[1]=204;return status;}
-        if(stream->driller && !scene_driller_active(stream)){uint32_t submissions,vertices;
+        if(stream->driller && (!scene_driller_active(stream) || (rf_scene_vehicle_enabled==3 && scene_jeep_can_fire(&stream->driller_runtime->jeep_seat)))){uint32_t submissions,vertices;
             status=scene_driller_draw(stream,stream->driller,stream->driller_position,stream->driller_basis,stream->driller_base,stream->driller_textures,&submissions,&vertices);
             if(status)return status;
+        }
+        if(stream->jeep_gun){uint32_t submissions,vertices;
+            status=scene_driller_draw(stream,stream->jeep_gun->model,stream->jeep_gun_pose+9,stream->jeep_gun_pose,
+                stream->jeep_gun_base,stream->jeep_gun_textures,&submissions,&vertices);if(status)return status;
         }
         if(stream->driller_bits){uint32_t bit,submissions,vertices;
             for(bit=0;bit<2;bit++){float pose[12];
@@ -15560,7 +15574,7 @@ static int scene_frame(void *context,uint32_t frame,rf_preview_mesh *actor)
             v->position[1]=240+(v->position[1]-240)*rf_scene_scope_projection;
         }
         status=scene_driller_active(stream)?RF_OK:scene_player_weapon_draw(stream,frame);presentation_mark(4,&presentation_clock);if(status){rf_scene_profile_stage[1]=205;return status;}
-        if(scene_driller_active(stream)){uint32_t faces;const unsigned char lighting[3]={200,200,200};
+        if(scene_driller_active(stream) && !(rf_scene_vehicle_enabled==3 && scene_jeep_can_fire(&stream->driller_runtime->jeep_seat))){uint32_t faces;const unsigned char lighting[3]={200,200,200};
             status=scene_driller_cockpit_draw(stream->driller_cockpit,stream->driller_runtime->driver_seconds,stream->rocket_camera.player_position,
                 scene_actor_body.state.orientation,&stream->rocket_camera,stream->mesh,stream->capacity,stream->materials->count,lighting,&faces);
             if(status){rf_scene_profile_stage[1]=211;return status;}
@@ -16216,11 +16230,11 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
              if(!status)status=scene_undercover_open(stream,&archive,&motions,maps,map_count);
              if(!status && rf_scene_vehicle_enabled) {
                  if(!rf_scene_dev_room_enabled)status=RF_RANGE;
-                 else if(rf_scene_vehicle_enabled==2)status=scene_vehicle_resources_open(tables_path,"APC","interface_1",&archive,maps,map_count,2*1024*1024,&stream->driller);
+                 else if(rf_scene_vehicle_enabled>=2)status=scene_vehicle_resources_open(tables_path,rf_scene_vehicle_enabled==3?"Jeep01":"APC","interface_1",&archive,maps,map_count,2*1024*1024,&stream->driller);
                  else status=scene_driller_resources_open(tables_path,&archive,maps,map_count,1024*1024,&stream->driller);
                  if(status)printf("VEHICLE_RESOURCE_FAIL chassis %d\n",status);
                  if(!status && rf_scene_vehicle_enabled==1)status=scene_driller_bit_animation_open(&stream->driller->tags,&archive,maps,map_count,512*1024,&stream->driller_bits);
-                 if(!status)status=rf_scene_vehicle_enabled==2?scene_vehicle_cockpit_open("APC.vfx",&archive,maps,map_count,2*1024*1024,&stream->driller_cockpit):scene_driller_cockpit_open(&archive,maps,map_count,2*1024*1024,&stream->driller_cockpit);
+                 if(!status)status=rf_scene_vehicle_enabled>=2?scene_vehicle_cockpit_open(rf_scene_vehicle_enabled==3?"jeep.vfx":"APC.vfx",&archive,maps,map_count,2*1024*1024,&stream->driller_cockpit):scene_driller_cockpit_open(&archive,maps,map_count,2*1024*1024,&stream->driller_cockpit);
                  if(status)printf("VEHICLE_RESOURCE_FAIL cockpit %d\n",status);
                  stream->driller_position[0]=30;stream->driller_position[1]=5.4f;stream->driller_position[2]=-167;
                  stream->driller_basis[2]=-1;stream->driller_basis[4]=stream->driller_basis[6]=1;
@@ -16236,7 +16250,15 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
                      if(!status)status=scene_apc_secondary_visual_open(&archive,maps,map_count,512*1024,&stream->apc_mortar);
                  }
                  if(!status && rf_scene_vehicle_enabled==1)status=scene_driller_weapon_open(&tables,&stream->driller->tags,512*1024,&stream->driller_weapon);
-                 if(!status)status=rf_scene_vehicle_enabled==2?scene_vehicle_damage_open("APC",&stream->driller_damage_prototype,&tables,stream->driller,0,0,0,512*1024):scene_driller_damage_open(&stream->driller_damage_prototype,&tables,stream->driller,0,0,0,512*1024);
+                 if(!status && rf_scene_vehicle_enabled==3){
+                     status=scene_jeep_gun_resources_open(&archive,maps,map_count,&stream->driller->tags,576*1024,&stream->jeep_gun);
+                     if(!status)status=scene_vehicle_primary_load(&tables,"Jeep Gun",512*1024,&stream->apc_primary.definition);
+                     if(!status)stream->apc_primary.muzzle=stream->jeep_gun->muzzle;
+                     stream->apc_primary.reserve=(int32_t)stream->apc_primary.definition.capacity;
+                     stream->apc_primary.random.value=1;memset(rf_scene_apc_primary,0,sizeof(rf_scene_apc_primary));
+                     if(!status)status=scene_vehicle_aim_limits_load(&tables,"Jeep01",512*1024,&stream->apc_aim_limits);
+                 }
+                 if(!status)status=rf_scene_vehicle_enabled>=2?scene_vehicle_damage_open(rf_scene_vehicle_enabled==3?"Jeep01":"APC",&stream->driller_damage_prototype,&tables,stream->driller,0,0,0,512*1024):scene_driller_damage_open(&stream->driller_damage_prototype,&tables,stream->driller,0,0,0,512*1024);
                  if(!status){float seat[12];status=scene_driller_seat_pose(stream->driller,stream->driller_position,stream->driller_basis,seat);}
              }
              rf_vpp_close(&tables);if(status)goto done;}
@@ -16345,6 +16367,7 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
         free(textures->items);memset(textures,0,sizeof(*textures));
         }
         status=scene_undercover_merge(stream,materials);if(status)goto done;
+        if(stream->jeep_gun){status=scene_driller_materials_merge(stream->jeep_gun->model,materials,&stream->jeep_gun_base,&stream->jeep_gun_textures);if(status)goto done;}
         if(stream->apc_mortar){status=scene_apc_secondary_visual_merge(stream->apc_mortar,materials,&stream->apc_mortar_base,&stream->apc_mortar_textures);if(status)goto done;}
         if(stream->driller){status=scene_driller_materials_merge(stream->driller,materials,&stream->driller_base,&stream->driller_textures);if(status)goto done;
             if(stream->driller_bits)status=scene_driller_materials_merge(&stream->driller_bits->model,materials,&stream->driller_bit_base,&stream->driller_bit_textures);if(status)goto done;
@@ -16556,6 +16579,7 @@ done:
     {int closed=scene_driller_runtime_close(stream);if(closed && !status)status=closed;}
     scene_driller_cockpit_close(&stream->driller_cockpit);
     scene_driller_bit_animation_close(&stream->driller_bits);
+    scene_jeep_gun_resources_close(&stream->jeep_gun);
     scene_apc_secondary_visual_close(&stream->apc_mortar);
     scene_driller_resources_close(&stream->driller);
     {int closed=scene_undercover_close(stream);if(closed && !status)status=closed;}
