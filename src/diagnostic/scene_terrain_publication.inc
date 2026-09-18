@@ -156,14 +156,15 @@ static int scene_terrain_publication_prepare_from(scene_stream *s,
     job.source_planes=a->asset_view.source_planes;job.source_plane_count=a->source.face_count;
     job.solids=a->asset_view.solids;job.solid_count=a->asset_view.solid_count;job.cuts=cuts;job.cut_count=terrain.cuts;
     job.neighbor_voids=a->asset_view.neighbor_voids;job.neighbor_void_count=a->asset_view.neighbor_void_count;
-    if(a->asset_view.source_uid==66)for(i=0;i<count;i++) {
+    if(a->asset_view.source_uid==66 || a->asset_view.detail_guard_count)for(i=0;i<count;i++) {
         const rf_geomod_mesh_view *cut=&cuts[i].mesh;float lo[3],hi[3];uint32_t vertex,axis,reference;
         if(!cut->vertex_count || !cut->vertices)return RF_FORMAT;
         memcpy(lo,cut->vertices[0].position,12);memcpy(hi,lo,12);
         for(vertex=1;vertex<cut->vertex_count;vertex++)for(axis=0;axis<3;axis++) {
             float value=cut->vertices[vertex].position[axis];if(value<lo[axis])lo[axis]=value;if(value>hi[axis])hi[axis]=value;
         }
-        status=rf_geomod_authored_cavity_admit(a->asset,lo,hi,&reference);if(status)return status;
+        status=a->asset_view.detail_guard_count?rf_geomod_authored_post_admit(a->asset,lo,hi):
+            rf_geomod_authored_cavity_admit(a->asset,lo,hi,&reference);if(status)return status;
     }
     if(s->terrain_source_count>1) {
         rf_geomod_publication_job jobs[4];rf_geomod_publication_cut other_cuts[4][RF_GEOMOD_CUT_LIMIT];

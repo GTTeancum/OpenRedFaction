@@ -2,7 +2,7 @@
 
 - PRIORITY GeoMod ordinary walls: Broaden multi-window and neighboring-brush CSG; a live floor-seam rocket now passes77 stock64MiB checks with exact PC/Xbox save bytes and fixture-off/mismatched-save rejection controls, alongside verified wall depth and player traversal.
 
-- GeoMod source expansion: Integrate guarded attached-post profiles into gameplay and restore; core cuts and guard-aware identities now pass123 PC tests and NXDK builds, with all four captures below2MiB;92 two-shot destruction and108 reload/next-shot now pass77/77 stock64MiB checks with exact uninterrupted PC/Xbox state, while six more profiles have core/identity support pending live selection.
+- GeoMod source expansion: Integrate joint side-beam/post destruction; all four guarded posts pass PC trim rejection and saved continuation, and post79 shot/Xbox-created-save reload pass77/76 stock64MiB checks with exact PC state; remaining beam selectors and broader histories stay open.
 
 - GeoMod thin fragments: Broaden contact coverage beyond the beam and concave L fixtures; face-derived samples now rescue pieces missed by regular grids, while Xbox beam continuation still passes76 checks.
 
@@ -5497,3 +5497,8 @@ Added decoder profiles75/79/99/103 with their two actual structural neighbors an
 ### 2026-09-18: Guard-aware source identity support
 
 Added RFASv3/loader5/publication14 identities for posts75/79/99/103, hashing retained detail ownership, authored face tokens and bounds. Capture validates guard geometry and metadata and rejects seven altered/missing guard variants per post without publishing output. Existing source identities remain compatible. All19 installed source identities are distinct/repeatable; each new capture peaks at1613087bytes with the test capacities. All123 PC tests and stock NXDK build pass. Next work remains exact cutter enforcement through publication/restore, live post selection, and native save/continuation. Overall~51%; GeoMod~89%, unchanged pending gameplay integration.
+
+
+### 2026-09-18: Live guarded posts and Xbox-created save continuation
+
+Enabled single-source DEV selectors75/79/99/103 with an offset spawn that avoids intervening inner posts. Shared publication/restore now checks actual cutter bounds against retained detail guards. The process-local replay verifies exact impact locations: Y-1 trim-contact shots reject with zero cuts; Y.8 shots cut; save/reload matches uninterrupted play for all four profiles. Post79 native shot passes77 checks and an Xbox-created-save301-frame continuation passes76, with exact2422-byte PC/Xbox saves and4001/4049free pages respectively. Both native captures inspected; both harnesses restore disc/close XEMU. All123 PC tests and stock NXDK build pass. No detached pieces occur in these specific post cuts, and audio is unverified. Joint beam/post transactions, repeated histories and native trim-rejection coverage remain open. See docs/research/GEOMOD-SIDE-BEAMS-20260918.md. Overall~51%; GeoMod~89%.

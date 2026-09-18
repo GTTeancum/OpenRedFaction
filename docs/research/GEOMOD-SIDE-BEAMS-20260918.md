@@ -110,3 +110,26 @@ Guarded sources use RFAS v3, loader policy5 and publication policy14. The DGRD e
 Installed manifest coverage now includes19 sources. All four new profiles have14 chart references and1613087-byte peak capture using the test's fixed capacities, below2097152. Decoded residency becomes3488bytes/1037735-byte peak after retaining authored guard tokens. Repeated capture APIs agree; all19 identities and window digests are pairwise distinct. Seven invalid guard variants per post reject without modifying digest or peak output: missing guard, wrong UID, wrong room, changed bounds, changed authored face token, substituted source-face reference and duplicate reference. Low-level tests separately prove bounds/tokens affect identity while numeric guard lookup IDs do not, and malformed data preserves output.
 
 Validation: all123 PC tests pass (`artifacts/side-post-identity-tests.log`); stock NXDK compile/link/XBE/ISO succeeds (`artifacts/side-post-identity-xbox.log`). This completes immutable identity support only. Live selectors, exact prepared-cutter guard enforcement in publication/restore, and native post save/continue validation remain open. No live Xbox behavior is claimed by these tests.
+
+
+## Live guarded post selection and checkpoint continuation
+
+Posts75/79/99/103 are now explicit single-source DEV selectors on PC and Xbox. Shared room publication checks every prepared cutter's actual vertex bounds against the retained trim guard before publishing. The same function handles checkpoint reconstruction, so restoring a history rechecks those bounds rather than relying only on its identity. Multi-source combinations remain rejected for these profiles until joint behavior is qualified.
+
+The spawn lies off the inner-post line: west posts useX-2.75, east postsX3.75, withZ-7.5 or7.5. The player settles atY-1.120028. An initial straight-line probe atZ2.5 hit inner post94 atX-4.75 instead of post79; this was identified from the impact trace, and the spawn/aim were corrected. The replay measures the settled eye and derives both yaw and pitch. Impact assertions verify the intended surfaceX-8.5 or9.5, Z-2.5 or2.5, and contactY.
+
+`tools/check_side_post.py --source 75|79|99|103` verifies a low ordinary rocket atY-1 is rejected by publication with zero committed cuts, while a higher shot atY.8 commits one cut. A Y.25 live candidate also touched the trim with the gameplay cutter and correctly rejected; the core test's smaller cutter is not used as a substitute for the actual gameplay bounds. Player remains alive. A600-frame accepted shot is saved, restored for301 neutral frames, and compared byte-for-byte with uninterrupted900-frame play.
+
+| Post | Final save bytes | Published faces/vertices | Detached pieces |
+|---|---|---|---|
+|75|2422|13/82|0|
+|79|2422|13/82|0|
+|99|2526|21/109|0|
+|103|2528|22/111|0|
+
+All four PC continuations match. These cases verify removed post material and protected-trim rejection, not detached-post rubble or joint beam failure. Post79's PC and native framebuffers were inspected: the cut post section is visible with surrounding supports, roof, room and weapon/HUD retained. Audio was not assessed. No original-game screenshots, host input or new GitHub images were used.
+
+The stock64MiB native post79 shot (`artifacts/xemu/render-20260918-010212`) completes600frames with77 checks passing,4001free pages at endpoint and an exact2422-byte PC/Xbox checkpoint. Checkpoint SHA256 is41775f38c2f1327f2bf089509447e0d0a5bf396a80208eb1cb98aec9294db3b7. The harness restored the disc and closed its emulator. All123 PC tests pass (`artifacts/side-post-live-tests.log`); NXDK compile/link/XBE/ISO succeeds (`artifacts/side-post-live-xbox.log`). Xbox-created-save continuation is the next native check.
+
+
+Xbox-created post79 save continuation also passes: `artifacts/xemu/render-20260918-010408`,301 neutral frames,76 checks,4049free pages at endpoint. Its2422-byte output matches uninterrupted PC exactly with the same SHA256 as the initial native checkpoint. Native restored framebuffer inspected; the cut and surrounding room remain present. The harness restored the disc and closed XEMU; no project emulator remains. Protected-trim rejection is verified live on PC for all four profiles, but has not yet been run natively. Joint beam/post edits, repeated post-cut histories and broader post debris remain open.

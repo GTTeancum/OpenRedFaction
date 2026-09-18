@@ -445,6 +445,10 @@ int main(int argc,char **argv)
             else if(!strcmp(source,"66"))uid=66;
             else if(!strcmp(source,"92"))uid=92;
             else if(!strcmp(source,"108"))uid=108;
+            else if(!strcmp(source,"75"))uid=75;
+            else if(!strcmp(source,"79"))uid=79;
+            else if(!strcmp(source,"99"))uid=99;
+            else if(!strcmp(source,"103"))uid=103;
             else if(!strcmp(source,"95"))uid=95;
             else if(!strcmp(source,"96"))uid=96;
             else if(!strcmp(source,"97"))uid=97;
