@@ -899,3 +899,7 @@ add_test(NAME scene_ai_broken_shield COMMAND rf_scene_ai_broken_shield_tests)
 add_executable(rf_scene_riot_shield_gameplay_tests tests/scene_riot_shield_gameplay_tests.c)
 target_link_libraries(rf_scene_riot_shield_gameplay_tests PRIVATE rf_core)
 add_test(NAME scene_riot_shield_gameplay COMMAND rf_scene_riot_shield_gameplay_tests ${CMAKE_SOURCE_DIR}/Installed_Game/tables.vpp)
+
+add_executable(rf_scene_ai_unsupported_weapon_tests tests/scene_ai_unsupported_weapon_tests.c src/diagnostic/animation.c)
+target_link_libraries(rf_scene_ai_unsupported_weapon_tests PRIVATE rf_core)
+add_test(NAME scene_ai_unsupported_weapon COMMAND rf_scene_ai_unsupported_weapon_tests)

@@ -9269,6 +9269,12 @@ static int campaign_enemy_tick(scene_stream *stream,uint32_t frame,const float p
             if(blocked){++rf_scene_enemy_spread[4];goto enemy_shot_done;}
             if(!target_hit){++rf_scene_enemy_spread[3];goto enemy_shot_done;}
             ++rf_scene_enemy_spread[2];
+            if(victim && scene_npc_shields.owners){
+                float end[3];uint32_t accepted,broken;
+                for(j=0;j<3;j++)end[j]=owner->eye_position[j]+spread_ray[j];
+                status=scene_npc_shield_receive(victim_slot,owner->eye_position,end,fraction,shot_damage,definition->damage_kind,&accepted,&broken);if(status)return status;
+                if(accepted)goto enemy_shot_done;
+            }
         }
         {int32_t kind=definition?definition->damage_kind:0;
          /* Unsupported weapon classes retain the provisional fallback. */
@@ -15446,7 +15452,7 @@ static int scene_dev_npc_seeds(const char *tables_path,rf_vpp *tables)
     status=rf_level_open(&source,&levels,"L1S1.rfl");
     if(!status)status=rf_entity_seeds_open(&source,tables,1024*1024,&campaign_seeds);
     rf_vpp_close(&levels);printf("DEV_NPC_SEEDS %d %u\n",status,campaign_seeds.records.count);if(status)return status;
-    for(i=0;i<campaign_seeds.records.count;i++)if(rf_scene_dev_npc_enabled>=2?campaign_seeds.records.items[i].record.uid==8456:
+    for(i=0;i<campaign_seeds.records.count;i++)if(rf_scene_dev_npc_enabled>=2 && rf_scene_dev_npc_enabled!=5?campaign_seeds.records.items[i].record.uid==8456:
         (!strcmp(campaign_seeds.records.items[i].record.class_name,"miner1") || !strcmp(campaign_seeds.records.items[i].record.class_name,"Miner1")))break;
     if(i==campaign_seeds.records.count){for(i=0;i<campaign_seeds.records.count;i++)printf("DEV_NPC_CLASS %s\n",campaign_seeds.records.items[i].record.class_name);return RF_NOT_FOUND;}
     printf("DEV_NPC_SELECTED %s\n",campaign_seeds.records.items[i].record.class_name);
@@ -15466,6 +15472,7 @@ static int scene_dev_npc_seeds(const char *tables_path,rf_vpp *tables)
         record->position[0]=-1.5f;record->position[1]=-.4f;record->position[2]=8;
         memset(record->orientation,0,36);record->orientation[0][2]=-1;
         record->orientation[1][1]=1;record->orientation[2][0]=1;
+        if(rf_scene_dev_npc_enabled==5){record->orientation[0][2]=1;record->orientation[2][0]=-1;}
     }
     campaign_seeds.records.items[0].record.script_name[0]=campaign_seeds.records.items[0].record.state_animation[0]=0;
     return RF_OK;
