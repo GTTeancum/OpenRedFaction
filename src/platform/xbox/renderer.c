@@ -75,6 +75,8 @@ static int upload(gpu_texture *out, const rf_image *image, int fallback)
         field(NV097_SET_TEXTURE_FORMAT_BASE_SIZE_U, u) | field(NV097_SET_TEXTURE_FORMAT_BASE_SIZE_V, v);
     return RF_OK;
 }
+/* Shared aiming projection; scene owns state and CPU world geometry. */
+extern float rf_scene_scope_projection;
 static int scene_particle_present(void *context,const rf_particle_draw_vertex *vertices,uint32_t count,const rf_image *image,uint32_t mode)
 {
     (void)context;
@@ -82,6 +84,18 @@ static int scene_particle_present(void *context,const rf_particle_draw_vertex *v
      * Applying the world bias at depth0 exceeds the24-bit far plane. */
     if(mode==0x18000u)return rf_xbox_particle_draw(vertices,count,image,mode,1,0,0,0);
     return rf_xbox_particle_draw(vertices,count,image,mode,RF_SCENE_PARTICLE_DEPTH_SCALE,RF_SCENE_PARTICLE_DEPTH_BIAS,0,0);
+}
+/* Only world particles/coronas use this sink. Screen flash, muzzle flash and
+ * HUD retain their screen-space projection through scene_particle_present. */
+static int scene_world_particle_present(void *context,const rf_particle_draw_vertex *vertices,uint32_t count,const rf_image *image,uint32_t mode)
+{
+    rf_particle_draw_vertex zoomed[12];uint32_t i;float scale=rf_scene_scope_projection;
+    if(!isfinite(scale) || scale<1 || !vertices || count>12)return RF_RANGE;
+    if(scale==1)return scene_particle_present(context,vertices,count,image,mode);
+    memcpy(zoomed,vertices,count*sizeof(*vertices));
+    for(i=0;i<count;i++){zoomed[i].screen[0]=320+(vertices[i].screen[0]-320)*scale;
+        zoomed[i].screen[1]=240+(vertices[i].screen[1]-240)*scale;}
+    return scene_particle_present(context,zoomed,count,image,mode);
 }
 static rf_preview_vertex *stream_gpu;
 static gpu_texture *stream_textures;
@@ -234,10 +248,13 @@ static int retained_world_draw(const rf_materials *materials,const rf_lightmaps 
     renderer_command_batch commands={NULL,NULL,rf_xbox_command_blocks};
     memset(rf_xbox_world_groups,0,sizeof(rf_xbox_world_groups));
     if(retained_world.ready!=1)return RF_OK;
+    if(!isfinite(rf_scene_scope_projection) || rf_scene_scope_projection<1)return RF_RANGE;
     vertex_program(program,sizeof(program)/4);
     for(i=0;i<3;i++) {
         memcpy(rows[i],retained_world.orientation[i],12);rows[i][3]=0;
         for(j=0;j<3;j++)rows[i][3]-=rows[i][j]*retained_world.position[j];
+        /* Scale camera X/Y including translation, retaining center and depth. */
+        if(i<2)for(j=0;j<4;j++)rows[i][j]*=rf_scene_scope_projection;
     }
     p=pb_begin();p=pb_push1(p,NV097_SET_TRANSFORM_CONSTANT_LOAD,96);
     pb_push(p++,NV097_SET_TRANSFORM_CONSTANT,12);memcpy(p,rows,sizeof(rows));p+=12;
@@ -552,8 +569,8 @@ static int preview(const rf_preview_mesh *mesh, const rf_materials *materials, c
             memcpy((void *)rf_xbox_draw_audit[1],audit_begin,bytes);
             rf_xbox_draw_audit[2]=bytes;++rf_xbox_draw_audit[3];
         }
-        if(streaming) {int status=rf_scene_draw_particles(scene_particle_present,NULL);if(status)return status;
-            status=rf_scene_draw_coronas(scene_particle_present,NULL);if(status)return status;}
+        if(streaming) {int status=rf_scene_draw_particles(scene_world_particle_present,NULL);if(status)return status;
+            status=rf_scene_draw_coronas(scene_world_particle_present,NULL);if(status)return status;}
         if(streaming) {int status;hud_batch_begin();
             status=rf_scene_draw_player_flash(scene_particle_present,NULL);
             if(!status)status=rf_scene_draw_combat_hud(scene_particle_present,NULL);

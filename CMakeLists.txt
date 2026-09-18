@@ -746,3 +746,17 @@ add_test(NAME runtime_cycle COMMAND rf_runtime_cycle_tests)
 add_executable(rf_scene_precision_gameplay_tests tests/scene_precision_gameplay_tests.c src/diagnostic/animation.c)
 target_link_libraries(rf_scene_precision_gameplay_tests PRIVATE rf_core)
 add_test(NAME scene_precision_gameplay COMMAND rf_scene_precision_gameplay_tests)
+
+add_executable(rf_scene_ai_weapon_selection_tests tests/scene_ai_weapon_selection_tests.c src/diagnostic/animation.c)
+target_link_libraries(rf_scene_ai_weapon_selection_tests PRIVATE rf_core)
+add_test(NAME scene_ai_weapon_selection COMMAND rf_scene_ai_weapon_selection_tests)
+
+target_sources(rf_core PRIVATE src/core/weapon_scope.c)
+add_executable(rf_weapon_scope_tests tests/weapon_scope_tests.c)
+target_link_libraries(rf_weapon_scope_tests PRIVATE rf_core)
+add_test(NAME weapon_scope COMMAND rf_weapon_scope_tests)
+
+add_executable(rf_scene_ai_precision_tests tests/scene_ai_precision_tests.c src/diagnostic/animation.c)
+target_link_libraries(rf_scene_ai_precision_tests PRIVATE rf_core)
+add_test(NAME scene_ai_precision COMMAND rf_scene_ai_precision_tests)
+set_tests_properties(scene_ai_precision PROPERTIES WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}")

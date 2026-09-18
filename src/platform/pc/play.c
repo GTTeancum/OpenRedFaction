@@ -259,11 +259,23 @@ static int input(void *context,uint32_t frame,rf_scene_input *out)
     out->cycle_weapon=p->keys[VK_TAB];out->fire=p->keys['F'];out->alt_fire=p->keys['G'];out->reload=p->keys['R'];out->use=p->keys['E'];out->jump=p->keys[VK_SPACE];out->crouch=p->keys[VK_CONTROL];return p->focused?controller_input(out):RF_OK;
 }
 
+extern float rf_scene_scope_projection;
 static int particle_present(void *context,const rf_particle_draw_vertex *vertices,uint32_t count,const rf_image *image,uint32_t mode)
 {
     player *p=context;
     return rf_pc_raster_particle(&p->raster,vertices,count,image,mode,
         RF_SCENE_PARTICLE_DEPTH_SCALE,RF_SCENE_PARTICLE_DEPTH_BIAS,0,0);
+}
+/* World-only sink; keep firstperson flash and HUD at native screen scale. */
+static int world_particle_present(void *context,const rf_particle_draw_vertex *vertices,uint32_t count,const rf_image *image,uint32_t mode)
+{
+    rf_particle_draw_vertex zoomed[12];uint32_t i;float scale=rf_scene_scope_projection;
+    if(!isfinite(scale) || scale<1 || !vertices || count>12)return RF_RANGE;
+    if(scale==1)return particle_present(context,vertices,count,image,mode);
+    memcpy(zoomed,vertices,count*sizeof(*vertices));
+    for(i=0;i<count;i++){zoomed[i].screen[0]=320+(vertices[i].screen[0]-320)*scale;
+        zoomed[i].screen[1]=240+(vertices[i].screen[1]-240)*scale;}
+    return particle_present(context,zoomed,count,image,mode);
 }
 static int present(void *context,uint32_t frame,const rf_preview_mesh *mesh,
     const rf_materials *materials,uint32_t world)
@@ -290,8 +302,8 @@ static int present(void *context,uint32_t frame,const rf_preview_mesh *mesh,
     }
     status=rf_pc_raster_frame(&p->raster,mesh,materials,&p->lightmaps,world);
     if(status)return status;
-    status=rf_scene_draw_particles(particle_present,p);if(status)return status;
-    status=rf_scene_draw_coronas(particle_present,p);if(status)return status;
+    status=rf_scene_draw_particles(world_particle_present,p);if(status)return status;
+    status=rf_scene_draw_coronas(world_particle_present,p);if(status)return status;
     status=rf_scene_draw_player_flash(particle_present,p);if(status)return status;
     status=rf_scene_draw_combat_hud(particle_present,p);if(status)return status;
     if(capture) {

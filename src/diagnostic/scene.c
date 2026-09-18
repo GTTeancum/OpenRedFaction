@@ -12,6 +12,7 @@
 #include "rf/liquid_damage.h"
 #include "rf/debris_audio.h"
 #include "rf/player_weapon.h"
+#include "rf/weapon_scope.h"
 #include "rf/event.h"
 #include "rf/audio.h"
 #include "rf/clutter.h"
@@ -1841,6 +1842,9 @@ static rf_clutter_catalogs campaign_clutter_catalogs;
 static int32_t campaign_riot_shield_class=-1;
 uint32_t rf_scene_clutter_contact_test[8];
 static rf_weapon_supply_catalog campaign_weapon_supply;
+float rf_scene_scope_projection=1.0f;
+static float scene_scope_look=1.0f;
+static rf_weapon_scope scene_scope;
 static rf_weapon_primary_definition campaign_pistol,campaign_primary[SCENE_WEAPON_SLOTS];
 static rf_weapon_explosive_definition campaign_rocket,campaign_grenade;
 static rf_explosion_definition campaign_rocket_impact;
@@ -3699,8 +3703,8 @@ static int campaign_clutter_open(const char *tables_path,const rf_level *level)
     if(!status && rf_scene_dev_room_enabled)status=rf_weapon_primary_load(&tables,"Rocket Launcher",128*1024,&campaign_primary[4]);
     if(!status && rf_scene_dev_room_enabled)status=rf_weapon_explosive_load(&tables,"Rocket Launcher",128*1024,&campaign_rocket);
     if(!status && rf_scene_dev_room_enabled)status=rf_weapon_primary_load(&tables,"Grenade",128*1024,&campaign_primary[5]);
-    if(!status && rf_scene_dev_room_enabled)status=rf_weapon_primary_load(&tables,"Sniper Rifle",128*1024,&campaign_primary[6]);
-    if(!status && rf_scene_dev_room_enabled)status=rf_weapon_primary_load(&tables,"rail_gun",128*1024,&campaign_primary[7]);
+    if(!status)status=rf_weapon_primary_load(&tables,"Sniper Rifle",128*1024,&campaign_primary[6]);
+    if(!status)status=rf_weapon_primary_load(&tables,"rail_gun",128*1024,&campaign_primary[7]);
     if(!status && rf_scene_dev_room_enabled)status=rf_weapon_explosive_load(&tables,"Grenade",128*1024,&campaign_grenade);
     if(!status && rf_scene_dev_room_enabled) {
         rf_vclip_definition clip;
@@ -8333,6 +8337,7 @@ static int actor_listener_pose(scene_stream *stream,uint32_t frame,
             }
             actor_look.state.command[0]=player_poll?player_input.look[0]:frame?((frame%180)<90?.25f:-.25f):0;
             actor_look.state.command[1]=player_poll?player_input.look[1]:rf_scene_actor_turn_enabled && frame?((frame%240)<120?.2f:-.2f):0;
+            actor_look.state.command[0]*=scene_scope_look;actor_look.state.command[1]*=scene_scope_look;
             status=rf_look_update_pose(&actor_look.state,1.0f,scene_step_seconds,&actor_look);if(status)return status;
             if(rf_scene_actor_turn_enabled) {
                 float tensor[9];
@@ -8986,6 +8991,7 @@ static float combat_enemy_primary_damage(const rf_weapon_primary_definition *def
 }
 #include "scene_npc_rubble_test.inc"
 #include "scene_ai_gameplay.inc"
+#include "scene_ai_weapon_selection.inc"
 #include "scene_ai_reload.inc"
 #include "scene_ai_shotgun.inc"
 static int campaign_enemy_tick(scene_stream *stream,uint32_t frame,const float player_eye[3])
@@ -8999,10 +9005,14 @@ static int campaign_enemy_tick(scene_stream *stream,uint32_t frame,const float p
     for(i=0;i<campaign_npc_body_count && campaign_player_damage.state.effects.health>0;i++) {
         campaign_npc_body *owner=campaign_npc_bodies+i;float delta[3],distance=0,amount=0;int status;
         const int32_t weapon=owner->view.weapons[0];
-        const rf_weapon_primary_definition *definition=weapon==campaign_pistol_id?campaign_primary:
-            weapon==campaign_rifle_id?campaign_primary+1:weapon==campaign_riot_id?campaign_primary+2:
-            weapon==campaign_shotgun_id?campaign_primary+3:NULL;
-        const uint32_t melee=weapon==campaign_riot_id;
+        const int32_t ids[8]={campaign_pistol_id,campaign_rifle_id,campaign_riot_id,campaign_shotgun_id,
+            campaign_rocket_id,campaign_grenade_id,campaign_sniper_id,campaign_rail_id};
+        campaign_enemy_weapon_selection selected={0};
+        status=campaign_enemy_weapon_select(weapon,ids,campaign_primary,campaign_weapon_supply.definitions,
+            campaign_weapon_supply.names.count,&selected);
+        if(status && status!=RF_NOT_FOUND)return status;
+        const rf_weapon_primary_definition *definition=selected.primary;
+        const uint32_t melee=selected.melee;
         const float shot_damage=combat_enemy_primary_damage(definition);
         const float attack_range=definition && definition->ai_attack_range>0?definition->ai_attack_range:(melee?2.6f:40.0f);
         const float pursue_range=definition && definition->ai_attack_range>0?attack_range:(melee?2.6f:20.0f);
@@ -9068,9 +9078,9 @@ static int campaign_enemy_tick(scene_stream *stream,uint32_t frame,const float p
                 else campaign_pursuit_stop(owner);
             } else if(owner->script_move.follow==2)campaign_pursuit_target(owner,target_position);
         }
-        if(weapon==campaign_pistol_id || weapon==campaign_rifle_id || weapon==campaign_shotgun_id) {
+        if(selected.ammo) {
             uint32_t ready,event;
-            status=campaign_enemy_ammo_ready(&owner->inventory,campaign_weapon_supply.definitions+weapon,
+            status=campaign_enemy_ammo_ready(&owner->inventory,selected.ammo,
                 definition,weapon,frame,&owner->combat_reload_due,&owner->combat_reload_weapon,&ready,&event);if(status)return status;
             if(event==1){owner->combat_burst_remaining=0;
                 status=campaign_enemy_reload_presentation(i);if(status && status!=RF_NOT_FOUND)return status;}
@@ -9094,9 +9104,9 @@ static int campaign_enemy_tick(scene_stream *stream,uint32_t frame,const float p
         owner->combat_due=frame+6; /* Brief retry if no valid shot follows. */
         if(distance>attack_range*attack_range || distance<.0001f){if(melee)++rf_scene_enemy_melee[1];continue;}
         status=combat_obstructed(stream,owner->eye_position,delta,&blocked);if(status)return status;
-        if(blocked){++rf_scene_enemy_combat[4];continue;}
+        if(blocked && !selected.penetrates_world){++rf_scene_enemy_combat[4];continue;}
         status=campaign_enemy_cadence(definition,frame,&owner->combat_burst_remaining,&owner->combat_due);if(status)return status;
-        if(weapon==campaign_pistol_id || weapon==campaign_rifle_id || weapon==campaign_shotgun_id)--owner->inventory.loaded[weapon];
+        if(selected.ammo)--owner->inventory.loaded[weapon];
         if(melee){float maximum;memcpy(&maximum,rf_scene_enemy_melee+3,4);++rf_scene_enemy_melee[0];
             if(distance>maximum)memcpy(rf_scene_enemy_melee+3,&distance,4);}
         ++rf_scene_enemy_combat[2];
@@ -9122,7 +9132,8 @@ static int campaign_enemy_tick(scene_stream *stream,uint32_t frame,const float p
             fraction=1;
             uint32_t target_hit=combat_body(owner->eye_position,spread_ray,victim?&victim->body:&scene_actor_body,1,&fraction);
             if(!target_hit)fraction=1;
-            status=combat_enemy_fragment_shot(stream,owner->eye_position,spread_ray,fraction,shot_damage,&blocked);if(status)return status;
+            blocked=0;
+            if(!selected.penetrates_world){status=combat_enemy_fragment_shot(stream,owner->eye_position,spread_ray,fraction,shot_damage,&blocked);if(status)return status;}
             if(blocked){++rf_scene_enemy_spread[4];goto enemy_shot_done;}
             if(!target_hit){++rf_scene_enemy_spread[3];goto enemy_shot_done;}
             ++rf_scene_enemy_spread[2];
@@ -12175,6 +12186,14 @@ static int campaign_combat_tick(scene_stream *stream,uint32_t frame,const float 
         }
     }
     weapon_cycle_held=!!player_input.cycle_weapon;
+    {rf_weapon_scope_result scope;
+     if(!frame){memset(&scene_scope,0,sizeof(scene_scope));rf_scene_scope_projection=scene_scope_look=1;}
+     status=rf_weapon_scope_step(&scene_scope,!!player_input.alt_fire,
+        campaign_equipped_slot==6 && !campaign_explicit_unarmed && !!campaign_player_inventory.owned[campaign_sniper_id],
+        campaign_player_damage.state.effects.health>0,RF_WEAPON_SCOPE_WORLD_FOV,RF_WEAPON_SCOPE_ZOOM_FOV,&scope);if(status)return status;
+     rf_scene_scope_projection=scope.projection_scale;scene_scope_look=scope.look_scale;
+     if(scope.changed && rf_scene_combat_trace)printf("SCOPE %u %u %.9g\n",frame,scope.active,scope.projection_scale);
+    }
     rf_scene_weapon_selection[0]=campaign_equipped_slot;rf_scene_weapon_selection[2]=(uint32_t)campaign_rifle_id;
     rf_scene_weapon_selection[3]=campaign_player_inventory.owned[campaign_rifle_id];rf_scene_weapon_selection[4]=campaign_player_inventory.loaded[campaign_rifle_id];
     rf_scene_weapon_selection[5]=campaign_player_inventory.reserve[campaign_weapon_supply.definitions[campaign_rifle_id].ammo_type];
@@ -14856,6 +14875,13 @@ static int scene_frame(void *context,uint32_t frame,rf_preview_mesh *actor)
         status=scene_debris_draw(stream);if(status){rf_scene_profile_stage[1]=208;return status;}
         status=scene_detached_draw(stream);if(status){rf_scene_profile_stage[1]=209;return status;}
         status=scene_ripples_draw(stream,frame);rf_scene_ripple_visual[6]=(uint32_t)status;if(status){rf_scene_profile_stage[1]=209;return status;}
+        /* Follow view regenerates world geometry each frame; only the current
+         * world prefix is magnified, before viewmodel vertices are appended. */
+        if(rf_scene_scope_projection!=1)for(i=0;i<stream->mesh->count;i++){
+            rf_preview_vertex *v=stream->mesh->vertices+i;
+            v->position[0]=320+(v->position[0]-320)*rf_scene_scope_projection;
+            v->position[1]=240+(v->position[1]-240)*rf_scene_scope_projection;
+        }
         status=scene_player_weapon_draw(stream,frame);presentation_mark(4,&presentation_clock);if(status){rf_scene_profile_stage[1]=205;return status;}
         particle_draw_stream=stream;
         status=stream->sink(stream->context,frame,stream->mesh,stream->materials,stream->world);

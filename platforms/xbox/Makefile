@@ -62,6 +62,7 @@ SRCS += $(PROJECT_ROOT)/src/core/player.c
 SRCS += $(PROJECT_ROOT)/src/core/physics.c
 SRCS += $(PROJECT_ROOT)/src/core/grenade_flight.c $(PROJECT_ROOT)/src/core/grenade_throw.c
 SRCS += $(PROJECT_ROOT)/src/core/hitscan_select.c $(PROJECT_ROOT)/src/core/weapon_precision.c
+SRCS += $(PROJECT_ROOT)/src/core/weapon_scope.c
 SRCS += $(PROJECT_ROOT)/src/core/weapon.c
 SRCS += $(PROJECT_ROOT)/src/core/effect.c
 SRCS += $(PROJECT_ROOT)/src/core/particle_pool.c

@@ -151,8 +151,12 @@ failed:
 static int retained_model_prepare(const rf_model_geometry *geometry,uint32_t batch,const float (*matrices)[12],uint32_t bones,
     const rf_model_projection *view,uint32_t material,uint32_t at_vertex)
 {
-    retained_model_draw *draw;uint32_t slot,i,j;float determinant;int status;
+    retained_model_draw *draw;uint32_t slot,i,j;float determinant;int status;rf_model_projection scoped;
     if(!view || (bones && !matrices))return RF_RANGE;
+    if(!isfinite(rf_scene_scope_projection) || rf_scene_scope_projection<1)return RF_RANGE;
+    /* Retained requests are world models; firstperson mesh stays on CPU path.
+     * Copy so fallback callers retain their original unscaled projection. */
+    scoped=*view;scoped.screen[0]*=rf_scene_scope_projection;scoped.screen[1]*=rf_scene_scope_projection;view=&scoped;
     if((!bones && matrices) || bones>50 || !view->perspective || retained_draw_count==RETAINED_MODEL_LIMIT)goto fallback;
     for(i=0;i<9;i++)if(!isfinite(view->rotation[i]))return RF_RANGE;
     for(i=0;i<3;i++)if(!isfinite(view->camera[i]))return RF_RANGE;

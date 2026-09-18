@@ -1,9 +1,9 @@
 # Red Faction Xbox / PC - open work
 
-Completion basis (user direction,2026-09-18): working late-alpha/early-beta code implementation. Overall approximately61%; GeoMod100% for the first playable milestone, accepted by the user. GeoMod items below are deferred refinement and coverage, not prerequisites to moving on. This does not assert retail polish, complete campaign integration or resolution of every known defect.
+Completion basis (user direction,2026-09-18): working late-alpha/early-beta code implementation. Overall approximately62%; GeoMod100% for the first playable milestone, accepted by the user. GeoMod items below are deferred refinement and coverage, not prerequisites to moving on. This does not assert retail polish, complete campaign integration or resolution of every known defect.
 
 
-- PRIORITY Precision weapons: Sniper/rail selection, primary firing, ammo and authored view offsets are integrated; PC shots and scene cover/penetration checks pass; scope/scanner, trails and broader live targets remain.
+- PRIORITY Precision weapons: Sniper/rail selection, primary firing, ammo and authored view offsets are integrated; PC shots and scene cover/penetration checks pass; functional sniper zoom now passes PC/Xbox with unchanged weapon/HUD; NPC sniper/rail damage and ammo checks pass; scope overlay, rail scanner, trails and broader live targets remain.
 
 - Scripted timers: Cyclic_Timer is integrated with finite/unlimited event/mover pulses and focused runtime checks passing; same-level checkpoint persistence remains.
 
