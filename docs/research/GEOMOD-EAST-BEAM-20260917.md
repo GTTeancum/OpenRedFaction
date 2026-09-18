@@ -61,6 +61,55 @@ inspected: damaged supports, detached wood, room and launcher/HUD are visible.
 The owned emulator is closed and disc_restored is true. Audio was disabled.
 The existing west-beam two-shot PC continuation control also still passes.
 
-Remaining: reload this new Xbox-created checkpoint natively, broader blast
-histories/settling, and arbitrary authored-source eligibility. This is one
+Remaining: broader blast histories and arbitrary authored-source eligibility. This is one
 additional connected assembly, not generalized campaign GeoMod.
+
+
+## Reload and moving-debris continuation
+
+The native two-shot save from231139 was loaded in a second stock64MiB run,
+artifacts/xemu/render-20260917-231514, with601 neutral frames. All77 checks
+pass. Its8016-byte endpoint is identical to both the PC native-reference run
+and uninterrupted PC settle-control. Memory available at endpoint is3364
+pages (13.14MiB). The native framebuffer was inspected and retains the damaged
+assembly and wood fragments. The owned emulator closed and restored its disc.
+
+PC `--source 98 --both-posts --next-shot --settle` keeps all three pieces
+stable for another600 updates, with exact saved versus uninterrupted bytes.
+The existing `--airborne` timing on the second east-beam shot is insufficient:
+all pieces were already asleep. Its strict moving-state assertion correctly
+fails; this is not counted as an airborne qualification.
+
+The replay now accepts `--save-frames` and `--moving-first-save`, requiring
+at least one non-sleeping piece and no detached-motion error in the first save.
+At300 frames the player checkpoint gate rejects active launcher cooldown16;
+the gate remains unchanged. At320 frames cooldown has completed and all three
+pieces remain awake (DETACHED_MOTION starts3,4,1,0 with error0). Command:
+
+```text
+python -B tools/check_beam_continuation.py --source 98 --both-posts --save-frames 320 --moving-first-save
+```
+
+It passes first-save/reload/control and further600-update settled continuation
+with exact checkpoint bytes. All three pieces finish asleep above the floor.
+The report now retains motion words for every stage, including the first save.
+This tests physical continuation; no sequential visual-animation or audio
+acceptance is implied.
+
+
+Stock64MiB run artifacts/xemu/render-20260917-231729 restores the320-frame
+PC-created moving save and runs601 neutral frames. All77 checks pass; the
+5200-byte native output matches both its PC reference and uninterrupted
+settle-control (SHA256 af12e69b3c33116a4150deeb3fba5aa9a51cd5f96494ee57b4924347b32d2d36).
+All three fragments are asleep at endpoint;3353 free pages give13.10MiB.
+The native endpoint framebuffer was inspected: retained wood chunks, damaged
+support, room and launcher/HUD visible. Disc restored and owned XEMU closed.
+This proves Xbox restoration of the supplied moving state; creation of that
+particular moving save was on PC. The separate settled-state run used an
+Xbox-created save. Neither result implies full campaign save support.
+
+Native reloads used `--geomod-checkpoint-in` with the respective source save,
+`--player-checkpoint --geomod-checkpoint-out --authored-source 98
+--authored-sources 3 --dev-room --spawn --level ctf06.rfl --archive levelsm.vpp`,
+and artifacts/east-beam-native-resume.bin (601 neutral RFI6 frames).
+Logs: artifacts/beam98-{settle,moving-first,native-reload,native-moving-reload}.log.

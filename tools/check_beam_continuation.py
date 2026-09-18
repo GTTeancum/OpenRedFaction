@@ -4,6 +4,8 @@ from pathlib import Path
 from replay_authored_post import pitch_commands, pitch_for
 ROOT=Path(__file__).resolve().parents[1]
 parser=argparse.ArgumentParser(description=__doc__)
+parser.add_argument('--save-frames',type=int,default=600,help='First-blast save frame count,250..600')
+parser.add_argument('--moving-first-save',action='store_true',help='Require active debris in the first saved state')
 parser.add_argument('--source',type=int,choices=(95,98),default=95,help='Authored beam owner')
 parser.add_argument('--next-shot',action='store_true',help='Shoot the other end of the beam after reload')
 parser.add_argument('--connected',action='store_true',help='Include the attached positive-Z post and require the first blast to cut both owners')
@@ -12,9 +14,12 @@ parser.add_argument('--settle',action='store_true',help='Continue debris for 600
 parser.add_argument('--airborne',action='store_true',help='Save the second blast earlier and require moving debris before settling')
 parser.add_argument('--trace',action='store_true',help='Retain detailed process-local gameplay diagnostics')
 args=parser.parse_args()
+if not 250<=args.save_frames<=600:parser.error('--save-frames must be250..600')
+if args.moving_first_save:args.settle=True
 if args.airborne:args.next_shot=True;args.settle=True
 if args.both_posts:args.connected=True
 prefix='triple-beam' if args.both_posts else 'connected-beam' if args.connected else 'beam'
+if args.save_frames!=600:prefix+='-early'+str(args.save_frames)
 folder=ROOT/'artifacts'/((('east-' if args.source==98 else '')+prefix)+('-airborne' if args.airborne else '-next-shot' if args.next_shot else '-live'))
 folder.mkdir(parents=True,exist_ok=True)
 (folder/'report.json').unlink(missing_ok=True)
@@ -25,7 +30,7 @@ initial_yaw=-math.pi/2
 target_x=-4.699
 if args.source==98:
  eye[0]=1-eye[0];target_x=1-target_x;initial_yaw=math.pi/2
-save=bytearray(source[:8+350*48]+bytes(250*48))
+save=bytearray((source[:8+350*48]+bytes(250*48))[:8+args.save_frames*48])
 commands,first_pitch=pitch_commands(0,pitch_for(eye,[target_x,2.25,2.5]))
 for i,value in enumerate(commands):struct.pack_into('<f',save,8+48*(190+i)+12,value)
 resume=bytearray(source[:8]+bytes((181 if args.airborne else 301 if args.next_shot else 121)*48))
@@ -64,6 +69,9 @@ for name,data in inputs.items():
   assert source_cuts[:2]==[args.source,expected]
   if args.connected:assert source_cuts[2:4]==[args.source-1,1]
   if args.both_posts:assert source_cuts[4:6]==[args.source-2,expected-1]
+ if args.moving_first_save and name=='save':
+  motion=values('DETACHED_MOTION')
+  assert motion[0]>motion[3] and motion[6]==0,('first saved rubble is not moving',motion)
  checkpoint=path.with_suffix('.rfcp').read_bytes();assert checkpoint[:4]==b'RFCP'
  offset=checkpoint.find(b'RFDS');assert offset>=0
  payload=checkpoint[offset:];assert struct.unpack_from('<I',payload,312)[0]==2
@@ -78,7 +86,7 @@ for name,data in inputs.items():
  else:assert tokens==[0,0,4]*expected,(name,tokens)
  pieces=values('DETACHED_PIECES')[2]
  assert pieces>=expected if args.source==98 else pieces==expected
- report[name]=dict(bytes=len(checkpoint),geomod=geomod,material_tokens=tokens,pieces=pieces)
+ report[name]=dict(bytes=len(checkpoint),geomod=geomod,material_tokens=tokens,pieces=pieces,motion=values('DETACHED_MOTION'))
  print(name,report[name],flush=True)
 assert (folder/'resume.rfcp').read_bytes()==(folder/'control.rfcp').read_bytes(),'beam continuation differs'
 if args.settle:
@@ -105,5 +113,5 @@ if args.settle:
  before=list(map(int,[line for line in before_lines if line.startswith('DETACHED_MOTION ')][-1].split()[1:]))
  if args.airborne:assert before[0]==expected and before[3]<expected and before[6]==0,('expected moving debris at save',before)
  report['settling']=dict(before=before,motion=motion,positions=positions,updates=600,scope='Moving debris save through landing' if args.airborne else 'Settled retention when bodies already sleep at reload; does not require an airborne save')
-report.update(result='PASS',source=args.source,airborne=args.airborne,next_shot=args.next_shot,connected=args.connected,both_posts=args.both_posts,scope='Actual beam rocket, optional second cut after reload, retained wood charts/fragments and exact PC player/destruction continuation; visual and Xbox acceptance separate')
+report.update(result='PASS',source=args.source,save_frames=args.save_frames,moving_first_save=args.moving_first_save,airborne=args.airborne,next_shot=args.next_shot,connected=args.connected,both_posts=args.both_posts,scope='Actual beam rocket, optional second cut after reload, retained wood charts/fragments and exact PC player/destruction continuation; visual and Xbox acceptance separate')
 (folder/'report.json').write_text(json.dumps(report,indent=2)+'\n');print(json.dumps(report,indent=2))
