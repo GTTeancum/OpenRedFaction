@@ -353,3 +353,38 @@ The existing base-lightmap audit was reading only the selected source terrain wh
 The cap-view harness exports mesh/lightmap audits and checks all seven maps. Each binds one published face; their corner counts are4,4,7,8,5,5,3. Every projected corner stays within its atlas tile, all maps use material slot80, and their packed5-bit RGB channels range4..11 with no zero channels. The existing destroyed-camera checkpoints remain identical and the uncut floor color/depth control still passes. These checks rule out missing maps and out-of-tile projected coordinates in this fixture, not all interpolation or broader lighting issues. The observed cap darkness has not been proved erroneous or corrected; no arbitrary brightness multiplier was introduced.
 
 PC build and the integrated cap-view run pass (`artifacts/cap-light-audit-build.log`, `artifacts/cap-light-audit.log`). Since the C change is within the PC-only audit block, no new Xbox build/run is claimed. The next appearance investigation should compare the intended generated-light/material calculation rather than treating the old zero-face diagnostic as a rendering defect.
+
+
+### Cap asset identity and complete idle-light calculation
+
+The seven newly generated cap maps use the level GeoMod substrate rock02.tga,
+not the exterior wood texture. Earlier descriptions of these seven maps as wood
+were inaccurate. Surviving authored wood faces and exposed original brush caps
+are separate provenance categories; this audit does not reclassify all visible
+surfaces. GEOMOD-CTF06-POST-MATERIAL-20260916.md records the original section900 /
+4618b0 / 466b00 / 4f8740 evidence for selecting the level substrate even when
+cutting a wooden source. No artistic material override follows from appearance.
+
+The extended tools/check_geomod_cap_views.py exports the actual retained CPU
+substrate image through the existing material audit, requires its slot to equal
+all seven generated-map material IDs, and independently decodes installed
+ui.vpp/rock02.tga. All262144 RGBA bytes match, at256x256, slot80. The expected
+sld_woodpost01.tga control initially failed (it is64x256 and has different bytes),
+which exposed the mistaken description rather than a renderer defect.
+
+The same harness now independently reconstructs every idle-light texel using
+recovered CRT recurrence, fill and1555 packing. All112 texels across seven maps
+match exactly, without overlapping allocations. The chart-weighted normalized
+shader multiplier averages0.48329493, with range0.25806452..0.70967742; this is
+not measured framebuffer luminance. The retained image SHA256 is
+ ee9eddbff96108ca000351e02673d7b82b65b7d44e61da8538c1be6fafcfb258.
+
+Final PC rebuild and complete five-view harness pass; four destroyed-state
+checkpoints remain identical, and the uncut floor control still passes. Four
+idle-light audit negative/control tests pass. The far-cap rendered output was
+inspected: damaged beam/post, detached piece, room, weapon and HUD remain visible;
+the cap remains dark. Other regenerated views were not individually re-inspected
+in this turn. Logs: artifacts/cap-material-build.log and cap-material-audit.log;
+full report: artifacts/geomod-cap-views/report.json. Runtime source is unchanged.
+No new Xbox, audio or visual-parity acceptance is claimed. The next useful
+boundary is actual native upload/binding/sampling, not another CPU fill replay.

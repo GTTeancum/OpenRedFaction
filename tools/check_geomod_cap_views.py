@@ -1,5 +1,7 @@
 """Inspect real saved beam joint cuts from elevated render-only views."""
-import csv,json,os,struct,subprocess
+import csv,hashlib,json,os,struct,subprocess
+from audit_geomod_idle_lighting import audit as audit_idle_lighting
+from check_geomod_material_owner import decode_tga
 from pathlib import Path
 from PIL import Image
 ROOT=Path(__file__).resolve().parents[1];folder=ROOT/'artifacts/geomod-cap-views';folder.mkdir(parents=True,exist_ok=True)
@@ -12,6 +14,8 @@ report={};baseline=None
 for name,camera in views.items():
  checkpoint=folder/(name+'.rfcp');checkpoint.unlink(missing_ok=True)
  local=dict(env,RF_REPLAY_GEOMOD_CHECKPOINT_OUT=str(checkpoint),RF_REPLAY_DEPTH_OUT=str(folder/(name+'.depth')),RF_REPLAY_TERRAIN_BASE_AUDIT=str(folder/(name+'-lightmaps.csv')),RF_REPLAY_TERRAIN_MESH_AUDIT=str(folder/(name+'-mesh.csv')))
+ if name=='far-cap':
+  local.update(RF_REPLAY_TERRAIN_MATERIAL_AUDIT=str(folder/'cap-material.bin'))
  if camera:local['RF_REPLAY_INSPECTION_CAMERA']=camera
  if name=='uncut-far':local.pop('RF_REPLAY_GEOMOD_CHECKPOINT_IN')
  with (folder/(name+'.log')).open('wb') as log:
@@ -53,5 +57,21 @@ for row in csv.DictReader((folder/'far-cap-lightmaps.csv').open(encoding='utf-8'
  lightmaps.append(dict(map=int(row['map']),faces=int(row['faces']),corners=int(row['corners']),material=int(row['material']),channel_min=min(channels),channel_max=max(channels)))
 assert len(lightmaps)==7
 report['connected_lightmaps']=lightmaps
+idle=audit_idle_lighting((folder/'far-cap-lightmaps.csv').read_bytes())
+assert idle['result']=='PASS',idle
+report['idle_lighting']=idle
+live=(folder/'cap-material.bin').read_bytes()
+assert live[:4]==b'RFT1' and len(live)>=24
+material,width,height,fmt,size=struct.unpack_from('<5I',live,4)
+assert size==width*height*4 and len(live)==24+size
+assert all(m['material']==material for m in lightmaps), 'audited image is not the cap material'
+inventory=json.loads((ROOT/'artifacts/inventory.json').read_text(encoding='utf-8'))
+archive=next(a for a in inventory['files'] if a['path']=='ui.vpp')
+entry=next(e for e in archive['vpp']['entries'] if e['name']=='rock02.tga')
+with (ROOT/'Installed_Game/ui.vpp').open('rb') as source:
+ source.seek(entry['offset']);tga=source.read(entry['size'])
+ew,eh,expected=decode_tga(tga)
+assert (width,height)==(ew,eh) and live[24:]==expected, 'cap image differs from level substrate rock02'
+report['cap_material']=dict(asset='ui.vpp/rock02.tga',material=material,width=width,height=height,source_format=fmt,rgba_bytes=size,rgba_sha256=hashlib.sha256(expected).hexdigest(),asset_sha256=hashlib.sha256(tga).hexdigest(),scope='Actual retained CPU image and all seven cap-map material IDs; GPU upload, filtering and final appearance remain separate')
 report.update(result='PASS'  ,scope='Checkpoint-invariant render camera; visual inspection is separate, not playable elevated player placement')
 (folder/'report.json').write_text(json.dumps(report,indent=2)+'\n',encoding='utf-8');print(json.dumps(report,indent=2))
