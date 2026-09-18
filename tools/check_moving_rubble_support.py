@@ -58,5 +58,3 @@ for name in ('stationary', 'moving', 'lifted'):
 report['scope'] = 'Kinematic lift of actual saved fragment through full player loop; natural moving debris and native acceptance are separate.'
 (OUT / 'report.json').write_text(json.dumps(report, indent=2) + '\n')
 print('PASS: moving fragment lift, stop and retirement')
-
-
