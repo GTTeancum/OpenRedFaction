@@ -15,7 +15,7 @@ static int demand_test(rf_vpp *tables,const rf_weapon_supply_catalog *supply)
     scene_weapon_resource_demand demand;uint32_t optional=0,pair=0,expanded=0;
     int32_t weapon=rf_weapon_name_find(&supply->names,"Machine Pistol Special");
     CHECK(!scene_extra_pickup_demand_slots(slots,5,&optional,&pair));
-    CHECK(optional==30 && pair==20);
+    CHECK(optional==31 && pair==20);
     pickups.items=&item;pickups.count=1;
     strcpy(item.class_name,"heavy machine gun");
     CHECK(!scene_weapon_resources_plan(0,optional,slots,5,&supply->names,&inventory,&pickups,NULL,resolve_item,tables,&demand));
@@ -40,6 +40,11 @@ static int demand_test(rf_vpp *tables,const rf_weapon_supply_catalog *supply)
      strcpy(event.record.type,"Give_Item_To_Player");strcpy(event.record.texts[0],"scope assault rifle");
      CHECK(!scene_weapon_resources_plan(0,optional,slots,5,&supply->names,&inventory,NULL,&events,resolve_item,tables,&demand));
      CHECK(demand.event_mask==8 && demand.mask==8);}
+    weapon=rf_weapon_name_find(&supply->names,"Undercover 12mm handgun");CHECK(weapon>=0);
+    memset(&inventory,0,sizeof(inventory));inventory.owned[weapon]=1;
+    CHECK(!scene_weapon_resources_plan(0,optional,slots,5,&supply->names,&inventory,NULL,NULL,NULL,NULL,&demand));
+    CHECK(demand.owned_mask==1 && demand.mask==1);
+    CHECK(!scene_extra_pickup_demand_expand(slots,5,demand.mask,&expanded) && expanded==1);
     return 0;
 }
 int main(int argc,char **argv)

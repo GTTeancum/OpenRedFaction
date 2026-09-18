@@ -1916,6 +1916,45 @@ static rf_campaign_player_state campaign_player_import,campaign_player_export;
 static uint32_t campaign_import_pending,campaign_export_valid;
 static uint32_t campaign_explicit_unarmed,campaign_import_applied;
 #include "scene_machine_pistol_carry_gameplay.inc"
+#include "scene_undercover_carry.inc"
+static scene_undercover_carry campaign_undercover_export_sidecar,campaign_undercover_import_sidecar;
+static void scene_undercover_carry_reset_all(void)
+{
+    scene_undercover_carry_reset(&campaign_undercover_export_sidecar);
+    scene_undercover_carry_reset(&campaign_undercover_import_sidecar);
+}
+static void scene_undercover_carry_export(void)
+{
+    scene_stream *s=scene_actor_collision_owner;int status;
+    scene_undercover_carry_reset(&campaign_undercover_export_sidecar);
+    if(!campaign_export_valid || !s || !s->undercover || campaign_extra_ids[3]<0)return;
+    status=scene_undercover_carry_capture(&campaign_undercover_export_sidecar,&campaign_player_export,
+        campaign_extra_ids[3],&s->undercover->mode);
+    if(status)scene_undercover_carry_reset(&campaign_undercover_export_sidecar);
+}
+static void scene_undercover_carry_stage(void)
+{
+    scene_undercover_carry_reset(&campaign_undercover_import_sidecar);
+    if(scene_undercover_carry_matches(&campaign_undercover_export_sidecar,&campaign_player_import,campaign_extra_ids[3]))
+        campaign_undercover_import_sidecar=campaign_undercover_export_sidecar;
+}
+static int scene_undercover_carry_apply(const rf_campaign_player_state *imported,scene_stream *s,uint32_t held)
+{
+    int status=RF_NOT_FOUND;
+    if(!imported)return RF_RANGE;
+    if(s && s->undercover) {
+        status=scene_undercover_mode_cancel(&s->undercover->mode,s->undercover->actions,s->player_weapon[16]);
+        if(status)return status;
+        s->undercover->mode.attached=s->undercover->mode.target=0;s->undercover_alt_held=!!held;
+        status=scene_undercover_carry_restore(&campaign_undercover_import_sidecar,imported,campaign_extra_ids[3],
+            s->undercover,s->player_weapon[16],held,&s->undercover_alt_held);
+        rf_scene_undercover[0]=s->undercover->mode.attached;rf_scene_undercover[1]=0;
+        rf_scene_undercover[2]=scene_undercover_mode_visible(&s->undercover->mode);
+    }
+    scene_undercover_carry_reset(&campaign_undercover_import_sidecar);
+    return status==RF_NOT_FOUND?RF_OK:status;
+}
+
 int rf_scene_campaign_player_get(rf_campaign_player_state *state)
 {
     if(!campaign_export_valid)return RF_NOT_FOUND;
@@ -1933,9 +1972,9 @@ int rf_scene_campaign_pose_get(float position[3],float orientation[9])
 int rf_scene_campaign_player_set(const rf_campaign_player_state *state)
 {
     int status;
-    if(!state){campaign_import_pending=0;scene_machine_carry_reset();return RF_OK;}
+    if(!state){campaign_import_pending=0;scene_machine_carry_reset();scene_undercover_carry_reset_all();return RF_OK;}
     status=rf_campaign_player_copy(&campaign_player_import,state,state->catalog_hash);
-    if(!status){campaign_import_pending=1;scene_machine_carry_stage();}return status;
+    if(!status){campaign_import_pending=1;scene_machine_carry_stage();scene_undercover_carry_stage();}return status;
 }
 
 uint32_t rf_scene_player_ammo[8]; /* weapon,reserve,loaded,transferred,reloads,denied,owner bytes,status */
@@ -12326,6 +12365,7 @@ static int campaign_player_import_apply(void)
         scene_actor_collision_owner->player_weapon[13] && scene_actor_collision_owner->player_weapon[17] &&
         scene_actor_collision_owner->machine_custom[0] && scene_actor_collision_owner->machine_custom[1],!!player_input.alt_fire);
     if(status)return status;
+    status=scene_undercover_carry_apply(&imported,scene_actor_collision_owner,!!player_input.alt_fire);if(status)return status;
     campaign_player_damage.state.effects.health=imported.health;
     campaign_player_damage.state.effects.armor=imported.armor;
     campaign_select_primary(slot);campaign_explicit_unarmed=imported.weapon==UINT32_MAX;
@@ -12340,6 +12380,7 @@ static void campaign_player_export_capture(void)
     state.catalog_hash=rf_scene_weapon_supply[3];
     campaign_export_valid=rf_campaign_player_copy(&campaign_player_export,&state,state.catalog_hash)==RF_OK;
     scene_machine_carry_export();
+    scene_undercover_carry_export();
 }
 static uint32_t campaign_cycle_primary(void)
 {
@@ -15802,7 +15843,7 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
             if(status)goto done;
             if(rf_scene_follow_level_exits && rf_scene_level_transition.pending)
                 status=rf_campaign_goals_next_section(&rf_scene_mission_goals);
-            else {scene_machine_carry_reset();scene_player_shield_damage_reset();scene_npc_shield_history_reset();campaign_ai_modes_reset();campaign_event_history_reset();memset(&campaign_switch_history,0,sizeof(campaign_switch_history));memset(campaign_switch_saved,0,sizeof(campaign_switch_saved));memset(&campaign_trigger_history,0,sizeof(campaign_trigger_history));memset(&campaign_local_goals,0,sizeof(campaign_local_goals));memset(&campaign_startup_inventory,0,sizeof(campaign_startup_inventory));memset(&rf_scene_mission_goals,0,sizeof(rf_scene_mission_goals));memset(&rf_scene_campaign_pickups,0,sizeof(rf_scene_campaign_pickups));memset(&rf_scene_defeated_actors,0,sizeof(rf_scene_defeated_actors));}
+            else {scene_machine_carry_reset();scene_undercover_carry_reset_all();scene_player_shield_damage_reset();scene_npc_shield_history_reset();campaign_ai_modes_reset();campaign_event_history_reset();memset(&campaign_switch_history,0,sizeof(campaign_switch_history));memset(campaign_switch_saved,0,sizeof(campaign_switch_saved));memset(&campaign_trigger_history,0,sizeof(campaign_trigger_history));memset(&campaign_local_goals,0,sizeof(campaign_local_goals));memset(&campaign_startup_inventory,0,sizeof(campaign_startup_inventory));memset(&rf_scene_mission_goals,0,sizeof(rf_scene_mission_goals));memset(&rf_scene_campaign_pickups,0,sizeof(rf_scene_campaign_pickups));memset(&rf_scene_defeated_actors,0,sizeof(rf_scene_defeated_actors));}
             if(!status)status=rf_runtime_goals_initialize(&campaign_events,&rf_scene_mission_goals);
             if(!status)status=rf_campaign_local_goals_restore(&campaign_local_goals,campaign_current_level,&rf_scene_mission_goals);
             if(status)goto done;
@@ -15990,7 +16031,7 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
                  if(!status && (i==10 || i==13 || i==14 || i==17))stream->player_weapon[i]->resources[1].looping=1;
              }
              if(!status)status=scene_extra_pickups_machine_resources(stream,&motions);
-             if(!status && rf_scene_dev_room_enabled && rf_scene_firearms_enabled)status=scene_undercover_open(stream,&archive,&motions,maps,map_count);
+             if(!status)status=scene_undercover_open(stream,&archive,&motions,maps,map_count);
              rf_vpp_close(&tables);if(status)goto done;}
             rf_scene_campaign_load_stage=27;status=campaign_weapon_hands_open();if(status)goto done;
             status=scene_npc_shields_load(tables_path);if(status)goto done;

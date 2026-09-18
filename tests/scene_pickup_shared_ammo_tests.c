@@ -22,6 +22,26 @@ int main(int argc,char **argv)
     CHECK(grant.acquired && grant.rounds==32 && inventory.loaded[mp]==30 && inventory.reserve[ammo]==127);
     CHECK(!scene_pickup_shared_ammo_grant(&inventory,&supply,pistol,32,0,&grant));
     CHECK(!grant.acquired && grant.rounds==32 && inventory.reserve[ammo]==159);
+    /* Script removal retains legitimate reserve but no longer authorizes
+     * refilling towards the removed MP's 200-round ceiling. */
+    inventory.owned[mp]=0;inventory.loaded[mp]=0;saved=inventory;
+    CHECK(!scene_pickup_shared_ammo_grant(&inventory,&supply,pistol,32,0,&grant));
+    CHECK(!grant.rounds && !grant.acquired && !memcmp(&saved,&inventory,sizeof(saved)));
+    inventory.reserve[ammo]=120;
+    CHECK(!scene_pickup_shared_ammo_grant(&inventory,&supply,pistol,32,0,&grant));
+    CHECK(grant.rounds==5 && inventory.reserve[ammo]==125 && !inventory.owned[mp]);
+    /* Reject impossible historical reserve and malformed grant input without
+     * mutation; preserving surplus must not launder corrupt negative state. */
+    inventory.reserve[ammo]=-1;saved=inventory;
+    CHECK(scene_pickup_shared_ammo_grant(&inventory,&supply,pistol,32,0,&grant)==RF_RANGE);
+    CHECK(!memcmp(&saved,&inventory,sizeof(saved)));
+    inventory.reserve[ammo]=INT32_MAX;saved=inventory;
+    CHECK(scene_pickup_shared_ammo_grant(&inventory,&supply,pistol,32,0,&grant)==RF_RANGE);
+    CHECK(!memcmp(&saved,&inventory,sizeof(saved)));
+    inventory.reserve[ammo]=159;saved=inventory;
+    CHECK(scene_pickup_shared_ammo_grant(&inventory,&supply,pistol,-1,0,&grant)==RF_RANGE);
+    CHECK(!memcmp(&saved,&inventory,sizeof(saved)));
+    inventory.owned[mp]=1;inventory.loaded[mp]=30;
     CHECK(!scene_pickup_shared_ammo_grant(&inventory,&supply,pistol,99,0,&grant));
     CHECK(grant.rounds==41 && inventory.reserve[ammo]==200 && inventory.loaded[mp]==30);
     saved=inventory;

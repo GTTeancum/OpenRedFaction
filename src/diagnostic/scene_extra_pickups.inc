@@ -27,21 +27,22 @@ static int scene_extra_pickup_index(const char *name)
  * optional mask into scene_weapon_resources_plan, then expand its resulting
  * demand mask. MP's alternate owns a distinct view at present, so either MP
  * mode requires both resources; HMG/scoped AR never require the intervening
- * Undercover slot. This reports demand only and performs no loading/grants. */
+ * Undercover slot. Undercover is independently demand-loaded from imported
+ * ownership/script metadata; no fictional pickup is added. */
 static int scene_extra_pickup_demand_slots(const char *const *slots,uint32_t count,
     uint32_t *optional_mask,uint32_t *machine_pair)
 {
-    const char *names[4]={"Machine Pistol","heavy_machine_gun","scope_assault_rifle","Machine Pistol Special"};
-    uint32_t i,j,bits[4]={0},optional=0;
+    const char *names[5]={"Machine Pistol","heavy_machine_gun","scope_assault_rifle","Machine Pistol Special","Undercover 12mm handgun"};
+    uint32_t i,j,bits[5]={0},optional=0;
     if(!slots || !count || count>32 || !optional_mask || !machine_pair)return RF_RANGE;
     for(i=0;i<count;i++){
         if(!slots[i])return RF_RANGE;
-        for(j=0;j<4;j++)if(scene_extra_pickup_equal(slots[i],names[j])){
+        for(j=0;j<5;j++)if(scene_extra_pickup_equal(slots[i],names[j])){
             if(bits[j])return RF_FORMAT;
             bits[j]=1u<<i;optional|=bits[j];
         }
     }
-    for(j=0;j<4;j++)if(!bits[j])return RF_NOT_FOUND;
+    for(j=0;j<5;j++)if(!bits[j])return RF_NOT_FOUND;
     *optional_mask=optional;*machine_pair=bits[0]|bits[3];return RF_OK;
 }
 static int scene_extra_pickup_demand_expand(const char *const *slots,uint32_t count,

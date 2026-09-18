@@ -131,6 +131,7 @@ static int scene_checkpoint_dispatch_restore(scene_stream *s,unsigned char *data
     scene_actor_body.state=body;s->player_checkpoint_value=candidate.player;s->player_checkpoint_look=1;
     memcpy(s->actor_spawn,body.position,12);memcpy(campaign_position,body.position,12);memcpy(campaign_orientation,eye,36);
     scene_machine_carry_reset();
+    scene_undercover_carry_reset_all();
     campaign_player_import=candidate.player.player;campaign_import_pending=1;campaign_item_pending_count=0;
     rf_scene_player_checkpoint_state[1]=1;rf_scene_player_checkpoint_state[5]=candidate.rfds_bytes;
     rf_scene_player_checkpoint_state[6]=scene_actor_body.spheres.count;

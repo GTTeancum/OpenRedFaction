@@ -3,7 +3,7 @@
 Completion basis (user direction,2026-09-18): working late-alpha/early-beta code implementation. Overall approximately69%; GeoMod100% for the first playable milestone, accepted by the user. GeoMod items below are deferred refinement and coverage, not prerequisites to moving on. This does not assert retail polish, complete campaign integration or resolution of every known defect.
 
 
-- Conventional firearms: Machine Pistol, Heavy Machine Gun, Precision Rifle and Undercover handgun primary firing now work in a bounded DEV profile, including HMG alternate and rifle zoom; PC visuals pass and native HMG shot/ammo state matches with11.59MiB free; Machine Pistol magazine switching now passes PC/Xbox; Undercover suppressor attach/remove now passes PC/Xbox; authored Machine Pistol/HMG/precision pickups and sparse views are now wired, with MP session mode carry; broader live AI encounters, suppressor carry and general saves remain.
+- Conventional firearms: Machine Pistol, Heavy Machine Gun, Precision Rifle and Undercover handgun primary firing now work in a bounded DEV profile, including HMG alternate and rifle zoom; PC visuals pass and native HMG shot/ammo state matches with11.59MiB free; Machine Pistol magazine switching now passes PC/Xbox; Undercover suppressor attach/remove now passes PC/Xbox; authored Machine Pistol/HMG/precision pickups and sparse views are now wired, with MP session mode carry; broader live AI encounters, full live level handoffs and general saves remain.
 
 - Fusion launcher: Authored primary fire, real flight, single-shell reload, blast/self-damage, central explosion emitters and GeoMod now work in the DEV room; PC and stock64MiB Xbox destruction match with7.04MiB free; campaign pickup/selection, save state, full audio, glow and remaining effect fidelity are open.
 
@@ -5708,3 +5708,10 @@ World and committed-mover fragment queries now include bounded edge/edge CCD, wi
 - PC ordinary-profile300frame authored pickup replay now collects MP32 and ammo32, selects MP, fires4shots, ends clip26/reserve159. Actual frame inspected. No DEV/firearms supply flags were used. PC/NXDK builds pass; native artifacts/xemu/render-20260918-123701 PASS300 matches pickup/ammo/combat exactly with4270freepages=16.68MiB; native weapon/environment/HUD inspected, disc restored and harness closed.
 
 - Overall first-playable implementation estimate approximately69%; weapons approximately88%. Next: finish suppressor handoff, then integrate player fall/high-speed contact damage.
+
+### Suppressor handoff and impact preparation (2026-09-18)
+
+- Completed Undercover attachment state now follows validated export/get/set/import handoff even while another gun is selected; pending transitions cancel, stale snapshots are rejected, and new campaigns/NULL state/disk restores clear sidecars. Sparse optional loading admits imported or script-granted Undercover model/prop/metadata outside DEV without inventing a pickup. Installed-resource actual scene handoff and sparse-demand checks pass; PC/NXDK builds pass. Full live level-transition playtesting remains open; no new native replay for this state-only change.
+- Shared ammo above a remaining weapon's capacity survives removal of the higher-capacity weapon, bounded by catalog capacity. Pickups grant zero while surplus remains and refill only to owned capacity after spending below it. Removal/negative/corrupt-state regression passes.
+- Player fall/high-speed impact aggregation helper passes existing-core damage, duplicate-contact, grounded-motion, relocation-disabled, immunity and lethal checks. Gameplay adapter is ready but not wired yet; no player fall-damage completion credit.
+- Overall implementation approximately69%; weapons approximately89%. Current next work: player movement/impact damage.
