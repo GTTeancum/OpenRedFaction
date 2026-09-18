@@ -95,6 +95,16 @@ static int enemy_fragment_shots(void) {
     scene_stream scene={0};rf_geometry_collision_world world={0};
     rf_geomod_piece_registry *registry=NULL;rf_geomod_piece_batch *batch;
     float start[3]={2,0,0},delta[3]={-4,0,0};uint32_t blocked,size;unsigned char *before,*after;
+    rf_weapon_primary_definition rifle={0},heavy={0},pistol={0},baton={0};
+    rifle.damage=60;rifle.ai_damage_scale[0]=.4f;rifle.ai_damage_scale[1]=2;
+    pistol.damage=40;pistol.ai_damage_scale[0]=1;
+    baton.damage=60;baton.ai_damage_scale[0]=.1f;
+    heavy.damage=800;heavy.ai_damage_scale[0]=.5f;
+    CHECK(combat_enemy_primary_damage(NULL)==10);
+    CHECK(combat_enemy_primary_damage(&rifle)==24);
+    CHECK(combat_enemy_primary_damage(&pistol)==40);
+    CHECK(combat_enemy_primary_damage(&baton)==6);
+    CHECK(combat_enemy_primary_damage(&heavy)==400);
     CHECK(!cube(0,.25f,&registry));scene.detached_pieces=registry;scene.collision=&world;
     CHECK(!rf_geomod_piece_registry_get(registry,0,&batch));
     CHECK(!rf_geomod_piece_registry_state_size(registry,&size));before=malloc(size);after=malloc(size);CHECK(before && after);
@@ -112,7 +122,7 @@ static int enemy_fragment_shots(void) {
         CHECK(!rf_collision_tree_open(&face,1,65536,&room.tree));view.tree=&room.tree;
         memcpy(view.minimum,room.tree.nodes[0].minimum,12);memcpy(view.maximum,room.tree.nodes[0].maximum,12);
         world.rooms=&room;world.views=&view;world.room_count=world.primary_count=1;world.primary=&primary;
-        CHECK(!combat_enemy_fragment_shot(&scene,start,delta,1,10,&blocked) && blocked);
+        CHECK(!combat_enemy_fragment_shot(&scene,start,delta,1,combat_enemy_primary_damage(&rifle),&blocked) && blocked);
         CHECK(!rf_geomod_piece_registry_state_encode(registry,after,size));
         CHECK(rear?memcmp(before,after,size)!=0:memcmp(before,after,size)==0);
         rf_collision_tree_close(&room.tree);memset(&world,0,sizeof(world));
@@ -121,9 +131,9 @@ static int enemy_fragment_shots(void) {
     CHECK(rf_geomod_piece_batch_alive(batch,0));
     CHECK(!rf_geomod_piece_registry_state_encode(registry,after,size));CHECK(memcmp(before,after,size));
     /* A high direct hit retires; the next ray passes through the removed piece. */
-    CHECK(!combat_enemy_fragment_shot(&scene,start,delta,1,400,&blocked) && blocked);
+    CHECK(!combat_enemy_fragment_shot(&scene,start,delta,1,combat_enemy_primary_damage(&heavy),&blocked) && blocked);
     CHECK(!rf_geomod_piece_batch_alive(batch,0));
-    CHECK(!combat_enemy_fragment_shot(&scene,start,delta,1,400,&blocked) && !blocked);
+    CHECK(!combat_enemy_fragment_shot(&scene,start,delta,1,combat_enemy_primary_damage(&heavy),&blocked) && !blocked);
     free(before);free(after);rf_geomod_piece_registry_close(&registry);return 0;
 }
 static int notify_sources(void) {

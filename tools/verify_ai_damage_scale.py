@@ -1,4 +1,4 @@
-"""Bounded original getter/default evidence; runtime scale selection remains open."""
+"""Original getter, defaults and runtime table-selection evidence."""
 import hashlib
 import json
 import struct
@@ -30,6 +30,25 @@ u.reg_write(UC_X86_REG_EBX, 0x3f800000)
 u.emu_start(0x4c3b31, 0x4c3b3d, count=20)
 assert bytes(u.mem_read(CLASS + 0x118, 8)) == floats(1, 1)
 
+# Full table-selection routines: first pair member for normal setup, second
+# for alternate setup. Only alternate setup's unrelated481580 scalar is supplied.
+u.mem_write(0x481580, b'\xb8' + words(0x3f800000) + b'\xc3')
+selection_cases = 0
+for count in (0, 1, 3, 64):
+    for entry, member in ((0x4c2a20, 0), (0x4c2ac0, 1)):
+        u.mem_write(0x872448, words(count))
+        for index in range(65):
+            u.mem_write(0x85cd08 + index * 0x550 + 0x118,
+                        floats(index * .125, index * .25 + .5, -99))
+        u.mem_write(STACK, words(STOP))
+        u.reg_write(UC_X86_REG_ESP, STACK)
+        u.emu_start(entry, STOP, count=10000)
+        assert u.reg_read(UC_X86_REG_EIP) == STOP
+        for index in range(65):
+            expected = (index * .125, index * .25 + .5)[member] if index < count else -99
+            assert bytes(u.mem_read(0x85cd08 + index * 0x550 + 0x120, 4)) == floats(expected)
+            selection_cases += 1
+
 # Boundaries supplied: owner resolution and player/controlled-owner predicate.
 # All arithmetic/primary-alt/global-mode selection in4c8b10 runs unchanged.
 u.mem_write(0x40a0e0, b'\xb8' + words(B + 0x3000) + b'\xc3')
@@ -58,8 +77,9 @@ for player in (0, 1):
                                     mode_b=mode_b, scale=scale, damage=struct.unpack('<f', expected)[0]))
 report = dict(result='PASS', getter_cases=len(records), default_pair=[1, 1],
               boundary='Owner lookup and player predicate supplied; original getter arithmetic executes.',
-              unresolved='Selection/interpolation of authored118/11c into runtime120; live NPC integration.',
+              selection_cases=selection_cases,
+              selection='Normal4c2a20 copies118 to120; alternate4c2ac0 copies11c to120, stride550.',
               records=records)
 out = ROOT / 'artifacts/ai-damage-scale.json'
 out.write_text(json.dumps(report, indent=2))
-print(f'PASS: original default pair and {len(records)} original getter cases; runtime scale selection still open')
+print(f'PASS: original default pair and {len(records)} original getter cases; {selection_cases} selection/boundary comparisons')

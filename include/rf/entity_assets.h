@@ -21,7 +21,7 @@ typedef struct rf_weapon_primary_definition {
     float spread_degrees,alt_spread_degrees; /* SP player values; zero/default primary when absent. */
     float ai_spread_degrees; /* SP primary cone half-angle; zero when absent. */
     float ai_attack_range; /* SP value; zero when absent, caller retains fallback. */
-    float ai_damage_scale[2]; /* Authored pair, default1; runtime selection not yet reconstructed. */
+    float ai_damage_scale[2]; /* Authored pair, default1; normal setup uses[0], alternate uses[1]. */
 } rf_weapon_primary_definition;
 int rf_weapon_primary_read(const void *text,uint32_t bytes,const char *name,rf_weapon_primary_definition *result);
 int rf_weapon_primary_load(rf_vpp *tables,const char *name,uint32_t scratch_budget,rf_weapon_primary_definition *result);

@@ -22,11 +22,17 @@ Predicate result1 bypasses scaling. The predicate includes the player flag
 and controlled-owner handling; the probe supplies its result. Primary/alternate
 selects class+108/+110 when globals64ecb9 and6fc4d8 are both zero, otherwise
 +10c/+114. Non-player branches multiply by **class+120**. The authored pair
-+118/+11c is not read here. The pair's meaning and selection/interpolation into
-+120 remain unverified; no SP/MP label or direct pair[0] application is justified.
++118/+11c is not read here. Normal setup4c2a20 copies class+118 to+120;
+alternate setup4c2ac0 copies+11c to+120. There is no interpolation in these
+routines. The pointer begins at table base85cd08+260 and copies negative offsets
+-148 to-140 (normal) or-144 to-140 (alternate), then advances by550.
+The table loader calls normal setup at4c68d9. The scene uses that first member.
 
 `python -B tools/verify_ai_damage_scale.py` executes the absent-tag assignment
-and80 getter combinations using Unicorn. Original arithmetic and mode branches
+and80 getter combinations using Unicorn. Both complete table-selection routines
+are also executed for counts0/1/3/64 with unequal pairs and sentinel entries
+beyond each count:520 exact field/boundary comparisons. Only alternate setup
+helper481580 is supplied as an unrelated scalar-return boundary. Original arithmetic and mode branches
 execute unchanged; owner lookup and player/controlled predicate are supplied
 boundaries. Four mode combinations, two fire modes, two owner classes and five
 runtime scales match exact float32 expectations. This is not full original
@@ -36,10 +42,27 @@ parser execution or live gameplay validation.
 
 All123 PC tests and the stock-profile NXDK compilation/link/XBE/ISO build pass.
 Logs: artifacts/ai-damage-scale-{build,tests,xbox}.log;
-binary report: artifacts/ai-damage-scale.json. No XEMU gameplay run or screenshot
-was needed for this metadata change. Existing actor/fragment damage remains10.
+binary report: artifacts/ai-damage-scale.json. The initial metadata change had no XEMU run. The follow-up integration uses
+normal authored primary damage in both actor and fragment paths. Handgun40,
+rifle24 and riot-stick6 precede downstream target modifiers. Unsupported
+classes retain10. A synthetic800*.5 control still verifies fragment retirement.
 
-Next: recover runtime scalar selection, integrate authored NPC damage consistently
-for actor and fragment targets, then qualify actual NPC firing against rubble.
+Next: qualify actual NPC firing against rubble on Xbox.
 Difficulty scaling, authored cadence and other weapon classes remain separate.
 No fragment health threshold or wake behavior changed.
+
+The live PC actor8456 encounter uses ordinary NPC targeting and five handgun
+hits to kill the stationary player within240 simulation ticks. This verifies
+integration into live actor combat; it does not qualify a live rubble impact.
+Integration logs: artifacts/npc-authored-damage-{build,tests,xbox,native}.log.
+
+Native qualification: artifacts/xemu/render-20260917-222646 passes64 PC/Xbox
+comparisons on stock64MiB. Five bullet hits, firing clip starts, audio-event
+counts and player death match exactly. The final framebuffer was inspected:
+textured mine corridor, armed NPC, death/respawn overlay and zero-health HUD
+are present. Audio was disabled in the emulator, so audible quality is not
+verified. Endpoint free memory5268 pages (20.578MiB); disc restored and the
+owned emulator closed. This run contains no live NPC rubble impact.
+
+Reproduce PC acceptance with `python -B tools/check_npc_authored_damage.py`.
+The replay uses neutral input and verifies no liquid-damage contamination.
