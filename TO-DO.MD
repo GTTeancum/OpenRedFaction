@@ -1,6 +1,6 @@
 # Red Faction Xbox / PC - open work
 
-- PRIORITY GeoMod fragment contacts: Broaden rotating/coplanar edge cases and connect retained live mover intervals to debris queries and wake behavior;relative math and timed queries are ready, frame snapshots now survive commits, and126 PC tests pass, while live edge coverage passes80 native checks with about41ms active debris cost.
+- PRIORITY GeoMod fragment contacts: Broaden rotating/coplanar edge cases and finish settled-piece wake and rotating-mover contact;translating-surface queries are integrated, three native moving fixtures match PC, and126 PC tests plus81 stock64MiB checks pass, while live edge coverage passes80 native checks with about41ms active debris cost.
 
 - Doors: Investigate the existing420-frame close/reopen replay failure reproduced on both current and prior scene code;180-frame opening and player traversal still pass.
 

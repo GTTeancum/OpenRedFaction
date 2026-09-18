@@ -5,7 +5,9 @@ typedef struct scene_mover_interval {
     uint32_t handle,changed; /* bit0 translation, bit1 orientation */
 } scene_mover_interval;
 static scene_mover_interval *campaign_mover_intervals;
+static rf_group_attached_pose *campaign_fragment_mover_poses;
 static float campaign_mover_interval_seconds;
+static uint32_t campaign_mover_translation_count;
 static int scene_mover_intervals_capture(const rf_geometry_collision_movers *movers,
     scene_mover_interval *items,uint32_t capacity,uint32_t finish)
 {

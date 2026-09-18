@@ -437,7 +437,7 @@ dvd_path = '{root.as_posix()}/build/xbox/redfaction-diagnostic.iso'
             fields.append(('rf_scene_terrain_edit_times',40))
             fields.append(('rf_scene_fragment_profile',24))
             fields.append(('rf_scene_fragment_stage_ms',8))
-            if args.fragment_contact_test:fields.extend((('rf_scene_fragment_contact_audit',64),('rf_scene_fragment_edge_audit',32)))
+            if args.fragment_contact_test:fields.extend((('rf_scene_fragment_contact_audit',64),('rf_scene_fragment_edge_audit',32),('rf_scene_fragment_moving_audit',16)))
             if args.npc_rubble_test:fields.append(('rf_scene_dev_npc_cover',48))
             if args.moving_support_test:fields.append(('rf_scene_moving_support_test',160))
             if args.rotate_support_test:fields.append(('rf_scene_rotating_support_test',120))
@@ -480,6 +480,12 @@ dvd_path = '{root.as_posix()}/build/xbox/redfaction-diagnostic.iso'
                     assert w[0]==1 and struct.unpack('<4f',struct.pack('<4I',*w[1:5]))==(.25,*normal) and w[5:]==[identity,material]
                 assert edge_xbox[25]!=0 and edge_xbox[26:28]==[1,0]
                 report['checks']['FRAGMENT_EDGE_AUDIT']=dict(pc=edge_pc,xbox=edge_xbox,equal=True,cases=4)
+                moving_pc=[int(v) for line in pc.stdout.splitlines() if line.startswith('FRAGMENT_MOVING_AUDIT ') for v in line.split()[1:]]
+                moving_xbox=snap['symbols']['rf_scene_fragment_moving_audit']['words']
+                assert moving_pc==moving_xbox and moving_pc[:4]==[1,3,0,1]
+                assert moving_pc[4:]==[1,0x3ec00000,0x3f400000,0x3f800000]*3
+                report['checks']['FRAGMENT_MOVING_AUDIT']=dict(pc=moving_pc,xbox=moving_xbox,equal=True,cases=3)
+
 
             if args.terrain_texture_audit:
                 assert 'terrain_texture' in report, 'No live frame available for texture audit'

@@ -93,7 +93,8 @@ int rf_scene_fragment_contact_check(void)
     }
     rf_scene_fragment_contact_audit[1]=8;rf_scene_fragment_contact_audit[3]=1;
 done:
-    rf_collision_tree_close(&room.tree);free(scene);if(!status)status=scene_fragment_edge_check();rf_scene_fragment_contact_audit[2]=(uint32_t)status;
+    rf_collision_tree_close(&room.tree);free(scene);if(!status)status=scene_fragment_edge_check();
+    if(!status)status=scene_fragment_moving_check();rf_scene_fragment_contact_audit[2]=(uint32_t)status;
 #undef CONTACT_AUDIT_CALL
 #undef CONTACT_AUDIT_TEST
     return status;

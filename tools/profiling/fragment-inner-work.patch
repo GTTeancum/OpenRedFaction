@@ -139,9 +139,9 @@ index 43ec325f..0f8fe8d3 100644
 +    scene_detached_query_context *c=opaque;rf_collision_body_sphere scratch[64];rf_geometry_body_hit hit={0};int status;uint32_t work[8],started=scene_fragment_clock();
 +    memcpy(work,rf_collision_sweep_work,sizeof(work));
      if(profile_active)rf_scene_fragment_profile[5]++;
-     status=campaign_physics_body_sweep(c->scene->collision,body,c->spheres,0x460,scratch,64,&hit,matched);
+     status=campaign_physics_body_sweep_for(c->scene->collision,body,c->spheres,0x460,scratch,64,&hit,matched,c->movers?c->movers:&campaign_movers);
      if(status)return status;
-@@ -11405,12 +11414,12 @@ static int scene_detached_query(const rf_physics_body_state *body,rf_physics_sol
+@@ -11405,17 +11414,18 @@ static int scene_detached_query(const rf_physics_body_state *body,rf_physics_sol
           * that empty padding; corner sweeps supply the later real contact. */
          if(minimum>.002f)*matched=0;
      }
@@ -150,11 +150,17 @@ index 43ec325f..0f8fe8d3 100644
 +    scene_fragment_stage_record(0,started);scene_fragment_work_record(0,work);started=scene_fragment_clock();
 +    status=scene_detached_mesh_sweep(c,body,&hit,matched);scene_fragment_stage_record(1,started);scene_fragment_work_record(1,work);if(status)return status;
      started=scene_fragment_clock();
--    status=scene_detached_mover_vertex_sweep(c->mesh,body,&campaign_movers,&hit,matched,scene_detached_contact_material,NULL);scene_fragment_stage_record(2,started);if(status)return status;
-+    status=scene_detached_mover_vertex_sweep(c->mesh,body,&campaign_movers,&hit,matched,scene_detached_contact_material,NULL);scene_fragment_stage_record(2,started);scene_fragment_work_record(2,work);if(status)return status;
+-    status=scene_detached_mover_vertex_sweep(c->mesh,body,c->movers?c->movers:&campaign_movers,&hit,matched,scene_detached_contact_material,NULL);scene_fragment_stage_record(2,started);if(status)return status;
++    status=scene_detached_mover_vertex_sweep(c->mesh,body,c->movers?c->movers:&campaign_movers,&hit,matched,scene_detached_contact_material,NULL);scene_fragment_stage_record(2,started);scene_fragment_work_record(2,work);if(status)return status;
      started=scene_fragment_clock();
--    status=scene_detached_world_vertex_sweep(c,body,&hit,matched,scene_detached_contact_material,NULL);scene_fragment_stage_record(3,started);if(status || !*matched)return status;
-+    status=scene_detached_world_vertex_sweep(c,body,&hit,matched,scene_detached_contact_material,NULL);scene_fragment_stage_record(3,started);scene_fragment_work_record(3,work);if(status || !*matched)return status;
+-    status=scene_detached_world_vertex_sweep(c,body,&hit,matched,scene_detached_contact_material,NULL);scene_fragment_stage_record(3,started);if(status)return status;
++    status=scene_detached_world_vertex_sweep(c,body,&hit,matched,scene_detached_contact_material,NULL);scene_fragment_stage_record(3,started);scene_fragment_work_record(3,work);if(status)return status;
+     if(c->movers && campaign_mover_interval_seconds>0) {
+         status=scene_fragment_moving_sweep(c->mesh,body,&campaign_movers,campaign_mover_intervals,
+             campaign_mover_interval_seconds,c->remaining,&hit,matched,scene_detached_contact_material,NULL);if(status)return status;
++        scene_fragment_work_record(2,work);
+     }
+     if(!*matched)return RF_OK;
      if(hit.contact.fraction>=1){*matched=0;return RF_OK;}
      if(!campaign_surface_palette || hit.contact.material>=campaign_surface_palette->count)return RF_FORMAT;
      out->fraction=hit.contact.fraction;memcpy(out->point,hit.contact.point,12);memcpy(out->normal,hit.contact.normal,12);
@@ -179,7 +185,7 @@ index f2e3d221..4505c0f8 100644
              fields.append(('rf_scene_fragment_profile',24))
              fields.append(('rf_scene_fragment_stage_ms',8))
 +            fields.append(('rf_scene_fragment_stage_work',32))
-             if args.fragment_contact_test:fields.extend((('rf_scene_fragment_contact_audit',64),('rf_scene_fragment_edge_audit',32)))
+             if args.fragment_contact_test:fields.extend((('rf_scene_fragment_contact_audit',64),('rf_scene_fragment_edge_audit',32),('rf_scene_fragment_moving_audit',16)))
              if args.npc_rubble_test:fields.append(('rf_scene_dev_npc_cover',48))
              if args.moving_support_test:fields.append(('rf_scene_moving_support_test',160))
 @@ -454,6 +455,12 @@ dvd_path = '{root.as_posix()}/build/xbox/redfaction-diagnostic.iso'

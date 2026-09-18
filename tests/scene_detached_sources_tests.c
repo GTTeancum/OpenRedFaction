@@ -5,6 +5,62 @@
 #include <string.h>
 #include "../src/diagnostic/scene.c"
 #define CHECK(x) do{if(!(x)){fprintf(stderr,"FAIL line%d %s\n",__LINE__,#x);return 1;}}while(0)
+static int moving_surface_material(void *context,uint32_t solid,uint32_t face,uint32_t *texture,uint32_t *material)
+{if(context)return RF_IO;if(solid || face)return RF_FORMAT;*texture=7;*material=3;return RF_OK;}
+static int moving_surface_contacts(void)
+{
+    rf_geomod_vertex vertices[4]={{{-.5f,-.25f,-.5f},{0,0}},{{.5f,-.25f,-.5f},{0,0}},
+        {{.5f,-.25f,.5f},{0,0}},{{-.5f,-.25f,.5f},{0,0}}};
+    rf_geomod_face mesh_face={0,4,0,0};rf_geomod_mesh_view mesh={vertices,&mesh_face,4,1,0};
+    float points[4][3]={{-2,0,-2},{-2,0,2},{2,0,2},{2,0,-2}};
+    rf_collision_face face={0};rf_geometry_collision_flat flat={0};rf_group_attached_pose pose={0};
+    rf_collision_solid_view view={0};rf_geometry_collision_movers movers={0};scene_mover_interval interval;
+    rf_physics_body_state body={0};rf_geometry_body_hit hit={0},saved;uint32_t i,found=0;
+    face.vertices=points;face.count=4;face.plane[1]=1;
+    face.minimum[0]=face.minimum[2]=-2;face.maximum[0]=face.maximum[2]=2;
+    flat.faces=&face;flat.count=1;view.object_id=77;
+    movers.owned=&flat;movers.poses=&pose;movers.views=&view;movers.count=1;
+    for(i=0;i<3;i++)pose.input_matrix[i*4]=body.orientation[i*4]=body.next_orientation[i*4]=1;
+    CHECK(!scene_mover_intervals_capture(&movers,&interval,1,0));pose.position[1]=2;
+    for(i=0;i<3;i++){pose.minimum[i]=-3;pose.maximum[i]=3;}
+    pose.minimum[1]=1.999f;pose.maximum[1]=2.001f;pose.velocity[1]=16;
+    CHECK(!scene_mover_intervals_capture(&movers,&interval,1,1));
+    body.position[1]=body.next_position[1]=1;
+    CHECK(!scene_fragment_moving_sweep(&mesh,&body,&movers,&interval,.125f,.125f,&hit,&found,moving_surface_material,NULL));
+    CHECK(found && hit.contact.fraction==.375f && hit.contact.point[1]==.75f && hit.contact.normal[1]==1);
+    CHECK(hit.solid==0 && hit.contact.object_id==77 && hit.contact.material==3 && hit.contact.texture==7 && hit.contact.velocity[1]==16);
+    saved=hit;found=0;
+    CHECK(!scene_fragment_moving_sweep(&mesh,&body,&movers,&interval,.125f,.0625f,&hit,&found,moving_surface_material,NULL));
+    CHECK(!found && !memcmp(&hit,&saved,sizeof(hit)));
+    hit.contact.fraction=.2f;saved=hit;found=1;
+    CHECK(!scene_fragment_moving_sweep(&mesh,&body,&movers,&interval,.125f,.125f,&hit,&found,moving_surface_material,NULL));
+    CHECK(found && !memcmp(&hit,&saved,sizeof(hit)));
+    found=0;CHECK(scene_fragment_moving_sweep(&mesh,&body,&movers,&interval,.125f,.125f,&hit,&found,moving_surface_material,&body)==RF_IO);
+    CHECK(!found && !memcmp(&hit,&saved,sizeof(hit)));
+    interval.handle=78;CHECK(scene_fragment_moving_sweep(&mesh,&body,&movers,&interval,.125f,.125f,&hit,&found,moving_surface_material,NULL)==RF_FORMAT);
+    CHECK(!found && !memcmp(&hit,&saved,sizeof(hit)));interval.handle=77;
+    interval.end[1]=pose.position[1]=-2;pose.minimum[1]=-2.001f;pose.maximum[1]=-1.999f;
+    CHECK(!scene_fragment_moving_sweep(&mesh,&body,&movers,&interval,.125f,.125f,&hit,&found,moving_surface_material,NULL));
+    CHECK(!found && !memcmp(&hit,&saved,sizeof(hit)));
+    interval.end[1]=pose.position[1]=2;pose.minimum[1]=1.999f;pose.maximum[1]=2.001f;
+    /* Narrow surface: no fragment corner enters it; reciprocal face contact. */
+    for(i=0;i<4;i++){points[i][0]*=.01f;points[i][2]*=.01f;}
+    face.minimum[0]=face.minimum[2]=-.02f;face.maximum[0]=face.maximum[2]=.02f;
+    CHECK(!scene_fragment_moving_sweep(&mesh,&body,&movers,&interval,.125f,.125f,&hit,&found,moving_surface_material,NULL));
+    CHECK(found && hit.contact.fraction==.375f && hit.contact.point[1]==.75f);
+    /* Crossed rectangles: only the swept edge route intersects. */
+    for(i=0;i<4;i++) {
+        points[i][0]=points[i][0]<0?-.25f:.25f;points[i][2]=points[i][2]<0?-1:1;
+        vertices[i].position[0]*=2;vertices[i].position[2]*=.5f;
+    }
+    face.minimum[0]=-.25f;face.maximum[0]=.25f;face.minimum[2]=-1;face.maximum[2]=1;found=0;
+    CHECK(!scene_fragment_moving_sweep(&mesh,&body,&movers,&interval,.125f,.125f,&hit,&found,moving_surface_material,NULL));
+    CHECK(found && hit.contact.fraction==.375f && hit.contact.point[1]==.75f && hit.contact.normal[1]==1);
+    saved=hit;pose.flags|=0x40000u;found=0;
+    CHECK(!scene_fragment_moving_sweep(&mesh,&body,&movers,&interval,.125f,.125f,&hit,&found,moving_surface_material,NULL));
+    CHECK(!found && !memcmp(&hit,&saved,sizeof(hit)));
+    return 0;
+}
 static int mover_intervals(void)
 {
     rf_group_attached_pose poses[2]={{0}};rf_collision_solid_view views[2]={{0}};
@@ -700,6 +756,7 @@ static int inspection_camera(void) {
     CHECK(!rf_scene_inspection_camera(NULL,NULL) && !scene_inspection_enabled);return 0;
 }
 int main(void) {
+    CHECK(!moving_surface_contacts());
     CHECK(!mover_intervals());
     rf_geomod_piece_registry *registries[2]={0};scene_terrain_authored_assets assets[2]={{0}};
     scene_terrain_source_owner sources[2];scene_stream scene={0};rf_geomod_registry_hit hit,sentinel;
