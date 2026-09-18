@@ -8,7 +8,7 @@
 
 - GeoMod publication: Broaden clipped-face partition coverage to other source geometry; the repaired shot, save/reload and subsequent rocket now pass76/75/76 native checks, with exact uninterrupted PC checkpoints, while broader histories remain open.
 
-- GeoMod player saves: Verify native reload and walk-away from large-fragment support; a real radius1.213922 beam section now admits ordinary jump/standing with330 polygon contacts and76 stock64MiB checks, while standing-save continuation matches exactly on PC.
+- GeoMod player saves: Broaden rotating support and shape coverage; real radius1.213922 standing and Xbox-created-save walk-away each pass76 stock64MiB checks with exact PC continuation, while missing-support rejection and a matching retired-bank floor control pass PC.
 
 - GeoMod fragment lifecycle: Investigate the generic object world-exit path before adding spatial retirement; recovered lifetime and debris paths do not justify an arbitrary kill height, and healthy terrain fragments have disabled lifetime timers.
 

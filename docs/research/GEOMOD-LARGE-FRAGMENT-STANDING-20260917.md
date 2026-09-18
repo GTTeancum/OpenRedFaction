@@ -44,3 +44,26 @@ remain visible from the supported player pose. The support itself is underfoot;
 its PC look-down view and native contact/save state provide separate evidence.
 The owned emulator exited and disc files were restored. Audio was disabled; no
 GitHub image added. Native reload/walk-away from this standing save remains open.
+
+## Xbox-created standing save: walk-away continuation
+
+The runner now adds201 input records that pause, walk backward for45 ticks and
+settle. Both restored and uninterrupted PC runs end at
+(-1.345584,-0.368479,1.499985), on the floor away from the chunk, with identical
+final checkpoints. The resumed recording includes the saved boundary input;
+the control appends the remaining200 inputs to the standing route.
+
+Stock64MiB run `artifacts/xemu/render-20260917-215204` loads the Xbox-created
+standing save from214830 and runs that walk-away. All76 checks pass, including
+534 fragment queries/76 polygon contacts; its3112-byte save also matches the
+independent uninterrupted PC retreat-control exactly. Native framebuffer
+inspected: the player is back on the floor, the large wood fragment remains
+visible at the post base, and the room, overhead destruction, weapon and HUD
+remain intact.3387 free pages is13.230MiB endpoint headroom. Emulator exited and
+disc restored; audio disabled, no GitHub image uploaded.
+
+The PC negative control marks the sole supporting fragment retired while keeping
+the elevated player pose: load rejects it. A second control keeps the exact same
+retired bank and changes only player position to the verified floor endpoint:
+load succeeds. Thus the rejection is not merely a malformed retirement record.
+Native rejection controls, rotating support and broader shapes remain open.

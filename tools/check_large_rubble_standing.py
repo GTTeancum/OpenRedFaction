@@ -63,19 +63,56 @@ radius = struct.unpack_from('<f', saved, bank + 16 + 256)[0]
 assert radius > 1, radius
 report['radius'] = radius
 neutral = b'RFI6' + struct.pack('<I', 48) + bytes(121 * 48)
-for name, recording in (('continued', neutral), ('control', data + bytes(120 * 48))):
+retreat = bytearray(b'RFI6' + struct.pack('<I', 48) + bytes(201 * 48))
+for frame in range(20, 65):struct.pack_into('<f', retreat, 8 + frame * 48 + 8, -.8)
+for name, recording in (('continued', neutral), ('control', data + bytes(120 * 48)),
+                        ('retreat', retreat), ('retreat-control', data + retreat[8 + 48:])):
     base = OUT / name
     base.with_suffix('.bin').write_bytes(recording)
     base.with_suffix('.rfcp').unlink(missing_ok=True)
     local = dict(env, RF_REPLAY_GEOMOD_CHECKPOINT_OUT=str(base.with_suffix('.rfcp')))
-    if name == 'continued':local['RF_REPLAY_GEOMOD_CHECKPOINT_IN'] = str(OUT / 'standing.rfcp')
+    if name in ('continued', 'retreat'):local['RF_REPLAY_GEOMOD_CHECKPOINT_IN'] = str(OUT / 'standing.rfcp')
     with base.with_suffix('.log').open('wb') as log:
         result = subprocess.run([str(ROOT / 'build/pc/Release/rf_pc_play.exe'), '--spawn-replay',
                                  str(ROOT / 'Installed_Game'), str(base.with_suffix('.bin')),
                                  str(base.with_suffix('.ppm'))], cwd=ROOT, env=local,
                                 stdout=log, stderr=subprocess.STDOUT, timeout=180)
     assert result.returncode == 0, (name, result.returncode)
+    if name.startswith('retreat'):
+        rows = base.with_suffix('.log').read_text().splitlines()
+        position = list(map(float, next(r for r in rows if r.startswith('CAMPAIGN_FINAL_POSITION ')).split()[1:]))
+        assert position[0] > -2 and position[1] < 0, (name, position)
+        report[name] = dict(position=position)
 assert (OUT / 'continued.rfcp').read_bytes() == (OUT / 'control.rfcp').read_bytes(), 'Standing continuation differs'
+assert (OUT / 'retreat.rfcp').read_bytes() == (OUT / 'retreat-control.rfcp').read_bytes(), 'Walk-away continuation differs'
+# Counterfactual: same elevated player pose, but its only fragment is retired.
+# Loading must reject the unsupported placement rather than accept a floating save.
+missing = bytearray(saved)
+bank_bytes = struct.unpack_from('<I', missing, bank + 8)[0]
+struct.pack_into('<fI', missing, bank + bank_bytes - 8, -1, 0x200002)
+(OUT / 'missing-support.rfcp').write_bytes(missing)
+local = dict(env, RF_REPLAY_GEOMOD_CHECKPOINT_IN=str(OUT / 'missing-support.rfcp'))
+local.pop('RF_REPLAY_GEOMOD_CHECKPOINT_OUT')
+with (OUT / 'missing-support.log').open('wb') as log:
+    result = subprocess.run([str(ROOT / 'build/pc/Release/rf_pc_play.exe'), '--spawn-replay',
+                             str(ROOT / 'Installed_Game'), str(OUT / 'continued.bin'),
+                             str(OUT / 'missing-support.ppm')], cwd=ROOT, env=local,
+                            stdout=log, stderr=subprocess.STDOUT, timeout=180)
+assert result.returncode != 0 and 'GEOMOD_CHECKPOINT_ERROR load' in (OUT / 'missing-support.log').read_text(), 'Missing large support accepted'
+# Same retired bank, but place the player at the verified walk-away endpoint.
+# This distinguishes support rejection from rejection of the retirement encoding.
+floor = bytearray(missing)
+floor[64:76] = (OUT / 'retreat.rfcp').read_bytes()[64:76]
+(OUT / 'retired-floor.rfcp').write_bytes(floor)
+local['RF_REPLAY_GEOMOD_CHECKPOINT_IN'] = str(OUT / 'retired-floor.rfcp')
+with (OUT / 'retired-floor.log').open('wb') as log:
+    result = subprocess.run([str(ROOT / 'build/pc/Release/rf_pc_play.exe'), '--spawn-replay',
+                             str(ROOT / 'Installed_Game'), str(OUT / 'continued.bin'),
+                             str(OUT / 'retired-floor.ppm')], cwd=ROOT, env=local,
+                            stdout=log, stderr=subprocess.STDOUT, timeout=180)
+assert result.returncode == 0, 'Retired bank itself was invalid'
+report['missing_support_rejected'] = True
+report['same_retired_bank_floor_accepted'] = True
 # A process-local look down at the actual support gives useful visual evidence
 # without changing the accepted standing/checkpoint fixture.
 view = bytearray(b'RFI6' + struct.pack('<I', 48) + bytes(181 * 48))
@@ -90,6 +127,6 @@ with (OUT / 'view.log').open('wb') as log:
                              str(ROOT / 'Installed_Game'), str(OUT / 'view.bin'), str(OUT / 'view.ppm')],
                             cwd=ROOT, env=local, stdout=log, stderr=subprocess.STDOUT, timeout=180)
 assert result.returncode == 0, ('view', result.returncode)
-report.update(result='PASS', exact_continuation=True, scope='Ordinary jump onto real radius>1 fragment, polygon contacts, standing save and exact PC continuation; native acceptance separate.')
+report.update(result='PASS', exact_continuation=True, exact_walk_away=True, scope='Ordinary jump onto real radius>1 fragment, polygon contacts, standing save and exact PC standing/walk-away continuation; native acceptance separate.')
 (OUT / 'report.json').write_text(json.dumps(report, indent=2) + '\n')
 print('PASS large fragment standing and continuation')
