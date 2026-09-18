@@ -3,7 +3,7 @@ import hashlib,json,random,re,struct,subprocess,sys
 from pathlib import Path
 import pefile
 root=Path(__file__).resolve().parents[1];sys.path.insert(0,str(root/'local/python'))
-from unicorn import Uc,UC_ARCH_X86,UC_MODE_32
+from unicorn import Uc,UC_ARCH_X86,UC_MODE_32,UC_HOOK_MEM_READ
 from unicorn.x86_const import UC_X86_REG_ESP,UC_X86_REG_EIP,UC_X86_REG_EAX,UC_X86_REG_EBX,UC_X86_REG_EBP
 base=0x30000000;stack=base+0xc000;stop=base+0xf000
 original=root/'Installed_Game/RF.exe';digest=hashlib.sha256(original.read_bytes()).hexdigest()
@@ -14,6 +14,10 @@ def machine(path):
 w=lambda *v:struct.pack('<'+'I'*len(v),*(x&0xffffffff for x in v))
 u=machine(original);x=machine(root/'build/xbox/main.exe')
 entry=int(re.search(r'_rf_group_wake_objects\s+([0-9a-fA-F]+)',(root/'build/xbox/main.map').read_text())[1],16)
+fragment_reads=[]
+def read_fragment(cpu,access,address,size,value,context):
+ if (address<base+0xb400 and address+size>base+0xb000) or (address<0x5c9b78 and address+size>0x5c9b74):fragment_reads.append(address)
+u.hook_add(UC_HOOK_MEM_READ,read_fragment)
 rng=random.Random(0x46ae65);commands=bytearray();expected=bytearray();changed=[0,0]
 for n in range(2048):
  count=n%35;nodes=[];bounds=[];attached=[rng.randrange(95,112) for _ in range(4)];parents=[rng.randrange(195,212) for _ in range(4)]
@@ -30,6 +34,12 @@ for n in range(2048):
  u.mem_write(0x5cb2ec,w(base+0x1000));u.mem_write(0x8723b4,w(base+0x5000));u.mem_write(0x64e63c,w(base+0xa000))
  for i,p in enumerate(parents):
   node=base+0xa000+i*0x300;u.mem_write(node,bytes(0x300));u.mem_write(node+0x2c,w(p));u.mem_write(node+0x28c,w(node+0x300 if i<3 else 0x64e3b0))
+ # Independently populated kind3 list; constructor4130b0 links this head.
+ fragment=bytearray([0x5a]*0x400)
+ for offset,value in ((0x24,3),(0x7c,0),(0x1a8,0x1800003f),(0x288,0x5c98e8),(0x28c,0x5c98e8)):
+  fragment[offset:offset+4]=w(value)
+ fragment[0x190:0x1a8]=struct.pack('<6f',-1,-1,-1,1,1,1)
+ u.mem_write(base+0xb000,bytes(fragment));u.mem_write(0x5c9b74,w(base+0xb000));fragment_reads.clear()
  before=[]
  for i,node in enumerate(nodes):
   ptr=base+0x1000+i*0x1000;handle,parent,flags,physics,cls,family=struct.unpack('<6I',node[:24]);data=bytearray([0xa5]*4096)
@@ -39,6 +49,7 @@ for n in range(2048):
   before.append(data);u.mem_write(ptr,bytes(data))
  u.mem_write(stack+0x14,w(min(count,32)));u.mem_write(stack+0x34,b''.join(bounds[:32]));u.reg_write(UC_X86_REG_ESP,stack);u.reg_write(UC_X86_REG_EBX,base);u.reg_write(UC_X86_REG_EBP,min(count,32))
  u.emu_start(0x46ae65,0x46af8d,count=200000);assert u.reg_read(UC_X86_REG_EIP)==0x46af8d
+ assert not fragment_reads and bytes(u.mem_read(base+0xb000,0x400))==fragment,(n,'kind3 list accessed')
  result=[]
  for i,node in enumerate(nodes):
   ptr=base+0x1000+i*0x1000;after=bytes(u.mem_read(ptr,4096));data=before[i]
@@ -57,5 +68,5 @@ x.emu_start(entry,stop,count=200000);assert x.reg_read(UC_X86_REG_EIP)==stop
 assert w(x.reg_read(UC_X86_REG_EAX))+bytes(x.mem_read(base+4,384))==want
 actual=subprocess.check_output([str(root/'build/pc/Release/rf_collision_probe.exe'),'--group-wake'],input=commands);assert actual==expected
 assert all(changed)
-report=dict(result='PASS',cases=2048,port_guards=1,entity_changes=changed[0],second_list_changes=changed[1],original_sha256=digest,scope='Original 46ae65..46af8d loops and all list-search, strict overlap, class and wake helpers execute unchanged without hooks. Prepared ordered bounds, actual circular lists and controller exclusion array; first32 bounds only, touching and zero-volume cases. Full object mutation checked, exact PC/NXDK flags. Mover-handle bounds gathering and live world snapshot ownership excluded.')
+report=dict(result='PASS',cases=2048,port_guards=1,kind3_unvisited_cases=2048,entity_changes=changed[0],second_list_changes=changed[1],original_sha256=digest,scope='Original 46ae65..46af8d loops and all list-search, strict overlap, class and wake helpers execute unchanged without hooks. Prepared ordered bounds, actual circular lists and controller exclusion array; first32 bounds only, touching and zero-volume cases. Full object mutation checked, exact PC/NXDK flags. Independently populated kind3 list5c98e8 is neither read nor changed; this is not a fragment wake route. Mover-handle bounds gathering and live world snapshot ownership excluded.')
 (root/'artifacts/group-wake-verification.json').write_text(json.dumps(report,indent=2)+'\n');print(report)
