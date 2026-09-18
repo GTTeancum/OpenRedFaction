@@ -1,4 +1,4 @@
-"""Opt-in process-local lift/stop/retire stimulus on saved, extracted rubble."""
+"""Saved rubble lift/stop/retire and release to ordinary gravity, without host input."""
 import json
 import os
 from pathlib import Path
@@ -17,11 +17,16 @@ env.update(RF_REPLAY_LEVEL='ctf06.rfl', RF_REPLAY_ARCHIVE='levelsm.vpp',
            RF_REPLAY_DEV_ROOM='1', RF_REPLAY_PLAYER_CHECKPOINT='1',
            RF_REPLAY_GEOMOD_CHECKPOINT_IN=str(checkpoint))
 report = {}
-for name in ('stationary', 'moving', 'lifted'):
+def f(row, index):
+    return struct.unpack('<f', struct.pack('<I', row[index]))[0]
+
+for name in ('stationary', 'moving', 'lifted', 'released'):
     local = dict(env)
     active_recording = recording
     if name != 'stationary':
         local['RF_REPLAY_MOVING_SUPPORT_TEST'] = '1'
+    if name == 'released':
+        local['RF_REPLAY_MOVING_SUPPORT_TEST'] = '2'
     if name == 'lifted':
         active_recording = OUT / 'lifted.bin'
         active_recording.write_bytes(recording.read_bytes()[:8 + 92 * 48])
@@ -37,8 +42,6 @@ for name in ('stationary', 'moving', 'lifted'):
     report[name] = dict(rows=rows, final=final)
     if name == 'moving':
         assert len(rows) == 10, rows
-        def f(row, index):
-            return struct.unpack('<f', struct.pack('<I', row[index]))[0]
         report[name]['decoded'] = [dict(frame=r[0], mode=r[2], support=r[3],
                                         player_y=f(r, 5), body_y=f(r, 8), carry_y=f(r, 11), alive=r[13]) for r in rows]
         print(json.dumps(report[name]['decoded'], indent=2))
@@ -55,6 +58,22 @@ for name in ('stationary', 'moving', 'lifted'):
         assert f(rows[4], 11) == 0, 'Stopped support retained carry velocity'
         assert all(not r[3] and not r[13] for r in rows[6:]), 'Retired support still attached'
         assert f(rows[-1], 5) < f(rows[5], 5) - .2, 'Player did not fall after retirement'
-report['scope'] = 'Kinematic lift of actual saved fragment through full player loop; natural moving debris and native acceptance are separate.'
+    if name == 'released':
+        assert len(rows) == 10, rows
+        decoded = [dict(frame=r[0], mode=r[2], support=r[3], player_y=f(r, 5),
+                        body_y=f(r, 8), carry_y=f(r, 11), body_vy=f(r, 15), alive=r[13]) for r in rows]
+        report[name]['decoded'] = decoded
+        print(json.dumps(decoded, indent=2))
+        assert all(r[13] for r in rows), 'Released fragment disappeared'
+        assert f(rows[-1], 8) < f(rows[3], 8) - .1, 'Released fragment did not fall'
+        assert f(rows[-1], 5) < f(rows[3], 5) - .1, 'Player hovered above falling fragment'
+        assert rows[-1][2] == 1, 'Player did not settle'
+        assert all(r[2] == 1 and r[3] == rows[0][3] for r in rows), 'Player lost descending support'
+        for r in rows[5:7]:
+            elapsed = (r[0] - 90) / 60
+            assert abs(f(r, 15) + 9.8 * elapsed) < .000002, 'Fragment fall did not follow gravity'
+            assert r[11] == r[15], 'Player carry did not refresh from falling body'
+        assert rows[-1][11] == rows[-1][15] == 0, 'Settled fragment retained downward carry'
+report['scope'] = 'Kinematic lift then either stop/retire or release to ordinary fragment gravity/contact; angular carry remains unqualified.'
 (OUT / 'report.json').write_text(json.dumps(report, indent=2) + '\n')
-print('PASS: moving fragment lift, stop and retirement')
+print('PASS: moving fragment lift, stop, retirement and gravity release')

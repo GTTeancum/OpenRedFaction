@@ -93,5 +93,10 @@ $(PROJECT_ROOT)/src/platform/xbox/renderer.obj: $(SHADER_OBJS) $(PROJECT_ROOT)/s
 
 $(PROJECT_ROOT)/src/platform/xbox/main.obj: $(wildcard $(PROJECT_ROOT)/tests/*_fixture.h)
 
+# Scene implementation includes share the Windows dependency-path mismatch above.
+# Recompile their owner when any include changes; otherwise a new executable can
+# silently link stale gameplay code despite a successful incremental build.
+$(PROJECT_ROOT)/src/diagnostic/scene.obj: $(wildcard $(PROJECT_ROOT)/src/diagnostic/*.inc)
+
 # Profile switches invalidate all project objects, including shared ABI users.
 $(filter %.obj,$(SRCS:.c=.obj)): $(PROJECT_ROOT)/build/xbox/geomod-profile.stamp

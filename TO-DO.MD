@@ -18,7 +18,7 @@
 
 - Player saves: Audit other replay save boundaries and broaden residual-velocity coverage; RFPLv2 standing save/reload passes74/74 stock64MiB checks and exact walk-away continuation, while legacy zero-velocity RFPLv1 remains compatible.
 
-- GeoMod player contacts: Broaden carry to naturally moving and rotating rubble; a controlled lift/stop/retire sequence on real extracted support passes123 PC tests and76 stock64MiB checks, with all160 sampled words and the final checkpoint matching PC exactly.
+- GeoMod player contacts: Broaden support to rotating and larger fragments; lift/stop/retire and release to ordinary gravity both pass76 stock64MiB checks with exact160-word PC motion samples and final saves, and Xbox builds now correctly rebuild changed scene includes.
 
 - GeoMod vehicle contacts: Verify admitted use-kind1 vehicle contacts with larger fragments;240 original cases confirm ordinary miner/AI-response kind9 is excluded, so humanoid rubble pushing is not a missing fidelity feature.
 

@@ -29,6 +29,7 @@ from xemu_draw_audit import capture as capture_draws
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--moving-support-test', action='store_true', help='Process-local saved rubble lift/stop/retire fixture')
+    parser.add_argument('--release-support-test', action='store_true', help='Lift saved support then release to ordinary debris gravity/contact')
     parser.add_argument('--expanded-geomod', action='store_true', help='Opt-in matching sixteen-cut PC/NXDK profile on stock64MiB')
     parser.add_argument('--terrain-texture-audit', action='store_true', help='Read live Xbox substrate texture bytes and compare the PC owner')
     parser.add_argument('--terrain-atlas-audit', action='store_true', help='Compare live generated atlas bytes for a settled checkpoint with neutral input')
@@ -74,6 +75,7 @@ def main():
     parser.add_argument('--unbatched', action='store_true', help='Reference tiny GPU command submission blocks')
     parser.add_argument('--unsorted', action='store_true', help='Reference source-order world draw ranges')
     args = parser.parse_args()
+    if args.release_support_test:args.moving_support_test=True
     if args.moving_support_test and not (args.dev_room and args.player_checkpoint and args.geomod_checkpoint_in):
         parser.error('--moving-support-test requires a saved DEV player checkpoint')
     if args.terrain_draw_audit:args.terrain_atlas_audit=args.terrain_texture_audit=True
@@ -159,7 +161,7 @@ def main():
     env = {k: v for k, v in os.environ.items() if not k.startswith('RF_REPLAY_')}
     env.update(RF_REPLAY_LEVEL=args.level, RF_REPLAY_ARCHIVE=args.archive)
     if args.dev_room:env['RF_REPLAY_DEV_ROOM']='1'
-    if args.moving_support_test:env['RF_REPLAY_MOVING_SUPPORT_TEST']='1'
+    if args.moving_support_test:env['RF_REPLAY_MOVING_SUPPORT_TEST']='2' if args.release_support_test else '1'
     env['RF_REPLAY_AUTHORED_SOURCES']=str(args.authored_sources)
     if args.authored_source is not None:env['RF_REPLAY_AUTHORED_SOURCE']=str(args.authored_source)
     if args.terrain_texture_audit:env['RF_REPLAY_TERRAIN_MATERIAL_AUDIT']=str(run/'pc-terrain-material.bin')
@@ -268,7 +270,7 @@ def main():
         if args.authored_source is not None:(disc/'authored-source.bin').write_bytes(struct.pack('<I',args.authored_source))
         if args.authored_sources>1:(disc/'authored-count.bin').write_bytes(struct.pack('<I',args.authored_sources))
         if args.player_checkpoint:(disc/'player-checkpoint.flag').write_bytes(b'')
-        if args.moving_support_test:(disc/'moving-support-test.flag').write_bytes(b'')
+        if args.moving_support_test:(disc/'moving-support-test.flag').write_bytes(b'2' if args.release_support_test else b'1')
         if args.water_test:(disc/'water-test.flag').write_bytes(b'')
         if liquid_mode:(disc/'swim-test.flag').write_bytes(str(liquid_mode).encode('ascii'))
         if checkpoint:(disc/'geomod-checkpoint-out.flag').write_bytes(b'')
@@ -404,6 +406,7 @@ dvd_path = '{root.as_posix()}/build/xbox/redfaction-diagnostic.iso'
                 'rf_scene_presentation_profile', 'rf_scene_world_profile', 'rf_scene_step_profile',
                 'rf_scene_npc_step_profile', 'rf_scene_npc_playback_profile')]
             fields.append(('rf_scene_terrain_edit_times',40))
+            if args.moving_support_test:fields.append(('rf_scene_moving_support_test',160))
             snap = dict(symbols={name: dict(words=words(monitor, symbol(name), count)) for name, count in fields})
             (run / 'guest-memory-final.json').write_text(json.dumps(snap, indent=2))
             edits=snap['symbols']['rf_scene_terrain_edit_times']['words']
@@ -459,7 +462,7 @@ dvd_path = '{root.as_posix()}/build/xbox/redfaction-diagnostic.iso'
             goal_words=words(monitor,symbol('rf_scene_mission_goals'),4225)
             if args.moving_support_test:
                 expected=[int(value) for line in pc.stdout.splitlines() if line.startswith('MOVING_SUPPORT ') for value in line.split()[1:]]
-                actual=words(monitor,symbol('rf_scene_moving_support_test'),160)
+                actual=snap['symbols']['rf_scene_moving_support_test']['words']
                 assert len(expected)==160, 'Incomplete PC moving-support sequence'
                 report['checks']['MOVING_SUPPORT']=dict(pc=expected,xbox=actual,equal=expected==actual)
                 assert expected==actual, 'Moving-support sequence differs on Xbox'

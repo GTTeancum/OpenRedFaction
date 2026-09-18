@@ -87,3 +87,51 @@ completed and the owned emulator exited. No GitHub images were added.
 
 Next: naturally moving/rotating support and larger polygon-contact geometry.
 Do not count the kinematic lift as natural debris or angular-carry acceptance.
+
+## Release to ordinary gravity
+
+The second fixture mode lifts the same extracted body, clears its linear velocity
+once at frame90 and wakes it. After that point the fixture does not modify its
+pose, velocity or lifetime: `scene_detached_tick` owns integration and world
+contact. This isolates actual falling support from the preceding kinematic lift.
+
+The PC runner now checks both variants and retains a stationary control. During
+release, frame96 fragment velocityY is-0.98000008 and frame102 is-1.95999992,
+matching acceleration-9.8 over0.1/0.2 seconds. Cached player carry matches those
+body velocities bit-for-bit. PlayerY descends from0.724499 to0.512165 while
+retaining the same live support. BodyY settles at-0.744861; both velocities return
+to zero without player hover or support retirement. The160-word array now includes body
+velocityY in each row's last word. See `moving-support-release.log` and the
+`released` section in `artifacts/moving-rubble-support/report.json`.
+
+Recovered41e370 copies linear support velocity; it does not calculate an angular
+point velocity (the existing original-byte verifier is documented in COLLISION.md).
+Do not invent angular carry based only on modern platform expectations. Rotating
+contact and larger-fragment admission still require their own evidence/coverage.
+The original-byte verifier was rerun against the current PC/NXDK helpers: all336
+updates agree with the unchanged original, including full actor/support/registry
+records (`artifacts/moving-support-original-refresh.log`).
+
+The first native release attempt (`render-20260917-213724`) failed checkpoint
+comparison because NXDK linked the old scene object. Its build log compiled only
+main.c; Windows dependency files name `D:/...` targets while make uses `/d/...`.
+Project headers already had an explicit prerequisite workaround, but scene `.inc`
+implementation files did not. The Makefile now lists those includes as scene.obj
+prerequisites. This failed run is not evidence of a physics divergence or release
+acceptance. It explains why current source and a successful incremental build
+alone were insufficient; the behavioral comparison caught the stale object.
+Make dry-run controls confirm unchanged scene.obj is current, while pretending
+only `scene_moving_support_test.inc` changed schedules scene compilation
+(`scene-include-dependency-{clean,changed}.log`). The rerun build explicitly
+compiled scene.obj. Moving-support telemetry is also retained in the native
+snapshot before checkpoint assertions, so later failures keep intermediate data.
+
+Corrected stock64MiB run `render-20260917-213939` passes76 checks. All160 sampled
+words (including the falling body/carry velocities) match PC exactly, and the
+2654-byte settled checkpoint matches byte-for-byte. Endpoint memory remains3975
+pages (15.527MiB). The native final frame was inspected: room, damaged post,
+launcher and HUD remain intact at the supported camera height. The chunk is
+underfoot; state samples rather than the endpoint image prove falling/support
+behavior. Intermediate native frames and audio were not visually/audibly reviewed.
+Disc restored, owned emulator exited, no GitHub screenshot added. This qualifies
+ordinary gravity/contact after an artificial lift, not arbitrary rotating rubble.
