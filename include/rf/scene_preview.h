@@ -786,6 +786,7 @@ extern uint32_t rf_scene_terrain_draw[5];
 extern uint32_t rf_scene_terrain_noise[8];
 extern uint32_t rf_scene_rockets[8];
 extern uint32_t rf_scene_grenades[8];
+extern uint32_t rf_scene_remote[8];
 extern uint32_t rf_scene_scanner[4];
 extern float rf_scene_scope_projection; /* world-only magnification, default1 */
 extern uint32_t rf_scene_rocket_blast[8];

@@ -3,7 +3,7 @@
 Completion basis (user direction,2026-09-18): working late-alpha/early-beta code implementation. Overall approximately63%; GeoMod100% for the first playable milestone, accepted by the user. GeoMod items below are deferred refinement and coverage, not prerequisites to moving on. This does not assert retail polish, complete campaign integration or resolution of every known defect.
 
 
-- Remote charges: Shared flight, sticking, owner detonation and moving-host transport now compile on PC/Xbox and pass focused checks; player selection, launch/render/explosion scene integration is next.
+- Remote charges: Charge/detonator selection, shared ammo, throw/place, sticking, rendering and blast/GeoMod are integrated; PC and stock64MiB XEMU throw/detonate replay pass with one terrain cut; detached-fragment transport, persistence, placement fidelity and dedicated explosion presentation remain.
 
 - Shield events: Activate_Capek_Shield now toggles registered actor damage immunity through immediate/delayed event dispatch; focused runtime/scene checks and PC/Xbox builds pass; shield presentation, hit armor consumption and live authored scenario remain.
 
