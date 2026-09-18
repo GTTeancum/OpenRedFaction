@@ -1,15 +1,15 @@
 # Red Faction Xbox / PC - open work
 
-Completion basis (user direction,2026-09-18): working late-alpha/early-beta code implementation. Overall approximately62%; GeoMod100% for the first playable milestone, accepted by the user. GeoMod items below are deferred refinement and coverage, not prerequisites to moving on. This does not assert retail polish, complete campaign integration or resolution of every known defect.
+Completion basis (user direction,2026-09-18): working late-alpha/early-beta code implementation. Overall approximately63%; GeoMod100% for the first playable milestone, accepted by the user. GeoMod items below are deferred refinement and coverage, not prerequisites to moving on. This does not assert retail polish, complete campaign integration or resolution of every known defect.
 
 
-- PRIORITY Precision weapons: Sniper/rail selection, primary firing, ammo and authored view offsets are integrated; PC shots and scene cover/penetration checks pass; functional sniper zoom now passes PC/Xbox with unchanged weapon/HUD; NPC sniper/rail damage and ammo checks pass; scope overlay, rail scanner, trails and broader live targets remain.
+- PRIORITY Precision weapons: Sniper/rail selection, primary firing, ammo and authored view offsets are integrated; PC shots and scene cover/penetration checks pass; functional sniper zoom now passes PC/Xbox with unchanged weapon/HUD; NPC sniper/rail damage and ammo checks pass; rail scanner markers now work in live PC with no ammo debit; Xbox builds; silhouette scanner presentation, scope overlay, trails and broader live targets remain.
 
-- Scripted thresholds: Health/armor monitors now read live player/NPC values and dispatch one-shot event/mover/trigger effects; focused runtime checks pass; latch persistence and live authored scenarios remain.
+- Scripted thresholds: Health/armor monitors now read live player/NPC values and dispatch one-shot event/mover/trigger effects; focused runtime checks pass; in-memory revisit latch retention now passes focused checks; disk persistence and live authored scenarios remain.
 
 - AI target lifecycle: Player death stops player-directed pursuit while independent NPC combat continues; focused state checks pass, live encounter coverage remains.
 
-- Scripted timers: Cyclic_Timer is integrated with finite/unlimited event/mover pulses and focused runtime checks passing; same-level checkpoint persistence remains.
+- Scripted timers: Cyclic_Timer is integrated with finite/unlimited event/mover pulses and focused runtime checks passing; in-memory level/UID history now preserves count/enabled/deadline on revisit; disk persistence and broader live route checks remain.
 
 - AI hearing: Player gunfire now alerts nearby hostile guards without replacing scripted targets; focused checks pass, live encounter tuning remains.
 

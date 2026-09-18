@@ -17,3 +17,11 @@ NPC selection now admits authored sniper/rail primary definitions and finite amm
 Sniper alternate toggles shared world magnification90->25 degrees (explicit first-pass policy), reduces look sensitivity inversely, resets on switch/death and never spends ammo. CPU world prefix, Xbox retained geometry/models and world particles/coronas scale; viewmodel/HUD stay unscaled. PC scope replay toggles at80, reports4.51070833 scale, ammo6/36 and zero shots. Endpoint inspected: world enlarged with unchanged viewmodel/HUD. Scope overlay/variable magnification and rail scanner remain unfinished. Native run pending.
 
 Native scope run render-20260918-084935 PASS:150 frames,77 comparisons, 3346 free endpoint pages; framebuffer inspected and shows magnified world with unscaled weapon/HUD. Restored disc and closed owned emulator.
+
+## Rail scanner first pass
+
+Rail alternate now toggles a world-independent living-NPC center scanner. Fixed32 nearest markers,100-unit practical range; no wall/room occlusion query. Stale/dead/hidden owners are excluded. Markers use shared depth-free HUD drawing on PC/Xbox; this is functional target location, not original thermal silhouettes. Holding does not repeatedly toggle; switching/death resets it. Alternate never fires or spends ammunition.
+
+weapon_scanner and actual scene_scanner collection checks pass. Live PC scanner.bin rotates toward the quiet developer guard, toggles at195, ends at240 with SCANNER [1,1,0,0], loaded1/reserve10 and zero shots. Captured framebuffer inspected: green brackets surround the guard center; no occluded-target visual claim. Native scanner runtime remains unverified; NXDK build passes. Scope/rail prior native acceptance remains separate.
+
+Overall rough implementation63%; precision weapons approximately85% first pass.

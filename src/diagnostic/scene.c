@@ -13,6 +13,7 @@
 #include "rf/debris_audio.h"
 #include "rf/player_weapon.h"
 #include "rf/weapon_scope.h"
+#include "rf/weapon_scanner.h"
 #include "rf/event.h"
 #include "rf/audio.h"
 #include "rf/clutter.h"
@@ -1043,6 +1044,7 @@ uint32_t rf_scene_actor_retirement[4]; /* registered keys, restored, captured de
 uint32_t rf_scene_campaign_load_stage;
 uint32_t rf_scene_follow_level_exits;
 static char campaign_current_level[64];
+#include "scene_event_history.inc"
 static int campaign_switch_checkpoint(uint32_t save)
 {
     uint32_t i,slot;int status;
@@ -1845,6 +1847,9 @@ static rf_weapon_supply_catalog campaign_weapon_supply;
 float rf_scene_scope_projection=1.0f;
 static float scene_scope_look=1.0f;
 static rf_weapon_scope scene_scope;
+static uint32_t scene_scanner_enabled,scene_scanner_held;
+static rf_weapon_scanner_result scene_scanner_result;
+uint32_t rf_scene_scanner[4]; /* active, visible markers, truncated, status */
 static rf_weapon_primary_definition campaign_pistol,campaign_primary[SCENE_WEAPON_SLOTS];
 static rf_weapon_explosive_definition campaign_rocket,campaign_grenade;
 static rf_explosion_definition campaign_rocket_impact;
@@ -12206,6 +12211,11 @@ static int campaign_combat_tick(scene_stream *stream,uint32_t frame,const float 
         }
     }
     weapon_cycle_held=!!player_input.cycle_weapon;
+    if(!frame){scene_scanner_enabled=scene_scanner_held=0;memset(rf_scene_scanner,0,sizeof(rf_scene_scanner));}
+    if(campaign_equipped_slot!=7 || campaign_explicit_unarmed || !campaign_player_inventory.owned[campaign_rail_id] || campaign_player_damage.state.effects.health<=0)scene_scanner_enabled=0;
+    else if(player_input.alt_fire && !scene_scanner_held)scene_scanner_enabled=!scene_scanner_enabled;
+    scene_scanner_held=!!player_input.alt_fire;
+
     {rf_weapon_scope_result scope;
      if(!frame){memset(&scene_scope,0,sizeof(scene_scope));rf_scene_scope_projection=scene_scope_look=1;}
      status=rf_weapon_scope_step(&scene_scope,!!player_input.alt_fire,
@@ -12472,11 +12482,30 @@ static int campaign_draw_subtitle(rf_scene_particle_sink sink,void *context)
     }
     return RF_OK;
 }
+#include "scene_scanner_select.inc"
+/* Practical through-wall center brackets; original scanner silhouettes deferred. */
+static int scene_scanner_draw(rf_scene_particle_sink sink,void *context)
+{
+    uint32_t i;int status;rf_scene_scanner[0]=scene_scanner_enabled;rf_scene_scanner[1]=rf_scene_scanner[2]=rf_scene_scanner[3]=0;
+    if(!scene_scanner_enabled)return RF_OK;
+    status=scene_scanner_collect(particle_draw_stream,&scene_scanner_result);rf_scene_scanner[3]=(uint32_t)status;if(status)return status;
+    rf_scene_scanner[1]=scene_scanner_result.count;rf_scene_scanner[2]=scene_scanner_result.truncated;
+    status=combat_hud_text(sink,context,268,24,"SCANNER",0xff60ff90);if(status)return status;
+    for(i=0;i<scene_scanner_result.count;i++){
+        const rf_weapon_scanner_marker *m=scene_scanner_result.markers+i;
+        float x=m->screen[0],y=m->screen[1],r=fminf(22,fmaxf(8,120/m->depth));
+        const float bars[8][4]={{-r,-r,6,2},{-r,-r,2,6},{r-6,-r,6,2},{r-2,-r,2,6},
+            {-r,r-2,6,2},{-r,r-6,2,6},{r-6,r-2,6,2},{r-2,r-6,2,6}};
+        uint32_t j;for(j=0;j<8;j++){status=combat_hud_rect(sink,context,x+bars[j][0],y+bars[j][1],bars[j][2],bars[j][3],0xff60ff90);if(status)return status;}
+    }
+    return RF_OK;
+}
 int rf_scene_draw_combat_hud(rf_scene_particle_sink sink,void *context)
 {
     const float arms[4][4]={{310,239,7,2},{323,239,7,2},{319,230,2,7},{319,243,2,7}};
     uint32_t i,color=0xffeeeeee;int status;
     if(!sink || !particle_draw_stream || !campaign_spawn)return RF_OK;
+    status=scene_scanner_draw(sink,context);if(status)return status;
     status=campaign_draw_subtitle(sink,context);if(status)return status;
     if(combat_surface_frame!=UINT32_MAX && combat_frame-combat_surface_frame<=6)color=0xffffc060;
     if(combat_hit_frame!=UINT32_MAX && combat_frame-combat_hit_frame<=8)color=rf_scene_riot[0]?0xff80dfff:0xff60ff80;
@@ -15351,7 +15380,7 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
             if(status)goto done;
             if(rf_scene_follow_level_exits && rf_scene_level_transition.pending)
                 status=rf_campaign_goals_next_section(&rf_scene_mission_goals);
-            else {memset(&campaign_switch_history,0,sizeof(campaign_switch_history));memset(campaign_switch_saved,0,sizeof(campaign_switch_saved));memset(&campaign_trigger_history,0,sizeof(campaign_trigger_history));memset(&campaign_local_goals,0,sizeof(campaign_local_goals));memset(&campaign_startup_inventory,0,sizeof(campaign_startup_inventory));memset(&rf_scene_mission_goals,0,sizeof(rf_scene_mission_goals));memset(&rf_scene_campaign_pickups,0,sizeof(rf_scene_campaign_pickups));memset(&rf_scene_defeated_actors,0,sizeof(rf_scene_defeated_actors));}
+            else {campaign_event_history_reset();memset(&campaign_switch_history,0,sizeof(campaign_switch_history));memset(campaign_switch_saved,0,sizeof(campaign_switch_saved));memset(&campaign_trigger_history,0,sizeof(campaign_trigger_history));memset(&campaign_local_goals,0,sizeof(campaign_local_goals));memset(&campaign_startup_inventory,0,sizeof(campaign_startup_inventory));memset(&rf_scene_mission_goals,0,sizeof(rf_scene_mission_goals));memset(&rf_scene_campaign_pickups,0,sizeof(rf_scene_campaign_pickups));memset(&rf_scene_defeated_actors,0,sizeof(rf_scene_defeated_actors));}
             if(!status)status=rf_runtime_goals_initialize(&campaign_events,&rf_scene_mission_goals);
             if(!status)status=rf_campaign_local_goals_restore(&campaign_local_goals,campaign_current_level,&rf_scene_mission_goals);
             if(status)goto done;
@@ -15810,6 +15839,7 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
             status=campaign_switch_checkpoint(0);if(status)goto done;
             memset(rf_scene_trigger_history,0,sizeof(rf_scene_trigger_history));
             status=campaign_trigger_checkpoint(0,0);if(status)goto done;
+            status=campaign_event_checkpoint(0,0);if(status)goto done;
             campaign_force_snapshot();campaign_switch_snapshot();
             memcpy(rf_scene_startup_gravity,&scene_gravity,sizeof(scene_gravity));
         }
@@ -15828,6 +15858,7 @@ done:
         status=rf_campaign_local_goals_save(&campaign_local_goals,campaign_current_level,&rf_scene_mission_goals);
         if(!status)status=campaign_switch_checkpoint(1);
         if(!status)status=campaign_trigger_checkpoint(1,(int32_t)rf_scene_event_ticks[1]);
+        if(!status)status=campaign_event_checkpoint(1,(int32_t)rf_scene_event_ticks[1]);
         if(!status)campaign_actors_capture();
     }
     for(i=0;i<SCENE_WEAPON_SLOTS;i++)rf_player_weapon_close(&stream->player_weapon[i]);

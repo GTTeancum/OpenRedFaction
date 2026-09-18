@@ -9,3 +9,7 @@ Also removed the loop-wide player-health gate from enemy combat. A per-owner liv
 Overall approximate implementation62%; scripted interactions approximately65% first pass. These are engineering estimates, not coverage percentages.
 
 NXDK build also passes: artifacts/precision-live/threshold-xbox.log.
+
+## In-memory revisit history
+
+Cycle and threshold history now saves on scene close, restores after startup, and resets for a fresh campaign. Keys are level name plus authored UID. Cycle count/enabled and remaining deadline (rebased at reopen) survive, as do one-shot threshold latches. Authored period/limit/threshold remain fresh. Fixed40,968-byte owner mirrors existing Switch/trigger histories; no stale runtime handles or disk format. Focused scene_event_history passes real key/restore/rebase cases and PC/Xbox builds pass. Live route, removed monitors, generic delayed-action ownership and disk persistence remain open.

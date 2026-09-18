@@ -777,3 +777,16 @@ add_test(NAME scene_ai_target_liveness COMMAND rf_scene_ai_target_liveness_tests
 add_executable(rf_runtime_threshold_tests tests/runtime_threshold_tests.c)
 target_link_libraries(rf_runtime_threshold_tests PRIVATE rf_core)
 add_test(NAME runtime_threshold COMMAND rf_runtime_threshold_tests)
+
+target_sources(rf_core PRIVATE src/core/weapon_scanner.c)
+add_executable(rf_weapon_scanner_tests tests/weapon_scanner_tests.c)
+target_link_libraries(rf_weapon_scanner_tests PRIVATE rf_core)
+add_test(NAME weapon_scanner COMMAND rf_weapon_scanner_tests)
+
+add_executable(rf_scene_scanner_tests tests/scene_scanner_tests.c src/diagnostic/animation.c)
+target_link_libraries(rf_scene_scanner_tests PRIVATE rf_core)
+add_test(NAME scene_scanner COMMAND rf_scene_scanner_tests)
+
+add_executable(rf_scene_event_history_tests tests/scene_event_history_tests.c src/diagnostic/animation.c)
+target_link_libraries(rf_scene_event_history_tests PRIVATE rf_core)
+add_test(NAME scene_event_history COMMAND rf_scene_event_history_tests)
