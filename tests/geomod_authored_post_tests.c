@@ -1,5 +1,6 @@
 #include "rf/geomod_authored_post.h"
 #include "rf/geomod_publication_binding.h"
+#include "rf/collision_composition.h"
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -270,11 +271,92 @@ static int beam_source(const rf_level *level,const rf_geometry *geometry,const c
     }
     rf_geomod_terrain_close(&terrain);rf_geomod_authored_post_close(&owner);return 0;
 }
+static double publication_face_area(const rf_geomod_mesh_view *mesh,uint32_t index) {
+    const rf_geomod_face *face=mesh->faces+index;double normal[3]={0};uint32_t j,k;
+    for(j=0;j<face->count;j++) {
+        const float *a=mesh->vertices[face->first+j].position,*b=mesh->vertices[face->first+(j+1)%face->count].position;
+        for(k=0;k<3;k++)normal[k]+=(double)a[(k+1)%3]*b[(k+2)%3]-(double)a[(k+2)%3]*b[(k+1)%3];
+    }
+    return .5*sqrt(normal[0]*normal[0]+normal[1]*normal[1]+normal[2]*normal[2]);
+}
+static int cavity_window_areas(const rf_geomod_authored_post_view *a,const rf_geomod_mesh_view *mesh,
+    const rf_geomod_publication_origin *origins,uint32_t cut) {
+    uint32_t i,j,craters=0;
+    for(i=0;i<a->windows.face_count;i++) {
+        double expected=publication_face_area(&a->windows,i),actual=0;
+        for(j=0;j<mesh->face_count;j++)if(origins[j].kind==RF_GEOMOD_PUBLICATION_RETAINED &&
+            origins[j].reference==a->window_origins[i].reference) {
+            CHECK(mesh->faces[j].material==a->windows.faces[i].material);
+            CHECK(origins[j].source_face==a->window_origins[i].source_face);
+            actual+=publication_face_area(mesh,j);
+            if(!cut) {
+                uint32_t x,y;const rf_geomod_face *out=mesh->faces+j,*in=a->windows.faces+i;
+                for(x=0;x<out->count;x++) {
+                    for(y=0;y<in->count;y++)if(!memcmp(mesh->vertices+out->first+x,a->windows.vertices+in->first+y,sizeof(rf_geomod_vertex)))break;
+                    CHECK(y<in->count); /* Exact compiled position and UV, even after partitioning. */
+                }
+            }
+        }
+        if(cut && a->window_origins[i].reference==5964)CHECK(actual<expected-.1 && actual>0);
+        else {if(fabs(actual-expected)>=.001)printf("CAVITY_AREA ref%u source%u expected%.9g actual%.9g\n",a->window_origins[i].reference,a->window_origins[i].source_face,expected,actual);CHECK(fabs(actual-expected)<.001);}
+    }
+    for(i=0;i<mesh->face_count;i++)if(origins[i].kind==RF_GEOMOD_PUBLICATION_CRATER) {
+        CHECK(origins[i].reference==5964 && origins[i].owner==66);craters++;
+    }
+    CHECK(cut?craters>0:craters==0);return 0;
+}
+static int cavity_composition(const rf_geometry *geometry,const rf_geomod_authored_post_view *asset,
+    const rf_geomod_mesh_view *published,const rf_geomod_publication_origin *origins) {
+    rf_geometry_collision_world world={0};rf_collision_composition *owner=NULL;
+    rf_collision_composition_view composed;rf_geomod_terrain_view query={0};const rf_collision_tree *base;
+    rf_collision_face_filter *filters=calloc(published->face_count,sizeof(*filters));
+    rf_collision_face *faces=calloc(published->face_count,sizeof(*faces));
+    float (*positions)[3]=calloc(published->vertex_count,sizeof(*positions));
+    uint32_t *ids=calloc(published->face_count,sizeof(*ids)),i,j,k,visible,retained=0;
+    float inside[3]={-32.9f,4,8},outside[3]={-33.1f,4,8};
+    CHECK(filters && faces && positions && ids);
+    CHECK(!rf_geometry_collision_world_open(geometry,16*1024*1024,&world));base=&world.rooms[3].tree;
+    for(i=0;i<published->face_count;i++) {
+        CHECK(origins[i].owner==66);ids[i]=origins[i].reference;
+        CHECK(origins[i].kind==RF_GEOMOD_PUBLICATION_RETAINED || origins[i].kind==RF_GEOMOD_PUBLICATION_CRATER);
+        for(j=0;j<asset->replaced_count;j++)if(ids[i]==asset->replaced_ids[j])break;
+        CHECK(j<asset->replaced_count);
+        CHECK(!rf_geometry_initial_collision_filter(geometry,ids[i],0,filters+i));
+        if(origins[i].kind==RF_GEOMOD_PUBLICATION_CRATER)filters[i].face_flags=256;
+    }
+    CHECK(!rf_geomod_collision_faces(published,filters,positions,published->vertex_count,faces,published->face_count));
+    CHECK(!rf_collision_composition_open(base,base->source_indices,asset->replaced_ids,asset->replaced_count,
+        base->face_count+published->face_count,4*1024*1024,NULL,&owner));
+    CHECK(!rf_collision_composition_prepare(owner,faces,ids,published->face_count));
+    CHECK(!rf_collision_composition_commit(owner));CHECK(!rf_collision_composition_get(owner,&composed));
+    /* Every unselected base descriptor, including portal/liquid/other brushes,
+     * must survive byte-for-byte; tree ordering is allowed to change. */
+    for(i=0;i<base->face_count;i++) {
+        uint32_t id=base->source_indices[i];
+        for(j=0;j<asset->replaced_count;j++)if(id==asset->replaced_ids[j])break;
+        if(j<asset->replaced_count)continue;
+        for(k=0;k<composed.tree->face_count;k++) {
+            uint32_t source=composed.tree->source_indices[k];
+            if(composed.face_ids[source]==id)break;
+        }
+        CHECK(k<composed.tree->face_count);
+        CHECK(!memcmp(base->faces+i,composed.tree->faces+k,sizeof(*base->faces)));retained++;
+    }
+    CHECK(composed.count==retained+published->face_count);query.tree=composed.tree;
+    CHECK(!rf_geomod_light_visible(&query,inside,outside,&visible) && visible);
+    inside[1]=outside[1]=7;
+    CHECK(!rf_geomod_light_visible(&query,inside,outside,&visible) && !visible);
+    printf("CAVITY_ROOM_COMPOSITION retained%u replacement%u resident%u peak%u\n",
+        retained,published->face_count,composed.resident_bytes,composed.peak_bytes);
+    rf_collision_composition_close(&owner);rf_geometry_collision_world_close(&world);
+    free(filters);free(faces);free(positions);free(ids);return 0;
+}
 static int cavity_source(const void *payload,uint32_t bytes,const rf_geometry *geometry,
     const rf_level_geomod_settings *settings,const char *shape_path) {
     rf_geomod_authored_post *owner=NULL,*rejected=NULL;rf_geomod_authored_post_view a;
     rf_geomod_terrain *terrain=NULL;rf_geomod_terrain_view view;rf_geomod_template shape;
     rf_collision_face_filter generated;uint32_t i,k,visible,deep=0;
+    rf_geomod_publication_job job={0};rf_geomod_mesh_view published;
     float center[3]={-33,4,8},basis[9]={1,0,0,0,1,0,0,0,1};
     float inside[3]={-32.9f,4,8},outside[3]={-33.1f,4,8};
     CHECK(rf_geomod_authored_post_decode_source(payload,bytes,geometry,settings,66,2*1024*1024,&rejected)==RF_NOT_FOUND && !rejected);
@@ -304,10 +386,32 @@ static int cavity_source(const void *payload,uint32_t bytes,const rf_geometry *g
     generated=a.source_filters[0];
     CHECK(!rf_geomod_terrain_open(&a.source,a.source_filters,&generated,1,4096,768,1048576,&terrain));
     CHECK(!rf_geomod_terrain_get(terrain,&view));
+    job.terrain=view.mesh;job.windows=a.windows;job.window_origins=a.window_origins;
+    job.source_planes=a.source_planes;job.source_plane_count=a.source.face_count;
+    job.crater_origin=(rf_geomod_publication_origin){RF_GEOMOD_PUBLICATION_CRATER,66,UINT32_MAX,5964};
+    CHECK(!rf_geomod_publication_build_cavity(&job,&publication_work,output_vertices,4096,output_faces,768,output_origins,&published));
+    printf("CAVITY_UNCUT_PUBLICATION %u %u\n",published.face_count,published.vertex_count);
+    CHECK(published.face_count>=a.windows.face_count); /* Convex partition may split float-bent edges. */
+    CHECK(!cavity_window_areas(&a,&published,output_origins,0));
     CHECK(!rf_geomod_light_visible(&view,inside,outside,&visible) && !visible);
     CHECK(!rf_geomod_template_load(shape_path,&shape));
     CHECK(!rf_geomod_terrain_cut_template(terrain,&shape,center,basis,1.05000007f,0));
     CHECK(!rf_geomod_terrain_get(terrain,&view) && view.cuts==1);
+    job.terrain=view.mesh;
+    CHECK(!rf_geomod_publication_build_cavity(&job,&publication_work,output_vertices,4096,output_faces,768,output_origins,&published));
+    printf("CAVITY_CUT_PUBLICATION %u %u\n",published.face_count,published.vertex_count);
+    CHECK(!cavity_window_areas(&a,&published,output_origins,1));
+    CHECK(!cavity_composition(geometry,&a,&published,output_origins));
+    {
+        rf_geomod_mesh_view previous=published;rf_geomod_vertex vertex=output_vertices[0];
+        rf_geomod_face face=output_faces[0];rf_geomod_publication_origin origin=output_origins[0];
+        CHECK(rf_geomod_publication_build_cavity(&job,&publication_work,output_vertices,1,output_faces,1,output_origins,&published)==RF_RANGE);
+        CHECK(!memcmp(&previous,&published,sizeof(previous)) && !memcmp(&vertex,output_vertices,sizeof(vertex)) &&
+            !memcmp(&face,output_faces,sizeof(face)) && !memcmp(&origin,output_origins,sizeof(origin)));
+        job.solid_count=1;
+        CHECK(rf_geomod_publication_build_cavity(&job,&publication_work,output_vertices,4096,output_faces,768,output_origins,&published)==RF_NOT_FOUND);
+        job.solid_count=0;CHECK(!memcmp(&previous,&published,sizeof(previous)));
+    }
     CHECK(!rf_geomod_light_visible(&view,inside,outside,&visible) && visible);
     inside[1]=outside[1]=7;
     CHECK(!rf_geomod_light_visible(&view,inside,outside,&visible) && !visible);

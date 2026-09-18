@@ -87,3 +87,45 @@ eligibility remain required before playable wall destruction can be claimed.
 Validation: all123 PC tests pass; stock NXDK compile/link, XBE conversion and ISO
 creation pass. Logs: artifacts/cavity-source-{all-build,tests,xbox}.log. No native
 wall runtime was launched because live cavity publication is not implemented.
+
+
+## Compiled-window publication and full-room collision composition
+
+`rf_geomod_publication_build_cavity` now publishes an isolated inward cavity.
+It starts retained polygons from the compiled windows and clips against the
+remaining cavity terrain, preserving compiled UVs rather than reinterpolating
+from the large authored face. Generated faces keep core crater UV/provenance.
+It rejects neighbor solids, neighbor surfaces and neighbor voids: ordered CSG
+interactions still require a separate qualified implementation. Existing solid
+and connected-source publication paths keep their previous clipping direction.
+
+The first test of the solid publisher on cavity geometry found a retained-area
+error: compiled face5631 expected164.049065 but reconstructed164.047924 even
+without a cut. The cavity path fixes the unnecessary reconstruction rather than
+loosening the area assertion. Its uncut139 convex output pieces retain exact
+compiled position/UV vertices and preserve the area of each of134 input wall
+windows. Extra pieces arise from the existing strict convex partitioner, which
+preserves float-bent edge vertices; face count alone is not a coverage check.
+
+After the isolated wall cut there are185 published faces/880 vertices. The
+selected wall reference5964 loses area; all133 other retained wall windows keep
+their area within.001 square units and keep source/material identities. Crater
+faces retain owner66 and reference5964. Capacity rejection and unsupported
+neighbor admission leave the prior output view and sampled output rows intact.
+
+The installed-room integration test converts publication to collision faces,
+then uses the same composition owner as the scene against the full original
+room3 collision tree. All656 unselected face descriptors, filters and borrowed
+vertex pointers remain byte-identical, including portals/liquids/other brush
+surfaces. The complete candidate contains those656 faces plus185 replacements.
+The short ray through the crater is clear and the Y7 control remains blocked.
+Composition resident/peak accounting is292012/424049 bytes on PC, excluding
+caller-owned replacement arrays and original world storage as documented by
+that API. This is not a whole-Xbox-memory measurement.
+
+This qualifies the publication/composition components on installed geometry;
+scene selection, spatial eligibility, atlas binding, save identity and native
+runtime admission are still pending. No live wall screenshot is claimed.
+
+Publication validation: all123 PC tests pass and stock NXDK compile/link/XBE/ISO
+passes. Logs: artifacts/cavity-publication-{all-build,tests,xbox}.log.

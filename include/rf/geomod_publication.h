@@ -71,6 +71,15 @@ typedef struct rf_geomod_publication_work {
 int rf_geomod_publication_build(const rf_geomod_publication_job *, rf_geomod_publication_work *,
                                 rf_geomod_vertex *, uint32_t, rf_geomod_face *, uint32_t,
                                 rf_geomod_publication_origin *, rf_geomod_mesh_view *);
+/* Isolated inward-cavity publication. Starts retained pieces from compiled
+ * windows so untouched positions/UVs survive, clipping them against retained
+ * cavity terrain polygons. Generated crater faces retain core UVs/provenance.
+ * Source planes are inward/unit. Neighbor solids/surfaces/voids are unsupported
+ * and rejected: caller must independently qualify the cut neighborhood and
+ * preserve all unselected room/portal surfaces. Same bounded, disjoint and
+ * output-unchanged-on-failure contract as build; not general ordered CSG. */
+int rf_geomod_publication_build_cavity(const rf_geomod_publication_job *,rf_geomod_publication_work *,
+    rf_geomod_vertex *,uint32_t,rf_geomod_face *,uint32_t,rf_geomod_publication_origin *,rf_geomod_mesh_view *);
 /* Aggregate1..32 independent source publications into one bounded candidate.
  * Source owner IDs must be unique. Caller supplies current neighborhoods and
  * resolves interactions between edited sources; this is not cross-source CSG.

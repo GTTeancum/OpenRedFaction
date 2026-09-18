@@ -253,7 +253,7 @@ static const rf_geomod_publication_job *connected_owner(const connected_context 
     return NULL;
 }
 static int emit_connected(rf_geomod_publication_work *,uint32_t,rf_geomod_publication_origin,const connected_context *);
-static int publication_append(const rf_geomod_publication_job *j, rf_geomod_publication_work *w,const connected_context *context) {
+static int publication_append(const rf_geomod_publication_job *j, rf_geomod_publication_work *w,const connected_context *context,uint32_t cavity) {
     uint32_t i, k, a, b, n, bank;
     int s;
     if (!j || !w ||
@@ -317,20 +317,22 @@ static int publication_append(const rf_geomod_publication_job *j, rf_geomod_publ
             for (k = 0; k < j->windows.face_count; k++) {
                 const rf_geomod_face *window = j->windows.faces + k;
                 float normal[4];
+                const rf_geomod_vertex *boundary=cavity?j->terrain.vertices+f.first:j->windows.vertices+window->first;
+                uint32_t boundary_count=cavity?f.count:window->count;
                 if (window->source_face != f.source_face)
                     continue;
                 s = plane(j->windows.vertices + window->first, window->count, normal);
                 if (s)
                     return s;
-                n = f.count;
-                memcpy(w->polygon[0], j->terrain.vertices + f.first, n * sizeof(rf_geomod_vertex));
+                n = cavity?window->count:f.count;
+                memcpy(w->polygon[0], cavity?j->windows.vertices+window->first:j->terrain.vertices+f.first, n * sizeof(rf_geomod_vertex));
                 for (a = 0; a < n; a++)
                     if (fabsf(distance(normal, w->polygon[0][a].position)) > 1e-4f)
                         return RF_FORMAT;
-                for (a = 0; a < window->count && n; a++) {
+                for (a = 0; a < boundary_count && n; a++) {
                     float p[4], edge[3], len = 0;
-                    const float *x = j->windows.vertices[window->first + a].position,
-                                *y = j->windows.vertices[window->first + (a + 1) % window->count].position;
+                    const float *x = boundary[a].position,
+                                *y = boundary[(a + 1) % boundary_count].position;
                     for (b = 0; b < 3; b++)
                         edge[b] = y[b] - x[b];
                     for (b = 0; b < 3; b++) {
@@ -425,9 +427,20 @@ int rf_geomod_publication_build(const rf_geomod_publication_job *j, rf_geomod_pu
     int status;
     if (!j || !w || !vertices || !faces || !origins || !out) return RF_RANGE;
     w->result.nv = w->result.nf = 0;
-    status = publication_append(j, w, NULL);
+    status = publication_append(j, w, NULL,0);
     if (status) return status;
     return publication_copy(w, j->terrain.generation, vertices, vc, faces, fc, origins, out);
+}
+int rf_geomod_publication_build_cavity(const rf_geomod_publication_job *j,rf_geomod_publication_work *w,
+    rf_geomod_vertex *vertices,uint32_t vc,rf_geomod_face *faces,uint32_t fc,
+    rf_geomod_publication_origin *origins,rf_geomod_mesh_view *out) {
+    int status;
+    if(!j || !w || !vertices || !faces || !origins || !out)return RF_RANGE;
+    /* Local cavity publication cannot apply the outward neighbor-solid path. */
+    if(j->solid_count || j->neighbors.face_count || j->neighbor_void_count)return RF_NOT_FOUND;
+    w->result.nv=w->result.nf=0;
+    status=publication_append(j,w,NULL,1);if(status)return status;
+    return publication_copy(w,j->terrain.generation,vertices,vc,faces,fc,origins,out);
 }
 int rf_geomod_publication_build_groups(const rf_geomod_publication_job *jobs, uint32_t count,
     uint32_t generation, rf_geomod_publication_work *w,
@@ -442,7 +455,7 @@ int rf_geomod_publication_build_groups(const rf_geomod_publication_job *jobs, ui
     }
     w->result.nv = w->result.nf = 0;
     for (i = 0; i < count; i++) {
-        status = publication_append(jobs + i, w, NULL);
+        status = publication_append(jobs + i, w, NULL,0);
         if (status) return status;
     }
     return publication_copy(w, generation, vertices, vc, faces, fc, origins, out);
@@ -604,7 +617,7 @@ int rf_geomod_publication_build_connected(const rf_geomod_publication_job *jobs,
     w->publication.result.nv=w->publication.result.nf=0;
     for(i=0;i<count;i++) {
         context.current=jobs+i;
-        status=publication_append(jobs+i,&w->publication,&context);if(status)return status;
+        status=publication_append(jobs+i,&w->publication,&context,0);if(status)return status;
     }
     return publication_copy(&w->publication,generation,vertices,vc,faces,fc,origins,out);
 }
