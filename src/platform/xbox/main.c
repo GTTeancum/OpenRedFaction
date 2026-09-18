@@ -563,12 +563,14 @@ static int scene_preview(rf_level *level,rf_preview_mesh *mesh)
         FILE *checkpoint;
         const char *vehicle_level=rf_scene_vehicle_enabled==4?"L5S3.rfl":"ctf06.rfl";
         if(!rf_scene_dev_room_enabled || strcmp(level->entry.name,vehicle_level) ||
-           rf_scene_dev_npc_enabled || rf_scene_player_checkpoint_enabled)return RF_FORMAT;
-        /* Air/water vehicle durable saves are not admitted by this DEV loader. */
+           rf_scene_dev_npc_enabled || (rf_scene_vehicle_enabled==4 && rf_scene_player_checkpoint_enabled))return RF_FORMAT;
+        if(rf_scene_vehicle_enabled==4){
+        /* Static underwater world saves are not integrated yet. */
         checkpoint=fopen("D:\\geomod-checkpoint.bin","rb");
         if(checkpoint){fclose(checkpoint);return RF_FORMAT;}
         checkpoint=fopen("D:\\geomod-checkpoint-out.flag","rb");
         if(checkpoint){fclose(checkpoint);return RF_FORMAT;}
+        }
     }
     {FILE *water_flag=fopen("D:\\water-test.flag","rb");
      rf_scene_water_test_enabled=water_flag!=NULL;

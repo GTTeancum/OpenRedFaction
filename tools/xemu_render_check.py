@@ -104,8 +104,6 @@ def main():
     if fighter:
         if not (args.dev_room and args.spawn and args.level=='ctf06.rfl' and args.archive=='levelsm.vpp'):
             parser.error('Fighter requires --vehicle-test --vehicle-class fighter --dev-room --spawn --level ctf06.rfl --archive levelsm.vpp')
-        if args.player_checkpoint or args.geomod_checkpoint_in or args.geomod_checkpoint_out:
-            parser.error('Fighter checkpoints are not supported yet')
         if args.npc_rubble_test or args.npc_grenade_test or args.npc_rocket_test or args.npc_shield_test or args.player_shield_test or args.firearms_test or args.fusion_test or args.setup_uid or args.exit_uid or args.return_exit_uid or args.goal_uid or args.item_uid or args.exit_start_uid or args.trigger_start_uid:
             parser.error('Fighter DEV requires its enemy-free placement without other combat fixtures or campaign relocation')
     if submarine:

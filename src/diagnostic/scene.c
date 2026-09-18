@@ -13151,6 +13151,7 @@ static void scene_vehicle_hud_values(const scene_stream *s,float *health,int32_t
 #include "scene_driller_checkpoint_occupancy.inc"
 #include "scene_driller_checkpoint_seat.inc"
 #include "scene_vehicle_combat_seat.inc"
+#include "scene_fighter_checkpoint_live.inc"
 #include "scene_driller_checkpoint_live.inc"
 static int actor_follow_view(void *context,uint32_t frame,const rf_motion_controller *controller,rf_model_projection *view)
 {

@@ -1336,3 +1336,8 @@ add_executable(rf_scene_fighter_weapon_tests tests/scene_fighter_weapon_tests.c)
 target_link_libraries(rf_scene_fighter_weapon_tests PRIVATE rf_core)
 add_test(NAME scene_fighter_weapon COMMAND rf_scene_fighter_weapon_tests)
 set_tests_properties(scene_fighter_weapon PROPERTIES WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}")
+
+target_sources(rf_core PRIVATE src/core/fighter_checkpoint.c)
+add_executable(rf_fighter_checkpoint_tests tests/fighter_checkpoint_tests.c)
+target_link_libraries(rf_fighter_checkpoint_tests PRIVATE rf_core)
+add_test(NAME fighter_checkpoint COMMAND rf_fighter_checkpoint_tests)

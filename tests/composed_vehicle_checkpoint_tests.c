@@ -1,6 +1,7 @@
 #include "rf/composed_checkpoint.h"
 #include "rf/vehicle_checkpoint.h"
 #include "rf/remote_checkpoint.h"
+#include "rf/fighter_checkpoint.h"
 #include <stdio.h>
 #include <string.h>
 #define CHECK(x) do{if(!(x)){fprintf(stderr,"RFCP3 line%d: %s\n",__LINE__,#x);return 1;}}while(0)
@@ -85,5 +86,31 @@ int main(void)
     memcpy(saved,packed,n);put(terrain+8,terrain_bytes+1);kept=42;
     CHECK(rf_composed_checkpoint_encode_v3(1,&player,&catalog,terrain,terrain_bytes+1,NULL,0,77,123,vc,128,packed,sizeof(packed),&kept)==RF_RANGE);
     CHECK(kept==42 && !memcmp(packed,saved,n));
-    puts("RFCP3: RFVC/RFRM framing, legacy reads, nested rejection, atomic output and fixed transport cap passed");return 0;
+    {
+        rf_fighter_checkpoint fighter={0},restored;unsigned char fc[RF_FIGHTER_CHECKPOINT_BYTES];
+        fighter.vehicle.orientation[0]=fighter.vehicle.orientation[4]=fighter.vehicle.orientation[8]=1;
+        fighter.vehicle.health=900;fighter.vehicle.alive=1;fighter.primary_reserve=891;fighter.rocket_reserve=19;
+        fighter.primary_cooldown=.025f;fighter.rocket_cooldown=2.5f;fighter.primary_shots=9;fighter.rocket_shots=1;
+        put(terrain+8,288);
+        for(i=0;i<2;i++){
+            fighter.vehicle.player_occupied=i;
+            CHECK(!rf_fighter_checkpoint_encode(&fighter,fc,sizeof(fc)));
+            CHECK(!rf_composed_checkpoint_encode_v3(1,&player,&catalog,terrain,288,NULL,0,77,123,fc,sizeof(fc),packed,sizeof(packed),&n));
+            CHECK(!rf_composed_checkpoint_preflight_v3(packed,n,1,&catalog,77,123,&out));
+            CHECK(out.vehicle_profile==5&&out.vehicle_bytes==160&&packed[32+4]==(i?3:1));
+            CHECK(!rf_fighter_checkpoint_decode(out.vehicle,out.vehicle_bytes,&restored));
+            CHECK(restored.vehicle.player_occupied==i&&restored.primary_reserve==891&&restored.rocket_reserve==19);
+            CHECK(restored.primary_cooldown==.025f&&restored.rocket_cooldown==2.5f&&restored.primary_shots==9&&restored.rocket_shots==1);
+        }
+        /* Matching typed vehicle is required for seated RFPL; corrupt nested
+         * bytes must not publish any partially decoded envelope. */
+        memcpy(saved,packed,n);packed[n-1]^=1;out=sentinel;
+        CHECK(rf_composed_checkpoint_preflight_v3(packed,n,1,&catalog,77,123,&out)!=RF_OK);
+        CHECK(!memcmp(&out,&sentinel,sizeof(out)));
+        memcpy(packed,saved,n);fighter.vehicle.player_occupied=0;
+        CHECK(!rf_fighter_checkpoint_encode(&fighter,packed+n-sizeof(fc),sizeof(fc)));
+        CHECK(rf_composed_checkpoint_preflight_v3(packed,n,1,&catalog,77,123,&out)==RF_FORMAT);
+        CHECK(!memcmp(&out,&sentinel,sizeof(out)));
+    }
+    puts("RFCP3: RFVC/RFRM framing, fighter parked/seated scheduler state, legacy reads, nested rejection, atomic output and fixed transport cap passed");return 0;
 }

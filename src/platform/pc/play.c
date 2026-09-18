@@ -374,7 +374,7 @@ int main(int argc,char **argv)
     else {fprintf(stderr,"Usage: rf_pc_play <Installed_Game>\n       rf_pc_play --campaign <Installed_Game>\n       rf_pc_play --dev-room <Installed_Game>\n       rf_pc_play --dev-room-replay <Installed_Game> <inputs.bin> <output.ppm>\n       rf_pc_play --headless <Installed_Game> <frames 1..60000> <output.ppm>\n       rf_pc_play --replay <Installed_Game> <inputs.bin> <output.ppm>\n       rf_pc_play --spawn-replay <Installed_Game> <inputs.bin> <output.ppm>\n");return 2;}
 #define CHECK(call) do {status=(call);if(status){fprintf(stderr,"%s failed (%d)\n",#call,status);goto cleanup;}} while(0)
     /* Unsupported live vehicle saves reject before scene/state mutation. */
-    if(p.headless && getenv("RF_REPLAY_VEHICLE") && (!strcmp(getenv("RF_REPLAY_VEHICLE"),"sub") || !strcmp(getenv("RF_REPLAY_VEHICLE"),"fighter")) &&
+    if(p.headless && getenv("RF_REPLAY_VEHICLE") && !strcmp(getenv("RF_REPLAY_VEHICLE"),"sub") &&
        (getenv("RF_REPLAY_PLAYER_CHECKPOINT") || getenv("RF_REPLAY_GEOMOD_CHECKPOINT_IN") ||
         getenv("RF_REPLAY_GEOMOD_CHECKPOINT_OUT"))){
         fprintf(stderr,"This vehicle checkpoint profile is not integrated\n");CHECK(RF_RANGE);

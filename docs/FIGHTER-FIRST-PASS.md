@@ -27,12 +27,18 @@ Resource checks report1,894,308 resident/peak bytes on PC (hull863,700; cockpit1
 - Earlier `fighter-gameplay`, `fighter-exit`, and `fighter-forward` runs used downward attachment axes and are superseded for aimed weapon acceptance. Their matching contact totals alone did not establish correct aim.
 - Corrected stock64MiB XEMU run `artifacts/xemu/render-20260918-165531` passed360frames with all16vehicle words and all8fighter weapon words exactly matching PC,11.63671875MiB free and restored disc state. Its final native framebuffer was inspected: player on foot, full health, hovering fighter overhead. Missile-flight appearance was inspected on PC; the native final frame establishes exit presentation only. No accepted terrain cuts are demonstrated by this route; blast/terrain dispatch exists, but the impact does not establish GeoMod success.
 
-## Save preparation
+## Live saves
 
-Pure fighter capture/restore staging now preserves airborne pose/momentum, health, occupancy, finite ammo and both weapon cooldowns. Focused tests pass for capture, admission and atomic failure. Active bullets/rockets and unsettled firing prevent capture. This is an in-memory record only: a disk profile, checkpoint transport and live publication remain open; frontends continue rejecting fighter save requests.
+RFVC5 is a160-byte fighter record carried by the existing RFCP3 save envelope. It retains pose, linear/angular motion,900HP health state, occupancy,900/20 finite ammunition, both cooldowns and lifetime shot counters. Reserved bytes, checksum, finite values and authored bounds are validated before publication. Active projectiles, held triggers and unsettled warmup defer capture.
+
+The live restore stages the actual airborne rigid body, checks the full hull and occupied player seat against restored geometry, then publishes health/motion/ammo and restores possession through the normal vehicle owner. It does not require ground support and never routes fighter fields through APC/Jeep interpretation. The existing160-byte vehicle transport capacity is unchanged.
+
+`tools/check_fighter_checkpoint.py --run` passes three PC processes:360-frame seated capture after flight/fire,60-frame seated continuation, then60-frame restored exit. Health900, ammo891/19 and shots9/1 survive; residual velocity continues decaying. Resumed cockpit and on-foot exit images were inspected. Codec corruption/atomicity and composed parked/seated transport tests pass. Stock64MiB XEMU `artifacts/xemu/render-20260918-170229` restored the saved seated fighter, exited once and saved again: all vehicle/weapon/player checkpoint counters match PC and the1228-byte RFCP files have identical SHA256 c419ad3c68901f351667329c4038adf1c6c57aeccba58287c01409e80e1ad640. Endpoint headroom is11.56640625MiB. Native final framebuffer was inspected and shows the healthy player on foot beneath the hovering fighter.
 
 ## First-pass limits and remaining work
 
 Hover/drag, neutral unoccupied flight and endpoint-chord rotational collision are practical first-pass policies; retail aerodynamics are not reconstructed. The aircraft uses actual hull spheres, solid collision and dry-room/liquid-boundary admission rather than an ordinary player proxy.
 
-Complete broader live damage/destruction/ejection coverage, campaign placement and the boss variant, durable saves, firing/engine audio, thruster/corona effects and cockpit marker-driven effects. Native and harness selectors intentionally reject fighter checkpoints. Full visual polish and broader collision/flight refinement remain deferred.
+Complete broader live damage/destruction/ejection coverage, campaign placement and the boss variant, broader campaign saves, firing/engine audio, thruster/corona effects and cockpit marker-driven effects. Full visual polish and broader collision/flight refinement remain deferred.
+
+Deferred restore refinement: add dry-liquid full-hull admission before publication for externally modified, checksum-valid submerged fighter poses. Normal captures originate from dry-admitted flight; current restore validates solid hull/seat clearance but does not independently repeat the liquid restriction.

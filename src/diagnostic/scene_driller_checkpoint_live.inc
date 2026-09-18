@@ -6,6 +6,7 @@ static int scene_vehicle_checkpoint_capture_record(const scene_stream *s,scene_v
     if(r.profile==1)status=scene_driller_checkpoint_capture(s,&r.value.vehicle);
     else if(r.profile==2)status=scene_apc_checkpoint_capture(s,&r.value.apc);
     else if(r.profile==3)status=scene_jeep_checkpoint_capture(s,&r.value.jeep);
+    else if(r.profile==5)status=scene_fighter_checkpoint_capture_live(s,&r.value.fighter);
     else return RF_RANGE;
     if(status)return status;*out=r;return RF_OK;
 }
@@ -19,13 +20,16 @@ static int scene_vehicle_checkpoint_capture(scene_stream *s,void *blob,uint32_t 
     if(record.value.vehicle.player_occupied && !record.value.vehicle.alive)return RF_RANGE;
     if(record.profile==1)status=rf_vehicle_checkpoint_encode(&record.value.vehicle,blob,128);
     else if(record.profile==2)status=rf_apc_checkpoint_encode(&record.value.apc,blob,128);
+    else if(record.profile==5)status=rf_fighter_checkpoint_encode(&record.value.fighter,blob,160);
     else status=rf_jeep_checkpoint_encode(&record.value.jeep,blob,160);
-    if(!status)*bytes=record.profile==3?160:128;
+    if(!status)*bytes=(record.profile==3 || record.profile==5)?160:128;
     return status;
 }
 static int scene_vehicle_checkpoint_physics(const scene_stream *s,const rf_vehicle_checkpoint *r,scene_driller_physics *out)
 {
     if(rf_scene_vehicle_enabled==1)return scene_driller_physics_initialize(s->driller,r->position,r->orientation,scene_gravity.acceleration,out);
+    if(rf_scene_vehicle_enabled==5)return scene_vehicle_body_physics_initialize("Fighter01",
+        &s->driller->physics,&s->driller->movement,&s->driller->rotation,&s->driller->render,r->position,r->orientation,0,out);
     return scene_ground_vehicle_physics_initialize(rf_scene_vehicle_enabled==2?"APC":"Jeep01",
         &s->driller->physics,&s->driller->movement,&s->driller->rotation,&s->driller->render,r->position,r->orientation,scene_gravity.acceleration,out);
 }
@@ -45,19 +49,22 @@ static int scene_vehicle_checkpoint_read(scene_stream *s,const void *blob,uint32
     if(record.profile==1)status=rf_vehicle_checkpoint_decode(blob,bytes,&record.value.vehicle);
     else if(record.profile==2)status=rf_apc_checkpoint_decode(blob,bytes,&record.value.apc);
     else if(record.profile==3)status=rf_jeep_checkpoint_decode(blob,bytes,&record.value.jeep);
+    else if(record.profile==5)status=rf_fighter_checkpoint_decode(blob,bytes,&record.value.fighter);
     else return RF_FORMAT;
     if(status)return status;
     if(record.value.vehicle.player_occupied && !record.value.vehicle.alive)return RF_FORMAT;
     status=scene_vehicle_checkpoint_physics(s,&record.value.vehicle,&physics);if(status)return status;
     if(record.profile==1)status=scene_driller_checkpoint_stage_rigid(&physics.state,&record.value.vehicle,&staged);
     else if(record.profile==2)status=scene_apc_checkpoint_stage_rigid(&physics.state,&record.value.apc,&combat);
+    else if(record.profile==5)status=scene_vehicle_combat_stage_validated(&physics.state,&record.value.vehicle,&staged);
     else status=scene_jeep_checkpoint_stage_rigid(&physics.state,&record.value.jeep,&combat);
     if(status)return status;
     /* Loading while on foot must reject transient live combat BEFORE the
      * terrain/player transaction publishes anything. Match final admission. */
     if(record.profile>=2 && s->driller_runtime && !scene_driller_active(s)){
-        combat.vehicle.player_occupied=0;
-        status=scene_vehicle_combat_parked_admit(s,&combat);if(status)return status;
+        if(record.profile==5)status=scene_fighter_checkpoint_admit_parked(s);
+        else {combat.vehicle.player_occupied=0;status=scene_vehicle_combat_parked_admit(s,&combat);}
+        if(status)return status;
     }
     *out=record;return RF_OK;
 }
@@ -105,6 +112,7 @@ static int scene_vehicle_checkpoint_player_placement(const scene_stream *s,const
     if(r->profile==1)return scene_driller_checkpoint_seat_prepare(s,&r->value.vehicle,player,out);
     if(r->profile==2)return scene_apc_checkpoint_seat_prepare(s,&r->value.apc,player,out,scratch);
     if(r->profile==3)return scene_jeep_checkpoint_seat_prepare(s,&r->value.jeep,player,out,scratch);
+    if(r->profile==5)return scene_vehicle_combat_seat_prepare(s,&r->value.fighter.vehicle,player,"Fighter01.v3m","interface_1",NULL,0,out,scratch);
     return RF_FORMAT;
 }
 static int scene_vehicle_checkpoint_publish(scene_stream *s)
@@ -115,6 +123,7 @@ static int scene_vehicle_checkpoint_publish(scene_stream *s)
     status=scene_vehicle_checkpoint_valid(saved);if(status)return status;
     if(saved->profile==1){rf_vehicle_checkpoint parked=*v;parked.player_occupied=0;
         status=scene_driller_checkpoint_apply_parked(s,&parked);
+    }else if(saved->profile==5){status=scene_fighter_checkpoint_apply_live(s,&saved->value.fighter);
     }else{
         if(saved->profile==2)status=scene_apc_checkpoint_stage_rigid(&s->driller_runtime->physics.state,&saved->value.apc,&combat);
         else status=scene_jeep_checkpoint_stage_rigid(&s->driller_runtime->physics.state,&saved->value.jeep,&combat);
@@ -136,9 +145,12 @@ static int scene_vehicle_checkpoint_publish(scene_stream *s)
             if(saved->value.jeep.role)memcpy(scene_actor_body.state.orientation,saved->value.jeep.aim_reference,36);
         }
         status=saved->profile==1?scene_driller_checkpoint_restore_occupancy(s,v):scene_driller_checkpoint_restore_occupancy_validated(s,v);if(status)return status;
-        if(saved->profile>=2){s->apc_aim.angles[0]=combat.aim_pitch;s->apc_aim.angles[1]=combat.aim_yaw;
+        if(saved->profile==2 || saved->profile==3){s->apc_aim.angles[0]=combat.aim_pitch;s->apc_aim.angles[1]=combat.aim_yaw;
             s->apc_aim.angles[2]=0;s->apc_aim_active=1;}
     }
+    if(saved->profile==5)printf("FIGHTER_SAVE_RESTORE ammo%d/%d cooldown%.9g/%.9g shots%u/%u\n",
+        s->fighter_weapon.primary_reserve,s->fighter_weapon.rocket_reserve,s->fighter_weapon.primary_fire.cooldown,
+        s->fighter_weapon.rocket_fire.cooldown,s->fighter_weapon.primary_fire.shots,s->fighter_weapon.rocket_fire.shots);
     printf("VEHICLE_SAVE_RESTORE profile%u ammo%d/%d role%u aim%.9g,%.9g\n",saved->profile,
         s->apc_primary.reserve,s->apc_secondary.reserve,s->driller_runtime->jeep_seat.role,
         s->apc_aim.angles[0],s->apc_aim.angles[1]);

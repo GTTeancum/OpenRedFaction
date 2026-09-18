@@ -43,7 +43,8 @@ int rf_player_checkpoint_seated_validate(const rf_player_checkpoint *,const rf_p
 int rf_player_checkpoint_seated_encode(const rf_player_checkpoint *,const rf_player_checkpoint_catalog *,const rf_vehicle_checkpoint *,void *,uint32_t);
 int rf_player_checkpoint_seated_decode(const void *,uint32_t,const rf_player_checkpoint_catalog *,const rf_vehicle_checkpoint *,rf_player_checkpoint *);
 /* Explicit class-aware pairing. profile1 record is rf_vehicle_checkpoint,
- * profile2 rf_apc_checkpoint, profile3 rf_jeep_checkpoint, profile4 rf_submarine_checkpoint (headers named after
+ * profile2 rf_apc_checkpoint, profile3 rf_jeep_checkpoint, profile4 rf_submarine_checkpoint,
+ * profile5 rf_fighter_checkpoint (headers named after
  * those types). Caller must pass the corresponding complete typed object;
  * never reinterpret a base vehicle pointer as a larger profile. Each actual
  * class validator runs, without health normalization. Unknown profiles reject.

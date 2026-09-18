@@ -84,7 +84,7 @@ static int scene_fighter_checkpoint_capture_state(const scene_fighter_checkpoint
     status=scene_fighter_checkpoint_validate(&value);if(status)return status;
     *out=value;return RF_OK;
 }
-static int scene_fighter_checkpoint_stage(const scene_fighter_checkpoint_live *live,
+static inline int scene_fighter_checkpoint_stage(const scene_fighter_checkpoint_live *live,
     const scene_fighter_checkpoint_record *record,const scene_fighter_checkpoint_backend *backend,
     scene_fighter_checkpoint_candidate *out)
 {

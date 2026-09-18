@@ -5,6 +5,7 @@
 #include "rf/apc_checkpoint.h"
 #include "rf/jeep_checkpoint.h"
 #include "rf/submarine_checkpoint.h"
+#include "rf/fighter_checkpoint.h"
 #include <string.h>
 static uint32_t read32(const unsigned char *p)
 {return (uint32_t)p[0]|((uint32_t)p[1]<<8)|((uint32_t)p[2]<<16)|((uint32_t)p[3]<<24);}
@@ -103,7 +104,7 @@ int rf_composed_checkpoint_preflight_v2(const void *data,uint32_t bytes,uint32_t
 }
 
 typedef union composed_vehicle_candidate {
-    rf_vehicle_checkpoint driller;rf_apc_checkpoint apc;rf_jeep_checkpoint jeep;rf_submarine_checkpoint submarine;
+    rf_vehicle_checkpoint driller;rf_apc_checkpoint apc;rf_jeep_checkpoint jeep;rf_submarine_checkpoint submarine;rf_fighter_checkpoint fighter;
 } composed_vehicle_candidate;
 static int composed_vehicle_decode(const void *data,uint32_t bytes,composed_vehicle_candidate *candidate,
     uint32_t *profile,uint32_t *occupied,const void **record)
@@ -117,6 +118,7 @@ static int composed_vehicle_decode(const void *data,uint32_t bytes,composed_vehi
     case 2:status=rf_apc_checkpoint_decode(data,bytes,&candidate->apc);value=&candidate->apc;break;
     case 3:status=rf_jeep_checkpoint_decode(data,bytes,&candidate->jeep);value=&candidate->jeep;break;
     case 4:status=rf_submarine_checkpoint_decode(data,bytes,&candidate->submarine);value=&candidate->submarine;break;
+    case 5:status=rf_fighter_checkpoint_decode(data,bytes,&candidate->fighter);value=&candidate->fighter;break;
     default:return RF_FORMAT;
     }
     if(status)return status;

@@ -63,12 +63,13 @@ int rf_composed_checkpoint_preflight_v2(const void *,uint32_t bytes,uint32_t pro
 typedef struct rf_composed_checkpoint_v3 {
     rf_composed_checkpoint_v2 base;
     const unsigned char *vehicle;uint32_t vehicle_bytes;
-    uint32_t vehicle_profile; /*0 absent,1 Driller,2 APC,3 Jeep,4 submarine; validated RFVC class*/
+    uint32_t vehicle_profile; /*0 absent,1 Driller,2 APC,3 Jeep,4 submarine,5 fighter; validated RFVC class*/
 } rf_composed_checkpoint_v3;
 /* RFCP3 retains the32-byte header and RFPL/RFDS/RFRM offsets. Word12 now
  * contains optional RFVC length (0,128 or160); RFVC follows RFRM. New preflight
  * accepts RFCP1/2 as vehicle-absent; old APIs deliberately reject RFCP3.
- * Actual class decoders enforce RFVC1/Driller128, RFVC2/APC128, RFVC3/Jeep160 and RFVC4/submarine128.
+ * Actual class decoders enforce RFVC1/Driller128, RFVC2/APC128, RFVC3/Jeep160,
+ * RFVC4/submarine128 and RFVC5/fighter160.
  * Crossed version/class/size rejects. RFVC checksum and value ranges are checked, but class/world identity,
  * clearance, occupancy and player binding remain transactional caller gates.
  * Occupied RFVC requires RFPL3 seated encoding; absent/unoccupied RFVC requires
