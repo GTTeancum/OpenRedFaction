@@ -1,5 +1,6 @@
 #ifndef RF_SCENE_EXTRA_PICKUPS_INCLUDED
 #define RF_SCENE_EXTRA_PICKUPS_INCLUDED
+#include "scene_pickup_shared_ammo.inc"
 /* Append these names to the existing pickup resource catalog; do not assign
  * fake player-view slots. Installed Undercover has no dedicated pickup and
  * uses handgun 12mm reserve. Machine Pistol Special uses Assault Rifle's AP
@@ -68,6 +69,6 @@ static int scene_extra_pickup_grant(const char *name,const rf_item_definition *i
     weapon=rf_weapon_name_find(&supply->names,item->weapon);
     if(weapon<0)return RF_NOT_FOUND;
     if(weapon>=64 || (uint32_t)weapon>=supply->names.count)return RF_RANGE;
-    return rf_weapon_pickup_grant_sp(inventory,supply->definitions+weapon,weapon,quantity,item->gives_weapon,grant);
+    return scene_pickup_shared_ammo_grant(inventory,supply,weapon,quantity,item->gives_weapon,grant);
 }
 #endif

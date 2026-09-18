@@ -7,9 +7,9 @@ static rf_geometry_collision_world world;
 static scene_pickup_resource resources[SCENE_PICKUP_CLASSES-1];
 int main(void)
 {
-    rf_vpp tables={0};rf_level_item items[7]={{0}};uint8_t taken[7]={0};uint32_t slots[7]={0},i;
-    const char *names[]={"Remote Charges","Sniper Rifle",".50cal_ammo","rail gun","railgun_bolts","flamethrower","Napalm"};
-    const int quantities[]={3,6,6,8,8,100,100};float eye[3]={0,1,0};rf_weapon_inventory before;
+    rf_vpp tables={0};rf_level_item items[13]={{0}};uint8_t taken[13]={0};uint32_t slots[13]={0},i;
+    const char *names[]={"Remote Charges","Sniper Rifle",".50cal_ammo","rail gun","railgun_bolts","flamethrower","Napalm","Machine Pistol","heavy machine gun","scope assault rifle","7.62mm_ammo","explosive 5.56mm rounds","12mm_ammo"};
+    const int quantities[]={3,6,6,8,8,100,100,32,99,20,99,20,32};float eye[3]={0,1,0};rf_weapon_inventory before;
     CHECK(rf_vpp_open(&tables,"Installed_Game/tables.vpp")==RF_OK);
     CHECK(rf_weapon_supply_load(&tables,128*1024,&campaign_weapon_supply)==RF_OK);
     campaign_pistol_id=rf_weapon_name_find(&campaign_weapon_supply.names,"12mm handgun");
@@ -24,13 +24,16 @@ int main(void)
     campaign_flame_id=rf_weapon_name_find(&campaign_weapon_supply.names,"Flamethrower");
     CHECK(campaign_flame_id>=0);
     CHECK(campaign_remote_id>=0 && campaign_sniper_id>=0 && campaign_rail_id>=0);
-    stream.collision=&world;stream.pickups.items=items;stream.pickups.count=7;
+    campaign_player_inventory.owned[campaign_pistol_id]=1;campaign_player_inventory.loaded[campaign_pistol_id]=16;
+    campaign_player_inventory.reserve[campaign_weapon_supply.definitions[campaign_pistol_id].ammo_type]=125;
+    stream.collision=&world;stream.pickups.items=items;stream.pickups.count=13;
     stream.pickup_taken=taken;stream.pickup_slots=slots;stream.pickup_resources=resources;
-    for(i=0;i<7;i++) {
+    for(i=0;i<13;i++) {
         int kind=pickup_class(names[i]);CHECK(kind>0);
         strcpy(items[i].class_name,names[i]);items[i].uid=100+i;items[i].quantity=quantities[i];items[i].position[0]=1;
         CHECK(rf_item_definition_load(&tables,names[i],128*1024,&resources[kind-1].definition)==RF_OK);
     }
+    for(i=0;i<4;i++)campaign_extra_ids[i]=rf_weapon_name_find(&campaign_weapon_supply.names,campaign_weapon_names[13+i]);
     rf_vpp_close(&tables);campaign_player_damage.state.effects.health=100;
     strcpy(campaign_current_level,"pickup_test.rfl");campaign_equipped_slot=0;
     CHECK(campaign_pickups_restore(&stream)==RF_OK);
@@ -43,11 +46,17 @@ int main(void)
     CHECK(campaign_player_inventory.reserve[campaign_weapon_supply.definitions[campaign_rail_id].ammo_type]==campaign_weapon_supply.definitions[campaign_rail_id].capacity);
     CHECK(campaign_player_inventory.owned[campaign_flame_id] && campaign_player_inventory.loaded[campaign_flame_id]==100);
     CHECK(campaign_player_inventory.reserve[campaign_weapon_supply.definitions[campaign_flame_id].ammo_type]==100);
-    for(i=0;i<7;i++)CHECK(taken[i] && rf_scene_campaign_pickups.items[slots[i]].retired);
+    CHECK(campaign_player_inventory.owned[campaign_extra_ids[0]] && campaign_player_inventory.loaded[campaign_extra_ids[0]]==30);
+    CHECK(campaign_player_inventory.owned[campaign_extra_ids[1]] && campaign_player_inventory.loaded[campaign_extra_ids[1]]==99);
+    CHECK(campaign_player_inventory.reserve[campaign_weapon_supply.definitions[campaign_extra_ids[1]].ammo_type]==99);
+    CHECK(campaign_player_inventory.owned[campaign_extra_ids[2]] && campaign_player_inventory.loaded[campaign_extra_ids[2]]==20);
+    CHECK(campaign_player_inventory.reserve[campaign_weapon_supply.definitions[campaign_extra_ids[2]].ammo_type]==20);
+    for(i=0;i<13;i++)CHECK(taken[i] && rf_scene_campaign_pickups.items[slots[i]].retired);
+    CHECK(campaign_player_inventory.reserve[campaign_weapon_supply.definitions[campaign_pistol_id].ammo_type]==159);
     before=campaign_player_inventory;
     CHECK(campaign_pickups_tick(&stream,eye)==RF_OK && !memcmp(&before,&campaign_player_inventory,sizeof(before)));
     memset(taken,0,sizeof(taken));CHECK(campaign_pickups_restore(&stream)==RF_OK);
-    for(i=0;i<7;i++)CHECK(taken[i]);
+    for(i=0;i<13;i++)CHECK(taken[i]);
     CHECK(campaign_pickups_tick(&stream,eye)==RF_OK && !memcmp(&before,&campaign_player_inventory,sizeof(before)));
-    puts("Actual scene pickup collection grants remote3, sniper/rail weapon+ammo, retires once and restores retirement");return 0;
+    puts("Actual scene pickup collection grants legacy plus MP/HMG/scoped weapon and ammo, retires once and restores retirement");return 0;
 }

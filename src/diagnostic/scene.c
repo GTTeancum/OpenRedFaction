@@ -556,14 +556,22 @@ typedef struct scene_particle_workspace {
 } scene_particle_workspace;
 enum { SCENE_WEAPON_SLOTS=18, SCENE_ROCKETS=50, SCENE_RIPPLES=16 };
 uint32_t rf_scene_player_shield_resources,rf_scene_fusion_enabled,rf_scene_firearms_enabled;
-static uint32_t scene_weapon_slots(void){return rf_scene_dev_room_enabled && rf_scene_firearms_enabled?17:rf_scene_dev_room_enabled && rf_scene_fusion_enabled?13:rf_scene_player_shield_resources || (rf_scene_dev_room_enabled && rf_scene_dev_npc_enabled==6)?12:rf_scene_dev_room_enabled?11:4;}
-static uint32_t scene_weapon_resource_slots(void){return rf_scene_dev_room_enabled && rf_scene_firearms_enabled?18:scene_weapon_slots();}
+static uint32_t scene_extra_pickups_available(uint32_t);
+static uint32_t scene_extra_pickups_selection_limit(void);
+static uint32_t scene_extra_pickups_resource_limit(void);
+static uint32_t scene_weapon_slots(void){uint32_t base=rf_scene_dev_room_enabled && rf_scene_firearms_enabled?17:rf_scene_dev_room_enabled && rf_scene_fusion_enabled?13:rf_scene_player_shield_resources || (rf_scene_dev_room_enabled && rf_scene_dev_npc_enabled==6)?12:rf_scene_dev_room_enabled?11:4;
+    uint32_t extra=scene_extra_pickups_selection_limit();return base>extra?base:extra;}
+static uint32_t scene_weapon_resource_slots(void){uint32_t base=rf_scene_dev_room_enabled && rf_scene_firearms_enabled?18:scene_weapon_slots();
+    uint32_t extra=scene_extra_pickups_resource_limit();return base>extra?base:extra;}
 static uint32_t scene_weapon_available(uint32_t slot){return slot<(rf_scene_dev_room_enabled && !rf_scene_firearms_enabled?11u:4u) ||
     (slot==11 && (rf_scene_player_shield_resources || (rf_scene_dev_room_enabled && rf_scene_dev_npc_enabled==6))) ||
     (slot==12 && rf_scene_dev_room_enabled && rf_scene_fusion_enabled) ||
-    (slot>=13 && slot<=17 && rf_scene_dev_room_enabled && rf_scene_firearms_enabled);}
+    (slot>=13 && slot<=17 && rf_scene_dev_room_enabled && rf_scene_firearms_enabled) || scene_extra_pickups_available(slot);}
 static const char *campaign_weapon_names[SCENE_WEAPON_SLOTS]={"12mm handgun","Assault Rifle","Riot Stick","Shotgun","Rocket Launcher","Grenade","Sniper Rifle","rail_gun","Remote Charge","Remote Charge Detonator","Flamethrower","riot shield","shoulder_cannon","Machine Pistol","heavy_machine_gun","scope_assault_rifle","Undercover 12mm handgun","Machine Pistol Special"};
 #include "scene_pickup_class_names.inc"
+#include "scene_extra_pickups.inc"
+static int scene_extra_pickups_collect(const rf_level_item *,const rf_item_definition *,rf_weapon_pickup_grant *,uint32_t *);
+static int scene_extra_pickups_resource_validate(const char *,const rf_item_definition *,uint32_t *);
 typedef struct scene_pickup_resource {
     rf_item_definition definition;rf_static_render_resource model;rf_model_materials materials;
     uint32_t base,textures,resident,peak;
@@ -1907,6 +1915,7 @@ static rf_weapon_inventory campaign_player_inventory;static int32_t campaign_pis
 static rf_campaign_player_state campaign_player_import,campaign_player_export;
 static uint32_t campaign_import_pending,campaign_export_valid;
 static uint32_t campaign_explicit_unarmed,campaign_import_applied;
+#include "scene_machine_pistol_carry_gameplay.inc"
 int rf_scene_campaign_player_get(rf_campaign_player_state *state)
 {
     if(!campaign_export_valid)return RF_NOT_FOUND;
@@ -1924,9 +1933,9 @@ int rf_scene_campaign_pose_get(float position[3],float orientation[9])
 int rf_scene_campaign_player_set(const rf_campaign_player_state *state)
 {
     int status;
-    if(!state){campaign_import_pending=0;return RF_OK;}
+    if(!state){campaign_import_pending=0;scene_machine_carry_reset();return RF_OK;}
     status=rf_campaign_player_copy(&campaign_player_import,state,state->catalog_hash);
-    if(!status)campaign_import_pending=1;return status;
+    if(!status){campaign_import_pending=1;scene_machine_carry_stage();}return status;
 }
 
 uint32_t rf_scene_player_ammo[8]; /* weapon,reserve,loaded,transferred,reloads,denied,owner bytes,status */
@@ -8953,7 +8962,7 @@ static int campaign_apply_item_grant(const campaign_item_grant *request)
     int32_t quantity=campaign_item_charge(request->weapon,request->quantity,request->gives_weapon);
     rf_weapon_pickup_grant grant={0};int status=request->weapon==campaign_shield_id?
         scene_player_shield_pickup_grant(&campaign_player_inventory,d,request->weapon,quantity,request->gives_weapon,&grant):
-        rf_weapon_pickup_grant_sp(&campaign_player_inventory,d,request->weapon,quantity,request->gives_weapon,&grant);
+        scene_pickup_shared_ammo_grant(&campaign_player_inventory,&campaign_weapon_supply,request->weapon,quantity,request->gives_weapon,&grant);
     rf_scene_script_grants[7]=(uint32_t)status;if(status)return status;
     ++rf_scene_script_grants[0];rf_scene_script_grants[1]+=grant.acquired;rf_scene_script_grants[2]+=grant.rounds;
     rf_scene_script_grants[3]=(uint32_t)request->weapon;rf_scene_script_grants[4]=campaign_player_inventory.owned[request->weapon];
@@ -9391,7 +9400,7 @@ static int campaign_weapon_drops_tick(scene_stream *stream,const float eye[3])
             if(distance<=4) {
                 status=combat_shot_obstructed(stream,eye,delta,1,&blocked);if(status)return status;
                 if(!blocked) {
-                    status=rf_weapon_pickup_grant_sp(&campaign_player_inventory,campaign_weapon_supply.definitions+drop->weapon,
+                    status=scene_pickup_shared_ammo_grant(&campaign_player_inventory,&campaign_weapon_supply,
                         drop->weapon,drop->quantity,1,&grant);if(status)return status;
                     if(grant.acquired || grant.rounds) {
                         drop->state=2;++rf_scene_weapon_drops[1];rf_scene_weapon_drops[2]+=grant.rounds;
@@ -9415,7 +9424,7 @@ static int campaign_pickups_tick(scene_stream *stream,const float eye[3])
         definition=kind?&stream->pickup_resources[kind-1].definition:&stream->handgun_pickup;if(definition->flags&1)continue;
         for(k=0;k<3;k++){float d=item->position[k]-scene_actor_body.state.position[k];distance+=d*d;delta[k]=item->position[k]-eye[k];}
         if(distance>4)continue;++rf_scene_pickups[1];
-        status=combat_shot_obstructed(stream,eye,delta,1,&blocked);if(status)return status;
+        status=combat_shot_obstructed(stream,eye,delta,1,&blocked);if(status){printf("PICKUP_COVER_ERROR %u %d\n",item->uid,status);return status;}
         if(blocked){++rf_scene_pickups[2];continue;}
         if(item->quantity<0)return RF_FORMAT;
         if(kind==1 || kind==2 || kind==SCENE_PICKUP_FIRST_AID) {
@@ -9423,15 +9432,17 @@ static int campaign_pickups_tick(scene_stream *stream,const float eye[3])
             restored=pickup_restore(kind==2?&campaign_player_damage.state.effects.armor:&campaign_player_damage.state.effects.health,item->quantity);
             if(restored<=0)continue;memcpy(&total,rf_scene_pickup_vitals+vital,4);total+=restored;memcpy(rf_scene_pickup_vitals+vital,&total,4);
         } else {
-            int32_t slot=scene_pickup_weapon_slot(kind),id;
+            uint32_t extra_handled=0;
+            status=scene_extra_pickups_collect(item,definition,&grant,&extra_handled);if(status){printf("PICKUP_GRANT_ERROR %u %s %d quantity%d\n",item->uid,item->class_name,status,item->quantity);return status;}
+            if(!extra_handled){int32_t slot=scene_pickup_weapon_slot(kind),id;
             if(slot<0)return RF_FORMAT;id=campaign_slot_weapon((uint32_t)slot);
             if(id<0 || id>=64)return RF_FORMAT;
             status=id==campaign_shield_id?
                 scene_player_shield_pickup_grant(&campaign_player_inventory,campaign_weapon_supply.definitions+id,
                     id,item->quantity,definition->gives_weapon,&grant):
-                rf_weapon_pickup_grant_sp(&campaign_player_inventory,campaign_weapon_supply.definitions+id,
-                    id,campaign_item_charge(id,item->quantity,definition->gives_weapon),definition->gives_weapon,&grant);if(status)return status;
-            if(id==campaign_shield_id){status=scene_player_shield_damage_sync();if(status)return status;}
+                scene_pickup_shared_ammo_grant(&campaign_player_inventory,&campaign_weapon_supply,
+                    id,campaign_item_charge(id,item->quantity,definition->gives_weapon),definition->gives_weapon,&grant);if(status){printf("PICKUP_LEGACY_ERROR %u %s kind%d slot%d id%d quantity%d status%d\n",item->uid,item->class_name,kind,slot,id,item->quantity,status);return status;}
+            if(id==campaign_shield_id){status=scene_player_shield_damage_sync();if(status)return status;}}
             if(!grant.rounds && !grant.acquired)continue;
         }
         stream->pickup_taken[i]=1;rf_scene_campaign_pickups.items[stream->pickup_slots[i]].retired=1;
@@ -12311,6 +12322,10 @@ static int campaign_player_import_apply(void)
     else for(i=0;i<scene_weapon_slots();i++)if(scene_weapon_available(i) && imported.weapon==(uint32_t)campaign_slot_weapon(i)){slot=i;found=1;break;}
     if(!found)return RF_FORMAT;
     campaign_player_inventory=imported.inventory;
+    status=scene_machine_carry_apply(&imported,scene_actor_collision_owner &&
+        scene_actor_collision_owner->player_weapon[13] && scene_actor_collision_owner->player_weapon[17] &&
+        scene_actor_collision_owner->machine_custom[0] && scene_actor_collision_owner->machine_custom[1],!!player_input.alt_fire);
+    if(status)return status;
     campaign_player_damage.state.effects.health=imported.health;
     campaign_player_damage.state.effects.armor=imported.armor;
     campaign_select_primary(slot);campaign_explicit_unarmed=imported.weapon==UINT32_MAX;
@@ -12324,6 +12339,7 @@ static void campaign_player_export_capture(void)
     state.weapon=!campaign_explicit_unarmed && campaign_player_inventory.owned[campaign_slot_weapon(campaign_equipped_slot)]?(uint32_t)campaign_slot_weapon(campaign_equipped_slot):UINT32_MAX;
     state.catalog_hash=rf_scene_weapon_supply[3];
     campaign_export_valid=rf_campaign_player_copy(&campaign_player_export,&state,state.catalog_hash)==RF_OK;
+    scene_machine_carry_export();
 }
 static uint32_t campaign_cycle_primary(void)
 {
@@ -12480,7 +12496,7 @@ static int campaign_combat_tick(scene_stream *stream,uint32_t frame,const float 
     status=scene_terrain_input(stream,position,orientation);if(status)return status;
     status=scene_rockets_tick(stream,frame);rf_scene_rockets[7]=(uint32_t)status;if(status)return status;
     status=campaign_weapon_drops_tick(stream,position);rf_scene_weapon_drops[7]=(uint32_t)status;if(status)return status;
-    status=campaign_pickups_tick(stream,position);rf_scene_pickups[7]=(uint32_t)status;if(status)return status;
+    status=campaign_pickups_tick(stream,position);rf_scene_pickups[7]=(uint32_t)status;if(status){printf("PICKUP_ERROR %u %d\n",frame,status);return status;}
     if(player_input.cycle_weapon && !weapon_cycle_held && campaign_player_damage.state.effects.health>0) {
         if(campaign_cycle_primary()) {
             memset(&combat_trigger,0,sizeof(combat_trigger));combat_trigger.held=!!player_input.fire;
@@ -12549,7 +12565,7 @@ static int campaign_combat_tick(scene_stream *stream,uint32_t frame,const float 
     if(campaign_equipped_slot==16 && stream->undercover && !scene_undercover_mode_can_fire(&stream->undercover->mode))return RF_OK;
     if(campaign_equipped_slot==11 || campaign_explicit_unarmed || !campaign_player_inventory.owned[campaign_slot_weapon(campaign_equipped_slot)])return RF_OK;
     alt=(campaign_equipped_slot==1 || campaign_equipped_slot==2 || campaign_equipped_slot==3 || campaign_equipped_slot==14) && player_input.alt_fire && !player_input.fire;
-    if(campaign_equipped_slot>=13 && campaign_equipped_slot<=15){status=scene_conventional_fire_select(campaign_equipped_slot-13,&campaign_pistol,!!player_input.fire,!!player_input.alt_fire,&conventional);if(status)return status;}
+    if(campaign_equipped_slot>=13 && campaign_equipped_slot<=15){status=scene_conventional_fire_select(campaign_equipped_slot-13,&campaign_pistol,!!player_input.fire,!!player_input.alt_fire,&conventional);if(status){printf("FIRE_POLICY_ERROR %u %u %d damage%g fire%g burst%u seconds%g\n",frame,campaign_equipped_slot,status,(double)campaign_pistol.damage,(double)campaign_pistol.fire_seconds,campaign_pistol.burst_count,(double)campaign_pistol.burst_seconds);return status;}}
     /* Rifle alternate is authored continuous fire, not the primary burst.
      * Switching to it cancels pending burst rounds but retains cooldown. */
     if(alt && campaign_equipped_slot==1) {
@@ -15614,7 +15630,9 @@ static int scene_pickup_resources_open(scene_stream *stream,const char *tables_p
         for(i=0;i<stream->pickups.count;i++)if(pickup_class(stream->pickups.items[i].class_name)==(int)kind)count++;
         if(!count)continue;
         status=rf_item_definition_load(&tables,pickup_classes[kind],128*1024,&r->definition);if(status)goto done;
-        if(r->definition.mesh_kind!=1 || (kind>=3 && kind!=SCENE_PICKUP_FIRST_AID && (rf_weapon_name_find(&campaign_weapon_supply.names,r->definition.weapon)<0 || rf_weapon_name_find(&campaign_weapon_supply.names,r->definition.weapon)!=rf_weapon_name_find(&campaign_weapon_supply.names,campaign_weapon_names[scene_pickup_weapon_slot((int)kind)])))){status=RF_FORMAT;goto done;}
+        {uint32_t extra_handled=0;
+         status=scene_extra_pickups_resource_validate(pickup_classes[kind],&r->definition,&extra_handled);if(status)goto done;
+         if(!extra_handled && (r->definition.mesh_kind!=1 || (kind>=3 && kind!=SCENE_PICKUP_FIRST_AID && (rf_weapon_name_find(&campaign_weapon_supply.names,r->definition.weapon)<0 || rf_weapon_name_find(&campaign_weapon_supply.names,r->definition.weapon)!=rf_weapon_name_find(&campaign_weapon_supply.names,campaign_weapon_names[scene_pickup_weapon_slot((int)kind)]))))){status=RF_FORMAT;goto done;}}
         status=rf_model_compiled_filename(r->definition.mesh,compiled,".v3m");if(status)goto done;
         status=rf_model_file_open(file,meshes,compiled);if(status)goto done;
         status=rf_static_render_resource_open(file,budget-used,&r->model);if(status)goto done;used+=r->model.allocated_bytes;
@@ -15670,8 +15688,7 @@ static int scene_dev_npc_seeds(const char *tables_path,rf_vpp *tables)
     return RF_OK;
 }
 #include "scene_weapon_resource_demand.inc"
-static int scene_weapon_demand_resolve(void *context,const char *name,rf_item_definition *out)
-{return rf_item_definition_load((rf_vpp *)context,name,128*1024,out);}
+#include "scene_extra_pickups_gameplay.inc"
 static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path,
     const char *motions_path,const char *tables_path,rf_vpp *maps,uint32_t map_count,
     rf_preview_mesh *mesh,rf_materials *materials,uint32_t mesh_budget,uint32_t material_budget,
@@ -15682,6 +15699,7 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
     rf_animation_placement placement;rf_preview_mesh actor={0};rf_model_materials bundle={0};
     rf_preview_vertex *vertices=NULL;rf_material *items=NULL;const char *names[64];
     uint64_t bytes,count,capacity;uint32_t i;int status;scene_stream *stream;
+    scene_extra_pickups_resources_reset();
     if(!level || !mesh || !materials || !mesh->vertices || !materials->items ||
        mesh->count%3 || mesh->bytes!=(uint64_t)mesh->count*sizeof(*mesh->vertices) ||
        materials->allocated_bytes>=material_budget)return RF_RANGE;
@@ -15784,7 +15802,7 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
             if(status)goto done;
             if(rf_scene_follow_level_exits && rf_scene_level_transition.pending)
                 status=rf_campaign_goals_next_section(&rf_scene_mission_goals);
-            else {scene_player_shield_damage_reset();scene_npc_shield_history_reset();campaign_ai_modes_reset();campaign_event_history_reset();memset(&campaign_switch_history,0,sizeof(campaign_switch_history));memset(campaign_switch_saved,0,sizeof(campaign_switch_saved));memset(&campaign_trigger_history,0,sizeof(campaign_trigger_history));memset(&campaign_local_goals,0,sizeof(campaign_local_goals));memset(&campaign_startup_inventory,0,sizeof(campaign_startup_inventory));memset(&rf_scene_mission_goals,0,sizeof(rf_scene_mission_goals));memset(&rf_scene_campaign_pickups,0,sizeof(rf_scene_campaign_pickups));memset(&rf_scene_defeated_actors,0,sizeof(rf_scene_defeated_actors));}
+            else {scene_machine_carry_reset();scene_player_shield_damage_reset();scene_npc_shield_history_reset();campaign_ai_modes_reset();campaign_event_history_reset();memset(&campaign_switch_history,0,sizeof(campaign_switch_history));memset(campaign_switch_saved,0,sizeof(campaign_switch_saved));memset(&campaign_trigger_history,0,sizeof(campaign_trigger_history));memset(&campaign_local_goals,0,sizeof(campaign_local_goals));memset(&campaign_startup_inventory,0,sizeof(campaign_startup_inventory));memset(&rf_scene_mission_goals,0,sizeof(rf_scene_mission_goals));memset(&rf_scene_campaign_pickups,0,sizeof(rf_scene_campaign_pickups));memset(&rf_scene_defeated_actors,0,sizeof(rf_scene_defeated_actors));}
             if(!status)status=rf_runtime_goals_initialize(&campaign_events,&rf_scene_mission_goals);
             if(!status)status=rf_campaign_local_goals_restore(&campaign_local_goals,campaign_current_level,&rf_scene_mission_goals);
             if(status)goto done;
@@ -15959,10 +15977,7 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
             {rf_vpp tables={0};rf_weapon_view_definition view;
              status=rf_vpp_open(&tables,tables_path);if(status)goto done;
              {scene_weapon_resource_demand demand;
-              status=scene_weapon_resources_plan(rf_scene_dev_room_enabled?0x7ffu:0xfu,1u<<11,
-                  campaign_weapon_names,SCENE_WEAPON_SLOTS,&campaign_weapon_supply.names,
-                  campaign_import_pending?&campaign_player_import.inventory:NULL,&stream->pickups,&campaign_events.decoded,
-                  scene_weapon_demand_resolve,&tables,&demand);
+              status=scene_extra_pickups_resources_prepare(stream,&tables,rf_scene_dev_room_enabled?0x7ffu:0xfu,1u<<11,&demand);
               if(!status){rf_scene_player_shield_resources=!!(demand.mask&(1u<<11)) || (rf_scene_dev_room_enabled && rf_scene_dev_npc_enabled==6);
                   if(rf_scene_player_shield_resources)status=rf_weapon_primary_load(&tables,"riot shield",128*1024,&campaign_primary[11]);}}
              scene_machine_pistol_mode_reset(&campaign_machine_mode);memset(rf_scene_machine_mode,0,sizeof(rf_scene_machine_mode));
@@ -15974,12 +15989,8 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
                  if(!status)status=rf_player_weapon_open_view(&archive,&motions,maps,map_count,&view,(i==6?1280*1024:i==12?1152*1024:1024*1024+(i==1?8192:0)),&stream->player_weapon[i]);
                  if(!status && (i==10 || i==13 || i==14 || i==17))stream->player_weapon[i]->resources[1].looping=1;
              }
-             if(!status && rf_scene_dev_room_enabled && rf_scene_firearms_enabled){
-                 status=scene_machine_pistol_mode_timing(&motions,stream->machine_transition_ticks);
-                 if(!status)status=scene_weapon_custom_actions_open(stream->player_weapon[13],&motions,0,256*1024,&stream->machine_custom[0]);
-                 if(!status)status=scene_weapon_custom_actions_open(stream->player_weapon[17],&motions,1,256*1024,&stream->machine_custom[1]);
-                 if(!status)status=scene_undercover_open(stream,&archive,&motions,maps,map_count);
-             }
+             if(!status)status=scene_extra_pickups_machine_resources(stream,&motions);
+             if(!status && rf_scene_dev_room_enabled && rf_scene_firearms_enabled)status=scene_undercover_open(stream,&archive,&motions,maps,map_count);
              rf_vpp_close(&tables);if(status)goto done;}
             rf_scene_campaign_load_stage=27;status=campaign_weapon_hands_open();if(status)goto done;
             status=scene_npc_shields_load(tables_path);if(status)goto done;

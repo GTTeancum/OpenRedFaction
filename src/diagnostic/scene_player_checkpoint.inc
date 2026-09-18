@@ -30,6 +30,7 @@ static int scene_checkpoint_player_scope(const scene_stream *s,uint32_t live)
     if(campaign_fusion_id>=0 && campaign_player_inventory.owned[campaign_fusion_id])return RF_RANGE; /* Fusion live state is not in RFCP yet. */
     for(i=0;i<4;i++)if(campaign_extra_ids[i]>=0 && campaign_player_inventory.owned[campaign_extra_ids[i]])return RF_RANGE;
     if(scene_player_shield_damage_save_pending())return RF_RANGE;
+    if(scene_machine_carry_disk_pending())return RF_RANGE;
     if(campaign_shield_id>=0 && campaign_player_inventory.owned[campaign_shield_id])return RF_RANGE; /* Shield durability is not in RFCP yet. */
     if(!live)return RF_OK;
     if(campaign_player_damage.state.effects.health<=0||campaign_crouched||(rf_scene_actor_stance_flags&0x400u)||
@@ -129,6 +130,7 @@ static int scene_checkpoint_dispatch_restore(scene_stream *s,unsigned char *data
     scene_remote_checkpoint_publish();
     scene_actor_body.state=body;s->player_checkpoint_value=candidate.player;s->player_checkpoint_look=1;
     memcpy(s->actor_spawn,body.position,12);memcpy(campaign_position,body.position,12);memcpy(campaign_orientation,eye,36);
+    scene_machine_carry_reset();
     campaign_player_import=candidate.player.player;campaign_import_pending=1;campaign_item_pending_count=0;
     rf_scene_player_checkpoint_state[1]=1;rf_scene_player_checkpoint_state[5]=candidate.rfds_bytes;
     rf_scene_player_checkpoint_state[6]=scene_actor_body.spheres.count;
