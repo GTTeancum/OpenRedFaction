@@ -2,6 +2,9 @@
  * triangle/damage services; pose lookup/fallback are isolated scene seams. */
 #include "rf/entity_assets.h"
 #include "rf/entity.h"
+#ifdef NDEBUG
+#undef NDEBUG
+#endif
 #include <assert.h>
 #include <stdlib.h>
 #include <string.h>

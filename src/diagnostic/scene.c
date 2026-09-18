@@ -9066,6 +9066,7 @@ static float combat_enemy_primary_damage(const rf_weapon_primary_definition *def
 #include "scene_ai_broken_shield.inc"
 #include "scene_riot_shield_gameplay.inc"
 #include "scene_riot_shield_query.inc"
+#include "scene_riot_shield_body_order.inc"
 static int scene_npc_shields_load(const char *path)
 {
     rf_vpp archive={0};rf_vpp_entry entry;void *text=NULL;int status;
@@ -12492,12 +12493,17 @@ static int campaign_combat_tick(scene_stream *stream,uint32_t frame,const float 
     for(i=0;i<campaign_npc_body_count;i++) {
         campaign_npc_body *owner=campaign_npc_bodies+i;float fraction;
         if(!owner->registration.view || (owner->object_flags&(2|0x4000)) || !owner->body.allocated_bytes || owner->damage.effects.health<=0 || (owner->view.flags_810&1))continue;
+        float actor_limit=nearest;
         if(combat_body(position,delta,&owner->body,nearest,&fraction) && fraction<nearest){nearest=fraction;target=i;shield_selected=0;}
         if(scene_npc_shields.owners){
             float end[3];uint32_t hit;scene_npc_shield_candidate candidate;
             for(uint32_t k=0;k<3;k++)end[k]=position[k]+delta[k];
-            status=scene_npc_shield_query(i,position,end,nearest,&candidate,&hit);if(status)return status;
-            if(hit && candidate.hit.time<nearest){nearest=candidate.hit.time;target=i;shield_candidate=candidate;shield_selected=1;}
+            status=scene_npc_shield_query(i,position,end,actor_limit,&candidate,&hit);if(status)return status;
+            if(hit && target==i && nearest<candidate.hit.time){
+                uint32_t body_before;status=scene_npc_shield_body_before(&candidate,position,end,&body_before);if(status)return status;
+                if(body_before)hit=0;
+            }
+            if(hit && (target==i || candidate.hit.time<nearest)){nearest=candidate.hit.time;target=i;shield_candidate=candidate;shield_selected=1;}
         }
     }
     if(rf_scene_combat_trace) {
