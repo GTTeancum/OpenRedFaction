@@ -190,28 +190,30 @@ static int exercise_publication(const rf_geomod_authored_post *owner, const char
     rf_geomod_terrain_close(&terrain);
     return 0;
 }
-static int beam_source(const rf_level *level,const rf_geometry *geometry,const char *shape_path) {
+static int beam_source(const rf_level *level,const rf_geometry *geometry,const char *shape_path,uint32_t uid) {
+    uint32_t roof=uid==95?80:82,post_uid=uid-1;
     rf_geomod_authored_post *owner=NULL,*rejected=NULL;rf_geomod_authored_post_view a;
     rf_geomod_template shape;rf_geomod_terrain *terrain=NULL;rf_geomod_terrain_view view;
     rf_geomod_publication_job job={0};rf_geomod_publication_cut cut;rf_geomod_mesh_view output;
     rf_collision_face_filter generated;float center[3]={-4.75f,2.25f,0},basis[9]={1,0,0,0,1,0,0,0,1};
     uint32_t i,k;double roof_area=0;
-    CHECK(!rf_geomod_authored_post_open_source(level,geometry,95,2*1024*1024,&owner));
+    if(uid==98)center[0]+=11;
+    CHECK(!rf_geomod_authored_post_open_source(level,geometry,uid,2*1024*1024,&owner));
     CHECK(!rf_geomod_authored_post_get(owner,&a));
-    CHECK(a.source_uid==95 && a.windows.face_count==8 && a.source.face_count==6 && a.solid_count==3);
-    CHECK(a.neighbor_void_count==1 && a.neighbor_voids[0].owner==80 && a.neighbor_voids[0].count==5);
+    CHECK(a.source_uid==uid && a.windows.face_count==8 && a.source.face_count==6 && a.solid_count==3);
+    CHECK(a.neighbor_void_count==1 && a.neighbor_voids[0].owner==roof && a.neighbor_voids[0].count==5);
     CHECK(a.neighbor_filters);
     {
         rf_geomod_authored_post *post=NULL;rf_geomod_authored_post_view p;uint32_t j,matched=0;
-        CHECK(!rf_geomod_authored_post_open_source(level,geometry,94,2*1024*1024,&post));
+        CHECK(!rf_geomod_authored_post_open_source(level,geometry,post_uid,2*1024*1024,&post));
         CHECK(!rf_geomod_authored_post_get(post,&p));
-        for(i=0;i<a.neighbors.face_count;i++)if(a.neighbor_origins[i].owner==94) {
+        for(i=0;i<a.neighbors.face_count;i++)if(a.neighbor_origins[i].owner==post_uid) {
             for(j=0;j<p.source.face_count;j++)if(p.source_origins[j].source_face==a.neighbor_origins[i].source_face)break;
             CHECK(j<p.source.face_count);CHECK(!memcmp(a.neighbor_filters+i,p.source_filters+j,sizeof(*p.source_filters)));matched++;
         }
         CHECK(matched==6);rf_geomod_authored_post_close(&post);
     }
-    for(i=0;i<a.neighbors.face_count;i++)if(a.neighbor_origins[i].source_face==478) {
+    for(i=0;i<a.neighbors.face_count;i++)if(a.neighbor_origins[i].source_face==(uid==95?478u:498u)) {
         const rf_geomod_face *f=a.neighbors.faces+i;double area=0;
         for(k=0;k<f->count;k++) {
             const float *p=a.neighbors.vertices[f->first+k].position,*q=a.neighbors.vertices[f->first+(k+1)%f->count].position;
@@ -220,7 +222,7 @@ static int beam_source(const rf_level *level,const rf_geometry *geometry,const c
         roof_area+=fabs(area)*.5;
     }
     CHECK(fabs(roof_area-8)<1e-5);
-    CHECK(rf_geomod_authored_post_open_source(level,geometry,95,a.peak_bytes-1,&rejected)==RF_RANGE && !rejected);
+    CHECK(rf_geomod_authored_post_open_source(level,geometry,uid,a.peak_bytes-1,&rejected)==RF_RANGE && !rejected);
     generated=a.source_filters[0];
     CHECK(!rf_geomod_terrain_open(&a.source,a.source_filters,&generated,0,4096,768,1048576,&terrain));
     CHECK(!rf_geomod_template_load(shape_path,&shape));
@@ -231,11 +233,11 @@ static int beam_source(const rf_level *level,const rf_geometry *geometry,const c
     job.window_origins=a.window_origins;job.neighbor_origins=a.neighbor_origins;
     job.source_planes=a.source_planes;job.source_plane_count=a.source.face_count;
     job.solids=a.solids;job.solid_count=a.solid_count;job.neighbor_voids=a.neighbor_voids;job.neighbor_void_count=a.neighbor_void_count;
-    job.crater_origin=(rf_geomod_publication_origin){1,95,UINT32_MAX,a.replaced_ids[0]};job.cuts=&cut;job.cut_count=1;
+    job.crater_origin=(rf_geomod_publication_origin){1,uid,UINT32_MAX,a.replaced_ids[0]};job.cuts=&cut;job.cut_count=1;
     CHECK(!rf_geomod_publication_build(&job,&publication_work,output_vertices,4096,output_faces,768,output_origins,&output));
     CHECK(output.face_count>0);
     for(i=0;i<output.face_count;i++) {
-        CHECK(output_origins[i].kind!=2 || output_origins[i].owner!=80);
+        CHECK(output_origins[i].kind!=2 || output_origins[i].owner!=roof);
         CHECK(output_origins[i].reference!=UINT32_MAX);
     }
     printf("BEAM_LOADER resident%u peak%u neighbor_faces%u roof_area%.9g center_cut_faces%u\n",a.resident_bytes,a.peak_bytes,a.neighbors.face_count,roof_area,output.face_count);
@@ -252,7 +254,7 @@ static int beam_source(const rf_level *level,const rf_geometry *geometry,const c
             rf_geomod_face face=output.faces[i];rf_geomod_mesh_view cap={0};
             rf_geomod_publication_bound_corner bound[64];uint32_t pending=0;
             CHECK(output_origins[i].kind==RF_GEOMOD_PUBLICATION_NEIGHBOR);
-            CHECK(output_origins[i].owner==94 && output_origins[i].source_face==549);
+            CHECK(output_origins[i].owner==post_uid && output_origins[i].source_face==(uid==95?549u:567u));
             cap.vertices=output.vertices+face.first;face.first=0;cap.faces=&face;cap.vertex_count=face.count;cap.face_count=1;
             CHECK(rf_geomod_publication_bind(&cap,output_origins+i,NULL,0,RF_GEOMOD_BINDING_DEFER_GENERATED,bound,64,sizeof(bound),&pending)==RF_NOT_FOUND);
             CHECK(!rf_geomod_publication_bind(&cap,output_origins+i,NULL,0,RF_GEOMOD_BINDING_DEFER_AUTHORED,bound,64,sizeof(bound),&pending));
@@ -471,7 +473,8 @@ int main(int argc, char **argv) {
               !other);
         free(payload);
     }
-    CHECK(!beam_source(&level,&geometry,argc > 2 ? argv[2] : "build/data/geomod-template.bin"));
+    CHECK(!beam_source(&level,&geometry,argc > 2 ? argv[2] : "build/data/geomod-template.bin",95));
+    CHECK(!beam_source(&level,&geometry,argc > 2 ? argv[2] : "build/data/geomod-template.bin",98));
     CHECK(!selected_sources(&level, &geometry, argc > 2 ? argv[2] : "build/data/geomod-template.bin"));
     CHECK(!grouped_posts(&level,&geometry,argc > 2 ? argv[2] : "build/data/geomod-template.bin"));
     CHECK(!connected_beam_post(&level,&geometry,argc > 2 ? argv[2] : "build/data/geomod-template.bin"));

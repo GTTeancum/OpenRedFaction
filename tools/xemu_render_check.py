@@ -47,8 +47,8 @@ def main():
     parser.add_argument('--capture-ripple', action='store_true', help='Capture ordinary ripple vertices without injecting a fixture')
     parser.add_argument('--debris-player-test', action='store_true', help='Explicit scene damage fixture, not an ordinary fragment trajectory')
     parser.add_argument('--ripple-test', action='store_true', help='DEV render-only ripple fixture; no liquid collision claim')
-    parser.add_argument('--authored-sources', type=int, choices=(1,2,3), default=1, help='Retain one/two sources, or beam95 with both posts; collections require player checkpoint mode')
-    parser.add_argument('--authored-source', type=int, choices=(93,94,95,96,97), help='Select one ctf06 developer destruction source on both platforms')
+    parser.add_argument('--authored-sources', type=int, choices=(1,2,3), default=1, help='Retain one/two sources, or beam95/98 with both posts; collections require player checkpoint mode')
+    parser.add_argument('--authored-source', type=int, choices=(93,94,95,96,97,98), help='Select one ctf06 developer destruction source on both platforms')
     parser.add_argument('--dev-room', action='store_true', help='Supply supported weapons in Glass House or the authored ctf06 post test')
     parser.add_argument('--player-checkpoint', action='store_true', help='Opt-in RFCP player plus destruction checkpoint mode')
     parser.add_argument('--shallow-oblique', action='store_true', help='Use an oblique second shallow-region limit')
@@ -98,8 +98,8 @@ def main():
         if not args.dev_room or args.level!='ctf06.rfl':parser.error('Source collections require ctf06 DEV room')
         if (args.geomod_checkpoint_in or args.geomod_checkpoint_out) and not args.player_checkpoint:
             parser.error('Collection checkpoints require --player-checkpoint')
-    if args.authored_sources==3 and args.authored_source!=95:
-        parser.error('Three sources require beam --authored-source 95')
+    if args.authored_sources==3 and args.authored_source not in (95,98):
+        parser.error('Three sources require beam --authored-source 95 or 98')
     if args.player_checkpoint and not args.dev_room:parser.error('--player-checkpoint requires --dev-room')
     if args.lava_test and (args.swim_test or args.water_test or args.dev_room or not args.spawn or args.level!='L5S2.rfl' or args.archive!='levels1.vpp'):
         parser.error('--lava-test requires --spawn --level L5S2.rfl --archive levels1.vpp without other placement fixtures')
@@ -592,7 +592,7 @@ dvd_path = '{root.as_posix()}/build/xbox/redfaction-diagnostic.iso'
                 # banks, piece registries and private lighting staging. Default13MiB;
                 # connected pairs reserve16MiB and the triple profile17MiB.
                 terrain_budget=(16*1024*1024 if args.level=='ctf06.rfl' else 2359296+65536) if args.expanded_geomod else (13*1024*1024 if args.level=='ctf06.rfl' and args.dev_room else 1024*1024+65536)
-                if args.level=='ctf06.rfl' and args.authored_source==95 and args.authored_sources in (2,3):
+                if args.level=='ctf06.rfl' and args.authored_source in (95,98) and args.authored_sources in (2,3):
                     terrain_budget=(17 if args.authored_sources==3 else 16)*1024*1024
                 budget_ok=all(0<=v[3]<=v[4]<=terrain_budget for v in (actual,expected))
                 report['checks']['GEOMOD']=dict(equal=equal,budget_ok=budget_ok,budget_bytes=terrain_budget,

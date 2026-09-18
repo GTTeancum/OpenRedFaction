@@ -6,9 +6,9 @@
 static int selected_identities(const rf_level *level,const rf_geometry *geometry,rf_vpp *maps,
     const rf_lightmap_rgb_owner *rgb,const unsigned char known94[32])
 {
-    static const uint32_t uids[5]={93,94,96,97,95};
-    unsigned char digests[5][32],repeat[32],windows[5][32];uint32_t n,i,j,peak;
-    for(n=0;n<5;n++) {
+    static const uint32_t uids[6]={93,94,96,97,95,98};
+    unsigned char digests[6][32],repeat[32],windows[6][32];uint32_t n,i,j,peak;
+    for(n=0;n<6;n++) {
         rf_geomod_authored_post *owner=NULL;rf_geomod_authored_post_view asset;
         rf_geomod_digest_material materials[8],substrate;
         rf_geomod_authored_chart_identity refs[32];rf_geomod_digest_chart charts[32];
@@ -26,7 +26,7 @@ static int selected_identities(const rf_level *level,const rf_geometry *geometry
         CHECK(!memcmp(digests[n],repeat,32));
         if(uids[n]==94) CHECK(!memcmp(digests[n],known94,32));
         for(i=0;i<n;i++) CHECK(memcmp(digests[n],digests[i],32));
-        CHECK(asset.windows.face_count==(uids[n]==95?8:4));
+        CHECK(asset.windows.face_count==((uids[n]==95 || uids[n]==98)?8:4));
         for(i=0;i<asset.windows.face_count;i++) {
             face_charts[i]=asset.window_origins[i].reference;
             for(j=0;j<manifest.reference_count;j++) if(refs[j].reference==face_charts[i]) break;

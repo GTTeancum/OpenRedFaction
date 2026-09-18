@@ -97,7 +97,7 @@ static inline int scene_terrain_publication_open(scene_stream *s)
     for(i=0;i<n;i++) {
         scene_terrain_authored_assets *a=s->terrain_source_count?s->terrain_sources[i].authored:s->terrain_authored;
         if(!a || a->asset_view.room!=room){status=RF_FORMAT;goto failed;}
-        if(n>1 && a->asset_view.source_uid==95 && !p->connected) {
+        if(n>1 && (a->asset_view.source_uid==95 || a->asset_view.source_uid==98) && !p->connected) {
             if((uint64_t)sizeof(*p)+sizeof(*p->connected)>=SCENE_PUBLICATION_BUDGET){status=RF_RANGE;goto failed;}
             p->connected=calloc(1,sizeof(*p->connected));if(!p->connected){status=RF_IO;goto failed;}
         }

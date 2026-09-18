@@ -403,7 +403,7 @@ int rf_geomod_authored_post_decode_source(const void *input, uint32_t bytes, con
     int s = RF_FORMAT;
     if (!input || !g || !g->data || !settings || !out || *out)
         return RF_RANGE;
-    if (source_uid != 93 && source_uid != 94 && source_uid != 95 && source_uid != 96 && source_uid != 97)
+    if (source_uid != 93 && source_uid != 94 && source_uid != 95 && source_uid != 96 && source_uid != 97 && source_uid != 98)
         return RF_NOT_FOUND;
     if (bytes < 4)
         return RF_FORMAT;
@@ -452,11 +452,12 @@ int rf_geomod_authored_post_decode_source(const void *input, uint32_t bytes, con
                 air++;
                 continue;
             }
-            if(source_uid==95 && b->uid==85 && b->flags==2 && b->index<source_index) {
+            if((source_uid==95 || source_uid==98) && b->uid==(source_uid==95?85u:86u) && b->flags==2 && b->index<source_index) {
                 if(roof_air || b->faces!=5 || b->corners!=18 || source->maximum[1]!=b->minimum[1]){s=RF_NOT_FOUND;goto done;}
                 roof_air=b;continue;
             }
-            if ((source_uid==95 ? (b->uid!=80 && b->uid!=93 && b->uid!=94) :
+            if (((source_uid==95 || source_uid==98) ?
+                 (b->uid!=(source_uid==95?80u:82u) && b->uid!=source_uid-2 && b->uid!=source_uid-1) :
                  (b->uid != 71 && b->uid != (source_uid <= 94 ? 95u : 98u) && b->uid != 70)) || b->flags || b->faces < 4 || b->faces > 32 ||
                 nnear == 3) {
                 s = RF_NOT_FOUND;
@@ -466,7 +467,7 @@ int rf_geomod_authored_post_decode_source(const void *input, uint32_t bytes, con
             nfaces += b->faces;
             ncorners += b->corners;
         }
-    if (air != 1 || nnear != 3 || (source_uid==95 && !roof_air)) {
+    if (air != 1 || nnear != 3 || ((source_uid==95 || source_uid==98) && !roof_air)) {
         s = RF_NOT_FOUND;
         goto done;
     }
@@ -656,7 +657,7 @@ int rf_geomod_authored_post_decode_source(const void *input, uint32_t bytes, con
          * longer needs either table, so their allocations do not overlap. */
         if(peak+sizeof(av)+sizeof(af)+sizeof(ao)>budget || clip_peak>budget){s=RF_RANGE;goto done;}
         s=import_brush_oriented(data,roof_air,g,av,af,ao,void_planes,NULL,0,1);if(s)goto done;
-        *void_owner=(rf_geomod_publication_solid){void_planes,5,80};
+        *void_owner=(rf_geomod_publication_solid){void_planes,5,source_uid==95?80u:82u};
         free(owners);owners=NULL;free(records);records=NULL;
         clip_work=malloc(sizeof(*clip_work));if(!clip_work){s=RF_IO;goto done;}
         s=rf_geomod_publication_clip_neighbors(&o->view.neighbors,o->view.neighbor_origins,

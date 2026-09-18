@@ -1,5 +1,7 @@
 # Red Faction Xbox / PC - open work
 
+- GeoMod opposite beam: Broaden destruction beyond the two validated assemblies; east beam98/posts97/96 now pass two-shot PC save/reload and77 stock64MiB checks with an exact8016-byte checkpoint and12.52MiB endpoint headroom, while native reload and general geometry remain open.
+
 - GeoMod thin fragments: Broaden contact coverage beyond the beam and concave L fixtures; face-derived samples now rescue pieces missed by regular grids, while Xbox beam continuation still passes76 checks.
 
 - GeoMod Xbox stability: Broaden connected debris histories after fixing stack exhaustion and cell-sampling precision; reset-save/rocket now passes76 native checks with exact PC continuation and13.50MiB endpoint headroom.

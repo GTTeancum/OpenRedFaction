@@ -48,6 +48,7 @@ int rf_geomod_authored_post_decode(const void *, uint32_t, const rf_geometry *,
 /* Explicit ctf06 room3 source selection: UID93/94 require beam95;
  * UID96/97 require beam98. All require earlier air66 and floor/ground71/70.
  * UID95 imports beam95 with roof80 clipped by earlier air85 and posts93/94.
+ * UID98 imports beam98 with roof82 clipped by earlier air86 and posts96/97.
  * Its hollow-neighbor data must be supplied to publication; existing scene/save
  * selection remains separately gated. Other UIDs return RF_NOT_FOUND. Full neighborhood, convexity, eligibility,
  * material and ownership validation still applies. This selects one owner;

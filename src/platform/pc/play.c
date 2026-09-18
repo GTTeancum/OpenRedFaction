@@ -445,6 +445,7 @@ int main(int argc,char **argv)
             else if(!strcmp(source,"95"))uid=95;
             else if(!strcmp(source,"96"))uid=96;
             else if(!strcmp(source,"97"))uid=97;
+            else if(!strcmp(source,"98"))uid=98;
             else CHECK(RF_FORMAT);
         }
         const char *sources=getenv("RF_REPLAY_AUTHORED_SOURCES");uint32_t count=1;
