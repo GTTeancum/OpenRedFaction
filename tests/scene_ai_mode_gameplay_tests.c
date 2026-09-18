@@ -6,7 +6,8 @@
 int main(void)
 {
     campaign_npc_body owner={0};rf_entity_ai_transition_state saved;
-    rf_entity_pose pose={0};
+    rf_entity_pose pose={0};rf_level_navigation_node nodes[2]={0};
+    const unsigned char route_indices[8]={0,0,0,0,1,0,0,0};
     scene_stream stream={0};rf_geometry_collision_world world={0};float eye[3]={0};uint32_t alerted;
     rf_object_registry_init(&campaign_registry);campaign_npc_bodies=&owner;campaign_npc_body_count=1;
     CHECK(!rf_entity_view_register(&campaign_registry,&campaign_entities,&owner.view,&owner.registration));
@@ -52,5 +53,21 @@ int main(void)
     CHECK(!campaign_set_ai_mode_live(NULL,owner.registration.handle,2,107));
     CHECK(!campaign_enemy_tick(&stream,30,eye));
     CHECK(owner.combat_alert && owner.combat_due==60 && !rf_scene_enemy_combat[2]);
+    /* Resume a concrete route retained from Follow_Waypoints, including cursor. */
+    owner.ai_mode.action_280=2;
+    campaign_navigation.nodes=nodes;campaign_navigation.count=2;
+    nodes[1].candidate.position[0]=7;nodes[1].candidate.position[2]=-3;
+    owner.script_move.path.indices=route_indices;owner.script_move.path.count=2;
+    owner.script_move.path_index=1;owner.script_move.path_mode=2;owner.script_move.path_reverse=1;
+    CHECK(!campaign_set_ai_mode_live(NULL,owner.registration.handle,1,110));
+    CHECK(!campaign_set_ai_mode_live(NULL,owner.registration.handle,4,111));
+    CHECK(owner.script_move.active && !owner.script_move.follow && !owner.script_move.stop);
+    CHECK(owner.script_move.path_index==1 && owner.script_move.path_mode==2 && owner.script_move.path_reverse==1);
+    CHECK(owner.script_move.target[0]==7 && owner.script_move.target[2]==-3);
+    CHECK(!campaign_enemy_mode_admits(&owner,1,0) && !campaign_enemy_mode_admits(&owner,1,1));
+    owner.combat_scripted=1;CHECK(campaign_enemy_mode_admits(&owner,1,0));
+    owner.combat_scripted=0;owner.script_move.path_index=2;saved=owner.ai_mode;
+    CHECK(campaign_set_ai_mode_live(NULL,owner.registration.handle,4,112)==RF_NOT_FOUND);
+    CHECK(!memcmp(&saved,&owner.ai_mode,sizeof(saved)));
     puts("Live AI mode adapter: inert, wake, motion acquisition, unsupported preservation");return 0;
 }
