@@ -1,6 +1,6 @@
 # Red Faction Xbox / PC - open work
 
-Completion basis (user direction,2026-09-18): working late-alpha/early-beta code implementation. Overall approximately63%; GeoMod100% for the first playable milestone, accepted by the user. GeoMod items below are deferred refinement and coverage, not prerequisites to moving on. This does not assert retail polish, complete campaign integration or resolution of every known defect.
+Completion basis (user direction,2026-09-18): working late-alpha/early-beta code implementation. Overall approximately64%; GeoMod100% for the first playable milestone, accepted by the user. GeoMod items below are deferred refinement and coverage, not prerequisites to moving on. This does not assert retail polish, complete campaign integration or resolution of every known defect.
 
 
 - Remote charges: Charge/detonator selection, shared ammo, throw/place, sticking, rendering and blast/GeoMod are integrated; PC and stock64MiB XEMU throw/detonate replay pass with one terrain cut; detached-fragment transport, persistence, placement fidelity and dedicated explosion presentation remain.
