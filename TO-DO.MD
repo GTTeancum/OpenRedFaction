@@ -3,7 +3,7 @@
 Completion basis (user direction,2026-09-18): working late-alpha/early-beta code implementation. Overall approximately64%; GeoMod100% for the first playable milestone, accepted by the user. GeoMod items below are deferred refinement and coverage, not prerequisites to moving on. This does not assert retail polish, complete campaign integration or resolution of every known defect.
 
 
-- Flamethrower: Primary gas drain, ignition/reload, NPC damage, looping held model and visible flame now work in the DEV room; native PC/Xbox replay passes79 checks with9.70MiB endpoint headroom; alternate canister, persistent burning, continuous audio and broader campaign availability remain.
+- Flamethrower: Primary stream and alternate delayed canister now work in the DEV room; native primary/alternate replays pass79/80 comparisons with9.70/9.49MiB endpoint headroom and correct tank replacement; flame-specific explosion visuals, lingering burns, continuous audio and campaign availability remain.
 
 - Hit-triggered events: When_Hit now observes registered actor/clutter hit signals and dispatches event/mover links before shared clearing; focused runtime/scene checks and PC/Xbox builds pass; live authored button scenario remains.
 

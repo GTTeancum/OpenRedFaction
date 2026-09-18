@@ -872,3 +872,7 @@ set_tests_properties(scene_flame_input PROPERTIES WORKING_DIRECTORY "${CMAKE_CUR
 add_executable(rf_scene_ai_mode_gameplay_tests tests/scene_ai_mode_gameplay_tests.c src/diagnostic/animation.c)
 target_link_libraries(rf_scene_ai_mode_gameplay_tests PRIVATE rf_core)
 add_test(NAME scene_ai_mode_gameplay COMMAND rf_scene_ai_mode_gameplay_tests)
+
+add_executable(rf_scene_flame_canister_tests tests/scene_flame_canister_tests.c)
+target_link_libraries(rf_scene_flame_canister_tests PRIVATE rf_core)
+add_test(NAME scene_flame_canister COMMAND rf_scene_flame_canister_tests)

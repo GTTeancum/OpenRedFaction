@@ -1862,6 +1862,8 @@ uint32_t rf_scene_shotgun[8]; /* shells,pellets,hits,kills,alt shells,RNG,status
 uint32_t rf_scene_riot[8]; /* active, held ticks, drained units, damage contacts, impact sounds, dry requests, reloads, status */
 static uint32_t campaign_equipped_slot,weapon_cycle_held;static int32_t campaign_rifle_id=-1,campaign_riot_id=-1,campaign_shotgun_id=-1,campaign_rocket_id=-1,campaign_grenade_id=-1,campaign_sniper_id=-1,campaign_rail_id=-1,campaign_remote_id=-1,campaign_detonator_id=-1,campaign_flame_id=-1;
 static uint32_t scene_flame_active;
+static uint32_t scene_flame_canister_model;
+static uint32_t scene_flame_canister_save_pending(void);
 static uint32_t scene_flame_input_pending(void);
 static int scene_flame_visual_open(rf_vpp *tables);
 uint32_t rf_scene_weapon_selection[8];
@@ -4100,7 +4102,8 @@ static int campaign_weapon_placement_probe(void)
 }
 static int campaign_weapon_models_open(const char *tables_path,rf_vpp *meshes)
 {
-    rf_weapon_model_names *names;rf_vpp tables;uint32_t selected[2]={0},i,j,k,hash=2166136261u;int status;
+    rf_weapon_model_names *names;rf_vpp tables;uint32_t selected[2]={0},i,j,k,hash=2166136261u,canister_slot=UINT32_MAX;int status;
+    scene_flame_canister_model=0;
     names=malloc(sizeof(*names));if(!names)return RF_IO;
     memset(rf_scene_weapon_models,0,sizeof(rf_scene_weapon_models));
     status=rf_vpp_open(&tables,tables_path);if(status){free(names);return status;}
@@ -4115,8 +4118,12 @@ static int campaign_weapon_models_open(const char *tables_path,rf_vpp *meshes)
     if(rf_scene_dev_room_enabled){int32_t remote=rf_weapon_name_find(&campaign_weapon_supply.names,"Remote Charge");
         if(remote<0){free(names);return RF_NOT_FOUND;}selected[remote/32]|=1u<<(remote%32);
         strcpy(names->files[remote],"rmt_explosive.v3d");}
+    if(rf_scene_dev_room_enabled){if(names->count>=64){free(names);return RF_RANGE;}
+        canister_slot=names->count++;strcpy(names->files[canister_slot],"powerup_flamecan.V3D");
+        selected[canister_slot/32]|=1u<<(canister_slot%32);}
     status=rf_weapon_models_open(meshes,names,selected,256*1024-sizeof(*names),&campaign_weapon_models);
     free(names);if(status)return status;
+    if(canister_slot<64)scene_flame_canister_model=campaign_weapon_models.weapons[canister_slot].model;
     rf_scene_weapon_models[0]=campaign_weapon_models.count;
     rf_scene_weapon_models[2]=campaign_weapon_models.allocated_bytes;
     rf_scene_weapon_models[3]=campaign_weapon_models.peak_bytes+sizeof(*names);
@@ -12224,6 +12231,7 @@ static int scene_remote_input(scene_stream *,uint32_t,const float[3],const float
 #include "scene_flame_gameplay.inc"
 #include "scene_flame_input.inc"
 #include "scene_flame_visual.inc"
+#include "scene_flame_canister.inc"
 static int campaign_combat_tick(scene_stream *stream,uint32_t frame,const float position[3],const float orientation[3][3])
 {
     float delta[3],nearest=1,amount;uint32_t i,target=UINT32_MAX,blocked,fire,alt,active=0;int status;
@@ -12302,10 +12310,14 @@ static int campaign_combat_tick(scene_stream *stream,uint32_t frame,const float 
             !campaign_explicit_unarmed && campaign_player_damage.state.effects.health>0 && campaign_player_inventory.owned[campaign_selected_weapon()]?
             (campaign_equipped_slot==8?1u:campaign_equipped_slot==9?2u:0u):0u,
             (player_input.fire?1u:0u)|(player_input.alt_fire?2u:0u));if(status)return status;
-        if(!frame)scene_flame_input_reset();
+        if(!frame){scene_flame_input_reset();scene_flame_canister_reset();}
+        status=scene_flame_canister_tick(stream,frame,position,orientation[2],campaign_flame_id,&campaign_primary[10],
+            campaign_equipped_slot==10 && !campaign_explicit_unarmed,
+            campaign_player_damage.state.effects.health<=0 || rf_scene_player_swim[2] || !!rf_scene_combat[6],
+            !!player_input.alt_fire && !player_input.fire);if(status)return status;
         status=scene_flame_input_tick(stream,frame,position,orientation[2],campaign_flame_id,&campaign_primary[10],.10f,
             campaign_equipped_slot==10 && !campaign_explicit_unarmed && campaign_player_inventory.owned[campaign_flame_id],
-            campaign_player_damage.state.effects.health<=0 || rf_scene_player_swim[2],!!player_input.fire,!!player_input.reload,&scene_flame_active);if(status){printf("FLAME_INPUT_ERROR %u %d\n",frame,status);return status;}
+            campaign_player_damage.state.effects.health<=0 || rf_scene_player_swim[2] || scene_flame_canister_busy(),!!player_input.fire,!!player_input.reload,&scene_flame_active);if(status){printf("FLAME_INPUT_ERROR %u %d\n",frame,status);return status;}
         {float muzzle[3],delta[3],length=SCENE_FLAME_RANGE;rf_weapon_flight_contact contact;uint32_t liquid,matched,k;
          for(k=0;k<3;k++){muzzle[k]=position[k]+orientation[2][k]*.4f+orientation[0][k]*.18f-orientation[1][k]*.2f;delta[k]=orientation[2][k]*length;}
          if(scene_flame_active){status=scene_rocket_sweep(stream,muzzle,delta,.01f,4u,&contact,&liquid,&matched);if(status){printf("FLAME_SWEEP_ERROR %u %d\n",frame,status);return status;}
@@ -14219,6 +14231,7 @@ static int scene_weapon_submit(void *context,uint32_t model,const rf_weapon_hand
 }
 #include "scene_remote_gameplay.inc"
 #include "scene_remote_checkpoint.inc"
+#include "scene_flame_canister_draw.inc"
 static int scene_grenades_draw(scene_stream *stream)
 {
     scene_weapon_context c={0};uint32_t i,state[20]={0},model;int status;
@@ -14434,11 +14447,11 @@ static int scene_player_weapon_draw(scene_stream *stream,uint32_t frame)
     else if(w->current==3 && campaign_equipped_slot==2)request=0;
     else if(rf_scene_combat[0]!=stream->player_shots) {
         if(campaign_last_alt && campaign_equipped_slot==1){if(w->current!=3)request=3;}
-        else request=(campaign_equipped_slot==3 || campaign_equipped_slot==5 || campaign_equipped_slot==8) && campaign_last_alt?3:1;
+        else request=(campaign_equipped_slot==3 || campaign_equipped_slot==5 || campaign_equipped_slot==8 || campaign_equipped_slot==10) && campaign_last_alt?3:1;
     }
     else if(w->current==3 && campaign_equipped_slot==1 &&
         (!player_input.alt_fire || player_input.fire || !rf_scene_combat[5] || campaign_player_damage.state.effects.health<=0))request=0;
-    if(campaign_equipped_slot==10 && !rf_scene_combat[6]){
+    if(campaign_equipped_slot==10 && !rf_scene_combat[6] && request!=3){
         if(scene_flame_active){if(w->current!=1)request=1;else request=-1;}
         else if(w->current==1)request=0;
     }
@@ -15007,6 +15020,7 @@ static int scene_frame(void *context,uint32_t frame,rf_preview_mesh *actor)
         status=scene_pickups_draw(stream);presentation_mark(3,&presentation_clock);if(status){rf_scene_profile_stage[1]=204;return status;}
         status=scene_grenades_draw(stream);if(status)return status;
         status=scene_remote_draw(stream);if(status)return status;
+        status=scene_flame_canister_draw(stream,scene_flame_canister_model);if(status)return status;
         status=scene_rockets_draw(stream,frame);rf_scene_rocket_visual[6]=(uint32_t)status;if(status){rf_scene_profile_stage[1]=207;return status;}
         status=scene_debris_draw(stream);if(status){rf_scene_profile_stage[1]=208;return status;}
         status=scene_detached_draw(stream);if(status){rf_scene_profile_stage[1]=209;return status;}
