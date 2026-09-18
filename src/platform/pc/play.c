@@ -518,6 +518,7 @@ int main(int argc,char **argv)
     if(p.headless && getenv("RF_REPLAY_FRAGMENT_CONTACT_TEST")) {
         uint32_t word;if(!rf_scene_dev_room_enabled)CHECK(RF_FORMAT);
         CHECK(rf_scene_fragment_contact_check());
+        printf("FRAGMENT_EDGE_AUDIT");for(word=0;word<32;word++)printf(" %u",rf_scene_fragment_edge_audit[word]);puts("");
         printf("FRAGMENT_CONTACT_AUDIT");for(word=0;word<64;word++)printf(" %u",rf_scene_fragment_contact_audit[word]);puts("");
     }
     rf_scene_dev_npc_enabled=p.headless && getenv("RF_REPLAY_DEV_NPC")!=NULL;

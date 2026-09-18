@@ -1,6 +1,6 @@
 # Red Faction Xbox / PC - open work
 
-- PRIORITY GeoMod fragment contacts: Integrate the Xbox-verified swept-edge primitive into bounded world/mover queries, then finish mover-relative response; crossed-beam vertex misses are proven, while live edge coverage remains open and the34ms optimized baseline is preserved.
+- PRIORITY GeoMod fragment contacts: Broaden rotating/coplanar edge cases and finish mover-relative response after live world/mover edge coverage passes80 native checks and both resting-floor gates; measured active debris cost is now about41ms.
 
 - PRIORITY GeoMod ordinary walls: Broaden multi-window and neighboring-brush CSG; a live floor-seam rocket now passes77 stock64MiB checks with exact PC/Xbox save bytes and fixture-off/mismatched-save rejection controls, alongside verified wall depth and player traversal.
 
@@ -5581,3 +5581,8 @@ Static world-tree face checks dominate the measured candidate workload; a PC fla
 ## 2026-09-18 swept edge primitive
 
 A crossed beam/floor fixture proves both sets of vertex casts miss; new shared linear-endpoint edge CCD detects the missing isolated contact.124 PC tests pass, including quadratic root order, strict limits, reversal and invalid-input controls. Native version2/eight-case fixture passes79 checks with64 exact words and unchanged gameplay save/framebuffer. This is a tested primitive, not yet ordinary gameplay integration. [Math, scope and evidence](docs/research/GEOMOD-SWEPT-EDGE-PRIMITIVE-20260918.md). Approximately51% overall /91% GeoMod; focus debris collision coverage.
+
+
+## 2026-09-18 fragment edge integration
+
+World and committed-mover fragment queries now include bounded edge/edge CCD, with128-edge scratch and complete overflow fallback. Crossed-beam world/translated/rotated-mover and metadata-error fixtures agree in96 native words across80 checks. All124 PC tests, both connected histories and both0.005 floor-contact gates pass. Save/framebuffer unchanged. Added coverage costs approximately6ms per active debris update (34.203ms to40.595ms),3315 free pages. [Scope and evidence](docs/research/GEOMOD-FRAGMENT-EDGE-INTEGRATION-20260918.md). Next rotation/coplanar and mover-relative cases. Estimate approximately51% overall /92% GeoMod; focus debris collision coverage.

@@ -84,6 +84,30 @@ static int fragment_thin_obstacle(void) {
      CHECK(hit && contact.fraction>.5f && contact.fraction<.6f && contact.normal[1]>.8f);}
     return 0;
 }
+static int fragment_crossed_edges(void) {
+    rf_geomod_vertex vertices[4]={{{-1,-.5f,-.25f},{0,0}},{{1,-.5f,-.25f},{0,0}},{{1,-.5f,.25f},{0,0}},{{-1,-.5f,.25f},{0,0}}};
+    rf_geomod_face polygon={0,4,0,0};rf_geomod_mesh_view mesh={vertices,&polygon,4,1,0};
+    float patch[4][3]={{-.25f,0,-1},{-.25f,0,1},{.25f,0,1},{.25f,0,-1}};
+    rf_collision_face face={0};rf_geometry_collision_room room={0};rf_collision_room_view view={0};
+    rf_geometry_collision_world world={0};rf_physics_body_state body={0};scene_detached_query_context query={0};
+    rf_geometry_body_hit hit={0},saved;scene_stream *scene=calloc(1,sizeof(*scene));uint32_t i,primary=0,found=0;
+    CHECK(scene);face.vertices=patch;face.count=4;face.plane[1]=1;
+    face.minimum[0]=-.25f;face.maximum[0]=.25f;face.minimum[2]=-1;face.maximum[2]=1;
+    for(i=0;i<3;i++){view.minimum[i]=-5;view.maximum[i]=5;body.orientation[i*4]=body.next_orientation[i*4]=1;}
+    body.position[1]=1;body.next_position[1]=-1;body.bounds.radius=.001f;
+    CHECK(!rf_collision_tree_open(&face,1,4096,&room.tree));room.tree.source_indices[0]=17;view.tree=&room.tree;
+    world.rooms=&room;world.views=&view;world.primary=&primary;world.primary_count=world.room_count=1;
+    scene->collision=&world;query.scene=scene;query.mesh=&mesh;
+    CHECK(!scene_detached_world_vertex_sweep(&query,&body,&hit,&found,fragment_test_material,NULL));
+    CHECK(found && hit.contact.fraction==.25f && hit.contact.point[1]==0 && hit.contact.normal[1]==1 && hit.face==17 && hit.contact.material==3);
+    hit.contact.fraction=.2f;saved=hit;
+    CHECK(!scene_detached_world_vertex_sweep(&query,&body,&hit,&found,fragment_test_material,NULL));CHECK(found && !memcmp(&hit,&saved,sizeof(hit)));
+    found=0;view.skip=1;
+    CHECK(!scene_detached_world_vertex_sweep(&query,&body,&hit,&found,fragment_test_material,NULL));CHECK(!found);view.skip=0;
+    CHECK(scene_detached_world_vertex_sweep(&query,&body,&hit,&found,fragment_test_material,&found)==RF_IO);
+    CHECK(!found && !memcmp(&hit,&saved,sizeof(hit)));
+    rf_collision_tree_close(&room.tree);free(scene);return 0;
+}
 static int fragment_mover_material(void *context,uint32_t solid,uint32_t face,uint32_t *texture,uint32_t *material) {
     if(context)return RF_IO;
     if(solid!=0 || face!=0)return RF_FORMAT;
@@ -143,16 +167,22 @@ static int fragment_cache_fallback(void) {
     const float point[3]={0,0,0};
     for(i=0;i<129;i++) {
         faces[i]=(rf_geomod_face){i*3,3,0,i};
-        for(j=0;j<3;j++){memcpy(vertices[i*3+j].position,triangle[j],12);if(i<128)vertices[i*3+j].position[0]+=10;}
+        for(j=0;j<3;j++){memcpy(vertices[i*3+j].position,triangle[j],12);if(i<128)vertices[i*3+j].position[0]+=10+i*2;}
     }
     for(i=0;i<3;i++)body.orientation[i*4]=body.next_orientation[i*4]=1;
     body.position[1]=1;body.next_position[1]=-1;
     CHECK(!scene_detached_vertex_sweep(&mesh,&body,point,1,&hit,&found));
     CHECK(!scene_fragment_shape_scratch.complete && found && fabsf(hit.fraction-.25f)<1e-6f);
+    {scene_fragment_path path;float a[3]={-.25f,0,-1},b[3]={-.25f,0,1},normal[3]={0,1,0};
+     CHECK(!scene_fragment_path_prepare(&body,&path));CHECK(!scene_fragment_edges_prepare(&mesh,&path));CHECK(!scene_fragment_edges.complete);
+     CHECK(!scene_detached_edge_sweep(&mesh,&path,a,b,normal,1,&hit,&found));CHECK(found && hit.fraction==.25f);}
     /* Only the uncached 129th triangle can hit. Reusing storage after an edit
      * must not retain the previous prepared geometry. */
     for(j=0;j<3;j++)vertices[128*3+j].position[0]+=20;
     CHECK(!scene_detached_vertex_sweep(&mesh,&body,point,1,&hit,&found));CHECK(!found);
+    {scene_fragment_path path;float a[3]={-.25f,0,-1},b[3]={-.25f,0,1},normal[3]={0,1,0};
+     CHECK(!scene_fragment_path_prepare(&body,&path));CHECK(!scene_fragment_edges_prepare(&mesh,&path));
+     CHECK(!scene_detached_edge_sweep(&mesh,&path,a,b,normal,1,&hit,&found));CHECK(!found);}
     return 0;
 }
 static int fragment_plane_side(void) {
@@ -664,6 +694,6 @@ int main(void) {
     found=77;CHECK(scene_detached_sources_sweep(&scene,4,start,delta,0,NAN,&hit,&found)!=RF_OK);
     CHECK(found==77 && !memcmp(&hit,&sentinel,sizeof(hit)));
     free(before);free(after);for(i=0;i<2;i++)rf_geomod_piece_registry_close(registries+i);
-    CHECK(!rf_scene_fragment_contact_check());CHECK(rf_scene_fragment_contact_audit[1]==8 && rf_scene_fragment_contact_audit[3]==1);CHECK(!fragment_cache_fallback());CHECK(!fragment_mover_contact());CHECK(!fragment_thin_obstacle());CHECK(!fragment_plane_side());CHECK(!inspection_camera());CHECK(!extended_batches());CHECK(!enemy_fragment_shots());CHECK(!rocket_object_contacts());CHECK(!beam_selection());CHECK(!runtime_surfaces());CHECK(!player_sources());CHECK(!notify_sources());CHECK(!rotated_support_clearance());CHECK(!large_support_snap());CHECK(!moving_piece_support());
+    CHECK(!rf_scene_fragment_contact_check());CHECK(rf_scene_fragment_contact_audit[1]==8 && rf_scene_fragment_contact_audit[3]==1);CHECK(!fragment_crossed_edges());CHECK(!fragment_cache_fallback());CHECK(!fragment_mover_contact());CHECK(!fragment_thin_obstacle());CHECK(!fragment_plane_side());CHECK(!inspection_camera());CHECK(!extended_batches());CHECK(!enemy_fragment_shots());CHECK(!rocket_object_contacts());CHECK(!beam_selection());CHECK(!runtime_surfaces());CHECK(!player_sources());CHECK(!notify_sources());CHECK(!rotated_support_clearance());CHECK(!large_support_snap());CHECK(!moving_piece_support());
     puts("PASS multi-source weapon queries: nearer later source, stable ties, selected alias, isolated damage and atomic misses/errors");return 0;
 }

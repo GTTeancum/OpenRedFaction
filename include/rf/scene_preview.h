@@ -55,6 +55,7 @@ int rf_scene_campaign_pose_get(float position[3],float orientation[9]);
 int rf_scene_detached_support_audit(void);
 /* Opt-in isolated contact fixtures; no live scene mutation or host input. */
 extern uint32_t rf_scene_fragment_contact_audit[64];
+extern uint32_t rf_scene_fragment_edge_audit[32];
 /* Fragment CPU work counters and guest millisecond timings; never serialized. */
 extern uint32_t rf_scene_fragment_profile[24];
 extern uint32_t rf_scene_fragment_stage_ms[8];

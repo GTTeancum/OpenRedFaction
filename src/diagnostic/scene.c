@@ -11271,6 +11271,7 @@ static int scene_detached_mesh_bounds(const rf_geomod_mesh_view *mesh,
     for(k=0;k<3;k++){lo[k]=fminf(body->position[k],body->next_position[k])-radius;hi[k]=fmaxf(body->position[k],body->next_position[k])+radius;}
     return RF_OK;
 }
+#include "scene_fragment_edges.inc"
 /* Static-world reciprocal contacts use the same primary/child room ownership
  * and face admission as ordinary body queries. Existing tree stacks are
  * borrowed serially; no retained memory or per-frame allocation. */
@@ -11284,6 +11285,7 @@ static int scene_detached_world_vertex_sweep(const scene_detached_query_context 
     status=scene_detached_mesh_bounds(c->mesh,body,lo,hi);if(status)return status;
     status=scene_fragment_path_prepare(body,&path);if(status)return status;
     status=scene_fragment_shape_prepare(c->mesh,&scene_fragment_shape_scratch);if(status)return status;
+    status=scene_fragment_edges_prepare(c->mesh,&path);if(status)return status;
     for(p=0;p<world->primary_count;p++) {
         uint32_t parent_index=world->primary[p];const rf_collision_room_view *parent;
         if(parent_index>=world->room_count)return RF_FORMAT;parent=world->views+parent_index;
@@ -11318,6 +11320,15 @@ static int scene_detached_world_vertex_sweep(const scene_detached_query_context 
                         value.room=room;value.face=tree->source_indices[f];value.hits=1;
                         value.contact.face_token=value.face;value.contact.face_flag=(face->filter.face_flags>>2)&1u;changed=1;
                     }
+                    for(v=0;v<face->count;v++) {
+                        rf_collision_ray_hit hit;uint32_t yes;
+                        status=scene_detached_edge_sweep(c->mesh,&path,face->vertices[v],face->vertices[(v+1)%face->count],face->plane,limit,&hit,&yes);
+                        if(status)return status;if(!yes)continue;
+                        memset(&value,0,sizeof(value));memcpy(value.contact.point,hit.point,12);memcpy(value.contact.normal,hit.normal,12);
+                        value.contact.fraction=limit=hit.fraction;value.solid=value.contact.object_id=UINT32_MAX;
+                        value.room=room;value.face=tree->source_indices[f];value.hits=1;
+                        value.contact.face_token=value.face;value.contact.face_flag=(face->filter.face_flags>>2)&1u;changed=1;
+                    }
                 }
                 if(node->left!=UINT32_MAX){if(top>=tree->node_capacity)return RF_RANGE;tree->stack[top++]=node->left;}
                 if(node->right!=UINT32_MAX){if(top>=tree->node_capacity)return RF_RANGE;tree->stack[top++]=node->right;}
@@ -11344,6 +11355,7 @@ static int scene_detached_mover_vertex_sweep(const rf_geomod_mesh_view *mesh,
     status=scene_detached_mesh_bounds(mesh,body,lo,hi);if(status)return status;
     status=scene_fragment_path_prepare(body,&path);if(status)return status;
     status=scene_fragment_shape_prepare(mesh,&scene_fragment_shape_scratch);if(status)return status;
+    status=scene_fragment_edges_prepare(mesh,&path);if(status)return status;
     for(m=0;m<movers->count;m++) {
         const rf_group_attached_pose *pose=movers->poses+m;
         const rf_geometry_collision_flat *flat=movers->owned+m;
@@ -11359,6 +11371,18 @@ static int scene_detached_mover_vertex_sweep(const rf_geomod_mesh_view *mesh,
                 if(!scene_detached_box_overlap(world.point,world.point,lo,hi))continue;
                 status=scene_detached_vertex_sweep_prepared(mesh,body,world.point,limit,&hit,&yes,&path,&scene_fragment_shape_scratch);if(status)return status;if(!yes)continue;
                 for(k=0;k<3;k++)alignment+=hit.normal[k]*world.normal[k];if(alignment<=0)continue;
+                memset(&value,0,sizeof(value));memcpy(value.contact.point,hit.point,12);memcpy(value.contact.normal,hit.normal,12);
+                value.contact.fraction=limit=hit.fraction;value.solid=m;value.room=UINT32_MAX;value.face=f;value.hits=1;
+                memcpy(value.contact.velocity,pose->velocity,12);value.contact.object_id=movers->views[m].object_id;
+                value.contact.face_token=f;value.contact.face_flag=(face->filter.face_flags>>2)&1u;changed=1;
+            }
+            for(v=0;v<face->count;v++) {
+                rf_collision_ray_hit local={0},first,last,hit;uint32_t yes;
+                memcpy(local.point,face->vertices[v],12);memcpy(local.normal,face->plane,12);
+                status=rf_collision_contact_world(&local,pose->position,(const float(*)[3])pose->input_matrix,&first);if(status)return status;
+                memcpy(local.point,face->vertices[(v+1)%face->count],12);
+                status=rf_collision_contact_world(&local,pose->position,(const float(*)[3])pose->input_matrix,&last);if(status)return status;
+                status=scene_detached_edge_sweep(mesh,&path,first.point,last.point,first.normal,limit,&hit,&yes);if(status)return status;if(!yes)continue;
                 memset(&value,0,sizeof(value));memcpy(value.contact.point,hit.point,12);memcpy(value.contact.normal,hit.normal,12);
                 value.contact.fraction=limit=hit.fraction;value.solid=m;value.room=UINT32_MAX;value.face=f;value.hits=1;
                 memcpy(value.contact.velocity,pose->velocity,12);value.contact.object_id=movers->views[m].object_id;

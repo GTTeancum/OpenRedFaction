@@ -437,7 +437,7 @@ dvd_path = '{root.as_posix()}/build/xbox/redfaction-diagnostic.iso'
             fields.append(('rf_scene_terrain_edit_times',40))
             fields.append(('rf_scene_fragment_profile',24))
             fields.append(('rf_scene_fragment_stage_ms',8))
-            if args.fragment_contact_test:fields.append(('rf_scene_fragment_contact_audit',64))
+            if args.fragment_contact_test:fields.extend((('rf_scene_fragment_contact_audit',64),('rf_scene_fragment_edge_audit',32)))
             if args.npc_rubble_test:fields.append(('rf_scene_dev_npc_cover',48))
             if args.moving_support_test:fields.append(('rf_scene_moving_support_test',160))
             if args.rotate_support_test:fields.append(('rf_scene_rotating_support_test',120))
@@ -472,6 +472,14 @@ dvd_path = '{root.as_posix()}/build/xbox/redfaction-diagnostic.iso'
                 assert actual[52]==6 and actual[53]!=0 and actual[54:56]==[1,0]
                 assert actual[60:62]==[7,1] and struct.unpack('<2f',struct.pack('<2I',*actual[62:64]))==(.25,1.)
                 report['checks']['FRAGMENT_CONTACT_AUDIT']=dict(pc=expected,xbox=actual,equal=True,cases=8)
+                edge_pc=[int(v) for line in pc.stdout.splitlines() if line.startswith('FRAGMENT_EDGE_AUDIT ') for v in line.split()[1:]]
+                edge_xbox=snap['symbols']['rf_scene_fragment_edge_audit']['words']
+                assert len(edge_pc)==32 and edge_pc==edge_xbox and edge_xbox[:4]==[1,4,0,1]
+                for row,identity,material,normal in ((0,17,3,(0.,1.,0.)),(1,77,7,(0.,1.,0.)),(2,77,7,(-1.,0.,0.))):
+                    w=edge_xbox[4+row*7:11+row*7]
+                    assert w[0]==1 and struct.unpack('<4f',struct.pack('<4I',*w[1:5]))==(.25,*normal) and w[5:]==[identity,material]
+                assert edge_xbox[25]!=0 and edge_xbox[26:28]==[1,0]
+                report['checks']['FRAGMENT_EDGE_AUDIT']=dict(pc=edge_pc,xbox=edge_xbox,equal=True,cases=4)
 
             if args.terrain_texture_audit:
                 assert 'terrain_texture' in report, 'No live frame available for texture audit'

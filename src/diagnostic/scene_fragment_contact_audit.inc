@@ -9,6 +9,7 @@ static int scene_fragment_audit_material(void *context,uint32_t solid,uint32_t f
     if(solid==0 && face==0){*texture=11;*material=7;return RF_OK;}
     return RF_FORMAT;
 }
+#include "scene_fragment_edge_audit.inc"
 static void scene_fragment_audit_hit(uint32_t row,uint32_t found,const rf_geometry_body_hit *hit)
 {
     uint32_t *words=rf_scene_fragment_contact_audit+4+row*8;
@@ -92,7 +93,7 @@ int rf_scene_fragment_contact_check(void)
     }
     rf_scene_fragment_contact_audit[1]=8;rf_scene_fragment_contact_audit[3]=1;
 done:
-    rf_collision_tree_close(&room.tree);free(scene);rf_scene_fragment_contact_audit[2]=(uint32_t)status;
+    rf_collision_tree_close(&room.tree);free(scene);if(!status)status=scene_fragment_edge_check();rf_scene_fragment_contact_audit[2]=(uint32_t)status;
 #undef CONTACT_AUDIT_CALL
 #undef CONTACT_AUDIT_TEST
     return status;
