@@ -56,7 +56,8 @@ static int scene_terrain_authored_open_source(scene_stream *s,const rf_level *le
     if(!s || !level || !s->geometry || !s->collision || !actor_follow_world ||
        !actor_follow_world->slots || !s->materials || s->terrain || s->terrain_authored)return RF_RANGE;
     a=calloc(1,sizeof(*a));if(!a)return RF_IO;
-    status=rf_geomod_authored_post_open_source(level,s->geometry,uid,2*1024*1024,&a->asset);if(status)goto fail;
+    status=uid==66?rf_geomod_authored_cavity_open(level,s->geometry,2*1024*1024,&a->asset):
+        rf_geomod_authored_post_open_source(level,s->geometry,uid,2*1024*1024,&a->asset);if(status)goto fail;
     status=rf_geomod_authored_post_get(a->asset,&a->asset_view);if(status)goto fail;
     /* Capture original asset identity before remapping face materials into
      * renderer slots. Temporary decode/repacking memory is released here. */
@@ -99,11 +100,13 @@ static int scene_terrain_authored_open_source(scene_stream *s,const rf_level *le
         if(status)goto fail;
     }
     generated=a->asset_view.source_filters[0];generated.query_flags=0;generated.face_flags=256;
-    status=rf_geomod_terrain_open(&a->source,a->asset_view.source_filters,&generated,0,
+    status=rf_geomod_terrain_open(&a->source,a->asset_view.source_filters,&generated,uid==66,
         SCENE_TERRAIN_SOURCE_VERTICES,SCENE_TERRAIN_FACES,SCENE_TERRAIN_CORE_BUDGET,&terrain);if(status)goto fail;
     status=rf_geomod_terrain_set_mapping(terrain,s->terrain_texture_width,s->terrain_texture_height);if(status)goto fail;
-    status=scene_detached_open(s,&generated,&pieces);if(status)goto fail;
-    status=rf_geomod_terrain_set_extraction(terrain,rf_geomod_piece_registry_emit,pieces);if(status)goto fail;
+    if(uid!=66) {
+        status=scene_detached_open(s,&generated,&pieces);if(status)goto fail;
+        status=rf_geomod_terrain_set_extraction(terrain,rf_geomod_piece_registry_emit,pieces);if(status)goto fail;
+    }
     a->resident_bytes=sizeof(*a)+a->asset_view.resident_bytes+count*sizeof(*a->face_storage)+capacity*sizeof(*a->references);
     /* Manifest descriptor lives inside *a; only its caller-owned arrays add
      * resident memory. Capture peak already includes descriptor and capacities. */
@@ -167,7 +170,8 @@ static int scene_terrain_sources_open(scene_stream *s,const rf_level *level,rf_v
     uint32_t identity_before[10];uint64_t resident,reserved;int status=RF_RANGE;
     if(!s || !uids || !count || count>4 || s->terrain_sources || s->terrain || s->terrain_authored || s->detached_pieces)return RF_RANGE;
     for(i=0;i<count;i++) {
-        if(uids[i]!=93 && uids[i]!=94 && uids[i]!=95 && uids[i]!=96 && uids[i]!=97 && uids[i]!=98)return RF_NOT_FOUND;
+        if(uids[i]==66 && count!=1)return RF_RANGE;
+        if(uids[i]!=66 && uids[i]!=93 && uids[i]!=94 && uids[i]!=95 && uids[i]!=96 && uids[i]!=97 && uids[i]!=98)return RF_NOT_FOUND;
         if((uids[i]==95 || uids[i]==98) && count!=1 &&
            ((count!=2 && count!=3) || uids[0]!=uids[i] || uids[1]!=uids[i]-1 || (count==3 && uids[2]!=uids[i]-2)))return RF_RANGE;
         for(j=0;j<i;j++)if(uids[i]==uids[j])return RF_FORMAT;

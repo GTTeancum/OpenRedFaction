@@ -18,6 +18,7 @@ typedef struct cursor {
 } cursor;
 struct rf_geomod_authored_post {
     rf_geomod_authored_post_view view;
+    float (*cavity_obstacles)[2][3];uint32_t cavity_obstacle_count;
 };
 static uint32_t u32(const unsigned char *p) {
     return p[0] | (uint32_t)p[1] << 8 | (uint32_t)p[2] << 16 | (uint32_t)p[3] << 24;
@@ -587,6 +588,7 @@ static int decode_profile(const void *input, uint32_t bytes, const rf_geometry *
     void_planes = chunk(base, &at, roof_air?5:0, sizeof(*void_planes));                                      \
     void_owner = chunk(base, &at, roof_air?1:0, sizeof(*void_owner));
     ALLOCATE_FIELDS(NULL);
+    if(cavity)chunk(NULL,&at,count-1,sizeof(float[2][3]));
     peak = scratch + at;
     if (peak > budget || at > UINT32_MAX) {
         s = RF_RANGE;
@@ -601,6 +603,13 @@ static int decode_profile(const void *input, uint32_t bytes, const rf_geometry *
     o->view.peak_bytes = (uint32_t)peak;
     at = sizeof(*o);
     ALLOCATE_FIELDS((unsigned char *)o);
+    if(cavity) {
+        o->cavity_obstacles=chunk((unsigned char *)o,&at,count-1,sizeof(*o->cavity_obstacles));
+        for(i=0;i<count;i++)if(i!=source_index) {
+            memcpy(o->cavity_obstacles[o->cavity_obstacle_count][0],records[i].minimum,12);
+            memcpy(o->cavity_obstacles[o->cavity_obstacle_count++][1],records[i].maximum,12);
+        }
+    }
 #undef ALLOCATE_FIELDS
     o->view.source = (rf_geomod_mesh_view){sv, sf, source->corners, source->faces, 0};
     o->view.windows = (rf_geomod_mesh_view){wv, wf, wcorners, wfaces, 0};
@@ -767,6 +776,39 @@ int rf_geomod_authored_post_decode(const void *input, uint32_t bytes, const rf_g
 int rf_geomod_authored_post_open(const rf_level *level, const rf_geometry *geometry, uint32_t budget,
                                  rf_geomod_authored_post **out) {
     return rf_geomod_authored_post_open_source(level, geometry, 94, budget, out);
+}
+int rf_geomod_authored_cavity_admit(const rf_geomod_authored_post *o,const float minimum[3],
+    const float maximum[3],uint32_t *reference) {
+    const rf_geomod_authored_post_view *a;uint32_t i,j,k,corner;
+    if(!o || !minimum || !maximum || !reference)return RF_RANGE;
+    a=&o->view;if(a->source_uid!=66 || !o->cavity_obstacles || !o->cavity_obstacle_count)return RF_NOT_FOUND;
+    for(k=0;k<3;k++)if(!isfinite(minimum[k]) || !isfinite(maximum[k]) || minimum[k]>maximum[k])return RF_RANGE;
+    for(i=0;i<o->cavity_obstacle_count;i++) {
+        for(k=0;k<3;k++)if(maximum[k]<o->cavity_obstacles[i][0][k]-1e-5f || minimum[k]>o->cavity_obstacles[i][1][k]+1e-5f)break;
+        if(k==3)return RF_NOT_FOUND;
+    }
+    for(i=0;i<a->windows.face_count;i++) {
+        const rf_geomod_face *window=a->windows.faces+i;const float *plane;double lo,hi;uint32_t accepted=1;
+        for(j=0;j<a->source.face_count;j++)if(a->source.faces[j].source_face==window->source_face)break;
+        if(j==a->source.face_count)return RF_FORMAT;plane=a->source_planes[j];lo=hi=plane[3];
+        for(k=0;k<3;k++){lo+=(double)plane[k]*(plane[k]<0?maximum[k]:minimum[k]);hi+=(double)plane[k]*(plane[k]<0?minimum[k]:maximum[k]);}
+        if(lo>0 || hi<0)continue;
+        for(corner=0;corner<8 && accepted;corner++) {
+            double point[3],d=plane[3];
+            for(k=0;k<3;k++){point[k]=(corner&(1u<<k))?maximum[k]:minimum[k];d+=plane[k]*point[k];}
+            for(k=0;k<3;k++)point[k]-=d*plane[k];
+            for(j=0;j<window->count;j++) {
+                const float *x=a->windows.vertices[window->first+j].position;
+                const float *y=a->windows.vertices[window->first+(j+1)%window->count].position;
+                double edge[3],offset[3],side=0,length=0;
+                for(k=0;k<3;k++){edge[k]=(double)y[k]-x[k];offset[k]=point[k]-x[k];length+=edge[k]*edge[k];}
+                for(k=0;k<3;k++)side+=plane[k]*(edge[(k+1)%3]*offset[(k+2)%3]-edge[(k+2)%3]*offset[(k+1)%3]);
+                if(side< -1e-5*sqrt(length)){accepted=0;break;}
+            }
+        }
+        if(accepted){*reference=a->window_origins[i].reference;return RF_OK;}
+    }
+    return RF_NOT_FOUND;
 }
 int rf_geomod_authored_post_get(const rf_geomod_authored_post *o, rf_geomod_authored_post_view *v) {
     if (!o || !v)

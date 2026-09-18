@@ -365,6 +365,17 @@ static int cavity_source(const void *payload,uint32_t bytes,const rf_geometry *g
     CHECK(!rf_geomod_authored_post_get(owner,&a));
     CHECK(a.source_uid==66 && a.source.face_count==14 && a.windows.face_count==134 && a.replaced_count==134);
     CHECK(a.solid_count==0 && a.neighbors.face_count==0 && a.neighbor_void_count==0);
+    {
+        float lo[3]={-34.1f,2.9f,6.9f},hi[3]={-31.9f,5.1f,9.1f};uint32_t reference=99;
+        CHECK(!rf_geomod_authored_cavity_admit(owner,lo,hi,&reference) && reference==5964);
+        lo[0]=-30;hi[0]=-28;reference=99;
+        CHECK(rf_geomod_authored_cavity_admit(owner,lo,hi,&reference)==RF_NOT_FOUND && reference==99);
+        lo[0]=-6;hi[0]=-4;lo[1]=1;hi[1]=3;lo[2]=2;hi[2]=3;
+        CHECK(rf_geomod_authored_cavity_admit(owner,lo,hi,&reference)==RF_NOT_FOUND && reference==99);
+        lo[0]=-34.1f;hi[0]=-31.9f;lo[1]=2.9f;hi[1]=5.1f;lo[2]=-.5f;hi[2]=1.5f;
+        CHECK(rf_geomod_authored_cavity_admit(owner,lo,hi,&reference)==RF_NOT_FOUND && reference==99);
+        lo[0]=NAN;CHECK(rf_geomod_authored_cavity_admit(owner,lo,hi,&reference)==RF_RANGE && reference==99);
+    }
     CHECK(rf_geomod_authored_cavity_decode(payload,bytes,geometry,settings,a.peak_bytes-1,&rejected)==RF_RANGE && !rejected);
     for(i=0;i<a.source.face_count;i++) {
         double d=a.source_planes[i][3];
