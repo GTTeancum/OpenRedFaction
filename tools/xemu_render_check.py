@@ -23,6 +23,7 @@ from xemu_smoke import Monitor
 from xemu_session_guard import require_no_project_xemu
 from verify_water_xbox import verify as verify_water_scenario
 from xemu_texture_audit import capture as capture_texture, capture_atlas
+from xemu_draw_audit import capture as capture_draws
 
 
 def main():
@@ -30,6 +31,7 @@ def main():
     parser.add_argument('--expanded-geomod', action='store_true', help='Opt-in matching sixteen-cut PC/NXDK profile on stock64MiB')
     parser.add_argument('--terrain-texture-audit', action='store_true', help='Read live Xbox substrate texture bytes and compare the PC owner')
     parser.add_argument('--terrain-atlas-audit', action='store_true', help='Compare live generated atlas bytes for a settled checkpoint with neutral input')
+    parser.add_argument('--terrain-draw-audit', action='store_true', help='Read submitted cap draw commands; implies settled atlas/texture audits')
     parser.add_argument('--terrain-map-limit',type=int,help='Explicit DEV fault injection: maximum new-map admission count')
     parser.add_argument('--terrain-map-limit-until',type=int,default=0xffffffff,help='Frame when injected map limit expires')
     parser.add_argument('--cpu-exceptions', action='store_true', help='Retain QEMU exception/reset diagnostics for guest crash analysis')
@@ -71,6 +73,7 @@ def main():
     parser.add_argument('--unbatched', action='store_true', help='Reference tiny GPU command submission blocks')
     parser.add_argument('--unsorted', action='store_true', help='Reference source-order world draw ranges')
     args = parser.parse_args()
+    if args.terrain_draw_audit:args.terrain_atlas_audit=args.terrain_texture_audit=True
     if args.terrain_texture_audit and not args.dev_room:parser.error('--terrain-texture-audit requires --dev-room')
     if args.terrain_atlas_audit and (not args.dev_room or not args.geomod_checkpoint_in):
         parser.error('--terrain-atlas-audit requires a settled DEV checkpoint')
@@ -203,7 +206,7 @@ def main():
     pc.check_returncode()
     report['pc_sha256'] = hashlib.sha256((root / pc_build / 'Release/rf_pc_play.exe').read_bytes()).hexdigest()
     saved = {p.name: p.read_bytes() for p in disc.glob('campaign-*') if p.is_file()}
-    for name in ('player-replay.bin', 'player-control-frames.txt', 'audio-output.flag', 'particle-step-fixtures.bin', 'renderer-cull-off.flag', 'renderer-cull-on.flag', 'renderer-batch-off.flag', 'renderer-world-off.flag'):
+    for name in ('player-replay.bin', 'player-control-frames.txt', 'audio-output.flag', 'particle-step-fixtures.bin', 'renderer-cull-off.flag', 'renderer-cull-on.flag', 'renderer-batch-off.flag', 'renderer-world-off.flag', 'renderer-draw-audit.flag'):
         p = disc / name
         saved[name] = p.read_bytes() if p.exists() else None
     for name in ('campaign-spawn.flag', 'campaign-level.bin', 'campaign-actor.bin', 'campaign-setup.bin', 'campaign-item.bin', 'campaign-exit.bin', 'campaign-return.bin', 'campaign-goal.bin', 'campaign-exit-start.bin'):
@@ -255,6 +258,7 @@ def main():
         else:ripple_flag.unlink(missing_ok=True)
         (disc / 'campaign-spawn.flag').write_bytes(b'')
         if args.dev_room:(disc/'dev-room.flag').write_bytes(b'')
+        if args.terrain_draw_audit:(disc/'renderer-draw-audit.flag').write_bytes(b'')
         if args.authored_source is not None:(disc/'authored-source.bin').write_bytes(struct.pack('<I',args.authored_source))
         if args.authored_sources>1:(disc/'authored-count.bin').write_bytes(struct.pack('<I',args.authored_sources))
         if args.player_checkpoint:(disc/'player-checkpoint.flag').write_bytes(b'')
@@ -404,6 +408,9 @@ dvd_path = '{root.as_posix()}/build/xbox/redfaction-diagnostic.iso'
             if args.terrain_atlas_audit:
                 assert 'terrain_atlas' in report, 'No live frame available for atlas audit'
                 report['checks']['GPU_TERRAIN_ATLAS']=report['terrain_atlas']
+            if args.terrain_draw_audit:
+                report['terrain_draws']=capture_draws(monitor,symbol,run/'pc-terrain-material.bin',report['terrain_atlas'],run)
+                report['checks']['GPU_TERRAIN_DRAWS']=report['terrain_draws']
             if checkpoint:
                 state=words(monitor,symbol('rf_scene_geomod_checkpoint_state'),4)
                 memory=words(monitor,symbol('rf_scene_geomod_checkpoint_memory'),2)

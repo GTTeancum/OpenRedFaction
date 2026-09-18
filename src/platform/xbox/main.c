@@ -529,6 +529,8 @@ static int scene_preview(rf_level *level,rf_preview_mesh *mesh)
     player_pacing=0;scene_simulation_frames=0;memset(&rf_player_frame_clock,0,sizeof(rf_player_frame_clock));
     rf_scene_set_profile(profile_milliseconds);
     rf_xbox_enable_retained_world();
+    stream_flag=fopen("D:\\renderer-draw-audit.flag","rb");rf_xbox_draw_audit[0]=stream_flag!=NULL;
+    if(stream_flag)fclose(stream_flag);
     {extern uint32_t rf_xbox_command_batching_disabled;
      stream_flag=fopen("D:\\renderer-batch-off.flag","rb");rf_xbox_command_batching_disabled=stream_flag!=NULL;
      if(stream_flag)fclose(stream_flag);}

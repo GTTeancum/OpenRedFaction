@@ -20,6 +20,7 @@
 uint32_t rf_renderer_profile[8][4];
 /* Last frame: draw batches, former methods, submitted methods, state changes. */
 uint32_t rf_renderer_submission[4];
+uint32_t rf_xbox_draw_audit[4];
 uint32_t rf_xbox_renderer_stage[4]; /* stage, image bytes, vertex bytes, free pages before GPU allocation */
 static uint32_t stream_profile_frames;
 static uint32_t stream_start_vblank,stream_start_valid;
@@ -300,6 +301,8 @@ static int retained_world_draw(const rf_materials *materials,const rf_lightmaps 
 #include "retained_models.h"
 void rf_xbox_scene_stream_close(void)
 {
+    if(rf_xbox_draw_audit[1])MmFreeContiguousMemory((void *)rf_xbox_draw_audit[1]);
+    rf_xbox_draw_audit[1]=rf_xbox_draw_audit[2]=rf_xbox_draw_audit[3]=0;
     retained_models_close();
     retained_world_close();
     stream_profile_frames=0;memset(rf_renderer_profile,0,sizeof(rf_renderer_profile));
@@ -421,6 +424,7 @@ static int preview(const rf_preview_mesh *mesh, const rf_materials *materials, c
     pb_show_front_screen();
     renderer_mark(3,&profile_previous,profiling);
     for (frame = 0; frame < (streaming?1u:3u); ++frame) {
+        uint32_t *audit_begin=NULL;
         const gpu_texture *bound_texture=NULL,*bound_lighting=NULL;
         uint32_t bound_alpha=UINT32_MAX,bound_blend=UINT32_MAX,draws=0,methods=8,state_changes=0;
         uint32_t retained_next=0,retained_total=model==4?retained_draw_count:0;
@@ -453,6 +457,7 @@ static int preview(const rf_preview_mesh *mesh, const rf_materials *materials, c
         p = pb_begin();
         /* pb_target_back_buffer restores W buffering each frame. Our projected
          * vertices carry screen-space Z and a constant W, so restore Z here. */
+        if(rf_xbox_draw_audit[0])audit_begin=p;
         p = pb_push1(p, NV097_SET_CONTROL0, NV097_SET_CONTROL0_Z_FORMAT_FIXED | NV097_SET_CONTROL0_TEXTURE_PERSPECTIVE_ENABLE);
         for (i = 0; i < 16; ++i) p = pb_push1(p, NV097_SET_VERTEX_DATA_ARRAY_FORMAT + 4*i, NV097_SET_VERTEX_DATA_ARRAY_FORMAT_TYPE_F);
         for (i = 0; i < 4; ++i) {
@@ -539,6 +544,14 @@ static int preview(const rf_preview_mesh *mesh, const rf_materials *materials, c
         rf_renderer_submission[0]=draws;rf_renderer_submission[1]=draws*17;
         rf_renderer_submission[2]=methods;rf_renderer_submission[3]=state_changes;
         while (pb_busy()) {}
+        if(audit_begin) {
+            uint32_t bytes=(uint32_t)(p-audit_begin)*4;
+            if(!bytes || bytes>256u*1024u)return RF_RANGE;
+            if(!rf_xbox_draw_audit[1])rf_xbox_draw_audit[1]=(uint32_t)MmAllocateContiguousMemoryEx(256u*1024u,0,0x03ffb000,0,PAGE_READWRITE);
+            if(!rf_xbox_draw_audit[1])return RF_RANGE;
+            memcpy((void *)rf_xbox_draw_audit[1],audit_begin,bytes);
+            rf_xbox_draw_audit[2]=bytes;++rf_xbox_draw_audit[3];
+        }
         if(streaming) {int status=rf_scene_draw_particles(scene_particle_present,NULL);if(status)return status;
             status=rf_scene_draw_coronas(scene_particle_present,NULL);if(status)return status;}
         if(streaming) {int status;hud_batch_begin();

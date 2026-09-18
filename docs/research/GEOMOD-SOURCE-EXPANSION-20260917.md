@@ -479,3 +479,45 @@ remain visible; the tops remain dark. Other views were not individually
 re-inspected in this turn. Log: artifacts/cap-pixel-audit.log; quantitative
 result is cap_pixels in artifacts/geomod-cap-views/report.json. No runtime code
 change, new Xbox run, audio claim or GitHub screenshot upload.
+
+
+### Native cap draw submissions qualified
+
+The completed-frame pushbuffer is not a coherent geometry capture: HUD batching
+resets/reuses it. The first readback run render-20260917-205856 correctly failed
+with no stream draws in its276-byte retained range. It does not indicate a game
+rendering failure. The final approach adds an opt-in renderer-draw-audit.flag
+snapshot after geometry completes and before particles/HUD. Its256KiB contiguous
+allocation is bounded, disabled by default, reused per frame and freed with the
+stream. The harness saves/restores the flag. Oversize/allocation failure aborts
+only the opted-in diagnostic rather than truncating accepted evidence.
+
+--terrain-draw-audit implies the settled neutral-input texture/atlas checks.
+tools/xemu_draw_audit.py decodes incrementing and nonincrementing NV2A method
+packets, preserves per-draw state and rejects unsupported jumps/calls/truncation.
+It identifies cap draws from the actual stream vertices, then checks submitted
+base/atlas physical offsets and format words, base wrap, lightmap clamp, linear
+min/mag, texture enable, triangles, white RGB and positive shared reciprocal
+depth. Three decoder tests cover state changes, other subchannels and malformed
+packets. This is submitted-command evidence, not GPU execution tracing.
+
+Stock64MiB run artifacts/xemu/render-20260917-210211 passes79 checks, including
+texture, atlas and draw audits. Frame121 retains56724 command bytes and215880
+stream vertex bytes. Two cap batches start at126 and168, containing15 and9
+vertices respectively; both use material80 / image41. Their offsets match the
+verified live allocations51175424 and49627136. All texture state checks pass.
+The7692-byte saved state exactly matches PC. The native framebuffer was inspected
+and is pixel-identical to the prior uninstrumented render-20260917-204704 output.
+Both damaged joints, resting debris, room, launcher and HUD remain visible.
+
+Endpoint3271 pages =12.777MiB, exactly64 pages below the prior uninstrumented
+fixture because the diagnostic owns256KiB. Do not treat these instrumented memory
+or timing values as normal gameplay performance. Disc restored, emulator exited;
+no audio qualification or GitHub screenshot. Log: artifacts/cap-native-draw-snapshot.log.
+
+This closes the specific cap data/binding suspicion: installed material bytes,
+recovered idle chart math, native allocations, submitted bindings and independent
+PC pixel calculations all agree. It does not establish global retail visual
+parity or exclude later original lighting contributions. Broader geometry and
+fragment gameplay coverage now offer more useful progress than repeating this
+same settled fixture without a new defect or implementation change.
