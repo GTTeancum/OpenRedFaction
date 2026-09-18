@@ -51,6 +51,7 @@ static int scene_npc_shield_receive(uint32_t slot,const float start[3],const flo
        !campaign_npc_bodies || slot>=scene_npc_shields.count || !scene_npc_shields.owners)return RF_RANGE;
     *accepted=*broken=0;npc=campaign_npc_bodies+slot;
     if(!npc->registration.view || rf_entity_lookup(&campaign_entities,(int32_t)npc->registration.handle)!=&npc->view)return RF_NOT_FOUND;
+    if(npc->view.weapons[0]!=scene_npc_shields.weapon || !npc->inventory.owned[scene_npc_shields.weapon])return RF_OK;
     owner=scene_npc_shields.owners+slot;
     if(!owner->initialized || owner->handle!=npc->registration.handle){
         memset(owner,0,sizeof(*owner));owner->initialized=1;owner->handle=npc->registration.handle;

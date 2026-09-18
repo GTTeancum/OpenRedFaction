@@ -9067,6 +9067,7 @@ static float combat_enemy_primary_damage(const rf_weapon_primary_definition *def
 #include "scene_riot_shield_gameplay.inc"
 #include "scene_riot_shield_query.inc"
 #include "scene_riot_shield_body_order.inc"
+#include "scene_riot_shield_history.inc"
 static int scene_npc_shields_load(const char *path)
 {
     rf_vpp archive={0};rf_vpp_entry entry;void *text=NULL;int status;
@@ -12338,6 +12339,7 @@ static int campaign_combat_tick(scene_stream *stream,uint32_t frame,const float 
         for(i=0;i<campaign_npc_body_count;i++){campaign_pursuit_stop(campaign_npc_bodies+i);campaign_npc_bodies[i].combat_navigation_due=0;campaign_npc_bodies[i].combat_scripted=campaign_npc_bodies[i].combat_target=campaign_npc_bodies[i].combat_alert=campaign_npc_bodies[i].combat_burst_remaining=campaign_npc_bodies[i].combat_due=0;}
 }
     status=campaign_inventory_initialize();if(status)return status;
+    if(!frame && scene_npc_shields.owners){status=scene_npc_shield_history_restore();if(status)return status;}
     if(!frame && (rf_scene_dev_npc_enabled==3 || rf_scene_dev_npc_enabled==4) && campaign_npc_body_count==1){campaign_npc_bodies[0].combat_alert=1;campaign_npc_bodies[0].combat_due=120;}
     if(rf_scene_dev_room_enabled) {
         uint32_t refill=player_input.use && player_input.reload;
@@ -15604,7 +15606,7 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
             if(status)goto done;
             if(rf_scene_follow_level_exits && rf_scene_level_transition.pending)
                 status=rf_campaign_goals_next_section(&rf_scene_mission_goals);
-            else {campaign_ai_modes_reset();campaign_event_history_reset();memset(&campaign_switch_history,0,sizeof(campaign_switch_history));memset(campaign_switch_saved,0,sizeof(campaign_switch_saved));memset(&campaign_trigger_history,0,sizeof(campaign_trigger_history));memset(&campaign_local_goals,0,sizeof(campaign_local_goals));memset(&campaign_startup_inventory,0,sizeof(campaign_startup_inventory));memset(&rf_scene_mission_goals,0,sizeof(rf_scene_mission_goals));memset(&rf_scene_campaign_pickups,0,sizeof(rf_scene_campaign_pickups));memset(&rf_scene_defeated_actors,0,sizeof(rf_scene_defeated_actors));}
+            else {scene_npc_shield_history_reset();campaign_ai_modes_reset();campaign_event_history_reset();memset(&campaign_switch_history,0,sizeof(campaign_switch_history));memset(campaign_switch_saved,0,sizeof(campaign_switch_saved));memset(&campaign_trigger_history,0,sizeof(campaign_trigger_history));memset(&campaign_local_goals,0,sizeof(campaign_local_goals));memset(&campaign_startup_inventory,0,sizeof(campaign_startup_inventory));memset(&rf_scene_mission_goals,0,sizeof(rf_scene_mission_goals));memset(&rf_scene_campaign_pickups,0,sizeof(rf_scene_campaign_pickups));memset(&rf_scene_defeated_actors,0,sizeof(rf_scene_defeated_actors));}
             if(!status)status=rf_runtime_goals_initialize(&campaign_events,&rf_scene_mission_goals);
             if(!status)status=rf_campaign_local_goals_restore(&campaign_local_goals,campaign_current_level,&rf_scene_mission_goals);
             if(status)goto done;
@@ -16089,6 +16091,7 @@ done:
         if(!status)status=campaign_switch_checkpoint(1);
         if(!status)status=campaign_trigger_checkpoint(1,(int32_t)rf_scene_event_ticks[1]);
         if(!status)status=campaign_event_checkpoint(1,(int32_t)rf_scene_event_ticks[1]);
+        if(!status)status=scene_npc_shield_history_capture();
         if(!status)campaign_actors_capture();
     }
     for(i=0;i<SCENE_WEAPON_SLOTS;i++)rf_player_weapon_close(&stream->player_weapon[i]);

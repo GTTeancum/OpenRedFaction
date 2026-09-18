@@ -10,4 +10,10 @@ The original env_guard fixture lacked a shield animation group. Mode5 instead us
 
 PC650-frame replay shield-native.bin blocks9shots, leaves the NPC unharmed and retains890durability. PC2100-frame shield-break.bin blocks32shots, breaks once at-30durability, then records3body hits and2enemy attacks after fallback. Framebuffers were inspected: shield visible before break and absent afterward. Focused gameplay, query immutability, stale identity, break fallback, unsupported held-item, precision ordering and exact-model query contract checks pass. PC/Xbox builds pass. Native render-20260918-110448 passes the650-frame recorded blocking encounter with exact PC/Xbox shield counters:9blocks,0breaks,890durability. Native framebuffer inspected with intact shield;1991free pages (7.78MiB). Native break encounter remains unverified.
 
-Remaining: native break validation, NPC shield-only silhouette selection, player-held shield, pickup/refill, hit/break audiovisual polish, in-memory history integration and disk persistence. Shield damage is currently level-local. Helpers for revisit history exist but are not yet wired or counted complete.
+Remaining: native break validation, NPC shield-only silhouette selection, player-held shield, pickup/refill, hit/break audiovisual polish, live revisit verification and disk persistence. In-memory history is integrated as described below.
+
+## In-memory revisit history
+
+A fixed128-entry/2564-byte sparse table captures touched shields before successful level-transition teardown, using the existing campaign actor catalog level+UID key. Frame0 restores after ordinary inventory initialization and fixture grants; current handles are rebound, while broken shields remove regenerated ownership and use the order-preserving fallback. New-campaign reset clears history with the actor catalog. Shield-hit admission initializes history owners only for selected owned shields, so ordinary shot victims do not consume entries.
+
+Focused checks pass for reordered actors/new handles, sameUID on another level, damaged and broken restores, unchanged scripted orders, unarmed fallback, untouched/unregistered admission, retired actors and reset. PC/Xbox builds pass. A complete live level-out/level-back encounter has not yet been run; no disk persistence is claimed.
