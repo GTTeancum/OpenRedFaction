@@ -39,3 +39,14 @@ The installed manifest test now covers15 sources: the previous six solids and ca
 All eight added beams have21 material/chart references. With the test's fixed manifest capacities, peak capture is1616063bytes for89..92 and1550527bytes for107..110, below the unchanged2097152-byte limit. They retain the existing beam loader3/publication12 policy; actual geometry/material/chart bytes and owner IDs distinguish them. Scene material policy2 now applies to the same beam set. Live selectors/spawn locations and complete save/reload for the added beams remain separate work.
 
 Identity/policy validation: all123 PC tests pass (`artifacts/side-beams-identity-tests.log`), and stock NXDK compile/link/XBE/ISO succeeds (`artifacts/side-beams-identity-xbox.log`). No new native runtime claim is made for these policy changes.
+
+
+## First live side beam: UID92
+
+The explicit source92 selector uses an enemy-free body spawn(-2.75,-.4,0), facing west. It is single-source only; attempting a multi-source92 selection rejects rather than inventing unsupported post owners. The player settles at(-2.75,-.401361,0), and the ordinary rocket hits(-8.5,1.74999928,-2.49e-7) at frame258.
+
+`tools/check_side_beam.py` measures the settled eye, generates its own input, saves after the first shot, reloads, aims farther along the beam towardZ2 and fires again. The first save is3176bytes. The second produces two settled detached pieces and4556bytes exactly matching uninterrupted play. Scene publication has12faces/62vertices at this endpoint; the smaller retained mesh reflects removed/extracted beam material, not an unchanged source. Player remains alive. PC continuation framebuffer inspected: the beam section is gone and a tilted chunk is visible below, with remaining supports, ceiling, hall and HUD retained. Audio not assessed.
+
+The other seven side beams retain tested core/identity support but are not live selectors yet. Side-beam attached posts, mixed-neighbor edits and broad history remain open. Existing source66 and93..98 selectors are unchanged.
+
+Native side-beam92 evidence: `artifacts/xemu/render-20260918-003428`,900frames,77checks passing,3877free pages at endpoint. Xbox's4556-byte checkpoint matches uninterrupted PC exactly. Native framebuffer inspected and confirms the missing beam section and fallen piece. Stock NXDK build succeeds; harness restores disc and closes emulator. Native reload of the side-beam-created checkpoint remains a separate follow-up.

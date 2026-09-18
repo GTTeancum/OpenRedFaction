@@ -2,7 +2,7 @@
 
 - PRIORITY GeoMod ordinary walls: Broaden multi-window and neighboring-brush CSG; a live floor-seam rocket now passes77 stock64MiB checks with exact PC/Xbox save bytes and fixture-off/mismatched-save rejection controls, alongside verified wall depth and player traversal.
 
-- GeoMod source expansion: Enable live side-beam selection and verify saved continuation; eight added beams now decode/carve/publish/reset and capture distinct material/chart identities under2MiB, with scene material policy sharing the decoder table, while mixed cavity/detail/structural CSG remains open.
+- GeoMod source expansion: Broaden live side-beams and attached-post interaction; side-beam92 now passes two live rocket cuts with77 stock64MiB checks, two settled pieces and exact4556-byte uninterrupted PC/Xbox state, while seven more profiles have core/identity support pending live selection.
 
 - GeoMod thin fragments: Broaden contact coverage beyond the beam and concave L fixtures; face-derived samples now rescue pieces missed by regular grids, while Xbox beam continuation still passes76 checks.
 
