@@ -3,7 +3,7 @@
 Completion basis (user direction,2026-09-18): working late-alpha/early-beta code implementation. Overall approximately66%; GeoMod100% for the first playable milestone, accepted by the user. GeoMod items below are deferred refinement and coverage, not prerequisites to moving on. This does not assert retail polish, complete campaign integration or resolution of every known defect.
 
 
-- Player shield: Live PC blocks17shots without damage and32hits through break/fallback, with subsequent player damage; native view/memory passes with7.06MiB free and native650-frame blocking replay passes with17exact matched blocks and7.05MiB free; bash, pickup, broader attacks, saves and native break continuation remain.
+- Player shield: Direct gunfire blocking/break/fallback works; authored delayed bash now connects animation, finite melee contact, cover, source-attributed damage and death; focused actual damage/cover/range checks and PC/Xbox builds pass, PC replay shows attack pose; pickup, broader attacks, saves, native bash and native break continuation remain.
 
 - Riot shields: Live PC now blocks9shots without NPC damage and a longer encounter blocks32shots, breaks the shield and permits subsequent damage/fallback; exact posed-model ordering fixes coarse body overlap; native650-frame blocking replay passes with exact PC/Xbox counters and7.78MiB free, in-memory durability/break history now binds across revisits with focused checks and PC/Xbox builds passing; player shields, NPC silhouette selection, live round-trip verification and disk persistence remain.
 
@@ -5637,3 +5637,10 @@ A crossed beam/floor fixture proves both sets of vertex casts miss; new shared l
 World and committed-mover fragment queries now include bounded edge/edge CCD, with128-edge scratch and complete overflow fallback. Crossed-beam world/translated/rotated-mover and metadata-error fixtures agree in96 native words across80 checks. All124 PC tests, both connected histories and both0.005 floor-contact gates pass. Save/framebuffer unchanged. Added coverage costs approximately6ms per active debris update (34.203ms to40.595ms),3315 free pages. [Scope and evidence](docs/research/GEOMOD-FRAGMENT-EDGE-INTEGRATION-20260918.md). Next rotation/coplanar and mover-relative cases. Estimate approximately51% overall /92% GeoMod; focus debris collision coverage.
 
 
+
+### Shield bash integration (2026-09-18)
+
+- Loaded actual riot-shield primary definition for opt-in DEV slot11. Held attacks repeat every0.5s, impact after0.2s, damage10, reach2m; no ammo debit. Death/unequip cancels pending swing.
+- Shared contact checks nearest NPC body/shield, actual shield/body ordering and nearer world/mover/rubble obstruction. Damage retains player source, hit events and death handling. Attack animation advances before incoming shield collision.
+- Validation: scene_player_shield_bash and scene_player_shield_melee pass; latter applies real NPC damage100 to90 and checks cover, range, delayed/released input and unchanged ammo. PC/Xbox builds pass.175-frame PC replay shows two attacks and an inspected active shield-bash pose; enemy is beyond melee reach in that replay, so this is not a live encounter damage proof. Native bash replay not run.
+- Helper work queued: scene_player_shield_pickup.inc (ownership-only grant) and scene_ai_shield_ray.inc (NPC shield-only ray candidates), with focused test sources; not wired or built yet and not counted as functioning gameplay.
