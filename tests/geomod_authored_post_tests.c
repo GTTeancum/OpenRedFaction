@@ -270,6 +270,53 @@ static int beam_source(const rf_level *level,const rf_geometry *geometry,const c
     }
     rf_geomod_terrain_close(&terrain);rf_geomod_authored_post_close(&owner);return 0;
 }
+static int cavity_source(const void *payload,uint32_t bytes,const rf_geometry *geometry,
+    const rf_level_geomod_settings *settings,const char *shape_path) {
+    rf_geomod_authored_post *owner=NULL,*rejected=NULL;rf_geomod_authored_post_view a;
+    rf_geomod_terrain *terrain=NULL;rf_geomod_terrain_view view;rf_geomod_template shape;
+    rf_collision_face_filter generated;uint32_t i,k,visible,deep=0;
+    float center[3]={-33,4,8},basis[9]={1,0,0,0,1,0,0,0,1};
+    float inside[3]={-32.9f,4,8},outside[3]={-33.1f,4,8};
+    CHECK(rf_geomod_authored_post_decode_source(payload,bytes,geometry,settings,66,2*1024*1024,&rejected)==RF_NOT_FOUND && !rejected);
+    CHECK(rf_geomod_authored_cavity_decode(payload,bytes-1,geometry,settings,2*1024*1024,&rejected)==RF_FORMAT && !rejected);
+    {int status=rf_geomod_authored_cavity_decode(payload,bytes,geometry,settings,2*1024*1024,&owner);printf("CAVITY_DECODE %d\n",status);CHECK(!status);}
+    CHECK(!rf_geomod_authored_post_get(owner,&a));
+    CHECK(a.source_uid==66 && a.source.face_count==14 && a.windows.face_count==134 && a.replaced_count==134);
+    CHECK(a.solid_count==0 && a.neighbors.face_count==0 && a.neighbor_void_count==0);
+    CHECK(rf_geomod_authored_cavity_decode(payload,bytes,geometry,settings,a.peak_bytes-1,&rejected)==RF_RANGE && !rejected);
+    for(i=0;i<a.source.face_count;i++) {
+        double d=a.source_planes[i][3];
+        for(k=0;k<3;k++)d+=(double)a.source_planes[i][k]*(k==1?7.f:.5f);
+        CHECK(d>0); /* Authored inward normals face the cavity interior. */
+    }
+    for(i=0;i<a.windows.face_count;i++) {
+        rf_geometry_face face;CHECK(!rf_geometry_get_face(geometry,a.replaced_ids[i],&face));
+        CHECK(face.room==3 && face.portal==0 && face.corners==a.windows.faces[i].count);
+        CHECK(a.window_origins[i].reference==a.replaced_ids[i] && a.window_origins[i].owner==66);
+        for(k=0;k<face.corners;k++) {
+            rf_geometry_corner corner;float position[3];
+            CHECK(!rf_geometry_get_corner(geometry,a.replaced_ids[i],k,&corner));
+            CHECK(!rf_geometry_vertex(geometry,corner.vertex,position));
+            CHECK(!memcmp(position,a.windows.vertices[a.windows.faces[i].first+k].position,12));
+            CHECK(!memcmp(corner.uv,a.windows.vertices[a.windows.faces[i].first+k].uv,8));
+        }
+    }
+    generated=a.source_filters[0];
+    CHECK(!rf_geomod_terrain_open(&a.source,a.source_filters,&generated,1,4096,768,1048576,&terrain));
+    CHECK(!rf_geomod_terrain_get(terrain,&view));
+    CHECK(!rf_geomod_light_visible(&view,inside,outside,&visible) && !visible);
+    CHECK(!rf_geomod_template_load(shape_path,&shape));
+    CHECK(!rf_geomod_terrain_cut_template(terrain,&shape,center,basis,1.05000007f,0));
+    CHECK(!rf_geomod_terrain_get(terrain,&view) && view.cuts==1);
+    CHECK(!rf_geomod_light_visible(&view,inside,outside,&visible) && visible);
+    inside[1]=outside[1]=7;
+    CHECK(!rf_geomod_light_visible(&view,inside,outside,&visible) && !visible);
+    for(i=0;i<view.mesh.vertex_count;i++)if(view.mesh.vertices[i].position[0]<-33.1f)deep++;
+    CHECK(deep>0);
+    printf("CAVITY_SOURCE uid66 windows%u source%u resident%u peak%u cut_faces%u deep_vertices%u\n",
+        a.windows.face_count,a.source.face_count,a.resident_bytes,a.peak_bytes,view.mesh.face_count,deep);
+    rf_geomod_terrain_close(&terrain);rf_geomod_authored_post_close(&owner);return 0;
+}
 static int selected_sources(const rf_level *level, const rf_geometry *geometry, const char *shape) {
     static const uint32_t uids[] = {93, 94, 96, 97};
     uint32_t n, i, k;
@@ -466,6 +513,7 @@ int main(int argc, char **argv) {
               !other);
         CHECK(!eligibility_cases(payload, section->size, &geometry, &settings, owner));
         CHECK(!neighbor_filter_cases(payload,section->size,&geometry,&settings));
+        CHECK(!cavity_source(payload,section->size,&geometry,&settings,argc>2?argv[2]:"build/data/geomod-template.bin"));
         payload[4] = 94;
         payload[5] = payload[6] = payload[7] = 0;
         CHECK(rf_geomod_authored_post_decode(payload, section->size, &geometry, &settings, 2 * 1024 * 1024,

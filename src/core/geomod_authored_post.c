@@ -313,6 +313,18 @@ static int import_brush_oriented(const unsigned char *data, const brush_record *
         s = reference(g, source, &ref);
         if (s)
             return s;
+        if(reverse==2) {
+            uint32_t candidate;ref=UINT32_MAX;
+            for(candidate=0;candidate<g->faces;candidate++) {
+                uint32_t id;rf_geometry_face visible;rf_collision_face_filter filter;
+                s=geometry_source(g,candidate,&id);if(s)return s;
+                if(id!=source)continue;
+                s=rf_geometry_get_face(g,candidate,&visible);if(s)return s;
+                if(visible.room!=3)continue;
+                s=rf_geometry_initial_collision_filter(g,candidate,0,&filter);if(s)return s;
+                if(ordinary_source(&filter)){ref=candidate;break;}
+            }
+        }
         f[i] = (rf_geomod_face){nv, count, material, source};
         origins[i] = (rf_geomod_publication_origin){
             filters ? RF_GEOMOD_PUBLICATION_RETAINED : RF_GEOMOD_PUBLICATION_NEIGHBOR, b->uid, source, ref};
@@ -345,7 +357,19 @@ static int import_brush_oriented(const unsigned char *data, const brush_record *
         v[f[i].first+j]=v[f[i].first+f[i].count-1-j];v[f[i].first+f[i].count-1-j]=temp;
     }
     mesh = (rf_geomod_mesh_view){v, f, nv, b->faces, 0};
-    return plane_mesh(&mesh, planes);
+    s=plane_mesh(&mesh, planes);
+    /* Mode2 validates an inward source through its reversed outward shell,
+     * then restores the original corner/UV order and inward plane signs. */
+    if(!s && reverse==2) {
+        for(i=0;i<b->faces;i++) {
+            for(j=0;j<f[i].count/2;j++) {
+                rf_geomod_vertex temp=v[f[i].first+j];
+                v[f[i].first+j]=v[f[i].first+f[i].count-1-j];v[f[i].first+f[i].count-1-j]=temp;
+            }
+            for(j=0;j<4;j++)planes[i][j]=-planes[i][j];
+        }
+    }
+    return s;
 }
 static int import_brush(const unsigned char *data,const brush_record *b,const rf_geometry *g,
     rf_geomod_vertex *v,rf_geomod_face *f,rf_geomod_publication_origin *origins,
@@ -378,8 +402,8 @@ static void *chunk(unsigned char *base, uint64_t *at, uint32_t n, size_t size) {
     *at += (uint64_t)n * size;
     return p;
 }
-int rf_geomod_authored_post_decode_source(const void *input, uint32_t bytes, const rf_geometry *g,
-                                   const rf_level_geomod_settings *settings, uint32_t source_uid, uint32_t budget,
+static int decode_profile(const void *input, uint32_t bytes, const rf_geometry *g,
+                                   const rf_level_geomod_settings *settings, uint32_t source_uid, uint32_t cavity, uint32_t budget,
                                    rf_geomod_authored_post **out) {
     const unsigned char *data = input;
     cursor c = {data, bytes, 0};
@@ -403,7 +427,7 @@ int rf_geomod_authored_post_decode_source(const void *input, uint32_t bytes, con
     int s = RF_FORMAT;
     if (!input || !g || !g->data || !settings || !out || *out)
         return RF_RANGE;
-    if (source_uid != 93 && source_uid != 94 && source_uid != 95 && source_uid != 96 && source_uid != 97 && source_uid != 98)
+    if (cavity ? source_uid!=66 : (source_uid != 93 && source_uid != 94 && source_uid != 95 && source_uid != 96 && source_uid != 97 && source_uid != 98))
         return RF_NOT_FOUND;
     if (bytes < 4)
         return RF_FORMAT;
@@ -441,12 +465,12 @@ int rf_geomod_authored_post_decode_source(const void *input, uint32_t bytes, con
         goto done;
     }
     source = records + source_index;
-    if (source->flags || source->faces < 4 || source->faces > 32) {
+    if (source->flags != (cavity?2u:0u) || source->faces < 4 || source->faces > 32) {
         s = RF_NOT_FOUND;
         goto done;
     }
     for (i = 0; i < count; i++)
-        if (i != source_index && overlap(source, records + i)) {
+        if (!cavity && i != source_index && overlap(source, records + i)) {
             brush_record *b = records + i;
             if (b->uid == 66 && b->flags == 2 && b->index < source_index) {
                 air++;
@@ -467,7 +491,7 @@ int rf_geomod_authored_post_decode_source(const void *input, uint32_t bytes, con
             nfaces += b->faces;
             ncorners += b->corners;
         }
-    if (air != 1 || nnear != 3 || ((source_uid==95 || source_uid==98) && !roof_air)) {
+    if (!cavity && (air != 1 || nnear != 3 || ((source_uid==95 || source_uid==98) && !roof_air))) {
         s = RF_NOT_FOUND;
         goto done;
     }
@@ -513,6 +537,7 @@ int rf_geomod_authored_post_decode_source(const void *input, uint32_t bytes, con
         }
         if (!owner || owner->brush != source_index)
             continue;
+        if(cavity && f.room!=3)continue;
         if (f.room != 3 || f.corners < 3 || f.corners > 64) {
             s = RF_NOT_FOUND;
             goto done;
@@ -523,6 +548,7 @@ int rf_geomod_authored_post_decode_source(const void *input, uint32_t bytes, con
             if (s)
                 goto done;
             if (!ordinary_source(&filter)) {
+                if(cavity)continue;
                 s = RF_NOT_FOUND;
                 goto done;
             }
@@ -594,7 +620,7 @@ int rf_geomod_authored_post_decode_source(const void *input, uint32_t bytes, con
     o->view.brush_count = count;
     o->view.authored_face_count = total_faces;
     o->view.settings = *settings;
-    s = import_brush(data, source, g, sv, sf, so, sp, filters, fallback);
+    s = import_brush_oriented(data, source, g, sv, sf, so, sp, filters, fallback,cavity?2:0);
     if (s)
         goto done;
     j = k = 0;
@@ -624,6 +650,12 @@ int rf_geomod_authored_post_decode_source(const void *input, uint32_t bytes, con
         s = rf_geometry_get_face(g, i, &f);
         if (s)
             goto done;
+        if(cavity) {
+            rf_collision_face_filter filter;
+            if(f.room!=3)continue;
+            s=rf_geometry_initial_collision_filter(g,i,0,&filter);if(s)goto done;
+            if(!ordinary_source(&filter))continue;
+        }
         {
             uint32_t source_face;
             for (source_face = 0; source_face < source->faces; source_face++)
@@ -681,6 +713,14 @@ done:
     free(owners);
     free(records);
     return s;
+}
+int rf_geomod_authored_post_decode_source(const void *input,uint32_t bytes,const rf_geometry *geometry,
+    const rf_level_geomod_settings *settings,uint32_t uid,uint32_t budget,rf_geomod_authored_post **out) {
+    return decode_profile(input,bytes,geometry,settings,uid,0,budget,out);
+}
+int rf_geomod_authored_cavity_decode(const void *input,uint32_t bytes,const rf_geometry *geometry,
+    const rf_level_geomod_settings *settings,uint32_t budget,rf_geomod_authored_post **out) {
+    return decode_profile(input,bytes,geometry,settings,66,1,budget,out);
 }
 int rf_geomod_authored_post_open_source(const rf_level *level, const rf_geometry *geometry,
                                         uint32_t source_uid, uint32_t budget,

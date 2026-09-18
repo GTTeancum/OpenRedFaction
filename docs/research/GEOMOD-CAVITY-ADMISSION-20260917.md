@@ -50,3 +50,40 @@ Next implementation:
 No runtime source admission changed in this audit. General ordered editor CSG,
 room-to-room destruction, and campaign GeoMod remain open. Existing beam
 checks cannot establish those behaviors.
+
+
+## Implemented geometry decoder and first core cut
+
+`rf_geomod_authored_cavity_decode` now decodes air66 from the actual editor
+section into an owned inward source and separate compiled wall windows. It
+reuses the strict brush parser, texture/source identity resolution, closed-edge
+and convex-plane checks, packed allocation and transactional output contract.
+Outward validation temporarily reverses the inward source; original corner/UV
+order and inward plane signs are then restored. No synthetic shell is added.
+The ordinary finite-solid selection API still rejects UID66.
+
+Integration exposed additional ownership detail: six air66-derived faces belong
+to rooms268/270/297/299, and six room3 faces carry positive portal metadata.
+The cavity decoder excludes both groups. Its editable-window list contains134
+ordinary room3 polygons, copied exactly with source identity, compiled reference,
+position and UV. Four authored shell faces have no ordinary visible counterpart;
+they retain sentinel references and inherit room collision state from a valid
+visible fallback, rather than borrowing doorway metadata. Neighbor solids are
+empty because this API loads geometry only, not an ordered-CSG neighborhood.
+
+The installed-asset regression passes the14-face inward source to the existing
+cavity terrain core. One original-template cut at(-33,4,8), scale1.05000007,
+produces60 faces and20 vertices beyond X=-33.1. Before the cut, the collision-tree
+visibility segment from(-32.9,4,8) to(-33.1,4,8) is blocked; afterward it is clear.
+A control atY7 stays blocked. This is a core ray test, not player traversal or
+live room publication. Loader ownership retains20912 bytes with1055159-byte
+accounted peak on PC. Truncated input and one-byte-under-budget admission reject
+without publishing an owner; copied compiled windows match every position/UV.
+
+The scene and checkpoint identity APIs still do not admit this cavity. Wall
+window/crater publication, collision composition, atlas/saves and spatial
+eligibility remain required before playable wall destruction can be claimed.
+
+Validation: all123 PC tests pass; stock NXDK compile/link, XBE conversion and ISO
+creation pass. Logs: artifacts/cavity-source-{all-build,tests,xbox}.log. No native
+wall runtime was launched because live cavity publication is not implemented.
