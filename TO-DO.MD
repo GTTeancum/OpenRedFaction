@@ -1,6 +1,6 @@
 # Red Faction Xbox / PC - open work
 
-- PRIORITY GeoMod fragment contacts: Broaden support-loss wake to authored mover/rubble gameplay and resolve rotating/coplanar contacts and carry/crush; bounded translating-support loss now passes 126 PC tests and 82 stock 64 MiB Xbox checks.
+- PRIORITY GeoMod fragment contacts: Broaden support-loss wake to authored mover/rubble gameplay and resolve rotating/coplanar contacts and carry/crush; bounded translating-support loss passes 82 stock 64 MiB Xbox checks, with lateral/gradual withdrawal and full scene wake/fall continuation covered by 126 PC tests.
 
 - Doors: Investigate the existing420-frame close/reopen replay failure reproduced on both current and prior scene code;180-frame opening and player traversal still pass.
 

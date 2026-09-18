@@ -86,6 +86,51 @@ static int moving_surface_contacts(void)
         body.flags|=0x80000000u;memcpy(position,body.position,12);memcpy(basis,body.orientation,36);
         CHECK(!rf_physics_fragment_step(&body,1.f/60,9.8f,&flags,position,basis,current_support_query,&fixture,&report));
         CHECK(body.position[1]<before.position[1] && body.velocity[1]<0 && !report.contacts);
+        /* Sideways withdrawal uses the retained old pose, not the final AABB. */
+        body=before;pose.position[1]=interval.end[1]=0;
+        pose.minimum[1]=-.001f;pose.maximum[1]=.001f;
+        for(i=0;i<4;i++) {
+            static const float translations[4]={.1f,.5f,2.f,-2.f};
+            float x=translations[i];
+            pose.position[0]=interval.end[0]=x;
+            pose.minimum[0]=x-.25f;pose.maximum[0]=x+.25f;
+            pose.minimum[2]=-1;pose.maximum[2]=1;floor=pose;
+            CHECK(!scene_fragment_support_loss(&mesh,&body,&movers,&interval,current_support_query,&fixture,&wake));
+            CHECK(wake==(i>=2) && !memcmp(&body,&before,sizeof(body)));
+        }
+        /* Small frame-by-frame motion must still cross the wake boundary. */
+        for(uint32_t axis=0;axis<2;axis++) {
+            uint32_t woke=0;
+            memset(interval.start,0,12);memset(interval.end,0,12);memset(pose.position,0,12);
+            for(uint32_t frame=1;frame<=2000;frame++) {
+                float displacement=axis?-(float)frame*.001f:(float)frame*.001f;
+                interval.start[axis]=pose.position[axis];
+                interval.end[axis]=pose.position[axis]=displacement;
+                pose.minimum[0]=pose.position[0]-.25f;pose.maximum[0]=pose.position[0]+.25f;
+                pose.minimum[1]=pose.position[1]-.001f;pose.maximum[1]=pose.position[1]+.001f;
+                floor=pose;
+                CHECK(!scene_fragment_support_loss(&mesh,&body,&movers,&interval,current_support_query,&fixture,&wake));
+                CHECK(!memcmp(&body,&before,sizeof(body)));
+                if(wake){woke=frame;break;}
+            }
+            CHECK(axis?(woke>=4 && woke<=6):(woke>=1249 && woke<=1251));
+        }
+        memset(interval.start,0,12);memset(interval.end,0,12);memset(pose.position,0,12);
+        pose.minimum[1]=-.001f;pose.maximum[1]=.001f;
+        /* A distant mover must not wake this body or even call the world query. */
+        interval.start[0]=20;interval.end[0]=pose.position[0]=22;
+        pose.minimum[0]=21.75f;pose.maximum[0]=22.25f;floor=pose;fixture.error=1;
+        CHECK(!scene_fragment_support_loss(&mesh,&body,&movers,&interval,current_support_query,&fixture,&wake));CHECK(!wake);
+        /* Excluded, unchanged and rotating intervals do not enter translation wake. */
+        interval.start[0]=0;pose.flags=0x40000u;
+        CHECK(!scene_fragment_support_loss(&mesh,&body,&movers,&interval,current_support_query,&fixture,&wake));CHECK(!wake);
+        pose.flags=0;interval.changed=0;
+        CHECK(!scene_fragment_support_loss(&mesh,&body,&movers,&interval,current_support_query,&fixture,&wake));CHECK(!wake);
+        interval.changed=2;
+        CHECK(!scene_fragment_support_loss(&mesh,&body,&movers,&interval,current_support_query,&fixture,&wake));CHECK(!wake);
+        interval.changed=1;interval.handle=78;wake=77;
+        CHECK(scene_fragment_support_loss(&mesh,&body,&movers,&interval,current_support_query,&fixture,&wake)==RF_FORMAT);
+        CHECK(wake==77 && !memcmp(&body,&before,sizeof(body)));
     }
     return 0;
 }
@@ -376,6 +421,52 @@ static int cube_batches(float x,float extent,uint32_t batches,rf_geomod_piece_re
 }
 static int cube(float x,float extent,rf_geomod_piece_registry **out)
 {return cube_batches(x,extent,1,out);}
+static int support_loss_scene_tick(void) {
+    scene_stream scene={0};rf_geometry_collision_world world={0};
+    rf_geomod_piece_registry *registry=NULL;rf_geomod_piece_batch *batch;rf_geomod_owned_piece piece;rf_physics_body *body;
+    float points[4][3]={{-2,0,-2},{-2,0,2},{2,0,2},{2,0,-2}};
+    rf_collision_face face={0};rf_geometry_collision_flat flat={0};rf_collision_solid_view view={0};
+    rf_group_attached_pose pose={0},filtered;scene_mover_interval interval;
+    rf_geometry_collision_movers saved_movers=campaign_movers;
+    scene_mover_interval *saved_intervals=campaign_mover_intervals;
+    rf_group_attached_pose *saved_filtered=campaign_fragment_mover_poses;
+    float saved_duration=campaign_mover_interval_seconds,saved_gravity=scene_gravity.acceleration;
+    uint32_t saved_count=campaign_mover_translation_count;rf_physics_body_state before;
+    rf_scene_world_geometry empty_render={0};rf_surface_materials empty_palette={0};const rf_geometry *empty_geometry=NULL;
+    const rf_scene_world_geometry *saved_render=actor_follow_world;
+    rf_surface_materials *saved_palette=campaign_surface_palette;const rf_geometry **saved_sources=campaign_surface_sources;
+    rf_collision_body_mover scratch;rf_collision_body_mover *saved_scratch=campaign_sweep_scratch;
+    actor_follow_world=&empty_render;campaign_surface_palette=&empty_palette;campaign_surface_sources=&empty_geometry;campaign_sweep_scratch=&scratch;
+    CHECK(!cube(0,.25f,&registry));scene.detached_pieces=registry;scene.collision=&world;
+    CHECK(!rf_geomod_piece_registry_get(registry,0,&batch));CHECK(!rf_geomod_piece_batch_get(batch,0,&piece,&body));
+    body->state.flags&=~0x80000000u;before=body->state;
+    face.vertices=points;face.count=4;face.plane[1]=1;
+    face.minimum[0]=face.minimum[2]=-2;face.maximum[0]=face.maximum[2]=2;
+    flat.faces=&face;flat.count=1;view.object_id=77;
+    memset(&campaign_movers,0,sizeof(campaign_movers));campaign_movers.count=1;
+    campaign_movers.poses=&pose;campaign_movers.views=&view;campaign_movers.owned=&flat;
+    for(uint32_t k=0;k<3;k++){pose.input_matrix[k*4]=1;pose.minimum[k]=-2;pose.maximum[k]=2;}
+    pose.position[1]=-.25f;
+    CHECK(!scene_mover_intervals_capture(&campaign_movers,&interval,1,0));
+    pose.position[1]=-2;pose.minimum[1]=-2.001f;pose.maximum[1]=-1.999f;
+    CHECK(!scene_mover_intervals_capture(&campaign_movers,&interval,1,1));
+    filtered=pose;filtered.flags|=0x40000u;campaign_fragment_mover_poses=&filtered;
+    campaign_mover_intervals=&interval;campaign_mover_interval_seconds=1.f/60;campaign_mover_translation_count=1;
+    scene_gravity.acceleration=9.8f;
+    interval.handle=78;
+    CHECK(scene_detached_tick(&scene,1.f/60)==RF_FORMAT);
+    CHECK(!memcmp(&body->state,&before,sizeof(before)));interval.handle=77;
+    CHECK(!scene_detached_tick(&scene,1.f/60));
+    CHECK((body->state.flags&0x80000000u) && body->state.position[1]<before.position[1] && body->state.velocity[1]<0);
+    CHECK(rf_scene_detached_motion[0]==1 && rf_scene_detached_motion[2]==0 && rf_scene_detached_motion[3]==0);
+    /* A later ordinary frame must continue falling rather than re-settling. */
+    before=body->state;campaign_mover_interval_seconds=0;campaign_mover_translation_count=0;
+    CHECK(!scene_detached_tick(&scene,1.f/60));CHECK(body->state.position[1]<before.position[1]);
+    campaign_movers=saved_movers;campaign_mover_intervals=saved_intervals;campaign_fragment_mover_poses=saved_filtered;
+    campaign_mover_interval_seconds=saved_duration;campaign_mover_translation_count=saved_count;scene_gravity.acceleration=saved_gravity;
+    actor_follow_world=saved_render;campaign_surface_palette=saved_palette;campaign_surface_sources=saved_sources;campaign_sweep_scratch=saved_scratch;
+    rf_geomod_piece_registry_close(&registry);return 0;
+}
 static int extended_batches(void) {
     rf_geomod_piece_registry *r=NULL;scene_stream scene={0};scene_terrain_source_owner sources[2]={{0}};
     rf_geomod_registry_hit hit;float start[3]={2,0,0},delta[3]={-4,0,0};uint32_t found,i;
@@ -785,6 +876,7 @@ static int inspection_camera(void) {
 }
 int main(void) {
     CHECK(!moving_surface_contacts());
+    CHECK(!support_loss_scene_tick());
     CHECK(!mover_intervals());
     rf_geomod_piece_registry *registries[2]={0};scene_terrain_authored_assets assets[2]={{0}};
     scene_terrain_source_owner sources[2];scene_stream scene={0};rf_geomod_registry_hit hit,sentinel;

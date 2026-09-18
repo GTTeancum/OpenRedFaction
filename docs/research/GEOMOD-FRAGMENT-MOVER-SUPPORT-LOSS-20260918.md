@@ -16,6 +16,14 @@ The 5300-byte checkpoint remains exact to PC and the prior accepted state (SHA25
 
 ## Remaining limits
 
-An authored visible mover/rubble sequence, lateral support withdrawal, multiple simultaneous contacts, rotating swept support, approaching-surface wake, carrying and crushing remain unverified or unimplemented. The current-world query selects its earliest contact; broader mixed-normal support cases need coverage. These numerical fixtures and unchanged room replay do not establish complete moving-platform gameplay or visual behavior.
+An authored visible mover/rubble sequence, broader lateral support geometry, multiple simultaneous contacts, rotating swept support, approaching-surface wake, carrying and crushing remain unverified or unimplemented. The current-world query selects its earliest contact; broader mixed-normal support cases need coverage. These numerical fixtures and unchanged room replay do not establish complete moving-platform gameplay or visual behavior.
 
 The optional inner-work profiler patch still applies and remains disabled.
+
+## Lateral and scene-update acceptance
+
+The expanded PC fixture tests positive/negative sideways withdrawal, overlap retention, and gradual 0.001-unit motion. Its crossed rectangles retain support through small lateral offsets and wake at the 1.25-unit edge boundary; gradual downward motion wakes at the 0.005-unit probe boundary. Distant, disabled, unchanged and rotating-only intervals do not call the current-world fallback or wake the body. Invalid retained identity preserves the output sentinel and body.
+
+A separate extracted-cube registry fixture now exercises scene_detached_tick with a complete minimal collision context. A valid departing mover wakes the registered chunk, ordinary gravity lowers it without contact, and the following frame continues falling. Invalid mover identity returns RF_FORMAT before body mutation. This checks production scene routing and state publication, not merely the isolated predicate. An initial fixture attempt lacked required scene material/render context and returned an error; providing that context resolved the fixture setup without changing production code.
+
+All 126 PC tests pass in artifacts/fragment-support-lateral-ctest.log. These additions change tests only; native runtime is unchanged from the accepted 82-check run. Lateral cases and the new scene fixture have not been independently executed as Xbox audit fixtures. No new visual claim is made.
