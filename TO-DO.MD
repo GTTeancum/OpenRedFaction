@@ -1,6 +1,6 @@
 # Red Faction Xbox / PC - open work
 
-- PRIORITY GeoMod fragment floor contacts: Correct rotation-aware fragment contacts; read-only traces now prove rotation introduces floor penetration at both west junctions, while the strict resting-contact gate remains red and the shared binary-derived advance contract stays unchanged.
+- PRIORITY GeoMod fragment contacts: Broaden thin-obstacle, edge, moving-support and Xbox cost coverage after partial-pose mesh contact fixes the west floor penetration and east hovering; both first/second-cut rest gates, saved continuation and77-check stock64MiB Xbox runs pass.
 
 - PRIORITY GeoMod ordinary walls: Broaden multi-window and neighboring-brush CSG; a live floor-seam rocket now passes77 stock64MiB checks with exact PC/Xbox save bytes and fixture-off/mismatched-save rejection controls, alongside verified wall depth and player traversal.
 
@@ -5529,3 +5529,8 @@ Tested actual mesh-corner contact spheres through the existing world/mover route
 ### 2026-09-18 — Isolated fragment rotation at finite-floor contacts
 
 Solo work resumed. Added PC-only contact tracing and a four-replay baseline comparison. Actual contact translation uses the original backoff on a private state copy. West first/second-junction contact gaps change from +0.008570/+0.009124 to -0.058115/-0.053567 solely on proposed rotation at the same position; all four checkpoint comparisons remain byte-identical. This confirms an angular contribution without claiming a complete collision solver or correction. All123 PC tests and the stock NXDK build pass. See docs/research/GEOMOD-FRAGMENT-FLOOR-AUDIT-20260918.md. Runtime contact correction and native validation remain open. Overall estimate remains ~51%; GeoMod ~90%. Current action: GeoMod debris collision.
+
+
+### 2026-09-18 — Corrected fragment rotation and resting contacts
+
+Implemented a separate port-policy fragment step that commits partial translation and rotation, including pure angular query coverage, while preserving the binary-derived shared solid advance. Bounded mesh-corner sweeps use finite world/mover contacts, reject shared backside birth boundaries, and qualify oversized grid-sphere contacts against mesh extent. Fresh92/108 first/second-junction destruction and saved/continuous comparisons pass; all five both-cut chunks rest within0.000101units of their floor, and all four first-cut chunks have gap0. Both penetration and positive-clearance gates pass. The older95 connected beam replay and retained large-fragment standing/save/walk-away pass. All123 PC tests pass. Native92 second cut passes77 checks/3042freepages; final native108 fresh cut passes77 checks/3332freepages and exact5300-byte PC/Xbox checkpoint. Native images inspected, discs restored, RF emulators closed, no GitHub screenshot upload. See docs/research/GEOMOD-FRAGMENT-FLOOR-AUDIT-20260918.md for evidence and approximation limits. Broader contact topology, moving supports, large-step handling, old sleeping-pose correction and cost measurements remain open. Approximate progress: overall51%, GeoMod91%. Current action: GeoMod debris collision.

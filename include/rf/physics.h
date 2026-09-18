@@ -272,6 +272,15 @@ int rf_physics_solid_step(rf_physics_body_state *,float dt,float gravity,
     uint32_t *object_flags,float published_position[3],float published_basis[9],
     rf_physics_solid_query_fn,void *,rf_physics_solid_step_report *);
 
+/* Port-only fragment policy: interpolate both pose components at contact.
+ * Does not replace the original-derived solid advance contract. The query
+ * must test the same interpolated pose path, including pure angular motion. */
+int rf_physics_fragment_pose(const rf_physics_body_state *,float fraction,
+    float position[3],float basis[9]);
+int rf_physics_fragment_step(rf_physics_body_state *,float dt,float gravity,
+    uint32_t *object_flags,float published_position[3],float published_basis[9],
+    rf_physics_solid_query_fn,void *,rf_physics_solid_step_report *);
+
 /* 49e7ca..49e8b7 after class-acceleration scaling and movement transform.
  * Caller selects class speed or entity+1488 cap from flag200000. Updates X/Z
  * velocity only; repeat-pass flag1000000 preserves state. No transform,

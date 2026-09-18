@@ -1,4 +1,4 @@
-"""Measure finite-floor gaps before/after translation and proposed rotation.
+"""Measure finite-floor gaps before/after translation and accepted rotation.
 Uses existing side-group fixtures; tracing must preserve the full checkpoint.
 """
 import json,os,subprocess

@@ -5,6 +5,18 @@
 #include <string.h>
 #include "../src/diagnostic/scene.c"
 #define CHECK(x) do{if(!(x)){fprintf(stderr,"FAIL line%d %s\n",__LINE__,#x);return 1;}}while(0)
+static int fragment_plane_side(void) {
+    rf_geomod_vertex vertices[3]={{{0,0,0},{0,0}},{{1,-1,0},{0,0}},{{0,-1,1},{0,0}}};
+    rf_geomod_mesh_view mesh={0};float position[3]={0,0,0},point[3]={0,0,0},normal[3]={0,1,0};
+    float basis[9]={1,0,0,0,1,0,0,0,1};mesh.vertices=vertices;mesh.vertex_count=3;
+    /* A parent top face touched by the back of the newborn piece cannot
+     * support it; the floor beneath the piece must still be admitted. */
+    CHECK(scene_detached_plane_extent(&mesh,position,basis,point,normal)==0);
+    point[1]=-2;CHECK(scene_detached_plane_extent(&mesh,position,basis,point,normal)==2);
+    point[1]=0;position[1]=.5f;CHECK(scene_detached_plane_extent(&mesh,position,basis,point,normal)==.5f);
+    position[1]=-1;CHECK(scene_detached_plane_extent(&mesh,position,basis,point,normal)==-1);
+    return 0;
+}
 static int runtime_surfaces(void) {
     scene_terrain_publication_owner *p=calloc(1,sizeof(*p));scene_stream scene={0};
     rf_geometry geometry={0};rf_geomod_authored_post_view asset={0};
@@ -502,6 +514,6 @@ int main(void) {
     found=77;CHECK(scene_detached_sources_sweep(&scene,4,start,delta,0,NAN,&hit,&found)!=RF_OK);
     CHECK(found==77 && !memcmp(&hit,&sentinel,sizeof(hit)));
     free(before);free(after);for(i=0;i<2;i++)rf_geomod_piece_registry_close(registries+i);
-    CHECK(!inspection_camera());CHECK(!extended_batches());CHECK(!enemy_fragment_shots());CHECK(!rocket_object_contacts());CHECK(!beam_selection());CHECK(!runtime_surfaces());CHECK(!player_sources());CHECK(!notify_sources());CHECK(!rotated_support_clearance());CHECK(!large_support_snap());CHECK(!moving_piece_support());
+    CHECK(!fragment_plane_side());CHECK(!inspection_camera());CHECK(!extended_batches());CHECK(!enemy_fragment_shots());CHECK(!rocket_object_contacts());CHECK(!beam_selection());CHECK(!runtime_surfaces());CHECK(!player_sources());CHECK(!notify_sources());CHECK(!rotated_support_clearance());CHECK(!large_support_snap());CHECK(!moving_piece_support());
     puts("PASS multi-source weapon queries: nearer later source, stable ties, selected alias, isolated damage and atomic misses/errors");return 0;
 }

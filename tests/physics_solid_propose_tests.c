@@ -21,6 +21,13 @@ static int floor_query(const rf_physics_body_state *body,rf_physics_solid_hit *h
     if(*found && hit->fraction>=1)*found=0;
     hit->normal[1]=1;hit->elasticity=.5f;hit->friction=.2f;return RF_OK;
 }
+static int angular_query(const rf_physics_body_state *body,rf_physics_solid_hit *hit,uint32_t *found,void *context)
+{
+    unsigned *calls=context;(*calls)++;
+    if(*calls==1){hit->fraction=.25f;hit->normal[1]=1;memcpy(hit->point,body->position,12);*found=1;}
+    else *found=0;
+    return RF_OK;
+}
 static rf_physics_body_state falling_body(void)
 {
     rf_physics_body_state body={0};body.mass=1;body.bounds.radius=.25f;
@@ -162,6 +169,30 @@ int main(void)
         body=falling_body();context=(floor_query_context){0,2};
         CHECK(!rf_physics_solid_step(&body,.1f,9.8f,&flags,position,basis,floor_query,&context,&report));
         CHECK(context.calls==10 && report.steps==10 && report.limited && report.remaining==.1f);
+    }
+    {
+        /* A rotation-only collision is queried and commits a partial rotation;
+         * the recovered legacy scheduler intentionally keeps its old contract. */
+        rf_physics_solid_step_report report;unsigned calls=0;uint32_t flags=0;
+        float position[3],basis[9],expected[9],unused[3];rf_physics_body_state proposed;
+        body=falling_body();body.flags=0x80000000u;body.coefficients[0]=0;
+        body.mass_vector_d4[2]=2;body.vector_c8[2]=2;proposed=body;
+        CHECK(!rf_physics_solid_angular_propose(&proposed,.1f));
+        memcpy(proposed.next_position,proposed.position,12);
+        CHECK(!rf_physics_fragment_pose(&proposed,.25f,unused,expected));
+        memcpy(position,body.position,12);memcpy(basis,body.orientation,36);
+        CHECK(!rf_physics_fragment_step(&body,.1f,0,&flags,position,basis,angular_query,&calls,&report));
+        CHECK(calls==1 && report.contacts==1 && report.stopped);
+        CHECK(!memcmp(body.orientation,expected,36) && !memcmp(basis,expected,36));
+        CHECK(memcmp(body.orientation,proposed.next_orientation,36));
+        CHECK(!memcmp(position,proposed.position,12));
+        for(test=0;test<3;test++) {
+            double norm=0;unsigned k;for(k=0;k<3;k++)norm+=(double)basis[test*3+k]*basis[test*3+k];
+            CHECK(fabs(norm-1)<1e-6);
+        }
+        before=body;memcpy(saved,position,12);
+        CHECK(rf_physics_fragment_pose(&body,NAN,position,basis)==RF_RANGE);
+        CHECK(!memcmp(&body,&before,sizeof(body)) && !memcmp(saved,position,12));
     }
     puts("PASS solid prediction/contact, settling, unsupported routes and atomic invalid/overflow rejection");return 0;
 }

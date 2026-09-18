@@ -11035,23 +11035,23 @@ static int scene_debris_draw(scene_stream *s)
 uint32_t rf_scene_detached_motion[8]; /* bodies,steps,contacts,stopped,limited,pose hash,status,spheres */
 float rf_scene_detached_pose[6]; /* last body's position and velocity */
 typedef struct scene_detached_query_context {
-    scene_stream *scene;const rf_physics_spheres *spheres;
+    scene_stream *scene;const rf_physics_spheres *spheres;const rf_geomod_mesh_view *mesh;
 #ifndef RF_IMAGE_XBOX_NATIVE
-    const rf_geomod_mesh_view *mesh;uint32_t source,batch,piece,trace;
+    uint32_t source,batch,piece,trace;
 #endif
 } scene_detached_query_context;
 #ifndef RF_IMAGE_XBOX_NATIVE
-/* Read-only finite-floor measurements at the exact partial-contact translation.
- * Separate the old and proposed orientations; do not extrapolate a hit plane. */
+/* Read-only finite-floor measurements at the accepted contact translation.
+ * Separate incoming and accepted orientations; do not extrapolate a hit plane. */
 static int scene_detached_contact_trace(const scene_detached_query_context *c,
     const rf_physics_body_state *body,float fraction) {
-    float minimum[3]={1e9f,1e9f,1e9f},remaining;uint32_t counts[3]={0},pose,q,k,j;
+    float minimum[3]={1e9f,1e9f,1e9f};uint32_t counts[3]={0},pose,q,k,j;
     rf_physics_body_state translated=*body;int advance_status;
-    /* Reuse the real contact backoff, including its float store boundaries. */
-    advance_status=rf_physics_contact_advance(&translated,1,fraction,&remaining);
+    /* Sample the same partial pose that the fragment policy will commit. */
+    advance_status=rf_physics_fragment_pose(body,fraction,translated.position,translated.next_orientation);
     if(advance_status)return advance_status;
     for(pose=0;pose<3;pose++)for(q=0;q<c->mesh->vertex_count;q++) {
-        const float *basis=pose==2?body->next_orientation:body->orientation;
+        const float *basis=pose==2?translated.next_orientation:body->orientation;
         const float *local=c->mesh->vertices[q].position;
         float world[3],above[3],down[3]={0,-1,0};rf_geometry_world_hit hit;uint32_t yes;int status;
         for(k=0;k<3;k++) {
@@ -11072,18 +11072,89 @@ static int scene_detached_contact_trace(const scene_detached_query_context *c,
     return RF_OK;
 }
 #endif
+static float scene_detached_plane_extent(const rf_geomod_mesh_view *mesh,
+    const float position[3],const float basis[9],const float point[3],const float normal[3])
+{
+    float maximum=-1e30f;uint32_t v,k,j;
+    for(v=0;v<mesh->vertex_count;v++) {
+        double distance=0;
+        for(k=0;k<3;k++) {
+            double value=position[k];
+            for(j=0;j<3;j++)value+=(double)mesh->vertices[v].position[j]*basis[j*3+k];
+            distance+=(value-point[k])*normal[k];
+        }
+        if(distance>maximum)maximum=(float)distance;
+    }
+    return maximum;
+}
+/* Port policy: bounded swept mesh-corner coverage supplements the original
+ * mass/sphere shape. Four pose intervals cover angular motion, including a
+ * stationary center; finite world faces and committed movers use one route. */
+static int scene_detached_mesh_sweep(const scene_detached_query_context *c,
+    const rf_physics_body_state *body,rf_geometry_body_hit *best,uint32_t *matched)
+{
+    float positions[5][3],bases[5][9];uint32_t step,q,prior,k,j;int status;
+    for(step=0;step<=4;step++) {
+        status=rf_physics_fragment_pose(body,step*.25f,positions[step],bases[step]);if(status)return status;
+    }
+    for(q=0;q<c->mesh->vertex_count;q++) {
+        const float *local=c->mesh->vertices[q].position;
+        for(prior=0;prior<q;prior++)if(!memcmp(local,c->mesh->vertices[prior].position,12))break;
+        if(prior<q)continue;
+        for(step=0;step<4;step++) {
+            rf_collision_body_sphere sphere={{0,0,0},0};
+            rf_collision_body_query query={0};rf_geometry_body_hit hit;uint32_t yes;
+            float begin=step*.25f;
+            if(*matched && best->contact.fraction<=begin)break;
+            query.matrix[0][0]=query.matrix[1][1]=query.matrix[2][2]=1;
+            query.radius=.05f;query.flags=0x460;query.spheres=&sphere;query.count=1;
+            query.limit=*matched?fminf(1,(best->contact.fraction-begin)*4):1;
+            for(k=0;k<3;k++) {
+                double a=positions[step][k],b=positions[step+1][k];
+                for(j=0;j<3;j++){a+=(double)local[j]*bases[step][j*3+k];b+=(double)local[j]*bases[step+1][j*3+k];}
+                query.start[k]=(float)a;query.end[k]=(float)b;
+            }
+            if(!memcmp(query.start,query.end,12))continue;
+            status=campaign_body_query(c->scene->collision,&query,&hit,&yes);if(status)return status;
+            if(yes) {
+                /* A shared birth vertex may leave the BACK of a neighbor face.
+                 * Such a plane is not supporting this piece: require some mesh
+                 * extent on its outward side before treating it as an obstacle. */
+                if(scene_detached_plane_extent(c->mesh,positions[step],bases[step],
+                    hit.contact.point,hit.contact.normal)<=1e-5f)continue;
+                hit.contact.fraction=begin+hit.contact.fraction*.25f;
+                if(!*matched || hit.contact.fraction<best->contact.fraction){*best=hit;*matched=1;}
+            }
+        }
+    }
+    return RF_OK;
+}
 static int scene_detached_query(const rf_physics_body_state *body,rf_physics_solid_hit *out,uint32_t *matched,void *opaque)
 {
     scene_detached_query_context *c=opaque;rf_collision_body_sphere scratch[64];rf_geometry_body_hit hit;int status;
     status=campaign_physics_body_sweep(c->scene->collision,body,c->spheres,0x460,scratch,64,&hit,matched);
-    if(status || !*matched)return status;
+    if(status)return status;
+    if(*matched) {
+        float position[3],basis[9],opposite[3],minimum;uint32_t k;
+        status=rf_physics_fragment_pose(body,hit.contact.fraction,position,basis);if(status)return status;
+        for(k=0;k<3;k++)opposite[k]=-hit.contact.normal[k];
+        minimum=-scene_detached_plane_extent(c->mesh,position,basis,hit.contact.point,opposite);
+        /* Grid radii can protrude beyond the visible mesh. Do not settle on
+         * that empty padding; corner sweeps supply the later real contact. */
+        if(minimum>.002f)*matched=0;
+    }
+    status=scene_detached_mesh_sweep(c,body,&hit,matched);if(status || !*matched)return status;
     if(hit.contact.fraction>=1){*matched=0;return RF_OK;}
     if(!campaign_surface_palette || hit.contact.material>=campaign_surface_palette->count)return RF_FORMAT;
     out->fraction=hit.contact.fraction;memcpy(out->point,hit.contact.point,12);memcpy(out->normal,hit.contact.normal,12);
     out->elasticity=campaign_surface_palette->materials[hit.contact.material].elasticity;
     out->friction=campaign_surface_palette->materials[hit.contact.material].friction;
 #ifndef RF_IMAGE_XBOX_NATIVE
-    if(c->trace)return scene_detached_contact_trace(c,body,out->fraction);
+    if(c->trace) {
+        printf("DETACHED_QUERY_HIT %u %u %u %u %u %.9g %.9g %.9g %.9g %.9g %.9g %.9g\n",c->source,c->batch,c->piece,hit.solid,hit.face,
+            out->fraction,out->point[0],out->point[1],out->point[2],out->normal[0],out->normal[1],out->normal[2]);
+        return scene_detached_contact_trace(c,body,out->fraction);
+    }
 #endif
     return RF_OK;
 }
@@ -11165,12 +11236,12 @@ static int scene_detached_tick(scene_stream *s,float seconds)
             scene_detached_query_context query;uint32_t flags=0;float position[3],basis[9];
             if(!rf_geomod_piece_batch_alive(batch,i))continue;
             status=rf_geomod_piece_batch_get(batch,i,&piece,&body);if(status)goto failed;
-            query.scene=s;query.spheres=&body->spheres;memcpy(position,body->state.position,12);memcpy(basis,body->state.orientation,36);
+            query.scene=s;query.spheres=&body->spheres;query.mesh=&piece.mesh;memcpy(position,body->state.position,12);memcpy(basis,body->state.orientation,36);
 #ifndef RF_IMAGE_XBOX_NATIVE
-            query.mesh=&piece.mesh;query.source=source;query.batch=b;query.piece=i;
+            query.source=source;query.batch=b;query.piece=i;
             query.trace=getenv("RF_REPLAY_FRAGMENT_CONTACT_TRACE")!=NULL;
 #endif
-            status=rf_physics_solid_step(&body->state,seconds,scene_gravity.acceleration,&flags,
+            status=rf_physics_fragment_step(&body->state,seconds,scene_gravity.acceleration,&flags,
                 position,basis,scene_detached_query,&query,&report);if(status){printf("DETACHED_STEP_FAILURE %u %u %u %d %u %.9g %.9g %.9g\n",source,b,i,status,body->state.flags,body->state.position[0],body->state.position[1],body->state.position[2]);printf("DETACHED_STEP_RADIUS %.9g\n",body->state.bounds.radius);goto failed;}
             ++rf_scene_detached_motion[0];rf_scene_detached_motion[1]+=report.steps;rf_scene_detached_motion[2]+=report.contacts;
             rf_scene_detached_motion[3]+=!(body->state.flags&0x80000000u);rf_scene_detached_motion[4]+=report.limited;

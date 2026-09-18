@@ -945,9 +945,41 @@ int rf_physics_solid_advance(rf_physics_body_state *state,float dt,float fractio
     if(fraction==1)memcpy(published_basis,value.orientation,36);
     *state=value;*remaining=left;return RF_OK;
 }
-int rf_physics_solid_step(rf_physics_body_state *state,float dt,float gravity,
+int rf_physics_fragment_pose(const rf_physics_body_state *state,float fraction,
+    float position[3],float basis[9])
+{
+    float p[3],m[9];long double length;uint32_t i;
+    if(!state || !position || !basis || !isfinite(fraction) || fraction<0 || fraction>1)return RF_RANGE;
+    for(i=0;i<3;i++) {
+        p[i]=(float)((double)state->position[i]+((double)state->next_position[i]-state->position[i])*fraction);
+        if(!isfinite(p[i]))return RF_RANGE;
+    }
+    for(i=0;i<9;i++) {
+        m[i]=(float)((double)state->orientation[i]+((double)state->next_orientation[i]-state->orientation[i])*fraction);
+        if(!isfinite(m[i]))return RF_RANGE;
+    }
+    if(fraction>0 && fraction<1) {
+        length=solid_length(m+6);if(length<=0)return RF_RANGE;
+        for(i=0;i<3;i++)m[6+i]=(float)((long double)m[6+i]/length);
+        solid_cross(m+3,m+6,m);length=solid_length(m);if(length<=0)return RF_RANGE;
+        for(i=0;i<3;i++)m[i]=(float)((long double)m[i]/length);
+        solid_cross(m+6,m,m+3);
+    }
+    memcpy(position,p,12);memcpy(basis,m,36);return RF_OK;
+}
+static int fragment_advance(rf_physics_body_state *state,float dt,float fraction,
+    float basis[9],float *remaining)
+{
+    float position[3],matrix[9];uint32_t i;int status;
+    status=rf_physics_fragment_pose(state,fraction,position,matrix);if(status)return status;
+    memcpy(state->position,position,12);memcpy(state->orientation,matrix,36);memcpy(basis,matrix,36);
+    for(i=0;i<3;i++){state->bounds.minimum[i]=position[i]-state->bounds.radius;state->bounds.maximum[i]=position[i]+state->bounds.radius;}
+    status=rf_physics_tensor_world(state->local_tensor,state->orientation,state->world_tensor);if(status)return status;
+    state->scalar_144=fraction;*remaining=dt*(1-fraction);return RF_OK;
+}
+static int solid_step_policy(rf_physics_body_state *state,float dt,float gravity,
     uint32_t *object_flags,float published_position[3],float published_basis[9],
-    rf_physics_solid_query_fn query,void *context,rf_physics_solid_step_report *report)
+    rf_physics_solid_query_fn query,void *context,rf_physics_solid_step_report *report,int fragment)
 {
     rf_physics_body_state value;rf_physics_solid_step_report result={0};
     float acceleration[3]={0},position[3],basis[9],left=dt,g[3]={0,0,0};
@@ -964,11 +996,13 @@ int rf_physics_solid_step(rf_physics_body_state *state,float dt,float gravity,
         status=rf_physics_solid_angular_propose(&value,left);if(status)return status;
         status=rf_physics_body_prepare_sweep(&value);if(status)return status;
         if(value.position[0]!=value.next_position[0] || value.position[1]!=value.next_position[1] ||
-           value.position[2]!=value.next_position[2]) {
+           value.position[2]!=value.next_position[2] ||
+           (fragment && memcmp(value.orientation,value.next_orientation,36))) {
             status=query(&value,&hit,&found,context);if(status)return status;
         }
         if(found && (!isfinite(hit.fraction) || hit.fraction<0 || hit.fraction>=1))return RF_RANGE;
-        status=rf_physics_solid_advance(&value,left,found?hit.fraction:1,basis,&left);if(status)return status;
+        status=fragment?fragment_advance(&value,left,found?hit.fraction:1,basis,&left):
+            rf_physics_solid_advance(&value,left,found?hit.fraction:1,basis,&left);if(status)return status;
         result.steps++;
         if(found) {
             status=rf_physics_solid_contact(&value,hit.point,hit.normal,g,hit.elasticity,hit.friction,&response);
@@ -982,6 +1016,14 @@ int rf_physics_solid_step(rf_physics_body_state *state,float dt,float gravity,
     *state=value;*object_flags=flags;memcpy(published_position,position,12);
     memcpy(published_basis,basis,36);*report=result;return RF_OK;
 }
+int rf_physics_solid_step(rf_physics_body_state *state,float dt,float gravity,
+    uint32_t *flags,float position[3],float basis[9],rf_physics_solid_query_fn query,
+    void *context,rf_physics_solid_step_report *report)
+{return solid_step_policy(state,dt,gravity,flags,position,basis,query,context,report,0);}
+int rf_physics_fragment_step(rf_physics_body_state *state,float dt,float gravity,
+    uint32_t *flags,float position[3],float basis[9],rf_physics_solid_query_fn query,
+    void *context,rf_physics_solid_step_report *report)
+{return solid_step_policy(state,dt,gravity,flags,position,basis,query,context,report,1);}
 int rf_physics_solid_contact(rf_physics_body_state *state,const float point[3],
     const float normal[3],const float gravity[3],float elasticity,float friction,
     rf_physics_solid_response *response)
