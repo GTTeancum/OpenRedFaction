@@ -60,4 +60,24 @@ int rf_composed_checkpoint_encode_v2(uint32_t profile_id,const rf_player_checkpo
 int rf_composed_checkpoint_preflight_v2(const void *,uint32_t bytes,uint32_t profile_id,
     const rf_player_checkpoint_catalog *,uint32_t level_hash,uint32_t catalog_hash,
     rf_composed_checkpoint_v2 *);
+typedef struct rf_composed_checkpoint_v3 {
+    rf_composed_checkpoint_v2 base;
+    const unsigned char *vehicle;uint32_t vehicle_bytes;
+} rf_composed_checkpoint_v3;
+/* RFCP3 retains the32-byte header and RFPL/RFDS/RFRM offsets. Word12 now
+ * contains optional RFVC length (0 or128); RFVC follows RFRM. New preflight
+ * accepts RFCP1/2 as vehicle-absent; old APIs deliberately reject RFCP3.
+ * RFVC checksum and value ranges are checked, but class/world identity,
+ * clearance, occupancy and player binding remain transactional caller gates.
+ * Player standing/velocity rules are UNCHANGED. No live seated-save support
+ * is implied. Vehicle bytes reduce RFDS capacity under the existing RFSG cap.
+ * All inputs disjoint from output except each payload may occupy its exact
+ * final slice. Error preserves output/written; returned slices are borrowed. */
+int rf_composed_checkpoint_encode_v3(uint32_t profile_id,const rf_player_checkpoint *,
+    const rf_player_checkpoint_catalog *,const void *rfds,uint32_t rfds_bytes,
+    const void *remote,uint32_t remote_bytes,uint32_t level_hash,uint32_t catalog_hash,
+    const void *vehicle,uint32_t vehicle_bytes,void *output,uint32_t capacity,uint32_t *written);
+int rf_composed_checkpoint_preflight_v3(const void *,uint32_t bytes,uint32_t profile_id,
+    const rf_player_checkpoint_catalog *,uint32_t level_hash,uint32_t catalog_hash,
+    rf_composed_checkpoint_v3 *);
 #endif

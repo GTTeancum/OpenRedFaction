@@ -6,14 +6,15 @@
  * for selected flame weapon, even when inhibited, and reset at scene startup. */
 #define SCENE_FLAME_RANGE 5.0f
 #define SCENE_FLAME_RADIUS 1.0f
+static int scene_driller_flame_cover(scene_stream *,uint32_t,const float *,const float *,uint32_t *);
+static int scene_driller_flame_pulse(scene_stream *,uint32_t,const float *,const float *,const rf_damage_request *,uint32_t *,float *);
 static rf_flame_cadence scene_flame_cadence;
 static uint32_t scene_flame_gas_remainder;
 static void scene_flame_reset(void)
 {memset(&scene_flame_cadence,0,sizeof(scene_flame_cadence));scene_flame_gas_remainder=0;}
 static int scene_flame_cover(void *context,const float *start,const float *end,uint32_t *blocked)
 {
-    float delta[3];uint32_t i;for(i=0;i<3;i++)delta[i]=end[i]-start[i];
-    return combat_shot_obstructed(context,start,delta,1,blocked);
+    return scene_driller_flame_cover(context,campaign_player_object.handle,start,end,blocked);
 }
 static int scene_flame_body_contact(scene_stream *stream,const rf_physics_body *body,
     const float origin[3],const float forward[3],uint32_t *hit)
@@ -52,6 +53,8 @@ static int scene_flame_tick(scene_stream *stream,uint32_t frame,const float orig
         &campaign_player_inventory.loaded[weapon],&consumed);if(status)return status;
     if(consumed)campaign_ammo_publish();
     if(!*pulse)return RF_OK;
+    {uint32_t host_contact;float host_amount;
+     status=scene_driller_flame_pulse(stream,frame,origin,forward,&request,&host_contact,&host_amount);if(status)return status;}
     memcpy(&bits,&seconds,4);
     for(i=0;i<campaign_npc_body_count;i++) {
         campaign_npc_body *owner=campaign_npc_bodies+i;uint32_t handle=owner->registration.handle;float amount=0;

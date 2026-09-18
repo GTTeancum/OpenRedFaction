@@ -13061,6 +13061,7 @@ static int campaign_inspect_camera(scene_stream *stream,float position[3],float 
 #include "scene_driller_excavation.inc"
 #include "scene_driller_live_contact.inc"
 #include "scene_driller_runtime.inc"
+#include "scene_driller_flame.inc"
 static int actor_follow_view(void *context,uint32_t frame,const rf_motion_controller *controller,rf_model_projection *view)
 {
     scene_stream *stream=context;float position[3],orientation[3][3];
