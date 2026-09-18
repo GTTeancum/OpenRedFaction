@@ -1,8 +1,13 @@
 """Read-only final-pose floor-plane audit for actual connected destruction saves.
 Does not establish full polygon contact, penetration resolution, or retail parity.
 """
-import json,os,subprocess
+import argparse,json,math,os,subprocess
 from pathlib import Path
+parser=argparse.ArgumentParser(description=__doc__)
+parser.add_argument('--max-penetration',type=float,help='Fail after reporting if any actual vertex/floor gap is below this negative tolerance')
+args=parser.parse_args()
+if args.max_penetration is not None and (not math.isfinite(args.max_penetration) or args.max_penetration<0):
+    parser.error('--max-penetration must be finite and nonnegative')
 ROOT=Path(__file__).resolve().parents[1]
 OUT=ROOT/'artifacts/fragment-support-audit';OUT.mkdir(exist_ok=True)
 report={}
@@ -35,3 +40,11 @@ for uid in (92,108):
     report[str(uid)]=dict(state_preserved=True,pieces=rows)
 (OUT/'report.json').write_text(json.dumps(report,indent=2)+'\n')
 print(json.dumps(report,indent=2))
+
+if args.max_penetration is not None:
+    failures=[dict(group=uid,batch=p['batch'],piece=p['piece'],gap=p['actual_vertex_floor_gap'])
+        for uid,case in report.items() for p in case['pieces']
+        if p['actual_vertex_floor_face']==0xffffffff or p['actual_vertex_floor_gap'] < -args.max_penetration]
+    if failures:
+        print('CONTACT_GATE_FAIL '+json.dumps(failures));raise SystemExit(1)
+    print('CONTACT_GATE_PASS')

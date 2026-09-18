@@ -1,6 +1,6 @@
 # Red Faction Xbox / PC - open work
 
-- PRIORITY GeoMod fragment floor contacts: Correct verified resting mesh penetration of0.107/0.062units in west-side fragments and qualify small east-side gaps; the read-only pose/floor audit preserves exact checkpoints but does not fix contact.
+- PRIORITY GeoMod fragment floor contacts: Implement rotation-aware fragment contact correction for verified0.107/0.062unit floor penetration; added corner spheres worsened contact and were removed, and the strict finite-floor gate intentionally fails until fixed.
 
 - PRIORITY GeoMod ordinary walls: Broaden multi-window and neighboring-brush CSG; a live floor-seam rocket now passes77 stock64MiB checks with exact PC/Xbox save bytes and fixture-off/mismatched-save rejection controls, alongside verified wall depth and player traversal.
 
@@ -5519,3 +5519,8 @@ Extended the connected replay to shoot the opposite junction after reload, requi
 ### 2026-09-18: Actual fragment resting-contact audit
 
 Added opt-in endpoint mesh/sphere/floor measurements and a two-group replay driver. Rays at actual posed vertex positions confirm west fragments penetrate floor faces1333/1334 by0.106615/0.061811units. East mesh gaps are0.001446/0.039094/0.016676units, with two sphere approximations slightly penetrating. All five pieces sleep; both audited output checkpoints exactly match unaudited continuation. This is a real geometry/contact discrepancy despite PC/Xbox state agreement, not a fixed issue. Next: distinguish proxy approximation from integration penetration and implement a finite-surface-aware correction with state/save validation. All123 PC tests and stock NXDK build pass; no new native run. See docs/research/GEOMOD-FRAGMENT-FLOOR-AUDIT-20260918.md. Overall~51%; GeoMod~90%.
+
+
+### 2026-09-18: Reject translational corner-sphere fix; enforce real contact gate
+
+Tested actual mesh-corner contact spheres through the existing world/mover route. Replay/save comparisons passed but actual mesh-floor penetration worsened to0.117/0.485units, so the candidate was removed. Confirmed the existing sweep uses current orientation while binary-verified fractional advance commits full proposed rotation; a complete pose-aware policy is needed. Restored the original runtime and regenerated92 histories; replay passes and both audit checkpoints remain identical to baseline. The new --max-penetration .005 gate correctly reports the original two floor failures and exits1. No gameplay fix or Xbox candidate build shipped. Contact correction remains open. See docs/research/GEOMOD-FRAGMENT-FLOOR-AUDIT-20260918.md. Overall~51%; GeoMod~90%.
