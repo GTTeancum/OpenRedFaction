@@ -22,13 +22,14 @@ from xemu_guest_snapshot import words
 from xemu_smoke import Monitor
 from xemu_session_guard import require_no_project_xemu
 from verify_water_xbox import verify as verify_water_scenario
-from xemu_texture_audit import capture as capture_texture
+from xemu_texture_audit import capture as capture_texture, capture_atlas
 
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--expanded-geomod', action='store_true', help='Opt-in matching sixteen-cut PC/NXDK profile on stock64MiB')
     parser.add_argument('--terrain-texture-audit', action='store_true', help='Read live Xbox substrate texture bytes and compare the PC owner')
+    parser.add_argument('--terrain-atlas-audit', action='store_true', help='Compare live generated atlas bytes for a settled checkpoint with neutral input')
     parser.add_argument('--terrain-map-limit',type=int,help='Explicit DEV fault injection: maximum new-map admission count')
     parser.add_argument('--terrain-map-limit-until',type=int,default=0xffffffff,help='Frame when injected map limit expires')
     parser.add_argument('--cpu-exceptions', action='store_true', help='Retain QEMU exception/reset diagnostics for guest crash analysis')
@@ -71,6 +72,8 @@ def main():
     parser.add_argument('--unsorted', action='store_true', help='Reference source-order world draw ranges')
     args = parser.parse_args()
     if args.terrain_texture_audit and not args.dev_room:parser.error('--terrain-texture-audit requires --dev-room')
+    if args.terrain_atlas_audit and (not args.dev_room or not args.geomod_checkpoint_in):
+        parser.error('--terrain-atlas-audit requires a settled DEV checkpoint')
     if args.terrain_map_limit is not None and (not args.dev_room or not 1<=args.terrain_map_limit<=(2048 if args.expanded_geomod else 1024) or not 1<=args.terrain_map_limit_until<=0xffffffff):
         parser.error('Map fault injection requires DEV mode and valid map/frame limits')
     if args.authored_source is not None and (not args.dev_room or args.level!='ctf06.rfl'):
@@ -117,6 +120,8 @@ def main():
         parser.error('Require32..60000 frames,30..3600 seconds and a positive actor UID')
     if payload is None:
         payload = b'RFI5' + struct.pack('<I', 44) + bytes(args.frames * 44)
+    if args.terrain_atlas_audit and any(payload[8:] if payload[:4] in (b'RFI2',b'RFI3',b'RFI4',b'RFI5',b'RFI6') else payload):
+        parser.error('--terrain-atlas-audit requires neutral replay input')
     if args.item_uid is not None and not 0 < args.item_uid < 0xffffffff:
         parser.error('Require a positive item UID')
     if any(v is not None and not 0<v<0xffffffff for v in (args.exit_uid,args.return_exit_uid)) or (args.return_exit_uid and not args.exit_uid):
@@ -149,6 +154,7 @@ def main():
     env['RF_REPLAY_AUTHORED_SOURCES']=str(args.authored_sources)
     if args.authored_source is not None:env['RF_REPLAY_AUTHORED_SOURCE']=str(args.authored_source)
     if args.terrain_texture_audit:env['RF_REPLAY_TERRAIN_MATERIAL_AUDIT']=str(run/'pc-terrain-material.bin')
+    if args.terrain_atlas_audit:env['RF_REPLAY_TERRAIN_BASE_AUDIT']=str(run/'pc-terrain-atlas.csv')
     if args.terrain_map_limit is not None:
         env.update(RF_REPLAY_TERRAIN_MAP_LIMIT=str(args.terrain_map_limit),RF_REPLAY_TERRAIN_MAP_LIMIT_UNTIL=str(args.terrain_map_limit_until))
         report['terrain_map_fault']=dict(limit=args.terrain_map_limit,until_frame=args.terrain_map_limit_until)
@@ -356,6 +362,13 @@ dvd_path = '{root.as_posix()}/build/xbox/redfaction-diagnostic.iso'
                         report['terrain_texture']['frame']=d[37]
                     finally:
                         monitor.command('cont')
+                if args.terrain_atlas_audit and d[2]==2 and d[37]>0 and 'terrain_atlas' not in report:
+                    monitor.command('stop')
+                    try:
+                        report['terrain_atlas']=capture_atlas(monitor,symbol,run/'pc-terrain-atlas.csv',run)
+                        report['terrain_atlas']['frame']=d[37]
+                    finally:
+                        monitor.command('cont')
                 current = (d[2], d[37] // 30)
                 if current != previous:
                     if d[2]==2 and d[37]>0:
@@ -388,6 +401,9 @@ dvd_path = '{root.as_posix()}/build/xbox/redfaction-diagnostic.iso'
             if args.terrain_texture_audit:
                 assert 'terrain_texture' in report, 'No live frame available for texture audit'
                 report['checks']['TERRAIN_TEXTURE']=report['terrain_texture']
+            if args.terrain_atlas_audit:
+                assert 'terrain_atlas' in report, 'No live frame available for atlas audit'
+                report['checks']['GPU_TERRAIN_ATLAS']=report['terrain_atlas']
             if checkpoint:
                 state=words(monitor,symbol('rf_scene_geomod_checkpoint_state'),4)
                 memory=words(monitor,symbol('rf_scene_geomod_checkpoint_memory'),2)

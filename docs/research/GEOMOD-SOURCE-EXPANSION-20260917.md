@@ -415,3 +415,36 @@ report. This source check is not observation of executed GPU command state.
 Generated-atlas upload and actual draw-time bindings/sampling remain open; the
 base-texture allocation no longer needs another identical byte-comparison run.
 No runtime implementation changed in this qualification.
+
+
+### Native generated-cap atlas upload
+
+Added --terrain-atlas-audit to the native harness for settled DEV checkpoint
+loads with neutral replay input. It follows live stream_materials/lightmaps and
+the renderer texture table to the generated atlas allocation; an opaque pointer
+or upload counter alone is not acceptance. The paused guest read retrieves the
+512x512 swizzled1555 allocation, then independently addresses and compares every
+reference chart texel, including borders. It rejects malformed chart bounds,
+overlap, truncation and missing owners. Unallocated pixels are not compared.
+Three unit tests pass, covering handwritten rectangular Morton layouts,
+corrupted chart bytes, ignored unowned bytes and malformed/overlapping inputs.
+
+Stock64MiB run artifacts/xemu/render-20260917-205101 reads image41 at frame2:
+all112 texels of seven maps match the PC reference exactly. The allocation is
+single-level512x512 A1R5G5B5. Full512KiB readback is retained locally; its hash
+is4328bfb15e05bf65f0e6af0a3bafd6fe4bb9fff7b01c895460e9a595aff583bd.
+Reference atlas SHA256 matches the independently audited idle calculation:
+d24929e66f248bfb0c79c9a574e2022fae23c2a507530887ee42293af15de3d8.
+
+The run passes76 existing checks plus the separately recorded terrain_atlas
+byte comparison; its7692-byte checkpoint exactly matches PC and endpoint free
+pages3335 give13.027MiB. A report-key collision initially let the older metadata
+check overwrite the new entry in checks, while the full new evidence remained
+in top-level terrain_atlas. The final harness names the new check
+GPU_TERRAIN_ATLAS; this reporting-only rename was not a second native run.
+Native frame inspected: both damaged joints, resting debris, room, launcher and
+HUD remain visible. Cap-top appearance and audio are not newly qualified.
+Disc restored, owned emulator exited, no GitHub image added. Log:
+artifacts/cap-native-atlas.log. Runtime source unchanged. Actual executed draw
+bindings and sampling remain the next boundary; base and chart allocation byte
+identity are now established for this fixture.

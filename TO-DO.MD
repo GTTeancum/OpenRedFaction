@@ -4,7 +4,7 @@
 
 - GeoMod Xbox stability: Broaden connected debris histories after fixing stack exhaustion and cell-sampling precision; reset-save/rocket now passes76 native checks with exact PC continuation and13.50MiB endpoint headroom.
 
-- GeoMod source expansion: Verify generated-atlas upload and draw-time cap bindings, then broaden geometry/gameplay interactions; native substrate bytes now match exactly with77 stock64MiB checks and identical PC continuation, while visual parity remains open.
+- GeoMod source expansion: Verify draw-time cap bindings/sampling, then broaden geometry/gameplay interactions; native substrate bytes and all112 generated-chart texels now match exactly with identical PC continuation, while visual parity remains open.
 
 - GeoMod publication: Broaden clipped-face partition coverage to other source geometry; the repaired shot, save/reload and subsequent rocket now pass76/75/76 native checks, with exact uninterrupted PC checkpoints, while broader histories remain open.
 
