@@ -18,7 +18,7 @@
 
 - Player saves: Audit other replay save boundaries and broaden residual-velocity coverage; RFPLv2 standing save/reload passes74/74 stock64MiB checks and exact walk-away continuation, while legacy zero-velocity RFPLv1 remains compatible.
 
-- GeoMod player contacts: Broaden rotating shape/support-loss coverage; an actual post fragment now rotates, settles and updates player support through77 stock64MiB checks with280 exact PC sample words and matching save, while a zero-inertia large beam correctly remains unrotated.
+- GeoMod player contacts: Broaden confined/blocked support and support-loss coverage; rotating-overlap recovery fixes a0.067-unit player penetration and rejected save, with123 PC tests and77 stock64MiB checks passing with280 exact PC words and matching checkpoint.
 
 - GeoMod vehicle contacts: Verify admitted use-kind1 vehicle contacts with larger fragments;240 original cases confirm ordinary miner/AI-response kind9 is excluded, so humanoid rubble pushing is not a missing fidelity feature.
 

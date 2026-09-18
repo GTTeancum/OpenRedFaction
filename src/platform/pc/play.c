@@ -508,6 +508,7 @@ int main(int argc,char **argv)
     rf_scene_moving_support_enabled=p.headless && getenv("RF_REPLAY_MOVING_SUPPORT_TEST")!=NULL;
     if(rf_scene_moving_support_enabled && !strcmp(getenv("RF_REPLAY_MOVING_SUPPORT_TEST"),"2"))rf_scene_moving_support_enabled=2;
     if(rf_scene_moving_support_enabled && !strcmp(getenv("RF_REPLAY_MOVING_SUPPORT_TEST"),"3"))rf_scene_moving_support_enabled=3;
+    if(rf_scene_moving_support_enabled && !strcmp(getenv("RF_REPLAY_MOVING_SUPPORT_TEST"),"4"))rf_scene_moving_support_enabled=4;
     if(getenv("RF_REPLAY_INSPECTION_CAMERA")) {
         float eye[3],target[3];char extra;
         if(!p.headless || !rf_scene_dev_room_enabled)CHECK(RF_RANGE);

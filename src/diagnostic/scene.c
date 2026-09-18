@@ -7502,6 +7502,28 @@ static int actor_ground_query_state(const rf_geometry_collision_world *world,con
 }
 static int actor_ground_query(const rf_geometry_collision_world *world,actor_ground_record *r,rf_geometry_body_hit *contact,scene_piece_support *support)
 {return actor_ground_query_state(world,&scene_actor_body.state,r,contact,support);}
+/* Port correction for a supported sphere-mode fragment rotating into the actor.
+ * A sweep beginning inside a sphere cannot recover this overlap. Find the
+ * upward separating height from the current shapes; do not alter saved poses
+ * or weaken the checkpoint fit gate. World clearance is checked by the caller. */
+static float actor_piece_support_height(const rf_physics_body_state *actor,const rf_physics_spheres *spheres,
+    const rf_physics_body *piece)
+{
+    double required=actor->position[1];uint32_t n,q,k,j,overlap=0;
+    if(!piece || !(piece->state.bounds.radius>.5f && piece->state.bounds.radius<=1))return actor->position[1];
+    for(n=0;n<spheres->count;n++)for(q=0;q<piece->spheres.count;q++) {
+        double a[3],b[3],horizontal,radius=(double)spheres->items[n].radius+piece->spheres.items[q].radius;
+        for(k=0;k<3;k++) {
+            a[k]=actor->position[k];b[k]=piece->state.position[k];
+            for(j=0;j<3;j++){a[k]+=(double)spheres->items[n].center[j]*actor->orientation[j*3+k];b[k]+=(double)piece->spheres.items[q].center[j]*piece->state.orientation[j*3+k];}
+        }
+        horizontal=(a[0]-b[0])*(a[0]-b[0])+(a[2]-b[2])*(a[2]-b[2]);
+        if(horizontal>=radius*radius || a[1]<b[1])continue;
+        if(radius>.002 && horizontal+(a[1]-b[1])*(a[1]-b[1])<(radius-.002)*(radius-.002))overlap=1;
+        {double y=b[1]+sqrt(radius*radius-horizontal)-(a[1]-actor->position[1]);if(y>required)required=y;}
+    }
+    return overlap?(float)(required+.0001):actor->position[1];
+}
 static int actor_support_commit(rf_physics_body_state *state,const actor_ground_record *ground,
     const rf_geometry_body_hit *contact,uint32_t landing,const scene_piece_support *support)
 {
@@ -7535,6 +7557,20 @@ static int actor_support_commit(rf_physics_body_state *state,const actor_ground_
             float y=(float)((double)state->position[1]+((double)next.position[1]-state->position[1])*hit.contact.fraction);
             next.position[1]=next.next_position[1]=y;
             next.bounds.minimum[1]=y-next.bounds.radius;next.bounds.maximum[1]=y+next.bounds.radius;
+        }
+    }
+    if(piece_body && scene_actor_collision_owner && scene_actor_collision_owner->collision) {
+        float height=actor_piece_support_height(&next,&scene_actor_body.spheres,piece_body);
+        if(height>next.position[1]) {
+            rf_physics_body_state raised=next;rf_physics_spheres spheres=scene_actor_body.spheres;
+            rf_collision_body_sphere scratch[8];rf_geometry_body_hit hit;uint32_t found;
+            raised.next_position[1]=height;
+            status=campaign_physics_body_sweep(scene_actor_collision_owner->collision,&raised,&spheres,
+                next.state_124,scratch,8,&hit,&found);if(status)return status;
+            if(!found) {
+                next.position[1]=next.next_position[1]=height;
+                next.bounds.minimum[1]=height-next.bounds.radius;next.bounds.maximum[1]=height+next.bounds.radius;
+            }
         }
     }
     if(landing) {

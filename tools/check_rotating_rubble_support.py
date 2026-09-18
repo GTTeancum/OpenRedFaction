@@ -10,8 +10,10 @@ import subprocess
 ROOT = Path(__file__).resolve().parents[1]
 parser = argparse.ArgumentParser(description=__doc__)
 parser.add_argument('--large', action='store_true', help='Zero-inertia large beam negative control')
+parser.add_argument('--tip', action='store_true', help='Stronger X-axis impulse reproducing supported-player overlap')
 args = parser.parse_args()
-OUT = ROOT / ('artifacts/rotating-large-rubble-support' if args.large else 'artifacts/rotating-rubble-support')
+if args.tip and args.large:parser.error('Choose large control or tipping case')
+OUT = ROOT / ('artifacts/tipping-rubble-support' if args.tip else 'artifacts/rotating-large-rubble-support' if args.large else 'artifacts/rotating-rubble-support')
 OUT.mkdir(parents=True, exist_ok=True)
 (OUT / 'report.json').unlink(missing_ok=True)
 (OUT / 'neutral.bin').write_bytes(b'RFI6' + struct.pack('<I', 48) + bytes(242 * 48))
@@ -28,7 +30,7 @@ inverse_tensors = struct.unpack_from('<18f', checkpoint, bank + 16 + 12 + 16)
 assert all(v == 0 for v in inverse_tensors) if args.large else any(v != 0 for v in inverse_tensors)
 def floats(words):
     return list(struct.unpack('<' + 'f' * len(words), struct.pack('<' + 'I' * len(words), *words)))
-for name, mode in (('drop', '2'), ('spin', '3')):
+for name, mode in (('drop', '2'), ('spin', '4' if args.tip else '3')):
     (OUT / f'{name}.rfcp').unlink(missing_ok=True)
     local = dict(env, RF_REPLAY_MOVING_SUPPORT_TEST=mode, RF_REPLAY_GEOMOD_CHECKPOINT_OUT=str(OUT / f'{name}.rfcp'))
     with (OUT / f'{name}.log').open('wb') as log:
@@ -48,8 +50,12 @@ for name, mode in (('drop', '2'), ('spin', '3')):
     print(name, json.dumps(report[name]['decoded']), flush=True)
     if rotations:print('orientation/angular', json.dumps([floats(r) for r in rotations]), flush=True)
 spin = report['spin']; drop = report['drop']
-assert all(r[2] == 1 and r[3] and r[13] for r in spin['rows']), 'Lost support in this trajectory'
-assert all(r[4] == spin['rows'][0][4] and r[6] == spin['rows'][0][6] for r in spin['rows']), 'Uncommanded lateral player movement'
+if not args.tip:
+    assert all(r[2] == 1 and r[3] and r[13] for r in spin['rows']), 'Lost support in this trajectory'
+    assert all(r[4] == spin['rows'][0][4] and r[6] == spin['rows'][0][6] for r in spin['rows']), 'Uncommanded lateral player movement'
+else:
+    assert all(r[2] == 1 and r[3] and r[13] for r in spin['rows']), 'Tipping regression lost support'
+    assert .3 < floats(spin['rows'][-1][5:6])[0] < .5, 'Tipping clearance correction regressed'
 assert len(spin['rotations']) == 10
 for rotation in spin['rotations']:
     matrix = floats(rotation[:9])
@@ -63,7 +69,7 @@ if args.large:
     assert spin['rows'][-1][4:13] == drop['rows'][-1][4:13], 'Zero-inertia control changed player/body endpoint'
 else:
     assert max(abs(a-b) for a,b in zip(floats(spin['rotations'][6][:9]),floats(spin['rotations'][0][:9]))) > .3, 'No meaningful rotation'
-    assert spin['rotations'][5][10] != 0, 'Missing angular motion during fall'
+    assert spin['rotations'][5][9 if args.tip else 10] != 0, 'Missing angular motion during fall'
     assert abs(floats(spin['rows'][-1][5:6])[0] - floats(drop['rows'][-1][5:6])[0]) > .03, 'Player support ignored rotated shape'
 report['result'] = 'PASS'
 report['scope'] = 'Artificial lift and one angular impulse, then ordinary rotation/gravity/contact on real extracted support; no retail angular-carry parity claim.'

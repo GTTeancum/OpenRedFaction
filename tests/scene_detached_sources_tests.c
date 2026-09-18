@@ -289,6 +289,25 @@ static int moving_piece_support(void) {
     memset(campaign_support_velocity,0,sizeof(campaign_support_velocity));rf_geomod_piece_registry_close(&registry);
     puts("PASS moving rubble support: rising commit, refreshed carry, stopped velocity, retired and replaced identity");return 0;
 }
+static int rotated_support_clearance(void) {
+    rf_physics_body_state actor={0};rf_physics_body piece={0};
+    rf_physics_sphere a={{0,0,0},.6f},b={{.25f,0,0},.4f};
+    rf_physics_spheres spheres={0};float height;uint32_t k;
+    spheres.items=&a;spheres.count=1;piece.spheres.items=&b;piece.spheres.count=1;
+    for(k=0;k<3;k++)actor.orientation[k*3+k]=piece.state.orientation[k*3+k]=1;
+    piece.state.bounds.radius=.8f;actor.position[1]=.9f;
+    height=actor_piece_support_height(&actor,&spheres,&piece);
+    CHECK(fabsf(height-(sqrtf(1-.25f*.25f)+.0001f))<.00001f);
+    /* Rotate the offset sphere from X+.25 to Y+.25: top is now exactly1.25. */
+    piece.state.orientation[0]=piece.state.orientation[4]=0;
+    piece.state.orientation[1]=1;piece.state.orientation[3]=-1;
+    height=actor_piece_support_height(&actor,&spheres,&piece);CHECK(fabsf(height-1.2501f)<.00001f);
+    actor.position[1]=1.4f;CHECK(actor_piece_support_height(&actor,&spheres,&piece)==1.4f);
+    actor.position[1]=-.5f;CHECK(actor_piece_support_height(&actor,&spheres,&piece)==-.5f);
+    actor.position[1]=.9f;piece.state.bounds.radius=.5f;CHECK(actor_piece_support_height(&actor,&spheres,&piece)==.9f);
+    piece.state.bounds.radius=1.01f;CHECK(actor_piece_support_height(&actor,&spheres,&piece)==.9f);
+    puts("PASS rotated sphere support clearance and nonoverlap/underside/admission controls");return 0;
+}
 static int large_support_snap(void) {
     scene_stream scene={0};scene_terrain_source_owner sources[2]={{0}};
     rf_geomod_piece_registry *r[2]={0};rf_geomod_piece_batch *batch;
@@ -395,6 +414,6 @@ int main(void) {
     found=77;CHECK(scene_detached_sources_sweep(&scene,4,start,delta,0,NAN,&hit,&found)!=RF_OK);
     CHECK(found==77 && !memcmp(&hit,&sentinel,sizeof(hit)));
     free(before);free(after);for(i=0;i<2;i++)rf_geomod_piece_registry_close(registries+i);
-    CHECK(!inspection_camera());CHECK(!extended_batches());CHECK(!enemy_fragment_shots());CHECK(!beam_selection());CHECK(!runtime_surfaces());CHECK(!player_sources());CHECK(!notify_sources());CHECK(!large_support_snap());CHECK(!moving_piece_support());
+    CHECK(!inspection_camera());CHECK(!extended_batches());CHECK(!enemy_fragment_shots());CHECK(!beam_selection());CHECK(!runtime_surfaces());CHECK(!player_sources());CHECK(!notify_sources());CHECK(!rotated_support_clearance());CHECK(!large_support_snap());CHECK(!moving_piece_support());
     puts("PASS multi-source weapon queries: nearer later source, stable ties, selected alias, isolated damage and atomic misses/errors");return 0;
 }

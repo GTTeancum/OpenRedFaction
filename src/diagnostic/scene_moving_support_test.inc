@@ -1,5 +1,5 @@
 /* Explicit lift of an actually extracted saved support. Mode1 stops/retires it;
- * mode2 releases it; mode3 also seeds angular momentum once. Physics owns motion
+ * mode2 releases it; modes3/4 seed yaw/tipping momentum once. Physics owns motion
  * after release. The initial lift and impulse are test stimuli, not weapon claims. */
 uint32_t rf_scene_moving_support_enabled,rf_scene_moving_support_test[10][16];
 uint32_t rf_scene_rotating_support_test[10][12];
@@ -28,11 +28,13 @@ static int scene_moving_support_stimulus(uint32_t frame)
         if(frame!=90)return RF_OK;
         body=campaign_piece_support_body(&moving_support_target);if(!body)return RF_NOT_FOUND;
         memset(body->state.velocity,0,12);
-        if(rf_scene_moving_support_enabled==3) {
+        if(rf_scene_moving_support_enabled>=3) {
             float inertia[9];int status=rf_physics_tensor_inverse(body->state.world_tensor,inertia);
+            uint32_t axis=rf_scene_moving_support_enabled==4?0:1;
+            float speed=rf_scene_moving_support_enabled==4?12:3;
             if(status)return status;
-            for(k=0;k<3;k++)body->state.mass_vector_d4[k]=3*inertia[3+k];
-            memset(body->state.vector_c8,0,12);body->state.vector_c8[1]=3;
+            for(k=0;k<3;k++)body->state.mass_vector_d4[k]=speed*inertia[axis*3+k];
+            memset(body->state.vector_c8,0,12);body->state.vector_c8[axis]=speed;
         }
         body->state.flags|=0x80000000u;
         return RF_OK; /* Release once; ordinary gravity/contact owns all later poses. */
@@ -64,7 +66,7 @@ static void scene_moving_support_record(uint32_t frame)
         memcpy(row+10,campaign_support_velocity,12);row[13]=body!=NULL;row[14]=moving_support_ready;
         printf("MOVING_SUPPORT");for(uint32_t k=0;k<16;k++)printf(" %u",row[k]);printf("\n");
         if(body){memcpy(rf_scene_rotating_support_test[i],body->state.orientation,36);memcpy(rf_scene_rotating_support_test[i]+9,body->state.vector_c8,12);}
-        if(rf_scene_moving_support_enabled==3){printf("ROTATING_SUPPORT");for(uint32_t k=0;k<12;k++)printf(" %u",rf_scene_rotating_support_test[i][k]);printf("\n");}
+        if(rf_scene_moving_support_enabled>=3){printf("ROTATING_SUPPORT");for(uint32_t k=0;k<12;k++)printf(" %u",rf_scene_rotating_support_test[i][k]);printf("\n");}
         return;
     }
 }

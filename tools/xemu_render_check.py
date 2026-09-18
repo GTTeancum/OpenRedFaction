@@ -31,6 +31,7 @@ def main():
     parser.add_argument('--moving-support-test', action='store_true', help='Process-local saved rubble lift/stop/retire fixture')
     parser.add_argument('--release-support-test', action='store_true', help='Lift saved support then release to ordinary debris gravity/contact')
     parser.add_argument('--rotate-support-test', action='store_true', help='Release lifted support with a single angular impulse')
+    parser.add_argument('--tip-support-test', action='store_true', help='Stronger tipping impulse and overlap regression')
     parser.add_argument('--expanded-geomod', action='store_true', help='Opt-in matching sixteen-cut PC/NXDK profile on stock64MiB')
     parser.add_argument('--terrain-texture-audit', action='store_true', help='Read live Xbox substrate texture bytes and compare the PC owner')
     parser.add_argument('--terrain-atlas-audit', action='store_true', help='Compare live generated atlas bytes for a settled checkpoint with neutral input')
@@ -76,6 +77,7 @@ def main():
     parser.add_argument('--unbatched', action='store_true', help='Reference tiny GPU command submission blocks')
     parser.add_argument('--unsorted', action='store_true', help='Reference source-order world draw ranges')
     args = parser.parse_args()
+    if args.tip_support_test:args.rotate_support_test=True
     if args.release_support_test or args.rotate_support_test:args.moving_support_test=True
     if args.moving_support_test and not (args.dev_room and args.player_checkpoint and args.geomod_checkpoint_in):
         parser.error('--moving-support-test requires a saved DEV player checkpoint')
@@ -162,7 +164,7 @@ def main():
     env = {k: v for k, v in os.environ.items() if not k.startswith('RF_REPLAY_')}
     env.update(RF_REPLAY_LEVEL=args.level, RF_REPLAY_ARCHIVE=args.archive)
     if args.dev_room:env['RF_REPLAY_DEV_ROOM']='1'
-    support_mode='3' if args.rotate_support_test else '2' if args.release_support_test else '1'
+    support_mode='4' if args.tip_support_test else '3' if args.rotate_support_test else '2' if args.release_support_test else '1'
     if args.moving_support_test:env['RF_REPLAY_MOVING_SUPPORT_TEST']=support_mode
     env['RF_REPLAY_AUTHORED_SOURCES']=str(args.authored_sources)
     if args.authored_source is not None:env['RF_REPLAY_AUTHORED_SOURCE']=str(args.authored_source)
