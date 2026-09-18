@@ -403,6 +403,16 @@ static void *chunk(unsigned char *base, uint64_t *at, uint32_t n, size_t size) {
     *at += (uint64_t)n * size;
     return p;
 }
+typedef struct beam_profile {uint32_t uid,roof,air,posts[2];} beam_profile;
+static const beam_profile beam_profiles[]={
+    {95,80,85,{93,94}},{98,82,86,{96,97}},
+    {89,69,88,{73,77}},{90,69,88,{72,76}},{91,69,88,{74,78}},{92,69,88,{75,79}},
+    {107,81,87,{100,104}},{108,81,87,{99,103}},{109,81,87,{101,105}},{110,81,87,{102,106}}
+};
+static const beam_profile *find_beam_profile(uint32_t uid) {
+    uint32_t i;for(i=0;i<sizeof(beam_profiles)/sizeof(*beam_profiles);i++)if(beam_profiles[i].uid==uid)return beam_profiles+i;
+    return NULL;
+}
 static int decode_profile(const void *input, uint32_t bytes, const rf_geometry *g,
                                    const rf_level_geomod_settings *settings, uint32_t source_uid, uint32_t cavity, uint32_t budget,
                                    rf_geomod_authored_post **out) {
@@ -425,10 +435,11 @@ static int decode_profile(const void *input, uint32_t bytes, const rf_geometry *
     uint32_t count, i, j, k, total_faces = 0, source_index = UINT32_MAX, nnear = 0, nfaces = 0, ncorners = 0,
                              wfaces = 0, wcorners = 0, fallback = UINT32_MAX, air = 0;
     uint64_t scratch, at, peak;
+    const beam_profile *beam=find_beam_profile(source_uid);
     int s = RF_FORMAT;
     if (!input || !g || !g->data || !settings || !out || *out)
         return RF_RANGE;
-    if (cavity ? source_uid!=66 : (source_uid != 93 && source_uid != 94 && source_uid != 95 && source_uid != 96 && source_uid != 97 && source_uid != 98))
+    if (cavity ? source_uid!=66 : (!beam && source_uid != 93 && source_uid != 94 && source_uid != 96 && source_uid != 97))
         return RF_NOT_FOUND;
     if (bytes < 4)
         return RF_FORMAT;
@@ -477,12 +488,12 @@ static int decode_profile(const void *input, uint32_t bytes, const rf_geometry *
                 air++;
                 continue;
             }
-            if((source_uid==95 || source_uid==98) && b->uid==(source_uid==95?85u:86u) && b->flags==2 && b->index<source_index) {
+            if(beam && b->uid==beam->air && b->flags==2 && b->index<source_index) {
                 if(roof_air || b->faces!=5 || b->corners!=18 || source->maximum[1]!=b->minimum[1]){s=RF_NOT_FOUND;goto done;}
                 roof_air=b;continue;
             }
-            if (((source_uid==95 || source_uid==98) ?
-                 (b->uid!=(source_uid==95?80u:82u) && b->uid!=source_uid-2 && b->uid!=source_uid-1) :
+            if ((beam ?
+                 (b->uid!=beam->roof && b->uid!=beam->posts[0] && b->uid!=beam->posts[1]) :
                  (b->uid != 71 && b->uid != (source_uid <= 94 ? 95u : 98u) && b->uid != 70)) || b->flags || b->faces < 4 || b->faces > 32 ||
                 nnear == 3) {
                 s = RF_NOT_FOUND;
@@ -492,7 +503,7 @@ static int decode_profile(const void *input, uint32_t bytes, const rf_geometry *
             nfaces += b->faces;
             ncorners += b->corners;
         }
-    if (!cavity && (air != 1 || nnear != 3 || ((source_uid==95 || source_uid==98) && !roof_air))) {
+    if (!cavity && (air != 1 || nnear != 3 || (beam && !roof_air))) {
         s = RF_NOT_FOUND;
         goto done;
     }
@@ -698,7 +709,7 @@ static int decode_profile(const void *input, uint32_t bytes, const rf_geometry *
          * longer needs either table, so their allocations do not overlap. */
         if(peak+sizeof(av)+sizeof(af)+sizeof(ao)>budget || clip_peak>budget){s=RF_RANGE;goto done;}
         s=import_brush_oriented(data,roof_air,g,av,af,ao,void_planes,NULL,0,1);if(s)goto done;
-        *void_owner=(rf_geomod_publication_solid){void_planes,5,source_uid==95?80u:82u};
+        *void_owner=(rf_geomod_publication_solid){void_planes,5,beam->roof};
         free(owners);owners=NULL;free(records);records=NULL;
         clip_work=malloc(sizeof(*clip_work));if(!clip_work){s=RF_IO;goto done;}
         s=rf_geomod_publication_clip_neighbors(&o->view.neighbors,o->view.neighbor_origins,
