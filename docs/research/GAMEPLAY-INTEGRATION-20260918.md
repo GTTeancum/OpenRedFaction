@@ -17,3 +17,13 @@ Switch controller-family lookup/dispatch now reaches registered door/platform co
 Grenade throw controller is in both builds with focused checks passing:102/96 tick primary/alternate release, cancellation on selection loss, one release request and successful-spawn acknowledgement debiting one reserve grenade. Three-second cooldown begins after release as an explicit first-pass policy.
 
 Rocket radial damage and terrain editing were extracted into parameterized scene helpers for grenade reuse; rocket call order/values remain the same. Compilation passes; live projectile regression will be checked with grenade integration. Logs: artifacts/ai-gameplay/switch-*.log.
+
+## Playable grenade integration
+
+DEV slot5 now loads Grenade first-person resources and its existing world weapon model, displays/debits reserve ammunition, uses primary/alternate throw clips, simulates eight bounded projectiles, and invokes radial damage plus terrain editing. The static world model currently keeps an identity orientation; spin, liquids and lost resting support remain refinement. Explosion presentation reuses rocket effects for now.
+
+Live PC ordinary input: artifacts/grenade-live/throw.bin selects five times, starts primary at70, releases at172 (ammo8->7), detonates at472. Landing location rejects a terrain edit as ineligible. impact.bin starts alternate70, releases166, contacts/detonates179 and produces GEOMOD success1 with zero error. Captured endpoints were inspected: grenade view/ammo visible, impact smoke/debris visible; smoke obscures the final cut surface. This is not broad visual-parity acceptance. No Xbox runtime check yet; NXDK build succeeds (xbox-build.log).
+
+AI firearm hearing and Switch NPC visibility also integrated; focused scene_ai_hearing and scene_switch_objects pass. No visual/live encounter claim for these two helpers.
+
+Overall rough implementation61%; current weapons work (grenade first pass) approximately75%. Remaining grenade work includes native memory/runtime validation, world-flight visual confirmation, water/support handling and separate effects. Report current-system percentage instead of GeoMod going forward.

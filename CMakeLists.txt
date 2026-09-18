@@ -713,3 +713,11 @@ target_sources(rf_core PRIVATE src/core/grenade_throw.c)
 add_executable(rf_grenade_throw_tests tests/grenade_throw_tests.c)
 target_link_libraries(rf_grenade_throw_tests PRIVATE rf_core)
 add_test(NAME grenade_throw COMMAND rf_grenade_throw_tests)
+
+add_executable(rf_scene_ai_hearing_tests tests/scene_ai_hearing_tests.c src/diagnostic/animation.c)
+target_link_libraries(rf_scene_ai_hearing_tests PRIVATE rf_core)
+add_test(NAME scene_ai_hearing COMMAND rf_scene_ai_hearing_tests)
+
+add_executable(rf_scene_switch_objects_tests tests/scene_switch_objects_tests.c src/diagnostic/animation.c)
+target_link_libraries(rf_scene_switch_objects_tests PRIVATE rf_core)
+add_test(NAME scene_switch_objects COMMAND rf_scene_switch_objects_tests)

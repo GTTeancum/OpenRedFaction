@@ -1,15 +1,19 @@
 # Red Faction Xbox / PC - open work
 
-Completion basis (user direction,2026-09-18): working late-alpha/early-beta code implementation. Overall approximately60%; GeoMod100% for the first playable milestone, accepted by the user. GeoMod items below are deferred refinement and coverage, not prerequisites to moving on. This does not assert retail polish, complete campaign integration or resolution of every known defect.
+Completion basis (user direction,2026-09-18): working late-alpha/early-beta code implementation. Overall approximately61%; GeoMod100% for the first playable milestone, accepted by the user. GeoMod items below are deferred refinement and coverage, not prerequisites to moving on. This does not assert retail polish, complete campaign integration or resolution of every known defect.
 
+
+- AI hearing: Player gunfire now alerts nearby hostile guards without replacing scripted targets; focused checks pass, live encounter tuning remains.
 
 - AI combat: Authored handgun cadence, rifle bursts and finite magazine/reload logic are integrated; live handgun firing and focused burst/reload checks pass, with Xbox build passing; shotgun pellet damage, cover and death cutoff are now integrated and focused checks pass; live tuning remains.
+
+- Scripted visibility: Switch object links hide/show registered NPCs with focused routing checks passing; other renderable classes remain.
 
 - Scripted interactions: Switch-controlled doors/platforms now integrate start/stop/restart with focused checks and Xbox build passing; authored live switch verification remains.
 
 - Scripted interactions: Teleport_Player is integrated with queued frame-boundary relocation and focused runtime/pose checks passing; Xbox builds, while live authored-event behavior and vehicle teleport remain unverified.
 
-- PRIORITY Weapons: Connect grenade selection, release timing, projectile motion and fuse/explosion; view loading and separate timed/impact fuse transitions now compile for PC/Xbox with focused checks passing; gravity/bounce/rest and timed/impact flight checks now pass in the shared build; throw release/cancellation/ammo acknowledgement now pass focused checks; live throws and detonations remain to connect.
+- PRIORITY Weapons: Grenade selection, reserve ammo, primary/alternate animations, flight, model drawing and explosions are integrated; live PC timed/impact throws pass with an impact GeoMod cut, and Xbox builds; XEMU validation, water/support behavior and grenade-specific effects remain.
 
 - DEFERRED GeoMod crush: Resolve confined moving-platform overlap and controller admission after core integration; separating static contact is fixed and passes78 Xbox checks, but the ceiling stress still has17 limited frames.
 
