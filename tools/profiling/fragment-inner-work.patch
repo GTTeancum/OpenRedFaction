@@ -1,0 +1,197 @@
+diff --git a/include/rf/collision.h b/include/rf/collision.h
+index 0039fc0d..015c1a9b 100644
+--- a/include/rf/collision.h
++++ b/include/rf/collision.h
+@@ -1,6 +1,9 @@
+ #ifndef RF_COLLISION_H
+ #define RF_COLLISION_H
+ #include "rf/vpp.h"
++/* Diagnostic work counts: segment-box, sphere-plane, polygon, sphere-edge,
++ * validated nodes, visited nodes, sweep faces, primary rooms considered. */
++extern uint32_t rf_collision_sweep_work[8];
+ /* 507a50: point in an oriented box, inclusive boundary, full box dimensions.
+  * Invalid/nonfinite inputs preserve inside. No normalization or allocation. */
+ int rf_collision_point_oriented_box(const float point[3],const float center[3],
+diff --git a/include/rf/scene_preview.h b/include/rf/scene_preview.h
+index bd65428d..7c046033 100644
+--- a/include/rf/scene_preview.h
++++ b/include/rf/scene_preview.h
+@@ -58,6 +58,7 @@ extern uint32_t rf_scene_fragment_contact_audit[64];
+ /* Fragment CPU work counters and guest millisecond timings; never serialized. */
+ extern uint32_t rf_scene_fragment_profile[24];
+ extern uint32_t rf_scene_fragment_stage_ms[8];
++extern uint32_t rf_scene_fragment_stage_work[32];
+ int rf_scene_fragment_contact_check(void);
+ /* Read-only NPC snapshot: UID,handle,weapon,flags,alert,scripted,target,follow;
+  * values are body position, eye position, health. No pointers escape. */
+diff --git a/src/core/collision.c b/src/core/collision.c
+index 65451b1a..6cb1d97c 100644
+--- a/src/core/collision.c
++++ b/src/core/collision.c
+@@ -6,6 +6,7 @@
+ #include <float.h>
+ #include <stdlib.h>
+ #include <string.h>
++uint32_t rf_collision_sweep_work[8];
+ 
+ int rf_collision_visibility(const rf_collision_visibility_list lists[3],
+     const float start[3],const float end[3],float minimum_extent,uint32_t flags,
+@@ -865,6 +866,7 @@ static int sphere_edge_query(const float start[3],const float delta[3],float rad
+ int rf_collision_sphere_edge(const float start[3],const float delta[3],float radius,
+     const float a[3],const float b[3],float limit,float *fraction,float point[3],uint32_t *hit)
+ {
++    rf_collision_sweep_work[3]++;
+     if(!start || !delta || !a || !b || !fraction || !point || !hit)return RF_RANGE;
+     if(limit>1)return RF_FORMAT;
+     return sphere_edge_query(start,delta,radius,a,b,limit,fraction,point,hit);
+@@ -933,6 +935,7 @@ static uint32_t outcode(const float lo[3],const float hi[3],const float p[3])
+ int rf_collision_segment_box(const float minimum[3],const float maximum[3],
+     const float start[3],const float end[3],float point[3],uint32_t *hit)
+ {
++    rf_collision_sweep_work[0]++;
+     uint32_t a,b,axis,j,valid;static const uint32_t masks[3]={3,12,48},high[3]={1,4,32};
+     if(!minimum || !maximum || !start || !end || !point || !hit)return RF_RANGE;
+     for(j=0;j<3;j++)if(!isfinite(minimum[j]) || !isfinite(maximum[j]) || !isfinite(start[j]) || !isfinite(end[j]) || minimum[j]>maximum[j])return RF_FORMAT;
+@@ -1062,6 +1065,7 @@ int rf_collision_segment_plane(const float start[3],const float displacement[3],
+ int rf_collision_sphere_plane(const float start[3],const float displacement[3],
+     float radius,const float plane[4],float *fraction,float point[3],uint32_t *hit)
+ {
++    rf_collision_sweep_work[1]++;
+     float approach=0,distance=0,value=0,contact[3];uint32_t accepted=0,j;
+     if(!start || !displacement || !plane || !fraction || !point || !hit)return RF_RANGE;
+     if(!isfinite(radius) || radius<0)return RF_FORMAT;
+@@ -1201,6 +1205,7 @@ static int edge_right(float px,float py,float x,float y,float previous_x,float p
+ int rf_collision_polygon_contains(const float normal[3],const float point[3],
+     const float (*vertices)[3],uint32_t count,uint32_t *inside)
+ {
++    rf_collision_sweep_work[2]++;
+     static const uint32_t axes[3][2]={{2,1},{0,2},{1,0}};
+     uint32_t axis,x,y,i,j,result=0;float a,b,c,px,py,previous_x,previous_y;
+     if(!normal || !point || !vertices || !inside || !count || count>65536)return RF_RANGE;
+@@ -1490,6 +1495,7 @@ static int collision_sweep_face(const rf_collision_face *face,const float start[
+     float limit,int textured,int32_t bitmap,const rf_collision_texture_backend *texture,
+     rf_collision_sweep_hit *result,uint32_t *matched)
+ {
++    rf_collision_sweep_work[6]++;
+     rf_collision_sweep_hit value;float lo[3],hi[3],end[3],scratch[3];uint32_t hit,j,i;int status;
+     if(!face || !start || !displacement || !normal_displacement || !result || !matched)return RF_RANGE;
+     if(!isfinite(radius) || radius<0 || !isfinite(limit) || limit<0 || limit>1)return RF_FORMAT;
+@@ -1617,7 +1623,7 @@ static int collision_sweep_tree(const rf_collision_node *nodes,uint32_t node_cou
+     if(batch)for(i=0;i<batch->tree_count;i++)if(batch->trees[i].nodes==nodes &&
+         batch->trees[i].node_count==node_count && batch->trees[i].face_count==face_count){cached=1;break;}
+     if(!cached)for(i=0;i<node_count;i++) {
+-        const rf_collision_node *n=nodes+i;
++        const rf_collision_node *n=nodes+i;rf_collision_sweep_work[4]++;
+         if(n->first_face>face_count || n->face_count>face_count-n->first_face ||
+            (n->left!=UINT32_MAX && n->left>=node_count) || (n->right!=UINT32_MAX && n->right>=node_count))return RF_RANGE;
+         for(j=0;j<3;j++)if(!isfinite(n->minimum[j]) || !isfinite(n->maximum[j]) || n->minimum[j]>n->maximum[j])return RF_FORMAT;
+@@ -1628,7 +1634,7 @@ static int collision_sweep_tree(const rf_collision_node *nodes,uint32_t node_cou
+     }
+     value.hits=0;if(node_count)stack[used++]=0;
+     while(used) {
+-        const rf_collision_node *n=nodes+stack[--used];
++        const rf_collision_node *n=nodes+stack[--used];rf_collision_sweep_work[5]++;
+         if(++visited>node_count)return RF_FORMAT;
+         for(j=0;j<3;j++) {lo[j]=n->minimum[j]-radius;hi[j]=n->maximum[j]+radius;}
+         status=rf_collision_segment_box(lo,hi,start,end,scratch,&hit);if(status)return status;
+@@ -1831,7 +1837,7 @@ static int sweep_rooms_prepared(const rf_collision_room_view *rooms,uint32_t roo
+     }
+     if(!active) {*matched=0;return RF_OK;}
+     for(i=0;i<primary_count;i++) {
+-        const rf_collision_room_view *parent=rooms+primary[i];
++        const rf_collision_room_view *parent=rooms+primary[i];rf_collision_sweep_work[7]++;
+         if(!room_overlaps(parent,lo,hi))continue;
+         if(!parent->skip || (query_flags&8u))for(k=0;;k++) {
+             uint32_t index=k?children[parent->first_child+k-1]:primary[i],hit;
+diff --git a/src/diagnostic/scene.c b/src/diagnostic/scene.c
+index 43ec325f..0f8fe8d3 100644
+--- a/src/diagnostic/scene.c
++++ b/src/diagnostic/scene.c
+@@ -263,6 +263,7 @@ int rf_scene_set_campaign_spawn(const rf_level *level)
+     rf_scene_player_spawn_diagnostic[0]=1;memcpy(rf_scene_player_spawn_diagnostic+1,campaign_position,12);
+     memcpy(rf_scene_player_spawn_diagnostic+4,campaign_orientation,36);campaign_spawn=1;return RF_OK;
+ }
++uint32_t rf_scene_fragment_stage_work[32];
+ uint32_t rf_scene_fragment_stage_ms[8]; /* sum/max pairs: spheres,corners,mover vertices,world vertices */
+ uint32_t rf_scene_fragment_profile[24]; /* v,ticks,active ticks,bodies,max bodies,queries,corners,reciprocal,triangles,poses,total ms,active ms,max ms,frame,max active ms,max queries,active peak frame,bodies,queries,triangle builds,local rejects,shape builds,fallbacks,reserved */
+ static uint32_t (*profile_clock)(void);
+@@ -336,6 +337,7 @@ static int player_begin_frame(void *context,uint32_t frame)
+     rf_scene_input value={0};uint32_t i,*r=rf_scene_player_input_frames[frame%64];int status;(void)context;
+     if(frame && rf_scene_follow_level_exits && rf_scene_level_transition.pending)return RF_NOT_FOUND;
+     if(!frame){memset(rf_scene_player_input_frames,0,sizeof(rf_scene_player_input_frames));
++        memset(rf_scene_fragment_stage_work,0,sizeof(rf_scene_fragment_stage_work));
+         memset(rf_scene_fragment_stage_ms,0,sizeof(rf_scene_fragment_stage_ms));
+         memset(rf_scene_fragment_profile,0,sizeof(rf_scene_fragment_profile));rf_scene_fragment_profile[0]=2;}
+     status=player_poll(player_context,frame,&value);if(status)return status;
+@@ -11389,9 +11391,16 @@ static void scene_fragment_stage_record(uint32_t stage,uint32_t started) {
+         if(elapsed>rf_scene_fragment_stage_ms[stage*2+1])rf_scene_fragment_stage_ms[stage*2+1]=elapsed;
+     }
+ }
++static void scene_fragment_work_record(uint32_t stage,uint32_t before[8]) {
++    uint32_t i;for(i=0;i<8;i++) {
++        if(profile_active)rf_scene_fragment_stage_work[stage*8+i]+=rf_collision_sweep_work[i]-before[i];
++        before[i]=rf_collision_sweep_work[i];
++    }
++}
+ static int scene_detached_query(const rf_physics_body_state *body,rf_physics_solid_hit *out,uint32_t *matched,void *opaque)
+ {
+-    scene_detached_query_context *c=opaque;rf_collision_body_sphere scratch[64];rf_geometry_body_hit hit={0};int status;uint32_t started=scene_fragment_clock();
++    scene_detached_query_context *c=opaque;rf_collision_body_sphere scratch[64];rf_geometry_body_hit hit={0};int status;uint32_t work[8],started=scene_fragment_clock();
++    memcpy(work,rf_collision_sweep_work,sizeof(work));
+     if(profile_active)rf_scene_fragment_profile[5]++;
+     status=campaign_physics_body_sweep(c->scene->collision,body,c->spheres,0x460,scratch,64,&hit,matched);
+     if(status)return status;
+@@ -11405,12 +11414,12 @@ static int scene_detached_query(const rf_physics_body_state *body,rf_physics_sol
+          * that empty padding; corner sweeps supply the later real contact. */
+         if(minimum>.002f)*matched=0;
+     }
+-    scene_fragment_stage_record(0,started);started=scene_fragment_clock();
+-    status=scene_detached_mesh_sweep(c,body,&hit,matched);scene_fragment_stage_record(1,started);if(status)return status;
++    scene_fragment_stage_record(0,started);scene_fragment_work_record(0,work);started=scene_fragment_clock();
++    status=scene_detached_mesh_sweep(c,body,&hit,matched);scene_fragment_stage_record(1,started);scene_fragment_work_record(1,work);if(status)return status;
+     started=scene_fragment_clock();
+-    status=scene_detached_mover_vertex_sweep(c->mesh,body,&campaign_movers,&hit,matched,scene_detached_contact_material,NULL);scene_fragment_stage_record(2,started);if(status)return status;
++    status=scene_detached_mover_vertex_sweep(c->mesh,body,&campaign_movers,&hit,matched,scene_detached_contact_material,NULL);scene_fragment_stage_record(2,started);scene_fragment_work_record(2,work);if(status)return status;
+     started=scene_fragment_clock();
+-    status=scene_detached_world_vertex_sweep(c,body,&hit,matched,scene_detached_contact_material,NULL);scene_fragment_stage_record(3,started);if(status || !*matched)return status;
++    status=scene_detached_world_vertex_sweep(c,body,&hit,matched,scene_detached_contact_material,NULL);scene_fragment_stage_record(3,started);scene_fragment_work_record(3,work);if(status || !*matched)return status;
+     if(hit.contact.fraction>=1){*matched=0;return RF_OK;}
+     if(!campaign_surface_palette || hit.contact.material>=campaign_surface_palette->count)return RF_FORMAT;
+     out->fraction=hit.contact.fraction;memcpy(out->point,hit.contact.point,12);memcpy(out->normal,hit.contact.normal,12);
+diff --git a/src/platform/pc/play.c b/src/platform/pc/play.c
+index 369cd193..4e47ddf3 100644
+--- a/src/platform/pc/play.c
++++ b/src/platform/pc/play.c
+@@ -914,6 +914,7 @@ run_scene:
+     {extern uint32_t rf_scene_rocket_contacts[8];printf("ROCKET_CONTACTS");for(i=0;i<8;i++)printf(" %u",rf_scene_rocket_contacts[i]);puts("");}
+     {extern uint32_t rf_scene_detached_rocket[7];printf("DETACHED_ROCKET");for(i=0;i<7;i++)printf(" %u",rf_scene_detached_rocket[i]);puts("");}
+     {extern uint32_t rf_scene_detached_motion[8];extern float rf_scene_detached_pose[6];
++     printf("FRAGMENT_STAGE_WORK");for(i=0;i<32;i++)printf(" %u",rf_scene_fragment_stage_work[i]);puts("");
+      printf("FRAGMENT_PROFILE");for(i=0;i<24;i++)printf(" %u",rf_scene_fragment_profile[i]);puts("");
+      printf("DETACHED_MOTION");for(i=0;i<8;i++)printf(" %u",rf_scene_detached_motion[i]);puts("");
+      printf("DETACHED_POSE");for(i=0;i<6;i++)printf(" %.9g",rf_scene_detached_pose[i]);puts("");}
+diff --git a/tools/xemu_render_check.py b/tools/xemu_render_check.py
+index f2e3d221..4505c0f8 100644
+--- a/tools/xemu_render_check.py
++++ b/tools/xemu_render_check.py
+@@ -437,6 +437,7 @@ dvd_path = '{root.as_posix()}/build/xbox/redfaction-diagnostic.iso'
+             fields.append(('rf_scene_terrain_edit_times',40))
+             fields.append(('rf_scene_fragment_profile',24))
+             fields.append(('rf_scene_fragment_stage_ms',8))
++            fields.append(('rf_scene_fragment_stage_work',32))
+             if args.fragment_contact_test:fields.append(('rf_scene_fragment_contact_audit',64))
+             if args.npc_rubble_test:fields.append(('rf_scene_dev_npc_cover',48))
+             if args.moving_support_test:fields.append(('rf_scene_moving_support_test',160))
+@@ -454,6 +455,12 @@ dvd_path = '{root.as_posix()}/build/xbox/redfaction-diagnostic.iso'
+             report['checks']['FRAGMENT_PROFILE_WORK']=dict(pc=fragment_pc,xbox=fragment_xbox,compared_indices=work_indices,equal=True)
+             profile_names=('version','ticks','active_ticks','active_bodies_total','max_active_bodies','queries','corner_casts','reciprocal_vertices','triangle_tests','pose_evaluations','total_ms','active_ms','max_tick_ms','max_tick_frame','max_active_tick_ms','max_queries_per_tick','max_active_tick_frame','bodies_at_peak','queries_at_peak','triangle_preparations','local_rejections','shape_preparations','cache_fallbacks','reserved')
+             report['fragment_profile']=dict(zip(profile_names,fragment_xbox))
++            work_pc=[int(v) for line in pc.stdout.splitlines() if line.startswith('FRAGMENT_STAGE_WORK ') for v in line.split()[1:]]
++            work_xbox=snap['symbols']['rf_scene_fragment_stage_work']['words']
++            assert len(work_pc)==32 and work_pc==work_xbox, 'Fragment inner work differs on Xbox'
++            report['checks']['FRAGMENT_STAGE_WORK']=dict(pc=work_pc,xbox=work_xbox,equal=True)
++            work_names=('segment_box','sphere_plane','polygon','sphere_edge','validated_nodes','visited_nodes','sweep_faces','primary_rooms')
++            report['fragment_stage_work']={name:dict(zip(work_names,work_xbox[i*8:i*8+8])) for i,name in enumerate(('spheres','corners','mover_vertices','world_vertices'))}
+             stage_words=snap['symbols']['rf_scene_fragment_stage_ms']['words']
+             report['fragment_stage_ms']={name:dict(total=stage_words[i*2],max_query=stage_words[i*2+1]) for i,name in enumerate(('spheres','corners','mover_vertices','world_vertices'))}
+             report['fragment_profile']['mean_active_tick_ms']=fragment_xbox[11]/fragment_xbox[2] if fragment_xbox[2] else None

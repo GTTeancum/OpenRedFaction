@@ -1,6 +1,6 @@
 # Red Faction Xbox / PC - open work
 
-- PRIORITY GeoMod fragment contacts: Reduce remaining sphere narrow-phase cost, then add edge/edge and mover-relative coverage; scoped corner batching brings measured Xbox debris updates76ms to68ms, with79 native checks and unchanged saves/visuals.
+- PRIORITY GeoMod fragment contacts: Reduce broad-phase candidate work (2.53M sphere-stage face checks versus10.3K plane tests), then finish edge/edge and mover-relative coverage;80 native profiling checks confirm counts, with profiling overhead removed from normal builds.
 
 - PRIORITY GeoMod ordinary walls: Broaden multi-window and neighboring-brush CSG; a live floor-seam rocket now passes77 stock64MiB checks with exact PC/Xbox save bytes and fixture-off/mismatched-save rejection controls, alongside verified wall depth and player traversal.
 
@@ -5566,3 +5566,8 @@ Bounded per-body room/tree validation reuse reduces Xbox active debris updates99
 ## 2026-09-18 scoped corner-query optimization
 
 Shared validation across one fragment corner sweep cuts corner-stage time2411ms to1636ms and mean active Xbox debris time75.532ms to67.544ms; peak159ms to139ms. All123 PC tests, both connected histories,79 native checks and identical save/framebuffer pass. Endpoint3325 free pages is unchanged. See [corner batch evidence](docs/research/GEOMOD-FRAGMENT-CORNER-BATCH-20260918.md). Remaining sphere work is the performance priority; edge/edge and mover-relative fidelity remain open. Approximately51% overall /91% GeoMod.
+
+
+## 2026-09-18 inner collision work attribution
+
+Native32-word counter agreement identifies2.53M sphere-stage face checks,2.19M box checks, but only10260 plane and4300 edge tests. Corner sweeps add1.19M face checks. Target candidate pruning and distinguish tree/flat-mover lists before changing math.80 native checks pass with identical save/framebuffer. Expensive counters are retained only as an optional patch; normal source restored to prior accepted revision. [Evidence](docs/research/GEOMOD-FRAGMENT-INNER-WORK-20260918.md). Approximately51% overall /91% GeoMod.
