@@ -46,7 +46,7 @@ int rf_weapon_explosive_load(rf_vpp *,const char *,uint32_t,rf_weapon_explosive_
 int rf_weapon_projectile_light(const rf_weapon_explosive_definition *,
     const rf_weapon_flight *,rf_vfx_light_source *);
 
-/* Named first-person resource binding: mesh, idle/fire/reload and optional alt.
+/* Named first-person resource binding: mesh, idle/fire and optional reload/alt.
  * Owns all names; missing/duplicate required fields preserve the output. */
 typedef struct rf_weapon_view_definition {char mesh[64],clips[4][64];uint32_t alt_loop;} rf_weapon_view_definition;
 int rf_weapon_view_read(const void *,uint32_t,const char *,rf_weapon_view_definition *);

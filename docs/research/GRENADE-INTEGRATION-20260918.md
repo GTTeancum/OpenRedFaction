@@ -1,0 +1,7 @@
+# Grenade first-pass integration
+
+The shared first-person resource path now accepts an absent reload action. Idle and primary fire remain required. Optional reload and alternate fire retain fixed action IDs2/3, so a grenade can have slots0/1/3 without inventing a reload clip. Missing actions return RF_RANGE before modifying playback. Absent slots allocate no clip payload and are not supplied to model evaluation.
+
+The installed Grenade definition loads fp_gren.v3c with45 bones and817 vertices. Primary and alternate throw clips advance through completion and return to idle in the existing player_weapon_resources check. This owner uses994828 resident bytes and1006424 peak bytes within its1MiB allowance. The stock NXDK build compiles, links and packages successfully. These checks establish resource/pose playback, not rendered animation quality or playable grenade behavior. No emulator replay or broad suite was added for this change.
+
+Remaining integration: weapon inventory/selection; release delays independent of animation completion; pending-throw cancellation; model/body flight and bouncing; fuse advancement independent of sleeping physics; primary timed detonation and alternate impact mode; damage/destruction/visual effects; bounded scene memory accounting. Reuse the retained secondary-re grenade contracts, labeling practical first-pass policies. GeoMod refinement remains deferred.

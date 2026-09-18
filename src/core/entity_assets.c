@@ -508,7 +508,7 @@ int rf_weapon_view_read(const void *text,uint32_t bytes,const char *name,rf_weap
         }
     }
     if(status!=RF_OK && status!=RF_NOT_FOUND)return status;
-    if(!found)return RF_NOT_FOUND;if((mask&15)!=15)return RF_FORMAT;
+    if(!found)return RF_NOT_FOUND;if((mask&7)!=7)return RF_FORMAT;
     if(!continuous_alt)memcpy(v.clips[3],alternate,64);
     else if(!(mask&16))return RF_FORMAT;
     v.alt_loop=continuous_alt;

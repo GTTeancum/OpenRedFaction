@@ -20,7 +20,8 @@ int rf_player_weapon_open_view(rf_vpp *meshes,rf_vpp *motions,rf_vpp *maps,uint3
 /* Compatibility pistol entry point; live scene uses the table definition. */
 int rf_player_weapon_open(rf_vpp *meshes,rf_vpp *motions,rf_vpp *maps,uint32_t map_count,
     uint32_t budget,rf_player_weapon **result);
-/* request=-1 continues,0 idle,1 fire,2 reload,3 optional alternate fire.
+/* request=-1 continues,0 idle,1 fire,2 optional reload,3 optional alternate fire.
+ * Missing actions return RF_RANGE without changing playback; slots keep their IDs.
  * Actions return to idle; caller ends an authored held-fire loop with request0.
  * Request restarts that clip. Private playback references, no allocation/I/O.
  * Prepared skinning matrices remain borrowed until next step/close. */

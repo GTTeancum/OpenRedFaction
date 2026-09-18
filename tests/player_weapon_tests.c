@@ -262,6 +262,23 @@ int main(int argc,char **argv)
           CHECK(rf_weapon_primary_read(duplicate,(uint32_t)strlen(duplicate),"test",&rifle)==RF_FORMAT && !memcmp(&rifle,&saved,sizeof(rifle)));}
          CHECK(d.burst_count==1 && d.burst_seconds==0);
         }
+        {
+            rf_weapon_view_definition grenade;rf_player_weapon *g=NULL;rf_motion_playback_state before;
+            CHECK(!rf_weapon_view_load(&tables,"Grenade",128*1024,&grenade));
+            CHECK(!grenade.clips[2][0] && grenade.clips[3][0]);
+            CHECK(!rf_player_weapon_open_view(&meshes,&motions,maps,5,&grenade,1024*1024,&g));
+            CHECK(g->bone_count==45 && g->clip_count==4 && !g->payloads[2]);
+            CHECK(!rf_player_weapon_step(g,0,1.f/60));before=g->playback;
+            CHECK(rf_player_weapon_step(g,2,1.f/60)==RF_RANGE && !memcmp(&before,&g->playback,sizeof(before)));
+            CHECK(!rf_player_weapon_step(g,1,1.f/60));
+            for(i=0;i<180;i++)CHECK(!rf_player_weapon_step(g,-1,1.f/60));
+            CHECK(g->current==0);
+            CHECK(!rf_player_weapon_step(g,3,1.f/60));
+            for(i=0;i<160;i++)CHECK(!rf_player_weapon_step(g,-1,1.f/60));
+            CHECK(g->current==0 && g->peak_bytes<=1024*1024);
+            printf("Grenade view PASS bones=%u vertices=%u resident=%u peak=%u\n",g->bone_count,g->geometry.vertex_count,g->resident_bytes,g->peak_bytes);
+            rf_player_weapon_close(&g);
+        }
         rf_vpp_close(&tables);
         CHECK(d.damage_kind==1 && d.magazine==16 && d.semi_automatic==1 && d.damage==40 && d.fire_seconds==.5f && d.reload_seconds==1.1f);CHECK(d.ai_attack_range==20 && d.ai_spread_degrees==3);
         CHECK(d.ai_damage_scale[0]==1 && d.ai_damage_scale[1]==1);

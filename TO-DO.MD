@@ -3,7 +3,7 @@
 Completion basis (user direction,2026-09-18): working late-alpha/early-beta code implementation. Overall approximately60%; GeoMod100% for the first playable milestone, accepted by the user. GeoMod items below are deferred refinement and coverage, not prerequisites to moving on. This does not assert retail polish, complete campaign integration or resolution of every known defect.
 
 
-- PRIORITY Core gameplay: Integrate remaining weapon behavior in the DEV testbed, starting with thrown grenades; use retained helper findings and focused gameplay checks, deferring polish and exhaustive GeoMod edge cases.
+- PRIORITY Weapons: Connect grenade selection, release timing, projectile motion and fuse/explosion; the shared loader now admits its no-reload first-person view and both throw clips, with PC resource playback and Xbox build passing.
 
 - DEFERRED GeoMod crush: Resolve confined moving-platform overlap and controller admission after core integration; separating static contact is fixed and passes78 Xbox checks, but the ceiling stress still has17 limited frames.
 

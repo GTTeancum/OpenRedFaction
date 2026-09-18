@@ -16,11 +16,11 @@ int rf_player_weapon_open_view(rf_vpp *meshes,rf_vpp *motions,rf_vpp *maps,uint3
     uint32_t i,j,used=sizeof(rf_player_weapon),scratch=sizeof(rf_model_file)+4+50*56;int status;
     if(!meshes || !motions || !maps || !map_count || !definition || !result || *result)return RF_RANGE;
     if(!memchr(definition->mesh,0,64) || !definition->mesh[0])return RF_RANGE;
-    for(i=0;i<4;i++)if(!memchr(definition->clips[i],0,64) || (i<3 && !definition->clips[i][0]))return RF_RANGE;
+    for(i=0;i<4;i++)if(!memchr(definition->clips[i],0,64) || (i<2 && !definition->clips[i][0]))return RF_RANGE;
     if(budget<used || budget-used<scratch)return RF_RANGE;
     w=calloc(1,sizeof(*w));model=calloc(1,sizeof(*model));bones=malloc(4+50*56);
     if(!w || !model || !bones){status=RF_IO;goto done;}
-    w->clip_count=definition->clips[3][0]?4:3;
+    w->clip_count=definition->clips[3][0]?4:definition->clips[2][0]?3:2;
     status=rf_model_file_open(model,meshes,definition->mesh);if(status)goto done;
     for(i=0;i<model->section_count;i++)if(model->sections[i].type==0x424f4e45) {
         if(model->sections[i].size>4+50*56){status=RF_RANGE;goto done;}
@@ -35,6 +35,7 @@ int rf_player_weapon_open_view(rf_vpp *meshes,rf_vpp *motions,rf_vpp *maps,uint3
     w->peak_bytes=used+w->materials.peak_bytes+scratch;used+=w->materials.resident_bytes;
     for(i=0;i<w->clip_count;i++) {
         rf_motion_track track;
+        if(!definition->clips[i][0])continue;
         status=rf_motion_file_open(w->clips+i,motions,definition->clips[i]);if(status)goto done;
         if(w->clips[i].entry.size>budget-used-scratch){status=RF_RANGE;goto done;}
         w->payloads[i]=malloc(w->clips[i].entry.size);if(!w->payloads[i]){status=RF_IO;goto done;}
@@ -72,11 +73,11 @@ static int player_weapon_start(rf_player_weapon *w,uint32_t clip)
 int rf_player_weapon_step(rf_player_weapon *w,int32_t request,float elapsed)
 {
     const rf_motion_file *files[4]={0};float displacement[3]={0};uint32_t i;int status;
-    if(!w || request<-1 || request>3 || (request>=0 && (uint32_t)request>=w->clip_count) || !isfinite(elapsed) || elapsed<0 || elapsed>1)return RF_RANGE;
+    if(!w || request<-1 || request>3 || (request>=0 && ((uint32_t)request>=w->clip_count || !w->payloads[request])) || !isfinite(elapsed) || elapsed<0 || elapsed>1)return RF_RANGE;
     if(!w->initialized || request>=0){status=player_weapon_start(w,request<0?0:(uint32_t)request);if(status)return status;}
     status=rf_motion_update(&w->playback,w->resources,w->clip_count,elapsed);if(status)return status;
     if(!w->playback.completion.active.count){status=player_weapon_start(w,0);if(status)return status;}
-    for(i=0;i<w->clip_count;i++)files[i]=w->clips+i;
+    for(i=0;i<w->clip_count;i++)if(w->payloads[i])files[i]=w->clips+i;
     status=rf_model_evaluate_playback(w->bones,w->bone_count,&w->playback,files,w->resources,w->clip_count,
         displacement,w->pose,w->generations,50);if(status)return status;
     return rf_model_prepare_skinning(w->stored,w->pose,w->bone_count,(uint16_t)w->playback.generation,
