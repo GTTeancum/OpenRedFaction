@@ -3,9 +3,11 @@
 Completion basis (user direction,2026-09-18): working late-alpha/early-beta code implementation. Overall approximately60%; GeoMod100% for the first playable milestone, accepted by the user. GeoMod items below are deferred refinement and coverage, not prerequisites to moving on. This does not assert retail polish, complete campaign integration or resolution of every known defect.
 
 
-- AI combat: Authored handgun cadence, rifle bursts and finite magazine/reload logic are integrated; live handgun firing and focused burst/reload checks pass, with Xbox build passing; shotgun integration and tuning remain.
+- AI combat: Authored handgun cadence, rifle bursts and finite magazine/reload logic are integrated; live handgun firing and focused burst/reload checks pass, with Xbox build passing; shotgun pellet damage, cover and death cutoff are now integrated and focused checks pass; live tuning remains.
 
-- PRIORITY Weapons: Connect grenade selection, release timing, projectile motion and fuse/explosion; view loading and separate timed/impact fuse transitions now compile for PC/Xbox with focused checks passing; live throws and detonations remain to connect.
+- Scripted interactions: Teleport_Player is integrated with queued frame-boundary relocation and focused runtime/pose checks passing; Xbox builds, while live authored-event behavior and vehicle teleport remain unverified.
+
+- PRIORITY Weapons: Connect grenade selection, release timing, projectile motion and fuse/explosion; view loading and separate timed/impact fuse transitions now compile for PC/Xbox with focused checks passing; gravity/bounce/rest and timed/impact flight checks now pass in the shared build; live throws and detonations remain to connect.
 
 - DEFERRED GeoMod crush: Resolve confined moving-platform overlap and controller admission after core integration; separating static contact is fixed and passes78 Xbox checks, but the ceiling stress still has17 limited frames.
 

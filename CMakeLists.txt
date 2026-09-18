@@ -692,3 +692,16 @@ add_test(NAME physics_fragment_timing COMMAND rf_physics_fragment_timing_tests)
 add_executable(rf_scene_ai_gameplay_tests tests/scene_ai_gameplay_tests.c)
 target_link_libraries(rf_scene_ai_gameplay_tests PRIVATE rf_core)
 add_test(NAME scene_ai_gameplay COMMAND rf_scene_ai_gameplay_tests)
+
+add_executable(rf_scene_event_gameplay_tests tests/scene_event_gameplay_tests.c src/diagnostic/animation.c)
+target_link_libraries(rf_scene_event_gameplay_tests PRIVATE rf_core)
+add_test(NAME scene_event_gameplay COMMAND rf_scene_event_gameplay_tests)
+
+target_sources(rf_core PRIVATE src/core/grenade_flight.c)
+add_executable(rf_grenade_flight_tests tests/grenade_flight_tests.c)
+target_link_libraries(rf_grenade_flight_tests PRIVATE rf_core)
+add_test(NAME grenade_flight COMMAND rf_grenade_flight_tests)
+
+add_executable(rf_scene_ai_shotgun_tests tests/scene_ai_shotgun_tests.c src/diagnostic/animation.c)
+target_link_libraries(rf_scene_ai_shotgun_tests PRIVATE rf_core)
+add_test(NAME scene_ai_shotgun COMMAND rf_scene_ai_shotgun_tests)

@@ -633,6 +633,13 @@ static void startup_event_action(void *context,rf_event_state *state,uint32_t ac
             startup_target(c,c->event->links+i,source,actor,(mode&255u)==1);
         return;
     }
+    if(state->type==63) {
+        int status;if(action!=1)return;
+        if(!c->triggers->teleport_player){++c->report->unsupported_actions;return;}
+        status=c->triggers->teleport_player(c->triggers->teleport_context,&c->event->authored->record);
+        if(status==RF_NOT_FOUND)++c->report->other_targets;else if(status)c->status=status;
+        return;
+    }
     if(state->type==56) {
         if(action!=1)return;
         if(!c->triggers->strip_weapons){++c->report->unsupported_actions;return;}
@@ -1005,6 +1012,7 @@ int rf_runtime_events_tick(rf_runtime_events *events,rf_runtime_triggers *trigge
            !(event->state.type==22 && triggers->load_level) &&
            !(event->state.type>=35 && event->state.type<=37 && triggers->goals) &&
            !((event->state.type==13 || event->state.type==14) && triggers->adjust_vitals) &&
+           !(event->state.type==63 && triggers->teleport_player) &&
            !(event->state.type==56 && triggers->strip_weapons) &&
            !(event->state.type==19 && triggers->give_item) &&
            !(event->state.type==30 && triggers->set_friendliness) &&

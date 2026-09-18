@@ -356,6 +356,10 @@ typedef struct rf_runtime_triggers {
     /* Borrowed message presentation service; links identify speakers, not actions. */
     int (*show_message)(void *context,const rf_level_event *event,int32_t now,uint32_t on);
     void *message_context;
+    /* Teleport_Player63 on-action; authored disk orientation remains explicit.
+     * RF_NOT_FOUND skips unavailable player/vehicle owners. */
+    int (*teleport_player)(void *context,const rf_level_event *event);
+    void *teleport_context;
 } rf_runtime_triggers;
 /* Declare authored goals before any startup trigger runs. */
 int rf_runtime_goals_initialize(const rf_runtime_events *events,rf_campaign_goals *goals);

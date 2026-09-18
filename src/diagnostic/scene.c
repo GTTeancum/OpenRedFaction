@@ -8968,6 +8968,7 @@ static float combat_enemy_primary_damage(const rf_weapon_primary_definition *def
 }
 #include "scene_npc_rubble_test.inc"
 #include "scene_ai_gameplay.inc"
+#include "scene_ai_shotgun.inc"
 static int campaign_enemy_tick(scene_stream *stream,uint32_t frame,const float player_eye[3])
 {
     uint32_t i,j,blocked,clock_bits;float seconds=(float)frame/60;
@@ -8980,7 +8981,8 @@ static int campaign_enemy_tick(scene_stream *stream,uint32_t frame,const float p
         campaign_npc_body *owner=campaign_npc_bodies+i;float delta[3],distance=0,amount=0;int status;
         const int32_t weapon=owner->view.weapons[0];
         const rf_weapon_primary_definition *definition=weapon==campaign_pistol_id?campaign_primary:
-            weapon==campaign_rifle_id?campaign_primary+1:weapon==campaign_riot_id?campaign_primary+2:NULL;
+            weapon==campaign_rifle_id?campaign_primary+1:weapon==campaign_riot_id?campaign_primary+2:
+            weapon==campaign_shotgun_id?campaign_primary+3:NULL;
         const uint32_t melee=weapon==campaign_riot_id;
         const float shot_damage=combat_enemy_primary_damage(definition);
         const float attack_range=definition && definition->ai_attack_range>0?definition->ai_attack_range:(melee?2.6f:40.0f);
@@ -9047,7 +9049,7 @@ static int campaign_enemy_tick(scene_stream *stream,uint32_t frame,const float p
                 else campaign_pursuit_stop(owner);
             } else if(owner->script_move.follow==2)campaign_pursuit_target(owner,target_position);
         }
-        if(weapon==campaign_pistol_id || weapon==campaign_rifle_id) {
+        if(weapon==campaign_pistol_id || weapon==campaign_rifle_id || weapon==campaign_shotgun_id) {
             uint32_t ready,event;
             status=campaign_enemy_ammo_ready(&owner->inventory,campaign_weapon_supply.definitions+weapon,
                 definition,weapon,frame,&owner->combat_reload_due,&owner->combat_reload_weapon,&ready,&event);if(status)return status;
@@ -9074,7 +9076,7 @@ static int campaign_enemy_tick(scene_stream *stream,uint32_t frame,const float p
         status=combat_obstructed(stream,owner->eye_position,delta,&blocked);if(status)return status;
         if(blocked){++rf_scene_enemy_combat[4];continue;}
         status=campaign_enemy_cadence(definition,frame,&owner->combat_burst_remaining,&owner->combat_due);if(status)return status;
-        if(weapon==campaign_pistol_id || weapon==campaign_rifle_id)--owner->inventory.loaded[weapon];
+        if(weapon==campaign_pistol_id || weapon==campaign_rifle_id || weapon==campaign_shotgun_id)--owner->inventory.loaded[weapon];
         if(melee){float maximum;memcpy(&maximum,rf_scene_enemy_melee+3,4);++rf_scene_enemy_melee[0];
             if(distance>maximum)memcpy(rf_scene_enemy_melee+3,&distance,4);}
         ++rf_scene_enemy_combat[2];
@@ -9082,6 +9084,12 @@ static int campaign_enemy_tick(scene_stream *stream,uint32_t frame,const float p
         if(!victim && rf_scene_attack_recovery[0] && owner->registration.handle==rf_scene_script_attack[11])++rf_scene_attack_recovery[2];
         status=campaign_enemy_fire_presentation(i);rf_scene_enemy_fire[5]=(uint32_t)status;
         if(status==RF_NOT_FOUND)++rf_scene_enemy_fire[2];else if(status)return status;
+        if(weapon==campaign_shotgun_id){
+            status=campaign_enemy_shotgun_fire(stream,owner,victim,victim_slot,
+                definition,delta,attack_range,clock_bits,&effects,&feedback,&amount);
+            if(status)return status;
+            goto enemy_shot_done;
+        }
         if(!melee) {
             float ray[3],spread_ray[3],fraction;
             ++rf_scene_enemy_spread[0];if(!definition)++rf_scene_enemy_spread[6];
@@ -14677,6 +14685,8 @@ int rf_scene_draw_coronas(rf_scene_particle_sink sink,void *context)
     free(c.snapshot.objects);if(status)++rf_scene_corona_draw[7];return status;
 }
 #include "scene_moving_support_test.inc"
+#include "scene_event_gameplay.inc"
+
 static int scene_frame(void *context,uint32_t frame,rf_preview_mesh *actor)
 {
     scene_stream *stream=context;uint32_t i,slot;
@@ -14706,6 +14716,7 @@ static int scene_frame(void *context,uint32_t frame,rf_preview_mesh *actor)
             /* The first physics tick must consume initialized cached room/wet
              * state, just as later ticks consume the preceding refresh. */
         }
+        status=campaign_teleport_begin();if(status)return status;
         /* Save initialized locomotion and pose, not the earlier camera-preparation state. */
         if(campaign_spawn){status=campaign_life_capture();if(status)return status;}
     }
@@ -14931,6 +14942,7 @@ static int scene_frame(void *context,uint32_t frame,rf_preview_mesh *actor)
                 npc_step_profile_mark(6,&npc_clock);
             }
         }
+        status=campaign_teleport_begin();if(status)return status;
         step_profile_mark(5,&step_clock);
         if(campaign_spawn && stream->collision) {int status=campaign_collision_views_check(frame);if(status)return status;status=campaign_alpha_check(frame);if(status)return status;
             if(!frame){memset(rf_scene_glare_search,0,sizeof(rf_scene_glare_search));rf_scene_glare_search[4]=2166136261u;
@@ -15237,6 +15249,8 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
             campaign_triggers.load_level=campaign_load_level;campaign_triggers.load_level_context=&rf_scene_level_transition;
 
             if(status)goto done;
+            campaign_teleport_ready=campaign_teleport_pending=0;
+            campaign_triggers.teleport_player=campaign_teleport_player;campaign_triggers.teleport_context=NULL;
             campaign_triggers.set_friendliness=campaign_set_friendliness;campaign_triggers.adjust_vitals=campaign_adjust_vitals;campaign_triggers.give_item=campaign_give_item;campaign_triggers.strip_weapons=campaign_strip_weapons;campaign_triggers.give_item_context=(void *)tables_path;
             campaign_triggers.switch_backend=&campaign_switch_backend;
             campaign_triggers.set_visible=campaign_set_visible;
