@@ -30,6 +30,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--npc-projectile-test', action='store_true', help='Rubble-cover fixture followed by a rocket striking the guard')
     parser.add_argument('--npc-rubble-test', action='store_true', help='Opt-in armed NPC versus live extracted held cover')
+    parser.add_argument('--fragment-platform-test', action='store_true', help='Generated CTF06 platform with ordinary rocket rubble and support withdrawal; no saves')
     parser.add_argument('--fragment-contact-test', action='store_true', help='Run isolated narrow static/mover contact fixtures and compare64 guest words')
     parser.add_argument('--moving-support-test', action='store_true', help='Process-local saved rubble lift/stop/retire fixture')
     parser.add_argument('--release-support-test', action='store_true', help='Lift saved support then release to ordinary debris gravity/contact')
@@ -81,6 +82,8 @@ def main():
     parser.add_argument('--unbatched', action='store_true', help='Reference tiny GPU command submission blocks')
     parser.add_argument('--unsorted', action='store_true', help='Reference source-order world draw ranges')
     args = parser.parse_args()
+    if args.fragment_platform_test and not (args.dev_room and args.spawn and args.level=='ctf06.rfl' and args.archive=='levelsm.vpp' and args.authored_source==108 and args.authored_sources==3 and args.input and not (args.player_checkpoint or args.geomod_checkpoint_in or args.geomod_checkpoint_out)):
+        parser.error('--fragment-platform-test requires source108/three-source CTF06 DEV rocket input without checkpoints')
     if args.fragment_contact_test and not args.dev_room:parser.error('--fragment-contact-test requires --dev-room')
     if args.npc_projectile_test:args.npc_rubble_test=True
     if args.npc_rubble_test and (not args.dev_room or args.level!='ctf06.rfl' or args.player_checkpoint or args.geomod_checkpoint_in):
@@ -180,6 +183,7 @@ def main():
     (run / 'inputs.bin').write_bytes(payload)
     env = {k: v for k, v in os.environ.items() if not k.startswith('RF_REPLAY_')}
     if args.fragment_contact_test:env['RF_REPLAY_FRAGMENT_CONTACT_TEST']='1'
+    if args.fragment_platform_test:env['RF_REPLAY_FRAGMENT_PLATFORM_TEST']='1'
     if args.npc_rubble_test:env['RF_REPLAY_DEV_NPC']='2'
     env.update(RF_REPLAY_LEVEL=args.level, RF_REPLAY_ARCHIVE=args.archive)
     if args.dev_room:env['RF_REPLAY_DEV_ROOM']='1'
@@ -232,8 +236,13 @@ def main():
     with (run / 'pc-build.log').open('w') as out:
         subprocess.run(['cmake','--build',pc_build,'--config','Release','--target','rf_pc_play'],
             cwd=root,stdout=out,stderr=subprocess.STDOUT,check=True)
+    pc_game=root/'Installed_Game'
+    if args.fragment_platform_test:
+        subprocess.run([sys.executable,'-B','tools/build_fragment_platform_fixture.py'],cwd=root,check=True)
+        pc_game=root/'artifacts/fragment-platform/game'
+        report['fragment_platform_fixture']=json.loads((pc_game.parent/'build.json').read_text())
     pc = subprocess.run([str(root / pc_build / 'Release/rf_pc_play.exe'), '--spawn-replay',
-        str(root / 'Installed_Game'), str(run / 'inputs.bin'), str(run / 'pc-final.ppm')],
+        str(pc_game), str(run / 'inputs.bin'), str(run / 'pc-final.ppm')],
         cwd=root, env=env, capture_output=True, text=True)
     (run / 'pc-reference.txt').write_text(pc.stdout + pc.stderr)
     pc.check_returncode()
@@ -244,6 +253,12 @@ def main():
         saved[name] = p.read_bytes() if p.exists() else None
     for name in ('campaign-spawn.flag', 'campaign-level.bin', 'campaign-actor.bin', 'campaign-setup.bin', 'campaign-item.bin', 'campaign-exit.bin', 'campaign-return.bin', 'campaign-goal.bin', 'campaign-exit-start.bin'):
         saved.setdefault(name, None)
+    if args.fragment_platform_test:
+        if (disc/'fragment-platform.vpp').exists():
+            raise RuntimeError('Unexpected existing disc/fragment-platform.vpp; inspect prior fixture restoration before another run')
+        saved['fragment-platform.vpp']=None
+        with (disc/'levelsm.vpp').open('rb') as original_archive:
+            report['normal_levelsm_sha256']=hashlib.file_digest(original_archive,'sha256').hexdigest()
     process = monitor = None
     saved.setdefault('campaign-trigger-start.bin', None)
     dev_flag=disc/'dev-room.flag'
@@ -252,7 +267,7 @@ def main():
     saved[light_flag.name]=light_flag.read_bytes() if light_flag.exists() else None
     shallow_flag=disc/'shallow-fixture.flag'
     saved[shallow_flag.name]=shallow_flag.read_bytes() if shallow_flag.exists() else None
-    for name in ('fragment-contact-test.flag','cavity-seam.flag','geomod-checkpoint.bin','geomod-checkpoint-out.flag','ripple-test.flag','debris-player-test.flag','water-test.flag','swim-test.flag','player-checkpoint.flag','moving-support-test.flag','dev-npc.flag',
+    for name in ('fragment-platform-test.flag','fragment-contact-test.flag','cavity-seam.flag','geomod-checkpoint.bin','geomod-checkpoint-out.flag','ripple-test.flag','debris-player-test.flag','water-test.flag','swim-test.flag','player-checkpoint.flag','moving-support-test.flag','dev-npc.flag',
                  'geomod-hdd-load.flag','geomod-hdd-save.flag','geomod-fallback-seed.flag','geomod-fallback-observe.flag',
                  'geomod-fallback0.rfsg','geomod-fallback1.rfsg','terrain-map-limit.bin','authored-source.bin','authored-count.bin'):
         path=disc/name;saved[name]=path.read_bytes() if path.exists() else None
@@ -292,6 +307,9 @@ def main():
         (disc / 'campaign-spawn.flag').write_bytes(b'')
         if args.dev_room:(disc/'dev-room.flag').write_bytes(b'')
         if args.fragment_contact_test:(disc/'fragment-contact-test.flag').write_bytes(b'')
+        if args.fragment_platform_test:
+            (disc/'fragment-platform-test.flag').write_bytes(b'')
+            shutil.copyfile(pc_game/'levelsm.vpp',disc/'fragment-platform.vpp')
         if args.npc_rubble_test:(disc/'dev-npc.flag').write_bytes(b'2')
         else:(disc/'dev-npc.flag').unlink(missing_ok=True)
         if args.terrain_draw_audit:(disc/'renderer-draw-audit.flag').write_bytes(b'')
@@ -307,7 +325,7 @@ def main():
         if args.shallow_fixture:(disc/'shallow-fixture.flag').write_bytes(b'3' if args.shallow_oblique else b'2' if args.shallow_two_limits else b'')
         if args.terrain_test_light:(disc/'terrain-test-light.flag').write_bytes(b'')
         if args.terrain_map_limit is not None:(disc/'terrain-map-limit.bin').write_bytes(struct.pack('<2I',args.terrain_map_limit,args.terrain_map_limit_until))
-        (disc / 'campaign-level.bin').write_bytes(args.archive.encode().ljust(64, b'\0') + args.level.encode().ljust(64, b'\0'))
+        (disc / 'campaign-level.bin').write_bytes(('fragment-platform.vpp' if args.fragment_platform_test else args.archive).encode().ljust(64, b'\0') + args.level.encode().ljust(64, b'\0'))
         if args.goal_uid:(disc/'campaign-goal.bin').write_bytes(struct.pack('<I',args.goal_uid))
         if not args.spawn:(disc / ('campaign-item.bin' if args.item_uid else 'campaign-actor.bin')).write_bytes(struct.pack('<I', args.item_uid or args.actor))
         if args.exit_start_uid:(disc/'campaign-exit-start.bin').write_bytes(struct.pack('<I',args.exit_start_uid))
@@ -438,6 +456,7 @@ dvd_path = '{root.as_posix()}/build/xbox/redfaction-diagnostic.iso'
             fields.append(('rf_scene_fragment_profile',24))
             fields.append(('rf_scene_fragment_stage_ms',8))
             if args.fragment_contact_test:fields.extend((('rf_scene_fragment_contact_audit',64),('rf_scene_fragment_edge_audit',32),('rf_scene_fragment_moving_audit',16),('rf_scene_fragment_support_audit',16)))
+            if args.fragment_platform_test:fields.append(('rf_scene_fragment_platform_audit',16))
             if args.npc_rubble_test:fields.append(('rf_scene_dev_npc_cover',48))
             if args.moving_support_test:fields.append(('rf_scene_moving_support_test',160))
             if args.rotate_support_test:fields.append(('rf_scene_rotating_support_test',120))
@@ -457,6 +476,15 @@ dvd_path = '{root.as_posix()}/build/xbox/redfaction-diagnostic.iso'
             stage_words=snap['symbols']['rf_scene_fragment_stage_ms']['words']
             report['fragment_stage_ms']={name:dict(total=stage_words[i*2],max_query=stage_words[i*2+1]) for i,name in enumerate(('spheres','corners','mover_vertices','world_vertices'))}
             report['fragment_profile']['mean_active_tick_ms']=fragment_xbox[11]/fragment_xbox[2] if fragment_xbox[2] else None
+
+            if args.fragment_platform_test:
+                expected=[int(v) for line in pc.stdout.splitlines() if line.startswith('FRAGMENT_PLATFORM ') for v in line.split()[1:]]
+                actual=snap['symbols']['rf_scene_fragment_platform_audit']['words']
+                assert len(expected)==16 and expected==actual and actual[:3]==[599,60,1], 'Platform sequence differs or incomplete'
+                initial,final=struct.unpack('<2f',struct.pack('<2I',*actual[6:8]))
+                assert abs(initial-.65)<.005 and abs(final+1.5)<.005 and 420<actual[8]<=480
+                assert actual[9]==1 and actual[14]==1 and not actual[13]&0x80000000
+                report['checks']['FRAGMENT_PLATFORM']=dict(pc=expected,xbox=actual,equal=True,initial_bottom=initial,final_bottom=final,drop=initial-final)
 
             if args.fragment_contact_test:
                 expected=[int(v) for line in pc.stdout.splitlines() if line.startswith('FRAGMENT_CONTACT_AUDIT ') for v in line.split()[1:]]
@@ -767,6 +795,9 @@ dvd_path = '{root.as_posix()}/build/xbox/redfaction-diagnostic.iso'
                 actual = (disc / name).read_bytes() if (disc / name).exists() else None
                 if actual != data:
                     raise RuntimeError('Disc restoration mismatch: ' + name)
+            if args.fragment_platform_test:
+                with (disc/'levelsm.vpp').open('rb') as original_archive:
+                    assert hashlib.file_digest(original_archive,'sha256').hexdigest()==report['normal_levelsm_sha256'], 'Normal archive changed during fixture'
             iso = root / 'build/xbox/redfaction-diagnostic.iso'
             temporary = run / 'restored-disc.iso'
             xbe = disc / 'default.xbe'

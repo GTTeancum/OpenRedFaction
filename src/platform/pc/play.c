@@ -920,7 +920,7 @@ run_scene:
     {extern uint32_t rf_scene_detached_motion[8];extern float rf_scene_detached_pose[6];
      printf("FRAGMENT_PROFILE");for(i=0;i<24;i++)printf(" %u",rf_scene_fragment_profile[i]);puts("");
      printf("DETACHED_MOTION");for(i=0;i<8;i++)printf(" %u",rf_scene_detached_motion[i]);puts("");
-    if(rf_scene_fragment_platform_enabled){printf("FRAGMENT_PLATFORM");for(uint32_t k=0;k<8;k++)printf(" %u",rf_scene_fragment_platform_audit[k]);printf("\n");}
+    if(rf_scene_fragment_platform_enabled){printf("FRAGMENT_PLATFORM");for(uint32_t k=0;k<16;k++)printf(" %u",rf_scene_fragment_platform_audit[k]);printf("\n");}
      printf("DETACHED_POSE");for(i=0;i<6;i++)printf(" %.9g",rf_scene_detached_pose[i]);puts("");}
     {extern uint32_t rf_scene_detached_pieces[6];printf("DETACHED_PIECES");for(i=0;i<6;i++)printf(" %u",rf_scene_detached_pieces[i]);puts("");}
     printf("TERRAIN_UPLOAD");for(i=0;i<4;++i)printf(" %u",rf_scene_terrain_upload[i]);puts("");

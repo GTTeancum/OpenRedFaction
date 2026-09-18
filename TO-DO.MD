@@ -1,6 +1,6 @@
 # Red Faction Xbox / PC - open work
 
-- PRIORITY GeoMod fragment contacts: Run the new visible platform/rubble fixture on Xbox and finish rotating swept contacts/carry/crush; PC rocket rubble now drops 2.15 units after platform withdrawal, alongside 126 PC tests and the prior 82 native numerical checks.
+- PRIORITY GeoMod fragment contacts: Finish rotating swept contacts and carry/crush, and extend the visible platform fixture to rotation/replacement support; rocket rubble dropping 2.15 units after platform withdrawal now passes 78 stock 64 MiB Xbox checks with exact PC state and 126 PC tests.
 
 - Doors: Investigate the existing420-frame close/reopen replay failure reproduced on both current and prior scene code;180-frame opening and player traversal still pass.
 

@@ -181,7 +181,7 @@ static uint32_t player_frame_limit;
 static rf_scene_input player_input;
 static uint32_t campaign_spawn;
 uint32_t rf_scene_dev_room_enabled;
-uint32_t rf_scene_fragment_platform_enabled,rf_scene_fragment_platform_audit[8];
+uint32_t rf_scene_fragment_platform_enabled,rf_scene_fragment_platform_audit[16];
 uint32_t rf_scene_dev_npc_enabled; /* Opt-in:1 harmless walking miner;2 armed rubble-cover fixture. */
 static uint32_t scene_dev_npc_contacts;
 uint32_t rf_scene_water_test_enabled; /* Explicit authored dm03 water test; no terrain fixture. */
@@ -11621,6 +11621,18 @@ static int scene_detached_tick(scene_stream *s,float seconds)
             if(status){printf("DETACHED_STEP_FAILURE %u %u %u %d %u %.9g %.9g %.9g\n",source,b,i,status,body->state.flags,body->state.position[0],body->state.position[1],body->state.position[2]);printf("DETACHED_STEP_RADIUS %.9g\n",body->state.bounds.radius);goto failed;}
             if(seconds>0 && ((body->state.flags&0x80000000u) || wake))active++;
             body->state=next;
+            if(rf_scene_fragment_platform_enabled && source==0 && b==0 && i==1) {
+                float bottom=INFINITY;
+                for(uint32_t v=0;v<piece.mesh.vertex_count;v++) {
+                    float point[3];scene_piece_world_point(&body->state,piece.mesh.vertices[v].position,point);
+                    if(point[1]<bottom)bottom=point[1];
+                }
+                if(rf_scene_fragment_platform_audit[0]==420)memcpy(rf_scene_fragment_platform_audit+6,&bottom,4);
+                memcpy(rf_scene_fragment_platform_audit+7,&bottom,4);
+                if(wake){rf_scene_fragment_platform_audit[8]=rf_scene_fragment_platform_audit[0];rf_scene_fragment_platform_audit[9]=1;}
+                memcpy(rf_scene_fragment_platform_audit+10,body->state.position,12);
+                rf_scene_fragment_platform_audit[13]=body->state.flags;rf_scene_fragment_platform_audit[14]=i;rf_scene_fragment_platform_audit[15]++;
+            }
             ++rf_scene_detached_motion[0];rf_scene_detached_motion[1]+=report.steps;rf_scene_detached_motion[2]+=report.contacts;
             rf_scene_detached_motion[3]+=!(body->state.flags&0x80000000u);rf_scene_detached_motion[4]+=report.limited;
             rf_scene_detached_motion[5]=npc_hash_bytes(rf_scene_detached_motion[5]?rf_scene_detached_motion[5]:2166136261u,&body->state,sizeof(body->state));

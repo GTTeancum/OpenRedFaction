@@ -37,6 +37,10 @@ report['mesh_bottoms']=[r[8] for r in support]
 if args.moving:
     report['platform']=row('FRAGMENT_PLATFORM')
     assert report['platform'][:3]==[599,60,1],report['platform']
+    assert len(report['platform'])==16
+    bottom=struct.unpack('<2f',struct.pack('<2I',*report['platform'][6:8]))
+    assert abs(bottom[0]-.65)<.005 and abs(bottom[1]+1.5)<.005
+    assert 420<report['platform'][8]<=480 and report['platform'][9]==1
     xyz=struct.unpack('<3f',struct.pack('<3I',*report['platform'][3:6]))
     assert abs(xyz[0]-12.449)<.00001 and abs(xyz[1]-.55)<.00001 and xyz[2]==2.5
     stationary=json.loads((OUT/'stationary-report.json').read_text())
