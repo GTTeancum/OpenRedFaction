@@ -926,6 +926,7 @@ run_scene:
     printf("ROCKET_BLAST");for(i=0;i<8;++i)printf(" %u",rf_scene_rocket_blast[i]);puts("");
     printf("SCANNER");for(i=0;i<4;++i)printf(" %u",rf_scene_scanner[i]);puts("");
     printf("GRENADES");for(i=0;i<8;++i)printf(" %u",rf_scene_grenades[i]);puts("");
+    printf("FLAME_VISUAL");for(i=0;i<6;++i)printf(" %u",rf_scene_flame_visual[i]);puts("");
     printf("REMOTE");for(i=0;i<8;++i)printf(" %u",rf_scene_remote[i]);puts("");
     printf("ROCKETS");for(i=0;i<8;++i)printf(" %u",rf_scene_rockets[i]);puts("");
     printf("TERRAIN_PUBLICATION");for(i=0;i<8;++i)printf(" %u",rf_scene_terrain_publication[i]);puts("");

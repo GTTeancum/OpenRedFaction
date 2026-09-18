@@ -8,7 +8,8 @@ static int scene_checkpoint_player_catalog(rf_player_checkpoint_catalog *c)
     if(!c->count||c->count>64)return RF_FORMAT;
     memcpy(c->weapons,campaign_weapon_supply.definitions,sizeof(c->weapons));
     c->health_capacity=campaign_player_damage.state.effects.class_health;c->armor_capacity=campaign_player_damage.state.effects.class_armor;
-    for(i=0;i<9;i++){
+    for(i=0;i<SCENE_WEAPON_SLOTS;i++){
+        if(i==9)continue; /* Detonator shares the base remote item. */
         int32_t id=rf_weapon_name_find(&campaign_weapon_supply.names,campaign_weapon_names[i]);const rf_weapon_acquire_definition *d;
         if(id<0||(uint32_t)id>=c->count)return RF_FORMAT;c->supported[id]=1;d=c->weapons+id;
         if(d->ammo_type<0||d->ammo_type>=32||d->capacity<0)return RF_FORMAT;
@@ -30,7 +31,7 @@ static int scene_checkpoint_player_scope(const scene_stream *s,uint32_t live)
     if(campaign_player_damage.state.effects.health<=0||campaign_crouched||(rf_scene_actor_stance_flags&0x400u)||
        campaign_climb.region||campaign_player_view.linked_handle!=-1||campaign_support_handle||rf_scene_actor_landing[1]!=1||
        combat_trigger.cooldown||combat_trigger.remaining||combat_trigger.delay||combat_trigger.held||rf_scene_combat[6]||
-       riot_charge_remainder||rf_scene_rockets[3])return RF_RANGE;
+       riot_charge_remainder||rf_scene_rockets[3]||scene_flame_input_pending())return RF_RANGE;
     for(i=0;i<3;i++)if(!isfinite(scene_actor_body.state.velocity[i])||fabsf(scene_actor_body.state.velocity[i])>.001f||
         actor_look.state.command[i]!=0||actor_look.state.angular_velocity[i]!=0)return RF_RANGE;
     if(actor_look.state.pending_pitch!=0||actor_look.state.pending_yaw!=0)return RF_RANGE;

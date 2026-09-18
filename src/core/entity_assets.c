@@ -473,7 +473,7 @@ int rf_item_definition_load(rf_vpp *tables,const char *name,uint32_t budget,rf_i
 int rf_weapon_view_read(const void *text,uint32_t bytes,const char *name,rf_weapon_view_definition *result)
 {
     lexer l={text,bytes,0};rf_weapon_view_definition v={0};char t[256],file[64],alternate[64]={0};
-    uint32_t mask=0,continuous_alt=0;int selected=0,found=0,q,status,index;
+    uint32_t mask=0,continuous_alt=0,continuous_primary=0;int selected=0,found=0,q,status,index;
     if(!text || !name || !*name || !result)return RF_RANGE;
     while((status=token(&l,t,&q))==RF_OK) {
         if(q)continue;
@@ -489,6 +489,7 @@ int rf_weapon_view_read(const void *text,uint32_t bytes,const char *name,rf_weap
                 if(token(&l,t,&q))return RF_FORMAT;
                 if(!q && !strcmp(t,")"))break;
                 if(!q)return RF_FORMAT;if(same(t,"alt_continuous_fire"))continuous_alt=1;
+                if(same(t,"continuous_fire"))continuous_primary=1;
             }
         } else if(same(t,"$1st")) {
             if(token(&l,t,&q) || q || !same(t,"Person"))return RF_FORMAT;
@@ -508,7 +509,15 @@ int rf_weapon_view_read(const void *text,uint32_t bytes,const char *name,rf_weap
         }
     }
     if(status!=RF_OK && status!=RF_NOT_FOUND)return status;
-    if(!found)return RF_NOT_FOUND;if((mask&7)!=7)return RF_FORMAT;
+    if(!found)return RF_NOT_FOUND;
+    /* Primary continuous weapons may declare only a looping fire state.
+     * Reuse its single payload as primary slot1 before slot3 is assigned the
+     * alternate action. alt_loop retains its existing alternate-only meaning;
+     * the continuous-primary caller marks resource1 looping after view load. */
+    if(!(mask&4) && continuous_primary && !continuous_alt && (mask&16)) {
+        memcpy(v.clips[1],v.clips[3],64);mask|=4;
+    }
+    if((mask&7)!=7)return RF_FORMAT;
     if(!continuous_alt)memcpy(v.clips[3],alternate,64);
     else if(!(mask&16))return RF_FORMAT;
     v.alt_loop=continuous_alt;
