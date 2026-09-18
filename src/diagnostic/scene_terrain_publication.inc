@@ -136,6 +136,23 @@ static inline void scene_terrain_publication_abort(scene_stream *s)
  * pending composition change, but active scene/core/overlay and telemetry do not.
  * Abort before leaving a validation visitor. saved_serial is the scene revision,
  * not the independently replayed core generation. Caller validates save identity. */
+/* Shared by live publication and private checkpoint reconstruction. Check every
+ * owner's prepared cutters, including non-selected members of a collection. */
+static int scene_authored_cuts_admit(const scene_terrain_authored_assets *a,
+    const rf_geomod_publication_cut *cuts,uint32_t count) {
+    uint32_t i;int status;
+    if(a->asset_view.source_uid==66 || a->asset_view.detail_guard_count)for(i=0;i<count;i++) {
+        const rf_geomod_mesh_view *cut=&cuts[i].mesh;float lo[3],hi[3];uint32_t vertex,axis,reference;
+        if(!cut->vertex_count || !cut->vertices)return RF_FORMAT;
+        memcpy(lo,cut->vertices[0].position,12);memcpy(hi,lo,12);
+        for(vertex=1;vertex<cut->vertex_count;vertex++)for(axis=0;axis<3;axis++) {
+            float value=cut->vertices[vertex].position[axis];if(value<lo[axis])lo[axis]=value;if(value>hi[axis])hi[axis]=value;
+        }
+        status=a->asset_view.detail_guard_count?rf_geomod_authored_post_admit(a->asset,lo,hi):
+            rf_geomod_authored_cavity_admit(a->asset,lo,hi,&reference);if(status)return status;
+    }
+    return RF_OK;
+}
 static int scene_terrain_publication_prepare_from(scene_stream *s,
     const rf_geomod_terrain_view *candidate,const rf_geomod_publication_cut *cuts,
     uint32_t count,uint32_t saved_serial)
@@ -156,16 +173,7 @@ static int scene_terrain_publication_prepare_from(scene_stream *s,
     job.source_planes=a->asset_view.source_planes;job.source_plane_count=a->source.face_count;
     job.solids=a->asset_view.solids;job.solid_count=a->asset_view.solid_count;job.cuts=cuts;job.cut_count=terrain.cuts;
     job.neighbor_voids=a->asset_view.neighbor_voids;job.neighbor_void_count=a->asset_view.neighbor_void_count;
-    if(a->asset_view.source_uid==66 || a->asset_view.detail_guard_count)for(i=0;i<count;i++) {
-        const rf_geomod_mesh_view *cut=&cuts[i].mesh;float lo[3],hi[3];uint32_t vertex,axis,reference;
-        if(!cut->vertex_count || !cut->vertices)return RF_FORMAT;
-        memcpy(lo,cut->vertices[0].position,12);memcpy(hi,lo,12);
-        for(vertex=1;vertex<cut->vertex_count;vertex++)for(axis=0;axis<3;axis++) {
-            float value=cut->vertices[vertex].position[axis];if(value<lo[axis])lo[axis]=value;if(value>hi[axis])hi[axis]=value;
-        }
-        status=a->asset_view.detail_guard_count?rf_geomod_authored_post_admit(a->asset,lo,hi):
-            rf_geomod_authored_cavity_admit(a->asset,lo,hi,&reference);if(status)return status;
-    }
+    status=scene_authored_cuts_admit(a,cuts,count);if(status)return status;
     if(s->terrain_source_count>1) {
         rf_geomod_publication_job jobs[4];rf_geomod_publication_cut other_cuts[4][RF_GEOMOD_CUT_LIMIT];
         uint32_t source,cut,total=0,selected=0;
@@ -192,6 +200,7 @@ static int scene_terrain_publication_prepare_from(scene_stream *s,
                     status=rf_geomod_terrain_cutter_get(owner->terrain,cut,&c->mesh,c->kernel,&c->star);if(status)return status;
                 }
             }
+            status=scene_authored_cuts_admit(asset,jobs[source].cuts,jobs[source].cut_count);if(status)return status;
             total+=jobs[source].cut_count;
         }
         /* One room edit may cut several sources. Each source history is

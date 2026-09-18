@@ -226,8 +226,8 @@ int rf_scene_authored_post_place_source(rf_level *level,uint32_t uid)
 }
 int rf_scene_authored_post_place_group(rf_level *level,uint32_t uid,uint32_t count)
 {
-    int status;if((rf_geomod_authored_post_detail(uid,NULL) || uid==66 || uid==92 || uid==108) && count!=1)return RF_RANGE;
-    if(count!=1 && count!=2 && !((uid==95 || uid==98) && count==3))return RF_RANGE;
+    int status;if((rf_geomod_authored_post_detail(uid,NULL) || uid==66) && count!=1)return RF_RANGE;
+    if(count!=1 && count!=2 && !(rf_geomod_authored_beam_roof(uid) && count==3))return RF_RANGE;
     status=rf_scene_authored_post_place_source(level,uid);if(status)return status;
     scene_authored_source_count=count;return RF_OK;
 }

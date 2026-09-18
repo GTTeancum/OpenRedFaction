@@ -2,7 +2,7 @@
 
 - PRIORITY GeoMod ordinary walls: Broaden multi-window and neighboring-brush CSG; a live floor-seam rocket now passes77 stock64MiB checks with exact PC/Xbox save bytes and fixture-off/mismatched-save rejection controls, alongside verified wall depth and player traversal.
 
-- GeoMod source expansion: Integrate joint side-beam/post destruction; all four guarded posts pass PC trim rejection and saved continuation, and post79 shot/Xbox-created-save reload pass77/76 stock64MiB checks with exact PC state; remaining beam selectors and broader histories stay open.
+- GeoMod source expansion: Broaden joint side-beam/post histories and native opposite-side coverage; both connected groups pass PC save/reload and atomic trim rejection, while group92 shot/Xbox-created-save blocked-blast continuation pass77/77 stock64MiB checks with exact PC state.
 
 - GeoMod thin fragments: Broaden contact coverage beyond the beam and concave L fixtures; face-derived samples now rescue pieces missed by regular grids, while Xbox beam continuation still passes76 checks.
 
@@ -5502,3 +5502,8 @@ Added RFASv3/loader5/publication14 identities for posts75/79/99/103, hashing ret
 ### 2026-09-18: Live guarded posts and Xbox-created save continuation
 
 Enabled single-source DEV selectors75/79/99/103 with an offset spawn that avoids intervening inner posts. Shared publication/restore now checks actual cutter bounds against retained detail guards. The process-local replay verifies exact impact locations: Y-1 trim-contact shots reject with zero cuts; Y.8 shots cut; save/reload matches uninterrupted play for all four profiles. Post79 native shot passes77 checks and an Xbox-created-save301-frame continuation passes76, with exact2422-byte PC/Xbox saves and4001/4049free pages respectively. Both native captures inspected; both harnesses restore disc/close XEMU. All123 PC tests and stock NXDK build pass. No detached pieces occur in these specific post cuts, and audio is unverified. Joint beam/post transactions, repeated histories and native trim-rejection coverage remain open. See docs/research/GEOMOD-SIDE-BEAMS-20260918.md. Overall~51%; GeoMod~89%.
+
+
+### 2026-09-18: Connected side beam/post destruction
+
+Enabled exact beam92/post79/post75 and beam108/post103/post99 collections via shared profile metadata, retaining existing pair/triple memory ceilings. Publication and collection restore check every owner's prepared cutter history against protected detail, including non-selected members. Both PC groups pass joint beam/post cuts, untouched opposite-post controls, atomic trim rejection, saved neutral continuation and saved rejected-next-blast continuation. Native92 joint shot and Xbox-created-save/blocked-next-blast pass77/77 checks with exact uninterrupted PC checkpoints; free endpoint pages3334/3303. Both captures inspected, disc restored and emulator closed. All123 PC tests and NXDK build pass. Native108, repeated successful joint cuts and intentional detail-geometry interactions remain open. Rough estimates: overall~51%, GeoMod~90%. See docs/research/GEOMOD-SIDE-BEAMS-20260918.md.

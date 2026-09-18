@@ -95,14 +95,14 @@ def main():
         parser.error('Map fault injection requires DEV mode and valid map/frame limits')
     if args.authored_source is not None and (not args.dev_room or args.level!='ctf06.rfl'):
         parser.error('--authored-source requires --dev-room --level ctf06.rfl')
-    if args.authored_source in (66,75,79,92,99,103,108) and args.authored_sources!=1:
-        parser.error('Cavity, side beams and guarded side posts require a single source')
+    if args.authored_source in (66,75,79,99,103) and args.authored_sources!=1:
+        parser.error('Cavity and guarded side-post selectors require a single source')
     if args.authored_sources>1:
         if not args.dev_room or args.level!='ctf06.rfl':parser.error('Source collections require ctf06 DEV room')
         if (args.geomod_checkpoint_in or args.geomod_checkpoint_out) and not args.player_checkpoint:
             parser.error('Collection checkpoints require --player-checkpoint')
-    if args.authored_sources==3 and args.authored_source not in (95,98):
-        parser.error('Three sources require beam --authored-source 95 or 98')
+    if args.authored_sources==3 and args.authored_source not in (92,95,98,108):
+        parser.error('Three sources require beam --authored-source 92, 95, 98 or 108')
     if args.player_checkpoint and not args.dev_room:parser.error('--player-checkpoint requires --dev-room')
     if args.lava_test and (args.swim_test or args.water_test or args.dev_room or not args.spawn or args.level!='L5S2.rfl' or args.archive!='levels1.vpp'):
         parser.error('--lava-test requires --spawn --level L5S2.rfl --archive levels1.vpp without other placement fixtures')
@@ -600,7 +600,7 @@ dvd_path = '{root.as_posix()}/build/xbox/redfaction-diagnostic.iso'
                 # banks, piece registries and private lighting staging. Default13MiB;
                 # connected pairs reserve16MiB and the triple profile17MiB.
                 terrain_budget=(16*1024*1024 if args.level=='ctf06.rfl' else 2359296+65536) if args.expanded_geomod else (13*1024*1024 if args.level=='ctf06.rfl' and args.dev_room else 1024*1024+65536)
-                if args.level=='ctf06.rfl' and args.authored_source in (95,98) and args.authored_sources in (2,3):
+                if args.level=='ctf06.rfl' and args.authored_source in (92,95,98,108) and args.authored_sources in (2,3):
                     terrain_budget=(17 if args.authored_sources==3 else 16)*1024*1024
                 budget_ok=all(0<=v[3]<=v[4]<=terrain_budget for v in (actual,expected))
                 report['checks']['GEOMOD']=dict(equal=equal,budget_ok=budget_ok,budget_bytes=terrain_budget,

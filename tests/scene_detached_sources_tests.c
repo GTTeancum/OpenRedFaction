@@ -440,6 +440,16 @@ static int beam_selection(void) {
     CHECK(rf_scene_authored_post_place_group(&level,94,3)==RF_RANGE);
     CHECK(rf_scene_authored_post_place_group(&level,95,4)==RF_RANGE);
     CHECK(!memcmp(before,level.player_position,sizeof(before)) && scene_authored_source_count==3);
+    {
+        const uint32_t beams[2]={92,108},high[2]={79,103},low[2]={75,99};uint32_t i,posts[2];
+        for(i=0;i<2;i++) {
+            CHECK(rf_geomod_authored_beam_posts(beams[i],posts) && posts[0]==low[i] && posts[1]==high[i]);
+            CHECK(!rf_scene_authored_post_place_group(&level,beams[i],3));
+            CHECK(scene_authored_source_uid==beams[i] && scene_authored_source_count==3);
+            CHECK(rf_scene_authored_post_place_group(&level,high[i],2)==RF_RANGE);
+            CHECK(scene_authored_source_uid==beams[i] && scene_authored_source_count==3);
+        }
+    }
     CHECK(!rf_scene_authored_post_place(&level));
     CHECK(scene_authored_source_uid==94 && scene_authored_source_count==1);
     return 0;

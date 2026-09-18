@@ -133,3 +133,29 @@ The stock64MiB native post79 shot (`artifacts/xemu/render-20260918-010212`) comp
 
 
 Xbox-created post79 save continuation also passes: `artifacts/xemu/render-20260918-010408`,301 neutral frames,76 checks,4049free pages at endpoint. Its2422-byte output matches uninterrupted PC exactly with the same SHA256 as the initial native checkpoint. Native restored framebuffer inspected; the cut and surrounding room remain present. The harness restored the disc and closed XEMU; no project emulator remains. Protected-trim rejection is verified live on PC for all four profiles, but has not yet been run natively. Joint beam/post edits, repeated post-cut histories and broader post debris remain open.
+
+
+## Connected side-beam/post groups
+
+Beam92 can now retain posts79/75, and beam108 posts103/99, through the same two- or three-source selection path as95/98. The loader's shared beam-profile accessor supplies post IDs instead of using UID subtraction. Standalone guarded-post selectors still reject collection requests; a collection must start with the beam and name its exact attached posts in the existing high/low order.
+
+Publication now applies the prepared-cutter guard to every participating owner's complete history, including non-selected members. The live group transaction and private collection restore both use this path. A guard failure rejects the staged collection before commit, so a successful beam cut cannot escape while its protected post cut fails. This change retains the existing connected publication, fragment registries, shared atlas and16/17MiB pair/triple destruction ceilings; it does not raise those ceilings.
+
+`tools/check_side_group.py --source 92|108` checks exact rocket contacts at each beam/post junction. TheY.25 contact reaches two sources but violates the post trim guard; publication rejects and commits zero cuts. TheY1.5 contact succeeds with source counts92:1/79:1/75:0 or108:1/103:1/99:0. Both600-frame shots save and resume301 neutral frames to a byte-identical uninterrupted900-frame checkpoint. The test uses normal process-local weapon input, not direct mesh mutation.
+
+| Group | Save bytes | Published faces/vertices | Settled extracted pieces |
+|---|---|---|---|
+|92,79,75|4466|31/166|1|
+|108,103,99|5300|32/157|3|
+
+The PC92 framebuffer was inspected: the beam/post junction is missing material, with the retained post base, adjacent spans, hall and weapon/HUD still visible. Audio remains unverified. All123 PC tests pass (`artifacts/side-group-tests.log`), including explicit new group-selector/rejected-post-selector controls. Stock NXDK compile/link/XBE/ISO succeeds (`artifacts/side-group-xbox.log`). Native validation is pending for these connected groups.
+
+
+Connected92 native shot evidence: `artifacts/xemu/render-20260918-011028`,600frames,77 checks,3334free pages at endpoint. Its4466-byte checkpoint matches PC exactly (SHA256735c19a9a8fbb38d6e2162aac42c95ca16bcd6be5c892377a67013f955496a6e). Native framebuffer inspected: the removed beam/post junction and retained lower post match the PC presentation. Harness restored disc and closed its emulator. A subsequent process check found no XEMU process.
+
+The connected replay also now reloads the nonempty save and fires aY.25 trim-contact shot at frame100. On PC92 the rocket contacts the intended post at frame119, publication rejects, and counts remain92:1/79:1/75:0. Its output exactly matches the same rejected second shot during uninterrupted play. The actual second admission reaches one source after the existing history/shallow constraints; the fresh rejection case above reaches two. These are distinct rollback controls, not a claim that both shots modify two sources.
+
+
+Connected92 Xbox-created-save/rejected-next-blast evidence: `artifacts/xemu/render-20260918-011338`,301frames,77 checks,3303free pages. The output4514-byte checkpoint matches uninterrupted PC exactly (SHA2568fbf588a9ba1c6c79672e6ec1ad134ed76db5b117c2d94d6de67951972563477). Source counts remain92:1/79:1/75:0, rejection status isRF_NOT_FOUND, and detached piece count/pose/motion words match the initial native endpoint. The full save need not equal the initial save because the player fired/changed aim and ordinary gameplay continued; the authoritative comparison is uninterrupted play with the same input. The restored native framebuffer was inspected, including the cut junction, retained post and ground fragment. Harness restored the disc and closed XEMU.
+
+The added reload-and-reject control also passes for PC108. Native108, broader repeated successful cuts and destruction that intentionally modifies detail geometry remain open. This milestone brings the rough GeoMod estimate to~90%, with overall~51%; these remain heuristic scope estimates, not coverage or fidelity percentages.

@@ -170,10 +170,14 @@ static int scene_terrain_sources_open(scene_stream *s,const rf_level *level,rf_v
     uint32_t identity_before[10];uint64_t resident,reserved;int status=RF_RANGE;
     if(!s || !uids || !count || count>4 || s->terrain_sources || s->terrain || s->terrain_authored || s->detached_pieces)return RF_RANGE;
     for(i=0;i<count;i++) {
-        if((rf_geomod_authored_post_detail(uids[i],NULL) || uids[i]==66 || uids[i]==92 || uids[i]==108) && count!=1)return RF_RANGE;
+        if(uids[i]==66 && count!=1)return RF_RANGE;
+        if(rf_geomod_authored_post_detail(uids[i],NULL) && count!=1 && uids[0]!=92 && uids[0]!=108)return RF_RANGE;
         if(!rf_geomod_authored_post_detail(uids[i],NULL) && uids[i]!=108 && uids[i]!=92 && uids[i]!=66 && uids[i]!=93 && uids[i]!=94 && uids[i]!=95 && uids[i]!=96 && uids[i]!=97 && uids[i]!=98)return RF_NOT_FOUND;
-        if((uids[i]==95 || uids[i]==98) && count!=1 &&
-           ((count!=2 && count!=3) || uids[0]!=uids[i] || uids[1]!=uids[i]-1 || (count==3 && uids[2]!=uids[i]-2)))return RF_RANGE;
+        if(rf_geomod_authored_beam_roof(uids[i]) && count!=1) {
+            uint32_t posts[2];
+            if(!rf_geomod_authored_beam_posts(uids[i],posts) || (count!=2 && count!=3) ||
+               uids[0]!=uids[i] || uids[1]!=posts[1] || (count==3 && uids[2]!=posts[0]))return RF_RANGE;
+        }
         for(j=0;j<i;j++)if(uids[i]==uids[j])return RF_FORMAT;
     }
     resident=(uint64_t)count*sizeof(*sources);
@@ -220,8 +224,9 @@ fail:
 static inline int scene_terrain_authored_open(scene_stream *s,const rf_level *level,rf_vpp *maps,uint32_t map_count)
 {
     uint32_t uids[3]={scene_authored_source_uid,0,93};
-    uids[2]=uids[0]==98?96:93;
-    uids[1]=uids[0]==98?97:uids[0]==95?94:uids[0]==93?94:uids[0]==94?93:uids[0]==96?97:96;
+    uint32_t posts[2];
+    if(rf_geomod_authored_beam_posts(uids[0],posts)){uids[1]=posts[1];uids[2]=posts[0];}
+    else uids[1]=uids[0]==93?94:uids[0]==94?93:uids[0]==96?97:96;
     return scene_terrain_sources_open(s,level,maps,map_count,uids,scene_authored_source_count,
         (scene_authored_source_count==3?7u:6u)*1024u*1024u);
 }

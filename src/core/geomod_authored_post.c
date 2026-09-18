@@ -416,6 +416,10 @@ static const beam_profile *find_beam_profile(uint32_t uid) {
 uint32_t rf_geomod_authored_beam_roof(uint32_t uid) {
     const beam_profile *profile=find_beam_profile(uid);return profile?profile->roof:0;
 }
+uint32_t rf_geomod_authored_beam_posts(uint32_t uid,uint32_t posts[2]) {
+    const beam_profile *p=find_beam_profile(uid);if(!p || !posts)return 0;
+    memcpy(posts,p->posts,sizeof(p->posts));return 1;
+}
 typedef struct post_profile {uint32_t uid,beam,detail,room;} post_profile;
 static const post_profile post_profiles[]={{75,92,11179,65},{79,92,11178,64},
     {99,108,11181,67},{103,108,11180,66}};
