@@ -2424,9 +2424,12 @@ failed:
 }
 /* Live first-pass switch services. Trigger/event effects dispatch in event.c;
  * unsupported controller/sound-object/light/renderable links remain counted. */
+static int campaign_switch_mover_lookup(uint32_t family,uint32_t handle,rf_switch_target *target);
+static int campaign_switch_mover_dispatch(const rf_switch_request *request);
 static int campaign_switch_lookup(void *context,uint32_t family,uint32_t link,rf_switch_target *target)
 {
     void *object=rf_object_registry_lookup(&campaign_registry,link);uint32_t kind=0;(void)context;
+    if(family==RF_SWITCH_CONTROLLER)return campaign_switch_mover_lookup(family,link,target);
     if(object)memcpy(&kind,object,4);
     if((family==RF_SWITCH_TRIGGER && kind==5) || (family==RF_SWITCH_EVENT && kind==6 && !((rf_runtime_event*)object)->retired)) {
         memset(target,0,sizeof(*target));target->token=link;
@@ -2437,7 +2440,7 @@ static int campaign_switch_lookup(void *context,uint32_t family,uint32_t link,rf
     return RF_NOT_FOUND;
 }
 static int campaign_switch_dispatch(void *context,const rf_switch_request *request)
-{(void)context;(void)request;return RF_NOT_FOUND;}
+{(void)context;return campaign_switch_mover_dispatch(request);}
 static int campaign_switch_sound(void *context,const rf_runtime_event *event,uint32_t effect,int32_t now)
 {
     const char *name=event->authored->record.texts[0];int32_t sample=-1;uint32_t i,j;(void)context;(void)now;
@@ -2550,6 +2553,8 @@ static int campaign_event_mover(void *context,uint32_t handle,uint32_t source,ui
     if(!controller || controller->object_kind!=8 || controller->runtime->kind==RF_GROUP_RUNTIME_EMPTY)return RF_NOT_FOUND;
     return campaign_link_effect(&activation,8,handle,source,actor);
 }
+#include "scene_switch_movers.inc"
+
 /* First-pass airlock interlock. Loader465510 fields0 -> constructor+1c ->
  * trigger+2c0 is a room UID;4bfc60 checks peer doors before dispatch.
  * Equalization/pressure mutation and its sound are not implemented here. */
@@ -11830,22 +11835,21 @@ failed:
 uint32_t rf_scene_rocket_blast[8]; /* explosions, candidates, damaged, NPC kills, self hits, last amount bits, occluded, status */
 /* Ordinary489010 victim: cover ray to physics position with CF5, then falloff.
  * Bullet rays intentionally retain their distinct CF0x27 policy. */
-static int scene_blast_amount(scene_stream *s,const float origin[3],const rf_physics_body *body,float *amount)
+static int scene_blast_amount(scene_stream *s,const float origin[3],const rf_physics_body *body,float damage,float radius,float *amount)
 {
     uint32_t blocked;int status=rf_geometry_collision_ray(s->collision,&campaign_movers,
         origin,body->state.position,5,NULL,&blocked);
     if(status)return status;
     if(blocked){++rf_scene_rocket_blast[6];*amount=0;return RF_OK;}
-    status=rf_weapon_blast_amount(origin,body->state.position,campaign_primary[4].damage,campaign_rocket.damage_radius,amount);
+    status=rf_weapon_blast_amount(origin,body->state.position,damage,radius,amount);
     if(!status && rf_scene_combat_trace)printf("BLAST_VICTIM %.9g %.9g %.9g %.9g %.9g %.9g %.9g\n",
         origin[0],origin[1],origin[2],body->state.position[0],body->state.position[1],body->state.position[2],*amount);
     return status;
 }
-static int scene_rocket_blast(scene_stream *s,uint32_t frame,const rf_weapon_flight_contact *contact)
+static int scene_explosion_blast(scene_stream *s,uint32_t frame,const float origin[3],float damage,float radius)
 {
-    float origin[3],seconds=(float)frame/60;uint32_t i,bits;int status;
-    ++rf_scene_rocket_blast[0];if(campaign_primary[4].damage<=0 || campaign_rocket.damage_radius<=.1f)return RF_OK;
-    for(i=0;i<3;i++)origin[i]=contact->hit.point[i]+contact->hit.normal[i]*.01f;
+    float seconds=(float)frame/60;uint32_t i,bits;int status;
+    ++rf_scene_rocket_blast[0];if(damage<=0 || radius<=.1f)return RF_OK;
     memcpy(&bits,&seconds,4);
     for(i=0;i<=campaign_npc_body_count;i++) {
         uint32_t player=i==campaign_npc_body_count,entered=0;float amount=0,applied=0;
@@ -11858,7 +11862,7 @@ static int scene_rocket_blast(scene_stream *s,uint32_t frame,const rf_weapon_fli
         else if(!owner->registration.view || !owner->body.allocated_bytes || owner->damage.effects.health<=0 ||
                 (owner->object_flags&(2|0x4000)) || (owner->view.flags_810&1))continue;
         ++rf_scene_rocket_blast[1];
-        status=scene_blast_amount(s,origin,player?&scene_actor_body:&owner->body,&amount);if(status)return status;
+        status=scene_blast_amount(s,origin,player?&scene_actor_body:&owner->body,damage,radius,&amount);if(status)return status;
         if(amount<=0)continue;request.amount=amount;
         status=player?rf_scene_player_damage(handle,&request,1,bits,&effects,&applied):
             rf_scene_npc_damage(handle,&request,1,bits,&effects,&applied);
@@ -11874,6 +11878,12 @@ static int scene_rocket_blast(scene_stream *s,uint32_t frame,const rf_weapon_fli
         }
     }
     return RF_OK;
+}
+static int scene_rocket_blast(scene_stream *s,uint32_t frame,const rf_weapon_flight_contact *contact)
+{
+    float origin[3];uint32_t i;
+    for(i=0;i<3;i++)origin[i]=contact->hit.point[i]+contact->hit.normal[i]*.01f;
+    return scene_explosion_blast(s,frame,origin,campaign_primary[4].damage,campaign_rocket.damage_radius);
 }
 /* Scoped single-variant Rocket Launcher impact binding from weapons.tbl.
  * Optional unresolved sparks are absent, never replaced by a guessed emitter. */
@@ -11923,6 +11933,65 @@ static int scene_impacts_tick(scene_stream *s,uint32_t frame)
         }
         if(actions.release && rf_scene_combat_trace)printf("IMPACT_RELEASE %u %u %u\n",frame,n,actions.release);
     }
+    return RF_OK;
+}
+static int scene_explosion_terrain(scene_stream *s,uint32_t frame,const rf_weapon_flight_contact *contact,float crater_radius)
+{
+    int status;
+            /* Original concave crater template in the explicit DEV cavity. Impact effects
+             * and authored surface eligibility remain separate. */
+            /* Original4670c3 gates requested radius before hardness scaling. */
+            if(s->terrain && (*contact).object==UINT32_MAX && (*contact).room==s->terrain_collision.room && crater_radius>=1.0f) {
+                uint32_t prior_pieces[4];
+                uint32_t timing_row=rf_scene_geomod[6]%8,timing_clock=0;float cleanup_center[3],cleanup_radius=0;
+                status=scene_detached_sources_counts(s,prior_pieces);if(status)return status;
+                memset(rf_scene_terrain_edit_times[timing_row],0,sizeof(rf_scene_terrain_edit_times[0]));rf_scene_terrain_edit_times[timing_row][0]=frame;
+                ++rf_scene_geomod[6];
+                {float basis[9],adjusted[3];rf_geomod_region_result prepared;
+                 rf_geomod_hardness_result hardness;rf_geomod_shallow_limit limits[2];uint32_t limit_count=0,h,j;
+                 uint16_t packed[3];
+                 status=rf_geomod_regions_prepare(s->terrain_regions,s->terrain_region_count,s->terrain_default_hardness,
+                     (*contact).hit.point,crater_radius/s->terrain_template->radius,&prepared);
+                 if(!status)hardness=prepared.hardness;
+                 if(!status && (!hardness.allowed || hardness.flags))status=RF_NOT_FOUND; /* Ice geometry remains unsupported. */
+                 if(!status)status=rf_geomod_shallow_align((*contact).hit.point,s->terrain_template->radius,
+                     prepared.limits,prepared.limit_count,s->terrain_history,s->terrain_history_count,adjusted);
+                 /* Original master compares requested centers; auxiliary shallow history
+                  * independently retains adjusted centers. All live DEV rockets use0/0. */
+                 for(h=0;!status && h<s->terrain_history_count;h++) {
+                     float decoded[3];double distance=0;
+                     status=rf_geomod_position_decode(s->terrain_history_minimum,s->terrain_history_maximum,s->terrain_requested[h],decoded);
+                     for(j=0;!status && j<3;j++){float d=decoded[j]-(*contact).hit.point[j];distance+=(double)d*d;}
+                     if(!status && distance<=(double)(.2f*.2f))status=RF_NOT_FOUND;
+                 }
+                 if(!status && s->terrain_history_count==128)status=RF_RANGE;
+                 if(!status)status=rf_geomod_position_encode(s->terrain_history_minimum,s->terrain_history_maximum,(*contact).hit.point,packed);
+                 if(!status)status=rf_geomod_shallow_normalize(prepared.limits,prepared.limit_count,limits,&limit_count);
+                 if(!status) {
+                     rf_geomod_shallow_history *record=s->terrain_history+s->terrain_history_count;
+                     memset(record,0,sizeof(*record));memcpy(record->center,adjusted,sizeof(adjusted));record->scale=hardness.scale;
+                     for(h=0;h<prepared.limit_count;h++)for(j=0;j<3;j++)record->vectors[h][j]=prepared.limits[h].normal[j]*prepared.limits[h].depth;
+                     memcpy(s->terrain_requested[s->terrain_history_count],packed,sizeof(packed));
+                     ++s->terrain_history_count; /* Queued admission survives later CSG rejection. */
+                     if(rf_scene_combat_trace)printf("GEOMOD_ADMISSION %u %u %u %.9g %.9g %.9g\n",frame,s->terrain_history_count,limit_count,adjusted[0],adjusted[1],adjusted[2]);
+                     if(rf_scene_combat_trace)printf("GEOMOD_HARDNESS %u %u %u %.9g\n",frame,hardness.hardness,hardness.matches,hardness.scale);
+                     status=rf_geomod_random_basis(&s->terrain_random,basis);if(status)return status;
+                     if(profile_clock && profile_active)timing_clock=profile_clock();
+                     status=scene_debris_prepare(s,&(*contact),hardness.scale*s->terrain_template->radius);if(status)return status;
+                     scene_terrain_edit_mark(timing_row,3,&timing_clock);
+                     status=s->terrain_authored?scene_terrain_authored_template_edit(s,adjusted,basis,
+                         hardness.scale,limits,limit_count):scene_terrain_legacy_template_edit(s,adjusted,basis,
+                         hardness.scale,limits,limit_count);
+                     scene_terrain_edit_mark(timing_row,1,&timing_clock);
+                     if(!status){memcpy(cleanup_center,adjusted,12);cleanup_radius=hardness.scale*s->terrain_template->radius;}
+                 }}
+                if(status && rf_scene_combat_trace)printf("GEOMOD_REJECT %u %d %u\n",frame,status,s->terrain_history_count);
+                rf_scene_geomod[5]=(uint32_t)status;
+                if(!status){scene_terrain_edit_mark(timing_row,2,&timing_clock);++rf_scene_geomod[7];++rf_scene_rockets[4];status=scene_debris_spawn(s);if(!status)status=scene_debris_postedit(s,cleanup_center,cleanup_radius,frame);if(!status){uint32_t woken=0;
+                    status=scene_detached_sources_notify(s,prior_pieces,cleanup_center,cleanup_radius,&woken);
+                    if(woken)printf("DETACHED_WAKE %u %u\n",frame,woken);}scene_terrain_edit_mark(timing_row,4,&timing_clock);if(status)return status;}
+                else {++rf_scene_rockets[5];if(status!=RF_RANGE && status!=RF_FORMAT && status!=RF_NOT_FOUND)return status;}
+            }
     return RF_OK;
 }
 static int scene_rockets_tick(scene_stream *s,uint32_t frame)
@@ -11978,60 +12047,7 @@ static int scene_rockets_tick(scene_stream *s,uint32_t frame)
             status=scene_rocket_blast(s,frame,&event.contact);rf_scene_rocket_blast[7]=(uint32_t)status;if(status)return status;
             if(rf_scene_combat_trace)printf("ROCKET_IMPACT %u %u %.9g %.9g %.9g\n",frame,event.contact.room,
                 event.contact.hit.point[0],event.contact.hit.point[1],event.contact.hit.point[2]);
-            /* Original concave crater template in the explicit DEV cavity. Impact effects
-             * and authored surface eligibility remain separate. */
-            /* Original4670c3 gates requested radius before hardness scaling. */
-            if(s->terrain && event.contact.object==UINT32_MAX && event.contact.room==s->terrain_collision.room && campaign_rocket.crater_radius>=1.0f) {
-                uint32_t prior_pieces[4];
-                uint32_t timing_row=rf_scene_geomod[6]%8,timing_clock=0;float cleanup_center[3],cleanup_radius=0;
-                status=scene_detached_sources_counts(s,prior_pieces);if(status)return status;
-                memset(rf_scene_terrain_edit_times[timing_row],0,sizeof(rf_scene_terrain_edit_times[0]));rf_scene_terrain_edit_times[timing_row][0]=frame;
-                ++rf_scene_geomod[6];
-                {float basis[9],adjusted[3];rf_geomod_region_result prepared;
-                 rf_geomod_hardness_result hardness;rf_geomod_shallow_limit limits[2];uint32_t limit_count=0,h,j;
-                 uint16_t packed[3];
-                 status=rf_geomod_regions_prepare(s->terrain_regions,s->terrain_region_count,s->terrain_default_hardness,
-                     event.contact.hit.point,campaign_rocket.crater_radius/s->terrain_template->radius,&prepared);
-                 if(!status)hardness=prepared.hardness;
-                 if(!status && (!hardness.allowed || hardness.flags))status=RF_NOT_FOUND; /* Ice geometry remains unsupported. */
-                 if(!status)status=rf_geomod_shallow_align(event.contact.hit.point,s->terrain_template->radius,
-                     prepared.limits,prepared.limit_count,s->terrain_history,s->terrain_history_count,adjusted);
-                 /* Original master compares requested centers; auxiliary shallow history
-                  * independently retains adjusted centers. All live DEV rockets use0/0. */
-                 for(h=0;!status && h<s->terrain_history_count;h++) {
-                     float decoded[3];double distance=0;
-                     status=rf_geomod_position_decode(s->terrain_history_minimum,s->terrain_history_maximum,s->terrain_requested[h],decoded);
-                     for(j=0;!status && j<3;j++){float d=decoded[j]-event.contact.hit.point[j];distance+=(double)d*d;}
-                     if(!status && distance<=(double)(.2f*.2f))status=RF_NOT_FOUND;
-                 }
-                 if(!status && s->terrain_history_count==128)status=RF_RANGE;
-                 if(!status)status=rf_geomod_position_encode(s->terrain_history_minimum,s->terrain_history_maximum,event.contact.hit.point,packed);
-                 if(!status)status=rf_geomod_shallow_normalize(prepared.limits,prepared.limit_count,limits,&limit_count);
-                 if(!status) {
-                     rf_geomod_shallow_history *record=s->terrain_history+s->terrain_history_count;
-                     memset(record,0,sizeof(*record));memcpy(record->center,adjusted,sizeof(adjusted));record->scale=hardness.scale;
-                     for(h=0;h<prepared.limit_count;h++)for(j=0;j<3;j++)record->vectors[h][j]=prepared.limits[h].normal[j]*prepared.limits[h].depth;
-                     memcpy(s->terrain_requested[s->terrain_history_count],packed,sizeof(packed));
-                     ++s->terrain_history_count; /* Queued admission survives later CSG rejection. */
-                     if(rf_scene_combat_trace)printf("GEOMOD_ADMISSION %u %u %u %.9g %.9g %.9g\n",frame,s->terrain_history_count,limit_count,adjusted[0],adjusted[1],adjusted[2]);
-                     if(rf_scene_combat_trace)printf("GEOMOD_HARDNESS %u %u %u %.9g\n",frame,hardness.hardness,hardness.matches,hardness.scale);
-                     status=rf_geomod_random_basis(&s->terrain_random,basis);if(status)return status;
-                     if(profile_clock && profile_active)timing_clock=profile_clock();
-                     status=scene_debris_prepare(s,&event.contact,hardness.scale*s->terrain_template->radius);if(status)return status;
-                     scene_terrain_edit_mark(timing_row,3,&timing_clock);
-                     status=s->terrain_authored?scene_terrain_authored_template_edit(s,adjusted,basis,
-                         hardness.scale,limits,limit_count):scene_terrain_legacy_template_edit(s,adjusted,basis,
-                         hardness.scale,limits,limit_count);
-                     scene_terrain_edit_mark(timing_row,1,&timing_clock);
-                     if(!status){memcpy(cleanup_center,adjusted,12);cleanup_radius=hardness.scale*s->terrain_template->radius;}
-                 }}
-                if(status && rf_scene_combat_trace)printf("GEOMOD_REJECT %u %d %u\n",frame,status,s->terrain_history_count);
-                rf_scene_geomod[5]=(uint32_t)status;
-                if(!status){scene_terrain_edit_mark(timing_row,2,&timing_clock);++rf_scene_geomod[7];++rf_scene_rockets[4];status=scene_debris_spawn(s);if(!status)status=scene_debris_postedit(s,cleanup_center,cleanup_radius,frame);if(!status){uint32_t woken=0;
-                    status=scene_detached_sources_notify(s,prior_pieces,cleanup_center,cleanup_radius,&woken);
-                    if(woken)printf("DETACHED_WAKE %u %u\n",frame,woken);}scene_terrain_edit_mark(timing_row,4,&timing_clock);if(status)return status;}
-                else {++rf_scene_rockets[5];if(status!=RF_RANGE && status!=RF_FORMAT && status!=RF_NOT_FOUND)return status;}
-            }
+            status=scene_explosion_terrain(s,frame,&event.contact,campaign_rocket.crater_radius);if(status)return status;
         }
         if(s->rockets[i].active)++rf_scene_rockets[3];
     }
