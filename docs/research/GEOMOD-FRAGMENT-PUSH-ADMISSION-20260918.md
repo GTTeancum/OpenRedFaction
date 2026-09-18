@@ -21,3 +21,15 @@ The collection query visits alive pieces in every retained source registry and r
 Stage each affected group's proposal, calculate final attached translations consistently for shared mover memberships, and admit the resulting motion before publishing controller state or firing arrival callbacks. Define blocked-time behavior and validate retry, arrival, multiple attached objects and multiple controllers. The current query uses other movers' current poses; independent per-controller admission is insufficient for simultaneous motion. Rotation needs its own sweep policy.
 
 The existing tall-lift fixture still passes through the trapped fragment and still has 18 contact-limited frames. This foundation does not fix that visible behavior or increase the completion estimate.
+
+## Live integration experiments: rejected
+
+Two 600-frame PC experiments connected the query to the generated DEV platform's proposed translation and derived surface velocity from admitted displacement. Both failed to stop the trapped-fragment overlap. The experimental hook was removed; production source and the PC executable were restored to the accepted implementation. Authored controller arrival/events were never changed.
+
+The first experiment retried the absolute prescribed endpoint and ended with 24 contact-limited frames. A second control capped each attempted upward displacement at 0.025 units, eliminating catch-up speed as a sufficient explanation. It still ended with 18 contact-limited frames and the platform at Y=2.04999995, its full prescribed endpoint. Peak fragment speeds were approximately 1.54285 in both cases. Energy remains bounded; overlap remains unresolved.
+
+In the bounded control, FRAGMENT_PUSH 456 admits only 0.001334441 of the attempted 0.025-unit movement; FRAGMENT_PUSH 457 admits the full next step. Crucially, DETACHED_STEP_TRACE 456 is emitted before FRAGMENT_PUSH 456, already reports ten contacts, a limited step and 0.000902777 seconds remaining. The subsequent fragment step reports ten contacts with the entire 1/60 second remaining and unchanged position. These labels use the audit counter at different points in the frame; do not interpret them as identical sampling instants.
+
+This evidence disproves the fixed-orientation clearance query as a sufficient live crush policy. It does not isolate a single geometric root cause: inspect the existing contact/overlap state and the fragment's dynamic pose progression before integrating it into authored controllers. A smaller controller step alone is not demonstrated to solve it. Do not convert a missed sweep into unconditional admission when pre-existing overlap is unresolved.
+
+Local reproduction evidence is under `artifacts/fragment-push-live/`: replay.log/final.ppm, bounded.log/bounded.ppm, comparison.json and bounded-experiment.patch (against commit 4dbffe5d). The patch is intentionally excluded from production. No screenshot acceptance or XEMU run is claimed for either rejected experiment. After restoring source, the PC replay target rebuild and scene_detached_sources test pass.

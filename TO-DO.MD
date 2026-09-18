@@ -1,6 +1,6 @@
 # Red Faction Xbox / PC - open work
 
-- PRIORITY GeoMod crush: Integrate tested translational push admission before controller arrival events and group commit; the read-only query passes obstruction and multi-source controls, but gameplay overlap,18 contact-limited ceiling frames and broader angular sweeps remain open.
+- PRIORITY GeoMod crush: Resolve dynamic fragment contact and existing overlap before integrating mover admission; two live ceiling experiments disproved the fixed-orientation query as a sufficient fix, and controller arrival/group commit plus angular sweeps remain open.
 
 - Doors: Investigate the existing420-frame close/reopen replay failure reproduced on both current and prior scene code;180-frame opening and player traversal still pass.
 
