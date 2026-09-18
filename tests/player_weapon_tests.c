@@ -264,6 +264,9 @@ int main(int argc,char **argv)
         }
         {
             rf_weapon_view_definition grenade;rf_player_weapon *g=NULL;rf_motion_playback_state before;
+            {rf_weapon_primary_definition primary;
+             CHECK(!rf_weapon_primary_load(&tables,"Grenade",128*1024,&primary));
+             CHECK(primary.magazine==0 && primary.reload_seconds==0 && primary.fire_seconds==3 && primary.damage==150 && primary.damage_kind==3);}
             CHECK(!rf_weapon_view_load(&tables,"Grenade",128*1024,&grenade));
             CHECK(!grenade.clips[2][0] && grenade.clips[3][0]);
             CHECK(!rf_player_weapon_open_view(&meshes,&motions,maps,5,&grenade,1024*1024,&g));

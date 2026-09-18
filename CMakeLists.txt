@@ -688,3 +688,7 @@ add_test(NAME collision_mover_motion COMMAND rf_collision_mover_motion_tests)
 add_executable(rf_physics_fragment_timing_tests tests/physics_fragment_timing_tests.c)
 target_link_libraries(rf_physics_fragment_timing_tests PRIVATE rf_core)
 add_test(NAME physics_fragment_timing COMMAND rf_physics_fragment_timing_tests)
+
+add_executable(rf_scene_ai_gameplay_tests tests/scene_ai_gameplay_tests.c)
+target_link_libraries(rf_scene_ai_gameplay_tests PRIVATE rf_core)
+add_test(NAME scene_ai_gameplay COMMAND rf_scene_ai_gameplay_tests)

@@ -3865,7 +3865,8 @@ typedef struct campaign_npc_body {
     struct {uint32_t active,event,follow,route_index,retry,stop;float target[3],fall_speed;
         rf_level_waypoint_path path;uint32_t path_index,path_mode,path_reverse;} script_move;
     struct {uint32_t active,loop,freeze;int32_t motion;} script_animation;
-    uint32_t combat_alert,combat_due; /* First-pass retaliation, simulation-frame clock. */
+    uint32_t combat_alert,combat_due,combat_burst_remaining;
+    uint32_t combat_reload_due;int32_t combat_reload_weapon; /* First-pass retaliation, simulation-frame clock. */
     uint32_t combat_scripted,combat_target,combat_navigation_due; /* Explicit Attack target; normal awareness targets player. */
     campaign_npc_route navigation;
     struct {rf_eye_angle_state angles;float body_angles[3],orientation[9],command_708[3];uint32_t clock_7b0;} look;
@@ -8495,7 +8496,7 @@ static int campaign_alarm(void *context,const rf_level_event *event,
                 status=campaign_animation_cancel(owner);if(status)return status;
                 campaign_pursuit_stop(owner);owner->script_move.active=0;
                 owner->combat_scripted=0;owner->combat_target=campaign_player_object.handle;
-                owner->combat_alert=1;owner->combat_due=owner->combat_navigation_due=0;
+                owner->combat_alert=1;owner->combat_burst_remaining=owner->combat_due=owner->combat_navigation_due=0;
                 ++rf_scene_alarm[7];
             }
             break;
@@ -8529,7 +8530,7 @@ static int campaign_set_friendliness(void *context,uint32_t handle,uint32_t valu
         campaign_npc_body *owner=campaign_npc_bodies+i;
         owner->damage.effects.affiliation=value;
         /* Practical AI handoff: scripted allegiance invalidates the old combat target. */
-        campaign_pursuit_stop(owner);owner->combat_navigation_due=0;owner->combat_scripted=owner->combat_target=owner->combat_alert=owner->combat_due=0;return RF_OK;
+        campaign_pursuit_stop(owner);owner->combat_navigation_due=0;owner->combat_scripted=owner->combat_target=owner->combat_alert=owner->combat_burst_remaining=owner->combat_due=0;return RF_OK;
     }
     return RF_NOT_FOUND;
 }
@@ -8604,7 +8605,7 @@ static int campaign_life_input(uint32_t frame,rf_scene_input *input)
     for(i=0;i<64;i++)has_weapon|=campaign_player_inventory.owned[i];
     if(has_weapon){status=campaign_ammo_reset();if(status)return status;}else campaign_ammo_publish();
     memset(&combat_trigger,0,sizeof(combat_trigger));combat_hit_frame=UINT32_MAX;rf_scene_combat[5]=(uint32_t)campaign_player_inventory.loaded[campaign_selected_weapon()];rf_scene_combat[6]=0;
-    for(i=0;i<campaign_npc_body_count;i++){campaign_pursuit_stop(campaign_npc_bodies+i);campaign_npc_bodies[i].combat_navigation_due=0;campaign_npc_bodies[i].combat_scripted=campaign_npc_bodies[i].combat_target=campaign_npc_bodies[i].combat_alert=campaign_npc_bodies[i].combat_due=0;}
+    for(i=0;i<campaign_npc_body_count;i++){campaign_pursuit_stop(campaign_npc_bodies+i);campaign_npc_bodies[i].combat_navigation_due=0;campaign_npc_bodies[i].combat_scripted=campaign_npc_bodies[i].combat_target=campaign_npc_bodies[i].combat_alert=campaign_npc_bodies[i].combat_burst_remaining=campaign_npc_bodies[i].combat_due=0;}
     rf_scene_enemy_combat[6]=0;memcpy(rf_scene_enemy_combat+5,&campaign_player_damage.state.effects.health,4);
     ++rf_scene_player_life[1];rf_scene_player_life[2]=0;rf_scene_player_life[4]=frame;
     return RF_OK;
@@ -8663,7 +8664,7 @@ static void combat_notify(void *c,uint32_t k,uint32_t t,float v,uint32_t s)
        (!owner->combat_scripted && s==campaign_player_object.handle)))return;
     campaign_pursuit_stop(owner);owner->script_move.active=0;
     owner->combat_scripted=s==campaign_player_object.handle?0:2;owner->combat_target=s;
-    owner->combat_alert=1;owner->combat_navigation_due=0;owner->combat_due=(combat_frame==UINT32_MAX?0:combat_frame)+30;
+    owner->combat_alert=1;owner->combat_navigation_due=0;owner->combat_burst_remaining=0;owner->combat_due=(combat_frame==UINT32_MAX?0:combat_frame)+30;
     ++rf_scene_enemy_retaliation[0];rf_scene_enemy_retaliation[1]=t;rf_scene_enemy_retaliation[2]=s;
 }
 static uint32_t combat_playing(void *c,uint32_t v){(void)c;(void)v;return 0;}
@@ -8899,7 +8900,7 @@ static int campaign_script_attack(void *context,const rf_level_event *event,cons
         owner=campaign_npc_bodies+i;break;
     }
     if(!owner || !owner->registration.view || owner->damage.effects.health<=0)return RF_NOT_FOUND;
-    if(!on){if(owner->registration.handle==rf_scene_script_attack[11])rf_scene_script_attack[4]=0;campaign_pursuit_stop(owner);owner->combat_scripted=owner->combat_alert=owner->combat_due=owner->combat_navigation_due=0;owner->combat_target=0;return RF_OK;}
+    if(!on){if(owner->registration.handle==rf_scene_script_attack[11])rf_scene_script_attack[4]=0;campaign_pursuit_stop(owner);owner->combat_scripted=owner->combat_alert=owner->combat_burst_remaining=owner->combat_due=owner->combat_navigation_due=0;owner->combat_target=0;return RF_OK;}
     for(i=0;i<event->link_count && target==UINT32_MAX;i++)if(links[i].kind==1 || links[i].kind==2) {
         if(links[i].value==campaign_player_object.handle && campaign_player_object.handle)target=links[i].value;
         else for(j=0;j<campaign_npc_body_count;j++)if(campaign_npc_bodies[j].registration.view &&
@@ -8909,7 +8910,7 @@ static int campaign_script_attack(void *context,const rf_level_event *event,cons
     if(target==UINT32_MAX)return RF_NOT_FOUND;
     memset(rf_scene_attack_recovery,0,sizeof(rf_scene_attack_recovery));memset(rf_scene_script_attack,0,sizeof(rf_scene_script_attack));rf_scene_script_attack[0]=1;rf_scene_script_attack[1]=event->uid;rf_scene_script_attack[2]=event->words[0];rf_scene_script_attack[3]=target;rf_scene_script_attack[4]=1;rf_scene_script_attack[11]=owner->registration.handle;memcpy(rf_scene_script_attack_position,owner->body.state.position,12);
     {int cancel=campaign_animation_cancel(owner);if(cancel)return cancel;}
-    owner->combat_scripted=owner->combat_alert=1;owner->combat_target=target;owner->combat_due=0;
+    owner->combat_scripted=owner->combat_alert=1;owner->combat_target=target;owner->combat_burst_remaining=owner->combat_due=0;
     campaign_pursuit_stop(owner);owner->combat_navigation_due=0;owner->script_move.active=0;return RF_OK;
 }
 uint32_t rf_scene_enemy_fire[6]; /* shots, motion starts, missing, sounds, last motion, status */
@@ -8966,6 +8967,7 @@ static float combat_enemy_primary_damage(const rf_weapon_primary_definition *def
     return definition?definition->damage*definition->ai_damage_scale[0]:10;
 }
 #include "scene_npc_rubble_test.inc"
+#include "scene_ai_gameplay.inc"
 static int campaign_enemy_tick(scene_stream *stream,uint32_t frame,const float player_eye[3])
 {
     uint32_t i,j,blocked,clock_bits;float seconds=(float)frame/60;
@@ -9000,7 +9002,7 @@ static int campaign_enemy_tick(scene_stream *stream,uint32_t frame,const float p
                 }
                 campaign_pursuit_stop(owner);
                 owner->combat_scripted=owner->combat_target=owner->combat_alert=0;
-                owner->combat_due=owner->combat_navigation_due=0;
+                owner->combat_burst_remaining=owner->combat_due=owner->combat_navigation_due=0;
                 victim=NULL;victim_slot=UINT32_MAX;
             } else {
                 if(victim->object_flags&(2|0x4000)){campaign_pursuit_stop(owner);continue;}
@@ -9022,7 +9024,7 @@ static int campaign_enemy_tick(scene_stream *stream,uint32_t frame,const float p
             rf_scene_enemy_awareness[7]=(uint32_t)status;if(status)return status;
             if(blocked){++rf_scene_enemy_awareness[2];continue;}
             status=campaign_animation_cancel(owner);if(status)return status;
-            owner->combat_alert=1;owner->combat_due=frame+30;
+            owner->combat_alert=1;owner->combat_burst_remaining=0;owner->combat_due=frame+30;
             if(rf_scene_attack_recovery[0] && owner->registration.handle==rf_scene_script_attack[11]) {
                 ++rf_scene_attack_recovery[1];rf_scene_attack_recovery[3]=frame;
             }
@@ -9045,6 +9047,14 @@ static int campaign_enemy_tick(scene_stream *stream,uint32_t frame,const float p
                 else campaign_pursuit_stop(owner);
             } else if(owner->script_move.follow==2)campaign_pursuit_target(owner,target_position);
         }
+        if(weapon==campaign_pistol_id || weapon==campaign_rifle_id) {
+            uint32_t ready,event;
+            status=campaign_enemy_ammo_ready(&owner->inventory,campaign_weapon_supply.definitions+weapon,
+                definition,weapon,frame,&owner->combat_reload_due,&owner->combat_reload_weapon,&ready,&event);if(status)return status;
+            if(event==1)owner->combat_burst_remaining=0;
+            if(rf_scene_combat_trace && (event==1 || event==2))printf("ENEMY_RELOAD_TRACE %u %u %u %d\n",frame,campaign_seeds.records.items[i].record.uid,event,owner->inventory.loaded[weapon]);
+            if(!ready)continue;
+        }
         if(frame<owner->combat_due)continue;
         /* Practical live-AI integration of428740's retained animation lock.
          * Preserve the attack deadline so expiry resumes without a new delay. */
@@ -9059,10 +9069,12 @@ static int campaign_enemy_tick(scene_stream *stream,uint32_t frame,const float p
             }
         }
         if(!campaign_enemy_aim_aligned(owner,delta)){++rf_scene_enemy_aim[1];continue;}
-        owner->combat_due=frame+60;
+        owner->combat_due=frame+6; /* Brief retry if no valid shot follows. */
         if(distance>attack_range*attack_range || distance<.0001f){if(melee)++rf_scene_enemy_melee[1];continue;}
         status=combat_obstructed(stream,owner->eye_position,delta,&blocked);if(status)return status;
         if(blocked){++rf_scene_enemy_combat[4];continue;}
+        status=campaign_enemy_cadence(definition,frame,&owner->combat_burst_remaining,&owner->combat_due);if(status)return status;
+        if(weapon==campaign_pistol_id || weapon==campaign_rifle_id)--owner->inventory.loaded[weapon];
         if(melee){float maximum;memcpy(&maximum,rf_scene_enemy_melee+3,4);++rf_scene_enemy_melee[0];
             if(distance>maximum)memcpy(rf_scene_enemy_melee+3,&distance,4);}
         ++rf_scene_enemy_combat[2];
@@ -12090,7 +12102,7 @@ static int campaign_combat_tick(scene_stream *stream,uint32_t frame,const float 
         campaign_export_valid=0;
         campaign_import_applied=0;
         if(campaign_import_pending){status=campaign_player_import_apply();if(status)return status;}
-        for(i=0;i<campaign_npc_body_count;i++){campaign_pursuit_stop(campaign_npc_bodies+i);campaign_npc_bodies[i].combat_navigation_due=0;campaign_npc_bodies[i].combat_scripted=campaign_npc_bodies[i].combat_target=campaign_npc_bodies[i].combat_alert=campaign_npc_bodies[i].combat_due=0;}
+        for(i=0;i<campaign_npc_body_count;i++){campaign_pursuit_stop(campaign_npc_bodies+i);campaign_npc_bodies[i].combat_navigation_due=0;campaign_npc_bodies[i].combat_scripted=campaign_npc_bodies[i].combat_target=campaign_npc_bodies[i].combat_alert=campaign_npc_bodies[i].combat_burst_remaining=campaign_npc_bodies[i].combat_due=0;}
 }
     status=campaign_inventory_initialize();if(status)return status;
     if(rf_scene_dev_room_enabled) {
@@ -12260,7 +12272,7 @@ static int campaign_combat_tick(scene_stream *stream,uint32_t frame,const float 
             if(campaign_equipped_slot==3)++rf_scene_shotgun[2];
             if(alt && campaign_equipped_slot==1)++rf_scene_rifle_alt[1];
             if(campaign_equipped_slot==2 && fire){float impact[3];for(i=0;i<3;i++)impact[i]=position[i]+delta[i]*nearest;combat_sound("Riot Impact Flesh",impact);++rf_scene_riot[4];}
-            if(!owner->combat_alert && owner->view.weapons[0]>=0){owner->combat_alert=1;owner->combat_due=frame+30;++rf_scene_enemy_combat[1];}}
+            if(!owner->combat_alert && owner->view.weapons[0]>=0){owner->combat_alert=1;owner->combat_burst_remaining=0;owner->combat_due=frame+30;++rf_scene_enemy_combat[1];}}
         ++rf_scene_combat[1];rf_scene_combat[3]=handle;memcpy(rf_scene_combat+4,&owner->damage.effects.health,4);
         if(owner->damage.effects.health<=0) {
             status=rf_scene_npc_death_entry(handle,&entered);if(status)return status;

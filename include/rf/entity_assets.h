@@ -11,7 +11,9 @@
 #include "rf/weapon.h"
 #include "rf/audio.h"
 /* First-pass primary-fire settings from a named weapons.tbl declaration.
- * SP values only; finite positive timing/damage and a bounded magazine.
+ * SP values only; finite positive fire timing/damage and a bounded magazine.
+ * Explosives without both clip fields return magazine/reload_seconds zero;
+ * callers consume reserve ammo directly and must not initiate reload.
  * Output is preserved on malformed, duplicate or missing required fields. */
 typedef struct rf_weapon_primary_definition {
     uint32_t magazine,semi_automatic;float reload_seconds,fire_seconds,damage;int32_t damage_kind;
