@@ -151,6 +151,30 @@ static int moving_surface_contacts(void)
     }
     return 0;
 }
+static int separating_static_contact(void)
+{
+    rf_geomod_vertex vertices[4]={{{-1,-.25f,-.5f},{0,0}},{{1,-.25f,-.5f},{0,0}},
+        {{1,-.25f,.5f},{0,0}},{{-1,-.25f,.5f},{0,0}}};
+    rf_geomod_face face={0,4,0,0};rf_geomod_mesh_view mesh={vertices,&face,4,1,0};
+    rf_physics_body_state body={0},saved;float point[3]={0},normal[3]={0,1,0};uint32_t i,leaves;
+    for(i=0;i<3;i++)body.orientation[i*4]=body.next_orientation[i*4]=1;
+    body.position[1]=.25f;body.next_position[1]=.35f;saved=body;
+    CHECK(!scene_detached_leaves_plane(&mesh,&body,point,normal,&leaves) && leaves);
+    CHECK(!memcmp(&body,&saved,sizeof(body)));
+    body.next_position[1]=.15f;
+    CHECK(!scene_detached_leaves_plane(&mesh,&body,point,normal,&leaves) && !leaves);
+    body.next_position[1]=body.position[1];
+    CHECK(!scene_detached_leaves_plane(&mesh,&body,point,normal,&leaves) && !leaves);
+    body.position[1]=.249f;body.next_position[1]=.35f;
+    CHECK(!scene_detached_leaves_plane(&mesh,&body,point,normal,&leaves) && !leaves);
+    body.position[1]=.25f-0.00000004f;
+    CHECK(!scene_detached_leaves_plane(&mesh,&body,point,normal,&leaves) && leaves);
+    /* Endpoints clear, but rotation drives a corner through the plane midstep. */
+    body.position[1]=.25f;body.next_position[1]=1.26f;
+    memset(body.next_orientation,0,36);body.next_orientation[1]=1;body.next_orientation[3]=-1;body.next_orientation[8]=1;
+    CHECK(!scene_detached_leaves_plane(&mesh,&body,point,normal,&leaves) && !leaves);
+    return 0;
+}
 static int cube(float,float,rf_geomod_piece_registry **);
 static int fragment_push_admission(void)
 {
@@ -1005,6 +1029,7 @@ static int inspection_camera(void) {
     CHECK(!rf_scene_inspection_camera(NULL,NULL) && !scene_inspection_enabled);return 0;
 }
 int main(void) {
+    CHECK(!separating_static_contact());
     CHECK(!fragment_push_admission());
     CHECK(!fragment_overlap_recovery());
     CHECK(!moving_surface_contacts());

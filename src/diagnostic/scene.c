@@ -11155,6 +11155,26 @@ static float scene_detached_plane_extent(const rf_geomod_mesh_view *mesh,
     }
     return maximum;
 }
+/* Reject only near-touching static sphere padding when the complete mesh
+ * separates throughout the same four pose intervals used by corner sweeps.
+ * Later mesh/world/mover queries still run with an unrestricted time limit. */
+static int scene_detached_leaves_plane(const rf_geomod_mesh_view *mesh,const rf_physics_body_state *body,
+    const float point[3],const float normal[3],uint32_t *leaves)
+{
+    float opposite[3],previous,initial;uint32_t k,step;int status;
+    *leaves=0;
+    for(k=0;k<3;k++)opposite[k]=-normal[k];
+    initial=previous=-scene_detached_plane_extent(mesh,body->position,body->orientation,point,opposite);
+    if(initial<-.00001f)return RF_OK;
+    for(step=1;step<=4;step++) {
+        float position[3],basis[9],gap;
+        status=rf_physics_fragment_pose(body,step*.25f,position,basis);if(status)return status;
+        gap=-scene_detached_plane_extent(mesh,position,basis,point,opposite);
+        if(gap<previous)return RF_OK;
+        previous=gap;
+    }
+    *leaves=previous>initial+.00001f;return RF_OK;
+}
 /* Port policy: bounded swept mesh-corner coverage supplements the original
  * mass/sphere shape. Four pose intervals cover angular motion, including a
  * stationary center; finite world faces and committed movers use one route. */
@@ -11518,6 +11538,11 @@ static int scene_detached_query(const rf_physics_body_state *body,rf_physics_sol
          * that empty padding; corner sweeps supply the later real contact. */
         if(minimum>.002f || (minimum>0 && hit.contact.fraction==0 && hit.solid<campaign_movers.count &&
             campaign_mover_interval_seconds>0 && campaign_mover_intervals[hit.solid].changed))*matched=0;
+        if(*matched && hit.contact.fraction==0 && hit.solid==UINT32_MAX) {
+            uint32_t leaves;
+            status=scene_detached_leaves_plane(c->mesh,body,hit.contact.point,hit.contact.normal,&leaves);if(status)return status;
+            if(leaves)*matched=0;
+        }
     }
 #ifndef RF_IMAGE_XBOX_NATIVE
     if(c->trace)printf("DETACHED_QUERY_START %u %u %u %u %u %.9g\n",rf_scene_fragment_platform_audit[0],c->source,c->batch,c->piece,*matched,*matched?hit.contact.fraction:1);
@@ -11549,6 +11574,15 @@ static int scene_detached_query(const rf_physics_body_state *body,rf_physics_sol
     }
 #ifndef RF_IMAGE_XBOX_NATIVE
     if(c->trace) {
+        float opposite[3],start_gap,end_gap;uint32_t k;
+        for(k=0;k<3;k++)opposite[k]=-out->normal[k];
+        start_gap=-scene_detached_plane_extent(c->mesh,body->position,body->orientation,out->point,opposite);
+        end_gap=-scene_detached_plane_extent(c->mesh,body->next_position,body->next_orientation,out->point,opposite);
+        printf("DETACHED_CONTACT_STATE %u %u %u %u %.9g %u %.9g %.9g %.9g",
+            rf_scene_fragment_platform_audit[0],c->source,c->batch,c->piece,c->remaining,out->moving_surface,out->recovery_distance,start_gap,end_gap);
+        for(k=0;k<3;k++)printf(" %.9g",body->velocity[k]);
+        for(k=0;k<3;k++)printf(" %.9g",body->vector_c8[k]);
+        printf("\n");
         printf("DETACHED_QUERY_HIT %u %u %u %u %u %.9g %.9g %.9g %.9g %.9g %.9g %.9g\n",c->source,c->batch,c->piece,hit.solid,hit.face,
             out->fraction,out->point[0],out->point[1],out->point[2],out->normal[0],out->normal[1],out->normal[2]);
         return scene_detached_contact_trace(c,body,out->fraction);

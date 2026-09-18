@@ -172,10 +172,15 @@ index 43ec325f..0f8fe8d3 100644
      if(profile_active)rf_scene_fragment_profile[5]++;
      status=campaign_physics_body_sweep_for(c->scene->collision,body,c->spheres,0x460,scratch,64,&hit,matched,c->movers?c->movers:&campaign_movers);
      if(status)return status;
-@@ -11405,21 +11414,22 @@ static int scene_detached_query(const rf_physics_body_state *body,rf_physics_sol
+@@ -11405,26 +11414,27 @@ static int scene_detached_query(const rf_physics_body_state *body,rf_physics_sol
           * that empty padding; corner sweeps supply the later real contact. */
          if(minimum>.002f || (minimum>0 && hit.contact.fraction==0 && hit.solid<campaign_movers.count &&
              campaign_mover_interval_seconds>0 && campaign_mover_intervals[hit.solid].changed))*matched=0;
+         if(*matched && hit.contact.fraction==0 && hit.solid==UINT32_MAX) {
+             uint32_t leaves;
+             status=scene_detached_leaves_plane(c->mesh,body,hit.contact.point,hit.contact.normal,&leaves);if(status)return status;
+             if(leaves)*matched=0;
+         }
      }
  #ifndef RF_IMAGE_XBOX_NATIVE
      if(c->trace)printf("DETACHED_QUERY_START %u %u %u %u %u %.9g\n",rf_scene_fragment_platform_audit[0],c->source,c->batch,c->piece,*matched,*matched?hit.contact.fraction:1);
