@@ -475,6 +475,7 @@ int main(int argc,char **argv)
         if(sources) {if(!strcmp(sources,"2"))count=2;else if(!strcmp(sources,"3"))count=3;else if(strcmp(sources,"1"))CHECK(RF_FORMAT);}
         CHECK(rf_scene_authored_post_place_group(&level,uid,count));
     }
+    if(p.headless && getenv("RF_REPLAY_VEHICLE"))CHECK(rf_scene_vehicle_test_place(&level));
     if(spawn_profile)CHECK(rf_scene_set_campaign_spawn(&level));
     else CHECK(rf_scene_preview_route_camera(&level,9858));
     CHECK(rf_geometry_open(&geometry,&level,8*1024*1024));
@@ -537,6 +538,7 @@ int main(int argc,char **argv)
         printf("FRAGMENT_CONTACT_AUDIT");for(word=0;word<64;word++)printf(" %u",rf_scene_fragment_contact_audit[word]);puts("");
     }
     if(p.headless && getenv("RF_REPLAY_FIREARMS")){int mode=atoi(getenv("RF_REPLAY_FIREARMS"));if(mode<1 || mode>4)return 2;rf_scene_firearms_enabled=(uint32_t)mode;}
+    rf_scene_vehicle_enabled=p.headless && getenv("RF_REPLAY_VEHICLE")!=NULL;
     rf_scene_fusion_enabled=p.headless && getenv("RF_REPLAY_FUSION")!=NULL;
     rf_scene_dev_npc_enabled=p.headless && getenv("RF_REPLAY_DEV_NPC")!=NULL;
     if(rf_scene_dev_npc_enabled && !strcmp(getenv("RF_REPLAY_DEV_NPC"),"2"))rf_scene_dev_npc_enabled=2;

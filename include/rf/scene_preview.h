@@ -22,6 +22,8 @@ extern uint32_t rf_scene_dev_npc_enabled;
 extern uint32_t rf_scene_player_shield_resources;
 extern uint32_t rf_scene_fusion_enabled;
 extern uint32_t rf_scene_firearms_enabled;
+extern uint32_t rf_scene_vehicle_enabled;
+int rf_scene_vehicle_test_place(rf_level *level);
 extern uint32_t rf_scene_fusion_projectiles[5];
 extern uint32_t rf_scene_machine_mode[8];
 extern uint32_t rf_scene_undercover[8];

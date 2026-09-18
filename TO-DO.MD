@@ -5,7 +5,7 @@ Completion basis (user direction,2026-09-18): working late-alpha/early-beta code
 
 - Player impacts: Real fall/high-speed collision damage now passes PC/Xbox with shared health/armor handling; relocation and duplicate-contact guards pass focused checks; broader moving-object contacts remain.
 
-- Vehicles: Bring up one authored driller in the DEV testbed with bounded resources, driver entry/exit and basic driving; implementation helpers are underway, no playable vehicle yet.
+- Vehicles: Authored driller chassis now renders in a quiet PC DEV courtyard; resource, rigid motion, six-spring suspension, collision and possession foundations pass focused checks, but live driving/control integration remains; the parked PC/Xbox fixture passes with14.16MiB free on Xbox.
 
 - Conventional firearms: Machine Pistol, Heavy Machine Gun, Precision Rifle and Undercover handgun primary firing now work in a bounded DEV profile, including HMG alternate and rifle zoom; PC visuals pass and native HMG shot/ammo state matches with11.59MiB free; Machine Pistol magazine switching now passes PC/Xbox; Undercover suppressor attach/remove now passes PC/Xbox; authored Machine Pistol/HMG/precision pickups and sparse views are now wired, with MP session mode carry; broader live AI encounters, full live level handoffs and general saves remain.
 
@@ -5727,3 +5727,14 @@ World and committed-mover fragment queries now include bounded edge/edge CCD, wi
 - Native artifacts/xemu/render-20260918-124721 PASS300: PLAYER_IMPACT[1,1,0,1,1103040152,1118900923,1,0] and vitals exactly match PC; total applied23.8821, remaining health88.5366 with armor sharing the damage. Endpoint4269freepages=16.68MiB; native scene/HUD inspected. Harness restored disc/closed XEMU. Audible feedback and broader moving-object impacts remain unverified.
 - Existing binary/table evidence supports lava/acid damage but no oxygen timer was found; no speculative drowning mechanic added.
 - Overall first-playable estimate approximately70%; movement approximately90%. Next major implementation: vehicle foundation in the DEV testbed.
+
+
+## Driller vehicle first pass (2026-09-18)
+
+- Added actual Driller01 chassis/material/tag/physics resources, bounded to1MiB for the fixture (about742KiB retained on PC), with shared PC/NXDK rigid/suspension sources.
+- PC90-frame parked fixture renders the actual chassis at(30,-.08189,13), on ctf06 floor6091 y=-2. Player starts(30,-1,25), facing-Z. The previous post94 location intersected the large13.16m chassis and was replaced. Parking clearance used static level geometry bounds; this is not proof of dynamic collision/vehicle gameplay.
+- Opt-in RF_REPLAY_VEHICLE / vehicle-test.flag / xemu_render_check.py --vehicle-test uses the enemy-free DEV profile and four base view weapons to preserve the existing image budget. No memory ceiling was raised.
+- Focused checks cover installed resource ownership, chassis software submission, actual authored physics initialization, rigid proposal/commit, six-spring force/torque, full host-sphere wall slide and blocked rotation, and transactional entry/exit. These helper checks do not establish live driving.
+- Integrate support/world collision callbacks into the frame loop, Use possession and safe exit, seated camera/controls, host damage, idle audio and vehicle persistence. Rotation currently sweeps sphere-center endpoint chords; actor/detached-piece collision and impact impulses are deferred beyond first basic driving. Cockpit effects/animation remain open.
+
+- Xbox parked fixture: artifacts/xemu/render-20260918-130405 PASS90,3624freepages(14.15625MiB), native chassis framebuffer inspected against the reconstructed PC output; disc restored and harness XEMU closed. This is a parked render/resource result, not a drivable vehicle acceptance.

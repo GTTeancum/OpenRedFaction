@@ -33,12 +33,21 @@
 #include "scene_weapon_custom_actions.inc"
 #include "scene_machine_pistol_mode.inc"
 #include "scene_undercover_mode.inc"
+#include "scene_driller_resources.inc"
 #include "scene_player_shot_hearing.inc"
 #include "rf/visibility.h"
 #include "rf/debris_visibility.h"
 #include "rf/level_particles.h"
 /* Choose the thin horizontal box axis, approaching from the authored spawn side.
  * Fixture setup only: the normal collision and trigger runtime handles movement. */
+/* Explicit ctf06 vehicle fixture: floor6091 y=-2, x26..34/z.5..26.5.
+ * Authored chassis bounds fit at(30,-.08189,13), clear of static solids. */
+int rf_scene_vehicle_test_place(rf_level *level)
+{
+    static const float position[3]={30,-1,25},basis[9]={-1,0,0,0,1,0,0,0,-1};
+    if(!level || strcmp(level->entry.name,"ctf06.rfl"))return RF_RANGE;
+    memcpy(level->player_position,position,12);memcpy(level->player_orientation,basis,36);return RF_OK;
+}
 int rf_scene_stage_exit(rf_level *level,uint32_t uid)
 {
     rf_level_trigger_reader reader;rf_level_trigger record;rf_trigger_volume selected={0},volume;
@@ -556,14 +565,15 @@ typedef struct scene_particle_workspace {
 } scene_particle_workspace;
 enum { SCENE_WEAPON_SLOTS=18, SCENE_ROCKETS=50, SCENE_RIPPLES=16 };
 uint32_t rf_scene_player_shield_resources,rf_scene_fusion_enabled,rf_scene_firearms_enabled;
+uint32_t rf_scene_vehicle_enabled;
 static uint32_t scene_extra_pickups_available(uint32_t);
 static uint32_t scene_extra_pickups_selection_limit(void);
 static uint32_t scene_extra_pickups_resource_limit(void);
-static uint32_t scene_weapon_slots(void){uint32_t base=rf_scene_dev_room_enabled && rf_scene_firearms_enabled?17:rf_scene_dev_room_enabled && rf_scene_fusion_enabled?13:rf_scene_player_shield_resources || (rf_scene_dev_room_enabled && rf_scene_dev_npc_enabled==6)?12:rf_scene_dev_room_enabled?11:4;
+static uint32_t scene_weapon_slots(void){if(rf_scene_vehicle_enabled)return 4;uint32_t base=rf_scene_dev_room_enabled && rf_scene_firearms_enabled?17:rf_scene_dev_room_enabled && rf_scene_fusion_enabled?13:rf_scene_player_shield_resources || (rf_scene_dev_room_enabled && rf_scene_dev_npc_enabled==6)?12:rf_scene_dev_room_enabled?11:4;
     uint32_t extra=scene_extra_pickups_selection_limit();return base>extra?base:extra;}
-static uint32_t scene_weapon_resource_slots(void){uint32_t base=rf_scene_dev_room_enabled && rf_scene_firearms_enabled?18:scene_weapon_slots();
+static uint32_t scene_weapon_resource_slots(void){if(rf_scene_vehicle_enabled)return 4;uint32_t base=rf_scene_dev_room_enabled && rf_scene_firearms_enabled?18:scene_weapon_slots();
     uint32_t extra=scene_extra_pickups_resource_limit();return base>extra?base:extra;}
-static uint32_t scene_weapon_available(uint32_t slot){return slot<(rf_scene_dev_room_enabled && !rf_scene_firearms_enabled?11u:4u) ||
+static uint32_t scene_weapon_available(uint32_t slot){if(rf_scene_vehicle_enabled)return slot<4;return slot<(rf_scene_dev_room_enabled && !rf_scene_firearms_enabled?11u:4u) ||
     (slot==11 && (rf_scene_player_shield_resources || (rf_scene_dev_room_enabled && rf_scene_dev_npc_enabled==6))) ||
     (slot==12 && rf_scene_dev_room_enabled && rf_scene_fusion_enabled) ||
     (slot>=13 && slot<=17 && rf_scene_dev_room_enabled && rf_scene_firearms_enabled) || scene_extra_pickups_available(slot);}
@@ -723,6 +733,7 @@ typedef struct scene_stream {
     float ripple_position[SCENE_RIPPLES][3];uint32_t ripple_born[SCENE_RIPPLES];uint8_t ripple_active[SCENE_RIPPLES];
     scene_impact_owner *impact;
     scene_weapon_custom_actions *machine_custom[2];uint32_t machine_transition_ticks[2];
+    scene_driller_resources *driller;float driller_position[3],driller_basis[9];uint32_t driller_base,driller_textures;
     scene_undercover_resources *undercover;uint32_t undercover_base,undercover_textures,undercover_alt_held;
     rf_player_weapon *player_weapon[SCENE_WEAPON_SLOTS];uint32_t player_weapon_base[SCENE_WEAPON_SLOTS],player_weapon_textures[SCENE_WEAPON_SLOTS],player_shots,player_reload,player_slot,player_pose_frame;
     rf_model_projection npc_view;void *npc_memory;uint16_t *npc_indices;rf_model_clip_pool *npc_pool;
@@ -14554,6 +14565,7 @@ static int scene_weapon_submit(void *context,uint32_t model,const rf_weapon_hand
 #include "scene_remote_gameplay.inc"
 #include "scene_remote_checkpoint.inc"
 #include "scene_flame_canister_draw.inc"
+#include "scene_driller_draw.inc"
 static int scene_grenades_draw(scene_stream *stream)
 {
     scene_weapon_context c={0};uint32_t i,state[20]={0},model;int status;
@@ -15379,6 +15391,10 @@ static int scene_frame(void *context,uint32_t frame,rf_preview_mesh *actor)
         status=scene_clutter_draw(stream,frame);presentation_mark(1,&presentation_clock);if(status){rf_scene_profile_stage[1]=202;return status;}
         status=scene_weapon_draw(stream,frame);presentation_mark(2,&presentation_clock);if(status){rf_scene_profile_stage[1]=203;return status;}
         status=scene_pickups_draw(stream);presentation_mark(3,&presentation_clock);if(status){rf_scene_profile_stage[1]=204;return status;}
+        if(stream->driller){uint32_t submissions,vertices;
+            status=scene_driller_draw(stream,stream->driller,stream->driller_position,stream->driller_basis,stream->driller_base,stream->driller_textures,&submissions,&vertices);
+            if(status)return status;
+        }
         status=scene_grenades_draw(stream);if(status)return status;
         status=scene_remote_draw(stream);if(status)return status;
         status=scene_flame_canister_draw(stream,scene_flame_canister_model);if(status)return status;
@@ -16028,7 +16044,7 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
             {rf_vpp tables={0};rf_weapon_view_definition view;
              status=rf_vpp_open(&tables,tables_path);if(status)goto done;
              {scene_weapon_resource_demand demand;
-              status=scene_extra_pickups_resources_prepare(stream,&tables,rf_scene_dev_room_enabled?0x7ffu:0xfu,1u<<11,&demand);
+              status=scene_extra_pickups_resources_prepare(stream,&tables,rf_scene_dev_room_enabled && !rf_scene_vehicle_enabled?0x7ffu:0xfu,1u<<11,&demand);
               if(!status){rf_scene_player_shield_resources=!!(demand.mask&(1u<<11)) || (rf_scene_dev_room_enabled && rf_scene_dev_npc_enabled==6);
                   if(rf_scene_player_shield_resources)status=rf_weapon_primary_load(&tables,"riot shield",128*1024,&campaign_primary[11]);}}
              scene_machine_pistol_mode_reset(&campaign_machine_mode);memset(rf_scene_machine_mode,0,sizeof(rf_scene_machine_mode));
@@ -16042,6 +16058,13 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
              }
              if(!status)status=scene_extra_pickups_machine_resources(stream,&motions);
              if(!status)status=scene_undercover_open(stream,&archive,&motions,maps,map_count);
+             if(!status && rf_scene_vehicle_enabled) {
+                 if(!rf_scene_dev_room_enabled)status=RF_RANGE;
+                 else status=scene_driller_resources_open(tables_path,&archive,maps,map_count,1024*1024,&stream->driller);
+                 stream->driller_position[0]=30;stream->driller_position[1]=-.08189f;stream->driller_position[2]=13;
+                 stream->driller_basis[0]=stream->driller_basis[4]=stream->driller_basis[8]=1;
+                 if(!status){float seat[12];status=scene_driller_seat_pose(stream->driller,stream->driller_position,stream->driller_basis,seat);}
+             }
              rf_vpp_close(&tables);if(status)goto done;}
             rf_scene_campaign_load_stage=27;status=campaign_weapon_hands_open();if(status)goto done;
             status=scene_npc_shields_load(tables_path);if(status)goto done;
@@ -16148,6 +16171,7 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
         free(textures->items);memset(textures,0,sizeof(*textures));
         }
         status=scene_undercover_merge(stream,materials);if(status)goto done;
+        if(stream->driller){status=scene_driller_materials_merge(stream->driller,materials,&stream->driller_base,&stream->driller_textures);if(status)goto done;}
         if(rf_scene_dev_room_enabled) {
             uint32_t visual;
             for(visual=0;visual<(rf_scene_fusion_enabled?3u:2u);visual++) {
@@ -16352,6 +16376,7 @@ done:
         if(!status)status=scene_npc_shield_history_capture();
         if(!status)campaign_actors_capture();
     }
+    scene_driller_resources_close(&stream->driller);
     {int closed=scene_undercover_close(stream);if(closed && !status)status=closed;}
     for(i=0;i<2;i++)if(stream->machine_custom[i]){int closed=scene_weapon_custom_actions_close(&stream->machine_custom[i],stream->player_weapon[i?17:13]);if(closed && !status)status=closed;}
     for(i=0;i<SCENE_WEAPON_SLOTS;i++)rf_player_weapon_close(&stream->player_weapon[i]);
