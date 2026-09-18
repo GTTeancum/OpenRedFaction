@@ -19,7 +19,7 @@ static int campaign_enemy_hear_shot(const float position[3],float radius,uint32_
         if(!owner->registration.view || owner->damage.effects.health<=0 ||
            (owner->object_flags&(2|0x4000)) || (owner->view.flags_810&1) ||
            owner->view.weapons[0]<0 || owner->damage.effects.affiliation!=0 ||
-           owner->combat_alert || owner->combat_scripted)continue;
+           owner->combat_alert || owner->combat_scripted || !campaign_enemy_mode_admits(owner,0,1))continue;
         for(j=0;j<3;j++){float d=owner->eye_position[j]-position[j];distance+=d*d;}
         if(!isfinite(distance) || distance>radius_squared)continue;
         status=campaign_animation_cancel(owner);if(status)return status;

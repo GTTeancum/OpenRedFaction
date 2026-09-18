@@ -868,3 +868,7 @@ add_executable(rf_scene_flame_input_tests tests/scene_flame_input_tests.c src/di
 target_link_libraries(rf_scene_flame_input_tests PRIVATE rf_core)
 add_test(NAME scene_flame_input COMMAND rf_scene_flame_input_tests)
 set_tests_properties(scene_flame_input PROPERTIES WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}")
+
+add_executable(rf_scene_ai_mode_gameplay_tests tests/scene_ai_mode_gameplay_tests.c src/diagnostic/animation.c)
+target_link_libraries(rf_scene_ai_mode_gameplay_tests PRIVATE rf_core)
+add_test(NAME scene_ai_mode_gameplay COMMAND rf_scene_ai_mode_gameplay_tests)

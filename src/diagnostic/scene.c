@@ -3889,6 +3889,7 @@ typedef struct campaign_npc_body {
     rf_physics_body body;rf_physics_support_contact support;
     rf_weapon_inventory inventory;rf_entity_motion_selection selection;
     rf_weapon_reset_state firing;
+    rf_entity_ai_transition_state ai_mode;
     uint32_t persistence_slot,persistence_registered,controller_handle;
     struct {uint32_t active,event,follow,route_index,retry,stop;float target[3],fall_speed;
         rf_level_waypoint_path path;uint32_t path_index,path_mode,path_reverse;} script_move;
@@ -4265,6 +4266,7 @@ static void campaign_pursuit_stop(campaign_npc_body *owner)
     owner->script_move.active=0;owner->script_move.follow=0;owner->script_move.stop=1;
     owner->navigation.retained.count=0;owner->script_move.retry=0;
 }
+#include "scene_ai_mode_gameplay.inc"
 static void campaign_pursuit_target(campaign_npc_body *owner,const float target[3])
 {
     float x=owner->script_move.target[0]-target[0],z=owner->script_move.target[2]-target[2];
@@ -9049,6 +9051,8 @@ static int campaign_enemy_tick(scene_stream *stream,uint32_t frame,const float p
     memcpy(&clock_bits,&seconds,4);++rf_scene_enemy_combat[0];
     for(i=0;i<campaign_npc_body_count;i++) {
         campaign_npc_body *owner=campaign_npc_bodies+i;float delta[3],distance=0,amount=0;int status;
+        {float speed2=0;for(j=0;j<3;j++)speed2+=scene_actor_body.state.velocity[j]*scene_actor_body.state.velocity[j];
+         if(!campaign_enemy_mode_admits(owner,speed2>.0001f,0)){campaign_pursuit_stop(owner);continue;}}
         if(!campaign_enemy_target_living(owner,campaign_player_object.handle,campaign_player_damage.state.effects.health))continue;
         const int32_t weapon=owner->view.weapons[0];
         const int32_t ids[8]={campaign_pistol_id,campaign_rifle_id,campaign_riot_id,campaign_shotgun_id,
@@ -13729,9 +13733,11 @@ static int campaign_script_step(scene_stream *stream,float elapsed)
     for(i=0;i<campaign_npc_body_count;i++) {
         campaign_npc_body *o=campaign_npc_bodies+i;float delta[3],distance,step,turn;int status;
         rf_physics_body_state proposal;rf_collision_body_sphere scratch[8];rf_geometry_body_hit hit;uint32_t blocked;
+        if(o->ai_mode.action_280==1 && o->script_move.active){o->script_move.active=0;o->script_move.stop=1;}
         if(o->script_move.stop) {
             if(o->registration.view && o->damage.effects.health>0 && !(o->view.flags_810&1)){status=campaign_script_locomotion(i,0);if(status)return status;}o->script_move.stop=0;
         }
+        if(o->ai_mode.action_280==1)continue;
         if(!o->script_move.active && o->combat_alert && o->registration.view && o->damage.effects.health>0 &&
            !(o->object_flags&(2|0x4000)) && !(o->view.flags_810&1) && o->view.weapons[0]>=0) {
             const float *aim=scene_actor_body.state.position;
@@ -15483,6 +15489,7 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
             memset(rf_scene_alarm,0,sizeof(rf_scene_alarm));rf_scene_alarm[5]=UINT32_MAX;
             campaign_triggers.set_invulnerable=campaign_set_invulnerable;
             campaign_triggers.set_nano_shield=campaign_set_nano_shield;campaign_triggers.nano_shield_context=NULL;
+            campaign_triggers.set_ai_mode=campaign_set_ai_mode_live;campaign_triggers.ai_mode_context=NULL;
             campaign_triggers.remove_object=campaign_remove_object;
             campaign_triggers.show_message=campaign_show_message;campaign_triggers.message_context=(void*)level;
             campaign_subtitle_deadline=-1;memset(&campaign_subtitle,0,sizeof(campaign_subtitle));

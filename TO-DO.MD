@@ -9,7 +9,7 @@ Completion basis (user direction,2026-09-18): working late-alpha/early-beta code
 
 - Combat pickups: NPC drops now preserve remaining ammunition and nine additional authored weapon/ammo pickup classes are connected; focused actual drop/collection and installed-table checks pass with PC/Xbox builds; live pickup visuals and empty-weapon drops remain.
 
-- AI mode events: Core callback routing is implemented, but live scheduler binding, mode13 cleanup and vehicle propagation remain; do not count the unbound state adapter as working AI behavior.
+- AI mode events: Catatonic, waiting/default and motion-triggered acquisition now bind to live combat, scripted movement and hearing; actual scheduler/adapter checks and PC/Xbox builds pass; waypoint/collecting behavior, mode13 cleanup, vehicle propagation and authored live scenarios remain.
 
 - Remote charges: Charge/detonator selection, shared ammo, throw/place, sticking, rendering and blast/GeoMod are integrated; PC and stock64MiB XEMU throw/detonate replay pass with one terrain cut; planted-charge RFCP2 save/load passes79/80native checks with exact PC/Xbox save bytes and restored detonation; detached-fragment transport, general campaign saves, placement fidelity and broader effect/audio runtime coverage remain (authored radius and explosion sound dispatch are now connected).
 
