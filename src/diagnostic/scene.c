@@ -4121,6 +4121,8 @@ static int campaign_weapon_models_open(const char *tables_path,rf_vpp *meshes)
         if(campaign_npc_bodies[i].inventory.owned[j])selected[j/32]|=1u<<(j%32);
     {int32_t pistol=rf_weapon_name_find(&campaign_weapon_supply.names,"12mm handgun");
      if(pistol<0){free(names);return RF_NOT_FOUND;}selected[pistol/32]|=1u<<(pistol%32);}
+    if(rf_scene_dev_npc_enabled==5){int32_t shield=rf_weapon_name_find(&campaign_weapon_supply.names,"riot shield");
+        if(shield<0){free(names);return RF_NOT_FOUND;}selected[shield/32]|=1u<<(shield%32);}
     if(rf_scene_dev_room_enabled){int32_t grenade=rf_weapon_name_find(&campaign_weapon_supply.names,"Grenade");
         if(grenade<0){free(names);return RF_NOT_FOUND;}selected[grenade/32]|=1u<<(grenade%32);}
     if(rf_scene_dev_room_enabled){int32_t remote=rf_weapon_name_find(&campaign_weapon_supply.names,"Remote Charge");
@@ -4153,6 +4155,7 @@ static int campaign_weapon_models_open(const char *tables_path,rf_vpp *meshes)
     rf_scene_weapon_models[5]=hash;rf_scene_weapon_models[6]=selected[0];rf_scene_weapon_models[7]=selected[1];
     return RF_OK;
 }
+static void scene_npc_shields_close(void);
 static void campaign_npc_bodies_close(void)
 {
     rf_model_materials_close(&campaign_weapon_materials);
@@ -4163,6 +4166,7 @@ static void campaign_npc_bodies_close(void)
         rf_physics_body_close(&campaign_npc_bodies[i].body);
     }
     scene_burning_release_all();
+    scene_npc_shields_close();
     free(campaign_npc_bodies);campaign_npc_bodies=NULL;campaign_npc_body_count=0;
     free(campaign_npc_movement_configs);campaign_npc_movement_configs=NULL;
     free(campaign_npc_stances);campaign_npc_stances=NULL;
@@ -9059,6 +9063,21 @@ static float combat_enemy_primary_damage(const rf_weapon_primary_definition *def
 #include "scene_npc_rubble_test.inc"
 #include "scene_ai_gameplay.inc"
 #include "scene_ai_ammo_fallback.inc"
+#include "scene_ai_broken_shield.inc"
+#include "scene_riot_shield_gameplay.inc"
+static int scene_npc_shields_load(const char *path)
+{
+    rf_vpp archive={0};rf_vpp_entry entry;void *text=NULL;int status;
+    status=rf_vpp_open(&archive,path);if(status)return status;
+    status=rf_vpp_find(&archive,"clutter.tbl",&entry);if(status)goto done;
+    if(entry.size>512*1024){status=RF_RANGE;goto done;}
+    text=malloc(entry.size);if(!text){status=RF_IO;goto done;}
+    status=rf_vpp_read(&archive,&entry,0,text,entry.size);
+    if(!status)status=scene_npc_shields_open(text,entry.size,64*1024);
+done:
+    free(text);rf_vpp_close(&archive);return status;
+}
+
 #include "scene_ai_target_liveness.inc"
 #include "scene_ai_weapon_selection.inc"
 #include "scene_ai_reload.inc"
@@ -9093,6 +9112,7 @@ static int campaign_enemy_tick(scene_stream *stream,uint32_t frame,const float p
             if(!rf_scene_dev_room_enabled)continue;
             selected.primary=campaign_primary+4;selected.slot=4;selected.ammo=campaign_weapon_supply.definitions+weapon;
         }
+        if(!selected.primary)continue; /* Unsupported held items cannot fire generic hitscan. */
         const rf_weapon_primary_definition *definition=selected.primary;
         const uint32_t melee=selected.melee;
         const float shot_damage=combat_enemy_primary_damage(definition);
@@ -12294,11 +12314,11 @@ static int campaign_combat_tick(scene_stream *stream,uint32_t frame,const float 
         memset(rf_scene_enemy_combat,0,sizeof(rf_scene_enemy_combat));combat_initial_health=campaign_player_damage.state.effects.health;
         memset(rf_scene_player_ammo,0,sizeof(rf_scene_player_ammo));memset(&campaign_player_inventory,0,sizeof(campaign_player_inventory));
         status=campaign_ammo_reset();if(status)return status;
-        if((rf_scene_dev_npc_enabled==3 || rf_scene_dev_npc_enabled==4) && campaign_npc_body_count==1){
+        if((rf_scene_dev_npc_enabled>=3 && rf_scene_dev_npc_enabled<=5) && campaign_npc_body_count==1){
             campaign_npc_body *npc=campaign_npc_bodies;
-            int32_t weapon=rf_scene_dev_npc_enabled==4?campaign_rocket_id:campaign_grenade_id;
+            int32_t weapon=rf_scene_dev_npc_enabled==5?scene_npc_shields.weapon:rf_scene_dev_npc_enabled==4?campaign_rocket_id:campaign_grenade_id;
             int32_t ammo=campaign_weapon_supply.definitions[weapon].ammo_type;
-            npc->inventory.owned[weapon]=1;npc->inventory.reserve[ammo]=3;
+            npc->inventory.owned[weapon]=1;if(ammo>=0 && ammo<32)npc->inventory.reserve[ammo]=3;
             if(rf_scene_dev_npc_enabled==4)npc->inventory.loaded[weapon]=1;
             npc->view.weapons[0]=weapon;
             status=rf_entity_motion_selection_weapon(&campaign_motion_catalog,&campaign_base_motions,
@@ -12517,6 +12537,12 @@ static int campaign_combat_tick(scene_stream *stream,uint32_t frame,const float 
         float seconds=(float)frame/60;rf_damage_request request={alt?(campaign_equipped_slot==2?campaign_pistol.alt_damage/60:campaign_pistol.alt_damage):campaign_pistol.damage,campaign_player_object.handle,alt && campaign_equipped_slot==2?6:campaign_pistol.damage_kind,0,UINT32_MAX,0};
         combat_feedback feedback={(int32_t)((uint64_t)frame*1000/60),0};
         rf_damage_effect_backend effects={combat_predicate,combat_uid,combat_source,combat_burn,combat_random,combat_notify,combat_playing,combat_play,&feedback};
+        if(scene_npc_shields.owners){
+            float end[3];uint32_t accepted,broken;
+            for(i=0;i<3;i++)end[i]=position[i]+delta[i];
+            status=scene_npc_shield_receive(target,position,end,nearest,request.amount,request.kind,&accepted,&broken);if(status)return status;
+            if(accepted)continue;
+        }
         memcpy(&clock_bits,&seconds,4);status=rf_scene_npc_damage(handle,&request,1,clock_bits,&effects,&amount);if(!status)status=feedback.status;if(status)return status;
         if(amount>0){combat_hit_frame=frame;
             campaign_combat_event(frame,0,handle,amount,owner->damage.effects.health);
@@ -15739,6 +15765,7 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
              }
              rf_vpp_close(&tables);if(status)goto done;}
             rf_scene_campaign_load_stage=27;status=campaign_weapon_hands_open();if(status)goto done;
+            status=scene_npc_shields_load(tables_path);if(status)goto done;
             status=campaign_weapon_placement_probe();if(status)goto done;
             status=campaign_weapon_aim_probe();if(status)goto done;
             status=campaign_weapon_muzzle_probe();if(status)goto done;

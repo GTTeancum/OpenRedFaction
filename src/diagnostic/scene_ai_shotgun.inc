@@ -35,6 +35,12 @@ static int campaign_enemy_shotgun_fire(scene_stream *stream,campaign_npc_body *o
         rf_damage_request request={damage,owner->registration.handle,definition->damage_kind,0,UINT32_MAX,0};
         if(victim) {
             uint32_t entered;
+            if(scene_npc_shields.owners){
+                float end[3];uint32_t accepted,broken;
+                for(j=0;j<3;j++)end[j]=owner->eye_position[j]+spread[j];
+                status=scene_npc_shield_receive(victim_slot,owner->eye_position,end,fraction,request.amount,request.kind,&accepted,&broken);if(status)return status;
+                if(accepted)continue;
+            }
             status=rf_scene_npc_damage(victim->registration.handle,&request,1,clock_bits,effects,&applied);
             if(!status)status=feedback->status;if(status)return status;
             if(victim->damage.effects.health<=0) {

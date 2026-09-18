@@ -64,6 +64,12 @@ static int scene_precision_fire(scene_stream *stream,uint32_t frame,
            owner->damage.effects.health<=0 || (owner->object_flags&(2|0x4000)))continue;
         if(!rail){status=combat_shot_obstructed(stream,position,delta,hits[i].fraction,&blocked);
             if(status)return status;if(blocked)continue;}
+        if(scene_npc_shields.owners){
+            float end[3];uint32_t accepted,broken;
+            for(j=0;j<3;j++)end[j]=position[j]+delta[j];
+            status=scene_npc_shield_receive(hits[i].index,position,end,hits[i].fraction,request.amount,request.kind,&accepted,&broken);if(status)return status;
+            if(accepted)continue;
+        }
         memcpy(&bits,&seconds,4);
         status=rf_scene_npc_damage(handle,&request,1,bits,&effects,&amount);
         if(!status)status=feedback.status;if(status)return status;
