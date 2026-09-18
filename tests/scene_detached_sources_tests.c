@@ -91,6 +91,56 @@ static int extended_batches(void) {
     }
     rf_geomod_piece_registry_close(&r);return 0;
 }
+static int rocket_object_contacts(void) {
+    scene_stream scene={0};rf_geometry_collision_world world={0};campaign_npc_body npc={0};
+    rf_collision_room_liquid_view water={0};world.liquids=&water;
+    rf_physics_sphere sphere={0};rf_collision_solid_view mover={0};rf_collision_face face={0};
+    float vertices[4][3]={{1,-2,-2},{1,2,-2},{1,2,2},{1,-2,2}};
+    float start[3]={3,0,0},delta[3]={-6,0,0};uint32_t matched,liquid;
+    rf_weapon_flight_contact contact={0};rf_collision_ray_hit hit;
+    rf_geomod_piece_registry *pieces=NULL;
+    scene.collision=&world;npc.body.allocated_bytes=1;npc.body.spheres.items=&sphere;npc.body.spheres.count=1;
+    sphere.radius=.5f;npc.body.state.orientation[0]=npc.body.state.orientation[4]=npc.body.state.orientation[8]=1;
+    npc.registration.view=&npc.view;npc.damage.effects.health=100;
+    campaign_npc_bodies=&npc;campaign_npc_body_count=1;
+    CHECK(scene_rocket_body_hit(&npc.body,start,delta,.2f,1,&hit));
+    CHECK(fabsf(hit.fraction-(3-.7f)/6)<.000001f && fabsf(hit.point[0]-.5f)<.000001f && hit.normal[0]==1);
+    start[1]=.6f;CHECK(!rf_physics_body_segment(&npc.body,start,delta,1,&hit.fraction));
+    CHECK(scene_rocket_body_hit(&npc.body,start,delta,.2f,1,&hit));start[1]=0;
+    CHECK(!scene_rocket_sweep(&scene,start,delta,.2f,0x460,&contact,&liquid,&matched));
+    CHECK(matched && !liquid && contact.object==SCENE_ACTOR_ROCKET_OWNER);
+    for(uint32_t i=0;i<3;i++) {
+        npc.object_flags=i==0?2:i==1?0x4000:0;npc.damage.effects.health=i==2?0:100;
+        CHECK(!scene_rocket_sweep(&scene,start,delta,.2f,0x460,&contact,&liquid,&matched) && !matched);
+    }
+    npc.object_flags=0;npc.damage.effects.health=100;
+    face.vertices=vertices;face.count=4;face.plane[0]=1;face.plane[3]=-1;
+    face.minimum[0]=face.maximum[0]=1;face.minimum[1]=face.minimum[2]=-2;face.maximum[1]=face.maximum[2]=2;
+    mover.flat_faces=&face;mover.flat_count=1;
+    for(uint32_t k=0;k<3;k++){mover.input_matrix[k][k]=mover.output_matrix[k][k]=1;mover.minimum[k]=-2;mover.maximum[k]=2;}
+    campaign_movers.views=&mover;campaign_movers.count=1;
+    CHECK(!scene_rocket_sweep(&scene,start,delta,.2f,0x460,&contact,&liquid,&matched));
+    CHECK(matched && contact.object==SCENE_MOVER_ROCKET_OWNER && fabsf(contact.hit.point[0]-1)<.000001f);
+    mover.input_origin[1]=mover.output_origin[1]=5;
+    CHECK(!scene_rocket_sweep(&scene,start,delta,.2f,0x460,&contact,&liquid,&matched));
+    CHECK(matched && contact.object==SCENE_ACTOR_ROCKET_OWNER); /* Raised door no longer blocks. */
+    mover.input_origin[1]=mover.output_origin[1]=0;
+    CHECK(!cube(1.8f,.25f,&pieces));scene.detached_pieces=pieces;
+    CHECK(!scene_rocket_sweep(&scene,start,delta,.2f,0x460,&contact,&liquid,&matched));
+    CHECK(matched && contact.object==SCENE_DETACHED_ROCKET_OWNER); /* Rubble precedes door/actor. */
+    {rf_geometry_collision_room room={0};rf_collision_room_view view={0};uint32_t primary=0;
+     float wall_vertices[4][3]={{2.5f,-2,-2},{2.5f,2,-2},{2.5f,2,2},{2.5f,-2,2}};
+     rf_collision_face wall=face;wall.vertices=wall_vertices;wall.plane[3]=-2.5f;
+     wall.minimum[0]=wall.maximum[0]=2.5f;
+     CHECK(!rf_collision_tree_open(&wall,1,65536,&room.tree));view.tree=&room.tree;
+     memcpy(view.minimum,room.tree.nodes[0].minimum,12);memcpy(view.maximum,room.tree.nodes[0].maximum,12);
+     world.rooms=&room;world.views=&view;world.room_count=world.primary_count=1;world.primary=&primary;
+     CHECK(!scene_rocket_sweep(&scene,start,delta,.2f,0x460,&contact,&liquid,&matched));
+     CHECK(matched && contact.object==UINT32_MAX && fabsf(contact.hit.point[0]-2.5f)<.000001f);
+     rf_collision_tree_close(&room.tree);}
+    rf_geomod_piece_registry_close(&pieces);campaign_npc_bodies=NULL;campaign_npc_body_count=0;
+    memset(&campaign_movers,0,sizeof(campaign_movers));return 0;
+}
 static int enemy_fragment_shots(void) {
     scene_stream scene={0};rf_geometry_collision_world world={0};
     rf_geomod_piece_registry *registry=NULL;rf_geomod_piece_batch *batch;
@@ -424,6 +474,6 @@ int main(void) {
     found=77;CHECK(scene_detached_sources_sweep(&scene,4,start,delta,0,NAN,&hit,&found)!=RF_OK);
     CHECK(found==77 && !memcmp(&hit,&sentinel,sizeof(hit)));
     free(before);free(after);for(i=0;i<2;i++)rf_geomod_piece_registry_close(registries+i);
-    CHECK(!inspection_camera());CHECK(!extended_batches());CHECK(!enemy_fragment_shots());CHECK(!beam_selection());CHECK(!runtime_surfaces());CHECK(!player_sources());CHECK(!notify_sources());CHECK(!rotated_support_clearance());CHECK(!large_support_snap());CHECK(!moving_piece_support());
+    CHECK(!inspection_camera());CHECK(!extended_batches());CHECK(!enemy_fragment_shots());CHECK(!rocket_object_contacts());CHECK(!beam_selection());CHECK(!runtime_surfaces());CHECK(!player_sources());CHECK(!notify_sources());CHECK(!rotated_support_clearance());CHECK(!large_support_snap());CHECK(!moving_piece_support());
     puts("PASS multi-source weapon queries: nearer later source, stable ties, selected alias, isolated damage and atomic misses/errors");return 0;
 }

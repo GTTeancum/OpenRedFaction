@@ -895,6 +895,7 @@ run_scene:
     printf("GEOMOD");for(i=0;i<8;++i)printf(" %u",rf_scene_geomod[i]);puts("");
     {extern uint32_t rf_scene_detached_player[7];printf("DETACHED_PLAYER");for(i=0;i<7;i++)printf(" %u",rf_scene_detached_player[i]);puts("");}
     {extern uint32_t rf_scene_detached_hitscan[7];printf("DETACHED_HITSCAN");for(i=0;i<7;i++)printf(" %u",rf_scene_detached_hitscan[i]);puts("");}
+    {extern uint32_t rf_scene_rocket_contacts[8];printf("ROCKET_CONTACTS");for(i=0;i<8;i++)printf(" %u",rf_scene_rocket_contacts[i]);puts("");}
     {extern uint32_t rf_scene_detached_rocket[7];printf("DETACHED_ROCKET");for(i=0;i<7;i++)printf(" %u",rf_scene_detached_rocket[i]);puts("");}
     {extern uint32_t rf_scene_detached_motion[8];extern float rf_scene_detached_pose[6];
      printf("DETACHED_MOTION");for(i=0;i<8;i++)printf(" %u",rf_scene_detached_motion[i]);puts("");

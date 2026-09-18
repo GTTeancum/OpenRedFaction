@@ -1,4 +1,4 @@
-"""Rocket-style nonsticky projectile against a kind3 extracted solid.
+"""Rocket-style nonsticky projectile against an extracted solid and actor.
 Derived from the existing weapons_object_contact probe; no desktop input.
 """
 import hashlib,json,struct,sys
@@ -13,7 +13,7 @@ im=pefile.PE(str(exe)).get_memory_mapped_image();B=0x30000000;W=B;C=B+0x4000;H=B
 w=lambda *v:struct.pack('<'+'I'*len(v),*(x&0xffffffff for x in v));f=lambda *v:struct.pack('<'+'f'*len(v),*v)
 I=(1,0,0,0,1,0,0,0,1);rows=[]
 for mode in ('rocket',):
- for actor in (False,):
+ for actor in (False,True):
   u=Uc(UC_ARCH_X86,UC_MODE_32);u.mem_map(0x400000,(len(im)+4095)&~4095);u.mem_write(0x400000,im);u.mem_map(B,0x100000);u.mem_map(0,4096)
   word=lambda a:struct.unpack('<I',u.mem_read(a,4))[0]
   floats=lambda a,n:list(struct.unpack('<'+'f'*n,u.mem_read(a,4*n)))
@@ -34,7 +34,7 @@ for mode in ('rocket',):
    elif a==0x42ce00:
     assert [word(sp+4),word(sp+8),word(sp+12)]==[H,W,W+0x1b4];cpu.mem_write(word(sp+16),w(0));services.append(dict(service='location_scale',value=.5));cpu.reg_write(UC_X86_REG_EIP,FP)
    elif a==0x4892c0:
-    args=[word(sp+4+i*4) for i in range(8)];assert args==[456,struct.unpack('<I',f(75 if actor else 400))[0],123,5,3,W+0x1b4,0xffffffff,0],args
+    args=[word(sp+4+i*4) for i in range(8)];assert args==[456,struct.unpack('<I',f(200 if actor else 400))[0],123,5,3,W+0x1b4,0xffffffff,0],args
     services.append(dict(service='direct_damage',target=args[0],amount=floats(sp+8,1)[0],owner=args[2],weapon=args[3],damage_kind=args[4],point=floats(args[5],3),auxiliary_uid=-1,force=args[7]));cpu.reg_write(UC_X86_REG_EIP,FP+16)
    elif a==0x488dc0:
     args=[word(sp+4+i*4) for i in range(5)];assert args==[W+0x1b4,struct.unpack('<I',f(400))[0],struct.unpack('<I',f(5))[0],123,3],args
@@ -69,5 +69,5 @@ for mode in ('rocket',):
   assert trace==expected,trace
   rows.append(dict(mode=mode,actor=actor,policy=0,handler_return=handler[0],life=floats(W+0x34,1)[0],fuse=floats(W+0x29c,1)[0],dead=bool(word(W+0x7c)&2),host=word(W+0x2b0),trace=trace,services=services))
 out=R/'artifacts/geomod-postedit-re/rocket-solid-contact.json';out.parent.mkdir(parents=True,exist_ok=True);out.write_text(json.dumps(dict(result='PASS',original_sha256=SHA,cases=rows,
- boundaries=['Full original projectile/object dispatcher with non-grenade nonsticky type5, kind3 target; damage400, radius5, explosive kind3 supplied from installed rocket table evidence.', 'Registry and presentation services supplied. Direct/radial requests recorded, not applied. Class flags0 exclude optional modifiers; no claim of complete authored rocket class reconstruction.']),indent=2)+'\n')
+ boundaries=['Full original projectile/object dispatcher with non-grenade nonsticky type5, kind3 and actor targets; actor location multiplier0.5 is supplied, not a recovered default; damage400, radius5, explosive kind3 supplied from installed rocket table evidence.', 'Registry and presentation services supplied. Direct/radial requests recorded, not applied. Class flags0 exclude optional modifiers; no claim of complete authored rocket class reconstruction.']),indent=2)+'\n')
 print('PASS',len(rows),'rocket/solid contact composition')

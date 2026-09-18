@@ -4,7 +4,7 @@ The opt-in `RF_REPLAY_DEV_NPC=2` / `dev-npc.flag` byte2 fixture loads authored
 L1S1 actor8456 (env_guard) into the ctf06 developer room. Default DEV remains
 empty; existing mode1 remains the harmless walking miner control.
 
-The first600 frames use the ordinary three-rocket connected-beam recipe from
+The first600 frames use the ordinary one-rocket connected-beam recipe across three authored sources from
 `tools/probe_beam_center_fragments.py`, target index1. NPC combat is disabled
 during preparation and the actor starts outside the blasts. At frame600 the
 actor is staged across from the player, and the first live radius>1 fragment

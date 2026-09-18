@@ -28,6 +28,7 @@ from xemu_draw_audit import capture as capture_draws
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--npc-projectile-test', action='store_true', help='Rubble-cover fixture followed by a rocket striking the guard')
     parser.add_argument('--npc-rubble-test', action='store_true', help='Opt-in armed NPC versus live extracted held cover')
     parser.add_argument('--moving-support-test', action='store_true', help='Process-local saved rubble lift/stop/retire fixture')
     parser.add_argument('--release-support-test', action='store_true', help='Lift saved support then release to ordinary debris gravity/contact')
@@ -78,6 +79,7 @@ def main():
     parser.add_argument('--unbatched', action='store_true', help='Reference tiny GPU command submission blocks')
     parser.add_argument('--unsorted', action='store_true', help='Reference source-order world draw ranges')
     args = parser.parse_args()
+    if args.npc_projectile_test:args.npc_rubble_test=True
     if args.npc_rubble_test and (not args.dev_room or args.level!='ctf06.rfl' or args.player_checkpoint or args.geomod_checkpoint_in):
         parser.error('--npc-rubble-test requires ctf06 DEV room with live extraction, no player checkpoint')
     if args.tip_support_test:args.rotate_support_test=True
@@ -163,6 +165,7 @@ def main():
         scope='Authored section, player spawn or staged actor/pickup camera, process-local replay/setup commands, native framebuffer, '
               'phase timings and selected PC gameplay-state checks. No full campaign/parity claim.', samples=[])
     report['npc_rubble_test']=args.npc_rubble_test
+    report['npc_projectile_test']=args.npc_projectile_test
     report['expanded_geomod']=args.expanded_geomod
     report['authored_sources']=args.authored_sources
     report['authored_source']=args.authored_source if args.authored_source is not None else (94 if args.dev_room and args.level=='ctf06.rfl' else None)
@@ -481,8 +484,9 @@ dvd_path = '{root.as_posix()}/build/xbox/redfaction-diagnostic.iso'
                 assert len(expected)==48 and expected==actual, 'NPC cover sequence missing or differs on Xbox'
                 for i in range(6):
                     row=actual[i*8:i*8+8]
-                    assert row[0]==660+i*60 and row[1]==i+1
-                    assert row[2:4]==([0,i+1] if i<3 else [i-2,3]) and row[5]==int(i<3)
+                    assert row[0]==660+i*60
+                    expected_counts=[i+1,0,i+1] if i<3 else ([4,1,3] if args.npc_projectile_test else [i+1,i-2,3])
+                    assert row[1:4]==expected_counts and row[5]==int(i<3)
                     health=struct.unpack('<f',struct.pack('<I',row[4]))[0]
                     assert health==100 if i<3 else health<100
                 report['checks']['DEV_NPC_COVER']=dict(pc=expected,xbox=actual,equal=True)
@@ -516,6 +520,7 @@ dvd_path = '{root.as_posix()}/build/xbox/redfaction-diagnostic.iso'
                     ('rf_scene_use_reach', 'USE_REACH', 4), ('rf_scene_debris_wet','DEBRIS_WET_STATE',8), ('rf_scene_debris_visibility','DEBRIS_VISIBILITY',8), ('rf_scene_debris_motion','DEBRIS_MOTION',8), ('rf_scene_debris_crossing','DEBRIS_CROSSING',8), ('rf_scene_debris_splash_audio','DEBRIS_SPLASH_AUDIO',9), ('rf_scene_debris_player','DEBRIS_PLAYER',8), ('rf_scene_debris_rotation','DEBRIS_ROTATION',4), ('rf_scene_debris_cleanup','DEBRIS_CLEANUP',8), ('rf_scene_debris_blood','DEBRIS_BLOOD',8), ('rf_scene_debris_player_test','DEBRIS_PLAYER_TEST',8),
                     ('rf_scene_particles_summary', 'SCENE_PARTICLES', 8), ('rf_scene_live_motion', 'LIVE_MOTION', 8), ('rf_scene_airlock', 'AIRLOCK', 6), ('rf_scene_script_animation', 'SCRIPT_ANIMATION', 10), ('rf_scene_alarm', 'ALARM', 12), ('rf_scene_switch_runtime', 'SWITCH_RUNTIME', 8), ('rf_scene_switch_detail', 'SWITCH_DETAIL', 8), ('rf_scene_switch_history', 'SWITCH_HISTORY', 4), ('rf_scene_trigger_history', 'TRIGGER_HISTORY', 4), ('rf_scene_startup_inventory', 'STARTUP_INVENTORY', 4), ('rf_scene_pickups', 'PICKUPS', 8), ('rf_scene_pickup_vitals', 'PICKUP_VITALS', 4), ('rf_scene_riot', 'RIOT_STICK', 8), ('rf_scene_weapon_selection', 'WEAPON_SELECTION', 8),
                     ('rf_scene_player_weapon', 'PLAYER_WEAPON', 8), ('rf_scene_weapon_audio', 'WEAPON_AUDIO', 9), ('rf_scene_impact_audio', 'IMPACT_AUDIO', 9),
+                    ('rf_scene_rocket_contacts', 'ROCKET_CONTACTS', 8),
                     ('rf_scene_combat_death', 'COMBAT_DEATH', 8)]:
                 expected = list(map(int, next(line for line in pc.stdout.splitlines() if line.startswith(label + ' ')).split()[1:]))
                 actual = words(monitor, symbol(name), count)
@@ -551,6 +556,10 @@ dvd_path = '{root.as_posix()}/build/xbox/redfaction-diagnostic.iso'
             actual_pose=words(monitor,symbol('rf_scene_detached_pose'),6)
             report['checks']['DETACHED_POSE']=dict(equal=actual_pose==pose_bits,xbox=actual_pose,pc=pose_bits)
             assert actual_pose==pose_bits,'Detached pose mismatch'
+            if args.npc_projectile_test:
+                contacts=report['checks']['ROCKET_CONTACTS']['xbox']
+                assert contacts[1:4]==[1,0,1] and contacts[5:7]==[0x70000001,0], 'No direct rocket actor hit'
+                assert contacts[4]==struct.unpack('<I',struct.pack('<f',400))[0]
             expected=list(map(int,next(line for line in pc.stdout.splitlines() if line.startswith('DETACHED_ROCKET ')).split()[1:]))
             actual=words(monitor,symbol('rf_scene_detached_rocket'),7)
             report['checks']['DETACHED_ROCKET']=dict(equal=actual==expected,xbox=actual,pc=expected)

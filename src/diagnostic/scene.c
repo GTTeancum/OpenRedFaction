@@ -10511,6 +10511,7 @@ uint32_t rf_scene_rocket_liquid[4]; /* entries, query flags, remaining float bit
 /* Rocket-local owner tags; never passed as handles to the object registry. */
 #define SCENE_DETACHED_ROCKET_OWNER 0x80000000u
 uint32_t rf_scene_detached_rocket[7]; /* queries,hits,batch,piece,face,point hash,status */
+#include "scene_rocket_objects.inc"
 static int scene_rocket_sweep(void *context,const float start[3],const float delta[3],float radius,uint32_t query_flags,
     rf_weapon_flight_contact *out,uint32_t *is_liquid,uint32_t *matched)
 {
@@ -10518,14 +10519,17 @@ static int scene_rocket_sweep(void *context,const float start[3],const float del
     status=rf_geometry_collision_world_sweep_liquid(s->collision,query_flags,start,delta,radius,1,&hit,matched,is_liquid);
     if(status)return status;
     if(*matched){out->hit=hit.hit;out->room=hit.room;out->face=hit.face;out->object=UINT32_MAX;}
+    ++rf_scene_rocket_contacts[0];
+    status=scene_rocket_objects_sweep(s,start,delta,radius,query_flags,out,is_liquid,matched);
+    rf_scene_rocket_contacts[6]=(uint32_t)status;if(status)return status;
     ++rf_scene_detached_rocket[0];
-    status=scene_detached_sources_sweep(s,query_flags,start,delta,radius,*matched?hit.hit.fraction:1,&piece,&found);
+    status=scene_detached_sources_sweep(s,query_flags,start,delta,radius,*matched?out->hit.fraction:1,&piece,&found);
     rf_scene_detached_rocket[6]=(uint32_t)status;if(status)return status;
     if(rf_scene_combat_trace && rf_geomod_piece_registry_count(s->detached_pieces))
         printf("DETACHED_ROCKET_QUERY %u %.9g %.9g %.9g %.9g %.9g %.9g %.9g %u %.9g %u\n",query_flags,
-            start[0],start[1],start[2],delta[0],delta[1],delta[2],radius,*matched,*matched?hit.hit.fraction:1,found);
+            start[0],start[1],start[2],delta[0],delta[1],delta[2],radius,*matched,*matched?out->hit.fraction:1,found);
 
-    if(found && (!*matched || piece.piece.hit.fraction<hit.hit.fraction)) {
+    if(found && (!*matched || piece.piece.hit.fraction<out->hit.fraction)) {
         rf_collision_room_location room;
         status=rf_geometry_collision_world_locate(s->collision,piece.piece.hit.point,&room);if(status)return status;
         out->hit=piece.piece.hit;out->room=room.room==UINT32_MAX?s->terrain_collision.room:room.room;
@@ -10534,6 +10538,8 @@ static int scene_rocket_sweep(void *context,const float start[3],const float del
         rf_scene_detached_rocket[3]=piece.piece.piece;rf_scene_detached_rocket[4]=piece.piece.face;
         rf_scene_detached_rocket[5]=npc_hash_bytes(2166136261u,piece.piece.hit.point,12);
     }
+    if(*matched && (out->object&0xffff0000u)==SCENE_ACTOR_ROCKET_OWNER)++rf_scene_rocket_contacts[1];
+    if(*matched && (out->object&0xffff0000u)==SCENE_MOVER_ROCKET_OWNER)++rf_scene_rocket_contacts[2];
     return RF_OK;
 }
 /* DEV integration: recovered chunk/count/launch helpers with provisional
@@ -11195,6 +11201,25 @@ static int scene_rockets_tick(scene_stream *s,uint32_t frame)
                 status=scene_detached_sources_damage(s,(tag>>16)&0x7fff,tag&0xffff,campaign_primary[4].damage);
                 if(status)return status;
             }
+            if((event.contact.object&0xffff0000u)==SCENE_ACTOR_ROCKET_OWNER) {
+                uint32_t index=event.contact.object&0xffffu,entered=0,bits;float applied=0,seconds=(float)frame/60;
+                combat_feedback feedback={(int32_t)((uint64_t)frame*1000/60),0};
+                rf_damage_effect_backend effects={combat_predicate,combat_uid,combat_source,combat_burn,combat_random,combat_notify,combat_playing,combat_play,&feedback};
+                rf_damage_request request={campaign_primary[4].damage,campaign_player_object.handle,3,0,UINT32_MAX,0};
+                campaign_npc_body *owner;if(index>=campaign_npc_body_count)return RF_RANGE;owner=campaign_npc_bodies+index;
+                /* Original4c59f0 dispatches direct before radial damage. Body-hit
+                 * location multiplier1 is provisional until model location RE. */
+                memcpy(&bits,&seconds,4);++rf_scene_rocket_contacts[3];
+                rf_scene_rocket_contacts[5]=campaign_seeds.records.items[index].record.uid;
+                status=rf_scene_npc_damage(owner->registration.handle,&request,1,bits,&effects,&applied);
+                if(!status)status=feedback.status;rf_scene_rocket_contacts[6]=(uint32_t)status;if(status)return status;
+                memcpy(rf_scene_rocket_contacts+4,&applied,4);
+                if(applied>0)combat_hit_frame=frame;
+                if(owner->damage.effects.health<=0) {
+                    status=rf_scene_npc_death_entry(owner->registration.handle,&entered);if(status)return status;
+                    if(entered){++rf_scene_rocket_blast[3];status=combat_death_start(index);if(status)return status;}
+                }
+            }
             status=scene_rocket_blast(s,frame,&event.contact);rf_scene_rocket_blast[7]=(uint32_t)status;if(status)return status;
             if(rf_scene_combat_trace)printf("ROCKET_IMPACT %u %u %.9g %.9g %.9g\n",frame,event.contact.room,
                 event.contact.hit.point[0],event.contact.hit.point[1],event.contact.hit.point[2]);
@@ -11318,7 +11343,7 @@ static int campaign_combat_tick(scene_stream *stream,uint32_t frame,const float 
 {
     float delta[3],nearest=1,amount;uint32_t i,target=UINT32_MAX,blocked,fire,alt,active=0;int status;
     memcpy(rf_scene_gameplay_eye,position,sizeof(rf_scene_gameplay_eye));
-    if(!frame){dev_refill_held=0;memset(stream->rockets,0,sizeof(stream->rockets));memset(rf_scene_rockets,0,sizeof(rf_scene_rockets));memset(rf_scene_rocket_blast,0,sizeof(rf_scene_rocket_blast));}
+    if(!frame){memset(rf_scene_rocket_contacts,0,sizeof(rf_scene_rocket_contacts));dev_refill_held=0;memset(stream->rockets,0,sizeof(stream->rockets));memset(rf_scene_rockets,0,sizeof(rf_scene_rockets));memset(rf_scene_rocket_blast,0,sizeof(rf_scene_rocket_blast));}
     if(!frame){memset(rf_scene_combat_pain,0,sizeof(rf_scene_combat_pain));memset(rf_scene_pain_attack_gate,0,sizeof(rf_scene_pain_attack_gate));combat_pain_random.value=1;}
     if(!frame){memset(rf_scene_rifle_alt,0,sizeof(rf_scene_rifle_alt));campaign_rifle_alt_random.value=1;memset(rf_scene_weapon_drops,0,sizeof(rf_scene_weapon_drops));rf_scene_combat_event_count=0;memset(rf_scene_combat_events,0,sizeof(rf_scene_combat_events));memset(rf_scene_shotgun,0,sizeof(rf_scene_shotgun));campaign_shotgun_random.value=1;campaign_last_alt=0;memset(rf_scene_riot,0,sizeof(rf_scene_riot));riot_charge_remainder=0;combat_surface_frame=UINT32_MAX;}
     if(!frame){memset(rf_scene_weapon_selection,0,sizeof(rf_scene_weapon_selection));memset(rf_scene_weapon_audio,0,sizeof(rf_scene_weapon_audio));combat_sound_random.value=1;impact_sound_random.value=1;memset(rf_scene_impact_audio,0,sizeof(rf_scene_impact_audio));memset(rf_scene_combat_death,0,sizeof(rf_scene_combat_death));memset(rf_scene_combat,0,sizeof(rf_scene_combat));rf_scene_combat[3]=UINT32_MAX;rf_scene_combat[5]=campaign_pistol.magazine;memset(&combat_trigger,0,sizeof(combat_trigger));combat_frame=combat_hit_frame=UINT32_MAX;
