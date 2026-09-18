@@ -788,15 +788,19 @@ int rf_geomod_authored_cavity_admit(const rf_geomod_authored_post *o,const float
         if(k==3)return RF_NOT_FOUND;
     }
     for(i=0;i<a->windows.face_count;i++) {
-        const rf_geomod_face *window=a->windows.faces+i;const float *plane;double lo,hi;uint32_t accepted=1;
+        const rf_geomod_face *window=a->windows.faces+i;const float *plane;double lo;float corridor[2][3];uint32_t accepted=1;
         for(j=0;j<a->source.face_count;j++)if(a->source.faces[j].source_face==window->source_face)break;
-        if(j==a->source.face_count)return RF_FORMAT;plane=a->source_planes[j];lo=hi=plane[3];
-        for(k=0;k<3;k++){lo+=(double)plane[k]*(plane[k]<0?maximum[k]:minimum[k]);hi+=(double)plane[k]*(plane[k]<0?minimum[k]:maximum[k]);}
-        if(lo>0 || hi<0)continue;
+        if(j==a->source.face_count)return RF_FORMAT;plane=a->source_planes[j];lo=plane[3];
+        memcpy(corridor[0],minimum,12);memcpy(corridor[1],maximum,12);
+        for(k=0;k<3;k++)lo+=(double)plane[k]*(plane[k]<0?maximum[k]:minimum[k]);
+        if(lo>0)continue; /* Cutter must reach the solid side, possibly behind an earlier cut. */
         for(corner=0;corner<8 && accepted;corner++) {
             double point[3],d=plane[3];
             for(k=0;k<3;k++){point[k]=(corner&(1u<<k))?maximum[k]:minimum[k];d+=plane[k]*point[k];}
-            for(k=0;k<3;k++)point[k]-=d*plane[k];
+            for(k=0;k<3;k++){point[k]-=d*plane[k];
+                if(point[k]<corridor[0][k])corridor[0][k]=(float)point[k];
+                if(point[k]>corridor[1][k])corridor[1][k]=(float)point[k];
+            }
             for(j=0;j<window->count;j++) {
                 const float *x=a->windows.vertices[window->first+j].position;
                 const float *y=a->windows.vertices[window->first+(j+1)%window->count].position;
@@ -805,6 +809,12 @@ int rf_geomod_authored_cavity_admit(const rf_geomod_authored_post *o,const float
                 for(k=0;k<3;k++)side+=plane[k]*(edge[(k+1)%3]*offset[(k+2)%3]-edge[(k+2)%3]*offset[(k+1)%3]);
                 if(side< -1e-5*sqrt(length)){accepted=0;break;}
             }
+        }
+        /* A deep cutter cannot jump past an intervening authored brush. */
+        for(j=0;j<o->cavity_obstacle_count && accepted;j++) {
+            for(k=0;k<3;k++)if(corridor[1][k]<o->cavity_obstacles[j][0][k]-1e-5f ||
+                corridor[0][k]>o->cavity_obstacles[j][1][k]+1e-5f)break;
+            if(k==3)accepted=0;
         }
         if(accepted){*reference=a->window_origins[i].reference;return RF_OK;}
     }

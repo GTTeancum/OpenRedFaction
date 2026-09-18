@@ -306,7 +306,7 @@ static int cavity_window_areas(const rf_geomod_authored_post_view *a,const rf_ge
     CHECK(cut?craters>0:craters==0);return 0;
 }
 static int cavity_composition(const rf_geometry *geometry,const rf_geomod_authored_post_view *asset,
-    const rf_geomod_mesh_view *published,const rf_geomod_publication_origin *origins) {
+    const rf_geomod_mesh_view *published,const rf_geomod_publication_origin *origins,float end_x) {
     rf_geometry_collision_world world={0};rf_collision_composition *owner=NULL;
     rf_collision_composition_view composed;rf_geomod_terrain_view query={0};const rf_collision_tree *base;
     rf_collision_face_filter *filters=calloc(published->face_count,sizeof(*filters));
@@ -314,6 +314,7 @@ static int cavity_composition(const rf_geometry *geometry,const rf_geomod_author
     float (*positions)[3]=calloc(published->vertex_count,sizeof(*positions));
     uint32_t *ids=calloc(published->face_count,sizeof(*ids)),i,j,k,visible,retained=0;
     float inside[3]={-32.9f,4,8},outside[3]={-33.1f,4,8};
+    outside[0]=end_x;
     CHECK(filters && faces && positions && ids);
     CHECK(!rf_geometry_collision_world_open(geometry,16*1024*1024,&world));base=&world.rooms[3].tree;
     for(i=0;i<published->face_count;i++) {
@@ -368,6 +369,8 @@ static int cavity_source(const void *payload,uint32_t bytes,const rf_geometry *g
     {
         float lo[3]={-34.1f,2.9f,6.9f},hi[3]={-31.9f,5.1f,9.1f};uint32_t reference=99;
         CHECK(!rf_geomod_authored_cavity_admit(owner,lo,hi,&reference) && reference==5964);
+        lo[0]=-36;hi[0]=-34;
+        CHECK(!rf_geomod_authored_cavity_admit(owner,lo,hi,&reference) && reference==5964);
         lo[0]=-30;hi[0]=-28;reference=99;
         CHECK(rf_geomod_authored_cavity_admit(owner,lo,hi,&reference)==RF_NOT_FOUND && reference==99);
         lo[0]=-6;hi[0]=-4;lo[1]=1;hi[1]=3;lo[2]=2;hi[2]=3;
@@ -412,7 +415,7 @@ static int cavity_source(const void *payload,uint32_t bytes,const rf_geometry *g
     CHECK(!rf_geomod_publication_build_cavity(&job,&publication_work,output_vertices,4096,output_faces,768,output_origins,&published));
     printf("CAVITY_CUT_PUBLICATION %u %u\n",published.face_count,published.vertex_count);
     CHECK(!cavity_window_areas(&a,&published,output_origins,1));
-    CHECK(!cavity_composition(geometry,&a,&published,output_origins));
+    CHECK(!cavity_composition(geometry,&a,&published,output_origins,-33.1f));
     {
         rf_geomod_mesh_view previous=published;rf_geomod_vertex vertex=output_vertices[0];
         rf_geomod_face face=output_faces[0];rf_geomod_publication_origin origin=output_origins[0];
@@ -430,6 +433,22 @@ static int cavity_source(const void *payload,uint32_t bytes,const rf_geometry *g
     CHECK(deep>0);
     printf("CAVITY_SOURCE uid66 windows%u source%u resident%u peak%u cut_faces%u deep_vertices%u\n",
         a.windows.face_count,a.source.face_count,a.resident_bytes,a.peak_bytes,view.mesh.face_count,deep);
+    inside[1]=outside[1]=4;outside[0]=-34.4f;
+    CHECK(!rf_geomod_light_visible(&view,inside,outside,&visible) && !visible);
+    center[0]=-34;
+    CHECK(!rf_geomod_terrain_cut_template(terrain,&shape,center,basis,1.05000007f,0));
+    CHECK(!rf_geomod_terrain_get(terrain,&view) && view.cuts==2);
+    CHECK(!rf_geomod_light_visible(&view,inside,outside,&visible) && visible);
+    center[0]=-35;outside[0]=-35.4f;
+    CHECK(!rf_geomod_light_visible(&view,inside,outside,&visible) && !visible);
+    CHECK(!rf_geomod_terrain_cut_template(terrain,&shape,center,basis,1.05000007f,0));
+    CHECK(!rf_geomod_terrain_get(terrain,&view) && view.cuts==3);
+    CHECK(!rf_geomod_light_visible(&view,inside,outside,&visible) && visible);
+    job.terrain=view.mesh;
+    CHECK(!rf_geomod_publication_build_cavity(&job,&publication_work,output_vertices,4096,output_faces,768,output_origins,&published));
+    CHECK(!cavity_window_areas(&a,&published,output_origins,1));
+    CHECK(!cavity_composition(geometry,&a,&published,output_origins,-35.4f));
+    printf("CAVITY_DEEP cuts%u faces%u vertices%u\n",view.cuts,published.face_count,published.vertex_count);
     rf_geomod_terrain_close(&terrain);rf_geomod_authored_post_close(&owner);return 0;
 }
 static int selected_sources(const rf_level *level, const rf_geometry *geometry, const char *shape) {

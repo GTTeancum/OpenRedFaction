@@ -9719,9 +9719,9 @@ static int scene_terrain_open(scene_stream *s,const rf_level *level,rf_vpp *maps
         rf_geo_region *patch;if(!regions)return RF_IO;
         memcpy(regions,s->terrain_regions,s->terrain_region_count*sizeof(*regions));
         patch=regions+s->terrain_region_count;patch->flags=2;patch->hardness=65;
-        patch->position[0]=-33;patch->position[1]=4;patch->position[2]=8;patch->radius=2;
+        patch->position[0]=-33;patch->position[1]=4;patch->position[2]=8;patch->radius=4;
         free(s->terrain_regions);s->terrain_regions=regions;++s->terrain_region_count;
-        printf("DEV_CAVITY_PATCH -33 4 8 2 65\n");
+        printf("DEV_CAVITY_PATCH -33 4 8 4 65\n");
     }
     {
         uint32_t shallow_fixture=0;

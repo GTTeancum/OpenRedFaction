@@ -1,5 +1,5 @@
 """Process-local developer wall replay; installed geometry stays unchanged.
-Source66 opts into a radius2 hardness65 patch on an otherwise indestructible wall.
+Source66 opts into a radius4 hardness65 patch on an otherwise indestructible wall.
 Checks save/reload and a second blast against uninterrupted play.
 """
 import json, os, struct, subprocess
@@ -74,3 +74,26 @@ print('PASS cavity save/reload second shot: exact',len(resumed_bytes),'byte chec
 report.update(checkpoint_bytes=len(resumed_bytes),continuation_equal=True,
               second_publication=values(resumed,'TERRAIN_PUBLICATION'))
 (folder/'report.json').write_text(json.dumps(report,indent=2)+'\n')
+
+# Three rockets along one fixed ray dig inward; the third cutter lies behind
+# the original wall plane. No host input or cross-window override is used.
+depth=bytearray(data+bytes(400*48))
+for frame in (420,600):struct.pack_into('<I',depth,8+48*frame+32,1)
+depth_lines,depth_bytes=saved_run('depth',depth)
+assert values(depth_lines,'AUTHORED_SOURCE_CUTS')[:2]==[66,3]
+impacts=[list(map(float,l.split()[1:])) for l in depth_lines if l.startswith('ROCKET_IMPACT ')]
+assert len(impacts)==3 and impacts[0][2]==-33 and impacts[1][2]<-34 and impacts[2][2]<-35,impacts
+assert not any('REJECT' in l for l in depth_lines)
+assert values(depth_lines,'PLAYER_LIFE')[0]==0
+report.update(depth_impacts=impacts,depth_checkpoint_bytes=len(depth_bytes))
+(folder/'report.json').write_text(json.dumps(report,indent=2)+'\n')
+print('PASS three sequential wall-depth impacts',impacts)
+
+neutral=header+bytes(121*48)
+restored,restored_bytes=saved_run('depth-resume',neutral,'depth')
+continued,continued_bytes=saved_run('depth-control',depth+bytes(120*48))
+assert values(restored,'GEOMOD')[1]==3
+assert restored_bytes==continued_bytes,'Deep wall reload differs from uninterrupted play'
+report.update(depth_reload_equal=True)
+(folder/'report.json').write_text(json.dumps(report,indent=2)+'\n')
+print('PASS three-cut depth reload: exact',len(restored_bytes),'byte checkpoint')
