@@ -22,4 +22,13 @@ ctf06 has default hardness100 and no destructible region at this wall. Source66 
 
 ## Remaining work
 
-Wall save/reload is not integrated: the existing authored checkpoint adapter expects a detached-piece owner and needs a cavity-specific empty-piece contract. Repeated/blended cuts, deeper tunnels, traversal, general brush ordering and cross-window/portal cuts remain open. No blanket admission or fabricated save success was added. The scene currently rejects unsupported checkpoint operations through existing guards. No new image was uploaded to GitHub.
+Initial wall save/reload was not integrated in8ca75883. The continuation below adds the empty-piece contract. Deeper tunnels, traversal, general brush ordering and cross-window/portal cuts remain open. No blanket admission was added. No new image was uploaded to GitHub.
+
+
+## Cavity checkpoint continuation
+
+The RFDS2 owner extension now permits zero solid neighbors only for the admitted single UID66/fourteen-plane cavity profile; unrelated solids and collections retain their old minimum. Unit tests cover the exact profile and reject nearby UID/plane-count mismatches atomically. Source identity, publication/collision/material digests, history bounds, admission settings and player standing checks remain mandatory.
+
+Restore reconstructs the inward core without a solid extraction callback or a detached-piece registry. Any nonempty piece payload for this cavity rejects before publication. Null registry commit/placement/support paths retain their existing empty semantics; no fictitious pieces are created.
+
+`tools/check_cavity_wall.py` now saves the first shot with player state, reloads it, aims atY5 and fires a second overlapping rocket, then compares the entire checkpoint with uninterrupted play. PC produced identical8390-byte two-cut saves. The rendered continuation was inspected: the initial crater remains, and the upper overlapping cut expands it, with the wall/launcher/HUD intact. All123 tests pass and stock NXDK builds successfully. This proves one overlapping two-shot history, not arbitrary tunnel depth or general repeated-cut fidelity.

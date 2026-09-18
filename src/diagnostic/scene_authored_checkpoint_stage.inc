@@ -58,7 +58,10 @@ static int scene_authored_checkpoint_stage_prepare(scene_stream *s,const void *i
     memcpy(history,data+layout.core_offset,layout.core_bytes);
     status=scene_checkpoint_materials(history,layout.core_bytes,0,s->terrain_material);if(status)goto failed;
     factory.scene=s;status=scene_authored_edit_create(&factory,SCENE_TERRAIN_CORE_BUDGET,&p->core);if(status)goto failed;
-    {
+    if(s->terrain_authored->asset_view.source_uid==66) {
+        /* Cavity growth has no extracted-solid registry or piece payload. */
+        if(layout.piece_bytes){status=RF_FORMAT;goto failed;}
+    } else {
         rf_collision_face_filter generated=s->terrain_authored->asset_view.source_filters[0];
         generated.query_flags=0;generated.face_flags=256;
         status=scene_detached_open(s,&generated,&p->pieces);if(status)goto failed;

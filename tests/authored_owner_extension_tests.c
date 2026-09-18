@@ -69,6 +69,17 @@ int main(void)
         CHECK(!rf_authored_owner_collection_decode(encoded,128,&owners,2,0,&decoded));
         puts("PASS collection extension: mode separation, simultaneous cut sum, reset and atomic rejection");
     }
+    {
+        rf_authored_owner_extension cavity=value;rf_authored_owner_expected owner=expected;
+        cavity.uid=owner.uid=66;cavity.source_count=owner.source_count=14;
+        cavity.neighbor_count=owner.neighbor_count=0;
+        CHECK(!rf_authored_owner_extension_encode(&cavity,&owner,1,encoded,128));
+        CHECK(!rf_authored_owner_extension_decode(encoded,128,&owner,1,&decoded));
+        owner.uid=67;cavity.uid=67;CHECK(encode_reject(&cavity,&owner,1,128));
+        owner.uid=cavity.uid=66;owner.source_count=cavity.source_count=13;
+        CHECK(encode_reject(&cavity,&owner,1,128));
+        puts("PASS cavity zero-neighbor owner: exact UID/face profile and atomic rejection");
+    }
     value.material_policy=2;expected.material_policy=0;
     CHECK(encode_reject(&value,&expected,0,128));expected.material_policy=2;
     CHECK(!rf_authored_owner_extension_encode(&value,&expected,0,encoded,128));

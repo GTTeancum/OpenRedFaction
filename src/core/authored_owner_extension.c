@@ -10,7 +10,10 @@ static int validate(const rf_authored_owner_extension *v,const rf_authored_owner
     uint32_t count=collection?collection:1;
     if(!v || !e || collection==1 || collection>4 || cuts>count*RF_GEOMOD_CUT_LIMIT)return RF_RANGE;
     if(e->material_policy>2)return RF_FORMAT;
-    if(e->uid==UINT32_MAX || e->source_count<count*4 || e->source_count>count*32 || e->neighbor_count<count || e->neighbor_count>count*32)return RF_FORMAT;
+    if(e->uid==UINT32_MAX || e->source_count<count*4 || e->source_count>count*32 || e->neighbor_count>count*32)return RF_FORMAT;
+    /* The admitted inward cavity has fourteen source planes and no solid
+     * neighbor owners. Keep the existing solid/collection minimum otherwise. */
+    if(e->neighbor_count<count && (collection || e->uid!=66 || e->source_count!=14 || e->neighbor_count))return RF_FORMAT;
     if(v->uid!=e->uid || v->mode!=(collection?1u:0u) || v->source_count!=e->source_count || v->neighbor_count!=e->neighbor_count ||
         v->publication_policy!=RF_AUTHORED_OWNER_PUBLICATION_POLICY ||
         v->collision_policy!=RF_AUTHORED_OWNER_COLLISION_POLICY ||

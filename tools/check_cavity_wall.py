@@ -1,6 +1,6 @@
 """Process-local developer wall replay; installed geometry stays unchanged.
 Source66 opts into a radius2 hardness65 patch on an otherwise indestructible wall.
-No checkpoint support is claimed by this test.
+Checks save/reload and a second blast against uninterrupted play.
 """
 import json, os, struct, subprocess
 from pathlib import Path
@@ -44,7 +44,33 @@ assert not any('REJECT' in line for line in shot)
 impact=values(shot,'ROCKET_IMPACT',float)
 assert impact==[267,3,-33,4,8],impact
 report=dict(body=body,impact=impact,publication=values(shot,'TERRAIN_PUBLICATION'),
-            scope='one ordinary rocket, developer-only hardness patch, no wall save/reload',
+            scope='developer-only hardness patch; first rocket plus saved second-shot continuation',
             visual_review='Inspect aim.ppm and shot.ppm separately; state assertions alone do not verify appearance.')
 (folder/'report.json').write_text(json.dumps(report,indent=2)+'\n')
 print(json.dumps(report,indent=2))
+
+# RFCP/player restore and overlapping second rocket versus uninterrupted play.
+env['RF_REPLAY_PLAYER_CHECKPOINT']='1'
+def saved_run(name,data,load=None):
+    out=folder/(name+'.rfcp');out.unlink(missing_ok=True)
+    env['RF_REPLAY_GEOMOD_CHECKPOINT_OUT']=str(out)
+    if load:env['RF_REPLAY_GEOMOD_CHECKPOINT_IN']=str(folder/(load+'.rfcp'))
+    else:env.pop('RF_REPLAY_GEOMOD_CHECKPOINT_IN',None)
+    lines=run(name,data)
+    assert out.exists(),name
+    return lines,out.read_bytes()
+first,first_bytes=saved_run('save',data)
+resume=bytearray(header+bytes(301*48))
+start=pitch_for(eye,[-32.949,4,8]);end=pitch_for(eye,[-32.949,5,8])
+commands,_=pitch_commands(start,end)
+for i,value in enumerate(commands):struct.pack_into('<f',resume,8+48*(10+i)+12,value)
+struct.pack_into('<I',resume,8+48*100+32,1)
+resumed,resumed_bytes=saved_run('resume',resume,'save')
+control,control_bytes=saved_run('control',data+resume[8+48:])
+assert values(resumed,'GEOMOD')[1]==2,values(resumed,'GEOMOD')
+assert resumed_bytes==control_bytes,'Reload continuation differs from uninterrupted play'
+print('PASS cavity save/reload second shot: exact',len(resumed_bytes),'byte checkpoint')
+
+report.update(checkpoint_bytes=len(resumed_bytes),continuation_equal=True,
+              second_publication=values(resumed,'TERRAIN_PUBLICATION'))
+(folder/'report.json').write_text(json.dumps(report,indent=2)+'\n')
