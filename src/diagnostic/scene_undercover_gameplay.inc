@@ -8,7 +8,7 @@
 static int scene_undercover_open(scene_stream *s,rf_vpp *meshes,rf_vpp *motions,rf_vpp *maps,uint32_t count)
 {
     if(!s->player_weapon[16])return RF_OK;
-    s->undercover_alt_held=0;
+    s->undercover_alt_held=0;memset(rf_scene_undercover,0,sizeof(rf_scene_undercover));
     /* Initial unsuppressed state is explicit first-pass DEV-room policy. */
     return scene_undercover_resources_open(s->player_weapon[16],meshes,motions,maps,count,0,512*1024,&s->undercover);
 }
@@ -30,7 +30,8 @@ static int scene_undercover_merge(scene_stream *s,rf_materials *materials)
 static int scene_undercover_close(scene_stream *s)
 {
     int status=scene_undercover_resources_close(&s->undercover,s->player_weapon[16]);
-    if(!status)s->undercover_base=s->undercover_textures=s->undercover_alt_held=0;return status;
+    if(!status)s->undercover_base=s->undercover_textures=s->undercover_alt_held=0;
+    return status;
 }
 static int scene_undercover_input(scene_stream *s,const float position[3])
 {
@@ -38,12 +39,18 @@ static int scene_undercover_input(scene_stream *s,const float position[3])
     s->undercover_alt_held=held;if(!o)return RF_OK;
     if(campaign_equipped_slot!=16 || campaign_explicit_unarmed || campaign_player_damage.state.effects.health<=0 ||
        !campaign_player_inventory.owned[campaign_slot_weapon(16)]) {
-        if(o->mode.pending)return scene_undercover_mode_cancel(&o->mode,o->actions,s->player_weapon[16]);
+        if(o->mode.pending) {
+            status=scene_undercover_mode_cancel(&o->mode,o->actions,s->player_weapon[16]);
+            rf_scene_undercover[1]=o->mode.pending;rf_scene_undercover[2]=scene_undercover_mode_visible(&o->mode);
+            rf_scene_undercover[7]=(uint32_t)status;return status;
+        }
         return RF_OK;
     }
     if(edge && !player_input.fire && !player_input.reload && !rf_scene_combat[6]) {
-        status=scene_undercover_mode_toggle(&o->mode,o->actions,s->player_weapon[16],&started);if(status)return status;
+        status=scene_undercover_mode_toggle(&o->mode,o->actions,s->player_weapon[16],&started);
+        rf_scene_undercover[7]=(uint32_t)status;if(status)return status;
         if(started) {
+            ++rf_scene_undercover[3];rf_scene_undercover[1]=1;rf_scene_undercover[2]=1;
             combat_sound(scene_undercover_mode_transition_sound(&o->mode),position);
             memset(&combat_trigger,0,sizeof(combat_trigger));combat_trigger.held=!!player_input.fire;
             /* Advance must preserve custom slot3 through this frame's select reset. */
@@ -57,6 +64,9 @@ static int scene_undercover_after_advance(scene_stream *s)
     uint32_t changed;int status;
     if(!s->undercover || campaign_equipped_slot!=16)return RF_OK;
     status=scene_undercover_mode_poll(&s->undercover->mode,s->undercover->actions,s->player_weapon[16],&changed);
+    rf_scene_undercover[0]=s->undercover->mode.attached;rf_scene_undercover[1]=s->undercover->mode.pending;
+    rf_scene_undercover[2]=scene_undercover_mode_visible(&s->undercover->mode);rf_scene_undercover[7]=(uint32_t)status;
+    if(!status && changed)++rf_scene_undercover[4];
     if(!status && changed && rf_scene_combat_trace)printf("UNDERCOVER_MODE %u\n",s->undercover->mode.attached);
     return status;
 }
@@ -66,7 +76,8 @@ static int scene_undercover_draw(scene_stream *s)
     rf_model_render_buffers buffers={0};rf_model_lighting lights={0};
     rf_model_render_output attributes={1,{255,255,255},255,1,1};
     rf_model_clip_planes planes={0};rf_model_clip_projection projection={0};
-    float pose[12];uint32_t part,batch,k;int status;
+    float pose[12];uint32_t part,batch,k,initial=s->mesh->count;int status;
+    rf_scene_undercover[6]=0;
     if(!o || campaign_equipped_slot!=16 || campaign_explicit_unarmed ||
        !campaign_player_inventory.owned[campaign_slot_weapon(16)] || campaign_player_damage.state.effects.health<=0 ||
        !scene_undercover_mode_visible(&o->mode))return RF_OK;
@@ -83,10 +94,12 @@ static int scene_undercover_draw(scene_stream *s)
     lights.ambient[0]=lights.ambient[1]=lights.ambient[2]=180;
     for(part=0;part<o->render.part_count;part++) {
         uint32_t li=o->render.parts[part].first_lod;const rf_static_render_lod *lod;const rf_model_geometry *g;
-        if(li>=o->render.lod_count)return RF_FORMAT;lod=o->render.lods+li;g=&lod->geometry;
+        if(li>=o->render.lod_count)return RF_FORMAT;
+        lod=o->render.lods+li;g=&lod->geometry;
         for(batch=0;batch<g->batch_count;batch++) {
             const rf_model_draw_batch *b=g->batches+batch;uint32_t slot,first=s->mesh->count,emitted;
-            if(b->material==UINT32_MAX)continue;if(b->material>=o->materials.count)return RF_FORMAT;
+            if(b->material==UINT32_MAX)continue;
+            if(b->material>=o->materials.count)return RF_FORMAT;
             memcpy(&slot,o->materials.items[b->material].record.bytes+0x10,4);
             if(slot>=s->undercover_textures)return RF_FORMAT;
             status=scene_model_scratch_prepare(&buffers,b->vertices);if(status)return status;
@@ -99,6 +112,7 @@ static int scene_undercover_draw(scene_stream *s)
             }
         }
     }
+    rf_scene_undercover[6]=s->mesh->count-initial;
     return RF_OK;
 }
 #endif

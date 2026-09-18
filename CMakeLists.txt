@@ -1014,3 +1014,7 @@ add_test(NAME scene_machine_pistol_carry COMMAND rf_scene_machine_pistol_carry_t
 add_executable(rf_scene_extra_pickups_tests tests/scene_extra_pickups_tests.c)
 target_link_libraries(rf_scene_extra_pickups_tests PRIVATE rf_core)
 add_test(NAME scene_extra_pickups COMMAND rf_scene_extra_pickups_tests ${CMAKE_SOURCE_DIR}/Installed_Game/tables.vpp)
+
+add_executable(rf_player_shot_hearing_tests tests/player_shot_hearing_tests.c)
+target_link_libraries(rf_player_shot_hearing_tests PRIVATE rf_core)
+add_test(NAME player_shot_hearing COMMAND rf_player_shot_hearing_tests)
