@@ -122,10 +122,16 @@ static int scene_fragment_departing_support(const rf_geomod_mesh_view *mesh,cons
             for(k=0;k<3;k++){float delta=interval->start[k]-interval->end[k];previous.minimum[k]+=delta;previous.maximum[k]+=delta;}
         }
         status=scene_detached_mesh_bounds(mesh,&probe,lo,hi);if(status)return status;
-        if(!scene_detached_box_overlap(previous.minimum,previous.maximum,lo,hi))continue;
+        if(!scene_detached_box_overlap(previous.minimum,previous.maximum,lo,hi) &&
+           (!(interval->changed&2) || !scene_detached_box_overlap(current->minimum,current->maximum,lo,hi)))continue;
         one.count=1;one.poses=&previous;one.views=movers->views+m;one.owned=movers->owned+m;
-        status=scene_fragment_shape_mover_sweep(mesh,&probe,&one,1,&contact,&found);if(status)return status;
-        if(!found || contact.contact.normal[1]<.5f)continue;
+        /* A rotating face can leave the narrow probe band after contact has
+         * already stopped a body. Recheck nearby sleepers against current
+         * support instead of requiring that stale endpoint contact again. */
+        if(!(interval->changed&2)) {
+            status=scene_fragment_shape_mover_sweep(mesh,&probe,&one,1,&contact,&found);if(status)return status;
+            if(!found || contact.contact.normal[1]<.5f)continue;
+        }
         one.poses=movers->poses+m;
         status=scene_fragment_shape_mover_sweep(mesh,&probe,&one,1,&contact,&found);if(status)return status;
         if(!found || contact.contact.normal[1]<.5f){*lost=1;return RF_OK;}

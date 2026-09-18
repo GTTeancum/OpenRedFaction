@@ -127,6 +127,13 @@ static int moving_surface_contacts(void)
             pose.maximum[0]=pose.maximum[1]=pose.maximum[2]=1;floor=pose;
             CHECK(!scene_fragment_support_loss(&mesh,&body,&movers,&interval,current_support_query,&fixture,&wake));
             CHECK(wake==tipped && !memcmp(&body,&before,sizeof(body)));
+            if(tipped) {
+                /* Previous-frame contact may leave a sleeper outside the tiny
+                 * old support probe while the rotating surface still moves. */
+                body.position[1]+=.02f;body.next_position[1]+=.02f;
+                CHECK(!scene_fragment_support_loss(&mesh,&body,&movers,&interval,current_support_query,&fixture,&wake));CHECK(wake==1);
+                body=before;
+            }
         }
         memcpy(pose.input_matrix,interval.matrix,36);memcpy(interval.end_matrix,interval.matrix,36);interval.changed=1;
         /* A distant mover must not wake this body or even call the world query. */

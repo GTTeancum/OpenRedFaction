@@ -181,7 +181,7 @@ static uint32_t player_frame_limit;
 static rf_scene_input player_input;
 static uint32_t campaign_spawn;
 uint32_t rf_scene_dev_room_enabled;
-uint32_t rf_scene_fragment_platform_enabled,rf_scene_fragment_platform_audit[16];
+uint32_t rf_scene_fragment_platform_enabled,rf_scene_fragment_platform_audit[25];
 uint32_t rf_scene_dev_npc_enabled; /* Opt-in:1 harmless walking miner;2 armed rubble-cover fixture. */
 static uint32_t scene_dev_npc_contacts;
 uint32_t rf_scene_water_test_enabled; /* Explicit authored dm03 water test; no terrain fixture. */
@@ -2770,11 +2770,21 @@ static int campaign_controller_commit(void)
         rf_group_attached_pose *pose;uint32_t frame=rf_scene_fragment_platform_audit[0]++,steps;
         if(!rf_scene_dev_room_enabled || campaign_movers.count!=1 || campaign_movers.uids[0]!=900001)return RF_FORMAT;
         pose=campaign_movers.poses;steps=frame<420?0:frame<480?frame-419:60;
-        pose->position[0]=9.449f+steps*.05f;pose->pending[0]=pose->public_position[0]=pose->position[0];
+        if(rf_scene_fragment_platform_enabled==2) {
+            /* Rational quarter-turn avoids backend trigonometric differences.
+             * This prescribed fixture speed is not a recovered controller. */
+            float t=steps/60.f,denominator=1+t*t,c=(1-t*t)/denominator,s=2*t/denominator;
+            memset(pose->input_matrix,0,36);pose->input_matrix[0]=pose->input_matrix[4]=c;
+            pose->input_matrix[1]=-s;pose->input_matrix[3]=s;pose->input_matrix[8]=1;
+            memcpy(pose->pending_matrix,pose->input_matrix,36);memcpy(pose->output_matrix,pose->input_matrix,36);
+        } else {
+            pose->position[0]=9.449f+steps*.05f;pose->pending[0]=pose->public_position[0]=pose->position[0];
+        }
         for(uint32_t k=0;k<3;k++){pose->minimum[k]=pose->position[k]-pose->radius;pose->maximum[k]=pose->position[k]+pose->radius;}
-        pose->velocity[0]=(frame>=420 && frame<480)?3.f:0;
+        pose->velocity[0]=(rf_scene_fragment_platform_enabled==1 && frame>=420 && frame<480)?3.f:0;
         rf_scene_fragment_platform_audit[1]+=frame>=420 && frame<480;
         memcpy(rf_scene_fragment_platform_audit+3,pose->position,12);
+        memcpy(rf_scene_fragment_platform_audit+16,pose->input_matrix,36);
     }
     status=rf_geometry_collision_movers_sync(&campaign_movers);if(status)return status;
     status=scene_mover_intervals_capture(&campaign_movers,campaign_mover_intervals,campaign_mover_count,1);if(status)return status;

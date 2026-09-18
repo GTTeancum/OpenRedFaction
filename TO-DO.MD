@@ -1,6 +1,6 @@
 # Red Faction Xbox / PC - open work
 
-- PRIORITY GeoMod fragment contacts: Finish rotating swept contacts and carry/crush, and extend the visible platform fixture to rotation/replacement support; rocket rubble dropping 2.15 units after platform withdrawal now passes 78 stock 64 MiB Xbox checks with exact PC state and 126 PC tests.
+- PRIORITY GeoMod fragment contacts: Resolve repeated settling during tipping, rotating swept contacts and carry/crush; the stranded-sleeper fix now passes 78 stock 64 MiB Xbox checks with 25 exact PC audit words, but tipping still causes 37 wake/settle cycles; 126 PC tests pass.
 
 - Doors: Investigate the existing420-frame close/reopen replay failure reproduced on both current and prior scene code;180-frame opening and player traversal still pass.
 
