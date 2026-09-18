@@ -28,6 +28,10 @@ static int campaign_enemy_ammo_fallback(uint32_t slot,uint32_t *changed)
     *changed=0;owner=campaign_npc_bodies+slot;
     replacement=campaign_enemy_fallback_pick(&owner->inventory,campaign_weapon_supply.definitions,
         campaign_weapon_supply.names.count,ids,owner->view.weapons[0],owner->combat_scripted);
+    if(replacement<0 || replacement==campaign_riot_id){
+        int32_t extra=campaign_enemy_extra_fallback_pick(&owner->inventory,&campaign_weapon_supply,owner->view.weapons[0],owner->combat_scripted);
+        if(extra>=0)replacement=extra;
+    }
     if(replacement<0)return RF_OK;
     if(!campaign_seeds.items || slot>=campaign_seeds.records.count)return RF_NOT_FOUND;
     selection=owner->selection;

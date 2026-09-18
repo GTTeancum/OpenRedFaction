@@ -550,13 +550,14 @@ typedef struct scene_particle_workspace {
     rf_render_queue_record records[2048];rf_render_sphere spheres[2048];
     uint32_t order[2048];float distances[2048];
 } scene_particle_workspace;
-enum { SCENE_WEAPON_SLOTS=13, SCENE_ROCKETS=50, SCENE_RIPPLES=16 };
-uint32_t rf_scene_player_shield_resources,rf_scene_fusion_enabled;
-static uint32_t scene_weapon_slots(void){return rf_scene_dev_room_enabled && rf_scene_fusion_enabled?13:rf_scene_player_shield_resources || (rf_scene_dev_room_enabled && rf_scene_dev_npc_enabled==6)?12:rf_scene_dev_room_enabled?11:4;}
-static uint32_t scene_weapon_available(uint32_t slot){return slot<(rf_scene_dev_room_enabled?11u:4u) ||
+enum { SCENE_WEAPON_SLOTS=17, SCENE_ROCKETS=50, SCENE_RIPPLES=16 };
+uint32_t rf_scene_player_shield_resources,rf_scene_fusion_enabled,rf_scene_firearms_enabled;
+static uint32_t scene_weapon_slots(void){return rf_scene_dev_room_enabled && rf_scene_firearms_enabled?17:rf_scene_dev_room_enabled && rf_scene_fusion_enabled?13:rf_scene_player_shield_resources || (rf_scene_dev_room_enabled && rf_scene_dev_npc_enabled==6)?12:rf_scene_dev_room_enabled?11:4;}
+static uint32_t scene_weapon_available(uint32_t slot){return slot<(rf_scene_dev_room_enabled && !rf_scene_firearms_enabled?11u:4u) ||
     (slot==11 && (rf_scene_player_shield_resources || (rf_scene_dev_room_enabled && rf_scene_dev_npc_enabled==6))) ||
-    (slot==12 && rf_scene_dev_room_enabled && rf_scene_fusion_enabled);}
-static const char *campaign_weapon_names[SCENE_WEAPON_SLOTS]={"12mm handgun","Assault Rifle","Riot Stick","Shotgun","Rocket Launcher","Grenade","Sniper Rifle","rail_gun","Remote Charge","Remote Charge Detonator","Flamethrower","riot shield","shoulder_cannon"};
+    (slot==12 && rf_scene_dev_room_enabled && rf_scene_fusion_enabled) ||
+    (slot>=13 && slot<=16 && rf_scene_dev_room_enabled && rf_scene_firearms_enabled);}
+static const char *campaign_weapon_names[SCENE_WEAPON_SLOTS]={"12mm handgun","Assault Rifle","Riot Stick","Shotgun","Rocket Launcher","Grenade","Sniper Rifle","rail_gun","Remote Charge","Remote Charge Detonator","Flamethrower","riot shield","shoulder_cannon","Machine Pistol","heavy_machine_gun","scope_assault_rifle","Undercover 12mm handgun"};
 #include "scene_pickup_class_names.inc"
 typedef struct scene_pickup_resource {
     rf_item_definition definition;rf_static_render_resource model;rf_model_materials materials;
@@ -1872,6 +1873,9 @@ uint32_t rf_scene_riot[8]; /* active, held ticks, drained units, damage contacts
 static uint32_t campaign_equipped_slot,weapon_cycle_held;static int32_t campaign_rifle_id=-1,campaign_riot_id=-1,campaign_shotgun_id=-1,campaign_rocket_id=-1,campaign_grenade_id=-1,campaign_sniper_id=-1,campaign_rail_id=-1,campaign_remote_id=-1,campaign_detonator_id=-1,campaign_flame_id=-1,campaign_shield_id=-1,campaign_fusion_id=-1;
 static uint32_t scene_flame_active;
 static uint32_t scene_ai_grenade_pending(void);
+static int32_t campaign_extra_ids[4]={-1,-1,-1,-1};
+static int campaign_enemy_extra_weapons_open(rf_vpp *,const rf_weapon_supply_catalog *);
+static int32_t campaign_enemy_extra_fallback_pick(const rf_weapon_inventory *,const rf_weapon_supply_catalog *,int32_t,uint32_t);
 static uint32_t scene_ai_rocket_pending(void);
 static uint32_t scene_fusion_projectile_pending(void);
 static uint32_t scene_player_shield_damage_save_pending(void);
@@ -1918,7 +1922,7 @@ uint32_t rf_scene_player_ammo[8]; /* weapon,reserve,loaded,transferred,reloads,d
 static uint32_t pistol_reload_ticks,pistol_fire_ticks;
 uint32_t rf_scene_pistol_rules[7]; /* magazine,reload ticks,fire ticks,SP damage bits,semi-auto,definition bytes,damage kind */
 static int32_t campaign_slot_weapon(uint32_t slot)
-{return slot==12?campaign_fusion_id:slot==11?campaign_shield_id:slot==10?campaign_flame_id:slot==9?campaign_remote_id:slot==8?campaign_remote_id:slot==7?campaign_rail_id:slot==6?campaign_sniper_id:slot==5?campaign_grenade_id:slot==4?campaign_rocket_id:slot==3?campaign_shotgun_id:slot==2?campaign_riot_id:slot==1?campaign_rifle_id:campaign_pistol_id;}
+{return slot>=13 && slot<=16?campaign_extra_ids[slot-13]:slot==12?campaign_fusion_id:slot==11?campaign_shield_id:slot==10?campaign_flame_id:slot==9?campaign_remote_id:slot==8?campaign_remote_id:slot==7?campaign_rail_id:slot==6?campaign_sniper_id:slot==5?campaign_grenade_id:slot==4?campaign_rocket_id:slot==3?campaign_shotgun_id:slot==2?campaign_riot_id:slot==1?campaign_rifle_id:campaign_pistol_id;}
 static int32_t campaign_selected_weapon(void)
 {return campaign_slot_weapon(campaign_equipped_slot);}
 static void campaign_select_primary(uint32_t slot)
@@ -3716,6 +3720,7 @@ static int campaign_clutter_open(const char *tables_path,const rf_level *level)
     memset(&campaign_weapon_supply,0,sizeof(campaign_weapon_supply));
     memset(rf_scene_weapon_supply,0,sizeof(rf_scene_weapon_supply));
     status=rf_weapon_supply_load(&tables,128*1024,&campaign_weapon_supply);
+    if(!status)status=campaign_enemy_extra_weapons_open(&tables,&campaign_weapon_supply);
     if(!status) {
         rf_scene_weapon_supply[0]=campaign_weapon_supply.names.count;
         rf_scene_weapon_supply[1]=campaign_weapon_supply.names.primary_count;
@@ -3738,6 +3743,7 @@ static int campaign_clutter_open(const char *tables_path,const rf_level *level)
     if(!status && rf_scene_dev_room_enabled)status=rf_weapon_primary_load(&tables,"Flamethrower",128*1024,&campaign_primary[10]);
     if(!status && rf_scene_dev_room_enabled && rf_scene_fusion_enabled)status=rf_weapon_primary_load(&tables,"shoulder_cannon",128*1024,&campaign_primary[12]);
     if(!status && rf_scene_dev_room_enabled && rf_scene_fusion_enabled)status=rf_weapon_explosive_load(&tables,"shoulder_cannon",128*1024,&campaign_fusion);
+    if(!status && rf_scene_dev_room_enabled && rf_scene_firearms_enabled)for(uint32_t extra=13;extra<17 && !status;extra++)status=rf_weapon_primary_load(&tables,campaign_weapon_names[extra],128*1024,campaign_primary+extra);
     if(!status && rf_scene_dev_room_enabled)status=scene_flame_visual_open(&tables);
     if(!status && rf_scene_dev_room_enabled) {
         rf_vclip_definition clip;
@@ -8645,6 +8651,7 @@ static int campaign_ammo_reset(void)
     campaign_remote_id=rf_weapon_name_find(&campaign_weapon_supply.names,"Remote Charge");if(campaign_remote_id<0)return RF_NOT_FOUND;
     campaign_shield_id=rf_weapon_name_find(&campaign_weapon_supply.names,"riot shield");if(campaign_shield_id<0)return RF_NOT_FOUND;
     campaign_flame_id=rf_weapon_name_find(&campaign_weapon_supply.names,"Flamethrower");if(campaign_flame_id<0)return RF_NOT_FOUND;
+    for(uint32_t extra=0;extra<4;extra++){campaign_extra_ids[extra]=rf_weapon_name_find(&campaign_weapon_supply.names,campaign_weapon_names[13+extra]);if(campaign_extra_ids[extra]<0)return RF_NOT_FOUND;}
     campaign_fusion_id=rf_weapon_name_find(&campaign_weapon_supply.names,"shoulder_cannon");if(campaign_fusion_id<0)return RF_NOT_FOUND;
     campaign_detonator_id=rf_weapon_name_find(&campaign_weapon_supply.names,"Remote Charge Detonator");if(campaign_detonator_id<0)return RF_NOT_FOUND;
     campaign_sniper_id=rf_weapon_name_find(&campaign_weapon_supply.names,"Sniper Rifle");if(campaign_sniper_id<0)return RF_NOT_FOUND;
@@ -9105,6 +9112,7 @@ done:
 
 #include "scene_ai_target_liveness.inc"
 #include "scene_ai_weapon_selection.inc"
+#include "scene_ai_extra_weapons.inc"
 #include "scene_ai_reload.inc"
 #include "scene_ai_shotgun.inc"
 #include "scene_ai_melee_contact.inc"
@@ -9129,6 +9137,7 @@ static int campaign_enemy_tick(scene_stream *stream,uint32_t frame,const float p
         campaign_enemy_weapon_selection selected={0};
         status=campaign_enemy_weapon_select(weapon,ids,campaign_primary,campaign_weapon_supply.definitions,
             campaign_weapon_supply.names.count,&selected);
+        if(status==RF_NOT_FOUND)status=campaign_enemy_extra_weapon_select(weapon,&campaign_weapon_supply,&selected);
         if(status && status!=RF_NOT_FOUND)return status;
         if(weapon==campaign_grenade_id){
             if(!rf_scene_dev_room_enabled)continue;
@@ -12357,9 +12366,12 @@ static int scene_player_weapon_advance(scene_stream *,uint32_t);
 #include "scene_player_shield_bash.inc"
 #include "scene_player_shield_melee.inc"
 #include "scene_fusion_gameplay.inc"
+#include "scene_conventional_fire_policy.inc"
+static rf_random_state campaign_conventional_random;
 static int campaign_combat_tick(scene_stream *stream,uint32_t frame,const float position[3],const float orientation[3][3])
 {
     float delta[3],nearest=1,amount;uint32_t i,target=UINT32_MAX,blocked,fire,alt,active=0;int status;
+    scene_conventional_fire_policy conventional={0};
     memcpy(rf_scene_gameplay_eye,position,sizeof(rf_scene_gameplay_eye));
     if(!frame){memset(rf_scene_rocket_contacts,0,sizeof(rf_scene_rocket_contacts));dev_refill_held=0;memset(stream->rockets,0,sizeof(stream->rockets));memset(rf_scene_rockets,0,sizeof(rf_scene_rockets));memset(rf_scene_rocket_blast,0,sizeof(rf_scene_rocket_blast));}
     if(!frame){memset(rf_scene_combat_pain,0,sizeof(rf_scene_combat_pain));memset(rf_scene_pain_attack_gate,0,sizeof(rf_scene_pain_attack_gate));combat_pain_random.value=1;}
@@ -12389,6 +12401,7 @@ static int campaign_combat_tick(scene_stream *stream,uint32_t frame,const float 
     if(!frame && scene_npc_shields.owners){status=scene_npc_shield_history_restore();if(status)return status;}
     if(!frame && rf_scene_dev_npc_enabled==6)campaign_select_primary(11);
     if(!frame && rf_scene_dev_room_enabled && rf_scene_fusion_enabled)campaign_select_primary(12);
+    if(!frame && rf_scene_dev_room_enabled && rf_scene_firearms_enabled){campaign_select_primary(12+rf_scene_firearms_enabled);campaign_conventional_random.value=1;}
     if(!frame && (rf_scene_dev_npc_enabled==3 || rf_scene_dev_npc_enabled==4 || rf_scene_dev_npc_enabled==6) && campaign_npc_body_count==1){campaign_npc_bodies[0].combat_alert=1;campaign_npc_bodies[0].combat_due=120;}
     if(rf_scene_dev_room_enabled) {
         uint32_t refill=player_input.use && player_input.reload;
@@ -12428,7 +12441,7 @@ static int campaign_combat_tick(scene_stream *stream,uint32_t frame,const float 
     {rf_weapon_scope_result scope;
      if(!frame){memset(&scene_scope,0,sizeof(scene_scope));rf_scene_scope_projection=scene_scope_look=1;}
      status=rf_weapon_scope_step(&scene_scope,!!player_input.alt_fire,
-        campaign_equipped_slot==6 && !campaign_explicit_unarmed && !!campaign_player_inventory.owned[campaign_sniper_id],
+        (campaign_equipped_slot==6 || campaign_equipped_slot==15) && !campaign_explicit_unarmed && !!campaign_player_inventory.owned[campaign_selected_weapon()],
         campaign_player_damage.state.effects.health>0,RF_WEAPON_SCOPE_WORLD_FOV,RF_WEAPON_SCOPE_ZOOM_FOV,&scope);if(status)return status;
      rf_scene_scope_projection=scope.projection_scale;scene_scope_look=scope.look_scale;
      if(scope.changed && rf_scene_combat_trace)printf("SCOPE %u %u %.9g\n",frame,scope.active,scope.projection_scale);
@@ -12476,7 +12489,8 @@ static int campaign_combat_tick(scene_stream *stream,uint32_t frame,const float 
         if(campaign_equipped_slot==5 || campaign_equipped_slot==8 || campaign_equipped_slot==9 || campaign_equipped_slot==10 || campaign_equipped_slot==11 || campaign_equipped_slot==12)return RF_OK;
     }
     if(campaign_equipped_slot==11 || campaign_explicit_unarmed || !campaign_player_inventory.owned[campaign_selected_weapon()])return RF_OK;
-    alt=(campaign_equipped_slot==1 || campaign_equipped_slot==2 || campaign_equipped_slot==3) && player_input.alt_fire && !player_input.fire;
+    alt=(campaign_equipped_slot==1 || campaign_equipped_slot==2 || campaign_equipped_slot==3 || campaign_equipped_slot==14) && player_input.alt_fire && !player_input.fire;
+    if(campaign_equipped_slot>=13 && campaign_equipped_slot<=15){status=scene_conventional_fire_select(campaign_equipped_slot-13,&campaign_pistol,!!player_input.fire,!!player_input.alt_fire,&conventional);if(status)return status;}
     /* Rifle alternate is authored continuous fire, not the primary burst.
      * Switching to it cancels pending burst rounds but retains cooldown. */
     if(alt && campaign_equipped_slot==1) {
@@ -12485,9 +12499,10 @@ static int campaign_combat_tick(scene_stream *stream,uint32_t frame,const float 
     }
     {rf_weapon_trigger_rules rules={alt?(uint32_t)ceilf(campaign_pistol.alt_fire_seconds*60):pistol_fire_ticks,alt && campaign_equipped_slot==1?1:campaign_pistol.burst_count,
         (uint32_t)ceilf(campaign_pistol.burst_seconds*60),alt && campaign_equipped_slot==1?0:campaign_pistol.semi_automatic};
+     if(campaign_equipped_slot>=13 && campaign_equipped_slot<=15)rules=conventional.trigger;
      uint32_t inhibit=rf_scene_enemy_combat[6] || rf_scene_combat[6] ||
         (player_input.reload && rf_scene_combat[5]<campaign_pistol.magazine && rf_scene_player_ammo[1]);
-     status=rf_weapon_trigger_step(&combat_trigger,&rules,player_input.fire || alt,inhibit,campaign_equipped_slot==2 && !alt?1:rf_scene_combat[5],&fire);if(status)return status;}
+     status=rf_weapon_trigger_step(&combat_trigger,&rules,campaign_equipped_slot>=13 && campaign_equipped_slot<=15?conventional.held:player_input.fire || alt,inhibit,campaign_equipped_slot==2 && !alt?1:rf_scene_combat[5],&fire);if(status)return status;}
     if(rf_scene_enemy_combat[6])return RF_OK;
     if(rf_scene_combat[6]) {
         if(campaign_equipped_slot==2 && campaign_pistol.reload_drain_seconds>0 &&
@@ -12502,10 +12517,10 @@ static int campaign_combat_tick(scene_stream *stream,uint32_t frame,const float 
         }
         return RF_OK;
     }
-    if(player_input.reload && rf_scene_combat[5]<campaign_pistol.magazine && rf_scene_player_ammo[1]){rf_scene_combat[6]=pistol_reload_ticks;combat_sound(campaign_equipped_slot==7?"Rail Reload":campaign_equipped_slot==6?"Sniper Reload":campaign_equipped_slot==4?"Rocket Reload":campaign_equipped_slot==3?"Shotgun Reload Finish":campaign_equipped_slot==2?"Riot Reload":campaign_equipped_slot?"ARifle Reload":"Glock Reload",position);return RF_OK;}
+    if(player_input.reload && rf_scene_combat[5]<campaign_pistol.magazine && rf_scene_player_ammo[1]){rf_scene_combat[6]=pistol_reload_ticks;combat_sound(campaign_equipped_slot==13?"Machine Pistol Reload Top":campaign_equipped_slot==14?"HMG Reload":campaign_equipped_slot==15?"SAssault Reload":campaign_equipped_slot==16?"Glock Reload":campaign_equipped_slot==7?"Rail Reload":campaign_equipped_slot==6?"Sniper Reload":campaign_equipped_slot==4?"Rocket Reload":campaign_equipped_slot==3?"Shotgun Reload Finish":campaign_equipped_slot==2?"Riot Reload":campaign_equipped_slot?"ARifle Reload":"Glock Reload",position);return RF_OK;}
     if((fire || alt) && (campaign_equipped_slot!=2 || alt) && !rf_scene_combat[5]) {
         if(!rf_scene_player_ammo[1]){if(fire){++rf_scene_player_ammo[5];if(alt)++rf_scene_riot[5];}return RF_OK;}
-        rf_scene_combat[6]=pistol_reload_ticks;combat_sound(campaign_equipped_slot==7?"Rail Reload":campaign_equipped_slot==6?"Sniper Reload":campaign_equipped_slot==4?"Rocket Reload":campaign_equipped_slot==3?"Shotgun Reload Finish":campaign_equipped_slot==2?"Riot Reload":campaign_equipped_slot?"ARifle Reload":"Glock Reload",position);return RF_OK;
+        rf_scene_combat[6]=pistol_reload_ticks;combat_sound(campaign_equipped_slot==13?"Machine Pistol Reload Top":campaign_equipped_slot==14?"HMG Reload":campaign_equipped_slot==15?"SAssault Reload":campaign_equipped_slot==16?"Glock Reload":campaign_equipped_slot==7?"Rail Reload":campaign_equipped_slot==6?"Sniper Reload":campaign_equipped_slot==4?"Rocket Reload":campaign_equipped_slot==3?"Shotgun Reload Finish":campaign_equipped_slot==2?"Riot Reload":campaign_equipped_slot?"ARifle Reload":"Glock Reload",position);return RF_OK;
     }
     if(alt && campaign_equipped_slot==2 && rf_scene_combat[5]) {
         uint32_t consumed;
@@ -12525,7 +12540,7 @@ static int campaign_combat_tick(scene_stream *stream,uint32_t frame,const float 
     }
     status=campaign_equipped_slot==2?RF_OK:rf_weapon_consume_shot(&campaign_player_inventory,campaign_weapon_supply.definitions,campaign_weapon_supply.names.count,campaign_selected_weapon());
     rf_scene_player_ammo[7]=(uint32_t)status;if(status)return status;campaign_ammo_publish();
-    if(fire){++rf_scene_combat[0];campaign_last_alt=alt;combat_sound(campaign_equipped_slot==7?"Rail Fire 1":campaign_equipped_slot==6?"Sniper Launch":campaign_equipped_slot==4?"Rocket Fire":campaign_equipped_slot==1?"Assault Loop":campaign_equipped_slot==3?(alt?"Shotgun Fire 2":"Shotgun Fire"):alt?"Riot Attack Taser":campaign_equipped_slot==2?"Riot Attack":campaign_equipped_slot?"Assault Loop":"Glock Launch",position);}
+    if(fire){++rf_scene_combat[0];campaign_last_alt=alt;combat_sound(campaign_equipped_slot==13?"Machine Pistol Launch":campaign_equipped_slot==14?(alt?"HMG Launch 2":"HMG Launch 1"):campaign_equipped_slot==15?"Sniper 2 Launch":campaign_equipped_slot==16?"Glock Launch":campaign_equipped_slot==7?"Rail Fire 1":campaign_equipped_slot==6?"Sniper Launch":campaign_equipped_slot==4?"Rocket Fire":campaign_equipped_slot==1?"Assault Loop":campaign_equipped_slot==3?(alt?"Shotgun Fire 2":"Shotgun Fire"):alt?"Riot Attack Taser":campaign_equipped_slot==2?"Riot Attack":campaign_equipped_slot?"Assault Loop":"Glock Launch",position);}
     if(fire && campaign_equipped_slot!=2){uint32_t alerted;status=campaign_enemy_hear_shot(position,16.0f,frame,&alerted);if(status)return status;}
     if(campaign_equipped_slot==4)return RF_OK; /* Rockets never take the hitscan path. */
     if(campaign_equipped_slot==6 || campaign_equipped_slot==7)return scene_precision_fire(stream,frame,position,orientation[2],campaign_equipped_slot==7);
@@ -12541,6 +12556,7 @@ static int campaign_combat_tick(scene_stream *stream,uint32_t frame,const float 
         rf_scene_shotgun[6]=(uint32_t)status;if(status)return status;
         memcpy(delta,spread,12);rf_scene_shotgun[5]=campaign_shotgun_random.value;
     }
+    if(campaign_equipped_slot>=13 && campaign_equipped_slot<=15){float spread[3];status=rf_weapon_spread_ray(delta,conventional.spread_degrees,&campaign_conventional_random,spread);if(status)return status;memcpy(delta,spread,12);}
     if(alt && campaign_equipped_slot==1) {
         float spread[3];status=rf_weapon_spread_ray(delta,campaign_pistol.alt_spread_degrees,&campaign_rifle_alt_random,spread);
         rf_scene_rifle_alt[6]=(uint32_t)status;if(status)return status;memcpy(delta,spread,12);
@@ -14635,6 +14651,12 @@ static int scene_player_weapon_advance(scene_stream *stream,uint32_t frame)
         if(scene_flame_active){if(w->current!=1)request=1;else request=-1;}
         else if(w->current==1)request=0;
     }
+    if((campaign_equipped_slot==13 || campaign_equipped_slot==14) && !rf_scene_combat[6]){
+        uint32_t held=(player_input.fire || (campaign_equipped_slot==14 && player_input.alt_fire)) && campaign_player_damage.state.effects.health>0 && rf_scene_combat[5]>0;
+        int wanted=campaign_equipped_slot==14 && player_input.alt_fire && !player_input.fire?3:1;
+        if(held)request=w->current==(uint32_t)wanted?-1:wanted;
+        else if(w->current==1 || w->current==3)request=0;
+    }
     stream->player_slot=campaign_equipped_slot;stream->player_shots=rf_scene_combat[0];stream->player_reload=rf_scene_combat[6];
     status=rf_player_weapon_step(w,request,1.0f/60);if(status)return status;
     rf_scene_player_weapon[0]=frame+1;rf_scene_player_weapon[1]=w->current;
@@ -14666,8 +14688,12 @@ static int scene_player_weapon_draw(scene_stream *stream,uint32_t frame)
     if(campaign_equipped_slot==10){view.camera[0]=-.144f;view.camera[1]=1.476f;view.camera[2]=-.220f;}
     if(campaign_equipped_slot==11){view.camera[0]=-.066f;view.camera[1]=.242f;view.camera[2]=-.154f;}
     if(campaign_equipped_slot==12){view.camera[0]=-.448f;view.camera[1]=-.050f;view.camera[2]=.064f;}
+    if(campaign_equipped_slot==13){view.camera[0]=.294f;view.camera[1]=-.080f;view.camera[2]=-.056f;}
+    if(campaign_equipped_slot==14){view.camera[0]=-.168f;view.camera[1]=0;view.camera[2]=-.085f;}
+    if(campaign_equipped_slot==15){view.camera[0]=.130f;view.camera[1]=.080f;view.camera[2]=.150f;}
+    if(campaign_equipped_slot==16){view.camera[0]=.110f;view.camera[1]=.140f;view.camera[2]=.342f;}
     view.rotation[0]=view.rotation[8]=view.rotation[4]=1;
-    view.screen[0]=320/tanf((campaign_equipped_slot==12?68.0f:(campaign_equipped_slot>=7 && campaign_equipped_slot<=9)?70.0f:65.0f)*3.14159265f/360);view.screen[1]=-view.screen[0];
+    view.screen[0]=320/tanf((campaign_equipped_slot==13?40.0f:campaign_equipped_slot==15?85.0f:campaign_equipped_slot==12?68.0f:(campaign_equipped_slot>=7 && campaign_equipped_slot<=9)?70.0f:65.0f)*3.14159265f/360);view.screen[1]=-view.screen[0];
     view.screen[2]=320;view.screen[3]=240;view.perspective=view.compute_clip=view.clipping=1;
     planes.near_depth=.01f;planes.far_depth=1000;projection.scale[0]=320;projection.scale[1]=240;projection.clamp=1;
     buffers.cache=stream->npc_memory;buffers.clip=(float(*)[3])((uint8_t*)stream->npc_memory+4096*32);
@@ -15866,7 +15892,7 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
                  /* Rifle loop adds5152bytes; allow one bounded8KiB extension. */
                  if(!status && i==0)view.clips[3][0]=0;
                  if(!status)status=rf_player_weapon_open_view(&archive,&motions,maps,map_count,&view,(i==6?1280*1024:i==12?1152*1024:1024*1024+(i==1?8192:0)),&stream->player_weapon[i]);
-                 if(!status && i==10)stream->player_weapon[i]->resources[1].looping=1;
+                 if(!status && (i==10 || i==13 || i==14))stream->player_weapon[i]->resources[1].looping=1;
              }
              rf_vpp_close(&tables);if(status)goto done;}
             rf_scene_campaign_load_stage=27;status=campaign_weapon_hands_open();if(status)goto done;

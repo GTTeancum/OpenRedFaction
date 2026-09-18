@@ -536,6 +536,7 @@ int main(int argc,char **argv)
         printf("FRAGMENT_SUPPORT_AUDIT");for(word=0;word<16;word++)printf(" %u",rf_scene_fragment_support_audit[word]);puts("");
         printf("FRAGMENT_CONTACT_AUDIT");for(word=0;word<64;word++)printf(" %u",rf_scene_fragment_contact_audit[word]);puts("");
     }
+    if(p.headless && getenv("RF_REPLAY_FIREARMS")){int mode=atoi(getenv("RF_REPLAY_FIREARMS"));if(mode<1 || mode>4)return 2;rf_scene_firearms_enabled=(uint32_t)mode;}
     rf_scene_fusion_enabled=p.headless && getenv("RF_REPLAY_FUSION")!=NULL;
     rf_scene_dev_npc_enabled=p.headless && getenv("RF_REPLAY_DEV_NPC")!=NULL;
     if(rf_scene_dev_npc_enabled && !strcmp(getenv("RF_REPLAY_DEV_NPC"),"2"))rf_scene_dev_npc_enabled=2;

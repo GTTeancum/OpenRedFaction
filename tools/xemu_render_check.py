@@ -29,6 +29,7 @@ from xemu_draw_audit import capture as capture_draws
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--npc-projectile-test', action='store_true', help='Rubble-cover fixture followed by a rocket striking the guard')
+    parser.add_argument('--firearms-test', type=int, choices=(1,2,3,4), help='DEV remaining firearms: MP/HMG/precision/undercover')
     parser.add_argument('--fusion-test', action='store_true', help='DEV Fusion launcher with enemy-free weapon fixture')
     parser.add_argument('--player-shield-test', action='store_true', help='DEV player holding authored first-person shield')
     parser.add_argument('--npc-shield-test', action='store_true', help='DEV miner with authored riot shield stance')
@@ -96,6 +97,7 @@ def main():
         parser.error('--fragment-platform-test requires source108/three-source CTF06 DEV rocket input without checkpoints')
     if args.fragment_contact_test and not args.dev_room:parser.error('--fragment-contact-test requires --dev-room')
     if args.npc_projectile_test:args.npc_rubble_test=True
+    if args.firearms_test and (not args.dev_room or args.level!='ctf06.rfl' or args.fusion_test or args.player_shield_test or args.npc_shield_test or args.npc_rocket_test or args.npc_grenade_test or args.npc_rubble_test or args.player_checkpoint):parser.error('--firearms-test requires enemy-free ctf06 DEV without other fixtures/checkpoints')
     if args.fusion_test and (not args.dev_room or args.level!='ctf06.rfl' or args.player_shield_test or args.npc_shield_test or args.npc_rocket_test or args.npc_grenade_test or args.npc_rubble_test or args.player_checkpoint):parser.error('--fusion-test requires enemy-free ctf06 DEV without other fixtures/checkpoints')
     if args.player_shield_test and (not args.dev_room or args.level!='ctf06.rfl' or args.npc_shield_test or args.npc_rocket_test or args.npc_grenade_test or args.npc_rubble_test or args.player_checkpoint):parser.error('--player-shield-test requires ctf06 DEV without other NPC fixtures/checkpoints')
     if args.npc_shield_test and (not args.dev_room or args.level!='ctf06.rfl' or args.npc_rocket_test or args.npc_grenade_test or args.npc_rubble_test or args.player_checkpoint):parser.error('--npc-shield-test requires ctf06 DEV without other NPC fixtures/checkpoints')
@@ -192,6 +194,7 @@ def main():
     report['fragment_contact_test']=args.fragment_contact_test
     report['npc_rubble_test']=args.npc_rubble_test
     report['npc_projectile_test']=args.npc_projectile_test
+    report['firearms_test']=args.firearms_test
     report['fusion_test']=args.fusion_test
     report['player_shield_test']=args.player_shield_test
     report['npc_shield_test']=args.npc_shield_test
@@ -208,6 +211,8 @@ def main():
     if args.npc_grenade_test:env['RF_REPLAY_DEV_NPC']='3'
     if args.npc_rocket_test:env['RF_REPLAY_DEV_NPC']='4'
     if args.npc_shield_test:env['RF_REPLAY_DEV_NPC']='5'
+    if args.firearms_test:env['RF_REPLAY_FIREARMS']=str(args.firearms_test)
+    else:env.pop('RF_REPLAY_FIREARMS',None)
     if args.fusion_test:env['RF_REPLAY_FUSION']='1'
     else:env.pop('RF_REPLAY_FUSION',None)
     if args.player_shield_test:env['RF_REPLAY_DEV_NPC']='6'
@@ -294,7 +299,7 @@ def main():
     saved[light_flag.name]=light_flag.read_bytes() if light_flag.exists() else None
     shallow_flag=disc/'shallow-fixture.flag'
     saved[shallow_flag.name]=shallow_flag.read_bytes() if shallow_flag.exists() else None
-    for name in ('fragment-platform-test.flag','fragment-contact-test.flag','cavity-seam.flag','geomod-checkpoint.bin','geomod-checkpoint-out.flag','ripple-test.flag','debris-player-test.flag','water-test.flag','swim-test.flag','player-checkpoint.flag','moving-support-test.flag','dev-npc.flag','fusion-test.flag',
+    for name in ('fragment-platform-test.flag','fragment-contact-test.flag','cavity-seam.flag','geomod-checkpoint.bin','geomod-checkpoint-out.flag','ripple-test.flag','debris-player-test.flag','water-test.flag','swim-test.flag','player-checkpoint.flag','moving-support-test.flag','dev-npc.flag','fusion-test.flag','firearms-test.flag',
                  'geomod-hdd-load.flag','geomod-hdd-save.flag','geomod-fallback-seed.flag','geomod-fallback-observe.flag',
                  'geomod-fallback0.rfsg','geomod-fallback1.rfsg','terrain-map-limit.bin','authored-source.bin','authored-count.bin'):
         path=disc/name;saved[name]=path.read_bytes() if path.exists() else None
@@ -337,6 +342,8 @@ def main():
         if args.fragment_platform_test:
             (disc/'fragment-platform-test.flag').write_bytes(b'4' if args.ceiling_platform_test else b'3' if args.lift_platform_test else b'2' if args.tip_platform_test else b'1')
             shutil.copyfile(pc_game/'levelsm.vpp',disc/'fragment-platform.vpp')
+        if args.firearms_test:(disc/'firearms-test.flag').write_text(str(args.firearms_test))
+        else:(disc/'firearms-test.flag').unlink(missing_ok=True)
         if args.fusion_test:(disc/'fusion-test.flag').write_bytes(b'1')
         else:(disc/'fusion-test.flag').unlink(missing_ok=True)
         if args.player_shield_test:(disc/'dev-npc.flag').write_bytes(b'6')

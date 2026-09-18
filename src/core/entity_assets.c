@@ -514,7 +514,7 @@ int rf_weapon_view_read(const void *text,uint32_t bytes,const char *name,rf_weap
      * Reuse its single payload as primary slot1 before slot3 is assigned the
      * alternate action. alt_loop retains its existing alternate-only meaning;
      * the continuous-primary caller marks resource1 looping after view load. */
-    if(!(mask&4) && continuous_primary && !continuous_alt && (mask&16)) {
+    if(!(mask&4) && continuous_primary && (mask&16)) {
         memcpy(v.clips[1],v.clips[3],64);mask|=4;
     }
     if((mask&7)!=7)return RF_FORMAT;
