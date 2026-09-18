@@ -1,6 +1,6 @@
 # Red Faction Xbox / PC - open work
 
-- PRIORITY GeoMod crush: Resolve wedged fragments, mover overlap and remaining angular sweeps; the ceiling energy fix reduces peak speed19.06 to1.54 units/sec on stock64MiB Xbox with32 exact PC words and78 checks, but18 frames still exhaust contacts;126 PC tests and prior platform cases pass.
+- PRIORITY GeoMod crush: Resolve blocked-mover admission and fragment overlap;36 complete original fragment steps exclude the actor crush route, so do not invent fragment deletion; the verified ceiling-energy fix still leaves18 contact-limited frames, and broader angular sweeps remain open.
 
 - Doors: Investigate the existing420-frame close/reopen replay failure reproduced on both current and prior scene code;180-frame opening and player traversal still pass.
 
