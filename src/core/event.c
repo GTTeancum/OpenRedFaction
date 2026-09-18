@@ -633,6 +633,24 @@ static void startup_event_action(void *context,rf_event_state *state,uint32_t ac
             startup_target(c,c->event->links+i,source,actor,(mode&255u)==1);
         return;
     }
+    if(state->type==34) {
+        static const int32_t actions[6]={1,2,4,5,11,-1};
+        uint32_t authored_mode=c->event->authored->record.words[0];
+        if(action!=1)return; /* Original base OFF has no actor effect. */
+        if(!c->triggers->set_ai_mode){++c->report->unsupported_actions;return;}
+        /* Factory4b84c0 table59c014, loader translate=1. Guard malformed enums. */
+        if(authored_mode>=6){c->status=RF_RANGE;return;}
+        for(i=0;i<c->event->authored->record.link_count;i++) {
+            const rf_level_link_target *link=c->event->links+i;int status;
+            if(link->kind!=1 && link->kind!=2)continue;
+            if(!rf_object_registry_lookup(c->triggers->registry,link->value))continue;
+            status=c->triggers->set_ai_mode(c->triggers->ai_mode_context,
+                link->value,actions[authored_mode],c->now);
+            if(status==RF_NOT_FOUND){++c->report->other_targets;continue;}
+            if(status){c->status=status;return;}
+        }
+        return;
+    }
     if(state->type==76) {
         if(!c->triggers->set_nano_shield){++c->report->unsupported_actions;return;}
         for(i=0;i<c->event->authored->record.link_count;i++) {
@@ -1083,6 +1101,7 @@ int rf_runtime_events_tick(rf_runtime_events *events,rf_runtime_triggers *trigge
            !(event->state.type==30 && triggers->set_friendliness) &&
            !(event->state.type==24 && triggers->set_invulnerable) &&
            !(event->state.type==76 && triggers->set_nano_shield) &&
+           !(event->state.type==34 && triggers->set_ai_mode) &&
            !(event->state.type==38 && triggers->attack_npc) &&
            !(event->state.type==46 && triggers->alarm) &&
            !((event->state.type==11 || event->state.type==12) && triggers->play_animation) &&

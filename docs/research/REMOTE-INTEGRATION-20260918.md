@@ -10,3 +10,6 @@ First-person loaded payloads: charge719280 resident/730876 peak bytes, detonator
 
 ## Xbox validation
 Native run render-20260918-091615 passes 79 checks over330 frames on stock64MiB. REMOTE matches PC exactly [1,1,1,1,0,0,0,0], with one successful terrain cut. Endpoint available pages: 2720 (4KiB each; not a peak-memory measurement). Native framebuffer inspected: detonator,19 ammo, intact player health and explosion/debris at the pillar. Disc restoration succeeded.
+
+## Save format preparation
+RFRM1 explicitly encodes at most32active charges and throw timing in at most7344bytes, with durable identity keys for later host/owner resolution. RFCP2 adds an optional validated RFRM chunk to the existing player/GeoMod container. Its new preflight also accepts RFCP1 as remote-absent; legacy APIs remain unchanged. Total RFSG size cap is unchanged. Focused remote roundtrip/rejection, legacy composed codec and composed-remote tests pass. This is format preparation only: scene save/restore publication and durable key remapping are not connected yet, so active remote charges still are not persisted by gameplay saves.

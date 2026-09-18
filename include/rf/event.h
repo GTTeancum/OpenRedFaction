@@ -370,6 +370,9 @@ typedef struct rf_runtime_triggers {
     /* Event76 actor814 bit20 toggle; no armor refill or generic invulnerability. */
     int (*set_nano_shield)(void *,uint32_t handle,uint32_t enabled);
     void *nano_shield_context;
+    /* Type34 receives translated runtime action, not the authored enum. */
+    int (*set_ai_mode)(void *,uint32_t handle,int32_t action,int32_t now);
+    void *ai_mode_context;
 } rf_runtime_triggers;
 /* Declare authored goals before any startup trigger runs. */
 int rf_runtime_goals_initialize(const rf_runtime_events *events,rf_campaign_goals *goals);

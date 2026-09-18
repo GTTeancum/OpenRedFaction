@@ -552,14 +552,11 @@ typedef struct scene_particle_workspace {
 enum { SCENE_WEAPON_SLOTS=10, SCENE_ROCKETS=50, SCENE_RIPPLES=16 };
 static uint32_t scene_weapon_slots(void){return rf_scene_dev_room_enabled?SCENE_WEAPON_SLOTS:4;}
 static const char *campaign_weapon_names[SCENE_WEAPON_SLOTS]={"12mm handgun","Assault Rifle","Riot Stick","Shotgun","Rocket Launcher","Grenade","Sniper Rifle","rail_gun","Remote Charge","Remote Charge Detonator"};
-enum { SCENE_PICKUP_FIRST_AID=10, SCENE_PICKUP_CLASSES=11 };
-static const char *pickup_classes[SCENE_PICKUP_CLASSES]={"Handgun","Medical Kit","Suit Repair","12mm_ammo","Assault Rifle","5.56mm_ammo","Riot Stick","riot_stick_battery","Shotgun","10gauge_ammo","First Aid Kit"};
+#include "scene_pickup_class_names.inc"
 typedef struct scene_pickup_resource {
     rf_item_definition definition;rf_static_render_resource model;rf_model_materials materials;
     uint32_t base,textures,resident,peak;
 } scene_pickup_resource;
-static int pickup_class(const char *name)
-{int i;for(i=0;i<SCENE_PICKUP_CLASSES;i++)if(!strcmp(name,pickup_classes[i]))return i;return -1;}
 typedef struct scene_rocket_visual {
     rf_vfx_geometry_asset *geometry;rf_vfx_asset_materials *materials;uint32_t base;
     rf_geomod_vertex vertices[384];rf_geomod_face faces[128];
@@ -8775,17 +8772,22 @@ static int combat_enemy_fragment_shot(scene_stream *stream,const float start[3],
 static int combat_death_sound(void *context,uint32_t handle,const char *name)
 {(void)context;(void)handle;(void)name;return RF_OK;}
 uint32_t rf_scene_weapon_drops[8]; /* emitted,collected,rounds,last UID,available,state hash,bytes,status */
-/* Practical live adapter, not exact42ae10: one magazine from a supported
- * held weapon, floor ray placement, fixed persistent owner. NPC ammunition
- * depletion, authored no-drop policy and physical tumbling remain open. */
+/* Practical live adapter, not exact42ae10: remaining ammunition capped at
+ * one magazine, floor ray placement and fixed persistent owner. Authored
+ * no-drop policy and physical tumbling remain open. */
+#include "scene_ai_drop_supply.inc"
 static int campaign_weapon_drop_emit(campaign_npc_body *owner)
 {
-    int32_t id=owner->view.weapons[0],quantity;uint32_t i,found=0;int status;
+    const int32_t ids[8]={campaign_pistol_id,campaign_rifle_id,campaign_riot_id,campaign_shotgun_id,
+        campaign_rocket_id,campaign_grenade_id,campaign_sniper_id,campaign_rail_id};
+    int32_t id=owner->view.weapons[0],quantity;uint32_t found=0;int status;
     float start[3],end[3];rf_collision_solid_hit hit;
     if(!owner->persistence_registered || id<0 || id>=64 || !owner->inventory.owned[id])return RF_OK;
-    for(i=0;i<4;i++)if(id==campaign_slot_weapon(i))break;if(i==4)return RF_OK;
+
     if(rf_scene_defeated_actors.drops[owner->persistence_slot].state)return RF_OK;
-    quantity=campaign_weapon_supply.definitions[id].magazine;if(quantity<=0)return RF_OK;
+    status=campaign_enemy_drop_supply(&owner->inventory,campaign_weapon_supply.definitions,
+        campaign_weapon_supply.names.count,ids,id,&quantity);
+    if(status==RF_NOT_FOUND)return RF_OK;if(status)return status;if(quantity<=0)return RF_OK;
     memcpy(start,owner->body.state.position,12);start[1]+=.3f;memcpy(end,start,12);end[1]-=4;
     status=rf_geometry_collision_ray(campaign_trigger_collision,&campaign_movers,start,end,1,&hit,&found);if(status)return status;
     if(!found)return RF_OK;hit.hit.point[1]+=.1f;
@@ -9275,7 +9277,9 @@ static int campaign_pickups_tick(scene_stream *stream,const float eye[3])
             restored=pickup_restore(kind==2?&campaign_player_damage.state.effects.armor:&campaign_player_damage.state.effects.health,item->quantity);
             if(restored<=0)continue;memcpy(&total,rf_scene_pickup_vitals+vital,4);total+=restored;memcpy(rf_scene_pickup_vitals+vital,&total,4);
         } else {
-            int32_t id=kind>=8?campaign_shotgun_id:kind>=6?campaign_riot_id:kind>=4?campaign_rifle_id:campaign_pistol_id;
+            int32_t slot=scene_pickup_weapon_slot(kind),id;
+            if(slot<0)return RF_FORMAT;id=campaign_slot_weapon((uint32_t)slot);
+            if(id<0 || id>=64)return RF_FORMAT;
             status=rf_weapon_pickup_grant_sp(&campaign_player_inventory,campaign_weapon_supply.definitions+id,
                 id,campaign_item_charge(id,item->quantity,definition->gives_weapon),definition->gives_weapon,&grant);if(status)return status;
             if(!grant.rounds && !grant.acquired)continue;
@@ -15252,7 +15256,7 @@ static int scene_pickup_resources_open(scene_stream *stream,const char *tables_p
         for(i=0;i<stream->pickups.count;i++)if(pickup_class(stream->pickups.items[i].class_name)==(int)kind)count++;
         if(!count)continue;
         status=rf_item_definition_load(&tables,pickup_classes[kind],128*1024,&r->definition);if(status)goto done;
-        if(r->definition.mesh_kind!=1 || (kind>=3 && kind!=SCENE_PICKUP_FIRST_AID && (rf_weapon_name_find(&campaign_weapon_supply.names,r->definition.weapon)<0 || rf_weapon_name_find(&campaign_weapon_supply.names,r->definition.weapon)!=rf_weapon_name_find(&campaign_weapon_supply.names,kind>=8?"Shotgun":kind>=6?"Riot Stick":kind>=4?"Assault Rifle":"12mm handgun")))){status=RF_FORMAT;goto done;}
+        if(r->definition.mesh_kind!=1 || (kind>=3 && kind!=SCENE_PICKUP_FIRST_AID && (rf_weapon_name_find(&campaign_weapon_supply.names,r->definition.weapon)<0 || rf_weapon_name_find(&campaign_weapon_supply.names,r->definition.weapon)!=rf_weapon_name_find(&campaign_weapon_supply.names,campaign_weapon_names[scene_pickup_weapon_slot((int)kind)])))){status=RF_FORMAT;goto done;}
         status=rf_model_compiled_filename(r->definition.mesh,compiled,".v3m");if(status)goto done;
         status=rf_model_file_open(file,meshes,compiled);if(status)goto done;
         status=rf_static_render_resource_open(file,budget-used,&r->model);if(status)goto done;used+=r->model.allocated_bytes;

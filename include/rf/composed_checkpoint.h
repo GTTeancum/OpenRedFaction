@@ -39,4 +39,25 @@ int rf_composed_checkpoint_encode(uint32_t profile_id,const rf_player_checkpoint
  * parser never silently treats a legacy RFDS as a composed save. */
 int rf_composed_checkpoint_preflight(const void *,uint32_t bytes,uint32_t profile_id,
     const rf_player_checkpoint_catalog *,rf_composed_checkpoint *);
+typedef struct rf_composed_checkpoint_v2 {
+    rf_composed_checkpoint base;
+    const unsigned char *remote;uint32_t remote_bytes; /* borrowed, NULL/0 if absent */
+} rf_composed_checkpoint_v2;
+/* Opt-in RFCP2, same32-byte header: word28 stores optional RFRM length.
+ * Layout is RFPL544, RFDS, then validated RFRM1 bytes (or none). Legacy encode/
+ * preflight remain v1-only and unchanged. New preflight accepts v1 as absent
+ * remote state, never synthesizing charges. Total RFSG payload cap unchanged:
+ * remote bytes reduce available RFDS budget. Full RFDS identity/placement and
+ * durable remote owner/host remapping remain caller publication gates.
+ * level_hash/catalog_hash validate RFRM context only; not substitutes for full
+ * outer identity validation. No allocation/pool scratch. Error atomic output.
+ * Same disjointness rules as v1; RFDS/remote may already be at their exact final
+ * output slices, with immutable sources for the duration of validation/copy. */
+int rf_composed_checkpoint_encode_v2(uint32_t profile_id,const rf_player_checkpoint *,
+    const rf_player_checkpoint_catalog *,const void *rfds,uint32_t rfds_bytes,
+    const void *remote,uint32_t remote_bytes,uint32_t level_hash,uint32_t catalog_hash,
+    void *output,uint32_t capacity,uint32_t *written);
+int rf_composed_checkpoint_preflight_v2(const void *,uint32_t bytes,uint32_t profile_id,
+    const rf_player_checkpoint_catalog *,uint32_t level_hash,uint32_t catalog_hash,
+    rf_composed_checkpoint_v2 *);
 #endif
