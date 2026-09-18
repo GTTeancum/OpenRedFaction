@@ -549,6 +549,9 @@ static int scene_preview(rf_level *level,rf_preview_mesh *mesh)
     if(stream_flag){int mode=fgetc(stream_flag);if(mode>='2'&&mode<='4')rf_scene_moving_support_enabled=(uint32_t)(mode-'0');fclose(stream_flag);}
     stream_flag=fopen("D:\\dev-room.flag","rb");rf_scene_dev_room_enabled=stream_flag!=NULL;
     if(stream_flag)fclose(stream_flag);
+    stream_flag=fopen("D:\\fragment-contact-test.flag","rb");
+    if(stream_flag){int audit;fclose(stream_flag);if(!rf_scene_dev_room_enabled)return RF_FORMAT;
+        audit=rf_scene_fragment_contact_check();if(audit)return audit;}
     stream_flag=fopen("D:\\player-checkpoint.flag","rb");rf_scene_player_checkpoint_enabled=stream_flag!=NULL;
     if(stream_flag)fclose(stream_flag);
     if(rf_scene_player_checkpoint_enabled && !rf_scene_dev_room_enabled)return RF_FORMAT;

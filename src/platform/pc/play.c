@@ -515,6 +515,11 @@ int main(int argc,char **argv)
     {extern uint32_t rf_scene_debris_player_test_enabled;rf_scene_debris_player_test_enabled=p.headless && getenv("RF_REPLAY_DEBRIS_PLAYER_TEST")!=NULL;}
     rf_scene_ripple_test_enabled=p.headless && getenv("RF_REPLAY_RIPPLE_TEST")!=NULL;
     rf_scene_dev_room_enabled=dev_room || (p.headless && (getenv("RF_REPLAY_DEV_ROOM")!=NULL || getenv("RF_REPLAY_WATER_TEST")!=NULL));
+    if(p.headless && getenv("RF_REPLAY_FRAGMENT_CONTACT_TEST")) {
+        uint32_t word;if(!rf_scene_dev_room_enabled)CHECK(RF_FORMAT);
+        CHECK(rf_scene_fragment_contact_check());
+        printf("FRAGMENT_CONTACT_AUDIT");for(word=0;word<64;word++)printf(" %u",rf_scene_fragment_contact_audit[word]);puts("");
+    }
     rf_scene_dev_npc_enabled=p.headless && getenv("RF_REPLAY_DEV_NPC")!=NULL;
     if(rf_scene_dev_npc_enabled && !strcmp(getenv("RF_REPLAY_DEV_NPC"),"2"))rf_scene_dev_npc_enabled=2;
     rf_scene_moving_support_enabled=p.headless && getenv("RF_REPLAY_MOVING_SUPPORT_TEST")!=NULL;

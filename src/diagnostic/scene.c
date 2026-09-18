@@ -11309,6 +11309,7 @@ static int scene_detached_contact_material(void *context,uint32_t solid,uint32_t
     surfaces.geometries=campaign_surface_sources;surfaces.count=mapping.count;surfaces.mapping=&mapping;surfaces.palette=campaign_surface_palette;
     return campaign_body_surface(&surfaces,solid,face,texture,material);
 }
+#include "scene_fragment_contact_audit.inc"
 static int scene_detached_query(const rf_physics_body_state *body,rf_physics_solid_hit *out,uint32_t *matched,void *opaque)
 {
     scene_detached_query_context *c=opaque;rf_collision_body_sphere scratch[64];rf_geometry_body_hit hit={0};int status;

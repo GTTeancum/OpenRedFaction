@@ -633,6 +633,6 @@ int main(void) {
     found=77;CHECK(scene_detached_sources_sweep(&scene,4,start,delta,0,NAN,&hit,&found)!=RF_OK);
     CHECK(found==77 && !memcmp(&hit,&sentinel,sizeof(hit)));
     free(before);free(after);for(i=0;i<2;i++)rf_geomod_piece_registry_close(registries+i);
-    CHECK(!fragment_mover_contact());CHECK(!fragment_thin_obstacle());CHECK(!fragment_plane_side());CHECK(!inspection_camera());CHECK(!extended_batches());CHECK(!enemy_fragment_shots());CHECK(!rocket_object_contacts());CHECK(!beam_selection());CHECK(!runtime_surfaces());CHECK(!player_sources());CHECK(!notify_sources());CHECK(!rotated_support_clearance());CHECK(!large_support_snap());CHECK(!moving_piece_support());
+    CHECK(!rf_scene_fragment_contact_check());CHECK(rf_scene_fragment_contact_audit[1]==7 && rf_scene_fragment_contact_audit[3]==1);CHECK(!fragment_mover_contact());CHECK(!fragment_thin_obstacle());CHECK(!fragment_plane_side());CHECK(!inspection_camera());CHECK(!extended_batches());CHECK(!enemy_fragment_shots());CHECK(!rocket_object_contacts());CHECK(!beam_selection());CHECK(!runtime_surfaces());CHECK(!player_sources());CHECK(!notify_sources());CHECK(!rotated_support_clearance());CHECK(!large_support_snap());CHECK(!moving_piece_support());
     puts("PASS multi-source weapon queries: nearer later source, stable ties, selected alias, isolated damage and atomic misses/errors");return 0;
 }

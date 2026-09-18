@@ -30,6 +30,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--npc-projectile-test', action='store_true', help='Rubble-cover fixture followed by a rocket striking the guard')
     parser.add_argument('--npc-rubble-test', action='store_true', help='Opt-in armed NPC versus live extracted held cover')
+    parser.add_argument('--fragment-contact-test', action='store_true', help='Run isolated narrow static/mover contact fixtures and compare64 guest words')
     parser.add_argument('--moving-support-test', action='store_true', help='Process-local saved rubble lift/stop/retire fixture')
     parser.add_argument('--release-support-test', action='store_true', help='Lift saved support then release to ordinary debris gravity/contact')
     parser.add_argument('--rotate-support-test', action='store_true', help='Release lifted support with a single angular impulse')
@@ -80,6 +81,7 @@ def main():
     parser.add_argument('--unbatched', action='store_true', help='Reference tiny GPU command submission blocks')
     parser.add_argument('--unsorted', action='store_true', help='Reference source-order world draw ranges')
     args = parser.parse_args()
+    if args.fragment_contact_test and not args.dev_room:parser.error('--fragment-contact-test requires --dev-room')
     if args.npc_projectile_test:args.npc_rubble_test=True
     if args.npc_rubble_test and (not args.dev_room or args.level!='ctf06.rfl' or args.player_checkpoint or args.geomod_checkpoint_in):
         parser.error('--npc-rubble-test requires ctf06 DEV room with live extraction, no player checkpoint')
@@ -169,6 +171,7 @@ def main():
         input_sha256=hashlib.sha256(payload).hexdigest(), setup_uids=args.setup_uid, trigger_start_uid=args.trigger_start_uid, exit_start_uid=args.exit_start_uid, exit_uid=args.exit_uid, return_exit_uid=args.return_exit_uid,
         scope='Authored section, player spawn or staged actor/pickup camera, process-local replay/setup commands, native framebuffer, '
               'phase timings and selected PC gameplay-state checks. No full campaign/parity claim.', samples=[])
+    report['fragment_contact_test']=args.fragment_contact_test
     report['npc_rubble_test']=args.npc_rubble_test
     report['npc_projectile_test']=args.npc_projectile_test
     report['expanded_geomod']=args.expanded_geomod
@@ -176,6 +179,7 @@ def main():
     report['authored_source']=args.authored_source if args.authored_source is not None else (94 if args.dev_room and args.level=='ctf06.rfl' else None)
     (run / 'inputs.bin').write_bytes(payload)
     env = {k: v for k, v in os.environ.items() if not k.startswith('RF_REPLAY_')}
+    if args.fragment_contact_test:env['RF_REPLAY_FRAGMENT_CONTACT_TEST']='1'
     if args.npc_rubble_test:env['RF_REPLAY_DEV_NPC']='2'
     env.update(RF_REPLAY_LEVEL=args.level, RF_REPLAY_ARCHIVE=args.archive)
     if args.dev_room:env['RF_REPLAY_DEV_ROOM']='1'
@@ -248,7 +252,7 @@ def main():
     saved[light_flag.name]=light_flag.read_bytes() if light_flag.exists() else None
     shallow_flag=disc/'shallow-fixture.flag'
     saved[shallow_flag.name]=shallow_flag.read_bytes() if shallow_flag.exists() else None
-    for name in ('cavity-seam.flag','geomod-checkpoint.bin','geomod-checkpoint-out.flag','ripple-test.flag','debris-player-test.flag','water-test.flag','swim-test.flag','player-checkpoint.flag','moving-support-test.flag','dev-npc.flag',
+    for name in ('fragment-contact-test.flag','cavity-seam.flag','geomod-checkpoint.bin','geomod-checkpoint-out.flag','ripple-test.flag','debris-player-test.flag','water-test.flag','swim-test.flag','player-checkpoint.flag','moving-support-test.flag','dev-npc.flag',
                  'geomod-hdd-load.flag','geomod-hdd-save.flag','geomod-fallback-seed.flag','geomod-fallback-observe.flag',
                  'geomod-fallback0.rfsg','geomod-fallback1.rfsg','terrain-map-limit.bin','authored-source.bin','authored-count.bin'):
         path=disc/name;saved[name]=path.read_bytes() if path.exists() else None
@@ -287,6 +291,7 @@ def main():
         else:ripple_flag.unlink(missing_ok=True)
         (disc / 'campaign-spawn.flag').write_bytes(b'')
         if args.dev_room:(disc/'dev-room.flag').write_bytes(b'')
+        if args.fragment_contact_test:(disc/'fragment-contact-test.flag').write_bytes(b'')
         if args.npc_rubble_test:(disc/'dev-npc.flag').write_bytes(b'2')
         else:(disc/'dev-npc.flag').unlink(missing_ok=True)
         if args.terrain_draw_audit:(disc/'renderer-draw-audit.flag').write_bytes(b'')
@@ -430,6 +435,7 @@ dvd_path = '{root.as_posix()}/build/xbox/redfaction-diagnostic.iso'
                 'rf_scene_presentation_profile', 'rf_scene_world_profile', 'rf_scene_step_profile',
                 'rf_scene_npc_step_profile', 'rf_scene_npc_playback_profile')]
             fields.append(('rf_scene_terrain_edit_times',40))
+            if args.fragment_contact_test:fields.append(('rf_scene_fragment_contact_audit',64))
             if args.npc_rubble_test:fields.append(('rf_scene_dev_npc_cover',48))
             if args.moving_support_test:fields.append(('rf_scene_moving_support_test',160))
             if args.rotate_support_test:fields.append(('rf_scene_rotating_support_test',120))
@@ -438,6 +444,20 @@ dvd_path = '{root.as_posix()}/build/xbox/redfaction-diagnostic.iso'
             edits=snap['symbols']['rf_scene_terrain_edit_times']['words']
             (run/'terrain-edit-times.json').write_text(json.dumps([dict(zip(('frame','cut_ms','bind_ms','debris_prepare_ms','debris_spawn_ms'),edits[i:i+5])) for i in range(0,40,5) if edits[i]],indent=2)+'\n')
             report['checks'] = {}
+            if args.fragment_contact_test:
+                expected=[int(v) for line in pc.stdout.splitlines() if line.startswith('FRAGMENT_CONTACT_AUDIT ') for v in line.split()[1:]]
+                actual=snap['symbols']['rf_scene_fragment_contact_audit']['words']
+                assert len(expected)==64 and expected==actual, 'Fragment contact fixture differs on Xbox'
+                assert actual[:4]==[1,7,0,1] and actual[4:7]==[0,8,4], 'Incomplete contact fixture or missing baseline misses'
+                for row,fraction,identity,material in ((1,.25,17,3),(2,.25,77,7),(3,.25,77,7),(4,.125,77,7)):
+                    words_=actual[4+row*8:12+row*8]
+                    assert words_[:2]==[row,1] and struct.unpack('<f',struct.pack('<I',words_[2]))[0]==fraction
+                    normal=struct.unpack('<3f',struct.pack('<3I',*words_[3:6]))
+                    assert normal==((0.,1.,0.) if row<3 else (-1.,0.,0.)) and words_[6:]==[identity,material]
+                assert actual[44:46]==[5,0] and actual[50]==77
+                assert actual[52]==6 and actual[53]!=0 and actual[54:56]==[1,0]
+                report['checks']['FRAGMENT_CONTACT_AUDIT']=dict(pc=expected,xbox=actual,equal=True,cases=7)
+
             if args.terrain_texture_audit:
                 assert 'terrain_texture' in report, 'No live frame available for texture audit'
                 report['checks']['TERRAIN_TEXTURE']=report['terrain_texture']

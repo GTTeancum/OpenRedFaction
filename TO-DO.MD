@@ -1,6 +1,6 @@
 # Red Faction Xbox / PC - open work
 
-- PRIORITY GeoMod fragment contacts: Add edge/edge coverage, native narrow-surface fixtures, mover wake/relative response and cost measurements after reciprocal static and committed-mover vertex/face tests pass with unchanged rest gates and77 stock64MiB regression checks.
+- PRIORITY GeoMod fragment contacts: Add edge/edge coverage, mover wake/relative response and cost measurements after narrow static/translated/rotated-mover fixtures pass all64 result words on Xbox and78 stock64MiB harness checks with unchanged gameplay saves.
 
 - PRIORITY GeoMod ordinary walls: Broaden multi-window and neighboring-brush CSG; a live floor-seam rocket now passes77 stock64MiB checks with exact PC/Xbox save bytes and fixture-off/mismatched-save rejection controls, alongside verified wall depth and player traversal.
 
@@ -5544,3 +5544,8 @@ A finite0.04-unit patch inside a unit-wide fragment face misses all eight radius
 ### 2026-09-18 — Extended reciprocal fragment contacts to mover geometry
 
 The new mover path uses committed position/input_matrix, bounds, face filters and runtime object/material/velocity identity, sharing the actual-mesh rotational bound. It does not use public ray poses or invent velocity-based geometry prediction. Tests cover translated/90-degree-rotated narrow surfaces, expected0.25 and updated-pose0.125 contact fractions, wrong ray-pose controls, disabled/non-solid rejection, nearer-hit preservation and metadata-failure rollback. All123 PC tests and both92/108 full saved/uninterrupted histories pass; first/both-cut penetration and hovering gates remain green. Native east first cut passes77 stock64MiB checks with3330freepages and exact5300-byte PC/Xbox save; framebuffer equals the already inspected image, disc restored and owned emulator closed. See docs/research/GEOMOD-FRAGMENT-MOVER-CONTACT-20260918.md. Dedicated native narrow-mover demonstration, edge/edge contacts, sleeping-fragment wake, relative response/carry/crush and collision cost remain unfinished. Estimates unchanged: overall51%, GeoMod91%. Current action: GeoMod destruction collision.
+
+
+### 2026-09-18 — Executed narrow contact fixtures directly on Xbox
+
+Added a shared opt-in contact audit with seven result records and a64-word guest-memory ledger. It demonstrates sphere/corner misses, correct finite static contact, translated and rotated committed-mover contact, updated-pose timing, disabled-mover rejection and metadata-failure rollback using the production query functions. PC/Xbox activation requires DEV mode; fixture geometry is isolated and freed, with no live room mutation. All123 PC tests pass. Native render-20260918-023556 passes78 checks, all64 exact PC/Xbox words,3329freepages on stock64MiB, and the same5300-byte gameplay checkpoint as fixture-off; framebuffer equals the already inspected image. Harness disc/flag restoration succeeds and emulator closes. No duplicate image or GitHub screenshot was added. See docs/research/GEOMOD-FRAGMENT-NATIVE-CONTACT-AUDIT-20260918.md. Edge/edge, continuous mover response/wake/carry/crush and performance remain open. Estimates unchanged: overall51%, GeoMod91%. Current action: GeoMod collision validation.
