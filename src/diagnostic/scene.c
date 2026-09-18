@@ -12247,6 +12247,7 @@ static int scene_remote_input(scene_stream *,uint32_t,const float[3],const float
 #include "scene_flame_gameplay.inc"
 #include "scene_flame_input.inc"
 #include "scene_flame_visual.inc"
+#include "scene_burning_visual.inc"
 #include "scene_flame_canister.inc"
 static int campaign_combat_tick(scene_stream *stream,uint32_t frame,const float position[3],const float orientation[3][3])
 {
@@ -12313,6 +12314,7 @@ static int campaign_combat_tick(scene_stream *stream,uint32_t frame,const float 
     rf_scene_weapon_selection[5]=campaign_player_inventory.reserve[campaign_weapon_supply.definitions[campaign_rifle_id].ammo_type];
     if(!frame)scene_burning_reset();
     status=scene_burning_tick(stream,frame);if(status)return status;
+    status=scene_burning_visual_tick(stream,frame);if(status)return status;
     status=scene_npc_rubble_stimulus(stream,frame,position);if(status)return status;
     status=(rf_scene_dev_npc_enabled==1 || (rf_scene_dev_npc_enabled==2 && frame<600))?RF_OK:campaign_enemy_tick(stream,frame,position);rf_scene_enemy_combat[7]=(uint32_t)status;if(status)return status;
     status=scene_npc_rubble_record(stream,frame);if(status)return status;
