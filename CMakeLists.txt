@@ -876,3 +876,7 @@ add_test(NAME scene_ai_mode_gameplay COMMAND rf_scene_ai_mode_gameplay_tests)
 add_executable(rf_scene_flame_canister_tests tests/scene_flame_canister_tests.c)
 target_link_libraries(rf_scene_flame_canister_tests PRIVATE rf_core)
 add_test(NAME scene_flame_canister COMMAND rf_scene_flame_canister_tests)
+
+add_executable(rf_scene_burning_tests tests/scene_burning_tests.c)
+target_link_libraries(rf_scene_burning_tests PRIVATE rf_core)
+add_test(NAME scene_burning COMMAND rf_scene_burning_tests)

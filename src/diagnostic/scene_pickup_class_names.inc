@@ -2,12 +2,12 @@
 #define RF_SCENE_PICKUP_CLASS_NAMES_INC
 /* Installed items.tbl names; existing indices0..10 remain stable.
  * Slots match the shared implemented weapon list, not table weapon IDs. */
-enum { SCENE_PICKUP_FIRST_AID=10, SCENE_PICKUP_CLASSES=20 };
+enum { SCENE_PICKUP_FIRST_AID=10, SCENE_PICKUP_CLASSES=22 };
 static const char *pickup_classes[SCENE_PICKUP_CLASSES]={
     "Handgun","Medical Kit","Suit Repair","12mm_ammo","Assault Rifle",
     "5.56mm_ammo","Riot Stick","riot_stick_battery","Shotgun","10gauge_ammo","First Aid Kit",
     "Remote Charge","Remote Charges","Sniper Rifle","rocket launcher","grenades",
-    "rail gun",".50cal_ammo","rocket_launcher_ammo","railgun_bolts"
+    "rail gun",".50cal_ammo","rocket_launcher_ammo","railgun_bolts","flamethrower","Napalm"
 };
 static int scene_pickup_name_equal(const char *a,const char *b)
 {
@@ -24,7 +24,7 @@ static int pickup_class(const char *name)
 }
 static int scene_pickup_weapon_slot(int kind)
 {
-    static const signed char slots[SCENE_PICKUP_CLASSES]={0,-1,-1,0,1,1,2,2,3,3,-1,8,8,6,4,5,7,6,4,7};
+    static const signed char slots[SCENE_PICKUP_CLASSES]={0,-1,-1,0,1,1,2,2,3,3,-1,8,8,6,4,5,7,6,4,7,10,10};
     return kind>=0 && kind<SCENE_PICKUP_CLASSES?slots[kind]:-1;
 }
 #endif

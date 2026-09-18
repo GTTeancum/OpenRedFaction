@@ -1862,6 +1862,9 @@ uint32_t rf_scene_shotgun[8]; /* shells,pellets,hits,kills,alt shells,RNG,status
 uint32_t rf_scene_riot[8]; /* active, held ticks, drained units, damage contacts, impact sounds, dry requests, reloads, status */
 static uint32_t campaign_equipped_slot,weapon_cycle_held;static int32_t campaign_rifle_id=-1,campaign_riot_id=-1,campaign_shotgun_id=-1,campaign_rocket_id=-1,campaign_grenade_id=-1,campaign_sniper_id=-1,campaign_rail_id=-1,campaign_remote_id=-1,campaign_detonator_id=-1,campaign_flame_id=-1;
 static uint32_t scene_flame_active;
+static uint32_t scene_burning_create(uint32_t,uint32_t);
+static void scene_burning_extinguish(uint32_t);
+static void scene_burning_release_all(void);
 static uint32_t scene_flame_canister_model;
 static uint32_t scene_flame_canister_save_pending(void);
 static uint32_t scene_flame_input_pending(void);
@@ -4154,6 +4157,7 @@ static void campaign_npc_bodies_close(void)
             (void)rf_entity_view_unregister(&campaign_registry,&campaign_entities,&campaign_npc_bodies[i].registration);
         rf_physics_body_close(&campaign_npc_bodies[i].body);
     }
+    scene_burning_release_all();
     free(campaign_npc_bodies);campaign_npc_bodies=NULL;campaign_npc_body_count=0;
     free(campaign_npc_movement_configs);campaign_npc_movement_configs=NULL;
     free(campaign_npc_stances);campaign_npc_stances=NULL;
@@ -8674,7 +8678,7 @@ static int combat_source(void *c,uint32_t handle,uint32_t *affiliation)
     }
     *affiliation=0;return 0;
 }
-static uint32_t combat_burn(void *c,uint32_t a,uint32_t d){(void)c;(void)a;(void)d;return 0;}
+static uint32_t combat_burn(void *c,uint32_t a,uint32_t d){(void)c;return scene_burning_create(a,d);}
 static float combat_random(void *c,float low,float high){(void)c;return (low+high)*.5f;}
 uint32_t rf_scene_enemy_retaliation[4]; /* reactions, last victim, last source, preserved authored orders */
 typedef struct combat_feedback {int32_t now;int status;} combat_feedback;
@@ -8814,6 +8818,7 @@ static int combat_death_start(uint32_t slot)
 {
     campaign_npc_body *owner=campaign_npc_bodies+slot;rf_entity_pose *pose=NULL;rf_entity_playback_model *model;int status;
     rf_scene_death_motion_ops ops={NULL,combat_death_sound,NULL};
+    scene_burning_extinguish(owner->registration.handle);
     status=campaign_actor_pose(slot,&pose);if(status)return status;if(!pose)return RF_NOT_FOUND;
     model=campaign_playback_resources.models+pose->skeleton;
     status=rf_motion_stop_looping(&pose->playback,model->resources,model->count);if(status)return status;
@@ -8823,6 +8828,7 @@ static int combat_death_start(uint32_t slot)
     rf_scene_combat_death[2]=(uint32_t)owner->selection.mapping.actions[5];rf_scene_combat_death[3]=(uint32_t)status;
     return status;
 }
+#include "scene_burning.inc"
 uint32_t rf_scene_liquid_damage[8]; /* ticks,requests,room,type,material,amount,health,status */
 static int campaign_liquid_damage_tick(scene_stream *s,uint32_t frame,int32_t now)
 {
@@ -12295,6 +12301,8 @@ static int campaign_combat_tick(scene_stream *stream,uint32_t frame,const float 
     rf_scene_weapon_selection[0]=campaign_equipped_slot;rf_scene_weapon_selection[2]=(uint32_t)campaign_rifle_id;
     rf_scene_weapon_selection[3]=campaign_player_inventory.owned[campaign_rifle_id];rf_scene_weapon_selection[4]=campaign_player_inventory.loaded[campaign_rifle_id];
     rf_scene_weapon_selection[5]=campaign_player_inventory.reserve[campaign_weapon_supply.definitions[campaign_rifle_id].ammo_type];
+    if(!frame)scene_burning_reset();
+    status=scene_burning_tick(stream,frame);if(status)return status;
     status=scene_npc_rubble_stimulus(stream,frame,position);if(status)return status;
     status=(rf_scene_dev_npc_enabled==1 || (rf_scene_dev_npc_enabled==2 && frame<600))?RF_OK:campaign_enemy_tick(stream,frame,position);rf_scene_enemy_combat[7]=(uint32_t)status;if(status)return status;
     status=scene_npc_rubble_record(stream,frame);if(status)return status;
