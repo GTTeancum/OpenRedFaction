@@ -29,10 +29,10 @@ static int query(const rf_physics_body_state *body,float remaining,
     }
     if(f->mode>=4) {
         *found=f->mode==5 || n==0;hit->fraction=0;
-        hit->normal[f->mode==6?0:1]=1;memcpy(hit->point,body->position,12);
-        hit->moving_surface=f->mode!=6;
+        hit->normal[f->mode==6?0:1]=f->mode==14?-1:1;memcpy(hit->point,body->position,12);
+        hit->moving_surface=f->mode!=6 && f->mode!=14;
         if(f->mode>=8 && f->mode<=10)hit->recovery_distance=f->mode==9?NAN:.5f;
-        if(f->mode>=11)hit->surface_velocity[1]=f->mode==12?NAN:1;
+        if(f->mode==11 || f->mode==12)hit->surface_velocity[1]=f->mode==12?NAN:1;
         return RF_OK;
     }
     *found=f->mode==2 || n<2;
@@ -123,5 +123,11 @@ int main(void)
     body=initial();body.flags=0x9800003fu;before=body;f=(fixture){0,12,{0}};
     CHECK(rf_physics_fragment_step_timed(&body,.125f,0,&flags,position,basis,query,&f,&report)==RF_RANGE);
     CHECK(!memcmp(&body,&before,sizeof(body)));
+    /* A ceiling has gravity pointing into its outward normal. Friction must
+     * not turn that negative support budget into tangential acceleration. */
+    body=initial();body.flags=0x9800003fu;body.velocity[0]=2;body.velocity[1]=4;body.coefficients[2]=1;
+    f=(fixture){0,14,{0}};
+    CHECK(!rf_physics_fragment_step_timed(&body,.125f,9.8f,&flags,position,basis,query,&f,&report));
+    CHECK(report.contacts==1 && body.velocity[0]==2 && !report.stopped);
     puts("PASS timed fragment repeats, stationary moving-surface query, bounded retries and rollback");return 0;
 }

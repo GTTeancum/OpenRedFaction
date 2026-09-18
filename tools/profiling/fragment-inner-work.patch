@@ -204,7 +204,7 @@ index 369cd193..4e47ddf3 100644
 +     printf("FRAGMENT_STAGE_WORK");for(i=0;i<32;i++)printf(" %u",rf_scene_fragment_stage_work[i]);puts("");
       printf("FRAGMENT_PROFILE");for(i=0;i<24;i++)printf(" %u",rf_scene_fragment_profile[i]);puts("");
       printf("DETACHED_MOTION");for(i=0;i<8;i++)printf(" %u",rf_scene_detached_motion[i]);puts("");
-     if(rf_scene_fragment_platform_enabled){printf("FRAGMENT_PLATFORM");for(uint32_t k=0;k<30;k++)printf(" %u",rf_scene_fragment_platform_audit[k]);printf("\n");}
+     if(rf_scene_fragment_platform_enabled){printf("FRAGMENT_PLATFORM");for(uint32_t k=0;k<32;k++)printf(" %u",rf_scene_fragment_platform_audit[k]);printf("\n");}
       printf("DETACHED_POSE");for(i=0;i<6;i++)printf(" %.9g",rf_scene_detached_pose[i]);puts("");}
 diff --git a/tools/xemu_render_check.py b/tools/xemu_render_check.py
 index f2e3d221..4505c0f8 100644
@@ -216,7 +216,7 @@ index f2e3d221..4505c0f8 100644
              fields.append(('rf_scene_fragment_stage_ms',8))
 +            fields.append(('rf_scene_fragment_stage_work',32))
              if args.fragment_contact_test:fields.extend((('rf_scene_fragment_contact_audit',64),('rf_scene_fragment_edge_audit',32),('rf_scene_fragment_moving_audit',16),('rf_scene_fragment_support_audit',16)))
-             if args.fragment_platform_test:fields.append(('rf_scene_fragment_platform_audit',30))
+             if args.fragment_platform_test:fields.append(('rf_scene_fragment_platform_audit',32))
              if args.npc_rubble_test:fields.append(('rf_scene_dev_npc_cover',48))
              if args.moving_support_test:fields.append(('rf_scene_moving_support_test',160))
 @@ -454,6 +455,12 @@ dvd_path = '{root.as_posix()}/build/xbox/redfaction-diagnostic.iso'

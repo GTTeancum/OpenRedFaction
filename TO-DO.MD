@@ -1,6 +1,6 @@
 # Red Faction Xbox / PC - open work
 
-- PRIORITY GeoMod moving rubble: Fix overhead crush and broaden angular sweeps;0.5-unit lifting now passes78 stock64MiB Xbox checks with30 exact PC audit words and61 nonlimited frames, while the preserved1.5-unit ceiling stress run exposes excessive sideways ejection;126 PC tests pass.
+- PRIORITY GeoMod crush: Resolve wedged fragments, mover overlap and remaining angular sweeps; the ceiling energy fix reduces peak speed19.06 to1.54 units/sec on stock64MiB Xbox with32 exact PC words and78 checks, but18 frames still exhaust contacts;126 PC tests and prior platform cases pass.
 
 - Doors: Investigate the existing420-frame close/reopen replay failure reproduced on both current and prior scene code;180-frame opening and player traversal still pass.
 

@@ -181,7 +181,7 @@ static uint32_t player_frame_limit;
 static rf_scene_input player_input;
 static uint32_t campaign_spawn;
 uint32_t rf_scene_dev_room_enabled;
-uint32_t rf_scene_fragment_platform_enabled,rf_scene_fragment_platform_audit[30];
+uint32_t rf_scene_fragment_platform_enabled,rf_scene_fragment_platform_audit[32];
 uint32_t rf_scene_dev_npc_enabled; /* Opt-in:1 harmless walking miner;2 armed rubble-cover fixture. */
 static uint32_t scene_dev_npc_contacts;
 uint32_t rf_scene_water_test_enabled; /* Explicit authored dm03 water test; no terrain fixture. */
@@ -11679,6 +11679,12 @@ static int scene_detached_tick(scene_stream *s,float seconds)
             body->state=next;
             if(rf_scene_fragment_platform_enabled && source==0 && b==0 && i==1) {
                 float bottom=INFINITY;
+                if(rf_scene_fragment_platform_audit[0]>=420) {
+                    float peak,speed2=0;memcpy(&peak,rf_scene_fragment_platform_audit+30,4);
+                    for(uint32_t k=0;k<3;k++)speed2+=body->state.velocity[k]*body->state.velocity[k];
+                    if(speed2>peak)memcpy(rf_scene_fragment_platform_audit+30,&speed2,4);
+                    rf_scene_fragment_platform_audit[31]+=report.limited;
+                }
                 if(rf_scene_fragment_platform_audit[0]>=420 && rf_scene_fragment_platform_audit[0]<=480) {
                     rf_scene_fragment_platform_audit[25]++;rf_scene_fragment_platform_audit[26]+=report.limited;
                 }

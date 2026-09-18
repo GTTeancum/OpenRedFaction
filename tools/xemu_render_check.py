@@ -30,6 +30,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--npc-projectile-test', action='store_true', help='Rubble-cover fixture followed by a rocket striking the guard')
     parser.add_argument('--npc-rubble-test', action='store_true', help='Opt-in armed NPC versus live extracted held cover')
+    parser.add_argument('--ceiling-platform-test', action='store_true', help='Tall lift into ceiling: energy regression only; crush resolution remains open')
     parser.add_argument('--lift-platform-test', action='store_true', help='Raise developer platform0.5 units with rubble; implies --fragment-platform-test')
     parser.add_argument('--tip-platform-test', action='store_true', help='Tip the explicit platform90 degrees; implies --fragment-platform-test')
     parser.add_argument('--fragment-platform-test', action='store_true', help='Generated CTF06 platform with ordinary rocket rubble and support withdrawal; no saves')
@@ -84,8 +85,8 @@ def main():
     parser.add_argument('--unbatched', action='store_true', help='Reference tiny GPU command submission blocks')
     parser.add_argument('--unsorted', action='store_true', help='Reference source-order world draw ranges')
     args = parser.parse_args()
-    if args.tip_platform_test and args.lift_platform_test:parser.error('Choose tipping or lifting')
-    if args.tip_platform_test or args.lift_platform_test:args.fragment_platform_test=True
+    if sum((args.tip_platform_test,args.lift_platform_test,args.ceiling_platform_test))>1:parser.error('Choose one platform motion')
+    if args.tip_platform_test or args.lift_platform_test or args.ceiling_platform_test:args.fragment_platform_test=True
     if args.fragment_platform_test and not (args.dev_room and args.spawn and args.level=='ctf06.rfl' and args.archive=='levelsm.vpp' and args.authored_source==108 and args.authored_sources==3 and args.input and not (args.player_checkpoint or args.geomod_checkpoint_in or args.geomod_checkpoint_out)):
         parser.error('--fragment-platform-test requires source108/three-source CTF06 DEV rocket input without checkpoints')
     if args.fragment_contact_test and not args.dev_room:parser.error('--fragment-contact-test requires --dev-room')
@@ -187,7 +188,7 @@ def main():
     (run / 'inputs.bin').write_bytes(payload)
     env = {k: v for k, v in os.environ.items() if not k.startswith('RF_REPLAY_')}
     if args.fragment_contact_test:env['RF_REPLAY_FRAGMENT_CONTACT_TEST']='1'
-    if args.fragment_platform_test:env['RF_REPLAY_FRAGMENT_PLATFORM_TEST']='3' if args.lift_platform_test else '2' if args.tip_platform_test else '1'
+    if args.fragment_platform_test:env['RF_REPLAY_FRAGMENT_PLATFORM_TEST']='4' if args.ceiling_platform_test else '3' if args.lift_platform_test else '2' if args.tip_platform_test else '1'
     if args.npc_rubble_test:env['RF_REPLAY_DEV_NPC']='2'
     env.update(RF_REPLAY_LEVEL=args.level, RF_REPLAY_ARCHIVE=args.archive)
     if args.dev_room:env['RF_REPLAY_DEV_ROOM']='1'
@@ -244,7 +245,7 @@ def main():
     if args.fragment_platform_test:
         subprocess.run([sys.executable,'-B','tools/build_fragment_platform_fixture.py'],cwd=root,check=True)
         pc_game=root/'artifacts/fragment-platform/game'
-        report['fragment_platform_mode']='lift' if args.lift_platform_test else 'tip' if args.tip_platform_test else 'translate'
+        report['fragment_platform_mode']='ceiling' if args.ceiling_platform_test else 'lift' if args.lift_platform_test else 'tip' if args.tip_platform_test else 'translate'
         report['fragment_platform_fixture']=json.loads((pc_game.parent/'build.json').read_text())
     pc = subprocess.run([str(root / pc_build / 'Release/rf_pc_play.exe'), '--spawn-replay',
         str(pc_game), str(run / 'inputs.bin'), str(run / 'pc-final.ppm')],
@@ -313,7 +314,7 @@ def main():
         if args.dev_room:(disc/'dev-room.flag').write_bytes(b'')
         if args.fragment_contact_test:(disc/'fragment-contact-test.flag').write_bytes(b'')
         if args.fragment_platform_test:
-            (disc/'fragment-platform-test.flag').write_bytes(b'3' if args.lift_platform_test else b'2' if args.tip_platform_test else b'1')
+            (disc/'fragment-platform-test.flag').write_bytes(b'4' if args.ceiling_platform_test else b'3' if args.lift_platform_test else b'2' if args.tip_platform_test else b'1')
             shutil.copyfile(pc_game/'levelsm.vpp',disc/'fragment-platform.vpp')
         if args.npc_rubble_test:(disc/'dev-npc.flag').write_bytes(b'2')
         else:(disc/'dev-npc.flag').unlink(missing_ok=True)
@@ -461,7 +462,7 @@ dvd_path = '{root.as_posix()}/build/xbox/redfaction-diagnostic.iso'
             fields.append(('rf_scene_fragment_profile',24))
             fields.append(('rf_scene_fragment_stage_ms',8))
             if args.fragment_contact_test:fields.extend((('rf_scene_fragment_contact_audit',64),('rf_scene_fragment_edge_audit',32),('rf_scene_fragment_moving_audit',16),('rf_scene_fragment_support_audit',16)))
-            if args.fragment_platform_test:fields.append(('rf_scene_fragment_platform_audit',30))
+            if args.fragment_platform_test:fields.append(('rf_scene_fragment_platform_audit',32))
             if args.npc_rubble_test:fields.append(('rf_scene_dev_npc_cover',48))
             if args.moving_support_test:fields.append(('rf_scene_moving_support_test',160))
             if args.rotate_support_test:fields.append(('rf_scene_rotating_support_test',120))
@@ -485,7 +486,7 @@ dvd_path = '{root.as_posix()}/build/xbox/redfaction-diagnostic.iso'
             if args.fragment_platform_test:
                 expected=[int(v) for line in pc.stdout.splitlines() if line.startswith('FRAGMENT_PLATFORM ') for v in line.split()[1:]]
                 actual=snap['symbols']['rf_scene_fragment_platform_audit']['words']
-                assert len(expected)==30 and expected==actual and actual[:2]==[599,60], 'Platform sequence differs or incomplete'
+                assert len(expected)==32 and expected==actual and actual[:2]==[599,60], 'Platform sequence differs or incomplete'
                 assert actual[2]==1, 'Repeated sleep/wake while platform moves'
                 if args.tip_platform_test or args.lift_platform_test:assert actual[25:27]==[61,0], 'Platform motion exhausted collision substeps'
                 basis=struct.unpack('<9f',struct.pack('<9I',*actual[16:25]))
@@ -495,10 +496,15 @@ dvd_path = '{root.as_posix()}/build/xbox/redfaction-diagnostic.iso'
                 if args.lift_platform_test:
                     support_y,gap=struct.unpack('<2f',struct.pack('<2I',*actual[28:30]))
                     assert actual[27]==1 and abs(support_y-1.15)<.005 and abs(gap)<=.01
+                elif args.ceiling_platform_test:
+                    peak=struct.unpack('<f',struct.pack('<I',actual[30]))[0]
+                    assert 0<peak<4, 'Ceiling contact added excessive kinetic energy'
+                    report['ceiling_response']={'peak_speed':peak**.5,'limited_frames':actual[31],
+                        'scope':'Energy regression only; blocked/crush resolution remains incomplete'}
                 else:assert abs(final+1.5)<.005
                 xyz=struct.unpack('<3f',struct.pack('<3I',*actual[3:6]))
-                assert abs(xyz[0]-(9.449 if args.tip_platform_test or args.lift_platform_test else 12.449))<.00001
-                assert abs(xyz[1]-(1.05 if args.lift_platform_test else .55))<.00001 and xyz[2]==2.5
+                assert abs(xyz[0]-(9.449 if args.tip_platform_test or args.lift_platform_test or args.ceiling_platform_test else 12.449))<.00001
+                assert abs(xyz[1]-(2.05 if args.ceiling_platform_test else 1.05 if args.lift_platform_test else .55))<.00001 and xyz[2]==2.5
                 assert actual[9]==1 and actual[14]==1 and not actual[13]&0x80000000
                 report['checks']['FRAGMENT_PLATFORM']=dict(pc=expected,xbox=actual,equal=True,initial_bottom=initial,final_bottom=final,drop=initial-final)
 

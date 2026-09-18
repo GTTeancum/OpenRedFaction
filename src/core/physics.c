@@ -1092,6 +1092,9 @@ static int solid_contact_policy(rf_physics_body_state *state,const float point[3
     j=(float)(-((1+(long double)e)*vn)/denominator);if(!isfinite(j))return RF_RANGE;
     for(i=0;i<3;i++)jn[i]=(float)((double)normal[i]*j);
     budget=(float)(-(long double)mu*value.mass*gn);
+    /* Port nonsleeping contacts: a ceiling supplies no gravity support.
+     * Negative friction would add energy on every repeated contact. */
+    if(!allow_sleep && budget<0)budget=0;
     dot=player_contact_dot(normal,value.velocity);vn=(float)dot;
     for(i=0;i<3;i++){volatile float n=(float)((double)normal[i]*vn);tangent[i]=(float)((double)value.velocity[i]-n);}
     len=(float)solid_length(tangent);memcpy(impulse,jn,12);
