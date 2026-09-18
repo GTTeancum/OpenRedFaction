@@ -28,6 +28,7 @@ from xemu_draw_audit import capture as capture_draws
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--moving-support-test', action='store_true', help='Process-local saved rubble lift/stop/retire fixture')
     parser.add_argument('--expanded-geomod', action='store_true', help='Opt-in matching sixteen-cut PC/NXDK profile on stock64MiB')
     parser.add_argument('--terrain-texture-audit', action='store_true', help='Read live Xbox substrate texture bytes and compare the PC owner')
     parser.add_argument('--terrain-atlas-audit', action='store_true', help='Compare live generated atlas bytes for a settled checkpoint with neutral input')
@@ -73,6 +74,8 @@ def main():
     parser.add_argument('--unbatched', action='store_true', help='Reference tiny GPU command submission blocks')
     parser.add_argument('--unsorted', action='store_true', help='Reference source-order world draw ranges')
     args = parser.parse_args()
+    if args.moving_support_test and not (args.dev_room and args.player_checkpoint and args.geomod_checkpoint_in):
+        parser.error('--moving-support-test requires a saved DEV player checkpoint')
     if args.terrain_draw_audit:args.terrain_atlas_audit=args.terrain_texture_audit=True
     if args.terrain_texture_audit and not args.dev_room:parser.error('--terrain-texture-audit requires --dev-room')
     if args.terrain_atlas_audit and (not args.dev_room or not args.geomod_checkpoint_in):
@@ -123,6 +126,8 @@ def main():
         parser.error('Require32..60000 frames,30..3600 seconds and a positive actor UID')
     if payload is None:
         payload = b'RFI5' + struct.pack('<I', 44) + bytes(args.frames * 44)
+    if args.moving_support_test and (args.frames < 242 or any(payload[8:] if payload[:4] in (b'RFI2',b'RFI3',b'RFI4',b'RFI5',b'RFI6') else payload)):
+        parser.error('--moving-support-test requires at least242 neutral input records')
     if args.terrain_atlas_audit and any(payload[8:] if payload[:4] in (b'RFI2',b'RFI3',b'RFI4',b'RFI5',b'RFI6') else payload):
         parser.error('--terrain-atlas-audit requires neutral replay input')
     if args.item_uid is not None and not 0 < args.item_uid < 0xffffffff:
@@ -154,6 +159,7 @@ def main():
     env = {k: v for k, v in os.environ.items() if not k.startswith('RF_REPLAY_')}
     env.update(RF_REPLAY_LEVEL=args.level, RF_REPLAY_ARCHIVE=args.archive)
     if args.dev_room:env['RF_REPLAY_DEV_ROOM']='1'
+    if args.moving_support_test:env['RF_REPLAY_MOVING_SUPPORT_TEST']='1'
     env['RF_REPLAY_AUTHORED_SOURCES']=str(args.authored_sources)
     if args.authored_source is not None:env['RF_REPLAY_AUTHORED_SOURCE']=str(args.authored_source)
     if args.terrain_texture_audit:env['RF_REPLAY_TERRAIN_MATERIAL_AUDIT']=str(run/'pc-terrain-material.bin')
@@ -219,7 +225,7 @@ def main():
     saved[light_flag.name]=light_flag.read_bytes() if light_flag.exists() else None
     shallow_flag=disc/'shallow-fixture.flag'
     saved[shallow_flag.name]=shallow_flag.read_bytes() if shallow_flag.exists() else None
-    for name in ('geomod-checkpoint.bin','geomod-checkpoint-out.flag','ripple-test.flag','debris-player-test.flag','water-test.flag','swim-test.flag','player-checkpoint.flag',
+    for name in ('geomod-checkpoint.bin','geomod-checkpoint-out.flag','ripple-test.flag','debris-player-test.flag','water-test.flag','swim-test.flag','player-checkpoint.flag','moving-support-test.flag',
                  'geomod-hdd-load.flag','geomod-hdd-save.flag','geomod-fallback-seed.flag','geomod-fallback-observe.flag',
                  'geomod-fallback0.rfsg','geomod-fallback1.rfsg','terrain-map-limit.bin','authored-source.bin','authored-count.bin'):
         path=disc/name;saved[name]=path.read_bytes() if path.exists() else None
@@ -262,6 +268,7 @@ def main():
         if args.authored_source is not None:(disc/'authored-source.bin').write_bytes(struct.pack('<I',args.authored_source))
         if args.authored_sources>1:(disc/'authored-count.bin').write_bytes(struct.pack('<I',args.authored_sources))
         if args.player_checkpoint:(disc/'player-checkpoint.flag').write_bytes(b'')
+        if args.moving_support_test:(disc/'moving-support-test.flag').write_bytes(b'')
         if args.water_test:(disc/'water-test.flag').write_bytes(b'')
         if liquid_mode:(disc/'swim-test.flag').write_bytes(str(liquid_mode).encode('ascii'))
         if checkpoint:(disc/'geomod-checkpoint-out.flag').write_bytes(b'')
@@ -450,6 +457,12 @@ dvd_path = '{root.as_posix()}/build/xbox/redfaction-diagnostic.iso'
                 assert len(transition_rows)==1 and int(transition_rows[0][2])==args.exit_start_uid, 'Walk did not reach its exit'
 
             goal_words=words(monitor,symbol('rf_scene_mission_goals'),4225)
+            if args.moving_support_test:
+                expected=[int(value) for line in pc.stdout.splitlines() if line.startswith('MOVING_SUPPORT ') for value in line.split()[1:]]
+                actual=words(monitor,symbol('rf_scene_moving_support_test'),160)
+                assert len(expected)==160, 'Incomplete PC moving-support sequence'
+                report['checks']['MOVING_SUPPORT']=dict(pc=expected,xbox=actual,equal=expected==actual)
+                assert expected==actual, 'Moving-support sequence differs on Xbox'
             assert goal_words[0]<=64
             raw_goals=struct.pack('<4225I',*goal_words)
             native_goals=[]

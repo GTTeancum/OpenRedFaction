@@ -13859,6 +13859,7 @@ int rf_scene_draw_coronas(rf_scene_particle_sink sink,void *context)
     status=rf_glare_render_pass(&campaign_glare_list,views,1,views[0],0,&backend);
     free(c.snapshot.objects);if(status)++rf_scene_corona_draw[7];return status;
 }
+#include "scene_moving_support_test.inc"
 static int scene_frame(void *context,uint32_t frame,rf_preview_mesh *actor)
 {
     scene_stream *stream=context;uint32_t i,slot;
@@ -13918,6 +13919,7 @@ static int scene_frame(void *context,uint32_t frame,rf_preview_mesh *actor)
         status=actor_room_refresh(stream->collision,frame);if(status)return status;
         status=campaign_death_clearance_fixture(stream->collision,frame);if(status)return status;
         status=campaign_death_animation_fixture(stream->collision,frame,stream->particles.state?&stream->particles.state->random:NULL);if(status)return status;
+        status=scene_moving_support_stimulus(frame);if(status)return status;
         status=actor_ground_check(stream->collision,frame);if(status)return status;
         {
             const actor_ground_record *ground=rf_scene_actor_ground_records+(frame%64);
@@ -14034,6 +14036,7 @@ static int scene_frame(void *context,uint32_t frame,rf_preview_mesh *actor)
             memcpy(next.position,rf_scene_actor_pose.position,12);memcpy(next.next_position,rf_scene_actor_pose.pending,12);
             memcpy(next.bounds.minimum,rf_scene_actor_pose.minimum,12);memcpy(next.bounds.maximum,rf_scene_actor_pose.maximum,12);
             scene_actor_body.state=next;
+            scene_moving_support_record(frame);
             if(campaign_spawn){status=campaign_liquid_damage_tick(stream,frame,particle_now);if(status)return status;}
             step_profile_mark(1,&step_clock);
             /* 433260 dispatches authored light timers after physics, before events.

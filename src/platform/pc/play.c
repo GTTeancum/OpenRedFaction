@@ -505,6 +505,7 @@ int main(int argc,char **argv)
     rf_scene_ripple_test_enabled=p.headless && getenv("RF_REPLAY_RIPPLE_TEST")!=NULL;
     rf_scene_dev_room_enabled=dev_room || (p.headless && (getenv("RF_REPLAY_DEV_ROOM")!=NULL || getenv("RF_REPLAY_WATER_TEST")!=NULL));
     rf_scene_dev_npc_enabled=p.headless && getenv("RF_REPLAY_DEV_NPC")!=NULL;
+    rf_scene_moving_support_enabled=p.headless && getenv("RF_REPLAY_MOVING_SUPPORT_TEST")!=NULL;
     if(getenv("RF_REPLAY_INSPECTION_CAMERA")) {
         float eye[3],target[3];char extra;
         if(!p.headless || !rf_scene_dev_room_enabled)CHECK(RF_RANGE);

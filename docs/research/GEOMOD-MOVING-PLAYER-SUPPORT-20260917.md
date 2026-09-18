@@ -47,3 +47,43 @@ Focused logs: moving-support-query-{build,tests}.log and
 moving-support-carry-{build,tests}.log. Native log: moving-support-native.log.
 Next: a bounded process-local moving-fragment gameplay case that exercises the
 full ground-query/update loop while support starts, stops or is removed.
+
+## Full scene lift, stop and retirement fixture
+
+`tools/check_moving_rubble_support.py` loads the actual radius0.530725 extracted
+chunk from `intermediate-rubble-standing/saved.rfcp` with neutral player input.
+The opt-in `scene_moving_support_test.inc` lifts that body0.25 units over60 ticks,
+stops it for30 ticks, then damages/retires it through the existing source adapter.
+This is a kinematic test stimulus on real extracted geometry, not a natural
+upward debris trajectory or proof of rotating-support behavior. No host input.
+Normal sessions leave the fixture disabled; PC requires a headless environment
+flag, Xbox a harness-owned disc flag that is saved/restored with the disc.
+
+PC results in `artifacts/moving-rubble-support/report.json`:
+
+- Stationary control remains at playerY0.464791.
+- First moving contact corrects the support position, reachingY0.478665.
+  Afterwards player displacement tracks actual fragment displacement within
+  0.000002 units; the contact correction is not counted as accumulated carry.
+- End of lift isY0.724499; stopping clears carry velocity and leaves position
+  unchanged. Neutral playerX/Z are bit-identical at all ten samples.
+- Retirement clears support immediately and switches the player to falling;
+  by frame150 the player has landed on the floor atY-0.368479.
+- All123 CTests pass. Lifted and landed PC frames were inspected: intact room,
+  broken post, launcher and HUD, with the camera lower after falling. The support
+  is underfoot, so these images alone do not prove its motion; sampled body/player
+  state supplies that evidence. Audio quality was not tested.
+
+The native harness now reads all160 telemetry words for exact PC/Xbox comparison,
+in addition to its existing player, destruction and checkpoint checks.
+
+Stock64MiB run `artifacts/xemu/render-20260917-213136` passes76 checks. All160
+sampled words match PC exactly, as does the2654-byte final player/destruction
+checkpoint after retirement and landing. Endpoint3975 free pages is15.527MiB;
+this is not a peak-memory guarantee. The native final frame was inspected and
+shows the lowered camera, damaged post, room, launcher and HUD. It agrees with
+the PC endpoint; intermediate native frames were not captured. Disc restoration
+completed and the owned emulator exited. No GitHub images were added.
+
+Next: naturally moving/rotating support and larger polygon-contact geometry.
+Do not count the kinematic lift as natural debris or angular-carry acceptance.
