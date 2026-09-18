@@ -719,6 +719,7 @@ typedef struct scene_stream {
     void *light_scratch_memory;rf_light_world_scratch light_scratch;
     rf_visibility_camera particle_camera;scene_particle_workspace *particle_workspace;uint32_t particle_frame;
 } scene_stream;
+#include "scene_flame_effects_resources.inc"
 #include "scene_detached_sources.inc"
 static scene_stream *particle_draw_stream;
 static scene_stream *scene_actor_collision_owner;
@@ -884,7 +885,9 @@ static int scene_particle_draw_one(scene_stream *stream,uint32_t index,rf_scene_
         uint32_t texture=p->bitmap-stream->particles.materials.texture_count;
         if(!stream->impact)return RF_RANGE;
         if(texture<stream->impact->materials.count)animation=stream->impact->materials.animations+texture;
-        else {texture-=stream->impact->materials.count;if(texture>=2)return RF_RANGE;animation=stream->impact->blood_images+texture;}
+        else {texture-=stream->impact->materials.count;
+            if(texture<2)animation=stream->impact->blood_images+texture;
+            else {animation=scene_flame_effects_image(texture-2);if(!animation)return RF_RANGE;}}
     }
     status=rf_particle_frame_index(p,&frame);if(status)return status;
     if(frame>=animation->count)return RF_RANGE;
@@ -12058,6 +12061,7 @@ static int scene_impacts_tick(scene_stream *s,uint32_t frame)
     }
     return RF_OK;
 }
+#include "scene_flame_effects_runtime.inc"
 static int scene_explosion_terrain(scene_stream *s,uint32_t frame,const rf_weapon_flight_contact *contact,float crater_radius)
 {
     int status;
@@ -12124,6 +12128,7 @@ static int scene_rockets_tick(scene_stream *s,uint32_t frame)
     status=scene_detached_tick(s,frame?scene_step_seconds:0);if(status){printf("ROCKET_TICK_FAILURE detached %u %d\n",frame,status);return status;}
     status=scene_debris_tick(s,frame);if(status){printf("ROCKET_TICK_FAILURE debris %u %d\n",frame,status);return status;}
     status=scene_impacts_tick(s,frame);if(status){printf("ROCKET_TICK_FAILURE impacts %u %d\n",frame,status);return status;}
+    status=scene_flame_impacts_tick(s,frame);if(status)return status;
     for(i=0;i<SCENE_ROCKETS;i++)if(s->rockets[i].active) {
         rf_weapon_flight_event event;rf_weapon_flight_liquid_event movement;
         rf_weapon_flight_liquid_policy policy={0,0,-1,-1};
@@ -15845,6 +15850,7 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
             if(rf_scene_dev_room_enabled) {
                 stream->impact=calloc(1,sizeof(*stream->impact));if(!stream->impact){status=RF_RANGE;goto done;}
                 status=rf_explosion_materials_open(&stream->impact->materials,&campaign_rocket_impact,maps,map_count,128*1024);if(status)goto done;
+                status=scene_flame_effects_open(tables_path,maps,map_count);if(status)goto done;
                 {rf_vpp tables={0};rf_particle_definition billboard={0};uint32_t budget=512*1024;
                  memset(rf_scene_debris_blood,0,sizeof(rf_scene_debris_blood));
                  status=rf_vpp_open(&tables,tables_path);if(status)goto done;
@@ -15993,6 +15999,7 @@ done:
     rf_visibility_light_storage_close(&stream->light_storage);
     rf_level_owned_lights_close(&stream->lights);
     rf_level_particles_close(&stream->particles);
+    scene_flame_effects_close();
     if(stream->impact){rf_particle_animation_close(stream->impact->blood_images);rf_particle_animation_close(stream->impact->blood_images+1);rf_explosion_materials_close(&stream->impact->materials);free(stream->impact);}
     free(stream->particle_workspace);particle_draw_stream=NULL;
     campaign_close_movers();

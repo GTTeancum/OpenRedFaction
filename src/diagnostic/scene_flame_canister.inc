@@ -7,10 +7,8 @@
  * Only successful spawn commits ammo (bounded-pool refusal costs no gas).
  * First-pass policies:
  * explode on contact (shared grenade next-tick contact gate), inherit velocity.
- * Generic rocket-hit visuals are temporary; flame_can_explode is the authored
- * effect and must replace that presentation when its resource owner is loaded.
- * Shared visual radius2 is a temporary port choice: authored8 belongs to the
- * flame-specific recipe and overwhelms the view when applied to rocket smoke.
+ * Authored flame_can_explode central emitters use their authored radius8;
+ * trail head/tail emitters remain presentation refinement.
  * No crater is authored: this adapter does not invent a GeoMod radius.
  * Include after grenade/explosion helpers. Tick every frame, even deselected.
  * Parent must inhibit primary/reload while busy and pass blocked for death,
@@ -57,7 +55,7 @@ static int scene_flame_canister_tick(scene_stream *s,uint32_t frame,const float 
             if(p->has_contact)contact=p->last_contact;else contact.hit.normal[1]=1;
             memcpy(contact.hit.point,event.position,12);contact.hit.fraction=0;contact.object=contact.face=UINT32_MAX;
             status=rf_geometry_collision_world_locate(s->collision,event.position,&location);if(status)return status;contact.room=location.room;
-            status=scene_impact_start_sized(s,&contact,frame,2.f);if(status)return status;
+            status=scene_flame_impact_start(s,&contact,frame,8.f);if(status)return status;
             scene_impact_sound(event.position,frame);
             status=scene_explosion_blast(s,frame,event.position,definition->alt_damage,7.f);if(status)return status;
             ++rf_scene_flame_canister[2];

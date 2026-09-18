@@ -1,0 +1,9 @@
+# Authored canister explosion central emitters
+
+The canister now resolves flame_can_explode -> flamethrower-alt and submits its five authored central fire/explosion/smoke emitters with radius8. This replaces the temporary radius2 rocket recipe; gameplay damage, ammo and projectile timing are unchanged. Up to eight effect instances use the existing emitter clock and particle renderer. Teardown closes the new bounded material owner. Bitmap indices follow ordinary particles, rocket materials and the two blood textures without changing their existing numbers.
+
+Only central emitters are loaded/submitted. The original full definition also resolves trails; loading their unused materials exceeded the512KiB budget. Restricting material ownership to the five active central slots yields two deduplicated animations and430844 resident bytes. Trail head/tail emission is still deferred, not silently counted as complete.
+
+PC canister replay completes with one launch/one explosion and loaded100/reserve900. Inspected framebuffer shows bright flame and smoke from the nearby detonation instead of the generic rocket smoke. The close placement fills much of the screen; distant appearance/final visual polish remains unverified. Focused canister gameplay check passes with the authored-effect call and radius. Original game not launched; no desktop capture/input or GitHub image upload.
+
+Native run artifacts/xemu/render-20260918-101849 passes81 comparisons over360frames; canister counts match1/1/1/0/0 and ammo remains loaded100/reserve900. Endpoint available pages2286 =8.9296875MiB. Native framebuffer inspected: authored bright flame/smoke is present. PC tints the held weapon with foreground flame while Xbox keeps its weapon layer clearer; this existing composition difference is recorded for later rendering refinement, not claimed pixel parity.

@@ -17,8 +17,8 @@ static int collide;
 static void campaign_ammo_publish(void){}
 static void combat_sound(const char *s,const float *p){(void)s;(void)p;}
 static void scene_impact_sound(const float *p,uint32_t f){(void)p;(void)f;}
-static int scene_impact_start_sized(scene_stream *s,const rf_weapon_flight_contact *c,uint32_t f,float radius)
-{(void)s;(void)c;(void)f;if(radius!=2)return RF_RANGE;++impacts;return RF_OK;}
+static int scene_flame_impact_start(scene_stream *s,const rf_weapon_flight_contact *c,uint32_t f,float radius)
+{(void)s;(void)c;(void)f;if(radius!=8)return RF_RANGE;++impacts;return RF_OK;}
 static int scene_explosion_blast(scene_stream *s,uint32_t f,const float *p,float damage,float radius)
 {(void)s;(void)f;(void)p;if(damage!=100 || radius!=7)return RF_RANGE;++blasts;return RF_OK;}
 static int scene_grenade_sweep(void *c,const float *p,const float *d,float r,rf_weapon_flight_contact *h,uint32_t *hit)
