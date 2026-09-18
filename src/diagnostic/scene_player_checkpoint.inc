@@ -9,7 +9,7 @@ static int scene_checkpoint_player_catalog(rf_player_checkpoint_catalog *c)
     memcpy(c->weapons,campaign_weapon_supply.definitions,sizeof(c->weapons));
     c->health_capacity=campaign_player_damage.state.effects.class_health;c->armor_capacity=campaign_player_damage.state.effects.class_armor;
     for(i=0;i<SCENE_WEAPON_SLOTS;i++){
-        if(i==9)continue; /* Detonator shares the base remote item. */
+        if(i==9 || i==11)continue; /* Detonator shares the base remote item. */
         int32_t id=rf_weapon_name_find(&campaign_weapon_supply.names,campaign_weapon_names[i]);const rf_weapon_acquire_definition *d;
         if(id<0||(uint32_t)id>=c->count)return RF_FORMAT;c->supported[id]=1;d=c->weapons+id;
         if(d->ammo_type<0||d->ammo_type>=32||d->capacity<0)return RF_FORMAT;
@@ -27,6 +27,7 @@ static int scene_checkpoint_player_scope(const scene_stream *s,uint32_t live)
         if(strcmp(campaign_current_level,"ctf06.rfl") || !s->checkpoint_clutter ||
            scene_authored_clutter_baseline_check(s->terrain_source_count>1?s->terrain_sources[0].authored->source_identity:s->terrain_authored->source_identity,0,s->checkpoint_clutter))return RF_RANGE;
     } else if(strcmp(campaign_current_level,"glass_house.rfl") || rf_scene_clutter_bodies[1])return RF_RANGE;
+    if(campaign_shield_id>=0 && campaign_player_inventory.owned[campaign_shield_id])return RF_RANGE; /* Shield durability is not in RFCP yet. */
     if(!live)return RF_OK;
     if(campaign_player_damage.state.effects.health<=0||campaign_crouched||(rf_scene_actor_stance_flags&0x400u)||
        campaign_climb.region||campaign_player_view.linked_handle!=-1||campaign_support_handle||rf_scene_actor_landing[1]!=1||

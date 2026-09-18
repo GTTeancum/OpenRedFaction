@@ -287,7 +287,8 @@ static int present(void *context,uint32_t frame,const rf_preview_mesh *mesh,
     status=rf_scene_prepare_lightmaps(&p->lightmaps);if(status)return status;
     for(i=0;i<materials->count;i++)image_bytes+=materials->items[i].image.bytes;
     for(i=0;i<p->lightmaps.count;i++)image_bytes+=p->lightmaps.images[i].bytes;
-    if(image_bytes>RF_CAMPAIGN_IMAGE_BUDGET)return RF_RANGE;
+    {uint32_t budget=rf_scene_dev_npc_enabled==6?RF_PLAYER_SHIELD_IMAGE_BUDGET:RF_CAMPAIGN_IMAGE_BUDGET;
+     if(image_bytes>budget){fprintf(stderr,"Scene image budget %llu exceeds %u\n",(unsigned long long)image_bytes,budget);return RF_RANGE;}}
     status=rf_scene_update_lightmaps(&p->lightmaps);if(status)return status;
     /* Recorded-input diagnosis projects every tick, rasterizes only the last. */
     if(p->replay && !capture && p->frames+1<p->replay_count){status=rf_scene_draw_particles(NULL,NULL);if(status)return status;
@@ -540,6 +541,7 @@ int main(int argc,char **argv)
     if(rf_scene_dev_npc_enabled && !strcmp(getenv("RF_REPLAY_DEV_NPC"),"3"))rf_scene_dev_npc_enabled=3;
     if(rf_scene_dev_npc_enabled && !strcmp(getenv("RF_REPLAY_DEV_NPC"),"4"))rf_scene_dev_npc_enabled=4;
     if(rf_scene_dev_npc_enabled && !strcmp(getenv("RF_REPLAY_DEV_NPC"),"5"))rf_scene_dev_npc_enabled=5;
+    if(rf_scene_dev_npc_enabled && !strcmp(getenv("RF_REPLAY_DEV_NPC"),"6"))rf_scene_dev_npc_enabled=6;
     rf_scene_fragment_platform_enabled=p.headless && getenv("RF_REPLAY_FRAGMENT_PLATFORM_TEST")!=NULL;
     if(rf_scene_fragment_platform_enabled && !strcmp(getenv("RF_REPLAY_FRAGMENT_PLATFORM_TEST"),"2"))rf_scene_fragment_platform_enabled=2;
     if(rf_scene_fragment_platform_enabled && !strcmp(getenv("RF_REPLAY_FRAGMENT_PLATFORM_TEST"),"3"))rf_scene_fragment_platform_enabled=3;

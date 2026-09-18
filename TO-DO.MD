@@ -3,6 +3,8 @@
 Completion basis (user direction,2026-09-18): working late-alpha/early-beta code implementation. Overall approximately66%; GeoMod100% for the first playable milestone, accepted by the user. GeoMod items below are deferred refinement and coverage, not prerequisites to moving on. This does not assert retail polish, complete campaign integration or resolution of every known defect.
 
 
+- Player shield: Opt-in DEV mode6 now selects and renders the authored first-person shield on PC without ammo indexing or generic gunfire; PC/Xbox builds and asset/pose/lifecycle helpers pass, but physical blocking, bash, break integration, pickup, saves and native memory validation remain.
+
 - Riot shields: Live PC now blocks9shots without NPC damage and a longer encounter blocks32shots, breaks the shield and permits subsequent damage/fallback; exact posed-model ordering fixes coarse body overlap; native650-frame blocking replay passes with exact PC/Xbox counters and7.78MiB free, in-memory durability/break history now binds across revisits with focused checks and PC/Xbox builds passing; player shields, NPC silhouette selection, live round-trip verification and disk persistence remain.
 
 - NPC rockets: Real finite-ammo flight, source-aware actor collision, direct/blast damage and drawing are wired in the DEV room with PC/Xbox builds passing; focused real-flight/collision and scheduler checks pass; live PC guard fires three real rockets with lethal blasts; native650-frame encounter passes with matching launches/impacts and lethal blasts; subsequent splash-origin offset passes PC replay and both builds, native offset rerun and campaign resources remain.

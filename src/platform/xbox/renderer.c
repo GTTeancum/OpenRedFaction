@@ -358,7 +358,7 @@ static int preview(const rf_preview_mesh *mesh, const rf_materials *materials, c
     for (i = 0; i < materials->count; ++i) upload_bytes += materials->items[i].image.bytes;
     for (i = 0; i < lightmaps->count; ++i) upload_bytes += lightmaps->images[i].bytes;
     rf_xbox_renderer_stage[1]=(uint32_t)upload_bytes;rf_xbox_renderer_stage[2]=vertex_bytes;
-    if (upload_bytes > RF_CAMPAIGN_IMAGE_BUDGET || mesh->bytes > 8u*1024u*1024u || vertex_bytes>8u*1024u*1024u) return RF_RANGE;
+    if (upload_bytes > (rf_scene_dev_npc_enabled==6?RF_PLAYER_SHIELD_IMAGE_BUDGET:RF_CAMPAIGN_IMAGE_BUDGET) || mesh->bytes > 8u*1024u*1024u || vertex_bytes>8u*1024u*1024u) return RF_RANGE;
     for (i = 0; i < mesh->count; ++i) if (mesh->vertices[i].lightmap != UINT32_MAX && !RF_PREVIEW_IS_VERTEX_LIT(mesh->vertices[i].lightmap) && mesh->vertices[i].lightmap >= lightmaps->count) return RF_FORMAT;
     if(mesh->bytes>vertex_bytes)return RF_RANGE;
     renderer_mark(0,&profile_previous,profiling);
