@@ -99,3 +99,14 @@ Installed-data tests open each post, confirm four compiled windows/two solid nei
 |103|37|180|3480|1037727|
 
 All123 PC tests pass (`artifacts/side-post-tests.log`), including existing identity and checkpoint tests. Stock NXDK compile/link/XBE/ISO succeeds (`artifacts/side-post-xbox.log`). No native gameplay run or visual acceptance is claimed for these decoder-only profiles. Next: retain guard identity across scene/save admission, apply the guard to prepared gameplay cutters, enable the post selector, and verify repeated cuts/reload before shared beam/post transactions.
+
+
+## Protected-detail source identities
+
+The decoder now retains each guard's two authored face tokens as well as its compiled lookup IDs. A shared profile accessor supplies the expected detail UID and room to identity capture. Capture admits the four two-neighbor profiles only with their guard present; it checks both compiled faces' tokens, room, flags0x1c8, owner kind1/protection1, non-replacement status, and aggregate bounds against the guard. Guard faces remain static and are not added to the dynamic atlas manifest.
+
+Guarded sources use RFAS v3, loader policy5 and publication policy14. The DGRD extension hashes the detail UID, room, authored face tokens and bounds after the ordinary source content. Numeric compiled face lookup IDs are excluded from this canonical extension; the full compiled/editor sections remain hashed as before. Missing guards or incompatible policy reject. Existing v1/v2 source identities retain their previous bytes, including the pinned UID94 test.
+
+Installed manifest coverage now includes19 sources. All four new profiles have14 chart references and1613087-byte peak capture using the test's fixed capacities, below2097152. Decoded residency becomes3488bytes/1037735-byte peak after retaining authored guard tokens. Repeated capture APIs agree; all19 identities and window digests are pairwise distinct. Seven invalid guard variants per post reject without modifying digest or peak output: missing guard, wrong UID, wrong room, changed bounds, changed authored face token, substituted source-face reference and duplicate reference. Low-level tests separately prove bounds/tokens affect identity while numeric guard lookup IDs do not, and malformed data preserves output.
+
+Validation: all123 PC tests pass (`artifacts/side-post-identity-tests.log`); stock NXDK compile/link/XBE/ISO succeeds (`artifacts/side-post-identity-xbox.log`). This completes immutable identity support only. Live selectors, exact prepared-cutter guard enforcement in publication/restore, and native post save/continue validation remain open. No live Xbox behavior is claimed by these tests.

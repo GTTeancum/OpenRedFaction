@@ -39,6 +39,28 @@ int main(void)
     CHECK(!memcmp(original,expected,32));
     printf("CANONICAL ");for(i=0;i<32;i++)printf("%02x",original[i]);puts("");
     {
+        rf_geomod_authored_detail_guard guard={11179,65,{1565,1566},{8000,8001},
+            {-12.5f,-1.5f,-2.5f},{-9,-.75f,-2.5f}};
+        unsigned char guarded[32];
+        asset.source_uid=so.owner=wo.owner=refs[0].owner=75;
+        asset.detail_guards=&guard;asset.detail_guard_count=1;
+        in.loader_policy=5;in.publication_policy=14;
+        CHECK(!rf_geomod_authored_identity(&in,guarded) && memcmp(original,guarded,32));
+        guard.compiled_ids[0]++;CHECK(!rf_geomod_authored_identity(&in,out) && !memcmp(guarded,out,32));
+        guard.minimum[0]-=.25f;CHECK(!rf_geomod_authored_identity(&in,out) && memcmp(guarded,out,32));guard.minimum[0]+=.25f;
+        guard.source_faces[0]+=2;CHECK(!rf_geomod_authored_identity(&in,out) && memcmp(guarded,out,32));guard.source_faces[0]-=2;
+        guard.source_faces[1]=guard.source_faces[0];CHECK(rejected(&in));guard.source_faces[1]=8001;
+        guard.minimum[0]=NAN;CHECK(rejected(&in));guard.minimum[0]=-12.5f;
+        asset.detail_guard_count=0;CHECK(rejected(&in));asset.detail_guard_count=1;
+        asset.detail_guards=NULL;CHECK(rejected(&in));asset.detail_guards=&guard;
+        in.loader_policy=1;CHECK(rejected(&in));in.loader_policy=5;
+        in.publication_policy=9;CHECK(rejected(&in));in.publication_policy=14;
+        asset.source_uid=so.owner=wo.owner=refs[0].owner=94;
+        asset.detail_guard_count=0;asset.detail_guards=NULL;
+        in.loader_policy=in.publication_policy=1;
+        CHECK(!rf_geomod_authored_identity(&in,out) && !memcmp(original,out,32));
+    }
+    {
         float hp[1][4]={{0,0,1,0}},copy_hp[1][4];
         rf_geomod_publication_solid holes[2]={{hp,1,71},{hp,1,71}};
         unsigned char hollow[32];

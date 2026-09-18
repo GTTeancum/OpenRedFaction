@@ -2,7 +2,7 @@
 
 - PRIORITY GeoMod ordinary walls: Broaden multi-window and neighboring-brush CSG; a live floor-seam rocket now passes77 stock64MiB checks with exact PC/Xbox save bytes and fixture-off/mismatched-save rejection controls, alongside verified wall depth and player traversal.
 
-- GeoMod source expansion: Integrate guarded attached-post profiles into gameplay and saves; four posts now pass core cut/publication/reset and protected-trim rejection tests with123 PC tests and an NXDK build;92 two-shot destruction and108 reload/next-shot now pass77/77 stock64MiB checks with exact uninterrupted PC/Xbox state, while six more profiles have core/identity support pending live selection.
+- GeoMod source expansion: Integrate guarded attached-post profiles into gameplay and restore; core cuts and guard-aware identities now pass123 PC tests and NXDK builds, with all four captures below2MiB;92 two-shot destruction and108 reload/next-shot now pass77/77 stock64MiB checks with exact uninterrupted PC/Xbox state, while six more profiles have core/identity support pending live selection.
 
 - GeoMod thin fragments: Broaden contact coverage beyond the beam and concave L fixtures; face-derived samples now rescue pieces missed by regular grids, while Xbox beam continuation still passes76 checks.
 
@@ -5492,3 +5492,8 @@ Extended the read-only solid-neighborhood census to record compiled room owners,
 ### 2026-09-18: Guarded side-post core profiles
 
 Added decoder profiles75/79/99/103 with their two actual structural neighbors and separately retained protected detail guards. Trim geometry stays outside replacement ownership. Exact cutter bounds that overlap/touch the trim reject; compiled owner changes and invalid bounds reject. All four installed sources pass blocked/cut-clear/reset-blocked rays and publication construction. All123 PC tests and stock NXDK compile/link/XBE/ISO pass. Gameplay selectors, guard-aware identity/save handling, repeated live cuts and shared post/beam transactions remain open; no new native visual claim. Details in docs/research/GEOMOD-SIDE-BEAMS-20260918.md. Overall~51%; GeoMod~89%, unchanged until integration is verified.
+
+
+### 2026-09-18: Guard-aware source identity support
+
+Added RFASv3/loader5/publication14 identities for posts75/79/99/103, hashing retained detail ownership, authored face tokens and bounds. Capture validates guard geometry and metadata and rejects seven altered/missing guard variants per post without publishing output. Existing source identities remain compatible. All19 installed source identities are distinct/repeatable; each new capture peaks at1613087bytes with the test capacities. All123 PC tests and stock NXDK build pass. Next work remains exact cutter enforcement through publication/restore, live post selection, and native save/continuation. Overall~51%; GeoMod~89%, unchanged pending gameplay integration.

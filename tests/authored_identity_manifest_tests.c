@@ -6,9 +6,9 @@
 static int selected_identities(const rf_level *level,const rf_geometry *geometry,rf_vpp *maps,
     const rf_lightmap_rgb_owner *rgb,const unsigned char known94[32])
 {
-    static const uint32_t uids[15]={93,94,96,97,95,98,66,89,90,91,92,107,108,109,110};
-    unsigned char digests[15][32],repeat[32],windows[15][32];uint32_t n,i,j,peak;
-    for(n=0;n<15;n++) {
+    static const uint32_t uids[19]={93,94,96,97,95,98,66,89,90,91,92,107,108,109,110,75,79,99,103};
+    unsigned char digests[19][32],repeat[32],windows[19][32];uint32_t n,i,j,peak;
+    for(n=0;n<19;n++) {
         rf_geomod_authored_post *owner=NULL;rf_geomod_authored_post_view asset;
         rf_geomod_digest_material materials[8],substrate;
         rf_geomod_authored_chart_identity refs[160];rf_geomod_digest_chart charts[160];
@@ -53,8 +53,29 @@ static int selected_identities(const rf_level *level,const rf_geometry *geometry
                 2*1024*1024,repeat,&peak)==RF_NOT_FOUND && peak==123);
             for(i=0;i<32;i++)CHECK(repeat[i]==0xa5);
         }
+        if(asset.detail_guard_count) {
+            rf_geomod_authored_detail_guard wrong=*asset.detail_guards;
+            rf_geomod_authored_post_view invalid=asset;uint32_t variant;
+            invalid.detail_guards=&wrong;
+            for(variant=0;variant<7;variant++) {
+                wrong=*asset.detail_guards;invalid.detail_guard_count=1;
+                switch(variant) {
+                case 0:invalid.detail_guard_count=0;break;
+                case 1:wrong.uid++;break;
+                case 2:wrong.room++;break;
+                case 3:wrong.minimum[0]-=.25f;break;
+                case 4:wrong.source_faces[0]++;break;
+                case 5:wrong.compiled_ids[0]=asset.replaced_ids[0];break;
+                case 6:wrong.compiled_ids[1]=wrong.compiled_ids[0];break;
+                }
+                memset(repeat,0xa5,32);peak=123;
+                CHECK(rf_geomod_authored_identity_capture(level,geometry,&invalid,maps,6,rgb,
+                    2*1024*1024,repeat,&peak)==RF_NOT_FOUND && peak==123);
+                for(i=0;i<32;i++)CHECK(repeat[i]==0xa5);
+            }
+        }
         /* Unsupported identity fails before publishing either output. */
-        asset.source_uid=79;memset(repeat,0xa5,sizeof(repeat));peak=123;
+        asset.source_uid=73;memset(repeat,0xa5,sizeof(repeat));peak=123;
         CHECK(rf_geomod_authored_identity_capture(level,geometry,&asset,maps,6,rgb,
             2*1024*1024,repeat,&peak)==RF_NOT_FOUND && peak==123);
         for(i=0;i<32;i++)CHECK(repeat[i]==0xa5);

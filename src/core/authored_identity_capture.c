@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
+#include <math.h>
 enum {CAPTURE_STACK_RESERVE=8192};
 typedef struct identity_capture {
     const rf_geometry *geometry;const rf_lightmap_rgb_owner *rgb;rf_vpp *maps;uint32_t map_count;
@@ -163,6 +164,39 @@ static int manifest_prepare(identity_capture *c,const rf_geomod_authored_identit
     }
     return RF_OK;
 }
+/* Validate retained detail lookup keys against the compiled geometry before
+ * hashing stable authored ownership/bounds. Guard faces are not atlas inputs. */
+static int detail_guard_validate(const rf_geometry *geometry,const rf_geomod_authored_post_view *asset) {
+    uint32_t room,uid=rf_geomod_authored_post_detail(asset->source_uid,&room),i,j,k;
+    const rf_geomod_authored_detail_guard *guard=asset->detail_guards;
+    float lo[3]={INFINITY,INFINITY,INFINITY},hi[3]={-INFINITY,-INFINITY,-INFINITY};
+    if(!uid)return asset->detail_guard_count?RF_NOT_FOUND:RF_OK;
+    if(asset->detail_guard_count!=1 || !guard || guard->uid!=uid || guard->room!=room ||
+       guard->compiled_ids[0]==guard->compiled_ids[1])return RF_NOT_FOUND;
+    for(i=0;i<2;i++) {
+        uint32_t id=guard->compiled_ids[i];uint64_t offset;
+        rf_geometry_face face;rf_collision_face_filter filter;int status;
+        if(id>=geometry->faces)return RF_NOT_FOUND;
+        offset=geometry->face_offsets[id];if(offset+28>geometry->bytes)return RF_RANGE;
+        if(word(geometry->data+(uint32_t)offset+24)!=guard->source_faces[i])return RF_NOT_FOUND;
+        status=rf_geometry_get_face(geometry,id,&face);if(status)return status;
+        status=rf_geometry_initial_collision_filter(geometry,id,0,&filter);if(status)return status;
+        if(face.room!=room || face.flags!=0x1c8 || !filter.owner_present || filter.owner_kind!=1 || filter.owner_state!=1)return RF_NOT_FOUND;
+        for(j=0;j<asset->replaced_count;j++)if(asset->replaced_ids[j]==id)return RF_NOT_FOUND;
+        for(j=0;j<face.corners;j++) {
+            rf_geometry_corner corner;float position[3];
+            status=rf_geometry_get_corner(geometry,id,j,&corner);if(status)return status;
+            status=rf_geometry_vertex(geometry,corner.vertex,position);if(status)return status;
+            for(k=0;k<3;k++) {
+                if(!isfinite(position[k]))return RF_FORMAT;
+                if(position[k]<lo[k])lo[k]=position[k];if(position[k]>hi[k])hi[k]=position[k];
+            }
+        }
+    }
+    for(k=0;k<3;k++)if(!isfinite(guard->minimum[k]) || !isfinite(guard->maximum[k]) ||
+        fabsf(lo[k]-guard->minimum[k])>1e-5f || fabsf(hi[k]-guard->maximum[k])>1e-5f)return RF_NOT_FOUND;
+    return RF_OK;
+}
 int rf_geomod_authored_identity_capture_manifest(const rf_level *level,const rf_geometry *geometry,
     const rf_geomod_authored_post_view *asset,rf_vpp *maps,uint32_t map_count,const rf_lightmap_rgb_owner *rgb,
     uint32_t budget,unsigned char digest[32],uint32_t *peak_bytes,rf_geomod_authored_identity_manifest *manifest)
@@ -179,9 +213,11 @@ int rf_geomod_authored_identity_capture_manifest(const rf_level *level,const rf_
             (uint64_t)manifest->reference_capacity*sizeof(*manifest->references)+(manifest->substrate?sizeof(*manifest->substrate):0);
         if(bytes>UINT32_MAX)return RF_RANGE;manifest_bytes=(uint32_t)bytes;
     }
-    if(level->version!=180 || strcmp(level->entry.name,"ctf06.rfl") || (!rf_geomod_authored_beam_roof(asset->source_uid) && asset->source_uid!=66 && asset->source_uid!=93 && asset->source_uid!=94 && asset->source_uid!=96 && asset->source_uid!=97) || asset->room!=3 ||
-        asset->source.face_count!=(asset->source_uid==66?14u:6u) || asset->solid_count!=(asset->source_uid==66?0u:3u))return RF_NOT_FOUND;
+    if(level->version!=180 || strcmp(level->entry.name,"ctf06.rfl") || (!rf_geomod_authored_post_detail(asset->source_uid,NULL) && !rf_geomod_authored_beam_roof(asset->source_uid) && asset->source_uid!=66 && asset->source_uid!=93 && asset->source_uid!=94 && asset->source_uid!=96 && asset->source_uid!=97) || asset->room!=3 ||
+        asset->source.face_count!=(asset->source_uid==66?14u:6u) || asset->solid_count!=(asset->source_uid==66?0u:rf_geomod_authored_post_detail(asset->source_uid,NULL)?2u:3u))return RF_NOT_FOUND;
     if((rf_geomod_authored_beam_roof(asset->source_uid)!=0) && (asset->neighbor_void_count!=1 || !asset->neighbor_voids || asset->neighbor_voids[0].owner!=rf_geomod_authored_beam_roof(asset->source_uid)))return RF_NOT_FOUND;
+    if(asset->detail_guard_count && (!asset->replaced_ids || asset->replaced_count>768))return RF_RANGE;
+    status=detail_guard_validate(geometry,asset);if(status)return status;
     meshes[0]=&asset->source;meshes[1]=&asset->windows;meshes[2]=&asset->neighbors;
     origins[0]=asset->source_origins;origins[1]=asset->window_origins;origins[2]=asset->neighbor_origins;capacity=0;
     for(i=0;i<3;i++) {
@@ -218,6 +254,7 @@ int rf_geomod_authored_identity_capture_manifest(const rf_level *level,const rf_
         c->input.source_mode=1;c->input.source_operation=1;
         c->input.loader_policy=4;c->input.publication_policy=13;
     }
+    if(asset->detail_guard_count){c->input.loader_policy=5;c->input.publication_policy=14;}
     c->input.material_domain=RF_GEOMOD_IDENTITY_COMPILED_MATERIALS;
     c->input.materials=c->materials;c->input.material_count=c->material_count;
     c->input.references=c->references;c->input.reference_count=c->reference_count;

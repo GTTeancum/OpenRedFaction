@@ -6,8 +6,10 @@ typedef struct rf_geomod_authored_post rf_geomod_authored_post;
 /* Immutable decoder profile metadata, not geometry validation. Zero means no
  * admitted beam profile. Consumers share this table for identity/material policy. */
 uint32_t rf_geomod_authored_beam_roof(uint32_t uid);
+/* Guarded post profile metadata; zero for unsupported IDs, room untouched. */
+uint32_t rf_geomod_authored_post_detail(uint32_t uid,uint32_t *room);
 typedef struct rf_geomod_authored_detail_guard {
-    uint32_t uid, room, compiled_ids[2];
+    uint32_t uid, room, compiled_ids[2], source_faces[2];
     float minimum[3], maximum[3];
 } rf_geomod_authored_detail_guard;
 typedef struct rf_geomod_authored_post_view {

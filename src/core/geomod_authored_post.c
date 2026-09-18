@@ -424,6 +424,10 @@ static const post_profile *find_post_profile(uint32_t uid) {
         if(post_profiles[i].uid==uid)return post_profiles+i;
     return NULL;
 }
+uint32_t rf_geomod_authored_post_detail(uint32_t uid,uint32_t *room) {
+    const post_profile *p=find_post_profile(uid);if(!p)return 0;
+    if(room)*room=p->room;return p->detail;
+}
 static int decode_profile(const void *input, uint32_t bytes, const rf_geometry *g,
                                    const rf_level_geomod_settings *settings, uint32_t source_uid, uint32_t cavity, uint32_t budget,
                                    rf_geomod_authored_post **out) {
@@ -584,7 +588,7 @@ static int decode_profile(const void *input, uint32_t bytes, const rf_geometry *
                     s=RF_NOT_FOUND;goto done;
                 }
             }
-            guard.compiled_ids[detail_faces++]=i;
+            guard.source_faces[detail_faces]=id;guard.compiled_ids[detail_faces++]=i;
         }
         if (!owner || owner->brush != source_index)
             continue;
