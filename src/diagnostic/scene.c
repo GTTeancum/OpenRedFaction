@@ -11487,6 +11487,14 @@ static int scene_detached_query_timed(const rf_physics_body_state *body,float re
     scene_detached_query_context *c=opaque;c->remaining=remaining;
     return scene_detached_query(body,out,matched,opaque);
 }
+static int scene_detached_support_loss(const scene_detached_query_context *query,
+    const rf_physics_body_state *body,uint32_t *wake)
+{
+    rf_physics_spheres no_spheres={0};scene_detached_query_context current=*query;
+    current.spheres=&no_spheres;current.movers=NULL;current.remaining=0;
+    return scene_fragment_support_loss(query->mesh,body,&campaign_movers,campaign_mover_intervals,
+        scene_detached_query,&current,wake);
+}
 static void scene_piece_world_point(const rf_physics_body_state *body,const float local[3],float world[3]) {
     uint32_t k,j;for(k=0;k<3;k++) {
         double value=body->position[k];for(j=0;j<3;j++)value+=(double)local[j]*body->orientation[j*3+k];
@@ -11562,25 +11570,38 @@ static int scene_detached_tick(scene_stream *s,float seconds)
         rf_geomod_piece_batch *batch;
         status=rf_geomod_piece_registry_get(registry,b,&batch);if(status)goto failed;
         for(i=0;i<rf_geomod_piece_batch_count(batch);i++) {
-            rf_geomod_owned_piece piece;rf_physics_body *body;rf_physics_solid_step_report report;
+            rf_geomod_owned_piece piece;rf_physics_body *body;rf_physics_body_state next;rf_physics_solid_step_report report;uint32_t wake=0;
             scene_detached_query_context query={0};rf_geometry_collision_movers fixed=campaign_movers;uint32_t flags=0;float position[3],basis[9];
             if(!rf_geomod_piece_batch_alive(batch,i))continue;
             status=rf_geomod_piece_batch_get(batch,i,&piece,&body);if(status)goto failed;
-            if(seconds>0 && (body->state.flags&0x80000000u))active++;
+            next=body->state;
             query.scene=s;query.spheres=&body->spheres;query.mesh=&piece.mesh;memcpy(position,body->state.position,12);memcpy(basis,body->state.orientation,36);
 #ifndef RF_IMAGE_XBOX_NATIVE
             query.source=source;query.batch=b;query.piece=i;
             query.trace=getenv("RF_REPLAY_FRAGMENT_CONTACT_TRACE")!=NULL;
 #endif
             if(campaign_mover_interval_seconds>0 && campaign_mover_translation_count && seconds>0) {
-                fixed.poses=campaign_fragment_mover_poses;query.movers=&fixed;
-                status=rf_physics_fragment_step_timed(&body->state,seconds,scene_gravity.acceleration,&flags,
-                    position,basis,scene_detached_query_timed,&query,&report);
+                if(!(next.flags&0x80000000u)) {
+                    status=scene_detached_support_loss(&query,&next,&wake);if(status)goto failed;
+                    if(wake)next.flags|=0x80000000u;
+                }
+                if(wake) {
+                    /* Support was lost at the committed pose: integrate from
+                     * that scene state, without replaying the departed support. */
+                    status=rf_physics_fragment_step(&next,seconds,scene_gravity.acceleration,&flags,
+                        position,basis,scene_detached_query,&query,&report);
+                } else {
+                    fixed.poses=campaign_fragment_mover_poses;query.movers=&fixed;
+                    status=rf_physics_fragment_step_timed(&next,seconds,scene_gravity.acceleration,&flags,
+                        position,basis,scene_detached_query_timed,&query,&report);
+                }
             } else {
-                status=rf_physics_fragment_step(&body->state,seconds,scene_gravity.acceleration,&flags,
+                status=rf_physics_fragment_step(&next,seconds,scene_gravity.acceleration,&flags,
                     position,basis,scene_detached_query,&query,&report);
             }
             if(status){printf("DETACHED_STEP_FAILURE %u %u %u %d %u %.9g %.9g %.9g\n",source,b,i,status,body->state.flags,body->state.position[0],body->state.position[1],body->state.position[2]);printf("DETACHED_STEP_RADIUS %.9g\n",body->state.bounds.radius);goto failed;}
+            if(seconds>0 && ((body->state.flags&0x80000000u) || wake))active++;
+            body->state=next;
             ++rf_scene_detached_motion[0];rf_scene_detached_motion[1]+=report.steps;rf_scene_detached_motion[2]+=report.contacts;
             rf_scene_detached_motion[3]+=!(body->state.flags&0x80000000u);rf_scene_detached_motion[4]+=report.limited;
             rf_scene_detached_motion[5]=npc_hash_bytes(rf_scene_detached_motion[5]?rf_scene_detached_motion[5]:2166136261u,&body->state,sizeof(body->state));

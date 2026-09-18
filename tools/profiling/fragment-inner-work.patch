@@ -185,7 +185,7 @@ index f2e3d221..4505c0f8 100644
              fields.append(('rf_scene_fragment_profile',24))
              fields.append(('rf_scene_fragment_stage_ms',8))
 +            fields.append(('rf_scene_fragment_stage_work',32))
-             if args.fragment_contact_test:fields.extend((('rf_scene_fragment_contact_audit',64),('rf_scene_fragment_edge_audit',32),('rf_scene_fragment_moving_audit',16)))
+             if args.fragment_contact_test:fields.extend((('rf_scene_fragment_contact_audit',64),('rf_scene_fragment_edge_audit',32),('rf_scene_fragment_moving_audit',16),('rf_scene_fragment_support_audit',16)))
              if args.npc_rubble_test:fields.append(('rf_scene_dev_npc_cover',48))
              if args.moving_support_test:fields.append(('rf_scene_moving_support_test',160))
 @@ -454,6 +455,12 @@ dvd_path = '{root.as_posix()}/build/xbox/redfaction-diagnostic.iso'

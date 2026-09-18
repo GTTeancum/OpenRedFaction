@@ -7,6 +7,15 @@
 #define CHECK(x) do{if(!(x)){fprintf(stderr,"FAIL line%d %s\n",__LINE__,#x);return 1;}}while(0)
 static int moving_surface_material(void *context,uint32_t solid,uint32_t face,uint32_t *texture,uint32_t *material)
 {if(context)return RF_IO;if(solid || face)return RF_FORMAT;*texture=7;*material=3;return RF_OK;}
+typedef struct support_fixture {const rf_geomod_mesh_view *mesh;const rf_geometry_collision_movers *movers;int error;} support_fixture;
+static int current_support_query(const rf_physics_body_state *body,rf_physics_solid_hit *out,uint32_t *found,void *opaque)
+{
+    support_fixture *fixture=opaque;rf_geometry_body_hit hit;int status;
+    if(fixture->error)return RF_IO;
+    status=scene_fragment_shape_mover_sweep(fixture->mesh,body,fixture->movers,1,&hit,found);if(status)return status;
+    if(*found){memset(out,0,sizeof(*out));out->fraction=hit.contact.fraction;memcpy(out->point,hit.contact.point,12);memcpy(out->normal,hit.contact.normal,12);}
+    return RF_OK;
+}
 static int moving_surface_contacts(void)
 {
     rf_geomod_vertex vertices[4]={{{-.5f,-.25f,-.5f},{0,0}},{{.5f,-.25f,-.5f},{0,0}},
@@ -59,6 +68,25 @@ static int moving_surface_contacts(void)
     saved=hit;pose.flags|=0x40000u;found=0;
     CHECK(!scene_fragment_moving_sweep(&mesh,&body,&movers,&interval,.125f,.125f,&hit,&found,moving_surface_material,NULL));
     CHECK(!found && !memcmp(&hit,&saved,sizeof(hit)));
+    {
+        rf_physics_body_state before;rf_group_attached_pose floor;rf_geometry_collision_movers current=movers;
+        support_fixture fixture={&mesh,&current,0};uint32_t wake=77,flags=0;float position[3],basis[9];rf_physics_solid_step_report report;
+        pose.flags=0;interval.end[1]=pose.position[1]=-2;pose.minimum[1]=-2.001f;pose.maximum[1]=-1.999f;
+        body.position[1]=body.next_position[1]=.25f;body.flags=0x1800003fu;body.mass=1;body.coefficients[0]=.8f;
+        for(i=0;i<3;i++)body.local_tensor[i*4]=body.world_tensor[i*4]=1;
+        floor=pose;current.poses=&floor;before=body;
+        CHECK(!scene_fragment_support_loss(&mesh,&body,&movers,&interval,current_support_query,&fixture,&wake));
+        CHECK(wake==1 && !memcmp(&body,&before,sizeof(body)));
+        /* Another current floor at the old height prevents an unnecessary wake. */
+        floor.position[1]=0;floor.minimum[1]=-.001f;floor.maximum[1]=.001f;
+        CHECK(!scene_fragment_support_loss(&mesh,&body,&movers,&interval,current_support_query,&fixture,&wake));CHECK(!wake);
+        wake=77;fixture.error=1;
+        CHECK(scene_fragment_support_loss(&mesh,&body,&movers,&interval,current_support_query,&fixture,&wake)==RF_IO);
+        CHECK(wake==77 && !memcmp(&body,&before,sizeof(body)));fixture.error=0;floor=pose;
+        body.flags|=0x80000000u;memcpy(position,body.position,12);memcpy(basis,body.orientation,36);
+        CHECK(!rf_physics_fragment_step(&body,1.f/60,9.8f,&flags,position,basis,current_support_query,&fixture,&report));
+        CHECK(body.position[1]<before.position[1] && body.velocity[1]<0 && !report.contacts);
+    }
     return 0;
 }
 static int mover_intervals(void)

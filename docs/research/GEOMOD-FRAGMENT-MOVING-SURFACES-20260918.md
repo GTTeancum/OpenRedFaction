@@ -1,6 +1,6 @@
 # Translating mover contacts for active fragments
 
-The scene now routes active fragment queries through the retained mover interval when an enabled mover translates without changing orientation. The timed fragment callback supplies the real remaining substep duration. Other frames retain the old query path. Settled fragments are not automatically woken, and rotating movers continue using their prior committed-pose collision path.
+The scene now routes active fragment queries through the retained mover interval when an enabled mover translates without changing orientation. The timed fragment callback supplies the real remaining substep duration. Other frames retain the old query path. A subsequent bounded support-loss policy wakes settled fragments when translating support leaves and no current support remains (see GEOMOD-FRAGMENT-MOVER-SUPPORT-LOSS-20260918.md). Rotating movers continue using their prior committed-pose collision path.
 
 ## Geometry and ownership
 
@@ -18,7 +18,7 @@ The optional native fragment-contact audit now includes16 additional words, head
 
 ## Still open
 
-Explicit settled-fragment wake/support-loss admission, moving-surface carry/crush response, rotating-surface swept geometry, coplanar cases and an authored visible mover/rubble scenario remain incomplete. Detecting an approaching surface does not by itself give a stationary fragment the mover's velocity; original49d330 ignores that recorded counterpart velocity. Do not mark moving-platform gameplay complete from these contact tests.
+Broader settled-fragment support-loss coverage, moving-surface carry/crush response, rotating-surface swept geometry, coplanar cases and an authored visible mover/rubble scenario remain incomplete. Detecting an approaching surface does not by itself give a stationary fragment the mover's velocity; original49d330 ignores that recorded counterpart velocity. Do not mark moving-platform gameplay complete from these contact tests.
 
 The optional inner-work profiling patch was rebased for the changed query routing and moving audit, with moving-query work attributed to its mover group; git apply --check passes. It remains disabled in the normal build.
 

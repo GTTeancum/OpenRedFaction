@@ -437,7 +437,7 @@ dvd_path = '{root.as_posix()}/build/xbox/redfaction-diagnostic.iso'
             fields.append(('rf_scene_terrain_edit_times',40))
             fields.append(('rf_scene_fragment_profile',24))
             fields.append(('rf_scene_fragment_stage_ms',8))
-            if args.fragment_contact_test:fields.extend((('rf_scene_fragment_contact_audit',64),('rf_scene_fragment_edge_audit',32),('rf_scene_fragment_moving_audit',16)))
+            if args.fragment_contact_test:fields.extend((('rf_scene_fragment_contact_audit',64),('rf_scene_fragment_edge_audit',32),('rf_scene_fragment_moving_audit',16),('rf_scene_fragment_support_audit',16)))
             if args.npc_rubble_test:fields.append(('rf_scene_dev_npc_cover',48))
             if args.moving_support_test:fields.append(('rf_scene_moving_support_test',160))
             if args.rotate_support_test:fields.append(('rf_scene_rotating_support_test',120))
@@ -485,6 +485,13 @@ dvd_path = '{root.as_posix()}/build/xbox/redfaction-diagnostic.iso'
                 assert moving_pc==moving_xbox and moving_pc[:4]==[1,3,0,1]
                 assert moving_pc[4:]==[1,0x3ec00000,0x3f400000,0x3f800000]*3
                 report['checks']['FRAGMENT_MOVING_AUDIT']=dict(pc=moving_pc,xbox=moving_xbox,equal=True,cases=3)
+                support_pc=[int(v) for line in pc.stdout.splitlines() if line.startswith('FRAGMENT_SUPPORT_AUDIT ') for v in line.split()[1:]]
+                support_xbox=snap['symbols']['rf_scene_fragment_support_audit']['words']
+                assert support_pc==support_xbox and support_pc[:8]==[1,3,0,1,1,0,0xffffffff,1]
+                before,after,velocity=struct.unpack('<3f',struct.pack('<3I',*support_pc[8:11]))
+                assert before==.25 and after<before and velocity<0 and support_pc[11]&0x80000000
+                report['checks']['FRAGMENT_SUPPORT_AUDIT']=dict(pc=support_pc,xbox=support_xbox,equal=True,cases=3)
+
 
 
             if args.terrain_texture_audit:
