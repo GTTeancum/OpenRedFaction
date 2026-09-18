@@ -11471,31 +11471,37 @@ static void scene_fragment_stage_record(uint32_t stage,uint32_t started) {
         if(elapsed>rf_scene_fragment_stage_ms[stage*2+1])rf_scene_fragment_stage_ms[stage*2+1]=elapsed;
     }
 }
-/* Port recovery: sweep the actual mesh away from an intruding mover face.
- * World and other movers can shorten the correction; no time is consumed. */
-static int scene_detached_recovery(const scene_detached_query_context *c,const rf_physics_body_state *body,
-    const rf_geometry_body_hit *contact,float *distance)
+/* Shared mesh-clearance query for overlap recovery and mover push admission. */
+static int scene_detached_push_clearance(const scene_detached_query_context *c,const rf_physics_body_state *body,
+    uint32_t mover,const float normal[3],float depth,float *distance)
 {
     rf_physics_body_state path=*body;scene_detached_query_context query=*c;
     rf_geometry_collision_movers empty={0};rf_geometry_body_hit obstacle={0};
-    float opposite[3],depth,limit=1;uint32_t k,m,found=0;int status;
-    for(k=0;k<3;k++)opposite[k]=-contact->contact.normal[k];
-    depth=scene_detached_plane_extent(c->mesh,body->position,body->orientation,contact->contact.point,opposite);
-    if(depth<=0){*distance=0;return RF_OK;}depth+=.0001f;
-    for(k=0;k<3;k++)path.next_position[k]=path.position[k]+contact->contact.normal[k]*depth;
+    float limit=1;uint32_t k,m,found=0;int status;
+    for(k=0;k<3;k++)path.next_position[k]=path.position[k]+normal[k]*depth;
     memcpy(path.next_orientation,path.orientation,36);query.movers=&empty;
     status=scene_detached_mesh_sweep(&query,&path,&obstacle,&found);if(status)return status;
     status=scene_detached_world_vertex_sweep(&query,&path,&obstacle,&found,scene_fragment_mover_metadata_unused,NULL);if(status)return status;
     if(found)limit=obstacle.contact.fraction;
     for(m=0;m<campaign_movers.count;m++) {
         rf_geometry_collision_movers one=campaign_movers;uint32_t yes=0;
-        if(m==contact->solid || (campaign_movers.poses[m].flags&0x40000u))continue;
+        if(m==mover || (campaign_movers.poses[m].flags&0x40000u))continue;
         one.count=1;one.poses+=m;one.views+=m;one.owned+=m;
         status=scene_fragment_shape_mover_sweep(c->mesh,&path,&one,limit,&obstacle,&yes);if(status)return status;
         if(yes)limit=obstacle.contact.fraction;
     }
     *distance=limit<1?fmaxf(0,depth*limit-.0001f):depth;return RF_OK;
 }
+static int scene_detached_recovery(const scene_detached_query_context *c,const rf_physics_body_state *body,
+    const rf_geometry_body_hit *contact,float *distance)
+{
+    float opposite[3],depth;uint32_t k;
+    for(k=0;k<3;k++)opposite[k]=-contact->contact.normal[k];
+    depth=scene_detached_plane_extent(c->mesh,body->position,body->orientation,contact->contact.point,opposite);
+    if(depth<=0){*distance=0;return RF_OK;}
+    return scene_detached_push_clearance(c,body,contact->solid,contact->contact.normal,depth+.0001f,distance);
+}
+#include "scene_fragment_push.inc"
 static int scene_detached_query(const rf_physics_body_state *body,rf_physics_solid_hit *out,uint32_t *matched,void *opaque)
 {
     scene_detached_query_context *c=opaque;rf_collision_body_sphere scratch[64];rf_geometry_body_hit hit={0};int status;uint32_t started=scene_fragment_clock();

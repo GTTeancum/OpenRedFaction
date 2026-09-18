@@ -151,6 +151,67 @@ static int moving_surface_contacts(void)
     }
     return 0;
 }
+static int cube(float,float,rf_geomod_piece_registry **);
+static int fragment_push_admission(void)
+{
+    rf_geomod_vertex vertices[4]={{{-.5f,-.25f,-.5f},{0,0}},{{-.5f,-.25f,.5f},{0,0}},
+        {{.5f,-.25f,.5f},{0,0}},{{.5f,-.25f,-.5f},{0,0}}};
+    rf_geomod_face face={0,4,0,0};rf_geomod_mesh_view mesh={vertices,&face,4,1,0};
+    float floor_points[4][3]={{-2,0,-2},{-2,0,2},{2,0,2},{2,0,-2}};
+    float ceiling_points[4][3]={{-2,0,-2},{2,0,-2},{2,0,2},{-2,0,2}};
+    rf_group_attached_pose poses[2]={{0}},saved_poses[2];rf_collision_solid_view views[2]={{0}};
+    rf_geometry_collision_flat flats[2]={{0}};rf_collision_face planes[2]={{0}};
+    rf_geometry_collision_movers saved=campaign_movers;rf_geometry_collision_world world={0};
+    scene_stream scene={0};scene_detached_query_context query={0};rf_physics_body_state body={0},before;
+    rf_scene_world_geometry empty_render={0};rf_surface_materials empty_palette={0};const rf_geometry *empty_geometry=NULL;
+    const rf_scene_world_geometry *saved_render=actor_follow_world;rf_surface_materials *saved_palette=campaign_surface_palette;
+    const rf_geometry **saved_sources=campaign_surface_sources;float delta[3]={0,1,0},fraction;uint32_t i,k;
+    actor_follow_world=&empty_render;campaign_surface_palette=&empty_palette;campaign_surface_sources=&empty_geometry;
+    scene.collision=&world;query.scene=&scene;query.mesh=&mesh;body.position[1]=1;
+    for(k=0;k<3;k++)body.orientation[k*4]=body.next_orientation[k*4]=1;
+    for(i=0;i<2;i++) {
+        for(k=0;k<3;k++){poses[i].input_matrix[k*4]=1;poses[i].minimum[k]=-3;poses[i].maximum[k]=3;}
+        planes[i].vertices=i?ceiling_points:floor_points;planes[i].count=4;planes[i].plane[1]=i?-1:1;
+        for(k=0;k<3;k++){planes[i].minimum[k]=-2;planes[i].maximum[k]=2;}
+        flats[i].faces=planes+i;flats[i].count=1;
+    }
+    poses[0].position[1]=.5f;poses[1].position[1]=1.125f;
+    memset(&campaign_movers,0,sizeof(campaign_movers));campaign_movers.count=1;campaign_movers.poses=poses;
+    campaign_movers.views=views;campaign_movers.owned=flats;before=body;memcpy(saved_poses,poses,sizeof(poses));
+    CHECK(!scene_fragment_push_fraction(&query,&body,0,delta,&fraction));CHECK(fraction==1);
+    campaign_movers.count=2;CHECK(!scene_fragment_push_fraction(&query,&body,0,delta,&fraction));CHECK(fabsf(fraction-.6249f)<1e-5f);
+    CHECK(!memcmp(&body,&before,sizeof(body)) && !memcmp(poses,saved_poses,sizeof(poses)));
+    poses[1].flags=0x40000u;CHECK(!scene_fragment_push_fraction(&query,&body,0,delta,&fraction));CHECK(fraction==1);
+    poses[1].flags=0;poses[1].position[0]=4;CHECK(!scene_fragment_push_fraction(&query,&body,0,delta,&fraction));CHECK(fraction==1);
+    poses[1].position[0]=0;delta[1]=-1;CHECK(!scene_fragment_push_fraction(&query,&body,0,delta,&fraction));CHECK(fraction==1);
+    delta[1]=1;fraction=77;flats[1].faces=NULL;
+    CHECK(scene_fragment_push_fraction(&query,&body,0,delta,&fraction)==RF_FORMAT && fraction==77);
+    flats[1].faces=planes+1;delta[1]=NAN;
+    CHECK(scene_fragment_push_fraction(&query,&body,0,delta,&fraction)==RF_RANGE && fraction==77);
+    CHECK(!memcmp(&body,&before,sizeof(body)) && !memcmp(poses,saved_poses,sizeof(poses)));
+    {
+        rf_geomod_piece_registry *registries[2]={0};scene_terrain_authored_assets assets[2]={{0}};
+        scene_terrain_source_owner sources[2];rf_geomod_piece_batch *batch;rf_geomod_owned_piece piece;
+        rf_physics_body *bodies[2];rf_physics_body_state states[2];
+        CHECK(!cube(0,.25f,registries));CHECK(!cube(0,.5f,registries+1));
+        for(i=0;i<2;i++) {
+            sources[i]=(scene_terrain_source_owner){assets+i,NULL,registries[i]};
+            CHECK(!rf_geomod_piece_registry_get(registries[i],0,&batch));
+            CHECK(!rf_geomod_piece_batch_get(batch,0,&piece,bodies+i));
+            bodies[i]->state.position[1]=1;states[i]=bodies[i]->state;
+        }
+        scene.terrain_sources=sources;scene.terrain_source_count=2;scene.terrain_authored=assets;scene.detached_pieces=registries[0];
+        poses[1].position[1]=1.8f;delta[1]=1;
+        CHECK(!scene_fragment_mover_admit(&scene,0,delta,&fraction));CHECK(fabsf(fraction-.2999f)<1e-5f);
+        sources[1].pieces=NULL;
+        CHECK(!scene_fragment_mover_admit(&scene,0,delta,&fraction));CHECK(fabsf(fraction-.7999f)<1e-5f);
+        CHECK(!memcmp(&bodies[0]->state,states,sizeof(*states)) && !memcmp(&bodies[1]->state,states+1,sizeof(*states)));
+        scene.terrain_source_count=5;fraction=77;
+        CHECK(scene_fragment_mover_admit(&scene,0,delta,&fraction)==RF_RANGE && fraction==77);
+        for(i=0;i<2;i++)rf_geomod_piece_registry_close(registries+i);
+    }
+    campaign_movers=saved;actor_follow_world=saved_render;campaign_surface_palette=saved_palette;campaign_surface_sources=saved_sources;return 0;
+}
 static int fragment_overlap_recovery(void)
 {
     rf_geomod_vertex vertices[4]={{{-.5f,-.25f,-.5f},{0,0}},{{.5f,-.25f,-.5f},{0,0}},
@@ -944,6 +1005,7 @@ static int inspection_camera(void) {
     CHECK(!rf_scene_inspection_camera(NULL,NULL) && !scene_inspection_enabled);return 0;
 }
 int main(void) {
+    CHECK(!fragment_push_admission());
     CHECK(!fragment_overlap_recovery());
     CHECK(!moving_surface_contacts());
     CHECK(!support_loss_scene_tick());
