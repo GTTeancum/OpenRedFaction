@@ -28,6 +28,7 @@ static int campaign_pain_reset_retained(void *ctx,uint32_t handle,int32_t weapon
 static int campaign_enemy_broken_shield_fallback(uint32_t slot,int32_t shield,uint32_t *changed)
 {assert(slot==0 && shield==0);++fallback_calls;*changed=0;if(npc.inventory.owned[1]){npc.view.weapons[0]=1;*changed=1;}return RF_OK;}
 #include "../src/diagnostic/scene_riot_shield_gameplay.inc"
+#include "../src/diagnostic/scene_riot_shield_query.inc"
 int main(int argc,char **argv)
 {
     rf_vpp tables={0};rf_vpp_entry entry;char *text;
@@ -48,7 +49,22 @@ int main(int argc,char **argv)
     campaign_weapon_models.items=&item;campaign_weapon_models.count=1;campaign_weapon_models.weapons[0].model=1;
     hand.basis[0]=hand.basis[4]=hand.basis[8]=1;memcpy(model_owner.basis,hand.basis,36);
     npc.registration.handle=5;npc.registration.view=&npc.view;npc.inventory.owned[0]=npc.inventory.owned[1]=1;
-    assert(scene_npc_shield_receive(0,start,end,.75f,100,-1,&accepted,&broken)==RF_OK && accepted && !broken);
+    {
+        scene_npc_shield_candidate candidate;scene_riot_shield_owner before=scene_npc_shields.owners[0];
+        uint32_t diagnostics[4];memcpy(diagnostics,rf_scene_riot_shield,sizeof(diagnostics));
+        assert(scene_npc_shield_query(0,start,end,1,&candidate,&accepted)==RF_OK && accepted);
+        assert(candidate.hit.time==.5f && candidate.limit==1 && candidate.handle==5);
+        assert(!memcmp(&before,scene_npc_shields.owners,sizeof(before)));
+        assert(!memcmp(diagnostics,rf_scene_riot_shield,sizeof(diagnostics)));
+        assert(scene_npc_shield_query(0,start,end,.5f,&candidate,&accepted)==RF_OK && !accepted);
+        assert(scene_npc_shield_query(0,end,start,1,&candidate,&accepted)==RF_OK && !accepted);
+        assert(scene_npc_shield_query(0,start,end,1,&candidate,&accepted)==RF_OK && accepted);
+        /* No actor-body contact was queried or required. */
+        assert(scene_npc_shield_commit(&candidate,start,end,100,-1,&accepted,&broken)==RF_OK && accepted && !broken);
+        candidate.handle=99;
+        assert(scene_npc_shield_commit(&candidate,start,end,100,-1,&accepted,&broken)==RF_NOT_FOUND);
+    }
+
     assert(scene_npc_shields.owners[0].damage.health==1150);
     npc.view.weapons[0]=1;
     assert(scene_npc_shield_receive(0,start,end,.75f,100,-1,&accepted,&broken)==RF_OK && !accepted);

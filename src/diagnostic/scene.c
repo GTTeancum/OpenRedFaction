@@ -9065,6 +9065,7 @@ static float combat_enemy_primary_damage(const rf_weapon_primary_definition *def
 #include "scene_ai_ammo_fallback.inc"
 #include "scene_ai_broken_shield.inc"
 #include "scene_riot_shield_gameplay.inc"
+#include "scene_riot_shield_query.inc"
 static int scene_npc_shields_load(const char *path)
 {
     rf_vpp archive={0};rf_vpp_entry entry;void *text=NULL;int status;
@@ -12474,6 +12475,7 @@ static int campaign_combat_tick(scene_stream *stream,uint32_t frame,const float 
     if(alt && campaign_equipped_slot==1)++rf_scene_rifle_alt[0];
     if(campaign_equipped_slot==3){++rf_scene_shotgun[0];if(alt)++rf_scene_shotgun[4];}
     for(uint32_t pellet=0;pellet<(campaign_equipped_slot==3?campaign_pistol.projectiles:1);pellet++) {
+    scene_npc_shield_candidate shield_candidate={0};uint32_t shield_selected=0;
     nearest=1;target=UINT32_MAX;
     for(i=0;i<3;i++)delta[i]=orientation[2][i]*(campaign_equipped_slot==2?2.6f:100.0f);
     if(campaign_equipped_slot==3) {
@@ -12490,7 +12492,13 @@ static int campaign_combat_tick(scene_stream *stream,uint32_t frame,const float 
     for(i=0;i<campaign_npc_body_count;i++) {
         campaign_npc_body *owner=campaign_npc_bodies+i;float fraction;
         if(!owner->registration.view || (owner->object_flags&(2|0x4000)) || !owner->body.allocated_bytes || owner->damage.effects.health<=0 || (owner->view.flags_810&1))continue;
-        if(combat_body(position,delta,&owner->body,nearest,&fraction) && fraction<nearest){nearest=fraction;target=i;}
+        if(combat_body(position,delta,&owner->body,nearest,&fraction) && fraction<nearest){nearest=fraction;target=i;shield_selected=0;}
+        if(scene_npc_shields.owners){
+            float end[3];uint32_t hit;scene_npc_shield_candidate candidate;
+            for(uint32_t k=0;k<3;k++)end[k]=position[k]+delta[k];
+            status=scene_npc_shield_query(i,position,end,nearest,&candidate,&hit);if(status)return status;
+            if(hit && candidate.hit.time<nearest){nearest=candidate.hit.time;target=i;shield_candidate=candidate;shield_selected=1;}
+        }
     }
     if(rf_scene_combat_trace) {
         uint32_t uid=target==UINT32_MAX?UINT32_MAX:campaign_seeds.records.items[target].record.uid;
@@ -12546,7 +12554,8 @@ static int campaign_combat_tick(scene_stream *stream,uint32_t frame,const float 
         if(scene_npc_shields.owners){
             float end[3];uint32_t accepted,broken;
             for(i=0;i<3;i++)end[i]=position[i]+delta[i];
-            status=scene_npc_shield_receive(target,position,end,nearest,request.amount,request.kind,&accepted,&broken);if(status)return status;
+            status=shield_selected?scene_npc_shield_commit(&shield_candidate,position,end,request.amount,request.kind,&accepted,&broken):
+                scene_npc_shield_receive(target,position,end,nearest,request.amount,request.kind,&accepted,&broken);if(status)return status;
             if(accepted)continue;
         }
         memcpy(&clock_bits,&seconds,4);status=rf_scene_npc_damage(handle,&request,1,clock_bits,&effects,&amount);if(!status)status=feedback.status;if(status)return status;
