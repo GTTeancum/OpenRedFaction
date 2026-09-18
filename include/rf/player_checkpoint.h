@@ -1,6 +1,7 @@
 #ifndef RF_PLAYER_CHECKPOINT_H
 #define RF_PLAYER_CHECKPOINT_H
 #include "rf/campaign.h"
+#include "rf/vehicle_checkpoint.h"
 #define RF_PLAYER_CHECKPOINT_BYTES 544u
 /* Same-level, living, standing, settled player only. No transient actions,
  * timers, resources, attachments, world/mission state or physical
@@ -28,4 +29,17 @@ typedef struct rf_player_checkpoint_catalog {
 int rf_player_checkpoint_validate(const rf_player_checkpoint *,const rf_player_checkpoint_catalog *,float body[9],float eye[9]);
 int rf_player_checkpoint_encode(const rf_player_checkpoint *,const rf_player_checkpoint_catalog *,void *,uint32_t);
 int rf_player_checkpoint_decode(const void *,uint32_t,const rf_player_checkpoint_catalog *,rf_player_checkpoint *);
+/* RFPL3 driver-only representation: same544 bytes, version3 and word12=1.
+ * Never contains a registry handle. Requires a structurally valid occupied
+ * RFVC, including a dead host awaiting safe exit. Living player and existing
+ * inventory rules still apply. Independent player velocity must be zero;
+ * vehicle velocity belongs to RFVC. Stored canonical angles are PREBOARDING
+ * EXIT LOOK, not seated orientation. Position is seated body origin: caller
+ * MUST validate it against the actual authored seat in the restored RFVC pose
+ * and restored-world placement before publishing either state. These codecs
+ * do not establish safe dead-host restore, clearance or attachment identity.
+ * Existing standing APIs continue rejecting RFPL3. Error atomic, no heap. */
+int rf_player_checkpoint_seated_validate(const rf_player_checkpoint *,const rf_player_checkpoint_catalog *,const rf_vehicle_checkpoint *);
+int rf_player_checkpoint_seated_encode(const rf_player_checkpoint *,const rf_player_checkpoint_catalog *,const rf_vehicle_checkpoint *,void *,uint32_t);
+int rf_player_checkpoint_seated_decode(const void *,uint32_t,const rf_player_checkpoint_catalog *,const rf_vehicle_checkpoint *,rf_player_checkpoint *);
 #endif

@@ -68,15 +68,16 @@ static int scene_checkpoint_dispatch_validate_once(const void *data,uint32_t byt
     status=scene_vehicle_checkpoint_read(s,composed.vehicle,composed.vehicle_bytes,&vehicle);if(status)return status;
     status=rf_player_checkpoint_validate(&candidate.player,&catalog,body,NULL);if(status)return status;
     scene_checkpoint_placement(s,&candidate.player,body,&placement);
+    if(composed.vehicle_bytes && vehicle.player_occupied){status=scene_vehicle_checkpoint_player_placement(s,&vehicle,&candidate.player,&placement);if(status)return status;}
     if(s->terrain_authored && s->terrain_source_count>1) {
         scene_authored_collection_stage *stage=NULL;
         status=scene_authored_collection_stage_prepare(s,candidate.rfds,candidate.rfds_bytes,&stage);
-        if(!status)status=scene_authored_collection_stage_player(stage,&placement);
+        if(!status && !(composed.vehicle_bytes && vehicle.player_occupied))status=scene_authored_collection_stage_player(stage,&placement);
         if(!status && composed.vehicle_bytes)status=scene_vehicle_checkpoint_fit(s,stage,NULL,&vehicle,&placement);
         scene_authored_collection_stage_discard(&stage);
     } else if(s->terrain_authored) {
         scene_authored_checkpoint_stage *stage=NULL;
-        status=scene_authored_checkpoint_stage_prepare(s,candidate.rfds,candidate.rfds_bytes,&placement,&stage);
+        status=scene_authored_checkpoint_stage_prepare(s,candidate.rfds,candidate.rfds_bytes,(composed.vehicle_bytes && vehicle.player_occupied)?NULL:&placement,&stage);
         if(!status && composed.vehicle_bytes)status=scene_vehicle_checkpoint_fit(s,NULL,stage,&vehicle,&placement);
         scene_authored_checkpoint_stage_discard(&stage);
     } else status=scene_checkpoint_validate_player(candidate.rfds,candidate.rfds_bytes,s,&placement);
@@ -110,6 +111,7 @@ static int scene_checkpoint_dispatch_restore(scene_stream *s,unsigned char *data
     candidate=composed.base.base;
     status=scene_vehicle_checkpoint_read(s,composed.vehicle,composed.vehicle_bytes,&vehicle);if(status)return status;
     status=rf_player_checkpoint_validate(&candidate.player,&catalog,basis,eye);if(status)return status;
+    if(scene_driller_active(s))return RF_RANGE; /* Existing driver must exit before an in-session load. */
     body=scene_actor_body.state;memcpy(body.position,candidate.player.position,12);memcpy(body.next_position,body.position,12);
     memcpy(body.orientation,basis,36);memcpy(body.next_orientation,basis,36);memcpy(body.velocity,candidate.player.velocity,12);
     status=rf_physics_spheres_bounds(scene_actor_body.spheres.items,scene_actor_body.spheres.count,body.position,&body.bounds);if(status)return status;
@@ -120,14 +122,16 @@ static int scene_checkpoint_dispatch_restore(scene_stream *s,unsigned char *data
     if(s->terrain_authored && s->terrain_source_count>1) {
         scene_authored_collection_stage *stage=NULL;rf_checkpoint_placement placement;
         scene_checkpoint_placement(s,&candidate.player,basis,&placement);
+        if(composed.vehicle_bytes && vehicle.player_occupied){status=scene_vehicle_checkpoint_player_placement(s,&vehicle,&candidate.player,&placement);if(status)return status;}
         status=scene_authored_collection_stage_prepare(s,candidate.rfds,candidate.rfds_bytes,&stage);
         if(!status && composed.vehicle_bytes)status=scene_vehicle_checkpoint_fit(s,stage,NULL,&vehicle,&placement);
-        if(!status)status=scene_authored_collection_stage_commit(stage,&placement);
+        if(!status)status=scene_authored_collection_stage_commit(stage,(composed.vehicle_bytes && vehicle.player_occupied)?NULL:&placement);
         scene_authored_collection_stage_discard(&stage);
     } else if(s->terrain_authored) {
         scene_authored_checkpoint_stage *stage=NULL;rf_checkpoint_placement placement;
         scene_checkpoint_placement(s,&candidate.player,basis,&placement);
-        status=scene_authored_checkpoint_stage_prepare(s,candidate.rfds,candidate.rfds_bytes,&placement,&stage);
+        if(composed.vehicle_bytes && vehicle.player_occupied){status=scene_vehicle_checkpoint_player_placement(s,&vehicle,&candidate.player,&placement);if(status)return status;}
+        status=scene_authored_checkpoint_stage_prepare(s,candidate.rfds,candidate.rfds_bytes,(composed.vehicle_bytes && vehicle.player_occupied)?NULL:&placement,&stage);
         if(!status && composed.vehicle_bytes)status=scene_vehicle_checkpoint_fit(s,NULL,stage,&vehicle,&placement);
         if(!status)status=scene_authored_checkpoint_stage_commit(stage);
         scene_authored_checkpoint_stage_discard(&stage);
@@ -147,9 +151,9 @@ static int scene_checkpoint_dispatch_restore(scene_stream *s,unsigned char *data
 /* RFCP profile 1 admits only settled standing on static world support.
  * Reconstruct that locomotion state after ordinary scene initialization; using
  * the new-game falling state would integrate one gravity step before landing. */
-static void scene_checkpoint_player_locomotion(void)
+static void scene_checkpoint_player_locomotion(const scene_stream *s)
 {
-    if(!rf_scene_player_checkpoint_enabled || !rf_scene_player_checkpoint_state[1])return;
+    if(!rf_scene_player_checkpoint_enabled || !rf_scene_player_checkpoint_state[1] || s->vehicle_checkpoint.player_occupied)return;
     rf_scene_actor_landing[1]=1;rf_scene_actor_landing[2]=0;
     scene_actor_body.state.flags&=~(0x200000u|0x400000u);
     /* Restore already supplied the saved residual velocity (zero for RFPL v1). */
@@ -158,6 +162,7 @@ static void scene_checkpoint_player_locomotion(void)
 static int scene_checkpoint_player_capture(scene_stream *s,rf_player_checkpoint *player,rf_player_checkpoint_catalog *catalog)
 {
     rf_geomod_terrain_view view;rf_checkpoint_placement placement;float body[9];int status;
+    if(scene_driller_active(s))return scene_vehicle_checkpoint_player_capture(s,player,catalog);
     status=scene_checkpoint_player_scope(s,1);if(status){
         printf("PLAYER_CHECKPOINT_REJECT scope %d dev%u water%u spawn%u movers%u npcs%u clutter%u body%u spheres%u health%g crouch%u stance%u climb%u link%d support%u landing%u cooldown%u remaining%u delay%u held%u reload%u charge%u rockets%u\n",status,
             rf_scene_dev_room_enabled,rf_scene_water_test_enabled,campaign_spawn,campaign_movers.count,campaign_npc_body_count,rf_scene_clutter_bodies[1],scene_actor_body.allocated_bytes,scene_actor_body.spheres.count,

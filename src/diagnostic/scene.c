@@ -10698,6 +10698,8 @@ static void scene_remote_checkpoint_publish(void);
 static void scene_remote_checkpoint_discard(void);
 static void scene_remote_checkpoint_frame0(void);
 static int scene_vehicle_checkpoint_capture(scene_stream *,void *,uint32_t *);
+static int scene_vehicle_checkpoint_player_capture(scene_stream *,rf_player_checkpoint *,rf_player_checkpoint_catalog *);
+static int scene_vehicle_checkpoint_player_placement(const scene_stream *,const rf_vehicle_checkpoint *,const rf_player_checkpoint *,rf_checkpoint_placement *);
 static int scene_vehicle_checkpoint_read(scene_stream *,const void *,uint32_t,rf_vehicle_checkpoint *);
 static int scene_vehicle_checkpoint_fit(scene_stream *,scene_authored_collection_stage *,scene_authored_checkpoint_stage *,const rf_vehicle_checkpoint *,const rf_checkpoint_placement *);
 #include "scene_player_checkpoint.inc"
@@ -13077,6 +13079,8 @@ static int campaign_inspect_camera(scene_stream *stream,float position[3],float 
 #include "scene_driller_checkpoint_adapter.inc"
 #include "scene_driller_checkpoint_placement.inc"
 #include "scene_driller_checkpoint_publish.inc"
+#include "scene_driller_checkpoint_occupancy.inc"
+#include "scene_driller_checkpoint_seat.inc"
 #include "scene_driller_checkpoint_live.inc"
 static int actor_follow_view(void *context,uint32_t frame,const rf_motion_controller *controller,rf_model_projection *view)
 {
@@ -13099,7 +13103,16 @@ static int actor_follow_view(void *context,uint32_t frame,const rf_motion_contro
     if(profile_clock && profile_active)world_clock=profile_clock();
     if(stream->vehicle_checkpoint_pending){
         status=scene_driller_runtime_open(stream);if(status)return status;
-        status=scene_driller_checkpoint_apply_parked(stream,&stream->vehicle_checkpoint);if(status)return status;
+        {rf_vehicle_checkpoint parked=stream->vehicle_checkpoint;parked.player_occupied=0;
+         status=scene_driller_checkpoint_apply_parked(stream,&parked);if(status){printf("VEHICLE_CHECKPOINT_FAIL parked %d\n",status);return status;}}
+        if(stream->vehicle_checkpoint.player_occupied){
+            memset(&actor_look,0,sizeof(actor_look));
+            memcpy(actor_look.state.body_angles,stream->player_checkpoint_value.body_angles,12);
+            memcpy(actor_look.state.eye_angles,stream->player_checkpoint_value.eye_angles,12);
+            status=rf_look_update_pose(&actor_look.state,1.0f,scene_step_seconds,&actor_look);if(status){printf("VEHICLE_CHECKPOINT_FAIL look %d\n",status);return status;}
+            stream->player_checkpoint_look=0;
+            status=scene_driller_checkpoint_restore_occupancy(stream,&stream->vehicle_checkpoint);if(status){printf("VEHICLE_CHECKPOINT_FAIL seat %d\n",status);return status;}
+        }
         stream->vehicle_checkpoint_pending=0;
         printf("VEHICLE_CHECKPOINT_LOAD %.9g %u\n",(double)stream->vehicle_checkpoint.health,stream->vehicle_checkpoint.accepted_drill_cuts);
     }
@@ -15392,7 +15405,7 @@ static int scene_frame(void *context,uint32_t frame,rf_preview_mesh *actor)
         rf_scene_actor_contact_count=0;memset(rf_scene_actor_contacts,0,sizeof(rf_scene_actor_contacts));
         memset(rf_scene_actor_landing,0,sizeof(rf_scene_actor_landing));
         rf_scene_actor_landing[0]=0x52464c44;rf_scene_actor_landing[1]=3;rf_scene_actor_landing[2]=UINT32_MAX;
-        scene_checkpoint_player_locomotion();
+        scene_checkpoint_player_locomotion(stream);
         if(campaign_spawn) {
             if(!stream->initial_swim_controller_ready)return RF_FORMAT;
             status=campaign_swim_update(stream,0,&stream->initial_swim_controller);

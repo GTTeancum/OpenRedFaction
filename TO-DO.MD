@@ -5,7 +5,7 @@ Completion basis (user direction,2026-09-18): working late-alpha/early-beta code
 
 - Player impacts: Real fall/high-speed collision damage now passes PC/Xbox with shared health/armor handling; relocation and duplicate-contact guards pass focused checks; broader moving-object contacts remain.
 
-- Vehicles: Driller driving, entry/exit, chassis collision and cockpit work on PC/Xbox; seated drilling now cuts actual DEV wall/floor geometry and animates separate bit models on PC/Xbox, with exact native drill/vehicle state agreement and12.14MiB free; ordinary gunfire/rocket/blast damage and destruction now pass PC/Xbox with11.83MiB free; NPC shotgun, player sniper/rail and direct flame vehicle hits now pass focused cover/damage checks and PC/Xbox builds; parked vehicle checkpoint save/restore now passes PC/Xbox with identical saved bytes and11.75MiB free, with occupied saves, remaining special-weapon coverage, other vehicle classes and campaign integration open.
+- Vehicles: Driller driving, entry/exit, chassis collision and cockpit work on PC/Xbox; seated drilling now cuts actual DEV wall/floor geometry and animates separate bit models on PC/Xbox, with exact native drill/vehicle state agreement and12.14MiB free; ordinary gunfire/rocket/blast damage and destruction now pass PC/Xbox with11.83MiB free; NPC shotgun, player sniper/rail and direct flame vehicle hits now pass focused cover/damage checks and PC/Xbox builds; parked vehicle checkpoint save/restore now passes PC/Xbox with identical saved bytes and11.75MiB free, with seated saves now passing PC/Xbox capture/restore/exit; remaining special-weapon coverage, other vehicle classes and campaign integration are open.
 
 - Conventional firearms: Machine Pistol, Heavy Machine Gun, Precision Rifle and Undercover handgun primary firing now work in a bounded DEV profile, including HMG alternate and rifle zoom; PC visuals pass and native HMG shot/ammo state matches with11.59MiB free; Machine Pistol magazine switching now passes PC/Xbox; Undercover suppressor attach/remove now passes PC/Xbox; authored Machine Pistol/HMG/precision pickups and sparse views are now wired, with MP session mode carry; broader live AI encounters, full live level handoffs and general saves remain.
 
@@ -5807,3 +5807,11 @@ World and committed-mover fragment queries now include bounded edge/edge CCD, wi
 - Found and corrected legacy20-face/60-vertex bounds in the scene checkpoint material pass: star cutters now use the core192-vertex/64-face limits; convex limits stay unchanged. This unblocks encoding actual drill geometry; live post-drilling save continuation remains a separate check.
 
 - Actual cutter-history regression passes: single78vertices/26faces and double192vertices/64faces encode then remap materials and return byte-exact; convex20-face cap remains enforced.
+
+
+### Seated Driller checkpoint integration (2026-09-18)
+
+- Added RFPL3 paired driver state without registry handles, retaining preboarding exit look; RFCP3 requires matching occupied RFVC. Existing standing RFPL1/2 and RFCP1/2 behavior remains.
+- Live seated capture and restore derive the authored seat transform and validate actual player spheres against pending world/rubble, without requiring standing floor support or testing against the occupied chassis itself. Restore rebuilds fresh-handle possession, cockpit/body publication and Use debounce.
+- Focused seated codec, envelope pairing, seat placement and actual possession/exit checks pass. PC220-frame drive/capture,60-frame seated resume/resave and120-frame restore/exit/resave pass; cockpit framebuffer inspected. Native restore/exit/resave passes120frames in artifacts/xemu/render-20260918-144706, with exact PC/Xbox1196-byte save agreement and3007freepages (11.746MiB); disc restored, XEMU closed. Native final framebuffer inspected: on-foot weapon/camera restored.
+- Dead occupied hosts remain rejected by the live scene; in-session reload requires leaving the current seat first. Mid-throttle continuation, destruction during restored occupancy, broader campaign saves and other vehicle classes remain open. Vehicles approximately60%; overall approximately72%.

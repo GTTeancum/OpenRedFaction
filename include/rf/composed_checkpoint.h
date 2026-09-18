@@ -69,8 +69,11 @@ typedef struct rf_composed_checkpoint_v3 {
  * accepts RFCP1/2 as vehicle-absent; old APIs deliberately reject RFCP3.
  * RFVC checksum and value ranges are checked, but class/world identity,
  * clearance, occupancy and player binding remain transactional caller gates.
- * Player standing/velocity rules are UNCHANGED. No live seated-save support
- * is implied. Vehicle bytes reduce RFDS capacity under the existing RFSG cap.
+ * Occupied RFVC requires RFPL3 seated encoding; absent/unoccupied RFVC requires
+ * legacy standing RFPL. RFVC is decoded before selecting the RFPL decoder;
+ * crossed occupancy modes reject. This validates semantic pairing, not actual
+ * tag placement or safe live restore. Stored seated angles are exit look.
+ * Vehicle bytes reduce RFDS capacity under the existing RFSG cap.
  * All inputs disjoint from output except each payload may occupy its exact
  * final slice. Error preserves output/written; returned slices are borrowed. */
 int rf_composed_checkpoint_encode_v3(uint32_t profile_id,const rf_player_checkpoint *,

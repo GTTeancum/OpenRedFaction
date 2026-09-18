@@ -116,7 +116,9 @@ int rf_composed_checkpoint_encode_v3(uint32_t profile_id,const rf_player_checkpo
     bytes=tail+vehicle_bytes;if(capacity<bytes)return RF_RANGE;
     if(remote_bytes){status=rf_remote_checkpoint_preflight(remote,remote_bytes,level_hash,catalog_hash);if(status)return status;}
     if(vehicle_bytes){status=rf_vehicle_checkpoint_decode(vehicle,vehicle_bytes,&checked);if(status)return status;}
-    status=rf_player_checkpoint_encode(player,catalog,packed,sizeof(packed));if(status)return status;
+    status=vehicle_bytes && checked.player_occupied?
+        rf_player_checkpoint_seated_encode(player,catalog,&checked,packed,sizeof(packed)):
+        rf_player_checkpoint_encode(player,catalog,packed,sizeof(packed));if(status)return status;
     memset(p,0,RF_COMPOSED_CHECKPOINT_HEADER);memcpy(p,"RFCP",4);
     put32(p+4,3);put32(p+8,bytes);put32(p+12,vehicle_bytes);put32(p+16,profile_id);
     put32(p+20,RF_PLAYER_CHECKPOINT_BYTES);put32(p+24,rfds_bytes);put32(p+28,remote_bytes);
@@ -150,10 +152,13 @@ int rf_composed_checkpoint_preflight_v3(const void *data,uint32_t bytes,uint32_t
     remaining-=value.base.remote_bytes;if(value.vehicle_bytes!=remaining)return RF_FORMAT;
     value.base.base.rfds=p+RF_COMPOSED_CHECKPOINT_HEADER+RF_PLAYER_CHECKPOINT_BYTES;
     status=rfds_header(value.base.base.rfds,value.base.base.rfds_bytes,profile_id);if(status)return status;
-    status=rf_player_checkpoint_decode(p+RF_COMPOSED_CHECKPOINT_HEADER,RF_PLAYER_CHECKPOINT_BYTES,catalog,&value.base.base.player);if(status)return status;
     if(value.base.remote_bytes){value.base.remote=value.base.base.rfds+value.base.base.rfds_bytes;
         status=rf_remote_checkpoint_preflight(value.base.remote,value.base.remote_bytes,level_hash,catalog_hash);if(status)return status;}
     if(value.vehicle_bytes){value.vehicle=value.base.base.rfds+value.base.base.rfds_bytes+value.base.remote_bytes;
         status=rf_vehicle_checkpoint_decode(value.vehicle,value.vehicle_bytes,&checked);if(status)return status;}
+    status=value.vehicle_bytes && checked.player_occupied?
+        rf_player_checkpoint_seated_decode(p+RF_COMPOSED_CHECKPOINT_HEADER,RF_PLAYER_CHECKPOINT_BYTES,catalog,&checked,&value.base.base.player):
+        rf_player_checkpoint_decode(p+RF_COMPOSED_CHECKPOINT_HEADER,RF_PLAYER_CHECKPOINT_BYTES,catalog,&value.base.base.player);
+    if(status)return status;
     *out=value;return RF_OK;
 }

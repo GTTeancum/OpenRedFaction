@@ -79,3 +79,37 @@ int rf_player_checkpoint_decode(const void *data,uint32_t bytes,const rf_player_
  for(i=0;i<64;i++){n=read32(p+272+i*4);if(n>INT32_MAX)return RF_FORMAT;v.player.inventory.loaded[i]=(int32_t)n;}
  status=rf_player_checkpoint_validate(&v,c,NULL,NULL);if(status)return status;*out=v;return RF_OK;
 }
+int rf_player_checkpoint_seated_validate(const rf_player_checkpoint *v,const rf_player_checkpoint_catalog *c,
+ const rf_vehicle_checkpoint *vehicle)
+{
+ uint32_t i;int status;
+ if(!v||!vehicle)return RF_RANGE;
+ status=rf_vehicle_checkpoint_validate(vehicle);if(status)return status;
+ if(!vehicle->player_occupied)return RF_FORMAT;
+ status=rf_player_checkpoint_validate(v,c,NULL,NULL);if(status)return status;
+ for(i=0;i<3;i++)if(v->velocity[i]!=0)return RF_FORMAT;
+ return RF_OK;
+}
+int rf_player_checkpoint_seated_encode(const rf_player_checkpoint *v,const rf_player_checkpoint_catalog *c,
+ const rf_vehicle_checkpoint *vehicle,void *data,uint32_t bytes)
+{
+ unsigned char packed[RF_PLAYER_CHECKPOINT_BYTES];int status;
+ if(!data||bytes!=RF_PLAYER_CHECKPOINT_BYTES)return RF_RANGE;
+ status=rf_player_checkpoint_seated_validate(v,c,vehicle);if(status)return status;
+ status=rf_player_checkpoint_encode(v,c,packed,sizeof(packed));if(status)return status;
+ put32(packed+4,3);put32(packed+12,1);memset(packed+68,0,12);
+ memcpy(data,packed,sizeof(packed));return RF_OK;
+}
+int rf_player_checkpoint_seated_decode(const void *data,uint32_t bytes,const rf_player_checkpoint_catalog *c,
+ const rf_vehicle_checkpoint *vehicle,rf_player_checkpoint *out)
+{
+ const unsigned char *p=data;unsigned char packed[RF_PLAYER_CHECKPOINT_BYTES];rf_player_checkpoint v;int status;
+ if(!data||!out||!vehicle)return RF_RANGE;
+ if(bytes!=RF_PLAYER_CHECKPOINT_BYTES||memcmp(p,"RFPL",4)||read32(p+4)!=3||read32(p+8)!=bytes||read32(p+12)!=1)return RF_FORMAT;
+ /* Reuse all established scalar/inventory/reserved-byte validation without
+  * allowing legacy callers to consume a driver record as a standing player. */
+ memcpy(packed,p,sizeof(packed));put32(packed+4,1);put32(packed+12,0);
+ status=rf_player_checkpoint_decode(packed,sizeof(packed),c,&v);if(status)return status;
+ status=rf_player_checkpoint_seated_validate(&v,c,vehicle);if(status)return status;
+ *out=v;return RF_OK;
+}

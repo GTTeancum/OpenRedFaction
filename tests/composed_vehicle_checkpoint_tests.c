@@ -54,6 +54,30 @@ int main(void)
         CHECK(!rf_composed_checkpoint_preflight_v3(packed,n,1,&catalog,77,123,&out));
         CHECK(!out.vehicle && !out.vehicle_bytes);
     }
+    /* Seated RFPL is admitted only with the matching occupied RFVC. */
+    vehicle.player_occupied=1;
+    CHECK(!rf_vehicle_checkpoint_encode(&vehicle,vc,sizeof(vc)));
+    CHECK(!rf_composed_checkpoint_encode_v3(1,&player,&catalog,terrain,288,NULL,0,77,123,vc,128,packed,sizeof(packed),&n));
+    CHECK(packed[32+4]==3 && packed[32+12]==1);
+    CHECK(!rf_composed_checkpoint_preflight_v3(packed,n,1,&catalog,77,123,&out));
+    memcpy(saved,packed,n);
+    /* Standing player paired with occupied host is inconsistent. */
+    CHECK(!rf_player_checkpoint_encode(&player,&catalog,packed+32,RF_PLAYER_CHECKPOINT_BYTES));
+    out=sentinel;CHECK(rf_composed_checkpoint_preflight_v3(packed,n,1,&catalog,77,123,&out)==RF_FORMAT);
+    CHECK(!memcmp(&out,&sentinel,sizeof(out)));
+    memcpy(packed,saved,n);vehicle.player_occupied=0;
+    CHECK(!rf_vehicle_checkpoint_encode(&vehicle,packed+n-128,128));
+    CHECK(rf_composed_checkpoint_preflight_v3(packed,n,1,&catalog,77,123,&out)==RF_FORMAT);
+    /* A seated player cannot be smuggled in after removing the RFVC section. */
+    memcpy(packed,saved,n);put(packed+12,0);put(packed+8,n-128);
+    CHECK(rf_composed_checkpoint_preflight_v3(packed,n-128,1,&catalog,77,123,&out)==RF_FORMAT);
+    CHECK(!memcmp(&out,&sentinel,sizeof(out)));
+    vehicle.player_occupied=1;vehicle.alive=0;vehicle.health=-1;
+    CHECK(!rf_vehicle_checkpoint_encode(&vehicle,vc,sizeof(vc)));
+    CHECK(!rf_composed_checkpoint_encode_v3(1,&player,&catalog,terrain,288,NULL,0,77,123,vc,128,packed,sizeof(packed),&n));
+    CHECK(!rf_composed_checkpoint_preflight_v3(packed,n,1,&catalog,77,123,&out));
+    vehicle.player_occupied=0;vehicle.alive=1;vehicle.health=900;
+    CHECK(!rf_vehicle_checkpoint_encode(&vehicle,vc,sizeof(vc)));
     /* Vehicle consumes the existing fixed transport budget, not extra RAM. */
     terrain_bytes=RF_COMPOSED_CHECKPOINT_RFDS_MAX-128;put(terrain+8,terrain_bytes);
     CHECK(!rf_composed_checkpoint_encode_v3(1,&player,&catalog,terrain,terrain_bytes,NULL,0,77,123,vc,128,packed,sizeof(packed),&n));
