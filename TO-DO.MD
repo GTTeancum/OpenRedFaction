@@ -3,11 +3,13 @@
 Completion basis (user direction,2026-09-18): working late-alpha/early-beta code implementation. Overall approximately64%; GeoMod100% for the first playable milestone, accepted by the user. GeoMod items below are deferred refinement and coverage, not prerequisites to moving on. This does not assert retail polish, complete campaign integration or resolution of every known defect.
 
 
+- Hit-triggered events: When_Hit now observes registered actor/clutter hit signals and dispatches event/mover links before shared clearing; focused runtime/scene checks and PC/Xbox builds pass; live authored button scenario remains.
+
 - Combat pickups: NPC drops now preserve remaining ammunition and nine additional authored weapon/ammo pickup classes are connected; focused actual drop/collection and installed-table checks pass with PC/Xbox builds; live pickup visuals and empty-weapon drops remain.
 
 - AI mode events: Core callback routing is implemented, but live scheduler binding, mode13 cleanup and vehicle propagation remain; do not count the unbound state adapter as working AI behavior.
 
-- Remote charges: Charge/detonator selection, shared ammo, throw/place, sticking, rendering and blast/GeoMod are integrated; PC and stock64MiB XEMU throw/detonate replay pass with one terrain cut; planted-charge RFCP2 save/load passes79/80native checks with exact PC/Xbox save bytes and restored detonation; detached-fragment transport, general campaign saves, placement fidelity and explosion presentation remain.
+- Remote charges: Charge/detonator selection, shared ammo, throw/place, sticking, rendering and blast/GeoMod are integrated; PC and stock64MiB XEMU throw/detonate replay pass with one terrain cut; planted-charge RFCP2 save/load passes79/80native checks with exact PC/Xbox save bytes and restored detonation; detached-fragment transport, general campaign saves, placement fidelity and broader effect/audio runtime coverage remain (authored radius and explosion sound dispatch are now connected).
 
 - Shield events: Activate_Capek_Shield now toggles registered actor damage immunity through immediate/delayed event dispatch; focused runtime/scene checks and PC/Xbox builds pass; shield presentation, hit armor consumption and live authored scenario remain.
 

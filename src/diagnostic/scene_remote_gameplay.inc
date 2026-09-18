@@ -89,9 +89,10 @@ static int scene_remote_tick(scene_stream *s,uint32_t frame)
             memcpy(contact.hit.point,event.position,12);contact.object=contact.face=UINT32_MAX;contact.hit.fraction=0;
             if(!charge->attached)contact.hit.normal[1]=1;
             status=rf_geometry_collision_world_locate(s->collision,event.position,&location);if(status)return status;contact.room=location.room;
-            /* Temporary shared impact visuals; charge_explode resource binding
-             * remains parent work. Damage/crater use Remote Charge's definition. */
-            status=scene_impact_start(s,&contact,frame);if(status)return status;
+            /* charge_explode uses the same rocket hit recipe and Medium Explosion
+             * foley; only the authored visual radius differs (2 versus1.5). */
+            status=scene_impact_start_sized(s,&contact,frame,campaign_remote.impact_radius[0]);if(status)return status;
+            scene_impact_sound(event.position,frame);
             status=scene_explosion_blast(s,frame,event.position,campaign_remote_primary.damage,campaign_remote.damage_radius);if(status)return status;
             status=scene_explosion_terrain(s,frame,&contact,campaign_remote.crater_radius);if(status)return status;
             ++rf_scene_remote[3];if(rf_scene_combat_trace)printf("REMOTE_DETONATE %u %u %.9g %.9g %.9g\n",frame,i,event.position[0],event.position[1],event.position[2]);

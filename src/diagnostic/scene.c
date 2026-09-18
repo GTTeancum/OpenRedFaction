@@ -8913,6 +8913,7 @@ static int campaign_give_item(void *context,const char *name)
     return campaign_apply_item_grant(&request);
 }
 /* Threshold monitors read retained living or dead owners; they never mutate vitals. */
+#include "scene_hit_events.inc"
 static int campaign_query_vitals(void *context,uint32_t handle,uint32_t armor,float *value)
 {
     const rf_damage_effect_state *vitals=NULL;void *object;uint32_t i;(void)context;
@@ -11978,18 +11979,19 @@ static int scene_rocket_blast(scene_stream *s,uint32_t frame,const rf_weapon_fli
 }
 /* Scoped single-variant Rocket Launcher impact binding from weapons.tbl.
  * Optional unresolved sparks are absent, never replaced by a guessed emitter. */
-static __declspec(noinline) int scene_impact_start(scene_stream *s,const rf_weapon_flight_contact *hit,uint32_t frame)
+static __declspec(noinline) int scene_impact_start_sized(scene_stream *s,const rf_weapon_flight_contact *hit,uint32_t frame,float radius)
 {
     uint32_t n,i;int status;int32_t now=(int32_t)(((uint64_t)frame*1000/60)%RF_TIMER_PERIOD);
+    if(!isfinite(radius) || radius<=0)return RF_RANGE;
     if(!s->particles.state || !s->impact || !s->impact->materials.count)return RF_OK;
     for(n=0;n<8 && s->impact->instances[n].clock.active;n++){}
     if(n==8 || s->particles.state->emitters.live>RF_PARTICLE_EMITTER_CAPACITY-6)return RF_OK;
     if(campaign_rocket_impact.recipe.central_count!=6 || campaign_rocket_impact.recipe.central_random!=0)return RF_FORMAT;
     memset(s->impact->instances+n,0,sizeof(s->impact->instances[n]));
-    s->impact->instances[n].clock.size=campaign_rocket.impact_radius[0];s->impact->instances[n].clock.active=1;
+    s->impact->instances[n].clock.size=radius;s->impact->instances[n].clock.active=1;
     for(i=0;i<6;i++) {
         rf_particle_definition p;rf_particle_emitter_template t={0};float extent;uint32_t texture,j;
-        status=rf_explosion_central_prepare(&campaign_rocket_impact,i,campaign_rocket.impact_radius[0],&p,&extent);
+        status=rf_explosion_central_prepare(&campaign_rocket_impact,i,radius,&p,&extent);
         if(status==RF_NOT_FOUND)continue;if(status)return status;
         texture=s->impact->materials.slot_texture[i];if(texture>=s->impact->materials.count)return RF_RANGE;
         for(j=0;j<3;j++){t.position[j]=hit->hit.point[j]+hit->hit.normal[j]*.01f;t.direction[j]=hit->hit.normal[j];}
@@ -12007,6 +12009,8 @@ static __declspec(noinline) int scene_impact_start(scene_stream *s,const rf_weap
     if(rf_scene_combat_trace)printf("IMPACT_START %u %u %u %u\n",frame,n,s->impact->instances[n].clock.live,s->particles.state->particles.live[1]);
     return RF_OK;
 }
+static int scene_impact_start(scene_stream *s,const rf_weapon_flight_contact *hit,uint32_t frame)
+{return scene_impact_start_sized(s,hit,frame,campaign_rocket.impact_radius[0]);}
 static int scene_impacts_tick(scene_stream *s,uint32_t frame)
 {
     uint32_t n,i;int status;int32_t now=(int32_t)(((uint64_t)frame*1000/60)%RF_TIMER_PERIOD);
@@ -15076,6 +15080,7 @@ static int scene_frame(void *context,uint32_t frame,rf_preview_mesh *actor)
                 status=campaign_watch_fixture(frame);if(status)return status;
                 status=rf_runtime_events_tick(&campaign_events,&campaign_triggers,&scene_gravity,now,&stream->particles, &campaign_forces,&tick_report,&pending);
                 if(status)return status;
+                campaign_hit_flags_clear();
                 status=campaign_watch_snapshot();if(status)return status;
                 campaign_force_snapshot();campaign_switch_snapshot();
                 ++rf_scene_event_ticks[0];rf_scene_event_ticks[1]=(uint32_t)now;rf_scene_event_ticks[2]=pending;
@@ -15446,6 +15451,7 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
             campaign_teleport_ready=campaign_teleport_pending=0;
             campaign_triggers.teleport_player=campaign_teleport_player;campaign_triggers.teleport_context=NULL;
             campaign_triggers.query_vitals=campaign_query_vitals;campaign_triggers.query_vitals_context=NULL;
+            campaign_triggers.query_hit_flags=campaign_query_hit_flags;campaign_triggers.hit_flags_context=NULL;
             campaign_triggers.set_friendliness=campaign_set_friendliness;campaign_triggers.adjust_vitals=campaign_adjust_vitals;campaign_triggers.give_item=campaign_give_item;campaign_triggers.strip_weapons=campaign_strip_weapons;campaign_triggers.give_item_context=(void *)tables_path;
             campaign_triggers.switch_backend=&campaign_switch_backend;
             campaign_triggers.set_visible=campaign_set_visible;

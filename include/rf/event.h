@@ -373,6 +373,9 @@ typedef struct rf_runtime_triggers {
     /* Type34 receives translated runtime action, not the authored enum. */
     int (*set_ai_mode)(void *,uint32_t handle,int32_t action,int32_t now);
     void *ai_mode_context;
+    /* Non-consuming object7c read for When_Hit; clear signals after all observers. */
+    int (*query_hit_flags)(void *,uint32_t handle,uint32_t *flags);
+    void *hit_flags_context;
 } rf_runtime_triggers;
 /* Declare authored goals before any startup trigger runs. */
 int rf_runtime_goals_initialize(const rf_runtime_events *events,rf_campaign_goals *goals);

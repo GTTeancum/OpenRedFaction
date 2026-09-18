@@ -1,4 +1,5 @@
 #include "rf/event.h"
+#include "rf/event_hit.h"
 #include "rf/collision.h"
 #include "rf/level.h"
 #include <math.h>
@@ -806,7 +807,7 @@ static void startup_event_action(void *context,rf_event_state *state,uint32_t ac
         return;
     }
     /* Delay (48) uses no-op base actions; common scheduling/propagation own it. */
-    if(state->type==48 || state->type==16)return;
+    if(state->type==48 || state->type==16 || state->type==52)return;
     if(state->type!=44) {++c->report->unsupported_actions;return;}
     c->status=rf_event_gravity_action(c->gravity,c->event->authored->record.values[0],action);
     if(!c->status && action==1)++c->report->gravity_actions;
@@ -1004,6 +1005,21 @@ static int runtime_threshold_effect(void *context,uint32_t handle)
     if(kind!=5 && kind!=6 && kind!=8)return RF_NOT_FOUND;
     startup_target(c,&link,UINT32_MAX,UINT32_MAX,1);return c->status;
 }
+static int runtime_hit_query(void *context,uint32_t handle,uint32_t *flags)
+{
+    startup_context *c=context;
+    if(!rf_object_registry_lookup(c->triggers->registry,handle))return RF_NOT_FOUND;
+    return c->triggers->query_hit_flags(c->triggers->hit_flags_context,handle,flags);
+}
+static int runtime_hit_effect(void *context,uint32_t handle)
+{
+    startup_context *c=context;void *object;uint32_t kind;rf_level_link_target link={handle,1,0};
+    if(c->event->retired)return RF_OK;
+    object=rf_object_registry_lookup(c->triggers->registry,handle);if(!object)return RF_NOT_FOUND;
+    memcpy(&kind,object,4);
+    if(kind!=6 && kind!=8)return RF_NOT_FOUND;
+    startup_target(c,&link,UINT32_MAX,UINT32_MAX,1);return c->status;
+}
 static int runtime_unhide_target(void *context,uint32_t uid,int visible)
 {
     startup_context *c=context;uint32_t i;
@@ -1051,6 +1067,19 @@ int rf_runtime_events_tick(rf_runtime_events *events,rf_runtime_triggers *trigge
                 if(status)return status;if(context.status)return context.status;
             }
             status=runtime_death_poll(&context,event);if(status)return status;continue;
+        }
+        if(event->state.type==52) {
+            context.event=event;
+            if(event->state.deadline>=0) {
+                status=rf_event_tick(&event->state,now,startup_event_action,&context);
+                if(status)return status;if(context.status)return context.status;
+            }
+            if(event->retired)continue;
+            if(!triggers->query_hit_flags){++*unsupported_pending;continue;}
+            status=rf_event_hit_poll(event->state.deadline,event->links,event->authored->record.link_count,
+                runtime_hit_query,runtime_hit_effect,&context);
+            if(status)return status;
+            continue;
         }
         if(event->state.type==87 || event->state.type==88) {
             /* Original4bd400/4bd500 ignore base disabled/delay state. */
