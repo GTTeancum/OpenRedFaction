@@ -796,6 +796,7 @@ static const char *scene_vehicle_hud_label(const scene_stream *);
 static int scene_driller_player_collision(scene_stream *,const rf_collision_body_query *,rf_geometry_body_hit *,uint32_t *);
 #include "scene_flame_effects_resources.inc"
 #include "scene_fusion_effects_resources.inc"
+#include "scene_clutter_break_resources.inc"
 #include "scene_detached_sources.inc"
 static scene_stream *particle_draw_stream;
 static scene_stream *scene_actor_collision_owner;
@@ -955,7 +956,8 @@ static int scene_particle_draw_one(scene_stream *stream,uint32_t index,rf_scene_
     const rf_particle *p;const rf_particle_animation *animation;const rf_image *image;uint32_t frame,mode,i,j;int status;
     if(index>=RF_PARTICLE_CAPACITY)return RF_RANGE;
     p=stream->particles.state->records+index;++row[2];
-    if(p->bitmap<stream->particles.materials.texture_count)
+    if(p->bitmap>=0x40000000u){animation=scene_clutter_break_effects_image(p->bitmap-0x40000000u);if(!animation)return RF_RANGE;}
+    else if(p->bitmap<stream->particles.materials.texture_count)
         animation=&stream->particles.materials.textures[p->bitmap].animation;
     else {
         uint32_t texture=p->bitmap-stream->particles.materials.texture_count;
@@ -12449,6 +12451,7 @@ static int scene_impacts_tick(scene_stream *s,uint32_t frame)
 }
 #include "scene_flame_effects_runtime.inc"
 #include "scene_fusion_effects_runtime.inc"
+#include "scene_clutter_break_runtime.inc"
 static int scene_explosion_terrain(scene_stream *s,uint32_t frame,const rf_weapon_flight_contact *contact,float crater_radius)
 {
     int status;
@@ -15878,6 +15881,7 @@ static int scene_frame(void *context,uint32_t frame,rf_preview_mesh *actor)
                 status=campaign_npc_rooms_pass(frame);if(status)return status;
                 npc_step_profile_mark(2,&npc_clock);
                 status=campaign_glare_loss_inject(frame);if(status)return status;
+                status=scene_clutter_break_tick(stream,frame);if(status)return status;
                 status=campaign_glare_retirement_pass(frame);if(status)return status;
                 status=campaign_glare_loss_verify(frame);if(status)return status;
                 npc_step_profile_mark(3,&npc_clock);
@@ -16617,6 +16621,12 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
         if(actor_follow_world) {
             status=rf_level_visibility_open(geometry,64*1024,&stream->visibility);if(status)goto done;
             status=rf_level_particles_open(&stream->particles,level,collision,maps,map_count,1,0,512*1024);if(status)goto done;
+            for(i=0;i<campaign_clutter_records.count;i++)if(campaign_clutter_bodies&&campaign_clutter_bodies[i]){
+                int32_t cls=campaign_clutter_bodies[i]->state.class_index;
+                if(cls>=0&&campaign_clutter_damage_profiles[cls].break_yellboom){
+                    status=scene_clutter_break_effects_open(tables_path,maps,map_count);if(status)goto done;break;
+                }
+            }
             if(rf_scene_dev_room_enabled) {
                 stream->impact=calloc(1,sizeof(*stream->impact));if(!stream->impact){status=RF_RANGE;goto done;}
                 status=rf_explosion_materials_open(&stream->impact->materials,&campaign_rocket_impact,maps,map_count,128*1024);if(status)goto done;
@@ -16782,6 +16792,7 @@ done:
     rf_visibility_light_storage_close(&stream->light_storage);
     rf_level_owned_lights_close(&stream->lights);
     rf_level_particles_close(&stream->particles);
+    scene_clutter_break_effects_close();
     scene_fusion_effects_close();
     scene_flame_effects_close();
     if(stream->impact){rf_particle_animation_close(stream->impact->blood_images);rf_particle_animation_close(stream->impact->blood_images+1);rf_explosion_materials_close(&stream->impact->materials);free(stream->impact);}

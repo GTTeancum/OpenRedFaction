@@ -15,7 +15,7 @@ int main(int argc,char **argv)
     CHECK(!rf_object_registry_insert(&registry,&owner,&owner.state.handle));
     owner.state.class_index=3;owner.state.health=100;owner.state.flags=0x400010;
     CHECK(!scene_clutter_damage_bind(&registry,&owner,&profile,&binding));
-    CHECK(owner.state.health==80 && owner.state.flags==0x400010);
+    CHECK(owner.state.health==80 && owner.state.flags==0x400010 && !binding.break_pending);
     CHECK(!scene_clutter_damage_receive_live(&registry,&owner,&profile,&binding,20,1,0,&result));
     CHECK(result.accepted && result.applied && !result.retired && owner.state.health==70);
     CHECK(owner.state.flags&0x200000);
@@ -25,10 +25,11 @@ int main(int argc,char **argv)
     CHECK(!result.accepted && !memcmp(&owner,&before,sizeof(owner)));
     owner.state.flags&=~0x4000u;
     CHECK(!scene_clutter_damage_receive_live(&registry,&owner,&profile,&binding,140,1,0,&result));
-    CHECK(result.retired && owner.state.health==0 && (owner.state.flags&2) && binding.killing_type==1);
+    CHECK(result.retired && owner.state.health==0 && (owner.state.flags&2) && binding.killing_type==1 && binding.break_pending);
+    binding.break_pending=0; /* Deferred consumer acknowledges exactly once. */
     before=owner;
     CHECK(!scene_clutter_damage_receive_live(&registry,&owner,&profile,&binding,-100,-1,1,&result));
-    CHECK(!result.applied && !memcmp(&owner,&before,sizeof(owner)));
+    CHECK(!result.applied && !memcmp(&owner,&before,sizeof(owner)) && !binding.break_pending);
     CHECK(!scene_clutter_damage_bind(&registry,&owner,&profile,&binding));CHECK(owner.state.health==0);
     CHECK(!rf_object_registry_remove(&registry,owner.state.handle));
     saved_result=result;saved_binding=binding;
@@ -53,7 +54,7 @@ int main(int argc,char **argv)
         CHECK(!rf_vpp_open(&archive,argv[1]));CHECK(!rf_vpp_find(&archive,"clutter.tbl",&entry));
         CHECK(entry.size && entry.size<=2*1024*1024);text=malloc(entry.size);CHECK(text);
         CHECK(!rf_vpp_read(&archive,&entry,0,text,entry.size));
-        CHECK(!scene_clutter_damage_profile_read(text,entry.size,"lantern_box",&profile));CHECK(profile.life==80 && profile.ordinary);
+        CHECK(!scene_clutter_damage_profile_read(text,entry.size,"lantern_box",&profile));CHECK(profile.life==80 && profile.ordinary && profile.break_yellboom && profile.break_radius==.2f);
         CHECK(!scene_clutter_damage_profile_read(text,entry.size,"riot_shield",&profile));CHECK(!profile.ordinary);
         free(text);rf_vpp_close(&archive);
     }
