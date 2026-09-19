@@ -1,6 +1,6 @@
 /* Include immediately before combat_tick, after retained damage/death helpers.
  * Port first-pass precision shots. Rail pierces_all is authored; scope/scanner,
- * sniper material piercing and general destructible clutter remain separate.
+ * sniper material piercing remains separate.
  * Call only for an accepted PRIMARY shot, after one ammo consumption. */
 #include "rf/weapon_precision.h"
 typedef struct scene_precision_contact {
@@ -20,6 +20,7 @@ static int scene_precision_fire(scene_stream *stream,uint32_t frame,
     const float position[3],const float forward[3],uint32_t rail)
 {
     scene_precision_contact hits[RF_WEAPON_PRECISION_HITS];uint32_t count=0,i;
+    scene_clutter_precision_contact prop={UINT32_MAX,UINT32_MAX,1};
     float delta[3],end[3],nearest=1;int status;
     rf_weapon_flight_contact vehicle_contact;uint32_t vehicle_selected=0;
     for(i=0;i<3;++i){delta[i]=forward[i]*100.0f;end[i]=position[i]+delta[i];}
@@ -63,13 +64,17 @@ static int scene_precision_fire(scene_stream *stream,uint32_t frame,
     status=scene_driller_firearm_select(campaign_player_object.handle,position,delta,
         rail?1:nearest,&vehicle_contact,&vehicle_selected);if(status)return status;
     if(vehicle_selected&&!rail)nearest=vehicle_contact.hit.fraction;
+    if(!rail){
+        status=scene_clutter_precision_select(position,delta,nearest,&prop);if(status)return status;
+        if(prop.slot!=UINT32_MAX)nearest=prop.fraction;
+    }
     {
         rf_geomod_registry_hit hit;uint32_t matched,wall=0;float end[3];
         ++rf_scene_detached_hitscan[0];
         status=scene_detached_sources_sweep(stream,0x460,position,delta,0,rail?1:nearest,&hit,&matched);
         rf_scene_detached_hitscan[6]=(uint32_t)status;if(status)return status;
-        if(matched && (rail || (!count&&!vehicle_selected) || hit.piece.hit.fraction<nearest ||
-           (vehicle_selected&&hit.piece.hit.fraction==nearest))){
+        if(matched && (rail || (!count&&!vehicle_selected&&prop.slot==UINT32_MAX) || hit.piece.hit.fraction<nearest ||
+           ((vehicle_selected||prop.slot!=UINT32_MAX)&&hit.piece.hit.fraction==nearest))){
             if(!rail){
                 for(i=0;i<3;++i)end[i]=position[i]+delta[i]*hit.piece.hit.fraction;
                 status=rf_geometry_collision_ray(stream->collision,&campaign_movers,position,end,0x27,NULL,&wall);
@@ -85,6 +90,13 @@ static int scene_precision_fire(scene_stream *stream,uint32_t frame,
             }
             if(!rail)return RF_OK;
         }
+    }
+
+    if(rail){uint32_t prop_hits;
+        status=scene_clutter_precision_rail(position,delta,campaign_pistol.damage,campaign_pistol.damage_kind,&prop_hits);if(status)return status;
+    }else{uint32_t handled;
+        status=scene_clutter_precision_commit(stream,position,delta,&prop,campaign_pistol.damage,campaign_pistol.damage_kind,&handled);if(status)return status;
+        if(handled)return RF_OK;
     }
     if(vehicle_selected){uint32_t blocked=0,handled;float applied;
         if(!rail){status=combat_shot_obstructed(stream,position,delta,vehicle_contact.hit.fraction,&blocked);if(status)return status;}

@@ -1,10 +1,10 @@
 # Ordinary prop damage first pass
 
-Player pistol, rifle, shotgun, conventional firearm and riot-stick hitscan now selects actual registered static prop model geometry alongside NPC/shield/vehicle candidates. The nearer candidate wins; world/mover and detached-terrain obstruction is checked before damage. Hidden and retired props are excluded, and the authored collide_weapon flag controls eligibility. Precision weapons and physical projectiles use separate paths and are not included yet.
+Player pistol, rifle, shotgun, conventional firearm and riot-stick hitscan now selects actual registered static prop model geometry alongside NPC/shield/vehicle candidates. The nearer candidate wins; world/mover and detached-terrain obstruction is checked before damage. Hidden and retired props are excluded, and the authored collide_weapon flag controls eligibility. Precision weapons now use their dedicated prop adapter described below; physical projectile direct contacts remain open.
 
 Each loaded class has a56-byte damage profile read from clutter.tbl, preserving class-specific life, protection and eleven damage factors even when multiple classes share a model. Each owner has a16-byte generation/class binding. On creation health uses authored life; negative life gives protected100HP as in the existing class initializer. Damage uses the shared clutter receive logic, preserves the hit-event signal, and retires a destroyed prop once via flag2. Allocation remains registered until normal scene teardown; rendering, glow and model collision suppress it.
 
-This is disappearance on destruction, not completed prop destruction presentation. Debris/corpse/explosion dispatch, source attribution, precision/projectile direct damage, physics response and persistence remain open. Authored immutable-clutter checkpoint validation still refuses changed props rather than silently losing their state.
+This is disappearance on destruction, not completed prop destruction presentation. Debris/corpse/explosion dispatch, source attribution, projectile direct damage, physics response and persistence remain open. Authored immutable-clutter checkpoint validation still refuses changed props rather than silently losing their state.
 
 ## Verification
 
@@ -19,3 +19,9 @@ The failed NPC scripted-attack test used unsupported weaponID0 without a support
 Ordinary enemy hitscan and shotgun pellets now select a nearer prop before intended actor/shield/vehicle damage, preserving ties and checking world/rubble cover. The existing rail penetration policy remains explicit. Shared explosion dispatch now scans live ordinary props with authored center-distance falloff and CF5 world/mover cover before calling the same typed damage service. Hidden/dead objects are skipped; damage application revalidates registry generation. No additional retained allocations are introduced.
 
 Focused enemy-fire ordering and blast falloff/cover tests pass, and the integrated PC build passes. These focused checks do not establish live NPC encounter or explosion presentation correctness; a real blast fixture is being prepared. Prop destruction still retires the object without debris or chain explosions.
+
+## Precision weapons
+
+Player sniper selection now merges exact prop-model contacts with the nearest actor, shield and vehicle. Detached fragments retain precedence at an equal distance, then world/mover cover is checked before typed prop damage. Rail visits each intersected registered prop once and continues along its existing authored piercing path, without consuming a new per-prop allocation or repeatedly damaging the same surviving prop. Hidden, retired and stale owners are excluded.
+
+The integrated PC and NXDK builds pass, and the complete NPC residency regression executable passes. Live sniper/rail shots against the prop fixture remain unverified; builds and the NPC regression suite are not evidence of those visual outcomes. Material-specific sniper piercing remains a separate fidelity item.

@@ -3,7 +3,7 @@
 Completion basis (user direction,2026-09-18): working late-alpha/early-beta code implementation. Overall approximately78%; GeoMod100% for the first playable milestone, accepted by the user. GeoMod items below are deferred refinement and coverage, not prerequisites to moving on. This does not assert retail polish, complete campaign integration or resolution of every known defect.
 
 
-- Destructible props: Player hitscan destroys an authored lamp in PC; enemy bullets/pellets and covered radial blast damage are now wired and pass focused checks; native lamp destruction matches PC exactly (overall harness exposed a now-corrected switch telemetry pointer comparison), with precision/projectile contacts, debris/explosions, physics and saves still open (docs/CLUTTER-DAMAGE-FIRST-PASS.md).
+- Destructible props: Player hitscan destroys an authored lamp in PC; enemy bullets/pellets and covered radial blast damage are now wired and pass focused checks; native lamp destruction matches PC exactly (overall harness exposed a now-corrected switch telemetry pointer comparison), sniper/rail contacts are now wired with both builds passing, while live precision/blast coverage, projectile contacts, debris/explosions, physics and saves remain open (docs/CLUTTER-DAMAGE-FIRST-PASS.md).
 
 - Fighter: Boarding, hover flight, cockpit, finite minigun/forward rockets and exit pass PC/Xbox with exact gameplay state and11.64MiB free; live seated save/reload/exit now passes PC/Xbox with identical1228-byte checkpoints and11.57MiB free; campaign placement, broader combat, malformed submerged-save admission and effect polish remain (docs/FIGHTER-FIRST-PASS.md).
 

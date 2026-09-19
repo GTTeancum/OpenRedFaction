@@ -12649,6 +12649,7 @@ static int campaign_inventory_initialize(void)
 static void scene_remote_reset(void);
 static int scene_remote_tick(scene_stream *,uint32_t);
 static int scene_remote_input(scene_stream *,uint32_t,const float[3],const float[3],uint32_t,uint32_t);
+#include "scene_clutter_precision.inc"
 #include "scene_precision_gameplay.inc"
 #include "scene_flame_gameplay.inc"
 #include "scene_flame_input.inc"
