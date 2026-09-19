@@ -86,4 +86,22 @@ int rf_composed_checkpoint_encode_v3(uint32_t profile_id,const rf_player_checkpo
 int rf_composed_checkpoint_preflight_v3(const void *,uint32_t bytes,uint32_t profile_id,
     const rf_player_checkpoint_catalog *,uint32_t level_hash,uint32_t catalog_hash,
     rf_composed_checkpoint_v3 *);
+typedef struct rf_composed_checkpoint_v4 {
+    rf_composed_checkpoint_v3 base;const unsigned char *clutter;uint32_t clutter_bytes,clutter_count;
+} rf_composed_checkpoint_v4;
+/* RFCP4 preserves the32-byte header and prior section offsets. A mandatory
+ * RFPC1 section follows RFVC (possibly zero rows). Its length is the remaining
+ * envelope bytes, validated against its own header/checksum/identity. No new
+ * allocation or transport-cap increase: props reduce the terrain budget.
+ * V4 preflight accepts1..3 as explicitly prop-absent; V3 APIs reject4.
+ * Identity/remapping/terrain validation and atomic scene publication remain
+ * caller obligations. Same alias/error-output rules as V3. */
+int rf_composed_checkpoint_encode_v4(uint32_t profile_id,const rf_player_checkpoint *,
+    const rf_player_checkpoint_catalog *,const void *rfds,uint32_t rfds_bytes,
+    const void *remote,uint32_t remote_bytes,uint32_t level_hash,uint32_t catalog_hash,
+    const void *vehicle,uint32_t vehicle_bytes,const void *clutter,uint32_t clutter_bytes,
+    const unsigned char clutter_identity[32],void *output,uint32_t capacity,uint32_t *written);
+int rf_composed_checkpoint_preflight_v4(const void *,uint32_t bytes,uint32_t profile_id,
+    const rf_player_checkpoint_catalog *,uint32_t level_hash,uint32_t catalog_hash,
+    const unsigned char clutter_identity[32],rf_composed_checkpoint_v4 *);
 #endif

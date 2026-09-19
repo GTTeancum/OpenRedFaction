@@ -40,20 +40,26 @@ int rf_clutter_checkpoint_encode(const unsigned char identity[32],const rf_clutt
     }
     put(p+12,hash(p,bytes));*written=bytes;return RF_OK;
 }
-int rf_clutter_checkpoint_decode(const void *data,uint32_t bytes,const unsigned char identity[32],
-    rf_clutter_checkpoint_record *rows,uint32_t capacity,uint32_t *out_count)
+static int decode(const void *data,uint32_t bytes,const unsigned char identity[32],
+    rf_clutter_checkpoint_record *rows,uint32_t capacity,uint32_t *out_count,uint32_t publish)
 {
     const unsigned char *p=data;uint32_t count,i,j,previous=0;rf_clutter_checkpoint_record r,prior;int status;
     if(!data||!identity||!out_count)return RF_RANGE;
     if(bytes<64||bytes>RF_CLUTTER_CHECKPOINT_MAX_BYTES||memcmp(p,"RFPC",4)||word(p+4)!=1||word(p+8)!=bytes||
        word(p+20)||word(p+56)||word(p+60)||memcmp(p+24,identity,32)||word(p+12)!=hash(p,bytes))return RF_FORMAT;
     count=word(p+16);if(count>1024||bytes!=64+count*24)return RF_FORMAT;
-    if(capacity<count||(count&&!rows))return RF_RANGE;
+    if(publish&&(capacity<count||(count&&!rows)))return RF_RANGE;
     for(i=0;i<count;i++){
         read_row(p+64+i*24,&r);status=valid(&r);if(status)return status;
         if(i&&previous>=r.uid)return RF_FORMAT;previous=r.uid;
         for(j=0;j<i;j++){read_row(p+64+j*24,&prior);if(prior.class_id==r.class_id&&prior.cooldown_ms!=r.cooldown_ms)return RF_FORMAT;}
     }
-    for(i=0;i<count;i++)read_row(p+64+i*24,rows+i);
+    if(publish)for(i=0;i<count;i++)read_row(p+64+i*24,rows+i);
     *out_count=count;return RF_OK;
 }
+
+int rf_clutter_checkpoint_decode(const void *data,uint32_t bytes,const unsigned char identity[32],
+    rf_clutter_checkpoint_record *rows,uint32_t capacity,uint32_t *count)
+{return decode(data,bytes,identity,rows,capacity,count,1);}
+int rf_clutter_checkpoint_preflight(const void *data,uint32_t bytes,const unsigned char identity[32],uint32_t *count)
+{return decode(data,bytes,identity,NULL,0,count,0);}

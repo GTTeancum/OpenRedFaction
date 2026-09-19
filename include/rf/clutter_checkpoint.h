@@ -20,4 +20,6 @@ int rf_clutter_checkpoint_encode(const unsigned char identity[32],
     const rf_clutter_checkpoint_record *,uint32_t count,void *,uint32_t capacity,uint32_t *written);
 int rf_clutter_checkpoint_decode(const void *,uint32_t bytes,const unsigned char identity[32],
     rf_clutter_checkpoint_record *,uint32_t capacity,uint32_t *count);
+/* Validate without record storage; count changes only on success. */
+int rf_clutter_checkpoint_preflight(const void *,uint32_t bytes,const unsigned char identity[32],uint32_t *count);
 #endif

@@ -1365,3 +1365,7 @@ target_sources(rf_core PRIVATE src/core/clutter_checkpoint.c)
 add_executable(rf_clutter_checkpoint_tests tests/clutter_checkpoint_tests.c)
 target_link_libraries(rf_clutter_checkpoint_tests PRIVATE rf_core)
 add_test(NAME clutter_checkpoint COMMAND rf_clutter_checkpoint_tests)
+
+add_executable(rf_composed_clutter_checkpoint_tests tests/composed_clutter_checkpoint_tests.c)
+target_link_libraries(rf_composed_clutter_checkpoint_tests PRIVATE rf_core)
+add_test(NAME composed_clutter_checkpoint COMMAND rf_composed_clutter_checkpoint_tests)
