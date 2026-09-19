@@ -11,7 +11,7 @@ int main(void)
     rf_clutter_base_owner owner={0},*owners[1]={&owner};uint32_t model_slot=0,matched=0,liquid=1,handled;
     float start[3]={0,0,0},delta[3]={0,0,10};rf_weapon_flight_contact hit={0};
     rf_clutter_class definition={0};int status;
-    definition.flags=2;owner.state.definition=&definition;owner.state.position[2]=5;
+    definition.flags=4; /* Oil drums author collide_object, without collide_weapon. */owner.state.definition=&definition;owner.state.position[2]=5;
     owner.matrix[0]=owner.matrix[4]=owner.matrix[8]=1;
     owner.body.state.bounds.minimum[0]=owner.body.state.bounds.minimum[1]=-2;owner.body.state.bounds.minimum[2]=4.99f;
     owner.body.state.bounds.maximum[0]=owner.body.state.bounds.maximum[1]=2;owner.body.state.bounds.maximum[2]=5.01f;
@@ -22,6 +22,7 @@ int main(void)
     status=scene_clutter_projectile_compose(UINT32_MAX,start,delta,.25f,&hit,&liquid,&matched);CHECK(!status&&matched&&!liquid);
     CHECK(hit.object==SCENE_CLUTTER_PROJECTILE_OWNER&&hit.face==owner.state.handle);
     CHECK(fabsf(hit.hit.fraction-.475f)<.001f&&fabsf(hit.hit.point[2]-5)<.001f&&hit.hit.normal[2]<-.99f);
+    {uint32_t slot;float fraction;CHECK(!campaign_clutter_firearm_select(start,delta,1,&slot,&fraction));CHECK(slot==0&&fabsf(fraction-.5f)<.001f);}
     hit.hit.fraction=.2f;hit.object=UINT32_MAX;liquid=0;matched=1;
     CHECK(!scene_clutter_projectile_compose(UINT32_MAX,start,delta,.25f,&hit,&liquid,&matched));CHECK(hit.object==UINT32_MAX&&hit.hit.fraction==.2f);
     matched=0;owner.state.flags=0x4000;

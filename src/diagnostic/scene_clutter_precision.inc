@@ -40,7 +40,7 @@ static int scene_clutter_precision_rail(const float start[3],const float delta[3
     for(i=0;campaign_clutter_bodies&&i<campaign_clutter_records.count;i++){
         rf_clutter_base_owner *owner=campaign_clutter_bodies[i];rf_collision_model_part_query query={0};
         rf_collision_model_response_hit hit={0};float broad;uint32_t accepted=0;
-        if(!owner||(owner->state.flags&(2u|0x4000u))||!owner->state.definition||!(owner->state.definition->flags&2u))continue;
+        if(!owner||(owner->state.flags&(2u|0x4000u))||!owner->state.definition||!(owner->state.definition->flags&6u))continue;
         if(rf_object_registry_lookup(&campaign_registry,owner->state.handle)!=&owner->state)continue;
         if(!combat_box(start,delta,&owner->body.state.bounds,1,&broad))continue;
         memcpy(query.input.start,start,12);memcpy(query.input.displacement,delta,12);

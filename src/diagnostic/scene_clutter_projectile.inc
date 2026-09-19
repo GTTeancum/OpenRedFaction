@@ -11,7 +11,7 @@ static int scene_clutter_projectile_compose(uint32_t source,const float start[3]
         rf_collision_model_response_hit hit={0};rf_collision_ray_hit local;rf_physics_bounds bounds;float broad;
         uint32_t accepted;float limit=*matched?out->hit.fraction:1;
         if(!owner||owner->state.handle==source||(owner->state.flags&(2u|0x4000u))||
-           !owner->state.definition||!(owner->state.definition->flags&2u))continue;
+           !owner->state.definition||!(owner->state.definition->flags&6u))continue;
         if(rf_object_registry_lookup(&campaign_registry,owner->state.handle)!=&owner->state)continue;
         bounds=owner->body.state.bounds;
         for(j=0;j<3;j++){bounds.minimum[j]-=radius;bounds.maximum[j]+=radius;}

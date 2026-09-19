@@ -3,7 +3,7 @@
 Completion basis (user direction,2026-09-18): working late-alpha/early-beta code implementation. Overall approximately78%; GeoMod100% for the first playable milestone, accepted by the user. GeoMod items below are deferred refinement and coverage, not prerequisites to moving on. This does not assert retail polish, complete campaign integration or resolution of every known defect.
 
 
-- Destructible props: Hitscan, precision and shared projectile/blast damage are wired; PC/Xbox now show the authored lamp break burst with exact gameplay parity and16.35MiB free; authored two-step prop blasts now pass a real-scene simulation check; live chain presentation, sparks/debris, other effects, physics and persistence remain (docs/CLUTTER-DAMAGE-FIRST-PASS.md).
+- Destructible props: Hitscan, precision and shared projectile/blast damage are wired; PC/Xbox now show the authored lamp break burst with exact gameplay parity and16.35MiB free; one pistol shot now triggers an authored three-prop chain in live PC; native chain coverage and oil-drum presentation, sparks/debris, other effects, physics and persistence remain (docs/CLUTTER-DAMAGE-FIRST-PASS.md).
 
 - Fighter: Boarding, hover flight, cockpit, finite minigun/forward rockets and exit pass PC/Xbox with exact gameplay state and11.64MiB free; live seated save/reload/exit now passes PC/Xbox with identical1228-byte checkpoints and11.57MiB free; campaign placement, broader combat, malformed submerged-save admission and effect polish remain (docs/FIGHTER-FIRST-PASS.md).
 
