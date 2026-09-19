@@ -977,7 +977,7 @@ int main(void)
             if(fread(selection,1,sizeof(selection),selection_file)!=sizeof(selection) ||
                fgetc(selection_file)!=EOF || !memchr(selection,0,64) || !memchr(selection+64,0,64) ||
                !selection[64] || (strcmp(selection,"levels1.vpp") && strcmp(selection,"levels2.vpp") &&
-               strcmp(selection,"levels3.vpp") && strcmp(selection,"levelsm.vpp") && strcmp(selection,"fragment-platform.vpp")))result=RF_FORMAT;
+               strcmp(selection,"levels3.vpp") && strcmp(selection,"levelsm.vpp") && strcmp(selection,"fragment-platform.vpp") && strcmp(selection,"scene-fixture.vpp")))result=RF_FORMAT;
             fclose(selection_file);
         }
         if(result==RF_OK) {

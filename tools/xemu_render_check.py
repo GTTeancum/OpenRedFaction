@@ -75,6 +75,7 @@ def main():
     parser.add_argument('--seconds', type=int, default=180, help='Guest wall-clock deadline,30..3600 seconds (default180)')
     parser.add_argument('--level', default='L1S1.rfl')
     parser.add_argument('--archive', choices=['levels1.vpp','levels2.vpp','levels3.vpp','levelsm.vpp'], default='levels1.vpp')
+    parser.add_argument('--fixture-game', type=Path, help='Explicit local fixture game directory; stage selected archive as scene-fixture.vpp without replacing originals')
     parser.add_argument('--spawn', action='store_true', help='Use authored player spawn without actor/item staging')
     parser.add_argument('--goal-uid', type=int, help='Authored goal setter at frame30')
     parser.add_argument('--actor', type=int, default=9858)
@@ -95,6 +96,11 @@ def main():
     args = parser.parse_args()
     if sum((args.tip_platform_test,args.lift_platform_test,args.ceiling_platform_test))>1:parser.error('Choose one platform motion')
     if args.tip_platform_test or args.lift_platform_test or args.ceiling_platform_test:args.fragment_platform_test=True
+    if args.fixture_game:
+        if args.fragment_platform_test:parser.error('--fixture-game cannot be combined with --fragment-platform-test')
+        args.fixture_game=args.fixture_game.resolve()
+        if not args.fixture_game.is_dir() or not (args.fixture_game/args.archive).is_file():
+            parser.error('--fixture-game must contain the selected --archive')
     if args.fragment_platform_test and not (args.dev_room and args.spawn and args.level=='ctf06.rfl' and args.archive=='levelsm.vpp' and args.authored_source==108 and args.authored_sources==3 and args.input and not (args.player_checkpoint or args.geomod_checkpoint_in or args.geomod_checkpoint_out)):
         parser.error('--fragment-platform-test requires source108/three-source CTF06 DEV rocket input without checkpoints')
     if args.fragment_contact_test and not args.dev_room:parser.error('--fragment-contact-test requires --dev-room')
@@ -203,6 +209,8 @@ def main():
     emulator = Path('C:/Games/Emulators/Xemu')
     pc_build = 'build/pc-expanded' if args.expanded_geomod else 'build/pc'
     disc = root / 'build/xbox/disc'
+    if args.fixture_game and (disc/'scene-fixture.vpp').exists():
+        raise RuntimeError('Unexpected existing disc/scene-fixture.vpp; inspect prior fixture restoration before another run')
     run = root / 'artifacts/xemu' / ('render-' + datetime.datetime.now().strftime('%Y%m%d-%H%M%S'))
     run.mkdir(parents=True)
     print('Run:', run, flush=True)
@@ -289,7 +297,14 @@ def main():
     with (run / 'pc-build.log').open('w') as out:
         subprocess.run(['cmake','--build',pc_build,'--config','Release','--target','rf_pc_play'],
             cwd=root,stdout=out,stderr=subprocess.STDOUT,check=True)
-    pc_game=root/'Installed_Game'
+    pc_game=args.fixture_game or root/'Installed_Game'
+    if args.fixture_game:
+        with (pc_game/args.archive).open('rb') as fixture_archive:
+            fixture_hash=hashlib.file_digest(fixture_archive,'sha256').hexdigest()
+        with (disc/args.archive).open('rb') as normal_archive:
+            normal_hash=hashlib.file_digest(normal_archive,'sha256').hexdigest()
+        report['scene_fixture']=dict(game=str(pc_game), source_archive=args.archive,
+            staged_archive='scene-fixture.vpp', sha256=fixture_hash, normal_archive_sha256=normal_hash)
     if args.fragment_platform_test:
         subprocess.run([sys.executable,'-B','tools/build_fragment_platform_fixture.py'],cwd=root,check=True)
         pc_game=root/'artifacts/fragment-platform/game'
@@ -307,6 +322,7 @@ def main():
         saved[name] = p.read_bytes() if p.exists() else None
     for name in ('campaign-spawn.flag', 'campaign-level.bin', 'campaign-actor.bin', 'campaign-setup.bin', 'campaign-item.bin', 'campaign-exit.bin', 'campaign-return.bin', 'campaign-goal.bin', 'campaign-exit-start.bin'):
         saved.setdefault(name, None)
+    if args.fixture_game:saved['scene-fixture.vpp']=None
     if args.fragment_platform_test:
         if (disc/'fragment-platform.vpp').exists():
             raise RuntimeError('Unexpected existing disc/fragment-platform.vpp; inspect prior fixture restoration before another run')
@@ -364,6 +380,12 @@ def main():
         if args.fragment_platform_test:
             (disc/'fragment-platform-test.flag').write_bytes(b'4' if args.ceiling_platform_test else b'3' if args.lift_platform_test else b'2' if args.tip_platform_test else b'1')
             shutil.copyfile(pc_game/'levelsm.vpp',disc/'fragment-platform.vpp')
+        if args.fixture_game:
+            # Only the selected level archive is staged; all normal disc data remain in place.
+            shutil.copyfile(pc_game/args.archive,disc/'scene-fixture.vpp')
+            with (disc/'scene-fixture.vpp').open('rb') as staged_archive:
+                if hashlib.file_digest(staged_archive,'sha256').hexdigest()!=fixture_hash:
+                    raise RuntimeError('Fixture archive changed during PC reference/staging')
         if args.vehicle_test:(disc/'vehicle-test.flag').write_text({'driller':'1','apc':'2','jeep':'3','sub':'4','fighter':'5'}[args.vehicle_class])
         else:(disc/'vehicle-test.flag').unlink(missing_ok=True)
         if args.firearms_test:(disc/'firearms-test.flag').write_text(str(args.firearms_test))
@@ -389,7 +411,7 @@ def main():
         if args.shallow_fixture:(disc/'shallow-fixture.flag').write_bytes(b'3' if args.shallow_oblique else b'2' if args.shallow_two_limits else b'')
         if args.terrain_test_light:(disc/'terrain-test-light.flag').write_bytes(b'')
         if args.terrain_map_limit is not None:(disc/'terrain-map-limit.bin').write_bytes(struct.pack('<2I',args.terrain_map_limit,args.terrain_map_limit_until))
-        (disc / 'campaign-level.bin').write_bytes(('fragment-platform.vpp' if args.fragment_platform_test else args.archive).encode().ljust(64, b'\0') + args.level.encode().ljust(64, b'\0'))
+        (disc / 'campaign-level.bin').write_bytes(('scene-fixture.vpp' if args.fixture_game else 'fragment-platform.vpp' if args.fragment_platform_test else args.archive).encode().ljust(64, b'\0') + args.level.encode().ljust(64, b'\0'))
         if args.goal_uid:(disc/'campaign-goal.bin').write_bytes(struct.pack('<I',args.goal_uid))
         if not args.spawn:(disc / ('campaign-item.bin' if args.item_uid else 'campaign-actor.bin')).write_bytes(struct.pack('<I', args.item_uid or args.actor))
         if args.exit_start_uid:(disc/'campaign-exit-start.bin').write_bytes(struct.pack('<I',args.exit_start_uid))
@@ -689,7 +711,7 @@ dvd_path = '{root.as_posix()}/build/xbox/redfaction-diagnostic.iso'
             for name, label, count in [('rf_scene_authored_identity', 'AUTHORED_IDENTITY', 10), ('rf_scene_terrain_publication', 'TERRAIN_PUBLICATION', 8), ('rf_scene_debris_audio', 'DEBRIS_AUDIO', 14), ('rf_scene_player_checkpoint_state', 'PLAYER_CHECKPOINT', 8), ('rf_scene_liquid_damage', 'LIQUID_DAMAGE', 8), ('rf_scene_player_swim', 'PLAYER_SWIM', 12), ('scene_actor_body', 'PC_PLAY_BODY', 77),
                     ('rf_scene_player_ammo', 'PLAYER_AMMO', 8), ('rf_scene_combat', 'COMBAT', 8),
                     ('rf_scene_script_movement', 'SCRIPT_MOVE', 8), ('rf_scene_enemy_combat', 'ENEMY_COMBAT', 8),
-                    ('rf_scene_rotating_doors', 'ROTATING_DOORS', 8), ('rf_scene_script_attack', 'SCRIPT_ATTACK', 12), ('rf_scene_attack_recovery', 'ATTACK_RECOVERY', 4), ('rf_scene_enemy_damage_kinds', 'ENEMY_DAMAGE_KINDS', 10), ('rf_scene_enemy_melee', 'ENEMY_MELEE', 4), ('rf_scene_enemy_spread', 'ENEMY_SPREAD', 8), ('rf_scene_combat_pain', 'COMBAT_PAIN', 8), ('rf_scene_pain_attack_gate', 'PAIN_ATTACK_GATE', 6), ('rf_scene_weapon_drops', 'WEAPON_DROPS', 8), ('rf_scene_rifle_alt', 'RIFLE_ALT', 8), ('rf_scene_shotgun', 'SHOTGUN', 8), ('rf_scene_grenades', 'GRENADES', 8), ('rf_scene_ai_grenades', 'AI_GRENADES', 5), ('rf_scene_ai_rockets', 'AI_ROCKETS', 5), ('rf_scene_riot_shield', 'RIOT_SHIELD', 4), ('rf_scene_player_shield', 'PLAYER_SHIELD', 4), ('rf_scene_fusion_projectiles', 'FUSION_PROJECTILES', 5), ('rf_scene_machine_mode', 'MACHINE_MODE', 8), ('rf_scene_undercover', 'UNDERCOVER', 8), ('rf_scene_vehicle_state', 'VEHICLE', 16), ('rf_scene_drill_state', 'DRILL', 8), ('rf_scene_vehicle_damage', 'VEHICLE_DAMAGE', 8), ('rf_scene_apc_primary', 'APC_PRIMARY', 8), ('rf_scene_apc_secondary', 'APC_SECONDARY', 8), ('rf_scene_submarine_weapon', 'SUBMARINE_WEAPON', 8), ('rf_scene_fighter_weapon', 'FIGHTER_WEAPON', 8), ('rf_scene_jeep_seats', 'JEEP_SEATS', 8), ('rf_scene_player_impact', 'PLAYER_IMPACT', 8), ('rf_scene_remote', 'REMOTE', 8), ('rf_scene_flame_visual', 'FLAME_VISUAL', 6), ('rf_scene_flame_canister', 'FLAME_CANISTER', 5), ('rf_scene_burning', 'BURNING', 5), ('rf_scene_burning_visual', 'BURNING_VISUAL', 5), ('rf_scene_rockets', 'ROCKETS', 8), ('rf_scene_rocket_blast', 'ROCKET_BLAST', 8), ('rf_scene_rocket_visual', 'ROCKET_VISUAL', 8), ('rf_scene_ripple_visual', 'RIPPLE_VISUAL', 8), ('rf_scene_ripple_lifecycle', 'RIPPLE_LIFECYCLE', 4), ('rf_scene_rocket_liquid', 'ROCKET_LIQUID_STATE', 4), ('rf_scene_enemy_fire', 'ENEMY_FIRE', 6),
+                    ('rf_scene_rotating_doors', 'ROTATING_DOORS', 8), ('rf_scene_script_attack', 'SCRIPT_ATTACK', 12), ('rf_scene_attack_recovery', 'ATTACK_RECOVERY', 4), ('rf_scene_enemy_damage_kinds', 'ENEMY_DAMAGE_KINDS', 10), ('rf_scene_enemy_melee', 'ENEMY_MELEE', 4), ('rf_scene_enemy_spread', 'ENEMY_SPREAD', 8), ('rf_scene_combat_pain', 'COMBAT_PAIN', 8), ('rf_scene_pain_attack_gate', 'PAIN_ATTACK_GATE', 6), ('rf_scene_weapon_drops', 'WEAPON_DROPS', 8), ('rf_scene_rifle_alt', 'RIFLE_ALT', 8), ('rf_scene_shotgun', 'SHOTGUN', 8), ('rf_scene_grenades', 'GRENADES', 8), ('rf_scene_ai_grenades', 'AI_GRENADES', 5), ('rf_scene_ai_rockets', 'AI_ROCKETS', 5), ('rf_scene_riot_shield', 'RIOT_SHIELD', 4), ('rf_scene_player_shield', 'PLAYER_SHIELD', 4), ('rf_scene_fusion_projectiles', 'FUSION_PROJECTILES', 5), ('rf_scene_machine_mode', 'MACHINE_MODE', 8), ('rf_scene_undercover', 'UNDERCOVER', 8), ('rf_scene_vehicle_state', 'VEHICLE', 16), ('rf_scene_drill_state', 'DRILL', 8), ('rf_scene_vehicle_damage', 'VEHICLE_DAMAGE', 8), ('rf_scene_apc_primary', 'APC_PRIMARY', 8), ('rf_scene_apc_secondary', 'APC_SECONDARY', 8), ('rf_scene_submarine_weapon', 'SUBMARINE_WEAPON', 8), ('rf_scene_fighter_weapon', 'FIGHTER_WEAPON', 8), ('rf_scene_clutter_damage', 'CLUTTER_DAMAGE', 8), ('rf_scene_jeep_seats', 'JEEP_SEATS', 8), ('rf_scene_player_impact', 'PLAYER_IMPACT', 8), ('rf_scene_remote', 'REMOTE', 8), ('rf_scene_flame_visual', 'FLAME_VISUAL', 6), ('rf_scene_flame_canister', 'FLAME_CANISTER', 5), ('rf_scene_burning', 'BURNING', 5), ('rf_scene_burning_visual', 'BURNING_VISUAL', 5), ('rf_scene_rockets', 'ROCKETS', 8), ('rf_scene_rocket_blast', 'ROCKET_BLAST', 8), ('rf_scene_rocket_visual', 'ROCKET_VISUAL', 8), ('rf_scene_ripple_visual', 'RIPPLE_VISUAL', 8), ('rf_scene_ripple_lifecycle', 'RIPPLE_LIFECYCLE', 4), ('rf_scene_rocket_liquid', 'ROCKET_LIQUID_STATE', 4), ('rf_scene_enemy_fire', 'ENEMY_FIRE', 6),
                     ('rf_scene_use_reach', 'USE_REACH', 4), ('rf_scene_debris_wet','DEBRIS_WET_STATE',8), ('rf_scene_debris_visibility','DEBRIS_VISIBILITY',8), ('rf_scene_debris_motion','DEBRIS_MOTION',8), ('rf_scene_debris_crossing','DEBRIS_CROSSING',8), ('rf_scene_debris_splash_audio','DEBRIS_SPLASH_AUDIO',9), ('rf_scene_debris_player','DEBRIS_PLAYER',8), ('rf_scene_debris_rotation','DEBRIS_ROTATION',4), ('rf_scene_debris_cleanup','DEBRIS_CLEANUP',8), ('rf_scene_debris_blood','DEBRIS_BLOOD',8), ('rf_scene_debris_player_test','DEBRIS_PLAYER_TEST',8),
                     ('rf_scene_particles_summary', 'SCENE_PARTICLES', 8), ('rf_scene_live_motion', 'LIVE_MOTION', 8), ('rf_scene_airlock', 'AIRLOCK', 6), ('rf_scene_script_animation', 'SCRIPT_ANIMATION', 10), ('rf_scene_alarm', 'ALARM', 12), ('rf_scene_switch_runtime', 'SWITCH_RUNTIME', 8), ('rf_scene_switch_detail', 'SWITCH_DETAIL', 8), ('rf_scene_switch_history', 'SWITCH_HISTORY', 4), ('rf_scene_trigger_history', 'TRIGGER_HISTORY', 4), ('rf_scene_startup_inventory', 'STARTUP_INVENTORY', 4), ('rf_scene_pickups', 'PICKUPS', 8), ('rf_scene_pickup_vitals', 'PICKUP_VITALS', 4), ('rf_scene_riot', 'RIOT_STICK', 8), ('rf_scene_weapon_selection', 'WEAPON_SELECTION', 8),
                     ('rf_scene_player_weapon', 'PLAYER_WEAPON', 8), ('rf_scene_weapon_audio', 'WEAPON_AUDIO', 9), ('rf_scene_impact_audio', 'IMPACT_AUDIO', 9),
@@ -886,6 +908,10 @@ dvd_path = '{root.as_posix()}/build/xbox/redfaction-diagnostic.iso'
                 actual = (disc / name).read_bytes() if (disc / name).exists() else None
                 if actual != data:
                     raise RuntimeError('Disc restoration mismatch: ' + name)
+            if args.fixture_game:
+                with (disc/args.archive).open('rb') as original_archive:
+                    if hashlib.file_digest(original_archive,'sha256').hexdigest()!=normal_hash:
+                        raise RuntimeError('Normal archive changed during scene fixture')
             if args.fragment_platform_test:
                 with (disc/'levelsm.vpp').open('rb') as original_archive:
                     assert hashlib.file_digest(original_archive,'sha256').hexdigest()==report['normal_levelsm_sha256'], 'Normal archive changed during fixture'

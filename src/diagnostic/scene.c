@@ -1080,6 +1080,7 @@ uint32_t rf_scene_ambient_records[3]; /* authored count, owner bytes, ordered re
 uint32_t rf_scene_ambient_instances[4]; /* registered, rejected, owner bytes, ordered state hash */
 uint32_t rf_scene_switch_runtime[8],rf_scene_switch_detail[8];
 uint32_t rf_scene_switch_state[3]; /* count, enabled count, ordered persistent state hash */
+static int campaign_switch_clutter_snapshot(void *object,uint32_t *flags);
 static void campaign_switch_snapshot(void)
 {
     uint32_t i,j,count=0,enabled=0,hash=2166136261u;
@@ -1092,8 +1093,10 @@ static void campaign_switch_snapshot(void)
             if(campaign_events.items[i].authored->record.link_count) {
                 void *linked=rf_object_registry_lookup(&campaign_registry,campaign_events.items[i].links[0].value);uint32_t kind=0;
                 rf_scene_switch_detail[5]=campaign_events.items[i].authored->links[0];if(linked)memcpy(&kind,linked,4);
+                uint32_t prop_flags=0;
+                if(campaign_switch_clutter_snapshot(linked,&prop_flags)){kind=4;rf_scene_switch_detail[7]=prop_flags;}
+                else rf_scene_switch_detail[7]=kind==5?((rf_runtime_trigger*)linked)->state.flags:kind==6?((rf_runtime_event*)linked)->state.flags:0;
                 rf_scene_switch_detail[6]=kind;
-                rf_scene_switch_detail[7]=kind==5?((rf_runtime_trigger*)linked)->state.flags:kind==6?((rf_runtime_event*)linked)->state.flags:0;
             }
         }
         for(j=0;j<sizeof(*state);++j)hash=(hash^((const unsigned char *)state)[j])*16777619u;
@@ -3302,6 +3305,18 @@ static int campaign_alpha_check(uint32_t frame)
         }
     }
     return RF_OK;
+}
+/* Clutter starts with model identity, not a runtime type tag. Never publish
+ * that process-specific pointer as switch telemetry. */
+static int campaign_switch_clutter_snapshot(void *object,uint32_t *flags)
+{
+    uint32_t i;
+    if(!object)return 0;
+    for(i=0;campaign_clutter_bodies && i<campaign_clutter_records.count;i++)
+        if(campaign_clutter_bodies[i] && object==&campaign_clutter_bodies[i]->state){
+            *flags=campaign_clutter_bodies[i]->state.flags;return 1;
+        }
+    return 0;
 }
 static int campaign_clutter_bodies_close(void)
 {
@@ -9309,6 +9324,7 @@ done:
 #include "scene_ai_weapon_selection.inc"
 #include "scene_ai_extra_weapons.inc"
 #include "scene_ai_reload.inc"
+#include "scene_clutter_enemy_fire.inc"
 #include "scene_ai_shotgun.inc"
 #include "scene_ai_melee_contact.inc"
 static int scene_ai_grenade_launch(campaign_npc_body *,const float *);
@@ -9503,6 +9519,11 @@ static int campaign_enemy_tick(scene_stream *stream,uint32_t frame,const float p
             }
             status=scene_driller_firearm_select(owner->registration.handle,owner->eye_position,spread_ray,fraction,&vehicle_contact,&vehicle_hit);if(status)return status;
             if(vehicle_hit)fraction=vehicle_contact.hit.fraction;
+            {uint32_t consumed;
+                status=campaign_clutter_enemy_fire(stream,owner->eye_position,spread_ray,fraction,
+                    shot_damage,definition?definition->damage_kind:0,selected.penetrates_world,&consumed);if(status)return status;
+                if(consumed)goto enemy_shot_done;
+            }
             blocked=0;
             if(!selected.penetrates_world){status=combat_enemy_fragment_shot(stream,owner->eye_position,spread_ray,fraction,shot_damage,&blocked);if(status)return status;}
             if(blocked){++rf_scene_enemy_spread[4];goto enemy_shot_done;}
@@ -12299,11 +12320,41 @@ static int scene_blast_amount(scene_stream *s,const float origin[3],const rf_phy
         origin[0],origin[1],origin[2],body->state.position[0],body->state.position[1],body->state.position[2],*amount);
     return status;
 }
+#include "scene_clutter_blast.inc"
+static int scene_clutter_blast_view(void *context,uint32_t index,scene_clutter_blast_candidate *out,uint32_t *present)
+{
+    rf_clutter_base_owner *owner;(void)context;*present=0;
+    if(!campaign_clutter_bodies || !campaign_clutter_damage_profiles || index>=campaign_clutter_records.count)return RF_OK;
+    owner=campaign_clutter_bodies[index];
+    if(!owner || owner->state.class_index<0 || (uint32_t)owner->state.class_index>=campaign_clutter_classes.count ||
+       !campaign_clutter_damage_profiles[owner->state.class_index].ordinary)return RF_OK;
+    out->handle=owner->state.handle;out->flags=owner->state.flags;out->health=owner->state.health;
+    memcpy(out->position,owner->body.state.position,12);
+    /* Shared falloff uses the center; zero extent avoids needless outer-shell LOS. */
+    out->extent=0;*present=1;return RF_OK;
+}
+static int scene_clutter_blast_cover(void *context,const float origin[3],const float end[3],uint32_t flags,uint32_t *blocked)
+{
+    scene_stream *stream=context;
+    return rf_geometry_collision_ray(stream->collision,&campaign_movers,origin,end,flags,NULL,blocked);
+}
+static int scene_clutter_blast_damage(void *context,const scene_clutter_blast_candidate *candidate,float amount,int32_t type,uint32_t source)
+{
+    uint32_t i;(void)context;(void)source; /* Ordinary prop state has no damage-source field yet. */
+    for(i=0;campaign_clutter_bodies && i<campaign_clutter_records.count;i++)
+        if(campaign_clutter_bodies[i] && campaign_clutter_bodies[i]->state.handle==candidate->handle)
+            return campaign_clutter_firearm_damage(i,amount,type); /* Service revalidates registry generation. */
+    return RF_NOT_FOUND;
+}
 static int scene_explosion_blast_source(scene_stream *s,uint32_t frame,const float origin[3],float damage,float radius,uint32_t source,int32_t kind)
 {
     float seconds=(float)frame/60;uint32_t i,bits;int status;
     ++rf_scene_rocket_blast[0];if(damage<=0 || radius<=.1f)return RF_OK;
     status=scene_driller_blast(s,frame,origin,damage,radius,source,kind);if(status)return status;
+    {scene_clutter_blast_result result;
+        scene_clutter_blast_backend backend={scene_clutter_blast_view,scene_clutter_blast_cover,scene_clutter_blast_damage,s};
+        status=scene_clutter_blast_scan(origin,damage,radius,source,kind,campaign_clutter_records.count,&backend,&result);if(status)return status;
+    }
     memcpy(&bits,&seconds,4);
     for(i=0;i<=campaign_npc_body_count;i++) {
         uint32_t player=i==campaign_npc_body_count,entered=0;float amount=0,applied=0;

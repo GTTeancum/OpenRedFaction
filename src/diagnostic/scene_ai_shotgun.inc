@@ -44,6 +44,11 @@ static int campaign_enemy_shotgun_fire(scene_stream *stream,campaign_npc_body *o
         status=scene_driller_firearm_select(owner->registration.handle,owner->eye_position,spread,
             fraction,&vehicle_contact,&vehicle_hit);if(status)return status;
         if(vehicle_hit)fraction=vehicle_contact.hit.fraction;
+        {uint32_t consumed;
+            status=campaign_clutter_enemy_fire(stream,owner->eye_position,spread,fraction,
+                damage,definition->damage_kind,0,&consumed);if(status)return status;
+            if(consumed)continue;
+        }
         status=combat_enemy_fragment_shot(stream,owner->eye_position,spread,fraction,damage,&blocked);if(status)return status;
         if(blocked){++rf_scene_enemy_spread[4];continue;}
         if(vehicle_hit){uint32_t handled;float vehicle_amount;
