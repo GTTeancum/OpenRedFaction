@@ -35,14 +35,25 @@ int main(int argc,char **argv)
         o->body.spheres.items=spheres+i;o->body.spheres.count=1;spheres[i].radius=.5f;
         rf_object_list_append(&campaign_clutter_objects,&o->object_link);CHECK(!rf_object_registry_insert(&campaign_registry,&o->state,&o->state.handle));
     }
-    CHECK(sizeof(baseline)==72);CHECK(!scene_authored_clutter_baseline_capture(source,0,&baseline));before=baseline;
+    CHECK(sizeof(baseline)==104);CHECK(!scene_authored_clutter_baseline_capture(source,0,&baseline));before=baseline;
     CHECK(!scene_authored_clutter_baseline_check(source,0,&baseline));
+    CHECK(!scene_authored_clutter_baseline_check_mutable(source,0,&baseline));
     for(i=0;i<506;i++)owners[i].state.flags^=0x05000010u;
     CHECK(!scene_authored_clutter_baseline_check(source,0,&baseline));
+    CHECK(!scene_authored_clutter_baseline_check_mutable(source,0,&baseline));
     owner=owners+505;health=owner->state.health;owner->state.health--;
-    CHECK(scene_authored_clutter_baseline_check(source,0,&baseline)==RF_FORMAT);owner->state.health=health;
-#define MUTATE(field,value) do{uint32_t old=(field);(field)=(value);CHECK(scene_authored_clutter_baseline_check(source,0,&baseline)!=RF_OK);(field)=old;}while(0)
-    MUTATE(owner->state.flags,owner->state.flags|2);MUTATE(owner->state.flags,owner->state.flags|0x4000);
+    CHECK(scene_authored_clutter_baseline_check(source,0,&baseline)==RF_FORMAT);
+    CHECK(!scene_authored_clutter_baseline_check_mutable(source,0,&baseline));
+    owner->state.health=-5;owner->state.flags|=0x204002u;campaign_clutter_classes.items[0].timer=50;
+    CHECK(!scene_authored_clutter_baseline_check_mutable(source,0,&baseline));
+    owner->state.health=health;owner->state.flags&=~0x204002u;campaign_clutter_classes.items[0].timer=0;
+#define MUTATE(field,value) do{uint32_t old=(field);(field)=(value);CHECK(scene_authored_clutter_baseline_check(source,0,&baseline)!=RF_OK);CHECK(scene_authored_clutter_baseline_check_mutable(source,0,&baseline)!=RF_OK);(field)=old;}while(0)
+    /* These saved flags pass the mutable guard but still fail legacy admission. */
+    owner->state.flags|=2u;CHECK(scene_authored_clutter_baseline_check(source,0,&baseline)==RF_FORMAT);
+    CHECK(!scene_authored_clutter_baseline_check_mutable(source,0,&baseline));owner->state.flags&=~2u;
+    owner->state.flags|=0x4000u;CHECK(scene_authored_clutter_baseline_check(source,0,&baseline)==RF_FORMAT);
+    CHECK(!scene_authored_clutter_baseline_check_mutable(source,0,&baseline));owner->state.flags&=~0x4000u;
+    MUTATE(owner->state.flags,owner->state.flags|0x80000000u);
     MUTATE(owner->state.handle,owner->state.handle^0x400u);MUTATE(owner->state.model,0);
     MUTATE(owner->uid,owner->uid+1);MUTATE(campaign_clutter_shared[0].references,1);
     MUTATE(campaign_clutter_objects.count,505);MUTATE(campaign_npc_body_count,1);MUTATE(campaign_movers.count,1);
@@ -63,5 +74,5 @@ int main(int argc,char **argv)
     free(campaign_clutter_classes.items);free(campaign_clutter_shared);free(campaign_clutter_models);
     free(campaign_clutter_model_slots);free(campaign_clutter_bodies);free(spheres);free(owners);
     rf_level_owned_clutter_close(&campaign_clutter_records);rf_vpp_close(&archive);
-    puts("PASS actual506/three-class scope:72bytes, unchanged bookkeeping, mutations/stale registry/list/model rejection");return 0;
+    puts("PASS actual506/three-class scope:104bytes, unchanged bookkeeping, mutations/stale registry/list/model rejection");return 0;
 }

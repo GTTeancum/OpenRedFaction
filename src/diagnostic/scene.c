@@ -466,6 +466,15 @@ int rf_scene_world_open_retained(const rf_level *level,const rf_geometry *world,
     sources=malloc(((size_t)movers.count+1)*sizeof(*sources));if(!sources){status=RF_RANGE;goto done;}
     sources[0]=world;for(i=0;i<movers.count;++i)sources[i+1]=&movers.items[i].geometry;
     rf_scene_profile_stage[1]=11;
+    /* The nonvehicle DEV arsenal retains eleven or more first-person views instead of
+     * the ordinary four or vehicle five. Reserve8MiB before loading world
+     * images so the existing filtered-size retries leave space under the
+     * shared20MiB world/view/lightmap image cap on both PC and stock Xbox. */
+    if(rf_scene_dev_room_enabled && !rf_scene_vehicle_enabled) {
+        const uint32_t reserve=8u*1024u*1024u;
+        if(material_budget<=reserve){status=RF_RANGE;goto done;}
+        material_budget-=reserve;
+    }
     memset(rf_scene_world_texture_budget,0,sizeof(rf_scene_world_texture_budget));rf_scene_world_texture_budget[1]=1;
     status=rf_geometry_materials_open(&bundle,sources,movers.count+1,maps,map_count,material_budget);
     for(i=256;status==RF_RANGE && i>=64;i/=2) {
@@ -10470,6 +10479,7 @@ static void checkpoint_sha_end(checkpoint_sha *s,unsigned char out[32])
     for(i=0;i<8;i++){out[i*4]=(unsigned char)(s->h[i]>>24);out[i*4+1]=(unsigned char)(s->h[i]>>16);out[i*4+2]=(unsigned char)(s->h[i]>>8);out[i*4+3]=(unsigned char)s->h[i];}
 }
 #include "scene_authored_clutter_scope.inc"
+#include "scene_clutter_checkpoint_live.inc"
 static int scene_checkpoint_identity(scene_stream *s,const rf_level *level)
 {
     checkpoint_sha h;uint32_t i,j;int status;rf_level_geomod_settings settings;
@@ -10953,6 +10963,7 @@ static int scene_checkpoint_capture(scene_stream *s)
     rf_player_checkpoint player;rf_player_checkpoint_catalog catalog;
     static unsigned char remote_blob[RF_REMOTE_CHECKPOINT_MAX];uint32_t remote_bytes=0;
     unsigned char vehicle_blob[RF_JEEP_CHECKPOINT_BYTES];uint32_t vehicle_bytes=0;
+    unsigned char *clutter_blob=NULL,clutter_identity[32];uint32_t clutter_bytes=0;
 #ifndef RF_IMAGE_XBOX_NATIVE
     const char *path=getenv("RF_REPLAY_GEOMOD_CHECKPOINT_OUT");if(!path || !*path)return RF_OK;
 #else
@@ -10964,11 +10975,24 @@ static int scene_checkpoint_capture(scene_stream *s)
     if(s->terrain_authored) {
         if(!prefix){status=RF_RANGE;goto done;}
         status=scene_checkpoint_player_capture(s,&player,&catalog);if(status)goto done;
+        if(campaign_clutter_records.count) {
+            const unsigned char *source=s->terrain_source_count>1?s->terrain_sources[0].authored->source_identity:s->terrain_authored->source_identity;
+            uint32_t capacity;int32_t now;
+            if(campaign_clutter_records.count>RF_CLUTTER_CHECKPOINT_MAX_COUNT || combat_frame==UINT32_MAX){status=RF_RANGE;goto done;}
+            /* The same simulation tick and wrap convention used by prop breaks. */
+            now=(int32_t)(((uint64_t)combat_frame*1000/60)%RF_TIMER_PERIOD);
+            status=scene_clutter_checkpoint_identity(source,clutter_identity);if(status)goto done;
+            capacity=RF_CLUTTER_CHECKPOINT_HEADER+campaign_clutter_records.count*RF_CLUTTER_CHECKPOINT_ROW;
+            clutter_blob=malloc(capacity);if(!clutter_blob){status=RF_IO;goto done;}
+            status=scene_clutter_checkpoint_capture(source,now,clutter_blob,capacity,&clutter_bytes);if(status)goto done;
+            if(prefix+remote_bytes+vehicle_bytes>SCENE_CHECKPOINT_MAX ||
+               clutter_bytes>SCENE_CHECKPOINT_MAX-prefix-remote_bytes-vehicle_bytes){status=RF_RANGE;goto done;}
+        }
         status=scene_checkpoint_allocate(SCENE_CHECKPOINT_MAX);if(status)goto done;
         p=rf_scene_geomod_checkpoint_data+prefix;
         if(s->terrain_source_count>1 && !rf_scene_player_checkpoint_enabled){status=RF_RANGE;goto done;}
-        status=s->terrain_source_count>1?scene_authored_collection_checkpoint_write(s,p,SCENE_CHECKPOINT_MAX-prefix-remote_bytes-vehicle_bytes,&bytes):
-            scene_authored_checkpoint_write(s,p,SCENE_CHECKPOINT_MAX-prefix-remote_bytes-vehicle_bytes,&bytes);if(status){printf("DETACHED_SAVE_WRITER %d\n",status);goto done;}
+        status=s->terrain_source_count>1?scene_authored_collection_checkpoint_write(s,p,SCENE_CHECKPOINT_MAX-prefix-remote_bytes-vehicle_bytes-clutter_bytes,&bytes):
+            scene_authored_checkpoint_write(s,p,SCENE_CHECKPOINT_MAX-prefix-remote_bytes-vehicle_bytes-clutter_bytes,&bytes);if(status){printf("DETACHED_SAVE_WRITER %d\n",status);goto done;}
         goto compose_checkpoint;
     }
     status=rf_geomod_terrain_get(s->terrain,&view);if(status)goto done;
@@ -11014,7 +11038,10 @@ static int scene_checkpoint_capture(scene_stream *s)
 compose_checkpoint:
     if(prefix){
         uint32_t total;
-        if(vehicle_bytes)status=rf_composed_checkpoint_encode_v3(scene_checkpoint_profile(s),&player,&catalog,p,bytes,remote_blob,remote_bytes,
+        if(clutter_bytes)status=rf_composed_checkpoint_encode_v4(scene_checkpoint_profile(s),&player,&catalog,p,bytes,remote_blob,remote_bytes,
+            scene_remote_checkpoint_level_hash(),scene_remote_checkpoint_catalog_hash(),vehicle_blob,vehicle_bytes,clutter_blob,clutter_bytes,
+            clutter_identity,rf_scene_geomod_checkpoint_data,bytes+prefix+remote_bytes+vehicle_bytes+clutter_bytes,&total);
+        else if(vehicle_bytes)status=rf_composed_checkpoint_encode_v3(scene_checkpoint_profile(s),&player,&catalog,p,bytes,remote_blob,remote_bytes,
             scene_remote_checkpoint_level_hash(),scene_remote_checkpoint_catalog_hash(),vehicle_blob,vehicle_bytes,rf_scene_geomod_checkpoint_data,bytes+prefix+remote_bytes+vehicle_bytes,&total);
         else status=rf_composed_checkpoint_encode_v2(scene_checkpoint_profile(s),&player,&catalog,p,bytes,remote_blob,remote_bytes,
             scene_remote_checkpoint_level_hash(),scene_remote_checkpoint_catalog_hash(),rf_scene_geomod_checkpoint_data,bytes+prefix+remote_bytes,&total);
@@ -11049,6 +11076,7 @@ compose_checkpoint:
     if(prefix){rf_scene_player_checkpoint_state[2]=1;printf("PLAYER_CHECKPOINT_SAVE %u %u %u\n",bytes,rf_scene_player_checkpoint_state[5],scene_actor_body.spheres.count);}
     printf("GEOMOD_CHECKPOINT_SAVE %u %08x %u %u\n",bytes,rf_scene_geomod_checkpoint_state[2],s->terrain_history_count,owner->count);
 done:
+    free(clutter_blob);
     if(prefix)rf_scene_player_checkpoint_state[3]=(uint32_t)status;
     rf_scene_geomod_checkpoint_state[0]=(uint32_t)status;if(status){scene_checkpoint_release();printf("GEOMOD_CHECKPOINT_ERROR save %d\n",status);}return status;
 }
@@ -12645,6 +12673,8 @@ static int campaign_inventory_initialize(void)
                (rf_scene_water_test_enabled || strcmp(campaign_current_level,"ctf06.rfl")))return RF_FORMAT;
             /* Developer supply only: ordinary weapon limits, firing and reloads. */
             for(i=0;i<scene_weapon_slots();i++) {
+                /* Resource demand from distant pickups is not DEV ownership. */
+                if(i>=13 && !rf_scene_firearms_enabled)continue;
                 if(!scene_weapon_available(i))continue;
                 int32_t id=campaign_slot_weapon(i);
                 const rf_weapon_acquire_definition *d=campaign_weapon_supply.definitions+id;

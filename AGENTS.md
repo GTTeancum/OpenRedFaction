@@ -36,6 +36,6 @@
 
 - User update (2026-09-18): Report completion against code implementation and working late-alpha/early-beta functionality, not exhaustive validation, retail parity or polish. Tester feedback will drive subsequent refinement.
 - GeoMod is accepted as complete for the first playable implementation (100% on that milestone). Retain known limitations in TO-DO.MD as deferred refinement; do not reopen it as the primary workstream unless a concrete blocker prevents core gameplay or the user requests it.
-- Overall implementation estimate is approximately78% as of this update. It is a rough engineering estimate, not a measured test-coverage or retail-readiness percentage. Keep per-turn percentages and a very high-level current-system report.
+- Overall implementation estimate is approximately79% as of this update. It is a rough engineering estimate, not a measured test-coverage or retail-readiness percentage. Keep per-turn percentages and a very high-level current-system report.
 
 - Reporting update: Omit the completed GeoMod percentage. End each turn with overall implementation percentage and a percentage for the current active system, naming that system at a high level.

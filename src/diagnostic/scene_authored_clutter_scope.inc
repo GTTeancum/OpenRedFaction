@@ -1,12 +1,14 @@
-/* Profile2 excludes mutable props from the save. Capture once after fresh
+/* Legacy profiles exclude mutable props; RFCP4 persists their bounded state.
+ * Capture both guards once after fresh
  * ctf06 owner/glare construction, before gameplay; never recapture to forgive
- * mutation. This72-byte process-local baseline is NOT serialized identity.
+ * mutation. This104-byte process-local baseline is NOT serialized identity.
  * Include after checkpoint_sha helpers and campaign clutter globals/functions.
  */
 typedef struct scene_authored_clutter_baseline {
-    unsigned char source[32],digest[32];uint32_t count,ready;
+    unsigned char source[32],digest[32],mutable_digest[32];uint32_t count,ready;
 } scene_authored_clutter_baseline;
-static int scene_authored_clutter_fingerprint(const unsigned char source[32],uint32_t vehicle_count,unsigned char out[32])
+static int scene_authored_clutter_fingerprint_mode(const unsigned char source[32],uint32_t vehicle_count,
+    unsigned char out[32],int mutable_props)
 {
     static const char *const names[3]={"lantern_box","lantern_ball","chinese_lamp"};
     static const uint32_t expected[3]={316,106,84};
@@ -17,7 +19,10 @@ static int scene_authored_clutter_fingerprint(const unsigned char source[32],uin
        campaign_clutter_objects.count!=506 || !campaign_clutter_records.items || !campaign_clutter_bodies ||
        !campaign_clutter_model_slots || !campaign_clutter_models || !campaign_clutter_shared ||
        !campaign_clutter_classes.items)return RF_RANGE;
-    checkpoint_sha_init(&hash);checkpoint_sha_add(&hash,"RFCP2 immutable clutter v1",26);checkpoint_sha_add(&hash,source,32);
+    checkpoint_sha_init(&hash);
+    if(mutable_props)checkpoint_sha_add(&hash,"RFCP4 static clutter v1",23);
+    else checkpoint_sha_add(&hash,"RFCP2 immutable clutter v1",26);
+    checkpoint_sha_add(&hash,source,32);
 #define WORD(v) checkpoint_sha_word(&hash,(uint32_t)(v))
 #define FLOAT(v) do{float value=(v);if(!isfinite(value))return RF_FORMAT;checkpoint_sha_float(&hash,value);}while(0)
 #define VECTOR(v,n) do{for(k=0;k<(n);k++)FLOAT((v)[k]);}while(0)
@@ -35,7 +40,7 @@ static int scene_authored_clutter_fingerprint(const unsigned char source[32],uin
            !campaign_clutter_shared[m].filename || strcmp(campaign_clutter_shared[m].filename,campaign_clutter_models[m].name) ||
            !o->allocated_bytes || !o->body.allocated_bytes || !o->body.spheres.items || o->body.spheres.count!=1 ||
            memcmp(state->position,r->position,12) || memcmp(o->matrix,r->matrix,36) ||
-           (state->flags&(2u|0x4000u)) || state->health<=0)return RF_FORMAT;
+           (!mutable_props && ((state->flags&(2u|0x4000u)) || state->health<=0)) || !isfinite(state->health))return RF_FORMAT;
         cls=state->definition;if(!cls->name || !cls->model || cls->flags!=2 || cls->model_kind!=1 || cls->life!=80 ||
            rf_emitter_name_lookup(&cls->name,1,r->class_name)!=0)return RF_FORMAT;
         for(j=0;j<3;j++)if(rf_emitter_name_lookup(names+j,1,r->class_name)==0)break;
@@ -46,11 +51,12 @@ static int scene_authored_clutter_fingerprint(const unsigned char source[32],uin
         WORD(r->uid);WORD(r->enabled);checkpoint_sha_add(&hash,r->class_name,(uint32_t)strlen(r->class_name)+1);
         checkpoint_sha_add(&hash,r->name,(uint32_t)strlen(r->name)+1);checkpoint_sha_add(&hash,r->resource_name,(uint32_t)strlen(r->resource_name)+1);
         checkpoint_sha_add(&hash,cls->model,(uint32_t)strlen(cls->model)+1);
-        WORD(cls->flags);WORD(cls->timer);FLOAT(cls->life);FLOAT(cls->radius);WORD(cls->material);WORD(cls->model_kind);
-        WORD(state->handle);WORD(state->first_word);WORD(state->flags&~0x05000010u);WORD(state->physics_flags);
+        WORD(cls->flags);if(!mutable_props)WORD(cls->timer);FLOAT(cls->life);FLOAT(cls->radius);WORD(cls->material);WORD(cls->model_kind);
+        WORD(state->handle);WORD(state->first_word);WORD(state->flags&~(0x05000010u|(mutable_props?0x204002u:0u)));WORD(state->physics_flags);
         /* Only visited01000000, room-dirty04000000 and rendered10 are excluded:
-         * scene attachments pass and rf_object_render_dispatch update these. */
-        VECTOR(state->position,3);FLOAT(state->health);FLOAT(state->armor);WORD(state->corpse);WORD(state->skin);
+         * scene attachments pass and rf_object_render_dispatch update these. RFCP4
+         * additionally persists retired/hidden/hit flags, health and class timer. */
+        VECTOR(state->position,3);if(!mutable_props)FLOAT(state->health);FLOAT(state->armor);WORD(state->corpse);WORD(state->skin);
         WORD(state->timer_a4);WORD(state->word_a8);WORD(state->timer_b0);WORD(state->timer_b4);WORD(state->emitter_head);WORD(state->word_b8);
         WORD(state->sound);WORD(state->sound_d0);WORD(state->byte_cc);WORD(state->slot);
         WORD(o->material);WORD(o->parent_group);WORD(o->parent_byte);WORD(o->identifier);VECTOR(o->matrix,9);
@@ -73,11 +79,16 @@ static int scene_authored_clutter_fingerprint(const unsigned char source[32],uin
 #undef FLOAT
 #undef VECTOR
 }
+static int scene_authored_clutter_fingerprint(const unsigned char source[32],uint32_t vehicle_count,unsigned char out[32])
+{
+    return scene_authored_clutter_fingerprint_mode(source,vehicle_count,out,0);
+}
 static int scene_authored_clutter_baseline_capture(const unsigned char source[32],uint32_t vehicle_count,
     scene_authored_clutter_baseline *out)
 {
     scene_authored_clutter_baseline value={0};int status;if(!out)return RF_RANGE;
     status=scene_authored_clutter_fingerprint(source,vehicle_count,value.digest);if(status)return status;
+    status=scene_authored_clutter_fingerprint_mode(source,vehicle_count,value.mutable_digest,1);if(status)return status;
     memcpy(value.source,source,32);value.count=506;value.ready=1;*out=value;return RF_OK;
 }
 static int scene_authored_clutter_baseline_check(const unsigned char source[32],uint32_t vehicle_count,
@@ -87,4 +98,15 @@ static int scene_authored_clutter_baseline_check(const unsigned char source[32],
     if(!source || !baseline || baseline->ready!=1 || baseline->count!=506 || memcmp(source,baseline->source,32))return RF_FORMAT;
     status=scene_authored_clutter_fingerprint(source,vehicle_count,digest);if(status)return status;
     return memcmp(digest,baseline->digest,32)?RF_FORMAT:RF_OK;
+}
+
+/* RFPC separately validates all persisted fields and authored identities. This
+ * guard only allows those fields to differ from the fresh resident scene. */
+static int scene_authored_clutter_baseline_check_mutable(const unsigned char source[32],uint32_t vehicle_count,
+    const scene_authored_clutter_baseline *baseline)
+{
+    unsigned char digest[32];int status;
+    if(!source || !baseline || baseline->ready!=1 || baseline->count!=506 || memcmp(source,baseline->source,32))return RF_FORMAT;
+    status=scene_authored_clutter_fingerprint_mode(source,vehicle_count,digest,1);if(status)return status;
+    return memcmp(digest,baseline->mutable_digest,32)?RF_FORMAT:RF_OK;
 }

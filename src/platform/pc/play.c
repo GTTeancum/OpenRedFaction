@@ -288,7 +288,7 @@ static int present(void *context,uint32_t frame,const rf_preview_mesh *mesh,
     for(i=0;i<materials->count;i++)image_bytes+=materials->items[i].image.bytes;
     for(i=0;i<p->lightmaps.count;i++)image_bytes+=p->lightmaps.images[i].bytes;
     {uint32_t budget=(rf_scene_player_shield_resources || rf_scene_fusion_enabled)?RF_PLAYER_SHIELD_IMAGE_BUDGET:RF_CAMPAIGN_IMAGE_BUDGET;
-     if(image_bytes>budget){fprintf(stderr,"Scene image budget %llu exceeds %u\n",(unsigned long long)image_bytes,budget);return RF_RANGE;}}
+     if(image_bytes>budget){fprintf(stderr,"Scene image budget %llu exceeds %u (world %u cap %u, materials %u, lightmaps %u)\n",(unsigned long long)image_bytes,budget,rf_scene_world_texture_budget[2],rf_scene_world_texture_budget[0],materials->count,p->lightmaps.count);return RF_RANGE;}}
     status=rf_scene_update_lightmaps(&p->lightmaps);if(status)return status;
     /* Recorded-input diagnosis projects every tick, rasterizes only the last. */
     if(p->replay && !capture && p->frames+1<p->replay_count){status=rf_scene_draw_particles(NULL,NULL);if(status)return status;
@@ -445,6 +445,14 @@ int main(int argc,char **argv)
         char *end;unsigned long uid=strtoul(getenv("RF_REPLAY_EXIT_START"),&end,10);
         if(*end || !uid)CHECK(RF_FORMAT);CHECK(rf_scene_stage_exit(&level,(uint32_t)uid));
     }
+    /* Resource policy must be known before fixture placement and world images
+     * are opened, matching native Xbox initialization order. */
+    rf_scene_dev_room_enabled=dev_room || (p.headless && (getenv("RF_REPLAY_DEV_ROOM")!=NULL || getenv("RF_REPLAY_WATER_TEST")!=NULL));
+    rf_scene_vehicle_enabled=p.headless && getenv("RF_REPLAY_VEHICLE")!=NULL;
+    if(rf_scene_vehicle_enabled && !strcmp(getenv("RF_REPLAY_VEHICLE"),"apc"))rf_scene_vehicle_enabled=2;
+    if(rf_scene_vehicle_enabled && !strcmp(getenv("RF_REPLAY_VEHICLE"),"jeep"))rf_scene_vehicle_enabled=3;
+    if(rf_scene_vehicle_enabled && !strcmp(getenv("RF_REPLAY_VEHICLE"),"sub"))rf_scene_vehicle_enabled=4;
+    if(rf_scene_vehicle_enabled && !strcmp(getenv("RF_REPLAY_VEHICLE"),"fighter"))rf_scene_vehicle_enabled=5;
     rf_scene_water_test_enabled=p.headless && spawn_profile && getenv("RF_REPLAY_WATER_TEST")!=NULL;
     if(rf_scene_water_test_enabled)CHECK(rf_scene_water_test_place(&level));
     rf_scene_swim_test_enabled=0;
@@ -483,7 +491,6 @@ int main(int argc,char **argv)
     }
     if(p.headless && getenv("RF_REPLAY_VEHICLE")){
         uint32_t submarine=!strcmp(getenv("RF_REPLAY_VEHICLE"),"sub");
-        if(!strcmp(getenv("RF_REPLAY_VEHICLE"),"fighter"))rf_scene_vehicle_enabled=5;
         if(submarine && strcmp(level.entry.name,"L5S3.rfl"))CHECK(RF_RANGE);
         if(!submarine && strcmp(level.entry.name,"ctf06.rfl"))CHECK(RF_RANGE);
         CHECK(rf_scene_vehicle_test_place(&level));
@@ -540,7 +547,6 @@ int main(int argc,char **argv)
     }
     {extern uint32_t rf_scene_debris_player_test_enabled;rf_scene_debris_player_test_enabled=p.headless && getenv("RF_REPLAY_DEBRIS_PLAYER_TEST")!=NULL;}
     rf_scene_ripple_test_enabled=p.headless && getenv("RF_REPLAY_RIPPLE_TEST")!=NULL;
-    rf_scene_dev_room_enabled=dev_room || (p.headless && (getenv("RF_REPLAY_DEV_ROOM")!=NULL || getenv("RF_REPLAY_WATER_TEST")!=NULL));
     if(p.headless && getenv("RF_REPLAY_FRAGMENT_CONTACT_TEST")) {
         uint32_t word;if(!rf_scene_dev_room_enabled)CHECK(RF_FORMAT);
         CHECK(rf_scene_fragment_contact_check());
@@ -550,11 +556,6 @@ int main(int argc,char **argv)
         printf("FRAGMENT_CONTACT_AUDIT");for(word=0;word<64;word++)printf(" %u",rf_scene_fragment_contact_audit[word]);puts("");
     }
     if(p.headless && getenv("RF_REPLAY_FIREARMS")){int mode=atoi(getenv("RF_REPLAY_FIREARMS"));if(mode<1 || mode>4)return 2;rf_scene_firearms_enabled=(uint32_t)mode;}
-    rf_scene_vehicle_enabled=p.headless && getenv("RF_REPLAY_VEHICLE")!=NULL;
-    if(rf_scene_vehicle_enabled && !strcmp(getenv("RF_REPLAY_VEHICLE"),"apc"))rf_scene_vehicle_enabled=2;
-    if(rf_scene_vehicle_enabled && !strcmp(getenv("RF_REPLAY_VEHICLE"),"jeep"))rf_scene_vehicle_enabled=3;
-    if(rf_scene_vehicle_enabled && !strcmp(getenv("RF_REPLAY_VEHICLE"),"sub"))rf_scene_vehicle_enabled=4;
-    if(rf_scene_vehicle_enabled && !strcmp(getenv("RF_REPLAY_VEHICLE"),"fighter"))rf_scene_vehicle_enabled=5;
     rf_scene_fusion_enabled=p.headless && getenv("RF_REPLAY_FUSION")!=NULL;
     rf_scene_dev_npc_enabled=p.headless && getenv("RF_REPLAY_DEV_NPC")!=NULL;
     if(rf_scene_dev_npc_enabled && !strcmp(getenv("RF_REPLAY_DEV_NPC"),"2"))rf_scene_dev_npc_enabled=2;

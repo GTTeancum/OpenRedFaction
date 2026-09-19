@@ -17,7 +17,7 @@ static int scene_checkpoint_player_catalog(rf_player_checkpoint_catalog *c)
     }
     return RF_OK;
 }
-static int scene_checkpoint_player_scope(const scene_stream *s,uint32_t live)
+static int scene_checkpoint_player_scope_mode(const scene_stream *s,uint32_t live,uint32_t mutable_props)
 {
     uint32_t i;
     if(!rf_scene_dev_room_enabled||rf_scene_water_test_enabled||!campaign_spawn||!s->terrain||
@@ -25,7 +25,7 @@ static int scene_checkpoint_player_scope(const scene_stream *s,uint32_t live)
        !scene_actor_body.allocated_bytes||!scene_actor_body.spheres.count||scene_actor_body.spheres.count>8)return RF_RANGE;
     if(s->terrain_authored) {
         if(strcmp(campaign_current_level,"ctf06.rfl") || !s->checkpoint_clutter ||
-           scene_authored_clutter_baseline_check(s->terrain_source_count>1?s->terrain_sources[0].authored->source_identity:s->terrain_authored->source_identity,0,s->checkpoint_clutter))return RF_RANGE;
+           (mutable_props?scene_authored_clutter_baseline_check_mutable:scene_authored_clutter_baseline_check)(s->terrain_source_count>1?s->terrain_sources[0].authored->source_identity:s->terrain_authored->source_identity,0,s->checkpoint_clutter))return RF_RANGE;
     } else if(strcmp(campaign_current_level,"glass_house.rfl") || rf_scene_clutter_bodies[1])return RF_RANGE;
     if(campaign_fusion_id>=0 && campaign_player_inventory.owned[campaign_fusion_id])return RF_RANGE; /* Fusion live state is not in RFCP yet. */
     for(i=0;i<4;i++)if(campaign_extra_ids[i]>=0 && campaign_player_inventory.owned[campaign_extra_ids[i]])return RF_RANGE;
@@ -41,6 +41,24 @@ static int scene_checkpoint_player_scope(const scene_stream *s,uint32_t live)
         actor_look.state.command[i]!=0||actor_look.state.angular_velocity[i]!=0)return RF_RANGE;
     if(actor_look.state.pending_pitch!=0||actor_look.state.pending_yaw!=0)return RF_RANGE;
     return RF_OK;
+}
+static int scene_checkpoint_player_scope(const scene_stream *s,uint32_t live)
+{return scene_checkpoint_player_scope_mode(s,live,1);}
+static const unsigned char *scene_checkpoint_prop_source(const scene_stream *s)
+{return s->terrain_source_count>1?s->terrain_sources[0].authored->source_identity:s->terrain_authored->source_identity;}
+static int scene_checkpoint_composed_read(scene_stream *s,const void *data,uint32_t bytes,
+    const rf_player_checkpoint_catalog *catalog,rf_composed_checkpoint_v3 *composed,
+    const unsigned char **props,uint32_t *prop_bytes)
+{
+    const unsigned char *p=data;unsigned char identity[32]={0};rf_composed_checkpoint_v4 value;int status;
+    if(bytes>=8 && p[4]==4){
+        if(!s->terrain_authored || !campaign_clutter_records.count)return RF_RANGE;
+        status=scene_clutter_checkpoint_identity(scene_checkpoint_prop_source(s),identity);if(status)return status;
+    }
+    status=rf_composed_checkpoint_preflight_v4(data,bytes,scene_checkpoint_profile(s),catalog,
+        scene_remote_checkpoint_level_hash(),scene_remote_checkpoint_catalog_hash(),identity,&value);
+    if(status)return status;
+    *composed=value.base;*props=value.clutter;*prop_bytes=value.clutter_bytes;return RF_OK;
 }
 static void scene_checkpoint_placement(scene_stream *s,const rf_player_checkpoint *player,const float body[9],rf_checkpoint_placement *p)
 {
@@ -58,12 +76,14 @@ static int scene_checkpoint_player_semantic_status(int status)
 static int scene_checkpoint_dispatch_validate_once(const void *data,uint32_t bytes,void *context)
 {
     scene_stream *s=context;rf_player_checkpoint_catalog catalog;rf_composed_checkpoint candidate;rf_composed_checkpoint_v3 composed;scene_vehicle_checkpoint_record vehicle;rf_checkpoint_placement placement;rf_physics_sphere seat_scratch;
-    float body[9];int status;
+    float body[9];const unsigned char *props=NULL;uint32_t prop_bytes=0;int status;
     if(!rf_scene_player_checkpoint_enabled)return scene_checkpoint_validate(data,bytes,s);
-    status=scene_checkpoint_player_scope(s,0);if(status)return status;
+    status=scene_checkpoint_player_scope_mode(s,0,bytes>=8 && ((const unsigned char *)data)[4]==4);if(status)return status;
     status=scene_checkpoint_player_catalog(&catalog);if(status)return status;
-    status=rf_composed_checkpoint_preflight_v3(data,bytes,scene_checkpoint_profile(s),&catalog,
-        scene_remote_checkpoint_level_hash(),scene_remote_checkpoint_catalog_hash(),&composed);if(status)return status;
+    status=scene_checkpoint_composed_read(s,data,bytes,&catalog,&composed,&props,&prop_bytes);if(status)return status;
+    if(prop_bytes){scene_clutter_restore_stage *stage=NULL;
+        status=scene_clutter_checkpoint_prepare(scene_checkpoint_prop_source(s),props,prop_bytes,0,0,&stage);
+        free(stage);if(status)return status;}
     candidate=composed.base.base;
     status=scene_vehicle_checkpoint_read(s,composed.vehicle,composed.vehicle_bytes,&vehicle);if(status)return status;
     status=rf_player_checkpoint_validate(&candidate.player,&catalog,body,NULL);if(status)return status;
@@ -102,12 +122,11 @@ static int scene_checkpoint_dispatch_validate(const void *data,uint32_t bytes,vo
 }
 static int scene_checkpoint_dispatch_restore(scene_stream *s,unsigned char *data,uint32_t bytes)
 {
-    rf_player_checkpoint_catalog catalog;rf_composed_checkpoint candidate;rf_composed_checkpoint_v3 composed;scene_vehicle_checkpoint_record vehicle;rf_physics_body_state body;rf_physics_sphere seat_scratch;float basis[9],eye[9];int status;
+    rf_player_checkpoint_catalog catalog;rf_composed_checkpoint candidate;rf_composed_checkpoint_v3 composed;scene_vehicle_checkpoint_record vehicle;rf_physics_body_state body;rf_physics_sphere seat_scratch;float basis[9],eye[9];const unsigned char *props=NULL;uint32_t prop_bytes=0;scene_clutter_restore_stage *prop_stage=NULL;int status;
     if(!rf_scene_player_checkpoint_enabled)return scene_checkpoint_restore(s,data,bytes);
     status=scene_checkpoint_dispatch_validate(data,bytes,s);if(status)return status;
     status=scene_checkpoint_player_catalog(&catalog);if(status)return status;
-    status=rf_composed_checkpoint_preflight_v3(data,bytes,scene_checkpoint_profile(s),&catalog,
-        scene_remote_checkpoint_level_hash(),scene_remote_checkpoint_catalog_hash(),&composed);if(status)return status;
+    status=scene_checkpoint_composed_read(s,data,bytes,&catalog,&composed,&props,&prop_bytes);if(status)return status;
     candidate=composed.base.base;
     status=scene_vehicle_checkpoint_read(s,composed.vehicle,composed.vehicle_bytes,&vehicle);if(status)return status;
     status=rf_player_checkpoint_validate(&candidate.player,&catalog,basis,eye);if(status)return status;
@@ -117,12 +136,18 @@ static int scene_checkpoint_dispatch_restore(scene_stream *s,unsigned char *data
     status=rf_physics_spheres_bounds(scene_actor_body.spheres.items,scene_actor_body.spheres.count,body.position,&body.bounds);if(status)return status;
     status=rf_physics_tensor_world(body.local_tensor,basis,body.world_tensor);if(status)return status;
     status=scene_remote_checkpoint_preflight(s,composed.base.remote,composed.base.remote_bytes);if(status)return status;
+    if(prop_bytes){
+        /* Boot-time restore preserves fresh attachment/glare ownership. */
+        status=scene_clutter_checkpoint_prepare(scene_checkpoint_prop_source(s),props,prop_bytes,0,1,&prop_stage);
+        if(!status)status=scene_clutter_checkpoint_targets_valid(prop_stage);
+        if(status){free(prop_stage);scene_remote_checkpoint_discard();return status;}
+    }
     /* Existing RFDS semantic validator and candidate body fit have succeeded.
      * Prepare all fallible player work before RFDS publication; only assignments follow. */
     if(s->terrain_authored && s->terrain_source_count>1) {
         scene_authored_collection_stage *stage=NULL;rf_checkpoint_placement placement;
         scene_checkpoint_placement(s,&candidate.player,basis,&placement);
-        if(composed.vehicle_bytes && vehicle.value.vehicle.player_occupied){status=scene_vehicle_checkpoint_player_placement(s,&vehicle,&candidate.player,&placement,&seat_scratch);if(status)return status;}
+        if(composed.vehicle_bytes && vehicle.value.vehicle.player_occupied){status=scene_vehicle_checkpoint_player_placement(s,&vehicle,&candidate.player,&placement,&seat_scratch);if(status){free(prop_stage);scene_remote_checkpoint_discard();return status;}}
         status=scene_authored_collection_stage_prepare(s,candidate.rfds,candidate.rfds_bytes,&stage);
         if(!status && composed.vehicle_bytes)status=scene_vehicle_checkpoint_fit(s,stage,NULL,&vehicle,&placement);
         if(!status)status=scene_authored_collection_stage_commit(stage,(composed.vehicle_bytes && vehicle.value.vehicle.player_occupied)?NULL:&placement);
@@ -130,13 +155,15 @@ static int scene_checkpoint_dispatch_restore(scene_stream *s,unsigned char *data
     } else if(s->terrain_authored) {
         scene_authored_checkpoint_stage *stage=NULL;rf_checkpoint_placement placement;
         scene_checkpoint_placement(s,&candidate.player,basis,&placement);
-        if(composed.vehicle_bytes && vehicle.value.vehicle.player_occupied){status=scene_vehicle_checkpoint_player_placement(s,&vehicle,&candidate.player,&placement,&seat_scratch);if(status)return status;}
+        if(composed.vehicle_bytes && vehicle.value.vehicle.player_occupied){status=scene_vehicle_checkpoint_player_placement(s,&vehicle,&candidate.player,&placement,&seat_scratch);if(status){free(prop_stage);scene_remote_checkpoint_discard();return status;}}
         status=scene_authored_checkpoint_stage_prepare(s,candidate.rfds,candidate.rfds_bytes,(composed.vehicle_bytes && vehicle.value.vehicle.player_occupied)?NULL:&placement,&stage);
         if(!status && composed.vehicle_bytes)status=scene_vehicle_checkpoint_fit(s,NULL,stage,&vehicle,&placement);
         if(!status)status=scene_authored_checkpoint_stage_commit(stage);
         scene_authored_checkpoint_stage_discard(&stage);
     } else status=scene_checkpoint_restore(s,(unsigned char *)candidate.rfds,candidate.rfds_bytes);
-    if(status){scene_remote_checkpoint_discard();return status;}
+    if(status){free(prop_stage);scene_remote_checkpoint_discard();return status;}
+    /* RFDS publication changes terrain, not registered prop ownership. */
+    if(prop_stage){scene_clutter_checkpoint_assign(prop_stage);free(prop_stage);}
     scene_remote_checkpoint_publish();
     if(composed.vehicle_bytes){s->vehicle_record=vehicle;s->vehicle_checkpoint=vehicle.value.vehicle;s->vehicle_checkpoint_pending=1;}
     scene_actor_body.state=body;s->player_checkpoint_value=candidate.player;s->player_checkpoint_look=1;
