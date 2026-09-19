@@ -16638,8 +16638,8 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
             status=rf_level_particles_open(&stream->particles,level,collision,maps,map_count,1,0,512*1024);if(status)goto done;
             for(i=0;i<campaign_clutter_records.count;i++)if(campaign_clutter_bodies&&campaign_clutter_bodies[i]){
                 int32_t cls=campaign_clutter_bodies[i]->state.class_index;
-                if(cls>=0&&campaign_clutter_damage_profiles[cls].break_yellboom){
-                    status=scene_clutter_break_effects_open(tables_path,maps,map_count);if(status)goto done;break;
+                if(cls>=0&&campaign_clutter_damage_profiles[cls].break_effect){
+                    status=scene_clutter_break_effects_open(tables_path,maps,map_count,campaign_clutter_damage_profiles[cls].break_effect-1);if(status)goto done;
                 }
             }
             if(rf_scene_dev_room_enabled) {

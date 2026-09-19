@@ -54,7 +54,7 @@ int main(int argc,char **argv)
         CHECK(!rf_vpp_open(&archive,argv[1]));CHECK(!rf_vpp_find(&archive,"clutter.tbl",&entry));
         CHECK(entry.size && entry.size<=2*1024*1024);text=malloc(entry.size);CHECK(text);
         CHECK(!rf_vpp_read(&archive,&entry,0,text,entry.size));
-        CHECK(!scene_clutter_damage_profile_read(text,entry.size,"lantern_box",&profile));CHECK(profile.life==80 && profile.ordinary && profile.break_yellboom && profile.break_radius==.2f);
+        CHECK(!scene_clutter_damage_profile_read(text,entry.size,"lantern_box",&profile));CHECK(profile.life==80 && profile.ordinary && profile.break_effect==1 && profile.break_radius==.2f);
         CHECK(!scene_clutter_damage_profile_read(text,entry.size,"riot_shield",&profile));CHECK(!profile.ordinary);
         free(text);rf_vpp_close(&archive);
     }
