@@ -157,7 +157,8 @@ int rf_composed_checkpoint_encode_v3(uint32_t profile_id,const rf_player_checkpo
 }
 static int composed_preflight_common(const void *data,uint32_t bytes,uint32_t profile_id,
     const rf_player_checkpoint_catalog *catalog,uint32_t level_hash,uint32_t catalog_hash,
-    rf_composed_checkpoint_v3 *out,const unsigned char *identity,const unsigned char **props,uint32_t *prop_bytes,uint32_t *prop_count)
+    rf_composed_checkpoint_v3 *out,const unsigned char *identity,const unsigned char **props,uint32_t *prop_bytes,uint32_t *prop_count,
+    rf_weapon_modes_checkpoint *modes,uint32_t *modes_present)
 {
     const unsigned char *p=data;rf_composed_checkpoint_v3 value={0};composed_vehicle_candidate checked;const void *record=NULL;
     uint32_t version,remaining,occupied=0;int status;
@@ -169,7 +170,9 @@ static int composed_preflight_common(const void *data,uint32_t bytes,uint32_t pr
         if(status)return status;
         *out=value;return RF_OK;
     }
-    if(memcmp(p,"RFCP",4)||(version!=3&&(version!=4||!identity||!props||!prop_bytes||!prop_count))||read32(p+8)!=bytes||read32(p+16)!=profile_id||read32(p+20)!=RF_PLAYER_CHECKPOINT_BYTES)return RF_FORMAT;
+    if(memcmp(p,"RFCP",4)||version<3||version>5||
+       (version>=4&&(!identity||!props||!prop_bytes||!prop_count))||
+       (version==5&&(!modes||!modes_present))||read32(p+8)!=bytes||read32(p+16)!=profile_id||read32(p+20)!=RF_PLAYER_CHECKPOINT_BYTES)return RF_FORMAT;
     value.vehicle_bytes=read32(p+12);value.base.base.rfds_bytes=read32(p+24);value.base.remote_bytes=read32(p+28);
     if(value.vehicle_bytes&&value.vehicle_bytes!=RF_VEHICLE_CHECKPOINT_BYTES&&value.vehicle_bytes!=RF_JEEP_CHECKPOINT_BYTES)return RF_FORMAT;
     remaining=bytes-RF_COMPOSED_CHECKPOINT_HEADER-RF_PLAYER_CHECKPOINT_BYTES;
@@ -180,10 +183,17 @@ static int composed_preflight_common(const void *data,uint32_t bytes,uint32_t pr
     if(value.vehicle_bytes>remaining)return RF_FORMAT;
     remaining-=value.vehicle_bytes;
     if(version==3&&remaining)return RF_FORMAT;
-    if(version==4){uint32_t count;
-        status=rf_clutter_checkpoint_preflight(p+bytes-remaining,remaining,identity,&count);if(status)return status;
+    if(version>=4){uint32_t count,clutter_bytes=remaining;
+        if(version==5){
+            if(remaining<RF_WEAPON_MODES_CHECKPOINT_BYTES)return RF_FORMAT;
+            clutter_bytes-=RF_WEAPON_MODES_CHECKPOINT_BYTES;
+            status=rf_weapon_modes_checkpoint_decode(p+bytes-RF_WEAPON_MODES_CHECKPOINT_BYTES,
+                RF_WEAPON_MODES_CHECKPOINT_BYTES,catalog_hash,modes);if(status)return status;
+            *modes_present=1;
+        }
+        status=rf_clutter_checkpoint_preflight(p+bytes-remaining,clutter_bytes,identity,&count);if(status)return status;
         /* Only the wrapper's local outputs are written before player validation. */
-        *props=p+bytes-remaining;*prop_bytes=remaining;*prop_count=count;
+        *props=p+bytes-remaining;*prop_bytes=clutter_bytes;*prop_count=count;
     }
     value.base.base.rfds=p+RF_COMPOSED_CHECKPOINT_HEADER+RF_PLAYER_CHECKPOINT_BYTES;
     status=rfds_header(value.base.base.rfds,value.base.base.rfds_bytes,profile_id);if(status)return status;
@@ -200,14 +210,14 @@ static int composed_preflight_common(const void *data,uint32_t bytes,uint32_t pr
 
 int rf_composed_checkpoint_preflight_v3(const void *data,uint32_t bytes,uint32_t profile_id,
     const rf_player_checkpoint_catalog *catalog,uint32_t level_hash,uint32_t catalog_hash,rf_composed_checkpoint_v3 *out)
-{return composed_preflight_common(data,bytes,profile_id,catalog,level_hash,catalog_hash,out,NULL,NULL,NULL,NULL);}
+{return composed_preflight_common(data,bytes,profile_id,catalog,level_hash,catalog_hash,out,NULL,NULL,NULL,NULL,NULL,NULL);}
 int rf_composed_checkpoint_preflight_v4(const void *data,uint32_t bytes,uint32_t profile_id,
     const rf_player_checkpoint_catalog *catalog,uint32_t level_hash,uint32_t catalog_hash,
     const unsigned char identity[32],rf_composed_checkpoint_v4 *out)
 {
     rf_composed_checkpoint_v4 value={0};int status;if(!out)return RF_RANGE;
     status=composed_preflight_common(data,bytes,profile_id,catalog,level_hash,catalog_hash,&value.base,
-        identity,&value.clutter,&value.clutter_bytes,&value.clutter_count);if(status)return status;
+        identity,&value.clutter,&value.clutter_bytes,&value.clutter_count,NULL,NULL);if(status)return status;
     *out=value;return RF_OK;
 }
 int rf_composed_checkpoint_encode_v4(uint32_t profile_id,const rf_player_checkpoint *player,
@@ -225,4 +235,31 @@ int rf_composed_checkpoint_encode_v4(uint32_t profile_id,const rf_player_checkpo
         level_hash,catalog_hash,vehicle,vehicle_bytes,output,limit-clutter_bytes,&base);if(status)return status;
     if(clutter!=p+base)memcpy(p+base,clutter,clutter_bytes);
     put32(p+4,4);put32(p+8,base+clutter_bytes);*written=base+clutter_bytes;return RF_OK;
+}
+int rf_composed_checkpoint_preflight_v5(const void *data,uint32_t bytes,uint32_t profile_id,
+    const rf_player_checkpoint_catalog *catalog,uint32_t level_hash,uint32_t catalog_hash,
+    const unsigned char identity[32],rf_composed_checkpoint_v5 *out)
+{
+    rf_composed_checkpoint_v5 value={0};int status;if(!out)return RF_RANGE;
+    status=composed_preflight_common(data,bytes,profile_id,catalog,level_hash,catalog_hash,&value.base.base,
+        identity,&value.base.clutter,&value.base.clutter_bytes,&value.base.clutter_count,&value.modes,&value.modes_present);
+    if(status)return status;*out=value;return RF_OK;
+}
+int rf_composed_checkpoint_encode_v5(uint32_t profile_id,const rf_player_checkpoint *player,
+    const rf_player_checkpoint_catalog *catalog,const void *rfds,uint32_t rfds_bytes,
+    const void *remote,uint32_t remote_bytes,uint32_t level_hash,uint32_t catalog_hash,
+    const void *vehicle,uint32_t vehicle_bytes,const void *clutter,uint32_t clutter_bytes,
+    const unsigned char identity[32],const void *modes,uint32_t modes_bytes,
+    void *output,uint32_t capacity,uint32_t *written)
+{
+    unsigned char *p=output;rf_weapon_modes_checkpoint checked;uint32_t base,limit;int status;
+    if(!output||!written)return RF_RANGE;
+    status=rf_weapon_modes_checkpoint_decode(modes,modes_bytes,catalog_hash,&checked);if(status)return status;
+    limit=capacity<RF_CHECKPOINT_FILE_MAX?capacity:RF_CHECKPOINT_FILE_MAX;
+    if(modes_bytes>limit)return RF_RANGE;
+    status=rf_composed_checkpoint_encode_v4(profile_id,player,catalog,rfds,rfds_bytes,remote,remote_bytes,
+        level_hash,catalog_hash,vehicle,vehicle_bytes,clutter,clutter_bytes,identity,output,limit-modes_bytes,&base);
+    if(status)return status;
+    if(modes!=p+base)memcpy(p+base,modes,modes_bytes);
+    put32(p+4,5);put32(p+8,base+modes_bytes);*written=base+modes_bytes;return RF_OK;
 }

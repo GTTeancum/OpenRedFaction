@@ -12782,7 +12782,7 @@ static int campaign_combat_tick(scene_stream *stream,uint32_t frame,const float 
     if(!frame && scene_npc_shields.owners){status=scene_npc_shield_history_restore();if(status)return status;}
     if(!frame && rf_scene_dev_npc_enabled==6)campaign_select_primary(11);
     if(!frame && rf_scene_dev_room_enabled && rf_scene_fusion_enabled)campaign_select_primary(12);
-    if(!frame && rf_scene_dev_room_enabled && rf_scene_firearms_enabled){campaign_select_primary(12+rf_scene_firearms_enabled);campaign_conventional_random.value=1;}
+    if(!frame){campaign_conventional_random.value=1;if(!campaign_import_applied && rf_scene_dev_room_enabled && rf_scene_firearms_enabled)campaign_select_primary(12+rf_scene_firearms_enabled);}
     if(!frame && (rf_scene_dev_npc_enabled==3 || rf_scene_dev_npc_enabled==4 || rf_scene_dev_npc_enabled==6) && campaign_npc_body_count==1){campaign_npc_bodies[0].combat_alert=1;campaign_npc_bodies[0].combat_due=120;}
     if(rf_scene_dev_room_enabled) {
         uint32_t refill=player_input.use && player_input.reload;
@@ -12790,6 +12790,7 @@ static int campaign_combat_tick(scene_stream *stream,uint32_t frame,const float 
             for(i=0;i<scene_weapon_slots();i++) {
                 if(!scene_weapon_available(i))continue;
                 int32_t id=campaign_slot_weapon(i);
+                if(!campaign_player_inventory.owned[id])continue;
                 const rf_weapon_acquire_definition *d=campaign_weapon_supply.definitions+id;
                 if(i==11)continue;
                 campaign_player_inventory.loaded[id]=d->magazine;

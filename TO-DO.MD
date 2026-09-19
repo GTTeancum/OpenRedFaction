@@ -3,6 +3,8 @@
 Completion basis (user direction,2026-09-18): working late-alpha/early-beta code implementation. Overall approximately79%; GeoMod100% for the first playable milestone, accepted by the user. GeoMod items below are deferred refinement and coverage, not prerequisites to moving on. This does not assert retail polish, complete campaign integration or resolution of every known defect.
 
 
+- Weapon saves: HMG and Precision Rifle retain selection/ammo and fire after PC reload; native HMG load/fire/resave matches PC with8.13MiB free; RFCP5 mode framing is ready, but Machine Pistol/Undercover mode integration and native rifle continuation remain.
+
 - Prop saves: Static prop damage/destruction now survives PC/Xbox reload and resave with identical checkpoint bytes and8.14MiB native headroom; moving props, broader classes/levels and campaign persistence remain.
 
 - Destructible props: Hitscan, precision and shared projectile/blast damage are wired; PC/Xbox now show the authored lamp break burst with exact gameplay parity and16.35MiB free; one pistol shot now triggers an authored three-prop chain in live PC; oil-drum chain explosions now pass PC/Xbox with inspected native flashes, exact damage parity and17.08MiB free; sparks/debris, other effects, physics and persistence remain (docs/CLUTTER-DAMAGE-FIRST-PASS.md).

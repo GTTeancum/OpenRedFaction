@@ -2,6 +2,7 @@
 #define RF_COMPOSED_CHECKPOINT_H
 #include "rf/player_checkpoint.h"
 #include "rf/checkpoint_file.h"
+#include "rf/weapon_modes_checkpoint.h"
 enum {
     RF_COMPOSED_PROFILE_CAVITY=1,
     RF_COMPOSED_PROFILE_AUTHORED=2,
@@ -104,4 +105,22 @@ int rf_composed_checkpoint_encode_v4(uint32_t profile_id,const rf_player_checkpo
 int rf_composed_checkpoint_preflight_v4(const void *,uint32_t bytes,uint32_t profile_id,
     const rf_player_checkpoint_catalog *,uint32_t level_hash,uint32_t catalog_hash,
     const unsigned char clutter_identity[32],rf_composed_checkpoint_v4 *);
+typedef struct rf_composed_checkpoint_v5 {
+    rf_composed_checkpoint_v4 base;
+    rf_weapon_modes_checkpoint modes;uint32_t modes_present;
+} rf_composed_checkpoint_v5;
+/* RFCP5 appends mandatory RFWM1(32bytes) after mandatory RFPC1. All prior
+ * section offsets and the110524-byte cap remain unchanged; modes reduce RFDS
+ * capacity. V5 preflight accepts1..4 with modes_present=0; old APIs reject5.
+ * RFWM uses catalog_hash; live ownership/resource/settled-state checks remain
+ * caller obligations. Same borrowed-slice, alias and error rules as V4. */
+int rf_composed_checkpoint_encode_v5(uint32_t profile_id,const rf_player_checkpoint *,
+    const rf_player_checkpoint_catalog *,const void *rfds,uint32_t rfds_bytes,
+    const void *remote,uint32_t remote_bytes,uint32_t level_hash,uint32_t catalog_hash,
+    const void *vehicle,uint32_t vehicle_bytes,const void *clutter,uint32_t clutter_bytes,
+    const unsigned char clutter_identity[32],const void *modes,uint32_t modes_bytes,
+    void *output,uint32_t capacity,uint32_t *written);
+int rf_composed_checkpoint_preflight_v5(const void *,uint32_t bytes,uint32_t profile_id,
+    const rf_player_checkpoint_catalog *,uint32_t level_hash,uint32_t catalog_hash,
+    const unsigned char clutter_identity[32],rf_composed_checkpoint_v5 *);
 #endif
