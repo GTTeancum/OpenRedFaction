@@ -1352,3 +1352,7 @@ add_test(NAME scene_clutter_enemy_fire COMMAND rf_scene_clutter_enemy_fire_tests
 add_executable(rf_scene_clutter_blast_tests tests/scene_clutter_blast_tests.c)
 target_link_libraries(rf_scene_clutter_blast_tests PRIVATE rf_core)
 add_test(NAME scene_clutter_blast COMMAND rf_scene_clutter_blast_tests)
+
+add_executable(rf_scene_clutter_projectile_tests tests/scene_clutter_projectile_tests.c src/diagnostic/animation.c)
+target_link_libraries(rf_scene_clutter_projectile_tests PRIVATE rf_core)
+add_test(NAME scene_clutter_projectile COMMAND rf_scene_clutter_projectile_tests)

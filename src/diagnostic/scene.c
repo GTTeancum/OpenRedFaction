@@ -11120,6 +11120,7 @@ uint32_t rf_scene_rocket_liquid[4]; /* entries, query flags, remaining float bit
 #define SCENE_DETACHED_ROCKET_OWNER 0x80000000u
 uint32_t rf_scene_detached_rocket[7]; /* queries,hits,batch,piece,face,point hash,status */
 #include "scene_rocket_objects.inc"
+#include "scene_clutter_projectile.inc"
 static int scene_rocket_sweep(void *context,const float start[3],const float delta[3],float radius,uint32_t query_flags,
     rf_weapon_flight_contact *out,uint32_t *is_liquid,uint32_t *matched)
 {
@@ -11147,6 +11148,7 @@ static int scene_rocket_sweep(void *context,const float start[3],const float del
         rf_scene_detached_rocket[5]=npc_hash_bytes(2166136261u,piece.piece.hit.point,12);
     }
     status=scene_driller_projectile_compose(campaign_player_object.handle,start,delta,radius,out,is_liquid,matched);if(status)return status;
+    status=scene_clutter_projectile_compose(campaign_player_object.handle,start,delta,radius,out,is_liquid,matched);if(status)return status;
     if(*matched && (out->object&0xffff0000u)==SCENE_ACTOR_ROCKET_OWNER)++rf_scene_rocket_contacts[1];
     if(*matched && (out->object&0xffff0000u)==SCENE_MOVER_ROCKET_OWNER)++rf_scene_rocket_contacts[2];
     return RF_OK;
@@ -12541,6 +12543,7 @@ static int scene_rockets_tick(scene_stream *s,uint32_t frame)
             }
             {uint32_t handled;float applied;
              status=scene_driller_projectile_damage(&event.contact,campaign_player_object.handle,campaign_primary[4].damage,3,frame,&handled,&applied);if(status)return status;}
+            {uint32_t handled;status=scene_clutter_projectile_damage(&event.contact,campaign_primary[4].damage,3,&handled);if(status)return status;}
             if((event.contact.object&0xffff0000u)==SCENE_ACTOR_ROCKET_OWNER) {
                 uint32_t index=event.contact.object&0xffffu,entered=0,bits;float applied=0,seconds=(float)frame/60;
                 combat_feedback feedback={(int32_t)((uint64_t)frame*1000/60),0};

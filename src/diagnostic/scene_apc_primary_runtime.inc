@@ -38,6 +38,8 @@ static int scene_apc_primary_damage(scene_stream *stream,uint32_t frame,const sc
     rf_damage_effect_backend effects={combat_predicate,combat_uid,combat_source,combat_burn,combat_random,combat_notify,combat_playing,combat_play,&feedback};
     status=scene_driller_projectile_damage(contact,round->source,round->damage,round->kind,frame,&handled,&amount);if(status)return status;
     if(handled){if(amount>0)++rf_scene_apc_primary[6];return RF_OK;}
+    status=scene_clutter_projectile_damage(contact,round->damage,round->kind,&handled);if(status)return status;
+    if(handled)return RF_OK;
     if(tag!=UINT32_MAX&&(tag&SCENE_DETACHED_ROCKET_OWNER))return scene_detached_sources_damage(stream,(tag>>16)&0x7fff,tag&0xffff,round->damage);
     if(tag!=SCENE_AI_PROJECTILE_PLAYER&&(tag&0xffff0000u)!=SCENE_ACTOR_ROCKET_OWNER)return RF_OK;
     memcpy(&bits,&seconds,4);
@@ -100,7 +102,8 @@ static int scene_apc_primary_sweep_all(void *context,const float *start,const fl
         if(!scene_rocket_body_hit(body,start,delta,radius,*matched?out->hit.fraction:1,&body_hit) || (*matched && body_hit.fraction>=out->hit.fraction))continue;
         out->hit=body_hit;out->object=tag;out->room=room;out->face=UINT32_MAX;*matched=1;*liquid=0;
     }
-    return scene_driller_projectile_compose(q->source,start,delta,radius,out,liquid,matched);
+    status=scene_driller_projectile_compose(q->source,start,delta,radius,out,liquid,matched);if(status)return status;
+    return scene_clutter_projectile_compose(q->source,start,delta,radius,out,liquid,matched);
 }
 static int scene_apc_primary_sweep(void *context,const float *start,const float *delta,float radius,
     rf_weapon_flight_contact *contact,uint32_t *matched)

@@ -1,10 +1,10 @@
 # Ordinary prop damage first pass
 
-Player pistol, rifle, shotgun, conventional firearm and riot-stick hitscan now selects actual registered static prop model geometry alongside NPC/shield/vehicle candidates. The nearer candidate wins; world/mover and detached-terrain obstruction is checked before damage. Hidden and retired props are excluded, and the authored collide_weapon flag controls eligibility. Precision weapons now use their dedicated prop adapter described below; physical projectile direct contacts remain open.
+Player pistol, rifle, shotgun, conventional firearm and riot-stick hitscan now selects actual registered static prop model geometry alongside NPC/shield/vehicle candidates. The nearer candidate wins; world/mover and detached-terrain obstruction is checked before damage. Hidden and retired props are excluded, and the authored collide_weapon flag controls eligibility. Precision weapons now use their dedicated prop adapter described below; shared projectile prop contacts are now wired as described below.
 
 Each loaded class has a56-byte damage profile read from clutter.tbl, preserving class-specific life, protection and eleven damage factors even when multiple classes share a model. Each owner has a16-byte generation/class binding. On creation health uses authored life; negative life gives protected100HP as in the existing class initializer. Damage uses the shared clutter receive logic, preserves the hit-event signal, and retires a destroyed prop once via flag2. Allocation remains registered until normal scene teardown; rendering, glow and model collision suppress it.
 
-This is disappearance on destruction, not completed prop destruction presentation. Debris/corpse/explosion dispatch, source attribution, projectile direct damage, physics response and persistence remain open. Authored immutable-clutter checkpoint validation still refuses changed props rather than silently losing their state.
+This is disappearance on destruction, not completed prop destruction presentation. Debris/corpse/explosion dispatch, source attribution, remaining special-weapon damage paths, physics response and persistence remain open. Authored immutable-clutter checkpoint validation still refuses changed props rather than silently losing their state.
 
 ## Verification
 
@@ -25,3 +25,9 @@ Focused enemy-fire ordering and blast falloff/cover tests pass, and the integrat
 Player sniper selection now merges exact prop-model contacts with the nearest actor, shield and vehicle. Detached fragments retain precedence at an equal distance, then world/mover cover is checked before typed prop damage. Rail visits each intersected registered prop once and continues along its existing authored piercing path, without consuming a new per-prop allocation or repeatedly damaging the same surviving prop. Hidden, retired and stale owners are excluded.
 
 The integrated PC and NXDK builds pass, and the complete NPC residency regression executable passes. Live sniper/rail shots against the prop fixture remain unverified; builds and the NPC regression suite are not evidence of those visual outcomes. Material-specific sniper piercing remains a separate fidelity item.
+
+## Flying projectiles
+
+Shared player rocket, source-aware NPC projectile and vehicle-round sweeps now compose finite-radius contacts against retained prop meshes. Expanded bounds are only broadphase; actual model triangles decide contact. Local mesh contacts transform back to world space, preserve nearer world/liquid/actor/vehicle candidates and carry the prop generation separately from the slot tag. Direct damage is connected for player/NPC rockets and vehicle primary rounds. Grenades sharing the NPC sweep gain prop contact; their existing radial damage remains separate. Other specialized projectile adapters require coverage review.
+
+The real scene/model collision test passes a quarter-unit projectile striking a plane at worldZ5 at fraction0.475, validates world contact/normal, nearer cover, hidden/source exclusion and stale damage suppression. PC and NXDK builds pass. Live projectile impacts and break effects against authored props remain unverified; this test is geometry and ownership evidence, not a gameplay screenshot claim.
