@@ -64,15 +64,24 @@ static int scene_clutter_break_tick(scene_stream *s,uint32_t frame)
         if(!owner||owner->state.handle!=binding->handle||!scene_clutter_damage_identity(&campaign_registry,owner)||
            owner->state.health>0||owner->state.class_index<0||(uint32_t)owner->state.class_index>=campaign_clutter_classes.count)continue;
         profile=campaign_clutter_damage_profiles+owner->state.class_index;
-        if(!profile->break_yellboom||!scene_clutter_break_effects)continue;
+        if(owner->state.definition->explosion<0)continue;
         status=rf_timer_expired(owner->state.definition->timer,now,&expired);if(status)return status;if(!expired)continue;
         for(j=0;j<3;j++)contact.hit.point[j]=owner->state.position[j]+profile->break_offset[0]*owner->matrix[j]+
             profile->break_offset[1]*owner->matrix[3+j]+profile->break_offset[2]*owner->matrix[6+j];
         contact.hit.normal[1]=1;contact.object=UINT32_MAX;
         status=rf_geometry_collision_world_locate(s->collision,contact.hit.point,&room);if(status)return status;contact.room=room.room;
-        status=scene_clutter_break_impact_start(s,&contact,frame,profile->break_radius);if(status)return status;
-        combat_sound("light break",contact.hit.point);
+        if(profile->break_yellboom&&scene_clutter_break_effects){
+            status=scene_clutter_break_impact_start(s,&contact,frame,profile->break_radius);if(status)return status;
+            combat_sound("light break",contact.hit.point);
+        }
+        /* Mark the shared cooldown before delivering damage. Other owners only
+         * enqueue a pending break; this bounded scan never calls itself. */
         status=rf_timer_set(&owner->state.definition->timer,now,50);if(status)return status;
+        if(profile->break_damage>0){
+            status=scene_explosion_blast_source(s,frame,contact.hit.point,profile->break_damage,profile->break_radius,UINT32_MAX,3);
+            if(status)return status;
+            printf("CLUTTER_BLAST uid%u damage%.9g radius%.9g\n",campaign_clutter_records.items[i].uid,profile->break_damage,profile->break_radius);
+        }
         printf("CLUTTER_BREAK uid%u frame%u radius%.9g\n",campaign_clutter_records.items[i].uid,frame,profile->break_radius);
     }
     return RF_OK;

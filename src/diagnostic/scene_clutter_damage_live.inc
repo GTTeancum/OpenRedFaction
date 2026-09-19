@@ -10,7 +10,7 @@
 typedef struct scene_clutter_damage_profile {
     float life,damage_factors[11];
     uint32_t protected_object,ordinary;
-    float break_radius,break_offset[3];uint32_t break_yellboom;
+    float break_radius,break_offset[3],break_damage;uint32_t break_yellboom;
 } scene_clutter_damage_profile;
 typedef struct scene_clutter_damage_binding {
     uint32_t handle,initialized,break_pending;
@@ -27,6 +27,7 @@ static int scene_clutter_damage_profile_read(const void *text,uint32_t bytes,
     rf_clutter_gameplay_definition d;scene_clutter_damage_profile p={0};uint32_t i;int status;
     if(!out)return RF_RANGE;
     status=rf_clutter_gameplay_read(text,bytes,name,&d);if(status)return status;
+    p.break_damage=d.explosion_damage; /* Multiplier until vclip resolution. */
     p.break_radius=d.explosion_radius;memcpy(p.break_offset,d.explosion_offset,12);p.break_yellboom=!strcmp(d.explosion,"yellboom");
     p.life=d.life;p.protected_object=d.life<0;p.ordinary=1;
     {const char *shield="riot_shield";const char *a=d.name;

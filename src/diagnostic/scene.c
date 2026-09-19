@@ -3933,7 +3933,22 @@ static int campaign_clutter_open(const char *tables_path,const rf_level *level)
         if(!status){campaign_clutter_damage_profiles=calloc(campaign_clutter_classes.count,sizeof(*campaign_clutter_damage_profiles));
             if(campaign_clutter_classes.count && !campaign_clutter_damage_profiles)status=RF_IO;}
         for(i=0;!status && i<campaign_clutter_classes.count;i++)status=scene_clutter_damage_profile_read(raw,entry.size,campaign_clutter_classes.items[i].name,campaign_clutter_damage_profiles+i);
-        free(raw);rf_scene_clutter_damage[6]=campaign_clutter_classes.count*sizeof(*campaign_clutter_damage_profiles);
+        free(raw);
+        {float clip_damage[64]={0};uint32_t resolved[64]={0};
+            for(i=0;!status&&i<campaign_clutter_classes.count;i++){
+                scene_clutter_damage_profile *profile=campaign_clutter_damage_profiles+i;
+                int32_t clip_index=campaign_clutter_classes.items[i].explosion;
+                if(clip_index<0){profile->break_damage=0;continue;}
+                if(clip_index>=64){status=RF_RANGE;break;}
+                if(!resolved[clip_index]){rf_vclip_definition clip;
+                    status=rf_vclip_definition_load(&tables,campaign_clutter_catalogs.names.vclips[clip_index],65536,&clip);
+                    if(status)break;clip_damage[clip_index]=clip.damage;resolved[clip_index]=1;
+                }
+                profile->break_damage=(float)((double)clip_damage[clip_index]*profile->break_radius*profile->break_damage);
+                if(!isfinite(profile->break_damage))status=RF_RANGE;
+            }
+        }
+        rf_scene_clutter_damage[6]=campaign_clutter_classes.count*sizeof(*campaign_clutter_damage_profiles);
     }
     campaign_riot_shield_class=-1;
     for(i=0;!status && i<campaign_clutter_classes.count;++i)if(rf_emitter_name_lookup(&campaign_clutter_classes.items[i].name,1,"riot_shield")==0){campaign_riot_shield_class=(int32_t)i;break;}

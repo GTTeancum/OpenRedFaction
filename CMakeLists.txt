@@ -1356,3 +1356,7 @@ add_test(NAME scene_clutter_blast COMMAND rf_scene_clutter_blast_tests)
 add_executable(rf_scene_clutter_projectile_tests tests/scene_clutter_projectile_tests.c src/diagnostic/animation.c)
 target_link_libraries(rf_scene_clutter_projectile_tests PRIVATE rf_core)
 add_test(NAME scene_clutter_projectile COMMAND rf_scene_clutter_projectile_tests)
+
+add_executable(rf_scene_clutter_chain_tests tests/scene_clutter_chain_tests.c src/diagnostic/animation.c)
+target_link_libraries(rf_scene_clutter_chain_tests PRIVATE rf_core)
+add_test(NAME scene_clutter_chain COMMAND rf_scene_clutter_chain_tests ${CMAKE_SOURCE_DIR}/Installed_Game/tables.vpp)
