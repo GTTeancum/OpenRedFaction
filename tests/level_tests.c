@@ -143,6 +143,36 @@ int main(void)
             rf_vpp_close(&archive);
         }
     }
+    {
+        unsigned char raw[159]={0};rf_level_owned_entity entity={0};
+        rf_level_entity_vitals value,saved;uint32_t bits;unsigned i,j;
+        const float cases[][2]={{-1,-1},{0,0},{-2,37.5f},{50,50},{10000,10000}};
+        /* Three-byte class name moves vitals away from the minimal-record offsets. */
+        raw[0]=123;raw[4]=3;memcpy(raw+6,"npc",3);
+        entity.raw=raw;entity.record.bytes=158;entity.record.uid=0x70000001;
+        for(i=0;i<sizeof(cases)/sizeof(cases[0]);i++){
+            memcpy(&bits,&cases[i][0],4);for(j=0;j<4;j++)raw[93+j]=(unsigned char)(bits>>(j*8));
+            memcpy(&bits,&cases[i][1],4);for(j=0;j<4;j++)raw[97+j]=(unsigned char)(bits>>(j*8));
+            CHECK(rf_level_entity_vitals_read(&entity,&value)==RF_OK);
+            CHECK(value.health==cases[i][0] && value.armor==cases[i][1]);
+        }
+        memset(&value,0xa5,sizeof(value));saved=value;
+        entity.record.bytes=157;CHECK(rf_level_entity_vitals_read(&entity,&value)!=RF_OK);
+        CHECK(!memcmp(&value,&saved,sizeof(value)));
+        entity.record.bytes=159;CHECK(rf_level_entity_vitals_read(&entity,&value)==RF_FORMAT);
+        CHECK(!memcmp(&value,&saved,sizeof(value)));entity.record.bytes=158;
+        for(i=0;i<2;i++){
+            unsigned at=i?97:93;unsigned char old[4];memcpy(old,raw+at,4);
+            bits=i?0x7f800000u:0x7fc00000u;for(j=0;j<4;j++)raw[at+j]=(unsigned char)(bits>>(j*8));
+            CHECK(rf_level_entity_vitals_read(&entity,&value)==RF_FORMAT && !memcmp(&value,&saved,sizeof(value)));
+            memcpy(raw+at,old,4);
+        }
+        raw[153]=2;CHECK(rf_level_entity_vitals_read(&entity,&value)==RF_FORMAT);
+        CHECK(!memcmp(&value,&saved,sizeof(value)));raw[153]=0;
+        CHECK(rf_level_entity_vitals_read(NULL,&value)==RF_RANGE);
+        CHECK(rf_level_entity_vitals_read(&entity,NULL)==RF_RANGE);
+        {rf_level_entity_spawn spawn;CHECK(rf_level_entity_spawn_read(&entity,&spawn)==RF_FORMAT);}
+    }
     CHECK(remove("level-fixture.tmp") == 0);
     puts("Level bounds, invalid headers, duplicate sections, truncation and spawn ordering passed");
     return 0;

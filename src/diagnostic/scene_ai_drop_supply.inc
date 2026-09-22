@@ -25,7 +25,6 @@ static int campaign_enemy_drop_supply(const rf_weapon_inventory *inventory,
     slot=scene_enemy_drop_weapon_slot(&supply->names,held);if(slot<0)return RF_NOT_FOUND;
     definitions=supply->definitions;
     type=definitions[held].ammo_type;magazine=definitions[held].magazine;
-    if(slot==2){if(type!=-1 || magazine || inventory->loaded[held])return RF_RANGE;*quantity=0;return RF_OK;}
     if(type<0 || type>=32 || magazine<0)return RF_RANGE;
     loaded=inventory->loaded[held];reserve=inventory->reserve[type];
     if(loaded<0 || loaded>magazine || reserve<0)return RF_RANGE;

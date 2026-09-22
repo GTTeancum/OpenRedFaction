@@ -200,6 +200,13 @@ typedef struct rf_level_entity_spawn {
  * checks raw span boundaries/exact exhaustion; errors preserve output. This is
  * a projection of validated input, not complete factory state initialization. */
 int rf_level_entity_spawn_read(const rf_level_owned_entity *entity,rf_level_entity_spawn *result);
+
+typedef struct rf_level_entity_vitals {float health,armor;} rf_level_entity_vitals;
+/* Retained v180 instance values, before class clamping. Exactly -1 inherits;
+ * other finite values override (including zero and other negative values).
+ * Full raw-span validation; cached UID may differ after DEV identity remapping.
+ * No allocation or output change on failure. */
+int rf_level_entity_vitals_read(const rf_level_owned_entity *entity,rf_level_entity_vitals *result);
 typedef struct rf_level_group {
     char name[256],sounds[4][256];
     uint32_t offset,bytes,key_offset,key_count,legacy_offset,legacy_count;

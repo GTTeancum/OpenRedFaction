@@ -4635,6 +4635,7 @@ static void campaign_actors_capture(void)
     }
 }
 #include "scene_npc_loadout.inc"
+#include "scene_npc_vitals.inc"
 static int campaign_npc_bodies_open(const char *tables_path,const rf_geometry_collision_world *world,int32_t now)
 {
     const uint32_t budget=640*1024;rf_vpp tables;rf_vpp_entry entity_table,materials;
@@ -4753,6 +4754,9 @@ static int campaign_npc_bodies_open(const char *tables_path,const rf_geometry_co
                 flags|=0x06000000u;if(!(config.authored.flags2&1u))flags|=0x20000u;
                 rf_entity_creation_vitals_state vitals={0};vitals.object_flags=flags;
                 rf_entity_creation_vitals(&vitals,&definition->vitals,0);
+                {rf_level_entity_vitals authored;
+                 status=rf_level_entity_vitals_read(campaign_seeds.records.items+actor,&authored);if(status)goto done;
+                 status=scene_npc_vitals_apply(&authored,&vitals,&definition->vitals);if(status)goto done;}
                 owner->object_flags=vitals.object_flags;owner->field_840=vitals.field_840;
                 owner->damage.effects.health=vitals.health;owner->damage.effects.armor=vitals.armor;
                 owner->damage.effects.class_health=definition->vitals.health;
@@ -9657,17 +9661,8 @@ static int campaign_weapon_drops_tick(scene_stream *stream,const float eye[3])
             if(distance<=4) {
                 status=combat_shot_obstructed(stream,eye,delta,1,&blocked);if(status)return status;
                 if(!blocked) {
-                    if(scene_enemy_drop_weapon_slot(&campaign_weapon_supply.names,drop->weapon)==2){
-                        const rf_weapon_acquire_definition *definition=campaign_weapon_supply.definitions+drop->weapon;
-                        if(definition->ammo_type!=-1 || definition->magazine || drop->quantity)return RF_RANGE;
-                        if(!campaign_player_inventory.owned[drop->weapon]){
-                            status=rf_weapon_acquire_sp(&campaign_player_inventory,definition,drop->weapon,0);if(status)return status;
-                            grant.acquired=1;
-                        }
-                    }else{
-                        status=scene_pickup_shared_ammo_grant(&campaign_player_inventory,&campaign_weapon_supply,
-                            drop->weapon,drop->quantity,1,&grant);if(status)return status;
-                    }
+                    status=scene_pickup_shared_ammo_grant(&campaign_player_inventory,&campaign_weapon_supply,
+                        drop->weapon,drop->quantity,1,&grant);if(status)return status;
                     if(grant.acquired || grant.rounds) {
                         drop->state=2;++rf_scene_weapon_drops[1];rf_scene_weapon_drops[2]+=grant.rounds;
                         rf_scene_weapon_drops[3]=rf_scene_defeated_actors.items[owner->persistence_slot].uid;campaign_ammo_publish();

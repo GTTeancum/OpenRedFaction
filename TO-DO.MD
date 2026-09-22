@@ -3,6 +3,8 @@
 Completion basis (user direction,2026-09-18): working late-alpha/early-beta code implementation. Overall approximately82%; GeoMod100% for the first playable milestone, accepted by the user. GeoMod items below are deferred refinement and coverage, not prerequisites to moving on. This does not assert retail polish, complete campaign integration or resolution of every known defect.
 
 
+- NPC durability: Authored instance health/armor now apply before persistence restore; PC confirms low-health death, survival and armor absorption, while Xbox fatal-hit/death/drop state matches with20.48MiB free; broader encounters and player startup remain separate (docs/ENTITY-INSTANCE-VITALS.md).
+
 - Weapon saves: Machine Pistol alternate magazine, Undercover suppressor and spread RNG now survive PC/Xbox load/fire/resave with identical checkpoints and at least8.13MiB native headroom; HMG/Precision saves work, while campaign persistence and remaining special-weapon state are open.
 
 - Prop saves: Static prop damage/destruction now survives PC/Xbox reload and resave with identical checkpoint bytes and8.14MiB native headroom; moving props, broader classes/levels and campaign persistence remain.
@@ -47,7 +49,7 @@ Completion basis (user direction,2026-09-18): working late-alpha/early-beta code
 
 - Precision weapons: Sniper and rail acquisition/selection/fire now work outside DEV; native rail matches PC with14.26MiB free, and enemy/persistent drops request matching view resources; live enemy-drop encounters and broader campaign handoffs remain (docs/PRECISION-PICKUP-FIRST-PASS.md).
 
-- Combat pickups: Supported enemy weapons now drop finite remaining ammunition, including empty weapons and ammo-free Riot Stick; ordinary PC/Xbox scripted death, rocket pickup/equip/fire matches with20.29MiB free; authored no-drop flags, broader weapon encounters and general campaign saves remain (docs/ENEMY-WEAPON-DROPS.md).
+- Combat pickups: Supported enemy weapons now drop finite remaining ammunition, including empty weapons and finite-power-cell Riot Stick; ordinary PC/Xbox scripted death, rocket pickup/equip/fire matches with20.29MiB free; authored no-drop flags, broader weapon encounters and general campaign saves remain (docs/ENEMY-WEAPON-DROPS.md).
 
 - AI mode events: Catatonic/waiting/motion and unique authored waypoint acquisition are implemented; ordinary pursuit/hearing/retaliation/alarm now preserve active script destinations, with PC/Xbox Goto movement matching and20.48MiB free; collecting, ambiguous route binding, full route encounters, mode13/vehicles and disk persistence remain (docs/SCRIPTED-AI-MOVEMENT.md).
 

@@ -338,13 +338,13 @@ static int entity_raw_string(const uint8_t *raw,uint32_t size,uint32_t *cursor)
     length=raw[start]|(uint32_t)raw[start+1]<<8;
     return entity_raw_skip(size,cursor,length);
 }
-int rf_level_entity_spawn_read(const rf_level_owned_entity *entity,rf_level_entity_spawn *result)
+static int entity_spawn_read(const rf_level_owned_entity *entity,rf_level_entity_spawn *result,uint32_t check_uid)
 {
     rf_level_entity_spawn value;const uint8_t *raw;uint32_t cursor=0,size,start,i;int status;
     if(!entity || !result || !entity->raw)return RF_RANGE;
     raw=entity->raw;size=entity->record.bytes;
     status=entity_raw_skip(size,&cursor,4);if(status)return status;
-    if(le32(raw)!=(uint32_t)entity->record.uid)return RF_FORMAT;
+    if(check_uid && le32(raw)!=(uint32_t)entity->record.uid)return RF_FORMAT;
     status=entity_raw_string(raw,size,&cursor);if(status)return status;
     status=entity_raw_skip(size,&cursor,48);if(status)return status;
     status=entity_raw_string(raw,size,&cursor);if(status)return status;
@@ -361,6 +361,31 @@ int rf_level_entity_spawn_read(const rf_level_owned_entity *entity,rf_level_enti
     if(raw[start+16]) {status=entity_raw_skip(size,&cursor,4);if(status)return status;}
     for(i=0;i<2;++i) {status=entity_raw_string(raw,size,&cursor);if(status)return status;}
     if(cursor!=size)return RF_FORMAT;
+    *result=value;return RF_OK;
+}
+
+int rf_level_entity_spawn_read(const rf_level_owned_entity *entity,rf_level_entity_spawn *result)
+{return entity_spawn_read(entity,result,1);}
+
+int rf_level_entity_vitals_read(const rf_level_owned_entity *entity,rf_level_entity_vitals *result)
+{
+    rf_level_entity_spawn checked;rf_level_entity_vitals value;
+    const uint8_t *raw;uint32_t cursor=4,size,start,bits,i;int status;
+    if(!result)return RF_RANGE;
+    /* Preserve authored raw data when DEV construction remaps the cached UID.
+     * Reuse complete span/optional-flag/exhaustion validation without UID equality. */
+    status=entity_spawn_read(entity,&checked,0);if(status)return status;
+    raw=entity->raw;size=entity->record.bytes;
+    status=entity_raw_string(raw,size,&cursor);if(status)return status;
+    status=entity_raw_skip(size,&cursor,48);if(status)return status;
+    status=entity_raw_string(raw,size,&cursor);if(status)return status;
+    status=entity_raw_skip(size,&cursor,13);if(status)return status;
+    for(i=0;i<2;i++){status=entity_raw_string(raw,size,&cursor);if(status)return status;}
+    start=cursor;status=entity_raw_skip(size,&cursor,29);if(status)return status;
+    /* 464010 local_dc/local_e4: six bytes, two words, three bytes, floats. */
+    bits=le32(raw+start+17);memcpy(&value.health,&bits,4);
+    bits=le32(raw+start+21);memcpy(&value.armor,&bits,4);
+    if(!isfinite(value.health) || !isfinite(value.armor))return RF_FORMAT;
     *result=value;return RF_OK;
 }
 
