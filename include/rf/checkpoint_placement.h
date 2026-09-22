@@ -42,6 +42,14 @@ typedef struct rf_checkpoint_support_hit {float fraction,normal[3];uint32_t stab
 typedef int (*rf_checkpoint_support_query)(void *,const rf_physics_ground_probe *,float limit,rf_checkpoint_support_hit *,uint32_t *matched);
 int rf_checkpoint_standing_check_with_support(const rf_geomod_terrain_view *,const rf_checkpoint_placement *,
     float dt,float class_speed,rf_checkpoint_support_query,void *,rf_checkpoint_placement_result *);
+/* Ordinary unchanged static-world adapters: no GeoMod owner is required.
+ * replaced_room selects an existing active room as the reference; its retained
+ * faces are used unchanged, alongside every other eligible world room.
+ * Same sphere/basis and purity contracts as above. Movers/actors/props and
+ * moving support remain separate checks by the composed scene caller. */
+int rf_checkpoint_world_placement_check(const rf_checkpoint_placement *,rf_checkpoint_placement_result *);
+int rf_checkpoint_world_standing_check(const rf_checkpoint_placement *,float dt,float class_speed,
+    rf_checkpoint_support_query,void *,rf_checkpoint_placement_result *);
 /* Closed outward solid, local-space sphere. Shared .002 clearance tolerance;
  * rejects surface overlap, interior centers and unresolved edge ambiguity.
  * Uses nearest polygon/edge distance plus original-derived face classification,

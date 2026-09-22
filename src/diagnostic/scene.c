@@ -10900,6 +10900,34 @@ static int scene_vehicle_checkpoint_read(scene_stream *,const void *,uint32_t,sc
 static int scene_vehicle_checkpoint_fit(scene_stream *,scene_authored_collection_stage *,scene_authored_checkpoint_stage *,const scene_vehicle_checkpoint_record *,const rf_checkpoint_placement *);
 #include "scene_player_checkpoint.inc"
 #include "scene_npc_checkpoint_capture.inc"
+#include "scene_npc_checkpoint_restore.inc"
+#include "scene_mover_checkpoint.inc"
+#include "scene_event_checkpoint.inc"
+#include "scene_checkpoint_world.inc"
+static int scene_mover_checkpoint_compare(const void *left,const void *right)
+{
+    uint32_t a=((const rf_mover_checkpoint_record*)left)->uid,b=((const rf_mover_checkpoint_record*)right)->uid;
+    return a<b?-1:a>b;
+}
+int rf_scene_mover_checkpoint_export(const unsigned char identity[32],int32_t now,
+    void *output,uint32_t capacity,uint32_t *written)
+{
+    rf_mover_checkpoint_record *rows=NULL;uint32_t i,count=0;int status=RF_OK;
+    if(!identity||!output||!written||capacity<RF_MOVER_CHECKPOINT_HEADER||
+       capacity>RF_CHECKPOINT_FILE_MAX||now<0||now>RF_TIMER_PERIOD)return RF_RANGE;
+    if(campaign_group_runtime.count&&!campaign_group_runtime.items)return RF_RANGE;
+    for(i=0;i<campaign_group_runtime.count;i++)count+=campaign_group_runtime.items[i].kind!=RF_GROUP_RUNTIME_EMPTY;
+    if(count>RF_MOVER_CHECKPOINT_MAX_COUNT || count>(capacity-RF_MOVER_CHECKPOINT_HEADER)/RF_MOVER_CHECKPOINT_ROW)return RF_RANGE;
+    if(count){rows=malloc((size_t)count*sizeof(*rows));if(!rows)return RF_IO;}
+    count=0;
+    for(i=0;i<campaign_group_runtime.count;i++)if(campaign_group_runtime.items[i].kind!=RF_GROUP_RUNTIME_EMPTY){
+        status=rf_mover_checkpoint_capture(campaign_group_runtime.items+i,now,rows+count);if(status)break;count++;
+    }
+    if(!status){if(count)qsort(rows,count,sizeof(*rows),scene_mover_checkpoint_compare);
+        status=rf_mover_checkpoint_encode(identity,rows,count,output,capacity,written);}
+    free(rows);return status;
+}
+
 /* Component export for ordinary save composition. Does not write a complete
  * save or relax world admission; caller supplies its authored source identity. */
 int rf_scene_npc_checkpoint_export(const unsigned char identity[32],int32_t now,

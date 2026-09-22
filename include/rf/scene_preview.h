@@ -244,6 +244,8 @@ extern uint32_t rf_scene_glare_resources[9];
 extern uint32_t rf_scene_glare_instances[10];
 /* Export one NPC state component; authored identity and full save composition
  * remain the caller's responsibility. Rejects unsupported active NPC state. */
+int rf_scene_mover_checkpoint_export(const unsigned char identity[32],int32_t now,
+    void *output,uint32_t capacity,uint32_t *written);
 int rf_scene_npc_checkpoint_export(const unsigned char identity[32],int32_t now,
     void *output,uint32_t capacity,uint32_t *written);
 /* Publish a solved prop pose to rendering, queries and physics together.

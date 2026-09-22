@@ -1,0 +1,46 @@
+#define main checkpoint_world_reference_main
+#include "scene_checkpoint_placement_probe.c"
+#undef main
+#include "../src/diagnostic/scene_checkpoint_world.inc"
+static int material(void *context,uint32_t solid,uint32_t face,uint32_t *texture,uint32_t *value)
+{(void)context;(void)solid;(void)face;*texture=0;*value=7;return RF_OK;}
+int main(void)
+{
+    const float zero[3]={0};rf_geomod_mesh_view mesh;rf_geomod_terrain *terrain=NULL;rf_geomod_terrain_view view;
+    rf_geometry_collision_world world={0};rf_geometry_collision_room owned={0};rf_collision_room_view room_view={0};
+    uint32_t primary=0,indices[6]={0,1,2,3,4,5},i;rf_geometry_collision_movers movers={0};
+    rf_checkpoint_placement p={0};rf_physics_sphere sphere={{0},.5f,0,0};scene_checkpoint_world_context context={0};
+    rf_entity_room_state room,saved_room;rf_physics_support_contact support,saved_support;
+    rf_clutter_base_owner prop={0},*props[1]={&prop};rf_clutter_class prop_class={0};rf_physics_sphere prop_sphere={{0},1,0,0};
+    rf_geometry_collision_flat moving={0};rf_collision_solid_view moving_view={0};rf_group_attached_pose pose={0};rf_collision_body_mover scratch;
+    cube(vertices,faces,zero,10,1);mesh=(rf_geomod_mesh_view){vertices,faces,24,6,0};generated.face_flags=256;
+    CHECK(!rf_geomod_terrain_open(&mesh,filters,&generated,1,4096,800,1024*1024,&terrain));
+    CHECK(!rf_geomod_terrain_get(terrain,&view));owned.tree=*view.tree;owned.tree.source_indices=indices;
+    room_view.tree=&owned.tree;world.rooms=&owned;world.views=&room_view;world.room_count=world.primary_count=1;world.primary=&primary;
+    for(i=0;i<3;i++){world.minimum[i]=room_view.minimum[i]=-10;world.maximum[i]=room_view.maximum[i]=10;p.basis[i*3+i]=1;}
+    p.spheres=&sphere;p.count=1;p.query_flags=4;p.position[1]=-9.5f;
+    context.world=&world;context.movers=&movers;context.metadata=material;context.dt=1.0f/60;context.class_speed=5;
+    CHECK(!scene_checkpoint_world_place(&context,&p,&room,&support));
+    CHECK(room.room==1&&!memcmp(room.query_position,p.position,12)&&support.handle==0&&support.material==7);
+    saved_room=room;saved_support=support;p.position[1]=0;
+    CHECK(scene_checkpoint_world_place(&context,&p,&room,&support)==RF_NOT_FOUND);
+    CHECK(!memcmp(&room,&saved_room,sizeof(room))&&!memcmp(&support,&saved_support,sizeof(support)));p.position[1]=-9.5f;
+    prop.state.definition=&prop_class;prop_class.flags=2;memcpy(prop.state.position,p.position,12);
+    prop.body.spheres.items=&prop_sphere;prop.body.spheres.count=1;
+    for(i=0;i<3;i++)prop.matrix[i*3+i]=1;context.props=props;context.prop_count=1;
+    CHECK(scene_checkpoint_world_place(&context,&p,&room,&support)==RF_NOT_FOUND);
+    prop.state.flags=2;CHECK(!scene_checkpoint_world_place(&context,&p,&room,&support));context.prop_count=0;
+    cube(obstacle_vertices,obstacle_faces,zero,1,0);mesh=(rf_geomod_mesh_view){obstacle_vertices,obstacle_faces,24,6,0};
+    CHECK(!rf_geomod_collision_faces(&mesh,filters,obstacle_positions,24,obstacle,6));
+    moving.faces=obstacle;moving.count=6;movers.owned=&moving;movers.views=&moving_view;movers.poses=&pose;movers.count=1;
+    context.scratch=&scratch;context.scratch_count=1;memcpy(pose.position,p.position,12);
+    for(i=0;i<3;i++){pose.input_matrix[i*3+i]=1;pose.minimum[i]=-1;pose.maximum[i]=1;}
+    CHECK(scene_checkpoint_world_place(&context,&p,&room,&support)==RF_NOT_FOUND);
+    pose.position[0]=5;CHECK(!scene_checkpoint_world_place(&context,&p,&room,&support));
+    CHECK(support.material==7&&room.room==1);
+    saved_room=room;saved_support=support;context.metadata=NULL;
+    CHECK(scene_checkpoint_world_place(&context,&p,&room,&support)==RF_RANGE);
+    CHECK(!memcmp(&room,&saved_room,sizeof(room))&&!memcmp(&support,&saved_support,sizeof(support)));
+    rf_geomod_terrain_close(&terrain);
+    puts("PASS actual ordinary-world support/material/room and current mover/prop obstruction checks");return 0;
+}

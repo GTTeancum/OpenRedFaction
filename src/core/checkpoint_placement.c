@@ -230,3 +230,23 @@ int rf_checkpoint_solid_sphere_check(const rf_collision_face *faces,uint32_t cou
 rejected:
     if(out)*out=result;return RF_NOT_FOUND;
 }
+
+static int checkpoint_world_view(const rf_checkpoint_placement *p,rf_geomod_terrain_view *view)
+{
+    const rf_collision_tree *tree;
+    if(!p||!p->world||!p->world->views||p->replaced_room>=p->world->room_count)return RF_RANGE;
+    tree=p->world->views[p->replaced_room].tree;if(!tree)return RF_RANGE;
+    memset(view,0,sizeof(*view));view->faces=tree->faces;view->tree=tree;view->mesh.face_count=tree->face_count;
+    return RF_OK;
+}
+int rf_checkpoint_world_placement_check(const rf_checkpoint_placement *p,rf_checkpoint_placement_result *out)
+{
+    rf_geomod_terrain_view view;int status=checkpoint_world_view(p,&view);if(status)return status;
+    return rf_checkpoint_placement_check(&view,p,out);
+}
+int rf_checkpoint_world_standing_check(const rf_checkpoint_placement *p,float dt,float class_speed,
+    rf_checkpoint_support_query query,void *context,rf_checkpoint_placement_result *out)
+{
+    rf_geomod_terrain_view view;int status=checkpoint_world_view(p,&view);if(status)return status;
+    return rf_checkpoint_standing_check_with_support(&view,p,dt,class_speed,query,context,out);
+}

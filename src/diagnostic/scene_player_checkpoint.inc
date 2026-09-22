@@ -23,16 +23,10 @@ static int scene_checkpoint_player_catalog_mode(rf_player_checkpoint_catalog *c,
 }
 static int scene_checkpoint_player_catalog(rf_player_checkpoint_catalog *c)
 {return scene_checkpoint_player_catalog_mode(c,0);}
-static int scene_checkpoint_player_scope_mode(const scene_stream *s,uint32_t live,uint32_t mutable_props,uint32_t modes)
+static int scene_checkpoint_player_state_scope(const scene_stream *s,uint32_t live,uint32_t modes)
 {
     uint32_t i;
-    if(!rf_scene_dev_room_enabled||rf_scene_water_test_enabled||!campaign_spawn||!s->terrain||
-       campaign_movers.count||campaign_npc_body_count||
-       !scene_actor_body.allocated_bytes||!scene_actor_body.spheres.count||scene_actor_body.spheres.count>8)return RF_RANGE;
-    if(s->terrain_authored) {
-        if(strcmp(campaign_current_level,"ctf06.rfl") || !s->checkpoint_clutter ||
-           (mutable_props?scene_authored_clutter_baseline_check_mutable:scene_authored_clutter_baseline_check)(s->terrain_source_count>1?s->terrain_sources[0].authored->source_identity:s->terrain_authored->source_identity,0,s->checkpoint_clutter))return RF_RANGE;
-    } else if(strcmp(campaign_current_level,"glass_house.rfl") || rf_scene_clutter_bodies[1])return RF_RANGE;
+    if(!s||!campaign_spawn||!scene_actor_body.allocated_bytes||!scene_actor_body.spheres.count||scene_actor_body.spheres.count>8)return RF_RANGE;
     if(campaign_fusion_id>=0 && campaign_player_inventory.owned[campaign_fusion_id])return RF_RANGE; /* Fusion live state is not in RFCP yet. */
     for(i=0;i<4;i++)if(!modes && (i==0 || i==3) && campaign_extra_ids[i]>=0 && campaign_player_inventory.owned[campaign_extra_ids[i]])return RF_RANGE;
     if(scene_player_shield_damage_save_pending())return RF_RANGE;
@@ -48,6 +42,17 @@ static int scene_checkpoint_player_scope_mode(const scene_stream *s,uint32_t liv
         actor_look.state.command[i]!=0||actor_look.state.angular_velocity[i]!=0)return RF_RANGE;
     if(actor_look.state.pending_pitch!=0||actor_look.state.pending_yaw!=0)return RF_RANGE;
     return RF_OK;
+}
+static int scene_checkpoint_player_scope_mode(const scene_stream *s,uint32_t live,uint32_t mutable_props,uint32_t modes)
+{
+    if(!rf_scene_dev_room_enabled||rf_scene_water_test_enabled||!campaign_spawn||!s->terrain||
+       campaign_movers.count||campaign_npc_body_count||
+       !scene_actor_body.allocated_bytes||!scene_actor_body.spheres.count||scene_actor_body.spheres.count>8)return RF_RANGE;
+    if(s->terrain_authored) {
+        if(strcmp(campaign_current_level,"ctf06.rfl") || !s->checkpoint_clutter ||
+           (mutable_props?scene_authored_clutter_baseline_check_mutable:scene_authored_clutter_baseline_check)(s->terrain_source_count>1?s->terrain_sources[0].authored->source_identity:s->terrain_authored->source_identity,0,s->checkpoint_clutter))return RF_RANGE;
+    } else if(strcmp(campaign_current_level,"glass_house.rfl") || rf_scene_clutter_bodies[1])return RF_RANGE;
+    return scene_checkpoint_player_state_scope(s,live,modes);
 }
 static int scene_checkpoint_player_scope(const scene_stream *s,uint32_t live)
 {return scene_checkpoint_player_scope_mode(s,live,1,s->terrain_authored!=NULL);}
@@ -196,6 +201,25 @@ static void scene_checkpoint_player_locomotion(const scene_stream *s)
     /* Restore already supplied the saved residual velocity (zero for RFPL v1). */
     campaign_support_handle=0;memset(campaign_support_velocity,0,sizeof(campaign_support_velocity));
 }
+/* Common settled player capture, independent of DEV terrain. World/actor fit
+ * and the rest of scene persistence remain the composing caller's duty. */
+static int scene_checkpoint_player_snapshot(scene_stream *s,uint32_t modes,
+    rf_player_checkpoint *output,rf_player_checkpoint_catalog *output_catalog)
+{
+    rf_player_checkpoint value,*player=&value;rf_player_checkpoint_catalog definition,*catalog=&definition;int status;
+    if(!output||!output_catalog)return RF_RANGE;
+    status=scene_checkpoint_player_state_scope(s,1,modes);if(status)return status;
+    status=scene_checkpoint_player_catalog_mode(catalog,modes);if(status)return status;
+    memset(player,0,sizeof(*player));player->player.inventory=campaign_player_inventory;
+    player->player.health=campaign_player_damage.state.effects.health;player->player.armor=campaign_player_damage.state.effects.armor;
+    {int32_t weapon=campaign_slot_weapon(campaign_equipped_slot);
+     player->player.weapon=campaign_explicit_unarmed||weapon<0||weapon>=64||!campaign_player_inventory.owned[weapon]?UINT32_MAX:(uint32_t)weapon;}
+    player->player.catalog_hash=rf_scene_weapon_supply[3];memcpy(player->position,scene_actor_body.state.position,12);
+    memcpy(player->body_angles,actor_look.state.body_angles,12);memcpy(player->eye_angles,actor_look.state.eye_angles,12);
+    memcpy(player->velocity,scene_actor_body.state.velocity,12);
+    status=rf_player_checkpoint_validate(player,catalog,NULL,NULL);if(status)return status;
+    *output=value;*output_catalog=definition;return RF_OK;
+}
 static int scene_checkpoint_player_capture(scene_stream *s,rf_player_checkpoint *player,rf_player_checkpoint_catalog *catalog)
 {
     rf_geomod_terrain_view view;rf_checkpoint_placement placement;float body[9];int status;
@@ -210,15 +234,8 @@ static int scene_checkpoint_player_capture(scene_stream *s,rf_player_checkpoint 
             (double)actor_look.state.angular_velocity[0],(double)actor_look.state.angular_velocity[1],(double)actor_look.state.angular_velocity[2],(double)actor_look.state.pending_pitch,(double)actor_look.state.pending_yaw);
         return status;
     }
-    status=scene_checkpoint_player_catalog_mode(catalog,s->terrain_authored!=NULL);if(status){printf("PLAYER_CHECKPOINT_REJECT catalog %d\n",status);return status;}
-    memset(player,0,sizeof(*player));player->player.inventory=campaign_player_inventory;
-    player->player.health=campaign_player_damage.state.effects.health;player->player.armor=campaign_player_damage.state.effects.armor;
-    player->player.weapon=campaign_explicit_unarmed?UINT32_MAX:(uint32_t)campaign_slot_weapon(campaign_equipped_slot);
-    if(!campaign_player_inventory.owned[campaign_slot_weapon(campaign_equipped_slot)])player->player.weapon=UINT32_MAX;
-    player->player.catalog_hash=rf_scene_weapon_supply[3];memcpy(player->position,scene_actor_body.state.position,12);
-    memcpy(player->body_angles,actor_look.state.body_angles,12);memcpy(player->eye_angles,actor_look.state.eye_angles,12);
-    memcpy(player->velocity,scene_actor_body.state.velocity,12);
-    status=rf_player_checkpoint_validate(player,catalog,body,NULL);if(status){printf("PLAYER_CHECKPOINT_REJECT player %d health %.9g/%.9g armor %.9g/%.9g\n",status,(double)player->player.health,(double)catalog->health_capacity,(double)player->player.armor,(double)catalog->armor_capacity);return status;}
+    status=scene_checkpoint_player_snapshot(s,s->terrain_authored!=NULL,player,catalog);if(status)return status;
+    status=rf_player_checkpoint_validate(player,catalog,body,NULL);if(status)return status;
     scene_checkpoint_placement(s,player,body,&placement);status=rf_geomod_terrain_get(s->terrain,&view);if(status)return status;
     if(s->terrain_authored) {
         rf_collision_composition_view composed;
