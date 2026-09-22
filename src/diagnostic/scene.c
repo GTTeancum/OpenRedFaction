@@ -3630,6 +3630,8 @@ static int campaign_clutter_bodies_open(const rf_geometry_collision_world *world
         owner=campaign_clutter_bodies[i];if(!owner){status=RF_RANGE;goto fail;}
         owner->uid=record->uid;
         owner->state.class_index=(int32_t)j;owner->state.definition=campaign_clutter_classes.items+j;
+        /*4109d5: authored collectable class bit admits the live hauling scan. */
+        if(cls->flags&1u)owner->state.flags|=0x1000u;
         status=scene_clutter_damage_bind(&campaign_registry,owner,campaign_clutter_damage_profiles+j,campaign_clutter_damage_bindings+i);if(status)goto fail;
         if(bytes+owner->peak_bytes>peak)peak=bytes+owner->peak_bytes;bytes+=owner->allocated_bytes;
         ++rf_scene_clutter_bodies[0];rf_scene_clutter_bodies[1]+=!!(owner->state.physics_flags&0x20);rf_scene_clutter_bodies[2]+=owner->body.spheres.count;
