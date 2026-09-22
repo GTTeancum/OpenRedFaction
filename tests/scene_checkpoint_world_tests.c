@@ -41,6 +41,14 @@ int main(void)
     saved_room=room;saved_support=support;context.metadata=NULL;
     CHECK(scene_checkpoint_world_place(&context,&p,&room,&support)==RF_RANGE);
     CHECK(!memcmp(&room,&saved_room,sizeof(room))&&!memcmp(&support,&saved_support,sizeof(support)));
+    context.metadata=material;p.spheres=NULL;p.count=0;p.position[1]=0;
+    CHECK(!scene_checkpoint_world_place(&context,&p,&room,&support));
+    CHECK(room.room==1&&!memcmp(room.query_position,p.position,12)&&support.handle==0&&support.material==-1);
+    saved_room=room;saved_support=support;p.position[0]=100;
+    CHECK(scene_checkpoint_world_place(&context,&p,&room,&support)==RF_NOT_FOUND);
+    CHECK(!memcmp(&room,&saved_room,sizeof(room))&&!memcmp(&support,&saved_support,sizeof(support)));
+    p.position[0]=NAN;CHECK(scene_checkpoint_world_place(&context,&p,&room,&support)==RF_FORMAT);
+    CHECK(!memcmp(&room,&saved_room,sizeof(room))&&!memcmp(&support,&saved_support,sizeof(support)));
     rf_geomod_terrain_close(&terrain);
     puts("PASS actual ordinary-world support/material/room and current mover/prop obstruction checks");return 0;
 }

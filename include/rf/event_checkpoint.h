@@ -2,6 +2,14 @@
 #define RF_EVENT_CHECKPOINT_H
 #include "rf/event.h"
 enum { RF_EVENT_CHECKPOINT_BYTES=192 };
+enum { RF_EVENT_CHECKPOINT_EXTERNAL_NPC=1,RF_EVENT_CHECKPOINT_EXTERNAL_AUDIO=2,
+    RF_EVENT_CHECKPOINT_EXTERNAL_VISUAL=4,RF_EVENT_CHECKPOINT_EXTERNAL_DAMAGE=8,
+    RF_EVENT_CHECKPOINT_EXTERNAL_WORLD=16,RF_EVENT_CHECKPOINT_EXTERNAL_INVENTORY=32,
+    RF_EVENT_CHECKPOINT_EXTERNAL_GOALS=64,RF_EVENT_CHECKPOINT_EXTERNAL_LEVEL=128 };
+#define RF_EVENT_CHECKPOINT_EXTERNAL_UNIMPLEMENTED UINT32_C(0x80000000)
+/* Admission metadata, not proof effects are active. Inert unimplemented
+ * records may be retained; active unsupported gameplay is not restored. */
+uint32_t rf_event_checkpoint_external_requirements(uint32_t type);
 /* Read-only stable mappings: RF_NOT_FOUND rejects an unresolved reference.
  * Real handles become authored UIDs, never disk handles. Zero and UINT32_MAX
  * sentinels retain distinct tags. UIDs must not be UINT32_MAX; decoded real
@@ -11,9 +19,9 @@ typedef struct rf_event_checkpoint_refs {
     int (*handle_from_uid)(void *,uint32_t uid,uint32_t *handle);
     void *context;
 } rf_event_checkpoint_refs;
-/* RFEC2 single-event component; see docs/EVENT-CHECKPOINT-COMPONENT.md.
- * Common delayed dispatch and pending UnHide requests remain rejected even
- * with mappings. Supported settled event state includes common flags/mode,
+/* RFEC3 single-event component; see docs/EVENT-CHECKPOINT-COMPONENT.md.
+ * Common delayed dispatch/UnHide requests retain remaining time and refs.
+ * Supported event-owned state includes common flags/mode,
  * removal latch, monitors, cycles, Switch and UnHide cooldown. External effects
  * (NPC routes/animations, alarms, messages, level transitions, etc.) require
  * caller-owned capture/admission: this codec does not establish scene safety.
@@ -21,7 +29,9 @@ typedef struct rf_event_checkpoint_refs {
  * all components before publication. Restored retired owners MUST be removed
  * from the registry by the composer before gameplay resumes; this component
  * does not own the registry. No effects dispatch during restore. All buffers
- * disjoint. Errors preserve output/owner; no allocation. Legacy RFEC1 rejects. */
+ * disjoint. Errors preserve output/owner; no allocation. RFEC2 remains readable
+ * as settled state; RFEC1 rejects. Missing Play_Sound/Look_At/Explode/Music/
+ * Black_Out gameplay dispatch is explicitly exposed through requirement flags. */
 int rf_event_checkpoint_type_supported(uint32_t type);
 int rf_event_checkpoint_encode_mapped(const unsigned char identity[32],const rf_runtime_event *,int32_t now,
     const rf_event_checkpoint_refs *,void *output,uint32_t capacity);

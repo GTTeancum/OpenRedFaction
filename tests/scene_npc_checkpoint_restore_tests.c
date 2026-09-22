@@ -10,9 +10,9 @@ typedef struct fit_context {uint32_t calls,fail;} fit_context;
 static int fit(void *context,const rf_checkpoint_placement *p,rf_entity_room_state *room,rf_physics_support_contact *support)
 {
     fit_context *c=context;c->calls++;if(c->calls==c->fail)return RF_NOT_FOUND;
-    if(!p->spheres||p->count!=1||p->basis[4]!=1)return RF_FORMAT;
+    if((p->count?(!p->spheres||p->count!=1):p->spheres!=NULL)||p->basis[4]!=1)return RF_FORMAT;
     memset(room,0,sizeof(*room));room->room=1;memcpy(room->query_position,p->position,12);
-    support->handle=0;support->material=3;return RF_OK;
+    support->handle=0;support->material=p->count?3:-1;return RF_OK;
 }
 int main(void)
 {
@@ -50,8 +50,10 @@ int main(void)
         o->body.state.local_tensor[0]=o->body.state.local_tensor[4]=o->body.state.local_tensor[8]=1;
         rf_motion_playback_initialize(&poses[i].playback);
     }
+    /* A registered authored actor may intentionally have no collision spheres. */
+    free(owners[1].body.spheres.items);owners[1].body.spheres.items=NULL;owners[1].body.spheres.count=0;
     CHECK(!scene_npc_checkpoint_capture(&catalog,1000,rows,2,&count));
-    rows[0].health=30;rows[0].inventory.loaded[0]=2;rows[0].position[0]=5;rows[0].yaw=.5f;
+    rows[0].health=30;rows[0].inventory.loaded[0]=2;rows[0].position[0]=5;rows[0].yaw=.5f;rows[0].eye_angles[0]=.218f;rows[0].eye_angles[1]=1e-7f;rows[0].eye_angles[2]=-.03f;
     rows[1].position[0]=8;rows[1].ai_mode=1;memcpy(before,owners,sizeof(before));
     fit_state.fail=2;
     CHECK(scene_npc_checkpoint_restore_prepare(rows,2,&catalog,1000,fit,&fit_state,65536,&stage)==RF_NOT_FOUND);
@@ -65,7 +67,13 @@ int main(void)
     CHECK(owners[0].damage.effects.health==90&&owners[0].body.state.position[0]==0&&clip.references==0);
     owners[1].damage.effects.health=90;CHECK(!scene_npc_checkpoint_restore_commit(stage));
     CHECK(owners[0].damage.effects.health==30&&owners[0].inventory.loaded[0]==2&&owners[0].published[0]==5);
+    {float expected[9];rf_eye_angle_state angles={0};memcpy(angles.angles_87c,rows[0].eye_angles,12);
+     CHECK(!rf_eye_physics_orientation(owners[0].body.state.orientation,&angles,expected));
+     CHECK(!memcmp(owners[0].look.angles.angles_87c,rows[0].eye_angles,12));
+     CHECK(!memcmp(owners[0].look.orientation,expected,36));}
     CHECK(owners[1].published[0]==8&&owners[1].ai_mode.action_280==1&&clip.references==2);
+    CHECK(!owners[1].body.spheres.count&&!owners[1].body.spheres.items&&owners[1].body.state.bounds.radius==0);
+    CHECK(owners[1].room.room==1&&owners[1].support.handle==0&&owners[1].support.material==-1);
     CHECK(models[0].position[0]==5&&models[0].basis[4]==1&&models[0].room==0&&owners[0].support.material==3);
     CHECK(poses[0].playback.completion.active.count==1&&poses[0].playback.completion.active.slots[0].motion==0);
     CHECK(rf_scene_defeated_actors.vitals[0].health==30&&owners[0].eye_position[0]==5);

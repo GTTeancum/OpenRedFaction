@@ -11,7 +11,7 @@ typedef struct scene_npc_checkpoint_restore_entry {
     rf_npc_checkpoint_record saved,before;
     rf_physics_body_state body;rf_entity_room_state room;rf_physics_support_contact support;
     rf_entity_motion_selection selection;rf_motion_playback_state playback;
-    float basis[9],published[3],eye[3];int32_t idle;
+    float basis[9],look_basis[9],published[3],eye[3];int32_t idle;
 } scene_npc_checkpoint_restore_entry;
 typedef struct scene_npc_checkpoint_restore_stage {
     uint32_t count,bytes;int32_t now;
@@ -82,6 +82,9 @@ static inline int scene_npc_checkpoint_restore_prepare(const rf_npc_checkpoint_r
         e->flags=(o->object_flags&~0x4004u)|rows[i].flags;
         memcpy(e->published,rows[i].position,12);angles[1]=rows[i].yaw;
         status=rf_look_orientation(angles,e->basis);if(status)goto fail;
+        {rf_eye_angle_state eye_angles={0};
+         memcpy(eye_angles.angles_87c,rows[i].eye_angles,12);
+         status=rf_eye_physics_orientation(e->basis,&eye_angles,e->look_basis);if(status)goto fail;}
         rf_motion_playback_initialize(&e->playback);
         if(rows[i].retired)continue;
         if(!campaign_model_owners||j>=campaign_model_owner_count||!campaign_poses.items||j>=campaign_poses.count){status=RF_RANGE;goto fail;}
@@ -94,7 +97,8 @@ static inline int scene_npc_checkpoint_restore_prepare(const rf_npc_checkpoint_r
         placement.query_flags=(o->body.state.state_124&~0x1000u)|4u;
         memcpy(placement.position,e->published,12);memcpy(placement.basis,e->basis,36);
         status=place(context,&placement,&e->room,&e->support);if(status)goto fail;
-        if(memcmp(e->room.query_position,e->published,12)||e->support.handle||e->support.material<0){status=RF_FORMAT;goto fail;}e->room.flags=e->flags;
+        if(memcmp(e->room.query_position,e->published,12)||e->support.handle||!e->room.room||
+           (placement.count?e->support.material<0:e->support.material!=-1)){status=RF_FORMAT;goto fail;}e->room.flags=e->flags;
         status=rf_entity_motion_selection_base(&campaign_motion_catalog,&campaign_base_motions,cls,&e->selection);if(status)goto fail;
         if(rows[i].primary>=0){status=rf_entity_motion_selection_weapon(&campaign_motion_catalog,&campaign_base_motions,cls,rows[i].primary,&e->selection);if(status)goto fail;}
         if(e->selection.mapping.skeleton!=campaign_poses.items[j].skeleton){status=RF_FORMAT;goto fail;}
@@ -151,7 +155,8 @@ static inline int scene_npc_checkpoint_restore_commit(scene_npc_checkpoint_resto
         o->damage.effects.health=e->saved.health;o->damage.effects.armor=e->saved.armor;o->damage.effects.affiliation=e->saved.affiliation;
         o->ai_mode.action_280=e->saved.ai_mode;o->ai_mode.clock_288=stage->now;
         o->object_flags=e->flags;memcpy(o->published,e->published,12);memcpy(o->previous,e->published,12);
-        memset(o->look.body_angles,0,12);o->look.body_angles[1]=e->saved.yaw;memcpy(o->look.orientation,e->basis,36);
+        memset(o->look.body_angles,0,12);o->look.body_angles[1]=e->saved.yaw;memcpy(o->look.orientation,e->look_basis,36);
+        memcpy(o->look.angles.angles_87c,e->saved.eye_angles,12);
         rf_scene_defeated_actors.items[persistence].retired=e->saved.retired;
         rf_scene_defeated_actors.vitals[persistence].valid=!e->saved.retired;
         rf_scene_defeated_actors.vitals[persistence].health=e->saved.health;rf_scene_defeated_actors.vitals[persistence].armor=e->saved.armor;

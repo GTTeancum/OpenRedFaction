@@ -23,6 +23,16 @@ int main(void)
     f.retired[0]=1;CHECK(!scene_npc_checkpoint_pair_fit(2,read_candidate,&f));
     f.candidate[1].position[0]=NAN;CHECK(scene_npc_checkpoint_pair_fit(2,read_candidate,&f)==RF_FORMAT);
     f.retired[1]=1;CHECK(!scene_npc_checkpoint_pair_fit(2,read_candidate,&f));
+    f.retired[0]=f.retired[1]=0;
+    f.candidate[0].count=0;f.candidate[0].spheres=NULL;
+    f.candidate[1].position[0]=f.candidate[1].position[1]=0;
+    CHECK(!scene_npc_checkpoint_pair_fit(2,read_candidate,&f)); /* Empty set overlaps nothing. */
+    f.candidate[0].position[0]=NAN;
+    CHECK(scene_npc_checkpoint_pair_fit(2,read_candidate,&f)==RF_FORMAT);
+    f.candidate[0].position[0]=0;f.candidate[0].basis[8]=0;
+    CHECK(scene_npc_checkpoint_pair_fit(2,read_candidate,&f)==RF_FORMAT);
+    f.candidate[0].basis[8]=1;f.candidate[0].spheres=spheres;
+    CHECK(scene_npc_checkpoint_pair_fit(2,read_candidate,&f)==RF_RANGE);
     CHECK(scene_npc_checkpoint_pair_fit(RF_NPC_CHECKPOINT_MAX_COUNT+1,read_candidate,&f)==RF_RANGE);
     puts("Candidate NPC pair fit: tolerance, staged translation/rotation, sphere unions, retired exclusion and immutable inputs passed");return 0;
 }

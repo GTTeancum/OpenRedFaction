@@ -74,6 +74,36 @@ int main(void)
     CHECK(owners[2].state.health==80&&(owners[2].state.flags&0x4000));
     CHECK(classes[0].timer==2035&&classes[1].timer==-1);
     for(i=0;i<3;i++)CHECK((owners[i].state.flags&0x100000)&&!bindings[i].break_pending);
+    /* An unresolved installed class has no runtime state to invent. Keep its
+     * authored identity and restore every actual owner across sparse slots. */
+    {
+        rf_level_clutter sparse_records[4]={0};rf_clutter_base_owner *sparse_owners[4]={owners,NULL,owners+1,owners+2};
+        scene_clutter_damage_binding sparse_bindings[4]={0},saved_binding;
+        uint32_t model_slots[4]={0,UINT32_MAX,0,0};unsigned char sparse_identity[32];
+        sparse_records[0]=records[0];sparse_records[2]=records[1];sparse_records[3]=records[2];
+        sparse_bindings[0]=bindings[0];sparse_bindings[2]=bindings[1];sparse_bindings[3]=bindings[2];
+        sparse_records[1].uid=7143;sparse_records[1].class_name="Pole Light 1";
+        sparse_records[1].matrix[0][0]=sparse_records[1].matrix[1][1]=sparse_records[1].matrix[2][2]=1;
+        campaign_clutter_records.items=sparse_records;campaign_clutter_records.count=4;
+        campaign_clutter_bodies=sparse_owners;campaign_clutter_damage_bindings=sparse_bindings;campaign_clutter_model_slots=model_slots;
+        CHECK(!scene_clutter_checkpoint_identity(source,sparse_identity));
+        CHECK(!scene_clutter_checkpoint_capture(source,2000,bytes,sizeof(bytes),&size));
+        CHECK(!rf_clutter_checkpoint_decode(bytes,size,sparse_identity,decoded,3,&count)&&count==3);
+        stage=NULL;CHECK(!scene_clutter_checkpoint_prepare(source,bytes,size,3000,0,&stage));
+        CHECK(stage->count==3&&stage->entries[0].slot==2&&stage->entries[1].slot==3&&stage->entries[2].slot==0);
+        free(stage);stage=NULL;
+        sparse_records[1].uid=9025;
+        CHECK(scene_clutter_checkpoint_prepare(source,bytes,size,3000,0,&stage)==RF_FORMAT&&!stage);
+        sparse_records[1].uid=7143;
+        classes[1].name="Pole Light 1";
+        CHECK(scene_clutter_checkpoint_identity(source,identity)==RF_FORMAT);
+        classes[1].name="test box";
+        model_slots[1]=0;CHECK(scene_clutter_checkpoint_identity(source,identity)==RF_FORMAT);model_slots[1]=UINT32_MAX;
+        sparse_owners[0]=NULL;saved_binding=sparse_bindings[0];memset(sparse_bindings,0,sizeof(*sparse_bindings));model_slots[0]=UINT32_MAX;
+        CHECK(scene_clutter_checkpoint_identity(source,identity)==RF_FORMAT); /* Known-class owner cannot disappear. */
+        sparse_owners[0]=owners;sparse_bindings[0]=saved_binding;model_slots[0]=0;
+        CHECK(!scene_clutter_checkpoint_identity(source,identity)&&!memcmp(identity,sparse_identity,32));
+    }
     puts("PASS prop checkpoint UID remapping, damaged/dead/hidden restore, cooldown rebasing and atomic target rejection");
     return 0;
 }

@@ -12,7 +12,7 @@ typedef int (*scene_npc_checkpoint_pair_read)(void *,uint32_t,rf_checkpoint_plac
 static int scene_npc_checkpoint_pair_centers(const rf_checkpoint_placement *p,float centers[8][3])
 {
     uint32_t i,j,k;double det;
-    if(!p->spheres||!p->count||p->count>8)return RF_RANGE;
+    if(p->count>8||(p->count&&!p->spheres)||(!p->count&&p->spheres))return RF_RANGE;
     for(i=0;i<3;i++)if(!isfinite(p->position[i]))return RF_FORMAT;
     for(i=0;i<9;i++)if(!isfinite(p->basis[i]))return RF_FORMAT;
     for(i=0;i<3;i++)for(j=i;j<3;j++){
@@ -35,7 +35,8 @@ static int scene_npc_checkpoint_pair_centers(const rf_checkpoint_placement *p,fl
 }
 /* RF_OK means all surviving candidate NPC sphere unions are disjoint within
  * the shared .002 clearance tolerance. RF_NOT_FOUND means overlap; malformed
- * geometry/callback failures remain errors. Exact tangency is allowed.
+ * geometry/callback failures remain errors. Exact tangency is allowed. An
+ * authored empty sphere set has no overlap volume but still needs a valid pose.
  * No allocation, gameplay queries, live positions or output mutation. Static
  * world/player/mover/prop fit remains a separate caller responsibility. */
 static int scene_npc_checkpoint_pair_fit(uint32_t count,scene_npc_checkpoint_pair_read read,void *context)

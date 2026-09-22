@@ -34,7 +34,7 @@ static int valid(const rf_npc_checkpoint_record *r,const rf_npc_checkpoint_catal
        !isfinite(r->health)||(!r->retired&&r->health<=0)||!isfinite(r->armor)||r->armor<0||
        !isfinite(r->yaw)||
        (r->ai_mode!=-1&&r->ai_mode!=0&&r->ai_mode!=1&&r->ai_mode!=2&&r->ai_mode!=11))return RF_FORMAT;
-    for(i=0;i<3;i++)if(!isfinite(r->position[i])||!isfinite(r->drop.position[i]))return RF_FORMAT;
+    for(i=0;i<3;i++)if(!isfinite(r->eye_angles[i])||!isfinite(r->position[i])||!isfinite(r->drop.position[i]))return RF_FORMAT;
     for(i=0;i<64;i++){
         const rf_weapon_acquire_definition *d=c->weapons+i;
         if(r->inventory.owned[i]>1||r->inventory.loaded[i]<0||
@@ -50,7 +50,7 @@ static int valid(const rf_npc_checkpoint_record *r,const rf_npc_checkpoint_catal
     }else if(r->drop.weapon||r->drop.quantity||r->drop.position[0]||r->drop.position[1]||r->drop.position[2])return RF_FORMAT;
     return RF_OK;
 }
-static void read_row(const unsigned char *p,rf_npc_checkpoint_record *r)
+static void read_row(const unsigned char *p,uint32_t version,rf_npc_checkpoint_record *r)
 {
     uint32_t i;memset(r,0,sizeof(*r));r->uid=word(p);r->class_id=word(p+4);r->retired=word(p+8);
     r->flags=word(p+12);r->affiliation=word(p+16);r->health=real(p+20);r->armor=real(p+24);
@@ -62,6 +62,7 @@ static void read_row(const unsigned char *p,rf_npc_checkpoint_record *r)
     for(i=0;i<32;i++)r->inventory.reserve[i]=signed_word(p+140+i*4);
     for(i=0;i<64;i++)r->inventory.loaded[i]=signed_word(p+268+i*4);
     r->ai_mode=signed_word(p+524);
+    if(version>=2)for(i=0;i<3;i++)r->eye_angles[i]=real(p+528+i*4);
 }
 static void write_row(unsigned char *p,const rf_npc_checkpoint_record *r)
 {
@@ -72,6 +73,7 @@ static void write_row(unsigned char *p,const rf_npc_checkpoint_record *r)
     for(i=0;i<3;i++)put_real(p+64+i*4,r->drop.position[i]);memcpy(p+76,r->inventory.owned,64);
     for(i=0;i<32;i++)put(p+140+i*4,(uint32_t)r->inventory.reserve[i]);
     for(i=0;i<64;i++)put(p+268+i*4,(uint32_t)r->inventory.loaded[i]);put(p+524,(uint32_t)r->ai_mode);
+    for(i=0;i<3;i++)put_real(p+528+i*4,r->eye_angles[i]);
 }
 int rf_npc_checkpoint_encode(const unsigned char identity[32],const rf_npc_checkpoint_catalog *c,
     const rf_npc_checkpoint_record *rows,uint32_t count,void *output,uint32_t capacity,uint32_t *written)
@@ -81,23 +83,24 @@ int rf_npc_checkpoint_encode(const unsigned char identity[32],const rf_npc_check
     status=catalog_valid(c);if(status)return status;
     bytes=64+count*RF_NPC_CHECKPOINT_ROW;if(bytes>capacity)return RF_RANGE;
     for(i=0;i<count;i++){status=valid(rows+i,c);if(status)return status;if(i&&rows[i-1].uid>=rows[i].uid)return RF_FORMAT;}
-    memset(p,0,bytes);memcpy(p,"RFNC",4);put(p+4,1);put(p+8,bytes);put(p+16,count);memcpy(p+24,identity,32);put(p+56,c->hash);
+    memset(p,0,bytes);memcpy(p,"RFNC",4);put(p+4,2);put(p+8,bytes);put(p+16,count);memcpy(p+24,identity,32);put(p+56,c->hash);
     for(i=0;i<count;i++)write_row(p+64+i*RF_NPC_CHECKPOINT_ROW,rows+i);
     put(p+12,hash(p,bytes));*written=bytes;return RF_OK;
 }
 static int decode(const void *data,uint32_t bytes,const unsigned char identity[32],const rf_npc_checkpoint_catalog *c,
     rf_npc_checkpoint_record *rows,uint32_t capacity,uint32_t *out_count,uint32_t publish)
 {
-    const unsigned char *p=data;rf_npc_checkpoint_record r;uint32_t i,count,previous=0;int status;
+    const unsigned char *p=data;rf_npc_checkpoint_record r;uint32_t i,count,version,stride,previous=0;int status;
     if(!data||!identity||!out_count)return RF_RANGE;
     status=catalog_valid(c);if(status)return status;
-    if(bytes<64||bytes>64+RF_NPC_CHECKPOINT_MAX_COUNT*RF_NPC_CHECKPOINT_ROW||memcmp(p,"RFNC",4)||word(p+4)!=1||
+    if(bytes<64||bytes>64+RF_NPC_CHECKPOINT_MAX_COUNT*RF_NPC_CHECKPOINT_ROW||memcmp(p,"RFNC",4)||(word(p+4)!=1&&word(p+4)!=2)||
        word(p+8)!=bytes||word(p+20)||word(p+60)||word(p+56)!=c->hash||memcmp(p+24,identity,32)||word(p+12)!=hash(p,bytes))return RF_FORMAT;
-    count=word(p+16);if(count>RF_NPC_CHECKPOINT_MAX_COUNT||bytes!=64+count*RF_NPC_CHECKPOINT_ROW)return RF_FORMAT;
+    version=word(p+4);stride=version==1?RF_NPC_CHECKPOINT_ROW_V1:RF_NPC_CHECKPOINT_ROW;
+    count=word(p+16);if(count>RF_NPC_CHECKPOINT_MAX_COUNT||bytes!=64+count*stride)return RF_FORMAT;
     if(publish&&(count>capacity||(count&&!rows)))return RF_RANGE;
-    for(i=0;i<count;i++){read_row(p+64+i*RF_NPC_CHECKPOINT_ROW,&r);status=valid(&r,c);if(status)return status;
+    for(i=0;i<count;i++){read_row(p+64+i*stride,version,&r);status=valid(&r,c);if(status)return status;
         if(i&&previous>=r.uid)return RF_FORMAT;previous=r.uid;}
-    if(publish)for(i=0;i<count;i++)read_row(p+64+i*RF_NPC_CHECKPOINT_ROW,rows+i);
+    if(publish)for(i=0;i<count;i++)read_row(p+64+i*stride,version,rows+i);
     *out_count=count;return RF_OK;
 }
 int rf_npc_checkpoint_decode(const void *data,uint32_t bytes,const unsigned char identity[32],const rf_npc_checkpoint_catalog *c,

@@ -76,6 +76,19 @@ static inline int scene_checkpoint_world_place(void *context,const rf_checkpoint
        (c->prop_count&&!c->props)||c->scratch_count<c->movers->count||
        (c->movers->count&&(!c->scratch||!c->movers->poses||!c->movers->owned||!c->movers->views)))return RF_RANGE;
     p=*input;p.world=c->world;p.replaced_room=c->reference_room;
+    if(!p.count){
+        /* Authored Cutter/fish bodies have no collision spheres. Preserve that
+         * class behavior: validate their point's real room, without inventing
+         * a collision volume or ground contact for these actors. */
+        if(p.spheres)return RF_FORMAT;
+        for(i=0;i<3;i++)if(!isfinite(p.position[i]))return RF_FORMAT;
+        for(i=0;i<9;i++)if(!isfinite(p.basis[i]))return RF_FORMAT;
+        status=rf_geometry_collision_world_locate(c->world,p.position,&location);if(status)return status;
+        if(location.room==UINT32_MAX||location.room>=c->world->room_count)return RF_NOT_FOUND;
+        next_room.room=location.room+1;memcpy(next_room.query_position,p.position,12);
+        next_support.handle=0;next_support.material=-1; /* Explicit no-contact sentinel. */
+        *room=next_room;*support=next_support;return RF_OK;
+    }
     status=rf_checkpoint_world_standing_check(&p,c->dt,c->class_speed,NULL,NULL,NULL);if(status)return status;
     status=scene_checkpoint_world_obstacles(c,&p);if(status)return status;
     status=rf_physics_ground_prepare(p.spheres,p.count,p.position,p.query_flags,0,c->dt,c->class_speed,0,&probe);if(status)return status;

@@ -7,10 +7,11 @@ int main(void)
 {
     campaign_npc_body owners[2]={0};rf_level_owned_entity records[2]={0};rf_entity_seed seeds[2]={0};
     rf_entity_pose poses[2]={0};rf_npc_checkpoint_catalog catalog={0};rf_npc_checkpoint_record rows[2],saved[2];
-    uint32_t i,count=99;unsigned char payload[64+2*528],identity[32]={1};uint32_t bytes;
+    rf_physics_sphere spheres[2]={0};
+    uint32_t i,count=99;unsigned char payload[RF_NPC_CHECKPOINT_HEADER+2*RF_NPC_CHECKPOINT_ROW],identity[32]={1};uint32_t bytes;
     memset(&rf_scene_defeated_actors,0,sizeof(rf_scene_defeated_actors));
     rf_object_registry_init(&campaign_registry);memset(&campaign_entities,0,sizeof(campaign_entities));
-    strcpy(campaign_current_level,"ordinary.rfl");campaign_npc_bodies=owners;campaign_npc_body_count=2;
+    strcpy(campaign_current_level,"Ordinary.RFL");campaign_npc_bodies=owners;campaign_npc_body_count=2;
     campaign_seeds.items=seeds;campaign_seeds.class_count=2;campaign_seeds.records.items=records;campaign_seeds.records.count=2;
     campaign_poses.items=poses;campaign_poses.count=2;
     catalog.hash=123;catalog.count=1;catalog.supported[0]=1;catalog.weapons[0]=(rf_weapon_acquire_definition){0,100,12};
@@ -22,12 +23,27 @@ int main(void)
         o->view.weapons[0]=0;o->view.weapons[1]=-1;o->inventory.owned[0]=1;o->inventory.loaded[0]=7;
         o->inventory.reserve[0]=25;o->damage.effects.health=80+i;o->damage.effects.armor=30;
         o->damage.effects.affiliation=2;o->object_flags=4;o->ai_mode.action_280=2;
-        o->body.allocated_bytes=1;o->body.spheres.count=1;o->body.state.position[0]=3+i;
+        o->body.allocated_bytes=1;o->body.spheres.count=1;o->body.spheres.items=spheres+i;o->body.state.position[0]=3+i;
+        o->look.angles.angles_87c[0]=.218f;
         o->published[0]=3+i;o->look.body_angles[1]=.2f+i;
     }
+    CHECK(!strcmp(rf_scene_defeated_actors.levels[0],"ordinary.rfl"));
+    CHECK(!scene_npc_checkpoint_capture(&catalog,1000,rows,2,&count)&&count==2);
+    memcpy(saved,rows,sizeof(rows));count=99;
+    strcpy(campaign_current_level,"other.rfl");
+    CHECK(scene_npc_checkpoint_capture(&catalog,1000,rows,2,&count)==RF_FORMAT&&count==99&&!memcmp(rows,saved,sizeof(rows)));
+    strcpy(campaign_current_level,"Ordinary.RFL");
     CHECK(!scene_npc_checkpoint_capture(&catalog,1000,rows,2,&count)&&count==2);
     CHECK(rows[0].uid==10&&rows[1].uid==20&&rows[0].class_id==1&&rows[0].health==81);
     CHECK(rows[0].position[0]==4&&rows[0].primary==0&&rows[0].inventory.loaded[0]==7&&rows[0].inventory.reserve[0]==25);
+    CHECK(rows[0].eye_angles[0]==.218f);
+    /* Existing constructors accept zero authored spheres, retaining body pose. */
+    owners[0].body.spheres.count=0;owners[0].body.spheres.items=NULL;
+    CHECK(!scene_npc_checkpoint_capture(&catalog,1000,rows,2,&count));
+    CHECK(rows[1].position[0]==3&&rows[1].health==80&&rows[1].eye_angles[0]==.218f);
+    owners[0].body.allocated_bytes=0;
+    CHECK(scene_npc_checkpoint_capture(&catalog,1000,rows,2,&count)==RF_RANGE);
+    owners[0].body.allocated_bytes=1;owners[0].body.spheres.count=1;owners[0].body.spheres.items=spheres;
     CHECK(!rf_npc_checkpoint_encode(identity,&catalog,rows,count,payload,sizeof(payload),&bytes));
     campaign_weapon_supply.names.count=catalog.count;rf_scene_weapon_supply[3]=catalog.hash;
     memcpy(campaign_weapon_supply.definitions,catalog.weapons,sizeof(catalog.weapons));

@@ -1,7 +1,7 @@
 #ifndef RF_NPC_CHECKPOINT_H
 #define RF_NPC_CHECKPOINT_H
 #include "rf/campaign.h"
-enum {RF_NPC_CHECKPOINT_HEADER=64,RF_NPC_CHECKPOINT_ROW=528,
+enum {RF_NPC_CHECKPOINT_HEADER=64,RF_NPC_CHECKPOINT_ROW_V1=528,RF_NPC_CHECKPOINT_ROW=540,
     RF_NPC_CHECKPOINT_MAX_COUNT=RF_CAMPAIGN_ACTOR_SLOTS};
 typedef struct rf_npc_checkpoint_record {
     uint32_t uid,class_id,retired,flags,affiliation;
@@ -10,13 +10,14 @@ typedef struct rf_npc_checkpoint_record {
     rf_campaign_weapon_drop drop;
     rf_weapon_inventory inventory;
     int32_t ai_mode;
+    float eye_angles[3]; /* Exact look.angles.angles_87c; no smoothing reset. */
 } rf_npc_checkpoint_record;
 typedef struct rf_npc_checkpoint_catalog {
     uint32_t hash,count;
     uint8_t supported[64];
     rf_weapon_acquire_definition weapons[64];
 } rf_npc_checkpoint_catalog;
-/* RFNC1 component, not a composed save/profile. UID sorted, fixed528-byte LE
+/* RFNC2 component (RFNC1 remains readable with zero eye angles), not a composed save/profile. UID sorted, fixed540-byte LE
  * rows; no pointers/handles. Identity covers level, authored actors/classes.
  * Supported basic modes -1/0/1/2/11 only. Scene must reject active routes,
  * combat/reload/pain/death transitions, projectiles, linked/carried objects

@@ -1,6 +1,20 @@
 #include "rf/clutter_checkpoint.h"
 typedef struct scene_clutter_restore_entry {rf_clutter_checkpoint_record row;uint32_t slot,handle;int32_t deadline;} scene_clutter_restore_entry;
 typedef struct scene_clutter_restore_stage {uint32_t count;scene_clutter_restore_entry entries[];} scene_clutter_restore_stage;
+/* Ordinary L1S1 contains Pole Light 1 UIDs7143/9025, but that class is absent
+ * from installed clutter.tbl. Render/body startup deliberately leaves these
+ * records unresolved. Preserve their authored absence in identity, never invent
+ * a body/class/health record. A missing owner of a KNOWN class remains an error. */
+static int scene_clutter_checkpoint_absent(uint32_t slot)
+{
+    uint32_t j;const rf_level_clutter *r=campaign_clutter_records.items+slot;
+    const scene_clutter_damage_binding *b=campaign_clutter_damage_bindings+slot;
+    if(!r->class_name||!campaign_clutter_model_slots||campaign_clutter_model_slots[slot]!=UINT32_MAX||
+       b->initialized||b->handle||b->break_pending||b->class_index||b->killing_type)return RF_FORMAT;
+    for(j=0;j<campaign_clutter_classes.count;j++)
+        if(rf_emitter_name_lookup(&campaign_clutter_classes.items[j].name,1,r->class_name)==0)return RF_FORMAT;
+    return RF_OK;
+}
 static int scene_clutter_checkpoint_identity(const unsigned char source[32],unsigned char out[32])
 {
     checkpoint_sha hash;uint32_t i,j;
@@ -12,7 +26,15 @@ static int scene_clutter_checkpoint_identity(const unsigned char source[32],unsi
         const rf_level_clutter *r=campaign_clutter_records.items+i;rf_clutter_base_owner *owner=campaign_clutter_bodies[i];
         const scene_clutter_damage_profile *p;scene_clutter_damage_binding *binding=campaign_clutter_damage_bindings+i;
         const rf_clutter_class *cls;
-        if(!owner||!scene_clutter_damage_identity(&campaign_registry,owner)||owner->uid!=r->uid||
+        if(!owner){
+            int status=scene_clutter_checkpoint_absent(i);if(status)return status;
+            checkpoint_sha_add(&hash,"RFPC absent class v1",20);checkpoint_sha_word(&hash,r->uid);
+            checkpoint_sha_add(&hash,r->class_name,(uint32_t)strlen(r->class_name)+1);
+            for(j=0;j<3;j++){if(!isfinite(r->position[j]))return RF_FORMAT;checkpoint_sha_float(&hash,r->position[j]);}
+            for(j=0;j<9;j++){if(!isfinite(r->matrix[j/3][j%3]))return RF_FORMAT;checkpoint_sha_float(&hash,r->matrix[j/3][j%3]);}
+            continue;
+        }
+        if(!scene_clutter_damage_identity(&campaign_registry,owner)||owner->uid!=r->uid||
            !binding->initialized||binding->handle!=owner->state.handle||binding->class_index!=owner->state.class_index||
            owner->state.class_index<0||(uint32_t)owner->state.class_index>=campaign_clutter_classes.count)return RF_FORMAT;
         cls=campaign_clutter_classes.items+owner->state.class_index;p=campaign_clutter_damage_profiles+owner->state.class_index;
@@ -35,18 +57,19 @@ static int scene_clutter_checkpoint_compare(const void *a,const void *b)
 {uint32_t x=((const rf_clutter_checkpoint_record*)a)->uid,y=((const rf_clutter_checkpoint_record*)b)->uid;return x<y?-1:x>y;}
 static int scene_clutter_checkpoint_capture(const unsigned char source[32],int32_t now,void *out,uint32_t capacity,uint32_t *written)
 {
-    unsigned char identity[32];rf_clutter_checkpoint_record *rows;uint32_t i,count=campaign_clutter_records.count;int status;
+    unsigned char identity[32];rf_clutter_checkpoint_record *rows;uint32_t i,used=0,count=campaign_clutter_records.count;int status;
     status=scene_clutter_checkpoint_identity(source,identity);if(status)return status;
     rows=count?malloc(count*sizeof(*rows)):NULL;if(count&&!rows)return RF_IO;
     for(i=0;i<count;i++){
         rf_clutter_base_owner *owner=campaign_clutter_bodies[i];int32_t left=-1;
+        if(!owner)continue; /* Identity proved intentionally unresolved class. */
         if(campaign_clutter_damage_bindings[i].break_pending){status=RF_RANGE;goto done;}
         if(owner->state.definition->timer>=0){status=rf_timer_remaining(owner->state.definition->timer,now,&left);if(status)goto done;if(left<0)left=0;}
-        rows[i]=(rf_clutter_checkpoint_record){owner->uid,(uint32_t)owner->state.class_index,owner->state.health,
+        rows[used++]=(rf_clutter_checkpoint_record){owner->uid,(uint32_t)owner->state.class_index,owner->state.health,
             owner->state.flags&0x204002u,campaign_clutter_damage_bindings[i].killing_type,left};
     }
-    if(count)qsort(rows,count,sizeof(*rows),scene_clutter_checkpoint_compare);
-    status=rf_clutter_checkpoint_encode(identity,rows,count,out,capacity,written);
+    if(used)qsort(rows,used,sizeof(*rows),scene_clutter_checkpoint_compare);
+    status=rf_clutter_checkpoint_encode(identity,rows,used,out,capacity,written);
  done:free(rows);return status;
 }
 /* Caller selects fresh-only for actual restore. Validation-only staging can
@@ -55,18 +78,19 @@ static int scene_clutter_checkpoint_prepare(const unsigned char source[32],const
     int32_t now,uint32_t fresh_only,scene_clutter_restore_stage **out)
 {
     unsigned char identity[32];rf_clutter_checkpoint_record *rows=NULL;scene_clutter_restore_stage *stage=NULL;
-    uint32_t count,i,j;int status;
+    uint32_t count,i,j,resident=0;int status;
     if(!out||*out||fresh_only>1)return RF_RANGE;
     status=scene_clutter_checkpoint_identity(source,identity);if(status)return status;
     status=rf_clutter_checkpoint_preflight(data,bytes,identity,&count);if(status)return status;
-    if(count!=campaign_clutter_records.count)return RF_FORMAT;
+    for(i=0;i<campaign_clutter_records.count;i++)resident+=campaign_clutter_bodies[i]!=NULL;
+    if(count!=resident)return RF_FORMAT;
     rows=count?malloc(count*sizeof(*rows)):NULL;stage=calloc(1,sizeof(*stage)+count*sizeof(*stage->entries));
     if((count&&!rows)||!stage){status=RF_IO;goto fail;}
     status=rf_clutter_checkpoint_decode(data,bytes,identity,rows,count,&count);if(status)goto fail;stage->count=count;
     for(i=0;i<count;i++){
         rf_clutter_base_owner *owner;float initial;int32_t deadline=-1;
-        for(j=0;j<count&&campaign_clutter_records.items[j].uid!=rows[i].uid;j++){}
-        if(j==count){status=RF_FORMAT;goto fail;}owner=campaign_clutter_bodies[j];
+        for(j=0;j<campaign_clutter_records.count&&campaign_clutter_records.items[j].uid!=rows[i].uid;j++){}
+        if(j==campaign_clutter_records.count||!campaign_clutter_bodies[j]){status=RF_FORMAT;goto fail;}owner=campaign_clutter_bodies[j];
         initial=campaign_clutter_damage_profiles[owner->state.class_index].life;initial=initial<0?100:initial;
         if(rows[i].class_id!=(uint32_t)owner->state.class_index||rows[i].health>initial||
            (fresh_only&&((owner->state.flags&2u)||owner->state.health!=initial||campaign_clutter_damage_bindings[j].break_pending))){status=RF_FORMAT;goto fail;}

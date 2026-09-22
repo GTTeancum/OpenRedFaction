@@ -1479,3 +1479,8 @@ add_test(NAME scene_checkpoint_world COMMAND rf_scene_checkpoint_world_tests)
 add_executable(rf_scene_npc_checkpoint_pair_fit_tests tests/scene_npc_checkpoint_pair_fit_tests.c)
 target_link_libraries(rf_scene_npc_checkpoint_pair_fit_tests PRIVATE rf_core)
 add_test(NAME scene_npc_checkpoint_pair_fit COMMAND rf_scene_npc_checkpoint_pair_fit_tests)
+
+target_sources(rf_core PRIVATE src/core/world_checkpoint.c)
+add_executable(rf_world_checkpoint_tests tests/world_checkpoint_tests.c)
+target_link_libraries(rf_world_checkpoint_tests PRIVATE rf_core)
+add_test(NAME world_checkpoint COMMAND rf_world_checkpoint_tests)

@@ -8,29 +8,40 @@ static void reseal(unsigned char *p,uint32_t n)
 int main(void)
 {
     rf_npc_checkpoint_catalog c={0};rf_npc_checkpoint_record rows[2]={0},out[2],saved[2];
-    unsigned char identity[32]={9},wrong[32]={8},blob[64+2*528],original[sizeof(blob)],sentinel[sizeof(blob)];
+    unsigned char identity[32]={9},wrong[32]={8},blob[64+2*RF_NPC_CHECKPOINT_ROW],original[sizeof(blob)],sentinel[sizeof(blob)];
     uint32_t bytes=0,count=99,written=123;int status;
     c.hash=0x12345678;c.count=2;c.supported[0]=c.supported[1]=1;
     c.weapons[0]=(rf_weapon_acquire_definition){0,100,12};c.weapons[1]=(rf_weapon_acquire_definition){1,5,0};
     rows[0].uid=7;rows[0].class_id=3;rows[0].health=80;rows[0].armor=15;rows[0].flags=0x4004;
     rows[0].position[0]=4;rows[0].yaw=.5f;rows[0].primary=0;rows[0].secondary=-1;rows[0].ai_mode=2;
     rows[0].inventory.owned[0]=1;rows[0].inventory.loaded[0]=4;rows[0].inventory.reserve[0]=120;
+    rows[0].eye_angles[0]=.218f;rows[0].eye_angles[1]=1e-7f;rows[0].eye_angles[2]=-.03f;
     rows[1]=rows[0];rows[1].uid=10;rows[1].retired=1;rows[1].health=-3;
     rows[1].drop=(rf_campaign_weapon_drop){1,0,0,{4,2,1}};
     CHECK(!rf_npc_checkpoint_encode(identity,&c,rows,2,blob,sizeof(blob),&bytes)&&bytes==sizeof(blob));
     CHECK(!rf_npc_checkpoint_preflight(blob,bytes,identity,&c,&count)&&count==2);
     CHECK(!rf_npc_checkpoint_decode(blob,bytes,identity,&c,out,2,&count)&&!memcmp(rows,out,sizeof(rows)));
     CHECK(out[0].inventory.reserve[0]==120&&out[1].drop.quantity==0&&out[1].drop.state==1);
+    {unsigned char legacy[64+2*RF_NPC_CHECKPOINT_ROW_V1];
+     memcpy(legacy,blob,64);legacy[4]=1;
+     for(uint32_t i=0;i<4;i++)legacy[8+i]=(unsigned char)(sizeof(legacy)>>(8*i));
+     for(uint32_t i=0;i<2;i++)memcpy(legacy+64+i*RF_NPC_CHECKPOINT_ROW_V1,blob+64+i*RF_NPC_CHECKPOINT_ROW,RF_NPC_CHECKPOINT_ROW_V1);
+     reseal(legacy,sizeof(legacy));
+     CHECK(!rf_npc_checkpoint_decode(legacy,sizeof(legacy),identity,&c,out,2,&count));
+     CHECK(out[0].eye_angles[0]==0&&out[0].eye_angles[1]==0&&out[0].eye_angles[2]==0&&out[1].uid==10);
+    }
     memcpy(original,blob,bytes);memset(out,0x5a,sizeof(out));memcpy(saved,out,sizeof(out));count=99;
     CHECK(rf_npc_checkpoint_decode(blob,bytes,wrong,&c,out,2,&count)==RF_FORMAT&&count==99&&!memcmp(saved,out,sizeof(out)));
     c.hash++;CHECK(rf_npc_checkpoint_preflight(blob,bytes,identity,&c,&count)==RF_FORMAT&&count==99);c.hash--;
     blob[90]^=1;CHECK(rf_npc_checkpoint_decode(blob,bytes,identity,&c,out,2,&count)==RF_FORMAT&&!memcmp(saved,out,sizeof(out)));
-    memcpy(blob,original,bytes);blob[64+528+524]=4;blob[64+528+525]=blob[64+528+526]=blob[64+528+527]=0;reseal(blob,bytes);
+    memcpy(blob,original,bytes);blob[64+RF_NPC_CHECKPOINT_ROW+524]=4;blob[64+RF_NPC_CHECKPOINT_ROW+525]=blob[64+RF_NPC_CHECKPOINT_ROW+526]=blob[64+RF_NPC_CHECKPOINT_ROW+527]=0;reseal(blob,bytes);
     CHECK(rf_npc_checkpoint_decode(blob,bytes,identity,&c,out,2,&count)==RF_FORMAT&&count==99&&!memcmp(saved,out,sizeof(out)));
     memcpy(blob,original,bytes);CHECK(rf_npc_checkpoint_decode(blob,bytes,identity,&c,out,1,&count)==RF_RANGE&&!memcmp(saved,out,sizeof(out)));
     memset(blob,0xa5,sizeof(blob));memcpy(sentinel,blob,sizeof(blob));rows[1].uid=rows[0].uid;
     CHECK(rf_npc_checkpoint_encode(identity,&c,rows,2,blob,sizeof(blob),&written)==RF_FORMAT&&written==123&&!memcmp(blob,sentinel,sizeof(blob)));
-    rows[1].uid=10;rows[0].health=NAN;
+    rows[1].uid=10;rows[1].eye_angles[0]=NAN;
+    CHECK(rf_npc_checkpoint_encode(identity,&c,rows,2,blob,sizeof(blob),&written)==RF_FORMAT&&!memcmp(blob,sentinel,sizeof(blob)));
+    rows[1].eye_angles[0]=.218f;rows[0].health=NAN;
     CHECK(rf_npc_checkpoint_encode(identity,&c,rows,2,blob,sizeof(blob),&written)==RF_FORMAT&&!memcmp(blob,sentinel,sizeof(blob)));
     rows[0].health=80;rows[0].inventory.loaded[0]=13;
     CHECK(rf_npc_checkpoint_encode(identity,&c,rows,2,blob,sizeof(blob),&written)==RF_FORMAT);

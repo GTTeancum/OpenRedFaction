@@ -4210,7 +4210,8 @@ static uint32_t campaign_weapon_material_offsets[64];
 uint32_t rf_scene_weapon_materials[8]; /* models, materials, textures, resident, peak, pixels, material hash, pixel hash */
 static int campaign_weapon_materials_open(rf_vpp *maps,uint32_t map_count)
 {
-    const uint32_t budget=512*1024;uint8_t (*records)[84]=NULL;uint32_t i,j,k=0,count=0,x,y,h=2166136261u,p=2166136261u;uint64_t scratch;int status;
+    /* Full ordinary L1S1 loadout exceeds the old DEV-sized512KiB cap. */
+    const uint32_t budget=1024*1024;uint8_t (*records)[84]=NULL;uint32_t i,j,k=0,count=0,x,y,h=2166136261u,p=2166136261u;uint64_t scratch;int status;
     if(campaign_weapon_materials.items || campaign_weapon_models.count>64)return RF_RANGE;
     memset(campaign_weapon_material_offsets,0,sizeof(campaign_weapon_material_offsets));memset(rf_scene_weapon_materials,0,sizeof(rf_scene_weapon_materials));
     for(i=0;i<campaign_weapon_models.count;++i) {
@@ -10940,7 +10941,11 @@ int rf_scene_npc_checkpoint_export(const unsigned char identity[32],int32_t now,
     catalog.hash=rf_scene_weapon_supply[3];catalog.count=campaign_weapon_supply.names.count;
     if(!catalog.count||catalog.count>64)return RF_RANGE;
     memcpy(catalog.weapons,campaign_weapon_supply.definitions,sizeof(catalog.weapons));
-    for(i=0;i<catalog.count;i++)catalog.supported[i]=1;
+    for(i=0;i<catalog.count;i++){
+        const rf_weapon_acquire_definition *d=catalog.weapons+i;
+        catalog.supported[i]=(uint8_t)(d->ammo_type>=-1&&d->ammo_type<32&&d->capacity>=0&&d->magazine>=0&&
+            (d->ammo_type!=-1||d->magazine==0));
+    }
     limit=(capacity-RF_NPC_CHECKPOINT_HEADER)/RF_NPC_CHECKPOINT_ROW;
     if(limit>campaign_npc_body_count)limit=campaign_npc_body_count;
     if(limit){rows=malloc((size_t)limit*sizeof(*rows));if(!rows)return RF_IO;}
@@ -10948,6 +10953,9 @@ int rf_scene_npc_checkpoint_export(const unsigned char identity[32],int32_t now,
     if(!status)status=rf_npc_checkpoint_encode(identity,&catalog,rows,count,output,capacity,written);
     free(rows);return status;
 }
+
+#include "scene_world_checkpoint_identity.inc"
+#include "scene_world_checkpoint_probe.inc"
 
 #ifdef RF_IMAGE_XBOX_NATIVE
 static rf_xbox_checkpoint_storage scene_checkpoint_hdd;
@@ -16942,6 +16950,7 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
     }
 done:
     rf_vpp_close(&terrain_ui);
+    if(!status)status=scene_world_checkpoint_probe(stream,level,tables_path);
     if(!status)status=scene_checkpoint_capture(stream);
 #ifdef RF_IMAGE_XBOX_NATIVE
     {int checkpoint_close=scene_checkpoint_hdd_close();if(!status)status=checkpoint_close;}
