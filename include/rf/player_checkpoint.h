@@ -17,6 +17,11 @@ typedef struct rf_player_checkpoint_catalog {
     rf_weapon_acquire_definition weapons[64];
     int32_t reserve_capacity[32];
     float health_capacity,armor_capacity;
+    /* Zero: ordinary inventory slot. Otherwise base weapon ID+1 (1..64).
+     * A paired mode can retain a separate magazine while its base is owned,
+     * but cannot itself be owned/selected. Caller opts in and hashes this
+     * policy into catalog identity; RFPL wire layout remains544bytes. */
+    uint8_t mode_owner[64];
 } rf_player_checkpoint_catalog;
 /* Caller catalog errors => RF_RANGE, invalid saved state => RF_FORMAT.
  * No allocation; errors leave outputs unchanged. All buffers/owners disjoint.

@@ -2,22 +2,28 @@
 enum {SCENE_PLAYER_CHECKPOINT_PROFILE=1,SCENE_PLAYER_CHECKPOINT_PREFIX=32+RF_PLAYER_CHECKPOINT_BYTES};
 static uint32_t scene_checkpoint_profile(const scene_stream *s)
 {return s->terrain_authored?(s->terrain_source_count>1?RF_COMPOSED_PROFILE_AUTHORED_COLLECTION:RF_COMPOSED_PROFILE_AUTHORED):SCENE_PLAYER_CHECKPOINT_PROFILE;}
-static int scene_checkpoint_player_catalog(rf_player_checkpoint_catalog *c)
+static int scene_checkpoint_player_catalog_mode(rf_player_checkpoint_catalog *c,uint32_t modes)
 {
     uint32_t i;memset(c,0,sizeof(*c));c->hash=rf_scene_weapon_supply[3];c->count=campaign_weapon_supply.names.count;
     if(!c->count||c->count>64)return RF_FORMAT;
     memcpy(c->weapons,campaign_weapon_supply.definitions,sizeof(c->weapons));
     c->health_capacity=campaign_player_damage.state.effects.class_health;c->armor_capacity=campaign_player_damage.state.effects.class_armor;
     for(i=0;i<SCENE_WEAPON_SLOTS;i++){
-        if(i==9 || i==11 || i==12 || i==13 || i>=16)continue; /* MP/Undercover modes need their own save component. */
+        if(i==9 || i==11 || i==12 || (!modes && (i==13 || i>=16)))continue;
         int32_t id=rf_weapon_name_find(&campaign_weapon_supply.names,campaign_weapon_names[i]);const rf_weapon_acquire_definition *d;
         if(id<0||(uint32_t)id>=c->count)return RF_FORMAT;c->supported[id]=1;d=c->weapons+id;
         if(d->ammo_type<0||d->ammo_type>=32||d->capacity<0)return RF_FORMAT;
         if(d->capacity>c->reserve_capacity[d->ammo_type])c->reserve_capacity[d->ammo_type]=d->capacity;
     }
+    if(modes){
+        if(campaign_machine_special_id<0 || campaign_machine_special_id>=64 || campaign_extra_ids[0]<0 || campaign_extra_ids[0]>=64)return RF_FORMAT;
+        c->mode_owner[campaign_machine_special_id]=(uint8_t)(campaign_extra_ids[0]+1);
+    }
     return RF_OK;
 }
-static int scene_checkpoint_player_scope_mode(const scene_stream *s,uint32_t live,uint32_t mutable_props)
+static int scene_checkpoint_player_catalog(rf_player_checkpoint_catalog *c)
+{return scene_checkpoint_player_catalog_mode(c,0);}
+static int scene_checkpoint_player_scope_mode(const scene_stream *s,uint32_t live,uint32_t mutable_props,uint32_t modes)
 {
     uint32_t i;
     if(!rf_scene_dev_room_enabled||rf_scene_water_test_enabled||!campaign_spawn||!s->terrain||
@@ -28,11 +34,12 @@ static int scene_checkpoint_player_scope_mode(const scene_stream *s,uint32_t liv
            (mutable_props?scene_authored_clutter_baseline_check_mutable:scene_authored_clutter_baseline_check)(s->terrain_source_count>1?s->terrain_sources[0].authored->source_identity:s->terrain_authored->source_identity,0,s->checkpoint_clutter))return RF_RANGE;
     } else if(strcmp(campaign_current_level,"glass_house.rfl") || rf_scene_clutter_bodies[1])return RF_RANGE;
     if(campaign_fusion_id>=0 && campaign_player_inventory.owned[campaign_fusion_id])return RF_RANGE; /* Fusion live state is not in RFCP yet. */
-    for(i=0;i<4;i++)if((i==0 || i==3) && campaign_extra_ids[i]>=0 && campaign_player_inventory.owned[campaign_extra_ids[i]])return RF_RANGE;
+    for(i=0;i<4;i++)if(!modes && (i==0 || i==3) && campaign_extra_ids[i]>=0 && campaign_player_inventory.owned[campaign_extra_ids[i]])return RF_RANGE;
     if(scene_player_shield_damage_save_pending())return RF_RANGE;
-    if(scene_machine_carry_disk_pending())return RF_RANGE;
+    if(!modes && scene_machine_carry_disk_pending())return RF_RANGE;
     if(campaign_shield_id>=0 && campaign_player_inventory.owned[campaign_shield_id])return RF_RANGE; /* Shield durability is not in RFCP yet. */
     if(!live)return RF_OK;
+    if(modes){rf_weapon_modes_checkpoint state;int status=scene_weapon_modes_checkpoint_capture((scene_stream *)s,&state);if(status)return status;}
     if(campaign_player_damage.state.effects.health<=0||campaign_crouched||(rf_scene_actor_stance_flags&0x400u)||
        campaign_climb.region||campaign_player_view.linked_handle!=-1||campaign_support_handle||rf_scene_actor_landing[1]!=1||
        combat_trigger.cooldown||combat_trigger.remaining||combat_trigger.delay||combat_trigger.held||rf_scene_combat[6]||
@@ -43,22 +50,22 @@ static int scene_checkpoint_player_scope_mode(const scene_stream *s,uint32_t liv
     return RF_OK;
 }
 static int scene_checkpoint_player_scope(const scene_stream *s,uint32_t live)
-{return scene_checkpoint_player_scope_mode(s,live,1);}
+{return scene_checkpoint_player_scope_mode(s,live,1,s->terrain_authored!=NULL);}
 static const unsigned char *scene_checkpoint_prop_source(const scene_stream *s)
 {return s->terrain_source_count>1?s->terrain_sources[0].authored->source_identity:s->terrain_authored->source_identity;}
 static int scene_checkpoint_composed_read(scene_stream *s,const void *data,uint32_t bytes,
     const rf_player_checkpoint_catalog *catalog,rf_composed_checkpoint_v3 *composed,
-    const unsigned char **props,uint32_t *prop_bytes)
+    const unsigned char **props,uint32_t *prop_bytes,rf_weapon_modes_checkpoint *modes,uint32_t *modes_present)
 {
-    const unsigned char *p=data;unsigned char identity[32]={0};rf_composed_checkpoint_v4 value;int status;
-    if(bytes>=8 && p[4]==4){
+    const unsigned char *p=data;unsigned char identity[32]={0};rf_composed_checkpoint_v5 value;int status;
+    if(bytes>=8 && (p[4]==4 || p[4]==5)){
         if(!s->terrain_authored || !campaign_clutter_records.count)return RF_RANGE;
         status=scene_clutter_checkpoint_identity(scene_checkpoint_prop_source(s),identity);if(status)return status;
     }
-    status=rf_composed_checkpoint_preflight_v4(data,bytes,scene_checkpoint_profile(s),catalog,
+    status=rf_composed_checkpoint_preflight_v5(data,bytes,scene_checkpoint_profile(s),catalog,
         scene_remote_checkpoint_level_hash(),scene_remote_checkpoint_catalog_hash(),identity,&value);
     if(status)return status;
-    *composed=value.base;*props=value.clutter;*prop_bytes=value.clutter_bytes;return RF_OK;
+    *composed=value.base.base;*props=value.base.clutter;*prop_bytes=value.base.clutter_bytes;*modes=value.modes;*modes_present=value.modes_present;return RF_OK;
 }
 static void scene_checkpoint_placement(scene_stream *s,const rf_player_checkpoint *player,const float body[9],rf_checkpoint_placement *p)
 {
@@ -76,15 +83,16 @@ static int scene_checkpoint_player_semantic_status(int status)
 static int scene_checkpoint_dispatch_validate_once(const void *data,uint32_t bytes,void *context)
 {
     scene_stream *s=context;rf_player_checkpoint_catalog catalog;rf_composed_checkpoint candidate;rf_composed_checkpoint_v3 composed;scene_vehicle_checkpoint_record vehicle;rf_checkpoint_placement placement;rf_physics_sphere seat_scratch;
-    float body[9];const unsigned char *props=NULL;uint32_t prop_bytes=0;int status;
+    float body[9];const unsigned char *props=NULL;uint32_t prop_bytes=0,modes_present=0;rf_weapon_modes_checkpoint modes={0};int status;
     if(!rf_scene_player_checkpoint_enabled)return scene_checkpoint_validate(data,bytes,s);
-    status=scene_checkpoint_player_scope_mode(s,0,bytes>=8 && ((const unsigned char *)data)[4]==4);if(status)return status;
-    status=scene_checkpoint_player_catalog(&catalog);if(status)return status;
-    status=scene_checkpoint_composed_read(s,data,bytes,&catalog,&composed,&props,&prop_bytes);if(status)return status;
+    status=scene_checkpoint_player_scope_mode(s,0,bytes>=8 && ((const unsigned char *)data)[4]>=4,bytes>=8 && ((const unsigned char *)data)[4]==5);if(status)return status;
+    status=scene_checkpoint_player_catalog_mode(&catalog,bytes>=8 && ((const unsigned char *)data)[4]==5);if(status)return status;
+    status=scene_checkpoint_composed_read(s,data,bytes,&catalog,&composed,&props,&prop_bytes,&modes,&modes_present);if(status)return status;
     if(prop_bytes){scene_clutter_restore_stage *stage=NULL;
         status=scene_clutter_checkpoint_prepare(scene_checkpoint_prop_source(s),props,prop_bytes,0,0,&stage);
         free(stage);if(status)return status;}
     candidate=composed.base.base;
+    if(modes_present){status=scene_weapon_modes_checkpoint_prepare(s,&candidate.player.player,&modes);if(status)return status;}
     status=scene_vehicle_checkpoint_read(s,composed.vehicle,composed.vehicle_bytes,&vehicle);if(status)return status;
     status=rf_player_checkpoint_validate(&candidate.player,&catalog,body,NULL);if(status)return status;
     scene_checkpoint_placement(s,&candidate.player,body,&placement);
@@ -122,12 +130,13 @@ static int scene_checkpoint_dispatch_validate(const void *data,uint32_t bytes,vo
 }
 static int scene_checkpoint_dispatch_restore(scene_stream *s,unsigned char *data,uint32_t bytes)
 {
-    rf_player_checkpoint_catalog catalog;rf_composed_checkpoint candidate;rf_composed_checkpoint_v3 composed;scene_vehicle_checkpoint_record vehicle;rf_physics_body_state body;rf_physics_sphere seat_scratch;float basis[9],eye[9];const unsigned char *props=NULL;uint32_t prop_bytes=0;scene_clutter_restore_stage *prop_stage=NULL;int status;
+    rf_player_checkpoint_catalog catalog;rf_composed_checkpoint candidate;rf_composed_checkpoint_v3 composed;scene_vehicle_checkpoint_record vehicle;rf_physics_body_state body;rf_physics_sphere seat_scratch;float basis[9],eye[9];const unsigned char *props=NULL;uint32_t prop_bytes=0,modes_present=0;rf_weapon_modes_checkpoint modes={0};scene_clutter_restore_stage *prop_stage=NULL;int status;
     if(!rf_scene_player_checkpoint_enabled)return scene_checkpoint_restore(s,data,bytes);
     status=scene_checkpoint_dispatch_validate(data,bytes,s);if(status)return status;
-    status=scene_checkpoint_player_catalog(&catalog);if(status)return status;
-    status=scene_checkpoint_composed_read(s,data,bytes,&catalog,&composed,&props,&prop_bytes);if(status)return status;
+    status=scene_checkpoint_player_catalog_mode(&catalog,bytes>=8 && ((const unsigned char *)data)[4]==5);if(status)return status;
+    status=scene_checkpoint_composed_read(s,data,bytes,&catalog,&composed,&props,&prop_bytes,&modes,&modes_present);if(status)return status;
     candidate=composed.base.base;
+    if(modes_present){status=scene_weapon_modes_checkpoint_prepare(s,&candidate.player.player,&modes);if(status)return status;}
     status=scene_vehicle_checkpoint_read(s,composed.vehicle,composed.vehicle_bytes,&vehicle);if(status)return status;
     status=rf_player_checkpoint_validate(&candidate.player,&catalog,basis,eye);if(status)return status;
     if(scene_driller_active(s))return RF_RANGE; /* Existing driver must exit before an in-session load. */
@@ -166,6 +175,7 @@ static int scene_checkpoint_dispatch_restore(scene_stream *s,unsigned char *data
     if(prop_stage){scene_clutter_checkpoint_assign(prop_stage);free(prop_stage);}
     scene_remote_checkpoint_publish();
     if(composed.vehicle_bytes){s->vehicle_record=vehicle;s->vehicle_checkpoint=vehicle.value.vehicle;s->vehicle_checkpoint_pending=1;}
+    s->weapon_modes_checkpoint=modes;s->weapon_modes_pending=modes_present;
     scene_actor_body.state=body;s->player_checkpoint_value=candidate.player;s->player_checkpoint_look=1;
     memcpy(s->actor_spawn,body.position,12);memcpy(campaign_position,body.position,12);memcpy(campaign_orientation,eye,36);
     scene_machine_carry_reset();
@@ -200,11 +210,11 @@ static int scene_checkpoint_player_capture(scene_stream *s,rf_player_checkpoint 
             (double)actor_look.state.angular_velocity[0],(double)actor_look.state.angular_velocity[1],(double)actor_look.state.angular_velocity[2],(double)actor_look.state.pending_pitch,(double)actor_look.state.pending_yaw);
         return status;
     }
-    status=scene_checkpoint_player_catalog(catalog);if(status){printf("PLAYER_CHECKPOINT_REJECT catalog %d\n",status);return status;}
+    status=scene_checkpoint_player_catalog_mode(catalog,s->terrain_authored!=NULL);if(status){printf("PLAYER_CHECKPOINT_REJECT catalog %d\n",status);return status;}
     memset(player,0,sizeof(*player));player->player.inventory=campaign_player_inventory;
     player->player.health=campaign_player_damage.state.effects.health;player->player.armor=campaign_player_damage.state.effects.armor;
-    player->player.weapon=campaign_explicit_unarmed?UINT32_MAX:(uint32_t)campaign_selected_weapon();
-    if(!campaign_player_inventory.owned[campaign_selected_weapon()])player->player.weapon=UINT32_MAX;
+    player->player.weapon=campaign_explicit_unarmed?UINT32_MAX:(uint32_t)campaign_slot_weapon(campaign_equipped_slot);
+    if(!campaign_player_inventory.owned[campaign_slot_weapon(campaign_equipped_slot)])player->player.weapon=UINT32_MAX;
     player->player.catalog_hash=rf_scene_weapon_supply[3];memcpy(player->position,scene_actor_body.state.position,12);
     memcpy(player->body_angles,actor_look.state.body_angles,12);memcpy(player->eye_angles,actor_look.state.eye_angles,12);
     memcpy(player->velocity,scene_actor_body.state.velocity,12);

@@ -740,6 +740,7 @@ typedef struct scene_stream {
     const rf_level *player_checkpoint_level;
     uint32_t player_checkpoint_started,player_checkpoint_look;
     rf_player_checkpoint player_checkpoint_value;
+    rf_weapon_modes_checkpoint weapon_modes_checkpoint;uint32_t weapon_modes_pending;
     scene_terrain_noise_owner *terrain_noise;uint32_t terrain_shadow_reference,terrain_test_light;
     uint32_t terrain_map_limit,terrain_map_limit_until; /* Explicit fault injection; zero is unrestricted. */
     scene_terrain_draw_mesh *terrain_draw;
@@ -1962,6 +1963,7 @@ static uint32_t scene_apc_secondary_pending(const scene_stream *);
 static int32_t campaign_extra_ids[4]={-1,-1,-1,-1};
 static int32_t campaign_machine_special_id=-1;
 static scene_machine_pistol_mode_state campaign_machine_mode;
+static rf_random_state campaign_conventional_random;
 uint32_t rf_scene_machine_mode[8]; /* mode,pending,ammo ID,loaded,reserve,starts,commits,status */
 uint32_t rf_scene_undercover[8]; /* attached,pending,visible,starts,commits,suppressed shots,prop vertices,status */
 static int campaign_enemy_extra_weapons_open(rf_vpp *,const rf_weapon_supply_catalog *);
@@ -8844,6 +8846,13 @@ static void campaign_ammo_publish(void)
     if(!campaign_player_inventory.owned[campaign_slot_weapon(campaign_equipped_slot)])rf_scene_player_ammo[0]=UINT32_MAX;
     rf_scene_player_ammo[2]=rf_scene_combat[5];rf_scene_player_ammo[6]=sizeof(campaign_player_inventory);
 }
+/* Immutable catalog IDs must exist before frame-zero checkpoint validation. */
+static int scene_weapon_mode_ids_bind(void)
+{
+    for(uint32_t extra=0;extra<4;extra++){campaign_extra_ids[extra]=rf_weapon_name_find(&campaign_weapon_supply.names,campaign_weapon_names[13+extra]);if(campaign_extra_ids[extra]<0)return RF_NOT_FOUND;}
+    campaign_machine_special_id=rf_weapon_name_find(&campaign_weapon_supply.names,"Machine Pistol Special");if(campaign_machine_special_id<0)return RF_NOT_FOUND;
+    return RF_OK;
+}
 static int campaign_ammo_reset(void)
 {
     const rf_weapon_acquire_definition *d;int status;uint32_t had_riot=campaign_riot_id>=0?campaign_player_inventory.owned[campaign_riot_id]:0,had_rifle=campaign_rifle_id>=0?campaign_player_inventory.owned[campaign_rifle_id]:0;
@@ -8854,8 +8863,7 @@ static int campaign_ammo_reset(void)
     campaign_remote_id=rf_weapon_name_find(&campaign_weapon_supply.names,"Remote Charge");if(campaign_remote_id<0)return RF_NOT_FOUND;
     campaign_shield_id=rf_weapon_name_find(&campaign_weapon_supply.names,"riot shield");if(campaign_shield_id<0)return RF_NOT_FOUND;
     campaign_flame_id=rf_weapon_name_find(&campaign_weapon_supply.names,"Flamethrower");if(campaign_flame_id<0)return RF_NOT_FOUND;
-    for(uint32_t extra=0;extra<4;extra++){campaign_extra_ids[extra]=rf_weapon_name_find(&campaign_weapon_supply.names,campaign_weapon_names[13+extra]);if(campaign_extra_ids[extra]<0)return RF_NOT_FOUND;}
-    campaign_machine_special_id=rf_weapon_name_find(&campaign_weapon_supply.names,"Machine Pistol Special");if(campaign_machine_special_id<0)return RF_NOT_FOUND;
+    status=scene_weapon_mode_ids_bind();if(status)return status;
     campaign_fusion_id=rf_weapon_name_find(&campaign_weapon_supply.names,"shoulder_cannon");if(campaign_fusion_id<0)return RF_NOT_FOUND;
     campaign_detonator_id=rf_weapon_name_find(&campaign_weapon_supply.names,"Remote Charge Detonator");if(campaign_detonator_id<0)return RF_NOT_FOUND;
     campaign_sniper_id=rf_weapon_name_find(&campaign_weapon_supply.names,"Sniper Rifle");if(campaign_sniper_id<0)return RF_NOT_FOUND;
@@ -10480,6 +10488,7 @@ static void checkpoint_sha_end(checkpoint_sha *s,unsigned char out[32])
 }
 #include "scene_authored_clutter_scope.inc"
 #include "scene_clutter_checkpoint_live.inc"
+#include "scene_weapon_modes_checkpoint_live.inc"
 static int scene_checkpoint_identity(scene_stream *s,const rf_level *level)
 {
     checkpoint_sha h;uint32_t i,j;int status;rf_level_geomod_settings settings;
@@ -10964,6 +10973,7 @@ static int scene_checkpoint_capture(scene_stream *s)
     static unsigned char remote_blob[RF_REMOTE_CHECKPOINT_MAX];uint32_t remote_bytes=0;
     unsigned char vehicle_blob[RF_JEEP_CHECKPOINT_BYTES];uint32_t vehicle_bytes=0;
     unsigned char *clutter_blob=NULL,clutter_identity[32];uint32_t clutter_bytes=0;
+    unsigned char modes_blob[RF_WEAPON_MODES_CHECKPOINT_BYTES];uint32_t modes_bytes=0;
 #ifndef RF_IMAGE_XBOX_NATIVE
     const char *path=getenv("RF_REPLAY_GEOMOD_CHECKPOINT_OUT");if(!path || !*path)return RF_OK;
 #else
@@ -10975,6 +10985,9 @@ static int scene_checkpoint_capture(scene_stream *s)
     if(s->terrain_authored) {
         if(!prefix){status=RF_RANGE;goto done;}
         status=scene_checkpoint_player_capture(s,&player,&catalog);if(status)goto done;
+        {rf_weapon_modes_checkpoint modes;
+         status=scene_weapon_modes_checkpoint_capture(s,&modes);if(status)goto done;
+         status=rf_weapon_modes_checkpoint_encode(scene_remote_checkpoint_catalog_hash(),&modes,modes_blob,sizeof(modes_blob),&modes_bytes);if(status)goto done;}
         if(campaign_clutter_records.count) {
             const unsigned char *source=s->terrain_source_count>1?s->terrain_sources[0].authored->source_identity:s->terrain_authored->source_identity;
             uint32_t capacity;int32_t now;
@@ -10986,13 +10999,13 @@ static int scene_checkpoint_capture(scene_stream *s)
             clutter_blob=malloc(capacity);if(!clutter_blob){status=RF_IO;goto done;}
             status=scene_clutter_checkpoint_capture(source,now,clutter_blob,capacity,&clutter_bytes);if(status)goto done;
             if(prefix+remote_bytes+vehicle_bytes>SCENE_CHECKPOINT_MAX ||
-               clutter_bytes>SCENE_CHECKPOINT_MAX-prefix-remote_bytes-vehicle_bytes){status=RF_RANGE;goto done;}
+               clutter_bytes>SCENE_CHECKPOINT_MAX-prefix-remote_bytes-vehicle_bytes-modes_bytes){status=RF_RANGE;goto done;}
         }
         status=scene_checkpoint_allocate(SCENE_CHECKPOINT_MAX);if(status)goto done;
         p=rf_scene_geomod_checkpoint_data+prefix;
         if(s->terrain_source_count>1 && !rf_scene_player_checkpoint_enabled){status=RF_RANGE;goto done;}
-        status=s->terrain_source_count>1?scene_authored_collection_checkpoint_write(s,p,SCENE_CHECKPOINT_MAX-prefix-remote_bytes-vehicle_bytes-clutter_bytes,&bytes):
-            scene_authored_checkpoint_write(s,p,SCENE_CHECKPOINT_MAX-prefix-remote_bytes-vehicle_bytes-clutter_bytes,&bytes);if(status){printf("DETACHED_SAVE_WRITER %d\n",status);goto done;}
+        status=s->terrain_source_count>1?scene_authored_collection_checkpoint_write(s,p,SCENE_CHECKPOINT_MAX-prefix-remote_bytes-vehicle_bytes-modes_bytes-clutter_bytes,&bytes):
+            scene_authored_checkpoint_write(s,p,SCENE_CHECKPOINT_MAX-prefix-remote_bytes-vehicle_bytes-modes_bytes-clutter_bytes,&bytes);if(status){printf("DETACHED_SAVE_WRITER %d\n",status);goto done;}
         goto compose_checkpoint;
     }
     status=rf_geomod_terrain_get(s->terrain,&view);if(status)goto done;
@@ -11038,9 +11051,9 @@ static int scene_checkpoint_capture(scene_stream *s)
 compose_checkpoint:
     if(prefix){
         uint32_t total;
-        if(clutter_bytes)status=rf_composed_checkpoint_encode_v4(scene_checkpoint_profile(s),&player,&catalog,p,bytes,remote_blob,remote_bytes,
+        if(clutter_bytes)status=rf_composed_checkpoint_encode_v5(scene_checkpoint_profile(s),&player,&catalog,p,bytes,remote_blob,remote_bytes,
             scene_remote_checkpoint_level_hash(),scene_remote_checkpoint_catalog_hash(),vehicle_blob,vehicle_bytes,clutter_blob,clutter_bytes,
-            clutter_identity,rf_scene_geomod_checkpoint_data,bytes+prefix+remote_bytes+vehicle_bytes+clutter_bytes,&total);
+            clutter_identity,modes_blob,modes_bytes,rf_scene_geomod_checkpoint_data,bytes+prefix+remote_bytes+vehicle_bytes+clutter_bytes+modes_bytes,&total);
         else if(vehicle_bytes)status=rf_composed_checkpoint_encode_v3(scene_checkpoint_profile(s),&player,&catalog,p,bytes,remote_blob,remote_bytes,
             scene_remote_checkpoint_level_hash(),scene_remote_checkpoint_catalog_hash(),vehicle_blob,vehicle_bytes,rf_scene_geomod_checkpoint_data,bytes+prefix+remote_bytes+vehicle_bytes,&total);
         else status=rf_composed_checkpoint_encode_v2(scene_checkpoint_profile(s),&player,&catalog,p,bytes,remote_blob,remote_bytes,
@@ -12632,6 +12645,10 @@ static int campaign_player_import_apply(void)
         scene_actor_collision_owner->machine_custom[0] && scene_actor_collision_owner->machine_custom[1],!!player_input.alt_fire);
     if(status)return status;
     status=scene_undercover_carry_apply(&imported,scene_actor_collision_owner,!!player_input.alt_fire);if(status)return status;
+    if(scene_actor_collision_owner && scene_actor_collision_owner->weapon_modes_pending){
+        scene_weapon_modes_checkpoint_assign(scene_actor_collision_owner,&scene_actor_collision_owner->weapon_modes_checkpoint);
+        scene_actor_collision_owner->weapon_modes_pending=0;
+    }
     campaign_player_damage.state.effects.health=imported.health;
     campaign_player_damage.state.effects.armor=imported.armor;
     campaign_select_primary(slot);campaign_explicit_unarmed=imported.weapon==UINT32_MAX;
@@ -12714,7 +12731,6 @@ static int scene_undercover_after_advance(scene_stream *);
 #include "scene_player_shield_melee.inc"
 #include "scene_fusion_gameplay.inc"
 #include "scene_conventional_fire_policy.inc"
-static rf_random_state campaign_conventional_random;
 static int scene_machine_mode_input(scene_stream *stream,uint32_t frame,const float position[3])
 {
     scene_machine_pistol_mode_event event;uint32_t was_pending=campaign_machine_mode.pending;
@@ -12773,7 +12789,7 @@ static int campaign_combat_tick(scene_stream *stream,uint32_t frame,const float 
                 campaign_seeds.items[0].class_index,weapon,&npc->selection);if(status)return status;
         }
         campaign_export_valid=0;
-        campaign_import_applied=0;
+        campaign_import_applied=0;campaign_conventional_random.value=1;
         if(campaign_import_pending){status=campaign_player_import_apply();if(status)return status;}
         for(i=0;i<campaign_npc_body_count;i++){campaign_pursuit_stop(campaign_npc_bodies+i);campaign_npc_bodies[i].combat_navigation_due=0;campaign_npc_bodies[i].combat_scripted=campaign_npc_bodies[i].combat_target=campaign_npc_bodies[i].combat_alert=campaign_npc_bodies[i].combat_burst_remaining=campaign_npc_bodies[i].combat_due=0;}
 }
@@ -12782,7 +12798,7 @@ static int campaign_combat_tick(scene_stream *stream,uint32_t frame,const float 
     if(!frame && scene_npc_shields.owners){status=scene_npc_shield_history_restore();if(status)return status;}
     if(!frame && rf_scene_dev_npc_enabled==6)campaign_select_primary(11);
     if(!frame && rf_scene_dev_room_enabled && rf_scene_fusion_enabled)campaign_select_primary(12);
-    if(!frame){campaign_conventional_random.value=1;if(!campaign_import_applied && rf_scene_dev_room_enabled && rf_scene_firearms_enabled)campaign_select_primary(12+rf_scene_firearms_enabled);}
+    if(!frame && !campaign_import_applied && rf_scene_dev_room_enabled && rf_scene_firearms_enabled)campaign_select_primary(12+rf_scene_firearms_enabled);
     if(!frame && (rf_scene_dev_npc_enabled==3 || rf_scene_dev_npc_enabled==4 || rf_scene_dev_npc_enabled==6) && campaign_npc_body_count==1){campaign_npc_bodies[0].combat_alert=1;campaign_npc_bodies[0].combat_due=120;}
     if(rf_scene_dev_room_enabled) {
         uint32_t refill=player_input.use && player_input.reload;
@@ -16751,6 +16767,7 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
             rf_vpp_close(&terrain_ui);
         } else status=scene_terrain_open(stream,level,maps,map_count);
         if(status)goto done;
+        if(rf_scene_player_checkpoint_enabled){status=scene_weapon_mode_ids_bind();if(status)goto done;}
         if(rf_scene_player_checkpoint_enabled && stream->terrain_authored) {
             stream->checkpoint_clutter=calloc(1,sizeof(*stream->checkpoint_clutter));
             if(!stream->checkpoint_clutter){status=RF_IO;goto done;}

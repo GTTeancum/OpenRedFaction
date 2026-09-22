@@ -9,6 +9,7 @@ import argparse, io, json, os, struct, subprocess
 from pathlib import Path
 from build_fragment_platform_fixture import read_entry, U, F, S
 from inspect_levels import inspect as inspect_level
+from check_clutter_checkpoint import checkpoint_sections
 ROOT=Path(__file__).resolve().parents[1]
 PROFILES={'hmg':('heavy machine gun',14),'precision':('scope assault rifle',15)}
 EVENT_UID=910200
@@ -66,9 +67,7 @@ def words(text,key):
     return rows[-1]
 
 def saved_player(path):
-    data=path.read_bytes();header=struct.unpack_from('<4s7I',data)
-    assert header[:3]==(b'RFCP',4,len(data)) and header[5]==544,header
-    p=data[32:576];assert p[:4]==b'RFPL'
+    p,_=checkpoint_sections(path.read_bytes())
     weapon=struct.unpack_from('<I',p,20)[0];assert weapon<64 and p[80+weapon]==1
     return dict(weapon=weapon,loaded=struct.unpack_from('<I',p,272+4*weapon)[0])
 

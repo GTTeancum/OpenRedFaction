@@ -3,7 +3,7 @@
 Completion basis (user direction,2026-09-18): working late-alpha/early-beta code implementation. Overall approximately79%; GeoMod100% for the first playable milestone, accepted by the user. GeoMod items below are deferred refinement and coverage, not prerequisites to moving on. This does not assert retail polish, complete campaign integration or resolution of every known defect.
 
 
-- Weapon saves: HMG and Precision Rifle retain selection/ammo and fire after PC reload; native HMG load/fire/resave matches PC with8.13MiB free; RFCP5 mode framing is ready, but Machine Pistol/Undercover mode integration and native rifle continuation remain.
+- Weapon saves: Machine Pistol alternate magazine, Undercover suppressor and spread RNG now survive PC/Xbox load/fire/resave with identical checkpoints and at least8.13MiB native headroom; HMG/Precision saves work, while campaign persistence and remaining special-weapon state are open.
 
 - Prop saves: Static prop damage/destruction now survives PC/Xbox reload and resave with identical checkpoint bytes and8.14MiB native headroom; moving props, broader classes/levels and campaign persistence remain.
 

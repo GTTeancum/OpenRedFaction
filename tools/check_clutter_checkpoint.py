@@ -45,12 +45,40 @@ def prepare(folder):
     (folder/'recipe.json').write_text(json.dumps(report,indent=2)+'\n')
     return report
 
-def checkpoint(path):
-    data=path.read_bytes();header=struct.unpack_from('<4s7I',data)
-    assert header[:3]==(b'RFCP',4,len(data)),header
+def checkpoint_sections(data):
+    assert 32+544+288+64<=len(data)<=110524,'Invalid composed checkpoint length'
+    header=struct.unpack_from('<4s7I',data)
+    assert header[0]==b'RFCP' and header[1] in (4,5) and header[2]==len(data),header
+    assert header[4] in (1,2,3) and header[5]==544 and header[3] in (0,128,160),header
+    p=data[32:576];assert p[:4]==b'RFPL' and struct.unpack_from('<I',p,8)[0]==544
     off=32+header[3]+header[5]+header[6]+header[7]
-    assert data[off:off+4]==b'RFPC';count=struct.unpack_from('<I',data,off+16)[0]
-    rows=[struct.unpack_from('<IIfIii',data,off+64+i*24) for i in range(count)]
+    tail=32 if header[1]==5 else 0
+    assert header[6]>=288 and off+64+tail<=len(data),'Invalid RFDS/optional section spans'
+    assert struct.unpack_from('<4s2I',data,576)==(b'RFDS',header[4],header[6])
+    props=data[off:len(data)-tail if tail else len(data)]
+    ph=struct.unpack_from('<4s5I',props)
+    assert ph[:3]==(b'RFPC',1,len(props)) and ph[5]==0 and not any(props[56:64]),ph
+    assert ph[4]<=1024 and len(props)==64+24*ph[4],'Invalid RFPC row span'
+    def checksum(blob):
+        value=2166136261
+        for i,byte in enumerate(blob):value=((value^(0 if 12<=i<16 else byte))*16777619)&0xffffffff
+        return value
+    assert ph[3]==checksum(props),'RFPC checksum mismatch'
+    if tail:
+        modes=data[-32:];mh=struct.unpack('<4s7I',modes)
+        assert mh[:3]==(b'RFWM',1,32),mh
+        assert mh[5]&~3==0 and mh[7]==0 and mh[3]==checksum(modes),'Invalid RFWM flags/reserved/checksum'
+        # RFWM binds the remote-weapon catalog (which includes remote tuning),
+        # not RFPL's weapon-supply hash. Compare the RFRM context when present.
+        if header[7]:
+            remote=data[576+header[6]:576+header[6]+header[7]]
+            assert len(remote)>=24 and struct.unpack_from('<4s2I',remote)==(b'RFRM',1,len(remote))
+            assert mh[4]==struct.unpack_from('<I',remote,20)[0],'RFWM/RFRM catalog mismatch'
+    return p,props
+
+def checkpoint(path):
+    _,props=checkpoint_sections(path.read_bytes());count=struct.unpack_from('<I',props,16)[0]
+    rows=[struct.unpack_from('<IIfIii',props,64+i*24) for i in range(count)]
     return next(row for row in rows if row[0]==TARGET)
 
 def main():

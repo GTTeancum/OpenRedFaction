@@ -32,6 +32,10 @@ int rf_player_checkpoint_validate(const rf_player_checkpoint *v,const rf_player_
  for(i=0;i<64;i++) {
   const rf_weapon_acquire_definition *d=c->weapons+i;
   if(c->supported[i]>1 || (i>=c->count && c->supported[i]))return RF_RANGE;
+  if(c->mode_owner[i]) {
+   uint32_t owner=(uint32_t)c->mode_owner[i]-1;
+   if(!c->supported[i] || owner>=c->count || owner==i || !c->supported[owner] || c->mode_owner[owner])return RF_RANGE;
+  }
   if(!c->supported[i])continue;
   if(d->ammo_type < -1 || d->ammo_type>=32 || d->magazine<0 || d->capacity<0 || (d->ammo_type<0 && d->magazine))return RF_RANGE;
   if(d->ammo_type>=0)used[d->ammo_type]=1;
@@ -40,11 +44,13 @@ int rf_player_checkpoint_validate(const rf_player_checkpoint *v,const rf_player_
     !isfinite(v->player.armor) || v->player.armor<0 || v->player.armor>c->armor_capacity)return RF_FORMAT;
  for(i=0;i<64;i++) {
   uint32_t owned=v->player.inventory.owned[i];int32_t loaded=v->player.inventory.loaded[i];
-  if(owned>1 || loaded<0 || (!c->supported[i] && (owned || loaded)) || (loaded && !owned) ||
+  uint32_t paired=c->mode_owner[i],base_owned=paired?v->player.inventory.owned[paired-1]:0;
+  if(owned>1 || loaded<0 || (!c->supported[i] && (owned || loaded)) || (paired && owned) ||
+     (loaded && !owned && (!paired || base_owned!=1)) ||
      (c->supported[i] && loaded>c->weapons[i].magazine))return RF_FORMAT;
  }
  for(i=0;i<32;i++)if(v->player.inventory.reserve[i]<0 || v->player.inventory.reserve[i]>c->reserve_capacity[i] || (!used[i] && v->player.inventory.reserve[i]))return RF_FORMAT;
- if(v->player.weapon!=UINT32_MAX && (v->player.weapon>=c->count || !c->supported[v->player.weapon] || !v->player.inventory.owned[v->player.weapon]))return RF_FORMAT;
+ if(v->player.weapon!=UINT32_MAX && (v->player.weapon>=c->count || !c->supported[v->player.weapon] || c->mode_owner[v->player.weapon] || !v->player.inventory.owned[v->player.weapon]))return RF_FORMAT;
  for(i=0;i<3;i++)if(!isfinite(v->position[i]) || !isfinite(v->body_angles[i]) || !isfinite(v->eye_angles[i]))return RF_FORMAT;
  for(i=0;i<3;i++)if(!isfinite(v->velocity[i]) || fabsf(v->velocity[i])>.001f)return RF_FORMAT;
  if(v->body_angles[0]!=0 || v->body_angles[2]!=0 || v->eye_angles[1]!=0 || v->eye_angles[2]!=0)return RF_FORMAT;
