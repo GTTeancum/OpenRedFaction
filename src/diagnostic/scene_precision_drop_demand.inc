@@ -24,26 +24,35 @@ static uint32_t scene_precision_owner_persistence_slot(const campaign_npc_body *
     }
     return 0;
 }
-static uint32_t scene_precision_drop_resource_mask(void)
+/* The shared collectible policy lives in scene_ai_drop_supply.inc, included
+ * earlier. Return only independent weapon slots; the normal resource planner
+ * expands Remote Charge and Machine Pistol into their companion view pairs. */
+static uint32_t scene_enemy_drop_resource_mask(void)
 {
-    int32_t ids[2];uint32_t i,j,mask=0;
+    uint32_t i,mask=0;
     if(!campaign_npc_bodies || campaign_npc_body_count>RF_CAMPAIGN_ACTOR_SLOTS ||
-       campaign_weapon_supply.names.count>64 || rf_scene_defeated_actors.count>RF_CAMPAIGN_ACTOR_SLOTS ||
+       !campaign_weapon_supply.names.count || campaign_weapon_supply.names.count>64 ||
+       rf_scene_defeated_actors.count>RF_CAMPAIGN_ACTOR_SLOTS ||
        rf_scene_defeated_actors.level_count>RF_CAMPAIGN_PICKUP_LEVELS)return 0;
-    ids[0]=rf_weapon_name_find(&campaign_weapon_supply.names,"Sniper Rifle");
-    ids[1]=rf_weapon_name_find(&campaign_weapon_supply.names,"rail_gun");
     for(i=0;i<campaign_npc_body_count;i++){
-        const campaign_npc_body *owner=campaign_npc_bodies+i;const rf_campaign_weapon_drop *drop=NULL;int32_t weapon;uint32_t slot=UINT32_MAX;
+        const campaign_npc_body *owner=campaign_npc_bodies+i;const rf_campaign_weapon_drop *drop=NULL;
+        int32_t weapon,view_slot;uint32_t slot=UINT32_MAX,j;
         if(owner->persistence_registered && owner->persistence_slot>=rf_scene_defeated_actors.count)continue;
         if(!owner->persistence_registered && (!campaign_seeds.records.items || i>=campaign_seeds.records.count))continue;
         (void)scene_precision_owner_persistence_slot(owner,&slot);
         if(slot!=UINT32_MAX)drop=rf_scene_defeated_actors.drops+slot;
         if(drop && drop->state==1){if(drop->quantity<0)continue;weapon=drop->weapon;}
         else if(!drop || (drop->state==0 && !rf_scene_defeated_actors.items[slot].retired)){
-            weapon=owner->view.weapons[0];
-            if(weapon<0 || weapon>=64 || !owner->inventory.owned[weapon])continue;
+            /* A living actor can switch to an owned fallback before death.
+             * Reserve its future collectible view without granting it. */
+            for(j=0;j<campaign_weapon_supply.names.count;j++)if(owner->inventory.owned[j]){
+                view_slot=scene_enemy_drop_weapon_slot(&campaign_weapon_supply.names,(int32_t)j);
+                if(view_slot>=0 && view_slot<32)mask|=1u<<(uint32_t)view_slot;
+            }
+            continue;
         }else continue;
-        for(j=0;j<2;j++)if(ids[j]>=0 && ids[j]<64 && weapon==ids[j])mask|=1u<<(6+j);
+        view_slot=scene_enemy_drop_weapon_slot(&campaign_weapon_supply.names,weapon);
+        if(view_slot>=0 && view_slot<32)mask|=1u<<(uint32_t)view_slot;
     }
     return mask;
 }

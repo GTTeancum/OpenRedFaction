@@ -9098,15 +9098,12 @@ uint32_t rf_scene_weapon_drops[8]; /* emitted,collected,rounds,last UID,availabl
 #include "scene_ai_drop_supply.inc"
 static int campaign_weapon_drop_emit(campaign_npc_body *owner)
 {
-    const int32_t ids[8]={campaign_pistol_id,campaign_rifle_id,campaign_riot_id,campaign_shotgun_id,
-        campaign_rocket_id,campaign_grenade_id,campaign_sniper_id,campaign_rail_id};
     int32_t id=owner->view.weapons[0],quantity;uint32_t found=0;int status;
     float start[3],end[3];rf_collision_solid_hit hit;
-    if(!owner->persistence_registered || id<0 || id>=64 || !owner->inventory.owned[id])return RF_OK;
+    if(!owner->persistence_registered || owner->persistence_slot>=rf_scene_defeated_actors.count || id<0 || id>=64 || !owner->inventory.owned[id])return RF_OK;
 
     if(rf_scene_defeated_actors.drops[owner->persistence_slot].state)return RF_OK;
-    status=campaign_enemy_drop_supply(&owner->inventory,campaign_weapon_supply.definitions,
-        campaign_weapon_supply.names.count,ids,id,&quantity);
+    status=campaign_enemy_drop_supply(&owner->inventory,&campaign_weapon_supply,id,&quantity);
     if(status==RF_NOT_FOUND)return RF_OK;if(status)return status;
     memcpy(start,owner->body.state.position,12);start[1]+=.3f;memcpy(end,start,12);end[1]-=4;
     status=rf_geometry_collision_ray(campaign_trigger_collision,&campaign_movers,start,end,1,&hit,&found);if(status)return status;
@@ -9656,8 +9653,17 @@ static int campaign_weapon_drops_tick(scene_stream *stream,const float eye[3])
             if(distance<=4) {
                 status=combat_shot_obstructed(stream,eye,delta,1,&blocked);if(status)return status;
                 if(!blocked) {
-                    status=scene_pickup_shared_ammo_grant(&campaign_player_inventory,&campaign_weapon_supply,
-                        drop->weapon,drop->quantity,1,&grant);if(status)return status;
+                    if(scene_enemy_drop_weapon_slot(&campaign_weapon_supply.names,drop->weapon)==2){
+                        const rf_weapon_acquire_definition *definition=campaign_weapon_supply.definitions+drop->weapon;
+                        if(definition->ammo_type!=-1 || definition->magazine || drop->quantity)return RF_RANGE;
+                        if(!campaign_player_inventory.owned[drop->weapon]){
+                            status=rf_weapon_acquire_sp(&campaign_player_inventory,definition,drop->weapon,0);if(status)return status;
+                            grant.acquired=1;
+                        }
+                    }else{
+                        status=scene_pickup_shared_ammo_grant(&campaign_player_inventory,&campaign_weapon_supply,
+                            drop->weapon,drop->quantity,1,&grant);if(status)return status;
+                    }
                     if(grant.acquired || grant.rounds) {
                         drop->state=2;++rf_scene_weapon_drops[1];rf_scene_weapon_drops[2]+=grant.rounds;
                         rf_scene_weapon_drops[3]=rf_scene_defeated_actors.items[owner->persistence_slot].uid;campaign_ammo_publish();
@@ -16469,7 +16475,7 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
             {rf_vpp tables={0};rf_weapon_view_definition view;
              status=rf_vpp_open(&tables,tables_path);if(status)goto done;
              {scene_weapon_resource_demand demand;uint32_t npc_projectiles=scene_ai_projectile_resource_mask();
-              status=scene_extra_pickups_resources_prepare(stream,&tables,(rf_scene_dev_room_enabled && !rf_scene_vehicle_enabled?0x7ffu:(rf_scene_vehicle_enabled?0x1fu:0xfu)) | (rf_scene_vehicle_enabled?0:scene_precision_drop_resource_mask()),1u<<11,&demand);
+              status=scene_extra_pickups_resources_prepare(stream,&tables,(rf_scene_dev_room_enabled && !rf_scene_vehicle_enabled?0x7ffu:(rf_scene_vehicle_enabled?0x1fu:0xfu)) | (rf_scene_vehicle_enabled?0:scene_enemy_drop_resource_mask()),1u<<11,&demand);
               if(!status){rf_scene_player_shield_resources=!!(demand.mask&(1u<<11)) || (rf_scene_dev_room_enabled && rf_scene_dev_npc_enabled==6);
                   if(rf_scene_player_shield_resources)status=rf_weapon_primary_load(&tables,"riot shield",128*1024,&campaign_primary[11]);
                   /* NPC-only demand loads flights and effects without player views or ownership. */

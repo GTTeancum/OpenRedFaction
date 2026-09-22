@@ -47,7 +47,7 @@ Completion basis (user direction,2026-09-18): working late-alpha/early-beta code
 
 - Precision weapons: Sniper and rail acquisition/selection/fire now work outside DEV; native rail matches PC with14.26MiB free, and enemy/persistent drops request matching view resources; live enemy-drop encounters and broader campaign handoffs remain (docs/PRECISION-PICKUP-FIRST-PASS.md).
 
-- Combat pickups: Defeated enemies now retain collectible empty weapons without manufacturing ammo, and finite loaded drops preserve remaining supply; actual scene/core checks and both builds pass; live pickup visuals, authored no-drop flags and broader campaign weapon availability remain.
+- Combat pickups: Supported enemy weapons now drop finite remaining ammunition, including empty weapons and ammo-free Riot Stick; ordinary PC/Xbox scripted death, rocket pickup/equip/fire matches with20.29MiB free; authored no-drop flags, broader weapon encounters and general campaign saves remain (docs/ENEMY-WEAPON-DROPS.md).
 
 - AI mode events: Catatonic, waiting/default, motion acquisition and resuming an existing authored waypoint route now bind to live behavior; focused scheduler/route checks and PC/Xbox builds pass; in-memory mode/validated route retention now passes revisit-helper checks and PC/Xbox builds; unbound waypoint assignment, collecting, disk persistence, mode13/vehicles and authored live scenarios remain.
 
@@ -5843,3 +5843,7 @@ World and committed-mover fragment queries now include bounded edge/edge CCD, wi
 ##2026-09-22 Ordinary enemy projectiles and authored loadouts
 
 Connected actual RFL primary/secondary weapon strings, preserved class alternatives and original none/unknown/ammo semantics, and replaced DEV attack gates with independent NPC resource readiness. Installed records contain23rocket/15grenade primary overrides. Focused parser/loadout/demand/scheduler checks and PC/NXDK builds pass; ordinary controlled PC rocket/grenade encounters pass. Native grenade650-frame replay render-20260922-180307 passes with5213freepages (20.36MiB), matching gameplay, inspected capture and restored disc. Model-less motion guard added after that native build is covered by final builds; broader campaign, secondary-weapon policy and flight saves remain. Overall~82%; current system Enemy combat/AI~80% (rough implementation estimate).
+
+##2026-09-22 Enemy weapon drop integration
+
+Expanded name-based death-drop policy to implemented guns/throwables/riotstick; preserves finite/empty ammo, reserves views for owned fallback weapons, and respects saved/collected drop demand. Actual scene collection tests pass for sniper/rocket/grenade/riotstick. Controlled PC death-to-ground-weapon, movement pickup, equip and fire endpoints pass with inspected captures. Native300-frame replay render-20260922-181344 matches one drop/one collection/six granted rounds/one shot/five remaining, with5195freepages (20.29MiB), inspected wall-impact capture and restored disc. Both builds pass. Scripted death is tested, not player-gun lethality. Authored no-drop flags, general saves and broader encounters remain. Overall~82%; Enemy combat/AI~81%.
