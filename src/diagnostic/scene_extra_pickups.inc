@@ -35,17 +35,17 @@ static int scene_extra_pickup_index(const char *name)
 static int scene_extra_pickup_demand_slots(const char *const *slots,uint32_t count,
     uint32_t *optional_mask,uint32_t *machine_pair)
 {
-    const char *names[8]={"Machine Pistol","heavy_machine_gun","scope_assault_rifle","Machine Pistol Special","Undercover 12mm handgun","shoulder_cannon","Sniper Rifle","rail_gun"};
-    uint32_t i,j,bits[8]={0},optional=0;
+    const char *names[9]={"Machine Pistol","heavy_machine_gun","scope_assault_rifle","Machine Pistol Special","Undercover 12mm handgun","shoulder_cannon","Sniper Rifle","rail_gun","Rocket Launcher"};
+    uint32_t i,j,bits[9]={0},optional=0;
     if(!slots || !count || count>32 || !optional_mask || !machine_pair)return RF_RANGE;
     for(i=0;i<count;i++){
         if(!slots[i])return RF_RANGE;
-        for(j=0;j<8;j++)if(scene_extra_pickup_equal(slots[i],names[j])){
+        for(j=0;j<9;j++)if(scene_extra_pickup_equal(slots[i],names[j])){
             if(bits[j])return RF_FORMAT;
             bits[j]=1u<<i;optional|=bits[j];
         }
     }
-    for(j=0;j<8;j++)if(!bits[j])return RF_NOT_FOUND;
+    for(j=0;j<9;j++)if(!bits[j])return RF_NOT_FOUND;
     *optional_mask=optional;*machine_pair=bits[0]|bits[3];return RF_OK;
 }
 static int scene_extra_pickup_demand_expand(const char *const *slots,uint32_t count,

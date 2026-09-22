@@ -598,7 +598,7 @@ typedef struct scene_particle_workspace {
 } scene_particle_workspace;
 enum { SCENE_WEAPON_SLOTS=18, SCENE_ROCKETS=50, SCENE_RIPPLES=16 };
 uint32_t rf_scene_player_shield_resources,rf_scene_fusion_enabled,rf_scene_firearms_enabled;
-static uint32_t scene_fusion_resources;
+static uint32_t scene_fusion_resources,scene_rocket_resources;
 uint32_t rf_scene_vehicle_enabled;
 static uint32_t scene_extra_pickups_available(uint32_t);
 static uint32_t scene_extra_pickups_selection_limit(void);
@@ -3868,6 +3868,18 @@ static int campaign_clutter_materials_open(const char *tables_path,rf_vpp *archi
     free(records);free(campaign_clutter_material_offsets);campaign_clutter_material_offsets=NULL;
     rf_model_materials_close(&campaign_clutter_materials);return status;
 }
+static int scene_rocket_definitions_open(rf_vpp *tables)
+{
+    int status=rf_weapon_explosive_load(tables,"Rocket Launcher",128*1024,&campaign_rocket);
+    rf_vclip_definition clip;
+    if(!status && (campaign_rocket.impact_count!=1 || campaign_rocket.impact_radius[0]<=0))status=RF_NOT_FOUND;
+    if(!status)status=rf_vclip_definition_load(tables,campaign_rocket.impact_vclips[0],128*1024,&clip);
+    if(!status && !(clip.flags&8u))status=RF_FORMAT;
+    if(!status)status=rf_explosion_definition_load(tables,clip.explosion,256*1024,&campaign_rocket_impact);
+    campaign_rocket_impact_sound=-1;
+    if(!status && clip.has_foley)status=rf_foley_find(&campaign_foley,clip.foley,&campaign_rocket_impact_sound);
+    return status;
+}
 static int campaign_clutter_open(const char *tables_path,const rf_level *level)
 {
     rf_vpp tables;uint32_t i,j,peak=0,hash=2166136261u;int status;
@@ -3901,15 +3913,7 @@ static int campaign_clutter_open(const char *tables_path,const rf_level *level)
     if(!status && rf_scene_dev_room_enabled && rf_scene_fusion_enabled)status=rf_weapon_explosive_load(&tables,"shoulder_cannon",128*1024,&campaign_fusion);
     if(!status && rf_scene_dev_room_enabled && rf_scene_firearms_enabled)for(uint32_t extra=13;extra<18 && !status;extra++)status=rf_weapon_primary_load(&tables,campaign_weapon_names[extra],128*1024,campaign_primary+extra);
     if(!status && rf_scene_dev_room_enabled)status=scene_flame_visual_open(&tables);
-    if(!status && rf_scene_dev_room_enabled) {
-        rf_vclip_definition clip;
-        if(campaign_rocket.impact_count!=1 || campaign_rocket.impact_radius[0]<=0)status=RF_NOT_FOUND;
-        if(!status)status=rf_vclip_definition_load(&tables,campaign_rocket.impact_vclips[0],128*1024,&clip);
-        if(!status && !(clip.flags&8u))status=RF_FORMAT;
-        if(!status)status=rf_explosion_definition_load(&tables,clip.explosion,256*1024,&campaign_rocket_impact);
-        campaign_rocket_impact_sound=-1;
-        if(!status && clip.has_foley)status=rf_foley_find(&campaign_foley,clip.foley,&campaign_rocket_impact_sound);
-    }
+    if(!status && rf_scene_dev_room_enabled)status=scene_rocket_definitions_open(&tables);
     if(!status) {
         pistol_reload_ticks=(uint32_t)ceilf(campaign_pistol.reload_seconds*60.0f);
         pistol_fire_ticks=(uint32_t)ceilf(campaign_pistol.fire_seconds*60.0f);
@@ -16177,7 +16181,7 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
        !rf_scene_actor_look_enabled || !rf_scene_actor_turn_enabled || !collision || !sink))return RF_RANGE;
     if(actor_follow_world && (!sink || !collision || actor_follow_world->world!=geometry ||
         actor_follow_world->material_count!=materials->count))return RF_RANGE;
-    campaign_export_valid=0;rf_scene_player_shield_resources=0;scene_fusion_resources=0;
+    campaign_export_valid=0;rf_scene_player_shield_resources=0;scene_fusion_resources=scene_rocket_resources=0;
     scene_fusion_input_reset(&scene_fusion_input);scene_fusion_projectile_reset();
     memset(campaign_current_level,0,sizeof(campaign_current_level));
     memcpy(campaign_current_level,level->entry.name,sizeof(level->entry.name));
@@ -16454,6 +16458,8 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
               status=scene_extra_pickups_resources_prepare(stream,&tables,(rf_scene_dev_room_enabled && !rf_scene_vehicle_enabled?0x7ffu:(rf_scene_vehicle_enabled?0x1fu:0xfu)) | (rf_scene_vehicle_enabled?0:scene_precision_drop_resource_mask()),1u<<11,&demand);
               if(!status){rf_scene_player_shield_resources=!!(demand.mask&(1u<<11)) || (rf_scene_dev_room_enabled && rf_scene_dev_npc_enabled==6);
                   if(rf_scene_player_shield_resources)status=rf_weapon_primary_load(&tables,"riot shield",128*1024,&campaign_primary[11]);
+                  scene_rocket_resources=!!(demand.mask&(1u<<4));
+                  if(!status && scene_rocket_resources)status=scene_rocket_definitions_open(&tables);
                   scene_fusion_resources=!!(demand.mask&(1u<<12)) || (rf_scene_dev_room_enabled && rf_scene_fusion_enabled);
                   if(!status && scene_fusion_resources)status=rf_weapon_primary_load(&tables,"shoulder_cannon",128*1024,&campaign_primary[12]);
                   if(!status && scene_fusion_resources)status=rf_weapon_explosive_load(&tables,"shoulder_cannon",128*1024,&campaign_fusion);}}
@@ -16634,10 +16640,10 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
         if(stream->driller){status=scene_driller_materials_merge(stream->driller,materials,&stream->driller_base,&stream->driller_textures);if(status)goto done;
             if(stream->driller_bits)status=scene_driller_materials_merge(&stream->driller_bits->model,materials,&stream->driller_bit_base,&stream->driller_bit_textures);if(status)goto done;
             status=scene_driller_cockpit_merge(stream->driller_cockpit,materials,RF_CAMPAIGN_TEXTURE_SLOTS);if(status)goto done;}
-        if(rf_scene_dev_room_enabled || scene_fusion_resources) {
+        if(rf_scene_dev_room_enabled || scene_fusion_resources || scene_rocket_resources) {
             uint32_t visual;
             for(visual=0;visual<(rf_scene_vehicle_enabled==5?4u:scene_fusion_resources?3u:2u);visual++) {
-            if(!rf_scene_dev_room_enabled && visual!=2)continue;
+            if(!rf_scene_dev_room_enabled && !((visual==2 && scene_fusion_resources) || (visual==0 && scene_rocket_resources)))continue;
             if(visual==2 && !scene_fusion_resources)continue;
             scene_rocket_visual *v=calloc(1,sizeof(*v));rf_material *combined;uint32_t n;
             if(!v){status=RF_IO;goto done;}if(visual==3)stream->fighter_rocket_visual=v;else if(visual==2)stream->fusion_visual=v;else if(visual){stream->ripple_visual=v;memset(rf_scene_ripple_lifecycle,0,sizeof(rf_scene_ripple_lifecycle));}else stream->rocket_visual=v;
@@ -16705,9 +16711,11 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
                     status=scene_clutter_break_effects_open(tables_path,maps,map_count,campaign_clutter_damage_profiles[cls].break_effect-1);if(status)goto done;
                 }
             }
-            if(rf_scene_dev_room_enabled) {
+            if(rf_scene_dev_room_enabled || scene_rocket_resources) {
                 stream->impact=calloc(1,sizeof(*stream->impact));if(!stream->impact){status=RF_RANGE;goto done;}
                 status=rf_explosion_materials_open(&stream->impact->materials,&campaign_rocket_impact,maps,map_count,128*1024);if(status)goto done;
+            }
+            if(rf_scene_dev_room_enabled) {
                 status=scene_flame_effects_open(tables_path,maps,map_count);if(status)goto done;
 
                 {rf_vpp tables={0};rf_particle_definition billboard={0};uint32_t budget=512*1024;

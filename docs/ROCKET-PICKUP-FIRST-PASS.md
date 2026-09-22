@@ -1,0 +1,7 @@
+# Rocket launcher ordinary-level integration
+
+The existing rocket launcher pickup and scripted grant now request sparse first-person resources in ordinary levels. Imported ownership also requests them. Loading resources does not grant ammunition or force selection. The shared flight definition, impact vclip/explosion/Foley and bounded projectile/impact materials are loaded before use. Non-DEV rocket demand does not load unrelated flame or blood textures.
+
+Focused installed-table pickup/import/script demand checks and PC/NXDK builds pass. `tools/check_rocket_pickup.py` keeps original CTF06 spawn, geometry,506 props and pickups with no DEV flag. One real rocket launcher grant and one normal cycle select slot4. A shot consumes one of six loaded rounds, launches a rocket and records one impact. The inspected PC final image shows the launcher and explosion at the far wall. No terrain edits occur because this ordinary-level fixture has no mutable GeoMod owner. Audio is dispatched but not auditioned.
+
+Native run `artifacts/xemu/render-20260922-172811` passes180 frames and all harness comparisons with no DEV flag. Exactly one launch and one impact match PC; the inspected native framebuffer shows the launcher and wall explosion. Stock64MiB retains3341 free pages (13.05MiB), and the original disc is restored. Enemy rocket resource loading, physical pickup approaches, full campaign mutable terrain, broader encounters and effect polish remain open.

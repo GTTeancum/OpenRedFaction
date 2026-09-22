@@ -41,6 +41,8 @@ Completion basis (user direction,2026-09-18): working late-alpha/early-beta code
 
 - Hit-triggered events: When_Hit now observes registered actor/clutter hit signals and dispatches event/mover links before shared clearing; focused runtime/scene checks and PC/Xbox builds pass; live authored button scenario remains.
 
+- Rocket launcher: Ordinary pickup/import/script demand now loads selection, flight and impact resources; non-DEV PC/Xbox acquisition/fire/impact matches with13.05MiB native headroom; enemy rocket resources and broader campaign terrain remain (docs/ROCKET-PICKUP-FIRST-PASS.md).
+
 - Precision weapons: Sniper and rail acquisition/selection/fire now work outside DEV; native rail matches PC with14.26MiB free, and enemy/persistent drops request matching view resources; live enemy-drop encounters and broader campaign handoffs remain (docs/PRECISION-PICKUP-FIRST-PASS.md).
 
 - Combat pickups: Defeated enemies now retain collectible empty weapons without manufacturing ammo, and finite loaded drops preserve remaining supply; actual scene/core checks and both builds pass; live pickup visuals, authored no-drop flags and broader campaign weapon availability remain.
