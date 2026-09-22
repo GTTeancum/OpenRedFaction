@@ -1,6 +1,6 @@
 # Red Faction Xbox / PC - open work
 
-Completion basis (user direction,2026-09-18): working late-alpha/early-beta code implementation. Overall approximately79%; GeoMod100% for the first playable milestone, accepted by the user. GeoMod items below are deferred refinement and coverage, not prerequisites to moving on. This does not assert retail polish, complete campaign integration or resolution of every known defect.
+Completion basis (user direction,2026-09-18): working late-alpha/early-beta code implementation. Overall approximately80%; GeoMod100% for the first playable milestone, accepted by the user. GeoMod items below are deferred refinement and coverage, not prerequisites to moving on. This does not assert retail polish, complete campaign integration or resolution of every known defect.
 
 
 - Weapon saves: Machine Pistol alternate magazine, Undercover suppressor and spread RNG now survive PC/Xbox load/fire/resave with identical checkpoints and at least8.13MiB native headroom; HMG/Precision saves work, while campaign persistence and remaining special-weapon state are open.
@@ -40,6 +40,8 @@ Completion basis (user direction,2026-09-18): working late-alpha/early-beta code
 - Flamethrower: Primary stream and alternate delayed canister now work in the DEV room; native primary/alternate replays pass79/80 comparisons with9.70/9.49MiB endpoint headroom and correct tank replacement; persistent NPC burns now continue after trigger release through death/drop on PC, and authored flamethrower/Napalm pickups grant and retain collection state; authored canister central emitters now pass81 native checks with8.93MiB endpoint headroom; attached burn sprites now follow NPCs and clear on death in PC, but remain visually faint; stronger burn presentation, trails, continuous audio, native burn encounter and campaign selection availability remain.
 
 - Hit-triggered events: When_Hit now observes registered actor/clutter hit signals and dispatches event/mover links before shared clearing; focused runtime/scene checks and PC/Xbox builds pass; live authored button scenario remains.
+
+- Precision weapons: Sniper and rail acquisition/selection/fire now work outside DEV; native rail matches PC with14.26MiB free, and enemy/persistent drops request matching view resources; live enemy-drop encounters and broader campaign handoffs remain (docs/PRECISION-PICKUP-FIRST-PASS.md).
 
 - Combat pickups: Defeated enemies now retain collectible empty weapons without manufacturing ammo, and finite loaded drops preserve remaining supply; actual scene/core checks and both builds pass; live pickup visuals, authored no-drop flags and broader campaign weapon availability remain.
 

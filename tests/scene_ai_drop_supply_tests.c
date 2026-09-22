@@ -2,6 +2,7 @@
 #include <string.h>
 #include "../src/diagnostic/scene.c"
 #include "../src/diagnostic/scene_ai_drop_supply.inc"
+#include "../src/diagnostic/scene_precision_drop_demand.inc"
 #define CHECK(x) do{if(!(x)){fprintf(stderr,"NPC drops line%d: %s\n",__LINE__,#x);return 1;}}while(0)
 static int scene_emission(uint32_t exhausted)
 {
@@ -70,6 +71,41 @@ static int scene_emission(uint32_t exhausted)
     CHECK(rf_scene_weapon_drops[0]==1);
     return 0;
 }
+static int precision_demand(void)
+{
+    campaign_npc_body owners[2]={0};rf_weapon_inventory before;rf_level_owned_entity records[2]={0};
+    memset(&campaign_weapon_supply,0,sizeof(campaign_weapon_supply));memset(&rf_scene_defeated_actors,0,sizeof(rf_scene_defeated_actors));
+    campaign_weapon_supply.names.count=8;strcpy(campaign_weapon_supply.names.names[2],"Sniper Rifle");
+    strcpy(campaign_weapon_supply.names.names[5],"rail_gun");
+    /* Deliberately stale global IDs: helper must resolve through catalog names. */
+    campaign_sniper_id=campaign_rail_id=-1;campaign_npc_bodies=owners;campaign_npc_body_count=2;
+    CHECK(!rf_campaign_actor_register(&rf_scene_defeated_actors,"test.rfl",201,&owners[0].persistence_slot));
+    CHECK(!rf_campaign_actor_register(&rf_scene_defeated_actors,"test.rfl",202,&owners[1].persistence_slot));
+    owners[0].persistence_registered=owners[1].persistence_registered=1;
+    owners[0].view.weapons[0]=2;owners[0].inventory.owned[2]=1;before=owners[0].inventory;
+    CHECK(scene_precision_drop_resource_mask()==(1u<<6)); /* Exhausted held gun. */
+    CHECK(!memcmp(&before,&owners[0].inventory,sizeof(before)));
+    owners[0].inventory.owned[2]=0;CHECK(!scene_precision_drop_resource_mask());
+    rf_scene_defeated_actors.drops[owners[1].persistence_slot]=(rf_campaign_weapon_drop){1,5,0,{0,0,0}};
+    rf_scene_defeated_actors.items[owners[1].persistence_slot].retired=1;
+    CHECK(scene_precision_drop_resource_mask()==(1u<<7)); /* No living/owned gun required for saved drop. */
+    owners[0].inventory.owned[2]=1;CHECK(scene_precision_drop_resource_mask()==((1u<<6)|(1u<<7)));
+    rf_scene_defeated_actors.drops[owners[0].persistence_slot].state=2;
+    rf_scene_defeated_actors.drops[owners[1].persistence_slot].state=2;
+    CHECK(!scene_precision_drop_resource_mask()); /* Collected despite retained corpse inventory. */
+    /* Real load order: authored records exist but persistence has not bound. */
+    owners[0].persistence_registered=owners[1].persistence_registered=0;
+    campaign_seeds.records.items=records;campaign_seeds.records.count=2;strcpy(campaign_current_level,"TEST.RFL");
+    records[0].record.uid=201;records[1].record.uid=202;
+    CHECK(!scene_precision_drop_resource_mask());
+    rf_scene_defeated_actors.drops[1].state=1;CHECK(scene_precision_drop_resource_mask()==(1u<<7));
+    records[0].record.uid=203;CHECK(scene_precision_drop_resource_mask()==((1u<<6)|(1u<<7)));
+    records[0].record.uid=201;rf_scene_defeated_actors.drops[1].state=2;
+    campaign_seeds.records.items=NULL;campaign_seeds.records.count=0;
+    owners[0].persistence_registered=1;
+    owners[0].persistence_slot=RF_CAMPAIGN_ACTOR_SLOTS;CHECK(!scene_precision_drop_resource_mask());
+    campaign_npc_bodies=NULL;campaign_npc_body_count=0;return 0;
+}
 int main(void)
 {
     rf_weapon_inventory inventory={0},saved;rf_weapon_acquire_definition defs[8]={0};
@@ -92,5 +128,6 @@ int main(void)
     CHECK(campaign_enemy_drop_supply(&inventory,defs,8,ids,6,&quantity)==RF_NOT_FOUND);
     CHECK(!scene_emission(1));
     CHECK(!scene_emission(0));
+    CHECK(!precision_demand());
     puts("NPC drops retain empty weapons, grant ownership without invented ammo, and preserve finite three-round drops");return 0;
 }

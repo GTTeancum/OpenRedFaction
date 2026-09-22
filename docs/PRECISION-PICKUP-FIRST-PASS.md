@@ -1,0 +1,9 @@
+# Precision weapon availability
+
+Sniper Rifle and rail_gun now request first-person resources from authored weapon pickups, Give_Item_To_Player events and imported ownership in ordinary levels. Sparse selection opens only requested slots; it does not load every intervening weapon or grant inventory. Existing primary firing, reload, sniper scope and rail scanner are shared with DEV gameplay.
+
+NPC-held sniper/rail weapons and uncollected persistent drops also request resources. The lookup handles startup before actors receive persistent slots by matching current level and authored UID without mutating the store. Collected drops and unrelated levels do not add demand. World weapon models also include saved uncollected drops, even if the newly loaded NPC inventory differs.
+
+Focused installed-table demand and actual scene drop checks pass, including empty held weapons, persistent drops, collected exclusions and pre-registration lookup. PC non-DEV CTF06 runs in `artifacts/precision-pickup-live` retain the original spawn, geometry,506 props and pickups. One real scripted grant and one normal cycle select each gun: sniper loaded6 becomes5 after one shot; rail loaded1/reserve7 becomes0/reserve7. Both final PC images were inspected and show the expected first-person weapons. The scene still has visual rough edges; this is gameplay availability evidence, not polished presentation. Audio was not auditioned.
+
+Native rail run `artifacts/xemu/render-20260922-172308` passes180 frames with no DEV flag. All harness comparisons pass; selected slot7, one shot, loaded0/reserve7 exactly match PC. The native framebuffer was inspected and shows the rail gun. Stock64MiB retains3650 free pages (14.26MiB), and the original disc is restored. The corresponding non-DEV sniper replay remains PC-only. Physical pickup approaches, actual enemy-drop collection in a rendered encounter, long campaign handoffs and further weapon resource integration remain open.

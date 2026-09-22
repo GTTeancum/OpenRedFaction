@@ -4307,6 +4307,7 @@ static int campaign_weapon_placement_probe(void)
     }
     return RF_OK;
 }
+static uint32_t scene_precision_owner_persistence_slot(const campaign_npc_body *,uint32_t *);
 static int campaign_weapon_models_open(const char *tables_path,rf_vpp *meshes)
 {
     rf_weapon_model_names *names;rf_vpp tables;uint32_t selected[2]={0},i,j,k,hash=2166136261u,canister_slot=UINT32_MAX;int status;
@@ -4318,6 +4319,13 @@ static int campaign_weapon_models_open(const char *tables_path,rf_vpp *meshes)
     if(status){free(names);return status;}
     for(i=0;i<campaign_npc_body_count;++i)for(j=0;j<64;++j)
         if(campaign_npc_bodies[i].inventory.owned[j])selected[j/32]|=1u<<(j%32);
+    for(i=0;i<campaign_npc_body_count;++i){
+        const campaign_npc_body *owner=campaign_npc_bodies+i;uint32_t slot;
+        if(scene_precision_owner_persistence_slot(owner,&slot)){
+            const rf_campaign_weapon_drop *drop=rf_scene_defeated_actors.drops+slot;
+            if(drop->state==1 && drop->weapon>=0 && drop->weapon<64)selected[drop->weapon/32]|=1u<<(drop->weapon%32);
+        }
+    }
     {int32_t pistol=rf_weapon_name_find(&campaign_weapon_supply.names,"12mm handgun");
      if(pistol<0){free(names);return RF_NOT_FOUND;}selected[pistol/32]|=1u<<(pistol%32);}
     if(rf_scene_dev_npc_enabled==5){int32_t shield=rf_weapon_name_find(&campaign_weapon_supply.names,"riot shield");
@@ -16149,6 +16157,7 @@ static int scene_dev_npc_seeds(const char *tables_path,rf_vpp *tables)
 }
 #include "scene_weapon_resource_demand.inc"
 #include "scene_extra_pickups_gameplay.inc"
+#include "scene_precision_drop_demand.inc"
 static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path,
     const char *motions_path,const char *tables_path,rf_vpp *maps,uint32_t map_count,
     rf_preview_mesh *mesh,rf_materials *materials,uint32_t mesh_budget,uint32_t material_budget,
@@ -16442,7 +16451,7 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
             {rf_vpp tables={0};rf_weapon_view_definition view;
              status=rf_vpp_open(&tables,tables_path);if(status)goto done;
              {scene_weapon_resource_demand demand;
-              status=scene_extra_pickups_resources_prepare(stream,&tables,rf_scene_dev_room_enabled && !rf_scene_vehicle_enabled?0x7ffu:(rf_scene_vehicle_enabled?0x1fu:0xfu),1u<<11,&demand);
+              status=scene_extra_pickups_resources_prepare(stream,&tables,(rf_scene_dev_room_enabled && !rf_scene_vehicle_enabled?0x7ffu:(rf_scene_vehicle_enabled?0x1fu:0xfu)) | (rf_scene_vehicle_enabled?0:scene_precision_drop_resource_mask()),1u<<11,&demand);
               if(!status){rf_scene_player_shield_resources=!!(demand.mask&(1u<<11)) || (rf_scene_dev_room_enabled && rf_scene_dev_npc_enabled==6);
                   if(rf_scene_player_shield_resources)status=rf_weapon_primary_load(&tables,"riot shield",128*1024,&campaign_primary[11]);
                   scene_fusion_resources=!!(demand.mask&(1u<<12)) || (rf_scene_dev_room_enabled && rf_scene_fusion_enabled);
