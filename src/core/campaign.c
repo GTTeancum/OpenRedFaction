@@ -164,7 +164,7 @@ int rf_campaign_actor_drop_emit(rf_campaign_actors *store,uint32_t slot,int32_t 
 {
     rf_campaign_weapon_drop *drop;uint32_t i;
     if(!store || store->count>RF_CAMPAIGN_ACTOR_SLOTS || slot>=store->count ||
-       weapon<0 || weapon>=64 || quantity<=0 || !position)return RF_RANGE;
+       weapon<0 || weapon>=64 || quantity<0 || !position)return RF_RANGE;
     for(i=0;i<3;i++)if(!isfinite(position[i]))return RF_RANGE;
     drop=store->drops+slot;if(drop->state>2)return RF_FORMAT;if(drop->state)return RF_OK;
     drop->weapon=weapon;drop->quantity=quantity;memcpy(drop->position,position,12);drop->state=1;return RF_OK;

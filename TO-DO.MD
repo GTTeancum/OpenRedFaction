@@ -41,7 +41,7 @@ Completion basis (user direction,2026-09-18): working late-alpha/early-beta code
 
 - Hit-triggered events: When_Hit now observes registered actor/clutter hit signals and dispatches event/mover links before shared clearing; focused runtime/scene checks and PC/Xbox builds pass; live authored button scenario remains.
 
-- Combat pickups: NPC drops now preserve remaining ammunition and nine additional authored weapon/ammo pickup classes are connected; focused actual drop/collection and installed-table checks pass with PC/Xbox builds; live pickup visuals and empty-weapon drops remain.
+- Combat pickups: Defeated enemies now retain collectible empty weapons without manufacturing ammo, and finite loaded drops preserve remaining supply; actual scene/core checks and both builds pass; live pickup visuals, authored no-drop flags and broader campaign weapon availability remain.
 
 - AI mode events: Catatonic, waiting/default, motion acquisition and resuming an existing authored waypoint route now bind to live behavior; focused scheduler/route checks and PC/Xbox builds pass; in-memory mode/validated route retention now passes revisit-helper checks and PC/Xbox builds; unbound waypoint assignment, collecting, disk persistence, mode13/vehicles and authored live scenarios remain.
 

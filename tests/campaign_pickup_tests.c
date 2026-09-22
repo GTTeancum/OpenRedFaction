@@ -59,12 +59,20 @@ int main(int argc,char **argv)
         actors.drops[a].state=2;saved=actors.drops[a];
         CHECK(rf_campaign_actor_drop_emit(&actors,a,8,42,point)==RF_OK && !memcmp(&saved,actors.drops+a,sizeof(saved)));
         CHECK(rf_campaign_actor_drop_emit(&actors,a,64,42,point)==RF_RANGE);
-        CHECK(rf_campaign_actor_drop_emit(&actors,a,8,0,point)==RF_RANGE);
+        CHECK(rf_campaign_actor_drop_emit(&actors,a,8,-1,point)==RF_RANGE);
         CHECK(rf_campaign_actor_drop_emit(&actors,a,8,42,bad)==RF_RANGE);
         CHECK(rf_campaign_actor_drop_emit(&actors,actors.count,8,42,point)==RF_RANGE);
         CHECK(!memcmp(&saved,actors.drops+a,sizeof(saved)));
         CHECK(rf_campaign_actor_register(&actors,"L2S2a.rfl",2114,&b)==RF_OK && b!=a && !actors.drops[b].state);
-        puts("PASS weapon drops survive actor retirement, reject invalid input, isolate sections and cannot respawn after collection");
+        CHECK(rf_campaign_actor_drop_emit(&actors,b,8,0,point)==RF_OK);
+        CHECK(actors.drops[b].state==1 && actors.drops[b].weapon==8 && actors.drops[b].quantity==0);
+        saved=actors.drops[b];actors.items[b].retired=1;
+        CHECK(rf_campaign_actor_register(&actors,"l2s2A.RFL",2114,&a)==RF_OK && a==b);
+        CHECK(!memcmp(&saved,actors.drops+a,sizeof(saved)));
+        CHECK(rf_campaign_actor_drop_emit(&actors,a,8,42,point)==RF_OK && !memcmp(&saved,actors.drops+a,sizeof(saved)));
+        actors.drops[a].state=2;saved=actors.drops[a];
+        CHECK(rf_campaign_actor_drop_emit(&actors,a,8,0,point)==RF_OK && !memcmp(&saved,actors.drops+a,sizeof(saved)));
+        puts("PASS loaded/empty weapon drops survive retirement, reject negatives, isolate sections and cannot replenish or respawn");
     }
     memset(&state,0,sizeof(state));
     CHECK(rf_campaign_pickup_register(&state,"L1S1.rfl",7,&a)==RF_OK);state.items[a].retired=1;

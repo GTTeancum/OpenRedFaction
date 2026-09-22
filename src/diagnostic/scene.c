@@ -9087,7 +9087,7 @@ static int campaign_weapon_drop_emit(campaign_npc_body *owner)
     if(rf_scene_defeated_actors.drops[owner->persistence_slot].state)return RF_OK;
     status=campaign_enemy_drop_supply(&owner->inventory,campaign_weapon_supply.definitions,
         campaign_weapon_supply.names.count,ids,id,&quantity);
-    if(status==RF_NOT_FOUND)return RF_OK;if(status)return status;if(quantity<=0)return RF_OK;
+    if(status==RF_NOT_FOUND)return RF_OK;if(status)return status;
     memcpy(start,owner->body.state.position,12);start[1]+=.3f;memcpy(end,start,12);end[1]-=4;
     status=rf_geometry_collision_ray(campaign_trigger_collision,&campaign_movers,start,end,1,&hit,&found);if(status)return status;
     if(!found)return RF_OK;hit.hit.point[1]+=.1f;

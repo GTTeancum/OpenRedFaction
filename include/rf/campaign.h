@@ -84,6 +84,8 @@ typedef struct rf_campaign_actors {
     rf_campaign_weapon_drop drops[RF_CAMPAIGN_ACTOR_SLOTS];
 } rf_campaign_actors;
 int rf_campaign_actor_register(rf_campaign_actors *state,const char *level,uint32_t uid,uint32_t *slot);
-/* Emission is idempotent even after collection. Invalid input preserves state. */
+/* Quantity is remaining ammunition: zero still emits an acquirable empty
+ * weapon; negatives are invalid. Emission is idempotent even after collection.
+ * Invalid input preserves state; an existing drop is never replenished. */
 int rf_campaign_actor_drop_emit(rf_campaign_actors *,uint32_t slot,int32_t weapon,int32_t quantity,const float position[3]);
 #endif

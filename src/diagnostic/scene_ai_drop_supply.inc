@@ -3,8 +3,8 @@
 /* First-pass corpse drop policy: preserve the existing one-magazine maximum,
  * but do not manufacture rounds that the NPC has already spent. Only held,
  * owned, implemented weapons participate; no mutation before persistent drop
- * publication. An exhausted weapon has no pickup because the existing drop
- * persistence contract requires positive quantity. */
+ * publication. An exhausted held weapon retains ownership value: quantity zero is
+ * persisted without manufacturing ammunition. */
 static int campaign_enemy_drop_supply(const rf_weapon_inventory *inventory,
     const rf_weapon_acquire_definition *definitions,uint32_t count,
     const int32_t ids[8],int32_t held,int32_t *quantity)
