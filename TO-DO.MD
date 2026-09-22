@@ -1,6 +1,6 @@
 # Red Faction Xbox / PC - open work
 
-Completion basis (user direction,2026-09-18): working late-alpha/early-beta code implementation. Overall approximately80%; GeoMod100% for the first playable milestone, accepted by the user. GeoMod items below are deferred refinement and coverage, not prerequisites to moving on. This does not assert retail polish, complete campaign integration or resolution of every known defect.
+Completion basis (user direction,2026-09-18): working late-alpha/early-beta code implementation. Overall approximately81%; GeoMod100% for the first playable milestone, accepted by the user. GeoMod items below are deferred refinement and coverage, not prerequisites to moving on. This does not assert retail polish, complete campaign integration or resolution of every known defect.
 
 
 - Weapon saves: Machine Pistol alternate magazine, Undercover suppressor and spread RNG now survive PC/Xbox load/fire/resave with identical checkpoints and at least8.13MiB native headroom; HMG/Precision saves work, while campaign persistence and remaining special-weapon state are open.
@@ -37,7 +37,7 @@ Completion basis (user direction,2026-09-18): working late-alpha/early-beta code
 
 - NPC grenades: Enemy attacks now launch finite-ammo ballistic grenades with bounce/fuse, rendering and source-attributed blast/GeoMod; scheduler checks and initial native replay pass; corrected shooter-excluding/player-inclusive collision now produces lethal PC blasts, corrected650-frame native replay passes with matching lethal blasts; campaign resource loading, authored throw-marker timing and broader targets remain.
 
-- Flamethrower: Primary stream and alternate delayed canister now work in the DEV room; native primary/alternate replays pass79/80 comparisons with9.70/9.49MiB endpoint headroom and correct tank replacement; persistent NPC burns now continue after trigger release through death/drop on PC, and authored flamethrower/Napalm pickups grant and retain collection state; authored canister central emitters now pass81 native checks with8.93MiB endpoint headroom; attached burn sprites now follow NPCs and clear on death in PC, but remain visually faint; stronger burn presentation, trails, continuous audio, native burn encounter and campaign selection availability remain.
+- Flamethrower: Ordinary pickup/import/script demand now supports stream and alternate canister with finite fuel; PC primary/alternate passes and native canister explosion matches with14.29MiB free; NPC encounters, saves, continuous audio and visual refinement remain (docs/FLAME-PICKUP-FIRST-PASS.md).
 
 - Hit-triggered events: When_Hit now observes registered actor/clutter hit signals and dispatches event/mover links before shared clearing; focused runtime/scene checks and PC/Xbox builds pass; live authored button scenario remains.
 

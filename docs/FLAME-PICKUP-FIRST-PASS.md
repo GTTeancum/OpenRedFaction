@@ -1,0 +1,11 @@
+# Flamethrower ordinary-level integration
+
+The installed flamethrower item requests sparse first-person, fuel-stream and thrown-canister resources in ordinary levels. Napalm supplies fuel without creating ownership or resource demand by itself. Imported ownership and scripted grants request the weapon. Resources include the existing shared Fire01 impact bitmap/recipe, authored flame particle settings, canister explosion materials and powerup_flamecan world model, all within existing resource caps.
+
+The full flame input/canister/visual update now runs whenever those resources are present, including off-weapon canister flight. Scene entry resets ignition, fuel remainder, flight and visual state. Flame and Fusion slots bypass ordinary magazine/hitscan handling outside DEV; their own adapters exclusively own firing and fuel/ammo changes. DEV-only blood assets remain separate.
+
+Focused installed-table pickup/import/script demand checks and PC/NXDK builds pass. `tools/check_flame_pickup.py` runs original CTF06 spawn, geometry,506 props and pickups without DEV. Real flamethrower and Napalm grants at0/60 supply100 loaded fuel and100 reserve. Normal cycling selects slot10. Primary stream120..179 leaves55 loaded/100 reserve and visible flames; alternate120 releases its canister after108ticks, replaces the tank from reserve, then impacts/explodes by359. Final ammo is100 loaded/0 reserve; canister counts are1start,1release,1explosion,0live,0poolmiss. Both PC final images were inspected; stream and canister blast are visible. Audio was not auditioned.
+
+Native alternate run `artifacts/xemu/render-20260922-174650` passes360 frames and all harness comparisons without DEV. Exact canister counts1/1/1/0/0 and tank state match PC; the inspected native framebuffer shows the canister explosion. Stock64MiB retains3658 free pages (14.29MiB), with the original disc restored. The new ordinary-level primary stream remains PC-only. Continuous audio, broader live NPC encounters, ordinary-level saves/terrain and presentation refinement remain open.
+
+A focused non-DEV Fusion replay (`artifacts/fusion-pickup-live/ordinary.log`,123frames) also confirms the shared special-weapon guard: one real shot/launch, loaded0/reserve1 and selected slot12, without an additional ordinary hitscan shot.
