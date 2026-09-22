@@ -41,7 +41,7 @@ Completion basis (user direction,2026-09-18): working late-alpha/early-beta code
 
 - Flamethrower: Ordinary pickup/import/script demand now supports stream and alternate canister with finite fuel; PC primary/alternate passes and native canister explosion matches with14.29MiB free; NPC encounters, saves, continuous audio and visual refinement remain (docs/FLAME-PICKUP-FIRST-PASS.md).
 
-- Hit-triggered events: When_Hit now observes registered actor/clutter hit signals and dispatches event/mover links before shared clearing; focused runtime/scene checks and PC/Xbox builds pass; live authored button scenario remains.
+- Hit-triggered events: When_Hit now observes registered actor/clutter hit signals and dispatches event/mover links before shared clearing; a real pistol hit now drives Goal_Set exactly once on PC/Xbox with matching state and20.48MiB free; live authored button/mover scenarios remain (docs/HIT-EVENTS-FIRST-PASS.md).
 
 - Player grenades: Ordinary pickup/import/script demand now enables throw models, timed flight and detonation; non-DEV PC/Xbox finite-ammo throw/bounce/fuse matches with12.04MiB native headroom; liquid behavior, flight saves and broader campaign terrain remain (docs/GRENADE-PICKUP-FIRST-PASS.md).
 
@@ -51,7 +51,7 @@ Completion basis (user direction,2026-09-18): working late-alpha/early-beta code
 
 - Combat pickups: Supported enemy weapons now drop finite remaining ammunition, including empty weapons and finite-power-cell Riot Stick; ordinary PC/Xbox scripted death, rocket pickup/equip/fire matches with20.29MiB free; authored no-drop flags, broader weapon encounters and general campaign saves remain (docs/ENEMY-WEAPON-DROPS.md).
 
-- AI mode events: Catatonic/waiting/motion and unique authored waypoint acquisition are implemented; ordinary pursuit/hearing/retaliation/alarm now preserve active script destinations, with PC/Xbox Goto movement matching and20.48MiB free; collecting, ambiguous route binding, full route encounters, mode13/vehicles and disk persistence remain (docs/SCRIPTED-AI-MOVEMENT.md).
+- AI mode events: Collecting means prop hauling to authored Drop_Point_Marker events, not inventory pickup; its attachment/movement/release integration remains open. Catatonic/waiting/motion and unique authored waypoint acquisition are implemented; ordinary pursuit/hearing/retaliation/alarm now preserve active script destinations, with PC/Xbox Goto movement matching and20.48MiB free; collecting, ambiguous route binding, full route encounters, mode13/vehicles and disk persistence remain (docs/SCRIPTED-AI-MOVEMENT.md).
 
 - Remote charges: Ordinary pickup/import/script demand now loads charge/detonator pairs and planted-charge updates; PC/Xbox acquisition/attachment/detonation matches with shared finite ammo and14.15MiB native headroom; campaign saves/terrain, moving hosts and presentation remain (docs/REMOTE-PICKUP-FIRST-PASS.md).
 

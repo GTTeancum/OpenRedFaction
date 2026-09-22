@@ -1409,3 +1409,7 @@ add_test(NAME scene_ai_script_movement COMMAND rf_scene_ai_script_movement_tests
 add_executable(rf_scene_npc_vitals_tests tests/scene_npc_vitals_tests.c)
 target_link_libraries(rf_scene_npc_vitals_tests PRIVATE rf_core)
 add_test(NAME scene_npc_vitals COMMAND rf_scene_npc_vitals_tests)
+
+add_executable(rf_scene_collecting_destination_tests tests/scene_collecting_destination_tests.c)
+target_link_libraries(rf_scene_collecting_destination_tests PRIVATE rf_core)
+add_test(NAME scene_collecting_destination COMMAND rf_scene_collecting_destination_tests)
