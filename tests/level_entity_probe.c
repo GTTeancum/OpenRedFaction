@@ -2,10 +2,11 @@
 #include <fcntl.h>
 #include <io.h>
 #include <string.h>
+#include <stddef.h>
 int main(int argc,char **argv)
 {
     rf_vpp archive;rf_level level;rf_level_entity_reader reader;rf_level_entity entity;int status;
-    _Static_assert(sizeof(entity)==1084,"Entity probe wire layout");
+    _Static_assert(offsetof(rf_level_entity,primary_weapon)==1084,"Legacy entity probe wire layout");
     if(argc==4 && !strcmp(argv[3],"--clutter")) {
         rf_level_owned_clutter owned={0},small={0},zero={0};uint32_t i,j,bytes;
         _setmode(_fileno(stdout),_O_BINARY);
@@ -192,7 +193,7 @@ int main(int argc,char **argv)
                 if(fwrite(&fields,sizeof(fields),1,stdout)!=1)return 3;
                 continue;
             }
-            if(fwrite(&item->record,sizeof(item->record),1,stdout)!=1 ||
+            if(fwrite(&item->record,offsetof(rf_level_entity,primary_weapon),1,stdout)!=1 ||
                 fwrite(item->raw,1,item->record.bytes,stdout)!=item->record.bytes)return 3;
         }
         fprintf(stderr,"%u\n",bytes);
@@ -307,6 +308,6 @@ int main(int argc,char **argv)
     status=rf_level_open(&level,&archive,argv[2]);
     if(!status)status=rf_level_entities_begin(&level,&reader);
     if(!status)while((status=rf_level_entity_next(&reader,&entity))==RF_OK)
-        if(fwrite(&entity,sizeof(entity),1,stdout)!=1) {status=RF_IO;break;}
+        if(fwrite(&entity,offsetof(rf_level_entity,primary_weapon),1,stdout)!=1) {status=RF_IO;break;}
     rf_vpp_close(&archive);return status==RF_NOT_FOUND?0:3;
 }

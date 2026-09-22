@@ -15,7 +15,7 @@ static int scheduler_launch(void)
     campaign_player_damage.state.effects.health=100;owner.damage.effects.health=100;
     owner.view.linked_handle=-1;owner.view.weapons[0]=4;owner.inventory.owned[4]=1;owner.inventory.loaded[4]=2;
     owner.look.orientation[8]=1;owner.combat_alert=1;owner.combat_target=campaign_player_object.handle;
-    owner.combat_navigation_due=1000;owner.pain.animation_lock=-1;rf_scene_dev_room_enabled=1;
+    owner.combat_navigation_due=1000;owner.pain.animation_lock=-1;rf_scene_dev_room_enabled=0;scene_rocket_resources=0;
     campaign_pistol_id=0;campaign_rifle_id=1;campaign_riot_id=2;campaign_shotgun_id=3;
     campaign_rocket_id=4;campaign_grenade_id=5;campaign_sniper_id=6;campaign_rail_id=7;
     campaign_weapon_supply.names.count=8;campaign_weapon_supply.definitions[4].ammo_type=4;
@@ -24,7 +24,12 @@ static int scheduler_launch(void)
     campaign_primary[4].burst_count=1;campaign_primary[4].ai_attack_range=20;
     campaign_poses.items=NULL;campaign_poses.count=0;scene_ai_rocket_reset();
     CHECK(!campaign_enemy_tick(&scene,100,eye));
+    CHECK(owner.inventory.loaded[4]==2 && !scene_ai_rocket_pending());
+    CHECK(!campaign_player_inventory.owned[4] && !scene.player_weapon[4]);
+    scene_rocket_resources=1;
+    CHECK(!campaign_enemy_tick(&scene,100,eye));
     CHECK(owner.inventory.loaded[4]==1 && campaign_player_damage.state.effects.health==100);
+    CHECK(!campaign_player_inventory.owned[4] && !scene.player_weapon[4]);
     for(i=0;i<SCENE_AI_ROCKET_CAPACITY;i++)if(scene_ai_rockets[i].flight.active){
         ++live;CHECK(scene_ai_rockets[i].source==source && scene_ai_rockets[i].flight.velocity[2]>0);}
     CHECK(live==1 && owner.combat_due>100);

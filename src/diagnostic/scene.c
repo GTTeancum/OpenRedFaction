@@ -4630,6 +4630,7 @@ static void campaign_actors_capture(void)
         }
     }
 }
+#include "scene_npc_loadout.inc"
 static int campaign_npc_bodies_open(const char *tables_path,const rf_geometry_collision_world *world,int32_t now)
 {
     const uint32_t budget=640*1024;rf_vpp tables;rf_vpp_entry entity_table,materials;
@@ -4824,6 +4825,13 @@ static int campaign_npc_bodies_open(const char *tables_path,const rf_geometry_co
             rf_weapon_startup_state weapons={-1,-1};uint32_t k;
             status=rf_entity_startup_weapon_bindings_sp(&owner->inventory,&weapons,grants,&campaign_weapon_supply,
                 &campaign_motion_catalog,&campaign_base_motions,campaign_seeds.items[actor].class_index,&owner->selection);if(status)goto done;
+            {int32_t startup_primary=weapons.primary;uint32_t class_index=campaign_seeds.items[actor].class_index;
+             status=scene_npc_loadout_apply(&campaign_seeds.records.items[actor].record,&owner->inventory,&weapons,&campaign_weapon_supply);if(status)goto done;
+             /* Model-less entities retain the same startup binding policy. */
+             if(weapons.primary!=startup_primary && campaign_motion_catalog.mappings[class_index].skeleton!=UINT32_MAX){
+                 if(weapons.primary>=0)status=rf_entity_motion_selection_weapon(&campaign_motion_catalog,&campaign_base_motions,class_index,weapons.primary,&owner->selection);
+                 else status=rf_entity_motion_selection_base(&campaign_motion_catalog,&campaign_base_motions,class_index,&owner->selection);
+                 if(status)goto done;}}
             view->weapons[0]=weapons.primary;view->weapons[1]=weapons.secondary;
             rf_scene_npc_startup_weapons[0]+=weapons.primary>=0;rf_scene_npc_startup_weapons[1]+=weapons.secondary>=0;
             for(k=0;k<64;++k)rf_scene_npc_startup_weapons[2]+=owner->inventory.owned[k]!=0;
@@ -9398,10 +9406,10 @@ static int campaign_enemy_tick(scene_stream *stream,uint32_t frame,const float p
         if(status==RF_NOT_FOUND)status=campaign_enemy_extra_weapon_select(weapon,&campaign_weapon_supply,&selected);
         if(status && status!=RF_NOT_FOUND)return status;
         if(weapon==campaign_grenade_id){
-            if(!rf_scene_dev_room_enabled)continue;
+            if(!scene_grenade_resources)continue;
             selected.primary=campaign_primary+5;selected.slot=5;selected.ammo=NULL;
         }else if(weapon==campaign_rocket_id){
-            if(!rf_scene_dev_room_enabled)continue;
+            if(!scene_rocket_resources)continue;
             selected.primary=campaign_primary+4;selected.slot=4;selected.ammo=campaign_weapon_supply.definitions+weapon;
         }
         if(!selected.primary)continue; /* Unsupported held items cannot fire generic hitscan. */
@@ -16166,6 +16174,7 @@ static int scene_dev_npc_seeds(const char *tables_path,rf_vpp *tables)
 #include "scene_weapon_resource_demand.inc"
 #include "scene_extra_pickups_gameplay.inc"
 #include "scene_precision_drop_demand.inc"
+#include "scene_ai_projectile_demand.inc"
 static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path,
     const char *motions_path,const char *tables_path,rf_vpp *maps,uint32_t map_count,
     rf_preview_mesh *mesh,rf_materials *materials,uint32_t mesh_budget,uint32_t material_budget,
@@ -16459,12 +16468,15 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
             rf_scene_campaign_load_stage=24;status=campaign_npc_bodies_open(tables_path,collision,0);if(status)goto done;
             {rf_vpp tables={0};rf_weapon_view_definition view;
              status=rf_vpp_open(&tables,tables_path);if(status)goto done;
-             {scene_weapon_resource_demand demand;
+             {scene_weapon_resource_demand demand;uint32_t npc_projectiles=scene_ai_projectile_resource_mask();
               status=scene_extra_pickups_resources_prepare(stream,&tables,(rf_scene_dev_room_enabled && !rf_scene_vehicle_enabled?0x7ffu:(rf_scene_vehicle_enabled?0x1fu:0xfu)) | (rf_scene_vehicle_enabled?0:scene_precision_drop_resource_mask()),1u<<11,&demand);
               if(!status){rf_scene_player_shield_resources=!!(demand.mask&(1u<<11)) || (rf_scene_dev_room_enabled && rf_scene_dev_npc_enabled==6);
                   if(rf_scene_player_shield_resources)status=rf_weapon_primary_load(&tables,"riot shield",128*1024,&campaign_primary[11]);
-                  scene_rocket_resources=!!(demand.mask&(1u<<4));
-                  scene_grenade_resources=!!(demand.mask&(1u<<5));
+                  /* NPC-only demand loads flights and effects without player views or ownership. */
+                  scene_rocket_resources=!!((demand.mask|npc_projectiles)&(1u<<4));
+                  scene_grenade_resources=!!((demand.mask|npc_projectiles)&(1u<<5));
+                  if(!status && (npc_projectiles&(1u<<4)) && !(demand.mask&(1u<<4)))status=rf_weapon_primary_load(&tables,"Rocket Launcher",128*1024,&campaign_primary[4]);
+                  if(!status && (npc_projectiles&(1u<<5)) && !(demand.mask&(1u<<5)))status=rf_weapon_primary_load(&tables,"Grenade",128*1024,&campaign_primary[5]);
                   scene_remote_resources=!!(demand.mask&((1u<<8)|(1u<<9)));
                   scene_flame_resources=!!(demand.mask&(1u<<10));
                   if(!status && scene_flame_resources)status=scene_flame_visual_open(&tables);

@@ -274,7 +274,12 @@ int rf_level_entity_next(rf_level_entity_reader *reader,rf_level_entity *entity)
     status=entity_skip(&r,13);if(status)return status; /* editor byte and three relationship integers */
     for(i=0;i<2;++i) {status=entity_string(&r,NULL);if(status)return status;}
     status=entity_skip(&r,29);if(status)return status; /* six bytes, two angles, three bytes, life/armor/FOV */
-    for(i=0;i<7;++i) {status=entity_string(&r,i==3?value.state_animation:i==5?value.skin:NULL);if(status)return status;}
+    /* 464010: first two strings resolve to entity +2a4/+2a8 weapon IDs. */
+    for(i=0;i<7;++i) {
+        char *name=i==0?value.primary_weapon:i==1?value.secondary_weapon:
+            i==3?value.state_animation:i==5?value.skin:NULL;
+        status=entity_string(&r,name);if(status)return status;
+    }
     status=entity_skip(&r,18);if(status)return status; /* two AI bytes and four reference integers */
     status=entity_read(&r,flags,17);if(status)return status;
     if(flags[16]>1)return RF_FORMAT;

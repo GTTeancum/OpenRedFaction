@@ -7,7 +7,7 @@ static int enemy_scheduler_launch(void)
 {
     campaign_npc_body owner={0};scene_stream scene={0};rf_geometry_collision_world world={0};
     float player_eye[3]={0,0,5};uint32_t shooter,live=0,i;
-    rf_scene_dev_room_enabled=1;
+    rf_scene_dev_room_enabled=0;scene_grenade_resources=0;
     scene.collision=&world;campaign_npc_bodies=&owner;campaign_npc_body_count=1;
     rf_object_registry_init(&campaign_registry);memset(&campaign_entities,0,sizeof(campaign_entities));
     CHECK(!rf_entity_view_register(&campaign_registry,&campaign_entities,&owner.view,&owner.registration));
@@ -27,7 +27,12 @@ static int enemy_scheduler_launch(void)
     campaign_poses.items=NULL;campaign_poses.count=0;
     scene_ai_grenade_reset();
     CHECK(!campaign_enemy_tick(&scene,100,player_eye));
+    CHECK(owner.inventory.reserve[5]==2 && !scene_ai_grenade_pending());
+    CHECK(!campaign_player_inventory.owned[5] && !scene.player_weapon[5]);
+    scene_grenade_resources=1;
+    CHECK(!campaign_enemy_tick(&scene,100,player_eye));
     CHECK(owner.inventory.reserve[5]==1 && owner.inventory.loaded[5]==0);
+    CHECK(!campaign_player_inventory.owned[5] && !scene.player_weapon[5]);
     for(i=0;i<SCENE_AI_GRENADE_CAPACITY;i++)if(scene_ai_grenades[i].projectile.flight.lifecycle.active){
         ++live;CHECK(scene_ai_grenades[i].source==shooter);
         CHECK(scene_ai_grenades[i].projectile.flight.velocity[1]>0);

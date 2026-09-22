@@ -134,6 +134,9 @@ typedef struct rf_level_entity {
     int32_t uid;float position[3],orientation[3][3];
     char class_name[256],script_name[256],state_animation[256],skin[256];
     uint32_t offset,bytes; /* Entity-section-relative raw span for future fields. */
+    /* Authored instance overrides: empty preserves the class default; "none"
+     * explicitly disables that weapon category. Names are not resolved here. */
+    char primary_weapon[RF_LEVEL_NAME_CAPACITY],secondary_weapon[RF_LEVEL_NAME_CAPACITY];
 } rf_level_entity;
 typedef struct rf_level_entity_reader {
     const rf_level *level;rf_level_section section;uint32_t cursor,count,index;

@@ -49,7 +49,8 @@ for archive in inventory['files']:
             if spawn:expected[-1]=relationships[1:9]+struct.pack('<II',relationships[9],(2 if flags[1] else 0)|(4 if flags[15] else 0))
             if spawn:
                 raw=data[start:cursor];assert len(raw)<0x8000
-                item=bytearray(1088);item[:4]=uid;struct.pack_into('<II',item,1080,len(raw),base+0x1000)
+                item=bytearray(1600);item[:4]=uid
+                struct.pack_into('<I',item,1080,len(raw));struct.pack_into('<I',item,1596,base+0x1000)
                 x.mem_write(base,bytes(item));x.mem_write(base+0x1000,raw);x.mem_write(base+0x9000,bytes([0xa5])*16)
                 x.mem_write(stack,struct.pack('<III',stop,base,base+0x9000));x.reg_write(UC_X86_REG_ESP,stack)
                 x.emu_start(entry_address,stop,count=100000)

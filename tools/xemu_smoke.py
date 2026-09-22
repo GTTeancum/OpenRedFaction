@@ -194,12 +194,28 @@ def main():
         assert cursor==len(payload)
         logic_links.append(links);logic_bytes+=count*stride+4*links;logic_payload+=payload[4:]
     entity_run=subprocess.run([str(root/'build/pc/Release/rf_level_entity_probe.exe'),str(root/'Installed_Game/levels1.vpp'),'L1S1.rfl','--owned-entities'],stdout=subprocess.PIPE,stderr=subprocess.PIPE,check=True)
-    entity_payload=entity_run.stdout;entity_count=0;entity_bytes=16;cursor=0
+    entity_payload=entity_run.stdout;entity_count=0;entity_bytes=16;cursor=0;entity_hash_payload=bytearray()
     while cursor<len(entity_payload):
         record_bytes,=struct.unpack_from('<I',entity_payload,cursor+1080)
-        cursor+=1084+record_bytes;entity_count+=1;entity_bytes+=1088+record_bytes
+        record=entity_payload[cursor:cursor+1084]
+        raw=entity_payload[cursor+1084:cursor+1084+record_bytes]
+        assert len(raw)==record_bytes
+        # Probe wire stays at the legacy prefix; native hashes the two new
+        # fixed-size weapon-name fields before the retained raw record.
+        raw_cursor=4
+        def entity_string():
+            nonlocal raw_cursor
+            size,=struct.unpack_from('<H',raw,raw_cursor);raw_cursor+=2
+            name=raw[raw_cursor:raw_cursor+size];raw_cursor+=size
+            assert len(name)==size and size<256 and b'\0' not in name
+            return name
+        entity_string();raw_cursor+=48;entity_string();raw_cursor+=13
+        entity_string();entity_string();raw_cursor+=29
+        primary=entity_string();secondary=entity_string()
+        entity_hash_payload+=record+primary.ljust(256,b'\0')+secondary.ljust(256,b'\0')+raw
+        cursor+=1084+record_bytes;entity_count+=1;entity_bytes+=1600+record_bytes
     assert cursor==len(entity_payload)
-    logic_bytes+=entity_bytes;logic_payload+=entity_payload
+    logic_bytes+=entity_bytes;logic_payload+=entity_hash_payload
     logic_hash=2166136261
     for byte in logic_payload:logic_hash=((logic_hash^byte)*16777619)&0xffffffff
     registry_symbol=re.search(r'_rf_registry_diagnostic\s+([0-9a-fA-F]+)',map_text)

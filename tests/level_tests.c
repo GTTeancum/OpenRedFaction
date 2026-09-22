@@ -110,6 +110,39 @@ int main(void)
      CHECK(rf_level_entity_find(&level,123,&e)==RF_FORMAT && !memcmp(&e,&saved,sizeof(e)));
      CHECK(rf_level_owned_entities_open(&level,1024*1024,&owned)==RF_FORMAT && !memcmp(&owned,&empty,sizeof(owned)));}
     rf_vpp_close(&archive);
+    /* Instance weapon names precede state/skin strings in the seven-name block. */
+    {
+        const char *primary[]={"Rocket Launcher","Grenade","","none"};
+        const char *secondary[]={"none","Fighter Rocket","","none"};
+        unsigned test;
+        for(test=0;test<4;++test) {
+            unsigned p=(unsigned)strlen(primary[test]),s=(unsigned)strlen(secondary[test]);
+            unsigned raw_bytes=155+p+s,at=4212+102;
+            rf_level_entity entity;rf_level_entity_reader reader,before;rf_level_entity saved;
+            rf_level_owned_entities owned={0};
+            memset(image+4200,0,sizeof(image)-4200);
+            word(2108,124+raw_bytes);word(4200,0x30000);word(4204,4+raw_bytes);word(4208,1);word(4212,123);
+            image[at]=(unsigned char)p;memcpy(image+at+2,primary[test],p);at+=2+p;
+            image[at]=(unsigned char)s;memcpy(image+at+2,secondary[test],s);
+            CHECK(run(&level,&archive)==RF_OK);
+            CHECK(rf_level_entities_begin(&level,&reader)==RF_OK);
+            CHECK(rf_level_entity_next(&reader,&entity)==RF_OK);
+            CHECK(!strcmp(entity.primary_weapon,primary[test]) && !strcmp(entity.secondary_weapon,secondary[test]));
+            CHECK(entity.bytes==raw_bytes && !entity.state_animation[0] && !entity.skin[0]);
+            CHECK(rf_level_owned_entities_open(&level,65536,&owned)==RF_OK);
+            rf_vpp_close(&archive);
+            CHECK(!strcmp(owned.items[0].record.primary_weapon,primary[test]));
+            CHECK(!strcmp(owned.items[0].record.secondary_weapon,secondary[test]));
+            rf_level_owned_entities_close(&owned);
+            /* A truncated named record cannot publish partial names or reader state. */
+            CHECK(run(&level,&archive)==RF_OK);
+            CHECK(rf_level_entities_begin(&level,&reader)==RF_OK);--reader.section.size;before=reader;
+            memset(&entity,0xa5,sizeof(entity));saved=entity;
+            CHECK(rf_level_entity_next(&reader,&entity)!=RF_OK);
+            CHECK(!memcmp(&entity,&saved,sizeof(entity)) && !memcmp(&reader,&before,sizeof(reader)));
+            rf_vpp_close(&archive);
+        }
+    }
     CHECK(remove("level-fixture.tmp") == 0);
     puts("Level bounds, invalid headers, duplicate sections, truncation and spawn ordering passed");
     return 0;
