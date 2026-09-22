@@ -33,7 +33,9 @@ static int scene_grenade_detonate(scene_stream *s,uint32_t frame,
     contact.object=UINT32_MAX;contact.face=UINT32_MAX;
     status=rf_geometry_collision_world_locate(s->collision,event->position,&location);if(status)return status;
     contact.room=location.room;
-    status=scene_impact_start(s,&contact,frame);if(status)return status;
+    if(campaign_grenade.impact_count!=1)return RF_FORMAT;
+    status=scene_impact_start_sized(s,&contact,frame,campaign_grenade.impact_radius[0]);if(status)return status;
+    scene_impact_sound(event->position,frame);
     status=scene_explosion_blast(s,frame,event->position,campaign_primary[5].damage,campaign_grenade.damage_radius);if(status)return status;
     status=scene_explosion_terrain(s,frame,&contact,campaign_grenade.crater_radius);if(status)return status;
     ++rf_scene_grenades[3];
