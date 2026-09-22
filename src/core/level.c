@@ -1543,7 +1543,9 @@ int rf_group_rotation_tick(rf_group_translation_runtime *runtime,
        key->timing[3]<0 || key->timing[4]<0)return RF_FORMAT;
     r=*runtime;
     if(!(r.motion.flags&4))return RF_RANGE;
-    if(r.motion.next_key==-1 || (r.deadline>=0 && now<r.deadline)){*sounds=0;return RF_OK;}
+    {int pending;
+     status=rf_timer_pending(r.deadline,now,&pending);if(status)return status;
+     if(r.motion.next_key==-1 || pending){*sounds=0;return RF_OK;}}
     duration=key->timing[(r.motion.flags&0x2000)?1:2];
     target=-key->rotation*0.017453292519943295f;
     if(duration<0 || !isfinite(target))return RF_FORMAT;

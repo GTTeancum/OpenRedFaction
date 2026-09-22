@@ -242,12 +242,16 @@ extern uint32_t rf_scene_clutter_tags[4];
 extern uint32_t rf_scene_clutter_tag_queries[5];
 extern uint32_t rf_scene_glare_resources[9];
 extern uint32_t rf_scene_glare_instances[10];
-/* Registered prop tag services; placement consumes current owned pose.
- * Output preserved for missing/stale handle, missing tag or invalid geometry. */
+/* Export one NPC state component; authored identity and full save composition
+ * remain the caller's responsibility. Rejects unsupported active NPC state. */
+int rf_scene_npc_checkpoint_export(const unsigned char identity[32],int32_t now,
+    void *output,uint32_t capacity,uint32_t *written);
 /* Publish a solved prop pose to rendering, queries and physics together.
  * Registered living owners only; room is resolved from the scene world.
  * No attachment ownership, movement simulation or save support implied. */
 int rf_scene_clutter_pose_set(uint32_t handle,const float position[3],const float basis[9]);
+/* Registered prop tag services; placement consumes current owned pose.
+ * Output preserved for missing/stale handle, missing tag or invalid geometry. */
 int rf_scene_clutter_tag_find(uint32_t handle,rf_model_name query,int32_t *index);
 int rf_scene_clutter_tag_place(uint32_t handle,int32_t index,float transform[12]);
 /* Registered static prop model query through5031f0/static geometry. Caller

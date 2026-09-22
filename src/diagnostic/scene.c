@@ -10899,6 +10899,28 @@ static int scene_vehicle_checkpoint_player_placement(const scene_stream *,const 
 static int scene_vehicle_checkpoint_read(scene_stream *,const void *,uint32_t,scene_vehicle_checkpoint_record *);
 static int scene_vehicle_checkpoint_fit(scene_stream *,scene_authored_collection_stage *,scene_authored_checkpoint_stage *,const scene_vehicle_checkpoint_record *,const rf_checkpoint_placement *);
 #include "scene_player_checkpoint.inc"
+#include "scene_npc_checkpoint_capture.inc"
+/* Component export for ordinary save composition. Does not write a complete
+ * save or relax world admission; caller supplies its authored source identity. */
+int rf_scene_npc_checkpoint_export(const unsigned char identity[32],int32_t now,
+    void *output,uint32_t capacity,uint32_t *written)
+{
+    rf_npc_checkpoint_catalog catalog={0};rf_npc_checkpoint_record *rows=NULL;
+    uint32_t count=0,limit,i;int status;
+    if(!identity||!output||!written||capacity<RF_NPC_CHECKPOINT_HEADER||
+       capacity>RF_CHECKPOINT_FILE_MAX)return RF_RANGE;
+    catalog.hash=rf_scene_weapon_supply[3];catalog.count=campaign_weapon_supply.names.count;
+    if(!catalog.count||catalog.count>64)return RF_RANGE;
+    memcpy(catalog.weapons,campaign_weapon_supply.definitions,sizeof(catalog.weapons));
+    for(i=0;i<catalog.count;i++)catalog.supported[i]=1;
+    limit=(capacity-RF_NPC_CHECKPOINT_HEADER)/RF_NPC_CHECKPOINT_ROW;
+    if(limit>campaign_npc_body_count)limit=campaign_npc_body_count;
+    if(limit){rows=malloc((size_t)limit*sizeof(*rows));if(!rows)return RF_IO;}
+    status=scene_npc_checkpoint_capture(&catalog,now,rows,limit,&count);
+    if(!status)status=rf_npc_checkpoint_encode(identity,&catalog,rows,count,output,capacity,written);
+    free(rows);return status;
+}
+
 #ifdef RF_IMAGE_XBOX_NATIVE
 static rf_xbox_checkpoint_storage scene_checkpoint_hdd;
 static uint32_t scene_checkpoint_hdd_save,scene_checkpoint_hdd_observe;

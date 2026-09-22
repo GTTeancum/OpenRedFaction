@@ -3,7 +3,7 @@
 Completion basis (user direction,2026-09-18): working late-alpha/early-beta code implementation. Overall approximately82%; GeoMod100% for the first playable milestone, accepted by the user. GeoMod items below are deferred refinement and coverage, not prerequisites to moving on. This does not assert retail polish, complete campaign integration or resolution of every known defect.
 
 
-- PRIORITY Ordinary saves: NPC and mission-counter component codecs now pass focused PC checks, but current player checkpoints still require DEV terrain fixtures and exclude NPCs/movers; implement ordinary-world state composition (NPCs, mission/events, movers, pickups and player) before removing admission gates, with a fresh-process walk/fire/save/reload flow as acceptance.
+- PRIORITY Ordinary saves: NPC scene export plus mission/pickup/trigger/mover and bounded event codecs now pass focused PC checks (save-system implementation approximately55%), but current player checkpoints still require DEV terrain fixtures and exclude NPCs/movers; implement ordinary-world state composition (NPCs, mission/events, movers, pickups and player) before removing admission gates, with a fresh-process walk/fire/save/reload flow as acceptance.
 
 - NPC durability: Authored instance health/armor now apply before persistence restore; PC confirms low-health death, survival and armor absorption, while Xbox fatal-hit/death/drop state matches with20.48MiB free; broader encounters and player startup remain separate (docs/ENTITY-INSTANCE-VITALS.md).
 

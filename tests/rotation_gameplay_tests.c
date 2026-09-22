@@ -1,4 +1,5 @@
 #include "rf/level.h"
+#include "rf/timer.h"
 #include <math.h>
 #include <stdio.h>
 #include <string.h>
@@ -46,6 +47,12 @@ int main(void)
     angle=r.distance;CHECK(rf_group_rotation_tick(&r,&key,.25f,4000,&sounds)==0 && r.distance==angle);
     for(i=0;i<4;i++)CHECK(rf_group_rotation_tick(&r,&key,.25f,4750+i*250,&sounds)==0);
     CHECK(r.motion.next_key==-1 && r.distance==0);
+    memset(&r,0,sizeof(r));r.motion.flags=4|0x2000;r.motion.mode=1;
+    r.motion.next_key=0;r.motion.terminal_key=-1;
+    CHECK(!rf_timer_set(&r.deadline,RF_TIMER_PERIOD-100,200));saved=r;
+    CHECK(!rf_group_rotation_tick(&r,&key,.25f,RF_TIMER_PERIOD-50,&sounds) && !memcmp(&saved,&r,sizeof(r)) && !sounds);
+    CHECK(!rf_group_rotation_tick(&r,&key,.25f,50,&sounds) && !memcmp(&saved,&r,sizeof(r)));
+    CHECK(!rf_group_rotation_tick(&r,&key,.25f,100,&sounds) && r.distance>0);
     saved=r;key.rotation=NAN;
     CHECK(rf_group_rotation_tick(&r,&key,.25f,2250,&sounds)!=0 && !memcmp(&saved,&r,sizeof(r)));
     puts("rotation open/close, hinge transform, swept bounds, pose commit and finite snap PASS");return 0;

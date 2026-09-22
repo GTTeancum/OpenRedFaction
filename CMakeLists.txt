@@ -1431,3 +1431,27 @@ target_sources(rf_core PRIVATE src/core/npc_checkpoint.c)
 add_executable(rf_npc_checkpoint_tests tests/npc_checkpoint_tests.c)
 target_link_libraries(rf_npc_checkpoint_tests PRIVATE rf_core)
 add_test(NAME npc_checkpoint COMMAND rf_npc_checkpoint_tests)
+
+target_sources(rf_core PRIVATE src/core/campaign_pickups_checkpoint.c)
+add_executable(rf_campaign_pickups_checkpoint_tests tests/campaign_pickups_checkpoint_tests.c)
+target_link_libraries(rf_campaign_pickups_checkpoint_tests PRIVATE rf_core)
+add_test(NAME campaign_pickups_checkpoint COMMAND rf_campaign_pickups_checkpoint_tests)
+
+target_sources(rf_core PRIVATE src/core/mover_checkpoint.c)
+add_executable(rf_mover_checkpoint_tests tests/mover_checkpoint_tests.c)
+target_link_libraries(rf_mover_checkpoint_tests PRIVATE rf_core)
+add_test(NAME mover_checkpoint COMMAND rf_mover_checkpoint_tests)
+
+target_sources(rf_core PRIVATE src/core/campaign_triggers_checkpoint.c)
+add_executable(rf_campaign_triggers_checkpoint_tests tests/campaign_triggers_checkpoint_tests.c)
+target_link_libraries(rf_campaign_triggers_checkpoint_tests PRIVATE rf_core)
+add_test(NAME campaign_triggers_checkpoint COMMAND rf_campaign_triggers_checkpoint_tests)
+
+target_sources(rf_core PRIVATE src/core/event_checkpoint.c)
+add_executable(rf_event_checkpoint_tests tests/event_checkpoint_tests.c)
+target_link_libraries(rf_event_checkpoint_tests PRIVATE rf_core)
+add_test(NAME event_checkpoint COMMAND rf_event_checkpoint_tests)
+
+add_executable(rf_scene_npc_checkpoint_capture_tests tests/scene_npc_checkpoint_capture_tests.c src/diagnostic/animation.c)
+target_link_libraries(rf_scene_npc_checkpoint_capture_tests PRIVATE rf_core)
+add_test(NAME scene_npc_checkpoint_capture COMMAND rf_scene_npc_checkpoint_capture_tests)
