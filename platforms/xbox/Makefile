@@ -90,6 +90,7 @@ LDFLAGS += -map:main.map -entry:rf_diagnostic_start -stack:131072
 SRCS += $(PROJECT_ROOT)/src/core/player_weapon.c
 SRCS += $(PROJECT_ROOT)/src/core/remote_charge.c $(PROJECT_ROOT)/src/core/remote_checkpoint.c
 SRCS += $(PROJECT_ROOT)/src/core/event_hit.c
+SRCS += $(PROJECT_ROOT)/src/core/campaign_goals_checkpoint.c $(PROJECT_ROOT)/src/core/npc_checkpoint.c
 SRCS += $(PROJECT_ROOT)/src/core/flame_stream.c
 include $(NXDK_DIR)/Makefile
 $(APU_SRCS:.c=.obj): CFLAGS += -std=c23 -Wno-unused-function -I$(APU_BACKEND)/include

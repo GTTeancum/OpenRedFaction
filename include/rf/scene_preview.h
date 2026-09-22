@@ -244,6 +244,10 @@ extern uint32_t rf_scene_glare_resources[9];
 extern uint32_t rf_scene_glare_instances[10];
 /* Registered prop tag services; placement consumes current owned pose.
  * Output preserved for missing/stale handle, missing tag or invalid geometry. */
+/* Publish a solved prop pose to rendering, queries and physics together.
+ * Registered living owners only; room is resolved from the scene world.
+ * No attachment ownership, movement simulation or save support implied. */
+int rf_scene_clutter_pose_set(uint32_t handle,const float position[3],const float basis[9]);
 int rf_scene_clutter_tag_find(uint32_t handle,rf_model_name query,int32_t *index);
 int rf_scene_clutter_tag_place(uint32_t handle,int32_t index,float transform[12]);
 /* Registered static prop model query through5031f0/static geometry. Caller

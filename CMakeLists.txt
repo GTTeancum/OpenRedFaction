@@ -1417,3 +1417,17 @@ add_test(NAME scene_collecting_destination COMMAND rf_scene_collecting_destinati
 add_executable(rf_scene_collecting_clutter_lifecycle_tests tests/scene_collecting_clutter_lifecycle_tests.c)
 target_link_libraries(rf_scene_collecting_clutter_lifecycle_tests PRIVATE rf_core)
 add_test(NAME scene_collecting_clutter_lifecycle COMMAND rf_scene_collecting_clutter_lifecycle_tests)
+
+add_executable(rf_scene_clutter_pose_tests tests/scene_clutter_pose_tests.c)
+target_link_libraries(rf_scene_clutter_pose_tests PRIVATE rf_core)
+add_test(NAME scene_clutter_pose COMMAND rf_scene_clutter_pose_tests)
+
+target_sources(rf_core PRIVATE src/core/campaign_goals_checkpoint.c)
+add_executable(rf_campaign_goals_checkpoint_tests tests/campaign_goals_checkpoint_tests.c)
+target_link_libraries(rf_campaign_goals_checkpoint_tests PRIVATE rf_core)
+add_test(NAME campaign_goals_checkpoint COMMAND rf_campaign_goals_checkpoint_tests)
+
+target_sources(rf_core PRIVATE src/core/npc_checkpoint.c)
+add_executable(rf_npc_checkpoint_tests tests/npc_checkpoint_tests.c)
+target_link_libraries(rf_npc_checkpoint_tests PRIVATE rf_core)
+add_test(NAME npc_checkpoint COMMAND rf_npc_checkpoint_tests)

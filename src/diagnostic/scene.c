@@ -3347,6 +3347,7 @@ static int campaign_clutter_bodies_close(void)
     free(campaign_clutter_damage_bindings);campaign_clutter_damage_bindings=NULL;
     free(campaign_clutter_bodies);campaign_clutter_bodies=NULL;free(campaign_clutter_shared);campaign_clutter_shared=NULL;return RF_OK;
 }
+#include "scene_clutter_pose.inc"
 uint32_t rf_scene_clutter_tag_queries[5]; /* lookups, matches, poses, hash, errors */
 static int campaign_clutter_registered(uint32_t handle,uint32_t *slot,uint32_t *model)
 {
@@ -3358,6 +3359,19 @@ static int campaign_clutter_registered(uint32_t handle,uint32_t *slot,uint32_t *
     m=campaign_clutter_model_slots[i];if(m>=campaign_clutter_model_count)return RF_FORMAT;
     if(campaign_clutter_bodies[i]->attachment.model!=(uint32_t)(uintptr_t)(campaign_clutter_shared+m))return RF_FORMAT;
     *slot=i;*model=m;return RF_OK;
+}
+/* Shared moved-prop publication; live registry identity and room lookup precede
+ * the atomic owner update. Carry/mover schedulers supply their solved pose. */
+int rf_scene_clutter_pose_set(uint32_t handle,const float position[3],const float basis[9])
+{
+    uint32_t slot,model,j;rf_collision_room_location room;int status;
+    if(!position || !basis || !campaign_alpha_world)return RF_RANGE;
+    for(j=0;j<3;j++)if(!isfinite(position[j]))return RF_RANGE;
+    status=campaign_clutter_registered(handle,&slot,&model);if(status)return status;
+    if(campaign_clutter_bodies[slot]->state.flags&2u)return RF_NOT_FOUND;
+    status=rf_geometry_collision_world_locate(campaign_alpha_world,position,&room);if(status)return status;
+    return scene_clutter_pose_publish(campaign_clutter_bodies[slot],position,basis,
+        room.room==UINT32_MAX?0:room.room+1);
 }
 int rf_scene_clutter_tag_find(uint32_t handle,rf_model_name query,int32_t *index)
 {
