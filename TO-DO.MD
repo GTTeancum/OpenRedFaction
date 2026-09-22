@@ -51,7 +51,7 @@ Completion basis (user direction,2026-09-18): working late-alpha/early-beta code
 
 - AI mode events: Catatonic, waiting/default, motion acquisition and resuming an existing authored waypoint route now bind to live behavior; focused scheduler/route checks and PC/Xbox builds pass; in-memory mode/validated route retention now passes revisit-helper checks and PC/Xbox builds; unbound waypoint assignment, collecting, disk persistence, mode13/vehicles and authored live scenarios remain.
 
-- Remote charges: Charge/detonator selection, shared ammo, throw/place, sticking, rendering and blast/GeoMod are integrated; PC and stock64MiB XEMU throw/detonate replay pass with one terrain cut; planted-charge RFCP2 save/load passes79/80native checks with exact PC/Xbox save bytes and restored detonation; detached-fragment transport, general campaign saves, placement fidelity and broader effect/audio runtime coverage remain (authored radius and explosion sound dispatch are now connected).
+- Remote charges: Ordinary pickup/import/script demand now loads charge/detonator pairs and planted-charge updates; PC/Xbox acquisition/attachment/detonation matches with shared finite ammo and14.15MiB native headroom; campaign saves/terrain, moving hosts and presentation remain (docs/REMOTE-PICKUP-FIRST-PASS.md).
 
 - Shield events: Activate_Capek_Shield now toggles registered actor damage immunity through immediate/delayed event dispatch; focused runtime/scene checks and PC/Xbox builds pass; shield presentation, hit armor consumption and live authored scenario remain.
 

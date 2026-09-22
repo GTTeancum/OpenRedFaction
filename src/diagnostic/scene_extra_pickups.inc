@@ -33,30 +33,30 @@ static int scene_extra_pickup_index(const char *name)
  * Undercover slot. Undercover is independently demand-loaded from imported
  * ownership/script metadata; no fictional pickup is added. */
 static int scene_extra_pickup_demand_slots(const char *const *slots,uint32_t count,
-    uint32_t *optional_mask,uint32_t *machine_pair)
+    uint32_t *optional_mask,uint32_t *machine_pair,uint32_t *remote_pair)
 {
-    const char *names[10]={"Machine Pistol","heavy_machine_gun","scope_assault_rifle","Machine Pistol Special","Undercover 12mm handgun","shoulder_cannon","Sniper Rifle","rail_gun","Rocket Launcher","Grenade"};
-    uint32_t i,j,bits[10]={0},optional=0;
-    if(!slots || !count || count>32 || !optional_mask || !machine_pair)return RF_RANGE;
+    const char *names[12]={"Machine Pistol","heavy_machine_gun","scope_assault_rifle","Machine Pistol Special","Undercover 12mm handgun","shoulder_cannon","Sniper Rifle","rail_gun","Rocket Launcher","Grenade","Remote Charge","Remote Charge Detonator"};
+    uint32_t i,j,bits[12]={0},optional=0;
+    if(!slots || !count || count>32 || !optional_mask || !machine_pair || !remote_pair)return RF_RANGE;
     for(i=0;i<count;i++){
         if(!slots[i])return RF_RANGE;
-        for(j=0;j<10;j++)if(scene_extra_pickup_equal(slots[i],names[j])){
+        for(j=0;j<12;j++)if(scene_extra_pickup_equal(slots[i],names[j])){
             if(bits[j])return RF_FORMAT;
             bits[j]=1u<<i;optional|=bits[j];
         }
     }
-    for(j=0;j<10;j++)if(!bits[j])return RF_NOT_FOUND;
-    *optional_mask=optional;*machine_pair=bits[0]|bits[3];return RF_OK;
+    for(j=0;j<12;j++)if(!bits[j])return RF_NOT_FOUND;
+    *optional_mask=optional;*machine_pair=bits[0]|bits[3];*remote_pair=bits[10]|bits[11];return RF_OK;
 }
 static int scene_extra_pickup_demand_expand(const char *const *slots,uint32_t count,
     uint32_t demand,uint32_t *expanded)
 {
-    uint32_t optional,pair,valid;int status;
+    uint32_t optional,pair,remote,valid;int status;
     if(!expanded)return RF_RANGE;
-    status=scene_extra_pickup_demand_slots(slots,count,&optional,&pair);if(status)return status;
+    status=scene_extra_pickup_demand_slots(slots,count,&optional,&pair,&remote);if(status)return status;
     valid=count==32?UINT32_MAX:((1u<<count)-1);
     if(demand&~valid)return RF_RANGE;
-    *expanded=demand|((demand&pair)?pair:0);return RF_OK;
+    *expanded=demand|((demand&pair)?pair:0)|((demand&remote)?remote:0);return RF_OK;
 }
 /* Return NOT_FOUND for a class outside this extension; the caller then uses
  * legacy pickup handling. Success grants finite inventory only, never equips

@@ -10,66 +10,85 @@ static int demand_test(rf_vpp *tables,const rf_weapon_supply_catalog *supply)
 {
     /* Deliberately nonproduction ordering proves masks are scene-slot based,
      * never weapon-table indices or a prefix that loads intervening guns. */
-    const char *slots[]={"Undercover 12mm handgun","heavy_machine_gun","Machine Pistol Special","scope_assault_rifle","Machine Pistol","shoulder_cannon","Sniper Rifle","rail_gun","Rocket Launcher","Grenade"};
+    const char *slots[]={"Undercover 12mm handgun","heavy_machine_gun","Machine Pistol Special","scope_assault_rifle","Machine Pistol","shoulder_cannon","Sniper Rifle","rail_gun","Rocket Launcher","Grenade","Remote Charge Detonator","Remote Charge"};
     rf_level_item item={0};rf_level_owned_items pickups={0};rf_weapon_inventory inventory={0};
-    scene_weapon_resource_demand demand;uint32_t optional=0,pair=0,expanded=0;
+    scene_weapon_resource_demand demand;uint32_t optional=0,pair=0,remote=0,expanded=0;
     int32_t weapon=rf_weapon_name_find(&supply->names,"Machine Pistol Special");
-    CHECK(!scene_extra_pickup_demand_slots(slots,10,&optional,&pair));
-    CHECK(optional==1023 && pair==20);
+    CHECK(!scene_extra_pickup_demand_slots(slots,12,&optional,&pair,&remote));
+    CHECK(optional==4095 && pair==20 && remote==3072);
     pickups.items=&item;pickups.count=1;
     strcpy(item.class_name,"heavy machine gun");
-    CHECK(!scene_weapon_resources_plan(0,optional,slots,10,&supply->names,&inventory,&pickups,NULL,resolve_item,tables,&demand));
+    CHECK(!scene_weapon_resources_plan(0,optional,slots,12,&supply->names,&inventory,&pickups,NULL,resolve_item,tables,&demand));
     CHECK(demand.pickup_mask==2 && demand.mask==2);
-    CHECK(!scene_extra_pickup_demand_expand(slots,10,demand.mask,&expanded) && expanded==2);
+    CHECK(!scene_extra_pickup_demand_expand(slots,12,demand.mask,&expanded) && expanded==2);
     strcpy(item.class_name,"scope assault rifle");
-    CHECK(!scene_weapon_resources_plan(0,optional,slots,10,&supply->names,&inventory,&pickups,NULL,resolve_item,tables,&demand));
-    CHECK(!scene_extra_pickup_demand_expand(slots,10,demand.mask,&expanded) && expanded==8);
+    CHECK(!scene_weapon_resources_plan(0,optional,slots,12,&supply->names,&inventory,&pickups,NULL,resolve_item,tables,&demand));
+    CHECK(!scene_extra_pickup_demand_expand(slots,12,demand.mask,&expanded) && expanded==8);
     strcpy(item.class_name,"Machine Pistol");
-    CHECK(!scene_weapon_resources_plan(0,optional,slots,10,&supply->names,&inventory,&pickups,NULL,resolve_item,tables,&demand));
+    CHECK(!scene_weapon_resources_plan(0,optional,slots,12,&supply->names,&inventory,&pickups,NULL,resolve_item,tables,&demand));
     CHECK(demand.mask==16);
-    CHECK(!scene_extra_pickup_demand_expand(slots,10,demand.mask,&expanded) && expanded==20);
+    CHECK(!scene_extra_pickup_demand_expand(slots,12,demand.mask,&expanded) && expanded==20);
     strcpy(item.class_name,"7.62mm_ammo");
-    CHECK(!scene_weapon_resources_plan(0,optional,slots,10,&supply->names,&inventory,&pickups,NULL,resolve_item,tables,&demand));
+    CHECK(!scene_weapon_resources_plan(0,optional,slots,12,&supply->names,&inventory,&pickups,NULL,resolve_item,tables,&demand));
     CHECK(!demand.mask); /* Ammo alone cannot select or load an unowned gun. */
     CHECK(weapon>=0 && weapon<64);inventory.owned[weapon]=1;
-    CHECK(!scene_weapon_resources_plan(0,optional,slots,10,&supply->names,&inventory,NULL,NULL,NULL,NULL,&demand));
+    CHECK(!scene_weapon_resources_plan(0,optional,slots,12,&supply->names,&inventory,NULL,NULL,NULL,NULL,&demand));
     CHECK(demand.owned_mask==4);
-    CHECK(!scene_extra_pickup_demand_expand(slots,10,demand.mask,&expanded) && expanded==20);
+    CHECK(!scene_extra_pickup_demand_expand(slots,12,demand.mask,&expanded) && expanded==20);
     {rf_level_owned_event event={0};rf_level_owned_events events={0};
      memset(&inventory,0,sizeof(inventory));events.items=&event;events.count=1;
      strcpy(event.record.type,"Give_Item_To_Player");strcpy(event.record.texts[0],"scope assault rifle");
-     CHECK(!scene_weapon_resources_plan(0,optional,slots,10,&supply->names,&inventory,NULL,&events,resolve_item,tables,&demand));
+     CHECK(!scene_weapon_resources_plan(0,optional,slots,12,&supply->names,&inventory,NULL,&events,resolve_item,tables,&demand));
      CHECK(demand.event_mask==8 && demand.mask==8);}
     weapon=rf_weapon_name_find(&supply->names,"Undercover 12mm handgun");CHECK(weapon>=0);
     memset(&inventory,0,sizeof(inventory));inventory.owned[weapon]=1;
-    CHECK(!scene_weapon_resources_plan(0,optional,slots,10,&supply->names,&inventory,NULL,NULL,NULL,NULL,&demand));
+    CHECK(!scene_weapon_resources_plan(0,optional,slots,12,&supply->names,&inventory,NULL,NULL,NULL,NULL,&demand));
     CHECK(demand.owned_mask==1 && demand.mask==1);
-    CHECK(!scene_extra_pickup_demand_expand(slots,10,demand.mask,&expanded) && expanded==1);
+    CHECK(!scene_extra_pickup_demand_expand(slots,12,demand.mask,&expanded) && expanded==1);
     memset(&inventory,0,sizeof(inventory));strcpy(item.class_name,"shoulder cannon");
-    CHECK(!scene_weapon_resources_plan(0,optional,slots,10,&supply->names,&inventory,&pickups,NULL,resolve_item,tables,&demand));
+    CHECK(!scene_weapon_resources_plan(0,optional,slots,12,&supply->names,&inventory,&pickups,NULL,resolve_item,tables,&demand));
     CHECK(demand.pickup_mask==32 && demand.mask==32);
-    CHECK(!scene_extra_pickup_demand_expand(slots,10,demand.mask,&expanded) && expanded==32);
+    CHECK(!scene_extra_pickup_demand_expand(slots,12,demand.mask,&expanded) && expanded==32);
     weapon=rf_weapon_name_find(&supply->names,"shoulder_cannon");CHECK(weapon>=0 && weapon<64);
     inventory.owned[weapon]=1;
-    CHECK(!scene_weapon_resources_plan(0,optional,slots,10,&supply->names,&inventory,NULL,NULL,NULL,NULL,&demand));
+    CHECK(!scene_weapon_resources_plan(0,optional,slots,12,&supply->names,&inventory,NULL,NULL,NULL,NULL,&demand));
     CHECK(demand.owned_mask==32 && demand.mask==32);
     {const char *classes[4]={"Sniper Rifle","rail gun","Rocket Launcher","grenades"};
      const char *weapons[4]={"Sniper Rifle","rail_gun","Rocket Launcher","Grenade"};uint32_t i;
      for(i=0;i<4;i++) {
         uint32_t expected=1u<<(6+i);rf_level_owned_event event={0};rf_level_owned_events events={0};
         memset(&inventory,0,sizeof(inventory));strcpy(item.class_name,classes[i]);
-        CHECK(!scene_weapon_resources_plan(0,optional,slots,10,&supply->names,&inventory,&pickups,NULL,resolve_item,tables,&demand));
+        CHECK(!scene_weapon_resources_plan(0,optional,slots,12,&supply->names,&inventory,&pickups,NULL,resolve_item,tables,&demand));
         CHECK(demand.pickup_mask==expected && demand.mask==expected);
-        CHECK(!scene_extra_pickup_demand_expand(slots,10,demand.mask,&expanded) && expanded==expected);
+        CHECK(!scene_extra_pickup_demand_expand(slots,12,demand.mask,&expanded) && expanded==expected);
         weapon=rf_weapon_name_find(&supply->names,weapons[i]);CHECK(weapon>=0 && weapon<64);
         inventory.owned[weapon]=1;
-        CHECK(!scene_weapon_resources_plan(0,optional,slots,10,&supply->names,&inventory,NULL,NULL,NULL,NULL,&demand));
+        CHECK(!scene_weapon_resources_plan(0,optional,slots,12,&supply->names,&inventory,NULL,NULL,NULL,NULL,&demand));
         CHECK(demand.owned_mask==expected && demand.mask==expected);
         memset(&inventory,0,sizeof(inventory));events.items=&event;events.count=1;
         strcpy(event.record.type,"Give_Item_To_Player");strcpy(event.record.texts[0],classes[i]);
-        CHECK(!scene_weapon_resources_plan(0,optional,slots,10,&supply->names,&inventory,NULL,&events,resolve_item,tables,&demand));
+        CHECK(!scene_weapon_resources_plan(0,optional,slots,12,&supply->names,&inventory,NULL,&events,resolve_item,tables,&demand));
         CHECK(demand.event_mask==expected && demand.mask==expected);
      }}
+    {const char *classes[2]={"Remote Charge","Remote Charges"};uint32_t i;
+     for(i=0;i<2;i++) {
+        rf_level_owned_event event={0};rf_level_owned_events events={0};
+        memset(&inventory,0,sizeof(inventory));strcpy(item.class_name,classes[i]);
+        CHECK(!scene_weapon_resources_plan(0,optional,slots,12,&supply->names,&inventory,&pickups,NULL,resolve_item,tables,&demand));
+        CHECK(demand.mask==2048);
+        CHECK(!scene_extra_pickup_demand_expand(slots,12,demand.mask,&expanded) && expanded==remote);
+        events.items=&event;events.count=1;strcpy(event.record.type,"Give_Item_To_Player");strcpy(event.record.texts[0],classes[i]);
+        CHECK(!scene_weapon_resources_plan(0,optional,slots,12,&supply->names,&inventory,NULL,&events,resolve_item,tables,&demand));
+        CHECK(!scene_extra_pickup_demand_expand(slots,12,demand.mask,&expanded) && expanded==remote);
+     }
+     for(i=10;i<12;i++) {
+        weapon=rf_weapon_name_find(&supply->names,slots[i]);CHECK(weapon>=0 && weapon<64);
+        memset(&inventory,0,sizeof(inventory));inventory.owned[weapon]=1;
+        CHECK(!scene_weapon_resources_plan(0,optional,slots,12,&supply->names,&inventory,NULL,NULL,NULL,NULL,&demand));
+        CHECK(demand.mask==(1u<<i));
+        CHECK(!scene_extra_pickup_demand_expand(slots,12,demand.mask,&expanded) && expanded==remote);
+     }
+     CHECK(!scene_extra_pickup_demand_expand(slots,12,2048|16,&expanded) && expanded==(remote|pair));}
     return 0;
 }
 int main(int argc,char **argv)

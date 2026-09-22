@@ -27,17 +27,17 @@ static int scene_extra_pickups_resolve_item(void *context,const char *name,rf_it
 static int scene_extra_pickups_resources_prepare(scene_stream *stream,rf_vpp *tables,
     uint32_t base_mask,uint32_t other_optional,scene_weapon_resource_demand *result)
 {
-    scene_weapon_resource_demand demand;rf_weapon_primary_definition primary[10];
-    uint32_t optional,pair,expanded,slots[10],count=0,i;int status;
+    scene_weapon_resource_demand demand;rf_weapon_primary_definition primary[12];
+    uint32_t optional,pair,remote,expanded,slots[12],count=0,i;int status;
     if(!stream || !tables || !result)return RF_RANGE;
-    status=scene_extra_pickup_demand_slots(campaign_weapon_names,SCENE_WEAPON_SLOTS,&optional,&pair);if(status)return status;
+    status=scene_extra_pickup_demand_slots(campaign_weapon_names,SCENE_WEAPON_SLOTS,&optional,&pair,&remote);if(status)return status;
     status=scene_weapon_resources_plan(base_mask,other_optional|optional,campaign_weapon_names,
         SCENE_WEAPON_SLOTS,&campaign_weapon_supply.names,
         campaign_import_pending?&campaign_player_import.inventory:NULL,
         &stream->pickups,&campaign_events.decoded,scene_extra_pickups_resolve_item,tables,&demand);if(status)return status;
     status=scene_extra_pickup_demand_expand(campaign_weapon_names,SCENE_WEAPON_SLOTS,demand.mask,&expanded);if(status)return status;
     for(i=0;i<SCENE_WEAPON_SLOTS;i++)if((expanded&optional)&(1u<<i)){
-        if(count>=10)return RF_RANGE;
+        if(count>=12)return RF_RANGE;
         slots[count]=i;status=rf_weapon_primary_load(tables,campaign_weapon_names[i],128*1024,primary+count);if(status)return status;
         ++count;
     }
