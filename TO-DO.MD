@@ -27,7 +27,7 @@ Completion basis (user direction,2026-09-18): working late-alpha/early-beta code
 
 - Conventional firearms: Machine Pistol, Heavy Machine Gun, Precision Rifle and Undercover handgun primary firing now work in a bounded DEV profile, including HMG alternate and rifle zoom; PC visuals pass and native HMG shot/ammo state matches with11.59MiB free; Machine Pistol magazine switching now passes PC/Xbox; Undercover suppressor attach/remove now passes PC/Xbox; authored Machine Pistol/HMG/precision pickups and sparse views are now wired, with MP session mode carry; broader live AI encounters, full live level handoffs and general saves remain.
 
-- Fusion launcher: Authored primary fire, real flight, single-shell reload, blast/self-damage, central explosion emitters and GeoMod now work in the DEV room; PC and stock64MiB Xbox destruction match with7.04MiB free; campaign pickup/selection, save state, full audio, glow and remaining effect fidelity are open.
+- Fusion launcher: Authored pickup/script/import demand now loads the weapon without DEV auto-ownership; PC grants, selection and finite-ammo fire pass, native acquisition/fire state matches but projectile-render checksum differs; saves, wider campaign encounters and effect polish remain (docs/FUSION-PICKUP-FIRST-PASS.md).
 
 - Player shield: Direct gunfire blocking/break/fallback works; authored delayed bash now connects animation, finite melee contact, cover, source-attributed damage and death; focused actual damage/cover/range checks and PC/Xbox builds pass, PC replay shows attack pose; world/script shield pickups and demand-based view resources are now wired; native bash view now passes175frames with7.05MiB free; broader attacks, saves and native break continuation remain.
 

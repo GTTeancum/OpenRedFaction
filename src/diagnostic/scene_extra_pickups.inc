@@ -5,11 +5,14 @@
  * fake player-view slots. Installed Undercover has no dedicated pickup and
  * uses handgun 12mm reserve. Machine Pistol Special uses Assault Rifle's AP
  * reserve, already supplied by the authored 5.56mm_ammo class. */
-#define SCENE_EXTRA_PICKUP_COUNT 5
-#define SCENE_EXTRA_PICKUP_NAMES "Machine Pistol","heavy machine gun","scope assault rifle","7.62mm_ammo","explosive 5.56mm rounds"
+#define SCENE_EXTRA_PICKUP_COUNT 6
+#define SCENE_EXTRA_PICKUP_NAMES "Machine Pistol","heavy machine gun","scope assault rifle","7.62mm_ammo","explosive 5.56mm rounds","shoulder cannon"
 static const char *scene_extra_pickup_names[SCENE_EXTRA_PICKUP_COUNT]={SCENE_EXTRA_PICKUP_NAMES};
 static const char *scene_extra_pickup_weapons[SCENE_EXTRA_PICKUP_COUNT]={
-    "Machine Pistol","heavy_machine_gun","scope_assault_rifle","heavy_machine_gun","scope_assault_rifle"};
+    "Machine Pistol","heavy_machine_gun","scope_assault_rifle","heavy_machine_gun","scope_assault_rifle","shoulder_cannon"};
+/* Installed Fusion pickup gives one shell and its gun; no separate Fusion
+ * ammo pickup class is invented. Existing indices remain stable. */
+static const uint8_t scene_extra_pickup_gives_weapon[SCENE_EXTRA_PICKUP_COUNT]={1,1,1,0,0,1};
 static int scene_extra_pickup_equal(const char *a,const char *b)
 {
     unsigned char x,y;if(!a || !b)return 0;
@@ -32,17 +35,17 @@ static int scene_extra_pickup_index(const char *name)
 static int scene_extra_pickup_demand_slots(const char *const *slots,uint32_t count,
     uint32_t *optional_mask,uint32_t *machine_pair)
 {
-    const char *names[5]={"Machine Pistol","heavy_machine_gun","scope_assault_rifle","Machine Pistol Special","Undercover 12mm handgun"};
-    uint32_t i,j,bits[5]={0},optional=0;
+    const char *names[6]={"Machine Pistol","heavy_machine_gun","scope_assault_rifle","Machine Pistol Special","Undercover 12mm handgun","shoulder_cannon"};
+    uint32_t i,j,bits[6]={0},optional=0;
     if(!slots || !count || count>32 || !optional_mask || !machine_pair)return RF_RANGE;
     for(i=0;i<count;i++){
         if(!slots[i])return RF_RANGE;
-        for(j=0;j<5;j++)if(scene_extra_pickup_equal(slots[i],names[j])){
+        for(j=0;j<6;j++)if(scene_extra_pickup_equal(slots[i],names[j])){
             if(bits[j])return RF_FORMAT;
             bits[j]=1u<<i;optional|=bits[j];
         }
     }
-    for(j=0;j<5;j++)if(!bits[j])return RF_NOT_FOUND;
+    for(j=0;j<6;j++)if(!bits[j])return RF_NOT_FOUND;
     *optional_mask=optional;*machine_pair=bits[0]|bits[3];return RF_OK;
 }
 static int scene_extra_pickup_demand_expand(const char *const *slots,uint32_t count,
@@ -66,7 +69,7 @@ static int scene_extra_pickup_grant(const char *name,const rf_item_definition *i
     if(index<0)return RF_NOT_FOUND;
     if(!item || !supply || !inventory || !grant || supply->names.count>64)return RF_RANGE;
     if((item->flags&1) || !scene_extra_pickup_equal(item->weapon,scene_extra_pickup_weapons[index]) ||
-       item->gives_weapon!=(uint32_t)(index<3))return RF_FORMAT;
+       item->gives_weapon!=scene_extra_pickup_gives_weapon[index])return RF_FORMAT;
     weapon=rf_weapon_name_find(&supply->names,item->weapon);
     if(weapon<0)return RF_NOT_FOUND;
     if(weapon>=64 || (uint32_t)weapon>=supply->names.count)return RF_RANGE;

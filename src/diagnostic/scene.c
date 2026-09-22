@@ -598,6 +598,7 @@ typedef struct scene_particle_workspace {
 } scene_particle_workspace;
 enum { SCENE_WEAPON_SLOTS=18, SCENE_ROCKETS=50, SCENE_RIPPLES=16 };
 uint32_t rf_scene_player_shield_resources,rf_scene_fusion_enabled,rf_scene_firearms_enabled;
+static uint32_t scene_fusion_resources;
 uint32_t rf_scene_vehicle_enabled;
 static uint32_t scene_extra_pickups_available(uint32_t);
 static uint32_t scene_extra_pickups_selection_limit(void);
@@ -11433,7 +11434,7 @@ static void scene_debris_splash_sound(scene_debris_pool *p,const float point[3])
 static int scene_debris_blood_start(scene_stream *s,const float position[3],uint32_t room,float amount)
 {
     rf_particle_spawn spawn;uint32_t bitmap,index,i;int status;rf_random_state *random;
-    if(!s->impact || !s->particles.state || !s->debris)return RF_OK;
+    if(!s->impact || !s->particles.state || !s->debris || !s->impact->blood_images[0].count || !s->impact->blood_images[1].count)return RF_OK;
     ++rf_scene_debris_blood[0];random=&s->debris->random;
     bitmap=s->particles.materials.texture_count+s->impact->materials.count;
     status=rf_particle_blood_prepare(position,amount,bitmap,s->impact->blood_images[0].count,&spawn);if(status)return status;
@@ -12692,6 +12693,7 @@ static int campaign_inventory_initialize(void)
             for(i=0;i<scene_weapon_slots();i++) {
                 /* Resource demand from distant pickups is not DEV ownership. */
                 if(i>=13 && !rf_scene_firearms_enabled)continue;
+                if(i==12 && !rf_scene_fusion_enabled)continue;
                 if(!scene_weapon_available(i))continue;
                 int32_t id=campaign_slot_weapon(i);
                 const rf_weapon_acquire_definition *d=campaign_weapon_supply.definitions+id;
@@ -12865,8 +12867,8 @@ static int campaign_combat_tick(scene_stream *stream,uint32_t frame,const float 
     status=scene_npc_rubble_record(stream,frame);if(status)return status;
     memcpy(rf_scene_pickup_vitals,&campaign_player_damage.state.effects.health,4);memcpy(rf_scene_pickup_vitals+1,&campaign_player_damage.state.effects.armor,4);
     rf_scene_riot[0]=0;
+    if(scene_fusion_resources){status=scene_fusion_gameplay_tick(stream,frame,position,orientation[2]);if(status)return status;}
     if(rf_scene_dev_room_enabled){
-        if(rf_scene_fusion_enabled){status=scene_fusion_gameplay_tick(stream,frame,position,orientation[2]);if(status)return status;}
         status=scene_grenades_tick(stream,frame,position,orientation[2],
             campaign_equipped_slot==5 && !campaign_explicit_unarmed && campaign_player_inventory.owned[campaign_grenade_id] && campaign_player_damage.state.effects.health>0,
             (player_input.fire?1u:0u)|(player_input.alt_fire?2u:0u));if(status)return status;
@@ -16166,7 +16168,8 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
        !rf_scene_actor_look_enabled || !rf_scene_actor_turn_enabled || !collision || !sink))return RF_RANGE;
     if(actor_follow_world && (!sink || !collision || actor_follow_world->world!=geometry ||
         actor_follow_world->material_count!=materials->count))return RF_RANGE;
-    campaign_export_valid=0;rf_scene_player_shield_resources=0;
+    campaign_export_valid=0;rf_scene_player_shield_resources=0;scene_fusion_resources=0;
+    scene_fusion_input_reset(&scene_fusion_input);scene_fusion_projectile_reset();
     memset(campaign_current_level,0,sizeof(campaign_current_level));
     memcpy(campaign_current_level,level->entry.name,sizeof(level->entry.name));
     memset(rf_scene_light_owner,0,sizeof(rf_scene_light_owner));
@@ -16441,7 +16444,10 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
              {scene_weapon_resource_demand demand;
               status=scene_extra_pickups_resources_prepare(stream,&tables,rf_scene_dev_room_enabled && !rf_scene_vehicle_enabled?0x7ffu:(rf_scene_vehicle_enabled?0x1fu:0xfu),1u<<11,&demand);
               if(!status){rf_scene_player_shield_resources=!!(demand.mask&(1u<<11)) || (rf_scene_dev_room_enabled && rf_scene_dev_npc_enabled==6);
-                  if(rf_scene_player_shield_resources)status=rf_weapon_primary_load(&tables,"riot shield",128*1024,&campaign_primary[11]);}}
+                  if(rf_scene_player_shield_resources)status=rf_weapon_primary_load(&tables,"riot shield",128*1024,&campaign_primary[11]);
+                  scene_fusion_resources=!!(demand.mask&(1u<<12)) || (rf_scene_dev_room_enabled && rf_scene_fusion_enabled);
+                  if(!status && scene_fusion_resources)status=rf_weapon_primary_load(&tables,"shoulder_cannon",128*1024,&campaign_primary[12]);
+                  if(!status && scene_fusion_resources)status=rf_weapon_explosive_load(&tables,"shoulder_cannon",128*1024,&campaign_fusion);}}
              scene_machine_pistol_mode_reset(&campaign_machine_mode);memset(rf_scene_machine_mode,0,sizeof(rf_scene_machine_mode));
              for(i=0;i<scene_weapon_resource_slots() && !status;i++) {
                  if(!scene_weapon_available(i))continue;
@@ -16619,10 +16625,11 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
         if(stream->driller){status=scene_driller_materials_merge(stream->driller,materials,&stream->driller_base,&stream->driller_textures);if(status)goto done;
             if(stream->driller_bits)status=scene_driller_materials_merge(&stream->driller_bits->model,materials,&stream->driller_bit_base,&stream->driller_bit_textures);if(status)goto done;
             status=scene_driller_cockpit_merge(stream->driller_cockpit,materials,RF_CAMPAIGN_TEXTURE_SLOTS);if(status)goto done;}
-        if(rf_scene_dev_room_enabled) {
+        if(rf_scene_dev_room_enabled || scene_fusion_resources) {
             uint32_t visual;
-            for(visual=0;visual<(rf_scene_vehicle_enabled==5?4u:rf_scene_fusion_enabled?3u:2u);visual++) {
-            if(visual==2 && !rf_scene_fusion_enabled)continue;
+            for(visual=0;visual<(rf_scene_vehicle_enabled==5?4u:scene_fusion_resources?3u:2u);visual++) {
+            if(!rf_scene_dev_room_enabled && visual!=2)continue;
+            if(visual==2 && !scene_fusion_resources)continue;
             scene_rocket_visual *v=calloc(1,sizeof(*v));rf_material *combined;uint32_t n;
             if(!v){status=RF_IO;goto done;}if(visual==3)stream->fighter_rocket_visual=v;else if(visual==2)stream->fusion_visual=v;else if(visual){stream->ripple_visual=v;memset(rf_scene_ripple_lifecycle,0,sizeof(rf_scene_ripple_lifecycle));}else stream->rocket_visual=v;
             status=rf_vfx_geometry_asset_open(&archive,visual==2?"ShellTest.vfx":visual==1?"WaterRipple01.vfx":"DrillMissile01.vfx",128*1024,&v->geometry);if(status)goto done;
@@ -16693,7 +16700,7 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
                 stream->impact=calloc(1,sizeof(*stream->impact));if(!stream->impact){status=RF_RANGE;goto done;}
                 status=rf_explosion_materials_open(&stream->impact->materials,&campaign_rocket_impact,maps,map_count,128*1024);if(status)goto done;
                 status=scene_flame_effects_open(tables_path,maps,map_count);if(status)goto done;
-                if(rf_scene_fusion_enabled){status=scene_fusion_effects_open(tables_path,maps,map_count);if(status)goto done;}
+
                 {rf_vpp tables={0};rf_particle_definition billboard={0};uint32_t budget=512*1024;
                  memset(rf_scene_debris_blood,0,sizeof(rf_scene_debris_blood));
                  status=rf_vpp_open(&tables,tables_path);if(status)goto done;
@@ -16706,6 +16713,10 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
                  if(stream->impact->blood_images[1].count!=1){status=RF_FORMAT;goto done;}
                  rf_scene_debris_blood[5]=stream->impact->blood_images[0].resident_bytes+stream->impact->blood_images[1].resident_bytes;}
 
+            }
+            if(scene_fusion_resources){
+                if(!stream->impact){stream->impact=calloc(1,sizeof(*stream->impact));if(!stream->impact){status=RF_IO;goto done;}}
+                status=scene_fusion_effects_open(tables_path,maps,map_count);if(status)goto done;
             }
             if(campaign_spawn) {
                 rf_random_state *rng=stream->particles.state?&stream->particles.state->random:NULL;

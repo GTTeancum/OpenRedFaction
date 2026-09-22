@@ -27,8 +27,8 @@ static int scene_extra_pickups_resolve_item(void *context,const char *name,rf_it
 static int scene_extra_pickups_resources_prepare(scene_stream *stream,rf_vpp *tables,
     uint32_t base_mask,uint32_t other_optional,scene_weapon_resource_demand *result)
 {
-    scene_weapon_resource_demand demand;rf_weapon_primary_definition primary[5];
-    uint32_t optional,pair,expanded,slots[5],count=0,i;int status;
+    scene_weapon_resource_demand demand;rf_weapon_primary_definition primary[6];
+    uint32_t optional,pair,expanded,slots[6],count=0,i;int status;
     if(!stream || !tables || !result)return RF_RANGE;
     status=scene_extra_pickup_demand_slots(campaign_weapon_names,SCENE_WEAPON_SLOTS,&optional,&pair);if(status)return status;
     status=scene_weapon_resources_plan(base_mask,other_optional|optional,campaign_weapon_names,
@@ -37,7 +37,7 @@ static int scene_extra_pickups_resources_prepare(scene_stream *stream,rf_vpp *ta
         &stream->pickups,&campaign_events.decoded,scene_extra_pickups_resolve_item,tables,&demand);if(status)return status;
     status=scene_extra_pickup_demand_expand(campaign_weapon_names,SCENE_WEAPON_SLOTS,demand.mask,&expanded);if(status)return status;
     for(i=0;i<SCENE_WEAPON_SLOTS;i++)if((expanded&optional)&(1u<<i)){
-        if(count>=5)return RF_RANGE;
+        if(count>=6)return RF_RANGE;
         slots[count]=i;status=rf_weapon_primary_load(tables,campaign_weapon_names[i],128*1024,primary+count);if(status)return status;
         ++count;
     }
@@ -78,7 +78,7 @@ static int scene_extra_pickups_resource_validate(const char *name,const rf_item_
     int index=scene_extra_pickup_index(name);int32_t weapon;
     if(!definition || !handled)return RF_RANGE;*handled=index>=0;if(index<0)return RF_OK;
     if(definition->mesh_kind!=1 || !scene_extra_pickup_equal(definition->weapon,scene_extra_pickup_weapons[index]) ||
-       definition->gives_weapon!=(uint32_t)(index<3))return RF_FORMAT;
+       definition->gives_weapon!=scene_extra_pickup_gives_weapon[index])return RF_FORMAT;
     weapon=rf_weapon_name_find(&campaign_weapon_supply.names,definition->weapon);
     return weapon>=0 && weapon<64?RF_OK:RF_NOT_FOUND;
 }
