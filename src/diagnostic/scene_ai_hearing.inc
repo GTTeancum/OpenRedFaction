@@ -23,7 +23,7 @@ static int campaign_enemy_hear_shot(const float position[3],float radius,uint32_
         for(j=0;j<3;j++){float d=owner->eye_position[j]-position[j];distance+=d*d;}
         if(!isfinite(distance) || distance>radius_squared)continue;
         status=campaign_animation_cancel(owner);if(status)return status;
-        campaign_pursuit_stop(owner);owner->script_move.active=0;owner->script_move.stop=1;
+        if(!campaign_script_movement_owns(owner)){campaign_pursuit_stop(owner);owner->script_move.active=0;owner->script_move.stop=1;}
         owner->combat_target=campaign_player_object.handle;owner->combat_alert=1;
         owner->combat_navigation_due=0;owner->combat_burst_remaining=0;owner->combat_due=frame+30;
         ++count;

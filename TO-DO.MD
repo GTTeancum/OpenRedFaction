@@ -49,7 +49,7 @@ Completion basis (user direction,2026-09-18): working late-alpha/early-beta code
 
 - Combat pickups: Supported enemy weapons now drop finite remaining ammunition, including empty weapons and ammo-free Riot Stick; ordinary PC/Xbox scripted death, rocket pickup/equip/fire matches with20.29MiB free; authored no-drop flags, broader weapon encounters and general campaign saves remain (docs/ENEMY-WEAPON-DROPS.md).
 
-- AI mode events: Catatonic, waiting/default, motion acquisition and resuming an existing authored waypoint route now bind to live behavior; focused scheduler/route checks and PC/Xbox builds pass; in-memory mode/validated route retention now passes revisit-helper checks and PC/Xbox builds; unbound waypoint assignment, collecting, disk persistence, mode13/vehicles and authored live scenarios remain.
+- AI mode events: Catatonic/waiting/motion and unique authored waypoint acquisition are implemented; ordinary pursuit/hearing/retaliation/alarm now preserve active script destinations, with PC/Xbox Goto movement matching and20.48MiB free; collecting, ambiguous route binding, full route encounters, mode13/vehicles and disk persistence remain (docs/SCRIPTED-AI-MOVEMENT.md).
 
 - Remote charges: Ordinary pickup/import/script demand now loads charge/detonator pairs and planted-charge updates; PC/Xbox acquisition/attachment/detonation matches with shared finite ammo and14.15MiB native headroom; campaign saves/terrain, moving hosts and presentation remain (docs/REMOTE-PICKUP-FIRST-PASS.md).
 
@@ -5847,3 +5847,7 @@ Connected actual RFL primary/secondary weapon strings, preserved class alternati
 ##2026-09-22 Enemy weapon drop integration
 
 Expanded name-based death-drop policy to implemented guns/throwables/riotstick; preserves finite/empty ammo, reserves views for owned fallback weapons, and respects saved/collected drop demand. Actual scene collection tests pass for sniper/rocket/grenade/riotstick. Controlled PC death-to-ground-weapon, movement pickup, equip and fire endpoints pass with inspected captures. Native300-frame replay render-20260922-181344 matches one drop/one collection/six granted rounds/one shot/five remaining, with5195freepages (20.29MiB), inspected wall-impact capture and restored disc. Both builds pass. Scripted death is tested, not player-gun lethality. Authored no-drop flags, general saves and broader encounters remain. Overall~82%; Enemy combat/AI~81%.
+
+##2026-09-22 Scripted AI movement ownership
+
+Active authored Goto/Goto_Player/Follow_Waypoints translation now survives ordinary sight pursuit, hearing, damage retaliation and alarms; ordinary default-mode firing stays available and explicit Attack supersedes the route. Actualscene scheduler/hearing/retaliation/alarm checks pass, as do PC/NXDK builds. OriginalRiotStick guard8456 in controlledL1S1 Goto fixture walks away from alerted player; native90-frame replay render-20260922-182408 matches movement/combat counters with5244freepages (20.48MiB), inspected capture and restored disc. Initial RF_FORMAT was fixtureusingwrongsetupentry, corrected toNPCevententry; noRiotloadoutfault. Addednative --goto-uid staging/restoration. CorrectedstaleTODO: unique linked waypoint acquisition alreadyimplemented32410c24. Fullrouteencounters/collecting/vehicles/disksaves remain. Overall~82%; Enemy AI~82%.

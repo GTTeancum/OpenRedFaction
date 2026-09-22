@@ -12,7 +12,7 @@ int main(void)
         actors[i].registration.view=&actors[i].view;actors[i].damage.effects.health=100;
         actors[i].view.weapons[0]=1;actors[i].look.orientation[8]=1;
     }
-    actors[0].script_move.active=1; /* Gunshot behind a walking guard interrupts movement. */
+    actors[0].script_move.active=1;actors[0].script_move.event=900;actors[0].script_move.target[0]=7;
     actors[1].damage.effects.affiliation=1;actors[2].damage.effects.health=0;
     actors[3].object_flags=2;actors[4].view.weapons[0]=-1;
     actors[5].combat_alert=1;actors[5].combat_due=777;
@@ -20,7 +20,7 @@ int main(void)
     actors[7].eye_position[2]=30;actors[8].view.flags_810=1;
     CHECK(!campaign_enemy_hear_shot(shot,16,100,&alerted));
     CHECK(alerted==1 && actors[0].combat_alert && actors[0].combat_target==42 && actors[0].combat_due==130);
-    CHECK(!actors[0].script_move.active && actors[0].script_move.stop);
+    CHECK(actors[0].script_move.active && !actors[0].script_move.stop && actors[0].script_move.event==900 && actors[0].script_move.target[0]==7);
     CHECK(actors[5].combat_due==777 && actors[6].combat_target==123 && !actors[6].combat_alert);
     for(i=1;i<9;i++)if(i!=5)CHECK(!actors[i].combat_alert);
     CHECK(!campaign_enemy_hear_shot(shot,16,101,&alerted) && !alerted && actors[0].combat_due==130);

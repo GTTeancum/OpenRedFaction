@@ -4490,6 +4490,10 @@ static int campaign_play_animation(void *context,uint32_t handle,const rf_level_
 }
 uint32_t rf_scene_script_actor[8];
 static int campaign_script_locomotion(uint32_t index,uint32_t moving);
+/* An authored destination owns translation until arrival or an explicit
+ * Attack order. Ordinary sight, sound and retaliation may still aim/fire. */
+static uint32_t campaign_script_movement_owns(const campaign_npc_body *owner)
+{return owner->script_move.active && owner->script_move.follow!=2 && owner->combat_scripted!=1;}
 /* follow2 owns a combat pursuit; follow1 remains authored Goto_Player. */
 static void campaign_pursuit_stop(campaign_npc_body *owner)
 {
@@ -8800,7 +8804,7 @@ static int campaign_alarm(void *context,const rf_level_event *event,
             ++rf_scene_alarm[6];
             if(owner->damage.effects.affiliation==0 && owner->view.weapons[0]>=0) {
                 status=campaign_animation_cancel(owner);if(status)return status;
-                campaign_pursuit_stop(owner);owner->script_move.active=0;
+                if(!campaign_script_movement_owns(owner)){campaign_pursuit_stop(owner);owner->script_move.active=0;}
                 owner->combat_scripted=0;owner->combat_target=campaign_player_object.handle;
                 owner->combat_alert=1;owner->combat_burst_remaining=owner->combat_due=owner->combat_navigation_due=0;
                 ++rf_scene_alarm[7];
@@ -8988,7 +8992,7 @@ static void combat_notify(void *c,uint32_t k,uint32_t t,float v,uint32_t s)
     if(owner->combat_scripted==1){++rf_scene_enemy_retaliation[3];return;}
     if(owner->combat_alert && ((owner->combat_scripted==2 && owner->combat_target==s) ||
        (!owner->combat_scripted && s==campaign_player_object.handle)))return;
-    campaign_pursuit_stop(owner);owner->script_move.active=0;
+    if(!campaign_script_movement_owns(owner)){campaign_pursuit_stop(owner);owner->script_move.active=0;}
     owner->combat_scripted=s==campaign_player_object.handle?0:2;owner->combat_target=s;
     owner->combat_alert=1;owner->combat_navigation_due=0;owner->combat_burst_remaining=0;owner->combat_due=(combat_frame==UINT32_MAX?0:combat_frame)+30;
     ++rf_scene_enemy_retaliation[0];rf_scene_enemy_retaliation[1]=t;rf_scene_enemy_retaliation[2]=s;
@@ -9468,7 +9472,7 @@ static int campaign_enemy_tick(scene_stream *stream,uint32_t frame,const float p
             if(!rf_scene_script_attack[10]){memcpy(rf_scene_script_attack+7,&health,4);rf_scene_script_attack[10]=1;}
             memcpy(rf_scene_script_attack+8,&health,4);if(owner->script_move.follow==2)++rf_scene_script_attack[9];
         }
-        if(owner->combat_alert) {
+        if(owner->combat_alert && !campaign_script_movement_owns(owner)) {
             const float *target_position=victim?victim->body.state.position:scene_actor_body.state.position;
             if(frame>=owner->combat_navigation_due) {
                 float range=owner->script_move.follow==2?(melee?fminf(2.2f,pursue_range):pursue_range*.8f):pursue_range;

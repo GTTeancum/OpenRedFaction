@@ -78,6 +78,7 @@ def main():
     parser.add_argument('--fixture-game', type=Path, help='Explicit local fixture game directory; stage selected archive as scene-fixture.vpp without replacing originals')
     parser.add_argument('--spawn', action='store_true', help='Use authored player spawn without actor/item staging')
     parser.add_argument('--goal-uid', type=int, help='Authored goal setter at frame30')
+    parser.add_argument('--goto-uid', type=int, help='Authored NPC movement event at frame30 (300/360 after setup events)')
     parser.add_argument('--actor', type=int, default=9858)
     parser.add_argument('--item-uid', type=int, help='Stage near an authored L1S1 pickup instead of an actor')
     parser.add_argument('--input', type=Path, help='Optional process-local replay; its length supplies the frame count')
@@ -110,14 +111,14 @@ def main():
     if fighter:
         if not (args.dev_room and args.spawn and args.level=='ctf06.rfl' and args.archive=='levelsm.vpp'):
             parser.error('Fighter requires --vehicle-test --vehicle-class fighter --dev-room --spawn --level ctf06.rfl --archive levelsm.vpp')
-        if args.npc_rubble_test or args.npc_grenade_test or args.npc_rocket_test or args.npc_shield_test or args.player_shield_test or args.firearms_test or args.fusion_test or args.setup_uid or args.exit_uid or args.return_exit_uid or args.goal_uid or args.item_uid or args.exit_start_uid or args.trigger_start_uid:
+        if args.npc_rubble_test or args.npc_grenade_test or args.npc_rocket_test or args.npc_shield_test or args.player_shield_test or args.firearms_test or args.fusion_test or args.setup_uid or args.exit_uid or args.return_exit_uid or args.goal_uid or args.goto_uid or args.item_uid or args.exit_start_uid or args.trigger_start_uid:
             parser.error('Fighter DEV requires its enemy-free placement without other combat fixtures or campaign relocation')
     if submarine:
         if not (args.dev_room and args.spawn and args.level=='L5S3.rfl' and args.archive=='levels1.vpp'):
             parser.error('Submarine requires --vehicle-test --vehicle-class sub --dev-room --spawn --level L5S3.rfl --archive levels1.vpp')
         if args.player_checkpoint or args.geomod_checkpoint_in or args.geomod_checkpoint_out:
             parser.error('Submarine checkpoints are not supported yet')
-        if args.setup_uid or args.exit_uid or args.return_exit_uid or args.goal_uid or args.item_uid or args.exit_start_uid or args.trigger_start_uid:
+        if args.setup_uid or args.exit_uid or args.return_exit_uid or args.goal_uid or args.goto_uid or args.item_uid or args.exit_start_uid or args.trigger_start_uid:
             parser.error('Submarine DEV requires its enemy-free placement without campaign setup or relocation')
     elif args.vehicle_test and (not args.dev_room or args.level!='ctf06.rfl'):
         parser.error('--vehicle-test requires ctf06 DEV unless --vehicle-class sub')
@@ -198,7 +199,7 @@ def main():
         parser.error('Require a positive item UID')
     if any(v is not None and not 0<v<0xffffffff for v in (args.exit_uid,args.return_exit_uid)) or (args.return_exit_uid and not args.exit_uid):
         parser.error('Require positive exit UIDs and an outbound exit for a return')
-    if not re.fullmatch(r'[A-Za-z0-9_-]+\.rfl',args.level) or len(args.level)>63 or (args.goal_uid is not None and not 0<args.goal_uid<0xffffffff) or (args.spawn and args.item_uid):
+    if not re.fullmatch(r'[A-Za-z0-9_-]+\.rfl',args.level) or len(args.level)>63 or (args.goal_uid is not None and not 0<args.goal_uid<0xffffffff) or (args.goto_uid is not None and not 0<args.goto_uid<0xffffffff) or (args.spawn and args.item_uid):
         parser.error('Require a plain level filename, positive goal UID and one placement mode')
     if args.exit_start_uid is not None and (not args.spawn or not 0<args.exit_start_uid<0xffffffff or args.exit_uid or args.return_exit_uid):
         parser.error('Exit-start requires --spawn, a positive UID and no forced exit options')
@@ -214,7 +215,7 @@ def main():
     run = root / 'artifacts/xemu' / ('render-' + datetime.datetime.now().strftime('%Y%m%d-%H%M%S'))
     run.mkdir(parents=True)
     print('Run:', run, flush=True)
-    report = dict(result='FAIL', frames=args.frames, actor=None if args.item_uid or args.spawn else args.actor, level=args.level, archive=args.archive, goal_uid=args.goal_uid, item_uid=args.item_uid, model_culling=args.culled, command_batching=not args.unbatched, world_grouping=not args.unsorted,
+    report = dict(result='FAIL', frames=args.frames, actor=None if args.item_uid or args.spawn else args.actor, level=args.level, archive=args.archive, goal_uid=args.goal_uid, goto_uid=args.goto_uid, item_uid=args.item_uid, model_culling=args.culled, command_batching=not args.unbatched, world_grouping=not args.unsorted,
         input_sha256=hashlib.sha256(payload).hexdigest(), setup_uids=args.setup_uid, trigger_start_uid=args.trigger_start_uid, exit_start_uid=args.exit_start_uid, exit_uid=args.exit_uid, return_exit_uid=args.return_exit_uid,
         scope='Authored section, player spawn or staged actor/pickup camera, process-local replay/setup commands, native framebuffer, '
               'phase timings and selected PC gameplay-state checks. No full campaign/parity claim.', samples=[])
@@ -281,6 +282,7 @@ def main():
         report['terrain_test_light_scope']='Synthetic point source active at frames1000..1999; inspect framebuffer for visible lighting. No authored light or destruction fidelity claim.'
     if not args.spawn:env['RF_REPLAY_ACTOR_UID']=str(args.actor)
     if args.goal_uid:env['RF_REPLAY_GOAL_UID']=str(args.goal_uid)
+    if args.goto_uid:env['RF_REPLAY_GOTO_UID']=str(args.goto_uid)
     if args.item_uid:
         env.pop('RF_REPLAY_ACTOR_UID')
         env['RF_REPLAY_ITEM_UID']=str(args.item_uid)
@@ -320,7 +322,7 @@ def main():
     for name in ('player-replay.bin', 'player-control-frames.txt', 'audio-output.flag', 'particle-step-fixtures.bin', 'renderer-cull-off.flag', 'renderer-cull-on.flag', 'renderer-batch-off.flag', 'renderer-world-off.flag', 'renderer-draw-audit.flag'):
         p = disc / name
         saved[name] = p.read_bytes() if p.exists() else None
-    for name in ('campaign-spawn.flag', 'campaign-level.bin', 'campaign-actor.bin', 'campaign-setup.bin', 'campaign-item.bin', 'campaign-exit.bin', 'campaign-return.bin', 'campaign-goal.bin', 'campaign-exit-start.bin'):
+    for name in ('campaign-spawn.flag', 'campaign-level.bin', 'campaign-actor.bin', 'campaign-setup.bin', 'campaign-item.bin', 'campaign-exit.bin', 'campaign-return.bin', 'campaign-goal.bin', 'campaign-goto.bin', 'campaign-exit-start.bin'):
         saved.setdefault(name, None)
     if args.fixture_game:saved['scene-fixture.vpp']=None
     if args.fragment_platform_test:
@@ -413,6 +415,7 @@ def main():
         if args.terrain_map_limit is not None:(disc/'terrain-map-limit.bin').write_bytes(struct.pack('<2I',args.terrain_map_limit,args.terrain_map_limit_until))
         (disc / 'campaign-level.bin').write_bytes(('scene-fixture.vpp' if args.fixture_game else 'fragment-platform.vpp' if args.fragment_platform_test else args.archive).encode().ljust(64, b'\0') + args.level.encode().ljust(64, b'\0'))
         if args.goal_uid:(disc/'campaign-goal.bin').write_bytes(struct.pack('<I',args.goal_uid))
+        if args.goto_uid:(disc/'campaign-goto.bin').write_bytes(struct.pack('<I',args.goto_uid))
         if not args.spawn:(disc / ('campaign-item.bin' if args.item_uid else 'campaign-actor.bin')).write_bytes(struct.pack('<I', args.item_uid or args.actor))
         if args.exit_start_uid:(disc/'campaign-exit-start.bin').write_bytes(struct.pack('<I',args.exit_start_uid))
         if args.trigger_start_uid:(disc/'campaign-trigger-start.bin').write_bytes(struct.pack('<I',args.trigger_start_uid))

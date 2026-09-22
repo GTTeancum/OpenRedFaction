@@ -1401,3 +1401,7 @@ add_test(NAME scene_ai_projectile_demand COMMAND rf_scene_ai_projectile_demand_t
 add_executable(rf_scene_npc_loadout_tests tests/scene_npc_loadout_tests.c)
 target_link_libraries(rf_scene_npc_loadout_tests PRIVATE rf_core)
 add_test(NAME scene_npc_loadout COMMAND rf_scene_npc_loadout_tests)
+
+add_executable(rf_scene_ai_script_movement_tests tests/scene_ai_script_movement_tests.c src/diagnostic/animation.c)
+target_link_libraries(rf_scene_ai_script_movement_tests PRIVATE rf_core)
+add_test(NAME scene_ai_script_movement COMMAND rf_scene_ai_script_movement_tests)
