@@ -47,7 +47,7 @@ NTSTATUS NtFlushBuffersFile(HANDLE,IO_STATUS_BLOCK *);NTSTATUS NtWaitForSingleOb
 static int exists,mount_ok,unmount_ok,dir_ok,open_ok,close_ok,load_result,store_result;
 static int mounts,unmounts,dirs,opens,closes,flushes,waits,stores,cases;
 static DWORD error,attrs;static NTSTATUS flush_status,wait_status,completion;static char opened[128];
-static rf_xbox_checkpoint_storage session;
+static rf_xbox_checkpoint_storage session;static const char *expected_base=RF_XBOX_CHECKPOINT_BASE;
 DWORD GetLastError(void){return error;}
 bool nxIsDriveMounted(char c){CHECK(c=='R');return exists;}
 bool nxMountDrive(char c,const char *p){CHECK(c=='R'&&!strcmp(p,"\\Device\\Harddisk0\\Partition1\\"));mounts++;return mount_ok;}
@@ -59,9 +59,9 @@ BOOL CloseHandle(HANDLE h){CHECK(h==(HANDLE)(uintptr_t)7);closes++;return close_
 NTSTATUS NtFlushBuffersFile(HANDLE h,IO_STATUS_BLOCK *io){CHECK(h==(HANDLE)(uintptr_t)7);flushes++;io->Status=completion;return flush_status;}
 NTSTATUS NtWaitForSingleObject(HANDLE h,BOOL alert,void *timeout){CHECK(h==(HANDLE)(uintptr_t)7&&!alert&&!timeout);waits++;return wait_status;}
 DWORD RtlNtStatusToDosError(NTSTATUS s){return (DWORD)s;}
-int rf_checkpoint_file_load(const char *p,void *b,uint32_t cap,uint32_t *n,rf_checkpoint_file_validate v,void *c,rf_checkpoint_file_selection *s){(void)b;(void)cap;(void)v;(void)c;CHECK(!strcmp(p,RF_XBOX_CHECKPOINT_BASE));memset(s,0,sizeof(*s));*n=0;if(!load_result||load_result==RF_NOT_FOUND){s->ready=1;s->slot=load_result?UINT32_MAX:0;s->generation=load_result?0:3;s->bytes=load_result?0:8;*n=s->bytes;}return load_result;}
-int rf_checkpoint_file_store(const char *p,const void *d,uint32_t n,rf_checkpoint_file_validate v,void *c,rf_checkpoint_file_selection *s){(void)d;(void)n;(void)v;(void)c;CHECK(!strcmp(p,RF_XBOX_CHECKPOINT_BASE));stores++;if(!s->ready)return RF_RANGE;if(store_result)return store_result;s->slot=s->slot==UINT32_MAX?0:1-s->slot;s->generation++;s->bytes=8;return 0;}
-static void reset(void){memset(&session,0,sizeof(session));exists=0;mount_ok=unmount_ok=dir_ok=open_ok=close_ok=1;load_result=store_result=0;mounts=unmounts=dirs=opens=closes=flushes=waits=stores=0;error=5;attrs=FILE_ATTRIBUTE_DIRECTORY;flush_status=wait_status=completion=0;opened[0]=0;cases++;}
+int rf_checkpoint_file_load(const char *p,void *b,uint32_t cap,uint32_t *n,rf_checkpoint_file_validate v,void *c,rf_checkpoint_file_selection *s){(void)b;(void)cap;(void)v;(void)c;CHECK(!strcmp(p,expected_base));memset(s,0,sizeof(*s));*n=0;if(!load_result||load_result==RF_NOT_FOUND){s->ready=1;s->slot=load_result?UINT32_MAX:0;s->generation=load_result?0:3;s->bytes=load_result?0:8;*n=s->bytes;}return load_result;}
+int rf_checkpoint_file_store(const char *p,const void *d,uint32_t n,rf_checkpoint_file_validate v,void *c,rf_checkpoint_file_selection *s){(void)d;(void)n;(void)v;(void)c;CHECK(!strcmp(p,expected_base));stores++;if(!s->ready)return RF_RANGE;if(store_result)return store_result;s->slot=s->slot==UINT32_MAX?0:1-s->slot;s->generation++;s->bytes=8;return 0;}
+static void reset(void){memset(&session,0,sizeof(session));expected_base=RF_XBOX_CHECKPOINT_BASE;exists=0;mount_ok=unmount_ok=dir_ok=open_ok=close_ok=1;load_result=store_result=0;mounts=unmounts=dirs=opens=closes=flushes=waits=stores=0;error=5;attrs=FILE_ATTRIBUTE_DIRECTORY;flush_status=wait_status=completion=0;opened[0]=0;cases++;}
 static void selected(void){uint32_t n;CHECK(!rf_xbox_checkpoint_storage_open(&session,1));CHECK(!rf_xbox_checkpoint_storage_load(&session,NULL,0,&n,NULL,NULL));CHECK(session.selection.generation==3&&session.selection.slot==0);}
 static int save(void){return rf_xbox_checkpoint_storage_store(&session,"12345678",8,NULL,NULL);}
 int main(void){uint32_t n;
@@ -83,6 +83,8 @@ reset();selected();flush_status=STATUS_PENDING;completion=-1;CHECK(save()==RF_IO
 reset();selected();unmount_ok=0;CHECK(rf_xbox_checkpoint_storage_close(&session)==RF_IO&&session.mounted);unmount_ok=1;CHECK(!rf_xbox_checkpoint_storage_close(&session)&&!session.mounted&&unmounts==2);
 reset();CHECK(!rf_xbox_checkpoint_storage_open(&session,1));load_result=RF_NOT_FOUND;CHECK(rf_xbox_checkpoint_storage_load(&session,NULL,0,&n,NULL,NULL)==RF_NOT_FOUND&&session.selection.ready);CHECK(!save()&&session.selection.slot==0&&session.selection.generation==1&&!strcmp(opened,"R:\\OpenRedFaction\\geomod-dev.0"));
 reset();selected();load_result=RF_FORMAT;CHECK(rf_xbox_checkpoint_storage_load(&session,NULL,0,&n,NULL,NULL)==RF_FORMAT&&!session.selection.ready);CHECK(save()==RF_RANGE&&!opens);
+reset();expected_base=RF_XBOX_WORLD_CHECKPOINT_BASE;CHECK(!rf_xbox_checkpoint_storage_open_world(&session,1));CHECK(!rf_xbox_checkpoint_storage_load(&session,NULL,0,&n,NULL,NULL));CHECK(!save()&&!strcmp(opened,"R:\\OpenRedFaction\\ordinary.1"));CHECK(!rf_xbox_checkpoint_storage_close(&session));
+reset();selected();CHECK(!save()&&!strcmp(opened,"R:\\OpenRedFaction\\geomod-dev.1"));
 printf("PASS %d native checkpoint adapter failure cases\n",cases);return 0;}
 """)
 cc=Path('C:/msys64/clang64/bin/clang.exe')

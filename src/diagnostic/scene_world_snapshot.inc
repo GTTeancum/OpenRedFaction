@@ -39,7 +39,8 @@ static int scene_world_snapshot_capture(scene_stream *s,const rf_level *level,co
 #ifndef RF_IMAGE_XBOX_NATIVE
     const char *path=getenv("RF_REPLAY_WORLD_SNAPSHOT_OUT");
 #else
-    const char *path=NULL; /* Native storage dispatch follows ordinary restore integration. */
+    rf_xbox_checkpoint_storage storage={0};uint32_t enabled=0;
+    const char *path=RF_XBOX_WORLD_CHECKPOINT_BASE;
 #endif
     unsigned char *buffer=NULL;rf_world_checkpoint bundle={0};scene_world_snapshot_identity identity;
     rf_checkpoint_file_selection selection={0};rf_player_checkpoint player;rf_player_checkpoint_catalog catalog;
@@ -47,8 +48,12 @@ static int scene_world_snapshot_capture(scene_stream *s,const rf_level *level,co
     scene_event_checkpoint_map map;rf_event_checkpoint_refs refs;
     uint32_t at=RF_WORLD_CHECKPOINT_PREFIX,bytes=0,total=0,i,slot,object_count=0,omissions=0;
     int status=RF_OK;int32_t now;const char *part="identity";
+#ifdef RF_IMAGE_XBOX_NATIVE
+    status=scene_world_storage_flag("D:\\world-hdd-save.flag",&enabled);if(status||!enabled)return status;
+#endif
     if(!path||!*path)return RF_OK;
-    if(!s||!level||!tables_path||s->terrain||combat_frame==UINT32_MAX)return RF_RANGE;
+    rf_scene_world_checkpoint_state[9]=1;
+    if(!s||!level||!tables_path||s->terrain||combat_frame==UINT32_MAX){status=RF_RANGE;goto done;}
     now=(int32_t)(((uint64_t)combat_frame*1000/60)%RF_TIMER_PERIOD);
     status=scene_world_checkpoint_source_identity(level,tables_path,rf_scene_weapon_supply[3],identity.bytes);if(status)goto done;
     if(strlen(campaign_current_level)>=sizeof(identity.level)){status=RF_RANGE;goto done;}
@@ -56,7 +61,12 @@ static int scene_world_snapshot_capture(scene_stream *s,const rf_level *level,co
     memcpy(bundle.identity,identity.bytes,32);memcpy(bundle.level,identity.level,64);
     buffer=malloc(RF_CHECKPOINT_FILE_MAX);if(!buffer){status=RF_IO;goto done;}
     part="prior_snapshot";
+#ifndef RF_IMAGE_XBOX_NATIVE
     status=rf_checkpoint_file_load(path,buffer,RF_CHECKPOINT_FILE_MAX,&bytes,scene_world_snapshot_validate,&identity,&selection);
+#else
+    (void)path;status=rf_xbox_checkpoint_storage_open_world(&storage,1);
+    if(!status)status=rf_xbox_checkpoint_storage_load(&storage,buffer,RF_CHECKPOINT_FILE_MAX,&bytes,scene_world_snapshot_validate,&identity);
+#endif
     if(status==RF_NOT_FOUND)status=RF_OK;if(status)goto done;
 #define SNAP_START(name) do{part=name;bytes=0;}while(0)
 #define SNAP_END(type) do{if(status)goto done;if(bytes>RF_CHECKPOINT_FILE_MAX-at){status=RF_RANGE;goto done;}     bundle.sections[(type)-1]=(rf_world_checkpoint_slice){bytes?buffer+at:NULL,bytes};at+=bytes;     printf("WORLD_SNAPSHOT_COMPONENT %s %u\n",part,bytes);}while(0)
@@ -102,11 +112,22 @@ static int scene_world_snapshot_capture(scene_stream *s,const rf_level *level,co
     (void)scene_world_restore_probe(s,buffer,total,identity.bytes,now);
     (void)scene_world_mission_probe(s,&bundle,now);
     scene_world_history_probe(&bundle,now);
-    part="storage";status=rf_checkpoint_file_store(path,buffer,total,scene_world_snapshot_validate,&identity,&selection);
+    part="storage";
+#ifndef RF_IMAGE_XBOX_NATIVE
+    status=rf_checkpoint_file_store(path,buffer,total,scene_world_snapshot_validate,&identity,&selection);
+#else
+    status=rf_xbox_checkpoint_storage_store(&storage,buffer,total,scene_world_snapshot_validate,&identity);selection=storage.selection;
+    if(!status){free(rf_scene_world_checkpoint_data);rf_scene_world_checkpoint_data=buffer;buffer=NULL;}
+#endif
+    rf_scene_world_checkpoint_state[4]=status?0:total;rf_scene_world_checkpoint_state[5]=selection.generation;rf_scene_world_checkpoint_state[6]=selection.slot;
     if(!status)printf("WORLD_SNAPSHOT_STORED bytes%u slot%u generation%u history_omissions%u restore_available0\n",total,selection.slot,selection.generation,omissions);
 #undef SNAP_START
 #undef SNAP_END
  done:free(objects);free(triggers);free(buffer);
+#ifdef RF_IMAGE_XBOX_NATIVE
+    {int closed=scene_world_storage_close(&storage);if(!status)status=closed;}
+#endif
+    rf_scene_world_checkpoint_state[3]=(uint32_t)status;
     if(status)printf("WORLD_SNAPSHOT_REJECT %s %d\n",part,status);return status;
 }
 #endif

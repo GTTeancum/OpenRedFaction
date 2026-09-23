@@ -1,5 +1,6 @@
 #include "checkpoint_storage.h"
 #include <string.h>
+#include <stdio.h>
 #include <windows.h>
 #include <nxdk/mount.h>
 #include <xboxkrnl/xboxkrnl.h>
@@ -21,7 +22,7 @@ int rf_xbox_checkpoint_storage_open(rf_xbox_checkpoint_storage *s,uint32_t writa
     memset(s,0,sizeof(*s));memset(rf_xbox_checkpoint_storage_state,0,sizeof(rf_xbox_checkpoint_storage_state));
     if(nxIsDriveMounted('R'))return storage_result(s,1,RF_IO,ERROR_ALREADY_EXISTS,0);
     if(!nxMountDrive('R',"\\Device\\Harddisk0\\Partition1\\"))return storage_result(s,1,RF_IO,GetLastError(),0);
-    s->mounted=1;s->writable=writable;
+    s->mounted=1;s->writable=writable;s->base=RF_XBOX_CHECKPOINT_BASE;
     if(writable && !CreateDirectoryA("R:\\OpenRedFaction",NULL)) {
         error=GetLastError();attributes=GetFileAttributesA("R:\\OpenRedFaction");
         if((error!=ERROR_ALREADY_EXISTS && error!=ERROR_FILE_EXISTS) || attributes==INVALID_FILE_ATTRIBUTES || !(attributes&FILE_ATTRIBUTE_DIRECTORY))
@@ -29,24 +30,29 @@ int rf_xbox_checkpoint_storage_open(rf_xbox_checkpoint_storage *s,uint32_t writa
     }
     return storage_result(s,writable?2:1,RF_OK,0,0);
 }
+int rf_xbox_checkpoint_storage_open_world(rf_xbox_checkpoint_storage *s,uint32_t writable)
+{
+    int status=rf_xbox_checkpoint_storage_open(s,writable);
+    if(!status)s->base=RF_XBOX_WORLD_CHECKPOINT_BASE;return status;
+}
 int rf_xbox_checkpoint_storage_load(rf_xbox_checkpoint_storage *s,void *buffer,uint32_t capacity,
     uint32_t *bytes,rf_checkpoint_file_validate validate,void *context)
 {
     int status;if(!s || !s->mounted)return storage_result(s,3,RF_RANGE,ERROR_INVALID_PARAMETER,0);
     rf_xbox_checkpoint_storage_state[7]&=~4u;
-    status=rf_checkpoint_file_load(RF_XBOX_CHECKPOINT_BASE,buffer,capacity,bytes,validate,context,&s->selection);
+    status=rf_checkpoint_file_load(s->base?s->base:RF_XBOX_CHECKPOINT_BASE,buffer,capacity,bytes,validate,context,&s->selection);
     /* Portable I/O uses errno, not a reliable last Win32 error. */
     return storage_result(s,3,status,0,0);
 }
 int rf_xbox_checkpoint_storage_store(rf_xbox_checkpoint_storage *s,const void *data,uint32_t bytes,
     rf_checkpoint_file_validate validate,void *context)
 {
-    char path[]=RF_XBOX_CHECKPOINT_BASE ".0";HANDLE file;IO_STATUS_BLOCK io={0};NTSTATUS native;DWORD error=0;int status;
+    char path[64];HANDLE file;IO_STATUS_BLOCK io={0};NTSTATUS native;DWORD error=0;int status;
     if(!s || !s->mounted || !s->writable)return storage_result(s,4,RF_RANGE,ERROR_INVALID_PARAMETER,0);
     rf_xbox_checkpoint_storage_state[7]&=~4u;
-    status=rf_checkpoint_file_store(RF_XBOX_CHECKPOINT_BASE,data,bytes,validate,context,&s->selection);
+    status=rf_checkpoint_file_store(s->base?s->base:RF_XBOX_CHECKPOINT_BASE,data,bytes,validate,context,&s->selection);
     if(status){s->selection.ready=0;return storage_result(s,4,status,0,0);}
-    path[sizeof(path)-2]=(char)('0'+s->selection.slot);
+    (void)snprintf(path,sizeof(path),"%s.%u",s->base?s->base:RF_XBOX_CHECKPOINT_BASE,s->selection.slot);
     /* Portable writer is closed and byte-verified. Reopen only the new slot;
      * native synchronous flush never opens the protected previous slot. */
     file=CreateFileA(path,GENERIC_WRITE,0,NULL,OPEN_EXISTING,FILE_ATTRIBUTE_NORMAL,NULL);

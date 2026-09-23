@@ -101,3 +101,14 @@ RFEC3 now represents every L1S1 event type's existing local fields, including re
 RFWC1 supplies a bounded15-section envelope (308-byte metadata) for player, NPC, mover, event, trigger, goals, pickups, clutter, weapon modes, remote charges, vehicle, destruction, switches, startup and campaign history. It is structural framing only; source identity, component admission, resource preload and transactional scene publication remain mandatory. Source identity hashes the full level entry and validated tables archive plus catalog hash; external model/motion/texture/audio bytes are not yet included in a resource manifest. No complete ordinary file has been written or restored.
 
 Focused PC envelope, event scheduling, NPC codec/capture/restore, point/sphere placement and sparse prop checks pass. Shared PC and NXDK XBE/ISO builds pass. No new native runtime save/load is claimed. Overall remains approximately82%; saves approximately64% for implemented late-alpha functionality. Next work is scripted NPC animation persistence, followed by actual whole-file capture/restore and boot resource composition.
+
+
+## Ordinary HDD profile (2026-09-22)
+
+The shared ordinary loader and capture path now compile for NXDK. Optical harness flags world-hdd-load.flag/world-hdd-save.flag opt into a separate R:\OpenRedFaction\ordinary two-slot profile; DEV slots retain their existing name. The native adapter flushes the selected new slot and releases its owned mount. An endpoint payload buffer (at most110524 bytes) remains available for process-local QMP inspection until the next capture.
+
+A stock64MiB XEMU run of unmodified L1S1 completed120 frames and wrote101708 bytes at generation1. All16 component payloads match the corresponding PC capture exactly. Minimum sampled free memory was16.78MiB, not a continuously measured allocation peak. The native framebuffer was inspected: mine geometry, lamps, crosshair, health/armor and the authored shift message were present. Evidence: artifacts/xemu/render-20260922-205015. Native reload is the next acceptance step; ordinary active destruction/vehicles and finite-ammo continuation remain outside this result.
+
+Focused platform checks pass20 cases, including ordinary-profile routing followed by unchanged DEV routing. Both PC and NXDK builds pass. This is an opt-in harness path, not an end-user save menu or campaign-wide persistence claim.
+
+Fresh native reload attempt render-20260922-205215 returned RF_NOT_FOUND. The render harness launches XEMU with -snapshot, so the preceding successful HDD write was discarded on exit. This is not proof of a loader defect or a successful native reload. Next: use an isolated persistent test disk for the two-launch write/read pair; retain the default temporary disk behavior for ordinary render checks. The failed launch was closed and disc flags restored by the harness. Saves estimate75%, overall83%.

@@ -10964,6 +10964,7 @@ int rf_scene_npc_checkpoint_export(const unsigned char identity[32],int32_t now,
 #include "scene_world_player_restore.inc"
 #include "scene_world_event_restore.inc"
 #include "scene_world_mission_restore.inc"
+#include "scene_world_storage.inc"
 #include "scene_world_snapshot.inc"
 #include "scene_world_load.inc"
 

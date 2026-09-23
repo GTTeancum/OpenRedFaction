@@ -6,9 +6,13 @@
  * an aborted load and is owned by normal scene cleanup. */
 static int scene_world_load(scene_stream *stream,const rf_level *level,const char *tables_path)
 {
-#ifndef RF_IMAGE_XBOX_NATIVE
     extern rf_entity_room_state rf_scene_actor_room_state;
+#ifndef RF_IMAGE_XBOX_NATIVE
     const char *path=getenv("RF_REPLAY_WORLD_SNAPSHOT_IN");
+#else
+    rf_xbox_checkpoint_storage storage={0};uint32_t enabled=0;
+    const char *path=RF_XBOX_WORLD_CHECKPOINT_BASE;
+#endif
     scene_world_snapshot_identity identity;rf_checkpoint_file_selection selection={0};rf_world_checkpoint envelope;
     unsigned char *buffer=NULL;uint32_t bytes=0,i,rows_count=0,added=0,flags=0,selected=0,cost=0;int status=RF_OK,found=0;
     const uint32_t budget=2u*1024u*1024u;const char *phase="identity";
@@ -18,14 +22,25 @@ static int scene_world_load(scene_stream *stream,const rf_level *level,const cha
     scene_campaign_history_rebind_stage *bindings=NULL;scene_world_player_stage player;
     scene_checkpoint_world_context context={0};rf_geometry_materials mapping={0};rf_geometry_body_surfaces surfaces;
     const rf_world_checkpoint_slice *v;
+#ifdef RF_IMAGE_XBOX_NATIVE
+    status=scene_world_storage_flag("D:\\world-hdd-load.flag",&enabled);if(status||!enabled)return status;
+#endif
     if(!path||!*path)return RF_OK;
+    rf_scene_world_checkpoint_state[8]=1;
     if(!stream||!level||!tables_path||!stream->collision||stream->terrain||stream->terrain_authored||stream->terrain_publication||
-       stream->terrain_history_count||stream->terrain_publication_serial)return RF_RANGE;
+       stream->terrain_history_count||stream->terrain_publication_serial){status=RF_RANGE;goto done;}
     status=scene_world_checkpoint_source_identity(level,tables_path,rf_scene_weapon_supply[3],identity.bytes);if(status)goto done;
     if(strlen(campaign_current_level)>=64){status=RF_FORMAT;goto done;}
     memset(identity.level,0,64);strcpy(identity.level,campaign_current_level);
     buffer=malloc(RF_CHECKPOINT_FILE_MAX);if(!buffer){status=RF_IO;goto done;}
-    phase="file";status=rf_checkpoint_file_load(path,buffer,RF_CHECKPOINT_FILE_MAX,&bytes,scene_world_snapshot_validate,&identity,&selection);if(status)goto done;
+    phase="file";
+#ifndef RF_IMAGE_XBOX_NATIVE
+    status=rf_checkpoint_file_load(path,buffer,RF_CHECKPOINT_FILE_MAX,&bytes,scene_world_snapshot_validate,&identity,&selection);
+#else
+    (void)path;(void)selection;status=rf_xbox_checkpoint_storage_open_world(&storage,0);
+    if(!status)status=rf_xbox_checkpoint_storage_load(&storage,buffer,RF_CHECKPOINT_FILE_MAX,&bytes,scene_world_snapshot_validate,&identity);
+#endif
+    if(status)goto done;
     status=rf_world_checkpoint_decode(buffer,bytes,RF_WORLD_CHECKPOINT_MASK(RF_WORLD_ENVIRONMENT),&envelope);if(status)goto done;
     if(envelope.sections[RF_WORLD_DESTRUCTION-1].bytes||envelope.sections[RF_WORLD_VEHICLE-1].bytes||envelope.sections[RF_WORLD_SWITCHES-1].bytes){status=RF_NOT_FOUND;goto done;}
     phase="npc_resources";catalog.hash=rf_scene_weapon_supply[3];catalog.count=campaign_weapon_supply.names.count;
@@ -86,12 +101,14 @@ static int scene_world_load(scene_stream *stream,const rf_level *level,const cha
     printf("WORLD_SNAPSHOT_LOADED bytes%u staged%u npc%u events%u added_motion%u health%.9g armor%.9g weapon%u\n",bytes,cost,world->npcs->count,events->events.count,added,
         (double)player.player.player.health,(double)player.player.player.armor,player.player.player.weapon);
  done:
+    rf_scene_world_checkpoint_state[0]=(uint32_t)status;rf_scene_world_checkpoint_state[1]=status?0:bytes;
+    rf_scene_world_checkpoint_state[2]=status?0:cost;
+#ifdef RF_IMAGE_XBOX_NATIVE
+    {int closed=scene_world_storage_close(&storage);if(!status)status=closed;rf_scene_world_checkpoint_state[0]=(uint32_t)status;}
+#endif
     if(status)printf("WORLD_SNAPSHOT_LOAD_REJECT phase%s status%d\n",phase,status);
     scene_remote_checkpoint_discard();scene_world_event_close(&events);scene_world_environment_close(&environment);
     scene_campaign_history_checkpoint_rebind_close(&bindings);scene_campaign_history_checkpoint_close(&history);
     scene_world_mission_close(&mission);scene_world_restore_discard(&world);free(rows);free(buffer);return status;
-#else
-    (void)stream;(void)level;(void)tables_path;return RF_OK;
-#endif
 }
 #endif

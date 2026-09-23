@@ -68,6 +68,8 @@ def main():
     parser.add_argument('--shallow-two-limits', action='store_true', help='Use two intersecting authored shallow-region fixtures')
     parser.add_argument('--cavity-seam-test', action='store_true', help='Explicit source66 floor-seam hardness fixture')
     parser.add_argument('--shallow-fixture', action='store_true', help='DEV depth.75 authored-region fixture shared with PC')
+    parser.add_argument('--world-checkpoint-save', action='store_true', help='Save ordinary state to the isolated Xbox HDD profile')
+    parser.add_argument('--world-checkpoint-load', type=Path, help='Load native ordinary HDD state; matching PC two-slot base for reference')
     parser.add_argument('--geomod-checkpoint-in', type=Path, help='Load a DEV destruction checkpoint before playback')
     parser.add_argument('--geomod-checkpoint-out', action='store_true', help='Capture bounded PC/Xbox destruction checkpoints and compare bytes')
     parser.add_argument('--terrain-test-light', action='store_true', help='DEV crater diagnostic light during frames1000..1999')
@@ -174,6 +176,8 @@ def main():
     if (args.geomod_checkpoint_in or args.geomod_checkpoint_out) and not args.dev_room:
         parser.error('GeoMod checkpoints require --dev-room')
     checkpoint_limit = 262144 if args.expanded_geomod else 110524
+    if (args.world_checkpoint_save or args.world_checkpoint_load) and (args.dev_room or args.geomod_checkpoint_in or args.geomod_checkpoint_out):
+        parser.error('Ordinary world checkpoints require a non-DEV run without DEV checkpoints')
     checkpoint = args.geomod_checkpoint_in is not None or args.geomod_checkpoint_out
     payload = None
     if args.input:
@@ -185,8 +189,8 @@ def main():
         args.frames = (len(payload)-offset)//size
     if len(args.setup_uid)>2 or any(not 0<uid<0xffffffff for uid in args.setup_uid):
         parser.error('Require at most two positive setup UIDs')
-    if not 32 <= args.frames <= 60000 or not 30 <= args.seconds <= 3600 or not 0 < args.actor < 0xffffffff:
-        parser.error('Require32..60000 frames,30..3600 seconds and a positive actor UID')
+    if not (1 if args.world_checkpoint_load else 32) <= args.frames <= 60000 or not 30 <= args.seconds <= 3600 or not 0 < args.actor < 0xffffffff:
+        parser.error('Require32..60000 frames (1 minimum for ordinary reload),30..3600 seconds and a positive actor UID')
     if payload is None:
         payload = b'RFI5' + struct.pack('<I', 44) + bytes(args.frames * 44)
     if args.npc_rubble_test and (args.frames<962 or not args.input or args.authored_source!=95 or args.authored_sources!=3):
@@ -235,6 +239,8 @@ def main():
     report['authored_source']=148 if args.vehicle_test and not submarine else (args.authored_source if args.authored_source is not None else (94 if args.dev_room and args.level=='ctf06.rfl' else None))
     (run / 'inputs.bin').write_bytes(payload)
     env = {k: v for k, v in os.environ.items() if not k.startswith('RF_REPLAY_')}
+    if args.world_checkpoint_save:env['RF_REPLAY_WORLD_SNAPSHOT_OUT']=str(run/'pc-world')
+    if args.world_checkpoint_load:env['RF_REPLAY_WORLD_SNAPSHOT_IN']=str(args.world_checkpoint_load.resolve())
     if args.fragment_contact_test:env['RF_REPLAY_FRAGMENT_CONTACT_TEST']='1'
     if args.fragment_platform_test:env['RF_REPLAY_FRAGMENT_PLATFORM_TEST']='4' if args.ceiling_platform_test else '3' if args.lift_platform_test else '2' if args.tip_platform_test else '1'
     if args.npc_rubble_test:env['RF_REPLAY_DEV_NPC']='2'
@@ -340,7 +346,7 @@ def main():
     shallow_flag=disc/'shallow-fixture.flag'
     saved[shallow_flag.name]=shallow_flag.read_bytes() if shallow_flag.exists() else None
     for name in ('fragment-platform-test.flag','fragment-contact-test.flag','cavity-seam.flag','geomod-checkpoint.bin','geomod-checkpoint-out.flag','ripple-test.flag','debris-player-test.flag','water-test.flag','swim-test.flag','player-checkpoint.flag','moving-support-test.flag','dev-npc.flag','fusion-test.flag','firearms-test.flag','vehicle-test.flag',
-                 'geomod-hdd-load.flag','geomod-hdd-save.flag','geomod-fallback-seed.flag','geomod-fallback-observe.flag',
+                 'world-hdd-load.flag','world-hdd-save.flag','geomod-hdd-load.flag','geomod-hdd-save.flag','geomod-fallback-seed.flag','geomod-fallback-observe.flag',
                  'geomod-fallback0.rfsg','geomod-fallback1.rfsg','terrain-map-limit.bin','authored-source.bin','authored-count.bin'):
         path=disc/name;saved[name]=path.read_bytes() if path.exists() else None
     # Persist restoration bytes before mutating the disc, including absent files.
@@ -407,6 +413,8 @@ def main():
         if args.moving_support_test:(disc/'moving-support-test.flag').write_bytes(support_mode.encode('ascii'))
         if args.water_test:(disc/'water-test.flag').write_bytes(b'')
         if liquid_mode:(disc/'swim-test.flag').write_bytes(str(liquid_mode).encode('ascii'))
+        if args.world_checkpoint_save:(disc/'world-hdd-save.flag').write_bytes(b'')
+        if args.world_checkpoint_load:(disc/'world-hdd-load.flag').write_bytes(b'')
         if checkpoint:(disc/'geomod-checkpoint-out.flag').write_bytes(b'')
         if args.geomod_checkpoint_in:(disc/'geomod-checkpoint.bin').write_bytes(args.geomod_checkpoint_in.read_bytes())
         if args.cavity_seam_test:(disc/'cavity-seam.flag').write_bytes(b'')
@@ -637,6 +645,25 @@ dvd_path = '{root.as_posix()}/build/xbox/redfaction-diagnostic.iso'
             if args.terrain_draw_audit:
                 report['terrain_draws']=capture_draws(monitor,symbol,run/'pc-terrain-material.bin',report['terrain_atlas'],run)
                 report['checks']['GPU_TERRAIN_DRAWS']=report['terrain_draws']
+            if args.world_checkpoint_save or args.world_checkpoint_load:
+                state=words(monitor,symbol('rf_scene_world_checkpoint_state'),10)
+                report['checks']['WORLD_CHECKPOINT']=dict(state=state)
+                if args.world_checkpoint_load:
+                    assert state[8]==1 and state[0]==0 and state[1]>0, 'Ordinary native load failed'
+                if args.world_checkpoint_save:
+                    pointer=words(monitor,symbol('rf_scene_world_checkpoint_data'),1)[0]
+                    assert state[9]==1 and state[3]==0 and 320<=state[4]<=110524 and pointer, 'Ordinary native save failed'
+                    data=bytearray()
+                    for offset in range(0,state[4],4096):
+                        count=(min(4096,state[4]-offset)+3)//4
+                        data.extend(struct.pack('<'+'I'*count,*words(monitor,pointer+offset,count)))
+                    data=bytes(data[:state[4]])
+                    (run/'xbox-world.rfwc').write_bytes(data)
+                    report['checks']['WORLD_CHECKPOINT']['sha256']=hashlib.sha256(data).hexdigest()
+                    from check_ordinary_save_reload import sections, payload as world_payload
+                    expected=world_payload(run/'pc-world')
+                    actual_parts,expected_parts=sections(data),sections(expected)
+                    report['checks']['WORLD_CHECKPOINT']['component_equal']={k:actual_parts[k]==v for k,v in expected_parts.items()}
             if checkpoint:
                 state=words(monitor,symbol('rf_scene_geomod_checkpoint_state'),4)
                 memory=words(monitor,symbol('rf_scene_geomod_checkpoint_memory'),2)
