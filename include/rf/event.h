@@ -366,6 +366,9 @@ typedef struct rf_runtime_triggers {
     /* Explode10 world service; authored clip/scale values, never rocket defaults. */
     int (*explode)(void *,const rf_level_event *,int32_t,uint32_t);
     void *explode_context;
+    /* Look_At7: ordered linked actors receive an on/off gaze target. */
+    int (*look_at)(void *,const rf_level_event *,const rf_level_link_target *,uint32_t);
+    void *look_at_context;
     /* Borrowed message presentation service; links identify speakers, not actions. */
     int (*show_message)(void *context,const rf_level_event *event,int32_t now,uint32_t on);
     void *message_context;

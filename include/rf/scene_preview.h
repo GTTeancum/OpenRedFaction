@@ -59,6 +59,7 @@ extern uint32_t rf_scene_switch_runtime[8],rf_scene_switch_detail[8],rf_scene_sw
 extern uint32_t rf_scene_alarm[12];
 extern uint32_t rf_scene_script_explode[10];
 extern uint32_t rf_scene_script_explode_visual[8];
+extern uint32_t rf_scene_script_look_at[9];
 extern uint32_t rf_scene_world_texture_budget[4];
 extern uint32_t rf_scene_actor_revisit[8];
 extern uint32_t rf_scene_campaign_load_stage;

@@ -1205,7 +1205,7 @@ int rf_scene_fire_setup_event(uint32_t uid,int32_t now)
 {
     uint32_t i;rf_startup_events_report report;
     for(i=0;i<campaign_events.count;i++)if(campaign_events.items[i].authored->record.uid==uid) {
-        if(campaign_events.items[i].state.type!=0 && campaign_events.items[i].state.type!=10 && campaign_events.items[i].state.type!=61 && campaign_events.items[i].state.type!=48 && campaign_events.items[i].state.type!=2 && campaign_events.items[i].state.type!=1 && campaign_events.items[i].state.type!=15 && campaign_events.items[i].state.type!=24 && campaign_events.items[i].state.type!=30 && campaign_events.items[i].state.type!=13 && campaign_events.items[i].state.type!=14 && campaign_events.items[i].state.type!=19 && campaign_events.items[i].state.type!=56 && campaign_events.items[i].state.type!=32 && campaign_events.items[i].state.type!=46 && campaign_events.items[i].state.type!=11 && campaign_events.items[i].state.type!=12)return RF_FORMAT;
+        if(campaign_events.items[i].state.type!=0 && campaign_events.items[i].state.type!=7 && campaign_events.items[i].state.type!=10 && campaign_events.items[i].state.type!=61 && campaign_events.items[i].state.type!=48 && campaign_events.items[i].state.type!=2 && campaign_events.items[i].state.type!=1 && campaign_events.items[i].state.type!=15 && campaign_events.items[i].state.type!=24 && campaign_events.items[i].state.type!=30 && campaign_events.items[i].state.type!=13 && campaign_events.items[i].state.type!=14 && campaign_events.items[i].state.type!=19 && campaign_events.items[i].state.type!=56 && campaign_events.items[i].state.type!=32 && campaign_events.items[i].state.type!=46 && campaign_events.items[i].state.type!=11 && campaign_events.items[i].state.type!=12)return RF_FORMAT;
         return rf_runtime_event_fire(&campaign_triggers,campaign_events.items[i].handle,UINT32_MAX,UINT32_MAX,now,&scene_gravity,NULL,NULL,&report);
     }
     return RF_NOT_FOUND;
@@ -4166,6 +4166,7 @@ typedef struct campaign_npc_body {
     uint32_t persistence_slot,persistence_registered,controller_handle;
     struct {uint32_t active,event,follow,route_index,retry,stop;float target[3],fall_speed;
         rf_level_waypoint_path path;uint32_t path_index,path_mode,path_reverse;} script_move;
+    struct {uint32_t active,event,target_uid;float position[3];} script_look;
     struct {uint32_t active,loop,freeze;int32_t motion;} script_animation;
     uint32_t combat_alert,combat_due,combat_burst_remaining;
     uint32_t combat_reload_due;int32_t combat_reload_weapon; /* First-pass retaliation, simulation-frame clock. */
@@ -4603,6 +4604,33 @@ static int campaign_script_move(void *context,uint32_t handle,const rf_level_eve
         rf_scene_script_movement[6]=event->uid;return on?RF_OK:campaign_script_locomotion(i,0);
     }
     return RF_NOT_FOUND;
+}
+uint32_t rf_scene_script_look_at[9]; /* on,off,turns,missing targets,missing actors,last event,last actor,last target,published pose changes */
+static int campaign_script_look_at(void *context,const rf_level_event *event,
+    const rf_level_link_target *links,uint32_t on)
+{
+    uint32_t i,j,matched=0;(void)context;
+    if(!event || (event->link_count && !links))return RF_RANGE;
+    for(j=0;j<3;j++)if(!isfinite(event->position[j]))return RF_FORMAT;
+    for(i=0;i<event->link_count;i++){
+        if(links[i].kind!=1 && links[i].kind!=2)continue;
+        for(j=0;j<campaign_npc_body_count;j++){
+            campaign_npc_body *owner=campaign_npc_bodies+j;
+            if(!owner->registration.view || owner->registration.handle!=links[i].value)continue;
+            if(on && owner->damage.effects.health>0){
+                owner->script_look.active=1;owner->script_look.event=event->uid;
+                owner->script_look.target_uid=event->words[0];
+                memcpy(owner->script_look.position,event->position,12);++rf_scene_script_look_at[0];
+            } else if(!on && owner->script_look.active && owner->script_look.event==event->uid){
+                owner->script_look.active=0;++rf_scene_script_look_at[1];
+            }
+            rf_scene_script_look_at[5]=event->uid;
+            rf_scene_script_look_at[6]=campaign_seeds.records.items[j].record.uid;
+            rf_scene_script_look_at[7]=event->words[0];++matched;break;
+        }
+    }
+    if(!matched)++rf_scene_script_look_at[4];
+    return RF_OK;
 }
 static int campaign_remove_object(void *context,uint32_t handle)
 {
@@ -14663,6 +14691,30 @@ static int campaign_script_step(scene_stream *stream,float elapsed)
                 ++rf_scene_enemy_aim[0];rf_scene_enemy_aim[2]=o->registration.handle;
             }
         }
+        if(!o->script_move.active && !o->combat_alert && o->script_look.active &&
+           o->registration.view && o->damage.effects.health>0 && !(o->view.flags_810&1)) {
+            const float *target=o->script_look.position;
+            if(o->script_look.target_uid==(uint32_t)-999) {
+                target=campaign_player_object.view && campaign_player_damage.state.effects.health>0?
+                    scene_actor_body.state.position:NULL;
+            } else if(o->script_look.target_uid) {
+                target=NULL;
+                for(j=0;j<campaign_npc_body_count;j++)if(campaign_npc_bodies[j].registration.view &&
+                   (uint32_t)campaign_seeds.records.items[j].record.uid==o->script_look.target_uid &&
+                   campaign_npc_bodies[j].damage.effects.health>0) {
+                    target=campaign_npc_bodies[j].eye_position;break;
+                }
+            }
+            if(target){
+                float previous_basis[9];memcpy(previous_basis,campaign_model_owners[i].basis,sizeof(previous_basis));
+                memcpy(o->body.state.next_position,o->body.state.position,12);
+                status=rf_scene_npc_steer(o->registration.handle,target,elapsed,rf_scene_npc_playback[0],&turn);if(status)return status;
+                status=rf_scene_npc_prepare_angular(o->registration.handle,elapsed);if(status)return status;
+                status=rf_scene_npc_commit_ordinary(o->registration.handle,elapsed);if(status)return status;
+                ++rf_scene_script_look_at[2];
+                if(memcmp(previous_basis,campaign_model_owners[i].basis,sizeof(previous_basis)))++rf_scene_script_look_at[8];
+            } else ++rf_scene_script_look_at[3];
+        }
         if(!o->script_move.active)continue;
         if(!o->registration.view || o->damage.effects.health<=0){o->script_move.active=0;continue;}
         status=campaign_script_ground(stream,o,elapsed);if(status)return status;
@@ -17052,7 +17104,7 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
             status=campaign_actors_restore();if(status)goto done;
             campaign_triggers.death_query=campaign_death_query;
             campaign_triggers.activate_mover=campaign_event_mover;
-            memset(rf_scene_npc_triggers,0,sizeof(rf_scene_npc_triggers));memset(rf_scene_script_routes,0,sizeof(rf_scene_script_routes));memset(rf_scene_script_actor,0,sizeof(rf_scene_script_actor));memset(rf_scene_script_movement,0,sizeof(rf_scene_script_movement));campaign_triggers.move_npc=campaign_script_move;campaign_triggers.attack_npc=campaign_script_attack;campaign_triggers.play_animation=campaign_play_animation;
+            memset(rf_scene_npc_triggers,0,sizeof(rf_scene_npc_triggers));memset(rf_scene_script_routes,0,sizeof(rf_scene_script_routes));memset(rf_scene_script_actor,0,sizeof(rf_scene_script_actor));memset(rf_scene_script_movement,0,sizeof(rf_scene_script_movement));memset(rf_scene_script_look_at,0,sizeof(rf_scene_script_look_at));campaign_triggers.move_npc=campaign_script_move;campaign_triggers.look_at=campaign_script_look_at;campaign_triggers.attack_npc=campaign_script_attack;campaign_triggers.play_animation=campaign_play_animation;
             /* Apply initial linked flags without consuming switch activations. */
             for(i=0;i<campaign_events.count;i++)if(campaign_events.items[i].switch_state && !campaign_events.items[i].retired) {
                 status=rf_runtime_switch_initialize(&campaign_triggers,campaign_events.items[i].handle);if(status)goto done;

@@ -842,6 +842,7 @@ run_scene:
             printf("ALARM");for(i=0;i<12;i++)printf(" %u",rf_scene_alarm[i]);puts("");
             printf("SCRIPT_EXPLODE");for(i=0;i<10;i++)printf(" %u",rf_scene_script_explode[i]);puts("");
             printf("SCRIPT_EXPLODE_VISUAL");for(i=0;i<8;i++)printf(" %u",rf_scene_script_explode_visual[i]);puts("");
+            printf("SCRIPT_LOOK_AT");for(i=0;i<9;i++)printf(" %u",rf_scene_script_look_at[i]);puts("");
             printf("SWITCH_RUNTIME");for(i=0;i<8;i++)printf(" %u",rf_scene_switch_runtime[i]);puts("");
             printf("SWITCH_DETAIL");for(i=0;i<8;i++)printf(" %u",rf_scene_switch_detail[i]);puts("");
             printf("SWITCH_STATE %u %u %u\n",rf_scene_switch_state[0],rf_scene_switch_state[1],rf_scene_switch_state[2]);
