@@ -220,6 +220,10 @@ static rf_scene_input_poll player_poll;
 static void *player_context;
 static uint32_t player_frame_limit;
 static rf_scene_input player_input;
+/* A terminal mission result belongs to this level instance, not the player-life
+ * snapshot. The pending fade is intentionally excluded from ordinary saves. */
+static struct {char reason[64];int32_t deadline;uint32_t phase,credits,uid;} campaign_endgame;
+uint32_t rf_scene_endgame[6]; /* requests,terminal,credits,last UID,phase,remaining ms */
 static uint32_t campaign_spawn;
 uint32_t rf_scene_dev_room_enabled;
 uint32_t rf_scene_fragment_platform_enabled,rf_scene_fragment_platform_audit[32];
@@ -385,6 +389,7 @@ static int player_begin_frame(void *context,uint32_t frame)
     for(i=0;i<2;++i)if(!isfinite(value.look[i]) || fabsf(value.look[i])>1)return RF_FORMAT;
     if(value.crouch>1 || value.jump>1 || value.use>1 || value.fire>1 || value.reload>1 || value.cycle_weapon>1 || value.alt_fire>1)return RF_FORMAT;
     if(campaign_spawn){status=campaign_life_input(frame,&value);if(status)return status;}
+    if(campaign_endgame.phase)memset(&value,0,sizeof(value));
     player_input=value;r[0]=frame;memcpy(r+1,&value,24); /* Preserve the legacy movement/stance ring. */
     profile_active=frame>=16;rf_scene_profile_stage[0]=frame;profile_mark(0);return RF_OK;
 }
@@ -1208,7 +1213,7 @@ int rf_scene_fire_setup_event(uint32_t uid,int32_t now)
 {
     uint32_t i;rf_startup_events_report report;
     for(i=0;i<campaign_events.count;i++)if(campaign_events.items[i].authored->record.uid==uid) {
-        if(campaign_events.items[i].state.type!=0 && campaign_events.items[i].state.type!=7 && campaign_events.items[i].state.type!=10 && campaign_events.items[i].state.type!=61 && campaign_events.items[i].state.type!=48 && campaign_events.items[i].state.type!=2 && campaign_events.items[i].state.type!=1 && campaign_events.items[i].state.type!=3 && campaign_events.items[i].state.type!=69 && campaign_events.items[i].state.type!=15 && campaign_events.items[i].state.type!=24 && campaign_events.items[i].state.type!=30 && campaign_events.items[i].state.type!=13 && campaign_events.items[i].state.type!=14 && campaign_events.items[i].state.type!=19 && campaign_events.items[i].state.type!=56 && campaign_events.items[i].state.type!=32 && campaign_events.items[i].state.type!=46 && campaign_events.items[i].state.type!=11 && campaign_events.items[i].state.type!=12 && campaign_events.items[i].state.type!=41 && campaign_events.items[i].state.type!=42 && campaign_events.items[i].state.type!=73 && campaign_events.items[i].state.type!=74)return RF_FORMAT;
+        if(campaign_events.items[i].state.type!=0 && campaign_events.items[i].state.type!=7 && campaign_events.items[i].state.type!=10 && campaign_events.items[i].state.type!=61 && campaign_events.items[i].state.type!=48 && campaign_events.items[i].state.type!=2 && campaign_events.items[i].state.type!=1 && campaign_events.items[i].state.type!=3 && campaign_events.items[i].state.type!=69 && campaign_events.items[i].state.type!=15 && campaign_events.items[i].state.type!=24 && campaign_events.items[i].state.type!=30 && campaign_events.items[i].state.type!=13 && campaign_events.items[i].state.type!=14 && campaign_events.items[i].state.type!=19 && campaign_events.items[i].state.type!=56 && campaign_events.items[i].state.type!=32 && campaign_events.items[i].state.type!=46 && campaign_events.items[i].state.type!=11 && campaign_events.items[i].state.type!=12 && campaign_events.items[i].state.type!=41 && campaign_events.items[i].state.type!=42 && campaign_events.items[i].state.type!=73 && campaign_events.items[i].state.type!=74 && campaign_events.items[i].state.type!=71)return RF_FORMAT;
         return rf_runtime_event_fire(&campaign_triggers,campaign_events.items[i].handle,UINT32_MAX,UINT32_MAX,now,&scene_gravity,NULL,NULL,&report);
     }
     return RF_NOT_FOUND;
@@ -8871,6 +8876,24 @@ static int scene_script_blackout(void *context,const rf_level_event *event,int32
     if(rf_timer_set(&campaign_blackout_deadline,now,(int32_t)(seconds*1000.0f)))return RF_OK;
     ++rf_scene_blackout[1];return RF_OK;
 }
+static int scene_script_endgame(void *context,const rf_level_event *event,int32_t now)
+{
+    int status;(void)context;
+    if(!event || !event->name[0])return RF_RANGE;
+    if(campaign_endgame.phase)return RF_OK; /* First terminal request wins. */
+    memset(&campaign_endgame,0,sizeof(campaign_endgame));
+    strncpy(campaign_endgame.reason,event->name,sizeof(campaign_endgame.reason)-1);
+    campaign_endgame.uid=event->uid;
+    campaign_endgame.credits=!strcmp(event->name,"call_credits");
+    campaign_endgame.phase=campaign_endgame.credits?2:1;
+    if(!campaign_endgame.credits){
+        status=rf_timer_set(&campaign_endgame.deadline,now,1500);
+        if(status){memset(&campaign_endgame,0,sizeof(campaign_endgame));return status;}
+    }
+    ++rf_scene_endgame[0];rf_scene_endgame[2]+=campaign_endgame.credits;
+    rf_scene_endgame[3]=event->uid;rf_scene_endgame[4]=campaign_endgame.phase;
+    return RF_OK;
+}
 static int campaign_show_message(void *context,const rf_level_event *event,int32_t now,uint32_t on)
 {
     rf_level_message next;int status;int32_t duration,deadline;
@@ -13611,6 +13634,24 @@ int rf_scene_draw_combat_hud(rf_scene_particle_sink sink,void *context)
     }
     return RF_OK;
 }
+int rf_scene_draw_endgame(rf_scene_particle_sink sink,void *context)
+{
+    int32_t remaining=0;uint32_t alpha=255;int status;
+    if(!sink || !particle_draw_stream || !campaign_spawn || !campaign_endgame.phase)return RF_OK;
+    if(campaign_endgame.phase==1){
+        status=rf_timer_remaining(campaign_endgame.deadline,campaign_blackout_now,&remaining);
+        if(status)return status;
+        if(remaining>1500)remaining=1500;
+        if(remaining<0)remaining=0;
+        alpha=(uint32_t)((1500-remaining)*255/1500);
+    }
+    status=combat_hud_rect(sink,context,0,0,640,480,alpha<<24);if(status)return status;
+    if(campaign_endgame.phase!=2)return RF_OK;
+    if(campaign_endgame.credits)return combat_hud_text(sink,context,278,228,"CREDITS",0xffeeeeee);
+    status=combat_hud_text(sink,context,250,204,"MISSION FAILED",0xffee6060);if(status)return status;
+    status=combat_hud_text(sink,context,240,228,campaign_endgame.reason,0xffeeeeee);if(status)return status;
+    return combat_hud_text(sink,context,206,260,"LOAD A SAVE OR RESTART THE LEVEL",0xffeeeeee);
+}
 uint32_t rf_scene_follow_npc_uid;
 static uint32_t scene_inspection_enabled;
 static float scene_inspection_eye[3],scene_inspection_basis[3][3];
@@ -16262,6 +16303,16 @@ static int scene_frame(void *context,uint32_t frame,rf_preview_mesh *actor)
                 status=rf_campaign_countdown_step(&rf_scene_campaign_countdown,scene_step_seconds);if(status)return status;
                 status=rf_runtime_events_tick(&campaign_events,&campaign_triggers,&scene_gravity,now,&stream->particles, &campaign_forces,&tick_report,&pending);
                 if(status)return status;
+                if(campaign_endgame.phase==1){
+                    int expired;int32_t remaining;
+                    status=rf_timer_expired(campaign_endgame.deadline,now,&expired);
+                    if(status)return status;
+                    if(expired){campaign_endgame.phase=2;++rf_scene_endgame[1];}
+                    status=rf_timer_remaining(campaign_endgame.deadline,now,&remaining);
+                    if(status)return status;
+                    rf_scene_endgame[5]=remaining>0?(uint32_t)remaining:0;
+                }
+                rf_scene_endgame[4]=campaign_endgame.phase;
                 status=scene_script_explode_effects_tick(stream,frame);if(status)return status;
                 campaign_hit_flags_clear();
                 status=campaign_watch_snapshot();if(status)return status;
@@ -16342,7 +16393,8 @@ static int scene_frame(void *context,uint32_t frame,rf_preview_mesh *actor)
         }
         if(scene_live_save_pending){
             scene_live_save_pending=0;scene_live_notice_load=0;
-            scene_live_save_status=scene_world_snapshot_capture_mode(stream,stream->world_checkpoint_level,stream->world_checkpoint_tables,1);
+            scene_live_save_status=campaign_endgame.phase?RF_NOT_FOUND:
+                scene_world_snapshot_capture_mode(stream,stream->world_checkpoint_level,stream->world_checkpoint_tables,1);
             scene_live_save_until=frame+180;
             printf("QUICK_SAVE frame%u status%d\n",frame,scene_live_save_status);
         }
@@ -16685,9 +16737,11 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
             campaign_triggers.music=scene_script_music;campaign_triggers.music_context=NULL;
             campaign_triggers.navpoint=campaign_navpoint_set;campaign_triggers.navpoint_context=&campaign_navigation;
             campaign_triggers.black_out_player=scene_script_blackout;campaign_triggers.blackout_context=NULL;
+            campaign_triggers.endgame=scene_script_endgame;campaign_triggers.endgame_context=NULL;
             campaign_triggers.explode=scene_script_explode;campaign_triggers.explode_context=stream;
             campaign_triggers.show_message=campaign_show_message;campaign_triggers.message_context=(void*)level;
             campaign_subtitle_deadline=-1;memset(&campaign_subtitle,0,sizeof(campaign_subtitle));
+            memset(&campaign_endgame,0,sizeof(campaign_endgame));memset(rf_scene_endgame,0,sizeof(rf_scene_endgame));
             campaign_message_voice=-1;memset(rf_scene_message_audio,0,sizeof(rf_scene_message_audio));
             campaign_triggers.slay_object=campaign_slay_object;memset(rf_scene_script_slays,0,sizeof(rf_scene_script_slays));
             rf_scene_campaign_triggers[0]=campaign_triggers.count;

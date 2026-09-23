@@ -383,6 +383,9 @@ typedef struct rf_runtime_triggers {
     /* Black_Out_Player; the scene owns the timed visual state. */
     int (*black_out_player)(void *,const rf_level_event *,int32_t,uint32_t);
     void *blackout_context;
+    /* Endgame71: named failure after a fade, or immediate call_credits. */
+    int (*endgame)(void *,const rf_level_event *,int32_t);
+    void *endgame_context;
     /* Explode10 world service; authored clip/scale values, never rocket defaults. */
     int (*explode)(void *,const rf_level_event *,int32_t,uint32_t);
     void *explode_context;

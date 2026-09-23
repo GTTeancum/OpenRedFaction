@@ -575,6 +575,7 @@ static int preview(const rf_preview_mesh *mesh, const rf_materials *materials, c
             status=rf_scene_draw_player_flash(scene_particle_present,NULL);
             if(!status)status=rf_scene_draw_combat_hud(scene_particle_present,NULL);
             if(!status)status=rf_scene_draw_player_blackout(scene_particle_present,NULL);
+            if(!status)status=rf_scene_draw_endgame(scene_particle_present,NULL);
             hud_batch_end();if(status)return status;}
         renderer_mark(5,&profile_previous,profiling);
         capture[0] = (uint32_t)pb_back_buffer();

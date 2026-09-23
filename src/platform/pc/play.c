@@ -326,6 +326,7 @@ static int present(void *context,uint32_t frame,const rf_preview_mesh *mesh,
     status=rf_scene_draw_player_flash(particle_present,p);if(status)return status;
     status=rf_scene_draw_combat_hud(particle_present,p);if(status)return status;
     status=rf_scene_draw_player_blackout(particle_present,p);if(status)return status;
+    status=rf_scene_draw_endgame(particle_present,p);if(status)return status;
     if(capture) {
         char path[1024];int length=snprintf(path,sizeof(path),"%s/frame-%06u.ppm",capture,p->frames+1);
         if(length<0 || (size_t)length>=sizeof(path))return RF_RANGE;
@@ -839,6 +840,7 @@ run_scene:
             printf("CAMPAIGN_EVENT_TICKS");for(uint32_t tick_word=0;tick_word<12;++tick_word)printf(" %u",rf_scene_event_ticks[tick_word]);puts("");
             {uint32_t remaining_bits;memcpy(&remaining_bits,&rf_scene_campaign_countdown.remaining,4);
              printf("CAMPAIGN_COUNTDOWN %u %u %u\n",remaining_bits,rf_scene_campaign_countdown.expiry_pending,rf_scene_campaign_countdown.difficulty);}
+            {extern uint32_t rf_scene_endgame[6];printf("CAMPAIGN_ENDGAME");for(i=0;i<6;i++)printf(" %u",rf_scene_endgame[i]);puts("");}
             printf("CAMPAIGN_TRIGGERS %u %u\n",rf_scene_campaign_triggers[0],rf_scene_campaign_triggers[1]);
             printf("SWITCH_HISTORY %u %u %u %u\n",rf_scene_switch_history[0],rf_scene_switch_history[1],rf_scene_switch_history[2],rf_scene_switch_history[3]);
             printf("SCRIPT_ANIMATION");for(i=0;i<10;i++)printf(" %u",rf_scene_script_animation[i]);puts("");

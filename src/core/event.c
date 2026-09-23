@@ -605,6 +605,13 @@ static void startup_event_action(void *context,rf_event_state *state,uint32_t ac
             &c->event->authored->record,c->now,action==1);
         return;
     }
+    if(state->type==71) {
+        if(action!=1)return;
+        if(!c->triggers->endgame){++c->report->unsupported_actions;return;}
+        c->status=c->triggers->endgame(c->triggers->endgame_context,
+            &c->event->authored->record,c->now);
+        return;
+    }
     if(state->type==10) {
         if(action==2)return;
         if(!c->triggers->explode){++c->report->unsupported_actions;return;}
@@ -1246,6 +1253,7 @@ int rf_runtime_events_tick(rf_runtime_events *events,rf_runtime_triggers *trigge
            !(event->state.type==69 && triggers->navpoint) &&
            !((event->state.type==73 || event->state.type==74) && triggers->countdown) &&
            !(event->state.type==61 && triggers->black_out_player) &&
+           !(event->state.type==71 && triggers->endgame) &&
            !(event->state.type==10 && triggers->explode) &&
            !(event->state.type==7 && triggers->look_at) &&
            !(event->state.type==15 && triggers->show_message) &&
