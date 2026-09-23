@@ -7,6 +7,8 @@ Completion basis (user direction,2026-09-18): working late-alpha/early-beta code
 
 - Scripted effects: Play_Sound now dispatches delayed on/off to bounded positional audio on PC/Xbox builds; Music_Start/Stop, Look_At, Explode and Black_Out_Player still need gameplay effects, while active sound voices are not saved.
 
+- PC hands-on pass: The user reports that the DEV room cannot pick up or change weapons and has slight flicker; reproduce and fix those before calling the interactive build ready for gameplay testing.
+
 - NPC durability: Authored instance health/armor now apply before persistence restore; PC confirms low-health death, survival and armor absorption, while Xbox fatal-hit/death/drop state matches with20.48MiB free; broader encounters and player startup remain separate (docs/ENTITY-INSTANCE-VITALS.md).
 
 - Weapon saves: Machine Pistol alternate magazine, Undercover suppressor and spread RNG now survive PC/Xbox load/fire/resave with identical checkpoints and at least8.13MiB native headroom; HMG/Precision saves work, while campaign persistence and remaining special-weapon state are open.
