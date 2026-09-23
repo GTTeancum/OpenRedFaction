@@ -26,7 +26,9 @@ static int scene_npc_checkpoint_restore_placement(void *context,uint32_t index,
     const scene_npc_checkpoint_restore_stage *stage=context;
     const scene_npc_checkpoint_restore_entry *e;
     if(!stage||index>=stage->count)return RF_RANGE;e=stage->entries+index;
-    *retired=e->saved.retired;if(*retired)return RF_OK;
+    /* Hidden actors retain their saved pose but do not participate in live
+     * body contacts; pair clearance only applies to active solid actors. */
+    *retired=e->saved.retired||!!(e->saved.flags&0x4000u);if(*retired)return RF_OK;
     if(e->slot>=campaign_npc_body_count)return RF_FORMAT;
     memset(p,0,sizeof(*p));p->spheres=campaign_npc_bodies[e->slot].body.spheres.items;
     p->count=campaign_npc_bodies[e->slot].body.spheres.count;

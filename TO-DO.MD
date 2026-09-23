@@ -5,7 +5,7 @@ Completion basis (user direction,2026-09-18): working late-alpha/early-beta code
 
 - PRIORITY Ordinary saves: Ordinary L1S1 save/restart/reload/resave and movement now pass PC/Xbox with all16 saved components matching and16.39MiB sampled free; equipped railgun save/restart/fire/resave now also passes PC/Xbox with13.90MiB sampled free and exact saved-state parity; F5/Back+Y save and F9/Back+X same-level load now pass a PC/Xbox save/fire/load/fire session with13.80MiB sampled free and exact saved-state parity; cross-level quick-load now resolves the saved campaign level and passes PC; native cross-level verification, menu/slot selection, ordinary destruction/vehicles and broader resource-only demand remain (saves approximately84%).
 
-- AI navigation: L6S3 toggles authored route nodes in the live PC scene, and RFEN2 saves changed radii by UID; full L18S1 reload currently stops at NPC staging, while NPC travel and native runtime behavior remain open.
+- AI navigation: L6S3 toggles authored route nodes in the live PC scene, and RFEN2 saves changed radii by UID; full L18S1 reload now passes NPC staging but still stops at player placement inside the authored escape pod, while NPC travel and native runtime behavior remain open.
 
 - Scripted effects: Play_Sound, Black_Out_Player, streamed Music_Start/Stop and idle-NPC Look_At work; Explode dispatches radial damage and central visuals with GeoMod minimum/region admission, but actual campaign cuts need authored room/terrain ownership, while full vclip VFX, active-effect saves, visible gaze review and native music runtime checks remain.
 

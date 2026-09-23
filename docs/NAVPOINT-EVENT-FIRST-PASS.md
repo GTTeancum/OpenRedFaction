@@ -45,7 +45,10 @@ scene before publication, stale-state rejection, RFEN1 decode and restoration
 of a zero radius. The event checkpoint codec now accepts type 69. In a full
 L18S1 PC scene, Invert 10505 closes node UID 8637 and ordinary save writes
 RFEN2 with one row `(8637, 0)`; the saved file is in the ignored
-`artifacts/navpoint-live/` directory. A fresh L18S1 load currently rejects in
-the separate NPC staging phase before environment publication. Thus this is
-working capture and focused restore, not a claim that full L18S1 reload passes.
-PC and NXDK builds pass; native runtime reload remains unverified.
+`artifacts/navpoint-live/` directory. A fresh L18S1 load now passes NPC
+staging after excluding hidden actors from physical pair clearance. It still
+rejects at player placement: the level starts inside the authored
+`BustedEscapePod` prop's conservative collision sphere, and the saved player
+pose overlaps it. This remains a full-reload blocker; no player clearance rule
+has been loosened. PC and NXDK builds pass; native runtime reload remains
+unverified.

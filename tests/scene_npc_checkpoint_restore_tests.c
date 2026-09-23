@@ -50,6 +50,16 @@ int main(void)
         o->body.state.local_tensor[0]=o->body.state.local_tensor[4]=o->body.state.local_tensor[8]=1;
         rf_motion_playback_initialize(&poses[i].playback);
     }
+    {
+        scene_npc_checkpoint_restore_stage *pair_stage=calloc(1,sizeof(*pair_stage)+sizeof(*pair_stage->entries));
+        rf_checkpoint_placement candidate={0};uint32_t inactive=0;
+        CHECK(pair_stage);pair_stage->count=1;pair_stage->entries[0].slot=0;
+        pair_stage->entries[0].saved.flags=0x4000u;
+        CHECK(!scene_npc_checkpoint_restore_placement(pair_stage,0,&candidate,&inactive)&&inactive==1&&!candidate.count);
+        pair_stage->entries[0].saved.flags=0;
+        CHECK(!scene_npc_checkpoint_restore_placement(pair_stage,0,&candidate,&inactive)&&!inactive&&candidate.count==1);
+        free(pair_stage);
+    }
     /* A registered authored actor may intentionally have no collision spheres. */
     free(owners[1].body.spheres.items);owners[1].body.spheres.items=NULL;owners[1].body.spheres.count=0;
     CHECK(!scene_npc_checkpoint_capture(&catalog,1000,rows,2,&count));
