@@ -840,6 +840,7 @@ run_scene:
             printf("AIRLOCK");for(i=0;i<6;i++)printf(" %u",rf_scene_airlock[i]);printf("\n");
             printf("WORLD_TEXTURE_BUDGET");for(i=0;i<4;i++)printf(" %u",rf_scene_world_texture_budget[i]);puts("");
             printf("ALARM");for(i=0;i<12;i++)printf(" %u",rf_scene_alarm[i]);puts("");
+            printf("SCRIPT_EXPLODE");for(i=0;i<10;i++)printf(" %u",rf_scene_script_explode[i]);puts("");
             printf("SWITCH_RUNTIME");for(i=0;i<8;i++)printf(" %u",rf_scene_switch_runtime[i]);puts("");
             printf("SWITCH_DETAIL");for(i=0;i<8;i++)printf(" %u",rf_scene_switch_detail[i]);puts("");
             printf("SWITCH_STATE %u %u %u\n",rf_scene_switch_state[0],rf_scene_switch_state[1],rf_scene_switch_state[2]);

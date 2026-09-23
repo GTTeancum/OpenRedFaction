@@ -363,6 +363,9 @@ typedef struct rf_runtime_triggers {
     /* Black_Out_Player; the scene owns the timed visual state. */
     int (*black_out_player)(void *,const rf_level_event *,int32_t,uint32_t);
     void *blackout_context;
+    /* Explode10 world service; authored clip/scale values, never rocket defaults. */
+    int (*explode)(void *,const rf_level_event *,int32_t,uint32_t);
+    void *explode_context;
     /* Borrowed message presentation service; links identify speakers, not actions. */
     int (*show_message)(void *context,const rf_level_event *event,int32_t now,uint32_t on);
     void *message_context;

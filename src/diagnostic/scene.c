@@ -1203,7 +1203,7 @@ int rf_scene_fire_setup_event(uint32_t uid,int32_t now)
 {
     uint32_t i;rf_startup_events_report report;
     for(i=0;i<campaign_events.count;i++)if(campaign_events.items[i].authored->record.uid==uid) {
-        if(campaign_events.items[i].state.type!=0 && campaign_events.items[i].state.type!=61 && campaign_events.items[i].state.type!=48 && campaign_events.items[i].state.type!=2 && campaign_events.items[i].state.type!=1 && campaign_events.items[i].state.type!=15 && campaign_events.items[i].state.type!=24 && campaign_events.items[i].state.type!=30 && campaign_events.items[i].state.type!=13 && campaign_events.items[i].state.type!=14 && campaign_events.items[i].state.type!=19 && campaign_events.items[i].state.type!=56 && campaign_events.items[i].state.type!=32 && campaign_events.items[i].state.type!=46 && campaign_events.items[i].state.type!=11 && campaign_events.items[i].state.type!=12)return RF_FORMAT;
+        if(campaign_events.items[i].state.type!=0 && campaign_events.items[i].state.type!=10 && campaign_events.items[i].state.type!=61 && campaign_events.items[i].state.type!=48 && campaign_events.items[i].state.type!=2 && campaign_events.items[i].state.type!=1 && campaign_events.items[i].state.type!=15 && campaign_events.items[i].state.type!=24 && campaign_events.items[i].state.type!=30 && campaign_events.items[i].state.type!=13 && campaign_events.items[i].state.type!=14 && campaign_events.items[i].state.type!=19 && campaign_events.items[i].state.type!=56 && campaign_events.items[i].state.type!=32 && campaign_events.items[i].state.type!=46 && campaign_events.items[i].state.type!=11 && campaign_events.items[i].state.type!=12)return RF_FORMAT;
         return rf_runtime_event_fire(&campaign_triggers,campaign_events.items[i].handle,UINT32_MAX,UINT32_MAX,now,&scene_gravity,NULL,NULL,&report);
     }
     return RF_NOT_FOUND;
@@ -1959,6 +1959,9 @@ static campaign_controller_effects *campaign_controller_requests;
 static rf_audio_bank campaign_audio_bank;
 static rf_foley_owner campaign_foley;
 static rf_clutter_catalogs campaign_clutter_catalogs;
+static float campaign_script_explode_damage[64];
+static unsigned char campaign_script_explode_loaded[64];
+uint32_t rf_scene_script_explode[10]; /* requests,off,named,positive,zero,missing,geometry deferred,last UID,magnitude/radius bits */
 static int32_t campaign_riot_shield_class=-1;
 uint32_t rf_scene_clutter_contact_test[8];
 static rf_weapon_supply_catalog campaign_weapon_supply;
@@ -3962,6 +3965,20 @@ static int campaign_clutter_open(const char *tables_path,const rf_level *level)
         rf_scene_pistol_rules[4]=campaign_pistol.semi_automatic;rf_scene_pistol_rules[5]=sizeof(campaign_pistol);rf_scene_pistol_rules[6]=(uint32_t)campaign_pistol.damage_kind;
     }
     if(!status)status=rf_clutter_catalogs_open(&tables,&campaign_foley,65536,&campaign_clutter_catalogs);
+    /* Load only authored Explode clips while tables.vpp is already open.  The
+     * scene callback must not allocate or read the archive on the event tick. */
+    memset(campaign_script_explode_damage,0,sizeof(campaign_script_explode_damage));
+    memset(campaign_script_explode_loaded,0,sizeof(campaign_script_explode_loaded));
+    memset(rf_scene_script_explode,0,sizeof(rf_scene_script_explode));
+    for(i=0;!status && i<campaign_events.count;i++)if(campaign_events.items[i].state.type==10) {
+        const char *name=campaign_events.items[i].authored->record.texts[0];
+        int32_t index=rf_vclip_name_lookup(campaign_clutter_catalogs.names.vclips,name);
+        if(index<0 || campaign_script_explode_loaded[index])continue;
+        {rf_vclip_definition clip;
+            status=rf_vclip_definition_load(&tables,name,65536,&clip);
+            if(!status){campaign_script_explode_damage[index]=clip.damage;campaign_script_explode_loaded[index]=1;}
+        }
+    }
     memset(&campaign_contact_splashes,0,sizeof(campaign_contact_splashes));
     memset(rf_scene_contact_splash_assets,0,sizeof(rf_scene_contact_splash_assets));
     for(i=0;!status && i<2;++i) {
@@ -12555,8 +12572,8 @@ static int scene_clutter_blast_damage(void *context,const scene_clutter_blast_ca
 }
 static int scene_explosion_blast_source(scene_stream *s,uint32_t frame,const float origin[3],float damage,float radius,uint32_t source,int32_t kind)
 {
-    float seconds=(float)frame/60;uint32_t i,bits;int status;
-    ++rf_scene_rocket_blast[0];if(damage<=0 || radius<=.1f)return RF_OK;
+    float seconds=(float)frame/60;uint32_t i,bits,rocket=source!=UINT32_MAX;int status;
+    if(rocket)++rf_scene_rocket_blast[0];if(damage<=0 || radius<=.1f)return RF_OK;
     status=scene_driller_blast(s,frame,origin,damage,radius,source,kind);if(status)return status;
     {scene_clutter_blast_result result;
         scene_clutter_blast_backend backend={scene_clutter_blast_view,scene_clutter_blast_cover,scene_clutter_blast_damage,s};
@@ -12573,23 +12590,47 @@ static int scene_explosion_blast_source(scene_stream *s,uint32_t frame,const flo
         if(player){if(campaign_player_damage.state.effects.health<=0)continue;}
         else if(!owner->registration.view || !owner->body.allocated_bytes || owner->damage.effects.health<=0 ||
                 (owner->object_flags&(2|0x4000)) || (owner->view.flags_810&1))continue;
-        ++rf_scene_rocket_blast[1];
+        if(rocket)++rf_scene_rocket_blast[1];
         status=scene_blast_amount(s,origin,player?&scene_actor_body:&owner->body,damage,radius,&amount);if(status)return status;
         if(amount<=0)continue;request.amount=amount;
         status=player?rf_scene_player_damage(handle,&request,1,bits,&effects,&applied):
             rf_scene_npc_damage(handle,&request,1,bits,&effects,&applied);
         if(!status)status=feedback.status;if(status)return status;
         if(applied>0) {
-            ++rf_scene_rocket_blast[2];memcpy(rf_scene_rocket_blast+5,&applied,4);
-            if(player)++rf_scene_rocket_blast[4];else combat_hit_frame=frame;
+            if(rocket){++rf_scene_rocket_blast[2];memcpy(rf_scene_rocket_blast+5,&applied,4);}
+            if(player){if(rocket)++rf_scene_rocket_blast[4];}else combat_hit_frame=frame;
             campaign_combat_event(frame,player?1:0,handle,applied,player?campaign_player_damage.state.effects.health:owner->damage.effects.health);
         }
         if(!player && owner->damage.effects.health<=0) {
             status=rf_scene_npc_death_entry(handle,&entered);if(status)return status;
-            if(entered){++rf_scene_rocket_blast[3];status=combat_death_start(i);if(status)return status;}
+            if(entered){if(rocket)++rf_scene_rocket_blast[3];status=combat_death_start(i);if(status)return status;}
         }
     }
     return RF_OK;
+}
+static int scene_script_explode(void *context,const rf_level_event *event,int32_t now,uint32_t on)
+{
+    scene_stream *s=context;int32_t effect;float base,magnitude,scale;uint32_t frame;
+    if(!on){++rf_scene_script_explode[1];return RF_OK;}
+    if(!s || !event || now<0)return RF_RANGE;
+    ++rf_scene_script_explode[0];rf_scene_script_explode[7]=event->uid;
+    effect=rf_vclip_name_lookup(campaign_clutter_catalogs.names.vclips,event->texts[0]);
+    if(effect<0){base=1.0f;++rf_scene_script_explode[5];}
+    else {
+        if(!campaign_script_explode_loaded[effect])return RF_FORMAT;
+        base=campaign_script_explode_damage[effect];++rf_scene_script_explode[2];
+    }
+    scale=event->values[0];
+    if(!isfinite(base) || !isfinite(scale) || !isfinite(event->values[1]) || scale<0)return RF_FORMAT;
+    magnitude=(float)((double)base*(double)scale*(double)event->values[1]);
+    if(!isfinite(magnitude))return RF_RANGE;
+    memcpy(rf_scene_script_explode+8,&magnitude,4);memcpy(rf_scene_script_explode+9,&scale,4);
+    if(magnitude>0)++rf_scene_script_explode[3];else ++rf_scene_script_explode[4];
+    if((event->flags[0]&255u)==1)++rf_scene_script_explode[6];
+    frame=(uint32_t)((uint64_t)(uint32_t)now*60/1000);
+    /* The radial request is independent of a refused terrain edit or missing
+     * visual. Geometry/visual ownership is still open; do not use rocket FX. */
+    return scene_explosion_blast_source(s,frame,event->position,magnitude,scale,UINT32_MAX,3);
 }
 static int scene_explosion_blast(scene_stream *s,uint32_t frame,const float origin[3],float damage,float radius)
 {return scene_explosion_blast_source(s,frame,origin,damage,radius,campaign_player_object.handle,3);}
@@ -16470,6 +16511,7 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
             campaign_triggers.remove_object=campaign_remove_object;
             scene_script_sound_reset();campaign_triggers.play_sound=scene_script_sound;campaign_triggers.sound_context=NULL;
             campaign_triggers.black_out_player=scene_script_blackout;campaign_triggers.blackout_context=NULL;
+            campaign_triggers.explode=scene_script_explode;campaign_triggers.explode_context=stream;
             campaign_triggers.show_message=campaign_show_message;campaign_triggers.message_context=(void*)level;
             campaign_subtitle_deadline=-1;memset(&campaign_subtitle,0,sizeof(campaign_subtitle));
             campaign_message_voice=-1;memset(rf_scene_message_audio,0,sizeof(rf_scene_message_audio));
