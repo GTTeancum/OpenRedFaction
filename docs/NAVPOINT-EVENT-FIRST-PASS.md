@@ -46,7 +46,18 @@ advances) and the actor reaches `(3.0508,-4.1386,-19.6469)`. No obstacle is
 reported in either run. The ignored replay logs are `l6s3-goto-off.log` and
 `l6s3-goto-on.log` under `artifacts/navpoint-live/`. This establishes one live
 actor's route selection and movement response; it does not cover every NPC
-class or mid-route toggle.
+class.
+
+A separate 180-frame mid-route fixture dispatches Goto 6758 at frame 30 and
+Invert 7124 at frame 60 while actor 6755 is moving. PC records one successful
+route followed by two failed searches (`SCRIPT_ROUTES 3 1 2 1 0 1 0 0`),
+compared with one successful search and no misses (`1 1 0 2 4 3 0 0`) when the
+second event leaves the nodes ON. Stock 64 MiB XEMU matches PC exactly for
+`SCRIPT_NAVPOINT`, `SCRIPT_ROUTES`, `SCRIPT_MOVE` and `SCRIPT_ACTOR` in
+`artifacts/xemu/replay-20260923-020818/`; the full replay checker passes. The
+process-contained replay timing override is `--goto-frame 30` in
+`tools/xemu_replay_check.py`. Reopening a node mid-route and reload after an
+active route remain unverified.
 
 The ON/Goto case also completes 480 frames in stock 64 MiB XEMU. Guest memory
 matches PC exactly for `SCRIPT_NAVPOINT`, `SCRIPT_ROUTES`, `SCRIPT_MOVE`, and
@@ -62,8 +73,8 @@ color levels; mean absolute channel difference is 0.147. This is a comparison
 of reconstructed PC/Xbox output, not PS2 parity. The revised broad checker
 passes the full 480-frame stock-64-MiB run in
 `artifacts/xemu/replay-20260923-015334/`, including retained-clutter
-accounting and the native framebuffer capture. Native OFF, mid-route toggle,
-and save/reload cases remain unverified.
+accounting and the native framebuffer capture. Mid-route OFF now passes the
+separate fixture above; mid-route ON and native save/reload remain unverified.
 
 ## Ordinary save format
 

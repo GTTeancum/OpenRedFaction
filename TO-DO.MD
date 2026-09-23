@@ -5,7 +5,7 @@ Completion basis (user direction,2026-09-18): working late-alpha/early-beta code
 
 - PRIORITY Ordinary saves: Ordinary L1S1 save/restart/reload/resave and movement now pass PC/Xbox with all16 saved components matching and16.39MiB sampled free; equipped railgun save/restart/fire/resave now also passes PC/Xbox with13.90MiB sampled free and exact saved-state parity; F5/Back+Y save and F9/Back+X same-level load now pass a PC/Xbox save/fire/load/fire session with13.80MiB sampled free and exact saved-state parity; cross-level quick-load now resolves the saved campaign level and passes PC; native cross-level verification, menu/slot selection, ordinary destruction/vehicles and broader resource-only demand remain (saves approximately84%).
 
-- AI navigation: L6S3 authored Goto actor takes a four-node route with navpoints ON and a direct approach with them OFF, the ON case matches Xbox/PC actor state exactly, affected cached routes replan, and RFEN2 survives full L18S1 PC reload; broader NPC travel, native OFF/mid-route toggles, and native reload remain open.
+- AI navigation: L6S3 authored Goto actor takes a four-node route with navpoints ON and a direct approach with them OFF, and mid-route OFF invalidation matches Xbox/PC actor state exactly; RFEN2 survives full L18S1 PC reload, while broader NPC travel, mid-route reopening and native reload remain open.
 
 - Xbox retained rendering: L6S3 native static world, model and clutter draws now pass the 480-frame PC/Xbox replay with a near-matching frame and identical final camera and visibility; revisit disabled model bounds culling for performance.
 

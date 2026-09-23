@@ -77,7 +77,7 @@ typedef struct player {
     LARGE_INTEGER frequency;
     uint32_t frames,headless;
     uint32_t aim_uid,aim_from,aim_until;
-    rf_scene_input *replay;uint32_t trace_from,replay_count,scene_start,exit_uid,exit_frame,forced_exit_uid,goal_uid,goto_uid,setup_uid,setup_next_uid,return_exit_uid,return_item_uid,return_place;
+    rf_scene_input *replay;uint32_t trace_from,replay_count,scene_start,exit_uid,exit_frame,forced_exit_uid,goal_uid,goto_uid,goto_frame,setup_uid,setup_next_uid,return_exit_uid,return_item_uid,return_place;
     int quit,focused;
 } player;
 
@@ -177,7 +177,7 @@ static int input(void *context,uint32_t frame,rf_scene_input *out)
     if(p->headless && p->setup_next_uid && p->frames==60) {
         int status=rf_scene_fire_setup_event(p->setup_next_uid,1000);if(status)return status;
     }
-    if(p->headless && p->goto_uid && p->frames==(p->setup_next_uid?360:(p->setup_uid?300:30))) {
+    if(p->headless && p->goto_uid && p->frames==(p->goto_frame?p->goto_frame:(p->setup_next_uid?360:(p->setup_uid?300:30)))) {
         int status=rf_scene_fire_npc_event(p->goto_uid,(int32_t)((uint64_t)frame*1000/60));
         p->goto_uid=0;if(status)return status;
     }
@@ -611,6 +611,11 @@ int main(int argc,char **argv)
     if(p.headless && getenv("RF_REPLAY_GOTO_UID")) {
         char *end;unsigned long value=strtoul(getenv("RF_REPLAY_GOTO_UID"),&end,10);if(*end || !value)CHECK(RF_FORMAT);
         p.goto_uid=(uint32_t)value;
+    }
+    if(p.headless && getenv("RF_REPLAY_GOTO_FRAME")) {
+        char *end;unsigned long value=strtoul(getenv("RF_REPLAY_GOTO_FRAME"),&end,10);
+        if(*end || !value || value>UINT32_MAX || !p.goto_uid)CHECK(RF_FORMAT);
+        p.goto_frame=(uint32_t)value;
     }
     if(p.headless && getenv("RF_REPLAY_GOAL_UID")) {
         char *end;unsigned long value=strtoul(getenv("RF_REPLAY_GOAL_UID"),&end,10);if(*end || !value)CHECK(RF_FORMAT);
