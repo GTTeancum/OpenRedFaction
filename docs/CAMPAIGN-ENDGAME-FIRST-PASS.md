@@ -55,10 +55,20 @@ replay and a stock 64 MiB XEMU replay in
 `artifacts/xemu/render-20260923-041821/` agree on `ENDGAME_CLEAR`
 `[1,0,29688260,4194304]`: the fourth word proves this clear removed a
 genuinely set bit. XEMU ended with 4,348 available pages and its native frame
-shows the expected door and player weapon. The actual marked-NPC death path
-still needs a live scenario. Original generic event off-handler `4b9f80`
+shows the expected door and player weapon. Original generic event off-handler `4b9f80`
 calls `4ba1d0` to restore this flag on linked actors; that off transition
 is not yet implemented in the port.
+
+A 240-frame process-local controller replay stages the player near authored
+L6S3 Gryphon UID 3693, aims and fires normally, then waits through the failure
+fade. On PC the death enters `COMBAT_DEATH` and the screen displays the
+installed Gryphon failure description. The same baked input in stock 64 MiB
+XEMU (`artifacts/xemu/render-20260923-042814/`) matches all PC words for
+combat death, ammo, endgame and description: `CAMPAIGN_ENDGAME`
+`[1,1,0,3693,2,0]`, `ENDGAME_TEXT` `[1,0,165,3415580300]`. The native
+framebuffer contains the same failure text and recovery prompt; 5,408 physical
+pages remain available. This validates one ordinary live marked-NPC death,
+not all 14 authored cases or every campaign route.
 
 The installed table is read on demand from `tables.vpp` into a bounded 16 KiB
 scratch allocation; the selected English description is retained in a 512-byte
@@ -69,5 +79,5 @@ message. The native capture is in
 `artifacts/xemu/render-20260923-040131/`; it ends with 5,921 available pages.
 
 Remaining work is language selection beyond English, a menu/load-slot
-choice, credits sequence, a live marked-NPC death, event-off re-marking, and checkpoint ownership
+choice, credits sequence, event-off re-marking, and checkpoint ownership
 if saving during a terminal transition is later allowed.
