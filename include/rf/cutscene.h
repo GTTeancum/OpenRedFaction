@@ -39,4 +39,18 @@ const rf_cutscene_descriptor *rf_cutscene_find(const rf_cutscene_resources *reso
 const rf_cutscene_camera *rf_cutscene_camera_find(const rf_cutscene_resources *resources,uint32_t uid);
 const rf_cutscene_path *rf_cutscene_path_find(const rf_cutscene_resources *resources,const char *name);
 void rf_cutscene_path_sample(const rf_cutscene_path *path,float fraction,float position[3]);
+
+typedef struct rf_cutscene_runtime {
+    const rf_cutscene_resources *resources; /* Borrowed until cancel/finish. */
+    uint32_t active_uid,descriptor_index,point_index,active,moving;
+    int32_t total_deadline,pre_deadline,move_deadline;
+    float elapsed,fov,position[3],orientation[9];
+} rf_cutscene_runtime;
+/* The returned action UID is a point-start object, or UINT32_MAX. The caller
+ * performs typed event/trigger/mover dispatch after the state is published. */
+int rf_cutscene_begin(rf_cutscene_runtime *runtime,const rf_cutscene_resources *resources,
+    uint32_t selector,int32_t now,uint32_t *action_uid);
+int rf_cutscene_step(rf_cutscene_runtime *runtime,int32_t now,float seconds,
+    uint32_t *action_uid,uint32_t *finished);
+void rf_cutscene_cancel(rf_cutscene_runtime *runtime);
 #endif

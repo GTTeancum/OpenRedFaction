@@ -1,4 +1,5 @@
 #include "rf/cutscene.h"
+#include "rf/timer.h"
 #include <math.h>
 #include <stdlib.h>
 #include <string.h>
@@ -156,3 +157,71 @@ int rf_cutscene_resources_open(const rf_level *level,uint32_t budget,rf_cutscene
 done:
     rf_cutscene_resources_close(&next);cut_blobs_close(blobs);return status;
 }
+static int cut_duration(float seconds,int32_t *milliseconds)
+{
+    double value=(double)seconds*982.7238159179688+0.5;
+    if(!isfinite(seconds) || seconds<0 || value>RF_TIMER_PERIOD)return RF_RANGE;
+    *milliseconds=(int32_t)value;return RF_OK;
+}
+static int cut_point_begin(rf_cutscene_runtime *runtime,int32_t now,uint32_t *action_uid)
+{
+    const rf_cutscene_descriptor *d=runtime->resources->descriptors+runtime->descriptor_index;
+    const rf_cutscene_point *point=runtime->resources->points+d->first_point+runtime->point_index;
+    const rf_cutscene_camera *camera=rf_cutscene_camera_find(runtime->resources,point->camera_uid);
+    int32_t total,pre;int status;
+    if(!camera)return RF_FORMAT;
+    status=cut_duration(point->durations[0]+point->durations[1]+point->durations[2],&total);if(status)return status;
+    status=cut_duration(point->durations[0],&pre);if(status)return status;
+    status=rf_timer_set(&runtime->total_deadline,now,total);if(status)return status;
+    status=rf_timer_set(&runtime->pre_deadline,now,pre);if(status)return status;
+    runtime->move_deadline=-1;runtime->moving=0;runtime->elapsed=0;
+    memcpy(runtime->position,camera->position,sizeof(runtime->position));
+    memcpy(runtime->orientation,camera->orientation,sizeof(runtime->orientation));
+    *action_uid=point->words[1];return RF_OK;
+}
+int rf_cutscene_begin(rf_cutscene_runtime *runtime,const rf_cutscene_resources *resources,
+    uint32_t selector,int32_t now,uint32_t *action_uid)
+{
+    rf_cutscene_runtime next={0};const rf_cutscene_descriptor *d;
+    uint32_t i;int status;
+    if(!runtime || !resources || !action_uid || runtime->active)return RF_RANGE;
+    d=rf_cutscene_find(resources,selector);if(!d)return RF_NOT_FOUND;
+    if(!d->point_count)return RF_FORMAT;
+    for(i=0;i<resources->descriptor_count && resources->descriptors+i!=d;i++);
+    next.resources=resources;next.active_uid=selector;next.descriptor_index=i;
+    next.active=1;next.fov=d->fov;
+    status=cut_point_begin(&next,now,action_uid);if(status)return status;
+    *runtime=next;return RF_OK;
+}
+int rf_cutscene_step(rf_cutscene_runtime *runtime,int32_t now,float seconds,
+    uint32_t *action_uid,uint32_t *finished)
+{
+    const rf_cutscene_descriptor *d;const rf_cutscene_point *point;
+    const rf_cutscene_path *path;int expired,status;
+    if(!runtime || !action_uid || !finished || !isfinite(seconds) || seconds<0)return RF_RANGE;
+    *action_uid=UINT32_MAX;*finished=0;if(!runtime->active)return RF_OK;
+    d=runtime->resources->descriptors+runtime->descriptor_index;
+    point=runtime->resources->points+d->first_point+runtime->point_index;
+    status=rf_timer_expired(runtime->total_deadline,now,&expired);if(status)return status;
+    if(expired) {
+        if(++runtime->point_index==d->point_count){rf_cutscene_cancel(runtime);*finished=1;return RF_OK;}
+        return cut_point_begin(runtime,now,action_uid);
+    }
+    path=point->path[0]?rf_cutscene_path_find(runtime->resources,point->path):NULL;
+    if(!path)return RF_OK;
+    if(!runtime->moving) {
+        if(runtime->pre_deadline==-1)return RF_OK; /* Path already finished in this point. */
+        status=rf_timer_expired(runtime->pre_deadline,now,&expired);if(status)return status;
+        if(!expired)return RF_OK;
+        runtime->pre_deadline=-1;runtime->elapsed=0;runtime->moving=1;
+        {int32_t offset;status=cut_duration(point->durations[1],&offset);if(status)return status;
+         status=rf_timer_set(&runtime->move_deadline,now,offset);if(status)return status;}
+    }
+    runtime->elapsed+=seconds*0.9827237725257874f;
+    if(point->durations[1]>0)rf_cutscene_path_sample(path,runtime->elapsed/point->durations[1],runtime->position);
+    status=rf_timer_expired(runtime->move_deadline,now,&expired);if(status)return status;
+    if(expired){runtime->moving=0;runtime->move_deadline=-1;}
+    return RF_OK;
+}
+void rf_cutscene_cancel(rf_cutscene_runtime *runtime)
+{if(runtime)memset(runtime,0,sizeof(*runtime));}

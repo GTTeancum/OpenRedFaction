@@ -716,6 +716,13 @@ static void startup_event_action(void *context,rf_event_state *state,uint32_t ac
             startup_target(c,c->event->links+i,source,actor,(mode&255u)==1);
         return;
     }
+    if(state->type==55) {
+        if(action!=1)return;
+        if(!c->triggers->start_cutscene){++c->report->unsupported_actions;return;}
+        c->status=c->triggers->start_cutscene(c->triggers->cutscene_context,&c->event->authored->record,c->now);
+        return;
+    }
+    if(state->type==83)return; /* When_Cutscene_Over: its outgoing links act in action 2. */
     if(state->type==73 || state->type==74) {
         rf_campaign_countdown *timer=c->triggers->countdown;
         int32_t seconds;
@@ -1255,6 +1262,8 @@ int rf_runtime_events_tick(rf_runtime_events *events,rf_runtime_triggers *trigge
            !(event->state.type==51 && forces) &&
            !((event->state.type==5 || event->state.type==6 || event->state.type==28) && triggers->move_npc) &&
            !(event->state.type==22 && triggers->load_level) &&
+           !(event->state.type==55 && triggers->start_cutscene) &&
+           !(event->state.type==83) &&
            !(event->state.type>=35 && event->state.type<=37 && triggers->goals) &&
            !((event->state.type==13 || event->state.type==14) && triggers->adjust_vitals) &&
            !(event->state.type==63 && triggers->teleport_player) &&

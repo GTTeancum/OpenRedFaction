@@ -355,6 +355,9 @@ typedef struct rf_runtime_triggers {
     void *move_context;
     int (*play_animation)(void *,uint32_t,const rf_level_event *);
     void *animation_context;
+    /* Cutscene55 requests scene-owned camera/timeline playback on ON only. */
+    int (*start_cutscene)(void *,const rf_level_event *,int32_t now);
+    void *cutscene_context;
     /* Attack38: authored attacker UID plus ordered resolved target links. */
     int (*attack_npc)(void *context,const rf_level_event *event,const rf_level_link_target *links,uint32_t on);
     void *attack_context;

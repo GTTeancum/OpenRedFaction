@@ -18,6 +18,7 @@
 #include "rf/weapon_scope.h"
 #include "rf/weapon_scanner.h"
 #include "rf/event.h"
+#include "rf/cutscene.h"
 #include "rf/audio.h"
 #include "rf/music.h"
 #include "rf/clutter.h"
@@ -220,6 +221,9 @@ static rf_scene_input_poll player_poll;
 static void *player_context;
 static uint32_t player_frame_limit;
 static rf_scene_input player_input;
+static rf_cutscene_resources campaign_cutscene_resources;
+static rf_cutscene_runtime campaign_cutscene_runtime;
+uint32_t rf_scene_cutscene[12]; /* loaded descriptors/points, starts, active UID, point, actions, finishes, active, bytes, errors, camera hash, frame */
 /* A terminal mission result belongs to this level instance, not the player-life
  * snapshot. The pending fade is intentionally excluded from ordinary saves. */
 static struct {char reason[64],description[512];int32_t deadline;uint32_t phase,credits,uid,use_held,restart_requested;} campaign_endgame;
@@ -405,6 +409,7 @@ static int player_begin_frame(void *context,uint32_t frame)
         }
         memset(&value,0,sizeof(value));
     }
+    if(campaign_cutscene_runtime.active)memset(&value,0,sizeof(value));
     if(campaign_spawn){status=campaign_life_input(frame,&value);if(status)return status;}
     player_input=value;r[0]=frame;memcpy(r+1,&value,24); /* Preserve the legacy movement/stance ring. */
     profile_active=frame>=16;rf_scene_profile_stage[0]=frame;profile_mark(0);return RF_OK;
@@ -1233,7 +1238,7 @@ int rf_scene_fire_setup_event(uint32_t uid,int32_t now)
         if(campaign_events.items[i].state.type==75)
             return rf_runtime_event_fire(&campaign_triggers,campaign_events.items[i].handle,
                 UINT32_MAX,UINT32_MAX,now,&scene_gravity,NULL,NULL,&report);
-        if(campaign_events.items[i].state.type!=0 && campaign_events.items[i].state.type!=7 && campaign_events.items[i].state.type!=10 && campaign_events.items[i].state.type!=61 && campaign_events.items[i].state.type!=48 && campaign_events.items[i].state.type!=2 && campaign_events.items[i].state.type!=1 && campaign_events.items[i].state.type!=3 && campaign_events.items[i].state.type!=69 && campaign_events.items[i].state.type!=15 && campaign_events.items[i].state.type!=24 && campaign_events.items[i].state.type!=30 && campaign_events.items[i].state.type!=13 && campaign_events.items[i].state.type!=14 && campaign_events.items[i].state.type!=19 && campaign_events.items[i].state.type!=56 && campaign_events.items[i].state.type!=32 && campaign_events.items[i].state.type!=46 && campaign_events.items[i].state.type!=11 && campaign_events.items[i].state.type!=12 && campaign_events.items[i].state.type!=41 && campaign_events.items[i].state.type!=42 && campaign_events.items[i].state.type!=73 && campaign_events.items[i].state.type!=74 && campaign_events.items[i].state.type!=71 && campaign_events.items[i].state.type!=67)return RF_FORMAT;
+        if(campaign_events.items[i].state.type!=0 && campaign_events.items[i].state.type!=7 && campaign_events.items[i].state.type!=10 && campaign_events.items[i].state.type!=61 && campaign_events.items[i].state.type!=48 && campaign_events.items[i].state.type!=2 && campaign_events.items[i].state.type!=1 && campaign_events.items[i].state.type!=3 && campaign_events.items[i].state.type!=69 && campaign_events.items[i].state.type!=15 && campaign_events.items[i].state.type!=24 && campaign_events.items[i].state.type!=30 && campaign_events.items[i].state.type!=13 && campaign_events.items[i].state.type!=14 && campaign_events.items[i].state.type!=19 && campaign_events.items[i].state.type!=56 && campaign_events.items[i].state.type!=32 && campaign_events.items[i].state.type!=46 && campaign_events.items[i].state.type!=11 && campaign_events.items[i].state.type!=12 && campaign_events.items[i].state.type!=41 && campaign_events.items[i].state.type!=42 && campaign_events.items[i].state.type!=73 && campaign_events.items[i].state.type!=74 && campaign_events.items[i].state.type!=71 && campaign_events.items[i].state.type!=67 && campaign_events.items[i].state.type!=55)return RF_FORMAT;
         return rf_runtime_event_fire(&campaign_triggers,campaign_events.items[i].handle,UINT32_MAX,UINT32_MAX,now,&scene_gravity,NULL,NULL,&report);
     }
     return RF_NOT_FOUND;
@@ -1692,10 +1697,13 @@ static uint32_t campaign_npc_motion_count,campaign_npc_motion_bytes;
  * references across all model registrations may be released. */
 static int campaign_npc_motion_reserve(uint32_t bytes)
 {
+    /* L6S3's first cutscene runs two distinct actor clips concurrently:
+     * 649712 + 435586 bytes. Keep the ceiling bounded for stock 64 MiB. */
+    const uint32_t budget=1280u*1024u;
     uint32_t cache,reclaim=0,needed,i,j,references;int status;
-    if(campaign_npc_motion_bytes>1024*1024 || bytes>1024*1024)return RF_RANGE;
-    if(bytes<=1024*1024-campaign_npc_motion_bytes)return RF_OK;
-    needed=bytes-(1024*1024-campaign_npc_motion_bytes);
+    if(campaign_npc_motion_bytes>budget || bytes>budget)return RF_RANGE;
+    if(bytes<=budget-campaign_npc_motion_bytes)return RF_OK;
+    needed=bytes-(budget-campaign_npc_motion_bytes);
     /* Preflight the full candidate set before discarding any payload. The
      * simulation is single-threaded; references cannot change between passes. */
     for(cache=0;cache<campaign_npc_motion_count;++cache)if(campaign_npc_motion_data[cache]) {
@@ -8979,6 +8987,61 @@ static int scene_script_endgame(void *context,const rf_level_event *event,int32_
     if(!event)return RF_RANGE;
     return scene_endgame_request(context,event->name,event->uid,now);
 }
+static int campaign_cutscene_point_action(scene_stream *stream,uint32_t uid,int32_t now)
+{
+    uint32_t i;
+    if(uid==UINT32_MAX)return RF_OK;
+    for(i=0;i<campaign_events.count;i++)if(campaign_events.items[i].authored->record.uid==uid) {
+        rf_startup_events_report report;
+        int status=rf_runtime_event_fire(&campaign_triggers,campaign_events.items[i].handle,
+            UINT32_MAX,UINT32_MAX,now,&scene_gravity,&stream->particles,&campaign_forces,&report);
+        if(!status)++rf_scene_cutscene[5];return status;
+    }
+    for(i=0;i<campaign_triggers.count;i++)if(campaign_triggers.items[i].authored->record.uid==uid) {
+        rf_startup_events_report report;uint32_t fired=0;
+        int status=rf_runtime_trigger_fire(&campaign_triggers,campaign_triggers.items[i].handle,
+            UINT32_MAX,now,0,0,0,&scene_gravity,&stream->particles,&campaign_forces,&report,&fired);
+        if(!status)rf_scene_cutscene[5]+=fired;return status;
+    }
+    for(i=0;i<campaign_group_registration.count;i++)if(campaign_group_registration.objects[i].uid==uid) {
+        campaign_activation_context activation={now,(uint32_t)((uint64_t)now*60/1000),&stream->particles};
+        int status=campaign_link_effect(&activation,8,campaign_group_registration.objects[i].handle,UINT32_MAX,UINT32_MAX);
+        if(!status)++rf_scene_cutscene[5];return status;
+    }
+    return RF_OK; /* Missing or unsupported point object is inert in 45b3f0. */
+}
+static int campaign_cutscene_start(void *context,const rf_level_event *event,int32_t now)
+{
+    scene_stream *stream=context;uint32_t action;int status;
+    if(!stream || !event)return RF_RANGE;
+    if(campaign_player_object.view!=&campaign_player_view || (campaign_player_view.flags_810&1u))return RF_OK;
+    status=rf_cutscene_begin(&campaign_cutscene_runtime,&campaign_cutscene_resources,event->uid,now,&action);
+    if(status){++rf_scene_cutscene[9];return status;}
+    ++rf_scene_cutscene[2];rf_scene_cutscene[3]=event->uid;rf_scene_cutscene[4]=0;rf_scene_cutscene[7]=1;
+    status=campaign_cutscene_point_action(stream,action,now);
+    if(status){rf_cutscene_cancel(&campaign_cutscene_runtime);rf_scene_cutscene[7]=0;++rf_scene_cutscene[9];}
+    return status;
+}
+static int campaign_cutscene_tick(scene_stream *stream,int32_t now,uint32_t frame)
+{
+    uint32_t action,finished,i;int status;
+    if(!campaign_cutscene_runtime.active)return RF_OK;
+    status=rf_cutscene_step(&campaign_cutscene_runtime,now,scene_step_seconds,&action,&finished);
+    if(status){++rf_scene_cutscene[9];return status;}
+    if(action!=UINT32_MAX){status=campaign_cutscene_point_action(stream,action,now);if(status){++rf_scene_cutscene[9];return status;}}
+    rf_scene_cutscene[4]=campaign_cutscene_runtime.point_index;
+    rf_scene_cutscene[7]=campaign_cutscene_runtime.active;rf_scene_cutscene[11]=frame;
+    if(finished) {
+        ++rf_scene_cutscene[6];
+        for(i=0;i<campaign_events.count;i++)if(campaign_events.items[i].state.type==83) {
+            rf_startup_events_report report;
+            status=rf_runtime_event_fire(&campaign_triggers,campaign_events.items[i].handle,
+                UINT32_MAX,UINT32_MAX,now,&scene_gravity,&stream->particles,&campaign_forces,&report);
+            if(status){++rf_scene_cutscene[9];return status;}
+        }
+    }
+    return RF_OK;
+}
 static int campaign_show_message(void *context,const rf_level_event *event,int32_t now,uint32_t on)
 {
     rf_level_message next;int status;int32_t duration,deadline;
@@ -13895,6 +13958,11 @@ static int actor_follow_view(void *context,uint32_t frame,const rf_motion_contro
     status=scene_fighter_weapon_tick(stream,frame);if(status)return status;
     status=scene_driller_active(stream)?scene_driller_player_camera(&stream->driller_runtime->entry,position,orientation):actor_listener_pose(stream,frame,controller,position,orientation);if(status){rf_scene_profile_stage[1]=101;return status;}
     if(stream->apc_aim_active){memcpy(position,stream->apc_aim_eye,12);memcpy(orientation,stream->apc_aim_basis,36);}
+    if(campaign_cutscene_runtime.active){
+        memcpy(position,campaign_cutscene_runtime.position,12);
+        memcpy(orientation,campaign_cutscene_runtime.orientation,36);
+        rf_scene_scope_projection=1;
+    }
     /* Rendering follows the committed owner, never diagnostic counters: reload
      * can publish geometry before the next edit refreshes those counters. */
     if(stream->terrain) {
@@ -16330,7 +16398,7 @@ static int scene_frame(void *context,uint32_t frame,rf_preview_mesh *actor)
             v->position[0]=320+(v->position[0]-320)*rf_scene_scope_projection;
             v->position[1]=240+(v->position[1]-240)*rf_scene_scope_projection;
         }
-        status=scene_driller_active(stream)?RF_OK:scene_player_weapon_draw(stream,frame);presentation_mark(4,&presentation_clock);if(status){rf_scene_profile_stage[1]=205;return status;}
+        status=scene_driller_active(stream) || campaign_cutscene_runtime.active?RF_OK:scene_player_weapon_draw(stream,frame);presentation_mark(4,&presentation_clock);if(status){rf_scene_profile_stage[1]=205;return status;}
         if(scene_driller_active(stream) && !(rf_scene_vehicle_enabled==3 && scene_jeep_can_fire(&stream->driller_runtime->jeep_seat))){uint32_t faces;const unsigned char lighting[3]={200,200,200};
             status=scene_driller_cockpit_draw(stream->driller_cockpit,stream->driller_runtime->driver_seconds,stream->rocket_camera.player_position,
                 scene_actor_body.state.orientation,&stream->rocket_camera,stream->mesh,stream->capacity,stream->materials->count,lighting,&faces);
@@ -16424,6 +16492,7 @@ static int scene_frame(void *context,uint32_t frame,rf_preview_mesh *actor)
                 uint64_t elapsed=((uint64_t)frame+1)*1000/60;
                 int32_t now=(int32_t)(elapsed?((elapsed-1)%RF_TIMER_PERIOD)+1:0);
                 campaign_blackout_now=now;
+                status=campaign_cutscene_tick(stream,now,frame);if(status)return status;
                 status=campaign_alarm_tick(now);if(status)return status;
                 /* Owned 60-Hz replay clock. Original 4333ea calls event tick
                  * after physics; full wall-clock/whole-frame parity is open. */
@@ -16822,6 +16891,12 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
             rf_object_registry_init(&campaign_registry);
             rf_scene_campaign_load_stage=2;status=rf_runtime_events_open(level,&campaign_registry,1024*1024,&campaign_events);
             if(status)goto done;
+            rf_cutscene_cancel(&campaign_cutscene_runtime);memset(rf_scene_cutscene,0,sizeof(rf_scene_cutscene));
+            status=rf_cutscene_resources_open(level,65536,&campaign_cutscene_resources);
+            if(status==RF_NOT_FOUND)status=RF_OK;if(status)goto done;
+            rf_scene_cutscene[0]=campaign_cutscene_resources.descriptor_count;
+            rf_scene_cutscene[1]=campaign_cutscene_resources.point_count;
+            rf_scene_cutscene[8]=campaign_cutscene_resources.allocated_bytes;
             status=rf_level_owned_ambient_open(level,65536,&campaign_ambient);
             if(status==RF_NOT_FOUND)status=RF_OK;if(status)goto done;
             rf_scene_ambient_records[0]=campaign_ambient.count;
@@ -16846,6 +16921,7 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
             campaign_triggers.countdown_level=campaign_current_level;
             memset(&rf_scene_level_transition,0,sizeof(rf_scene_level_transition));campaign_export_valid=0;
             campaign_triggers.load_level=campaign_load_level;campaign_triggers.load_level_context=&rf_scene_level_transition;
+            campaign_triggers.start_cutscene=campaign_cutscene_start;campaign_triggers.cutscene_context=stream;
 
             if(status)goto done;
             campaign_teleport_ready=campaign_teleport_pending=0;
@@ -17483,6 +17559,7 @@ done:
     rf_group_registration_close(&campaign_group_registration);
     rf_group_runtime_close(&campaign_group_runtime);
     rf_level_owned_groups_close(&campaign_groups);
+    rf_cutscene_cancel(&campaign_cutscene_runtime);rf_cutscene_resources_close(&campaign_cutscene_resources);
     rf_runtime_triggers_close(&campaign_triggers);campaign_trigger_geometry=NULL;campaign_trigger_collision=NULL;
     rf_runtime_events_close(&campaign_events);
     rf_level_owned_ambient_close(&campaign_ambient);
