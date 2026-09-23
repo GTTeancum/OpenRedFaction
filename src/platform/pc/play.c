@@ -90,13 +90,18 @@ static uint32_t milliseconds(const player *p)
 
 static void paint(player *p,HDC dc)
 {
-    RECT rect;int w,h,x,y;
+    RECT rect,border;int w,h,x,y;
     GetClientRect(p->window,&rect);
-    FillRect(dc,&rect,(HBRUSH)GetStockObject(BLACK_BRUSH));
     w=rect.right;h=rect.bottom;
     if(w<=0 || h<=0)return;
     if((int64_t)w*3>(int64_t)h*4)w=h*4/3;else h=w*3/4;
     x=(rect.right-w)/2;y=(rect.bottom-h)/2;
+    /* Keep the current frame visible while GDI scales its successor. Only
+     * letterbox margins need clearing, including after a window resize. */
+    border=(RECT){0,0,rect.right,y};if(border.bottom>border.top)FillRect(dc,&border,(HBRUSH)GetStockObject(BLACK_BRUSH));
+    border=(RECT){0,y,x,y+h};if(border.right>border.left)FillRect(dc,&border,(HBRUSH)GetStockObject(BLACK_BRUSH));
+    border=(RECT){x+w,y,rect.right,y+h};if(border.right>border.left)FillRect(dc,&border,(HBRUSH)GetStockObject(BLACK_BRUSH));
+    border=(RECT){0,y+h,rect.right,rect.bottom};if(border.bottom>border.top)FillRect(dc,&border,(HBRUSH)GetStockObject(BLACK_BRUSH));
     StretchDIBits(dc,x,y,w,h,0,0,640,480,p->dib,&p->bitmap,DIB_RGB_COLORS,SRCCOPY);
 }
 

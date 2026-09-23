@@ -7,7 +7,7 @@ Completion basis (user direction,2026-09-18): working late-alpha/early-beta code
 
 - Scripted effects: Play_Sound dispatches bounded positional audio and Black_Out_Player draws a timed full-screen blackout; PC replay and Xbox builds pass, while Music_Start/Stop, Look_At, Explode, active-effect saves and native runtime checks remain (the latest XEMU run timed out before a game frame).
 
-- PC hands-on pass: A process-contained DEV replay auto-grants weapons and cycles them twice, and PC XInput now also accepts Right Bumper; reproduce the user's interactive pickup/switching failure and slight flicker before calling the build ready for gameplay testing.
+- USER PC hands-on pass: DEV replay confirms granted weapons and cycling, Right Bumper also cycles on PC, and the full-window black repaint that could cause flicker is removed; interactive pickup/switching and flicker still need user verification before calling the build ready for gameplay testing.
 
 - NPC durability: Authored instance health/armor now apply before persistence restore; PC confirms low-health death, survival and armor absorption, while Xbox fatal-hit/death/drop state matches with20.48MiB free; broader encounters and player startup remain separate (docs/ENTITY-INSTANCE-VITALS.md).
 
