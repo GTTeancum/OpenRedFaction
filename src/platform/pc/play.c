@@ -639,7 +639,9 @@ run_scene:
         rf_scene_actor_follow(NULL);
         rf_lightmaps_close(&p.lightmaps);rf_materials_close(&materials);rf_preview_close(&mesh);
         rf_scene_world_geometry_close(&retained);rf_geometry_collision_world_close(&collision);rf_geometry_close(&geometry);
-        if(reload){CHECK(rf_level_open(&level,&archive,next.level));memset(&rf_scene_level_transition,0,sizeof(rf_scene_level_transition));}
+        if(reload){status=rf_level_open(&level,&archive,next.level);
+            if(status==RF_NOT_FOUND){rf_vpp_close(&archive);status=rf_level_campaign_open(&level,&archive,directory,next.level);}
+            CHECK(status);memset(&rf_scene_level_transition,0,sizeof(rf_scene_level_transition));}
         else {rf_vpp_close(&archive);CHECK(rf_level_campaign_open(&level,&archive,directory,next.level));}
         /* A remote event-dispatch fixture has no doorway-relative player pose. */
         if(!reload&&next.uid!=p.forced_exit_uid) {

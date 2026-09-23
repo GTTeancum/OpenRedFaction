@@ -8,10 +8,11 @@ September 9, 2026. Guest RAM also records non-neutral movement and look axes.
 First-pass save/load: press **F5** to quick-save or **F9** to quick-load on PC;
 use **Back+Y** to save or **Back+X** to load on Xbox/XInput. Release before another
 request. Controller chords suppress gameplay input while held. HUD messages
-confirm success or report unavailable state/storage failure. Quick-load currently
-requires a compatible save for the current level; it rebuilds that scene before
-restoring state. Missing/incompatible saves keep the current scene running.
-A title/pause menu and cross-level load selection remain open.
+confirm success or report unavailable state/storage failure. Quick-load selects the newest valid save, resolves its level in the current or
+campaign archives, and checks source identity before rebuilding the saved scene.
+Missing/incompatible saves keep the current scene running. Cross-level loading
+passes PC; the Xbox cross-level runtime check remains open. A title/pause menu
+and explicit save-slot selection remain open.
 
 Save admission requires supported, settled ordinary-world state. Active weapon
 actions, destruction/vehicles and some NPC states can reject a save without

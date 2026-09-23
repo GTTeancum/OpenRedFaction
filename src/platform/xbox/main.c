@@ -1159,7 +1159,9 @@ campaign_load_section:
                     if(!reload)rf_vpp_close(&archive);rf_object_registry_init(&resident_registry);
                     ++rf_xbox_level_transitions[0];rf_xbox_level_transitions[1]=next.uid;rf_xbox_level_transitions[2]=campaign_total_frames;
                     if(NT_SUCCESS(MmQueryStatistics(&memory)))rf_xbox_level_transitions[3]=memory.AvailablePages;
-                    if(reload){result=rf_level_open(&level,&archive,next.level);memset(&rf_scene_level_transition,0,sizeof(rf_scene_level_transition));}
+                    if(reload){result=rf_level_open(&level,&archive,next.level);
+                        if(result==RF_NOT_FOUND){rf_vpp_close(&archive);result=rf_level_campaign_open(&level,&archive,"D:\\",next.level);}
+                        memset(&rf_scene_level_transition,0,sizeof(rf_scene_level_transition));}
                     else result=rf_level_campaign_open(&level,&archive,"D:\\",next.level);
                     if(result==RF_OK)memcpy(rf_xbox_transition_target,next.level,sizeof(rf_xbox_transition_target));
                     if(result==RF_OK && !reload && next.uid!=campaign_forced_exit_uid) {
