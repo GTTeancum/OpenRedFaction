@@ -555,6 +555,14 @@ static void startup_event_action(void *context,rf_event_state *state,uint32_t ac
 {
     startup_context *c=context;uint32_t i;
     if(c->status)return;
+    /* These effects own no link-target action. Their normal activation still
+     * carries ordered outgoing event links after the effect callback. */
+    if(action==2 && (state->type==0 || state->type==10 || state->type==15 ||
+       state->type==41 || state->type==42 || state->type==61 || state->type==71)) {
+        for(i=0;i<c->event->authored->record.link_count && !c->status;++i)
+            startup_target(c,c->event->links+i,source,actor,(mode&255u)==1);
+        return;
+    }
     if(state->type==11 || state->type==12) {
         if(action!=1)return;
         if(!c->triggers->play_animation){++c->report->unsupported_actions;return;}
@@ -575,13 +583,7 @@ static void startup_event_action(void *context,rf_event_state *state,uint32_t ac
         return;
     }
     if(state->type==0) {
-        if(action==2) {
-            /* Play_Sound owns its voice, then the ordinary event dispatcher
-             * forwards outgoing links (e.g. L17S3 blast -> Endgame). */
-            for(i=0;i<c->event->authored->record.link_count && !c->status;++i)
-                startup_target(c,c->event->links+i,source,actor,(mode&255u)==1);
-            return;
-        }
+        if(action==2)return;
         if(!c->triggers->play_sound){++c->report->unsupported_actions;return;}
         c->status=c->triggers->play_sound(c->triggers->sound_context,&c->event->authored->record,c->now,action==1);
         if(c->status==RF_NOT_FOUND){++c->report->other_targets;c->status=RF_OK;}

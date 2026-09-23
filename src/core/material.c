@@ -602,7 +602,10 @@ int rf_entity_materials_open_limit(rf_entity_materials *m,const rf_entity_appear
         model=&models->items[appearance->skeleton].file;
         if(!model->archive || model->section_count>RF_MODEL_MAX_SECTIONS)return RF_RANGE;
         for(i=0;i<model->section_count;++i)if(model->sections[i].type==0x5355424d)n+=model->sections[i].material_count;
-        if(appearance->texture_count && (!appearance->textures || appearance->texture_count!=n))return RF_RANGE;
+        /* Some authored skins replace only the leading high-detail materials.
+         * eos.v3c has three class overrides followed by six separate -mip2/-mip3
+         * records; those later records retain their model-authored textures. */
+        if(appearance->texture_count && (!appearance->textures || appearance->texture_count>n))return RF_RANGE;
         for(i=0;i<appearance->texture_count;++i) {
             const char *name=appearance->textures[i];
             if(!name[0] || !memchr(name,0,32))return RF_RANGE;
@@ -630,7 +633,7 @@ int rf_entity_materials_open_limit(rf_entity_materials *m,const rf_entity_appear
                 uint8_t *record=raw+(size_t)at*84;
                 status=rf_model_file_material(model,mesh,j,record);if(status)goto done;
                 if(!record[0] || !memchr(record,0,32) || !memchr(record+48,0,32)){status=RF_FORMAT;goto done;}
-                if(appearance->texture_count) {
+                if(local<appearance->texture_count) {
                     memset(record,0,32);memcpy(record,appearance->textures[local],strlen(appearance->textures[local]));
                 }
                 for(k=0;k<2;++k) {

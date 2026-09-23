@@ -285,6 +285,18 @@ foreach(level L3S1 L3S4)
         "${CMAKE_SOURCE_DIR}/Installed_Game/maps_en.vpp")
 endforeach()
 
+# L11S3's EOS skin overrides only the leading high-detail materials; keep its
+# ordinary NPC texture load inside the original 4 MiB scene budget.
+add_test(NAME npc_material_budget_L11S3 COMMAND rf_material_probe --entities128
+    "${CMAKE_SOURCE_DIR}/Installed_Game/levels2.vpp"
+    "${CMAKE_SOURCE_DIR}/Installed_Game/tables.vpp"
+    "${CMAKE_SOURCE_DIR}/Installed_Game/meshes.vpp" L11S3.rfl 4194304
+    "${CMAKE_SOURCE_DIR}/Installed_Game/maps1.vpp"
+    "${CMAKE_SOURCE_DIR}/Installed_Game/maps2.vpp"
+    "${CMAKE_SOURCE_DIR}/Installed_Game/maps3.vpp"
+    "${CMAKE_SOURCE_DIR}/Installed_Game/maps4.vpp"
+    "${CMAKE_SOURCE_DIR}/Installed_Game/maps_en.vpp")
+
 add_executable(rf_level_transition_tests tests/level_transition_tests.c)
 target_link_libraries(rf_level_transition_tests PRIVATE rf_core)
 add_test(NAME authored_level_transitions COMMAND rf_level_transition_tests "${CMAKE_SOURCE_DIR}/Installed_Game")

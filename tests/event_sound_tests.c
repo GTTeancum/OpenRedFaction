@@ -1,7 +1,7 @@
 #include "rf/event.h"
 #include <stdio.h>
 #define CHECK(x) do{if(!(x)){fprintf(stderr,"sound event line%d: %s\n",__LINE__,#x);return 1;}}while(0)
-static uint32_t starts,stops,black_starts,black_stops,blast_starts,blast_stops,look_starts,look_stops,endgames;
+static uint32_t starts,stops,black_starts,black_stops,blast_starts,blast_stops,look_starts,look_stops,endgames,messages,music_starts;
 static int sound(void *context,const rf_level_event *event,int32_t now,uint32_t on)
 {
     if(context!=&starts||event->uid!=123||now<0)return RF_FORMAT;
@@ -28,13 +28,23 @@ static int endgame(void *context,const rf_level_event *event,int32_t now)
     if(context!=&endgames || event->uid!=127 || now!=3450)return RF_FORMAT;
     ++endgames;return RF_OK;
 }
+static int message(void *context,const rf_level_event *event,int32_t now,uint32_t on)
+{
+    if(context!=&messages || event->uid!=129 || now<0)return RF_FORMAT;
+    if(on)++messages;return RF_OK;
+}
+static int music(void *context,const rf_level_event *event,int32_t now,uint32_t on)
+{
+    if(context!=&music_starts || event->uid!=130 || now<0)return RF_FORMAT;
+    if(on)++music_starts;return RF_OK;
+}
 int main(void)
 {
-    rf_runtime_event items[7]={{0}};rf_level_owned_event authored[7]={{0}};
+    rf_runtime_event items[9]={{0}};rf_level_owned_event authored[9]={{0}};
     rf_runtime_events events={0};rf_runtime_triggers triggers={0};rf_object_registry registry;
-    rf_campaign_countdown timer={0};rf_physics_gravity gravity={0};rf_startup_events_report report;rf_level_link_target link={0},look_link={0},sound_link={0},over_link={0};uint32_t i,pending,prior_starts;
-    rf_object_registry_init(&registry);events.registry=triggers.registry=&registry;events.items=items;events.count=7;
-    for(i=0;i<7;i++){items[i].object_kind=6;items[i].authored=authored+i;items[i].state.deadline=-1;
+    rf_campaign_countdown timer={0};rf_physics_gravity gravity={0};rf_startup_events_report report;rf_level_link_target link={0},look_link={0},sound_link={0},over_link={0},message_link={0},music_link={0},black_link={0},blast_link={0};uint32_t i,pending,prior_starts;
+    rf_object_registry_init(&registry);events.registry=triggers.registry=&registry;events.items=items;events.count=9;
+    for(i=0;i<9;i++){items[i].object_kind=6;items[i].authored=authored+i;items[i].state.deadline=-1;
         CHECK(!rf_object_registry_insert(&registry,items+i,&items[i].handle));}
     items[0].state.type=0;authored[0].record.uid=123;
     items[1].state.type=3;items[1].links=&link;authored[1].record.link_count=1;link.kind=1;link.value=items[0].handle;
@@ -45,11 +55,17 @@ int main(void)
     items[5].state.type=71;items[5].state.delay=.25f;authored[5].record.uid=127;
     items[6].state.type=75;items[6].links=&over_link;authored[6].record.uid=128;
     authored[6].record.link_count=1;over_link.kind=1;over_link.value=items[0].handle;
+    items[7].state.type=15;items[7].links=&message_link;authored[7].record.uid=129;
+    authored[7].record.link_count=1;message_link.kind=1;message_link.value=items[3].handle;
+    items[8].state.type=41;items[8].links=&music_link;authored[8].record.uid=130;
+    authored[8].record.link_count=1;music_link.kind=1;music_link.value=items[2].handle;
     triggers.play_sound=sound;triggers.sound_context=&starts;
     triggers.black_out_player=blackout;triggers.blackout_context=&black_starts;
     triggers.explode=explode;triggers.explode_context=&blast_starts;
     triggers.look_at=look_at;triggers.look_at_context=&look_starts;
     triggers.endgame=endgame;triggers.endgame_context=&endgames;
+    triggers.show_message=message;triggers.message_context=&messages;
+    triggers.music=music;triggers.music_context=&music_starts;
     triggers.countdown=&timer;
     CHECK(!rf_runtime_event_fire(&triggers,items[0].handle,7,8,1000,&gravity,NULL,NULL,&report));
     CHECK(starts==1&&!stops);
@@ -84,5 +100,18 @@ int main(void)
     CHECK(starts==prior_starts+1 && endgames==0 && items[5].state.deadline==3450 && !timer.expiry_pending);
     CHECK(!rf_runtime_events_tick(&events,&triggers,&gravity,3450,NULL,NULL,&report,&pending));
     CHECK(endgames==1 && !pending);
-    puts("PASS scripted sound, blackout, explode, look and countdown chain");return 0;
+    items[3].state.delay=0;
+    CHECK(!rf_runtime_event_fire(&triggers,items[7].handle,7,8,3500,&gravity,NULL,NULL,&report));
+    CHECK(messages==1 && blast_starts==3);
+    CHECK(!rf_runtime_event_fire(&triggers,items[8].handle,7,8,3600,&gravity,NULL,NULL,&report));
+    CHECK(music_starts==1 && black_starts==2);
+    items[2].links=&black_link;authored[2].record.link_count=1;
+    black_link.kind=1;black_link.value=items[0].handle;prior_starts=starts;
+    CHECK(!rf_runtime_event_fire(&triggers,items[2].handle,7,8,3650,&gravity,NULL,NULL,&report));
+    CHECK(black_starts==3 && starts==prior_starts+1);
+    items[3].links=&blast_link;authored[3].record.link_count=1;
+    blast_link.kind=1;blast_link.value=items[0].handle;prior_starts=starts;
+    CHECK(!rf_runtime_event_fire(&triggers,items[3].handle,7,8,3700,&gravity,NULL,NULL,&report));
+    CHECK(blast_starts==4 && starts==prior_starts+1);
+    puts("PASS scripted sound, blackout, explode, message, music and countdown links");return 0;
 }

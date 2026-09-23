@@ -13,7 +13,7 @@ Completion basis (user direction,2026-09-18): working late-alpha/early-beta code
 
 - Xbox retained rendering: L6S3 native static world, model and clutter draws now pass the 480-frame PC/Xbox replay with a near-matching frame and identical final camera and visibility; revisit disabled model bounds culling for performance.
 
-- Scripted effects: Play_Sound now forwards authored links after starting audio, Black_Out_Player, streamed Music_Start/Stop and idle-NPC Look_At work; Explode dispatches radial damage and visuals, while generic links on other effect types, authored GeoMod room/terrain ownership, full vclip VFX, active-effect saves and native music/audio checks remain.
+- Scripted effects: Play_Sound, Explode, Message, Music_Start/Stop, Black_Out_Player and Endgame now forward ordinary authored links after their effects; L11S3 self-destruct Message chaining passes PC/Xbox within stock memory, while authored GeoMod room/terrain ownership, full vclip VFX, active-effect saves and native music/audio checks remain (docs/SCRIPTED-EFFECT-LINKS-FIRST-PASS.md).
 
 - USER PC hands-on pass: DEV replay confirms granted weapons and cycling, Right Bumper also cycles on PC, and the full-window black repaint that could cause flicker is removed; interactive pickup/switching and flicker still need user verification before calling the build ready for gameplay testing.
 

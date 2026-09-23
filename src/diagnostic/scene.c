@@ -4329,8 +4329,8 @@ static uint32_t campaign_weapon_material_offsets[64];
 uint32_t rf_scene_weapon_materials[8]; /* models, materials, textures, resident, peak, pixels, material hash, pixel hash */
 static int campaign_weapon_materials_open(rf_vpp *maps,uint32_t map_count)
 {
-    /* Full ordinary L1S1 loadout exceeds the old DEV-sized512KiB cap. */
-    const uint32_t budget=1024*1024;uint8_t (*records)[84]=NULL;uint32_t i,j,k=0,count=0,x,y,h=2166136261u,p=2166136261u;uint64_t scratch;int status;
+    /* Late campaign weapon loadouts require more image peak than L1S1. */
+    const uint32_t budget=2*1024*1024;uint8_t (*records)[84]=NULL;uint32_t i,j,k=0,count=0,x,y,h=2166136261u,p=2166136261u;uint64_t scratch;int status;
     if(campaign_weapon_materials.items || campaign_weapon_models.count>64)return RF_RANGE;
     memset(campaign_weapon_material_offsets,0,sizeof(campaign_weapon_material_offsets));memset(rf_scene_weapon_materials,0,sizeof(rf_scene_weapon_materials));
     for(i=0;i<campaign_weapon_models.count;++i) {
