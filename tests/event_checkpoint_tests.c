@@ -57,7 +57,7 @@ int main(void)
     fresh.threshold.threshold=21;before=fresh;
     CHECK(rf_event_checkpoint_restore(wire,192,identity,&fresh,1000)==RF_FORMAT&&!memcmp(&fresh,&before,sizeof(fresh)));
     {
-        static const uint32_t types[]={0,1,2,3,5,6,7,10,11,12,13,14,15,17,19,22,24,28,30,34,35,36,37,38,39,41,42,44,46,48,51,52,56,61,64,65,81};
+        static const uint32_t types[]={0,1,2,3,5,6,7,10,11,12,13,14,15,17,19,22,24,28,30,34,35,36,37,38,39,41,42,44,46,48,51,52,56,61,64,65,69,81};
         uint32_t i;rf_event_checkpoint_refs refs={export_ref,import_ref,NULL},missing={export_ref,missing_ref,NULL};
         live.state.source=0;live.state.actor=UINT32_MAX;live.state.flags=5;live.state.mode=7;
         for(i=0;i<sizeof(types)/sizeof(types[0]);i++){
@@ -125,5 +125,6 @@ int main(void)
     }
     CHECK(rf_event_checkpoint_external_requirements(0)==RF_EVENT_CHECKPOINT_EXTERNAL_AUDIO);
     CHECK(rf_event_checkpoint_external_requirements(17)==RF_EVENT_CHECKPOINT_EXTERNAL_DAMAGE);
+    CHECK(rf_event_checkpoint_external_requirements(69)==RF_EVENT_CHECKPOINT_EXTERNAL_WORLD);
     puts("PASS L1S1 event fields, delayed dispatch, UnHide requests, UID remapping and RFEC2 compatibility");return 0;
 }

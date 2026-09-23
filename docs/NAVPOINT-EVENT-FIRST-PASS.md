@@ -21,7 +21,7 @@ process-local setup events: a 60-frame L6S3 replay of 7124 reports three OFF
 writes ending at live radius zero; a 120-frame replay of 7124 then 7123 reports
 three OFF and three ON writes ending at the authored radius bits. Both replays
 exit successfully. The PC test, PC play build and NXDK build pass. Live actor
-travel, Xbox runtime behavior and save persistence of changed radii remain open.
+travel and Xbox runtime behavior remain open; save coverage is detailed below.
 
 The replay records are 60 or 120 legacy 24-byte zero-input frames in the ignored
 `artifacts/navpoint-live/` directory. Run `rf_pc_play.exe --spawn-replay` with
@@ -29,3 +29,23 @@ The replay records are 60 or 120 legacy 24-byte zero-input frames in the ignored
 `RF_REPLAY_SETUP_UID=7124` or `7124,7123`; the `SCRIPT_NAVPOINT` line reports
 `3 0 0 3 ... 0` for OFF and `3 0 3 3 ... 1058642330` after ON. These checks
 establish node mutation in the scene, not observed NPC route changes.
+
+## Ordinary save format
+
+The environment component now writes RFEN2. It appends only nodes whose live
+radius bits differ from their authored baseline as `(navigation UID, radius
+bits)` rows, eight bytes each. Restore matches the first current node with
+that UID, validates the saved radius as zero or baseline, and stages all writes
+before publishing any gameplay state. RFEN1 loads with pristine navigation.
+This UID-based representation is a port policy; the original save format for
+live navigation radius has not been recovered.
+
+The focused environment checkpoint check covers UID reorder, an unchanged
+scene before publication, stale-state rejection, RFEN1 decode and restoration
+of a zero radius. The event checkpoint codec now accepts type 69. In a full
+L18S1 PC scene, Invert 10505 closes node UID 8637 and ordinary save writes
+RFEN2 with one row `(8637, 0)`; the saved file is in the ignored
+`artifacts/navpoint-live/` directory. A fresh L18S1 load currently rejects in
+the separate NPC staging phase before environment publication. Thus this is
+working capture and focused restore, not a claim that full L18S1 reload passes.
+PC and NXDK builds pass; native runtime reload remains unverified.
