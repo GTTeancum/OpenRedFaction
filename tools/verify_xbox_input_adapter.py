@@ -18,7 +18,7 @@ def hook(m,addr,size,data):
  name=hooks[addr];calls.append(name);sp=m.reg_read(UC_X86_REG_ESP);ret,arg0,arg1=struct.unpack('<3I',m.mem_read(sp,12));value=0
  if name in ['SDL_GameControllerGetAttached','SDL_NumJoysticks','SDL_IsGameController']:value=int(connected)
  if name=='SDL_GameControllerOpen':value=base+0x200
- if name=='SDL_GameControllerGetAxis':value=axes[arg1]&0xffffffff
+ if name=='SDL_GameControllerGetAxis':value=(axes[arg1] if arg1<len(axes) else 0)&0xffffffff
  if name=='SDL_GameControllerGetButton':value=int(arg1 in buttons)
  m.reg_write(UC_X86_REG_EAX,value);m.reg_write(UC_X86_REG_ESP,sp+4);m.reg_write(UC_X86_REG_EIP,ret)
 u.hook_add(UC_HOOK_CODE,hook)
@@ -38,7 +38,19 @@ for frame,(axes,connected,buttons) in enumerate(cases):
  if frame==5:assert abs(v[0]**2+v[2]**2-1)<1e-6 and abs(v[3]**2+v[4]**2-1)<1e-6
  if frame==6:assert 'SDL_GameControllerClose' in calls and 'SDL_GameControllerGetAxis' not in calls
  if frame==7:assert 'SDL_GameControllerOpen' in calls
+# Execute the real quick-save edge latch; SDL replies stay process-local.
+connected=True;axes=[32767]*4;buttons={4,3} # Back + Y
+assert invoke('rf_xbox_input_poll',0,9,base)==0
+assert bytes(u.mem_read(base,48))==bytes(48), 'Save chord must suppress gameplay input'
+pending=symbol('scene_live_save_pending')
+assert struct.unpack('<I',u.mem_read(pending,4))[0]==1
+u.mem_write(pending,bytes(4))
+assert invoke('rf_xbox_input_poll',0,10,base)==0
+assert struct.unpack('<I',u.mem_read(pending,4))[0]==0, 'Held chord repeated save'
+buttons=set();assert invoke('rf_xbox_input_poll',0,11,base)==0
+buttons={4,3};assert invoke('rf_xbox_input_poll',0,12,base)==0
+assert struct.unpack('<I',u.mem_read(pending,4))[0]==1, 'Released chord must rearm'
 invoke('rf_xbox_input_close')
 assert invoke('rf_xbox_input_poll',0,10,base)==-4
-report=dict(result='PASS',cases=len(cases),scope='Compiled NXDK adapter with simulated SDL API returns: deadzone, axis extrema, diagonal normalization, crouch, disconnect/reconnect, Back+Start clean stop, closed guard. No hardware or host input.')
+report=dict(result='PASS',cases=len(cases)+4,scope='Compiled NXDK adapter with simulated SDL API returns: deadzone, axis extrema, diagonal normalization, crouch, disconnect/reconnect, Back+Start clean stop, Back+Y quick-save suppression/release/edge latch, closed guard. No hardware or host input.')
 (root/'artifacts/xbox-input-adapter-verification.json').write_text(json.dumps(report,indent=2));print(report)

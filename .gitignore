@@ -12,3 +12,7 @@ __pycache__/
 *.cpp.d
 *.log
 /src/platform/xbox/*.inl
+
+# Local PC quick-save slots
+/redfaction-save.0
+/redfaction-save.1

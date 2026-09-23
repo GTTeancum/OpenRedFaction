@@ -131,12 +131,15 @@ static void controller_stick(SHORT rx,SHORT ry,float *x,float *y)
     if(length<=.18f){*x=*y=0;return;}
     scale=(fminf(length,1)-.18f)/(.82f*length);*x=a*scale;*y=b*scale;
 }
-static int controller_input(rf_scene_input *out)
+static int controller_input(rf_scene_input *out,uint32_t *save)
 {
     XINPUT_STATE state;DWORD slot;float x,y;
     for(slot=0;slot<XUSER_MAX_COUNT;++slot) {
         if(XInputGetState(slot,&state)!=ERROR_SUCCESS)continue;
         if((state.Gamepad.wButtons&(XINPUT_GAMEPAD_BACK|XINPUT_GAMEPAD_START))==(XINPUT_GAMEPAD_BACK|XINPUT_GAMEPAD_START))return RF_NOT_FOUND;
+        if((state.Gamepad.wButtons&(XINPUT_GAMEPAD_BACK|XINPUT_GAMEPAD_Y))==(XINPUT_GAMEPAD_BACK|XINPUT_GAMEPAD_Y)){
+            *save=1;memset(out,0,sizeof(*out));break;
+        }
         controller_stick(state.Gamepad.sThumbLX,state.Gamepad.sThumbLY,&x,&y);
         if(x || y){out->move[0]=x;out->move[2]=y;}
         controller_stick(state.Gamepad.sThumbRX,state.Gamepad.sThumbRY,&x,&y);
@@ -155,8 +158,10 @@ static int controller_input(rf_scene_input *out)
 
 static int input(void *context,uint32_t frame,rf_scene_input *out)
 {
-    player *p=context;MSG message;uint32_t wait;
+    player *p=context;MSG message;uint32_t wait,save;int status;
     memset(out,0,sizeof(*out));
+    if(p->headless){const char *at=getenv("RF_REPLAY_QUICKSAVE_FRAME");
+        rf_scene_save_button(at&&frame==(uint32_t)strtoul(at,NULL,10));}
     if(p->headless && p->setup_uid && !p->frames) {
         int status=rf_scene_fire_setup_event(p->setup_uid,0);if(status)return status;
     }
@@ -256,7 +261,9 @@ static int input(void *context,uint32_t frame,rf_scene_input *out)
     if(out->move[0] && out->move[2]) {out->move[0]*=.7071067811865475f;out->move[2]*=.7071067811865475f;}
     out->look[0]=(float)p->keys[VK_UP]-(float)p->keys[VK_DOWN];
     out->look[1]=(float)p->keys[VK_RIGHT]-(float)p->keys[VK_LEFT];
-    out->cycle_weapon=p->keys[VK_TAB];out->fire=p->keys['F'];out->alt_fire=p->keys['G'];out->reload=p->keys['R'];out->use=p->keys['E'];out->jump=p->keys[VK_SPACE];out->crouch=p->keys[VK_CONTROL];return p->focused?controller_input(out):RF_OK;
+    out->cycle_weapon=p->keys[VK_TAB];out->fire=p->keys['F'];out->alt_fire=p->keys['G'];out->reload=p->keys['R'];out->use=p->keys['E'];out->jump=p->keys[VK_SPACE];out->crouch=p->keys[VK_CONTROL];
+    save=p->focused&&p->keys[VK_F5];status=p->focused?controller_input(out,&save):RF_OK;
+    rf_scene_save_button(save);return status;
 }
 
 extern float rf_scene_scope_projection;

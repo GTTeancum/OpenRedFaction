@@ -37,11 +37,14 @@ int rf_xbox_input_poll(void *context,uint32_t frame,rf_scene_input *input)
     }
     SDL_GameControllerUpdate();rf_player_input_diagnostic[2]=frame+1;
     rf_player_input_diagnostic[3]=controller!=NULL;
-    if(!controller)return RF_OK;
+    if(!controller){rf_scene_save_button(0);return RF_OK;}
     if(SDL_GameControllerGetButton(controller,SDL_CONTROLLER_BUTTON_BACK) &&
        SDL_GameControllerGetButton(controller,SDL_CONTROLLER_BUTTON_START)) {
         rf_player_input_diagnostic[4]=1;return RF_NOT_FOUND;
     }
+    {uint32_t save=SDL_GameControllerGetButton(controller,SDL_CONTROLLER_BUTTON_BACK)&&
+         SDL_GameControllerGetButton(controller,SDL_CONTROLLER_BUTTON_Y);
+     rf_scene_save_button(save);if(save)return RF_OK;}
     stick(SDL_GameControllerGetAxis(controller,SDL_CONTROLLER_AXIS_LEFTX),
           SDL_GameControllerGetAxis(controller,SDL_CONTROLLER_AXIS_LEFTY),&horizontal,&vertical);
     input->move[0]=horizontal;input->move[2]=-vertical;

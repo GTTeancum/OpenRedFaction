@@ -5,6 +5,18 @@ interface used by PC tests. This is new port input policy, not a reconstruction
 of the original PC keyboard/mouse mapping. The user confirmed movement on
 September 9, 2026. Guest RAM also records non-neutral movement and look axes.
 
+First-pass quick-save: press **F5** on PC or **Back+Y** on Xbox/XInput. Release
+before another save. The controller chord suppresses gameplay input while held.
+The HUD shows GAME SAVED, CANNOT SAVE RIGHT NOW, or SAVE FAILED - STORAGE ERROR.
+Current admission requires supported, settled ordinary-world state; active
+weapon actions, destruction/vehicles and some NPC states can reject a save.
+Rejection keeps play running and preserves the previous save. PC writes
+`redfaction-save.0/.1` in its working directory; Xbox uses the ordinary HDD
+profile. Quick-load/menu selection is not wired yet; reload currently uses the
+existing explicit loader/harness. PC request-to-file-to-reload/fire is verified;
+compiled Xbox chord/edge behavior passes simulated SDL checks. Physical input
+and native mid-session quick-save remain to be tested.
+
 Controls: left stick moves, right stick looks, B holds crouch, A jumps, X uses,
 RT fires, LT holds Riot Stick alternate fire, Y reloads, D-pad Right cycles owned supported weapons, and Back+Start ends
 the session. Sticks use an 18% radial deadzone with a unit-length diagonal cap;

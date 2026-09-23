@@ -39,10 +39,10 @@ static inline void scene_world_history_probe(const rf_world_checkpoint *world,in
 #endif
     (void)now;
 }
-static int scene_world_snapshot_capture(scene_stream *s,const rf_level *level,const char *tables_path)
+static int scene_world_snapshot_capture_mode(scene_stream *s,const rf_level *level,const char *tables_path,uint32_t requested)
 {
 #ifndef RF_IMAGE_XBOX_NATIVE
-    const char *path=getenv("RF_REPLAY_WORLD_SNAPSHOT_OUT");
+    const char *path=requested?"redfaction-save":getenv("RF_REPLAY_WORLD_SNAPSHOT_OUT");
 #else
     rf_xbox_checkpoint_storage storage={0};uint32_t enabled=0;
     const char *path=RF_XBOX_WORLD_CHECKPOINT_BASE;
@@ -54,7 +54,7 @@ static int scene_world_snapshot_capture(scene_stream *s,const rf_level *level,co
     uint32_t at=RF_WORLD_CHECKPOINT_PREFIX,bytes=0,total=0,i,slot,object_count=0,omissions=0;
     int status=RF_OK;int32_t now;const char *part="identity";
 #ifdef RF_IMAGE_XBOX_NATIVE
-    status=scene_world_storage_flag("D:\\world-hdd-save.flag",&enabled);if(status||!enabled)return status;
+    if(!requested){status=scene_world_storage_flag("D:\\world-hdd-save.flag",&enabled);if(status||!enabled)return status;}
 #endif
     if(!path||!*path)return RF_OK;
     rf_scene_world_checkpoint_state[9]=1;
@@ -135,4 +135,6 @@ static int scene_world_snapshot_capture(scene_stream *s,const rf_level *level,co
     rf_scene_world_checkpoint_state[3]=(uint32_t)status;
     if(status)printf("WORLD_SNAPSHOT_REJECT %s %d\n",part,status);return status;
 }
+static int scene_world_snapshot_capture(scene_stream *s,const rf_level *level,const char *tables_path)
+{return scene_world_snapshot_capture_mode(s,level,tables_path,0);}
 #endif

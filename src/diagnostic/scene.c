@@ -13334,6 +13334,10 @@ int rf_scene_draw_combat_hud(rf_scene_particle_sink sink,void *context)
     if(vehicle)scene_vehicle_hud_values(particle_draw_stream,&vehicle_health,vehicle_ammo);
     status=scene_scanner_draw(sink,context);if(status)return status;
     status=campaign_draw_subtitle(sink,context);if(status)return status;
+    if(scene_live_save_until&&combat_frame<scene_live_save_until){
+        const char *message=!scene_live_save_status?"GAME SAVED":scene_live_save_status==RF_IO?"SAVE FAILED - STORAGE ERROR":"CANNOT SAVE RIGHT NOW";
+        status=combat_hud_text(sink,context,26,28,message,scene_live_save_status?0xffffa060:0xff80ff80);if(status)return status;
+    }
     if(combat_surface_frame!=UINT32_MAX && combat_frame-combat_surface_frame<=6)color=0xffffc060;
     if(combat_hit_frame!=UINT32_MAX && combat_frame-combat_hit_frame<=8)color=rf_scene_riot[0]?0xff80dfff:0xff60ff80;
     for(i=0;i<4;i++) {
@@ -16079,6 +16083,12 @@ static int scene_frame(void *context,uint32_t frame,rf_preview_mesh *actor)
                 status=rf_scene_glare_visibility_pass(stream->npc_view.camera);if(status)return status;}}
         step_profile_mark(6,&step_clock);profile_mark(7);
         if(!frame){status=scene_world_load(stream,stream->world_checkpoint_level,stream->world_checkpoint_tables);if(status)return status;}
+        if(scene_live_save_pending){
+            scene_live_save_pending=0;
+            scene_live_save_status=scene_world_snapshot_capture_mode(stream,stream->world_checkpoint_level,stream->world_checkpoint_tables,1);
+            scene_live_save_until=frame+180;
+            printf("QUICK_SAVE frame%u status%d\n",frame,scene_live_save_status);
+        }
         return RF_OK;
     }
 }
@@ -16278,6 +16288,7 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
     rf_preview_vertex *vertices=NULL;rf_material *items=NULL;const char *names[64];
     uint64_t bytes,count,capacity;uint32_t i;int status;scene_stream *stream;
     scene_extra_pickups_resources_reset();
+    scene_live_save_pending=scene_live_save_until=0;scene_live_save_status=RF_OK;
     if(!level || !mesh || !materials || !mesh->vertices || !materials->items ||
        mesh->count%3 || mesh->bytes!=(uint64_t)mesh->count*sizeof(*mesh->vertices) ||
        materials->allocated_bytes>=material_budget)return RF_RANGE;

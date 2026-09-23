@@ -141,3 +141,12 @@ Native write run render-20260922-211101 used the enemy-free authored CTF06 railg
 
 
 Fresh native continuation render-20260922-211519 loaded17092 bytes, staged763744 bytes, fired once and saved generation5/slot0. Loaded railgun ammunition1 became0; native COMBAT shot count1 and PLAYER_AMMO match PC. All16 saved components also match PC. Minimum sampled free memory13.90MiB. The native framebuffer was inspected and shows the equipped railgun/hands, test room/water, crosshair and health/armor HUD. artifacts/ordinary-weapon-save/native-result.json links the two runs and records these assertions. Ordinary armed load/fire/resave is now verified for this bounded fixture. No new screenshots were uploaded. Broader saved-only resource demand, active destruction/vehicles and the user-facing menu remain. Overall83%; saves79%.
+
+
+## In-session quick-save (2026-09-22)
+
+The public rf_scene_save_button edge latch now queues an ordinary save at the end of a complete simulation tick. F5 maps it on PC; Back+Y maps it on Xbox/XInput and suppresses other controller actions while held. A dedicated HUD message reports success, unavailable state or storage failure without overwriting story subtitles. Failures do not propagate out of the scene loop. The normal endpoint snapshot flags remain separate; PC live requests use redfaction-save.0/.1 in the working directory, while Xbox uses its ordinary HDD profile.
+
+The process-local PC harness tools/check_live_quicksave.py requests at frame150 without an endpoint output flag, sees GAME SAVED in the inspected frame, loads that file in a fresh process and fires the restored railgun's final round. artifacts/live-quicksave holds logs/images/report. A busy-action request at frame120 returns RF_RANGE, continues to the endpoint and leaves both prior save files byte-identical. Compiled NXDK input checks pass13 cases, including neutral gameplay during the chord, no repeated request while held and rearming after release. The test's SDL axis doubles now also return neutral trigger axes instead of indexing beyond the four-stick fixture.
+
+PC and NXDK builds pass. No host input was sent. Physical controller use, native mid-session save and user-facing quick-load/menu are not verified or complete. Overall83%; saves80%.
