@@ -13765,7 +13765,8 @@ int rf_scene_draw_endgame(rf_scene_particle_sink sink,void *context)
     }else{
         status=combat_hud_text(sink,context,240,228,campaign_endgame.reason,0xffeeeeee);if(status)return status;
     }
-    return combat_hud_text(sink,context,146,426,"E/X TO RESTART OR LOAD A SAVE",0xffeeeeee);
+    status=combat_hud_text(sink,context,236,408,"E/X TO RESTART",0xffeeeeee);if(status)return status;
+    return combat_hud_text(sink,context,158,432,"F9 OR HOLD BACK AND PRESS X",0xffeeeeee);
 }
 uint32_t rf_scene_follow_npc_uid;
 static uint32_t scene_inspection_enabled;

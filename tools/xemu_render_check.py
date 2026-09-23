@@ -70,6 +70,7 @@ def main():
     parser.add_argument('--shallow-fixture', action='store_true', help='DEV depth.75 authored-region fixture shared with PC')
     parser.add_argument('--quick-save-frame', type=int)
     parser.add_argument('--quick-load-frame', type=int)
+    parser.add_argument('--quick-load-save', type=Path, help='Seed the isolated PC replay slot before quick-load; native uses the persistent test HDD')
     parser.add_argument('--world-hdd-persistent', action='store_true', help='Use a private persistent ordinary-save test HDD across launches')
     parser.add_argument('--world-checkpoint-save', action='store_true', help='Save ordinary state to the isolated Xbox HDD profile')
     parser.add_argument('--world-checkpoint-load', type=Path, help='Load native ordinary HDD state; matching PC two-slot base for reference')
@@ -183,8 +184,8 @@ def main():
         parser.error('Ordinary world checkpoints require a non-DEV run without DEV checkpoints')
     if args.world_checkpoint_load and not args.world_hdd_persistent:
         parser.error('Ordinary HDD reload requires --world-hdd-persistent; temporary disks are discarded at exit')
-    if args.world_hdd_persistent and not (args.world_checkpoint_save or args.world_checkpoint_load):
-        parser.error('Persistent test HDD requires ordinary save/load')
+    if args.world_hdd_persistent and not (args.world_checkpoint_save or args.world_checkpoint_load or args.quick_save_frame is not None or args.quick_load_frame is not None):
+        parser.error('Persistent test HDD requires ordinary save/load or a quick action')
     checkpoint = args.geomod_checkpoint_in is not None or args.geomod_checkpoint_out
     payload = None
     if args.input:
@@ -218,6 +219,8 @@ def main():
         parser.error('Quick action frames must lie inside the replay')
     if (args.quick_save_frame is not None or args.quick_load_frame is not None) and (not args.spawn or args.dev_room or not args.world_hdd_persistent):
         parser.error('Quick action replay requires ordinary spawn and persistent test HDD')
+    if args.quick_load_save and (args.quick_load_frame is None or args.quick_load_save.name not in ('redfaction-save.0','redfaction-save.1') or not args.quick_load_save.is_file()):
+        parser.error('Quick-load seed must be an existing redfaction-save.0/.1 with a quick-load frame')
     root = Path(__file__).resolve().parents[1]
     if args.trigger_start_uid is not None and (not args.spawn or not 0<args.trigger_start_uid<0xffffffff or args.exit_start_uid):
         parser.error('Trigger-start requires --spawn, a positive UID and no exit-start placement')
@@ -249,6 +252,10 @@ def main():
     report['authored_sources']=args.authored_sources
     report['authored_source']=148 if args.vehicle_test and not submarine else (args.authored_source if args.authored_source is not None else (94 if args.dev_room and args.level=='ctf06.rfl' else None))
     (run / 'inputs.bin').write_bytes(payload)
+    if args.quick_load_save:
+        seed=args.quick_load_save.resolve()
+        shutil.copyfile(seed,run/seed.name)
+        report['quick_load_save']=dict(source=str(seed),sha256=hashlib.sha256(seed.read_bytes()).hexdigest())
     env = {k: v for k, v in os.environ.items() if not k.startswith('RF_REPLAY_')}
     if args.quick_save_frame is not None:env['RF_REPLAY_QUICKSAVE_FRAME']=str(args.quick_save_frame)
     if args.quick_load_frame is not None:env['RF_REPLAY_QUICKLOAD_FRAME']=str(args.quick_load_frame)

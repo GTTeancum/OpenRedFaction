@@ -15,8 +15,9 @@ fade reopens the current section at its authored spawn with fresh campaign
 state. Repeated requests cannot replace the first outcome. `call_credits` has
 a distinct immediate terminal screen. Live quick-save rejects an active
 terminal outcome because the fade and screen are not yet in the checkpoint
-format. A quick-load request remains available through the existing frontend
-path. ASCII key matching is case-insensitive because installed `gryphon` and
+format. The failure screen offers separate controls: `E`/`X` restarts the
+current section, while `F9`/`Back+X` quick-loads the saved slot. ASCII key
+matching is case-insensitive because installed `gryphon` and
 `shuttle` table keys differ in case from authored actor/event names.
 
 Focused verification used installed `L5S4.rfl` Endgame UID 5337
@@ -79,6 +80,20 @@ source. A 120-frame PC/XEMU replay of UID 5337 matches all four description
 diagnostics (`172` bytes, FNV-1a `3061203645`) and displays the same four-line
 message. The native capture is in
 `artifacts/xemu/render-20260923-040131/`; it ends with 5,921 available pages.
+
+Cross-level failure recovery now passes a focused PC/stock-memory Xbox run.
+An ordinary quick-save at frame 10 of `L1S1.rfl` succeeded on both targets in
+`artifacts/xemu/render-20260923-044403/`. A separate `L5S4.rfl` run activated
+authored Endgame UID 5337, reached its failure screen, then issued quick-load
+at frame 180. Both targets loaded the saved `L1S1.rfl` state, cleared endgame,
+and rendered the loaded tunnel with `GAME LOADED` visible in the native
+framebuffer (`artifacts/xemu/render-20260923-044651/`). PC reported
+`QUICK_LOAD frame180 status0` and `L5S4.rfl` to `L1S1.rfl` transition at
+frame 181; XEMU reported the matching transition reason and frame, and ended
+with 4,182 available physical pages. The harness seeded the PC replay slot
+from the earlier save and reused its private persistent Xbox test HDD; this
+verifies quick recovery between these two levels, not arbitrary saves or a
+menu-driven slot selection.
 
 Remaining work is language selection beyond English, a menu/load-slot
 choice, credits sequence, naturally deactivated event coverage, and checkpoint ownership
