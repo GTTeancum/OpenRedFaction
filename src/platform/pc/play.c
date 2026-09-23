@@ -592,7 +592,7 @@ int main(int argc,char **argv)
     if(rf_scene_moving_support_enabled && !strcmp(getenv("RF_REPLAY_MOVING_SUPPORT_TEST"),"4"))rf_scene_moving_support_enabled=4;
     if(getenv("RF_REPLAY_INSPECTION_CAMERA")) {
         float eye[3],target[3];char extra;
-        if(!p.headless || !rf_scene_dev_room_enabled)CHECK(RF_RANGE);
+        if(!p.headless)CHECK(RF_RANGE);
         if(sscanf(getenv("RF_REPLAY_INSPECTION_CAMERA"),"%f,%f,%f,%f,%f,%f%c",
             eye,eye+1,eye+2,target,target+1,target+2,&extra)!=6)CHECK(RF_FORMAT);
         CHECK(rf_scene_inspection_camera(eye,target));
@@ -841,6 +841,7 @@ run_scene:
             printf("WORLD_TEXTURE_BUDGET");for(i=0;i<4;i++)printf(" %u",rf_scene_world_texture_budget[i]);puts("");
             printf("ALARM");for(i=0;i<12;i++)printf(" %u",rf_scene_alarm[i]);puts("");
             printf("SCRIPT_EXPLODE");for(i=0;i<10;i++)printf(" %u",rf_scene_script_explode[i]);puts("");
+            printf("SCRIPT_EXPLODE_VISUAL");for(i=0;i<8;i++)printf(" %u",rf_scene_script_explode_visual[i]);puts("");
             printf("SWITCH_RUNTIME");for(i=0;i<8;i++)printf(" %u",rf_scene_switch_runtime[i]);puts("");
             printf("SWITCH_DETAIL");for(i=0;i<8;i++)printf(" %u",rf_scene_switch_detail[i]);puts("");
             printf("SWITCH_STATE %u %u %u\n",rf_scene_switch_state[0],rf_scene_switch_state[1],rf_scene_switch_state[2]);

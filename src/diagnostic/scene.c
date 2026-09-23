@@ -809,6 +809,7 @@ static int scene_driller_player_collision(scene_stream *,const rf_collision_body
 #include "scene_flame_effects_resources.inc"
 #include "scene_fusion_effects_resources.inc"
 #include "scene_clutter_break_resources.inc"
+#include "scene_script_explode_resources.inc"
 #include "scene_detached_sources.inc"
 static scene_stream *particle_draw_stream;
 static scene_stream *scene_actor_collision_owner;
@@ -968,7 +969,8 @@ static int scene_particle_draw_one(scene_stream *stream,uint32_t index,rf_scene_
     const rf_particle *p;const rf_particle_animation *animation;const rf_image *image;uint32_t frame,mode,i,j;int status;
     if(index>=RF_PARTICLE_CAPACITY)return RF_RANGE;
     p=stream->particles.state->records+index;++row[2];
-    if(p->bitmap>=0x40000000u){animation=scene_clutter_break_effects_image(p->bitmap-0x40000000u);if(!animation)return RF_RANGE;}
+    if(p->bitmap>=0x50000000u){animation=scene_script_explode_effects_image(p->bitmap-0x50000000u);if(!animation)return RF_RANGE;}
+    else if(p->bitmap>=0x40000000u){animation=scene_clutter_break_effects_image(p->bitmap-0x40000000u);if(!animation)return RF_RANGE;}
     else if(p->bitmap<stream->particles.materials.texture_count)
         animation=&stream->particles.materials.textures[p->bitmap].animation;
     else {
@@ -3970,6 +3972,7 @@ static int campaign_clutter_open(const char *tables_path,const rf_level *level)
     memset(campaign_script_explode_damage,0,sizeof(campaign_script_explode_damage));
     memset(campaign_script_explode_loaded,0,sizeof(campaign_script_explode_loaded));
     memset(rf_scene_script_explode,0,sizeof(rf_scene_script_explode));
+    memset(rf_scene_script_explode_visual,0,sizeof(rf_scene_script_explode_visual));
     for(i=0;!status && i<campaign_events.count;i++)if(campaign_events.items[i].state.type==10) {
         const char *name=campaign_events.items[i].authored->record.texts[0];
         int32_t index=rf_vclip_name_lookup(campaign_clutter_catalogs.names.vclips,name);
@@ -12608,9 +12611,10 @@ static int scene_explosion_blast_source(scene_stream *s,uint32_t frame,const flo
     }
     return RF_OK;
 }
+static int scene_script_explode_effects_start(scene_stream *,const float [3],uint32_t,float,uint32_t);
 static int scene_script_explode(void *context,const rf_level_event *event,int32_t now,uint32_t on)
 {
-    scene_stream *s=context;int32_t effect;float base,magnitude,scale;uint32_t frame;
+    scene_stream *s=context;int32_t effect;float base,magnitude,scale;uint32_t frame;int status;
     if(!on){++rf_scene_script_explode[1];return RF_OK;}
     if(!s || !event || now<0)return RF_RANGE;
     ++rf_scene_script_explode[0];rf_scene_script_explode[7]=event->uid;
@@ -12628,6 +12632,11 @@ static int scene_script_explode(void *context,const rf_level_event *event,int32_
     if(magnitude>0)++rf_scene_script_explode[3];else ++rf_scene_script_explode[4];
     if((event->flags[0]&255u)==1)++rf_scene_script_explode[6];
     frame=(uint32_t)((uint64_t)(uint32_t)now*60/1000);
+    if(effect>=0){
+        status=scene_script_explode_effects_start(s,event->position,frame,scale,(uint32_t)effect);if(status)return status;
+        if(scene_script_explode_effects[effect] && scene_script_explode_effects[effect]->foley[0])
+            combat_sound(scene_script_explode_effects[effect]->foley,event->position);
+    }
     /* The radial request is independent of a refused terrain edit or missing
      * visual. Geometry/visual ownership is still open; do not use rocket FX. */
     return scene_explosion_blast_source(s,frame,event->position,magnitude,scale,UINT32_MAX,3);
@@ -12696,6 +12705,7 @@ static int scene_impacts_tick(scene_stream *s,uint32_t frame)
 #include "scene_flame_effects_runtime.inc"
 #include "scene_fusion_effects_runtime.inc"
 #include "scene_clutter_break_runtime.inc"
+#include "scene_script_explode_runtime.inc"
 static int scene_explosion_terrain(scene_stream *s,uint32_t frame,const rf_weapon_flight_contact *contact,float crater_radius)
 {
     int status;
@@ -16093,6 +16103,7 @@ static int scene_frame(void *context,uint32_t frame,rf_preview_mesh *actor)
                 status=campaign_watch_fixture(frame);if(status)return status;
                 status=rf_runtime_events_tick(&campaign_events,&campaign_triggers,&scene_gravity,now,&stream->particles, &campaign_forces,&tick_report,&pending);
                 if(status)return status;
+                status=scene_script_explode_effects_tick(stream,frame);if(status)return status;
                 campaign_hit_flags_clear();
                 status=campaign_watch_snapshot();if(status)return status;
                 campaign_force_snapshot();campaign_switch_snapshot();
@@ -16924,6 +16935,15 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
         if(actor_follow_world) {
             status=rf_level_visibility_open(geometry,64*1024,&stream->visibility);if(status)goto done;
             status=rf_level_particles_open(&stream->particles,level,collision,maps,map_count,1,0,512*1024);if(status)goto done;
+            {rf_vpp effect_tables={0};
+                status=rf_vpp_open(&effect_tables,tables_path);if(status)goto done;
+                for(i=0;!status && i<campaign_events.count;i++)if(campaign_events.items[i].state.type==10){
+                    const char *name=campaign_events.items[i].authored->record.texts[0];
+                    int32_t clip=rf_vclip_name_lookup(campaign_clutter_catalogs.names.vclips,name);
+                    if(clip>=0)status=scene_script_explode_effects_open(&effect_tables,maps,map_count,(uint32_t)clip,name);
+                }
+                rf_vpp_close(&effect_tables);if(status)goto done;
+            }
             for(i=0;i<campaign_clutter_records.count;i++)if(campaign_clutter_bodies&&campaign_clutter_bodies[i]){
                 int32_t cls=campaign_clutter_bodies[i]->state.class_index;
                 if(cls>=0&&campaign_clutter_damage_profiles[cls].break_effect){
@@ -17105,6 +17125,7 @@ done:
     rf_visibility_light_storage_close(&stream->light_storage);
     rf_level_owned_lights_close(&stream->lights);
     rf_level_particles_close(&stream->particles);
+    scene_script_explode_effects_close();
     scene_clutter_break_effects_close();
     scene_fusion_effects_close();
     scene_flame_effects_close();
