@@ -63,5 +63,11 @@ int main(void)
     CHECK(!rf_timer_remaining(trigger.contact_timer.deadline,1000,&remaining)&&remaining==40);
     CHECK(campaign_trigger_history.count==1&&campaign_trigger_history.states[0].cooldown_remaining==250);
     scene_world_mission_close(&stage);CHECK(!stage);
+    items[1].uid=999;slots[1]=0;strcpy(items[1].class_name,"unsupported_fixture_item");
+    CHECK(!scene_world_mission_prepare(&stream,&world,1000,1024u*1024u,&stage));
+    CHECK(!stage->live_pickups[1].next_taken&&!stage->live_pickups[1].next_slot);
+    scene_world_mission_close(&stage);
+    strcpy(items[1].class_name,"Handgun");
+    CHECK(scene_world_mission_prepare(&stream,&world,1000,1024u*1024u,&stage)==RF_NOT_FOUND&&!stage);
     puts("PASS actual mission restore: goals, reordered pickup UID bindings, rebased triggers and stale-live rejection");return 0;
 }

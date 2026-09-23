@@ -16,8 +16,10 @@ static int scene_checkpoint_player_catalog_mode(rf_player_checkpoint_catalog *c,
         if(d->capacity>c->reserve_capacity[d->ammo_type])c->reserve_capacity[d->ammo_type]=d->capacity;
     }
     if(modes){
-        if(campaign_machine_special_id<0 || campaign_machine_special_id>=64 || campaign_extra_ids[0]<0 || campaign_extra_ids[0]>=64)return RF_FORMAT;
-        c->mode_owner[campaign_machine_special_id]=(uint8_t)(campaign_extra_ids[0]+1);
+        int32_t special=rf_weapon_name_find(&campaign_weapon_supply.names,"Machine Pistol Special");
+        int32_t owner=rf_weapon_name_find(&campaign_weapon_supply.names,campaign_weapon_names[13]);
+        if(special<0 || special>=64 || owner<0 || owner>=64)return RF_FORMAT;
+        c->mode_owner[special]=(uint8_t)(owner+1);
     }
     return RF_OK;
 }

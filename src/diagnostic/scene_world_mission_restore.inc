@@ -54,7 +54,15 @@ static inline int scene_world_mission_prepare(scene_stream *stream,const rf_worl
     for(i=0;i<s->pickup_count;i++){
         scene_world_mission_pickup *r=s->live_pickups+i;r->uid=(uint32_t)stream->pickups.items[i].uid;
         for(j=0;j<i;j++)if(s->live_pickups[j].uid==r->uid){status=RF_FORMAT;goto fail;}
-        status=scene_world_mission_key(s->pickups.levels,s->pickups.level_count,s->pickups.items,s->pickups.count,r->uid,&slot);if(status)goto fail;
+        status=scene_world_mission_key(s->pickups.levels,s->pickups.level_count,s->pickups.items,s->pickups.count,r->uid,&slot);
+        /* Unsupported authored item classes have no runtime pickup owner and
+         * are never registered by campaign_pickups_restore. Preserve that
+         * source-bound absence; supported missing records still reject. */
+        if(status==RF_NOT_FOUND && pickup_class(stream->pickups.items[i].class_name)<0 &&
+           !stream->pickup_taken[i] && !stream->pickup_slots[i]){
+            r->before_slot=r->next_slot=0;r->before_taken=r->next_taken=0;continue;
+        }
+        if(status)goto fail;
         r->before_slot=stream->pickup_slots[i];r->before_taken=stream->pickup_taken[i];r->next_slot=slot;r->next_taken=(uint8_t)s->pickups.items[slot].retired;
     }
     *out=s;return RF_OK;

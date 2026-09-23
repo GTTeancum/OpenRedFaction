@@ -16262,6 +16262,7 @@ static int scene_dev_npc_seeds(const char *tables_path,rf_vpp *tables)
     campaign_seeds.records.items[0].record.script_name[0]=campaign_seeds.records.items[0].record.state_animation[0]=0;
     return RF_OK;
 }
+#include "scene_world_boot_resources.inc"
 #include "scene_weapon_resource_demand.inc"
 #include "scene_extra_pickups_gameplay.inc"
 #include "scene_precision_drop_demand.inc"
@@ -16559,8 +16560,9 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
             rf_scene_campaign_load_stage=24;status=campaign_npc_bodies_open(tables_path,collision,0);if(status)goto done;
             {rf_vpp tables={0};rf_weapon_view_definition view;
              status=rf_vpp_open(&tables,tables_path);if(status)goto done;
-             {scene_weapon_resource_demand demand;uint32_t npc_projectiles=scene_ai_projectile_resource_mask();
-              status=scene_extra_pickups_resources_prepare(stream,&tables,(rf_scene_dev_room_enabled && !rf_scene_vehicle_enabled?0x7ffu:(rf_scene_vehicle_enabled?0x1fu:0xfu)) | (rf_scene_vehicle_enabled?0:scene_enemy_drop_resource_mask()),1u<<11,&demand);
+             {scene_weapon_resource_demand demand;uint32_t npc_projectiles=scene_ai_projectile_resource_mask(),saved_weapons=0;
+              status=scene_world_boot_weapon_mask(level,tables_path,&saved_weapons);
+              if(!status)status=scene_extra_pickups_resources_prepare(stream,&tables,saved_weapons | (rf_scene_dev_room_enabled && !rf_scene_vehicle_enabled?0x7ffu:(rf_scene_vehicle_enabled?0x1fu:0xfu)) | (rf_scene_vehicle_enabled?0:scene_enemy_drop_resource_mask()),1u<<11,&demand);
               if(!status){rf_scene_player_shield_resources=!!(demand.mask&(1u<<11)) || (rf_scene_dev_room_enabled && rf_scene_dev_npc_enabled==6);
                   if(rf_scene_player_shield_resources)status=rf_weapon_primary_load(&tables,"riot shield",128*1024,&campaign_primary[11]);
                   /* NPC-only demand loads flights and effects without player views or ownership. */
