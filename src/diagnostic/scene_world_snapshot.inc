@@ -1,9 +1,8 @@
 #ifndef RF_SCENE_WORLD_SNAPSHOT_INCLUDED
 #define RF_SCENE_WORLD_SNAPSHOT_INCLUDED
 #include "rf/world_checkpoint.h"
-/* Diagnostic composition milestone, not a loadable game-save promise. All
- * existing component encoders run on the same paused endpoint. No gameplay
- * restore path consumes RFWC until resource/world/history admission is wired. */
+/* Ordinary same-level profile. Components capture one paused endpoint;
+ * restore performs resource/world/history admission before publication. */
 typedef struct scene_world_snapshot_identity {unsigned char bytes[32];char level[64];} scene_world_snapshot_identity;
 static int scene_world_snapshot_validate(const void *data,uint32_t bytes,void *context)
 {
@@ -16,6 +15,12 @@ static int scene_world_snapshot_validate(const void *data,uint32_t bytes,void *c
     status=rf_world_checkpoint_decode(data,bytes,required,&bundle);if(status)return status;
     if(!identity||memcmp(bundle.identity,identity->bytes,32)||strcmp(bundle.level,identity->level))return RF_FORMAT;
     return RF_OK; /* Transport validation only; restore needs semantic staging. */
+}
+/* Saving may replace a different level's valid save. Select its generation
+ * structurally to preserve the previous slot; loading still requires identity. */
+static int scene_world_snapshot_prior_validate(const void *data,uint32_t bytes,void *context)
+{
+    rf_world_checkpoint world;(void)context;return rf_world_checkpoint_decode(data,bytes,0,&world);
 }
 static inline void scene_world_history_probe(const rf_world_checkpoint *world,int32_t now)
 {
@@ -62,10 +67,10 @@ static int scene_world_snapshot_capture(scene_stream *s,const rf_level *level,co
     buffer=malloc(RF_CHECKPOINT_FILE_MAX);if(!buffer){status=RF_IO;goto done;}
     part="prior_snapshot";
 #ifndef RF_IMAGE_XBOX_NATIVE
-    status=rf_checkpoint_file_load(path,buffer,RF_CHECKPOINT_FILE_MAX,&bytes,scene_world_snapshot_validate,&identity,&selection);
+    status=rf_checkpoint_file_load(path,buffer,RF_CHECKPOINT_FILE_MAX,&bytes,scene_world_snapshot_prior_validate,NULL,&selection);
 #else
     (void)path;status=rf_xbox_checkpoint_storage_open_world(&storage,1);
-    if(!status)status=rf_xbox_checkpoint_storage_load(&storage,buffer,RF_CHECKPOINT_FILE_MAX,&bytes,scene_world_snapshot_validate,&identity);
+    if(!status)status=rf_xbox_checkpoint_storage_load(&storage,buffer,RF_CHECKPOINT_FILE_MAX,&bytes,scene_world_snapshot_prior_validate,NULL);
 #endif
     if(status==RF_NOT_FOUND)status=RF_OK;if(status)goto done;
 #define SNAP_START(name) do{part=name;bytes=0;}while(0)
