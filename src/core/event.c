@@ -571,6 +571,13 @@ static void startup_event_action(void *context,rf_event_state *state,uint32_t ac
         if(c->status==RF_NOT_FOUND){++c->report->other_targets;c->status=RF_OK;}
         return;
     }
+    if(state->type==41 || state->type==42) {
+        if(action==2)return;
+        if(!c->triggers->music){++c->report->unsupported_actions;return;}
+        c->status=c->triggers->music(c->triggers->music_context,
+            &c->event->authored->record,c->now,action==1);
+        return;
+    }
     if(state->type==61) {
         if(action==2)return;
         if(!c->triggers->black_out_player){++c->report->unsupported_actions;return;}
@@ -1164,6 +1171,7 @@ int rf_runtime_events_tick(rf_runtime_events *events,rf_runtime_triggers *trigge
            !((event->state.type==11 || event->state.type==12) && triggers->play_animation) &&
            !(event->state.type==1 && triggers->slay_object) &&
            !(event->state.type==0 && triggers->play_sound) &&
+           !((event->state.type==41 || event->state.type==42) && triggers->music) &&
            !(event->state.type==61 && triggers->black_out_player) &&
            !(event->state.type==10 && triggers->explode) &&
            !(event->state.type==7 && triggers->look_at) &&

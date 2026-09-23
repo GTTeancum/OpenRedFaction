@@ -221,6 +221,10 @@ add_test(NAME corona_backend_pixels COMMAND rf_particle_pixel_probe --corona)
 add_test(NAME flash_backend_pixels COMMAND rf_particle_pixel_probe --flash)
 
 target_sources(rf_core PRIVATE src/core/audio.c)
+target_sources(rf_core PRIVATE src/core/music.c)
+add_executable(rf_music_stream_tests tests/music_stream_tests.c)
+target_link_libraries(rf_music_stream_tests PRIVATE rf_core)
+add_test(NAME music_stream COMMAND rf_music_stream_tests "${CMAKE_SOURCE_DIR}/Installed_Game/music.vpp")
 add_executable(rf_audio_probe tests/audio_probe.c)
 target_link_libraries(rf_audio_probe PRIVATE rf_core)
 

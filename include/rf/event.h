@@ -360,6 +360,9 @@ typedef struct rf_runtime_triggers {
     /* Play_Sound0 service; on/off owns a voice keyed by authored event UID. */
     int (*play_sound)(void *,const rf_level_event *,int32_t,uint32_t);
     void *sound_context;
+    /* Music_Start/Stop share one nonspatial streamed music owner. */
+    int (*music)(void *,const rf_level_event *,int32_t,uint32_t);
+    void *music_context;
     /* Black_Out_Player; the scene owns the timed visual state. */
     int (*black_out_player)(void *,const rf_level_event *,int32_t,uint32_t);
     void *blackout_context;

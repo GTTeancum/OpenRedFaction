@@ -19,6 +19,7 @@
 #include "rf/weapon_scanner.h"
 #include "rf/event.h"
 #include "rf/audio.h"
+#include "rf/music.h"
 #include "rf/clutter.h"
 #include "rf/geomod_authored_post.h"
 #include "rf/authored_identity_capture.h"
@@ -1205,7 +1206,7 @@ int rf_scene_fire_setup_event(uint32_t uid,int32_t now)
 {
     uint32_t i;rf_startup_events_report report;
     for(i=0;i<campaign_events.count;i++)if(campaign_events.items[i].authored->record.uid==uid) {
-        if(campaign_events.items[i].state.type!=0 && campaign_events.items[i].state.type!=7 && campaign_events.items[i].state.type!=10 && campaign_events.items[i].state.type!=61 && campaign_events.items[i].state.type!=48 && campaign_events.items[i].state.type!=2 && campaign_events.items[i].state.type!=1 && campaign_events.items[i].state.type!=15 && campaign_events.items[i].state.type!=24 && campaign_events.items[i].state.type!=30 && campaign_events.items[i].state.type!=13 && campaign_events.items[i].state.type!=14 && campaign_events.items[i].state.type!=19 && campaign_events.items[i].state.type!=56 && campaign_events.items[i].state.type!=32 && campaign_events.items[i].state.type!=46 && campaign_events.items[i].state.type!=11 && campaign_events.items[i].state.type!=12)return RF_FORMAT;
+        if(campaign_events.items[i].state.type!=0 && campaign_events.items[i].state.type!=7 && campaign_events.items[i].state.type!=10 && campaign_events.items[i].state.type!=61 && campaign_events.items[i].state.type!=48 && campaign_events.items[i].state.type!=2 && campaign_events.items[i].state.type!=1 && campaign_events.items[i].state.type!=15 && campaign_events.items[i].state.type!=24 && campaign_events.items[i].state.type!=30 && campaign_events.items[i].state.type!=13 && campaign_events.items[i].state.type!=14 && campaign_events.items[i].state.type!=19 && campaign_events.items[i].state.type!=56 && campaign_events.items[i].state.type!=32 && campaign_events.items[i].state.type!=46 && campaign_events.items[i].state.type!=11 && campaign_events.items[i].state.type!=12 && campaign_events.items[i].state.type!=41 && campaign_events.items[i].state.type!=42)return RF_FORMAT;
         return rf_runtime_event_fire(&campaign_triggers,campaign_events.items[i].handle,UINT32_MAX,UINT32_MAX,now,&scene_gravity,NULL,NULL,&report);
     }
     return RF_NOT_FOUND;
@@ -1959,6 +1960,9 @@ typedef struct campaign_controller_effects {
 } campaign_controller_effects;
 static campaign_controller_effects *campaign_controller_requests;
 static rf_audio_bank campaign_audio_bank;
+static rf_vpp campaign_music_archive;
+static rf_music_stream campaign_music_stream;
+uint32_t rf_scene_music[8]; /* starts,stops,failures,active,last UID,last status,decoded blocks,fade frames */
 static rf_foley_owner campaign_foley;
 static rf_clutter_catalogs campaign_clutter_catalogs;
 static float campaign_script_explode_damage[64];
@@ -2393,6 +2397,7 @@ static int campaign_audio_open(const char *tables_path,const char *level_name,co
     memset(rf_scene_sound_bank,0,sizeof(rf_scene_sound_bank));
     memset(rf_scene_switch_audio,0,sizeof(rf_scene_switch_audio));
     memset(rf_scene_controller_audio,0,sizeof(rf_scene_controller_audio));
+    rf_music_reset(&campaign_music_stream);memset(rf_scene_music,0,sizeof(rf_scene_music));
     memset(rf_scene_ambient_audio,0,sizeof(rf_scene_ambient_audio));rf_scene_ambient_audio[7]=2166136261u;
     memset(campaign_ambient_pan,0,sizeof(campaign_ambient_pan));
     rf_audio_voice_ids_init(&campaign_device_voice_ids);
@@ -2581,6 +2586,8 @@ audio_done:
     if(!status) {
         campaign_audio_archive=archive;memset(&archive,0,sizeof(archive));
         campaign_audio_bank.archive=&campaign_audio_archive;
+        memcpy(path,tables_path,prefix);memcpy(path+prefix,"music.vpp",sizeof("music.vpp"));
+        status=rf_vpp_open(&campaign_music_archive,path);
     } else campaign_audio_bank.archive=NULL;
     rf_vpp_close(&archive);
     return status;
@@ -3032,6 +3039,11 @@ static int campaign_controller_commit(void)
         ++rf_scene_controller_audio[2];
         rf_scene_controller_audio[3]+=campaign_audio_mixer.voices[i].frame<before[i];
      }}
+    status=rf_music_mix(&campaign_music_stream,campaign_audio_frame,800);
+    if(status){rf_scene_music[5]=(uint32_t)status;++rf_scene_music[2];rf_music_reset(&campaign_music_stream);}
+    rf_scene_music[3]=campaign_music_stream.active;
+    rf_scene_music[6]=campaign_music_stream.block_index;
+    rf_scene_music[7]=campaign_music_stream.fade_remaining;
     for(i=0;i<sizeof(campaign_audio_frame);i++)rf_scene_live_audio[7]=(rf_scene_live_audio[7]^((const uint8_t *)campaign_audio_frame)[i])*16777619u;
     rf_scene_live_audio[6]+=800;
     if(campaign_audio_sink)campaign_audio_sink(campaign_audio_context,campaign_audio_frame,800);
@@ -5040,6 +5052,7 @@ static void campaign_close_movers(void)
     free(campaign_impact_groups);campaign_impact_groups=NULL;
     free(campaign_squash_groups);campaign_squash_groups=NULL;
     rf_audio_bank_close(&campaign_audio_bank);
+    rf_music_reset(&campaign_music_stream);rf_vpp_close(&campaign_music_archive);
     memset(campaign_audio_evictable,0,sizeof(campaign_audio_evictable));
     rf_vpp_close(&campaign_audio_archive);
     rf_sound_metadata_close(&campaign_audio_metadata);
@@ -8792,6 +8805,23 @@ static void campaign_message_play(const char *name)
     if(status)++rf_scene_message_audio[2];else ++rf_scene_message_audio[1];
 }
 #include "scene_script_sound.inc"
+static int scene_script_music(void *context,const rf_level_event *event,int32_t now,uint32_t on)
+{
+    int status=RF_OK;(void)context;(void)now;
+    if(!on)return RF_OK;
+    rf_scene_music[4]=event->uid;
+    if(!strcmp(event->type,"Music_Start")) {
+        status=rf_music_start(&campaign_music_stream,&campaign_music_archive,event->texts[0]);
+        if(!status)++rf_scene_music[0];
+    } else if(!strcmp(event->type,"Music_Stop")) {
+        rf_music_stop(&campaign_music_stream,event->values[0]);++rf_scene_music[1];
+    } else return RF_FORMAT;
+    rf_scene_music[3]=campaign_music_stream.active;
+    rf_scene_music[5]=(uint32_t)status;
+    if(status)++rf_scene_music[2];
+    printf("SCRIPT_MUSIC uid%u type%s status%d active%u\n",event->uid,event->type,status,rf_scene_music[3]);
+    return RF_OK; /* Missing music never blocks the event graph. */
+}
 static int scene_script_blackout(void *context,const rf_level_event *event,int32_t now,uint32_t on)
 {
     float seconds;
@@ -16610,6 +16640,7 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
             campaign_triggers.set_ai_mode=campaign_set_ai_mode_acquiring;campaign_triggers.ai_mode_context=NULL;
             campaign_triggers.remove_object=campaign_remove_object;
             scene_script_sound_reset();campaign_triggers.play_sound=scene_script_sound;campaign_triggers.sound_context=NULL;
+            campaign_triggers.music=scene_script_music;campaign_triggers.music_context=NULL;
             campaign_triggers.black_out_player=scene_script_blackout;campaign_triggers.blackout_context=NULL;
             campaign_triggers.explode=scene_script_explode;campaign_triggers.explode_context=stream;
             campaign_triggers.show_message=campaign_show_message;campaign_triggers.message_context=(void*)level;
