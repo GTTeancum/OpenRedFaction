@@ -29,6 +29,7 @@ typedef struct scene_checkpoint_world_context {
     rf_clutter_base_owner *const *props;uint32_t prop_count;
     rf_geometry_body_metadata metadata;void *metadata_context;
     uint32_t reference_room;float dt,class_speed;
+    uint32_t fresh_boot; /* Fresh owner state is replaced, not required to be independently saveable. */
     uint32_t allow_no_contact; /* Stationary, nonfalling NPC only; default is strict standing. */
     uint32_t authored_static_unchanged; /* Caller proves identity-bound static terrain has no mutations. */
     const float *authored_position,*authored_basis; /* Optional exact NPC spawn baseline, borrowed. */

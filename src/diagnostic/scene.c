@@ -740,6 +740,7 @@ typedef struct scene_stream {
     unsigned char terrain_checkpoint_identity[128];uint32_t terrain_checkpoint_loaded;
     const rf_level *player_checkpoint_level;
     uint32_t player_checkpoint_started,player_checkpoint_look;
+    const rf_level *world_checkpoint_level;const char *world_checkpoint_tables;
     rf_player_checkpoint player_checkpoint_value;
     rf_weapon_modes_checkpoint weapon_modes_checkpoint;uint32_t weapon_modes_pending;
     scene_terrain_noise_owner *terrain_noise;uint32_t terrain_shadow_reference,terrain_test_light;
@@ -10964,6 +10965,7 @@ int rf_scene_npc_checkpoint_export(const unsigned char identity[32],int32_t now,
 #include "scene_world_event_restore.inc"
 #include "scene_world_mission_restore.inc"
 #include "scene_world_snapshot.inc"
+#include "scene_world_load.inc"
 
 #ifdef RF_IMAGE_XBOX_NATIVE
 static rf_xbox_checkpoint_storage scene_checkpoint_hdd;
@@ -16075,6 +16077,7 @@ static int scene_frame(void *context,uint32_t frame,rf_preview_mesh *actor)
             if(!frame){memset(rf_scene_glare_search,0,sizeof(rf_scene_glare_search));rf_scene_glare_search[4]=2166136261u;
                 status=rf_scene_glare_visibility_pass(stream->npc_view.camera);if(status)return status;}}
         step_profile_mark(6,&step_clock);profile_mark(7);
+        if(!frame){status=scene_world_load(stream,stream->world_checkpoint_level,stream->world_checkpoint_tables);if(status)return status;}
         return RF_OK;
     }
 }
@@ -16950,6 +16953,7 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
             status=campaign_trigger_checkpoint(0,0);if(status)goto done;
             status=campaign_event_checkpoint(0,0);if(status)goto done;
             campaign_force_snapshot();campaign_switch_snapshot();
+            stream->world_checkpoint_level=level;stream->world_checkpoint_tables=tables_path;
             memcpy(rf_scene_startup_gravity,&scene_gravity,sizeof(scene_gravity));
         }
         if(state_mode)status=rf_animation_stream_states(meshes_path,motions_path,1024*1024,&placement,states,scene_frame,stream);

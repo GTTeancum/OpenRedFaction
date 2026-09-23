@@ -9,6 +9,7 @@ typedef int (*scene_npc_checkpoint_place)(void *,const rf_checkpoint_placement *
 typedef struct scene_npc_checkpoint_restore_entry {
     uint32_t slot,handle,registered,flags;
     rf_npc_checkpoint_record saved,before;
+    campaign_npc_body owner_before;rf_entity_pose pose_before;
     rf_physics_body_state body;rf_entity_room_state room;rf_physics_support_contact support;
     rf_entity_motion_selection selection;rf_motion_playback_state playback;
     float basis[9],look_basis[9],published[3],eye[3];int32_t idle;
@@ -16,7 +17,7 @@ typedef struct scene_npc_checkpoint_restore_entry {
     float (*original_matrices)[12];uint16_t *original_generations;
 } scene_npc_checkpoint_restore_entry;
 typedef struct scene_npc_checkpoint_restore_stage {
-    uint32_t count,bytes;int32_t now;
+    uint32_t count,bytes,fresh_boot;int32_t now;
     scene_npc_checkpoint_restore_entry entries[];
 } scene_npc_checkpoint_restore_stage;
 static int scene_npc_checkpoint_restore_placement(void *context,uint32_t index,
@@ -64,20 +65,23 @@ static int scene_npc_checkpoint_restore_clip(uint32_t skeleton,int32_t id,uint32
        model->resources[id].references<0||model->resources[id].references>INT32_MAX-(int32_t)(owners*16u))return RF_RANGE;
     return RF_OK;
 }
-static inline int scene_npc_checkpoint_restore_prepare(const rf_npc_checkpoint_record *rows,uint32_t count,
+static inline int scene_npc_checkpoint_restore_prepare_mode(const rf_npc_checkpoint_record *rows,uint32_t count,
     const rf_npc_checkpoint_catalog *catalog,int32_t now,scene_npc_checkpoint_place place,void *context,
-    uint32_t budget,scene_npc_checkpoint_restore_stage **out)
+    uint32_t budget,uint32_t fresh_boot,scene_npc_checkpoint_restore_stage **out)
 {
     scene_npc_checkpoint_restore_stage *stage=NULL;rf_npc_checkpoint_record current;
     unsigned char identity[32]={0},wire[RF_NPC_CHECKPOINT_HEADER+RF_NPC_CHECKPOINT_ROW_MAX];
     uint32_t i,j,expected=0,written;uint64_t bytes;unsigned char *bone_storage;int status;
-    if(!out||*out||!place||!catalog||(count&&!rows)||count>RF_NPC_CHECKPOINT_MAX_COUNT||now<0||now>RF_TIMER_PERIOD)return RF_RANGE;
+    if(fresh_boot>1||!out||*out||!place||!catalog||(count&&!rows)||count>RF_NPC_CHECKPOINT_MAX_COUNT||now<0||now>RF_TIMER_PERIOD)return RF_RANGE;
     if(campaign_npc_body_count>RF_CAMPAIGN_ACTOR_SLOTS||
        (campaign_npc_body_count&&(!campaign_npc_bodies||!campaign_seeds.records.items||!campaign_seeds.items||
         campaign_seeds.records.count<campaign_npc_body_count)))return RF_RANGE;
     status=rf_npc_checkpoint_encode(identity,catalog,NULL,0,wire,sizeof(wire),&written);if(status)return status;
     for(i=0;i<campaign_npc_body_count;i++){
-        status=scene_npc_checkpoint_row(i,now,&current);if(status==RF_NOT_FOUND)continue;if(status)return status;expected++;
+        /* Fresh boot may still display its initialization clip; it may not
+         * silently discard active routes, combat or unsupported gameplay. */
+        status=scene_npc_checkpoint_row_mode(i,now,&current,fresh_boot);
+        if(status==RF_NOT_FOUND)continue;if(status)return status;expected++;
     }
     if(expected!=count)return RF_FORMAT;
     bytes=sizeof(*stage)+(uint64_t)count*sizeof(*stage->entries);
@@ -87,7 +91,7 @@ static inline int scene_npc_checkpoint_restore_prepare(const rf_npc_checkpoint_r
         bytes+=(uint64_t)campaign_poses.items[j].bone_count*48+((campaign_poses.items[j].bone_count*2+3u)&~3u);
     }
     if(bytes>budget||bytes>UINT32_MAX)return RF_RANGE;
-    stage=calloc(1,(size_t)bytes);if(!stage)return RF_IO;stage->count=count;stage->bytes=(uint32_t)bytes;stage->now=now;
+    stage=calloc(1,(size_t)bytes);if(!stage)return RF_IO;stage->count=count;stage->bytes=(uint32_t)bytes;stage->now=now;stage->fresh_boot=fresh_boot;
     bone_storage=(unsigned char*)(stage->entries+count);
     for(i=0;i<count;i++){
         scene_npc_checkpoint_restore_entry *e=stage->entries+i;campaign_npc_body *o;
@@ -102,7 +106,12 @@ static inline int scene_npc_checkpoint_restore_prepare(const rf_npc_checkpoint_r
         vitals=&campaign_seeds.classes[cls].vitals;
         if(rows[i].health>(vitals->health<0?100:vitals->health)||rows[i].armor>vitals->armor){status=RF_FORMAT;goto fail;}
         e->slot=j;e->handle=o->registration.handle;e->registered=o->registration.view!=NULL;e->saved=rows[i];e->idle=-1;
-        status=scene_npc_checkpoint_row(j,now,&e->before);if(status)goto fail;
+        if(fresh_boot){
+            if(!campaign_poses.items||j>=campaign_poses.count){status=RF_FORMAT;goto fail;}
+            e->owner_before=*o;e->pose_before=campaign_poses.items[j];
+            if(o->persistence_slot>=rf_scene_defeated_actors.count||
+               (e->registered&&(o->registration.view!=&o->view||rf_object_registry_lookup(&campaign_registry,e->handle)!=&o->registration))){status=RF_FORMAT;goto fail;}
+        }else {status=scene_npc_checkpoint_row(j,now,&e->before);if(status)goto fail;}
         if(!rows[i].retired&&!e->registered){status=RF_RANGE;goto fail;} /* Fresh actors, never resurrect freed bodies. */
         e->flags=(o->object_flags&~0x4004u)|rows[i].flags;
         memcpy(e->published,rows[i].position,12);angles[1]=rows[i].yaw;
@@ -178,6 +187,10 @@ static inline int scene_npc_checkpoint_restore_prepare(const rf_npc_checkpoint_r
     *out=stage;return RF_OK;
 fail:free(stage);return status;
 }
+static inline int scene_npc_checkpoint_restore_prepare(const rf_npc_checkpoint_record *rows,uint32_t count,
+    const rf_npc_checkpoint_catalog *catalog,int32_t now,scene_npc_checkpoint_place place,void *context,
+    uint32_t budget,scene_npc_checkpoint_restore_stage **out)
+{return scene_npc_checkpoint_restore_prepare_mode(rows,count,catalog,now,place,context,budget,0,out);}
 /* All fallible work finishes before the first actor assignment. The caller
  * keeps scene/resource ownership stable between prepare and commit. */
 static inline int scene_npc_checkpoint_restore_validate(const scene_npc_checkpoint_restore_stage *stage)
@@ -192,8 +205,13 @@ static inline int scene_npc_checkpoint_restore_validate(const scene_npc_checkpoi
            campaign_poses.items[e->slot].generations!=e->original_generations))return RF_FORMAT;
         if(e->registered&&campaign_collision_caches&&e->slot<campaign_model_owner_count&&
            campaign_collision_caches[e->slot].bone_count>50)return RF_FORMAT;
-        status=scene_npc_checkpoint_row(e->slot,stage->now,&current);if(status)return status;
-        if(memcmp(&current,&e->before,sizeof(current)))return RF_FORMAT;
+        if(stage->fresh_boot){
+            if(memcmp(campaign_npc_bodies+e->slot,&e->owner_before,sizeof(e->owner_before))||
+               memcmp(campaign_poses.items+e->slot,&e->pose_before,sizeof(e->pose_before)))return RF_FORMAT;
+        }else {
+            status=scene_npc_checkpoint_row(e->slot,stage->now,&current);if(status)return status;
+            if(memcmp(&current,&e->before,sizeof(current)))return RF_FORMAT;
+        }
     }
     return RF_OK;
 }

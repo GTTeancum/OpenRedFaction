@@ -1,6 +1,18 @@
 # Ordinary-level saves: implementation workstream
 
 
+## Current milestone: fresh ordinary PC reload (2026-09-22)
+
+`python tools/check_ordinary_save_reload.py` now captures120 neutral frames, launches a fresh process to load and immediately resave, then launches another fresh process to load and move for30 frames followed by89 settling frames. All16 component payloads match byte-for-byte in the immediate resave. The continued run moves from[-119.1875763,0.3200837,59.4398079] to[-120.8788605,0.3425023,57.2130127] and saves successfully. Finite coordinates and squared movement distance are checked from the RFPL position at byte32. PC renderer output was inspected: mine geometry, lamps, crosshair and health/armor HUD render after continuation. No GitHub image was added.
+
+`RF_REPLAY_WORLD_SNAPSHOT_IN` names the protected two-slot base path. The PC loader runs after frame-zero initialization, before frame-one input. It verifies current source identity, loads saved NPC motion resources, stages world/player/mission/history/environment/events, validates all targets, then publishes through assignment-only functions. The101708-byte save uses1136784 bytes of staged owners on PC, plus the input file buffer and bounded temporary motion-demand storage. Fresh NPC owner validation permits initialization clips while retaining rejection of unsaved routes/combat and checking full prepublication owner/pose snapshots. Normal save admission remains unchanged.
+
+This is a working limited ordinary PC profile, not campaign-wide save completion. Current test starts unarmed with100 health/armor, so firing and finite-ammo continuation are not verified. Player weapon resources must already be available from ordinary scene demand; missing resources reject. Active remote charges, vehicles, destruction, queued level transitions and uncaptured AI/shield history remain outside this profile. Startup presentation can replay; audio/subtitle/particle continuity is deferred. Native storage dispatch remains unwired for this new profile, although the shared Xbox build passes. XEMU reload and stock64MiB runtime headroom remain next.
+
+Validation: focused NPC capture/restore checks pass after the fresh-boot change; PC replay capture/load/resave/movement passes. Earlier RFWC2, environment, mission and carry checks remain applicable. Overall83%, Saves74%.
+
+
+
 ## Current milestone: ordinary restore staging (2026-09-22, solo integration)
 
 The snapshot now uses RFWC2 with a sixteenth ENVIRONMENT component. RFCH2 retains player import/export and Machine Pistol/Undercover carry records; RFEN1 retains gravity and UID-bound force active/strength state. Current unmodified L1S1 captures101708 bytes, within110524, and reports history omission mask0. Legacy RFWC1 decoding remains supported without an environment component; it cannot satisfy a required environment section.

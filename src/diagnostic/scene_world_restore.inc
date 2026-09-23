@@ -158,8 +158,8 @@ static inline int scene_world_restore_prepare(const void *data,uint32_t bytes,
     if(npc_count){npc_rows=malloc((size_t)temp);if(!npc_rows){status=RF_IO;goto fail;}}
     phase="npc_stage";status=rf_npc_checkpoint_decode(npc->data,npc->bytes,identity,catalog,npc_rows,npc_count,&npc_count);if(status)goto fail;
     s->placement_rows=npc_rows;s->placement_count=npc_count;
-    status=scene_npc_checkpoint_restore_prepare(npc_rows,npc_count,catalog,now,scene_world_restore_place,s,
-        budget-s->allocated_bytes-(uint32_t)temp,&s->npcs);if(status)goto fail;
+    status=scene_npc_checkpoint_restore_prepare_mode(npc_rows,npc_count,catalog,now,scene_world_restore_place,s,
+        budget-s->allocated_bytes-(uint32_t)temp,world->fresh_boot,&s->npcs);if(status)goto fail;
     s->allocated_bytes+=s->npcs->bytes;s->placement_rows=NULL;s->placement_count=s->placement_next=0;free(npc_rows);npc_rows=NULL;
     s->semantic_mask=mask;*out=s;return RF_OK;
 fail:

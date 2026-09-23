@@ -29,7 +29,7 @@ static int scene_npc_checkpoint_reject(uint32_t index,const char *reason,uint32_
 #endif
     return status;
 }
-static int scene_npc_checkpoint_row(uint32_t index,int32_t now,rf_npc_checkpoint_record *row)
+static int scene_npc_checkpoint_row_mode(uint32_t index,int32_t now,rf_npc_checkpoint_record *row,uint32_t initializing)
 {
     const campaign_npc_body *o=campaign_npc_bodies+index;
     const rf_campaign_object_record *key;const rf_entity_pose *pose;
@@ -65,7 +65,7 @@ static int scene_npc_checkpoint_row(uint32_t index,int32_t now,rf_npc_checkpoint
             if(status||pending)return scene_npc_checkpoint_reject(index,"deadline",i,deadlines[i],status?status:RF_RANGE);}
         if(index>=campaign_poses.count||!campaign_poses.items)return RF_FORMAT;pose=campaign_poses.items+index;
         if(pose->playback.completion.active.count>16)return scene_npc_checkpoint_reject(index,"motion_count",0,pose->playback.completion.active.count,RF_RANGE);
-        if(!pose->playback.completion.active.count&&!o->script_animation.active&&
+        if(!initializing&&!pose->playback.completion.active.count&&!o->script_animation.active&&
            (pose->controller.override_enabled||pose->controller.duration!=0||pose->controller.current>0||pose->controller.next>0))
             return scene_npc_checkpoint_reject(index,"controller_without_playback",0,pose->controller.current,RF_RANGE);
         if(pose->playback.completion.frozen&&!o->script_animation.active)return scene_npc_checkpoint_reject(index,"motion_frozen",0,pose->playback.completion.frozen,RF_RANGE);
@@ -80,11 +80,11 @@ static int scene_npc_checkpoint_row(uint32_t index,int32_t now,rf_npc_checkpoint
                     pose->controller.override_enabled?pose->controller.override_state:-1;
                 if(state>=0&&state<23&&o->selection.mapping.states[state]==motion)mapped=1;
             }
-            if(key->retired||(!o->script_animation.active&&!mapped)||motion<0||
+            if(key->retired||(!initializing&&!o->script_animation.active&&!mapped)||motion<0||
                !campaign_playback_resources.models||pose->skeleton>=campaign_playback_resources.model_count||
                (uint32_t)motion>=campaign_playback_resources.models[pose->skeleton].count||
                !campaign_playback_resources.models[pose->skeleton].resources||
-               (!o->script_animation.active&&!campaign_playback_resources.models[pose->skeleton].resources[motion].looping))
+               (!initializing&&!o->script_animation.active&&!campaign_playback_resources.models[pose->skeleton].resources[motion].looping))
                 return scene_npc_checkpoint_reject(index,"motion_not_idle_loop",(uint32_t)o->selection.mapping.states[0],motion,RF_RANGE);
         }
         /* rf_entity_body_open deliberately supports an empty authored sphere
@@ -130,6 +130,8 @@ static int scene_npc_checkpoint_row(uint32_t index,int32_t now,rf_npc_checkpoint
     }
     return RF_OK;
 }
+static int scene_npc_checkpoint_row(uint32_t index,int32_t now,rf_npc_checkpoint_record *row)
+{return scene_npc_checkpoint_row_mode(index,now,row,0);}
 static int scene_npc_checkpoint_row_compare(const void *a,const void *b)
 {uint32_t x=((const rf_npc_checkpoint_record*)a)->uid,y=((const rf_npc_checkpoint_record*)b)->uid;return x<y?-1:x>y;}
 static int scene_npc_checkpoint_capture(const rf_npc_checkpoint_catalog *catalog,int32_t now,

@@ -1,9 +1,9 @@
 # Red Faction Xbox / PC - open work
 
-Completion basis (user direction,2026-09-18): working late-alpha/early-beta code implementation. Overall approximately82%; GeoMod100% for the first playable milestone, accepted by the user. GeoMod items below are deferred refinement and coverage, not prerequisites to moving on. This does not assert retail polish, complete campaign integration or resolution of every known defect.
+Completion basis (user direction,2026-09-18): working late-alpha/early-beta code implementation. Overall approximately83%; GeoMod100% for the first playable milestone, accepted by the user. GeoMod items below are deferred refinement and coverage, not prerequisites to moving on. This does not assert retail polish, complete campaign integration or resolution of every known defect.
 
 
-- PRIORITY Ordinary saves: L1S1 snapshot101708 bytes now stages all78 NPCs,184 events,61 triggers,22 pickups, player, doors/props, campaign carry and gravity; connect fresh-process resource demand and atomic publication, then native reload (saves approximately70%, no full ordinary reload yet).
+- PRIORITY Ordinary saves: Fresh PC L1S1 load/resave now preserves all16 component payloads byte-for-byte and resumes movement; wire Xbox storage/load and verify finite-ammo firing, broader resources and ordinary destruction/vehicles (saves approximately74%).
 
 - Scripted effects: Play_Sound, Music_Start/Stop, Look_At, Explode and Black_Out_Player still lack runtime dispatch; their event-local save fields are preserved, but implement the gameplay effects separately.
 
