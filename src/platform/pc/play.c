@@ -1004,6 +1004,7 @@ run_scene:
     printf("TERRAIN_PUBLICATION");for(i=0;i<8;++i)printf(" %u",rf_scene_terrain_publication[i]);puts("");
     printf("AUTHORED_IDENTITY");for(i=0;i<10;++i)printf(" %u",rf_scene_authored_identity[i]);puts("");
     printf("GEOMOD");for(i=0;i<8;++i)printf(" %u",rf_scene_geomod[i]);puts("");
+    printf("GEO_REGIONS");for(i=0;i<4;++i)printf(" %u",rf_scene_geo_regions[i]);puts("");
     {extern uint32_t rf_scene_detached_player[7];printf("DETACHED_PLAYER");for(i=0;i<7;i++)printf(" %u",rf_scene_detached_player[i]);puts("");}
     {extern uint32_t rf_scene_detached_hitscan[7];printf("DETACHED_HITSCAN");for(i=0;i<7;i++)printf(" %u",rf_scene_detached_hitscan[i]);puts("");}
     {extern uint32_t rf_scene_rocket_contacts[8];printf("ROCKET_CONTACTS");for(i=0;i<8;i++)printf(" %u",rf_scene_rocket_contacts[i]);puts("");}

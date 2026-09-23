@@ -1963,7 +1963,7 @@ static rf_foley_owner campaign_foley;
 static rf_clutter_catalogs campaign_clutter_catalogs;
 static float campaign_script_explode_damage[64];
 static unsigned char campaign_script_explode_loaded[64];
-uint32_t rf_scene_script_explode[10]; /* requests,off,named,positive,zero,missing,geometry deferred,last UID,magnitude/radius bits */
+uint32_t rf_scene_script_explode[10]; /* requests,off,named,positive,zero,missing,geometry-flagged requests,last UID,magnitude/radius bits */
 static int32_t campaign_riot_shield_class=-1;
 uint32_t rf_scene_clutter_contact_test[8];
 static rf_weapon_supply_catalog campaign_weapon_supply;
@@ -9820,6 +9820,7 @@ static void scene_terrain_edit_mark(uint32_t row,uint32_t column,uint32_t *previ
     now=profile_clock();rf_scene_terrain_edit_times[row][column]=now-*previous;*previous=now;
 }
 uint32_t rf_scene_geomod[8]; /* enabled,cuts,generation,resident,peak,status,attempts,successful edits */
+uint32_t rf_scene_geo_regions[4]; /* authored count, resident bytes, default hardness, section present */
 /* Half a float32 coordinate step, computed in double so subnormals retain
  * a nonzero rounding interval. Inputs are finite terrain coordinates. */
 static double scene_terrain_coordinate_rounding(float value)
@@ -10393,30 +10394,45 @@ rejected:
 static int scene_terrain_open(scene_stream *s,const rf_level *level,rf_vpp *maps,uint32_t map_count)
 {
     rf_geomod_vertex vertices[24];rf_geomod_face faces[6];rf_collision_face_filter filters[6],generated={0};
-    rf_geomod_mesh_view source;uint32_t i,j;int status;
+    rf_geomod_mesh_view source;uint32_t i,j,required;int status;
     memset(rf_scene_geomod,0,sizeof(rf_scene_geomod));memset(rf_scene_terrain_shadows,0,sizeof(rf_scene_terrain_shadows));
+    memset(rf_scene_geo_regions,0,sizeof(rf_scene_geo_regions));
     memset(rf_scene_authored_identity,0,sizeof(rf_scene_authored_identity));
     memset(rf_scene_terrain_atlas,0,sizeof(rf_scene_terrain_atlas));
     memset(rf_scene_terrain_bake,0,sizeof(rf_scene_terrain_bake));
     memset(rf_scene_terrain_upload,0,sizeof(rf_scene_terrain_upload));
-    if(!rf_scene_dev_room_enabled || rf_scene_water_test_enabled || rf_scene_vehicle_enabled==4)return RF_OK;
+    required=rf_scene_dev_room_enabled && !rf_scene_water_test_enabled && rf_scene_vehicle_enabled!=4;
+    /* Region identity/hardness belongs to the level, including ordinary
+     * campaign scenes whose terrain cutter has not yet been connected. */
+    {
+        const rf_level_section *section=rf_level_find(level,0x200);
+        rf_level_geomod_settings settings;
+        status=rf_level_geomod_settings_read(level,&settings);
+        if(status && status!=RF_NOT_FOUND)return status;
+        if(!status)s->terrain_default_hardness=settings.hardness;
+        if(required && status)return status;
+        if(section){unsigned char *payload;
+            if(section->size<4 || section->size>1024*1024)return RF_FORMAT;
+            payload=malloc(section->size);if(!payload)return RF_IO;
+            status=rf_level_read(level,section,0,payload,section->size);
+            if(!status)status=rf_level_geo_regions_decode(payload,section->size,NULL,0,&s->terrain_region_count);
+            if(!status && s->terrain_region_count>4096)status=RF_RANGE;
+            if(!status && s->terrain_region_count){
+                s->terrain_regions=calloc(s->terrain_region_count,sizeof(*s->terrain_regions));
+                if(!s->terrain_regions)status=RF_IO;
+                else status=rf_level_geo_regions_decode(payload,section->size,s->terrain_regions,s->terrain_region_count,&s->terrain_region_count);
+            }
+            free(payload);if(status)return status;
+        } else if(required)return RF_FORMAT;
+        rf_scene_geo_regions[0]=s->terrain_region_count;
+        rf_scene_geo_regions[1]=s->terrain_region_count*sizeof(*s->terrain_regions);
+        rf_scene_geo_regions[2]=s->terrain_default_hardness;
+        rf_scene_geo_regions[3]=section!=NULL;
+    }
+    if(!required)return RF_OK;
     if(!s->geometry || !s->collision || !actor_follow_world)return RF_FORMAT;
     if(strcmp(level->entry.name,"ctf06.rfl") && (strcmp(level->entry.name,"glass_house.rfl") ||
        s->geometry->faces!=598 || s->geometry->rooms!=91 || s->collision->room_count!=91))return RF_FORMAT;
-    {
-        const rf_level_section *section=rf_level_find(level,0x200);unsigned char *payload;
-        if(!section || section->size>1024*1024)return RF_FORMAT;
-        payload=malloc(section->size);if(!payload)return RF_IO;
-        status=rf_level_read(level,section,0,payload,section->size);
-        if(!status)status=rf_level_geo_regions_decode(payload,section->size,NULL,0,&s->terrain_region_count);
-        if(!status && s->terrain_region_count>4096)status=RF_RANGE;
-        if(!status && s->terrain_region_count) {
-            s->terrain_regions=calloc(s->terrain_region_count,sizeof(*s->terrain_regions));
-            if(!s->terrain_regions)status=RF_IO;
-            else status=rf_level_geo_regions_decode(payload,section->size,s->terrain_regions,s->terrain_region_count,&s->terrain_region_count);
-        }
-        free(payload);if(status)return status;
-    }
     /* Explicit developer wall fixture: ctf06's outer wall is retail hardness100.
      * Keep installed data/default hardness intact; admit only this local patch. */
     if(scene_authored_source_uid==66) {
@@ -12665,8 +12681,8 @@ static int scene_script_explode(void *context,const rf_level_event *event,int32_
         if(scene_script_explode_effects[effect] && scene_script_explode_effects[effect]->foley[0])
             combat_sound(scene_script_explode_effects[effect]->foley,event->position);
     }
-    /* The radial request is independent of a refused terrain edit or missing
-     * visual. Geometry/visual ownership is still open; do not use rocket FX. */
+    /* The radial request is independent of a refused terrain edit. Campaign
+     * geometry ownership remains open; do not use rocket defaults. */
     return scene_explosion_blast_source(s,frame,event->position,magnitude,scale,UINT32_MAX,3);
 }
 static int scene_explosion_blast(scene_stream *s,uint32_t frame,const float origin[3],float damage,float radius)

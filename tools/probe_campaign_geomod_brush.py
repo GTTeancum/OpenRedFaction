@@ -128,12 +128,14 @@ def main():
     report = {"level": args.level, "archive": archive, "section_sha256": hashlib.sha256(data).hexdigest(),
               "brush": brush, "topology": topology(brush["faces"]),
               "solid": convex(brush["faces"], False), "cavity": convex(brush["faces"], True),
+              "operation": brush["tail"][2],
               "compiled_faces": len(linked), "compiled_rooms": dict(collections.Counter(f["room"] for f in linked)),
               "compiled_source_counts": dict(collections.Counter(f["source_word"] for f in linked)),
               "scope": "Read-only editor brush and compiled face ownership; no runtime cut or solid decomposition"}
     if args.report:
         args.report.write_text(json.dumps(report, indent=2) + "\n")
     print(json.dumps({"level": args.level, "uid": args.uid, "offset": brush["offset"],
+                      "operation": report["operation"],
                       "source_faces": len(brush["faces"]), "closed": report["topology"]["closed_oriented"],
                       "solid_convex": report["solid"]["convex"], "cavity_convex": report["cavity"]["convex"],
                       "compiled_faces": len(linked), "rooms": report["compiled_rooms"]}))
