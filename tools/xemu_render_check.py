@@ -68,6 +68,7 @@ def main():
     parser.add_argument('--shallow-two-limits', action='store_true', help='Use two intersecting authored shallow-region fixtures')
     parser.add_argument('--cavity-seam-test', action='store_true', help='Explicit source66 floor-seam hardness fixture')
     parser.add_argument('--shallow-fixture', action='store_true', help='DEV depth.75 authored-region fixture shared with PC')
+    parser.add_argument('--world-hdd-persistent', action='store_true', help='Use a private persistent ordinary-save test HDD across launches')
     parser.add_argument('--world-checkpoint-save', action='store_true', help='Save ordinary state to the isolated Xbox HDD profile')
     parser.add_argument('--world-checkpoint-load', type=Path, help='Load native ordinary HDD state; matching PC two-slot base for reference')
     parser.add_argument('--geomod-checkpoint-in', type=Path, help='Load a DEV destruction checkpoint before playback')
@@ -178,6 +179,10 @@ def main():
     checkpoint_limit = 262144 if args.expanded_geomod else 110524
     if (args.world_checkpoint_save or args.world_checkpoint_load) and (args.dev_room or args.geomod_checkpoint_in or args.geomod_checkpoint_out):
         parser.error('Ordinary world checkpoints require a non-DEV run without DEV checkpoints')
+    if args.world_checkpoint_load and not args.world_hdd_persistent:
+        parser.error('Ordinary HDD reload requires --world-hdd-persistent; temporary disks are discarded at exit')
+    if args.world_hdd_persistent and not (args.world_checkpoint_save or args.world_checkpoint_load):
+        parser.error('Persistent test HDD requires ordinary save/load')
     checkpoint = args.geomod_checkpoint_in is not None or args.geomod_checkpoint_out
     payload = None
     if args.input:
@@ -446,6 +451,10 @@ def main():
         hdd = root / 'local/xemu-harness/pacing-base.qcow2'
         if not hdd.exists():
             raise ValueError('Missing isolated pacing HDD base')
+        if args.world_hdd_persistent:
+            from xemu_world_hdd import prepare
+            hdd=prepare(root,hdd)
+            report['persistent_world_hdd']=str(hdd)
         shutil.copyfile(emulator / 'eeprom.bin', run / 'eeprom.bin')
         config = run / 'xemu.toml'
         config.write_text(f'''[general]
@@ -472,6 +481,7 @@ dvd_path = '{root.as_posix()}/build/xbox/redfaction-diagnostic.iso'
             port = reservation.getsockname()[1]
         command = [str(emulator / 'xemu.exe'), '-config_path', str(config), '-m', '64', '-snapshot',
             '-display', 'xemu', '-audio', 'none', '-qmp', f'tcp:127.0.0.1:{port},server=on,wait=off']
+        if args.world_hdd_persistent:command.remove('-snapshot')
         if args.cpu_exceptions:command += ['-d','int,cpu_reset','-D',str(run/'cpu-exceptions.log')]
         report['command'] = command
         startup = None
@@ -664,6 +674,7 @@ dvd_path = '{root.as_posix()}/build/xbox/redfaction-diagnostic.iso'
                     expected=world_payload(run/'pc-world')
                     actual_parts,expected_parts=sections(data),sections(expected)
                     report['checks']['WORLD_CHECKPOINT']['component_equal']={k:actual_parts[k]==v for k,v in expected_parts.items()}
+                    assert all(report['checks']['WORLD_CHECKPOINT']['component_equal'].values()), 'Ordinary PC/Xbox saved component mismatch'
             if checkpoint:
                 state=words(monitor,symbol('rf_scene_geomod_checkpoint_state'),4)
                 memory=words(monitor,symbol('rf_scene_geomod_checkpoint_memory'),2)
@@ -908,7 +919,7 @@ dvd_path = '{root.as_posix()}/build/xbox/redfaction-diagnostic.iso'
                 capture(words(monitor, symbol('rf_diagnostic'), 58))
                 report['registers'] = monitor.command('human-monitor-command', {'command-line': 'info registers'})
                 report['failure_telemetry'] = {name: words(monitor, symbol(name), count) for name, count in
-                    [('rf_xbox_renderer_stage',4), ('rf_diagnostic', 58), ('rf_animation_progress', 4), ('rf_scene_profile_stage', 2),
+                    [('rf_scene_world_checkpoint_state',10), ('rf_xbox_checkpoint_storage_state',8), ('rf_xbox_renderer_stage',4), ('rf_diagnostic', 58), ('rf_animation_progress', 4), ('rf_scene_profile_stage', 2),
                      ('rf_xbox_retained_world', 8), ('rf_xbox_retained_models', 8), ('rf_xbox_retained_model_kinds', 6)]}
             except Exception as capture_error:
                 report['capture_error'] = repr(capture_error)

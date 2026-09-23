@@ -3,7 +3,7 @@
 Completion basis (user direction,2026-09-18): working late-alpha/early-beta code implementation. Overall approximately83%; GeoMod100% for the first playable milestone, accepted by the user. GeoMod items below are deferred refinement and coverage, not prerequisites to moving on. This does not assert retail polish, complete campaign integration or resolution of every known defect.
 
 
-- PRIORITY Ordinary saves: Fresh PC L1S1 reload preserves all16 components and resumes movement; Xbox ordinary HDD capture now matches PC with16.78MiB sampled free, while cross-launch reload needs a persistent isolated harness disk; finite-ammo firing, broader resources and ordinary destruction/vehicles remain (saves approximately75%).
+- PRIORITY Ordinary saves: Ordinary L1S1 save/restart/reload/resave and movement now pass PC/Xbox with all16 saved components matching and16.39MiB sampled free; finite-ammo firing, broader resources, ordinary destruction/vehicles and user-facing save/load remain (saves approximately77%).
 
 - Scripted effects: Play_Sound, Music_Start/Stop, Look_At, Explode and Black_Out_Player still lack runtime dispatch; their event-local save fields are preserved, but implement the gameplay effects separately.
 
