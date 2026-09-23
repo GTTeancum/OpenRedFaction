@@ -9029,7 +9029,9 @@ static int campaign_cutscene_tick(scene_stream *stream,int32_t now,uint32_t fram
     status=rf_cutscene_step(&campaign_cutscene_runtime,now,scene_step_seconds,&action,&finished);
     if(status){++rf_scene_cutscene[9];return status;}
     if(action!=UINT32_MAX){status=campaign_cutscene_point_action(stream,action,now);if(status){++rf_scene_cutscene[9];return status;}}
-    rf_scene_cutscene[4]=campaign_cutscene_runtime.point_index;
+    if(finished){const rf_cutscene_descriptor *d=rf_cutscene_find(&campaign_cutscene_resources,rf_scene_cutscene[3]);
+        rf_scene_cutscene[4]=d?d->point_count:0;}
+    else rf_scene_cutscene[4]=campaign_cutscene_runtime.point_index;
     rf_scene_cutscene[7]=campaign_cutscene_runtime.active;rf_scene_cutscene[11]=frame;
     if(finished) {
         ++rf_scene_cutscene[6];
@@ -13747,8 +13749,11 @@ int rf_scene_draw_combat_hud(rf_scene_particle_sink sink,void *context)
     if(!sink || !particle_draw_stream || !campaign_spawn)return RF_OK;
     vehicle=scene_driller_active(particle_draw_stream);
     if(vehicle)scene_vehicle_hud_values(particle_draw_stream,&vehicle_health,vehicle_ammo);
-    status=scene_scanner_draw(sink,context);if(status)return status;
     status=campaign_draw_subtitle(sink,context);if(status)return status;
+    /* Cinematic camera keeps dialogue, but gameplay meters and reticle belong
+     * to the player-controlled view. */
+    if(campaign_cutscene_runtime.active)return RF_OK;
+    status=scene_scanner_draw(sink,context);if(status)return status;
     if(rf_scene_campaign_countdown.remaining>0 && !campaign_endgame.phase){
         char timer[16];uint32_t seconds=(uint32_t)ceilf(rf_scene_campaign_countdown.remaining);
         uint32_t timer_color=seconds<=10?0xffee6060:seconds<=60?0xffffc060:0xffeeeeee;
@@ -13961,7 +13966,6 @@ static int actor_follow_view(void *context,uint32_t frame,const rf_motion_contro
     if(campaign_cutscene_runtime.active){
         memcpy(position,campaign_cutscene_runtime.position,12);
         memcpy(orientation,campaign_cutscene_runtime.orientation,36);
-        rf_scene_scope_projection=1;
     }
     /* Rendering follows the committed owner, never diagnostic counters: reload
      * can publish geometry before the next edit refreshes those counters. */
@@ -13993,6 +13997,13 @@ static int actor_follow_view(void *context,uint32_t frame,const rf_motion_contro
     }
     world_profile_mark(1,&world_clock);
     if(campaign_spawn){status=campaign_combat_tick(stream,frame,position,orientation);rf_scene_combat[7]=(uint32_t)status;if(status){rf_scene_profile_stage[1]=109;return status;}}
+    if(campaign_cutscene_runtime.active){
+        /* Combat updates the weapon scope each tick. Override its projection
+         * after that update so authored FOV applies only to cinematic world
+         * geometry/particles, not the screen-space subtitle. */
+        rf_scene_scope_projection=campaign_cutscene_runtime.fov==90.0f?1.0f:
+            1.0f/tanf(campaign_cutscene_runtime.fov*0.008726646259971648f);
+    }
     if(rf_scene_follow_npc_uid){status=campaign_inspect_camera(stream,position,orientation);if(status)return status;}
     if(rf_scene_particle_view_enabled && frame<400 && stream->particles.state && stream->particles.materials.count) {
         memcpy(position,stream->particles.state->slots[0].runtime.emitter.position,12);

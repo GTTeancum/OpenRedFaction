@@ -1,6 +1,6 @@
 # Red Faction Xbox / PC - open work
 
-Completion basis (user direction,2026-09-18): working late-alpha/early-beta code implementation. Overall approximately87%; GeoMod100% for the first playable milestone, accepted by the user. GeoMod items below are deferred refinement and coverage, not prerequisites to moving on. This does not assert retail polish, complete campaign integration or resolution of every known defect.
+Completion basis (user direction,2026-09-18): working late-alpha/early-beta code implementation. Overall approximately88%; GeoMod100% for the first playable milestone, accepted by the user. GeoMod items below are deferred refinement and coverage, not prerequisites to moving on. This does not assert retail polish, complete campaign integration or resolution of every known defect.
 
 
 - PRIORITY Ordinary saves: L1S1 save/reload and live quick-load pass PC/Xbox, including L5S4 failure-screen recovery into an earlier L1S1 save; L15S1 PC and L17S1 PC/Xbox save/reload work, while general cross-level coverage, menu/slot selection, destruction/vehicles and broader resource demand remain (saves approximately89%).
@@ -15,7 +15,7 @@ Completion basis (user direction,2026-09-18): working late-alpha/early-beta code
 
 - Scripted effects: Play_Sound, Explode, Message, Music_Start/Stop, Black_Out_Player and Endgame now forward ordinary authored links after their effects; L11S3 self-destruct Message chaining passes PC/Xbox within stock memory, while authored GeoMod room/terrain ownership, full vclip VFX, active-effect saves and native music/audio checks remain (docs/SCRIPTED-EFFECT-LINKS-FIRST-PASS.md).
 
-- Campaign cutscenes: All 12 resource sets load, and L6S3 event 55 now starts timed camera/actor actions with input suppression and natural restoration on PC/Xbox; other authored sequences, camera look-at/FOV, HUD hiding, cancel paths and persistence remain (docs/CUTSCENE-RESOURCE-FIRST-PASS.md).
+- Campaign cutscenes: All 12 resource sets load, and L6S3's full 48-second timeline, completion links, authored FOV and cinematic HUD pass PC/Xbox with restored PC movement; native hands-on input, other sequences, look-at, cancellation and persistence remain (docs/CUTSCENE-RESOURCE-FIRST-PASS.md).
 
 - USER PC hands-on pass: DEV replay confirms granted weapons and cycling, Right Bumper also cycles on PC, and the full-window black repaint that could cause flicker is removed; interactive pickup/switching and flicker still need user verification before calling the build ready for gameplay testing.
 

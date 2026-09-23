@@ -858,6 +858,7 @@ run_scene:
             printf("SCRIPT_EXPLODE_GEOMETRY");for(i=0;i<8;i++)printf(" %u",rf_scene_script_explode_geometry[i]);puts("");
             printf("SCRIPT_MUSIC");for(i=0;i<8;i++)printf(" %u",rf_scene_music[i]);puts("");
             printf("SCRIPT_NAVPOINT");for(i=0;i<8;i++)printf(" %u",rf_scene_navpoint[i]);puts("");
+            printf("CUTSCENE");for(i=0;i<12;i++)printf(" %u",rf_scene_cutscene[i]);puts("");
             printf("SCRIPT_EXPLODE_VISUAL");for(i=0;i<8;i++)printf(" %u",rf_scene_script_explode_visual[i]);puts("");
             printf("SCRIPT_LOOK_AT");for(i=0;i<9;i++)printf(" %u",rf_scene_script_look_at[i]);puts("");
             printf("SWITCH_RUNTIME");for(i=0;i<8;i++)printf(" %u",rf_scene_switch_runtime[i]);puts("");
