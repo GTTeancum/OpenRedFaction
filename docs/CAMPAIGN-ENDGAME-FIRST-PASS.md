@@ -8,8 +8,9 @@ The binary-derived boundary cases and authored event inventory are documented
 in `research/FUTURE-CAMPAIGN-ENDGAME-20260915.md`.
 
 This first pass freezes player input when a failure begins, fades the shared
-PC/Xbox viewport to black over 1.5 simulation seconds, then displays a
-mission-failure screen with the authored reason key. Use (`E`/`X`) after the
+PC/Xbox viewport to black over 1.5 simulation seconds, then displays the
+English failure description selected by the authored reason key from the
+installed `endgame.tbl`. A missing description falls back to the key. Use (`E`/`X`) after the
 fade reopens the current section at its authored spawn with fresh campaign
 state. Repeated requests cannot replace the first outcome. `call_credits` has
 a distinct immediate terminal screen. Live quick-save rejects an active
@@ -42,7 +43,15 @@ nonzero-bit mutation. A 32-frame stock 64 MiB XEMU replay in
 `artifacts/xemu/render-20260923-035337/` matches all four PC dispatch words,
 shows the level in its native framebuffer, and ends with 4,348 available pages.
 
-Remaining work is localized `endgame.tbl` failure text, a menu/load-slot
+The installed table is read on demand from `tables.vpp` into a bounded 16 KiB
+scratch allocation; the selected English description is retained in a 512-byte
+scene buffer and the archive is closed. No original table text is tracked in
+source. A 120-frame PC/XEMU replay of UID 5337 matches all four description
+diagnostics (`172` bytes, FNV-1a `3061203645`) and displays the same four-line
+message. The native capture is in
+`artifacts/xemu/render-20260923-040131/`; it ends with 5,921 available pages.
+
+Remaining work is language selection beyond English, a menu/load-slot
 choice, credits sequence, critical-NPC death policy (including deciding when
 that death invokes Endgame), a live flagged-NPC mutation, and checkpoint ownership
 if saving during a terminal transition is later allowed.

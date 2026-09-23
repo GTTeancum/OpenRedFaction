@@ -842,6 +842,7 @@ run_scene:
             {uint32_t remaining_bits;memcpy(&remaining_bits,&rf_scene_campaign_countdown.remaining,4);
              printf("CAMPAIGN_COUNTDOWN %u %u %u\n",remaining_bits,rf_scene_campaign_countdown.expiry_pending,rf_scene_campaign_countdown.difficulty);}
             {extern uint32_t rf_scene_endgame[6];printf("CAMPAIGN_ENDGAME");for(i=0;i<6;i++)printf(" %u",rf_scene_endgame[i]);puts("");}
+            {extern uint32_t rf_scene_endgame_text[4];printf("ENDGAME_TEXT");for(i=0;i<4;i++)printf(" %u",rf_scene_endgame_text[i]);puts("");}
             {extern uint32_t rf_scene_endgame_clear[4];printf("ENDGAME_CLEAR");for(i=0;i<4;i++)printf(" %u",rf_scene_endgame_clear[i]);puts("");}
             printf("CAMPAIGN_TRIGGERS %u %u\n",rf_scene_campaign_triggers[0],rf_scene_campaign_triggers[1]);
             printf("SWITCH_HISTORY %u %u %u %u\n",rf_scene_switch_history[0],rf_scene_switch_history[1],rf_scene_switch_history[2],rf_scene_switch_history[3]);

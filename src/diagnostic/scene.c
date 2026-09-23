@@ -222,10 +222,11 @@ static uint32_t player_frame_limit;
 static rf_scene_input player_input;
 /* A terminal mission result belongs to this level instance, not the player-life
  * snapshot. The pending fade is intentionally excluded from ordinary saves. */
-static struct {char reason[64];int32_t deadline;uint32_t phase,credits,uid,use_held,restart_requested;} campaign_endgame;
+static struct {char reason[64],description[512];int32_t deadline;uint32_t phase,credits,uid,use_held,restart_requested;} campaign_endgame;
 static char campaign_current_level[64];
 uint32_t rf_scene_restart_pending(void){return campaign_endgame.restart_requested;}
 uint32_t rf_scene_endgame[6]; /* requests,terminal,credits,last UID,phase,remaining ms */
+uint32_t rf_scene_endgame_text[4]; /* found,missing,UTF-8 bytes,FNV-1a */
 uint32_t rf_scene_endgame_clear[4]; /* resolved,missing,last handle,last previous flags */
 static uint32_t campaign_spawn;
 uint32_t rf_scene_dev_room_enabled;
@@ -8890,15 +8891,58 @@ static int scene_script_blackout(void *context,const rf_level_event *event,int32
     if(rf_timer_set(&campaign_blackout_deadline,now,(int32_t)(seconds*1000.0f)))return RF_OK;
     ++rf_scene_blackout[1];return RF_OK;
 }
+static int campaign_endgame_description_load(const char *tables_path,const char *name,char output[512])
+{
+    rf_vpp archive={0};rf_vpp_entry entry;char *data=NULL;uint32_t pos=0,used=0;
+    int status,matched=0,english=0;
+    output[0]=0;
+    if(!tables_path || !name)return RF_RANGE;
+    status=rf_vpp_open(&archive,tables_path);if(status)return status;
+    status=rf_vpp_find(&archive,"endgame.tbl",&entry);if(status)goto done;
+    if(!entry.size || entry.size>16384u){status=RF_RANGE;goto done;}
+    data=malloc(entry.size);if(!data){status=RF_IO;goto done;}
+    status=rf_vpp_read(&archive,&entry,0,data,entry.size);if(status)goto done;
+    status=RF_NOT_FOUND;
+    while(pos<entry.size){
+        uint32_t start=pos,length;
+        while(pos<entry.size && data[pos]!='\n')++pos;
+        length=pos-start;if(pos<entry.size)++pos;
+        if(length && data[start+length-1]=='\r')--length;
+        if(length>=9 && !memcmp(data+start,"$Name: \"",8)){
+            uint32_t n=(uint32_t)strlen(name);
+            matched=length==n+9 && !memcmp(data+start+8,name,n) && data[start+8+n]=='"';
+            english=0;continue;
+        }
+        if(!matched)continue;
+        if(length==3 && !memcmp(data+start,"En:",3)){english=1;used=0;continue;}
+        if(!english)continue;
+        if(length==4 && !memcmp(data+start,"#end",4)){
+            if(used && output[used-1]=='\n')--used;
+            output[used]=0;status=used?RF_OK:RF_NOT_FOUND;break;
+        }
+        if(used+length+1>=512){status=RF_RANGE;break;}
+        memcpy(output+used,data+start,length);used+=length;output[used++]='\n';
+    }
+done:
+    free(data);rf_vpp_close(&archive);return status;
+}
 static int scene_script_endgame(void *context,const rf_level_event *event,int32_t now)
 {
-    int status;(void)context;
+    int status;uint32_t i,hash=2166136261u;
     if(!event || !event->name[0])return RF_RANGE;
     if(campaign_endgame.phase)return RF_OK; /* First terminal request wins. */
     memset(&campaign_endgame,0,sizeof(campaign_endgame));
     strncpy(campaign_endgame.reason,event->name,sizeof(campaign_endgame.reason)-1);
     campaign_endgame.uid=event->uid;
     campaign_endgame.credits=!strcmp(event->name,"call_credits");
+    if(!campaign_endgame.credits){
+        status=campaign_endgame_description_load(context,event->name,campaign_endgame.description);
+        if(status){++rf_scene_endgame_text[1];campaign_endgame.description[0]=0;}
+        else {++rf_scene_endgame_text[0];
+            rf_scene_endgame_text[2]=(uint32_t)strlen(campaign_endgame.description);
+            for(i=0;i<rf_scene_endgame_text[2];i++)hash=(hash^(unsigned char)campaign_endgame.description[i])*16777619u;
+            rf_scene_endgame_text[3]=hash;}
+    }
     campaign_endgame.phase=campaign_endgame.credits?2:1;
     if(!campaign_endgame.credits){
         status=rf_timer_set(&campaign_endgame.deadline,now,1500);
@@ -13677,9 +13721,21 @@ int rf_scene_draw_endgame(rf_scene_particle_sink sink,void *context)
     status=combat_hud_rect(sink,context,0,0,640,480,alpha<<24);if(status)return status;
     if(campaign_endgame.phase!=2)return RF_OK;
     if(campaign_endgame.credits)return combat_hud_text(sink,context,278,228,"CREDITS",0xffeeeeee);
-    status=combat_hud_text(sink,context,250,204,"MISSION FAILED",0xffee6060);if(status)return status;
-    status=combat_hud_text(sink,context,240,228,campaign_endgame.reason,0xffeeeeee);if(status)return status;
-    return combat_hud_text(sink,context,222,260,"E/X TO RESTART OR LOAD A SAVE",0xffeeeeee);
+    status=combat_hud_text(sink,context,236,90,"MISSION FAILED",0xffee6060);if(status)return status;
+    if(campaign_endgame.description[0]){
+        const char *cursor=campaign_endgame.description;uint32_t row=0;
+        while(*cursor && row<14){
+            const char *end=strchr(cursor,'\n');char line[64];uint32_t length=end?(uint32_t)(end-cursor):(uint32_t)strlen(cursor);
+            if(length>=sizeof(line))length=sizeof(line)-1;
+            memcpy(line,cursor,length);line[length]=0;
+            status=combat_hud_text(sink,context,(640.0f-(float)length*12.0f)*.5f,138.0f+row*18.0f,line,0xffeeeeee);
+            if(status)return status;
+            ++row;if(!end)break;cursor=end+1;
+        }
+    }else{
+        status=combat_hud_text(sink,context,240,228,campaign_endgame.reason,0xffeeeeee);if(status)return status;
+    }
+    return combat_hud_text(sink,context,146,426,"E/X TO RESTART OR LOAD A SAVE",0xffeeeeee);
 }
 uint32_t rf_scene_follow_npc_uid;
 static uint32_t scene_inspection_enabled;
@@ -16766,12 +16822,12 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
             campaign_triggers.music=scene_script_music;campaign_triggers.music_context=NULL;
             campaign_triggers.navpoint=campaign_navpoint_set;campaign_triggers.navpoint_context=&campaign_navigation;
             campaign_triggers.black_out_player=scene_script_blackout;campaign_triggers.blackout_context=NULL;
-            campaign_triggers.endgame=scene_script_endgame;campaign_triggers.endgame_context=NULL;
+            campaign_triggers.endgame=scene_script_endgame;campaign_triggers.endgame_context=(void *)tables_path;
             campaign_triggers.clear_endgame_if_killed=campaign_clear_endgame_if_killed;
             campaign_triggers.explode=scene_script_explode;campaign_triggers.explode_context=stream;
             campaign_triggers.show_message=campaign_show_message;campaign_triggers.message_context=(void*)level;
             campaign_subtitle_deadline=-1;memset(&campaign_subtitle,0,sizeof(campaign_subtitle));
-            memset(&campaign_endgame,0,sizeof(campaign_endgame));memset(rf_scene_endgame,0,sizeof(rf_scene_endgame));memset(rf_scene_endgame_clear,0,sizeof(rf_scene_endgame_clear));
+            memset(&campaign_endgame,0,sizeof(campaign_endgame));memset(rf_scene_endgame,0,sizeof(rf_scene_endgame));memset(rf_scene_endgame_text,0,sizeof(rf_scene_endgame_text));memset(rf_scene_endgame_clear,0,sizeof(rf_scene_endgame_clear));
             campaign_message_voice=-1;memset(rf_scene_message_audio,0,sizeof(rf_scene_message_audio));
             campaign_triggers.slay_object=campaign_slay_object;memset(rf_scene_script_slays,0,sizeof(rf_scene_script_slays));
             rf_scene_campaign_triggers[0]=campaign_triggers.count;
