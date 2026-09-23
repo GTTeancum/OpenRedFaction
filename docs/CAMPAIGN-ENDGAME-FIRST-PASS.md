@@ -16,7 +16,8 @@ state. Repeated requests cannot replace the first outcome. `call_credits` has
 a distinct immediate terminal screen. Live quick-save rejects an active
 terminal outcome because the fade and screen are not yet in the checkpoint
 format. A quick-load request remains available through the existing frontend
-path.
+path. ASCII key matching is case-insensitive because installed `gryphon` and
+`shuttle` table keys differ in case from authored actor/event names.
 
 Focused verification used installed `L5S4.rfl` Endgame UID 5337
 (`Undercover_Miner`). A 120-frame process-local PC replay reached
@@ -38,10 +39,26 @@ Event type 67 now walks only its authored links and clears entity flag
 `0x00400000` from registered NPCs, preserving the other flags and synced
 damage state. This matches original action `4b9440`. A PC replay of authored
 `L5S2.rfl` UID 4700 resolved its one NPC link and dispatched the clear; that
-NPC's flag was already clear, so this replay verifies routing but not a
-nonzero-bit mutation. A 32-frame stock 64 MiB XEMU replay in
+NPC's flag was initially clear before authored instance switches were decoded.
+A 32-frame stock 64 MiB XEMU replay in
 `artifacts/xemu/render-20260923-035337/` matches all four PC dispatch words,
 shows the level in its native framebuffer, and ends with 4,348 available pages.
+
+The original instance loader at `464455`/`4648a3` sets the fatal-story bit
+from the fourth authored switch in the 17-byte entity tail; the matching raw
+byte is `tail[3]`. Its 14 set instances include Gryphon, eos, Hendrix, and
+the L5S2 tech actor linked by event 4700. The port now installs that bit at
+NPC creation, mirrors it to damage state, and sends a newly killed marked
+actor's authored entity name to the same terminal-outcome service used by
+Endgame events. Ordinary NPC deaths remain unaffected. A repeated L5S2 PC
+replay and a stock 64 MiB XEMU replay in
+`artifacts/xemu/render-20260923-041821/` agree on `ENDGAME_CLEAR`
+`[1,0,29688260,4194304]`: the fourth word proves this clear removed a
+genuinely set bit. XEMU ended with 4,348 available pages and its native frame
+shows the expected door and player weapon. The actual marked-NPC death path
+still needs a live scenario. Original generic event off-handler `4b9f80`
+calls `4ba1d0` to restore this flag on linked actors; that off transition
+is not yet implemented in the port.
 
 The installed table is read on demand from `tables.vpp` into a bounded 16 KiB
 scratch allocation; the selected English description is retained in a 512-byte
@@ -52,6 +69,5 @@ message. The native capture is in
 `artifacts/xemu/render-20260923-040131/`; it ends with 5,921 available pages.
 
 Remaining work is language selection beyond English, a menu/load-slot
-choice, credits sequence, critical-NPC death policy (including deciding when
-that death invokes Endgame), a live flagged-NPC mutation, and checkpoint ownership
+choice, credits sequence, a live marked-NPC death, event-off re-marking, and checkpoint ownership
 if saving during a terminal transition is later allowed.

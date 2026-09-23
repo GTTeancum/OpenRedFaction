@@ -52,9 +52,9 @@ int main(void)
         unsigned cut,flag;raw[0]=123;raw[57]=9;raw[61]=255;raw[62]=255;raw[63]=255;raw[64]=255;
         raw[65]=0xef;raw[66]=0xbe;item.raw=raw;item.record.uid=123;item.record.bytes=155;
         for(flag=0;flag<4;++flag) {
-            raw[135]=(unsigned char)(flag?flag==1?1:flag==2?2:255:0);raw[149]=raw[135];
+            raw[135]=(unsigned char)(flag?flag==1?1:flag==2?2:255:0);raw[149]=raw[135];raw[137]=(unsigned char)(flag==1);
             CHECK(rf_level_entity_spawn_read(&item,&fields)==RF_OK);
-            CHECK(fields.relationship_51c==9 && fields.friendliness==0xffffffffu && fields.byte_28==0xef && fields.creation_flags==(flag?6u:0u));
+            CHECK(fields.relationship_51c==9 && fields.friendliness==0xffffffffu && fields.byte_28==0xef && fields.creation_flags==(flag?6u:0u) && fields.endgame_if_killed==(flag==1));
         }
         memset(&fields,0xa5,sizeof(fields));saved=fields;
         for(cut=0;cut<155;++cut) {

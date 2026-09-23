@@ -357,6 +357,8 @@ static int entity_spawn_read(const rf_level_owned_entity *entity,rf_level_entity
     status=entity_raw_skip(size,&cursor,18);if(status)return status;
     start=cursor;status=entity_raw_skip(size,&cursor,17);if(status)return status;
     value.creation_flags=(raw[start+1]?2u:0u)|(raw[start+15]?4u:0u);
+    /* 464455 -> 4648a3: the fourth authored entity switch sets +810 bit22. */
+    value.endgame_if_killed=raw[start+3]==1;
     if(raw[start+16]>1)return RF_FORMAT;
     if(raw[start+16]) {status=entity_raw_skip(size,&cursor,4);if(status)return status;}
     for(i=0;i<2;++i) {status=entity_raw_string(raw,size,&cursor);if(status)return status;}

@@ -9,7 +9,7 @@ Completion basis (user direction,2026-09-18): working late-alpha/early-beta code
 
 - Campaign countdown: Begin/End/Over/Reaches run on PC/Xbox; L15/L17 PC save/load preserves timer bits and L17 native save/load works; live PC L17S1→S2 retains the timer and consumes expiry with visible blackout, while the reactor blast sound now starts on PC/Xbox; native post-load/expiry comparison, player difficulty, timer HUD, captured audio output and the complete mission-failure route remain open (docs/CAMPAIGN-COUNTDOWN-FIRST-PASS.md).
 
-- Campaign endgame: Authored failures now show installed English descriptions, fade, lock input and restart the same section on Use on PC/Xbox; Clear_Endgame_If_Killed resolves its NPC link identically, while other languages, a load/menu choice, credits flow, story-critical NPC death policy, a live flagged-NPC case and transition persistence remain (docs/CAMPAIGN-ENDGAME-FIRST-PASS.md).
+- Campaign endgame: Authored failures show English descriptions and restart on Use, while the recovered critical-NPC flag now reaches live death routing and Clear_Endgame_If_Killed clears a genuinely set authored bit on PC/Xbox; a live marked-NPC death, off-event re-marking, other languages, load/menu choice, credits and transition persistence remain (docs/CAMPAIGN-ENDGAME-FIRST-PASS.md).
 
 - Xbox retained rendering: L6S3 native static world, model and clutter draws now pass the 480-frame PC/Xbox replay with a near-matching frame and identical final camera and visibility; revisit disabled model bounds culling for performance.
 

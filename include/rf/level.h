@@ -194,7 +194,7 @@ typedef struct rf_level_owned_entities {
 int rf_level_owned_entities_open(const rf_level *level,uint32_t budget,rf_level_owned_entities *result);
 void rf_level_owned_entities_close(rf_level_owned_entities *entities);
 typedef struct rf_level_entity_spawn {
-    uint32_t relationship_51c,friendliness,byte_28,creation_flags;
+    uint32_t relationship_51c,friendliness,byte_28,creation_flags,endgame_if_killed;
 } rf_level_entity_spawn;
 /* Extract recovered 464010 fields from a retained v180 record. Allocation-free,
  * checks raw span boundaries/exact exhaustion; errors preserve output. This is

@@ -4921,6 +4921,10 @@ static int campaign_npc_bodies_open(const char *tables_path,const rf_geometry_co
                 owner->damage.effects.class_armor=definition->vitals.armor;
                 owner->damage.effects.class_flags_728=definition->physics.flags2;
                 owner->damage.effects.affiliation=campaign_seeds.items[actor].spawn.friendliness;
+                if(campaign_seeds.items[actor].spawn.endgame_if_killed){
+                    owner->view.flags_810|=0x00400000u;
+                    owner->damage.effects.flags_810=owner->view.flags_810;
+                }
                 owner->damage.effects.voice=UINT32_MAX;owner->damage.responsible_handle=UINT32_MAX;
                 owner->damage.burn_source=UINT32_MAX; /* Absent burn; source unused until installed. */
                 owner->movement_slot=rf_movement_start(campaign_modes,(int32_t)config.authored.movement_index,&body->state.flags);
@@ -8891,6 +8895,17 @@ static int scene_script_blackout(void *context,const rf_level_event *event,int32
     if(rf_timer_set(&campaign_blackout_deadline,now,(int32_t)(seconds*1000.0f)))return RF_OK;
     ++rf_scene_blackout[1];return RF_OK;
 }
+static int campaign_endgame_name_matches(const char *stored,const char *name,uint32_t bytes)
+{
+    uint32_t i;
+    for(i=0;i<bytes;i++){
+        unsigned char a=(unsigned char)stored[i],b=(unsigned char)name[i];
+        if(a>='A' && a<='Z')a=(unsigned char)(a+('a'-'A'));
+        if(b>='A' && b<='Z')b=(unsigned char)(b+('a'-'A'));
+        if(a!=b)return 0;
+    }
+    return 1;
+}
 static int campaign_endgame_description_load(const char *tables_path,const char *name,char output[512])
 {
     rf_vpp archive={0};rf_vpp_entry entry;char *data=NULL;uint32_t pos=0,used=0;
@@ -8910,7 +8925,9 @@ static int campaign_endgame_description_load(const char *tables_path,const char 
         if(length && data[start+length-1]=='\r')--length;
         if(length>=9 && !memcmp(data+start,"$Name: \"",8)){
             uint32_t n=(uint32_t)strlen(name);
-            matched=length==n+9 && !memcmp(data+start+8,name,n) && data[start+8+n]=='"';
+            /* Authored actor Gryphon and event Shuttle differ in case from
+             * their installed table keys; match those ASCII names as keys. */
+            matched=length==n+9 && campaign_endgame_name_matches(data+start+8,name,n) && data[start+8+n]=='"';
             english=0;continue;
         }
         if(!matched)continue;
@@ -8926,17 +8943,17 @@ static int campaign_endgame_description_load(const char *tables_path,const char 
 done:
     free(data);rf_vpp_close(&archive);return status;
 }
-static int scene_script_endgame(void *context,const rf_level_event *event,int32_t now)
+static int scene_endgame_request(const char *tables_path,const char *name,uint32_t uid,int32_t now)
 {
     int status;uint32_t i,hash=2166136261u;
-    if(!event || !event->name[0])return RF_RANGE;
+    if(!name || !name[0])return RF_RANGE;
     if(campaign_endgame.phase)return RF_OK; /* First terminal request wins. */
     memset(&campaign_endgame,0,sizeof(campaign_endgame));
-    strncpy(campaign_endgame.reason,event->name,sizeof(campaign_endgame.reason)-1);
-    campaign_endgame.uid=event->uid;
-    campaign_endgame.credits=!strcmp(event->name,"call_credits");
+    strncpy(campaign_endgame.reason,name,sizeof(campaign_endgame.reason)-1);
+    campaign_endgame.uid=uid;
+    campaign_endgame.credits=!strcmp(name,"call_credits");
     if(!campaign_endgame.credits){
-        status=campaign_endgame_description_load(context,event->name,campaign_endgame.description);
+        status=campaign_endgame_description_load(tables_path,name,campaign_endgame.description);
         if(status){++rf_scene_endgame_text[1];campaign_endgame.description[0]=0;}
         else {++rf_scene_endgame_text[0];
             rf_scene_endgame_text[2]=(uint32_t)strlen(campaign_endgame.description);
@@ -8949,8 +8966,13 @@ static int scene_script_endgame(void *context,const rf_level_event *event,int32_
         if(status){memset(&campaign_endgame,0,sizeof(campaign_endgame));return status;}
     }
     ++rf_scene_endgame[0];rf_scene_endgame[2]+=campaign_endgame.credits;
-    rf_scene_endgame[3]=event->uid;rf_scene_endgame[4]=campaign_endgame.phase;
+    rf_scene_endgame[3]=uid;rf_scene_endgame[4]=campaign_endgame.phase;
     return RF_OK;
+}
+static int scene_script_endgame(void *context,const rf_level_event *event,int32_t now)
+{
+    if(!event)return RF_RANGE;
+    return scene_endgame_request(context,event->name,event->uid,now);
 }
 static int campaign_show_message(void *context,const rf_level_event *event,int32_t now,uint32_t on)
 {
@@ -9384,6 +9406,14 @@ static int combat_death_start(uint32_t slot)
     owner->death.requested_83c=5;status=rf_scene_npc_death_motion(owner->registration.handle,&ops);
     rf_scene_combat_death[0]=1;rf_scene_combat_death[1]=(uint32_t)owner->death.action_824;
     rf_scene_combat_death[2]=(uint32_t)owner->selection.mapping.actions[5];rf_scene_combat_death[3]=(uint32_t)status;
+    if(!status && (owner->view.flags_810&0x00400000u) &&
+       slot<campaign_seeds.records.count && campaign_triggers.endgame_context){
+        const rf_level_entity *record=&campaign_seeds.records.items[slot].record;
+        /* 42c193..42c1b9: a newly dead, authored-marked actor requests the
+         * terminal reason from its entity name. Type67 may clear the mark. */
+        if(record->script_name[0])status=scene_endgame_request(campaign_triggers.endgame_context,
+            record->script_name,(uint32_t)record->uid,campaign_blackout_now);
+    }
     return status;
 }
 #include "scene_burning.inc"
