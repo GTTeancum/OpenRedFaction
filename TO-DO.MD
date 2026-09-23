@@ -5,7 +5,7 @@ Completion basis (user direction,2026-09-18): working late-alpha/early-beta code
 
 - PRIORITY Ordinary saves: Ordinary L1S1 save/restart/reload/resave and movement now pass PC/Xbox with all16 saved components matching and16.39MiB sampled free; equipped railgun save/restart/fire/resave now also passes PC/Xbox with13.90MiB sampled free and exact saved-state parity; F5/Back+Y save and F9/Back+X same-level load now pass a PC/Xbox save/fire/load/fire session with13.80MiB sampled free and exact saved-state parity; cross-level quick-load now resolves the saved campaign level and passes PC; native cross-level verification, menu/slot selection, ordinary destruction/vehicles and broader resource-only demand remain (saves approximately84%).
 
-- Scripted effects: Play_Sound, Music_Start/Stop, Look_At, Explode and Black_Out_Player still lack runtime dispatch; their event-local save fields are preserved, but implement the gameplay effects separately.
+- Scripted effects: Play_Sound now dispatches delayed on/off to bounded positional audio on PC/Xbox builds; Music_Start/Stop, Look_At, Explode and Black_Out_Player still need gameplay effects, while active sound voices are not saved.
 
 - NPC durability: Authored instance health/armor now apply before persistence restore; PC confirms low-health death, survival and armor absorption, while Xbox fatal-hit/death/drop state matches with20.48MiB free; broader encounters and player startup remain separate (docs/ENTITY-INSTANCE-VITALS.md).
 

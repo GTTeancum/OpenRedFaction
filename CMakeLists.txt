@@ -1496,3 +1496,7 @@ add_test(NAME scene_world_mission_restore COMMAND rf_scene_world_mission_restore
 add_executable(rf_scene_world_environment_checkpoint_tests tests/scene_world_environment_checkpoint_tests.c src/diagnostic/animation.c)
 target_link_libraries(rf_scene_world_environment_checkpoint_tests PRIVATE rf_core)
 add_test(NAME scene_world_environment_checkpoint COMMAND rf_scene_world_environment_checkpoint_tests)
+
+add_executable(rf_event_sound_tests tests/event_sound_tests.c)
+target_link_libraries(rf_event_sound_tests PRIVATE rf_core)
+add_test(NAME event_sound COMMAND rf_event_sound_tests)

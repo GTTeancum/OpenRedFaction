@@ -1200,7 +1200,7 @@ int rf_scene_fire_setup_event(uint32_t uid,int32_t now)
 {
     uint32_t i;rf_startup_events_report report;
     for(i=0;i<campaign_events.count;i++)if(campaign_events.items[i].authored->record.uid==uid) {
-        if(campaign_events.items[i].state.type!=48 && campaign_events.items[i].state.type!=2 && campaign_events.items[i].state.type!=1 && campaign_events.items[i].state.type!=15 && campaign_events.items[i].state.type!=24 && campaign_events.items[i].state.type!=30 && campaign_events.items[i].state.type!=13 && campaign_events.items[i].state.type!=14 && campaign_events.items[i].state.type!=19 && campaign_events.items[i].state.type!=56 && campaign_events.items[i].state.type!=32 && campaign_events.items[i].state.type!=46 && campaign_events.items[i].state.type!=11 && campaign_events.items[i].state.type!=12)return RF_FORMAT;
+        if(campaign_events.items[i].state.type!=0 && campaign_events.items[i].state.type!=48 && campaign_events.items[i].state.type!=2 && campaign_events.items[i].state.type!=1 && campaign_events.items[i].state.type!=15 && campaign_events.items[i].state.type!=24 && campaign_events.items[i].state.type!=30 && campaign_events.items[i].state.type!=13 && campaign_events.items[i].state.type!=14 && campaign_events.items[i].state.type!=19 && campaign_events.items[i].state.type!=56 && campaign_events.items[i].state.type!=32 && campaign_events.items[i].state.type!=46 && campaign_events.items[i].state.type!=11 && campaign_events.items[i].state.type!=12)return RF_FORMAT;
         return rf_runtime_event_fire(&campaign_triggers,campaign_events.items[i].handle,UINT32_MAX,UINT32_MAX,now,&scene_gravity,NULL,NULL,&report);
     }
     return RF_NOT_FOUND;
@@ -8718,6 +8718,7 @@ static void campaign_message_play(const char *name)
     rf_scene_message_audio[3]=(uint32_t)status;
     if(status)++rf_scene_message_audio[2];else ++rf_scene_message_audio[1];
 }
+#include "scene_script_sound.inc"
 static int campaign_show_message(void *context,const rf_level_event *event,int32_t now,uint32_t on)
 {
     rf_level_message next;int status;int32_t duration,deadline;
@@ -16432,6 +16433,7 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
             campaign_triggers.set_nano_shield=campaign_set_nano_shield;campaign_triggers.nano_shield_context=NULL;
             campaign_triggers.set_ai_mode=campaign_set_ai_mode_acquiring;campaign_triggers.ai_mode_context=NULL;
             campaign_triggers.remove_object=campaign_remove_object;
+            scene_script_sound_reset();campaign_triggers.play_sound=scene_script_sound;campaign_triggers.sound_context=NULL;
             campaign_triggers.show_message=campaign_show_message;campaign_triggers.message_context=(void*)level;
             campaign_subtitle_deadline=-1;memset(&campaign_subtitle,0,sizeof(campaign_subtitle));
             campaign_message_voice=-1;memset(rf_scene_message_audio,0,sizeof(rf_scene_message_audio));

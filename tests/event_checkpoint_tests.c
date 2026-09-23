@@ -123,7 +123,7 @@ int main(void)
         put(wire+4,2);put(wire+160,0);checksum(wire);
         CHECK(!rf_event_checkpoint_restore_mapped(wire,192,identity,&resumed,1000,&refs)&&resumed.state.deadline==-1);
     }
-    CHECK(rf_event_checkpoint_external_requirements(0)&RF_EVENT_CHECKPOINT_EXTERNAL_UNIMPLEMENTED);
+    CHECK(rf_event_checkpoint_external_requirements(0)==RF_EVENT_CHECKPOINT_EXTERNAL_AUDIO);
     CHECK(rf_event_checkpoint_external_requirements(17)==RF_EVENT_CHECKPOINT_EXTERNAL_DAMAGE);
     puts("PASS L1S1 event fields, delayed dispatch, UnHide requests, UID remapping and RFEC2 compatibility");return 0;
 }

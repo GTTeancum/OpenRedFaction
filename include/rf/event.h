@@ -357,6 +357,9 @@ typedef struct rf_runtime_triggers {
     void *removal_context;
     int (*slay_object)(void *context,uint32_t handle,uint32_t source,int32_t now);
     void *slay_context;
+    /* Play_Sound0 service; on/off owns a voice keyed by authored event UID. */
+    int (*play_sound)(void *,const rf_level_event *,int32_t,uint32_t);
+    void *sound_context;
     /* Borrowed message presentation service; links identify speakers, not actions. */
     int (*show_message)(void *context,const rf_level_event *event,int32_t now,uint32_t on);
     void *message_context;
