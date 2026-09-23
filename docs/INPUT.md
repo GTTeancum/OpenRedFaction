@@ -31,7 +31,7 @@ is a first-pass hitscan combat loop and partial campaign scripting; the full
 campaign, enemy combat, gun presentation and weapon inventory remain unfinished.
 
 PC campaign controls add F to fire, G for Riot Stick alternate fire, R to reload and Tab to cycle weapons
-(or RT/Y/D-pad Right with XInput). A held cycle button switches only once.
+(or RT/Y/D-pad Right/Right Bumper with XInput). A held cycle button switches only once.
 Launch `rf_pc_play --campaign Installed_Game` for the campaign profile. The
 pistol starts with16 loaded/125 reserve as first-pass policy. Authored assault
 rifle pickups grant ownership and ammunition; primary rifle fire uses three-shot

@@ -150,7 +150,7 @@ static int controller_input(rf_scene_input *out,uint32_t *save,uint32_t *load)
         out->fire|=state.Gamepad.bRightTrigger>30;
         out->alt_fire|=state.Gamepad.bLeftTrigger>30;
         out->reload|=(state.Gamepad.wButtons&XINPUT_GAMEPAD_Y)!=0;
-        out->cycle_weapon|=(state.Gamepad.wButtons&XINPUT_GAMEPAD_DPAD_RIGHT)!=0;
+        out->cycle_weapon|=(state.Gamepad.wButtons&(XINPUT_GAMEPAD_DPAD_RIGHT|XINPUT_GAMEPAD_RIGHT_SHOULDER))!=0;
         out->jump|=(state.Gamepad.wButtons&XINPUT_GAMEPAD_A)!=0;
         out->use|=(state.Gamepad.wButtons&XINPUT_GAMEPAD_X)!=0;
         out->crouch|=(state.Gamepad.wButtons&XINPUT_GAMEPAD_B)!=0;
