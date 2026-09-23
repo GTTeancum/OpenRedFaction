@@ -613,12 +613,12 @@ static void startup_event_action(void *context,rf_event_state *state,uint32_t ac
         return;
     }
     if(state->type==67) {
-        if(action!=1)return;
+        if(action==2)return;
         if(!c->triggers->clear_endgame_if_killed){++c->report->unsupported_actions;return;}
         for(i=0;i<c->event->authored->record.link_count;i++) {
             const rf_level_link_target *link=c->event->links+i;int status;
             if(link->kind!=1 && link->kind!=2)continue;
-            status=c->triggers->clear_endgame_if_killed(c->triggers->clear_endgame_context,link->value);
+            status=c->triggers->clear_endgame_if_killed(c->triggers->clear_endgame_context,link->value,action==1);
             if(status==RF_NOT_FOUND){++c->report->other_targets;continue;}
             if(status){c->status=status;return;}
         }

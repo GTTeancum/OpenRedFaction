@@ -37,5 +37,10 @@ for flags in [0,0x400000,0xffffffff,0x12345678]:
  def hook(cpu,a,n,data):
   if a==0x426fc0:return_boundary(cpu,entity if word(cpu,cpu.reg_read(UC_X86_REG_ESP)+4)==101 else 0)
  u.hook_add(UC_HOOK_CODE,hook);call(u,0x4b9070,ecx=event);after=word(u,entity+0x810);assert after==flags&~0x400000;results.append(dict(clear_initial=hex(flags),clear_after=hex(after)))
+for flags in [0,0x400000,0xffffffff,0x12345678]:
+ u=machine();event=BASE;entity=BASE+0x2000;u.mem_write(event+0x290,w(67));u.mem_write(event+0x29c,w(2,2,BASE+0x4000));u.mem_write(BASE+0x4000,w(101,999));u.mem_write(entity+0x810,w(flags))
+ def hook(cpu,a,n,data):
+  if a==0x426fc0:return_boundary(cpu,entity if word(cpu,cpu.reg_read(UC_X86_REG_ESP)+4)==101 else 0)
+ u.hook_add(UC_HOOK_CODE,hook);call(u,0x4b9f80,ecx=event);after=word(u,entity+0x810);assert after==flags|0x400000;results.append(dict(restore_initial=hex(flags),restore_after=hex(after)))
 report=dict(result='PASS',original_sha256=SHA,cases=len(results),results=results,limitations=['Actual Endgame handler4bd0e0,43e9b0 name handling/string copy and callback43e9a0 executed.','Player transition4a73e0 and state manager434190 intercepted; state19/23 presentation effects not executed.','Actual Clear_Endgame action via generic dispatcher executes; entity resolution intercepted.'])
 (ROOT/'artifacts/future-campaign-re/endgame.json').write_text(json.dumps(report,indent=2)+'\n');print('PASS',len(results),'endgame boundary cases')

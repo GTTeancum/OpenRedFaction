@@ -56,8 +56,10 @@ replay and a stock 64 MiB XEMU replay in
 `[1,0,29688260,4194304]`: the fourth word proves this clear removed a
 genuinely set bit. XEMU ended with 4,348 available pages and its native frame
 shows the expected door and player weapon. Original generic event off-handler `4b9f80`
-calls `4ba1d0` to restore this flag on linked actors; that off transition
-is not yet implemented in the port.
+calls `4ba1d0` to restore this flag on linked actors. The shared runtime now
+does the same on event deactivation; focused original-binary cases and the
+port's Invert-event route verify clear/restore while preserving unrelated
+flags. A naturally deactivated authored campaign event remains unverified.
 
 A 240-frame process-local controller replay stages the player near authored
 L6S3 Gryphon UID 3693, aims and fires normally, then waits through the failure
@@ -79,5 +81,5 @@ message. The native capture is in
 `artifacts/xemu/render-20260923-040131/`; it ends with 5,921 available pages.
 
 Remaining work is language selection beyond English, a menu/load-slot
-choice, credits sequence, event-off re-marking, and checkpoint ownership
+choice, credits sequence, naturally deactivated event coverage, and checkpoint ownership
 if saving during a terminal transition is later allowed.

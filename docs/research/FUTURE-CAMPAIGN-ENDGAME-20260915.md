@@ -2,7 +2,7 @@
 
 ## Result
 
-Nine original boundary scenarios pass in `tools/future_re/campaign_endgame.py`; results `endgame.json`;13 authored events inventoried in `endgame-authored.json`. Actual Endgame handler4bd0e0, name handling43e9b0, callback43e9a0 and Clear_Endgame action4b9440 execute. External player-transition and state-manager calls are intercepted. These establish routing and state requests, not rendered terminal screens or live fades. Same verified original RF.exe as other future campaign reports.
+Thirteen original boundary scenarios pass in `tools/future_re/campaign_endgame.py`; results `endgame.json`;13 authored events inventoried in `endgame-authored.json`. Actual Endgame handler4bd0e0, name handling43e9b0, callback43e9a0 and Clear_Endgame action4b9440 execute. External player-transition and state-manager calls are intercepted. These establish routing and state requests, not rendered terminal screens or live fades. Same verified original RF.exe as other future campaign reports.
 
 ## Endgame is usually mission failure
 
@@ -17,6 +17,8 @@ In particular L15S4 When_Cutscene_Over19886 links Endgame19887 namedShuttle. Tha
 ## Clear_Endgame_If_Killed67
 
 Generic on dispatcher4b9070 calls cdecl4b9440(event). It walks links, resolves entities426fc0, and clears entity DWORD+810 bit0x00400000, retaining every other bit. Four initial flag patterns and one stale link verify behavior. No implicit current-actor target: an empty link list does nothing.
+
+Generic off dispatcher4b9f80 calls4ba1d0 for the same type67 links and ORs bit0x00400000 back into each resolved entity, preserving all other bits. Four additional original initial patterns execute this route in the same harness. The port's shared event graph now applies both directions; ordinary off-event campaign routing remains unverified.
 
 Static death logic42c19f checks this same bit and, under preceding death-policy gates, calls43e9b0 with entity name string+18. Those preceding gates have not been fully recovered here, so don't claim all deaths always end a mission. Another static check4b620a scans these marked entities with427020 and also gates on active cutscene45be80; its broader purpose remains to recover. The clear action should remove story-critical death consequences from precisely linked NPCs, leaving ordinary damage/death unaffected.
 

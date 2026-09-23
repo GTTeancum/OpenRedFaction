@@ -12837,17 +12837,17 @@ static int scene_explosion_blast_source(scene_stream *s,uint32_t frame,const flo
     }
     return RF_OK;
 }
-static int campaign_clear_endgame_if_killed(void *context,uint32_t handle)
+static int campaign_clear_endgame_if_killed(void *context,uint32_t handle,uint32_t clear)
 {
     uint32_t i;(void)context;
     for(i=0;i<campaign_npc_body_count;i++) {
         campaign_npc_body *owner=campaign_npc_bodies+i;
         if(!owner->registration.view || owner->registration.handle!=handle)continue;
         if(rf_object_registry_lookup(&campaign_registry,handle)!=&owner->registration)break;
-        rf_scene_endgame_clear[3]=owner->view.flags_810;
-        owner->view.flags_810&=~0x00400000u;
+        if(clear){rf_scene_endgame_clear[3]=owner->view.flags_810;owner->view.flags_810&=~0x00400000u;}
+        else owner->view.flags_810|=0x00400000u;
         owner->damage.effects.flags_810=owner->view.flags_810;
-        ++rf_scene_endgame_clear[0];rf_scene_endgame_clear[2]=handle;
+        if(clear){++rf_scene_endgame_clear[0];rf_scene_endgame_clear[2]=handle;}
         return RF_OK;
     }
     ++rf_scene_endgame_clear[1];return RF_NOT_FOUND;

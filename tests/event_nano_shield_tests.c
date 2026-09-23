@@ -2,6 +2,7 @@
 #include <stdio.h>
 #define CHECK(x) do{if(!(x)){fprintf(stderr,"FAIL %d %s\n",__LINE__,#x);return 1;}}while(0)
 static uint32_t calls,entity_handle,enabled_state,propagations;static int failure;
+static uint32_t endgame_flags,endgame_calls;
 static int set_shield(void *context,uint32_t handle,uint32_t enabled)
 {
     if(context!=&calls)return RF_FORMAT;
@@ -10,6 +11,14 @@ static int set_shield(void *context,uint32_t handle,uint32_t enabled)
 }
 static int propagated(void *context,const rf_level_event *event)
 {(void)context;(void)event;++propagations;return RF_OK;}
+static int endgame_mark(void *context,uint32_t handle,uint32_t clear)
+{
+    uint32_t *flags=context;
+    if(flags!=&endgame_flags)return RF_FORMAT;
+    if(handle!=entity_handle)return RF_NOT_FOUND;
+    if(clear)*flags&=~0x00400000u;else *flags|=0x00400000u;
+    ++endgame_calls;return RF_OK;
+}
 int main(void)
 {
     rf_runtime_event items[3]={{0}};rf_level_owned_event authored[3]={{0}};
@@ -47,5 +56,11 @@ int main(void)
     CHECK(rf_runtime_event_fire(&triggers,items[0].handle,7,8,700,&gravity,NULL,NULL,&report)==RF_OK && calls==8);
     items[0].state.flags=0;failure=RF_IO;
     CHECK(rf_runtime_event_fire(&triggers,items[0].handle,7,8,700,&gravity,NULL,NULL,&report)==RF_IO && calls==9);
-    puts("Event76 immediate/delayed ON/OFF, duplicate targets, missing backend, disabled and propagation passed");return 0;
+    failure=0;items[0].state.type=67;triggers.clear_endgame_if_killed=endgame_mark;
+    triggers.clear_endgame_context=&endgame_flags;endgame_flags=0x004000a5u;endgame_calls=0;
+    CHECK(rf_runtime_event_fire(&triggers,items[0].handle,7,8,800,&gravity,NULL,NULL,&report)==RF_OK);
+    CHECK(endgame_calls==2 && endgame_flags==0xa5u);
+    CHECK(rf_runtime_event_fire(&triggers,items[1].handle,7,8,800,&gravity,NULL,NULL,&report)==RF_OK);
+    CHECK(endgame_calls==4 && endgame_flags==0x004000a5u);
+    puts("Event76 and Event67 immediate/delayed ON/OFF, duplicate targets, missing backend, disabled and propagation passed");return 0;
 }
