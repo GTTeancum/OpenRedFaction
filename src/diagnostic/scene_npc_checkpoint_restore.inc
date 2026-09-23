@@ -7,7 +7,7 @@
  * callbacks, allocation of live resources or actor publication are permitted. */
 typedef int (*scene_npc_checkpoint_place)(void *,const rf_checkpoint_placement *,rf_entity_room_state *,rf_physics_support_contact *);
 typedef struct scene_npc_checkpoint_restore_entry {
-    uint32_t slot,handle,registered,flags;
+    uint32_t slot,handle,registered,flags,controller_handle;
     rf_npc_checkpoint_record saved,before;
     campaign_npc_body owner_before;rf_entity_pose pose_before;
     rf_physics_body_state body;rf_entity_room_state room;rf_physics_support_contact support;
@@ -108,6 +108,7 @@ static inline int scene_npc_checkpoint_restore_prepare_mode(const rf_npc_checkpo
         vitals=&campaign_seeds.classes[cls].vitals;
         if(rows[i].health>(vitals->health<0?100:vitals->health)||rows[i].armor>vitals->armor){status=RF_FORMAT;goto fail;}
         e->slot=j;e->handle=o->registration.handle;e->registered=o->registration.view!=NULL;e->saved=rows[i];e->idle=-1;
+        status=scene_npc_checkpoint_controller_handle(rows[i].controller_uid,&e->controller_handle);if(status)goto fail;
         if(fresh_boot){
             if(!campaign_poses.items||j>=campaign_poses.count){status=RF_FORMAT;goto fail;}
             e->owner_before=*o;e->pose_before=campaign_poses.items[j];
@@ -253,6 +254,7 @@ static inline void scene_npc_checkpoint_restore_assign(const scene_npc_checkpoin
         }
         o->damage.effects.health=e->saved.health;o->damage.effects.armor=e->saved.armor;o->damage.effects.affiliation=e->saved.affiliation;
         o->ai_mode.action_280=e->saved.ai_mode;o->ai_mode.clock_288=stage->now;
+        o->controller_handle=e->controller_handle;
         o->object_flags=e->flags;memcpy(o->published,e->published,12);memcpy(o->previous,e->published,12);
         memset(o->look.body_angles,0,12);o->look.body_angles[1]=e->saved.yaw;memcpy(o->look.orientation,e->look_basis,36);
         memcpy(o->look.angles.angles_87c,e->saved.eye_angles,12);

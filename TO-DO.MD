@@ -3,11 +3,11 @@
 Completion basis (user direction,2026-09-18): working late-alpha/early-beta code implementation. Overall approximately86%; GeoMod100% for the first playable milestone, accepted by the user. GeoMod items below are deferred refinement and coverage, not prerequisites to moving on. This does not assert retail polish, complete campaign integration or resolution of every known defect.
 
 
-- PRIORITY Ordinary saves: L1S1 save/reload and live quick-load pass PC/Xbox; L15S1 now saves and reloads on PC with exact countdown continuation, including a stationary rotating authored turret; L17S1 still rejects NPC capture, and native L15/load, cross-level load, menu/slot selection, destruction/vehicles and broader resource demand remain (saves approximately85%).
+- PRIORITY Ordinary saves: L1S1 save/reload and live quick-load pass PC/Xbox; L15S1 PC save/reload and L17S1 PC/Xbox save/reload now work, with exact PC countdown continuation and 16 byte-matching native save components; native live quick-load, cross-level load, menu/slot selection, destruction/vehicles and broader resource demand remain (saves approximately87%).
 
 - AI navigation: L6S3 authored Goto actor takes a four-node route with navpoints ON and a direct approach with them OFF, and mid-route OFF invalidation matches Xbox/PC actor state exactly; RFEN2 survives full L18S1 PC reload, while broader NPC travel, mid-route reopening and native reload remain open.
 
-- Campaign countdown: Begin/End/Over/Reaches run on PC/Xbox, and L15S1 PC save/load preserves timer bits and Reaches latches; native save/load, L17 NPC capture, player difficulty, HUD/audio and live expiry/section handoff remain open (docs/CAMPAIGN-COUNTDOWN-FIRST-PASS.md).
+- Campaign countdown: Begin/End/Over/Reaches run on PC/Xbox; L15S1 and L17S1 PC save/load preserve timer bits, while L17S1 native save/load completes; native post-load timer comparison, player difficulty, HUD/audio and live expiry/section handoff remain open (docs/CAMPAIGN-COUNTDOWN-FIRST-PASS.md).
 
 - Xbox retained rendering: L6S3 native static world, model and clutter draws now pass the 480-frame PC/Xbox replay with a near-matching frame and identical final camera and visibility; revisit disabled model bounds culling for performance.
 

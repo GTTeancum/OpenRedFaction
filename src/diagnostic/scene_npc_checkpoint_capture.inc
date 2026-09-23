@@ -29,11 +29,41 @@ static int scene_npc_checkpoint_reject(uint32_t index,const char *reason,uint32_
 #endif
     return status;
 }
+static int scene_npc_checkpoint_controller_uid(uint32_t handle,uint32_t *uid)
+{
+    uint32_t i;
+    if(!uid)return RF_RANGE;*uid=0;if(!handle)return RF_OK;
+    for(i=0;i<campaign_group_registration.count;i++){
+        const rf_group_registered_controller *c=campaign_group_registration.controllers+i;
+        if(c->handle==handle){
+            if(c->object_kind!=8||rf_object_registry_lookup(&campaign_registry,handle)!=c||
+               !c->runtime||!c->runtime->source||!c->runtime->source->keys||
+               !c->runtime->source->record.key_count)return RF_FORMAT;
+            *uid=c->runtime->source->keys[0].uid;
+            return *uid&&*uid!=UINT32_MAX?RF_OK:RF_FORMAT;
+        }
+    }
+    return RF_FORMAT; /* Never omit a persistent NPC with a stale backlink. */
+}
+static int scene_npc_checkpoint_controller_handle(uint32_t uid,uint32_t *handle)
+{
+    uint32_t i;uint32_t found=0;
+    if(!handle)return RF_RANGE;*handle=0;if(!uid)return RF_OK;
+    for(i=0;i<campaign_group_registration.count;i++){
+        const rf_group_registered_controller *c=campaign_group_registration.controllers+i;
+        if(c->runtime&&c->runtime->source&&c->runtime->source->keys&&
+           c->runtime->source->record.key_count&&c->runtime->source->keys[0].uid==uid){
+            if(found||!c->handle||c->object_kind!=8||rf_object_registry_lookup(&campaign_registry,c->handle)!=c)return RF_FORMAT;
+            *handle=c->handle;found=1;
+        }
+    }
+    return found?RF_OK:RF_NOT_FOUND;
+}
 static int scene_npc_checkpoint_row_mode(uint32_t index,int32_t now,rf_npc_checkpoint_record *row,uint32_t initializing)
 {
     const campaign_npc_body *o=campaign_npc_bodies+index;
     const rf_campaign_object_record *key;const rf_entity_pose *pose;
-    uint32_t i,slot=o->persistence_slot;int pending,status;
+    uint32_t i,slot=o->persistence_slot,controller_uid=0;int pending,status;
     int32_t deadlines[5]={o->pain.ai_timer,o->pain.animation_lock,o->pain.cooldown,
         o->unholster.deadline_518,o->death.deadline_4b8};
     if(!o->persistence_registered){return o->registration.view?RF_FORMAT:RF_NOT_FOUND;}
@@ -55,7 +85,9 @@ static int scene_npc_checkpoint_row_mode(uint32_t index,int32_t now,rf_npc_check
     if(o->view.linked_handle!=-1)return scene_npc_checkpoint_reject(index,"linked_handle",0,o->view.linked_handle,RF_RANGE);
     NPC_CAPTURE_ZERO(view.occupant_count);
     if(o->attachment_75c!=-1)return scene_npc_checkpoint_reject(index,"attachment_75c",0,o->attachment_75c,RF_RANGE);
-    NPC_CAPTURE_ZERO(controller_handle);NPC_CAPTURE_ZERO(combat_alert);NPC_CAPTURE_ZERO(combat_scripted);
+    status=scene_npc_checkpoint_controller_uid(o->controller_handle,&controller_uid);
+    if(status)return scene_npc_checkpoint_reject(index,"controller_handle",0,o->controller_handle,status);
+    NPC_CAPTURE_ZERO(combat_alert);NPC_CAPTURE_ZERO(combat_scripted);
     NPC_CAPTURE_ZERO(combat_target);NPC_CAPTURE_ZERO(combat_burst_remaining);NPC_CAPTURE_ZERO(combat_due);
     NPC_CAPTURE_ZERO(combat_reload_due);NPC_CAPTURE_ZERO(combat_navigation_due);NPC_CAPTURE_ZERO(damage.effects.burn);
 #undef NPC_CAPTURE_ZERO
@@ -119,6 +151,7 @@ static int scene_npc_checkpoint_row_mode(uint32_t index,int32_t now,rf_npc_check
     row->yaw=o->look.body_angles[1];memcpy(row->eye_angles,o->look.angles.angles_87c,12);
     row->primary=o->view.weapons[0];row->secondary=o->view.weapons[1];
     row->drop=rf_scene_defeated_actors.drops[slot];row->inventory=o->inventory;row->ai_mode=o->ai_mode.action_280;
+    row->controller_uid=controller_uid;
     if(o->registration.view&&(o->script_animation.active||campaign_poses.items[index].playback.completion.active.count)){
         if(key->retired)return RF_RANGE;
         row->animation_present=1;row->script_animation.active=o->script_animation.active;

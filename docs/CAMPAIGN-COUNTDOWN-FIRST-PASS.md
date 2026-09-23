@@ -47,10 +47,21 @@ build passes, but this L15 save/load continuation has not run in XEMU.
 
 L15S1 also contains inert unimplemented event types. The codec now represents
 their local fields while ordinary capture rejects them if a delayed action is
-pending; this does not implement the actions themselves. L17S1 still rejects
-ordinary NPC capture, independently of the countdown component.
+pending; this does not implement the actions themselves.
+
+L17S1 NPC capture previously rejected UID 20026's live mover-controller
+backlink. RFNC4 now saves the controller's authored first-key UID and rebinds
+it to a fresh handle during restore; RFNC1/2/3 remain readable. In a PC L17S1
+frame-150 save, frame-260 load and 480-frame continuation, the final countdown
+bits `1111717776` match an uninterrupted 369-frame run. The stock 64 MiB XEMU
+L17S1 save and separate fresh-process load both pass in
+`artifacts/xemu/render-20260923-025000/` and
+`artifacts/xemu/render-20260923-025154/`. All 16 native saved components match
+PC byte-for-byte. The native reload reaches 180 frames with 4522 available
+pages (about 17.7 MiB); the captured frame shows the red room, weapon, HUD
+and mission message. The native post-load countdown value was not sampled.
 
 Remaining countdown work: player-selected difficulty and HUD/audio, live
-expiry/mission handoff, a live section transition, L17 save admission and
-native L15 save/load verification. In-memory section ownership already
+expiry/mission handoff, a live section transition, native post-load timer
+comparison and native L15 save/load verification. In-memory section ownership already
 preserves the shared timer, but a live countdown transition is unverified.

@@ -14,6 +14,7 @@ int main(void)
     c.weapons[0]=(rf_weapon_acquire_definition){0,100,12};c.weapons[1]=(rf_weapon_acquire_definition){1,5,0};
     rows[0].uid=7;rows[0].class_id=3;rows[0].health=80;rows[0].armor=15;rows[0].flags=0x4004;
     rows[0].position[0]=4;rows[0].yaw=.5f;rows[0].primary=0;rows[0].secondary=-1;rows[0].ai_mode=2;
+    rows[0].controller_uid=1234;
     rows[0].inventory.owned[0]=1;rows[0].inventory.loaded[0]=4;rows[0].inventory.reserve[0]=120;
     rows[0].eye_angles[0]=.218f;rows[0].eye_angles[1]=1e-7f;rows[0].eye_angles[2]=-.03f;
     rows[1]=rows[0];rows[1].uid=10;rows[1].retired=1;rows[1].health=-3;
@@ -28,7 +29,7 @@ int main(void)
      for(uint32_t i=0;i<2;i++)memcpy(legacy+64+i*RF_NPC_CHECKPOINT_ROW_V1,blob+64+i*RF_NPC_CHECKPOINT_ROW,RF_NPC_CHECKPOINT_ROW_V1);
      reseal(legacy,sizeof(legacy));
      CHECK(!rf_npc_checkpoint_decode(legacy,sizeof(legacy),identity,&c,out,2,&count));
-     CHECK(out[0].eye_angles[0]==0&&out[0].eye_angles[1]==0&&out[0].eye_angles[2]==0&&out[1].uid==10);
+     CHECK(out[0].eye_angles[0]==0&&out[0].eye_angles[1]==0&&out[0].eye_angles[2]==0&&out[0].controller_uid==0&&out[1].uid==10);
     }
     memcpy(original,blob,bytes);memset(out,0x5a,sizeof(out));memcpy(saved,out,sizeof(out));count=99;
     CHECK(rf_npc_checkpoint_decode(blob,bytes,wrong,&c,out,2,&count)==RF_FORMAT&&count==99&&!memcmp(saved,out,sizeof(out)));
@@ -53,7 +54,7 @@ int main(void)
     CHECK(rf_npc_checkpoint_encode(identity,&c,rows,2,blob,sizeof(blob)-1,&written)==RF_RANGE);
     /* Optional animation retains the exact mixed-slot continuation state. */
     {
-        unsigned char wire[64+RF_NPC_CHECKPOINT_ROW_MAX],broken[sizeof(wire)],legacy2[64+RF_NPC_CHECKPOINT_ROW_V2];
+        unsigned char wire[64+RF_NPC_CHECKPOINT_ROW_MAX],broken[sizeof(wire)],legacy2[64+RF_NPC_CHECKPOINT_ROW_V2],legacy3[sizeof(wire)];
         rf_npc_checkpoint_record actor=rows[0],decoded,untouched;rf_motion_playback_resource resources[2]={0},restored_resources[2];
         rf_motion_playback_state expected;uint32_t n=0,got=0;
         actor.animation_present=1;actor.script_animation.active=1;actor.script_animation.motion=1;
@@ -66,6 +67,14 @@ int main(void)
         CHECK(!rf_npc_checkpoint_encode(identity,&c,&actor,1,wire,sizeof(wire),&n));
         CHECK(n==64+RF_NPC_CHECKPOINT_ROW+RF_NPC_CHECKPOINT_ANIMATION_BASE+24);
         CHECK(!rf_npc_checkpoint_decode(wire,n,identity,&c,&decoded,1,&got)&&got==1&&!memcmp(&actor,&decoded,sizeof(actor)));
+        {uint32_t old_bytes=n-4;
+         memcpy(legacy3,wire,64);memcpy(legacy3+64,wire+64,RF_NPC_CHECKPOINT_ROW_V3);
+         memcpy(legacy3+64+RF_NPC_CHECKPOINT_ROW_V3,wire+64+RF_NPC_CHECKPOINT_ROW,n-64-RF_NPC_CHECKPOINT_ROW);
+         legacy3[4]=3;for(uint32_t i=0;i<4;i++)legacy3[8+i]=(unsigned char)(old_bytes>>(8*i));
+         reseal(legacy3,old_bytes);
+         CHECK(!rf_npc_checkpoint_decode(legacy3,old_bytes,identity,&c,&decoded,1,&got));
+         CHECK(decoded.animation_present&&decoded.playback.completion.active.count==2&&decoded.controller_uid==0);}
+        CHECK(!rf_npc_checkpoint_decode(wire,n,identity,&c,&decoded,1,&got)&&decoded.controller_uid==1234);
         for(uint32_t i=0;i<2;i++){resources[i].comparison.weight=1;resources[i].comparison.end_tick=10000;resources[i].references=1;}
         resources[0].looping=1;resources[0].markers[0]=3000;resources[0].markers[1]=7500;
         memcpy(restored_resources,resources,sizeof(resources));expected=actor.playback;
@@ -99,7 +108,7 @@ int main(void)
         memcpy(legacy2,wire,64);memcpy(legacy2+64,wire+64,RF_NPC_CHECKPOINT_ROW_V2);legacy2[4]=2;
         for(uint32_t i=0;i<4;i++)legacy2[8+i]=(unsigned char)(sizeof(legacy2)>>(8*i));
         reseal(legacy2,sizeof(legacy2));CHECK(!rf_npc_checkpoint_decode(legacy2,sizeof(legacy2),identity,&c,&decoded,1,&got));
-        CHECK(!decoded.animation_present&&decoded.eye_angles[0]==actor.eye_angles[0]);
+        CHECK(!decoded.animation_present&&decoded.eye_angles[0]==actor.eye_angles[0]&&!decoded.controller_uid);
     }
     status=rf_npc_checkpoint_encode(identity,&c,NULL,0,blob,sizeof(blob),&written);
     CHECK(!status&&written==64&&!rf_npc_checkpoint_decode(blob,written,identity,&c,NULL,0,&count)&&!count);

@@ -86,7 +86,7 @@ static void write_animation(unsigned char *p,const rf_npc_checkpoint_record *r)
 static int valid(const rf_npc_checkpoint_record *r,const rf_npc_checkpoint_catalog *c)
 {
     uint32_t i;uint8_t used[32]={0};
-    if(r->uid==UINT32_MAX||r->class_id==UINT32_MAX||r->retired>1||(r->flags&~0x4004u)||
+    if(r->uid==UINT32_MAX||r->class_id==UINT32_MAX||r->controller_uid==UINT32_MAX||r->retired>1||(r->flags&~0x4004u)||
        !isfinite(r->health)||(!r->retired&&r->health<=0)||!isfinite(r->armor)||r->armor<0||
        !isfinite(r->yaw)||
        (r->ai_mode!=-1&&r->ai_mode!=0&&r->ai_mode!=1&&r->ai_mode!=2&&r->ai_mode!=11))return RF_FORMAT;
@@ -119,7 +119,8 @@ static void read_row(const unsigned char *p,uint32_t version,rf_npc_checkpoint_r
     for(i=0;i<64;i++)r->inventory.loaded[i]=signed_word(p+268+i*4);
     r->ai_mode=signed_word(p+524);
     if(version>=2)for(i=0;i<3;i++)r->eye_angles[i]=real(p+528+i*4);
-    if(version>=3&&word(p+540))read_animation(p+544,r);
+    if(version>=4)r->controller_uid=word(p+544);
+    if(version>=3&&word(p+540))read_animation(p+(version>=4?548:544),r);
 }
 static void write_row(unsigned char *p,const rf_npc_checkpoint_record *r)
 {
@@ -131,7 +132,8 @@ static void write_row(unsigned char *p,const rf_npc_checkpoint_record *r)
     for(i=0;i<32;i++)put(p+140+i*4,(uint32_t)r->inventory.reserve[i]);
     for(i=0;i<64;i++)put(p+268+i*4,(uint32_t)r->inventory.loaded[i]);put(p+524,(uint32_t)r->ai_mode);
     for(i=0;i<3;i++)put_real(p+528+i*4,r->eye_angles[i]);
-    put(p+540,animation_bytes(r));if(r->animation_present)write_animation(p+544,r);
+    put(p+540,animation_bytes(r));put(p+544,r->controller_uid);
+    if(r->animation_present)write_animation(p+RF_NPC_CHECKPOINT_ROW,r);
 }
 int rf_npc_checkpoint_encode(const unsigned char identity[32],const rf_npc_checkpoint_catalog *c,
     const rf_npc_checkpoint_record *rows,uint32_t count,void *output,uint32_t capacity,uint32_t *written)
@@ -142,17 +144,17 @@ int rf_npc_checkpoint_encode(const unsigned char identity[32],const rf_npc_check
     bytes=64+count*RF_NPC_CHECKPOINT_ROW;if(bytes>capacity)return RF_RANGE;
     for(i=0;i<count;i++){status=valid(rows+i,c);if(status)return status;if(i&&rows[i-1].uid>=rows[i].uid)return RF_FORMAT;bytes+=animation_bytes(rows+i);}
     if(bytes>capacity)return RF_RANGE;
-    memset(p,0,bytes);memcpy(p,"RFNC",4);put(p+4,3);put(p+8,bytes);put(p+16,count);memcpy(p+24,identity,32);put(p+56,c->hash);
+    memset(p,0,bytes);memcpy(p,"RFNC",4);put(p+4,4);put(p+8,bytes);put(p+16,count);memcpy(p+24,identity,32);put(p+56,c->hash);
     for(i=0,at=64;i<count;i++){write_row(p+at,rows+i);at+=RF_NPC_CHECKPOINT_ROW+animation_bytes(rows+i);}
     put(p+12,hash(p,bytes));*written=bytes;return RF_OK;
 }
 static int row_span(const unsigned char *p,uint32_t available,uint32_t version,uint32_t *span)
 {
-    uint32_t base=version==1?RF_NPC_CHECKPOINT_ROW_V1:version==2?RF_NPC_CHECKPOINT_ROW_V2:RF_NPC_CHECKPOINT_ROW,n=0;
+    uint32_t base=version==1?RF_NPC_CHECKPOINT_ROW_V1:version==2?RF_NPC_CHECKPOINT_ROW_V2:version==3?RF_NPC_CHECKPOINT_ROW_V3:RF_NPC_CHECKPOINT_ROW,n=0;
     if(available<base)return RF_FORMAT;
-    if(version==3){n=word(p+540);if(n){
+    if(version>=3){n=word(p+540);if(n){
         uint32_t count;if(n<RF_NPC_CHECKPOINT_ANIMATION_BASE||n>RF_NPC_CHECKPOINT_ANIMATION_BASE+192||n>available-base)return RF_FORMAT;
-        count=word(p+544+16);if(count>16||n!=RF_NPC_CHECKPOINT_ANIMATION_BASE+12*count)return RF_FORMAT;
+        count=word(p+base+16);if(count>16||n!=RF_NPC_CHECKPOINT_ANIMATION_BASE+12*count)return RF_FORMAT;
     }}
     *span=base+n;return RF_OK;
 }
@@ -162,7 +164,7 @@ static int decode(const void *data,uint32_t bytes,const unsigned char identity[3
     const unsigned char *p=data;rf_npc_checkpoint_record r;uint32_t i,count,version,span,at,previous=0;int status;
     if(!data||!identity||!out_count)return RF_RANGE;
     status=catalog_valid(c);if(status)return status;
-    if(bytes<64||bytes>64+RF_NPC_CHECKPOINT_MAX_COUNT*RF_NPC_CHECKPOINT_ROW_MAX||memcmp(p,"RFNC",4)||word(p+4)<1||word(p+4)>3||
+    if(bytes<64||bytes>64+RF_NPC_CHECKPOINT_MAX_COUNT*RF_NPC_CHECKPOINT_ROW_MAX||memcmp(p,"RFNC",4)||word(p+4)<1||word(p+4)>4||
        word(p+8)!=bytes||word(p+20)||word(p+60)||word(p+56)!=c->hash||memcmp(p+24,identity,32)||word(p+12)!=hash(p,bytes))return RF_FORMAT;
     version=word(p+4);count=word(p+16);if(count>RF_NPC_CHECKPOINT_MAX_COUNT)return RF_FORMAT;
     if(publish&&(count>capacity||(count&&!rows)))return RF_RANGE;

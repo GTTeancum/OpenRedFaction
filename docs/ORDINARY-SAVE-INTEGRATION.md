@@ -1,5 +1,16 @@
 # Ordinary-level saves: implementation workstream
 
+## Current milestone: L17 native save/reload (2026-09-23)
+
+RFNC4 encodes NPC mover-controller backlinks as authored first-key UIDs and
+rebinds them to live handles before publication. This admits L17S1's UID 20026
+without preserving a stale runtime handle. PC L17S1 live save/load completes,
+and the final countdown bits match a continuous run. On stock 64 MiB XEMU,
+the L17 save's 16 components exactly match PC and a separate native load
+reaches 180 frames with 4522 pages available (about 17.7 MiB). Its native
+framebuffer was inspected. The native post-load countdown bits, live native
+quick-load, other levels and unsaved dynamic systems remain open.
+
 
 ## Current milestone: fresh ordinary PC reload (2026-09-22)
 

@@ -71,6 +71,9 @@ int main(void)
     fit_state=(fit_context){0};rows[1].class_id=1;
     CHECK(scene_npc_checkpoint_restore_prepare(rows,2,&catalog,1000,fit,&fit_state,65536,&stage)==RF_FORMAT);
     CHECK(!stage&&!memcmp(owners,before,sizeof(before))&&clip.references==0);rows[1].class_id=0;
+    fit_state=(fit_context){0};rows[1].controller_uid=1234;
+    CHECK(scene_npc_checkpoint_restore_prepare(rows,2,&catalog,1000,fit,&fit_state,65536,&stage)==RF_NOT_FOUND);
+    CHECK(!stage&&!memcmp(owners,before,sizeof(before))&&clip.references==0);rows[1].controller_uid=0;
     fit_state=(fit_context){0};CHECK(!scene_npc_checkpoint_restore_prepare(rows,2,&catalog,1000,fit,&fit_state,65536,&stage));
     CHECK(!memcmp(owners,before,sizeof(before))&&clip.references==0);
     owners[1].damage.effects.health=89;CHECK(scene_npc_checkpoint_restore_commit(stage)==RF_FORMAT);

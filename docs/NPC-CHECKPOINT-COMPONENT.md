@@ -1,7 +1,14 @@
 # Ordinary saves: NPC component preparation
 
+Current status (2026-09-23): RFNC4 adds a 548-byte base row with the mover
+controller's authored UID at offset 544; zero means no backlink. RFNC1/2/3
+remain readable. The scene adapter rejects unknown backlinks and restores the
+saved UID to a fresh controller handle before publication. This admits L17S1
+UID 20026: PC save/load and stock 64 MiB Xbox save/load pass. The sections
+below describe the earlier component-staging work and historical limitations.
 
-Current RFNC3: base rows544 bytes (RFNC2 eye angles plus optional trailer length at540). Optional animation trailer is108+12*active_slot_count bytes; maximum row844. It preserves script ownership and generic playback/controller state, including ambient mapped loops without script ownership. RFNC1/2 remain readable. Scene rejects unsupported non-script action clips and unsaved gameplay owners. Actual unmodified L1S1 capture now covers78 actors (51868 bytes); whole-world reload remains incomplete. See ORDINARY-SAVE-INTEGRATION.md for current evidence and blockers.
+
+Earlier RFNC3: base rows544 bytes (RFNC2 eye angles plus optional trailer length at540). Optional animation trailer is108+12*active_slot_count bytes; maximum row844. It preserves script ownership and generic playback/controller state, including ambient mapped loops without script ownership. RFNC1/2 remain readable. Scene rejects unsupported non-script action clips and unsaved gameplay owners. See ORDINARY-SAVE-INTEGRATION.md for current evidence and blockers.
 
 The first current admission blocker is `scene_checkpoint_player_scope_mode` in `scene_player_checkpoint.inc`: it requires DEV, rejects all NPCs and movers, then restricts the level to ctf06.rfl or glass_house.rfl. RFCP5 contains no NPC payload. Removing that gate would reset NPC progress, not implement ordinary saves. Static-clutter identity additionally rejects moved/nonordinary props. These restrictions remain intact.
 
