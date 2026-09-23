@@ -152,6 +152,10 @@ void rf_runtime_events_close(rf_runtime_events *events);
 int rf_runtime_events_resolve(rf_runtime_events *events,
     const rf_level_uid_object *objects,uint32_t object_count,
     const rf_level_uid_key *keys,uint32_t key_count);
+/* Type69 only: replace authored link UIDs with first matching navigation
+ * indices once after level navigation opens. Missing links stay inert. */
+int rf_runtime_events_bind_navigation(rf_runtime_events *events,
+    const rf_level_owned_navigation *navigation);
 /* action=0 off, 1 on, 2 propagate. Callbacks may mutate state, which must
  * remain alive throughout the call. No registration or event actions supplied.
  * Callback mode is the raw low byte; action selection follows original rules. */
@@ -363,6 +367,9 @@ typedef struct rf_runtime_triggers {
     /* Music_Start/Stop share one nonspatial streamed music owner. */
     int (*music)(void *,const rf_level_event *,int32_t,uint32_t);
     void *music_context;
+    /* Enable_Navpoint69 receives a post-load navigation index, not a registry handle. */
+    int (*navpoint)(void *,uint32_t index,uint32_t on);
+    void *navpoint_context;
     /* Black_Out_Player; the scene owns the timed visual state. */
     int (*black_out_player)(void *,const rf_level_event *,int32_t,uint32_t);
     void *blackout_context;

@@ -60,6 +60,7 @@ extern uint32_t rf_scene_alarm[12];
 extern uint32_t rf_scene_script_explode[10];
 extern uint32_t rf_scene_script_explode_geometry[8];
 extern uint32_t rf_scene_music[8];
+extern uint32_t rf_scene_navpoint[8];
 extern uint32_t rf_scene_script_explode_visual[8];
 extern uint32_t rf_scene_script_look_at[9];
 extern uint32_t rf_scene_world_texture_budget[4];

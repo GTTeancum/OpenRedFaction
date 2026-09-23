@@ -578,6 +578,16 @@ static void startup_event_action(void *context,rf_event_state *state,uint32_t ac
             &c->event->authored->record,c->now,action==1);
         return;
     }
+    if(state->type==69) {
+        if(action==2)return;
+        if(!c->triggers->navpoint){++c->report->unsupported_actions;return;}
+        for(i=0;i<c->event->authored->record.link_count;i++)if(c->event->links[i].kind==3) {
+            int status=c->triggers->navpoint(c->triggers->navpoint_context,c->event->links[i].value,action==1);
+            if(status==RF_NOT_FOUND){++c->report->other_targets;continue;}
+            if(status){c->status=status;return;}
+        }
+        return;
+    }
     if(state->type==61) {
         if(action==2)return;
         if(!c->triggers->black_out_player){++c->report->unsupported_actions;return;}
@@ -1172,6 +1182,7 @@ int rf_runtime_events_tick(rf_runtime_events *events,rf_runtime_triggers *trigge
            !(event->state.type==1 && triggers->slay_object) &&
            !(event->state.type==0 && triggers->play_sound) &&
            !((event->state.type==41 || event->state.type==42) && triggers->music) &&
+           !(event->state.type==69 && triggers->navpoint) &&
            !(event->state.type==61 && triggers->black_out_player) &&
            !(event->state.type==10 && triggers->explode) &&
            !(event->state.type==7 && triggers->look_at) &&
@@ -1263,9 +1274,30 @@ int rf_runtime_events_resolve(rf_runtime_events *events,
     uint32_t i,j;int status;
     if(!events || (object_count && !objects) || (key_count && !keys))return RF_RANGE;
     for(i=0;i<events->count;++i)for(j=0;j<events->items[i].authored->record.link_count;++j) {
+        if(events->items[i].state.type==69){
+            events->items[i].links[j]=(rf_level_link_target){
+                events->items[i].authored->links[j],0,UINT32_MAX};
+            continue;
+        }
         status=rf_level_link_resolve(events->items[i].authored->links[j],objects,object_count,
             keys,key_count,events->items[i].links+j);
         if(status)return status;
+    }
+    return RF_OK;
+}
+int rf_runtime_events_bind_navigation(rf_runtime_events *events,
+    const rf_level_owned_navigation *navigation)
+{
+    uint32_t i,j,n;
+    if(!events || !navigation || (navigation->count && !navigation->nodes))return RF_RANGE;
+    for(i=0;i<events->count;i++)if(events->items[i].state.type==69) {
+        rf_runtime_event *event=events->items+i;
+        for(j=0;j<event->authored->record.link_count;j++){
+            uint32_t uid=event->authored->links[j];rf_level_link_target *link=event->links+j;
+            for(n=0;n<navigation->count && navigation->nodes[n].uid!=uid;n++){}
+            *link=(rf_level_link_target){n<navigation->count?n:uid,
+                n<navigation->count?3u:0u,n<navigation->count?n:UINT32_MAX};
+        }
     }
     return RF_OK;
 }

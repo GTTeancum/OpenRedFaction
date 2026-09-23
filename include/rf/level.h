@@ -687,7 +687,7 @@ int rf_group_registration_open(rf_group_runtime_collection *runtime,rf_object_re
     uint32_t budget,rf_group_registration *result);
 void rf_group_registration_close(rf_group_registration *registration);
 typedef struct rf_level_link_target {
-    uint32_t value,kind,index; /* kind: 0 unresolved, 1 object, 2 key owner */
+    uint32_t value,kind,index; /* kind: 0 unresolved, 1 object, 2 key owner, 3 nav index */
 } rf_level_link_target;
 /* First object match, then first key owner; missing UID stays unchanged.
  * Object UID -1 never matches; -999 skips object flag bit 2. Key lookup has

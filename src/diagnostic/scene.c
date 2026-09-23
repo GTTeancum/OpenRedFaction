@@ -1031,6 +1031,7 @@ static unsigned char *campaign_waypoints;static uint32_t campaign_waypoint_bytes
 static rf_level_navigation_workspace campaign_navigation_workspace;
 uint32_t rf_scene_navigation_workspace[4]; /* globals, bytes, edges, layout hash */
 uint32_t rf_scene_navigation[6]; /* nodes, edges, tags, oriented, bytes, content hash */
+uint32_t rf_scene_navpoint[8]; /* bound,missing,on writes,off writes,last index,last UID,old radius bits,new radius bits */
 static rf_physics_force_collection campaign_forces;
 static uint32_t campaign_force_class_flags,campaign_force_class_kind,campaign_player_material;
 static float campaign_liquid_damage_rates[2];
@@ -4072,6 +4073,7 @@ static int campaign_navigation_open(const rf_level *level)
 {
     uint32_t i,hash=2166136261u;int status;
     memset(rf_scene_navigation,0,sizeof(rf_scene_navigation));
+    memset(rf_scene_navpoint,0,sizeof(rf_scene_navpoint));
     memset(rf_scene_navigation_workspace,0,sizeof(rf_scene_navigation_workspace));
     status=rf_level_owned_navigation_open(level,65536,&campaign_navigation);
     if(status==RF_NOT_FOUND)return RF_OK;
@@ -4113,6 +4115,19 @@ static int campaign_navigation_open(const rf_level *level)
         hash=npc_hash_bytes(hash,list->items,list->count*4);
     }
     rf_scene_navigation_workspace[3]=hash;return RF_OK;
+}
+static int campaign_navpoint_set(void *context,uint32_t index,uint32_t on)
+{
+    rf_level_owned_navigation *nav=context;rf_entity_navigation_candidate *candidate;uint32_t before,after;
+    if(!nav || index>=nav->count)return RF_NOT_FOUND;
+    candidate=&nav->nodes[index].candidate;
+    memcpy(&before,&candidate->radius,4);
+    if(on){memcpy(&candidate->radius,&candidate->retained_018,4);++rf_scene_navpoint[2];}
+    else {candidate->radius=0.0f;++rf_scene_navpoint[3];}
+    memcpy(&after,&candidate->radius,4);
+    rf_scene_navpoint[4]=index;rf_scene_navpoint[5]=nav->nodes[index].uid;
+    rf_scene_navpoint[6]=before;rf_scene_navpoint[7]=after;
+    return RF_OK;
 }
 static void campaign_npc_materials_digest(void)
 {
@@ -5250,9 +5265,13 @@ static int campaign_resolve_trigger_links(void)
     }
     if(!status)status=rf_runtime_events_resolve(&campaign_events,objects,n,
         campaign_group_registration.keys,campaign_group_registration.key_count);
+    if(!status)status=rf_runtime_events_bind_navigation(&campaign_events,&campaign_navigation);
     free(objects);
     memset(rf_scene_campaign_links,0,sizeof(rf_scene_campaign_links));
     if(status)return status;
+    for(i=0;i<campaign_events.count;i++)if(campaign_events.items[i].state.type==69)
+        for(j=0;j<campaign_events.items[i].authored->record.link_count;j++)
+            ++rf_scene_navpoint[campaign_events.items[i].links[j].kind==3?0:1];
     memset(rf_scene_campaign_event_links,0,sizeof(rf_scene_campaign_event_links));
     rf_scene_campaign_event_links[3]=2166136261u;
     for(i=0;i<campaign_events.count;++i)for(j=0;j<campaign_events.items[i].authored->record.link_count;++j) {
@@ -16641,6 +16660,7 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
             campaign_triggers.remove_object=campaign_remove_object;
             scene_script_sound_reset();campaign_triggers.play_sound=scene_script_sound;campaign_triggers.sound_context=NULL;
             campaign_triggers.music=scene_script_music;campaign_triggers.music_context=NULL;
+            campaign_triggers.navpoint=campaign_navpoint_set;campaign_triggers.navpoint_context=&campaign_navigation;
             campaign_triggers.black_out_player=scene_script_blackout;campaign_triggers.blackout_context=NULL;
             campaign_triggers.explode=scene_script_explode;campaign_triggers.explode_context=stream;
             campaign_triggers.show_message=campaign_show_message;campaign_triggers.message_context=(void*)level;
