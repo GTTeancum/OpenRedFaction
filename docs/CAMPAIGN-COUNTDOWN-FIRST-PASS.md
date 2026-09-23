@@ -81,6 +81,20 @@ inspected. The emulator run disables audio output, so audibility is not yet
 verified. The replay checker now compares exact countdown and scripted-sound
 state on each native run.
 
-Remaining countdown work: player-selected difficulty, timer HUD, later mission
+The shared combat HUD now displays a bounded `TIME MM:SS` while an authored
+countdown is active, rounding remaining time upward so it does not show zero
+before expiry; the final minute is amber and the final ten seconds red. A
+90-frame L17S1 replay activating authored Begin UID 19998 passes on PC and
+stock 64 MiB XEMU in `artifacts/xemu/render-20260923-050123/`. The native
+framebuffer visibly shows `TIME 00:54`, the PC/Xbox countdown words match
+exactly (`[1112936727,0,1]`), and 4,682 physical pages remain available.
+This is a functional first-pass HUD, not a retail-style presentation claim.
+
+Authored L17S3 Over UID 20682 activates Black_Out_Player UID 20683 and
+Play_Sound UID 21194; the latter has an outgoing link to Endgame UID 21219
+(`escape_pod`). This installed-level link chain identifies the later failure
+route, but a live timed traversal through that chain remains unverified.
+
+Remaining countdown work: player-selected difficulty, retail HUD styling, later mission
 outcome after expiry or escape, captured native audio output, native long-run
 expiry, native post-load timer comparison and native L15 save/load verification.

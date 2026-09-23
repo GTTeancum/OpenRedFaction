@@ -13681,6 +13681,14 @@ int rf_scene_draw_combat_hud(rf_scene_particle_sink sink,void *context)
     if(vehicle)scene_vehicle_hud_values(particle_draw_stream,&vehicle_health,vehicle_ammo);
     status=scene_scanner_draw(sink,context);if(status)return status;
     status=campaign_draw_subtitle(sink,context);if(status)return status;
+    if(rf_scene_campaign_countdown.remaining>0 && !campaign_endgame.phase){
+        char timer[16];uint32_t seconds=(uint32_t)ceilf(rf_scene_campaign_countdown.remaining);
+        uint32_t timer_color=seconds<=10?0xffee6060:seconds<=60?0xffffc060:0xffeeeeee;
+        if(seconds>5999)seconds=5999;
+        snprintf(timer,sizeof(timer),"TIME %02u:%02u",seconds/60,seconds%60);
+        status=combat_hud_rect(sink,context,492,20,132,22,0xff101010);if(status)return status;
+        status=combat_hud_text(sink,context,498,24,timer,timer_color);if(status)return status;
+    }
     if(scene_live_save_until&&combat_frame<scene_live_save_until){
         const char *message=scene_live_notice_load?
             (!scene_live_save_status?"GAME LOADED":scene_live_save_status==RF_IO?"LOAD FAILED - STORAGE ERROR":"NO COMPATIBLE SAVE"):

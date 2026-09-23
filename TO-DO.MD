@@ -1,13 +1,13 @@
 # Red Faction Xbox / PC - open work
 
-Completion basis (user direction,2026-09-18): working late-alpha/early-beta code implementation. Overall approximately86%; GeoMod100% for the first playable milestone, accepted by the user. GeoMod items below are deferred refinement and coverage, not prerequisites to moving on. This does not assert retail polish, complete campaign integration or resolution of every known defect.
+Completion basis (user direction,2026-09-18): working late-alpha/early-beta code implementation. Overall approximately87%; GeoMod100% for the first playable milestone, accepted by the user. GeoMod items below are deferred refinement and coverage, not prerequisites to moving on. This does not assert retail polish, complete campaign integration or resolution of every known defect.
 
 
 - PRIORITY Ordinary saves: L1S1 save/reload and live quick-load pass PC/Xbox, including L5S4 failure-screen recovery into an earlier L1S1 save; L15S1 PC and L17S1 PC/Xbox save/reload work, while general cross-level coverage, menu/slot selection, destruction/vehicles and broader resource demand remain (saves approximately89%).
 
 - AI navigation: L6S3 authored Goto actor takes a four-node route with navpoints ON and a direct approach with them OFF, and mid-route OFF invalidation matches Xbox/PC actor state exactly; RFEN2 survives full L18S1 PC reload, while broader NPC travel, mid-route reopening and native reload remain open.
 
-- Campaign countdown: Begin/End/Over/Reaches run on PC/Xbox; L15/L17 PC save/load preserves timer bits and L17 native save/load works; live PC L17S1→S2 retains the timer and consumes expiry with visible blackout, while the reactor blast sound now starts on PC/Xbox; native post-load/expiry comparison, player difficulty, timer HUD, captured audio output and the complete mission-failure route remain open (docs/CAMPAIGN-COUNTDOWN-FIRST-PASS.md).
+- Campaign countdown: Begin/End/Over/Reaches and a visible timed-mission HUD run on PC/Xbox; L15/L17 PC save/load and L17 native save/load preserve timer bits, live PC L17S1→S2 consumes expiry with blackout, and reactor blast sound starts on PC/Xbox; native post-load/expiry comparison, player difficulty, captured audio output and the complete mission-failure route remain open (docs/CAMPAIGN-COUNTDOWN-FIRST-PASS.md).
 
 - Campaign endgame: Authored failures, protected-NPC death, English descriptions, restart and cross-level quick-load recovery run on PC/Xbox, and event off restores the protection flag; natural off-event coverage, other languages, menu/slot choice, credits and transition persistence remain (docs/CAMPAIGN-ENDGAME-FIRST-PASS.md).
 
