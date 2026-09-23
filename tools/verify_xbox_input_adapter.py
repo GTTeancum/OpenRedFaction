@@ -50,7 +50,17 @@ assert struct.unpack('<I',u.mem_read(pending,4))[0]==0, 'Held chord repeated sav
 buttons=set();assert invoke('rf_xbox_input_poll',0,11,base)==0
 buttons={4,3};assert invoke('rf_xbox_input_poll',0,12,base)==0
 assert struct.unpack('<I',u.mem_read(pending,4))[0]==1, 'Released chord must rearm'
+buttons={4,2};assert invoke('rf_xbox_input_poll',0,13,base)==0
+assert bytes(u.mem_read(base,48))==bytes(48)
+load_pending=symbol('scene_live_load_pending')
+assert struct.unpack('<I',u.mem_read(load_pending,4))[0]==1
+u.mem_write(load_pending,bytes(4))
+assert invoke('rf_xbox_input_poll',0,14,base)==0
+assert struct.unpack('<I',u.mem_read(load_pending,4))[0]==0
+buttons=set();assert invoke('rf_xbox_input_poll',0,15,base)==0
+buttons={4,2};assert invoke('rf_xbox_input_poll',0,16,base)==0
+assert struct.unpack('<I',u.mem_read(load_pending,4))[0]==1
 invoke('rf_xbox_input_close')
 assert invoke('rf_xbox_input_poll',0,10,base)==-4
-report=dict(result='PASS',cases=len(cases)+4,scope='Compiled NXDK adapter with simulated SDL API returns: deadzone, axis extrema, diagonal normalization, crouch, disconnect/reconnect, Back+Start clean stop, Back+Y quick-save suppression/release/edge latch, closed guard. No hardware or host input.')
+report=dict(result='PASS',cases=len(cases)+8,scope='Compiled NXDK adapter with simulated SDL API returns: deadzone, axis extrema, diagonal normalization, crouch, disconnect/reconnect, Back+Start clean stop, Back+Y quick-save and Back+X quick-load suppression/release/edge latch, closed guard. No hardware or host input.')
 (root/'artifacts/xbox-input-adapter-verification.json').write_text(json.dumps(report,indent=2));print(report)

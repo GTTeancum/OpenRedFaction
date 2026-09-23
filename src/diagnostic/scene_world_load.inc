@@ -8,7 +8,7 @@ static int scene_world_load(scene_stream *stream,const rf_level *level,const cha
 {
     extern rf_entity_room_state rf_scene_actor_room_state;
 #ifndef RF_IMAGE_XBOX_NATIVE
-    const char *path=getenv("RF_REPLAY_WORLD_SNAPSHOT_IN");
+    const char *path=scene_live_load_active?"redfaction-save":getenv("RF_REPLAY_WORLD_SNAPSHOT_IN");
 #else
     rf_xbox_checkpoint_storage storage={0};uint32_t enabled=0;
     const char *path=RF_XBOX_WORLD_CHECKPOINT_BASE;
@@ -23,7 +23,7 @@ static int scene_world_load(scene_stream *stream,const rf_level *level,const cha
     scene_checkpoint_world_context context={0};rf_geometry_materials mapping={0};rf_geometry_body_surfaces surfaces;
     const rf_world_checkpoint_slice *v;
 #ifdef RF_IMAGE_XBOX_NATIVE
-    status=scene_world_storage_flag("D:\\world-hdd-load.flag",&enabled);if(status||!enabled)return status;
+    if(!scene_live_load_active){status=scene_world_storage_flag("D:\\world-hdd-load.flag",&enabled);if(status||!enabled)return status;}
 #endif
     if(!path||!*path)return RF_OK;
     rf_scene_world_checkpoint_state[8]=1;

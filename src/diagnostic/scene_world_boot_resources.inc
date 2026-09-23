@@ -3,7 +3,7 @@
 static int scene_world_boot_weapon_mask(const rf_level *level,const char *tables_path,uint32_t *mask)
 {
 #ifndef RF_IMAGE_XBOX_NATIVE
-    const char *path=getenv("RF_REPLAY_WORLD_SNAPSHOT_IN");
+    const char *path=scene_live_load_active?"redfaction-save":getenv("RF_REPLAY_WORLD_SNAPSHOT_IN");
 #else
     rf_xbox_checkpoint_storage storage={0};uint32_t enabled=0;
 #endif
@@ -13,7 +13,7 @@ static int scene_world_boot_weapon_mask(const rf_level *level,const char *tables
     uint32_t bytes=0,i;int status=RF_OK;
     *mask=0;
 #ifdef RF_IMAGE_XBOX_NATIVE
-    status=scene_world_storage_flag("D:\\world-hdd-load.flag",&enabled);if(status||!enabled)return status;
+    if(!scene_live_load_active){status=scene_world_storage_flag("D:\\world-hdd-load.flag",&enabled);if(status||!enabled)return status;}
 #else
     if(!path||!*path)return RF_OK;
 #endif

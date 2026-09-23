@@ -41,6 +41,7 @@ char rf_xbox_transition_target[64]; /* Last successfully opened destination. */
 static FILE *player_replay;
 static uint32_t player_replay_size,campaign_exit_uid,campaign_forced_exit_uid,campaign_goal_uid,campaign_goto_uid,campaign_setup_uid,campaign_return_exit_uid,campaign_return_item_uid,campaign_return_place;
 static uint32_t campaign_setup_next_uid;
+static uint32_t quick_action_frames[2]={UINT32_MAX,UINT32_MAX};
 uint32_t rf_player_replay_diagnostic[4]; /* active, records, consumed, read status */
 static void player_input_close(void)
 {
@@ -73,6 +74,8 @@ static int player_poll_paced(void *context,uint32_t frame,rf_scene_input *input)
         campaign_forced_exit_uid=campaign_exit_uid;campaign_exit_uid=0;if(status)return status;
     }
     if(player_replay) {
+        rf_scene_save_button(campaign_total_frames==quick_action_frames[0]);
+        rf_scene_load_button(campaign_total_frames==quick_action_frames[1]);
         memset(input,0,sizeof(*input));
         int status=frame+campaign_scene_start!=rf_player_replay_diagnostic[2]?RF_FORMAT:
             fread(input,player_replay_size,1,player_replay)!=1?RF_IO:RF_OK;
@@ -525,6 +528,10 @@ static int scene_preview(rf_level *level,rf_preview_mesh *mesh)
         exit_file=fopen("D:\\campaign-goal.bin","rb");
         if(exit_file){int invalid=fread(&campaign_goal_uid,4,1,exit_file)!=1 || fgetc(exit_file)!=EOF;fclose(exit_file);if(invalid)return RF_FORMAT;}
     }
+    {FILE *actions=fopen("D:\\campaign-quick-actions.bin","rb");
+     quick_action_frames[0]=quick_action_frames[1]=UINT32_MAX;
+     if(actions){int invalid=fread(quick_action_frames,sizeof(quick_action_frames),1,actions)!=1||fgetc(actions)!=EOF;
+         fclose(actions);if(invalid)return RF_FORMAT;}}
     campaign_scene_start=campaign_total_frames;
     player_pacing=0;scene_simulation_frames=0;memset(&rf_player_frame_clock,0,sizeof(rf_player_frame_clock));
     rf_scene_set_profile(profile_milliseconds);
@@ -1132,8 +1139,10 @@ campaign_load_section:
             if(result==RF_OK && rf_scene_follow_level_exits && rf_scene_level_transition.pending &&
                (!campaign_frame_limit || campaign_total_frames<campaign_frame_limit)) {
                 rf_campaign_player_state state;rf_level_transition_request next=rf_scene_level_transition;float departing_position[3],departing_orientation[9];
-                result=rf_scene_campaign_player_get(&state);
-                if(result==RF_OK)result=rf_scene_campaign_pose_get(departing_position,departing_orientation);
+                uint32_t reload=rf_scene_quickload_pending();
+                memset(&state,0,sizeof(state));memset(departing_position,0,sizeof(departing_position));memset(departing_orientation,0,sizeof(departing_orientation));
+                if(!reload){result=rf_scene_campaign_player_get(&state);
+                    if(result==RF_OK)result=rf_scene_campaign_pose_get(departing_position,departing_orientation);}
                 if(result==RF_OK) {
                     rf_xbox_scene_stream_close();rf_scene_actor_follow(NULL);
                     rf_scene_world_geometry_close(&resident_render_geometry);
@@ -1147,18 +1156,19 @@ campaign_load_section:
                     rf_level_owned_triggers_close(&resident_triggers);rf_level_owned_events_close(&resident_events);
                     rf_level_owned_entities_close(&resident_entities);
                     rf_geometry_collision_world_close(&resident_collision);rf_geometry_close(&resident_geometry);
-                    rf_vpp_close(&archive);rf_object_registry_init(&resident_registry);
+                    if(!reload)rf_vpp_close(&archive);rf_object_registry_init(&resident_registry);
                     ++rf_xbox_level_transitions[0];rf_xbox_level_transitions[1]=next.uid;rf_xbox_level_transitions[2]=campaign_total_frames;
                     if(NT_SUCCESS(MmQueryStatistics(&memory)))rf_xbox_level_transitions[3]=memory.AvailablePages;
-                    result=rf_level_campaign_open(&level,&archive,"D:\\",next.level);
+                    if(reload){result=rf_level_open(&level,&archive,next.level);memset(&rf_scene_level_transition,0,sizeof(rf_scene_level_transition));}
+                    else result=rf_level_campaign_open(&level,&archive,"D:\\",next.level);
                     if(result==RF_OK)memcpy(rf_xbox_transition_target,next.level,sizeof(rf_xbox_transition_target));
-                    if(result==RF_OK && next.uid!=campaign_forced_exit_uid) {
+                    if(result==RF_OK && !reload && next.uid!=campaign_forced_exit_uid) {
                         result=rf_level_transition_place(&next,&level,departing_position,departing_orientation);
                         if(result==RF_NOT_FOUND)result=RF_OK;
                     }
-                    if(result==RF_OK && campaign_return_place){result=rf_scene_stage_item(&level,campaign_return_item_uid);campaign_return_place=0;}
+                    if(result==RF_OK && !reload && campaign_return_place){result=rf_scene_stage_item(&level,campaign_return_item_uid);campaign_return_place=0;}
                     campaign_forced_exit_uid=0;
-                    if(result==RF_OK)result=rf_scene_campaign_player_set(&state);
+                    if(result==RF_OK)result=rf_scene_campaign_player_set(reload?NULL:&state);
                     live_mines_door_fixture=0;
                     if(result==RF_OK)goto campaign_load_section;
                 }

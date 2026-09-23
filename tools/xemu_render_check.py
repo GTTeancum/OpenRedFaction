@@ -68,6 +68,8 @@ def main():
     parser.add_argument('--shallow-two-limits', action='store_true', help='Use two intersecting authored shallow-region fixtures')
     parser.add_argument('--cavity-seam-test', action='store_true', help='Explicit source66 floor-seam hardness fixture')
     parser.add_argument('--shallow-fixture', action='store_true', help='DEV depth.75 authored-region fixture shared with PC')
+    parser.add_argument('--quick-save-frame', type=int)
+    parser.add_argument('--quick-load-frame', type=int)
     parser.add_argument('--world-hdd-persistent', action='store_true', help='Use a private persistent ordinary-save test HDD across launches')
     parser.add_argument('--world-checkpoint-save', action='store_true', help='Save ordinary state to the isolated Xbox HDD profile')
     parser.add_argument('--world-checkpoint-load', type=Path, help='Load native ordinary HDD state; matching PC two-slot base for reference')
@@ -212,6 +214,10 @@ def main():
         parser.error('Require a plain level filename, positive goal UID and one placement mode')
     if args.exit_start_uid is not None and (not args.spawn or not 0<args.exit_start_uid<0xffffffff or args.exit_uid or args.return_exit_uid):
         parser.error('Exit-start requires --spawn, a positive UID and no forced exit options')
+    if any(v is not None and not 0<=v<args.frames for v in (args.quick_save_frame,args.quick_load_frame)):
+        parser.error('Quick action frames must lie inside the replay')
+    if (args.quick_save_frame is not None or args.quick_load_frame is not None) and (not args.spawn or args.dev_room or not args.world_hdd_persistent):
+        parser.error('Quick action replay requires ordinary spawn and persistent test HDD')
     root = Path(__file__).resolve().parents[1]
     if args.trigger_start_uid is not None and (not args.spawn or not 0<args.trigger_start_uid<0xffffffff or args.exit_start_uid):
         parser.error('Trigger-start requires --spawn, a positive UID and no exit-start placement')
@@ -244,6 +250,8 @@ def main():
     report['authored_source']=148 if args.vehicle_test and not submarine else (args.authored_source if args.authored_source is not None else (94 if args.dev_room and args.level=='ctf06.rfl' else None))
     (run / 'inputs.bin').write_bytes(payload)
     env = {k: v for k, v in os.environ.items() if not k.startswith('RF_REPLAY_')}
+    if args.quick_save_frame is not None:env['RF_REPLAY_QUICKSAVE_FRAME']=str(args.quick_save_frame)
+    if args.quick_load_frame is not None:env['RF_REPLAY_QUICKLOAD_FRAME']=str(args.quick_load_frame)
     if args.world_checkpoint_save:env['RF_REPLAY_WORLD_SNAPSHOT_OUT']=str(run/'pc-world')
     if args.world_checkpoint_load:env['RF_REPLAY_WORLD_SNAPSHOT_IN']=str(args.world_checkpoint_load.resolve())
     if args.fragment_contact_test:env['RF_REPLAY_FRAGMENT_CONTACT_TEST']='1'
@@ -325,7 +333,7 @@ def main():
         report['fragment_platform_fixture']=json.loads((pc_game.parent/'build.json').read_text())
     pc = subprocess.run([str(root / pc_build / 'Release/rf_pc_play.exe'), '--spawn-replay',
         str(pc_game), str(run / 'inputs.bin'), str(run / 'pc-final.ppm')],
-        cwd=root, env=env, capture_output=True, text=True)
+        cwd=run if args.quick_save_frame is not None or args.quick_load_frame is not None else root, env=env, capture_output=True, text=True)
     (run / 'pc-reference.txt').write_text(pc.stdout + pc.stderr)
     pc.check_returncode()
     report['pc_sha256'] = hashlib.sha256((root / pc_build / 'Release/rf_pc_play.exe').read_bytes()).hexdigest()
@@ -333,7 +341,7 @@ def main():
     for name in ('player-replay.bin', 'player-control-frames.txt', 'audio-output.flag', 'particle-step-fixtures.bin', 'renderer-cull-off.flag', 'renderer-cull-on.flag', 'renderer-batch-off.flag', 'renderer-world-off.flag', 'renderer-draw-audit.flag'):
         p = disc / name
         saved[name] = p.read_bytes() if p.exists() else None
-    for name in ('campaign-spawn.flag', 'campaign-level.bin', 'campaign-actor.bin', 'campaign-setup.bin', 'campaign-item.bin', 'campaign-exit.bin', 'campaign-return.bin', 'campaign-goal.bin', 'campaign-goto.bin', 'campaign-exit-start.bin'):
+    for name in ('campaign-quick-actions.bin', 'campaign-spawn.flag', 'campaign-level.bin', 'campaign-actor.bin', 'campaign-setup.bin', 'campaign-item.bin', 'campaign-exit.bin', 'campaign-return.bin', 'campaign-goal.bin', 'campaign-goto.bin', 'campaign-exit-start.bin'):
         saved.setdefault(name, None)
     if args.fixture_game:saved['scene-fixture.vpp']=None
     if args.fragment_platform_test:
@@ -418,6 +426,8 @@ def main():
         if args.moving_support_test:(disc/'moving-support-test.flag').write_bytes(support_mode.encode('ascii'))
         if args.water_test:(disc/'water-test.flag').write_bytes(b'')
         if liquid_mode:(disc/'swim-test.flag').write_bytes(str(liquid_mode).encode('ascii'))
+        if args.quick_save_frame is not None or args.quick_load_frame is not None:
+            (disc/'campaign-quick-actions.bin').write_bytes(struct.pack('<2I',*[0xffffffff if v is None else v for v in (args.quick_save_frame,args.quick_load_frame)]))
         if args.world_checkpoint_save:(disc/'world-hdd-save.flag').write_bytes(b'')
         if args.world_checkpoint_load:(disc/'world-hdd-load.flag').write_bytes(b'')
         if checkpoint:(disc/'geomod-checkpoint-out.flag').write_bytes(b'')

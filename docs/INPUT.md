@@ -5,17 +5,20 @@ interface used by PC tests. This is new port input policy, not a reconstruction
 of the original PC keyboard/mouse mapping. The user confirmed movement on
 September 9, 2026. Guest RAM also records non-neutral movement and look axes.
 
-First-pass quick-save: press **F5** on PC or **Back+Y** on Xbox/XInput. Release
-before another save. The controller chord suppresses gameplay input while held.
-The HUD shows GAME SAVED, CANNOT SAVE RIGHT NOW, or SAVE FAILED - STORAGE ERROR.
-Current admission requires supported, settled ordinary-world state; active
-weapon actions, destruction/vehicles and some NPC states can reject a save.
-Rejection keeps play running and preserves the previous save. PC writes
-`redfaction-save.0/.1` in its working directory; Xbox uses the ordinary HDD
-profile. Quick-load/menu selection is not wired yet; reload currently uses the
-existing explicit loader/harness. PC request-to-file-to-reload/fire is verified;
-compiled Xbox chord/edge behavior passes simulated SDL checks. Physical input
-and native mid-session quick-save remain to be tested.
+First-pass save/load: press **F5** to quick-save or **F9** to quick-load on PC;
+use **Back+Y** to save or **Back+X** to load on Xbox/XInput. Release before another
+request. Controller chords suppress gameplay input while held. HUD messages
+confirm success or report unavailable state/storage failure. Quick-load currently
+requires a compatible save for the current level; it rebuilds that scene before
+restoring state. Missing/incompatible saves keep the current scene running.
+A title/pause menu and cross-level load selection remain open.
+
+Save admission requires supported, settled ordinary-world state. Active weapon
+actions, destruction/vehicles and some NPC states can reject a save without
+stopping play or replacing the previous save. PC writes `redfaction-save.0/.1`
+in its working directory; Xbox uses the ordinary HDD profile. PC/XEMU same-session
+save/fire/load/fire passes with matched state, and compiled Xbox chord/edge checks
+pass. Physical controller operation has not been rechecked for these new chords.
 
 Controls: left stick moves, right stick looks, B holds crouch, A jumps, X uses,
 RT fires, LT holds Riot Stick alternate fire, Y reloads, D-pad Right cycles owned supported weapons, and Back+Start ends

@@ -797,6 +797,8 @@ int rf_scene_showcase_camera(rf_level *level);
 /* Edge-triggered ordinary quick-save request, consumed at a simulation boundary.
  * This never sends host input; frontends call it from their own input providers. */
 void rf_scene_save_button(uint32_t held);
+void rf_scene_load_button(uint32_t held);
+uint32_t rf_scene_quickload_pending(void);
 typedef struct rf_scene_input {float move[3],look[2];uint32_t crouch,jump,use,fire,reload,cycle_weapon,alt_fire;} rf_scene_input;
 extern uint32_t rf_scene_geomod[8];
 extern uint32_t rf_scene_terrain_shadows[4];

@@ -10967,6 +10967,7 @@ int rf_scene_npc_checkpoint_export(const unsigned char identity[32],int32_t now,
 #include "scene_world_storage.inc"
 #include "scene_world_snapshot.inc"
 #include "scene_world_load.inc"
+#include "scene_world_quickload.inc"
 
 #ifdef RF_IMAGE_XBOX_NATIVE
 static rf_xbox_checkpoint_storage scene_checkpoint_hdd;
@@ -13335,7 +13336,9 @@ int rf_scene_draw_combat_hud(rf_scene_particle_sink sink,void *context)
     status=scene_scanner_draw(sink,context);if(status)return status;
     status=campaign_draw_subtitle(sink,context);if(status)return status;
     if(scene_live_save_until&&combat_frame<scene_live_save_until){
-        const char *message=!scene_live_save_status?"GAME SAVED":scene_live_save_status==RF_IO?"SAVE FAILED - STORAGE ERROR":"CANNOT SAVE RIGHT NOW";
+        const char *message=scene_live_notice_load?
+            (!scene_live_save_status?"GAME LOADED":scene_live_save_status==RF_IO?"LOAD FAILED - STORAGE ERROR":"NO COMPATIBLE SAVE"):
+            (!scene_live_save_status?"GAME SAVED":scene_live_save_status==RF_IO?"SAVE FAILED - STORAGE ERROR":"CANNOT SAVE RIGHT NOW");
         status=combat_hud_text(sink,context,26,28,message,scene_live_save_status?0xffffa060:0xff80ff80);if(status)return status;
     }
     if(combat_surface_frame!=UINT32_MAX && combat_frame-combat_surface_frame<=6)color=0xffffc060;
@@ -16082,9 +16085,16 @@ static int scene_frame(void *context,uint32_t frame,rf_preview_mesh *actor)
             if(!frame){memset(rf_scene_glare_search,0,sizeof(rf_scene_glare_search));rf_scene_glare_search[4]=2166136261u;
                 status=rf_scene_glare_visibility_pass(stream->npc_view.camera);if(status)return status;}}
         step_profile_mark(6,&step_clock);profile_mark(7);
-        if(!frame){status=scene_world_load(stream,stream->world_checkpoint_level,stream->world_checkpoint_tables);if(status)return status;}
+        if(!frame){status=scene_world_load(stream,stream->world_checkpoint_level,stream->world_checkpoint_tables);
+            if(scene_live_load_active){scene_live_load_active=0;scene_live_save_status=status;scene_live_notice_load=1;scene_live_save_until=180;}
+            if(status)return status;}
+        if(scene_live_load_pending){
+            scene_live_load_pending=scene_live_save_pending=0;scene_live_notice_load=1;
+            scene_live_save_status=scene_world_quickload_request(stream);scene_live_save_until=frame+180;
+            printf("QUICK_LOAD frame%u status%d\n",frame,scene_live_save_status);
+        }
         if(scene_live_save_pending){
-            scene_live_save_pending=0;
+            scene_live_save_pending=0;scene_live_notice_load=0;
             scene_live_save_status=scene_world_snapshot_capture_mode(stream,stream->world_checkpoint_level,stream->world_checkpoint_tables,1);
             scene_live_save_until=frame+180;
             printf("QUICK_SAVE frame%u status%d\n",frame,scene_live_save_status);
@@ -16288,7 +16298,7 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
     rf_preview_vertex *vertices=NULL;rf_material *items=NULL;const char *names[64];
     uint64_t bytes,count,capacity;uint32_t i;int status;scene_stream *stream;
     scene_extra_pickups_resources_reset();
-    scene_live_save_pending=scene_live_save_until=0;scene_live_save_status=RF_OK;
+    scene_live_save_pending=scene_live_load_pending=scene_live_save_until=0;scene_live_save_status=RF_OK;
     if(!level || !mesh || !materials || !mesh->vertices || !materials->items ||
        mesh->count%3 || mesh->bytes!=(uint64_t)mesh->count*sizeof(*mesh->vertices) ||
        materials->allocated_bytes>=material_budget)return RF_RANGE;
@@ -16976,14 +16986,14 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
     }
 done:
     rf_vpp_close(&terrain_ui);
-    if(!status)status=scene_world_checkpoint_probe(stream,level,tables_path);
-    if(!status)status=scene_world_snapshot_capture(stream,level,tables_path);
-    if(!status)status=scene_checkpoint_capture(stream);
+    if(!status&&!scene_live_load_active)status=scene_world_checkpoint_probe(stream,level,tables_path);
+    if(!status&&!scene_live_load_active)status=scene_world_snapshot_capture(stream,level,tables_path);
+    if(!status&&!scene_live_load_active)status=scene_checkpoint_capture(stream);
 #ifdef RF_IMAGE_XBOX_NATIVE
     {int checkpoint_close=scene_checkpoint_hdd_close();if(!status)status=checkpoint_close;}
 #endif
     if(!status && campaign_spawn && collision)campaign_actors_revisit_snapshot();
-    if(!status && campaign_spawn && collision && rf_scene_level_transition.pending) {
+    if(!status && campaign_spawn && collision && rf_scene_level_transition.pending && !scene_live_load_active) {
         status=rf_campaign_local_goals_save(&campaign_local_goals,campaign_current_level,&rf_scene_mission_goals);
         if(!status)status=campaign_switch_checkpoint(1);
         if(!status)status=campaign_trigger_checkpoint(1,(int32_t)rf_scene_event_ticks[1]);

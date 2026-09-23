@@ -131,12 +131,15 @@ static void controller_stick(SHORT rx,SHORT ry,float *x,float *y)
     if(length<=.18f){*x=*y=0;return;}
     scale=(fminf(length,1)-.18f)/(.82f*length);*x=a*scale;*y=b*scale;
 }
-static int controller_input(rf_scene_input *out,uint32_t *save)
+static int controller_input(rf_scene_input *out,uint32_t *save,uint32_t *load)
 {
     XINPUT_STATE state;DWORD slot;float x,y;
     for(slot=0;slot<XUSER_MAX_COUNT;++slot) {
         if(XInputGetState(slot,&state)!=ERROR_SUCCESS)continue;
         if((state.Gamepad.wButtons&(XINPUT_GAMEPAD_BACK|XINPUT_GAMEPAD_START))==(XINPUT_GAMEPAD_BACK|XINPUT_GAMEPAD_START))return RF_NOT_FOUND;
+        if((state.Gamepad.wButtons&(XINPUT_GAMEPAD_BACK|XINPUT_GAMEPAD_X))==(XINPUT_GAMEPAD_BACK|XINPUT_GAMEPAD_X)){
+            *load=1;memset(out,0,sizeof(*out));break;
+        }
         if((state.Gamepad.wButtons&(XINPUT_GAMEPAD_BACK|XINPUT_GAMEPAD_Y))==(XINPUT_GAMEPAD_BACK|XINPUT_GAMEPAD_Y)){
             *save=1;memset(out,0,sizeof(*out));break;
         }
@@ -158,10 +161,11 @@ static int controller_input(rf_scene_input *out,uint32_t *save)
 
 static int input(void *context,uint32_t frame,rf_scene_input *out)
 {
-    player *p=context;MSG message;uint32_t wait,save;int status;
+    player *p=context;MSG message;uint32_t wait,save,load;int status;
     memset(out,0,sizeof(*out));
     if(p->headless){const char *at=getenv("RF_REPLAY_QUICKSAVE_FRAME");
-        rf_scene_save_button(at&&frame==(uint32_t)strtoul(at,NULL,10));}
+        rf_scene_save_button(at&&p->frames==(uint32_t)strtoul(at,NULL,10));
+        at=getenv("RF_REPLAY_QUICKLOAD_FRAME");rf_scene_load_button(at&&p->frames==(uint32_t)strtoul(at,NULL,10));}
     if(p->headless && p->setup_uid && !p->frames) {
         int status=rf_scene_fire_setup_event(p->setup_uid,0);if(status)return status;
     }
@@ -262,8 +266,8 @@ static int input(void *context,uint32_t frame,rf_scene_input *out)
     out->look[0]=(float)p->keys[VK_UP]-(float)p->keys[VK_DOWN];
     out->look[1]=(float)p->keys[VK_RIGHT]-(float)p->keys[VK_LEFT];
     out->cycle_weapon=p->keys[VK_TAB];out->fire=p->keys['F'];out->alt_fire=p->keys['G'];out->reload=p->keys['R'];out->use=p->keys['E'];out->jump=p->keys[VK_SPACE];out->crouch=p->keys[VK_CONTROL];
-    save=p->focused&&p->keys[VK_F5];status=p->focused?controller_input(out,&save):RF_OK;
-    rf_scene_save_button(save);return status;
+    save=p->focused&&p->keys[VK_F5];load=p->focused&&p->keys[VK_F9];status=p->focused?controller_input(out,&save,&load):RF_OK;
+    rf_scene_save_button(save&&!load);rf_scene_load_button(load);return status;
 }
 
 extern float rf_scene_scope_projection;
@@ -624,8 +628,10 @@ run_scene:
         8*1024*1024,RF_CAMPAIGN_MATERIAL_BUDGET,present,&p,&collision,&geometry));
     if(spawn_profile && rf_scene_level_transition.pending && (!limit || p.frames<limit)) {
         rf_campaign_player_state player_state;rf_level_transition_request next=rf_scene_level_transition;float departing_position[3],departing_orientation[9];
-        CHECK(rf_scene_campaign_player_get(&player_state));
-        CHECK(rf_scene_campaign_pose_get(departing_position,departing_orientation));
+        uint32_t reload=rf_scene_quickload_pending();
+        memset(&player_state,0,sizeof(player_state));memset(departing_position,0,sizeof(departing_position));memset(departing_orientation,0,sizeof(departing_orientation));
+        if(!reload){CHECK(rf_scene_campaign_player_get(&player_state));
+            CHECK(rf_scene_campaign_pose_get(departing_position,departing_orientation));}
         printf("LEVEL_EXIT_POSE");for(i=0;i<3;i++)printf(" %.9g",departing_position[i]);for(i=0;i<9;i++)printf(" %.9g",departing_orientation[i]);puts("");
 
         printf("LEVEL_EXIT_AIRLOCK");for(i=0;i<6;i++)printf(" %u",rf_scene_airlock[i]);printf("\n");
@@ -633,15 +639,15 @@ run_scene:
         rf_scene_actor_follow(NULL);
         rf_lightmaps_close(&p.lightmaps);rf_materials_close(&materials);rf_preview_close(&mesh);
         rf_scene_world_geometry_close(&retained);rf_geometry_collision_world_close(&collision);rf_geometry_close(&geometry);
-        rf_vpp_close(&archive);
-        CHECK(rf_level_campaign_open(&level,&archive,directory,next.level));
+        if(reload){CHECK(rf_level_open(&level,&archive,next.level));memset(&rf_scene_level_transition,0,sizeof(rf_scene_level_transition));}
+        else {rf_vpp_close(&archive);CHECK(rf_level_campaign_open(&level,&archive,directory,next.level));}
         /* A remote event-dispatch fixture has no doorway-relative player pose. */
-        if(next.uid!=p.forced_exit_uid) {
+        if(!reload&&next.uid!=p.forced_exit_uid) {
             status=rf_level_transition_place(&next,&level,departing_position,departing_orientation);
             if(status!=RF_NOT_FOUND)CHECK(status);else status=RF_OK;
             printf("LEVEL_ARRIVAL %.9g %.9g %.9g\n",level.player_position[0],level.player_position[1],level.player_position[2]);
         }
-        if(p.return_place){CHECK(rf_scene_stage_item(&level,p.return_item_uid));p.return_place=0;}
+        if(!reload&&p.return_place){CHECK(rf_scene_stage_item(&level,p.return_item_uid));p.return_place=0;}
         p.forced_exit_uid=0;
         CHECK(rf_scene_set_campaign_spawn(&level));
         CHECK(rf_geometry_open(&geometry,&level,8*1024*1024));
@@ -649,7 +655,7 @@ run_scene:
         CHECK(rf_scene_world_open_retained(&level,&geometry,maps,opened,&mesh,&materials,
             8*1024*1024,RF_CAMPAIGN_MATERIAL_BUDGET,&retained));
         CHECK(rf_lightmaps_open(&p.lightmaps,&level,RF_CAMPAIGN_LIGHTMAP_BUDGET));
-        CHECK(rf_scene_campaign_player_set(&player_state));
+        CHECK(rf_scene_campaign_player_set(reload?NULL:&player_state));
         rf_scene_actor_follow(&retained);
         goto run_scene;
     }

@@ -1,9 +1,9 @@
 # Red Faction Xbox / PC - open work
 
-Completion basis (user direction,2026-09-18): working late-alpha/early-beta code implementation. Overall approximately83%; GeoMod100% for the first playable milestone, accepted by the user. GeoMod items below are deferred refinement and coverage, not prerequisites to moving on. This does not assert retail polish, complete campaign integration or resolution of every known defect.
+Completion basis (user direction,2026-09-18): working late-alpha/early-beta code implementation. Overall approximately84%; GeoMod100% for the first playable milestone, accepted by the user. GeoMod items below are deferred refinement and coverage, not prerequisites to moving on. This does not assert retail polish, complete campaign integration or resolution of every known defect.
 
 
-- PRIORITY Ordinary saves: Ordinary L1S1 save/restart/reload/resave and movement now pass PC/Xbox with all16 saved components matching and16.39MiB sampled free; equipped railgun save/restart/fire/resave now also passes PC/Xbox with13.90MiB sampled free and exact saved-state parity; F5/Back+Y quick-save and HUD feedback are wired with PC mid-session save/reload and compiled Xbox input checks passing; native quick-save, quick-load/menu, ordinary destruction/vehicles and broader resource-only demand remain (saves approximately80%).
+- PRIORITY Ordinary saves: Ordinary L1S1 save/restart/reload/resave and movement now pass PC/Xbox with all16 saved components matching and16.39MiB sampled free; equipped railgun save/restart/fire/resave now also passes PC/Xbox with13.90MiB sampled free and exact saved-state parity; F5/Back+Y save and F9/Back+X same-level load now pass a PC/Xbox save/fire/load/fire session with13.80MiB sampled free and exact saved-state parity; menu/cross-level selection, ordinary destruction/vehicles and broader resource-only demand remain (saves approximately83%).
 
 - Scripted effects: Play_Sound, Music_Start/Stop, Look_At, Explode and Black_Out_Player still lack runtime dispatch; their event-local save fields are preserved, but implement the gameplay effects separately.
 
