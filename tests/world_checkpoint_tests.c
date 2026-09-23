@@ -25,6 +25,18 @@ int main(void)
         CHECK(decoded.sections[i].data==wire+RF_WORLD_CHECKPOINT_PREFIX+3*i);
         CHECK(decoded.sections[i].bytes==3&&!memcmp(decoded.sections[i].data,pieces[i],3));
     }
+    /* Legacy v1 keeps its15 payloads and leaves new environment absent. */
+    memcpy(saved,wire,128+15*12);put32(saved+4,1);put32(saved+16,15);
+    for(i=0;i<15;i++)put32(saved+128+12*i+4,RF_WORLD_CHECKPOINT_PREFIX_V1+3*i);
+    memcpy(saved+RF_WORLD_CHECKPOINT_PREFIX_V1,wire+RF_WORLD_CHECKPOINT_PREFIX,45);
+    put32(saved+8,RF_WORLD_CHECKPOINT_PREFIX_V1+45);repair_checksum(saved,RF_WORLD_CHECKPOINT_PREFIX_V1+45);
+    CHECK(!rf_world_checkpoint_decode(saved,RF_WORLD_CHECKPOINT_PREFIX_V1+45,full&~RF_WORLD_CHECKPOINT_MASK(RF_WORLD_ENVIRONMENT),&decoded));
+    CHECK(!decoded.sections[RF_WORLD_ENVIRONMENT-1].data&&!decoded.sections[RF_WORLD_ENVIRONMENT-1].bytes);
+    CHECK(decoded.sections[RF_WORLD_CAMPAIGN_HISTORY-1].bytes==3&&!memcmp(decoded.sections[RF_WORLD_CAMPAIGN_HISTORY-1].data,pieces[14],3));
+    before=decoded;
+    CHECK(rf_world_checkpoint_decode(saved,RF_WORLD_CHECKPOINT_PREFIX_V1+45,full,&decoded)==RF_FORMAT&&!memcmp(&decoded,&before,sizeof(before)));
+    put32(saved+16,16);repair_checksum(saved,RF_WORLD_CHECKPOINT_PREFIX_V1+45);
+    CHECK(rf_world_checkpoint_preflight(saved,RF_WORLD_CHECKPOINT_PREFIX_V1+45,0)==RF_FORMAT);
     /* Absent events are caller policy; empty slots still occupy directory rows. */
     input.sections[RF_WORLD_EVENT-1]=(rf_world_checkpoint_slice){0};
     CHECK(rf_world_checkpoint_encode(&input,full&~RF_WORLD_CHECKPOINT_MASK(RF_WORLD_EVENT),wire,sizeof(wire),&bytes)==RF_OK);

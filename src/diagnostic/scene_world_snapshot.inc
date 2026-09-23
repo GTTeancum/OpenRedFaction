@@ -17,6 +17,23 @@ static int scene_world_snapshot_validate(const void *data,uint32_t bytes,void *c
     if(!identity||memcmp(bundle.identity,identity->bytes,32)||strcmp(bundle.level,identity->level))return RF_FORMAT;
     return RF_OK; /* Transport validation only; restore needs semantic staging. */
 }
+static inline void scene_world_history_probe(const rf_world_checkpoint *world,int32_t now)
+{
+#ifndef RF_IMAGE_XBOX_NATIVE
+    scene_campaign_history_checkpoint_stage *history=NULL;scene_campaign_history_rebind_stage *bindings=NULL;
+    const rf_world_checkpoint_slice *v=world->sections+RF_WORLD_CAMPAIGN_HISTORY-1;
+    const char *enabled=getenv("RF_REPLAY_WORLD_RESTORE_PROBE");int status;
+    if(!enabled||strcmp(enabled,"1"))return;
+    status=scene_campaign_history_checkpoint_prepare(world->identity,v->data,v->bytes,1024u*1024u,&history);
+    if(!status)status=scene_campaign_history_checkpoint_rebind_prepare(history,1024u*1024u,&bindings);
+    if(!status)status=scene_campaign_history_checkpoint_rebind_validate(bindings);
+    printf("WORLD_RESTORE_HISTORY status%d actors%u carry%u no_publication1\n",status,history?history->actors.count:0,history?history->carry_mask:0);
+    scene_campaign_history_checkpoint_rebind_close(&bindings);scene_campaign_history_checkpoint_close(&history);
+#else
+    (void)world;
+#endif
+    (void)now;
+}
 static int scene_world_snapshot_capture(scene_stream *s,const rf_level *level,const char *tables_path)
 {
 #ifndef RF_IMAGE_XBOX_NATIVE
@@ -80,8 +97,11 @@ static int scene_world_snapshot_capture(scene_stream *s,const rf_level *level,co
     SNAP_START("startup");status=rf_campaign_pickups_checkpoint_encode(identity.bytes,&campaign_startup_inventory,buffer+at,RF_CHECKPOINT_FILE_MAX-at,&bytes);SNAP_END(RF_WORLD_STARTUP);
     SNAP_START("campaign_history");omissions=scene_campaign_history_checkpoint_omissions();
     status=scene_campaign_history_checkpoint_encode(identity.bytes,now,buffer+at,RF_CHECKPOINT_FILE_MAX-at,&bytes);SNAP_END(RF_WORLD_CAMPAIGN_HISTORY);
+    SNAP_START("environment");status=scene_world_environment_encode(identity.bytes,buffer+at,RF_CHECKPOINT_FILE_MAX-at,&bytes);SNAP_END(RF_WORLD_ENVIRONMENT);
     part="envelope";status=rf_world_checkpoint_encode(&bundle,0,buffer,RF_CHECKPOINT_FILE_MAX,&total);if(status)goto done;
     (void)scene_world_restore_probe(s,buffer,total,identity.bytes,now);
+    (void)scene_world_mission_probe(s,&bundle,now);
+    scene_world_history_probe(&bundle,now);
     part="storage";status=rf_checkpoint_file_store(path,buffer,total,scene_world_snapshot_validate,&identity,&selection);
     if(!status)printf("WORLD_SNAPSHOT_STORED bytes%u slot%u generation%u history_omissions%u restore_available0\n",total,selection.slot,selection.generation,omissions);
 #undef SNAP_START

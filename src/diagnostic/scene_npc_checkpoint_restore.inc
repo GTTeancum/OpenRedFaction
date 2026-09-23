@@ -123,7 +123,8 @@ static inline int scene_npc_checkpoint_restore_prepare(const rf_npc_checkpoint_r
         memcpy(placement.position,e->published,12);memcpy(placement.basis,e->basis,36);
         status=place(context,&placement,&e->room,&e->support);if(status)goto fail;
         if(memcmp(e->room.query_position,e->published,12)||e->support.handle||!e->room.room||
-           (placement.count?e->support.material<0:e->support.material!=-1)){status=RF_FORMAT;goto fail;}e->room.flags=e->flags;
+           e->support.material< -1||(!placement.count&&e->support.material!=-1)||
+           (placement.count&&e->support.material==-1&&((o->body.state.flags&(1u|0x400000u))||o->support.handle))){status=RF_FORMAT;goto fail;}e->room.flags=e->flags;
         status=rf_entity_motion_selection_base(&campaign_motion_catalog,&campaign_base_motions,cls,&e->selection);if(status)goto fail;
         if(rows[i].primary>=0){status=rf_entity_motion_selection_weapon(&campaign_motion_catalog,&campaign_base_motions,cls,rows[i].primary,&e->selection);if(status)goto fail;}
         if(e->selection.mapping.skeleton!=campaign_poses.items[j].skeleton){status=RF_FORMAT;goto fail;}
@@ -179,9 +180,9 @@ fail:free(stage);return status;
 }
 /* All fallible work finishes before the first actor assignment. The caller
  * keeps scene/resource ownership stable between prepare and commit. */
-static inline int scene_npc_checkpoint_restore_commit(scene_npc_checkpoint_restore_stage *stage)
+static inline int scene_npc_checkpoint_restore_validate(const scene_npc_checkpoint_restore_stage *stage)
 {
-    uint32_t i,j;int status;rf_npc_checkpoint_record current;
+    uint32_t i;int status;rf_npc_checkpoint_record current;
     if(!stage)return RF_RANGE;
     for(i=0;i<stage->count;i++){
         const scene_npc_checkpoint_restore_entry *e=stage->entries+i;
@@ -194,6 +195,13 @@ static inline int scene_npc_checkpoint_restore_commit(scene_npc_checkpoint_resto
         status=scene_npc_checkpoint_row(e->slot,stage->now,&current);if(status)return status;
         if(memcmp(&current,&e->before,sizeof(current)))return RF_FORMAT;
     }
+    return RF_OK;
+}
+/* Full composition validates all owners first, then calls assignment-only
+ * publications while simulation and resource ownership remain paused. */
+static inline void scene_npc_checkpoint_restore_assign(const scene_npc_checkpoint_restore_stage *stage)
+{
+    uint32_t i,j;
     for(i=0;i<stage->count;i++){
         const scene_npc_checkpoint_restore_entry *e=stage->entries+i;campaign_npc_body *o=campaign_npc_bodies+e->slot;
         uint32_t persistence=o->persistence_slot;rf_entity_pose *pose=NULL;
@@ -243,6 +251,10 @@ static inline int scene_npc_checkpoint_restore_commit(scene_npc_checkpoint_resto
         }
         o->view.flags_7c=o->object_flags;
     }
-    return RF_OK;
+}
+static inline int scene_npc_checkpoint_restore_commit(scene_npc_checkpoint_restore_stage *stage)
+{
+    int status=scene_npc_checkpoint_restore_validate(stage);if(status)return status;
+    scene_npc_checkpoint_restore_assign(stage);return RF_OK;
 }
 #endif

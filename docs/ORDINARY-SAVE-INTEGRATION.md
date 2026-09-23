@@ -1,6 +1,23 @@
 # Ordinary-level saves: implementation workstream
 
 
+## Current milestone: ordinary restore staging (2026-09-22, solo integration)
+
+The snapshot now uses RFWC2 with a sixteenth ENVIRONMENT component. RFCH2 retains player import/export and Machine Pistol/Undercover carry records; RFEN1 retains gravity and UID-bound force active/strength state. Current unmodified L1S1 captures101708 bytes, within110524, and reports history omission mask0. Legacy RFWC1 decoding remains supported without an environment component; it cannot satisfy a required environment section.
+
+The120-frame process-local replay now stages all78 NPCs (including actual bone pose evaluation), saved doors and static props,184 event records,61 trigger states,22 pickup bindings, mission goals, campaign histories/carry and the standing player with weapon modes. Gravity stages successfully; this level has zero force regions, so a focused actual-scene test covers nonempty force restoration, UID reorder, geometry mismatch, stale-owner validation and handoff rejection. No gameplay publication occurs during these probes.
+
+NPC placement now preserves legitimate stationary authored placements: nonfalling actors may have no floor contact, represented as support handle0/material-1. Exact authored poses in proven unchanged static terrain may retain authored surface overlap and conservative sphere overlap with unchanged authored props. Changed poses, new/moved props, moving doors, solid/ambiguous centers and unproven geometry retain strict checks. Player placement remains strictly grounded and checks candidate NPC overlap.
+
+NPC, mover and event commit helpers now expose separate validation and assignment phases, alongside existing prop and new mission/environment stages. This supports validating all components before any live assignment. Saved NPC motion-demand support is implemented and compiled, but not yet wired into a fresh-process loader. Separate probes succeeding is not proof of atomic composed publication.
+
+PC and NXDK Xbox XBE/ISO builds pass. Focused component/placement/history/mission/environment/envelope checks pass. No new XEMU runtime or stock64MiB headroom measurement is claimed. Event flags385 after environment staging mean deferred message/particle presentation plus the player/mission composition dependency; independent player/mission probes now pass, but the complete loader still must bind them together. Queued level transitions are rejected. AI/shield histories remain separately unsupported when present.
+
+Next: load the persisted file in a fresh process, demand saved resources before restore, connect one validated world publication with correct startup order, and verify walk/fire continuation; then stock64MiB Xbox. Restore of remote charges, vehicles and active destruction in the ordinary profile also requires composition. Overall82%, Saves70%. Helpers are paused by user instruction; continue solo.
+
+Earlier milestones follow chronologically in their own sections.
+
+
 ## Current milestone: ordinary snapshot capture (2026-09-22)
 
 `python tools/check_ordinary_save_readiness.py --snapshot --restore-probe` runs120 neutral process-local frames on unmodified Installed_Game/levels1.vpp:L1S1.rfl. It writes100676 bytes in a protected RFSG slot containing an RFWC envelope, under the unchanged110524-byte transport cap. The harness independently verifies persisted transport/envelope checksums and component directory lengths. No host input or original executable is used.

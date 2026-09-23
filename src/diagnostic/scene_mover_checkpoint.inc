@@ -115,7 +115,7 @@ fail:scene_mover_checkpoint_close(&s);return status;
  * simulation paused between preparation and commit; this checks identity and
  * topology, not an optimistic concurrency version of mutable gameplay state.
  * No allocation/callback/lookup capable of failure remains after validation. */
-static inline int scene_mover_checkpoint_commit(rf_group_runtime_collection *runtime,
+static inline int scene_mover_checkpoint_validate(rf_group_runtime_collection *runtime,
     const rf_group_registration *registration,const rf_group_controller_view *bindings,
     rf_geometry_collision_movers *movers,const scene_mover_checkpoint_stage *s)
 {
@@ -155,11 +155,23 @@ static inline int scene_mover_checkpoint_commit(rf_group_runtime_collection *run
         memcpy(check.input_matrix,s->views[i].input_matrix,36);memcpy(check.output_matrix,s->views[i].output_matrix,36);
         if(memcmp(&check,s->views+i,sizeof(check)))return RF_FORMAT;
     }
+    return RF_OK;
+}
+static inline void scene_mover_checkpoint_assign(rf_group_runtime_collection *runtime,
+    rf_geometry_collision_movers *movers,const scene_mover_checkpoint_stage *s)
+{
+    uint32_t i;
     for(i=0;i<runtime->count;i++)if(runtime->items[i].kind!=RF_GROUP_RUNTIME_EMPTY){
         runtime->items[i].translation=s->entries[i].translation;runtime->items[i].pose=s->entries[i].pose;
     }
     if(movers->count){memcpy(movers->poses,s->poses,movers->count*sizeof(*s->poses));memcpy(movers->views,s->views,movers->count*sizeof(*s->views));}
-    return RF_OK;
+}
+static inline int scene_mover_checkpoint_commit(rf_group_runtime_collection *runtime,
+    const rf_group_registration *registration,const rf_group_controller_view *bindings,
+    rf_geometry_collision_movers *movers,const scene_mover_checkpoint_stage *s)
+{
+    int status=scene_mover_checkpoint_validate(runtime,registration,bindings,movers,s);if(status)return status;
+    scene_mover_checkpoint_assign(runtime,movers,s);return RF_OK;
 }
 /* Commit contract: after ALL checkpoint components pass, the helper copies each nonempty
  * entry's translation and pose, and mover poses/views, back into existing live

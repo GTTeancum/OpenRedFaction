@@ -3,26 +3,26 @@
 #include <math.h>
 #include <stdlib.h>
 #include <string.h>
-/* RFCH1 is session history, not the current-level NPC/event payload. Include
+/* RFCH2 is session history, not the current-level NPC/event payload. Include
  * after all campaign stores/carry declarations. Caller identity must bind the
  * installed campaign/catalogs, not merely the current level. Current owners
- * merge into private copies; no session capture side effects. Max disk204896B.
- * Separate goals/pickups/triggers/startup/player and omitted sidecars must be
+ * merge into private copies; no session capture side effects. Max disk207720B.
+ * Separate goals/pickups/triggers/startup/current-player and omitted sidecars must be
  * composed independently. Restore replaces store indices: dependent NPC/shield/
  * AI slots require composition-level UID rebinding before gameplay resumes. */
-enum { SCENE_CAMPAIGN_HISTORY_MAX_BYTES=204896,
+enum { SCENE_CAMPAIGN_HISTORY_MAX_BYTES=207720,
     SCENE_CAMPAIGN_HISTORY_OMIT_PLAYER=1,SCENE_CAMPAIGN_HISTORY_OMIT_WEAPON_MODES=2,
     SCENE_CAMPAIGN_HISTORY_OMIT_NPC_SHIELDS=4,SCENE_CAMPAIGN_HISTORY_OMIT_AI_MODES=8 };
 typedef struct scene_campaign_history_checkpoint_stage {
     rf_campaign_pickups switches,events;rf_switch_state switch_saved[RF_CAMPAIGN_PICKUP_SLOTS];
     campaign_event_saved event_saved[RF_CAMPAIGN_PICKUP_SLOTS];rf_campaign_actors actors;
+    uint32_t carry_mask;rf_campaign_player_state player_import,player_export;
+    scene_machine_pistol_carry machine_import,machine_export;
+    scene_undercover_carry undercover_import,undercover_export;
 } scene_campaign_history_checkpoint_stage;
 static uint32_t scene_campaign_history_checkpoint_omissions(void)
 {
     uint32_t flags=0,i;
-    if(campaign_import_pending||campaign_export_valid)flags|=SCENE_CAMPAIGN_HISTORY_OMIT_PLAYER;
-    if(campaign_machine_export_sidecar.valid||campaign_machine_import_sidecar.valid||
-       campaign_undercover_export_sidecar.valid||campaign_undercover_import_sidecar.valid)flags|=SCENE_CAMPAIGN_HISTORY_OMIT_WEAPON_MODES;
     if(scene_shield_history_count)flags|=SCENE_CAMPAIGN_HISTORY_OMIT_NPC_SHIELDS;
     for(i=0;i<RF_CAMPAIGN_ACTOR_SLOTS;i++)if(campaign_ai_saved_modes[i].flags&1){flags|=SCENE_CAMPAIGN_HISTORY_OMIT_AI_MODES;break;}
     return flags;
@@ -56,6 +56,66 @@ static int scene_history_keys(const unsigned char *levels,uint32_t nl,const unsi
     }
     return RF_OK;
 }
+/* RFCH2 header72 mask: import/export player, import/export MP, import/export
+ * Undercover. Header76 tail size; header80..95 reserved. Each present player
+ * is464 bytes (owned64/reserve32/loaded64/health/armor/weapon/catalog). MP adds
+ * base/special IDs + settled mode12B; Undercover adds ID + mode8B. Sidecars
+ * deliberately retain their independent snapshots, including stale ones: the
+ * existing exact-match guard decides whether a later handoff may apply them. */
+static uint32_t scene_history_carry_bytes(uint32_t mask)
+{uint32_t i,n=0;for(i=0;i<6;i++)if(mask&(1u<<i))n+=i<2?464:i<4?476:472;return n;}
+static void scene_history_player_write(unsigned char *p,const rf_campaign_player_state *v)
+{
+    uint32_t i;memcpy(p,v->inventory.owned,64);
+    for(i=0;i<32;i++)scene_history_put(p+64+i*4,(uint32_t)v->inventory.reserve[i]);
+    for(i=0;i<64;i++)scene_history_put(p+192+i*4,(uint32_t)v->inventory.loaded[i]);
+    scene_history_put_float(p+448,v->health);scene_history_put_float(p+452,v->armor);
+    scene_history_put(p+456,v->weapon);scene_history_put(p+460,v->catalog_hash);
+}
+static void scene_history_player_read(const unsigned char *p,rf_campaign_player_state *v)
+{
+    uint32_t i;memcpy(v->inventory.owned,p,64);
+    for(i=0;i<32;i++)v->inventory.reserve[i]=scene_history_signed(p+64+i*4);
+    for(i=0;i<64;i++)v->inventory.loaded[i]=scene_history_signed(p+192+i*4);
+    v->health=scene_history_float(p+448);v->armor=scene_history_float(p+452);
+    v->weapon=scene_history_word(p+456);v->catalog_hash=scene_history_word(p+460);
+}
+static int scene_history_carry_read(const unsigned char *p,uint32_t mask,scene_campaign_history_checkpoint_stage *s)
+{
+    uint32_t i;rf_campaign_player_state value,checked;
+    if(mask&~63u)return RF_FORMAT;
+    for(i=0;i<6;i++)if(mask&(1u<<i)){
+        scene_history_player_read(p,&value);
+        if(rf_campaign_player_copy(&checked,&value,value.catalog_hash))return RF_FORMAT;
+        if(i<2){if(s){if(i)s->player_export=value;else s->player_import=value;}}
+        else if(i<4){
+            int32_t base=scene_history_signed(p+464),special=scene_history_signed(p+468);uint32_t mode=scene_history_word(p+472);
+            if(base<0||base>=64||special<0||special>=64||base==special||mode>1||value.inventory.owned[special]||
+               value.weapon==(uint32_t)special||(mode&&!value.inventory.owned[base]))return RF_FORMAT;
+            if(s){scene_machine_pistol_carry *v=i==2?&s->machine_import:&s->machine_export;
+                v->player=value;v->base_weapon=base;v->special_weapon=special;v->special=mode;v->valid=1;}
+        }else{
+            int32_t id=scene_history_signed(p+464);uint32_t mode=scene_history_word(p+468);
+            if(id<0||id>=64||mode>1||(mode&&!value.inventory.owned[id]))return RF_FORMAT;
+            if(s){scene_undercover_carry *v=i==4?&s->undercover_import:&s->undercover_export;
+                v->player=value;v->weapon=id;v->attached=mode;v->valid=1;}
+        }
+        p+=i<2?464:i<4?476:472;
+    }
+    if(s)s->carry_mask=mask;return RF_OK;
+}
+static void scene_history_carry_write(unsigned char *p,const scene_campaign_history_checkpoint_stage *s)
+{
+    uint32_t i;for(i=0;i<6;i++)if(s->carry_mask&(1u<<i)){
+        if(i<2)scene_history_player_write(p,i?&s->player_export:&s->player_import);
+        else if(i<4){const scene_machine_pistol_carry *v=i==2?&s->machine_import:&s->machine_export;
+            scene_history_player_write(p,&v->player);scene_history_put(p+464,(uint32_t)v->base_weapon);
+            scene_history_put(p+468,(uint32_t)v->special_weapon);scene_history_put(p+472,v->special);
+        }else{const scene_undercover_carry *v=i==4?&s->undercover_import:&s->undercover_export;
+            scene_history_player_write(p,&v->player);scene_history_put(p+464,(uint32_t)v->weapon);scene_history_put(p+468,v->attached);}
+        p+=i<2?464:i<4?476:472;
+    }
+}
 /* Header96: magic/version/bytes/checksum, identity32, three level/count pairs,
  * reserved24. Each section: level names64, then rows. Switch rows32=key12+
  * disabled/limit/unlimited/activations/mode. Event rows32=key12+type/count/
@@ -65,9 +125,13 @@ static int scene_campaign_history_checkpoint_preflight(const unsigned char ident
 {
     const unsigned char *p=data,*r,*levels;uint32_t counts[6],i,j,k,at=96;uint64_t expected=96;int status;
     if(!identity||!data)return RF_RANGE;
-    if(bytes<96||bytes>SCENE_CAMPAIGN_HISTORY_MAX_BYTES||memcmp(p,"RFCH",4)||scene_history_word(p+4)!=1||
+    if(bytes<96||bytes>SCENE_CAMPAIGN_HISTORY_MAX_BYTES||memcmp(p,"RFCH",4)||(scene_history_word(p+4)!=1&&scene_history_word(p+4)!=2)||
        scene_history_word(p+8)!=bytes||memcmp(p+16,identity,32)||scene_history_word(p+12)!=scene_history_hash(p,bytes))return RF_FORMAT;
-    for(i=72;i<96;i+=4)if(scene_history_word(p+i))return RF_FORMAT;
+    for(i=scene_history_word(p+4)==1?72:80;i<96;i+=4)if(scene_history_word(p+i))return RF_FORMAT;
+    if(scene_history_word(p+4)==2){
+        if((scene_history_word(p+72)&~63u)||scene_history_word(p+76)!=scene_history_carry_bytes(scene_history_word(p+72)))return RF_FORMAT;
+        expected+=scene_history_word(p+76);
+    }
     for(i=0;i<6;i++)counts[i]=scene_history_word(p+48+i*4);
     for(i=0;i<3;i++){
         if(counts[i*2]>RF_CAMPAIGN_PICKUP_LEVELS||counts[i*2+1]>(i==2?RF_CAMPAIGN_ACTOR_SLOTS:RF_CAMPAIGN_PICKUP_SLOTS))return RF_FORMAT;
@@ -93,7 +157,7 @@ static int scene_campaign_history_checkpoint_preflight(const unsigned char ident
         }
         at+=n*stride;
     }
-    return RF_OK;
+    return scene_history_word(p+4)==2?scene_history_carry_read(p+at,scene_history_word(p+72),NULL):RF_OK;
 }
 static int scene_history_snapshot(scene_campaign_history_checkpoint_stage *s,int32_t now)
 {
@@ -101,6 +165,13 @@ static int scene_history_snapshot(scene_campaign_history_checkpoint_stage *s,int
     if(now<0||now>RF_TIMER_PERIOD||campaign_events.count>RF_OBJECT_CAPACITY||
        (campaign_events.count&&!campaign_events.items)||campaign_npc_body_count>RF_CAMPAIGN_ACTOR_SLOTS||
        (campaign_npc_body_count&&(!campaign_npc_bodies||!campaign_seeds.records.items)))return RF_RANGE;
+    if(campaign_import_pending>1||campaign_export_valid>1||campaign_machine_import_sidecar.valid>1||
+       campaign_machine_export_sidecar.valid>1||campaign_undercover_import_sidecar.valid>1||campaign_undercover_export_sidecar.valid>1)return RF_FORMAT;
+    s->carry_mask=campaign_import_pending|(campaign_export_valid<<1)|(campaign_machine_import_sidecar.valid<<2)|
+        (campaign_machine_export_sidecar.valid<<3)|(campaign_undercover_import_sidecar.valid<<4)|(campaign_undercover_export_sidecar.valid<<5);
+    s->player_import=campaign_player_import;s->player_export=campaign_player_export;
+    s->machine_import=campaign_machine_import_sidecar;s->machine_export=campaign_machine_export_sidecar;
+    s->undercover_import=campaign_undercover_import_sidecar;s->undercover_export=campaign_undercover_export_sidecar;
     s->switches=campaign_switch_history;s->events=campaign_event_history;s->actors=rf_scene_defeated_actors;
     memcpy(s->switch_saved,campaign_switch_saved,sizeof(s->switch_saved));memcpy(s->event_saved,campaign_event_saved_states,sizeof(s->event_saved));
     if(s->switches.count>RF_CAMPAIGN_PICKUP_SLOTS||s->events.count>RF_CAMPAIGN_PICKUP_SLOTS||s->actors.count>RF_CAMPAIGN_ACTOR_SLOTS||
@@ -141,13 +212,14 @@ static int scene_campaign_history_checkpoint_encode(const unsigned char identity
     if(!identity||!out||!written)return RF_RANGE;
     s=calloc(1,sizeof(*s));if(!s)return RF_IO;status=scene_history_snapshot(s,now);if(status)goto done;
     bytes=96+(s->switches.level_count+s->events.level_count+s->actors.level_count)*64+
-        (s->switches.count+s->events.count)*32+s->actors.count*56;
+        (s->switches.count+s->events.count)*32+s->actors.count*56+scene_history_carry_bytes(s->carry_mask);
     if(bytes>capacity||bytes>SCENE_CAMPAIGN_HISTORY_MAX_BYTES){status=RF_RANGE;goto done;}
     p=calloc(1,bytes);if(!p){status=RF_IO;goto done;}
-    memcpy(p,"RFCH",4);scene_history_put(p+4,1);scene_history_put(p+8,bytes);memcpy(p+16,identity,32);
+    memcpy(p,"RFCH",4);scene_history_put(p+4,2);scene_history_put(p+8,bytes);memcpy(p+16,identity,32);
     scene_history_put(p+48,s->switches.level_count);scene_history_put(p+52,s->switches.count);
     scene_history_put(p+56,s->events.level_count);scene_history_put(p+60,s->events.count);
     scene_history_put(p+64,s->actors.level_count);scene_history_put(p+68,s->actors.count);
+    scene_history_put(p+72,s->carry_mask);scene_history_put(p+76,scene_history_carry_bytes(s->carry_mask));
     for(k=0;k<3;k++){
         uint32_t nl=k==0?s->switches.level_count:k==1?s->events.level_count:s->actors.level_count;
         uint32_t nr=k==0?s->switches.count:k==1?s->events.count:s->actors.count;
@@ -166,6 +238,7 @@ static int scene_campaign_history_checkpoint_encode(const unsigned char identity
             at+=k==2?56:32;
         }
     }
+    scene_history_carry_write(p+at,s);
     scene_history_put(p+12,scene_history_hash(p,bytes));status=scene_campaign_history_checkpoint_preflight(identity,p,bytes);
     if(!status){memcpy(out,p,bytes);*written=bytes;}
  done:free(p);free(s);return status;
@@ -193,12 +266,17 @@ static inline int scene_campaign_history_checkpoint_prepare(const unsigned char 
             at+=k==2?56:32;
         }
     }
+    if(scene_history_word(p+4)==2){status=scene_history_carry_read(p+at,scene_history_word(p+72),s);if(status){free(s);return status;}}
     *out=s;return RF_OK;
 }
 /* Assignment-only publication after ALL composed components have preflighted.
  * Caller holds scene stable; this does not touch current runtime owners. */
 static inline void scene_campaign_history_checkpoint_publish(const scene_campaign_history_checkpoint_stage *s)
 {
+    campaign_import_pending=s->carry_mask&1;campaign_export_valid=(s->carry_mask>>1)&1;
+    campaign_player_import=s->player_import;campaign_player_export=s->player_export;
+    campaign_machine_import_sidecar=s->machine_import;campaign_machine_export_sidecar=s->machine_export;
+    campaign_undercover_import_sidecar=s->undercover_import;campaign_undercover_export_sidecar=s->undercover_export;
     campaign_switch_history=s->switches;campaign_event_history=s->events;rf_scene_defeated_actors=s->actors;
     memcpy(campaign_switch_saved,s->switch_saved,sizeof(s->switch_saved));memcpy(campaign_event_saved_states,s->event_saved,sizeof(s->event_saved));
 }

@@ -6,6 +6,18 @@
 #include <math.h>
 #include <float.h>
 #include <string.h>
+#ifndef RF_IMAGE_XBOX_NATIVE
+#include <stdio.h>
+#include <stdlib.h>
+#endif
+static inline int scene_checkpoint_world_diagnostics(void)
+{
+#ifndef RF_IMAGE_XBOX_NATIVE
+    const char *enabled=getenv("RF_REPLAY_WORLD_RESTORE_PROBE");return enabled&&!strcmp(enabled,"1");
+#else
+    return 0;
+#endif
+}
 /* Every pointer belongs to the candidate being restored, not implicitly to the
  * current scene. metadata must be read-only. Scratch belongs to the caller.
  * This ordinary adapter cannot represent detached GeoMod pieces, vehicles or
@@ -17,7 +29,28 @@ typedef struct scene_checkpoint_world_context {
     rf_clutter_base_owner *const *props;uint32_t prop_count;
     rf_geometry_body_metadata metadata;void *metadata_context;
     uint32_t reference_room;float dt,class_speed;
+    uint32_t allow_no_contact; /* Stationary, nonfalling NPC only; default is strict standing. */
+    uint32_t authored_static_unchanged; /* Caller proves identity-bound static terrain has no mutations. */
+    const float *authored_position,*authored_basis; /* Optional exact NPC spawn baseline, borrowed. */
+    rf_clutter_base_owner *const *authored_props; /* Parallel immutable authored-pose owners; caller proves class geometry identity. */
 } scene_checkpoint_world_context;
+static int scene_checkpoint_world_authored_pose(const scene_checkpoint_world_context *c,const rf_checkpoint_placement *p)
+{
+    uint32_t k;
+    if(!c->allow_no_contact||!c->authored_static_unchanged||!c->authored_position||!c->authored_basis||
+       memcmp(p->position,c->authored_position,12))return 0;
+    for(k=0;k<9;k++)if(!isfinite(c->authored_basis[k])||fabsf(p->basis[k]-c->authored_basis[k])>1e-5f)return 0;
+    return 1;
+}
+static int scene_checkpoint_world_authored_prop(const scene_checkpoint_world_context *c,uint32_t slot,const rf_clutter_base_owner *p)
+{
+    const rf_clutter_base_owner *a=c->authored_props?c->authored_props[slot]:NULL;
+    if(!a||p->uid!=a->uid||p->state.handle!=a->state.handle||p->state.definition!=a->state.definition||
+       p->state.class_index!=a->state.class_index||memcmp(p->state.position,a->state.position,12)||
+       memcmp(p->matrix,a->matrix,36)||p->body.spheres.count!=a->body.spheres.count||
+       p->body.spheres.items!=a->body.spheres.items)return 0;
+    return 1;
+}
 static int scene_checkpoint_world_point(const float local[3],const float basis[9],const float position[3],float out[3])
 {
     uint32_t i,j;float result[3];
@@ -40,8 +73,13 @@ static int scene_checkpoint_world_obstacles(const scene_checkpoint_world_context
                 double v=0;for(l=0;l<3;l++)v+=((double)center[l]-pose->position[l])*pose->input_matrix[k*3+l];
                 if(!isfinite(v)||fabs(v)>FLT_MAX)return RF_FORMAT;local[k]=(float)v;
             }
-            status=rf_checkpoint_solid_sphere_check(flat->faces,flat->count,p->query_flags,local,p->spheres[i].radius,NULL);
-            if(status)return status;
+            {rf_checkpoint_placement_result reason={UINT32_MAX,UINT32_MAX,0};
+             status=rf_checkpoint_solid_sphere_check(flat->faces,flat->count,p->query_flags,local,p->spheres[i].radius,&reason);
+#ifndef RF_IMAGE_XBOX_NATIVE
+             if(status&&scene_checkpoint_world_diagnostics())printf("WORLD_RESTORE_PLACEMENT phaseobstacle_mover index%u handle%u sphere%u reason%u retries%u status%d\n",
+                j,c->movers->views[j].object_id,i,reason.reason,reason.retries,status);
+#endif
+             if(status)return status;}
         }
         for(j=0;j<c->prop_count;j++){
             const rf_clutter_base_owner *prop=c->props[j];
@@ -56,7 +94,17 @@ static int scene_checkpoint_world_obstacles(const scene_checkpoint_world_context
                 if(!isfinite(prop->body.spheres.items[k].radius)||prop->body.spheres.items[k].radius<=0)return RF_FORMAT;
                 for(l=0;l<3;l++){double d=(double)center[l]-other[l];distance+=d*d;}
                 radius=(double)p->spheres[i].radius+prop->body.spheres.items[k].radius-.002;
-                if(distance<radius*radius)return RF_NOT_FOUND;
+                if(distance<radius*radius){
+                    /* Conservative sphere unions may overlap in the original
+                     * authored layout. Only that exact, proven source pair is
+                     * exempt; saved moved/new props retain ordinary rejection. */
+                    if(scene_checkpoint_world_authored_pose(c,p)&&scene_checkpoint_world_authored_prop(c,j,prop))continue;
+#ifndef RF_IMAGE_XBOX_NATIVE
+                    if(scene_checkpoint_world_diagnostics())printf("WORLD_RESTORE_PLACEMENT phaseobstacle_prop uid%u sphere%u prop_sphere%u distance2%.12g limit2%.12g status%d\n",
+                        prop->uid,i,k,distance,radius*radius,RF_NOT_FOUND);
+#endif
+                    return RF_NOT_FOUND;
+                }
             }
         }
     }
@@ -73,7 +121,7 @@ static inline int scene_checkpoint_world_place(void *context,const rf_checkpoint
     rf_geometry_body_hit hit;rf_collision_room_location location;rf_entity_room_state next_room={0};
     rf_physics_support_contact next_support;uint32_t i,matched;int status;
     if(!c||!input||!room||!support||!c->world||!c->movers||!c->metadata||
-       (c->prop_count&&!c->props)||c->scratch_count<c->movers->count||
+       c->allow_no_contact>1||c->authored_static_unchanged>1||(c->prop_count&&!c->props)||c->scratch_count<c->movers->count||
        (c->movers->count&&(!c->scratch||!c->movers->poses||!c->movers->owned||!c->movers->views)))return RF_RANGE;
     p=*input;p.world=c->world;p.replaced_room=c->reference_room;
     if(!p.count){
@@ -89,7 +137,28 @@ static inline int scene_checkpoint_world_place(void *context,const rf_checkpoint
         next_support.handle=0;next_support.material=-1; /* Explicit no-contact sentinel. */
         *room=next_room;*support=next_support;return RF_OK;
     }
-    status=rf_checkpoint_world_standing_check(&p,c->dt,c->class_speed,NULL,NULL,NULL);if(status)return status;
+    {rf_checkpoint_placement_result reason={UINT32_MAX,UINT32_MAX,0};
+     status=c->allow_no_contact?rf_checkpoint_world_placement_check(&p,&reason):
+        rf_checkpoint_world_standing_check(&p,c->dt,c->class_speed,NULL,NULL,&reason);
+     /* Preserve a level author's stationary spawn even when its unchanged
+      * class sphere intersects a static polygon. Never extend this exception
+      * to displaced saves, modified terrain, solid/ambiguous classification,
+      * or candidate movers/props (checked below). Default/player has no proof. */
+     if(status==RF_NOT_FOUND&&reason.reason==RF_CHECKPOINT_PLACEMENT_SURFACE&&scene_checkpoint_world_authored_pose(c,&p)){
+         uint32_t k;
+         {
+             rf_checkpoint_placement centers=p;rf_physics_sphere points[8];
+             /* Recheck every center, so an early authored surface overlap
+              * cannot hide a later solid/outside/ambiguous center. */
+             for(k=0;k<p.count;k++){points[k]=p.spheres[k];points[k].radius=.00201f;}
+             centers.spheres=points;status=rf_checkpoint_world_placement_check(&centers,&reason);
+         }
+     }
+#ifndef RF_IMAGE_XBOX_NATIVE
+     if(status&&scene_checkpoint_world_diagnostics())printf("WORLD_RESTORE_PLACEMENT phasestanding sphere%u reason%u retries%u room%u dt%.9g speed%.9g flags%u status%d\n",
+        reason.sphere,reason.reason,reason.retries,c->reference_room,(double)c->dt,(double)c->class_speed,p.query_flags,status);
+#endif
+     if(status)return status;}
     status=scene_checkpoint_world_obstacles(c,&p);if(status)return status;
     status=rf_physics_ground_prepare(p.spheres,p.count,p.position,p.query_flags,0,c->dt,c->class_speed,0,&probe);if(status)return status;
     memcpy(sphere.center,probe.sphere.center,12);sphere.radius=probe.sphere.radius;
@@ -98,12 +167,28 @@ static inline int scene_checkpoint_world_place(void *context,const rf_checkpoint
     query.radius=probe.bounds.radius;query.flags=probe.query_flags;query.spheres=&sphere;query.count=1;query.limit=1;
     status=rf_geometry_collision_body_sweep(c->world,c->movers,&query,c->scratch,c->scratch_count,
         c->metadata,c->metadata_context,&hit,&matched);if(status)return status;
-    if(!matched||hit.solid!=UINT32_MAX||!isfinite(hit.contact.fraction)||hit.contact.fraction>=1||
-       hit.contact.normal[1]<.5f||hit.contact.material>INT32_MAX)return RF_NOT_FOUND;
+    if(matched&&(!isfinite(hit.contact.fraction)||!isfinite(hit.contact.normal[1])||hit.contact.material>INT32_MAX))return RF_FORMAT;
+    if(!matched||hit.solid!=UINT32_MAX||hit.contact.fraction>=1||hit.contact.normal[1]<.5f){
+        /* Original stationary NPCs need not have run a support query. Absence
+         * of floor is allowed only by their caller, after full volume clearance;
+         * moving support is never synthesized or silently discarded. */
+        if(c->allow_no_contact&&(!matched||hit.solid==UINT32_MAX)){
+            next_support.handle=0;next_support.material=-1;goto locate;
+        }
+#ifndef RF_IMAGE_XBOX_NATIVE
+        if(scene_checkpoint_world_diagnostics()){
+            if(matched)printf("WORLD_RESTORE_PLACEMENT phasefloor matched1 solid%u fraction%.9g normal_y%.9g material%u start_y%.9g end_y%.9g status%d\n",
+                hit.solid,(double)hit.contact.fraction,(double)hit.contact.normal[1],hit.contact.material,(double)probe.start[1],(double)probe.end[1],RF_NOT_FOUND);
+            else printf("WORLD_RESTORE_PLACEMENT phasefloor matched0 start_y%.9g end_y%.9g status%d\n",(double)probe.start[1],(double)probe.end[1],RF_NOT_FOUND);
+        }
+#endif
+        return RF_NOT_FOUND;
+    }
+    next_support.handle=0;next_support.material=(int32_t)hit.contact.material;
+locate:
     status=rf_geometry_collision_world_locate(c->world,p.position,&location);if(status)return status;
     if(location.room==UINT32_MAX||location.room>=c->world->room_count)return RF_NOT_FOUND;
     next_room.room=location.room+1;memcpy(next_room.query_position,p.position,12);
-    next_support.handle=0;next_support.material=(int32_t)hit.contact.material;
     *room=next_room;*support=next_support;return RF_OK;
 }
 #endif

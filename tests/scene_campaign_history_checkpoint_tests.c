@@ -80,7 +80,59 @@ int main(void)
         authored[0].record.uid=20;
         scene_campaign_history_checkpoint_close(&stage);
     }
-    campaign_export_valid=1;scene_shield_history_count=1;campaign_ai_saved_modes[0].flags=1;campaign_machine_export_sidecar.valid=1;
-    CHECK(scene_campaign_history_checkpoint_omissions()==15);
-    puts("PASS campaign history snapshot merge, prior-level counters/deaths/drops, atomic validation and restore");return 0;
+    {
+        rf_campaign_player_state carry={0};scene_machine_pistol_mode_state mode={0};scene_undercover_mode undercover={0};
+        uint32_t first_bytes,tail;scene_machine_pistol_mode_state restored={0};
+        carry.health=73;carry.armor=19;carry.weapon=13;carry.catalog_hash=0x12345678;
+        carry.inventory.owned[13]=carry.inventory.owned[16]=1;
+        carry.inventory.loaded[13]=17;carry.inventory.loaded[17]=6;carry.inventory.loaded[16]=9;carry.inventory.reserve[4]=41;
+        CHECK(!rf_campaign_player_copy(&campaign_player_import,&carry,carry.catalog_hash));campaign_import_pending=1;
+        mode.special=1;undercover.attached=1;
+        CHECK(!scene_machine_pistol_carry_capture(&campaign_machine_import_sidecar,&carry,&mode,13,17));
+        CHECK(!scene_undercover_carry_capture(&campaign_undercover_import_sidecar,&carry,16,&undercover));
+        campaign_machine_export_sidecar=campaign_machine_import_sidecar;campaign_undercover_export_sidecar=campaign_undercover_import_sidecar;
+        /* Export advanced after the mode sidecars: preserve these snapshots,
+         * so exact-match admission still rejects their application to it. */
+        carry.health=61;carry.inventory.loaded[13]=12;
+        CHECK(!rf_campaign_player_copy(&campaign_player_export,&carry,carry.catalog_hash));campaign_export_valid=1;
+        CHECK(!scene_campaign_history_checkpoint_encode(identity,1000,wire,sizeof(wire),&bytes));
+        CHECK(scene_history_word(wire+4)==2&&scene_history_word(wire+72)==63&&scene_history_word(wire+76)==2824);
+        first_bytes=bytes;tail=bytes-2824;memcpy(saved,wire,bytes);
+        CHECK(!scene_campaign_history_checkpoint_prepare(identity,wire,bytes,sizeof(*stage),&stage));
+        CHECK(stage->player_import.health==73&&stage->player_export.health==61&&stage->player_export.inventory.loaded[13]==12);
+        CHECK(stage->machine_export.special==1&&stage->machine_export.player.inventory.loaded[17]==6&&stage->undercover_import.attached==1);
+        CHECK(!scene_machine_pistol_carry_restore(&stage->machine_import,&stage->player_import,13,17,0,&restored)&&restored.special==1);
+        CHECK(!scene_machine_pistol_carry_matches(&stage->machine_export,&stage->player_export,13,17));
+        CHECK(scene_undercover_carry_matches(&stage->undercover_import,&stage->player_import,16));
+        campaign_import_pending=campaign_export_valid=0;
+        memset(&campaign_player_import,0,sizeof(campaign_player_import));memset(&campaign_player_export,0,sizeof(campaign_player_export));
+        scene_machine_pistol_carry_reset(&campaign_machine_import_sidecar);scene_machine_pistol_carry_reset(&campaign_machine_export_sidecar);
+        scene_undercover_carry_reset(&campaign_undercover_import_sidecar);scene_undercover_carry_reset(&campaign_undercover_export_sidecar);
+        scene_campaign_history_checkpoint_publish(stage);scene_campaign_history_checkpoint_close(&stage);
+        CHECK(campaign_import_pending&&campaign_export_valid&&campaign_machine_import_sidecar.valid&&campaign_undercover_export_sidecar.attached);
+        CHECK(!scene_campaign_history_checkpoint_encode(identity,1000,wire,sizeof(wire),&bytes));
+        CHECK(bytes==first_bytes&&!memcmp(wire,saved,bytes));
+        /* Valid checksum with malformed ammo or sidecar mode must fail before
+         * publication, preserving all live carry and the caller output slot. */
+        scene_history_put(wire+tail+192+13*4,UINT32_MAX);scene_history_put(wire+12,scene_history_hash(wire,bytes));
+        CHECK(scene_campaign_history_checkpoint_prepare(identity,wire,bytes,sizeof(*stage),&stage)==RF_FORMAT&&!stage);
+        CHECK(campaign_player_import.inventory.loaded[13]==17&&campaign_player_export.health==61);
+        memcpy(wire,saved,bytes);scene_history_put(wire+tail+928+472,2);scene_history_put(wire+12,scene_history_hash(wire,bytes));
+        CHECK(scene_campaign_history_checkpoint_prepare(identity,wire,bytes,sizeof(*stage),&stage)==RF_FORMAT&&!stage);
+        CHECK(campaign_machine_import_sidecar.special==1);
+        memcpy(wire,saved,bytes);
+        campaign_machine_import_sidecar.special=2;first_bytes=bytes;
+        CHECK(scene_campaign_history_checkpoint_encode(identity,1000,wire,sizeof(wire),&bytes)==RF_FORMAT&&bytes==first_bytes&&!memcmp(wire,saved,bytes));
+        campaign_machine_import_sidecar.special=1;
+        /* Version1 has no carry; absent records publish as empty, never retain
+         * unrelated process-global carry from before loading. */
+        scene_history_put(wire+4,1);scene_history_put(wire+8,tail);scene_history_put(wire+72,0);scene_history_put(wire+76,0);
+        scene_history_put(wire+12,scene_history_hash(wire,tail));
+        CHECK(!scene_campaign_history_checkpoint_prepare(identity,wire,tail,sizeof(*stage),&stage));
+        CHECK(!stage->carry_mask);scene_campaign_history_checkpoint_publish(stage);scene_campaign_history_checkpoint_close(&stage);
+        CHECK(!campaign_import_pending&&!campaign_export_valid&&!campaign_machine_import_sidecar.valid&&!campaign_undercover_export_sidecar.valid);
+    }
+    scene_shield_history_count=1;campaign_ai_saved_modes[0].flags=1;
+    CHECK(scene_campaign_history_checkpoint_omissions()==12);
+    puts("PASS campaign history snapshot, rebinding, carry/mode binary roundtrip and atomic validation");return 0;
 }

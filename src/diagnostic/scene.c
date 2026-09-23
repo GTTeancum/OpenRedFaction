@@ -10901,6 +10901,7 @@ static int scene_vehicle_checkpoint_read(scene_stream *,const void *,uint32_t,sc
 static int scene_vehicle_checkpoint_fit(scene_stream *,scene_authored_collection_stage *,scene_authored_checkpoint_stage *,const scene_vehicle_checkpoint_record *,const rf_checkpoint_placement *);
 #include "scene_player_checkpoint.inc"
 #include "scene_npc_checkpoint_capture.inc"
+#include "scene_npc_checkpoint_resources.inc"
 #include "scene_npc_checkpoint_restore.inc"
 #include "scene_mover_checkpoint.inc"
 #include "scene_event_checkpoint.inc"
@@ -10957,7 +10958,11 @@ int rf_scene_npc_checkpoint_export(const unsigned char identity[32],int32_t now,
 #include "scene_world_checkpoint_identity.inc"
 #include "scene_world_checkpoint_probe.inc"
 #include "scene_campaign_history_checkpoint.inc"
+#include "scene_world_environment_checkpoint.inc"
 #include "scene_world_restore.inc"
+#include "scene_world_player_restore.inc"
+#include "scene_world_event_restore.inc"
+#include "scene_world_mission_restore.inc"
 #include "scene_world_snapshot.inc"
 
 #ifdef RF_IMAGE_XBOX_NATIVE

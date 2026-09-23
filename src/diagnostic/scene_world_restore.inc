@@ -16,18 +16,19 @@ typedef struct scene_world_restore_stage {
     scene_npc_checkpoint_restore_stage *npcs;
     rf_geometry_collision_movers candidate_movers;
     rf_clutter_base_owner *candidate_props;
-    rf_clutter_base_owner **prop_views;
+    rf_clutter_base_owner **prop_views,**authored_prop_views;
     rf_collision_body_mover *scratch;
     scene_checkpoint_world_context world;
     const rf_npc_checkpoint_record *placement_rows;uint32_t placement_count,placement_next;
 } scene_world_restore_stage;
+static inline int scene_world_event_probe(scene_stream *,const scene_world_restore_stage *,int32_t);
 
 static inline void scene_world_restore_discard(scene_world_restore_stage **out)
 {
     scene_world_restore_stage *s;
     if(!out||!*out)return;s=*out;
     scene_npc_checkpoint_restore_discard(&s->npcs);scene_mover_checkpoint_close(&s->movers);
-    free(s->clutter);free(s->candidate_props);free(s->prop_views);free(s->scratch);free(s);*out=NULL;
+    free(s->clutter);free(s->candidate_props);free(s->prop_views);free(s->authored_prop_views);free(s->scratch);free(s);*out=NULL;
 }
 static inline int scene_world_restore_failure(const char *phase,int status)
 {
@@ -49,6 +50,7 @@ static inline int scene_world_restore_place(void *context,const rf_checkpoint_pl
     uid=s->placement_rows[s->placement_next].uid;
     if(memcmp(s->placement_rows[s->placement_next].position,placement->position,12))return RF_FORMAT;
     s->placement_next++;
+    world.authored_position=NULL;world.authored_basis=NULL;
     /* Immutable sphere-owner binding identifies the class, without consulting
      * live positions. Empty sets take the point-only room path (speed unused). */
     for(i=0;i<campaign_npc_body_count;i++)if(placement->count&&
@@ -56,6 +58,15 @@ static inline int scene_world_restore_place(void *context,const rf_checkpoint_pl
         uint32_t cls=campaign_seeds.items[i].class_index;
         if(uid!=(uint32_t)campaign_seeds.records.items[i].record.uid)return RF_FORMAT;
         if(!campaign_npc_movement_configs||cls>=campaign_seeds.class_count)return RF_FORMAT;
+        /* RFNC admission already requires zero motion. Bit1 marks falling;
+         * 0x400000 owns moving support. Neither state may lose its contact. */
+        world.allow_no_contact=!(campaign_npc_bodies[i].body.state.flags&(1u|0x400000u))&&
+            !campaign_npc_bodies[i].support.handle;
+        if(world.allow_no_contact&&world.authored_static_unchanged&&
+           !s->envelope.sections[RF_WORLD_DESTRUCTION-1].bytes){
+            world.authored_position=campaign_seeds.records.items[i].record.position;
+            world.authored_basis=campaign_seeds.records.items[i].record.orientation[0];
+        }
         world.class_speed=campaign_npc_movement_configs[cls].base_speed;break;
     }
     status=rf_geometry_collision_world_locate(world.world,placement->position,&location);
@@ -65,8 +76,20 @@ static inline int scene_world_restore_place(void *context,const rf_checkpoint_pl
     }
 #ifndef RF_IMAGE_XBOX_NATIVE
     if(status){const char *enabled=getenv("RF_REPLAY_WORLD_RESTORE_PROBE");
-        if(enabled&&!strcmp(enabled,"1"))printf("WORLD_RESTORE_NPC_PLACEMENT uid%u count%u position%.9g,%.9g,%.9g status%d\n",
-            uid,placement->count,(double)placement->position[0],(double)placement->position[1],(double)placement->position[2],status);}
+        if(enabled&&!strcmp(enabled,"1")){
+            printf("WORLD_RESTORE_NPC_PLACEMENT uid%u count%u position%.9g,%.9g,%.9g status%d\n",
+                uid,placement->count,(double)placement->position[0],(double)placement->position[1],(double)placement->position[2],status);
+            for(i=0;i<campaign_npc_body_count;i++)if((uint32_t)campaign_seeds.records.items[i].record.uid==uid){
+                const campaign_npc_body *owner=campaign_npc_bodies+i;uint32_t k;double basis_delta=0;
+                for(k=0;k<9;k++){double delta=fabs((double)placement->basis[k]-owner->body.state.orientation[k]);if(delta>basis_delta)basis_delta=delta;}
+                printf("WORLD_RESTORE_NPC_BODY uid%u class%s body_flags%u object_flags%u support%u material%d basis_delta%.9g authored_y%.9g current_y%.9g\n",
+                    uid,campaign_seeds.records.items[i].record.class_name,owner->body.state.flags,owner->object_flags,
+                    owner->support.handle,owner->support.material,basis_delta,(double)campaign_seeds.records.items[i].record.position[1],(double)owner->body.state.position[1]);
+                for(k=0;k<placement->count;k++)printf("WORLD_RESTORE_NPC_SPHERE uid%u index%u center%.9g,%.9g,%.9g radius%.9g\n",uid,k,
+                    (double)placement->spheres[k].center[0],(double)placement->spheres[k].center[1],(double)placement->spheres[k].center[2],(double)placement->spheres[k].radius);
+                break;
+            }
+        }}
 #else
     (void)uid;
 #endif
@@ -97,15 +120,15 @@ static inline int scene_world_restore_prepare(const void *data,uint32_t bytes,
     status=scene_clutter_checkpoint_identity(identity,clutter_identity);if(status)return scene_world_restore_failure("clutter_identity",status);
     status=rf_clutter_checkpoint_preflight(clutter->data,clutter->bytes,clutter_identity,&prop_count);if(status)return scene_world_restore_failure("clutter_codec",status);
     if(prop_count>campaign_clutter_records.count)return RF_FORMAT;
-    fixed=sizeof(*s)+(uint64_t)prop_count*(sizeof(*s->candidate_props)+sizeof(*s->prop_views))+
+    fixed=sizeof(*s)+(uint64_t)prop_count*(sizeof(*s->candidate_props)+2*sizeof(*s->prop_views))+
         (uint64_t)campaign_movers.count*sizeof(*s->scratch);
     resident=sizeof(scene_clutter_restore_stage)+(uint64_t)prop_count*sizeof(scene_clutter_restore_entry);
     temp=(uint64_t)prop_count*sizeof(rf_clutter_checkpoint_record);
     if(fixed+resident+temp>budget||fixed+resident>UINT32_MAX)return RF_RANGE;
     s=calloc(1,sizeof(*s));if(!s)return RF_IO;s->envelope=envelope;s->allocated_bytes=(uint32_t)fixed;
-    if(prop_count){s->candidate_props=calloc(prop_count,sizeof(*s->candidate_props));s->prop_views=calloc(prop_count,sizeof(*s->prop_views));}
+    if(prop_count){s->candidate_props=calloc(prop_count,sizeof(*s->candidate_props));s->prop_views=calloc(prop_count,sizeof(*s->prop_views));s->authored_prop_views=calloc(prop_count,sizeof(*s->authored_prop_views));}
     if(campaign_movers.count)s->scratch=calloc(campaign_movers.count,sizeof(*s->scratch));
-    if((prop_count&&(!s->candidate_props||!s->prop_views))||(campaign_movers.count&&!s->scratch)){status=RF_IO;goto fail;}
+    if((prop_count&&(!s->candidate_props||!s->prop_views||!s->authored_prop_views))||(campaign_movers.count&&!s->scratch)){status=RF_IO;goto fail;}
     phase="clutter_stage";status=scene_clutter_checkpoint_prepare(identity,clutter->data,clutter->bytes,now,0,&s->clutter);if(status)goto fail;
     s->allocated_bytes+=(uint32_t)resident;
     if(s->clutter->count!=prop_count){status=RF_FORMAT;goto fail;}
@@ -113,6 +136,9 @@ static inline int scene_world_restore_prepare(const void *data,uint32_t bytes,
         const scene_clutter_restore_entry *e=s->clutter->entries+i;slot=e->slot;
         if(slot>=campaign_clutter_records.count||!campaign_clutter_bodies[slot]){status=RF_FORMAT;goto fail;}
         s->candidate_props[i]=*campaign_clutter_bodies[slot];s->prop_views[i]=s->candidate_props+i;
+        /* Clutter identity/prepare has proved these are unchanged authored
+         * positions/bases and retained class geometry, never saved moved props. */
+        s->authored_prop_views[i]=campaign_clutter_bodies[slot];
         s->candidate_props[i].state.health=e->row.health;
         s->candidate_props[i].state.flags=(s->candidate_props[i].state.flags&~0x204002u)|e->row.flags;
     }
@@ -125,6 +151,7 @@ static inline int scene_world_restore_prepare(const void *data,uint32_t bytes,
     s->allocated_bytes+=s->movers.allocated_bytes;free(mover_rows);mover_rows=NULL;
     s->candidate_movers=campaign_movers;s->candidate_movers.poses=s->movers.poses;s->candidate_movers.views=s->movers.views;
     s->world=*world;s->world.movers=&s->candidate_movers;s->world.props=s->prop_views;s->world.prop_count=prop_count;
+    s->world.authored_props=s->authored_prop_views;
     s->world.scratch=s->scratch;s->world.scratch_count=campaign_movers.count;
     temp=(uint64_t)npc_count*sizeof(*npc_rows);
     if((uint64_t)s->allocated_bytes+temp>budget){status=RF_RANGE;goto fail;}
@@ -155,6 +182,10 @@ static inline int scene_world_restore_probe(scene_stream *stream,const void *dat
     surfaces.geometries=campaign_surface_sources;surfaces.count=mapping.count;surfaces.mapping=&mapping;surfaces.palette=campaign_surface_palette;
     world.world=stream->collision;world.movers=&campaign_movers;world.metadata=campaign_body_surface;
     world.metadata_context=&surfaces;world.reference_room=0;world.dt=1.0f/60;world.class_speed=0;
+    /* This first probe accepts only pristine static geometry. A future loader
+     * must prove the same property or stage destruction before giving proof. */
+    world.authored_static_unchanged=!stream->terrain&&!stream->terrain_authored&&!stream->terrain_publication&&
+        !stream->terrain_history_count&&!stream->terrain_publication_serial;
     catalog.hash=rf_scene_weapon_supply[3];catalog.count=campaign_weapon_supply.names.count;
     if(!catalog.count||catalog.count>64)return scene_world_restore_failure("npc_catalog",RF_RANGE);
     memcpy(catalog.weapons,campaign_weapon_supply.definitions,sizeof(catalog.weapons));
@@ -166,6 +197,7 @@ static inline int scene_world_restore_probe(scene_stream *stream,const void *dat
     status=scene_world_restore_prepare(data,bytes,identity,0,&catalog,now,&world,2u*1024u*1024u,&stage);
     if(!status){allocated=stage->allocated_bytes;mask=stage->semantic_mask;}
     printf("WORLD_RESTORE_PROBE status%d bytes%u semantic_mask%u no_publication1\n",status,allocated,mask);
+    if(!status)status=scene_world_event_probe(stream,stage,now);
     scene_world_restore_discard(&stage);return status;
 #else
     (void)stream;(void)data;(void)bytes;(void)identity;(void)now;return RF_OK;

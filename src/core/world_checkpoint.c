@@ -37,7 +37,7 @@ int rf_world_checkpoint_encode(const rf_world_checkpoint *input,uint32_t require
         at+=s->bytes;
     }
     /* All failure paths precede writes; only clear metadata, never staged slices. */
-    memset(p,0,RF_WORLD_CHECKPOINT_PREFIX);memcpy(p,"RFWC",4);put(p+4,1);put(p+8,bytes);
+    memset(p,0,RF_WORLD_CHECKPOINT_PREFIX);memcpy(p,"RFWC",4);put(p+4,2);put(p+8,bytes);
     put(p+16,RF_WORLD_CHECKPOINT_SECTIONS);memcpy(p+24,input->identity,32);memcpy(p+56,input->level,n);
     at=RF_WORLD_CHECKPOINT_PREFIX;
     for(i=0;i<RF_WORLD_CHECKPOINT_SECTIONS;i++){
@@ -49,15 +49,18 @@ int rf_world_checkpoint_encode(const rf_world_checkpoint *input,uint32_t require
 }
 static int decode(const void *input,uint32_t bytes,uint32_t required,rf_world_checkpoint *output)
 {
-    const unsigned char *p=input;rf_world_checkpoint result={0};uint32_t i,at=RF_WORLD_CHECKPOINT_PREFIX,n;
+    const unsigned char *p=input;rf_world_checkpoint result={0};uint32_t i,at,n,sections,version;
     if(!input||(required&~RF_WORLD_CHECKPOINT_ALL_MASK))return RF_RANGE;
     if(output&&overlap(input,bytes,output,sizeof(*output)))return RF_RANGE;
-    if(bytes<RF_WORLD_CHECKPOINT_PREFIX||bytes>RF_CHECKPOINT_FILE_MAX||memcmp(p,"RFWC",4)||word(p+4)!=1||
-       word(p+8)!=bytes||word(p+16)!=RF_WORLD_CHECKPOINT_SECTIONS||word(p+20)||word(p+120)||word(p+124)||word(p+12)!=checksum(p,bytes))return RF_FORMAT;
+    if(bytes<RF_WORLD_CHECKPOINT_PREFIX_V1||bytes>RF_CHECKPOINT_FILE_MAX||memcmp(p,"RFWC",4)||
+       word(p+8)!=bytes||word(p+20)||word(p+120)||word(p+124)||word(p+12)!=checksum(p,bytes))return RF_FORMAT;
+    version=word(p+4);if(version!=1&&version!=2)return RF_FORMAT;
+    sections=version==1?15:RF_WORLD_CHECKPOINT_SECTIONS;at=128+12*sections;
+    if(bytes<at||word(p+16)!=sections||(version==1&&(required&RF_WORLD_CHECKPOINT_MASK(RF_WORLD_ENVIRONMENT))))return RF_FORMAT;
     for(n=0;n<64&&p[56+n];n++){}if(!n||n==64)return RF_FORMAT;
     for(i=n;i<64;i++)if(p[56+i])return RF_FORMAT;
     memcpy(result.identity,p+24,32);memcpy(result.level,p+56,64);
-    for(i=0;i<RF_WORLD_CHECKPOINT_SECTIONS;i++){
+    for(i=0;i<sections;i++){
         const unsigned char *d=p+128+i*12;uint32_t size=word(d+8);
         if(word(d)!=i+1||word(d+4)!=at||size>bytes-at||(!size&&(required&(1u<<i))))return RF_FORMAT;
         result.sections[i].bytes=size;result.sections[i].data=size?p+at:NULL;at+=size;

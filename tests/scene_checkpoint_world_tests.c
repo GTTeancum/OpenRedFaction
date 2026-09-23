@@ -24,11 +24,32 @@ int main(void)
     CHECK(room.room==1&&!memcmp(room.query_position,p.position,12)&&support.handle==0&&support.material==7);
     saved_room=room;saved_support=support;p.position[1]=0;
     CHECK(scene_checkpoint_world_place(&context,&p,&room,&support)==RF_NOT_FOUND);
-    CHECK(!memcmp(&room,&saved_room,sizeof(room))&&!memcmp(&support,&saved_support,sizeof(support)));p.position[1]=-9.5f;
+    CHECK(!memcmp(&room,&saved_room,sizeof(room))&&!memcmp(&support,&saved_support,sizeof(support)));
+    context.allow_no_contact=1;
+    CHECK(!scene_checkpoint_world_place(&context,&p,&room,&support));
+    CHECK(room.room==1&&support.handle==0&&support.material==-1&&room.query_position[1]==0);
+    p.position[0]=9.75f;CHECK(scene_checkpoint_world_place(&context,&p,&room,&support)==RF_NOT_FOUND);
+    {float authored[3]={9.75f,0,0};
+     context.authored_static_unchanged=1;context.authored_position=authored;context.authored_basis=p.basis;
+     CHECK(!scene_checkpoint_world_place(&context,&p,&room,&support));
+     CHECK(support.material==-1&&room.query_position[0]==9.75f);
+     p.position[0]=9.76f;CHECK(scene_checkpoint_world_place(&context,&p,&room,&support)==RF_NOT_FOUND);
+     p.position[0]=9.75f;context.authored_static_unchanged=0;
+     CHECK(scene_checkpoint_world_place(&context,&p,&room,&support)==RF_NOT_FOUND);
+     context.authored_position=NULL;context.authored_basis=NULL;}
+    p.position[0]=0;context.allow_no_contact=0;p.position[1]=-9.5f;
     prop.state.definition=&prop_class;prop_class.flags=2;memcpy(prop.state.position,p.position,12);
     prop.body.spheres.items=&prop_sphere;prop.body.spheres.count=1;
     for(i=0;i<3;i++)prop.matrix[i*3+i]=1;context.props=props;context.prop_count=1;
     CHECK(scene_checkpoint_world_place(&context,&p,&room,&support)==RF_NOT_FOUND);
+    {rf_clutter_base_owner authored_prop=prop,*authored_props[1]={&authored_prop};float authored_position[3];
+     memcpy(authored_position,p.position,12);context.allow_no_contact=context.authored_static_unchanged=1;
+     context.authored_position=authored_position;context.authored_basis=p.basis;context.authored_props=authored_props;
+     CHECK(!scene_checkpoint_world_place(&context,&p,&room,&support));
+     p.position[0]=.01f;CHECK(scene_checkpoint_world_place(&context,&p,&room,&support)==RF_NOT_FOUND);p.position[0]=0;
+     prop.state.position[0]=.01f;CHECK(scene_checkpoint_world_place(&context,&p,&room,&support)==RF_NOT_FOUND);prop.state.position[0]=0;
+     prop.uid++;CHECK(scene_checkpoint_world_place(&context,&p,&room,&support)==RF_NOT_FOUND);prop.uid--;
+     context.allow_no_contact=context.authored_static_unchanged=0;context.authored_position=context.authored_basis=NULL;context.authored_props=NULL;}
     prop.state.flags=2;CHECK(!scene_checkpoint_world_place(&context,&p,&room,&support));context.prop_count=0;
     cube(obstacle_vertices,obstacle_faces,zero,1,0);mesh=(rf_geomod_mesh_view){obstacle_vertices,obstacle_faces,24,6,0};
     CHECK(!rf_geomod_collision_faces(&mesh,filters,obstacle_positions,24,obstacle,6));

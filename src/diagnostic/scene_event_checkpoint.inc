@@ -123,7 +123,7 @@ static inline int scene_event_checkpoint_prepare(rf_runtime_events *events,const
     *out=s;return RF_OK;
 failed:scene_event_checkpoint_close(&s);return status;
 }
-static inline int scene_event_checkpoint_commit(scene_event_checkpoint_stage *s)
+static inline int scene_event_checkpoint_validate(scene_event_checkpoint_stage *s)
 {
     uint32_t i,retiring=0;int status;
     if(!s||!s->owner||!s->registry||(s->count&&!s->entries)||s->owner->items!=s->items||
@@ -139,12 +139,24 @@ static inline int scene_event_checkpoint_commit(scene_event_checkpoint_stage *s)
         if(!r->before.retired&&r->next.retired)++retiring;
     }
     if(s->registry->count>RF_OBJECT_CAPACITY||retiring>RF_OBJECT_CAPACITY-s->registry->count)return RF_FORMAT;
+    return RF_OK;
+}
+/* Assignment only. Caller must validate every composed stage first, then keep
+ * scene owners and registry stable until all assignments finish. No callbacks
+ * or gameplay dispatch; allocation and stage disposal remain caller-owned. */
+static inline void scene_event_checkpoint_assign(scene_event_checkpoint_stage *s)
+{
+    uint32_t i;
     /* All operations below are non-failing under the stable-scene contract. */
     for(i=0;i<s->count;i++){
         scene_event_checkpoint_entry *r=s->entries+i;rf_switch_state *owned=r->before.switch_state;
         if(!r->before.retired&&r->next.retired)(void)rf_object_registry_remove(s->registry,r->before.handle);
         *r->target=r->next;r->target->switch_state=owned;if(owned)*owned=r->switch_next;
     }
-    scene_event_checkpoint_close(s);return RF_OK;
+}
+static inline int scene_event_checkpoint_commit(scene_event_checkpoint_stage *s)
+{
+    int status=scene_event_checkpoint_validate(s);if(status)return status;
+    scene_event_checkpoint_assign(s);scene_event_checkpoint_close(s);return RF_OK;
 }
 #endif

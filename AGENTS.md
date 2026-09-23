@@ -39,3 +39,5 @@
 - Overall implementation estimate is approximately82% as of this update. It is a rough engineering estimate, not a measured test-coverage or retail-readiness percentage. Keep per-turn percentages and a very high-level current-system report.
 
 - Reporting update: Omit the completed GeoMod percentage. End each turn with overall implementation percentage and a percentage for the current active system, naming that system at a high level.
+
+- User update (2026-09-22): Pause all sub-agents to reduce token usage. Continue solo; do not restart helpers without explicit renewed authorization. Preserve work already written for parent integration. This supersedes the earlier three-agent authorization.

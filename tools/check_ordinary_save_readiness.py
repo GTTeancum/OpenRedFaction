@@ -7,7 +7,7 @@ ROOT = Path(__file__).resolve().parents[1]
 
 SECTION_NAMES = ('player', 'npc', 'mover', 'events', 'triggers', 'goals', 'pickups',
                  'clutter', 'weapon_modes', 'remote', 'vehicle', 'destruction', 'switches',
-                 'startup', 'campaign_history')
+                 'startup', 'campaign_history', 'environment')
 HISTORY_OMISSIONS = {1: 'player campaign carry', 2: 'weapon-mode campaign sidecars',
                      4: 'NPC shield history', 8: 'NPC AI-mode history'}
 
@@ -30,15 +30,17 @@ def inspect_slot(path):
     if len(payload) < 308 or payload[:4] != b'RFWC':
         raise ValueError('missing RFWC envelope')
     version, total, checksum, count, reserved = struct.unpack_from('<5I', payload, 4)
-    if version != 1 or total != size or count != 15 or reserved or any(payload[120:128]):
+    if version not in (1, 2) or total != size or count != (15 if version == 1 else 16) or reserved or any(payload[120:128]):
         raise ValueError('invalid RFWC header')
     if fnv(payload[:12] + bytes(4) + payload[16:]) != checksum:
         raise ValueError('RFWC checksum mismatch')
     level = payload[56:120]
     if not level[0] or b'\0' not in level or any(level[level.index(0):]):
         raise ValueError('invalid RFWC level name')
-    sections = {}; at = 308
-    for i, name in enumerate(SECTION_NAMES):
+    sections = {}; at = 128 + 12 * count
+    if len(payload) < at:
+        raise ValueError('truncated RFWC directory')
+    for i, name in enumerate(SECTION_NAMES[:count]):
         kind, offset, length = struct.unpack_from('<3I', payload, 128 + 12 * i)
         if kind != i + 1 or offset != at or length > size - at:
             raise ValueError('invalid RFWC directory: ' + name)
@@ -46,14 +48,18 @@ def inspect_slot(path):
         sections[name] = dict(bytes=length, present=bool(length),
                               magic=section[:4].decode('ascii', errors='replace') if length else None)
         at += length
+    if version == 1:
+        sections['environment'] = dict(bytes=0, present=False, magic=None)
     if at != size:
         raise ValueError('unclaimed RFWC bytes')
     for name in ('player', 'npc', 'mover', 'triggers', 'goals', 'pickups', 'clutter',
                  'weapon_modes', 'startup', 'campaign_history'):
         if not sections[name]['present']:
             raise ValueError('required section absent: ' + name)
+    if version == 2 and not sections['environment']['present']:
+        raise ValueError('required section absent: environment')
     return dict(path=str(path), generation=generation, bytes=size, level=level.split(b'\0')[0].decode('ascii'),
-                identity=payload[24:56].hex(), transport_verified=True, envelope_verified=True,
+                identity=payload[24:56].hex(), envelope_version=version, transport_verified=True, envelope_verified=True,
                 component_semantics_verified=False, sections=sections)
 
 def main():
