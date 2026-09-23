@@ -7,7 +7,7 @@ Completion basis (user direction,2026-09-18): working late-alpha/early-beta code
 
 - AI navigation: L6S3 authored Goto actor takes a four-node route with navpoints ON and a direct approach with them OFF, and mid-route OFF invalidation matches Xbox/PC actor state exactly; RFEN2 survives full L18S1 PC reload, while broader NPC travel, mid-route reopening and native reload remain open.
 
-- Campaign countdown: Begin/End/Over/Reaches run on PC/Xbox; L15S1 and L17S1 PC save/load preserve timer bits, while L17S1 native save/load completes; native post-load timer comparison, player difficulty, HUD/audio and live expiry/section handoff remain open (docs/CAMPAIGN-COUNTDOWN-FIRST-PASS.md).
+- Campaign countdown: Begin/End/Over/Reaches run on PC/Xbox; L15/L17 PC save/load preserves timer bits and L17 native save/load works; live PC L17S1→S2 retains the timer and consumes expiry with visible blackout, while the reactor blast sound now starts on PC/Xbox; native post-load/expiry comparison, player difficulty, timer HUD, captured audio output and mission outcome remain open (docs/CAMPAIGN-COUNTDOWN-FIRST-PASS.md).
 
 - Xbox retained rendering: L6S3 native static world, model and clutter draws now pass the 480-frame PC/Xbox replay with a near-matching frame and identical final camera and visibility; revisit disabled model bounds culling for performance.
 

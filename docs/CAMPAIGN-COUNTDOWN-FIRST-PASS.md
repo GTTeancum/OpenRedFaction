@@ -61,7 +61,26 @@ PC byte-for-byte. The native reload reaches 180 frames with 4522 available
 pages (about 17.7 MiB); the captured frame shows the red room, weapon, HUD
 and mission message. The native post-load countdown value was not sampled.
 
-Remaining countdown work: player-selected difficulty and HUD/audio, live
-expiry/mission handoff, a live section transition, native post-load timer
-comparison and native L15 save/load verification. In-memory section ownership already
-preserves the shared timer, but a live countdown transition is unverified.
+A process-local L17S1 replay reaches zero after 3400 frames: its named
+one-second `When_Countdown_Reaches` warning fires and the final PC frame is
+visibly black. L17S1 has no type-75 Over monitor, so the expiry pulse remains
+pending there. A live authored exit UID 18201 enters L17S2 at frame 61; at
+frame 180 the remaining float is 52.016712 seconds, matching continuous
+countdown progress. Continuing that transitioned run to frame 3400 leaves
+zero time and a consumed pulse, with L17S2's Over monitor firing and a visible
+blackout. This establishes the section handoff and failure warning, not the
+later mission outcome.
+
+The authored `reactor_blast.wav` was present but could not load alongside
+resident L17 audio under the former 1 MiB bank cap. A 1.25 MiB cap admits the
+309434-byte sound on PC. A 90-frame stock 64 MiB XEMU replay of authored sound
+UID 21210 matches PC's scripted sound state exactly: one request, one start,
+zero failures, with 4607 pages (about 18.0 MiB) available
+(`artifacts/xemu/render-20260923-031714/`). The native framebuffer was
+inspected. The emulator run disables audio output, so audibility is not yet
+verified. The replay checker now compares exact countdown and scripted-sound
+state on each native run.
+
+Remaining countdown work: player-selected difficulty, timer HUD, later mission
+outcome after expiry or escape, captured native audio output, native long-run
+expiry, native post-load timer comparison and native L15 save/load verification.

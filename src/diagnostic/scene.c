@@ -2432,7 +2432,9 @@ static int campaign_audio_open(const char *tables_path,const char *level_name,co
         if(campaign_events.items[i].authored->record.texts[0][0])++capacity;
     }
     if(!capacity)capacity=1;if(capacity>2600)capacity=2600;
-    status=rf_audio_bank_open(&archive,capacity,1024*1024,&campaign_audio_bank);
+    /* L17's 309434-byte reactor blast must coexist with authored resident
+     * samples; the former 1 MiB cap rejected the mission warning. */
+    status=rf_audio_bank_open(&archive,capacity,1280*1024,&campaign_audio_bank);
     if(status)goto audio_done;
     for(i=0;i<declared;i++) {
         const rf_audio_declaration *row=declarations+i;

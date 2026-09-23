@@ -1106,7 +1106,8 @@ A2600-byte static eligibility map marks only samples lazily loaded by ambient
 playback; existing controller/rejection/jump preloads remain pinned because
 their current paths still expect residency. The map resets with the bank.
 Resident sample/byte telemetry decreases on eviction, while ambient lazy-load
-bytes remain cumulative. The audio bank retains its1MiB cap; eligibility storage
+bytes remain cumulative. The audio bank now has a 1.25 MiB cap so L17's
+reactor-blast warning can coexist with resident samples; eligibility storage
 is separate fixed scene state. Legacy devices without release certification
 continue ordinary loading without eviction.
 

@@ -816,6 +816,8 @@ run_scene:
             printf("CONTROLLER_AUDIO");for(k=0;k<4;k++)printf(" %u",rf_scene_controller_audio[k]);printf("\n");
             printf("SPATIAL_AUDIO");for(k=0;k<6;k++)printf(" %u",rf_scene_spatial_audio[k]);printf("\n");
             printf("LIVE_AUDIO");for(k=0;k<8;k++)printf(" %u",rf_scene_live_audio[k]);printf("\n");}
+            {extern uint32_t rf_scene_script_sound[8];uint32_t k;
+             printf("SCRIPT_SOUND_STATE");for(k=0;k<8;k++)printf(" %u",rf_scene_script_sound[k]);printf("\n");}
             {extern uint32_t rf_scene_live_motion[8];extern float rf_scene_live_door_positions[6];uint32_t k;
             printf("LIVE_MOTION");for(k=0;k<8;k++)printf(" %u",rf_scene_live_motion[k]);printf("\nDOOR_POSITIONS");
             for(k=0;k<6;k++){uint32_t bits;memcpy(&bits,rf_scene_live_door_positions+k,4);printf(" %u",bits);}printf("\n");}
