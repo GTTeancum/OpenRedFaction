@@ -16,6 +16,16 @@ retain their authored order.
 
 The installed L6S3 test fires Invert 7124 into Enable_Navpoint 7123 OFF, checks
 nodes 21, 58 and 56 reject a positive-radius query, then fires 7123 ON and
-checks exact baseline bits and query admission. The PC test, PC play build and
-NXDK build pass. Live actor travel, Xbox runtime behavior and save persistence
-of changed live radii remain open.
+checks exact baseline bits and query admission. The full PC scene also accepts
+process-local setup events: a 60-frame L6S3 replay of 7124 reports three OFF
+writes ending at live radius zero; a 120-frame replay of 7124 then 7123 reports
+three OFF and three ON writes ending at the authored radius bits. Both replays
+exit successfully. The PC test, PC play build and NXDK build pass. Live actor
+travel, Xbox runtime behavior and save persistence of changed radii remain open.
+
+The replay records are 60 or 120 legacy 24-byte zero-input frames in the ignored
+`artifacts/navpoint-live/` directory. Run `rf_pc_play.exe --spawn-replay` with
+`RF_REPLAY_LEVEL=L6S3.rfl`, `RF_REPLAY_ARCHIVE=levels1.vpp` and
+`RF_REPLAY_SETUP_UID=7124` or `7124,7123`; the `SCRIPT_NAVPOINT` line reports
+`3 0 0 3 ... 0` for OFF and `3 0 3 3 ... 1058642330` after ON. These checks
+establish node mutation in the scene, not observed NPC route changes.
