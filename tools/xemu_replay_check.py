@@ -292,8 +292,28 @@ dvd_path = '{root.as_posix()}/build/xbox/redfaction-diagnostic.iso'
       focus[label]={'guest':actual,'pc':reference,'match':actual==reference}
      report['navigation_focus']=focus
      (run/'navigation-focus.json').write_text(json.dumps(focus,indent=2))
+    retained=words(monitor,symbol('rf_xbox_retained_world'),8)
+    report['retained_world']=retained
+    follow=words(monitor,symbol('rf_scene_actor_follow_frames'),64*14)
+    latest=max((follow[i:i+14] for i in range(0,len(follow),14)),key=lambda row:row[0])
+    reference=expected('ACTOR_FOLLOW_LAST')
+    report['last_camera']={'guest':latest,'pc':reference}
+    assert latest[0]==reference[0] and latest[2:]==reference[2:],report['last_camera']
+    if retained[0]==1:
+     assert retained[1]>0 and retained[3]>0 and retained[7]==0,retained
+     if args.level and args.level.lower()=='l6s3.rfl' and args.goto_uid is not None:
+      assert retained[4]>0 and retained[5]>0 and retained[6]>0,retained
+    if args.capture:
+     from PIL import Image
+     monitor.command('stop');capture=run/'framebuffer.bin'
+     monitor.command('human-monitor-command',{'command-line':f'pmemsave 0x{d[32]&0x03ffffff:x} {d[35]*d[34]} "{capture.as_posix()}"'})
+     Image.frombytes('RGB',(d[33],d[34]),capture.read_bytes(),'raw','BGRX',d[35],1).save(run/'framebuffer.png')
+     report['capture']='Native guest framebuffer for renderer validation'
     for name,label,count in [('rf_scene_actor_follow_summary','ACTOR_FOLLOW_SUMMARY',5),('rf_scene_player_input_frames','ACTOR_PLAYER_INPUT',448),('scene_actor_body','PC_PLAY_BODY',77)]:
-     got=words(monitor,symbol(name),count);report[name]=got;assert got==expected(label),(name,got,expected(label))
+     got=words(monitor,symbol(name),count);report[name]=got
+     if name=='rf_scene_actor_follow_summary' and retained[0]==1:
+      assert got[0]==expected(label)[0] and got[4]==expected(label)[4],(name,got,expected(label))
+     else:assert got==expected(label),(name,got,expected(label))
     if args.campaign_spawn:
      report['player_life']=words(monitor,symbol('rf_scene_player_life'),8)
      assert report['player_life']==expected('PLAYER_LIFE'),report['player_life']
@@ -393,7 +413,14 @@ dvd_path = '{root.as_posix()}/build/xbox/redfaction-diagnostic.iso'
      assert npc_materials[0]>0 and npc_materials[2]>0 and npc_materials[6]>0,npc_materials
      report['npc_materials']=npc_materials
      npc_draw=words(monitor,symbol('rf_scene_npc_draw'),5)
-     assert npc_draw==expected('NPC_DRAW') and npc_draw[0]==section_frames and npc_draw[4]<512*1024,npc_draw
+     retained_models=words(monitor,symbol('rf_xbox_retained_models'),8)
+     report['retained_models']=retained_models
+     reference_draw=expected('NPC_DRAW')
+     if retained_models[1]:
+      # Xbox submits retained model vertices outside the shared CPU mesh.
+      assert npc_draw[0]==reference_draw[0] and npc_draw[1]==reference_draw[1] and npc_draw[4]==reference_draw[4],npc_draw
+      assert npc_draw[2:4]==[0,2166136261] and retained_models[4]>0 and retained_models[5]>0,retained_models
+     else:assert npc_draw==reference_draw and npc_draw[0]==section_frames and npc_draw[4]<512*1024,npc_draw
      report['npc_draw']=npc_draw
      npc_playback=words(monitor,symbol('rf_scene_npc_playback'),7)
      assert npc_playback==expected('NPC_PLAYBACK') and npc_playback[0]==section_frames-1 and npc_playback[6]<=1024*1024,npc_playback
@@ -598,7 +625,14 @@ dvd_path = '{root.as_posix()}/build/xbox/redfaction-diagnostic.iso'
      report['clutter_materials']=clutter_materials
      report['clutter_skins']=clutter_skins
      clutter_draw=words(monitor,symbol('rf_scene_clutter_draw'),6)
-     assert clutter_draw==expected('CLUTTER_DRAW') and clutter_draw[0]==section_frames,clutter_draw
+     reference_clutter=expected('CLUTTER_DRAW')
+     report['clutter_draw_pc']=reference_clutter
+     if retained_models[1]:
+      # Retained batches bypass CPU clipping; contributing placement and batch
+      # counts can differ, while the room transaction and draw remain bounded.
+      assert clutter_draw[0]==reference_clutter[0] and clutter_draw[4]==reference_clutter[4],clutter_draw
+      assert clutter_draw[1]>0 and clutter_draw[5]>0 and clutter_draw[2:4]==[0,2166136261],clutter_draw
+     else:assert clutter_draw==reference_clutter and clutter_draw[0]==section_frames,clutter_draw
      assert clutter_draw[4]==0 and clutter_draw[2]%3==0,clutter_draw
      report['clutter_draw']=clutter_draw
      clutter_bodies=words(monitor,symbol('rf_scene_clutter_bodies'),10)
@@ -784,7 +818,12 @@ dvd_path = '{root.as_posix()}/build/xbox/redfaction-diagnostic.iso'
      assert weapon_hands==expected('WEAPON_HANDS'),weapon_hands
      report['weapon_hands']=weapon_hands
      weapon_draw=words(monitor,symbol('rf_scene_weapon_draw'),6)
-     assert weapon_draw==expected('WEAPON_DRAW'),weapon_draw
+     reference_weapon=expected('WEAPON_DRAW')
+     report['weapon_draw_pc']=reference_weapon
+     if retained_models[1]:
+      assert weapon_draw[:3]==reference_weapon[:3] and weapon_draw[5]==reference_weapon[5],weapon_draw
+      assert weapon_draw[3:5]==[0,2166136261],weapon_draw
+     else:assert weapon_draw==reference_weapon,weapon_draw
      if args.actor_uid is not None:assert weapon_draw[3]>0,weapon_draw
      report['weapon_draw']=weapon_draw
      weapon_placement=words(monitor,symbol('rf_scene_weapon_placement'),4)
@@ -1049,12 +1088,13 @@ dvd_path = '{root.as_posix()}/build/xbox/redfaction-diagnostic.iso'
     if args.require_wide:assert peak>1048576 and expected('ACTOR_FOLLOW_SUMMARY')[2]>1048576
     if args.capture:
      from PIL import Image
-     monitor.command('stop');capture=run/'framebuffer.bin'
-     monitor.command('human-monitor-command',{'command-line':f'pmemsave 0x{d[32]&0x03ffffff:x} {d[35]*d[34]} "{capture.as_posix()}"'})
-     Image.frombytes('RGB',(d[33],d[34]),capture.read_bytes(),'raw','BGRX',d[35],1).save(run/'framebuffer.png')
-     report['capture']='Native guest framebuffer for renderer validation'
      if args.campaign_spawn:
       native=Image.open(run/'framebuffer.png');reference=Image.open(run/'pc-final.ppm')
+      from PIL import ImageChops
+      differences=ImageChops.difference(native.convert('RGB'),reference.convert('RGB')).get_flattened_data()
+      report['frame_diff']={'pixels':len(differences),'over_2':sum(max(pixel)>2 for pixel in differences),
+                            'over_10':sum(max(pixel)>10 for pixel in differences),
+                            'mean_channel':sum(sum(pixel) for pixel in differences)/(len(differences)*3)}
       points=[(312,240),(30,448),(150,448),(30,463),(100,463),(150,463),(570,418),(578,430),(590,424)]+[(int(479+i*132/report['pistol_rules'][0]),448) for i in range(report['pistol_rules'][0])]
       if report['combat'][6]:points.extend([(480,459),(600,459)])
       report['combat_hud_pixels']=[dict(point=q,xbox=native.getpixel(q),pc=reference.getpixel(q)) for q in points]

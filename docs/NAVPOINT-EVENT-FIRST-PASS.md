@@ -50,14 +50,18 @@ class or mid-route toggle.
 
 The ON/Goto case also completes 480 frames in stock 64 MiB XEMU. Guest memory
 matches PC exactly for `SCRIPT_NAVPOINT`, `SCRIPT_ROUTES`, `SCRIPT_MOVE`, and
-`SCRIPT_ACTOR`, including the actor's final position bits. The broad replay
-checker still reports FAIL because `ACTOR_FOLLOW_SUMMARY` differs: Xbox has
-`[480,2241602067,55608,489130569,3145728]`, PC has
-`[480,3256585837,549528,1105680966,3145728]` (frames, world hash, peak
-world bytes, camera hash, capacity). This is a separate render/camera parity
-gap, not a navigation-state mismatch. Native OFF and mid-route toggle cases
-remain unverified. The ignored XEMU report and focused guest/PC comparison are
-under `artifacts/xemu/replay-20260923-012721/`.
+`SCRIPT_ACTOR`, including the actor's final position bits. The old broad replay
+checker rejected `ACTOR_FOLLOW_SUMMARY` because it hashed the CPU mesh: Xbox
+keeps static world and model vertices in GPU-resident buffers, while PC emits
+them into that mesh. The final camera pose and scene-visibility summary match
+exactly. In `artifacts/xemu/replay-20260923-014026/`, Xbox reports 9,354
+visible retained world vertices in 1,002 draws and 10,215 retained model
+vertices; its native 640x480 framebuffer shows the same room, door, lights,
+weapon and HUD as PC. Only 631 of 307,200 pixels differ by more than two
+color levels; mean absolute channel difference is 0.147. This is a comparison
+of reconstructed PC/Xbox output, not PS2 parity. The broad checker now reaches
+retained-clutter accounting, which still needs a full rerun after adjustment.
+Native OFF, mid-route toggle, and save/reload cases remain unverified.
 
 ## Ordinary save format
 

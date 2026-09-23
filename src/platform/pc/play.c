@@ -881,6 +881,9 @@ run_scene:
         }
 
         printf("ACTOR_FOLLOW_SUMMARY");for(i=0;i<5;++i)printf(" %u",rf_scene_actor_follow_summary[i]);puts("");
+        {uint32_t latest=0,j;
+         for(j=1;j<64;j++)if(rf_scene_actor_follow_frames[j][0]>rf_scene_actor_follow_frames[latest][0])latest=j;
+         printf("ACTOR_FOLLOW_LAST");for(j=0;j<14;j++)printf(" %u",rf_scene_actor_follow_frames[latest][j]);puts("");}
         printf("SCENE_VISIBILITY");for(i=0;i<6;++i)printf(" %u",rf_scene_visibility_summary[i]);puts("");
         printf("SCENE_VISIBILITY_FRAMES");for(i=0;i<64*17;++i)printf(" %u",((uint32_t*)rf_scene_visibility_frames)[i]);puts("");
         printf("SCENE_PARTICLE_DRAW");for(i=0;i<7;++i)printf(" %u",rf_scene_particle_draw_summary[i]);puts("");
