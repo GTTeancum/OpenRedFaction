@@ -808,6 +808,8 @@ int rf_scene_showcase_camera(rf_level *level);
 void rf_scene_save_button(uint32_t held);
 void rf_scene_load_button(uint32_t held);
 uint32_t rf_scene_quickload_pending(void);
+/* A terminal failure can request a fresh load of its current section. */
+uint32_t rf_scene_restart_pending(void);
 typedef struct rf_scene_input {float move[3],look[2];uint32_t crouch,jump,use,fire,reload,cycle_weapon,alt_fire;} rf_scene_input;
 extern uint32_t rf_scene_geomod[8];
 extern uint32_t rf_scene_geo_regions[4];

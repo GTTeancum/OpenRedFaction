@@ -612,6 +612,18 @@ static void startup_event_action(void *context,rf_event_state *state,uint32_t ac
             &c->event->authored->record,c->now);
         return;
     }
+    if(state->type==67) {
+        if(action!=1)return;
+        if(!c->triggers->clear_endgame_if_killed){++c->report->unsupported_actions;return;}
+        for(i=0;i<c->event->authored->record.link_count;i++) {
+            const rf_level_link_target *link=c->event->links+i;int status;
+            if(link->kind!=1 && link->kind!=2)continue;
+            status=c->triggers->clear_endgame_if_killed(c->triggers->clear_endgame_context,link->value);
+            if(status==RF_NOT_FOUND){++c->report->other_targets;continue;}
+            if(status){c->status=status;return;}
+        }
+        return;
+    }
     if(state->type==10) {
         if(action==2)return;
         if(!c->triggers->explode){++c->report->unsupported_actions;return;}
@@ -1254,6 +1266,7 @@ int rf_runtime_events_tick(rf_runtime_events *events,rf_runtime_triggers *trigge
            !((event->state.type==73 || event->state.type==74) && triggers->countdown) &&
            !(event->state.type==61 && triggers->black_out_player) &&
            !(event->state.type==71 && triggers->endgame) &&
+           !(event->state.type==67 && triggers->clear_endgame_if_killed) &&
            !(event->state.type==10 && triggers->explode) &&
            !(event->state.type==7 && triggers->look_at) &&
            !(event->state.type==15 && triggers->show_message) &&

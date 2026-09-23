@@ -222,8 +222,11 @@ static uint32_t player_frame_limit;
 static rf_scene_input player_input;
 /* A terminal mission result belongs to this level instance, not the player-life
  * snapshot. The pending fade is intentionally excluded from ordinary saves. */
-static struct {char reason[64];int32_t deadline;uint32_t phase,credits,uid;} campaign_endgame;
+static struct {char reason[64];int32_t deadline;uint32_t phase,credits,uid,use_held,restart_requested;} campaign_endgame;
+static char campaign_current_level[64];
+uint32_t rf_scene_restart_pending(void){return campaign_endgame.restart_requested;}
 uint32_t rf_scene_endgame[6]; /* requests,terminal,credits,last UID,phase,remaining ms */
+uint32_t rf_scene_endgame_clear[4]; /* resolved,missing,last handle,last previous flags */
 static uint32_t campaign_spawn;
 uint32_t rf_scene_dev_room_enabled;
 uint32_t rf_scene_fragment_platform_enabled,rf_scene_fragment_platform_audit[32];
@@ -388,8 +391,20 @@ static int player_begin_frame(void *context,uint32_t frame)
     for(i=0;i<3;++i)if(!isfinite(value.move[i]) || fabsf(value.move[i])>1)return RF_FORMAT;
     for(i=0;i<2;++i)if(!isfinite(value.look[i]) || fabsf(value.look[i])>1)return RF_FORMAT;
     if(value.crouch>1 || value.jump>1 || value.use>1 || value.fire>1 || value.reload>1 || value.cycle_weapon>1 || value.alt_fire>1)return RF_FORMAT;
+    if(campaign_endgame.phase){
+        uint32_t pressed=value.use && !campaign_endgame.use_held;
+        campaign_endgame.use_held=!!value.use;
+        if(campaign_endgame.phase==2 && !campaign_endgame.credits && pressed && rf_scene_follow_level_exits){
+            memset(&rf_scene_level_transition,0,sizeof(rf_scene_level_transition));
+            strcpy(rf_scene_level_transition.level,campaign_current_level);
+            rf_scene_level_transition.uid=UINT32_MAX-3u;
+            rf_scene_level_transition.pending=1;
+            campaign_endgame.restart_requested=1;
+            return RF_NOT_FOUND;
+        }
+        memset(&value,0,sizeof(value));
+    }
     if(campaign_spawn){status=campaign_life_input(frame,&value);if(status)return status;}
-    if(campaign_endgame.phase)memset(&value,0,sizeof(value));
     player_input=value;r[0]=frame;memcpy(r+1,&value,24); /* Preserve the legacy movement/stance ring. */
     profile_active=frame>=16;rf_scene_profile_stage[0]=frame;profile_mark(0);return RF_OK;
 }
@@ -1151,7 +1166,6 @@ uint32_t rf_scene_actor_revisit[8]; /* compared living actors; health/armor/alle
 uint32_t rf_scene_actor_retirement[4]; /* registered keys, restored, captured deaths, status */
 uint32_t rf_scene_campaign_load_stage;
 uint32_t rf_scene_follow_level_exits;
-static char campaign_current_level[64];
 #include "scene_event_history.inc"
 static int campaign_switch_checkpoint(uint32_t save)
 {
@@ -1213,7 +1227,7 @@ int rf_scene_fire_setup_event(uint32_t uid,int32_t now)
 {
     uint32_t i;rf_startup_events_report report;
     for(i=0;i<campaign_events.count;i++)if(campaign_events.items[i].authored->record.uid==uid) {
-        if(campaign_events.items[i].state.type!=0 && campaign_events.items[i].state.type!=7 && campaign_events.items[i].state.type!=10 && campaign_events.items[i].state.type!=61 && campaign_events.items[i].state.type!=48 && campaign_events.items[i].state.type!=2 && campaign_events.items[i].state.type!=1 && campaign_events.items[i].state.type!=3 && campaign_events.items[i].state.type!=69 && campaign_events.items[i].state.type!=15 && campaign_events.items[i].state.type!=24 && campaign_events.items[i].state.type!=30 && campaign_events.items[i].state.type!=13 && campaign_events.items[i].state.type!=14 && campaign_events.items[i].state.type!=19 && campaign_events.items[i].state.type!=56 && campaign_events.items[i].state.type!=32 && campaign_events.items[i].state.type!=46 && campaign_events.items[i].state.type!=11 && campaign_events.items[i].state.type!=12 && campaign_events.items[i].state.type!=41 && campaign_events.items[i].state.type!=42 && campaign_events.items[i].state.type!=73 && campaign_events.items[i].state.type!=74 && campaign_events.items[i].state.type!=71)return RF_FORMAT;
+        if(campaign_events.items[i].state.type!=0 && campaign_events.items[i].state.type!=7 && campaign_events.items[i].state.type!=10 && campaign_events.items[i].state.type!=61 && campaign_events.items[i].state.type!=48 && campaign_events.items[i].state.type!=2 && campaign_events.items[i].state.type!=1 && campaign_events.items[i].state.type!=3 && campaign_events.items[i].state.type!=69 && campaign_events.items[i].state.type!=15 && campaign_events.items[i].state.type!=24 && campaign_events.items[i].state.type!=30 && campaign_events.items[i].state.type!=13 && campaign_events.items[i].state.type!=14 && campaign_events.items[i].state.type!=19 && campaign_events.items[i].state.type!=56 && campaign_events.items[i].state.type!=32 && campaign_events.items[i].state.type!=46 && campaign_events.items[i].state.type!=11 && campaign_events.items[i].state.type!=12 && campaign_events.items[i].state.type!=41 && campaign_events.items[i].state.type!=42 && campaign_events.items[i].state.type!=73 && campaign_events.items[i].state.type!=74 && campaign_events.items[i].state.type!=71 && campaign_events.items[i].state.type!=67)return RF_FORMAT;
         return rf_runtime_event_fire(&campaign_triggers,campaign_events.items[i].handle,UINT32_MAX,UINT32_MAX,now,&scene_gravity,NULL,NULL,&report);
     }
     return RF_NOT_FOUND;
@@ -12749,6 +12763,21 @@ static int scene_explosion_blast_source(scene_stream *s,uint32_t frame,const flo
     }
     return RF_OK;
 }
+static int campaign_clear_endgame_if_killed(void *context,uint32_t handle)
+{
+    uint32_t i;(void)context;
+    for(i=0;i<campaign_npc_body_count;i++) {
+        campaign_npc_body *owner=campaign_npc_bodies+i;
+        if(!owner->registration.view || owner->registration.handle!=handle)continue;
+        if(rf_object_registry_lookup(&campaign_registry,handle)!=&owner->registration)break;
+        rf_scene_endgame_clear[3]=owner->view.flags_810;
+        owner->view.flags_810&=~0x00400000u;
+        owner->damage.effects.flags_810=owner->view.flags_810;
+        ++rf_scene_endgame_clear[0];rf_scene_endgame_clear[2]=handle;
+        return RF_OK;
+    }
+    ++rf_scene_endgame_clear[1];return RF_NOT_FOUND;
+}
 static int scene_script_explode_effects_start(scene_stream *,const float [3],uint32_t,float,uint32_t);
 static int scene_script_explode(void *context,const rf_level_event *event,int32_t now,uint32_t on)
 {
@@ -13650,7 +13679,7 @@ int rf_scene_draw_endgame(rf_scene_particle_sink sink,void *context)
     if(campaign_endgame.credits)return combat_hud_text(sink,context,278,228,"CREDITS",0xffeeeeee);
     status=combat_hud_text(sink,context,250,204,"MISSION FAILED",0xffee6060);if(status)return status;
     status=combat_hud_text(sink,context,240,228,campaign_endgame.reason,0xffeeeeee);if(status)return status;
-    return combat_hud_text(sink,context,206,260,"LOAD A SAVE OR RESTART THE LEVEL",0xffeeeeee);
+    return combat_hud_text(sink,context,222,260,"E/X TO RESTART OR LOAD A SAVE",0xffeeeeee);
 }
 uint32_t rf_scene_follow_npc_uid;
 static uint32_t scene_inspection_enabled;
@@ -16738,10 +16767,11 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
             campaign_triggers.navpoint=campaign_navpoint_set;campaign_triggers.navpoint_context=&campaign_navigation;
             campaign_triggers.black_out_player=scene_script_blackout;campaign_triggers.blackout_context=NULL;
             campaign_triggers.endgame=scene_script_endgame;campaign_triggers.endgame_context=NULL;
+            campaign_triggers.clear_endgame_if_killed=campaign_clear_endgame_if_killed;
             campaign_triggers.explode=scene_script_explode;campaign_triggers.explode_context=stream;
             campaign_triggers.show_message=campaign_show_message;campaign_triggers.message_context=(void*)level;
             campaign_subtitle_deadline=-1;memset(&campaign_subtitle,0,sizeof(campaign_subtitle));
-            memset(&campaign_endgame,0,sizeof(campaign_endgame));memset(rf_scene_endgame,0,sizeof(rf_scene_endgame));
+            memset(&campaign_endgame,0,sizeof(campaign_endgame));memset(rf_scene_endgame,0,sizeof(rf_scene_endgame));memset(rf_scene_endgame_clear,0,sizeof(rf_scene_endgame_clear));
             campaign_message_voice=-1;memset(rf_scene_message_audio,0,sizeof(rf_scene_message_audio));
             campaign_triggers.slay_object=campaign_slay_object;memset(rf_scene_script_slays,0,sizeof(rf_scene_script_slays));
             rf_scene_campaign_triggers[0]=campaign_triggers.count;
@@ -17310,7 +17340,7 @@ done:
     {int checkpoint_close=scene_checkpoint_hdd_close();if(!status)status=checkpoint_close;}
 #endif
     if(!status && campaign_spawn && collision)campaign_actors_revisit_snapshot();
-    if(!status && campaign_spawn && collision && rf_scene_level_transition.pending && !scene_live_load_active) {
+    if(!status && campaign_spawn && collision && rf_scene_level_transition.pending && !scene_live_load_active && !campaign_endgame.restart_requested) {
         status=rf_campaign_local_goals_save(&campaign_local_goals,campaign_current_level,&rf_scene_mission_goals);
         if(!status)status=campaign_switch_checkpoint(1);
         if(!status)status=campaign_trigger_checkpoint(1,(int32_t)rf_scene_event_ticks[1]);

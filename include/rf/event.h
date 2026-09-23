@@ -386,6 +386,9 @@ typedef struct rf_runtime_triggers {
     /* Endgame71: named failure after a fade, or immediate call_credits. */
     int (*endgame)(void *,const rf_level_event *,int32_t);
     void *endgame_context;
+    /* Clear_Endgame_If_Killed67 removes only the linked actor's fatal-story bit. */
+    int (*clear_endgame_if_killed)(void *,uint32_t handle);
+    void *clear_endgame_context;
     /* Explode10 world service; authored clip/scale values, never rocket defaults. */
     int (*explode)(void *,const rf_level_event *,int32_t,uint32_t);
     void *explode_context;

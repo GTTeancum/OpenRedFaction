@@ -9,11 +9,13 @@ in `research/FUTURE-CAMPAIGN-ENDGAME-20260915.md`.
 
 This first pass freezes player input when a failure begins, fades the shared
 PC/Xbox viewport to black over 1.5 simulation seconds, then displays a
-mission-failure screen with the authored reason key. Repeated requests cannot
-replace the first outcome. `call_credits` has a distinct immediate terminal
-screen. Live quick-save rejects an active terminal outcome because the fade and
-screen are not yet in the checkpoint format. A quick-load request remains
-available through the existing frontend path.
+mission-failure screen with the authored reason key. Use (`E`/`X`) after the
+fade reopens the current section at its authored spawn with fresh campaign
+state. Repeated requests cannot replace the first outcome. `call_credits` has
+a distinct immediate terminal screen. Live quick-save rejects an active
+terminal outcome because the fade and screen are not yet in the checkpoint
+format. A quick-load request remains available through the existing frontend
+path.
 
 Focused verification used installed `L5S4.rfl` Endgame UID 5337
 (`Undercover_Miner`). A 120-frame process-local PC replay reached
@@ -24,8 +26,23 @@ phase with 517 ms left and visibly darkened the level. The stock 64 MiB XEMU rep
 finished with 5,921 available physical pages, and its native framebuffer
 showed the same reason and recovery prompt. Both PC and NXDK builds passed.
 
-The recovery prompt currently describes loading a save or restarting the
-level; it is not an in-screen menu. Remaining work is localized `endgame.tbl`
-failure text, an actual restart/menu choice, credits sequence, type 67
-`Clear_Endgame_If_Killed` and its story-critical NPC death policy, and
-checkpoint ownership if saving during a terminal transition is later allowed.
+A 160-frame input replay presses Use at frame 125 after the failure screen.
+PC and stock 64 MiB XEMU both reopen `L5S4.rfl` at that frame, clear the
+endgame state, and render the player at a fresh spawn. XEMU reports one
+transition with UID `4294967292` and ends with 5,922 available pages in
+`artifacts/xemu/render-20260923-034508/`. The native full reload took longer
+than the harness default timeout; that run used `--seconds 300` and passed.
+
+Event type 67 now walks only its authored links and clears entity flag
+`0x00400000` from registered NPCs, preserving the other flags and synced
+damage state. This matches original action `4b9440`. A PC replay of authored
+`L5S2.rfl` UID 4700 resolved its one NPC link and dispatched the clear; that
+NPC's flag was already clear, so this replay verifies routing but not a
+nonzero-bit mutation. A 32-frame stock 64 MiB XEMU replay in
+`artifacts/xemu/render-20260923-035337/` matches all four PC dispatch words,
+shows the level in its native framebuffer, and ends with 4,348 available pages.
+
+Remaining work is localized `endgame.tbl` failure text, a menu/load-slot
+choice, credits sequence, critical-NPC death policy (including deciding when
+that death invokes Endgame), a live flagged-NPC mutation, and checkpoint ownership
+if saving during a terminal transition is later allowed.

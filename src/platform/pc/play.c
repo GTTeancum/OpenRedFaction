@@ -642,9 +642,9 @@ run_scene:
         8*1024*1024,RF_CAMPAIGN_MATERIAL_BUDGET,present,&p,&collision,&geometry));
     if(spawn_profile && rf_scene_level_transition.pending && (!limit || p.frames<limit)) {
         rf_campaign_player_state player_state;rf_level_transition_request next=rf_scene_level_transition;float departing_position[3],departing_orientation[9];
-        uint32_t reload=rf_scene_quickload_pending();
+        uint32_t reload=rf_scene_quickload_pending(),restart=rf_scene_restart_pending(),fresh=reload||restart;
         memset(&player_state,0,sizeof(player_state));memset(departing_position,0,sizeof(departing_position));memset(departing_orientation,0,sizeof(departing_orientation));
-        if(!reload){CHECK(rf_scene_campaign_player_get(&player_state));
+        if(!fresh){CHECK(rf_scene_campaign_player_get(&player_state));
             CHECK(rf_scene_campaign_pose_get(departing_position,departing_orientation));}
         printf("LEVEL_EXIT_POSE");for(i=0;i<3;i++)printf(" %.9g",departing_position[i]);for(i=0;i<9;i++)printf(" %.9g",departing_orientation[i]);puts("");
 
@@ -653,17 +653,17 @@ run_scene:
         rf_scene_actor_follow(NULL);
         rf_lightmaps_close(&p.lightmaps);rf_materials_close(&materials);rf_preview_close(&mesh);
         rf_scene_world_geometry_close(&retained);rf_geometry_collision_world_close(&collision);rf_geometry_close(&geometry);
-        if(reload){status=rf_level_open(&level,&archive,next.level);
+        if(fresh){status=rf_level_open(&level,&archive,next.level);
             if(status==RF_NOT_FOUND){rf_vpp_close(&archive);status=rf_level_campaign_open(&level,&archive,directory,next.level);}
             CHECK(status);memset(&rf_scene_level_transition,0,sizeof(rf_scene_level_transition));}
         else {rf_vpp_close(&archive);CHECK(rf_level_campaign_open(&level,&archive,directory,next.level));}
         /* A remote event-dispatch fixture has no doorway-relative player pose. */
-        if(!reload&&next.uid!=p.forced_exit_uid) {
+        if(!fresh&&next.uid!=p.forced_exit_uid) {
             status=rf_level_transition_place(&next,&level,departing_position,departing_orientation);
             if(status!=RF_NOT_FOUND)CHECK(status);else status=RF_OK;
             printf("LEVEL_ARRIVAL %.9g %.9g %.9g\n",level.player_position[0],level.player_position[1],level.player_position[2]);
         }
-        if(!reload&&p.return_place){CHECK(rf_scene_stage_item(&level,p.return_item_uid));p.return_place=0;}
+        if(!fresh&&p.return_place){CHECK(rf_scene_stage_item(&level,p.return_item_uid));p.return_place=0;}
         p.forced_exit_uid=0;
         CHECK(rf_scene_set_campaign_spawn(&level));
         CHECK(rf_geometry_open(&geometry,&level,8*1024*1024));
@@ -671,7 +671,8 @@ run_scene:
         CHECK(rf_scene_world_open_retained(&level,&geometry,maps,opened,&mesh,&materials,
             8*1024*1024,RF_CAMPAIGN_MATERIAL_BUDGET,&retained));
         CHECK(rf_lightmaps_open(&p.lightmaps,&level,RF_CAMPAIGN_LIGHTMAP_BUDGET));
-        CHECK(rf_scene_campaign_player_set(reload?NULL:&player_state));
+        CHECK(rf_scene_campaign_player_set(fresh?NULL:&player_state));
+        if(restart)printf("LEVEL_RESTART %s %u\n",next.level,p.frames);
         rf_scene_actor_follow(&retained);
         goto run_scene;
     }
@@ -841,6 +842,7 @@ run_scene:
             {uint32_t remaining_bits;memcpy(&remaining_bits,&rf_scene_campaign_countdown.remaining,4);
              printf("CAMPAIGN_COUNTDOWN %u %u %u\n",remaining_bits,rf_scene_campaign_countdown.expiry_pending,rf_scene_campaign_countdown.difficulty);}
             {extern uint32_t rf_scene_endgame[6];printf("CAMPAIGN_ENDGAME");for(i=0;i<6;i++)printf(" %u",rf_scene_endgame[i]);puts("");}
+            {extern uint32_t rf_scene_endgame_clear[4];printf("ENDGAME_CLEAR");for(i=0;i<4;i++)printf(" %u",rf_scene_endgame_clear[i]);puts("");}
             printf("CAMPAIGN_TRIGGERS %u %u\n",rf_scene_campaign_triggers[0],rf_scene_campaign_triggers[1]);
             printf("SWITCH_HISTORY %u %u %u %u\n",rf_scene_switch_history[0],rf_scene_switch_history[1],rf_scene_switch_history[2],rf_scene_switch_history[3]);
             printf("SCRIPT_ANIMATION");for(i=0;i<10;i++)printf(" %u",rf_scene_script_animation[i]);puts("");
