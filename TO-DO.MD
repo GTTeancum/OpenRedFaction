@@ -7,7 +7,7 @@ Completion basis (user direction,2026-09-18): working late-alpha/early-beta code
 
 - AI navigation: L6S3 authored Goto actor takes a four-node route with navpoints ON and a direct approach with them OFF, the ON case matches Xbox/PC actor state exactly, affected cached routes replan, and RFEN2 survives full L18S1 PC reload; broader NPC travel, native OFF/mid-route toggles, and native reload remain open.
 
-- Xbox retained rendering: L6S3 native static world and model draws produce a near-matching PC frame with identical final camera and visibility; finish retained-clutter replay accounting and revisit disabled model bounds culling for performance.
+- Xbox retained rendering: L6S3 native static world, model and clutter draws now pass the 480-frame PC/Xbox replay with a near-matching frame and identical final camera and visibility; revisit disabled model bounds culling for performance.
 
 - Scripted effects: Play_Sound, Black_Out_Player, streamed Music_Start/Stop and idle-NPC Look_At work; Explode dispatches radial damage and central visuals with GeoMod minimum/region admission, but actual campaign cuts need authored room/terrain ownership, while full vclip VFX, active-effect saves, visible gaze review and native music runtime checks remain.
 

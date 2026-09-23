@@ -59,9 +59,11 @@ visible retained world vertices in 1,002 draws and 10,215 retained model
 vertices; its native 640x480 framebuffer shows the same room, door, lights,
 weapon and HUD as PC. Only 631 of 307,200 pixels differ by more than two
 color levels; mean absolute channel difference is 0.147. This is a comparison
-of reconstructed PC/Xbox output, not PS2 parity. The broad checker now reaches
-retained-clutter accounting, which still needs a full rerun after adjustment.
-Native OFF, mid-route toggle, and save/reload cases remain unverified.
+of reconstructed PC/Xbox output, not PS2 parity. The revised broad checker
+passes the full 480-frame stock-64-MiB run in
+`artifacts/xemu/replay-20260923-015334/`, including retained-clutter
+accounting and the native framebuffer capture. Native OFF, mid-route toggle,
+and save/reload cases remain unverified.
 
 ## Ordinary save format
 
