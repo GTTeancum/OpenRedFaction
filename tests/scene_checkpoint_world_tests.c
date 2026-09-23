@@ -50,6 +50,19 @@ int main(void)
      prop.state.position[0]=.01f;CHECK(scene_checkpoint_world_place(&context,&p,&room,&support)==RF_NOT_FOUND);prop.state.position[0]=0;
      prop.uid++;CHECK(scene_checkpoint_world_place(&context,&p,&room,&support)==RF_NOT_FOUND);prop.uid--;
      context.allow_no_contact=context.authored_static_unchanged=0;context.authored_position=context.authored_basis=NULL;context.authored_props=NULL;}
+    {rf_clutter_base_owner authored_prop=prop,*authored_props[1]={&authored_prop};
+     float start[3]={0,-7,0};
+     prop.uid=10469;authored_prop.uid=10469;prop_class.name="BustedEscapePod";
+     context.authored_static_unchanged=1;context.authored_props=authored_props;
+     context.spawn_shell_uid=10469;context.spawn_shell_position=start;
+     CHECK(!scene_checkpoint_world_place(&context,&p,&room,&support));
+     start[0]=.126f;CHECK(scene_checkpoint_world_place(&context,&p,&room,&support)==RF_NOT_FOUND);start[0]=0;
+     start[1]=-6.49f;CHECK(scene_checkpoint_world_place(&context,&p,&room,&support)==RF_NOT_FOUND);start[1]=-7;
+     prop_class.name="Other";CHECK(scene_checkpoint_world_place(&context,&p,&room,&support)==RF_NOT_FOUND);
+     prop_class.name="BustedEscapePod";prop.state.position[0]=.01f;
+     CHECK(scene_checkpoint_world_place(&context,&p,&room,&support)==RF_NOT_FOUND);prop.state.position[0]=0;
+     context.spawn_shell_uid=0;CHECK(scene_checkpoint_world_place(&context,&p,&room,&support)==RF_NOT_FOUND);
+     context.authored_static_unchanged=0;context.authored_props=NULL;context.spawn_shell_position=NULL;}
     prop.state.flags=2;CHECK(!scene_checkpoint_world_place(&context,&p,&room,&support));context.prop_count=0;
     cube(obstacle_vertices,obstacle_faces,zero,1,0);mesh=(rf_geomod_mesh_view){obstacle_vertices,obstacle_faces,24,6,0};
     CHECK(!rf_geomod_collision_faces(&mesh,filters,obstacle_positions,24,obstacle,6));

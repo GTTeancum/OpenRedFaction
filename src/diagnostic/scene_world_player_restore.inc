@@ -29,6 +29,14 @@ static inline int scene_world_player_prepare(scene_stream *stream,const scene_wo
     scene_checkpoint_placement(stream,&s.player,s.basis,&s.placement);
     context=world->world;context.allow_no_contact=0;context.authored_position=NULL;context.authored_basis=NULL;
     context.authored_props=NULL;context.authored_static_unchanged=0;
+    context.spawn_shell_uid=0;context.spawn_shell_position=NULL;
+    if(stream->world_checkpoint_level&&
+       scene_npc_checkpoint_level_equal(world->envelope.level,"L18S1.rfl")&&
+       scene_npc_checkpoint_level_equal(campaign_current_level,"L18S1.rfl")&&
+       !world->envelope.sections[RF_WORLD_DESTRUCTION-1].bytes){
+        context.authored_static_unchanged=1;context.authored_props=world->authored_prop_views;
+        context.spawn_shell_uid=10469;context.spawn_shell_position=stream->world_checkpoint_level->player_position;
+    }
     context.dt=scene_step_seconds;context.class_speed=rf_scene_actor_movement_values.speed;
     status=rf_geometry_collision_world_locate(context.world,s.player.position,&location);if(status)return status;
     if(location.room==UINT32_MAX||location.room>=context.world->room_count)return RF_NOT_FOUND;

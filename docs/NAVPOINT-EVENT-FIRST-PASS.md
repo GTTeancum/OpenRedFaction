@@ -45,10 +45,12 @@ scene before publication, stale-state rejection, RFEN1 decode and restoration
 of a zero radius. The event checkpoint codec now accepts type 69. In a full
 L18S1 PC scene, Invert 10505 closes node UID 8637 and ordinary save writes
 RFEN2 with one row `(8637, 0)`; the saved file is in the ignored
-`artifacts/navpoint-live/` directory. A fresh L18S1 load now passes NPC
-staging after excluding hidden actors from physical pair clearance. It still
-rejects at player placement: the level starts inside the authored
-`BustedEscapePod` prop's conservative collision sphere, and the saved player
-pose overlaps it. This remains a full-reload blocker; no player clearance rule
-has been loosened. PC and NXDK builds pass; native runtime reload remains
-unverified.
+`artifacts/navpoint-live/` directory. A fresh L18S1 PC load now passes NPC
+staging and player placement, restores the closed node `(8637, 0)`, and reports
+`WORLD_SNAPSHOT_LOADED`. Hidden actors are excluded from physical NPC pair
+clearance. The authored player start lies inside `BustedEscapePod` UID 10469's
+coarse collision sphere; the port admits only the intact, unchanged pod and a
+saved player within 0.125 horizontal units and 3 vertical units below that
+start. Static standing, movers, and all other props remain checked. This is a
+bounded port policy, not a recovered original-game save rule. Native runtime
+reload and live NPC travel remain unverified.

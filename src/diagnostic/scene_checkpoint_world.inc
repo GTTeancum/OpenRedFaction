@@ -34,6 +34,8 @@ typedef struct scene_checkpoint_world_context {
     uint32_t authored_static_unchanged; /* Caller proves identity-bound static terrain has no mutations. */
     const float *authored_position,*authored_basis; /* Optional exact NPC spawn baseline, borrowed. */
     rf_clutter_base_owner *const *authored_props; /* Parallel immutable authored-pose owners; caller proves class geometry identity. */
+    uint32_t spawn_shell_uid; /* Narrow player-only authored hollow prop exception; zero disables it. */
+    const float *spawn_shell_position; /* Borrowed authored player start, not a saved position. */
 } scene_checkpoint_world_context;
 static int scene_checkpoint_world_authored_pose(const scene_checkpoint_world_context *c,const rf_checkpoint_placement *p)
 {
@@ -51,6 +53,21 @@ static int scene_checkpoint_world_authored_prop(const scene_checkpoint_world_con
        memcmp(p->matrix,a->matrix,36)||p->body.spheres.count!=a->body.spheres.count||
        p->body.spheres.items!=a->body.spheres.items)return 0;
     return 1;
+}
+static int scene_checkpoint_world_spawn_shell(const scene_checkpoint_world_context *c,
+    const rf_checkpoint_placement *p,uint32_t slot,const rf_clutter_base_owner *prop)
+{
+    const float *start=c->spawn_shell_position;
+    if(!c->spawn_shell_uid||!start||!c->authored_static_unchanged||
+       prop->uid!=c->spawn_shell_uid||!prop->state.definition||
+       !prop->state.definition->name||strcmp(prop->state.definition->name,"BustedEscapePod")||
+       !scene_checkpoint_world_authored_prop(c,slot,prop))return 0;
+    /* L18S1 starts inside this hollow model's coarse collision sphere. Admit
+     * only the vertical settling region of that authored start, while real
+     * static-world standing, mover, and other-prop checks still apply. */
+    return fabsf(p->position[0]-start[0])<=.125f&&
+        fabsf(p->position[2]-start[2])<=.125f&&
+        p->position[1]>=start[1]-3.f&&p->position[1]<=start[1]+.125f;
 }
 static int scene_checkpoint_world_point(const float local[3],const float basis[9],const float position[3],float out[3])
 {
@@ -100,6 +117,7 @@ static int scene_checkpoint_world_obstacles(const scene_checkpoint_world_context
                      * authored layout. Only that exact, proven source pair is
                      * exempt; saved moved/new props retain ordinary rejection. */
                     if(scene_checkpoint_world_authored_pose(c,p)&&scene_checkpoint_world_authored_prop(c,j,prop))continue;
+                    if(scene_checkpoint_world_spawn_shell(c,p,j,prop))continue;
 #ifndef RF_IMAGE_XBOX_NATIVE
                     if(scene_checkpoint_world_diagnostics())printf("WORLD_RESTORE_PLACEMENT phaseobstacle_prop uid%u sphere%u prop_sphere%u distance2%.12g limit2%.12g status%d\n",
                         prop->uid,i,k,distance,radius*radius,RF_NOT_FOUND);
