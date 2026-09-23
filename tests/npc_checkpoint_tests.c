@@ -51,6 +51,56 @@ int main(void)
     rows[0].primary=-1;rows[1].drop.state=2;
     CHECK(!rf_npc_checkpoint_encode(identity,&c,rows,2,blob,sizeof(blob),&written));
     CHECK(rf_npc_checkpoint_encode(identity,&c,rows,2,blob,sizeof(blob)-1,&written)==RF_RANGE);
+    /* Optional animation retains the exact mixed-slot continuation state. */
+    {
+        unsigned char wire[64+RF_NPC_CHECKPOINT_ROW_MAX],broken[sizeof(wire)],legacy2[64+RF_NPC_CHECKPOINT_ROW_V2];
+        rf_npc_checkpoint_record actor=rows[0],decoded,untouched;rf_motion_playback_resource resources[2]={0},restored_resources[2];
+        rf_motion_playback_state expected;uint32_t n=0,got=0;
+        actor.animation_present=1;actor.script_animation.active=1;actor.script_animation.motion=1;
+        rf_motion_playback_initialize(&actor.playback);actor.playback.phase=.25f;actor.playback.generation=27;actor.playback.event_mask=2;
+        actor.playback.completion.active.count=2;actor.playback.completion.active.primary_slot=1;actor.playback.completion.active.dominant_slot=0;
+        actor.playback.completion.active.slots[0]=(rf_motion_active_slot){0,2500,.75f};
+        actor.playback.completion.active.slots[1]=(rf_motion_active_slot){1,1800,.5f};
+        actor.playback.completion.primary_flag=7;actor.playback.completion.primary_words[0]=0xabc;
+        actor.playback.completion.primary_vectors[1][2]=.125f;
+        CHECK(!rf_npc_checkpoint_encode(identity,&c,&actor,1,wire,sizeof(wire),&n));
+        CHECK(n==64+RF_NPC_CHECKPOINT_ROW+RF_NPC_CHECKPOINT_ANIMATION_BASE+24);
+        CHECK(!rf_npc_checkpoint_decode(wire,n,identity,&c,&decoded,1,&got)&&got==1&&!memcmp(&actor,&decoded,sizeof(actor)));
+        for(uint32_t i=0;i<2;i++){resources[i].comparison.weight=1;resources[i].comparison.end_tick=10000;resources[i].references=1;}
+        resources[0].looping=1;resources[0].markers[0]=3000;resources[0].markers[1]=7500;
+        memcpy(restored_resources,resources,sizeof(resources));expected=actor.playback;
+        CHECK(!rf_motion_update(&expected,resources,2,.1f));
+        CHECK(!rf_motion_update(&decoded.playback,restored_resources,2,.1f));
+        CHECK(!memcmp(&expected,&decoded.playback,sizeof(expected))&&!memcmp(resources,restored_resources,sizeof(resources)));
+        memset(&decoded,0x5a,sizeof(decoded));untouched=decoded;got=99;
+        memcpy(broken,wire,n);broken[64+RF_NPC_CHECKPOINT_ROW+16]=17;reseal(broken,n);
+        CHECK(rf_npc_checkpoint_decode(broken,n,identity,&c,&decoded,1,&got)==RF_FORMAT&&got==99&&!memcmp(&decoded,&untouched,sizeof(decoded)));
+        CHECK(rf_npc_checkpoint_encode(identity,&c,&actor,1,broken,n-1,&got)==RF_RANGE&&got==99);
+        actor.playback.completion.active.slots[1].motion=0;
+        CHECK(rf_npc_checkpoint_encode(identity,&c,&actor,1,broken,sizeof(broken),&got)==RF_FORMAT);
+        /* Ambient state18 is not a script: retain the actual controller and continuation. */
+        actor.playback.completion.active.slots[1].motion=1;memset(&actor.script_animation,0,sizeof(actor.script_animation));
+        actor.controller.current=18;actor.controller.next=19;actor.controller.duration=.5f;actor.controller.elapsed=.125f;
+        actor.controller.override_state=-1;
+        CHECK(!rf_npc_checkpoint_encode(identity,&c,&actor,1,broken,sizeof(broken),&got));
+        CHECK(!rf_npc_checkpoint_decode(broken,got,identity,&c,&decoded,1,&count));
+        CHECK(!memcmp(&actor,&decoded,sizeof(actor))&&!decoded.script_animation.active&&decoded.controller.current==18);
+        {int32_t mappings[23];rf_motion_controller control=actor.controller;
+         for(uint32_t i=0;i<23;i++)mappings[i]=-1;mappings[18]=0;mappings[19]=1;
+         expected=actor.playback;memcpy(restored_resources,resources,sizeof(resources));
+         CHECK(!rf_motion_apply_controller(&control,mappings,.1f,&expected,resources,2));
+         CHECK(!rf_motion_apply_controller(&decoded.controller,mappings,.1f,&decoded.playback,restored_resources,2));
+         CHECK(!memcmp(&control,&decoded.controller,sizeof(control))&&!memcmp(&expected,&decoded.playback,sizeof(expected)));}
+        actor.controller.elapsed=NAN;
+        CHECK(rf_npc_checkpoint_encode(identity,&c,&actor,1,broken,sizeof(broken),&got)==RF_FORMAT);
+        actor.controller.elapsed=.125f;actor.controller.current=23;
+        CHECK(rf_npc_checkpoint_encode(identity,&c,&actor,1,broken,sizeof(broken),&got)==RF_FORMAT);
+        /* Legacy RFNC2 has no optional-animation flag or trailer. */
+        memcpy(legacy2,wire,64);memcpy(legacy2+64,wire+64,RF_NPC_CHECKPOINT_ROW_V2);legacy2[4]=2;
+        for(uint32_t i=0;i<4;i++)legacy2[8+i]=(unsigned char)(sizeof(legacy2)>>(8*i));
+        reseal(legacy2,sizeof(legacy2));CHECK(!rf_npc_checkpoint_decode(legacy2,sizeof(legacy2),identity,&c,&decoded,1,&got));
+        CHECK(!decoded.animation_present&&decoded.eye_angles[0]==actor.eye_angles[0]);
+    }
     status=rf_npc_checkpoint_encode(identity,&c,NULL,0,blob,sizeof(blob),&written);
     CHECK(!status&&written==64&&!rf_npc_checkpoint_decode(blob,written,identity,&c,NULL,0,&count)&&!count);
     puts("PASS NPC checkpoint pose/vitals/inventory/drop roundtrip, identity, malformed state and output preservation");return 0;

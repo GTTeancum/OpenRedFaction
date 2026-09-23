@@ -1,5 +1,20 @@
 # Ordinary-level saves: implementation workstream
 
+
+## Current milestone: ordinary snapshot capture (2026-09-22)
+
+`python tools/check_ordinary_save_readiness.py --snapshot --restore-probe` runs120 neutral process-local frames on unmodified Installed_Game/levels1.vpp:L1S1.rfl. It writes100676 bytes in a protected RFSG slot containing an RFWC envelope, under the unchanged110524-byte transport cap. The harness independently verifies persisted transport/envelope checksums and component directory lengths. No host input or original executable is used.
+
+All78 NPCs now capture, including the two scripted animations and ambient fish controllers. RFNC3 preserves playback phase, active slots, weights, completion/freeze/events and controller transition state. NPC payload is51868 bytes. RFCH1 merges current Switch/event and actor histories into private copies, preserving prior-level state without mutating live catalogs. History rebinding uses level/UID, including case-insensitive canonical level keys.
+
+This is a diagnostic capture bundle, **not a loadable game save**. Current history omission mask3 reports player campaign carry and weapon-mode campaign sidecars. AI/shield history also remains unrepresented when present. Current source identity binds the current RFL, tables and weapon catalog, not every asset or prior level.
+
+Candidate restore now stages saved mover geometry and static prop state before NPC placement. The real probe stops at miner UID8322 (three spheres, authored position[-78.6500778,-4.55436325,48.7840118]) with RF_NOT_FOUND; no gameplay publication occurs. Real scripted bone evaluation has consequently not been reached/proven. Player/events/history/resource admission and atomic whole-world publication remain necessary, followed by fresh-process reload/continue.
+
+Validation: shared PC executable and NXDK Xbox XBE/ISO build; focused NPC codec, actual capture, staged restore and campaign-history tests pass. Synthetic animation checks include script loop/one-shot/frozen and ambient state18 continuation. No new native run or64MiB runtime headroom claim for this snapshot path. Saves approximately67%; overall82%.
+
+The sections below record earlier implementation milestones.
+
 The current live checkpoint path supports bounded developer-room player/destruction profiles. It does not support an ordinary L1S1 save: both frontends require DEV player-checkpoint mode, the scene requires a terrain checkpoint owner, and player scope rejects NPCs and movers. Those gates remain intact until ordinary state can be reconstructed without resetting gameplay.
 
 Implemented components toward that work:

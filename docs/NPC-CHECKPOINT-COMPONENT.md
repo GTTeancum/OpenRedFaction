@@ -1,5 +1,8 @@
 # Ordinary saves: NPC component preparation
 
+
+Current RFNC3: base rows544 bytes (RFNC2 eye angles plus optional trailer length at540). Optional animation trailer is108+12*active_slot_count bytes; maximum row844. It preserves script ownership and generic playback/controller state, including ambient mapped loops without script ownership. RFNC1/2 remain readable. Scene rejects unsupported non-script action clips and unsaved gameplay owners. Actual unmodified L1S1 capture now covers78 actors (51868 bytes); whole-world reload remains incomplete. See ORDINARY-SAVE-INTEGRATION.md for current evidence and blockers.
+
 The first current admission blocker is `scene_checkpoint_player_scope_mode` in `scene_player_checkpoint.inc`: it requires DEV, rejects all NPCs and movers, then restricts the level to ctf06.rfl or glass_house.rfl. RFCP5 contains no NPC payload. Removing that gate would reset NPC progress, not implement ordinary saves. Static-clutter identity additionally rejects moved/nonordinary props. These restrictions remain intact.
 
 Existing `rf_campaign_actors` stores per-level UID retirement, vitals, allegiance/hidden/invulnerable bits and persistent weapon drops for in-memory revisits. It does not retain position or inventory. RFNC1 adds a standalone component containing those retained fields plus current position/yaw, complete NPC inventory, selected primary/secondary, class ordinal and basic AI mode. No claim of a complete ordinary save or RFCP integration is made.

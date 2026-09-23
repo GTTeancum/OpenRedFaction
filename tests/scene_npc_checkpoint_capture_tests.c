@@ -8,7 +8,7 @@ int main(void)
     campaign_npc_body owners[2]={0};rf_level_owned_entity records[2]={0};rf_entity_seed seeds[2]={0};
     rf_entity_pose poses[2]={0};rf_npc_checkpoint_catalog catalog={0};rf_npc_checkpoint_record rows[2],saved[2];
     rf_physics_sphere spheres[2]={0};
-    uint32_t i,count=99;unsigned char payload[RF_NPC_CHECKPOINT_HEADER+2*RF_NPC_CHECKPOINT_ROW],identity[32]={1};uint32_t bytes;
+    uint32_t i,count=99;unsigned char payload[RF_NPC_CHECKPOINT_HEADER+2*RF_NPC_CHECKPOINT_ROW_MAX],identity[32]={1};uint32_t bytes;
     memset(&rf_scene_defeated_actors,0,sizeof(rf_scene_defeated_actors));
     rf_object_registry_init(&campaign_registry);memset(&campaign_entities,0,sizeof(campaign_entities));
     strcpy(campaign_current_level,"Ordinary.RFL");campaign_npc_bodies=owners;campaign_npc_body_count=2;
@@ -57,7 +57,7 @@ int main(void)
     owners[1].combat_alert=0;owners[1].body.state.velocity[0]=1;
     CHECK(scene_npc_checkpoint_capture(&catalog,1000,rows,2,&count)==RF_RANGE);owners[1].body.state.velocity[0]=0;
     owners[1].script_animation.active=1;
-    CHECK(scene_npc_checkpoint_capture(&catalog,1000,rows,2,&count)==RF_RANGE);owners[1].script_animation.active=0;
+    CHECK(scene_npc_checkpoint_capture(&catalog,1000,rows,2,&count)==RF_FORMAT);owners[1].script_animation.active=0;
     poses[1].playback.completion.active.count=1;poses[1].playback.completion.active.slots[0].motion=3;
     CHECK(scene_npc_checkpoint_capture(&catalog,1000,rows,2,&count)==RF_RANGE);poses[1].playback.completion.active.count=0;
     owners[1].pain.animation_lock=1001;

@@ -1,7 +1,9 @@
 #ifndef RF_NPC_CHECKPOINT_H
 #define RF_NPC_CHECKPOINT_H
 #include "rf/campaign.h"
-enum {RF_NPC_CHECKPOINT_HEADER=64,RF_NPC_CHECKPOINT_ROW_V1=528,RF_NPC_CHECKPOINT_ROW=540,
+#include "rf/motion.h"
+enum {RF_NPC_CHECKPOINT_HEADER=64,RF_NPC_CHECKPOINT_ROW_V1=528,RF_NPC_CHECKPOINT_ROW_V2=540,RF_NPC_CHECKPOINT_ROW=544,
+    RF_NPC_CHECKPOINT_ANIMATION_BASE=108,RF_NPC_CHECKPOINT_ROW_MAX=844,
     RF_NPC_CHECKPOINT_MAX_COUNT=RF_CAMPAIGN_ACTOR_SLOTS};
 typedef struct rf_npc_checkpoint_record {
     uint32_t uid,class_id,retired,flags,affiliation;
@@ -11,14 +13,21 @@ typedef struct rf_npc_checkpoint_record {
     rf_weapon_inventory inventory;
     int32_t ai_mode;
     float eye_angles[3]; /* Exact look.angles.angles_87c; no smoothing reset. */
+    uint32_t animation_present;
+    struct {uint32_t active,loop,freeze;int32_t motion;} script_animation;
+    rf_motion_playback_state playback;
+    rf_motion_controller controller;
 } rf_npc_checkpoint_record;
 typedef struct rf_npc_checkpoint_catalog {
     uint32_t hash,count;
     uint8_t supported[64];
     rf_weapon_acquire_definition weapons[64];
 } rf_npc_checkpoint_catalog;
-/* RFNC2 component (RFNC1 remains readable with zero eye angles), not a composed save/profile. UID sorted, fixed540-byte LE
- * rows; no pointers/handles. Identity covers level, authored actors/classes.
+/* RFNC3 component (RFNC1/2 remain readable without animation), not a composed save/profile. UID sorted, 544-byte LE base rows followed immediately by optional108+12*slot_count
+ * animation bytes; no unused slots on wire. RF_NPC_CHECKPOINT_ROW_MAX bounds
+ * one complete row. Absent animation must have zero script/playback/controller fields;
+ * legacy1 supplies zero eye angles. Scene validates motion resource IDs,
+ * residency and class bindings before continuing saved playback. Rows contain no pointers/handles. Identity covers level, authored actors/classes.
  * Supported basic modes -1/0/1/2/11 only. Scene must reject active routes,
  * combat/reload/pain/death transitions, projectiles, linked/carried objects
  * and other unsaved state; validate UID/class, class vitals, affiliation,

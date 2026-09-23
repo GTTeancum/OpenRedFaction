@@ -78,6 +78,52 @@ int main(void)
     CHECK(poses[0].playback.completion.active.count==1&&poses[0].playback.completion.active.slots[0].motion==0);
     CHECK(rf_scene_defeated_actors.vitals[0].health==30&&owners[0].eye_position[0]==5);
     scene_npc_checkpoint_restore_discard(&stage);CHECK(!stage);
+    /* Resume actual script ownership and playback at its saved phase, including
+     * one-shot and frozen clips; no event dispatch or motion restart. */
+    for(i=0;i<3;i++){
+        rf_motion_playback_state expected;rf_npc_checkpoint_record script_rows[2];
+        unsigned char encoded[RF_NPC_CHECKPOINT_HEADER+2*RF_NPC_CHECKPOINT_ROW_MAX],identity[32]={0};uint32_t bytes;
+        owners[0].script_animation.active=1;owners[0].script_animation.loop=i==0;
+        owners[0].script_animation.freeze=i==2;owners[0].script_animation.motion=0;clip.looping=i==0;
+        poses[0].playback.phase=.375f;poses[0].playback.generation=17;poses[0].playback.event_mask=2;
+        poses[0].playback.completion.active.slots[0].tick=120;
+        poses[0].playback.completion.active.slots[0].weight=.75f;
+        poses[0].playback.completion.frozen=i==2;
+        /* Actor1 shares this authored clip: snapshot it as script-owned too. */
+        owners[1].script_animation.active=1;owners[1].script_animation.loop=i==0;owners[1].script_animation.motion=0;
+        CHECK(!scene_npc_checkpoint_capture(&catalog,1000,script_rows,2,&count));
+        CHECK(script_rows[0].animation_present&&script_rows[0].script_animation.freeze==(i==2));
+        expected=script_rows[0].playback;
+        CHECK(!rf_npc_checkpoint_encode(identity,&catalog,script_rows,2,encoded,sizeof(encoded),&bytes));
+        CHECK(!rf_npc_checkpoint_decode(encoded,bytes,identity,&catalog,script_rows,2,&count));
+        poses[0].playback.phase=.5f;poses[0].playback.completion.active.slots[0].tick=160;
+        resident=NULL;fit_state=(fit_context){0};
+        CHECK(scene_npc_checkpoint_restore_prepare(script_rows,2,&catalog,1000,fit,&fit_state,65536,&stage)==RF_RANGE);
+        CHECK(!stage&&poses[0].playback.phase==.5f&&clip.references==2);resident=&payload;
+        fit_state=(fit_context){0};CHECK(!scene_npc_checkpoint_restore_prepare(script_rows,2,&catalog,1000,fit,&fit_state,65536,&stage));
+        CHECK(!scene_npc_checkpoint_restore_commit(stage));
+        CHECK(!memcmp(&poses[0].playback,&expected,sizeof(expected))&&clip.references==2);
+        CHECK(owners[0].script_animation.active&&owners[0].script_animation.loop==(i==0)&&owners[0].script_animation.freeze==(i==2));
+        scene_npc_checkpoint_restore_discard(&stage);
+    }
+    memset(&owners[0].script_animation,0,sizeof(owners[0].script_animation));
+    memset(&owners[1].script_animation,0,sizeof(owners[1].script_animation));
+    poses[0].playback.completion.frozen=0;clip.looping=1;
+    /* Ambient swim controller keeps its exact playback phase without becoming
+     * a script-owned animation. State18 maps to the fixture loop. */
+    {
+        rf_npc_checkpoint_record ambient[2];rf_motion_playback_state expected;
+        poses[0].controller.current=poses[0].controller.next=18;
+        poses[0].playback.phase=.625f;poses[0].playback.completion.active.slots[0].tick=200;
+        CHECK(!scene_npc_checkpoint_capture(&catalog,1000,ambient,2,&count));
+        CHECK(ambient[0].animation_present&&!ambient[0].script_animation.active&&ambient[0].controller.current==18);
+        expected=ambient[0].playback;poses[0].controller.current=poses[0].controller.next=0;
+        poses[0].playback.phase=.25f;fit_state=(fit_context){0};
+        CHECK(!scene_npc_checkpoint_restore_prepare(ambient,2,&catalog,1000,fit,&fit_state,65536,&stage));
+        CHECK(!scene_npc_checkpoint_restore_commit(stage));
+        CHECK(poses[0].controller.current==18&&!owners[0].script_animation.active&&!memcmp(&poses[0].playback,&expected,sizeof(expected)));
+        scene_npc_checkpoint_restore_discard(&stage);
+    }
     /* Missing resident motion fails before mutating any owner. */
     memcpy(before,owners,sizeof(before));resident=NULL;fit_state=(fit_context){0};
     CHECK(scene_npc_checkpoint_restore_prepare(rows,2,&catalog,1000,fit,&fit_state,65536,&stage)==RF_RANGE);

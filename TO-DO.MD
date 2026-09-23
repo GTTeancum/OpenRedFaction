@@ -3,7 +3,7 @@
 Completion basis (user direction,2026-09-18): working late-alpha/early-beta code implementation. Overall approximately82%; GeoMod100% for the first playable milestone, accepted by the user. GeoMod items below are deferred refinement and coverage, not prerequisites to moving on. This does not assert retail polish, complete campaign integration or resolution of every known defect.
 
 
-- PRIORITY Ordinary saves: Unmodified L1S1 now captures player/mover/prop/event/trigger/pickup/goal state; NPC eye-angle and empty-body support pass focused checks, with two active scripted animations currently blocking NPC capture; complete animation persistence and whole-file restore/boot composition next (saves approximately64%, no full ordinary reload yet).
+- PRIORITY Ordinary saves: Unmodified L1S1 now writes a verified100676-byte snapshot including all78 NPCs and scripted/ambient animation; complete campaign carry and fresh-process restore, currently blocked by miner UID8322 placement (saves approximately67%, no full ordinary reload yet).
 
 - Scripted effects: Play_Sound, Music_Start/Stop, Look_At, Explode and Black_Out_Player still lack runtime dispatch; their event-local save fields are preserved, but implement the gameplay effects separately.
 

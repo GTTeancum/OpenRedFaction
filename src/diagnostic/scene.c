@@ -10956,6 +10956,9 @@ int rf_scene_npc_checkpoint_export(const unsigned char identity[32],int32_t now,
 
 #include "scene_world_checkpoint_identity.inc"
 #include "scene_world_checkpoint_probe.inc"
+#include "scene_campaign_history_checkpoint.inc"
+#include "scene_world_restore.inc"
+#include "scene_world_snapshot.inc"
 
 #ifdef RF_IMAGE_XBOX_NATIVE
 static rf_xbox_checkpoint_storage scene_checkpoint_hdd;
@@ -16951,6 +16954,7 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
 done:
     rf_vpp_close(&terrain_ui);
     if(!status)status=scene_world_checkpoint_probe(stream,level,tables_path);
+    if(!status)status=scene_world_snapshot_capture(stream,level,tables_path);
     if(!status)status=scene_checkpoint_capture(stream);
 #ifdef RF_IMAGE_XBOX_NATIVE
     {int checkpoint_close=scene_checkpoint_hdd_close();if(!status)status=checkpoint_close;}

@@ -50,7 +50,8 @@ static int scene_npc_checkpoint_row(uint32_t index,int32_t now,rf_npc_checkpoint
     /* Never silently discard a route, including its inactive bound path. */
 #define NPC_CAPTURE_ZERO(field) do{if(o->field)return scene_npc_checkpoint_reject(index,#field,0,(double)o->field,RF_RANGE);}while(0)
     NPC_CAPTURE_ZERO(script_move.active);NPC_CAPTURE_ZERO(script_move.path.count);NPC_CAPTURE_ZERO(navigation.retained.count);
-    NPC_CAPTURE_ZERO(script_animation.active);NPC_CAPTURE_ZERO(script_animation.freeze);
+    if(!o->script_animation.active&&o->script_animation.freeze)
+        return scene_npc_checkpoint_reject(index,"inactive_script_freeze",0,o->script_animation.freeze,RF_RANGE);
     if(o->view.linked_handle!=-1)return scene_npc_checkpoint_reject(index,"linked_handle",0,o->view.linked_handle,RF_RANGE);
     NPC_CAPTURE_ZERO(view.occupant_count);
     if(o->attachment_75c!=-1)return scene_npc_checkpoint_reject(index,"attachment_75c",0,o->attachment_75c,RF_RANGE);
@@ -64,16 +65,26 @@ static int scene_npc_checkpoint_row(uint32_t index,int32_t now,rf_npc_checkpoint
             if(status||pending)return scene_npc_checkpoint_reject(index,"deadline",i,deadlines[i],status?status:RF_RANGE);}
         if(index>=campaign_poses.count||!campaign_poses.items)return RF_FORMAT;pose=campaign_poses.items+index;
         if(pose->playback.completion.active.count>16)return scene_npc_checkpoint_reject(index,"motion_count",0,pose->playback.completion.active.count,RF_RANGE);
-        if(pose->playback.completion.frozen)return scene_npc_checkpoint_reject(index,"motion_frozen",0,pose->playback.completion.frozen,RF_RANGE);
-        /* Only standing idle loops may restart their cosmetic phase. Any
-         * one-shot, attack, death or locomotion clip requires a future payload. */
+        if(!pose->playback.completion.active.count&&!o->script_animation.active&&
+           (pose->controller.override_enabled||pose->controller.duration!=0||pose->controller.current>0||pose->controller.next>0))
+            return scene_npc_checkpoint_reject(index,"controller_without_playback",0,pose->controller.current,RF_RANGE);
+        if(pose->playback.completion.frozen&&!o->script_animation.active)return scene_npc_checkpoint_reject(index,"motion_frozen",0,pose->playback.completion.frozen,RF_RANGE);
+
+        /* Preserve ambient controller loops as well as scripted playback.
+         * Non-script actions remain excluded until their gameplay owner is saved. */
         for(i=0;i<pose->playback.completion.active.count;i++){
             int32_t motion=pose->playback.completion.active.slots[i].motion;
-            if(key->retired||motion!=o->selection.mapping.states[0]||motion<0||
+            uint32_t mapped=0,k;
+            for(k=0;k<3;k++){
+                int32_t state=k==0?pose->controller.current:k==1?pose->controller.next:
+                    pose->controller.override_enabled?pose->controller.override_state:-1;
+                if(state>=0&&state<23&&o->selection.mapping.states[state]==motion)mapped=1;
+            }
+            if(key->retired||(!o->script_animation.active&&!mapped)||motion<0||
                !campaign_playback_resources.models||pose->skeleton>=campaign_playback_resources.model_count||
                (uint32_t)motion>=campaign_playback_resources.models[pose->skeleton].count||
                !campaign_playback_resources.models[pose->skeleton].resources||
-               !campaign_playback_resources.models[pose->skeleton].resources[motion].looping)
+               (!o->script_animation.active&&!campaign_playback_resources.models[pose->skeleton].resources[motion].looping))
                 return scene_npc_checkpoint_reject(index,"motion_not_idle_loop",(uint32_t)o->selection.mapping.states[0],motion,RF_RANGE);
         }
         /* rf_entity_body_open deliberately supports an empty authored sphere
@@ -92,6 +103,13 @@ static int scene_npc_checkpoint_row(uint32_t index,int32_t now,rf_npc_checkpoint
             NPC_CAPTURE_AXIS(look.angles.vector_870);
 #undef NPC_CAPTURE_AXIS
         }
+        if(o->script_animation.active){
+            int32_t motion=o->script_animation.motion;const rf_entity_playback_model *model;
+            if(o->script_animation.active!=1||o->script_animation.loop>1||o->script_animation.freeze>1||motion<0||
+               !campaign_playback_resources.models||pose->skeleton>=campaign_playback_resources.model_count)return RF_FORMAT;
+            model=campaign_playback_resources.models+pose->skeleton;
+            if(!model->resources||(uint32_t)motion>=model->count||model->resources[motion].looping!=o->script_animation.loop)return RF_FORMAT;
+        }
     }
     for(i=0;i<3;i+=2)if(o->look.body_angles[i]!=0)return scene_npc_checkpoint_reject(index,"body_pitch_roll",i,o->look.body_angles[i],RF_RANGE);
     memset(row,0,sizeof(*row));row->uid=key->uid;row->class_id=campaign_seeds.items[index].class_index;
@@ -101,6 +119,15 @@ static int scene_npc_checkpoint_row(uint32_t index,int32_t now,rf_npc_checkpoint
     row->yaw=o->look.body_angles[1];memcpy(row->eye_angles,o->look.angles.angles_87c,12);
     row->primary=o->view.weapons[0];row->secondary=o->view.weapons[1];
     row->drop=rf_scene_defeated_actors.drops[slot];row->inventory=o->inventory;row->ai_mode=o->ai_mode.action_280;
+    if(o->registration.view&&(o->script_animation.active||campaign_poses.items[index].playback.completion.active.count)){
+        if(key->retired)return RF_RANGE;
+        row->animation_present=1;row->script_animation.active=o->script_animation.active;
+        row->script_animation.loop=o->script_animation.active?o->script_animation.loop:0;row->script_animation.freeze=o->script_animation.active?o->script_animation.freeze:0;
+        row->script_animation.motion=o->script_animation.active?o->script_animation.motion:0;
+        row->playback=campaign_poses.items[index].playback;row->controller=campaign_poses.items[index].controller;
+        memset(row->playback.completion.active.slots+row->playback.completion.active.count,0,
+            (16-row->playback.completion.active.count)*sizeof(row->playback.completion.active.slots[0]));
+    }
     return RF_OK;
 }
 static int scene_npc_checkpoint_row_compare(const void *a,const void *b)
@@ -108,7 +135,7 @@ static int scene_npc_checkpoint_row_compare(const void *a,const void *b)
 static int scene_npc_checkpoint_capture(const rf_npc_checkpoint_catalog *catalog,int32_t now,
     rf_npc_checkpoint_record *rows,uint32_t capacity,uint32_t *count)
 {
-    rf_npc_checkpoint_record row;unsigned char encoded[RF_NPC_CHECKPOINT_HEADER+RF_NPC_CHECKPOINT_ROW],identity[32]={0};
+    rf_npc_checkpoint_record row;unsigned char encoded[RF_NPC_CHECKPOINT_HEADER+RF_NPC_CHECKPOINT_ROW_MAX],identity[32]={0};
     uint32_t i,j,n=0,written;int status;
     if(!catalog||!count||now<0||now>RF_TIMER_PERIOD||campaign_npc_body_count>RF_CAMPAIGN_ACTOR_SLOTS||
        (campaign_npc_body_count&&(!campaign_npc_bodies||!campaign_seeds.items||!campaign_seeds.records.items||

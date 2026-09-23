@@ -1484,3 +1484,7 @@ target_sources(rf_core PRIVATE src/core/world_checkpoint.c)
 add_executable(rf_world_checkpoint_tests tests/world_checkpoint_tests.c)
 target_link_libraries(rf_world_checkpoint_tests PRIVATE rf_core)
 add_test(NAME world_checkpoint COMMAND rf_world_checkpoint_tests)
+
+add_executable(rf_scene_campaign_history_checkpoint_tests tests/scene_campaign_history_checkpoint_tests.c src/diagnostic/animation.c)
+target_link_libraries(rf_scene_campaign_history_checkpoint_tests PRIVATE rf_core)
+add_test(NAME scene_campaign_history_checkpoint COMMAND rf_scene_campaign_history_checkpoint_tests)
