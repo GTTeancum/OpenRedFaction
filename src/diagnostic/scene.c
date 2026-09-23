@@ -1964,6 +1964,7 @@ static rf_clutter_catalogs campaign_clutter_catalogs;
 static float campaign_script_explode_damage[64];
 static unsigned char campaign_script_explode_loaded[64];
 uint32_t rf_scene_script_explode[10]; /* requests,off,named,positive,zero,missing,geometry-flagged requests,last UID,magnitude/radius bits */
+uint32_t rf_scene_script_explode_geometry[8]; /* flagged,minimum refused,region checked,region refused,region eligible,region errors,last UID,last hardness */
 static int32_t campaign_riot_shield_class=-1;
 uint32_t rf_scene_clutter_contact_test[8];
 static rf_weapon_supply_catalog campaign_weapon_supply;
@@ -3972,6 +3973,7 @@ static int campaign_clutter_open(const char *tables_path,const rf_level *level)
     memset(campaign_script_explode_damage,0,sizeof(campaign_script_explode_damage));
     memset(campaign_script_explode_loaded,0,sizeof(campaign_script_explode_loaded));
     memset(rf_scene_script_explode,0,sizeof(rf_scene_script_explode));
+    memset(rf_scene_script_explode_geometry,0,sizeof(rf_scene_script_explode_geometry));
     memset(rf_scene_script_explode_visual,0,sizeof(rf_scene_script_explode_visual));
     for(i=0;!status && i<campaign_events.count;i++)if(campaign_events.items[i].state.type==10) {
         const char *name=campaign_events.items[i].authored->record.texts[0];
@@ -12674,7 +12676,26 @@ static int scene_script_explode(void *context,const rf_level_event *event,int32_
     if(!isfinite(magnitude))return RF_RANGE;
     memcpy(rf_scene_script_explode+8,&magnitude,4);memcpy(rf_scene_script_explode+9,&scale,4);
     if(magnitude>0)++rf_scene_script_explode[3];else ++rf_scene_script_explode[4];
-    if((event->flags[0]&255u)==1)++rf_scene_script_explode[6];
+    if((event->flags[0]&255u)==1){
+        rf_geomod_region_result region;
+        ++rf_scene_script_explode[6];++rf_scene_script_explode_geometry[0];
+        rf_scene_script_explode_geometry[6]=event->uid;
+        /* Original master 4670c3 refuses requested radii below 1 before
+         * region hardness; 9466 is a real authored example. Region selection
+         * does not yet assert room/template/CSG admission. */
+        if(scale<1.0f)++rf_scene_script_explode_geometry[1];
+        else {
+            ++rf_scene_script_explode_geometry[2];
+            status=rf_geomod_regions_prepare(s->terrain_regions,s->terrain_region_count,
+                s->terrain_default_hardness,event->position,0,&region);
+            if(status)++rf_scene_script_explode_geometry[5];
+            else {
+                rf_scene_script_explode_geometry[7]=region.hardness.hardness;
+                if(region.hardness.allowed)++rf_scene_script_explode_geometry[4];
+                else ++rf_scene_script_explode_geometry[3];
+            }
+        }
+    }
     frame=(uint32_t)((uint64_t)(uint32_t)now*60/1000);
     if(effect>=0){
         status=scene_script_explode_effects_start(s,event->position,frame,scale,(uint32_t)effect);if(status)return status;
