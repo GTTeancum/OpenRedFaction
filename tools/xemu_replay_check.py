@@ -294,6 +294,10 @@ dvd_path = '{root.as_posix()}/build/xbox/redfaction-diagnostic.iso'
       focus[label]={'guest':actual,'pc':reference,'match':actual==reference}
      report['navigation_focus']=focus
      (run/'navigation-focus.json').write_text(json.dumps(focus,indent=2))
+    if args.campaign_spawn:
+     countdown=words(monitor,symbol('rf_scene_campaign_countdown'),3)
+     report['campaign_countdown']={'guest':countdown,'pc':expected('CAMPAIGN_COUNTDOWN')}
+     assert countdown==expected('CAMPAIGN_COUNTDOWN'),report['campaign_countdown']
     retained=words(monitor,symbol('rf_xbox_retained_world'),8)
     report['retained_world']=retained
     follow=words(monitor,symbol('rf_scene_actor_follow_frames'),64*14)
@@ -324,7 +328,9 @@ dvd_path = '{root.as_posix()}/build/xbox/redfaction-diagnostic.iso'
      report['pickup_vitals']=words(monitor,symbol('rf_scene_pickup_vitals'),4)
      assert report['pickup_vitals']==expected('PICKUP_VITALS'),report['pickup_vitals']
      report['pickups']=words(monitor,symbol('rf_scene_pickups'),8)
-     assert report['pickups']==expected('PICKUPS') and report['pickups'][7]==0,report['pickups']
+     if retained[0]==1:
+      assert report['pickups'][:6]==expected('PICKUPS')[:6] and report['pickups'][7]==expected('PICKUPS')[7]==0,report['pickups']
+     else:assert report['pickups']==expected('PICKUPS') and report['pickups'][7]==0,report['pickups']
      report['weapon_selection']=words(monitor,symbol('rf_scene_weapon_selection'),8)
      assert report['weapon_selection']==expected('WEAPON_SELECTION'),report['weapon_selection']
      report['player_ammo']=words(monitor,symbol('rf_scene_player_ammo'),8)

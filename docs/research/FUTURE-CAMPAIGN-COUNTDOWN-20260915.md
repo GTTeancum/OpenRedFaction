@@ -1,10 +1,16 @@
 # Campaign countdown events and timer persistence
 
+Implementation update (2026-09-23): The first-pass shared runtime and scene
+timer described by this research now live in `src/core/event.c` and
+`src/diagnostic/scene.c`; see `docs/CAMPAIGN-COUNTDOWN-FIRST-PASS.md` for
+current PC/Xbox evidence and remaining save/presentation work. The probe
+scope below remains original-binary evidence, not a claim of full parity.
+
 ## Evidence and scope
 
 42 original instruction scenarios pass in `tools/future_re/campaign_countdown.py`; results `countdown.json`, authored inventory `countdown-authored.json`. Same verified original executable as companion campaign reports. Actual Begin73, Reaches84, original string predicates, Over75 polling/array iteration and decrement arithmetic execute. Only linked object resolution/activation effects are intercepted. No live campaign, HUD, full persistence or port code runs.
 
-Current runtime action whitelist in src/core/event.c excludes73/74/75/84. These need subclass-specific state and polling, not simply adding a generic switch. Authored inventory contains36 events in L15/L17, including cross-level threshold/expiry handlers. This report prepares a small shared campaign timer service.
+At research time, the runtime action whitelist in src/core/event.c excluded73/74/75/84. These needed subclass-specific state and polling, not simply a generic switch. Authored inventory contains36 events in L15/L17, including cross-level threshold/expiry handlers. This report supplied the evidence for the first-pass campaign timer service.
 
 ## Begin73 and End74
 

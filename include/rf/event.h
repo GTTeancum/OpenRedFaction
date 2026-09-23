@@ -129,8 +129,16 @@ typedef struct rf_runtime_event {
     rf_unhide_state unhide;
     rf_event_cycle cycle; /* Type20: scene-clock-zero initialization; checkpoint separately. */
     rf_event_threshold threshold; /* Types87/88 one-shot monitor; per scene. */
+    uint32_t countdown_armed,countdown_fired; /* Type84: threshold crossing per scene. */
     uint32_t retired; /* Storage retained after Remove_Object until scene close. */
 } rf_runtime_event;
+typedef struct rf_campaign_countdown {
+    float remaining;
+    uint32_t expiry_pending,difficulty; /* Difficulty 0..3; scene owns lifetime. */
+} rf_campaign_countdown;
+/* Frame simulation, independent of HUD and wall clock. Crossing exactly zero
+ * emits expiry once (an intentional correction to original4332d2). */
+int rf_campaign_countdown_step(rf_campaign_countdown *countdown,float seconds);
 typedef struct rf_runtime_events {
     rf_level_owned_events decoded;
     rf_runtime_event *items;
@@ -334,6 +342,8 @@ typedef struct rf_runtime_triggers {
     int (*load_level)(void *context,const rf_level_event *,uint32_t source,uint32_t actor);
     void *load_level_context;
     rf_campaign_goals *goals; /* Borrowed campaign owner; survives scene teardown. */
+    rf_campaign_countdown *countdown; /* Borrowed across campaign sections. */
+    const char *countdown_level; /* Borrowed current level name. */
     /* When_Dead object query by authored UID. Unknown objects return NOT_FOUND
      * and defer the watcher; missing known actors report present=alive=0. */
     int (*death_query)(void *context,uint32_t uid,uint32_t *present,uint32_t *alive);

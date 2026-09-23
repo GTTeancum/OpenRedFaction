@@ -16,6 +16,7 @@
  * NULL staging clears any queued import. The staged value owns its data. */
 /* Enable only when the caller consumes exits after scene cleanup. */
 extern uint32_t rf_scene_follow_level_exits;
+extern rf_campaign_countdown rf_scene_campaign_countdown;
 /* Explicit developer loadout for the validated GlassHouse, ctf06 and water fixtures. */
 extern uint32_t rf_scene_dev_room_enabled;
 extern uint32_t rf_scene_dev_npc_enabled;

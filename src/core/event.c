@@ -5,6 +5,16 @@
 #include <math.h>
 #include <string.h>
 #include <stdlib.h>
+int rf_campaign_countdown_step(rf_campaign_countdown *countdown,float seconds)
+{
+    if(!countdown || !isfinite(seconds) || seconds<0 || !isfinite(countdown->remaining) ||
+       countdown->remaining<0 || countdown->expiry_pending>1)return RF_RANGE;
+    if(countdown->remaining>0 && seconds>0) {
+        countdown->remaining-=seconds;
+        if(countdown->remaining<=0){countdown->remaining=0;countdown->expiry_pending=1;}
+    }
+    return RF_OK;
+}
 int rf_event_switch_links(const rf_switch_state *state,const rf_event_state *event,
     const rf_event_links *links,uint32_t initial,rf_switch_lookup lookup,
     rf_switch_dispatch dispatch,void *context)
@@ -679,6 +689,20 @@ static void startup_event_action(void *context,rf_event_state *state,uint32_t ac
             startup_target(c,c->event->links+i,source,actor,(mode&255u)==1);
         return;
     }
+    if(state->type==73 || state->type==74) {
+        rf_campaign_countdown *timer=c->triggers->countdown;
+        int32_t seconds;
+        if(action!=1)return;
+        if(!timer){++c->report->unsupported_actions;return;}
+        if(state->type==74){timer->remaining=0;return;}
+        memcpy(&seconds,&c->event->authored->record.words[0],4);
+        if(seconds<0){c->status=RF_FORMAT;return;}
+        if(!strcmp(c->event->authored->record.name,"station_blowup")) {
+            static const float difficulty_seconds[4]={90,55,45,35};
+            if(timer->difficulty<4)timer->remaining=difficulty_seconds[timer->difficulty];
+        } else timer->remaining=(float)seconds;
+        return;
+    }
     if(state->type==34) {
         static const int32_t actions[6]={1,2,4,5,11,-1};
         uint32_t authored_mode=c->event->authored->record.words[0];
@@ -852,7 +876,7 @@ static void startup_event_action(void *context,rf_event_state *state,uint32_t ac
         return;
     }
     /* Delay (48) uses no-op base actions; common scheduling/propagation own it. */
-    if(state->type==48 || state->type==16 || state->type==52)return;
+    if(state->type==48 || state->type==16 || state->type==52 || state->type==75 || state->type==84)return;
     if(state->type!=44) {++c->report->unsupported_actions;return;}
     c->status=rf_event_gravity_action(c->gravity,c->event->authored->record.values[0],action);
     if(!c->status && action==1)++c->report->gravity_actions;
@@ -1138,6 +1162,43 @@ int rf_runtime_events_tick(rf_runtime_events *events,rf_runtime_triggers *trigge
             if(event->threshold.fired)++report->events;
             continue;
         }
+        if(event->state.type==75 || event->state.type==84) {
+            rf_campaign_countdown *timer=triggers->countdown;uint32_t j,fire=0;
+            context.event=event;
+            if(event->state.deadline>=0) {
+                status=rf_event_tick(&event->state,now,startup_event_action,&context);
+                if(status)return status;if(context.status)return context.status;
+            }
+            if(event->retired)continue;
+            if(!timer){++*unsupported_pending;continue;}
+            if(event->state.type==75)fire=timer->expiry_pending;
+            else if(timer->remaining>0) {
+                int32_t threshold=(int32_t)event->authored->record.words[0];
+                if(timer->remaining>(float)threshold)event->countdown_armed=1;
+                else if(!event->countdown_fired && timer->remaining<(float)threshold) {
+                    int l17=triggers->countdown_level &&
+                        (!strcmp(triggers->countdown_level,"L17S1.rfl") ||
+                         !strcmp(triggers->countdown_level,"L17S2.rfl") ||
+                         !strcmp(triggers->countdown_level,"L17S3.rfl"));
+                    fire=!l17 || !strcmp(event->authored->record.name,"countdown_sound") || event->countdown_armed;
+                }
+            }
+            if(!fire)continue;
+            for(j=0;j<event->authored->record.link_count;j++) {
+                const rf_level_link_target *link=event->links+j;void *object;uint32_t kind;
+                if(link->kind!=1 && link->kind!=2)continue;
+                object=rf_object_registry_lookup(events->registry,link->value);if(!object)continue;
+                memcpy(&kind,object,4);
+                if(kind==6 || kind==8 || (event->state.type==84 && kind==5))
+                    startup_target(&context,link,UINT32_MAX,UINT32_MAX,1);
+                if(context.status)return context.status;
+                if(event->retired)break;
+            }
+            if(event->state.type==75)timer->expiry_pending=0;
+            else event->countdown_fired=1;
+            ++report->events;
+            continue;
+        }
         if(event->state.type==20) {
             uint32_t pulse,j;context.event=event;
             /* Original4bb7b0 services the common delayed action first. */
@@ -1183,6 +1244,7 @@ int rf_runtime_events_tick(rf_runtime_events *events,rf_runtime_triggers *trigge
            !(event->state.type==0 && triggers->play_sound) &&
            !((event->state.type==41 || event->state.type==42) && triggers->music) &&
            !(event->state.type==69 && triggers->navpoint) &&
+           !((event->state.type==73 || event->state.type==74) && triggers->countdown) &&
            !(event->state.type==61 && triggers->black_out_player) &&
            !(event->state.type==10 && triggers->explode) &&
            !(event->state.type==7 && triggers->look_at) &&
