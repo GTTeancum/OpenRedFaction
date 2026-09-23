@@ -8,7 +8,7 @@ static rf_level_owned_entity seed;
 int main(void)
 {
     unsigned char identity[32]={9},wrong[32]={8};scene_campaign_history_checkpoint_stage *stage=NULL;
-    rf_runtime_event events[2]={{0}};rf_level_owned_event authored[2]={{0}};rf_switch_state current_switch;
+    rf_runtime_event events[3]={{0}};rf_level_owned_event authored[3]={{0}};rf_switch_state current_switch;
     uint32_t old_switch,old_event,old_actor,current_actor,bytes=777,row_offset;float position[3]={1,2,3};
     strcpy(campaign_current_level,"L1S2.rfl");rf_object_registry_init(&campaign_registry);
     CHECK(!rf_campaign_pickup_register(&campaign_switch_history,"L1S1.rfl",10,&old_switch));
@@ -27,11 +27,13 @@ int main(void)
     CHECK(!rf_object_registry_insert(&campaign_registry,&npc.registration,&npc.registration.handle));
     campaign_npc_body_count=1;campaign_npc_bodies=&npc;seed.record.uid=100;campaign_seeds.records.count=1;campaign_seeds.records.items=&seed;
     CHECK(!rf_event_switch_init(&current_switch,0,10,0,0));current_switch.activations=6;
-    authored[0].record.uid=20;authored[1].record.uid=21;
+    authored[0].record.uid=20;authored[1].record.uid=21;authored[2].record.uid=22;
     events[0].authored=authored;events[0].state.type=32;events[0].switch_state=&current_switch;
     events[1].authored=authored+1;events[1].state.type=20;
     CHECK(!rf_event_cycle_init(&events[1].cycle,.5f,10,0,0));events[1].cycle.count=9;events[1].cycle.enabled=1;events[1].cycle.deadline=250;
-    campaign_events.items=events;campaign_events.count=2;
+    events[2].authored=authored+2;events[2].state.type=84;events[2].countdown_armed=1;
+    campaign_events.items=events;campaign_events.count=3;
+    rf_scene_campaign_countdown=(rf_campaign_countdown){42.25f,1,2};
     before.switches=campaign_switch_history;before.events=campaign_event_history;before.actors=rf_scene_defeated_actors;
     memcpy(before.switch_saved,campaign_switch_saved,sizeof(before.switch_saved));memcpy(before.event_saved,campaign_event_saved_states,sizeof(before.event_saved));
     CHECK(!scene_campaign_history_checkpoint_encode(identity,100,wire,sizeof(wire),&bytes));
@@ -39,7 +41,9 @@ int main(void)
     CHECK(!memcmp(&before.actors,&rf_scene_defeated_actors,sizeof(before.actors)));
     CHECK(!scene_campaign_history_checkpoint_prepare(identity,wire,bytes,sizeof(*stage),&stage));
     CHECK(stage->switches.count==2&&stage->switch_saved[old_switch].activations==3&&stage->switch_saved[1].activations==6);
-    CHECK(stage->events.count==2&&stage->event_saved[old_event].fired==1&&stage->event_saved[1].count==9&&stage->event_saved[1].cycle_remaining==150);
+    CHECK(stage->events.count==3&&stage->event_saved[old_event].fired==1&&stage->event_saved[1].count==9&&stage->event_saved[1].cycle_remaining==150);
+    CHECK(stage->event_saved[2].type==84&&stage->event_saved[2].enabled==1&&!stage->event_saved[2].fired);
+    CHECK(stage->countdown.remaining==42.25f&&stage->countdown.expiry_pending==1&&stage->countdown.difficulty==2);
     CHECK(stage->actors.vitals[current_actor].health==37.5f&&stage->actors.vitals[current_actor].armor==9&&stage->actors.mission[current_actor].flags==0x4004);
     CHECK(stage->actors.items[old_actor].retired&&stage->actors.drops[old_actor].state==2&&stage->actors.drops[old_actor].quantity==0);
     scene_campaign_history_checkpoint_close(&stage);CHECK(!stage);memcpy(saved,wire,bytes);
@@ -53,6 +57,7 @@ int main(void)
     CHECK(!scene_campaign_history_checkpoint_prepare(identity,wire,bytes,sizeof(*stage),&stage));
     scene_campaign_history_checkpoint_publish(stage);scene_campaign_history_checkpoint_close(&stage);
     CHECK(campaign_switch_history.count==2&&rf_scene_defeated_actors.vitals[current_actor].health==37.5f);
+    CHECK(rf_scene_campaign_countdown.remaining==42.25f&&rf_scene_campaign_countdown.expiry_pending==1);
     events[1].cycle.count=0;CHECK(!campaign_event_restore(events+1,1000,campaign_event_saved_states+1));
     CHECK(events[1].cycle.count==9&&events[1].cycle.deadline==1150);
     CHECK(!rf_campaign_actor_drop_emit(&rf_scene_defeated_actors,old_actor,3,20,position)&&rf_scene_defeated_actors.drops[old_actor].state==2&&rf_scene_defeated_actors.drops[old_actor].quantity==0);
@@ -96,7 +101,7 @@ int main(void)
         carry.health=61;carry.inventory.loaded[13]=12;
         CHECK(!rf_campaign_player_copy(&campaign_player_export,&carry,carry.catalog_hash));campaign_export_valid=1;
         CHECK(!scene_campaign_history_checkpoint_encode(identity,1000,wire,sizeof(wire),&bytes));
-        CHECK(scene_history_word(wire+4)==2&&scene_history_word(wire+72)==63&&scene_history_word(wire+76)==2824);
+        CHECK(scene_history_word(wire+4)==3&&scene_history_word(wire+72)==63&&scene_history_word(wire+76)==2824);
         first_bytes=bytes;tail=bytes-2824;memcpy(saved,wire,bytes);
         CHECK(!scene_campaign_history_checkpoint_prepare(identity,wire,bytes,sizeof(*stage),&stage));
         CHECK(stage->player_import.health==73&&stage->player_export.health==61&&stage->player_export.inventory.loaded[13]==12);
@@ -126,6 +131,11 @@ int main(void)
         campaign_machine_import_sidecar.special=1;
         /* Version1 has no carry; absent records publish as empty, never retain
          * unrelated process-global carry from before loading. */
+        scene_history_put(wire+4,2);scene_history_put(wire+80,0);scene_history_put(wire+84,0);scene_history_put(wire+88,0);
+        scene_history_put(wire+12,scene_history_hash(wire,bytes));
+        CHECK(!scene_campaign_history_checkpoint_prepare(identity,wire,bytes,sizeof(*stage),&stage));
+        CHECK(!stage->countdown.remaining&&!stage->countdown.expiry_pending&&stage->countdown.difficulty==1);
+        scene_campaign_history_checkpoint_close(&stage);
         scene_history_put(wire+4,1);scene_history_put(wire+8,tail);scene_history_put(wire+72,0);scene_history_put(wire+76,0);
         scene_history_put(wire+12,scene_history_hash(wire,tail));
         CHECK(!scene_campaign_history_checkpoint_prepare(identity,wire,tail,sizeof(*stage),&stage));

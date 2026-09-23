@@ -15,7 +15,7 @@ Validation: focused NPC capture/restore checks pass after the fresh-boot change;
 
 ## Current milestone: ordinary restore staging (2026-09-22, solo integration)
 
-The snapshot now uses RFWC2 with a sixteenth ENVIRONMENT component. RFCH2 retains player import/export and Machine Pistol/Undercover carry records; RFEN1 retains gravity and UID-bound force active/strength state. Current unmodified L1S1 captures101708 bytes, within110524, and reports history omission mask0. Legacy RFWC1 decoding remains supported without an environment component; it cannot satisfy a required environment section.
+The snapshot uses RFWC2 with a sixteenth ENVIRONMENT component. RFCH3 retains player import/export, Machine Pistol/Undercover carry records and campaign countdown state; RFEN1 retains gravity and UID-bound force active/strength state. The historical unmodified L1S1 capture was101708 bytes, within110524, and reported history omission mask0. Legacy RFWC1 decoding remains supported without an environment component; it cannot satisfy a required environment section.
 
 The120-frame process-local replay now stages all78 NPCs (including actual bone pose evaluation), saved doors and static props,184 event records,61 trigger states,22 pickup bindings, mission goals, campaign histories/carry and the standing player with weapon modes. Gravity stages successfully; this level has zero force regions, so a focused actual-scene test covers nonempty force restoration, UID reorder, geometry mismatch, stale-owner validation and handoff rejection. No gameplay publication occurs during these probes.
 

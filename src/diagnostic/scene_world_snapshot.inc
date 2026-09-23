@@ -86,6 +86,11 @@ static int scene_world_snapshot_capture_mode(scene_stream *s,const rf_level *lev
     map=(scene_event_checkpoint_map){objects,object_count,&campaign_registry};
     refs=(rf_event_checkpoint_refs){scene_event_checkpoint_export,scene_event_checkpoint_import,&map};
     for(i=0;i<campaign_events.count;i++){
+        const rf_runtime_event *event=campaign_events.items+i;
+        if(!event->retired && event->state.deadline>=0 &&
+           (rf_event_checkpoint_external_requirements(event->state.type)&RF_EVENT_CHECKPOINT_EXTERNAL_UNIMPLEMENTED)){
+            status=RF_NOT_FOUND;goto done;
+        }
         status=rf_event_checkpoint_encode_mapped(identity.bytes,campaign_events.items+i,now,&refs,buffer+at+bytes,RF_EVENT_CHECKPOINT_BYTES);
         if(status)goto done;bytes+=RF_EVENT_CHECKPOINT_BYTES;
     }

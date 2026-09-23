@@ -35,10 +35,22 @@ populate a pickup CPU draw-vertex counter (PC 654, Xbox 0); gameplay pickup
 counters match. The checker now treats that draw counter separately, but a
 full rerun after the accounting change has not been made.
 
-Remaining work: persist the global timer and type-84 latches in ordinary saves;
-provide player-selected difficulty and countdown HUD/audio; verify actual
-expiry and mission handoff in live L15/L17 sessions and preserve timer state
-across a live section transition. The current timer survives an in-memory
-campaign section handoff by scene ownership, but that handoff has not been
-verified in a live countdown sequence. Saving a level containing these event
-types is not yet admitted by the ordinary event checkpoint codec.
+RFCH3 now persists remaining time, expiry pulse and difficulty; RFEC3 and
+session event history persist type-84 armed/fired latches. Legacy RFCH1/2
+restores a stopped countdown. In a process-local PC L15S1 replay, a frame-150
+ordinary quicksave and frame-260 quickload complete successfully. Its final
+remaining-time bits at frame 480 equal an uninterrupted 369-frame run
+(`1142208396`). The reload needs a narrow authored-placement exception for
+the stationary Auto Turret: its saved position is unchanged while its basis
+rotates. Static-world center, mover and prop checks still run. The NXDK XBE/ISO
+build passes, but this L15 save/load continuation has not run in XEMU.
+
+L15S1 also contains inert unimplemented event types. The codec now represents
+their local fields while ordinary capture rejects them if a delayed action is
+pending; this does not implement the actions themselves. L17S1 still rejects
+ordinary NPC capture, independently of the countdown component.
+
+Remaining countdown work: player-selected difficulty and HUD/audio, live
+expiry/mission handoff, a live section transition, L17 save admission and
+native L15 save/load verification. In-memory section ownership already
+preserves the shared timer, but a live countdown transition is unverified.

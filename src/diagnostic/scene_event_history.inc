@@ -28,6 +28,8 @@ static int campaign_event_capture(const rf_runtime_event *event,int32_t now,camp
             if(saved.cycle_remaining<0)saved.cycle_remaining=0;
         }
     } else if(saved.type==87 || saved.type==88)saved.fired=event->threshold.fired!=0;
+    else if(saved.type==84){saved.enabled=event->countdown_armed;saved.fired=event->countdown_fired;
+        if(saved.enabled>1||saved.fired>1)return RF_FORMAT;}
     else return RF_NOT_FOUND;
     *result=saved;return RF_OK;
 }
@@ -45,6 +47,9 @@ static int campaign_event_restore(rf_runtime_event *event,int32_t now,const camp
     } else if(saved->type==87 || saved->type==88) {
         if(saved->fired>1)return RF_FORMAT;
         event->threshold.fired=saved->fired;
+    } else if(saved->type==84) {
+        if(saved->count||saved->enabled>1||saved->fired>1||saved->cycle_remaining!=-1)return RF_FORMAT;
+        event->countdown_armed=saved->enabled;event->countdown_fired=saved->fired;
     } else return RF_NOT_FOUND;
     return RF_OK;
 }
@@ -54,7 +59,7 @@ static int campaign_event_checkpoint(uint32_t save,int32_t now)
     if(save>1 || now<0 || now>RF_TIMER_PERIOD)return RF_RANGE;
     for(i=0;i<campaign_events.count;i++) {
         rf_runtime_event *event=campaign_events.items+i;campaign_event_saved captured;
-        if(event->retired || (event->state.type!=20 && event->state.type!=87 && event->state.type!=88))continue;
+        if(event->retired || (event->state.type!=20 && event->state.type!=84 && event->state.type!=87 && event->state.type!=88))continue;
         if(save){status=campaign_event_capture(event,now,&captured);if(status)return status;}
         status=rf_campaign_pickup_register(&campaign_event_history,campaign_current_level,event->authored->record.uid,&slot);
         if(status)return status;

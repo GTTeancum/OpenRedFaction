@@ -11,10 +11,10 @@ static uint32_t hash(const unsigned char *p)
 int rf_event_checkpoint_type_supported(uint32_t type)
 {
     switch(type){
-    case 0:case 1:case 2:case 3:case 5:case 6:case 7:case 10:case 17:case 11:case 12:case 13:case 14:case 15:
+    case 0:case 1:case 2:case 3:case 5:case 6:case 7:case 8:case 10:case 17:case 11:case 12:case 13:case 14:case 15:case 18:
     case 16:case 19:case 20:case 22:case 24:case 28:case 30:case 32:case 34:
     case 35:case 36:case 37:case 38:case 39:case 44:case 46:case 48:case 50:
-    case 41:case 42:case 61:case 51:case 52:case 56:case 64:case 65:case 69:case 81:case 87:case 88:return 1;
+    case 41:case 42:case 43:case 59:case 61:case 51:case 52:case 56:case 64:case 65:case 69:case 71:case 73:case 74:case 75:case 81:case 84:case 87:case 88:return 1;
     default:return 0;
     }
 }
@@ -32,6 +32,8 @@ uint32_t rf_event_checkpoint_external_requirements(uint32_t type)
     case 19:case 56:case 64:case 65:case 81:return RF_EVENT_CHECKPOINT_EXTERNAL_INVENTORY;
     case 22:return RF_EVENT_CHECKPOINT_EXTERNAL_LEVEL;
     case 35:case 36:case 37:return RF_EVENT_CHECKPOINT_EXTERNAL_GOALS;
+    case 73:case 74:case 75:case 84:return RF_EVENT_CHECKPOINT_EXTERNAL_WORLD;
+    case 8:case 18:case 43:case 59:case 71:return RF_EVENT_CHECKPOINT_EXTERNAL_UNIMPLEMENTED;
     case 46:return RF_EVENT_CHECKPOINT_EXTERNAL_AUDIO|RF_EVENT_CHECKPOINT_EXTERNAL_NPC;
     case 3:case 48:return 0;
     default:return RF_EVENT_CHECKPOINT_EXTERNAL_WORLD;
@@ -82,6 +84,7 @@ int rf_event_checkpoint_encode_mapped(const unsigned char identity[32],const rf_
         status=remaining(e->cycle.deadline,now,&cycle_remaining);if(status)return status;
     }
     if((e->state.type==87||e->state.type==88)&&e->threshold.fired>1)return RF_FORMAT;
+    if(e->state.type==84&&(e->countdown_armed>1||e->countdown_fired>1))return RF_FORMAT;
     if(e->state.type==32&&e->switch_state->unlimited>255)return RF_FORMAT;
     if(e->state.type==50){status=remaining(e->unhide.deadline,now,&unhide_remaining);if(status)return status;}
     status=encode_ref(e->state.source,refs,&source_kind,&source_uid);if(status)return status;
@@ -95,6 +98,7 @@ int rf_event_checkpoint_encode_mapped(const unsigned char identity[32],const rf_
     if(e->state.type==32){const rf_switch_state *s=e->switch_state;
         put(p+136,s->disabled);put(p+140,(uint32_t)s->limit);put(p+144,s->unlimited);put(p+148,s->activations);put(p+152,(uint32_t)s->mode);}
     if(e->state.type==50){put(p+156,(uint32_t)unhide_remaining);put(p+164,e->unhide.on);put(p+168,e->unhide.off);}
+    if(e->state.type==84){put(p+172,e->countdown_armed);put(p+176,e->countdown_fired);}
     put(p+160,(uint32_t)common_remaining);
     put(p+12,hash(p));return RF_OK;
 }
@@ -107,11 +111,12 @@ static int validate(const void *data,uint32_t bytes,const unsigned char identity
     status=owner_valid(e,now);if(status)return status;
     if(bytes!=192||memcmp(p,"RFEC",4)||(word(p+4)!=2&&word(p+4)!=3)||word(p+8)!=192||word(p+12)!=hash(p)||
        memcmp(p+24,identity,32)||word(p+16)!=e->authored->record.uid||word(p+20)!=e->state.type||word(p+56)||word(p+60)||word(p+132))return RF_FORMAT;
-    version=word(p+4);
-    for(i=version==2?160:172;i<192;i+=4)if(word(p+i))return RF_FORMAT;
+    version=word(p+4);type=word(p+20);
+    for(i=version==2?160:type==84?180:172;i<192;i+=4)if(word(p+i))return RF_FORMAT;
     if(word(p+72)>1||word(p+76)>(uint32_t)RF_TIMER_PERIOD||word(p+112)>1||
        (word(p+112)&&(!(word(p+64)&1)||word(p+72)!=1)))return RF_FORMAT;
-    type=word(p+20);resolved->cycle_deadline=resolved->unhide_deadline=resolved->common_deadline=-1;
+    resolved->cycle_deadline=resolved->unhide_deadline=resolved->common_deadline=-1;
+    if(type==84&&(version<3||word(p+172)>1||word(p+176)>1))return RF_FORMAT;
     if(version==3){
         left=signed_word(p+160);if(left<-1||left>RF_TIMER_PERIOD||(word(p+112)&&left>=0))return RF_FORMAT;
         if(left>=0){status=rf_timer_set(&resolved->common_deadline,now,left);if(status)return status;}
@@ -148,6 +153,7 @@ int rf_event_checkpoint_restore_mapped(const void *data,uint32_t bytes,const uns
     e->death_fired=word(p+72);e->death_time=word(p+76);e->retired=word(p+112);
     if(e->state.type==20){e->cycle.deadline=resolved.cycle_deadline;e->cycle.count=word(p+92);e->cycle.enabled=word(p+96);}
     if(e->state.type==87||e->state.type==88)e->threshold.fired=word(p+108);
+    if(e->state.type==84){e->countdown_armed=word(p+172);e->countdown_fired=word(p+176);}
     if(e->state.type==32){e->switch_state->disabled=word(p+136);e->switch_state->activations=word(p+148);}
     if(e->state.type==50){e->unhide.deadline=resolved.unhide_deadline;e->unhide.on=(uint8_t)word(p+164);e->unhide.off=(uint8_t)word(p+168);}
     return RF_OK;

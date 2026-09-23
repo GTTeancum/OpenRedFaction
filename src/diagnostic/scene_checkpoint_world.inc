@@ -33,6 +33,7 @@ typedef struct scene_checkpoint_world_context {
     uint32_t allow_no_contact; /* Stationary, nonfalling NPC only; default is strict standing. */
     uint32_t authored_static_unchanged; /* Caller proves identity-bound static terrain has no mutations. */
     const float *authored_position,*authored_basis; /* Optional exact NPC spawn baseline, borrowed. */
+    uint32_t authored_rotating_npc; /* Stationary authored turret may rotate without translating. */
     rf_clutter_base_owner *const *authored_props; /* Parallel immutable authored-pose owners; caller proves class geometry identity. */
     uint32_t spawn_shell_uid; /* Narrow player-only authored hollow prop exception; zero disables it. */
     const float *spawn_shell_position; /* Borrowed authored player start, not a saved position. */
@@ -42,7 +43,8 @@ static int scene_checkpoint_world_authored_pose(const scene_checkpoint_world_con
     uint32_t k;
     if(!c->allow_no_contact||!c->authored_static_unchanged||!c->authored_position||!c->authored_basis||
        memcmp(p->position,c->authored_position,12))return 0;
-    for(k=0;k<9;k++)if(!isfinite(c->authored_basis[k])||fabsf(p->basis[k]-c->authored_basis[k])>1e-5f)return 0;
+    if(!c->authored_rotating_npc)
+        for(k=0;k<9;k++)if(!isfinite(c->authored_basis[k])||fabsf(p->basis[k]-c->authored_basis[k])>1e-5f)return 0;
     return 1;
 }
 static int scene_checkpoint_world_authored_prop(const scene_checkpoint_world_context *c,uint32_t slot,const rf_clutter_base_owner *p)
