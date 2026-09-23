@@ -68,5 +68,22 @@ int main(void)
     owner.combat_due=UINT32_MAX;memcpy(scene_actor_body.state.position,far_eye,12);
     CHECK(!campaign_enemy_tick(&scene,200,far_eye));
     CHECK(owner.script_move.active&&owner.script_move.follow==2&&!memcmp(owner.script_move.target,far_eye,12));
+    /* A live Enable_Navpoint change must retire a cached route through that
+     * node; an unrelated change leaves the route intact. Reopening a node
+     * also releases an active scripted actor's failed-route retry delay. */
+    {float radius=2.f;
+     for(i=0;i<2;i++){nodes[i].candidate.radius=radius;memcpy(&nodes[i].candidate.retained_018,&radius,4);}
+     owner.script_move.active=1;owner.script_move.route_index=1;owner.script_move.retry=13;
+     owner.navigation.retained.count=3;
+     owner.navigation.retained.nodes[0]=&owner.navigation.start;
+     owner.navigation.retained.nodes[1]=&nodes[0].candidate;
+     owner.navigation.retained.nodes[2]=&owner.navigation.goal;
+     CHECK(!campaign_navpoint_set(&campaign_navigation,1,0));
+     CHECK(owner.navigation.retained.count==3&&owner.script_move.retry==13);
+     CHECK(!campaign_navpoint_set(&campaign_navigation,0,0));
+     CHECK(owner.navigation.retained.count==0&&owner.script_move.route_index==1&&owner.script_move.retry==0);
+     owner.script_move.retry=13;
+     CHECK(!campaign_navpoint_set(&campaign_navigation,0,1));
+     CHECK(owner.script_move.retry==0&&nodes[0].candidate.radius==radius);}
     puts("PASS authored Goto/Follow targets survive ordinary pursuit, firing remains active, explicit Attack supersedes");return 0;
 }

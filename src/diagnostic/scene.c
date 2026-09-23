@@ -4116,6 +4116,7 @@ static int campaign_navigation_open(const rf_level *level)
     }
     rf_scene_navigation_workspace[3]=hash;return RF_OK;
 }
+static void campaign_navpoint_changed(const rf_entity_navigation_candidate *candidate,uint32_t on);
 static int campaign_navpoint_set(void *context,uint32_t index,uint32_t on)
 {
     rf_level_owned_navigation *nav=context;rf_entity_navigation_candidate *candidate;uint32_t before,after;
@@ -4125,6 +4126,7 @@ static int campaign_navpoint_set(void *context,uint32_t index,uint32_t on)
     if(on){memcpy(&candidate->radius,&candidate->retained_018,4);++rf_scene_navpoint[2];}
     else {candidate->radius=0.0f;++rf_scene_navpoint[3];}
     memcpy(&after,&candidate->radius,4);
+    if(before!=after)campaign_navpoint_changed(candidate,on);
     rf_scene_navpoint[4]=index;rf_scene_navpoint[5]=nav->nodes[index].uid;
     rf_scene_navpoint[6]=before;rf_scene_navpoint[7]=after;
     return RF_OK;
@@ -4237,6 +4239,21 @@ static campaign_npc_eye_class *campaign_npc_eyes;
 uint32_t rf_scene_npc_unholster[4]; /* classes,nonzero,bytes,hash */
 uint32_t rf_scene_npc_eyes[4]; /* refreshed actors, retained bytes, class hash, position hash */
 static uint32_t campaign_npc_body_count;
+static void campaign_navpoint_changed(const rf_entity_navigation_candidate *candidate,uint32_t on)
+{
+    uint32_t i,j;
+    if(!campaign_npc_bodies)return;
+    for(i=0;i<campaign_npc_body_count;i++){
+        campaign_npc_body *owner=campaign_npc_bodies+i;
+        rf_entity_navigation_retained_route *route=&owner->navigation.retained;
+        /* A newly opened node can satisfy a failed scripted request now. */
+        if(on&&owner->script_move.active)owner->script_move.retry=0;
+        for(j=owner->script_move.route_index;j<route->count&&j<4;j++)if(route->nodes[j]==candidate){
+            route->count=0;owner->script_move.route_index=1;owner->script_move.retry=0;
+            break;
+        }
+    }
+}
 static const rf_entity_motion_selection *campaign_model_motion_selection(uint32_t model)
 {
     uint32_t slot=model-1;
