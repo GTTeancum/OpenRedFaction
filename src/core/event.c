@@ -575,7 +575,13 @@ static void startup_event_action(void *context,rf_event_state *state,uint32_t ac
         return;
     }
     if(state->type==0) {
-        if(action==2)return;
+        if(action==2) {
+            /* Play_Sound owns its voice, then the ordinary event dispatcher
+             * forwards outgoing links (e.g. L17S3 blast -> Endgame). */
+            for(i=0;i<c->event->authored->record.link_count && !c->status;++i)
+                startup_target(c,c->event->links+i,source,actor,(mode&255u)==1);
+            return;
+        }
         if(!c->triggers->play_sound){++c->report->unsupported_actions;return;}
         c->status=c->triggers->play_sound(c->triggers->sound_context,&c->event->authored->record,c->now,action==1);
         if(c->status==RF_NOT_FOUND){++c->report->other_targets;c->status=RF_OK;}

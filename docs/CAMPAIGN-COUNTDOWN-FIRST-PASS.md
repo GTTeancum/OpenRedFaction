@@ -92,9 +92,18 @@ This is a functional first-pass HUD, not a retail-style presentation claim.
 
 Authored L17S3 Over UID 20682 activates Black_Out_Player UID 20683 and
 Play_Sound UID 21194; the latter has an outgoing link to Endgame UID 21219
-(`escape_pod`). This installed-level link chain identifies the later failure
-route, but a live timed traversal through that chain remains unverified.
+(`escape_pod`). The port's Play_Sound action previously suppressed the
+ordinary outgoing-link callback, leaving this mission route at its blast
+sound. It now forwards those links after servicing the sound. A focused shared
+event check drives a normal expiry pulse through Over, sound and a delayed
+Endgame request. A separate 120-frame process-local replay directly activates
+authored Over UID 20682 to isolate the installed L17S3 chain; PC and stock
+64 MiB XEMU both start sound UID 21194, enter Endgame UID 21219 and display
+the installed `escape_pod` failure description. All PC/Xbox sound, endgame and
+description words match in `artifacts/xemu/render-20260923-051331/`; the native
+framebuffer was inspected and 4,646 physical pages remain available. Direct
+activation does not prove a natural timed traversal or the escape success path.
 
-Remaining countdown work: player-selected difficulty, retail HUD styling, later mission
-outcome after expiry or escape, captured native audio output, native long-run
+Remaining countdown work: player-selected difficulty, retail HUD styling, natural
+timed expiry through L17S3 and the escape branch, captured native audio output, native long-run
 expiry, native post-load timer comparison and native L15 save/load verification.

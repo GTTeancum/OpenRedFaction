@@ -95,6 +95,15 @@ from the earlier save and reused its private persistent Xbox test HDD; this
 verifies quick recovery between these two levels, not arbitrary saves or a
 menu-driven slot selection.
 
+The timed L17S3 failure branch now reaches Endgame UID 21219 through authored
+Over UID 20682 and Play_Sound UID 21194. The missing generic sound-event link
+propagation was fixed in the shared dispatcher. A direct process-local
+activation of Over matches PC and stock 64 MiB Xbox endgame and description
+state and visibly displays the `escape_pod` failure text
+(`artifacts/xemu/render-20260923-051331/`). A separate focused event check
+confirms that a normal countdown expiry pulse can traverse the same kinds of
+links. A full naturally timed campaign route remains open.
+
 Remaining work is language selection beyond English, a menu/load-slot
 choice, credits sequence, naturally deactivated event coverage, and checkpoint ownership
 if saving during a terminal transition is later allowed.
