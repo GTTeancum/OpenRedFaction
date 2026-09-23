@@ -571,6 +571,13 @@ static void startup_event_action(void *context,rf_event_state *state,uint32_t ac
         if(c->status==RF_NOT_FOUND){++c->report->other_targets;c->status=RF_OK;}
         return;
     }
+    if(state->type==61) {
+        if(action==2)return;
+        if(!c->triggers->black_out_player){++c->report->unsupported_actions;return;}
+        c->status=c->triggers->black_out_player(c->triggers->blackout_context,
+            &c->event->authored->record,c->now,action==1);
+        return;
+    }
     if(state->type==15) {
         int status;
         if(action==2)return;
@@ -1143,6 +1150,7 @@ int rf_runtime_events_tick(rf_runtime_events *events,rf_runtime_triggers *trigge
            !((event->state.type==11 || event->state.type==12) && triggers->play_animation) &&
            !(event->state.type==1 && triggers->slay_object) &&
            !(event->state.type==0 && triggers->play_sound) &&
+           !(event->state.type==61 && triggers->black_out_player) &&
            !(event->state.type==15 && triggers->show_message) &&
            !(event->state.type==17 && startup_damage_ready(triggers)) &&
            !(event->state.type==32 && event->switch_state && startup_switch_ready(triggers))) {++*unsupported_pending;continue;}

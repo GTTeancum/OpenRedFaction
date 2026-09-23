@@ -304,7 +304,9 @@ static int present(void *context,uint32_t frame,const rf_preview_mesh *mesh,
     /* Recorded-input diagnosis projects every tick, rasterizes only the last. */
     if(p->replay && !capture && p->frames+1<p->replay_count){status=rf_scene_draw_particles(NULL,NULL);if(status)return status;
         status=rf_scene_draw_coronas(NULL,NULL);if(status)return status;
-        status=rf_scene_draw_player_flash(NULL,NULL);if(status)return status;++p->frames;return RF_OK;}
+        status=rf_scene_draw_player_flash(NULL,NULL);if(status)return status;
+        status=rf_scene_draw_player_blackout(NULL,NULL);if(status)return status;
+        ++p->frames;return RF_OK;}
     if(!p->headless && !rf_frame_clock_present(&p->clock,milliseconds(p))){++p->frames;return RF_OK;}
     if(p->headless && p->replay && p->frames+1==p->replay_count && getenv("RF_REPLAY_MESH_OUT")) {
         FILE *file=fopen(getenv("RF_REPLAY_MESH_OUT"),"wb");uint32_t header[3]={mesh->count,world,sizeof(rf_preview_vertex)};int failed=0;
@@ -318,6 +320,7 @@ static int present(void *context,uint32_t frame,const rf_preview_mesh *mesh,
     status=rf_scene_draw_coronas(world_particle_present,p);if(status)return status;
     status=rf_scene_draw_player_flash(particle_present,p);if(status)return status;
     status=rf_scene_draw_combat_hud(particle_present,p);if(status)return status;
+    status=rf_scene_draw_player_blackout(particle_present,p);if(status)return status;
     if(capture) {
         char path[1024];int length=snprintf(path,sizeof(path),"%s/frame-%06u.ppm",capture,p->frames+1);
         if(length<0 || (size_t)length>=sizeof(path))return RF_RANGE;

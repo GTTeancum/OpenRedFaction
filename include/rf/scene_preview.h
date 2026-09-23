@@ -619,6 +619,7 @@ int rf_scene_draw_coronas(rf_scene_particle_sink sink,void *context);
  * Emits an untextured 640x480 rectangle and commits fade after successful draw.
  * Uses the diagnostic frame step; no full game pause/HUD scheduling claim. */
 int rf_scene_draw_player_flash(rf_scene_particle_sink sink,void *context);
+int rf_scene_draw_player_blackout(rf_scene_particle_sink sink,void *context);
 /* Shared first-pass reticle, clip rounds and reload progress; draw-only. */
 int rf_scene_draw_combat_hud(rf_scene_particle_sink sink,void *context);
 /* Frames, queued entries, particles visited, polygons, vertices, cumulative packet
