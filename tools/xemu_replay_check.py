@@ -284,8 +284,16 @@ dvd_path = '{root.as_posix()}/build/xbox/redfaction-diagnostic.iso'
     report['explosion_loading']=loading
 
 
+    if args.setup_uid and args.goto_uid is not None:
+     focus={}
+     for label,name in [('SCRIPT_NAVPOINT','rf_scene_navpoint'),('SCRIPT_ROUTES','rf_scene_script_routes'),
+                        ('SCRIPT_MOVE','rf_scene_script_movement'),('SCRIPT_ACTOR','rf_scene_script_actor')]:
+      actual=words(monitor,symbol(name),8);reference=expected(label)
+      focus[label]={'guest':actual,'pc':reference,'match':actual==reference}
+     report['navigation_focus']=focus
+     (run/'navigation-focus.json').write_text(json.dumps(focus,indent=2))
     for name,label,count in [('rf_scene_actor_follow_summary','ACTOR_FOLLOW_SUMMARY',5),('rf_scene_player_input_frames','ACTOR_PLAYER_INPUT',448),('scene_actor_body','PC_PLAY_BODY',77)]:
-     got=words(monitor,symbol(name),count);assert got==expected(label),name;report[name]=got
+     got=words(monitor,symbol(name),count);report[name]=got;assert got==expected(label),(name,got,expected(label))
     if args.campaign_spawn:
      report['player_life']=words(monitor,symbol('rf_scene_player_life'),8)
      assert report['player_life']==expected('PLAYER_LIFE'),report['player_life']

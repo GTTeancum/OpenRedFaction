@@ -46,7 +46,18 @@ advances) and the actor reaches `(3.0508,-4.1386,-19.6469)`. No obstacle is
 reported in either run. The ignored replay logs are `l6s3-goto-off.log` and
 `l6s3-goto-on.log` under `artifacts/navpoint-live/`. This establishes one live
 actor's route selection and movement response; it does not cover every NPC
-class, mid-route toggle, or native runtime.
+class or mid-route toggle.
+
+The ON/Goto case also completes 480 frames in stock 64 MiB XEMU. Guest memory
+matches PC exactly for `SCRIPT_NAVPOINT`, `SCRIPT_ROUTES`, `SCRIPT_MOVE`, and
+`SCRIPT_ACTOR`, including the actor's final position bits. The broad replay
+checker still reports FAIL because `ACTOR_FOLLOW_SUMMARY` differs: Xbox has
+`[480,2241602067,55608,489130569,3145728]`, PC has
+`[480,3256585837,549528,1105680966,3145728]` (frames, world hash, peak
+world bytes, camera hash, capacity). This is a separate render/camera parity
+gap, not a navigation-state mismatch. Native OFF and mid-route toggle cases
+remain unverified. The ignored XEMU report and focused guest/PC comparison are
+under `artifacts/xemu/replay-20260923-012721/`.
 
 ## Ordinary save format
 
@@ -71,4 +82,4 @@ coarse collision sphere; the port admits only the intact, unchanged pod and a
 saved player within 0.125 horizontal units and 3 vertical units below that
 start. Static standing, movers, and all other props remain checked. This is a
 bounded port policy, not a recovered original-game save rule. Native runtime
-reload and live NPC travel remain unverified.
+reload and live NPC travel after this reload remain unverified.
