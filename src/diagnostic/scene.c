@@ -11638,6 +11638,7 @@ static int scene_vehicle_checkpoint_player_capture(scene_stream *,rf_player_chec
 static int scene_vehicle_checkpoint_player_placement(const scene_stream *,const scene_vehicle_checkpoint_record *,const rf_player_checkpoint *,rf_checkpoint_placement *,rf_physics_sphere *);
 static int scene_vehicle_checkpoint_read(scene_stream *,const void *,uint32_t,scene_vehicle_checkpoint_record *);
 static int scene_vehicle_checkpoint_fit(scene_stream *,scene_authored_collection_stage *,scene_authored_checkpoint_stage *,const scene_vehicle_checkpoint_record *,const rf_checkpoint_placement *);
+static int scene_vehicle_checkpoint_publish(scene_stream *);
 #include "scene_player_checkpoint.inc"
 #include "scene_npc_checkpoint_capture.inc"
 #include "scene_npc_checkpoint_resources.inc"
@@ -11700,6 +11701,8 @@ int rf_scene_npc_checkpoint_export(const unsigned char identity[32],int32_t now,
 #include "scene_world_environment_checkpoint.inc"
 #include "scene_world_restore.inc"
 #include "scene_world_player_restore.inc"
+static int scene_world_vehicle_prepare(scene_stream *,const scene_world_restore_stage *,
+    const scene_world_player_stage *,const rf_world_checkpoint_slice *,scene_vehicle_checkpoint_record *);
 #include "scene_world_event_restore.inc"
 #include "scene_world_mission_restore.inc"
 #include "scene_world_storage.inc"
@@ -14342,6 +14345,7 @@ static void scene_vehicle_hud_values(const scene_stream *s,float *health,int32_t
 #include "scene_vehicle_combat_seat.inc"
 #include "scene_fighter_checkpoint_live.inc"
 #include "scene_driller_checkpoint_live.inc"
+#include "scene_world_vehicle_restore.inc"
 static int actor_follow_view(void *context,uint32_t frame,const rf_motion_controller *controller,rf_model_projection *view)
 {
     scene_stream *stream=context;float position[3],orientation[3][3];
@@ -18030,6 +18034,7 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
             }
             /* Original level startup435df0 calls45ade0 before levelstart.vcs. */
             status=campaign_ambient_schedule(0,1);if(status)goto done;
+            scene_driller_runtime_audio_start(stream);
             {uint32_t slot;
              status=rf_campaign_pickup_register(&campaign_startup_inventory,campaign_current_level,0,&slot);if(status)goto done;
              memset(rf_scene_startup_inventory,0,sizeof(rf_scene_startup_inventory));

@@ -21,6 +21,7 @@ static int scene_world_load(scene_stream *stream,const rf_level *level,const cha
     scene_world_restore_stage *world=NULL;scene_world_event_stage *events=NULL;scene_world_mission_stage *mission=NULL;
     scene_world_environment_stage *environment=NULL;scene_campaign_history_checkpoint_stage *history=NULL;
     scene_campaign_history_rebind_stage *bindings=NULL;scene_world_player_stage player;
+    scene_vehicle_checkpoint_record vehicle={0};uint32_t vehicle_present=0;
     scene_checkpoint_world_context context={0};rf_geometry_materials mapping={0};rf_geometry_body_surfaces surfaces;
     const rf_world_checkpoint_slice *v;
 #ifdef RF_IMAGE_XBOX_NATIVE
@@ -43,7 +44,7 @@ static int scene_world_load(scene_stream *stream,const rf_level *level,const cha
 #endif
     if(status)goto done;
     status=rf_world_checkpoint_decode(buffer,bytes,RF_WORLD_CHECKPOINT_MASK(RF_WORLD_ENVIRONMENT),&envelope);if(status)goto done;
-    if(envelope.sections[RF_WORLD_DESTRUCTION-1].bytes||envelope.sections[RF_WORLD_VEHICLE-1].bytes||envelope.sections[RF_WORLD_SWITCHES-1].bytes){status=RF_NOT_FOUND;goto done;}
+    if(envelope.sections[RF_WORLD_DESTRUCTION-1].bytes||envelope.sections[RF_WORLD_SWITCHES-1].bytes){status=RF_NOT_FOUND;goto done;}
     phase="npc_resources";catalog.hash=rf_scene_weapon_supply[3];catalog.count=campaign_weapon_supply.names.count;
     if(!catalog.count||catalog.count>64){status=RF_RANGE;goto done;}
     memcpy(catalog.weapons,campaign_weapon_supply.definitions,sizeof(catalog.weapons));
@@ -61,6 +62,8 @@ static int scene_world_load(scene_stream *stream,const rf_level *level,const cha
     phase="environment";v=envelope.sections+RF_WORLD_ENVIRONMENT-1;
     status=scene_world_environment_prepare(identity.bytes,16,v->data,v->bytes,budget-cost,&environment);if(status)goto done;cost+=environment->bytes;
     phase="player";status=scene_world_player_prepare(stream,world,environment->support_uid,&player);if(status)goto done;
+    v=envelope.sections+RF_WORLD_VEHICLE-1;vehicle_present=v->bytes!=0;
+    if(vehicle_present){phase="vehicle";status=scene_world_vehicle_prepare(stream,world,&player,v,&vehicle);if(status)goto done;}
     if(player.player.player.weapon==UINT32_MAX)found=1;
     else for(i=0;i<scene_weapon_slots();i++)if(scene_weapon_available(i)&&player.player.player.weapon==(uint32_t)campaign_slot_weapon(i)){
         selected=i;found=1;break;}
@@ -91,6 +94,10 @@ static int scene_world_load(scene_stream *stream,const rf_level *level,const cha
     status=scene_world_mission_validate(mission);if(status)goto done;
     status=scene_campaign_history_checkpoint_rebind_validate(bindings);if(status)goto done;
     status=scene_world_environment_validate(environment);if(status)goto done;
+    /* Parked publication has no callbacks or mutation on rejection. Admit it
+     * before the assignment-only world transaction below. */
+    if(vehicle_present){phase="vehicle_publish";stream->vehicle_record=vehicle;
+        status=scene_vehicle_checkpoint_publish(stream);if(status)goto done;}
     /* No fallible operations below. Stable scene owns every validated target. */
     scene_mover_checkpoint_assign(&campaign_group_runtime,&campaign_movers,&world->movers);
     scene_clutter_checkpoint_assign(world->clutter);scene_npc_checkpoint_restore_assign(world->npcs);

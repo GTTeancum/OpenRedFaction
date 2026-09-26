@@ -15,8 +15,13 @@ static int scene_vehicle_checkpoint_capture(scene_stream *s,void *blob,uint32_t 
     scene_vehicle_checkpoint_record record;int status;
     if(!s||!blob||!bytes)return RF_RANGE;
     *bytes=0;if(!s->driller)return RF_OK;
-    if(!s->terrain_authored)return RF_RANGE;
+    if(!s->terrain_authored){
+        /* Ordinary world restore currently admits a parked host only. Refuse
+         * a seated save until its player/possession transaction is composed. */
+        if(!campaign_authored_vehicle_uid||!campaign_authored_vehicle_handle||scene_driller_active(s))return RF_NOT_FOUND;
+    }
     status=scene_vehicle_checkpoint_capture_record(s,&record);if(status)return status;
+    if(!s->terrain_authored && record.value.vehicle.player_occupied)return RF_NOT_FOUND;
     if(record.value.vehicle.player_occupied && !record.value.vehicle.alive)return RF_RANGE;
     if(record.profile==1)status=rf_vehicle_checkpoint_encode(&record.value.vehicle,blob,128);
     else if(record.profile==2)status=rf_apc_checkpoint_encode(&record.value.apc,blob,128);
@@ -39,7 +44,9 @@ static int scene_vehicle_checkpoint_read(scene_stream *s,const void *blob,uint32
     scene_vehicle_checkpoint_record record={0};int status;
     if(!s||!out)return RF_RANGE;
     if(!bytes){if(s->driller)return RF_FORMAT;*out=record;return RF_OK;}
-    if(!s->driller||!s->terrain_authored||strcmp(campaign_current_level,"ctf06.rfl"))return RF_FORMAT;
+    if(!s->driller||
+       !(s->terrain_authored?!strcmp(campaign_current_level,"ctf06.rfl"):
+         (campaign_authored_vehicle_uid&&campaign_authored_vehicle_handle)))return RF_FORMAT;
     if(s->driller_runtime && !scene_driller_active(s)){const scene_driller_runtime *r=s->driller_runtime;
         if(!scene_driller_damage_runtime_valid(&r->damage)||r->damage.entry!=&r->entry||r->entry.physics!=&r->physics||
            r->entry.host.driver!=UINT32_MAX||r->entry.occupant!=-1||r->player.saved||r->damage.damage.state.effects.burn||
@@ -61,8 +68,9 @@ static int scene_vehicle_checkpoint_read(scene_stream *s,const void *blob,uint32
     if(status)return status;
     /* Loading while on foot must reject transient live combat BEFORE the
      * terrain/player transaction publishes anything. Match final admission. */
-    if(record.profile>=2 && s->driller_runtime && !scene_driller_active(s)){
-        if(record.profile==5)status=scene_fighter_checkpoint_admit_parked(s);
+    if(s->driller_runtime && !scene_driller_active(s)){
+        if(record.profile==1)status=scene_vehicle_checkpoint_parked_owner(s,record.value.vehicle.player_occupied);
+        else if(record.profile==5)status=scene_fighter_checkpoint_admit_parked(s);
         else {combat.vehicle.player_occupied=0;status=scene_vehicle_combat_parked_admit(s,&combat);}
         if(status)return status;
     }

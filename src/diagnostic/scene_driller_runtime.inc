@@ -109,12 +109,19 @@ static int scene_driller_runtime_open(scene_stream *s)
     if(rf_scene_vehicle_enabled==4){r->entry.water_context=&r->submarine;r->entry.water_path=scene_submarine_player_water;}
     if(rf_scene_vehicle_enabled==3){status=scene_jeep_seats_open(&r->jeep_seat,s->driller);if(status)goto fail;}
     stage=4;status=scene_driller_damage_runtime_open(&r->damage,&r->entry,&r->player,&s->driller_damage_prototype);if(status)goto fail;
+    /* Ambient slots are initialized later in level startup. Bind the idle
+     * voice only after that reset and its initial authored scheduling. */
+    s->driller_runtime=r;memset(rf_scene_jeep_seats,0,sizeof(rf_scene_jeep_seats));memset(rf_scene_drill_state,0,sizeof(rf_scene_drill_state));memset(rf_scene_vehicle_state,0,sizeof(rf_scene_vehicle_state));return RF_OK;
+fail:fprintf(stderr,"VEHICLE_OPEN_ERROR stage%u status%d\n",stage,status);scene_driller_damage_runtime_close(&r->damage);(void)scene_driller_entry_exit_close(&r->entry,1);free(r);return status;
+}
+static void scene_driller_runtime_audio_start(scene_stream *s)
+{
+    scene_driller_runtime *r=s?s->driller_runtime:NULL;
+    if(!r||r->audio.active)return;
     /* Audio unavailable/full slots must not prevent driving. */
     if(rf_scene_vehicle_enabled==2)(void)scene_vehicle_audio_open(&r->audio,r->physics.state.position,"APC_idle.wav",8,.5f,.4f);
     else if(rf_scene_vehicle_enabled==3)(void)scene_vehicle_audio_open(&r->audio,r->physics.state.position,"Jeep_idle.wav",6,.8f,.6f);
     else if(rf_scene_vehicle_enabled==1)(void)scene_driller_audio_open(&r->audio,r->physics.state.position);
-    s->driller_runtime=r;memset(rf_scene_jeep_seats,0,sizeof(rf_scene_jeep_seats));memset(rf_scene_drill_state,0,sizeof(rf_scene_drill_state));memset(rf_scene_vehicle_state,0,sizeof(rf_scene_vehicle_state));return RF_OK;
-fail:fprintf(stderr,"VEHICLE_OPEN_ERROR stage%u status%d\n",stage,status);scene_driller_damage_runtime_close(&r->damage);(void)scene_driller_entry_exit_close(&r->entry,1);free(r);return status;
 }
 /* Shared rigid owner follows the event's authored waypoint path. This is a
  * bounded first-pass driver command; the rigid solver still owns contact,

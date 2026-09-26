@@ -28,7 +28,6 @@ static inline int scene_world_player_prepare(scene_stream *stream,const scene_wo
     scene_world_player_stage s={0};rf_player_checkpoint_catalog catalog;scene_checkpoint_world_context context;
     rf_collision_room_location location;const rf_world_checkpoint_slice *v;int status;
     if(!stream||!world||!world->npcs||!out||!scene_actor_body.allocated_bytes||!scene_actor_body.spheres.count)return RF_RANGE;
-    if(world->envelope.sections[RF_WORLD_VEHICLE-1].bytes)return RF_NOT_FOUND;
     status=scene_checkpoint_player_catalog_mode(&catalog,1);if(status)return status;
     v=world->envelope.sections+RF_WORLD_PLAYER-1;status=rf_player_checkpoint_decode(v->data,v->bytes,&catalog,&s.player);if(status)return status;
     status=rf_player_checkpoint_validate(&s.player,&catalog,s.basis,s.eye);if(status)return status;
