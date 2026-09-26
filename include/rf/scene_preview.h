@@ -44,6 +44,7 @@ int rf_scene_fire_setup_event(uint32_t uid,int32_t now);
 int rf_scene_fire_npc_event(uint32_t uid,int32_t now);
 extern uint32_t rf_scene_npc_triggers[6];
 extern uint32_t rf_scene_script_movement[8],rf_scene_script_actor[8],rf_scene_script_routes[8];
+extern uint32_t rf_scene_script_shoot_at[8];
 extern uint32_t rf_scene_follow_npc_uid; /* Process-local inspection camera only. */
 /* Render-only inspection, applied after gameplay/audio updates; NULL disables. */
 int rf_scene_inspection_camera(const float eye[3],const float target[3]);

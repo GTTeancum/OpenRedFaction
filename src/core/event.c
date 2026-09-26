@@ -820,6 +820,15 @@ static void startup_event_action(void *context,rf_event_state *state,uint32_t ac
         if(status==RF_NOT_FOUND)++c->report->other_targets;else if(status)c->status=status;
         return;
     }
+    if(state->type==8) {
+        int status;
+        if(action==2)return;
+        if(!c->triggers->shoot_at){++c->report->unsupported_actions;return;}
+        status=c->triggers->shoot_at(c->triggers->shoot_at_context,
+            &c->event->authored->record,c->event->links,action==1);
+        if(status==RF_NOT_FOUND)++c->report->other_targets;else if(status)c->status=status;
+        return;
+    }
     if(state->type==5 || state->type==6 || state->type==28) {
         if(!c->triggers->move_npc){++c->report->unsupported_actions;return;}
         for(i=0;i<c->event->authored->record.link_count;i++) {
@@ -1281,6 +1290,7 @@ int rf_runtime_events_tick(rf_runtime_events *events,rf_runtime_triggers *trigge
            !(event->state.type==34 && triggers->set_ai_mode) &&
            !(event->state.type==47 && triggers->set_player_form) &&
            !(event->state.type==38 && triggers->attack_npc) &&
+           !(event->state.type==8 && triggers->shoot_at) &&
            !(event->state.type==46 && triggers->alarm) &&
            !((event->state.type==11 || event->state.type==12) && triggers->play_animation) &&
            !(event->state.type==1 && triggers->slay_object) &&

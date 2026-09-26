@@ -976,6 +976,7 @@ run_scene:
     printf("ENEMY_DAMAGE_KINDS");for(i=0;i<10;++i)printf(" %u",rf_scene_enemy_damage_kinds[i]);puts("");
     printf("ATTACK_RECOVERY");for(i=0;i<4;++i)printf(" %u",rf_scene_attack_recovery[i]);puts("");
     printf("SCRIPT_ATTACK");for(i=0;i<12;++i)printf(" %u",rf_scene_script_attack[i]);puts("");
+    printf("SCRIPT_SHOOT_AT");for(i=0;i<8;++i)printf(" %u",rf_scene_script_shoot_at[i]);puts("");
     printf("ENEMY_FIRE");for(i=0;i<6;++i)printf(" %u",rf_scene_enemy_fire[i]);puts("");
     printf("ENEMY_RETALIATION");for(i=0;i<4;++i)printf(" %u",rf_scene_enemy_retaliation[i]);puts("");
     printf("ENEMY_AIM");for(i=0;i<4;++i)printf(" %u",rf_scene_enemy_aim[i]);puts("");

@@ -7,6 +7,8 @@ Completion basis (user direction,2026-09-18): working late-alpha/early-beta code
 
 - AI navigation: L6S3 authored Goto uses a four-node route with navpoints ON and a direct approach with them OFF; mid-route OFF invalidation and OFF→ON route recovery now match Xbox/PC actor state exactly, while broader NPC travel and native RFEN2 reload remain open.
 
+- Scripted Shoot_At: Fixed-point linked-NPC fire runs in authored PC scenes and matches stock Xbox for 35 shots; live OFF, incidental hits and active-order saves remain (docs/SCRIPTED-SHOOT-AT-FIRST-PASS.md).
+
 - Campaign countdown: Begin/End/Over/Reaches and a visible timed-mission HUD run on PC/Xbox; L15/L17 saves retain timer state, L17S1→S2 expiry blackouts, and the directly staged L17S3 Over→sound→Endgame failure chain now reaches its correct PC/Xbox screen; natural timed L17S3 traversal, escape success, difficulty selection, captured audio and broader native save/expiry coverage remain (docs/CAMPAIGN-COUNTDOWN-FIRST-PASS.md).
 
 - Campaign endgame: Authored failures, protected-NPC death, English descriptions, restart and cross-level quick-load recovery run on PC/Xbox, and event off restores the protection flag; natural off-event coverage, other languages, menu/slot choice, credits and transition persistence remain (docs/CAMPAIGN-ENDGAME-FIRST-PASS.md).
