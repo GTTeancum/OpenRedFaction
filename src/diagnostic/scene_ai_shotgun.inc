@@ -1,15 +1,17 @@
 /* First-pass NPC shotgun shell. Include beside campaign_enemy_tick after its
  * existing shot/cover and damage callbacks. One trigger consumes one shell;
  * each authored pellet independently samples AI spread and checks geometry,
- * terrain-fragment cover and the target body. No allocation or new hit policy.
+ * terrain-fragment cover and the target body. Fixed-point Shoot_At orders
+ * select the nearest living incidental actor per pellet. No allocation.
  * This reuses the same port spread model as other reconstructed firearms. */
 static int campaign_enemy_shotgun_fire(scene_stream *stream,campaign_npc_body *owner,
     campaign_npc_body *victim,uint32_t victim_slot,const rf_weapon_primary_definition *definition,
-    const float delta[3],float range,uint32_t clock_bits,
-    const rf_damage_effect_backend *effects,combat_feedback *feedback,float *amount)
+    const float delta[3],const float player_eye[3],uint32_t point_target,float range,uint32_t clock_bits,
+    const rf_damage_effect_backend *effects,combat_feedback *feedback,float *amount,float *player_amount)
 {
-    uint32_t pellet,j,shot_frame;float ray[3],distance=0,damage,total=0,clock_seconds;int status;
-    if(!stream || !owner || !definition || !delta || !effects || !feedback || !amount ||
+    uint32_t pellet,j,shot_frame;float ray[3],distance=0,damage,total=0,player_total=0,clock_seconds;int status;
+    if(!stream || !owner || !definition || !delta || !player_eye || !effects || !feedback || !amount || !player_amount ||
+       point_target>1 ||
        !definition->projectiles || definition->projectiles>32 ||
        definition->damage_kind<0 || definition->damage_kind>8 ||
        !isfinite(range) || range<=0)return RF_RANGE;
@@ -24,21 +26,25 @@ static int campaign_enemy_shotgun_fire(scene_stream *stream,campaign_npc_body *o
     for(j=0;j<3;j++)ray[j]=delta[j]*(range/sqrtf(distance));
     for(pellet=0;pellet<definition->projectiles;pellet++) {
         float spread[3],fraction=1,applied=0,body_fraction,end[3];uint32_t blocked,hit;
+        campaign_npc_body *pellet_victim=victim;uint32_t pellet_slot=victim_slot;
         scene_ai_shield_ray_selection npc_shield={0};
         rf_weapon_flight_contact vehicle_contact;uint32_t vehicle_hit=0;
-        if((victim?victim->damage.effects.health:campaign_player_damage.state.effects.health)<=0)break;
+        if(!point_target &&
+           (victim?victim->damage.effects.health:campaign_player_damage.state.effects.health)<=0)break;
         ++rf_scene_enemy_spread[0];
         status=rf_weapon_spread_ray(ray,definition->ai_spread_degrees,&campaign_enemy_spread_random,spread);
         rf_scene_enemy_spread[7]=(uint32_t)status;if(status)return status;
         if(definition->ai_spread_degrees>0)++rf_scene_enemy_spread[1];
         rf_scene_enemy_spread[5]=campaign_enemy_spread_random.value;
-        hit=combat_body(owner->eye_position,spread,victim?&victim->body:&scene_actor_body,1,&fraction);
+        if(point_target)campaign_enemy_point_ray_target(owner,owner->eye_position,spread,&pellet_victim,&pellet_slot);
+        hit=(!point_target||pellet_victim||campaign_player_damage.state.effects.health>0)&&
+            combat_body(owner->eye_position,spread,pellet_victim?&pellet_victim->body:&scene_actor_body,1,&fraction);
         if(!hit)fraction=1;body_fraction=fraction;
         for(j=0;j<3;j++)end[j]=owner->eye_position[j]+spread[j];
-        if(victim){status=scene_ai_shield_ray_select(victim_slot,owner->eye_position,end,hit,body_fraction,&npc_shield);if(status)return status;fraction=npc_shield.fraction;}
+        if(pellet_victim){status=scene_ai_shield_ray_select(pellet_slot,owner->eye_position,end,hit,body_fraction,&npc_shield);if(status)return status;fraction=npc_shield.fraction;}
         scene_player_shield_candidate player_shield;uint32_t shield_hit=0;
-        if(!victim){float eye[3],end[3];for(j=0;j<3;j++){eye[j]=owner->eye_position[j]+delta[j];end[j]=owner->eye_position[j]+spread[j];}
-            status=scene_player_shield_query(stream,eye,actor_look.eye_orientation,owner->eye_position,end,1,&player_shield,&shield_hit);if(status)return status;
+        if(!pellet_victim && (!point_target||campaign_player_damage.state.effects.health>0)){
+            status=scene_player_shield_query(stream,player_eye,actor_look.eye_orientation,owner->eye_position,end,1,&player_shield,&shield_hit);if(status)return status;
             if(shield_hit)fraction=player_shield.hit.time;
         }
         status=scene_driller_firearm_select(owner->registration.handle,owner->eye_position,spread,
@@ -64,7 +70,7 @@ static int campaign_enemy_shotgun_fire(scene_stream *stream,campaign_npc_body *o
             status=scene_player_shield_commit(&player_shield,&request,&accepted,&broken);if(status)return status;
             if(accepted)continue;
         }
-        if(victim && npc_shield.kind==SCENE_AI_SHIELD_RAY_SHIELD){
+        if(pellet_victim && npc_shield.kind==SCENE_AI_SHIELD_RAY_SHIELD){
             uint32_t accepted,broken;rf_damage_request request={damage,owner->registration.handle,definition->damage_kind,0,UINT32_MAX,0};
             status=scene_ai_shield_ray_commit(&npc_shield,owner->eye_position,end,&request,&accepted,&broken);if(status)return status;
             if(accepted)continue;
@@ -73,18 +79,19 @@ static int campaign_enemy_shotgun_fire(scene_stream *stream,campaign_npc_body *o
         if(!hit){++rf_scene_enemy_spread[3];continue;}
         ++rf_scene_enemy_spread[2];++rf_scene_enemy_damage_kinds[definition->damage_kind];
         rf_damage_request request={damage,owner->registration.handle,definition->damage_kind,0,UINT32_MAX,0};
-        if(victim) {
+        if(pellet_victim) {
             uint32_t entered;
-            status=rf_scene_npc_damage(victim->registration.handle,&request,1,clock_bits,effects,&applied);
+            status=rf_scene_npc_damage(pellet_victim->registration.handle,&request,1,clock_bits,effects,&applied);
             if(!status)status=feedback->status;if(status)return status;
-            if(victim->damage.effects.health<=0) {
-                status=rf_scene_npc_death_entry(victim->registration.handle,&entered);if(status)return status;
-                if(entered){victim->script_move.active=0;status=combat_death_start(victim_slot);if(status)return status;}
+            if(pellet_victim->damage.effects.health<=0) {
+                status=rf_scene_npc_death_entry(pellet_victim->registration.handle,&entered);if(status)return status;
+                if(entered){pellet_victim->script_move.active=0;status=combat_death_start(pellet_slot);if(status)return status;}
             }
         } else {
             status=rf_scene_player_damage(campaign_player_object.handle,&request,1,clock_bits,effects,&applied);if(status)return status;
+            player_total+=applied;
         }
         total+=applied;
     }
-    *amount=total;return RF_OK;
+    *amount=total;*player_amount=player_total;return RF_OK;
 }

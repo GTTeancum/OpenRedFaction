@@ -56,7 +56,7 @@ int main(void)
 {
     scene_stream scene={0};rf_geometry_collision_world world={0};campaign_npc_body shooter={0},victim={0};
     rf_weapon_primary_definition definition={0};rf_physics_sphere sphere={0};scene_riot_shield_owner shield={0};
-    combat_feedback feedback={0};rf_damage_effect_backend effects={0};float delta[3]={0,0,-3},amount;uint32_t i;
+    combat_feedback feedback={0};rf_damage_effect_backend effects={0};float delta[3]={0,0,-3},player_eye[3]={0},amount,player_amount;uint32_t i;
     rf_collision_solid_view mover={0};rf_collision_face face={0};
     float vertices[4][3]={{-2,-2,1},{2,-2,1},{2,2,1},{-2,2,1}};
     scene.collision=&world;shooter.eye_position[0]=.75f;shooter.eye_position[2]=3;shooter.registration.handle=123;
@@ -66,18 +66,18 @@ int main(void)
     fixture_definition.life=fixture_durability.health=100;fixture_definition.damage_factors[2]=1;
     scene_npc_shields.owners=&shield;scene_npc_shields.count=1;
     /* x.75 lies outside the radius.2 body, inside actual shield triangle. */
-    CHECK(!fixture_shotgun_fire(&scene,&shooter,&victim,0,&definition,delta,10,0,&effects,&feedback,&amount));
+    CHECK(!fixture_shotgun_fire(&scene,&shooter,&victim,0,&definition,delta,player_eye,0,10,0,&effects,&feedback,&amount,&player_amount));
     CHECK(fixture_commits==4 && fixture_durability.health==60 && amount==0 && victim.damage.effects.health==100);
     face.vertices=vertices;face.count=4;face.plane[2]=1;face.plane[3]=-1;
     face.minimum[2]=face.maximum[2]=1;face.minimum[0]=face.minimum[1]=-2;face.maximum[0]=face.maximum[1]=2;
     mover.flat_faces=&face;mover.flat_count=1;
     for(i=0;i<3;i++){mover.input_matrix[i][i]=mover.output_matrix[i][i]=1;mover.minimum[i]=-2;mover.maximum[i]=2;}
     campaign_movers.views=&mover;campaign_movers.count=1;
-    CHECK(!fixture_shotgun_fire(&scene,&shooter,&victim,0,&definition,delta,10,0,&effects,&feedback,&amount));
+    CHECK(!fixture_shotgun_fire(&scene,&shooter,&victim,0,&definition,delta,player_eye,0,10,0,&effects,&feedback,&amount,&player_amount));
     CHECK(fixture_commits==4 && fixture_durability.health==60 && amount==0);
     /* Same finite cover behind shield must not suppress the shield impact. */
     for(i=0;i<4;i++)vertices[i][2]=-1;face.plane[3]=1;face.minimum[2]=face.maximum[2]=-1;
-    CHECK(!fixture_shotgun_fire(&scene,&shooter,&victim,0,&definition,delta,10,0,&effects,&feedback,&amount));
+    CHECK(!fixture_shotgun_fire(&scene,&shooter,&victim,0,&definition,delta,player_eye,0,10,0,&effects,&feedback,&amount,&player_amount));
     CHECK(fixture_commits==8 && fixture_durability.health==20 && amount==0 && victim.damage.effects.health==100);
     campaign_movers.count=0;scene_npc_shields.owners=NULL;
     puts("actual shotgun shield-only silhouette, front cover and behind-shield cover passed");return 0;
