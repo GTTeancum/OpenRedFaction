@@ -973,6 +973,39 @@ int rf_level_emitter_next(rf_level_emitter_reader *reader,rf_level_emitter *emit
     if(r.index==r.count && r.cursor!=r.section.size)return RF_FORMAT;
     *emitter=e;*reader=r;return RF_OK;
 }
+int rf_level_bolts_begin(const rf_level *level,rf_level_bolt_reader *reader)
+{
+    rf_level_bolt_reader value={0};const rf_level_section *section;int status;
+    if(!level || !reader)return RF_RANGE;
+    if(level->version!=180)return RF_FORMAT;
+    section=rf_level_find(level,0xe00);if(!section)return RF_NOT_FOUND;
+    value.level=level;value.section=*section;
+    status=group_number(&value,&value.count);if(status)return status;
+    /* The fixed fields alone consume 108 bytes per record. */
+    if((uint64_t)value.count*108>section->size-value.cursor ||
+       (!value.count && value.cursor!=section->size))return RF_FORMAT;
+    *reader=value;return RF_OK;
+}
+int rf_level_bolt_next(rf_level_bolt_reader *reader,rf_level_bolt *bolt)
+{
+    rf_level_bolt_reader r;rf_level_bolt value={0};uint8_t byte;int status;
+    if(!reader || !reader->level || !bolt)return RF_RANGE;
+    r=*reader;
+    if(r.index>=r.count)return r.index==r.count && r.cursor==r.section.size?RF_NOT_FOUND:RF_FORMAT;
+    value.offset=r.cursor;
+    if((status=group_number(&r,&value.uid)) || (status=group_string(&r,value.name)) ||
+       (status=group_floats(&r,value.position,3)) || (status=group_floats(&r,value.orientation_disk,9)) ||
+       (status=group_string(&r,value.script)) || (status=group_read(&r,&byte,1)))return status;
+    value.header_byte=byte;
+    if((status=group_number(&r,&value.target_uid)) || (status=group_floats(&r,value.leading_values,4)) ||
+       (status=group_number(&r,&value.mid_word)) || (status=group_floats(&r,value.trailing_values,4)) ||
+       (status=group_read(&r,value.color,4)) || (status=group_string(&r,value.bitmap)) ||
+       (status=group_number(&r,&value.tail_word)) || (status=group_read(&r,&byte,1)))return status;
+    value.enabled=byte;
+    value.bytes=r.cursor-value.offset;++r.index;
+    if(r.index==r.count && r.cursor!=r.section.size)return RF_FORMAT;
+    *reader=r;*bolt=value;return RF_OK;
+}
 
 int rf_level_groups_begin(const rf_level *level,rf_level_group_reader *reader)
 {

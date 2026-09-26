@@ -1152,6 +1152,34 @@ static void campaign_switch_snapshot(void)
 }
 
 static rf_runtime_triggers campaign_triggers;
+static rf_level_bolt *campaign_bolts;
+static uint32_t campaign_bolt_count;
+static int campaign_bolts_open(const rf_level *level)
+{
+    rf_level_bolt_reader reader;rf_level_bolt *items;uint32_t i;int status;
+    if(campaign_bolts || campaign_bolt_count)return RF_RANGE;
+    status=rf_level_bolts_begin(level,&reader);
+    if(status==RF_NOT_FOUND)return RF_OK;
+    if(status)return status;
+    if(reader.count>256 || (uint64_t)reader.count*sizeof(*items)>256*1024)return RF_RANGE;
+    if(!reader.count)return RF_OK;
+    items=calloc(reader.count,sizeof(*items));if(!items)return RF_RANGE;
+    for(i=0;i<reader.count;i++){
+        status=rf_level_bolt_next(&reader,items+i);
+        if(status){free(items);return status;}
+    }
+    status=rf_level_bolt_next(&reader,items);
+    if(status!=RF_NOT_FOUND){free(items);return status==RF_OK?RF_FORMAT:status;}
+    campaign_bolts=items;campaign_bolt_count=reader.count;return RF_OK;
+}
+static int campaign_bolt_state(void *context,const uint32_t *uids,uint32_t count,uint32_t on)
+{
+    uint32_t i,j;(void)context;
+    if(count && !uids)return RF_RANGE;
+    for(i=0;i<count;i++)for(j=0;j<campaign_bolt_count;j++)
+        if(campaign_bolts[j].uid==uids[i])campaign_bolts[j].enabled=on!=0;
+    return RF_OK;
+}
 static rf_campaign_triggers campaign_trigger_history;
 static rf_campaign_pickups campaign_switch_history;
 static rf_switch_state campaign_switch_saved[RF_CAMPAIGN_PICKUP_SLOTS];
@@ -17125,6 +17153,7 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
         if(campaign_spawn && collision) {
             rf_object_registry_init(&campaign_registry);
             rf_scene_campaign_load_stage=2;status=rf_runtime_events_open(level,&campaign_registry,1024*1024,&campaign_events);
+            if(!status)status=campaign_bolts_open(level);
             if(status)goto done;
             rf_cutscene_cancel(&campaign_cutscene_runtime);memset(rf_scene_cutscene,0,sizeof(rf_scene_cutscene));
             memset(rf_scene_cutscene_look,0,sizeof(rf_scene_cutscene_look));
@@ -17179,6 +17208,7 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
             scene_script_sound_reset();campaign_triggers.play_sound=scene_script_sound;campaign_triggers.sound_context=NULL;
             campaign_triggers.music=scene_script_music;campaign_triggers.music_context=NULL;
             campaign_triggers.navpoint=campaign_navpoint_set;campaign_triggers.navpoint_context=&campaign_navigation;
+            campaign_triggers.bolt_state=campaign_bolt_state;
             campaign_triggers.black_out_player=scene_script_blackout;campaign_triggers.blackout_context=NULL;
             campaign_triggers.endgame=scene_script_endgame;campaign_triggers.endgame_context=(void *)tables_path;
             campaign_triggers.clear_endgame_if_killed=campaign_clear_endgame_if_killed;
@@ -17825,6 +17855,7 @@ done:
     rf_cutscene_cancel(&campaign_cutscene_runtime);rf_cutscene_resources_close(&campaign_cutscene_resources);
     rf_runtime_triggers_close(&campaign_triggers);campaign_trigger_geometry=NULL;campaign_trigger_collision=NULL;
     rf_runtime_events_close(&campaign_events);
+    free(campaign_bolts);campaign_bolts=NULL;campaign_bolt_count=0;
     rf_level_owned_ambient_close(&campaign_ambient);
     memset(&campaign_climb,0,sizeof(campaign_climb));rf_level_owned_regions_close(&campaign_regions);
     rf_level_navigation_workspace_close(&campaign_navigation_workspace);

@@ -606,6 +606,13 @@ static void startup_event_action(void *context,rf_event_state *state,uint32_t ac
         }
         return;
     }
+    if(state->type==43) {
+        if(action==2)return;
+        if(!c->triggers->bolt_state){++c->report->unsupported_actions;return;}
+        c->status=c->triggers->bolt_state(c->triggers->bolt_context,
+            c->event->authored->links,c->event->authored->record.link_count,action==1);
+        return;
+    }
     if(state->type==61) {
         if(action==2)return;
         if(!c->triggers->black_out_player){++c->report->unsupported_actions;return;}

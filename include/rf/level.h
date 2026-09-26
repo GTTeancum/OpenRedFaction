@@ -312,6 +312,19 @@ typedef struct rf_level_emitter {
  * runtime conversion. Requires live level/archive. Errors preserve outputs. */
 int rf_level_emitters_begin(const rf_level *level,rf_level_emitter_reader *reader);
 int rf_level_emitter_next(rf_level_emitter_reader *reader,rf_level_emitter *emitter);
+typedef rf_level_group_reader rf_level_bolt_reader;
+typedef struct rf_level_bolt {
+    uint32_t offset,bytes,uid,target_uid;
+    char name[256],script[256],bitmap[256];
+    float position[3],orientation_disk[9];
+    uint32_t header_byte,mid_word,tail_word,enabled;
+    float leading_values[4],trailing_values[4];
+    uint8_t color[4];
+} rf_level_bolt;
+/* v180 section E00, original 460160 reader order. These are authored bolt
+ * sources; target_uid points to the arc endpoint. No renderer is implied. */
+int rf_level_bolts_begin(const rf_level *,rf_level_bolt_reader *);
+int rf_level_bolt_next(rf_level_bolt_reader *,rf_level_bolt *);
 /* v180 section 3000, original 463820 field sequence. No allocations; caller
  * retains level/archive. Raw flags and rotation are preserved (no gameplay
  * normalization or degree conversion). Spans are section-relative. next scans
