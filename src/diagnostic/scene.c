@@ -2278,6 +2278,18 @@ static void campaign_monitor_reset(void)
 }
 static int campaign_monitor_class(const char *name)
 {return !strcmp(name,"smallscreen") || !strcmp(name,"Mirror01") || !strcmp(name,"Screen03");}
+static int campaign_monitor_binding_valid(const scene_monitor_binding *binding)
+{
+    uint32_t i,screen=0,camera=!binding->camera_uid;
+    if(!isfinite(binding->refresh_seconds)||binding->refresh_seconds<=0)return 0;
+    for(i=0;i<campaign_clutter_records.count;i++)
+        if(campaign_clutter_records.items[i].uid==binding->screen_uid&&
+           campaign_monitor_class(campaign_clutter_records.items[i].class_name)){screen=1;break;}
+    for(i=0;i<campaign_seeds.records.count&&!camera;i++)
+        if(campaign_seeds.records.items[i].record.uid==(int32_t)binding->camera_uid&&
+           !strcmp(campaign_seeds.records.items[i].record.class_name,"camera2"))camera=1;
+    return screen&&camera;
+}
 /* Original 4ba980 visits linked monitor props, then linked camera actors.
  * 412600 updates mode/refresh and 4126a0 retains the first camera. The
  * rendered-image cache and monitor texture remain separate, open work. */

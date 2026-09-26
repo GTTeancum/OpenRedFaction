@@ -2,15 +2,22 @@
 #define CHECK(x) do{if(!(x)){fprintf(stderr,"environment line%d: %s\n",__LINE__,#x);return 1;}}while(0)
 int main(void)
 {
-    unsigned char identity[32]={1},wire[256],legacy[112];uint32_t bytes,bits;scene_world_environment_stage *stage=NULL;
+    unsigned char identity[32]={1},wire[2048],legacy[112];uint32_t bytes,bits;scene_world_environment_stage *stage=NULL;
     rf_physics_force_region forces[2]={{0}},swap;uint32_t uid=20;
     rf_level_navigation_node navigation[3]={{0}},node;
     forces[0].uid=10;forces[0].strength=3;forces[0].active=1;forces[0].radius_squared=4;
     forces[1].uid=20;forces[1].strength=7;forces[1].active=0x80000001u;forces[1].center[0]=5;
-    campaign_forces.items=forces;campaign_forces.count=2;
+    campaign_forces.items=forces;campaign_forces.count=2;campaign_monitor_reset();
     CHECK(!rf_physics_gravity_set(&scene_gravity,4));
     CHECK(!rf_physics_forces_set_state(forces,2,&uid,1,0));
-    CHECK(!scene_world_environment_encode(identity,1000,wire,sizeof(wire),&bytes)&&bytes==232);
+    CHECK(!scene_world_environment_encode(identity,1000,wire,sizeof(wire),&bytes)&&bytes==256);
+    {
+        unsigned char v4[256];memcpy(v4,wire,bytes-SCENE_ENV_MONITOR_HEADER);
+        scene_history_put(v4+4,4);scene_history_put(v4+8,bytes-SCENE_ENV_MONITOR_HEADER);
+        scene_history_put(v4+12,scene_history_hash(v4,bytes-SCENE_ENV_MONITOR_HEADER));
+        CHECK(!scene_world_environment_prepare(identity,16,v4,bytes-SCENE_ENV_MONITOR_HEADER,65536,&stage));
+        scene_world_environment_close(&stage);
+    }
     swap=forces[0];forces[0]=forces[1];forces[1]=swap;
     forces[0].active=1;forces[0].strength=9;CHECK(!rf_physics_gravity_set(&scene_gravity,9.8f));
     CHECK(!scene_world_environment_prepare(identity,16,wire,bytes,65536,&stage));
@@ -31,7 +38,7 @@ int main(void)
     memcpy(&navigation[2].candidate.retained_018,&navigation[2].candidate.radius,4);
     campaign_navigation.nodes=navigation;campaign_navigation.count=3;
     navigation[1].candidate.radius=0;
-    CHECK(!scene_world_environment_encode(identity,1000,wire,sizeof(wire),&bytes)&&bytes==240);
+    CHECK(!scene_world_environment_encode(identity,1000,wire,sizeof(wire),&bytes)&&bytes==264);
     node=navigation[0];navigation[0]=navigation[1];navigation[1]=node;
     navigation[0].candidate.radius=2;
     CHECK(!scene_world_environment_prepare(identity,16,wire,bytes,65536,&stage));
@@ -86,7 +93,7 @@ int main(void)
     CHECK(stage->form_next.active==1&&stage->form_next.variant==1&&stage->form_next.compromised==1&&
           stage->form_next.return_slot==2&&stage->form_next.normal_class_armor==75);
     scene_world_environment_close(&stage);
-    scene_history_put(wire+bytes-SCENE_ENV_FORM_BYTES+8,2);
+    scene_history_put(wire+bytes-SCENE_ENV_MONITOR_HEADER-SCENE_ENV_FORM_BYTES+8,2);
     scene_history_put(wire+12,scene_history_hash(wire,bytes));
     CHECK(scene_world_environment_prepare(identity,16,wire,bytes,65536,&stage)==RF_FORMAT&&!stage);
     puts("PASS gravity/force/nav, cutscene/form restore, legacy decode, stale mutation and transition rejection");return 0;

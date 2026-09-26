@@ -30,7 +30,24 @@ The same 80-frame `--no-images` run passes on stock 64 MiB XEMU: all five
 `MONITOR_BINDINGS` words match PC, and 5,183 physical pages (20.25 MiB) remain
 available. The run produced no visual image files.
 
+The ordinary environment checkpoint now writes `RFEN5`: it adds the bounded
+screen/camera association table, raw authored fields, refresh intervals and
+monitor event counters after the existing player-form record. Restore checks
+that each screen and camera UID belongs to the loaded section, rejects
+duplicate screens and invalid intervals, and publishes the table only after
+the other checkpoint components validate. `RFEN1` through `RFEN4` remain
+readable. Queued type-49 events now retain their timers through the existing
+event checkpoint; other unsupported pending effects remain blocked.
+
+The focused L6S3 fixture restores two real authored bindings and rejects a
+tampered camera UID. An image-free 80-frame live L6S3 save on PC and stock
+64 MiB XEMU produced byte-identical 65,924-byte world snapshots, including a
+464-byte environment section; XEMU retained 5,183 physical pages (20.25 MiB).
+Loading the saved PC snapshot restores all five `MONITOR_BINDINGS` words.
+The run is recorded at `artifacts/xemu/render-20260926-175911/report.json`.
+No visual image files were created.
+
 This is event and association state, not live monitor imagery. Camera actor
-side effects, texture render/cache, monitor material submission, and active
-state save/load remain open. Queued type-49 effects still veto ordinary saves
-until their external state can be preserved.
+side effects, texture render/cache and monitor material submission remain
+open. A queued type-49 event's post-load firing still needs a live campaign
+fixture beyond the event-codec and binding-restore checks.
