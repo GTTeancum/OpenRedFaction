@@ -87,6 +87,25 @@ def main() -> None:
         assert "LEVEL_ARRIVAL " in continued and "WORLD_SNAPSHOT_LOAD_REJECT" not in continued
         print("PASS L17S4: active timeline and queued blackout restore through L18S1 handoff")
 
+        folder = Path(temp) / "L14S3"
+        folder.mkdir()
+        active = replay(folder, "L14S3.rfl", 65, 9618,
+                        {"RF_REPLAY_QUICKSAVE_FRAME": "60"})
+        assert cutscene(active)[3] == 9618 and "QUICK_SAVE frame60 status0" in active, active[-2500:]
+        path = folder / "redfaction-save"
+        environment = sections(payload(path))["environment"]
+        assert struct.unpack_from("<I", environment, 76)[0] == 6711, "support mover UID missing"
+        resumed = replay(folder, "L14S3.rfl", 120, None,
+                         {"RF_REPLAY_WORLD_SNAPSHOT_IN": str(path)})
+        assert "WORLD_SNAPSHOT_LOADED " in resumed, resumed[-2500:]
+        assert re.search(r"WORLD_PLAYER_SUPPORT_RESTORED uid6711 handle\d+ velocity", resumed)
+        state = cutscene(resumed)
+        assert state[3] == 9618 and state[7] == 1 and state[9] == 0, state
+        direct = replay(folder, "L14S3.rfl", 180, 9618, {})
+        body = lambda log: [line for line in log.splitlines() if line.startswith("PC_PLAY_BODY ")][-1]
+        assert body(resumed) == body(direct), "restored player diverged from uninterrupted mover support"
+        print("PASS L14S3: active cutscene and authored mover support survive ordinary reload")
+
 
 if __name__ == "__main__":
     main()

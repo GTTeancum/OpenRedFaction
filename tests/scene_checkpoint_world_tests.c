@@ -51,6 +51,19 @@ int main(void)
      prop.uid++;CHECK(scene_checkpoint_world_place(&context,&p,&room,&support)==RF_NOT_FOUND);prop.uid--;
      context.allow_no_contact=context.authored_static_unchanged=0;context.authored_position=context.authored_basis=NULL;context.authored_props=NULL;}
     {rf_clutter_base_owner authored_prop=prop,*authored_props[1]={&authored_prop};
+     float authored_position[3]={0,0,0},authored_basis[9]={1,0,0,0,1,0,0,0,1},other[3]={1.97f,0,0};
+     rf_physics_sphere reference_sphere={{1,0,0},.5f,0,0};double baseline=(double)(other[0]-1)*(other[0]-1);
+     context.allow_no_contact=context.authored_static_unchanged=1;context.authored_position=authored_position;
+     context.authored_basis=authored_basis;context.authored_props=authored_props;
+     p.spheres=&reference_sphere;p.count=1;memcpy(p.basis,authored_basis,36);p.position[1]=0;
+     p.basis[0]=.9998f;p.basis[2]=.02f;p.basis[6]=-.02f;p.basis[8]=.9998f;
+     CHECK(scene_checkpoint_world_authored_prop_overlap(&context,&p,0,&prop,0,other,baseline*.995,1));
+     CHECK(!scene_checkpoint_world_authored_prop_overlap(&context,&p,0,&prop,0,other,baseline*.98,1));
+     p.position[0]=.01f;CHECK(!scene_checkpoint_world_authored_prop_overlap(&context,&p,0,&prop,0,other,baseline,1));p.position[0]=0;
+     p.basis[0]=.94f;CHECK(!scene_checkpoint_world_authored_prop_overlap(&context,&p,0,&prop,0,other,baseline,1));
+     p.spheres=&sphere;p.count=1;p.position[1]=-9.5f;memcpy(p.basis,authored_basis,36);
+     context.allow_no_contact=context.authored_static_unchanged=0;context.authored_position=context.authored_basis=NULL;context.authored_props=NULL;}
+    {rf_clutter_base_owner authored_prop=prop,*authored_props[1]={&authored_prop};
      float start[3]={0,-7,0};
      prop.uid=10469;authored_prop.uid=10469;prop_class.name="BustedEscapePod";
      context.authored_static_unchanged=1;context.authored_props=authored_props;

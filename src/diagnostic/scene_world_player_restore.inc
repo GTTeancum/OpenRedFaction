@@ -1,10 +1,11 @@
 #ifndef RF_SCENE_WORLD_PLAYER_RESTORE_INCLUDED
 #define RF_SCENE_WORLD_PLAYER_RESTORE_INCLUDED
-/* Standing player candidate only; no gameplay publication. Boot integration
- * must restore inventory/equipped resources after initialization, before input. */
+/* Player candidate with static or exact authored-mover support; no gameplay
+ * publication. Boot integration restores inventory/equipment before input. */
 typedef struct scene_world_player_stage {
     rf_player_checkpoint player;rf_weapon_modes_checkpoint modes;
     rf_physics_body_state body;rf_entity_room_state room;rf_physics_support_contact support;
+    float support_velocity[3];
     float basis[9],eye[9];rf_checkpoint_placement placement;
     const scene_npc_checkpoint_restore_stage *npcs;
 } scene_world_player_stage;
@@ -14,7 +15,8 @@ static int scene_world_player_pair(void *context,uint32_t index,rf_checkpoint_pl
     if(!index){*p=s->placement;*retired=0;return RF_OK;}
     return scene_npc_checkpoint_restore_placement((void*)s->npcs,index-1,p,retired);
 }
-static inline int scene_world_player_prepare(scene_stream *stream,const scene_world_restore_stage *world,scene_world_player_stage *out)
+static inline int scene_world_player_prepare(scene_stream *stream,const scene_world_restore_stage *world,
+    uint32_t support_uid,scene_world_player_stage *out)
 {
     scene_world_player_stage s={0};rf_player_checkpoint_catalog catalog;scene_checkpoint_world_context context;
     rf_collision_room_location location;const rf_world_checkpoint_slice *v;int status;
@@ -29,7 +31,7 @@ static inline int scene_world_player_prepare(scene_stream *stream,const scene_wo
     scene_checkpoint_placement(stream,&s.player,s.basis,&s.placement);
     context=world->world;context.allow_no_contact=0;context.authored_position=NULL;context.authored_basis=NULL;
     context.authored_props=NULL;context.authored_static_unchanged=0;
-    context.spawn_shell_uid=0;context.spawn_shell_position=NULL;
+    context.spawn_shell_uid=0;context.spawn_shell_position=NULL;context.support_uid=support_uid;
     if(stream->world_checkpoint_level&&
        ((scene_npc_checkpoint_level_equal(world->envelope.level,"L18S1.rfl")&&
          scene_npc_checkpoint_level_equal(campaign_current_level,"L18S1.rfl"))||
@@ -45,6 +47,14 @@ static inline int scene_world_player_prepare(scene_stream *stream,const scene_wo
     if(location.room==UINT32_MAX||location.room>=context.world->room_count)return RF_NOT_FOUND;
     context.reference_room=location.room;
     status=scene_checkpoint_world_place(&context,&s.placement,&s.room,&s.support);if(status)return status;
+    if(support_uid){
+        uint32_t i,found=0;
+        for(i=0;i<context.movers->count;i++)if((uint32_t)context.movers->uids[i]==support_uid &&
+            context.movers->views[i].object_id==s.support.handle){
+            memcpy(s.support_velocity,context.movers->poses[i].velocity,12);++found;
+        }
+        if(found!=1)return RF_FORMAT;
+    }
     s.npcs=world->npcs;status=scene_npc_checkpoint_pair_fit(s.npcs->count+1,scene_world_player_pair,&s);if(status)return status;
     s.body=scene_actor_body.state;memcpy(s.body.position,s.player.position,12);memcpy(s.body.next_position,s.player.position,12);
     memcpy(s.body.orientation,s.basis,36);memcpy(s.body.next_orientation,s.basis,36);memcpy(s.body.velocity,s.player.velocity,12);

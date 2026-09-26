@@ -1,7 +1,7 @@
 #ifndef RF_SCENE_WORLD_ENVIRONMENT_CHECKPOINT_INCLUDED
 #define RF_SCENE_WORLD_ENVIRONMENT_CHECKPOINT_INCLUDED
 /* RFEN3: identity-bound gravity, force-volume state, changed navigation radii,
- * blackout timer and portable cutscene clock/camera. Navigation rows use authored UIDs and
+ * blackout timer, player support mover UID and portable cutscene clock/camera. Navigation rows use authored UIDs and
  * raw radius bits, never indices. RFEN1/2 remain readable. No handles are serialized.
  * Queued level handoffs are not admitted; other presentation state is separate. */
 enum {SCENE_ENV_HEADER=80,SCENE_ENV_ROW=16,SCENE_ENV_NAV_ROW=8,
@@ -16,7 +16,7 @@ typedef struct scene_world_environment_stage {
     rf_physics_gravity before,next;rf_physics_force_region *owner;uint32_t count,bytes;
     rf_level_navigation_node *navigation;uint32_t navigation_count,nav_count;
     rf_cutscene_runtime cutscene_before,cutscene_next;
-    int32_t blackout_before,blackout_next;
+    int32_t blackout_before,blackout_next;uint32_t support_uid;
     scene_environment_entry rows[];
 } scene_world_environment_stage;
 static scene_environment_nav_entry *scene_environment_nav_rows(scene_world_environment_stage *s)
@@ -36,7 +36,7 @@ static int scene_environment_gravity_valid(const rf_physics_gravity *g)
 {return isfinite(g->acceleration)&&g->vector[0]==0&&g->vector[2]==0&&g->vector[1]==-g->acceleration?RF_OK:RF_FORMAT;}
 static inline int scene_world_environment_encode(const unsigned char identity[32],int32_t now,void *out,uint32_t capacity,uint32_t *written)
 {
-    unsigned char *p=out;uint32_t i,j,bytes,nav_count=0;uint64_t required;int32_t blackout_remaining=0;int status;
+    unsigned char *p=out;uint32_t i,j,bytes,nav_count=0,support_uid=0;uint64_t required;int32_t blackout_remaining=0;int status;
     if(!identity||!out||!written||campaign_forces.count>SCENE_ENV_FORCE_MAX||
        (campaign_forces.count&&!campaign_forces.items)||campaign_navigation.count>SCENE_ENV_NAV_MAX||
        (campaign_navigation.count&&!campaign_navigation.nodes))return RF_RANGE;
@@ -64,6 +64,8 @@ static inline int scene_world_environment_encode(const unsigned char identity[32
         if(blackout_remaining>30000)return RF_FORMAT;
         if(blackout_remaining>0)scene_history_put(p+72,(uint32_t)blackout_remaining+1);
     }
+    status=scene_checkpoint_player_support_uid(scene_actor_collision_owner,&support_uid);if(status)return status;
+    scene_history_put(p+76,support_uid);
     scene_history_put_float(p+56,scene_gravity.acceleration);
     for(i=0;i<3;i++)scene_history_put_float(p+60+i*4,scene_gravity.vector[i]);
     for(i=0;i<campaign_forces.count;i++){
@@ -89,10 +91,10 @@ static inline int scene_world_environment_prepare(const unsigned char identity[3
     if(!identity||!data||!out||*out)return RF_RANGE;
     if(rf_scene_level_transition.pending)return RF_NOT_FOUND;
     if(bytes<80||memcmp(p,"RFEN",4)||scene_history_word(p+8)!=bytes||
-       scene_history_word(p+12)!=scene_history_hash(p,bytes)||memcmp(p+24,identity,32)||
-       scene_history_word(p+76))return RF_FORMAT;
+       scene_history_word(p+12)!=scene_history_hash(p,bytes)||memcmp(p+24,identity,32))return RF_FORMAT;
     version=scene_history_word(p+4);if(version!=1&&version!=2&&version!=3)return RF_FORMAT;
-    if((version<3&&scene_history_word(p+72))||scene_history_word(p+72)>30001)return RF_FORMAT;
+    if((version<3&&(scene_history_word(p+72)||scene_history_word(p+76)))||scene_history_word(p+72)>30001||
+       scene_history_word(p+76)==UINT32_MAX)return RF_FORMAT;
     count=scene_history_word(p+16);nav_count=scene_history_word(p+20);
     if((version==1&&nav_count)||count>SCENE_ENV_FORCE_MAX||count!=campaign_forces.count||
        nav_count>campaign_navigation.count||nav_count>SCENE_ENV_NAV_MAX||
@@ -105,6 +107,7 @@ static inline int scene_world_environment_prepare(const unsigned char identity[3
     s->navigation=campaign_navigation.nodes;s->navigation_count=campaign_navigation.count;s->nav_count=nav_count;s->before=scene_gravity;
     s->cutscene_before=campaign_cutscene_runtime;
     s->blackout_before=campaign_blackout_deadline;s->blackout_next=-1;
+    s->support_uid=scene_history_word(p+76);
     if(scene_history_word(p+72)){
         status=rf_timer_set(&s->blackout_next,now,(int32_t)scene_history_word(p+72)-1);if(status)goto fail;
     }

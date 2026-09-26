@@ -58,7 +58,9 @@ static int scene_world_load(scene_stream *stream,const rf_level *level,const cha
     context.world=stream->collision;context.movers=&campaign_movers;context.metadata=campaign_body_surface;context.metadata_context=&surfaces;
     context.dt=1.0f/60;context.authored_static_unchanged=1;context.fresh_boot=1;
     phase="world";status=scene_world_restore_prepare(buffer,bytes,identity.bytes,0,&catalog,0,&context,budget,&world);if(status)goto done;cost=world->allocated_bytes;
-    phase="player";status=scene_world_player_prepare(stream,world,&player);if(status)goto done;
+    phase="environment";v=envelope.sections+RF_WORLD_ENVIRONMENT-1;
+    status=scene_world_environment_prepare(identity.bytes,16,v->data,v->bytes,budget-cost,&environment);if(status)goto done;cost+=environment->bytes;
+    phase="player";status=scene_world_player_prepare(stream,world,environment->support_uid,&player);if(status)goto done;
     if(player.player.player.weapon==UINT32_MAX)found=1;
     else for(i=0;i<scene_weapon_slots();i++)if(scene_weapon_available(i)&&player.player.player.weapon==(uint32_t)campaign_slot_weapon(i)){
         selected=i;found=1;break;}
@@ -67,8 +69,6 @@ static int scene_world_load(scene_stream *stream,const rf_level *level,const cha
     phase="history";v=envelope.sections+RF_WORLD_CAMPAIGN_HISTORY-1;
     status=scene_campaign_history_checkpoint_prepare(identity.bytes,v->data,v->bytes,budget-cost,&history);if(status)goto done;cost+=(uint32_t)sizeof(*history);
     status=scene_campaign_history_checkpoint_rebind_prepare(history,budget-cost,&bindings);if(status)goto done;cost+=bindings->bytes;
-    phase="environment";v=envelope.sections+RF_WORLD_ENVIRONMENT-1;
-    status=scene_world_environment_prepare(identity.bytes,16,v->data,v->bytes,budget-cost,&environment);if(status)goto done;cost+=environment->bytes;
     phase="events";status=scene_world_event_prepare(stream,&envelope,0,world,budget-cost,&events,&flags);if(status)goto done;cost+=events->bytes;
     if(flags&(SCENE_WORLD_EVENT_PUBLICATION_BLOCKERS&~(SCENE_WORLD_EVENT_MISSING_GRAVITY|SCENE_WORLD_EVENT_MISSING_FORCES|SCENE_WORLD_EVENT_NEEDS_PLAYER_MISSION))){status=RF_NOT_FOUND;goto done;}
     phase="remote";v=envelope.sections+RF_WORLD_REMOTE-1;
@@ -97,8 +97,14 @@ static int scene_world_load(scene_stream *stream,const rf_level *level,const cha
     campaign_player_damage.state.effects.armor=player.player.player.armor;campaign_select_primary(selected);
     campaign_explicit_unarmed=player.player.player.weapon==UINT32_MAX;
     scene_weapon_modes_checkpoint_assign(stream,&player.modes);campaign_ammo_publish();
-    campaign_support_handle=0;memset(campaign_support_velocity,0,12);rf_scene_actor_landing[1]=1;rf_scene_actor_landing[2]=0;
-    scene_actor_body.state.flags&=~(0x200000u|0x400000u);scene_player_impact_relocated();
+    campaign_support_handle=player.support.handle;memcpy(campaign_support_velocity,player.support_velocity,12);
+    rf_scene_actor_landing[1]=1;rf_scene_actor_landing[2]=0;
+    scene_actor_body.state.flags&=~(0x200000u|0x400000u);
+    if(campaign_support_handle)scene_actor_body.state.flags|=0x400000u;
+    if(campaign_support_handle)printf("WORLD_PLAYER_SUPPORT_RESTORED uid%u handle%u velocity%.9g,%.9g,%.9g\n",
+        environment->support_uid,campaign_support_handle,(double)campaign_support_velocity[0],
+        (double)campaign_support_velocity[1],(double)campaign_support_velocity[2]);
+    scene_player_impact_relocated();
     printf("WORLD_SNAPSHOT_LOADED bytes%u staged%u npc%u events%u added_motion%u health%.9g armor%.9g weapon%u\n",bytes,cost,world->npcs->count,events->events.count,added,
         (double)player.player.player.health,(double)player.player.player.armor,player.player.player.weapon);
     scene_world_startup_snapshot_consumed=1;

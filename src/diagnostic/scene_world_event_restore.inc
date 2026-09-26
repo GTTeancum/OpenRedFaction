@@ -94,7 +94,7 @@ done:
 }
 static inline int scene_world_event_probe(scene_stream *stream,const scene_world_restore_stage *world,int32_t now)
 {
-    scene_world_player_stage player;scene_world_event_stage *events=NULL;scene_world_environment_stage *environment=NULL;uint32_t flags=0;int status;
+    scene_world_player_stage player;scene_world_event_stage *events=NULL;scene_world_environment_stage *environment=NULL;uint32_t flags=0,support_uid=0;int status;
     const rf_world_checkpoint_slice *v=world->envelope.sections+RF_WORLD_ENVIRONMENT-1;
     if(world->allocated_bytes>2u*1024u*1024u)return RF_RANGE;
     status=scene_world_event_prepare(stream,&world->envelope,now,world,2u*1024u*1024u-world->allocated_bytes,&events,&flags);
@@ -105,8 +105,9 @@ static inline int scene_world_event_probe(scene_stream *stream,const scene_world
 #ifndef RF_IMAGE_XBOX_NATIVE
     printf("WORLD_RESTORE_ENVIRONMENT status%d forces%u remaining_event_flags%u no_publication1\n",status,environment?environment->count:0,flags);
 #endif
+    if(!status)support_uid=environment->support_uid;
     scene_world_environment_close(&environment);
-    if(!status)status=scene_world_player_prepare(stream,world,&player);
+    if(!status)status=scene_world_player_prepare(stream,world,support_uid,&player);
 #ifndef RF_IMAGE_XBOX_NATIVE
     printf("WORLD_RESTORE_PLAYER status%d no_publication1\n",status);
 #endif

@@ -65,5 +65,19 @@ int main(void)
         scene_world_environment_close(&stage);rf_cutscene_cancel(&campaign_cutscene_runtime);
         campaign_blackout_deadline=-1;memset(&campaign_cutscene_resources,0,sizeof(campaign_cutscene_resources));
     }
+    {
+        scene_stream stream={0};int32_t mover_uid=6711;rf_collision_solid_view mover_view={0};
+        rf_group_attached_pose mover_pose={0};mover_view.object_id=1234;
+        campaign_movers.count=1;campaign_movers.uids=&mover_uid;campaign_movers.views=&mover_view;
+        campaign_movers.poses=&mover_pose;campaign_support_handle=1234;
+        scene_actor_collision_owner=&stream;scene_actor_body.state.flags|=0x400000u;
+        CHECK(!scene_world_environment_encode(identity,1000,wire,sizeof(wire),&bytes));
+        CHECK(scene_history_word(wire+76)==6711);
+        CHECK(!scene_world_environment_prepare(identity,16,wire,bytes,65536,&stage)&&stage->support_uid==6711);
+        scene_world_environment_close(&stage);
+        mover_pose.velocity[1]=1;CHECK(scene_world_environment_encode(identity,1000,wire,sizeof(wire),&bytes)==RF_NOT_FOUND);
+        campaign_support_handle=0;scene_actor_collision_owner=NULL;memset(&campaign_movers,0,sizeof(campaign_movers));
+        scene_actor_body.state.flags&=~0x400000u;
+    }
     puts("PASS gravity/force/nav and active cutscene restore, legacy decode, stale mutation and transition rejection");return 0;
 }
