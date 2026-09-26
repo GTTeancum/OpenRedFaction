@@ -94,6 +94,7 @@ def main():
     parser.add_argument('--exit-uid', type=int, help='Authored exit at frame60')
     parser.add_argument('--return-exit-uid', type=int, help='Authored return at frame180, restaging the initial pickup')
     parser.add_argument('--visible', action='store_true')
+    parser.add_argument('--no-images', action='store_true', help='Run PC/Xbox scene-state comparison without raster output or framebuffer capture')
     visibility = parser.add_mutually_exclusive_group()
     visibility.add_argument('--culled', dest='culled', action='store_true', help='Experimental model bounds rejection; default off after negative timing result')
     visibility.add_argument('--unculled', dest='culled', action='store_false')
@@ -101,6 +102,8 @@ def main():
     parser.add_argument('--unbatched', action='store_true', help='Reference tiny GPU command submission blocks')
     parser.add_argument('--unsorted', action='store_true', help='Reference source-order world draw ranges')
     args = parser.parse_args()
+    if args.no_images and (args.terrain_texture_audit or args.terrain_atlas_audit or args.terrain_draw_audit):
+        parser.error('--no-images cannot be combined with texture/atlas/draw capture audits')
     if sum((args.tip_platform_test,args.lift_platform_test,args.ceiling_platform_test))>1:parser.error('Choose one platform motion')
     if args.tip_platform_test or args.lift_platform_test or args.ceiling_platform_test:args.fragment_platform_test=True
     if args.fixture_game:
@@ -338,8 +341,11 @@ def main():
         pc_game=root/'artifacts/fragment-platform/game'
         report['fragment_platform_mode']='ceiling' if args.ceiling_platform_test else 'lift' if args.lift_platform_test else 'tip' if args.tip_platform_test else 'translate'
         report['fragment_platform_fixture']=json.loads((pc_game.parent/'build.json').read_text())
-    pc = subprocess.run([str(root / pc_build / 'Release/rf_pc_play.exe'), '--spawn-replay',
-        str(pc_game), str(run / 'inputs.bin'), str(run / 'pc-final.ppm')],
+    pc_command = [str(root / pc_build / 'Release/rf_pc_play.exe'),
+        '--spawn-telemetry-replay' if args.no_images else '--spawn-replay',
+        str(pc_game), str(run / 'inputs.bin')]
+    if not args.no_images:pc_command.append(str(run / 'pc-final.ppm'))
+    pc = subprocess.run(pc_command,
         cwd=run if args.quick_save_frame is not None or args.quick_load_frame is not None else root, env=env, capture_output=True, text=True)
     (run / 'pc-reference.txt').write_text(pc.stdout + pc.stderr)
     pc.check_returncode()
@@ -569,7 +575,7 @@ dvd_path = '{root.as_posix()}/build/xbox/redfaction-diagnostic.iso'
             else:
                 raise TimeoutError('Bounded render run did not complete')
             monitor.command('stop')
-            capture(d)
+            if not args.no_images:capture(d)
             assert d[37] == args.frames, (d[37], args.frames)
             fields = [('rf_diagnostic', 58), ('rf_xbox_retained_world', 8), ('rf_xbox_retained_models', 8),
                 ('rf_xbox_retained_model_kinds', 6), ('rf_scene_pose_sharing', 4), ('rf_xbox_model_visibility', 8), ('rf_xbox_bounds_poses', 2), ('rf_xbox_command_blocks', 6), ('rf_xbox_world_groups', 2), ('rf_renderer_submission', 4), ('rf_renderer_vblank', 3)]
@@ -771,7 +777,7 @@ dvd_path = '{root.as_posix()}/build/xbox/redfaction-diagnostic.iso'
                     ('rf_scene_script_movement', 'SCRIPT_MOVE', 8), ('rf_scene_enemy_combat', 'ENEMY_COMBAT', 8),
                     ('rf_scene_rotating_doors', 'ROTATING_DOORS', 8), ('rf_scene_script_attack', 'SCRIPT_ATTACK', 12), ('rf_scene_attack_recovery', 'ATTACK_RECOVERY', 4), ('rf_scene_enemy_damage_kinds', 'ENEMY_DAMAGE_KINDS', 10), ('rf_scene_enemy_melee', 'ENEMY_MELEE', 4), ('rf_scene_enemy_spread', 'ENEMY_SPREAD', 8), ('rf_scene_combat_pain', 'COMBAT_PAIN', 8), ('rf_scene_pain_attack_gate', 'PAIN_ATTACK_GATE', 6), ('rf_scene_weapon_drops', 'WEAPON_DROPS', 8), ('rf_scene_rifle_alt', 'RIFLE_ALT', 8), ('rf_scene_shotgun', 'SHOTGUN', 8), ('rf_scene_grenades', 'GRENADES', 8), ('rf_scene_ai_grenades', 'AI_GRENADES', 5), ('rf_scene_ai_rockets', 'AI_ROCKETS', 5), ('rf_scene_riot_shield', 'RIOT_SHIELD', 4), ('rf_scene_player_shield', 'PLAYER_SHIELD', 4), ('rf_scene_fusion_projectiles', 'FUSION_PROJECTILES', 5), ('rf_scene_machine_mode', 'MACHINE_MODE', 8), ('rf_scene_undercover', 'UNDERCOVER', 8), ('rf_scene_vehicle_state', 'VEHICLE', 16), ('rf_scene_drill_state', 'DRILL', 8), ('rf_scene_vehicle_damage', 'VEHICLE_DAMAGE', 8), ('rf_scene_apc_primary', 'APC_PRIMARY', 8), ('rf_scene_apc_secondary', 'APC_SECONDARY', 8), ('rf_scene_submarine_weapon', 'SUBMARINE_WEAPON', 8), ('rf_scene_fighter_weapon', 'FIGHTER_WEAPON', 8), ('rf_scene_clutter_damage', 'CLUTTER_DAMAGE', 8), ('rf_scene_jeep_seats', 'JEEP_SEATS', 8), ('rf_scene_player_impact', 'PLAYER_IMPACT', 8), ('rf_scene_remote', 'REMOTE', 8), ('rf_scene_flame_visual', 'FLAME_VISUAL', 6), ('rf_scene_flame_canister', 'FLAME_CANISTER', 5), ('rf_scene_burning', 'BURNING', 5), ('rf_scene_burning_visual', 'BURNING_VISUAL', 5), ('rf_scene_rockets', 'ROCKETS', 8), ('rf_scene_rocket_blast', 'ROCKET_BLAST', 8), ('rf_scene_rocket_visual', 'ROCKET_VISUAL', 8), ('rf_scene_ripple_visual', 'RIPPLE_VISUAL', 8), ('rf_scene_ripple_lifecycle', 'RIPPLE_LIFECYCLE', 4), ('rf_scene_rocket_liquid', 'ROCKET_LIQUID_STATE', 4), ('rf_scene_enemy_fire', 'ENEMY_FIRE', 6),
                     ('rf_scene_use_reach', 'USE_REACH', 4), ('rf_scene_debris_wet','DEBRIS_WET_STATE',8), ('rf_scene_debris_visibility','DEBRIS_VISIBILITY',8), ('rf_scene_debris_motion','DEBRIS_MOTION',8), ('rf_scene_debris_crossing','DEBRIS_CROSSING',8), ('rf_scene_debris_splash_audio','DEBRIS_SPLASH_AUDIO',9), ('rf_scene_debris_player','DEBRIS_PLAYER',8), ('rf_scene_debris_rotation','DEBRIS_ROTATION',4), ('rf_scene_debris_cleanup','DEBRIS_CLEANUP',8), ('rf_scene_debris_blood','DEBRIS_BLOOD',8), ('rf_scene_debris_player_test','DEBRIS_PLAYER_TEST',8),
-                    ('rf_scene_particles_summary', 'SCENE_PARTICLES', 8), ('rf_scene_live_motion', 'LIVE_MOTION', 8), ('rf_scene_airlock', 'AIRLOCK', 6), ('rf_scene_script_animation', 'SCRIPT_ANIMATION', 10), ('rf_scene_cutscene', 'CUTSCENE', 12), ('rf_scene_alarm', 'ALARM', 12), ('rf_scene_switch_runtime', 'SWITCH_RUNTIME', 8), ('rf_scene_switch_detail', 'SWITCH_DETAIL', 8), ('rf_scene_switch_history', 'SWITCH_HISTORY', 4), ('rf_scene_trigger_history', 'TRIGGER_HISTORY', 4), ('rf_scene_startup_inventory', 'STARTUP_INVENTORY', 4), ('rf_scene_pickups', 'PICKUPS', 8), ('rf_scene_pickup_vitals', 'PICKUP_VITALS', 4), ('rf_scene_riot', 'RIOT_STICK', 8), ('rf_scene_weapon_selection', 'WEAPON_SELECTION', 8),
+                    ('rf_scene_particles_summary', 'SCENE_PARTICLES', 8), ('rf_scene_live_motion', 'LIVE_MOTION', 8), ('rf_scene_airlock', 'AIRLOCK', 6), ('rf_scene_script_animation', 'SCRIPT_ANIMATION', 10), ('rf_scene_cutscene', 'CUTSCENE', 12), ('rf_scene_cutscene_look', 'CUTSCENE_LOOK', 6), ('rf_scene_alarm', 'ALARM', 12), ('rf_scene_switch_runtime', 'SWITCH_RUNTIME', 8), ('rf_scene_switch_detail', 'SWITCH_DETAIL', 8), ('rf_scene_switch_history', 'SWITCH_HISTORY', 4), ('rf_scene_trigger_history', 'TRIGGER_HISTORY', 4), ('rf_scene_startup_inventory', 'STARTUP_INVENTORY', 4), ('rf_scene_pickups', 'PICKUPS', 8), ('rf_scene_pickup_vitals', 'PICKUP_VITALS', 4), ('rf_scene_riot', 'RIOT_STICK', 8), ('rf_scene_weapon_selection', 'WEAPON_SELECTION', 8),
                     ('rf_scene_player_weapon', 'PLAYER_WEAPON', 8), ('rf_scene_weapon_audio', 'WEAPON_AUDIO', 9), ('rf_scene_impact_audio', 'IMPACT_AUDIO', 9),
                     ('rf_scene_rocket_contacts', 'ROCKET_CONTACTS', 8),
                     ('rf_scene_combat_death', 'COMBAT_DEATH', 8)]:
@@ -923,6 +929,8 @@ dvd_path = '{root.as_posix()}/build/xbox/redfaction-diagnostic.iso'
                     assert actual==expected,'Per-source cut history mismatch'
 
 
+            if args.no_images and any(path.suffix.lower() in ('.png','.ppm','.jpg','.jpeg','.bmp') for path in run.iterdir()):
+                raise RuntimeError('Image output created in --no-images mode')
             report.update(result='PASS', available_pages=d[44], diagnostic=d)
             with (run / 'performance.txt').open('w') as out:
                 subprocess.run([sys.executable, 'tools/summarize_xbox_performance.py',
@@ -933,7 +941,7 @@ dvd_path = '{root.as_posix()}/build/xbox/redfaction-diagnostic.iso'
         if monitor:
             try:
                 monitor.command('stop')
-                capture(words(monitor, symbol('rf_diagnostic'), 58))
+                if not args.no_images:capture(words(monitor, symbol('rf_diagnostic'), 58))
                 report['registers'] = monitor.command('human-monitor-command', {'command-line': 'info registers'})
                 report['failure_telemetry'] = {name: words(monitor, symbol(name), count) for name, count in
                     [('rf_scene_world_checkpoint_state',10), ('rf_xbox_checkpoint_storage_state',8), ('rf_xbox_renderer_stage',4), ('rf_xbox_load_stage',1), ('rf_xbox_level_transitions',4), ('rf_scene_level_transition',20), ('rf_scene_endgame',6), ('rf_diagnostic', 58), ('rf_animation_progress', 4), ('rf_scene_profile_stage', 2),
