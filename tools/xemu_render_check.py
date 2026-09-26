@@ -594,6 +594,7 @@ dvd_path = '{root.as_posix()}/build/xbox/redfaction-diagnostic.iso'
                 'rf_scene_presentation_profile', 'rf_scene_world_profile', 'rf_scene_step_profile',
                 'rf_scene_npc_step_profile', 'rf_scene_npc_playback_profile')]
             fields.append(('rf_scene_terrain_edit_times',40))
+            fields.append(('rf_scene_bolt_draw',6))
             fields.append(('rf_scene_fragment_profile',24))
             fields.append(('rf_scene_fragment_stage_ms',8))
             if args.fragment_contact_test:fields.extend((('rf_scene_fragment_contact_audit',64),('rf_scene_fragment_edge_audit',32),('rf_scene_fragment_moving_audit',16),('rf_scene_fragment_support_audit',16)))

@@ -1006,6 +1006,32 @@ int rf_level_bolt_next(rf_level_bolt_reader *reader,rf_level_bolt *bolt)
     if(r.index==r.count && r.cursor!=r.section.size)return RF_FORMAT;
     *reader=r;*bolt=value;return RF_OK;
 }
+int rf_level_targets_begin(const rf_level *level,rf_level_target_reader *reader)
+{
+    rf_level_target_reader value={0};const rf_level_section *section;int status;
+    if(!level || !reader)return RF_RANGE;
+    if(level->version!=180)return RF_FORMAT;
+    section=rf_level_find(level,0xf00);if(!section)return RF_NOT_FOUND;
+    value.level=level;value.section=*section;
+    status=group_number(&value,&value.count);if(status)return status;
+    if((uint64_t)value.count*57>section->size-value.cursor ||
+       (!value.count && value.cursor!=section->size))return RF_FORMAT;
+    *reader=value;return RF_OK;
+}
+int rf_level_target_next(rf_level_target_reader *reader,rf_level_target *target)
+{
+    rf_level_target_reader r;rf_level_target value={0};uint8_t byte;int status;
+    if(!reader || !reader->level || !target)return RF_RANGE;
+    r=*reader;
+    if(r.index>=r.count)return r.index==r.count && r.cursor==r.section.size?RF_NOT_FOUND:RF_FORMAT;
+    value.offset=r.cursor;
+    if((status=group_number(&r,&value.uid)) || (status=group_string(&r,value.name)) ||
+       (status=group_floats(&r,value.position,3)) || (status=group_floats(&r,value.orientation_disk,9)) ||
+       (status=group_string(&r,value.script)) || (status=group_read(&r,&byte,1)))return status;
+    value.header_byte=byte;value.bytes=r.cursor-value.offset;++r.index;
+    if(r.index==r.count && r.cursor!=r.section.size)return RF_FORMAT;
+    *reader=r;*target=value;return RF_OK;
+}
 
 int rf_level_groups_begin(const rf_level *level,rf_level_group_reader *reader)
 {

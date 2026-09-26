@@ -722,6 +722,7 @@ run_scene:
             printf("GLARE_ROOMS");for(i=0;i<8;++i)printf(" %u",rf_scene_glare_rooms[i]);printf("\n");
             printf("CORONA_DRAW");for(i=0;i<8;++i)printf(" %u",rf_scene_corona_draw[i]);printf("\n");
             printf("VOLUME_DRAW");for(i=0;i<8;++i)printf(" %u",rf_scene_volume_draw[i]);printf("\n");
+            printf("BOLT_DRAW");for(i=0;i<6;++i)printf(" %u",rf_scene_bolt_draw[i]);printf("\n");
             printf("VOLUME_TEST");for(i=0;i<8;++i)printf(" %u",rf_scene_volume_test[i]);printf("\n");
             printf("VOLUME_NPC_TEST");for(i=0;i<8;++i)printf(" %u",rf_scene_volume_npc_test[i]);printf("\n");
             printf("GLARE_SEARCH");for(i=0;i<8;++i)printf(" %u",rf_scene_glare_search[i]);printf("\n");

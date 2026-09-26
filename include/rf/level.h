@@ -325,6 +325,15 @@ typedef struct rf_level_bolt {
  * sources; target_uid points to the arc endpoint. No renderer is implied. */
 int rf_level_bolts_begin(const rf_level *,rf_level_bolt_reader *);
 int rf_level_bolt_next(rf_level_bolt_reader *,rf_level_bolt *);
+typedef rf_level_group_reader rf_level_target_reader;
+typedef struct rf_level_target {
+    uint32_t offset,bytes,uid,header_byte;
+    char name[256],script[256];
+    float position[3],orientation_disk[9];
+} rf_level_target;
+/* v180 section F00, original 4604a0 Target reader. */
+int rf_level_targets_begin(const rf_level *,rf_level_target_reader *);
+int rf_level_target_next(rf_level_target_reader *,rf_level_target *);
 /* v180 section 3000, original 463820 field sequence. No allocations; caller
  * retains level/archive. Raw flags and rotation are preserved (no gameplay
  * normalization or degree conversion). Spans are section-relative. next scans

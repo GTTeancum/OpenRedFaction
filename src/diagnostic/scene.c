@@ -1152,11 +1152,24 @@ static void campaign_switch_snapshot(void)
 }
 
 static rf_runtime_triggers campaign_triggers;
-static rf_level_bolt *campaign_bolts;
+typedef struct scene_bolt {
+    rf_level_bolt record;
+    float endpoint[3];
+    uint32_t endpoint_found;
+} scene_bolt;
+static scene_bolt *campaign_bolts;
 static uint32_t campaign_bolt_count;
-static int campaign_bolts_open(const rf_level *level)
+static rf_particle_bitmap campaign_bolt_images[2];
+static void campaign_bolts_close(void)
 {
-    rf_level_bolt_reader reader;rf_level_bolt *items;uint32_t i;int status;
+    rf_particle_bitmap_close(campaign_bolt_images);
+    rf_particle_bitmap_close(campaign_bolt_images+1);
+    free(campaign_bolts);campaign_bolts=NULL;campaign_bolt_count=0;
+}
+static int campaign_bolts_open(const rf_level *level,rf_vpp *maps,uint32_t map_count)
+{
+    rf_level_bolt_reader reader;rf_level_target_reader targets;scene_bolt *items;
+    rf_particle_bitmap images[2]={{0}};uint32_t i,j,used[2]={0,0};int status;
     if(campaign_bolts || campaign_bolt_count)return RF_RANGE;
     status=rf_level_bolts_begin(level,&reader);
     if(status==RF_NOT_FOUND)return RF_OK;
@@ -1165,19 +1178,42 @@ static int campaign_bolts_open(const rf_level *level)
     if(!reader.count)return RF_OK;
     items=calloc(reader.count,sizeof(*items));if(!items)return RF_RANGE;
     for(i=0;i<reader.count;i++){
-        status=rf_level_bolt_next(&reader,items+i);
-        if(status){free(items);return status;}
+        status=rf_level_bolt_next(&reader,&items[i].record);
+        if(status)goto failed;
+        if(!strcmp(items[i].record.bitmap,"bolt.tga"))used[0]=1;
+        else if(!strcmp(items[i].record.bitmap,"fatbolt.tga"))used[1]=1;
+        else {status=RF_NOT_FOUND;goto failed;}
     }
-    status=rf_level_bolt_next(&reader,items);
-    if(status!=RF_NOT_FOUND){free(items);return status==RF_OK?RF_FORMAT:status;}
+    {rf_level_bolt check;status=rf_level_bolt_next(&reader,&check);}
+    if(status!=RF_NOT_FOUND){if(status==RF_OK)status=RF_FORMAT;goto failed;}
+    status=rf_level_targets_begin(level,&targets);if(status)goto failed;
+    for(i=0;i<targets.count;i++){
+        rf_level_target target;
+        status=rf_level_target_next(&targets,&target);if(status)goto failed;
+        for(j=0;j<reader.count;j++)if(items[j].record.target_uid==target.uid){
+            memcpy(items[j].endpoint,target.position,sizeof(target.position));items[j].endpoint_found=1;
+        }
+    }
+    {rf_level_target check;status=rf_level_target_next(&targets,&check);}
+    if(status!=RF_NOT_FOUND){if(status==RF_OK)status=RF_FORMAT;goto failed;}
+    for(i=0;i<reader.count;i++)if(!items[i].endpoint_found){status=RF_NOT_FOUND;goto failed;}
+    for(i=0;i<2;i++)if(used[i]){
+        rf_particle_definition definition={0};
+        strcpy(definition.bitmap,i?"fatbolt.tga":"bolt.tga");
+        status=rf_particle_bitmap_open(images+i,&definition,maps,map_count,0,256*1024);
+        if(status)goto failed;
+    }
+    memcpy(campaign_bolt_images,images,sizeof(images));
     campaign_bolts=items;campaign_bolt_count=reader.count;return RF_OK;
+failed:
+    rf_particle_bitmap_close(images);rf_particle_bitmap_close(images+1);free(items);return status;
 }
 static int campaign_bolt_state(void *context,const uint32_t *uids,uint32_t count,uint32_t on)
 {
     uint32_t i,j;(void)context;
     if(count && !uids)return RF_RANGE;
     for(i=0;i<count;i++)for(j=0;j<campaign_bolt_count;j++)
-        if(campaign_bolts[j].uid==uids[i])campaign_bolts[j].enabled=on!=0;
+        if(campaign_bolts[j].record.uid==uids[i])campaign_bolts[j].record.enabled=on!=0;
     return RF_OK;
 }
 static rf_campaign_triggers campaign_trigger_history;
@@ -16403,6 +16439,70 @@ static int scene_volume_render(scene_corona_context *c,rf_glare_base_owner *owne
     ++rf_scene_volume_draw[1];status=rf_glare_volume_render(owner,campaign_glare_classes.definitions+cls,&frame,&services);
     if(!status)owner->flags|=0x10;return status;
 }
+uint32_t rf_scene_bolt_draw[6]; /* frame, active emitters, emitted spans, vertices, hash, missing endpoints */
+static int scene_bolts_draw(scene_stream *stream,rf_scene_particle_sink sink,void *context)
+{
+    rf_particle_vertex_environment e={0};rf_particle_render_environment re={1,1,0,2};
+    rf_particle_render_states states={0};uint32_t i,j;int status;
+    rf_scene_bolt_draw[0]=stream->particle_frame;
+    rf_scene_bolt_draw[1]=rf_scene_bolt_draw[2]=rf_scene_bolt_draw[3]=rf_scene_bolt_draw[5]=0;
+    rf_scene_bolt_draw[4]=2166136261u;
+    if(!campaign_bolt_count)return RF_OK;
+    status=rf_particle_render_decode(RF_PARTICLE_GLOW_MODE,&re,&states);if(status)return status;
+    e.vertex_color=states.vertex_color;e.vertex_alpha=states.vertex_alpha;
+    e.depth_scale=e.reciprocal_scale=stream->particle_camera.view.scale[2];
+    e.uv_scale[0]=e.uv_scale[1]=1;
+    for(i=0;i<campaign_bolt_count;i++){
+        const scene_bolt *bolt=campaign_bolts+i;const rf_image *image;
+        float axis[3],perp[3],view[3],previous[3],distance,length,side,jitter,width;
+        uint32_t seed,texture;
+        if(!bolt->record.enabled)continue;
+        ++rf_scene_bolt_draw[1];
+        if(!bolt->endpoint_found){++rf_scene_bolt_draw[5];continue;}
+        texture=!strcmp(bolt->record.bitmap,"fatbolt.tga");
+        image=&campaign_bolt_images[texture].image;
+        if(!image->rgba)return RF_FORMAT;
+        for(j=0;j<3;j++){
+            axis[j]=bolt->endpoint[j]-bolt->record.position[j];
+            view[j]=stream->particle_camera.view.origin[j]-(bolt->endpoint[j]+bolt->record.position[j])*.5f;
+            previous[j]=bolt->record.position[j];
+        }
+        length=sqrtf(axis[0]*axis[0]+axis[1]*axis[1]+axis[2]*axis[2]);
+        if(length<.001f)continue;
+        for(j=0;j<3;j++)axis[j]/=length;
+        perp[0]=axis[1]*view[2]-axis[2]*view[1];
+        perp[1]=axis[2]*view[0]-axis[0]*view[2];
+        perp[2]=axis[0]*view[1]-axis[1]*view[0];
+        distance=sqrtf(perp[0]*perp[0]+perp[1]*perp[1]+perp[2]*perp[2]);
+        if(distance<.001f){perp[0]=-axis[1];perp[1]=axis[0];perp[2]=0;
+            distance=sqrtf(perp[0]*perp[0]+perp[1]*perp[1]);
+            if(distance<.001f){perp[0]=1;perp[1]=perp[2]=0;distance=1;}}
+        for(j=0;j<3;j++)perp[j]/=distance;
+        width=fmaxf(.015f,fminf(.2f,bolt->record.leading_values[3]));
+        jitter=fmaxf(0,fminf(.5f,bolt->record.trailing_values[0]));
+        seed=bolt->record.uid^(stream->particle_frame/3*0x9e3779b9u);
+        e.rgba=(uint32_t)bolt->record.color[0]|((uint32_t)bolt->record.color[1]<<8)|
+            ((uint32_t)bolt->record.color[2]<<16)|((uint32_t)bolt->record.color[3]<<24);
+        for(j=1;j<=4;j++){
+            float next[3];rf_particle_screen_polygon polygon={0};rf_particle_draw_vertex vertices[12];uint32_t k;
+            seed^=seed<<13;seed^=seed>>17;seed^=seed<<5;
+            side=j==4?0:((float)((seed>>8)&65535u)/32767.5f-1.f)*jitter;
+            for(k=0;k<3;k++)next[k]=bolt->record.position[k]+axis[k]*(length*j/4.f)+perp[k]*side;
+            status=rf_volume_beam_project(&stream->particle_camera,next,previous,width,&polygon);
+            if(status)return status;
+            if(polygon.count){
+                for(k=0;k<polygon.count;k++){
+                    status=rf_particle_vertex_encode(&e,polygon.vertices+k,vertices+k);if(status)return status;
+                }
+                if(sink){status=sink(context,vertices,polygon.count,image,RF_PARTICLE_GLOW_MODE);if(status)return status;}
+                ++rf_scene_bolt_draw[2];rf_scene_bolt_draw[3]+=polygon.count;
+                rf_scene_bolt_draw[4]=npc_hash_bytes(rf_scene_bolt_draw[4],vertices,polygon.count*sizeof(*vertices));
+            }
+            memcpy(previous,next,sizeof(previous));
+        }
+    }
+    return RF_OK;
+}
 int rf_scene_draw_particles(rf_scene_particle_sink sink,void *context)
 {
     scene_stream *stream=particle_draw_stream;scene_particle_workspace *workspace;
@@ -16484,6 +16584,7 @@ int rf_scene_draw_particles(rf_scene_particle_sink sink,void *context)
             } else {status=RF_RANGE;goto done;}
         }
     }
+    if(campaign_spawn){status=scene_bolts_draw(stream,sink,context);if(status)goto done;}
     memcpy(rf_scene_particle_draw_frames[row[0]%64],row,sizeof(row));
     ++rf_scene_particle_draw_summary[0];for(i=1;i<5;i++)rf_scene_particle_draw_summary[i]+=row[i];
     rf_scene_particle_draw_summary[5]=(rf_scene_particle_draw_summary[5]^row[5])*16777619u;status=RF_OK;
@@ -17153,7 +17254,7 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
         if(campaign_spawn && collision) {
             rf_object_registry_init(&campaign_registry);
             rf_scene_campaign_load_stage=2;status=rf_runtime_events_open(level,&campaign_registry,1024*1024,&campaign_events);
-            if(!status)status=campaign_bolts_open(level);
+            if(!status)status=campaign_bolts_open(level,maps,map_count);
             if(status)goto done;
             rf_cutscene_cancel(&campaign_cutscene_runtime);memset(rf_scene_cutscene,0,sizeof(rf_scene_cutscene));
             memset(rf_scene_cutscene_look,0,sizeof(rf_scene_cutscene_look));
@@ -17855,7 +17956,7 @@ done:
     rf_cutscene_cancel(&campaign_cutscene_runtime);rf_cutscene_resources_close(&campaign_cutscene_resources);
     rf_runtime_triggers_close(&campaign_triggers);campaign_trigger_geometry=NULL;campaign_trigger_collision=NULL;
     rf_runtime_events_close(&campaign_events);
-    free(campaign_bolts);campaign_bolts=NULL;campaign_bolt_count=0;
+    campaign_bolts_close();
     rf_level_owned_ambient_close(&campaign_ambient);
     memset(&campaign_climb,0,sizeof(campaign_climb));rf_level_owned_regions_close(&campaign_regions);
     rf_level_navigation_workspace_close(&campaign_navigation_workspace);

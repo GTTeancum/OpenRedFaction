@@ -15,7 +15,8 @@ static int scan(const char *path,const char *archive_name,const char *level_name
     uint32_t expected,uint32_t selected_uid,uint32_t selected_target)
 {
     char filename[1024];rf_vpp archive={0};rf_level level;rf_level_bolt_reader reader;
-    rf_level_bolt bolt;uint32_t count=0,found=0;int status;
+    rf_level_bolt bolt;rf_level_target_reader target_reader;rf_level_target target;
+    uint32_t count=0,found=0,endpoints[256],resolved[256]={0},target_count=0,i;int status;
     snprintf(filename,sizeof(filename),"%s/%s",path,archive_name);
     CHECK(rf_vpp_open(&archive,filename)==RF_OK);
     CHECK(rf_level_open(&level,&archive,level_name)==RF_OK);
@@ -25,9 +26,18 @@ static int scan(const char *path,const char *archive_name,const char *level_name
         CHECK(bolt.bytes>=108 && bolt.uid && bolt.target_uid);
         CHECK(!strcmp(bolt.name,"Bolt Emitter"));
         if(bolt.uid==selected_uid){CHECK(bolt.target_uid==selected_target);found=1;}
+        CHECK(count<256);endpoints[count]=bolt.target_uid;
         ++count;
     }
     CHECK(status==RF_NOT_FOUND && count==expected && found);
+    CHECK(rf_level_targets_begin(&level,&target_reader)==RF_OK);
+    while((status=rf_level_target_next(&target_reader,&target))==RF_OK){
+        CHECK(!strcmp(target.name,"Target") && target.bytes>=57);
+        for(i=0;i<count;i++)if(endpoints[i]==target.uid)resolved[i]=1;
+        ++target_count;
+    }
+    CHECK(status==RF_NOT_FOUND && target_count);
+    for(i=0;i<count;i++)CHECK(resolved[i]);
     if(!strcmp(level_name,"L1S2.rfl")) {
         rf_object_registry registry;rf_runtime_events events={0};rf_runtime_triggers triggers={0};
         rf_runtime_event *event=NULL;rf_physics_gravity gravity={0};rf_startup_events_report report;
