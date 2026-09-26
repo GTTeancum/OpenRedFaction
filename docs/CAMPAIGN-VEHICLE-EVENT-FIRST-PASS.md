@@ -29,10 +29,22 @@ matches PC/Xbox state on stock 64 MiB XEMU and leaves 3,018 physical pages
 That replay exercises vehicle ownership and control, but does not contain
 authored campaign vehicle events.
 
-The current vehicle owner is still a bounded DEV placement. Shipped campaign
-vehicle objects are not instantiated through this path yet, so L12S1's
-`When_Enter_Vehicle` route and L7S3's exit monitor need campaign placement
-and live checks. L7S3's authored `Never_Leave_Vehicle` has no links, so no
-implicit current-vehicle lock is invented. Pulse state and active exit locks
-are not yet represented in ordinary world saves. No visual image capture was
-used for this work.
+The first campaign vehicle is L12S1's authored `Jeep01`, UID 7629. Its
+position and orientation come from the level entity record, and its live owner
+is registered before event links resolve so scripts can target that UID. The
+campaign keeps its normal world-image reserve and player/NPC weapon demand
+when this vehicle is present. The old ctf06 ground fixture is confined to the
+DEV room. A 120-frame process-local Use replay boards the Jeep on PC and
+stock 64 MiB XEMU with identical `VEHICLE` and `JEEP_SEATS` state; the native
+run has 3,243 pages (12.67 MiB) free. An ordinary 90-frame L12S1 spawn also
+passes. Both runs used `--no-images`; see
+`artifacts/xemu/render-20260926-182639/report.json` and
+`artifacts/xemu/render-20260926-182349/report.json`.
+
+This is one authored Jeep owner, not general campaign vehicle creation. The
+L12S1 event chain still needs a live scripted-route check, and other campaign
+vehicle classes and multiple instances need ownership. The vehicle exit sweep
+does not yet account for nearby NPC bodies. L7S3's authored
+`Never_Leave_Vehicle` has no links, so no implicit current-vehicle lock is
+invented. Pulse state and active exit locks are not yet represented in ordinary
+world saves. No visual image capture was used for this work.

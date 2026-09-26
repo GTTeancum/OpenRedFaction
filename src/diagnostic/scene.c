@@ -301,18 +301,40 @@ static uint32_t campaign_crouched,campaign_jump_held;
 static rf_physics_gravity scene_gravity={9.8f,{0,-9.8f,0}};
 uint32_t rf_scene_player_jump[4],rf_scene_player_jump_frames[128][8];
 static float campaign_position[3],campaign_orientation[9];
+/* First authored vehicle owner: L12S1's Jeep. Keep its source UID and pose
+ * separate from the DEV selector so level transitions can release it. */
+static int32_t campaign_authored_vehicle_uid;
+static uint32_t campaign_authored_vehicle_handle;
+static float campaign_authored_vehicle_position[3],campaign_authored_vehicle_basis[9];
 uint32_t rf_scene_player_spawn_diagnostic[19];
 int rf_scene_set_campaign_spawn(const rf_level *level)
 {
-    unsigned i,j;
+    unsigned i,j;rf_level_entity vehicle;int status;
     /* Original level setup 435aeb resets gravity independently of jump strength. */
     rf_physics_gravity_set(&scene_gravity,9.8f);
+    if(campaign_authored_vehicle_uid){
+        if(rf_scene_vehicle_enabled==3)rf_scene_vehicle_enabled=0;
+        campaign_authored_vehicle_uid=0;
+        campaign_authored_vehicle_handle=0;
+    }
     if(!level){campaign_spawn=0;memset(rf_scene_player_spawn_diagnostic,0,sizeof(rf_scene_player_spawn_diagnostic));return RF_OK;}
     for(i=0;i<3;++i) {
         if(!isfinite(level->player_position[i]))return RF_FORMAT;
         for(j=0;j<3;++j)if(!isfinite(level->player_orientation[i][j]))return RF_FORMAT;
     }
     memcpy(campaign_position,level->player_position,12);memcpy(campaign_orientation,level->player_orientation,36);
+    if(!rf_scene_dev_room_enabled && !rf_scene_vehicle_enabled && !strcmp(level->entry.name,"L12S1.rfl")){
+        status=rf_level_entity_find(level,7629,&vehicle);if(status)return status;
+        if(strcmp(vehicle.class_name,"Jeep01"))return RF_FORMAT;
+        for(i=0;i<3;++i){
+            if(!isfinite(vehicle.position[i]))return RF_FORMAT;
+            for(j=0;j<3;++j)if(!isfinite(vehicle.orientation[i][j]))return RF_FORMAT;
+        }
+        campaign_authored_vehicle_uid=vehicle.uid;
+        memcpy(campaign_authored_vehicle_position,vehicle.position,12);
+        memcpy(campaign_authored_vehicle_basis,vehicle.orientation,36);
+        rf_scene_vehicle_enabled=3;
+    }
     memset(rf_scene_player_spawn_diagnostic,0,sizeof(rf_scene_player_spawn_diagnostic));
     rf_scene_player_spawn_diagnostic[0]=1;memcpy(rf_scene_player_spawn_diagnostic+1,campaign_position,12);
     memcpy(rf_scene_player_spawn_diagnostic+4,campaign_orientation,36);campaign_spawn=1;return RF_OK;
@@ -497,7 +519,8 @@ int rf_scene_world_open_retained(const rf_level *level,const rf_geometry *world,
      * for gameplay resources before world images; filtered-size retries keep
      * the shared20MiB image cap on PC and stock Xbox. Vehicle budgets remain
      * separate. This first-pass fixed partition can later become demand-sized. */
-    if((rf_scene_dev_room_enabled || campaign_spawn) && !rf_scene_vehicle_enabled) {
+    if((campaign_spawn && !rf_scene_dev_room_enabled) ||
+       (rf_scene_dev_room_enabled && !rf_scene_vehicle_enabled)) {
         const uint32_t reserve=8u*1024u*1024u;
         if(material_budget<=reserve){status=RF_RANGE;goto done;}
         material_budget-=reserve;
@@ -630,11 +653,11 @@ uint32_t rf_scene_vehicle_enabled;
 static uint32_t scene_extra_pickups_available(uint32_t);
 static uint32_t scene_extra_pickups_selection_limit(void);
 static uint32_t scene_extra_pickups_resource_limit(void);
-static uint32_t scene_weapon_slots(void){if(rf_scene_vehicle_enabled)return 5;uint32_t base=rf_scene_dev_room_enabled && rf_scene_firearms_enabled?17:rf_scene_dev_room_enabled && rf_scene_fusion_enabled?13:rf_scene_player_shield_resources || (rf_scene_dev_room_enabled && rf_scene_dev_npc_enabled==6)?12:rf_scene_dev_room_enabled?11:4;
+static uint32_t scene_weapon_slots(void){if(rf_scene_dev_room_enabled && rf_scene_vehicle_enabled)return 5;uint32_t base=rf_scene_dev_room_enabled && rf_scene_firearms_enabled?17:rf_scene_dev_room_enabled && rf_scene_fusion_enabled?13:rf_scene_player_shield_resources || (rf_scene_dev_room_enabled && rf_scene_dev_npc_enabled==6)?12:rf_scene_dev_room_enabled?11:4;
     uint32_t extra=scene_extra_pickups_selection_limit();return base>extra?base:extra;}
-static uint32_t scene_weapon_resource_slots(void){if(rf_scene_vehicle_enabled)return 5;uint32_t base=rf_scene_dev_room_enabled && rf_scene_firearms_enabled?18:scene_weapon_slots();
+static uint32_t scene_weapon_resource_slots(void){if(rf_scene_dev_room_enabled && rf_scene_vehicle_enabled)return 5;uint32_t base=rf_scene_dev_room_enabled && rf_scene_firearms_enabled?18:scene_weapon_slots();
     uint32_t extra=scene_extra_pickups_resource_limit();return base>extra?base:extra;}
-static uint32_t scene_weapon_available(uint32_t slot){if(rf_scene_vehicle_enabled)return slot<5;return slot<(rf_scene_dev_room_enabled && !rf_scene_firearms_enabled?11u:4u) ||
+static uint32_t scene_weapon_available(uint32_t slot){if(rf_scene_dev_room_enabled && rf_scene_vehicle_enabled)return slot<5;return slot<(rf_scene_dev_room_enabled && !rf_scene_firearms_enabled?11u:4u) ||
     (slot==11 && (rf_scene_player_shield_resources || (rf_scene_dev_room_enabled && rf_scene_dev_npc_enabled==6))) ||
     (slot==12 && rf_scene_dev_room_enabled && rf_scene_fusion_enabled) ||
     (slot>=13 && slot<=17 && rf_scene_dev_room_enabled && rf_scene_firearms_enabled) || scene_extra_pickups_available(slot);}
@@ -5394,7 +5417,7 @@ uint32_t rf_scene_npc_backlinks[4]; /* writes, linked actors, hash, retained byt
 uint32_t rf_scene_npc_links[4]; /* UID objects, temporary bytes, trigger NPC links, event NPC links */
 static int campaign_resolve_trigger_links(void)
 {
-    uint32_t i,j,n=campaign_events.count+campaign_triggers.count+campaign_group_registration.count+campaign_mover_count+rf_scene_npc_registration[0];
+    uint32_t i,j,n=campaign_events.count+campaign_triggers.count+campaign_group_registration.count+campaign_mover_count+rf_scene_npc_registration[0]+(campaign_authored_vehicle_uid?1u:0u);
     rf_level_uid_object *objects;int status;
     for(j=0;campaign_clutter_bodies && j<campaign_clutter_records.count;j++)if(campaign_clutter_bodies[j])++n;
     objects=n?malloc((size_t)n*sizeof(*objects)):NULL;
@@ -5410,6 +5433,13 @@ static int campaign_resolve_trigger_links(void)
     for(j=0;j<campaign_group_registration.count;++j,++i)
         objects[i]=campaign_group_registration.objects[j];
     for(j=0;j<campaign_mover_count;++j,++i)objects[i]=campaign_mover_objects[j];
+    if(campaign_authored_vehicle_uid){
+        if(!campaign_authored_vehicle_handle){free(objects);return RF_RANGE;}
+        objects[i].uid=campaign_authored_vehicle_uid;
+        objects[i].handle=campaign_authored_vehicle_handle;
+        objects[i].flags=0;
+        ++i;
+    }
     for(j=0;j<campaign_npc_body_count;++j)if(campaign_npc_bodies[j].registration.view) {
         objects[i].uid=campaign_seeds.records.items[j].record.uid;
         objects[i].handle=campaign_npc_bodies[j].registration.handle;
@@ -11035,7 +11065,7 @@ static int scene_terrain_open(scene_stream *s,const rf_level *level,rf_vpp *maps
             }
         }
     }
-    if(rf_scene_vehicle_enabled && (rf_scene_vehicle_enabled<=3 || rf_scene_vehicle_enabled==5)) {
+    if(rf_scene_dev_room_enabled && rf_scene_vehicle_enabled && (rf_scene_vehicle_enabled<=3 || rf_scene_vehicle_enabled==5)) {
         rf_geo_region *regions=calloc(s->terrain_region_count+1,sizeof(*regions));
         rf_geo_region *patch;if(!regions)return RF_IO;
         memcpy(regions,s->terrain_regions,s->terrain_region_count*sizeof(*regions));
@@ -17544,7 +17574,7 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
              status=rf_vpp_open(&tables,tables_path);if(status)goto done;
              {scene_weapon_resource_demand demand;uint32_t npc_projectiles=scene_ai_projectile_resource_mask(),saved_weapons=0;
               status=scene_world_boot_weapon_mask(level,tables_path,&saved_weapons);
-              if(!status)status=scene_extra_pickups_resources_prepare(stream,&tables,saved_weapons | (rf_scene_dev_room_enabled && !rf_scene_vehicle_enabled?0x7ffu:(rf_scene_vehicle_enabled?0x1fu:0xfu)) | (rf_scene_vehicle_enabled?0:scene_enemy_drop_resource_mask()),1u<<11,&demand);
+              if(!status)status=scene_extra_pickups_resources_prepare(stream,&tables,saved_weapons | (rf_scene_dev_room_enabled && !rf_scene_vehicle_enabled?0x7ffu:(rf_scene_dev_room_enabled && rf_scene_vehicle_enabled?0x1fu:0xfu)) | (rf_scene_dev_room_enabled && rf_scene_vehicle_enabled?0:scene_enemy_drop_resource_mask()),1u<<11,&demand);
               if(!status){rf_scene_player_shield_resources=!!(demand.mask&(1u<<11)) || (rf_scene_dev_room_enabled && rf_scene_dev_npc_enabled==6);
                   if(rf_scene_player_shield_resources)status=rf_weapon_primary_load(&tables,"riot shield",128*1024,&campaign_primary[11]);
                   /* NPC-only demand loads flights and effects without player views or ownership. */
@@ -17575,7 +17605,7 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
              if(!status)status=scene_extra_pickups_machine_resources(stream,&motions);
              if(!status)status=scene_undercover_open(stream,&archive,&motions,maps,map_count);
              if(!status && rf_scene_vehicle_enabled) {
-                 if(!rf_scene_dev_room_enabled)status=RF_RANGE;
+                 if(!rf_scene_dev_room_enabled && !(campaign_authored_vehicle_uid && rf_scene_vehicle_enabled==3))status=RF_RANGE;
                  else if(rf_scene_vehicle_enabled>=2)status=scene_vehicle_resources_open(tables_path,rf_scene_vehicle_enabled==5?"Fighter01":rf_scene_vehicle_enabled==4?"sub":rf_scene_vehicle_enabled==3?"Jeep01":"APC","interface_1",&archive,maps,map_count,2*1024*1024,&stream->driller);
                  else status=scene_driller_resources_open(tables_path,&archive,maps,map_count,1024*1024,&stream->driller);
                  if(status)printf("VEHICLE_RESOURCE_FAIL chassis %d\n",status);
@@ -17593,6 +17623,10 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
                      stream->driller_position[0]=30;stream->driller_position[1]=7;stream->driller_position[2]=-160;
                      memset(stream->driller_basis,0,sizeof(stream->driller_basis));
                      stream->driller_basis[0]=stream->driller_basis[4]=stream->driller_basis[8]=1;
+                 }
+                 if(campaign_authored_vehicle_uid){
+                     memcpy(stream->driller_position,campaign_authored_vehicle_position,12);
+                     memcpy(stream->driller_basis,campaign_authored_vehicle_basis,36);
                  }
                  if(!status && rf_scene_vehicle_enabled==5){
                      status=scene_fighter_weapon_open(&tables,&stream->driller->tags,"muzzle_1","secondary_1",512*1024,&stream->fighter_weapon);
@@ -17635,6 +17669,11 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
             status=campaign_weapon_aim_probe();if(status)goto done;
             status=campaign_weapon_muzzle_probe();if(status)goto done;
             rf_scene_campaign_load_stage=28;status=campaign_glare_instances_open(tables_path);if(status)goto done;
+            if(campaign_authored_vehicle_uid){
+                stream->collision=collision;
+                status=scene_driller_runtime_open(stream);if(status)goto done;
+                campaign_authored_vehicle_handle=stream->driller_runtime->entry.host.handle;
+            }
             rf_scene_campaign_load_stage=29;status=campaign_resolve_trigger_links();if(status)goto done;
             rf_scene_campaign_load_stage=30;status=campaign_npc_motion_residency();if(status)goto done;
             status=campaign_npc_damage_fixture();if(status)goto done;

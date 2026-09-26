@@ -1,6 +1,6 @@
 # Jeep first playable integration
 
-Select `RF_REPLAY_VEHICLE=jeep` on PC, or `--vehicle-test --vehicle-class jeep` in the XEMU harness. This is the enemy-free DEV fixture, not campaign placement. `tools/check_jeep_replay.py` generates a 460-frame seated gunner replay; `--exit` generates a 600-frame driver/gunner/driver/on-foot sequence.
+Select `RF_REPLAY_VEHICLE=jeep` on PC, or `--vehicle-test --vehicle-class jeep` in the XEMU harness for the enemy-free DEV fixture. `tools/check_jeep_replay.py` generates a 460-frame seated gunner replay; `--exit` generates a 600-frame driver/gunner/driver/on-foot sequence. L12S1 now also creates its single authored `Jeep01` UID 7629 at the record's position and orientation; process-local boarding passes PC/Xbox with matching vehicle and seat state and 12.67 MiB native headroom. See `docs/CAMPAIGN-VEHICLE-EVENT-FIRST-PASS.md`.
 
 Actual Jeep01 class resources provide chassis, collision, suspension, health400, interface_1 driver position and interface_2 gunner position. The driver uses jeep.vfx. Tab/D-pad-right switches roles while parked (linear and angular speed at most0.1); driver can steer but cannot fire, gunner can fire but cannot steer. One registered host and one player retain possession throughout; there is no simulated NPC driver.
 
@@ -12,7 +12,7 @@ The mounted gun uses the real jeep_gun attachment and jeep_gun.v3m, including Mu
 
 PC verification: 460-frame gunner replay shows the forward view, vehicle chassis and role/ammo HUD; five accepted launches and five contacts leave994ammo. The600-frame replay also returns to driver and safely exits (one entry, two role switches, one exit). Focused actual-asset seat transfer tests cover blocked head clearance, held debounce, parked gating, independent gunner orientation under host rotation and retained ownership. Gun resource/aim and cockpit tests pass. NXDK build succeeds. Native run `artifacts/xemu/render-20260918-154013` passes460frames on stock64MiB, with matching PC/Xbox vehicle, seat and primary-fire state and3117freepages (12.18MiB). Native framebuffer inspected: forward gunner view, chassis and correct994ammo/role HUD. Harness closed XEMU and restored the disc. Native return-to-driver/exit has not been separately exercised; PC covers that path.
 
-Remaining: campaign placement, NPC drivers/passengers, general campaign saves, live NPC combat, full sound verification, muzzle flash/tracer polish and broader destruction/ejection coverage. APC/Jeep DEV checkpoint integration is described below.
+Remaining: other campaign placements, NPC drivers/passengers, general campaign saves, live NPC combat, full sound verification, muzzle flash/tracer polish and broader destruction/ejection coverage. APC/Jeep DEV checkpoint integration is described below.
 
 ## Save and destruction integration work
 
