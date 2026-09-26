@@ -180,7 +180,10 @@ static int scene_driller_entry_exit_use(scene_driller_entry_exit *c,uint32_t hel
         memcpy(c->player.pose.position,c->player_body->state.position,12);memcpy(c->player.pose.basis,c->player_body->state.orientation,36);
         c->player.weapon=c->player_view->weapons[0];c->player.control_flags=c->player_view->flags_810;
         status=scene_vehicle_possess(&c->session,&c->player,&c->host,alive,&ops,changed);
-    }else if(!alive || edge || !c->host.alive)status=scene_vehicle_unpossess(&c->session,&c->player,&c->host,alive?0:2,&ops,changed);
+    }else if(!alive || edge || !c->host.alive){
+        if(edge && alive && c->host.alive && (c->view.flags_814&0x80u))return RF_OK;
+        status=scene_vehicle_unpossess(&c->session,&c->player,&c->host,alive?0:2,&ops,changed);
+    }
     if(status)return status;
     if(*changed){c->player_view->linked_handle=c->session.active?(int32_t)c->host.handle:-1;
         c->occupant=c->session.active?(int32_t)c->player.handle:-1;}

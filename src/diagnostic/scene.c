@@ -9257,6 +9257,17 @@ static int campaign_set_invulnerable(void *context,uint32_t handle,uint32_t enab
     }
     return RF_NOT_FOUND;
 }
+static int campaign_set_vehicle_exit_lock(void *context,uint32_t handle,uint32_t locked)
+{
+    rf_registered_entity_view *owner=rf_object_registry_lookup(&campaign_registry,handle);
+    (void)context;
+    if(locked>1)return RF_RANGE;
+    if(!owner || owner->object_kind!=0 || !owner->view ||
+       (uint32_t)owner->view->handle!=handle)return RF_NOT_FOUND;
+    if(locked)owner->view->flags_814|=0x80u;
+    else owner->view->flags_814&=~0x80u;
+    return RF_OK;
+}
 #include "scene_nano_shield.inc"
 static int campaign_set_visible(void *context,uint32_t handle,uint32_t visible)
 {
@@ -16914,6 +16925,7 @@ static int scene_frame(void *context,uint32_t frame,rf_preview_mesh *actor)
                 status=campaign_trigger_contacts(&rf_scene_actor_pose,now,frame,&stream->particles,player_poll?player_input.use:0);if(status)return status;
                 status=campaign_watch_fixture(frame);if(status)return status;
                 status=rf_campaign_countdown_step(&rf_scene_campaign_countdown,scene_step_seconds);if(status)return status;
+                campaign_triggers.vehicle_player_present=campaign_spawn && campaign_player_view.handle>=0;
                 status=rf_runtime_events_tick(&campaign_events,&campaign_triggers,&scene_gravity,now,&stream->particles, &campaign_forces,&tick_report,&pending);
                 if(status)return status;
                 if(campaign_endgame.phase==1){
@@ -17365,6 +17377,7 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
             campaign_alarm_voice=campaign_alarm_deadline=-1;
             memset(rf_scene_alarm,0,sizeof(rf_scene_alarm));rf_scene_alarm[5]=UINT32_MAX;
             campaign_triggers.set_invulnerable=campaign_set_invulnerable;
+            campaign_triggers.set_vehicle_exit_lock=campaign_set_vehicle_exit_lock;
             campaign_triggers.shoot_at=campaign_script_shoot_at;
             campaign_triggers.set_nano_shield=campaign_set_nano_shield;campaign_triggers.nano_shield_context=NULL;
             campaign_triggers.set_ai_mode=campaign_set_ai_mode_acquiring;campaign_triggers.ai_mode_context=NULL;

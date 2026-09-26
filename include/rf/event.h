@@ -327,6 +327,12 @@ typedef struct rf_runtime_triggers {
     rf_runtime_trigger *items;
     rf_object_registry *registry;
     uint32_t count,allocated_bytes;
+    /* Original local-player flags +10: boarding and attempted-exit one-shot
+     * pulses. The scene produces them before the ordered event tick. */
+    uint32_t vehicle_pulses,vehicle_player_present;
+    /* Never_Leave_Vehicle80 changes only ordinary player-use exit admission. */
+    int (*set_vehicle_exit_lock)(void *,uint32_t handle,uint32_t locked);
+    void *vehicle_exit_lock_context;
     const rf_runtime_switch_backend *switch_backend;
     const rf_runtime_damage_backend *damage_backend;
     /* Borrowed Set_Friendliness service; RF_NOT_FOUND skips unsupported objects. */

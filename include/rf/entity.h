@@ -301,6 +301,7 @@ typedef struct rf_entity_view {
     const struct rf_entity_view *weapon_owner;
     const int32_t *occupants;
     uint32_t occupant_count;
+    uint32_t flags_814; /* Includes original ordinary vehicle exit lock bit80. */
 } rf_entity_view;
 typedef struct rf_entity_registry {
     const rf_entity_view *slots[RF_OBJECT_SLOTS];

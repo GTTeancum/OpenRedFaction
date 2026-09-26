@@ -730,6 +730,19 @@ static void startup_event_action(void *context,rf_event_state *state,uint32_t ac
             startup_target(c,c->event->links+i,source,actor,(mode&255u)==1);
         return;
     }
+    if(state->type==80) {
+        if(action==2)return;
+        if(!c->triggers->set_vehicle_exit_lock){++c->report->unsupported_actions;return;}
+        for(i=0;i<c->event->authored->record.link_count;i++){
+            const rf_level_link_target *link=c->event->links+i;int status;
+            if(link->kind!=1 && link->kind!=2)continue;
+            status=c->triggers->set_vehicle_exit_lock(c->triggers->vehicle_exit_lock_context,
+                link->value,action==1);
+            if(status==RF_NOT_FOUND){++c->report->other_targets;continue;}
+            if(status){c->status=status;return;}
+        }
+        return;
+    }
     if(state->type==55) {
         if(action!=1)return;
         if(!c->triggers->start_cutscene){++c->report->unsupported_actions;return;}
@@ -939,7 +952,8 @@ static void startup_event_action(void *context,rf_event_state *state,uint32_t ac
         return;
     }
     /* Delay (48) uses no-op base actions; common scheduling/propagation own it. */
-    if(state->type==48 || state->type==16 || state->type==52 || state->type==75 || state->type==84)return;
+    if(state->type==48 || state->type==16 || state->type==52 || state->type==75 || state->type==84 ||
+       state->type==77 || state->type==78)return;
     if(state->type!=44) {++c->report->unsupported_actions;return;}
     c->status=rf_event_gravity_action(c->gravity,c->event->authored->record.values[0],action);
     if(!c->status && action==1)++c->report->gravity_actions;
@@ -1285,6 +1299,30 @@ int rf_runtime_events_tick(rf_runtime_events *events,rf_runtime_triggers *trigge
             }
             continue;
         }
+        if(event->state.type==77 || event->state.type==78) {
+            uint32_t bit=event->state.type==77?0x400u:0x800u,j;
+            context.event=event;
+            /* The ordinary timer runs first. The vehicle poll itself ignores
+             * the event's disabled bit and consumes before inspecting links. */
+            if(event->state.deadline>=0) {
+                status=rf_event_tick(&event->state,now,startup_event_action,&context);
+                if(status)return status;if(context.status)return context.status;
+            }
+            if(event->retired || !triggers->vehicle_player_present || !(triggers->vehicle_pulses&bit))continue;
+            triggers->vehicle_pulses&=~bit;
+            for(j=0;j<event->authored->record.link_count;j++) {
+                const rf_level_link_target *link=event->links+j;void *object;uint32_t kind;
+                if(link->kind!=1 && link->kind!=2)continue;
+                object=rf_object_registry_lookup(events->registry,link->value);if(!object)continue;
+                memcpy(&kind,object,4);
+                /* Original4b8f30/4b8fd0 resolve event first, then mover;
+                 * triggers and other objects are not vehicle pulse targets. */
+                if(kind==6 || kind==8)startup_target(&context,link,UINT32_MAX,UINT32_MAX,1);
+                if(context.status)return context.status;
+                if(event->retired)break;
+            }
+            continue;
+        }
         if(event->state.deadline<0)continue;
         if(event->state.type!=2 && event->state.type!=3 && event->state.type!=44 && event->state.type!=48 &&
            !(event->state.type==39 && particles && particles->state) &&
@@ -1302,6 +1340,7 @@ int rf_runtime_events_tick(rf_runtime_events *events,rf_runtime_triggers *trigge
            !(event->state.type==30 && triggers->set_friendliness) &&
            !(event->state.type==24 && triggers->set_invulnerable) &&
            !(event->state.type==76 && triggers->set_nano_shield) &&
+           !(event->state.type==80 && triggers->set_vehicle_exit_lock) &&
            !(event->state.type==34 && triggers->set_ai_mode) &&
            !(event->state.type==47 && triggers->set_player_form) &&
            !(event->state.type==38 && triggers->attack_npc) &&
@@ -1679,7 +1718,8 @@ int rf_event_gravity_action(rf_physics_gravity *gravity,float value,uint32_t act
 }
 static int propagates(uint32_t type)
 {
-    return type!=2 && type!=3 && type!=32 && type!=36 && type!=66 && type!=69 && type!=89;
+    return type!=2 && type!=3 && type!=32 && type!=36 && type!=66 && type!=69 &&
+           type!=77 && type!=78 && type!=80 && type!=89;
 }
 int rf_event_activate(rf_event_state *s,int32_t now,uint32_t source,uint32_t actor,
     uint32_t mode,rf_event_callback callback,void *context)

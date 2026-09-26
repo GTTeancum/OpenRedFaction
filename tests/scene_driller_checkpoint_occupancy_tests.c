@@ -72,6 +72,10 @@ int main(void)
     /* Restored held Use stays seated, then release/press takes the real exit. */
     CHECK(!scene_driller_entry_exit_use(&runtime.entry,1,1,&changed) && !changed && runtime.entry.session.active);
     CHECK(!scene_driller_entry_exit_use(&runtime.entry,0,1,&changed) && !changed);
+    CHECK(!campaign_set_vehicle_exit_lock(NULL,host_handle,1) && (runtime.entry.view.flags_814&0x80u));
+    CHECK(!scene_driller_entry_exit_use(&runtime.entry,1,1,&changed) && !changed && runtime.entry.session.active);
+    CHECK(!scene_driller_entry_exit_use(&runtime.entry,0,1,&changed) && !changed);
+    CHECK(!campaign_set_vehicle_exit_lock(NULL,host_handle,0) && !(runtime.entry.view.flags_814&0x80u));
     CHECK(!scene_driller_entry_exit_use(&runtime.entry,1,1,&changed) && changed && !runtime.entry.session.active);
     CHECK(!scene_driller_player_publish(&runtime.player,&runtime.entry,changed));
     CHECK(world.paths && world.floors && !runtime.player.saved);

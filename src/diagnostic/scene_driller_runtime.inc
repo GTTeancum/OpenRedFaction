@@ -119,13 +119,18 @@ fail:fprintf(stderr,"VEHICLE_OPEN_ERROR stage%u status%d\n",stage,status);scene_
 static int scene_driller_runtime_tick(scene_stream *s,uint32_t frame)
 {
     scene_driller_runtime *r;rf_vehicle_rigid_command command={0};rf_vehicle_rigid_backend backend;
-    uint32_t changed=0,was,stage=0;int status;
+    uint32_t changed=0,was,use_edge,stage=0;int status;
     if(!s->driller)return RF_OK;
     status=scene_driller_runtime_open(s);if(status)return status;r=s->driller_runtime;
     if(r->last_frame==frame)return RF_OK;
-    was=r->entry.session.active;
+    was=r->entry.session.active;use_edge=player_input.use&&!r->entry.held;
     stage=1;status=scene_driller_damage_runtime_tick(&r->damage,&changed);if(status)goto fail;
     if(r->entry.host.alive){status=scene_driller_entry_exit_use(&r->entry,player_input.use,campaign_player_damage.state.effects.health>0,&changed);if(status)goto fail;}
+    if(campaign_spawn){
+        if(changed && r->entry.session.active)campaign_triggers.vehicle_pulses|=0x400u;
+        if(was && use_edge && r->entry.host.alive && campaign_player_damage.state.effects.health>0)
+            campaign_triggers.vehicle_pulses|=0x800u;
+    }
     if(changed){if(r->entry.session.active)++rf_scene_vehicle_state[1];else ++rf_scene_vehicle_state[2];}
     if(rf_scene_vehicle_enabled==3){uint32_t seat_changed=0;
         status=scene_jeep_seats_tick(&r->jeep_seat,s->driller,&r->entry,&r->player,player_input.cycle_weapon,&seat_changed);if(status)goto fail;
