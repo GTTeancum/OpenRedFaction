@@ -3,7 +3,7 @@
 Completion basis (user direction,2026-09-18): working late-alpha/early-beta code implementation. Overall approximately91%; GeoMod100% for the first playable milestone, accepted by the user. GeoMod items below are deferred refinement and coverage, not prerequisites to moving on. This does not assert retail polish, complete campaign integration or resolution of every known defect.
 
 
-- PRIORITY Ordinary saves: L1S1 inactive, L11S3/L14S3/L17S4 active-cutscene, L6S3 active-cutscene/undercover, and L8S1 scientist save→walked exit→cross-level quick-load pass PC/Xbox; broader cross-level coverage, menu/slot selection, destruction/vehicles and resource demand remain (saves approximately94%).
+- PRIORITY Ordinary saves: L1S1 inactive, active cutscenes/undercover, L8S1 cross-level return and a planted remote charge with post-load detonation pass PC/Xbox; broader cross-level coverage, menu/slot selection, active destruction/vehicles, moving-host charges and resource demand remain (saves approximately94%).
 
 - AI navigation: L6S3 authored Goto actor takes a four-node route with navpoints ON and a direct approach with them OFF, and mid-route OFF invalidation matches Xbox/PC actor state exactly; RFEN2 survives full L18S1 PC reload, while broader NPC travel, mid-route reopening and native reload remain open.
 
@@ -73,7 +73,7 @@ Completion basis (user direction,2026-09-18): working late-alpha/early-beta code
 
 - AI mode events: Collectable shard eligibility is wired and hauling destination/reservation/release helpers are prepared; no collecting events or drop markers were found in94 installed levels, so automatic activation and full attachment/movement integration remain deferred (docs/COLLECTING-AI-EVIDENCE.md). Catatonic/waiting/motion and unique authored waypoint acquisition are implemented; ordinary pursuit/hearing/retaliation/alarm now preserve active script destinations, with PC/Xbox Goto movement matching and20.48MiB free; collecting, ambiguous route binding, full route encounters, mode13/vehicles and disk persistence remain (docs/SCRIPTED-AI-MOVEMENT.md).
 
-- Remote charges: Ordinary pickup/import/script demand now loads charge/detonator pairs and planted-charge updates; PC/Xbox acquisition/attachment/detonation matches with shared finite ammo and14.15MiB native headroom; campaign saves/terrain, moving hosts and presentation remain (docs/REMOTE-PICKUP-FIRST-PASS.md).
+- Remote charges: Ordinary pickup/import/script demand and planted-charge updates work; a charge now survives ordinary quick-load and detonates on PC/Xbox with12.06MiB native headroom, while moving-host saves, campaign terrain and presentation remain (docs/REMOTE-PICKUP-FIRST-PASS.md).
 
 - Shield events: Activate_Capek_Shield now toggles registered actor damage immunity through immediate/delayed event dispatch; focused runtime/scene checks and PC/Xbox builds pass; shield presentation, hit armor consumption and live authored scenario remain.
 

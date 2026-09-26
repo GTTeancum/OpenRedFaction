@@ -11342,6 +11342,7 @@ static uint32_t scene_remote_checkpoint_level_hash(void);
 static uint32_t scene_remote_checkpoint_catalog_hash(void);
 static int scene_remote_checkpoint_capture(void *,uint32_t,uint32_t *);
 static int scene_remote_checkpoint_preflight(scene_stream *,const void *,uint32_t);
+static int scene_remote_checkpoint_static_world_only(void);
 static void scene_remote_checkpoint_publish(void);
 static void scene_remote_checkpoint_discard(void);
 static void scene_remote_checkpoint_frame0(void);

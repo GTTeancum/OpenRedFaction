@@ -110,6 +110,15 @@ static int scene_remote_checkpoint_preflight(scene_stream *stream,const void *da
     }
     scene_remote_restore_ready=1;return RF_OK;
 }
+static int scene_remote_checkpoint_static_world_only(void)
+{
+    uint32_t i;
+    if(!scene_remote_restore_ready)return RF_RANGE;
+    for(i=0;i<RF_REMOTE_CHARGE_CAPACITY;i++)
+        if(scene_remote_restore_state.charges[i].flight.lifecycle.active &&
+           scene_remote_restore_state.charges[i].host_bound)return RF_NOT_FOUND;
+    return RF_OK;
+}
 /* Infallible after successful preflight; call only once all other stage checks
  * pass. No callbacks, allocation, lookup or geometry mutation on publication. */
 static void scene_remote_checkpoint_publish(void)

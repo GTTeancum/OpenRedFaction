@@ -78,9 +78,11 @@ static int scene_world_load(scene_stream *stream,const rf_level *level,const cha
     phase="events";status=scene_world_event_prepare(stream,&envelope,0,world,budget-cost,&events,&flags);if(status)goto done;cost+=events->bytes;
     if(flags&(SCENE_WORLD_EVENT_PUBLICATION_BLOCKERS&~(SCENE_WORLD_EVENT_MISSING_GRAVITY|SCENE_WORLD_EVENT_MISSING_FORCES|SCENE_WORLD_EVENT_NEEDS_PLAYER_MISSION))){status=RF_NOT_FOUND;goto done;}
     phase="remote";v=envelope.sections+RF_WORLD_REMOTE-1;
-    /* Active remote charges need candidate-world attachment admission. */
-    if(v->bytes!=RF_REMOTE_CHECKPOINT_HEADER){status=RF_NOT_FOUND;goto done;}
     status=scene_remote_checkpoint_preflight(stream,v->data,v->bytes);if(status)goto done;
+    /* Static-world attachments are stable in this unchanged-world profile.
+     * NPC/mover host poses are still candidates until the later commit, so
+     * reject those charges until host admission uses the staged world. */
+    status=scene_remote_checkpoint_static_world_only();if(status)goto done;
     phase="validate";
     status=scene_npc_checkpoint_restore_validate(world->npcs);if(status)goto done;
     status=scene_mover_checkpoint_validate(&campaign_group_runtime,&campaign_group_registration,campaign_controller_views,&campaign_movers,&world->movers);if(status)goto done;
