@@ -5,7 +5,7 @@ Completion basis (user direction,2026-09-18): working late-alpha/early-beta code
 
 - PRIORITY Ordinary saves: L1S1 inactive, active cutscenes/undercover, L8S1 cross-level return and a planted remote charge with post-load detonation pass PC/Xbox; broader cross-level coverage, menu/slot selection, active destruction/vehicles, moving-host charges and resource demand remain (saves approximately94%).
 
-- AI navigation: L6S3 authored Goto actor takes a four-node route with navpoints ON and a direct approach with them OFF, and mid-route OFF invalidation matches Xbox/PC actor state exactly; RFEN2 survives full L18S1 PC reload, while broader NPC travel, mid-route reopening and native reload remain open.
+- AI navigation: L6S3 authored Goto uses a four-node route with navpoints ON and a direct approach with them OFF; mid-route OFF invalidation and OFF→ON route recovery now match Xbox/PC actor state exactly, while broader NPC travel and native RFEN2 reload remain open.
 
 - Campaign countdown: Begin/End/Over/Reaches and a visible timed-mission HUD run on PC/Xbox; L15/L17 saves retain timer state, L17S1→S2 expiry blackouts, and the directly staged L17S3 Over→sound→Endgame failure chain now reaches its correct PC/Xbox screen; natural timed L17S3 traversal, escape success, difficulty selection, captured audio and broader native save/expiry coverage remain (docs/CAMPAIGN-COUNTDOWN-FIRST-PASS.md).
 

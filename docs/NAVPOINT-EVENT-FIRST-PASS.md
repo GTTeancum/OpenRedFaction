@@ -100,3 +100,7 @@ saved player within 0.125 horizontal units and 3 vertical units below that
 start. Static standing, movers, and all other props remain checked. This is a
 bounded port policy, not a recovered original-game save rule. Native runtime
 reload and live NPC travel after this reload remain unverified.
+
+## Mid-route reopening (2026-09-26)
+
+An image-free 180-frame L6S3 run fires Invert7124 at startup to close three navpoints, Goto6758 at frame30 for actor6755, then Enable_Navpoint7123 at frame60 to reopen the nodes while the actor is moving directly. PC first misses a route, then finds a four-node route and advances two waypoints. Stock64MiB Xbox run `artifacts/xemu/render-20260926-155225/report.json` matches all eight words of `SCRIPT_NAVPOINT`, `SCRIPT_ROUTES`, `SCRIPT_MOVE` and `SCRIPT_ACTOR` exactly; the minimum sampled free memory is5160 pages. The no-image harness now accepts `--goto-frame 30` and compares these navigation states. A neutral-input rerun can use `python -B tools/xemu_render_check.py --no-images --frames 180 --level L6S3.rfl --archive levels1.vpp --actor 6755 --setup-uid 7124 7123 --goto-uid 6758 --goto-frame 30`. This closes the single actor's OFF→ON route recovery case, not arbitrary navpoint changes, full route traversal or native saved-route continuation. No image was captured.

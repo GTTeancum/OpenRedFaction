@@ -85,6 +85,7 @@ def main():
     parser.add_argument('--spawn', action='store_true', help='Use authored player spawn without actor/item staging')
     parser.add_argument('--goal-uid', type=int, help='Authored goal setter at frame30')
     parser.add_argument('--goto-uid', type=int, help='Authored NPC movement event at frame30 (300/360 after setup events)')
+    parser.add_argument('--goto-frame', type=int, help='Override the replay frame for --goto-uid')
     parser.add_argument('--actor', type=int, default=9858)
     parser.add_argument('--item-uid', type=int, help='Stage near an authored L1S1 pickup instead of an actor')
     parser.add_argument('--input', type=Path, help='Optional process-local replay; its length supplies the frame count')
@@ -190,6 +191,8 @@ def main():
         parser.error('Ordinary HDD reload requires --world-hdd-persistent; temporary disks are discarded at exit')
     if args.world_hdd_persistent and not (args.world_checkpoint_save or args.world_checkpoint_load or args.quick_save_frame is not None or args.quick_load_frame is not None):
         parser.error('Persistent test HDD requires ordinary save/load or a quick action')
+    if args.goto_frame is not None and (args.goto_uid is None or args.goto_frame<=0):
+        parser.error('--goto-frame requires --goto-uid and a positive replay frame')
     checkpoint = args.geomod_checkpoint_in is not None or args.geomod_checkpoint_out
     payload = None
     if args.input:
@@ -203,6 +206,8 @@ def main():
         parser.error('Require at most two positive setup UIDs')
     if not (1 if args.world_checkpoint_load else 32) <= args.frames <= 60000 or not 30 <= args.seconds <= 3600 or not 0 < args.actor < 0xffffffff:
         parser.error('Require32..60000 frames (1 minimum for ordinary reload),30..3600 seconds and a positive actor UID')
+    if args.goto_frame is not None and args.goto_frame>=args.frames:
+        parser.error('--goto-frame must lie inside the replay')
     if payload is None:
         payload = b'RFI5' + struct.pack('<I', 44) + bytes(args.frames * 44)
     if args.npc_rubble_test and (args.frames<962 or not args.input or args.authored_source!=95 or args.authored_sources!=3):
@@ -239,7 +244,7 @@ def main():
     run = root / 'artifacts/xemu' / ('render-' + datetime.datetime.now().strftime('%Y%m%d-%H%M%S'))
     run.mkdir(parents=True)
     print('Run:', run, flush=True)
-    report = dict(result='FAIL', frames=args.frames, actor=None if args.item_uid or args.spawn else args.actor, level=args.level, archive=args.archive, goal_uid=args.goal_uid, goto_uid=args.goto_uid, item_uid=args.item_uid, model_culling=args.culled, command_batching=not args.unbatched, world_grouping=not args.unsorted,
+    report = dict(result='FAIL', frames=args.frames, actor=None if args.item_uid or args.spawn else args.actor, level=args.level, archive=args.archive, goal_uid=args.goal_uid, goto_uid=args.goto_uid, goto_frame=args.goto_frame, item_uid=args.item_uid, model_culling=args.culled, command_batching=not args.unbatched, world_grouping=not args.unsorted,
         input_sha256=hashlib.sha256(payload).hexdigest(), setup_uids=args.setup_uid, trigger_start_uid=args.trigger_start_uid, trigger_approach_uid=args.trigger_approach_uid, exit_start_uid=args.exit_start_uid, exit_uid=args.exit_uid, return_exit_uid=args.return_exit_uid,
         scope='Authored section, player spawn or staged actor/pickup camera, process-local replay/setup commands, '
               + ('native scene state without image capture' if args.no_images else 'native framebuffer')
@@ -316,6 +321,7 @@ def main():
     if not args.spawn:env['RF_REPLAY_ACTOR_UID']=str(args.actor)
     if args.goal_uid:env['RF_REPLAY_GOAL_UID']=str(args.goal_uid)
     if args.goto_uid:env['RF_REPLAY_GOTO_UID']=str(args.goto_uid)
+    if args.goto_frame is not None:env['RF_REPLAY_GOTO_FRAME']=str(args.goto_frame)
     if args.item_uid:
         env.pop('RF_REPLAY_ACTOR_UID')
         env['RF_REPLAY_ITEM_UID']=str(args.item_uid)
@@ -455,7 +461,8 @@ def main():
         if args.terrain_map_limit is not None:(disc/'terrain-map-limit.bin').write_bytes(struct.pack('<2I',args.terrain_map_limit,args.terrain_map_limit_until))
         (disc / 'campaign-level.bin').write_bytes(('scene-fixture.vpp' if args.fixture_game else 'fragment-platform.vpp' if args.fragment_platform_test else args.archive).encode().ljust(64, b'\0') + args.level.encode().ljust(64, b'\0'))
         if args.goal_uid:(disc/'campaign-goal.bin').write_bytes(struct.pack('<I',args.goal_uid))
-        if args.goto_uid:(disc/'campaign-goto.bin').write_bytes(struct.pack('<I',args.goto_uid))
+        if args.goto_uid:(disc/'campaign-goto.bin').write_bytes(struct.pack('<I',args.goto_uid)+
+            (struct.pack('<I',args.goto_frame) if args.goto_frame is not None else b''))
         if not args.spawn:(disc / ('campaign-item.bin' if args.item_uid else 'campaign-actor.bin')).write_bytes(struct.pack('<I', args.item_uid or args.actor))
         if args.exit_start_uid or args.trigger_approach_uid:(disc/'campaign-exit-start.bin').write_bytes(struct.pack('<I',args.exit_start_uid or args.trigger_approach_uid))
         if args.trigger_start_uid:(disc/'campaign-trigger-start.bin').write_bytes(struct.pack('<I',args.trigger_start_uid))
@@ -796,7 +803,7 @@ dvd_path = '{root.as_posix()}/build/xbox/redfaction-diagnostic.iso'
             assert native_goals==pc_goals,'Mission goal mismatch'
             for name, label, count in [('rf_scene_campaign_countdown', 'CAMPAIGN_COUNTDOWN', 3), ('rf_scene_script_sound', 'SCRIPT_SOUND_STATE', 8), ('rf_scene_endgame', 'CAMPAIGN_ENDGAME', 6), ('rf_scene_endgame_text', 'ENDGAME_TEXT', 4), ('rf_scene_endgame_clear', 'ENDGAME_CLEAR', 4), ('rf_scene_authored_identity', 'AUTHORED_IDENTITY', 10), ('rf_scene_terrain_publication', 'TERRAIN_PUBLICATION', 8), ('rf_scene_debris_audio', 'DEBRIS_AUDIO', 14), ('rf_scene_player_checkpoint_state', 'PLAYER_CHECKPOINT', 8), ('rf_scene_liquid_damage', 'LIQUID_DAMAGE', 8), ('rf_scene_player_swim', 'PLAYER_SWIM', 12), ('scene_actor_body', 'PC_PLAY_BODY', 77),
                     ('rf_scene_player_ammo', 'PLAYER_AMMO', 8), ('rf_scene_player_form', 'PLAYER_FORM', 8), ('rf_scene_player_model', 'PLAYER_MODEL', 4), ('rf_scene_combat', 'COMBAT', 8),
-                    ('rf_scene_script_movement', 'SCRIPT_MOVE', 8), ('rf_scene_enemy_combat', 'ENEMY_COMBAT', 8),
+                    ('rf_scene_script_movement', 'SCRIPT_MOVE', 8), ('rf_scene_script_routes', 'SCRIPT_ROUTES', 8), ('rf_scene_navpoint', 'SCRIPT_NAVPOINT', 8), ('rf_scene_script_actor', 'SCRIPT_ACTOR', 8), ('rf_scene_enemy_combat', 'ENEMY_COMBAT', 8),
                     ('rf_scene_rotating_doors', 'ROTATING_DOORS', 8), ('rf_scene_script_attack', 'SCRIPT_ATTACK', 12), ('rf_scene_attack_recovery', 'ATTACK_RECOVERY', 4), ('rf_scene_enemy_damage_kinds', 'ENEMY_DAMAGE_KINDS', 10), ('rf_scene_enemy_melee', 'ENEMY_MELEE', 4), ('rf_scene_enemy_spread', 'ENEMY_SPREAD', 8), ('rf_scene_combat_pain', 'COMBAT_PAIN', 8), ('rf_scene_pain_attack_gate', 'PAIN_ATTACK_GATE', 6), ('rf_scene_weapon_drops', 'WEAPON_DROPS', 8), ('rf_scene_rifle_alt', 'RIFLE_ALT', 8), ('rf_scene_shotgun', 'SHOTGUN', 8), ('rf_scene_grenades', 'GRENADES', 8), ('rf_scene_ai_grenades', 'AI_GRENADES', 5), ('rf_scene_ai_rockets', 'AI_ROCKETS', 5), ('rf_scene_riot_shield', 'RIOT_SHIELD', 4), ('rf_scene_player_shield', 'PLAYER_SHIELD', 4), ('rf_scene_fusion_projectiles', 'FUSION_PROJECTILES', 5), ('rf_scene_machine_mode', 'MACHINE_MODE', 8), ('rf_scene_undercover', 'UNDERCOVER', 8), ('rf_scene_vehicle_state', 'VEHICLE', 16), ('rf_scene_drill_state', 'DRILL', 8), ('rf_scene_vehicle_damage', 'VEHICLE_DAMAGE', 8), ('rf_scene_apc_primary', 'APC_PRIMARY', 8), ('rf_scene_apc_secondary', 'APC_SECONDARY', 8), ('rf_scene_submarine_weapon', 'SUBMARINE_WEAPON', 8), ('rf_scene_fighter_weapon', 'FIGHTER_WEAPON', 8), ('rf_scene_clutter_damage', 'CLUTTER_DAMAGE', 8), ('rf_scene_jeep_seats', 'JEEP_SEATS', 8), ('rf_scene_player_impact', 'PLAYER_IMPACT', 8), ('rf_scene_remote', 'REMOTE', 8), ('rf_scene_flame_visual', 'FLAME_VISUAL', 6), ('rf_scene_flame_canister', 'FLAME_CANISTER', 5), ('rf_scene_burning', 'BURNING', 5), ('rf_scene_burning_visual', 'BURNING_VISUAL', 5), ('rf_scene_rockets', 'ROCKETS', 8), ('rf_scene_rocket_blast', 'ROCKET_BLAST', 8), ('rf_scene_rocket_visual', 'ROCKET_VISUAL', 8), ('rf_scene_ripple_visual', 'RIPPLE_VISUAL', 8), ('rf_scene_ripple_lifecycle', 'RIPPLE_LIFECYCLE', 4), ('rf_scene_rocket_liquid', 'ROCKET_LIQUID_STATE', 4), ('rf_scene_enemy_fire', 'ENEMY_FIRE', 6),
                     ('rf_scene_use_reach', 'USE_REACH', 4), ('rf_scene_debris_wet','DEBRIS_WET_STATE',8), ('rf_scene_debris_visibility','DEBRIS_VISIBILITY',8), ('rf_scene_debris_motion','DEBRIS_MOTION',8), ('rf_scene_debris_crossing','DEBRIS_CROSSING',8), ('rf_scene_debris_splash_audio','DEBRIS_SPLASH_AUDIO',9), ('rf_scene_debris_player','DEBRIS_PLAYER',8), ('rf_scene_debris_rotation','DEBRIS_ROTATION',4), ('rf_scene_debris_cleanup','DEBRIS_CLEANUP',8), ('rf_scene_debris_blood','DEBRIS_BLOOD',8), ('rf_scene_debris_player_test','DEBRIS_PLAYER_TEST',8),
                     ('rf_scene_particles_summary', 'SCENE_PARTICLES', 8), ('rf_scene_live_motion', 'LIVE_MOTION', 8), ('rf_scene_airlock', 'AIRLOCK', 6), ('rf_scene_script_animation', 'SCRIPT_ANIMATION', 10), ('rf_scene_cutscene', 'CUTSCENE', 12), ('rf_scene_cutscene_look', 'CUTSCENE_LOOK', 6), ('rf_scene_alarm', 'ALARM', 12), ('rf_scene_switch_runtime', 'SWITCH_RUNTIME', 8), ('rf_scene_switch_detail', 'SWITCH_DETAIL', 8), ('rf_scene_switch_history', 'SWITCH_HISTORY', 4), ('rf_scene_trigger_history', 'TRIGGER_HISTORY', 4), ('rf_scene_startup_inventory', 'STARTUP_INVENTORY', 4), ('rf_scene_pickups', 'PICKUPS', 8), ('rf_scene_pickup_vitals', 'PICKUP_VITALS', 4), ('rf_scene_riot', 'RIOT_STICK', 8), ('rf_scene_weapon_selection', 'WEAPON_SELECTION', 8),
