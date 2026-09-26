@@ -67,7 +67,7 @@ static int scene_world_load(scene_stream *stream,const rf_level *level,const cha
     status=scene_campaign_history_checkpoint_prepare(identity.bytes,v->data,v->bytes,budget-cost,&history);if(status)goto done;cost+=(uint32_t)sizeof(*history);
     status=scene_campaign_history_checkpoint_rebind_prepare(history,budget-cost,&bindings);if(status)goto done;cost+=bindings->bytes;
     phase="environment";v=envelope.sections+RF_WORLD_ENVIRONMENT-1;
-    status=scene_world_environment_prepare(identity.bytes,v->data,v->bytes,budget-cost,&environment);if(status)goto done;cost+=environment->bytes;
+    status=scene_world_environment_prepare(identity.bytes,16,v->data,v->bytes,budget-cost,&environment);if(status)goto done;cost+=environment->bytes;
     phase="events";status=scene_world_event_prepare(stream,&envelope,0,world,budget-cost,&events,&flags);if(status)goto done;cost+=events->bytes;
     if(flags&(SCENE_WORLD_EVENT_PUBLICATION_BLOCKERS&~(SCENE_WORLD_EVENT_MISSING_GRAVITY|SCENE_WORLD_EVENT_MISSING_FORCES|SCENE_WORLD_EVENT_NEEDS_PLAYER_MISSION))){status=RF_NOT_FOUND;goto done;}
     phase="remote";v=envelope.sections+RF_WORLD_REMOTE-1;

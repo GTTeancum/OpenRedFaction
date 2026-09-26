@@ -47,7 +47,8 @@ int main(int argc,char **argv)
         CHECK(!rf_cutscene_find(&r,UINT32_MAX));
         if(i==0) {
             float position[3];const rf_cutscene_path *path=rf_cutscene_path_find(&r,"PLEASEWORK");
-            rf_cutscene_runtime runtime={0};uint32_t action=0,finished=0,j;
+            rf_cutscene_runtime runtime={0},resumed={0};unsigned char checkpoint[RF_CUTSCENE_CHECKPOINT_BYTES];
+            uint32_t action=0,finished=0,j;
             CHECK(d->hide==1 && d->fov==45 && r.points[0].camera_uid==6851 && r.points[0].words[1]==6852);
             CHECK(fabsf(r.points[0].durations[2]-3.2f)<.00001f && !strcmp(r.points[0].path,"none"));
             CHECK(path && rf_cutscene_camera_find(&r,6851));
@@ -55,6 +56,11 @@ int main(int argc,char **argv)
             CHECK(fabsf(position[0]+2.15673518f)<.0005f && fabsf(position[2]+22.517065f)<.0005f);
             CHECK(rf_cutscene_begin(&runtime,&r,3696,0,&action)==RF_OK && action==6852);
             CHECK(runtime.active && runtime.point_index==0 && runtime.fov==45);
+            CHECK(!rf_cutscene_checkpoint_encode(&runtime,1000,checkpoint,sizeof(checkpoint)));
+            CHECK(!rf_cutscene_checkpoint_decode(&r,16,checkpoint,sizeof(checkpoint),&resumed));
+            CHECK(resumed.active&&resumed.resources==&r&&resumed.active_uid==3696);
+            CHECK(!rf_cutscene_step(&resumed,2160,1.f/60,&action,&finished)&&resumed.point_index==0);
+            CHECK(!rf_cutscene_step(&resumed,2161,1.f/60,&action,&finished)&&resumed.point_index==1&&action==6884);
             CHECK(rf_cutscene_step(&runtime,3144,1.f/60,&action,&finished)==RF_OK && runtime.point_index==0);
             CHECK(rf_cutscene_step(&runtime,3145,1.f/60,&action,&finished)==RF_OK && runtime.point_index==1 && action==6884);
             rf_cutscene_cancel(&runtime);CHECK(!runtime.active);

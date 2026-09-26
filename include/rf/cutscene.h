@@ -56,4 +56,11 @@ int rf_cutscene_step(rf_cutscene_runtime *runtime,int32_t now,float seconds,
  * target retains the preceding orientation and returns RF_NOT_FOUND. */
 int rf_cutscene_look_at(rf_cutscene_runtime *runtime,const float target[3]);
 void rf_cutscene_cancel(rf_cutscene_runtime *runtime);
+/* Portable, pointer-free active timeline state. Deadlines are stored relative
+ * to the capture clock and rebound to the fresh scene clock on decode. */
+#define RF_CUTSCENE_CHECKPOINT_BYTES 96u
+int rf_cutscene_checkpoint_encode(const rf_cutscene_runtime *runtime,int32_t now,
+    void *out,uint32_t capacity);
+int rf_cutscene_checkpoint_decode(const rf_cutscene_resources *resources,int32_t now,
+    const void *data,uint32_t bytes,rf_cutscene_runtime *out);
 #endif

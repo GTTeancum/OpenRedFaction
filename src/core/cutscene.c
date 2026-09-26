@@ -249,3 +249,84 @@ int rf_cutscene_look_at(rf_cutscene_runtime *runtime,const float target[3])
 }
 void rf_cutscene_cancel(rf_cutscene_runtime *runtime)
 {if(runtime)memset(runtime,0,sizeof(*runtime));}
+
+static void cut_put(unsigned char *p,uint32_t value)
+{p[0]=(unsigned char)value;p[1]=(unsigned char)(value>>8);p[2]=(unsigned char)(value>>16);p[3]=(unsigned char)(value>>24);}
+static void cut_put_float(unsigned char *p,float value)
+{uint32_t bits;memcpy(&bits,&value,4);cut_put(p,bits);}
+static float cut_get_float(const unsigned char *p)
+{uint32_t bits=cut_u32(p);float value;memcpy(&value,&bits,4);return value;}
+static int cut_checkpoint_remaining(int32_t deadline,int32_t now,int32_t *remaining)
+{
+    if(deadline<0){*remaining=INT32_MIN;return RF_OK;}
+    return rf_timer_remaining(deadline,now,remaining);
+}
+int rf_cutscene_checkpoint_encode(const rf_cutscene_runtime *runtime,int32_t now,
+    void *out,uint32_t capacity)
+{
+    unsigned char *p=out;const rf_cutscene_descriptor *d;int32_t remaining[3];uint32_t i;int status;
+    if(!runtime||!out||capacity<RF_CUTSCENE_CHECKPOINT_BYTES||now<0||now>RF_TIMER_PERIOD)return RF_RANGE;
+    memset(p,0,RF_CUTSCENE_CHECKPOINT_BYTES);memcpy(p,"RFCC",4);cut_put(p+4,1);
+    if(!runtime->active)return RF_OK;
+    if(runtime->active!=1||!runtime->resources||!runtime->resources->descriptors||
+       runtime->descriptor_index>=runtime->resources->descriptor_count)return RF_FORMAT;
+    d=runtime->resources->descriptors+runtime->descriptor_index;
+    if(d->first_point>runtime->resources->point_count||
+       d->point_count>runtime->resources->point_count-d->first_point||
+       d->selector!=runtime->active_uid||runtime->point_index>=d->point_count||runtime->moving>1||
+       !isfinite(runtime->elapsed)||runtime->elapsed<0||!isfinite(runtime->fov)||runtime->fov!=d->fov)return RF_FORMAT;
+    for(i=0;i<3;i++)if(!isfinite(runtime->position[i]))return RF_FORMAT;
+    for(i=0;i<9;i++)if(!isfinite(runtime->orientation[i]))return RF_FORMAT;
+    status=cut_checkpoint_remaining(runtime->total_deadline,now,remaining);if(status)return status;
+    status=cut_checkpoint_remaining(runtime->pre_deadline,now,remaining+1);if(status)return status;
+    status=cut_checkpoint_remaining(runtime->move_deadline,now,remaining+2);if(status)return status;
+    if(remaining[0]==INT32_MIN||(runtime->moving&&(remaining[1]!=INT32_MIN||remaining[2]==INT32_MIN))||
+       (!runtime->moving&&remaining[2]!=INT32_MIN))return RF_FORMAT;
+    cut_put(p+8,1);cut_put(p+12,runtime->active_uid);cut_put(p+16,runtime->descriptor_index);
+    cut_put(p+20,runtime->point_index);cut_put(p+24,runtime->moving);
+    for(i=0;i<3;i++)cut_put(p+28+i*4,(uint32_t)remaining[i]);
+    cut_put_float(p+40,runtime->elapsed);cut_put_float(p+44,runtime->fov);
+    for(i=0;i<3;i++)cut_put_float(p+48+i*4,runtime->position[i]);
+    for(i=0;i<9;i++)cut_put_float(p+60+i*4,runtime->orientation[i]);
+    return RF_OK;
+}
+int rf_cutscene_checkpoint_decode(const rf_cutscene_resources *resources,int32_t now,
+    const void *data,uint32_t bytes,rf_cutscene_runtime *out)
+{
+    const unsigned char *p=data;rf_cutscene_runtime next={0};const rf_cutscene_descriptor *d;
+    int32_t remaining[3];uint32_t i;int status;
+    if(!data||!out||now<0||now>RF_TIMER_PERIOD)return RF_RANGE;
+    if(bytes!=RF_CUTSCENE_CHECKPOINT_BYTES||memcmp(p,"RFCC",4)||cut_u32(p+4)!=1)return RF_FORMAT;
+    if(!cut_u32(p+8)){
+        for(i=12;i<bytes;i++)if(p[i])return RF_FORMAT;
+        *out=next;return RF_OK;
+    }
+    if(cut_u32(p+8)!=1||!resources||!resources->descriptors)return RF_FORMAT;
+    next.active_uid=cut_u32(p+12);next.descriptor_index=cut_u32(p+16);
+    next.point_index=cut_u32(p+20);next.moving=cut_u32(p+24);
+    if(next.descriptor_index>=resources->descriptor_count||next.moving>1)return RF_FORMAT;
+    d=resources->descriptors+next.descriptor_index;
+    if(d->first_point>resources->point_count||d->point_count>resources->point_count-d->first_point||
+       d->selector!=next.active_uid||next.point_index>=d->point_count)return RF_FORMAT;
+    for(i=0;i<3;i++){
+        remaining[i]=(int32_t)cut_u32(p+28+i*4);
+        if(remaining[i]!=INT32_MIN&&(remaining[i]<-RF_TIMER_PERIOD/2||remaining[i]>RF_TIMER_PERIOD/2))return RF_FORMAT;
+    }
+    if(remaining[0]==INT32_MIN||(next.moving&&(remaining[1]!=INT32_MIN||remaining[2]==INT32_MIN))||
+       (!next.moving&&remaining[2]!=INT32_MIN))return RF_FORMAT;
+    next.elapsed=cut_get_float(p+40);next.fov=cut_get_float(p+44);
+    if(!isfinite(next.elapsed)||next.elapsed<0||!isfinite(next.fov)||next.fov!=d->fov)return RF_FORMAT;
+    for(i=0;i<3;i++){next.position[i]=cut_get_float(p+48+i*4);if(!isfinite(next.position[i]))return RF_FORMAT;}
+    for(i=0;i<9;i++){next.orientation[i]=cut_get_float(p+60+i*4);if(!isfinite(next.orientation[i]))return RF_FORMAT;}
+    if(next.moving){const rf_cutscene_point *point;
+        if(!resources->points)return RF_FORMAT;
+        point=resources->points+d->first_point+next.point_index;
+        if(!point->path[0]||!rf_cutscene_path_find(resources,point->path)||
+           next.elapsed>point->durations[1]+1.0f)return RF_FORMAT;}
+    for(i=0;i<3;i++){
+        int32_t *deadline=i==0?&next.total_deadline:i==1?&next.pre_deadline:&next.move_deadline;
+        if(remaining[i]==INT32_MIN){*deadline=-1;continue;}
+        status=rf_timer_set(deadline,now,remaining[i]);if(status)return status;
+    }
+    next.resources=resources;next.active=1;*out=next;return RF_OK;
+}

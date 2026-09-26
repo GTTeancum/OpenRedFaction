@@ -86,13 +86,21 @@ static int scene_world_snapshot_capture_mode(scene_stream *s,const rf_level *lev
     map=(scene_event_checkpoint_map){objects,object_count,&campaign_registry};
     refs=(rf_event_checkpoint_refs){scene_event_checkpoint_export,scene_event_checkpoint_import,&map};
     for(i=0;i<campaign_events.count;i++){
-        const rf_runtime_event *event=campaign_events.items+i;
+        const rf_runtime_event *event=campaign_events.items+i;rf_runtime_event saved=*event;
         if(!event->retired && event->state.deadline>=0 &&
            (rf_event_checkpoint_external_requirements(event->state.type)&RF_EVENT_CHECKPOINT_EXTERNAL_UNIMPLEMENTED)){
+            printf("WORLD_SNAPSHOT_EVENT_PENDING_REJECT uid%u type%u deadline%d\n",
+                event->authored->record.uid,event->state.type,event->state.deadline);
             status=RF_NOT_FOUND;goto done;
         }
-        status=rf_event_checkpoint_encode_mapped(identity.bytes,campaign_events.items+i,now,&refs,buffer+at+bytes,RF_EVENT_CHECKPOINT_BYTES);
-        if(status)goto done;bytes+=RF_EVENT_CHECKPOINT_BYTES;
+        /* A fired Cutscene event no longer dispatches from its triggering
+         * source; RFEN3 owns the active timeline. The source may be a transient
+         * effect object with no checkpoint identity. */
+        if(saved.state.type==55&&saved.state.deadline<0){saved.state.source=UINT32_MAX;saved.state.actor=UINT32_MAX;}
+        status=rf_event_checkpoint_encode_mapped(identity.bytes,&saved,now,&refs,buffer+at+bytes,RF_EVENT_CHECKPOINT_BYTES);
+        if(status){printf("WORLD_SNAPSHOT_EVENT_CODEC_REJECT uid%u type%u deadline%d source%u actor%u status%d\n",
+            event->authored->record.uid,event->state.type,event->state.deadline,event->state.source,event->state.actor,status);goto done;}
+        bytes+=RF_EVENT_CHECKPOINT_BYTES;
     }
     SNAP_END(RF_WORLD_EVENT);free(objects);objects=NULL;
     SNAP_START("triggers");triggers=malloc(sizeof(*triggers));if(!triggers){status=RF_IO;goto done;}*triggers=campaign_trigger_history;
@@ -117,7 +125,7 @@ static int scene_world_snapshot_capture_mode(scene_stream *s,const rf_level *lev
     SNAP_START("startup");status=rf_campaign_pickups_checkpoint_encode(identity.bytes,&campaign_startup_inventory,buffer+at,RF_CHECKPOINT_FILE_MAX-at,&bytes);SNAP_END(RF_WORLD_STARTUP);
     SNAP_START("campaign_history");omissions=scene_campaign_history_checkpoint_omissions();
     status=scene_campaign_history_checkpoint_encode(identity.bytes,now,buffer+at,RF_CHECKPOINT_FILE_MAX-at,&bytes);SNAP_END(RF_WORLD_CAMPAIGN_HISTORY);
-    SNAP_START("environment");status=scene_world_environment_encode(identity.bytes,buffer+at,RF_CHECKPOINT_FILE_MAX-at,&bytes);SNAP_END(RF_WORLD_ENVIRONMENT);
+    SNAP_START("environment");status=scene_world_environment_encode(identity.bytes,campaign_blackout_now,buffer+at,RF_CHECKPOINT_FILE_MAX-at,&bytes);SNAP_END(RF_WORLD_ENVIRONMENT);
     part="envelope";status=rf_world_checkpoint_encode(&bundle,0,buffer,RF_CHECKPOINT_FILE_MAX,&total);if(status)goto done;
     (void)scene_world_restore_probe(s,buffer,total,identity.bytes,now);
     (void)scene_world_mission_probe(s,&bundle,now);

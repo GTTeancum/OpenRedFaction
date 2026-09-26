@@ -99,7 +99,7 @@ static inline int scene_world_event_probe(scene_stream *stream,const scene_world
     if(world->allocated_bytes>2u*1024u*1024u)return RF_RANGE;
     status=scene_world_event_prepare(stream,&world->envelope,now,world,2u*1024u*1024u-world->allocated_bytes,&events,&flags);
     if(!status)status=scene_event_checkpoint_validate(&events->events);
-    if(!status)status=scene_world_environment_prepare(world->envelope.identity,v->data,v->bytes,1024u*1024u,&environment);
+    if(!status)status=scene_world_environment_prepare(world->envelope.identity,now,v->data,v->bytes,1024u*1024u,&environment);
     if(!status)status=scene_world_environment_validate(environment);
     if(!status)flags&=~(SCENE_WORLD_EVENT_MISSING_GRAVITY|SCENE_WORLD_EVENT_MISSING_FORCES|SCENE_WORLD_EVENT_MISSING_TRANSITION);
 #ifndef RF_IMAGE_XBOX_NATIVE

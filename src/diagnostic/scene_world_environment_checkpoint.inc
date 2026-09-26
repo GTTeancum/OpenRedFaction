@@ -1,8 +1,8 @@
 #ifndef RF_SCENE_WORLD_ENVIRONMENT_CHECKPOINT_INCLUDED
 #define RF_SCENE_WORLD_ENVIRONMENT_CHECKPOINT_INCLUDED
-/* RFEN2: identity-bound gravity, force-volume state and changed navigation
- * radii. Navigation rows use authored UIDs and raw radius bits, never indices.
- * RFEN1 remains readable with pristine navigation. No handles are serialized.
+/* RFEN3: identity-bound gravity, force-volume state, changed navigation radii
+ * and a portable cutscene clock/camera. Navigation rows use authored UIDs and
+ * raw radius bits, never indices. RFEN1/2 remain readable. No handles are serialized.
  * Queued level handoffs are not admitted; presentation state is separate. */
 enum {SCENE_ENV_HEADER=80,SCENE_ENV_ROW=16,SCENE_ENV_NAV_ROW=8,
     SCENE_ENV_FORCE_MAX=65536/sizeof(rf_physics_force_region),SCENE_ENV_NAV_MAX=65536};
@@ -15,6 +15,7 @@ typedef struct scene_environment_nav_entry {
 typedef struct scene_world_environment_stage {
     rf_physics_gravity before,next;rf_physics_force_region *owner;uint32_t count,bytes;
     rf_level_navigation_node *navigation;uint32_t navigation_count,nav_count;
+    rf_cutscene_runtime cutscene_before,cutscene_next;
     scene_environment_entry rows[];
 } scene_world_environment_stage;
 static scene_environment_nav_entry *scene_environment_nav_rows(scene_world_environment_stage *s)
@@ -32,7 +33,7 @@ static uint32_t scene_environment_geometry(const rf_physics_force_region *r)
 }
 static int scene_environment_gravity_valid(const rf_physics_gravity *g)
 {return isfinite(g->acceleration)&&g->vector[0]==0&&g->vector[2]==0&&g->vector[1]==-g->acceleration?RF_OK:RF_FORMAT;}
-static inline int scene_world_environment_encode(const unsigned char identity[32],void *out,uint32_t capacity,uint32_t *written)
+static inline int scene_world_environment_encode(const unsigned char identity[32],int32_t now,void *out,uint32_t capacity,uint32_t *written)
 {
     unsigned char *p=out;uint32_t i,j,bytes,nav_count=0;uint64_t required;int status;
     if(!identity||!out||!written||campaign_forces.count>SCENE_ENV_FORCE_MAX||
@@ -52,9 +53,10 @@ static inline int scene_world_environment_encode(const unsigned char identity[32
         for(j=0;j<i;j++)if(campaign_navigation.nodes[j].uid==node->uid)return RF_FORMAT;
         ++nav_count;
     }
-    required=SCENE_ENV_HEADER+(uint64_t)campaign_forces.count*SCENE_ENV_ROW+(uint64_t)nav_count*SCENE_ENV_NAV_ROW;
+    required=SCENE_ENV_HEADER+(uint64_t)campaign_forces.count*SCENE_ENV_ROW+
+        (uint64_t)nav_count*SCENE_ENV_NAV_ROW+RF_CUTSCENE_CHECKPOINT_BYTES;
     if(required>capacity||required>UINT32_MAX)return RF_RANGE;bytes=(uint32_t)required;
-    memset(p,0,bytes);memcpy(p,"RFEN",4);scene_history_put(p+4,2);scene_history_put(p+8,bytes);
+    memset(p,0,bytes);memcpy(p,"RFEN",4);scene_history_put(p+4,3);scene_history_put(p+8,bytes);
     scene_history_put(p+16,campaign_forces.count);scene_history_put(p+20,nav_count);memcpy(p+24,identity,32);
     scene_history_put_float(p+56,scene_gravity.acceleration);
     for(i=0;i<3;i++)scene_history_put_float(p+60+i*4,scene_gravity.vector[i]);
@@ -68,11 +70,13 @@ static inline int scene_world_environment_encode(const unsigned char identity[32
         row=p+80+campaign_forces.count*16+j++*SCENE_ENV_NAV_ROW;
         scene_history_put(row,node->uid);scene_history_put(row+4,bits);
     }
+    status=rf_cutscene_checkpoint_encode(&campaign_cutscene_runtime,now,
+        p+bytes-RF_CUTSCENE_CHECKPOINT_BYTES,RF_CUTSCENE_CHECKPOINT_BYTES);if(status)return status;
     scene_history_put(p+12,scene_history_hash(p,bytes));*written=bytes;return RF_OK;
 }
 static inline void scene_world_environment_close(scene_world_environment_stage **s)
 {if(s){free(*s);*s=NULL;}}
-static inline int scene_world_environment_prepare(const unsigned char identity[32],const void *data,uint32_t bytes,
+static inline int scene_world_environment_prepare(const unsigned char identity[32],int32_t now,const void *data,uint32_t bytes,
     uint32_t budget,scene_world_environment_stage **out)
 {
     const unsigned char *p=data;scene_world_environment_stage *s;uint32_t count,nav_count,version,i,j,k;uint64_t cost;int status=RF_OK;
@@ -81,16 +85,20 @@ static inline int scene_world_environment_prepare(const unsigned char identity[3
     if(bytes<80||memcmp(p,"RFEN",4)||scene_history_word(p+8)!=bytes||
        scene_history_word(p+12)!=scene_history_hash(p,bytes)||memcmp(p+24,identity,32)||
        scene_history_word(p+72)||scene_history_word(p+76))return RF_FORMAT;
-    version=scene_history_word(p+4);if(version!=1&&version!=2)return RF_FORMAT;
+    version=scene_history_word(p+4);if(version!=1&&version!=2&&version!=3)return RF_FORMAT;
     count=scene_history_word(p+16);nav_count=scene_history_word(p+20);
     if((version==1&&nav_count)||count>SCENE_ENV_FORCE_MAX||count!=campaign_forces.count||
        nav_count>campaign_navigation.count||nav_count>SCENE_ENV_NAV_MAX||
-       (uint64_t)bytes!=80u+(uint64_t)count*SCENE_ENV_ROW+(uint64_t)nav_count*SCENE_ENV_NAV_ROW||
+       (uint64_t)bytes!=80u+(uint64_t)count*SCENE_ENV_ROW+(uint64_t)nav_count*SCENE_ENV_NAV_ROW+
+           (version==3?RF_CUTSCENE_CHECKPOINT_BYTES:0)||
        (count&&!campaign_forces.items)||(nav_count&&!campaign_navigation.nodes))return RF_FORMAT;
     cost=sizeof(*s)+(uint64_t)count*sizeof(*s->rows)+(uint64_t)nav_count*sizeof(scene_environment_nav_entry);
     if(cost>budget||cost>UINT32_MAX)return RF_RANGE;
     s=calloc(1,(size_t)cost);if(!s)return RF_IO;s->count=count;s->bytes=(uint32_t)cost;s->owner=campaign_forces.items;
     s->navigation=campaign_navigation.nodes;s->navigation_count=campaign_navigation.count;s->nav_count=nav_count;s->before=scene_gravity;
+    s->cutscene_before=campaign_cutscene_runtime;
+    if(version==3){status=rf_cutscene_checkpoint_decode(&campaign_cutscene_resources,now,
+        p+bytes-RF_CUTSCENE_CHECKPOINT_BYTES,RF_CUTSCENE_CHECKPOINT_BYTES,&s->cutscene_next);if(status)goto fail;}
     s->next.acceleration=scene_history_float(p+56);for(i=0;i<3;i++)s->next.vector[i]=scene_history_float(p+60+i*4);
     status=scene_environment_gravity_valid(&s->next);if(status)goto fail;
     for(i=0;i<count;i++){
@@ -119,7 +127,8 @@ static inline int scene_world_environment_validate(const scene_world_environment
 {
     uint32_t i;if(!s||rf_scene_level_transition.pending||s->count!=campaign_forces.count||s->owner!=campaign_forces.items||
         s->navigation!=campaign_navigation.nodes||s->navigation_count!=campaign_navigation.count||
-        memcmp(&s->before,&scene_gravity,sizeof(scene_gravity)))return RF_FORMAT;
+        memcmp(&s->before,&scene_gravity,sizeof(scene_gravity))||
+        memcmp(&s->cutscene_before,&campaign_cutscene_runtime,sizeof(campaign_cutscene_runtime)))return RF_FORMAT;
     for(i=0;i<s->count;i++)if(memcmp(&s->rows[i].before,s->owner+s->rows[i].slot,sizeof(rf_physics_force_region)))return RF_FORMAT;
     for(i=0;i<s->nav_count;i++){
         const scene_environment_nav_entry *e=scene_environment_nav_rows((scene_world_environment_stage *)s)+i;
@@ -138,6 +147,10 @@ static inline void scene_world_environment_assign(const scene_world_environment_
         const scene_environment_nav_entry *e=scene_environment_nav_rows((scene_world_environment_stage *)s)+i;
         memcpy(&s->navigation[e->slot].candidate.radius,&e->after,4);
     }
+    campaign_cutscene_runtime=s->cutscene_next;
+    rf_scene_cutscene[3]=campaign_cutscene_runtime.active_uid;
+    rf_scene_cutscene[4]=campaign_cutscene_runtime.point_index;
+    rf_scene_cutscene[7]=campaign_cutscene_runtime.active;
     if(s->nav_count){
         const scene_environment_nav_entry *last=scene_environment_nav_rows((scene_world_environment_stage *)s)+s->nav_count-1;
         printf("WORLD_NAVPOINT_RESTORE count%u uid%u radius_bits%u\n",s->nav_count,last->uid,last->after);
