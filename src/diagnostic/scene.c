@@ -13602,7 +13602,6 @@ static int campaign_combat_tick(scene_stream *stream,uint32_t frame,const float 
     }
     status=campaign_equipped_slot==2?RF_OK:rf_weapon_consume_shot(&campaign_player_inventory,campaign_weapon_supply.definitions,campaign_weapon_supply.names.count,campaign_selected_weapon());
     rf_scene_player_ammo[7]=(uint32_t)status;if(status)return status;campaign_ammo_publish();
-    if(fire && campaign_player_form.active){campaign_player_form.compromised=1;rf_scene_player_form[2]=1;}
     if(fire){++rf_scene_combat[0];campaign_last_alt=alt;combat_sound(campaign_equipped_slot==13?(campaign_machine_mode.special?"Machine Pistol Alt Launch":"Machine Pistol Launch"):campaign_equipped_slot==14?(alt?"HMG Launch 2":"HMG Launch 1"):campaign_equipped_slot==15?"Sniper 2 Launch":campaign_equipped_slot==16 && stream->undercover?scene_undercover_mode_launch(&stream->undercover->mode):campaign_equipped_slot==16?"Glock Launch":campaign_equipped_slot==7?"Rail Fire 1":campaign_equipped_slot==6?"Sniper Launch":campaign_equipped_slot==4?"Rocket Fire":campaign_equipped_slot==1?"Assault Loop":campaign_equipped_slot==3?(alt?"Shotgun Fire 2":"Shotgun Fire"):alt?"Riot Attack Taser":campaign_equipped_slot==2?"Riot Attack":campaign_equipped_slot?"Assault Loop":"Glock Launch",position);}
     if(fire && campaign_equipped_slot==16 && stream->undercover && stream->undercover->mode.attached)++rf_scene_undercover[5];
     if(fire && campaign_equipped_slot!=2){
@@ -13612,7 +13611,10 @@ static int campaign_combat_tick(scene_stream *stream,uint32_t frame,const float 
         status=scene_player_shot_hearing(campaign_weapon_reset.definitions[definition].flags_264,
             campaign_selected_weapon(),campaign_slot_weapon(16),stream->undercover?stream->undercover->mode.attached:0,1,&hearing);
         if(status)return status;
-        if(hearing.emit){status=campaign_enemy_hear_shot(position,hearing.radius,frame,&alerted);if(status)return status;}
+        if(hearing.emit){
+            status=campaign_enemy_hear_shot(position,hearing.radius,frame,&alerted);if(status)return status;
+            if(alerted && campaign_player_form.active){campaign_player_form.compromised=1;rf_scene_player_form[2]=1;}
+        }
     }
     if(campaign_equipped_slot==4)return RF_OK; /* Rockets never take the hitscan path. */
     if(campaign_equipped_slot==6 || campaign_equipped_slot==7)return scene_precision_fire(stream,frame,position,orientation[2],campaign_equipped_slot==7);
@@ -13731,7 +13733,11 @@ static int campaign_combat_tick(scene_stream *stream,uint32_t frame,const float 
             if(campaign_equipped_slot==3)++rf_scene_shotgun[2];
             if(alt && campaign_equipped_slot==1)++rf_scene_rifle_alt[1];
             if(campaign_equipped_slot==2 && fire){float impact[3];for(i=0;i<3;i++)impact[i]=position[i]+delta[i]*nearest;combat_sound("Riot Impact Flesh",impact);++rf_scene_riot[4];}
-            if(!owner->combat_alert && owner->view.weapons[0]>=0){owner->combat_alert=1;owner->combat_burst_remaining=0;owner->combat_due=frame+30;++rf_scene_enemy_combat[1];}}
+            if(!owner->combat_alert && owner->view.weapons[0]>=0){owner->combat_alert=1;owner->combat_burst_remaining=0;owner->combat_due=frame+30;++rf_scene_enemy_combat[1];}
+            if(owner->damage.effects.health>0 && owner->combat_alert && campaign_player_form.active){
+                campaign_player_form.compromised=1;rf_scene_player_form[2]=1;
+            }
+        }
         ++rf_scene_combat[1];rf_scene_combat[3]=handle;memcpy(rf_scene_combat+4,&owner->damage.effects.health,4);
         if(owner->damage.effects.health<=0) {
             status=rf_scene_npc_death_entry(handle,&entered);if(status)return status;

@@ -134,6 +134,9 @@ static int scene_precision_fire(scene_stream *stream,uint32_t frame,
             combat_hit_frame=frame;campaign_combat_event(frame,0,handle,amount,owner->damage.effects.health);
             if(!owner->combat_alert && owner->view.weapons[0]>=0){
                 owner->combat_alert=1;owner->combat_due=frame+30;++rf_scene_enemy_combat[1];}
+            if(owner->damage.effects.health>0 && owner->combat_alert && campaign_player_form.active){
+                campaign_player_form.compromised=1;rf_scene_player_form[2]=1;
+            }
         }
         ++rf_scene_combat[1];rf_scene_combat[3]=handle;
         memcpy(rf_scene_combat+4,&owner->damage.effects.health,4);
