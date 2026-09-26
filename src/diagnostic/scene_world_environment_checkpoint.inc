@@ -1,11 +1,11 @@
 #ifndef RF_SCENE_WORLD_ENVIRONMENT_CHECKPOINT_INCLUDED
 #define RF_SCENE_WORLD_ENVIRONMENT_CHECKPOINT_INCLUDED
-/* RFEN3: identity-bound gravity, force-volume state, changed navigation radii,
+/* RFEN4: identity-bound gravity, force-volume state, changed navigation radii,
  * blackout timer, player support mover UID and portable cutscene clock/camera. Navigation rows use authored UIDs and
- * raw radius bits, never indices. RFEN1/2 remain readable. No handles are serialized.
+ * raw radius bits, never indices. RFEN1/2/3 remain readable. No handles are serialized.
  * Queued level handoffs are not admitted; other presentation state is separate. */
 enum {SCENE_ENV_HEADER=80,SCENE_ENV_ROW=16,SCENE_ENV_NAV_ROW=8,
-    SCENE_ENV_FORCE_MAX=65536/sizeof(rf_physics_force_region),SCENE_ENV_NAV_MAX=65536};
+    SCENE_ENV_FORM_BYTES=24,SCENE_ENV_FORCE_MAX=65536/sizeof(rf_physics_force_region),SCENE_ENV_NAV_MAX=65536};
 typedef struct scene_environment_entry {
     uint32_t slot,active;float strength;rf_physics_force_region before;
 } scene_environment_entry;
@@ -16,6 +16,7 @@ typedef struct scene_world_environment_stage {
     rf_physics_gravity before,next;rf_physics_force_region *owner;uint32_t count,bytes;
     rf_level_navigation_node *navigation;uint32_t navigation_count,nav_count;
     rf_cutscene_runtime cutscene_before,cutscene_next;
+    campaign_player_form_state form_before,form_next;
     int32_t blackout_before,blackout_next;uint32_t support_uid;
     scene_environment_entry rows[];
 } scene_world_environment_stage;
@@ -55,9 +56,9 @@ static inline int scene_world_environment_encode(const unsigned char identity[32
         ++nav_count;
     }
     required=SCENE_ENV_HEADER+(uint64_t)campaign_forces.count*SCENE_ENV_ROW+
-        (uint64_t)nav_count*SCENE_ENV_NAV_ROW+RF_CUTSCENE_CHECKPOINT_BYTES;
+        (uint64_t)nav_count*SCENE_ENV_NAV_ROW+RF_CUTSCENE_CHECKPOINT_BYTES+SCENE_ENV_FORM_BYTES;
     if(required>capacity||required>UINT32_MAX)return RF_RANGE;bytes=(uint32_t)required;
-    memset(p,0,bytes);memcpy(p,"RFEN",4);scene_history_put(p+4,3);scene_history_put(p+8,bytes);
+    memset(p,0,bytes);memcpy(p,"RFEN",4);scene_history_put(p+4,4);scene_history_put(p+8,bytes);
     scene_history_put(p+16,campaign_forces.count);scene_history_put(p+20,nav_count);memcpy(p+24,identity,32);
     if(campaign_blackout_deadline>=0){
         status=rf_timer_remaining(campaign_blackout_deadline,now,&blackout_remaining);if(status)return status;
@@ -79,7 +80,18 @@ static inline int scene_world_environment_encode(const unsigned char identity[32
         scene_history_put(row,node->uid);scene_history_put(row+4,bits);
     }
     status=rf_cutscene_checkpoint_encode(&campaign_cutscene_runtime,now,
-        p+bytes-RF_CUTSCENE_CHECKPOINT_BYTES,RF_CUTSCENE_CHECKPOINT_BYTES);if(status)return status;
+        p+bytes-SCENE_ENV_FORM_BYTES-RF_CUTSCENE_CHECKPOINT_BYTES,RF_CUTSCENE_CHECKPOINT_BYTES);if(status)return status;
+    if(campaign_player_form.active){
+        unsigned char *form=p+bytes-SCENE_ENV_FORM_BYTES;uint32_t armor_bits;
+        if(campaign_player_form.compromised>1||campaign_player_form.return_slot>=scene_weapon_slots()||
+           campaign_player_form.return_unarmed>1||!isfinite(campaign_player_form.normal_class_armor)||
+           campaign_player_form.normal_class_armor<0)return RF_FORMAT;
+        scene_history_put(form,1);scene_history_put(form+4,campaign_player_form.variant);
+        scene_history_put(form+8,campaign_player_form.compromised);
+        scene_history_put(form+12,campaign_player_form.return_slot);
+        scene_history_put(form+16,campaign_player_form.return_unarmed);
+        memcpy(&armor_bits,&campaign_player_form.normal_class_armor,4);scene_history_put(form+20,armor_bits);
+    }
     scene_history_put(p+12,scene_history_hash(p,bytes));*written=bytes;return RF_OK;
 }
 static inline void scene_world_environment_close(scene_world_environment_stage **s)
@@ -92,27 +104,44 @@ static inline int scene_world_environment_prepare(const unsigned char identity[3
     if(rf_scene_level_transition.pending)return RF_NOT_FOUND;
     if(bytes<80||memcmp(p,"RFEN",4)||scene_history_word(p+8)!=bytes||
        scene_history_word(p+12)!=scene_history_hash(p,bytes)||memcmp(p+24,identity,32))return RF_FORMAT;
-    version=scene_history_word(p+4);if(version!=1&&version!=2&&version!=3)return RF_FORMAT;
+    version=scene_history_word(p+4);if(version<1||version>4)return RF_FORMAT;
     if((version<3&&(scene_history_word(p+72)||scene_history_word(p+76)))||scene_history_word(p+72)>30001||
        scene_history_word(p+76)==UINT32_MAX)return RF_FORMAT;
     count=scene_history_word(p+16);nav_count=scene_history_word(p+20);
     if((version==1&&nav_count)||count>SCENE_ENV_FORCE_MAX||count!=campaign_forces.count||
        nav_count>campaign_navigation.count||nav_count>SCENE_ENV_NAV_MAX||
        (uint64_t)bytes!=80u+(uint64_t)count*SCENE_ENV_ROW+(uint64_t)nav_count*SCENE_ENV_NAV_ROW+
-           (version==3?RF_CUTSCENE_CHECKPOINT_BYTES:0)||
+           (version>=3?RF_CUTSCENE_CHECKPOINT_BYTES:0)+(version==4?SCENE_ENV_FORM_BYTES:0)||
        (count&&!campaign_forces.items)||(nav_count&&!campaign_navigation.nodes))return RF_FORMAT;
     cost=sizeof(*s)+(uint64_t)count*sizeof(*s->rows)+(uint64_t)nav_count*sizeof(scene_environment_nav_entry);
     if(cost>budget||cost>UINT32_MAX)return RF_RANGE;
     s=calloc(1,(size_t)cost);if(!s)return RF_IO;s->count=count;s->bytes=(uint32_t)cost;s->owner=campaign_forces.items;
     s->navigation=campaign_navigation.nodes;s->navigation_count=campaign_navigation.count;s->nav_count=nav_count;s->before=scene_gravity;
     s->cutscene_before=campaign_cutscene_runtime;
+    s->form_before=campaign_player_form;
     s->blackout_before=campaign_blackout_deadline;s->blackout_next=-1;
     s->support_uid=scene_history_word(p+76);
     if(scene_history_word(p+72)){
         status=rf_timer_set(&s->blackout_next,now,(int32_t)scene_history_word(p+72)-1);if(status)goto fail;
     }
-    if(version==3){status=rf_cutscene_checkpoint_decode(&campaign_cutscene_resources,now,
-        p+bytes-RF_CUTSCENE_CHECKPOINT_BYTES,RF_CUTSCENE_CHECKPOINT_BYTES,&s->cutscene_next);if(status)goto fail;}
+    if(version>=3){status=rf_cutscene_checkpoint_decode(&campaign_cutscene_resources,now,
+        p+80+count*SCENE_ENV_ROW+nav_count*SCENE_ENV_NAV_ROW,
+        RF_CUTSCENE_CHECKPOINT_BYTES,&s->cutscene_next);if(status)goto fail;}
+    if(version==4){
+        const unsigned char *form=p+bytes-SCENE_ENV_FORM_BYTES;
+        s->form_next.active=scene_history_word(form);
+        s->form_next.variant=scene_history_word(form+4);
+        s->form_next.compromised=scene_history_word(form+8);
+        s->form_next.return_slot=scene_history_word(form+12);
+        s->form_next.return_unarmed=scene_history_word(form+16);
+        s->form_next.normal_class_armor=scene_history_float(form+20);
+        if(s->form_next.active>1||
+           (s->form_next.active?(s->form_next.compromised>1||
+                s->form_next.return_slot>=scene_weapon_slots()||s->form_next.return_unarmed>1||
+                !isfinite(s->form_next.normal_class_armor)||s->form_next.normal_class_armor<0):
+                (s->form_next.variant||s->form_next.compromised||s->form_next.return_slot||
+                 s->form_next.return_unarmed||scene_history_word(form+20)))){status=RF_FORMAT;goto fail;}
+    }
     s->next.acceleration=scene_history_float(p+56);for(i=0;i<3;i++)s->next.vector[i]=scene_history_float(p+60+i*4);
     status=scene_environment_gravity_valid(&s->next);if(status)goto fail;
     for(i=0;i<count;i++){
@@ -143,6 +172,7 @@ static inline int scene_world_environment_validate(const scene_world_environment
         s->navigation!=campaign_navigation.nodes||s->navigation_count!=campaign_navigation.count||
         memcmp(&s->before,&scene_gravity,sizeof(scene_gravity))||
         memcmp(&s->cutscene_before,&campaign_cutscene_runtime,sizeof(campaign_cutscene_runtime))||
+        memcmp(&s->form_before,&campaign_player_form,sizeof(campaign_player_form))||
         s->blackout_before!=campaign_blackout_deadline)return RF_FORMAT;
     for(i=0;i<s->count;i++)if(memcmp(&s->rows[i].before,s->owner+s->rows[i].slot,sizeof(rf_physics_force_region)))return RF_FORMAT;
     for(i=0;i<s->nav_count;i++){

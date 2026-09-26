@@ -698,6 +698,17 @@ dvd_path = '{root.as_posix()}/build/xbox/redfaction-diagnostic.iso'
                     actual_parts,expected_parts=sections(data),sections(expected)
                     report['checks']['WORLD_CHECKPOINT']['component_equal']={k:actual_parts[k]==v for k,v in expected_parts.items()}
                     assert all(report['checks']['WORLD_CHECKPOINT']['component_equal'].values()), 'Ordinary PC/Xbox saved component mismatch'
+            if args.quick_save_frame is not None or args.quick_load_frame is not None:
+                state=words(monitor,symbol('rf_scene_world_checkpoint_state'),10)
+                report['checks']['QUICK_ACTIONS']=dict(state=state)
+                if args.quick_save_frame is not None:
+                    save_match=re.search(r'WORLD_SNAPSHOT_STORED bytes(\d+)',pc.stdout)
+                    assert save_match and f'QUICK_SAVE frame{args.quick_save_frame} status0' in pc.stdout, 'PC quick-save failed'
+                    assert state[9]==1 and state[3]==0 and state[4]==int(save_match.group(1)), 'Xbox quick-save failed or size differed'
+                if args.quick_load_frame is not None:
+                    loaded=re.search(r'WORLD_SNAPSHOT_LOADED bytes(\d+)',pc.stdout)
+                    assert loaded and f'QUICK_LOAD frame{args.quick_load_frame} status0' in pc.stdout, 'PC quick-load failed'
+                    assert state[8]==1 and state[0]==0 and state[1]==int(loaded.group(1)), 'Xbox quick-load failed or size differed'
             if checkpoint:
                 state=words(monitor,symbol('rf_scene_geomod_checkpoint_state'),4)
                 memory=words(monitor,symbol('rf_scene_geomod_checkpoint_memory'),2)

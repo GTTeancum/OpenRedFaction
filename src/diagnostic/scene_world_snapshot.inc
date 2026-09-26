@@ -59,8 +59,6 @@ static int scene_world_snapshot_capture_mode(scene_stream *s,const rf_level *lev
     if(!path||!*path)return RF_OK;
     rf_scene_world_checkpoint_state[9]=1;
     if(!s||!level||!tables_path||s->terrain||combat_frame==UINT32_MAX){status=RF_RANGE;goto done;}
-    /* RFPL/RFEN do not yet encode player-form identity or disguise state. */
-    if(campaign_player_form.active){status=RF_NOT_FOUND;goto done;}
     now=(int32_t)(((uint64_t)combat_frame*1000/60)%RF_TIMER_PERIOD);
     status=scene_world_checkpoint_source_identity(level,tables_path,rf_scene_weapon_supply[3],identity.bytes);if(status)goto done;
     if(strlen(campaign_current_level)>=sizeof(identity.level)){status=RF_RANGE;goto done;}

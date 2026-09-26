@@ -10,7 +10,7 @@ int main(void)
     campaign_forces.items=forces;campaign_forces.count=2;
     CHECK(!rf_physics_gravity_set(&scene_gravity,4));
     CHECK(!rf_physics_forces_set_state(forces,2,&uid,1,0));
-    CHECK(!scene_world_environment_encode(identity,1000,wire,sizeof(wire),&bytes)&&bytes==208);
+    CHECK(!scene_world_environment_encode(identity,1000,wire,sizeof(wire),&bytes)&&bytes==232);
     swap=forces[0];forces[0]=forces[1];forces[1]=swap;
     forces[0].active=1;forces[0].strength=9;CHECK(!rf_physics_gravity_set(&scene_gravity,9.8f));
     CHECK(!scene_world_environment_prepare(identity,16,wire,bytes,65536,&stage));
@@ -31,7 +31,7 @@ int main(void)
     memcpy(&navigation[2].candidate.retained_018,&navigation[2].candidate.radius,4);
     campaign_navigation.nodes=navigation;campaign_navigation.count=3;
     navigation[1].candidate.radius=0;
-    CHECK(!scene_world_environment_encode(identity,1000,wire,sizeof(wire),&bytes)&&bytes==216);
+    CHECK(!scene_world_environment_encode(identity,1000,wire,sizeof(wire),&bytes)&&bytes==240);
     node=navigation[0];navigation[0]=navigation[1];navigation[1]=node;
     navigation[0].candidate.radius=2;
     CHECK(!scene_world_environment_prepare(identity,16,wire,bytes,65536,&stage));
@@ -79,5 +79,15 @@ int main(void)
         campaign_support_handle=0;scene_actor_collision_owner=NULL;memset(&campaign_movers,0,sizeof(campaign_movers));
         scene_actor_body.state.flags&=~0x400000u;
     }
-    puts("PASS gravity/force/nav and active cutscene restore, legacy decode, stale mutation and transition rejection");return 0;
+    campaign_player_form=(campaign_player_form_state){1,1,1,2,0,75};
+    CHECK(!scene_world_environment_encode(identity,1000,wire,sizeof(wire),&bytes));
+    memset(&campaign_player_form,0,sizeof(campaign_player_form));
+    CHECK(!scene_world_environment_prepare(identity,16,wire,bytes,65536,&stage));
+    CHECK(stage->form_next.active==1&&stage->form_next.variant==1&&stage->form_next.compromised==1&&
+          stage->form_next.return_slot==2&&stage->form_next.normal_class_armor==75);
+    scene_world_environment_close(&stage);
+    scene_history_put(wire+bytes-SCENE_ENV_FORM_BYTES+8,2);
+    scene_history_put(wire+12,scene_history_hash(wire,bytes));
+    CHECK(scene_world_environment_prepare(identity,16,wire,bytes,65536,&stage)==RF_FORMAT&&!stage);
+    puts("PASS gravity/force/nav, cutscene/form restore, legacy decode, stale mutation and transition rejection");return 0;
 }

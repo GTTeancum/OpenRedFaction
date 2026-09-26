@@ -65,6 +65,12 @@ static int scene_world_load(scene_stream *stream,const rf_level *level,const cha
     else for(i=0;i<scene_weapon_slots();i++)if(scene_weapon_available(i)&&player.player.player.weapon==(uint32_t)campaign_slot_weapon(i)){
         selected=i;found=1;break;}
     if(!found||(player.player.player.weapon!=UINT32_MAX&&!stream->player_weapon[selected])){status=RF_NOT_FOUND;goto done;}
+    phase="form";
+    if(environment->form_next.active &&
+       (campaign_extra_ids[3]<0||campaign_extra_ids[3]>=64||!scene_weapon_available(16)||
+        !stream->player_weapon[16]||!player.player.player.inventory.owned[campaign_extra_ids[3]])){
+        status=RF_NOT_FOUND;goto done;
+    }
     phase="mission";status=scene_world_mission_prepare(stream,&envelope,0,budget-cost,&mission);if(status)goto done;cost+=mission->bytes;
     phase="history";v=envelope.sections+RF_WORLD_CAMPAIGN_HISTORY-1;
     status=scene_campaign_history_checkpoint_prepare(identity.bytes,v->data,v->bytes,budget-cost,&history);if(status)goto done;cost+=(uint32_t)sizeof(*history);
@@ -96,7 +102,20 @@ static int scene_world_load(scene_stream *stream,const rf_level *level,const cha
     campaign_player_inventory=player.player.player.inventory;campaign_player_damage.state.effects.health=player.player.player.health;
     campaign_player_damage.state.effects.armor=player.player.player.armor;campaign_select_primary(selected);
     campaign_explicit_unarmed=player.player.player.weapon==UINT32_MAX;
-    scene_weapon_modes_checkpoint_assign(stream,&player.modes);campaign_ammo_publish();
+    scene_weapon_modes_checkpoint_assign(stream,&player.modes);
+    campaign_player_form=campaign_player_form_carry=environment->form_next;
+    memset(rf_scene_player_form,0,sizeof(rf_scene_player_form));
+    if(campaign_player_form.active){
+        campaign_player_damage.state.effects.class_armor=0;
+        campaign_player_view.flags_810&=~0x40u;
+        campaign_player_view.flags_7d0|=0x10000u;
+        campaign_player_damage.state.effects.flags_810=campaign_player_view.flags_810;
+        rf_scene_player_form[0]=1;rf_scene_player_form[1]=campaign_player_form.variant;
+        rf_scene_player_form[2]=campaign_player_form.compromised;
+        rf_scene_player_form[5]=(uint32_t)campaign_extra_ids[3];
+        memcpy(rf_scene_player_form+6,&campaign_player_damage.state.effects.armor,4);
+    }
+    campaign_ammo_publish();
     campaign_support_handle=player.support.handle;memcpy(campaign_support_velocity,player.support_velocity,12);
     rf_scene_actor_landing[1]=1;rf_scene_actor_landing[2]=0;
     scene_actor_body.state.flags&=~(0x200000u|0x400000u);

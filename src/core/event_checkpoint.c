@@ -29,11 +29,11 @@ uint32_t rf_event_checkpoint_external_requirements(uint32_t type)
     case 1:case 13:case 14:case 17:return RF_EVENT_CHECKPOINT_EXTERNAL_DAMAGE;
     case 5:case 6:case 11:case 12:case 24:case 28:case 30:case 34:case 38:case 67:return RF_EVENT_CHECKPOINT_EXTERNAL_NPC;
     case 15:return RF_EVENT_CHECKPOINT_EXTERNAL_AUDIO|RF_EVENT_CHECKPOINT_EXTERNAL_VISUAL;
-    case 19:case 56:case 64:case 65:case 81:return RF_EVENT_CHECKPOINT_EXTERNAL_INVENTORY;
+    case 19:case 47:case 56:case 64:case 65:case 81:return RF_EVENT_CHECKPOINT_EXTERNAL_INVENTORY;
     case 22:return RF_EVENT_CHECKPOINT_EXTERNAL_LEVEL;
     case 35:case 36:case 37:return RF_EVENT_CHECKPOINT_EXTERNAL_GOALS;
     case 73:case 74:case 75:case 84:return RF_EVENT_CHECKPOINT_EXTERNAL_WORLD;
-    case 8:case 18:case 43:case 47:case 49:case 59:case 62:case 71:return RF_EVENT_CHECKPOINT_EXTERNAL_UNIMPLEMENTED;
+    case 8:case 18:case 43:case 49:case 59:case 62:case 71:return RF_EVENT_CHECKPOINT_EXTERNAL_UNIMPLEMENTED;
     case 46:return RF_EVENT_CHECKPOINT_EXTERNAL_AUDIO|RF_EVENT_CHECKPOINT_EXTERNAL_NPC;
     case 3:case 48:return 0;
     default:return RF_EVENT_CHECKPOINT_EXTERNAL_WORLD;

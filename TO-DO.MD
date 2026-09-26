@@ -3,7 +3,7 @@
 Completion basis (user direction,2026-09-18): working late-alpha/early-beta code implementation. Overall approximately89%; GeoMod100% for the first playable milestone, accepted by the user. GeoMod items below are deferred refinement and coverage, not prerequisites to moving on. This does not assert retail polish, complete campaign integration or resolution of every known defect.
 
 
-- PRIORITY Ordinary saves: L1S1 inactive and L11S3/L14S3/L17S4 active-cutscene saves/reloads pass PC/Xbox; L6S3 active save/load now passes PC/Xbox with queued visual monitor refresh and clustered NPCs; general cross-level coverage, menu/slot selection, destruction/vehicles and broader resource demand remain (saves approximately93%).
+- PRIORITY Ordinary saves: L1S1 inactive, L11S3/L14S3/L17S4 active-cutscene, L6S3 active-cutscene, and L6S3 active-undercover save/reload pass PC/Xbox; general cross-level coverage, menu/slot selection, destruction/vehicles and broader resource demand remain (saves approximately93%).
 
 - AI navigation: L6S3 authored Goto actor takes a four-node route with navpoints ON and a direct approach with them OFF, and mid-route OFF invalidation matches Xbox/PC actor state exactly; RFEN2 survives full L18S1 PC reload, while broader NPC travel, mid-route reopening and native reload remain open.
 
@@ -19,7 +19,7 @@ Completion basis (user direction,2026-09-18): working late-alpha/early-beta code
 
 - Scripted monitor events: Reconstruct Monitor_State and the rendered-image cache for visual parity; queued Force_Monitor_Update now survives L6S3 first-pass gameplay saves as a visual-only invalidation (docs/research/FORCE-MONITOR-UPDATE-20260925.md).
 
-- Campaign undercover: Go_Undercover now starts a first-pass disguise with the authored handgun, zero armor and reduced unalerted guard acquisition on PC/Xbox; finish player model/class recreation, verified off-event and cross-level handoffs, compromise behavior and active-form save continuity (docs/CAMPAIGN-UNDERCOVER-FIRST-PASS.md).
+- Campaign undercover: Go_Undercover entry and active-form quick-save/load now work on PC/Xbox with the authored handgun and basic guard disguise behavior; finish player model/class recreation, live off-event and cross-level handoffs, and broader compromise/campaign coverage (docs/CAMPAIGN-UNDERCOVER-FIRST-PASS.md).
 
 - USER PC hands-on pass: DEV replay confirms granted weapons and cycling, Right Bumper also cycles on PC, and the full-window black repaint that could cause flicker is removed; interactive pickup/switching and flicker still need user verification before calling the build ready for gameplay testing.
 
