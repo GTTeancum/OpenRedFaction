@@ -16,9 +16,13 @@ GAME = ROOT / "Installed_Game"
 PLAYER = ROOT / "build/pc/Release/rf_pc_play.exe"
 
 
-def run_case(path, name, frames, level, archive, setup, exit_uid=None, return_uid=None):
+def run_case(path, name, frames, level, archive, setup, exit_uid=None, return_uid=None,
+             walk_start_uid=None):
     replay = path / (name + ".bin")
-    replay.write_bytes(b"RFI6" + struct.pack("<I", 48) + bytes(frames * 48))
+    inputs = (b"".join(struct.pack("<5f7I", 0, 0, float(frame >= 30), 0, 0,
+                                   0, 0, 0, 0, 0, 0, 0)
+                       for frame in range(frames)) if walk_start_uid else bytes(frames * 48))
+    replay.write_bytes(b"RFI6" + struct.pack("<I", 48) + inputs)
     env = {key: value for key, value in os.environ.items() if not key.startswith("RF_REPLAY_")}
     env.update(RF_REPLAY_LEVEL=level, RF_REPLAY_ARCHIVE=archive,
                RF_REPLAY_SETUP_UID=setup)
@@ -26,6 +30,8 @@ def run_case(path, name, frames, level, archive, setup, exit_uid=None, return_ui
         env["RF_REPLAY_EXIT_UID"] = str(exit_uid)
     if return_uid is not None:
         env["RF_REPLAY_RETURN_EXIT_UID"] = str(return_uid)
+    if walk_start_uid is not None:
+        env["RF_REPLAY_EXIT_START"] = str(walk_start_uid)
     result = subprocess.run([str(PLAYER), "--spawn-telemetry-replay", str(GAME), str(replay)],
                             cwd=ROOT, env=env, capture_output=True, text=True, check=True)
     lines = result.stdout.splitlines()
@@ -57,12 +63,20 @@ def main():
         assert one(carried, "PLAYER_FORM") == "PLAYER_FORM 1 1 0 0 0 4 0 0"
         assert one(carried, "PLAYER_AMMO") == "PLAYER_AMMO 4 125 16 0 0 0 448 0"
         assert one(carried, "PLAYER_MODEL") == "PLAYER_MODEL 2 80555 25 0"
+        walked = run_case(path, "walked", 240, "L8S1.rfl", "levels2.vpp", "6447",
+                          walk_start_uid=5625)
+        transitions = [line.split() for line in walked if line.startswith("LEVEL_TRANSITION ")]
+        assert len(transitions) == 1 and transitions[0][1:4] == [
+            "L8S1.rfl", "L8S2.rfl", "5625"] and 30 < int(transitions[0][4]) < 120, transitions
+        assert one(walked, "PLAYER_FORM") == "PLAYER_FORM 1 1 0 0 0 4 0 0"
+        assert one(walked, "PLAYER_AMMO") == "PLAYER_AMMO 4 125 16 0 0 0 448 0"
+        assert one(walked, "PLAYER_MODEL") == "PLAYER_MODEL 2 80555 25 0"
         suit = run_case(path, "suit", 240, "L6S2.rfl", "levels1.vpp", "2195", 1782)
         assert [line for line in suit if line.startswith("LEVEL_TRANSITION ")] == [
             "LEVEL_TRANSITION L6S2.rfl L6S3.rfl 1782 180"]
         assert one(suit, "PLAYER_FORM") == "PLAYER_FORM 1 0 0 0 0 4 0 0"
         assert one(suit, "PLAYER_MODEL") == "PLAYER_MODEL 1 77931 25 0"
-    print("PASS: live ON/OFF swaps authored rigs; both carried forms load on section handoffs")
+    print("PASS: live ON/OFF swaps authored rigs; both forms carry and scientist walks through an exit")
 
 
 if __name__ == "__main__":

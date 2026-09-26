@@ -19,7 +19,7 @@ Completion basis (user direction,2026-09-18): working late-alpha/early-beta code
 
 - Scripted monitor events: Reconstruct Monitor_State and the rendered-image cache for visual parity; queued Force_Monitor_Update now survives L6S3 first-pass gameplay saves as a visual-only invalidation (docs/research/FORCE-MONITOR-UPDATE-20260925.md).
 
-- Campaign undercover: Both authored forms, active quick-save/load, linked OFF, and section handoffs work on PC/Xbox; live ON/OFF switches authored model, motion map, body spheres and eye inputs, and PC empty-shot disguise retention works, while original-style actor recreation, failure rollback, natural exits and live guard-compromise coverage remain (docs/CAMPAIGN-UNDERCOVER-FIRST-PASS.md).
+- Campaign undercover: Both authored forms, active quick-save/load, linked OFF, section handoffs, one walked exit and audible-guard versus suppressed-shot compromise work on PC/Xbox; original-style actor recreation, failure rollback, direct-hit/witness rules and other natural flows remain (docs/CAMPAIGN-UNDERCOVER-FIRST-PASS.md).
 
 - USER PC hands-on pass: DEV replay confirms granted weapons and cycling, Right Bumper also cycles on PC, and the full-window black repaint that could cause flicker is removed; interactive pickup/switching and flicker still need user verification before calling the build ready for gameplay testing.
 
