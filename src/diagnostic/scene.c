@@ -9310,7 +9310,7 @@ static int campaign_set_player_form(void *context,uint32_t variant,uint32_t enab
     memcpy(rf_scene_player_form+6,&campaign_player_damage.state.effects.armor,4);
     rf_scene_player_form[7]=(uint32_t)status;return RF_OK;
 }
-/* Immutable catalog IDs must exist before frame-zero checkpoint validation. */
+/* Immutable catalog IDs must exist before startup events and checkpoint validation. */
 static int scene_weapon_mode_ids_bind(void)
 {
     for(uint32_t extra=0;extra<4;extra++){campaign_extra_ids[extra]=rf_weapon_name_find(&campaign_weapon_supply.names,campaign_weapon_names[13+extra]);if(campaign_extra_ids[extra]<0)return RF_NOT_FOUND;}
@@ -13419,8 +13419,10 @@ static int campaign_combat_tick(scene_stream *stream,uint32_t frame,const float 
         memset(rf_scene_enemy_awareness,0,sizeof(rf_scene_enemy_awareness));
         memset(rf_scene_enemy_spread,0,sizeof(rf_scene_enemy_spread));campaign_enemy_spread_random.value=1;
         memset(rf_scene_enemy_combat,0,sizeof(rf_scene_enemy_combat));combat_initial_health=campaign_player_damage.state.effects.health;
-        memset(rf_scene_player_ammo,0,sizeof(rf_scene_player_ammo));memset(&campaign_player_inventory,0,sizeof(campaign_player_inventory));
-        status=campaign_ammo_reset();if(status)return status;
+        memset(rf_scene_player_ammo,0,sizeof(rf_scene_player_ammo));
+        /* Base inventory was prepared before startup events. Reinitializing it
+         * here would erase an authored frame-zero weapon/form grant. */
+        campaign_ammo_publish();
         if((rf_scene_dev_npc_enabled>=3 && rf_scene_dev_npc_enabled<=5) && campaign_npc_body_count==1){
             campaign_npc_body *npc=campaign_npc_bodies;
             int32_t weapon=rf_scene_dev_npc_enabled==5?scene_npc_shields.weapon:rf_scene_dev_npc_enabled==4?campaign_rocket_id:campaign_grenade_id;
@@ -17586,7 +17588,12 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
             rf_vpp_close(&terrain_ui);
         } else status=scene_terrain_open(stream,level,maps,map_count);
         if(status)goto done;
-        if(rf_scene_player_checkpoint_enabled){status=scene_weapon_mode_ids_bind();if(status)goto done;}
+        /* Event47 can run during startup, before the first combat tick binds
+         * weapon IDs. Resolve catalog identities as soon as views exist. */
+        if(campaign_spawn){
+            memset(&campaign_player_inventory,0,sizeof(campaign_player_inventory));
+            status=campaign_ammo_reset();if(status)goto done;
+        }
         if(rf_scene_player_checkpoint_enabled && stream->terrain_authored) {
             stream->checkpoint_clutter=calloc(1,sizeof(*stream->checkpoint_clutter));
             if(!stream->checkpoint_clutter){status=RF_IO;goto done;}
