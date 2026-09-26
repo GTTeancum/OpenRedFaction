@@ -21,7 +21,8 @@ static int scene_world_checkpoint_uid_map_open(const scene_stream *scene,rf_leve
     rf_level_uid_object *rows;uint64_t capacity;uint32_t n=0,i,j;int status;
     if(!scene||!out||*out||!count)return RF_RANGE;
     capacity=(uint64_t)campaign_events.count+campaign_triggers.count+campaign_group_registration.count+
-        campaign_mover_count+campaign_npc_body_count+campaign_clutter_records.count+scene->pickups.count+1;
+        campaign_mover_count+campaign_npc_body_count+campaign_clutter_records.count+scene->pickups.count+
+        (campaign_authored_vehicle_uid?1u:0u)+1u;
     if(capacity>UINT32_MAX/sizeof(*rows)||capacity*sizeof(*rows)>budget)return RF_RANGE;
     if((campaign_events.count&&!campaign_events.items)||(campaign_triggers.count&&!campaign_triggers.items)||
        (campaign_group_registration.count&&(!campaign_group_registration.objects||!campaign_group_registration.controllers))||
@@ -48,8 +49,20 @@ static int scene_world_checkpoint_uid_map_open(const scene_stream *scene,rf_leve
         if(o->handle!=campaign_mover_wrappers[i].handle){status=RF_FORMAT;goto fail;}
         WORLD_UID(o->uid,o->handle,o->flags,campaign_mover_wrappers+i,0);
     }
+    if(campaign_authored_vehicle_uid){
+        void *vehicle=rf_object_registry_lookup(&campaign_registry,campaign_authored_vehicle_handle);
+        if(!scene->driller_runtime||!vehicle||
+           !rf_entity_lookup(&campaign_entities,(int32_t)campaign_authored_vehicle_handle)){status=RF_FORMAT;goto fail;}
+        WORLD_UID((uint32_t)campaign_authored_vehicle_uid,campaign_authored_vehicle_handle,0,
+            vehicle,0);
+    }
     for(i=0;i<campaign_npc_body_count;i++){
         const campaign_npc_body *o=campaign_npc_bodies+i;
+        if(campaign_authored_vehicle_uid &&
+           (uint32_t)campaign_seeds.records.items[i].record.uid==(uint32_t)campaign_authored_vehicle_uid){
+            if(o->registration.view||o->persistence_registered){status=RF_FORMAT;goto fail;}
+            continue;
+        }
         if(o->registration.view&&(o->registration.view!=&o->view||
            rf_entity_lookup(&campaign_entities,(int32_t)o->registration.handle)!=&o->view)){status=RF_FORMAT;goto fail;}
         if(!o->registration.view&&o->persistence_registered){
@@ -64,7 +77,12 @@ static int scene_world_checkpoint_uid_map_open(const scene_stream *scene,rf_leve
     }
     /* Authored pickups have no object registration in the current scene.
      * Reserve/check their UIDs, but do not invent event reference handles. */
-    for(i=0;i<scene->pickups.count;i++)WORLD_UID(scene->pickups.items[i].uid,UINT32_MAX,0,NULL,1);
+    for(i=0;i<scene->pickups.count;i++){
+        /* The supported campaign vehicle is an authored item too; its UID
+         * already names the registered host above. */
+        if(campaign_authored_vehicle_uid && scene->pickups.items[i].uid==(uint32_t)campaign_authored_vehicle_uid)continue;
+        WORLD_UID(scene->pickups.items[i].uid,UINT32_MAX,0,NULL,1);
+    }
 #undef WORLD_UID
     /* Keys are alternative authored addresses for an existing controller.
      * They must not collide with a canonical object's UID or player tag. */

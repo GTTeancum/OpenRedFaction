@@ -67,7 +67,8 @@ static inline int scene_world_event_prepare(scene_stream *stream,const rf_world_
     if(stream->particles.state)s->flags|=SCENE_WORLD_EVENT_PARTICLE_PRESENTATION;
     status=scene_world_checkpoint_uid_map_open(stream,&objects,&count,budget-(uint32_t)sizeof(*s));if(status)goto done;
     used=sizeof(*s)+((uint64_t)campaign_events.count+campaign_triggers.count+campaign_group_registration.count+
-        campaign_mover_count+campaign_npc_body_count+campaign_clutter_records.count+stream->pickups.count+1)*sizeof(*objects);if(used>budget){status=RF_RANGE;goto done;}
+        campaign_mover_count+campaign_npc_body_count+campaign_clutter_records.count+stream->pickups.count+
+        (campaign_authored_vehicle_uid?1u:0u)+1u)*sizeof(*objects);if(used>budget){status=RF_RANGE;goto done;}
     map=(scene_event_checkpoint_map){objects,count,&campaign_registry};v=envelope->sections+RF_WORLD_EVENT-1;
     status=scene_event_checkpoint_prepare(&campaign_events,&map,envelope->identity,v->data,v->bytes,now,
         scene_world_event_admit,s,budget-(uint32_t)used,&s->events);if(status)goto done;

@@ -102,17 +102,12 @@ static int scene_npc_checkpoint_row_mode(uint32_t index,int32_t now,rf_npc_check
             return scene_npc_checkpoint_reject(index,"controller_without_playback",0,pose->controller.current,RF_RANGE);
         if(pose->playback.completion.frozen&&!o->script_animation.active)return scene_npc_checkpoint_reject(index,"motion_frozen",0,pose->playback.completion.frozen,RF_RANGE);
 
-        /* Preserve ambient controller loops as well as scripted playback.
-         * Non-script actions remain excluded until their gameplay owner is saved. */
+        /* A resident looping clip can be restored from its serialized playback
+         * even when it is not one of this NPC's controller state mappings.
+         * Non-script one-shot actions still need their gameplay owner saved. */
         for(i=0;i<pose->playback.completion.active.count;i++){
             int32_t motion=pose->playback.completion.active.slots[i].motion;
-            uint32_t mapped=0,k;
-            for(k=0;k<3;k++){
-                int32_t state=k==0?pose->controller.current:k==1?pose->controller.next:
-                    pose->controller.override_enabled?pose->controller.override_state:-1;
-                if(state>=0&&state<23&&o->selection.mapping.states[state]==motion)mapped=1;
-            }
-            if(key->retired||(!initializing&&!o->script_animation.active&&!mapped)||motion<0||
+            if(key->retired||motion<0||
                !campaign_playback_resources.models||pose->skeleton>=campaign_playback_resources.model_count||
                (uint32_t)motion>=campaign_playback_resources.models[pose->skeleton].count||
                !campaign_playback_resources.models[pose->skeleton].resources||
