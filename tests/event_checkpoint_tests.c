@@ -133,6 +133,9 @@ int main(void)
     CHECK(rf_event_checkpoint_external_requirements(17)==RF_EVENT_CHECKPOINT_EXTERNAL_DAMAGE);
     CHECK(rf_event_checkpoint_external_requirements(61)==RF_EVENT_CHECKPOINT_EXTERNAL_VISUAL);
     CHECK(rf_event_checkpoint_type_supported(63));
+    CHECK(rf_event_checkpoint_type_supported(49)&&rf_event_checkpoint_type_supported(62));
+    CHECK(rf_event_checkpoint_external_requirements(49)==RF_EVENT_CHECKPOINT_EXTERNAL_UNIMPLEMENTED);
+    CHECK(rf_event_checkpoint_external_requirements(62)==RF_EVENT_CHECKPOINT_EXTERNAL_UNIMPLEMENTED);
     CHECK(rf_event_checkpoint_external_requirements(69)==RF_EVENT_CHECKPOINT_EXTERNAL_WORLD);
     CHECK(rf_event_checkpoint_external_requirements(71)==RF_EVENT_CHECKPOINT_EXTERNAL_UNIMPLEMENTED);
     puts("PASS L1S1 event fields, delayed dispatch, UnHide requests, UID remapping and RFEC2 compatibility");return 0;

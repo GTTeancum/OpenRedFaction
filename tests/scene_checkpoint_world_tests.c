@@ -81,12 +81,37 @@ int main(void)
      CHECK(scene_checkpoint_world_place(&context,&p,&room,&support)==RF_NOT_FOUND);prop.state.position[0]=0;
      context.spawn_shell_uid=0;CHECK(scene_checkpoint_world_place(&context,&p,&room,&support)==RF_NOT_FOUND);
      context.authored_static_unchanged=0;context.authored_props=NULL;context.spawn_shell_position=NULL;}
+    {rf_clutter_base_owner authored_prop=prop,*authored_props[1]={&authored_prop};
+     float start[3]={0,-9,0},basis[9]={1,0,0,0,1,0,0,0,1},other[3]={0,-7.5f,0};
+     rf_physics_sphere head={{0,1,0},.5f,0,0};
+     context.authored_static_unchanged=1;context.authored_props=authored_props;
+     context.spawn_shell_position=start;context.spawn_basis=basis;
+     p.spheres=&head;p.count=1;p.position[1]=-9.5f;memcpy(p.basis,basis,36);
+     CHECK(scene_checkpoint_world_spawn_prop_overlap(&context,&p,0,&prop,0,other,1,1.5));
+     CHECK(!scene_checkpoint_world_spawn_prop_overlap(&context,&p,0,&prop,0,other,.1,1.5));
+     prop.state.position[0]=.01f;
+     CHECK(!scene_checkpoint_world_spawn_prop_overlap(&context,&p,0,&prop,0,other,1,1.5));prop.state.position[0]=0;
+     p.position[0]=.01f;CHECK(!scene_checkpoint_world_spawn_prop_overlap(&context,&p,0,&prop,0,other,1,1.5));p.position[0]=0;
+     p.basis[0]=.99f;CHECK(!scene_checkpoint_world_spawn_prop_overlap(&context,&p,0,&prop,0,other,1,1.5));
+     p.spheres=&sphere;p.count=1;p.position[1]=-9.5f;memcpy(p.basis,basis,36);
+     context.authored_static_unchanged=0;context.authored_props=NULL;context.spawn_shell_position=context.spawn_basis=NULL;}
     prop.state.flags=2;CHECK(!scene_checkpoint_world_place(&context,&p,&room,&support));context.prop_count=0;
     cube(obstacle_vertices,obstacle_faces,zero,1,0);mesh=(rf_geomod_mesh_view){obstacle_vertices,obstacle_faces,24,6,0};
     CHECK(!rf_geomod_collision_faces(&mesh,filters,obstacle_positions,24,obstacle,6));
     moving.faces=obstacle;moving.count=6;movers.owned=&moving;movers.views=&moving_view;movers.poses=&pose;movers.count=1;
     context.scratch=&scratch;context.scratch_count=1;memcpy(pose.position,p.position,12);
     for(i=0;i<3;i++){pose.input_matrix[i*3+i]=1;pose.minimum[i]=-1;pose.maximum[i]=1;}
+    {rf_group_attached_pose original_pose=pose;rf_collision_solid_view original_view=moving_view;
+     rf_geometry_collision_movers original=movers;float authored_position[3];
+     original.poses=&original_pose;original.views=&original_view;memcpy(authored_position,p.position,12);
+     context.allow_no_contact=context.authored_static_unchanged=context.fresh_boot=1;context.authored_position=authored_position;
+     context.authored_basis=p.basis;context.authored_movers=&original;
+     CHECK(scene_checkpoint_world_authored_mover(&context,&p,0));
+     context.fresh_boot=0;CHECK(!scene_checkpoint_world_authored_mover(&context,&p,0));context.fresh_boot=1;
+     pose.position[0]+=.01f;CHECK(!scene_checkpoint_world_authored_mover(&context,&p,0));pose.position[0]-=.01f;
+     p.position[0]+=.01f;CHECK(!scene_checkpoint_world_authored_mover(&context,&p,0));p.position[0]-=.01f;
+     context.allow_no_contact=context.authored_static_unchanged=context.fresh_boot=0;context.authored_position=context.authored_basis=NULL;
+     context.authored_movers=NULL;}
     CHECK(scene_checkpoint_world_place(&context,&p,&room,&support)==RF_NOT_FOUND);
     pose.position[0]=5;CHECK(!scene_checkpoint_world_place(&context,&p,&room,&support));
     CHECK(support.material==7&&room.room==1);

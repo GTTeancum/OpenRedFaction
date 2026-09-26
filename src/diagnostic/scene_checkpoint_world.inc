@@ -34,9 +34,11 @@ typedef struct scene_checkpoint_world_context {
     uint32_t authored_static_unchanged; /* Caller proves identity-bound static terrain has no mutations. */
     const float *authored_position,*authored_basis; /* Optional exact NPC spawn baseline, borrowed. */
     uint32_t authored_rotating_npc; /* Stationary authored turret may rotate without translating. */
+    const rf_geometry_collision_movers *authored_movers; /* Fresh-boot mover poses for exact authored-overlap proof. */
     rf_clutter_base_owner *const *authored_props; /* Parallel immutable authored-pose owners; caller proves class geometry identity. */
     uint32_t spawn_shell_uid; /* Narrow player-only authored hollow prop exception; zero disables it. */
     const float *spawn_shell_position; /* Borrowed authored player start, not a saved position. */
+    const float *spawn_basis; /* Borrowed authored player body basis for original prop overlap. */
     uint32_t support_uid; /* Authored mover UID for a saved player; zero requires static support. */
 } scene_checkpoint_world_context;
 static int scene_checkpoint_world_authored_pose(const scene_checkpoint_world_context *c,const rf_checkpoint_placement *p)
@@ -57,6 +59,19 @@ static int scene_checkpoint_world_authored_prop(const scene_checkpoint_world_con
        p->body.spheres.items!=a->body.spheres.items)return 0;
     return 1;
 }
+/* Some authored NPC spawn spheres intersect an unadvanced mover. Preserve
+ * that original overlap only when both the NPC and mover still have their
+ * exact fresh-boot poses and the collision geometry is the same owner. */
+static int scene_checkpoint_world_authored_mover(const scene_checkpoint_world_context *c,
+    const rf_checkpoint_placement *p,uint32_t slot)
+{
+    const rf_geometry_collision_movers *a=c->authored_movers,*m=c->movers;
+    return c->fresh_boot&&scene_checkpoint_world_authored_pose(c,p)&&a&&slot<a->count&&slot<m->count&&
+        a->poses&&a->views&&m->poses&&m->views&&
+        a->owned==m->owned&&a->uids==m->uids&&
+        !memcmp(a->poses+slot,m->poses+slot,sizeof(*a->poses))&&
+        !memcmp(a->views+slot,m->views+slot,sizeof(*a->views));
+}
 static int scene_checkpoint_world_point(const float local[3],const float basis[9],const float position[3],float out[3]);
 /* A settled NPC may turn at its exact authored spawn while its broad class
  * sphere still intersects an authored prop's broad sphere. Admit only when
@@ -73,6 +88,25 @@ static int scene_checkpoint_world_authored_prop_overlap(const scene_checkpoint_w
        scene_checkpoint_world_point(p->spheres[sphere].center,c->authored_basis,c->authored_position,baseline))return 0;
     for(axis=0;axis<3;axis++){double d=(double)baseline[axis]-other[axis];distance2+=d*d;}
     for(axis=0;axis<9;axis++)if(fabsf(p->basis[axis]-c->authored_basis[axis])>.05f)return 0;
+    return distance2<limit2&&current_distance2>=distance2*.99;
+}
+/* A settling player can descend through a coarse prop sphere already crossed
+ * by the exact authored spawn. Only unchanged props, the original body basis,
+ * exact X/Z spawn and a shallow downward settle qualify; overlap cannot grow. */
+static int scene_checkpoint_world_spawn_prop_overlap(const scene_checkpoint_world_context *c,
+    const rf_checkpoint_placement *p,uint32_t slot,const rf_clutter_base_owner *prop,
+    uint32_t sphere,const float other[3],double current_distance2,double limit2)
+{
+    float baseline[3];double distance2=0;uint32_t axis;
+    if(!c->spawn_shell_position||!c->spawn_basis||!c->authored_static_unchanged||
+       !scene_checkpoint_world_authored_prop(c,slot,prop)||
+       p->position[0]!=c->spawn_shell_position[0]||p->position[2]!=c->spawn_shell_position[2]||
+       p->position[1]>c->spawn_shell_position[1]+.125f||
+       p->position[1]<c->spawn_shell_position[1]-.75f||
+       scene_checkpoint_world_point(p->spheres[sphere].center,c->spawn_basis,c->spawn_shell_position,baseline))return 0;
+    for(axis=0;axis<9;axis++)if(!isfinite(p->basis[axis])||!isfinite(c->spawn_basis[axis])||
+        fabsf(p->basis[axis]-c->spawn_basis[axis])>1e-5f)return 0;
+    for(axis=0;axis<3;axis++){double d=(double)baseline[axis]-other[axis];distance2+=d*d;}
     return distance2<limit2&&current_distance2>=distance2*.99;
 }
 static int scene_checkpoint_world_spawn_shell(const scene_checkpoint_world_context *c,
@@ -116,6 +150,9 @@ static int scene_checkpoint_world_obstacles(const scene_checkpoint_world_context
             }
             {rf_checkpoint_placement_result reason={UINT32_MAX,UINT32_MAX,0};
              status=rf_checkpoint_solid_sphere_check(flat->faces,flat->count,p->query_flags,local,p->spheres[i].radius,&reason);
+             if(status==RF_NOT_FOUND&&(reason.reason==RF_CHECKPOINT_PLACEMENT_SURFACE||
+                reason.reason==RF_CHECKPOINT_PLACEMENT_SOLID)&&
+                scene_checkpoint_world_authored_mover(c,p,j))status=RF_OK;
 #ifndef RF_IMAGE_XBOX_NATIVE
              if(status&&scene_checkpoint_world_diagnostics())printf("WORLD_RESTORE_PLACEMENT phaseobstacle_mover index%u handle%u sphere%u reason%u retries%u status%d\n",
                 j,c->movers->views[j].object_id,i,reason.reason,reason.retries,status);
@@ -141,6 +178,7 @@ static int scene_checkpoint_world_obstacles(const scene_checkpoint_world_context
                      * exempt; saved moved/new props retain ordinary rejection. */
                     if(scene_checkpoint_world_authored_pose(c,p)&&scene_checkpoint_world_authored_prop(c,j,prop))continue;
                     if(scene_checkpoint_world_spawn_shell(c,p,j,prop))continue;
+                    if(scene_checkpoint_world_spawn_prop_overlap(c,p,j,prop,i,other,distance,radius*radius))continue;
                     if(scene_checkpoint_world_authored_prop_overlap(c,p,j,prop,i,other,distance,radius*radius))continue;
 #ifndef RF_IMAGE_XBOX_NATIVE
                     if(scene_checkpoint_world_diagnostics())printf("WORLD_RESTORE_PLACEMENT phaseobstacle_prop uid%u sphere%u prop_sphere%u distance2%.12g limit2%.12g status%d\n",

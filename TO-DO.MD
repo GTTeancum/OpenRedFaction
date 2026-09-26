@@ -1,9 +1,9 @@
 # Red Faction Xbox / PC - open work
 
-Completion basis (user direction,2026-09-18): working late-alpha/early-beta code implementation. Overall approximately88%; GeoMod100% for the first playable milestone, accepted by the user. GeoMod items below are deferred refinement and coverage, not prerequisites to moving on. This does not assert retail polish, complete campaign integration or resolution of every known defect.
+Completion basis (user direction,2026-09-18): working late-alpha/early-beta code implementation. Overall approximately89%; GeoMod100% for the first playable milestone, accepted by the user. GeoMod items below are deferred refinement and coverage, not prerequisites to moving on. This does not assert retail polish, complete campaign integration or resolution of every known defect.
 
 
-- PRIORITY Ordinary saves: L1S1 inactive and L17S4/L14S3 active-cutscene saves/reloads pass PC/Xbox, including L14S3 authored mover support and L17S4's L18S1 handoff; general cross-level coverage, menu/slot selection, destruction/vehicles and broader resource demand remain (saves approximately91%).
+- PRIORITY Ordinary saves: L1S1 inactive and L11S3/L14S3/L17S4 active-cutscene saves/reloads pass PC/Xbox, including authored mover support and L17S4's L18S1 handoff; L6S3's queued Force_Monitor_Update, general cross-level coverage, menu/slot selection, destruction/vehicles and broader resource demand remain (saves approximately92%).
 
 - AI navigation: L6S3 authored Goto actor takes a four-node route with navpoints ON and a direct approach with them OFF, and mid-route OFF invalidation matches Xbox/PC actor state exactly; RFEN2 survives full L18S1 PC reload, while broader NPC travel, mid-route reopening and native reload remain open.
 
@@ -15,7 +15,7 @@ Completion basis (user direction,2026-09-18): working late-alpha/early-beta code
 
 - Scripted effects: Play_Sound, Explode, Message, Music_Start/Stop, Black_Out_Player and Endgame now forward ordinary authored links after their effects; L11S3 self-destruct Message chaining passes PC/Xbox within stock memory, while authored GeoMod room/terrain ownership, full vclip VFX, active-effect saves and native music/audio checks remain (docs/SCRIPTED-EFFECT-LINKS-FIRST-PASS.md).
 
-- Campaign cutscenes: All 12 resource sets load; L6S3/L11S3 handoffs, L14S3 miner/L17S4 effect aiming, L17S4 restored handoff, and L14S3 active authored-mover save/reload work on PC/Xbox; native bottle playback, full-timeline input, cancellation and broader moving-support saves remain (docs/CUTSCENE-RESOURCE-FIRST-PASS.md).
+- Campaign cutscenes: All 12 resource sets load; L6S3/L11S3 handoffs, L14S3 miner/L17S4 effect aiming, L17S4 restored handoff, and L11S3/L14S3 active saves work on PC/Xbox; L6S3 active saves, native bottle playback, full-timeline input, cancellation and broader moving-support saves remain (docs/CUTSCENE-RESOURCE-FIRST-PASS.md).
 
 - USER PC hands-on pass: DEV replay confirms granted weapons and cycling, Right Bumper also cycles on PC, and the full-window black repaint that could cause flicker is removed; interactive pickup/switching and flicker still need user verification before calling the build ready for gameplay testing.
 

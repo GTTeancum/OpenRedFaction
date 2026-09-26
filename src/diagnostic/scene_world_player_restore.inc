@@ -31,7 +31,12 @@ static inline int scene_world_player_prepare(scene_stream *stream,const scene_wo
     scene_checkpoint_placement(stream,&s.player,s.basis,&s.placement);
     context=world->world;context.allow_no_contact=0;context.authored_position=NULL;context.authored_basis=NULL;
     context.authored_props=NULL;context.authored_static_unchanged=0;
-    context.spawn_shell_uid=0;context.spawn_shell_position=NULL;context.support_uid=support_uid;
+    context.spawn_shell_uid=0;context.spawn_shell_position=stream->world_checkpoint_level?
+        stream->world_checkpoint_level->player_position:NULL;context.support_uid=support_uid;
+    context.spawn_basis=stream->world_checkpoint_level?stream->world_checkpoint_level->player_orientation[0]:NULL;
+    if(world->world.authored_static_unchanged&&!world->envelope.sections[RF_WORLD_DESTRUCTION-1].bytes){
+        context.authored_static_unchanged=1;context.authored_props=world->authored_prop_views;
+    }
     if(stream->world_checkpoint_level&&
        ((scene_npc_checkpoint_level_equal(world->envelope.level,"L18S1.rfl")&&
          scene_npc_checkpoint_level_equal(campaign_current_level,"L18S1.rfl"))||

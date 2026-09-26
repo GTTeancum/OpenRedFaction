@@ -106,6 +106,19 @@ def main() -> None:
         assert body(resumed) == body(direct), "restored player diverged from uninterrupted mover support"
         print("PASS L14S3: active cutscene and authored mover support survive ordinary reload")
 
+        folder = Path(temp) / "L11S3"
+        folder.mkdir()
+        active = replay(folder, "L11S3.rfl", 65, 10626,
+                        {"RF_REPLAY_QUICKSAVE_FRAME": "60"}, "levels2.vpp")
+        assert cutscene(active)[3] == 10626 and "QUICK_SAVE frame60 status0" in active, active[-2500:]
+        path = folder / "redfaction-save"
+        resumed = replay(folder, "L11S3.rfl", 120, None,
+                         {"RF_REPLAY_WORLD_SNAPSHOT_IN": str(path)}, "levels2.vpp")
+        assert "WORLD_SNAPSHOT_LOADED " in resumed and cutscene(resumed)[3] == 10626, resumed[-2500:]
+        direct = replay(folder, "L11S3.rfl", 180, 10626, {}, "levels2.vpp")
+        assert body(resumed) == body(direct), "restored L11S3 player diverged from uninterrupted play"
+        print("PASS L11S3: active cutscene, authored mover/NPC overlap and player start prop survive reload")
+
 
 if __name__ == "__main__":
     main()

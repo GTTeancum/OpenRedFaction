@@ -151,7 +151,8 @@ static inline int scene_world_restore_prepare(const void *data,uint32_t bytes,
         &campaign_movers,mover_rows,mover_count,now,budget-s->allocated_bytes-(uint32_t)temp,&s->movers);if(status)goto fail;
     s->allocated_bytes+=s->movers.allocated_bytes;free(mover_rows);mover_rows=NULL;
     s->candidate_movers=campaign_movers;s->candidate_movers.poses=s->movers.poses;s->candidate_movers.views=s->movers.views;
-    s->world=*world;s->world.movers=&s->candidate_movers;s->world.props=s->prop_views;s->world.prop_count=prop_count;
+    s->world=*world;s->world.authored_movers=world->movers;s->world.movers=&s->candidate_movers;
+    s->world.props=s->prop_views;s->world.prop_count=prop_count;
     s->world.authored_props=s->authored_prop_views;
     s->world.scratch=s->scratch;s->world.scratch_count=campaign_movers.count;
     temp=(uint64_t)npc_count*sizeof(*npc_rows);
