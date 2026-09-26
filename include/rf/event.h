@@ -414,6 +414,10 @@ typedef struct rf_runtime_triggers {
     /* Type34 receives translated runtime action, not the authored enum. */
     int (*set_ai_mode)(void *,uint32_t handle,int32_t action,int32_t now);
     void *ai_mode_context;
+    /* Go_Undercover47 has no linked actor targets; ON chooses the authored
+     * player form and OFF restores the normal form. */
+    int (*set_player_form)(void *,uint32_t variant,uint32_t enabled,int32_t now);
+    void *player_form_context;
     /* Non-consuming object7c read for When_Hit; clear signals after all observers. */
     int (*query_hit_flags)(void *,uint32_t handle,uint32_t *flags);
     void *hit_flags_context;

@@ -19,7 +19,7 @@ Completion basis (user direction,2026-09-18): working late-alpha/early-beta code
 
 - Scripted monitor events: Reconstruct Monitor_State and the rendered-image cache for visual parity; queued Force_Monitor_Update now survives L6S3 first-pass gameplay saves as a visual-only invalidation (docs/research/FORCE-MONITOR-UPDATE-20260925.md).
 
-- Campaign undercover: Implement Go_Undercover's player-form replacement, disguise hostility, weapon and inventory handoff, armor and model changes, and save continuity; five authored events use it, and binary-derived entry/exit contracts are recorded in docs/research/FUTURE-CAMPAIGN-AI-MODE-UNDERCOVER-20260915.md.
+- Campaign undercover: Go_Undercover now starts a first-pass disguise with the authored handgun, zero armor and reduced unalerted guard acquisition on PC/Xbox; finish player model/class recreation, verified off-event and cross-level handoffs, compromise behavior and active-form save continuity (docs/CAMPAIGN-UNDERCOVER-FIRST-PASS.md).
 
 - USER PC hands-on pass: DEV replay confirms granted weapons and cycling, Right Bumper also cycles on PC, and the full-window black repaint that could cause flicker is removed; interactive pickup/switching and flicker still need user verification before calling the build ready for gameplay testing.
 

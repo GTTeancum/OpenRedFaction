@@ -22,6 +22,12 @@ int main(void)
     assert(scene_weapon_resources_plan(15,1u<<11,slots,12,&supply.names,&inventory,&pickups,&events,resolve,&tables,&result)==RF_OK && result.mask==0x80f && !result.pickup_mask && result.event_mask==0x800);
     strcpy(event.record.type,"Set_Life");
     assert(scene_weapon_resources_plan(0x7ff,1u<<11,slots,12,&supply.names,&inventory,&pickups,&events,resolve,&tables,&result)==RF_OK && result.mask==0x7ff);
+    {
+        const char *form_slots[17]={"12mm handgun","Assault Rifle","Riot Stick","Shotgun","Rocket Launcher","Grenade","Sniper Rifle","rail_gun","Remote Charge","Remote Charge Detonator","Flamethrower","riot shield","shoulder_cannon","Machine Pistol","heavy_machine_gun","scope_assault_rifle","Undercover 12mm handgun"};
+        strcpy(event.record.type,"Go_Undercover");
+        assert(scene_weapon_resources_plan(15,1u<<16,form_slots,17,&supply.names,&inventory,NULL,&events,resolve,&tables,&result)==RF_OK && result.event_mask==(1u<<16) && result.mask==(15u|(1u<<16)));
+        strcpy(event.record.type,"Set_Life");
+    }
     strcpy(item.class_name,"not_an_authored_item");
     assert(scene_weapon_resources_plan(15,1u<<11,slots,12,&supply.names,&inventory,&pickups,NULL,resolve,&tables,&result)==RF_OK && result.mask==15 && result.unresolved_items==1);
     rf_vpp_close(&tables);puts("sparse shield resource demand: inventory, pickups, authored grants, base masks and unrelated items pass");return 0;

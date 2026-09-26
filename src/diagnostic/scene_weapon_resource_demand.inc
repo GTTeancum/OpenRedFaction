@@ -57,7 +57,14 @@ static int scene_weapon_resources_plan(uint32_t base_mask,uint32_t optional_mask
     }
     for(i=0;optional_mask && events && i<events->count;++i){
         const rf_level_event *event=&events->items[i].record;
+        uint32_t slot;
         if(!memchr(event->type,0,sizeof(event->type)))return RF_FORMAT;
+        /* Go_Undercover equips this weapon directly, without an item grant. */
+        if(scene_weapon_demand_equal(event->type,"Go_Undercover")){
+            for(slot=0;slot<slot_count;slot++)if((optional_mask&(1u<<slot))&&
+                scene_weapon_demand_equal(slots[slot],"Undercover 12mm handgun"))value.event_mask|=1u<<slot;
+            continue;
+        }
         if(!scene_weapon_demand_equal(event->type,"Give_Item_To_Player"))continue;
         if(!memchr(event->texts[0],0,sizeof(event->texts[0])))return RF_FORMAT;
         status=scene_weapon_demand_item(event->texts[0],optional_mask,slots,slot_count,resolve,context,&value.event_mask,&value.unresolved_items);if(status)return status;

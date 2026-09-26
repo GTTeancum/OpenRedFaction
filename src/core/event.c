@@ -755,6 +755,12 @@ static void startup_event_action(void *context,rf_event_state *state,uint32_t ac
         }
         return;
     }
+    if(state->type==47) {
+        if(!c->triggers->set_player_form){++c->report->unsupported_actions;return;}
+        c->status=c->triggers->set_player_form(c->triggers->player_form_context,
+            c->event->authored->record.words[0],action==1,c->now);
+        return;
+    }
     if(state->type==76) {
         if(!c->triggers->set_nano_shield){++c->report->unsupported_actions;return;}
         for(i=0;i<c->event->authored->record.link_count;i++) {
@@ -1273,6 +1279,7 @@ int rf_runtime_events_tick(rf_runtime_events *events,rf_runtime_triggers *trigge
            !(event->state.type==24 && triggers->set_invulnerable) &&
            !(event->state.type==76 && triggers->set_nano_shield) &&
            !(event->state.type==34 && triggers->set_ai_mode) &&
+           !(event->state.type==47 && triggers->set_player_form) &&
            !(event->state.type==38 && triggers->attack_npc) &&
            !(event->state.type==46 && triggers->alarm) &&
            !((event->state.type==11 || event->state.type==12) && triggers->play_animation) &&

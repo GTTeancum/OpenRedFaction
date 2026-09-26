@@ -3,6 +3,12 @@
 #define CHECK(x) do{if(!(x)){fprintf(stderr,"FAIL %d %s\n",__LINE__,#x);return 1;}}while(0)
 static rf_entity_ai_transition_state ai;
 static uint32_t entity_handle,calls,propagations;
+static uint32_t form_calls,form_variant,form_enabled;static int32_t form_now;
+static int set_form(void *context,uint32_t variant,uint32_t enabled,int32_t now)
+{
+    if(context!=&ai)return RF_FORMAT;
+    ++form_calls;form_variant=variant;form_enabled=enabled;form_now=now;return RF_OK;
+}
 static int set_mode(void *context,uint32_t handle,int32_t action,int32_t now)
 {
     if(context!=&ai)return RF_FORMAT;
@@ -48,5 +54,11 @@ int main(void)
     CHECK(rf_runtime_event_fire(&triggers,items[0].handle,7,8,1600,&gravity,NULL,NULL,&report)==RF_OK && calls==14);
     items[0].state.flags=0;authored[0].record.words[0]=6;before=calls;
     CHECK(rf_runtime_event_fire(&triggers,items[0].handle,7,8,1600,&gravity,NULL,NULL,&report)==RF_RANGE && calls==before);
-    puts("AI mode event translation, real action setter, delayed dispatch, OFF no-op and propagation passed");return 0;
+    items[0].state.type=47;authored[0].record.words[0]=1;
+    triggers.set_player_form=set_form;triggers.player_form_context=&ai;
+    CHECK(rf_runtime_event_fire(&triggers,items[0].handle,7,8,1700,&gravity,NULL,NULL,&report)==RF_OK);
+    CHECK(form_calls==1 && form_variant==1 && form_enabled==1 && form_now==1700);
+    CHECK(rf_runtime_event_fire(&triggers,items[1].handle,7,8,1800,&gravity,NULL,NULL,&report)==RF_OK);
+    CHECK(form_calls==2 && form_variant==1 && form_enabled==0 && form_now==1800);
+    puts("AI mode and undercover ON/OFF event dispatch passed");return 0;
 }

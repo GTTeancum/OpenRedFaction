@@ -1238,7 +1238,7 @@ int rf_scene_fire_setup_event(uint32_t uid,int32_t now)
         if(campaign_events.items[i].state.type==75 || campaign_events.items[i].state.type==63)
             return rf_runtime_event_fire(&campaign_triggers,campaign_events.items[i].handle,
                 UINT32_MAX,UINT32_MAX,now,&scene_gravity,NULL,NULL,&report);
-        if(campaign_events.items[i].state.type!=0 && campaign_events.items[i].state.type!=7 && campaign_events.items[i].state.type!=10 && campaign_events.items[i].state.type!=61 && campaign_events.items[i].state.type!=48 && campaign_events.items[i].state.type!=2 && campaign_events.items[i].state.type!=1 && campaign_events.items[i].state.type!=3 && campaign_events.items[i].state.type!=69 && campaign_events.items[i].state.type!=15 && campaign_events.items[i].state.type!=24 && campaign_events.items[i].state.type!=30 && campaign_events.items[i].state.type!=13 && campaign_events.items[i].state.type!=14 && campaign_events.items[i].state.type!=19 && campaign_events.items[i].state.type!=56 && campaign_events.items[i].state.type!=32 && campaign_events.items[i].state.type!=46 && campaign_events.items[i].state.type!=11 && campaign_events.items[i].state.type!=12 && campaign_events.items[i].state.type!=41 && campaign_events.items[i].state.type!=42 && campaign_events.items[i].state.type!=73 && campaign_events.items[i].state.type!=74 && campaign_events.items[i].state.type!=71 && campaign_events.items[i].state.type!=67 && campaign_events.items[i].state.type!=55)return RF_FORMAT;
+        if(campaign_events.items[i].state.type!=0 && campaign_events.items[i].state.type!=7 && campaign_events.items[i].state.type!=10 && campaign_events.items[i].state.type!=61 && campaign_events.items[i].state.type!=48 && campaign_events.items[i].state.type!=2 && campaign_events.items[i].state.type!=1 && campaign_events.items[i].state.type!=3 && campaign_events.items[i].state.type!=69 && campaign_events.items[i].state.type!=15 && campaign_events.items[i].state.type!=24 && campaign_events.items[i].state.type!=30 && campaign_events.items[i].state.type!=13 && campaign_events.items[i].state.type!=14 && campaign_events.items[i].state.type!=19 && campaign_events.items[i].state.type!=56 && campaign_events.items[i].state.type!=32 && campaign_events.items[i].state.type!=46 && campaign_events.items[i].state.type!=11 && campaign_events.items[i].state.type!=12 && campaign_events.items[i].state.type!=41 && campaign_events.items[i].state.type!=42 && campaign_events.items[i].state.type!=73 && campaign_events.items[i].state.type!=74 && campaign_events.items[i].state.type!=71 && campaign_events.items[i].state.type!=67 && campaign_events.items[i].state.type!=55 && campaign_events.items[i].state.type!=47)return RF_FORMAT;
         return rf_runtime_event_fire(&campaign_triggers,campaign_events.items[i].handle,UINT32_MAX,UINT32_MAX,now,&scene_gravity,NULL,NULL,&report);
     }
     return RF_NOT_FOUND;
@@ -2058,6 +2058,12 @@ uint32_t rf_scene_script_grants[8]; /* applied, acquired, rounds, weapon, owned,
 static rf_weapon_inventory campaign_player_inventory;static int32_t campaign_pistol_id=-1;
 static rf_campaign_player_state campaign_player_import,campaign_player_export;
 static uint32_t campaign_import_pending,campaign_export_valid;
+typedef struct campaign_player_form_state {
+    uint32_t active,variant,compromised,return_slot,return_unarmed;
+    float normal_class_armor;
+} campaign_player_form_state;
+static campaign_player_form_state campaign_player_form,campaign_player_form_carry;
+uint32_t rf_scene_player_form[8]; /* active,variant,compromised,entries,exits,weapon,armor bits,status */
 static uint32_t campaign_explicit_unarmed,campaign_import_applied;
 #include "scene_machine_pistol_carry_gameplay.inc"
 #include "scene_undercover_carry.inc"
@@ -9256,6 +9262,54 @@ static void campaign_ammo_publish(void)
     if(!campaign_player_inventory.owned[campaign_slot_weapon(campaign_equipped_slot)])rf_scene_player_ammo[0]=UINT32_MAX;
     rf_scene_player_ammo[2]=rf_scene_combat[5];rf_scene_player_ammo[6]=sizeof(campaign_player_inventory);
 }
+/* Gameplay portion of original 4b00f0/4b0380. The original recreates the
+ * actor as parker_suit/parker_sci and back to miner1; model/camera replacement
+ * is still open. Keep the existing body and health stable while applying the
+ * class armor, flags and authored undercover weapon transition. */
+static int campaign_set_player_form(void *context,uint32_t variant,uint32_t enabled,int32_t now)
+{
+    scene_stream *stream=context;const rf_weapon_acquire_definition *weapon;
+    int32_t id=campaign_extra_ids[3];int status=RF_OK;
+    if(!stream||now<0||now>RF_TIMER_PERIOD)return RF_RANGE;
+    if(enabled){
+        if(campaign_player_form.active)return RF_OK;
+        if(campaign_player_object.view!=&campaign_player_view)return RF_OK;
+        if(id<0||id>=64||!scene_weapon_available(16)||!stream->player_weapon[16])return RF_NOT_FOUND;
+        weapon=campaign_weapon_supply.definitions+id;
+        if(weapon->magazine<0||weapon->ammo_type<0||weapon->ammo_type>=32)return RF_FORMAT;
+        status=rf_weapon_acquire_sp(&campaign_player_inventory,weapon,id,-1);
+        if(status)return status;
+        campaign_player_form=(campaign_player_form_state){1,variant,0,campaign_equipped_slot,
+            campaign_explicit_unarmed,campaign_player_damage.state.effects.class_armor};
+        campaign_player_damage.state.effects.armor=0;
+        campaign_player_damage.state.effects.class_armor=0;
+        campaign_player_view.flags_810&=~0x40u;
+        campaign_player_view.flags_7d0|=0x10000u;
+        campaign_player_damage.state.effects.flags_810=campaign_player_view.flags_810;
+        campaign_select_primary(16);++rf_scene_player_form[3];
+    }else{
+        uint32_t slot;
+        if(!campaign_player_form.active)return RF_OK;
+        slot=campaign_player_form.return_slot;
+        campaign_player_damage.state.effects.armor=campaign_player_form.normal_class_armor;
+        campaign_player_damage.state.effects.class_armor=campaign_player_form.normal_class_armor;
+        campaign_player_view.flags_810|=0x40u;
+        campaign_player_view.flags_7d0&=~0x10000u;
+        campaign_player_damage.state.effects.flags_810=campaign_player_view.flags_810;
+        campaign_player_form.active=campaign_player_form.compromised=0;
+        if(slot<scene_weapon_slots()&&scene_weapon_available(slot)&&
+           campaign_slot_weapon(slot)>=0&&
+           campaign_player_inventory.owned[campaign_slot_weapon(slot)]){
+            campaign_select_primary(slot);campaign_explicit_unarmed=campaign_player_form.return_unarmed;
+        }else campaign_select_primary(0);
+        ++rf_scene_player_form[4];
+    }
+    campaign_ammo_publish();
+    rf_scene_player_form[0]=campaign_player_form.active;rf_scene_player_form[1]=campaign_player_form.variant;
+    rf_scene_player_form[2]=campaign_player_form.compromised;rf_scene_player_form[5]=(uint32_t)id;
+    memcpy(rf_scene_player_form+6,&campaign_player_damage.state.effects.armor,4);
+    rf_scene_player_form[7]=(uint32_t)status;return RF_OK;
+}
 /* Immutable catalog IDs must exist before frame-zero checkpoint validation. */
 static int scene_weapon_mode_ids_bind(void)
 {
@@ -9310,6 +9364,9 @@ static int campaign_life_input(uint32_t frame,rf_scene_input *input)
     scene_player_impact_relocated();
     scene_actor_body.state=life_start.body;rf_scene_actor_pose=life_start.pose;actor_look=life_start.look;
     campaign_player_damage=life_start.damage;campaign_player_view=life_start.view;
+    /* A death restart restores the level-entry player, not a later disguise. */
+    memset(&campaign_player_form,0,sizeof(campaign_player_form));
+    memset(rf_scene_player_form,0,sizeof(rf_scene_player_form));
     rf_scene_actor_movement_settings=life_start.movement;campaign_climb=life_start.climb;
     memcpy(scene_actor_body.spheres.items,life_start.spheres,life_start.count*sizeof(*life_start.spheres));
     rf_scene_actor_stance_flags=life_start.stance;memcpy(rf_scene_actor_landing,life_start.landing,sizeof(life_start.landing));
@@ -9791,6 +9848,10 @@ static int campaign_enemy_tick(scene_stream *stream,uint32_t frame,const float p
         campaign_npc_body *owner=campaign_npc_bodies+i;float delta[3],distance=0,amount=0;int status;
         {float speed2=0;for(j=0;j<3;j++)speed2+=scene_actor_body.state.velocity[j]*scene_actor_body.state.velocity[j];
          if(!campaign_enemy_mode_admits(owner,speed2>.0001f,0)){campaign_pursuit_stop(owner);continue;}}
+        /* First-pass disguise policy: unalerted ordinary guards do not acquire
+         * the player form; scripted attacks and existing alerts still run. */
+        if(campaign_player_form.active&&!campaign_player_form.compromised&&
+           !owner->combat_scripted&&!owner->combat_alert)continue;
         if(!campaign_enemy_target_living(owner,campaign_player_object.handle,campaign_player_damage.state.effects.health))continue;
         const int32_t weapon=owner->view.weapons[0];
         const int32_t ids[8]={campaign_pistol_id,campaign_rifle_id,campaign_riot_id,campaign_shotgun_id,
@@ -13217,6 +13278,21 @@ static int campaign_player_import_apply(void)
     campaign_player_damage.state.effects.health=imported.health;
     campaign_player_damage.state.effects.armor=imported.armor;
     campaign_select_primary(slot);campaign_explicit_unarmed=imported.weapon==UINT32_MAX;
+    if(campaign_player_form_carry.active){
+        if(!scene_actor_collision_owner||!scene_actor_collision_owner->player_weapon[16]||
+           !scene_weapon_available(16)||campaign_extra_ids[3]<0||
+           !campaign_player_inventory.owned[campaign_extra_ids[3]])return RF_NOT_FOUND;
+        campaign_player_form=campaign_player_form_carry;
+        campaign_player_damage.state.effects.class_armor=0;
+        campaign_player_view.flags_810&=~0x40u;
+        campaign_player_view.flags_7d0|=0x10000u;
+        campaign_player_damage.state.effects.flags_810=campaign_player_view.flags_810;
+        rf_scene_player_form[0]=1;rf_scene_player_form[1]=campaign_player_form.variant;
+        rf_scene_player_form[2]=campaign_player_form.compromised;
+        rf_scene_player_form[5]=(uint32_t)campaign_extra_ids[3];
+        memcpy(rf_scene_player_form+6,&campaign_player_damage.state.effects.armor,4);
+    }
+    memset(&campaign_player_form_carry,0,sizeof(campaign_player_form_carry));
     campaign_ammo_publish();campaign_import_pending=0;campaign_import_applied=1;return RF_OK;
 }
 static void campaign_player_export_capture(void)
@@ -13227,6 +13303,7 @@ static void campaign_player_export_capture(void)
     state.weapon=!campaign_explicit_unarmed && campaign_player_inventory.owned[campaign_slot_weapon(campaign_equipped_slot)]?(uint32_t)campaign_slot_weapon(campaign_equipped_slot):UINT32_MAX;
     state.catalog_hash=rf_scene_weapon_supply[3];
     campaign_export_valid=rf_campaign_player_copy(&campaign_player_export,&state,state.catalog_hash)==RF_OK;
+    campaign_player_form_carry=campaign_player_form;
     scene_machine_carry_export();
     scene_undercover_carry_export();
 }
@@ -13522,6 +13599,7 @@ static int campaign_combat_tick(scene_stream *stream,uint32_t frame,const float 
     }
     status=campaign_equipped_slot==2?RF_OK:rf_weapon_consume_shot(&campaign_player_inventory,campaign_weapon_supply.definitions,campaign_weapon_supply.names.count,campaign_selected_weapon());
     rf_scene_player_ammo[7]=(uint32_t)status;if(status)return status;campaign_ammo_publish();
+    if(fire && campaign_player_form.active){campaign_player_form.compromised=1;rf_scene_player_form[2]=1;}
     if(fire){++rf_scene_combat[0];campaign_last_alt=alt;combat_sound(campaign_equipped_slot==13?(campaign_machine_mode.special?"Machine Pistol Alt Launch":"Machine Pistol Launch"):campaign_equipped_slot==14?(alt?"HMG Launch 2":"HMG Launch 1"):campaign_equipped_slot==15?"Sniper 2 Launch":campaign_equipped_slot==16 && stream->undercover?scene_undercover_mode_launch(&stream->undercover->mode):campaign_equipped_slot==16?"Glock Launch":campaign_equipped_slot==7?"Rail Fire 1":campaign_equipped_slot==6?"Sniper Launch":campaign_equipped_slot==4?"Rocket Fire":campaign_equipped_slot==1?"Assault Loop":campaign_equipped_slot==3?(alt?"Shotgun Fire 2":"Shotgun Fire"):alt?"Riot Attack Taser":campaign_equipped_slot==2?"Riot Attack":campaign_equipped_slot?"Assault Loop":"Glock Launch",position);}
     if(fire && campaign_equipped_slot==16 && stream->undercover && stream->undercover->mode.attached)++rf_scene_undercover[5];
     if(fire && campaign_equipped_slot!=2){
@@ -16852,7 +16930,8 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
        !rf_scene_actor_look_enabled || !rf_scene_actor_turn_enabled || !collision || !sink))return RF_RANGE;
     if(actor_follow_world && (!sink || !collision || actor_follow_world->world!=geometry ||
         actor_follow_world->material_count!=materials->count))return RF_RANGE;
-    campaign_export_valid=0;rf_scene_player_shield_resources=0;scene_fusion_resources=scene_rocket_resources=scene_grenade_resources=scene_remote_resources=scene_flame_resources=0;
+    campaign_export_valid=0;memset(&campaign_player_form,0,sizeof(campaign_player_form));memset(rf_scene_player_form,0,sizeof(rf_scene_player_form));
+    rf_scene_player_shield_resources=0;scene_fusion_resources=scene_rocket_resources=scene_grenade_resources=scene_remote_resources=scene_flame_resources=0;
     scene_flame_input_reset();scene_flame_canister_reset();scene_flame_active=scene_flame_visual_ready=0;memset(rf_scene_flame_visual,0,sizeof(rf_scene_flame_visual));
     scene_remote_reset();
     memset(scene_grenades,0,sizeof(scene_grenades));memset(&scene_grenade_throw,0,sizeof(scene_grenade_throw));memset(rf_scene_grenades,0,sizeof(rf_scene_grenades));
@@ -16961,7 +17040,7 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
             if(status)goto done;
             if(rf_scene_follow_level_exits && rf_scene_level_transition.pending)
                 status=rf_campaign_goals_next_section(&rf_scene_mission_goals);
-            else {scene_machine_carry_reset();scene_undercover_carry_reset_all();scene_player_shield_damage_reset();scene_npc_shield_history_reset();campaign_ai_modes_reset();campaign_event_history_reset();memset(&campaign_switch_history,0,sizeof(campaign_switch_history));memset(campaign_switch_saved,0,sizeof(campaign_switch_saved));memset(&campaign_trigger_history,0,sizeof(campaign_trigger_history));memset(&campaign_local_goals,0,sizeof(campaign_local_goals));memset(&campaign_startup_inventory,0,sizeof(campaign_startup_inventory));memset(&rf_scene_mission_goals,0,sizeof(rf_scene_mission_goals));memset(&rf_scene_campaign_countdown,0,sizeof(rf_scene_campaign_countdown));rf_scene_campaign_countdown.difficulty=1;memset(&rf_scene_campaign_pickups,0,sizeof(rf_scene_campaign_pickups));memset(&rf_scene_defeated_actors,0,sizeof(rf_scene_defeated_actors));}
+            else {scene_machine_carry_reset();scene_undercover_carry_reset_all();memset(&campaign_player_form_carry,0,sizeof(campaign_player_form_carry));scene_player_shield_damage_reset();scene_npc_shield_history_reset();campaign_ai_modes_reset();campaign_event_history_reset();memset(&campaign_switch_history,0,sizeof(campaign_switch_history));memset(campaign_switch_saved,0,sizeof(campaign_switch_saved));memset(&campaign_trigger_history,0,sizeof(campaign_trigger_history));memset(&campaign_local_goals,0,sizeof(campaign_local_goals));memset(&campaign_startup_inventory,0,sizeof(campaign_startup_inventory));memset(&rf_scene_mission_goals,0,sizeof(rf_scene_mission_goals));memset(&rf_scene_campaign_countdown,0,sizeof(rf_scene_campaign_countdown));rf_scene_campaign_countdown.difficulty=1;memset(&rf_scene_campaign_pickups,0,sizeof(rf_scene_campaign_pickups));memset(&rf_scene_defeated_actors,0,sizeof(rf_scene_defeated_actors));}
             if(!status)status=rf_runtime_goals_initialize(&campaign_events,&rf_scene_mission_goals);
             if(!status)status=rf_campaign_local_goals_restore(&campaign_local_goals,campaign_current_level,&rf_scene_mission_goals);
             if(status)goto done;
@@ -16986,6 +17065,7 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
             campaign_triggers.set_invulnerable=campaign_set_invulnerable;
             campaign_triggers.set_nano_shield=campaign_set_nano_shield;campaign_triggers.nano_shield_context=NULL;
             campaign_triggers.set_ai_mode=campaign_set_ai_mode_acquiring;campaign_triggers.ai_mode_context=NULL;
+            campaign_triggers.set_player_form=campaign_set_player_form;campaign_triggers.player_form_context=stream;
             campaign_triggers.remove_object=campaign_remove_object;
             scene_script_sound_reset();campaign_triggers.play_sound=scene_script_sound;campaign_triggers.sound_context=NULL;
             campaign_triggers.music=scene_script_music;campaign_triggers.music_context=NULL;
