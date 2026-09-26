@@ -41,10 +41,30 @@ passes. Both runs used `--no-images`; see
 `artifacts/xemu/render-20260926-182639/report.json` and
 `artifacts/xemu/render-20260926-182349/report.json`.
 
+The boarding pulse now activates L12S1 `When_Enter_Vehicle` UID 9694, which
+starts `Follow_Waypoints` UID 9692 on the Jeep's live handle. The shared rigid
+owner follows the 34-node `jeep_path` with bounded steering and throttle; the
+first two node arrivals and vehicle pose match exactly across a 480-frame PC
+and stock Xbox replay, with 3,210 pages (12.54 MiB) free. A separate 180-frame
+PC/Xbox replay boards and exits the Jeep with identical vehicle and seat
+state and 3,243 pages free. Both runs used process-local input and
+`--no-images`; see `artifacts/xemu/render-20260926-184256/report.json` and
+`artifacts/xemu/render-20260926-183240/report.json`.
+
+The vehicle collision sweep previously saw a resting floor at fraction zero
+on every nearly horizontal motion, preventing the Jeep from leaving its
+spawn. A 5 mm elevated recheck admits floor-tangent travel only after
+checking the raised path for another obstruction; the committed chassis
+height is unchanged. Focused vehicle collision checks pass. This correction
+is shared with other ground vehicles and still needs broader slope/step
+coverage.
+
 This is one authored Jeep owner, not general campaign vehicle creation. The
-L12S1 event chain still needs a live scripted-route check, and other campaign
-vehicle classes and multiple instances need ownership. The vehicle exit sweep
-does not yet account for nearby NPC bodies. L7S3's authored
+remaining route nodes, other vehicle classes, and multiple instances need
+live coverage and ownership. The first-pass waypoint steering is a playable
+port policy, not an exact original AI driver reconstruction. The vehicle exit
+sweep does not yet account for nearby NPC bodies. L7S3's authored
 `Never_Leave_Vehicle` has no links, so no implicit current-vehicle lock is
 invented. Pulse state and active exit locks are not yet represented in ordinary
-world saves. No visual image capture was used for this work.
+world saves, nor is an active vehicle route cursor. No visual image capture was
+used for this work.

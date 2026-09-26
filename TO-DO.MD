@@ -23,7 +23,7 @@ Completion basis (user direction,2026-09-18): working late-alpha/early-beta code
 
 - Scripted monitor events: Monitor_State binds authored screens to their first camera and RFEN5 persists the binding table across PC/Xbox ordinary saves; camera side effects, rendered-image cache/materials and live queued-event continuation remain (docs/CAMPAIGN-MONITOR-STATE-FIRST-PASS.md).
 
-- Campaign vehicle events: L12S1's authored Jeep now loads, boards and resolves its UID on PC/Xbox; other authored vehicles, live scripted routes and active-lock saves remain (docs/CAMPAIGN-VEHICLE-EVENT-FIRST-PASS.md).
+- Campaign vehicle events: L12S1's Jeep now boards, exits and follows the first two authored route nodes with exact PC/Xbox state; other vehicles, the full route, NPC traffic and active vehicle saves remain (docs/CAMPAIGN-VEHICLE-EVENT-FIRST-PASS.md).
 
 - Campaign undercover: Both authored forms, active quick-save/load, a naturally triggered OFF, section handoffs, one walked exit, audible guard alerts and suppressed direct-hit compromise work on PC/Xbox; original-style actor recreation, failure rollback, witness rules and other natural flows remain (docs/CAMPAIGN-UNDERCOVER-FIRST-PASS.md).
 
@@ -47,7 +47,7 @@ Completion basis (user direction,2026-09-18): working late-alpha/early-beta code
 
 - Vehicle saves: Live APC/Jeep DEV save/load now retains motion, ammo, RNG, aiming and Jeep seat/reference; PC reload/exit passes for both, native Jeep seated restore and APC restore/exit produce identical PC/Xbox checkpoint bytes with11.97/11.15MiB free; general campaign persistence and native Jeep exit remain.
 
-- Jeep: Driver/gunner roles, parked seat switching, independent gunner camera and finite-ammo fire pass PC/Xbox; the authored L12S1 Jeep loads and boards with exact PC/Xbox state and12.67MiB free, while native campaign exit, live NPC combat, destruction coverage and other level placements remain (see docs/JEEP-FIRST-PASS.md).
+- Jeep: Driver/gunner roles, parked seat switching, independent gunner camera and finite-ammo fire pass PC/Xbox; L12S1 boarding, exit and initial scripted driving match PC/Xbox with at least12.54MiB free, while live NPC combat, destruction coverage and other level placements remain (see docs/JEEP-FIRST-PASS.md).
 
 - APC: Driving, primary fire, seated aiming, ballistic mortar impacts/GeoMod and vehicle HUD now pass PC/Xbox with three mortar impacts, two accepted cuts and 10.30 MiB free; live NPC damage, campaign persistence, campaign placement and articulated gun visuals remain.
 

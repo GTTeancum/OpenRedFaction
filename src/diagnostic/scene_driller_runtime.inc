@@ -116,6 +116,52 @@ static int scene_driller_runtime_open(scene_stream *s)
     s->driller_runtime=r;memset(rf_scene_jeep_seats,0,sizeof(rf_scene_jeep_seats));memset(rf_scene_drill_state,0,sizeof(rf_scene_drill_state));memset(rf_scene_vehicle_state,0,sizeof(rf_scene_vehicle_state));return RF_OK;
 fail:fprintf(stderr,"VEHICLE_OPEN_ERROR stage%u status%d\n",stage,status);scene_driller_damage_runtime_close(&r->damage);(void)scene_driller_entry_exit_close(&r->entry,1);free(r);return status;
 }
+/* Shared rigid owner follows the event's authored waypoint path. This is a
+ * bounded first-pass driver command; the rigid solver still owns contact,
+ * suspension and speed. It does not teleport between authored nodes. */
+static int scene_campaign_vehicle_route_command(const scene_driller_runtime *r,rf_vehicle_rigid_command *command)
+{
+    uint32_t visited=0,node;const float *target;float dx,dz,distance,forward_x,forward_z,angle;
+    if(!campaign_vehicle_route.active || r->entry.host.handle!=campaign_authored_vehicle_handle)return RF_OK;
+    if(!campaign_vehicle_route.path.count || !campaign_vehicle_route.path.indices)return RF_FORMAT;
+    while(visited++<campaign_vehicle_route.path.count){
+        node=rf_level_waypoint_node(&campaign_vehicle_route.path,campaign_vehicle_route.index);
+        if(node>=campaign_navigation.count)return RF_FORMAT;
+        target=campaign_navigation.nodes[node].candidate.position;
+        dx=target[0]-r->physics.state.position[0];dz=target[2]-r->physics.state.position[2];
+        distance=sqrtf(dx*dx+dz*dz);
+        if(!isfinite(distance))return RF_FORMAT;
+        if(distance>1.5f)break;
+        ++rf_scene_vehicle_route_state[4];
+        if(campaign_vehicle_route.reverse){
+            if(campaign_vehicle_route.index) --campaign_vehicle_route.index;
+            else {campaign_vehicle_route.reverse=0;campaign_vehicle_route.index=1;}
+        }else ++campaign_vehicle_route.index;
+        if(campaign_vehicle_route.index>=campaign_vehicle_route.path.count){
+            if(campaign_vehicle_route.mode==1)campaign_vehicle_route.index=0;
+            else if(campaign_vehicle_route.mode==2 && campaign_vehicle_route.path.count>1){
+                campaign_vehicle_route.reverse=1;campaign_vehicle_route.index=campaign_vehicle_route.path.count-2;
+            }else {campaign_vehicle_route.active=0;break;}
+        }
+    }
+    rf_scene_vehicle_route_state[0]=campaign_vehicle_route.active;
+    rf_scene_vehicle_route_state[1]=campaign_vehicle_route.index;
+    if(!campaign_vehicle_route.active)return RF_OK;
+    node=rf_level_waypoint_node(&campaign_vehicle_route.path,campaign_vehicle_route.index);
+    if(node>=campaign_navigation.count)return RF_FORMAT;
+    target=campaign_navigation.nodes[node].candidate.position;
+    dx=target[0]-r->physics.state.position[0];dz=target[2]-r->physics.state.position[2];
+    distance=sqrtf(dx*dx+dz*dz);
+    if(!isfinite(distance))return RF_FORMAT;
+    if(distance<=1.5f){command->controlled=1;command->turn=command->throttle=0;return RF_OK;}
+    forward_x=r->physics.state.orientation[6];forward_z=r->physics.state.orientation[8];
+    angle=atan2f(forward_z*dx-forward_x*dz,forward_x*dx+forward_z*dz);
+    if(!isfinite(angle))return RF_FORMAT;
+    command->controlled=1;
+    command->turn=fmaxf(-1.f,fminf(1.f,angle/.7f));
+    command->throttle=fabsf(angle)>1.5f?0.f:fabsf(angle)>.8f?.2f:fminf(1.f,distance/4.f);
+    ++rf_scene_vehicle_route_state[3];return RF_OK;
+}
 static int scene_driller_runtime_tick(scene_stream *s,uint32_t frame)
 {
     scene_driller_runtime *r;rf_vehicle_rigid_command command={0};rf_vehicle_rigid_backend backend;
@@ -139,6 +185,10 @@ static int scene_driller_runtime_tick(scene_stream *s,uint32_t frame)
     if(frame && r->entry.session.active)r->driver_seconds+=scene_step_seconds;
     command.controlled=r->entry.session.active && r->entry.host.alive && (rf_scene_vehicle_enabled!=3 || scene_jeep_can_steer(&r->jeep_seat));command.throttle=command.controlled?player_input.move[2]:0;
     command.turn=command.controlled?player_input.move[0]:0;
+    if(campaign_authored_vehicle_uid && r->entry.host.alive){
+        status=scene_campaign_vehicle_route_command(r,&command);
+        rf_scene_vehicle_route_state[7]=(uint32_t)status;if(status)goto fail;
+    }
     backend.context=r;backend.support=scene_driller_runtime_support;backend.resolve=scene_driller_runtime_resolve;
     r->physics.parameters.gravity=scene_gravity.acceleration;
     stage=2;if(frame){

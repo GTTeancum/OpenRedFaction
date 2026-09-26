@@ -1020,6 +1020,7 @@ run_scene:
     printf("VEHICLE_DAMAGE");for(i=0;i<8;++i)printf(" %u",rf_scene_vehicle_damage[i]);puts("");
     printf("DRILL");for(i=0;i<8;++i)printf(" %u",rf_scene_drill_state[i]);puts("");
     printf("VEHICLE");for(i=0;i<16;++i)printf(" %u",rf_scene_vehicle_state[i]);puts("");
+    {extern uint32_t rf_scene_vehicle_route_state[8];printf("VEHICLE_ROUTE");for(i=0;i<8;++i)printf(" %u",rf_scene_vehicle_route_state[i]);puts("");}
     printf("PLAYER_IMPACT");for(i=0;i<8;++i)printf(" %u",rf_scene_player_impact[i]);puts("");
     printf("PLAYER_SHIELD");for(i=0;i<4;++i)printf(" %u",rf_scene_player_shield[i]);puts("");
     printf("RIOT_SHIELD");for(i=0;i<4;++i)printf(" %u",rf_scene_riot_shield[i]);puts("");

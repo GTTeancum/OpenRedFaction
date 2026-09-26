@@ -25,6 +25,18 @@ static int query(void *context,const rf_collision_body_query *q,rf_geometry_body
     fixture *f=context;++f->calls;if(f->fail)return RF_IO;
     return rf_collision_body_sweep(q,NULL,0,wall,f,&h->contact,found);
 }
+/* Resting floor reports fraction zero until the clearance recheck; a wall on
+ * the raised sweep must still stop the horizontal chassis displacement. */
+static int tangent_floor_query(void *context,const rf_collision_body_query *q,rf_geometry_body_hit *h,uint32_t *found)
+{
+    (void)context;memset(h,0,sizeof(*h));
+    if(q->start[1]<.001f){*found=1;h->contact.normal[1]=1;return RF_OK;}
+    if(q->end[0]>2 && q->start[0]<2){
+        *found=1;h->contact.fraction=(2-q->start[0])/(q->end[0]-q->start[0]);
+        h->contact.normal[0]=-1;return RF_OK;
+    }
+    *found=0;return RF_OK;
+}
 int main(void)
 {
     rf_collision_body_sphere spheres[8]={0};fixture f={0,0,0,{-1,0,0,5}};
@@ -55,5 +67,13 @@ int main(void)
     {float seed[3]={0},end[3]={8,0,0};
      CHECK(!scene_vehicle_collision_exit_path(&c,seed,end,current.orientation,&clear) && !clear);
      end[0]=-2;CHECK(!scene_vehicle_collision_exit_path(&c,seed,end,current.orientation,&clear) && clear);}
-    puts("vehicle collision PASS: all host spheres, slide, blocked rotation, atomic error and exit path");return 0;
+    c.query=tangent_floor_query;c.query_context=NULL;
+    memset(&current,0,sizeof(current));memset(&next,0,sizeof(next));
+    current.orientation[0]=current.orientation[4]=current.orientation[8]=1;
+    memcpy(next.orientation,current.orientation,36);
+    next.position[0]=1;CHECK(!scene_vehicle_collision_resolve(&c,&current,&next,&out) && out.position[0]==1);
+    next.position[0]=3;next.velocity[0]=3;
+    CHECK(!scene_vehicle_collision_resolve(&c,&current,&next,&out));
+    CHECK(out.position[0]>1.99f && out.position[0]<2 && out.velocity[0]==0);
+    puts("vehicle collision PASS: all host spheres, slide, blocked rotation, floor tangent, wall after floor, atomic error and exit path");return 0;
 }

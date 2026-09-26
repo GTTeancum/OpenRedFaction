@@ -58,6 +58,17 @@ static int scene_vehicle_collision_resolve(void *context,const rf_vehicle_rigid_
         scene_vehicle_collision_body(c,at,end,current->orientation,&q);
         status=scene_vehicle_collision_query(c,&q,&hit,&found);if(status)return status;
         if(!found){memcpy(at,end,12);break;}
+        /* A resting suspension sphere can report the floor at fraction zero
+         * on every nearly horizontal sweep. Requery five millimetres above
+         * that floor before accepting tangential travel; a wall or step still
+         * blocks the raised sweep, and the committed body stays at its true Y. */
+        if(hit.contact.fraction==0 && hit.contact.normal[1]>.7f && fabsf(remaining[1])<.005f){
+            rf_collision_body_query raised=q;rf_geometry_body_hit raised_hit={0};uint32_t raised_found=0;
+            raised.start[1]+=.005f;raised.end[1]+=.005f;
+            status=scene_vehicle_collision_query(c,&raised,&raised_hit,&raised_found);if(status)return status;
+            if(!raised_found){memcpy(at,end,12);break;}
+            hit=raised_hit;found=raised_found;
+        }
         f=hit.contact.fraction;
         if(!isfinite(f) || f<0 || f>1)return RF_FORMAT;
         for(i=0;i<3;++i)n2+=hit.contact.normal[i]*hit.contact.normal[i];

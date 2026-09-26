@@ -4818,6 +4818,11 @@ static void campaign_pursuit_target(campaign_npc_body *owner,const float target[
     owner->script_move.active=1;owner->script_move.follow=2;owner->script_move.stop=0;
 }
 uint32_t rf_scene_script_movement[8]; /* requests, steps, arrivals, blocked, active, last actor UID, last event UID, status */
+typedef struct scene_campaign_vehicle_route {
+    rf_level_waypoint_path path;uint32_t active,index,mode,reverse,event;
+} scene_campaign_vehicle_route;
+static scene_campaign_vehicle_route campaign_vehicle_route;
+uint32_t rf_scene_vehicle_route_state[8]; /* active,index,count,drive ticks,arrivals,event,handle,status */
 static int campaign_script_move(void *context,uint32_t handle,const rf_level_event *event,uint32_t on)
 {
     uint32_t i,j,mode=0;rf_level_waypoint_path path={0};int status;(void)context;
@@ -4829,6 +4834,29 @@ static int campaign_script_move(void *context,uint32_t handle,const rf_level_eve
         status=rf_level_waypoint_find(campaign_waypoints,campaign_waypoint_bytes,
             campaign_navigation.count,event->texts[0],&path);if(status)return status;
         if(!path.count)return RF_NOT_FOUND;
+    }
+    if(campaign_authored_vehicle_uid && handle==campaign_authored_vehicle_handle){
+        if(strcmp(event->type,"Follow_Waypoints"))return RF_NOT_FOUND;
+        if(on){
+            for(i=0;i<path.count;i++){
+                uint32_t node=rf_level_waypoint_node(&path,i);
+                if(node>=campaign_navigation.count)return RF_FORMAT;
+                for(j=0;j<3;j++)if(!isfinite(campaign_navigation.nodes[node].candidate.position[j]))return RF_FORMAT;
+            }
+            campaign_vehicle_route.path=path;campaign_vehicle_route.index=0;
+            campaign_vehicle_route.mode=mode;campaign_vehicle_route.reverse=0;
+            campaign_vehicle_route.event=event->uid;campaign_vehicle_route.active=1;
+            rf_scene_vehicle_route_state[2]=path.count;
+            rf_scene_vehicle_route_state[5]=event->uid;
+            rf_scene_vehicle_route_state[6]=handle;
+            printf("CAMPAIGN_VEHICLE_ROUTE %u %u %u %.6g %.6g %.6g\n",event->uid,handle,path.count,
+                campaign_navigation.nodes[rf_level_waypoint_node(&path,0)].candidate.position[0],
+                campaign_navigation.nodes[rf_level_waypoint_node(&path,0)].candidate.position[1],
+                campaign_navigation.nodes[rf_level_waypoint_node(&path,0)].candidate.position[2]);
+        }else campaign_vehicle_route.active=0;
+        rf_scene_vehicle_route_state[0]=campaign_vehicle_route.active;
+        rf_scene_vehicle_route_state[1]=campaign_vehicle_route.index;
+        return RF_OK;
     }
     for(i=0;i<campaign_npc_body_count;i++) {
         campaign_npc_body *owner=campaign_npc_bodies+i;
@@ -17252,6 +17280,8 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
     rf_preview_vertex *vertices=NULL;rf_material *items=NULL;const char *names[64];
     uint64_t bytes,count,capacity;uint32_t i;int status;scene_stream *stream;
     scene_extra_pickups_resources_reset();
+    memset(&campaign_vehicle_route,0,sizeof(campaign_vehicle_route));
+    memset(rf_scene_vehicle_route_state,0,sizeof(rf_scene_vehicle_route_state));
     scene_live_save_pending=scene_live_load_pending=scene_live_save_until=0;scene_live_save_status=RF_OK;
     if(!level || !mesh || !materials || !mesh->vertices || !materials->items ||
        mesh->count%3 || mesh->bytes!=(uint64_t)mesh->count*sizeof(*mesh->vertices) ||

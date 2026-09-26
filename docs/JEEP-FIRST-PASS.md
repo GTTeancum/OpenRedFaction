@@ -12,6 +12,8 @@ The mounted gun uses the real jeep_gun attachment and jeep_gun.v3m, including Mu
 
 PC verification: 460-frame gunner replay shows the forward view, vehicle chassis and role/ammo HUD; five accepted launches and five contacts leave994ammo. The600-frame replay also returns to driver and safely exits (one entry, two role switches, one exit). Focused actual-asset seat transfer tests cover blocked head clearance, held debounce, parked gating, independent gunner orientation under host rotation and retained ownership. Gun resource/aim and cockpit tests pass. NXDK build succeeds. Native run `artifacts/xemu/render-20260918-154013` passes460frames on stock64MiB, with matching PC/Xbox vehicle, seat and primary-fire state and3117freepages (12.18MiB). Native framebuffer inspected: forward gunner view, chassis and correct994ammo/role HUD. Harness closed XEMU and restored the disc. Native return-to-driver/exit has not been separately exercised; PC covers that path.
 
+L12S1 campaign boarding now triggers authored `Follow_Waypoints` UID 9692 and its `jeep_path` on the same rigid vehicle owner. A 480-frame PC/Xbox run reaches node 2 of 34 with exact vehicle and route state; the stock console has 12.54 MiB free. A separate 180-frame PC/Xbox run exits from the driver seat. The route's first-pass steering is a playable port policy; completion of all nodes and route save/restore remain open.
+
 Remaining: other campaign placements, NPC drivers/passengers, general campaign saves, live NPC combat, full sound verification, muzzle flash/tracer polish and broader destruction/ejection coverage. APC/Jeep DEV checkpoint integration is described below.
 
 ## Save and destruction integration work
