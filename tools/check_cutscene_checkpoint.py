@@ -119,6 +119,14 @@ def main() -> None:
         assert body(resumed) == body(direct), "restored L11S3 player diverged from uninterrupted play"
         print("PASS L11S3: active cutscene, authored mover/NPC overlap and player start prop survive reload")
 
+        folder = Path(temp) / "L6S3"
+        folder.mkdir()
+        pending = replay(folder, "L6S3.rfl", 65, 3696,
+                         {"RF_REPLAY_QUICKSAVE_FRAME": "60"}, "levels1.vpp")
+        assert "WORLD_SNAPSHOT_EVENT_PENDING_REJECT uid6644 type60 " in pending
+        assert "QUICK_SAVE frame60 status-3" in pending and not list(folder.glob("redfaction-save*"))
+        print("PASS L6S3: queued Force_Monitor_Update remains a save veto")
+
 
 if __name__ == "__main__":
     main()
