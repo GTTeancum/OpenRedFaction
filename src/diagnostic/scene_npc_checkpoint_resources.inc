@@ -73,7 +73,7 @@ static inline int scene_npc_checkpoint_resources_require(const rf_npc_checkpoint
     /* campaign_npc_motion_require may evict zero-reference payloads. Pending
      * restore clips intentionally have no references yet: preflight enough
      * free space for the whole set so loading cannot evict earlier requests.
-     * This conservative first-pass policy does not expand the shared1MiB cap. */
+     * Use the same bounded cache ceiling as the live motion allocator. */
     for(i=0;i<requests;i++){
         const scene_npc_checkpoint_resource_request *r=plan+i;
         const rf_motion_file *file=&campaign_motion_catalog.models[r->skeleton].items[r->id].file;
@@ -84,7 +84,7 @@ static inline int scene_npc_checkpoint_resources_require(const rf_npc_checkpoint
         }else if(!campaign_npc_motion_data[r->cache])missing+=file->entry.size;
         else if(campaign_npc_motion_sizes[r->cache]!=file->entry.size){status=RF_FORMAT;goto done;}
     }
-    if((uint64_t)campaign_npc_motion_bytes+missing>1024u*1024u){status=RF_RANGE;goto done;}
+    if((uint64_t)campaign_npc_motion_bytes+missing>SCENE_NPC_MOTION_BUDGET){status=RF_RANGE;goto done;}
     before=campaign_npc_motion_bytes;
     for(i=0;i<requests;i++){
         status=campaign_npc_motion_require(plan[i].skeleton,plan[i].id);if(status)goto done;

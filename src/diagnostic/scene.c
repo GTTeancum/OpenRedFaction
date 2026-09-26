@@ -1691,6 +1691,7 @@ static int campaign_actor_pose(uint32_t slot,rf_entity_pose **result)
 static void **campaign_npc_motion_data;
 static uint32_t *campaign_npc_motion_sizes;
 static uint32_t campaign_npc_motion_count,campaign_npc_motion_bytes;
+#define SCENE_NPC_MOTION_BUDGET (1280u*1024u)
 /* Port residency policy: one immutable payload per shared cache identity.
  * A selected clip must be resident before pose sampling, including actions
  * started after initialization. Under pressure, only identities with zero
@@ -1699,7 +1700,7 @@ static int campaign_npc_motion_reserve(uint32_t bytes)
 {
     /* L6S3's first cutscene runs two distinct actor clips concurrently:
      * 649712 + 435586 bytes. Keep the ceiling bounded for stock 64 MiB. */
-    const uint32_t budget=1280u*1024u;
+    const uint32_t budget=SCENE_NPC_MOTION_BUDGET;
     uint32_t cache,reclaim=0,needed,i,j,references;int status;
     if(campaign_npc_motion_bytes>budget || bytes>budget)return RF_RANGE;
     if(bytes<=budget-campaign_npc_motion_bytes)return RF_OK;

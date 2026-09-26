@@ -9,6 +9,7 @@
  * positions. The callback may be called repeatedly and must remain read-only
  * and stable. Retired rows need no placement/resources. */
 typedef int (*scene_npc_checkpoint_pair_read)(void *,uint32_t,rf_checkpoint_placement *,uint32_t *retired);
+typedef int (*scene_npc_checkpoint_pair_overlap)(void *,uint32_t,uint32_t,uint32_t,uint32_t,double,double);
 static int scene_npc_checkpoint_pair_centers(const rf_checkpoint_placement *p,float centers[8][3])
 {
     uint32_t i,j,k;double det;
@@ -37,9 +38,11 @@ static int scene_npc_checkpoint_pair_centers(const rf_checkpoint_placement *p,fl
  * the shared .002 clearance tolerance. RF_NOT_FOUND means overlap; malformed
  * geometry/callback failures remain errors. Exact tangency is allowed. An
  * authored empty sphere set has no overlap volume but still needs a valid pose.
- * No allocation, gameplay queries, live positions or output mutation. Static
- * world/player/mover/prop fit remains a separate caller responsibility. */
-static int scene_npc_checkpoint_pair_fit(uint32_t count,scene_npc_checkpoint_pair_read read,void *context)
+ * Core reads only candidate placements and never mutates output. An optional
+ * overlap policy may compare a fresh authored baseline; the default is strict.
+ * Static world/player/mover/prop fit remains a separate caller responsibility. */
+static int scene_npc_checkpoint_pair_fit_allowed(uint32_t count,scene_npc_checkpoint_pair_read read,
+    void *context,scene_npc_checkpoint_pair_overlap allow)
 {
     uint32_t i,j,a,b,k,retired;int status;
     if(!read||count>RF_NPC_CHECKPOINT_MAX_COUNT)return RF_RANGE;
@@ -54,10 +57,12 @@ static int scene_npc_checkpoint_pair_fit(uint32_t count,scene_npc_checkpoint_pai
             for(a=0;a<first.count;a++)for(b=0;b<second.count;b++){
                 double distance=0,radius=(double)first.spheres[a].radius+second.spheres[b].radius-.002;
                 for(k=0;k<3;k++){double d=(double)centers[a][k]-others[b][k];distance+=d*d;}
-                if(distance<radius*radius)return RF_NOT_FOUND;
+                if(distance<radius*radius&&(!allow||!allow(context,i,j,a,b,distance,radius)))return RF_NOT_FOUND;
             }
         }
     }
     return RF_OK;
 }
+static inline int scene_npc_checkpoint_pair_fit(uint32_t count,scene_npc_checkpoint_pair_read read,void *context)
+{return scene_npc_checkpoint_pair_fit_allowed(count,read,context,NULL);}
 #endif

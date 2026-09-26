@@ -15,6 +15,13 @@ static int scene_world_player_pair(void *context,uint32_t index,rf_checkpoint_pl
     if(!index){*p=s->placement;*retired=0;return RF_OK;}
     return scene_npc_checkpoint_restore_placement((void*)s->npcs,index-1,p,retired);
 }
+static int scene_world_player_original_npc_overlap(void *context,uint32_t i,uint32_t j,
+    uint32_t a,uint32_t b,double distance2,double radius)
+{
+    const scene_world_player_stage *s=context;
+    if(!i||!j)return 0; /* Player contact stays strict. */
+    return scene_npc_checkpoint_restore_original_overlap((void*)s->npcs,i-1,j-1,a,b,distance2,radius);
+}
 static inline int scene_world_player_prepare(scene_stream *stream,const scene_world_restore_stage *world,
     uint32_t support_uid,scene_world_player_stage *out)
 {
@@ -60,7 +67,8 @@ static inline int scene_world_player_prepare(scene_stream *stream,const scene_wo
         }
         if(found!=1)return RF_FORMAT;
     }
-    s.npcs=world->npcs;status=scene_npc_checkpoint_pair_fit(s.npcs->count+1,scene_world_player_pair,&s);if(status)return status;
+    s.npcs=world->npcs;status=scene_npc_checkpoint_pair_fit_allowed(s.npcs->count+1,scene_world_player_pair,
+        &s,scene_world_player_original_npc_overlap);if(status)return status;
     s.body=scene_actor_body.state;memcpy(s.body.position,s.player.position,12);memcpy(s.body.next_position,s.player.position,12);
     memcpy(s.body.orientation,s.basis,36);memcpy(s.body.next_orientation,s.basis,36);memcpy(s.body.velocity,s.player.velocity,12);
     status=rf_physics_spheres_bounds(scene_actor_body.spheres.items,scene_actor_body.spheres.count,s.body.position,&s.body.bounds);if(status)return status;

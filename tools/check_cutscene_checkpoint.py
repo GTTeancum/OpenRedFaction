@@ -121,11 +121,18 @@ def main() -> None:
 
         folder = Path(temp) / "L6S3"
         folder.mkdir()
-        pending = replay(folder, "L6S3.rfl", 65, 3696,
-                         {"RF_REPLAY_QUICKSAVE_FRAME": "60"}, "levels1.vpp")
-        assert "WORLD_SNAPSHOT_EVENT_PENDING_REJECT uid6644 type60 " in pending
-        assert "QUICK_SAVE frame60 status-3" in pending and not list(folder.glob("redfaction-save*"))
-        print("PASS L6S3: queued Force_Monitor_Update remains a save veto")
+        active = replay(folder, "L6S3.rfl", 65, 3696,
+                        {"RF_REPLAY_QUICKSAVE_FRAME": "60"}, "levels1.vpp")
+        assert cutscene(active)[3] == 3696 and "QUICK_SAVE frame60 status0" in active, active[-2500:]
+        path = folder / "redfaction-save"
+        assert Path(str(path) + ".0").exists(), "L6S3 active checkpoint missing"
+        resumed = replay(folder, "L6S3.rfl", 120, None,
+                         {"RF_REPLAY_WORLD_SNAPSHOT_IN": str(path)}, "levels1.vpp")
+        assert "WORLD_SNAPSHOT_LOADED " in resumed and cutscene(resumed)[3] == 3696, resumed[-2500:]
+        direct = replay(folder, "L6S3.rfl", 180, 3696, {}, "levels1.vpp")
+        assert body(resumed) == body(direct), "restored L6S3 player diverged from uninterrupted play"
+        assert cutscene(resumed)[7] == cutscene(direct)[7] == 1
+        print("PASS L6S3: queued visual monitor refresh, clustered NPCs and active timeline reload")
 
 
 if __name__ == "__main__":

@@ -135,7 +135,9 @@ int main(void)
     CHECK(rf_event_checkpoint_type_supported(63));
     CHECK(rf_event_checkpoint_type_supported(49)&&rf_event_checkpoint_type_supported(60)&&rf_event_checkpoint_type_supported(62));
     CHECK(rf_event_checkpoint_external_requirements(49)==RF_EVENT_CHECKPOINT_EXTERNAL_UNIMPLEMENTED);
-    CHECK(rf_event_checkpoint_external_requirements(60)==RF_EVENT_CHECKPOINT_EXTERNAL_UNIMPLEMENTED);
+    CHECK(rf_event_checkpoint_type_supported(47));
+    CHECK(rf_event_checkpoint_external_requirements(47)==RF_EVENT_CHECKPOINT_EXTERNAL_UNIMPLEMENTED);
+    CHECK(rf_event_checkpoint_external_requirements(60)==RF_EVENT_CHECKPOINT_EXTERNAL_VISUAL);
     CHECK(rf_event_checkpoint_external_requirements(62)==RF_EVENT_CHECKPOINT_EXTERNAL_UNIMPLEMENTED);
     CHECK(rf_event_checkpoint_external_requirements(69)==RF_EVENT_CHECKPOINT_EXTERNAL_WORLD);
     CHECK(rf_event_checkpoint_external_requirements(71)==RF_EVENT_CHECKPOINT_EXTERNAL_UNIMPLEMENTED);

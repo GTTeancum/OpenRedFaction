@@ -34,6 +34,31 @@ static int scene_npc_checkpoint_restore_placement(void *context,uint32_t index,
     p->count=campaign_npc_bodies[e->slot].body.spheres.count;
     memcpy(p->position,e->published,12);memcpy(p->basis,e->basis,36);return RF_OK;
 }
+/* An authored spawn can contain overlapping NPC collision spheres (L6S3's
+ * clustered monitor actors do). Permit only a fresh-boot overlap that already
+ * exists in the live authored bodies and has not deepened by over .01 unit. */
+static int scene_npc_checkpoint_restore_original_overlap(void *context,uint32_t i,uint32_t j,
+    uint32_t a,uint32_t b,double candidate_distance2,double radius)
+{
+    const scene_npc_checkpoint_restore_stage *stage=context;
+    const campaign_npc_body *first,*second;const rf_physics_sphere *one,*two;
+    double center[2][3],distance2=0;uint32_t axis,k;
+    if(!stage||!stage->fresh_boot||i>=stage->count||j>=stage->count||
+       stage->entries[i].slot>=campaign_npc_body_count||stage->entries[j].slot>=campaign_npc_body_count)return 0;
+    first=campaign_npc_bodies+stage->entries[i].slot;second=campaign_npc_bodies+stage->entries[j].slot;
+    if(a>=first->body.spheres.count||b>=second->body.spheres.count)return 0;
+    one=first->body.spheres.items+a;two=second->body.spheres.items+b;
+    for(axis=0;axis<3;axis++){
+        center[0][axis]=first->body.state.position[axis];center[1][axis]=second->body.state.position[axis];
+        for(k=0;k<3;k++){
+            center[0][axis]+=(double)one->center[k]*first->body.state.orientation[k*3+axis];
+            center[1][axis]+=(double)two->center[k]*second->body.state.orientation[k*3+axis];
+        }
+        if(!isfinite(center[0][axis])||!isfinite(center[1][axis]))return 0;
+        distance2+=(center[0][axis]-center[1][axis])*(center[0][axis]-center[1][axis]);
+    }
+    return distance2<radius*radius&&sqrt(candidate_distance2)+.01>=sqrt(distance2);
+}
 static inline void scene_npc_checkpoint_restore_discard(scene_npc_checkpoint_restore_stage **stage)
 {if(stage){free(*stage);*stage=NULL;}}
 static int scene_npc_checkpoint_restore_eye(uint32_t slot,const scene_npc_checkpoint_restore_entry *e,float result[3])
@@ -186,7 +211,8 @@ static inline int scene_npc_checkpoint_restore_prepare_mode(const rf_npc_checkpo
         }
         status=scene_npc_checkpoint_restore_eye(j,e,e->eye);if(status)goto fail;
     }
-    status=scene_npc_checkpoint_pair_fit(count,scene_npc_checkpoint_restore_placement,stage);if(status)goto fail;
+    status=scene_npc_checkpoint_pair_fit_allowed(count,scene_npc_checkpoint_restore_placement,stage,
+        scene_npc_checkpoint_restore_original_overlap);if(status)goto fail;
     *out=stage;return RF_OK;
 fail:free(stage);return status;
 }
