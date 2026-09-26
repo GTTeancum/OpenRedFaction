@@ -16,6 +16,7 @@ static int scene_world_load(scene_stream *stream,const rf_level *level,const cha
     scene_world_snapshot_identity identity;rf_checkpoint_file_selection selection={0};rf_world_checkpoint envelope;
     unsigned char *buffer=NULL;uint32_t bytes=0,i,rows_count=0,added=0,flags=0,selected=0,cost=0;int status=RF_OK,found=0;
     const uint32_t budget=2u*1024u*1024u;const char *phase="identity";
+    if(!scene_live_load_active && scene_world_startup_snapshot_consumed)return RF_OK;
     rf_npc_checkpoint_catalog catalog={0};rf_npc_checkpoint_record *rows=NULL;
     scene_world_restore_stage *world=NULL;scene_world_event_stage *events=NULL;scene_world_mission_stage *mission=NULL;
     scene_world_environment_stage *environment=NULL;scene_campaign_history_checkpoint_stage *history=NULL;
@@ -100,6 +101,7 @@ static int scene_world_load(scene_stream *stream,const rf_level *level,const cha
     scene_actor_body.state.flags&=~(0x200000u|0x400000u);scene_player_impact_relocated();
     printf("WORLD_SNAPSHOT_LOADED bytes%u staged%u npc%u events%u added_motion%u health%.9g armor%.9g weapon%u\n",bytes,cost,world->npcs->count,events->events.count,added,
         (double)player.player.player.health,(double)player.player.player.armor,player.player.player.weapon);
+    scene_world_startup_snapshot_consumed=1;
  done:
     rf_scene_world_checkpoint_state[0]=(uint32_t)status;rf_scene_world_checkpoint_state[1]=status?0:bytes;
     rf_scene_world_checkpoint_state[2]=status?0:cost;

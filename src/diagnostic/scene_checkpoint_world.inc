@@ -62,9 +62,11 @@ static int scene_checkpoint_world_spawn_shell(const scene_checkpoint_world_conte
     const float *start=c->spawn_shell_position;
     if(!c->spawn_shell_uid||!start||!c->authored_static_unchanged||
        prop->uid!=c->spawn_shell_uid||!prop->state.definition||
-       !prop->state.definition->name||strcmp(prop->state.definition->name,"BustedEscapePod")||
+       !prop->state.definition->name||
+       !((c->spawn_shell_uid==10469&&!strcmp(prop->state.definition->name,"BustedEscapePod"))||
+         (c->spawn_shell_uid==13627&&!strcmp(prop->state.definition->name,"Escape Pod")))||
        !scene_checkpoint_world_authored_prop(c,slot,prop))return 0;
-    /* L18S1 starts inside this hollow model's coarse collision sphere. Admit
+    /* L17S4 and L18S1 start inside escape pod coarse collision spheres. Admit
      * only the vertical settling region of that authored start, while real
      * static-world standing, mover, and other-prop checks still apply. */
     return fabsf(p->position[0]-start[0])<=.125f&&

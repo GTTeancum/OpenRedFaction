@@ -31,11 +31,14 @@ static inline int scene_world_player_prepare(scene_stream *stream,const scene_wo
     context.authored_props=NULL;context.authored_static_unchanged=0;
     context.spawn_shell_uid=0;context.spawn_shell_position=NULL;
     if(stream->world_checkpoint_level&&
-       scene_npc_checkpoint_level_equal(world->envelope.level,"L18S1.rfl")&&
-       scene_npc_checkpoint_level_equal(campaign_current_level,"L18S1.rfl")&&
+       ((scene_npc_checkpoint_level_equal(world->envelope.level,"L18S1.rfl")&&
+         scene_npc_checkpoint_level_equal(campaign_current_level,"L18S1.rfl"))||
+        (scene_npc_checkpoint_level_equal(world->envelope.level,"L17S4.rfl")&&
+         scene_npc_checkpoint_level_equal(campaign_current_level,"L17S4.rfl")))&&
        !world->envelope.sections[RF_WORLD_DESTRUCTION-1].bytes){
         context.authored_static_unchanged=1;context.authored_props=world->authored_prop_views;
-        context.spawn_shell_uid=10469;context.spawn_shell_position=stream->world_checkpoint_level->player_position;
+        context.spawn_shell_uid=scene_npc_checkpoint_level_equal(campaign_current_level,"L18S1.rfl")?10469:13627;
+        context.spawn_shell_position=stream->world_checkpoint_level->player_position;
     }
     context.dt=scene_step_seconds;context.class_speed=rf_scene_actor_movement_values.speed;
     status=rf_geometry_collision_world_locate(context.world,s.player.position,&location);if(status)return status;

@@ -12,6 +12,7 @@ static int scene_world_boot_weapon_mask(const rf_level *level,const char *tables
     rf_checkpoint_file_selection selection={0};unsigned char *data=NULL;
     uint32_t bytes=0,i;int status=RF_OK;
     *mask=0;
+    if(!scene_live_load_active && scene_world_startup_snapshot_consumed)return RF_OK;
 #ifdef RF_IMAGE_XBOX_NATIVE
     if(!scene_live_load_active){status=scene_world_storage_flag("D:\\world-hdd-load.flag",&enabled);if(status||!enabled)return status;}
 #else

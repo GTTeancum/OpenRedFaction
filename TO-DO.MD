@@ -3,7 +3,7 @@
 Completion basis (user direction,2026-09-18): working late-alpha/early-beta code implementation. Overall approximately88%; GeoMod100% for the first playable milestone, accepted by the user. GeoMod items below are deferred refinement and coverage, not prerequisites to moving on. This does not assert retail polish, complete campaign integration or resolution of every known defect.
 
 
-- PRIORITY Ordinary saves: L1S1 save/reload and live quick-load pass PC/Xbox, including L5S4 failure-screen recovery into an earlier L1S1 save; L15S1 PC and L17S1 PC/Xbox save/reload work, while general cross-level coverage, menu/slot selection, destruction/vehicles and broader resource demand remain (saves approximately89%).
+- PRIORITY Ordinary saves: L1S1 and L17S4 live active-cutscene save/reload pass PC/Xbox, and a restored L17S4 timeline hands off to L18S1 on PC; general cross-level coverage, menu/slot selection, destruction/vehicles and broader resource demand remain (saves approximately90%).
 
 - AI navigation: L6S3 authored Goto actor takes a four-node route with navpoints ON and a direct approach with them OFF, and mid-route OFF invalidation matches Xbox/PC actor state exactly; RFEN2 survives full L18S1 PC reload, while broader NPC travel, mid-route reopening and native reload remain open.
 
@@ -15,7 +15,9 @@ Completion basis (user direction,2026-09-18): working late-alpha/early-beta code
 
 - Scripted effects: Play_Sound, Explode, Message, Music_Start/Stop, Black_Out_Player and Endgame now forward ordinary authored links after their effects; L11S3 self-destruct Message chaining passes PC/Xbox within stock memory, while authored GeoMod room/terrain ownership, full vclip VFX, active-effect saves and native music/audio checks remain (docs/SCRIPTED-EFFECT-LINKS-FIRST-PASS.md).
 
-- Campaign cutscenes: All 12 resource sets load; L6S3/L11S3 handoffs and L14S3 miner/L17S4 effect aiming work, and RFEN3 preserves inactive state on PC/Xbox while active timeline codec tests pass; native bottle playback, full-timeline input, cancellation and live active-cutscene saves remain (docs/CUTSCENE-RESOURCE-FIRST-PASS.md).
+- Campaign cutscenes: All 12 resource sets load; L6S3/L11S3 handoffs and L14S3 miner/L17S4 effect aiming work, and RFEN3 live L17S4 active timeline saves/reloads pass PC/Xbox; native bottle playback, full-timeline input, cancellation and L14S3 moving-support saves remain (docs/CUTSCENE-RESOURCE-FIRST-PASS.md).
+
+- Cutscene handoff timing: A restored L17S4 save reaches the L18S1 handoff in PC/XEMU, but the 1,200-frame native run differs by three post-handoff collision ticks; reconcile timing before claiming full native parity.
 
 - USER PC hands-on pass: DEV replay confirms granted weapons and cycling, Right Bumper also cycles on PC, and the full-window black repaint that could cause flicker is removed; interactive pickup/switching and flicker still need user verification before calling the build ready for gameplay testing.
 

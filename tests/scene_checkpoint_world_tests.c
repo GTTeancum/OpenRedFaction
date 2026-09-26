@@ -56,6 +56,11 @@ int main(void)
      context.authored_static_unchanged=1;context.authored_props=authored_props;
      context.spawn_shell_uid=10469;context.spawn_shell_position=start;
      CHECK(!scene_checkpoint_world_place(&context,&p,&room,&support));
+     prop.uid=13627;authored_prop.uid=13627;prop_class.name="Escape Pod";
+     context.spawn_shell_uid=13627;
+     CHECK(!scene_checkpoint_world_place(&context,&p,&room,&support));
+     prop.uid=13628;CHECK(scene_checkpoint_world_place(&context,&p,&room,&support)==RF_NOT_FOUND);prop.uid=13627;
+     prop_class.name="BustedEscapePod";prop.uid=10469;authored_prop.uid=10469;context.spawn_shell_uid=10469;
      start[0]=.126f;CHECK(scene_checkpoint_world_place(&context,&p,&room,&support)==RF_NOT_FOUND);start[0]=0;
      start[1]=-6.49f;CHECK(scene_checkpoint_world_place(&context,&p,&room,&support)==RF_NOT_FOUND);start[1]=-7;
      prop_class.name="Other";CHECK(scene_checkpoint_world_place(&context,&p,&room,&support)==RF_NOT_FOUND);

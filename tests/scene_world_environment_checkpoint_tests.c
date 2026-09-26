@@ -52,16 +52,18 @@ int main(void)
         campaign_cutscene_runtime.fov=45;campaign_cutscene_runtime.move_deadline=-1;
         CHECK(!rf_timer_set(&campaign_cutscene_runtime.total_deadline,1000,3000));
         CHECK(!rf_timer_set(&campaign_cutscene_runtime.pre_deadline,1000,500));
+        CHECK(!rf_timer_set(&campaign_blackout_deadline,1000,2500));
         CHECK(!scene_world_environment_encode(identity,1000,wire,sizeof(wire),&bytes));
-        rf_cutscene_cancel(&campaign_cutscene_runtime);
+        rf_cutscene_cancel(&campaign_cutscene_runtime);campaign_blackout_deadline=-1;
         CHECK(!scene_world_environment_prepare(identity,16,wire,bytes,65536,&stage));
         CHECK(!scene_world_environment_validate(stage));scene_world_environment_assign(stage);
         CHECK(campaign_cutscene_runtime.active&&campaign_cutscene_runtime.active_uid==42&&
               campaign_cutscene_runtime.resources==&campaign_cutscene_resources);
         CHECK(!rf_timer_remaining(campaign_cutscene_runtime.total_deadline,16,&remaining)&&remaining==3000);
+        CHECK(!rf_timer_remaining(campaign_blackout_deadline,16,&remaining)&&remaining==2500);
         CHECK(rf_scene_cutscene[3]==42&&rf_scene_cutscene[7]==1);
         scene_world_environment_close(&stage);rf_cutscene_cancel(&campaign_cutscene_runtime);
-        memset(&campaign_cutscene_resources,0,sizeof(campaign_cutscene_resources));
+        campaign_blackout_deadline=-1;memset(&campaign_cutscene_resources,0,sizeof(campaign_cutscene_resources));
     }
     puts("PASS gravity/force/nav and active cutscene restore, legacy decode, stale mutation and transition rejection");return 0;
 }

@@ -1,10 +1,10 @@
 #include "rf/clutter_checkpoint.h"
 typedef struct scene_clutter_restore_entry {rf_clutter_checkpoint_record row;uint32_t slot,handle;int32_t deadline;} scene_clutter_restore_entry;
 typedef struct scene_clutter_restore_stage {uint32_t count;scene_clutter_restore_entry entries[];} scene_clutter_restore_stage;
-/* Ordinary L1S1 contains Pole Light 1 UIDs7143/9025, but that class is absent
- * from installed clutter.tbl. Render/body startup deliberately leaves these
- * records unresolved. Preserve their authored absence in identity, never invent
- * a body/class/health record. A missing owner of a KNOWN class remains an error. */
+/* Unknown classes and known non-model classes have no ordinary static body.
+ * Preserve their authored absence in identity; a missing model-kind-1 owner
+ * remains an error. L1S1 Pole Light 1 is unknown, L17S4 Cutscene09_fx is
+ * a known effect-only class. Neither gains invented health or a save row. */
 static int scene_clutter_checkpoint_absent(uint32_t slot)
 {
     uint32_t j;const rf_level_clutter *r=campaign_clutter_records.items+slot;
@@ -12,7 +12,8 @@ static int scene_clutter_checkpoint_absent(uint32_t slot)
     if(!r->class_name||!campaign_clutter_model_slots||campaign_clutter_model_slots[slot]!=UINT32_MAX||
        b->initialized||b->handle||b->break_pending||b->class_index||b->killing_type)return RF_FORMAT;
     for(j=0;j<campaign_clutter_classes.count;j++)
-        if(rf_emitter_name_lookup(&campaign_clutter_classes.items[j].name,1,r->class_name)==0)return RF_FORMAT;
+        if(rf_emitter_name_lookup(&campaign_clutter_classes.items[j].name,1,r->class_name)==0)
+            return campaign_clutter_classes.items[j].model_kind==1?RF_FORMAT:RF_OK;
     return RF_OK;
 }
 static int scene_clutter_checkpoint_identity(const unsigned char source[32],unsigned char out[32])

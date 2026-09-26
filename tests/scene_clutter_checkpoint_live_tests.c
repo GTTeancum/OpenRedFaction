@@ -17,6 +17,7 @@ int main(void)
     campaign_clutter_damage_bindings=bindings;rf_object_registry_init(&campaign_registry);
     for(i=0;i<2;i++){
         classes[i].name=i?"test box":"test lamp";classes[i].model=i?"box.v3m":"lamp.v3m";
+        classes[i].model_kind=1;
         classes[i].flags=2;classes[i].timer=-1;profiles[i].ordinary=1;profiles[i].life=80;
         for(j=0;j<11;j++)profiles[i].damage_factors[j]=1;
     }
@@ -98,6 +99,14 @@ int main(void)
         classes[1].name="Pole Light 1";
         CHECK(scene_clutter_checkpoint_identity(source,identity)==RF_FORMAT);
         classes[1].name="test box";
+        sparse_records[1].class_name="Cutscene09_fx";classes[1].name="Cutscene09_fx";
+        classes[1].model_kind=0;
+        CHECK(!scene_clutter_checkpoint_identity(source,identity));
+        CHECK(!scene_clutter_checkpoint_capture(source,2000,bytes,sizeof(bytes),&size));
+        CHECK(!rf_clutter_checkpoint_decode(bytes,size,identity,decoded,3,&count)&&count==3);
+        classes[1].model_kind=1;
+        CHECK(scene_clutter_checkpoint_identity(source,identity)==RF_FORMAT);
+        classes[1].name="test box";sparse_records[1].class_name="Pole Light 1";
         model_slots[1]=0;CHECK(scene_clutter_checkpoint_identity(source,identity)==RF_FORMAT);model_slots[1]=UINT32_MAX;
         sparse_owners[0]=NULL;saved_binding=sparse_bindings[0];memset(sparse_bindings,0,sizeof(*sparse_bindings));model_slots[0]=UINT32_MAX;
         CHECK(scene_clutter_checkpoint_identity(source,identity)==RF_FORMAT); /* Known-class owner cannot disappear. */

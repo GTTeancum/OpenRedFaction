@@ -131,6 +131,7 @@ int main(void)
     }
     CHECK(rf_event_checkpoint_external_requirements(0)==RF_EVENT_CHECKPOINT_EXTERNAL_AUDIO);
     CHECK(rf_event_checkpoint_external_requirements(17)==RF_EVENT_CHECKPOINT_EXTERNAL_DAMAGE);
+    CHECK(rf_event_checkpoint_external_requirements(61)==RF_EVENT_CHECKPOINT_EXTERNAL_VISUAL);
     CHECK(rf_event_checkpoint_external_requirements(69)==RF_EVENT_CHECKPOINT_EXTERNAL_WORLD);
     CHECK(rf_event_checkpoint_external_requirements(71)==RF_EVENT_CHECKPOINT_EXTERNAL_UNIMPLEMENTED);
     puts("PASS L1S1 event fields, delayed dispatch, UnHide requests, UID remapping and RFEC2 compatibility");return 0;

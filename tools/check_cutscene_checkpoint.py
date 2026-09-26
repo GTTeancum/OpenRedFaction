@@ -1,10 +1,11 @@
-"""Image-free checkpoint round trip and active-cutscene admission boundary."""
+"""Image-free inactive and live active-cutscene checkpoint round trips."""
 import os
 from pathlib import Path
 import re
 import struct
 import subprocess
 import tempfile
+from check_ordinary_save_reload import payload, sections
 
 ROOT = Path(__file__).resolve().parents[1]
 EXE = ROOT / "build/pc/Release/rf_pc_play.exe"
@@ -58,10 +59,33 @@ def main() -> None:
         active = replay(folder, "L17S4.rfl", 65, None,
                         {"RF_REPLAY_QUICKSAVE_FRAME": "60"})
         assert cutscene(active)[7] == 1, "cutscene fixture did not start"
-        assert "WORLD_SNAPSHOT_EVENT_PENDING_REJECT uid20698 type61" in active, active[-2500:]
-        assert "QUICK_SAVE frame60 status-3" in active, active[-2500:]
-        assert not list(folder.glob("redfaction-save*")), "rejected save created a file"
-        print("PASS L17S4: active visual event rejects incomplete snapshot cleanly")
+        assert "QUICK_SAVE frame60 status0" in active, "\n".join(
+            line for line in active.splitlines() if "SNAPSHOT" in line or "QUICK_SAVE" in line
+        )
+        path = folder / "redfaction-save"
+        assert list(folder.glob("redfaction-save*")), "active save file missing"
+        packed = sections(payload(path))
+        environment = packed["environment"]
+        assert environment[:4] == b"RFEN" and struct.unpack_from("<I", environment, 4)[0] == 3
+        assert environment[-96:-92] == b"RFCC"
+        assert struct.unpack_from("<II", environment, len(environment)-88) == (1, 18248)
+        events = packed["events"]
+        pending = [struct.unpack_from("<i", events, i+160)[0]
+                   for i in range(0, len(events), 192)
+                   if struct.unpack_from("<II", events, i+16) == (20698, 61)]
+        assert len(pending) == 1 and pending[0] > 16000, pending
+        resumed = replay(folder, "L17S4.rfl", 2, None,
+                         {"RF_REPLAY_WORLD_SNAPSHOT_IN": str(path)})
+        assert "WORLD_SNAPSHOT_LOADED " in resumed, resumed[-2500:]
+        state = cutscene(resumed)
+        assert state[3] == 18248 and state[7] == 1 and state[9] == 0, state
+        continued = replay(folder, "L17S4.rfl", 1200, None,
+                           {"RF_REPLAY_WORLD_SNAPSHOT_IN": str(path)})
+        assert continued.count("WORLD_SNAPSHOT_LOADED ") == 1, "snapshot reapplied after level handoff"
+        handoff = re.search(r"LEVEL_TRANSITION L17S4\.rfl L18S1\.rfl 18265 (\d+)", continued)
+        assert handoff and 1060 <= int(handoff.group(1)) < 1200, "authored handoff missing or early"
+        assert "LEVEL_ARRIVAL " in continued and "WORLD_SNAPSHOT_LOAD_REJECT" not in continued
+        print("PASS L17S4: active timeline and queued blackout restore through L18S1 handoff")
 
 
 if __name__ == "__main__":
