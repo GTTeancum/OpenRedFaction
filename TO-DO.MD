@@ -15,7 +15,7 @@ Completion basis (user direction,2026-09-18): working late-alpha/early-beta code
 
 - Scripted effects: Play_Sound, Explode, Message, Music_Start/Stop, Black_Out_Player and Endgame now forward ordinary authored links after their effects; L11S3 self-destruct Message chaining passes PC/Xbox within stock memory, while authored GeoMod room/terrain ownership, full vclip VFX, active-effect saves and native music/audio checks remain (docs/SCRIPTED-EFFECT-LINKS-FIRST-PASS.md).
 
-- Campaign cutscenes: All 12 resource sets load, and L6S3's full 48-second timeline, completion links, authored FOV and cinematic HUD pass PC/Xbox with restored PC movement; native hands-on input, other sequences, look-at, cancellation and persistence remain (docs/CUTSCENE-RESOURCE-FIRST-PASS.md).
+- Campaign cutscenes: All 12 resource sets load, and L6S3's full 48-second timeline, completion links, authored FOV, cinematic HUD and downward teleport placement run on PC (prior native timeline pass); L11S3 completes its timeline but the authored teleport still falls through an unsupported destination, while other sequences, look-at, cancellation and persistence remain (docs/CUTSCENE-RESOURCE-FIRST-PASS.md).
 
 - USER PC hands-on pass: DEV replay confirms granted weapons and cycling, Right Bumper also cycles on PC, and the full-window black repaint that could cause flicker is removed; interactive pickup/switching and flicker still need user verification before calling the build ready for gameplay testing.
 

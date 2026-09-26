@@ -41,10 +41,32 @@ static int campaign_teleport_apply(const rf_level_event *event)
     rf_physics_body_state body=scene_actor_body.state;
     rf_group_attached_pose pose=rf_scene_actor_pose;rf_look_pose look=actor_look;
     rf_entity_room_state room={0};actor_room_context location={campaign_alpha_world,0,UINT32_MAX,0};
+    const rf_geometry_collision_world *world=scene_actor_collision_owner?scene_actor_collision_owner->collision:campaign_alpha_world;
+    rf_collision_body_sphere scratch[8];rf_geometry_body_hit hit={0};rf_physics_body_state probe;
+    uint32_t matched=0,flags;
     int status;
     if(!scene_actor_body.allocated_bytes)return RF_NOT_FOUND;
     if(campaign_player_view.linked_handle!=-1)return RF_NOT_FOUND;
     status=campaign_teleport_prepare(event,&body,&pose,&look);if(status)return status;
+    /* Original 4a0770 probes the full body from 0.25 above the authored
+     * destination to 2.0 below it, then publishes a 0.05 clearance on hit.
+     * The scene facade includes current mutable geometry and committed movers. */
+    if(world && scene_actor_body.spheres.count) {
+        probe=body;probe.position[1]+=0.25f;probe.next_position[1]-=2.0f;
+        flags=body.state_124|4u;if(body.bounds.radius<0.05f)flags|=0x100u;
+        status=campaign_physics_body_sweep(world,&probe,&scene_actor_body.spheres,flags,
+            scratch,8,&hit,&matched);if(status)return status;
+        if(matched) {
+            float adjusted[3];
+            if(!isfinite(hit.contact.fraction) || hit.contact.fraction<0 || hit.contact.fraction>1)return RF_FORMAT;
+            memcpy(adjusted,event->position,sizeof(adjusted));
+            adjusted[1]=probe.position[1]+(probe.next_position[1]-probe.position[1])*hit.contact.fraction+0.05f;
+            memcpy(body.position,adjusted,sizeof(adjusted));memcpy(body.next_position,adjusted,sizeof(adjusted));
+            status=rf_group_pose_set_position(&pose,adjusted);if(status)return status;
+            memcpy(body.bounds.minimum,pose.minimum,sizeof(pose.minimum));
+            memcpy(body.bounds.maximum,pose.maximum,sizeof(pose.maximum));
+        }
+    }
     room.flags=pose.flags;
     if(location.world) {
         status=rf_entity_room_refresh(&room,body.position,0,actor_room_locate,NULL,&location);if(status)return status;
