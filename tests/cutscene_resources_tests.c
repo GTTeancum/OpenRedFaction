@@ -5,6 +5,27 @@
 #define CHECK(x) do{if(!(x)){fprintf(stderr,"cutscene resource line %u: %s\n",(unsigned)__LINE__,#x);return 1;}}while(0)
 int main(int argc,char **argv)
 {
+    {
+        /* Matrices from executed original 45b7e8 look-at instruction cases. */
+        rf_cutscene_runtime camera={0};const float oblique[3]={2,3,4},raised[3]={2,9,4},axis[3]={10,0,0};
+        const float expected[9]={.89442718f,0,-.44721359f,-.24913643f,.83045477f,
+            -.49827287f,.37139067f,.55708599f,.74278134f};
+        const float raised_expected[9]={.89442718f,0,-.44721359f,-.40049472f,.44499415f,
+            -.80098945f,.19900744f,.89553344f,.39801487f};
+        float previous[9];uint32_t j;
+        camera.active=1;
+        CHECK(rf_cutscene_look_at(&camera,axis)==RF_OK);
+        CHECK(fabsf(camera.orientation[2]+1)<.00001f && fabsf(camera.orientation[6]-1)<.00001f);
+        CHECK(rf_cutscene_look_at(&camera,oblique)==RF_OK);
+        for(j=0;j<9;j++)CHECK(fabsf(camera.orientation[j]-expected[j])<.00001f);
+        CHECK(rf_cutscene_look_at(&camera,raised)==RF_OK);
+        for(j=0;j<9;j++)CHECK(fabsf(camera.orientation[j]-raised_expected[j])<.00001f);
+        memcpy(previous,camera.orientation,sizeof(previous));
+        CHECK(rf_cutscene_look_at(&camera,camera.position)==RF_NOT_FOUND);
+        CHECK(!memcmp(previous,camera.orientation,sizeof(previous)));
+        {const float vertical[3]={0,10,0};CHECK(rf_cutscene_look_at(&camera,vertical)==RF_NOT_FOUND);}
+        CHECK(!memcmp(previous,camera.orientation,sizeof(previous)));
+    }
     static const struct {const char *level;uint32_t cameras,points,paths,selector;} cases[]={
         {"L6S3.rfl",15,14,2,3696},{"L11S3.rfl",11,23,0,10626},
         {"L20S2.rfl",1,1,1,18355},{"L7S1.rfl",3,4,0,5495},
@@ -21,6 +42,8 @@ int main(int argc,char **argv)
         CHECK(r.camera_count==cases[i].cameras && r.point_count==cases[i].points && r.path_count==cases[i].paths);
         CHECK(r.descriptor_count==1 && r.allocated_bytes<65536);
         d=rf_cutscene_find(&r,cases[i].selector);CHECK(d && d->point_count==cases[i].points);
+        if(i==9){CHECK(r.points[0].words[0]==9642 && r.points[4].words[0]==10669);}
+        if(i==11)CHECK(r.points[0].words[0]==18250);
         CHECK(!rf_cutscene_find(&r,UINT32_MAX));
         if(i==0) {
             float position[3];const rf_cutscene_path *path=rf_cutscene_path_find(&r,"PLEASEWORK");

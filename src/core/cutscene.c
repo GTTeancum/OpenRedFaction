@@ -223,5 +223,29 @@ int rf_cutscene_step(rf_cutscene_runtime *runtime,int32_t now,float seconds,
     if(expired){runtime->moving=0;runtime->move_deadline=-1;}
     return RF_OK;
 }
+int rf_cutscene_look_at(rf_cutscene_runtime *runtime,const float target[3])
+{
+    float forward[3],right[3],up[3],length,horizontal;
+    uint32_t i;
+    if(!runtime || !target || !runtime->active)return RF_RANGE;
+    for(i=0;i<3;i++){
+        if(!isfinite(target[i]) || !isfinite(runtime->position[i]))return RF_FORMAT;
+        forward[i]=target[i]-runtime->position[i];
+    }
+    length=sqrtf(forward[0]*forward[0]+forward[1]*forward[1]+forward[2]*forward[2]);
+    horizontal=sqrtf(forward[0]*forward[0]+forward[2]*forward[2]);
+    if(!isfinite(length) || !isfinite(horizontal))return RF_FORMAT;
+    if(length<1e-6f || horizontal<1e-6f)return RF_NOT_FOUND;
+    for(i=0;i<3;i++)forward[i]/=length;
+    right[0]=(target[2]-runtime->position[2])/horizontal;right[1]=0;
+    right[2]=-(target[0]-runtime->position[0])/horizontal;
+    up[0]=forward[1]*right[2];
+    up[1]=forward[2]*right[0]-forward[0]*right[2];
+    up[2]=-forward[1]*right[0];
+    memcpy(runtime->orientation,right,sizeof(right));
+    memcpy(runtime->orientation+3,up,sizeof(up));
+    memcpy(runtime->orientation+6,forward,sizeof(forward));
+    return RF_OK;
+}
 void rf_cutscene_cancel(rf_cutscene_runtime *runtime)
 {if(runtime)memset(runtime,0,sizeof(*runtime));}

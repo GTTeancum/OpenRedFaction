@@ -52,5 +52,8 @@ int rf_cutscene_begin(rf_cutscene_runtime *runtime,const rf_cutscene_resources *
     uint32_t selector,int32_t now,uint32_t *action_uid);
 int rf_cutscene_step(rf_cutscene_runtime *runtime,int32_t now,float seconds,
     uint32_t *action_uid,uint32_t *finished);
+/* Aim the active camera at a resolved world point. A coincident or vertical
+ * target retains the preceding orientation and returns RF_NOT_FOUND. */
+int rf_cutscene_look_at(rf_cutscene_runtime *runtime,const float target[3]);
 void rf_cutscene_cancel(rf_cutscene_runtime *runtime);
 #endif

@@ -9010,6 +9010,33 @@ static int campaign_cutscene_point_action(scene_stream *stream,uint32_t uid,int3
     }
     return RF_OK; /* Missing or unsupported point object is inert in 45b3f0. */
 }
+uint32_t rf_scene_cutscene_look[5]; /* aims, missing/degenerate, last target, orientation hash, errors */
+static void campaign_cutscene_look_at(void)
+{
+    const rf_cutscene_descriptor *d;const rf_cutscene_point *point;
+    uint32_t uid,i;float target[3];int found=0,status;
+    if(!campaign_cutscene_runtime.active)return;
+    d=campaign_cutscene_runtime.resources->descriptors+campaign_cutscene_runtime.descriptor_index;
+    point=campaign_cutscene_runtime.resources->points+d->first_point+campaign_cutscene_runtime.point_index;
+    uid=point->words[0];if(uid==UINT32_MAX)return;
+    rf_scene_cutscene_look[2]=uid;
+    for(i=0;campaign_npc_bodies && i<campaign_npc_body_count;i++)
+        if((uint32_t)campaign_seeds.records.items[i].record.uid==uid && campaign_npc_bodies[i].registration.view){
+            memcpy(target,campaign_npc_bodies[i].published,sizeof(target));
+            /* Original entity+7d8 replaces world Y, rather than adding an offset. */
+            target[1]=campaign_npc_bodies[i].eye_position[1];found=1;break;
+        }
+    if(!found)for(i=0;campaign_clutter_bodies && i<campaign_clutter_records.count;i++)
+        if(campaign_clutter_bodies[i] && campaign_clutter_bodies[i]->uid==uid){
+            memcpy(target,campaign_clutter_bodies[i]->state.position,sizeof(target));found=1;break;
+        }
+    if(!found){++rf_scene_cutscene_look[1];return;}
+    status=rf_cutscene_look_at(&campaign_cutscene_runtime,target);
+    if(status==RF_NOT_FOUND){++rf_scene_cutscene_look[1];return;}
+    if(status){++rf_scene_cutscene_look[4];return;}
+    ++rf_scene_cutscene_look[0];
+    rf_scene_cutscene_look[3]=npc_hash_bytes(2166136261u,campaign_cutscene_runtime.orientation,36);
+}
 static int campaign_cutscene_start(void *context,const rf_level_event *event,int32_t now)
 {
     scene_stream *stream=context;uint32_t action;int status;
@@ -9020,6 +9047,7 @@ static int campaign_cutscene_start(void *context,const rf_level_event *event,int
     ++rf_scene_cutscene[2];rf_scene_cutscene[3]=event->uid;rf_scene_cutscene[4]=0;rf_scene_cutscene[7]=1;
     status=campaign_cutscene_point_action(stream,action,now);
     if(status){rf_cutscene_cancel(&campaign_cutscene_runtime);rf_scene_cutscene[7]=0;++rf_scene_cutscene[9];}
+    else campaign_cutscene_look_at();
     return status;
 }
 static int campaign_cutscene_tick(scene_stream *stream,int32_t now,uint32_t frame)
@@ -9029,6 +9057,7 @@ static int campaign_cutscene_tick(scene_stream *stream,int32_t now,uint32_t fram
     status=rf_cutscene_step(&campaign_cutscene_runtime,now,scene_step_seconds,&action,&finished);
     if(status){++rf_scene_cutscene[9];return status;}
     if(action!=UINT32_MAX){status=campaign_cutscene_point_action(stream,action,now);if(status){++rf_scene_cutscene[9];return status;}}
+    campaign_cutscene_look_at();
     if(finished){const rf_cutscene_descriptor *d=rf_cutscene_find(&campaign_cutscene_resources,rf_scene_cutscene[3]);
         rf_scene_cutscene[4]=d?d->point_count:0;}
     else rf_scene_cutscene[4]=campaign_cutscene_runtime.point_index;
@@ -16903,6 +16932,7 @@ static int scene_miner(const rf_level *level,int32_t uid,const char *meshes_path
             rf_scene_campaign_load_stage=2;status=rf_runtime_events_open(level,&campaign_registry,1024*1024,&campaign_events);
             if(status)goto done;
             rf_cutscene_cancel(&campaign_cutscene_runtime);memset(rf_scene_cutscene,0,sizeof(rf_scene_cutscene));
+            memset(rf_scene_cutscene_look,0,sizeof(rf_scene_cutscene_look));
             status=rf_cutscene_resources_open(level,65536,&campaign_cutscene_resources);
             if(status==RF_NOT_FOUND)status=RF_OK;if(status)goto done;
             rf_scene_cutscene[0]=campaign_cutscene_resources.descriptor_count;
