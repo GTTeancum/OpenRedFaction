@@ -2,7 +2,7 @@
 
 Completion basis (user direction,2026-09-18): working late-alpha/early-beta code implementation. Overall approximately91%; GeoMod100% for the first playable milestone, accepted by the user. GeoMod items below are deferred refinement and coverage, not prerequisites to moving on. This does not assert retail polish, complete campaign integration or resolution of every known defect.
 
-- Campaign bolt effects: Authored arcs and Bolt_State ON/OFF now submit matching PC/Xbox draw spans; visual appearance, moving endpoints, confirmed contact behavior and save state remain (docs/CAMPAIGN-BOLT-FIRST-PASS.md).
+- Campaign bolt effects: Authored arcs and Bolt_State ON/OFF submit matching PC/Xbox draw spans; original tick evidence and level memberships support static endpoints for all authored bolts, while arc fidelity, contact behavior and save state remain (docs/CAMPAIGN-BOLT-FIRST-PASS.md).
 
 
 - PRIORITY Ordinary saves: L1S1 inactive, active cutscenes/undercover, L8S1 cross-level return and a planted remote charge with post-load detonation pass PC/Xbox; broader cross-level coverage, menu/slot selection, active destruction/vehicles, moving-host charges and resource demand remain (saves approximately94%).

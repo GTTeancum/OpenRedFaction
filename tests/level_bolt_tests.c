@@ -16,7 +16,7 @@ static int scan(const char *path,const char *archive_name,const char *level_name
 {
     char filename[1024];rf_vpp archive={0};rf_level level;rf_level_bolt_reader reader;
     rf_level_bolt bolt;rf_level_target_reader target_reader;rf_level_target target;
-    uint32_t count=0,found=0,endpoints[256],resolved[256]={0},target_count=0,i;int status;
+    uint32_t count=0,found=0,sources[256],endpoints[256],resolved[256]={0},target_count=0,i;int status;
     snprintf(filename,sizeof(filename),"%s/%s",path,archive_name);
     CHECK(rf_vpp_open(&archive,filename)==RF_OK);
     CHECK(rf_level_open(&level,&archive,level_name)==RF_OK);
@@ -26,7 +26,7 @@ static int scan(const char *path,const char *archive_name,const char *level_name
         CHECK(bolt.bytes>=108 && bolt.uid && bolt.target_uid);
         CHECK(!strcmp(bolt.name,"Bolt Emitter"));
         if(bolt.uid==selected_uid){CHECK(bolt.target_uid==selected_target);found=1;}
-        CHECK(count<256);endpoints[count]=bolt.target_uid;
+        CHECK(count<256);sources[count]=bolt.uid;endpoints[count]=bolt.target_uid;
         ++count;
     }
     CHECK(status==RF_NOT_FOUND && count==expected && found);
@@ -38,6 +38,15 @@ static int scan(const char *path,const char *archive_name,const char *level_name
     }
     CHECK(status==RF_NOT_FOUND && target_count);
     for(i=0;i<count;i++)CHECK(resolved[i]);
+    {rf_level_owned_groups groups={0};uint32_t g,l,j,attached=0;
+        CHECK(rf_level_owned_groups_open(&level,1024*1024,&groups)==RF_OK);
+        for(g=0;g<groups.count;g++)for(l=0;l<2;l++)for(j=0;j<groups.groups[g].record.ids_count[l];j++){
+            uint32_t uid=groups.groups[g].ids[l][j],k;
+            for(k=0;k<count;k++)if(endpoints[k]==uid || sources[k]==uid)++attached;
+        }
+        CHECK(attached==0);
+        rf_level_owned_groups_close(&groups);
+    }
     if(!strcmp(level_name,"L1S2.rfl")) {
         rf_object_registry registry;rf_runtime_events events={0};rf_runtime_triggers triggers={0};
         rf_runtime_event *event=NULL;rf_physics_gravity gravity={0};rf_startup_events_report report;
