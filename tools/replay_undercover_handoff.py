@@ -17,9 +17,11 @@ PLAYER = ROOT / "build/pc/Release/rf_pc_play.exe"
 
 
 def run_case(path, name, frames, level, archive, setup, exit_uid=None, return_uid=None,
-             walk_start_uid=None, walk_from=30):
+             walk_start_uid=None, walk_from=30, walk_until=None,
+             save_frame=None, load_frame=None):
     replay = path / (name + ".bin")
-    inputs = (b"".join(struct.pack("<5f7I", 0, 0, float(frame >= walk_from), 0, 0,
+    inputs = (b"".join(struct.pack("<5f7I", 0, 0,
+                                   float(frame >= walk_from and (walk_until is None or frame < walk_until)), 0, 0,
                                    0, 0, 0, 0, 0, 0, 0)
                        for frame in range(frames)) if walk_start_uid else bytes(frames * 48))
     replay.write_bytes(b"RFI6" + struct.pack("<I", 48) + inputs)
@@ -32,8 +34,13 @@ def run_case(path, name, frames, level, archive, setup, exit_uid=None, return_ui
         env["RF_REPLAY_RETURN_EXIT_UID"] = str(return_uid)
     if walk_start_uid is not None:
         env["RF_REPLAY_EXIT_START"] = str(walk_start_uid)
+    if save_frame is not None:
+        env["RF_REPLAY_QUICKSAVE_FRAME"] = str(save_frame)
+    if load_frame is not None:
+        env["RF_REPLAY_QUICKLOAD_FRAME"] = str(load_frame)
     result = subprocess.run([str(PLAYER), "--spawn-telemetry-replay", str(GAME), str(replay)],
-                            cwd=ROOT, env=env, capture_output=True, text=True, check=True)
+                            cwd=path if save_frame is not None or load_frame is not None else ROOT,
+                            env=env, capture_output=True, text=True, check=True)
     lines = result.stdout.splitlines()
     assert f"Completed {frames} frames" in result.stdout, name
     return lines
@@ -78,12 +85,23 @@ def main():
         assert one(walked, "PLAYER_FORM") == "PLAYER_FORM 1 1 0 0 0 4 0 0"
         assert one(walked, "PLAYER_AMMO") == "PLAYER_AMMO 4 125 16 0 0 0 448 0"
         assert one(walked, "PLAYER_MODEL") == "PLAYER_MODEL 2 80555 25 0"
+        restored = run_case(path, "cross-level-save-load", 280, "L8S1.rfl", "levels2.vpp",
+                            "6447", walk_start_uid=5625, walk_from=100, walk_until=150,
+                            save_frame=60, load_frame=180)
+        assert one(restored, "QUICK_SAVE") == "QUICK_SAVE frame60 status0"
+        assert one(restored, "QUICK_LOAD") == "QUICK_LOAD frame54 status0"
+        assert [line for line in restored if line.startswith("LEVEL_TRANSITION ")] == [
+            "LEVEL_TRANSITION L8S1.rfl L8S2.rfl 5625 126",
+            "LEVEL_TRANSITION L8S2.rfl L8S1.rfl 4294967293 181"]
+        assert one(restored, "PLAYER_FORM") == "PLAYER_FORM 1 1 0 0 0 4 0 0"
+        assert one(restored, "PLAYER_AMMO") == "PLAYER_AMMO 4 125 16 0 0 0 448 0"
+        assert one(restored, "PLAYER_MODEL") == "PLAYER_MODEL 2 80555 25 0"
         suit = run_case(path, "suit", 240, "L6S2.rfl", "levels1.vpp", "2195", 1782)
         assert [line for line in suit if line.startswith("LEVEL_TRANSITION ")] == [
             "LEVEL_TRANSITION L6S2.rfl L6S3.rfl 1782 180"]
         assert one(suit, "PLAYER_FORM") == "PLAYER_FORM 1 0 0 0 0 4 0 0"
         assert one(suit, "PLAYER_MODEL") == "PLAYER_MODEL 1 77931 25 0"
-    print("PASS: authored ON/OFF, natural suit removal, both forms carry, scientist walks through an exit")
+    print("PASS: authored ON/OFF, natural suit removal, both forms carry, scientist exit and cross-level save/load")
 
 
 if __name__ == "__main__":

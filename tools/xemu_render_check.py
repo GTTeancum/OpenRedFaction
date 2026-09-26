@@ -711,7 +711,14 @@ dvd_path = '{root.as_posix()}/build/xbox/redfaction-diagnostic.iso'
                     assert state[9]==1 and state[3]==0 and state[4]==int(save_match.group(1)), 'Xbox quick-save failed or size differed'
                 if args.quick_load_frame is not None:
                     loaded=re.search(r'WORLD_SNAPSHOT_LOADED bytes(\d+)',pc.stdout)
-                    assert loaded and f'QUICK_LOAD frame{args.quick_load_frame} status0' in pc.stdout, 'PC quick-load failed'
+                    # Scene-local frame numbers restart after a level exit. The
+                    # quick-action schedule and transition log use replay time.
+                    load_action=re.search(r'^QUICK_LOAD frame(\d+) status0$',pc.stdout,re.MULTILINE)
+                    load_transition=re.search(
+                        rf'^LEVEL_TRANSITION \S+ \S+ 4294967293 {args.quick_load_frame+1}$',
+                        pc.stdout,re.MULTILINE)
+                    assert loaded and load_action and load_transition, 'PC quick-load failed'
+                    report['checks']['QUICK_ACTIONS']['pc_load_scene_frame']=int(load_action.group(1))
                     assert state[8]==1 and state[0]==0 and state[1]==int(loaded.group(1)), 'Xbox quick-load failed or size differed'
             if checkpoint:
                 state=words(monitor,symbol('rf_scene_geomod_checkpoint_state'),4)
