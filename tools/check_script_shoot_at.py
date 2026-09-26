@@ -51,6 +51,24 @@ def main() -> None:
               "incidental_damage_hits", shoot[7], "all_damage_hits", combat[3])
         if shoot[3] == 0 or shoot[7] == 0 or combat[3] < shoot[7]:
             raise RuntimeError("Authored Shoot_At firing line missed the staged player")
+        off_replay = Path(temporary) / "off.bin"
+        off_replay.write_bytes(b"RFI5" + struct.pack("<I", 44) + bytes(360 * 44))
+        control_shots = None
+        for invert in (False, True):
+            env = {key: value for key, value in os.environ.items() if not key.startswith("RF_REPLAY_")}
+            env.update(RF_REPLAY_LEVEL="L15S1.rfl", RF_REPLAY_ARCHIVE="levels3.vpp",
+                       RF_REPLAY_ACTOR_UID="8278", RF_REPLAY_SETUP_UID="9489")
+            if invert:
+                env.update(RF_REPLAY_GOTO_UID="9491", RF_REPLAY_GOTO_FRAME="180")
+            run = subprocess.run((str(EXE), "--spawn-telemetry-replay", str(GAME), str(off_replay)),
+                                 cwd=ROOT, env=env, text=True, capture_output=True, check=True)
+            shoot = words(run.stdout, "SCRIPT_SHOOT_AT")
+            print("L15S1.rfl", "Invert" if invert else "control", "shots", shoot[3], "off", shoot[1])
+            if invert:
+                if shoot[0] != 1 or shoot[1] != 1 or shoot[3] == 0 or shoot[3] >= control_shots:
+                    raise RuntimeError("Authored Invert did not stop Shoot_At fire")
+            else:
+                control_shots = shoot[3]
 
 
 if __name__ == "__main__":
