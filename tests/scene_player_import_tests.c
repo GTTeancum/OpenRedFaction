@@ -7,10 +7,11 @@ static void setup(void)
     memset(&campaign_player_inventory,0,sizeof(campaign_player_inventory));
     memset(&campaign_weapon_supply,0,sizeof(campaign_weapon_supply));
     campaign_pistol_id=0;campaign_rifle_id=1;campaign_riot_id=2;campaign_shotgun_id=3;campaign_rocket_id=4;
+    campaign_grenade_id=5;campaign_sniper_id=6;campaign_rail_id=7;campaign_remote_id=8;campaign_detonator_id=9;campaign_flame_id=10;
     campaign_inventory_ready=campaign_item_pending_count=campaign_import_pending=campaign_import_applied=campaign_explicit_unarmed=campaign_export_valid=0;
     rf_scene_dev_room_enabled=1;rf_scene_water_test_enabled=0;strcpy(campaign_current_level,"glass_house.rfl");
-    rf_scene_weapon_supply[3]=0x12345678;campaign_weapon_supply.names.count=5;
-    for(i=0;i<5;i++){
+    rf_scene_weapon_supply[3]=0x12345678;campaign_weapon_supply.names.count=11;
+    for(i=0;i<11;i++){
         campaign_weapon_supply.definitions[i]=(rf_weapon_acquire_definition){(int32_t)i,100,10};
         memset(campaign_primary+i,0,sizeof(campaign_primary[i]));campaign_primary[i].magazine=10;
     }
@@ -39,14 +40,17 @@ int main(void)
     campaign_ammo_publish();CHECK(campaign_explicit_unarmed&&rf_scene_player_ammo[0]==UINT32_MAX&&!rf_scene_player_ammo[2]);
     CHECK(!scene_player_weapon_draw(&stream,0)&&stream.player_slot==UINT32_MAX&&!rf_scene_player_weapon[2]);
     campaign_player_export_capture();CHECK(!rf_scene_campaign_player_get(&out)&&same(&v,&out));
-    CHECK(campaign_cycle_primary()&&!campaign_explicit_unarmed);campaign_ammo_publish();CHECK(rf_scene_player_ammo[0]==1);
+    CHECK(campaign_cycle_primary(1)&&!campaign_explicit_unarmed);campaign_ammo_publish();CHECK(rf_scene_player_ammo[0]==1);
     /* Unarmed with only the placeholder-slot handgun must also cycle into it. */
     setup();v=state();memset(&v.inventory,0,sizeof(v.inventory));v.inventory.owned[0]=1;v.weapon=UINT32_MAX;
-    CHECK(!rf_scene_campaign_player_set(&v)&&!campaign_player_import_apply());CHECK(campaign_cycle_primary()&&!campaign_explicit_unarmed&&campaign_equipped_slot==0);CHECK(!campaign_cycle_primary());
-    setup();v=state();memset(&v.inventory,0,sizeof(v.inventory));v.weapon=UINT32_MAX;CHECK(!rf_scene_campaign_player_set(&v)&&!campaign_player_import_apply());CHECK(!campaign_cycle_primary()&&campaign_explicit_unarmed);
+    CHECK(!rf_scene_campaign_player_set(&v)&&!campaign_player_import_apply());CHECK(campaign_cycle_primary(1)&&!campaign_explicit_unarmed&&campaign_equipped_slot==0);CHECK(!campaign_cycle_primary(2));
+    setup();v=state();memset(&v.inventory,0,sizeof(v.inventory));v.weapon=UINT32_MAX;CHECK(!rf_scene_campaign_player_set(&v)&&!campaign_player_import_apply());CHECK(!campaign_cycle_primary(1)&&campaign_explicit_unarmed);
+    setup();v=state();CHECK(!rf_scene_campaign_player_set(&v)&&!campaign_player_import_apply());
+    CHECK(campaign_cycle_primary(2)&&campaign_equipped_slot==3);
+    CHECK(campaign_cycle_primary(1)&&campaign_equipped_slot==4);
     /* Unsupported selected weapon and mismatching catalogs preserve live state. */
     setup();v=state();CHECK(!rf_scene_campaign_player_set(&v)&&!campaign_player_import_apply());campaign_player_export_capture();CHECK(!rf_scene_campaign_player_get(&before));
-    v.weapon=5;v.inventory.owned[5]=1;CHECK(!rf_scene_campaign_player_set(&v));CHECK(campaign_player_import_apply()==RF_FORMAT&&campaign_import_pending);
+    v.weapon=17;v.inventory.owned[17]=1;CHECK(!rf_scene_campaign_player_set(&v));CHECK(campaign_player_import_apply()==RF_FORMAT&&campaign_import_pending);
     campaign_player_export_capture();CHECK(!rf_scene_campaign_player_get(&out)&&same(&before,&out));
     v=state();v.catalog_hash^=1;CHECK(!rf_scene_campaign_player_set(&v));CHECK(campaign_player_import_apply()==RF_FORMAT);campaign_player_export_capture();CHECK(!rf_scene_campaign_player_get(&out)&&same(&before,&out));
     setup();rf_scene_dev_room_enabled=0;v=state();CHECK(!rf_scene_campaign_player_set(&v));CHECK(campaign_player_import_apply()==RF_FORMAT); /* Rocket assets not loaded outside DEV. */

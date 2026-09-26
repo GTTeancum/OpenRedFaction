@@ -22,7 +22,7 @@ save/fire/load/fire passes with matched state, and compiled Xbox chord/edge chec
 pass. Physical controller operation has not been rechecked for these new chords.
 
 Controls: left stick moves, right stick looks, B holds crouch, A jumps, X uses,
-RT fires, LT holds Riot Stick alternate fire, Y reloads, D-pad Right cycles owned supported weapons, and Back+Start ends
+RT fires, LT holds Riot Stick alternate fire, Y reloads, D-pad Right or Right Shoulder cycles forward through owned supported weapons, D-pad Left or Left Shoulder cycles backward, and Back+Start ends
 the session. Sticks use an 18% radial deadzone with a unit-length diagonal cap;
 disconnect produces neutral input and polling can reconnect a controller.
 Look currently uses one radian/second at full input. Simulation remains fixed
@@ -30,8 +30,8 @@ at 1/60 second per simulation tick; interactive sessions now use shared pacing. 
 is a first-pass hitscan combat loop and partial campaign scripting; the full
 campaign, enemy combat, gun presentation and weapon inventory remain unfinished.
 
-PC campaign controls add F to fire, G for Riot Stick alternate fire, R to reload and Tab to cycle weapons
-(or RT/Y/D-pad Right/Right Bumper with XInput). A held cycle button switches only once.
+PC campaign controls add F to fire, G for Riot Stick alternate fire, R to reload, Tab to cycle weapons forward and Q to cycle backward
+(or RT/Y/D-pad/shoulders with XInput). A held cycle button switches only once; release it before another switch.
 Launch `rf_pc_play --campaign Installed_Game` for the campaign profile. The
 pistol starts with16 loaded/125 reserve as first-pass policy. Authored assault
 rifle pickups grant ownership and ammunition; primary rifle fire uses three-shot

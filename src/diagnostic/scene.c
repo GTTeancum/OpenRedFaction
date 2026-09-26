@@ -395,7 +395,7 @@ static int player_begin_frame(void *context,uint32_t frame)
     status=player_poll(player_context,frame,&value);if(status)return status;
     for(i=0;i<3;++i)if(!isfinite(value.move[i]) || fabsf(value.move[i])>1)return RF_FORMAT;
     for(i=0;i<2;++i)if(!isfinite(value.look[i]) || fabsf(value.look[i])>1)return RF_FORMAT;
-    if(value.crouch>1 || value.jump>1 || value.use>1 || value.fire>1 || value.reload>1 || value.cycle_weapon>1 || value.alt_fire>1)return RF_FORMAT;
+    if(value.crouch>1 || value.jump>1 || value.use>1 || value.fire>1 || value.reload>1 || value.cycle_weapon>2 || value.alt_fire>1)return RF_FORMAT;
     if(campaign_endgame.phase){
         uint32_t pressed=value.use && !campaign_endgame.use_held;
         campaign_endgame.use_held=!!value.use;
@@ -13458,11 +13458,12 @@ static void campaign_player_export_capture(void)
     scene_machine_carry_export();
     scene_undercover_carry_export();
 }
-static uint32_t campaign_cycle_primary(void)
+static uint32_t campaign_cycle_primary(uint32_t direction)
 {
-    uint32_t step;
-    for(step=1;step<=scene_weapon_slots();step++){
-        uint32_t candidate=(campaign_equipped_slot+step)%scene_weapon_slots();int32_t id=campaign_slot_weapon(candidate);
+    uint32_t step,count=scene_weapon_slots();
+    if(direction!=1 && direction!=2)return 0;
+    for(step=1;step<=count;step++){
+        uint32_t candidate=(campaign_equipped_slot+(direction==2?count-step:step))%count;int32_t id=campaign_slot_weapon(candidate);
         if(scene_weapon_available(candidate) && campaign_player_inventory.owned[id] && (candidate!=campaign_equipped_slot || campaign_explicit_unarmed)){
             campaign_select_primary(candidate);return 1;
         }
@@ -13624,7 +13625,7 @@ static int campaign_combat_tick(scene_stream *stream,uint32_t frame,const float 
     status=campaign_weapon_drops_tick(stream,position);rf_scene_weapon_drops[7]=(uint32_t)status;if(status)return status;
     status=campaign_pickups_tick(stream,position);rf_scene_pickups[7]=(uint32_t)status;if(status){printf("PICKUP_ERROR %u %d\n",frame,status);return status;}
     if(player_input.cycle_weapon && !weapon_cycle_held && campaign_player_damage.state.effects.health>0) {
-        if(campaign_cycle_primary()) {
+        if(campaign_cycle_primary(player_input.cycle_weapon)) {
             memset(&combat_trigger,0,sizeof(combat_trigger));combat_trigger.held=!!player_input.fire;
             rf_scene_combat[6]=0;++rf_scene_weapon_selection[1];campaign_ammo_publish();
         }

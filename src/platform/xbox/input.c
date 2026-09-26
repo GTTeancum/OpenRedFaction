@@ -54,7 +54,11 @@ int rf_xbox_input_poll(void *context,uint32_t frame,rf_scene_input *input)
     input->look[0]=-vertical;input->look[1]=horizontal;
     input->fire=SDL_GameControllerGetAxis(controller,SDL_CONTROLLER_AXIS_TRIGGERRIGHT)>3855;
     input->alt_fire=SDL_GameControllerGetAxis(controller,SDL_CONTROLLER_AXIS_TRIGGERLEFT)>3855;
-    input->cycle_weapon=SDL_GameControllerGetButton(controller,SDL_CONTROLLER_BUTTON_DPAD_RIGHT)!=0;
+    {uint32_t forward=SDL_GameControllerGetButton(controller,SDL_CONTROLLER_BUTTON_DPAD_RIGHT) ||
+            SDL_GameControllerGetButton(controller,SDL_CONTROLLER_BUTTON_RIGHTSHOULDER);
+     uint32_t backward=SDL_GameControllerGetButton(controller,SDL_CONTROLLER_BUTTON_DPAD_LEFT) ||
+            SDL_GameControllerGetButton(controller,SDL_CONTROLLER_BUTTON_LEFTSHOULDER);
+     input->cycle_weapon=forward==backward?0:forward?1:2;}
     input->reload=SDL_GameControllerGetButton(controller,SDL_CONTROLLER_BUTTON_Y)!=0;
     input->jump=SDL_GameControllerGetButton(controller,SDL_CONTROLLER_BUTTON_A)!=0;
     input->use=SDL_GameControllerGetButton(controller,SDL_CONTROLLER_BUTTON_X)!=0;

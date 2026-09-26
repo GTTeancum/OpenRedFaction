@@ -155,7 +155,9 @@ static int controller_input(rf_scene_input *out,uint32_t *save,uint32_t *load)
         out->fire|=state.Gamepad.bRightTrigger>30;
         out->alt_fire|=state.Gamepad.bLeftTrigger>30;
         out->reload|=(state.Gamepad.wButtons&XINPUT_GAMEPAD_Y)!=0;
-        out->cycle_weapon|=(state.Gamepad.wButtons&(XINPUT_GAMEPAD_DPAD_RIGHT|XINPUT_GAMEPAD_RIGHT_SHOULDER))!=0;
+        {uint32_t forward=!!(state.Gamepad.wButtons&(XINPUT_GAMEPAD_DPAD_RIGHT|XINPUT_GAMEPAD_RIGHT_SHOULDER));
+         uint32_t backward=!!(state.Gamepad.wButtons&(XINPUT_GAMEPAD_DPAD_LEFT|XINPUT_GAMEPAD_LEFT_SHOULDER));
+         if(forward || backward)out->cycle_weapon=forward==backward?0:forward?1:2;}
         out->jump|=(state.Gamepad.wButtons&XINPUT_GAMEPAD_A)!=0;
         out->use|=(state.Gamepad.wButtons&XINPUT_GAMEPAD_X)!=0;
         out->crouch|=(state.Gamepad.wButtons&XINPUT_GAMEPAD_B)!=0;
@@ -270,7 +272,7 @@ static int input(void *context,uint32_t frame,rf_scene_input *out)
     if(out->move[0] && out->move[2]) {out->move[0]*=.7071067811865475f;out->move[2]*=.7071067811865475f;}
     out->look[0]=(float)p->keys[VK_UP]-(float)p->keys[VK_DOWN];
     out->look[1]=(float)p->keys[VK_RIGHT]-(float)p->keys[VK_LEFT];
-    out->cycle_weapon=p->keys[VK_TAB];out->fire=p->keys['F'];out->alt_fire=p->keys['G'];out->reload=p->keys['R'];out->use=p->keys['E'];out->jump=p->keys[VK_SPACE];out->crouch=p->keys[VK_CONTROL];
+    out->cycle_weapon=p->keys[VK_TAB] && p->keys['Q']?0:p->keys[VK_TAB]?1:p->keys['Q']?2:0;out->fire=p->keys['F'];out->alt_fire=p->keys['G'];out->reload=p->keys['R'];out->use=p->keys['E'];out->jump=p->keys[VK_SPACE];out->crouch=p->keys[VK_CONTROL];
     save=p->focused&&p->keys[VK_F5];load=p->focused&&p->keys[VK_F9];status=p->focused?controller_input(out,&save,&load):RF_OK;
     rf_scene_save_button(save&&!load);rf_scene_load_button(load);return status;
 }
